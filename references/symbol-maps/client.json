@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "binary": "client",
+  "input_path": "references/original-assets/client.x86",
+  "generated_at": "2024-05-01T00:00:00Z",
+  "normalization": {
+    "alias_source": "references/analysis/quakelive_symbol_aliases.json",
+    "unresolved_prefix": "UNRESOLVED_CLIENT"
+  },
+  "functions": [
+    {
+      "address": "0x00401230",
+      "raw_name": "sub_401230",
+      "normalized_name": "CL_Frame",
+      "status": "matched",
+      "signature": "void CL_Frame(int msec)",
+      "string_refs": ["0x0065A210", "0x0065A234"],
+      "relocation_refs": ["0x000F102C"],
+      "comment": "Main client frame pump handling prediction and view updates"
+    },
+    {
+      "address": "0x00408F10",
+      "raw_name": "sub_408F10",
+      "normalized_name": "CL_Init",
+      "status": "matched",
+      "signature": "void CL_Init(void)",
+      "string_refs": ["0x0065B110"],
+      "relocation_refs": ["0x000F2018"],
+      "comment": "Startup sequence for client game side"
+    },
+    {
+      "address": "0x00445AB0",
+      "raw_name": "sub_445AB0",
+      "normalized_name": "UNRESOLVED_CLIENT_func_00445AB0",
+      "status": "unresolved",
+      "signature": null,
+      "string_refs": ["0x0068C5D0"],
+      "relocation_refs": [],
+      "comment": "Large render system helper still pending naming"
+    },
+    {
+      "address": "0x004912F0",
+      "raw_name": "Com_Printf",
+      "normalized_name": "Com_Printf",
+      "status": "matched",
+      "signature": "void Com_Printf(const char *fmt, ...)",
+      "string_refs": ["0x0067D210"],
+      "relocation_refs": ["0x000F30AC"],
+      "comment": "Shared print utility"
+    },
+    {
+      "address": "0x004A1270",
+      "raw_name": "FS_ReadFile",
+      "normalized_name": "FS_ReadFile",
+      "status": "matched",
+      "signature": "int FS_ReadFile(const char *qpath, void **buffer)",
+      "string_refs": ["0x0067E010"],
+      "relocation_refs": ["0x000F40B0"],
+      "comment": "File system read"
+    }
+  ],
+  "strings": [
+    {
+      "address": "0x0065A210",
+      "value": "CL_Frame: %d msec",
+      "xref_functions": ["0x00401230"],
+      "normalized_label": "str_cl_frame_fmt",
+      "status": "matched"
+    },
+    {
+      "address": "0x0065A234",
+      "value": "client: prediction error %f",
+      "xref_functions": ["0x00401230"],
+      "normalized_label": "str_prediction_error",
+      "status": "matched"
+    },
+    {
+      "address": "0x0065B110",
+      "value": "----- Client Initialization -----",
+      "xref_functions": ["0x00408F10"],
+      "normalized_label": "str_client_init_banner",
+      "status": "matched"
+    },
+    {
+      "address": "0x0067D210",
+      "value": "%s\n",
+      "xref_functions": ["0x004912F0"],
+      "normalized_label": "str_generic_newline",
+      "status": "matched"
+    },
+    {
+      "address": "0x0068C5D0",
+      "value": "render backend missing implementation",
+      "xref_functions": ["0x00445AB0"],
+      "normalized_label": "UNRESOLVED_CLIENT_str_0068C5D0",
+      "status": "unresolved"
+    }
+  ],
+  "relocations": [
+    {
+      "offset": "0x000F102C",
+      "type": "R_386_PC32",
+      "symbol": "cls.realtime"
+    },
+    {
+      "offset": "0x000F2018",
+      "type": "R_386_PC32",
+      "symbol": "cl_connectedToPureServer"
+    },
+    {
+      "offset": "0x000F30AC",
+      "type": "R_386_JMP_SLOT",
+      "symbol": "Com_Printf"
+    },
+    {
+      "offset": "0x000F40B0",
+      "type": "R_386_JMP_SLOT",
+      "symbol": "FS_ReadFile"
+    }
+  ],
+  "stats": {
+    "function_total": 5,
+    "function_matched": 4,
+    "string_total": 5,
+    "string_resolved": 4,
+    "relocation_total": 4
+  }
+}
