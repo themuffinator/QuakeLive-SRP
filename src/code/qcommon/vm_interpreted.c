@@ -517,7 +517,7 @@ nextInstruction2:
 #endif
 				*(int *)&image[ programStack + 4 ] = -1 - programCounter;
 
-//VM_LogSyscalls( (int *)&image[ programStack + 4 ] );
+				SyscallContract_LogEvent( "vm-interpreted", vm->name, (int *)&image[ programStack + 4 ], SYSCALL_CONTRACT_MAX_ARGS );
 				r = vm->systemCall( (int *)&image[ programStack + 4 ] );
 
 #ifdef DEBUG_VM

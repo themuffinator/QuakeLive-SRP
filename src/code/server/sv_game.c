@@ -315,6 +315,7 @@ The module is making a system call
 #define	VMF(x)	((float *)args)[x]
 
 int SV_GameSystemCalls( int *args ) {
+	SyscallContract_LogEvent( "shim-game", "qagame", args, SYSCALL_CONTRACT_MAX_ARGS );
 	switch( args[0] ) {
 	case G_PRINT:
 		Com_Printf( "%s", VMA(1) );

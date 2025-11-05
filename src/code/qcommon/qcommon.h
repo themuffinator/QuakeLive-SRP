@@ -28,6 +28,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 //#define	PRE_RELEASE_DEMO
 
+#define SYSCALL_CONTRACT_MAX_ARGS      16
+
+void	SyscallContract_ResetLog( void );
+void	SyscallContract_Shutdown( void );
+void	SyscallContract_LogEvent( const char *origin, const char *module, const int *stack, int count );
+
 //============================================================================
 
 //

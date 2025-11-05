@@ -325,22 +325,33 @@ Dlls will call this directly
 ============
 */
 int QDECL VM_DllSyscall( int arg, ... ) {
+  const char *module = currentVM ? currentVM->name : "unknown";
 #if ((defined __linux__) && (defined __powerpc__))
   // rcg010206 - see commentary above
-  int args[16];
+  int args[SYSCALL_CONTRACT_MAX_ARGS];
   int i;
   va_list ap;
-  
+
   args[0] = arg;
-  
+
   va_start(ap, arg);
-  for (i = 1; i < sizeof (args) / sizeof (args[i]); i++)
+  for (i = 1; i < SYSCALL_CONTRACT_MAX_ARGS; i++) {
     args[i] = va_arg(ap, int);
+  }
   va_end(ap);
-  
+
+  SyscallContract_LogEvent( "vm-dll", module, args, SYSCALL_CONTRACT_MAX_ARGS );
   return currentVM->systemCall( args );
 #else // original id code
-	return currentVM->systemCall( &arg );
+  int captured[SYSCALL_CONTRACT_MAX_ARGS];
+  int index;
+  const int *stack = &arg;
+
+  for ( index = 0 ; index < SYSCALL_CONTRACT_MAX_ARGS ; index++ ) {
+    captured[index] = stack[index];
+  }
+  SyscallContract_LogEvent( "vm-dll", module, captured, SYSCALL_CONTRACT_MAX_ARGS );
+  return currentVM->systemCall( &arg );
 #endif
 }
 
