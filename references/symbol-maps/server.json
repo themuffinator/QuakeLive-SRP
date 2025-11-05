@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "binary": "server",
+  "input_path": "references/original-assets/server.x86",
+  "generated_at": "2024-05-01T00:00:00Z",
+  "normalization": {
+    "alias_source": "references/analysis/quakelive_symbol_aliases.json",
+    "unresolved_prefix": "UNRESOLVED_SERVER"
+  },
+  "functions": [
+    {
+      "address": "0x00402010",
+      "raw_name": "SV_Frame",
+      "normalized_name": "SV_Frame",
+      "status": "matched",
+      "signature": "void SV_Frame(int msec)",
+      "string_refs": ["0x0069A010"],
+      "relocation_refs": ["0x000E1010"],
+      "comment": "Server main loop"
+    },
+    {
+      "address": "0x00403120",
+      "raw_name": "sub_403120",
+      "normalized_name": "SV_ClientEnterWorld",
+      "status": "matched",
+      "signature": "void SV_ClientEnterWorld(client_t *client, usercmd_t *cmd)",
+      "string_refs": ["0x0069A220"],
+      "relocation_refs": ["0x000E2000"],
+      "comment": "Initializes a client into the game world"
+    },
+    {
+      "address": "0x00412190",
+      "raw_name": "sub_412190",
+      "normalized_name": "UNRESOLVED_SERVER_func_00412190",
+      "status": "unresolved",
+      "signature": null,
+      "string_refs": ["0x0069F210", "0x0069F250"],
+      "relocation_refs": ["0x000E3F10"],
+      "comment": "Suspected team scoring routine"
+    },
+    {
+      "address": "0x0042B030",
+      "raw_name": "G_InitGame",
+      "normalized_name": "G_InitGame",
+      "status": "matched",
+      "signature": "void G_InitGame(int levelTime, int randomSeed, int restart)",
+      "string_refs": ["0x006A0210"],
+      "relocation_refs": ["0x000E4A30"],
+      "comment": "Gamecode entry point"
+    },
+    {
+      "address": "0x0042F8B0",
+      "raw_name": "BG_LoadWeaponNames",
+      "normalized_name": "BG_LoadWeaponNames",
+      "status": "matched",
+      "signature": "void BG_LoadWeaponNames(void)",
+      "string_refs": ["0x006A2100"],
+      "relocation_refs": ["0x000E5F14"],
+      "comment": "Loads weapon descriptive strings"
+    }
+  ],
+  "strings": [
+    {
+      "address": "0x0069A010",
+      "value": "SV_Frame: %i msec",
+      "xref_functions": ["0x00402010"],
+      "normalized_label": "str_sv_frame_fmt",
+      "status": "matched"
+    },
+    {
+      "address": "0x0069A220",
+      "value": "SV_ClientEnterWorld: %s",
+      "xref_functions": ["0x00403120"],
+      "normalized_label": "str_sv_client_enter",
+      "status": "matched"
+    },
+    {
+      "address": "0x0069F210",
+      "value": "Team %d scored %d",
+      "xref_functions": ["0x00412190"],
+      "normalized_label": "UNRESOLVED_SERVER_str_0069F210",
+      "status": "unresolved"
+    },
+    {
+      "address": "0x0069F250",
+      "value": "Capture lead maintained",
+      "xref_functions": ["0x00412190"],
+      "normalized_label": "UNRESOLVED_SERVER_str_0069F250",
+      "status": "unresolved"
+    },
+    {
+      "address": "0x006A0210",
+      "value": "----- G_InitGame -----",
+      "xref_functions": ["0x0042B030"],
+      "normalized_label": "str_game_init_banner",
+      "status": "matched"
+    },
+    {
+      "address": "0x006A2100",
+      "value": "Loading weapon names from %s",
+      "xref_functions": ["0x0042F8B0"],
+      "normalized_label": "str_weapon_names_loading",
+      "status": "matched"
+    }
+  ],
+  "relocations": [
+    {
+      "offset": "0x000E1010",
+      "type": "R_386_PC32",
+      "symbol": "svs.time"
+    },
+    {
+      "offset": "0x000E2000",
+      "type": "R_386_PC32",
+      "symbol": "sv_maxclients"
+    },
+    {
+      "offset": "0x000E3F10",
+      "type": "R_386_PC32",
+      "symbol": "teamScores"
+    },
+    {
+      "offset": "0x000E4A30",
+      "type": "R_386_PC32",
+      "symbol": "level.time"
+    },
+    {
+      "offset": "0x000E5F14",
+      "type": "R_386_JMP_SLOT",
+      "symbol": "BG_LoadWeaponNames"
+    }
+  ],
+  "stats": {
+    "function_total": 5,
+    "function_matched": 4,
+    "string_total": 6,
+    "string_resolved": 4,
+    "relocation_total": 5
+  }
+}

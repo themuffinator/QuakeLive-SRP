@@ -1,0 +1,20 @@
+{
+  "client": {
+    "sub_401230": "CL_Frame",
+    "sub_408F10": "CL_Init",
+    "Com_Printf": "Com_Printf",
+    "FS_ReadFile": "FS_ReadFile"
+  },
+  "server": {
+    "SV_Frame": "SV_Frame",
+    "sub_403120": "SV_ClientEnterWorld",
+    "G_InitGame": "G_InitGame",
+    "BG_LoadWeaponNames": "BG_LoadWeaponNames"
+  },
+  "ui": {
+    "UI_Init": "UI_Init",
+    "sub_301840": "UI_DrawConnectScreen",
+    "UI_OpenMenu": "UI_OpenMenu",
+    "Menuframework_Draw": "Menuframework_Draw"
+  }
+}

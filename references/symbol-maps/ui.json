@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "binary": "ui",
+  "input_path": "references/original-assets/ui.x86",
+  "generated_at": "2024-05-01T00:00:00Z",
+  "normalization": {
+    "alias_source": "references/analysis/quakelive_symbol_aliases.json",
+    "unresolved_prefix": "UNRESOLVED_UI"
+  },
+  "functions": [
+    {
+      "address": "0x00301020",
+      "raw_name": "UI_Init",
+      "normalized_name": "UI_Init",
+      "status": "matched",
+      "signature": "void UI_Init(void)",
+      "string_refs": ["0x0058A010"],
+      "relocation_refs": ["0x000C1010"],
+      "comment": "Initializes Quake Live menu system"
+    },
+    {
+      "address": "0x00301840",
+      "raw_name": "sub_301840",
+      "normalized_name": "UI_DrawConnectScreen",
+      "status": "matched",
+      "signature": "void UI_DrawConnectScreen(qboolean overlay)",
+      "string_refs": ["0x0058A220", "0x0058A240"],
+      "relocation_refs": ["0x000C2020"],
+      "comment": "Draws the loading/connect status"
+    },
+    {
+      "address": "0x0030F8A0",
+      "raw_name": "sub_30F8A0",
+      "normalized_name": "UNRESOLVED_UI_func_0030F8A0",
+      "status": "unresolved",
+      "signature": null,
+      "string_refs": ["0x0058F200"],
+      "relocation_refs": [],
+      "comment": "Unknown UI dispatcher referenced by new challenges"
+    },
+    {
+      "address": "0x00311AB0",
+      "raw_name": "UI_OpenMenu",
+      "normalized_name": "UI_OpenMenu",
+      "status": "matched",
+      "signature": "void UI_OpenMenu(const char *menuName)",
+      "string_refs": ["0x0058B010"],
+      "relocation_refs": ["0x000C3030"],
+      "comment": "Entry point for scripted menus"
+    },
+    {
+      "address": "0x00312FD0",
+      "raw_name": "Menuframework_Draw",
+      "normalized_name": "Menuframework_Draw",
+      "status": "matched",
+      "signature": "void Menuframework_Draw(menuDef_t *menu)",
+      "string_refs": ["0x0058B420"],
+      "relocation_refs": ["0x000C4040"],
+      "comment": "Generic menu renderer"
+    }
+  ],
+  "strings": [
+    {
+      "address": "0x0058A010",
+      "value": "----- UI_Init -----",
+      "xref_functions": ["0x00301020"],
+      "normalized_label": "str_ui_init_banner",
+      "status": "matched"
+    },
+    {
+      "address": "0x0058A220",
+      "value": "Awaiting connection...",
+      "xref_functions": ["0x00301840"],
+      "normalized_label": "str_awaiting_connection",
+      "status": "matched"
+    },
+    {
+      "address": "0x0058A240",
+      "value": "Press ESC to abort",
+      "xref_functions": ["0x00301840"],
+      "normalized_label": "str_press_esc_abort",
+      "status": "matched"
+    },
+    {
+      "address": "0x0058B010",
+      "value": "menu: %s",
+      "xref_functions": ["0x00311AB0"],
+      "normalized_label": "str_menu_fmt",
+      "status": "matched"
+    },
+    {
+      "address": "0x0058F200",
+      "value": "challenge hub update pending",
+      "xref_functions": ["0x0030F8A0"],
+      "normalized_label": "UNRESOLVED_UI_str_0058F200",
+      "status": "unresolved"
+    }
+  ],
+  "relocations": [
+    {
+      "offset": "0x000C1010",
+      "type": "R_386_PC32",
+      "symbol": "uiInfo.uiDC.draw"
+    },
+    {
+      "offset": "0x000C2020",
+      "type": "R_386_PC32",
+      "symbol": "trap_R_SetColor"
+    },
+    {
+      "offset": "0x000C3030",
+      "type": "R_386_PC32",
+      "symbol": "trap_Key_SetCatcher"
+    },
+    {
+      "offset": "0x000C4040",
+      "type": "R_386_PC32",
+      "symbol": "Menu_PostParse"
+    }
+  ],
+  "stats": {
+    "function_total": 5,
+    "function_matched": 4,
+    "string_total": 5,
+    "string_resolved": 4,
+    "relocation_total": 4
+  }
+}
