@@ -2,7 +2,7 @@
 
 ## Starting Ammo Controls
 
-The server now registers the full Quake Live `g_startingAmmo_*` family so per-weapon spawn loadouts can be tuned without touching code. Each cvar exposes the amount of ammunition players receive when a weapon is granted through `g_startingWeapons`, factories, or scripted loadouts. The defaults mirror the retail Quake Live DLL and fall back to classic Quake III values when a loadout is not supplied.
+The server now registers the full Quake Live `g_startingAmmo_*` family so per-weapon spawn loadouts can be tuned without touching code. Each cvar exposes the amount of ammunition players receive when a weapon is granted through `g_startingWeapons`, factories, or scripted loadouts. The defaults mirror the retail Quake Live DLL and fall back to classic Quake III values when a loadout is not supplied. All entries are archived, so server configs retain the values across restarts once tuned.
 
 | CVar | Default | Notes |
 | --- | --- | --- |
@@ -25,4 +25,5 @@ The server now registers the full Quake Live `g_startingAmmo_*` family so per-we
 
 * Use `cvarlist helptext_*` after the VM loads to confirm each help string registered with the expected description.
 * Tweak a selection of cvars (for example `g_startingAmmo_rl` and `g_startingAmmo_pg`) and restart the map to confirm the new values drive the spawn stack.
+* Persist a modified value (e.g. `seta g_startingAmmo_rl 25`) and restart the server to ensure the archived setting survives a relaunch.
 * Ensure gauntlet and grapple defaults remain infinite (`-1`) after a `cvar_restart`.
