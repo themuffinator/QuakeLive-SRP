@@ -43,13 +43,13 @@ The `platform_config.h` macros turn the `QL_BUILD_*` definitions into capability
 
 ### Validation Session Logs
 
-Execute the scripted lifecycle trace to capture reference logs:
+Execute the scripted lifecycle trace to capture reference logs for all providers and to reproduce the hybrid fallback path:
 
 ```bash
 python3 tools/integration/auth_flow_trace.py
 ```
 
-Sample output for the hybrid fallback scenario:
+Sample output for the hybrid fallback scenario captured during the validation session:
 
 ```text
 -- Scenario 2: Hybrid --
@@ -58,7 +58,7 @@ Sample output for the hybrid fallback scenario:
 [auth] Hybrid result -> outcome=success, message="Hybrid fallback accepted credential via open adapter (token=retry:T…FFFF)"
 ```
 
-The script mirrors the dispatcher logging by chaining the hybrid Steam and open-adapter handlers, demonstrating the fallback path described above.【14b840†L1-L19】【F:tools/integration/auth_flow_trace.py†L48-L98】
+The script mirrors the dispatcher logging by chaining the hybrid Steam and open-adapter handlers, demonstrating the fallback path described above.【fd3ec7†L1-L20】【F:tools/integration/auth_flow_trace.py†L48-L98】
 
 ## Summary of Findings
 
