@@ -962,7 +962,21 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	// don't do the "xxx connected" messages if they were caried over from previous level
 	if ( firstTime ) {
-		trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " connected\n\"", client->pers.netname) );
+		if ( level.time > 5000 ) {
+			trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " connected\n\"", client->pers.netname) );
+		}
+		// TODO: investigate whether Quake Live's native code sends an additional "priv" handshake
+		// message here (sub_1003af1b). The HLIL dump suggests the engine verifies private-client
+		// access immediately after the bot/auth checks.
+	}
+
+	if ( !isBot ) {
+		const char *steamId = Info_ValueForKey( userinfo, "steamid" );
+		if ( steamId && steamId[0] ) {
+			trap_Printf( va( "%s connected with Steam ID %s\n", client->pers.netname, steamId ) );
+		}
+		// TODO: Validate external authentication tokens. The Quake Live binary calls into
+		// sub_1003aec9 to reject invalid Steam tickets.
 	}
 
 	if ( g_gametype.integer >= GT_TEAM &&
@@ -977,6 +991,10 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 //	client->areabits = areabits;
 //	if ( !client->areabits )
 //		client->areabits = G_Alloc( (trap_AAS_PointReachabilityAreaIndex( NULL ) + 7) / 8 );
+
+	if ( !firstTime && client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		client->ps.eFlags |= EF_TELEPORT_BIT;
+	}
 
 	return NULL;
 }
