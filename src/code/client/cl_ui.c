@@ -774,6 +774,7 @@ The ui module is making a system call
 ====================
 */
 int CL_UISystemCalls( int *args ) {
+	SyscallContract_LogEvent( "shim-ui", "ui", args, SYSCALL_CONTRACT_MAX_ARGS );
 	switch( args[0] ) {
 	case UI_ERROR:
 		Com_Error( ERR_DROP, "%s", VMA(1) );

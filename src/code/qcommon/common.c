@@ -61,6 +61,11 @@ static fileHandle_t logfile;
 fileHandle_t	com_journalFile;			// events are written here
 fileHandle_t	com_journalDataFile;		// config files are written here
 
+#define SYSCALL_CONTRACT_LOG_PATH      "logs/syscall_contract.log"
+static fileHandle_t syscallContractLogHandle = 0;
+static qboolean syscallContractLogInitialized = qfalse;
+static qboolean syscallContractLogWarned = qfalse;
+
 cvar_t	*com_viewlog;
 cvar_t	*com_speeds;
 cvar_t	*com_developer;
@@ -129,6 +134,81 @@ void Com_EndRedirect (void)
 	rd_buffer = NULL;
 	rd_buffersize = 0;
 	rd_flush = NULL;
+}
+
+static void SyscallContract_OpenLog( void ) {
+	if ( syscallContractLogHandle ) {
+		return;
+	}
+
+	if ( !syscallContractLogInitialized ) {
+		syscallContractLogHandle = FS_FOpenFileWrite( SYSCALL_CONTRACT_LOG_PATH );
+		syscallContractLogInitialized = qtrue;
+	} else {
+		syscallContractLogHandle = FS_FOpenFileAppend( SYSCALL_CONTRACT_LOG_PATH );
+	}
+
+	if ( !syscallContractLogHandle && !syscallContractLogWarned ) {
+		syscallContractLogWarned = qtrue;
+		Com_Printf( "WARNING: unable to open %s for syscall contract logging\n", SYSCALL_CONTRACT_LOG_PATH );
+	}
+}
+
+void SyscallContract_ResetLog( void ) {
+	if ( syscallContractLogHandle ) {
+		FS_FCloseFile( syscallContractLogHandle );
+		syscallContractLogHandle = 0;
+	}
+	syscallContractLogInitialized = qfalse;
+	syscallContractLogWarned = qfalse;
+	SyscallContract_OpenLog();
+}
+
+void SyscallContract_Shutdown( void ) {
+	if ( syscallContractLogHandle ) {
+		FS_FCloseFile( syscallContractLogHandle );
+		syscallContractLogHandle = 0;
+	}
+	syscallContractLogInitialized = qfalse;
+	syscallContractLogWarned = qfalse;
+}
+
+void SyscallContract_LogEvent( const char *origin, const char *module, const int *stack, int count ) {
+	char buffer[SYSCALL_CONTRACT_MAX_ARGS * 12 + 128];
+	int offset, i;
+
+	if ( !stack || count <= 0 ) {
+		return;
+	}
+
+	if ( count > SYSCALL_CONTRACT_MAX_ARGS ) {
+		count = SYSCALL_CONTRACT_MAX_ARGS;
+	}
+
+	SyscallContract_OpenLog();
+	if ( !syscallContractLogHandle ) {
+		return;
+	}
+
+	if ( !origin ) {
+		origin = "unknown";
+	}
+	if ( !module ) {
+		module = "unknown";
+	}
+
+	offset = Com_sprintf( buffer, sizeof( buffer ), "%s %s", origin, module );
+	for ( i = 0 ; i < count && offset < (int)sizeof( buffer ) - 1 ; i++ ) {
+		offset += Com_sprintf( buffer + offset, sizeof( buffer ) - offset, " %08x", (unsigned int)stack[i] );
+	}
+	if ( offset >= (int)sizeof( buffer ) - 1 ) {
+		offset = sizeof( buffer ) - 2;
+	}
+	buffer[offset++] = '\n';
+	buffer[offset] = '\0';
+
+	FS_Write( buffer, offset, syscallContractLogHandle );
+	FS_Flush( syscallContractLogHandle );
 }
 
 /*
@@ -2565,6 +2645,8 @@ void Com_Init( char *commandLine ) {
 
 	FS_InitFilesystem ();
 
+	SyscallContract_ResetLog();
+
 	Com_InitJournaling();
 
 	Cbuf_AddText ("exec default.cfg\n");
@@ -2997,6 +3079,8 @@ void Com_Shutdown (void) {
 		FS_FCloseFile( com_journalFile );
 		com_journalFile = 0;
 	}
+
+	SyscallContract_Shutdown();
 
 }
 

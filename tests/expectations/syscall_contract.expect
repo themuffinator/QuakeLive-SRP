@@ -1,0 +1,3 @@
+# Baseline syscall contract log.
+# Each line is formatted as "origin module arg0 arg1 ..." with hexadecimal arguments.
+# Use '_' as a wildcard token when arguments are intentionally unspecified.
