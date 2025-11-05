@@ -9,14 +9,14 @@ This document describes how the client dispatches external authentication reques
 - **Steam** – `/steam/session/validate`
 - **Standalone launcher** – `/launcher/auth/verify`
 
-Each dispatch prints a log entry with the provider label, summarizes the credential using a masked preview, and writes the final outcome to the shared response object.【F:src/code/client/ql_auth.c†L42-L150】【F:src/common/platform/platform_services.c†L1-L191】 The service table ensures that builds compiled without a given backend still advertise accurate capabilities.【F:src/common/platform/platform_services.c†L120-L191】
+Each dispatch prints a log entry with the provider label, summarizes the credential using a masked preview, and writes the final outcome to the shared response object.【F:src/code/client/ql_auth.c†L42-L150】【F:src/common/platform/platform_services.c†L7-L139】 The service table ensures that builds compiled without a given backend still advertise accurate capabilities.【F:src/common/platform/platform_services.c†L47-L109】
 
 ## Structured Outcomes
 
 Handlers normalise their decisions into three high-level outcomes so callers can distinguish fatal errors from transient hiccups:
 
 - `success` – the credential was accepted and the legacy code path may continue.
-- `retry` – the backend asked for another attempt (for example, a Steam ticket marked with `retry` or a standalone token containing `refresh`).【F:src/common/platform/platform_services.c†L36-L118】
+- `retry` – the backend asked for another attempt (for example, a Steam ticket marked with `retry` or a standalone token containing `refresh`).【F:src/common/platform/platform_services.c†L7-L139】
 - `failure` – the credential was denied or malformed.
 
 The helper `QL_DescribeAuthOutcome` maps enum values to these human-readable strings, which appear in every lifecycle log.【F:src/code/client/ql_auth.c†L45-L74】
