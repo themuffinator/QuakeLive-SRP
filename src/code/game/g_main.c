@@ -34,7 +34,8 @@ typedef struct {
 	int			cvarFlags;
 	int			modificationCount;  // for tracking changes
 	qboolean	trackChange;	    // track this variable, and announce if changed
-  qboolean teamShader;        // track and if changed, update shader state
+	qboolean	teamShader;	    // track and if changed, update shader state
+	const char	*helpString; // optional help text advertised alongside the cvar
 } cvarTable_t;
 
 gentity_t		g_entities[MAX_GENTITIES];
@@ -101,6 +102,20 @@ vmCvar_t	g_damage_rg;
 vmCvar_t	g_damage_bfg;
 vmCvar_t	g_splashDamage_bfg;
 vmCvar_t	g_splashRadius_bfg;
+vmCvar_t	g_startingAmmo_bfg;
+vmCvar_t	g_startingAmmo_cg;
+vmCvar_t	g_startingAmmo_g;
+vmCvar_t	g_startingAmmo_gh;
+vmCvar_t	g_startingAmmo_gl;
+vmCvar_t	g_startingAmmo_hmg;
+vmCvar_t	g_startingAmmo_lg;
+vmCvar_t	g_startingAmmo_mg;
+vmCvar_t	g_startingAmmo_ng;
+vmCvar_t	g_startingAmmo_pg;
+vmCvar_t	g_startingAmmo_pl;
+vmCvar_t	g_startingAmmo_rg;
+vmCvar_t	g_startingAmmo_rl;
+vmCvar_t	g_startingAmmo_sg;
 #ifdef MISSIONPACK
 vmCvar_t	g_obeliskHealth;
 vmCvar_t	g_obeliskRegenPeriod;
@@ -197,6 +212,21 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_splashDamage_bfg, "g_splashDamage_bfg", "100", 0, 0, qtrue },
 	{ &g_splashRadius_bfg, "g_splashRadius_bfg", "120", 0, 0, qtrue },
 
+	{ &g_startingAmmo_bfg, "g_startingAmmo_bfg", "10", 0, 0, qfalse, qfalse, "Starting ammo granted for the BFG when it is part of the spawn loadout." },
+	{ &g_startingAmmo_cg, "g_startingAmmo_cg", "100", 0, 0, qfalse, qfalse, "Starting ammo granted for the Chaingun when players spawn with it." },
+	{ &g_startingAmmo_g, "g_startingAmmo_g", "-1", 0, 0, qfalse, qfalse, "Starting ammo for the Gauntlet; -1 keeps the melee swings unlimited." },
+	{ &g_startingAmmo_gh, "g_startingAmmo_gh", "-1", 0, 0, qfalse, qfalse, "Starting ammo for the Grappling Hook; -1 mirrors Quake Live's infinite grapple." },
+	{ &g_startingAmmo_gl, "g_startingAmmo_gl", "10", 0, 0, qfalse, qfalse, "Starting ammo granted for the Grenade Launcher when added to the loadout." },
+	{ &g_startingAmmo_hmg, "g_startingAmmo_hmg", "50", 0, 0, qfalse, qfalse, "Starting ammo for the Heavy Machinegun on spawn." },
+	{ &g_startingAmmo_lg, "g_startingAmmo_lg", "100", 0, 0, qfalse, qfalse, "Starting ammo granted for the Lightning Gun when it is in the spawn set." },
+	{ &g_startingAmmo_mg, "g_startingAmmo_mg", "100", 0, 0, qfalse, qfalse, "Starting ammo for the Machinegun given at spawn." },
+	{ &g_startingAmmo_ng, "g_startingAmmo_ng", "10", 0, 0, qfalse, qfalse, "Starting ammo granted for the Nailgun when included in the loadout." },
+	{ &g_startingAmmo_pg, "g_startingAmmo_pg", "50", 0, 0, qfalse, qfalse, "Starting ammo granted for the Plasma Gun when players spawn with it." },
+	{ &g_startingAmmo_pl, "g_startingAmmo_pl", "5", 0, 0, qfalse, qfalse, "Starting ammo for the Proximity Launcher on spawn." },
+	{ &g_startingAmmo_rg, "g_startingAmmo_rg", "5", 0, 0, qfalse, qfalse, "Starting ammo granted for the Railgun when added to spawn weapons." },
+	{ &g_startingAmmo_rl, "g_startingAmmo_rl", "5", 0, 0, qfalse, qfalse, "Starting ammo granted for the Rocket Launcher when it is part of the spawn set." },
+	{ &g_startingAmmo_sg, "g_startingAmmo_sg", "10", 0, 0, qfalse, qfalse, "Starting ammo for the Shotgun on spawn." },
+
 #ifdef MISSIONPACK
 	{ &g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, qfalse },
 	{ &g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", 0, 0, qfalse },
@@ -222,6 +252,17 @@ static cvarTable_t		gameCvarTable[] = {
 
 // bk001129 - made static to avoid aliasing
 static int gameCvarTableSize = sizeof( gameCvarTable ) / sizeof( gameCvarTable[0] );
+
+static void G_RegisterCvarHelp( const cvarTable_t *cv ) {
+	char helpName[MAX_CVAR_VALUE_STRING];
+
+	if ( !cv->helpString || !cv->helpString[0] || !cv->cvarName ) {
+		return;
+	}
+
+	Com_sprintf( helpName, sizeof( helpName ), "helptext_%s", cv->cvarName );
+	trap_Cvar_Register( NULL, helpName, cv->helpString, CVAR_ROM );
+}
 
 static int G_ReadWeaponCvar( const vmCvar_t *cvar, int fallback ) {
 	if ( !cvar ) {
@@ -419,6 +460,7 @@ void G_RegisterCvars( void ) {
 	for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName,
 		        cv->defaultString, cv->cvarFlags );
+		G_RegisterCvarHelp( cv );
 		if ( cv->vmCvar ) {
 		        cv->modificationCount = cv->vmCvar->modificationCount;
 		}
