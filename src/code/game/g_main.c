@@ -22,8 +22,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include <time.h>
 
 level_locals_t	level;
+weaponConfig_t	g_weaponConfig;
 
 typedef struct {
 	vmCvar_t	*vmCvar;
@@ -81,6 +83,24 @@ vmCvar_t	pmove_fixed;
 vmCvar_t	pmove_msec;
 vmCvar_t	g_rankings;
 vmCvar_t	g_listEntity;
+vmCvar_t	g_damage_gauntlet;
+vmCvar_t	g_damage_mg;
+vmCvar_t	g_damage_mg_team;
+vmCvar_t	g_damage_sg;
+vmCvar_t	g_damage_gl;
+vmCvar_t	g_splashDamage_gl;
+vmCvar_t	g_splashRadius_gl;
+vmCvar_t	g_damage_rl;
+vmCvar_t	g_splashDamage_rl;
+vmCvar_t	g_splashRadius_rl;
+vmCvar_t	g_damage_pg;
+vmCvar_t	g_splashDamage_pg;
+vmCvar_t	g_splashRadius_pg;
+vmCvar_t	g_damage_lg;
+vmCvar_t	g_damage_rg;
+vmCvar_t	g_damage_bfg;
+vmCvar_t	g_splashDamage_bfg;
+vmCvar_t	g_splashRadius_bfg;
 #ifdef MISSIONPACK
 vmCvar_t	g_obeliskHealth;
 vmCvar_t	g_obeliskRegenPeriod;
@@ -158,6 +178,24 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_allowVote, "g_allowVote", "1", CVAR_ARCHIVE, 0, qfalse },
 	{ &g_listEntity, "g_listEntity", "0", 0, 0, qfalse },
+	{ &g_damage_gauntlet, "g_damage_gauntlet", "50", 0, 0, qtrue },
+	{ &g_damage_mg, "g_damage_mg", "7", 0, 0, qtrue },
+	{ &g_damage_mg_team, "g_damage_mg_team", "5", 0, 0, qtrue },
+	{ &g_damage_sg, "g_damage_sg", "10", 0, 0, qtrue },
+	{ &g_damage_gl, "g_damage_gl", "100", 0, 0, qtrue },
+	{ &g_splashDamage_gl, "g_splashDamage_gl", "100", 0, 0, qtrue },
+	{ &g_splashRadius_gl, "g_splashRadius_gl", "150", 0, 0, qtrue },
+	{ &g_damage_rl, "g_damage_rl", "100", 0, 0, qtrue },
+	{ &g_splashDamage_rl, "g_splashDamage_rl", "100", 0, 0, qtrue },
+	{ &g_splashRadius_rl, "g_splashRadius_rl", "120", 0, 0, qtrue },
+	{ &g_damage_pg, "g_damage_pg", "20", 0, 0, qtrue },
+	{ &g_splashDamage_pg, "g_splashDamage_pg", "15", 0, 0, qtrue },
+	{ &g_splashRadius_pg, "g_splashRadius_pg", "20", 0, 0, qtrue },
+	{ &g_damage_lg, "g_damage_lg", "8", 0, 0, qtrue },
+	{ &g_damage_rg, "g_damage_rg", "100", 0, 0, qtrue },
+	{ &g_damage_bfg, "g_damage_bfg", "100", 0, 0, qtrue },
+	{ &g_splashDamage_bfg, "g_splashDamage_bfg", "100", 0, 0, qtrue },
+	{ &g_splashRadius_bfg, "g_splashRadius_bfg", "120", 0, 0, qtrue },
 
 #ifdef MISSIONPACK
 	{ &g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, qfalse },
@@ -184,6 +222,43 @@ static cvarTable_t		gameCvarTable[] = {
 
 // bk001129 - made static to avoid aliasing
 static int gameCvarTableSize = sizeof( gameCvarTable ) / sizeof( gameCvarTable[0] );
+
+static int G_ReadWeaponCvar( const vmCvar_t *cvar, int fallback ) {
+	if ( !cvar ) {
+		return fallback;
+	}
+
+	if ( cvar->integer <= 0 ) {
+		return fallback;
+	}
+
+	return cvar->integer;
+}
+
+void G_InitWeaponConfig( void ) {
+	g_weaponConfig.gauntletDamage = G_ReadWeaponCvar( &g_damage_gauntlet, 50 );
+	g_weaponConfig.machinegunDamage = G_ReadWeaponCvar( &g_damage_mg, 7 );
+	g_weaponConfig.machinegunTeamDamage = G_ReadWeaponCvar( &g_damage_mg_team, 5 );
+	g_weaponConfig.shotgunDamage = G_ReadWeaponCvar( &g_damage_sg, 10 );
+	g_weaponConfig.grenadeDamage = G_ReadWeaponCvar( &g_damage_gl, 100 );
+	g_weaponConfig.grenadeSplashDamage = G_ReadWeaponCvar( &g_splashDamage_gl, 100 );
+	g_weaponConfig.grenadeSplashRadius = G_ReadWeaponCvar( &g_splashRadius_gl, 150 );
+	g_weaponConfig.rocketDamage = G_ReadWeaponCvar( &g_damage_rl, 100 );
+	g_weaponConfig.rocketSplashDamage = G_ReadWeaponCvar( &g_splashDamage_rl, 100 );
+	g_weaponConfig.rocketSplashRadius = G_ReadWeaponCvar( &g_splashRadius_rl, 120 );
+	g_weaponConfig.plasmaDamage = G_ReadWeaponCvar( &g_damage_pg, 20 );
+	g_weaponConfig.plasmaSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pg, 15 );
+	g_weaponConfig.plasmaSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pg, 20 );
+	g_weaponConfig.lightningDamage = G_ReadWeaponCvar( &g_damage_lg, 8 );
+	g_weaponConfig.railgunDamage = G_ReadWeaponCvar( &g_damage_rg, 100 );
+	g_weaponConfig.bfgDamage = G_ReadWeaponCvar( &g_damage_bfg, 100 );
+	g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100 );
+	g_weaponConfig.bfgSplashRadius = G_ReadWeaponCvar( &g_splashRadius_bfg, 120 );
+}
+
+void G_UpdateWeaponConfig( void ) {
+	G_InitWeaponConfig();
+}
 
 
 void G_InitGame( int levelTime, int randomSeed, int restart );
@@ -337,18 +412,19 @@ G_RegisterCvars
 =================
 */
 void G_RegisterCvars( void ) {
-	int			i;
-	cvarTable_t	*cv;
+	int                     i;
+	cvarTable_t     *cv;
 	qboolean remapped = qfalse;
 
 	for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName,
-			cv->defaultString, cv->cvarFlags );
-		if ( cv->vmCvar )
-			cv->modificationCount = cv->vmCvar->modificationCount;
+		        cv->defaultString, cv->cvarFlags );
+		if ( cv->vmCvar ) {
+		        cv->modificationCount = cv->vmCvar->modificationCount;
+		}
 
 		if (cv->teamShader) {
-			remapped = qtrue;
+		        remapped = qtrue;
 		}
 	}
 
@@ -363,13 +439,9 @@ void G_RegisterCvars( void ) {
 	}
 
 	level.warmupModificationCount = g_warmup.modificationCount;
+	G_InitWeaponConfig();
 }
 
-/*
-=================
-G_UpdateCvars
-=================
-*/
 void G_UpdateCvars( void ) {
 	int			i;
 	cvarTable_t	*cv;
@@ -397,6 +469,8 @@ void G_UpdateCvars( void ) {
 	if (remapped) {
 		G_RemapTeamShaders();
 	}
+
+	G_UpdateWeaponConfig();
 }
 
 /*
@@ -413,6 +487,13 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	G_Printf ("gamedate: %s\n", __DATE__);
 
 	srand( randomSeed );
+	{
+		time_t levelStart = time( NULL );
+		char startTimeBuffer[32];
+		Com_sprintf( startTimeBuffer, sizeof( startTimeBuffer ), "%u", (unsigned int)levelStart );
+		trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );
+	}
+
 
 	G_RegisterCvars();
 
@@ -1430,6 +1511,7 @@ void CheckTournament( void ) {
 		if ( g_warmup.modificationCount != level.warmupModificationCount ) {
 			level.warmupModificationCount = g_warmup.modificationCount;
 			level.warmupTime = -1;
+			G_InitWeaponConfig();
 		}
 
 		// if all players have arrived, start the countdown
@@ -1482,6 +1564,7 @@ void CheckTournament( void ) {
 		if ( g_warmup.modificationCount != level.warmupModificationCount ) {
 			level.warmupModificationCount = g_warmup.modificationCount;
 			level.warmupTime = -1;
+			G_InitWeaponConfig();
 		}
 
 		// if all players have arrived, start the countdown

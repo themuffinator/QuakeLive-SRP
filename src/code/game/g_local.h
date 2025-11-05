@@ -67,6 +67,31 @@ typedef enum {
 typedef struct gentity_s gentity_t;
 typedef struct gclient_s gclient_t;
 
+typedef struct weaponConfig_s {
+	int		gauntletDamage;
+	int		machinegunDamage;
+	int		machinegunTeamDamage;
+	int		shotgunDamage;
+	int		grenadeDamage;
+	int		grenadeSplashDamage;
+	int		grenadeSplashRadius;
+	int		rocketDamage;
+	int		rocketSplashDamage;
+	int		rocketSplashRadius;
+	int		plasmaDamage;
+	int		plasmaSplashDamage;
+	int		plasmaSplashRadius;
+	int		lightningDamage;
+	int		railgunDamage;
+	int		bfgDamage;
+	int		bfgSplashDamage;
+	int		bfgSplashRadius;
+} weaponConfig_t;
+
+extern weaponConfig_t g_weaponConfig;
+void G_InitWeaponConfig( void );
+void G_UpdateWeaponConfig( void );
+
 struct gentity_s {
 	entityState_t	s;				// communicated by server to clients
 	entityShared_t	r;				// shared by both the server system and game
