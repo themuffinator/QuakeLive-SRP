@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "description": "Synthetic capture used for regression harness tests",
+    "map": "qzdm6"
+  },
+  "snapshots": [
+    {
+      "sequence": 1,
+      "serverTime": 1000,
+      "playerState": {
+        "origin": [0.0, 0.0, 0.0],
+        "health": 125,
+        "armor": 50,
+        "weapon": "rocket_launcher",
+        "ammo": {"rocket_launcher": 10}
+      },
+      "commands": []
+    },
+    {
+      "sequence": 2,
+      "serverTime": 1016,
+      "playerState": {
+        "origin": [0.0, 0.0, 0.0],
+        "health": 115,
+        "armor": 40,
+        "weapon": "rocket_launcher",
+        "ammo": {"rocket_launcher": 9}
+      },
+      "commands": [
+        {"action": "move", "direction": [1.0, 0.0, 0.0], "scale": 0.125},
+        {"action": "damage", "amount": 10}
+      ]
+    },
+    {
+      "sequence": 3,
+      "serverTime": 1032,
+      "playerState": {
+        "origin": [2.0, 0.0, 0.0],
+        "health": 120,
+        "armor": 45,
+        "weapon": "lightning_gun",
+        "ammo": {"rocket_launcher": 9, "lightning_gun": 120}
+      },
+      "commands": [
+        {"action": "move", "direction": [0.0, 1.0, 0.0], "scale": 0.5},
+        {"action": "weapon", "weapon": "lightning_gun"},
+        {"action": "heal", "amount": 5},
+        {"action": "ammo", "weapon": "lightning_gun", "amount": 10}
+      ]
+    }
+  ]
+}
