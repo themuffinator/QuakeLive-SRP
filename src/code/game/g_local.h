@@ -92,6 +92,15 @@ extern weaponConfig_t g_weaponConfig;
 void G_InitWeaponConfig( void );
 void G_UpdateWeaponConfig( void );
 
+typedef struct ammoPackConfig_s {
+	// Indexed by weapon_t so ammo_pack_* CVars (e.g. ammo_pack_mg) map directly to pickup counts.
+	int		weaponPickup[WP_NUM_WEAPONS];
+} ammoPackConfig_t;
+
+extern ammoPackConfig_t g_ammoPackConfig;
+void G_InitAmmoPackConfig( void );
+void G_UpdateAmmoPackConfig( void );
+
 typedef struct startingAmmoConfig_s {
 	int		bfg;
 	int		chaingun;
