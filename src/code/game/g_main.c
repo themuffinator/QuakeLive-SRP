@@ -33,20 +33,56 @@ startingAmmoConfig_t	g_startingAmmoConfig;
 #define STRINGIZE_HELPER( x ) #x
 #define STRINGIZE( x ) STRINGIZE_HELPER( x )
 
-#define DEFAULT_STARTING_AMMO_BFG           10
-#define DEFAULT_STARTING_AMMO_CG            100
-#define DEFAULT_STARTING_AMMO_G             -1
-#define DEFAULT_STARTING_AMMO_GH            -1
-#define DEFAULT_STARTING_AMMO_GL            10
-#define DEFAULT_STARTING_AMMO_HMG           50
-#define DEFAULT_STARTING_AMMO_LG            100
-#define DEFAULT_STARTING_AMMO_MG            100
-#define DEFAULT_STARTING_AMMO_NG            10
-#define DEFAULT_STARTING_AMMO_PG            50
-#define DEFAULT_STARTING_AMMO_PL            5
-#define DEFAULT_STARTING_AMMO_RG            5
-#define DEFAULT_STARTING_AMMO_RL            5
-#define DEFAULT_STARTING_AMMO_SG            10
+#define DEFAULT_STARTING_AMMO_BFG           10      // Quake Live default (data_1007e194 -> "10").
+#define DEFAULT_STARTING_AMMO_CG            100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_STARTING_AMMO_G             -1      // Quake Live default (data_100875ec -> "-1").
+#define DEFAULT_STARTING_AMMO_GH            -1      // Quake Live default (data_100875ec -> "-1").
+#define DEFAULT_STARTING_AMMO_GL            10      // Quake Live default (data_1007e194 -> "10").
+#define DEFAULT_STARTING_AMMO_HMG           50      // Quake Live default (data_1007e1fc -> "50").
+#define DEFAULT_STARTING_AMMO_LG            100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_STARTING_AMMO_MG            100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_STARTING_AMMO_NG            10      // Quake Live default (data_1007e194 -> "10").
+#define DEFAULT_STARTING_AMMO_PG            50      // Quake Live default (data_1007e1fc -> "50").
+#define DEFAULT_STARTING_AMMO_PL            5       // Quake Live default (data_10087340 -> "5").
+#define DEFAULT_STARTING_AMMO_RG            5       // Quake Live default (data_10087340 -> "5").
+#define DEFAULT_STARTING_AMMO_RL            5       // Quake Live default (data_10087340 -> "5").
+#define DEFAULT_STARTING_AMMO_SG            10      // Quake Live default (data_1007e194 -> "10").
+
+#define DEFAULT_WEAPON_RELOAD_BFG           300     // Quake Live default (data_10085968 -> "300").
+#define DEFAULT_WEAPON_RELOAD_CG            50      // Quake Live default (data_1007e1fc -> "50").
+#define DEFAULT_WEAPON_RELOAD_GAUNTLET      400     // Quake Live default (data_10087355 -> "400").
+#define DEFAULT_WEAPON_RELOAD_GH            100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_WEAPON_RELOAD_GL            800     // Quake Live default (data_10086cbc -> "800").
+#define DEFAULT_WEAPON_RELOAD_HMG           75      // Quake Live default (data_100870d2 -> "75").
+#define DEFAULT_WEAPON_RELOAD_HOOK          100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_WEAPON_RELOAD_LG            50      // Quake Live default (data_1007e1fc -> "50").
+#define DEFAULT_WEAPON_RELOAD_MG            100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_WEAPON_RELOAD_NG            1000    // Quake Live default (data_1008747c -> "1000").
+#define DEFAULT_WEAPON_RELOAD_PG            100     // Quake Live default (data_1007e154 -> "100").
+#define DEFAULT_WEAPON_RELOAD_PROX          800     // Quake Live default (data_10086cbc -> "800").
+#define DEFAULT_WEAPON_RELOAD_RG            1500    // Quake Live default (data_10086760 -> "1500").
+#define DEFAULT_WEAPON_RELOAD_RL            800     // Quake Live default (data_10086cbc -> "800").
+#define DEFAULT_WEAPON_RELOAD_SG            1000    // Quake Live default (data_1008747c -> "1000").
+
+#define DEFAULT_KNOCKBACK_BFG               1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_CG                1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_G                 1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_GH                -5.0    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086b93 -> "-5").
+#define DEFAULT_KNOCKBACK_GL                1.10    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086b7c -> "1.10").
+#define DEFAULT_KNOCKBACK_HMG               1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_LG                1.75    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086b54 -> "1.75").
+#define DEFAULT_KNOCKBACK_MG                1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_NG                1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_PG                1.10    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086b7c -> "1.10").
+#define DEFAULT_KNOCKBACK_PG_SELF           1.30    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086b1c -> "1.30").
+#define DEFAULT_KNOCKBACK_PL                1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_RG                0.85    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086af4 -> "0.85").
+#define DEFAULT_KNOCKBACK_RL                0.90    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086adc -> "0.90").
+#define DEFAULT_KNOCKBACK_RL_SELF           1.10    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086b7c -> "1.10").
+#define DEFAULT_KNOCKBACK_SG                1.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d1d8 -> "1").
+#define DEFAULT_KNOCKBACK_VERTICAL          24.0    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086ab7 -> "24").
+#define DEFAULT_KNOCKBACK_VERTICAL_SELF     24.0    // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_10086ab7 -> "24").
+#define DEFAULT_KNOCKBACK_CRIPPLE           0.0     // Quake Live default (references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_part02.txt data_1007d0a8 -> "0").
 
 typedef struct {
 	vmCvar_t	*vmCvar;
@@ -233,26 +269,26 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_speed, "g_speed", "320", 0, 0, qtrue  },
 	{ &g_gravity, "g_gravity", "800", 0, 0, qtrue  },
 	{ &g_knockback, "g_knockback", "1000", 0, 0, qtrue  },
-	{ &g_knockback_g, "g_knockback_g", "1.0", 0, 0, qfalse, qfalse, "Gauntlet knockback scalar applied when striking other players." },
-	{ &g_knockback_mg, "g_knockback_mg", "1.0", 0, 0, qfalse, qfalse, "Machinegun knockback scalar applied to outgoing hits." },
-	{ &g_knockback_sg, "g_knockback_sg", "1.0", 0, 0, qfalse, qfalse, "Shotgun knockback scalar for pellets that land on opponents." },
-	{ &g_knockback_gl, "g_knockback_gl", "1.0", 0, 0, qfalse, qfalse, "Grenade Launcher knockback scalar applied to direct and splash damage." },
-	{ &g_knockback_rl, "g_knockback_rl", "1.0", 0, 0, qfalse, qfalse, "Rocket Launcher knockback scalar for enemies struck by rockets." },
-	{ &g_knockback_rl_self, "g_knockback_rl_self", "1.0", 0, 0, qfalse, qfalse, "Self-inflicted rocket knockback scalar used for rocket jumps." },
-	{ &g_knockback_lg, "g_knockback_lg", "1.0", 0, 0, qfalse, qfalse, "Lightning Gun knockback scalar." },
-	{ &g_knockback_rg, "g_knockback_rg", "1.0", 0, 0, qfalse, qfalse, "Railgun knockback scalar." },
-	{ &g_knockback_pg, "g_knockback_pg", "1.0", 0, 0, qfalse, qfalse, "Plasmagun knockback scalar for opponents." },
-	{ &g_knockback_pg_self, "g_knockback_pg_self", "1.0", 0, 0, qfalse, qfalse, "Self-inflicted plasmagun knockback scalar." },
-	{ &g_knockback_bfg, "g_knockback_bfg", "1.0", 0, 0, qfalse, qfalse, "BFG knockback scalar." },
-	{ &g_knockback_gh, "g_knockback_gh", "1.0", 0, 0, qfalse, qfalse, "Grappling Hook knockback scalar." },
-	{ &g_knockback_ng, "g_knockback_ng", "1.0", 0, 0, qfalse, qfalse, "Nailgun knockback scalar." },
-	{ &g_knockback_pl, "g_knockback_pl", "1.0", 0, 0, qfalse, qfalse, "Proximity Launcher knockback scalar." },
-	{ &g_knockback_cg, "g_knockback_cg", "1.0", 0, 0, qfalse, qfalse, "Chaingun knockback scalar." },
-	{ &g_knockback_hmg, "g_knockback_hmg", "1.0", 0, 0, qfalse, qfalse, "Heavy Machinegun knockback scalar." },
-	{ &g_knockback_z, "g_knockback_z", "0", 0, 0, qfalse, qfalse, "Vertical knockback boost added after weapon scaling." },
-	{ &g_knockback_z_self, "g_knockback_z_self", "0", 0, 0, qfalse, qfalse, "Vertical knockback boost when you knock yourself back." },
+	{ &g_knockback_g, "g_knockback_g", STRINGIZE( DEFAULT_KNOCKBACK_G ), 0, 0, qfalse, qfalse, "Gauntlet knockback scalar applied when striking other players." },
+	{ &g_knockback_mg, "g_knockback_mg", STRINGIZE( DEFAULT_KNOCKBACK_MG ), 0, 0, qfalse, qfalse, "Machinegun knockback scalar applied to outgoing hits." },
+	{ &g_knockback_sg, "g_knockback_sg", STRINGIZE( DEFAULT_KNOCKBACK_SG ), 0, 0, qfalse, qfalse, "Shotgun knockback scalar for pellets that land on opponents." },
+	{ &g_knockback_gl, "g_knockback_gl", STRINGIZE( DEFAULT_KNOCKBACK_GL ), 0, 0, qfalse, qfalse, "Grenade Launcher knockback scalar applied to direct and splash damage." },
+	{ &g_knockback_rl, "g_knockback_rl", STRINGIZE( DEFAULT_KNOCKBACK_RL ), 0, 0, qfalse, qfalse, "Rocket Launcher knockback scalar for enemies struck by rockets." },
+	{ &g_knockback_rl_self, "g_knockback_rl_self", STRINGIZE( DEFAULT_KNOCKBACK_RL_SELF ), 0, 0, qfalse, qfalse, "Self-inflicted rocket knockback scalar used for rocket jumps." },
+	{ &g_knockback_lg, "g_knockback_lg", STRINGIZE( DEFAULT_KNOCKBACK_LG ), 0, 0, qfalse, qfalse, "Lightning Gun knockback scalar." },
+	{ &g_knockback_rg, "g_knockback_rg", STRINGIZE( DEFAULT_KNOCKBACK_RG ), 0, 0, qfalse, qfalse, "Railgun knockback scalar." },
+	{ &g_knockback_pg, "g_knockback_pg", STRINGIZE( DEFAULT_KNOCKBACK_PG ), 0, 0, qfalse, qfalse, "Plasmagun knockback scalar for opponents." },
+	{ &g_knockback_pg_self, "g_knockback_pg_self", STRINGIZE( DEFAULT_KNOCKBACK_PG_SELF ), 0, 0, qfalse, qfalse, "Self-inflicted plasmagun knockback scalar." },
+	{ &g_knockback_bfg, "g_knockback_bfg", STRINGIZE( DEFAULT_KNOCKBACK_BFG ), 0, 0, qfalse, qfalse, "BFG knockback scalar." },
+	{ &g_knockback_gh, "g_knockback_gh", STRINGIZE( DEFAULT_KNOCKBACK_GH ), 0, 0, qfalse, qfalse, "Grappling Hook knockback scalar." },
+	{ &g_knockback_ng, "g_knockback_ng", STRINGIZE( DEFAULT_KNOCKBACK_NG ), 0, 0, qfalse, qfalse, "Nailgun knockback scalar." },
+	{ &g_knockback_pl, "g_knockback_pl", STRINGIZE( DEFAULT_KNOCKBACK_PL ), 0, 0, qfalse, qfalse, "Proximity Launcher knockback scalar." },
+	{ &g_knockback_cg, "g_knockback_cg", STRINGIZE( DEFAULT_KNOCKBACK_CG ), 0, 0, qfalse, qfalse, "Chaingun knockback scalar." },
+	{ &g_knockback_hmg, "g_knockback_hmg", STRINGIZE( DEFAULT_KNOCKBACK_HMG ), 0, 0, qfalse, qfalse, "Heavy Machinegun knockback scalar." },
+	{ &g_knockback_z, "g_knockback_z", STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL ), 0, 0, qfalse, qfalse, "Vertical knockback boost added after weapon scaling." },
+	{ &g_knockback_z_self, "g_knockback_z_self", STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL_SELF ), 0, 0, qfalse, qfalse, "Vertical knockback boost when you knock yourself back." },
 	{ &g_max_knockback, "g_max_knockback", "200", 0, 0, qfalse, qfalse, "Upper clamp applied to computed knockback force." },
-	{ &g_knockback_cripple, "g_knockback_cripple", "1.0", 0, 0, qfalse, qfalse, "Additional knockback scalar consumed by cripple modifiers." },
+	{ &g_knockback_cripple, "g_knockback_cripple", STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), 0, 0, qfalse, qfalse, "Additional knockback scalar consumed by cripple modifiers." },
 	{ &g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue  },
 	{ &g_weaponRespawn, "g_weaponrespawn", "5", 0, 0, qtrue  },
 	{ &g_weaponTeamRespawn, "g_weaponTeamRespawn", "30", 0, 0, qtrue },
@@ -408,7 +444,7 @@ static int G_ReadWeaponReloadCvar( const vmCvar_t *cvar, int fallback, const cha
                 return fallback;
         }
 
-        if ( cvar->integer < 0 ) {
+        if ( cvar->integer <= 0 ) {
                 return fallback;
         }
 
@@ -416,21 +452,21 @@ static int G_ReadWeaponReloadCvar( const vmCvar_t *cvar, int fallback, const cha
 }
 
 void G_InitWeaponReloadConfig( void ) {
-	g_weaponReloadConfig.gauntlet = G_ReadWeaponReloadCvar( &weapon_reload_gauntlet, 0, "weapon_reload_gauntlet" );
-	g_weaponReloadConfig.machinegun = G_ReadWeaponReloadCvar( &weapon_reload_mg, 0, "weapon_reload_mg" );
-	g_weaponReloadConfig.shotgun = G_ReadWeaponReloadCvar( &weapon_reload_sg, 0, "weapon_reload_sg" );
-	g_weaponReloadConfig.grenadeLauncher = G_ReadWeaponReloadCvar( &weapon_reload_gl, 0, "weapon_reload_gl" );
-	g_weaponReloadConfig.rocketLauncher = G_ReadWeaponReloadCvar( &weapon_reload_rl, 0, "weapon_reload_rl" );
-	g_weaponReloadConfig.lightningGun = G_ReadWeaponReloadCvar( &weapon_reload_lg, 0, "weapon_reload_lg" );
-	g_weaponReloadConfig.railgun = G_ReadWeaponReloadCvar( &weapon_reload_rg, 0, "weapon_reload_rg" );
-	g_weaponReloadConfig.plasmagun = G_ReadWeaponReloadCvar( &weapon_reload_pg, 0, "weapon_reload_pg" );
-	g_weaponReloadConfig.bfg = G_ReadWeaponReloadCvar( &weapon_reload_bfg, 0, "weapon_reload_bfg" );
-	g_weaponReloadConfig.grapplingHook = G_ReadWeaponReloadCvar( &weapon_reload_gh, 0, "weapon_reload_gh" );
-	g_weaponReloadConfig.hook = G_ReadWeaponReloadCvar( &weapon_reload_hook, 0, "weapon_reload_hook" );
-	g_weaponReloadConfig.nailgun = G_ReadWeaponReloadCvar( &weapon_reload_ng, 0, "weapon_reload_ng" );
-	g_weaponReloadConfig.proximityLauncher = G_ReadWeaponReloadCvar( &weapon_reload_prox, 0, "weapon_reload_prox" );
-	g_weaponReloadConfig.chaingun = G_ReadWeaponReloadCvar( &weapon_reload_cg, 0, "weapon_reload_cg" );
-	g_weaponReloadConfig.heavyMachinegun = G_ReadWeaponReloadCvar( &weapon_reload_hmg, 0, "weapon_reload_hmg" );
+        g_weaponReloadConfig.gauntlet = G_ReadWeaponReloadCvar( &weapon_reload_gauntlet, DEFAULT_WEAPON_RELOAD_GAUNTLET, "weapon_reload_gauntlet" );
+        g_weaponReloadConfig.machinegun = G_ReadWeaponReloadCvar( &weapon_reload_mg, DEFAULT_WEAPON_RELOAD_MG, "weapon_reload_mg" );
+        g_weaponReloadConfig.shotgun = G_ReadWeaponReloadCvar( &weapon_reload_sg, DEFAULT_WEAPON_RELOAD_SG, "weapon_reload_sg" );
+        g_weaponReloadConfig.grenadeLauncher = G_ReadWeaponReloadCvar( &weapon_reload_gl, DEFAULT_WEAPON_RELOAD_GL, "weapon_reload_gl" );
+        g_weaponReloadConfig.rocketLauncher = G_ReadWeaponReloadCvar( &weapon_reload_rl, DEFAULT_WEAPON_RELOAD_RL, "weapon_reload_rl" );
+        g_weaponReloadConfig.lightningGun = G_ReadWeaponReloadCvar( &weapon_reload_lg, DEFAULT_WEAPON_RELOAD_LG, "weapon_reload_lg" );
+        g_weaponReloadConfig.railgun = G_ReadWeaponReloadCvar( &weapon_reload_rg, DEFAULT_WEAPON_RELOAD_RG, "weapon_reload_rg" );
+        g_weaponReloadConfig.plasmagun = G_ReadWeaponReloadCvar( &weapon_reload_pg, DEFAULT_WEAPON_RELOAD_PG, "weapon_reload_pg" );
+        g_weaponReloadConfig.bfg = G_ReadWeaponReloadCvar( &weapon_reload_bfg, DEFAULT_WEAPON_RELOAD_BFG, "weapon_reload_bfg" );
+        g_weaponReloadConfig.grapplingHook = G_ReadWeaponReloadCvar( &weapon_reload_gh, DEFAULT_WEAPON_RELOAD_GH, "weapon_reload_gh" );
+        g_weaponReloadConfig.hook = G_ReadWeaponReloadCvar( &weapon_reload_hook, DEFAULT_WEAPON_RELOAD_HOOK, "weapon_reload_hook" );
+        g_weaponReloadConfig.nailgun = G_ReadWeaponReloadCvar( &weapon_reload_ng, DEFAULT_WEAPON_RELOAD_NG, "weapon_reload_ng" );
+        g_weaponReloadConfig.proximityLauncher = G_ReadWeaponReloadCvar( &weapon_reload_prox, DEFAULT_WEAPON_RELOAD_PROX, "weapon_reload_prox" );
+        g_weaponReloadConfig.chaingun = G_ReadWeaponReloadCvar( &weapon_reload_cg, DEFAULT_WEAPON_RELOAD_CG, "weapon_reload_cg" );
+        g_weaponReloadConfig.heavyMachinegun = G_ReadWeaponReloadCvar( &weapon_reload_hmg, DEFAULT_WEAPON_RELOAD_HMG, "weapon_reload_hmg" );
 }
 
 void G_UpdateWeaponReloadConfig( void ) {
@@ -477,24 +513,24 @@ static float G_ReadKnockbackCvar( const vmCvar_t *cvar, float fallback, const ch
 }
 
 void G_InitKnockbackConfig( void ) {
-        g_knockbackConfig.gauntlet = G_ReadKnockbackCvar( &g_knockback_g, 1.0f, "g_knockback_g" );
-        g_knockbackConfig.machinegun = G_ReadKnockbackCvar( &g_knockback_mg, 1.0f, "g_knockback_mg" );
-        g_knockbackConfig.shotgun = G_ReadKnockbackCvar( &g_knockback_sg, 1.0f, "g_knockback_sg" );
-        g_knockbackConfig.grenadeLauncher = G_ReadKnockbackCvar( &g_knockback_gl, 1.0f, "g_knockback_gl" );
-        g_knockbackConfig.rocketLauncher = G_ReadKnockbackCvar( &g_knockback_rl, 1.0f, "g_knockback_rl" );
-        g_knockbackConfig.rocketLauncherSelf = G_ReadKnockbackCvar( &g_knockback_rl_self, 1.0f, "g_knockback_rl_self" );
-        g_knockbackConfig.lightningGun = G_ReadKnockbackCvar( &g_knockback_lg, 1.0f, "g_knockback_lg" );
-        g_knockbackConfig.railgun = G_ReadKnockbackCvar( &g_knockback_rg, 1.0f, "g_knockback_rg" );
-        g_knockbackConfig.plasmagun = G_ReadKnockbackCvar( &g_knockback_pg, 1.0f, "g_knockback_pg" );
-        g_knockbackConfig.plasmagunSelf = G_ReadKnockbackCvar( &g_knockback_pg_self, 1.0f, "g_knockback_pg_self" );
-        g_knockbackConfig.bfg = G_ReadKnockbackCvar( &g_knockback_bfg, 1.0f, "g_knockback_bfg" );
-        g_knockbackConfig.grapplingHook = G_ReadKnockbackCvar( &g_knockback_gh, 1.0f, "g_knockback_gh" );
-        g_knockbackConfig.nailgun = G_ReadKnockbackCvar( &g_knockback_ng, 1.0f, "g_knockback_ng" );
-        g_knockbackConfig.proximityLauncher = G_ReadKnockbackCvar( &g_knockback_pl, 1.0f, "g_knockback_pl" );
-        g_knockbackConfig.chaingun = G_ReadKnockbackCvar( &g_knockback_cg, 1.0f, "g_knockback_cg" );
-        g_knockbackConfig.heavyMachinegun = G_ReadKnockbackCvar( &g_knockback_hmg, 1.0f, "g_knockback_hmg" );
-        g_knockbackConfig.vertical = G_ReadKnockbackCvar( &g_knockback_z, 0.0f, "g_knockback_z" );
-        g_knockbackConfig.verticalSelf = G_ReadKnockbackCvar( &g_knockback_z_self, 0.0f, "g_knockback_z_self" );
+        g_knockbackConfig.gauntlet = G_ReadKnockbackCvar( &g_knockback_g, DEFAULT_KNOCKBACK_G, "g_knockback_g" );
+        g_knockbackConfig.machinegun = G_ReadKnockbackCvar( &g_knockback_mg, DEFAULT_KNOCKBACK_MG, "g_knockback_mg" );
+        g_knockbackConfig.shotgun = G_ReadKnockbackCvar( &g_knockback_sg, DEFAULT_KNOCKBACK_SG, "g_knockback_sg" );
+        g_knockbackConfig.grenadeLauncher = G_ReadKnockbackCvar( &g_knockback_gl, DEFAULT_KNOCKBACK_GL, "g_knockback_gl" );
+        g_knockbackConfig.rocketLauncher = G_ReadKnockbackCvar( &g_knockback_rl, DEFAULT_KNOCKBACK_RL, "g_knockback_rl" );
+        g_knockbackConfig.rocketLauncherSelf = G_ReadKnockbackCvar( &g_knockback_rl_self, DEFAULT_KNOCKBACK_RL_SELF, "g_knockback_rl_self" );
+        g_knockbackConfig.lightningGun = G_ReadKnockbackCvar( &g_knockback_lg, DEFAULT_KNOCKBACK_LG, "g_knockback_lg" );
+        g_knockbackConfig.railgun = G_ReadKnockbackCvar( &g_knockback_rg, DEFAULT_KNOCKBACK_RG, "g_knockback_rg" );
+        g_knockbackConfig.plasmagun = G_ReadKnockbackCvar( &g_knockback_pg, DEFAULT_KNOCKBACK_PG, "g_knockback_pg" );
+        g_knockbackConfig.plasmagunSelf = G_ReadKnockbackCvar( &g_knockback_pg_self, DEFAULT_KNOCKBACK_PG_SELF, "g_knockback_pg_self" );
+        g_knockbackConfig.bfg = G_ReadKnockbackCvar( &g_knockback_bfg, DEFAULT_KNOCKBACK_BFG, "g_knockback_bfg" );
+        g_knockbackConfig.grapplingHook = G_ReadKnockbackCvar( &g_knockback_gh, DEFAULT_KNOCKBACK_GH, "g_knockback_gh" );
+        g_knockbackConfig.nailgun = G_ReadKnockbackCvar( &g_knockback_ng, DEFAULT_KNOCKBACK_NG, "g_knockback_ng" );
+        g_knockbackConfig.proximityLauncher = G_ReadKnockbackCvar( &g_knockback_pl, DEFAULT_KNOCKBACK_PL, "g_knockback_pl" );
+        g_knockbackConfig.chaingun = G_ReadKnockbackCvar( &g_knockback_cg, DEFAULT_KNOCKBACK_CG, "g_knockback_cg" );
+        g_knockbackConfig.heavyMachinegun = G_ReadKnockbackCvar( &g_knockback_hmg, DEFAULT_KNOCKBACK_HMG, "g_knockback_hmg" );
+        g_knockbackConfig.vertical = G_ReadKnockbackCvar( &g_knockback_z, DEFAULT_KNOCKBACK_VERTICAL, "g_knockback_z" );
+        g_knockbackConfig.verticalSelf = G_ReadKnockbackCvar( &g_knockback_z_self, DEFAULT_KNOCKBACK_VERTICAL_SELF, "g_knockback_z_self" );
 
         {
                 float maxKnockback = G_ReadKnockbackCvar( &g_max_knockback, 200.0f, "g_max_knockback" );
@@ -506,7 +542,7 @@ void G_InitKnockbackConfig( void ) {
                 g_knockbackConfig.maxKnockback = maxKnockback;
         }
 
-        g_knockbackConfig.cripple = G_ReadKnockbackCvar( &g_knockback_cripple, 1.0f, "g_knockback_cripple" );
+        g_knockbackConfig.cripple = G_ReadKnockbackCvar( &g_knockback_cripple, DEFAULT_KNOCKBACK_CRIPPLE, "g_knockback_cripple" );
 }
 
 void G_UpdateKnockbackConfig( void ) {
