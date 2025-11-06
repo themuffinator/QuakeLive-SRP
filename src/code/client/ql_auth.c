@@ -113,10 +113,15 @@ static qboolean QL_ClientAuth_HandleSteamworksTicket( const ql_client_auth_trans
         return qfalse;
     }
 
-    (void)transport;
-
     char preview[32];
     QL_ClientAuth_TokenPreview( credential, preview, sizeof( preview ) );
+
+    if ( transport ) {
+        char detail[96];
+        Com_sprintf( detail, sizeof( detail ),
+            "validating Steam ticket (preview=%s)", preview );
+        QL_ClientAuth_LogStage( transport, "validate", detail );
+    }
 
     if ( credential->length < 16 ) {
         QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_DENIED, "Steam ticket rejected: payload too short" );
@@ -138,13 +143,27 @@ static qboolean QL_ClientAuth_HandleSteamworksTicket( const ql_client_auth_trans
     return qtrue;
 }
 
-static qboolean QL_ClientAuth_HandleOpenSteamTicket( const ql_auth_credential_t *credential, ql_auth_response_t *response ) {
+static qboolean QL_ClientAuth_HandleOpenSteamTicket( const ql_client_auth_transport_t *transport, const ql_auth_credential_t *credential, ql_auth_response_t *response ) {
     if ( !credential ) {
         return qfalse;
     }
 
     char preview[32];
     QL_ClientAuth_TokenPreview( credential, preview, sizeof( preview ) );
+
+    if ( transport ) {
+        char detail[128];
+
+        if ( credential->kind == QL_AUTH_CREDENTIAL_STANDALONE_TOKEN ) {
+            Com_sprintf( detail, sizeof( detail ),
+                "validating launcher token (preview=%s)", preview );
+        } else {
+            Com_sprintf( detail, sizeof( detail ),
+                "processing Steam ticket via open adapter (preview=%s)", preview );
+        }
+
+        QL_ClientAuth_LogStage( transport, "validate", detail );
+    }
 
     if ( credential->length < 16 ) {
         QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_DENIED,
@@ -163,13 +182,20 @@ static qboolean QL_ClientAuth_HandleOpenSteamTicket( const ql_auth_credential_t 
     return qtrue;
 }
 
-static qboolean QL_ClientAuth_HandleStandaloneToken( const ql_auth_credential_t *credential, ql_auth_response_t *response ) {
+static qboolean QL_ClientAuth_HandleStandaloneToken( const ql_client_auth_transport_t *transport, const ql_auth_credential_t *credential, ql_auth_response_t *response ) {
     if ( !credential || credential->kind != QL_AUTH_CREDENTIAL_STANDALONE_TOKEN ) {
         return qfalse;
     }
 
     char preview[32];
     QL_ClientAuth_TokenPreview( credential, preview, sizeof( preview ) );
+
+    if ( transport ) {
+        char detail[96];
+        Com_sprintf( detail, sizeof( detail ),
+            "validating launcher token (preview=%s)", preview );
+        QL_ClientAuth_LogStage( transport, "validate", detail );
+    }
 
     if ( credential->length < 12 ) {
         QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_DENIED,
@@ -205,7 +231,11 @@ static qboolean QL_ClientAuth_HandleHybridSteam( const ql_client_auth_transport_
         return qtrue;
     }
 
-    qboolean fallbackHandled = QL_ClientAuth_HandleOpenSteamTicket( credential, response );
+    if ( transport ) {
+        QL_ClientAuth_LogStage( transport, "fallback", "rerouting credential to Open Steam adapter" );
+    }
+
+    qboolean fallbackHandled = QL_ClientAuth_HandleOpenSteamTicket( transport, credential, response );
 
     if ( fallbackHandled && response->result == QL_AUTH_RESULT_ACCEPTED ) {
         char preview[32];
@@ -236,7 +266,7 @@ static qboolean QL_ClientAuth_DispatchSteam( const ql_client_auth_transport_t *t
     }
 
     if ( !Q_stricmp( provider, "Open Steam Adapter" ) ) {
-        return QL_ClientAuth_HandleOpenSteamTicket( credential, response );
+        return QL_ClientAuth_HandleOpenSteamTicket( transport, credential, response );
     }
 
     return QL_ClientAuth_HandleSteamworksTicket( transport, credential, response );
@@ -305,7 +335,7 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
             handled = QL_ClientAuth_DispatchSteam( &transport, credential, response );
             break;
         case QL_AUTH_CREDENTIAL_STANDALONE_TOKEN:
-            handled = QL_ClientAuth_HandleStandaloneToken( credential, response );
+            handled = QL_ClientAuth_HandleStandaloneToken( &transport, credential, response );
             break;
         default:
             QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_ERROR,

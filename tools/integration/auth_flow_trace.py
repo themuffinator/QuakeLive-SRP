@@ -42,6 +42,39 @@ class Sample:
             f"[auth] {self.provider} payload summary: {payload_template % (preview, len(self.token))}",
         ]
 
+    def stage_logs(self) -> list[str]:
+        preview = token_preview(self.token)
+        logs: list[str] = []
+
+        if self.kind == "steam":
+            logs.append(
+                f"[auth] {self.provider} validate ({self.endpoint}): "
+                f"validating Steam ticket (preview={preview})"
+            )
+
+            if self.provider == "Hybrid":
+                logs.append(
+                    f"[auth] {self.provider} fallback ({self.endpoint}): "
+                    "rerouting credential to Open Steam adapter"
+                )
+                logs.append(
+                    f"[auth] {self.provider} validate ({self.endpoint}): "
+                    f"processing Steam ticket via open adapter (preview={preview})"
+                )
+            elif self.provider == "Open Steam Adapter":
+                logs.append(
+                    f"[auth] {self.provider} validate ({self.endpoint}): "
+                    f"processing Steam ticket via open adapter (preview={preview})"
+                )
+
+        if self.kind == "standalone":
+            logs.append(
+                f"[auth] {self.provider} validate ({self.endpoint}): "
+                f"validating launcher token (preview={preview})"
+            )
+
+        return logs
+
     def classify(self) -> tuple[str, str]:
         """Return (outcome, message) mirroring ql_auth.c heuristics."""
         value = self.token
@@ -105,7 +138,7 @@ def main() -> None:
     for index, sample in enumerate(samples, start=1):
         print()
         print(f"-- Scenario {index}: {sample.provider} --")
-        for line in itertools.chain(sample.dispatch_logs(), [sample.format_result()]):
+        for line in itertools.chain(sample.dispatch_logs(), sample.stage_logs(), [sample.format_result()]):
             print(line)
 
 
