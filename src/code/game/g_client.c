@@ -1318,11 +1318,9 @@ static int G_GetConfiguredSpawnAmmo( weapon_t weapon ) {
                 ammo = g_startingAmmoConfig.chaingun;
                 break;
 #endif
-#ifdef WP_HEAVY_MACHINEGUN
         case WP_HEAVY_MACHINEGUN:
                 ammo = g_startingAmmoConfig.heavyMachinegun;
                 break;
-#endif
         default:
                 return 0;
         }

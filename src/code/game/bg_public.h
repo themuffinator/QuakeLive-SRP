@@ -305,9 +305,10 @@ typedef enum {
 typedef enum {
 	WP_NONE,
 
-	WP_GAUNTLET,
-	WP_MACHINEGUN,
-	WP_SHOTGUN,
+       WP_GAUNTLET,
+       WP_MACHINEGUN,
+       WP_HEAVY_MACHINEGUN,
+       WP_SHOTGUN,
 	WP_GRENADE_LAUNCHER,
 	WP_ROCKET_LAUNCHER,
 	WP_LIGHTNING,
@@ -321,7 +322,7 @@ typedef enum {
 	WP_CHAINGUN,
 #endif
 
-	WP_NUM_WEAPONS
+       WP_NUM_WEAPONS
 } weapon_t;
 
 

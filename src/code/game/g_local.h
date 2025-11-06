@@ -71,6 +71,7 @@ typedef struct weaponConfig_s {
 	int		gauntletDamage;
 	int		machinegunDamage;
 	int		machinegunTeamDamage;
+	int		heavyMachinegunDamage;
 	int		shotgunDamage;
 	int		grenadeDamage;
 	int		grenadeSplashDamage;

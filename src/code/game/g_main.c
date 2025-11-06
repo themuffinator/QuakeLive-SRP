@@ -220,6 +220,7 @@ vmCvar_t	g_suddenDeathRespawnPrint;
 vmCvar_t	g_damage_gauntlet;
 vmCvar_t	g_damage_mg;
 vmCvar_t	g_damage_mg_team;
+vmCvar_t	g_damage_hmg;
 vmCvar_t	g_damage_sg;
 vmCvar_t	g_damage_gl;
 vmCvar_t	g_splashDamage_gl;
@@ -398,6 +399,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_damage_gauntlet, "g_damage_gauntlet", "50", 0, 0, qtrue },
 	{ &g_damage_mg, "g_damage_mg", "7", 0, 0, qtrue },
 	{ &g_damage_mg_team, "g_damage_mg_team", "5", 0, 0, qtrue },
+	{ &g_damage_hmg, "g_damage_hmg", "10", 0, 0, qtrue },
 	{ &g_damage_sg, "g_damage_sg", "10", 0, 0, qtrue },
 	{ &g_damage_gl, "g_damage_gl", "100", 0, 0, qtrue },
 	{ &g_splashDamage_gl, "g_splashDamage_gl", "100", 0, 0, qtrue },
@@ -526,6 +528,7 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.gauntletDamage = G_ReadWeaponCvar( &g_damage_gauntlet, 50, "g_damage_gauntlet" );
 	g_weaponConfig.machinegunDamage = G_ReadWeaponCvar( &g_damage_mg, 7, "g_damage_mg" );
 	g_weaponConfig.machinegunTeamDamage = G_ReadWeaponCvar( &g_damage_mg_team, 5, "g_damage_mg_team" );
+	g_weaponConfig.heavyMachinegunDamage = G_ReadWeaponCvar( &g_damage_hmg, 10, "g_damage_hmg" );
 	g_weaponConfig.shotgunDamage = G_ReadWeaponCvar( &g_damage_sg, 10, "g_damage_sg" );
 	g_weaponConfig.grenadeDamage = G_ReadWeaponCvar( &g_damage_gl, 100, "g_damage_gl" );
 	g_weaponConfig.grenadeSplashDamage = G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashDamage_gl" );
@@ -629,10 +632,7 @@ void G_InitAmmoPackConfig( void ) {
         G_AssignAmmoPackEntry( WP_PLASMAGUN, &g_ammoPack_pg, DEFAULT_AMMOPACK_PG, "g_ammoPack_pg" );
         G_AssignAmmoPackEntry( WP_BFG, &g_ammoPack_bfg, DEFAULT_AMMOPACK_BFG, "g_ammoPack_bfg" );
 
-#ifdef WP_HEAVY_MACHINEGUN
         G_AssignAmmoPackEntry( WP_HEAVY_MACHINEGUN, &g_ammoPack_hmg, DEFAULT_AMMOPACK_HMG, "g_ammoPack_hmg" );
-#endif
-
 #ifdef MISSIONPACK
         G_AssignAmmoPackEntry( WP_NAILGUN, &g_ammoPack_ng, DEFAULT_AMMOPACK_NG, "g_ammoPack_ng" );
         G_AssignAmmoPackEntry( WP_PROX_LAUNCHER, &g_ammoPack_pl, DEFAULT_AMMOPACK_PL, "g_ammoPack_pl" );
