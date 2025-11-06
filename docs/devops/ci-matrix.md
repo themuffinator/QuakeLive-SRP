@@ -14,7 +14,7 @@ The **Deterministic Harnesses** workflow executes the regression harnesses again
 
 - `logs/<target>/*.log` – Harness summaries for the match, client regression, and trace suites.
 - `match_sim/<target>/timeline.json` – The deterministic bot timeline from the scripted match.
-- `client_regression/<target>/hud_hashes.json` – Stable HUD hashes replayed from the regression snapshots.
+- `client_regression/<target>/hud_hashes.json` – Per-scenario HUD payload manifest with stable hashes replayed from the regression snapshots.
 - `trace/<target>/*` – Reverse-only logs and diffs that compare the clean-room output with the expectation.
 
 Re-run the harness locally with the same entry point used by CI:
