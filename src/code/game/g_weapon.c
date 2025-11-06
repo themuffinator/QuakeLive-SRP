@@ -155,8 +155,10 @@ void SnapVectorTowards( vec3_t v, vec3_t to ) {
 #define MACHINEGUN_SPREAD	200
 #define	MACHINEGUN_DAMAGE	(g_weaponConfig.machinegunDamage)
 #define	MACHINEGUN_TEAM_DAMAGE	(g_weaponConfig.machinegunTeamDamage)		// wimpier MG in teamplay
+#define	HEAVY_MACHINEGUN_SPREAD	0
+#define	HEAVY_MACHINEGUN_DAMAGE	(g_weaponConfig.heavyMachinegunDamage)
 
-void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
+void Bullet_Fire (gentity_t *ent, float spread, int damage, meansOfDeath_t mod ) {
 	trace_t		tr;
 	vec3_t		end;
 #ifdef MISSIONPACK
@@ -221,7 +223,7 @@ void Bullet_Fire (gentity_t *ent, float spread, int damage ) {
 			else {
 #endif
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos,
-					damage, 0, MOD_MACHINEGUN);
+					damage, 0, mod);
 #ifdef MISSIONPACK
 			}
 #endif
@@ -852,10 +854,13 @@ void FireWeapon( gentity_t *ent ) {
 		break;
 	case WP_MACHINEGUN:
 		if ( g_gametype.integer != GT_TEAM ) {
-			Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE );
+			Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE, MOD_MACHINEGUN );
 		} else {
-			Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_TEAM_DAMAGE );
+			Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_TEAM_DAMAGE, MOD_MACHINEGUN );
 		}
+		break;
+	case WP_HEAVY_MACHINEGUN:
+		Bullet_Fire( ent, HEAVY_MACHINEGUN_SPREAD, HEAVY_MACHINEGUN_DAMAGE, MOD_HMG );
 		break;
 	case WP_GRENADE_LAUNCHER:
 		weapon_grenadelauncher_fire( ent );
@@ -883,7 +888,7 @@ void FireWeapon( gentity_t *ent ) {
 		weapon_proxlauncher_fire( ent );
 		break;
 	case WP_CHAINGUN:
-		Bullet_Fire( ent, CHAINGUN_SPREAD, MACHINEGUN_DAMAGE );
+		Bullet_Fire( ent, CHAINGUN_SPREAD, MACHINEGUN_DAMAGE, MOD_CHAINGUN );
 		break;
 #endif
 	default:

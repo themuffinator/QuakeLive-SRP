@@ -235,6 +235,22 @@ gitem_t	bg_itemlist[] =
 /* sounds */ ""
 	},
 
+/*QUAKED weapon_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"weapon_hmg",
+		"sound/misc/w_pkup.wav",
+        { "models/weapons3/hmg/hmg.md3",
+		0, 0, 0},
+/* icon */		"icons/weap_hmg",
+/* pickup */	"Heavy Machinegun",
+		50,
+		IT_WEAPON,
+		WP_HEAVY_MACHINEGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
+
 /*QUAKED weapon_grenadelauncher (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
 	{
@@ -379,6 +395,22 @@ gitem_t	bg_itemlist[] =
 		50,
 		IT_AMMO,
 		WP_MACHINEGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+/*QUAKED ammo_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"ammo_hmg",
+		"sound/misc/am_pkup.wav",
+        { "models/powerups/ammo/hmgam.md3",
+		0, 0, 0},
+/* icon */		"icons/ammo_hmg",
+/* pickup */	"Heavy Bullets",
+		50,
+		IT_AMMO,
+		WP_HEAVY_MACHINEGUN,
 /* precache */ "",
 /* sounds */ ""
 	},
