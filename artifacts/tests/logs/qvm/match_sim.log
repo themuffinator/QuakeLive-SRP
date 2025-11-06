@@ -1,0 +1,12 @@
+Match simulation harness completed successfully.
+{
+  "target": "qvm",
+  "scenario": "tools/tests/match_sim/sample_scenario.json",
+  "seed": 2024,
+  "frame_count": 101,
+  "duration_seconds": 10.0,
+  "bots": [
+    "anarki",
+    "sarge"
+  ]
+}
