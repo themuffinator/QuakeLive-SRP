@@ -239,6 +239,7 @@ void PM_StepSlideMove( qboolean gravity ) {
 	vec3_t		up, down;
 	float		stepSize;
 
+	pml.stepUpDelta = 0.0f;
 	VectorCopy (pm->ps->origin, start_o);
 	VectorCopy (pm->ps->velocity, start_v);
 
@@ -306,27 +307,24 @@ void PM_StepSlideMove( qboolean gravity ) {
 		float	delta;
 
 		delta = pm->ps->origin[2] - start_o[2];
-			if ( delta > 2 ) {
-				if ( delta < 7 ) {
-					PM_AddEvent( EV_STEP_4 );
-				} else if ( delta < 11 ) {
-					PM_AddEvent( EV_STEP_8 );
-				} else if ( delta < 15 ) {
-					PM_AddEvent( EV_STEP_12 );
-				} else {
-					PM_AddEvent( EV_STEP_16 );
-				}
+		if ( delta > 0.0f ) {
+			pml.stepUpDelta = delta;
+		}
+		if ( delta > 2 ) {
+			if ( delta < 7 ) {
+				PM_AddEvent( EV_STEP_4 );
+			} else if ( delta < 11 ) {
+				PM_AddEvent( EV_STEP_8 );
+			} else if ( delta < 15 ) {
+				PM_AddEvent( EV_STEP_12 );
+			} else {
+				PM_AddEvent( EV_STEP_16 );
 			}
+		}
 
-			if ( ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) ) {
-				const pmove_settings_t	*settings = PM_GetActiveSettings();
-
-				if ( settings->crouchSlide && settings->crouchStepJump && settings->stepJump && delta > 0.0f ) {
-					if ( pm->ps->velocity[2] < settings->stepJumpVelocity ) {
-						pm->ps->velocity[2] = settings->stepJumpVelocity;
-					}
-				}
-			}
+		if ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) {
+			PM_TryStepJumpBoost( delta, qtrue );
+		}
 
 		if ( pm->debugLevel ) {
 			Com_Printf("%i:stepped\n", c_pmove);

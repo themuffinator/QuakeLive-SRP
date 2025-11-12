@@ -894,6 +894,49 @@ static void PM_GrappleMove( void ) {
 }
 
 /*
+=============
+PM_TryStepJumpBoost
+
+Applies the configured step jump velocity boost when permitted.
+=============
+*/
+void PM_TryStepJumpBoost( float stepDelta, qboolean requireCrouchSlide ) {
+	const pmove_settings_t	*settings;
+	float		targetVelocity;
+
+	if ( stepDelta <= 0.0f ) {
+		return;
+	}
+
+	settings = PM_GetActiveSettings();
+	if ( !settings->stepJump ) {
+		return;
+	}
+
+	targetVelocity = settings->stepJumpVelocity;
+	if ( targetVelocity <= 0.0f ) {
+		return;
+	}
+
+	if ( requireCrouchSlide ) {
+		if ( !( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) ) {
+			return;
+		}
+		if ( !settings->crouchSlide || !settings->crouchStepJump ) {
+			return;
+		}
+	} else {
+		if ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) {
+			return;
+		}
+	}
+
+	if ( pm->ps->velocity[2] < targetVelocity ) {
+		pm->ps->velocity[2] = targetVelocity;
+	}
+}
+
+/*
 ===================
 PM_WalkMove
 
@@ -1019,6 +1062,7 @@ static void PM_WalkMove( void ) {
 	}
 
 	PM_StepSlideMove( qfalse );
+	PM_TryStepJumpBoost( pml.stepUpDelta, qfalse );
 
 	//Com_Printf("velocity2 = %1.1f\n", VectorLength(pm->ps->velocity));
 

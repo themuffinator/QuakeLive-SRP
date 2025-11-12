@@ -51,6 +51,7 @@ typedef struct {
 	vec3_t		previous_origin;
 	vec3_t		previous_velocity;
 	int			previous_waterlevel;
+	float		stepUpDelta;
 } pml_t;
 
 extern	pmove_t		*pm;
@@ -88,7 +89,7 @@ void PM_AddEvent( int newEvent );
 
 qboolean	PM_SlideMove( qboolean gravity );
 void		PM_StepSlideMove( qboolean gravity );
-
+void		PM_TryStepJumpBoost( float stepDelta, qboolean requireCrouchSlide );
 
 const pmove_settings_t *PM_GetActiveSettings( void );
 
