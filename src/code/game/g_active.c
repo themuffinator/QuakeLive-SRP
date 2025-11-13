@@ -1199,3 +1199,310 @@ void ClientEndFrame( gentity_t *ent ) {
 }
 
 
+
+/*
+=============
+G_Frame_BeginRoundWarmup
+
+Schedule the start of the next round and broadcast a warmup notice.
+=============
+*/
+static void G_Frame_BeginRoundWarmup( void ) {
+	int		warmup;
+
+	warmup = g_roundWarmupTime.integer;
+	if ( warmup < 0 ) {
+		warmup = 0;
+	}
+
+	level.roundState = ROUNDSTATE_WARMUP;
+	level.roundNumber++;
+	level.roundStartTime = level.time + warmup;
+	level.roundEndTime = 0;
+	level.roundTransitionTime = 0;
+	level.roundWinner = TEAM_FREE;
+	level.roundMercyTriggered = qfalse;
+	level.roundLastAnnouncement = level.time;
+	level.roundLastMercyCheck = level.time;
+
+	trap_SendServerCommand( -1, va( "cp \"Round %d warming up\"", level.roundNumber ) );
+	trap_SendServerCommand( -1, va( "print \"Round %d warmup begins.\n\"", level.roundNumber ) );
+
+	Team_RoundRestart();
+	SendScoreboardMessageToAllClients();
+}
+
+/*
+=============
+G_Frame_ActivateRound
+
+Transition the round controller into the active state.
+=============
+*/
+static void G_Frame_ActivateRound( void ) {
+	int		limitSeconds;
+
+	level.roundState = ROUNDSTATE_ACTIVE;
+	level.roundStartTime = level.time;
+	level.roundLastAnnouncement = level.time;
+	level.roundLastMercyCheck = level.time;
+
+	limitSeconds = g_roundTimeLimit.integer;
+	if ( limitSeconds > 0 ) {
+		level.roundEndTime = level.roundStartTime + ( limitSeconds * 1000 );
+	} else {
+		level.roundEndTime = 0;
+	}
+
+	trap_SendServerCommand( -1, va( "cp \"Round %d live!\"", level.roundNumber ) );
+	trap_SendServerCommand( -1, va( "print \"Round %d is now active.\n\"", level.roundNumber ) );
+	SendScoreboardMessageToAllClients();
+}
+
+/*
+=============
+G_Frame_CompleteRound
+
+Close out the active round and queue the next transition.
+=============
+*/
+static void G_Frame_CompleteRound( int winningTeam, const char *reason, qboolean mercyTriggered ) {
+	const char	*teamName;
+	int		delay;
+
+	level.roundState = ROUNDSTATE_COMPLETE;
+	level.roundWinner = winningTeam;
+	level.roundTransitionTime = 0;
+	level.roundMercyTriggered = mercyTriggered;
+	level.roundLastAnnouncement = level.time;
+
+	delay = g_roundRestartDelay.integer;
+	if ( delay < 0 ) {
+		delay = 0;
+	}
+	if ( delay > 0 ) {
+		level.roundTransitionTime = level.time + delay;
+	}
+
+	switch ( winningTeam ) {
+	case TEAM_RED:
+		teamName = "Red";
+		break;
+	case TEAM_BLUE:
+		teamName = "Blue";
+		break;
+	default:
+		teamName = "No team";
+		break;
+	}
+
+	trap_SendServerCommand( -1, va( "cp \"Round %d complete\n%s\"", level.roundNumber, reason ? reason : "Round finished" ) );
+	trap_SendServerCommand( -1, va( "print \"Round %d complete. Winner: %s%s%s\n\"", level.roundNumber, teamName,
+		mercyTriggered ? " (mercy rule)" : "", reason ? va( " - %s", reason ) : "" ) );
+	SendScoreboardMessageToAllClients();
+}
+
+/*
+=============
+G_Frame_UpdateRoundController
+
+Advance round-based gameplay state machine when enabled.
+=============
+*/
+static void G_Frame_UpdateRoundController( void ) {
+	if ( level.roundState == ROUNDSTATE_INACTIVE ) {
+		G_Frame_BeginRoundWarmup();
+		return;
+	}
+
+	if ( level.roundState == ROUNDSTATE_WARMUP ) {
+		if ( level.roundStartTime <= level.time ) {
+			G_Frame_ActivateRound();
+		}
+		return;
+	}
+
+	if ( level.roundState == ROUNDSTATE_ACTIVE ) {
+		int		limitSeconds;
+		int		mercyDelta;
+
+		limitSeconds = g_roundTimeLimit.integer;
+		if ( limitSeconds > 0 && level.roundEndTime > 0 && level.time >= level.roundEndTime ) {
+			G_Frame_CompleteRound( TEAM_FREE, "Time limit reached", qfalse );
+			return;
+		}
+
+		mercyDelta = g_roundMercyScore.integer;
+		if ( mercyDelta > 0 ) {
+			if ( level.roundLastMercyCheck + 500 <= level.time ) {
+				int		diff;
+				int		leadingTeam;
+
+				level.roundLastMercyCheck = level.time;
+				diff = level.teamScores[TEAM_RED] - level.teamScores[TEAM_BLUE];
+				if ( diff < 0 ) {
+					diff = -diff;
+				}
+				if ( diff >= mercyDelta ) {
+					leadingTeam = TEAM_FREE;
+					if ( level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE] ) {
+						leadingTeam = TEAM_RED;
+					} else if ( level.teamScores[TEAM_BLUE] > level.teamScores[TEAM_RED] ) {
+						leadingTeam = TEAM_BLUE;
+					}
+					G_Frame_CompleteRound( leadingTeam, "Mercy rule triggered", qtrue );
+					return;
+				}
+			}
+		}
+		return;
+	}
+
+	if ( level.roundState == ROUNDSTATE_COMPLETE ) {
+		if ( level.roundTransitionTime > 0 && level.time >= level.roundTransitionTime ) {
+			G_Frame_BeginRoundWarmup();
+		}
+	}
+}
+
+/*
+=============
+G_Frame_UpdateFreezeTag
+
+Handle automatic thaw scheduling and announcements for freeze-tag matches.
+=============
+*/
+static void G_Frame_UpdateFreezeTag( void ) {
+	int		maxClients;
+	int		tick;
+	int		i;
+
+	maxClients = level.maxclients;
+	tick = g_freezeTagThawTick.integer;
+	if ( tick < 0 ) {
+		tick = 0;
+	}
+
+	for ( i = 0; i < maxClients; i++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+		int		remaining;
+
+		ent = &g_entities[i];
+		client = ent->client;
+		if ( !client ) {
+			continue;
+		}
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( !client->freezeTagFrozen ) {
+			continue;
+		}
+
+		remaining = client->freezeTagThawTime - level.time;
+		if ( remaining < 0 ) {
+			remaining = 0;
+		}
+
+		if ( tick > 0 && client->freezeTagNextTickTime <= level.time ) {
+			int		seconds;
+
+			seconds = ( remaining + 999 ) / 1000;
+			trap_SendServerCommand( ent->s.number, va( "cp \"Thawing in %ds\"", seconds ) );
+			client->freezeTagNextTickTime = level.time + tick;
+
+			if ( level.roundLastThawBroadcast + tick <= level.time ) {
+				trap_SendServerCommand( -1, va( "print \"%s is thawing in %d seconds.\n\"", client->pers.netname, seconds ) );
+				level.roundLastThawBroadcast = level.time;
+			}
+		}
+
+		if ( client->freezeTagThawTime > 0 && level.time >= client->freezeTagThawTime ) {
+			client->freezeTagFrozen = qfalse;
+			client->freezeTagThawTime = 0;
+			client->freezeTagNextTickTime = 0;
+			client->respawnTime = level.time;
+
+			if ( g_freezeTagThawScore.integer != 0 ) {
+				AddScore( ent, ent->r.currentOrigin, g_freezeTagThawScore.integer );
+			}
+
+			trap_SendServerCommand( ent->s.number, "cp \"You thawed!\"" );
+			G_RequestClientSpawn( ent, qfalse, qfalse );
+		}
+	}
+}
+
+/*
+=============
+G_Frame_UpdateRespawnPacing
+
+Synchronise respawn pacing targets with the configured cvars.
+=============
+*/
+static void G_Frame_UpdateRespawnPacing( void ) {
+	int		minDelay;
+	int		maxDelay;
+
+	minDelay = g_respawnPacingMin.integer;
+	maxDelay = g_respawnPacingMax.integer;
+
+	if ( minDelay < 0 ) {
+		minDelay = 0;
+	}
+	if ( maxDelay < 0 ) {
+		maxDelay = 0;
+	}
+
+	if ( minDelay <= 0 ) {
+		level.respawnPacingNextTime = 0;
+		return;
+	}
+
+	if ( level.respawnPacingNextTime < level.time + minDelay ) {
+		level.respawnPacingNextTime = level.time + minDelay;
+	}
+
+	if ( maxDelay > 0 ) {
+		int		limit;
+
+		limit = level.time + maxDelay;
+		if ( level.respawnPacingNextTime > limit ) {
+			level.respawnPacingNextTime = limit;
+		}
+	}
+}
+
+/*
+=============
+G_Frame_RunSpecialModes
+
+Entry point used once per frame to update mode-specific controllers.
+=============
+*/
+void G_Frame_RunSpecialModes( void ) {
+	if ( g_raceMode.integer ) {
+		level.raceCheckpointGraceTime = g_raceCheckpointGrace.integer;
+	} else {
+		level.raceCheckpointGraceTime = 0;
+	}
+
+	G_Frame_UpdateRespawnPacing();
+
+	if ( g_freezeTag.integer ) {
+		G_Frame_UpdateFreezeTag();
+	} else {
+		level.roundLastThawBroadcast = 0;
+	}
+
+	if ( g_roundBased.integer ) {
+		G_Frame_UpdateRoundController();
+	} else if ( level.roundState != ROUNDSTATE_INACTIVE ) {
+		level.roundState = ROUNDSTATE_INACTIVE;
+		level.roundTransitionTime = 0;
+	}
+}

@@ -1,0 +1,42 @@
+{
+  "map": "qzdm6",
+  "duration": 8.0,
+  "tick_rate": 2,
+  "seed": 4040,
+  "bots": [
+    {
+      "name": "athena",
+      "team": "red",
+      "script": []
+    },
+    {
+      "name": "slash",
+      "team": "blue",
+      "script": []
+    }
+  ],
+  "metadata": {
+    "modes": {
+      "rounds": {
+        "transitions": [
+          {"time": 0.0, "state": "warmup"},
+          {"time": 3.0, "state": "live"},
+          {"time": 7.0, "state": "complete"}
+        ]
+      },
+      "freeze_tag": {
+        "players": ["athena"],
+        "thaw_time": 4.0,
+        "tick": 1.0
+      },
+      "infected": {
+        "trigger_time": 5.0,
+        "bonus": 2
+      },
+      "respawn": {
+        "pulse_time": 6.0,
+        "interval": 1750
+      }
+    }
+  }
+}

@@ -12,6 +12,76 @@ from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence
 from .config import BotConfig, CommandConfig, MatchConfig
 
 
+
+class SpecialModeEmulator:
+    """Generates synthetic events describing mode controller activity."""
+
+    def __init__(self, metadata: Mapping[str, Any]) -> None:
+        self._round_transitions = sorted(
+            metadata.get("rounds", {}).get("transitions", []),
+            key=lambda entry: entry.get("time", 0.0),
+        )
+        self._next_round_index = 0
+        freeze_meta = metadata.get("freeze_tag", {})
+        players = freeze_meta.get("players", [])
+        thaw_time = float(freeze_meta.get("thaw_time", 0.0))
+        tick = float(freeze_meta.get("tick", 1.0))
+        self._freeze_players = {
+            name: {"thaw_time": thaw_time, "tick": tick, "next_tick": 0.0, "thawed": False}
+            for name in players
+        }
+        self._infected = dict(metadata.get("infected", {}))
+        self._respawn = dict(metadata.get("respawn", {}))
+
+    def step(self, time: float, delta: float, events: List[Dict[str, Any]]) -> None:
+        if self._next_round_index < len(self._round_transitions):
+            transition = self._round_transitions[self._next_round_index]
+            if time + 1e-6 >= float(transition.get("time", 0.0)):
+                events.append(
+                    {
+                        "type": "round_state",
+                        "state": transition.get("state", "unknown"),
+                    }
+                )
+                self._next_round_index += 1
+
+        for name, data in self._freeze_players.items():
+            thaw_time = float(data.get("thaw_time", 0.0))
+            tick = float(data.get("tick", 1.0))
+            next_tick = float(data.get("next_tick", 0.0))
+            if data.get("thawed"):
+                continue
+            if time + 1e-6 >= thaw_time:
+                events.append({"type": "thaw", "bot": name})
+                data["thawed"] = True
+                continue
+            if tick > 0.0 and time + 1e-6 >= next_tick:
+                remaining = max(0.0, thaw_time - time)
+                events.append({"type": "freeze_tick", "bot": name, "remaining": round(remaining, 3)})
+                data["next_tick"] = next_tick + tick
+
+        infected_time = self._infected.get("trigger_time")
+        if infected_time is not None and not self._infected.get("_emitted"):
+            if time + 1e-6 >= float(infected_time):
+                events.append(
+                    {
+                        "type": "infected_bonus",
+                        "bonus": int(self._infected.get("bonus", 0)),
+                    }
+                )
+                self._infected["_emitted"] = True
+
+        respawn_time = self._respawn.get("pulse_time")
+        if respawn_time is not None and not self._respawn.get("_emitted"):
+            if time + 1e-6 >= float(respawn_time):
+                events.append(
+                    {
+                        "type": "respawn_gate",
+                        "interval": int(self._respawn.get("interval", 0)),
+                    }
+                )
+                self._respawn["_emitted"] = True
+
 @dataclass
 class BotState:
     """Represents the state of a bot at a given moment."""
@@ -97,6 +167,7 @@ class MatchHarness:
         # Store the resolved seed on the configuration so serialised timelines
         # reflect the actual deterministic inputs used for the run.
         self.config.seed = self.seed
+        self.mode_emulator = SpecialModeEmulator(config.metadata.get("modes", {}))
 
     @staticmethod
     def _resolve_seed(*seeds: Optional[int]) -> int:
@@ -133,6 +204,7 @@ class MatchHarness:
                     event = self._apply_command(bot_state, command, delta)
                     events.append(event)
                 script_indices[bot_name] = idx
+            self.mode_emulator.step(current_time, delta, events)
             frame = TimelineFrame(
                 tick=tick,
                 time=round(current_time, 6),

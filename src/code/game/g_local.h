@@ -93,6 +93,18 @@ extern weaponConfig_t g_weaponConfig;
 void G_InitWeaponConfig( void );
 void G_UpdateWeaponConfig( void );
 
+typedef enum {
+	ROUNDSTATE_INACTIVE = 0,
+	ROUNDSTATE_WARMUP,
+	ROUNDSTATE_ACTIVE,
+	ROUNDSTATE_COMPLETE
+} roundState_t;
+
+typedef enum {
+	FREEZESTATE_NONE = 0,
+	FREEZESTATE_FROZEN
+} freezeTagState_t;
+
 typedef struct ammoPackConfig_s {
 	// Indexed by weapon_t so ammo_pack_* CVars (e.g. ammo_pack_mg) map directly to pickup counts.
 	int		weaponPickup[WP_NUM_WEAPONS];
@@ -131,6 +143,23 @@ void G_UpdateFactoryCvarConfig( void );
 extern vmCvar_t g_startingHealth;
 extern vmCvar_t g_startingHealthBonus;
 extern vmCvar_t g_startingArmor;
+extern vmCvar_t g_freezeTag;
+extern vmCvar_t g_freezeTagThawTime;
+extern vmCvar_t g_freezeTagThawTick;
+extern vmCvar_t g_freezeTagThawScore;
+extern vmCvar_t g_vampiricDamageScale;
+extern vmCvar_t g_roundBased;
+extern vmCvar_t g_roundWarmupTime;
+extern vmCvar_t g_roundRestartDelay;
+extern vmCvar_t g_roundMercyScore;
+extern vmCvar_t g_roundTimeLimit;
+extern vmCvar_t g_infectedScoring;
+extern vmCvar_t g_infectedScoreBonus;
+extern vmCvar_t g_respawnPacingMin;
+extern vmCvar_t g_respawnPacingMax;
+extern vmCvar_t g_raceMode;
+extern vmCvar_t g_raceRespawnPenalty;
+extern vmCvar_t g_raceCheckpointGrace;
 
 typedef struct startingAmmoConfig_s {
 	int		bfg;
@@ -461,6 +490,11 @@ struct gclient_s {
 	int			invulnerabilityTime;
 #endif
 
+	qboolean	freezeTagFrozen;
+	int		freezeTagThawTime;
+	int		freezeTagNextTickTime;
+	qboolean	infected;
+	int		respawnPacedTime;
 	char		*areabits;
 };
 
@@ -579,6 +613,18 @@ typedef struct {
 	qboolean		spawnQueueActive;
 	qboolean		matchAllowItemDrops;
 	qboolean		matchAllowItemBounce;
+	roundState_t	roundState;
+	int		roundNumber;
+	int		roundStartTime;
+	int		roundEndTime;
+	int		roundTransitionTime;
+	int		roundWinner;
+	int		roundLastAnnouncement;
+	qboolean	roundMercyTriggered;
+	int		roundLastMercyCheck;
+	int		roundLastThawBroadcast;
+	int		respawnPacingNextTime;
+	int		raceCheckpointGraceTime;
 } level_locals_t;
 
 
@@ -820,6 +866,7 @@ void ClientCommand( int clientNum );
 void ClientThink( int clientNum );
 void ClientEndFrame( gentity_t *ent );
 void G_RunClient( gentity_t *ent );
+void G_Frame_RunSpecialModes( void );
 
 //
 // g_team.c
@@ -827,6 +874,7 @@ void G_RunClient( gentity_t *ent );
 qboolean OnSameTeam( gentity_t *ent1, gentity_t *ent2 );
 void Team_CheckDroppedItem( gentity_t *dropped );
 qboolean CheckObeliskAttack( gentity_t *obelisk, gentity_t *attacker );
+void Team_RoundRestart( void );
 
 //
 // g_mem.c

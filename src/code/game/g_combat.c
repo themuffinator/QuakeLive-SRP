@@ -477,6 +477,17 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 #endif
 	self->client->ps.pm_type = PM_DEAD;
 
+	if ( g_freezeTag.integer ) {
+		self->client->freezeTagFrozen = qtrue;
+		self->client->freezeTagThawTime = level.time + g_freezeTagThawTime.integer;
+		self->client->freezeTagNextTickTime = level.time;
+		trap_SendServerCommand( self->s.number, "cp \"You are frozen!\"" );
+	} else {
+		self->client->freezeTagFrozen = qfalse;
+		self->client->freezeTagThawTime = 0;
+		self->client->freezeTagNextTickTime = 0;
+	}
+
 	if ( attacker ) {
 		killer = attacker->s.number;
 		if ( attacker->client ) {
@@ -518,10 +529,26 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	if (attacker && attacker->client) {
 		attacker->client->lastkilled_client = self->s.number;
 
-		if ( attacker == self || OnSameTeam (self, attacker ) ) {
-			AddScore( attacker, self->r.currentOrigin, -1 );
-		} else {
-			AddScore( attacker, self->r.currentOrigin, 1 );
+			if ( attacker == self || OnSameTeam (self, attacker ) ) {
+				AddScore( attacker, self->r.currentOrigin, -1 );
+			} else {
+				AddScore( attacker, self->r.currentOrigin, 1 );
+
+				if ( g_infectedScoring.integer && !self->client->infected ) {
+					self->client->infected = qtrue;
+					trap_SendServerCommand( self->s.number, "cp \"You are infected!\"" );
+				}
+				if ( g_infectedScoring.integer && attacker->client->infected ) {
+					int		bonus;
+
+					bonus = g_infectedScoreBonus.integer;
+					if ( bonus != 0 ) {
+						AddScore( attacker, self->r.currentOrigin, bonus );
+					}
+					trap_SendServerCommand( attacker->s.number, "cp \"Infected bonus!\"" );
+					SendScoreboardMessageToAllClients();
+				}
+			}
 
 			if( meansOfDeath == MOD_GAUNTLET ) {
 				
@@ -635,6 +662,37 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	// g_forcerespawn may force spawning at some later time
 	{
 		int respawnDelay = 1700;
+		int pacingTarget = 0;
+		int pacingMin = g_respawnPacingMin.integer;
+		int pacingMax = g_respawnPacingMax.integer;
+		int racePenalty = ( g_raceMode.integer ) ? g_raceRespawnPenalty.integer : 0;
+		if ( racePenalty > 0 ) {
+			respawnDelay += racePenalty;
+		}
+		if ( g_freezeTag.integer && self->client->freezeTagFrozen ) {
+			respawnDelay = g_freezeTagThawTime.integer;
+			if ( respawnDelay < 0 ) {
+				respawnDelay = 0;
+			}
+		}
+		if ( pacingMin < 0 ) {
+			pacingMin = 0;
+		}
+		if ( pacingMax < 0 ) {
+			pacingMax = 0;
+		}
+		if ( pacingMin > 0 ) {
+			pacingTarget = level.respawnPacingNextTime;
+			if ( pacingTarget <= level.time ) {
+				pacingTarget = level.time + pacingMin;
+			}
+			if ( pacingTarget - level.time > respawnDelay ) {
+				respawnDelay = pacingTarget - level.time;
+			}
+		}
+		if ( pacingMax > 0 && respawnDelay > pacingMax ) {
+			respawnDelay = pacingMax;
+		}
 		if ( level.suddenDeathActive ) {
 			int suddenDeathDelay = G_GetSuddenDeathRespawnDelay();
 			if ( suddenDeathDelay < 0 ) {
@@ -647,6 +705,12 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			}
 		} else {
 			self->client->respawnTime = level.time + respawnDelay;
+		}
+		if ( pacingMin > 0 ) {
+			level.respawnPacingNextTime = self->client->respawnTime;
+			self->client->respawnPacedTime = self->client->respawnTime;
+		} else {
+			self->client->respawnPacedTime = 0;
 		}
 	}
 
@@ -1184,6 +1248,24 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	// save some from armor
 	asave = CheckArmor (targ, take, dflags);
 	take -= asave;
+
+	if ( attacker->client && g_vampiricDamageScale.value > 0.0f && take > 0 && attacker != targ ) {
+		float		healScale;
+		int		healAmount;
+		int		maxHealth;
+
+		healScale = g_vampiricDamageScale.value;
+		healAmount = (int)( ( (float)take * healScale ) + 0.5f );
+		maxHealth = attacker->client->ps.stats[STAT_MAX_HEALTH];
+		if ( healAmount > 0 && attacker->client->ps.stats[STAT_HEALTH] < maxHealth ) {
+			attacker->client->ps.stats[STAT_HEALTH] += healAmount;
+			if ( attacker->client->ps.stats[STAT_HEALTH] > maxHealth ) {
+				attacker->client->ps.stats[STAT_HEALTH] = maxHealth;
+			}
+			attacker->health = attacker->client->ps.stats[STAT_HEALTH];
+			trap_SendServerCommand( attacker->s.number, "cp "Vampiric heal"" );
+		}
+	}
 
 	if ( g_debugDamage.integer ) {
 		G_Printf( "%i: client:%i health:%i damage:%i armor:%i\n", level.time, targ->s.number,

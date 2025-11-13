@@ -132,6 +132,23 @@ vmCvar_t	g_suddenDeathRespawnTick;
 vmCvar_t	g_suddenDeathRespawnMax;
 vmCvar_t	g_suddenDeathRespawnIncrement;
 vmCvar_t	g_suddenDeathRespawnPrint;
+vmCvar_t	g_freezeTag;
+vmCvar_t	g_freezeTagThawTime;
+vmCvar_t	g_freezeTagThawTick;
+vmCvar_t	g_freezeTagThawScore;
+vmCvar_t	g_vampiricDamageScale;
+vmCvar_t	g_roundBased;
+vmCvar_t	g_roundWarmupTime;
+vmCvar_t	g_roundRestartDelay;
+vmCvar_t	g_roundMercyScore;
+vmCvar_t	g_roundTimeLimit;
+vmCvar_t	g_infectedScoring;
+vmCvar_t	g_infectedScoreBonus;
+vmCvar_t	g_respawnPacingMin;
+vmCvar_t	g_respawnPacingMax;
+vmCvar_t	g_raceMode;
+vmCvar_t	g_raceRespawnPenalty;
+vmCvar_t	g_raceCheckpointGrace;
 vmCvar_t	g_damage_gauntlet;
 vmCvar_t	g_damage_mg;
 vmCvar_t	g_damage_mg_team;
@@ -244,6 +261,23 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_factoryWarmupSpawnDelay, "g_factoryWarmupSpawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds applied to warmup spawns when factories request staggered starts." },
 	{ &g_factoryAllowItemDrops, "g_factoryAllowItemDrops", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether item drop logic fires for weapons and powerups spawned from players." },
 	{ &g_factoryAllowItemBounce, "g_factoryAllowItemBounce", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether dropped items bounce before coming to rest when factories disable the behaviour." },
+	{ &g_freezeTag, "g_freezeTag", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable freeze-tag thaw mechanics for defeated players." },
+	{ &g_freezeTagThawTime, "g_freezeTagThawTime", "3500", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds before frozen players automatically thaw." },
+	{ &g_freezeTagThawTick, "g_freezeTagThawTick", "1000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Interval in milliseconds between thaw status reminders." },
+	{ &g_freezeTagThawScore, "g_freezeTagThawScore", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score awarded to players when they complete an automatic thaw." },
+	{ &g_vampiricDamageScale, "g_vampiricDamageScale", "0.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fraction of dealt damage returned as health when vampiric rules are enabled." },
+	{ &g_roundBased, "g_roundBased", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable round-based control flow that pauses the match between rounds." },
+	{ &g_roundWarmupTime, "g_roundWarmupTime", "5000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds of warmup applied before each round becomes active." },
+	{ &g_roundRestartDelay, "g_roundRestartDelay", "3000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before the next round begins after completion." },
+	{ &g_roundMercyScore, "g_roundMercyScore", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score differential that triggers the mercy rule to end a round early; 0 disables the rule." },
+	{ &g_roundTimeLimit, "g_roundTimeLimit", "180", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Time limit in seconds for each round; 0 disables the limit." },
+	{ &g_infectedScoring, "g_infectedScoring", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable infected scoring bonuses that reward spreading the affliction." },
+	{ &g_infectedScoreBonus, "g_infectedScoreBonus", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score awarded to infected players when they eliminate an opponent." },
+	{ &g_respawnPacingMin, "g_respawnPacingMin", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minimum milliseconds enforced between consecutive respawns when pacing is active." },
+	{ &g_respawnPacingMax, "g_respawnPacingMax", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Maximum milliseconds allowed between paced respawns; 0 lets delays grow unbounded." },
+	{ &g_raceMode, "g_raceMode", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable race rule helpers controlling checkpoint and respawn timing." },
+	{ &g_raceRespawnPenalty, "g_raceRespawnPenalty", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds added to respawn delays when racers fail objectives." },
+	{ &g_raceCheckpointGrace, "g_raceCheckpointGrace", "2000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Grace period in milliseconds to keep racers at a checkpoint before forcing a respawn." },
 	{ &g_suddenDeathRespawnStart, "g_suddenDeathRespawnStart", "3", CVAR_NORESTART, 0, qfalse, qfalse, "Initial sudden-death respawn delay in seconds when respawns are enabled." },
 	{ &g_suddenDeathRespawnTick, "g_suddenDeathRespawnTick", "60", CVAR_NORESTART, 0, qfalse, qfalse, "Interval in seconds after which sudden-death respawn delays are increased." },
 	{ &g_suddenDeathRespawnMax, "g_suddenDeathRespawnMax", "10", CVAR_NORESTART, 0, qfalse, qfalse, "Maximum sudden-death respawn delay in seconds." },
@@ -2438,6 +2472,8 @@ void G_RunFrame( int levelTime ) {
 	G_FinishClientFrames( ctx );
 	G_UpdateVoteThrottle();
 	G_CheckLevelTimers( ctx, previousWarmupTime, previousIntermissionQueued );
+
+	G_Frame_RunSpecialModes();
 
 	if ( g_listEntity.integer ) {
 		int		i;

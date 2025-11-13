@@ -1481,3 +1481,42 @@ qboolean CheckObeliskAttack( gentity_t *obelisk, gentity_t *attacker ) {
 	return qfalse;
 }
 #endif
+
+
+/*
+=============
+Team_RoundRestart
+
+Respawn or reset clients when a new round begins.
+=============
+*/
+void Team_RoundRestart( void ) {
+	int		i;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+
+		ent = &g_entities[i];
+		client = ent->client;
+		if ( !client ) {
+			continue;
+		}
+
+		client->freezeTagFrozen = qfalse;
+		client->freezeTagThawTime = 0;
+		client->freezeTagNextTickTime = 0;
+		if ( g_infectedScoring.integer ) {
+			client->infected = qfalse;
+		}
+
+		if ( client->pers.connected == CON_CONNECTED && client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			if ( client->ps.stats[STAT_HEALTH] <= 0 ) {
+				client->respawnTime = level.time;
+				G_RequestClientSpawn( ent, qfalse, qfalse );
+			}
+		}
+	}
+
+	SendScoreboardMessageToAllClients();
+}
