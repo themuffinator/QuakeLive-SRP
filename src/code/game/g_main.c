@@ -170,7 +170,19 @@ vmCvar_t	g_quadHog;
 vmCvar_t	g_quadHogIdle;
 vmCvar_t	g_quadHogTime;
 vmCvar_t	g_quadHogPingRate;
+vmCvar_t	g_forceAtmosphericEffects;
+vmCvar_t	g_forceSmallScoreboardMessage;
+vmCvar_t	g_forceSendConfigstring;
 static matchFactoryConfig_t matchFlow_lastConfig;
+typedef struct {
+	qboolean	forceHideHud;
+	qboolean	forceAtmosphere;
+	qboolean	forceSmallScoreboard;
+	int		sequence;
+	char		payload[MAX_INFO_STRING];
+} forcedCosmeticsPayload_t;
+
+static forcedCosmeticsPayload_t g_forcedCosmeticsPublished;
 #ifdef MISSIONPACK
 vmCvar_t	g_obeliskHealth;
 vmCvar_t	g_obeliskRegenPeriod;
@@ -306,6 +318,9 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_quadHogIdle, "g_quadHogIdle", "0", 0, 0, qtrue, qfalse, "Seconds of inactivity allowed for the Quad Hog carrier before the powerup is revoked; 0 disables the idle check." },
 	{ &g_quadHogTime, "g_quadHogTime", "0", 0, 0, qtrue, qfalse, "Maximum time in seconds a player may hold Quad during Quad Hog events before it auto-expires; 0 removes the cap." },
 	{ &g_quadHogPingRate, "g_quadHogPingRate", "0", 0, 0, qtrue, qfalse, "Seconds between Quad Hog reminder pings while the timer is active; 0 silences the announcements." },
+	{ &g_forceAtmosphericEffects, "g_forceAtmosphericEffects", "0", 0, 0, qfalse, qfalse, "Require clients to request atmospheric effect support from the server when enabled." },
+	{ &g_forceSmallScoreboardMessage, "g_forceSmallScoreboardMessage", "0", 0, 0, qfalse, qfalse, "Shrinks server-driven scoreboard center prints so HUD broadcasts remain unobtrusive." },
+	{ &g_forceSendConfigstring, "g_forceSendConfigstring", "0", 0, 0, qfalse, qfalse, "Bitmask for forced cosmetics; bump the value to rebroadcast the configstring payload." },
 #ifdef MISSIONPACK
 	{ &g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, qfalse },
 	{ &g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", 0, 0, qfalse },
@@ -590,6 +605,93 @@ void G_RemapTeamShaders() {
 }
 
 
+static void G_ForcedCosmetics_ReadState( forcedCosmeticsPayload_t *state );
+static qboolean G_ForcedCosmetics_Equals( const forcedCosmeticsPayload_t *a, const forcedCosmeticsPayload_t *b );
+static void G_ForcedCosmetics_SyncConfigstring( qboolean forceBroadcast );
+
+/*
+=============
+G_ForcedCosmetics_ReadState
+
+Populates the cached forced cosmetics payload from the current server CVars.
+=============
+*/
+static void G_ForcedCosmetics_ReadState( forcedCosmeticsPayload_t *state ) {
+	char		sequenceBuffer[32];
+
+	if ( !state ) {
+		return;
+	}
+
+	state->forceHideHud = ( g_forceSendConfigstring.integer & 1 ) ? qtrue : qfalse;
+	state->forceAtmosphere = ( g_forceAtmosphericEffects.integer != 0 ) ? qtrue : qfalse;
+	state->forceSmallScoreboard = ( g_forceSmallScoreboardMessage.integer != 0 ) ? qtrue : qfalse;
+	state->sequence = g_forceSendConfigstring.integer;
+
+	state->payload[0] = '\0';
+
+	Info_SetValueForKey( state->payload, "hud", state->forceHideHud ? "1" : "0" );
+	Info_SetValueForKey( state->payload, "atmosphere", state->forceAtmosphere ? "1" : "0" );
+	Info_SetValueForKey( state->payload, "smallScoreboardMessage", state->forceSmallScoreboard ? "1" : "0" );
+	Com_sprintf( sequenceBuffer, sizeof( sequenceBuffer ), "%i", state->sequence );
+	Info_SetValueForKey( state->payload, "sequence", sequenceBuffer );
+}
+
+/*
+=============
+G_ForcedCosmetics_Equals
+
+Returns qtrue when two forced cosmetic payloads match exactly.
+=============
+*/
+static qboolean G_ForcedCosmetics_Equals( const forcedCosmeticsPayload_t *a, const forcedCosmeticsPayload_t *b ) {
+	if ( !a || !b ) {
+		return qfalse;
+	}
+
+	if ( a->forceHideHud != b->forceHideHud ) {
+		return qfalse;
+	}
+
+	if ( a->forceAtmosphere != b->forceAtmosphere ) {
+		return qfalse;
+	}
+
+	if ( a->forceSmallScoreboard != b->forceSmallScoreboard ) {
+		return qfalse;
+	}
+
+	if ( a->sequence != b->sequence ) {
+		return qfalse;
+	}
+
+	if ( Q_stricmp( a->payload, b->payload ) != 0 ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+G_ForcedCosmetics_SyncConfigstring
+
+Publishes the forced cosmetics payload to clients when it changes or on demand.
+=============
+*/
+static void G_ForcedCosmetics_SyncConfigstring( qboolean forceBroadcast ) {
+	forcedCosmeticsPayload_t	current;
+
+	G_ForcedCosmetics_ReadState( &current );
+
+	if ( !forceBroadcast && G_ForcedCosmetics_Equals( &current, &g_forcedCosmeticsPublished ) ) {
+		return;
+	}
+
+	trap_SetConfigstring( CS_FORCED_COSMETICS, current.payload );
+	g_forcedCosmeticsPublished = current;
+}
+
 /*
 =================
 G_RegisterCvars
@@ -602,40 +704,41 @@ void G_RegisterCvars( void ) {
 
 	for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName,
-		        cv->defaultString, cv->cvarFlags );
+				cv->defaultString, cv->cvarFlags );
 		G_RegisterCvarHelp( cv );
 		if ( cv->vmCvar ) {
-		        cv->modificationCount = cv->vmCvar->modificationCount;
+			cv->modificationCount = cv->vmCvar->modificationCount;
 		}
 
 		if (cv->teamShader) {
-		        remapped = qtrue;
+			remapped = qtrue;
 		}
 	}
 
-        if (remapped) {
-                	G_RemapTeamShaders();
-        }
+	if (remapped) {
+		G_RemapTeamShaders();
+	}
 
-        G_Config_RegisterCvars();
-        G_Config_UpdateCvars();
+	G_Config_RegisterCvars();
+	G_Config_UpdateCvars();
 	G_RegisterPmoveCvars();
 	G_RefreshPmoveSettings();
+	G_ForcedCosmetics_SyncConfigstring( qtrue );
 
-        // check some things
-        if ( g_gametype.integer < 0 || g_gametype.integer >= GT_MAX_GAME_TYPE ) {
-                G_Printf( "g_gametype %i is out of range, defaulting to 0\n", g_gametype.integer );
-                trap_Cvar_Set( "g_gametype", "0" );
-        }
+	// check some things
+	if ( g_gametype.integer < 0 || g_gametype.integer >= GT_MAX_GAME_TYPE ) {
+		G_Printf( "g_gametype %i is out of range, defaulting to 0\n", g_gametype.integer );
+		trap_Cvar_Set( "g_gametype", "0" );
+	}
 
 	level.warmupModificationCount = g_warmup.modificationCount;
-        G_InitWeaponConfig();
-        G_InitWeaponReloadConfig();
-        G_InitKnockbackConfig();
-        G_InitStartingAmmoConfig();
-        G_InitAmmoPackConfig();
-        G_InitFactoryCvarConfig();
-        G_InitMatchFactoryConfig();
+	G_InitWeaponConfig();
+	G_InitWeaponReloadConfig();
+	G_InitKnockbackConfig();
+	G_InitStartingAmmoConfig();
+	G_InitAmmoPackConfig();
+	G_InitFactoryCvarConfig();
+	G_InitMatchFactoryConfig();
 	G_SyncMatchFactoryConfigToLevel();
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 	level.quadHogOwner = ENTITYNUM_NONE;
@@ -682,11 +785,13 @@ void G_UpdateCvars( void ) {
         G_UpdateStartingAmmoConfig();
         G_UpdateAmmoPackConfig();
         G_UpdateFactoryCvarConfig();
-        G_UpdateMatchFactoryConfig();
+	G_UpdateMatchFactoryConfig();
 	G_SyncMatchFactoryConfigToLevel();
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 
-        G_RefreshPmoveSettings();
+	G_ForcedCosmetics_SyncConfigstring( qfalse );
+
+	G_RefreshPmoveSettings();
 }
 
 /*

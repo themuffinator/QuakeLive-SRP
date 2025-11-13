@@ -108,7 +108,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	CS_SOUNDS				(CS_MODELS+MAX_MODELS)
 #define	CS_PLAYERS				(CS_SOUNDS+MAX_SOUNDS)
 #define CS_LOCATIONS			(CS_PLAYERS+MAX_CLIENTS)
-#define CS_PARTICLES			(CS_LOCATIONS+MAX_LOCATIONS) 
+#define CS_PARTICLES			(CS_LOCATIONS+MAX_LOCATIONS)
+
+// CS_FORCED_COSMETICS publishes an info string describing server-enforced cosmetic
+// behaviour. Keys:
+//   "hud" - "1" instructs clients to hide HUD elements, "0" leaves rendering enabled.
+//   "atmosphere" - "1" forces atmospheric effect requests, "0" restores client choice.
+//   "smallScoreboardMessage" - "1" shrinks center-print scoreboard messaging, "0" keeps the default size.
+//   "sequence" - decimal revision allowing admins to bump the payload without changing other fields.
+#define CS_FORCED_COSMETICS		0x2B3
 
 #define CS_MAX					(CS_PARTICLES+MAX_LOCATIONS)
 

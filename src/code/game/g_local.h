@@ -1059,6 +1059,9 @@ extern	vmCvar_t	g_damage_rg;
 extern	vmCvar_t	g_damage_bfg;
 extern	vmCvar_t	g_splashDamage_bfg;
 extern	vmCvar_t	g_splashRadius_bfg;
+extern	vmCvar_t	g_forceAtmosphericEffects;
+extern	vmCvar_t	g_forceSmallScoreboardMessage;
+extern	vmCvar_t	g_forceSendConfigstring;
 
 extern	vmCvar_t	g_startingAmmo_bfg;
 extern	vmCvar_t	g_startingAmmo_cg;

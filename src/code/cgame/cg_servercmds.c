@@ -29,6 +29,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MATCH_STATE_VALUE_COUNT	20
 
+static qboolean s_forcedAtmosphereActive = qfalse;
+
+static void CG_ApplyForcedAtmosphere( qboolean enabled );
+
 typedef struct {
 	const char *order;
 	int taskNum;
@@ -423,6 +427,62 @@ void CG_ShaderStateChanged(void) {
 }
 
 /*
+=============
+CG_ApplyForcedAtmosphere
+
+Sends a reliable command that mirrors the server's atmospheric effect policy.
+=============
+*/
+static void CG_ApplyForcedAtmosphere( qboolean enabled ) {
+	const char	*command;
+
+	if ( s_forcedAtmosphereActive == enabled ) {
+		return;
+	}
+
+	command = enabled ? "atmosphere 1" : "atmosphere 0";
+	trap_SendClientCommand( command );
+	s_forcedAtmosphereActive = enabled;
+}
+
+/*
+=============
+CG_ParseForcedCosmetics
+
+Decodes CS_FORCED_COSMETICS and applies the advertised cosmetic restrictions.
+=============
+*/
+void CG_ParseForcedCosmetics( void ) {
+	const char	*info;
+	int		value;
+	qboolean	atmosphere;
+
+	info = CG_ConfigString( CS_FORCED_COSMETICS );
+	if ( !info || !info[0] ) {
+		CG_ApplyForcedAtmosphere( qfalse );
+		cgs.forceDisableHud = qfalse;
+		cgs.forceAtmosphericEffects = qfalse;
+		cgs.forceSmallScoreboardMessage = qfalse;
+		cgs.forcedCosmeticsSequence = 0;
+		return;
+	}
+
+	value = atoi( Info_ValueForKey( info, "hud" ) );
+	cgs.forceDisableHud = ( value != 0 );
+
+	value = atoi( Info_ValueForKey( info, "atmosphere" ) );
+	atmosphere = ( value != 0 ) ? qtrue : qfalse;
+	CG_ApplyForcedAtmosphere( atmosphere );
+	cgs.forceAtmosphericEffects = atmosphere;
+
+	value = atoi( Info_ValueForKey( info, "smallScoreboardMessage" ) );
+	cgs.forceSmallScoreboardMessage = ( value != 0 );
+
+	value = atoi( Info_ValueForKey( info, "sequence" ) );
+	cgs.forcedCosmeticsSequence = value;
+}
+
+/*
 ================
 CG_ConfigStringModified
 
@@ -458,6 +518,8 @@ static void CG_ConfigStringModified( void ) {
 		cgs.levelStartTime = atoi( str );
 	} else if ( num == CS_FACTORY_TITLE || num == CS_FACTORY_FLAGS || num == CS_SPAWN_HINTS ) {
 		CG_ParseFactoryMetadata();
+	} else if ( num == CS_FORCED_COSMETICS ) {
+		CG_ParseForcedCosmetics();
 	} else if ( num == CS_VOTE_TIME ) {
 		cgs.voteTime = atoi( str );
 		cgs.voteModified = qtrue;
@@ -1154,7 +1216,10 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "cp" ) ) {
-		CG_CenterPrint( CG_Argv(1), SCREEN_HEIGHT * 0.30, BIGCHAR_WIDTH );
+		int charWidth;
+
+		charWidth = cgs.forceSmallScoreboardMessage ? SMALLCHAR_WIDTH : BIGCHAR_WIDTH;
+		CG_CenterPrint( CG_Argv(1), SCREEN_HEIGHT * 0.30, charWidth );
 		return;
 	}
 

@@ -2511,6 +2511,14 @@ static void CG_Draw2D( void ) {
 		return;
 	}
 
+	if ( cgs.forceDisableHud ) {
+		cg.scoreBoardShowing = CG_DrawScoreboard();
+		if ( !cg.scoreBoardShowing ) {
+			CG_DrawCenterString();
+		}
+		return;
+	}
+
 /*
 	if (cg.cameraMode) {
 		return;

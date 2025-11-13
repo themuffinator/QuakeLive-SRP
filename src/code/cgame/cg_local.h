@@ -1047,6 +1047,10 @@ typedef struct {
 	char		factorySpawnHints[MAX_STRING_CHARS];
 
 	qboolean  newHud;
+	qboolean  forceDisableHud;
+	qboolean  forceAtmosphericEffects;
+	qboolean  forceSmallScoreboardMessage;
+	int		forcedCosmeticsSequence;
 
 	//
 	// locally derived information from gamestate
@@ -1471,6 +1475,7 @@ void CG_ParseServerinfo( void );
 void CG_SetConfigValues( void );
 void CG_LoadVoiceChats( void );
 void CG_ShaderStateChanged(void);
+void CG_ParseForcedCosmetics( void );
 void CG_VoiceChatLocal( int mode, qboolean voiceOnly, int clientNum, int color, const char *cmd );
 void CG_PlayBufferedVoiceChats( void );
 
