@@ -1,0 +1,47 @@
+{
+  "map": "qzpractice",
+  "duration": 4.0,
+  "tick_rate": 10,
+  "seed": 4242,
+  "metadata": {
+    "bot_resources": {
+      "g_botsFile": [
+        {"alias": "scripted_sarge", "name": "sarge", "team": "red"},
+        {"alias": "scripted_anarki", "name": "anarki", "team": "blue"}
+      ],
+      "g_botSpawnList": [
+        {"bot": "scripted_sarge", "delay_ms": 0, "warmup": true, "reason": "initial", "issuer": "script"},
+        {"bot": "scripted_anarki", "delay_ms": 1500, "reason": "staggered", "issuer": "script"},
+        {"bot": "scripted_sarge", "delay_ms": 500, "reason": "respawn", "issuer": "script"}
+      ],
+      "g_accessFile": {
+        "commands": {
+          "addbot": {"allow": ["admin", "script"]},
+          "removebot": {"allow": ["admin"]},
+          "request_spawn": {"allow": ["admin", "ref", "script"]}
+        },
+        "spawns": {
+          "sarge": {"allow": ["admin", "script"]},
+          "anarki": {"allow": ["ref", "script"]},
+          "*": {"allow": ["script"]}
+        }
+      }
+    }
+  },
+  "bots": [
+    {
+      "name": "sarge",
+      "team": "red",
+      "script": [
+        {"time": 0.0, "action": "wait", "params": {}}
+      ]
+    },
+    {
+      "name": "anarki",
+      "team": "blue",
+      "script": [
+        {"time": 0.0, "action": "wait", "params": {}}
+      ]
+    }
+  ]
+}
