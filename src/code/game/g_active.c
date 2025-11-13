@@ -1202,4 +1202,39 @@ void ClientEndFrame( gentity_t *ent ) {
 //	ent->client->areabits[i >> 3] |= 1 << (i & 7);
 }
 
+/*
+=============
+G_Frame_BeginRoundWarmup
 
+Transitions the round controller into the warmup state.
+=============
+*/
+void G_Frame_BeginRoundWarmup( void ) {
+	level.roundState = ROUNDSTATE_WARMUP;
+	level.roundTransitionTime = ROUND_TRANSITION_NONE;
+}
+
+/*
+=============
+G_Frame_UpdateRoundController
+
+Runs per-frame updates for the round controller state machine.
+=============
+*/
+void G_Frame_UpdateRoundController( void ) {
+	switch ( level.roundState ) {
+	case ROUNDSTATE_COMPLETE:
+		if ( level.roundTransitionTime == 0 ) {
+			G_Frame_BeginRoundWarmup();
+			break;
+		}
+
+		if ( level.roundTransitionTime > 0 && level.time >= level.roundTransitionTime ) {
+			G_Frame_BeginRoundWarmup();
+		}
+		break;
+
+	default:
+		break;
+	}
+}

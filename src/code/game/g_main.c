@@ -716,6 +716,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	G_InitSpawnQueue();
 	level.time = levelTime;
 	level.startTime = levelTime;
+	level.roundState = ROUNDSTATE_INACTIVE;
+	level.roundTransitionTime = ROUND_TRANSITION_NONE;
 
 	level.timeoutOwner = -1;
 	level.timeoutTeam = TEAM_FREE;
@@ -2670,6 +2672,7 @@ void G_RunFrame( int levelTime ) {
 	G_QuadHogFrame();
 	G_FinishClientFrames( ctx );
 	G_UpdateVoteThrottle();
+	G_Frame_UpdateRoundController();
 	G_CheckLevelTimers( ctx, previousWarmupTime, previousIntermissionQueued );
 
 	if ( g_listEntity.integer ) {
