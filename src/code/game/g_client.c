@@ -1232,6 +1232,8 @@ void ClientBegin( int clientNum ) {
 
 	client = level.clients + clientNum;
 
+	G_ComplaintResetClient( client, qtrue );
+
 	if ( ent->r.linked ) {
 		trap_UnlinkEntity( ent );
 	}
@@ -1642,6 +1644,8 @@ void ClientDisconnect( int clientNum ) {
 		return;
 	}
 
+	G_ComplaintClientDisconnected( clientNum );
+	G_ComplaintResetClient( ent->client, qtrue );
 	G_ResetClientVoteThrottle( ent->client );
 
 	// stop any following clients
