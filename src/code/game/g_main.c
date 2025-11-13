@@ -107,6 +107,7 @@ vmCvar_t	g_allowSpecVote;
 vmCvar_t	g_allowVote;
 vmCvar_t	g_allowVoteMidGame;
 vmCvar_t	g_allowKill;
+vmCvar_t	g_allowForfeit;
 vmCvar_t	g_complaintLimit;
 vmCvar_t	g_complaintDamageThreshold;
 vmCvar_t	g_voteFlags;
@@ -248,6 +249,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_allowVote, "g_allowVote", "1", CVAR_ARCHIVE, 0, qfalse },
 	{ &g_allowVoteMidGame, "g_allowVoteMidGame", "0", 0, 0, qfalse },
 	{ &g_allowKill, "g_allowKill", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Minimum milliseconds between kill commands; 0 restores instant suicides." },
+	{ &g_allowForfeit, "g_allowForfeit", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Enables the forfeit console command when non-zero so early concessions can be honored." },
 	{ &g_complaintLimit, "g_complaintLimit", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum complaints before a player is automatically kicked; 0 disables kicking." },
 	{ &g_complaintDamageThreshold, "g_complaintDamageThreshold", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Minimum damage from a teammate required to present the complaint prompt." },
 	{ &g_voteFlags, "g_voteFlags", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse },
@@ -733,6 +735,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	level.suddenDeathActive = qfalse;
 	level.suddenDeathLastDelay = -1;
 	level.suddenDeathNoRespawnLogged = qfalse;
+        level.matchForfeited = qfalse;
         {
                 int team;
                 for ( team = TEAM_FREE; team < TEAM_NUM_TEAMS; team++ ) {
@@ -1493,6 +1496,31 @@ void LogExit( const char *string ) {
 
 }
 
+/*
+=============
+G_ApplyForfeit
+
+Ends the current match because a player forfeited.
+=============
+*/
+void G_ApplyForfeit( gentity_t *ent ) {
+	if ( level.matchForfeited ) {
+		return;
+	}
+
+	level.matchForfeited = qtrue;
+
+	if ( g_gametype.integer == GT_TOURNAMENT ) {
+		if ( ent && ent->client && ent->health > 0 ) {
+			ent->flags &= ~FL_GODMODE;
+			ent->client->ps.stats[STAT_HEALTH] = ent->health = -999;
+			player_die( ent, ent, ent, 100000, MOD_SUICIDE );
+		}
+	}
+
+	trap_SendServerCommand( -1, "print \"Game has been forfeited.\\n\"" );
+	LogExit( "Players have forfeited." );
+}
 
 /*
 =================
