@@ -51,9 +51,9 @@ migration-era tooling that now lives alongside the legacy Quake III sources.
   `docs/platform/toolchain-matrix.md` capture host prerequisites, project wiring, and CI guardrails for
   bytecode, native DLL, and reverse builds.【F:docs/build-pipeline.md†L1-L89】【F:docs/toolchain-ci.md†L1-L24】【F:docs/build/windows.md†L1-L31】【F:docs/platform/toolchain-matrix.md†L1-L27】
 - **Testing playbooks:** `docs/testing-strategy.md`, `docs/testing/match-sim.md`,
-  `docs/testing/client-regression.md`, `docs/testing/rules-fixtures.md`, and the deterministic trace
+  `docs/testing/client-regression.md`, `docs/testing/rules-fixtures.md`, `docs/testing/cosmetics-training.md`, and the deterministic trace
   notes in `docs/reverse-engineering/trace-harness.md` document the harness behaviours and extension
-  hooks.【F:docs/testing-strategy.md†L1-L43】【F:docs/testing/match-sim.md†L1-L45】【F:docs/testing/client-regression.md†L1-L55】【F:docs/testing/rules-fixtures.md†L1-L33】【F:docs/reverse-engineering/trace-harness.md†L1-L92】
+  hooks.【F:docs/testing-strategy.md†L1-L43】【F:docs/testing/match-sim.md†L1-L45】【F:docs/testing/client-regression.md†L1-L55】【F:docs/testing/rules-fixtures.md†L1-L33】【F:docs/testing/cosmetics-training.md†L1-L73】【F:docs/reverse-engineering/trace-harness.md†L1-L92】
 - **CI & artefact indexing:** The [Deterministic CI Matrix](../devops/ci-matrix.md) explains the harness
   matrix, emitted artefacts, and badges that surface build health across targets.【F:docs/devops/ci-matrix.md†L1-L38】
 - **Documentation backlog:** Track in-progress write-ups and outstanding audits in
@@ -71,7 +71,7 @@ migration-era tooling that now lives alongside the legacy Quake III sources.
    your host matches the enforced prerequisites.【F:tools/ci/verify-qvm-toolchain.sh†L1-L45】【F:tools/ci/install-vs-v100.ps1†L1-L63】【F:tools/ci/verify-vs-toolchain.ps1†L1-L74】【F:tools/ci/build-cleanroom.sh†L1-L44】【F:.github/workflows/toolchain.yml†L1-L15】【F:.github/workflows/windows-native.yml†L1-L27】【F:.github/workflows/deterministic-harnesses.yml†L10-L93】
 4. **Exercise the test suites** – Drive the deterministic harness entry point (`python tests/run_harnesses.py`)
    alongside the match simulation, client regression, rules fixtures, and trace harness guides so bytecode,
-   native DLL, and reverse builds stay in lockstep.【F:tests/run_harnesses.py†L27-L111】【F:docs/testing/match-sim.md†L1-L45】【F:docs/testing/client-regression.md†L1-L55】【F:docs/testing/rules-fixtures.md†L1-L33】【F:docs/reverse-engineering/trace-harness.md†L1-L92】
+   native DLL, and reverse builds stay in lockstep.【F:tests/run_harnesses.py†L27-L111】【F:docs/testing/match-sim.md†L1-L45】【F:docs/testing/client-regression.md†L1-L55】【F:docs/testing/rules-fixtures.md†L1-L33】【F:docs/testing/cosmetics-training.md†L1-L73】【F:docs/reverse-engineering/trace-harness.md†L1-L92】
 5. **Document findings** – Update the relevant architecture, gameplay, or reverse-engineering notes and log
    follow-ups in the documentation backlog so the wider team can track migration progress.【F:docs/reverse-engineering/handbook.md†L1-L56】【F:docs/documentation-backlog.md†L1-L40】
 6. **Validate against the contributor checklist** – Before opening your first PR, walk through the [Contributor Checklist](../process/contributor-checklist.md) so you understand the deterministic harness, baseline refresh, and syscall contract expectations reviewers will look for.【F:docs/process/contributor-checklist.md†L1-L45】
