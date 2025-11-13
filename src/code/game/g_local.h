@@ -372,6 +372,31 @@ typedef struct {
 #define	MAX_VOTE_COUNT		3
 #define	VOTE_THROTTLE_MSEC	0x8CA
 
+typedef enum {
+	VOTE_CMD_NONE = 0,
+	VOTE_CMD_MAP_RESTART,
+	VOTE_CMD_NEXTMAP,
+	VOTE_CMD_MAP,
+	VOTE_CMD_G_GAMETYPE,
+	VOTE_CMD_KICK,
+	VOTE_CMD_CLIENTKICK,
+	VOTE_CMD_G_DO_WARMUP,
+	VOTE_CMD_TIMELIMIT,
+	VOTE_CMD_FRAGLIMIT
+} voteCommandType_t;
+
+#define	VOTE_GUARD_DELAY	0x0001
+
+#define	VOTE_FLAG_DISABLE_MAP_RESTART	0x0001
+#define	VOTE_FLAG_DISABLE_NEXTMAP	0x0002
+#define	VOTE_FLAG_DISABLE_MAP	0x0004
+#define	VOTE_FLAG_DISABLE_G_GAMETYPE	0x0008
+#define	VOTE_FLAG_DISABLE_KICK	0x0010
+#define	VOTE_FLAG_DISABLE_CLIENTKICK	0x0020
+#define	VOTE_FLAG_DISABLE_G_DO_WARMUP	0x0040
+#define	VOTE_FLAG_DISABLE_TIMELIMIT	0x0080
+#define	VOTE_FLAG_DISABLE_FRAGLIMIT	0x0100
+
 // client data that stays across multiple respawns, but is cleared
 // on each level change or team change at ClientBegin()
 typedef struct {
@@ -518,6 +543,11 @@ typedef struct {
 	int			voteYes;
 	int			voteNo;
 	int			numVotingClients;		// set by CalculateRanks
+	int			voteCallerClientNum;
+	voteCommandType_t	voteCommandType;
+	int			voteCommandFlags;
+	int			voteGuardFlags;
+	int			voteGuardTime;
 
 	// team voting state
 	char		teamVoteString[2][MAX_STRING_CHARS];
@@ -953,6 +983,13 @@ extern	vmCvar_t	g_allowVote;
 extern	vmCvar_t	g_allowVoteMidGame;
 extern	vmCvar_t	g_voteDelay;
 extern	vmCvar_t	g_voteLimit;
+
+qboolean G_IsVoteExecutionPending( void );
+void G_UpdateVoteGuardState( void );
+void G_ApplyVoteGuard( int commandFlags );
+int G_VoteCommandDisableMask( voteCommandType_t commandType );
+int G_VoteCommandGuardFlags( voteCommandType_t commandType );
+voteCommandType_t G_ParseVoteCommandType( const char *commandName );
 extern	vmCvar_t	g_voteFlags;
 extern	vmCvar_t	g_teamAutoJoin;
 extern	vmCvar_t	g_teamForceBalance;

@@ -448,6 +448,31 @@ qboolean	ConsoleCommand( void ) {
 
 	trap_Argv( 0, cmd, sizeof( cmd ) );
 
+	{
+		voteCommandType_t consoleVoteType;
+		int		guardFlags;
+
+		consoleVoteType = G_ParseVoteCommandType( cmd );
+		if ( consoleVoteType != VOTE_CMD_NONE ) {
+			guardFlags = G_VoteCommandGuardFlags( consoleVoteType );
+
+			if ( level.voteExecuteTime ) {
+				G_Printf( "A vote is being executed.\n" );
+				return qtrue;
+			}
+
+			G_UpdateVoteGuardState();
+			if ( guardFlags && ( level.voteGuardFlags & guardFlags ) ) {
+				G_Printf( "A vote is being executed.\n" );
+				return qtrue;
+			}
+
+			if ( guardFlags ) {
+				G_ApplyVoteGuard( guardFlags );
+			}
+		}
+	}
+
 	if ( Q_stricmp (cmd, "entitylist") == 0 ) {
 		Svcmd_EntityList_f();
 		return qtrue;

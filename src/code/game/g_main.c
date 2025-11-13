@@ -627,6 +627,9 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	// set some level globals
 	memset( &level, 0, sizeof( level ) );
 	G_InitSpawnQueue();
+	level.voteCallerClientNum = -1;
+	level.voteCommandType = VOTE_CMD_NONE;
+	level.voteCommandFlags = 0;
 	level.time = levelTime;
 	level.startTime = levelTime;
 
@@ -1999,20 +2002,60 @@ void CheckTournament( void ) {
 
 
 /*
+=============
+G_ClearVoteCommandMetadata
+
+Reset the metadata describing the pending vote command.
+=============
+*/
+static void G_ClearVoteCommandMetadata( void ) {
+	level.voteCallerClientNum = -1;
+	level.voteCommandType = VOTE_CMD_NONE;
+	level.voteCommandFlags = 0;
+}
+
+/*
 ==================
 CheckVote
 ==================
 */
 void CheckVote( void ) {
+	G_UpdateVoteGuardState();
+
 	if ( level.voteExecuteTime && level.voteExecuteTime < level.time ) {
-		level.voteExecuteTime = 0;
-		trap_SendConsoleCommand( EXEC_APPEND, va("%s\n", level.voteString ) );
+		if ( level.voteCommandFlags & level.voteGuardFlags ) {
+			return;
+		}
+
+		if ( level.voteCommandType != VOTE_CMD_NONE ) {
+			int disableMask;
+
+			disableMask = G_VoteCommandDisableMask( level.voteCommandType );
+			if ( disableMask && ( g_voteFlags.integer & disableMask ) ) {
+				G_Printf( "Vote execution blocked for disabled command: %s\n", level.voteString );
+				level.voteExecuteTime = 0;
+				G_ClearVoteCommandMetadata();
+			} else {
+				trap_SendConsoleCommand( EXEC_APPEND, va( "%s\n", level.voteString ) );
+				G_ApplyVoteGuard( level.voteCommandFlags );
+				level.voteExecuteTime = 0;
+				G_ClearVoteCommandMetadata();
+			}
+		} else {
+			trap_SendConsoleCommand( EXEC_APPEND, va( "%s\n", level.voteString ) );
+			G_ApplyVoteGuard( level.voteCommandFlags );
+			level.voteExecuteTime = 0;
+			G_ClearVoteCommandMetadata();
+		}
 	}
+
 	if ( !level.voteTime ) {
 		return;
 	}
 	if ( level.time - level.voteTime >= VOTE_TIME ) {
 		trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
+		level.voteExecuteTime = 0;
+		G_ClearVoteCommandMetadata();
 	} else {
 		// ATVI Q3 1.32 Patch #9, WNF
 		if ( level.voteYes > level.numVotingClients/2 ) {
@@ -2022,6 +2065,8 @@ void CheckVote( void ) {
 		} else if ( level.voteNo >= level.numVotingClients/2 ) {
 			// same behavior as a timeout
 			trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
+			level.voteExecuteTime = 0;
+			G_ClearVoteCommandMetadata();
 		} else {
 			// still waiting for a majority
 			return;
@@ -2437,6 +2482,7 @@ void G_RunFrame( int levelTime ) {
 	G_DispatchEvents( ctx );
 	G_FinishClientFrames( ctx );
 	G_UpdateVoteThrottle();
+	G_UpdateVoteGuardState();
 	G_CheckLevelTimers( ctx, previousWarmupTime, previousIntermissionQueued );
 
 	if ( g_listEntity.integer ) {

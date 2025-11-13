@@ -1238,6 +1238,31 @@ static const char *gameNames[] = {
 };
 
 /*
+=============
+G_SendVoteDisabledMessage
+
+Notify the caller when the requested vote command is disabled by g_voteFlags.
+=============
+*/
+static void G_SendVoteDisabledMessage( gentity_t *ent, voteCommandType_t commandType, const char *commandName ) {
+	const char *message;
+
+	if ( !ent ) {
+		return;
+	}
+
+	if ( commandType == VOTE_CMD_MAP_RESTART ) {
+		message = "print \"Voting on a map restart is disabled on this server.\n\"";
+	} else if ( commandName && *commandName ) {
+		message = va( "print \"Voting on %s is disabled on this server.\n\"", commandName );
+	} else {
+		message = "print \"Voting on this command is disabled on this server.\n\"";
+	}
+
+	trap_SendServerCommand( ent - g_entities, message );
+}
+
+/*
 ==================
 Cmd_CallVote_f
 ==================
@@ -1250,6 +1275,9 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	int		voteSelection;
 	int		isNumeric;
 	const char	*scan;
+	voteCommandType_t	commandType;
+	int		commandGuardFlags;
+	int		disableMask;
 
 	if ( !g_allowVote.integer ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Voting not allowed here.\n\"" );
@@ -1258,6 +1286,10 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 
 	if ( level.voteTime ) {
 		trap_SendServerCommand( ent-g_entities, "print \"A vote is already in progress.\n\"" );
+		return;
+	}
+	if ( G_IsVoteExecutionPending() ) {
+		trap_SendServerCommand( ent-g_entities, "print \"A vote is being executed.\n\"" );
 		return;
 	}
 	if ( ent->client->pers.voteCount >= MAX_VOTE_COUNT ) {
@@ -1298,27 +1330,22 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		return;
 	}
 
-	if ( !Q_stricmp( arg1, "map_restart" ) ) {
-	} else if ( !Q_stricmp( arg1, "nextmap" ) ) {
-	} else if ( !Q_stricmp( arg1, "map" ) ) {
-	} else if ( !Q_stricmp( arg1, "g_gametype" ) ) {
-	} else if ( !Q_stricmp( arg1, "kick" ) ) {
-	} else if ( !Q_stricmp( arg1, "clientkick" ) ) {
-	} else if ( !Q_stricmp( arg1, "g_doWarmup" ) ) {
-	} else if ( !Q_stricmp( arg1, "timelimit" ) ) {
-	} else if ( !Q_stricmp( arg1, "fraglimit" ) ) {
-	} else {
+	commandType = G_ParseVoteCommandType( arg1 );
+	if ( commandType == VOTE_CMD_NONE ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		trap_SendServerCommand( ent-g_entities, "print \"Vote commands are: map_restart, nextmap, map <mapname>, g_gametype <n>, kick <player>, clientkick <clientnum>, g_doWarmup, timelimit <time>, fraglimit <frags>.\n\"" );
 		return;
 	}
 
-	// if there is still a vote to be executed
-	if ( level.voteExecuteTime ) {
-		level.voteExecuteTime = 0;
-		trap_SendConsoleCommand( EXEC_APPEND, va("%s\n", level.voteString ) );
+	disableMask = G_VoteCommandDisableMask( commandType );
+	if ( disableMask && ( g_voteFlags.integer & disableMask ) ) {
+		G_SendVoteDisabledMessage( ent, commandType, arg1 );
+		return;
 	}
 
+	commandGuardFlags = G_VoteCommandGuardFlags( commandType );
+
+	// if there is still a vote to be executed
 	// special case for g_gametype, check for bad values
 	if ( !Q_stricmp( arg1, "g_gametype" ) ) {
 		i = atoi( arg2 );
@@ -1355,6 +1382,10 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "%s \"%s\"", arg1, arg2 );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
 	}
+
+	level.voteCallerClientNum = ent - g_entities;
+	level.voteCommandType = commandType;
+	level.voteCommandFlags = commandGuardFlags;
 
 	G_RegisterVoteCall( ent->client, ent - g_entities, voteSelection );
 	trap_SendServerCommand( -1, va("print \"%s called a vote.\n\"", ent->client->pers.netname ) );
