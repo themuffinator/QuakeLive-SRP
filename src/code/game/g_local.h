@@ -147,6 +147,7 @@ void G_UpdateFactoryCvarConfig( void );
 extern vmCvar_t g_startingHealth;
 extern vmCvar_t g_startingHealthBonus;
 extern vmCvar_t g_startingArmor;
+extern vmCvar_t g_vampiricDamage;
 
 typedef struct startingAmmoConfig_s {
 	int		bfg;

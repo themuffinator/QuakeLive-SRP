@@ -1151,6 +1151,68 @@ static float G_ApplyKnockbackCripple( gentity_t *targ, float knockbackValue, int
 
         return knockbackValue - penalty;
 }
+/*
+=============
+G_ApplyVampiricReward
+
+Applies vampiric healing to the attacker when enabled and announces the reward.
+=============
+*/
+static void G_ApplyVampiricReward( gentity_t *targ, gentity_t *attacker, int healthDamage ) {
+	float		vampiricScale;
+	int		maxHealth;
+	int		initialHealth;
+	int		healAmount;
+
+	if ( !attacker || !attacker->client ) {
+		return;
+	}
+
+	if ( attacker == targ ) {
+		return;
+	}
+
+	if ( healthDamage <= 0 ) {
+		return;
+	}
+
+	vampiricScale = g_vampiricDamage.value;
+	if ( vampiricScale <= 0.0f ) {
+		return;
+	}
+
+	if ( targ && targ->client && OnSameTeam( targ, attacker ) ) {
+		return;
+	}
+
+	maxHealth = attacker->client->ps.stats[STAT_MAX_HEALTH];
+	if ( maxHealth <= 0 ) {
+		maxHealth = 100;
+	}
+
+	initialHealth = attacker->health;
+	if ( initialHealth >= maxHealth ) {
+		return;
+	}
+
+	healAmount = (int)( ( (float)healthDamage * vampiricScale ) + 0.5f );
+	if ( healAmount <= 0 ) {
+		return;
+	}
+
+	if ( initialHealth + healAmount > maxHealth ) {
+		healAmount = maxHealth - initialHealth;
+	}
+
+	if ( healAmount <= 0 ) {
+		return;
+	}
+
+	attacker->health = initialHealth + healAmount;
+	attacker->client->ps.stats[STAT_HEALTH] = attacker->health;
+
+	trap_SendServerCommand( attacker->s.number, "cp \"Vampiric heal\"" );
+}
 
 void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
                            vec3_t dir, vec3_t point, int damage, int dflags, int mod ) {
@@ -1436,12 +1498,14 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 
 	// do the damage
-	if (take) {
+	if ( take ) {
 		targ->health = targ->health - take;
 		if ( targ->client ) {
 			targ->client->ps.stats[STAT_HEALTH] = targ->health;
 		}
-			
+
+		G_ApplyVampiricReward( targ, attacker, take );
+
 		if ( targ->health <= 0 ) {
 			if ( client )
 				targ->flags |= FL_NO_KNOCKBACK;
@@ -1456,7 +1520,6 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			targ->pain (targ, attacker, take);
 		}
 	}
-
 }
 
 
