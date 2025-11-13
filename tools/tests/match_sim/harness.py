@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import random
 import heapq
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 from .config import BotConfig, CommandConfig, MatchConfig
 
@@ -63,12 +64,18 @@ class SimulationResult:
 
     config: MatchConfig
     frames: List[TimelineFrame]
+    bot_profiles: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    spawn_schedule: List[Mapping[str, Any]] = field(default_factory=list)
+    access_permissions: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self, *, indent: int = 2) -> str:
         """Serialise the result to JSON."""
 
         payload = {
             "config": self.config.as_dict(),
+            "bot_profiles": {key: dict(value) for key, value in self.bot_profiles.items()},
+            "spawn_schedule": [dict(entry) for entry in self.spawn_schedule],
+            "access_permissions": dict(self.access_permissions),
             "frames": [
                 {
                     "tick": frame.tick,
@@ -99,6 +106,11 @@ class MatchHarness:
         # reflect the actual deterministic inputs used for the run.
         self.config.seed = self.seed
         self.factory_settings: Mapping[str, Any] = dict(self.config.metadata.get("factory", {}))
+        (
+            self.bot_profiles,
+            self.spawn_schedule,
+            self.access_permissions,
+        ) = self._load_bot_resources(self.config.metadata.get("bot_resources"))
         self._current_time: float = 0.0
         self._spawn_queue: list[tuple[float, int, Dict[str, Any]]] = []
         self._item_queue: list[tuple[float, int, Dict[str, Any]]] = []
@@ -127,6 +139,7 @@ class MatchHarness:
         }
         script_indices = {name: 0 for name in bots}
         self._reset_queued_events()
+        self._prime_spawn_schedule()
 
         frames: List[TimelineFrame] = []
         for tick in range(total_ticks):
@@ -156,7 +169,13 @@ class MatchHarness:
                 bots={name: state.snapshot() for name, state in bots.items()},
             )
             frames.append(frame)
-        return SimulationResult(self.config, frames)
+        return SimulationResult(
+            self.config,
+            frames,
+            bot_profiles=copy.deepcopy(self.bot_profiles),
+            spawn_schedule=[dict(entry) for entry in self.spawn_schedule],
+            access_permissions=copy.deepcopy(self.access_permissions),
+        )
 
     # ------------------------------------------------------------------
     # Bot initialisation and command handling
@@ -305,6 +324,20 @@ class MatchHarness:
     ) -> Dict[str, Any]:
         warmup = bool(params.get("warmup", False))
         reason = params.get("reason")
+        issuer = params.get("issuer")
+        command_name = str(params.get("command", "request_spawn"))
+        target_reference = params.get("bot")
+        target_name, target_alias = self._resolve_spawn_target(state.name, target_reference)
+        allowed, denial_reason = self._evaluate_access(issuer, command_name, target_name)
+        if not allowed:
+            return {
+                "status": "rejected",
+                "reason": denial_reason,
+                "issuer": issuer,
+                "command": command_name,
+                "target": target_name,
+                "alias": target_alias,
+            }
         delay_ms_key = "warmup_ms" if warmup else "live_ms"
         delay_ms = self._get_factory_setting("spawn_delays", delay_ms_key, default=0)
         delay_seconds = max(0.0, float(delay_ms) / 1000.0)
@@ -316,11 +349,15 @@ class MatchHarness:
         if warmup:
             self._next_warmup_spawn_time = scheduled_time
         payload = {
-            "bot": state.name,
+            "bot": target_name,
             "warmup": warmup,
             "delay": delay_seconds,
             "scheduled_time": scheduled_time,
             "reason": reason,
+            "issuer": issuer,
+            "command": command_name,
+            "alias": target_alias,
+            "source": "command",
         }
         self._schedule_spawn_event(scheduled_time, payload)
         return {
@@ -329,6 +366,10 @@ class MatchHarness:
             "scheduled_time": scheduled_time,
             "delay": delay_seconds,
             "reason": reason,
+            "issuer": issuer,
+            "command": command_name,
+            "target": target_name,
+            "alias": target_alias,
         }
 
     def _handle_drop_item(
@@ -447,6 +488,23 @@ class MatchHarness:
         self._event_counter = 0
         self._next_warmup_spawn_time = 0.0
 
+    def _prime_spawn_schedule(self) -> None:
+        for entry in self.spawn_schedule:
+            time_point = float(entry.get("time", 0.0))
+            payload = {
+                "bot": entry.get("bot"),
+                "warmup": bool(entry.get("warmup", False)),
+                "delay": float(entry.get("delay", 0.0)),
+                "scheduled_time": time_point,
+                "reason": entry.get("reason"),
+                "issuer": entry.get("issuer"),
+                "command": entry.get("command", "schedule"),
+                "alias": entry.get("alias"),
+                "source": entry.get("source", "g_botSpawnList"),
+                "count": entry.get("count"),
+            }
+            self._schedule_spawn_event(time_point, payload)
+
     def _get_factory_setting(self, *keys: str, default: Any = None) -> Any:
         value: Any = self.factory_settings
         for key in keys:
@@ -454,6 +512,248 @@ class MatchHarness:
                 return default
             value = value[key]
         return value
+
+    def _load_bot_resources(
+        self, payload: Any
+    ) -> Tuple[Mapping[str, Mapping[str, Any]], List[Mapping[str, Any]], Mapping[str, Any]]:
+        if not isinstance(payload, Mapping):
+            return {}, [], {}
+        bot_profiles = self._parse_bot_profiles(payload.get("g_botsFile"))
+        spawn_schedule = self._parse_spawn_schedule(payload.get("g_botSpawnList"), bot_profiles)
+        access_permissions = self._parse_access_permissions(payload.get("g_accessFile"))
+        return bot_profiles, spawn_schedule, access_permissions
+
+    def _parse_bot_profiles(self, payload: Any) -> Dict[str, Dict[str, Any]]:
+        if payload is None:
+            return {}
+        data = self._ensure_sequence_or_mapping(payload, key="bots")
+        entries: Sequence[Any]
+        if isinstance(data, Mapping):
+            entries = data.get("bots", [])
+        else:
+            entries = data
+        profiles: Dict[str, Dict[str, Any]] = {}
+        for raw in entries:
+            if not isinstance(raw, Mapping):
+                continue
+            alias = str(raw.get("alias") or raw.get("name") or raw.get("bot") or "")
+            if not alias:
+                continue
+            profile = {str(key): raw[key] for key in raw}
+            if "name" not in profile:
+                profile["name"] = alias
+            profiles[alias] = profile
+        return profiles
+
+    def _parse_spawn_schedule(
+        self, payload: Any, bot_profiles: Mapping[str, Mapping[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        if payload is None:
+            return []
+        data = self._ensure_sequence_or_mapping(payload, key="schedule")
+        if isinstance(data, Mapping):
+            entries = data.get("schedule", [])
+        else:
+            entries = data
+        schedule: List[Dict[str, Any]] = []
+        cumulative = 0.0
+        for index, raw in enumerate(entries):
+            alias: Optional[str] = None
+            warmup = False
+            issuer = None
+            command = None
+            reason = None
+            count: Optional[int] = None
+            if isinstance(raw, Mapping):
+                alias = str(raw.get("bot") or raw.get("alias") or raw.get("name") or "")
+                warmup = bool(raw.get("warmup", False))
+                issuer = raw.get("issuer")
+                command = raw.get("command")
+                reason = raw.get("reason")
+                count = raw.get("count")
+                if "time" in raw:
+                    time_point = float(raw["time"])
+                    delay_seconds = max(0.0, time_point - cumulative)
+                    cumulative = time_point
+                else:
+                    delay_ms = raw.get("delay_ms")
+                    if delay_ms is not None:
+                        delay_seconds = float(delay_ms) / 1000.0
+                    else:
+                        delay_seconds = float(raw.get("delay", 0.0))
+                    cumulative += delay_seconds
+                    time_point = cumulative
+            elif isinstance(raw, str):
+                parts = raw.strip().split()
+                if not parts:
+                    continue
+                alias = parts[0]
+                delay_seconds = 0.0
+                time_point = cumulative
+                if len(parts) > 1:
+                    token = parts[1]
+                    if token.startswith("@"):
+                        time_point = float(token[1:])
+                        delay_seconds = max(0.0, time_point - cumulative)
+                        cumulative = time_point
+                    else:
+                        delay_seconds = float(token) / 1000.0
+                        cumulative += delay_seconds
+                        time_point = cumulative
+                if len(parts) > 2:
+                    reason = " ".join(parts[2:])
+            else:
+                continue
+            if not alias:
+                continue
+            profile = bot_profiles.get(alias)
+            bot_name = str(profile.get("name") if profile else alias)
+            schedule.append(
+                {
+                    "alias": alias,
+                    "bot": bot_name,
+                    "time": round(time_point, 6),
+                    "delay": round(float(delay_seconds), 6),
+                    "warmup": warmup,
+                    "issuer": issuer,
+                    "command": command,
+                    "reason": reason or "scripted_spawn",
+                    "index": index,
+                    "source": "g_botSpawnList",
+                    "count": count,
+                }
+            )
+        return schedule
+
+    def _parse_access_permissions(self, payload: Any) -> Dict[str, Any]:
+        if payload is None:
+            return {"commands": {}, "spawns": {}}
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                raise ValueError("g_accessFile payload must be valid JSON or mapping") from exc
+        if not isinstance(payload, Mapping):
+            raise TypeError("g_accessFile payload must be a mapping")
+        commands_raw = payload.get("commands", {})
+        spawns_raw = payload.get("spawns", {})
+        commands = {
+            str(key): self._normalise_access_entry(value)
+            for key, value in self._iterate_mapping(commands_raw)
+        }
+        spawns = {
+            str(key): self._normalise_access_entry(value)
+            for key, value in self._iterate_mapping(spawns_raw)
+        }
+        return {"commands": commands, "spawns": spawns}
+
+    def _normalise_access_entry(self, value: Any) -> Dict[str, List[str]]:
+        if isinstance(value, str):
+            tokens = value.split()
+            return {"allow": tokens}
+        if isinstance(value, Sequence) and not isinstance(value, Mapping):
+            return {"allow": [str(token) for token in value]}
+        if not isinstance(value, Mapping):
+            raise TypeError("Access entry must be a mapping, string, or sequence")
+        entry: Dict[str, List[str]] = {}
+        allow = value.get("allow")
+        deny = value.get("deny")
+        if allow is not None:
+            entry["allow"] = [str(token) for token in self._ensure_sequence(allow)]
+        if deny is not None:
+            entry["deny"] = [str(token) for token in self._ensure_sequence(deny)]
+        return entry
+
+    def _ensure_sequence_or_mapping(self, payload: Any, key: str) -> Any:
+        if payload is None:
+            return []
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                lines = [
+                    line.strip()
+                    for line in payload.splitlines()
+                    if line.strip() and not line.strip().startswith("#")
+                ]
+                return lines
+        if isinstance(payload, (Mapping, list, tuple)):
+            return payload
+        raise TypeError(f"Expected mapping or sequence for {key} payload")
+
+    @staticmethod
+    def _ensure_sequence(value: Any) -> Sequence[str]:
+        if isinstance(value, str):
+            return value.split()
+        if isinstance(value, Sequence):
+            return [str(token) for token in value]
+        raise TypeError("Access list entries must be sequences or strings")
+
+    @staticmethod
+    def _iterate_mapping(value: Any) -> Sequence[Tuple[str, Any]]:
+        if isinstance(value, Mapping):
+            return list(value.items())
+        if isinstance(value, Sequence):
+            entries: List[Tuple[str, Any]] = []
+            for item in value:
+                if isinstance(item, Mapping) and "name" in item and "rules" in item:
+                    entries.append((str(item["name"]), item["rules"]))
+            return entries
+        return []
+
+    def _resolve_spawn_target(
+        self, default_name: str, target_reference: Optional[Any]
+    ) -> Tuple[str, Optional[str]]:
+        if target_reference is None:
+            return default_name, default_name
+        alias = str(target_reference)
+        profile = self.bot_profiles.get(alias)
+        if profile:
+            target_name = str(profile.get("name", alias))
+            return target_name, alias
+        return alias, alias
+
+    def _evaluate_access(
+        self, issuer: Any, command_name: str, target_name: str
+    ) -> Tuple[bool, Optional[str]]:
+        issuer_key = str(issuer) if issuer is not None else None
+        allowed, reason = self._check_command_access(issuer_key, command_name)
+        if not allowed:
+            return False, reason
+        allowed, reason = self._check_spawn_access(issuer_key, target_name)
+        if not allowed:
+            return False, reason
+        return True, None
+
+    def _check_command_access(
+        self, issuer: Optional[str], command_name: str
+    ) -> Tuple[bool, Optional[str]]:
+        permissions = self.access_permissions.get("commands", {})
+        entry = permissions.get(command_name) or permissions.get("*")
+        if not entry:
+            return True, None
+        return self._check_access_entry(entry, issuer, f"command '{command_name}'")
+
+    def _check_spawn_access(
+        self, issuer: Optional[str], target_name: str
+    ) -> Tuple[bool, Optional[str]]:
+        permissions = self.access_permissions.get("spawns", {})
+        entry = permissions.get(target_name) or permissions.get("*")
+        if not entry:
+            return True, None
+        return self._check_access_entry(entry, issuer, f"spawn '{target_name}'")
+
+    def _check_access_entry(
+        self, entry: Mapping[str, Sequence[str]], issuer: Optional[str], context: str
+    ) -> Tuple[bool, Optional[str]]:
+        allowed = entry.get("allow")
+        denied = entry.get("deny")
+        if allowed is not None:
+            if issuer is None or issuer not in allowed:
+                return False, f"issuer '{issuer}' not permitted for {context}"
+        if denied is not None and issuer is not None and issuer in denied:
+            return False, f"issuer '{issuer}' denied for {context}"
+        return True, None
 
     def _apply_factory_loadout(self, state: BotState, bot: BotConfig) -> None:
         loadouts = self._get_factory_setting("loadouts", default={})
@@ -508,6 +808,11 @@ class MatchHarness:
                         "delay": float(payload.get("delay", 0.0)),
                         "scheduled_time": round(scheduled_time, 6),
                         "reason": payload.get("reason"),
+                        "issuer": payload.get("issuer"),
+                        "command": payload.get("command"),
+                        "alias": payload.get("alias"),
+                        "source": payload.get("source"),
+                        "count": payload.get("count"),
                     },
                 }
             )

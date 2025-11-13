@@ -1,0 +1,3 @@
+0.000 sarge alias=scripted_sarge warmup=True issuer=script reason=initial
+1.500 anarki alias=scripted_anarki warmup=False issuer=script reason=staggered
+2.000 sarge alias=scripted_sarge warmup=False issuer=script reason=respawn
