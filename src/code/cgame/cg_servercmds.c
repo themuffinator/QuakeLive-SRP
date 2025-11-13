@@ -146,8 +146,14 @@ and whenever the server updates any serverinfo flagged cvars
 void CG_ParseServerinfo( void ) {
 	const char	*info;
 	char	*mapname;
+	char	oldModelOverride[MAX_QPATH];
+	char	oldHeadOverride[MAX_QPATH];
+	const char	*modelOverride;
+	const char	*headOverride;
 
 	info = CG_ConfigString( CS_SERVERINFO );
+	Q_strncpyz( oldModelOverride, cgs.playermodelOverride, sizeof( oldModelOverride ) );
+	Q_strncpyz( oldHeadOverride, cgs.playerheadmodelOverride, sizeof( oldHeadOverride ) );
 	cgs.gametype = atoi( Info_ValueForKey( info, "g_gametype" ) );
 	trap_Cvar_Set("g_gametype", va("%i", cgs.gametype));
 	cgs.dmflags = atoi( Info_ValueForKey( info, "dmflags" ) );
@@ -162,6 +168,13 @@ void CG_ParseServerinfo( void ) {
 	trap_Cvar_Set("g_redTeam", cgs.redTeam);
 	Q_strncpyz( cgs.blueTeam, Info_ValueForKey( info, "g_blueTeam" ), sizeof(cgs.blueTeam) );
 	trap_Cvar_Set("g_blueTeam", cgs.blueTeam);
+	modelOverride = Info_ValueForKey( info, "g_playermodelOverride" );
+	headOverride = Info_ValueForKey( info, "g_playerheadmodelOverride" );
+	Q_strncpyz( cgs.playermodelOverride, modelOverride, sizeof( cgs.playermodelOverride ) );
+	Q_strncpyz( cgs.playerheadmodelOverride, headOverride, sizeof( cgs.playerheadmodelOverride ) );
+	if ( Q_stricmp( oldModelOverride, cgs.playermodelOverride ) || Q_stricmp( oldHeadOverride, cgs.playerheadmodelOverride ) ) {
+		CG_ApplyModelOverrides();
+	}
 }
 
 /*

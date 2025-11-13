@@ -974,6 +974,58 @@ void ClientUserinfoChanged( int clientNum ) {
 		Q_strncpyz( headModel, Info_ValueForKey (userinfo, "headmodel"), sizeof( headModel ) );
 	}
 
+	if ( g_playermodelOverride.string[0] || g_playerheadmodelOverride.string[0] ) {
+		qboolean	userinfoModified = qfalse;
+		qboolean	logModelOverride = qfalse;
+		qboolean	logHeadOverride = qfalse;
+
+		if ( g_playermodelOverride.string[0] ) {
+			const char	*currentTeamModel;
+
+			if ( Q_stricmp( model, g_playermodelOverride.string ) ) {
+				logModelOverride = qtrue;
+				userinfoModified = qtrue;
+			}
+
+			currentTeamModel = Info_ValueForKey( userinfo, "team_model" );
+			if ( Q_stricmp( currentTeamModel, g_playermodelOverride.string ) ) {
+				userinfoModified = qtrue;
+			}
+
+			Q_strncpyz( model, g_playermodelOverride.string, sizeof( model ) );
+			Info_SetValueForKey( userinfo, "model", g_playermodelOverride.string );
+			Info_SetValueForKey( userinfo, "team_model", g_playermodelOverride.string );
+		}
+
+		if ( g_playerheadmodelOverride.string[0] ) {
+			const char	*currentTeamHeadModel;
+
+			if ( Q_stricmp( headModel, g_playerheadmodelOverride.string ) ) {
+				logHeadOverride = qtrue;
+				userinfoModified = qtrue;
+			}
+
+			currentTeamHeadModel = Info_ValueForKey( userinfo, "team_headmodel" );
+			if ( Q_stricmp( currentTeamHeadModel, g_playerheadmodelOverride.string ) ) {
+				userinfoModified = qtrue;
+			}
+
+			Q_strncpyz( headModel, g_playerheadmodelOverride.string, sizeof( headModel ) );
+			Info_SetValueForKey( userinfo, "headmodel", g_playerheadmodelOverride.string );
+			Info_SetValueForKey( userinfo, "team_headmodel", g_playerheadmodelOverride.string );
+		}
+
+		if ( userinfoModified ) {
+			trap_SetUserinfo( clientNum, userinfo );
+			if ( logModelOverride ) {
+				G_LogPrintf( "g_playermodelOverride enforced for client %i (%s): %s\n", clientNum, client->pers.netname, g_playermodelOverride.string );
+			}
+			if ( logHeadOverride ) {
+				G_LogPrintf( "g_playerheadmodelOverride enforced for client %i (%s): %s\n", clientNum, client->pers.netname, g_playerheadmodelOverride.string );
+			}
+		}
+	}
+
 	// bots set their team a few frames later
 	if (g_gametype.integer >= GT_TEAM && g_entities[clientNum].r.svFlags & SVF_BOT) {
 		s = Info_ValueForKey( userinfo, "team" );

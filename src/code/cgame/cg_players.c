@@ -870,6 +870,27 @@ static void CG_SetDeferredClientInfo( clientInfo_t *ci ) {
 
 
 /*
+=============
+CG_ApplyModelOverrides
+
+Rebuild cached client info to reflect active server model overrides.
+=============
+*/
+void CG_ApplyModelOverrides( void ) {
+	int	i;
+	const char	*clientInfo;
+
+	for ( i = 0 ; i < cgs.maxclients ; i++ ) {
+		clientInfo = CG_ConfigString( CS_PLAYERS + i );
+		if ( !clientInfo[0] ) {
+			continue;
+		}
+
+		CG_NewClientInfo( i );
+	}
+}
+
+/*
 ======================
 CG_NewClientInfo
 ======================
@@ -940,7 +961,7 @@ void CG_NewClientInfo( int clientNum ) {
 
 	// model
 	v = Info_ValueForKey( configstring, "model" );
-	if ( cg_forceModel.integer ) {
+	if ( cg_forceModel.integer && !cgs.playermodelOverride[0] ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
 		char modelStr[MAX_QPATH];
@@ -984,7 +1005,7 @@ void CG_NewClientInfo( int clientNum ) {
 
 	// head model
 	v = Info_ValueForKey( configstring, "hmodel" );
-	if ( cg_forceModel.integer ) {
+	if ( cg_forceModel.integer && !cgs.playerheadmodelOverride[0] ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
 		char modelStr[MAX_QPATH];
