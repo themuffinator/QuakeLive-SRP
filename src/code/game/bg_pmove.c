@@ -34,8 +34,8 @@ pml_t		pml;
 // movement parameters
 float	pm_stopspeed = 100.0f;
 float	pm_duckScale = 0.25f;
-float	pm_swimScale = 0.50f;
-float	pm_wadeScale = 0.70f;
+float	pm_swimScale = 0.60f;
+float	pm_wadeScale = 0.80f;
 
 float	pm_accelerate = 10.0f;
 float	pm_airaccelerate = 1.0f;
@@ -168,13 +168,13 @@ static void PM_LoadMoveSettings( void ) {
 
 	swimScale = settings->waterSwimScale;
 	if ( swimScale <= 0.0f ) {
-		swimScale = 0.50f;
+		swimScale = pm_defaultSettings.waterSwimScale;
 	}
 	pm_swimScale = swimScale;
 
 	wadeScale = settings->waterWadeScale;
 	if ( wadeScale <= 0.0f ) {
-		wadeScale = 0.70f;
+		wadeScale = pm_defaultSettings.waterWadeScale;
 	}
 	pm_wadeScale = wadeScale;
 
