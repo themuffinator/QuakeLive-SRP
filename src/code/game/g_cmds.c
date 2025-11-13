@@ -1376,38 +1376,72 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 }
 
 /*
-==================
+=============
 Cmd_Vote_f
-==================
+
+Process a client's ballot during an active vote, applying spectator and throttle rules.
+=============
 */
 void Cmd_Vote_f( gentity_t *ent ) {
 	char		msg[64];
+	int		voteSelection;
+	gclient_t	*client;
 
 	if ( !level.voteTime ) {
 		trap_SendServerCommand( ent-g_entities, "print \"No vote in progress.\n\"" );
 		return;
 	}
-	if ( ent->client->ps.eFlags & EF_VOTED ) {
+
+	client = ent->client;
+	if ( !client ) {
+		return;
+	}
+
+	trap_Argv( 1, msg, sizeof( msg ) );
+	voteSelection = atoi( msg );
+	if ( voteSelection <= 0 ) {
+		if ( msg[0] == 'y' || msg[0] == 'Y' ) {
+			voteSelection = 1;
+		} else if ( msg[0] == 'n' || msg[0] == 'N' ) {
+			voteSelection = 2;
+		}
+	}
+
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR && !g_allowSpecVote.integer ) {
+		trap_SendServerCommand( ent-g_entities, "print \"You may not participate in this vote.\n\"" );
+		return;
+	}
+
+	if ( client->ps.eFlags & EF_VOTED ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Vote already cast.\n\"" );
 		return;
 	}
-	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Not allowed to vote as spectator.\n\"" );
+
+	if ( client->pers.voteDelayTime > 0 && level.time - client->pers.voteDelayTime < VOTE_THROTTLE_MSEC ) {
+		trap_SendServerCommand( ent-g_entities, "print \"You may only vote once every 2 seconds.\n\"" );
+		return;
+	}
+
+	if ( voteSelection >= 0 && voteSelection == client->pers.voteLastSelection ) {
+		trap_SendServerCommand( ent-g_entities, "print \"You already voted for this arena.\n\"" );
 		return;
 	}
 
 	trap_SendServerCommand( ent-g_entities, "print \"Vote cast.\n\"" );
 
-	ent->client->ps.eFlags |= EF_VOTED;
+	client->ps.eFlags |= EF_VOTED;
+	client->pers.voteDelayTime = level.time;
+	client->pers.voteLastSelection = voteSelection;
+	client->pers.voteLastEnableFrame = -1;
 
-	trap_Argv( 1, msg, sizeof( msg ) );
+	trap_SendServerCommand( ent-g_entities, "disable_vote_ui" );
 
-	if ( msg[0] == 'y' || msg[1] == 'Y' || msg[1] == '1' ) {
+	if ( msg[0] == 'y' || msg[0] == 'Y' || msg[0] == '1' ) {
 		level.voteYes++;
 		trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
 	} else {
 		level.voteNo++;
-		trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );	
+		trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
 	}
 
 	// a majority will be determined in CheckVote, which will also account
