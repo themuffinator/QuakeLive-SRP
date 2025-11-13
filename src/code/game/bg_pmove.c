@@ -825,6 +825,7 @@ static qboolean PM_CheckJump( void ) {
 	float			jumpVelocity;
 	float			jumpVelocityScale;
 	qboolean		chainJumpActive;
+	qboolean		doubleJumpActive;
 	qboolean		rampJumpActive;
 	qboolean		releaseRequired;
 	int			timeDelta;
