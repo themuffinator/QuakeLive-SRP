@@ -75,17 +75,20 @@ static const pmoveParams_t	pm_defaultParams = {
 	qfalse	// autoHop
 };
 
+// HLIL parity: qagamex86.dll initialises these defaults at 0x1008f800 (pmove_AirStepFriction = 0.03f),
+// 0x1008f82c (pmove_AirStopAccel = 1.0f), 0x1008f844/0x1008f85c/0x1008f874 (AutoHop/BunnyHop/ChainJump = 1),
+// 0x1008f8a4 (pmove_CircleStrafeFriction = 6.0f), and 0x1008fab4/0x1008facc (WaterSwim/Wade scales = 0.6f/0.8f).
 static const pmove_settings_t	pm_defaultSettings = {
 	.airAccel = 1.0f,
 	.airControl = 0.0f,
-	.airStepFriction = 1.0f,
+	.airStepFriction = 0.03f,
 	.airSteps = 1,
-	.airStopAccel = 0.0f,
-	.autoHop = qfalse,
-	.bunnyHop = qfalse,
-	.chainJump = qfalse,
+	.airStopAccel = 1.0f,
+	.autoHop = qtrue,
+	.bunnyHop = qtrue,
+	.chainJump = qtrue,
 	.chainJumpVelocity = 110.0f,
-	.circleStrafeFriction = 0.0f,
+	.circleStrafeFriction = 6.0f,
 	.crouchSlide = qfalse,
 	.crouchSlideFriction = 0.5f,
 	.crouchSlideTime = 2000,
@@ -107,8 +110,8 @@ static const pmove_settings_t	pm_defaultSettings = {
 	.velocityGh = 800.0f,
 	.walkAccel = 10.0f,
 	.walkFriction = 6.0f,
-	.waterSwimScale = 0.50f,
-	.waterWadeScale = 0.70f,
+	.waterSwimScale = 0.60f,
+	.waterWadeScale = 0.80f,
 	.weaponDropTime = 200,
 	.weaponRaiseTime = 200,
 	.wishSpeed = 400.0f
