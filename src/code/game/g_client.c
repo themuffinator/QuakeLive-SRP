@@ -965,6 +965,74 @@ void ClientUserinfoChanged( int clientNum ) {
 #endif
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 
+	{
+		const char *forcedModel;
+		const char *forcedHeadModel;
+		const char *currentValue;
+		qboolean userinfoModified;
+		qboolean appliedModelOverride;
+		qboolean appliedHeadOverride;
+
+		forcedModel = g_playermodelOverride.string;
+		forcedHeadModel = g_playerheadmodelOverride.string;
+		userinfoModified = qfalse;
+		appliedModelOverride = qfalse;
+		appliedHeadOverride = qfalse;
+
+		if ( forcedModel && forcedModel[0] ) {
+			currentValue = Info_ValueForKey( userinfo, "model" );
+			if ( Q_stricmp( currentValue, forcedModel ) ) {
+				Info_SetValueForKey( userinfo, "model", forcedModel );
+				userinfoModified = qtrue;
+				appliedModelOverride = qtrue;
+			}
+
+			currentValue = Info_ValueForKey( userinfo, "team_model" );
+			if ( Q_stricmp( currentValue, forcedModel ) ) {
+				Info_SetValueForKey( userinfo, "team_model", forcedModel );
+				userinfoModified = qtrue;
+				appliedModelOverride = qtrue;
+			}
+		}
+
+		if ( forcedHeadModel && forcedHeadModel[0] ) {
+			currentValue = Info_ValueForKey( userinfo, "headmodel" );
+			if ( Q_stricmp( currentValue, forcedHeadModel ) ) {
+				Info_SetValueForKey( userinfo, "headmodel", forcedHeadModel );
+				userinfoModified = qtrue;
+				appliedHeadOverride = qtrue;
+			}
+
+			currentValue = Info_ValueForKey( userinfo, "team_headmodel" );
+			if ( Q_stricmp( currentValue, forcedHeadModel ) ) {
+				Info_SetValueForKey( userinfo, "team_headmodel", forcedHeadModel );
+				userinfoModified = qtrue;
+				appliedHeadOverride = qtrue;
+			}
+		}
+
+		if ( userinfoModified ) {
+			trap_SetUserinfo( clientNum, userinfo );
+		}
+
+		if ( appliedModelOverride || appliedHeadOverride ) {
+			const char *finalModel;
+			const char *finalHeadModel;
+
+			finalModel = Info_ValueForKey( userinfo, "model" );
+			finalHeadModel = Info_ValueForKey( userinfo, "headmodel" );
+
+			if ( appliedModelOverride && appliedHeadOverride ) {
+				G_LogPrintf( "ClientModelOverride: %i %s model "%s" head "%s"\n",
+					clientNum, client->pers.netname, finalModel, finalHeadModel );
+			} else if ( appliedModelOverride ) {
+				G_LogPrintf( "ClientModelOverride: %i %s model "%s"\n", clientNum, client->pers.netname, finalModel );
+			} else {
+				G_LogPrintf( "ClientModelOverride: %i %s head "%s"\n", clientNum, client->pers.netname, finalHeadModel );
+			}
+		}
+	}
+
 	// set model
 	if( g_gametype.integer >= GT_TEAM ) {
 		Q_strncpyz( model, Info_ValueForKey (userinfo, "team_model"), sizeof( model ) );

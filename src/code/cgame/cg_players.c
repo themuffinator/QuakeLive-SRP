@@ -880,6 +880,8 @@ void CG_NewClientInfo( int clientNum ) {
 	const char	*configstring;
 	const char	*v;
 	char		*slash;
+	qboolean	serverForcesModel;
+	qboolean	serverForcesHeadModel;
 
 	ci = &cgs.clientinfo[clientNum];
 
@@ -892,6 +894,9 @@ void CG_NewClientInfo( int clientNum ) {
 	// build into a temp buffer so the defer checks can use
 	// the old value
 	memset( &newInfo, 0, sizeof( newInfo ) );
+
+	serverForcesModel = ( cgs.forcedPlayerModelActive != qfalse );
+	serverForcesHeadModel = ( cgs.forcedPlayerHeadModelActive != qfalse );
 
 	// isolate the player's name
 	v = Info_ValueForKey(configstring, "n");
@@ -940,7 +945,7 @@ void CG_NewClientInfo( int clientNum ) {
 
 	// model
 	v = Info_ValueForKey( configstring, "model" );
-	if ( cg_forceModel.integer ) {
+	if ( cg_forceModel.integer && !serverForcesModel ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
 		char modelStr[MAX_QPATH];
@@ -984,7 +989,7 @@ void CG_NewClientInfo( int clientNum ) {
 
 	// head model
 	v = Info_ValueForKey( configstring, "hmodel" );
-	if ( cg_forceModel.integer ) {
+	if ( cg_forceModel.integer && !serverForcesHeadModel ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
 		char modelStr[MAX_QPATH];

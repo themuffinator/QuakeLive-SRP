@@ -1025,6 +1025,8 @@ extern	vmCvar_t	g_teamForceBalance;
 extern	vmCvar_t	g_banIPs;
 extern	vmCvar_t	g_filterBan;
 extern	vmCvar_t	g_instaGib;
+extern	vmCvar_t	g_playermodelOverride;
+extern	vmCvar_t	g_playerheadmodelOverride;
 extern	vmCvar_t	g_obeliskHealth;
 extern	vmCvar_t	g_obeliskRegenPeriod;
 extern	vmCvar_t	g_obeliskRegenAmount;

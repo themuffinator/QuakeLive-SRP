@@ -555,6 +555,8 @@ typedef struct {
 	int				spectatorClientOrder[MAX_CLIENTS];
 	int				spectatorClientCount;
 	int				spectatorTargetUpdateTime;
+	qboolean			spectatorPendingFollowValid;
+	int				spectatorPendingFollowClient;
 
 	// skull trails
 	skulltrail_t	skulltrails[MAX_CLIENTS];
@@ -1014,6 +1016,10 @@ typedef struct {
 	char			mapname[MAX_QPATH];
 	char			redTeam[MAX_QPATH];
 	char			blueTeam[MAX_QPATH];
+	char			forcedPlayerModel[MAX_QPATH];
+	char			forcedPlayerHeadModel[MAX_QPATH];
+	qboolean		forcedPlayerModelActive;
+	qboolean		forcedPlayerHeadModelActive;
 
 	int				voteTime;
 	int				voteYes;

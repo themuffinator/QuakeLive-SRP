@@ -99,6 +99,7 @@ if (!cg.snap) {
 cg.spectatorPrimaryClient = -1;
 cg.spectatorSecondaryClient = -1;
 cg.spectatorClientCount = 0;
+cg.spectatorPendingFollowValid = qfalse;
 return;
 }
 
@@ -108,6 +109,14 @@ if (cg.snap->ps.pm_flags & PMF_FOLLOW) {
 cg.spectatorFollowClient = cg.snap->ps.clientNum;
 } else {
 cg.spectatorFollowClient = cg.snap->ps.clientNum;
+}
+
+if (cg.spectatorPendingFollowValid) {
+if ((cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.clientNum == cg.spectatorPendingFollowClient) {
+cg.spectatorPendingFollowValid = qfalse;
+} else {
+cg.spectatorFollowClient = cg.spectatorPendingFollowClient;
+}
 }
 
 if (cg.spectatorFollowClient >= 0 && cg.spectatorFollowClient < cgs.maxclients) {
@@ -206,6 +215,8 @@ index = (index + dir + cg.spectatorClientCount) % cg.spectatorClientCount;
 newClient = cg.spectatorClientOrder[index];
 
 trap_SendClientCommand(va("follow %d", newClient));
+cg.spectatorPendingFollowValid = qtrue;
+cg.spectatorPendingFollowClient = newClient;
 }
 
 static void CG_DrawSpectatorPlayerName(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot) {

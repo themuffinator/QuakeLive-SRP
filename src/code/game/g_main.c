@@ -121,6 +121,8 @@ vmCvar_t	g_teamForceBalance;
 vmCvar_t	g_banIPs;
 vmCvar_t	g_filterBan;
 vmCvar_t	g_instaGib;
+vmCvar_t	g_playermodelOverride;
+vmCvar_t	g_playerheadmodelOverride;
 vmCvar_t	g_smoothClients;
 vmCvar_t	pmove_fixed;
 vmCvar_t	pmove_msec;
@@ -171,6 +173,8 @@ vmCvar_t	g_quadHogIdle;
 vmCvar_t	g_quadHogTime;
 vmCvar_t	g_quadHogPingRate;
 static matchFactoryConfig_t matchFlow_lastConfig;
+static int	g_playermodelOverrideLastModCount = -1;
+static int	g_playerheadmodelOverrideLastModCount = -1;
 #ifdef MISSIONPACK
 vmCvar_t	g_obeliskHealth;
 vmCvar_t	g_obeliskRegenPeriod;
@@ -223,6 +227,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_banIPs, "g_banIPs", "", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_filterBan, "g_filterBan", "1", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_instaGib, "g_instaGib", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse },
+	{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Forces all clients to use this player model; logs ClientModelOverride entries when applied." },
+	{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Forces all clients to use this head model; logs ClientModelOverride entries when applied." },
 
 	{ &g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse },
 
@@ -643,7 +649,36 @@ void G_RegisterCvars( void ) {
 	level.quadHogLastActiveTime = 0;
 	level.quadHogNextPingTime = 0;
 
+	g_playermodelOverrideLastModCount = g_playermodelOverride.modificationCount;
+	g_playerheadmodelOverrideLastModCount = g_playerheadmodelOverride.modificationCount;
 	G_RefreshPmoveSettings();
+}
+
+/*
+=============
+G_ApplyClientModelOverrides
+
+Rebuilds player configstrings when forced player model cvars change.
+=============
+*/
+static void G_ApplyClientModelOverrides( void ) {
+	int	i;
+
+	if ( g_playermodelOverrideLastModCount == g_playermodelOverride.modificationCount
+		&& g_playerheadmodelOverrideLastModCount == g_playerheadmodelOverride.modificationCount ) {
+		return;
+	}
+
+	g_playermodelOverrideLastModCount = g_playermodelOverride.modificationCount;
+	g_playerheadmodelOverrideLastModCount = g_playerheadmodelOverride.modificationCount;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		if ( level.clients[i].pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+
+		ClientUserinfoChanged( i );
+	}
 }
 
 void G_UpdateCvars( void ) {
@@ -686,6 +721,7 @@ void G_UpdateCvars( void ) {
 	G_SyncMatchFactoryConfigToLevel();
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 
+	G_ApplyClientModelOverrides();
         G_RefreshPmoveSettings();
 }
 

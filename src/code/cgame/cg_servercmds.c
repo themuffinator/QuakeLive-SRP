@@ -162,6 +162,10 @@ void CG_ParseServerinfo( void ) {
 	trap_Cvar_Set("g_redTeam", cgs.redTeam);
 	Q_strncpyz( cgs.blueTeam, Info_ValueForKey( info, "g_blueTeam" ), sizeof(cgs.blueTeam) );
 	trap_Cvar_Set("g_blueTeam", cgs.blueTeam);
+	Q_strncpyz( cgs.forcedPlayerModel, Info_ValueForKey( info, "g_playermodelOverride" ), sizeof( cgs.forcedPlayerModel ) );
+	cgs.forcedPlayerModelActive = ( cgs.forcedPlayerModel[0] != '\0' );
+	Q_strncpyz( cgs.forcedPlayerHeadModel, Info_ValueForKey( info, "g_playerheadmodelOverride" ), sizeof( cgs.forcedPlayerHeadModel ) );
+	cgs.forcedPlayerHeadModelActive = ( cgs.forcedPlayerHeadModel[0] != '\0' );
 }
 
 /*
