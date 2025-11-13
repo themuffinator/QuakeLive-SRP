@@ -24,6 +24,13 @@ active.
 - `item_fixtures.c` provides concrete coverage for Quake Live's pickup tables
   and `BG_PlayerTouchesItem` bounds logic, showing how suites can assert against
   shared metadata without bootstrapping a full map state.
+- `cosmetics_fixtures.c` exercises the training/cosmetic CVars (`g_itemTimers`,
+  `g_training`, and the `g_force*` broadcast toggles) by simulating the vote
+  handler and configstring push paths that the binary exposes.
+- `rules_entry.c` publishes `GT_RunAllRulesFixtures()` so harnesses can execute
+  the sample, item, vote, and cosmetic/training suites in one call. Add the
+  translation unit to native and QVM runners to keep new suites automatically
+  covered during CI runs.
 - `rules_fixtures.h` centralises the suite entry points so that native and QVM
   harnesses can include a single header when dispatching to the compiled
   fixtures.
@@ -93,6 +100,13 @@ native and VM harnesses can propagate the outcome back to Python/CI drivers.
 To execute the stock suites, include `rules_fixtures.h` and call
 `GT_RunSampleRulesFixtures()` or `GT_RunItemRulesFixtures()` after linking the
 corresponding translation units.
+
+When harnesses need to execute every suite (for example, the native/QVM smoke
+tests), rely on `GT_RunAllRulesFixtures()` exported from
+`src/game/tests/rules_entry.c`. The helper calls the sample, item, vote control,
+and cosmetic/training suites in sequence and aggregates their execution counts,
+ensuring new fixture files are automatically covered once added to the
+dispatcher.
 
 ## Target-Specific Notes
 
