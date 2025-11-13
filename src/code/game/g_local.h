@@ -347,6 +347,15 @@ typedef enum {
 	TEAM_ACTIVE		// Now actively playing
 } playerTeamStateState_t;
 
+typedef enum {
+	ROUNDSTATE_INACTIVE,
+	ROUNDSTATE_WARMUP,
+	ROUNDSTATE_ACTIVE,
+	ROUNDSTATE_COMPLETE
+} roundState_t;
+
+#define ROUND_TRANSITION_NONE	-1
+
 typedef struct {
 	playerTeamStateState_t	state;
 
@@ -509,6 +518,8 @@ typedef struct {
 	int			num_entities;		// current number, <= MAX_GENTITIES
 
 	int			warmupTime;			// restart match at this time
+	roundState_t	roundState;
+	int			roundTransitionTime;
 
 	fileHandle_t	logFile;
 
@@ -858,6 +869,8 @@ void ClientCommand( int clientNum );
 // g_active.c
 //
 void ClientThink( int clientNum );
+void G_Frame_BeginRoundWarmup( void );
+void G_Frame_UpdateRoundController( void );
 void ClientEndFrame( gentity_t *ent );
 void G_RunClient( gentity_t *ent );
 
