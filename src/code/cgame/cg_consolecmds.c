@@ -25,9 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 #include "../ui/ui_shared.h"
-#ifdef MISSIONPACK
 extern menuDef_t *menuScoreboard;
-#endif
 
 
 
@@ -86,9 +84,7 @@ static void CG_Viewpos_f (void) {
 
 static void CG_ScoresDown_f( void ) {
 
-#ifdef MISSIONPACK
 		CG_BuildSpectatorString();
-#endif
 	if ( cg.scoresRequestTime + 2000 < cg.time ) {
 		// the scores are more than two seconds out of data,
 		// so request new ones
@@ -115,7 +111,6 @@ static void CG_ScoresUp_f( void ) {
 	}
 }
 
-#ifdef MISSIONPACK
 extern menuDef_t *menuScoreboard;
 void Menu_Reset();			// FIXME: add to right include file
 
@@ -178,7 +173,6 @@ static void CG_spLose_f( void) {
 	CG_CenterPrint("YOU LOSE...", SCREEN_HEIGHT * .30, 0);
 }
 
-#endif
 
 static void CG_TellTarget_f( void ) {
 	int		clientNum;
@@ -240,7 +234,6 @@ static void CG_VoiceTellAttacker_f( void ) {
 	trap_SendClientCommand( command );
 }
 
-#ifdef MISSIONPACK
 static void CG_NextTeamMember_f( void ) {
   if (cg.snap && (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
     CG_SpectatorFollowCycle(1);
@@ -413,7 +406,6 @@ static void CG_EditHud_f( void ) {
 }
 */
 
-#endif
 
 /*
 ==================
@@ -480,7 +472,6 @@ static consoleCommand_t	commands[] = {
 	{ "vtell_target", CG_VoiceTellTarget_f },
 	{ "vtell_attacker", CG_VoiceTellAttacker_f },
 	{ "tcmd", CG_TargetCommand_f },
-#ifdef MISSIONPACK
 	{ "loadhud", CG_LoadHud_f },
 	{ "nextTeamMember", CG_NextTeamMember_f },
 	{ "prevTeamMember", CG_PrevTeamMember_f },
@@ -505,7 +496,6 @@ static consoleCommand_t	commands[] = {
 	{ "spLose", CG_spLose_f },
 	{ "scoresDown", CG_scrollScoresDown_f },
 	{ "scoresUp", CG_scrollScoresUp_f },
-#endif
 	{ "startOrbit", CG_StartOrbit_f },
 	//{ "camera", CG_Camera_f },
 	{ "loaddeferred", CG_LoadDeferredPlayers }	

@@ -1,9 +1,6 @@
 # cgame building
 # builds the cgame for vanilla Q3 and TA
 
-# there are slight differences between Q3 and TA build:
-#   -DMISSIONPACK
-#   TA has cg_newdraw.c and ../ui/ui_shared.c
 # the config is passed in the imported variable TARGET_DIR
 
 # qvm building against native:
@@ -25,13 +22,6 @@ $env = new cons(
   LDFLAGS => '-shared -ldl -lm'
 );
 
-# for TA, use -DMISSIONPACK
-%ta_env_hash = $env->copy(
-  CPPPATH => '#cgame:#game:#ui'
-  );
-$ta_env_hash{CFLAGS} = '-DMISSIONPACK ' . $ta_env_hash{CFLAGS};
-$ta_env = new cons(%ta_env_hash);
-
 # qvm building
 # we heavily customize the cons environment
 $vm_env = new cons(
@@ -46,13 +36,6 @@ $vm_env = new cons(
   # need to know where to find the compiler tools
   ENV => { PATH => $ENV{PATH} . ":./qvmtools", },
 );
-
-# TA qvm building
-%vm_ta_env_hash = $vm_env->copy(
-  CPPPATH => '#cgame:#game:#ui'
-  );
-$vm_ta_env_hash{CFLAGS} = '-DMISSIONPACK ' . $vm_ta_env_hash{CFLAGS};
-$vm_ta_env = new cons(%vm_ta_env_hash);
 
 # the file with vmMain function MUST be the first one of the list
 @FILES = qw(
@@ -79,6 +62,8 @@ $vm_ta_env = new cons(%vm_ta_env_hash);
   cg_snapshot.c
   cg_view.c
   cg_weapons.c
+  cg_newdraw.c
+  ../ui/ui_shared.c
   );
 $FILESREF = \@FILES;
 
@@ -96,14 +81,7 @@ $SO_FILESREF = \@SO_FILES;
   );
 $VM_FILESREF = \@VM_FILES;  
 
-# common additionals for TA
-@TA_FILES = qw(
-  cg_newdraw.c
-  ../ui/ui_shared.c
-  );
-$TA_FILESREF = \@TA_FILES;
-
-# FIXME CPU string  
+# FIXME CPU string
 if ($TARGET_DIR eq 'Q3')
 {
 	if ($NO_SO eq 0)
@@ -121,18 +99,18 @@ if ($TARGET_DIR eq 'Q3')
 }
 else
 {
-	if ($NO_SO eq 0)
-	{
-		Program $ta_env 'cgamei386.so',
-			@$FILESREF, @$SO_FILESREF, @$TA_FILESREF;
-		Install $ta_env $INSTALL_DIR, 'cgamei386.so';
-	}
-	if ($NO_VM eq 0)
-	{
+if ($NO_SO eq 0)
+{
+Program $env 'cgamei386.so',
+@$FILESREF, @$SO_FILESREF;
+Install $env $INSTALL_DIR, 'cgamei386.so';
+}
+if ($NO_VM eq 0)
+{
     Depends $vm_env 'cgame.qvm', '#qvmtools/q3lcc';
     Depends $vm_env 'cgame.qvm', '#qvmtools/q3asm';
-		Program $vm_ta_env 'cgame.qvm', 
-			@$FILESREF, @$VM_FILESREF, @$TA_FILESREF;
-		Install $vm_ta_env $INSTALL_DIR . '/vm', 'cgame.qvm';
-	}	
+Program $vm_env 'cgame.qvm',
+@$FILESREF, @$VM_FILESREF;
+Install $vm_env $INSTALL_DIR . '/vm', 'cgame.qvm';
+}
 }

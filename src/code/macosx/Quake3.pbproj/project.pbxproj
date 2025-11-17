@@ -5121,7 +5121,7 @@
 				INSTALL_PATH = "";
 				LIBRARY_SEARCH_PATHS = "\"/Users/zaphod/Quake3/code/macosx/GameRanger SDK/Libraries\"";
 				OPTIMIZATION_CFLAGS = "-O2";
-				OTHER_CFLAGS = "-DDEDICATED -DMACOS_X -DBOTLIB -DMISSIONPACK -force_cpusubtype_ALL -Wno-long-double";
+				OTHER_CFLAGS = "-DDEDICATED -DMACOS_X -DBOTLIB -force_cpusubtype_ALL -Wno-long-double";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "";
 				PRODUCT_NAME = Q3DedicatedServer;
@@ -7860,7 +7860,7 @@
 				INSTALL_PATH = "/Users/Shared/$(USER)/InstalledProducts";
 				LIBRARY_SEARCH_PATHS = "";
 				OPTIMIZATION_CFLAGS = "-O2";
-				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL";
+				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DSMP -force_cpusubtype_ALL";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "";
 				PRODUCT_NAME = Quake3;
@@ -8253,7 +8253,7 @@
 		};
 		07F3F50BFFE98E8EC697A10E = {
 			buildSettings = {
-				COMMON_CFLAGS = "-DMISSIONPACK -DBOTLIB -DMACOS_X -force_cpusubtype_ALL";
+				COMMON_CFLAGS = "-DBOTLIB -DMACOS_X -force_cpusubtype_ALL";
 				COPY_PHASE_STRIP = NO;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_ENABLE_FIX_AND_CONTINUE = YES;
@@ -8269,7 +8269,7 @@
 		};
 		07F3F50CFFE98E8EC697A10E = {
 			buildSettings = {
-				COMMON_CFLAGS = "-DMISSIONPACK -DBOTLIB -DMACOS_X -force_cpusubtype_ALL\n";
+				COMMON_CFLAGS = "-DBOTLIB -DMACOS_X -force_cpusubtype_ALL\n";
 				COPY_PHASE_STRIP = YES;
 				GCC_ENABLE_FIX_AND_CONTINUE = NO;
 				ZERO_LINK = NO;
@@ -8850,7 +8850,7 @@
 				INSTALL_PATH = "/Users/Shared/$(USER)/InstalledProducts";
 				LIBRARY_SEARCH_PATHS = "\"/Users/zaphod/QUAKE3/CODE/macosx/GameRanger SDK/Libraries\"";
 				OPTIMIZATION_CFLAGS = "-O2";
-				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL -faltivec";
+				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DSMP -force_cpusubtype_ALL -faltivec";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "";
 				PRODUCT_NAME = "Quake3 G4";
@@ -10418,7 +10418,7 @@
 				INSTALL_PATH = "";
 				LIBRARY_SEARCH_PATHS = "\"/Users/zaphod/Quake3/code/macosx/GameRanger SDK/Libraries\"";
 				OPTIMIZATION_CFLAGS = "-O2";
-				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL -faltivec -falign-loops=16 -falign-jumps=16 -fstrict-aliasing ";
+				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DSMP -force_cpusubtype_ALL -faltivec -falign-loops=16 -falign-jumps=16 -fstrict-aliasing ";
 				OTHER_LDFLAGS = "";
 				OTHER_REZFLAGS = "";
 				PRODUCT_NAME = Q3DedicatedServer;

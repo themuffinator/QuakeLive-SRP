@@ -100,14 +100,12 @@ static int G_PmoveDefaultWeaponReloadTime( weapon_t weapon ) {
 		return 400;
 	case WP_HEAVY_MACHINEGUN:
 		return 75;
-#ifdef MISSIONPACK
 	case WP_NAILGUN:
 		return 1000;
 	case WP_PROX_LAUNCHER:
 		return 800;
 	case WP_CHAINGUN:
 		return 30;
-#endif
 	default:
 		return 0;
 	}
@@ -243,7 +241,6 @@ void G_PmoveStoreWeaponReloads( const weaponReloadConfig_t *config ) {
 			case WP_HEAVY_MACHINEGUN:
 				duration = config->heavyMachinegun;
 				break;
-#ifdef MISSIONPACK
 			case WP_NAILGUN:
 				duration = config->nailgun;
 				break;
@@ -253,7 +250,6 @@ void G_PmoveStoreWeaponReloads( const weaponReloadConfig_t *config ) {
 			case WP_CHAINGUN:
 				duration = config->chaingun;
 				break;
-#endif
 			default:
 				duration = 0;
 				break;

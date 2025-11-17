@@ -536,7 +536,6 @@ static void CG_AddSpriteExplosion( localEntity_t *le ) {
 }
 
 
-#ifdef MISSIONPACK
 /*
 ====================
 CG_AddKamikaze
@@ -710,7 +709,6 @@ void CG_AddRefEntity( localEntity_t *le ) {
 	trap_R_AddRefEntityToScene( &le->refEntity );
 }
 
-#endif
 /*
 ===================
 CG_AddScorePlum
@@ -863,7 +861,6 @@ void CG_AddLocalEntities( void ) {
 			CG_AddScorePlum( le );
 			break;
 
-#ifdef MISSIONPACK
 		case LE_KAMIKAZE:
 			CG_AddKamikaze( le );
 			break;
@@ -876,7 +873,6 @@ void CG_AddLocalEntities( void ) {
 		case LE_SHOWREFENTITY:
 			CG_AddRefEntity( le );
 			break;
-#endif
 		}
 	}
 }

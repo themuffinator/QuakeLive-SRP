@@ -1,8 +1,6 @@
 # game building
 # builds the game for vanilla Q3 and TA
 
-# there are slight differences between Q3 and TA build:
-#   -DMISSIONPACK
 # the config is passed in the imported variable TARGET_DIR
 
 # qvm building against native:
@@ -24,11 +22,9 @@ $env = new cons(
   LDFLAGS => '-shared -ldl -lm'
 );
 
-# for TA, use -DMISSIONPACK
 %ta_env_hash = $env->copy(
   CPPPATH => '#cgame:#game:#ui'
   );
-$ta_env_hash{CFLAGS} = '-DMISSIONPACK ' . $ta_env_hash{CFLAGS};
 $ta_env = new cons(%ta_env_hash);
 
 # qvm building
@@ -50,7 +46,6 @@ $vm_env = new cons(
 %vm_ta_env_hash = $vm_env->copy(
   CPPPATH => '#cgame:#game:#ui'
   );
-$vm_ta_env_hash{CFLAGS} = '-DMISSIONPACK ' . $vm_ta_env_hash{CFLAGS};
 $vm_ta_env = new cons(%vm_ta_env_hash);
 
 # the file with vmMain function MUST be the first one of the list

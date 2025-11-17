@@ -137,14 +137,12 @@ int BotSortTeamMatesByBaseTravelTime(bot_state_t *bs, int *teammates, int maxtea
 		else
 			goal = &ctf_blueflag;
 	}
-#ifdef MISSIONPACK
 	else {
 		if (BotTeam(bs) == TEAM_RED)
 			goal = &redobelisk;
 		else
 			goal = &blueobelisk;
 	}
-#endif
 	if (!maxclients)
 		maxclients = trap_Cvar_VariableIntegerValue("sv_maxclients");
 
@@ -272,14 +270,10 @@ BotSayTeamOrders
 ==================
 */
 void BotSayTeamOrder(bot_state_t *bs, int toclient) {
-#ifdef MISSIONPACK
 	// voice chats only
 	char buf[MAX_MESSAGE_SIZE];
 
 	trap_BotGetChatMessage(bs->cs, buf, sizeof(buf));
-#else
-	BotSayTeamOrderAlways(bs, toclient);
-#endif
 }
 
 /*
@@ -288,14 +282,12 @@ BotVoiceChat
 ==================
 */
 void BotVoiceChat(bot_state_t *bs, int toclient, char *voicechat) {
-#ifdef MISSIONPACK
 	if (toclient == -1)
 		// voice only say team
 		trap_EA_Command(bs->client, va("vsay_team %s", voicechat));
 	else
 		// voice only tell single player
 		trap_EA_Command(bs->client, va("vtell %d %s", toclient, voicechat));
-#endif
 }
 
 /*
@@ -304,14 +296,12 @@ BotVoiceChatOnly
 ==================
 */
 void BotVoiceChatOnly(bot_state_t *bs, int toclient, char *voicechat) {
-#ifdef MISSIONPACK
 	if (toclient == -1)
 		// voice only say team
 		trap_EA_Command(bs->client, va("vosay_team %s", voicechat));
 	else
 		// voice only tell single player
 		trap_EA_Command(bs->client, va("votell %d %s", toclient, voicechat));
-#endif
 }
 
 /*
@@ -320,9 +310,7 @@ BotSayVoiceTeamOrder
 ==================
 */
 void BotSayVoiceTeamOrder(bot_state_t *bs, int toclient, char *voicechat) {
-#ifdef MISSIONPACK
 	BotVoiceChat(bs, toclient, voicechat);
-#endif
 }
 
 /*
@@ -936,7 +924,6 @@ void BotTeamOrders(bot_state_t *bs) {
 	}
 }
 
-#ifdef MISSIONPACK
 
 /*
 ==================
@@ -1889,7 +1876,6 @@ void BotHarvesterOrders(bot_state_t *bs) {
 		}
 	}
 }
-#endif
 
 /*
 ==================
@@ -2018,7 +2004,6 @@ void BotTeamAI(bot_state_t *bs) {
 			}
 			break;
 		}
-#ifdef MISSIONPACK
 		case GT_1FCTF:
 		{
 			if (bs->numteammates != numteammates || bs->flagstatuschanged || bs->forceorders) {
@@ -2074,7 +2059,6 @@ void BotTeamAI(bot_state_t *bs) {
 			}
 			break;
 		}
-#endif
 	}
 }
 
