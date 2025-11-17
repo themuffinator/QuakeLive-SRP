@@ -811,11 +811,14 @@ Queues or executes spawn requests, applying Quake Live factory delays where appr
 =============
 */
 qboolean G_RequestClientSpawn( gentity_t *ent, qboolean warmupSpawn, qboolean initialSpawn ) {
-	int             clientNum;
-	int             delayMs;
-	int             scheduledTime;
-	int             baseTime;
-	qboolean        needsEffect;
+        int             clientNum;
+        int             delayMs;
+        int             scheduledTime;
+        int             baseTime;
+        qboolean        needsEffect;
+        int             maxDeferred;
+        int             queuedCount;
+        int             i;
 
 	if ( !ent || !ent->client ) {
 		return qfalse;
@@ -832,13 +835,31 @@ qboolean G_RequestClientSpawn( gentity_t *ent, qboolean warmupSpawn, qboolean in
 		delayMs = 0;
 	}
 
-	if ( delayMs <= 0 ) {
-		ent->think = NULL;
-		ent->nextthink = 0;
-		G_ClearQueuedSpawnState( clientNum );
-		ClientSpawn( ent );
-		return qtrue;
-	}
+        if ( delayMs <= 0 ) {
+                ent->think = NULL;
+                ent->nextthink = 0;
+                G_ClearQueuedSpawnState( clientNum );
+                ClientSpawn( ent );
+                return qtrue;
+        }
+
+        maxDeferred = g_maxDeferredSpawns.integer;
+        if ( maxDeferred > 0 ) {
+                queuedCount = 0;
+                for ( i = 0; i < level.maxclients; ++i ) {
+                        if ( level.clientSpawnQueued[i] ) {
+                                ++queuedCount;
+                        }
+                }
+
+                if ( queuedCount >= maxDeferred ) {
+                        ent->think = NULL;
+                        ent->nextthink = 0;
+                        G_ClearQueuedSpawnState( clientNum );
+                        ClientSpawn( ent );
+                        return qtrue;
+                }
+        }
 
 	baseTime = level.time;
 	if ( warmupSpawn && g_matchFactoryConfig.factoryWarmupSpawnDelayMilliseconds > 0 ) {

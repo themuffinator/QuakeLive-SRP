@@ -791,9 +791,12 @@ void SetTeam( gentity_t *ent, char *s ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FOLLOW;
 		specClient = -2;
-	} else if ( !Q_stricmp( s, "spectator" ) || !Q_stricmp( s, "s" ) ) {
-		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FREE;
+        } else if ( !Q_stricmp( s, "spectator" ) || !Q_stricmp( s, "s" ) ) {
+                team = TEAM_SPECTATOR;
+                specState = G_DefaultSpectatorState();
+                if ( specState == SPECTATOR_FOLLOW ) {
+                        specClient = -1;
+                }
 	} else if ( g_gametype.integer >= GT_TEAM ) {
 		// if running a team game, assign player to one of the teams
 		specState = SPECTATOR_NOT;
@@ -913,12 +916,16 @@ to free floating spectator mode
 =================
 */
 void StopFollowing( gentity_t *ent ) {
-	ent->client->ps.persistant[ PERS_TEAM ] = TEAM_SPECTATOR;	
-	ent->client->sess.sessionTeam = TEAM_SPECTATOR;	
-	ent->client->sess.spectatorState = SPECTATOR_FREE;
-	ent->client->lastKillCommandTime = 0;
-	ent->client->killCommandCooldownExpires = 0;
-	ent->client->friendlyFireComplaints = 0;
+        ent->client->ps.persistant[ PERS_TEAM ] = TEAM_SPECTATOR;
+        ent->client->sess.sessionTeam = TEAM_SPECTATOR;
+        if ( G_SpectatorFreeCamEnabled() ) {
+                ent->client->sess.spectatorState = SPECTATOR_FREE;
+        } else {
+                ent->client->sess.spectatorState = SPECTATOR_SCOREBOARD;
+        }
+        ent->client->lastKillCommandTime = 0;
+        ent->client->killCommandCooldownExpires = 0;
+        ent->client->friendlyFireComplaints = 0;
 	ent->client->friendlyFireComplaintEndTime = 0;
 	ent->client->teammateDamageGiven = 0;
 	ent->client->teammateDamageThisLife = 0;
@@ -991,12 +998,16 @@ void Cmd_Follow_f( gentity_t *ent ) {
 		return;
 	}
 
-	if ( trap_Argc() != 2 ) {
-		if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
-			StopFollowing( ent );
-		}
-		return;
-	}
+        if ( trap_Argc() != 2 ) {
+                if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
+                        if ( G_SpectatorFreeCamEnabled() ) {
+                                StopFollowing( ent );
+                        } else {
+                                trap_SendServerCommand( ent-g_entities, "print \"Free spectator camera is disabled.\\n\"" );
+                        }
+                }
+                return;
+        }
 
 	trap_Argv( 1, arg, sizeof( arg ) );
 	i = ClientNumberFromString( ent, arg );
@@ -1165,6 +1176,11 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 	char		text[MAX_SAY_TEXT];
 	char		location[64];
 
+	if ( ent && ent->client && ent->client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecSayEnable.integer ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Spectator chat is disabled while g_teamSpecSayEnable is 0.\\n\"" );
+		return;
+	}
+
 	if ( g_gametype.integer < GT_TEAM && mode == SAY_TEAM ) {
 		mode = SAY_ALL;
 	}
@@ -1319,6 +1335,11 @@ static void G_VoiceTo( gentity_t *ent, gentity_t *other, int mode, const char *i
 void G_Voice( gentity_t *ent, gentity_t *target, int mode, const char *id, qboolean voiceonly ) {
 	int			j;
 	gentity_t	*other;
+
+	if ( ent && ent->client && ent->client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecSayEnable.integer ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Spectator chat is disabled while g_teamSpecSayEnable is 0.\\n\"" );
+		return;
+	}
 
 	if ( g_gametype.integer < GT_TEAM && mode == SAY_TEAM ) {
 		mode = SAY_ALL;

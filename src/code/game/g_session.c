@@ -109,15 +109,15 @@ void G_InitSessionData( gclient_t *client, char *userinfo ) {
 	sess = &client->sess;
 
 	// initial team determination
-	if ( g_gametype.integer >= GT_TEAM ) {
-		if ( g_teamAutoJoin.integer ) {
-			sess->sessionTeam = PickTeam( -1 );
-			BroadcastTeamChange( client, -1 );
-		} else {
-			// always spawn as spectator in team games
-			sess->sessionTeam = TEAM_SPECTATOR;	
-		}
-	} else {
+        if ( g_gametype.integer >= GT_TEAM ) {
+                if ( g_teamAutoJoin.integer ) {
+                        sess->sessionTeam = PickTeam( -1 );
+                        BroadcastTeamChange( client, -1 );
+                } else {
+                        // always spawn as spectator in team games
+                        sess->sessionTeam = TEAM_SPECTATOR;
+                }
+        } else {
 		value = Info_ValueForKey( userinfo, "team" );
 		if ( value[0] == 's' ) {
 			// a willing spectator, not a waiting-in-line
@@ -142,14 +142,21 @@ void G_InitSessionData( gclient_t *client, char *userinfo ) {
 					sess->sessionTeam = TEAM_FREE;
 				}
 				break;
-			}
-		}
-	}
+                        }
+                }
+        }
 
-	sess->spectatorState = SPECTATOR_FREE;
-	sess->spectatorTime = level.time;
+        if ( g_teamSpawnAsSpec.integer ) {
+                sess->sessionTeam = TEAM_SPECTATOR;
+        }
 
-	G_WriteClientSessionData( client );
+        sess->spectatorState = G_DefaultSpectatorState();
+        if ( sess->spectatorState == SPECTATOR_FOLLOW ) {
+                sess->spectatorClient = -1;
+        }
+        sess->spectatorTime = level.time;
+
+        G_WriteClientSessionData( client );
 }
 
 

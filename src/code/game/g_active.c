@@ -1065,13 +1065,13 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 				return;
 			} else {
 				// drop them to free spectators unless they are dedicated camera followers
-				if ( ent->client->sess.spectatorClient >= 0 ) {
-					ent->client->sess.spectatorState = SPECTATOR_FREE;
-					ClientBegin( ent->client - level.clients );
-				}
-			}
-		}
-	}
+                                if ( ent->client->sess.spectatorClient >= 0 ) {
+                                        ent->client->sess.spectatorState = G_SpectatorFreeCamEnabled() ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
+                                        ClientBegin( ent->client - level.clients );
+                                }
+                        }
+                }
+        }
 
 	if ( ent->client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
 		ent->client->ps.pm_flags |= PMF_SCOREBOARD;

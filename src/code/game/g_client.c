@@ -34,6 +34,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 static vec3_t	playerMins = {-15, -15, -24};
 static vec3_t	playerMaxs = {15, 15, 32};
 
+#define MAX_SPAWN_GRANT_ITEMS 16
+
+static const gitem_t *s_spawnGrantItems[MAX_SPAWN_GRANT_ITEMS];
+static int s_spawnGrantItemCount = 0;
+static int s_spawnGrantItemModCount = -1;
+
+
 #if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
 static char g_clientAuthDenyMessage[QL_AUTH_MAX_RESPONSE_MESSAGE + 64];
 
@@ -214,6 +221,158 @@ static char *G_RunPlatformAuthChecks( int clientNum, char *userinfo, qboolean fi
 	return NULL;
 }
 #endif
+
+/*
+=============
+G_NextGrantToken
+
+Advances through a delimited g_grantItemOnSpawn buffer and returns the next token.
+=============
+*/
+static char *G_NextGrantToken( char **cursor ) {
+        char    *start;
+        char    *end;
+
+        if ( !cursor || !*cursor ) {
+                return NULL;
+        }
+
+        start = *cursor;
+        while ( *start && ( *start == ' ' || *start == '\t' || *start == ',' || *start == ';' ) ) {
+                ++start;
+        }
+
+        if ( !*start ) {
+                *cursor = start;
+                return NULL;
+        }
+
+        end = start;
+        while ( *end && *end != ' ' && *end != '\t' && *end != ',' && *end != ';' ) {
+                ++end;
+        }
+
+        if ( *end ) {
+                *end = '\0';
+                ++end;
+        }
+
+        *cursor = end;
+        return start;
+}
+
+/*
+=============
+G_RefreshGrantItemList
+
+Rebuilds the cached spawn-grant list when g_grantItemOnSpawn changes.
+=============
+*/
+static void G_RefreshGrantItemList( void ) {
+        char    buffer[MAX_CVAR_VALUE_STRING];
+        char    *cursor;
+        char    *token;
+
+        if ( g_grantItemOnSpawn.modificationCount == s_spawnGrantItemModCount ) {
+                return;
+        }
+
+        s_spawnGrantItemModCount = g_grantItemOnSpawn.modificationCount;
+        s_spawnGrantItemCount = 0;
+        memset( s_spawnGrantItems, 0, sizeof( s_spawnGrantItems ) );
+
+        if ( !g_grantItemOnSpawn.string[0] ) {
+                return;
+        }
+
+        Q_strncpyz( buffer, g_grantItemOnSpawn.string, sizeof( buffer ) );
+        cursor = buffer;
+
+        while ( ( token = G_NextGrantToken( &cursor ) ) != NULL ) {
+                const gitem_t       *item;
+
+                if ( s_spawnGrantItemCount >= MAX_SPAWN_GRANT_ITEMS ) {
+                        G_Printf( "WARNING: g_grantItemOnSpawn supports a maximum of %i entries; ignoring '%s'\n", MAX_SPAWN_GRANT_ITEMS, token );
+                        break;
+                }
+
+                item = BG_FindItem( token );
+                if ( !item ) {
+                        G_Printf( "WARNING: g_grantItemOnSpawn item '%s' is unknown\n", token );
+                        continue;
+                }
+
+                s_spawnGrantItems[s_spawnGrantItemCount++] = item;
+        }
+}
+
+/*
+=============
+G_GrantConfiguredSpawnItems
+
+Applies the cached g_grantItemOnSpawn list to the specified client.
+=============
+*/
+static void G_GrantConfiguredSpawnItems( gentity_t *ent ) {
+        int             i;
+
+        if ( !ent || !ent->client ) {
+                return;
+        }
+
+        if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+                return;
+        }
+
+        G_RefreshGrantItemList();
+        if ( s_spawnGrantItemCount <= 0 ) {
+                return;
+        }
+
+        for ( i = 0; i < s_spawnGrantItemCount; ++i ) {
+                const gitem_t       *item;
+                gentity_t           grant;
+
+                item = s_spawnGrantItems[i];
+                if ( !item ) {
+                        continue;
+                }
+
+                memset( &grant, 0, sizeof( grant ) );
+                grant.item = item;
+                grant.classname = item->classname;
+                grant.count = item->quantity;
+
+                switch ( item->giType ) {
+                case IT_WEAPON:
+                        Pickup_Weapon( &grant, ent );
+                        break;
+                case IT_AMMO:
+                        Pickup_Ammo( &grant, ent );
+                        break;
+                case IT_ARMOR:
+                        Pickup_Armor( &grant, ent );
+                        break;
+                case IT_HEALTH:
+                        Pickup_Health( &grant, ent );
+                        break;
+                case IT_POWERUP:
+                        Pickup_Powerup( &grant, ent );
+                        break;
+                case IT_PERSISTANT_POWERUP:
+                        Pickup_PersistantPowerup( &grant, ent );
+                        break;
+                case IT_TEAM:
+                        Pickup_Team( &grant, ent );
+                        break;
+                case IT_HOLDABLE:
+                        Pickup_Holdable( &grant, ent );
+                        break;
+                default:
+                        break;
+                }
+        }
+}
 
 /*QUAKED info_player_deathmatch (1 0 1) (-16 -16 -24) (16 16 32) initial
 potential spawning position for deathmatch games.
@@ -1582,11 +1741,13 @@ void ClientSpawn(gentity_t *ent) {
 		spawnHealth = 1;
 	}
 	ent->health = client->ps.stats[STAT_HEALTH] = spawnHealth;
-	if ( factoryConfig->startingArmor > 0 ) {
-		client->ps.stats[STAT_ARMOR] = factoryConfig->startingArmor;
-	}
+        if ( factoryConfig->startingArmor > 0 ) {
+                client->ps.stats[STAT_ARMOR] = factoryConfig->startingArmor;
+        }
 
-	G_SetOrigin( ent, spawn_origin );
+        G_GrantConfiguredSpawnItems( ent );
+
+        G_SetOrigin( ent, spawn_origin );
 	VectorCopy( spawn_origin, client->ps.origin );
 
 	// the respawned flag will be cleared after the attack and jump keys come up

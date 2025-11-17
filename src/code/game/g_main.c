@@ -281,6 +281,11 @@ vmCvar_t	g_quadHog;
 vmCvar_t	g_quadHogIdle;
 vmCvar_t	g_quadHogTime;
 vmCvar_t	g_quadHogPingRate;
+vmCvar_t	g_grantItemOnSpawn;
+vmCvar_t	g_maxDeferredSpawns;
+vmCvar_t	g_teamSpawnAsSpec;
+vmCvar_t	g_teamSpecFreeCam;
+vmCvar_t	g_teamSpecSayEnable;
 vmCvar_t	g_training;
 vmCvar_t	g_forcedAtmosphere;
 vmCvar_t	g_adTouchScoreBonus;
@@ -360,8 +365,11 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_friendlyFire, "g_friendlyFire", "0", CVAR_ARCHIVE, 0, qtrue  },
 
-	{ &g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE  },
-	{ &g_teamForceBalance, "g_teamForceBalance", "0", CVAR_ARCHIVE  },
+        { &g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE  },
+        { &g_teamForceBalance, "g_teamForceBalance", "0", CVAR_ARCHIVE  },
+        { &g_teamSpawnAsSpec, "g_teamSpawnAsSpec", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Force connecting players to start as spectators until they manually join a team." },
+        { &g_teamSpecFreeCam, "g_teamSpecFreeCam", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow spectators to use the free-flying camera when set to 1; 0 restricts them to follow modes." },
+        { &g_teamSpecSayEnable, "g_teamSpecSayEnable", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow spectator chat traffic when non-zero; set to 0 to silence spectators." },
 
 	{ &g_log, "g_log", "games.log", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_logSync, "g_logSync", "0", CVAR_ARCHIVE, 0, qfalse  },
@@ -378,9 +386,10 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_forceSendConfigstring, "g_forceSendConfigstring", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Resend all configstrings to clients on map load when enabled to debug sync issues." },
 	{ &g_forceAtmosphericEffects, "g_forceAtmosphericEffects", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Enable atmospheric map effects such as snow or rain regardless of client preference." },
 	{ &g_forceDmgThroughSurface, "g_forceDmgThroughSurface", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow splash damage to pass through non-solid surfaces for testing when set." },
-	{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional model path used to override every player's model selection server-wide." },
-	{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },
-	{ &g_botsFile, "g_botsFile", "", CVAR_INIT | CVAR_ROM, 0, qfalse, qfalse, "Override bot definition list with a custom script when specified." },
+        { &g_playermodelOverride, "g_playermodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional model path used to override every player's model selection server-wide." },
+        { &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },
+        { &g_grantItemOnSpawn, "g_grantItemOnSpawn", "", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Space or comma separated list of item classnames automatically granted during ClientSpawn." },
+        { &g_botsFile, "g_botsFile", "", CVAR_INIT | CVAR_ROM, 0, qfalse, qfalse, "Override bot definition list with a custom script when specified." },
 	{ &g_botSpawnList, "g_botSpawnList", "", 0, 0, qfalse, qfalse, "Space-separated bot names automatically spawned on map start when set." },
 	{ &g_training, "g_training", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Enable the training progression gate so players must complete tutorials." },
 	{ &g_adTouchScoreBonus, "g_adTouchScoreBonus", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend touch bonus added to the scoring totals whenever an attacker grabs the flag." },
@@ -433,9 +442,10 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_timeoutLen, "g_timeoutLen", "60", CVAR_NORESTART, 0, qfalse, qfalse, "Timeout duration in seconds for each team pause." },
 	{ &g_timeoutCount, "g_timeoutCount", "0", CVAR_SERVERINFO | CVAR_NORESTART, 0, qfalse, qfalse, "Number of timeouts each team may call per match." },
 	{ &g_factoryTitle, "g_factoryTitle", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Short factory title pushed via serverinfo for display on connected clients." },
-	{ &g_factoryRespawnDelay, "g_factoryRespawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before a defeated player respawns when factories schedule queues." },
-	{ &g_factoryWarmupSpawnDelay, "g_factoryWarmupSpawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds applied to warmup spawns when factories request staggered starts." },
-	{ &g_factoryAllowItemDrops, "g_factoryAllowItemDrops", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether item drop logic fires for weapons and powerups spawned from players." },
+        { &g_factoryRespawnDelay, "g_factoryRespawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before a defeated player respawns when factories schedule queues." },
+        { &g_factoryWarmupSpawnDelay, "g_factoryWarmupSpawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds applied to warmup spawns when factories request staggered starts." },
+        { &g_maxDeferredSpawns, "g_maxDeferredSpawns", "4", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Maximum number of pending spawn queue entries before new spawn requests execute immediately." },
+        { &g_factoryAllowItemDrops, "g_factoryAllowItemDrops", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether item drop logic fires for weapons and powerups spawned from players." },
 	{ &g_factoryAllowItemBounce, "g_factoryAllowItemBounce", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether dropped items bounce before coming to rest when factories disable the behaviour." },
 	{ &g_itemTimers, "g_itemTimers", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Toggles broadcast of server-side item timer training aids when non-zero." },
 	{ &g_itemHeight, "g_itemHeight", "20", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Adjusts the vertical spacing clients apply to item timer widgets in the HUD." },

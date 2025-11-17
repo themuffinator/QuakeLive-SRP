@@ -9,7 +9,7 @@ import random
 import heapq
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 from .config import BotConfig, CommandConfig, MatchConfig
 
@@ -116,6 +116,7 @@ class MatchHarness:
         self._item_queue: list[tuple[float, int, Dict[str, Any]]] = []
         self._event_counter = 0
         self._next_warmup_spawn_time: float = 0.0
+        self._spawn_queue_limit: Optional[int] = self._resolve_spawn_queue_limit()
 
     @staticmethod
     def _resolve_seed(*seeds: Optional[int]) -> int:
@@ -341,13 +342,19 @@ class MatchHarness:
         delay_ms_key = "warmup_ms" if warmup else "live_ms"
         delay_ms = self._get_factory_setting("spawn_delays", delay_ms_key, default=0)
         delay_seconds = max(0.0, float(delay_ms) / 1000.0)
-        if warmup:
+        queue_depth = self._pending_spawn_count()
+        queue_limit = self._spawn_queue_limit
+        bypass_queue = self._should_force_immediate_spawn(delay_seconds, queue_depth)
+        if bypass_queue:
+            scheduled_time = round(self._current_time, 6)
+            delay_seconds = 0.0
+        elif warmup:
             base_time = max(self._current_time, self._next_warmup_spawn_time)
+            scheduled_time = round(base_time + delay_seconds, 6)
+            self._next_warmup_spawn_time = scheduled_time
         else:
             base_time = self._current_time
-        scheduled_time = round(base_time + delay_seconds, 6)
-        if warmup:
-            self._next_warmup_spawn_time = scheduled_time
+            scheduled_time = round(base_time + delay_seconds, 6)
         payload = {
             "bot": target_name,
             "warmup": warmup,
@@ -358,10 +365,15 @@ class MatchHarness:
             "command": command_name,
             "alias": target_alias,
             "source": "command",
+            "queue_status": "immediate" if bypass_queue else "queued",
+            "queue_limit": queue_limit,
+            "queue_depth": queue_depth,
         }
+        if bypass_queue:
+            payload["queue_bypass"] = "max_deferred_spawns"
         self._schedule_spawn_event(scheduled_time, payload)
         return {
-            "status": "queued",
+            "status": "immediate" if bypass_queue else "queued",
             "warmup": warmup,
             "scheduled_time": scheduled_time,
             "delay": delay_seconds,
@@ -370,6 +382,9 @@ class MatchHarness:
             "command": command_name,
             "target": target_name,
             "alias": target_alias,
+            "queue_depth": queue_depth,
+            "queue_limit": queue_limit,
+            "queue_status": "immediate" if bypass_queue else "queued",
         }
 
     def _handle_drop_item(
@@ -797,23 +812,34 @@ class MatchHarness:
             bot_name = payload.get("bot")
             bot_state = bots.get(bot_name) if bot_name else None
             team = bot_state.team if bot_state else None
+            details = {
+                "warmup": bool(payload.get("warmup", False)),
+                "delay": float(payload.get("delay", 0.0)),
+                "scheduled_time": round(scheduled_time, 6),
+                "reason": payload.get("reason"),
+                "issuer": payload.get("issuer"),
+                "command": payload.get("command"),
+                "alias": payload.get("alias"),
+                "source": payload.get("source"),
+                "count": payload.get("count"),
+                "queue_status": payload.get("queue_status"),
+                "queue_limit": payload.get("queue_limit"),
+                "queue_depth": payload.get("queue_depth"),
+                "queue_bypass": payload.get("queue_bypass"),
+            }
+            if bot_state is not None:
+                grants = self._apply_spawn_grants(bot_state)
+            else:
+                grants = []
+            if grants:
+                details["grants"] = grants
             events.append(
                 {
                     "bot": bot_name,
                     "team": team,
                     "time": round(scheduled_time, 6),
                     "action": "client_spawn",
-                    "details": {
-                        "warmup": bool(payload.get("warmup", False)),
-                        "delay": float(payload.get("delay", 0.0)),
-                        "scheduled_time": round(scheduled_time, 6),
-                        "reason": payload.get("reason"),
-                        "issuer": payload.get("issuer"),
-                        "command": payload.get("command"),
-                        "alias": payload.get("alias"),
-                        "source": payload.get("source"),
-                        "count": payload.get("count"),
-                    },
+                    "details": details,
                 }
             )
         return events
@@ -840,6 +866,122 @@ class MatchHarness:
                 }
             )
         return events
+
+    def _pending_spawn_count(self) -> int:
+        return len(self._spawn_queue)
+
+    def _resolve_spawn_queue_limit(self) -> Optional[int]:
+        value = self._get_factory_setting("spawn_queue", "max_deferred_spawns")
+        if value is None:
+            value = self._get_factory_setting("max_deferred_spawns")
+        if value is None:
+            return None
+        try:
+            limit = int(value)
+        except (TypeError, ValueError):
+            return None
+        if limit <= 0:
+            return None
+        return limit
+
+    def _should_force_immediate_spawn(self, delay_seconds: float, queue_depth: int) -> bool:
+        if delay_seconds <= 0.0:
+            return False
+        if self._spawn_queue_limit is None:
+            return False
+        return queue_depth >= self._spawn_queue_limit
+
+    def _iter_spawn_grant_entries(self) -> Iterable[Any]:
+        grants = self._get_factory_setting("grant_items_on_spawn")
+        if grants is None:
+            return []
+        if isinstance(grants, str):
+            tokens = [token.strip() for token in grants.replace(",", " ").split()]
+            return [token for token in tokens if token]
+        if isinstance(grants, Mapping):
+            return [grants]
+        if isinstance(grants, Iterable):
+            return list(grants)
+        return []
+
+    def _normalise_spawn_grant_entry(self, entry: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(entry, str):
+            token = entry.strip()
+            if not token:
+                return None
+            return {"inventory": {token: 1}, "label": token}
+        if not isinstance(entry, Mapping):
+            return None
+        grant: Dict[str, Any] = {}
+        inventory = entry.get("inventory")
+        if inventory is not None:
+            inv_map = {
+                str(item): int(amount)
+                for item, amount in self._resolve_mapping(inventory).items()
+            }
+            if inv_map:
+                grant["inventory"] = inv_map
+        ammo = entry.get("ammo")
+        if ammo is not None:
+            ammo_map = {
+                str(weapon): float(amount)
+                for weapon, amount in self._resolve_mapping(ammo).items()
+            }
+            if ammo_map:
+                grant["ammo"] = ammo_map
+        custom = entry.get("custom")
+        if custom is not None:
+            custom_map = dict(self._resolve_mapping(custom))
+            if custom_map:
+                grant["custom"] = custom_map
+        label = entry.get("label") or entry.get("item")
+        if label:
+            grant["label"] = str(label)
+        return grant if grant else None
+
+    def _apply_spawn_grants(self, state: BotState) -> List[Dict[str, Any]]:
+        applied: List[Dict[str, Any]] = []
+        for entry in self._iter_spawn_grant_entries():
+            grant = self._normalise_spawn_grant_entry(entry)
+            if not grant:
+                continue
+            summary: Dict[str, Any] = {}
+            inventory = grant.get("inventory")
+            if inventory:
+                inventory_delta: Dict[str, int] = {}
+                for item, amount in inventory.items():
+                    count = int(amount)
+                    if count == 0:
+                        continue
+                    state.inventory[item] = state.inventory.get(item, 0) + count
+                    inventory_delta[item] = count
+                if inventory_delta:
+                    summary["inventory"] = inventory_delta
+            ammo = grant.get("ammo")
+            if ammo:
+                ammo_delta: Dict[str, float] = {}
+                for weapon, amount in ammo.items():
+                    delta = float(amount)
+                    if delta == 0.0:
+                        continue
+                    state.ammo[weapon] = state.ammo.get(weapon, 0.0) + delta
+                    ammo_delta[weapon] = delta
+                if ammo_delta:
+                    summary["ammo"] = ammo_delta
+            custom = grant.get("custom")
+            if custom:
+                custom_delta: Dict[str, Any] = {}
+                for key, value in custom.items():
+                    state.custom[key] = value
+                    custom_delta[key] = value
+                if custom_delta:
+                    summary["custom"] = custom_delta
+            label = grant.get("label")
+            if label:
+                summary["label"] = label
+            if summary:
+                applied.append(summary)
+        return applied
 
 
 def load_config(path: Path, *, seed: Optional[int] = None) -> MatchConfig:

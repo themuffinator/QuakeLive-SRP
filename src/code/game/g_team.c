@@ -73,6 +73,28 @@ static void Team_DominationSendDistress( dominationPoint_t *point );
 
 /*
 =============
+G_SpectatorFreeCamEnabled
+
+Returns qtrue when free spectator camera movement is permitted.
+=============
+*/
+qboolean G_SpectatorFreeCamEnabled( void ) {
+	return ( g_teamSpecFreeCam.integer != 0 ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_DefaultSpectatorState
+
+Selects the spectator state applied when a client becomes a spectator.
+=============
+*/
+spectatorState_t G_DefaultSpectatorState( void ) {
+	return G_SpectatorFreeCamEnabled() ? SPECTATOR_FREE : SPECTATOR_FOLLOW;
+}
+
+/*
+=============
 G_ADBonusesEnabled
 
 Returns qtrue when Attack & Defend score bonuses should be processed.

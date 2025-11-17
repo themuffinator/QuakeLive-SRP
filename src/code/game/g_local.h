@@ -170,6 +170,11 @@ extern vmCvar_t g_botSpawnList;
 extern vmCvar_t g_accessFile;
 extern vmCvar_t g_factoryTitle;
 extern vmCvar_t g_dropInactive;
+extern vmCvar_t g_grantItemOnSpawn;
+extern vmCvar_t g_maxDeferredSpawns;
+extern vmCvar_t g_teamSpawnAsSpec;
+extern vmCvar_t g_teamSpecFreeCam;
+extern vmCvar_t g_teamSpecSayEnable;
 extern vmCvar_t g_forcedAtmosphere;
 extern vmCvar_t roundlimit;
 extern vmCvar_t roundtimelimit;
@@ -724,6 +729,9 @@ void Cmd_FollowCycle_f( gentity_t *ent, int dir );
 void G_ApplyForfeit( gentity_t *ent );
 void G_SendItemTimerState( int clientNum, int enabled, int height );
 void G_BroadcastItemTimerState( int enabled, int height );
+qboolean G_SpectatorFreeCamEnabled( void );
+spectatorState_t G_DefaultSpectatorState( void );
+
 
 //
 // g_items.c
@@ -743,6 +751,15 @@ void Think_Weapon (gentity_t *ent);
 int ArmorIndex (gentity_t *ent);
 void	Add_Ammo (gentity_t *ent, int weapon, int count);
 void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace);
+int Pickup_Weapon( gentity_t *ent, gentity_t *other );
+int Pickup_Ammo( gentity_t *ent, gentity_t *other );
+int Pickup_Armor( gentity_t *ent, gentity_t *other );
+int Pickup_Health( gentity_t *ent, gentity_t *other );
+int Pickup_Powerup( gentity_t *ent, gentity_t *other );
+int Pickup_PersistantPowerup( gentity_t *ent, gentity_t *other );
+int Pickup_Team( gentity_t *ent, gentity_t *other );
+int Pickup_Holdable( gentity_t *ent, gentity_t *other );
+
 
 void ClearRegisteredItems( void );
 void RegisterItem( gitem_t *item );

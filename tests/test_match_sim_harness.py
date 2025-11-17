@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import copy
 import sys
+from typing import Mapping
 
 import pytest
 
@@ -75,10 +76,10 @@ def _configure_factory_config(**overrides) -> MatchHarness:
     config = load_config(SCENARIO_DIR / "factory_cvars.json")
     factory_meta = copy.deepcopy(config.metadata.get("factory", {}))
     for key, value in overrides.items():
-        if key == "items":
-            items = copy.deepcopy(factory_meta.get("items", {}))
-            items.update(value)
-            factory_meta["items"] = items
+        if isinstance(value, Mapping) and isinstance(factory_meta.get(key), Mapping):
+            merged = copy.deepcopy(factory_meta.get(key))
+            merged.update(value)
+            factory_meta[key] = merged
         else:
             factory_meta[key] = value
     config.metadata["factory"] = factory_meta
@@ -135,6 +136,54 @@ def test_factory_spawn_delays_emit_client_spawn_events() -> None:
         ("visor", False, 2.5),
         ("anarki", False, 2.7),
     ]
+
+
+def _iter_spawn_events(result):
+    for frame in result.frames:
+        for event in frame.events:
+            if event["action"] == "client_spawn":
+                yield frame, event
+
+
+def test_spawn_queue_limit_forces_immediate_spawns() -> None:
+    harness = _configure_factory_config(spawn_queue={"max_deferred_spawns": 1})
+    result = harness.run()
+
+    spawn_events = [event for _, event in _iter_spawn_events(result)]
+    immediate = [event for event in spawn_events if event["details"].get("queue_status") == "immediate"]
+
+    assert immediate, "At least one spawn should bypass the queue when the limit is reached"
+    assert all(event["details"].get("queue_limit") == 1 for event in immediate)
+    assert any(abs(event["details"].get("delay", 0.0)) < 1e-6 for event in immediate)
+
+
+def test_spawn_grant_items_populate_state_and_events() -> None:
+    harness = _configure_factory_config(
+        grant_items_on_spawn=[
+            "rocket_launcher",
+            {"inventory": {"mega": 1}, "ammo": {"rocket": 5}, "label": "factory_grant"},
+        ]
+    )
+    result = harness.run()
+
+    grant_frame = None
+    grant_event = None
+    for frame, event in _iter_spawn_events(result):
+        if event["details"].get("grants"):
+            grant_frame = frame
+            grant_event = event
+            break
+
+    assert grant_event is not None, "Spawn events should record granted items"
+
+    grants = grant_event["details"]["grants"]
+    assert any("inventory" in entry for entry in grants)
+    assert any(entry.get("label") == "factory_grant" for entry in grants)
+
+    bot_state = grant_frame.bots[grant_event["bot"]]
+    assert bot_state["inventory"].get("rocket_launcher") >= 1
+    assert bot_state["inventory"].get("mega") >= 1
+    assert bot_state["ammo"].get("rocket") >= 5.0
 
 
 def _summarise_item_events(result) -> str:

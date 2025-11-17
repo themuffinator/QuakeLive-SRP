@@ -10,6 +10,9 @@
 | `g_startingHealth`, `g_startingHealthBonus`, `g_startingArmor` | Control the base spawn health, bonus stack, and armor applied to players when they enter the arena. | Cache the values alongside the other factory knobs in `g_config.c` and seed the spawn stats inside `ClientSpawn` so handicap and sudden-death logic continue to function. |
 | `weapon_reload_*` | Exposes per-weapon reload timings to script, iterating the family of strings on startup. | Map to a new reload-duration table parallel to `g_weaponConfig`; hook the values in weapon state handling (e.g., `PM_Weapon` raise/drop timers) and validate via `G_ReadWeaponCvar`-style helpers. |
 | `g_knockback`, `g_knockback_*`, `g_knockback_*_self`, `g_knockback_z(_self)`, `g_max_knockback` | Registers global and per-weapon knockback scalars, including self-damage tweaks and vertical boosts. | Expand Quake III's single `g_knockback` cvar by introducing a struct of weapon-specific scalars and self-hit overrides; consume them in `G_Damage` where knockback force is derived from damage. |
+| `g_grantItemOnSpawn` | Quake Live servers parse this delimited cvar and grant the referenced items to players every time `ClientSpawn` completes. | Register the string in `g_main.c`, parse it via helpers in `g_client.c`, and invoke the picker inside `ClientSpawn` so loadout grants remain deterministic even when items are unknown. |
+| `g_maxDeferredSpawns` | Limits the number of pending spawn queue entries so Quake Live can bypass the factory delay when the queue would otherwise overflow. | Enforce the integer cap in `G_RequestClientSpawn` (`g_spawn.c`) by counting queued clients and forcing immediate spawns when the limit is met. |
+| `g_teamSpawnAsSpec`, `g_teamSpecFreeCam`, `g_teamSpecSayEnable` | Controls how players and spectators enter the match, whether free-cam follow modes are allowed, and if spectators may chat/voice. | Register the toggles in `g_main.c`, inspect them while populating session data (`g_session.c`), exposing spectator helpers in `g_team.c`, and gating chat/voice and follow logic in `g_cmds.c`/`g_active.c`. |
 
 ## Validation, Persistence, and Defaults
 
@@ -18,6 +21,7 @@
 - **Spawn and item hooks**: Apply the validated values in `ClientSpawn` (for starting ammo and infinite-ammo toggles) and in `g_items.c` (for ammo pack drop counts and respawn delays), preserving Quake III's clamping logic such as the 200 ammo cap.
 - **Movement and combat integration**: Adjust knockback multipliers while computing weapon kick in `G_Damage`, respecting `g_knockback_*_self` and `g_knockback_z` overrides before applying the final velocity delta.
 - **Factory defaults**: Seed sane defaults that match Quake Live presets (for example, 50 rockets and 1.10 plasma knockback) so gameplay remains unchanged unless a script overrides the cvars.
+- **Spectator and spawn guardrails**: Add regression coverage in `tests/test_match_sim_harness.py` to lock the parsing/grant order for `g_grantItemOnSpawn` and the queue bypass semantics for `g_maxDeferredSpawns`, ensuring spectator toggles remain in sync with the in-game helpers documented above.
 
 ## Steam-Aware Client Connection Handling
 
