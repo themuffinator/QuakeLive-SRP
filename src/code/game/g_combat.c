@@ -647,6 +647,10 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	int			i;
 	char		*killerName, *obit;
 
+	if ( G_FreezeHandlePlayerDeath( self, inflictor, attacker, damage, meansOfDeath ) ) {
+		return;
+	}
+
 	if ( self->client->ps.pm_type == PM_DEAD ) {
 		return;
 	}
@@ -1268,6 +1272,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	if ( client ) {
 		if ( client->noclip ) {
 			return;
+		}
+		if ( G_FreezeGametypeEnabled() && client->freezeProtectedUntil > level.time ) {
+			if ( attacker && attacker != targ && attacker->client ) {
+				return;
+			}
 		}
 	}
 

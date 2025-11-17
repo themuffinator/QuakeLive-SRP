@@ -89,6 +89,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Tutorial configstrings broadcast lightweight coaching text for the HUD.
 #define CS_TUTORIAL_NAME		(CS_FORCED_COSMETICS + 1)
 #define CS_TUTORIAL_TEXT		(CS_FORCED_COSMETICS + 2)
+#define CS_FREEZE_TIP_OBJECTIVE	(CS_TUTORIAL_TEXT + 1)
+#define CS_FREEZE_TIP_THAW		(CS_TUTORIAL_TEXT + 2)
+#define CS_FREEZE_TIP_FREEZE	(CS_TUTORIAL_TEXT + 3)
+#define CS_FREEZE_TIP_SHOOT	(CS_TUTORIAL_TEXT + 4)
+#define CS_FREEZE_TIP_SUMMARY	(CS_TUTORIAL_TEXT + 5)
 
 //
 // Factory metadata configstrings provide clients with human-readable match factory data.

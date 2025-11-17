@@ -24,35 +24,239 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../../common/auth_credentials.h"
 #include "../../common/platform/platform_config.h"
-
-#if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
 #include <limits.h>
-#endif
 
-// g_client.c -- client functions that don't happen every frame
+/*
+=============
+G_FreezeClientEndFrame
 
-static vec3_t	playerMins = {-15, -15, -24};
-static vec3_t	playerMaxs = {15, 15, 32};
+Runs the thaw and auto-respawn timers for frozen players.
+=============
+*/
+void G_FreezeClientEndFrame( gentity_t *ent ) {
+	gclient_t	*client;
+	gentity_t	*helper;
+	int		thawTick;
+	int		thawTotal;
 
-#if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
-static char g_clientAuthDenyMessage[QL_AUTH_MAX_RESPONSE_MESSAGE + 64];
+	if ( !ent || !ent->client ) {
+		return;
+	}
 
-static const char *G_GetAuthResultString( qlAuthResult result ) {
-        switch ( result ) {
-        case QL_AUTH_RESULT_PENDING:
-                return "pending";
-        case QL_AUTH_RESULT_ACCEPTED:
-                return "accepted";
-        case QL_AUTH_RESULT_DENIED:
-                return "denied";
-        case QL_AUTH_RESULT_ERROR:
-                return "error";
-        default:
-                break;
-        }
+	if ( !G_FreezeGametypeEnabled() ) {
+		return;
+	}
 
-        return "unknown";
+	client = ent->client;
+	thawTick = g_freezeThawTick.integer;
+	thawTotal = g_freezeThawTime.integer;
+	if ( thawTick <= 0 ) {
+		thawTick = thawTotal;
+	}
+	if ( thawTick <= 0 ) {
+		thawTick = 100;
+	}
+	if ( thawTotal <= 0 ) {
+		thawTotal = 2000;
+	}
+
+	if ( client->freezeFrozen ) {
+		helper = G_FreezeFindThawHelper( ent );
+		if ( helper ) {
+			if ( client->freezeNextThawTick <= level.time ) {
+				client->freezeAccumulatedThaw += thawTick;
+				client->freezeNextThawTick = level.time + thawTick;
+				client->freezeLastHelper = helper->s.number;
+			}
+			if ( client->freezeAccumulatedThaw >= thawTotal ) {
+				G_FreezeThawClient( ent, qfalse, helper->s.number );
+				return;
+			}
+		} else {
+			client->freezeAccumulatedThaw = 0;
+			client->freezeNextThawTick = level.time + thawTick;
+			client->freezeLastHelper = -1;
+		}
+
+		if ( client->freezeAutoThawTime > 0 && level.time >= client->freezeAutoThawTime ) {
+			G_FreezeThawClient( ent, qtrue, -1 );
+			return;
+		}
+		if ( client->freezeEnvironmentalRespawnTime > 0
+		&& level.time >= client->freezeEnvironmentalRespawnTime ) {
+			G_FreezeThawClient( ent, qtrue, -1 );
+			return;
+		}
+	} else if ( client->freezeProtectedUntil > 0 && level.time >= client->freezeProtectedUntil ) {
+		client->freezeProtectedUntil = 0;
+	}
 }
+
+/*
+=============
+G_FreezeHandlePlayerDeath
+
+Intercepts fatal damage so freeze rounds immobilize players instead of killing them.
+=============
+*/
+qboolean G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath ) {
+	gclient_t	*client;
+	gentity_t	*ent;
+	int		killer;
+	char		*killerName;
+	char		*obit;
+	int		contents;
+	qboolean	environmental;
+	int		i;
+
+	if ( !G_FreezeGametypeEnabled() || !self || !self->client ) {
+		return qfalse;
+	}
+
+	client = self->client;
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+
+	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+		return qfalse;
+	}
+
+	CheckAlmostCapture( self, attacker );
+	CheckAlmostScored( self, attacker );
+
+	if ( client->hook ) {
+		Weapon_HookFree( client->hook );
+	}
+	if ( ( client->ps.eFlags & EF_TICKING ) && self->activator ) {
+		client->ps.eFlags &= ~EF_TICKING;
+		self->activator->think = G_FreeEntity;
+		self->activator->nextthink = level.time;
+	}
+
+	environmental = qfalse;
+	if ( attacker ) {
+		killer = attacker->s.number;
+		if ( attacker->client ) {
+			killerName = attacker->client->pers.netname;
+		} else {
+			killerName = "<non-client>";
+			environmental = qtrue;
+		}
+	} else {
+		killer = ENTITYNUM_WORLD;
+		killerName = "<world>";
+		environmental = qtrue;
+	}
+
+	if ( killer < 0 || killer >= MAX_CLIENTS ) {
+		killer = ENTITYNUM_WORLD;
+		killerName = "<world>";
+	}
+
+	if ( meansOfDeath < 0 || meansOfDeath >= (int)( sizeof( modNames ) / sizeof( modNames[0] ) ) ) {
+		obit = "<bad obituary>";
+	} else {
+		obit = modNames[ meansOfDeath ];
+	}
+
+	G_LogPrintf( "Kill: %i %i %i: %s killed %s by %s\n",
+	killer, self->s.number, meansOfDeath, killerName,
+	client->pers.netname, obit );
+
+	ent = G_TempEntity( self->r.currentOrigin, EV_OBITUARY );
+	ent->s.eventParm = meansOfDeath;
+	ent->s.otherEntityNum = self->s.number;
+	ent->s.otherEntityNum2 = killer;
+	ent->r.svFlags = SVF_BROADCAST;
+
+	self->enemy = attacker;
+	client->ps.persistant[PERS_KILLED]++;
+
+	if ( attacker && attacker->client ) {
+		attacker->client->lastkilled_client = self->s.number;
+
+		if ( attacker == self || OnSameTeam( self, attacker ) ) {
+			AddScore( attacker, self->r.currentOrigin, -1 );
+		} else {
+			AddScore( attacker, self->r.currentOrigin, 1 );
+			G_ADAwardBonus( attacker, self->r.currentOrigin, g_adElimScoreBonus.integer, S_COLOR_YELLOW "Elimination bonus" );
+
+			if ( meansOfDeath == MOD_GAUNTLET ) {
+				attacker->client->ps.persistant[PERS_GAUNTLET_FRAG_COUNT]++;
+				attacker->client->ps.eFlags &= ~(EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP);
+				attacker->client->ps.eFlags |= EF_AWARD_GAUNTLET;
+				attacker->client->rewardTime = level.time + REWARD_SPRITE_TIME;
+				client->ps.persistant[PERS_PLAYEREVENTS] ^= PLAYEREVENT_GAUNTLETREWARD;
+			}
+
+			if ( level.time - attacker->client->lastKillTime < CARNAGE_REWARD_TIME ) {
+				attacker->client->ps.persistant[PERS_EXCELLENT_COUNT]++;
+				attacker->client->ps.eFlags &= ~(EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP);
+				attacker->client->ps.eFlags |= EF_AWARD_EXCELLENT;
+				attacker->client->rewardTime = level.time + REWARD_SPRITE_TIME;
+			}
+			attacker->client->lastKillTime = level.time;
+		}
+	} else {
+		AddScore( self, self->r.currentOrigin, -1 );
+	}
+
+	Team_FragBonuses( self, inflictor, attacker );
+	G_RRHandlePlayerDeath( self, attacker );
+
+	if ( meansOfDeath == MOD_SUICIDE ) {
+		if ( client->ps.powerups[PW_NEUTRALFLAG] ) {
+			Team_ReturnFlag( TEAM_FREE );
+			client->ps.powerups[PW_NEUTRALFLAG] = 0;
+		} else if ( client->ps.powerups[PW_REDFLAG] ) {
+			Team_ReturnFlag( TEAM_RED );
+			client->ps.powerups[PW_REDFLAG] = 0;
+		} else if ( client->ps.powerups[PW_BLUEFLAG] ) {
+			Team_ReturnFlag( TEAM_BLUE );
+			client->ps.powerups[PW_BLUEFLAG] = 0;
+		}
+	} else {
+		if ( client->ps.powerups[PW_NEUTRALFLAG] ) {
+			Team_ReturnFlag( TEAM_FREE );
+		} else if ( client->ps.powerups[PW_REDFLAG] ) {
+			Team_ReturnFlag( TEAM_RED );
+		} else if ( client->ps.powerups[PW_BLUEFLAG] ) {
+			Team_ReturnFlag( TEAM_BLUE );
+		}
+	}
+	TossClientPersistantPowerups( self );
+	if ( g_gametype.integer == GT_HARVESTER ) {
+		TossClientCubes( self );
+	}
+
+	Cmd_Score_f( self );
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t *other;
+
+		other = &level.clients[i];
+		if ( other->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( other->sess.sessionTeam != TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( other->sess.spectatorClient == self->s.number ) {
+			Cmd_Score_f( g_entities + i );
+		}
+	}
+
+	contents = trap_PointContents( self->r.currentOrigin, -1 );
+	if ( !( contents & CONTENTS_NODROP ) ) {
+		G_FreezeApplyFreezeState( self, environmental );
+	} else {
+		G_FreezeApplyFreezeState( self, qtrue );
+	}
+
+	return qtrue;
+}
+
+
 
 static const char *G_GetAuthOutcomeString( qlAuthOutcome outcome ) {
         switch ( outcome ) {
@@ -1207,6 +1411,219 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
                 const char *steamId = Info_ValueForKey( userinfo, "steamid" );
 
                 if ( steamId && steamId[0] ) {
+
+#if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
+
+// g_client.c -- client functions that don't happen every frame
+
+static vec3_t	playerMins = {-15, -15, -24};
+static vec3_t	playerMaxs = {15, 15, 32};
+
+/*
+=============
+G_FreezeFindThawHelper
+
+Returns the first teammate capable of thawing the specified client.
+=============
+*/
+static gentity_t *G_FreezeFindThawHelper( gentity_t *ent ) {
+	float		radius;
+	float		radiusSq;
+	int		clientNum;
+
+	if ( !ent || !ent->client ) {
+		return NULL;
+	}
+
+	radius = (float)g_freezeThawRadius.integer;
+	if ( radius <= 0.0f ) {
+		return NULL;
+	}
+	radiusSq = radius * radius;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*helper;
+		vec3_t		delta;
+		trace_t	trace;
+
+		helper = &g_entities[clientNum];
+		if ( helper == ent || !helper->inuse || !helper->client ) {
+			continue;
+		}
+		if ( helper->client->sess.sessionTeam != ent->client->sess.sessionTeam ) {
+			continue;
+		}
+		if ( helper->client->sess.sessionTeam != TEAM_RED
+		&& helper->client->sess.sessionTeam != TEAM_BLUE ) {
+			continue;
+		}
+		if ( helper->client->freezeFrozen ) {
+			continue;
+		}
+		if ( helper->client->ps.pm_type == PM_DEAD ) {
+			continue;
+		}
+
+		VectorSubtract( helper->r.currentOrigin, ent->r.currentOrigin, delta );
+		if ( VectorLengthSquared( delta ) > radiusSq ) {
+			continue;
+		}
+
+		if ( !g_freezeThawThroughSurface.integer ) {
+			trap_Trace( &trace, helper->r.currentOrigin, NULL, NULL,
+			ent->r.currentOrigin, helper->s.number, MASK_SOLID );
+			if ( trace.fraction < 1.0f ) {
+				continue;
+			}
+		}
+
+		return helper;
+	}
+
+	return NULL;
+}
+
+/*
+=============
+G_FreezeInitClient
+
+Clears the per-client freeze fields whenever a player spawns.
+=============
+*/
+void G_FreezeInitClient( gentity_t *ent ) {
+	gclient_t	*client;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	client = ent->client;
+	client->freezeFrozen = qfalse;
+	client->freezeTime = 0;
+	client->freezeNextThawTick = 0;
+	client->freezeAccumulatedThaw = 0;
+	client->freezeAutoThawTime = 0;
+	client->freezeProtectedUntil = 0;
+	client->freezeEnvironmentalRespawnTime = 0;
+	client->freezeLastHelper = -1;
+	if ( G_FreezeGametypeEnabled() && g_freezeProtectedSpawnTime.integer > 0 ) {
+		client->freezeProtectedUntil = level.time + g_freezeProtectedSpawnTime.integer;
+	}
+}
+
+/*
+=============
+G_FreezeApplyFreezeState
+
+Transitions the victim into the frozen state rather than allowing death.
+=============
+*/
+static void G_FreezeApplyFreezeState( gentity_t *self, qboolean environmental ) {
+	gclient_t	*client;
+	int		thawTick;
+
+	if ( !self || !self->client ) {
+		return;
+	}
+
+	client = self->client;
+	client->freezeFrozen = qtrue;
+	client->freezeTime = level.time;
+	client->freezeAccumulatedThaw = 0;
+	thawTick = g_freezeThawTick.integer;
+	if ( thawTick <= 0 ) {
+		thawTick = g_freezeThawTime.integer;
+	}
+	if ( thawTick <= 0 ) {
+		thawTick = 100;
+	}
+	client->freezeNextThawTick = level.time + thawTick;
+	client->freezeAutoThawTime = ( g_freezeAutoThawTime.integer > 0 )
+	? level.time + g_freezeAutoThawTime.integer : 0;
+	if ( environmental && g_freezeEnvironmentalRespawnDelay.integer > 0 ) {
+		client->freezeEnvironmentalRespawnTime = level.time + g_freezeEnvironmentalRespawnDelay.integer;
+	} else {
+		client->freezeEnvironmentalRespawnTime = 0;
+	}
+	client->freezeProtectedUntil = 0;
+	client->freezeLastHelper = -1;
+	self->takedamage = qfalse;
+	client->ps.pm_type = PM_FREEZE;
+	client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+	client->ps.pm_time = 0;
+	VectorClear( client->ps.velocity );
+	self->health = 1;
+	client->ps.stats[STAT_HEALTH] = 1;
+	client->respawnTime = INT_MAX;
+	self->r.contents = CONTENTS_BODY;
+	trap_LinkEntity( self );
+}
+
+/*
+=============
+G_FreezeThawClient
+
+Restores a frozen player to the active state.
+=============
+*/
+void G_FreezeThawClient( gentity_t *ent, qboolean wasAuto, int helperNum ) {
+	gclient_t	*client;
+
+	(void)wasAuto;
+	(void)helperNum;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	client = ent->client;
+	client->freezeFrozen = qfalse;
+	client->freezeTime = 0;
+	client->freezeAccumulatedThaw = 0;
+	client->freezeNextThawTick = 0;
+	client->freezeAutoThawTime = 0;
+	client->freezeEnvironmentalRespawnTime = 0;
+	client->freezeLastHelper = -1;
+	client->ps.pm_type = PM_NORMAL;
+	ent->takedamage = qtrue;
+	if ( g_freezeResetHealthOnRound.integer ) {
+		ent->health = client->ps.stats[STAT_MAX_HEALTH];
+		client->ps.stats[STAT_HEALTH] = ent->health;
+	}
+	if ( g_freezeResetArmorOnRound.integer ) {
+		client->ps.stats[STAT_ARMOR] = g_factoryCvarConfig.startingArmor;
+	}
+	if ( g_freezeRemovePowerupsOnRound.integer ) {
+		memset( client->ps.powerups, 0, sizeof( client->ps.powerups ) );
+	}
+	if ( g_freezeProtectedSpawnTime.integer > 0 ) {
+		client->freezeProtectedUntil = level.time + g_freezeProtectedSpawnTime.integer;
+	} else {
+		client->freezeProtectedUntil = 0;
+	}
+	client->respawnTime = level.time;
+	trap_LinkEntity( ent );
+}
+
+#if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
+static char g_clientAuthDenyMessage[QL_AUTH_MAX_RESPONSE_MESSAGE + 64];
+
+static const char *G_GetAuthResultString( qlAuthResult result ) {
+        switch ( result ) {
+        case QL_AUTH_RESULT_PENDING:
+                return "pending";
+        case QL_AUTH_RESULT_ACCEPTED:
+                return "accepted";
+        case QL_AUTH_RESULT_DENIED:
+                return "denied";
+        case QL_AUTH_RESULT_ERROR:
+                return "error";
+        default:
+                break;
+        }
+
+        return "unknown";
+}
 #if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
                         unsigned long long parsedId;
 
@@ -1504,6 +1921,7 @@ void ClientSpawn(gentity_t *ent) {
 	// increment the spawncount so the client will detect the respawn
 	client->ps.persistant[PERS_SPAWN_COUNT]++;
 	client->ps.persistant[PERS_TEAM] = client->sess.sessionTeam;
+	G_FreezeInitClient( ent );
 
 	client->airOutTime = level.time + 12000;
 
