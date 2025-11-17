@@ -555,10 +555,8 @@ just like the existing corpse to leave behind.
 =============
 */
 void CopyToBodyQue( gentity_t *ent ) {
-#ifdef MISSIONPACK
 	gentity_t	*e;
 	int i;
-#endif
 	gentity_t		*body;
 	int			contents;
 
@@ -578,7 +576,6 @@ void CopyToBodyQue( gentity_t *ent ) {
 
 	body->s = ent->s;
 	body->s.eFlags = EF_DEAD;		// clear EF_TALK, etc
-#ifdef MISSIONPACK
 	if ( ent->s.eFlags & EF_KAMIKAZE ) {
 		body->s.eFlags |= EF_KAMIKAZE;
 
@@ -595,7 +592,6 @@ void CopyToBodyQue( gentity_t *ent ) {
 			break;
 		}
 	}
-#endif
 	body->s.powerups = 0;	// clear powerups
 	body->s.loopSound = 0;	// clear lava burning
 	body->s.number = body - g_entities;
@@ -946,7 +942,6 @@ void ClientUserinfoChanged( int clientNum ) {
 	}
 
 	// set max health
-#ifdef MISSIONPACK
 	if (client->ps.powerups[PW_GUARD]) {
 		client->pers.maxHealth = 200;
 	} else {
@@ -956,13 +951,6 @@ void ClientUserinfoChanged( int clientNum ) {
 			client->pers.maxHealth = 100;
 		}
 	}
-#else
-	health = atoi( Info_ValueForKey( userinfo, "handicap" ) );
-	client->pers.maxHealth = health;
-	if ( client->pers.maxHealth < 1 || client->pers.maxHealth > 100 ) {
-		client->pers.maxHealth = 100;
-	}
-#endif
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 
 	// set model
@@ -1063,7 +1051,6 @@ void ClientUserinfoChanged( int clientNum ) {
 	}
 */
 
-#ifdef MISSIONPACK
 	if (g_gametype.integer >= GT_TEAM) {
 		client->pers.teamInfo = qtrue;
 	} else {
@@ -1074,15 +1061,6 @@ void ClientUserinfoChanged( int clientNum ) {
 			client->pers.teamInfo = qfalse;
 		}
 	}
-#else
-	// teamInfo
-	s = Info_ValueForKey( userinfo, "teamoverlay" );
-	if ( ! *s || atoi( s ) != 0 ) {
-		client->pers.teamInfo = qtrue;
-	} else {
-		client->pers.teamInfo = qfalse;
-	}
-#endif
 	/*
 	s = Info_ValueForKey( userinfo, "cg_pmove_fixed" );
 	if ( !*s || atoi( s ) == 0 ) {
@@ -1577,11 +1555,9 @@ void ClientSpawn(gentity_t *ent) {
 			[WP_PLASMAGUN] = g_startingAmmoConfig.plasmagun,
 			[WP_BFG] = g_startingAmmoConfig.bfg,
 			[WP_GRAPPLING_HOOK] = g_startingAmmoConfig.grapplingHook,
-#ifdef MISSIONPACK
 			[WP_NAILGUN] = g_startingAmmoConfig.nailgun,
 			[WP_PROX_LAUNCHER] = g_startingAmmoConfig.proximityLauncher,
 			[WP_CHAINGUN] = g_startingAmmoConfig.chaingun,
-#endif
 			[WP_HEAVY_MACHINEGUN] = g_startingAmmoConfig.heavyMachinegun,
 		};
 
@@ -1723,12 +1699,10 @@ void ClientDisconnect( int clientNum ) {
 		// They don't get to take powerups with them!
 		// Especially important for stuff like CTF flags
 		TossClientItems( ent );
-#ifdef MISSIONPACK
 		TossClientPersistantPowerups( ent );
 		if( g_gametype.integer == GT_HARVESTER ) {
 			TossClientCubes( ent );
 		}
-#endif
 
 	}
 
