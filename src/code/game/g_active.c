@@ -87,7 +87,538 @@ void P_DamageFeedback( gentity_t *player ) {
 	client->damage_knockback = 0;
 }
 
+/*
+=============
+G_FreezeGametypeEnabled
 
+Returns qtrue when the Freeze Tag ruleset is active.
+=============
+*/
+static qboolean G_FreezeGametypeEnabled( void ) {
+	return ( g_gametype.integer == GT_FREEZE ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_FreezeResetClientState
+
+Clears the Freeze Tag bookkeeping associated with a client.
+=============
+*/
+static void G_FreezeResetClientState( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	client->freezeFrozen = qfalse;
+	client->freezeThawOwner = -1;
+	client->freezeThawCompleteTime = 0;
+	client->freezeNextThawCheck = 0;
+	client->freezeAutoThawTime = 0;
+	client->freezeProtectedUntil = 0;
+	client->freezeEnvironmentalRespawnTime = 0;
+}
+
+/*
+=============
+G_FreezeClientRespawned
+
+Resets Freeze Tag timers whenever a client respawns or thaws.
+=============
+*/
+void G_FreezeClientRespawned( gentity_t *ent ) {
+	gclient_t *client;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	client = ent->client;
+	G_FreezeResetClientState( client );
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return;
+	}
+
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return;
+	}
+
+	if ( g_freezeProtectedSpawnTime.integer > 0 ) {
+		client->freezeProtectedUntil = level.time + g_freezeProtectedSpawnTime.integer;
+	}
+}
+
+/*
+=============
+G_FreezeIsThawCandidateValid
+
+Returns qtrue when a thawing teammate still satisfies the proximity and
+line-of-sight requirements.
+=============
+*/
+static qboolean G_FreezeIsThawCandidateValid( gentity_t *thawer, gentity_t *target, float radiusSquared ) {
+	trace_t trace;
+	vec3_t delta;
+	float distanceSquared;
+
+	if ( !thawer || !target ) {
+		return qfalse;
+	}
+
+	if ( !thawer->client || thawer->client->pers.connected != CON_CONNECTED ) {
+		return qfalse;
+	}
+
+	if ( thawer->client->sess.sessionTeam != target->client->sess.sessionTeam ) {
+		return qfalse;
+	}
+
+	if ( thawer->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	if ( thawer->client->freezeFrozen || thawer->client->ps.pm_type == PM_DEAD ) {
+		return qfalse;
+	}
+
+	VectorSubtract( target->r.currentOrigin, thawer->r.currentOrigin, delta );
+	distanceSquared = VectorLengthSquared( delta );
+	if ( radiusSquared > 0.0f && distanceSquared > radiusSquared ) {
+		return qfalse;
+	}
+
+	if ( !g_freezeThawThroughSurface.integer ) {
+		trap_Trace( &trace, thawer->r.currentOrigin, NULL, NULL, target->r.currentOrigin, thawer->s.number, MASK_SHOT );
+		if ( trace.fraction < 1.0f && trace.entityNum != target->s.number ) {
+			return qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+G_FreezeFindThawCandidate
+
+Returns the best thawing teammate within the configured radius, if any.
+=============
+*/
+static gentity_t *G_FreezeFindThawCandidate( gentity_t *target, float radiusSquared ) {
+	int clientNum;
+	gentity_t *thawer;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		thawer = &g_entities[clientNum];
+		if ( !thawer->client ) {
+			continue;
+		}
+
+		if ( thawer->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		if ( G_FreezeIsThawCandidateValid( thawer, target, radiusSquared ) ) {
+			return thawer;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=============
+G_FreezeApplyFrozenState
+
+Transitions a client into the frozen state instead of completing a death.
+=============
+*/
+static void G_FreezeApplyFrozenState( gentity_t *ent ) {
+	gclient_t *client;
+	int autoThaw;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	client = ent->client;
+	client->freezeFrozen = qtrue;
+	client->freezeThawOwner = -1;
+	client->freezeThawCompleteTime = 0;
+	client->freezeNextThawCheck = level.time;
+	autoThaw = g_freezeAutoThawTime.integer;
+	if ( autoThaw > 0 ) {
+		client->freezeAutoThawTime = level.time + autoThaw;
+	} else {
+		client->freezeAutoThawTime = 0;
+	}
+	client->freezeProtectedUntil = 0;
+	client->ps.pm_type = PM_FREEZE;
+	client->ps.pm_flags &= ~PMF_RESPAWNED;
+	VectorClear( client->ps.velocity );
+	VectorClear( ent->s.pos.trDelta );
+	client->ps.weaponstate = WEAPON_READY;
+	ent->takedamage = qfalse;
+	ent->client->ps.stats[STAT_HEALTH] = 1;
+	ent->health = 1;
+	trap_LinkEntity( ent );
+}
+
+/*
+=============
+G_FreezeApplyThaw
+
+Restores a frozen client to an active state, optionally crediting the thawer.
+=============
+*/
+static void G_FreezeApplyThaw( gentity_t *ent, gentity_t *rescuer ) {
+	int maxHealth;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	(void)rescuer;
+
+	ent->client->freezeFrozen = qfalse;
+	ent->client->freezeThawOwner = -1;
+	ent->client->freezeThawCompleteTime = 0;
+	ent->client->freezeNextThawCheck = 0;
+	ent->client->freezeAutoThawTime = 0;
+	ent->client->ps.pm_type = PM_NORMAL;
+	ent->client->ps.pm_flags |= PMF_RESPAWNED;
+	ent->takedamage = qtrue;
+	maxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];
+	if ( maxHealth <= 0 ) {
+		maxHealth = ent->client->pers.maxHealth;
+	}
+	ent->health = maxHealth;
+	ent->client->ps.stats[STAT_HEALTH] = maxHealth;
+	ent->client->ps.weaponstate = WEAPON_READY;
+	G_FreezeClientRespawned( ent );
+	G_AddEvent( ent, EV_PLAYER_TELEPORT_IN, 0 );
+}
+
+/*
+=============
+G_FreezeHandlePlayerDeath
+
+Intercepts player deaths so Freeze Tag can freeze players instead of killing
+them outright.
+=============
+*/
+qboolean G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath ) {
+	(void)inflictor;
+	(void)damage;
+	(void)meansOfDeath;
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return qfalse;
+	}
+
+	if ( !self || !self->client ) {
+		return qfalse;
+	}
+
+	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+		return qfalse;
+	}
+
+	if ( !attacker || !attacker->client ) {
+		int delay = g_freezeEnvironmentalRespawnDelay.integer;
+		if ( delay < 0 ) {
+			delay = 0;
+		}
+		self->client->freezeEnvironmentalRespawnTime = level.time + delay;
+		return qfalse;
+	}
+
+	G_FreezeApplyFrozenState( self );
+	return qtrue;
+}
+
+/*
+=============
+G_FreezeDamageProtected
+
+Returns qtrue while a client is protected immediately after a thaw or spawn.
+=============
+*/
+qboolean G_FreezeDamageProtected( gentity_t *ent, gentity_t *attacker ) {
+	(void)attacker;
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return qfalse;
+	}
+
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+
+	if ( ent->client->freezeProtectedUntil <= 0 ) {
+		return qfalse;
+	}
+
+	return ( level.time < ent->client->freezeProtectedUntil ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_FreezeUpdateFrozenClients
+
+Processes thaw timers, auto-thaws, and validates thaw queues every frame.
+=============
+*/
+static void G_FreezeUpdateFrozenClients( void ) {
+	int clientNum;
+	gentity_t *ent;
+	float radius;
+	float radiusSquared;
+	int thawTick;
+	int thawTime;
+	gentity_t *candidate;
+
+	thawTick = g_freezeThawTick.integer;
+	if ( thawTick <= 0 ) {
+		thawTick = 1;
+	}
+
+	thawTime = g_freezeThawTime.integer;
+	radius = (float)g_freezeThawRadius.integer;
+	if ( radius <= 0.0f ) {
+		radiusSquared = 0.0f;
+	} else {
+		radiusSquared = radius * radius;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		ent = &g_entities[clientNum];
+		if ( !ent->client ) {
+			continue;
+		}
+
+		if ( ent->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		if ( !ent->client->freezeFrozen ) {
+			continue;
+		}
+
+		if ( ent->client->freezeAutoThawTime > 0 && level.time >= ent->client->freezeAutoThawTime ) {
+			G_FreezeApplyThaw( ent, NULL );
+			continue;
+		}
+
+		if ( ent->client->freezeNextThawCheck > level.time ) {
+			continue;
+		}
+
+		ent->client->freezeNextThawCheck = level.time + thawTick;
+
+		if ( ent->client->freezeThawOwner >= 0 ) {
+			candidate = &g_entities[ent->client->freezeThawOwner];
+			if ( !G_FreezeIsThawCandidateValid( candidate, ent, radiusSquared ) ) {
+				ent->client->freezeThawOwner = -1;
+				ent->client->freezeThawCompleteTime = 0;
+			} else if ( thawTime <= 0 || ( ent->client->freezeThawCompleteTime > 0 && level.time >= ent->client->freezeThawCompleteTime ) ) {
+				G_FreezeApplyThaw( ent, candidate );
+			}
+			continue;
+		}
+
+		candidate = G_FreezeFindThawCandidate( ent, radiusSquared );
+		if ( candidate ) {
+			ent->client->freezeThawOwner = candidate->s.number;
+			if ( thawTime <= 0 ) {
+				G_FreezeApplyThaw( ent, candidate );
+			} else {
+				ent->client->freezeThawCompleteTime = level.time + thawTime;
+			}
+		}
+	}
+}
+
+/*
+=============
+G_FreezePrepareClientsForWarmup
+
+Respawns or restores every active client in preparation for the next round.
+=============
+*/
+static void G_FreezePrepareClientsForWarmup( void ) {
+	int clientNum;
+	gentity_t *ent;
+	qboolean resetWeapons;
+
+	resetWeapons = ( g_freezeResetWeaponsOnRound.integer != 0 ) ? qtrue : qfalse;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		ent = &g_entities[clientNum];
+		if ( !ent->client ) {
+			continue;
+		}
+
+		if ( ent->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		if ( resetWeapons ) {
+			G_RequestClientSpawn( ent, qtrue, qfalse );
+			continue;
+		}
+
+		ent->client->freezeFrozen = qfalse;
+		ent->client->ps.pm_type = PM_NORMAL;
+		ent->client->ps.pm_flags |= PMF_RESPAWNED;
+		ent->takedamage = qtrue;
+		if ( g_freezeResetHealthOnRound.integer ) {
+			int maxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];
+			if ( maxHealth <= 0 ) {
+				maxHealth = ent->client->pers.maxHealth;
+			}
+			ent->health = maxHealth;
+			ent->client->ps.stats[STAT_HEALTH] = maxHealth;
+		}
+		if ( g_freezeResetArmorOnRound.integer ) {
+			ent->client->ps.stats[STAT_ARMOR] = g_factoryCvarConfig.startingArmor;
+		}
+		if ( g_freezeRemovePowerupsOnRound.integer ) {
+			memset( ent->client->ps.powerups, 0, sizeof( ent->client->ps.powerups ) );
+			ent->client->ps.stats[STAT_PERSISTANT_POWERUP] = 0;
+			ent->client->persistantPowerup = NULL;
+		}
+		G_FreezeClientRespawned( ent );
+	}
+}
+
+/*
+=============
+G_FreezeStartRound
+
+Transitions the Freeze Tag controller into the active gameplay state.
+=============
+*/
+static void G_FreezeStartRound( void ) {
+	level.roundState = ROUNDSTATE_ACTIVE;
+	level.roundStartTime = level.time;
+	level.roundTransitionTime = ROUND_TRANSITION_NONE;
+}
+
+/*
+=============
+G_FreezeCompleteRound
+
+Schedules the next warmup period and applies the round win or draw logic.
+=============
+*/
+static void G_FreezeCompleteRound( team_t winningTeam ) {
+	int delay;
+
+	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+		return;
+	}
+
+	if ( winningTeam == TEAM_RED || winningTeam == TEAM_BLUE ) {
+		AddTeamScore( vec3_origin, winningTeam, 1 );
+		G_LogPrintf( "freeze: team %i won the round\n", winningTeam );
+	} else {
+		G_LogPrintf( "freeze: round drawn\n" );
+	}
+
+	level.roundState = ROUNDSTATE_COMPLETE;
+	level.roundStartTime = 0;
+	delay = g_freezeRoundDelay.integer;
+	if ( delay <= 0 ) {
+		level.roundTransitionTime = 0;
+	} else {
+		level.roundTransitionTime = level.time + delay;
+	}
+}
+
+/*
+=============
+G_FreezeEvaluateRoundEnd
+
+Evaluates team counts to determine whether the round has been won or drawn.
+=============
+*/
+static void G_FreezeEvaluateRoundEnd( void ) {
+	int clientNum;
+	gentity_t *ent;
+	int redLiving;
+	int blueLiving;
+	int redHealth;
+	int blueHealth;
+	int livingThreshold;
+	int healthThreshold;
+
+	redLiving = blueLiving = 0;
+	redHealth = blueHealth = 0;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		ent = &g_entities[clientNum];
+		if ( !ent->client ) {
+			continue;
+		}
+
+		if ( ent->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		if ( ent->client->sess.sessionTeam == TEAM_RED ) {
+			if ( ent->client->freezeFrozen || ent->client->ps.pm_type == PM_DEAD ) {
+				continue;
+			}
+			redLiving++;
+			redHealth += ent->health;
+		} else if ( ent->client->sess.sessionTeam == TEAM_BLUE ) {
+			if ( ent->client->freezeFrozen || ent->client->ps.pm_type == PM_DEAD ) {
+				continue;
+			}
+			blueLiving++;
+			blueHealth += ent->health;
+		}
+	}
+
+	livingThreshold = g_roundDrawLivingCount.integer;
+	if ( livingThreshold <= 0 ) {
+		livingThreshold = 0;
+	}
+	if ( redLiving <= livingThreshold && blueLiving <= livingThreshold ) {
+		healthThreshold = g_roundDrawHealthCount.integer;
+		if ( healthThreshold <= 0 || ( redHealth + blueHealth ) <= healthThreshold ) {
+			G_FreezeCompleteRound( TEAM_FREE );
+			return;
+		}
+	}
+
+	if ( redLiving <= 0 && blueLiving > 0 ) {
+		if ( g_freezeThawWinningTeam.integer ) {
+			G_FreezeCompleteRound( TEAM_BLUE );
+		} else {
+			G_FreezeCompleteRound( TEAM_FREE );
+		}
+		return;
+	}
+
+	if ( blueLiving <= 0 && redLiving > 0 ) {
+		if ( g_freezeThawWinningTeam.integer ) {
+			G_FreezeCompleteRound( TEAM_RED );
+		} else {
+			G_FreezeCompleteRound( TEAM_FREE );
+		}
+	}
+}
 
 /*
 =============
@@ -1182,6 +1713,18 @@ Transitions the round controller into the warmup state.
 */
 void G_Frame_BeginRoundWarmup( void ) {
 	level.roundState = ROUNDSTATE_WARMUP;
+	level.roundStartTime = 0;
+
+	if ( G_FreezeGametypeEnabled() ) {
+		G_FreezePrepareClientsForWarmup();
+		if ( g_roundWarmupDelay.integer > 0 ) {
+			level.roundTransitionTime = level.time + g_roundWarmupDelay.integer;
+		} else {
+			level.roundTransitionTime = 0;
+		}
+		return;
+	}
+
 	level.roundTransitionTime = ROUND_TRANSITION_NONE;
 }
 
@@ -1194,6 +1737,21 @@ Runs per-frame updates for the round controller state machine.
 */
 void G_Frame_UpdateRoundController( void ) {
 	switch ( level.roundState ) {
+	case ROUNDSTATE_WARMUP:
+		if ( G_FreezeGametypeEnabled() ) {
+			if ( level.roundTransitionTime == 0 || ( level.roundTransitionTime > 0 && level.time >= level.roundTransitionTime ) ) {
+				G_FreezeStartRound();
+			}
+		}
+		break;
+
+	case ROUNDSTATE_ACTIVE:
+		if ( G_FreezeGametypeEnabled() ) {
+			G_FreezeUpdateFrozenClients();
+			G_FreezeEvaluateRoundEnd();
+		}
+		break;
+
 	case ROUNDSTATE_COMPLETE:
 		if ( level.roundTransitionTime == 0 ) {
 			G_Frame_BeginRoundWarmup();

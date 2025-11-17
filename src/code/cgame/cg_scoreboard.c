@@ -133,8 +133,31 @@ static void CG_DrawForcedGametypeHint( float fade ) {
 	int	x;
 	int	y;
 	int	lineOffset;
+	int	lineCount;
+	int	index;
 
 	if ( !cgs.forceHudHints || fade <= 0.0f ) {
+		return;
+	}
+
+	color[0] = 1.0f;
+	color[1] = 1.0f;
+	color[2] = 1.0f;
+	color[3] = fade;
+
+	lineCount = cgs.gametypeTipCount;
+	if ( lineCount > 0 ) {
+		lineOffset = cgs.forceSmallScoreboardMessage ? lineCount + 1 : lineCount;
+		y = SB_TOP - ( lineOffset * SMALLCHAR_HEIGHT ) - 4;
+		for ( index = 0; index < CS_GAMETYPE_TIP_COUNT; index++ ) {
+			if ( !cgs.gametypeTips[index][0] ) {
+				continue;
+			}
+			width = CG_DrawStrlen( cgs.gametypeTips[index] ) * SMALLCHAR_WIDTH;
+			x = ( SCREEN_WIDTH - width ) / 2;
+			CG_DrawSmallStringColor( x, y, cgs.gametypeTips[index], color );
+			y += SMALLCHAR_HEIGHT;
+		}
 		return;
 	}
 
@@ -146,11 +169,6 @@ static void CG_DrawForcedGametypeHint( float fade ) {
 	if ( !hint || !*hint ) {
 		return;
 	}
-
-	color[0] = 1.0f;
-	color[1] = 1.0f;
-	color[2] = 1.0f;
-	color[3] = fade;
 
 	width = CG_DrawStrlen( hint ) * SMALLCHAR_WIDTH;
 	lineOffset = cgs.forceSmallScoreboardMessage ? 2 : 1;

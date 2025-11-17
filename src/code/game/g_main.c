@@ -58,6 +58,7 @@ static int	s_forceDmgThroughSurfaceModCount = -1;
 static int	s_forcedAtmosphereModCount = -1;
 static char	s_worldspawnAtmosphere[MAX_QPATH];
 static char	s_lastForcedCosmeticsPayload[MAX_INFO_STRING];
+static int	s_gametypeModCount = -1;
 
 static qlr_game_frame_context_t *G_GetFrameContext( void );
 static void G_DispatchScheduledThinks( qlr_game_frame_context_t *ctx, int msec );
@@ -66,9 +67,10 @@ static void G_DispatchEvents( qlr_game_frame_context_t *ctx );
 static void G_FinishClientFrames( qlr_game_frame_context_t *ctx );
 static void G_CheckLevelTimers( qlr_game_frame_context_t *ctx, int previousWarmupTime, int previousIntermissionQueued );
 static void G_UpdateTrainingState( void );
-
-/*
-=============
+static void G_UpdateGametypeTips( void );
+	
+	/*
+	=============
 G_SelectForcedAtmosphere
 
 Selects the highest priority forced atmosphere token to publish to clients.
@@ -141,6 +143,35 @@ void G_SetWorldspawnAtmosphere( const char *atmosphere ) {
 	}
 
 	G_UpdateForcedCosmeticsConfigstring( qtrue );
+}
+
+static const char *const s_freezeGametypeTips[CS_GAMETYPE_TIP_COUNT] = {
+	"Freeze all enemy team members to score a team point.",
+	"Fragging another player freezes them.",
+	"Shoot everyone on the other team!",
+	"This is a Freeze Tag game"
+};
+
+/*
+=============
+G_UpdateGametypeTips
+
+Publishes the server-provided Freeze Tag coaching strings to the HUD tip
+configstrings when the gametype is active.
+=============
+*/
+static void G_UpdateGametypeTips( void ) {
+	int		index;
+	const char	*tips;
+
+	for ( index = 0; index < CS_GAMETYPE_TIP_COUNT; index++ ) {
+		tips = "";
+		if ( g_gametype.integer == GT_FREEZE ) {
+			tips = s_freezeGametypeTips[index];
+		}
+
+		trap_SetConfigstring( CS_GAMETYPE_TIP0 + index, tips );
+	}
 }
 
 void QLR_Game_BindFrameContext( qlr_game_frame_context_t *ctx ) {
@@ -276,6 +307,22 @@ vmCvar_t	g_quadHogTime;
 vmCvar_t	g_quadHogPingRate;
 vmCvar_t	g_training;
 vmCvar_t	g_forcedAtmosphere;
+vmCvar_t	g_roundWarmupDelay;
+vmCvar_t	g_roundDrawLivingCount;
+vmCvar_t	g_roundDrawHealthCount;
+vmCvar_t	g_freezeThawWinningTeam;
+vmCvar_t	g_freezeThawThroughSurface;
+vmCvar_t	g_freezeThawTime;
+vmCvar_t	g_freezeThawTick;
+vmCvar_t	g_freezeThawRadius;
+vmCvar_t	g_freezeRoundDelay;
+vmCvar_t	g_freezeResetWeaponsOnRound;
+vmCvar_t	g_freezeResetHealthOnRound;
+vmCvar_t	g_freezeResetArmorOnRound;
+vmCvar_t	g_freezeRemovePowerupsOnRound;
+vmCvar_t	g_freezeProtectedSpawnTime;
+vmCvar_t	g_freezeEnvironmentalRespawnDelay;
+vmCvar_t	g_freezeAutoThawTime;
 static matchFactoryConfig_t matchFlow_lastConfig;
 vmCvar_t	g_obeliskHealth;
 vmCvar_t	g_obeliskRegenPeriod;
@@ -392,6 +439,22 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_factoryAllowItemBounce, "g_factoryAllowItemBounce", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether dropped items bounce before coming to rest when factories disable the behaviour." },
 	{ &g_itemTimers, "g_itemTimers", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Toggles broadcast of server-side item timer training aids when non-zero." },
 	{ &g_itemHeight, "g_itemHeight", "20", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Adjusts the vertical spacing clients apply to item timer widgets in the HUD." },
+	{ &g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds to hold Freeze Tag players in warmup before releasing them into a new round; 0 starts immediately." },
+	{ &g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Living player threshold that triggers the draw health check once both teams fall to this count." },
+	{ &g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Combined health threshold that forces a draw when both teams reach the living-player limit." },
+	{ &g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Award the round to the team with unfrozen players when non-zero; zero declares a draw instead." },
+	{ &g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Permit thawing through solid surfaces when non-zero; zero enforces line-of-sight checks." },
+	{ &g_freezeThawTime, "g_freezeThawTime", "2000", CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds a thawing teammate must channel before freeing a frozen player." },
+	{ &g_freezeThawTick, "g_freezeThawTick", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds between thaw progress updates and teammate searches." },
+	{ &g_freezeThawRadius, "g_freezeThawRadius", "96", CVAR_NORESTART, 0, qfalse, qfalse, "Radius in units a thawing teammate must stay within to assist a frozen ally." },
+	{ &g_freezeRoundDelay, "g_freezeRoundDelay", "4000", CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds to wait between round completion and the next warmup countdown." },
+	{ &g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Respawn everyone with fresh loadouts at the start of each round when non-zero." },
+	{ &g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Restore full health at the start of every round when non-zero." },
+	{ &g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Reapply the factory-configured armor value at round start when non-zero." },
+	{ &g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Strip persistent powerups during round warmup when non-zero." },
+	{ &g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds of spawn protection applied after a respawn or thaw; 0 disables protection." },
+	{ &g_freezeEnvironmentalRespawnDelay, "g_freezeEnvironmentalRespawnDelay", "5000", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before a player killed by the environment is eligible to respawn." },
+	{ &g_freezeAutoThawTime, "g_freezeAutoThawTime", "120000", CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds before a frozen player automatically thaws without teammate assistance; 0 disables the timer." },
 	{ &g_vampiricDamage, "g_vampiricDamage", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fraction of dealt health damage returned to the attacker as healing." },
 	{ &g_suddenDeathRespawnStart, "g_suddenDeathRespawnStart", "3", CVAR_NORESTART, 0, qfalse, qfalse, "Initial sudden-death respawn delay in seconds when respawns are enabled." },
 	{ &g_suddenDeathRespawnTick, "g_suddenDeathRespawnTick", "60", CVAR_NORESTART, 0, qfalse, qfalse, "Interval in seconds after which sudden-death respawn delays are increased." },
@@ -782,6 +845,7 @@ void G_RegisterCvars( void ) {
 	s_forceAtmosphericEffectsModCount = g_forceAtmosphericEffects.modificationCount;
 	s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
 	s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
+	s_gametypeModCount = g_gametype.modificationCount;
 	s_worldspawnAtmosphere[0] = '\0';
 	s_lastForcedCosmeticsPayload[0] = '\0';
 	G_UpdateItemTimerConfig( qtrue );
@@ -858,6 +922,10 @@ void G_UpdateCvars( void ) {
 		s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
 		G_UpdateForcedCosmeticsConfigstring( qtrue );
 	}
+	if ( g_gametype.modificationCount != s_gametypeModCount ) {
+		s_gametypeModCount = g_gametype.modificationCount;
+		G_UpdateGametypeTips();
+	}
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 
         G_UpdateTrainingState();
@@ -872,8 +940,8 @@ Synchronises the latched g_training cvar with the level training flag.
 =============
 */
 static void G_UpdateTrainingState( void ) {
-trap_Cvar_Update( &g_training );
-level.trainingMapActive = ( g_training.integer != 0 ) ? qtrue : qfalse;
+	trap_Cvar_Update( &g_training );
+	level.trainingMapActive = ( g_training.integer != 0 ) ? qtrue : qfalse;
 }
 
 typedef enum {
@@ -927,6 +995,21 @@ static void G_GametypeHandleClanArena( gametypeLifecycleStage_t stage, gentity_t
 
 /*
 =============
+G_GametypeHandleFreeze
+
+Starts the Freeze Tag round controller when the gametype becomes active.
+=============
+*/
+static void G_GametypeHandleFreeze( gametypeLifecycleStage_t stage, gentity_t *ent ) {
+	if ( stage == GAMETYPE_LIFECYCLE_INIT ) {
+		G_Frame_BeginRoundWarmup();
+	}
+
+	(void)ent;
+}
+
+/*
+=============
 G_RunGametypeLifecycle
 
 Routes the current lifecycle stage through any gametype-specific helper
@@ -941,6 +1024,10 @@ static void G_RunGametypeLifecycle( gametypeLifecycleStage_t stage, gentity_t *e
 
 	case GT_CLAN_ARENA:
 		G_GametypeHandleClanArena( stage, ent );
+		break;
+
+	case GT_FREEZE:
+		G_GametypeHandleFreeze( stage, ent );
 		break;
 
 	default:
@@ -1006,6 +1093,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 
 
 	G_RegisterCvars();
+	G_UpdateGametypeTips();
 
 	trap_Cvar_Set( "g_training", "0" );
 	G_UpdateTrainingState();

@@ -1034,6 +1034,8 @@ typedef struct {
 	qboolean	forceHudHints;
 	qboolean	forceDmgThroughSurface;
 	char		forcedAtmosphere[MAX_QPATH];
+	char		gametypeTips[CS_GAMETYPE_TIP_COUNT][MAX_STRING_CHARS];
+	int		gametypeTipCount;
 
 	qboolean  newHud;
 

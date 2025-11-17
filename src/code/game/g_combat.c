@@ -335,7 +335,7 @@ void TossClientItems( gentity_t *self ) {
 =================
 TossClientCubes
 =================
-*/
+	if ( G_FreezeHandlePlayerDeath( self, inflictor, attacker, damage, meansOfDeath ) ) {
 extern gentity_t	*neutralObelisk;
 
 void TossClientCubes( gentity_t *self ) {
@@ -783,10 +783,14 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			Team_ReturnFlag( TEAM_BLUE );
 		}
 	}
-	TossClientPersistantPowerups( self );
-	if( g_gametype.integer == GT_HARVESTER ) {
-		TossClientCubes( self );
-	}
+TossClientPersistantPowerups( self );
+if( g_gametype.integer == GT_HARVESTER ) {
+TossClientCubes( self );
+}
+
+if ( G_FreezeHandlePlayerDeath( self, inflictor, attacker, damage, meansOfDeath ) ) {
+return;
+}
 
 	Cmd_Score_f( self );		// show scores
 	// send updated scores to any clients that are following this one,
@@ -826,8 +830,10 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	// g_forcerespawn may force spawning at some later time
 	{
 		int respawnDelay = 1700;
+
 		if ( level.suddenDeathActive ) {
 			int suddenDeathDelay = G_GetSuddenDeathRespawnDelay();
+
 			if ( suddenDeathDelay < 0 ) {
 				self->client->respawnTime = INT_MAX;
 			} else {
@@ -839,9 +845,14 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		} else {
 			self->client->respawnTime = level.time + respawnDelay;
 		}
-	}
 
-	// remove powerups
+		if ( g_gametype.integer == GT_FREEZE && self->client->freezeEnvironmentalRespawnTime > 0 ) {
+			self->client->respawnTime = self->client->freezeEnvironmentalRespawnTime;
+			self->client->freezeEnvironmentalRespawnTime = 0;
+		}
+}
+
+// remove powerups
 	memset( self->client->ps.powerups, 0, sizeof(self->client->ps.powerups) );
 
 	// never gib in a nodrop
@@ -1265,6 +1276,14 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 
 	if ( client ) {
 		if ( client->noclip ) {
+			return;
+		}
+
+		if ( G_FreezeDamageProtected( targ, attacker ) ) {
+			return;
+		}
+
+		if ( g_gametype.integer == GT_FREEZE && client->freezeFrozen ) {
 			return;
 		}
 	}

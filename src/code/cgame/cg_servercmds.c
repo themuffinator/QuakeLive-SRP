@@ -460,6 +460,29 @@ static void CG_ParseFactoryMetadata( void ) {
 	}
 }
 
+/*
+=============
+CG_ParseGametypeTips
+
+Copies the server-provided gametype coaching tips into the local cache.
+=============
+*/
+static void CG_ParseGametypeTips( void ) {
+	int		index;
+	const char	*info;
+
+	cgs.gametypeTipCount = 0;
+	for ( index = 0; index < CS_GAMETYPE_TIP_COUNT; index++ ) {
+		info = CG_ConfigString( CS_GAMETYPE_TIP0 + index );
+		if ( info && *info ) {
+			Q_strncpyz( cgs.gametypeTips[index], info, sizeof( cgs.gametypeTips[index] ) );
+			cgs.gametypeTipCount++;
+		} else {
+			cgs.gametypeTips[index][0] = '\0';
+		}
+	}
+}
+
 void CG_SetConfigValues( void ) {
 	const char *s;
 
@@ -479,6 +502,7 @@ void CG_SetConfigValues( void ) {
 	CG_ParseMatchState();
 	CG_ParseForcedCosmetics();
 	CG_ParseFactoryMetadata();
+	CG_ParseGametypeTips();
 }
 
 /*
@@ -556,9 +580,11 @@ static void CG_ConfigStringModified( void ) {
 	} else if ( num == CS_LEVEL_START_TIME ) {
 		cgs.levelStartTime = atoi( str );
 	} else if ( num == CS_FACTORY_TITLE || num == CS_FACTORY_FLAGS || num == CS_SPAWN_HINTS ) {
-	CG_ParseFactoryMetadata();
+		CG_ParseFactoryMetadata();
 	} else if ( num == CS_FORCED_COSMETICS ) {
-	CG_ParseForcedCosmetics();
+		CG_ParseForcedCosmetics();
+	} else if ( num >= CS_GAMETYPE_TIP0 && num < CS_GAMETYPE_TIP0 + CS_GAMETYPE_TIP_COUNT ) {
+		CG_ParseGametypeTips();
 	} else if ( num == CS_VOTE_TIME ) {
 		cgs.voteTime = atoi( str );
 		cgs.voteModified = qtrue;

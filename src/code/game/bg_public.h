@@ -86,6 +86,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // \dmg\<0|1> - Advertises damage-through-surface overrides to clients.
 // \atm\<str> - Optional atmosphere token mirrored from the worldspawn or server override.
 #define CS_FORCED_COSMETICS		0x2B3
+#define CS_GAMETYPE_TIP0		(CS_FORCED_COSMETICS + 1)
+#define CS_GAMETYPE_TIP1		(CS_FORCED_COSMETICS + 2)
+#define CS_GAMETYPE_TIP2		(CS_FORCED_COSMETICS + 3)
+#define CS_GAMETYPE_TIP3		(CS_FORCED_COSMETICS + 4)
+#define CS_GAMETYPE_TIP_COUNT	4
 
 //
 // Factory metadata configstrings provide clients with human-readable match factory data.

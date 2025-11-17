@@ -155,6 +155,22 @@ extern vmCvar_t g_accessFile;
 extern vmCvar_t g_factoryTitle;
 extern vmCvar_t g_dropInactive;
 extern vmCvar_t g_forcedAtmosphere;
+extern vmCvar_t g_roundWarmupDelay;
+extern vmCvar_t g_roundDrawLivingCount;
+extern vmCvar_t g_roundDrawHealthCount;
+extern vmCvar_t g_freezeThawWinningTeam;
+extern vmCvar_t g_freezeThawThroughSurface;
+extern vmCvar_t g_freezeThawTime;
+extern vmCvar_t g_freezeThawTick;
+extern vmCvar_t g_freezeThawRadius;
+extern vmCvar_t g_freezeRoundDelay;
+extern vmCvar_t g_freezeResetWeaponsOnRound;
+extern vmCvar_t g_freezeResetHealthOnRound;
+extern vmCvar_t g_freezeResetArmorOnRound;
+extern vmCvar_t g_freezeRemovePowerupsOnRound;
+extern vmCvar_t g_freezeProtectedSpawnTime;
+extern vmCvar_t g_freezeEnvironmentalRespawnDelay;
+extern vmCvar_t g_freezeAutoThawTime;
 
 typedef struct startingAmmoConfig_s {
 	int		bfg;
@@ -503,6 +519,13 @@ struct gclient_s {
 	int			portalID;
 	int			ammoTimes[WP_NUM_WEAPONS];
 	int			invulnerabilityTime;
+	qboolean	freezeFrozen;
+	int			freezeThawOwner;
+	int			freezeThawCompleteTime;
+	int			freezeNextThawCheck;
+	int			freezeAutoThawTime;
+	int			freezeProtectedUntil;
+	int			freezeEnvironmentalRespawnTime;
 
 	char		*areabits;
 };
@@ -524,6 +547,7 @@ typedef struct {
 	int			warmupTime;			// restart match at this time
 	roundState_t	roundState;
 	int			roundTransitionTime;
+	int			roundStartTime;
 
 	fileHandle_t	logFile;
 
@@ -876,6 +900,9 @@ void G_SetWorldspawnAtmosphere( const char *atmosphere );
 //
 void ClientThink( int clientNum );
 void G_Frame_BeginRoundWarmup( void );
+void G_FreezeClientRespawned( gentity_t *ent );
+qboolean G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath );
+qboolean G_FreezeDamageProtected( gentity_t *ent, gentity_t *attacker );
 void G_Frame_UpdateRoundController( void );
 void ClientEndFrame( gentity_t *ent );
 void G_RunClient( gentity_t *ent );
