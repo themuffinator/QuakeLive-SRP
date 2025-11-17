@@ -933,6 +933,34 @@ static void G_GametypeHandleClanArena( gametypeLifecycleStage_t stage, gentity_t
 
 /*
 =============
+G_GametypeHandleRace
+
+Routes the race-specific lifecycle hooks.
+=============
+*/
+static void G_GametypeHandleRace( gametypeLifecycleStage_t stage, gentity_t *ent ) {
+	switch ( stage ) {
+	case GAMETYPE_LIFECYCLE_CLIENT_BEGIN:
+		if ( ent ) {
+			G_RaceClientBegin( ent );
+		}
+		break;
+
+	case GAMETYPE_LIFECYCLE_CLIENT_SPAWN:
+		if ( ent ) {
+			G_RaceClientSpawn( ent );
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	G_GametypeHandleDefault( stage, ent );
+}
+
+/*
+=============
 G_RunGametypeLifecycle
 
 Routes the current lifecycle stage through any gametype-specific helper
@@ -943,6 +971,9 @@ static void G_RunGametypeLifecycle( gametypeLifecycleStage_t stage, gentity_t *e
 	switch ( g_gametype.integer ) {
 	case GT_TOURNAMENT:
 		G_GametypeHandleDuel( stage, ent );
+		break;
+	case GT_RACE:
+		G_GametypeHandleRace( stage, ent );
 		break;
 
 	case GT_CLAN_ARENA:
@@ -1020,8 +1051,11 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 
 	G_InitMemory();
 
-	// set some level globals
+// set some level globals
 	memset( &level, 0, sizeof( level ) );
+	if ( g_gametype.integer == GT_RACE ) {
+		G_RaceInitLevel();
+	}
 	G_InitSpawnQueue();
 	level.time = levelTime;
 	level.startTime = levelTime;
