@@ -66,7 +66,7 @@ static void G_DispatchEvents( qlr_game_frame_context_t *ctx );
 static void G_FinishClientFrames( qlr_game_frame_context_t *ctx );
 static void G_CheckLevelTimers( qlr_game_frame_context_t *ctx, int previousWarmupTime, int previousIntermissionQueued );
 static void G_UpdateTrainingState( void );
-static void G_UpdateDominationTutorialText( void );
+static void G_UpdateGametypeTutorialText( void );
 
 /*
 =============
@@ -286,6 +286,22 @@ vmCvar_t	g_forcedAtmosphere;
 vmCvar_t	g_adTouchScoreBonus;
 vmCvar_t	g_adElimScoreBonus;
 vmCvar_t	g_adCaptureScoreBonus;
+vmCvar_t	g_roundWarmupDelay;
+vmCvar_t	g_roundDrawLivingCount;
+vmCvar_t	g_roundDrawHealthCount;
+vmCvar_t	g_freezeThawWinningTeam;
+vmCvar_t	g_freezeThawThroughSurface;
+vmCvar_t	g_freezeThawTime;
+vmCvar_t	g_freezeThawTick;
+vmCvar_t	g_freezeThawRadius;
+vmCvar_t	g_freezeRoundDelay;
+vmCvar_t	g_freezeResetWeaponsOnRound;
+vmCvar_t	g_freezeResetHealthOnRound;
+vmCvar_t	g_freezeResetArmorOnRound;
+vmCvar_t	g_freezeRemovePowerupsOnRound;
+vmCvar_t	g_freezeProtectedSpawnTime;
+vmCvar_t	g_freezeEnvironmentalRespawnDelay;
+vmCvar_t	g_freezeAutoThawTime;
 static matchFactoryConfig_t matchFlow_lastConfig;
 vmCvar_t	g_obeliskHealth;
 vmCvar_t	g_obeliskRegenPeriod;
@@ -343,6 +359,22 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_domScoreRate, "g_domScoreRate", "5", CVAR_ARCHIVE, 0, qfalse, qfalse, "Seconds between Domination score ticks per owned point." },
 	{ &roundlimit, "roundlimit", "10", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Maximum number of rounds to play before the match ends." },
 	{ &roundtimelimit, "roundtimelimit", "180", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Seconds allowed per active round before it times out." },
+	{ &g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds of warmup that separate freeze-style rounds." },
+	{ &g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Print remaining living player counts when freeze rounds end." },
+	{ &g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Print aggregate team health when freeze rounds finish." },
+	{ &g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Award thaw credit to the winning team before the next round when non-zero." },
+	{ &g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Allow thaw traces to pass through solid world geometry when enabled." },
+	{ &g_freezeThawTime, "g_freezeThawTime", "2000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds teammates must remain nearby before a frozen player thaws." },
+	{ &g_freezeThawTick, "g_freezeThawTick", "250", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds added to thaw progress each time an ally stays in range." },
+	{ &g_freezeThawRadius, "g_freezeThawRadius", "96", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Radius in units required for thaw assistance to register." },
+	{ &g_freezeRoundDelay, "g_freezeRoundDelay", "4000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds between a freeze round ending and the next warmup." },
+	{ &g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Respawn players with the factory loadout each time a freeze round restarts." },
+	{ &g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Restore players to full health whenever a freeze round resets or they thaw." },
+	{ &g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Restore armor to the factory amount on round reset or thaw." },
+	{ &g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Strip carried powerups whenever a freeze round begins anew." },
+	{ &g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "5000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds of post-thaw spawn protection applied to players." },
+	{ &g_freezeEnvironmentalRespawnDelay, "g_freezeEnvironmentalRespawnDelay", "120000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds frozen players wait before auto-respawning when killed by the environment." },
+	{ &g_freezeAutoThawTime, "g_freezeAutoThawTime", "45000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds after which frozen players automatically thaw even without help." },
 	{ &g_rrRoundScoreBonus, "g_rrRoundScoreBonus", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score bonus granted to the team that wins a Red Rover round." },
 	{ &g_rrInfectedZombieSpeed, "g_rrInfectedZombieSpeed", "1.15", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Speed multiplier applied to infected players." },
 	{ &g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Selects the survivor scoring mode: thresholds or direct damage scaling." },
@@ -833,7 +865,7 @@ s_worldspawnAtmosphere[0] = '\0';
 s_lastForcedCosmeticsPayload[0] = '\0';
 G_UpdateItemTimerConfig( qtrue );
 G_UpdateForcedCosmeticsConfigstring( qtrue );
-G_UpdateDominationTutorialText();
+G_UpdateGametypeTutorialText();
 G_InitWeaponConfig();
         G_InitWeaponReloadConfig();
         G_InitKnockbackConfig();
@@ -909,7 +941,7 @@ void G_UpdateCvars( void ) {
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 
 G_UpdateTrainingState();
-G_UpdateDominationTutorialText();
+G_UpdateGametypeTutorialText();
 G_RefreshPmoveSettings();
 }
 
@@ -3167,15 +3199,32 @@ void G_RunFrame( int levelTime ) {
 
 /*
 =============
-G_UpdateDominationTutorialText
+G_UpdateGametypeTutorialText
 
-Publishes Domination tutorial strings so clients can surface gametype tips.
+Publishes Domination and Freeze Tag tutorial strings so clients see coaching tips.
 =============
 */
-static void G_UpdateDominationTutorialText( void ) {
+static void G_UpdateGametypeTutorialText( void ) {
+	trap_SetConfigstring( CS_FREEZE_TIP_OBJECTIVE, "" );
+	trap_SetConfigstring( CS_FREEZE_TIP_THAW, "" );
+	trap_SetConfigstring( CS_FREEZE_TIP_FREEZE, "" );
+	trap_SetConfigstring( CS_FREEZE_TIP_SHOOT, "" );
+	trap_SetConfigstring( CS_FREEZE_TIP_SUMMARY, "" );
+
 	if ( g_gametype.integer == GT_DOMINATION ) {
 		trap_SetConfigstring( CS_TUTORIAL_NAME, "Domination" );
 		trap_SetConfigstring( CS_TUTORIAL_TEXT, "Capture domination points to earn points for your team." );
+		return;
+	}
+
+	if ( g_gametype.integer == GT_FREEZE ) {
+		trap_SetConfigstring( CS_TUTORIAL_NAME, "Freeze Tag" );
+		trap_SetConfigstring( CS_TUTORIAL_TEXT, "Freeze all enemy team members to score a team point." );
+		trap_SetConfigstring( CS_FREEZE_TIP_OBJECTIVE, "Freeze all enemy team members to score a team point." );
+		trap_SetConfigstring( CS_FREEZE_TIP_THAW, "Stand by frozen teammates for 3 seconds to thaw them." );
+		trap_SetConfigstring( CS_FREEZE_TIP_FREEZE, "Fragging another player freezes them." );
+		trap_SetConfigstring( CS_FREEZE_TIP_SHOOT, "Shoot everyone on the other team!" );
+		trap_SetConfigstring( CS_FREEZE_TIP_SUMMARY, "This is a Freeze Tag game" );
 		return;
 	}
 

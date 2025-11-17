@@ -637,10 +637,12 @@ void ClientEvents( gentity_t *ent, int oldEventSequence ) {
 			ent->client->invulnerabilityTime = level.time + 10000;
 			break;
 
-		default:
-			break;
-		}
-	}
+default:
+break;
+}
+
+G_FreezeRunFrame();
+}
 
 }
 
@@ -1103,6 +1105,7 @@ void ClientEndFrame( gentity_t *ent ) {
 	}
 
 	pers = &ent->client->pers;
+	G_FreezeClientEndFrame( ent );
 
 	// turn off any expired powerups
 	for ( i = 0 ; i < MAX_POWERUPS ; i++ ) {
@@ -1187,6 +1190,10 @@ void G_Frame_BeginRoundWarmup( void ) {
 	level.roundTransitionTime = ROUND_TRANSITION_NONE;
 	level.roundStartTime = level.time;
 	G_RRResetRoundState();
+	if ( G_FreezeGametypeEnabled() ) {
+		G_FreezeResetClientsForRound( qtrue );
+		G_FreezeScheduleWarmupDelay();
+	}
 }
 
 /*
@@ -1198,11 +1205,12 @@ Returns qtrue when the round controller should run for the active gametype.
 */
 static qboolean G_RoundControllerGametypeEnabled( void ) {
 	switch ( g_gametype.integer ) {
-		case GT_CLAN_ARENA:
-		case GT_RED_ROVER:
-			return qtrue;
-		default:
-			return qfalse;
+	case GT_CLAN_ARENA:
+	case GT_RED_ROVER:
+	case GT_FREEZE:
+		return qtrue;
+	default:
+		return qfalse;
 	}
 }
 
@@ -1218,6 +1226,231 @@ static void G_Frame_BeginRoundActive( void ) {
 	level.roundTransitionTime = ROUND_TRANSITION_NONE;
 	level.roundStartTime = level.time;
 	level.roundNumber++;
+	if ( G_FreezeGametypeEnabled() ) {
+		G_FreezeResetClientsForRound( qfalse );
+	}
+}
+
+/*
+============
+G_FreezeGametypeEnabled
+
+Returns qtrue when the freeze ruleset should run for the active gametype.
+============
+*/
+qboolean G_FreezeGametypeEnabled( void ) {
+	return ( g_gametype.integer == GT_FREEZE ) ? qtrue : qfalse;
+}
+
+/*
+============
+G_FreezeScheduleWarmupDelay
+
+Applies the configured warmup delay ahead of the next active freeze round.
+============
+*/
+static void G_FreezeScheduleWarmupDelay( void ) {
+	int			delay;
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return;
+	}
+
+	delay = g_roundWarmupDelay.integer;
+	if ( delay > 0 ) {
+		level.warmupTime = level.time + delay;
+		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+		return;
+	}
+
+	level.warmupTime = 0;
+}
+
+/*
+============
+G_FreezeResetClientsForRound
+
+Respawns or restores each player before a freeze round begins.
+============
+*/
+static void G_FreezeResetClientsForRound( qboolean warmup ) {
+	int			clientNum;
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*ent;
+
+		ent = &g_entities[clientNum];
+		if ( !ent->inuse || !ent->client ) {
+			continue;
+		}
+
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		if ( g_freezeResetWeaponsOnRound.integer ) {
+			G_RequestClientSpawn( ent, warmup, qfalse );
+			continue;
+		}
+
+		G_FreezeInitClient( ent );
+		ent->client->freezeFrozen = qfalse;
+		ent->client->ps.pm_type = PM_NORMAL;
+		ent->client->respawnTime = level.time;
+		ent->takedamage = qtrue;
+		if ( g_freezeResetHealthOnRound.integer ) {
+			ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
+			ent->client->ps.stats[STAT_HEALTH] = ent->health;
+		}
+		if ( g_freezeResetArmorOnRound.integer ) {
+			ent->client->ps.stats[STAT_ARMOR] = g_factoryCvarConfig.startingArmor;
+		}
+		if ( g_freezeRemovePowerupsOnRound.integer ) {
+			memset( ent->client->ps.powerups, 0, sizeof( ent->client->ps.powerups ) );
+		}
+	}
+}
+
+/*
+============
+G_FreezeRecountLivingClients
+
+Rebuilds the cached living-player and health tallies for each team.
+============
+*/
+static void G_FreezeRecountLivingClients( void ) {
+	int			clientNum;
+	int			team;
+
+	for ( team = 0; team < TEAM_NUM_TEAMS; team++ ) {
+		level.freezeLivingCount[team] = 0;
+		level.freezeLivingHealth[team] = 0;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+
+		ent = &g_entities[clientNum];
+		client = ent->client;
+		if ( !ent->inuse || !client ) {
+			continue;
+		}
+
+		team = client->sess.sessionTeam;
+		if ( team != TEAM_RED && team != TEAM_BLUE ) {
+			continue;
+		}
+
+		if ( client->freezeFrozen ) {
+			continue;
+		}
+
+		if ( client->ps.pm_type == PM_DEAD ) {
+			continue;
+		}
+
+		level.freezeLivingCount[team]++;
+		if ( ent->health > 0 ) {
+			level.freezeLivingHealth[team] += ent->health;
+		}
+	}
+}
+
+/*
+============
+G_FreezeEvaluateRoundWinner
+
+Returns the winning team once only one side has living players left.
+============
+*/
+static team_t G_FreezeEvaluateRoundWinner( void ) {
+	qboolean	redAlive;
+	qboolean	blueAlive;
+
+	G_FreezeRecountLivingClients();
+	redAlive = ( level.freezeLivingCount[TEAM_RED] > 0 ) ? qtrue : qfalse;
+	blueAlive = ( level.freezeLivingCount[TEAM_BLUE] > 0 ) ? qtrue : qfalse;
+
+	if ( redAlive && blueAlive ) {
+		return TEAM_FREE;
+	}
+	if ( !redAlive && !blueAlive ) {
+		return TEAM_FREE;
+	}
+	return redAlive ? TEAM_RED : TEAM_BLUE;
+}
+
+/*
+============
+G_FreezeThawWinningPlayers
+
+Automatically thaws members of the winning team when configured.
+============
+*/
+static void G_FreezeThawWinningPlayers( team_t winner ) {
+	int		clientNum;
+
+	if ( !g_freezeThawWinningTeam.integer ) {
+		return;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+
+		ent = &g_entities[clientNum];
+		client = ent->client;
+		if ( !ent->inuse || !client ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != winner ) {
+			continue;
+		}
+		if ( !client->freezeFrozen ) {
+			continue;
+		}
+
+		G_FreezeThawClient( ent, qtrue, -1 );
+	}
+}
+
+/*
+============
+G_FreezeHandleRoundEnd
+
+Publishes configstrings and announcements when a freeze round completes.
+============
+*/
+static void G_FreezeHandleRoundEnd( team_t winner ) {
+	int			delay;
+	const char	*winnerName;
+
+	if ( winner != TEAM_RED && winner != TEAM_BLUE ) {
+		return;
+	}
+	G_FreezeThawWinningPlayers( winner );
+
+	level.teamScores[winner]++;
+	trap_SetConfigstring( CS_SCORES1, va( "%i", level.teamScores[TEAM_RED] ) );
+	trap_SetConfigstring( CS_SCORES2, va( "%i", level.teamScores[TEAM_BLUE] ) );
+	winnerName = ( winner == TEAM_RED ) ? "Red" : "Blue";
+	trap_SendServerCommand( -1, va( "cp \"%s team wins the round\\n\"", winnerName ) );
+	if ( g_roundDrawLivingCount.integer ) {
+		trap_SendServerCommand( -1, va( "print \"Living players - Red: %i  Blue: %i\\n\"",
+			level.freezeLivingCount[TEAM_RED], level.freezeLivingCount[TEAM_BLUE] ) );
+	}
+	if ( g_roundDrawHealthCount.integer ) {
+		trap_SendServerCommand( -1, va( "print \"Total health - Red: %i  Blue: %i\\n\"",
+			level.freezeLivingHealth[TEAM_RED], level.freezeLivingHealth[TEAM_BLUE] ) );
+	}
+	level.roundState = ROUNDSTATE_COMPLETE;
+	delay = g_freezeRoundDelay.integer;
+	level.roundTransitionTime = ( delay > 0 ) ? level.time + delay : level.time;
 }
 
 /*
@@ -1289,5 +1522,41 @@ void G_Frame_UpdateRoundController( void ) {
 		default:
 			break;
 	}
+
+	G_FreezeRunFrame();
+}
+
+/*
+============
+G_FreezeRunFrame
+
+Monitors freeze-specific timers and round completion.
+============
+*/
+void G_FreezeRunFrame( void ) {
+	team_t	winner;
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return;
+	}
+
+	if ( level.roundState == ROUNDSTATE_WARMUP ) {
+		if ( level.warmupTime > 0 && level.time >= level.warmupTime ) {
+			level.warmupTime = 0;
+			trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+		}
+		return;
+	}
+
+	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+		return;
+	}
+
+	winner = G_FreezeEvaluateRoundWinner();
+	if ( winner == TEAM_FREE ) {
+		return;
+	}
+
+	G_FreezeHandleRoundEnd( winner );
 }
 

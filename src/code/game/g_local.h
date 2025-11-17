@@ -188,6 +188,22 @@ extern vmCvar_t g_rrAllowNegativeScores;
 extern vmCvar_t g_adTouchScoreBonus;
 extern vmCvar_t g_adElimScoreBonus;
 extern vmCvar_t g_adCaptureScoreBonus;
+extern vmCvar_t g_roundWarmupDelay;
+extern vmCvar_t g_roundDrawLivingCount;
+extern vmCvar_t g_roundDrawHealthCount;
+extern vmCvar_t g_freezeThawWinningTeam;
+extern vmCvar_t g_freezeThawThroughSurface;
+extern vmCvar_t g_freezeThawTime;
+extern vmCvar_t g_freezeThawTick;
+extern vmCvar_t g_freezeThawRadius;
+extern vmCvar_t g_freezeRoundDelay;
+extern vmCvar_t g_freezeResetWeaponsOnRound;
+extern vmCvar_t g_freezeResetHealthOnRound;
+extern vmCvar_t g_freezeResetArmorOnRound;
+extern vmCvar_t g_freezeRemovePowerupsOnRound;
+extern vmCvar_t g_freezeProtectedSpawnTime;
+extern vmCvar_t g_freezeEnvironmentalRespawnDelay;
+extern vmCvar_t g_freezeAutoThawTime;
 
 typedef struct startingAmmoConfig_s {
 	int		bfg;
@@ -544,6 +560,14 @@ struct gclient_s {
 	int			portalID;
 	int			ammoTimes[WP_NUM_WEAPONS];
 	int			invulnerabilityTime;
+	qboolean	freezeFrozen;
+	int			freezeTime;
+	int			freezeNextThawTick;
+	int			freezeAccumulatedThaw;
+	int			freezeAutoThawTime;
+	int			freezeProtectedUntil;
+	int			freezeEnvironmentalRespawnTime;
+	int			freezeLastHelper;
 
 	char		*areabits;
 
@@ -675,6 +699,8 @@ typedef struct {
 	qboolean		spawnQueueActive;
 	qboolean		matchAllowItemDrops;
 	qboolean		matchAllowItemBounce;
+	int			freezeLivingCount[TEAM_NUM_TEAMS];
+	int			freezeLivingHealth[TEAM_NUM_TEAMS];
 	qboolean		quadHogEnabled;
 	int		quadHogOwner;
 	int		quadHogExpireTime;
@@ -698,6 +724,12 @@ qboolean	G_SpawnInt( const char *key, const char *defaultString, int *out );
 qboolean	G_SpawnVector( const char *key, const char *defaultString, float *out );
 void	G_InitSpawnQueue( void );
 void	G_SyncMatchFactoryConfigToLevel( void );
+qboolean	G_FreezeGametypeEnabled( void );
+void	G_FreezeInitClient( gentity_t *ent );
+void	G_FreezeThawClient( gentity_t *ent, qboolean wasAuto, int helperNum );
+void	G_FreezeClientEndFrame( gentity_t *ent );
+qboolean	G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath );
+void	G_FreezeRunFrame( void );
 qboolean	G_RequestClientSpawn( gentity_t *ent, qboolean warmupSpawn, qboolean initialSpawn );
 void	G_SpawnEntitiesFromString( void );
 char	*G_NewString( const char *string );
