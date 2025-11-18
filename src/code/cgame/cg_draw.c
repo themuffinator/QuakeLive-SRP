@@ -1635,21 +1635,76 @@ static void CG_DrawTeamVote(void) {
 }
 
 
-static qboolean CG_DrawScoreboard() {
+/*
+=============
+CG_GetGametypeScoreboardName
+
+Resolves the Quake Live menu name used for the current gametype.
+=============
+*/
+static const char *CG_GetGametypeScoreboardName( void ) {
+	switch ( cgs.gametype ) {
+	case GT_FFA:
+		return "score_menu_ffa";
+	case GT_TOURNAMENT:
+		return "score_menu_duel";
+	case GT_SINGLE_PLAYER:
+	case GT_RACE:
+		return "score_menu_race";
+	case GT_RED_ROVER:
+		return "score_menu_rr";
+	case GT_TEAM:
+		return "teamscore_menu_tdm";
+	case GT_CLAN_ARENA:
+		return "teamscore_menu_ca";
+	case GT_CTF:
+		return "teamscore_menu_ctf";
+	case GT_1FCTF:
+		return "teamscore_menu_1fctf";
+	case GT_OBELISK:
+		return "teamscore_menu";
+	case GT_HARVESTER:
+		return "teamscore_menu_har";
+	case GT_FREEZE:
+		return "teamscore_menu_ft";
+	case GT_DOMINATION:
+		return "teamscore_menu_dom";
+	case GT_ATTACK_DEFEND:
+		return "teamscore_menu_ad";
+	default:
+		break;
+	}
+
+	if ( cgs.gametype >= GT_TEAM ) {
+		return "teamscore_menu";
+	}
+
+	return "score_menu";
+}
+
+/*
+=============
+CG_DrawScoreboard
+
+Paints the Quake Live scoreboard menu for the active gametype.
+=============
+*/
+static qboolean CG_DrawScoreboard( void ) {
 	static qboolean firstTime = qtrue;
 	float fade, *fadeColor;
+	const char *menuName;
 
-	if (menuScoreboard) {
+	if ( menuScoreboard ) {
 		menuScoreboard->window.flags &= ~WINDOW_FORCED;
 	}
-	if (cg_paused.integer) {
+	if ( cg_paused.integer ) {
 		cg.deferredPlayerLoading = 0;
 		firstTime = qtrue;
 		return qfalse;
 	}
 
 	// should never happen in Team Arena
-	if (cgs.gametype == GT_SINGLE_PLAYER && cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
+	if ( cgs.gametype == GT_SINGLE_PLAYER && cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
 		cg.deferredPlayerLoading = 0;
 		firstTime = qtrue;
 		return qfalse;
@@ -1661,7 +1716,7 @@ static qboolean CG_DrawScoreboard() {
 	}
 
 	if ( cg.showScores || cg.predictedPlayerState.pm_type == PM_DEAD || cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
-		fade = 1.0;
+		fade = 1.0f;
 		fadeColor = colorWhite;
 	} else {
 		fadeColor = CG_FadeColor( cg.scoreFadeTime, FADE_TIME );
@@ -1673,24 +1728,33 @@ static qboolean CG_DrawScoreboard() {
 			return qfalse;
 		}
 		fade = *fadeColor;
-	}																					  
-
-
-	if (menuScoreboard == NULL) {
-		if ( cgs.gametype >= GT_TEAM ) {
-			menuScoreboard = Menus_FindByName("teamscore_menu");
-		} else {
-			menuScoreboard = Menus_FindByName("score_menu");
-		}
 	}
 
-	if (menuScoreboard) {
-		if (firstTime) {
-			CG_SetScoreSelection(menuScoreboard);
-			firstTime = qfalse;
-		}
-		Menu_Paint(menuScoreboard, qtrue);
+	menuName = CG_GetGametypeScoreboardName();
+	if ( menuScoreboard && menuName && Q_stricmp( menuScoreboard->window.name, menuName ) ) {
+		menuScoreboard = NULL;
+		firstTime = qtrue;
 	}
+
+	if ( !menuScoreboard && menuName ) {
+		menuScoreboard = Menus_FindByName( menuName );
+	}
+
+	if ( !menuScoreboard ) {
+		const char *fallback = ( cgs.gametype >= GT_TEAM ) ? "teamscore_menu" : "score_menu";
+		menuScoreboard = Menus_FindByName( fallback );
+	}
+
+	if ( !menuScoreboard ) {
+		return qfalse;
+	}
+
+	if ( firstTime ) {
+		CG_SetScoreSelection( menuScoreboard );
+		firstTime = qfalse;
+	}
+
+	Menu_Paint( menuScoreboard, qtrue );
 
 	// load any models that have been deferred
 	if ( ++cg.deferredPlayerLoading > 10 ) {
@@ -1698,6 +1762,35 @@ static qboolean CG_DrawScoreboard() {
 	}
 
 	return qtrue;
+}
+
+/*
+=============
+CG_DrawActiveScoreboard
+
+Selects the appropriate scoreboard implementation for the current HUD mode.
+=============
+*/
+static qboolean CG_DrawActiveScoreboard( qboolean menuHudActive, qboolean forceDisplay ) {
+	qboolean	requested;
+
+	requested = forceDisplay;
+	if ( !requested ) {
+		requested = (qboolean)( ( cg.showScores != 0 ) || ( ( cg.snap->ps.pm_flags & PMF_SCOREBOARD ) != 0 ) );
+		if ( menuHudActive ) {
+			requested = (qboolean)( cg.showScores != 0 );
+		}
+	}
+
+	if ( !requested ) {
+		return qfalse;
+	}
+
+	if ( cg_useLegacyHud.integer ) {
+		return CG_DrawOldScoreboard();
+	}
+
+	return CG_DrawScoreboard();
 }
 
 /*
@@ -1712,7 +1805,7 @@ static void CG_DrawIntermission( void ) {
 	//	return;
 	//}
 	cg.scoreFadeTime = cg.time;
-	cg.scoreBoardShowing = CG_DrawScoreboard();
+	cg.scoreBoardShowing = CG_DrawActiveScoreboard( qfalse, qtrue );
 }
 
 /*
@@ -2006,7 +2099,7 @@ static void CG_Draw2D( void ) {
 
 	if ( menuHudActive ) {
 		if ( cg.showScores ) {
-			cg.scoreBoardShowing = CG_DrawScoreboard();
+			cg.scoreBoardShowing = CG_DrawActiveScoreboard( qtrue, qfalse );
 			if ( !cg.scoreBoardShowing ) {
 				CG_DrawCenterString();
 			}
@@ -2036,7 +2129,7 @@ static void CG_Draw2D( void ) {
 	}
 
 	// don't draw center string if scoreboard is up
-	cg.scoreBoardShowing = CG_DrawScoreboard();
+	cg.scoreBoardShowing = CG_DrawActiveScoreboard( qfalse, qfalse );
 	if ( !cg.scoreBoardShowing) {
 		CG_DrawCenterString();
 	}

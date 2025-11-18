@@ -1360,6 +1360,374 @@ static void CG_DrawSpectatorProfileImage(rectDef_t *rect, int slot) {
 	Vector4Set(modulate, 1.0f, 1.0f, 1.0f, CG_SpectatorSlotFollowed(slot) ? 1.0f : 0.6f);
 	trap_R_SetColor(modulate);
 	CG_DrawPic(rect->x, rect->y, rect->w, rect->h, shader);
+
+/*
+=============
+CG_GetSelectedScore
+
+Returns the currently selected scoreboard entry, if available.
+=============
+*/
+score_t *CG_GetSelectedScore( void ) {
+	if ( cg.numScores <= 0 ) {
+		return NULL;
+	}
+
+	if ( cg.selectedScore < 0 || cg.selectedScore >= cg.numScores ) {
+		return NULL;
+	}
+
+	return &cg.scores[cg.selectedScore];
+}
+
+/*
+=============
+CG_GetSelectedClientInfo
+
+Resolves the client information for the currently selected scoreboard entry.
+=============
+*/
+static clientInfo_t *CG_GetSelectedClientInfo( void ) {
+	score_t		*score;
+
+	score = CG_GetSelectedScore();
+	if ( !score ) {
+		return NULL;
+	}
+
+	if ( score->client < 0 || score->client >= cgs.maxclients ) {
+		return NULL;
+	}
+
+	return &cgs.clientinfo[score->client];
+}
+
+/*
+=============
+CG_GetTeamLabel
+
+Provides a human readable label for the supplied team.
+=============
+*/
+static const char *CG_GetTeamLabel( team_t team ) {
+	switch ( team ) {
+	case TEAM_RED:
+		return ( cgs.redTeam[0] != '\0' ) ? cgs.redTeam : "Red";
+	case TEAM_BLUE:
+		return ( cgs.blueTeam[0] != '\0' ) ? cgs.blueTeam : "Blue";
+	default:
+		return "Spectator";
+	}
+}
+
+/*
+=============
+CG_CountPlayersForTeam
+
+Counts the number of scoreboard entries assigned to a specific team.
+=============
+*/
+static int CG_CountPlayersForTeam( team_t team ) {
+	int		count;
+	int		i;
+
+	count = 0;
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( cg.scores[i].team == team ) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+=============
+CG_CountActivePlayers
+
+Returns the number of scoreboard entries that are not spectators.
+=============
+*/
+static int CG_CountActivePlayers( void ) {
+	int		count;
+	int		i;
+
+	count = 0;
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( cg.scores[i].team != TEAM_SPECTATOR ) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+=============
+CG_DrawMapName
+
+Prints the current map name stripped of file path information.
+=============
+*/
+static void CG_DrawMapName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	const char	*serverInfo;
+	const char	*configName;
+	char		nameBuffer[MAX_QPATH];
+	const char	*mapName;
+	char		*ext;
+
+	serverInfo = CG_ConfigString( CS_SERVERINFO );
+	configName = Info_ValueForKey( serverInfo, "mapname" );
+	mapName = NULL;
+
+	if ( configName && *configName ) {
+		Q_strncpyz( nameBuffer, configName, sizeof( nameBuffer ) );
+		mapName = nameBuffer;
+	} else if ( cgs.mapname[0] != '\0' ) {
+		Q_strncpyz( nameBuffer, cgs.mapname, sizeof( nameBuffer ) );
+		mapName = nameBuffer;
+	}
+
+	if ( mapName && !Q_stricmpn( mapName, "maps/", 5 ) ) {
+		mapName += 5;
+	}
+
+	if ( mapName ) {
+		ext = strrchr( mapName, '.' );
+		if ( ext ) {
+			*ext = '\0';
+		}
+	}
+
+	if ( !mapName || mapName[0] == '\0' ) {
+		mapName = "Unknown";
+	}
+
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, mapName, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawPlayerCounts
+
+Renders the number of active players versus the server capacity.
+=============
+*/
+static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	char	buffer[32];
+	int		active;
+
+	active = CG_CountActivePlayers();
+	Com_sprintf( buffer, sizeof( buffer ), "%i/%i players", active, cgs.maxclients );
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawSelectedPlayerTeamColor
+
+Fills the provided rectangle using the selected player's team color.
+=============
+*/
+static void CG_DrawSelectedPlayerTeamColor(rectDef_t *rect) {
+	clientInfo_t	*ci;
+	vec4_t			fill;
+
+	ci = CG_GetSelectedClientInfo();
+	if ( !ci ) {
+		return;
+	}
+
+	switch ( ci->team ) {
+	case TEAM_RED:
+		Vector4Set( fill, 1.0f, 0.0f, 0.0f, 0.45f );
+		break;
+	case TEAM_BLUE:
+		Vector4Set( fill, 0.2f, 0.35f, 1.0f, 0.45f );
+		break;
+	default:
+		Vector4Set( fill, 1.0f, 1.0f, 1.0f, 0.25f );
+		break;
+	}
+
+	CG_FillRect(rect->x, rect->y, rect->w, rect->h, fill);
+}
+
+/*
+=============
+CG_DrawSelectedPlayerAccuracy
+
+Displays the accuracy statistic for the selected scoreboard entry.
+=============
+*/
+static void CG_DrawSelectedPlayerAccuracy(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	score_t		*score;
+	char		buffer[16];
+
+	score = CG_GetSelectedScore();
+	if ( !score ) {
+		return;
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "%i%%", score->accuracy );
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawTeamPlayerCount
+
+Renders the player count string for the specified team.
+=============
+*/
+static void CG_DrawTeamPlayerCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team) {
+	char	buffer[64];
+	int		count;
+
+	count = CG_CountPlayersForTeam( team );
+	Com_sprintf( buffer, sizeof( buffer ), "%s (%i)", CG_GetTeamLabel( team ), count );
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawTeamTimeoutCount
+
+Displays the remaining timeout count for the given team if known.
+=============
+*/
+static void CG_DrawTeamTimeoutCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team) {
+	char	buffer[64];
+	int		remaining;
+
+	if ( team <= TEAM_FREE || team >= TEAM_NUM_TEAMS ) {
+		return;
+	}
+
+	remaining = cgs.matchTimeoutRemaining[team];
+	Com_sprintf( buffer, sizeof( buffer ), "Timeouts %i", remaining );
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawTeamAveragePing
+
+Shows the average ping for the members of the supplied team.
+=============
+*/
+static void CG_DrawTeamAveragePing(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team) {
+	int		sum;
+	int		count;
+	int		average;
+	int		i;
+	char	buffer[48];
+
+	sum = 0;
+	count = 0;
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( cg.scores[i].team != team ) {
+			continue;
+		}
+		if ( cg.scores[i].ping < 0 ) {
+			continue;
+		}
+		sum += cg.scores[i].ping;
+		count++;
+	}
+
+	if ( count <= 0 ) {
+		return;
+	}
+
+	average = sum / count;
+	Com_sprintf( buffer, sizeof( buffer ), "Avg ping %i", average );
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_ResolveWeaponName
+
+Translates a weapon index into a localized pickup name.
+=============
+*/
+static const char *CG_ResolveWeaponName( int weapon ) {
+	const gitem_t	*item;
+
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return NULL;
+	}
+
+	item = BG_FindItemForWeapon( (weapon_t)weapon );
+	if ( !item || !item->pickup_name || !item->pickup_name[0] ) {
+		return NULL;
+	}
+
+	return item->pickup_name;
+}
+
+/*
+=============
+CG_DrawSelectedPlayerBestWeapon
+
+Prints the best known weapon for the highlighted scoreboard entry.
+=============
+*/
+static void CG_DrawSelectedPlayerBestWeapon(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	const clientInfo_t	*ci;
+	const centity_t		*cent;
+	const char			*weaponName;
+	int				clientNum;
+
+	ci = CG_GetSelectedClientInfo();
+	if ( !ci ) {
+		return;
+	}
+
+	clientNum = ci->clientNum;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	cent = &cg_entities[clientNum];
+	weaponName = CG_ResolveWeaponName( cent->currentState.weapon );
+	if ( !weaponName ) {
+		weaponName = "Unknown";
+	}
+
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, weaponName, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawMatchState
+
+Outputs a textual summary of timeout or overtime state.
+=============
+*/
+static void CG_DrawMatchState(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	char	buffer[64];
+	int		remaining;
+
+	if ( cgs.matchTimeoutActive && cgs.matchTimeoutTeam > TEAM_FREE && cgs.matchTimeoutTeam < TEAM_NUM_TEAMS ) {
+		remaining = ( cgs.matchTimeoutExpireTime - cg.time + 999 ) / 1000;
+		if ( remaining < 0 ) {
+			remaining = 0;
+		}
+		Com_sprintf( buffer, sizeof( buffer ), "Timeout %s (%is)", CG_GetTeamLabel( cgs.matchTimeoutTeam ), remaining );
+		CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+		return;
+	}
+
+	if ( cgs.matchOvertimeActive ) {
+		Com_sprintf( buffer, sizeof( buffer ), "Overtime %i", cgs.matchOvertimeCount );
+		CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+		return;
+	}
+
+	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, CG_GetGameStatusText(), 0, 0, textStyle);
+}
 	trap_R_SetColor(NULL);
 }
 
@@ -3164,10 +3532,28 @@ CG_DrawPlayerHealthBar(&rect, shader, qtrue);
 break;
   case CG_RED_SCORE:
     CG_DrawRedScore(&rect, scale, color, shader, textStyle);
-    break;
+                break;
   case CG_BLUE_SCORE:
     CG_DrawBlueScore(&rect, scale, color, shader, textStyle);
-    break;
+                break;
+  case CG_RED_PLAYER_COUNT:
+		CG_DrawTeamPlayerCount(&rect, scale, color, textStyle, TEAM_RED);
+		break;
+  case CG_BLUE_PLAYER_COUNT:
+		CG_DrawTeamPlayerCount(&rect, scale, color, textStyle, TEAM_BLUE);
+		break;
+  case CG_RED_TIMEOUT_COUNT:
+		CG_DrawTeamTimeoutCount(&rect, scale, color, textStyle, TEAM_RED);
+		break;
+  case CG_BLUE_TIMEOUT_COUNT:
+		CG_DrawTeamTimeoutCount(&rect, scale, color, textStyle, TEAM_BLUE);
+		break;
+  case CG_RED_AVG_PING:
+		CG_DrawTeamAveragePing(&rect, scale, color, textStyle, TEAM_RED);
+		break;
+  case CG_BLUE_AVG_PING:
+		CG_DrawTeamAveragePing(&rect, scale, color, textStyle, TEAM_BLUE);
+		break;
   case CG_RED_NAME:
     CG_DrawRedName(&rect, scale, color, textStyle);
     break;
@@ -3239,7 +3625,13 @@ break;
     break;
   case CG_GAME_STATUS:
     CG_DrawGameStatus(&rect, scale, color, shader, textStyle);
-		break;
+                break;
+  case CG_MAP_NAME:
+    CG_DrawMapName(&rect, scale, color, textStyle);
+                break;
+  case CG_PLAYER_COUNTS:
+    CG_DrawPlayerCounts(&rect, scale, color, textStyle);
+                break;
   case CG_KILLER:
     CG_DrawKiller(&rect, scale, color, shader, textStyle);
 		break;
@@ -3254,7 +3646,16 @@ break;
 		CG_DrawMedal(ownerDraw, &rect, scale, color, shader);
 		break;
   case CG_SPECTATORS:
-		CG_DrawTeamSpectators(&rect, scale, color, shader);
+                CG_DrawTeamSpectators(&rect, scale, color, shader);
+                break;
+  case CG_SELECTED_PLYR_TEAM_COLOR:
+		CG_DrawSelectedPlayerTeamColor(&rect);
+		break;
+  case CG_SELECTED_PLYR_ACCURACY:
+		CG_DrawSelectedPlayerAccuracy(&rect, scale, color, textStyle);
+		break;
+  case CG_PLYR_BEST_WEAPON_NAME:
+		CG_DrawSelectedPlayerBestWeapon(&rect, scale, color, textStyle);
 		break;
   case CG_SPEC_MESSAGES:
 		CG_DrawSpectatorMessages(&rect, scale, color, textStyle);
@@ -3288,6 +3689,9 @@ break;
   case CG_ROUNDTIMER:
     CG_DrawRoundTimer(&rect, scale, color, textStyle);
                 break;
+  case CG_MATCH_STATE:
+		CG_DrawMatchState(&rect, scale, color, textStyle);
+		break;
   case CG_OVERTIME:
     CG_DrawOvertime(&rect, scale, color, textStyle);
                 break;
