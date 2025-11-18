@@ -124,6 +124,8 @@ class MatchHarness:
         self._next_warmup_spawn_time: float = 0.0
         self._freeze_round_state: Optional[str] = None
         self._freeze_round_index: int = 0
+        self._flag_positions: Dict[str, str] = {}
+        self._flag_carriers: Dict[str, str] = {}
 
     @staticmethod
     def _resolve_seed(*seeds: Optional[int]) -> int:
@@ -284,6 +286,16 @@ class MatchHarness:
         count = int(params.get("count", 1))
         state.inventory[item] = state.inventory.get(item, 0) + count
         return {"item": item, "count": state.inventory[item]}
+
+    def _handle_pickup(self, state: BotState, params: Mapping[str, Any], delta: float) -> Dict[str, Any]:
+        pickup_type = str(params.get("type", "generic")).lower()
+        if pickup_type == "ammo":
+            return self._pickup_ammo(state, params)
+        if pickup_type == "armor":
+            return self._pickup_armor(state, params)
+        if pickup_type == "flag":
+            return self._pickup_flag(state, params)
+        return {"type": pickup_type, "status": "ignored", "reason": "unsupported pickup"}
 
     def _handle_damage(self, state: BotState, params: Mapping[str, Any], delta: float) -> Dict[str, Any]:
         target_state = self._resolve_target_state(params.get("target"), state)
@@ -522,6 +534,125 @@ class MatchHarness:
         return {"winner": team, "thawed": thawed}
 
     # ------------------------------------------------------------------
+    # Pickup helpers
+    # ------------------------------------------------------------------
+
+    def _pickup_ammo(self, state: BotState, params: Mapping[str, Any]) -> Dict[str, Any]:
+        weapon = str(params.get("weapon", "unknown"))
+        request = float(params.get("amount", 0.0))
+        max_amount = float(params.get("max", state.ammo.get(weapon, 0.0) + request))
+        current = float(state.ammo.get(weapon, 0.0))
+        capacity = max(0.0, max_amount - current)
+        granted = min(capacity, max(0.0, request))
+        denied = max(0.0, request - granted)
+        new_total = current + granted
+        state.ammo[weapon] = new_total
+        saturated = new_total >= max_amount - 1e-6
+        return {
+            "type": "ammo",
+            "weapon": weapon,
+            "requested": request,
+            "granted": granted,
+            "denied": denied,
+            "total": new_total,
+            "max": max_amount,
+            "saturated": saturated,
+        }
+
+    def _pickup_armor(self, state: BotState, params: Mapping[str, Any]) -> Dict[str, Any]:
+        requested = float(params.get("amount", 0.0))
+        max_armor = float(params.get("max", 0.0)) or float(state.inventory.get("armor", 0.0) + requested)
+        handicap = params.get("handicap")
+        if handicap is None:
+            handicap = state.custom.get("handicap")
+        effective_max = max_armor
+        handicap_applied = False
+        if handicap is not None:
+            try:
+                scale = float(handicap)
+            except (TypeError, ValueError):
+                scale = 1.0
+            effective_max = max_armor * max(0.0, min(scale, 1.0))
+            handicap_applied = True
+        current = float(state.inventory.get("armor", 0.0))
+        capacity = max(0.0, effective_max - current)
+        granted = min(capacity, max(0.0, requested))
+        denied = max(0.0, requested - granted)
+        new_total = current + granted
+        state.inventory["armor"] = new_total
+        saturated = new_total >= effective_max - 1e-6
+        return {
+            "type": "armor",
+            "requested": requested,
+            "granted": granted,
+            "denied": denied,
+            "total": new_total,
+            "max": max_armor,
+            "effective_max": effective_max,
+            "handicap_applied": handicap_applied,
+            "saturated": saturated,
+        }
+
+    def _pickup_flag(self, state: BotState, params: Mapping[str, Any]) -> Dict[str, Any]:
+        flag = str(params.get("flag", "neutral")).lower()
+        event_type = str(params.get("event", "pickup")).lower()
+        mode = str(params.get("mode", "ctf")).lower()
+        score_delta = int(params.get("score", 1))
+        self._flag_positions.setdefault(flag, "base")
+        details: Dict[str, Any] = {
+            "type": "flag",
+            "flag": flag,
+            "mode": mode,
+            "event": event_type,
+        }
+        carrier = self._flag_carriers.get(flag)
+        current_flag = state.custom.get("flag_carried")
+        if event_type == "pickup":
+            if current_flag:
+                details.update({"status": "already_carrying", "carrying": current_flag})
+                return details
+            if carrier:
+                details.update({"status": "already_carried", "carrier": carrier})
+                return details
+            self._flag_carriers[flag] = state.name
+            state.custom["flag_carried"] = flag
+            self._flag_positions[flag] = f"carried:{state.name}"
+            details.update({"status": "picked", "carrier": state.name})
+            return details
+        if event_type == "drop":
+            if current_flag != flag:
+                details.update({"status": "not_carrier"})
+                return details
+            self._flag_carriers.pop(flag, None)
+            state.custom.pop("flag_carried", None)
+            self._flag_positions[flag] = "dropped"
+            details.update({"status": "dropped"})
+            return details
+        if event_type == "return":
+            previous = self._flag_positions.get(flag, "base")
+            if carrier:
+                holder = self._flag_carriers.pop(flag, None)
+                if holder:
+                    for bot in self._active_bots.values():
+                        if bot.name == holder:
+                            bot.custom.pop("flag_carried", None)
+                            break
+            self._flag_positions[flag] = "base"
+            details.update({"status": "returned", "previous": previous})
+            return details
+        if event_type == "capture":
+            if current_flag != flag:
+                details.update({"status": "no_flag"})
+                return details
+            self._flag_carriers.pop(flag, None)
+            state.custom.pop("flag_carried", None)
+            self._flag_positions[flag] = "base" if mode == "ctf" else "respawned"
+            details.update({"status": "captured", "score_delta": score_delta})
+            return details
+        details.update({"status": "unknown_event"})
+        return details
+
+    # ------------------------------------------------------------------
     # Helpers for deterministic value resolution
     # ------------------------------------------------------------------
 
@@ -597,6 +728,8 @@ class MatchHarness:
         self._event_counter = 0
         self._next_warmup_spawn_time = 0.0
         self._pending_freeze_events = []
+        self._flag_positions = {}
+        self._flag_carriers = {}
 
     def _prime_spawn_schedule(self) -> None:
         for entry in self.spawn_schedule:

@@ -1,0 +1,54 @@
+{
+  "max_ammo": {
+    "qvm": [
+      "0.250 visor ammo rocket requested=4.0 granted=2.0 denied=2.0 total=20.0 max=20.0 saturated=True",
+      "0.500 visor ammo rocket requested=5.0 granted=0.0 denied=5.0 total=20.0 max=20.0 saturated=True",
+      "1.000 visor ammo rocket requested=6.0 granted=6.0 denied=0.0 total=19.0 max=20.0 saturated=False",
+      "1.250 visor ammo rocket requested=2.0 granted=1.0 denied=1.0 total=20.0 max=20.0 saturated=True"
+    ],
+    "dll": [
+      "0.250 visor ammo rocket requested=4.0 granted=2.0 denied=2.0 total=20.0 max=20.0 saturated=True",
+      "0.500 visor ammo rocket requested=5.0 granted=0.0 denied=5.0 total=20.0 max=20.0 saturated=True",
+      "1.000 visor ammo rocket requested=6.0 granted=6.0 denied=0.0 total=19.0 max=20.0 saturated=False",
+      "1.250 visor ammo rocket requested=2.0 granted=1.0 denied=1.0 total=20.0 max=20.0 saturated=True"
+    ]
+  },
+  "spawn_armor": {
+    "qvm": [
+      "0.250 anarki armor requested=50.0 granted=50.0 denied=0.0 total=50.0 effective_max=75.0 handicap=True saturated=False",
+      "0.750 anarki armor requested=50.0 granted=25.0 denied=25.0 total=75.0 effective_max=75.0 handicap=True saturated=True",
+      "1.200 anarki armor requested=50.0 granted=50.0 denied=0.0 total=70.0 effective_max=100.0 handicap=True saturated=False",
+      "1.400 anarki armor requested=50.0 granted=30.0 denied=20.0 total=100.0 effective_max=100.0 handicap=True saturated=True"
+    ],
+    "dll": [
+      "0.250 anarki armor requested=50.0 granted=50.0 denied=0.0 total=50.0 effective_max=75.0 handicap=True saturated=False",
+      "0.750 anarki armor requested=50.0 granted=25.0 denied=25.0 total=75.0 effective_max=75.0 handicap=True saturated=True",
+      "1.200 anarki armor requested=50.0 granted=50.0 denied=0.0 total=70.0 effective_max=100.0 handicap=True saturated=False",
+      "1.400 anarki armor requested=50.0 granted=30.0 denied=20.0 total=100.0 effective_max=100.0 handicap=True saturated=True"
+    ]
+  },
+  "flag_modes": {
+    "qvm": [
+      "0.100 ranger flag blue mode=ctf event=pickup status=picked carrier=ranger",
+      "0.300 ranger flag blue mode=ctf event=capture status=captured score=1",
+      "0.400 slash flag red mode=ctf event=pickup status=picked carrier=slash",
+      "0.600 slash flag red mode=ctf event=capture status=captured score=1",
+      "0.800 ranger flag neutral mode=1fctf event=pickup status=picked carrier=ranger",
+      "0.900 ranger flag neutral mode=1fctf event=drop status=dropped",
+      "1.000 slash flag neutral mode=1fctf event=return status=returned previous=dropped",
+      "1.200 slash flag neutral mode=1fctf event=pickup status=picked carrier=slash",
+      "1.400 slash flag neutral mode=1fctf event=capture status=captured score=1"
+    ],
+    "dll": [
+      "0.100 ranger flag blue mode=ctf event=pickup status=picked carrier=ranger",
+      "0.300 ranger flag blue mode=ctf event=capture status=captured score=1",
+      "0.400 slash flag red mode=ctf event=pickup status=picked carrier=slash",
+      "0.600 slash flag red mode=ctf event=capture status=captured score=1",
+      "0.800 ranger flag neutral mode=1fctf event=pickup status=picked carrier=ranger",
+      "0.900 ranger flag neutral mode=1fctf event=drop status=dropped",
+      "1.000 slash flag neutral mode=1fctf event=return status=returned previous=dropped",
+      "1.200 slash flag neutral mode=1fctf event=pickup status=picked carrier=slash",
+      "1.400 slash flag neutral mode=1fctf event=capture status=captured score=1"
+    ]
+  }
+}
