@@ -4407,6 +4407,9 @@ UI_FeederCount
 ==================
 */
 static int UI_FeederCount(float feederID) {
+	// HLIL parity: the docs/gameplay/parity/parity-ledger.md row that cites the
+	// `UI_FeederSelection` dump expects every `FEEDER_*` branch below to remain in
+	// sync with the uiInfo_t storage documented in ui_local.h.
 	if (feederID == FEEDER_HEADS) {
 		return UI_HeadCountByTeam();
 	} else if (feederID == FEEDER_Q3HEADS) {
@@ -4414,6 +4417,10 @@ static int UI_FeederCount(float feederID) {
 	} else if (feederID == FEEDER_CINEMATICS) {
 		return uiInfo.movieCount;
 	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
+		// Map-rotation scripting in the Quake Live HLIL (`^1map rotation item missing
+		// map…` strings in `quakelive_steam.exe_hlil_part02.txt`) mirrors this branch,
+		// so the pending FEEDER_CVMAPS hook will live alongside the existing map
+		// feeders and continue to pull from `uiInfo.mapList`.
 		return UI_MapCountByGameType(feederID == FEEDER_MAPS ? qtrue : qfalse);
 	} else if (feederID == FEEDER_SERVERS) {
 		return uiInfo.serverStatus.numDisplayServers;
@@ -4663,6 +4670,9 @@ static void UI_FeederSelection(float feederID, int index) {
   } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
 		int actual, map;
 		map = (feederID == FEEDER_ALLMAPS) ? ui_currentNetMap.integer : ui_currentMap.integer;
+		// HLIL map-rotation strings (`^1map rotation item missing map…`) show the native
+		// UI reusing the same cinematic + metadata pairing when browsing rotation
+		// entries, so future FEEDER_CVMAPS wiring belongs inside this block.
 		if (uiInfo.mapList[map].cinematic >= 0) {
 		  trap_CIN_StopCinematic(uiInfo.mapList[map].cinematic);
 		  uiInfo.mapList[map].cinematic = -1;
