@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_local.h"
 #include "g_config.h"
 #include "g_match_config.h"
+#include "generated/ql_gametype_strings.h"
 #include <limits.h>
 #include "../../../src-re/include/ql_types.h"
 #include <time.h>
@@ -3298,29 +3299,31 @@ Publishes Domination and Freeze Tag tutorial strings so clients see coaching tip
 =============
 */
 static void G_UpdateGametypeTutorialText( void ) {
+	const qlGametypeTutorialDef_t	*tutorial;
+
 	trap_SetConfigstring( CS_FREEZE_TIP_OBJECTIVE, "" );
 	trap_SetConfigstring( CS_FREEZE_TIP_THAW, "" );
 	trap_SetConfigstring( CS_FREEZE_TIP_FREEZE, "" );
 	trap_SetConfigstring( CS_FREEZE_TIP_SHOOT, "" );
 	trap_SetConfigstring( CS_FREEZE_TIP_SUMMARY, "" );
 
-	if ( g_gametype.integer == GT_DOMINATION ) {
-		trap_SetConfigstring( CS_TUTORIAL_NAME, "Domination" );
-		trap_SetConfigstring( CS_TUTORIAL_TEXT, "Capture domination points to earn points for your team." );
+	tutorial = QL_FindGametypeTutorial( g_gametype.integer );
+	if ( !tutorial ) {
+		trap_SetConfigstring( CS_TUTORIAL_NAME, "" );
+		trap_SetConfigstring( CS_TUTORIAL_TEXT, "" );
 		return;
 	}
 
-	if ( g_gametype.integer == GT_FREEZE ) {
-		trap_SetConfigstring( CS_TUTORIAL_NAME, "Freeze Tag" );
-		trap_SetConfigstring( CS_TUTORIAL_TEXT, "Freeze all enemy team members to score a team point." );
-		trap_SetConfigstring( CS_FREEZE_TIP_OBJECTIVE, "Freeze all enemy team members to score a team point." );
-		trap_SetConfigstring( CS_FREEZE_TIP_THAW, "Stand by frozen teammates for 3 seconds to thaw them." );
-		trap_SetConfigstring( CS_FREEZE_TIP_FREEZE, "Fragging another player freezes them." );
-		trap_SetConfigstring( CS_FREEZE_TIP_SHOOT, "Shoot everyone on the other team!" );
-		trap_SetConfigstring( CS_FREEZE_TIP_SUMMARY, "This is a Freeze Tag game" );
-		return;
-	}
+	trap_SetConfigstring( CS_TUTORIAL_NAME, tutorial->name );
+	trap_SetConfigstring( CS_TUTORIAL_TEXT, tutorial->text );
 
-	trap_SetConfigstring( CS_TUTORIAL_NAME, "" );
-	trap_SetConfigstring( CS_TUTORIAL_TEXT, "" );
+	if ( tutorial->freezeTips ) {
+		const qlFreezeHudTips_t	*tips = tutorial->freezeTips;
+
+		trap_SetConfigstring( CS_FREEZE_TIP_OBJECTIVE, tips->objective );
+		trap_SetConfigstring( CS_FREEZE_TIP_THAW, tips->thaw );
+		trap_SetConfigstring( CS_FREEZE_TIP_FREEZE, tips->freeze );
+		trap_SetConfigstring( CS_FREEZE_TIP_SHOOT, tips->shoot );
+		trap_SetConfigstring( CS_FREEZE_TIP_SUMMARY, tips->summary );
+	}
 }

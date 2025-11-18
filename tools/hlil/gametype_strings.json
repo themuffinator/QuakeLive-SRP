@@ -1,0 +1,36 @@
+{
+  "hud_hints": [
+    {"gametype": "GT_FFA", "hint": "This is a Free For All game"},
+    {"gametype": "GT_TOURNAMENT", "hint": "This is a Duel game"},
+    {"gametype": "GT_SINGLE_PLAYER", "hint": "This is a Race game"},
+    {"gametype": "GT_TEAM", "hint": "This is a Team Deathmatch game"},
+    {"gametype": "GT_CLAN_ARENA", "hint": "This is a Clan Arena game"},
+    {"gametype": "GT_CTF", "hint": "This is a Capture the Flag game"},
+    {"gametype": "GT_1FCTF", "hint": "This is a One Flag CTF game"},
+    {"gametype": "GT_OBELISK", "hint": "This is an Overload game"},
+    {"gametype": "GT_HARVESTER", "hint": "This is a Harvester game"},
+    {"gametype": "GT_FREEZE", "hint": "This is a Freeze Tag game"},
+    {"gametype": "GT_DOMINATION", "hint": "This is a Domination game"},
+    {"gametype": "GT_ATTACK_DEFEND", "hint": "This is an Attack & Defend game"},
+    {"gametype": "GT_RED_ROVER", "hint": "This is a Red Rover game"}
+  ],
+  "tutorials": [
+    {
+      "gametype": "GT_DOMINATION",
+      "name": "Domination",
+      "text": "Capture domination points to earn points for your team."
+    },
+    {
+      "gametype": "GT_FREEZE",
+      "name": "Freeze Tag",
+      "text": "Freeze all enemy team members to score a team point.",
+      "freeze_tips": {
+        "objective": "Freeze all enemy team members to score a team point.",
+        "thaw": "Stand by frozen teammates for 3 seconds to thaw them.",
+        "freeze": "Fragging another player freezes them.",
+        "shoot": "Shoot everyone on the other team!",
+        "summary": "This is a Freeze Tag game"
+      }
+    }
+  ]
+}
