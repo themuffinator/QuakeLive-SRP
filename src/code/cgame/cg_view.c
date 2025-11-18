@@ -477,6 +477,7 @@ static int CG_CalcFov( void ) {
 	float	fov_x, fov_y;
 	float	baseFov;
 	float	zoomFov;
+	float	zoomSensitivityValue;
 	float	f;
 	int		inwater;
 
@@ -539,15 +540,12 @@ static int CG_CalcFov( void ) {
 
 	// warp if underwater
 	contents = CG_PointContents( cg.refdef.vieworg, -1 );
-	if ( contents & ( CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ){
+	inwater = ( contents & ( CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ) ? qtrue : qfalse;
+	if ( inwater && cg_waterWarp.integer ) {
 		phase = cg.time / 1000.0 * WAVE_FREQUENCY * M_PI * 2;
 		v = WAVE_AMPLITUDE * sin( phase );
 		fov_x += v;
 		fov_y -= v;
-		inwater = qtrue;
-	}
-	else {
-		inwater = qfalse;
 	}
 
 
@@ -556,9 +554,15 @@ static int CG_CalcFov( void ) {
 	cg.refdef.fov_y = fov_y;
 
 	if ( !cg.zoomed ) {
-		cg.zoomSensitivity = 1;
+		cg.zoomSensitivity = 1.0f;
 	} else {
-		cg.zoomSensitivity = cg.refdef.fov_y / 75.0;
+		zoomSensitivityValue = cg_zoomSensitivity.value;
+		if ( zoomSensitivityValue < 0.01f ) {
+			zoomSensitivityValue = 0.01f;
+		} else if ( zoomSensitivityValue > 1.0f ) {
+			zoomSensitivityValue = 1.0f;
+		}
+		cg.zoomSensitivity = zoomSensitivityValue;
 	}
 
 	return inwater;
