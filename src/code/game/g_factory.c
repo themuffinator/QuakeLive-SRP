@@ -869,9 +869,13 @@ qboolean Factory_Apply( const factoryDefinition_t *factory, qboolean forceReappl
 	char                      gametypeBuffer[8];
 
 	if ( !factory ) {
+		Factory_LogSelection( NULL );
 		s_activeFactory = NULL;
 		trap_Cvar_Set( "g_factoryTitle", "" );
 		trap_Cvar_Update( &g_factoryTitle );
+		G_RefreshAllCvars();
+		G_Config_UpdateCvars();
+		Factory_RefreshMatchConfig();
 		return qtrue;
 	}
 
@@ -892,6 +896,7 @@ qboolean Factory_Apply( const factoryDefinition_t *factory, qboolean forceReappl
 	Com_sprintf( gametypeBuffer, sizeof( gametypeBuffer ), "%i", factory->baseGametype );
 	trap_Cvar_Set( "g_gametype", gametypeBuffer );
 	trap_Cvar_Set( "g_factoryTitle", factory->title ? factory->title : "" );
+	trap_Cvar_Update( &g_factoryTitle );
 
 	G_RefreshAllCvars();
 	G_Config_UpdateCvars();
