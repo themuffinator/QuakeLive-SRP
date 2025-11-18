@@ -26,6 +26,731 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 extern displayContextDef_t cgDC;
 
+#define CG_RACE_CHECKPOINT_HALF_WIDTH 24.0f
+#define CG_RACE_CHECKPOINT_HEIGHT 48.0f
+
+/*
+=============
+CG_RaceFormatMilliseconds
+
+Formats a millisecond duration into a mm:ss.mmm string.
+=============
+*/
+static void CG_RaceFormatMilliseconds( int milliseconds, char *buffer, size_t bufferSize ) {
+	int	minutes;
+	int	seconds;
+	int	ms;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	if ( milliseconds < 0 ) {
+		Q_strncpyz( buffer, "0:00.000", bufferSize );
+		return;
+	}
+
+	minutes = milliseconds / 60000;
+	seconds = ( milliseconds % 60000 ) / 1000;
+	ms = milliseconds % 1000;
+	Com_sprintf( buffer, bufferSize, "%i:%02i.%03i", minutes, seconds, ms );
+}
+
+/*
+=============
+CG_RaceResetState
+
+Clears cached race HUD state so configstrings can repopulate it.
+=============
+*/
+void CG_RaceResetState( void ) {
+	int i;
+
+	memset( cgs.raceProgress, 0, sizeof( cgs.raceProgress ) );
+	memset( cgs.raceStatus, 0, sizeof( cgs.raceStatus ) );
+	cgs.raceStatusSequence = 0;
+	cgs.raceLeaderClientNum = -1;
+	for ( i = 0; i < MAX_CLIENTS; ++i ) {
+		cgs.raceProgress[i].currentCheckpoint = -1;
+	}
+}
+
+/*
+=============
+CG_ParseRaceInfoString
+
+Parses the race_info configstring and caches the split metadata.
+=============
+*/
+void CG_ParseRaceInfoString( const char *infoString ) {
+	char buffer[MAX_STRING_CHARS];
+	char *text;
+	const char *token;
+	int i;
+	int count;
+
+	cgs.raceLeaderSplitCount = 0;
+	if ( !infoString || !*infoString ) {
+		return;
+	}
+
+	Q_strncpyz( buffer, infoString, sizeof( buffer ) );
+	text = buffer;
+	token = COM_ParseExt( &text, qfalse );
+	if ( Q_stricmp( token, "race_info" ) ) {
+		return;
+	}
+
+	token = COM_ParseExt( &text, qfalse );
+	count = token ? atoi( token ) : 0;
+	if ( count < 0 ) {
+		count = 0;
+	}
+	if ( count > MAX_RACE_POINTS ) {
+		count = MAX_RACE_POINTS;
+	}
+
+	cgs.racePointCount = count;
+	memset( cgs.raceLeaderSplits, 0, sizeof( cgs.raceLeaderSplits ) );
+	for ( i = 0; i < count; ++i ) {
+		token = COM_ParseExt( &text, qfalse );
+		if ( !token || !*token ) {
+			break;
+		}
+		cgs.raceLeaderSplits[i] = atoi( token );
+		cgs.raceLeaderSplitCount++;
+	}
+	for ( i = 0; i < MAX_CLIENTS; ++i ) {
+		cgs.raceProgress[i].currentCheckpoint = -1;
+		cgs.raceProgress[i].runActive = qfalse;
+		cgs.raceProgress[i].initialized = qfalse;
+	}
+}
+
+/*
+=============
+CG_ParseRaceStatusString
+
+Parses the scores_race configstring and caches per-client timing data.
+=============
+*/
+void CG_ParseRaceStatusString( const char *statusString ) {
+	char buffer[MAX_STRING_CHARS];
+	char *text;
+	const char *token;
+	int count;
+	int sequence;
+	int i;
+
+	if ( !statusString || !*statusString ) {
+		memset( cgs.raceStatus, 0, sizeof( cgs.raceStatus ) );
+		cgs.raceStatusSequence = 0;
+		cgs.raceLeaderClientNum = -1;
+		return;
+	}
+
+	Q_strncpyz( buffer, statusString, sizeof( buffer ) );
+	text = buffer;
+	token = COM_ParseExt( &text, qfalse );
+	if ( Q_stricmp( token, "scores_race" ) ) {
+		return;
+	}
+
+	token = COM_ParseExt( &text, qfalse );
+	count = token ? atoi( token ) : 0;
+	if ( count < 0 ) {
+		count = 0;
+	}
+	if ( count > MAX_CLIENTS ) {
+		count = MAX_CLIENTS;
+	}
+
+	sequence = ++cgs.raceStatusSequence;
+	cgs.raceLeaderClientNum = -1;
+	for ( i = 0; i < count; ++i ) {
+		int values[4];
+		int j;
+
+		for ( j = 0; j < 4; ++j ) {
+			token = COM_ParseExt( &text, qfalse );
+			if ( !token || !*token ) {
+				break;
+			}
+			values[j] = atoi( token );
+		}
+		if ( j < 4 ) {
+			break;
+		}
+
+		if ( values[0] < 0 || values[0] >= MAX_CLIENTS ) {
+			continue;
+		}
+
+		cgRaceClientStatus_t *status = &cgs.raceStatus[values[0]];
+		int previousLast = status->lastTime;
+
+		if ( !status->initialized ) {
+			status->lapCount = 0;
+		}
+
+		status->initialized = qtrue;
+		status->bestTime = values[1];
+		status->lastTime = values[2];
+		status->currentElapsed = values[3];
+		status->lastUpdateSequence = sequence;
+
+		if ( status->lastTime >= 0 && status->lastTime != previousLast ) {
+			if ( status->lapCount < RACE_INVALID_TIME ) {
+				status->lapCount++;
+			}
+		} else if ( status->lastTime < 0 && status->bestTime < 0 ) {
+			status->lapCount = 0;
+		}
+
+		if ( status->bestTime >= 0 ) {
+			if ( cgs.raceLeaderClientNum < 0 ||
+				status->bestTime < cgs.raceStatus[cgs.raceLeaderClientNum].bestTime ) {
+				cgs.raceLeaderClientNum = values[0];
+			}
+		}
+	}
+
+	for ( i = 0; i < MAX_CLIENTS; ++i ) {
+		cgRaceClientStatus_t *status = &cgs.raceStatus[i];
+		if ( status->initialized && status->lastUpdateSequence != sequence ) {
+			memset( status, 0, sizeof( *status ) );
+		}
+	}
+}
+
+/*
+=============
+CG_RacePointContainsIndex
+
+Tests if the provided origin lies within the checkpoint bounds.
+=============
+*/
+static qboolean CG_RacePointContainsIndex( int index, const vec3_t origin ) {
+	const cgRacePointInfo_t *point;
+	float minX;
+	float maxX;
+	float minY;
+	float maxY;
+	float minZ;
+	float maxZ;
+
+	if ( index < 0 || index >= cgs.racePointCount ) {
+		return qfalse;
+	}
+
+	point = &cgs.racePoints[index];
+	if ( !point->active ) {
+		return qfalse;
+	}
+
+	minX = point->origin[0] - CG_RACE_CHECKPOINT_HALF_WIDTH;
+	maxX = point->origin[0] + CG_RACE_CHECKPOINT_HALF_WIDTH;
+	minY = point->origin[1] - CG_RACE_CHECKPOINT_HALF_WIDTH;
+	maxY = point->origin[1] + CG_RACE_CHECKPOINT_HALF_WIDTH;
+	minZ = point->origin[2];
+	maxZ = point->origin[2] + CG_RACE_CHECKPOINT_HEIGHT;
+
+	if ( origin[0] < minX || origin[0] > maxX ) {
+		return qfalse;
+	}
+	if ( origin[1] < minY || origin[1] > maxY ) {
+		return qfalse;
+	}
+	if ( origin[2] < minZ || origin[2] > maxZ ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_RaceProgressForClient
+
+Returns the cached checkpoint progress entry for a client.
+=============
+*/
+static cgRaceClientProgress_t *CG_RaceProgressForClient( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return NULL;
+	}
+	return &cgs.raceProgress[clientNum];
+}
+
+/*
+=============
+CG_RaceStatusForClient
+
+Returns the cached race status entry for a client if available.
+=============
+*/
+static const cgRaceClientStatus_t *CG_RaceStatusForClient( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return NULL;
+	}
+	if ( !cgs.raceStatus[clientNum].initialized ) {
+		return NULL;
+	}
+	return &cgs.raceStatus[clientNum];
+}
+
+/*
+=============
+CG_RaceUpdateClientProgress
+
+Updates the predicted checkpoint state for a specific client.
+=============
+*/
+static void CG_RaceUpdateClientProgress( int clientNum, const vec3_t origin, const cgRaceClientStatus_t *status ) {
+	cgRaceClientProgress_t *progress;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	progress = &cgs.raceProgress[clientNum];
+	if ( !progress->initialized ) {
+		progress->currentCheckpoint = -1;
+		progress->initialized = qtrue;
+	}
+
+	if ( cgs.racePointCount <= 0 ) {
+		progress->runActive = qfalse;
+		progress->currentCheckpoint = -1;
+		return;
+	}
+
+	if ( !status || status->currentElapsed < 0 ) {
+		progress->runActive = qfalse;
+		if ( status && status->lastTime >= 0 ) {
+			progress->currentCheckpoint = cgs.racePointCount - 1;
+		} else {
+			progress->currentCheckpoint = -1;
+		}
+		return;
+	}
+
+	if ( !progress->runActive ) {
+		if ( CG_RacePointContainsIndex( 0, origin ) ) {
+			progress->runActive = qtrue;
+			progress->currentCheckpoint = 0;
+			progress->lastTouchTime = cg.time;
+		}
+		return;
+	}
+
+	if ( progress->currentCheckpoint < 0 ) {
+		progress->currentCheckpoint = 0;
+	}
+
+	if ( progress->currentCheckpoint >= cgs.racePointCount - 1 ) {
+		progress->runActive = qfalse;
+		return;
+	}
+
+	if ( CG_RacePointContainsIndex( progress->currentCheckpoint + 1, origin ) ) {
+		progress->currentCheckpoint++;
+		progress->lastTouchTime = cg.time;
+		if ( progress->currentCheckpoint >= cgs.racePointCount - 1 ) {
+			progress->runActive = qfalse;
+		}
+	}
+}
+
+/*
+=============
+CG_RaceResolveClientNum
+
+Determines which client the race owner draws should track.
+=============
+*/
+static int CG_RaceResolveClientNum( void ) {
+	if ( !cg.snap ) {
+		return -1;
+	}
+	if ( cgs.gametype != GT_RACE ) {
+		return -1;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return -1;
+	}
+	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.spectatorFollowClient >= 0 ) {
+		return cg.spectatorFollowClient;
+	}
+	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return -1;
+	}
+	return cg.clientNum;
+}
+
+/*
+=============
+CG_RaceGetClientOrigin
+
+Copies the best available origin for a client into the output vector.
+=============
+*/
+static qboolean CG_RaceGetClientOrigin( int clientNum, vec3_t origin ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( clientNum == cg.clientNum && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		VectorCopy( cg.predictedPlayerState.origin, origin );
+		return qtrue;
+	}
+	VectorCopy( cg_entities[clientNum].lerpOrigin, origin );
+	return qtrue;
+}
+
+/*
+=============
+CG_RacePrepareHudState
+
+Resolves the client and predicted checkpoint state for race HUD rendering.
+=============
+*/
+static qboolean CG_RacePrepareHudState( const cgRaceClientStatus_t **statusOut, cgRaceClientProgress_t **progressOut ) {
+	const cgRaceClientStatus_t *status;
+	cgRaceClientProgress_t *progress;
+	vec3_t origin;
+	int clientNum;
+
+	if ( !cg.snap || cgs.gametype != GT_RACE ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qfalse;
+	}
+
+	CG_UpdateSpectatorTargets();
+	clientNum = CG_RaceResolveClientNum();
+	if ( clientNum < 0 ) {
+		return qfalse;
+	}
+
+	status = CG_RaceStatusForClient( clientNum );
+	progress = CG_RaceProgressForClient( clientNum );
+	if ( progress && CG_RaceGetClientOrigin( clientNum, origin ) ) {
+		CG_RaceUpdateClientProgress( clientNum, origin, status );
+	}
+
+	if ( statusOut ) {
+		*statusOut = status;
+	}
+	if ( progressOut ) {
+		*progressOut = progress;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_RaceCurrentLapNumber
+
+Returns the lap number the HUD should display for a client.
+=============
+*/
+static int CG_RaceCurrentLapNumber( const cgRaceClientStatus_t *status ) {
+	int lap = 1;
+
+	if ( status && status->initialized ) {
+		lap = status->lapCount + 1;
+		if ( lap <= 0 ) {
+			lap = 1;
+		}
+	}
+
+	return lap;
+}
+
+/*
+=============
+CG_RaceLeaderBestTime
+
+Fetches the best recorded leader time if available.
+=============
+*/
+static int CG_RaceLeaderBestTime( void ) {
+	int splits = cgs.raceLeaderSplitCount;
+
+	if ( splits > 0 ) {
+		return cgs.raceLeaderSplits[splits - 1];
+	}
+	if ( cgs.raceLeaderClientNum >= 0 && cgs.raceLeaderClientNum < MAX_CLIENTS ) {
+		const cgRaceClientStatus_t *status = &cgs.raceStatus[cgs.raceLeaderClientNum];
+		if ( status->initialized && status->bestTime >= 0 ) {
+			return status->bestTime;
+		}
+	}
+	return -1;
+}
+
+/*
+=============
+CG_RaceFormatDelta
+
+Formats a millisecond delta into a signed seconds string.
+=============
+*/
+static void CG_RaceFormatDelta( int delta, char *buffer, size_t bufferSize ) {
+	float seconds;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+	seconds = (float)delta / 1000.0f;
+	Com_sprintf( buffer, bufferSize, "%+.3f", seconds );
+}
+
+/*
+=============
+CG_RaceCheckpointDelta
+
+Computes the delta between the current split and the leader split.
+=============
+*/
+static qboolean CG_RaceCheckpointDelta( const cgRaceClientStatus_t *status, const cgRaceClientProgress_t *progress, int *deltaOut ) {
+	int index;
+
+	if ( !status || !progress || !deltaOut ) {
+		return qfalse;
+	}
+	if ( !progress->runActive || status->currentElapsed < 0 ) {
+		return qfalse;
+	}
+	index = progress->currentCheckpoint;
+	if ( index <= 0 || index >= cgs.raceLeaderSplitCount ) {
+		return qfalse;
+	}
+	*deltaOut = status->currentElapsed - cgs.raceLeaderSplits[index];
+	return qtrue;
+}
+
+/*
+=============
+CG_RaceBuildStatusString
+
+Builds the race status ownerdraw text for the active client.
+=============
+*/
+static qboolean CG_RaceBuildStatusString( char *buffer, size_t bufferSize ) {
+	const cgRaceClientStatus_t *status;
+	cgRaceClientProgress_t *progress;
+	int lap;
+	int cleared;
+	int total;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+	buffer[0] = '\0';
+
+	if ( !CG_RacePrepareHudState( &status, &progress ) ) {
+		return qfalse;
+	}
+
+	if ( cg.warmup ) {
+		Q_strncpyz( buffer, "Warmup", bufferSize );
+		return qtrue;
+	}
+
+	lap = CG_RaceCurrentLapNumber( status );
+	total = ( cgs.racePointCount > 0 ) ? ( cgs.racePointCount - 1 ) : 0;
+	cleared = 0;
+	if ( progress && progress->currentCheckpoint > 0 ) {
+		cleared = progress->currentCheckpoint;
+		if ( cleared > total ) {
+			cleared = total;
+		}
+	}
+
+	if ( total <= 0 || !progress ) {
+		Com_sprintf( buffer, bufferSize, "Lap %i", lap );
+	} else if ( cg_drawCheckpointRemaining.integer && progress &&
+	( progress->runActive || cleared > 0 ) ) {
+		int remaining = total - cleared;
+		if ( remaining < 0 ) {
+			remaining = 0;
+		}
+		Com_sprintf( buffer, bufferSize, "Lap %i  %i CPs left", lap, remaining );
+	} else {
+		Com_sprintf( buffer, bufferSize, "Lap %i  CP %i/%i", lap, cleared, total );
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_RaceBuildTimesStrings
+
+Builds the race timing ownerdraw text for the active client.
+=============
+*/
+static qboolean CG_RaceBuildTimesStrings( char *primary, size_t primarySize, char *secondary, size_t secondarySize ) {
+	const cgRaceClientStatus_t *status;
+	cgRaceClientProgress_t *progress;
+
+	if ( primary && primarySize > 0 ) {
+		primary[0] = '\0';
+	}
+	if ( secondary && secondarySize > 0 ) {
+		secondary[0] = '\0';
+	}
+
+	if ( !CG_RacePrepareHudState( &status, &progress ) ) {
+		return qfalse;
+	}
+
+	if ( cg.warmup ) {
+		if ( primary && primarySize > 0 ) {
+			Q_strncpyz( primary, "Warmup", primarySize );
+		}
+		return qtrue;
+	}
+
+	if ( primary && primarySize > 0 ) {
+		if ( status && status->currentElapsed >= 0 ) {
+			int delta;
+			char timeBuffer[32];
+			CG_RaceFormatMilliseconds( status->currentElapsed, timeBuffer, sizeof( timeBuffer ) );
+			Com_sprintf( primary, primarySize, "Cur %s", timeBuffer );
+			if ( CG_RaceCheckpointDelta( status, progress, &delta ) ) {
+				char deltaText[32];
+				char extra[32];
+				CG_RaceFormatDelta( delta, deltaText, sizeof( deltaText ) );
+				Com_sprintf( extra, sizeof( extra ), "  d%s", deltaText );
+				Q_strcat( primary, primarySize, extra );
+			}
+		} else if ( status && status->lastTime >= 0 ) {
+			char timeBuffer[32];
+			CG_RaceFormatMilliseconds( status->lastTime, timeBuffer, sizeof( timeBuffer ) );
+			Com_sprintf( primary, primarySize, "Last %s", timeBuffer );
+		} else {
+			Q_strncpyz( primary, "Ready", primarySize );
+		}
+	}
+
+	if ( secondary && secondarySize > 0 ) {
+		int leaderBest = CG_RaceLeaderBestTime();
+		if ( status && status->bestTime >= 0 ) {
+			char timeBuffer[32];
+			CG_RaceFormatMilliseconds( status->bestTime, timeBuffer, sizeof( timeBuffer ) );
+			if ( leaderBest >= 0 ) {
+				int delta = status->bestTime - leaderBest;
+				char deltaText[32];
+				CG_RaceFormatDelta( delta, deltaText, sizeof( deltaText ) );
+				Com_sprintf( secondary, secondarySize, "Best %s (%s)", timeBuffer, deltaText );
+			} else {
+				Com_sprintf( secondary, secondarySize, "Best %s", timeBuffer );
+			}
+		} else if ( leaderBest >= 0 ) {
+			char timeBuffer[32];
+			CG_RaceFormatMilliseconds( leaderBest, timeBuffer, sizeof( timeBuffer ) );
+			Com_sprintf( secondary, secondarySize, "Leader %s", timeBuffer );
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_GetRaceStatusText
+
+Returns the race status ownerdraw text for UI layout calculations.
+=============
+*/
+const char *CG_GetRaceStatusText( void ) {
+	static char buffer[64];
+
+	if ( CG_RaceBuildStatusString( buffer, sizeof( buffer ) ) ) {
+		return buffer;
+	}
+	buffer[0] = '\0';
+	return buffer;
+}
+
+/*
+=============
+CG_GetRaceTimesPrimaryText
+
+Returns the primary race timing line for UI layout calculations.
+=============
+*/
+const char *CG_GetRaceTimesPrimaryText( void ) {
+	static char buffer[64];
+
+	if ( CG_RaceBuildTimesStrings( buffer, sizeof( buffer ), NULL, 0 ) ) {
+		return buffer;
+	}
+	buffer[0] = '\0';
+	return buffer;
+}
+
+/*
+=============
+CG_GetRaceTimesSecondaryText
+
+Returns the secondary race timing line for UI layout calculations.
+=============
+*/
+const char *CG_GetRaceTimesSecondaryText( void ) {
+	static char buffer[64];
+
+	if ( CG_RaceBuildTimesStrings( NULL, 0, buffer, sizeof( buffer ) ) ) {
+		return buffer;
+	}
+	buffer[0] = '\0';
+	return buffer;
+}
+
+/*
+=============
+CG_DrawRaceStatus
+
+Renders the race status ownerdraw (lap and checkpoint info).
+=============
+*/
+static void CG_DrawRaceStatus( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	const char *text = CG_GetRaceStatusText();
+
+	if ( !text[0] ) {
+		return;
+	}
+
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, text, 0, 0, textStyle );
+}
+
+/*
+=============
+CG_DrawRaceTimes
+
+Renders the race timing ownerdraw (current/last and best comparisons).
+=============
+*/
+static void CG_DrawRaceTimes( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	char primary[64];
+	char secondary[64];
+	float lineHeight;
+
+	if ( !CG_RaceBuildTimesStrings( primary, sizeof( primary ), secondary, sizeof( secondary ) ) ) {
+		return;
+	}
+
+	lineHeight = ( rect->h > 0.0f ) ? rect->h : ( scale * 12.0f );
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, primary, 0, 0, textStyle );
+	if ( secondary[0] ) {
+		CG_Text_Paint( rect->x, rect->y + rect->h + lineHeight, scale, color, secondary, 0, 0, textStyle );
+	}
+}
+
 
 // set in CG_ParseTeamInfo
 
@@ -2599,6 +3324,23 @@ break;
   case CG_TEAM_COLORIZED:
     CG_DrawTeamColorized(&rect, shader);
                 break;
+	case CG_FOLLOW_PLAYER_NAME_EX:
+	CG_DrawFollowPlayerNameEx(&rect, scale, color, textStyle);
+	break;
+	case CG_MATCH_WINNER:
+	CG_DrawGameStatus(&rect, scale, color, shader, textStyle);
+	break;
+	case CG_RACE_STATUS:
+	CG_DrawRaceStatus(&rect, scale, color, textStyle);
+	break;
+	case CG_RACE_TIMES:
+	CG_DrawRaceTimes(&rect, scale, color, textStyle);
+	break;
+	case CG_FLAG_STATUS:
+	case CG_RED_BASESTATUS:
+	case CG_BLUE_BASESTATUS:
+	case CG_PLAYER_HASKEY:
+	break;
   case CG_SPEEDOMETER:
 CG_DrawSpeedometer(&rect, scale, color, textStyle);
 break;

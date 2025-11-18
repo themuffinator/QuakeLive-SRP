@@ -1796,23 +1796,31 @@ void CG_Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const 
 }
 
 static int CG_OwnerDrawWidth(int ownerDraw, float scale) {
-	switch (ownerDraw) {
-	  case CG_GAME_TYPE:
-			return CG_Text_Width(CG_GameTypeString(), scale, 0);
-	  case CG_GAME_STATUS:
-			return CG_Text_Width(CG_GetGameStatusText(), scale, 0);
-			break;
-	  case CG_KILLER:
-			return CG_Text_Width(CG_GetKillerText(), scale, 0);
-			break;
-	  case CG_RED_NAME:
-			return CG_Text_Width(cg_redTeamName.string, scale, 0);
-			break;
-	  case CG_BLUE_NAME:
-			return CG_Text_Width(cg_blueTeamName.string, scale, 0);
-			break;
-
-
+	switch ( ownerDraw ) {
+	case CG_GAME_TYPE:
+		return CG_Text_Width(CG_GameTypeString(), scale, 0);
+	case CG_GAME_STATUS:
+		return CG_Text_Width(CG_GetGameStatusText(), scale, 0);
+		break;
+	case CG_KILLER:
+		return CG_Text_Width(CG_GetKillerText(), scale, 0);
+		break;
+	case CG_RACE_STATUS:
+		return CG_Text_Width( CG_GetRaceStatusText(), scale, 0 );
+	case CG_RACE_TIMES: {
+		int width = CG_Text_Width( CG_GetRaceTimesPrimaryText(), scale, 0 );
+		int secondaryWidth = CG_Text_Width( CG_GetRaceTimesSecondaryText(), scale, 0 );
+		if ( secondaryWidth > width ) {
+			width = secondaryWidth;
+		}
+		return width;
+	}
+	case CG_RED_NAME:
+		return CG_Text_Width(cg_redTeamName.string, scale, 0);
+		break;
+	case CG_BLUE_NAME:
+		return CG_Text_Width(cg_blueTeamName.string, scale, 0);
+		break;
 	}
 	return 0;
 }
