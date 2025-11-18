@@ -33,6 +33,8 @@ static qboolean Factory_RegisterDefinition( factoryDefinition_t *definition );
 static qboolean Factory_MapBaseGametype( const char *token, gametype_t *outType );
 static void Factory_RefreshMatchConfig( void );
 static void Factory_LogSelection( const factoryDefinition_t *factory );
+static void Factory_ResetRegistry( void );
+static void Factory_LoadAllDefinitions( void );
 
 /*
 =============
@@ -818,20 +820,41 @@ static void Factory_LogSelection( const factoryDefinition_t *factory ) {
 
 /*
 =============
+Factory_ResetRegistry
+
+Drops the cached factory list so the loader can rebuild the registry.
+=============
+*/
+static void Factory_ResetRegistry( void ) {
+	s_factoryList = NULL;
+	s_activeFactory = NULL;
+	s_factoryCount = 0;
+}
+
+/*
+=============
+Factory_LoadAllDefinitions
+
+Loads the builtin and supplemental factory definitions, logging diagnostics.
+=============
+*/
+static void Factory_LoadAllDefinitions( void ) {
+	Factory_LoadFile( "scripts/factories.txt" );
+	Factory_LoadSupplementalFiles();
+
+	G_Printf( "factories: %i definitions available\n", s_factoryCount );
+}
+
+/*
+=============
 G_FactoryRegistry_Init
 
 Initialises the factory registry for the current map.
 =============
 */
 void G_FactoryRegistry_Init( void ) {
-	s_factoryList = NULL;
-	s_activeFactory = NULL;
-	s_factoryCount = 0;
-
-	Factory_LoadFile( "scripts/factories.txt" );
-	Factory_LoadSupplementalFiles();
-
-	G_Printf( "factories: %i definitions available\n", s_factoryCount );
+	Factory_ResetRegistry();
+	Factory_LoadAllDefinitions();
 }
 
 /*
@@ -930,4 +953,32 @@ void Factory_ApplyCurrentSelection( qboolean forceReapply ) {
 	}
 
 	Factory_Apply( factory, forceReapply );
+}
+
+/*
+=============
+Factory_Reload_f
+
+Console command entry point that rebuilds the registry and reapplies the active factory.
+=============
+*/
+void Factory_Reload_f( void ) {
+	char currentFactoryId[MAX_QPATH];
+
+	currentFactoryId[0] = '\0';
+	trap_Cvar_Update( &g_factory );
+	if ( g_factory.string[0] ) {
+		Q_strncpyz( currentFactoryId, g_factory.string, sizeof( currentFactoryId ) );
+	} else if ( s_activeFactory && s_activeFactory->id ) {
+		Q_strncpyz( currentFactoryId, s_activeFactory->id, sizeof( currentFactoryId ) );
+	}
+
+	Factory_ResetRegistry();
+	Factory_LoadAllDefinitions();
+
+	if ( currentFactoryId[0] ) {
+		trap_Cvar_Set( "g_factory", currentFactoryId );
+	}
+
+	Factory_ApplyCurrentSelection( qtrue );
 }
