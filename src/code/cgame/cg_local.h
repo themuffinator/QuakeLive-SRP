@@ -1141,6 +1141,7 @@ extern	vmCvar_t		cg_drawRewards;
 extern	vmCvar_t		cg_drawRewardsRowSize;
 extern	vmCvar_t		cg_drawCheckpointRemaining;
 extern	vmCvar_t		cg_drawProfileImages;
+extern	vmCvar_t		cg_drawSprites;
 extern	vmCvar_t		cg_drawPregameMessages;
 extern	vmCvar_t		cg_drawSpecMessages;
 extern	vmCvar_t		cg_drawItemPickups;
