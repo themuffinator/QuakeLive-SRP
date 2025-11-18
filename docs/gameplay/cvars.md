@@ -16,6 +16,15 @@ Competitive duel and team modes now expose Quake Live–style match pauses. Play
 | `g_timeoutCount` | `0` | Number of timeouts each team receives per match; initialised into `level.timeoutRemaining` and published via `CS_MATCH_STATE` for client HUDs.【F:src/code/game/g_main.c†L1093-L1121】【F:src/code/game/g_main.c†L2100-L2131】 |
 | `g_timeoutLen` | `60` | Timeout duration in seconds; values ≤0 hold the pause until a manual `timein`, while positive values trigger an automatic resume with broadcast messaging.【F:src/code/game/g_cmds.c†L1657-L1670】【F:src/code/game/g_main.c†L2295-L2316】 |
 
+## Mercy Rule Controls
+
+Team games can optionally end early when one side builds an insurmountable lead. The HLIL uses `g_mercytime` to delay any mercy evaluation until a minimum number of minutes has elapsed, then checks whether the absolute score spread exceeds `mercylimit` (ignoring warmup periods, pauses, and Attack & Defend's bespoke flow). When triggered, the server prints which team hit the limit and logs a `Mercylimit hit.` exit so demos match Quake Live's console text.【F:src/code/game/g_main.c†L2088-L2144】【F:src/code/game/g_main.c†L2146-L2184】
+
+| CVar | Default | Notes |
+| --- | --- | --- |
+| `mercylimit` | `0` | Absolute score difference that ends team-based matches once the grace window expires; `0` disables the mercy rule entirely.【F:src/code/game/g_main.c†L352-L356】【F:src/code/game/g_main.c†L2088-L2144】 |
+| `g_mercytime` | `10` | Minutes to wait after match start before evaluating `mercylimit`, allowing teams time to trade rounds before an early blowout ends the map.【F:src/code/game/g_main.c†L353-L356】【F:src/code/game/g_main.c†L2088-L2144】 |
+
 ## Attack & Defend Scorelimit
 
 `g_scorelimit` mirrors Quake Live's Attack & Defend score win condition so leagues can end maps early once a team banks enough objective points. The VM registers it alongside the classic frag/capture limits, advertises help text for `cvarlist`, and polls the value every frame through the standard `G_UpdateCvars` pass.【F:src/code/game/g_main.c†L167-L182】【F:src/code/game/g_main.c†L338-L399】 `CheckExitRules` watches the Team Arena scoreboard in `GT_ATTACK_DEFEND` and triggers the usual `LogExit("Scorelimit hit.")` path with the `Red/Blue hit the scorelimit.` server prints when the configured threshold is reached.【F:src/code/game/g_main.c†L2058-L2181】 Setting the limit to `0` disables the check.
