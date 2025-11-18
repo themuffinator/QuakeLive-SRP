@@ -1225,6 +1225,8 @@ typedef struct playerState_s {
 	int			pmove_framecount;	// FIXME: don't transmit over the network
 	int			jumppad_frame;
 	int			entityEventSequence;
+
+	// pmove timers tracked by the server but also replicated for client prediction
 	int			crouchTime;
 	int			crouchSlideTime;
 } playerState_t;

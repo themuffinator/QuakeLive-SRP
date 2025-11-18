@@ -1138,6 +1138,11 @@ netField_t	playerStateFields[] =
 { PSF(groundTraceLatestNormal[0]), 0 },
 { PSF(groundTraceLatestNormal[1]), 0 },
 { PSF(groundTraceLatestNormal[2]), 0 },
+{ PSF(doubleJumpTime), 32 },
+{ PSF(doubleJumpEntNum), GENTITYNUM_BITS },
+{ PSF(doubleJumpNormal[0]), 0 },
+{ PSF(doubleJumpNormal[1]), 0 },
+{ PSF(doubleJumpNormal[2]), 0 },
 { PSF(weaponstate), 4 },
 { PSF(eFlags), 16 },
 { PSF(externalEvent), 10 },
@@ -1164,7 +1169,9 @@ netField_t	playerStateFields[] =
 { PSF(grapplePoint[1]), 0 },
 { PSF(grapplePoint[2]), 0 },
 { PSF(jumppad_ent), 10 },
-{ PSF(loopSound), 16 }
+{ PSF(loopSound), 16 },
+{ PSF(crouchTime), 32 },
+{ PSF(crouchSlideTime), 32 }
 };
 
 /*
