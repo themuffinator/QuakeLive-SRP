@@ -1342,6 +1342,205 @@ static qboolean BG_TeamFlagCanBeGrabbed( int gametype, const gitem_t *item, cons
 
 
 /*
+=============
+BG_HandleBadItemPickup
+
+Hard failure for uninitialised or placeholder items.
+=============
+*/
+static qboolean BG_HandleBadItemPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: IT_BAD" );
+	return qfalse;
+}
+
+/*
+=============
+BG_HandleWeaponPickup
+
+Weapons are always grabbable.
+=============
+*/
+static qboolean BG_HandleWeaponPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	return qtrue;
+}
+
+/*
+=============
+BG_HandleAmmoPickup
+
+Validates ammo pickups, including generic packs that top off any weapon.
+=============
+*/
+static qboolean BG_HandleAmmoPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	int weapon;
+
+	if ( dropped ) {
+		return qtrue;
+	}
+
+	if ( item->giTag == WP_NONE ) {
+		for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; weapon++ ) {
+			const int maxAmmo = BG_MaxAmmoForWeapon( weapon );
+
+			if ( maxAmmo <= 0 ) {
+				continue;
+			}
+
+			if ( ps->ammo[weapon] < maxAmmo ) {
+				return qtrue;
+			}
+		}
+
+		return qfalse;
+	}
+
+	if ( item->giTag <= WP_NONE || item->giTag >= WP_NUM_WEAPONS ) {
+		return qtrue;
+	}
+
+	return ( ps->ammo[item->giTag] < BG_MaxAmmoForWeapon( item->giTag ) );
+}
+
+/*
+=============
+BG_HandleArmorPickup
+
+Mirrors the guard/scout armor caps from the DLL reconstruction.
+=============
+*/
+static qboolean BG_HandleArmorPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	int upperBound;
+
+	if ( bg_itemlist[ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_SCOUT ) {
+		return qfalse;
+	}
+
+	if ( bg_itemlist[ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD ) {
+		upperBound = ps->stats[STAT_MAX_HEALTH];
+	}
+	else {
+		upperBound = ps->stats[STAT_MAX_HEALTH] * 2;
+	}
+
+	return ( ps->stats[STAT_ARMOR] < upperBound );
+}
+
+/*
+=============
+BG_HandleHealthPickup
+
+Quake Live health behaviour for mega, small, and guard buffs.
+=============
+*/
+static qboolean BG_HandleHealthPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	int upperBound;
+
+	if ( bg_itemlist[ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD ) {
+		upperBound = ps->stats[STAT_MAX_HEALTH];
+	}
+	else if ( item->quantity == 5 || item->quantity == 100 ) {
+		if ( ps->stats[STAT_HEALTH] >= ps->stats[STAT_MAX_HEALTH] * 2 ) {
+			return qfalse;
+		}
+
+		return qtrue;
+	}
+	else {
+		upperBound = ps->stats[STAT_MAX_HEALTH];
+	}
+
+	return ( ps->stats[STAT_HEALTH] < upperBound );
+}
+
+/*
+=============
+BG_HandlePowerupPickup
+
+Instant-use powerups are always available.
+=============
+*/
+static qboolean BG_HandlePowerupPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	return qtrue;
+}
+
+/*
+=============
+BG_HandleHoldablePickup
+
+Ensures the player can only carry one holdable at a time.
+=============
+*/
+static qboolean BG_HandleHoldablePickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	if ( ps->stats[STAT_HOLDABLE_ITEM] ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+BG_HandlePersistantPowerupPickup
+
+Applies team and slot restrictions for persistant powerups.
+=============
+*/
+static qboolean BG_HandlePersistantPowerupPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	if ( ps->stats[STAT_PERSISTANT_POWERUP] ) {
+		return qfalse;
+	}
+
+	if ( ( ent->generic1 & 2 ) && ( ps->persistant[PERS_TEAM] != TEAM_RED ) ) {
+		return qfalse;
+	}
+
+	if ( ( ent->generic1 & 4 ) && ( ps->persistant[PERS_TEAM] != TEAM_BLUE ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+BG_HandleKeyPickup
+
+Keys are always accepted.
+=============
+*/
+static qboolean BG_HandleKeyPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	return qtrue;
+}
+
+/*
+=============
+BG_HandleTeamPickup
+
+Delegates to the flag helper shared between qagame and cgame.
+=============
+*/
+static qboolean BG_HandleTeamPickup( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped ) {
+	return BG_TeamFlagCanBeGrabbed( gametype, item, ent, ps );
+}
+
+typedef qboolean (*bgItemPickupFunc_t)( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped );
+
+static const bgItemPickupFunc_t bg_itemPickupHandlers[IT_TEAM + 1] = {
+	BG_HandleBadItemPickup,		// IT_BAD
+	BG_HandleWeaponPickup,		// IT_WEAPON
+	BG_HandleAmmoPickup,		// IT_AMMO
+	BG_HandleArmorPickup,		// IT_ARMOR
+	BG_HandleHealthPickup,		// IT_HEALTH
+	BG_HandlePowerupPickup,		// IT_POWERUP
+	BG_HandleHoldablePickup,	// IT_HOLDABLE
+	BG_HandlePersistantPowerupPickup,	// IT_PERSISTANT_POWERUP
+	BG_HandleKeyPickup,		// IT_KEY
+	BG_HandleTeamPickup		// IT_TEAM
+};
+
+
+
+/*
 ================
 BG_CanItemBeGrabbed
 
@@ -1350,9 +1549,9 @@ This needs to be the same for client side prediction and server use.
 ================
 */
 qboolean BG_CanItemBeGrabbed( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps ) {
-	gitem_t	*item;
-	int		upperBound;
 	const qboolean dropped = BG_IsDroppedItem( ent );
+	const gitem_t *item;
+	bgItemPickupFunc_t handler;
 
 	if ( ent->modelindex < 1 || ent->modelindex >= bg_numItems ) {
 		Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: index out of range" );
@@ -1361,127 +1560,25 @@ qboolean BG_CanItemBeGrabbed( int gametype, int currentTime, const entityState_t
 	item = &bg_itemlist[ent->modelindex];
 
 	if ( dropped && ps->clientNum == ent->otherEntityNum && currentTime < ent->time2 + 1000 ) {
+	return qfalse;
+}
+
+	if ( item->giType < 0 || item->giType > IT_TEAM ) {
+#ifndef Q3_VM
+#ifndef NDEBUG // bk0001204
+		Com_Printf( "BG_CanItemBeGrabbed: unknown enum %d\n", item->giType );
+#endif
+#endif
 		return qfalse;
 	}
 
-	switch( item->giType ) {
-	case IT_WEAPON:
-		return qtrue;	// weapons are always picked up
+	handler = bg_itemPickupHandlers[item->giType];
 
-	case IT_AMMO:
-		if ( dropped ) {
-			return qtrue;
-		}
-
-		if ( item->giTag <= WP_NONE || item->giTag >= WP_NUM_WEAPONS ) {
-			return qtrue;
-		}
-
-		if ( item->giTag == WP_NONE ) {
-			int weapon;
-
-			for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; weapon++ ) {
-				const int maxAmmo = BG_MaxAmmoForWeapon( weapon );
-
-				if ( maxAmmo <= 0 ) {
-					continue;
-				}
-
-				if ( ps->ammo[weapon] < maxAmmo ) {
-					return qtrue;
-				}
-			}
-
-			return qfalse;
-		}
-
-		if ( ps->ammo[item->giTag] >= BG_MaxAmmoForWeapon( item->giTag ) ) {
-			return qfalse;
-		}
-
-		return qtrue;
-
-	case IT_ARMOR:
-		if( bg_itemlist[ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_SCOUT ) {
-			return qfalse;
-		}
-
-		// we also clamp armor to the maxhealth for handicapping
-		if( bg_itemlist[ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD ) {
-			upperBound = ps->stats[STAT_MAX_HEALTH];
-		}
-		else {
-			upperBound = ps->stats[STAT_MAX_HEALTH] * 2;
-		}
-
-		if ( ps->stats[STAT_ARMOR] >= upperBound ) {
-			return qfalse;
-		}
-		return qtrue;
-
-	case IT_HEALTH:
-		// small and mega healths will go over the max, otherwise
-		// don't pick up if already at max
-		if( bg_itemlist[ps->stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD ) {
-			upperBound = ps->stats[STAT_MAX_HEALTH];
-		}
-		else
-		if ( item->quantity == 5 || item->quantity == 100 ) {
-			if ( ps->stats[STAT_HEALTH] >= ps->stats[STAT_MAX_HEALTH] * 2 ) {
-				return qfalse;
-			}
-			return qtrue;
-		}
-
-		if ( ps->stats[STAT_HEALTH] >= ps->stats[STAT_MAX_HEALTH] ) {
-			return qfalse;
-		}
-		return qtrue;
-
-	case IT_POWERUP:
-		return qtrue;	// powerups are always picked up
-
-	case IT_PERSISTANT_POWERUP:
-		// can only hold one item at a time
-		if ( ps->stats[STAT_PERSISTANT_POWERUP] ) {
-			return qfalse;
-		}
-
-		// check team only
-		if( ( ent->generic1 & 2 ) && ( ps->persistant[PERS_TEAM] != TEAM_RED ) ) {
-			return qfalse;
-		}
-		if( ( ent->generic1 & 4 ) && ( ps->persistant[PERS_TEAM] != TEAM_BLUE ) ) {
-			return qfalse;
-		}
-
-		return qtrue;
-
-	case IT_TEAM: // team items, such as flags
-		return BG_TeamFlagCanBeGrabbed( gametype, item, ent, ps );
-
-	case IT_HOLDABLE:
-		// can only hold one item at a time
-		if ( ps->stats[STAT_HOLDABLE_ITEM] ) {
-			return qfalse;
-		}
-		return qtrue;
-
-        case IT_KEY:
-		return qtrue;
-
-        case IT_BAD:
-            Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: IT_BAD" );
-        default:
-#ifndef Q3_VM
-#ifndef NDEBUG // bk0001204
-          Com_Printf("BG_CanItemBeGrabbed: unknown enum %d\n", item->giType );
-#endif
-#endif
-         break;
+	if ( handler == NULL ) {
+		return qfalse;
 	}
 
-	return qfalse;
+	return handler( gametype, currentTime, ent, ps, item, dropped );
 }
 
 //======================================================================
