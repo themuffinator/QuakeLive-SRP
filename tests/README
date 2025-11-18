@@ -49,3 +49,23 @@ When executing the deterministic harness bundle via ``tests/run_harnesses.py``
 the freeze scenario contributes to ``artifacts/tests/logs/<target>/match_sim.log``.
 The log lists the scenario slug, seed, and resulting frame count so any
 regression immediately stands out in CI artifacts.
+
+Item pickup parity coverage
+---------------------------
+
+``tests/test_item_pickups.py`` extends the deterministic match harness
+with ammo, armor, and flag pickup helpers. Each test replays the scripted
+snapshots twice (``qvm`` and ``dll`` targets) and compares the aggregated
+events to ``tests/expectations/match_sim_item_pickups.expect`` so VM/DLL
+parity stays enforced. The scenarios cover:
+
+* Maxed ammo grants (clamped rocket pickups that saturate once the
+  target loadout reaches the configured maximum).
+* Spawn armor handicap behaviour (simulating handicapped spawns that cap
+  armor until the handicap is cleared mid-match).
+* 1FCTF vs. CTF flag timelines (pickup, capture, drop, and return
+  workflows for neutral and team-specific flags).
+
+Execute the suite via::
+
+    pytest tests/test_item_pickups.py -vv
