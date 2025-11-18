@@ -30,6 +30,42 @@ static void CG_HandleZoomOutOnDeath( void );
 
 /*
 =============
+CG_GetTargetAspectDimensions
+
+Returns qtrue when a valid r_aspectRatio preset is active, storing the
+corresponding width/height pair.
+=============
+*/
+static qboolean CG_GetTargetAspectDimensions( float *targetWidth, float *targetHeight ) {
+	const char *ratioString;
+	int ratio;
+
+	ratioString = trap_Cvar_VariableString( "r_aspectRatio" );
+	ratio = atoi( ratioString );
+	if ( ratio <= 0 ) {
+		return qfalse;
+	}
+
+	switch ( ratio ) {
+		case 1:
+			*targetWidth = 16.0f;
+			*targetHeight = 9.0f;
+			return qtrue;
+		case 2:
+			*targetWidth = 16.0f;
+			*targetHeight = 10.0f;
+			return qtrue;
+		case 3:
+			*targetWidth = 5.0f;
+			*targetHeight = 4.0f;
+			return qtrue;
+		default:
+			return qfalse;
+	}
+}
+
+/*
+=============
 CG_CalcHorPlusFov
 
 Adjusts the provided horizontal FOV to match the requested r_aspectRatio
@@ -37,8 +73,6 @@ preset, mirroring Quake Live's Hor+ behaviour.
 =============
 */
 static float CG_CalcHorPlusFov( float baseFov ) {
-	const char *ratioString;
-	int ratio;
 	float baseWidth;
 	float baseHeight;
 	float targetWidth;
@@ -46,29 +80,8 @@ static float CG_CalcHorPlusFov( float baseFov ) {
 	float x;
 	float fovY;
 
-	ratioString = trap_Cvar_VariableString( "r_aspectRatio" );
-	ratio = atoi( ratioString );
-	if ( ratio <= 0 ) {
+	if ( !CG_GetTargetAspectDimensions( &targetWidth, &targetHeight ) ) {
 		return baseFov;
-	}
-
-	targetWidth = 4.0f;
-	targetHeight = 3.0f;
-	switch ( ratio ) {
-		case 1:
-			targetWidth = 16.0f;
-			targetHeight = 9.0f;
-			break;
-		case 2:
-			targetWidth = 16.0f;
-			targetHeight = 10.0f;
-			break;
-		case 3:
-			targetWidth = 5.0f;
-			targetHeight = 4.0f;
-			break;
-		default:
-			return baseFov;
 	}
 
 	baseWidth = 4.0f;
@@ -603,7 +616,6 @@ static int CG_CalcFov( void ) {
 	float	fov_x, fov_y;
 	float	baseFov;
 	float	zoomFov;
-	float	zoomSensitivityValue;
 	float	f;
 	int		inwater;
 
@@ -683,13 +695,23 @@ static int CG_CalcFov( void ) {
 	if ( !cg.zoomed ) {
 		cg.zoomSensitivity = 1.0f;
 	} else {
-		zoomSensitivityValue = cg_zoomSensitivity.value;
-		if ( zoomSensitivityValue < 0.01f ) {
-			zoomSensitivityValue = 0.01f;
-		} else if ( zoomSensitivityValue > 1.0f ) {
-			zoomSensitivityValue = 1.0f;
+		float baseHorizontalFov;
+		float baseVerticalFov;
+		float baseX;
+
+		baseHorizontalFov = CG_CalcHorPlusFov( baseFov );
+		baseX = cg.refdef.width / tan( baseHorizontalFov / 360.0f * M_PI );
+		baseVerticalFov = atan2( cg.refdef.height, baseX );
+		baseVerticalFov = baseVerticalFov * 360.0f / M_PI;
+		if ( baseVerticalFov <= 0.0f ) {
+			baseVerticalFov = 1.0f;
 		}
-		cg.zoomSensitivity = zoomSensitivityValue;
+
+		if ( cg_zoomSensitivity.value <= 0.0f ) {
+			cg.zoomSensitivity = cg.refdef.fov_y / 75.0f;
+		} else {
+			cg.zoomSensitivity = ( cg.refdef.fov_y / baseVerticalFov ) * cg_zoomSensitivity.value;
+		}
 	}
 
 	return inwater;
