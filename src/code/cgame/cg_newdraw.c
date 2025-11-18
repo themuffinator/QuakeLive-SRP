@@ -582,6 +582,217 @@ CG_Text_Paint(rect->x + 2, rect->y + rect->h - 2, scale, textColor, buffer, 0, 0
 }
 }
 
+/*
+=============
+CG_GetProfileFallbackShader
+
+Resolves the shader used when a client icon is unavailable.
+=============
+*/
+static qhandle_t CG_GetProfileFallbackShader(void) {
+	static qhandle_t fallback;
+
+	if (!fallback) {
+		fallback = trap_R_RegisterShaderNoMip("ui/assets/hud/armor.tga");
+		if (!fallback) {
+			fallback = cgs.media.deferShader;
+		}
+	}
+
+	return fallback;
+}
+
+/*
+=============
+CG_DrawSpectatorProfileImage
+
+Draws the tracked player's avatar or fallback profile image.
+=============
+*/
+static void CG_DrawSpectatorProfileImage(rectDef_t *rect, int slot) {
+	const clientInfo_t *ci;
+	qhandle_t shader;
+	vec4_t modulate;
+
+	if (!cg_drawProfileImages.integer) {
+		return;
+	}
+
+	ci = CG_SpectatorClientInfo(slot);
+	if (!ci) {
+		return;
+	}
+
+	shader = ci->modelIcon;
+	if (!shader) {
+		shader = CG_GetProfileFallbackShader();
+	}
+
+	if (!shader) {
+		return;
+	}
+
+	Vector4Set(modulate, 1.0f, 1.0f, 1.0f, CG_SpectatorSlotFollowed(slot) ? 1.0f : 0.6f);
+	trap_R_SetColor(modulate);
+	CG_DrawPic(rect->x, rect->y, rect->w, rect->h, shader);
+	trap_R_SetColor(NULL);
+}
+
+/*
+=============
+CG_DrawPregameCoach
+
+Draws the configstring-driven pregame tutorial text when applicable.
+=============
+*/
+static qboolean CG_DrawPregameCoach(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	const char *headline;
+	const char *body;
+	vec4_t bgColor = { 0.0f, 0.0f, 0.0f, 0.45f };
+	vec4_t bodyColor;
+	float y;
+
+	if (!cg_drawPregameMessages.integer || !cg.snap) {
+		return qfalse;
+	}
+
+	if (cg.warmup <= 0 && !cgs.matchTimeoutActive && !(cg.snap->ps.pm_flags & PMF_FOLLOW)) {
+		return qfalse;
+	}
+
+	headline = CG_ConfigString(CS_TUTORIAL_NAME);
+	body = CG_ConfigString(CS_TUTORIAL_TEXT);
+	if ((!headline || !headline[0]) && (!body || !body[0])) {
+		return qfalse;
+	}
+
+	CG_FillRect(rect->x, rect->y, rect->w, rect->h, bgColor);
+	Vector4Copy(color, bodyColor);
+	bodyColor[3] = color[3] * 0.9f;
+
+	y = rect->y + scale;
+	if (headline && headline[0]) {
+		CG_Text_Paint(rect->x, y, scale, color, headline, 0, 0, textStyle);
+		y += CG_Text_Height(headline, scale, 0) + 2.0f;
+	}
+
+	if (body && body[0]) {
+		CG_Text_Paint(rect->x, y, scale * 0.8f, bodyColor, body, 0, 0, textStyle);
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_DrawSpectatorMessages
+
+Shows spectator follow hints or pregame coach text inside the owner-draw rect.
+=============
+*/
+static void CG_DrawSpectatorMessages(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	char line1[64];
+	char line2[96];
+	vec4_t drawColor;
+	float y;
+	const clientInfo_t *ci;
+
+	if (!cg.snap) {
+		return;
+	}
+
+	if (cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR) {
+		if (CG_DrawPregameCoach(rect, scale, color, textStyle)) {
+			return;
+		}
+		if (!cg_drawSpecMessages.integer) {
+			return;
+		}
+	}
+
+	if (!cg_drawSpecMessages.integer || cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR) {
+		return;
+	}
+
+	Vector4Copy(color, drawColor);
+
+	if (cg.snap->ps.pm_flags & PMF_FOLLOW) {
+		ci = CG_SpectatorClientInfo(0);
+		if (ci) {
+			Com_sprintf(line1, sizeof(line1), "FOLLOWING %s", ci->name);
+		} else {
+			Q_strncpyz(line1, "FOLLOWING", sizeof(line1));
+		}
+		Q_strncpyz(line2, "Press FIRE to cycle, JUMP for free camera", sizeof(line2));
+	} else {
+		Q_strncpyz(line1, "FREE SPECTATE", sizeof(line1));
+		Q_strncpyz(line2, "Press FIRE to follow a player", sizeof(line2));
+	}
+
+	y = rect->y + CG_Text_Height(line1, scale, 0);
+	CG_Text_Paint(rect->x, y, scale, drawColor, line1, 0, 0, textStyle);
+	y += CG_Text_Height(line2, scale * 0.8f, 0) + 2.0f;
+	CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line2, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawNewChatArea
+
+Displays the timed chat stack that the Quake Live menus reference.
+=============
+*/
+static void CG_DrawNewChatArea(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	int chatHeight;
+	int maxLines;
+	float lineHeight;
+	float y;
+	int i;
+
+	if (cg_teamChatTime.integer <= 0) {
+		return;
+	}
+
+	chatHeight = cg_teamChatHeight.integer;
+	if (chatHeight <= 0 || chatHeight > TEAMCHAT_HEIGHT) {
+		chatHeight = TEAMCHAT_HEIGHT;
+	}
+
+	maxLines = chatHeight;
+	lineHeight = CG_Text_Height("A", scale, 0);
+	y = rect->y + rect->h - lineHeight;
+
+	for (i = 0; i < maxLines; i++) {
+		int pos = cgs.teamChatPos - 1 - i;
+		int index;
+		int elapsed;
+		vec4_t lineColor;
+
+		if (pos < 0 || pos < cgs.teamChatPos - maxLines) {
+			break;
+		}
+
+		index = pos % chatHeight;
+		if (index < 0) {
+			index += chatHeight;
+		}
+
+		elapsed = cg.time - cgs.teamChatMsgTimes[index];
+		if (elapsed >= cg_teamChatTime.integer || !cgs.teamChatMsgs[index][0]) {
+			continue;
+		}
+
+		Vector4Copy(color, lineColor);
+		lineColor[3] *= 1.0f - (float)elapsed / (float)cg_teamChatTime.integer;
+		CG_Text_Paint(rect->x, y, scale, lineColor, cgs.teamChatMsgs[index], 0, 0, textStyle);
+
+		y -= lineHeight;
+		if (y < rect->y) {
+			break;
+		}
+	}
+}
+
 static void CG_DrawHealthColorized(rectDef_t *rect) {
 const clientInfo_t *ci;
 vec4_t color;
@@ -1470,87 +1681,100 @@ static void CG_DrawTeamColor(rectDef_t *rect, vec4_t color) {
 	CG_DrawTeamBackground(rect->x, rect->y, rect->w, rect->h, color[3], cg.snap->ps.persistant[PERS_TEAM]);
 }
 
-static void CG_DrawAreaPowerUp(rectDef_t *rect, int align, float special, float scale, vec4_t color) {
+/*
+=============
+CG_DrawPowerupSpriteStack
+
+Renders a stacked list of active powerups, mirroring the retail sprite stack.
+=============
+*/
+static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special, float scale, vec4_t color, const playerState_t *ps) {
 	char num[16];
-	int		sorted[MAX_POWERUPS];
-	int		sortedTime[MAX_POWERUPS];
-	int		i, j, k;
-	int		active;
-	playerState_t	*ps;
-	int		t;
+	int			sorted[MAX_POWERUPS];
+	int			sortedTime[MAX_POWERUPS];
+	int			i, j, k;
+	int			active;
+	int			t;
 	gitem_t	*item;
-	float	f;
+	float		f;
 	rectDef_t r2;
 	float *inc;
+
+	if (!ps || ps->stats[STAT_HEALTH] <= 0) {
+		return;
+	}
+
 	r2.x = rect->x;
 	r2.y = rect->y;
 	r2.w = rect->w;
 	r2.h = rect->h;
-
 	inc = (align == HUD_VERTICAL) ? &r2.y : &r2.x;
 
-	ps = &cg.snap->ps;
-
-	if ( ps->stats[STAT_HEALTH] <= 0 ) {
-		return;
-	}
-
-	// sort the list by time remaining
 	active = 0;
-	for ( i = 0 ; i < MAX_POWERUPS ; i++ ) {
-		if ( !ps->powerups[ i ] ) {
-			continue;
-		}
-		t = ps->powerups[ i ] - cg.time;
-		// ZOID--don't draw if the power up has unlimited time (999 seconds)
-		// This is true of the CTF flags
-		if ( t <= 0 || t >= 999000) {
+	for (i = 0; i < MAX_POWERUPS; i++) {
+		if (!ps->powerups[i]) {
 			continue;
 		}
 
-		// insert into the list
-		for ( j = 0 ; j < active ; j++ ) {
-			if ( sortedTime[j] >= t ) {
-				for ( k = active - 1 ; k >= j ; k-- ) {
-					sorted[k+1] = sorted[k];
-					sortedTime[k+1] = sortedTime[k];
+		t = ps->powerups[i] - cg.time;
+		if (t <= 0 || t >= 999000) {
+			continue;
+		}
+
+		for (j = 0; j < active; j++) {
+			if (sortedTime[j] >= t) {
+				for (k = active - 1; k >= j; k--) {
+					sorted[k + 1] = sorted[k];
+					sortedTime[k + 1] = sortedTime[k];
 				}
 				break;
 			}
 		}
+
 		sorted[j] = i;
 		sortedTime[j] = t;
 		active++;
 	}
 
-	// draw the icons and timers
-	for ( i = 0 ; i < active ; i++ ) {
-		item = BG_FindItemForPowerup( sorted[i] );
-
-		if (item) {
-			t = ps->powerups[ sorted[i] ];
-			if ( t - cg.time >= POWERUP_BLINKS * POWERUP_BLINK_TIME ) {
-				trap_R_SetColor( NULL );
-			} else {
-				vec4_t	modulate;
-
-				f = (float)( t - cg.time ) / POWERUP_BLINK_TIME;
-				f -= (int)f;
-				modulate[0] = modulate[1] = modulate[2] = modulate[3] = f;
-				trap_R_SetColor( modulate );
-			}
-
-			CG_DrawPic( r2.x, r2.y, r2.w * .75, r2.h, trap_R_RegisterShader( item->icon ) );
-
-			Com_sprintf (num, sizeof(num), "%i", sortedTime[i] / 1000);
-			CG_Text_Paint(r2.x + (r2.w * .75) + 3 , r2.y + r2.h, scale, color, num, 0, 0, 0);
-			*inc += r2.w + special;
+	for (i = 0; i < active; i++) {
+		item = BG_FindItemForPowerup(sorted[i]);
+		if (!item) {
+			continue;
 		}
 
-	}
-	trap_R_SetColor( NULL );
+		t = ps->powerups[sorted[i]];
+		if (t - cg.time >= POWERUP_BLINKS * POWERUP_BLINK_TIME) {
+			trap_R_SetColor(NULL);
+		} else {
+			vec4_t modulate;
 
+			f = (float)(t - cg.time) / POWERUP_BLINK_TIME;
+			f -= (int)f;
+			modulate[0] = modulate[1] = modulate[2] = modulate[3] = f;
+			trap_R_SetColor(modulate);
+		}
+
+		CG_DrawPic(r2.x, r2.y, r2.w * 0.75f, r2.h, trap_R_RegisterShader(item->icon));
+		Com_sprintf(num, sizeof(num), "%i", sortedTime[i] / 1000);
+		CG_Text_Paint(r2.x + (r2.w * 0.75f) + 3, r2.y + r2.h, scale, color, num, 0, 0, 0);
+		*inc += r2.w + special;
+	}
+
+	trap_R_SetColor(NULL);
 }
+
+static void CG_DrawAreaPowerUp(rectDef_t *rect, int align, float special, float scale, vec4_t color) {
+	if (!cg_drawSprites.integer) {
+		return;
+	}
+
+	if (!CG_ShouldDrawSpriteSelf() && cg.snap && !(cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.clientNum == cg.clientNum) {
+		return;
+	}
+
+	CG_DrawPowerupSpriteStack(rect, align, special, scale, color, &cg.snap->ps);
+}
+
 
 float CG_GetValue(int ownerDraw) {
 	centity_t	*cent;
@@ -2282,6 +2506,9 @@ break;
   case CG_AREA_CHAT:
     CG_DrawAreaChat(&rect, scale, color, shader);
     break;
+  case CG_AREA_NEW_CHAT:
+		CG_DrawNewChatArea(&rect, scale, color, textStyle);
+		break;
   case CG_GAME_TYPE:
     CG_DrawGameType(&rect, scale, color, shader, textStyle);
     break;
@@ -2303,6 +2530,9 @@ break;
 		break;
   case CG_SPECTATORS:
 		CG_DrawTeamSpectators(&rect, scale, color, shader);
+		break;
+  case CG_SPEC_MESSAGES:
+		CG_DrawSpectatorMessages(&rect, scale, color, textStyle);
 		break;
   case CG_TEAMINFO:
 		if (cg_currentSelectedPlayer.integer == numSortedTeamPlayers) {
@@ -2345,6 +2575,9 @@ break;
   case CG_1ST_PLYR_HEALTH_ARMOR:
     CG_DrawSpectatorHealthArmor(&rect, scale, color, textStyle, 0);
                 break;
+  case CG_1ST_PLYR_AVATAR:
+		CG_DrawSpectatorProfileImage(&rect, 0);
+			break;
   case CG_2ND_PLYR:
     CG_DrawSpectatorPlayerName(&rect, scale, color, textStyle, 1);
                 break;
@@ -2354,6 +2587,9 @@ break;
   case CG_2ND_PLYR_HEALTH_ARMOR:
     CG_DrawSpectatorHealthArmor(&rect, scale, color, textStyle, 1);
                 break;
+  case CG_2ND_PLYR_AVATAR:
+		CG_DrawSpectatorProfileImage(&rect, 1);
+			break;
   case CG_HEALTH_COLORIZED:
     CG_DrawHealthColorized(&rect);
                 break;

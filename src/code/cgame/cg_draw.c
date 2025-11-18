@@ -1072,24 +1072,32 @@ static void CG_DrawReward( void ) {
 	count = cg.rewardCount[0] - count*10;		// number of small rewards to draw
 	*/
 
-	if ( cg.rewardCount[0] >= 10 ) {
-		y = 56;
-		x = 320 - ICON_SIZE/2;
-		CG_DrawPic( x, y, ICON_SIZE-4, ICON_SIZE-4, cg.rewardShader[0] );
-		Com_sprintf(buf, sizeof(buf), "%d", cg.rewardCount[0]);
-		x = ( SCREEN_WIDTH - SMALLCHAR_WIDTH * CG_DrawStrlen( buf ) ) / 2;
-		CG_DrawStringExt( x, y+ICON_SIZE, buf, color, qfalse, qtrue,
-								SMALLCHAR_WIDTH, SMALLCHAR_HEIGHT, 0 );
-	}
-	else {
-
-		count = cg.rewardCount[0];
+	count = cg.rewardCount[0];
+	if (count > 0) {
+		int rowSize = cg_drawRewardsRowSize.integer;
+		float iconSize = ICON_SIZE - 4.0f;
+		float padding = ICON_SIZE;
+		rowSize = Com_Clamp(1, MAX_REWARDSTACK, rowSize);
 
 		y = 56;
-		x = 320 - count * ICON_SIZE/2;
-		for ( i = 0 ; i < count ; i++ ) {
-			CG_DrawPic( x, y, ICON_SIZE-4, ICON_SIZE-4, cg.rewardShader[0] );
-			x += ICON_SIZE;
+		{
+			int fullRows = (count + rowSize - 1) / rowSize;
+			for (i = 0; i < count; i++) {
+				int row = i / rowSize;
+				int col = i % rowSize;
+				int rowColumns = (row == fullRows - 1 && (count % rowSize)) ? (count % rowSize) : rowSize;
+				float totalWidth = rowColumns * padding;
+				float baseX = 320.0f - totalWidth * 0.5f;
+				x = baseX + col * padding;
+				CG_DrawPic( x, y + row * padding, iconSize, iconSize, cg.rewardShader[0] );
+			}
+		}
+
+		if ( count >= 10 ) {
+			Com_sprintf(buf, sizeof(buf), "%d", count);
+			x = ( SCREEN_WIDTH - SMALLCHAR_WIDTH * CG_DrawStrlen( buf ) ) / 2;
+			CG_DrawStringExt( x, y + iconSize + SMALLCHAR_HEIGHT, buf, color, qfalse, qtrue,
+				SMALLCHAR_WIDTH, SMALLCHAR_HEIGHT, 0 );
 		}
 	}
 	trap_R_SetColor( NULL );
