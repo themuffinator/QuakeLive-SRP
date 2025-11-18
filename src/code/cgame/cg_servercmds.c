@@ -82,6 +82,7 @@ static void CG_ParseRaceInit( void ) {
 	cgs.raceLeaderSplitCount = 0;
 	memset( cgs.racePoints, 0, sizeof( cgs.racePoints ) );
 	memset( cgs.raceLeaderSplits, 0, sizeof( cgs.raceLeaderSplits ) );
+	CG_RaceResetState();
 }
 
 /*
@@ -589,6 +590,8 @@ void CG_SetConfigValues( void ) {
 	CG_ParseMatchState();
 	CG_ParseForcedCosmetics();
 	CG_ParseFactoryMetadata();
+	CG_ParseRaceInfoString( CG_ConfigString( CS_RACE_INFO ) );
+	CG_ParseRaceStatusString( CG_ConfigString( CS_RACE_STATUS ) );
 }
 
 /*
@@ -666,9 +669,13 @@ static void CG_ConfigStringModified( void ) {
 	} else if ( num == CS_LEVEL_START_TIME ) {
 		cgs.levelStartTime = atoi( str );
 	} else if ( num == CS_FACTORY_TITLE || num == CS_FACTORY_FLAGS || num == CS_SPAWN_HINTS ) {
-	CG_ParseFactoryMetadata();
+		CG_ParseFactoryMetadata();
 	} else if ( num == CS_FORCED_COSMETICS ) {
-	CG_ParseForcedCosmetics();
+		CG_ParseForcedCosmetics();
+	} else if ( num == CS_RACE_INFO ) {
+		CG_ParseRaceInfoString( str );
+	} else if ( num == CS_RACE_STATUS ) {
+		CG_ParseRaceStatusString( str );
 	} else if ( num == CS_VOTE_TIME ) {
 		cgs.voteTime = atoi( str );
 		cgs.voteModified = qtrue;

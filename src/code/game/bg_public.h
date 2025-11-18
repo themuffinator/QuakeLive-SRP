@@ -32,6 +32,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	ARMOR_PROTECTION	0.66
 
 #define	MAX_ITEMS			256
+#define	MAX_RACE_POINTS		64
+#define	RACE_INVALID_TIME	0x7fffffff
 
 #define	RANK_TIED_FLAG		0x4000
 
@@ -131,6 +133,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_PARTICLES			(CS_LOCATIONS+MAX_LOCATIONS)
 #define CS_RACE_SCORES			0x2BC
 #define CS_RACE_INFO			0x2BD
+#define CS_RACE_STATUS		CS_RACE_SCORES
 #define CS_PMOVE_SETTINGS		0x2BE
 
 #define CS_MAX					(CS_PMOVE_SETTINGS+1)

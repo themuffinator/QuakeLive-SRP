@@ -166,6 +166,22 @@ typedef struct {
 	qboolean	active;
 } cgRacePointInfo_t;
 
+typedef struct {
+	qboolean	initialized;
+	qboolean	runActive;
+	int		currentCheckpoint;
+	int		lastTouchTime;
+} cgRaceClientProgress_t;
+
+typedef struct {
+	qboolean	initialized;
+	int		bestTime;
+	int		lastTime;
+	int		currentElapsed;
+	int		lapCount;
+	int		lastUpdateSequence;
+} cgRaceClientStatus_t;
+
 // centity_t have a direct corespondence with gentity_t in the game, but
 // only the entityState_t is directly communicated to the cgame
 typedef struct centity_s {
@@ -1069,6 +1085,11 @@ typedef struct {
 	cgRacePointInfo_t	racePoints[MAX_RACE_POINTS];
 	int		raceLeaderSplits[MAX_RACE_POINTS];
 
+	cgRaceClientProgress_t	raceProgress[MAX_CLIENTS];
+	cgRaceClientStatus_t	raceStatus[MAX_CLIENTS];
+	int		raceStatusSequence;
+	int		raceLeaderClientNum;
+
 	//
 	// locally derived information from gamestate
 	//
@@ -1335,6 +1356,10 @@ extern  char systemChat[256];
 extern  char teamChat1[256];
 extern  char teamChat2[256];
 
+void CG_RaceResetState( void );
+void CG_ParseRaceInfoString( const char *infoString );
+void CG_ParseRaceStatusString( const char *statusString );
+
 void CG_AddLagometerFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
 void CG_CenterPrint( const char *str, int y, int charWidth );
@@ -1358,6 +1383,9 @@ void CG_InitTeamChat();
 void CG_GetTeamColor(vec4_t *color);
 const char *CG_GetGameStatusText();
 const char *CG_GetKillerText();
+const char *CG_GetRaceStatusText( void );
+const char *CG_GetRaceTimesPrimaryText( void );
+const char *CG_GetRaceTimesSecondaryText( void );
 void CG_Draw3DModel( float x, float y, float w, float h, qhandle_t model, qhandle_t skin, vec3_t origin, vec3_t angles );
 void CG_Text_PaintChar(float x, float y, float width, float height, float scale, float s, float t, float s2, float t2, qhandle_t hShader);
 void CG_CheckOrderPending();

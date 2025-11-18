@@ -37,9 +37,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define DOMINATION_MAX_POINTS	8
 #define DOMINATION_LABEL_MAX	8
-#define MAX_RACE_POINTS		64
-#define RACE_INVALID_TIME		0x7fffffff
-
 #define INFINITE			1000000
 
 #define	FRAMETIME			100					// msec
