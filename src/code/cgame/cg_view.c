@@ -476,6 +476,7 @@ static int CG_CalcFov( void ) {
 	int		contents;
 	float	fov_x, fov_y;
 	float	zoomFov;
+	float	zoomSensitivityValue;
 	float	f;
 	int		inwater;
 
@@ -541,9 +542,15 @@ static int CG_CalcFov( void ) {
 	cg.refdef.fov_y = fov_y;
 
 	if ( !cg.zoomed ) {
-		cg.zoomSensitivity = 1;
+		cg.zoomSensitivity = 1.0f;
 	} else {
-		cg.zoomSensitivity = cg.refdef.fov_y / 75.0;
+		zoomSensitivityValue = cg_zoomSensitivity.value;
+		if ( zoomSensitivityValue < 0.01f ) {
+			zoomSensitivityValue = 0.01f;
+		} else if ( zoomSensitivityValue > 1.0f ) {
+			zoomSensitivityValue = 1.0f;
+		}
+		cg.zoomSensitivity = zoomSensitivityValue;
 	}
 
 	return inwater;

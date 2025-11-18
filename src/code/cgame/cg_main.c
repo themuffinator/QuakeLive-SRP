@@ -135,6 +135,7 @@ vmCvar_t	cg_ignore;
 vmCvar_t	cg_simpleItems;
 vmCvar_t	cg_fov;
 vmCvar_t	cg_zoomFov;
+vmCvar_t	cg_zoomSensitivity;
 vmCvar_t	cg_waterWarp;
 vmCvar_t	cg_thirdPerson;
 vmCvar_t	cg_thirdPersonRange;
@@ -204,6 +205,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_autoswitch, "cg_autoswitch", "1", CVAR_ARCHIVE },
 	{ &cg_drawGun, "cg_drawGun", "1", CVAR_ARCHIVE },
 	{ &cg_zoomFov, "cg_zoomfov", "22.5", CVAR_ARCHIVE },
+	{ &cg_zoomSensitivity, "cg_zoomSensitivity", "1", CVAR_ARCHIVE },
 	{ &cg_waterWarp, "cg_waterWarp", "1", CVAR_ARCHIVE },
 	{ &cg_fov, "cg_fov", "90", CVAR_ARCHIVE },
 	{ &cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE },
