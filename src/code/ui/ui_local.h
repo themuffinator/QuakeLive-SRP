@@ -767,6 +767,37 @@ typedef struct {
 	const char *modDescr;
 } modInfo_t;
 
+/*
+=============
+UI feeder topology
+
+The menu `.menu` feeders enumerated in `src/ui/menudef.h` map directly to the
+`uiInfo_t` storage described below. Documenting the associations keeps the
+`UI_FeederSelection` HLIL mapping referenced in `docs/gameplay/parity/parity-ledger.md`
+aligned with the GPL sources while we add new feeders.
+
+- `FEEDER_HEADS` / `FEEDER_Q3HEADS` → `characterList[]`, `q3HeadNames[]`, the
+avatar banks exposed on the player setup menus.
+- `FEEDER_MAPS`, `FEEDER_ALLMAPS`, and the unimplemented `FEEDER_CVMAPS`
+options all draw from `mapList[]` so upcoming map-rotation menus can reuse the
+already-cached level metadata.
+- `FEEDER_SERVERS` uses `serverStatus.displayServers[]`, while
+`FEEDER_SERVERSTATUS` and `FEEDER_FINDPLAYER` rely on `serverStatusInfo` and
+`foundPlayerServerNames[]` to paint MOTDs and search results.
+- `FEEDER_PLAYER_LIST` and `FEEDER_TEAM_LIST` are populated via
+`playerNames[]`/`teamNames[]`, keeping the vote UI and spectator menus in sync
+with the live client list.
+- `FEEDER_MODS`, `FEEDER_CINEMATICS`, and `FEEDER_DEMOS` are powered by
+`modList[]`, `movieList[]`, and `demoList[]` respectively.
+
+Definitions that only exist in the menu scripts today (`FEEDER_CLANS`,
+`FEEDER_REDTEAM_LIST`, `FEEDER_BLUETEAM_LIST`, `FEEDER_SCOREBOARD`,
+`FEEDER_ENDSCOREBOARD`, `FEEDER_REDTEAM_STATS`, `FEEDER_BLUETEAM_STATS`) do not
+yet have backing storage inside `uiInfo_t`. The HLIL-guided parity plan calls
+for those feeders once their data sources have been recovered.
+=============
+*/
+
 
 typedef struct {
 	displayContextDef_t uiDC;
