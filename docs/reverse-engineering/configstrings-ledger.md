@@ -25,3 +25,18 @@ consumers under `src/code/` so the indices stay aligned with the retail DLL.
 
 Add additional entries here as more Quake Live configstrings are recovered or
 when future HLIL exports expose new payloads.
+
+## HLIL-derived gametype strings
+
+The Domination/Freeze tutorial payloads and the HUD gametype hints both reuse
+strings lifted from the Binary Ninja HLIL dumps for `qagamex86.dll` and
+`cgamex86.dll`. These values live in
+`src/code/game/generated/ql_gametype_strings.h`, which is generated from the
+`tools/hlil/gametype_strings.json` metadata via:
+
+```
+python tools/hlil/generate_gametype_strings.py
+```
+
+Re-run the script whenever the JSON is updated with new HLIL findings so the
+game and client modules stay aligned.

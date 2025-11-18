@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // cg_scoreboard -- draw the scoreboard on top of the game screen
 #include "cg_local.h"
+#include "../game/generated/ql_gametype_strings.h"
 
 
 #define	SCOREBOARD_X		(0)
@@ -103,22 +104,6 @@ static void CG_DrawForcedScoreboardTip( float fade ) {
 	CG_DrawSmallStringColor( x, y, message, color );
 }
 
-static const char *const s_gametypeHudHints[GT_MAX_GAME_TYPE] = {
-	[GT_FFA] = "This is a Free For All game",
-	[GT_TOURNAMENT] = "This is a Duel game",
-	[GT_SINGLE_PLAYER] = "This is a Race game",
-	[GT_TEAM] = "This is a Team Deathmatch game",
-	[GT_CLAN_ARENA] = "This is a Clan Arena game",
-	[GT_CTF] = "This is a Capture the Flag game",
-	[GT_1FCTF] = "This is a One Flag CTF game",
-	[GT_OBELISK] = "This is an Overload game",
-	[GT_HARVESTER] = "This is a Harvester game",
-	[GT_FREEZE] = "This is a Freeze Tag game",
-	[GT_DOMINATION] = "This is a Domination game",
-	[GT_ATTACK_DEFEND] = "This is an Attack & Defend game",
-	[GT_RED_ROVER] = "This is a Red Rover game"
-};
-
 /*
 =============
 CG_DrawForcedGametypeHint
@@ -142,7 +127,7 @@ static void CG_DrawForcedGametypeHint( float fade ) {
 		return;
 	}
 
-	hint = s_gametypeHudHints[cgs.gametype];
+	hint = QL_GametypeHudHint( cgs.gametype );
 	if ( !hint || !*hint ) {
 		return;
 	}
