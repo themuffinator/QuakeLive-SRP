@@ -524,6 +524,8 @@ typedef struct {
 	qboolean	zoomed;
 	int			zoomTime;
 	float		zoomSensitivity;
+	qboolean	zoomToggle;
+	qboolean	zoomOutOnDeath;
 
 	// information screen text during loading
 	char		infoScreenText[MAX_STRING_CHARS];
@@ -1168,6 +1170,8 @@ extern	vmCvar_t		cg_ignore;
 extern	vmCvar_t		cg_simpleItems;
 extern	vmCvar_t		cg_fov;
 extern	vmCvar_t		cg_zoomFov;
+extern	vmCvar_t		cg_zoomToggle;
+extern	vmCvar_t		cg_zoomOutOnDeath;
 extern	vmCvar_t		cg_zoomScaling;
 extern	vmCvar_t		cg_zoomSensitivity;
 extern	vmCvar_t		cg_waterWarp;
