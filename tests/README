@@ -99,3 +99,26 @@ parity stays enforced. The scenarios cover:
 Execute the suite via::
 
     pytest tests/test_item_pickups.py -vv
+
+CTF flag CVar coverage
+----------------------
+
+``tests/test_ctf_flag_cvars.py`` exercises the dedicated
+``ctf_flag_cvars.json`` scenario so flag motion honours the configured
+physics. The harness records the simulated throw velocity, bounce, and
+forced returns to ensure ``g_flag*`` and ``g_returnFlagOnSuicide``
+options propagate into the recorded timeline. Execute the tests with::
+
+    pytest tests/test_ctf_flag_cvars.py -vv
+
+Clan Arena shuffle coverage
+---------------------------
+
+The ``clanarena_shuffle.json`` scenario drives the new match simulator
+helpers that model ``g_shuffle_*``, ``g_team*``, and
+``g_floodprot_*`` gating. ``tests/test_clanarena_shuffle.py`` validates
+that warmup timers clamp to the shuffle countdown, that minimum player
+requirements respect ``g_teamForcePresent``, and that flood protection
+penalties prevent repeated shuffle requests. Run the assertions via::
+
+    pytest tests/test_clanarena_shuffle.py -vv

@@ -1,0 +1,64 @@
+{
+  "map": "qzteam5",
+  "duration": 14.0,
+  "tick_rate": 20,
+  "seed": 9001,
+  "metadata": {
+    "description": "CTF flag physics and timeout scenario",
+    "mode": "ctf",
+    "ctf": {
+      "enabled": true,
+      "cvars": {
+        "g_flagPhysics": 1,
+        "g_flagBounce": 0.65,
+        "g_flagDroppedTimeout": 6000,
+        "g_returnFlagOnSuicide": 1,
+        "g_throwFlagForwardMult": 275,
+        "g_throwFlagVelocity": 240
+      }
+    }
+  },
+  "bots": [
+    {
+      "name": "ranger",
+      "team": "red",
+      "spawn": {
+        "position": [0, 0, 0]
+      },
+      "initial_state": {
+        "facing": [0, 1, 0]
+      },
+      "script": [
+        {"time": 0.1, "action": "pickup", "params": {"type": "flag", "flag": "blue", "event": "pickup", "mode": "ctf"}},
+        {"time": 0.8, "action": "pickup", "params": {"type": "flag", "flag": "blue", "event": "drop", "mode": "ctf", "context": "death"}},
+        {"time": 1.6, "action": "pickup", "params": {"type": "flag", "flag": "blue", "event": "return", "mode": "ctf"}},
+        {"time": 2.5, "action": "pickup", "params": {"type": "flag", "flag": "blue", "event": "pickup", "mode": "ctf"}},
+        {"time": 3.0, "action": "pickup", "params": {"type": "flag", "flag": "blue", "event": "capture", "mode": "ctf", "score": 1}}
+      ]
+    },
+    {
+      "name": "slash",
+      "team": "blue",
+      "spawn": {
+        "position": [16, 0, 0]
+      },
+      "script": [
+        {"time": 1.7, "action": "pickup", "params": {"type": "flag", "flag": "blue", "event": "return", "mode": "ctf"}},
+        {"time": 2.8, "action": "pickup", "params": {"type": "flag", "flag": "red", "event": "pickup", "mode": "ctf"}},
+        {"time": 3.2, "action": "pickup", "params": {"type": "flag", "flag": "red", "event": "drop", "mode": "ctf", "suicide": true, "context": "suicide"}},
+        {"time": 6.0, "action": "pickup", "params": {"type": "flag", "flag": "neutral", "event": "pickup", "mode": "1fctf"}},
+        {"time": 6.2, "action": "pickup", "params": {"type": "flag", "flag": "neutral", "event": "drop", "mode": "1fctf"}}
+      ]
+    },
+    {
+      "name": "nyx",
+      "team": "red",
+      "spawn": {
+        "position": [-32, 0, 0]
+      },
+      "script": [
+        {"time": 6.3, "action": "pickup", "params": {"type": "flag", "flag": "neutral", "event": "pickup", "mode": "1fctf"}}
+      ]
+    }
+  ]
+}
