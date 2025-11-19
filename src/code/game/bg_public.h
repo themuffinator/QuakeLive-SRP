@@ -100,6 +100,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_FREEZE_TIP_FREEZE	(CS_TUTORIAL_TEXT + 3)
 #define CS_FREEZE_TIP_SHOOT	(CS_TUTORIAL_TEXT + 4)
 #define CS_FREEZE_TIP_SUMMARY	(CS_TUTORIAL_TEXT + 5)
+#define CS_READYUP_STATUS		0x2C4		// millisecond deadline for the ready-up clock
 
 //
 // Factory metadata configstrings provide clients with human-readable match factory data.
@@ -136,7 +137,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_RACE_STATUS		CS_RACE_SCORES
 #define CS_PMOVE_SETTINGS		0x2BE
 
-#define CS_MAX					(CS_PMOVE_SETTINGS+1)
+#define CS_MAX					(CS_READYUP_STATUS+1)
 
 #if (CS_MAX) > MAX_CONFIGSTRINGS
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS

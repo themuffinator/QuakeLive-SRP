@@ -671,6 +671,7 @@ void SP_worldspawn( void ) {
 
 	// see if we want a warmup time
 	trap_SetConfigstring( CS_WARMUP, "" );
+	G_UpdateReadyUpConfigstring();
 	trap_SetConfigstring( CS_MATCH_STATE, "" );
 	if ( trainingActive ) {
 		level.warmupTime = 0;
@@ -680,6 +681,7 @@ void SP_worldspawn( void ) {
 	} else if ( g_doWarmup.integer ) { // Turn it on
 		level.warmupTime = -1;
 		trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+		G_UpdateReadyUpConfigstring();
 		G_LogPrintf( "Warmup:\n" );
 	}
 
