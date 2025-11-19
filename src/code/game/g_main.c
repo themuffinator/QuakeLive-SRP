@@ -2805,6 +2805,20 @@ void G_ResetTimeoutState( void ) {
 	level.timeoutStartTime = 0;
 }
 
+/*
+=============
+G_UpdateReadyUpConfigstring
+
+Publishes the next ready-up deadline for HUD consumers.
+=============
+*/
+void G_UpdateReadyUpConfigstring( void ) {
+	int	deadline;
+
+	deadline = ( level.warmupTime > 0 ) ? level.warmupTime : 0;
+	trap_SetConfigstring( CS_READYUP_STATUS, va( "%i", deadline ) );
+}
+
 void G_ApplyTimeoutPauseDelta( int msec ) {
 	if ( msec <= 0 ) {
 		return;
@@ -2813,6 +2827,7 @@ void G_ApplyTimeoutPauseDelta( int msec ) {
 	if ( level.warmupTime > 0 ) {
 		level.warmupTime += msec;
 		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+		G_UpdateReadyUpConfigstring();
 	}
 
 	if ( level.intermissionQueued ) {
@@ -3090,6 +3105,7 @@ void CheckTournament( void ) {
 		if ( level.warmupTime != 0 ) {
 			level.warmupTime = 0;
 			trap_SetConfigstring( CS_WARMUP, "" );
+			G_UpdateReadyUpConfigstring();
 		}
 		return;
 	}
@@ -3110,6 +3126,7 @@ void CheckTournament( void ) {
 			if ( level.warmupTime != -1 ) {
 				level.warmupTime = -1;
 				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+				G_UpdateReadyUpConfigstring();
 				G_LogPrintf( "Warmup:\n" );
 			}
 			return;
@@ -3132,6 +3149,7 @@ void CheckTournament( void ) {
 				// fudge by -1 to account for extra delays
 				level.warmupTime = level.time + ( g_warmup.integer - 1 ) * 1000;
 				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+				G_UpdateReadyUpConfigstring();
 			}
 			return;
 		}
@@ -3159,6 +3177,7 @@ void CheckTournament( void ) {
 			if ( level.warmupTime != -1 ) {
 				level.warmupTime = -1;
 				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+				G_UpdateReadyUpConfigstring();
 				G_LogPrintf( "Warmup:\n" );
 			}
 			return; // still waiting for team members
@@ -3180,6 +3199,7 @@ void CheckTournament( void ) {
 			// fudge by -1 to account for extra delays
 			level.warmupTime = level.time + ( g_warmup.integer - 1 ) * 1000;
 			trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+			G_UpdateReadyUpConfigstring();
 			Team_ClampWarmupToShuffleCountdown();
 			return;
 		}

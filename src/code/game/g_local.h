@@ -963,6 +963,7 @@ void	G_FreezeClientEndFrame( gentity_t *ent );
 qboolean	G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath );
 void	G_FreezeRunFrame( void );
 void	G_FreezeHandleWarmupDelayCvarUpdate( void );
+void	G_UpdateReadyUpConfigstring( void );
 qboolean	G_RequestClientSpawn( gentity_t *ent, qboolean warmupSpawn, qboolean initialSpawn );
 void	G_SpawnEntitiesFromString( void );
 char	*G_NewString( const char *string );
