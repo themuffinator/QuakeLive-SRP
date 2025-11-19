@@ -52,7 +52,12 @@ static void G_GametypeHandleDefault( gametypeLifecycleStage_t stage, gentity_t *
 =============
 G_GametypeHandleDuel
 
-Dispatches duel-specific lifecycle helpers recovered from the HLIL flow.
+Runs the duel lifecycle helpers: INIT resets CS_WARMUP/ready-up
+configstrings and clears sudden-death state per g_suddenDeath* CVars;
+ClientBegin restarts or pauses the g_warmup countdown while refreshing
+those configstrings when players connect; ClientSpawn enforces the
+spawn grant script defined by s_duelSpawnGrantScript so duel loadouts
+are applied every time a player enters.
 =============
 */
 static void G_GametypeHandleDuel( gametypeLifecycleStage_t stage, gentity_t *ent ) {
