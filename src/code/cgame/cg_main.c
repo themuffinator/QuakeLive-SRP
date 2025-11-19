@@ -40,6 +40,9 @@ int teamLowerColorModificationCount = -1;
 int enemyHeadColorModificationCount = -1;
 int enemyUpperColorModificationCount = -1;
 int enemyLowerColorModificationCount = -1;
+int crosshairColorModificationCount = -1;
+int crosshairPulseModificationCount = -1;
+int crosshairHitModificationCount = -1;
 
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
@@ -136,6 +139,12 @@ vmCvar_t	cg_crosshairSize;
 vmCvar_t	cg_crosshairX;
 vmCvar_t	cg_crosshairY;
 vmCvar_t	cg_crosshairHealth;
+vmCvar_t	cg_crosshairColor;
+vmCvar_t	cg_crosshairBrightness;
+vmCvar_t	cg_crosshairPulse;
+vmCvar_t	cg_crosshairHitStyle;
+vmCvar_t	cg_crosshairHitTime;
+vmCvar_t	cg_crosshairHitColor;
 vmCvar_t	cg_enemyCrosshairNames;
 vmCvar_t	cg_enemyCrosshairNamesOpacity;
 vmCvar_t	cg_teammateCrosshairNames;
@@ -278,6 +287,50 @@ vmCvar_t	cg_recordSPDemoName;
 vmCvar_t	cg_obeliskRespawnDelay;
 
 typedef struct {
+	float	r;
+	float	g;
+	float	b;
+} crosshairColorDef_t;
+
+static const crosshairColorDef_t cg_crosshairColorTable[] = {
+	{ 1.0f, 1.0f, 1.0f },
+	{ 1.0f, 0.0f, 0.0f },
+	{ 0.85f, 0.0f, 0.0f },
+	{ 1.0f, 0.5f, 0.0f },
+	{ 1.0f, 1.0f, 0.0f },
+	{ 0.5f, 1.0f, 0.0f },
+	{ 0.0f, 1.0f, 0.0f },
+	{ 0.0f, 1.0f, 0.5f },
+	{ 0.0f, 1.0f, 1.0f },
+	{ 0.0f, 0.5f, 1.0f },
+	{ 0.0f, 0.0f, 1.0f },
+	{ 0.5f, 0.0f, 1.0f },
+	{ 1.0f, 0.0f, 1.0f },
+	{ 1.0f, 0.0f, 0.5f },
+	{ 0.6f, 0.6f, 0.6f },
+	{ 0.3f, 0.3f, 0.3f },
+	{ 1.0f, 0.8f, 0.6f },
+	{ 0.7f, 0.4f, 0.2f },
+	{ 0.8f, 0.0f, 0.2f },
+	{ 0.6f, 0.0f, 0.6f },
+	{ 0.4f, 0.0f, 1.0f },
+	{ 0.0f, 0.4f, 1.0f },
+	{ 0.0f, 0.6f, 0.6f },
+	{ 0.2f, 0.8f, 0.2f },
+	{ 0.6f, 0.8f, 0.2f },
+	{ 0.8f, 0.8f, 0.0f }
+};
+
+#define CG_CROSSHAIR_COLOR_TABLE_SIZE ( sizeof( cg_crosshairColorTable ) / sizeof( cg_crosshairColorTable[0] ) )
+
+static int CG_CombineCrosshairColorCounts( void );
+static int CG_CombineCrosshairHitCounts( void );
+static void CG_ResolveCrosshairColor( int colorIndex, float brightness, vec4_t colorOut );
+static void CG_BuildCrosshairColorCache( void );
+static void CG_BuildCrosshairPulseCache( void );
+static void CG_BuildCrosshairHitCache( void );
+
+typedef struct {
 	vmCvar_t	*vmCvar;
 	char		*cvarName;
 	char		*defaultString;
@@ -328,6 +381,12 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_drawInputCmdsSize, "cg_drawInputCmdsSize", "16", CVAR_ARCHIVE },
 { &cg_crosshairSize, "cg_crosshairSize", "24", CVAR_ARCHIVE },
 { &cg_crosshairHealth, "cg_crosshairHealth", "1", CVAR_ARCHIVE },
+	{ &cg_crosshairColor, "cg_crosshairColor", "4", CVAR_ARCHIVE },
+	{ &cg_crosshairBrightness, "cg_crosshairBrightness", "0.6", CVAR_ARCHIVE },
+	{ &cg_crosshairPulse, "cg_crosshairPulse", "0", CVAR_ARCHIVE },
+	{ &cg_crosshairHitStyle, "cg_crosshairHitStyle", "0", CVAR_ARCHIVE },
+	{ &cg_crosshairHitTime, "cg_crosshairHitTime", "200", CVAR_ARCHIVE },
+	{ &cg_crosshairHitColor, "cg_crosshairHitColor", "1", CVAR_ARCHIVE },
 { &cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", CVAR_ARCHIVE },
 { &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
 { &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "1", CVAR_ARCHIVE },
@@ -468,6 +527,95 @@ static cvarTable_t cvarTable[] = { // bk001129
 static int  cvarTableSize = sizeof( cvarTable ) / sizeof( cvarTable[0] );
 
 /*
+=============
+CG_CombineCrosshairColorCounts
+
+Combines the modification counters backing the crosshair color cvars
+so cached color state only rebuilds when necessary.
+=============
+*/
+static int CG_CombineCrosshairColorCounts( void ) {
+	return ( cg_crosshairColor.modificationCount << 8 ) ^ cg_crosshairBrightness.modificationCount;
+}
+
+/*
+=============
+CG_CombineCrosshairHitCounts
+
+Aggregates the modification counters for the hit notification cvars.
+=============
+*/
+static int CG_CombineCrosshairHitCounts( void ) {
+	int combined;
+
+	combined = ( cg_crosshairHitStyle.modificationCount << 8 ) ^ cg_crosshairHitTime.modificationCount;
+	combined = ( combined << 8 ) ^ cg_crosshairHitColor.modificationCount;
+	return combined;
+}
+
+/*
+=============
+CG_ResolveCrosshairColor
+
+Translates a palette index and brightness into a cached color vector.
+=============
+*/
+static void CG_ResolveCrosshairColor( int colorIndex, float brightness, vec4_t colorOut ) {
+	int clampedIndex;
+	float intensity;
+	float alpha;
+	const crosshairColorDef_t *entry;
+
+	if ( !colorOut ) {
+		return;
+	}
+
+	clampedIndex = Com_Clamp( 1, CG_CROSSHAIR_COLOR_TABLE_SIZE, colorIndex );
+	entry = &cg_crosshairColorTable[clampedIndex - 1];
+	intensity = Com_Clamp( 0.0f, 2.0f, brightness );
+	alpha = Com_Clamp( 0.0f, 1.0f, brightness );
+	colorOut[0] = Com_Clamp( 0.0f, 1.0f, entry->r * intensity );
+	colorOut[1] = Com_Clamp( 0.0f, 1.0f, entry->g * intensity );
+	colorOut[2] = Com_Clamp( 0.0f, 1.0f, entry->b * intensity );
+	colorOut[3] = alpha;
+}
+
+/*
+=============
+CG_BuildCrosshairColorCache
+
+Refreshes the cached base crosshair color vector.
+=============
+*/
+static void CG_BuildCrosshairColorCache( void ) {
+	CG_ResolveCrosshairColor( cg_crosshairColor.integer, cg_crosshairBrightness.value, cg.crosshairColor );
+}
+
+/*
+=============
+CG_BuildCrosshairPulseCache
+
+Updates the cached pickup pulse toggle derived from cg_crosshairPulse.
+=============
+*/
+static void CG_BuildCrosshairPulseCache( void ) {
+	cg.crosshairPulseScale = ( cg_crosshairPulse.integer > 0 ) ? 1.0f : 0.0f;
+}
+
+/*
+=============
+CG_BuildCrosshairHitCache
+
+Caches the derived state for crosshair hit indicators.
+=============
+*/
+static void CG_BuildCrosshairHitCache( void ) {
+	cg.crosshairHitStyleValue = cg_crosshairHitStyle.integer;
+	cg.crosshairHitTimeValue = Com_Clamp( 0.0f, 1000.0f, cg_crosshairHitTime.value );
+	CG_ResolveCrosshairColor( cg_crosshairHitColor.integer, 1.0f, cg.crosshairHitColor );
+}
+
+/*
 =================
 CG_RegisterCvars
 =================
@@ -500,6 +648,14 @@ void CG_RegisterCvars( void ) {
         enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
         enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
         enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+
+        crosshairColorModificationCount = CG_CombineCrosshairColorCounts();
+        crosshairPulseModificationCount = cg_crosshairPulse.modificationCount;
+        crosshairHitModificationCount = CG_CombineCrosshairHitCounts();
+
+        CG_BuildCrosshairColorCache();
+        CG_BuildCrosshairPulseCache();
+        CG_BuildCrosshairHitCache();
 
 	cg.kickScale = cg_kickScale.value;
 	if ( cg.kickScale < 0.0f ) {
@@ -618,6 +774,28 @@ void CG_UpdateCvars( void ) {
 	if ( enemyLowerColorModificationCount != cg_enemyLowerColor.modificationCount ) {
 		enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
 		refreshClients = qtrue;
+	}
+
+	{
+		int newColorGroup;
+		int newHitGroup;
+
+		newColorGroup = CG_CombineCrosshairColorCounts();
+		if ( crosshairColorModificationCount != newColorGroup ) {
+			crosshairColorModificationCount = newColorGroup;
+			CG_BuildCrosshairColorCache();
+		}
+
+		if ( crosshairPulseModificationCount != cg_crosshairPulse.modificationCount ) {
+			crosshairPulseModificationCount = cg_crosshairPulse.modificationCount;
+			CG_BuildCrosshairPulseCache();
+		}
+
+		newHitGroup = CG_CombineCrosshairHitCounts();
+		if ( crosshairHitModificationCount != newHitGroup ) {
+			crosshairHitModificationCount = newHitGroup;
+			CG_BuildCrosshairHitCache();
+		}
 	}
 
 	if ( refreshClients ) {
