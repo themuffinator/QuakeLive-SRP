@@ -15,6 +15,9 @@ game_fixture_result_t GT_RunVoteControlFixtures(void);
 // Cosmetic/training toggles covering item timers, force broadcasts, and training gates.
 game_fixture_result_t GT_RunCosmeticTrainingFixtures(void);
 
+// Weapon/respawn CVars covering prox damage, quad multipliers, regen, and timer plumbing.
+game_fixture_result_t GT_RunWeaponCvarFixtures(void);
+
 // Convenience entry point that executes every registered suite in sequence.
 game_fixture_result_t GT_RunAllRulesFixtures(void);
 
