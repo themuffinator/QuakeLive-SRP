@@ -540,6 +540,9 @@ struct gentity_s {
 	int			*targetAchievementIds;
 	int			racePointIndex;
 	qboolean		racePointAdminSpawned;
+	qboolean		flagDroppedByEnemy;
+	qboolean		flagDroppedBySuicide;
+	int			flagDroppedByClientNum;
 };
 
 
