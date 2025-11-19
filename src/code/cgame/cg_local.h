@@ -122,6 +122,23 @@ typedef enum {
 	DAMAGE_PLUM_COLOR_STYLE_WEAPON
 } damagePlumColorStyle_t;
 
+typedef enum {
+	ANNOUNCER_PROFILE_DISABLED = 0,
+	ANNOUNCER_PROFILE_DEFAULT,
+	ANNOUNCER_PROFILE_VADRIGAR,
+	ANNOUNCER_PROFILE_DAEMIA,
+	ANNOUNCER_PROFILE_COUNT
+} cgAnnouncerProfile_t;
+
+typedef struct {
+	sfxHandle_t	oneMinute;
+	sfxHandle_t	fiveMinute;
+	sfxHandle_t	suddenDeath;
+	sfxHandle_t	oneFrag;
+	sfxHandle_t	twoFrag;
+	sfxHandle_t	threeFrag;
+} cgAnnouncerSoundSet_t;
+
 //=================================================
 
 // player entities need to track more information
@@ -178,6 +195,13 @@ typedef struct {
 	char	targetname[MAX_QPATH];
 	qboolean	active;
 } cgRacePointInfo_t;
+
+typedef enum {
+	CG_RACE_CUE_START,
+	CG_RACE_CUE_CHECKPOINT,
+	CG_RACE_CUE_FINISH,
+	CG_RACE_CUE_COUNT
+} cgRaceCue_t;
 
 typedef struct {
 	qboolean	initialized;
@@ -968,6 +992,8 @@ typedef struct {
 	sfxHandle_t fallSound;
 	sfxHandle_t jumpPadSound;
 
+	cgAnnouncerSoundSet_t announcerSoundSets[ANNOUNCER_PROFILE_COUNT];
+
 	sfxHandle_t oneMinuteSound;
 	sfxHandle_t fiveMinuteSound;
 	sfxHandle_t suddenDeathSound;
@@ -1033,6 +1059,9 @@ typedef struct {
 	sfxHandle_t yourBaseIsUnderAttackSound;
 	sfxHandle_t holyShitSound;
 	sfxHandle_t dominationDistressSound;
+	sfxHandle_t raceStartBeep;
+	sfxHandle_t raceCheckpointBeep;
+	sfxHandle_t raceFinishBeep;
 
 	// tournament sounds
 	sfxHandle_t	count3Sound;
@@ -1213,6 +1242,8 @@ typedef struct {
 	// media
 	cgMedia_t		media;
 
+	cgAnnouncerProfile_t	announcerProfile;
+
 } cgs_t;
 
 //==============================================================================
@@ -1245,6 +1276,9 @@ extern	vmCvar_t		cg_drawCrosshair;
 extern	vmCvar_t		cg_drawCrosshairNames;
 extern	vmCvar_t		cg_drawRewards;
 extern	vmCvar_t		cg_drawRewardsRowSize;
+extern	vmCvar_t		cg_announcer;
+extern	vmCvar_t		cg_announcerRewardsVO;
+extern	vmCvar_t		cg_raceBeep;
 extern	vmCvar_t		cg_drawCheckpointRemaining;
 extern	vmCvar_t		cg_drawProfileImages;
 extern	vmCvar_t		cg_drawSprites;
@@ -1549,6 +1583,7 @@ extern  char teamChat2[256];
 void CG_RaceResetState( void );
 void CG_ParseRaceInfoString( const char *infoString );
 void CG_ParseRaceStatusString( const char *statusString );
+void CG_RacePlayCue( cgRaceCue_t cue );
 
 void CG_AddLagometerFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );

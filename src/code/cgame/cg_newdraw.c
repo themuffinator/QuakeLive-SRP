@@ -127,6 +127,39 @@ void CG_RaceResetState( void ) {
 
 /*
 =============
+CG_RacePlayCue
+
+Plays a race HUD cue when enabled.
+=============
+*/
+void CG_RacePlayCue( cgRaceCue_t cue ) {
+	sfxHandle_t sfx = 0;
+
+	if ( !cg_raceBeep.integer ) {
+		return;
+	}
+
+	switch ( cue ) {
+	case CG_RACE_CUE_START:
+		sfx = cgs.media.raceStartBeep;
+		break;
+	case CG_RACE_CUE_CHECKPOINT:
+		sfx = cgs.media.raceCheckpointBeep;
+		break;
+	case CG_RACE_CUE_FINISH:
+		sfx = cgs.media.raceFinishBeep;
+		break;
+	default:
+		return;
+	}
+
+	if ( sfx ) {
+		trap_S_StartLocalSound( sfx, CHAN_LOCAL_SOUND );
+	}
+}
+
+/*
+=============
 CG_ParseRaceInfoString
 
 Parses the race_info configstring and caches the split metadata.
@@ -390,6 +423,7 @@ static void CG_RaceUpdateClientProgress( int clientNum, const vec3_t origin, con
 			progress->runActive = qtrue;
 			progress->currentCheckpoint = 0;
 			progress->lastTouchTime = cg.time;
+			CG_RacePlayCue( CG_RACE_CUE_START );
 		}
 		return;
 	}
@@ -408,6 +442,9 @@ static void CG_RaceUpdateClientProgress( int clientNum, const vec3_t origin, con
 		progress->lastTouchTime = cg.time;
 		if ( progress->currentCheckpoint >= cgs.racePointCount - 1 ) {
 			progress->runActive = qfalse;
+			CG_RacePlayCue( CG_RACE_CUE_FINISH );
+		} else {
+			CG_RacePlayCue( CG_RACE_CUE_CHECKPOINT );
 		}
 	}
 }
