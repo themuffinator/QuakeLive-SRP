@@ -64,6 +64,8 @@ static int	s_forceAtmosphericEffectsModCount = -1;
 static int	s_forceDmgThroughSurfaceModCount = -1;
 static int	s_forcedAtmosphereModCount = -1;
 static int	s_factoryModCount = 0;
+static int	s_roundWarmupDelayModCount = 0;
+static int	s_teamSizeMinModCount = 0;
 static char	s_worldspawnAtmosphere[MAX_QPATH];
 static char	s_lastForcedCosmeticsPayload[MAX_INFO_STRING];
 static vmCvar_t	g_weaponRespawnLegacy;
@@ -1127,6 +1129,8 @@ LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) 
 	s_forceAtmosphericEffectsModCount = g_forceAtmosphericEffects.modificationCount;
 	s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
 	s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
+	s_roundWarmupDelayModCount = g_roundWarmupDelay.modificationCount;
+	s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
 	s_worldspawnAtmosphere[0] = '\0';
 	s_lastForcedCosmeticsPayload[0] = '\0';
 	G_UpdateItemTimerConfig( qtrue );
@@ -1177,6 +1181,16 @@ void G_UpdateCvars( void ) {
 
 	if (remapped) {
 		G_RemapTeamShaders();
+	}
+
+	if ( g_teamSizeMin.modificationCount != s_teamSizeMinModCount ) {
+		s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
+		G_UpdateMatchStateConfigString();
+	}
+
+	if ( g_roundWarmupDelay.modificationCount != s_roundWarmupDelayModCount ) {
+		s_roundWarmupDelayModCount = g_roundWarmupDelay.modificationCount;
+		G_FreezeHandleWarmupDelayCvarUpdate();
 	}
 
 	if ( g_factory.modificationCount != s_factoryModCount ) {
