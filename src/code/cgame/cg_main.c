@@ -46,6 +46,8 @@ int teamLowerColorModificationCount = -1;
 int enemyHeadColorModificationCount = -1;
 int enemyUpperColorModificationCount = -1;
 int enemyLowerColorModificationCount = -1;
+static int damagePlumModificationCount = -1;
+static int damagePlumColorStyleModificationCount = -1;
 int deadBodyDarkenModificationCount = -1;
 int deadBodyColorModificationCount = -1;
 int screenDamageColorModificationCount = -1;
@@ -286,6 +288,8 @@ vmCvar_t	cg_useItemWarning;
 vmCvar_t	cg_hudFiles;
 vmCvar_t	cg_kickScale;
 vmCvar_t 	cg_scorePlum;
+vmCvar_t 	cg_damagePlum;
+vmCvar_t 	cg_damagePlumColorStyle;
 vmCvar_t 	cg_smoothClients;
 vmCvar_t 	cg_loadout;
 vmCvar_t	pmove_fixed;
@@ -359,6 +363,10 @@ typedef struct {
 	char		*defaultString;
 	int			cvarFlags;
 } cvarTable_t;
+
+static unsigned int CG_ParseDamagePlumWeaponValue( const char *value, damagePlumPreset_t *preset );
+static damagePlumColorStyle_t CG_ParseDamagePlumColorStyleValue( int rawValue );
+static void CG_UpdateDamagePlumSettings( void );
 
 static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_ignore, "cg_ignore", "0", 0 },	// used for debugging
@@ -518,6 +526,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_timescaleFadeSpeed, "cg_timescaleFadeSpeed", "0", 0},
 	{ &cg_timescale, "timescale", "1", 0},
 	{ &cg_scorePlum, "cg_scorePlums", "1", CVAR_USERINFO | CVAR_ARCHIVE},
+	{ &cg_damagePlum, "cg_damagePlum", "g mg sg gl rl lg rg pg bfg gh cg ng pl hmg", CVAR_USERINFO | CVAR_ARCHIVE },
+	{ &cg_damagePlumColorStyle, "cg_damagePlumColorStyle", "1", CVAR_ARCHIVE },
 	{ &cg_smoothClients, "cg_smoothClients", "0", CVAR_USERINFO | CVAR_ARCHIVE},
 	{ &cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},
 
@@ -584,6 +594,208 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_loadout, "cg_loadout", "0", CVAR_ROM }
 //	{ &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
 };
+
+#define DAMAGE_PLUM_WEAPON_BIT( weapon ) ( 1u << ( weapon ) )
+#define DAMAGE_PLUM_ALL_WEAPONS_MASK ( \
+	DAMAGE_PLUM_WEAPON_BIT( WP_GAUNTLET ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_MACHINEGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_HEAVY_MACHINEGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_SHOTGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_GRENADE_LAUNCHER ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_ROCKET_LAUNCHER ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_LIGHTNING ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_RAILGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_PLASMAGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_BFG ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_GRAPPLING_HOOK ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_NAILGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_PROX_LAUNCHER ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_CHAINGUN ) )
+#define DAMAGE_PLUM_AOE_WEAPONS_MASK ( \
+	DAMAGE_PLUM_WEAPON_BIT( WP_SHOTGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_GRENADE_LAUNCHER ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_ROCKET_LAUNCHER ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_PLASMAGUN ) | \
+	DAMAGE_PLUM_WEAPON_BIT( WP_BFG ) )
+
+typedef struct damagePlumWeaponToken_s {
+	const char		*token;
+	weapon_t	weapon;
+} damagePlumWeaponToken_t;
+
+static const damagePlumWeaponToken_t damagePlumWeaponTokens[] = {
+	{ "g", WP_GAUNTLET },
+	{ "gauntlet", WP_GAUNTLET },
+	{ "mg", WP_MACHINEGUN },
+	{ "machinegun", WP_MACHINEGUN },
+	{ "hmg", WP_HEAVY_MACHINEGUN },
+	{ "heavy", WP_HEAVY_MACHINEGUN },
+	{ "heavy_machinegun", WP_HEAVY_MACHINEGUN },
+	{ "sg", WP_SHOTGUN },
+	{ "shotgun", WP_SHOTGUN },
+	{ "gl", WP_GRENADE_LAUNCHER },
+	{ "grenade", WP_GRENADE_LAUNCHER },
+	{ "grenadelauncher", WP_GRENADE_LAUNCHER },
+	{ "rl", WP_ROCKET_LAUNCHER },
+	{ "rocket", WP_ROCKET_LAUNCHER },
+	{ "rocketlauncher", WP_ROCKET_LAUNCHER },
+	{ "lg", WP_LIGHTNING },
+	{ "lightning", WP_LIGHTNING },
+	{ "rg", WP_RAILGUN },
+	{ "rail", WP_RAILGUN },
+	{ "railgun", WP_RAILGUN },
+	{ "pg", WP_PLASMAGUN },
+	{ "plasma", WP_PLASMAGUN },
+	{ "plasmagun", WP_PLASMAGUN },
+	{ "bfg", WP_BFG },
+	{ "gh", WP_GRAPPLING_HOOK },
+	{ "grapple", WP_GRAPPLING_HOOK },
+	{ "hook", WP_GRAPPLING_HOOK },
+	{ "cg", WP_CHAINGUN },
+	{ "chaingun", WP_CHAINGUN },
+	{ "ng", WP_NAILGUN },
+	{ "nailgun", WP_NAILGUN },
+	{ "pl", WP_PROX_LAUNCHER },
+	{ "prox", WP_PROX_LAUNCHER },
+	{ "proximity", WP_PROX_LAUNCHER },
+	{ "proximitymine", WP_PROX_LAUNCHER }
+};
+
+/*
+=============
+CG_ParseDamagePlumWeaponValue
+
+Parses the cg_damagePlum string into a weapon mask and preset.
+=============
+*/
+static unsigned int CG_ParseDamagePlumWeaponValue( const char *value, damagePlumPreset_t *preset ) {
+	char buffer[MAX_CVAR_VALUE_STRING];
+	char token[MAX_TOKEN_CHARS];
+	char *cursor;
+	unsigned int mask;
+	qboolean foundToken;
+	int i;
+
+	if ( !value || !*value || !Q_stricmp( value, "0" ) || !Q_stricmp( value, "off" ) || !Q_stricmp( value, "none" ) ) {
+		*preset = DAMAGE_PLUM_PRESET_OFF;
+		return 0u;
+	}
+
+	if ( !Q_stricmp( value, "1" ) || !Q_stricmp( value, "on" ) || !Q_stricmp( value, "all" ) ) {
+		*preset = DAMAGE_PLUM_PRESET_ALL_WEAPONS;
+		return DAMAGE_PLUM_ALL_WEAPONS_MASK;
+	}
+
+	if ( !Q_stricmp( value, "2" ) || !Q_stricmp( value, "aoe" ) ) {
+		*preset = DAMAGE_PLUM_PRESET_AOE_WEAPONS;
+		return DAMAGE_PLUM_AOE_WEAPONS_MASK;
+	}
+
+	Q_strncpyz( buffer, value, sizeof( buffer ) );
+	cursor = buffer;
+	mask = 0u;
+	foundToken = qfalse;
+
+	while ( *cursor ) {
+		int length = 0;
+
+		while ( *cursor && *cursor <= ' ' ) {
+			cursor++;
+		}
+
+		if ( !*cursor ) {
+			break;
+		}
+
+		while ( *cursor && *cursor > ' ' && length < MAX_TOKEN_CHARS - 1 ) {
+			token[length++] = *cursor++;
+		}
+		token[length] = '\0';
+
+		while ( *cursor && *cursor > ' ' ) {
+			cursor++;
+		}
+
+		if ( !token[0] ) {
+			continue;
+		}
+
+		if ( !Q_stricmp( token, "all" ) ) {
+			*preset = DAMAGE_PLUM_PRESET_ALL_WEAPONS;
+			return DAMAGE_PLUM_ALL_WEAPONS_MASK;
+		}
+
+		if ( !Q_stricmp( token, "aoe" ) ) {
+			mask |= DAMAGE_PLUM_AOE_WEAPONS_MASK;
+			foundToken = qtrue;
+			continue;
+		}
+
+		for ( i = 0; i < (int)( sizeof( damagePlumWeaponTokens ) / sizeof( damagePlumWeaponTokens[0] ) ); i++ ) {
+			if ( !Q_stricmp( token, damagePlumWeaponTokens[i].token ) ) {
+				mask |= DAMAGE_PLUM_WEAPON_BIT( damagePlumWeaponTokens[i].weapon );
+				foundToken = qtrue;
+				break;
+			}
+		}
+	}
+
+	if ( !foundToken || mask == 0u ) {
+		*preset = DAMAGE_PLUM_PRESET_OFF;
+		return 0u;
+	}
+
+	if ( mask == DAMAGE_PLUM_ALL_WEAPONS_MASK ) {
+		*preset = DAMAGE_PLUM_PRESET_ALL_WEAPONS;
+		return mask;
+	}
+
+	if ( mask == DAMAGE_PLUM_AOE_WEAPONS_MASK ) {
+		*preset = DAMAGE_PLUM_PRESET_AOE_WEAPONS;
+		return mask;
+	}
+
+	*preset = DAMAGE_PLUM_PRESET_CUSTOM;
+	return mask;
+}
+
+/*
+=============
+CG_ParseDamagePlumColorStyleValue
+
+Normalizes the cg_damagePlumColorStyle value.
+=============
+*/
+static damagePlumColorStyle_t CG_ParseDamagePlumColorStyleValue( int rawValue ) {
+	switch ( rawValue ) {
+	case DAMAGE_PLUM_COLOR_STYLE_DAMAGE:
+		return DAMAGE_PLUM_COLOR_STYLE_DAMAGE;
+	case DAMAGE_PLUM_COLOR_STYLE_WEAPON:
+		return DAMAGE_PLUM_COLOR_STYLE_WEAPON;
+	default:
+		return DAMAGE_PLUM_COLOR_STYLE_MONOCHROME;
+	}
+}
+
+/*
+=============
+CG_UpdateDamagePlumSettings
+
+Refreshes the cached damage plum configuration.
+=============
+*/
+static void CG_UpdateDamagePlumSettings( void ) {
+	if ( damagePlumModificationCount != cg_damagePlum.modificationCount ) {
+		damagePlumModificationCount = cg_damagePlum.modificationCount;
+		cg.damagePlumWeaponBits = CG_ParseDamagePlumWeaponValue( cg_damagePlum.string, &cg.damagePlumPreset );
+	}
+
+	if ( damagePlumColorStyleModificationCount != cg_damagePlumColorStyle.modificationCount ) {
+		damagePlumColorStyleModificationCount = cg_damagePlumColorStyle.modificationCount;
+		cg.damagePlumColorStyle = CG_ParseDamagePlumColorStyleValue( cg_damagePlumColorStyle.integer );
+	}
+}
+
 
 static int  cvarTableSize = sizeof( cvarTable ) / sizeof( cvarTable[0] );
 
@@ -863,6 +1075,7 @@ void CG_RegisterCvars( void ) {
 		cg.bobScale = 0.0f;
 	}
 
+	CG_UpdateDamagePlumSettings();
 CG_UpdateSimpleItemsSettings();
 CG_UpdateWeaponBarGrenadeColor();
 CG_UpdateLowAmmoWarningPercentile();
@@ -1141,6 +1354,7 @@ CG_UpdateCvars
 void CG_UpdateCvars( void ) {
 	int			i;
 	cvarTable_t	*cv;
+	qboolean	refreshClients;
 	qboolean	refreshDeadBodyPalette;
 
 	for ( i = 0, cv = cvarTable ; i < cvarTableSize ; i++, cv++ ) {
@@ -1279,6 +1493,7 @@ void CG_UpdateCvars( void ) {
 	}
 	cg.zoomToggle = (qboolean)( cg_zoomToggle.integer != 0 );
 	cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );
+	CG_UpdateDamagePlumSettings();
 
 CG_UpdateSimpleItemsSettings();
 CG_UpdateCrosshairColorSettings();
