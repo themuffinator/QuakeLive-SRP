@@ -133,6 +133,7 @@ typedef struct weaponConfig_s {
 	int		midAirMinimumHeight;
 	qboolean	nailgunBounceEnabled;
 	int		nailgunBouncePercentage;
+	int		proximityLauncherDamage;
 	float		quadDamageMultiplier;
 	qboolean	guidedRocketEnabled;
 	int		quadHogEnabled;

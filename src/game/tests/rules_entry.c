@@ -27,5 +27,9 @@ game_fixture_result_t GT_RunAllRulesFixtures(void) {
 	total.executed += result.executed;
 	total.failed += result.failed;
 
+	result = GT_RunWeaponCvarFixtures();
+	total.executed += result.executed;
+	total.failed += result.failed;
+
 	return total;
 }
