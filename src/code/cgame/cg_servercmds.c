@@ -812,6 +812,7 @@ static void CG_ParseWarmup( void ) {
 	}
 
 	cg.warmup = warmup;
+	trap_Cvar_Set( "ui_warmup", va( "%i", cg.warmup ) );
 }
 
 /*
