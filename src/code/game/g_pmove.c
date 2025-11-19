@@ -150,6 +150,12 @@ static qboolean G_PmoveSerializeSettings( const pmove_settings_t *settings, char
 	PMOVE_INT_FIELD( midAirMinimumHeight );
 	PMOVE_BOOL_FIELD( nailgunBounceEnabled );
 	PMOVE_INT_FIELD( nailgunBouncePercentage );
+	PMOVE_FLOAT_FIELD( quadDamageMultiplier );
+	PMOVE_BOOL_FIELD( guidedRocketEnabled );
+	PMOVE_INT_FIELD( quadHogEnabled );
+	PMOVE_INT_FIELD( quadHogIdleSeconds );
+	PMOVE_INT_FIELD( quadHogTimeSeconds );
+	PMOVE_INT_FIELD( quadHogPingRateSeconds );
 
 #undef PMOVE_BOOL_FIELD
 #undef PMOVE_INT_FIELD
@@ -378,6 +384,12 @@ static void G_PmoveCacheSettings( void ) {
 	g_pmoveSettings.midAirMinimumHeight = g_weaponConfig.midAirMinimumHeight;
 	g_pmoveSettings.nailgunBounceEnabled = ( g_weaponConfig.nailgunBounceEnabled != 0 );
 	g_pmoveSettings.nailgunBouncePercentage = g_weaponConfig.nailgunBouncePercentage;
+	g_pmoveSettings.quadDamageMultiplier = ( g_weaponConfig.quadDamageMultiplier > 0.0f ) ? g_weaponConfig.quadDamageMultiplier : 1.0f;
+	g_pmoveSettings.guidedRocketEnabled = ( g_weaponConfig.guidedRocketEnabled != 0 );
+	g_pmoveSettings.quadHogEnabled = g_weaponConfig.quadHogEnabled;
+	g_pmoveSettings.quadHogIdleSeconds = g_weaponConfig.quadHogIdleSeconds;
+	g_pmoveSettings.quadHogTimeSeconds = g_weaponConfig.quadHogTimeSeconds;
+	g_pmoveSettings.quadHogPingRateSeconds = g_weaponConfig.quadHogPingRateSeconds;
 
 	{
 		weapon_t	weapon;
