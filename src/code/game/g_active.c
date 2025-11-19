@@ -1315,6 +1315,30 @@ static void G_FreezeScheduleWarmupDelay( void ) {
 	}
 
 	level.warmupTime = 0;
+	trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+}
+
+/*
+=============
+G_FreezeHandleWarmupDelayCvarUpdate
+
+Reschedules the warmup countdown whenever g_roundWarmupDelay changes mid-warmup.
+=============
+*/
+void G_FreezeHandleWarmupDelayCvarUpdate( void ) {
+	if ( !G_FreezeGametypeEnabled() ) {
+		return;
+	}
+
+	if ( level.roundState != ROUNDSTATE_WARMUP ) {
+		return;
+	}
+
+	if ( level.warmupTime <= 0 ) {
+		return;
+	}
+
+	G_FreezeScheduleWarmupDelay();
 }
 
 /*
