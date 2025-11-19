@@ -2532,7 +2532,21 @@ void CG_LoadHudMenu() {
 	CG_LoadMenus(hudSet);
 }
 
+
+/*
+=============
+CG_AssetCache
+
+Registers the shared UI assets used by the client game module.
+=============
+*/
 void CG_AssetCache() {
+	if ( !cgDC.Assets.fontRegistered ) {
+		trap_R_RegisterFont( QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE, &cgDC.Assets.textFont );
+		trap_R_RegisterFont( QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE, &cgDC.Assets.smallFont );
+		trap_R_RegisterFont( QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE, &cgDC.Assets.bigFont );
+		cgDC.Assets.fontRegistered = qtrue;
+	}
 	//if (Assets.textFont == NULL) {
 	//  trap_R_RegisterFont("fonts/arial.ttf", 72, &Assets.textFont);
 	//}
