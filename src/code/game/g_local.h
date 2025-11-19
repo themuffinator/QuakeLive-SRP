@@ -155,6 +155,8 @@ typedef struct flagConfig_s {
 	qboolean	tackleFlag;
 	qboolean	returnOnSuicide;
 	int		droppedFlagBonus;
+	int		dropTimeoutMs;
+	int		neutralFlagPingTimeMs;
 } flagConfig_t;
 
 extern flagConfig_t g_flagConfig;
