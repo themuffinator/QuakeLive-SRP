@@ -40,6 +40,11 @@ int teamLowerColorModificationCount = -1;
 int enemyHeadColorModificationCount = -1;
 int enemyUpperColorModificationCount = -1;
 int enemyLowerColorModificationCount = -1;
+int screenDamageColorModificationCount = -1;
+int screenDamageColorSelfModificationCount = -1;
+int screenDamageColorTeamModificationCount = -1;
+int screenDamageAlphaModificationCount = -1;
+int screenDamageAlphaTeamModificationCount = -1;
 
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
@@ -199,6 +204,11 @@ vmCvar_t	cg_teamLowerColor;
 vmCvar_t	cg_enemyHeadColor;
 vmCvar_t	cg_enemyUpperColor;
 vmCvar_t	cg_enemyLowerColor;
+vmCvar_t	cg_screenDamage;
+vmCvar_t	cg_screenDamage_Self;
+vmCvar_t	cg_screenDamage_Team;
+vmCvar_t	cg_screenDamageAlpha;
+vmCvar_t	cg_screenDamageAlpha_Team;
 vmCvar_t	cg_paused;
 vmCvar_t	cg_blood;
 vmCvar_t	cg_predictItems;
@@ -384,6 +394,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_enemyHeadColor, "cg_enemyHeadColor", "", CVAR_ARCHIVE },
 	{ &cg_enemyUpperColor, "cg_enemyUpperColor", "", CVAR_ARCHIVE },
 	{ &cg_enemyLowerColor, "cg_enemyLowerColor", "", CVAR_ARCHIVE },
+	{ &cg_screenDamage, "cg_screenDamage", "0x700000C8", CVAR_ARCHIVE },
+	{ &cg_screenDamage_Self, "cg_screenDamage_Self", "0x00000000", CVAR_ARCHIVE },
+	{ &cg_screenDamage_Team, "cg_screenDamage_Team", "0x700000C8", CVAR_ARCHIVE },
+	{ &cg_screenDamageAlpha, "cg_screenDamageAlpha", "200", CVAR_ARCHIVE },
+	{ &cg_screenDamageAlpha_Team, "cg_screenDamageAlpha_Team", "200", CVAR_ARCHIVE },
 	{ &cg_predictItems, "cg_predictItems", "1", CVAR_ARCHIVE },
 	{ &cg_deferPlayers, "cg_deferPlayers", "0", CVAR_ARCHIVE },
 	{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "0", CVAR_ARCHIVE },
@@ -468,9 +483,53 @@ static cvarTable_t cvarTable[] = { // bk001129
 static int  cvarTableSize = sizeof( cvarTable ) / sizeof( cvarTable[0] );
 
 /*
-=================
+=============
+CG_ParseScreenDamageColor
+
+Parses a hexadecimal color string into an unsigned integer so it can be cached.
+=============
+*/
+static unsigned int CG_ParseScreenDamageColor( const char *value ) {
+	char		*endPtr;
+	unsigned long	parsed;
+
+	if ( value == NULL || value[0] == '\0' ) {
+		return 0u;
+	}
+
+	parsed = strtoul( value, &endPtr, 0 );
+	if ( endPtr == value ) {
+		return 0u;
+	}
+
+	return (unsigned int)parsed;
+}
+
+/*
+=============
+CG_ClampScreenDamageAlpha
+
+Clamps the configured alpha intensity to the supported 0-255 range.
+=============
+*/
+static float CG_ClampScreenDamageAlpha( float value ) {
+	if ( value < 0.0f ) {
+		return 0.0f;
+	}
+
+	if ( value > 255.0f ) {
+		return 255.0f;
+	}
+
+	return value;
+}
+
+/*
+=============
 CG_RegisterCvars
-=================
+
+Registers the cgame cvars and seeds cached configuration state.
+=============
 */
 void CG_RegisterCvars( void ) {
 	int			i;
@@ -494,12 +553,23 @@ void CG_RegisterCvars( void ) {
         forceEnemySkinModificationCount = cg_forceEnemySkin.modificationCount;
         forceTeamWeaponColorModificationCount = cg_forceTeamWeaponColor.modificationCount;
         forceEnemyWeaponColorModificationCount = cg_forceEnemyWeaponColor.modificationCount;
-        teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
-        teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
-        teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
-        enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
-        enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
-        enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+	teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
+	teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
+	teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
+	enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
+	enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
+	enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+	screenDamageColorModificationCount = cg_screenDamage.modificationCount;
+	screenDamageColorSelfModificationCount = cg_screenDamage_Self.modificationCount;
+	screenDamageColorTeamModificationCount = cg_screenDamage_Team.modificationCount;
+	screenDamageAlphaModificationCount = cg_screenDamageAlpha.modificationCount;
+	screenDamageAlphaTeamModificationCount = cg_screenDamageAlpha_Team.modificationCount;
+
+	cg.screenDamageEnemyColor = CG_ParseScreenDamageColor( cg_screenDamage.string );
+	cg.screenDamageSelfColor = CG_ParseScreenDamageColor( cg_screenDamage_Self.string );
+	cg.screenDamageTeamColor = CG_ParseScreenDamageColor( cg_screenDamage_Team.string );
+	cg.screenDamageAlpha = CG_ClampScreenDamageAlpha( cg_screenDamageAlpha.value );
+	cg.screenDamageAlphaTeam = CG_ClampScreenDamageAlpha( cg_screenDamageAlpha_Team.value );
 
 	cg.kickScale = cg_kickScale.value;
 	if ( cg.kickScale < 0.0f ) {
@@ -537,9 +607,11 @@ static void CG_ForceModelChange( void ) {
 }
 
 /*
-=================
+=============
 CG_UpdateCvars
-=================
+
+Refreshes cached cvar state when a user modifies a tracked variable.
+=============
 */
 void CG_UpdateCvars( void ) {
 	int			i;
@@ -618,6 +690,26 @@ void CG_UpdateCvars( void ) {
 	if ( enemyLowerColorModificationCount != cg_enemyLowerColor.modificationCount ) {
 		enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
 		refreshClients = qtrue;
+	}
+	if ( screenDamageColorModificationCount != cg_screenDamage.modificationCount ) {
+		screenDamageColorModificationCount = cg_screenDamage.modificationCount;
+		cg.screenDamageEnemyColor = CG_ParseScreenDamageColor( cg_screenDamage.string );
+	}
+	if ( screenDamageColorSelfModificationCount != cg_screenDamage_Self.modificationCount ) {
+		screenDamageColorSelfModificationCount = cg_screenDamage_Self.modificationCount;
+		cg.screenDamageSelfColor = CG_ParseScreenDamageColor( cg_screenDamage_Self.string );
+	}
+	if ( screenDamageColorTeamModificationCount != cg_screenDamage_Team.modificationCount ) {
+		screenDamageColorTeamModificationCount = cg_screenDamage_Team.modificationCount;
+		cg.screenDamageTeamColor = CG_ParseScreenDamageColor( cg_screenDamage_Team.string );
+	}
+	if ( screenDamageAlphaModificationCount != cg_screenDamageAlpha.modificationCount ) {
+		screenDamageAlphaModificationCount = cg_screenDamageAlpha.modificationCount;
+		cg.screenDamageAlpha = CG_ClampScreenDamageAlpha( cg_screenDamageAlpha.value );
+	}
+	if ( screenDamageAlphaTeamModificationCount != cg_screenDamageAlpha_Team.modificationCount ) {
+		screenDamageAlphaTeamModificationCount = cg_screenDamageAlpha_Team.modificationCount;
+		cg.screenDamageAlphaTeam = CG_ClampScreenDamageAlpha( cg_screenDamageAlpha_Team.value );
 	}
 
 	if ( refreshClients ) {

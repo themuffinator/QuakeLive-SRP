@@ -651,6 +651,11 @@ typedef struct {
 	// blend blobs
 	float		damageTime;
 	float		damageX, damageY, damageValue;
+	unsigned int	screenDamageEnemyColor;
+	unsigned int	screenDamageSelfColor;
+	unsigned int	screenDamageTeamColor;
+	float		screenDamageAlpha;
+	float		screenDamageAlphaTeam;
 
 	// status bar head
 	float		headYaw;
@@ -1290,6 +1295,11 @@ extern	vmCvar_t 		cg_teamLowerColor;
 extern	vmCvar_t 		cg_enemyHeadColor;
 extern	vmCvar_t 		cg_enemyUpperColor;
 extern	vmCvar_t 		cg_enemyLowerColor;
+extern	vmCvar_t 		cg_screenDamage;
+extern	vmCvar_t 		cg_screenDamage_Self;
+extern	vmCvar_t 		cg_screenDamage_Team;
+extern	vmCvar_t 		cg_screenDamageAlpha;
+extern	vmCvar_t 		cg_screenDamageAlpha_Team;
 extern	vmCvar_t 		cg_buildScript;
 extern	vmCvar_t		cg_paused;
 extern	vmCvar_t		cg_blood;
