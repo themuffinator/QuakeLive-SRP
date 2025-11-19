@@ -64,6 +64,14 @@ typedef enum {
 	MOVER_2TO1
 } moverState_t;
 
+typedef enum {
+	AUTOACTION_MATCH_START = 0,
+	AUTOACTION_MATCH_END,
+	AUTOACTION_PLAYER_CONNECT,
+	AUTOACTION_PLAYER_DISCONNECT,
+	AUTOACTION_MAX
+} autoActionEvent_t;
+
 #define SP_PODIUM_MODEL		"models/mapobjects/podium/podium4.md3"
 
 //============================================================================
@@ -226,6 +234,11 @@ extern vmCvar_t g_playerCylinders;
 extern vmCvar_t g_playerheadScale;
 extern vmCvar_t g_playerheadScaleOffset;
 extern vmCvar_t g_playerModelScale;
+extern vmCvar_t g_autoAction;
+extern vmCvar_t g_floodprot_maxcount;
+extern vmCvar_t g_floodprot_decay;
+extern vmCvar_t g_floodprot_penalty;
+extern vmCvar_t g_kickBadUserinfo;
 extern vmCvar_t practiceflags;
 extern vmCvar_t g_forcedAtmosphere;
 extern vmCvar_t roundlimit;
@@ -637,6 +650,9 @@ struct gclient_s {
 	int			lastKillTime;		// for multiple kill rewards
 	int			lastKillCommandTime;	// last time the player issued the kill command
 	int			killCommandCooldownExpires;	// time when the kill command is allowed again
+	int			floodCount;
+	int			floodLastTime;
+	int			floodPenaltyTime;
 	int			friendlyFireComplaints;	// number of friendly-fire complaints on this client
 	int			friendlyFireComplaintEndTime;	// time when the latest complaint penalty expires
 	int			teammateDamageGiven;	// accumulated teammate damage across the match
@@ -886,6 +902,7 @@ void	G_RaceSendInfoCommand( int clientNum );
 qboolean	G_RaceSendPointMetadataCommand( int clientNum, int index );
 void	G_RaceServerClearPoints( void );
 void	G_RaceServerDumpPoints( void );
+void	G_AutoAction( autoActionEvent_t event, const gentity_t *subject, const char *details );
 
 //
 // g_cmds.c
