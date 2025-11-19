@@ -77,6 +77,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	GIANT_HEIGHT		48
 
 #define	NUM_CROSSHAIRS		10
+#define CG_MAX_LIGHTNING_STYLES 5
+
+#define CG_VIEW_FILTER_MAX_SAMPLES	32
 
 #define DOM_POINT_STATE_COUNT	5
 #define DOMINATION_DISTRESS_REPEAT_TIME	2000
@@ -121,6 +124,38 @@ typedef enum {
 	DAMAGE_PLUM_COLOR_STYLE_DAMAGE,
 	DAMAGE_PLUM_COLOR_STYLE_WEAPON
 } damagePlumColorStyle_t;
+
+typedef enum {
+	CG_SPECTATOR_TRACK_NONE = 0,
+	CG_SPECTATOR_TRACK_POWERUP,
+	CG_SPECTATOR_TRACK_FLAG
+} cgSpectatorTrackType_t;
+
+typedef struct {
+	int		count;
+	int		index;
+	float	lastYaw;
+	float	lastPitch;
+	float	yawSamples[CG_VIEW_FILTER_MAX_SAMPLES];
+	float	pitchSamples[CG_VIEW_FILTER_MAX_SAMPLES];
+} cgViewAngleFilter_t;
+  
+typedef enum {
+	ANNOUNCER_PROFILE_DISABLED = 0,
+	ANNOUNCER_PROFILE_DEFAULT,
+	ANNOUNCER_PROFILE_VADRIGAR,
+	ANNOUNCER_PROFILE_DAEMIA,
+	ANNOUNCER_PROFILE_COUNT
+} cgAnnouncerProfile_t;
+
+typedef struct {
+	sfxHandle_t	oneMinute;
+	sfxHandle_t	fiveMinute;
+	sfxHandle_t	suddenDeath;
+	sfxHandle_t	oneFrag;
+	sfxHandle_t	twoFrag;
+	sfxHandle_t	threeFrag;
+} cgAnnouncerSoundSet_t;
 
 //=================================================
 
@@ -178,6 +213,13 @@ typedef struct {
 	char	targetname[MAX_QPATH];
 	qboolean	active;
 } cgRacePointInfo_t;
+
+typedef enum {
+	CG_RACE_CUE_START,
+	CG_RACE_CUE_CHECKPOINT,
+	CG_RACE_CUE_FINISH,
+	CG_RACE_CUE_COUNT
+} cgRaceCue_t;
 
 typedef struct {
 	qboolean	initialized;
@@ -568,6 +610,7 @@ typedef struct {
 	// view rendering
 	refdef_t	refdef;
 	vec3_t		refdefViewAngles;		// will be converted to refdef.viewaxis
+	cgViewAngleFilter_t	viewFilter;
 
 	// zoom key
 	qboolean	zoomed;
@@ -605,6 +648,10 @@ typedef struct {
 	int				spectatorClientOrder[MAX_CLIENTS];
 	int				spectatorClientCount;
 	int				spectatorTargetUpdateTime;
+	int				spectatorTrackedClient;
+	int				trackedPlayerClientNum;
+	int				trackedPlayerExpireTime;
+	cgSpectatorTrackType_t	trackedPlayerPriority;
 
 	// skull trails
 	skulltrail_t	skulltrails[MAX_CLIENTS];
@@ -808,6 +855,7 @@ typedef struct {
 	qhandle_t	railCoreShader;
 
 	qhandle_t	lightningShader;
+	qhandle_t	lightningStyleShaders[CG_MAX_LIGHTNING_STYLES];
 
 	qhandle_t	friendShader;
 	qhandle_t	frozenPlayerShader;
@@ -968,6 +1016,8 @@ typedef struct {
 	sfxHandle_t fallSound;
 	sfxHandle_t jumpPadSound;
 
+	cgAnnouncerSoundSet_t announcerSoundSets[ANNOUNCER_PROFILE_COUNT];
+
 	sfxHandle_t oneMinuteSound;
 	sfxHandle_t fiveMinuteSound;
 	sfxHandle_t suddenDeathSound;
@@ -1033,6 +1083,9 @@ typedef struct {
 	sfxHandle_t yourBaseIsUnderAttackSound;
 	sfxHandle_t holyShitSound;
 	sfxHandle_t dominationDistressSound;
+	sfxHandle_t raceStartBeep;
+	sfxHandle_t raceCheckpointBeep;
+	sfxHandle_t raceFinishBeep;
 
 	// tournament sounds
 	sfxHandle_t	count3Sound;
@@ -1213,6 +1266,8 @@ typedef struct {
 	// media
 	cgMedia_t		media;
 
+	cgAnnouncerProfile_t	announcerProfile;
+
 } cgs_t;
 
 //==============================================================================
@@ -1245,7 +1300,12 @@ extern	vmCvar_t		cg_drawCrosshair;
 extern	vmCvar_t		cg_drawCrosshairNames;
 extern	vmCvar_t		cg_drawRewards;
 extern	vmCvar_t		cg_drawRewardsRowSize;
+extern	vmCvar_t		cg_announcer;
+extern	vmCvar_t		cg_announcerRewardsVO;
+extern	vmCvar_t		cg_raceBeep;
 extern	vmCvar_t		cg_drawCheckpointRemaining;
+extern	vmCvar_t		cg_levelTimerDirection;
+extern	vmCvar_t		cg_raceBeep;
 extern	vmCvar_t		cg_drawProfileImages;
 extern	vmCvar_t		cg_drawSprites;
 extern	vmCvar_t		cg_drawPregameMessages;
@@ -1349,6 +1409,9 @@ extern	vmCvar_t		cg_synchronousClients;
 extern	vmCvar_t		cg_teamChatTime;
 extern	vmCvar_t		cg_lowAmmoWarningPercentile;
 extern	vmCvar_t		cg_teamChatHeight;
+extern	vmCvar_t		cg_chatHistoryLength;
+extern	vmCvar_t		cg_chatbeep;
+extern	vmCvar_t		cg_teamChatBeep;
 extern	vmCvar_t		cg_stats;
 extern	vmCvar_t 		cg_forceModel;
 extern	vmCvar_t 		cg_forceTeamModel;
@@ -1374,8 +1437,8 @@ extern	vmCvar_t		cg_teammatePOIs;
 extern	vmCvar_t		cg_teammatePOIsMinWidth;
 extern	vmCvar_t		cg_teammatePOIsMaxWidth;
 extern	vmCvar_t		cg_teamChatsOnly;
-extern	vmCvar_t		cg_noVoiceChats;
-extern	vmCvar_t		cg_noVoiceText;
+extern	vmCvar_t		cg_playVoiceChats;
+extern	vmCvar_t		cg_showVoiceText;
 extern	vmCvar_t		cg_useItemMessage;
 extern	vmCvar_t		cg_useItemWarning;
 extern	vmCvar_t		cg_allowTaunt;
@@ -1401,6 +1464,10 @@ extern	vmCvar_t		cg_disableLoadout_cg;
 extern	vmCvar_t		cg_disableLoadout_hmg;
 extern	vmCvar_t		cg_trueShotgun;
 extern	vmCvar_t		cg_trackPlayer;
+extern	vmCvar_t		cg_followKiller;
+extern	vmCvar_t		cg_followPowerup;
+extern	vmCvar_t		cg_ignoreMouseInput;
+extern	vmCvar_t		cg_filter_angles;
 extern	vmCvar_t		cg_smoothClients;
 extern	vmCvar_t		cg_loadout;
 extern	vmCvar_t		pmove_fixed;
@@ -1420,6 +1487,9 @@ extern	vmCvar_t		cg_oldRail;
 extern	vmCvar_t		cg_oldRocket;
 extern	vmCvar_t		cg_oldPlasma;
 extern	vmCvar_t		cg_trueLightning;
+extern	vmCvar_t		cg_lightningStyle;
+extern	vmCvar_t		cg_lightningImpact;
+extern	vmCvar_t		cg_lightningImpactCap;
 extern	vmCvar_t		cg_drawTieredArmorAvailability;
 extern	vmCvar_t		cg_armorTiered;
 extern	vmCvar_t		cg_drawFullWeaponBar;
@@ -1481,6 +1551,8 @@ void CG_UpdateCvars( void );
 
 int CG_CrosshairPlayer( void );
 int CG_LastAttacker( void );
+int CG_GetChatHistoryLength( void );
+qboolean CG_ShouldDisplayVoiceIndicator( void );
 void CG_LoadMenus(const char *menuFile);
 void CG_KeyEvent(int key, qboolean down);
 void CG_MouseEvent(int x, int y);
@@ -1551,6 +1623,7 @@ extern  char teamChat2[256];
 void CG_RaceResetState( void );
 void CG_ParseRaceInfoString( const char *infoString );
 void CG_ParseRaceStatusString( const char *statusString );
+void CG_RacePlayCue( cgRaceCue_t cue );
 
 void CG_AddLagometerFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
@@ -1566,6 +1639,9 @@ int CG_Text_Height(const char *text, float scale, int limit);
 void CG_SelectPrevPlayer();
 void CG_SelectNextPlayer();
 void CG_SpectatorFollowCycle(int dir);
+void CG_SpectatorTrackEvent( int clientNum, cgSpectatorTrackType_t trackType );
+void CG_UpdateSpectatorTracking( void );
+qboolean CG_IsSpectatorCamera( void );
 float CG_GetValue(int ownerDraw);
 qboolean CG_OwnerDrawVisible(int flags);
 void CG_RunMenuScript(char **args);
