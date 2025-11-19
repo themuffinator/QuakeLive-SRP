@@ -290,6 +290,23 @@ vmCvar_t	cg_kickScale;
 vmCvar_t 	cg_scorePlum;
 vmCvar_t 	cg_damagePlum;
 vmCvar_t 	cg_damagePlumColorStyle;
+vmCvar_t 	cg_preferredStartingWeapons;
+vmCvar_t 	cg_disableLoadout_g;
+vmCvar_t 	cg_disableLoadout_mg;
+vmCvar_t 	cg_disableLoadout_sg;
+vmCvar_t 	cg_disableLoadout_gl;
+vmCvar_t 	cg_disableLoadout_rl;
+vmCvar_t 	cg_disableLoadout_lg;
+vmCvar_t 	cg_disableLoadout_rg;
+vmCvar_t 	cg_disableLoadout_pg;
+vmCvar_t 	cg_disableLoadout_bfg;
+vmCvar_t 	cg_disableLoadout_gh;
+vmCvar_t 	cg_disableLoadout_ng;
+vmCvar_t 	cg_disableLoadout_pl;
+vmCvar_t 	cg_disableLoadout_cg;
+vmCvar_t 	cg_disableLoadout_hmg;
+vmCvar_t 	cg_trueShotgun;
+vmCvar_t 	cg_trackPlayer;
 vmCvar_t 	cg_smoothClients;
 vmCvar_t 	cg_loadout;
 vmCvar_t	pmove_fixed;
@@ -563,6 +580,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE },
 	{ &cg_weaponPrimary, "cg_weaponPrimary", "", CVAR_ROM },
 	{ &cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP },
+	{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", 0x00080801 },
+	{ &cg_trueShotgun, "cg_trueShotgun", "0", 0x00081801 },
+	{ &cg_trackPlayer, "cg_trackPlayer", "-1", CVAR_CHEAT },
 	{ &cg_drawHitFriendTime, "cg_drawHitFriendTime", "5000", CVAR_ARCHIVE },
 	{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000", CVAR_ARCHIVE },
 	{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE },
@@ -591,6 +611,20 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },
 	{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },
 	{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },
+	{ &cg_disableLoadout_g, "cg_disableLoadout_g", "0", CVAR_ROM },
+	{ &cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ROM },
+	{ &cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ROM },
+	{ &cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_bfg, "cg_disableLoadout_bfg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ROM },
+	{ &cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ROM },
+	{ &cg_disableLoadout_pl, "cg_disableLoadout_pl", "0", CVAR_ROM },
+	{ &cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM },
 	{ &cg_loadout, "cg_loadout", "0", CVAR_ROM }
 //	{ &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
 };
