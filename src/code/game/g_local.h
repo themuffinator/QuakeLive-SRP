@@ -141,6 +141,7 @@ void G_UpdateAmmoPackConfig( void );
 int G_GetSuddenDeathRespawnDelay( void );
 
 void G_AutoShuffleCountdown_SetGuard( qboolean ( *guard )( void ) );
+void G_AutoShuffleCountdown_SetCompleteCallback( void ( *callback )( void ) );
 void G_AutoShuffleCountdown_Arm( int milliseconds );
 void G_AutoShuffleCountdown_Cancel( void );
 qboolean G_AutoShuffleCountdown_IsActive( void );
@@ -824,6 +825,7 @@ typedef struct {
 	qboolean	autoShuffleCountdownActive;
 	int		autoShuffleCountdownTargetTime;
 	int		autoShuffleCountdownLastAnnounce;
+	int		autoShuffleLastExecuteTime;
 	int			nextWarmupSpawnTime;
 	int			clientSpawnRequestTime[MAX_CLIENTS];
 	qboolean		clientSpawnQueued[MAX_CLIENTS];
@@ -1135,6 +1137,18 @@ void Team_RunDomination( void );
 void Team_RegisterDominationPoint( gentity_t *ent );
 qboolean Team_RegisterDominationTrigger( gentity_t *trigger );
 void Team_DominationPointTouch( gentity_t *ent, gentity_t *other, trace_t *trace );
+void Team_ReturnFlag( int team );
+void Team_FreeEntity( gentity_t *ent );
+gentity_t *SelectCTFSpawnPoint ( team_t team, int teamstate, vec3_t origin, vec3_t angles );
+gentity_t *Team_GetLocation(gentity_t *ent);
+qboolean Team_GetLocationMsg(gentity_t *ent, char *loc, int loclen);
+void TeamplayInfoMessage( gentity_t *ent );
+void CheckTeamStatus(void);
+qboolean Team_HasMinimumPlayersForWarmup( void );
+void Team_UpdateAutoShuffleState( void );
+void Team_ClampWarmupToShuffleCountdown( void );
+int Team_GetRespawnRatioForTeam( team_t team );
+qboolean Team_IsAutoShuffleArmed( void );
 
 //
 // g_mem.c
@@ -1282,6 +1296,12 @@ extern	vmCvar_t	g_teamForceBalance;
 extern	vmCvar_t	g_teamSpawnAsSpec;
 extern	vmCvar_t	g_teamSpecFreeCam;
 extern	vmCvar_t	g_teamSpecSayEnable;
+extern	vmCvar_t	g_teamSizeMin;
+extern	vmCvar_t	g_teamForcePresent;
+extern	vmCvar_t	g_shuffleTimedelay;
+extern	vmCvar_t	g_shuffleMinPlayers;
+extern	vmCvar_t	g_shuffleAutomatic;
+extern	vmCvar_t	g_shuffleAutomaticMinPlayers;
 extern	vmCvar_t	g_banIPs;
 extern	vmCvar_t	g_filterBan;
 extern	vmCvar_t	g_instaGib;

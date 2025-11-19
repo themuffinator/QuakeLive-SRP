@@ -16,6 +16,21 @@ Competitive duel and team modes now expose Quake Live–style match pauses. Play
 | `g_timeoutCount` | `0` | Number of timeouts each team receives per match; initialised into `level.timeoutRemaining` and published via `CS_MATCH_STATE` for client HUDs.【F:src/code/game/g_main.c†L1093-L1121】【F:src/code/game/g_main.c†L2100-L2131】 |
 | `g_timeoutLen` | `60` | Timeout duration in seconds; values ≤0 hold the pause until a manual `timein`, while positive values trigger an automatic resume with broadcast messaging.【F:src/code/game/g_cmds.c†L1657-L1670】【F:src/code/game/g_main.c†L2295-L2316】 |
 
+## Team Warmup and Shuffle Controls
+
+Public servers often want to keep Clan Arena and TDM warmups idle until both teams are ready, then auto-shuffle if players stack one side. The following CVars expose those Quake Live semantics: warmups watch `g_teamSizeMin` and `g_teamForcePresent` before starting countdowns, and the shuffle suite (`g_shuffle_*`) arms timed shuffles as soon as player deltas exceed the configured thresholds.【F:src/code/game/g_main.c†L2738-L2798】【F:src/code/game/g_team.c†L200-L520】 Auto-shuffle countdowns clamp the warmup timer, emit HUD messages, and cancel themselves if balance returns, matching the original console feedback.【F:src/code/game/g_team.c†L435-L506】
+
+| CVar | Default | Notes |
+| --- | --- | --- |
+| `g_teamSizeMin` | `0` | Minimum players required per team before warmup timers run in team modes; respawn ratios use this number to report readiness via the match-state configstring.【F:src/code/game/g_team.c†L230-L310】【F:src/code/game/g_match_state.c†L71-L108】 |
+| `g_teamForcePresent` | `0` | When non-zero, both teams must individually meet `g_teamSizeMin` before live play begins; otherwise the server only enforces the total minimum across both teams.【F:src/code/game/g_team.c†L474-L520】 |
+| `g_shuffle_timedelay` | `30` | Seconds to wait between arming an automatic shuffle and executing it; set to `0` to shuffle instantly once conditions are met.【F:src/code/game/g_team.c†L442-L506】 |
+| `g_shuffle_minplayers` | `4` | Minimum total players required before shuffle logic will consider arming, preventing countdowns in empty servers.【F:src/code/game/g_team.c†L252-L310】 |
+| `g_shuffle_automatic` | `0` | Enables Quake Live–style automatic team shuffles during warmup whenever the configured player difference remains lopsided.【F:src/code/game/g_team.c†L276-L334】 |
+| `g_shuffle_automatic_minplayers` | `6` | Overrides `g_shuffle_minplayers` for automatic shuffles so admins can require fuller teams before the countdown begins.【F:src/code/game/g_team.c†L252-L310】 |
+
+Auto-shuffle state is mirrored to clients through `CS_MATCH_STATE`, letting HUDs display team counts, respawn ratios, and the pending countdown so spectators see when a shuffle will trigger.【F:src/code/game/g_match_state.c†L71-L118】【F:src/code/cgame/cg_servercmds.c†L900-L990】
+
 ## Mercy Rule Controls
 
 Team games can optionally end early when one side builds an insurmountable lead. The HLIL uses `g_mercytime` to delay any mercy evaluation until a minimum number of minutes has elapsed, then checks whether the absolute score spread exceeds `mercylimit` (ignoring warmup periods, pauses, and Attack & Defend's bespoke flow). When triggered, the server prints which team hit the limit and logs a `Mercylimit hit.` exit so demos match Quake Live's console text.【F:src/code/game/g_main.c†L2088-L2144】【F:src/code/game/g_main.c†L2146-L2184】

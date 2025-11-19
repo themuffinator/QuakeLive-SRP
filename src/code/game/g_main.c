@@ -165,7 +165,6 @@ void QLR_Game_BindFrameContext( qlr_game_frame_context_t *ctx ) {
 		g_qlr_frame_ctx->level = ( qlr_level_locals_t * )&level;
 		g_qlr_frame_ctx->entities = ( qlr_gentity_t * )g_entities;
 		g_qlr_frame_ctx->entity_count = level.num_entities;
-	}
 }
 
 void QLR_Game_UnbindFrameContext( void ) {
@@ -245,6 +244,12 @@ vmCvar_t	g_maxDeferredSpawns;
 vmCvar_t	g_teamSpawnAsSpec;
 vmCvar_t	g_teamSpecFreeCam;
 vmCvar_t	g_teamSpecSayEnable;
+vmCvar_t	g_teamSizeMin;
+vmCvar_t	g_teamForcePresent;
+vmCvar_t	g_shuffleTimedelay;
+vmCvar_t	g_shuffleMinPlayers;
+vmCvar_t	g_shuffleAutomatic;
+vmCvar_t	g_shuffleAutomaticMinPlayers;
 vmCvar_t	g_playerCylinders;
 vmCvar_t	g_playerheadScale;
 vmCvar_t	g_playerheadScaleOffset;
@@ -443,6 +448,13 @@ static cvarTable_t		gameCvarTable[] = {
         { &g_teamSpecFreeCam, "g_teamSpecFreeCam", "0", 0, 0, qfalse, qfalse, "Allow spectators to use free-flying cameras when non-zero; otherwise they stay in follow or scoreboard views." },
         { &g_teamSpecSayEnable, "g_teamSpecSayEnable", "1", 0, 0, qfalse, qfalse, "Permit spectators to chat while observing when enabled." },
 
+        { &g_teamSizeMin, "g_teamSizeMin", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minimum players per team required before warmup countdowns start in team modes." },
+        { &g_teamForcePresent, "g_teamForcePresent", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Force both teams to satisfy g_teamSizeMin before starting live play." },
+        { &g_shuffleTimedelay, "g_shuffle_timedelay", "30", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds to delay before an automatic shuffle executes once armed." },
+        { &g_shuffleMinPlayers, "g_shuffle_minplayers", "4", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minimum total players required before shuffle logic is considered." },
+        { &g_shuffleAutomatic, "g_shuffle_automatic", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable Quake Live style automatic team shuffles during warmup." },
+        { &g_shuffleAutomaticMinPlayers, "g_shuffle_automatic_minplayers", "6", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Player threshold that must be met before auto-shuffle countdowns can arm." },
+
 	{ &g_log, "g_log", "games.log", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_logSync, "g_logSync", "0", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_accessFile, "g_accessFile", "access.txt", 0, 0, qfalse, qfalse, "Relative path to the access permission file evaluated for admin commands." },
@@ -613,8 +625,7 @@ void G_RefreshAllCvars( void ) {
 	for ( i = 0, cv = gameCvarTable; i < gameCvarTableSize; i++, cv++ ) {
 		if ( cv->vmCvar ) {
 			trap_Cvar_Update( cv->vmCvar );
-		}
-	}
+}
 }
 
 static void G_RegisterCvarHelp( const cvarTable_t *cv ) {
@@ -2606,6 +2617,7 @@ static void LevelCheckTimers( void ) {
 	matchFlow_lastConfig = *config;
 
 	G_AutoShuffleCountdown_Frame();
+	Team_UpdateAutoShuffleState();
 
 	if ( level.timeoutActive ) {
 		if ( level.timeoutExpireTime && level.time >= level.timeoutExpireTime ) {
@@ -2738,14 +2750,10 @@ void CheckTournament( void ) {
 			return;
 		}
 	} else if ( g_gametype.integer != GT_SINGLE_PLAYER && level.warmupTime != 0 ) {
-		int		counts[TEAM_NUM_TEAMS];
-		qboolean	notEnough = qfalse;
+		qboolean		notEnough = qfalse;
 
-		if ( g_gametype.integer > GT_TEAM ) {
-			counts[TEAM_BLUE] = TeamCount( -1, TEAM_BLUE );
-			counts[TEAM_RED] = TeamCount( -1, TEAM_RED );
-
-			if (counts[TEAM_RED] < 1 || counts[TEAM_BLUE] < 1) {
+		if ( g_gametype.integer >= GT_TEAM ) {
+			if ( !Team_HasMinimumPlayersForWarmup() ) {
 				notEnough = qtrue;
 			}
 		} else if ( level.numPlayingClients < 2 ) {
@@ -2777,6 +2785,7 @@ void CheckTournament( void ) {
 			// fudge by -1 to account for extra delays
 			level.warmupTime = level.time + ( g_warmup.integer - 1 ) * 1000;
 			trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+			Team_ClampWarmupToShuffleCountdown();
 			return;
 		}
 
@@ -2789,55 +2798,7 @@ void CheckTournament( void ) {
 			return;
 		}
 	}
-}
 
-
-/*
-==================
-CheckVote
-==================
-*/
-void CheckVote( void ) {
-	if ( level.voteExecuteTime && level.voteExecuteTime < level.time ) {
-		level.voteExecuteTime = 0;
-		trap_SendConsoleCommand( EXEC_APPEND, va("%s\n", level.voteString ) );
-	}
-	if ( !level.voteTime ) {
-		return;
-	}
-	if ( level.time - level.voteTime >= VOTE_TIME ) {
-		trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
-	} else {
-		// ATVI Q3 1.32 Patch #9, WNF
-		if ( level.voteYes > level.numVotingClients/2 ) {
-			// execute the command, then remove the vote
-			trap_SendServerCommand( -1, "print \"Vote passed.\n\"" );
-			level.voteExecuteTime = level.time + 3000;
-		} else if ( level.voteNo >= level.numVotingClients/2 ) {
-			// same behavior as a timeout
-			trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
-		} else {
-			// still waiting for a majority
-			return;
-		}
-	}
-	level.voteTime = 0;
-	trap_SetConfigstring( CS_VOTE_TIME, "" );
-
-}
-
-/*
-==================
-PrintTeam
-==================
-*/
-void PrintTeam(int team, char *message) {
-	int i;
-
-	for ( i = 0 ; i < level.maxclients ; i++ ) {
-		if (level.clients[i].sess.sessionTeam != team)
-			continue;
-		trap_SendServerCommand( i, message );
 	}
 }
 

@@ -69,7 +69,6 @@ static void CG_CopyDefaultPmoveSettings( pmove_settings_t *settings ) {
 	} else {
 		Com_Memset( settings, 0, sizeof( pmove_settings_t ) );
 	}
-}
 
 /*
 =============
@@ -643,8 +642,6 @@ static void CG_ParseAdminRacePoint( const char *cmd ) {
 	}
 }
 
-
-
 /*
 =================
 CG_ParseScores
@@ -825,18 +822,18 @@ Extracts an integer value from the supplied match-state info string.
 =============
 */
 static int CG_InfoIntForMatchKey( const char *info, const char *key, int defaultValue ) {
-const char *value;
+	const char *value;
 
-if ( !info || !key ) {
-return defaultValue;
-}
+	if ( !info || !key ) {
+		return defaultValue;
+	}
 
-value = Info_ValueForKey( info, key );
-if ( !value || !*value ) {
-return defaultValue;
-}
+	value = Info_ValueForKey( info, key );
+	if ( !value || !*value ) {
+		return defaultValue;
+	}
 
-return atoi( value );
+	return atoi( value );
 }
 
 /*
@@ -859,6 +856,8 @@ static void CG_ResetMatchStateFields( void ) {
 	cgs.matchTimeoutOwner = -1;
 	for ( i = 0; i < TEAM_NUM_TEAMS; i++ ) {
 		cgs.matchTimeoutRemaining[i] = 0;
+		cgs.matchTeamCount[i] = 0;
+		cgs.matchTeamRespawnRatio[i] = 0;
 	}
 	cgs.matchTimeoutLengthSeconds = 0;
 	cgs.matchTimeoutCountPerTeam = 0;
@@ -874,7 +873,11 @@ static void CG_ResetMatchStateFields( void ) {
 	cgs.matchRoundNumber = 0;
 	cgs.matchRoundTurn = 0;
 	cgs.matchRoundState = 0;
+	cgs.matchAutoShuffleArmed = qfalse;
+	cgs.matchAutoShuffleSecondsRemaining = 0;
 }
+
+
 
 /*
 =============
@@ -910,6 +913,7 @@ Parses the match state configstring and updates client state.
 static void CG_ParseMatchState( void ) {
 	const char *info;
 	int timeoutRemaining;
+	int value;
 
 	CG_ResetMatchStateFields();
 
@@ -940,6 +944,26 @@ static void CG_ParseMatchState( void ) {
 		timeoutRemaining = 0;
 	}
 	cgs.matchTimeoutRemaining[TEAM_BLUE] = timeoutRemaining;
+
+	cgs.matchTeamCount[TEAM_RED] = CG_InfoIntForMatchKey( info, MATCH_STATE_KEY_TEAM_RED_COUNT, 0 );
+	cgs.matchTeamCount[TEAM_BLUE] = CG_InfoIntForMatchKey( info, MATCH_STATE_KEY_TEAM_BLUE_COUNT, 0 );
+
+	value = CG_InfoIntForMatchKey( info, MATCH_STATE_KEY_RESPAWN_RED, 0 );
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTeamRespawnRatio[TEAM_RED] = value;
+	value = CG_InfoIntForMatchKey( info, MATCH_STATE_KEY_RESPAWN_BLUE, 0 );
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTeamRespawnRatio[TEAM_BLUE] = value;
+
+	cgs.matchAutoShuffleArmed = CG_InfoIntForMatchKey( info, MATCH_STATE_KEY_SHUFFLE_ARMED, 0 ) ? qtrue : qfalse;
+	cgs.matchAutoShuffleSecondsRemaining = CG_InfoIntForMatchKey( info, MATCH_STATE_KEY_SHUFFLE_REMAINING, 0 );
+	if ( cgs.matchAutoShuffleSecondsRemaining < 0 ) {
+		cgs.matchAutoShuffleSecondsRemaining = 0;
+	}
 
 	CG_ParseMatchFactoryConfig( info );
 }
