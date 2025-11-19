@@ -118,6 +118,8 @@ static qboolean G_PmoveSerializeSettings( const pmove_settings_t *settings, char
 	PMOVE_BOOL_FIELD( chainJump );
 	PMOVE_FLOAT_FIELD( chainJumpVelocity );
 	PMOVE_FLOAT_FIELD( circleStrafeFriction );
+	PMOVE_FLOAT_FIELD( flightRefuelRate );
+	PMOVE_FLOAT_FIELD( flightThrust );
 	PMOVE_BOOL_FIELD( crouchSlide );
 	PMOVE_FLOAT_FIELD( crouchSlideFriction );
 	PMOVE_INT_FIELD( crouchSlideTime );
@@ -290,6 +292,8 @@ static void G_PmoveCacheSettings( void ) {
 	g_pmoveSettings.chainJump = ( g_pmove_chainJump_cvar.integer != 0 );
 	g_pmoveSettings.chainJumpVelocity = g_pmove_chainJumpVelocity_cvar.value;
 	g_pmoveSettings.circleStrafeFriction = g_pmove_circleStrafeFriction_cvar.value;
+	g_pmoveSettings.flightRefuelRate = g_flightRefuelRate.value;
+	g_pmoveSettings.flightThrust = g_flightThrust.value;
 	g_pmoveSettings.crouchSlide = ( g_pmove_crouchSlide_cvar.integer != 0 );
 	g_pmoveSettings.crouchSlideFriction = g_pmove_crouchSlideFriction_cvar.value;
 	g_pmoveSettings.crouchSlideTime = g_pmove_crouchSlideTime_cvar.integer;

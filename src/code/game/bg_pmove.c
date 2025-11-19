@@ -89,6 +89,8 @@ static const pmove_settings_t	pm_defaultSettings = {
 	.chainJump = qtrue,
 	.chainJumpVelocity = 110.0f,
 	.circleStrafeFriction = 6.0f,
+	.flightRefuelRate = 0.0f,
+	.flightThrust = 1200.0f,
 	.crouchSlide = qfalse,
 	.crouchSlideFriction = 0.5f,
 	.crouchSlideTime = 2000,
@@ -1214,11 +1216,21 @@ static void PM_FlyMove( void ) {
 	float	wishspeed;
 	vec3_t	wishdir;
 	float	scale;
+	const pmove_settings_t	*settings;
+	float		maxThrust;
 
 	// normal slowdown
 	PM_Friction ();
 
 	scale = PM_CmdScale( &pm->cmd );
+
+	settings = PM_GetActiveSettings();
+	maxThrust = pm_defaultSettings.flightThrust;
+	if ( settings && settings->flightThrust > 0.0f ) {
+		maxThrust = settings->flightThrust;
+	} else if ( maxThrust < 0.0f ) {
+		maxThrust = 0.0f;
+	}
 	//
 	// user intentions
 	//
@@ -1232,6 +1244,13 @@ static void PM_FlyMove( void ) {
 		}
 
 		wishvel[2] += scale * pm->cmd.upmove;
+		if ( maxThrust > 0.0f ) {
+			if ( wishvel[2] > maxThrust ) {
+				wishvel[2] = maxThrust;
+			} else if ( wishvel[2] < -maxThrust ) {
+				wishvel[2] = -maxThrust;
+			}
+		}
 	}
 
 	VectorCopy (wishvel, wishdir);
@@ -1245,6 +1264,7 @@ static void PM_FlyMove( void ) {
 		PM_ApplyStepJump( pml.stepUp, qfalse );
 	}
 }
+
 
 
 /*

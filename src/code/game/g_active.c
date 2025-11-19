@@ -193,6 +193,84 @@ void G_SetClientSound( gentity_t *ent ) {
 	}
 }
 
+/*
+=============
+G_RunFlightRefuel
+
+Restores flight powerup duration while grounded according to the configured refuel rate.
+=============
+*/
+static void G_RunFlightRefuel( gentity_t *ent, int msec ) {
+	gclient_t	*client;
+	float		refuelRate;
+	int		maxDuration;
+	int		currentDuration;
+	int		missing;
+	int		grant;
+
+	if ( !ent || !ent->client || msec <= 0 ) {
+		return;
+	}
+
+	if ( g_flightRefuelRate.value <= 0.0f ) {
+		return;
+	}
+
+	client = ent->client;
+
+	if ( client->ps.powerups[PW_FLIGHT] <= level.time ) {
+		client->flightRefuelAccumulator = 0.0f;
+		client->flightRefuelMaxDuration = 0;
+		return;
+	}
+
+	if ( client->ps.groundEntityNum == ENTITYNUM_NONE ) {
+		return;
+	}
+
+	refuelRate = g_flightRefuelRate.value;
+	if ( refuelRate <= 0.0f ) {
+		return;
+	}
+
+	maxDuration = client->flightRefuelMaxDuration;
+	if ( maxDuration <= 0 ) {
+		maxDuration = client->ps.powerups[PW_FLIGHT] - level.time;
+		if ( maxDuration < 0 ) {
+			maxDuration = 0;
+		}
+		client->flightRefuelMaxDuration = maxDuration;
+	}
+
+	if ( maxDuration <= 0 ) {
+		return;
+	}
+
+	currentDuration = client->ps.powerups[PW_FLIGHT] - level.time;
+	if ( currentDuration < 0 ) {
+		currentDuration = 0;
+	}
+
+	missing = maxDuration - currentDuration;
+	if ( missing <= 0 ) {
+		client->flightRefuelAccumulator = 0.0f;
+		return;
+	}
+
+	client->flightRefuelAccumulator += ( (float)msec * refuelRate ) / 1000.0f;
+	grant = (int)client->flightRefuelAccumulator;
+	if ( grant <= 0 ) {
+		return;
+	}
+
+	if ( grant > missing ) {
+		grant = missing;
+	}
+
+	client->ps.powerups[PW_FLIGHT] += grant;
+	client->flightRefuelAccumulator -= grant;
+}
+
 
 
 //==============================================================
@@ -923,6 +1001,8 @@ void ClientThink_real( gentity_t *ent ) {
 			}
 		}
 		Pmove (&pm);
+
+	G_RunFlightRefuel( ent, msec );
 
 	// save results of pmove
 	if ( ent->client->ps.eventSequence != oldEventSequence ) {

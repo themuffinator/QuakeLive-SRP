@@ -369,6 +369,10 @@ vmCvar_t	g_rrAllowNegativeScores;
 vmCvar_t	roundlimit;
 vmCvar_t	roundtimelimit;
 vmCvar_t	practiceflags;
+vmCvar_t	g_flightThrust;
+vmCvar_t	g_flightRefuelRate;
+vmCvar_t	g_battleSuitDampen;
+vmCvar_t	g_dropDamagedHealth;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
@@ -482,6 +486,10 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_speed, "g_speed", "320", 0, 0, qtrue  },
 	{ &g_gravity, "g_gravity", "800", 0, 0, qtrue  },
 	{ &g_knockback, "g_knockback", "1000", 0, 0, qtrue  },	{ &g_max_knockback, "g_max_knockback", "200", 0, 0, qfalse, qfalse, "Upper clamp applied to computed knockback force." },	{ &g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue  },
+        { &g_flightThrust, "g_flightThrust", "1200", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum vertical thrust applied while the Flight powerup is active." },
+        { &g_flightRefuelRate, "g_flightRefuelRate", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds of flight duration restored per second when grounded; 0 disables refueling." },
+        { &g_battleSuitDampen, "g_battleSuitDampen", "0.25", CVAR_ARCHIVE, 0, qfalse, qfalse, "Damage scale applied to direct hits while the Battlesuit protects the player." },
+        { &g_dropDamagedHealth, "g_dropDamagedHealth", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Spawn small health shards when players take health damage if enabled." },
 	{ &g_weaponRespawn, "g_weaponRespawn", "5", 0, 0, qtrue  },
 	{ &g_weaponTeamRespawn, "g_weaponTeamRespawn", "30", 0, 0, qtrue },
 	{ &g_forcerespawn, "g_forcerespawn", "20", 0, 0, qtrue },

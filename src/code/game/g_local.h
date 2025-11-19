@@ -286,7 +286,12 @@ extern vmCvar_t g_spawnItemWeapons;
 extern vmCvar_t g_spawnItemHealth;
 extern vmCvar_t g_spawnItemArmor;
 extern vmCvar_t g_spawnItemAmmo;
+extern vmCvar_t g_flightThrust;
+extern vmCvar_t g_flightRefuelRate;
+extern vmCvar_t g_battleSuitDampen;
+extern vmCvar_t g_dropDamagedHealth;
 
+qboolean G_MatchFactoryDropAllowed( void );
 typedef struct startingAmmoConfig_s {
 	int		bfg;
 	int		chaingun;
@@ -657,6 +662,9 @@ struct gclient_s {
 	// timeResidual is used to handle events that happen every second
 	// like health / armor countdowns and regeneration
 	int			timeResidual;
+
+	int			flightRefuelMaxDuration;
+	float		flightRefuelAccumulator;
 
 	int		dominationTouchFrame[DOMINATION_MAX_POINTS];
 	gentity_t	*persistantPowerup;

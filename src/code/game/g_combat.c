@@ -27,6 +27,72 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define COMPLAINT_PROMPT_MSEC	15500
 #define COMPLAINT_DECAY_MSEC	15500
+#define DAMAGED_HEALTH_MAX_DROPS	10
+
+/*
+===============
+G_SpawnDamagedHealthDrops
+
+Spawns small health pickups near damaged players when the cvar is enabled.
+===============
+*/
+static void G_SpawnDamagedHealthDrops( gentity_t *targ, int healthDamage ) {
+	gitem_t	*item;
+	vec3_t	origin;
+	vec3_t	velocity;
+	int		dropPool;
+	int		shardValue;
+	int		dropHealth;
+	int		dropCount;
+	int		i;
+
+	if ( !targ || !targ->client ) {
+		return;
+	}
+
+	dropPool = g_dropDamagedHealth.integer;
+	if ( dropPool <= 0 || healthDamage <= 0 ) {
+		return;
+	}
+
+	if ( !G_MatchFactoryDropAllowed() ) {
+		return;
+	}
+
+	item = BG_FindItem( "item_health_small" );
+	if ( !item ) {
+		return;
+	}
+
+	shardValue = item->quantity;
+	if ( shardValue <= 0 ) {
+		shardValue = 5;
+	}
+
+	dropHealth = healthDamage;
+
+	dropCount = dropHealth / shardValue;
+	if ( dropCount <= 0 ) {
+		return;
+	}
+
+	if ( dropCount > DAMAGED_HEALTH_MAX_DROPS ) {
+		dropCount = DAMAGED_HEALTH_MAX_DROPS;
+	}
+
+	for ( i = 0 ; i < dropCount ; i++ ) {
+		VectorCopy( targ->r.currentOrigin, origin );
+		origin[0] += crandom() * 4.0f;
+		origin[1] += crandom() * 4.0f;
+		origin[2] += targ->r.mins[2] + 24.0f;
+
+		velocity[0] = crandom() * 60.0f;
+		velocity[1] = crandom() * 60.0f;
+		velocity[2] = 120.0f + crandom() * 30.0f;
+
+		LaunchItem( item, origin, velocity );
+	}
+}
 
 /*
 =============
@@ -1396,11 +1462,21 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	// battlesuit protects from all radius damage (but takes knockback)
 	// and protects 50% against all damage
 	if ( client && client->ps.powerups[PW_BATTLESUIT] ) {
+		float dampenScale;
+
 		G_AddEvent( targ, EV_POWERUP_BATTLESUIT, 0 );
 		if ( ( dflags & DAMAGE_RADIUS ) || ( mod == MOD_FALLING ) ) {
 			return;
 		}
-		damage *= 0.5;
+
+		dampenScale = g_battleSuitDampen.value;
+		if ( dampenScale < 0.0f ) {
+			dampenScale = 0.0f;
+		} else if ( dampenScale > 1.0f ) {
+			dampenScale = 1.0f;
+		}
+
+		damage = (int)( (float)damage * dampenScale );
 	}
 
 	// add to the attacker's hit counter (if the target isn't a general entity like a prox mine)
@@ -1431,6 +1507,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	asave = CheckArmor (targ, take, dflags);
 	take -= asave;
 	if ( take > 0 ) {
+		G_SpawnDamagedHealthDrops( targ, take );
 		G_RRHandleDamageScore( attacker, targ, take );
 	}
 

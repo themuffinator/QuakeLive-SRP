@@ -448,6 +448,8 @@ static qboolean CG_ParsePmoveSettingsPayload( const char *payload, pmove_setting
 		PMOVE_BOOL_FIELD( chainJump )
 		PMOVE_FLOAT_FIELD( chainJumpVelocity )
 		PMOVE_FLOAT_FIELD( circleStrafeFriction )
+		PMOVE_FLOAT_FIELD( flightRefuelRate )
+		PMOVE_FLOAT_FIELD( flightThrust )
 		PMOVE_BOOL_FIELD( crouchSlide )
 		PMOVE_FLOAT_FIELD( crouchSlideFriction )
 		PMOVE_INT_FIELD( crouchSlideTime )

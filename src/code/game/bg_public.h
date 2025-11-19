@@ -443,6 +443,8 @@ struct pmove_settings_s {
 	qboolean	chainJump;
 	float	chainJumpVelocity;
 	float	circleStrafeFriction;
+	float	flightRefuelRate;
+	float	flightThrust;
 	qboolean	crouchSlide;
 	float	crouchSlideFriction;
 	int	crouchSlideTime;

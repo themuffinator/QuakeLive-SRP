@@ -96,7 +96,7 @@ G_MatchFactoryDropAllowed
 Returns whether the active match factory configuration permits item drops.
 =============
 */
-static qboolean G_MatchFactoryDropAllowed( void ) {
+qboolean G_MatchFactoryDropAllowed( void ) {
 	return level.matchAllowItemDrops ? qtrue : qfalse;
 }
 
@@ -109,6 +109,26 @@ Returns whether dropped and spawned items should bounce.
 */
 static qboolean G_MatchFactoryBounceAllowed( void ) {
 	return level.matchAllowItemBounce ? qtrue : qfalse;
+}
+
+/*
+=============
+G_ResetFlightRefuelState
+
+Resets the cached flight refuel metadata whenever the player's timer changes.
+=============
+*/
+static void G_ResetFlightRefuelState( gclient_t *client, int durationMilliseconds ) {
+	if ( !client ) {
+		return;
+	}
+
+	if ( durationMilliseconds < 0 ) {
+		durationMilliseconds = 0;
+	}
+
+	client->flightRefuelMaxDuration = durationMilliseconds;
+	client->flightRefuelAccumulator = 0.0f;
 }
 
 
@@ -138,6 +158,17 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 		G_QuadHogOnPickup( other );
 	}
 
+	if ( ent->item->giTag == PW_FLIGHT && other->client ) {
+		int duration;
+
+		duration = other->client->ps.powerups[PW_FLIGHT] - level.time;
+		if ( duration < 0 ) {
+			duration = 0;
+		}
+
+		G_ResetFlightRefuelState( other->client, duration );
+	}
+
 	// give any nearby players a "denied" anti-reward
 	for ( i = 0 ; i < level.maxclients ; i++ ) {
 		vec3_t		delta;
@@ -156,11 +187,11 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 			continue;
 		}
 
-    // if same team in team game, no sound
-    // cannot use OnSameTeam as it expects to g_entities, not clients
-  	if ( g_gametype.integer >= GT_TEAM && other->client->sess.sessionTeam == client->sess.sessionTeam  ) {
-      continue;
-    }
+		// if same team in team game, no sound
+		// cannot use OnSameTeam as it expects to g_entities, not clients
+		if ( g_gametype.integer >= GT_TEAM && other->client->sess.sessionTeam == client->sess.sessionTeam ) {
+			continue;
+		}
 
 		// if too far away, no sound
 		VectorSubtract( ent->s.pos.trBase, client->ps.origin, delta );
