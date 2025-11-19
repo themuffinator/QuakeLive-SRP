@@ -145,6 +145,11 @@ static qboolean G_PmoveSerializeSettings( const pmove_settings_t *settings, char
 	PMOVE_INT_FIELD( weaponDropTime );
 	PMOVE_INT_FIELD( weaponRaiseTime );
 	PMOVE_FLOAT_FIELD( wishSpeed );
+	PMOVE_FLOAT_FIELD( machinegunIronsightsScale );
+	PMOVE_FLOAT_FIELD( gauntletSpeedFactor );
+	PMOVE_INT_FIELD( midAirMinimumHeight );
+	PMOVE_BOOL_FIELD( nailgunBounceEnabled );
+	PMOVE_INT_FIELD( nailgunBouncePercentage );
 
 #undef PMOVE_BOOL_FIELD
 #undef PMOVE_INT_FIELD
@@ -339,6 +344,29 @@ static void G_PmoveCacheSettings( void ) {
 	g_pmoveSettings.weaponDropTime = g_pmove_weaponDropTime_cvar.integer;
 	g_pmoveSettings.weaponRaiseTime = g_pmove_weaponRaiseTime_cvar.integer;
 	g_pmoveSettings.wishSpeed = g_pmove_wishSpeed_cvar.value;
+	{
+		float	machinegunIronsightsScale;
+
+		machinegunIronsightsScale = g_weaponConfig.machinegunIronsightsScale;
+		if ( machinegunIronsightsScale <= 0.0f ) {
+			machinegunIronsightsScale = 1.0f;
+		}
+
+		g_pmoveSettings.machinegunIronsightsScale = machinegunIronsightsScale;
+	}
+	{
+		float	gauntletSpeedFactor;
+
+		gauntletSpeedFactor = g_weaponConfig.gauntletSpeedFactor;
+		if ( gauntletSpeedFactor <= 0.0f ) {
+			gauntletSpeedFactor = 1.0f;
+		}
+
+		g_pmoveSettings.gauntletSpeedFactor = gauntletSpeedFactor;
+	}
+	g_pmoveSettings.midAirMinimumHeight = g_weaponConfig.midAirMinimumHeight;
+	g_pmoveSettings.nailgunBounceEnabled = ( g_weaponConfig.nailgunBounceEnabled != 0 );
+	g_pmoveSettings.nailgunBouncePercentage = g_weaponConfig.nailgunBouncePercentage;
 
 	{
 		weapon_t	weapon;

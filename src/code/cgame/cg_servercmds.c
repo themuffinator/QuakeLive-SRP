@@ -481,10 +481,15 @@ static qboolean CG_ParsePmoveSettingsPayload( const char *payload, pmove_setting
 		PMOVE_INT_FIELD( weaponDropTime )
 		PMOVE_INT_FIELD( weaponRaiseTime )
 		PMOVE_FLOAT_FIELD( wishSpeed )
+		PMOVE_FLOAT_FIELD( machinegunIronsightsScale )
+		PMOVE_FLOAT_FIELD( gauntletSpeedFactor )
+		PMOVE_INT_FIELD( midAirMinimumHeight )
+		PMOVE_BOOL_FIELD( nailgunBounceEnabled )
+		PMOVE_INT_FIELD( nailgunBouncePercentage )
 
-	#undef PMOVE_BOOL_FIELD
-	#undef PMOVE_INT_FIELD
-	#undef PMOVE_FLOAT_FIELD
+#undef PMOVE_BOOL_FIELD
+#undef PMOVE_INT_FIELD
+#undef PMOVE_FLOAT_FIELD
 
 		else {
 			if ( !CG_SkipPmoveJsonValue( &cursor ) ) {
