@@ -150,7 +150,18 @@ static qboolean G_PmoveSerializeSettings( const pmove_settings_t *settings, char
 #undef PMOVE_INT_FIELD
 #undef PMOVE_FLOAT_FIELD
 
-	if ( !G_PmoveAppendPayload( buffer, bufferSize, &length, "\"weaponReloadTimes\":[" ) ) {
+	if ( !G_PmoveAppendPayload( buffer, bufferSize, &length, "\"weaponReloadOverrides\":[" ) ) {
+		return qfalse;
+	}
+
+	for ( weapon = WP_NONE; weapon < WP_NUM_WEAPONS; ++weapon ) {
+		const char *separator = ( weapon == WP_NONE ) ? "" : ",";
+		if ( !G_PmoveAppendPayload( buffer, bufferSize, &length, "%s%i", separator, settings->weaponReloadOverrides[weapon] ) ) {
+			return qfalse;
+		}
+	}
+
+	if ( !G_PmoveAppendPayload( buffer, bufferSize, &length, "],\"weaponReloadTimes\":[" ) ) {
 		return qfalse;
 	}
 
@@ -345,12 +356,19 @@ static void G_PmoveCacheSettings( void ) {
 
 		for ( weapon = WP_NONE; weapon < WP_NUM_WEAPONS; ++weapon ) {
 			int	reload;
+			int	reloadOverride;
 
 			reload = g_pmoveWeaponReloadOverrides[weapon];
 			if ( reload <= 0 ) {
 				reload = G_PmoveDefaultWeaponReloadTime( weapon );
 			}
 
+			reloadOverride = g_weaponConfig.weaponReloadOverrides[weapon];
+			if ( reloadOverride <= 0 ) {
+				reloadOverride = reload;
+			}
+
+			g_pmoveSettings.weaponReloadOverrides[weapon] = reloadOverride;
 			g_pmoveSettings.weaponReloadTimes[weapon] = reload;
 		}
 	}
@@ -424,6 +442,7 @@ void G_PmoveStoreWeaponReloads( const weaponReloadConfig_t *config ) {
 			duration = G_PmoveDefaultWeaponReloadTime( weapon );
 		}
 
+		g_weaponConfig.weaponReloadOverrides[weapon] = duration;
 		g_pmoveWeaponReloadOverrides[weapon] = duration;
 	}
 

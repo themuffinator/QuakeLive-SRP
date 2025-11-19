@@ -144,6 +144,7 @@ typedef struct weaponConfig_s {
 	int		quadHogIdleSeconds;
 	int		quadHogTimeSeconds;
 	int		quadHogPingRateSeconds;
+	int		weaponReloadOverrides[WP_NUM_WEAPONS];
 } weaponConfig_t;
 
 extern weaponConfig_t g_weaponConfig;
