@@ -74,6 +74,8 @@ static void CG_UpdateSimpleItemsSettings( void );
 static void CG_UpdateCrosshairColorSettings( void );
 static void CG_UpdateCrosshairPulseSettings( void );
 static void CG_UpdateCrosshairHitSettings( void );
+static void CG_UpdateAutomationSettings( void );
+static void CG_ClearAutomationState( void );
 
 
 /*
@@ -361,6 +363,11 @@ vmCvar_t	cg_gameInfo6;
 vmCvar_t	cg_useLegacyHud;
 vmCvar_t	cg_vignette;
 vmCvar_t	cg_voiceChatIndicator;
+vmCvar_t	cg_autoHop;
+vmCvar_t	cg_autoProjectileNudge;
+vmCvar_t	cg_projectileNudge;
+vmCvar_t	cg_predictLocalRailshots;
+vmCvar_t	cg_autoAction;
 
 vmCvar_t 	cg_redTeamName;
 vmCvar_t 	cg_blueTeamName;
@@ -519,6 +526,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_noVoiceChats, "cg_noVoiceChats", "0", CVAR_ARCHIVE },
 	{ &cg_noVoiceText, "cg_noVoiceText", "0", CVAR_ARCHIVE },
 	{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE },
+	{ &cg_autoHop, "cg_autoHop", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_autoAction, "cg_autoAction", "0", CVAR_ARCHIVE | CVAR_LATCH },
 	// the following variables are created in other parts of the system,
 	// but we also reference them here
 	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
@@ -1110,17 +1122,18 @@ void CG_RegisterCvars( void ) {
 	}
 
 	CG_UpdateDamagePlumSettings();
-CG_UpdateSimpleItemsSettings();
-CG_UpdateWeaponBarGrenadeColor();
-CG_UpdateLowAmmoWarningPercentile();
-CG_UpdateCrosshairColorSettings();
-CG_UpdateCrosshairPulseSettings();
-CG_UpdateCrosshairHitSettings();
+	CG_UpdateSimpleItemsSettings();
+	CG_UpdateWeaponBarGrenadeColor();
+	CG_UpdateLowAmmoWarningPercentile();
+	CG_UpdateCrosshairColorSettings();
+	CG_UpdateCrosshairPulseSettings();
+	CG_UpdateCrosshairHitSettings();
 	CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage, DEFAULT_SCREEN_DAMAGE_COLOR, cg.screenDamageColor, &screenDamageColorModificationCount );
 	CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage_Self, DEFAULT_SCREEN_DAMAGE_SELF_COLOR, cg.screenDamageSelfColor, &screenDamageSelfColorModificationCount );
 	CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage_Team, DEFAULT_SCREEN_DAMAGE_TEAM_COLOR, cg.screenDamageTeamColor, &screenDamageTeamColorModificationCount );
 	CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha, &cg.screenDamageAlpha, &screenDamageAlphaModificationCount );
 	CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha_Team, &cg.screenDamageAlphaTeam, &screenDamageAlphaTeamModificationCount );
+	CG_UpdateAutomationSettings();
 
 	trap_Cvar_Register(NULL, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
@@ -1155,10 +1168,10 @@ Synchronize cached simple item settings with their cvars.
 =============
 */
 static void CG_UpdateSimpleItemsSettings( void ) {
-if ( simpleItemsHeightOffsetModificationCount != cg_simpleItemsHeightOffset.modificationCount ) {
-simpleItemsHeightOffsetModificationCount = cg_simpleItemsHeightOffset.modificationCount;
-cg.simpleItemsHeightOffset = cg_simpleItemsHeightOffset.value;
-}
+	if ( simpleItemsHeightOffsetModificationCount != cg_simpleItemsHeightOffset.modificationCount ) {
+		simpleItemsHeightOffsetModificationCount = cg_simpleItemsHeightOffset.modificationCount;
+		cg.simpleItemsHeightOffset = cg_simpleItemsHeightOffset.value;
+	}
 
 	if ( simpleItemsBobModificationCount != cg_simpleItemsBob.modificationCount ) {
 		simpleItemsBobModificationCount = cg_simpleItemsBob.modificationCount;
@@ -1173,8 +1186,50 @@ cg.simpleItemsHeightOffset = cg_simpleItemsHeightOffset.value;
 		cg.simpleItemsRadius = cg_simpleItemsRadius.value;
 		if ( cg.simpleItemsRadius < 0.0f ) {
 			cg.simpleItemsRadius = 0.0f;
+		}
+	}
 }
+
+/*
+=============
+CG_UpdateAutomationSettings
+
+Caches movement, projectile, and prediction automation preferences.
+=============
+*/
+static void CG_UpdateAutomationSettings( void ) {
+	float	clampedNudge;
+
+	cg.autoHopEnabled = (qboolean)( cg_autoHop.integer != 0 );
+	cg.autoProjectileNudgeEnabled = (qboolean)( cg_autoProjectileNudge.integer != 0 );
+
+	clampedNudge = cg_projectileNudge.value;
+	if ( clampedNudge < 0.0f ) {
+		clampedNudge = 0.0f;
+	}
+
+	cg.projectileNudgeAmount = clampedNudge;
+	cg.projectileNudgeOffset = clampedNudge;
+	cg.projectileNudgeActive = (qboolean)( cg.autoProjectileNudgeEnabled || ( clampedNudge > 0.0f ) );
+	cg.predictLocalRailshots = (qboolean)( cg_predictLocalRailshots.integer != 0 );
+	cg.autoActionFlags = cg_autoAction.integer;
 }
+
+/*
+=============
+CG_ClearAutomationState
+
+Resets cached automation state so stale preferences never leak between games.
+=============
+*/
+static void CG_ClearAutomationState( void ) {
+	cg.autoHopEnabled = qfalse;
+	cg.autoProjectileNudgeEnabled = qfalse;
+	cg.projectileNudgeActive = qfalse;
+	cg.projectileNudgeAmount = 0.0f;
+	cg.projectileNudgeOffset = 0.0f;
+	cg.predictLocalRailshots = qfalse;
+	cg.autoActionFlags = 0;
 }
 
 #define QL_CROSSHAIR_COLOR_COUNT	27
@@ -1529,10 +1584,11 @@ void CG_UpdateCvars( void ) {
 	cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );
 	CG_UpdateDamagePlumSettings();
 
-CG_UpdateSimpleItemsSettings();
-CG_UpdateCrosshairColorSettings();
-CG_UpdateCrosshairPulseSettings();
-CG_UpdateCrosshairHitSettings();
+	CG_UpdateSimpleItemsSettings();
+	CG_UpdateCrosshairColorSettings();
+	CG_UpdateCrosshairPulseSettings();
+	CG_UpdateCrosshairHitSettings();
+	CG_UpdateAutomationSettings();
 }
 
 int CG_CrosshairPlayer( void ) {
@@ -3065,6 +3121,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	memset( cg_entities, 0, sizeof(cg_entities) );
 	memset( cg_weapons, 0, sizeof(cg_weapons) );
 	memset( cg_items, 0, sizeof(cg_items) );
+	CG_ClearAutomationState();
 	CG_ParsePmoveConfigString( NULL );
 
 	cg.clientNum = clientNum;
@@ -3165,6 +3222,7 @@ Called before every level change or subsystem restart
 void CG_Shutdown( void ) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
+	CG_ClearAutomationState();
 }
 
 
