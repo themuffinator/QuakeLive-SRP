@@ -25,6 +25,22 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define CG_PREDICTED_HITSCAN_LIFETIME 200
 
+typedef struct {
+	const char	*shaderName;
+	int		segments;
+} cgLightningStyleDef_t;
+
+static const cgLightningStyleDef_t cg_lightningStyleDefs[CG_MAX_LIGHTNING_STYLES] = {
+	{ "lightningBoltNew", 1 },
+	{ "lightningBolt2", 1 },
+	{ "lightningBolt3", 2 },
+	{ "lightningBolt4", 1 },
+	{ "lightningBolt5", 3 }
+};
+
+static int		cg_lightningImpactFrameTime;
+static int		cg_lightningImpactCount;
+
 /*
 ==========================
 CG_MachineGunEjectBrass
@@ -687,7 +703,28 @@ void CG_RegisterWeapon( int weaponNum ) {
 		weaponInfo->firingSound = trap_S_RegisterSound( "sound/weapons/lightning/lg_hum.wav", qfalse );
 
 		weaponInfo->flashSound[0] = trap_S_RegisterSound( "sound/weapons/lightning/lg_fire.wav", qfalse );
-		cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew");
+		cgs.media.lightningShader = trap_R_RegisterShader( "lightningBoltNew" );
+		{
+			int		styleIndex;
+
+			for ( styleIndex = 0; styleIndex < CG_MAX_LIGHTNING_STYLES; ++styleIndex ) {
+				const char		*styleName;
+
+				styleName = cg_lightningStyleDefs[styleIndex].shaderName;
+				if ( !styleName || !styleName[0] ) {
+					cgs.media.lightningStyleShaders[styleIndex] = 0;
+					continue;
+				}
+
+				cgs.media.lightningStyleShaders[styleIndex] = trap_R_RegisterShader( styleName );
+			}
+
+			if ( cgs.media.lightningStyleShaders[0] ) {
+				cgs.media.lightningShader = cgs.media.lightningStyleShaders[0];
+			} else {
+				cgs.media.lightningStyleShaders[0] = cgs.media.lightningShader;
+			}
+		}
 		cgs.media.lightningExplosionModel = trap_R_RegisterModel( "models/weaphits/crackle.md3" );
 		cgs.media.sfx_lghit1 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit.wav", qfalse );
 		cgs.media.sfx_lghit2 = trap_S_RegisterSound( "sound/weapons/lightning/lg_hit2.wav", qfalse );
@@ -952,6 +989,157 @@ static void CG_CalculateWeaponPosition( vec3_t origin, vec3_t angles ) {
 }
 
 
+
+
+/*
+=============
+CG_LightningActiveStyleIndex
+
+Returns the zero-based lightning style index derived from cg_lightningStyle.
+=============
+*/
+static int CG_LightningActiveStyleIndex( void ) {
+	int		style;
+	int		index;
+
+	style = cg_lightningStyle.integer;
+	index = style - 1;
+	if ( index < 0 ) {
+		index = 0;
+	}
+	if ( index >= CG_MAX_LIGHTNING_STYLES ) {
+		index = CG_MAX_LIGHTNING_STYLES - 1;
+	}
+
+	return index;
+}
+
+
+/*
+=============
+CG_LightningCurrentShader
+
+Fetches the shader handle for the active lightning style.
+=============
+*/
+static qhandle_t CG_LightningCurrentShader( void ) {
+	int		index;
+	qhandle_t	handle;
+
+	index = CG_LightningActiveStyleIndex();
+	handle = cgs.media.lightningStyleShaders[index];
+	if ( !handle ) {
+		handle = cgs.media.lightningShader;
+	}
+	return handle;
+}
+
+
+/*
+=============
+CG_LightningSegmentCount
+
+Returns the number of beam submissions to draw for the active style.
+=============
+*/
+static int CG_LightningSegmentCount( void ) {
+	int		index;
+	int		segments;
+
+	index = CG_LightningActiveStyleIndex();
+	segments = cg_lightningStyleDefs[index].segments;
+	if ( segments <= 0 ) {
+		segments = 1;
+	}
+	return segments;
+}
+
+
+/*
+=============
+CG_SubmitLightningBeams
+
+Submits the lightning beam to the renderer the requested number of times.
+=============
+*/
+static void CG_SubmitLightningBeams( const refEntity_t *beamTemplate, int segmentCount ) {
+	int		i;
+	refEntity_t	beam;
+
+	if ( segmentCount <= 0 ) {
+		segmentCount = 1;
+	}
+
+	for ( i = 0; i < segmentCount; ++i ) {
+		beam = *beamTemplate;
+		beam.shaderTime += (float)i * 0.01f;
+		trap_R_AddRefEntityToScene( &beam );
+	}
+}
+
+
+/*
+=============
+CG_CanDrawLightningImpact
+
+Checks whether the lightning impact effect can be emitted this frame.
+=============
+*/
+static qboolean CG_CanDrawLightningImpact( void ) {
+	int		cap;
+
+	if ( cg_lightningImpact.integer == 0 ) {
+		return qfalse;
+	}
+
+	cap = cg_lightningImpactCap.integer;
+	if ( cap <= 0 ) {
+		return qfalse;
+	}
+
+	if ( cg.time != cg_lightningImpactFrameTime ) {
+		cg_lightningImpactFrameTime = cg.time;
+		cg_lightningImpactCount = 0;
+	}
+
+	if ( cg_lightningImpactCount >= cap ) {
+		return qfalse;
+	}
+
+	cg_lightningImpactCount++;
+	return qtrue;
+}
+
+
+/*
+=============
+CG_DrawLightningImpact
+
+Spawns the lightning impact model when the beam hits a surface.
+=============
+*/
+static void CG_DrawLightningImpact( const vec3_t endPos, const vec3_t dir ) {
+	refEntity_t	beam;
+	vec3_t	angles;
+	vec3_t	origin;
+
+	if ( !CG_CanDrawLightningImpact() || !cgs.media.lightningExplosionModel ) {
+		return;
+	}
+
+	memset( &beam, 0, sizeof( beam ) );
+	beam.hModel = cgs.media.lightningExplosionModel;
+
+	VectorMA( endPos, -16, dir, origin );
+	VectorCopy( origin, beam.origin );
+
+	angles[0] = rand() % 360;
+	angles[1] = rand() % 360;
+	angles[2] = rand() % 360;
+	AnglesToAxis( angles, beam.axis );
+	trap_R_AddRefEntityToScene( &beam );
+}
+
 /*
 ===============
 CG_LightningBolt
@@ -1047,8 +1235,8 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	}
 
 	beam.reType = RT_LIGHTNING;
-	beam.customShader = cgs.media.lightningShader;
-	trap_R_AddRefEntityToScene( &beam );
+	beam.customShader = CG_LightningCurrentShader();
+	CG_SubmitLightningBeams( &beam, CG_LightningSegmentCount() );
 
 	// add the impact flare if it hit something
 	if ( addImpact ) {
@@ -1069,6 +1257,14 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 		angles[2] = rand() % 360;
 		AnglesToAxis( angles, beam.axis );
 		trap_R_AddRefEntityToScene( &beam );
+  }
+  
+	if ( trace.fraction < 1.0 ) {
+		vec3_t	dir;
+
+		VectorSubtract( beam.oldorigin, beam.origin, dir );
+		VectorNormalize( dir );
+		CG_DrawLightningImpact( trace.endpos, dir );
 	}
 
 }
@@ -1347,6 +1543,8 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	weapon_t	weaponNum;
 	weaponInfo_t	*weapon;
 	centity_t	*nonPredictedCent;
+	qboolean	drawFlash;
+	qboolean	continuousFlash;
 //	int	col;
 	qboolean	allowPredictedHitScan;
 
@@ -1355,6 +1553,8 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	CG_RegisterWeapon( weaponNum );
 	weapon = &cg_weapons[weaponNum];
 	allowPredictedHitScan = ( ps && cg_predictLocalRailshots.integer && cent->currentState.number == cg.predictedPlayerState.clientNum );
+	drawFlash = ( cg_muzzleFlash.integer != 0 );
+	continuousFlash = ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET || weaponNum == WP_GRAPPLING_HOOK );
 
 	// add the weapon
 	memset( &gun, 0, sizeof( gun ) );
@@ -1430,13 +1630,15 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	}
 
 	// add the flash
-	if ( ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET || weaponNum == WP_GRAPPLING_HOOK )
-		&& ( nonPredictedCent->currentState.eFlags & EF_FIRING ) ) 
-	{
+	if ( continuousFlash && ( nonPredictedCent->currentState.eFlags & EF_FIRING ) ) {
 		// continuous flash
 	} else {
 		// impulse flash
-		if ( cg.time - cent->muzzleFlashTime > MUZZLE_FLASH_TIME && !cent->pe.railgunFlash ) {
+		if ( drawFlash ) {
+			if ( cg.time - cent->muzzleFlashTime > MUZZLE_FLASH_TIME && !cent->pe.railgunFlash ) {
+				return;
+			}
+		} else if ( weaponNum != WP_RAILGUN ) {
 			return;
 		}
 	}
@@ -1444,7 +1646,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	memset( &flash, 0, sizeof( flash ) );
 	VectorCopy( parent->lightingOrigin, flash.lightingOrigin );
 	flash.shadowPlane = parent->shadowPlane;
-	flash.renderfx = parent->renderfx;
+	flash.renderfx = drawFlash ? parent->renderfx : 0;
 
 	flash.hModel = weapon->flashModel;
 	if (!flash.hModel) {
@@ -1466,7 +1668,9 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	}
 
 	CG_PositionRotatedEntityOnTag( &flash, &gun, weapon->weaponModel, "tag_flash");
-	trap_R_AddRefEntityToScene( &flash );
+	if ( drawFlash ) {
+		trap_R_AddRefEntityToScene( &flash );
+	}
 
 	if ( ps || cg.renderingThirdPerson ||
 		cent->currentState.number != cg.predictedPlayerState.clientNum ) {
@@ -1663,14 +1867,21 @@ CG_WeaponSelectable
 ===============
 */
 static qboolean CG_WeaponSelectable( int i ) {
-	if ( !cg.snap->ps.ammo[i] ) {
-		return qfalse;
-	}
-	if ( ! (cg.snap->ps.stats[ STAT_WEAPONS ] & ( 1 << i ) ) ) {
+	int	ammo;
+
+	if ( !( cg.snap->ps.stats[ STAT_WEAPONS ] & ( 1 << i ) ) ) {
 		return qfalse;
 	}
 
-	return qtrue;
+	ammo = cg.snap->ps.ammo[i];
+	if ( ammo == -1 ) {
+		return qtrue;
+	}
+	if ( ammo > 0 ) {
+		return qtrue;
+	}
+
+	return ( cg_switchToEmpty.integer != 0 );
 }
 
 /*
@@ -1785,6 +1996,10 @@ The current weapon has just run out of ammo
 void CG_OutOfAmmoChange( void ) {
 	int		i;
 
+	if ( !cg_switchOnEmpty.integer ) {
+		return;
+	}
+
 	cg.weaponSelectTime = cg.time;
 
 	for ( i = 15 ; i > 0 ; i-- ) {
@@ -1829,7 +2044,9 @@ void CG_FireWeapon( centity_t *cent ) {
 
 	// mark the entity as muzzle flashing, so when it is added it will
 	// append the flash to the weapon model
-	cent->muzzleFlashTime = cg.time;
+	if ( cg_muzzleFlash.integer ) {
+		cent->muzzleFlashTime = cg.time;
+	}
 
 	if ( cg_predictLocalRailshots.integer && cent->currentState.number == cg.predictedPlayerState.clientNum ) {
 		vec3_t		predictedStart;
