@@ -715,6 +715,16 @@ typedef struct {
 	float		xyspeed;
 	float		speedometerSample;
 	int		speedometerSampleTime;
+	int		predictedLocalRailTime;
+	int		predictedLocalLightningTime;
+	qboolean		predictedLocalRailValid;
+	qboolean		predictedLocalLightningValid;
+	qboolean		predictedLocalRailHit;
+	qboolean		predictedLocalLightningHit;
+	vec3_t		predictedLocalRailStart;
+	vec3_t		predictedLocalRailEnd;
+	vec3_t		predictedLocalLightningStart;
+	vec3_t		predictedLocalLightningEnd;
 	int     nextOrbitTime;
 
 	//qboolean cameraMode;		// if rendering from a loaded camera
@@ -1418,6 +1428,7 @@ extern	vmCvar_t		cg_oldRail;
 extern	vmCvar_t		cg_oldRocket;
 extern	vmCvar_t		cg_oldPlasma;
 extern	vmCvar_t		cg_trueLightning;
+extern	vmCvar_t		cg_predictLocalRailshots;
 extern	vmCvar_t		cg_drawTieredArmorAvailability;
 extern	vmCvar_t		cg_armorTiered;
 extern	vmCvar_t		cg_drawFullWeaponBar;
