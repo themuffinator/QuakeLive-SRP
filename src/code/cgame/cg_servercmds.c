@@ -490,6 +490,12 @@ static qboolean CG_ParsePmoveSettingsPayload( const char *payload, pmove_setting
 		PMOVE_INT_FIELD( midAirMinimumHeight )
 		PMOVE_BOOL_FIELD( nailgunBounceEnabled )
 		PMOVE_INT_FIELD( nailgunBouncePercentage )
+		PMOVE_FLOAT_FIELD( quadDamageMultiplier )
+		PMOVE_BOOL_FIELD( guidedRocketEnabled )
+		PMOVE_INT_FIELD( quadHogEnabled )
+		PMOVE_INT_FIELD( quadHogIdleSeconds )
+		PMOVE_INT_FIELD( quadHogTimeSeconds )
+		PMOVE_INT_FIELD( quadHogPingRateSeconds )
 
 #undef PMOVE_BOOL_FIELD
 #undef PMOVE_INT_FIELD
