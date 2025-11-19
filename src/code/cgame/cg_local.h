@@ -562,6 +562,8 @@ typedef struct {
 	float		zoomSensitivity;
 	qboolean	zoomToggle;
 	qboolean	zoomOutOnDeath;
+	qboolean	deadBodyDarken;
+	vec4_t		deadBodyColor;
 
 	// information screen text during loading
 	char		infoScreenText[MAX_STRING_CHARS];
@@ -1371,6 +1373,8 @@ extern	vmCvar_t		cg_armorTiered;
 extern	vmCvar_t		cg_drawFullWeaponBar;
 extern	vmCvar_t		cg_drawHitFriendTime;
 extern	vmCvar_t		cg_drawDeadFriendTime;
+extern	vmCvar_t		cg_deadBodyDarken;
+extern	vmCvar_t		cg_deadBodyColor;
 extern	vmCvar_t		cg_speedometer;
 extern	vmCvar_t		cg_specNames;
 extern	vmCvar_t		cg_specItemTimers;
