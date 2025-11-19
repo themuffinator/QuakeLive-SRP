@@ -269,6 +269,7 @@ extern vmCvar_t g_botSpawnList;
 extern vmCvar_t g_accessFile;
 extern vmCvar_t g_factoryTitle;
 extern vmCvar_t g_factory;
+extern vmCvar_t g_customSettings;
 extern vmCvar_t g_dropInactive;
 extern vmCvar_t g_allowCustomHeadmodels;
 extern vmCvar_t g_playerCylinders;
@@ -1202,6 +1203,8 @@ void ClientCommand( int clientNum );
 
 void G_UpdateForcedCosmeticsConfigstring( qboolean forceBroadcast );
 void G_SetWorldspawnAtmosphere( const char *atmosphere );
+void G_CustomSettingsTracker_SetBitmask( unsigned int bitmask );
+void G_CustomSettingsTracker_SetInfoString( const char *infoString );
 
 //
 // g_active.c

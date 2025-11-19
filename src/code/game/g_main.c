@@ -69,6 +69,10 @@ static int	s_roundWarmupDelayModCount = 0;
 static int	s_teamSizeMinModCount = 0;
 static char	s_worldspawnAtmosphere[MAX_QPATH];
 static char	s_lastForcedCosmeticsPayload[MAX_INFO_STRING];
+static char	s_customSettingsPayload[MAX_INFO_STRING];
+static unsigned int	s_customSettingsBitmask = 0u;
+static qboolean	s_customSettingsHasInfoString = qfalse;
+static char	s_customSettingsInfo[MAX_INFO_STRING];
 static vmCvar_t	g_weaponRespawnLegacy;
 static vmCvar_t	g_damageGauntletLegacy;
 static legacyCvarAlias_t	s_legacyCvarAliases[] = {
@@ -165,6 +169,83 @@ void G_SetWorldspawnAtmosphere( const char *atmosphere ) {
 	}
 
 	G_UpdateForcedCosmeticsConfigstring( qtrue );
+}
+
+/*
+=============
+G_CustomSettingsTracker_SetBitmask
+
+Caches the decimal bitmask broadcast when no info string payload is active.
+=============
+*/
+void G_CustomSettingsTracker_SetBitmask( unsigned int bitmask ) {
+	s_customSettingsBitmask = bitmask;
+	s_customSettingsHasInfoString = qfalse;
+	s_customSettingsInfo[0] = '\0';
+}
+
+/*
+=============
+G_CustomSettingsTracker_SetInfoString
+
+Overrides the bitmask payload with a pre-built info string when provided.
+=============
+*/
+void G_CustomSettingsTracker_SetInfoString( const char *infoString ) {
+	if ( infoString && infoString[0] ) {
+		Q_strncpyz( s_customSettingsInfo, infoString, sizeof( s_customSettingsInfo ) );
+		s_customSettingsHasInfoString = qtrue;
+		return;
+	}
+
+	s_customSettingsInfo[0] = '\0';
+	s_customSettingsHasInfoString = qfalse;
+}
+
+/*
+=============
+G_BuildCustomSettingsPayload
+
+Serializes the currently tracked custom settings state into a configstring payload.
+=============
+*/
+static qboolean G_BuildCustomSettingsPayload( char *buffer, size_t bufferSize ) {
+	if ( !buffer || bufferSize == 0 ) {
+		return qfalse;
+	}
+
+	if ( s_customSettingsHasInfoString && s_customSettingsInfo[0] ) {
+		Q_strncpyz( buffer, s_customSettingsInfo, bufferSize );
+		return qtrue;
+	}
+
+	Com_sprintf( buffer, bufferSize, "%u", s_customSettingsBitmask );
+	return qtrue;
+}
+
+/*
+=============
+G_UpdateCustomSettingsConfigstring
+
+Publishes the tracked custom settings payload to both the configstring and serverinfo cvar.
+=============
+*/
+static void G_UpdateCustomSettingsConfigstring( qboolean forceBroadcast ) {
+	char		payload[MAX_INFO_STRING];
+	qboolean	encoded;
+
+	encoded = G_BuildCustomSettingsPayload( payload, sizeof( payload ) );
+	if ( !encoded ) {
+		payload[0] = '\0';
+	}
+
+	if ( !forceBroadcast && !Q_stricmp( payload, s_customSettingsPayload ) ) {
+		return;
+	}
+
+	trap_SetConfigstring( CS_CUSTOM_SETTINGS, payload );
+	trap_Cvar_Set( "g_customSettings", payload );
+	Q_strncpyz( s_customSettingsPayload, payload, sizeof( s_customSettingsPayload ) );
 }
 
 void QLR_Game_BindFrameContext( qlr_game_frame_context_t *ctx ) {
@@ -276,6 +357,7 @@ vmCvar_t	g_botSpawnList;
 vmCvar_t	g_accessFile;
 vmCvar_t	g_factoryTitle;
 vmCvar_t	g_factory;
+vmCvar_t	g_customSettings;
 vmCvar_t	g_dropInactive;
 vmCvar_t	g_smoothClients;
 vmCvar_t	pmove_fixed;
@@ -589,12 +671,13 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_timeoutLen, "g_timeoutLen", "60", CVAR_NORESTART, 0, qfalse, qfalse, "Timeout duration in seconds for each team pause." },
 	{ &g_timeoutCount, "g_timeoutCount", "0", CVAR_SERVERINFO | CVAR_NORESTART, 0, qfalse, qfalse, "Number of timeouts each team may call per match." },
 	{ &g_factoryTitle, "g_factoryTitle", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Short factory title pushed via serverinfo for display on connected clients." },
-	{ &g_factory, "g_factory", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Identifier of the active factory loaded from scripts/factories*." },
-	{ &g_factoryRespawnDelay, "g_factoryRespawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before a defeated player respawns when factories schedule queues." },
-	{ &g_factoryWarmupSpawnDelay, "g_factoryWarmupSpawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds applied to warmup spawns when factories request staggered starts." },
-	{ &g_factoryAllowItemDrops, "g_factoryAllowItemDrops", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether item drop logic fires for weapons and powerups spawned from players." },
-	{ &g_factoryAllowItemBounce, "g_factoryAllowItemBounce", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether dropped items bounce before coming to rest when factories disable the behaviour." },
-	{ &g_maxDeferredSpawns, "g_maxDeferredSpawns", "4", 0, 0, qfalse, qfalse, "Maximum simultaneous delayed spawns the queue may hold before new respawns execute immediately." },
+{ &g_factory, "g_factory", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Identifier of the active factory loaded from scripts/factories*." },
+{ &g_factoryRespawnDelay, "g_factoryRespawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before a defeated player respawns when factories schedule queues." },
+{ &g_factoryWarmupSpawnDelay, "g_factoryWarmupSpawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds applied to warmup spawns when factories request staggered starts." },
+{ &g_factoryAllowItemDrops, "g_factoryAllowItemDrops", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether item drop logic fires for weapons and powerups spawned from players." },
+{ &g_factoryAllowItemBounce, "g_factoryAllowItemBounce", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether dropped items bounce before coming to rest when factories disable the behaviour." },
+{ &g_customSettings, "g_customSettings", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Aggregated custom gameplay payload broadcast through CS_CUSTOM_SETTINGS for remote browsers." },
+{ &g_maxDeferredSpawns, "g_maxDeferredSpawns", "4", 0, 0, qfalse, qfalse, "Maximum simultaneous delayed spawns the queue may hold before new respawns execute immediately." },
 	{ &g_itemTimers, "g_itemTimers", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Toggles broadcast of server-side item timer training aids when non-zero." },
 	{ &g_itemHeight, "g_itemHeight", "20", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Adjusts the vertical spacing clients apply to item timer widgets in the HUD." },
 	{ &g_vampiricDamage, "g_vampiricDamage", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fraction of dealt health damage returned to the attacker as healing." },
@@ -1155,11 +1238,12 @@ LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) 
 	s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
 	s_roundWarmupDelayModCount = g_roundWarmupDelay.modificationCount;
 	s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
-	s_worldspawnAtmosphere[0] = '\0';
-	s_lastForcedCosmeticsPayload[0] = '\0';
-	G_UpdateItemTimerConfig( qtrue );
-	G_UpdateForcedCosmeticsConfigstring( qtrue );
-	G_UpdateGametypeTutorialText();
+s_worldspawnAtmosphere[0] = '\0';
+s_lastForcedCosmeticsPayload[0] = '\0';
+G_UpdateItemTimerConfig( qtrue );
+G_UpdateForcedCosmeticsConfigstring( qtrue );
+G_UpdateCustomSettingsConfigstring( qtrue );
+G_UpdateGametypeTutorialText();
 	G_InitWeaponConfig();
 	G_InitWeaponReloadConfig();
 	G_InitKnockbackConfig();
@@ -1183,6 +1267,7 @@ void G_UpdateCvars( void ) {
         int                     i;
         cvarTable_t     *cv;
         qboolean remapped = qfalse;
+        qboolean customSettingsDirty = qfalse;
 
         for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
                 if ( cv->vmCvar ) {
@@ -1198,6 +1283,9 @@ void G_UpdateCvars( void ) {
 
                                 if (cv->teamShader) {
                                         remapped = qtrue;
+                                }
+                                if ( cv->cvarFlags & CVAR_CUSTOM_SETTINGS ) {
+                                        customSettingsDirty = qtrue;
                                 }
                         }
                 }
@@ -1243,14 +1331,18 @@ void G_UpdateCvars( void ) {
 		 g_forceAtmosphericEffects.modificationCount != s_forceAtmosphericEffectsModCount ||
 		 g_forceDmgThroughSurface.modificationCount != s_forceDmgThroughSurfaceModCount ||
 		 g_forcedAtmosphere.modificationCount != s_forcedAtmosphereModCount ) {
-		s_forceSmallScoreboardMessageModCount = g_forceSmallScoreboardMessage.modificationCount;
-		s_forceSendConfigstringModCount = g_forceSendConfigstring.modificationCount;
-		s_forceAtmosphericEffectsModCount = g_forceAtmosphericEffects.modificationCount;
-		s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
-		s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
-		G_UpdateForcedCosmeticsConfigstring( qtrue );
+s_forceSmallScoreboardMessageModCount = g_forceSmallScoreboardMessage.modificationCount;
+s_forceSendConfigstringModCount = g_forceSendConfigstring.modificationCount;
+s_forceAtmosphericEffectsModCount = g_forceAtmosphericEffects.modificationCount;
+s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
+s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
+G_UpdateForcedCosmeticsConfigstring( qtrue );
+}
+
+	if ( customSettingsDirty ) {
+		G_UpdateCustomSettingsConfigstring( qfalse );
 	}
-	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
+level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 
 	G_SyncAdminConfig();
 	G_UpdateTrainingState();

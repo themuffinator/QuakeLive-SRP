@@ -135,8 +135,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_RACE_INFO			0x2BD
 #define CS_RACE_STATUS		CS_RACE_SCORES
 #define CS_PMOVE_SETTINGS		0x2BE
+#define CS_CUSTOM_SETTINGS		0x2C0	// aggregated custom gameplay payload
 
-#define CS_MAX					(CS_PMOVE_SETTINGS+1)
+#define CS_MAX					(CS_CUSTOM_SETTINGS+1)
 
 #if (CS_MAX) > MAX_CONFIGSTRINGS
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS
