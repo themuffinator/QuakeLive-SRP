@@ -109,6 +109,12 @@ class MatchHarness:
         self.freeze_settings: Mapping[str, Any] = self._load_freeze_settings(
             self.config.metadata.get("freeze")
         )
+        self.ctf_settings: Mapping[str, Any] = self._load_ctf_settings(
+            self.config.metadata.get("ctf")
+        )
+        self.clanarena_settings: Mapping[str, Any] = self._load_clanarena_settings(
+            self.config.metadata.get("clanarena")
+        )
         (
             self.bot_profiles,
             self.spawn_schedule,
@@ -126,6 +132,11 @@ class MatchHarness:
         self._freeze_round_index: int = 0
         self._flag_positions: Dict[str, str] = {}
         self._flag_carriers: Dict[str, str] = {}
+        self._flag_return_deadlines: Dict[str, float] = {}
+        self._warmup_deadline: float = 0.0
+        self._shuffle_countdown_deadline: Optional[float] = None
+        self._clanarena_population: Dict[str, int] = {"red": 0, "blue": 0}
+        self._flood_counters: Dict[str, Dict[str, float]] = {}
 
     @staticmethod
     def _resolve_seed(*seeds: Optional[int]) -> int:
@@ -452,6 +463,46 @@ class MatchHarness:
             )
         return details
 
+    def _handle_set_warmup(self, state: BotState, params: Mapping[str, Any], delta: float) -> Dict[str, Any]:
+        seconds = max(0.0, float(params.get("seconds", 0.0)))
+        self._warmup_deadline = round(self._current_time + seconds, 6)
+        return {"warmup_deadline": self._warmup_deadline, "seconds": seconds}
+
+    def _handle_set_team_counts(
+        self, state: BotState, params: Mapping[str, Any], delta: float
+    ) -> Dict[str, Any]:
+        red = max(0, int(params.get("red", 0)))
+        blue = max(0, int(params.get("blue", 0)))
+        self._clanarena_population = {"red": red, "blue": blue}
+        return {"red": red, "blue": blue, "total": red + blue}
+
+    def _handle_tick_shuffle(
+        self, state: BotState, params: Mapping[str, Any], delta: float
+    ) -> Dict[str, Any]:
+        return self._update_shuffle_state()
+
+    def _handle_check_warmup_gate(
+        self, state: BotState, params: Mapping[str, Any], delta: float
+    ) -> Dict[str, Any]:
+        return self._evaluate_warmup_gate()
+
+    def _handle_shuffle_vote(
+        self, state: BotState, params: Mapping[str, Any], delta: float
+    ) -> Dict[str, Any]:
+        issuer = str(params.get("issuer", "")).strip()
+        label = str(params.get("label", "shuffle"))
+        if not issuer:
+            return {"status": "ignored", "reason": "missing_issuer"}
+        allowed, wait = self._apply_flood_gate(issuer)
+        if allowed:
+            return {"status": "accepted", "issuer": issuer, "label": label}
+        return {
+            "status": "denied",
+            "issuer": issuer,
+            "label": label,
+            "penalty_remaining": wait,
+        }
+
     def _handle_set_round_state(
         self, state: BotState, params: Mapping[str, Any], delta: float
     ) -> Dict[str, Any]:
@@ -598,6 +649,8 @@ class MatchHarness:
         event_type = str(params.get("event", "pickup")).lower()
         mode = str(params.get("mode", "ctf")).lower()
         score_delta = int(params.get("score", 1))
+        context = str(params.get("context", params.get("reason", ""))).lower()
+        suicide = bool(params.get("suicide"))
         self._flag_positions.setdefault(flag, "base")
         details: Dict[str, Any] = {
             "type": "flag",
@@ -605,6 +658,7 @@ class MatchHarness:
             "mode": mode,
             "event": event_type,
         }
+        ctf_enabled = bool(self.ctf_settings.get("enabled"))
         carrier = self._flag_carriers.get(flag)
         current_flag = state.custom.get("flag_carried")
         if event_type == "pickup":
@@ -623,9 +677,23 @@ class MatchHarness:
             if current_flag != flag:
                 details.update({"status": "not_carrier"})
                 return details
+            if ctf_enabled and (context == "forced_return" or (suicide and bool(self.ctf_settings.get("return_on_suicide")))):
+                self._flag_carriers.pop(flag, None)
+                state.custom.pop("flag_carried", None)
+                self._flag_positions[flag] = "base"
+                self._cancel_flag_timeout(flag)
+                details.update({"status": "forced_return", "reason": context or "suicide"})
+                return details
             self._flag_carriers.pop(flag, None)
             state.custom.pop("flag_carried", None)
             self._flag_positions[flag] = "dropped"
+            if ctf_enabled:
+                trajectory = self._compute_flag_trajectory(state)
+                physics = self._flag_physics_details()
+                details.update({"physics": physics, "trajectory": trajectory})
+                deadline = self._schedule_flag_timeout(flag, state.name)
+                if deadline is not None:
+                    details["return_deadline"] = deadline
             details.update({"status": "dropped"})
             return details
         if event_type == "return":
@@ -638,6 +706,7 @@ class MatchHarness:
                             bot.custom.pop("flag_carried", None)
                             break
             self._flag_positions[flag] = "base"
+            self._cancel_flag_timeout(flag)
             details.update({"status": "returned", "previous": previous})
             return details
         if event_type == "capture":
@@ -647,6 +716,7 @@ class MatchHarness:
             self._flag_carriers.pop(flag, None)
             state.custom.pop("flag_carried", None)
             self._flag_positions[flag] = "base" if mode == "ctf" else "respawned"
+            self._cancel_flag_timeout(flag)
             details.update({"status": "captured", "score_delta": score_delta})
             return details
         details.update({"status": "unknown_event"})
@@ -730,6 +800,11 @@ class MatchHarness:
         self._pending_freeze_events = []
         self._flag_positions = {}
         self._flag_carriers = {}
+        self._flag_return_deadlines = {}
+        self._warmup_deadline = 0.0
+        self._shuffle_countdown_deadline = None
+        self._clanarena_population = {"red": 0, "blue": 0}
+        self._flood_counters = {}
 
     def _prime_spawn_schedule(self) -> None:
         for entry in self.spawn_schedule:
@@ -1077,6 +1152,18 @@ class MatchHarness:
             action = payload.get("action", "item_event")
             details = {key: value for key, value in payload.items() if key not in {"bot", "action"}}
             details["time"] = round(scheduled_time, 6)
+            if action == "flag_return":
+                flag = payload.get("flag")
+                if flag is None:
+                    continue
+                deadline = self._flag_return_deadlines.get(flag)
+                if deadline is None or abs(deadline - scheduled_time) > 1e-6:
+                    continue
+                self._flag_positions[flag] = "base"
+                self._flag_carriers.pop(flag, None)
+                self._flag_return_deadlines.pop(flag, None)
+                details.setdefault("flag", flag)
+                details.setdefault("status", "returned")
             events.append(
                 {
                     "bot": bot_name,
@@ -1250,6 +1337,217 @@ class MatchHarness:
                 removals.append(key)
         for key in removals:
             state.inventory.pop(key, None)
+
+    # ------------------------------------------------------------------
+    # CTF helpers
+    # ------------------------------------------------------------------
+
+    def _load_ctf_settings(self, payload: Any) -> Mapping[str, Any]:
+        if not isinstance(payload, Mapping):
+            return {"enabled": False}
+        cvars = payload.get("cvars", payload)
+        if not isinstance(cvars, Mapping):
+            return {"enabled": False}
+        return {
+            "enabled": bool(payload.get("enabled", True)),
+            "flag_physics": bool(cvars.get("g_flagPhysics", 0)),
+            "flag_bounce": float(cvars.get("g_flagBounce", 0.0)),
+            "throw_forward": float(cvars.get("g_throwFlagForwardMult", 150.0)),
+            "throw_velocity": float(cvars.get("g_throwFlagVelocity", 200.0)),
+            "drop_timeout": self._convert_ms(cvars.get("g_flagDroppedTimeout"), default=0.0),
+            "return_on_suicide": bool(cvars.get("g_returnFlagOnSuicide", 0)),
+            "neutral_ping": self._convert_ms(cvars.get("g_neutralFlagPingTime"), default=0.0),
+        }
+
+    def _flag_physics_details(self) -> Dict[str, Any]:
+        bounce = float(self.ctf_settings.get("flag_bounce", 0.0))
+        bounce = max(0.0, min(1.0, bounce))
+        return {
+            "enabled": bool(self.ctf_settings.get("flag_physics")),
+            "bounce": bounce,
+        }
+
+    def _compute_flag_trajectory(self, state: BotState) -> Dict[str, Any]:
+        forward_speed = float(self.ctf_settings.get("throw_forward", 150.0))
+        vertical_speed = float(self.ctf_settings.get("throw_velocity", 200.0))
+        facing = self._normalise(state.facing)
+        velocity = (
+            facing[0] * forward_speed,
+            facing[1] * forward_speed,
+            facing[2] * forward_speed + vertical_speed,
+        )
+        return {
+            "forward_speed": forward_speed,
+            "vertical_speed": vertical_speed,
+            "velocity": [round(component, 6) for component in velocity],
+        }
+
+    def _schedule_flag_timeout(self, flag: str, bot_name: str) -> Optional[float]:
+        timeout = float(self.ctf_settings.get("drop_timeout", 0.0))
+        if timeout <= 0.0:
+            self._flag_return_deadlines.pop(flag, None)
+            return None
+        scheduled = round(self._current_time + timeout, 6)
+        self._flag_return_deadlines[flag] = scheduled
+        self._schedule_item_event(
+            scheduled,
+            {
+                "bot": bot_name,
+                "action": "flag_return",
+                "flag": flag,
+                "reason": "timeout",
+            },
+        )
+        return scheduled
+
+    def _cancel_flag_timeout(self, flag: str) -> None:
+        self._flag_return_deadlines.pop(flag, None)
+
+    # ------------------------------------------------------------------
+    # Clan Arena helpers
+    # ------------------------------------------------------------------
+
+    def _load_clanarena_settings(self, payload: Any) -> Mapping[str, Any]:
+        if not isinstance(payload, Mapping):
+            return {"enabled": False}
+        cvars = payload.get("cvars", payload)
+        if not isinstance(cvars, Mapping):
+            return {"enabled": False}
+        return {
+            "enabled": bool(payload.get("enabled", True)),
+            "shuffle": {
+                "automatic": bool(cvars.get("g_shuffleAutomatic", 0)),
+                "timedelay": float(cvars.get("g_shuffleTimedelay", 0.0)),
+                "min_players": int(cvars.get("g_shuffleMinPlayers", 0)),
+                "auto_min_players": int(cvars.get("g_shuffleAutomaticMinPlayers", 0)),
+            },
+            "teams": {
+                "min_size": int(cvars.get("g_teamSizeMin", 0)),
+                "force_present": bool(cvars.get("g_teamForcePresent", 0)),
+            },
+            "flood": {
+                "maxcount": int(cvars.get("g_floodprot_maxcount", 0)),
+                "decay": self._convert_ms(cvars.get("g_floodprot_decay"), default=0.0),
+                "penalty": self._convert_ms(cvars.get("g_floodprot_penalty"), default=0.0),
+            },
+        }
+
+    def _update_shuffle_state(self) -> Dict[str, Any]:
+        if not bool(self.clanarena_settings.get("enabled")):
+            self._shuffle_countdown_deadline = None
+            return {"status": "disabled"}
+        shuffle = self.clanarena_settings.get("shuffle", {})
+        if not bool(shuffle.get("automatic")):
+            self._shuffle_countdown_deadline = None
+            return {"status": "disabled"}
+        red = self._clanarena_population.get("red", 0)
+        blue = self._clanarena_population.get("blue", 0)
+        total = red + blue
+        delta = abs(red - blue)
+        threshold = shuffle.get("auto_min_players") or shuffle.get("min_players") or 4
+        warmup_active = self._warmup_deadline > self._current_time
+        should_shuffle = warmup_active and total >= threshold and delta >= 2
+        if self._shuffle_countdown_deadline and self._current_time >= self._shuffle_countdown_deadline:
+            deadline = self._shuffle_countdown_deadline
+            self._shuffle_countdown_deadline = None
+            return {
+                "status": "executed",
+                "deadline": deadline,
+                "total": total,
+                "delta": delta,
+            }
+        if should_shuffle:
+            if self._shuffle_countdown_deadline:
+                return {
+                    "status": "countdown_active",
+                    "deadline": self._shuffle_countdown_deadline,
+                    "total": total,
+                    "delta": delta,
+                }
+            delay = max(0.0, float(shuffle.get("timedelay", 0.0)))
+            if delay <= 0.0:
+                return {
+                    "status": "executed",
+                    "deadline": self._current_time,
+                    "total": total,
+                    "delta": delta,
+                }
+            deadline = round(self._current_time + delay, 6)
+            self._shuffle_countdown_deadline = deadline
+            warmup_clamped = False
+            if self._warmup_deadline < deadline:
+                self._warmup_deadline = deadline
+                warmup_clamped = True
+            return {
+                "status": "armed",
+                "deadline": deadline,
+                "delay": delay,
+                "total": total,
+                "delta": delta,
+                "warmup_clamped": warmup_clamped,
+                "warmup_deadline": self._warmup_deadline,
+            }
+        if self._shuffle_countdown_deadline:
+            cancelled = self._shuffle_countdown_deadline
+            self._shuffle_countdown_deadline = None
+            return {
+                "status": "cancelled",
+                "deadline": cancelled,
+                "total": total,
+                "delta": delta,
+            }
+        return {"status": "idle", "total": total, "delta": delta}
+
+    def _evaluate_warmup_gate(self) -> Dict[str, Any]:
+        if not bool(self.clanarena_settings.get("enabled")):
+            return {"status": "disabled"}
+        teams = self.clanarena_settings.get("teams", {})
+        required = max(0, int(teams.get("min_size", 0)))
+        force_present = bool(teams.get("force_present"))
+        red = self._clanarena_population.get("red", 0)
+        blue = self._clanarena_population.get("blue", 0)
+        ready = False
+        if red >= 1 and blue >= 1:
+            if required <= 1:
+                ready = True
+            elif force_present:
+                ready = red >= required and blue >= required
+            else:
+                ready = red >= required or blue >= required
+        status = "ready" if ready else "waiting"
+        return {"status": status, "red": red, "blue": blue, "required": required}
+
+    def _apply_flood_gate(self, issuer: str) -> Tuple[bool, float]:
+        flood = self.clanarena_settings.get("flood", {})
+        maxcount = int(flood.get("maxcount", 0))
+        decay = float(flood.get("decay", 0.0))
+        if maxcount <= 0 or decay <= 0.0:
+            return True, 0.0
+        now = self._current_time
+        counter = self._flood_counters.setdefault(
+            issuer, {"count": 0, "last": 0.0, "penalty": 0.0}
+        )
+        if counter["penalty"] > now:
+            return False, round(counter["penalty"] - now, 6)
+        if counter["last"] > 0.0:
+            elapsed = now - counter["last"]
+            if elapsed > 0.0:
+                reduction = int(elapsed / decay)
+                if reduction > 0:
+                    counter["count"] = max(0, counter["count"] - reduction)
+        counter["last"] = now
+        counter["count"] += 1
+        if counter["count"] > maxcount:
+            penalty = float(flood.get("penalty", 0.0))
+            if penalty <= 0.0:
+                penalty = decay * maxcount
+                if penalty <= 0.0:
+                    penalty = decay
+            counter["penalty"] = now + penalty
+            counter["count"] = 0
+            return False, round(penalty, 6)
+        return True, 0.0
+
 
     def _snapshot_factory_defaults(self, state: BotState) -> None:
         state.custom["factory_defaults"] = {

@@ -27,6 +27,8 @@ SCENARIOS: dict[str, Path] = {
     "rotation": SCENARIO_ROOT / "rotation_vote.json",
     "bot_resources": SCENARIO_ROOT / "bot_resource_schedule.json",
     "freeze": SCENARIO_ROOT / "freeze_cvars.json",
+    "ctf_flag_cvars": SCENARIO_ROOT / "ctf_flag_cvars.json",
+    "clanarena_shuffle": SCENARIO_ROOT / "clanarena_shuffle.json",
 }
 DEFAULT_SCENARIO = SCENARIOS["duel"]
 SNAPSHOT_ROOT = REPO_ROOT / "tools" / "tests" / "client_regression"

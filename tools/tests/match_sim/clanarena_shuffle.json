@@ -1,0 +1,57 @@
+{
+  "map": "arena_ca1",
+  "duration": 12.0,
+  "tick_rate": 10,
+  "seed": 777,
+  "metadata": {
+    "description": "Clan Arena shuffle and warmup gating",
+    "mode": "clanarena",
+    "clanarena": {
+      "enabled": true,
+      "cvars": {
+        "g_shuffleAutomatic": 1,
+        "g_shuffleTimedelay": 4,
+        "g_shuffleMinPlayers": 4,
+        "g_shuffleAutomaticMinPlayers": 4,
+        "g_teamSizeMin": 2,
+        "g_teamForcePresent": 1,
+        "g_floodprot_maxcount": 3,
+        "g_floodprot_decay": 1000,
+        "g_floodprot_penalty": 2000
+      }
+    }
+  },
+  "bots": [
+    {
+      "name": "marshal",
+      "team": null,
+      "script": [
+        {"time": 0.0, "action": "set_warmup", "params": {"seconds": 2}},
+        {"time": 0.05, "action": "set_team_counts", "params": {"red": 3, "blue": 1}},
+        {"time": 0.1, "action": "tick_shuffle"},
+        {"time": 3.9, "action": "tick_shuffle"},
+        {"time": 4.2, "action": "tick_shuffle"},
+        {"time": 4.4, "action": "set_team_counts", "params": {"red": 2, "blue": 2}},
+        {"time": 4.5, "action": "tick_shuffle"},
+        {"time": 5.0, "action": "set_team_counts", "params": {"red": 4, "blue": 1}},
+        {"time": 5.1, "action": "tick_shuffle"},
+        {"time": 5.2, "action": "set_team_counts", "params": {"red": 1, "blue": 1}},
+        {"time": 5.3, "action": "tick_shuffle"},
+        {"time": 6.5, "action": "set_team_counts", "params": {"red": 2, "blue": 1}},
+        {"time": 6.6, "action": "check_warmup_gate"},
+        {"time": 7.0, "action": "set_team_counts", "params": {"red": 2, "blue": 2}},
+        {"time": 7.1, "action": "check_warmup_gate"},
+        {"time": 7.2, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 7.3, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 7.35, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 7.4, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 8.5, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 8.6, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 8.7, "action": "shuffle_vote", "params": {"issuer": "major"}},
+        {"time": 9.1, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 9.6, "action": "shuffle_vote", "params": {"issuer": "ranger"}},
+        {"time": 10.0, "action": "tick_shuffle"}
+      ]
+    }
+  ]
+}
