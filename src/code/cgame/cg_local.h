@@ -614,6 +614,11 @@ typedef struct {
 	// crosshair client ID
 	int			crosshairClientNum;
 	int			crosshairClientTime;
+	vec4_t			crosshairColor;
+	vec4_t			crosshairHitColor;
+	qboolean	crosshairPulseEnabled;
+	int			crosshairHitStyle;
+	int			crosshairHitTime;
 
 	// powerup active flashing
 	int			powerupActive;
@@ -1263,6 +1268,12 @@ extern	vmCvar_t		cg_crosshairX;
 extern	vmCvar_t		cg_crosshairY;
 extern	vmCvar_t		cg_crosshairSize;
 extern	vmCvar_t		cg_crosshairHealth;
+extern	vmCvar_t		cg_crosshairColor;
+extern	vmCvar_t		cg_crosshairBrightness;
+extern	vmCvar_t		cg_crosshairPulse;
+extern	vmCvar_t		cg_crosshairHitStyle;
+extern	vmCvar_t		cg_crosshairHitTime;
+extern	vmCvar_t		cg_crosshairHitColor;
 extern	vmCvar_t		cg_enemyCrosshairNames;
 extern	vmCvar_t		cg_enemyCrosshairNamesOpacity;
 extern	vmCvar_t		cg_teammateCrosshairNames;
