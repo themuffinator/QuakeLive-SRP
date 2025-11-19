@@ -1,6 +1,7 @@
 #include "g_local.h"
 
 static qboolean ( *g_autoShuffleCountdownGuard )( void ) = NULL;
+static void ( *g_autoShuffleCountdownComplete )( void ) = NULL;
 
 /*
 =============
@@ -13,6 +14,18 @@ backend or game flow requests it.
 void G_AutoShuffleCountdown_SetGuard( qboolean ( *guard )( void ) )
 {
 	g_autoShuffleCountdownGuard = guard;
+}
+
+/*
+=============
+G_AutoShuffleCountdown_SetCompleteCallback
+
+Registers a callback fired whenever the countdown expires.
+=============
+*/
+void G_AutoShuffleCountdown_SetCompleteCallback( void ( *callback )( void ) )
+{
+	g_autoShuffleCountdownComplete = callback;
 }
 
 /*
@@ -102,6 +115,9 @@ void G_AutoShuffleCountdown_Frame( void )
 		level.autoShuffleCountdownActive = qfalse;
 		level.autoShuffleCountdownTargetTime = 0;
 		level.autoShuffleCountdownLastAnnounce = -1;
+		if ( g_autoShuffleCountdownComplete ) {
+			g_autoShuffleCountdownComplete();
+		}
 		return;
 	}
 

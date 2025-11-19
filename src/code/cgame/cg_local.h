@@ -1138,6 +1138,10 @@ typedef struct {
 	int		matchRoundNumber;
 	int		matchRoundTurn;
 	int		matchRoundState;
+	int		matchTeamCount[TEAM_NUM_TEAMS];
+	int		matchTeamRespawnRatio[TEAM_NUM_TEAMS];
+	qboolean	matchAutoShuffleArmed;
+	int		matchAutoShuffleSecondsRemaining;
 	int		matchTimeoutLengthSeconds;
 	int		matchTimeoutCountPerTeam;
 	int		matchOvertimeLengthSeconds;

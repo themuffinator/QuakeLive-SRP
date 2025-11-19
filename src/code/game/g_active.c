@@ -1555,11 +1555,26 @@ void G_Frame_UpdateRoundController( void ) {
 			G_Frame_BeginRoundWarmup();
 			break;
 
-		case ROUNDSTATE_WARMUP:
-			if ( level.warmupTime == 0 ) {
-				G_Frame_BeginRoundActive();
+	case ROUNDSTATE_WARMUP:
+		if ( g_gametype.integer >= GT_TEAM && !Team_HasMinimumPlayersForWarmup() ) {
+			if ( level.warmupTime != -1 ) {
+				level.warmupTime = -1;
+				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+				G_LogPrintf( "Warmup:\n" );
 			}
 			break;
+		}
+
+		if ( level.warmupTime < 0 ) {
+			G_FreezeScheduleWarmupDelay();
+			break;
+		}
+
+		Team_ClampWarmupToShuffleCountdown();
+		if ( level.warmupTime == 0 ) {
+			G_Frame_BeginRoundActive();
+		}
+		break;
 
 		case ROUNDSTATE_ACTIVE:
 			if ( g_gametype.integer == GT_RED_ROVER ) {

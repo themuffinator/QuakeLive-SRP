@@ -32,14 +32,14 @@ Formats an integer payload and appends it to the match state info string.
 =============
 */
 static void G_SetMatchStateInt( char *info, const char *key, int value ) {
-char buffer[32];
+	char buffer[32];
 
-if ( !info || !key ) {
-return;
-}
+	if ( !info || !key ) {
+		return;
+	}
 
-Com_sprintf( buffer, sizeof( buffer ), "%i", value );
-Info_SetValueForKey( info, key, buffer );
+	Com_sprintf( buffer, sizeof( buffer ), "%i", value );
+	Info_SetValueForKey( info, key, buffer );
 }
 
 /*
@@ -50,20 +50,20 @@ Appends the cached match factory configuration values to the match-state payload
 =============
 */
 static void G_SetMatchFactoryConfigFields( char *info, const matchFactoryConfig_t *config ) {
-if ( !info || !config ) {
-return;
-}
+	if ( !info || !config ) {
+		return;
+	}
 
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_LENGTH, config->timeoutLengthSeconds );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_COUNT, config->timeoutCountPerTeam );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_OVERTIME_LENGTH, config->overtimeLengthSeconds );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_RESPAWNS, config->suddenDeathRespawnsEnabled ? 1 : 0 );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_START, config->suddenDeathStartSeconds );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_TICK, config->suddenDeathTickSeconds );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_MAX, config->suddenDeathMaxSeconds );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_INCREMENT, config->suddenDeathIncrementSeconds );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_PRINT, config->suddenDeathPrintAnnouncements ? 1 : 0 );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_DELAY, config->suddenDeathSpawnDelayActive ? 1 : 0 );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_LENGTH, config->timeoutLengthSeconds );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_COUNT, config->timeoutCountPerTeam );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_OVERTIME_LENGTH, config->overtimeLengthSeconds );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_RESPAWNS, config->suddenDeathRespawnsEnabled ? 1 : 0 );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_START, config->suddenDeathStartSeconds );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_TICK, config->suddenDeathTickSeconds );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_MAX, config->suddenDeathMaxSeconds );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_INCREMENT, config->suddenDeathIncrementSeconds );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_PRINT, config->suddenDeathPrintAnnouncements ? 1 : 0 );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_SUDDEN_DELAY, config->suddenDeathSpawnDelayActive ? 1 : 0 );
 }
 
 /*
@@ -112,13 +112,25 @@ void G_UpdateMatchStateConfigString( void ) {
 	G_SetMatchStateInt( info, MATCH_STATE_KEY_OVERTIME_START, level.overtimeStartTime );
 	G_SetMatchStateInt( info, MATCH_STATE_KEY_OVERTIME_END, level.overtimeEndTime );
 	G_SetMatchStateInt( info, MATCH_STATE_KEY_OVERTIME_COUNT, level.overtimeCount );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_ACTIVE, level.timeoutActive ? 1 : 0 );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_TEAM, level.timeoutTeam );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_EXPIRE, level.timeoutExpireTime );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_OWNER, level.timeoutOwner );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_RED, red );
-G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_BLUE, blue );
-G_SetMatchFactoryConfigFields( info, config );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_ACTIVE, level.timeoutActive ? 1 : 0 );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_TEAM, level.timeoutTeam );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_EXPIRE, level.timeoutExpireTime );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_OWNER, level.timeoutOwner );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_RED, red );
+	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIMEOUT_BLUE, blue );
+	G_SetMatchFactoryConfigFields( info, config );
 
-trap_SetConfigstring( CS_MATCH_STATE, info );
+	if ( g_gametype.integer >= GT_TEAM ) {
+		int redCount = TeamCount( -1, TEAM_RED );
+		int blueCount = TeamCount( -1, TEAM_BLUE );
+
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_TEAM_RED_COUNT, redCount );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_TEAM_BLUE_COUNT, blueCount );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_RESPAWN_RED, Team_GetRespawnRatioForTeam( TEAM_RED ) );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_RESPAWN_BLUE, Team_GetRespawnRatioForTeam( TEAM_BLUE ) );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_SHUFFLE_ARMED, Team_IsAutoShuffleArmed() ? 1 : 0 );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_SHUFFLE_REMAINING, G_AutoShuffleCountdown_GetSecondsRemaining() );
+	}
+
+	trap_SetConfigstring( CS_MATCH_STATE, info );
 }

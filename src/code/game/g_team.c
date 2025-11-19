@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include <stdlib.h>
 
 #define DOMINATION_DISTRESS_REPEAT_TIME	2000
 #define DOMINATION_MAX_POINT_SPAWNS	25
@@ -63,6 +64,12 @@ typedef struct teamgame_s {
 teamgame_t teamgame;
 
 gentity_t	*neutralObelisk;
+
+typedef struct teamBalanceInfo_s {
+	int		redCount;
+	int		blueCount;
+	int		totalCount;
+} teamBalanceInfo_t;
 
 void Team_SetFlagStatus( int team, flagStatus_t status );
 static void Team_InitDominationState( void );
@@ -161,11 +168,18 @@ void G_ADAwardBonus( gentity_t *player, const vec3_t origin, int bonus, const ch
 	G_ADAnnounceBonus( player, label, bonus );
 }
 
+/*
+=============
+Team_InitGame
+
+Initializes team tracking, domination points, and shuffle callbacks.
+=============
+*/
 void Team_InitGame( void ) {
-	memset(&teamgame, 0, sizeof teamgame);
+	memset( &teamgame, 0, sizeof( teamgame ) );
 	Team_InitDomination();
 
-	switch( g_gametype.integer ) {
+	switch ( g_gametype.integer ) {
 	case GT_CTF:
 		teamgame.redStatus = teamgame.blueStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_RED, FLAG_ATBASE );
@@ -178,7 +192,415 @@ void Team_InitGame( void ) {
 	default:
 		break;
 	}
+
+	G_AutoShuffleCountdown_SetGuard( Team_ShouldDeferAutoShuffleAnnouncements );
+	G_AutoShuffleCountdown_SetCompleteCallback( Team_HandleAutoShuffleCountdownComplete );
+	level.autoShuffleLastExecuteTime = 0;
+	s_teamAutoShuffleArmed = qfalse;
 }
+
+
+
+/*
+=============
+Team_HasTeamGameActive
+
+Returns qtrue when the active gametype tracks red/blue teams.
+=============
+*/
+static qboolean Team_HasTeamGameActive( void ) {
+	return ( g_gametype.integer >= GT_TEAM ) ? qtrue : qfalse;
+}
+
+/*
+=============
+Team_ShouldDeferAutoShuffleAnnouncements
+
+Prevents countdown announcements during timeouts, intermissions, or live rounds.
+=============
+*/
+static qboolean Team_ShouldDeferAutoShuffleAnnouncements( void ) {
+	if ( level.timeoutActive ) {
+		return qtrue;
+	}
+	if ( level.intermissionQueued || level.intermissiontime ) {
+		return qtrue;
+	}
+	if ( level.roundState == ROUNDSTATE_ACTIVE ) {
+		return qtrue;
+	}
+	return qfalse;
+}
+
+/*
+=============
+Team_BuildBalanceInfo
+
+Caches the current team counts for balance and shuffle decisions.
+=============
+*/
+static void Team_BuildBalanceInfo( teamBalanceInfo_t *info ) {
+	if ( !info ) {
+		return;
+	}
+
+	info->redCount = TeamCount( -1, TEAM_RED );
+	info->blueCount = TeamCount( -1, TEAM_BLUE );
+	info->totalCount = info->redCount + info->blueCount;
+}
+
+/*
+=============
+Team_GetRequiredPlayersPerTeam
+
+Returns the configured minimum team size, clamped to zero or higher.
+=============
+*/
+static int Team_GetRequiredPlayersPerTeam( void ) {
+	int required = g_teamSizeMin.integer;
+
+	if ( required < 0 ) {
+		required = 0;
+	}
+
+	return required;
+}
+
+/*
+=============
+Team_GetAutoShuffleMinimumPlayers
+
+Resolves the minimum number of total players required before auto-shuffle arms.
+=============
+*/
+static int Team_GetAutoShuffleMinimumPlayers( void ) {
+	int threshold = g_shuffleAutomaticMinPlayers.integer;
+
+	if ( threshold <= 0 ) {
+		threshold = g_shuffleMinPlayers.integer;
+	}
+	if ( threshold <= 0 ) {
+		threshold = 4;
+	}
+
+	return threshold;
+}
+
+/*
+=============
+Team_ShouldAutoShuffle
+
+Evaluates whether conditions warrant arming or executing an auto-shuffle.
+=============
+*/
+static qboolean Team_ShouldAutoShuffle( const teamBalanceInfo_t *info ) {
+	int delta;
+
+	if ( !info ) {
+		return qfalse;
+	}
+	if ( !Team_HasTeamGameActive() ) {
+		return qfalse;
+	}
+	if ( g_shuffleAutomatic.integer <= 0 ) {
+		return qfalse;
+	}
+	if ( level.warmupTime <= 0 ) {
+		return qfalse;
+	}
+	if ( info->totalCount < Team_GetAutoShuffleMinimumPlayers() ) {
+		return qfalse;
+	}
+	delta = abs( info->redCount - info->blueCount );
+	if ( delta < 2 ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+=============
+Team_HandleAutoShuffleCountdownComplete
+
+Invoked when the countdown reaches zero so the pending shuffle can execute.
+=============
+*/
+static void Team_HandleAutoShuffleCountdownComplete( void ) {
+	teamBalanceInfo_t info;
+
+	Team_BuildBalanceInfo( &info );
+	s_teamAutoShuffleArmed = qfalse;
+	if ( !Team_ShouldAutoShuffle( &info ) ) {
+		return;
+	}
+	Team_PerformAutomaticShuffle();
+}
+
+/*
+=============
+Team_IsAutoShuffleArmed
+
+Returns qtrue when an automatic shuffle countdown has been armed.
+=============
+*/
+qboolean Team_IsAutoShuffleArmed( void ) {
+	return s_teamAutoShuffleArmed;
+}
+
+/*
+=============
+Team_PerformAutomaticShuffle
+
+Randomizes players across teams and finalizes the auto-shuffle execution.
+=============
+*/
+static void Team_PerformAutomaticShuffle( void ) {
+	int players[MAX_CLIENTS];
+	int playerCount;
+	int i;
+	int swaps;
+	int targetRed;
+	int assignedRed;
+	int shuffled;
+
+	if ( !Team_HasTeamGameActive() || level.warmupTime <= 0 ) {
+		return;
+	}
+
+	playerCount = 0;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t *client = &level.clients[i];
+
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != TEAM_RED && client->sess.sessionTeam != TEAM_BLUE ) {
+			continue;
+		}
+
+		players[playerCount++] = i;
+	}
+
+	if ( playerCount < 2 ) {
+		return;
+	}
+
+	for ( i = playerCount - 1; i > 0; i-- ) {
+		int temp;
+
+		swaps = rand() % ( i + 1 );
+		if ( swaps == i ) {
+			continue;
+		}
+
+		temp = players[i];
+		players[i] = players[swaps];
+		players[swaps] = temp;
+	}
+
+	targetRed = ( playerCount + 1 ) / 2;
+	assignedRed = 0;
+	shuffled = 0;
+
+	for ( i = 0; i < playerCount; i++ ) {
+		int clientNum = players[i];
+		gentity_t *ent = &g_entities[clientNum];
+		const char *teamToken;
+
+		if ( !ent->client ) {
+			continue;
+		}
+
+		teamToken = ( assignedRed < targetRed ) ? "red" : "blue";
+		if ( assignedRed < targetRed ) {
+			assignedRed++;
+		}
+
+		if ( ( teamToken[0] == 'r' && ent->client->sess.sessionTeam == TEAM_RED ) ||
+			( teamToken[0] == 'b' && ent->client->sess.sessionTeam == TEAM_BLUE ) ) {
+			continue;
+		}
+
+		SetTeam( ent, (char *)teamToken );
+		shuffled++;
+	}
+
+	level.autoShuffleLastExecuteTime = level.time;
+	G_AutoShuffleCountdown_Cancel();
+	s_teamAutoShuffleArmed = qfalse;
+
+	if ( shuffled > 0 ) {
+		G_LogPrintf( "match: auto-shuffle executed (%i players, %i moves)\n", playerCount, shuffled );
+		trap_SendServerCommand( -1, "cp \"Teams automatically shuffled\n\"" );
+	} else {
+		G_LogPrintf( "match: auto-shuffle skipped (no moves)\n" );
+	}
+
+	G_UpdateMatchStateConfigString();
+}
+
+/*
+=============
+Team_UpdateAutoShuffleState
+
+Monitors the team counts and schedules automatic shuffles when imbalance persists.
+=============
+*/
+void Team_UpdateAutoShuffleState( void ) {
+	teamBalanceInfo_t info;
+	qboolean shouldShuffle;
+	int delay;
+
+	if ( !Team_HasTeamGameActive() ) {
+		if ( s_teamAutoShuffleArmed || G_AutoShuffleCountdown_IsActive() ) {
+			G_AutoShuffleCountdown_Cancel();
+			s_teamAutoShuffleArmed = qfalse;
+			G_UpdateMatchStateConfigString();
+		}
+		return;
+	}
+
+	Team_BuildBalanceInfo( &info );
+	shouldShuffle = Team_ShouldAutoShuffle( &info );
+
+	if ( !shouldShuffle ) {
+		if ( s_teamAutoShuffleArmed || G_AutoShuffleCountdown_IsActive() ) {
+			G_AutoShuffleCountdown_Cancel();
+			if ( s_teamAutoShuffleArmed ) {
+				trap_SendServerCommand( -1, "print \"Auto-shuffle cancelled.\\n\"" );
+				G_LogPrintf( "match: auto-shuffle cancelled\n" );
+			}
+			s_teamAutoShuffleArmed = qfalse;
+			G_UpdateMatchStateConfigString();
+		}
+		return;
+	}
+
+	if ( G_AutoShuffleCountdown_IsActive() ) {
+		Team_ClampWarmupToShuffleCountdown();
+		return;
+	}
+
+	if ( s_teamAutoShuffleArmed ) {
+		return;
+	}
+
+	delay = g_shuffleTimedelay.integer;
+	if ( delay < 0 ) {
+		delay = 0;
+	}
+
+	if ( delay <= 0 ) {
+		Team_PerformAutomaticShuffle();
+		return;
+	}
+
+	G_AutoShuffleCountdown_Arm( delay * 1000 );
+	s_teamAutoShuffleArmed = qtrue;
+	Team_ClampWarmupToShuffleCountdown();
+	G_LogPrintf( "match: auto-shuffle armed (%i seconds)\n", delay );
+	trap_SendServerCommand( -1, va( "print \"Auto-shuffle will execute in %i seconds.\\n\"", delay ) );
+	G_UpdateMatchStateConfigString();
+}
+
+/*
+=============
+Team_ClampWarmupToShuffleCountdown
+
+Extends the warmup timer so the shuffle countdown can complete before live play.
+=============
+*/
+void Team_ClampWarmupToShuffleCountdown( void ) {
+	int secondsRemaining;
+	int targetTime;
+
+	if ( !Team_HasTeamGameActive() ) {
+		return;
+	}
+	if ( !G_AutoShuffleCountdown_IsActive() ) {
+		return;
+	}
+	if ( level.warmupTime <= 0 ) {
+		return;
+	}
+
+	secondsRemaining = G_AutoShuffleCountdown_GetSecondsRemaining();
+	if ( secondsRemaining <= 0 ) {
+		return;
+	}
+
+	targetTime = level.time + secondsRemaining * 1000;
+	if ( level.warmupTime < targetTime ) {
+		level.warmupTime = targetTime;
+		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+	}
+}
+
+/*
+=============
+Team_HasMinimumPlayersForWarmup
+
+Determines if the teams satisfy the configured warmup player requirements.
+=============
+*/
+qboolean Team_HasMinimumPlayersForWarmup( void ) {
+	teamBalanceInfo_t info;
+	int required;
+
+	if ( g_gametype.integer < GT_TEAM ) {
+		return ( level.numPlayingClients >= 2 ) ? qtrue : qfalse;
+	}
+
+	Team_BuildBalanceInfo( &info );
+	if ( info.redCount < 1 || info.blueCount < 1 ) {
+		return qfalse;
+	}
+
+	required = Team_GetRequiredPlayersPerTeam();
+	if ( required <= 1 ) {
+		return qtrue;
+	}
+
+	if ( g_teamForcePresent.integer ) {
+		return ( info.redCount >= required && info.blueCount >= required ) ? qtrue : qfalse;
+	}
+	if ( info.redCount < required && info.blueCount < required ) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+=============
+Team_GetRespawnRatioForTeam
+
+Returns a percentage describing how close the team is to satisfying g_teamSizeMin.
+=============
+*/
+int Team_GetRespawnRatioForTeam( team_t team ) {
+	int required;
+	int count;
+
+	if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		return 0;
+	}
+	if ( !Team_HasTeamGameActive() ) {
+		return 100;
+	}
+
+	required = Team_GetRequiredPlayersPerTeam();
+	if ( required <= 0 ) {
+		required = 1;
+	}
+
+	count = TeamCount( -1, team );
+	if ( count <= 0 ) {
+		return 0;
+	}
+
+	return ( count * 100 ) / required;
+}
+
 
 /*
 =============
