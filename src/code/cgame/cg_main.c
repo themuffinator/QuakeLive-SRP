@@ -133,6 +133,7 @@ pmove_settings_t		cg_pmoveSettings;
 
 static int		weaponColorGrenadeModCount = -1;
 static int		lowAmmoWarningPercentileModCount = -1;
+static int		announcerModificationCount = -1;
 
 vmCvar_t	cg_railTrailTime;
 vmCvar_t	cg_centertime;
@@ -155,7 +156,12 @@ vmCvar_t	cg_drawCrosshair;
 vmCvar_t	cg_drawCrosshairNames;
 vmCvar_t	cg_drawRewards;
 vmCvar_t	cg_drawRewardsRowSize;
+vmCvar_t	cg_announcer;
+vmCvar_t	cg_announcerRewardsVO;
+vmCvar_t	cg_raceBeep;
 vmCvar_t	cg_drawCheckpointRemaining;
+vmCvar_t	cg_levelTimerDirection;
+vmCvar_t	cg_raceBeep;
 vmCvar_t	cg_drawProfileImages;
 vmCvar_t	cg_drawSprites;
 vmCvar_t	cg_drawPregameMessages;
@@ -225,7 +231,10 @@ vmCvar_t	cg_gun_z;
 vmCvar_t	cg_tracerChance;
 vmCvar_t	cg_tracerWidth;
 vmCvar_t	cg_tracerLength;
+vmCvar_t	cg_autoHop;
+vmCvar_t	cg_autoProjectileNudge;
 vmCvar_t	cg_autoswitch;
+vmCvar_t	cg_projectileNudge;
 vmCvar_t	cg_switchOnEmpty;
 vmCvar_t	cg_switchToEmpty;
 vmCvar_t	cg_ignore;
@@ -251,6 +260,9 @@ vmCvar_t	cg_synchronousClients;
 vmCvar_t 	cg_teamChatTime;
 vmCvar_t 	cg_lowAmmoWarningPercentile;
 vmCvar_t 	cg_teamChatHeight;
+vmCvar_t	cg_chatHistoryLength;
+vmCvar_t	cg_chatbeep;
+vmCvar_t	cg_teamChatBeep;
 vmCvar_t 	cg_stats;
 vmCvar_t 	cg_buildScript;
 vmCvar_t 	cg_forceModel;
@@ -283,10 +295,12 @@ vmCvar_t	cg_teammatePOIs;
 vmCvar_t	cg_teammatePOIsMinWidth;
 vmCvar_t	cg_teammatePOIsMaxWidth;
 vmCvar_t	cg_teamChatsOnly;
-vmCvar_t	cg_noVoiceChats;
-vmCvar_t	cg_noVoiceText;
+vmCvar_t	cg_playVoiceChats;
+vmCvar_t	cg_showVoiceText;
 vmCvar_t	cg_useItemMessage;
 vmCvar_t	cg_useItemWarning;
+vmCvar_t	cg_allowTaunt;
+vmCvar_t	cg_muzzleFlash;
 vmCvar_t	cg_hudFiles;
 vmCvar_t	cg_kickScale;
 vmCvar_t 	cg_scorePlum;
@@ -309,6 +323,10 @@ vmCvar_t 	cg_disableLoadout_cg;
 vmCvar_t 	cg_disableLoadout_hmg;
 vmCvar_t 	cg_trueShotgun;
 vmCvar_t 	cg_trackPlayer;
+vmCvar_t 	cg_followKiller;
+vmCvar_t 	cg_followPowerup;
+vmCvar_t 	cg_ignoreMouseInput;
+vmCvar_t 	cg_filter_angles;
 vmCvar_t 	cg_smoothClients;
 vmCvar_t 	cg_loadout;
 vmCvar_t	pmove_fixed;
@@ -329,6 +347,10 @@ vmCvar_t	cg_oldRail;
 vmCvar_t	cg_oldRocket;
 vmCvar_t	cg_oldPlasma;
 vmCvar_t	cg_trueLightning;
+vmCvar_t	cg_predictLocalRailshots;
+vmCvar_t	cg_lightningStyle;
+vmCvar_t	cg_lightningImpact;
+vmCvar_t	cg_lightningImpactCap;
 vmCvar_t	cg_drawTieredArmorAvailability;
 vmCvar_t	cg_armorTiered;
 vmCvar_t	cg_drawFullWeaponBar;
@@ -391,9 +413,17 @@ typedef struct {
 static unsigned int CG_ParseDamagePlumWeaponValue( const char *value, damagePlumPreset_t *preset );
 static damagePlumColorStyle_t CG_ParseDamagePlumColorStyleValue( int rawValue );
 static void CG_UpdateDamagePlumSettings( void );
+static sfxHandle_t CG_RegisterAnnouncerClip( const char *folder, const char *sample );
+static void CG_RegisterAnnouncerVoiceSet( cgAnnouncerProfile_t profile, const char *folder );
+static sfxHandle_t CG_RegisterRaceCueSound( const char *name );
+static void CG_SetActiveAnnouncerProfile( cgAnnouncerProfile_t profile );
+static void CG_UpdateAnnouncerProfileFromCvar( qboolean force );
 
 static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_ignore, "cg_ignore", "0", 0 },	// used for debugging
+	{ &cg_autoHop, "cg_autoHop", "1", CVAR_ARCHIVE },
+	{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", CVAR_ARCHIVE },
+	{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_ARCHIVE },
 	{ &cg_autoswitch, "cg_autoswitch", "1", CVAR_ARCHIVE },
 	{ &cg_switchOnEmpty, "cg_switchOnEmpty", "1", CVAR_ARCHIVE },
 	{ &cg_switchToEmpty, "cg_switchToEmpty", "1", CVAR_ARCHIVE },
@@ -414,6 +444,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_useLegacyHud, "cg_useLegacyHud", "0", CVAR_ARCHIVE },
 	{ &cg_vignette, "cg_vignette", "1", CVAR_ARCHIVE },
 	{ &cg_drawTimer, "cg_drawTimer", "0", CVAR_ARCHIVE  },
+	{ &cg_levelTimerDirection, "cg_levelTimerDirection", "up", CVAR_ARCHIVE },
 	{ &cg_drawFPS, "cg_drawFPS", "0", CVAR_ARCHIVE  },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
 	{ &cg_draw3dIcons, "cg_draw3dIcons", "1", CVAR_ARCHIVE  },
@@ -425,13 +456,19 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE },
 	{ &cg_drawRewards, "cg_drawRewards", "1", CVAR_ARCHIVE },
 	{ &cg_drawRewardsRowSize, "cg_drawRewardsRowSize", "9", CVAR_ARCHIVE },
+	{ &cg_announcer, "cg_announcer", "1", CVAR_ARCHIVE },
+	{ &cg_announcerRewardsVO, "cg_announcerRewardsVO", "1", CVAR_ARCHIVE },
+	{ &cg_raceBeep, "cg_raceBeep", "1", CVAR_ARCHIVE },
 	{ &cg_drawCheckpointRemaining, "cg_drawCheckpointRemaining", "1", CVAR_ARCHIVE },
+	{ &cg_raceBeep, "cg_raceBeep", "1", CVAR_ARCHIVE },
 	{ &cg_drawProfileImages, "cg_drawProfileImages", "1", CVAR_ARCHIVE },
 	{ &cg_drawSprites, "cg_drawSprites", "1", CVAR_ARCHIVE },
 	{ &cg_drawPregameMessages, "cg_drawPregameMessages", "1", CVAR_ARCHIVE },
-{ &cg_drawSpecMessages, "cg_drawSpecMessages", "1", CVAR_ARCHIVE },
+	{ &cg_drawSpecMessages, "cg_drawSpecMessages", "1", CVAR_ARCHIVE },
 	{ &cg_useItemMessage, "cg_useItemMessage", "1", CVAR_ARCHIVE },
 	{ &cg_useItemWarning, "cg_useItemWarning", "1", CVAR_ARCHIVE },
+	{ &cg_allowTaunt, "cg_allowTaunt", "1", CVAR_ARCHIVE },
+	{ &cg_muzzleFlash, "cg_muzzleFlash", "1", CVAR_ARCHIVE },
 { &cg_drawItemPickups, "cg_drawItemPickups", "5", CVAR_ARCHIVE },
 { &cg_drawSpriteSelf, "cg_drawSpriteSelf", "0", CVAR_ARCHIVE },
 { &cg_drawDemoHUD, "cg_drawDemoHUD", "1", CVAR_ARCHIVE },
@@ -492,8 +529,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_thirdPersonAngle, "cg_thirdPersonAngle", "0", CVAR_CHEAT },
 	{ &cg_thirdPersonPitch, "cg_thirdPersonPitch", "4.0", CVAR_CHEAT },
 	{ &cg_thirdPerson, "cg_thirdPerson", "0", 0 },
-	{ &cg_teamChatTime, "cg_teamChatTime", "3000", CVAR_ARCHIVE  },
-	{ &cg_teamChatHeight, "cg_teamChatHeight", "0", CVAR_ARCHIVE  },
+{ &cg_teamChatTime, "cg_teamChatTime", "3000", CVAR_ARCHIVE  },
+{ &cg_teamChatHeight, "cg_teamChatHeight", "0", CVAR_ARCHIVE  },
+{ &cg_chatHistoryLength, "cg_chatHistoryLength", "0", CVAR_ARCHIVE },
+{ &cg_chatbeep, "cg_chatbeep", "1", CVAR_ARCHIVE },
+{ &cg_teamChatBeep, "cg_teamChatBeep", "1", CVAR_ARCHIVE },
 	{ &cg_forceModel, "cg_forceModel", "0", CVAR_ARCHIVE  },
 	{ &cg_forceTeamModel, "cg_forceTeamModel", "", CVAR_ARCHIVE },
 	{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", CVAR_ARCHIVE },
@@ -531,6 +571,10 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
 	{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "0", CVAR_ARCHIVE | CVAR_LATCH },
 	{ &cg_autoAction, "cg_autoAction", "0", CVAR_ARCHIVE | CVAR_LATCH },
+{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE },
+{ &cg_playVoiceChats, "cg_playVoiceChats", "1", CVAR_ARCHIVE },
+{ &cg_showVoiceText, "cg_showVoiceText", "1", CVAR_ARCHIVE },
+{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE },
 	// the following variables are created in other parts of the system,
 	// but we also reference them here
 	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
@@ -570,6 +614,10 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_oldRocket, "cg_oldRocket", "1", CVAR_ARCHIVE},
 	{ &cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE},
 	{ &cg_trueLightning, "cg_trueLightning", "0.0", CVAR_ARCHIVE },
+	{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "0", CVAR_ARCHIVE },
+	{ &cg_lightningStyle, "cg_lightningStyle", "1", CVAR_ARCHIVE },
+	{ &cg_lightningImpact, "cg_lightningImpact", "1", CVAR_ARCHIVE },
+	{ &cg_lightningImpactCap, "cg_lightningImpactCap", "512", CVAR_ARCHIVE },
 	{ &cg_drawTieredArmorAvailability, "cg_drawTieredArmorAvailability", "1", CVAR_ARCHIVE },
 	{ &cg_armorTiered, "cg_armorTiered", "1", CVAR_ARCHIVE },
 	{ &cg_drawFullWeaponBar, "cg_drawFullWeaponBar", "0", CVAR_ARCHIVE },
@@ -595,6 +643,10 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", 0x00080801 },
 	{ &cg_trueShotgun, "cg_trueShotgun", "0", 0x00081801 },
 	{ &cg_trackPlayer, "cg_trackPlayer", "-1", CVAR_CHEAT },
+	{ &cg_followKiller, "cg_followKiller", "0", CVAR_ARCHIVE },
+	{ &cg_followPowerup, "cg_followPowerup", "0", CVAR_ARCHIVE },
+	{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ARCHIVE },
+	{ &cg_filter_angles, "cg_filter_angles", "0", CVAR_ARCHIVE },
 	{ &cg_drawHitFriendTime, "cg_drawHitFriendTime", "5000", CVAR_ARCHIVE },
 	{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000", CVAR_ARCHIVE },
 	{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE },
@@ -1087,12 +1139,12 @@ void CG_RegisterCvars( void ) {
 	cgs.localServer = atoi( var );
 
 	forceModelModificationCount = cg_forceModel.modificationCount;
-        forceTeamModelModificationCount = cg_forceTeamModel.modificationCount;
-        forceTeamSkinModificationCount = cg_forceTeamSkin.modificationCount;
-        forceEnemyModelModificationCount = cg_forceEnemyModel.modificationCount;
-        forceEnemySkinModificationCount = cg_forceEnemySkin.modificationCount;
-        forceTeamWeaponColorModificationCount = cg_forceTeamWeaponColor.modificationCount;
-        forceEnemyWeaponColorModificationCount = cg_forceEnemyWeaponColor.modificationCount;
+	forceTeamModelModificationCount = cg_forceTeamModel.modificationCount;
+	forceTeamSkinModificationCount = cg_forceTeamSkin.modificationCount;
+	forceEnemyModelModificationCount = cg_forceEnemyModel.modificationCount;
+	forceEnemySkinModificationCount = cg_forceEnemySkin.modificationCount;
+	forceTeamWeaponColorModificationCount = cg_forceTeamWeaponColor.modificationCount;
+	forceEnemyWeaponColorModificationCount = cg_forceEnemyWeaponColor.modificationCount;
 	teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
 	teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
 	teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
@@ -1139,6 +1191,8 @@ void CG_RegisterCvars( void ) {
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "team_model", DEFAULT_TEAM_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );
+
+	announcerModificationCount = cg_announcer.modificationCount;
 }
 
 /*																																			
@@ -1581,18 +1635,62 @@ void CG_UpdateCvars( void ) {
 		CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha_Team, &cg.screenDamageAlphaTeam, &screenDamageAlphaTeamModificationCount );
 	}
 	cg.zoomToggle = (qboolean)( cg_zoomToggle.integer != 0 );
-	cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );
-	CG_UpdateDamagePlumSettings();
+cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );
+CG_UpdateDamagePlumSettings();
 
 	CG_UpdateSimpleItemsSettings();
 	CG_UpdateCrosshairColorSettings();
 	CG_UpdateCrosshairPulseSettings();
 	CG_UpdateCrosshairHitSettings();
-	CG_UpdateAutomationSettings();
+	if ( announcerModificationCount != cg_announcer.modificationCount ) {
+		announcerModificationCount = cg_announcer.modificationCount;
+		CG_UpdateAnnouncerProfileFromCvar( qfalse );
+	}
+}
+
+/*
+=============
+CG_GetChatHistoryLength
+
+Calculates the bounded chat history length using cg_chatHistoryLength,
+falling back to cg_teamChatHeight when the new cvar isn't configured.
+=============
+*/
+int CG_GetChatHistoryLength( void ) {
+	int historyLength;
+
+	historyLength = cg_chatHistoryLength.integer;
+	if ( historyLength <= 0 ) {
+		historyLength = cg_teamChatHeight.integer;
+	}
+	if ( historyLength <= 0 ) {
+		historyLength = TEAMCHAT_HEIGHT;
+	}
+	if ( historyLength > TEAMCHAT_HEIGHT ) {
+		historyLength = TEAMCHAT_HEIGHT;
+	}
+
+	return historyLength;
+}
+
+/*
+=============
+CG_ShouldDisplayVoiceIndicator
+
+Returns whether voice chat indicators should be drawn.
+*/
+qboolean CG_ShouldDisplayVoiceIndicator( void ) {
+	if ( !cg.voiceChatIndicatorEnabled ) {
+		return qfalse;
+	}
+	if ( !cg_playVoiceChats.integer && !cg_showVoiceText.integer ) {
+		return qfalse;
+	}
+	return qtrue;
 }
 
 int CG_CrosshairPlayer( void ) {
-	if ( cg.time > ( cg.crosshairClientTime + 1000 ) ) {
+if ( cg.time > ( cg.crosshairClientTime + 1000 ) ) {
 		return -1;
 	}
 	return cg.crosshairClientNum;
@@ -1614,6 +1712,9 @@ void QDECL CG_Printf( const char *msg, ... ) {
 	va_end (argptr);
 
 	trap_Print( text );
+	if ( cg_chatbeep.integer && cgs.media.talkSound ) {
+		trap_S_StartLocalSound( cgs.media.talkSound, CHAN_LOCAL_SOUND );
+	}
 }
 
 void QDECL CG_Error( const char *msg, ... ) {
@@ -1719,6 +1820,171 @@ static void CG_RegisterItemSounds( int itemNum ) {
 }
 
 
+
+/*
+============
+CG_RegisterAnnouncerClip
+
+Registers an announcer clip, falling back to the default voice set when needed.
+============
+*/
+static sfxHandle_t CG_RegisterAnnouncerClip( const char *folder, const char *sample ) {
+	static const char *const exts[] = { ".ogg", ".wav" };
+	char		path[MAX_QPATH];
+	sfxHandle_t	sfx;
+	int		i;
+
+	if ( folder && *folder ) {
+		for ( i = 0; i < 2; i++ ) {
+			Com_sprintf( path, sizeof( path ), "sound/announcer/%s/%s%s", folder, sample, exts[i] );
+			sfx = trap_S_RegisterSound( path, qtrue );
+			if ( sfx ) {
+				return sfx;
+			}
+		}
+	}
+
+	for ( i = 0; i < 2; i++ ) {
+		Com_sprintf( path, sizeof( path ), "sound/feedback/%s%s", sample, exts[i] );
+		sfx = trap_S_RegisterSound( path, qtrue );
+		if ( sfx ) {
+			return sfx;
+		}
+	}
+
+	return 0;
+}
+
+/*
+============
+CG_RegisterAnnouncerVoiceSet
+
+Caches the announcer warning clips for a specific profile.
+============
+*/
+static void CG_RegisterAnnouncerVoiceSet( cgAnnouncerProfile_t profile, const char *folder ) {
+	cgAnnouncerSoundSet_t	*set;
+
+	if ( profile <= ANNOUNCER_PROFILE_DISABLED || profile >= ANNOUNCER_PROFILE_COUNT ) {
+		return;
+	}
+
+	set = &cgs.media.announcerSoundSets[profile];
+	set->oneMinute = CG_RegisterAnnouncerClip( folder, "1_minute" );
+	set->fiveMinute = CG_RegisterAnnouncerClip( folder, "5_minute" );
+	set->suddenDeath = CG_RegisterAnnouncerClip( folder, "sudden_death" );
+	set->oneFrag = CG_RegisterAnnouncerClip( folder, "1_frag" );
+	set->twoFrag = CG_RegisterAnnouncerClip( folder, "2_frags" );
+	set->threeFrag = CG_RegisterAnnouncerClip( folder, "3_frags" );
+}
+
+/*
+============
+CG_RegisterRaceCueSound
+
+Attempts to register a race HUD cue sound with sensible fallbacks.
+============
+*/
+static sfxHandle_t CG_RegisterRaceCueSound( const char *name ) {
+	static const char *const folders[] = { "sound/race", "sound/feedback" };
+	static const char *const prefixes[] = { "", "race_" };
+	static const char *const exts[] = { ".ogg", ".wav" };
+	char		path[MAX_QPATH];
+	sfxHandle_t	sfx;
+	int		folderIndex;
+	int		prefixIndex;
+	int		extIndex;
+
+	for ( folderIndex = 0; folderIndex < 2; folderIndex++ ) {
+		for ( prefixIndex = 0; prefixIndex < 2; prefixIndex++ ) {
+			for ( extIndex = 0; extIndex < 2; extIndex++ ) {
+				Com_sprintf( path, sizeof( path ), "%s/%s%s%s", folders[folderIndex], prefixes[prefixIndex], name, exts[extIndex] );
+				sfx = trap_S_RegisterSound( path, qtrue );
+				if ( sfx ) {
+					return sfx;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+/*
+============
+CG_SetActiveAnnouncerProfile
+
+Activates the media handles for the requested announcer profile.
+============
+*/
+static void CG_SetActiveAnnouncerProfile( cgAnnouncerProfile_t profile ) {
+	const cgAnnouncerSoundSet_t	*set;
+	const cgAnnouncerSoundSet_t	*fallback;
+
+	if ( profile <= ANNOUNCER_PROFILE_DISABLED || profile >= ANNOUNCER_PROFILE_COUNT ) {
+		profile = ANNOUNCER_PROFILE_DISABLED;
+	}
+
+	cgs.announcerProfile = profile;
+
+	if ( profile == ANNOUNCER_PROFILE_DISABLED ) {
+		cgs.media.oneMinuteSound = 0;
+		cgs.media.fiveMinuteSound = 0;
+		cgs.media.suddenDeathSound = 0;
+		cgs.media.oneFragSound = 0;
+		cgs.media.twoFragSound = 0;
+		cgs.media.threeFragSound = 0;
+		return;
+	}
+
+	set = &cgs.media.announcerSoundSets[profile];
+	fallback = &cgs.media.announcerSoundSets[ANNOUNCER_PROFILE_DEFAULT];
+
+	#define CG_APPLY_ANNOUNCER_HANDLE(member) \
+		cgs.media.member = set->member ? set->member : fallback->member
+
+	CG_APPLY_ANNOUNCER_HANDLE( oneMinuteSound );
+	CG_APPLY_ANNOUNCER_HANDLE( fiveMinuteSound );
+	CG_APPLY_ANNOUNCER_HANDLE( suddenDeathSound );
+	CG_APPLY_ANNOUNCER_HANDLE( oneFragSound );
+	CG_APPLY_ANNOUNCER_HANDLE( twoFragSound );
+	CG_APPLY_ANNOUNCER_HANDLE( threeFragSound );
+
+	#undef CG_APPLY_ANNOUNCER_HANDLE
+}
+
+/*
+============
+CG_UpdateAnnouncerProfileFromCvar
+
+Synchronizes the active announcer set with the cg_announcer cvar.
+============
+*/
+static void CG_UpdateAnnouncerProfileFromCvar( qboolean force ) {
+	cgAnnouncerProfile_t	profile;
+
+	switch ( cg_announcer.integer ) {
+		case 0:
+			profile = ANNOUNCER_PROFILE_DISABLED;
+			break;
+		case 2:
+			profile = ANNOUNCER_PROFILE_VADRIGAR;
+			break;
+		case 3:
+			profile = ANNOUNCER_PROFILE_DAEMIA;
+			break;
+		default:
+			profile = ANNOUNCER_PROFILE_DEFAULT;
+			break;
+	}
+
+	if ( !force && profile == cgs.announcerProfile ) {
+		return;
+	}
+
+	CG_SetActiveAnnouncerProfile( profile );
+}
+
 /*
 =================
 CG_RegisterSounds
@@ -1735,18 +2001,19 @@ static void CG_RegisterSounds( void ) {
 	// voice commands
 	CG_LoadVoiceChats();
 
-	cgs.media.oneMinuteSound = trap_S_RegisterSound( "sound/feedback/1_minute.wav", qtrue );
-	cgs.media.fiveMinuteSound = trap_S_RegisterSound( "sound/feedback/5_minute.wav", qtrue );
-	cgs.media.suddenDeathSound = trap_S_RegisterSound( "sound/feedback/sudden_death.wav", qtrue );
-	cgs.media.oneFragSound = trap_S_RegisterSound( "sound/feedback/1_frag.wav", qtrue );
-	cgs.media.twoFragSound = trap_S_RegisterSound( "sound/feedback/2_frags.wav", qtrue );
-	cgs.media.threeFragSound = trap_S_RegisterSound( "sound/feedback/3_frags.wav", qtrue );
+	CG_RegisterAnnouncerVoiceSet( ANNOUNCER_PROFILE_DEFAULT, NULL );
+	CG_RegisterAnnouncerVoiceSet( ANNOUNCER_PROFILE_VADRIGAR, "vadrigar" );
+	CG_RegisterAnnouncerVoiceSet( ANNOUNCER_PROFILE_DAEMIA, "daemia" );
+	CG_UpdateAnnouncerProfileFromCvar( qtrue );
 	cgs.media.count3Sound = trap_S_RegisterSound( "sound/feedback/three.wav", qtrue );
 	cgs.media.count2Sound = trap_S_RegisterSound( "sound/feedback/two.wav", qtrue );
 	cgs.media.count1Sound = trap_S_RegisterSound( "sound/feedback/one.wav", qtrue );
 	cgs.media.countFightSound = trap_S_RegisterSound( "sound/feedback/fight.wav", qtrue );
 	cgs.media.countPrepareSound = trap_S_RegisterSound( "sound/feedback/prepare.wav", qtrue );
 	cgs.media.countPrepareTeamSound = trap_S_RegisterSound( "sound/feedback/prepare_team.wav", qtrue );
+	cgs.media.raceStartBeep = CG_RegisterRaceCueSound( "start" );
+	cgs.media.raceCheckpointBeep = CG_RegisterRaceCueSound( "checkpoint" );
+	cgs.media.raceFinishBeep = CG_RegisterRaceCueSound( "finish" );
 
 	if ( cgs.gametype >= GT_TEAM || cg_buildScript.integer ) {
 
@@ -3121,8 +3388,21 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	memset( cg_entities, 0, sizeof(cg_entities) );
 	memset( cg_weapons, 0, sizeof(cg_weapons) );
 	memset( cg_items, 0, sizeof(cg_items) );
+  
 	CG_ClearAutomationState();
+	cg.spectatorPrimaryClient = -1;
+	cg.spectatorSecondaryClient = -1;
+	cg.spectatorFollowClient = -1;
+	cg.spectatorTrackedClient = -1;
+	cg.trackedPlayerClientNum = -1;
+	cg.trackedPlayerPriority = CG_SPECTATOR_TRACK_NONE;
+	cg.trackedPlayerExpireTime = 0;
+	cg.viewFilter.count = 0;
+	cg.viewFilter.index = 0;
+	cg.viewFilter.lastYaw = 0.0f;
+	cg.viewFilter.lastPitch = 0.0f;
 	CG_ParsePmoveConfigString( NULL );
+
 
 	cg.clientNum = clientNum;
 
