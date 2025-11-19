@@ -28,6 +28,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 displayContextDef_t cgDC;
 
 #define DEFAULT_WEAPON_BAR_GRENADE_COLOR	"0x007000FF"
+#define DEFAULT_SCREEN_DAMAGE_COLOR		"0x700000C8"
+#define DEFAULT_SCREEN_DAMAGE_SELF_COLOR	"0x00000000"
+#define DEFAULT_SCREEN_DAMAGE_TEAM_COLOR	"0x700000C8"
+#define DEFAULT_SCREEN_DAMAGE_ALPHA		"200"
 
 int forceModelModificationCount = -1;
 int forceTeamModelModificationCount = -1;
@@ -42,6 +46,16 @@ int teamLowerColorModificationCount = -1;
 int enemyHeadColorModificationCount = -1;
 int enemyUpperColorModificationCount = -1;
 int enemyLowerColorModificationCount = -1;
+int deadBodyDarkenModificationCount = -1;
+int deadBodyColorModificationCount = -1;
+int screenDamageColorModificationCount = -1;
+int screenDamageSelfColorModificationCount = -1;
+int screenDamageTeamColorModificationCount = -1;
+int screenDamageAlphaModificationCount = -1;
+int screenDamageAlphaTeamModificationCount = -1;
+int armorTieredModificationCount = -1;
+int vignetteModificationCount = -1;
+int voiceChatIndicatorModificationCount = -1;
 int simpleItemsHeightOffsetModificationCount = -1;
 int simpleItemsBobModificationCount = -1;
 int simpleItemsRadiusModificationCount = -1;
@@ -293,9 +307,12 @@ vmCvar_t	cg_oldRocket;
 vmCvar_t	cg_oldPlasma;
 vmCvar_t	cg_trueLightning;
 vmCvar_t	cg_drawTieredArmorAvailability;
+vmCvar_t	cg_armorTiered;
 vmCvar_t	cg_drawFullWeaponBar;
 vmCvar_t	cg_drawHitFriendTime;
 vmCvar_t	cg_drawDeadFriendTime;
+vmCvar_t	cg_deadBodyDarken;
+vmCvar_t	cg_deadBodyColor;
 vmCvar_t	cg_speedometer;
 vmCvar_t	cg_specNames;
 vmCvar_t	cg_specItemTimers;
@@ -305,6 +322,11 @@ vmCvar_t	cg_specItemTimersSize;
 vmCvar_t	cg_specTeamVitals;
 vmCvar_t	cg_specTeamVitalsHealthColor;
 vmCvar_t	cg_itemTimers;
+vmCvar_t	cg_screenDamage;
+vmCvar_t	cg_screenDamage_Self;
+vmCvar_t	cg_screenDamage_Team;
+vmCvar_t	cg_screenDamageAlpha;
+vmCvar_t	cg_screenDamageAlpha_Team;
 vmCvar_t	cg_overheadNamesWidth;
 vmCvar_t	cg_obituaryRowSize;
 vmCvar_t	cg_spectating;
@@ -316,6 +338,8 @@ vmCvar_t	cg_gameInfo4;
 vmCvar_t	cg_gameInfo5;
 vmCvar_t	cg_gameInfo6;
 vmCvar_t	cg_useLegacyHud;
+vmCvar_t	cg_vignette;
+vmCvar_t	cg_voiceChatIndicator;
 
 vmCvar_t 	cg_redTeamName;
 vmCvar_t 	cg_blueTeamName;
@@ -356,6 +380,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE  },
 	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE  },
 	{ &cg_useLegacyHud, "cg_useLegacyHud", "0", CVAR_ARCHIVE },
+	{ &cg_vignette, "cg_vignette", "1", CVAR_ARCHIVE },
 	{ &cg_drawTimer, "cg_drawTimer", "0", CVAR_ARCHIVE  },
 	{ &cg_drawFPS, "cg_drawFPS", "0", CVAR_ARCHIVE  },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
@@ -468,6 +493,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE },
 	{ &cg_noVoiceChats, "cg_noVoiceChats", "0", CVAR_ARCHIVE },
 	{ &cg_noVoiceText, "cg_noVoiceText", "0", CVAR_ARCHIVE },
+	{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE },
 	// the following variables are created in other parts of the system,
 	// but we also reference them here
 	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
@@ -506,6 +532,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE},
 	{ &cg_trueLightning, "cg_trueLightning", "0.0", CVAR_ARCHIVE },
 	{ &cg_drawTieredArmorAvailability, "cg_drawTieredArmorAvailability", "1", CVAR_ARCHIVE },
+	{ &cg_armorTiered, "cg_armorTiered", "1", CVAR_ARCHIVE },
 	{ &cg_drawFullWeaponBar, "cg_drawFullWeaponBar", "0", CVAR_ARCHIVE },
 	{ &cg_weaponBar, "cg_weaponBar", "4", CVAR_ARCHIVE },
 	{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, CVAR_ARCHIVE },
@@ -528,6 +555,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP },
 	{ &cg_drawHitFriendTime, "cg_drawHitFriendTime", "5000", CVAR_ARCHIVE },
 	{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000", CVAR_ARCHIVE },
+	{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE },
+	{ &cg_deadBodyColor, "cg_deadBodyColor", "0x333333ff", CVAR_ARCHIVE },
 	{ &cg_speedometer, "cg_speedometer", "0", CVAR_ARCHIVE },
 	{ &cg_specNames, "cg_specNames", "1", CVAR_ARCHIVE },
 	{ &cg_specItemTimers, "cg_specItemTimers", "1", CVAR_ARCHIVE },
@@ -537,6 +566,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_specTeamVitals, "cg_specTeamVitals", "1", CVAR_ARCHIVE },
 	{ &cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", CVAR_ARCHIVE },
 	{ &cg_itemTimers, "cg_itemTimers", "1", CVAR_ARCHIVE },
+	{ &cg_screenDamage, "cg_screenDamage", DEFAULT_SCREEN_DAMAGE_COLOR, CVAR_ARCHIVE },
+	{ &cg_screenDamage_Self, "cg_screenDamage_Self", DEFAULT_SCREEN_DAMAGE_SELF_COLOR, CVAR_ARCHIVE },
+	{ &cg_screenDamage_Team, "cg_screenDamage_Team", DEFAULT_SCREEN_DAMAGE_TEAM_COLOR, CVAR_ARCHIVE },
+	{ &cg_screenDamageAlpha, "cg_screenDamageAlpha", DEFAULT_SCREEN_DAMAGE_ALPHA, CVAR_ARCHIVE },
+	{ &cg_screenDamageAlpha_Team, "cg_screenDamageAlpha_Team", DEFAULT_SCREEN_DAMAGE_ALPHA, CVAR_ARCHIVE },
 	{ &cg_overheadNamesWidth, "cg_overheadNamesWidth", "120", CVAR_ARCHIVE },
 	{ &cg_obituaryRowSize, "cg_obituaryRowSize", "5", CVAR_ARCHIVE },
 	{ &cg_spectating, "cg_spectating", "0", CVAR_ROM },
@@ -552,6 +586,101 @@ static cvarTable_t cvarTable[] = { // bk001129
 };
 
 static int  cvarTableSize = sizeof( cvarTable ) / sizeof( cvarTable[0] );
+
+static const vec4_t cg_defaultDeadBodyColor = { 51.0f / 255.0f, 51.0f / 255.0f, 51.0f / 255.0f, 1.0f };
+
+/*
+=============
+CG_ParseDeadBodyHexDigit
+
+Converts a hexadecimal character into an integer for corpse color parsing.
+=============
+*/
+static int CG_ParseDeadBodyHexDigit( char ch ) {
+	if ( ch >= '0' && ch <= '9' ) {
+		return ch - '0';
+	}
+	if ( ch >= 'a' && ch <= 'f' ) {
+		return 10 + ( ch - 'a' );
+	}
+	if ( ch >= 'A' && ch <= 'F' ) {
+		return 10 + ( ch - 'A' );
+	}
+	return -1;
+}
+
+/*
+=============
+CG_ParseDeadBodyColor
+
+Parses the configured corpse tint into a normalized RGBA vector.
+=============
+*/
+static qboolean CG_ParseDeadBodyColor( const char *value, vec4_t color ) {
+	char buffer[64];
+	const char *hex;
+	unsigned int raw;
+	int len;
+	int digit;
+	int i;
+	byte components[4];
+
+	if ( !value || !*value ) {
+		return qfalse;
+	}
+	Q_strncpyz( buffer, value, sizeof( buffer ) );
+	hex = buffer;
+	while ( *hex == ' ' || *hex == '	' || *hex == '"' ) {
+		hex++;
+	}
+	if ( !Q_stricmp( hex, "NULL" ) ) {
+		return qfalse;
+	}
+	if ( hex[0] == '0' && ( hex[1] == 'x' || hex[1] == 'X' ) ) {
+		hex += 2;
+	}
+	len = strlen( hex );
+	if ( len != 6 && len != 8 ) {
+		return qfalse;
+	}
+	raw = 0;
+	for ( i = 0 ; i < len ; i++ ) {
+		digit = CG_ParseDeadBodyHexDigit( hex[i] );
+		if ( digit < 0 ) {
+			return qfalse;
+		}
+		raw = ( raw << 4 ) | digit;
+	}
+	if ( len == 6 ) {
+		components[0] = ( raw >> 16 ) & 0xFF;
+		components[1] = ( raw >> 8 ) & 0xFF;
+		components[2] = raw & 0xFF;
+		components[3] = 0xFF;
+	} else {
+		components[0] = ( raw >> 24 ) & 0xFF;
+		components[1] = ( raw >> 16 ) & 0xFF;
+		components[2] = ( raw >> 8 ) & 0xFF;
+		components[3] = raw & 0xFF;
+	}
+	for ( i = 0 ; i < 4 ; i++ ) {
+		color[i] = components[i] / 255.0f;
+	}
+	return qtrue;
+}
+
+/*
+=============
+CG_UpdateDeadBodyPalette
+
+Synchronizes the cached corpse shading state with the latest cvars.
+=============
+*/
+static void CG_UpdateDeadBodyPalette( void ) {
+	cg.deadBodyDarken = (qboolean)( cg_deadBodyDarken.integer != 0 );
+	if ( !CG_ParseDeadBodyColor( cg_deadBodyColor.string, cg.deadBodyColor ) ) {
+		Vector4Copy( cg_defaultDeadBodyColor, cg.deadBodyColor );
+	}
+}
 
 /*
 =============
@@ -647,6 +776,39 @@ static void CG_UpdateLowAmmoWarningPercentile( void ) {
 }
 
 /*
+=============
+CG_UpdateScreenDamageColorFromCvar
+
+Parses a screen damage color customization string and caches the result.
+=============
+*/
+static void CG_UpdateScreenDamageColorFromCvar( vmCvar_t *colorCvar, const char *defaultValue, vec4_t target, int *modificationCount ) {
+	vec4_t	parsedColor;
+
+	if ( !CG_ParseWeaponBarColor( colorCvar->string, parsedColor ) ) {
+		CG_ParseWeaponBarColor( defaultValue, parsedColor );
+	}
+
+	Vector4Copy( parsedColor, target );
+	*modificationCount = colorCvar->modificationCount;
+}
+
+/*
+=============
+CG_UpdateScreenDamageAlphaFromCvar
+
+Caches the scalar alpha intensity used by screen damage effects.
+=============
+*/
+static void CG_UpdateScreenDamageAlphaFromCvar( vmCvar_t *alphaCvar, float *target, int *modificationCount ) {
+	float	clamped;
+
+	clamped = Com_Clamp( 0.0f, 200.0f, alphaCvar->value );
+	*target = clamped;
+	*modificationCount = alphaCvar->modificationCount;
+}
+
+/*
 =================
 CG_RegisterCvars
 =================
@@ -673,12 +835,23 @@ void CG_RegisterCvars( void ) {
         forceEnemySkinModificationCount = cg_forceEnemySkin.modificationCount;
         forceTeamWeaponColorModificationCount = cg_forceTeamWeaponColor.modificationCount;
         forceEnemyWeaponColorModificationCount = cg_forceEnemyWeaponColor.modificationCount;
-        teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
-        teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
-        teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
-        enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
-        enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
-        enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+	teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
+	teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
+	teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
+	enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
+	enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
+	enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+	deadBodyDarkenModificationCount = cg_deadBodyDarken.modificationCount;
+	deadBodyColorModificationCount = cg_deadBodyColor.modificationCount;
+
+	CG_UpdateDeadBodyPalette();
+	armorTieredModificationCount = cg_armorTiered.modificationCount;
+	vignetteModificationCount = cg_vignette.modificationCount;
+	voiceChatIndicatorModificationCount = cg_voiceChatIndicator.modificationCount;
+
+	cg.armorTieredEnabled = (qboolean)( cg_armorTiered.integer != 0 );
+	cg.vignetteEnabled = (qboolean)( cg_vignette.integer != 0 );
+	cg.voiceChatIndicatorEnabled = (qboolean)( cg_voiceChatIndicator.integer != 0 );
 
 	cg.kickScale = cg_kickScale.value;
 	if ( cg.kickScale < 0.0f ) {
@@ -696,6 +869,11 @@ CG_UpdateLowAmmoWarningPercentile();
 CG_UpdateCrosshairColorSettings();
 CG_UpdateCrosshairPulseSettings();
 CG_UpdateCrosshairHitSettings();
+	CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage, DEFAULT_SCREEN_DAMAGE_COLOR, cg.screenDamageColor, &screenDamageColorModificationCount );
+	CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage_Self, DEFAULT_SCREEN_DAMAGE_SELF_COLOR, cg.screenDamageSelfColor, &screenDamageSelfColorModificationCount );
+	CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage_Team, DEFAULT_SCREEN_DAMAGE_TEAM_COLOR, cg.screenDamageTeamColor, &screenDamageTeamColorModificationCount );
+	CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha, &cg.screenDamageAlpha, &screenDamageAlphaModificationCount );
+	CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha_Team, &cg.screenDamageAlphaTeam, &screenDamageAlphaTeamModificationCount );
 
 	trap_Cvar_Register(NULL, "model", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "headmodel", DEFAULT_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );
@@ -963,6 +1141,7 @@ CG_UpdateCvars
 void CG_UpdateCvars( void ) {
 	int			i;
 	cvarTable_t	*cv;
+	qboolean	refreshDeadBodyPalette;
 
 	for ( i = 0, cv = cvarTable ; i < cvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Update( cv->vmCvar );
@@ -985,6 +1164,7 @@ void CG_UpdateCvars( void ) {
 	}
 
 	refreshClients = qfalse;
+	refreshDeadBodyPalette = qfalse;
 
 	if ( forceModelModificationCount != cg_forceModel.modificationCount ) {
 		forceModelModificationCount = cg_forceModel.modificationCount;
@@ -1038,10 +1218,34 @@ void CG_UpdateCvars( void ) {
 		enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
 		refreshClients = qtrue;
 	}
+	if ( deadBodyDarkenModificationCount != cg_deadBodyDarken.modificationCount ) {
+		deadBodyDarkenModificationCount = cg_deadBodyDarken.modificationCount;
+		refreshDeadBodyPalette = qtrue;
+	}
+	if ( deadBodyColorModificationCount != cg_deadBodyColor.modificationCount ) {
+		deadBodyColorModificationCount = cg_deadBodyColor.modificationCount;
+		refreshDeadBodyPalette = qtrue;
+  }
+	if ( armorTieredModificationCount != cg_armorTiered.modificationCount ) {
+		armorTieredModificationCount = cg_armorTiered.modificationCount;
+		cg.armorTieredEnabled = (qboolean)( cg_armorTiered.integer != 0 );
+	}
+	if ( vignetteModificationCount != cg_vignette.modificationCount ) {
+		vignetteModificationCount = cg_vignette.modificationCount;
+		cg.vignetteEnabled = (qboolean)( cg_vignette.integer != 0 );
+	}
+	if ( voiceChatIndicatorModificationCount != cg_voiceChatIndicator.modificationCount ) {
+		voiceChatIndicatorModificationCount = cg_voiceChatIndicator.modificationCount;
+		cg.voiceChatIndicatorEnabled = (qboolean)( cg_voiceChatIndicator.integer != 0 );
+	}
 
 	if ( refreshClients ) {
 		CG_ForceModelChange();
 	}
+	if ( refreshDeadBodyPalette ) {
+		CG_UpdateDeadBodyPalette();
+	}
+
 
 	cg.kickScale = cg_kickScale.value;
 	if ( cg.kickScale < 0.0f ) {
@@ -1057,6 +1261,21 @@ void CG_UpdateCvars( void ) {
 	}
 	if ( lowAmmoWarningPercentileModCount != cg_lowAmmoWarningPercentile.modificationCount ) {
 		CG_UpdateLowAmmoWarningPercentile();
+	}
+	if ( screenDamageColorModificationCount != cg_screenDamage.modificationCount ) {
+		CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage, DEFAULT_SCREEN_DAMAGE_COLOR, cg.screenDamageColor, &screenDamageColorModificationCount );
+	}
+	if ( screenDamageSelfColorModificationCount != cg_screenDamage_Self.modificationCount ) {
+		CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage_Self, DEFAULT_SCREEN_DAMAGE_SELF_COLOR, cg.screenDamageSelfColor, &screenDamageSelfColorModificationCount );
+	}
+	if ( screenDamageTeamColorModificationCount != cg_screenDamage_Team.modificationCount ) {
+		CG_UpdateScreenDamageColorFromCvar( &cg_screenDamage_Team, DEFAULT_SCREEN_DAMAGE_TEAM_COLOR, cg.screenDamageTeamColor, &screenDamageTeamColorModificationCount );
+	}
+	if ( screenDamageAlphaModificationCount != cg_screenDamageAlpha.modificationCount ) {
+		CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha, &cg.screenDamageAlpha, &screenDamageAlphaModificationCount );
+	}
+	if ( screenDamageAlphaTeamModificationCount != cg_screenDamageAlpha_Team.modificationCount ) {
+		CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha_Team, &cg.screenDamageAlphaTeam, &screenDamageAlphaTeamModificationCount );
 	}
 	cg.zoomToggle = (qboolean)( cg_zoomToggle.integer != 0 );
 	cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );
@@ -2542,7 +2761,21 @@ void CG_LoadHudMenu() {
 	CG_LoadMenus(hudSet);
 }
 
+
+/*
+=============
+CG_AssetCache
+
+Registers the shared UI assets used by the client game module.
+=============
+*/
 void CG_AssetCache() {
+	if ( !cgDC.Assets.fontRegistered ) {
+		trap_R_RegisterFont( QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE, &cgDC.Assets.textFont );
+		trap_R_RegisterFont( QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE, &cgDC.Assets.smallFont );
+		trap_R_RegisterFont( QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE, &cgDC.Assets.bigFont );
+		cgDC.Assets.fontRegistered = qtrue;
+	}
 	//if (Assets.textFont == NULL) {
 	//  trap_R_RegisterFont("fonts/arial.ttf", 72, &Assets.textFont);
 	//}
