@@ -617,7 +617,7 @@ typedef struct {
 	int			centerPrintLines;
 
 	// low ammo warning state
-	int			lowAmmoWarning;		// 1 = low, 2 = empty
+	int			lowAmmoWarning;		// 1 = low, 2 = empty, 3 = weapon empty w/manual switch
 	float		lowAmmoWarningPercentile;
 	vec4_t		weaponBarGrenadeColor;
 
@@ -1378,6 +1378,8 @@ extern	vmCvar_t		cg_noVoiceChats;
 extern	vmCvar_t		cg_noVoiceText;
 extern	vmCvar_t		cg_useItemMessage;
 extern	vmCvar_t		cg_useItemWarning;
+extern	vmCvar_t		cg_allowTaunt;
+extern	vmCvar_t		cg_muzzleFlash;
 extern	vmCvar_t		cg_kickScale;
 extern  vmCvar_t		cg_scorePlum;
 extern  vmCvar_t		cg_damagePlum;
