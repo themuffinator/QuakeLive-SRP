@@ -490,6 +490,9 @@ typedef struct {
 	int			deferredPlayerLoading;
 	qboolean	loading;			// don't defer players at initial startup
 	qboolean	competitiveHudLoaded;	// tracks if Quake Live HUD menus are available
+	qboolean	armorTieredEnabled;	// caches cg_armorTiered for HUD scripting
+	qboolean	voiceChatIndicatorEnabled;	// caches cg_voiceChatIndicator state
+	qboolean	vignetteEnabled;	// caches cg_vignette state
 	qboolean	intermissionStarted;	// don't play voice rewards, because game will end shortly
 
 	// there are only one or two snapshot_t that are relevent at a time
@@ -1357,6 +1360,7 @@ extern	vmCvar_t		cg_oldRocket;
 extern	vmCvar_t		cg_oldPlasma;
 extern	vmCvar_t		cg_trueLightning;
 extern	vmCvar_t		cg_drawTieredArmorAvailability;
+extern	vmCvar_t		cg_armorTiered;
 extern	vmCvar_t		cg_drawFullWeaponBar;
 extern	vmCvar_t		cg_drawHitFriendTime;
 extern	vmCvar_t		cg_drawDeadFriendTime;
@@ -1380,6 +1384,8 @@ extern	vmCvar_t		cg_gameInfo4;
 extern	vmCvar_t		cg_gameInfo5;
 extern	vmCvar_t		cg_gameInfo6;
 extern	vmCvar_t		cg_useLegacyHud;
+extern	vmCvar_t		cg_vignette;
+extern	vmCvar_t		cg_voiceChatIndicator;
 extern	vmCvar_t		cg_redTeamName;
 extern	vmCvar_t		cg_blueTeamName;
 extern	vmCvar_t		cg_currentSelectedPlayer;
