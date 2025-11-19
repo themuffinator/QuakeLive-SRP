@@ -2168,70 +2168,76 @@ int	FS_GetFileList(  const char *path, const char *extension, char *listbuf, int
 }
 
 /*
-=======================
-Sys_ConcatenateFileLists
+=============
+Sys_CountFileList
 
-mkv: Naive implementation. Concatenates three lists into a
-     new list, and frees the old lists from the heap.
-bk001129 - from cvs1.17 (mkv)
-
-FIXME TTimo those two should move to common.c next to Sys_ListFiles
-=======================
- */
-static unsigned int Sys_CountFileList(char **list)
+Counts entries in a NULL-terminated file list.
+=============
+*/
+static unsigned int Sys_CountFileList( char **list )
 {
-  int i = 0;
+	int i = 0;
 
-  if (list)
-  {
-    while (*list)
-    {
-      list++;
-      i++;
-    }
-  }
-  return i;
+	if ( list )
+	{
+		while ( *list )
+		{
+			list++;
+			i++;
+		}
+	}
+
+	return i;
 }
 
+/*
+=============
+Sys_ConcatenateFileLists
+
+Concatenates three file lists into a newly allocated list of duplicated strings,
+then frees the source lists.
+=============
+*/
 static char** Sys_ConcatenateFileLists( char **list0, char **list1, char **list2 )
 {
-  int totalLength = 0;
-  char** cat = NULL, **dst, **src;
+	unsigned int totalLength = 0;
+	char **cat, **dst, **src;
 
-  totalLength += Sys_CountFileList(list0);
-  totalLength += Sys_CountFileList(list1);
-  totalLength += Sys_CountFileList(list2);
+	totalLength += Sys_CountFileList( list0 );
+	totalLength += Sys_CountFileList( list1 );
+	totalLength += Sys_CountFileList( list2 );
 
-  /* Create new list. */
-  dst = cat = Z_Malloc( ( totalLength + 1 ) * sizeof( char* ) );
+	dst = cat = Z_Malloc( ( totalLength + 1 ) * sizeof( char* ) );
 
-  /* Copy over lists. */
-  if (list0)
-  {
-    for (src = list0; *src; src++, dst++)
-      *dst = *src;
-  }
-  if (list1)
-  {
-    for (src = list1; *src; src++, dst++)
-      *dst = *src;
-  }
-  if (list2)
-  {
-    for (src = list2; *src; src++, dst++)
-      *dst = *src;
-  }
+	if ( list0 )
+	{
+		for ( src = list0; *src; src++, dst++ )
+		{
+			*dst = CopyString( *src );
+		}
+	}
+	if ( list1 )
+	{
+		for ( src = list1; *src; src++, dst++ )
+		{
+			*dst = CopyString( *src );
+		}
+	}
+	if ( list2 )
+	{
+		for ( src = list2; *src; src++, dst++ )
+		{
+			*dst = CopyString( *src );
+		}
+	}
 
-  // Terminate the list
-  *dst = NULL;
+	*dst = NULL;
 
-  // Free our old lists.
-  // NOTE: not freeing their content, it's been merged in dst and still being used
-  if (list0) Z_Free( list0 );
-  if (list1) Z_Free( list1 );
-  if (list2) Z_Free( list2 );
+	FS_FreeFileList( list0 );
+	FS_FreeFileList( list1 );
+	FS_FreeFileList( list2 );
 
-  return cat;
+	return cat;
 }
 
 /*
