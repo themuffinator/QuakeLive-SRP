@@ -618,6 +618,13 @@ typedef struct {
 	float		zoomSensitivity;
 	qboolean	zoomToggle;
 	qboolean	zoomOutOnDeath;
+	qboolean	autoHopEnabled;
+	qboolean	autoProjectileNudgeEnabled;
+	qboolean	projectileNudgeActive;
+	float		projectileNudgeAmount;
+	float		projectileNudgeOffset;
+	qboolean	predictLocalRailshots;
+	int			autoActionFlags;
 	qboolean	deadBodyDarken;
 	vec4_t		deadBodyColor;
 
@@ -1542,6 +1549,11 @@ extern	vmCvar_t		cg_gameInfo6;
 extern	vmCvar_t		cg_useLegacyHud;
 extern	vmCvar_t		cg_vignette;
 extern	vmCvar_t		cg_voiceChatIndicator;
+extern	vmCvar_t		cg_autoHop;
+extern	vmCvar_t		cg_autoProjectileNudge;
+extern	vmCvar_t		cg_projectileNudge;
+extern	vmCvar_t		cg_predictLocalRailshots;
+extern	vmCvar_t		cg_autoAction;
 extern	vmCvar_t		cg_redTeamName;
 extern	vmCvar_t		cg_blueTeamName;
 extern	vmCvar_t		cg_currentSelectedPlayer;
