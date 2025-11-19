@@ -2030,6 +2030,11 @@ Flags are unique in that if they are dropped, the base flag must be respawned wh
 void Team_DroppedFlagThink(gentity_t *ent) {
 	int		team = TEAM_FREE;
 
+	if ( ent->timestamp > level.time ) {
+		ent->nextthink = ent->timestamp;
+		return;
+	}
+
 	if( ent->item->giTag == PW_REDFLAG ) {
 		team = TEAM_RED;
 	}

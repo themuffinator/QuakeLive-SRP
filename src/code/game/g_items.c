@@ -950,9 +950,18 @@ gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity ) {
 	VectorCopy( velocity, dropped->s.pos.trDelta );
 
 	G_ApplyItemBounceSettings( dropped, item );
-	if ((g_gametype.integer == GT_CTF || g_gametype.integer == GT_1FCTF)			&& item->giType == IT_TEAM) { // Special case for CTF flags
+	if ( ( g_gametype.integer == GT_CTF || g_gametype.integer == GT_1FCTF )			&& item->giType == IT_TEAM ) { // Special case for CTF flags
+		int		dropTimeout;
+
 		dropped->think = Team_DroppedFlagThink;
-		dropped->nextthink = level.time + 30000;
+		dropTimeout = g_flagConfig.dropTimeoutMs;
+		if ( dropTimeout <= 0 ) {
+			dropped->timestamp = level.time;
+			dropped->nextthink = level.time;
+		} else {
+			dropped->timestamp = level.time + dropTimeout;
+			dropped->nextthink = dropped->timestamp;
+		}
 	} else { // auto-remove after 30 seconds
 		dropped->think = G_FreeEntity;
 		dropped->nextthink = level.time + 30000;

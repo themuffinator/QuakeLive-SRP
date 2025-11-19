@@ -802,6 +802,8 @@ void Blocked_Door( gentity_t *ent, gentity_t *other ) {
 	if ( !other->client ) {
 		// except CTF flags!!!!
 		if( other->s.eType == ET_ITEM && other->item->giType == IT_TEAM ) {
+			other->timestamp = level.time;
+			other->nextthink = level.time;
 			Team_DroppedFlagThink( other );
 			return;
 		}

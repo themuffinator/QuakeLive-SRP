@@ -387,6 +387,8 @@ vmCvar_t	g_throwFlagForwardMult;
 vmCvar_t	g_tackleFlag;
 vmCvar_t	g_returnFlagOnSuicide;
 vmCvar_t	g_droppedFlagBonus;
+vmCvar_t	g_flagDroppedTimeout;
+vmCvar_t	g_neutralFlagPingTime;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
@@ -509,6 +511,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_tackleFlag, "g_tackleFlag", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable experimental tackle mechanics that jostle flags from carriers when non-zero." },
 	{ &g_returnFlagOnSuicide, "g_returnFlagOnSuicide", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Return a carried flag immediately when its owner suicides, matching the classic logic." },
 	{ &g_droppedFlagBonus, "g_droppedFlagBonus", "10", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score bonus granted to players that recover a dropped friendly flag." },
+	{ &g_flagDroppedTimeout, "g_flagDroppedTimeout", "30000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds a dropped flag can remain in play before automatically returning to base." },
+	{ &g_neutralFlagPingTime, "g_neutralFlagPingTime", "5000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds between neutral flag ping notifications while it sits on the ground; set to 0 to disable." },
 
 	{ &g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse },
 
@@ -858,6 +862,8 @@ void G_UpdateFlagConfig( void ) {
 	g_flagConfig.tackleFlag = ( g_tackleFlag.integer != 0 ) ? qtrue : qfalse;
 	g_flagConfig.returnOnSuicide = ( g_returnFlagOnSuicide.integer != 0 ) ? qtrue : qfalse;
 	g_flagConfig.droppedFlagBonus = ( g_droppedFlagBonus.integer < 0 ) ? 0 : g_droppedFlagBonus.integer;
+	g_flagConfig.dropTimeoutMs = ( g_flagDroppedTimeout.integer < 0 ) ? 0 : g_flagDroppedTimeout.integer;
+	g_flagConfig.neutralFlagPingTimeMs = ( g_neutralFlagPingTime.integer < 0 ) ? 0 : g_neutralFlagPingTime.integer;
 }
 
 /*
