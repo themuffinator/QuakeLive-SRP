@@ -485,6 +485,11 @@ struct pmove_settings_s {
 	int	weaponDropTime;
 	int	weaponRaiseTime;
 	float	wishSpeed;
+	float	machinegunIronsightsScale;
+	float	gauntletSpeedFactor;
+	int	midAirMinimumHeight;
+	qboolean	nailgunBounceEnabled;
+	int	nailgunBouncePercentage;
 	int	weaponReloadTimes[WP_NUM_WEAPONS];
 };
 
