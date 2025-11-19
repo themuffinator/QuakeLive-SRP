@@ -30,6 +30,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../../game/match_state_keys.h"
 
+// Mirrors the VF_* vote flag bits exposed via g_voteFlags on the server.
+#define CG_VOTEFLAG_NO_MAP	0x0001
+#define CG_VOTEFLAG_NO_NEXTMAP	0x0004
 #ifndef VF_NO_GAMETYPE
 #define VF_NO_GAMETYPE	0x0008
 #endif
@@ -766,6 +769,8 @@ void CG_ParseServerinfo( void ) {
 	char	oldHeadOverride[MAX_QPATH];
 	const char	*modelOverride;
 	const char	*headOverride;
+	const char	*voteFlagsValue;
+	qboolean	mapVotingDisabled;
 	const char	*serverLoadout;
 	const char	*voteFlagsString;
 	int		voteFlags;
@@ -782,6 +787,10 @@ void CG_ParseServerinfo( void ) {
 	cgs.fraglimit = atoi( Info_ValueForKey( info, "fraglimit" ) );
 	cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );
 	cgs.timelimit = atoi( Info_ValueForKey( info, "timelimit" ) );
+	voteFlagsValue = Info_ValueForKey( info, "g_voteFlags" );
+	cgs.voteFlags = atoi( voteFlagsValue );
+	mapVotingDisabled = ( cgs.voteFlags & ( CG_VOTEFLAG_NO_MAP | CG_VOTEFLAG_NO_NEXTMAP ) ) ? qtrue : qfalse;
+	trap_Cvar_Set( "ui_mapVotingDisabled", mapVotingDisabled ? "1" : "0" );
 	cgs.maxclients = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
   
 	serverLoadout = Info_ValueForKey( info, "loadout" );

@@ -1185,6 +1185,7 @@ typedef struct {
 	int				fraglimit;
 	int				capturelimit;
 	int				timelimit;
+	int				voteFlags;
 	int				maxclients;
 	char			mapname[MAX_QPATH];
 	char			loadout[MAX_INFO_VALUE];
