@@ -71,6 +71,11 @@ typedef struct teamBalanceInfo_s {
 	int		totalCount;
 } teamBalanceInfo_t;
 
+typedef enum {
+	NEUTRAL_FLAG_EVENT_PICKUP = 0,
+	NEUTRAL_FLAG_EVENT_RETURN
+} neutralFlagEvent_t;
+
 void Team_SetFlagStatus( int team, flagStatus_t status );
 static void Team_InitDominationState( void );
 static void Team_InitDomination( void );
@@ -87,6 +92,11 @@ static float Team_DominationCaptureMultiplier( int playerCount );
 static void Team_DominationAnnounceCapture( dominationPoint_t *point, team_t previousOwner );
 static void Team_DominationAnnounceNeutralized( dominationPoint_t *point, team_t attacker );
 static void Team_DominationSendDistress( dominationPoint_t *point );
+
+static void Team_AnnounceNeutralFlagEvent( neutralFlagEvent_t event, const gentity_t *player );
+static qboolean Team_FlagPickupBlockedByTackle( const gentity_t *flag, const gentity_t *player );
+static team_t Team_FlagPickupStatusTeam( int gametype, team_t team );
+static flagStatus_t Team_FlagPickupStatusValue( int gametype, team_t playerTeam );
 
 /*
 =============
@@ -1999,7 +2009,7 @@ void Team_CaptureFlagSound( gentity_t *ent, int team ) {
 void Team_ReturnFlag( int team ) {
 	Team_ReturnFlagSound(Team_ResetFlag(team), team);
 	if( team == TEAM_FREE ) {
-		PrintMsg(NULL, "The flag has returned!\n" );
+		Team_AnnounceNeutralFlagEvent( NEUTRAL_FLAG_EVENT_RETURN, NULL );
 	}
 	else {
 		PrintMsg(NULL, "The %s flag has returned!\n", TeamName(team));
@@ -2017,6 +2027,60 @@ void Team_FreeEntity( gentity_t *ent ) {
 		Team_ReturnFlag( TEAM_FREE );
 	}
 }
+
+static void Team_AnnounceNeutralFlagEvent( neutralFlagEvent_t event, const gentity_t *player ) {
+	switch ( event ) {
+	case NEUTRAL_FLAG_EVENT_PICKUP:
+		if ( player && player->client ) {
+			PrintMsg( NULL, "%s" S_COLOR_WHITE " got the flag!\n", player->client->pers.netname );
+		}
+		break;
+
+	case NEUTRAL_FLAG_EVENT_RETURN:
+		PrintMsg( NULL, "The flag has returned!\n" );
+		break;
+
+	default:
+		break;
+	}
+}
+
+static qboolean Team_FlagPickupBlockedByTackle( const gentity_t *flag, const gentity_t *player ) {
+	gentity_t *target;
+
+	if ( !g_flagConfig.tackleFlag ) {
+		return qfalse;
+	}
+
+	if ( flag ) {
+		target = flag->target_ent;
+		if ( target && target->client ) {
+			return qtrue;
+		}
+	}
+
+	if ( player ) {
+		target = player->target_ent;
+		if ( target && target->item && target->item->giType == IT_TEAM ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+static team_t Team_FlagPickupStatusTeam( int gametype, team_t team ) {
+	return ( gametype == GT_1FCTF ) ? TEAM_FREE : team;
+}
+
+static flagStatus_t Team_FlagPickupStatusValue( int gametype, team_t playerTeam ) {
+	if ( gametype == GT_1FCTF ) {
+		return ( playerTeam == TEAM_RED ) ? FLAG_TAKEN_RED : FLAG_TAKEN_BLUE;
+	}
+
+	return FLAG_TAKEN;
+}
+
 
 /*
 ==============
@@ -2163,18 +2227,19 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 
 int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 	gclient_t *cl = other->client;
+	team_t statusTeam;
+	flagStatus_t status;
+
+	statusTeam = Team_FlagPickupStatusTeam( g_gametype.integer, team );
+	status = Team_FlagPickupStatusValue( g_gametype.integer, cl->sess.sessionTeam );
+	if ( Team_FlagPickupBlockedByTackle( ent, other ) ) {
+		Team_SetFlagStatus( statusTeam, FLAG_DROPPED );
+		return 0;
+	}
 
 	if( g_gametype.integer == GT_1FCTF ) {
-		PrintMsg (NULL, "%s" S_COLOR_WHITE " got the flag!\n", other->client->pers.netname );
-
+		Team_AnnounceNeutralFlagEvent( NEUTRAL_FLAG_EVENT_PICKUP, other );
 		cl->ps.powerups[PW_NEUTRALFLAG] = INT_MAX; // flags never expire
-
-		if( team == TEAM_RED ) {
-			Team_SetFlagStatus( TEAM_FREE, FLAG_TAKEN_RED );
-		}
-		else {
-			Team_SetFlagStatus( TEAM_FREE, FLAG_TAKEN_BLUE );
-		}
 	}
 	else{
 		PrintMsg (NULL, "%s" S_COLOR_WHITE " got the %s flag!\n",
@@ -2184,9 +2249,9 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 			cl->ps.powerups[PW_REDFLAG] = INT_MAX; // flags never expire
 		else
 			cl->ps.powerups[PW_BLUEFLAG] = INT_MAX; // flags never expire
-
-		Team_SetFlagStatus( team, FLAG_TAKEN );
 	}
+
+	Team_SetFlagStatus( statusTeam, status );
 
 	AddScore(other, ent->r.currentOrigin, CTF_FLAG_BONUS);
 	G_ADAwardBonus( other, ent->r.currentOrigin, g_adTouchScoreBonus.integer, S_COLOR_CYAN "Touch bonus" );
@@ -2195,6 +2260,8 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 
 	return -1; // Do not respawn this automatically, but do delete it if it was FL_DROPPED
 }
+
+
 
 int Pickup_Team( gentity_t *ent, gentity_t *other ) {
 	int team;
