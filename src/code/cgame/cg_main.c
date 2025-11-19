@@ -51,9 +51,16 @@ int screenDamageSelfColorModificationCount = -1;
 int screenDamageTeamColorModificationCount = -1;
 int screenDamageAlphaModificationCount = -1;
 int screenDamageAlphaTeamModificationCount = -1;
+int armorTieredModificationCount = -1;
+int vignetteModificationCount = -1;
+int voiceChatIndicatorModificationCount = -1;
+int simpleItemsHeightOffsetModificationCount = -1;
+int simpleItemsBobModificationCount = -1;
+int simpleItemsRadiusModificationCount = -1;
 
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
+static void CG_UpdateSimpleItemsSettings( void );
 
 
 /*
@@ -202,6 +209,9 @@ vmCvar_t	cg_switchOnEmpty;
 vmCvar_t	cg_switchToEmpty;
 vmCvar_t	cg_ignore;
 vmCvar_t	cg_simpleItems;
+vmCvar_t	cg_simpleItemsHeightOffset;
+vmCvar_t	cg_simpleItemsBob;
+vmCvar_t	cg_simpleItemsRadius;
 vmCvar_t	cg_fov;
 vmCvar_t	cg_zoomFov;
 vmCvar_t	cg_zoomToggle;
@@ -280,6 +290,7 @@ vmCvar_t	cg_oldRocket;
 vmCvar_t	cg_oldPlasma;
 vmCvar_t	cg_trueLightning;
 vmCvar_t	cg_drawTieredArmorAvailability;
+vmCvar_t	cg_armorTiered;
 vmCvar_t	cg_drawFullWeaponBar;
 vmCvar_t	cg_drawHitFriendTime;
 vmCvar_t	cg_drawDeadFriendTime;
@@ -308,6 +319,8 @@ vmCvar_t	cg_gameInfo4;
 vmCvar_t	cg_gameInfo5;
 vmCvar_t	cg_gameInfo6;
 vmCvar_t	cg_useLegacyHud;
+vmCvar_t	cg_vignette;
+vmCvar_t	cg_voiceChatIndicator;
 
 vmCvar_t 	cg_redTeamName;
 vmCvar_t 	cg_blueTeamName;
@@ -348,6 +361,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE  },
 	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE  },
 	{ &cg_useLegacyHud, "cg_useLegacyHud", "0", CVAR_ARCHIVE },
+	{ &cg_vignette, "cg_vignette", "1", CVAR_ARCHIVE },
 	{ &cg_drawTimer, "cg_drawTimer", "0", CVAR_ARCHIVE  },
 	{ &cg_drawFPS, "cg_drawFPS", "0", CVAR_ARCHIVE  },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
@@ -387,6 +401,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_crosshairY, "cg_crosshairY", "0", CVAR_ARCHIVE },
 	{ &cg_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE },
 	{ &cg_simpleItems, "cg_simpleItems", "0", CVAR_ARCHIVE },
+	{ &cg_simpleItemsHeightOffset, "cg_simpleItemsHeightOffset", "0", CVAR_ARCHIVE },
+	{ &cg_simpleItemsBob, "cg_simpleItemsBob", "0", CVAR_ARCHIVE },
+	{ &cg_simpleItemsRadius, "cg_simpleItemsRadius", "14", CVAR_ARCHIVE },
 	{ &cg_addMarks, "cg_marks", "1", CVAR_ARCHIVE },
 	{ &cg_lagometer, "cg_lagometer", "1", CVAR_ARCHIVE },
 	{ &cg_railTrailTime, "cg_railTrailTime", "400", CVAR_ARCHIVE  },
@@ -451,6 +468,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE },
 	{ &cg_noVoiceChats, "cg_noVoiceChats", "0", CVAR_ARCHIVE },
 	{ &cg_noVoiceText, "cg_noVoiceText", "0", CVAR_ARCHIVE },
+	{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE },
 	// the following variables are created in other parts of the system,
 	// but we also reference them here
 	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
@@ -489,6 +507,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE},
 	{ &cg_trueLightning, "cg_trueLightning", "0.0", CVAR_ARCHIVE },
 	{ &cg_drawTieredArmorAvailability, "cg_drawTieredArmorAvailability", "1", CVAR_ARCHIVE },
+	{ &cg_armorTiered, "cg_armorTiered", "1", CVAR_ARCHIVE },
 	{ &cg_drawFullWeaponBar, "cg_drawFullWeaponBar", "0", CVAR_ARCHIVE },
 	{ &cg_weaponBar, "cg_weaponBar", "4", CVAR_ARCHIVE },
 	{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, CVAR_ARCHIVE },
@@ -694,12 +713,19 @@ void CG_RegisterCvars( void ) {
         forceEnemySkinModificationCount = cg_forceEnemySkin.modificationCount;
         forceTeamWeaponColorModificationCount = cg_forceTeamWeaponColor.modificationCount;
         forceEnemyWeaponColorModificationCount = cg_forceEnemyWeaponColor.modificationCount;
-        teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
-        teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
-        teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
-        enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
-        enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
-        enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+	teamHeadColorModificationCount = cg_teamHeadColor.modificationCount;
+	teamUpperColorModificationCount = cg_teamUpperColor.modificationCount;
+	teamLowerColorModificationCount = cg_teamLowerColor.modificationCount;
+	enemyHeadColorModificationCount = cg_enemyHeadColor.modificationCount;
+	enemyUpperColorModificationCount = cg_enemyUpperColor.modificationCount;
+	enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
+	armorTieredModificationCount = cg_armorTiered.modificationCount;
+	vignetteModificationCount = cg_vignette.modificationCount;
+	voiceChatIndicatorModificationCount = cg_voiceChatIndicator.modificationCount;
+
+	cg.armorTieredEnabled = (qboolean)( cg_armorTiered.integer != 0 );
+	cg.vignetteEnabled = (qboolean)( cg_vignette.integer != 0 );
+	cg.voiceChatIndicatorEnabled = (qboolean)( cg_voiceChatIndicator.integer != 0 );
 
 	cg.kickScale = cg_kickScale.value;
 	if ( cg.kickScale < 0.0f ) {
@@ -717,6 +743,7 @@ void CG_RegisterCvars( void ) {
 	CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha, &cg.screenDamageAlpha, &screenDamageAlphaModificationCount );
 	CG_UpdateScreenDamageAlphaFromCvar( &cg_screenDamageAlpha_Team, &cg.screenDamageAlphaTeam, &screenDamageAlphaTeamModificationCount );
 
+	CG_UpdateSimpleItemsSettings();
 	CG_UpdateWeaponBarGrenadeColor();
 	CG_UpdateLowAmmoWarningPercentile();
 
@@ -742,6 +769,36 @@ static void CG_ForceModelChange( void ) {
 			continue;
 		}
 		CG_NewClientInfo( i );
+	}
+}
+
+/*
+=============
+CG_UpdateSimpleItemsSettings
+
+Synchronize cached simple item settings with their cvars.
+=============
+*/
+static void CG_UpdateSimpleItemsSettings( void ) {
+	if ( simpleItemsHeightOffsetModificationCount != cg_simpleItemsHeightOffset.modificationCount ) {
+		simpleItemsHeightOffsetModificationCount = cg_simpleItemsHeightOffset.modificationCount;
+		cg.simpleItemsHeightOffset = cg_simpleItemsHeightOffset.value;
+	}
+
+	if ( simpleItemsBobModificationCount != cg_simpleItemsBob.modificationCount ) {
+		simpleItemsBobModificationCount = cg_simpleItemsBob.modificationCount;
+		cg.simpleItemsBob = cg_simpleItemsBob.value;
+		if ( cg.simpleItemsBob < 0.0f ) {
+			cg.simpleItemsBob = 0.0f;
+		}
+	}
+
+	if ( simpleItemsRadiusModificationCount != cg_simpleItemsRadius.modificationCount ) {
+		simpleItemsRadiusModificationCount = cg_simpleItemsRadius.modificationCount;
+		cg.simpleItemsRadius = cg_simpleItemsRadius.value;
+		if ( cg.simpleItemsRadius < 0.0f ) {
+			cg.simpleItemsRadius = 0.0f;
+		}
 	}
 }
 
@@ -828,6 +885,18 @@ void CG_UpdateCvars( void ) {
 		enemyLowerColorModificationCount = cg_enemyLowerColor.modificationCount;
 		refreshClients = qtrue;
 	}
+	if ( armorTieredModificationCount != cg_armorTiered.modificationCount ) {
+		armorTieredModificationCount = cg_armorTiered.modificationCount;
+		cg.armorTieredEnabled = (qboolean)( cg_armorTiered.integer != 0 );
+	}
+	if ( vignetteModificationCount != cg_vignette.modificationCount ) {
+		vignetteModificationCount = cg_vignette.modificationCount;
+		cg.vignetteEnabled = (qboolean)( cg_vignette.integer != 0 );
+	}
+	if ( voiceChatIndicatorModificationCount != cg_voiceChatIndicator.modificationCount ) {
+		voiceChatIndicatorModificationCount = cg_voiceChatIndicator.modificationCount;
+		cg.voiceChatIndicatorEnabled = (qboolean)( cg_voiceChatIndicator.integer != 0 );
+	}
 
 	if ( refreshClients ) {
 		CG_ForceModelChange();
@@ -865,6 +934,8 @@ void CG_UpdateCvars( void ) {
 	}
 	cg.zoomToggle = (qboolean)( cg_zoomToggle.integer != 0 );
 	cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );
+
+	CG_UpdateSimpleItemsSettings();
 }
 
 int CG_CrosshairPlayer( void ) {
