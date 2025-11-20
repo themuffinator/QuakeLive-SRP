@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../game/q_shared.h"
 #include "qcommon.h"
+#include "../../src-re/include/fs_imports.h"
 #include <setjmp.h>
 #include <ctype.h>
 #ifdef __linux__
@@ -34,6 +35,22 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <winsock.h>
 #endif
 #endif
+
+const qlr_fs_imports_t qlr_fs_imports = {
+	FS_FOpenFileByMode,
+	FS_FOpenWebFileRead,
+	FS_filelength,
+	FS_Read2,
+	FS_Write,
+	FS_FCloseFile,
+	FS_GetFileList,
+	FS_Seek,
+	FS_BuildOSPath,
+	FS_LoadedPakChecksums,
+	FS_LoadedPakPureChecksums,
+	FS_ReferencedPakChecksums,
+	FS_ReferencedPakPureChecksums
+};
 
 int demo_protocols[] =
 { 66, 67, 68, 0 };
