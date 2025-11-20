@@ -220,7 +220,7 @@ typedef struct fileInPack_s {
 	struct	fileInPack_s*	next;		// next file in the hash
 } fileInPack_t;
 
-typedef struct {
+typedef struct pack_s {
 	char			pakFilename[MAX_OSPATH];	// c:\quake3\baseq3\pak0.pk3
 	char			pakBasename[MAX_OSPATH];	// pak0
 	char			pakGamename[MAX_OSPATH];	// baseq3
@@ -249,12 +249,15 @@ typedef struct searchpath_s {
 static	char		fs_gamedir[MAX_OSPATH];	// this will be a single file name with no separators
 static	cvar_t		*fs_debug;
 static	cvar_t		*fs_homepath;
+static	cvar_t		*fs_webpath;
 static	cvar_t		*fs_basepath;
 static	cvar_t		*fs_basegame;
 static	cvar_t		*fs_cdpath;
 static	cvar_t		*fs_copyfiles;
+static	cvar_t		*fs_webpath;
 static	cvar_t		*fs_gamedirvar;
 static	cvar_t		*fs_restrict;
+static	cvar_t		*fs_webMappings;
 static	searchpath_t	*fs_searchpaths;
 static	int			fs_readCount;			// total bytes read
 static	int			fs_loadCount;			// total files read
@@ -263,6 +266,16 @@ static	int			fs_packFiles;			// total number of files in packs
 
 static int fs_fakeChkSum;
 static int fs_checksumFeed;
+
+typedef struct {
+	char				prefix[MAX_OSPATH];
+	char				base[MAX_OSPATH];
+	qboolean		useHomepath;
+} fsFallbackMapping_t;
+
+static fsFallbackMapping_t	fs_fallbackMappings[FS_MAX_FALLBACK_MAPPINGS];
+static int					fs_fallbackMappingCount = 0;
+static fsFallbackMetrics_t	fs_fallbackMetrics;
 
 typedef union qfile_gus {
 	FILE*		o;
@@ -358,7 +371,7 @@ int FS_LoadStack()
 {
 	return fs_loadStack;
 }
-                      
+
 /*
 ================
 return a hash value for the filename
@@ -406,7 +419,7 @@ static FILE	*FS_FileForHandle( fileHandle_t f ) {
 	if ( ! fsh[f].handleFiles.file.o ) {
 		Com_Error( ERR_DROP, "FS_FileForHandle: NULL" );
 	}
-	
+
 	return fsh[f].handleFiles.file.o;
 }
 
@@ -468,7 +481,7 @@ char *FS_BuildOSPath( const char *base, const char *game, const char *qpath ) {
 	char	temp[MAX_OSPATH];
 	static char ospath[2][MAX_OSPATH];
 	static int toggle;
-	
+
 	toggle ^= 1;		// flip-flop to allow two returns without clash
 
 	if( !game || !game[0] ) {
@@ -478,8 +491,90 @@ char *FS_BuildOSPath( const char *base, const char *game, const char *qpath ) {
 	Com_sprintf( temp, sizeof(temp), "/%s/%s", game, qpath );
 	FS_ReplaceSeparators( temp );	
 	Com_sprintf( ospath[toggle], sizeof( ospath[0] ), "%s%s", base, temp );
-	
+
 	return ospath[toggle];
+}
+
+
+/*
+=============
+FS_StripProtocol
+
+Removes scheme and host components from a URI so only the path remains.
+=============
+*/
+static const char *FS_StripProtocol( const char *uri ) {
+	const char *pathStart;
+	const char *separator;
+
+	if ( !uri ) {
+		return NULL;
+	}
+
+	pathStart = uri;
+	separator = strstr( uri, "://" );
+	if ( separator ) {
+		pathStart = separator + 3;
+		separator = strchr( pathStart, '/' );
+		if ( separator ) {
+			pathStart = separator + 1;
+		}
+	}
+
+	while ( *pathStart == '/' ) {
+		pathStart++;
+	}
+
+	return pathStart;
+}
+
+
+/*
+=============
+FS_RewriteWebPath
+
+Normalize an intercepted URI into a quake path. Screenshots are forced to
+resolve under fs_homepath/screenshots, other requests are prefixed with
+fs_webpath.
+=============
+*/
+qboolean FS_RewriteWebPath( const char *uri, char *outPath, int outSize ) {
+	const char *trimmed;
+	char localPath[MAX_QPATH];
+	int i;
+
+	if ( !uri || !outPath || outSize <= 0 ) {
+		return qfalse;
+	}
+
+	trimmed = FS_StripProtocol( uri );
+	if ( !trimmed || !*trimmed ) {
+		return qfalse;
+	}
+
+	for ( i = 0; trimmed[i] && trimmed[i] != '?' && trimmed[i] != '#'; i++ ) {
+		if ( i >= (int)sizeof( localPath ) - 1 ) {
+			break;
+		}
+		localPath[i] = trimmed[i];
+	}
+	localPath[i] = '\0';
+
+	if ( !*localPath || strstr( localPath, ".." ) ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmpn( localPath, "screenshots/", 12 ) ) {
+		Q_strncpyz( outPath, localPath, outSize );
+		return qtrue;
+	}
+
+	if ( !fs_webpath || !fs_webpath->string[0] ) {
+		return qfalse;
+	}
+
+	Com_sprintf( outPath, outSize, "%s/%s", fs_webpath->string, localPath );
+	return qtrue;
 }
 
 
@@ -492,7 +587,7 @@ Creates any directories needed to store the given filename
 */
 static qboolean FS_CreatePath (char *OSPath) {
 	char	*ofs;
-	
+
 	// make absolutely sure that it can't back up the path
 	// FIXME: is c: allowed???
 	if ( strstr( OSPath, ".." ) || strstr( OSPath, "::" ) ) {
@@ -594,6 +689,134 @@ qboolean FS_FileExists( const char *file )
 	return qfalse;
 }
 
+
+/*
+=============
+FS_PreflightPathExists
+
+Checks whether an asset exists under a specific search root and reports the
+path inspected so callers can surface actionable packaging guidance.
+=============
+*/
+static qboolean FS_PreflightPathExists( const char *asset, const char *label, const char *rootPath )
+{
+	FILE *handle;
+	char fullpath[MAX_OSPATH];
+	qboolean exists;
+
+	if ( !rootPath || !rootPath[0] ) {
+		return qfalse;
+	}
+
+	Com_sprintf( fullpath, sizeof( fullpath ), "%s", FS_BuildOSPath( rootPath, fs_gamedir, asset ) );
+
+	if ( !Q_stricmp( rootPath, fs_homepath->string ) ) {
+		exists = FS_FileExists( asset );
+	} else {
+		handle = fopen( fullpath, "rb" );
+
+		exists = ( handle != NULL );
+
+		if ( handle ) {
+			fclose( handle );
+		}
+	}
+
+	if ( !exists ) {
+		Com_Printf( "WARNING: FS_InitFilesystem preflight missing \"%s\" in %s (checked %s)\n", asset, label, fullpath );
+	} else {
+		Com_DPrintf( "FS_InitFilesystem preflight found \"%s\" in %s (checked %s)\n", asset, label, fullpath );
+	}
+
+	return exists;
+}
+
+/*
+=============
+	FS_RunAssetPreflight
+
+Ensures critical configs, fonts, and UI scripts exist across configured search
+paths before proceeding with filesystem startup.
+=============
+*/
+static void FS_RunAssetPreflight( void )
+{
+	int i, j;
+	qboolean missing = qfalse;
+
+	const char *fontAssets[] = {
+		"fonts/handelgothic.ttf",
+		"fonts/notosans-regular.ttf",
+		"fonts/droidsansmono.ttf",
+		"fonts/droidsansfallbackfull.ttf"
+	};
+
+	const char *uiScriptAssets[] = {
+		"ui/main.menu",
+		"ui/comp_hud.menu",
+		"ui/teaminfo.txt"
+	};
+
+	struct {
+		const char *label;
+		const char *path;
+	} roots[] = {
+		{ "homepath", fs_homepath->string },
+		{ "basepath", fs_basepath->string },
+		{ "cdpath", fs_cdpath->string }
+	};
+
+	for ( i = 0; i < sizeof( roots ) / sizeof( roots[0] ); i++ ) {
+		Com_DPrintf( "FS_InitFilesystem preflight scanning %s (%s)\n", roots[i].label, roots[i].path );
+	}
+
+	if ( !FS_PreflightPathExists( "default.cfg", "homepath", fs_homepath->string )
+		&& !FS_PreflightPathExists( "default.cfg", "basepath", fs_basepath->string )
+		&& !FS_PreflightPathExists( "default.cfg", "cdpath", fs_cdpath->string ) ) {
+		Com_Printf( "ERROR: FS_InitFilesystem preflight could not locate \"default.cfg\" in any configured search path.\n" );
+		missing = qtrue;
+	}
+
+	for ( i = 0; i < sizeof( fontAssets ) / sizeof( fontAssets[0] ); i++ ) {
+		qboolean found = qfalse;
+
+		for ( j = 0; j < sizeof( roots ) / sizeof( roots[0] ); j++ ) {
+			if ( FS_PreflightPathExists( fontAssets[i], roots[j].label, roots[j].path ) ) {
+				found = qtrue;
+				break;
+			}
+		}
+
+		if ( !found ) {
+			Com_Printf( "ERROR: FS_InitFilesystem preflight missing font asset \"%s\" across all search paths.\n", fontAssets[i] );
+			missing = qtrue;
+		}
+	}
+
+	for ( i = 0; i < sizeof( uiScriptAssets ) / sizeof( uiScriptAssets[0] ); i++ ) {
+		qboolean found = qfalse;
+
+		for ( j = 0; j < sizeof( roots ) / sizeof( roots[0] ); j++ ) {
+			if ( FS_PreflightPathExists( uiScriptAssets[i], roots[j].label, roots[j].path ) ) {
+				found = qtrue;
+				break;
+			}
+		}
+
+		if ( !found ) {
+			Com_Printf( "ERROR: FS_InitFilesystem preflight missing UI script \"%s\" across all search paths.\n", uiScriptAssets[i] );
+			missing = qtrue;
+		}
+	}
+
+	if ( missing ) {
+		Com_Printf( "Ensure packaged assets mirror the Quake Live layout: place default.cfg at the root of your PK3, ship fonts/ttf"
+			" files (handelgothic, notosans-regular, droidsansmono, droidsansfallbackfull) under fonts/, and keep ui/*.menu and"
+			" supporting txt files adjacent to the packaged UI DLLs. Review tools/packaging/ui_bundle_manifest.json and"
+			" docs/quakelive_asset_audit.md for the expected staging tree.\n" );
+		Com_Error( ERR_FATAL, "Required startup assets are missing; see preflight log for details." );
+	}
+}
 /*
 ================
 FS_SV_FileExists
@@ -603,8 +826,8 @@ Tests if the file exists
 */
 qboolean FS_SV_FileExists( const char *file )
 {
-	FILE *f;
-	char *testpath;
+FILE *f;
+char *testpath;
 
 	testpath = FS_BuildOSPath( fs_homepath->string, file, "");
 	testpath[strlen(testpath)-1] = '\0';
@@ -613,16 +836,249 @@ qboolean FS_SV_FileExists( const char *file )
 	if (f) {
 		fclose( f );
 		return qtrue;
+}
+return qfalse;
+}
+
+static const char *const fs_defaultFallbackMappings = "https://cdn.quakelive.com/=web;http://localhost/=web;quakelive://screenshots/=home:screenshots";
+
+/*
+=============
+	FS_ClearFallbackMappings
+
+	Resets the configured web fallback mapping table.
+	=============
+*/
+static void FS_ClearFallbackMappings( void ) {
+	fs_fallbackMappingCount = 0;
+	Com_Memset( fs_fallbackMappings, 0, sizeof( fs_fallbackMappings ) );
+	Com_Memset( &fs_fallbackMetrics, 0, sizeof( fs_fallbackMetrics ) );
 	}
+
+/*
+	=============
+	FS_AddFallbackMapping
+
+	Adds a mapping entry that rewrites URL prefixes into filesystem-relative paths.
+	=============
+*/
+static void FS_AddFallbackMapping( const char *prefix, const char *base, qboolean useHomepath ) {
+	fsFallbackMapping_t *slot;
+
+	if ( !prefix || !*prefix || fs_fallbackMappingCount >= FS_MAX_FALLBACK_MAPPINGS ) {
+	return;
+	}
+
+	slot = &fs_fallbackMappings[fs_fallbackMappingCount++];
+	Q_strncpyz( slot->prefix, prefix, sizeof( slot->prefix ) );
+	Q_strncpyz( slot->base, base ? base : "", sizeof( slot->base ) );
+	slot->useHomepath = useHomepath;
+	}
+
+/*
+=============
+FS_ParseFallbackMappings
+
+Parses the fs_webMappings cvar into a list of prefix-to-filesystem mappings.
+=============
+*/
+static void FS_ParseFallbackMappings( const char *rawMappings ) {
+	char entry[MAX_OSPATH * 2];
+	const char *cursor;
+
+	FS_ClearFallbackMappings();
+	if ( !rawMappings || !*rawMappings ) {
+	return;
+	}
+
+	cursor = rawMappings;
+	while ( *cursor ) {
+	const char *separator;
+	const char *terminator;
+	qboolean useHomepath;
+	char prefix[MAX_OSPATH];
+	char target[MAX_OSPATH];
+
+	separator = strchr( cursor, ';' );
+	if ( !separator ) {
+	separator = cursor + strlen( cursor );
+	}
+
+	terminator = strchr( cursor, '=' );
+	if ( !terminator || terminator > separator ) {
+	break;
+	}
+
+	Com_Memset( entry, 0, sizeof( entry ) );
+	Q_strncpyz( entry, cursor, separator - cursor + 1 );
+	entry[separator - cursor] = '\0';
+
+	Com_Memset( prefix, 0, sizeof( prefix ) );
+	Com_Memset( target, 0, sizeof( target ) );
+
+	Q_strncpyz( prefix, entry, terminator - cursor + 1 );
+	prefix[terminator - cursor] = '\0';
+	Q_strncpyz( target, terminator + 1, sizeof( target ) );
+
+	useHomepath = ( Q_stricmpn( target, "home", 4 ) == 0 );
+	if ( target[0] && target[4] == ':' ) {
+	char adjusted[MAX_OSPATH];
+	Q_strncpyz( adjusted, target + 5, sizeof( adjusted ) );
+	Q_strncpyz( target, adjusted, sizeof( target ) );
+	}
+
+	FS_AddFallbackMapping( prefix, target, useHomepath );
+
+	cursor = (*separator == ';') ? separator + 1 : separator;
+	}
+	}
+
+/*
+	=============
+	FS_FOpenFileReadForRoot
+
+	Opens a file relative to a specific root path using the filesystem handle table.
+	=============
+*/
+static int FS_FOpenFileReadForRoot( const char *root, const char *filename, fileHandle_t *fp ) {
+	char *ospath;
+	fileHandle_t handle;
+
+	if ( !root || !*root ) {
+	return 0;
+	}
+
+	if ( !fs_searchpaths ) {
+	Com_Error( ERR_FATAL, "Filesystem call made without initialization\n" );
+	}
+
+	handle = FS_HandleForFile();
+	fsh[handle].zipFile = qfalse;
+	Q_strncpyz( fsh[handle].name, filename, sizeof( fsh[handle].name ) );
+
+	S_ClearSoundBuffer();
+
+	ospath = FS_BuildOSPath( root, fs_gamedir, filename );
+	ospath[strlen( ospath ) - 1] = '\0';
+
+	if ( fs_debug->integer ) {
+	Com_Printf( "FS_FOpenFileReadForRoot (%s): %s\n", root, ospath );
+	}
+
+	fsh[handle].handleFiles.file.o = fopen( ospath, "rb" );
+	fsh[handle].handleSync = qfalse;
+
+	if ( !fsh[handle].handleFiles.file.o ) {
+	return 0;
+	}
+
+	*fp = handle;
+	return FS_filelength( handle );
+	}
+
+/*
+	=============
+	FS_FOpenWebFileRead
+
+	Retries failed HTTP/resource requests using mapped filesystem paths.
+	=============
+*/
+	qboolean FS_FOpenWebFileRead( const char *request, fileHandle_t *file, char *resolvedPath, size_t resolvedSize ) {
+	int index;
+
+	if ( !request || !file ) {
+	return qfalse;
+	}
+
+	for ( index = 0; index < fs_fallbackMappingCount; ++index ) {
+	fsFallbackMapping_t *mapping;
+	const char *suffix;
+	char qpath[MAX_QPATH];
+	const char *root;
+	int length;
+
+	mapping = &fs_fallbackMappings[index];
+	if ( Q_strnicmp( request, mapping->prefix, strlen( mapping->prefix ) ) != 0 ) {
+	continue;
+	}
+
+	suffix = request + strlen( mapping->prefix );
+	while ( *suffix == '/' || *suffix == '\\' ) {
+	++suffix;
+	}
+
+	if ( mapping->base[0] ) {
+	Com_sprintf( qpath, sizeof( qpath ), "%s/%s", mapping->base, suffix );
+	} else {
+	Q_strncpyz( qpath, suffix, sizeof( qpath ) );
+	}
+
+	root = mapping->useHomepath ? fs_homepath->string : fs_webpath->string;
+	if ( !root || !*root ) {
+	++fs_fallbackMetrics.misses;
+	Com_Printf( "web-fallback: root missing for %s (mapped from %s) [miss=%d]\n",
+	qpath,
+	request,
+	fs_fallbackMetrics.misses );
+	return qfalse;
+	}
+
+	length = FS_FOpenFileReadForRoot( root, qpath, file );
+	if ( length > 0 && *file ) {
+	++fs_fallbackMetrics.hits;
+	if ( resolvedPath && resolvedSize > 0 ) {
+	Q_strncpyz( resolvedPath, qpath, resolvedSize );
+	}
+	Com_Printf( "web-fallback: %s -> %s (%s) [hit=%d miss=%d]\n",
+	request,
+	qpath,
+	mapping->useHomepath ? "fs_homepath" : "fs_webpath",
+	fs_fallbackMetrics.hits,
+	fs_fallbackMetrics.misses );
+	return qtrue;
+	}
+
+	++fs_fallbackMetrics.misses;
+	Com_Printf( "web-fallback: %s -> %s failed (%s) [hit=%d miss=%d]\n",
+	request,
+	qpath,
+	mapping->useHomepath ? "fs_homepath" : "fs_webpath",
+	fs_fallbackMetrics.hits,
+	fs_fallbackMetrics.misses );
+	return qfalse;
+	}
+
+	++fs_fallbackMetrics.misses;
+	Com_Printf( "web-fallback: no mapping for %s [hit=%d miss=%d]\n",
+	request,
+	fs_fallbackMetrics.hits,
+	fs_fallbackMetrics.misses );
+
 	return qfalse;
 }
 
+/*
+	=============
+	FS_GetFallbackMetrics
+
+	Copies the current fallback hit/miss metrics for external inspection.
+	=============
+*/
+	void FS_GetFallbackMetrics( fsFallbackMetrics_t *outMetrics ) {
+	if ( !outMetrics ) {
+	return;
+	}
+
+	outMetrics->hits = fs_fallbackMetrics.hits;
+	outMetrics->misses = fs_fallbackMetrics.misses;
+	}
+
 
 /*
-===========
-FS_SV_FOpenFileWrite
+	===========
+	FS_SV_FOpenFileWrite
 
-===========
+	===========
 */
 fileHandle_t FS_SV_FOpenFileWrite( const char *filename ) {
 	char *ospath;
@@ -733,7 +1189,7 @@ int FS_SV_FOpenFileRead( const char *filename, fileHandle_t *fp ) {
 	    f = 0;
 	  }
   }
-  
+
 	*fp = f;
 	if (f) {
 		return FS_filelength(f);
@@ -930,7 +1386,7 @@ Ignore case and seprator char distinctions
 */
 qboolean FS_FilenameCompare( const char *s1, const char *s2 ) {
 	int		c1, c2;
-	
+
 	do {
 		c1 = *s1++;
 		c2 = *s2++;
@@ -948,12 +1404,12 @@ qboolean FS_FilenameCompare( const char *s1, const char *s2 ) {
 		if ( c2 == '\\' || c2 == ':' ) {
 			c2 = '/';
 		}
-		
+
 		if (c1 != c2) {
 			return -1;		// strings not equal
 		}
 	} while (c1);
-	
+
 	return 0;		// strings are equal
 }
 
@@ -1025,7 +1481,7 @@ int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueF
 				} while(pakFile != NULL);
 			} else if ( search->dir ) {
 				dir = search->dir;
-			
+
 				netpath = FS_BuildOSPath( dir->path, dir->gamedir, filename );
 				temp = fopen (netpath, "rb");
 				if ( !temp ) {
@@ -1179,7 +1635,7 @@ int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueF
 			}
 
 			dir = search->dir;
-			
+
 			netpath = FS_BuildOSPath( dir->path, dir->gamedir, filename );
 			fsh[*file].handleFiles.file.o = fopen (netpath, "rb");
 			if ( !fsh[*file].handleFiles.file.o ) {
@@ -1193,7 +1649,7 @@ int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueF
 				&& Q_stricmp( filename + l - 4, ".dat" ) ) {	// for journal files
 				fs_fakeChkSum = random();
 			}
-      
+
 			Q_strncpyz( fsh[*file].name, filename, sizeof( fsh[*file].name ) );
 			fsh[*file].zipFile = qfalse;
 			if ( fs_debug->integer ) {
@@ -1213,7 +1669,7 @@ int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueF
 			return FS_filelength (*file);
 		}		
 	}
-	
+
 	Com_DPrintf ("Can't find %s\n", filename);
 #ifdef FS_MISSING
 	if (missingFiles) {
@@ -1572,7 +2028,7 @@ int FS_ReadFile( const char *qpath, void **buffer ) {
 		}
 		return -1;
 	}
-	
+
 	if ( !buffer ) {
 		if ( isConfig && com_journal && com_journal->integer == 1 ) {
 			Com_DPrintf( "Writing len for %s to journal file.\n", qpath );
@@ -1625,6 +2081,55 @@ void FS_FreeFile( void *buffer ) {
 	if ( fs_loadStack == 0 ) {
 		Hunk_ClearTempMemory();
 	}
+}
+
+/*
+=============
+FS_UIReadWebFile
+
+Open a rewritten URI and stream its data into the supplied buffer. Returns the
+number of bytes copied or -1 on failure.
+=============
+*/
+int FS_UIReadWebFile( const char *uri, byte *buffer, int bufferSize ) {
+	fileHandle_t handle;
+	char qpath[MAX_OSPATH];
+	int length;
+	int bytesRead;
+
+	if ( !fs_searchpaths ) {
+		Com_Error( ERR_FATAL, "Filesystem call made without initialization\n" );
+	}
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return -1;
+	}
+
+	if ( !FS_RewriteWebPath( uri, qpath, sizeof( qpath ) ) ) {
+		Com_Printf( "FS_UIReadWebFile: unable to rewrite uri '%s'\n", uri ? uri : "<null>" );
+		return -1;
+	}
+
+	length = FS_FOpenFileRead( qpath, &handle, qtrue );
+	if ( !handle || length <= 0 ) {
+		Com_Printf( "FS_UIReadWebFile: missing asset for '%s' (%s)\n", uri ? uri : "<null>", qpath );
+		return -1;
+	}
+
+	bytesRead = length;
+	if ( bytesRead > bufferSize ) {
+		Com_Printf( "FS_UIReadWebFile: truncating %s to %i of %i bytes\n", qpath, bufferSize, length );
+		bytesRead = bufferSize;
+	}
+
+	if ( FS_Read( buffer, bytesRead, handle ) != bytesRead ) {
+		Com_Printf( "FS_UIReadWebFile: short read on %s\n", qpath );
+		bytesRead = -1;
+	}
+
+	FS_FCloseFile( handle );
+
+	return bytesRead;
 }
 
 /*
@@ -1775,6 +2280,157 @@ static pack_t *FS_LoadZipFile( char *zipfile, const char *basename )
 	return pack;
 }
 
+/*
+=============
+FS_FindFileInPack
+
+Locate a file entry inside a loaded pack by its lowercased virtual path.
+=============
+*/
+static fileInPack_t *FS_FindFileInPack( const pack_t *pack, const char *filename ) {
+	fileInPack_t	*pakFile;
+	long			hash;
+
+	if ( !pack || !filename || !pack->hashTable ) {
+		return NULL;
+	}
+
+	hash = FS_HashFileName( filename, pack->hashSize );
+	pakFile = pack->hashTable[hash];
+	while ( pakFile ) {
+		if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
+			return pakFile;
+		}
+
+		pakFile = pakFile->next;
+	}
+
+	return NULL;
+}
+
+/*
+=============
+FS_LoadPackExplicit
+
+Parse a standalone pack file without modifying the active search path.
+=============
+*/
+pack_t *FS_LoadPackExplicit( const char *packPath ) {
+	char			packCopy[MAX_OSPATH];
+	const char		*base;
+
+	if ( !packPath || !packPath[0] ) {
+		return NULL;
+	}
+
+	Q_strncpyz( packCopy, packPath, sizeof( packCopy ) );
+	base = COM_SkipPath( packCopy );
+	if ( !base || !*base ) {
+		return NULL;
+	}
+
+	return FS_LoadZipFile( packCopy, base );
+}
+
+/*
+=============
+FS_FreePak
+
+Release resources owned by a standalone pack.
+=============
+*/
+void FS_FreePak( pack_t *pack ) {
+	if ( !pack ) {
+		return;
+	}
+
+	if ( pack->handle ) {
+		unzClose( pack->handle );
+	}
+	if ( pack->buildBuffer ) {
+		Z_Free( pack->buildBuffer );
+	}
+
+	Z_Free( pack );
+}
+
+/*
+=============
+FS_PakFileExists
+
+Check whether a given virtual path exists inside the supplied pack.
+=============
+*/
+qboolean FS_PakFileExists( const pack_t *pack, const char *filename ) {
+	char		fixed[MAX_ZPATH];
+
+	if ( !pack || !filename || !filename[0] ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( fixed, filename, sizeof( fixed ) );
+	Q_strlwr( fixed );
+
+	return ( FS_FindFileInPack( pack, fixed ) != NULL );
+}
+
+/*
+=============
+FS_ReadFileFromPak
+
+Read a file from a standalone pack into a freshly allocated buffer.
+=============
+*/
+int FS_ReadFileFromPak( pack_t *pack, const char *filename, void **buffer ) {
+	fileInPack_t	*pakFile;
+	char			normalized[MAX_ZPATH];
+	unz_file_info	fileInfo;
+	int				readBytes;
+
+	if ( !pack || !filename || !buffer ) {
+		return -1;
+	}
+
+	*buffer = NULL;
+
+	if ( filename[0] == '/' || filename[0] == '\\' ) {
+		filename++;
+	}
+
+	if ( strstr( filename, ".." ) || strstr( filename, "::" ) ) {
+		return -1;
+	}
+
+	Q_strncpyz( normalized, filename, sizeof( normalized ) );
+	Q_strlwr( normalized );
+
+	pakFile = FS_FindFileInPack( pack, normalized );
+	if ( !pakFile ) {
+		return -1;
+	}
+
+	unzSetCurrentFileInfoPosition( pack->handle, pakFile->pos );
+	if ( unzGetCurrentFileInfo( pack->handle, &fileInfo, NULL, 0, NULL, 0, NULL, 0 ) != UNZ_OK ) {
+		return -1;
+	}
+
+	if ( unzOpenCurrentFile( pack->handle ) != UNZ_OK ) {
+		return -1;
+	}
+
+	*buffer = Z_Malloc( fileInfo.uncompressed_size + 1 );
+	readBytes = unzReadCurrentFile( pack->handle, *buffer, fileInfo.uncompressed_size );
+	unzCloseCurrentFile( pack->handle );
+
+	if ( readBytes < 0 ) {
+		Z_Free( *buffer );
+		*buffer = NULL;
+		return -1;
+	}
+
+	((byte *)*buffer)[readBytes] = 0;
+	return readBytes;
+}
 /*
 =================================================================================
 
@@ -2036,70 +2692,76 @@ int	FS_GetFileList(  const char *path, const char *extension, char *listbuf, int
 }
 
 /*
-=======================
-Sys_ConcatenateFileLists
+=============
+Sys_CountFileList
 
-mkv: Naive implementation. Concatenates three lists into a
-     new list, and frees the old lists from the heap.
-bk001129 - from cvs1.17 (mkv)
-
-FIXME TTimo those two should move to common.c next to Sys_ListFiles
-=======================
- */
-static unsigned int Sys_CountFileList(char **list)
+Counts entries in a NULL-terminated file list.
+=============
+*/
+static unsigned int Sys_CountFileList( char **list )
 {
-  int i = 0;
+	int i = 0;
 
-  if (list)
-  {
-    while (*list)
-    {
-      list++;
-      i++;
-    }
-  }
-  return i;
+	if ( list )
+	{
+		while ( *list )
+		{
+			list++;
+			i++;
+		}
+	}
+
+	return i;
 }
 
+/*
+=============
+Sys_ConcatenateFileLists
+
+Concatenates three file lists into a newly allocated list of duplicated strings,
+then frees the source lists.
+=============
+*/
 static char** Sys_ConcatenateFileLists( char **list0, char **list1, char **list2 )
 {
-  int totalLength = 0;
-  char** cat = NULL, **dst, **src;
+	unsigned int totalLength = 0;
+	char **cat, **dst, **src;
 
-  totalLength += Sys_CountFileList(list0);
-  totalLength += Sys_CountFileList(list1);
-  totalLength += Sys_CountFileList(list2);
+	totalLength += Sys_CountFileList( list0 );
+	totalLength += Sys_CountFileList( list1 );
+	totalLength += Sys_CountFileList( list2 );
 
-  /* Create new list. */
-  dst = cat = Z_Malloc( ( totalLength + 1 ) * sizeof( char* ) );
+	dst = cat = Z_Malloc( ( totalLength + 1 ) * sizeof( char* ) );
 
-  /* Copy over lists. */
-  if (list0)
-  {
-    for (src = list0; *src; src++, dst++)
-      *dst = *src;
-  }
-  if (list1)
-  {
-    for (src = list1; *src; src++, dst++)
-      *dst = *src;
-  }
-  if (list2)
-  {
-    for (src = list2; *src; src++, dst++)
-      *dst = *src;
-  }
+	if ( list0 )
+	{
+		for ( src = list0; *src; src++, dst++ )
+		{
+			*dst = CopyString( *src );
+		}
+	}
+	if ( list1 )
+	{
+		for ( src = list1; *src; src++, dst++ )
+		{
+			*dst = CopyString( *src );
+		}
+	}
+	if ( list2 )
+	{
+		for ( src = list2; *src; src++, dst++ )
+		{
+			*dst = CopyString( *src );
+		}
+	}
 
-  // Terminate the list
-  *dst = NULL;
+	*dst = NULL;
 
-  // Free our old lists.
-  // NOTE: not freeing their content, it's been merged in dst and still being used
-  if (list0) Z_Free( list0 );
-  if (list1) Z_Free( list1 );
-  if (list2) Z_Free( list2 );
+	FS_FreeFileList( list0 );
+	FS_FreeFileList( list1 );
+	FS_FreeFileList( list2 );
 
-  return cat;
+	return cat;
 }
 
 /*
@@ -2288,7 +2950,7 @@ Ignore case and seprator char distinctions
 */
 int FS_PathCmp( const char *s1, const char *s2 ) {
 	int		c1, c2;
-	
+
 	do {
 		c1 = *s1++;
 		c2 = *s2++;
@@ -2306,7 +2968,7 @@ int FS_PathCmp( const char *s1, const char *s2 ) {
 		if ( c2 == '\\' || c2 == ':' ) {
 			c2 = '/';
 		}
-		
+
 		if (c1 < c2) {
 			return -1;		// strings not equal
 		}
@@ -2314,7 +2976,7 @@ int FS_PathCmp( const char *s1, const char *s2 ) {
 			return 1;
 		}
 	} while (c1);
-	
+
 	return 0;		// strings are equal
 }
 
@@ -2474,7 +3136,7 @@ static void FS_AddGameDirectory( const char *path, const char *dir ) {
 			return;			// we've already got this one
 		}
 	}
-	
+
 	Q_strncpyz( fs_gamedir, dir, sizeof( fs_gamedir ) );
 
 	//
@@ -2691,7 +3353,7 @@ void FS_Shutdown( qboolean closemfp ) {
 
 void Com_AppendCDKey( const char *filename );
 void Com_ReadCDKey( const char *filename );
- 
+
 /*
 ================
 FS_ReorderPurePaks
@@ -2705,13 +3367,13 @@ static void FS_ReorderPurePaks()
 	int i;
 	searchpath_t **p_insert_index, // for linked list reordering
 		**p_previous; // when doing the scan
-	
+
 	// only relevant when connected to pure server
 	if ( !fs_numServerPaks )
 		return;
-	
+
 	fs_reordered = qfalse;
-	
+
 	p_insert_index = &fs_searchpaths; // we insert in order at the beginning of the list 
 	for ( i = 0 ; i < fs_numServerPaks ; i++ ) {
 		p_previous = p_insert_index; // track the pointer-to-current-item
@@ -2738,23 +3400,28 @@ FS_Startup
 ================
 */
 static void FS_Startup( const char *gameName ) {
-        const char *homePath;
+	        const char *homePath;
 	cvar_t	*fs;
 
 	Com_Printf( "----- FS_Startup -----\n" );
 
 	fs_debug = Cvar_Get( "fs_debug", "0", 0 );
 	fs_copyfiles = Cvar_Get( "fs_copyfiles", "0", CVAR_INIT );
+	fs_webpath = Cvar_Get( "fs_webpath", "web", CVAR_INIT );
 	fs_cdpath = Cvar_Get ("fs_cdpath", Sys_DefaultCDPath(), CVAR_INIT );
 	fs_basepath = Cvar_Get ("fs_basepath", Sys_DefaultInstallPath(), CVAR_INIT );
 	fs_basegame = Cvar_Get ("fs_basegame", "", CVAR_INIT );
-  homePath = Sys_DefaultHomePath();
-  if (!homePath || !homePath[0]) {
-		homePath = fs_basepath->string;
+	homePath = Sys_DefaultHomePath();
+	if (!homePath || !homePath[0]) {
+	homePath = fs_basepath->string;
 	}
 	fs_homepath = Cvar_Get ("fs_homepath", homePath, CVAR_INIT );
+	fs_webpath = Cvar_Get ("fs_webpath", "", CVAR_INIT );
+	fs_webMappings = Cvar_Get ("fs_webMappings", fs_defaultFallbackMappings, CVAR_ARCHIVE );
 	fs_gamedirvar = Cvar_Get ("fs_game", "", CVAR_INIT|CVAR_SYSTEMINFO );
 	fs_restrict = Cvar_Get ("fs_restrict", "", CVAR_INIT );
+
+	FS_ParseFallbackMappings( fs_webMappings->string );
 
 	// add search path elements in reverse priority order
 	if (fs_cdpath->string[0]) {
@@ -2763,12 +3430,12 @@ static void FS_Startup( const char *gameName ) {
 	if (fs_basepath->string[0]) {
 		FS_AddGameDirectory( fs_basepath->string, gameName );
 	}
-  // fs_homepath is somewhat particular to *nix systems, only add if relevant
-  // NOTE: same filtering below for mods and basegame
+	// fs_homepath is somewhat particular to *nix systems, only add if relevant
+	// NOTE: same filtering below for mods and basegame
 	if (fs_basepath->string[0] && Q_stricmp(fs_homepath->string,fs_basepath->string)) {
 		FS_AddGameDirectory ( fs_homepath->string, gameName );
 	}
-        
+
 	// check for additional base game so mods can be based upon other mods
 	if ( fs_basegame->string[0] && !Q_stricmp( gameName, BASEGAME ) && Q_stricmp( fs_basegame->string, gameName ) ) {
 		if (fs_cdpath->string[0]) {
@@ -2810,7 +3477,7 @@ static void FS_Startup( const char *gameName ) {
 	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=506
 	// reorder the pure pk3 files according to server order
 	FS_ReorderPurePaks();
-	
+
 	// print the current search paths
 	FS_Path_f();
 
@@ -2818,11 +3485,11 @@ static void FS_Startup( const char *gameName ) {
 
 	Com_Printf( "----------------------\n" );
 
-#ifdef FS_MISSING
+	#ifdef FS_MISSING
 	if (missingFiles == NULL) {
 		missingFiles = fopen( "\\missing.txt", "ab" );
 	}
-#endif
+	#endif
 	Com_Printf( "%d files in pk3 files\n", fs_packFiles );
 }
 
@@ -3249,6 +3916,7 @@ void FS_InitFilesystem( void ) {
 	Com_StartupVariable( "fs_homepath" );
 	Com_StartupVariable( "fs_game" );
 	Com_StartupVariable( "fs_copyfiles" );
+	Com_StartupVariable( "fs_webpath" );
 	Com_StartupVariable( "fs_restrict" );
 
 	// try to start up normally
@@ -3256,6 +3924,8 @@ void FS_InitFilesystem( void ) {
 
 	// see if we are going to allow add-ons
 	FS_SetRestrictions();
+
+	FS_RunAssetPreflight();
 
 	// if we can't find default.cfg, assume that the paths are
 	// busted and error out now, rather than getting an unreadable

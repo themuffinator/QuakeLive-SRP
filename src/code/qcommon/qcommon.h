@@ -526,6 +526,14 @@ issues.
 
 #define BASEGAME "baseq3"
 
+typedef struct {
+	int		hits;
+	int		misses;
+} fsFallbackMetrics_t;
+
+#define FS_MAX_FALLBACK_MAPPINGS	8
+typedef struct pack_s pack_t;
+
 qboolean FS_Initialized();
 
 void	FS_InitFilesystem (void);
@@ -566,6 +574,11 @@ int		FS_FOpenFileRead( const char *qpath, fileHandle_t *file, qboolean uniqueFIL
 int		FS_FileIsInPAK(const char *filename, int *pChecksum );
 // returns 1 if a file is in the PAK file, otherwise -1
 
+pack_t *FS_LoadPackExplicit( const char *packPath );
+void FS_FreePak( pack_t *pack );
+qboolean FS_PakFileExists( const pack_t *pack, const char *filename );
+int FS_ReadFileFromPak( pack_t *pack, const char *filename, void **buffer );
+
 int		FS_Write( const void *buffer, int len, fileHandle_t f );
 
 int		FS_Read2( void *buffer, int len, fileHandle_t f );
@@ -575,6 +588,9 @@ int		FS_Read( void *buffer, int len, fileHandle_t f );
 void	FS_FCloseFile( fileHandle_t f );
 // note: you can't just fclose from another DLL, due to MS libc issues
 
+qboolean FS_FOpenWebFileRead( const char *request, fileHandle_t *file, char *resolvedPath, size_t resolvedSize );
+void	FS_GetFallbackMetrics( fsFallbackMetrics_t *outMetrics );
+
 int		FS_ReadFile( const char *qpath, void **buffer );
 // returns the length of the file
 // a null buffer will just return the file length without loading
@@ -582,6 +598,9 @@ int		FS_ReadFile( const char *qpath, void **buffer );
 // A 0 byte will always be appended at the end, so string ops are safe.
 // the buffer should be considered read-only, because it may be cached
 // for other uses.
+
+qboolean FS_RewriteWebPath( const char *uri, char *outPath, int outSize );
+int		FS_UIReadWebFile( const char *uri, byte *buffer, int bufferSize );
 
 void	FS_ForceFlush( fileHandle_t f );
 // forces flush on files we're writing to.
