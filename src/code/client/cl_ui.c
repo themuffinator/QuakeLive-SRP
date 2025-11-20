@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../game/botlib.h"
 #include "../../common/auth_credentials.h"
+#include "../../../src-re/include/fs_imports.h"
 
 extern	botlib_export_t	*botlib_export;
 
@@ -879,37 +880,36 @@ int CL_UISystemCalls( int *args ) {
 
 		request = VMA( 1 );
 		file = VMA( 2 );
-		length = FS_FOpenFileByMode( request, file, args[3] );
+		length = qlr_fs_imports.fopen_file_by_mode( request, file, args[3] );
 		if ( length > 0 || args[3] != FS_READ ) {
 			return length;
 		}
 
 		Com_Memset( resolved, 0, sizeof( resolved ) );
-		if ( FS_FOpenWebFileRead( request, file, resolved, sizeof( resolved ) ) && *file ) {
-			return FS_filelength( *file );
+		if ( qlr_fs_imports.fopen_web_file_read( request, file, resolved, sizeof( resolved ) ) && *file ) {
+			return qlr_fs_imports.filelength( *file );
 		}
 
 		return length;
 	}
 
 	case UI_FS_READ:
-		FS_Read2( VMA(1), args[2], args[3] );
+		qlr_fs_imports.read( VMA(1), args[2], args[3] );
 		return 0;
 
 	case UI_FS_WRITE:
-		FS_Write( VMA(1), args[2], args[3] );
+		qlr_fs_imports.write( VMA(1), args[2], args[3] );
 		return 0;
 
 	case UI_FS_FCLOSEFILE:
-		FS_FCloseFile( args[1] );
+		qlr_fs_imports.fclose_file( args[1] );
 		return 0;
 
 	case UI_FS_GETFILELIST:
-		return FS_GetFileList( VMA(1), VMA(2), VMA(3), args[4] );
+		return qlr_fs_imports.get_file_list( VMA(1), VMA(2), VMA(3), args[4] );
 
 	case UI_FS_SEEK:
-		return FS_Seek( args[1], args[2], args[3] );
-
+		return qlr_fs_imports.seek( args[1], args[2], args[3] );
 	case UI_LAUNCHER_READSCREENSHOT:
 		return CL_MenuReadScreenshot( VMA(1), VMA(2), args[3] );
 	

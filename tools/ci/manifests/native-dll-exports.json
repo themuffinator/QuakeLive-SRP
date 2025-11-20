@@ -2,15 +2,15 @@
   "modules": [
     {
       "name": "qagamex86.dll",
-      "exports": ["dllEntry", "vmMain"]
+      "exports": ["dllEntry", "vmMain", "qlr_fs_imports"]
     },
     {
       "name": "cgamex86.dll",
-      "exports": ["dllEntry", "vmMain"]
+      "exports": ["dllEntry", "vmMain", "qlr_fs_imports"]
     },
     {
       "name": "uix86.dll",
-      "exports": ["dllEntry", "vmMain"]
+      "exports": ["dllEntry", "vmMain", "qlr_fs_imports"]
     }
   ]
 }
