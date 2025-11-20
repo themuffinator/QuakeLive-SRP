@@ -499,6 +499,12 @@ void CL_CGameRendering( stereoFrame_t stereo );
 void CL_SetCGameTime( void );
 void CL_FirstSnapshot( void );
 void CL_ShaderStateChanged(void);
+void CL_WebPak_Init( void );
+void CL_WebPak_Shutdown( void );
+qboolean CL_WebPak_Available( void );
+qboolean CL_WebPak_Fetch( const char *virtualPath, void **outBuffer, int *outLength );
+qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *outLength );
+qboolean CL_LauncherRequestData( const char *virtualPath, void **outBuffer, int *outLength );
 
 //
 // cl_ui.c
@@ -509,6 +515,7 @@ int Key_GetCatcher( void );
 void Key_SetCatcher( int catcher );
 void LAN_LoadCachedServers();
 void LAN_SaveServersToCache();
+int CL_MenuReadScreenshot( const char *requestedName, byte *buffer, int bufferSize );
 
 
 //
