@@ -1887,6 +1887,7 @@ void CG_DrawInformation( void );
 //
 qboolean CG_DrawOldScoreboard( void );
 void CG_DrawOldTourneyScoreboard( void );
+void CG_TouchCompetitiveScores( void );
 void CG_StartScoreboardTimer( int startTime );
 void CG_StopScoreboardTimer( int stopTime );
 int CG_GetScoreboardTimerSeconds( void );
