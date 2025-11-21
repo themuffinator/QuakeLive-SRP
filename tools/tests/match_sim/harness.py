@@ -115,6 +115,9 @@ class MatchHarness:
         self.clanarena_settings: Mapping[str, Any] = self._load_clanarena_settings(
             self.config.metadata.get("clanarena")
         )
+        self.rating_settings: Mapping[str, Any] = self._load_rating_settings(
+            self.config.metadata.get("rating")
+        )
         self.duel_settings: Mapping[str, Any] = dict(self.config.metadata.get("duel", {}))
         (
             self.bot_profiles,
@@ -1147,6 +1150,10 @@ class MatchHarness:
             protection = None
             if bot_state is not None:
                 protection = self._freeze_apply_spawn_protection(bot_state, scheduled_time)
+            rating = self._resolve_rating_scales(bot_name)
+            if bot_state is not None:
+                bot_state.custom["rating_damage_scale"] = rating.get("damage_scale", 1.0)
+                bot_state.custom["rating_score_scale"] = rating.get("score_scale", 1.0)
             events.append(
                 {
                     "bot": bot_name,
@@ -1164,6 +1171,7 @@ class MatchHarness:
                         "source": payload.get("source"),
                         "count": payload.get("count"),
                         "freeze_protection_expires": protection,
+                        "rating": rating,
                     },
                 }
             )
@@ -1208,6 +1216,47 @@ class MatchHarness:
         events = list(self._pending_freeze_events)
         self._pending_freeze_events = []
         return events
+
+    # ------------------------------------------------------------------
+    # Rating helpers
+    # ------------------------------------------------------------------
+
+    def _load_rating_settings(self, payload: Any) -> Mapping[str, Any]:
+        if not isinstance(payload, Mapping):
+            return {}
+        settings: Dict[str, Any] = {}
+        default_entry = payload.get("default", {})
+        if isinstance(default_entry, Mapping):
+            settings["default"] = {
+                "damage_scale": float(default_entry.get("damage_scale", 1.0)),
+                "score_scale": float(default_entry.get("score_scale", 1.0)),
+            }
+        bot_entries = payload.get("bots", {})
+        if isinstance(bot_entries, Mapping):
+            bot_settings: Dict[str, Dict[str, float]] = {}
+            for name, entry in bot_entries.items():
+                if not isinstance(entry, Mapping):
+                    continue
+                bot_settings[str(name)] = {
+                    "damage_scale": float(entry.get("damage_scale", settings.get("default", {}).get("damage_scale", 1.0))),
+                    "score_scale": float(entry.get("score_scale", settings.get("default", {}).get("score_scale", 1.0))),
+                }
+            settings["bots"] = bot_settings
+        return settings
+
+    def _resolve_rating_scales(self, bot_name: Optional[str]) -> Dict[str, float]:
+        default_settings = self.rating_settings.get("default", {})
+        damage_scale = float(default_settings.get("damage_scale", 1.0))
+        score_scale = float(default_settings.get("score_scale", 1.0))
+        if bot_name:
+            bot_entry = self.rating_settings.get("bots", {}).get(bot_name)
+            if isinstance(bot_entry, Mapping):
+                damage_scale = float(bot_entry.get("damage_scale", damage_scale))
+                score_scale = float(bot_entry.get("score_scale", score_scale))
+        return {
+            "damage_scale": damage_scale,
+            "score_scale": score_scale,
+        }
 
     # ------------------------------------------------------------------
     # Freeze Tag helpers

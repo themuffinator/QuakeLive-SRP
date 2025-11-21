@@ -659,6 +659,9 @@ typedef struct {
 	int		voteLastSelection;
 	int		voteLastEnableFrame;
 	int		killCommandTime;
+	float		ratingDamageScale;
+	float		ratingScoreScale;
+	qboolean	ratingMetadataLoaded;
 } clientPersistant_t;
 
 
@@ -682,6 +685,8 @@ struct gclient_s {
 	int			buttons;
 	int			oldbuttons;
 	int			latched_buttons;
+	float		damageModifier;
+	float		scoreModifier;
 
 	vec3_t		oldOrigin;
 
