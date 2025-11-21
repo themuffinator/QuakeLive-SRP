@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import copy
 import ctypes
+import hashlib
 import os
 import subprocess
 import sys
@@ -427,6 +428,23 @@ def _summarise_item_events(frames: Iterable[object]) -> str:
     return "\n".join(lines)
 
 
+def _summarise_scoreboard_hashes(frames: Iterable[object]) -> str:
+    snapshots: list[str] = []
+    for frame in frames:
+        bots = getattr(frame, "bots", {})
+        summary_parts: list[str] = []
+        for name in sorted(bots):
+            bot = bots[name]
+            inventory = bot.get("inventory", {}) if isinstance(bot, Mapping) else {}
+            health = int(bot.get("health", 0)) if isinstance(bot, Mapping) else 0
+            armor = int(inventory.get("armor", 0)) if isinstance(inventory, Mapping) else 0
+            summary_parts.append(f"{name}:{health}/{armor}")
+        snapshot = "|".join(summary_parts)
+        digest = hashlib.sha256(snapshot.encode("utf-8")).hexdigest()[:16]
+        snapshots.append(f"{frame.time:05.2f} {digest}")
+    return "\n".join(snapshots)
+
+
 def _read_expectation(name: str) -> str:
     expectation_path = REPO_ROOT / "tests" / "expectations" / name
     return expectation_path.read_text(encoding="utf-8").strip()
@@ -457,6 +475,20 @@ def test_factory_item_flags_control_drop_behaviour(tmp_path: Path) -> None:
 def _read_factory_item_sections() -> list[str]:
     expectation = _read_expectation("match_sim_factory_items.expect")
     return [section.strip() for section in expectation.split("\n---\n")]
+
+
+def test_scoreboard_snapshot_hashes_match_expectation(tmp_path: Path) -> None:
+    result = run_from_file(SCENARIO, seed=2024)
+    hashes = _summarise_scoreboard_hashes(result.frames)
+    expected = _read_expectation("match_sim_scoreboard_hashes.expect")
+
+    if hashes.strip() != expected.strip():
+        output_path = tmp_path / "scoreboard_hashes.actual"
+        output_path.write_text(hashes, encoding="utf-8")
+        pytest.fail(
+            "Scoreboard snapshot hashes diverged. "
+            f"Captured summary written to {output_path}"
+        )
 
 
 def test_cli_item_parity_matches_baseline_expectation(harness_parity_runs) -> None:
