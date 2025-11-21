@@ -296,6 +296,32 @@ static void CG_DrawFactoryMetadata( float fade ) {
 	CG_DrawSmallStringColor( x, y, line, color );
 }
 
+
+/*
+=============
+CG_FormatScoreboardTime
+
+Formats a time value into the mm:ss string used on the scoreboard.
+=============
+*/
+static void CG_FormatScoreboardTime( int timeSeconds, char *buffer, int bufferSize ) {
+	int		minutes;
+	int		seconds;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	if ( timeSeconds < 0 ) {
+		timeSeconds = 0;
+	}
+
+	minutes = timeSeconds / 60;
+	seconds = timeSeconds % 60;
+
+	Com_sprintf( buffer, bufferSize, "%i:%02i", minutes, seconds );
+}
+
 /*
 =================
 CG_DrawClientScore
@@ -308,6 +334,8 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	vec3_t	headAngles;
 	clientInfo_t	*ci;
 	int iconx, headx;
+	int timeValue;
+	char	timeString[16];
 
 	if ( score->client < 0 || score->client >= cgs.maxclients ) {
 		Com_Printf( "Bad score->client: %i\n", score->client );
@@ -392,6 +420,17 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 		}
 	}
 	// draw the score line
+	timeValue = score->time;
+	if ( timersActive ) {
+		if ( timeValue <= 0 ) {
+			timeValue = CG_GetScoreboardTimerSeconds();
+		}
+
+		CG_FormatScoreboardTime( timeValue, timeString, sizeof( timeString ) );
+	} else {
+		timeString[0] = '\0';
+	}
+
 	if ( score->ping == -1 ) {
 		if ( timersActive ) {
 			Com_sprintf( string, sizeof( string ),
@@ -403,10 +442,10 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	} else if ( timersActive ) {
 		if ( ci->team == TEAM_SPECTATOR ) {
 			Com_sprintf( string, sizeof( string ),
-				" SPECT %3i %4i %s", score->ping, score->time, ci->name );
+				" SPECT %3i %7s %s", score->ping, timeString, ci->name );
 		} else {
 			Com_sprintf( string, sizeof( string ),
-				"%5i %4i %4i %s", score->score, score->ping, score->time, ci->name );
+				"%5i %4i %7s %s", score->score, score->ping, timeString, ci->name );
 		}
 	} else {
 		if ( ci->team == TEAM_SPECTATOR ) {

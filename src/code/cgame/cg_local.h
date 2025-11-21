@@ -650,6 +650,9 @@ typedef struct {
 	score_t		scores[MAX_CLIENTS];
 	qboolean	showScores;
 	qboolean	scoreBoardShowing;
+	qboolean	scoreboardTimerRunning;
+	int			scoreboardTimerStartTime;
+	int			scoreboardTimerStopTime;
 	int			scoreFadeTime;
 	char		killerName[MAX_NAME_LENGTH];
 	char			spectatorList[MAX_STRING_CHARS];		// list of names
@@ -1881,6 +1884,9 @@ void CG_DrawInformation( void );
 //
 qboolean CG_DrawOldScoreboard( void );
 void CG_DrawOldTourneyScoreboard( void );
+void CG_StartScoreboardTimer( int startTime );
+void CG_StopScoreboardTimer( int stopTime );
+int CG_GetScoreboardTimerSeconds( void );
 
 //
 // cg_consolecmds.c
