@@ -30,6 +30,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/bg_public.h"
 #include "ui_shared.h"
 
+#define UI_MENU_FILE_LEGACY "ui/menus.txt"
+#define UI_MENU_FILE_QUAKELIVE "ui/menus_quakelive.txt"
+#define UI_MENU_FILE_QUAKELIVE_BRIDGE "ui/menus_quakelive_bridge.auto.txt"
+#define UI_INGAME_FILE_LEGACY "ui/ingame.txt"
+#define UI_INGAME_FILE_QUAKELIVE "ui/ingame_quakelive.txt"
+#define UI_INGAME_FILE_QUAKELIVE_BRIDGE "ui/ingame_quakelive_bridge.auto.txt"
+
 // global display context
 
 extern vmCvar_t	ui_ffa_fraglimit;
@@ -140,11 +147,18 @@ extern vmCvar_t ui_serverStatusTimeOut;
 //
 
 typedef enum {
-	UI_MENU_FLOW_LEGACY = 0,
-	UI_MENU_FLOW_QUAKELIVE = 1
+UI_MENU_FLOW_LEGACY = 0,
+UI_MENU_FLOW_QUAKELIVE = 1,
+UI_MENU_FLOW_BRIDGED = 2
 } uiMenuFlow_t;
 
 qboolean UI_BrowserOverlayAvailable(void);
+qboolean UI_BrowserBridgeAvailable(void);
+qboolean UI_BrowserBridgeActive(void);
+void UI_BrowserBridge_SetActive(qboolean active);
+void UI_BrowserBridge_Init(void);
+const char *UI_BrowserBridgeMenuFile(void);
+const char *UI_BrowserBridgeIngameFile(void);
 qboolean UI_UsingLegacyMenuFlow(void);
 void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload);
 qhandle_t UI_ImageCache_Register( const char *uri );

@@ -158,18 +158,13 @@ vmCvar_t  ui_teamArenaFirstRun;
 vmCvar_t  ui_menuFlow;
 vmCvar_t  ui_browserAwesomium;
 
-#define UI_MENU_FILE_LEGACY             "ui/menus.txt"
-#define UI_MENU_FILE_QUAKELIVE          "ui/menus_quakelive.txt"
-#define UI_INGAME_FILE_LEGACY           "ui/ingame.txt"
-#define UI_INGAME_FILE_QUAKELIVE        "ui/ingame_quakelive.txt"
-
 static uiMenuFlow_t ui_activeMenuFlow = UI_MENU_FLOW_LEGACY;
 static qboolean ui_browserActiveKnown = qfalse;
 static qboolean ui_browserActiveState = qfalse;
 static const char *ui_browserRefreshCommand = "web_stopRefresh\n";
 
 static qboolean UI_MenuFileEquals(const char *lhs, const char *rhs) {
-        return (lhs && rhs) ? (Q_stricmp(lhs, rhs) == 0) : qfalse;
+	return (lhs && rhs) ? (Q_stricmp(lhs, rhs) == 0) : qfalse;
 }
 
 qboolean UI_BrowserOverlayAvailable(void) {
@@ -182,9 +177,19 @@ static uiMenuFlow_t UI_RequestedMenuFlow(void) {
 
 static uiMenuFlow_t UI_ResolveMenuFlowInternal(void) {
 	uiMenuFlow_t requested = UI_RequestedMenuFlow();
-	if (requested == UI_MENU_FLOW_QUAKELIVE && !UI_BrowserOverlayAvailable()) {
+
+	if (requested == UI_MENU_FLOW_QUAKELIVE) {
+		if (UI_BrowserOverlayAvailable()) {
+			return UI_MENU_FLOW_QUAKELIVE;
+		}
+
+		if (UI_BrowserBridgeAvailable()) {
+			return UI_MENU_FLOW_BRIDGED;
+		}
+
 		return UI_MENU_FLOW_LEGACY;
 	}
+
 	return requested;
 }
 
@@ -207,44 +212,55 @@ static void UI_SetBrowserActive(qboolean active) {
 
 static void UI_SetActiveMenuFlow(uiMenuFlow_t flow) {
 	ui_activeMenuFlow = flow;
-	ui_new.integer = (flow == UI_MENU_FLOW_QUAKELIVE);
+	ui_new.integer = (flow != UI_MENU_FLOW_LEGACY);
 	UI_SetBrowserActive(flow == UI_MENU_FLOW_QUAKELIVE);
+	UI_BrowserBridge_SetActive(flow == UI_MENU_FLOW_BRIDGED);
 }
 
 qboolean UI_UsingLegacyMenuFlow(void) {
-        return (ui_activeMenuFlow == UI_MENU_FLOW_LEGACY);
+	return (ui_activeMenuFlow == UI_MENU_FLOW_LEGACY);
 }
 
 static qboolean UI_ServerBrowserEnabled(void) {
-        return UI_UsingLegacyMenuFlow();
+	return (UI_UsingLegacyMenuFlow() || ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED);
 }
 
 static void UI_UpdateActiveMenuFlowForFile(const char *menuFile) {
-        if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE)) {
-                UI_SetActiveMenuFlow(UI_MENU_FLOW_QUAKELIVE);
-        } else if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_LEGACY) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_LEGACY)) {
-                UI_SetActiveMenuFlow(UI_MENU_FLOW_LEGACY);
-        }
+	if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE)) {
+		UI_SetActiveMenuFlow(UI_MENU_FLOW_QUAKELIVE);
+	} else if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE_BRIDGE) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE_BRIDGE)) {
+		UI_SetActiveMenuFlow(UI_MENU_FLOW_BRIDGED);
+	} else if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_LEGACY) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_LEGACY)) {
+		UI_SetActiveMenuFlow(UI_MENU_FLOW_LEGACY);
+	}
 }
 
 const char *UI_DefaultMenuFile(void) {
-        return UI_UsingLegacyMenuFlow() ? UI_MENU_FILE_LEGACY : UI_MENU_FILE_QUAKELIVE;
+	if (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED) {
+		return UI_MENU_FILE_QUAKELIVE_BRIDGE;
+	}
+
+	return UI_UsingLegacyMenuFlow() ? UI_MENU_FILE_LEGACY : UI_MENU_FILE_QUAKELIVE;
 }
 
 const char *UI_DefaultIngameFile(void) {
-        return UI_UsingLegacyMenuFlow() ? UI_INGAME_FILE_LEGACY : UI_INGAME_FILE_QUAKELIVE;
+	if (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED) {
+		return UI_INGAME_FILE_QUAKELIVE_BRIDGE;
+	}
+
+	return UI_UsingLegacyMenuFlow() ? UI_INGAME_FILE_LEGACY : UI_INGAME_FILE_QUAKELIVE;
 }
 
 static void UI_UpdateActiveMenuFlow(void) {
-        UI_SetActiveMenuFlow(UI_ResolveMenuFlowInternal());
+	UI_SetActiveMenuFlow(UI_ResolveMenuFlowInternal());
 }
 
 void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload) {
-        trap_Cvar_SetValue("ui_menuFlow", flow);
-        UI_UpdateActiveMenuFlow();
-        if (reload) {
-                UI_Load();
-        }
+	trap_Cvar_SetValue("ui_menuFlow", flow);
+	UI_UpdateActiveMenuFlow();
+	if (reload) {
+		UI_Load();
+	}
 }
 
 void _UI_Init( qboolean );
@@ -1247,7 +1263,8 @@ void UI_LoadMenus(const char *menuFile, qboolean reset) {
 
 
 	UI_UpdateActiveMenuFlowForFile(menuFile);
-	UI_SetBrowserActive(!UI_UsingLegacyMenuFlow());
+	UI_SetBrowserActive(ui_activeMenuFlow == UI_MENU_FLOW_QUAKELIVE);
+	UI_BrowserBridge_SetActive(ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED);
 
 	if (reset) {
                 Menu_Reset();
@@ -6339,7 +6356,8 @@ void UI_LoadNonIngame() {
 void _UI_SetActiveMenu( uiMenuCommand_t menu ) {
 	char buf[256];
 
-	UI_SetBrowserActive(!UI_UsingLegacyMenuFlow());
+	UI_SetBrowserActive(ui_activeMenuFlow == UI_MENU_FLOW_QUAKELIVE);
+	UI_BrowserBridge_SetActive(ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED);
 
 	// this should be the ONLY way the menu system is brought up
 	// enusure minumum menu data is cached
