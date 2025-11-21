@@ -25,20 +25,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_match_config.h"
 #include <ctype.h>
 
-#define DISABLE_LOADOUT_G			( 1u << 0 )
-#define DISABLE_LOADOUT_MG		( 1u << 1 )
-#define DISABLE_LOADOUT_SG		( 1u << 2 )
-#define DISABLE_LOADOUT_GL		( 1u << 3 )
-#define DISABLE_LOADOUT_RL		( 1u << 4 )
-#define DISABLE_LOADOUT_LG		( 1u << 5 )
-#define DISABLE_LOADOUT_RG		( 1u << 6 )
-#define DISABLE_LOADOUT_PG		( 1u << 7 )
-#define DISABLE_LOADOUT_BFG		( 1u << 8 )
-#define DISABLE_LOADOUT_GH		( 1u << 9 )
-#define DISABLE_LOADOUT_NG		( 1u << 10 )
-#define DISABLE_LOADOUT_PL		( 1u << 11 )
-#define DISABLE_LOADOUT_CG		( 1u << 12 )
-#define DISABLE_LOADOUT_HMG		( 1u << 13 )
 
 typedef struct disableLoadoutToken_s {
 	const char		*token;
@@ -177,6 +163,8 @@ static void G_WriteDisableLoadoutConfigstrings( unsigned int mapMask, unsigned i
 	unsigned int combinedMask;
 
 	combinedMask = mapMask | serverMask;
+	level.disableLoadoutServerMask = serverMask;
+	level.disableLoadoutCombinedMask = combinedMask;
 	if ( !combinedMask ) {
 		trap_SetConfigstring( CS_LOADOUT_FLAGS, "" );
 		trap_SetConfigstring( CS_LOADOUT_MASK, "" );

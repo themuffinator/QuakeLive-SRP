@@ -2109,6 +2109,7 @@ void ClientSpawn(gentity_t *ent) {
 			startingMask = ( 1u << WP_MACHINEGUN ) | ( 1u << WP_GAUNTLET );
 		}
 
+		startingMask = G_FilterLoadoutByProgression( startingMask );
 		client->ps.stats[STAT_WEAPONS] = startingMask;
 
 		for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {

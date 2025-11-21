@@ -22,6 +22,7 @@ SCENARIO = REPO_ROOT / "tools" / "tests" / "match_sim" / "sample_scenario.json"
 SCENARIO_DIR = REPO_ROOT / "tools" / "tests" / "match_sim"
 ROTATION_SCENARIO = SCENARIO_DIR / "rotation_vote.json"
 FREEZE_SCENARIO = SCENARIO_DIR / "freeze_cvars.json"
+PROGRESSION_SCENARIO = SCENARIO_DIR / "progression_loadouts.json"
 ALL_SCENARIOS = [
     SCENARIO,
     SCENARIO_DIR / "overtime_scenario.json",
@@ -29,6 +30,7 @@ ALL_SCENARIOS = [
     SCENARIO_DIR / "factory_cvars.json",
     ROTATION_SCENARIO,
     FREEZE_SCENARIO,
+    PROGRESSION_SCENARIO,
 ]
 
 SRC_DIR = REPO_ROOT / "src"
@@ -427,6 +429,27 @@ def _summarise_item_events(frames: Iterable[object]) -> str:
     return "\n".join(lines)
 
 
+def _summarise_progression_snapshot(frame: Mapping[str, object]) -> str:
+    lines: list[str] = []
+    bots_obj = getattr(frame, "bots", None)
+    if bots_obj is None and isinstance(frame, Mapping):
+        bots_obj = frame.get("bots", {})
+    if bots_obj is None:
+        raise TypeError("Frame does not expose bot state data")
+
+    for name in sorted(bots_obj):
+        bot_state = bots_obj[name]
+        ammo = bot_state.get("ammo", {})
+        inventory = bot_state.get("inventory", {})
+        ammo_repr = {key: ammo[key] for key in sorted(ammo)}
+        inventory_repr = {key: inventory[key] for key in sorted(inventory)}
+        lines.append(
+            f"{name} ammo={ammo_repr} inventory={inventory_repr}"
+        )
+
+    return "\n".join(lines)
+
+
 def _read_expectation(name: str) -> str:
     expectation_path = REPO_ROOT / "tests" / "expectations" / name
     return expectation_path.read_text(encoding="utf-8").strip()
@@ -488,6 +511,26 @@ def test_cli_item_parity_native_build_matches_vm(harness_parity_runs) -> None:
 
     trace_log = native_run.read_log("trace_harness")
     assert "Trace harness run completed successfully." in trace_log
+
+
+def test_factory_progression_loadouts_respect_locks() -> None:
+    unlocked = load_config(PROGRESSION_SCENARIO)
+    unlocked.metadata["progression"] = {}
+    unlocked_result = MatchHarness(unlocked, seed=unlocked.seed).run()
+
+    locked = load_config(PROGRESSION_SCENARIO)
+    locked_result = MatchHarness(locked, seed=locked.seed).run()
+
+    combined = "\n".join(
+        [
+            _summarise_progression_snapshot(unlocked_result.frames[0]),
+            "---",
+            _summarise_progression_snapshot(locked_result.frames[0]),
+        ]
+    )
+
+    expectation = _read_expectation("match_sim_progression_loadouts.expect")
+    assert combined.strip() == expectation.strip()
 
 
 def _build_factory_metadata_library(tmp_path: Path) -> Path:

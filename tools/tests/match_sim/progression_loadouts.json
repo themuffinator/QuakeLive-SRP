@@ -1,0 +1,64 @@
+{
+  "map": "focal_point",
+  "duration": 2.0,
+  "tick_rate": 20,
+  "seed": 2025,
+  "metadata": {
+    "description": "Progression-gated factory loadout coverage",
+    "mode": "ffa",
+    "factory": {
+      "active_loadout": "progression",
+      "loadouts": {
+        "progression": {
+          "ammo": {
+            "machinegun": 50,
+            "rocket": 15,
+            "rail": 5
+          },
+          "inventory": {
+            "gauntlet": 1,
+            "rocket": 1,
+            "rail": 1
+          }
+        }
+      }
+    },
+    "progression": {
+      "locked_loadout": ["rl", "rg"]
+    }
+  },
+  "bots": [
+    {
+      "name": "visor",
+      "team": "red",
+      "spawn": {
+        "position": [0, 0, 64],
+        "factory_loadout": "progression"
+      },
+      "initial_state": {
+        "health": 100,
+        "ammo": {},
+        "inventory": {}
+      },
+      "script": [
+        {"time": 0.0, "action": "request_spawn", "params": {"warmup": true}}
+      ]
+    },
+    {
+      "name": "anarki",
+      "team": "blue",
+      "spawn": {
+        "position": [64, 0, 64],
+        "factory_loadout": "progression"
+      },
+      "initial_state": {
+        "health": 100,
+        "ammo": {},
+        "inventory": {}
+      },
+      "script": [
+        {"time": 0.0, "action": "request_spawn", "params": {"warmup": true}}
+      ]
+    }
+  ]
+}

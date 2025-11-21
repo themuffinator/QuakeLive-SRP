@@ -88,6 +88,92 @@ gitem_t *G_KeyItemForBit( int bit ) {
 	return NULL;
 }
 
+/*
+=============
+G_LoadoutDisableMaskForWeapon
+
+Translates a weapon_t into the corresponding disable_loadout mask bit used for progression gating.
+=============
+*/
+static unsigned int G_LoadoutDisableMaskForWeapon( weapon_t weapon ) {
+	switch ( weapon ) {
+	case WP_GAUNTLET:
+		return DISABLE_LOADOUT_G;
+	case WP_MACHINEGUN:
+		return DISABLE_LOADOUT_MG;
+	case WP_SHOTGUN:
+		return DISABLE_LOADOUT_SG;
+	case WP_GRENADE_LAUNCHER:
+		return DISABLE_LOADOUT_GL;
+	case WP_ROCKET_LAUNCHER:
+		return DISABLE_LOADOUT_RL;
+	case WP_LIGHTNING:
+		return DISABLE_LOADOUT_LG;
+	case WP_RAILGUN:
+		return DISABLE_LOADOUT_RG;
+	case WP_PLASMAGUN:
+		return DISABLE_LOADOUT_PG;
+	case WP_BFG:
+		return DISABLE_LOADOUT_BFG;
+	case WP_GRAPPLING_HOOK:
+		return DISABLE_LOADOUT_GH;
+	case WP_NAILGUN:
+		return DISABLE_LOADOUT_NG;
+	case WP_PROX_LAUNCHER:
+		return DISABLE_LOADOUT_PL;
+	case WP_CHAINGUN:
+		return DISABLE_LOADOUT_CG;
+	case WP_HEAVY_MACHINEGUN:
+		return DISABLE_LOADOUT_HMG;
+	default:
+		break;
+	}
+
+	return 0u;
+}
+
+/*
+=============
+G_FilterLoadoutByProgression
+
+Removes weapons blocked by disable_loadout progression flags and falls back to the default spawn kit when empty.
+=============
+*/
+unsigned int G_FilterLoadoutByProgression( unsigned int statMask ) {
+	unsigned int	filteredMask;
+	unsigned int	disabledMask;
+	weapon_t	weapon;
+
+	disabledMask = level.disableLoadoutCombinedMask;
+	if ( disabledMask == 0 ) {
+		return statMask;
+	}
+
+	filteredMask = 0u;
+	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {
+		unsigned int weaponBit;
+		unsigned int loadoutBit;
+
+		weaponBit = ( 1u << weapon );
+		if ( !( statMask & weaponBit ) ) {
+			continue;
+		}
+
+		loadoutBit = G_LoadoutDisableMaskForWeapon( weapon );
+		if ( loadoutBit && ( disabledMask & loadoutBit ) ) {
+			continue;
+		}
+
+		filteredMask |= weaponBit;
+	}
+
+	if ( filteredMask == 0u ) {
+		filteredMask = ( 1u << WP_MACHINEGUN ) | ( 1u << WP_GAUNTLET );
+	}
+
+	return filteredMask;
+}
+
 #define	RESPAWN_POWERUP		120
 
 /*

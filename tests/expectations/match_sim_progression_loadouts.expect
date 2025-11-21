@@ -1,0 +1,5 @@
+anarki ammo={'machinegun': 50.0, 'rail': 5.0, 'rocket': 15.0} inventory={'gauntlet': 1, 'rail': 1, 'rocket': 1}
+visor ammo={'machinegun': 50.0, 'rail': 5.0, 'rocket': 15.0} inventory={'gauntlet': 1, 'rail': 1, 'rocket': 1}
+---
+anarki ammo={'machinegun': 50.0} inventory={'gauntlet': 1}
+visor ammo={'machinegun': 50.0} inventory={'gauntlet': 1}

@@ -11,6 +11,40 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
+LOADOUT_TOKEN_MASKS: Dict[str, int] = {
+    "g": 1 << 0,
+    "gauntlet": 1 << 0,
+    "mg": 1 << 1,
+    "machinegun": 1 << 1,
+    "sg": 1 << 2,
+    "shotgun": 1 << 2,
+    "gl": 1 << 3,
+    "grenade": 1 << 3,
+    "grenade_launcher": 1 << 3,
+    "rl": 1 << 4,
+    "rocket": 1 << 4,
+    "lg": 1 << 5,
+    "lightning": 1 << 5,
+    "rg": 1 << 6,
+    "rail": 1 << 6,
+    "pg": 1 << 7,
+    "plasma": 1 << 7,
+    "plasmagun": 1 << 7,
+    "bfg": 1 << 8,
+    "gh": 1 << 9,
+    "grapple": 1 << 9,
+    "grappling_hook": 1 << 9,
+    "ng": 1 << 10,
+    "nailgun": 1 << 10,
+    "pl": 1 << 11,
+    "prox": 1 << 11,
+    "prox_launcher": 1 << 11,
+    "cg": 1 << 12,
+    "chaingun": 1 << 12,
+    "hmg": 1 << 13,
+    "heavy_machinegun": 1 << 13,
+}
+
 from .config import BotConfig, CommandConfig, MatchConfig
 
 
@@ -116,6 +150,9 @@ class MatchHarness:
             self.config.metadata.get("clanarena")
         )
         self.duel_settings: Mapping[str, Any] = dict(self.config.metadata.get("duel", {}))
+        self.progression_settings: Mapping[str, Any] = dict(
+            self.config.metadata.get("progression", {})
+        )
         (
             self.bot_profiles,
             self.spawn_schedule,
@@ -138,6 +175,9 @@ class MatchHarness:
         self._shuffle_countdown_deadline: Optional[float] = None
         self._clanarena_population: Dict[str, int] = {"red": 0, "blue": 0}
         self._flood_counters: Dict[str, Dict[str, float]] = {}
+        self._loadout_disable_mask: int = self._resolve_progression_mask(
+            self.progression_settings
+        )
 
     @staticmethod
     def _resolve_seed(*seeds: Optional[int]) -> int:
@@ -1075,6 +1115,26 @@ class MatchHarness:
             return False, f"issuer '{issuer}' denied for {context}"
         return True, None
 
+    def _loadout_mask_for_key(self, weapon: str) -> int:
+        return LOADOUT_TOKEN_MASKS.get(str(weapon).lower().strip(), 0)
+
+    def _resolve_progression_mask(self, progression: Mapping[str, Any]) -> int:
+        if not isinstance(progression, Mapping):
+            return 0
+
+        locked = progression.get("locked_loadout")
+        mask = 0
+
+        if isinstance(locked, Sequence) and not isinstance(locked, (str, bytes)):
+            for token in locked:
+                mask |= self._loadout_mask_for_key(token)
+
+        locked_mask = progression.get("locked_mask")
+        if isinstance(locked_mask, int):
+            mask |= locked_mask
+
+        return int(mask)
+
     def _apply_factory_loadout(self, state: BotState, bot: BotConfig) -> None:
         loadouts = self._get_factory_setting("loadouts", default={})
         if not isinstance(loadouts, Mapping):
@@ -1091,12 +1151,28 @@ class MatchHarness:
             return
         ammo = loadout.get("ammo", {})
         inventory = loadout.get("inventory", {})
+        disable_mask = self._loadout_disable_mask
         if isinstance(ammo, Mapping):
             for weapon, amount in ammo.items():
+                mask_bit = self._loadout_mask_for_key(weapon)
+                if disable_mask and mask_bit and (disable_mask & mask_bit):
+                    continue
                 state.ammo[str(weapon)] = float(amount)
         if isinstance(inventory, Mapping):
+            inventory_mask = 0
+            filtered_inventory: Dict[str, int] = {}
             for item, count in inventory.items():
-                state.inventory[str(item)] = int(count)
+                mask_bit = self._loadout_mask_for_key(item)
+                if disable_mask and mask_bit and (disable_mask & mask_bit):
+                    continue
+                filtered_inventory[str(item)] = int(count)
+                inventory_mask |= mask_bit
+
+            if disable_mask and inventory_mask == 0:
+                filtered_inventory.setdefault("gauntlet", 1)
+
+            for key, value in filtered_inventory.items():
+                state.inventory[key] = value
 
     def _schedule_spawn_event(self, time_point: float, payload: Dict[str, Any]) -> None:
         entry = (time_point, self._event_counter, payload)
