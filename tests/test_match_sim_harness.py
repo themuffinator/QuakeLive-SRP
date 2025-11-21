@@ -23,6 +23,7 @@ SCENARIO = REPO_ROOT / "tools" / "tests" / "match_sim" / "sample_scenario.json"
 SCENARIO_DIR = REPO_ROOT / "tools" / "tests" / "match_sim"
 ROTATION_SCENARIO = SCENARIO_DIR / "rotation_vote.json"
 FREEZE_SCENARIO = SCENARIO_DIR / "freeze_cvars.json"
+RATING_SCENARIO = SCENARIO_DIR / "rating_metadata.json"
 ALL_SCENARIOS = [
     SCENARIO,
     SCENARIO_DIR / "overtime_scenario.json",
@@ -30,6 +31,7 @@ ALL_SCENARIOS = [
     SCENARIO_DIR / "factory_cvars.json",
     ROTATION_SCENARIO,
     FREEZE_SCENARIO,
+    RATING_SCENARIO,
 ]
 
 SRC_DIR = REPO_ROOT / "src"
@@ -477,6 +479,23 @@ def _read_factory_item_sections() -> list[str]:
     return [section.strip() for section in expectation.split("\n---\n")]
 
 
+def _summarise_rating_events(frames: list[Mapping[str, Any]]) -> str:
+    lines: list[str] = []
+    for frame in frames:
+        for event in frame.get("events", []):
+            if event.get("action") != "client_spawn":
+                continue
+            rating = event.get("details", {}).get("rating", {})
+            warmup = "warmup" if event.get("details", {}).get("warmup") else "live"
+            lines.append(
+                f"{event.get('time', 0.0):.3f} "
+                f"{event.get('bot', '')} {warmup} "
+                f"dmg={float(rating.get('damage_scale', 1.0)):.2f} "
+                f"score={float(rating.get('score_scale', 1.0)):.2f}"
+            )
+    return "\n".join(lines)
+  
+  
 def test_scoreboard_snapshot_hashes_match_expectation(tmp_path: Path) -> None:
     result = run_from_file(SCENARIO, seed=2024)
     hashes = _summarise_scoreboard_hashes(result.frames)
@@ -520,6 +539,26 @@ def test_cli_item_parity_native_build_matches_vm(harness_parity_runs) -> None:
 
     trace_log = native_run.read_log("trace_harness")
     assert "Trace harness run completed successfully." in trace_log
+
+
+def test_rating_metadata_parity(harness_parity_runs) -> None:
+    expectation = _read_expectation("match_sim_rating_metadata.expect")
+    reference_payload: dict[str, object] | None = None
+
+    for target in ("qvm", "dll"):
+        run = harness_parity_runs.require(target)
+        payload = run.load_match_timeline("rating_metadata")
+        summary = _summarise_rating_events(payload.get("frames", []))
+        assert summary.strip() == expectation.strip()
+
+        if reference_payload is None:
+            reference_payload = payload
+        else:
+            assert payload == reference_payload
+
+    native_run = harness_parity_runs.get("re")
+    if native_run is not None and reference_payload is not None:
+        assert native_run.load_match_timeline("rating_metadata") == reference_payload
 
 
 def _build_factory_metadata_library(tmp_path: Path) -> Path:
