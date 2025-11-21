@@ -36,6 +36,12 @@
     <ClCompile Include="ui_main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ui_menu_flow.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_server_browser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="ui_players.c">
       <Filter>Source Files</Filter>
     </ClCompile>

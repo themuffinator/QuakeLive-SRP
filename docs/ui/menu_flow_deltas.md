@@ -1,0 +1,6 @@
+# UI Menu Flow and Server Browser Deltas
+
+- The HLIL reference stamps `ui_lastServerRefresh_%i`, sets refresh-active flags, and drives the local server query even when only pending pings are refreshed. The shared helper now mirrors that flow and is covered by a harness regression that validates ping resets, timestamp formatting, and the local refresh command routing.【F:references/hlil/quakelive/uix86.all/uix86.dll_hlil_split/uix86.dll_hlil_part01.txt†L12290-L12348】【F:src/code/ui/ui_server_browser.c†L17-L79】【F:tests/test_ui_server_refresh.py†L1-L125】
+- The reference binary expects `ui/menus.txt` as the default menu definition and only emits fallback errors for that path, whereas the source tree previously defaulted to a non-existent Quake Live variant. The defaults now start in the legacy flow with the browser overlay disabled, eliminating noisy fallbacks and matching the reference’s asset expectations.【F:references/hlil/quakelive/uix86.all/uix86.dll_hlil_split/uix86.dll_hlil_part01.txt†L27715-L27735】【F:src/code/ui/ui_main.c†L157-L171】【F:src/code/ui/ui_menu_flow.c†L69-L94】
+- Menu flow selection and overlay activation now live in a shared module, with a harness test ensuring overlay activation commands only fire when requested and available, keeping legacy flow intact otherwise.【F:src/code/ui/ui_menu_flow.c†L17-L94】【F:tests/test_ui_menu_flow.py†L1-L97】
+

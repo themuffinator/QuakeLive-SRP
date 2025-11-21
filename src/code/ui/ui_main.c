@@ -32,16 +32,10 @@ USER INTERFACE MAIN
 //#define PRE_RELEASE_TADEMO
 
 #include "ui_local.h"
+#include "ui_menu_flow.h"
+#include "ui_server_browser.h"
 
 uiInfo_t uiInfo;
-
-static const char *MonthAbbrev[] = {
-	"Jan","Feb","Mar",
-	"Apr","May","Jun",
-	"Jul","Aug","Sep",
-	"Oct","Nov","Dec"
-};
-
 
 static const char *skillLevels[] = {
   "I Can Win",
@@ -125,7 +119,6 @@ static int gamecodetoui[] = {4,2,3,0,5,1,6};
 static int uitogamecode[] = {4,6,2,3,1,5,7};
 
 
-static void UI_StartServerRefresh(qboolean full);
 void UI_StopServerRefresh( void );
 static void UI_DoServerRefresh( void );
 static void UI_FeederSelection(float feederID, int index);
@@ -151,101 +144,14 @@ This is the only way control passes into the module.
 This must be the very first function compiled into the .qvm file
 ================
 */
-vmCvar_t  ui_new;
-vmCvar_t  ui_debug;
-vmCvar_t  ui_initialized;
-vmCvar_t  ui_teamArenaFirstRun;
-vmCvar_t  ui_menuFlow;
-vmCvar_t  ui_browserAwesomium;
+vmCvar_t	ui_new;
+vmCvar_t	ui_debug;
+vmCvar_t	ui_initialized;
+vmCvar_t	ui_teamArenaFirstRun;
+vmCvar_t	ui_menuFlow;
+vmCvar_t	ui_browserAwesomium;
 
-#define UI_MENU_FILE_LEGACY             "ui/menus.txt"
-#define UI_MENU_FILE_QUAKELIVE          "ui/menus_quakelive.txt"
-#define UI_INGAME_FILE_LEGACY           "ui/ingame.txt"
-#define UI_INGAME_FILE_QUAKELIVE        "ui/ingame_quakelive.txt"
-
-static uiMenuFlow_t ui_activeMenuFlow = UI_MENU_FLOW_LEGACY;
-static qboolean ui_browserActiveKnown = qfalse;
-static qboolean ui_browserActiveState = qfalse;
 static const char *ui_browserRefreshCommand = "web_stopRefresh\n";
-
-static qboolean UI_MenuFileEquals(const char *lhs, const char *rhs) {
-        return (lhs && rhs) ? (Q_stricmp(lhs, rhs) == 0) : qfalse;
-}
-
-qboolean UI_BrowserOverlayAvailable(void) {
-        return ui_browserAwesomium.integer != 0;
-}
-
-static uiMenuFlow_t UI_RequestedMenuFlow(void) {
-        return (ui_menuFlow.integer > 0) ? UI_MENU_FLOW_QUAKELIVE : UI_MENU_FLOW_LEGACY;
-}
-
-static uiMenuFlow_t UI_ResolveMenuFlowInternal(void) {
-	uiMenuFlow_t requested = UI_RequestedMenuFlow();
-	if (requested == UI_MENU_FLOW_QUAKELIVE && !UI_BrowserOverlayAvailable()) {
-		return UI_MENU_FLOW_LEGACY;
-	}
-	return requested;
-}
-
-/*
-=============
-UI_SetBrowserActive
-
-Inform the engine overlay about whether the Awesomium-driven UI is active.
-=============
-*/
-static void UI_SetBrowserActive(qboolean active) {
-	if (ui_browserActiveKnown && ui_browserActiveState == active) {
-		return;
-	}
-
-	ui_browserActiveState = active;
-	ui_browserActiveKnown = qtrue;
-	trap_Cmd_ExecuteText(EXEC_NOW, active ? "web_browserActive 1\n" : "web_browserActive 0\n");
-}
-
-static void UI_SetActiveMenuFlow(uiMenuFlow_t flow) {
-	ui_activeMenuFlow = flow;
-	ui_new.integer = (flow == UI_MENU_FLOW_QUAKELIVE);
-	UI_SetBrowserActive(flow == UI_MENU_FLOW_QUAKELIVE);
-}
-
-qboolean UI_UsingLegacyMenuFlow(void) {
-        return (ui_activeMenuFlow == UI_MENU_FLOW_LEGACY);
-}
-
-static qboolean UI_ServerBrowserEnabled(void) {
-        return UI_UsingLegacyMenuFlow();
-}
-
-static void UI_UpdateActiveMenuFlowForFile(const char *menuFile) {
-        if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE)) {
-                UI_SetActiveMenuFlow(UI_MENU_FLOW_QUAKELIVE);
-        } else if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_LEGACY) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_LEGACY)) {
-                UI_SetActiveMenuFlow(UI_MENU_FLOW_LEGACY);
-        }
-}
-
-const char *UI_DefaultMenuFile(void) {
-        return UI_UsingLegacyMenuFlow() ? UI_MENU_FILE_LEGACY : UI_MENU_FILE_QUAKELIVE;
-}
-
-const char *UI_DefaultIngameFile(void) {
-        return UI_UsingLegacyMenuFlow() ? UI_INGAME_FILE_LEGACY : UI_INGAME_FILE_QUAKELIVE;
-}
-
-static void UI_UpdateActiveMenuFlow(void) {
-        UI_SetActiveMenuFlow(UI_ResolveMenuFlowInternal());
-}
-
-void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload) {
-        trap_Cvar_SetValue("ui_menuFlow", flow);
-        UI_UpdateActiveMenuFlow();
-        if (reload) {
-                UI_Load();
-        }
-}
 
 void _UI_Init( qboolean );
 void _UI_Shutdown( void );
@@ -5216,16 +5122,6 @@ static void UI_HandleCallvotePresetScript(void) {
 
 
 
-static void UI_UpdatePendingPings() { 
-	if (!UI_ServerBrowserEnabled()) {
-		return;
-	}
-	trap_LAN_ResetPings(ui_netSource.integer);
-	uiInfo.serverStatus.refreshActive = qtrue;
-	uiInfo.serverStatus.refreshtime = uiInfo.uiDC.realTime + 1000;
-
-}
-
 static const char *UI_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {
 	static char info[MAX_STRING_CHARS];
 	static char hostname[1024];
@@ -6900,12 +6796,12 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_blueteam4, "ui_blueteam4", "0", CVAR_ARCHIVE },
 	{ &ui_blueteam5, "ui_blueteam5", "0", CVAR_ARCHIVE },
 	{ &ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE },
-{ &ui_menuFiles, "ui_menuFiles", UI_MENU_FILE_QUAKELIVE, CVAR_ARCHIVE },
-{ &ui_menuFlow, "ui_menuFlow", "1", CVAR_ARCHIVE },
+{ &ui_menuFiles, "ui_menuFiles", UI_MENU_FILE_LEGACY, CVAR_ARCHIVE },
+{ &ui_menuFlow, "ui_menuFlow", "0", CVAR_ARCHIVE },
 { &ui_globalpreset, "ui_globalpreset", "0", CVAR_ARCHIVE },
 { &ui_screenDamage_Team_preset, "ui_screenDamage_Team_preset", "0", CVAR_ARCHIVE },
 { &ui_screenDamage_preset, "ui_screenDamage_preset", "0", CVAR_ARCHIVE },
-{ &ui_browserAwesomium, "ui_browserAwesomium", "1", CVAR_TEMP },
+{ &ui_browserAwesomium, "ui_browserAwesomium", "0", CVAR_TEMP },
 	{ &ui_currentTier, "ui_currentTier", "0", CVAR_ARCHIVE },
 	{ &ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE },
 	{ &ui_currentNetMap, "ui_currentNetMap", "0", CVAR_ARCHIVE },
@@ -7068,62 +6964,4 @@ static void UI_DoServerRefresh( void )
 	UI_BuildServerDisplayList(qfalse);
 }
 
-/*
-=================
-UI_StartServerRefresh
-=================
-*/
-static void UI_StartServerRefresh(qboolean full)
-{
-	int		i;
-	char	*ptr;
-
-	if (!UI_ServerBrowserEnabled()) {
-		uiInfo.serverStatus.refreshActive = qfalse;
-		return;
-	}
-
-	qtime_t q;
-	trap_RealTime(&q);
- 	trap_Cvar_Set( va("ui_lastServerRefresh_%i", ui_netSource.integer), va("%s-%i, %i at %i:%i", MonthAbbrev[q.tm_mon],q.tm_mday, 1900+q.tm_year,q.tm_hour,q.tm_min));
-
-	if (!full) {
-		UI_UpdatePendingPings();
-		return;
-	}
-
-	uiInfo.serverStatus.refreshActive = qtrue;
-	uiInfo.serverStatus.nextDisplayRefresh = uiInfo.uiDC.realTime + 1000;
-	// clear number of displayed servers
-	uiInfo.serverStatus.numDisplayServers = 0;
-	uiInfo.serverStatus.numPlayersOnServers = 0;
-	// mark all servers as visible so we store ping updates for them
-	trap_LAN_MarkServerVisible(ui_netSource.integer, -1, qtrue);
-	// reset all the pings
-	trap_LAN_ResetPings(ui_netSource.integer);
-	//
-	if( ui_netSource.integer == AS_LOCAL ) {
-		trap_Cmd_ExecuteText( EXEC_NOW, "localservers\n" );
-		uiInfo.serverStatus.refreshtime = uiInfo.uiDC.realTime + 1000;
-		return;
-	}
-
-	uiInfo.serverStatus.refreshtime = uiInfo.uiDC.realTime + 5000;
-	if( ui_netSource.integer == AS_GLOBAL || ui_netSource.integer == AS_MPLAYER ) {
-		if( ui_netSource.integer == AS_GLOBAL ) {
-			i = 0;
-		}
-		else {
-			i = 1;
-		}
-
-		ptr = UI_Cvar_VariableString("debug_protocol");
-		if (strlen(ptr)) {
-			trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers %d %s full empty\n", i, ptr));
-		}
-		else {
-			trap_Cmd_ExecuteText( EXEC_NOW, va( "globalservers %d %d full empty\n", i, (int)trap_Cvar_VariableValue( "protocol" ) ) );
-		}
-	}
-}
 

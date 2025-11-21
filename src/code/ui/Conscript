@@ -37,6 +37,8 @@ CFLAGS => '-DQ3_VM -S -Wf-target=bytecode -Wf-g',
 # the file with vmMain function MUST be the first one of the list
 @FILES = qw(
   ui_main.c
+  ui_menu_flow.c
+  ui_server_browser.c
   ui_atoms.c
   ui_gameinfo.c
   ui_players.c

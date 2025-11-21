@@ -640,8 +640,8 @@
 						BrowseInformation="1"/>
 				</FileConfiguration>
 			</File>
-			<File
-				RelativePath="ui_main.c">
+<File
+RelativePath="ui_main.c">
 				<FileConfiguration
 					Name="vector|Win32">
 					<Tool
@@ -683,9 +683,15 @@
 						BasicRuntimeChecks="3"
 						BrowseInformation="1"/>
 				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="ui_players.c">
+</File>
+<File
+RelativePath="ui_menu_flow.c">
+</File>
+<File
+RelativePath="ui_server_browser.c">
+</File>
+<File
+RelativePath="ui_players.c">
 				<FileConfiguration
 					Name="vector|Win32">
 					<Tool
