@@ -83,6 +83,7 @@ static void CG_DrawScoreboxFollowBackground(rectDef_t *rect, qhandle_t shader, v
 static void CG_DrawScoreboxSpecBackground(rectDef_t *rect, qhandle_t shader, vec4_t color);
 static void CG_DrawRoundBackground(rectDef_t *rect, qhandle_t shader, vec4_t color);
 static void CG_DrawOvertimeBackground(rectDef_t *rect, qhandle_t shader, vec4_t color);
+static void CG_TranslateHudRectForWidescreen(const rectDef_t *rect, rectDef_t *translated);
 
 /*
 =============
@@ -3706,26 +3707,55 @@ Fills the supplied rect with the team color, tinting the provided shader if avai
 =============
 */
 static void CG_DrawTeamColorized(rectDef_t *rect, qhandle_t shader) {
-vec4_t color;
-float x;
-float y;
-float w;
-float h;
-
-CG_GetTeamColor(&color);
-if (shader) {
-x = rect->x;
-y = rect->y;
-w = rect->w;
-h = rect->h;
-CG_AdjustFrom640(&x, &y, &w, &h);
-trap_R_SetColor(color);
-trap_R_DrawStretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
-trap_R_SetColor(NULL);
-return;
+	vec4_t color;
+	float x;
+	float y;
+	float w;
+	float h;
+	
+	CG_GetTeamColor(&color);
+	if (shader) {
+	x = rect->x;
+	y = rect->y;
+	w = rect->w;
+	h = rect->h;
+	CG_AdjustFrom640(&x, &y, &w, &h);
+	trap_R_SetColor(color);
+	trap_R_DrawStretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
+	trap_R_SetColor(NULL);
+	return;
+	}
+	
+	CG_FillRect(rect->x, rect->y, rect->w, rect->h, color);
 }
 
-CG_FillRect(rect->x, rect->y, rect->w, rect->h, color);
+/*
+=============
+CG_TranslateHudRectForWidescreen
+
+Offsets a HUD rect to account for widescreen pillarboxing while using 640-based coordinates.
+=============
+*/
+static void CG_TranslateHudRectForWidescreen(const rectDef_t *rect, rectDef_t *translated) {
+	float pixelOffset;
+	
+	if (!rect || !translated) {
+	return;
+	}
+	
+	*translated = *rect;
+	
+	if (cgs.screenXScale <= 0.0f) {
+	return;
+	}
+	
+	if (cgs.glconfig.vidWidth * SCREEN_HEIGHT > cgs.glconfig.vidHeight * SCREEN_WIDTH) {
+	float targetWidth;
+	
+	targetWidth = (float)cgs.glconfig.vidHeight * ((float)SCREEN_WIDTH / (float)SCREEN_HEIGHT);
+	pixelOffset = 0.5f * ((float)cgs.glconfig.vidWidth - targetWidth);
+	translated->x += pixelOffset / cgs.screenXScale;
+	}
 }
 
 /*
@@ -3741,26 +3771,29 @@ static void CG_DrawScoreboxFollowBackground(rectDef_t *rect, qhandle_t shader, v
 	float y;
 	float w;
 	float h;
-
+	rectDef_t widescreenRect;
+	
 	if (!shader) {
-		shader = cgs.media.scoreboxFollowShader;
+	shader = cgs.media.scoreboxFollowShader;
 	}
-
+	
 	if (!shader) {
-		return;
+	return;
 	}
-
+	
 	Vector4Copy(color, modulate);
 	if (modulate[3] <= 0.0f) {
-		modulate[3] = 1.0f;
+	modulate[3] = 1.0f;
 	}
-
-	x = rect->x;
-	y = rect->y;
-	w = rect->w;
-	h = rect->h;
+	
+	CG_TranslateHudRectForWidescreen(rect, &widescreenRect);
+	
+	x = widescreenRect.x;
+	y = widescreenRect.y;
+	w = widescreenRect.w;
+	h = widescreenRect.h;
 	CG_AdjustFrom640(&x, &y, &w, &h);
-
+	
 	trap_R_SetColor(modulate);
 	trap_R_DrawStretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
 	trap_R_SetColor(NULL);
@@ -3779,26 +3812,29 @@ static void CG_DrawScoreboxSpecBackground(rectDef_t *rect, qhandle_t shader, vec
 	float y;
 	float w;
 	float h;
-
+	rectDef_t widescreenRect;
+	
 	if (!shader) {
-		shader = cgs.media.scoreboxSpecShader;
+	shader = cgs.media.scoreboxSpecShader;
 	}
-
+	
 	if (!shader) {
-		return;
+	return;
 	}
-
+	
 	Vector4Copy(color, modulate);
 	if (modulate[3] <= 0.0f) {
-		modulate[3] = 1.0f;
+	modulate[3] = 1.0f;
 	}
-
-	x = rect->x;
-	y = rect->y;
-	w = rect->w;
-	h = rect->h;
+	
+	CG_TranslateHudRectForWidescreen(rect, &widescreenRect);
+	
+	x = widescreenRect.x;
+	y = widescreenRect.y;
+	w = widescreenRect.w;
+	h = widescreenRect.h;
 	CG_AdjustFrom640(&x, &y, &w, &h);
-
+	
 	trap_R_SetColor(modulate);
 	trap_R_DrawStretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
 	trap_R_SetColor(NULL);
@@ -4504,31 +4540,52 @@ static void CG_DrawPlayerHealth(rectDef_t *rect, float scale, vec4_t color, qhan
 }
 
 
+/*
+=============
+CG_DrawRedScore
+
+Renders the red team score within a HUD rect that respects widescreen offsets.
+=============
+*/
 static void CG_DrawRedScore(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
 	int value;
 	char num[16];
+	rectDef_t widescreenRect;
+	
+	CG_TranslateHudRectForWidescreen(rect, &widescreenRect);
+	
 	if ( cgs.scores1 == SCORE_NOT_PRESENT ) {
-		Com_sprintf (num, sizeof(num), "-");
+	Com_sprintf (num, sizeof(num), "-");
 	}
 	else {
-		Com_sprintf (num, sizeof(num), "%i", cgs.scores1);
+	Com_sprintf (num, sizeof(num), "%i", cgs.scores1);
 	}
 	value = CG_Text_Width(num, scale, 0);
-	CG_Text_Paint(rect->x + rect->w - value, rect->y + rect->h, scale, color, num, 0, 0, textStyle);
+	CG_Text_Paint(widescreenRect.x + widescreenRect.w - value, widescreenRect.y + widescreenRect.h, scale, color, num, 0, 0, textStyle);
 }
 
+/*
+=============
+CG_DrawBlueScore
+
+Renders the blue team score within a HUD rect that respects widescreen offsets.
+=============
+*/
 static void CG_DrawBlueScore(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
 	int value;
 	char num[16];
-
+	rectDef_t widescreenRect;
+	
+	CG_TranslateHudRectForWidescreen(rect, &widescreenRect);
+	
 	if ( cgs.scores2 == SCORE_NOT_PRESENT ) {
-		Com_sprintf (num, sizeof(num), "-");
+	Com_sprintf (num, sizeof(num), "-");
 	}
 	else {
-		Com_sprintf (num, sizeof(num), "%i", cgs.scores2);
+	Com_sprintf (num, sizeof(num), "%i", cgs.scores2);
 	}
 	value = CG_Text_Width(num, scale, 0);
-	CG_Text_Paint(rect->x + rect->w - value, rect->y + rect->h, scale, color, num, 0, 0, textStyle);
+	CG_Text_Paint(widescreenRect.x + widescreenRect.w - value, widescreenRect.y + widescreenRect.h, scale, color, num, 0, 0, textStyle);
 }
 
 // FIXME: team name support
