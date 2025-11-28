@@ -171,6 +171,40 @@ static void CG_AppendHudScoreboardEntry( const score_t *score, const clientInfo_
 
 /*
 =============
+CG_BuildHudScoreboard
+
+Seeds the Quake Live HUD scoreboard cache without invoking the legacy renderer.
+=============
+*/
+void CG_BuildHudScoreboard( void ) {
+	int			i;
+	qboolean			timersActive;
+
+	timersActive = (qboolean)( cgs.itemTimersEnabled || cgs.forceHudHints );
+
+	CG_ResetHudScoreboard( timersActive );
+
+	for ( i = 0; i < cg.numScores; i++ ) {
+		score_t			*score;
+		clientInfo_t	*ci;
+
+		score = &cg.scores[i];
+		if ( score->client < 0 || score->client >= cgs.maxclients ) {
+			continue;
+		}
+
+		ci = &cgs.clientinfo[score->client];
+		if ( !ci->infoValid ) {
+			continue;
+		}
+
+		CG_AppendHudScoreboardEntry( score, ci );
+	}
+}
+
+
+/*
+=============
 CG_TouchCompetitiveScores
 
 Requests updated score data to populate Quake Live HUD ownerdraws.

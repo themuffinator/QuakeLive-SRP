@@ -1,0 +1,16 @@
+# Competitive HUD Baseline Renders
+
+The competitive HUD set now loads by default through `ui/hud3.txt`, ensuring the Quake Live `comp_hud.menu` and spectator follow overlays are available for all gametypes. Scoreboard menus for every supported mode are preloaded so the Tab scoreboard uses the menu-driven overlays instead of the legacy renderer.
+
+## Aspect ratio checkpoints
+
+| Aspect ratio | Expected layout | Notes |
+| --- | --- | --- |
+| 4:3 (640x480 reference) | Scoreboxes and follow banners align with the original menu coordinates while the HUD scoreboard cache mirrors the legacy column widths. | Use this size to verify that the widescreen scaler falls back to 640-based positions for menu ownerdraws. |
+| 16:9 (1920x1080) | Widescreen-aware scoreboxes from `comp_hud.menu` and `comp_spectator_follow.menu` anchor to the screen edges without stretching. | The HUD scoreboard cache carries widescreen coordinates so menu items remain aligned with ink-fade backgrounds. |
+| 21:9 (2560x1080) | Follow-state widgets retain their relative spacing and the ink-fade scoreboxes remain fully visible. | No screenshots are included here per repository guidance; capture in-engine renders if binary artifacts are permitted in your workflow. |
+
+## Verification tips
+
+- Use the `cg_hudFiles` cvar (default `ui/hud3.txt`) to force the competitive HUD stack when loading a map.
+- Toggle the scoreboard and spectator follow modes to confirm that the menu-driven overlays populate from the refreshed HUD scoreboard cache.
