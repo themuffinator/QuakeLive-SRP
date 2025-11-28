@@ -1769,27 +1769,191 @@ static void CG_DrawSpectatorProfileImage(rectDef_t *rect, int slot) {
 	qhandle_t shader;
 	vec4_t modulate;
 
-	if (!cg_drawProfileImages.integer) {
+	if ( !cg_drawProfileImages.integer ) {
 		return;
 	}
 
-	ci = CG_SpectatorClientInfo(slot);
-	if (!ci) {
+	ci = CG_SpectatorClientInfo( slot );
+	if ( !ci ) {
 		return;
 	}
 
 	shader = ci->modelIcon;
-	if (!shader) {
+	if ( !shader ) {
 		shader = CG_GetProfileFallbackShader();
 	}
 
-	if (!shader) {
+	if ( !shader ) {
 		return;
 	}
 
-	Vector4Set(modulate, 1.0f, 1.0f, 1.0f, CG_SpectatorSlotFollowed(slot) ? 1.0f : 0.6f);
-	trap_R_SetColor(modulate);
-	CG_DrawPic(rect->x, rect->y, rect->w, rect->h, shader);
+	Vector4Set( modulate, 1.0f, 1.0f, 1.0f, CG_SpectatorSlotFollowed( slot ) ? 1.0f : 0.6f );
+	trap_R_SetColor( modulate );
+	CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );
+	trap_R_SetColor( NULL );
+}
+
+/*
+=============
+CG_GetSpectatorOwnerDrawSlot
+
+Maps spectator owner-draw identifiers to the backing slot index.
+=============
+*/
+static int CG_GetSpectatorOwnerDrawSlot( int ownerDraw ) {
+	switch ( ownerDraw ) {
+	case CG_SPEC_FOLLOW_PRIMARY:
+	case CG_SPEC_COMPARE_PRIMARY:
+		return 0;
+	case CG_SPEC_FOLLOW_SECONDARY:
+	case CG_SPEC_COMPARE_SECONDARY:
+		return 1;
+	default:
+		return -1;
+	}
+}
+
+/*
+=============
+CG_DrawSpectatorFollowIndicator
+
+Renders a follow or tracking marker for the requested spectator slot.
+=============
+*/
+static void CG_DrawSpectatorFollowIndicator( rectDef_t *rect, int ownerDraw, qhandle_t shader, vec4_t color ) {
+	vec4_t modulate;
+	const clientInfo_t *ci;
+	float x;
+	float y;
+	float w;
+	float h;
+	int slot;
+
+	slot = CG_GetSpectatorOwnerDrawSlot( ownerDraw );
+	if ( slot < 0 ) {
+		return;
+	}
+
+	ci = CG_SpectatorClientInfo( slot );
+	if ( !ci ) {
+		return;
+	}
+
+	if ( !shader ) {
+		shader = cgs.media.scoreboxFollowShader;
+	}
+
+	if ( !shader ) {
+		return;
+	}
+
+	Vector4Copy( color, modulate );
+	if ( modulate[3] <= 0.0f ) {
+		modulate[3] = 1.0f;
+	}
+
+	if ( CG_SpectatorSlotFollowed( slot ) ) {
+		modulate[3] *= 1.0f;
+	} else if ( CG_SpectatorSlotTracked( slot ) ) {
+		modulate[3] *= 0.65f;
+	} else {
+		modulate[3] *= 0.25f;
+	}
+
+	x = rect->x;
+	y = rect->y;
+	w = rect->w;
+	h = rect->h;
+	CG_AdjustFrom640( &x, &y, &w, &h );
+
+	trap_R_SetColor( modulate );
+	trap_R_DrawStretchPic( x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader );
+	trap_R_SetColor( NULL );
+}
+
+/*
+=============
+CG_DrawSpectatorComparison
+
+Draws the health and armor comparison bar for a spectator slot.
+=============
+*/
+static void CG_DrawSpectatorComparison( rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw ) {
+	const clientInfo_t *ci;
+	const clientInfo_t *other;
+	vec4_t healthColor;
+	vec4_t armorColor;
+	vec4_t textColor;
+	vec4_t markerColor = { 1.0f, 1.0f, 1.0f, 0.35f };
+	vec4_t baseColor = { 0.0f, 0.0f, 0.0f, 0.45f };
+	float healthWidth;
+	float armorWidth;
+	float markerX;
+	int otherSlot;
+	int health;
+	int armor;
+	int slot;
+	char buffer[32];
+
+	slot = CG_GetSpectatorOwnerDrawSlot( ownerDraw );
+	if ( slot < 0 ) {
+		return;
+	}
+
+	ci = CG_SpectatorClientInfo( slot );
+	if ( !ci ) {
+		return;
+	}
+
+	otherSlot = ( slot == 0 ) ? 1 : 0;
+	other = CG_SpectatorClientInfo( otherSlot );
+
+	health = ci->health;
+	armor = ci->armor;
+	if ( health < 0 ) {
+		health = 0;
+	}
+	if ( armor < 0 ) {
+		armor = 0;
+	}
+
+	CG_GetColorForHealth( health, armor, healthColor );
+	CG_GetArmorTierColor( armor, armorColor );
+
+	healthColor[3] = 0.85f;
+	armorColor[3] = 0.7f;
+
+	CG_FillRect( rect->x, rect->y, rect->w, rect->h, baseColor );
+
+	healthWidth = rect->w * Com_Clamp( 0.0f, 1.0f, (float)health / 200.0f );
+	armorWidth = rect->w * Com_Clamp( 0.0f, 1.0f, (float)armor / 200.0f );
+
+	CG_FillRect( rect->x, rect->y, healthWidth, rect->h * 0.65f, healthColor );
+	CG_FillRect( rect->x, rect->y + rect->h * 0.65f, armorWidth, rect->h * 0.35f, armorColor );
+
+	if ( other ) {
+		float comparison;
+		float otherComparison;
+
+		comparison = Com_Clamp( 0.0f, 1.0f, (float)( health + armor ) / 400.0f );
+		otherComparison = Com_Clamp( 0.0f, 1.0f, (float)( other->health + other->armor ) / 400.0f );
+
+		markerX = rect->x + rect->w * otherComparison - 1.0f;
+		CG_FillRect( markerX, rect->y, 2.0f, rect->h, markerColor );
+
+		if ( comparison > otherComparison && markerColor[3] < 0.6f ) {
+			markerColor[3] = 0.6f;
+		}
+	}
+
+	Vector4Copy( color, textColor );
+	if ( textColor[3] <= 0.0f ) {
+		textColor[3] = 1.0f;
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "%d / %d", health, armor );
+	CG_Text_Paint( rect->x + 2, rect->y + rect->h - 2, scale, textColor, buffer, 0, 0, textStyle );
+}
 
 /*
 =============
@@ -5888,53 +6052,68 @@ break;
   case CG_2ND_PLACE_SCORE:
     CG_Draw2ndPlace(&rect, scale, color, shader, textStyle);
                 break;
-  case CG_PLAYER_OBIT:
-    CG_DrawPlayerObituary(&rect, scale, color, textStyle);
-                break;
-  case CG_MATCH_STATE:
+	case CG_PLAYER_OBIT:
+		CG_DrawPlayerObituary(&rect, scale, color, textStyle);
+		break;
+	case CG_MATCH_STATE:
 		CG_DrawMatchState(&rect, scale, color, textStyle);
 		break;
-  case CG_1ST_PLYR: {
-qhandle_t nameShader = shader;
-if (!nameShader && cg.competitiveHudLoaded) {
-nameShader = cgs.media.inkFadeLeftShader;
-}
-    CG_DrawSpectatorPlayerName(&rect, scale, color, textStyle, 0, nameShader);
-                break;
-}
-  case CG_1ST_PLYR_SCORE:
-    CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 0);
-                break;
-  case CG_1ST_PLYR_HEALTH_ARMOR:
-    CG_DrawSpectatorHealthArmor(&rect, scale, color, textStyle, 0);
-                break;
-  case CG_1ST_PLYR_AVATAR:
+	case CG_1ST_PLYR: {
+		qhandle_t nameShader = shader;
+
+		if ( !nameShader && cg.competitiveHudLoaded ) {
+			nameShader = cgs.media.inkFadeLeftShader;
+		}
+
+		CG_DrawSpectatorPlayerName(&rect, scale, color, textStyle, 0, nameShader);
+		break;
+	}
+	case CG_1ST_PLYR_SCORE:
+		CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 0);
+		break;
+	case CG_1ST_PLYR_HEALTH_ARMOR:
+		CG_DrawSpectatorHealthArmor(&rect, scale, color, textStyle, 0);
+		break;
+	case CG_1ST_PLYR_AVATAR:
 		CG_DrawSpectatorProfileImage(&rect, 0);
-			break;
-  case CG_2ND_PLYR: {
-qhandle_t nameShader = shader;
-if (!nameShader && cg.competitiveHudLoaded) {
-nameShader = cgs.media.inkFadeRightShader;
-}
-    CG_DrawSpectatorPlayerName(&rect, scale, color, textStyle, 1, nameShader);
-                break;
-}
-  case CG_2ND_PLYR_SCORE:
-    CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 1);
-                break;
-  case CG_2ND_PLYR_HEALTH_ARMOR:
-    CG_DrawSpectatorHealthArmor(&rect, scale, color, textStyle, 1);
-                break;
-  case CG_2ND_PLYR_AVATAR:
+		break;
+	case CG_2ND_PLYR: {
+		qhandle_t nameShader = shader;
+
+		if ( !nameShader && cg.competitiveHudLoaded ) {
+			nameShader = cgs.media.inkFadeRightShader;
+		}
+
+		CG_DrawSpectatorPlayerName(&rect, scale, color, textStyle, 1, nameShader);
+		break;
+	}
+	case CG_2ND_PLYR_SCORE:
+		CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 1);
+		break;
+	case CG_2ND_PLYR_HEALTH_ARMOR:
+		CG_DrawSpectatorHealthArmor(&rect, scale, color, textStyle, 1);
+		break;
+	case CG_2ND_PLYR_AVATAR:
 		CG_DrawSpectatorProfileImage(&rect, 1);
-			break;
-  case CG_HEALTH_COLORIZED: {
-qhandle_t followShader = shader;
-if (!followShader && cg.competitiveHudLoaded) {
-followShader = cgs.media.scoreboxFollowShader;
-}
-    CG_DrawHealthColorized(&rect, followShader);
-                break;
+		break;
+	case CG_SPEC_FOLLOW_PRIMARY:
+	case CG_SPEC_FOLLOW_SECONDARY:
+		CG_DrawSpectatorFollowIndicator( &rect, ownerDraw, shader, color );
+		break;
+	case CG_SPEC_COMPARE_PRIMARY:
+	case CG_SPEC_COMPARE_SECONDARY:
+		CG_DrawSpectatorComparison( &rect, scale, color, textStyle, ownerDraw );
+		break;
+	case CG_HEALTH_COLORIZED: {
+		qhandle_t followShader = shader;
+
+		if ( !followShader && cg.competitiveHudLoaded ) {
+			followShader = cgs.media.scoreboxFollowShader;
+		}
+
+		CG_DrawHealthColorized(&rect, followShader);
+		break;
+	}
 }
   case CG_ARMORTIERED_COLORIZED:
     CG_DrawArmorTieredColorized(&rect);
@@ -5991,6 +6170,30 @@ break;
   }
 }
 
+
+/*
+=============
+CG_ShouldCaptureSpectatorUi
+
+Returns qtrue when spectator HUD input should be processed.
+=============
+*/
+static qboolean CG_ShouldCaptureSpectatorUi( void ) {
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qtrue;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
+		return qtrue;
+	}
+
+	return ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
+}
+
 /*
 =============
 CG_MouseEvent
@@ -6000,20 +6203,16 @@ Routes mouse movement through the HUD when spectator overlays are active.
 */
 void CG_MouseEvent( int x, int y ) {
 	int n;
-	qboolean allowSpectatorUi = qfalse;
+	qboolean allowSpectatorUi;
 
 	if ( cg_ignoreMouseInput.integer ) {
 		return;
 	}
 
-	if ( cg.snap ) {
-		allowSpectatorUi = ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ||
-			( cg.snap->ps.pm_type == PM_SPECTATOR ) ||
-			( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
-	}
+	allowSpectatorUi = CG_ShouldCaptureSpectatorUi();
 
 	if ( ( cg.predictedPlayerState.pm_type == PM_NORMAL || ( cg.predictedPlayerState.pm_type == PM_SPECTATOR && !allowSpectatorUi ) ) &&
-		 cg.showScores == qfalse ) {
+		cg.showScores == qfalse ) {
 		trap_Key_SetCatcher( 0 );
 		return;
 	}
@@ -6045,8 +6244,6 @@ void CG_MouseEvent( int x, int y ) {
 	} else {
 		Display_MouseMove( NULL, cgs.cursorX, cgs.cursorY );
 	}
-}
-
 }
 
 /*
@@ -6093,8 +6290,6 @@ void CG_EventHandling(int type) {
 
 }
 
-
-
 /*
 =============
 CG_KeyEvent
@@ -6103,17 +6298,13 @@ Forwards key input to the HUD when the spectator UI is visible.
 =============
 */
 void CG_KeyEvent(int key, qboolean down) {
-	qboolean allowSpectatorUi = qfalse;
+	qboolean allowSpectatorUi;
 
 	if ( !down ) {
 		return;
 	}
 
-	if ( cg.snap ) {
-		allowSpectatorUi = ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ||
-			( cg.snap->ps.pm_type == PM_SPECTATOR ) ||
-			( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
-	}
+	allowSpectatorUi = CG_ShouldCaptureSpectatorUi();
 
 	if ( cg.predictedPlayerState.pm_type == PM_NORMAL || ( cg.predictedPlayerState.pm_type == PM_SPECTATOR && !allowSpectatorUi && cg.showScores == qfalse ) ) {
 		CG_EventHandling(CGAME_EVENT_NONE);
@@ -6127,31 +6318,31 @@ void CG_KeyEvent(int key, qboolean down) {
 	//  trap_Key_SetCatcher(0);
 	//}
 
-
 	Display_HandleKey(key, down, cgs.cursorX, cgs.cursorY);
 
 	if (cgs.capturedItem) {
 		cgs.capturedItem = NULL;
-	}	else {
+	} else {
 		if (key == K_MOUSE2 && down) {
 			cgs.capturedItem = Display_CaptureItem(cgs.cursorX, cgs.cursorY);
 		}
 	}
 }
 
-
 int CG_ClientNumFromName(const char *p) {
-  int i;
-  for (i = 0; i < cgs.maxclients; i++) {
-    if (cgs.clientinfo[i].infoValid && Q_stricmp(cgs.clientinfo[i].name, p) == 0) {
-      return i;
-    }
-  }
-  return -1;
+	int i;
+
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		if ( cgs.clientinfo[i].infoValid && Q_stricmp( cgs.clientinfo[i].name, p ) == 0 ) {
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 void CG_ShowResponseHead() {
-  Menus_OpenByName("voiceMenu");
+	Menus_OpenByName("voiceMenu");
 	trap_Cvar_Set("cl_conXOffset", "72");
 	cg.voiceTime = cg.time;
 }
