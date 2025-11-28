@@ -1,0 +1,108 @@
+{
+  "metadata": {
+    "description": "Synthetic snapshots focusing on round flow and overtime banners",
+    "map": "qztourney7",
+    "ruleset": "competitive",
+    "notes": [
+      "Frames reflect regulation clock, sudden-death, and chained overtime banners",
+      "Competitive HUD config is expected to surface round and overtime text blocks"
+    ]
+  },
+  "snapshots": [
+    {
+      "sequence": 1,
+      "serverTime": 120000,
+      "matchState": {
+        "round": 1,
+        "roundLimit": 3,
+        "phase": "regulation",
+        "state": "LIVE",
+        "clock": "02:00",
+        "overtime": false,
+        "overtimeCount": 0
+      },
+      "playerState": {
+        "origin": [0.0, 0.0, 0.0],
+        "health": 100,
+        "armor": 50,
+        "weapon": "rocket_launcher",
+        "ammo": {"rocket_launcher": 15}
+      },
+      "commands": []
+    },
+    {
+      "sequence": 2,
+      "serverTime": 121000,
+      "matchState": {
+        "round": 1,
+        "roundLimit": 3,
+        "phase": "sudden_death",
+        "state": "TIED",
+        "clock": "00:05",
+        "overtime": false,
+        "overtimeCount": 0
+      },
+      "playerState": {
+        "origin": [4.0, 1.0, 0.0],
+        "health": 95,
+        "armor": 45,
+        "weapon": "rocket_launcher",
+        "ammo": {"rocket_launcher": 13}
+      },
+      "commands": [
+        {"action": "move", "direction": [1.0, 0.25, 0.0], "scale": 0.5},
+        {"action": "damage", "amount": 5}
+      ]
+    },
+    {
+      "sequence": 3,
+      "serverTime": 122000,
+      "matchState": {
+        "round": 1,
+        "roundLimit": 3,
+        "phase": "overtime",
+        "state": "OVERTIME",
+        "clock": "01:59",
+        "overtime": true,
+        "overtimeCount": 1,
+        "overtimeLengthSeconds": 120
+      },
+      "playerState": {
+        "origin": [4.5, 1.25, 0.0],
+        "health": 105,
+        "armor": 60,
+        "weapon": "rocket_launcher",
+        "ammo": {"rocket_launcher": 12}
+      },
+      "commands": [
+        {"action": "heal", "amount": 10},
+        {"action": "ammo", "weapon": "rocket_launcher", "amount": -1}
+      ]
+    },
+    {
+      "sequence": 4,
+      "serverTime": 124000,
+      "matchState": {
+        "round": 1,
+        "roundLimit": 3,
+        "phase": "overtime",
+        "state": "OVERTIME",
+        "clock": "00:12",
+        "overtime": true,
+        "overtimeCount": 2,
+        "overtimeLengthSeconds": 120
+      },
+      "playerState": {
+        "origin": [5.0, 1.5, 0.0],
+        "health": 90,
+        "armor": 35,
+        "weapon": "rocket_launcher",
+        "ammo": {"rocket_launcher": 9}
+      },
+      "commands": [
+        {"action": "move", "direction": [0.5, 0.25, 0.0], "scale": 0.25},
+        {"action": "damage", "amount": 15}
+      ]
+    }
+  ]
+}

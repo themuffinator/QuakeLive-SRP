@@ -34,6 +34,7 @@ class Snapshot:
     sequence: int
     server_time: int
     player_state: Mapping[str, Any]
+    match_state: Mapping[str, Any]
     commands: Sequence[Mapping[str, Any]]
 
     @classmethod
@@ -45,9 +46,12 @@ class Snapshot:
             raise ValueError("Snapshot payload missing required key") from exc
 
         player_state = payload.get("playerState", {})
+        match_state = payload.get("matchState", {})
         commands = payload.get("commands", [])
         if not isinstance(player_state, Mapping):
             raise TypeError("playerState must be a mapping")
+        if not isinstance(match_state, Mapping):
+            raise TypeError("matchState must be a mapping")
         if not isinstance(commands, Sequence):
             raise TypeError("commands must be a sequence")
 
@@ -55,6 +59,7 @@ class Snapshot:
             sequence=sequence,
             server_time=server_time,
             player_state=dict(player_state),
+            match_state=dict(match_state),
             commands=[dict(command) for command in commands],
         )
 
@@ -68,15 +73,23 @@ class HUDState:
     weapon: str
     ammo: Mapping[str, int]
     position: Sequence[float]
+    match_state: Mapping[str, Any] | None = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload: Dict[str, Any] = {
             "health": int(self.health),
             "armor": int(self.armor),
             "weapon": str(self.weapon),
             "ammo": {weapon: int(amount) for weapon, amount in sorted(self.ammo.items())},
             "position": [round(float(coord), 6) for coord in self.position],
         }
+
+        if self.match_state:
+            payload["matchState"] = {
+                str(key): _canonicalise(value) for key, value in sorted(self.match_state.items())
+            }
+
+        return payload
 
 
 @dataclass(frozen=True)

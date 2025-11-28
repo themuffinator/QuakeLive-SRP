@@ -1,0 +1,61 @@
+{
+  "commit": "bdc5e2ff25c0a91f20bdb7aca75a70c16888a7f9",
+  "hudConfig": {
+    "cg_useCompetitiveHud": true,
+    "hudFiles": [
+      "ui/hud.txt",
+      "ui/hud3.menu"
+    ],
+    "description": "Competitive HUD assets enabled for captures"
+  },
+  "captures": [
+    {
+      "aspect": "4x3",
+      "scenario": "round_overtime",
+      "frames": 4,
+      "path": "4x3/round_overtime.json",
+      "hudConfig": {
+        "cg_useCompetitiveHud": true,
+        "hudFiles": [
+          "ui/hud.txt",
+          "ui/hud3.menu"
+        ],
+        "description": "Competitive HUD assets enabled for captures"
+      },
+      "commit": "bdc5e2ff25c0a91f20bdb7aca75a70c16888a7f9",
+      "snapshotArchive": "tools/tests/client_regression/round_overtime_snapshots.json"
+    },
+    {
+      "aspect": "16x9",
+      "scenario": "round_overtime",
+      "frames": 4,
+      "path": "16x9/round_overtime.json",
+      "hudConfig": {
+        "cg_useCompetitiveHud": true,
+        "hudFiles": [
+          "ui/hud.txt",
+          "ui/hud3.menu"
+        ],
+        "description": "Competitive HUD assets enabled for captures"
+      },
+      "commit": "bdc5e2ff25c0a91f20bdb7aca75a70c16888a7f9",
+      "snapshotArchive": "tools/tests/client_regression/round_overtime_snapshots.json"
+    },
+    {
+      "aspect": "21x9",
+      "scenario": "round_overtime",
+      "frames": 4,
+      "path": "21x9/round_overtime.json",
+      "hudConfig": {
+        "cg_useCompetitiveHud": true,
+        "hudFiles": [
+          "ui/hud.txt",
+          "ui/hud3.menu"
+        ],
+        "description": "Competitive HUD assets enabled for captures"
+      },
+      "commit": "bdc5e2ff25c0a91f20bdb7aca75a70c16888a7f9",
+      "snapshotArchive": "tools/tests/client_regression/round_overtime_snapshots.json"
+    }
+  ]
+}
