@@ -147,15 +147,15 @@ menuDef {
 
 //=================================================================================
 	
-	itemDef {
-		name scores_firstplyr_health
+        itemDef {
+                name scores_firstplyr_health
         widescreen WIDESCREEN_CENTER
-		ownerdraw CG_1ST_PLYR_HEALTH_ARMOR
-		rect 90 2 150 12
-		style WINDOW_STYLE_FILLED
-		backcolor 0 0 0 0.5
-	    decoration
-		visible 1
+                ownerdraw CG_SPEC_COMPARE_PRIMARY
+                rect 90 2 150 12
+                style WINDOW_STYLE_FILLED
+                backcolor 0 0 0 0.5
+            decoration
+                visible 1
 	    cvarTest "cg_gametype"
 	    showCvar { "1" }
 	}	
@@ -239,15 +239,15 @@ menuDef {
 	    showCvar { "1" }
 	}
 	
-	itemDef {
-		name scores_secondplyr_health
+        itemDef {
+                name scores_secondplyr_health
         widescreen WIDESCREEN_CENTER
-		ownerdraw CG_2ND_PLYR_HEALTH_ARMOR
-		rect 400 2 150 12
-		style WINDOW_STYLE_FILLED
-		backcolor 0 0 0 0.5
-	    decoration
-		visible 1
+                ownerdraw CG_SPEC_COMPARE_SECONDARY
+                rect 400 2 150 12
+                style WINDOW_STYLE_FILLED
+                backcolor 0 0 0 0.5
+            decoration
+                visible 1
 	    cvarTest "cg_gametype"
 	    showCvar { "1" }
 	}

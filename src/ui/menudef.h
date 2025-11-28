@@ -508,6 +508,10 @@
 #define	CG_FLAG_STATUS						337
 #define CG_HEALTH_COLORIZED					338
 #define	CG_MATCH_STATE						339		// Game State
+#define CG_SPEC_FOLLOW_PRIMARY						  340
+#define CG_SPEC_FOLLOW_SECONDARY					  341
+#define CG_SPEC_COMPARE_PRIMARY					  342
+#define CG_SPEC_COMPARE_SECONDARY				  343
 
 #define UI_OWNERDRAW_BASE				512
 #define UI_HANDICAP						513
