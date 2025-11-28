@@ -1923,6 +1923,7 @@ void CG_DrawInformation( void );
 //
 qboolean CG_DrawOldScoreboard( void );
 void CG_DrawOldTourneyScoreboard( void );
+void CG_BuildHudScoreboard( void );
 const cgHudScoreboard_t *CG_GetHudScoreboard( void );
 void CG_TouchCompetitiveScores( void );
 void CG_StartScoreboardTimer( int startTime );
