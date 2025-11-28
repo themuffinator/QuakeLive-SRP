@@ -27,6 +27,7 @@ This handbook aggregates the major reverse-engineering stages completed so far a
 * **Trace captures:** Deterministic artefacts produced by [`tools/trace/`](../../tools/trace/) land beneath [`artifacts/tests/`](../../artifacts/tests/).
 * **Review tracker:** Clean reconstructions and approver list located at [`src-re/clean/`](../../src-re/clean/) and [Reconstruction Tracker](./reconstruction-tracker.md).
 * **Platform services & authentication:** Abstraction notes in [Steam Platform Abstraction Plan](../steam_platform_abstraction.md) and [Online Authentication Lifecycle](../platform/authentication.md), credential persistence guidance in [Credential persistence and migration](../platform/credentials.md), implementations under [`src/common/platform/`](../../src/common/platform/) and [`src/common/auth_credentials.c`](../../src/common/auth_credentials.c), coverage matrix in [`docs/qa/credential-matrix.md`](../qa/credential-matrix.md), and supporting automation via [`tools/integration/auth_flow_trace.py`](../../tools/integration/auth_flow_trace.py) and [`tests/test_platform_services.py`](../../tests/test_platform_services.py).
+* **Windows runtime validation:** WOW64 setup, redistributable installation, and troubleshooting steps are tracked in the [Windows 32-bit Runtime Guide](../platform/windows-32bit-runtime.md).
 
 ## Working glossary
 

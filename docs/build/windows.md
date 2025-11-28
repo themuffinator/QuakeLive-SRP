@@ -6,6 +6,9 @@ copy of its VM counterpart, but the output is redirected to
 `build/win32-native/` and the Visual Studio 2010 (`v100`) toolset is enforced so
 the produced DLLs match the shipping runtime.【F:src/code/game/qagamex86.vcxproj†L2-L135】【F:src/code/cgame/cgamex86.vcxproj†L2-L110】
 
+For runtime prerequisites and validation steps on WOW64 hosts, see the
+[Windows 32-bit Runtime Guide](../platform/windows-32bit-runtime.md).
+
 ## Available targets
 
 | Target name | Project file | Output artifact |
