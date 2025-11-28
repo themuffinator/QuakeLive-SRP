@@ -158,13 +158,20 @@ vmCvar_t  ui_teamArenaFirstRun;
 vmCvar_t  ui_menuFlow;
 vmCvar_t  ui_browserAwesomium;
 
-static uiMenuFlow_t ui_activeMenuFlow = UI_MENU_FLOW_LEGACY;
+static uiMenuFlow_t ui_activeMenuFlow = UI_MENU_FLOW_QUAKELIVE;
 static qboolean ui_browserActiveKnown = qfalse;
 static qboolean ui_browserActiveState = qfalse;
 static const char *ui_browserRefreshCommand = "web_stopRefresh\n";
 
+/*
+=============
+UI_MenuFileEquals
+
+Case-insensitive comparison helper for menu file names.
+=============
+*/
 static qboolean UI_MenuFileEquals(const char *lhs, const char *rhs) {
-return (lhs && rhs) ? (Q_stricmp(lhs, rhs) == 0) : qfalse;
+	return (lhs && rhs) ? (Q_stricmp(lhs, rhs) == 0) : qfalse;
 }
 
 /*
@@ -191,30 +198,55 @@ static qboolean UI_MenuFileExists(const char *menuFile) {
 	return qfalse;
 }
 
+/*
+=============
+UI_BrowserOverlayAvailable
+
+Report whether the Awesomium browser overlay is enabled via configuration.
+=============
+*/
 qboolean UI_BrowserOverlayAvailable(void) {
-return ui_browserAwesomium.integer != 0;
+	return ui_browserAwesomium.integer != 0;
 }
 
+/*
+=============
+UI_RequestedMenuFlow
+
+Determine the requested menu flow based on user configuration.
+=============
+*/
 static uiMenuFlow_t UI_RequestedMenuFlow(void) {
-        return (ui_menuFlow.integer > 0) ? UI_MENU_FLOW_QUAKELIVE : UI_MENU_FLOW_LEGACY;
+	if (ui_menuFlow.integer == UI_MENU_FLOW_BRIDGED) {
+		return UI_MENU_FLOW_BRIDGED;
+	}
+
+	return UI_MENU_FLOW_QUAKELIVE;
 }
 
+/*
+=============
+UI_ResolveMenuFlowInternal
+
+Select the active menu flow with fallbacks when the overlay is unavailable.
+=============
+*/
 static uiMenuFlow_t UI_ResolveMenuFlowInternal(void) {
 	uiMenuFlow_t requested = UI_RequestedMenuFlow();
 
-	if (requested == UI_MENU_FLOW_QUAKELIVE) {
-		if (UI_BrowserOverlayAvailable()) {
-			return UI_MENU_FLOW_QUAKELIVE;
-		}
-
-		if (UI_BrowserBridgeAvailable()) {
-			return UI_MENU_FLOW_BRIDGED;
-		}
-
-		return UI_MENU_FLOW_LEGACY;
+	if (requested == UI_MENU_FLOW_BRIDGED && UI_BrowserBridgeAvailable()) {
+		return UI_MENU_FLOW_BRIDGED;
 	}
 
-	return requested;
+	if (UI_BrowserOverlayAvailable()) {
+		return UI_MENU_FLOW_QUAKELIVE;
+	}
+
+	if (UI_BrowserBridgeAvailable()) {
+		return UI_MENU_FLOW_BRIDGED;
+	}
+
+	return UI_MENU_FLOW_QUAKELIVE;
 }
 
 /*
@@ -229,62 +261,112 @@ static void UI_SetBrowserActive(qboolean active) {
 		return;
 	}
 
+	if (active && !UI_BrowserOverlayAvailable()) {
+		return;
+	}
+
 	ui_browserActiveState = active;
 	ui_browserActiveKnown = qtrue;
 	trap_Cmd_ExecuteText(EXEC_NOW, active ? "web_browserActive 1\n" : "web_browserActive 0\n");
 }
 
+/*
+=============
+UI_SetActiveMenuFlow
+
+Persist the selected menu flow and synchronize overlay state.
+=============
+*/
 static void UI_SetActiveMenuFlow(uiMenuFlow_t flow) {
 	ui_activeMenuFlow = flow;
-	ui_new.integer = (flow != UI_MENU_FLOW_LEGACY);
-	UI_SetBrowserActive(flow == UI_MENU_FLOW_QUAKELIVE);
+	ui_new.integer = 1;
+	UI_SetBrowserActive((flow == UI_MENU_FLOW_QUAKELIVE) && UI_BrowserOverlayAvailable());
 	UI_BrowserBridge_SetActive(flow == UI_MENU_FLOW_BRIDGED);
 }
 
+/*
+=============
+UI_UsingLegacyMenuFlow
+
+Quake III legacy menu flows have been removed; always report false.
+=============
+*/
 qboolean UI_UsingLegacyMenuFlow(void) {
-	return (ui_activeMenuFlow == UI_MENU_FLOW_LEGACY);
+	return qfalse;
 }
 
+/*
+=============
+UI_ServerBrowserEnabled
+
+Restrict legacy server browser code paths to the bridge flow.
+=============
+*/
 static qboolean UI_ServerBrowserEnabled(void) {
-	return (UI_UsingLegacyMenuFlow() || ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED);
+	return (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED);
 }
 
+/*
+=============
+UI_UpdateActiveMenuFlowForFile
+
+Update the tracked menu flow based on the menu script being loaded.
+=============
+*/
 static void UI_UpdateActiveMenuFlowForFile(const char *menuFile) {
-	if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE)) {
+	if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE)
+		|| UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE)
+		|| UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE_MAIN)
+		|| UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE_INGAME)) {
 		UI_SetActiveMenuFlow(UI_MENU_FLOW_QUAKELIVE);
 	} else if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_QUAKELIVE_BRIDGE) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_QUAKELIVE_BRIDGE)) {
 		UI_SetActiveMenuFlow(UI_MENU_FLOW_BRIDGED);
-	} else if (UI_MenuFileEquals(menuFile, UI_MENU_FILE_LEGACY) || UI_MenuFileEquals(menuFile, UI_INGAME_FILE_LEGACY)) {
-		UI_SetActiveMenuFlow(UI_MENU_FLOW_LEGACY);
 	}
 }
 
+/*
+=============
+UI_DefaultMenuFile
+
+Return the default root menu script for the active flow.
+=============
+*/
 const char *UI_DefaultMenuFile(void) {
-	const char *menuFile;
+	const char *menuFile = (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED) ? UI_MENU_FILE_QUAKELIVE_BRIDGE : UI_MENU_FILE_QUAKELIVE;
 
-	menuFile = UI_UsingLegacyMenuFlow() ? UI_MENU_FILE_LEGACY : UI_MENU_FILE_QUAKELIVE;
-	if (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED) {
-		menuFile = UI_MENU_FILE_QUAKELIVE_BRIDGE;
-	}
-
-	return (UI_MenuFileExists(menuFile)) ? menuFile : UI_MENU_FILE_LEGACY;
+	return (UI_MenuFileExists(menuFile)) ? menuFile : UI_MENU_FILE_QUAKELIVE;
 }
 
+/*
+=============
+UI_DefaultIngameFile
+
+Return the default in-game menu script for the active flow.
+=============
+*/
 const char *UI_DefaultIngameFile(void) {
-	const char *menuFile;
+	const char *menuFile = (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED) ? UI_INGAME_FILE_QUAKELIVE_BRIDGE : UI_INGAME_FILE_QUAKELIVE;
 
-	menuFile = UI_UsingLegacyMenuFlow() ? UI_INGAME_FILE_LEGACY : UI_INGAME_FILE_QUAKELIVE;
-	if (ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED) {
-		menuFile = UI_INGAME_FILE_QUAKELIVE_BRIDGE;
-	}
-
-	return (UI_MenuFileExists(menuFile)) ? menuFile : UI_INGAME_FILE_LEGACY;
+	return (UI_MenuFileExists(menuFile)) ? menuFile : UI_INGAME_FILE_QUAKELIVE;
 }
+/*
+=============
+UI_UpdateActiveMenuFlow
 
+Refresh the cached menu flow based on configuration and availability.
+=============
+*/
 static void UI_UpdateActiveMenuFlow(void) {
 	UI_SetActiveMenuFlow(UI_ResolveMenuFlowInternal());
 }
 
+/*
+=============
+UI_ApplyMenuFlowChange
+
+Persist menu flow changes and optionally reload the UI.
+=============
+*/
 void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload) {
 	trap_Cvar_SetValue("ui_menuFlow", flow);
 	UI_UpdateActiveMenuFlow();
@@ -1264,46 +1346,48 @@ qboolean Load_Menu(int handle) {
 	return qfalse;
 }
 
+/*
+=============
+UI_LoadMenus
+
+Load a menu definition file and synchronize the active menu flow.
+=============
+*/
 void UI_LoadMenus(const char *menuFile, qboolean reset) {
-        pc_token_t token;
-        int handle;
-        int start;
+	pc_token_t token;
+	int handle;
+	int start;
 
 	start = trap_Milliseconds();
 
 	handle = trap_PC_LoadSource(menuFile);
 	if (!handle) {
 		const char *fallback = UI_DefaultMenuFile();
-		const char *fatalFallback = fallback;
 
 		trap_Error(va(S_COLOR_YELLOW "menu file not found: %s, using default\n", menuFile));
 		if (!UI_MenuFileEquals(menuFile, fallback)) {
 			menuFile = fallback;
 			handle = trap_PC_LoadSource(menuFile);
 		}
-		if (!handle && !UI_MenuFileEquals(fallback, UI_MENU_FILE_LEGACY)) {
-			fatalFallback = UI_MENU_FILE_LEGACY;
-			menuFile = fatalFallback;
-			handle = trap_PC_LoadSource(menuFile);
-		}
 		if (!handle) {
-			trap_Error(va(S_COLOR_RED "default menu file not found: %s, unable to continue!\n", fatalFallback));
+			trap_Error(va(S_COLOR_RED "default menu file not found: %s, unable to continue!\n", fallback));
+			return;
 		}
 	}
-
 
 	UI_UpdateActiveMenuFlowForFile(menuFile);
 	UI_SetBrowserActive(ui_activeMenuFlow == UI_MENU_FLOW_QUAKELIVE);
 	UI_BrowserBridge_SetActive(ui_activeMenuFlow == UI_MENU_FLOW_BRIDGED);
 
 	if (reset) {
-                Menu_Reset();
-        }
+		Menu_Reset();
+	}
 
 	while ( 1 ) {
-		if (!trap_PC_ReadToken(handle, &token))
+		if (!trap_PC_ReadToken(handle, &token)) {
 			break;
-		if( token.string[0] == 0 || token.string[0] == '}') {
+		}
+		if (token.string[0] == 0 || token.string[0] == '}') {
 			break;
 		}
 
@@ -1324,6 +1408,7 @@ void UI_LoadMenus(const char *menuFile, qboolean reset) {
 
 	trap_PC_FreeSource( handle );
 }
+
 
 void UI_Load() {
         char lastName[1024];
@@ -6921,7 +7006,7 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_server15, "server15", "", CVAR_ARCHIVE },
 	{ &ui_server16, "server16", "", CVAR_ARCHIVE },
 	{ &ui_cdkeychecked, "ui_cdkeychecked", "0", CVAR_ROM },
-	{ &ui_new, "ui_new", "0", CVAR_TEMP },
+	{ &ui_new, "ui_new", "1", CVAR_TEMP },
 	{ &ui_debug, "ui_debug", "0", CVAR_TEMP },
 	{ &ui_initialized, "ui_initialized", "0", CVAR_TEMP },
 	{ &ui_teamName, "ui_teamName", "Pagans", CVAR_ARCHIVE },
@@ -6948,8 +7033,8 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_blueteam4, "ui_blueteam4", "0", CVAR_ARCHIVE },
 	{ &ui_blueteam5, "ui_blueteam5", "0", CVAR_ARCHIVE },
 	{ &ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE },
-{ &ui_menuFiles, "ui_menuFiles", UI_MENU_FILE_LEGACY, CVAR_ARCHIVE },
-{ &ui_menuFlow, "ui_menuFlow", "0", CVAR_ARCHIVE },
+{ &ui_menuFiles, "ui_menuFiles", UI_MENU_FILE_QUAKELIVE, CVAR_ARCHIVE },
+{ &ui_menuFlow, "ui_menuFlow", "1", CVAR_ARCHIVE },
 { &ui_globalpreset, "ui_globalpreset", "0", CVAR_ARCHIVE },
 { &ui_screenDamage_Team_preset, "ui_screenDamage_Team_preset", "0", CVAR_ARCHIVE },
 { &ui_screenDamage_preset, "ui_screenDamage_preset", "0", CVAR_ARCHIVE },

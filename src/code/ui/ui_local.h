@@ -31,11 +31,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "ui_shared.h"
 
 #define UI_MENU_FILE_LEGACY "ui/menus.txt"
-#define UI_MENU_FILE_QUAKELIVE "ui/menus_quakelive.txt"
+#define UI_MENU_FILE_QUAKELIVE "ui/menus.txt"
 #define UI_MENU_FILE_QUAKELIVE_BRIDGE "ui/menus_quakelive_bridge.auto.txt"
 #define UI_INGAME_FILE_LEGACY "ui/ingame.txt"
-#define UI_INGAME_FILE_QUAKELIVE "ui/ingame_quakelive.txt"
+#define UI_INGAME_FILE_QUAKELIVE "ui/ingame.txt"
 #define UI_INGAME_FILE_QUAKELIVE_BRIDGE "ui/ingame_quakelive_bridge.auto.txt"
+#define UI_MENU_FILE_QUAKELIVE_MAIN "ui/main.menu"
+#define UI_MENU_FILE_QUAKELIVE_INGAME "ui/ingame.menu"
 
 // global display context
 

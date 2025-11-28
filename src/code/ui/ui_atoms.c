@@ -575,41 +575,52 @@ qboolean UI_ConsoleCommand( int realTime ) {
 	//Menu_Cache();
 
 	if ( Q_stricmp(cmd, "web_showBrowser") == 0 ) {
-		if (!UI_BrowserOverlayAvailable()) {
-			Com_Printf("UI: browser overlay unavailable; browser overlay hooks are inert.\n");
+		if (!UI_BrowserOverlayAvailable() && !UI_BrowserBridgeAvailable()) {
+			Com_Printf("UI: browser overlay unavailable; browser overlay hooks are inert.
+");
 			return qfalse;
 		}
 
-		UI_ApplyMenuFlowChange(UI_MENU_FLOW_QUAKELIVE, qfalse);
+		UI_ApplyMenuFlowChange(UI_BrowserOverlayAvailable() ? UI_MENU_FLOW_QUAKELIVE : UI_MENU_FLOW_BRIDGED, qfalse);
 		return qfalse;
 	}
 
 	if ( Q_stricmp(cmd, "ui_useLegacyMenus") == 0 || Q_stricmp(cmd, "ui_emergencyLegacyMenus") == 0 ) {
-		UI_ApplyMenuFlowChange(UI_MENU_FLOW_LEGACY, qtrue);
+		Com_Printf("UI: legacy Quake III menus are no longer available; using Quake Live flow instead.
+");
+		UI_ApplyMenuFlowChange(UI_BrowserOverlayAvailable() ? UI_MENU_FLOW_QUAKELIVE : UI_MENU_FLOW_BRIDGED, qtrue);
 		return qtrue;
 	}
 
 	if ( Q_stricmp(cmd, "ui_useQuakeLiveMenus") == 0 ) {
-		if (!UI_BrowserOverlayAvailable()) {
-			Com_Printf("UI: browser overlay unavailable; cannot enable web-driven menus.\n");
+		if (!UI_BrowserOverlayAvailable() && !UI_BrowserBridgeAvailable()) {
+			Com_Printf("UI: browser overlay unavailable; cannot enable web-driven menus.
+");
 			return qtrue;
 		}
-		UI_ApplyMenuFlowChange(UI_MENU_FLOW_QUAKELIVE, qtrue);
+		UI_ApplyMenuFlowChange(UI_BrowserOverlayAvailable() ? UI_MENU_FLOW_QUAKELIVE : UI_MENU_FLOW_BRIDGED, qtrue);
 		return qtrue;
 	}
 
 	if ( Q_stricmp(cmd, "ui_toggleMenuFlow") == 0 ) {
-		if (UI_UsingLegacyMenuFlow()) {
-			if (!UI_BrowserOverlayAvailable()) {
-				Com_Printf("UI: browser overlay unavailable; staying on legacy menus.\n");
-				return qtrue;
+		if (ui_activeMenuFlow == UI_MENU_FLOW_QUAKELIVE) {
+			if (UI_BrowserBridgeAvailable()) {
+				UI_ApplyMenuFlowChange(UI_MENU_FLOW_BRIDGED, qtrue);
+			} else {
+				Com_Printf("UI: browser bridge unavailable; staying on Quake Live menus.
+");
 			}
-			UI_ApplyMenuFlowChange(UI_MENU_FLOW_QUAKELIVE, qtrue);
 		} else {
-			UI_ApplyMenuFlowChange(UI_MENU_FLOW_LEGACY, qtrue);
+			if (UI_BrowserOverlayAvailable()) {
+				UI_ApplyMenuFlowChange(UI_MENU_FLOW_QUAKELIVE, qtrue);
+			} else {
+				Com_Printf("UI: browser overlay unavailable; staying on bridge menus.
+");
+			}
 		}
 		return qtrue;
 	}
+
 
 	if ( Q_stricmp (cmd, "ui_test") == 0 ) {
 		UI_ShowPostGame(qtrue);
