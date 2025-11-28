@@ -43,6 +43,7 @@ SNAPSHOT_ARCHIVES: dict[str, Path] = {
     "weapons_and_items": SNAPSHOT_ROOT / "weapons_and_items_snapshots.json",
     "resource_drain": SNAPSHOT_ROOT / "resource_drain_snapshots.json",
     "server_correction": SNAPSHOT_ROOT / "server_correction_snapshots.json",
+    "round_overtime": SNAPSHOT_ROOT / "round_overtime_snapshots.json",
 }
 HUD_ASPECT_RATIOS: tuple[str, ...] = ("4x3", "16x9", "21x9")
 COMPETITIVE_HUD_CONFIG: dict[str, object] = {

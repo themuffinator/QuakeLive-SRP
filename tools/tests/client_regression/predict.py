@@ -56,10 +56,12 @@ class ClientPredictor:
     def __init__(self) -> None:
         self._state: _PlayerState | None = None
         self._last_server_time: int | None = None
+        self._match_state: Mapping[str, Any] | None = None
 
     def reset(self) -> None:
         self._state = None
         self._last_server_time = None
+        self._match_state = None
 
     def predict(self, snapshot: Snapshot) -> HUDState:
         """Consume *snapshot* and return a HUDState."""
@@ -72,12 +74,15 @@ class ClientPredictor:
             self._state = self._advance(self._state, snapshot, delta)
             self._last_server_time = snapshot.server_time
 
+        self._match_state = self._normalise_match_state(snapshot.match_state)
+
         return HUDState(
             health=self._state.health,
             armor=self._state.armor,
             weapon=self._state.weapon,
             ammo=self._state.ammo,
             position=list(self._state.origin.values()),
+            match_state=self._match_state,
         )
 
     def _advance(self, state: _PlayerState, snapshot: Snapshot, delta: int) -> _PlayerState:
@@ -142,4 +147,12 @@ class ClientPredictor:
         weapon = str(command.get("weapon", state.weapon))
         amount = int(command.get("amount", 0))
         state.ammo[weapon] = state.ammo.get(weapon, 0) + amount
+
+    @staticmethod
+    def _normalise_match_state(match_state: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+        if match_state is None:
+            return None
+        if not isinstance(match_state, Mapping):  # pragma: no cover - defensive guard
+            raise TypeError("match_state must be a mapping when provided")
+        return {str(key): value for key, value in match_state.items()}
 
