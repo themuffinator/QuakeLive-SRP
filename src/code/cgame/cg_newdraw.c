@@ -4802,6 +4802,13 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 	float		f;
 	rectDef_t r2;
 	float *inc;
+	float		baseStep;
+	float		stackScale;
+	float		iconWidth;
+	float		iconHeight;
+	float		iconOffset;
+	float		textOffsetX;
+	float		textScale;
 
 	if (!ps || ps->stats[STAT_HEALTH] <= 0) {
 		return;
@@ -4812,6 +4819,8 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 	r2.w = rect->w;
 	r2.h = rect->h;
 	inc = (align == HUD_VERTICAL) ? &r2.y : &r2.x;
+	baseStep = (align == HUD_VERTICAL) ? r2.h : r2.w;
+	stackScale = 1.0f;
 
 	active = 0;
 	for (i = 0; i < MAX_POWERUPS; i++) {
@@ -4839,6 +4848,27 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 		active++;
 	}
 
+	if (!active) {
+		return;
+	}
+
+	if (baseStep > 0.0f) {
+		float neededSpan;
+		float availableSpan;
+
+		neededSpan = (active * baseStep) + ((active - 1) * special);
+		availableSpan = (align == HUD_VERTICAL) ? rect->h : rect->w;
+		if (availableSpan > 0.0f && neededSpan > availableSpan) {
+			stackScale = availableSpan / neededSpan;
+		}
+	}
+
+	iconWidth = (r2.w * 0.75f) * stackScale;
+	iconHeight = r2.h * stackScale;
+	iconOffset = (baseStep + special) * stackScale;
+	textOffsetX = iconWidth + 3.0f;
+	textScale = scale * stackScale;
+
 	for (i = 0; i < active; i++) {
 		item = BG_FindItemForPowerup(sorted[i]);
 		if (!item) {
@@ -4857,10 +4887,10 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 			trap_R_SetColor(modulate);
 		}
 
-		CG_DrawPic(r2.x, r2.y, r2.w * 0.75f, r2.h, trap_R_RegisterShader(item->icon));
+		CG_DrawPic(r2.x, r2.y, iconWidth, iconHeight, trap_R_RegisterShader(item->icon));
 		Com_sprintf(num, sizeof(num), "%i", sortedTime[i] / 1000);
-		CG_Text_Paint(r2.x + (r2.w * 0.75f) + 3, r2.y + r2.h, scale, color, num, 0, 0, 0);
-		*inc += r2.w + special;
+		CG_Text_Paint(r2.x + textOffsetX, r2.y + iconHeight, textScale, color, num, 0, 0, 0);
+		*inc += iconOffset;
 	}
 
 	trap_R_SetColor(NULL);
