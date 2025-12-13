@@ -330,6 +330,140 @@ static void RB_ResetPostProcessState( void ) {
 
 /*
 =============
+RB_UploadBloomScratch
+
+Make sure a scratch texture matches the current viewport and contains a copy of the scene.
+=============
+*/
+static image_t *RB_UploadBloomScratch( int scratchIndex, int width, int height ) {
+	image_t		*image;
+
+	image = tr.scratchImage[scratchIndex];
+
+	GL_Bind( image );
+
+	if ( image->width != width || image->height != height ) {
+		image->width = image->uploadWidth = width;
+		image->height = image->uploadHeight = height;
+		qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP );
+	}
+
+	qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height );
+
+	return image;
+}
+
+
+/*
+=============
+RB_ConfigureBloomStage
+
+Set texture environment to approximate Quake Live's bright-pass, saturation, and intensity controls.
+=============
+*/
+static void RB_ConfigureBloomStage( float threshold, float saturation, float intensity ) {
+	GLfloat	constColor[4];
+	GLfloat	lerp;
+
+	constColor[0] = threshold;
+	constColor[1] = threshold;
+	constColor[2] = threshold;
+	constColor[3] = 1.0f;
+	qglTexEnvfv( GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, constColor );
+
+	qglTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE );
+	qglTexEnvi( GL_TEXTURE_ENV, GL_COMBINE_RGB, GL_SUBTRACT );
+	qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE0_RGB, GL_TEXTURE );
+	qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE1_RGB, GL_CONSTANT );
+
+	lerp = saturation;
+	if ( lerp < 0.0f ) {
+		lerp = 0.0f;
+	}
+
+	if ( lerp > 2.0f ) {
+		lerp = 2.0f;
+	}
+
+	qglTexEnvi( GL_TEXTURE_ENV, GL_COMBINE_ALPHA, GL_INTERPOLATE );
+	qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE0_ALPHA, GL_TEXTURE );
+	qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE1_ALPHA, GL_CONSTANT );
+	qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE2_ALPHA, GL_CONSTANT );
+	constColor[0] = constColor[1] = constColor[2] = constColor[3] = lerp * 0.5f;
+	qglTexEnvfv( GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, constColor );
+
+	qglColor4f( intensity, intensity, intensity, 1.0f );
+}
+
+
+/*
+=============
+RB_DrawBloomSpread
+
+Render a textured quad with offsets to approximate the separable blur used by Quake Live.
+=============
+*/
+static void RB_DrawBloomSpread( float xOffset, float yOffset, int width, int height ) {
+	float	s0, t0, s1, t1;
+
+	s0 = 0.0f + xOffset;
+	t0 = 0.0f + yOffset;
+	s1 = 1.0f + xOffset;
+	t1 = 1.0f + yOffset;
+
+	qglBegin( GL_QUADS );
+	qglTexCoord2f( s0, t0 );
+	qglVertex2f( 0.0f, 0.0f );
+	qglTexCoord2f( s1, t0 );
+	qglVertex2f( width, 0.0f );
+	qglTexCoord2f( s1, t1 );
+	qglVertex2f( width, height );
+	qglTexCoord2f( s0, t1 );
+	qglVertex2f( 0.0f, height );
+	qglEnd();
+}
+
+
+/*
+=============
+RB_DrawBloomPass
+
+Issue one bloom blur pass using configurable radius and scale.
+=============
+*/
+static void RB_DrawBloomPass( int width, int height, int radius, float scale, float saturation, float intensity, float threshold ) {
+	int		offset;
+	float	xStep;
+	float	yStep;
+
+	RB_ConfigureBloomStage( threshold, saturation, intensity );
+	qglEnable( GL_BLEND );
+	qglBlendFunc( GL_ONE, GL_ONE );
+
+	xStep = (float)radius / (float)width;
+	yStep = (float)radius / (float)height;
+
+	xStep *= scale;
+	yStep *= scale;
+
+	RB_DrawBloomSpread( 0.0f, 0.0f, width, height );
+
+	for ( offset = 1; offset <= radius; offset++ ) {
+		float	spread;
+
+		spread = offset * scale;
+		RB_DrawBloomSpread( xStep * spread, 0.0f, width, height );
+		RB_DrawBloomSpread( -xStep * spread, 0.0f, width, height );
+		RB_DrawBloomSpread( 0.0f, yStep * spread, width, height );
+		RB_DrawBloomSpread( 0.0f, -yStep * spread, width, height );
+	}
+}
+/*
+=============
 RB_SubmitPostProcess
 
 Run any post-process work gated by the current enable flags.
@@ -341,8 +475,66 @@ static void RB_SubmitPostProcess( void ) {
 	}
 
 	RB_ResetPostProcessState();
-}
 
+	if ( backEnd.bloomActive && r_bloomIntensity && r_bloomBrightThreshold && r_bloomPasses ) {
+		int		width, height;
+		int		passes;
+		float	bloomIntensity;
+		float	brightThreshold;
+		float	blurScale;
+		int		blurRadius;
+		float	bloomSaturation;
+		float	sceneIntensity;
+		float	sceneSaturation;
+		image_t	*sceneImage;
+
+		width = glConfig.vidWidth;
+		height = glConfig.vidHeight;
+
+		brightThreshold = r_bloomBrightThreshold->value;
+		bloomIntensity = r_bloomIntensity->value;
+		passes = r_bloomPasses->integer;
+		blurScale = ( r_bloomBlurScale && r_bloomBlurScale->value > 0.0f ) ? r_bloomBlurScale->value : 1.0f;
+		blurRadius = ( r_bloomBlurRadius && r_bloomBlurRadius->integer > 0 ) ? r_bloomBlurRadius->integer : 1;
+		bloomSaturation = ( r_bloomSaturation ? r_bloomSaturation->value : 1.0f );
+		sceneIntensity = ( r_bloomSceneIntensity ? r_bloomSceneIntensity->value : 1.0f );
+		sceneSaturation = ( r_bloomSceneSaturation ? r_bloomSceneSaturation->value : 1.0f );
+
+		if ( passes < 1 ) {
+			passes = 1;
+		} else if ( passes > 2 ) {
+			passes = 2;
+		}
+
+		qglDisable( GL_DEPTH_TEST );
+		qglDisable( GL_CULL_FACE );
+		qglDisable( GL_SCISSOR_TEST );
+
+		qglViewport( 0, 0, width, height );
+		RB_SetGL2D();
+
+		sceneImage = RB_UploadBloomScratch( 0, width, height );
+		GL_Bind( sceneImage );
+
+		qglTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+		qglColor4f( sceneIntensity, sceneIntensity, sceneIntensity, 1.0f );
+		RB_DrawBloomSpread( 0.0f, 0.0f, width, height );
+
+		qglTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE );
+		qglTexEnvi( GL_TEXTURE_ENV, GL_COMBINE_RGB, GL_MODULATE );
+		qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE0_RGB, GL_TEXTURE );
+		qglTexEnvi( GL_TEXTURE_ENV, GL_SOURCE1_RGB, GL_PRIMARY_COLOR );
+		qglColor4f( sceneSaturation, sceneSaturation, sceneSaturation, 1.0f );
+		RB_DrawBloomSpread( 0.0f, 0.0f, width, height );
+
+		while ( passes-- ) {
+			RB_DrawBloomPass( width, height, blurRadius, blurScale, bloomSaturation, bloomIntensity, brightThreshold );
+		}
+
+		qglDisable( GL_BLEND );
+		qglTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE );
+	}
+}
 
 /*
 ** GL_Bind
