@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
+cvar_t	*cl_allowConsoleChat;
 
 cvar_t	*cl_noprint;
 cvar_t	*cl_motd;
@@ -40,6 +41,11 @@ cvar_t	*cl_packetdup;
 cvar_t	*cl_timeNudge;
 cvar_t	*cl_showTimeDelta;
 cvar_t	*cl_freezeDemo;
+cvar_t	*cl_quitOnDemoCompleted;
+cvar_t	*cl_demoRecordMessage;
+cvar_t	*cl_avidemo_latch;
+cvar_t	*cl_avidemo_mintime;
+cvar_t	*cl_avidemo_maxtime;
 
 cvar_t	*cl_shownet;
 cvar_t	*cl_showSend;
@@ -50,7 +56,17 @@ cvar_t	*cl_forceavidemo;
 cvar_t	*cl_freelook;
 cvar_t	*cl_sensitivity;
 
+cvar_t	*cl_yawspeed;
+cvar_t	*cl_pitchspeed;
+cvar_t	*cl_run;
+cvar_t	*cl_anglespeedkey;
+cvar_t	*cl_viewAccel;
+
 cvar_t	*cl_mouseAccel;
+cvar_t	*cl_mouseAccelDebug;
+cvar_t	*cl_mouseAccelOffset;
+cvar_t	*cl_mouseAccelPower;
+cvar_t	*cl_mouseSensCap;
 cvar_t	*cl_showMouseRate;
 
 cvar_t	*m_pitch;
@@ -58,8 +74,10 @@ cvar_t	*m_yaw;
 cvar_t	*m_forward;
 cvar_t	*m_side;
 cvar_t	*m_filter;
+cvar_t	*m_cpi;
 
 cvar_t	*cl_activeAction;
+cvar_t	*cl_platform;
 
 cvar_t	*cl_motdString;
 
@@ -69,7 +87,6 @@ cvar_t	*cl_inGameVideo;
 
 cvar_t	*cl_serverStatusResendTime;
 cvar_t	*cl_trn;
-
 clientActive_t		cl;
 clientConnection_t	clc;
 clientStatic_t		cls;
@@ -2265,53 +2282,59 @@ void CL_Init( void ) {
 
 	cls.realtime = 0;
 
-CL_InitInput ();
+	CL_InitInput ();
 
-//
-// register our variables
+	//
+	// register our variables
 	//
 	cl_noprint = Cvar_Get( "cl_noprint", "0", 0 );
 	cl_motd = Cvar_Get ("cl_motd", "1", 0);
 
-	cl_timeout = Cvar_Get ("cl_timeout", "200", 0);
+	cl_timeout = Cvar_Get ("cl_timeout", "40", 0);
 
-	cl_timeNudge = Cvar_Get ("cl_timeNudge", "0", CVAR_TEMP );
+	cl_timeNudge = Cvar_Get ("cl_timeNudge", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED );
 	cl_shownet = Cvar_Get ("cl_shownet", "0", CVAR_TEMP );
 	cl_showSend = Cvar_Get ("cl_showSend", "0", CVAR_TEMP );
 	cl_showTimeDelta = Cvar_Get ("cl_showTimeDelta", "0", CVAR_TEMP );
 	cl_freezeDemo = Cvar_Get ("cl_freezeDemo", "0", CVAR_TEMP );
+	cl_quitOnDemoCompleted = Cvar_Get ("cl_quitOnDemoCompleted", "0", 0 );
+	cl_allowConsoleChat = Cvar_Get ("cl_allowConsoleChat", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 	rcon_client_password = Cvar_Get ("rconPassword", "", CVAR_TEMP );
 	cl_activeAction = Cvar_Get( "activeAction", "", CVAR_TEMP );
+	cl_demoRecordMessage = Cvar_Get ("cl_demoRecordMessage", "2", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 
 	cl_timedemo = Cvar_Get ("timedemo", "0", 0);
 	cl_avidemo = Cvar_Get ("cl_avidemo", "0", 0);
+	cl_avidemo_latch = Cvar_Get ("cl_avidemo_latch", "0", 0 );
+	cl_avidemo_mintime = Cvar_Get ("cl_avidemo_mintime", "0", 0 );
+	cl_avidemo_maxtime = Cvar_Get ("cl_avidemo_maxtime", "0", 0 );
 	cl_forceavidemo = Cvar_Get ("cl_forceavidemo", "0", 0);
 
 	rconAddress = Cvar_Get ("rconAddress", "", 0);
 
-	cl_yawspeed = Cvar_Get ("cl_yawspeed", "140", CVAR_ARCHIVE);
-	cl_pitchspeed = Cvar_Get ("cl_pitchspeed", "140", CVAR_ARCHIVE);
-	cl_anglespeedkey = Cvar_Get ("cl_anglespeedkey", "1.5", 0);
+	cl_yawspeed = Cvar_Get ("cl_yawspeed", "140", CVAR_CHEAT );
+	cl_pitchspeed = Cvar_Get ("cl_pitchspeed", "140", CVAR_CHEAT );
+	cl_anglespeedkey = Cvar_Get ("cl_anglespeedkey", "1.5", CVAR_CHEAT );
 
-	cl_maxpackets = Cvar_Get ("cl_maxpackets", "30", CVAR_ARCHIVE );
-	cl_packetdup = Cvar_Get ("cl_packetdup", "1", CVAR_ARCHIVE );
+	cl_maxpackets = Cvar_Get ("cl_maxpackets", "125", CVAR_CHEAT );
+	cl_packetdup = Cvar_Get ("cl_packetdup", "1", CVAR_ARCHIVE | CVAR_CLOUD );
 
 	cl_run = Cvar_Get ("cl_run", "1", CVAR_ARCHIVE);
-	cl_sensitivity = Cvar_Get ("sensitivity", "5", CVAR_ARCHIVE);
-	cl_mouseAccel = Cvar_Get ("cl_mouseAccel", "0", CVAR_ARCHIVE);
-	cl_freelook = Cvar_Get( "cl_freelook", "1", CVAR_ARCHIVE );
+	cl_viewAccel = Cvar_Get ("cl_viewAccel", "1.7", CVAR_ARCHIVE | CVAR_CLOUD );
+	cl_sensitivity = Cvar_Get ("sensitivity", "4", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	cl_mouseAccel = Cvar_Get ("cl_mouseAccel", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	cl_mouseAccelDebug = Cvar_Get ("cl_mouseAccelDebug", "0", 0 );
+	cl_mouseAccelOffset = Cvar_Get ("cl_mouseAccelOffset", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	cl_mouseAccelPower = Cvar_Get ("cl_mouseAccelPower", "2", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	cl_mouseSensCap = Cvar_Get ("cl_mouseSensCap", "0", CVAR_ARCHIVE | CVAR_CLOUD );
+	cl_freelook = Cvar_Get( "cl_freelook", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 
 	cl_showMouseRate = Cvar_Get ("cl_showmouserate", "0", 0);
 
-	cl_allowDownload = Cvar_Get ("cl_allowDownload", "0", CVAR_ARCHIVE);
+	cl_allowDownload = Cvar_Get ("cl_allowDownload", "0", CVAR_ARCHIVE );
 
 	cl_conXOffset = Cvar_Get ("cl_conXOffset", "0", 0);
-#ifdef MACOS_X
-        // In game video is REALLY slow in Mac OS X right now due to driver slowness
-	cl_inGameVideo = Cvar_Get ("r_inGameVideo", "0", CVAR_ARCHIVE);
-#else
 	cl_inGameVideo = Cvar_Get ("r_inGameVideo", "1", CVAR_ARCHIVE);
-#endif
 
 	cl_serverStatusResendTime = Cvar_Get ("cl_serverStatusResendTime", "750", 0);
 
@@ -2319,45 +2342,48 @@ CL_InitInput ();
 	// if the cgame hasn't been started
 	Cvar_Get ("cg_autoswitch", "1", CVAR_ARCHIVE);
 
-	m_pitch = Cvar_Get ("m_pitch", "0.022", CVAR_ARCHIVE);
-	m_yaw = Cvar_Get ("m_yaw", "0.022", CVAR_ARCHIVE);
-	m_forward = Cvar_Get ("m_forward", "0.25", CVAR_ARCHIVE);
-	m_side = Cvar_Get ("m_side", "0.25", CVAR_ARCHIVE);
-#ifdef MACOS_X
-        // Input is jittery on OS X w/o this
-	m_filter = Cvar_Get ("m_filter", "1", CVAR_ARCHIVE);
-#else
-	m_filter = Cvar_Get ("m_filter", "0", CVAR_ARCHIVE);
-#endif
+	m_pitch = Cvar_Get ("m_pitch", "0.022", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	m_yaw = Cvar_Get ("m_yaw", "0.022", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	m_forward = Cvar_Get ("m_forward", "0.25", CVAR_ARCHIVE | CVAR_CLOUD );
+	m_side = Cvar_Get ("m_side", "0.25", CVAR_ARCHIVE | CVAR_CLOUD );
+	m_filter = Cvar_Get ("m_filter", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	m_cpi = Cvar_Get ("m_cpi", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 
 	cl_motdString = Cvar_Get( "cl_motdString", "", CVAR_ROM );
+	cl_platform = Cvar_Get ("cl_platform", "1", CVAR_ROM );
 
 	Cvar_Get( "cl_maxPing", "800", CVAR_ARCHIVE );
-
+	Cvar_Get( "cl_downloadName", "", CVAR_TEMP );
+	Cvar_Get( "cl_downloadTime", "0", CVAR_TEMP );
+	Cvar_Get( "cl_downloadItem", "", CVAR_TEMP );
+	Cvar_Get( "cl_downloadCount", "0", CVAR_TEMP );
+	Cvar_Get( "cl_downloadSize", "0", CVAR_TEMP );
 
 	// userinfo
-	Cvar_Get ("name", "UnnamedPlayer", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("rate", "3000", CVAR_USERINFO | CVAR_ARCHIVE );
+	Cvar_Get ("name", "UnnamedPlayer", CVAR_USERINFO | CVAR_ROM );
+	Cvar_Get ("country", "", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	Cvar_Get ("rate", "25000", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_LATCH | CVAR_VM_CREATED );
 	Cvar_Get ("snaps", "20", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("model", "sarge", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("team_model", "james", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("team_headmodel", "*james", CVAR_USERINFO | CVAR_ARCHIVE );
+	Cvar_Get ("model", "sarge", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );
+	Cvar_Get ("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );
+	Cvar_Get ("team_model", "james", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );
+	Cvar_Get ("team_headmodel", "*james", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );
 	Cvar_Get ("g_redTeam", "Stroggs", CVAR_ARCHIVE);
 	Cvar_Get ("g_blueTeam", "Pagans", CVAR_ARCHIVE);
-	Cvar_Get ("color1",  "4", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("color2", "5", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("handicap", "100", CVAR_USERINFO | CVAR_ARCHIVE );
-	Cvar_Get ("teamtask", "0", CVAR_USERINFO );
-	Cvar_Get ("sex", "male", CVAR_USERINFO | CVAR_ARCHIVE );
+	Cvar_Get ("color1",  "7", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	Cvar_Get ("color2", "25", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	Cvar_Get ("handicap", "100", CVAR_USERINFO | CVAR_TEMP );
+	Cvar_Get ("teamtask", "0", CVAR_USERINFO | CVAR_PROTECTED );
+	Cvar_Get ("sex", "male", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );
 	Cvar_Get ("cl_anonymous", "0", CVAR_USERINFO | CVAR_ARCHIVE );
 
-	Cvar_Get ("password", "", CVAR_USERINFO);
-	Cvar_Get ("cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE );
-
+	Cvar_Get ("password", "", CVAR_USERINFO | CVAR_TEMP);
+	Cvar_Get ("cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	Cvar_Get ("cg_autoAction", "", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	Cvar_Get ("cg_autoHop", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 
 	// cgame might not be initialized before menu is used
-	Cvar_Get ("cg_viewsize", "100", CVAR_ARCHIVE );
+	Cvar_Get ("cg_viewsize", "100", CVAR_ARCHIVE | CVAR_CLOUD );
 	
 	CL_InitSteamResources();
 	
@@ -3365,4 +3391,3 @@ qboolean CL_CDKeyValidate( const char *key, const char *checksum ) {
                 return qfalse;
         }
 }
-
