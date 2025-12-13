@@ -2003,6 +2003,72 @@ static void CG_RemoveChatEscapeChar( char *text ) {
 
 /*
 =================
+CG_ParseScreenshot
+=================
+*/
+static void CG_ParseScreenshot( void ) {
+	if ( trap_Argc() > 1 ) {
+		trap_SendConsoleCommand( va( "screenshotJPEG \"%s\"\n", CG_Argv( 1 ) ) );
+	} else {
+		trap_SendConsoleCommand( "screenshotJPEG\n" );
+	}
+}
+
+/*
+=================
+CG_ParseRecord
+=================
+*/
+static void CG_ParseRecord( void ) {
+	if ( trap_Argc() > 1 ) {
+		trap_SendConsoleCommand( va( "record \"%s\"\n", CG_Argv( 1 ) ) );
+	} else {
+		trap_SendConsoleCommand( "record\n" );
+	}
+}
+
+/*
+=================
+CG_ParseStopRecord
+=================
+*/
+static void CG_ParseStopRecord( void ) {
+	trap_SendConsoleCommand( "stoprecord\n" );
+}
+
+/*
+=================
+CG_ParsePlayMusic
+=================
+*/
+static void CG_ParsePlayMusic( void ) {
+	if ( trap_Argc() > 1 ) {
+		trap_S_StartBackgroundTrack( CG_Argv(1), CG_Argv(2) );
+	}
+}
+
+/*
+=================
+CG_ParseStopMusic
+=================
+*/
+static void CG_ParseStopMusic( void ) {
+	trap_S_StopBackgroundTrack();
+}
+
+/*
+=================
+CG_ParsePlaySound
+=================
+*/
+static void CG_ParsePlaySound( void ) {
+	if ( trap_Argc() > 1 ) {
+		trap_S_StartLocalSound( trap_S_RegisterSound( CG_Argv( 1 ), qfalse ), CHAN_LOCAL_SOUND );
+	}
+}
+
+/*
+=================
 CG_ServerCommand
 
 The string has been tokenized and can be retrieved with
@@ -2112,6 +2178,61 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	if ( !strcmp( cmd, "scores_ffa" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_duel" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_race" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_tdm" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_ca" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_ctf" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_ft" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_ad" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "adscores" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scores_rr" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "smscores" ) ) {
+		CG_ParseScores();
+		return;
+	}
+
 	if ( !strcmp( cmd, "tinfo" ) ) {
 		CG_ParseTeamInfo();
 		return;
@@ -2122,14 +2243,45 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
-  if ( Q_stricmp (cmd, "remapShader") == 0 ) {
+	if ( Q_stricmp (cmd, "remapShader") == 0 ) {
 		if (trap_Argc() == 4) {
 			trap_R_RemapShader(CG_Argv(1), CG_Argv(2), CG_Argv(3));
 		}
+		return;
+	}
+
+	if ( !strcmp( cmd, "screenshot" ) ) {
+		CG_ParseScreenshot();
+		return;
+	}
+
+	if ( !strcmp( cmd, "record" ) ) {
+		CG_ParseRecord();
+		return;
+	}
+
+	if ( !strcmp( cmd, "stoprecord" ) ) {
+		CG_ParseStopRecord();
+		return;
+	}
+
+	if ( !strcmp( cmd, "playMusic" ) ) {
+		CG_ParsePlayMusic();
+		return;
+	}
+
+	if ( !strcmp( cmd, "stopMusic" ) ) {
+		CG_ParseStopMusic();
+		return;
+	}
+
+	if ( !strcmp( cmd, "playSound" ) ) {
+		CG_ParsePlaySound();
+		return;
 	}
 
 	// loaddeferred can be both a servercmd and a consolecmd
-	if ( !strcmp( cmd, "loaddefered" ) ) {	// FIXME: spelled wrong, but not changing for demo
+	if ( !strcmp( cmd, "loaddefered" ) || !strcmp( cmd, "loaddeferred" ) ) {	// FIXME: spelled wrong, but not changing for demo
 		CG_LoadDeferredPlayers();
 		return;
 	}
