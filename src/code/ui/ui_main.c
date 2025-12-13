@@ -3436,6 +3436,55 @@ static void UI_LoadTeams() {
 		}
 
 
+
+/*
+=============
+UI_ClearClanList
+
+Resets the cached clan roster entries.
+=============
+*/
+static void UI_ClearClanList(void) {
+	int i;
+
+	uiInfo.clanCount = 0;
+	uiInfo.currentClan = -1;
+
+	for (i = 0; i < MAX_CLANS; i++) {
+		uiInfo.clanList[i].name[0] = '\0';
+		uiInfo.clanList[i].tag[0] = '\0';
+		uiInfo.clanList[i].emblemPath[0] = '\0';
+		uiInfo.clanList[i].emblemShader = -1;
+	}
+
+}
+
+
+/*
+=============
+UI_LoadClanList
+
+Seeds the clan roster cache so FEEDER_CLANS can enumerate available clans.
+The placeholder entry keeps menus functional until real roster plumbing is
+available.
+=============
+*/
+static void UI_LoadClanList(void) {
+	UI_ClearClanList();
+
+	Q_strncpyz(uiInfo.clanList[0].name, "Clan roster unavailable", sizeof(uiInfo.clanList[0].name));
+	uiInfo.clanList[0].tag[0] = '\0';
+	Q_strncpyz(uiInfo.clanList[0].emblemPath, "menu/art/unknownmap", sizeof(uiInfo.clanList[0].emblemPath));
+	uiInfo.clanList[0].emblemShader = trap_R_RegisterShaderNoMip(uiInfo.clanList[0].emblemPath);
+
+	uiInfo.clanCount = 1;
+	uiInfo.currentClan = 0;
+	trap_Cvar_Set("ui_clanIndex", "0");
+	trap_Cvar_Set("ui_clanName", uiInfo.clanList[0].name);
+
+}
+
+
 /*
 =============
 UI_LoadCountries
@@ -3861,7 +3910,7 @@ static void UI_RunMenuScript(char **args) {
 			if (clients == 0) {
 				clients = 8;
 			}
-			
+
 			if (oldclients > clients) {
 				clients = oldclients;
 			}
@@ -4852,6 +4901,8 @@ static void UI_BuildServerStatus(qboolean force) {
 /*
 ==================
 UI_FeederCount
+
+Returns the number of rows supplied by each menu feeder.
 ==================
 */
 static int UI_FeederCount(float feederID) {
@@ -4864,7 +4915,7 @@ static int UI_FeederCount(float feederID) {
 		return uiInfo.q3HeadCount;
 	} else if (feederID == FEEDER_CINEMATICS) {
 		return uiInfo.movieCount;
-		} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
+	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
 		// Map-rotation scripting in the Quake Live HLIL (`^1map rotation item missing
 		// map…` strings in `quakelive_steam.exe_hlil_part02.txt`) mirrors this branch,
 		// so the pending FEEDER_CVMAPS hook will live alongside the existing map
@@ -4872,6 +4923,8 @@ static int UI_FeederCount(float feederID) {
 		return UI_MapCountByGameType(feederID == FEEDER_MAPS ? qtrue : qfalse);
 	} else if (feederID == FEEDER_CVMAPS) {
 		return UI_CountVisibleCallvoteRotations();
+	} else if (feederID == FEEDER_CLANS) {
+		return uiInfo.clanCount;
 	} else if (feederID == FEEDER_MAP_ROTATIONS) {
 		return uiInfo.mapRotationCount;
 	} else if (feederID == FEEDER_SERVERS) {
@@ -4893,58 +4946,27 @@ static int UI_FeederCount(float feederID) {
 		}
 		return uiInfo.myTeamCount;
 	} else if (feederID == FEEDER_MODS) {
-		if (index >= 0 && index < uiInfo.modCount) {
-			if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
-				return uiInfo.modList[index].modDescr;
-			} else {
-				return uiInfo.modList[index].modName;
-			}
-		}
-	} else if (feederID == FEEDER_CINEMATICS) {
-		if (index >= 0 && index < uiInfo.movieCount) {
-			return uiInfo.movieList[index];
-		}
+		return uiInfo.modCount;
 	} else if (feederID == FEEDER_DEMOS) {
-		if (index >= 0 && index < uiInfo.demoCount) {
-			return uiInfo.demoList[index];
-		}
+		return uiInfo.demoCount;
 	} else if (feederID == FEEDER_COUNTRIES) {
-		if (index >= 0 && index < uiInfo.countryCount) {
-			return uiInfo.countryList[index];
-		}
+		return uiInfo.countryCount;
 	} else if (feederID == FEEDER_MATCHSUMMARY_END
-		|| feederID == FEEDER_MATCHSUMMARY_RED
-		|| feederID == FEEDER_MATCHSUMMARY_BLUE
-		|| feederID == FEEDER_ENDSCOREBOARD
-		|| feederID == FEEDER_REDTEAM_STATS
-		|| feederID == FEEDER_BLUETEAM_STATS
-		|| feederID == FEEDER_REDTEAM_LIST
-		|| feederID == FEEDER_BLUETEAM_LIST
-		|| feederID == FEEDER_SCOREBOARD) {
+			|| feederID == FEEDER_MATCHSUMMARY_RED
+			|| feederID == FEEDER_MATCHSUMMARY_BLUE
+			|| feederID == FEEDER_ENDSCOREBOARD
+			|| feederID == FEEDER_REDTEAM_STATS
+			|| feederID == FEEDER_BLUETEAM_STATS
+			|| feederID == FEEDER_REDTEAM_LIST
+			|| feederID == FEEDER_BLUETEAM_LIST
+			|| feederID == FEEDER_SCOREBOARD) {
 		uiMatchPlayerList_t *list = UI_MatchSummaryListForFeeder(feederID);
-		if (list && index >= 0 && index < list->entryCount) {
-			uiMatchPlayerInfo_t *entry = &list->entries[index];
-			switch (column) {
-				case 0:
-					return entry->country;
-				case 1:
-					Com_sprintf(matchSummaryScore, sizeof(matchSummaryScore), "%i", entry->score);
-					return matchSummaryScore;
-				case 2:
-					Com_sprintf(matchSummaryRank, sizeof(matchSummaryRank), "%i", entry->rank);
-					return matchSummaryRank;
-				case 3:
-					return UI_MatchSummaryTeamString(entry->team);
-				case 4:
-					Com_sprintf(matchSummaryClient, sizeof(matchSummaryClient), "%i", entry->clientNum);
-					return matchSummaryClient;
-				default:
-					return entry->name;
-			}
-		}
+
+		return list ? list->entryCount : 0;
 	}
-	return "";
-		}
+
+	return 0;
+}
 
 static const char *UI_SelectedHead(int index, int *actual) {
 	int i, c;
@@ -5488,6 +5510,18 @@ static const char *UI_FeederItemText(float feederID, int index, int column, qhan
 			return rotation->mapName;
 		}
 		return "";
+	} else if (feederID == FEEDER_CLANS) {
+		if (index >= 0 && index < uiInfo.clanCount) {
+			if (uiInfo.clanList[index].emblemShader != -1) {
+				*handle = uiInfo.clanList[index].emblemShader;
+			}
+
+			if (column == 1 && uiInfo.clanList[index].tag[0]) {
+				return uiInfo.clanList[index].tag;
+			}
+
+			return uiInfo.clanList[index].name;
+		}
 	} else if (feederID == FEEDER_MAP_ROTATIONS) {
 		mapRotationInfo_t *entry = UI_MapRotationEntryForIndex(index);
 		if (entry) {
@@ -5740,6 +5774,12 @@ static void UI_FeederSelection(float feederID, int index) {
 		}
 
 		UI_SelectCallvoteRotation(rotationIndex);
+	} else if (feederID == FEEDER_CLANS) {
+		if (index >= 0 && index < uiInfo.clanCount) {
+			uiInfo.currentClan = index;
+			trap_Cvar_Set("ui_clanIndex", va("%d", index));
+			trap_Cvar_Set("ui_clanName", uiInfo.clanList[index].name);
+		}
 	} else if (feederID == FEEDER_MAP_ROTATIONS) {
 		if (UI_MapRotationEntryForIndex(index)) {
 			uiInfo.currentMapRotation = index;
@@ -6330,7 +6370,7 @@ static void UI_BuildQ3Model_List( void )
 
 		if (!strcmp(dirptr,".") || !strcmp(dirptr,".."))
 			continue;
-			
+
 		// iterate all skin files in directory
 		numfiles = trap_FS_GetFileList( va("models/players/%s",dirptr), "tga", filelist, 2048 );
 		fileptr  = filelist;
@@ -6468,8 +6508,11 @@ void _UI_Init( qboolean inGameLoad ) {
 	uiInfo.characterCount = 0;
 	uiInfo.aliasCount = 0;
 	uiInfo.countryCount = 0;
+	uiInfo.clanCount = 0;
+	uiInfo.currentClan = -1;
 
 	UI_LoadCountries();
+	UI_LoadClanList();
 
 #ifdef PRE_RELEASE_TADEMO
 	UI_ParseTeamInfo("demoteaminfo.txt");
@@ -7126,6 +7169,8 @@ vmCvar_t	ui_saveFragLimit;
 vmCvar_t	ui_recordSPDemoName;
 vmCvar_t	ui_glCustom;
 vmCvar_t	ui_country;
+vmCvar_t	ui_clanIndex;
+vmCvar_t	ui_clanName;
 vmCvar_t	ui_opponentModel;
 vmCvar_t	ui_cdkeyvalid;
 
@@ -7313,6 +7358,8 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_recordSPDemoName, "ui_recordSPDemoName", "", CVAR_TEMP},
 	{ &ui_glCustom, "ui_glCustom", "0", CVAR_ARCHIVE},
 	{ &ui_country, "ui_country", "", CVAR_ARCHIVE},
+	{ &ui_clanIndex, "ui_clanIndex", "-1", CVAR_ARCHIVE},
+	{ &ui_clanName, "ui_clanName", "", CVAR_ARCHIVE},
 	{ &ui_opponentModel, "ui_opponentModel", "", CVAR_ARCHIVE},
 	{ &ui_cdkeyvalid, "ui_cdkeyvalid", "", CVAR_TEMP},
 	{ &ui_serverStatusTimeOut, "ui_serverStatusTimeOut", "7000", CVAR_ARCHIVE},

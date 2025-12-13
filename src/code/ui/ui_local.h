@@ -193,9 +193,11 @@ extern vmCvar_t	ui_saveFragLimit;
 extern vmCvar_t	ui_recordSPDemoName;
 extern vmCvar_t	ui_glCustom;
 extern vmCvar_t	ui_country;
+extern vmCvar_t	ui_clanIndex;
+extern vmCvar_t	ui_clanName;
 extern vmCvar_t	ui_opponentModel;
 extern vmCvar_t	ui_cdkeyvalid;
-extern vmCvar_t ui_serverStatusTimeOut;
+extern vmCvar_t	ui_serverStatusTimeOut;
 
 
 
@@ -887,6 +889,15 @@ typedef struct {
 	const char *modDescr;
 } modInfo_t;
 
+#define MAX_CLANS 128
+
+typedef struct {
+	char name[MAX_NAME_LENGTH];
+	char tag[32];
+	char emblemPath[MAX_QPATH];
+	qhandle_t emblemShader;
+} clanInfo_t;
+
 /*
 =============
 UI feeder topology
@@ -946,6 +957,10 @@ typedef struct {
 
 	int teamCount;
 	teamInfo teamList[MAX_TEAMS];
+
+	int clanCount;
+	int currentClan;
+	clanInfo_t clanList[MAX_CLANS];
 
 	int countryCount;
 	const char *countryList[256];
