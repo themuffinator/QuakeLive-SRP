@@ -98,10 +98,46 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="UserMacros">
+    <QLBuildSteamworks>0</QLBuildSteamworks>
+    <QLBuildOpenSteam>1</QLBuildOpenSteam>
+    <QLEnableOgg Condition="'$(QLEnableOgg)'==''">1</QLEnableOgg>
+  </PropertyGroup>
+  <PropertyGroup Label="VorbisSdk">
+    <VorbisSdkDir Condition="'$(VorbisSdkDir)'==''">$(ProjectDir)..\libs\vorbis</VorbisSdkDir>
+    <VorbisIncludeDir Condition="'$(QLEnableOgg)'!='0'">$(VorbisSdkDir)\include</VorbisIncludeDir>
+    <VorbisIncludeDir Condition="'$(QLEnableOgg)'=='0'"></VorbisIncludeDir>
+    <VorbisLibDir Condition="'$(QLEnableOgg)'!='0'">$(VorbisSdkDir)\lib\Win32</VorbisLibDir>
+    <VorbisLibDir Condition="'$(QLEnableOgg)'=='0'"></VorbisLibDir>
+    <VorbisDependencies Condition="'$(QLEnableOgg)'!='0'">vorbisfile.lib;vorbis.lib;ogg.lib</VorbisDependencies>
+    <VorbisDependencies Condition="'$(QLEnableOgg)'=='0'"></VorbisDependencies>
+  </PropertyGroup>
+  <PropertyGroup Label="PngSdk">
+    <PngSdkDir Condition="'$(PngSdkDir)'==''">$(ProjectDir)..\libs\libpng</PngSdkDir>
+    <PngIncludeDir>$(PngSdkDir)\include</PngIncludeDir>
+    <PngLibDir>$(PngSdkDir)\lib\Win32</PngLibDir>
+    <PngDependencies>libpng16.lib;zlib.lib</PngDependencies>
+  </PropertyGroup>
   <PropertyGroup>
     <_ProjectFileVersion>17.0.34511.75</_ProjectFileVersion>
   </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(VorbisIncludeDir);$(PngIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QL_ENABLE_OGG=$(QLEnableOgg);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(VorbisLibDir);$(PngLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="ValidateVorbis" BeforeTargets="ClCompile" Condition="'$(QLEnableOgg)'=='1'">
+    <Error Condition="!Exists('$(VorbisIncludeDir)')" Text="Vorbis SDK include path '$(VorbisIncludeDir)' was not found. Either install the SDK, override VorbisSdkDir, or set QLEnableOgg=0 for dedicated-only builds." />
+    <Error Condition="!Exists('$(VorbisIncludeDir)\\vorbis\\vorbisfile.h')" Text="Vorbis headers missing under $(VorbisIncludeDir). Install libvorbis/libogg development headers or set QLEnableOgg=0." />
+    <Error Condition="!Exists('$(VorbisLibDir)')" Text="Vorbis SDK library path '$(VorbisLibDir)' was not found. Install the codec SDK or set QLEnableOgg=0." />
+    <Error Condition="!Exists('$(VorbisLibDir)\\vorbisfile.lib') or !Exists('$(VorbisLibDir)\\vorbis.lib') or !Exists('$(VorbisLibDir)\\ogg.lib')" Text="Vorbis support enabled but vorbisfile.lib/vorbis.lib/ogg.lib were not found in $(VorbisLibDir). Provide the SDK import libraries or build with QLEnableOgg=0 for dedicated-only targets." />
+    <Message Text="Vorbis/OGG decoding enabled (include: $(VorbisIncludeDir), lib: $(VorbisLibDir))" Importance="High" />
+  </Target>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|Win32'">
     <OutDir>.\Release_TA\</OutDir>
     <IntDir>.\Release_TA\</IntDir>
