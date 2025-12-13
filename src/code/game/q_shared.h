@@ -952,7 +952,10 @@ default values.
 #define	CVAR_USER_CREATED	128	// created by a set command
 #define	CVAR_TEMP			256	// can be set even when cheats are disabled, but is not archived
 #define CVAR_CHEAT			512	// can not be changed if cheats are disabled
+#define CVAR_PROTECTED	0x800	// Quake Live engine-managed cvar that should not be user-modified directly
+#define CVAR_VM_CREATED	0x1000	// Quake Live flag used when the VM must create or guard the cvar value
 #define CVAR_NORESTART		1024	// do not clear when a cvar_restart is issued
+#define CVAR_CLOUD		0x80000 // Quake Live cloud/profile persisted cvars
 
 // nothing outside the Cvar_*() functions should modify these fields!
 typedef struct cvar_s {
