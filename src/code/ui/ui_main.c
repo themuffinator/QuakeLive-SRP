@@ -3861,6 +3861,34 @@ UI_RunMenuScript
 Execute menu-driven script commands, including browser overlay hooks.
 =============
 */
+/*
+=============
+UI_GetSelectedAdminClientNum
+
+Resolve the current selection to a clientNum for admin menu commands.
+=============
+*/
+static qboolean UI_GetSelectedAdminClientNum(const char *scriptName, int *clientNum) {
+	int selected;
+
+	if (!clientNum) {
+		Com_Printf("UI: %s missing clientNum storage.\n", scriptName ? scriptName : "admin command");
+		return qfalse;
+	}
+
+	UI_BuildPlayerList();
+	selected = trap_Cvar_VariableValue("cg_selectedPlayer");
+
+	if (selected < 0 || selected >= uiInfo.myTeamCount) {
+		Com_Printf("UI: %s requires a valid selected player (cg_selectedPlayer=%d, teamCount=%d).\n",
+			scriptName ? scriptName : "admin command", selected, uiInfo.myTeamCount);
+		return qfalse;
+	}
+
+	*clientNum = uiInfo.teamClientNums[selected];
+	return qtrue;
+}
+
 static void UI_RunMenuScript(char **args) {
 	const char *name, *name2;
 	char buff[1024];
@@ -4119,25 +4147,123 @@ static void UI_RunMenuScript(char **args) {
 			UI_StartSkirmish(qfalse);
 		} else if (Q_stricmp(name, "closeingame") == 0) {
 			UI_CloseInGameMenu();
-	} else if (Q_stricmp(name, "voteMap") == 0) {
-		if (ui_currentNetMap.integer >= 0 && ui_currentNetMap.integer < uiInfo.mapCount) {
-			const mapRotationInfo_t *rotation = NULL;
-			const char *factoryId = NULL;
-			const char *mapName = uiInfo.mapList[ui_currentNetMap.integer].mapLoadName;
+		} else if (Q_stricmp(name, "clientviewProfile") == 0) {
+			int clientNum;
 
-			if (uiInfo.callvoteRotationIndex >= 0 && uiInfo.callvoteRotationIndex < uiInfo.mapRotationCount) {
-				rotation = &uiInfo.mapRotations[uiInfo.callvoteRotationIndex];
-				if (rotation->factoryId[0]) {
-					factoryId = rotation->factoryId;
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("clientviewprofile %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "clientFriendInvite") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("clientfriendinvite %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "clientmutePlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("clientmute %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "kickPlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote clientkick %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "tempbanPlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("tempban %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "banPlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("ban %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "mutePlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("mute %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "unmutePlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("unmute %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "modPlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("addmod %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "adminPlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("addadmin %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "deopPlayer") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("demote %i\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "putred") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("put %i r\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "putblue") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("put %i b\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "putspec") == 0) {
+			int clientNum;
+
+			if (UI_GetSelectedAdminClientNum(name, &clientNum)) {
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("put %i s\n", clientNum));
+				UI_CloseInGameMenu();
+			}
+		} else if (Q_stricmp(name, "voteMap") == 0) {
+			if (ui_currentNetMap.integer >= 0 && ui_currentNetMap.integer < uiInfo.mapCount) {
+				const mapRotationInfo_t *rotation = NULL;
+				const char *factoryId = NULL;
+				const char *mapName = uiInfo.mapList[ui_currentNetMap.integer].mapLoadName;
+
+				if (uiInfo.callvoteRotationIndex >= 0 && uiInfo.callvoteRotationIndex < uiInfo.mapRotationCount) {
+					rotation = &uiInfo.mapRotations[uiInfo.callvoteRotationIndex];
+					if (rotation->factoryId[0]) {
+						factoryId = rotation->factoryId;
+					}
+				}
+
+				if (factoryId && factoryId[0]) {
+					trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s %s\n", mapName, factoryId));
+				} else {
+					trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s\n", mapName));
 				}
 			}
-
-			if (factoryId && factoryId[0]) {
-				trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s %s\n", mapName, factoryId));
-			} else {
-				trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s\n", mapName));
-			}
-		}
 		} else if (Q_stricmp(name, "updateCallvoteMapPreview") == 0) {
 			UI_HandleCallvoteMapPreviewScript();
 		} else if (Q_stricmp(name, "applyCallvotePreset") == 0) {
