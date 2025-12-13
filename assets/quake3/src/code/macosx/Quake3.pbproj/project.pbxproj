@@ -7847,22 +7847,25 @@
 			sourceTree = "<absolute>";
 		};
 		0654BA5CFE8ECEE0C697A12F = {
-			buildPhases = (
-				0654BA5DFE8ECEE0C697A12F,
-				0654BA61FE8ECEE0C697A12F,
-				0654BA65FE8ECEE0C697A12F,
-				0654BA6BFE8ECEE0C697A12F,
-				0654BA70FE8ECEE0C697A12F,
-			);
+                                buildPhases = (
+                                        0654BA5DFE8ECEE0C697A12F,
+                                        0654BA61FE8ECEE0C697A12F,
+                                        0654BA65FE8ECEE0C697A12F,
+                                        0654BA6BFE8ECEE0C697A12F,
+                                        0654BA70FE8ECEE0C697A12F,
+                                        C0FFEE111111111111111111,
+                                );
 			buildSettings = {
-				FRAMEWORK_SEARCH_PATHS = "";
-				HEADER_SEARCH_PATHS = "";
-				INSTALL_PATH = "/Users/Shared/$(USER)/InstalledProducts";
-				LIBRARY_SEARCH_PATHS = "";
-				OPTIMIZATION_CFLAGS = "-O2";
-				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL";
-				OTHER_LDFLAGS = "";
-				OTHER_REZFLAGS = "";
+                                FRAMEWORK_SEARCH_PATHS = "";
+                                HEADER_SEARCH_PATHS = "\"$(SRCROOT)/../../libs/libpng/include\" \"$(SRCROOT)/../../libs/vorbis/include\" /usr/local/include /opt/local/include";
+                                INSTALL_PATH = "/Users/Shared/$(USER)/InstalledProducts";
+                                LIBRARY_SEARCH_PATHS = "\"$(SRCROOT)/../../libs/libpng/lib\" \"$(SRCROOT)/../../libs/vorbis/lib\" /usr/local/lib /opt/local/lib";
+                                OPTIMIZATION_CFLAGS = "-O2";
+                                OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL -DQL_ENABLE_OGG=$(QL_ENABLE_OGG)";
+                                OTHER_LDFLAGS = "$(VORBIS_LDFLAGS) -lpng -lz";
+                                QL_ENABLE_OGG = 1;
+                                VORBIS_LDFLAGS = "-lvorbisfile -lvorbis -logg";
+                                OTHER_REZFLAGS = "";
 				PRODUCT_NAME = Quake3;
 				SECTORDER_FLAGS = "";
 				USE_GCC3_PFE_SUPPORT = NO;
@@ -8836,23 +8839,26 @@
 			};
 		};
 		4FF0904804896C0E00030DA8 = {
-			buildPhases = (
-				4FF0904904896C0E00030DA8,
-				4FF0908704896C0E00030DA8,
-				4FF0908B04896C0E00030DA8,
-				4FF0911D04896C0E00030DA8,
-				4FF0912404896C0E00030DA8,
-			);
-			buildSettings = {
-				FRAMEWORK_SEARCH_PATHS = "";
-				GCC_VERSION = 3.3;
-				HEADER_SEARCH_PATHS = "";
-				INSTALL_PATH = "/Users/Shared/$(USER)/InstalledProducts";
-				LIBRARY_SEARCH_PATHS = "\"/Users/zaphod/QUAKE3/CODE/macosx/GameRanger SDK/Libraries\"";
-				OPTIMIZATION_CFLAGS = "-O2";
-				OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL -faltivec";
-				OTHER_LDFLAGS = "";
-				OTHER_REZFLAGS = "";
+                                buildPhases = (
+                                        4FF0904904896C0E00030DA8,
+                                        4FF0908704896C0E00030DA8,
+                                        4FF0908B04896C0E00030DA8,
+                                        4FF0911D04896C0E00030DA8,
+                                        4FF0912404896C0E00030DA8,
+                                        C0FFEE222222222222222222,
+                                );
+                        buildSettings = {
+                                FRAMEWORK_SEARCH_PATHS = "";
+                                GCC_VERSION = 3.3;
+                                HEADER_SEARCH_PATHS = "\"$(SRCROOT)/../../libs/libpng/include\" \"$(SRCROOT)/../../libs/vorbis/include\" /usr/local/include /opt/local/include";
+                                INSTALL_PATH = "/Users/Shared/$(USER)/InstalledProducts";
+                                LIBRARY_SEARCH_PATHS = "\"/Users/zaphod/QUAKE3/CODE/macosx/GameRanger SDK/Libraries\" \"$(SRCROOT)/../../libs/libpng/lib\" \"$(SRCROOT)/../../libs/vorbis/lib\" /usr/local/lib /opt/local/lib";
+                                OPTIMIZATION_CFLAGS = "-O2";
+                                OTHER_CFLAGS = "-DMACOS_X -DBOTLIB -DMISSIONPACK -DSMP -force_cpusubtype_ALL -faltivec -DQL_ENABLE_OGG=$(QL_ENABLE_OGG)";
+                                OTHER_LDFLAGS = "$(VORBIS_LDFLAGS) -lpng -lz";
+                                QL_ENABLE_OGG = 1;
+                                VORBIS_LDFLAGS = "-lvorbisfile -lvorbis -logg";
+                                OTHER_REZFLAGS = "";
 				PRODUCT_NAME = "Quake3 G4";
 				SECTORDER_FLAGS = "";
 				USE_GCC3_PFE_SUPPORT = NO;
@@ -11783,20 +11789,48 @@
 			settings = {
 			};
 		};
-		F5ED1435037096A001F6289A = {
-			fileEncoding = 30;
-			isa = PBXFileReference;
-			lastKnownFileType = sourcecode.c.h;
-			path = splines.h;
-			refType = 4;
-			sourceTree = "<group>";
-		};
-		F5ED1436037096A001F6289A = {
-			fileRef = F5ED1435037096A001F6289A;
-			isa = PBXBuildFile;
-			settings = {
-			};
-		};
-	};
-	rootObject = 0654BA41FE8ECEE0C697A12F;
+                F5ED1435037096A001F6289A = {
+                        fileEncoding = 30;
+                        isa = PBXFileReference;
+                        lastKnownFileType = sourcecode.c.h;
+                        path = splines.h;
+                        refType = 4;
+                        sourceTree = "<group>";
+                };
+                F5ED1436037096A001F6289A = {
+                        fileRef = F5ED1435037096A001F6289A;
+                        isa = PBXBuildFile;
+                        settings = {
+                        };
+                };
+                C0FFEE111111111111111111 = {
+                        buildActionMask = 2147483647;
+                        files = (
+                        );
+                        inputPaths = (
+                        );
+                        isa = PBXShellScriptBuildPhase;
+                        outputPaths = (
+                        );
+                        runOnlyForDeploymentPostprocessing = 0;
+                        shellPath = /bin/sh;
+                        shellScript = "if [ \"${QL_ENABLE_OGG}\" != \"0\" ]; then\\n    SDK_ROOT=\"${SRCROOT}/../../libs/vorbis\"\\n    if [ ! -d \"${SDK_ROOT}/include\" ] || [ ! -d \"${SDK_ROOT}/lib\" ]; then\\n        echo \"error: Vorbis/OGG SDK missing at ${SDK_ROOT}. Set QL_ENABLE_OGG=0 for dedicated-only builds or install the SDK.\"; exit 1;\\n    fi\\n    for lib in vorbisfile vorbis ogg; do\\n        if [ ! -f \"${SDK_ROOT}/lib/lib${lib}.a\" ] && [ ! -f \"${SDK_ROOT}/lib/lib${lib}.dylib\" ]; then\\n            echo \"error: lib${lib} not found in ${SDK_ROOT}/lib (required for Vorbis decoding).\"; exit 1;\\n        fi\\n    done\\n    echo \"Vorbis/OGG decoding enabled using ${SDK_ROOT}\";\\nelse\\n    echo \"Vorbis/OGG decoding disabled via QL_ENABLE_OGG=0\";\\nfi\\n";
+                        showEnvVarsInLog = 0;
+                };
+                C0FFEE222222222222222222 = {
+                        buildActionMask = 2147483647;
+                        files = (
+                        );
+                        inputPaths = (
+                        );
+                        isa = PBXShellScriptBuildPhase;
+                        outputPaths = (
+                        );
+                        runOnlyForDeploymentPostprocessing = 0;
+                        shellPath = /bin/sh;
+                        shellScript = "if [ \"${QL_ENABLE_OGG}\" != \"0\" ]; then\\n    SDK_ROOT=\"${SRCROOT}/../../libs/vorbis\"\\n    if [ ! -d \"${SDK_ROOT}/include\" ] || [ ! -d \"${SDK_ROOT}/lib\" ]; then\\n        echo \"error: Vorbis/OGG SDK missing at ${SDK_ROOT}. Set QL_ENABLE_OGG=0 for dedicated-only builds or install the SDK.\"; exit 1;\\n    fi\\n    for lib in vorbisfile vorbis ogg; do\\n        if [ ! -f \"${SDK_ROOT}/lib/lib${lib}.a\" ] && [ ! -f \"${SDK_ROOT}/lib/lib${lib}.dylib\" ]; then\\n            echo \"error: lib${lib} not found in ${SDK_ROOT}/lib (required for Vorbis decoding).\"; exit 1;\\n        fi\\n    done\\n    echo \"Vorbis/OGG decoding enabled using ${SDK_ROOT}\";\\nelse\\n    echo \"Vorbis/OGG decoding disabled via QL_ENABLE_OGG=0\";\\nfi\\n";
+                        showEnvVarsInLog = 0;
+                };
+        };
+        rootObject = 0654BA41FE8ECEE0C697A12F;
 }
