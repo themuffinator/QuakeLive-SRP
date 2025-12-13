@@ -308,6 +308,8 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 	if ( !tr.registered ) {
 		return;
 	}
+
+	R_UpdatePostProcessCvars();
 	glState.finishCalled = qfalse;
 
 	tr.frameCount++;
