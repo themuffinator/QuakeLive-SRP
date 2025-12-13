@@ -347,6 +347,37 @@ void CG_AddFadeRGB( localEntity_t *le ) {
 }
 
 /*
+=================
+CG_AddScaleFadeOut
+=================
+*/
+static void CG_AddScaleFadeOut( localEntity_t *le ) {
+	refEntity_t	*re;
+	float		c;
+
+	re = &le->refEntity;
+
+	// fade time
+	c = ( le->endTime - cg.time ) * le->lifeRate;
+
+	re->shaderRGBA[3] = 0xff * c * le->color[3];
+	re->radius = le->radius * c;
+
+	trap_R_AddRefEntityToScene( re );
+}
+
+/*
+=================
+CG_AddType10
+=================
+*/
+static void CG_AddType10( localEntity_t *le ) {
+	// TODO: fully reverse this
+	// refEntity_t *re = &le->refEntity;
+	// trap_R_AddRefEntityToScene( re );
+}
+
+/*
 ==================
 CG_AddMoveScaleFade
 ==================
@@ -864,6 +895,9 @@ void CG_AddLocalEntities( void ) {
 		case LE_KAMIKAZE:
 			CG_AddKamikaze( le );
 			break;
+		case LE_10:
+			CG_AddType10( le );
+			break;
 		case LE_INVULIMPACT:
 			CG_AddInvulnerabilityImpact( le );
 			break;
@@ -872,6 +906,13 @@ void CG_AddLocalEntities( void ) {
 			break;
 		case LE_SHOWREFENTITY:
 			CG_AddRefEntity( le );
+			break;
+		case LE_SCALE_FADE_OUT:
+			CG_AddScaleFadeOut( le );
+			break;
+		case LE_FRAGMENT_14:
+		case LE_FRAGMENT_16:
+			CG_AddFragment( le );
 			break;
 		}
 	}
