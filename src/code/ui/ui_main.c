@@ -4850,101 +4850,102 @@ static void UI_BuildServerStatus(qboolean force) {
 		}
 
 /*
-==================
+=============
 UI_FeederCount
-==================
+
+Returns the number of entries available for each UI feeder.
+=============
 */
 static int UI_FeederCount(float feederID) {
-	// HLIL parity: the docs/gameplay/parity/parity-ledger.md row that cites the
-	// `UI_FeederSelection` dump expects every `FEEDER_*` branch below to remain in
-	// sync with the uiInfo_t storage documented in ui_local.h.
 	if (feederID == FEEDER_HEADS) {
 		return UI_HeadCountByTeam();
-	} else if (feederID == FEEDER_Q3HEADS) {
+	}
+
+	if (feederID == FEEDER_Q3HEADS) {
 		return uiInfo.q3HeadCount;
-	} else if (feederID == FEEDER_CINEMATICS) {
-		return uiInfo.movieCount;
-		} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
-		// Map-rotation scripting in the Quake Live HLIL (`^1map rotation item missing
-		// map…` strings in `quakelive_steam.exe_hlil_part02.txt`) mirrors this branch,
-		// so the pending FEEDER_CVMAPS hook will live alongside the existing map
-		// feeders and continue to pull from `uiInfo.mapList`.
-		return UI_MapCountByGameType(feederID == FEEDER_MAPS ? qtrue : qfalse);
-	} else if (feederID == FEEDER_CVMAPS) {
+	}
+
+	if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
+		return UI_MapCountByGameType((feederID == FEEDER_MAPS) ? qtrue : qfalse);
+	}
+
+	if (feederID == FEEDER_CVMAPS) {
 		return UI_CountVisibleCallvoteRotations();
-	} else if (feederID == FEEDER_MAP_ROTATIONS) {
+	}
+
+	if (feederID == FEEDER_MAP_ROTATIONS) {
 		return uiInfo.mapRotationCount;
-	} else if (feederID == FEEDER_SERVERS) {
+	}
+
+	if (feederID == FEEDER_SERVERS) {
+		if (!UI_ServerBrowserEnabled()) {
+			return 0;
+		}
+
 		return uiInfo.serverStatus.numDisplayServers;
-	} else if (feederID == FEEDER_SERVERSTATUS) {
+	}
+
+	if (feederID == FEEDER_SERVERSTATUS) {
 		return uiInfo.serverStatusInfo.numLines;
-	} else if (feederID == FEEDER_FINDPLAYER) {
+	}
+
+	if (feederID == FEEDER_FINDPLAYER) {
 		return uiInfo.numFoundPlayerServers;
-	} else if (feederID == FEEDER_PLAYER_LIST) {
+	}
+
+	if (feederID == FEEDER_PLAYER_LIST) {
 		if (uiInfo.uiDC.realTime > uiInfo.playerRefresh) {
 			uiInfo.playerRefresh = uiInfo.uiDC.realTime + 3000;
 			UI_BuildPlayerList();
 		}
+
 		return uiInfo.playerCount;
-	} else if (feederID == FEEDER_TEAM_LIST) {
+	}
+
+	if (feederID == FEEDER_TEAM_LIST) {
 		if (uiInfo.uiDC.realTime > uiInfo.playerRefresh) {
 			uiInfo.playerRefresh = uiInfo.uiDC.realTime + 3000;
 			UI_BuildPlayerList();
 		}
+
 		return uiInfo.myTeamCount;
-	} else if (feederID == FEEDER_MODS) {
-		if (index >= 0 && index < uiInfo.modCount) {
-			if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
-				return uiInfo.modList[index].modDescr;
-			} else {
-				return uiInfo.modList[index].modName;
-			}
-		}
-	} else if (feederID == FEEDER_CINEMATICS) {
-		if (index >= 0 && index < uiInfo.movieCount) {
-			return uiInfo.movieList[index];
-		}
-	} else if (feederID == FEEDER_DEMOS) {
-		if (index >= 0 && index < uiInfo.demoCount) {
-			return uiInfo.demoList[index];
-		}
-	} else if (feederID == FEEDER_COUNTRIES) {
-		if (index >= 0 && index < uiInfo.countryCount) {
-			return uiInfo.countryList[index];
-		}
-	} else if (feederID == FEEDER_MATCHSUMMARY_END
-		|| feederID == FEEDER_MATCHSUMMARY_RED
-		|| feederID == FEEDER_MATCHSUMMARY_BLUE
-		|| feederID == FEEDER_ENDSCOREBOARD
-		|| feederID == FEEDER_REDTEAM_STATS
-		|| feederID == FEEDER_BLUETEAM_STATS
-		|| feederID == FEEDER_REDTEAM_LIST
-		|| feederID == FEEDER_BLUETEAM_LIST
-		|| feederID == FEEDER_SCOREBOARD) {
-		uiMatchPlayerList_t *list = UI_MatchSummaryListForFeeder(feederID);
-		if (list && index >= 0 && index < list->entryCount) {
-			uiMatchPlayerInfo_t *entry = &list->entries[index];
-			switch (column) {
-				case 0:
-					return entry->country;
-				case 1:
-					Com_sprintf(matchSummaryScore, sizeof(matchSummaryScore), "%i", entry->score);
-					return matchSummaryScore;
-				case 2:
-					Com_sprintf(matchSummaryRank, sizeof(matchSummaryRank), "%i", entry->rank);
-					return matchSummaryRank;
-				case 3:
-					return UI_MatchSummaryTeamString(entry->team);
-				case 4:
-					Com_sprintf(matchSummaryClient, sizeof(matchSummaryClient), "%i", entry->clientNum);
-					return matchSummaryClient;
-				default:
-					return entry->name;
-			}
+	}
+
+	if (feederID == FEEDER_MODS) {
+		return uiInfo.modCount;
+	}
+
+	if (feederID == FEEDER_CINEMATICS) {
+		return uiInfo.movieCount;
+	}
+
+	if (feederID == FEEDER_DEMOS) {
+		return uiInfo.demoCount;
+	}
+
+	if (feederID == FEEDER_COUNTRIES) {
+		return uiInfo.countryCount;
+	}
+
+	if (feederID == FEEDER_MATCHSUMMARY_END
+			|| feederID == FEEDER_MATCHSUMMARY_RED
+			|| feederID == FEEDER_MATCHSUMMARY_BLUE
+			|| feederID == FEEDER_ENDSCOREBOARD
+			|| feederID == FEEDER_REDTEAM_STATS
+			|| feederID == FEEDER_BLUETEAM_STATS
+			|| feederID == FEEDER_REDTEAM_LIST
+			|| feederID == FEEDER_BLUETEAM_LIST
+			|| feederID == FEEDER_SCOREBOARD) {
+		uiMatchPlayerList_t *list;
+
+		list = UI_MatchSummaryListForFeeder(feederID);
+		if (list) {
+			return list->entryCount;
 		}
 	}
-	return "";
-		}
+
+	return 0;
+}
 
 static const char *UI_SelectedHead(int index, int *actual) {
 	int i, c;
@@ -5457,169 +5458,177 @@ static void UI_UpdatePendingPings() {
 
 		}
 
-static const char *UI_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {
-	static char info[MAX_STRING_CHARS];
-	static char hostname[1024];
-	static char clientBuff[32];
-	static int lastColumn = -1;
-	static int lastTime = 0;
-	static char matchSummaryScore[16];
-	static char matchSummaryRank[16];
-	static char matchSummaryClient[16];
-	*handle = -1;
-	if (feederID == FEEDER_HEADS) {
-		int actual;
-		return UI_SelectedHead(index, &actual);
-	} else if (feederID == FEEDER_Q3HEADS) {
-		if (index >= 0 && index < uiInfo.q3HeadCount) {
-			return uiInfo.q3HeadNames[index];
-		}
-	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
-		int actual;
-		return UI_SelectedMap(index, &actual);
-	} else if (feederID == FEEDER_CVMAPS) {
-		const mapRotationInfo_t *rotation;
+/*
+=============
+UI_FeederItemText
 
-		rotation = UI_GetCallvoteRotationEntryForDisplay(index, NULL);
-		if (rotation) {
-			if (rotation->mapTitle[0]) {
-				return rotation->mapTitle;
-			}
-			return rotation->mapName;
-		}
-		return "";
-	} else if (feederID == FEEDER_MAP_ROTATIONS) {
-		mapRotationInfo_t *entry = UI_MapRotationEntryForIndex(index);
-		if (entry) {
-			switch (column) {
-				case 1:
-					return (entry->mapName[0]) ? entry->mapName : entry->mapTitle;
-				case 2:
-					return entry->factoryId;
-				case 3:
-					return entry->factoryConfig;
-				case 4:
-					return entry->factoryGameType;
-				default:
-					if (entry->mapTitle[0]) {
-						return entry->mapTitle;
-					}
-					return entry->mapName;
-			}
-		}
-} else if (feederID == FEEDER_SERVERS) {
-		if (!UI_ServerBrowserEnabled()) {
-			return "";
-		}
-		if (index >= 0 && index < uiInfo.serverStatus.numDisplayServers) {
-			int ping, game, punkbuster;
-			if (lastColumn != column || lastTime > uiInfo.uiDC.realTime + 5000) {
-				trap_LAN_GetServerInfo(ui_netSource.integer, uiInfo.serverStatus.displayServers[index], info, MAX_STRING_CHARS);
-				lastColumn = column;
-				lastTime = uiInfo.uiDC.realTime;
-			}
-			ping = atoi(Info_ValueForKey(info, "ping"));
-			if (ping == -1) {
-				// if we ever see a ping that is out of date, do a server refresh
-				// UI_UpdatePendingPings();
-			}
-			switch (column) {
-				case SORT_HOST : 
-					if (ping <= 0) {
-						return Info_ValueForKey(info, "addr");
-					} else {
-						if ( ui_netSource.integer == AS_LOCAL ) {
-							Com_sprintf( hostname, sizeof(hostname), "%s [%s]",
-											Info_ValueForKey(info, "hostname"),
-											netnames[atoi(Info_ValueForKey(info, "nettype"))] );
-							return hostname;
-						}
-						else {
-							Com_sprintf( hostname, sizeof(hostname), "%s", Info_ValueForKey(info, "hostname"));
-							return hostname;
-						}
-					}
-				case SORT_MAP : return Info_ValueForKey(info, "mapname");
-				case SORT_CLIENTS : 
-					Com_sprintf( clientBuff, sizeof(clientBuff), "%s (%s)", Info_ValueForKey(info, "clients"), Info_ValueForKey(info, "sv_maxclients"));
-					return clientBuff;
-				case SORT_GAME : 
-					game = atoi(Info_ValueForKey(info, "gametype"));
-					if (game >= 0 && game < numTeamArenaGameTypes) {
-						return teamArenaGameTypes[game];
-					} else {
-						return "Unknown";
-					}
-				case SORT_PING : 
-					if (ping <= 0) {
-						return "...";
-					} else {
-						return Info_ValueForKey(info, "ping");
-					}
-				case SORT_PUNKBUSTER:
-					punkbuster = atoi(Info_ValueForKey(info, "punkbuster"));
-					if ( punkbuster ) {
-						return "Yes";
-					} else {
-						return "No";
-					}
-			}
-		}
-	} else if (feederID == FEEDER_SERVERSTATUS) {
-		if ( index >= 0 && index < uiInfo.serverStatusInfo.numLines ) {
-			if ( column >= 0 && column < 4 ) {
-				return uiInfo.serverStatusInfo.lines[index][column];
-			}
-		}
-	} else if (feederID == FEEDER_FINDPLAYER) {
-		if ( index >= 0 && index < uiInfo.numFoundPlayerServers ) {
-			//return uiInfo.foundPlayerServerAddresses[index];
-			return uiInfo.foundPlayerServerNames[index];
-		}
-	} else if (feederID == FEEDER_PLAYER_LIST) {
-		if (index >= 0 && index < uiInfo.playerCount) {
-			return uiInfo.playerNames[index];
-		}
-	} else if (feederID == FEEDER_TEAM_LIST) {
-		if (index >= 0 && index < uiInfo.myTeamCount) {
-			return uiInfo.teamNames[index];
-		}
-} else if (feederID == FEEDER_MODS) {
+Returns the display text for each feeder entry while leaving selection effects
+to UI_FeederSelection.
+=============
+*/
+static const char *UI_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {
+        static char info[MAX_STRING_CHARS];
+        static char hostname[1024];
+        static char clientBuff[32];
+        static int lastColumn = -1;
+        static int lastTime = 0;
+        static char matchSummaryScore[16];
+        static char matchSummaryRank[16];
+        static char matchSummaryClient[16];
+        *handle = -1;
+        if (feederID == FEEDER_HEADS) {
+                int actual;
+                return UI_SelectedHead(index, &actual);
+        } else if (feederID == FEEDER_Q3HEADS) {
+                if (index >= 0 && index < uiInfo.q3HeadCount) {
+                        return uiInfo.q3HeadNames[index];
+                }
+        } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
+                int actual;
+                return UI_SelectedMap(index, &actual);
+        } else if (feederID == FEEDER_CVMAPS) {
+                const mapRotationInfo_t *rotation;
+
+                rotation = UI_GetCallvoteRotationEntryForDisplay(index, NULL);
+                if (rotation) {
+                        if (rotation->mapTitle[0]) {
+                                return rotation->mapTitle;
+                        }
+                        return rotation->mapName;
+                }
+                return "";
+        } else if (feederID == FEEDER_MAP_ROTATIONS) {
+                mapRotationInfo_t *entry = UI_MapRotationEntryForIndex(index);
+                if (entry) {
+                        switch (column) {
+                                case 1:
+                                        return (entry->mapName[0]) ? entry->mapName : entry->mapTitle;
+                                case 2:
+                                        return entry->factoryId;
+                                case 3:
+                                        return entry->factoryConfig;
+                                case 4:
+                                        return entry->factoryGameType;
+                                default:
+                                        if (entry->mapTitle[0]) {
+                                                return entry->mapTitle;
+                                        }
+                                        return entry->mapName;
+                        }
+                }
+        } else if (feederID == FEEDER_SERVERS) {
+                if (!UI_ServerBrowserEnabled()) {
+                        return "";
+                }
+                if (index >= 0 && index < uiInfo.serverStatus.numDisplayServers) {
+                        int ping, game, punkbuster;
+                        if (lastColumn != column || lastTime > uiInfo.uiDC.realTime + 5000) {
+                                trap_LAN_GetServerInfo(ui_netSource.integer, uiInfo.serverStatus.displayServers[index], info, MAX_STRING_CHARS);
+                                lastColumn = column;
+                                lastTime = uiInfo.uiDC.realTime;
+                        }
+                        ping = atoi(Info_ValueForKey(info, "ping"));
+                        if (ping == -1) {
+                                // if we ever see a ping that is out of date, do a server refresh
+                                // UI_UpdatePendingPings();
+                        }
+                        switch (column) {
+                                case SORT_HOST :
+                                        if (ping <= 0) {
+                                                return Info_ValueForKey(info, "addr");
+                                        } else {
+                                                if ( ui_netSource.integer == AS_LOCAL ) {
+                                                        Com_sprintf( hostname, sizeof(hostname), "%s [%s]",
+                                                                                        Info_ValueForKey(info, "hostname"),
+                                                                                        netnames[atoi(Info_ValueForKey(info, "nettype"))] );
+                                                        return hostname;
+                                                }
+                                                else {
+                                                        Com_sprintf( hostname, sizeof(hostname), "%s", Info_ValueForKey(info, "hostname"));
+                                                        return hostname;
+                                                }
+                                        }
+                                case SORT_MAP : return Info_ValueForKey(info, "mapname");
+                                case SORT_CLIENTS :
+                                        Com_sprintf( clientBuff, sizeof(clientBuff), "%s (%s)", Info_ValueForKey(info, "clients"), Info_ValueForKey(info, "sv_maxclients"));
+                                        return clientBuff;
+                                case SORT_GAME :
+                                        game = atoi(Info_ValueForKey(info, "gametype"));
+                                        if (game >= 0 && game < numTeamArenaGameTypes) {
+                                                return teamArenaGameTypes[game];
+                                        } else {
+                                                return "Unknown";
+                                        }
+                                case SORT_PING :
+                                        if (ping <= 0) {
+                                                return "...";
+                                        } else {
+                                                return Info_ValueForKey(info, "ping");
+                                        }
+                                case SORT_PUNKBUSTER:
+                                        punkbuster = atoi(Info_ValueForKey(info, "punkbuster"));
+                                        if ( punkbuster ) {
+                                                return "Yes";
+                                        } else {
+                                                return "No";
+                                        }
+                        }
+                }
+        } else if (feederID == FEEDER_SERVERSTATUS) {
+                if ( index >= 0 && index < uiInfo.serverStatusInfo.numLines ) {
+                        if ( column >= 0 && column < 4 ) {
+                                return uiInfo.serverStatusInfo.lines[index][column];
+                        }
+                }
+        } else if (feederID == FEEDER_FINDPLAYER) {
+                if ( index >= 0 && index < uiInfo.numFoundPlayerServers ) {
+                        //return uiInfo.foundPlayerServerAddresses[index];
+                        return uiInfo.foundPlayerServerNames[index];
+                }
+        } else if (feederID == FEEDER_PLAYER_LIST) {
+                if (index >= 0 && index < uiInfo.playerCount) {
+                        return uiInfo.playerNames[index];
+                }
+        } else if (feederID == FEEDER_TEAM_LIST) {
+                if (index >= 0 && index < uiInfo.myTeamCount) {
+                        return uiInfo.teamNames[index];
+                }
+        } else if (feederID == FEEDER_MODS) {
 if (index >= 0 && index < uiInfo.modCount) {
 if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
-	return uiInfo.modList[index].modDescr;
+        return uiInfo.modList[index].modDescr;
 } else {
-	return uiInfo.modList[index].modName;
+        return uiInfo.modList[index].modName;
 }
 }
-	} else if (feederID == FEEDER_CINEMATICS) {
-	if (index >= 0 && index < uiInfo.movieCount) {
-	return uiInfo.movieList[index];
+        } else if (feederID == FEEDER_CINEMATICS) {
+        if (index >= 0 && index < uiInfo.movieCount) {
+        return uiInfo.movieList[index];
 }
-	} else if (feederID == FEEDER_DEMOS) {
-	if (index >= 0 && index < uiInfo.demoCount) {
-	return uiInfo.demoList[index];
+        } else if (feederID == FEEDER_DEMOS) {
+        if (index >= 0 && index < uiInfo.demoCount) {
+        return uiInfo.demoList[index];
 }
-	} else if (feederID == FEEDER_COUNTRIES) {
-	if (index >= 0 && index < uiInfo.countryCount) {
-	return uiInfo.countryList[index];
+        } else if (feederID == FEEDER_COUNTRIES) {
+        if (index >= 0 && index < uiInfo.countryCount) {
+        return uiInfo.countryList[index];
 }
-	} else if (feederID == FEEDER_MATCHSUMMARY_END
-	|| feederID == FEEDER_MATCHSUMMARY_RED
-	|| feederID == FEEDER_MATCHSUMMARY_BLUE
-	|| feederID == FEEDER_ENDSCOREBOARD
-	|| feederID == FEEDER_REDTEAM_STATS
-	|| feederID == FEEDER_BLUETEAM_STATS
-	|| feederID == FEEDER_REDTEAM_LIST
-	|| feederID == FEEDER_BLUETEAM_LIST
-	|| feederID == FEEDER_SCOREBOARD) {
-	uiMatchPlayerList_t *list = UI_MatchSummaryListForFeeder(feederID);
-	if (list && index >= 0 && index < list->entryCount) {
-	uiMatchPlayerInfo_t *entry = &list->entries[index];
-	switch (column) {
-	case 0:
-	return entry->country;
-	case 1:
+        } else if (feederID == FEEDER_MATCHSUMMARY_END
+        || feederID == FEEDER_MATCHSUMMARY_RED
+        || feederID == FEEDER_MATCHSUMMARY_BLUE
+        || feederID == FEEDER_ENDSCOREBOARD
+        || feederID == FEEDER_REDTEAM_STATS
+        || feederID == FEEDER_BLUETEAM_STATS
+        || feederID == FEEDER_REDTEAM_LIST
+        || feederID == FEEDER_BLUETEAM_LIST
+        || feederID == FEEDER_SCOREBOARD) {
+        uiMatchPlayerList_t *list = UI_MatchSummaryListForFeeder(feederID);
+        if (list && index >= 0 && index < list->entryCount) {
+        uiMatchPlayerInfo_t *entry = &list->entries[index];
+        switch (column) {
+        case 0:
+        return entry->country;
+        case 1:
 Com_sprintf(matchSummaryScore, sizeof(matchSummaryScore), "%i", entry->score);
 return matchSummaryScore;
 case 2:
@@ -5635,9 +5644,8 @@ return entry->name;
 }
 }
 }
-return "";
-		}
-
+        return "";
+                }
 
 static qhandle_t UI_FeederItemImage(float feederID, int index) {
   if (feederID == FEEDER_HEADS) {
@@ -5678,25 +5686,32 @@ static qhandle_t UI_FeederItemImage(float feederID, int index) {
   return 0;
 		}
 
+/*
+=============
+UI_FeederSelection
+
+Handles selection side effects when a feeder item is chosen.
+=============
+*/
 static void UI_FeederSelection(float feederID, int index) {
 	static char info[MAX_STRING_CHARS];
-  if (feederID == FEEDER_HEADS) {
+	  if (feederID == FEEDER_HEADS) {
 	int actual;
 	UI_SelectedHead(index, &actual);
 	index = actual;
-    if (index >= 0 && index < uiInfo.characterCount) {
+	    if (index >= 0 && index < uiInfo.characterCount) {
 		trap_Cvar_Set( "team_model", va("%s", uiInfo.characterList[index].base));
 		trap_Cvar_Set( "team_headmodel", va("*%s", uiInfo.characterList[index].name)); 
 		updateModel = qtrue;
-    }
-  } else if (feederID == FEEDER_Q3HEADS) {
-    if (index >= 0 && index < uiInfo.q3HeadCount) {
-      trap_Cvar_Set( "model", uiInfo.q3HeadNames[index]);
-      trap_Cvar_Set( "headmodel", uiInfo.q3HeadNames[index]);
+	    }
+	  } else if (feederID == FEEDER_Q3HEADS) {
+	    if (index >= 0 && index < uiInfo.q3HeadCount) {
+	      trap_Cvar_Set( "model", uiInfo.q3HeadNames[index]);
+	      trap_Cvar_Set( "headmodel", uiInfo.q3HeadNames[index]);
 			updateModel = qtrue;
 		}
-} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
-    int actual, previous;
+	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
+	    int actual, previous;
 		map = (feederID == FEEDER_ALLMAPS) ? ui_currentNetMap.integer : ui_currentMap.integer;
 		// HLIL map-rotation strings (`^1map rotation item missing map…`) show the native
 		// UI reusing the same cinematic + metadata pairing when browsing rotation
@@ -5741,25 +5756,34 @@ static void UI_FeederSelection(float feederID, int index) {
 
 		UI_SelectCallvoteRotation(rotationIndex);
 	} else if (feederID == FEEDER_MAP_ROTATIONS) {
-		if (UI_MapRotationEntryForIndex(index)) {
-			uiInfo.currentMapRotation = index;
-		}
+	if (UI_MapRotationEntryForIndex(index)) {
+	uiInfo.currentMapRotation = index;
+	}
 	} else if (feederID == FEEDER_SERVERS) {
-		const char *mapName = NULL;
-		uiInfo.serverStatus.currentServer = index;
-		trap_LAN_GetServerInfo(ui_netSource.integer, uiInfo.serverStatus.displayServers[index], info, MAX_STRING_CHARS);
-		uiInfo.serverStatus.currentServerPreview = trap_R_RegisterShaderNoMip(va("levelshots/%s", Info_ValueForKey(info, "mapname")));
-		if (uiInfo.serverStatus.currentServerCinematic >= 0) {
-		  trap_CIN_StopCinematic(uiInfo.serverStatus.currentServerCinematic);
-			uiInfo.serverStatus.currentServerCinematic = -1;
-		}
-		mapName = Info_ValueForKey(info, "mapname");
-		if (mapName && *mapName) {
-			uiInfo.serverStatus.currentServerCinematic = trap_CIN_PlayCinematic(va("%s.roq", mapName), 0, 0, 0, 0, (CIN_loop | CIN_silent) );
-		}
-  } else if (feederID == FEEDER_SERVERSTATUS) {
+	const char *mapName = NULL;
+
+	if (!UI_ServerBrowserEnabled()) {
+	return;
+	}
+
+	if (index < 0 || index >= uiInfo.serverStatus.numDisplayServers) {
+	return;
+	}
+
+	uiInfo.serverStatus.currentServer = index;
+	trap_LAN_GetServerInfo(ui_netSource.integer, uiInfo.serverStatus.displayServers[index], info, MAX_STRING_CHARS);
+	uiInfo.serverStatus.currentServerPreview = trap_R_RegisterShaderNoMip(va("levelshots/%s", Info_ValueForKey(info, "mapname")));
+	if (uiInfo.serverStatus.currentServerCinematic >= 0) {
+	trap_CIN_StopCinematic(uiInfo.serverStatus.currentServerCinematic);
+	uiInfo.serverStatus.currentServerCinematic = -1;
+	}
+	mapName = Info_ValueForKey(info, "mapname");
+	if (mapName && *mapName) {
+	uiInfo.serverStatus.currentServerCinematic = trap_CIN_PlayCinematic(va("%s.roq", mapName), 0, 0, 0, 0, (CIN_loop | CIN_silent));
+	}
+	  } else if (feederID == FEEDER_SERVERSTATUS) {
 		//
-  } else if (feederID == FEEDER_FINDPLAYER) {
+	  } else if (feederID == FEEDER_FINDPLAYER) {
 	  uiInfo.currentFoundPlayerServer = index;
 	  //
 	  if ( index < uiInfo.numFoundPlayerServers-1) {
@@ -5768,43 +5792,43 @@ static void UI_FeederSelection(float feederID, int index) {
 			Menu_SetFeederSelection(NULL, FEEDER_SERVERSTATUS, 0, NULL);
 			UI_BuildServerStatus(qtrue);
 	  }
-  } else if (feederID == FEEDER_PLAYER_LIST) {
+	  } else if (feederID == FEEDER_PLAYER_LIST) {
 		uiInfo.playerIndex = index;
-  } else if (feederID == FEEDER_TEAM_LIST) {
+	  } else if (feederID == FEEDER_TEAM_LIST) {
 		uiInfo.teamIndex = index;
-  } else if (feederID == FEEDER_MODS) {
+	  } else if (feederID == FEEDER_MODS) {
 		uiInfo.modIndex = index;
-  } else if (feederID == FEEDER_CINEMATICS) {
+	  } else if (feederID == FEEDER_CINEMATICS) {
 		uiInfo.movieIndex = index;
 		if (uiInfo.previewMovie >= 0) {
 		  trap_CIN_StopCinematic(uiInfo.previewMovie);
 		}
 		uiInfo.previewMovie = -1;
-} else if (feederID == FEEDER_DEMOS) {
-uiInfo.demoIndex = index;
-} else if (feederID == FEEDER_COUNTRIES) {
-if (index >= 0 && index < uiInfo.countryCount) {
-trap_Cvar_Set("ui_country", uiInfo.countryList[index]);
-}
-} else if (feederID == FEEDER_MATCHSUMMARY_END
-|| feederID == FEEDER_MATCHSUMMARY_RED
-|| feederID == FEEDER_MATCHSUMMARY_BLUE
-|| feederID == FEEDER_ENDSCOREBOARD
-|| feederID == FEEDER_REDTEAM_STATS
-|| feederID == FEEDER_BLUETEAM_STATS
-|| feederID == FEEDER_REDTEAM_LIST
-|| feederID == FEEDER_BLUETEAM_LIST
-|| feederID == FEEDER_SCOREBOARD) {
-uiMatchPlayerList_t *list = UI_MatchSummaryListForFeeder(feederID);
-if (list && index >= 0 && index < list->entryCount) {
-if (feederID == FEEDER_MATCHSUMMARY_END) {
-uiInfo.currentMatchSummaryEnd = index;
-} else if (feederID == FEEDER_MATCHSUMMARY_RED) {
-uiInfo.currentMatchSummaryRed = index;
-} else {
-uiInfo.currentMatchSummaryBlue = index;
-}
-}
+	} else if (feederID == FEEDER_DEMOS) {
+	uiInfo.demoIndex = index;
+	} else if (feederID == FEEDER_COUNTRIES) {
+	if (index >= 0 && index < uiInfo.countryCount) {
+	trap_Cvar_Set("ui_country", uiInfo.countryList[index]);
+	}
+	} else if (feederID == FEEDER_MATCHSUMMARY_END
+	|| feederID == FEEDER_MATCHSUMMARY_RED
+	|| feederID == FEEDER_MATCHSUMMARY_BLUE
+	|| feederID == FEEDER_ENDSCOREBOARD
+	|| feederID == FEEDER_REDTEAM_STATS
+	|| feederID == FEEDER_BLUETEAM_STATS
+	|| feederID == FEEDER_REDTEAM_LIST
+	|| feederID == FEEDER_BLUETEAM_LIST
+	|| feederID == FEEDER_SCOREBOARD) {
+	uiMatchPlayerList_t *list = UI_MatchSummaryListForFeeder(feederID);
+	if (list && index >= 0 && index < list->entryCount) {
+	if (feederID == FEEDER_MATCHSUMMARY_END) {
+	uiInfo.currentMatchSummaryEnd = index;
+	} else if (feederID == FEEDER_MATCHSUMMARY_RED) {
+	uiInfo.currentMatchSummaryRed = index;
+	} else {
+	uiInfo.currentMatchSummaryBlue = index;
+	}
+	}
 	}
 		}
 
