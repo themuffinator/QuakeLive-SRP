@@ -37,6 +37,218 @@ static float	s_flipMatrix[16] = {
 
 /*
 =============
+RB_ClampToByte
+
+Clamp a float color channel into the byte range.
+=============
+*/
+static byte RB_ClampToByte( float value ) {
+	if ( value < 0.0f ) {
+		return 0;
+	}
+
+	if ( value > 255.0f ) {
+		return 255;
+	}
+
+	return (byte)(value + 0.5f);
+}
+
+
+/*
+=============
+RB_LuminanceFromRGB
+
+Return luminance of an RGBA pixel stored in byte form.
+=============
+*/
+static float RB_LuminanceFromRGB( const byte *pixel ) {
+	return ( 0.2126f * pixel[0] ) + ( 0.7152f * pixel[1] ) + ( 0.0722f * pixel[2] );
+}
+
+
+/*
+=============
+RB_ThresholdScene
+
+Zero out scene pixels whose luminance falls under the bright threshold.
+=============
+*/
+static void RB_ThresholdScene( const byte *scene, byte *thresholded, int width, int height, float threshold ) {
+	int		count;
+	float	thresholdByte;
+
+	count = width * height;
+	thresholdByte = threshold * 255.0f;
+
+	while ( count-- ) {
+		float	lum;
+
+		lum = RB_LuminanceFromRGB( scene );
+		if ( lum < thresholdByte ) {
+			thresholded[0] = thresholded[1] = thresholded[2] = 0;
+		} else {
+			thresholded[0] = scene[0];
+			thresholded[1] = scene[1];
+			thresholded[2] = scene[2];
+		}
+
+		thresholded[3] = 255;
+		thresholded += 4;
+		scene += 4;
+	}
+}
+
+
+/*
+=============
+RB_SeparableBlurPass
+
+Perform a separable blur using the configured radius, falloff, and scale.
+=============
+*/
+static void RB_SeparableBlurPass( const byte *input, byte *temp, byte *output, int width, int height, int radius, float falloff, float scale ) {
+	int		x, y, channel;
+	int		effectiveRadius;
+
+	effectiveRadius = radius * ( scale > 0.0f ? scale : 1.0f );
+	if ( effectiveRadius < 1 ) {
+		effectiveRadius = 1;
+	}
+
+	for ( y = 0; y < height; y++ ) {
+		for ( x = 0; x < width; x++ ) {
+			float	weights;
+			float	sum[3] = { 0, 0, 0 };
+			int		offset;
+
+			weights = 0.0f;
+			for ( offset = -effectiveRadius; offset <= effectiveRadius; offset++ ) {
+				int		sampleX;
+				const byte	*sample;
+				float		sampleWeight;
+
+				sampleX = x + offset;
+				if ( sampleX < 0 ) {
+					sampleX = 0;
+				} else if ( sampleX >= width ) {
+					sampleX = width - 1;
+				}
+
+				sample = input + ( ( y * width + sampleX ) * 4 );
+				sampleWeight = falloff > 0.0f ? powf( falloff, fabsf( (float)offset ) ) : 1.0f;
+				weights += sampleWeight;
+				sum[0] += sampleWeight * sample[0];
+				sum[1] += sampleWeight * sample[1];
+				sum[2] += sampleWeight * sample[2];
+			}
+
+			temp[( y * width + x ) * 4 + 0] = RB_ClampToByte( sum[0] / weights );
+			temp[( y * width + x ) * 4 + 1] = RB_ClampToByte( sum[1] / weights );
+			temp[( y * width + x ) * 4 + 2] = RB_ClampToByte( sum[2] / weights );
+			temp[( y * width + x ) * 4 + 3] = 255;
+		}
+	}
+
+	for ( y = 0; y < height; y++ ) {
+		for ( x = 0; x < width; x++ ) {
+			float	weights;
+			float	sum[3] = { 0, 0, 0 };
+			int		offset;
+
+			weights = 0.0f;
+			for ( offset = -effectiveRadius; offset <= effectiveRadius; offset++ ) {
+				int		sampleY;
+				const byte	*sample;
+				float		sampleWeight;
+
+				sampleY = y + offset;
+				if ( sampleY < 0 ) {
+					sampleY = 0;
+				} else if ( sampleY >= height ) {
+					sampleY = height - 1;
+				}
+
+				sample = temp + ( ( sampleY * width + x ) * 4 );
+				sampleWeight = falloff > 0.0f ? powf( falloff, fabsf( (float)offset ) ) : 1.0f;
+				weights += sampleWeight;
+				sum[0] += sampleWeight * sample[0];
+				sum[1] += sampleWeight * sample[1];
+				sum[2] += sampleWeight * sample[2];
+			}
+
+			for ( channel = 0; channel < 3; channel++ ) {
+				output[( y * width + x ) * 4 + channel] = RB_ClampToByte( sum[channel] / weights );
+			}
+
+			output[( y * width + x ) * 4 + 3] = 255;
+		}
+	}
+}
+
+
+/*
+=============
+RB_ApplySaturationAndScale
+
+Scale and saturate an RGBA buffer in-place.
+=============
+*/
+static void RB_ApplySaturationAndScale( byte *pixels, int width, int height, float saturation, float intensity ) {
+	int	count;
+
+	count = width * height;
+	while ( count-- ) {
+		float	luma;
+		float	rgba[3];
+		int	channel;
+
+		luma = RB_LuminanceFromRGB( pixels );
+		rgba[0] = luma + ( ( pixels[0] - luma ) * saturation );
+		rgba[1] = luma + ( ( pixels[1] - luma ) * saturation );
+		rgba[2] = luma + ( ( pixels[2] - luma ) * saturation );
+
+		for ( channel = 0; channel < 3; channel++ ) {
+			pixels[channel] = RB_ClampToByte( rgba[channel] * intensity );
+		}
+
+		pixels[3] = 255;
+		pixels += 4;
+	}
+}
+
+
+/*
+=============
+RB_CompositeBloom
+
+Blend bloom into the original scene buffer.
+=============
+*/
+static void RB_CompositeBloom( byte *scene, const byte *bloom, int width, int height ) {
+	int	count;
+
+	count = width * height;
+	while ( count-- ) {
+		int	channel;
+
+		for ( channel = 0; channel < 3; channel++ ) {
+			int	result;
+
+			result = scene[channel] + bloom[channel];
+			scene[channel] = (byte)( result > 255 ? 255 : result );
+		}
+
+		scene[3] = 255;
+		scene += 4;
+		bloom += 4;
+	}
+}
+
+
+
+/*
+=============
 RB_ResetPostProcessState
 
 Clear pending post-process resets before executing backend work.
@@ -64,9 +276,109 @@ static void RB_SubmitPostProcess( void ) {
 	}
 
 	RB_ResetPostProcessState();
+
+	if ( backEnd.bloomActive && r_bloomIntensity && r_bloomBrightThreshold && r_bloomPasses ) {
+		int			width, height;
+		int			pixelCount;
+		byte		*scenePixels;
+		byte		*bloomPing;
+		byte		*bloomPong;
+		byte		*bloomTemp;
+		int			passes;
+		float		bloomIntensity;
+		float		brightThreshold;
+		float		blurScale;
+		float		blurFalloff;
+		int			blurRadius;
+		float		bloomSaturation;
+		float		sceneIntensity;
+		float		sceneSaturation;
+
+		width = glConfig.vidWidth;
+		height = glConfig.vidHeight;
+		pixelCount = width * height * 4;
+
+		scenePixels = ri.Hunk_AllocateTempMemory( pixelCount );
+		if ( !scenePixels ) {
+			return;
+		}
+
+		qglReadPixels( 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, scenePixels );
+
+		bloomPing = ri.Hunk_AllocateTempMemory( pixelCount );
+		bloomPong = ri.Hunk_AllocateTempMemory( pixelCount );
+		bloomTemp = ri.Hunk_AllocateTempMemory( pixelCount );
+		if ( !bloomPing || !bloomPong || !bloomTemp ) {
+			if ( bloomTemp ) {
+				ri.Hunk_FreeTempMemory( bloomTemp );
+			}
+
+			if ( bloomPong ) {
+				ri.Hunk_FreeTempMemory( bloomPong );
+			}
+
+			if ( bloomPing ) {
+				ri.Hunk_FreeTempMemory( bloomPing );
+			}
+
+			ri.Hunk_FreeTempMemory( scenePixels );
+			return;
+		}
+
+		brightThreshold = r_bloomBrightThreshold->value;
+		bloomIntensity = r_bloomIntensity->value;
+		passes = r_bloomPasses->integer;
+		blurScale = ( r_bloomBlurScale && r_bloomBlurScale->value > 0.0f ) ? r_bloomBlurScale->value : 1.0f;
+		blurRadius = ( r_bloomBlurRadius && r_bloomBlurRadius->integer > 0 ) ? r_bloomBlurRadius->integer : 1;
+		blurFalloff = ( r_bloomBlurFalloff && r_bloomBlurFalloff->value > 0.0f ) ? r_bloomBlurFalloff->value : 1.0f;
+		bloomSaturation = ( r_bloomSaturation ? r_bloomSaturation->value : 1.0f );
+		sceneIntensity = ( r_bloomSceneIntensity ? r_bloomSceneIntensity->value : 1.0f );
+		sceneSaturation = ( r_bloomSceneSaturation ? r_bloomSceneSaturation->value : 1.0f );
+
+		RB_ThresholdScene( scenePixels, bloomPing, width, height, brightThreshold );
+
+		if ( passes < 1 ) {
+			passes = 1;
+		} else if ( passes > 2 ) {
+			passes = 2;
+		}
+
+		while ( passes-- ) {
+			RB_SeparableBlurPass( bloomPing, bloomTemp, bloomPong, width, height, blurRadius, blurFalloff, blurScale );
+			bloomPing = bloomPong;
+			bloomPong = bloomTemp;
+		}
+
+		RB_ApplySaturationAndScale( bloomPing, width, height, bloomSaturation, bloomIntensity );
+		RB_ApplySaturationAndScale( scenePixels, width, height, sceneSaturation, sceneIntensity );
+		RB_CompositeBloom( scenePixels, bloomPing, width, height );
+
+		qglDisable( GL_DEPTH_TEST );
+		qglDisable( GL_CULL_FACE );
+		qglDisable( GL_BLEND );
+
+		qglMatrixMode( GL_PROJECTION );
+		qglPushMatrix();
+		qglLoadIdentity();
+		qglOrtho( 0, width, 0, height, -1, 1 );
+		qglMatrixMode( GL_MODELVIEW );
+		qglPushMatrix();
+		qglLoadIdentity();
+
+		qglRasterPos2i( 0, 0 );
+		qglDrawPixels( width, height, GL_RGBA, GL_UNSIGNED_BYTE, scenePixels );
+
+		qglPopMatrix();
+		qglMatrixMode( GL_PROJECTION );
+		qglPopMatrix();
+		qglMatrixMode( GL_MODELVIEW );
+
+		ri.Hunk_FreeTempMemory( bloomTemp );
+		ri.Hunk_FreeTempMemory( bloomPong );
+		ri.Hunk_FreeTempMemory( bloomPing );
+		ri.Hunk_FreeTempMemory( scenePixels );
+	}
 }
-
-
 /*
 ** GL_Bind
 */
