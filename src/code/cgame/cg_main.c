@@ -329,6 +329,7 @@ vmCvar_t 	cg_trackPlayer;
 vmCvar_t 	cg_followKiller;
 vmCvar_t 	cg_followPowerup;
 vmCvar_t 	cg_ignoreMouseInput;
+vmCvar_t 	cg_impactMarkTime;
 vmCvar_t 	cg_filter_angles;
 vmCvar_t 	cg_smoothClients;
 vmCvar_t 	cg_loadout;
@@ -368,6 +369,8 @@ vmCvar_t	cg_specItemTimersX;
 vmCvar_t	cg_specItemTimersY;
 vmCvar_t	cg_specItemTimersSize;
 vmCvar_t	cg_specTeamVitals;
+vmCvar_t	cg_specTeamVitalsY;
+vmCvar_t	cg_specTeamVitalsWidth;
 vmCvar_t	cg_specTeamVitalsHealthColor;
 vmCvar_t	cg_itemTimers;
 vmCvar_t	cg_screenDamage;
@@ -517,8 +520,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_bobup , "cg_bobup", "0.005", CVAR_CHEAT },
 	{ &cg_bobpitch, "cg_bobpitch", "0.002", CVAR_ARCHIVE },
 	{ &cg_bobroll, "cg_bobroll", "0.002", CVAR_ARCHIVE },
-	{ &cg_bob, "cg_bob", "1", CVAR_ARCHIVE },
-	{ &cg_kickScale, "cg_kickScale", "1", CVAR_ARCHIVE },
+	{ &cg_bob, "cg_bob", "0.25", CVAR_ARCHIVE },
+	{ &cg_kickScale, "cg_kickScale", "0.25", CVAR_ARCHIVE },
 	{ &cg_swingSpeed, "cg_swingSpeed", "0.3", CVAR_CHEAT },
 	{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },
 	{ &cg_debugAnim, "cg_debuganim", "0", CVAR_CHEAT },
@@ -548,12 +551,12 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", CVAR_ARCHIVE },
 	{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", CVAR_ARCHIVE },
 	{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", CVAR_ARCHIVE },
-	{ &cg_teamHeadColor, "cg_teamHeadColor", "", CVAR_ARCHIVE },
-	{ &cg_teamUpperColor, "cg_teamUpperColor", "", CVAR_ARCHIVE },
-	{ &cg_teamLowerColor, "cg_teamLowerColor", "", CVAR_ARCHIVE },
-	{ &cg_enemyHeadColor, "cg_enemyHeadColor", "", CVAR_ARCHIVE },
-	{ &cg_enemyUpperColor, "cg_enemyUpperColor", "", CVAR_ARCHIVE },
-	{ &cg_enemyLowerColor, "cg_enemyLowerColor", "", CVAR_ARCHIVE },
+	{ &cg_teamHeadColor, "cg_teamHeadColor", "0x808080FF", CVAR_ARCHIVE },
+	{ &cg_teamUpperColor, "cg_teamUpperColor", "0x808080FF", CVAR_ARCHIVE },
+	{ &cg_teamLowerColor, "cg_teamLowerColor", "0x808080FF", CVAR_ARCHIVE },
+	{ &cg_enemyHeadColor, "cg_enemyHeadColor", "0x2a8000FF", CVAR_ARCHIVE },
+	{ &cg_enemyUpperColor, "cg_enemyUpperColor", "0x2a8000FF", CVAR_ARCHIVE },
+	{ &cg_enemyLowerColor, "cg_enemyLowerColor", "0x2a8000FF", CVAR_ARCHIVE },
 	{ &cg_predictItems, "cg_predictItems", "1", CVAR_ARCHIVE },
 	{ &cg_deferPlayers, "cg_deferPlayers", "0", CVAR_ARCHIVE },
 	{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "0", CVAR_ARCHIVE },
@@ -646,11 +649,12 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_followKiller, "cg_followKiller", "0", CVAR_ARCHIVE },
 	{ &cg_followPowerup, "cg_followPowerup", "0", CVAR_ARCHIVE },
 	{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ARCHIVE },
+	{ &cg_impactMarkTime, "cg_impactMarkTime", "10000", CVAR_ARCHIVE },
 	{ &cg_filter_angles, "cg_filter_angles", "0", CVAR_ARCHIVE },
 	{ &cg_drawHitFriendTime, "cg_drawHitFriendTime", "5000", CVAR_ARCHIVE },
 	{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000", CVAR_ARCHIVE },
 	{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE },
-	{ &cg_deadBodyColor, "cg_deadBodyColor", "0x333333ff", CVAR_ARCHIVE },
+	{ &cg_deadBodyColor, "cg_deadBodyColor", "0x101010FF", CVAR_ARCHIVE },
 	{ &cg_speedometer, "cg_speedometer", "0", CVAR_ARCHIVE },
 	{ &cg_specNames, "cg_specNames", "1", CVAR_ARCHIVE },
 	{ &cg_specItemTimers, "cg_specItemTimers", "1", CVAR_ARCHIVE },
@@ -658,6 +662,8 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_specItemTimersY, "cg_specItemTimersY", "0", CVAR_ARCHIVE },
 	{ &cg_specItemTimersSize, "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE },
 	{ &cg_specTeamVitals, "cg_specTeamVitals", "1", CVAR_ARCHIVE },
+	{ &cg_specTeamVitalsY, "cg_specTeamVitalsY", "85", CVAR_ARCHIVE },
+	{ &cg_specTeamVitalsWidth, "cg_specTeamVitalsWidth", "100", CVAR_ARCHIVE },
 	{ &cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", CVAR_ARCHIVE },
 	{ &cg_itemTimers, "cg_itemTimers", "1", CVAR_ARCHIVE },
 	{ &cg_screenDamage, "cg_screenDamage", DEFAULT_SCREEN_DAMAGE_COLOR, CVAR_ARCHIVE },
