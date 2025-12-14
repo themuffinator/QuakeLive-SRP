@@ -30,7 +30,7 @@ $do_sdk = 0;
 $do_pk3 = 0;
 # those are exported
 $DO_WIN32 = 0;
-$NO_VM = 0;
+$NO_VM = 1;
 $NO_SO = 0;
 $CC='gcc';
 $CXX='g++';
@@ -283,28 +283,6 @@ $INSTALL_BASEDIR='#install';
 
 Default $INSTALL_BASEDIR;
 
-sub build_tools {
-  system("mkdir qvmtools 2>/dev/null");
-  if (@_[0] eq 'q3lcc')
-  {
-    system("cd ../lcc ; make all ; cp /tmp/lcc ../code/qvmtools/q3lcc ; cp /tmp/rcc ../code/qvmtools/q3rcc ; cp /tmp/cpp ../code/qvmtools/q3cpp");
-  }
-  elsif (@_[0] eq 'q3asm')
-  {
-    system("cd ../q3asm ; make ; cp q3asm ../code/qvmtools");
-  }
-  else
-  {
-    printf("build_tools: @_[0] unrecognized command\n");
-    die;
-  }
-  return 1;
-}
-
-# build tools
-$env_tools = new cons();
-Command $env_tools 'qvmtools/q3lcc', '[perl] &build_tools(\'q3lcc\')';
-Command $env_tools 'qvmtools/q3asm', '[perl] &build_tools(\'q3asm\')';
 
 if ($do_bspc eq 1)
 {

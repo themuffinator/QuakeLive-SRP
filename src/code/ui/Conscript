@@ -19,20 +19,6 @@ CFLAGS => $BASE_CFLAGS . '-fPIC',
   LDFLAGS => '-shared -ldl -lm'
 );
 
-# qvm building
-# we heavily customize the cons environment
-$vm_env = new cons(
-  # the code has the very bad habit of doing things like #include "../ui/ui_shared.h"
-  # this seems to confuse the dependency analysis, explicit toplevel includes seem to fix
-  CPPPATH => '#cgame:#game:#ui',
-  CC => 'q3lcc',
-  CCCOM => '%CC %CFLAGS %_IFLAGS -c %< -o %>',
-  SUFOBJ => '.asm',
-  LINK => 'q3asm',
-CFLAGS => '-DQ3_VM -S -Wf-target=bytecode -Wf-g',
-  # need to know where to find the compiler tools
-  ENV => { PATH => $ENV{PATH} . ":./qvmtools", },
-);
 
 # the file with vmMain function MUST be the first one of the list
 @FILES = qw(
@@ -53,11 +39,4 @@ if ($NO_SO eq 0)
 {
 	Program $env 'uii386.so', @$FILESREF, 'ui_syscalls.c';
 	Install $env $INSTALL_DIR, 'uii386.so';
-}
-if ($NO_VM eq 0)
-{
-  Depends $vm_env 'ui.qvm', '#qvmtools/q3lcc';
-  Depends $vm_env 'ui.qvm', '#qvmtools/q3asm';
-	Program $vm_env 'ui.qvm', @$FILESREF, '../game/bg_lib.c', 'ui_syscalls.asm';
-	Install $vm_env $INSTALL_DIR . '/vm', 'ui.qvm';
 }

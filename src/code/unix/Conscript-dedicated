@@ -98,7 +98,6 @@ $env = new cons(
   ../qcommon/net_chan.c
   ../qcommon/unzip.c
   ../qcommon/vm.c
-  ../qcommon/vm_interpreted.c
   ../game/q_math.c
   ../game/q_shared.c
   ../unix/linux_common.c
@@ -111,5 +110,5 @@ $FILESREF = \@FILES;
 
 # DEDICATED_NAME is imported, holds the name of the target
 # wolfded.x86 usually
-Program $env $DEDICATED_NAME, '../qcommon/vm_x86.c', @$FILESREF;
+Program $env $DEDICATED_NAME, @$FILESREF;
 Install $env $INSTALL_DIR, $DEDICATED_NAME;

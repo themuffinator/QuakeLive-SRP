@@ -255,8 +255,6 @@ $SERVER_REF = \@SERVER_FILES;
 # FIXME TTimo vm_<cpu>.c
 @VM_FILES = qw(
   ../qcommon/vm.c
-  ../qcommon/vm_x86.c
-  ../qcommon/vm_interpreted.c
   );
 $VM_REF = \@VM_FILES;
 
