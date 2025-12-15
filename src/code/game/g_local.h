@@ -50,6 +50,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	GAME_STATE_COUNT_DOWN		"COUNT_DOWN"
 #define	GAME_STATE_IN_PROGRESS	"IN_PROGRESS"
 
+#define PRIV_NONE       0
+#define PRIV_MOD        1
+#define PRIV_ADMIN      2
+#define PRIV_ROOT       3
+
 // gentity->flags
 #define	FL_GODMODE				0x00000010
 #define	FL_NOTARGET				0x00000020
@@ -1071,6 +1076,8 @@ void G_ApplyForfeit( gentity_t *ent );
 void G_SendItemTimerState( int clientNum, int enabled, int height );
 void G_BroadcastItemTimerState( int enabled, int height );
 qboolean G_GiveItemByName( gentity_t *ent, const char *name );
+void Cmd_Admin_f( gentity_t *ent );
+void Cmd_Ruleset_f( gentity_t *ent );
 
 //
 // g_items.c
