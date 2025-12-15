@@ -44,6 +44,23 @@ MATCH_STATE_SOURCE = (
 
 level_locals_t level;
 vmCvar_t g_gametype;
+
+team_t TeamCount( int ignoreClientNum, int team ) {
+	return 0;
+}
+
+int G_AutoShuffleCountdown_GetSecondsRemaining( void ) {
+	return 0;
+}
+
+int Team_GetRespawnRatioForTeam( team_t team ) {
+	return 0;
+}
+
+qboolean Team_IsAutoShuffleArmed( void ) {
+	return 0;
+}
+
 vmCvar_t g_timeoutLen;
 vmCvar_t g_timeoutCount;
 vmCvar_t g_overtime;

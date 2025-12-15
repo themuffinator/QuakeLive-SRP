@@ -668,6 +668,53 @@ static void CG_ParseAdminRacePoint( const char *cmd ) {
 
 /*
 =================
+CG_ParseRaceScores
+
+=================
+*/
+static void CG_ParseRaceScores( void ) {
+	int		i;
+
+	cg.numScores = atoi( CG_Argv( 1 ) );
+	if ( cg.numScores > MAX_CLIENTS ) {
+		cg.numScores = MAX_CLIENTS;
+	}
+
+	cg.teamScores[0] = 0;
+	cg.teamScores[1] = 0;
+
+	memset( cg.scores, 0, sizeof( cg.scores ) );
+	for ( i = 0 ; i < cg.numScores ; i++ ) {
+		cg.scores[i].client = atoi( CG_Argv( i * 4 + 2 ) );
+		cg.scores[i].score = atoi( CG_Argv( i * 4 + 3 ) );
+		cg.scores[i].ping = 0;
+		cg.scores[i].time = 0;
+		cg.scores[i].scoreFlags = 0;
+		cg.scores[i].powerUps = 0;
+		cg.scores[i].accuracy = 0;
+		cg.scores[i].impressiveCount = 0;
+		cg.scores[i].excellentCount = 0;
+		cg.scores[i].guantletCount = 0;
+		cg.scores[i].defendCount = 0;
+		cg.scores[i].assistCount = 0;
+		cg.scores[i].perfect = 0;
+		cg.scores[i].captures = 0;
+		cg.scores[i].damage = 0;
+		cg.scores[i].deaths = 0;
+
+		if ( cg.scores[i].client < 0 || cg.scores[i].client >= MAX_CLIENTS ) {
+			cg.scores[i].client = 0;
+		}
+		cgs.clientinfo[ cg.scores[i].client ].score = cg.scores[i].score;
+		cgs.clientinfo[ cg.scores[i].client ].powerups = 0;
+
+		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
+	}
+	CG_SetScoreSelection(NULL);
+}
+
+/*
+=================
 CG_ParseScores
 
 =================
@@ -686,20 +733,22 @@ static void CG_ParseScores( void ) {
 	memset( cg.scores, 0, sizeof( cg.scores ) );
 	for ( i = 0 ; i < cg.numScores ; i++ ) {
 		//
-		cg.scores[i].client = atoi( CG_Argv( i * 14 + 4 ) );
-		cg.scores[i].score = atoi( CG_Argv( i * 14 + 5 ) );
-		cg.scores[i].ping = atoi( CG_Argv( i * 14 + 6 ) );
-		cg.scores[i].time = atoi( CG_Argv( i * 14 + 7 ) );
-		cg.scores[i].scoreFlags = atoi( CG_Argv( i * 14 + 8 ) );
-		powerups = atoi( CG_Argv( i * 14 + 9 ) );
-		cg.scores[i].accuracy = atoi(CG_Argv(i * 14 + 10));
-		cg.scores[i].impressiveCount = atoi(CG_Argv(i * 14 + 11));
-		cg.scores[i].excellentCount = atoi(CG_Argv(i * 14 + 12));
-		cg.scores[i].guantletCount = atoi(CG_Argv(i * 14 + 13));
-		cg.scores[i].defendCount = atoi(CG_Argv(i * 14 + 14));
-		cg.scores[i].assistCount = atoi(CG_Argv(i * 14 + 15));
-		cg.scores[i].perfect = atoi(CG_Argv(i * 14 + 16));
-		cg.scores[i].captures = atoi(CG_Argv(i * 14 + 17));
+		cg.scores[i].client = atoi( CG_Argv( i * 16 + 4 ) );
+		cg.scores[i].score = atoi( CG_Argv( i * 16 + 5 ) );
+		cg.scores[i].ping = atoi( CG_Argv( i * 16 + 6 ) );
+		cg.scores[i].time = atoi( CG_Argv( i * 16 + 7 ) );
+		cg.scores[i].scoreFlags = atoi( CG_Argv( i * 16 + 8 ) );
+		powerups = atoi( CG_Argv( i * 16 + 9 ) );
+		cg.scores[i].accuracy = atoi(CG_Argv(i * 16 + 10));
+		cg.scores[i].impressiveCount = atoi(CG_Argv(i * 16 + 11));
+		cg.scores[i].excellentCount = atoi(CG_Argv(i * 16 + 12));
+		cg.scores[i].guantletCount = atoi(CG_Argv(i * 16 + 13));
+		cg.scores[i].defendCount = atoi(CG_Argv(i * 16 + 14));
+		cg.scores[i].assistCount = atoi(CG_Argv(i * 16 + 15));
+		cg.scores[i].perfect = atoi(CG_Argv(i * 16 + 16));
+		cg.scores[i].captures = atoi(CG_Argv(i * 16 + 17));
+		cg.scores[i].damage = atoi(CG_Argv(i * 16 + 18));
+		cg.scores[i].deaths = atoi(CG_Argv(i * 16 + 19));
 
 		if ( cg.scores[i].client < 0 || cg.scores[i].client >= MAX_CLIENTS ) {
 			cg.scores[i].client = 0;
@@ -2189,7 +2238,7 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "scores_race" ) ) {
-		CG_ParseScores();
+		CG_ParseRaceScores();
 		return;
 	}
 
