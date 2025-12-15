@@ -38,6 +38,7 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 	int			i, j;
 	gclient_t	*cl;
 	int			numSorted, scoreFlags, accuracy, perfect;
+	const char	*cmd;
 
 	// send the latest information on all clients
 	string[0] = 0;
@@ -66,7 +67,7 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 		perfect = ( cl->ps.persistant[PERS_RANK] == 0 && cl->ps.persistant[PERS_KILLED] == 0 ) ? 1 : 0;
 
 		Com_sprintf (entry, sizeof(entry),
-			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i", level.sortedClients[i],
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i", level.sortedClients[i],
 			cl->ps.persistant[PERS_SCORE], ping, (level.time - cl->pers.enterTime)/60000,
 			scoreFlags, g_entities[level.sortedClients[i]].s.powerups, accuracy, 
 			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
@@ -76,7 +77,8 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 			cl->ps.persistant[PERS_ASSIST_COUNT], 
 			perfect,
 			cl->ps.persistant[PERS_CAPTURES],
-			cl->pers.damageGiven);
+			cl->pers.damageGiven,
+			cl->ps.persistant[PERS_KILLED]);
 		j = strlen(entry);
 		if (stringlength + j > 1024)
 			break;
@@ -84,7 +86,38 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 		stringlength += j;
 	}
 
-	trap_SendServerCommand( ent-g_entities, va("scores %i %i %i%s", i, 
+	switch ( g_gametype.integer ) {
+	case GT_FFA:
+		cmd = "scores_ffa";
+		break;
+	case GT_TOURNAMENT:
+		cmd = "scores_duel";
+		break;
+	case GT_TEAM:
+		cmd = "scores_tdm";
+		break;
+	case GT_CLAN_ARENA:
+		cmd = "scores_ca";
+		break;
+	case GT_CTF:
+	case GT_1FCTF:
+		cmd = "scores_ctf";
+		break;
+	case GT_FREEZE:
+		cmd = "scores_ft";
+		break;
+	case GT_ATTACK_DEFEND:
+		cmd = "scores_ad";
+		break;
+	case GT_RED_ROVER:
+		cmd = "scores_rr";
+		break;
+	default:
+		cmd = "scores";
+		break;
+	}
+
+	trap_SendServerCommand( ent-g_entities, va("%s %i %i %i%s", cmd, i,
 		level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE],
 		string ) );
 }

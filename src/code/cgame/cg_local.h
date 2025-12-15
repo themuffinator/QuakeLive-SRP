@@ -384,6 +384,8 @@ typedef struct {
 	int				captures;
 	qboolean	perfect;
 	int				team;
+	int				damage;
+	int				deaths;
 } score_t;
 
 // HUD scoreboard export used by competitive menu overlays
