@@ -1929,6 +1929,7 @@ void Cmd_Where_f( gentity_t *ent ) {
 #define VF_NO_NEXTMAP			0x0004
 #define VF_NO_GAMETYPE			0x0008
 #define VF_NO_KICK			0x0010
+#define VF_NO_BOTS          0x0020
 #define VF_NO_TIME_LIMIT		0x0040
 #define VF_NO_FRAG_LIMIT		0x0080
 
@@ -2176,6 +2177,27 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		}
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "teamsize %d", atoi( arg2 ) );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "teamsize %s", arg2 );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "kickbot" ) ) {
+		if ( g_voteFlags.integer & VF_NO_KICK ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to kick bots is disabled on this server.\\n\"" );
+			return;
+		}
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "kick %s", arg2[0] ? arg2 : "allbots" );
+		if ( arg2[0] ) {
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "kickbot %s", arg2 );
+		} else {
+			Q_strncpyz( level.voteDisplayString, "kickbot (all)", sizeof( level.voteDisplayString ) );
+		}
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "addbot" ) ) {
+		if ( g_voteFlags.integer & VF_NO_BOTS ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to add bots is disabled on this server.\\n\"" );
+			return;
+		}
+		// addbot <name> <skill> <team> <delay>
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "addbot %s %s", arg2, arg3 ); // simplify for now, maybe parse better
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "addbot %s", arg2 );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "kick" ) ) {
 		int             clientNum;
@@ -2907,6 +2929,323 @@ static void Cmd_Complaint_f( gentity_t *ent ) {
 }
 
 /*
+==================
+Cmd_Ruleset_f
+==================
+*/
+void Cmd_Ruleset_f( gentity_t *ent ) {
+	trap_SendServerCommand( ent - g_entities, va( "print \"Current ruleset: %s\n\"", g_ruleset.string ) );
+}
+
+/*
+==================
+Cmd_Admin_f
+==================
+*/
+void Cmd_Admin_f( gentity_t *ent ) {
+	char        arg[MAX_TOKEN_CHARS];
+	char        val[MAX_TOKEN_CHARS];
+	int         priv;
+	char        userinfo[MAX_INFO_STRING];
+	const char  *steamId;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
+	steamId = Info_ValueForKey( userinfo, "steamid" );
+	priv = G_AdminAccessForSteamID( steamId );
+
+	if ( priv < PRIV_MOD ) {
+		trap_SendServerCommand( ent - g_entities, "print \"You do not have access to admin commands.\n\"" );
+		return;
+	}
+
+	if ( trap_Argc() < 2 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"usage: admin <command> [args]\n\"" );
+		return;
+	}
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+
+	if ( !Q_stricmp( arg, "kick" ) ) {
+		int clientNum;
+
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Argv( 2, val, sizeof( val ) );
+		if ( !val[0] ) {
+			trap_SendServerCommand( ent - g_entities, "print \"usage: admin kick <client>\n\"" );
+			return;
+		}
+
+		clientNum = ClientNumberFromString( ent, val );
+		if ( clientNum >= 0 ) {
+			trap_SendConsoleCommand( EXEC_APPEND, va("clientkick %d\n", clientNum) );
+			G_LogPrintf( "Admin %s kicked %s\n", ent->client->pers.netname, level.clients[clientNum].pers.netname );
+		}
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "ban" ) ) {
+		int clientNum;
+
+		if ( priv < PRIV_ADMIN ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Argv( 2, val, sizeof( val ) );
+		if ( !val[0] ) {
+			trap_SendServerCommand( ent - g_entities, "print \"usage: admin ban <client>\n\"" );
+			return;
+		}
+		clientNum = ClientNumberFromString( ent, val );
+		if ( clientNum >= 0 ) {
+			char targetUserinfo[MAX_INFO_STRING];
+			char *ip;
+
+			trap_GetUserinfo( clientNum, targetUserinfo, sizeof(targetUserinfo) );
+			ip = Info_ValueForKey( targetUserinfo, "ip" );
+			trap_SendConsoleCommand( EXEC_APPEND, va("addip %s\n", ip) );
+			trap_SendConsoleCommand( EXEC_APPEND, va("clientkick %d\n", clientNum) );
+			G_LogPrintf( "Admin %s banned %s (%s)\n", ent->client->pers.netname, level.clients[clientNum].pers.netname, ip );
+		}
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "map" ) ) {
+		char factory[MAX_TOKEN_CHARS];
+
+		if ( priv < PRIV_ADMIN ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Argv( 2, val, sizeof( val ) ); // mapname
+		if ( !val[0] ) {
+			trap_SendServerCommand( ent - g_entities, "print \"usage: admin map <mapname> [factory]\n\"" );
+			return;
+		}
+		trap_Argv( 3, factory, sizeof( factory ) );
+		if ( factory[0] ) {
+			trap_SendConsoleCommand( EXEC_APPEND, va("map %s %s\n", val, factory) );
+		} else {
+			trap_SendConsoleCommand( EXEC_APPEND, va("map %s\n", val) );
+		}
+		G_LogPrintf( "Admin %s changed map to %s\n", ent->client->pers.netname, val );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "restart" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
+		G_LogPrintf( "Admin %s restarted match\n", ent->client->pers.netname );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "pass" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		if ( level.voteTime ) {
+			level.voteYes = level.maxclients; // Force pass
+			level.voteNo = 0;
+			// It will be processed in CheckVote
+			G_LogPrintf( "Admin %s passed vote\n", ent->client->pers.netname );
+		}
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "cancel" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		if ( level.voteTime ) {
+			level.voteTime = 0;
+			trap_SetConfigstring( CS_VOTE_TIME, "" );
+			trap_SendServerCommand( -1, "print \"Vote cancelled by admin.\n\"" );
+			G_LogPrintf( "Admin %s cancelled vote\n", ent->client->pers.netname );
+		}
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "shuffle" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		Cmd_ShuffleTeams_f();
+		G_LogPrintf( "Admin %s shuffled teams\n", ent->client->pers.netname );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "teamsize" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Argv( 2, val, sizeof( val ) );
+		if ( !val[0] ) {
+			trap_SendServerCommand( ent - g_entities, "print \"usage: admin teamsize <size>\n\"" );
+			return;
+		}
+		trap_Cvar_Set( "g_teamSizeMin", val );
+		trap_SendServerCommand( -1, va("print \"Teamsize set to %s by admin.\n\"", val) );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "addbot" ) ) {
+		char botName[MAX_TOKEN_CHARS];
+		char skill[MAX_TOKEN_CHARS];
+		char team[MAX_TOKEN_CHARS];
+		char delay[MAX_TOKEN_CHARS];
+
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		// admin addbot <name> <skill> <team> <delay>
+
+		trap_Argv( 2, botName, sizeof( botName ) );
+		trap_Argv( 3, skill, sizeof( skill ) );
+		trap_Argv( 4, team, sizeof( team ) );
+		trap_Argv( 5, delay, sizeof( delay ) );
+
+		if ( !botName[0] ) {
+			trap_SendServerCommand( ent - g_entities, "print \"usage: admin addbot <name> [skill] [team] [delay]\n\"" );
+			return;
+		}
+
+		trap_SendConsoleCommand( EXEC_APPEND, va("addbot %s %s %s %s\n", botName, skill, team, delay) );
+		G_LogPrintf( "Admin %s added bot %s\n", ent->client->pers.netname, botName );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "kickbot" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Argv( 2, val, sizeof( val ) );
+		trap_SendConsoleCommand( EXEC_APPEND, va("kick %s\n", val[0] ? val : "allbots") );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "move" ) ) {
+		char targetStr[MAX_TOKEN_CHARS];
+		char teamStr[MAX_TOKEN_CHARS];
+		int clientNum;
+
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Argv( 2, targetStr, sizeof( targetStr ) );
+		trap_Argv( 3, teamStr, sizeof( teamStr ) );
+
+		if ( !targetStr[0] || !teamStr[0] ) {
+			trap_SendServerCommand( ent - g_entities, "print \"usage: admin move <client> <team>\n\"" );
+			return;
+		}
+
+		clientNum = ClientNumberFromString( ent, targetStr );
+		if ( clientNum >= 0 ) {
+			SetTeam( &g_entities[clientNum], teamStr );
+			G_LogPrintf( "Admin %s moved %s to %s\n", ent->client->pers.netname, level.clients[clientNum].pers.netname, teamStr );
+		}
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "timeout" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		// Force timeout logic (bypass G_ClientCanControlTimeouts)
+		if ( level.timeoutActive ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Timeout already active.\n\"" );
+			return;
+		}
+		level.timeoutActive = qtrue;
+		level.timeoutTeam = TEAM_FREE; // Admin timeout
+		level.timeoutOwner = ent->s.number;
+		level.timeoutStartTime = level.time;
+		level.timeoutExpireTime = 0; // Infinite until timein? Or use g_timeoutLen
+		if ( g_matchFactoryConfig.timeoutLengthSeconds > 0 ) {
+			level.timeoutExpireTime = level.time + g_matchFactoryConfig.timeoutLengthSeconds * 1000;
+		}
+		trap_SendServerCommand( -1, va( "print \"%s called an admin timeout.\n\"", ent->client->pers.netname ) );
+		G_UpdateMatchStateConfigString();
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "timein" ) ) {
+		int pausedDuration = 0;
+
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		if ( !level.timeoutActive ) {
+			trap_SendServerCommand( ent - g_entities, "print \"No timeout active.\n\"" );
+			return;
+		}
+		// Force timein
+		if ( level.timeoutStartTime > 0 && level.time > level.timeoutStartTime ) {
+			pausedDuration = level.time - level.timeoutStartTime;
+		}
+		G_ApplyTimeoutPauseDelta( pausedDuration );
+		trap_SendServerCommand( -1, va( "print \"%s called time in.\n\"", ent->client->pers.netname ) );
+		G_ResetTimeoutState();
+		G_UpdateMatchStateConfigString();
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "lock" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Cvar_Set( "g_teamSpawnAsSpec", "1" );
+		trap_SendServerCommand( -1, "print \"Teams locked by admin.\n\"" );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "unlock" ) ) {
+		if ( priv < PRIV_MOD ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
+			return;
+		}
+		trap_Cvar_Set( "g_teamSpawnAsSpec", "0" );
+		trap_SendServerCommand( -1, "print \"Teams unlocked by admin.\n\"" );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "mute" ) ) {
+		if ( priv < PRIV_MOD ) { return; }
+		// TODO: Implement mute (requires muting flag in clientPersistant)
+		// For now just print not implemented
+		trap_SendServerCommand( ent - g_entities, "print \"Mute not fully implemented yet.\n\"" );
+		return;
+	}
+
+	if ( !Q_stricmp( arg, "unmute" ) ) {
+		if ( priv < PRIV_MOD ) { return; }
+		trap_SendServerCommand( ent - g_entities, "print \"Unmute not fully implemented yet.\n\"" );
+		return;
+	}
+
+	trap_SendServerCommand( ent - g_entities, "print \"Unknown admin command.\n\"" );
+}
+
+/*
 =================
 ClientCommand
 =================
@@ -2974,11 +3313,11 @@ void ClientCommand( int clientNum ) {
 		Cmd_Score_f (ent);
 		return;
 	}
-	else if (Q_stricmp (cmd, "ready") == 0) {
+	else if (Q_stricmp (cmd, "ready") == 0 || Q_stricmp (cmd, "readyup") == 0 ) {
 		Cmd_Ready_f (ent);
 		return;
 	}
-	else if (Q_stricmp (cmd, "notready") == 0) {
+	else if (Q_stricmp (cmd, "notready") == 0 || Q_stricmp (cmd, "unready") == 0 ) {
 		Cmd_NotReady_f (ent);
 		return;
 	}
@@ -3083,6 +3422,10 @@ void ClientCommand( int clientNum ) {
 		Cmd_SetViewpos_f( ent );
 	else if (Q_stricmp (cmd, "stats") == 0)
 		Cmd_Stats_f( ent );
+	else if (Q_stricmp (cmd, "admin") == 0)
+		Cmd_Admin_f( ent );
+	else if (Q_stricmp (cmd, "ruleset") == 0)
+		Cmd_Ruleset_f( ent );
 	else
 		trap_SendServerCommand( clientNum, va("print \"unknown cmd %s\n\"", cmd ) );
 }
