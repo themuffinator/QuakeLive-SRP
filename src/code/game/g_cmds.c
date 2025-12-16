@@ -1929,6 +1929,7 @@ void Cmd_Where_f( gentity_t *ent ) {
 #define VF_NO_NEXTMAP			0x0004
 #define VF_NO_GAMETYPE			0x0008
 #define VF_NO_KICK			0x0010
+#define VF_NO_BOTS			0x0020
 #define VF_NO_TIME_LIMIT		0x0040
 #define VF_NO_FRAG_LIMIT		0x0080
 
@@ -2177,6 +2178,44 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "teamsize %d", atoi( arg2 ) );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "teamsize %s", arg2 );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "addbot" ) ) {
+		if ( g_voteFlags.integer & VF_NO_BOTS ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to add a bot is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( !arg2[0] ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Usage: callvote addbot <name> [skill]\\n\"" );
+			return;
+		}
+		if ( arg3[0] ) {
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "addbot %s %s", arg2, arg3 );
+		} else {
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "addbot %s", arg2 );
+		}
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "addbot %s", arg2 );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "kickbot" ) ) {
+		int             clientNum;
+
+		if ( g_voteFlags.integer & VF_NO_BOTS ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to kick a bot is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( !arg2[0] ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Usage: callvote kickbot <name>\\n\"" );
+			return;
+		}
+		clientNum = ClientNumberFromString( ent, arg2 );
+		if ( clientNum == -1 ) {
+			return;
+		}
+		if ( !(g_entities[clientNum].r.svFlags & SVF_BOT) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"That player is not a bot.\\n\"" );
+			return;
+		}
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "clientkick %d", clientNum );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "kickbot %s", level.clients[clientNum].pers.netname );
+		voteSelection = G_VoteSelectionKey( arg1, level.clients[clientNum].pers.netname );
 	} else if ( !Q_stricmp( arg1, "kick" ) ) {
 		int             clientNum;
 
@@ -2974,11 +3013,11 @@ void ClientCommand( int clientNum ) {
 		Cmd_Score_f (ent);
 		return;
 	}
-	else if (Q_stricmp (cmd, "ready") == 0) {
+	else if (Q_stricmp (cmd, "ready") == 0 || Q_stricmp (cmd, "readyup") == 0) {
 		Cmd_Ready_f (ent);
 		return;
 	}
-	else if (Q_stricmp (cmd, "notready") == 0) {
+	else if (Q_stricmp (cmd, "notready") == 0 || Q_stricmp (cmd, "unready") == 0) {
 		Cmd_NotReady_f (ent);
 		return;
 	}
