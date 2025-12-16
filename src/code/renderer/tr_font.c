@@ -73,12 +73,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "tr_local.h"
 #include "../qcommon/qcommon.h"
 
+// Always enable FreeType for Quake Live parity
+#define BUILD_FREETYPE 1
+
 #ifdef BUILD_FREETYPE
-#include "../ft2/fterrors.h"
-#include "../ft2/ftsystem.h"
-#include "../ft2/ftimage.h"
-#include "../ft2/freetype.h"
-#include "../ft2/ftoutln.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_ERRORS_H
+#include FT_SYSTEM_H
+#include FT_IMAGE_H
+#include FT_OUTLINE_H
 
 #define _FLOOR(x)  ((x) & -64)
 #define _CEIL(x)   (((x)+63) & -64)
@@ -112,7 +116,7 @@ FT_Bitmap *R_RenderGlyph(FT_GlyphSlot glyph, glyphInfo_t* glyphOut) {
 
   R_GetGlyphInfo(glyph, &left, &right, &width, &top, &bottom, &height, &pitch);
 
-  if ( glyph->format == ft_glyph_format_outline ) {
+  if ( glyph->format == FT_GLYPH_FORMAT_OUTLINE ) {
     size   = pitch*height; 
 
     bit2 = Z_Malloc(sizeof(FT_Bitmap));
@@ -120,8 +124,8 @@ FT_Bitmap *R_RenderGlyph(FT_GlyphSlot glyph, glyphInfo_t* glyphOut) {
     bit2->width      = width;
     bit2->rows       = height;
     bit2->pitch      = pitch;
-    bit2->pixel_mode = ft_pixel_mode_grays;
-    //bit2->pixel_mode = ft_pixel_mode_mono;
+    bit2->pixel_mode = FT_PIXEL_MODE_GRAY;
+    //bit2->pixel_mode = FT_PIXEL_MODE_MONO;
     bit2->buffer     = Z_Malloc(pitch*height);
     bit2->num_grays = 256;
 
@@ -240,7 +244,7 @@ static glyphInfo_t *RE_ConstructGlyphInfo(unsigned char *imageOut, int *xOut, in
     src = bitmap->buffer;
     dst = imageOut + (*yOut * 256) + *xOut;
 
-		if (bitmap->pixel_mode == ft_pixel_mode_mono) {
+		if (bitmap->pixel_mode == FT_PIXEL_MODE_MONO) {
 			for (i = 0; i < glyph.height; i++) {
 				int j;
 				unsigned char *_src = src;
@@ -539,4 +543,3 @@ void R_DoneFreeType() {
 #endif
 	registeredFontCount = 0;
 }
-
