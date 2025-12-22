@@ -444,8 +444,16 @@ qboolean ClientInactivityTimer( gclient_t *client ) {
 		client->inactivityWarning = qfalse;
 	} else if ( !client->pers.localClient ) {
 		if ( level.time > client->inactivityTime ) {
-			trap_DropClient( client - level.clients, "Dropped due to inactivity" );
-			return qfalse;
+			client->inactivityWarning = qfalse;
+			if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+				SetTeam( &g_entities[ client - level.clients ], "spectator" );
+				client->inactivityTime = level.time + g_inactivity.integer * 1000;
+				trap_SendServerCommand( client - level.clients, "cp \"Moved to spectators due to inactivity\n\"" );
+			} else {
+				trap_DropClient( client - level.clients, "Dropped due to inactivity" );
+				return qfalse;
+			}
+			return qtrue;
 		}
 		if ( level.time > client->inactivityTime - 10000 && !client->inactivityWarning ) {
 			client->inactivityWarning = qtrue;

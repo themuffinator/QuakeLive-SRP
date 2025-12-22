@@ -478,6 +478,9 @@ vmCvar_t	g_returnFlagOnSuicide;
 vmCvar_t	g_droppedFlagBonus;
 vmCvar_t	g_flagDroppedTimeout;
 vmCvar_t	g_neutralFlagPingTime;
+vmCvar_t	g_thruFloors;
+vmCvar_t	g_eloLimit;
+vmCvar_t	g_loadout;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
@@ -638,6 +641,9 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_podiumDist, "g_podiumDist", "80", 0, 0, qfalse },
 	{ &g_podiumDrop, "g_podiumDrop", "70", 0, 0, qfalse },
+	{ &g_thruFloors, "g_thruFloors", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow splash damage to pass through floors." },
+	{ &g_eloLimit, "g_eloLimit", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse, qfalse, "Minimum ELO rating required to join (0 for no limit)." },
+	{ &g_loadout, "g_loadout", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse, qfalse, "Enable loadout menu selection." },
 
 	{ &g_allowSpecVote, "g_allowSpecVote", "0", 0, 0, qfalse },
 	{ &g_allowVote, "g_allowVote", "1", CVAR_ARCHIVE, 0, qfalse },

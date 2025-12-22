@@ -1419,6 +1419,14 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		return "You are banned from this server.";
 	}
 
+	// ELO check
+	if ( g_eloLimit.integer > 0 ) {
+		int elo = atoi( Info_ValueForKey( userinfo, "elo" ) );
+		if ( elo < g_eloLimit.integer ) {
+			return "Your ELO rating is too low for this server.";
+		}
+	}
+
   // we don't check password for bots and local client
   // NOTE: local client <-> "ip" "localhost"
   //   this means this client is not running in our current process

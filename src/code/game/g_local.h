@@ -413,6 +413,9 @@ extern vmCvar_t g_guidedRocket;
 extern vmCvar_t g_weaponRespawnLegacy;
 extern vmCvar_t g_podiumDist;
 extern vmCvar_t g_podiumDrop;
+extern vmCvar_t g_thruFloors;
+extern vmCvar_t g_eloLimit;
+extern vmCvar_t g_loadout;
 
 typedef struct startingAmmoConfig_s {
 	int		bfg;

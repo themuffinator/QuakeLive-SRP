@@ -1722,6 +1722,10 @@ qboolean CanDamage (gentity_t *targ, vec3_t origin) {
 	trace_t	tr;
 	vec3_t	midpoint;
 
+	if ( g_thruFloors.integer ) {
+		return qtrue;
+	}
+
 	// use the midpoint of the bounds instead of the origin, because
 	// bmodels may have their origin is 0,0,0
 	VectorAdd (targ->r.absmin, targ->r.absmax, midpoint);
