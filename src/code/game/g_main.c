@@ -478,6 +478,8 @@ vmCvar_t	g_returnFlagOnSuicide;
 vmCvar_t	g_droppedFlagBonus;
 vmCvar_t	g_flagDroppedTimeout;
 vmCvar_t	g_neutralFlagPingTime;
+vmCvar_t	g_reportKiller;
+vmCvar_t	g_awardPushing;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
@@ -615,6 +617,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_droppedFlagBonus, "g_droppedFlagBonus", "10", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score bonus granted to players that recover a dropped friendly flag." },
 	{ &g_flagDroppedTimeout, "g_flagDroppedTimeout", "30000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds a dropped flag can remain in play before automatically returning to base." },
 	{ &g_neutralFlagPingTime, "g_neutralFlagPingTime", "5000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds between neutral flag ping notifications while it sits on the ground; set to 0 to disable." },
+	{ &g_reportKiller, "g_reportKiller", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Report attacker's remaining health and armor to the victim." },
+	{ &g_awardPushing, "g_awardPushing", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Award points to players who push opponents into environmental hazards." },
 
 	{ &g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse },
 
