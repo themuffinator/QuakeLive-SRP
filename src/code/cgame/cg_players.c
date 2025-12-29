@@ -1104,12 +1104,17 @@ static void CG_ApplyClientModelOverrides( clientInfo_t *ci, cgClientOverrideCont
 	if ( !ci ) {
 		return;
 	}
+
+	if ( !cg_forceModel.integer ) {
+		return;
+	}
+
 	useTeam = CG_ShouldUseTeamOverrides( context );
 	allowBodyOverride = ( cgs.playermodelOverride[0] == '\0' );
 	allowHeadOverride = ( cgs.playerheadmodelOverride[0] == '\0' );
 	forcedModel[0] = '\0';
 	forcedSkin[0] = '\0';
-	modelValue = useTeam ? cg_forceTeamModel.string : cg_forceEnemyModel.string;
+	modelValue = useTeam ? cg_teamModel.string : cg_enemyModel.string;
 	skinValue = useTeam ? cg_forceTeamSkin.string : cg_forceEnemySkin.string;
 	if ( CG_ParseForcedModelString( modelValue, forcedModel, sizeof( forcedModel ), forcedSkin, sizeof( forcedSkin ) ) ) {
 		if ( allowBodyOverride ) {
@@ -1158,27 +1163,54 @@ static void CG_ApplyClientColorOverrides( clientInfo_t *ci, cgClientOverrideCont
 		return;
 	}
 	useTeam = CG_ShouldUseTeamOverrides( context );
+
+	// Initialize with defaults
+	VectorCopy( ci->color1, ci->headColor );
+	ci->headColorForced = qfalse;
+	VectorCopy( ci->color1, ci->upperColor );
+	ci->upperColorForced = qfalse;
+	VectorCopy( ci->color2, ci->lowerColor );
+	ci->lowerColorForced = qfalse;
+
+	// Apply team/enemy colors
+	if ( cg_forceModel.integer ) {
+		const char *colorStr = useTeam ? cg_teamColors.string : cg_enemyColors.string;
+		if ( colorStr && *colorStr ) {
+			int len = strlen( colorStr );
+			int i;
+			vec4_t color;
+			for( i = 0; i < 3; i++ ) {
+				int idx = CG_ColorCharToIndex( colorStr[ (i < len) ? i : (len-1) ] );
+				if ( idx != -1 ) {
+					CG_GetColorForIndex( idx, color );
+					if ( i == 0 ) {
+						VectorCopy( color, ci->headColor );
+						ci->headColorForced = qtrue;
+					} else if ( i == 1 ) {
+						VectorCopy( color, ci->upperColor );
+						ci->upperColorForced = qtrue;
+					} else if ( i == 2 ) {
+						VectorCopy( color, ci->lowerColor );
+						ci->lowerColorForced = qtrue;
+					}
+				}
+			}
+		}
+	}
+
 	value = useTeam ? cg_teamHeadColor.string : cg_enemyHeadColor.string;
 	if ( CG_ParseOverrideColorString( value, ci->headColor ) ) {
 		ci->headColorForced = qtrue;
-	} else {
-		VectorCopy( ci->color1, ci->headColor );
-		ci->headColorForced = qfalse;
 	}
 	value = useTeam ? cg_teamUpperColor.string : cg_enemyUpperColor.string;
 	if ( CG_ParseOverrideColorString( value, ci->upperColor ) ) {
 		ci->upperColorForced = qtrue;
-	} else {
-		VectorCopy( ci->color1, ci->upperColor );
-		ci->upperColorForced = qfalse;
 	}
 	value = useTeam ? cg_teamLowerColor.string : cg_enemyLowerColor.string;
 	if ( CG_ParseOverrideColorString( value, ci->lowerColor ) ) {
 		ci->lowerColorForced = qtrue;
-	} else {
-		VectorCopy( ci->color2, ci->lowerColor );
-		ci->lowerColorForced = qfalse;
 	}
+
 	VectorCopy( ci->color1, ci->weaponPrimaryColor );
 	VectorCopy( ci->color2, ci->weaponSecondaryColor );
 	ci->weaponColorForced = qfalse;
@@ -1186,7 +1218,7 @@ static void CG_ApplyClientColorOverrides( clientInfo_t *ci, cgClientOverrideCont
 		VectorCopy( ci->upperColor, ci->weaponPrimaryColor );
 		VectorCopy( ci->upperColor, ci->weaponSecondaryColor );
 		ci->weaponColorForced = qtrue;
-}
+	}
 }
 
 /*
@@ -1230,6 +1262,20 @@ static void CG_ApplyDeadBodyTint( refEntity_t *re ) {
 		clamped = Com_Clamp( 0.0f, 1.0f, cg.deadBodyColor[component] );
 		re->shaderRGBA[component] = (byte)( clamped * 255.0f );
 	}
+}
+
+/*
+=============
+CG_SetRefEntityColor
+
+Applies a custom RGB color to the reference entity.
+=============
+*/
+static void CG_SetRefEntityColor( refEntity_t *ent, vec3_t color ) {
+	ent->shaderRGBA[0] = (byte)( color[0] * 255.0f );
+	ent->shaderRGBA[1] = (byte)( color[1] * 255.0f );
+	ent->shaderRGBA[2] = (byte)( color[2] * 255.0f );
+	ent->shaderRGBA[3] = 255;
 }
 
 /*
@@ -2744,6 +2790,8 @@ void CG_Player( centity_t *cent ) {
 	VectorCopy (legs.origin, legs.oldorigin);	// don't positionally lerp at all
 	if ( tintCorpse ) {
 		CG_ApplyDeadBodyTint( &legs );
+	} else if ( ci->lowerColorForced ) {
+		CG_SetRefEntityColor( &legs, ci->lowerColor );
 	}
 
 	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team );
@@ -2771,6 +2819,8 @@ void CG_Player( centity_t *cent ) {
 	torso.renderfx = renderfx;
 	if ( tintCorpse ) {
 		CG_ApplyDeadBodyTint( &torso );
+	} else if ( ci->upperColorForced ) {
+		CG_SetRefEntityColor( &torso, ci->upperColor );
 	}
 
 	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team );
@@ -2997,6 +3047,8 @@ void CG_Player( centity_t *cent ) {
 	head.renderfx = renderfx;
 	if ( tintCorpse ) {
 		CG_ApplyDeadBodyTint( &head );
+	} else if ( ci->headColorForced ) {
+		CG_SetRefEntityColor( &head, ci->headColor );
 	}
 
 	CG_AddRefEntityWithPowerups( &head, &cent->currentState, ci->team );

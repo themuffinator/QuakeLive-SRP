@@ -194,11 +194,11 @@ static void UI_UpdateForceModelSettings(qboolean team) {
 	const char *modelValue;
 	char *slash;
 
-	modelCvar = team ? "cg_forceTeamModel" : "cg_forceEnemyModel";
+	modelCvar = team ? "cg_teamModel" : "cg_enemyModel";
 	skinCvar = team ? "cg_forceTeamSkin" : "cg_forceEnemySkin";
-	uiModelCvar = team ? "ui_forceTeamModel" : "ui_forceEnemyModel";
+	uiModelCvar = team ? "ui_teamModel" : "ui_enemyModel";
 	uiSkinCvar = team ? "ui_forceTeamSkin" : "ui_forceEnemySkin";
-	uiBrightCvar = team ? "ui_forceTeamModelBright" : "ui_forceEnemyModelBright";
+	uiBrightCvar = team ? "ui_teamModelBright" : "ui_enemyModelBright";
 
 	trap_Cvar_VariableStringBuffer(modelCvar, model, sizeof(model));
 	slash = strchr(model, '/');
@@ -7417,11 +7417,11 @@ vmCvar_t	ui_serverStatusTimeOut;
 vmCvar_t	ui_mapVotingDisabled;
 vmCvar_t	ui_gameTypeVotingDisabled;
 vmCvar_t	ui_bloomPreset;
-vmCvar_t	ui_forceEnemyModel;
-vmCvar_t	ui_forceEnemyModelBright;
+	vmCvar_t	ui_teamModel;
+	vmCvar_t	ui_teamModelBright;
+	vmCvar_t	ui_enemyModel;
+	vmCvar_t	ui_enemyModelBright;
 vmCvar_t	ui_forceEnemySkin;
-vmCvar_t	ui_forceTeamModel;
-vmCvar_t	ui_forceTeamModelBright;
 vmCvar_t	ui_forceTeamSkin;
 vmCvar_t	ui_enemyHeadColor;
 vmCvar_t	ui_enemyLowerColor;
@@ -7606,11 +7606,11 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_realWarmUp, "g_warmup", "20", CVAR_ARCHIVE},
 	{ &ui_realCaptureLimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART},
 	{ &ui_bloomPreset, "ui_bloomPreset", "0", CVAR_ARCHIVE},
-	{ &ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_ARCHIVE},
-	{ &ui_forceEnemyModelBright, "ui_forceEnemyModelBright", "0", CVAR_ARCHIVE},
+	{ &ui_enemyModel, "ui_enemyModel", "", CVAR_ARCHIVE},
+	{ &ui_enemyModelBright, "ui_enemyModelBright", "0", CVAR_ARCHIVE},
 	{ &ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_ARCHIVE},
-	{ &ui_forceTeamModel, "ui_forceTeamModel", "", CVAR_ARCHIVE},
-	{ &ui_forceTeamModelBright, "ui_forceTeamModelBright", "0", CVAR_ARCHIVE},
+	{ &ui_teamModel, "ui_teamModel", "", CVAR_ARCHIVE},
+	{ &ui_teamModelBright, "ui_teamModelBright", "0", CVAR_ARCHIVE},
 	{ &ui_forceTeamSkin, "ui_forceTeamSkin", "", CVAR_ARCHIVE},
 	{ &ui_enemyHeadColor, "ui_enemyHeadColor", "0", CVAR_ARCHIVE},
 	{ &ui_enemyLowerColor, "ui_enemyLowerColor", "0", CVAR_ARCHIVE},
