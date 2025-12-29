@@ -38,9 +38,11 @@ displayContextDef_t cgDC;
 #define CG_AUTOACTION_STATS_DELAY		1500
 
 int forceModelModificationCount = -1;
-int forceTeamModelModificationCount = -1;
+int teamModelModificationCount = -1;
+int teamColorsModificationCount = -1;
 int forceTeamSkinModificationCount = -1;
-int forceEnemyModelModificationCount = -1;
+int enemyModelModificationCount = -1;
+int enemyColorsModificationCount = -1;
 int forceEnemySkinModificationCount = -1;
 int forceTeamWeaponColorModificationCount = -1;
 int forceEnemyWeaponColorModificationCount = -1;
@@ -269,9 +271,11 @@ vmCvar_t	cg_teamChatBeep;
 vmCvar_t 	cg_stats;
 vmCvar_t 	cg_buildScript;
 vmCvar_t 	cg_forceModel;
-vmCvar_t	cg_forceTeamModel;
+vmCvar_t	cg_teamModel;
+vmCvar_t	cg_teamColors;
 vmCvar_t	cg_forceTeamSkin;
-vmCvar_t	cg_forceEnemyModel;
+vmCvar_t	cg_enemyModel;
+vmCvar_t	cg_enemyColors;
 vmCvar_t	cg_forceEnemySkin;
 vmCvar_t	cg_forceTeamWeaponColor;
 vmCvar_t	cg_forceEnemyWeaponColor;
@@ -542,9 +546,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 { &cg_chatbeep, "cg_chatbeep", "1", CVAR_ARCHIVE },
 { &cg_teamChatBeep, "cg_teamChatBeep", "1", CVAR_ARCHIVE },
 	{ &cg_forceModel, "cg_forceModel", "0", CVAR_ARCHIVE  },
-	{ &cg_forceTeamModel, "cg_forceTeamModel", "", CVAR_ARCHIVE },
+	{ &cg_teamModel, "cg_teamModel", "", CVAR_ARCHIVE },
+	{ &cg_teamColors, "cg_teamColors", "", CVAR_ARCHIVE },
 	{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", CVAR_ARCHIVE },
-	{ &cg_forceEnemyModel, "cg_forceEnemyModel", "", CVAR_ARCHIVE },
+	{ &cg_enemyModel, "cg_enemyModel", "", CVAR_ARCHIVE },
+	{ &cg_enemyColors, "cg_enemyColors", "", CVAR_ARCHIVE },
 	{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", CVAR_ARCHIVE },
 	{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", CVAR_ARCHIVE },
 	{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", CVAR_ARCHIVE },
@@ -1401,19 +1407,19 @@ static const vec3_t cg_crosshairPalette[QL_CROSSHAIR_COLOR_COUNT] = {
 
 /*
 =============
-CG_CrosshairHexCharToInt
+CG_ColorCharToIndex
 
-Converts a hexadecimal character for crosshair color parsing.
+Converts a character to an index into the color palette.
 =============
 */
-static int CG_CrosshairHexCharToInt( char ch ) {
+int CG_ColorCharToIndex( char ch ) {
 	if ( ch >= '0' && ch <= '9' ) {
 		return ch - '0';
 	}
-	if ( ch >= 'a' && ch <= 'f' ) {
+	if ( ch >= 'a' && ch <= 'z' ) {
 		return 10 + ( ch - 'a' );
 	}
-	if ( ch >= 'A' && ch <= 'F' ) {
+	if ( ch >= 'A' && ch <= 'Z' ) {
 		return 10 + ( ch - 'A' );
 	}
 	return -1;
@@ -1456,8 +1462,8 @@ static qboolean CG_ParseCrosshairColorString( const char *value, vec4_t color ) 
 	}
 	raw = 0u;
 	for ( i = 0 ; i < len ; i++ ) {
-		digit = CG_CrosshairHexCharToInt( hex[i] );
-		if ( digit < 0 ) {
+		digit = CG_ColorCharToIndex( hex[i] );
+		if ( digit < 0 || digit > 15 ) { // Strict hex check for hex strings
 			return qfalse;
 		}
 		raw = ( raw << 4 ) | (unsigned int)digit;
@@ -1478,17 +1484,31 @@ static qboolean CG_ParseCrosshairColorString( const char *value, vec4_t color ) 
 
 /*
 =============
+CG_GetColorForIndex
+
+Populates a color vector using a palette-backed index.
+=============
+*/
+void CG_GetColorForIndex( int index, vec4_t color ) {
+	if ( index < 0 || index >= QL_CROSSHAIR_COLOR_COUNT ) {
+		index = 0;
+	}
+	VectorCopy( cg_crosshairPalette[index], color );
+	color[3] = 1.0f;
+}
+
+/*
+=============
 CG_SetCrosshairColorFromIndex
 
 Populates a color vector using a palette-backed crosshair index.
 =============
 */
 static void CG_SetCrosshairColorFromIndex( int index, vec4_t color ) {
-	if ( index < 1 || index >= QL_CROSSHAIR_COLOR_COUNT ) {
-		index = 1;
+	CG_GetColorForIndex( index, color );
+	if ( index < 1 || index >= QL_CROSSHAIR_COLOR_COUNT ) { // preserve original behavior of defaulting to index 1 for crosshair
+		VectorCopy( cg_crosshairPalette[1], color );
 	}
-	VectorCopy( cg_crosshairPalette[index], color );
-	color[3] = 1.0f;
 }
 
 /*
@@ -1608,16 +1628,24 @@ void CG_UpdateCvars( void ) {
 		forceModelModificationCount = cg_forceModel.modificationCount;
 		refreshClients = qtrue;
 	}
-	if ( forceTeamModelModificationCount != cg_forceTeamModel.modificationCount ) {
-		forceTeamModelModificationCount = cg_forceTeamModel.modificationCount;
+	if ( teamModelModificationCount != cg_teamModel.modificationCount ) {
+		teamModelModificationCount = cg_teamModel.modificationCount;
+		refreshClients = qtrue;
+	}
+	if ( teamColorsModificationCount != cg_teamColors.modificationCount ) {
+		teamColorsModificationCount = cg_teamColors.modificationCount;
 		refreshClients = qtrue;
 	}
 	if ( forceTeamSkinModificationCount != cg_forceTeamSkin.modificationCount ) {
 		forceTeamSkinModificationCount = cg_forceTeamSkin.modificationCount;
 		refreshClients = qtrue;
 	}
-	if ( forceEnemyModelModificationCount != cg_forceEnemyModel.modificationCount ) {
-		forceEnemyModelModificationCount = cg_forceEnemyModel.modificationCount;
+	if ( enemyModelModificationCount != cg_enemyModel.modificationCount ) {
+		enemyModelModificationCount = cg_enemyModel.modificationCount;
+		refreshClients = qtrue;
+	}
+	if ( enemyColorsModificationCount != cg_enemyColors.modificationCount ) {
+		enemyColorsModificationCount = cg_enemyColors.modificationCount;
 		refreshClients = qtrue;
 	}
 	if ( forceEnemySkinModificationCount != cg_forceEnemySkin.modificationCount ) {

@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "tr_types.h"
 #include "../game/bg_public.h"
 #include "cg_public.h"
+#include "../ui/ui_shared.h"
 
 
 // The entire cgame module is unloaded and reloaded on each level change,
@@ -157,12 +158,12 @@ typedef enum {
 } cgAnnouncerProfile_t;
 
 typedef struct {
-	sfxHandle_t	oneMinute;
-	sfxHandle_t	fiveMinute;
-	sfxHandle_t	suddenDeath;
-	sfxHandle_t	oneFrag;
-	sfxHandle_t	twoFrag;
-	sfxHandle_t	threeFrag;
+	sfxHandle_t	oneMinuteSound;
+	sfxHandle_t	fiveMinuteSound;
+	sfxHandle_t	suddenDeathSound;
+	sfxHandle_t	oneFragSound;
+	sfxHandle_t	twoFragSound;
+	sfxHandle_t	threeFragSound;
 } cgAnnouncerSoundSet_t;
 
 //=================================================
@@ -838,7 +839,6 @@ typedef struct {
 
 	vec3_t		kick_angles;	// weapon kicks
 	vec3_t		kick_origin;
-	qboolean	projectileNudgeActive;
 	int		projectileNudgeCommandTime;
 	int		projectileNudgeMsec;
 	vec3_t		projectileNudgeOrigin;
@@ -1537,9 +1537,11 @@ extern	vmCvar_t		cg_chatbeep;
 extern	vmCvar_t		cg_teamChatBeep;
 extern	vmCvar_t		cg_stats;
 extern	vmCvar_t 		cg_forceModel;
-extern	vmCvar_t 		cg_forceTeamModel;
+extern	vmCvar_t 		cg_teamModel;
+extern	vmCvar_t 		cg_teamColors;
 extern	vmCvar_t 		cg_forceTeamSkin;
-extern	vmCvar_t 		cg_forceEnemyModel;
+extern	vmCvar_t 		cg_enemyModel;
+extern	vmCvar_t 		cg_enemyColors;
 extern	vmCvar_t 		cg_forceEnemySkin;
 extern	vmCvar_t 		cg_forceTeamWeaponColor;
 extern	vmCvar_t 		cg_forceEnemyWeaponColor;
@@ -1781,6 +1783,8 @@ void CG_ShowResponseHead();
 void CG_SetPrintString(int type, const char *p);
 void CG_InitTeamChat();
 void CG_GetTeamColor(vec4_t *color);
+void CG_GetColorForIndex( int index, vec4_t color );
+int CG_ColorCharToIndex( char ch );
 const char *CG_GetTeamName( team_t team );
 const char *CG_GetGameStatusText();
 const char *CG_GetKillerText();
