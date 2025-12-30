@@ -44,6 +44,12 @@ This ledger tracks the implementation status of Quake Live gameplay behaviours r
   | Capture set | `weapon-balance-2024-09-22-*` demos only. | Rocket, rail, and lightning scrims regenerated with documented seeds/commands for parity reviews.【F:artifacts/tests/weapon-balance-deltas.md†L1-L16】 |
 - **Approvals:** Gameplay Systems (@gamedev-lead) and QA Lead (@qa-automation) reviewed the harness baseline and refreshed scrim instructions on 2025-03-15; status remains ✅ with CI artefacts now attached for ongoing parity checks.
 
+### Weapon timing + ammo parity re-compare (2025-12-30)
+
+- **Reload timings:** `bg_pmove.c` defaults still match the HLIL reload table (Gauntlet 400 ms, Machinegun 100 ms, Shotgun 1000 ms, Grenade 800 ms, Rocket 800 ms, Lightning 50 ms, Railgun 1500 ms, Plasma 100 ms, BFG 300 ms, Grapple 100 ms, Heavy MG 75 ms, Nailgun 1000 ms, Prox 800 ms, Chaingun 50 ms).【F:references/hlil/quakelive/qagamex86.dll_split/bg_pmove.md†L1-L22】【F:src/code/game/bg_pmove.c†L127-L149】
+- **Ammo pickup + max stacks:** `bg_misc.c` `bg_weaponStats` remains aligned with the HLIL pickup/max stack table (Machinegun 50/200, Heavy MG 50/200, Shotgun 10/40, Grenade 5/20, Rocket 5/20, Lightning 60/240, Railgun 10/40, Plasma 30/120, BFG 15/60, Grapple 0/-1, Nailgun 20/80, Prox 10/40, Chaingun 100/400).【F:references/hlil/quakelive/qagamex86.dll_split/bg_pmove.md†L24-L41】【F:src/code/game/bg_misc.c†L28-L41】
+- **Movement constants:** No HLIL deltas were found beyond the existing `bg_pmove` reload/ammo tables; movement tuning in `pm_defaultSettings` remains consistent with prior parity captures.【F:src/code/game/bg_pmove.c†L68-L159】
+
 ### Loadout unlock verification (2025-05-17)
 
 - **Unlock mapping:** `g_items.c` mirrors the HLIL unlock tier table for all weapon and kamikaze entries so pickup gating uses the same progression thresholds as Quake Live.【F:references/hlil/quakelive/qagamex86.dll_split/g_items.md†L1-L55】【F:src/code/game/g_items.c†L146-L199】
