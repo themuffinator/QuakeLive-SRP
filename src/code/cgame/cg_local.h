@@ -1346,6 +1346,11 @@ typedef struct {
 	qboolean	forceHudHints;
 	qboolean	forceDmgThroughSurface;
 	char		forcedAtmosphere[MAX_QPATH];
+	char		freezeTipObjective[MAX_STRING_CHARS];
+	char		freezeTipThaw[MAX_STRING_CHARS];
+	char		freezeTipFreeze[MAX_STRING_CHARS];
+	char		freezeTipShoot[MAX_STRING_CHARS];
+	char		freezeTipSummary[MAX_STRING_CHARS];
 
 	qboolean  newHud;
 
