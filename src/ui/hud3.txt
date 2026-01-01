@@ -1,4 +1,5 @@
 // hud menu defs
+<<<<<<< Updated upstream
 //
 {
 	loadMenu { "ui/comp_hud.menu" }
@@ -17,3 +18,9 @@
 	loadMenu { "ui/ingame_scoreboard_dom.menu" }
 	loadMenu { "ui/ingame_scoreboard_ad.menu" }
 }
+=======
+// 
+{
+    loadMenu { "ui/comp_hud.menu" }
+}
+>>>>>>> Stashed changes
