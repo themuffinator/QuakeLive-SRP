@@ -21,6 +21,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "server.h"
+#include "../../common/platform/platform_steamworks.h"
+#include <limits.h>
+#include <stdlib.h>
 
 serverStatic_t	svs;				// persistant server info
 server_t		sv;					// local server
@@ -28,6 +31,233 @@ vm_t			*gvm = NULL;				// game virtual machine // bk001212 init
 
 static qboolean SV_ClientEligibleForWarmupReady( const client_t *cl );
 static qboolean SV_ClientReadyForWarmup( const client_t *cl );
+static int s_botMaskRefreshTime = 0;
+static int s_steamP2PKeepAliveTime = 0;
+
+/*
+=============
+SV_ParseSteamIdToCSteamID
+
+Converts a decimal SteamID string into a CSteamID container.
+=============
+*/
+static qboolean SV_ParseSteamIdToCSteamID( const char *steamId, CSteamID *outId ) {
+	unsigned long long value;
+	const char *ch;
+
+	if ( !steamId || !steamId[0] || !outId ) {
+		return qfalse;
+	}
+
+	value = 0ull;
+	for ( ch = steamId; *ch; ++ch ) {
+		if ( *ch < '0' || *ch > '9' ) {
+			return qfalse;
+		}
+
+		if ( value > (ULLONG_MAX / 10ull) ) {
+			return qfalse;
+		}
+
+		value *= 10ull;
+
+		if ( value > (ULLONG_MAX - (unsigned long long)(*ch - '0')) ) {
+			return qfalse;
+		}
+
+		value += (unsigned long long)(*ch - '0');
+	}
+
+	outId->value = (uint64_t)value;
+	return qtrue;
+}
+
+/*
+=============
+SV_GetClientSteamId
+
+Extracts a client's SteamID as a CSteamID value.
+=============
+*/
+static qboolean SV_GetClientSteamId( const client_t *cl, CSteamID *outId ) {
+	if ( !cl || !outId ) {
+		return qfalse;
+	}
+
+#if SV_HAS_PLATFORM_AUTH
+	if ( cl->platformSteamId[0] ) {
+		return SV_ParseSteamIdToCSteamID( cl->platformSteamId, outId );
+	}
+#endif
+
+	outId->value = 0ull;
+	return qfalse;
+}
+
+/*
+=============
+SV_ShouldRelayP2PPacket
+
+Returns qtrue when a relayed P2P packet should be forwarded to the target slot.
+=============
+*/
+static qboolean SV_ShouldRelayP2PPacket( int senderIndex, int targetIndex ) {
+	return senderIndex != targetIndex ? qtrue : qfalse;
+}
+
+/*
+=============
+SV_SteamServerSendKeepAlive
+
+Broadcasts the Steam P2P keepalive payload to connected clients.
+=============
+*/
+static void SV_SteamServerSendKeepAlive( void ) {
+	int			i;
+	client_t	*cl;
+	const char	keepAlive[] = "that's a good-ass dog";
+
+	for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+		CSteamID steamId;
+
+		if ( cl->state < CS_CONNECTED ) {
+			continue;
+		}
+
+		if ( !SV_GetClientSteamId( cl, &steamId ) ) {
+			continue;
+		}
+
+		QL_Steamworks_ServerSendP2PPacket( &steamId, keepAlive, (uint32_t)sizeof( keepAlive ), 2, 16 );
+	}
+}
+
+/*
+=============
+SV_SteamServerRelayP2PPackets
+
+Reads P2P packets from Steam and relays them to other connected clients.
+=============
+*/
+static void SV_SteamServerRelayP2PPackets( void ) {
+	uint32_t	packetSize;
+
+	while ( QL_Steamworks_ServerIsP2PPacketAvailable( &packetSize, 1 ) ) {
+		char		*buffer;
+		uint32_t	bytesRead = 0;
+		CSteamID	remoteId;
+		int			senderIndex = -1;
+		int			i;
+		client_t	*cl;
+
+		if ( packetSize == 0 ) {
+			break;
+		}
+
+		buffer = (char *)malloc( (size_t)packetSize + 1u );
+		if ( !buffer ) {
+			break;
+		}
+
+		if ( !QL_Steamworks_ServerReadP2PPacket( buffer + 1, packetSize, &bytesRead, &remoteId, 1 ) ) {
+			free( buffer );
+			continue;
+		}
+
+		for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+			CSteamID clientId;
+
+			if ( cl->state < CS_CONNECTED ) {
+				continue;
+			}
+
+			if ( !SV_GetClientSteamId( cl, &clientId ) ) {
+				continue;
+			}
+
+			if ( clientId.value == remoteId.value ) {
+				senderIndex = i;
+				break;
+			}
+		}
+
+		if ( senderIndex < 0 ) {
+			free( buffer );
+			continue;
+		}
+
+		buffer[0] = (char)senderIndex;
+
+		for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+			CSteamID clientId;
+
+			if ( cl->state < CS_CONNECTED ) {
+				continue;
+			}
+
+			if ( !SV_ShouldRelayP2PPacket( senderIndex, i ) ) {
+				continue;
+			}
+
+			if ( !SV_GetClientSteamId( cl, &clientId ) ) {
+				continue;
+			}
+
+			QL_Steamworks_ServerSendP2PPacket( &clientId, buffer, bytesRead + 1, 1, 1 );
+		}
+
+		free( buffer );
+	}
+}
+
+/*
+=============
+SV_SteamServerDrainOutgoingPackets
+
+Sends any queued Steam GameServer packets through the UDP socket.
+=============
+*/
+static void SV_SteamServerDrainOutgoingPackets( void ) {
+	uint8_t	buffer[1024];
+	uint32_t	address;
+	uint16_t	port;
+	int			length;
+
+	while ( (length = QL_Steamworks_ServerGetNextOutgoingPacket( buffer, sizeof( buffer ), &address, &port )) > 0 ) {
+		netadr_t	adr;
+
+		adr.type = NA_IP;
+		adr.ip[0] = (byte)(address & 0xff);
+		adr.ip[1] = (byte)((address >> 8) & 0xff);
+		adr.ip[2] = (byte)((address >> 16) & 0xff);
+		adr.ip[3] = (byte)((address >> 24) & 0xff);
+		adr.port = (unsigned short)port;
+
+		NET_SendPacket( NS_SERVER, length, buffer, adr );
+	}
+}
+
+/*
+=============
+SV_SteamServerNetworkingFrame
+
+Runs the Steam server networking maintenance loop.
+=============
+*/
+static void SV_SteamServerNetworkingFrame( void ) {
+	QL_Steamworks_RunServerCallbacks();
+
+	if ( svs.time < s_steamP2PKeepAliveTime ) {
+		s_steamP2PKeepAliveTime = 0;
+	}
+	if ( svs.time - s_steamP2PKeepAliveTime > 10000 ) {
+		s_steamP2PKeepAliveTime = svs.time;
+		SV_SteamServerSendKeepAlive();
+	}
+
+	SV_SteamServerRelayP2PPackets();
+	SV_SteamServerDrainOutgoingPackets();
+}
 
 cvar_t	*sv_fps;				// time rate for running non-clients
 cvar_t	*sv_timeout;			// seconds without any message
@@ -967,6 +1197,8 @@ happen before SV_Frame is called
 void SV_Frame( int msec ) {
 	int		frameMsec;
 	int		startTime;
+	int		i;
+	client_t	*cl;
 
 	// the menu kills the server with this cvar
 	if ( sv_killserver->integer ) {
@@ -977,6 +1209,20 @@ void SV_Frame( int msec ) {
 
 	if ( !com_sv_running->integer ) {
 		return;
+	}
+
+	QL_Steamworks_RunCallbacks();
+	if ( svs.time < s_botMaskRefreshTime ) {
+		s_botMaskRefreshTime = 0;
+	}
+	if ( svs.time - s_botMaskRefreshTime >= 10000 ) {
+		// Keep entity SVF_BOT flags aligned with the live bot mask.
+		s_botMaskRefreshTime = svs.time;
+		for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+			if ( cl->state >= CS_CONNECTED ) {
+				SV_BotRefreshEntityBotFlag( cl );
+			}
+		}
 	}
 
 	// allow pause if only the local client is connected

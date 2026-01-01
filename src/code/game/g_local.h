@@ -1382,7 +1382,7 @@ void Svcmd_GameMem_f( void );
 //
 // g_session.c
 //
-void G_ReadSessionData( gclient_t *client );
+void G_ReadSessionData( gclient_t *client, qboolean firstTime );
 void G_InitSessionData( gclient_t *client, char *userinfo );
 
 void G_InitWorldSession( void );

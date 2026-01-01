@@ -24,11 +24,18 @@ typedef qboolean (*QL_SteamAPI_InitFn)( void );
 typedef void (*QL_SteamAPI_ShutdownFn)( void );
 typedef void (*QL_SteamAPI_RunCallbacksFn)( void );
 typedef void *(*QL_SteamAPI_InterfaceFn)( void );
+typedef void *(*QL_SteamAPI_SteamGameServerFn)( void );
+typedef void (*QL_SteamAPI_SteamGameServerRunCallbacksFn)( void );
+typedef void *(*QL_SteamAPI_SteamGameServerNetworkingFn)( void );
 typedef HAuthTicket (*QL_SteamAPI_GetAuthSessionTicketFn)( void *, void *, int, uint32_t * );
 typedef EBeginAuthSessionResult (*QL_SteamAPI_BeginAuthSessionFn)( void *, const void *, int, CSteamID );
 typedef void (*QL_SteamAPI_CancelAuthTicketFn)( void *, HAuthTicket );
 typedef void (*QL_SteamAPI_EndAuthSessionFn)( void *, CSteamID );
 typedef CSteamID (*QL_SteamAPI_GetSteamIDFn)( void * );
+typedef qboolean (*QL_SteamNetworking_SendP2PPacketFn)( void *, CSteamID, const void *, uint32_t, int, int );
+typedef qboolean (*QL_SteamNetworking_IsP2PPacketAvailableFn)( void *, uint32_t *, int );
+typedef qboolean (*QL_SteamNetworking_ReadP2PPacketFn)( void *, void *, uint32_t, uint32_t *, CSteamID *, int );
+typedef int (*QL_SteamGameServer_GetNextOutgoingPacketFn)( void *, void *, int, uint32_t *, uint16_t * );
 
 typedef struct {
 	void *library;
@@ -40,6 +47,9 @@ typedef struct {
 	QL_SteamAPI_InterfaceFn SteamFriends;
 	QL_SteamAPI_InterfaceFn SteamMatchmaking;
 	QL_SteamAPI_InterfaceFn SteamUGC;
+	QL_SteamAPI_SteamGameServerFn SteamGameServer;
+	QL_SteamAPI_SteamGameServerRunCallbacksFn SteamGameServer_RunCallbacks;
+	QL_SteamAPI_SteamGameServerNetworkingFn SteamGameServerNetworking;
 	QL_SteamAPI_GetAuthSessionTicketFn GetAuthSessionTicket;
 	QL_SteamAPI_BeginAuthSessionFn BeginAuthSession;
 	QL_SteamAPI_CancelAuthTicketFn CancelAuthTicket;
@@ -75,6 +85,21 @@ static qboolean QL_Steamworks_LoadSymbol( void **target, const char *name ) {
 	*target = QL_STEAMWORKS_SYM( name );
 
 	return *target != NULL;
+}
+
+/*
+=============
+QL_Steamworks_LoadOptionalSymbol
+
+Resolves a symbol without failing if it is missing.
+=============
+*/
+static void QL_Steamworks_LoadOptionalSymbol( void **target, const char *name ) {
+	if ( !target || !name ) {
+		return;
+	}
+
+	*target = QL_STEAMWORKS_SYM( name );
 }
 
 /*
@@ -166,6 +191,10 @@ qboolean QL_Steamworks_LoadLibrary( void ) {
 		return qfalse;
 	}
 
+	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServer, "SteamGameServer" );
+	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServer_RunCallbacks, "SteamGameServer_RunCallbacks" );
+	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServerNetworking, "SteamGameServerNetworking" );
+
 	return qtrue;
 }
 
@@ -238,6 +267,189 @@ void QL_Steamworks_RunCallbacks( void ) {
 	}
 
 	state.SteamAPI_RunCallbacks();
+}
+
+/*
+=============
+QL_Steamworks_RunServerCallbacks
+
+Runs Steam server callbacks if the GameServer interface is available.
+=============
+*/
+void QL_Steamworks_RunServerCallbacks( void ) {
+	if ( !state.initialised || !state.SteamGameServer_RunCallbacks ) {
+		return;
+	}
+
+	state.SteamGameServer_RunCallbacks();
+}
+
+/*
+=============
+QL_Steamworks_GetGameServerNetworking
+
+Returns the Steam GameServer networking interface when available.
+=============
+*/
+static void *QL_Steamworks_GetGameServerNetworking( void ) {
+	if ( !state.initialised || !state.SteamGameServerNetworking ) {
+		return NULL;
+	}
+
+	return state.SteamGameServerNetworking();
+}
+
+/*
+=============
+QL_Steamworks_GetGameServer
+
+Returns the Steam GameServer interface when available.
+=============
+*/
+static void *QL_Steamworks_GetGameServer( void ) {
+	if ( !state.initialised || !state.SteamGameServer ) {
+		return NULL;
+	}
+
+	return state.SteamGameServer();
+}
+
+/*
+=============
+QL_Steamworks_ServerSendP2PPacket
+
+Dispatches a P2P packet through the Steam GameServer networking interface.
+=============
+*/
+qboolean QL_Steamworks_ServerSendP2PPacket( const CSteamID *steamId, const void *data, uint32_t length, int sendType, int channel ) {
+	void *networking;
+	void **vtable;
+	QL_SteamNetworking_SendP2PPacketFn sendPacket;
+
+	if ( !steamId || !data || length == 0 ) {
+		return qfalse;
+	}
+
+	networking = QL_Steamworks_GetGameServerNetworking();
+	if ( !networking ) {
+		return qfalse;
+	}
+
+	vtable = *(void ***)networking;
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	sendPacket = (QL_SteamNetworking_SendP2PPacketFn)vtable[0];
+	if ( !sendPacket ) {
+		return qfalse;
+	}
+
+	return sendPacket( networking, *steamId, data, length, sendType, channel );
+}
+
+/*
+=============
+QL_Steamworks_ServerIsP2PPacketAvailable
+
+Checks for pending P2P packets for the Steam GameServer networking interface.
+=============
+*/
+qboolean QL_Steamworks_ServerIsP2PPacketAvailable( uint32_t *outSize, int channel ) {
+	void *networking;
+	void **vtable;
+	QL_SteamNetworking_IsP2PPacketAvailableFn isAvailable;
+
+	if ( !outSize ) {
+		return qfalse;
+	}
+
+	networking = QL_Steamworks_GetGameServerNetworking();
+	if ( !networking ) {
+		return qfalse;
+	}
+
+	vtable = *(void ***)networking;
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	isAvailable = (QL_SteamNetworking_IsP2PPacketAvailableFn)vtable[1];
+	if ( !isAvailable ) {
+		return qfalse;
+	}
+
+	return isAvailable( networking, outSize, channel );
+}
+
+/*
+=============
+QL_Steamworks_ServerReadP2PPacket
+
+Reads a pending P2P packet from the Steam GameServer networking interface.
+=============
+*/
+qboolean QL_Steamworks_ServerReadP2PPacket( void *data, uint32_t dataSize, uint32_t *outSize, CSteamID *outSteamId, int channel ) {
+	void *networking;
+	void **vtable;
+	QL_SteamNetworking_ReadP2PPacketFn readPacket;
+
+	if ( !data || dataSize == 0 || !outSize || !outSteamId ) {
+		return qfalse;
+	}
+
+	networking = QL_Steamworks_GetGameServerNetworking();
+	if ( !networking ) {
+		return qfalse;
+	}
+
+	vtable = *(void ***)networking;
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	readPacket = (QL_SteamNetworking_ReadP2PPacketFn)vtable[2];
+	if ( !readPacket ) {
+		return qfalse;
+	}
+
+	return readPacket( networking, data, dataSize, outSize, outSteamId, channel );
+}
+
+/*
+=============
+QL_Steamworks_ServerGetNextOutgoingPacket
+
+Pulls the next outgoing Steam GameServer packet destined for a UDP socket.
+=============
+*/
+int QL_Steamworks_ServerGetNextOutgoingPacket( void *data, int dataSize, uint32_t *outIp, uint16_t *outPort ) {
+	void *gameServer;
+	void **vtable;
+	QL_SteamGameServer_GetNextOutgoingPacketFn getPacket;
+	int index;
+
+	if ( !data || dataSize <= 0 || !outIp || !outPort ) {
+		return 0;
+	}
+
+	gameServer = QL_Steamworks_GetGameServer();
+	if ( !gameServer ) {
+		return 0;
+	}
+
+	vtable = *(void ***)gameServer;
+	if ( !vtable ) {
+		return 0;
+	}
+
+	index = 0x98 / (int)sizeof( void * );
+	getPacket = (QL_SteamGameServer_GetNextOutgoingPacketFn)vtable[index];
+	if ( !getPacket ) {
+		return 0;
+	}
+
+	return getPacket( gameServer, data, dataSize, outIp, outPort );
 }
 
 /*

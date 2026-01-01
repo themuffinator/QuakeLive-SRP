@@ -1532,7 +1532,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	if ( firstTime || level.newSession ) {
 		G_InitSessionData( client, userinfo );
 	}
-	G_ReadSessionData( client );
+	G_ReadSessionData( client, firstTime );
 
 #if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
 	if ( !firstTime && !isBot ) {

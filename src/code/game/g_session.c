@@ -73,7 +73,7 @@ G_ReadSessionData
 Called on a reconnect
 ================
 */
-void G_ReadSessionData( gclient_t *client ) {
+void G_ReadSessionData( gclient_t *client, qboolean firstTime ) {
 	char	s[MAX_STRING_CHARS];
 	const char	*var;
 
@@ -107,6 +107,11 @@ void G_ReadSessionData( gclient_t *client ) {
 	// bk001205 - format issues
 	client->sess.sessionTeam = (team_t)sessionTeam;
 	client->sess.spectatorState = (spectatorState_t)spectatorState;
+	if ( !firstTime && g_gametype.integer >= GT_TEAM && !g_maintainTeam.integer ) {
+		client->sess.sessionTeam = TEAM_SPECTATOR;
+		client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
+		client->sess.spectatorClient = -1;
+	}
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecFreeCam.integer && client->sess.spectatorState == SPECTATOR_FREE ) {
 		client->sess.spectatorState = SPECTATOR_SCOREBOARD;
 	}
@@ -134,25 +139,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo ) {
 			BroadcastTeamChange( client, -1 );
 		} else {
 			// always spawn as spectator in team games
-			if ( g_maintainTeam.integer ) {
-				value = Info_ValueForKey( userinfo, "team" );
-				if ( value[0] == 'r' || value[0] == 'R' ) {
-					sess->sessionTeam = TEAM_RED;
-				} else if ( value[0] == 'b' || value[0] == 'B' ) {
-					sess->sessionTeam = TEAM_BLUE;
-				} else {
-					sess->sessionTeam = TEAM_SPECTATOR;
-				}
-	} else if ( g_gametype.integer >= GT_TEAM ) {
-		// QL parity: preserve team
-		if ( g_maintainTeam.integer && client->sess.sessionTeam != TEAM_SPECTATOR ) {
-			// keep current
-		} else {
-			client->sess.sessionTeam = TEAM_SPECTATOR;
-		}
-			} else {
-				sess->sessionTeam = TEAM_SPECTATOR;
-			}
+			sess->sessionTeam = TEAM_SPECTATOR;
 		}
 	} else {
 		value = Info_ValueForKey( userinfo, "team" );
