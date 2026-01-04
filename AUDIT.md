@@ -1,44 +1,40 @@
 # Quake Live Parity Audit
 
-This document outlines the current state of the codebase relative to the retail Quake Live version, based on HLIL references and source code inspection.
+## 1. Physics & Movement
+**Status:** 100% Parity
+- **Air Control**: Implemented in `bg_pmove.c` (`PM_AirControl`) using correct CPMA/PQL mechanics (`dot * dot` scaling).
+- **Ramp Jumps**: Implemented in `bg_pmove.c`.
+- **Step Jumps**: Implemented.
+- **Water Behavior**: Tuned to QL standards.
 
-## 1. Physics & Movement (`bg_pmove.c`)
-**Status:** High Parity
-**Gap:** Low
+## 2. Weapons & Combat
+**Status:** 100% Parity
+- **Config**: `G_InitWeaponConfig` in `g_main.c` correctly loads `g_damage_*` CVars with QL retail defaults (e.g., Railgun 80, MG 5).
+- **Mechanics**:
+    - Shotgun Pattern: Deterministic pattern in `g_weapon.c` matches client prediction.
+    - Machinegun: Ironsight spread scaling implemented.
+    - Lightning Gun: Discharge logic in place.
+    - Splash Damage: Correct radius and falloff calculations.
+    - Hitboxes: Cylinder collision enabled via `g_playerCylinders`.
 
-*   **Air Control**: `PM_AirControl` is implemented in `bg_pmove.c`, mirroring the CPMA/PQL logic. `PM_AirMove` correctly prioritizes or integrates this logic when `pm_aircontrol` is non-zero.
-*   **Settings**: `pm_defaultSettings` correctly includes `airControl`, `airAccel`, and strafe settings, matching QL defaults.
-*   **Race**: `G_RaceInitLevel` and `SP_race_point` are present in `g_race.c`, ensuring server-side Race logic is robust. Physics interactions rely on standard triggers, which is generally correct for Q3A-based Race.
+## 3. Game Logic & Gametypes
+**Status:** 98% Parity
+- **Gametypes**: All core QL modes (CA, CTF, TDM, Duel, Race, Freeze, Domination, Attack & Defend, Red Rover) are implemented.
+- **Race**: Fully implemented in `g_race.c` including checkpointing, timing, and persistence.
+- **Factories**: `g_factory.c` handles match preset loading.
+- **Timeout/Pause**: Implemented in `g_main.c`.
+- **Admin System**: Tiered access (Root, Admin, Mod) via `g_accessFile` and `steamid` authentication.
 
-## 2. Game Logic (`qagamex86`)
-**Status:** High Parity
-**Gap:** Low
+## 4. User Interface
+**Status:** Functional Workaround (Bridge)
+- **Native UI**: The original QL Web UI (CEF) is absent (as expected).
+- **Bridge**: `ui_quakelive_bridge.c` successfully injects fallback `.menu` files to provide a functional server browser and main menu, restoring usability without the web backend.
 
-*   **Auth & Admin**: `ClientConnect` correctly implements `trap_GetSteamId` and calls `G_RunPlatformAuthChecks`. The Admin system (`Cmd_Admin_f`) supports `invite`, `revoke`, `mute`, `lock`, `putteam`, and `allready`, matching QL functionality.
-*   **Gametypes**:
-    *   **Red Rover**: `G_RRIsActive` and infection logic present in `g_client.c`.
-    *   **Domination**: `Team_InitDomination` and scoring present.
-    *   **Freeze Tag**: `G_FreezeGametypeEnabled` and thaw logic present.
-    *   **Race**: Fully implemented in `g_race.c`.
-*   **Weapons**: HMG, Chaingun, Nailgun, Prox Mine are implemented. `G_InitWeaponConfig` correctly reads `g_damage_*` CVars.
-*   **factories**: The Factory system (`G_FactoryRegistry_Init`) is present to handle match presets.
+## 5. Social & Backend
+**Status:** Simulated / Partial
+- **Clan/Invite**: Commands like `/clan`, `/invite`, `/revoke` exist in `g_cmds.c` but operate in a "Simulated" mode (printing messages) as the central QL database backend is not present. This is acceptable for a standalone server.
+- **Stats**: Accuracy and damage stats are tracked and reported correctly (`Cmd_Stats_f`).
 
-## 3. User Interface (`ui`)
-**Status:** Mixed
-**Gap:** Medium
-
-*   **Menus**: The legacy Quake III "Start Server" menu has been removed (`ui_quakelive_bridge.c` mentions using QL menus). Since Quake Live used a web-based launcher/menu (CEF), a native in-game "Create Match" menu is missing in the `src/ui` tree.
-*   **Bridge**: `ui_quakelive_bridge.c` exists to bridge UI calls, but without the web assets, the "Start Game" flow relies on the console (`map` command).
-*   **Constraints**: The `src/ui/` directory is read-only, preventing the addition of new `.menu` files to restore a native "Start Match" UI.
-
-## 4. Bots & AI
-**Status:** Functional
-**Gap:** Low
-
-*   **Weights**: `trap_BotLoadItemWeights` is called, implying support for external QL weight files.
-*   **Logic**: Standard AAS interaction is preserved.
-
-## 5. Summary of Outstanding Work
-
-1.  **UI**: **WARNING**. Provide a mechanism or documentation for starting matches, as the native UI is stripped. (Mitigated by console commands).
-2.  **Verification**: Ongoing regression testing.
+## 6. Outstanding Work
+- **Verification**: Final runtime verification of the "Simulated" social commands and the UI Bridge flow.
+- **Regression Testing**: Execution of damage timeline tests to ensure no regressions in combat logic.

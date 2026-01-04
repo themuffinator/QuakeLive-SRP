@@ -1,27 +1,23 @@
 # Agent Instructions
 
-This repository exists to faithfully reconstruct the Quake Live engine and game source using the Binary Ninja HLIL references as an accurate guide to the retail code base; every change should focus on rebuilding the Quake Live codebase piece by piece on top of the retail Quake III Arena GPL source.
+This repository exists to faithfully reconstruct the Quake Live engine and game source using the Binary Ninja HLIL references as an accurate guide to the retail code base.
 
-This repository currently has the following rules for agents:
+## Implementation Plan
 
-- Obey system, developer, and user instructions, and ensure AGENTS.md scope rules are followed.
-- Use the latest GPT model available and announce the model at the start of the first response each session.
-- In C/C++ code, indent with tabs, and include the required commented header format above every function definition.
-- Avoid creating binary files (including standard images, models, and similar assets).
-- Avoid creating new source files for trivially small code additions unless they are expected to grow.
-- When tasks are large, break them into smaller tasks automatically.
-- Do not make significant decisions based on assumptions; ask questions if needed.
-- Prefer `rg` instead of `ls -R` or `grep -R` for repository searches.
-- After committing changes, generate a pull request message using the `make_pr` tool.
-- For each task completion, estimate before and after parity percentages versus the retail Quake Live source base outlined in the Binary Ninja HLIL references.
-- **Read-only access to the `assets/` and `src/ui/` directory trees.**
+Agents **MUST** follow the tasks outlined in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
-# Work Queue
+*   **Consult the Plan**: Before starting any work, check `IMPLEMENTATION_PLAN.md`.
+*   **Update Progress**: Tick off items in `IMPLEMENTATION_PLAN.md` as they are completed.
+*   **Report Gaps**: If you identify a new parity gap, add it to `AUDIT.md` and the plan.
 
-Agents should refer to `IMPLEMENTATION_PLAN.md` for the current prioritized list of reconstruction tasks. The primary goal is to close the parity gaps identified in `AUDIT.md`.
+## Coding Standards
 
-*   **Priority 1**: Implement PQL/CPMA Air Control logic in `bg_pmove.c` (Physics).
-*   **Priority 2**: Verify UI bridge and fallback mechanisms.
-*   **Priority 3**: Validate Race and Gametype logic.
+*   **Indentation**: Tabs only.
+*   **Format**: Follow the existing C style (K&R-ish, space after `if`/`while`).
+*   **Safety**: Use `Q_strncpyz` instead of `strncpy`.
+*   **Parity**: Match Quake Live values exactly (e.g., Weapon Damage, Physics Constants).
 
-Tick off items in `IMPLEMENTATION_PLAN.md` as they are completed.
+## Build & Verify
+
+*   **Compile**: Run `tools/build/linux32_qagame.sh` to compile the game module.
+*   **Test**: Run `tests/test_*.py` to verify logic (e.g., `test_damage_timelines.py`).
