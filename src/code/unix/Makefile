@@ -2126,7 +2126,7 @@ $(B)/q3static/bg_slidemove.o : $(GDIR)/bg_slidemove.c; $(DO_CC) -DQ3_STATIC
 
 
 $(B)/$(PLATFORM)q3static : $(Q3SOBJ)
-$(CC) $(CFLAGS) -o $@ $(Q3SOBJ)  $(GLLDFLAGS) $(LDFLAGS) $(STEAMWORKS_LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(Q3SOBJ)  $(GLLDFLAGS) $(LDFLAGS) $(STEAMWORKS_LDFLAGS)
 
 
 #############################################################################

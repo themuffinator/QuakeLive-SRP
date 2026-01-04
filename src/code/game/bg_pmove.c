@@ -790,26 +790,44 @@ static void PM_Accelerate( vec3_t wishdir, float wishspeed, float accel ) {
 	for ( i = 0; i < 3; i++ ) {
 		pm->ps->velocity[i] += accelSpeed * wishdir[i];
 	}
+}
 
-	if ( pm_aircontrol > 0.0f && cappedWishSpeed > 0.0f ) {
-		vec3_t	wishVelocity;
-		vec3_t	pushDir;
-		float	pushLen;
-		float	canPush;
+/*
+==============
+PM_AirControl
 
-		VectorScale( wishdir, cappedWishSpeed, wishVelocity );
-		VectorSubtract( wishVelocity, pm->ps->velocity, pushDir );
-		pushLen = VectorNormalize( pushDir );
+Calculates velocity redirection for air control
+==============
+*/
+static void PM_AirControl( vec3_t wishdir, float wishspeed ) {
+	float	zspeed;
+	float	speed;
+	float	dot;
+	float	k;
+	int		i;
 
-		if ( pushLen > 0.0f ) {
-			canPush = pm_aircontrol * pml.frametime * cappedWishSpeed;
-			if ( canPush > pushLen ) {
-				canPush = pushLen;
-			}
+	if ( pm->cmd.forwardmove == 0 || wishspeed == 0.0f ) {
+		return;
+	}
 
-			VectorMA( pm->ps->velocity, canPush, pushDir, pm->ps->velocity );
+	zspeed = pm->ps->velocity[2];
+	pm->ps->velocity[2] = 0;
+	speed = VectorNormalize( pm->ps->velocity );
+
+	dot = DotProduct( pm->ps->velocity, wishdir );
+	k = 32.0f * pm_aircontrol * dot * dot * pml.frametime;
+
+	if ( dot > 0 ) {
+		for ( i = 0 ; i < 2 ; i++ ) {
+			pm->ps->velocity[i] = pm->ps->velocity[i] * speed + wishdir[i] * k;
+		}
+		VectorNormalize( pm->ps->velocity );
+		for ( i = 0 ; i < 2 ; i++ ) {
+			pm->ps->velocity[i] *= speed;
 		}
 	}
+
+	pm->ps->velocity[2] = zspeed;
 }
 
 
@@ -1324,6 +1342,9 @@ static void PM_AirMove( void ) {
 		wishspeed = pm_wishspeed;
 	}
 
+	if ( pm_aircontrol > 0.0f ) {
+		PM_AirControl( wishdir, wishspeed );
+	}
 	PM_Accelerate( wishdir, wishspeed, pm_airaccelerate );
 
 	if ( pm_circlestrafe_friction > 0.0f && pm->cmd.forwardmove && pm->cmd.rightmove ) {

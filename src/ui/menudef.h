@@ -82,10 +82,7 @@
 #define FEEDER_REDTEAM_STATS                0x11            // premium statistics board for red team
 #define FEEDER_BLUETEAM_STATS               0x12            // premium statistics board for blue team
 #define FEEDER_CVMAPS						0x13			// maps for the gametype you wish to cv to
-<<<<<<< Updated upstream
 #define FEEDER_COUNTRIES					0x14						// country.txt backed dropdowns
-=======
->>>>>>> Stashed changes
 
 // display flags
 #define CG_SHOW_BLUE_TEAM_HAS_REDFLAG		0x00000001
