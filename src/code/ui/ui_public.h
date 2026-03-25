@@ -24,6 +24,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define __UI_PUBLIC_H__
 
 #define UI_API_VERSION	7
+#define UI_QL_API_VERSION	8
+
+typedef void (QDECL *uiArenaNameCallback_t)( const char *name );
 
 typedef struct {
 	connstate_t		connState;
@@ -183,7 +186,11 @@ typedef enum {
 
 	UI_DRAW_CONNECT_SCREEN,
 //	void	UI_DrawConnectScreen( qboolean overlay );
-	UI_HASUNIQUECDKEY
+	UI_HASUNIQUECDKEY,
+	UI_REFRESH_DISPLAY_CONTEXT,
+	UI_MENUS_ANY_VISIBLE,
+	UI_FOR_EACH_ARENA_NAME,
+	UI_DRAW_ADVERTISEMENT_WAIT_SCREEN
 // if !overlay, the background will be drawn, otherwise it will be
 // overlayed over whatever the cgame has drawn.
 // a GetClientState syscall will be made to get the current strings

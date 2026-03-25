@@ -428,6 +428,8 @@ void IN_CenterView (void);
 
 void CL_VerifyCode( void );
 qboolean CL_ShouldFilterConsoleText( const char *text );
+qboolean CL_OnlineServicesEnabled( void );
+qboolean CL_SteamServicesEnabled( void );
 qboolean CL_UseDisconnectedConsoleFallback( void );
 
 float CL_KeyState (kbutton_t *key);
@@ -526,6 +528,7 @@ qboolean CL_WebPak_Available( void );
 qboolean CL_WebPak_Fetch( const char *virtualPath, void **outBuffer, int *outLength );
 qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *outLength );
 qboolean CL_LauncherRequestData( const char *virtualPath, void **outBuffer, int *outLength );
+void CL_RefreshOnlineServicesBridgeState( void );
 
 //
 // cl_ui.c

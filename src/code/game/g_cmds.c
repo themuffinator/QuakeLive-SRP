@@ -25,6 +25,1834 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../../ui/menudef.h"			// for the voice chats
 
+#define SCORESTAT_PLACEMENT_SLOTS			2
+#define SCORESTAT_FRAG_WEAPON_COUNT		13
+#define SCORESTAT_ACCURACY_WEAPON_COUNT	12
+#define SCORESTAT_DMG_WEAPON_COUNT		13
+#define CASTAT_WEAPON_COUNT				( WP_NUM_WEAPONS - 1 )
+#define TDMSTAT_FIELD_COUNT				11
+#define CTFSTAT_FIELD_COUNT				12
+#define RETAIL_TDM_TEAMSTAT_COUNT		14
+#define RETAIL_CTF_TEAMSTAT_COUNT		17
+#define RETAIL_TDM_SCORE_ROW_FIELDS		15
+#define RETAIL_CTF_SCORE_ROW_FIELDS		17
+#define RETAIL_FREEZE_SCORE_ROW_FIELDS	17
+
+static const weapon_t scorestatFragWeapons[SCORESTAT_FRAG_WEAPON_COUNT] = {
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_CHAINGUN,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_HEAVY_MACHINEGUN
+};
+
+static const weapon_t scorestatAccuracyWeapons[SCORESTAT_ACCURACY_WEAPON_COUNT] = {
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_CHAINGUN,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_HEAVY_MACHINEGUN
+};
+
+static const weapon_t castatWeapons[CASTAT_WEAPON_COUNT] = {
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_HEAVY_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_GRAPPLING_HOOK,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_CHAINGUN
+};
+
+static const teamScoreStatIndex_t scorestatPlacementPickupTeamStats[SCORESTAT_PICKUP_COUNT] = {
+	TEAMSTAT_PICKUPS_RA,
+	TEAMSTAT_PICKUPS_YA,
+	TEAMSTAT_PICKUPS_GA,
+	TEAMSTAT_PICKUPS_MH
+};
+
+static const teamScoreStatIndex_t retailTdmTeamStatOrder[RETAIL_TDM_TEAMSTAT_COUNT] = {
+	TEAMSTAT_MAP_PICKUPS,
+	TEAMSTAT_PICKUPS_RA,
+	TEAMSTAT_PICKUPS_YA,
+	TEAMSTAT_PICKUPS_GA,
+	TEAMSTAT_PICKUPS_MH,
+	TEAMSTAT_PICKUPS_QUAD,
+	TEAMSTAT_PICKUPS_BS,
+	TEAMSTAT_TIMEHELD_QUAD,
+	TEAMSTAT_TIMEHELD_BS,
+	TEAMSTAT_PICKUPS_FLAG,
+	TEAMSTAT_PICKUPS_MEDKIT,
+	TEAMSTAT_PICKUPS_REGEN,
+	TEAMSTAT_PICKUPS_HASTE,
+	TEAMSTAT_PICKUPS_INVIS
+};
+
+static const teamScoreStatIndex_t retailCtfTeamStatOrder[RETAIL_CTF_TEAMSTAT_COUNT] = {
+	TEAMSTAT_PICKUPS_RA,
+	TEAMSTAT_PICKUPS_YA,
+	TEAMSTAT_PICKUPS_GA,
+	TEAMSTAT_PICKUPS_MH,
+	TEAMSTAT_PICKUPS_QUAD,
+	TEAMSTAT_PICKUPS_BS,
+	TEAMSTAT_TIMEHELD_QUAD,
+	TEAMSTAT_TIMEHELD_BS,
+	TEAMSTAT_PICKUPS_FLAG,
+	TEAMSTAT_PICKUPS_MEDKIT,
+	TEAMSTAT_PICKUPS_REGEN,
+	TEAMSTAT_PICKUPS_HASTE,
+	TEAMSTAT_PICKUPS_INVIS,
+	TEAMSTAT_TIMEHELD_FLAG,
+	TEAMSTAT_TIMEHELD_REGEN,
+	TEAMSTAT_TIMEHELD_HASTE,
+	TEAMSTAT_TIMEHELD_INVIS
+};
+
+static qboolean G_BuildRichScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildObeliskScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildFFAScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildDuelScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildClanArenaScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildRedRoverScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildTdmScoreboardRows( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildCtfScoreboardRows( char *payload, int payloadSize, int *emittedCount );
+static qboolean G_BuildFreezeScoreboardRows( char *payload, int payloadSize, int *emittedCount );
+
+/*
+==================
+G_IsCTFStyleScoreboardGametype
+
+Returns qtrue when the retail shared CTF-family intermission stats should be
+published for the active gametype.
+==================
+*/
+static qboolean G_IsCTFStyleScoreboardGametype( void ) {
+	switch ( g_gametype.integer ) {
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_HARVESTER:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+==================
+G_SendClientKeyMask
+
+Pushes the current key mask for a specific subject client to one receiver.
+==================
+*/
+void G_SendClientKeyMask( int targetClientNum, int subjectClientNum ) {
+	int keyMask;
+
+	if ( targetClientNum < 0 || targetClientNum >= level.maxclients ) {
+		return;
+	}
+	if ( subjectClientNum < 0 || subjectClientNum >= level.maxclients ) {
+		return;
+	}
+	if ( level.clients[targetClientNum].pers.connected != CON_CONNECTED ) {
+		return;
+	}
+
+	keyMask = g_entities[subjectClientNum].keyMask;
+	if ( keyMask < 0 ) {
+		keyMask = 0;
+	}
+
+	trap_SendServerCommand( targetClientNum, va( "keymask %i %i", subjectClientNum, keyMask ) );
+}
+
+/*
+==================
+G_BroadcastClientKeyMask
+
+Broadcasts the latest key mask for one client to all connected clients.
+==================
+*/
+void G_BroadcastClientKeyMask( int subjectClientNum ) {
+	int i;
+
+	if ( subjectClientNum < 0 || subjectClientNum >= level.maxclients ) {
+		return;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		if ( level.clients[i].pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		G_SendClientKeyMask( i, subjectClientNum );
+	}
+}
+
+/*
+==================
+G_SendAllClientKeyMasks
+
+Sends the complete connected-client key mask table to one receiver.
+==================
+*/
+void G_SendAllClientKeyMasks( int targetClientNum ) {
+	char	payload[1024];
+	char	entry[32];
+	int		count;
+	int		i;
+
+	if ( targetClientNum < 0 || targetClientNum >= level.maxclients ) {
+		return;
+	}
+	if ( level.clients[targetClientNum].pers.connected != CON_CONNECTED ) {
+		return;
+	}
+
+	payload[0] = '\0';
+	count = 0;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		int keyMask;
+
+		if ( level.clients[i].pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		keyMask = g_entities[i].keyMask;
+		if ( keyMask < 0 ) {
+			keyMask = 0;
+		}
+
+		Com_sprintf( entry, sizeof( entry ), " %i %i", i, keyMask );
+		if ( strlen( payload ) + strlen( entry ) + 1 >= sizeof( payload ) ) {
+			break;
+		}
+		Q_strcat( payload, sizeof( payload ), entry );
+		count++;
+	}
+
+	trap_SendServerCommand( targetClientNum, va( "keymasks %i%s", count, payload ) );
+}
+
+/*
+==================
+G_IsTeamHoldStatIndex
+
+Reports whether a team stat index tracks a time-held duration.
+==================
+*/
+static qboolean G_IsTeamHoldStatIndex( teamScoreStatIndex_t statIndex ) {
+	switch ( statIndex ) {
+	case TEAMSTAT_TIMEHELD_QUAD:
+	case TEAMSTAT_TIMEHELD_BS:
+	case TEAMSTAT_TIMEHELD_FLAG:
+	case TEAMSTAT_TIMEHELD_REGEN:
+	case TEAMSTAT_TIMEHELD_HASTE:
+	case TEAMSTAT_TIMEHELD_INVIS:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+static const teamScoreStatIndex_t g_teamHoldStatOrder[] = {
+	TEAMSTAT_TIMEHELD_QUAD,
+	TEAMSTAT_TIMEHELD_BS,
+	TEAMSTAT_TIMEHELD_FLAG,
+	TEAMSTAT_TIMEHELD_REGEN,
+	TEAMSTAT_TIMEHELD_HASTE,
+	TEAMSTAT_TIMEHELD_INVIS
+};
+
+/*
+==================
+G_TeamHoldPowerupForStat
+
+Maps a time-held stat bucket to the underlying powerup slot.
+==================
+*/
+static int G_TeamHoldPowerupForStat( teamScoreStatIndex_t statIndex ) {
+	switch ( statIndex ) {
+	case TEAMSTAT_TIMEHELD_QUAD:
+		return PW_QUAD;
+	case TEAMSTAT_TIMEHELD_BS:
+		return PW_BATTLESUIT;
+	case TEAMSTAT_TIMEHELD_FLAG:
+		return PW_NEUTRALFLAG;
+	case TEAMSTAT_TIMEHELD_REGEN:
+		return PW_REGEN;
+	case TEAMSTAT_TIMEHELD_HASTE:
+		return PW_HASTE;
+	case TEAMSTAT_TIMEHELD_INVIS:
+		return PW_INVIS;
+	default:
+		return -1;
+	}
+}
+
+/*
+==================
+G_TeamHoldStatForPowerup
+
+Resolves which time-held stat bucket should track a given powerup.
+==================
+*/
+teamScoreStatIndex_t G_TeamHoldStatForPowerup( int powerup ) {
+	switch ( powerup ) {
+	case PW_QUAD:
+		return TEAMSTAT_TIMEHELD_QUAD;
+	case PW_BATTLESUIT:
+		return TEAMSTAT_TIMEHELD_BS;
+	case PW_REGEN:
+		return TEAMSTAT_TIMEHELD_REGEN;
+	case PW_HASTE:
+		return TEAMSTAT_TIMEHELD_HASTE;
+	case PW_INVIS:
+		return TEAMSTAT_TIMEHELD_INVIS;
+	case PW_REDFLAG:
+	case PW_BLUEFLAG:
+	case PW_NEUTRALFLAG:
+		return TEAMSTAT_TIMEHELD_FLAG;
+	default:
+		return TEAMSTAT_COUNT;
+	}
+}
+
+/*
+==================
+G_BeginClientTeamHoldStat
+
+Starts accumulating elapsed time for a tracked hold-stat slot.
+==================
+*/
+void G_BeginClientTeamHoldStat( gclient_t *client, teamScoreStatIndex_t statIndex ) {
+	if ( !client ) {
+		return;
+	}
+
+	if ( statIndex < 0 || statIndex >= TEAMSTAT_COUNT ) {
+		return;
+	}
+	if ( !G_IsTeamHoldStatIndex( statIndex ) ) {
+		return;
+	}
+
+	if ( client->pers.teamHoldStartTime[statIndex] <= 0 ) {
+		client->pers.teamHoldStartTime[statIndex] = level.time;
+	}
+}
+
+/*
+==================
+G_EndClientTeamHoldStat
+
+Finalizes a tracked hold-stat slot and folds elapsed time into scoreboard stats.
+==================
+*/
+void G_EndClientTeamHoldStat( gclient_t *client, teamScoreStatIndex_t statIndex, int endTime ) {
+	int	startTime;
+	int	duration;
+	int	seconds;
+
+	if ( !client ) {
+		return;
+	}
+
+	if ( statIndex < 0 || statIndex >= TEAMSTAT_COUNT ) {
+		return;
+	}
+	if ( !G_IsTeamHoldStatIndex( statIndex ) ) {
+		return;
+	}
+
+	startTime = client->pers.teamHoldStartTime[statIndex];
+	if ( startTime <= 0 ) {
+		return;
+	}
+
+	if ( endTime <= 0 ) {
+		endTime = level.time;
+	}
+	if ( endTime < startTime ) {
+		endTime = startTime;
+	}
+
+	duration = endTime - startTime;
+	seconds = ( duration + 500 ) / 1000;
+	client->pers.teamScoreStats[statIndex] += seconds;
+	client->pers.teamHoldStartTime[statIndex] = 0;
+}
+
+/*
+==================
+G_IsTeamHoldPowerupActive
+
+Evaluates whether the mapped powerup for a stat index is currently active.
+==================
+*/
+static qboolean G_IsTeamHoldPowerupActive( const gclient_t *client, teamScoreStatIndex_t statIndex, int now, int *expiryTime ) {
+	int powerup;
+	int value;
+
+	if ( !client ) {
+		return qfalse;
+	}
+
+	powerup = G_TeamHoldPowerupForStat( statIndex );
+	if ( powerup < PW_NONE || powerup >= MAX_POWERUPS ) {
+		return qfalse;
+	}
+
+	if ( statIndex == TEAMSTAT_TIMEHELD_FLAG ) {
+		value = client->ps.powerups[PW_REDFLAG];
+		if ( value > 0 ) {
+			if ( expiryTime ) {
+				*expiryTime = value;
+			}
+			return qtrue;
+		}
+
+		value = client->ps.powerups[PW_BLUEFLAG];
+		if ( value > 0 ) {
+			if ( expiryTime ) {
+				*expiryTime = value;
+			}
+			return qtrue;
+		}
+
+		value = client->ps.powerups[PW_NEUTRALFLAG];
+		if ( value > 0 ) {
+			if ( expiryTime ) {
+				*expiryTime = value;
+			}
+			return qtrue;
+		}
+
+		if ( expiryTime ) {
+			*expiryTime = 0;
+		}
+		return qfalse;
+	}
+
+	value = client->ps.powerups[powerup];
+	if ( expiryTime ) {
+		*expiryTime = value;
+	}
+	return ( value > now ) ? qtrue : qfalse;
+}
+
+/*
+==================
+G_FlushExpiredClientTeamHoldStats
+
+Closes any tracked hold slots that are no longer active.
+==================
+*/
+void G_FlushExpiredClientTeamHoldStats( gclient_t *client, int now ) {
+	int i;
+
+	if ( !client ) {
+		return;
+	}
+
+	for ( i = 0; i < sizeof( g_teamHoldStatOrder ) / sizeof( g_teamHoldStatOrder[0] ); i++ ) {
+		teamScoreStatIndex_t statIndex;
+		int	startTime;
+		int	expiryTime;
+
+		statIndex = g_teamHoldStatOrder[i];
+		startTime = client->pers.teamHoldStartTime[statIndex];
+		if ( startTime <= 0 ) {
+			continue;
+		}
+
+		if ( G_IsTeamHoldPowerupActive( client, statIndex, now, &expiryTime ) ) {
+			continue;
+		}
+
+		if ( statIndex != TEAMSTAT_TIMEHELD_FLAG && expiryTime > 0 && expiryTime < now ) {
+			G_EndClientTeamHoldStat( client, statIndex, expiryTime );
+		} else {
+			G_EndClientTeamHoldStat( client, statIndex, now );
+		}
+	}
+}
+
+/*
+==================
+G_GetClientTeamHoldStatSeconds
+
+Returns the current hold-time total including any active segment in progress.
+==================
+*/
+int G_GetClientTeamHoldStatSeconds( gclient_t *client, teamScoreStatIndex_t statIndex, int now ) {
+	int	value;
+	int	startTime;
+	int	expiryTime;
+
+	if ( !client ) {
+		return 0;
+	}
+
+	if ( statIndex < 0 || statIndex >= TEAMSTAT_COUNT ) {
+		return 0;
+	}
+	if ( !G_IsTeamHoldStatIndex( statIndex ) ) {
+		return client->pers.teamScoreStats[statIndex];
+	}
+
+	G_FlushExpiredClientTeamHoldStats( client, now );
+
+	value = client->pers.teamScoreStats[statIndex];
+	startTime = client->pers.teamHoldStartTime[statIndex];
+	if ( startTime <= 0 ) {
+		return value;
+	}
+
+	if ( !G_IsTeamHoldPowerupActive( client, statIndex, now, &expiryTime ) ) {
+		return value;
+	}
+
+	if ( now > startTime ) {
+		value += ( now - startTime + 500 ) / 1000;
+	}
+
+	return value;
+}
+
+/*
+==================
+G_TeamMapPickupProxyTotal
+
+Builds a team aggregate pickup proxy from objective score counters.
+==================
+*/
+static int G_TeamMapPickupProxyTotal( team_t team ) {
+	int	total;
+	int	i;
+
+	total = 0;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		const gclient_t	*cl;
+
+		cl = &level.clients[i];
+		if ( cl->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( cl->sess.sessionTeam != team ) {
+			continue;
+		}
+
+		total += cl->ps.persistant[PERS_CAPTURES];
+		total += cl->ps.persistant[PERS_ASSIST_COUNT];
+		total += cl->ps.persistant[PERS_DEFEND_COUNT];
+	}
+
+	return total;
+}
+
+/*
+==================
+G_BuildTeamScoreStatsFields
+
+Builds team pickup/time-held aggregates for scorestats_team serialization.
+==================
+*/
+static void G_BuildTeamScoreStatsFields( team_t team, int *fields, int fieldCount ) {
+	int	i;
+
+	if ( !fields || fieldCount <= 0 ) {
+		return;
+	}
+
+	memset( fields, 0, sizeof( fields[0] ) * fieldCount );
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t	*cl;
+		int			fieldIndex;
+
+		cl = &level.clients[i];
+		if ( cl->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( cl->sess.sessionTeam != team ) {
+			continue;
+		}
+
+		for ( fieldIndex = TEAMSTAT_PICKUPS_RA; fieldIndex < TEAMSTAT_COUNT && fieldIndex < fieldCount; fieldIndex++ ) {
+			if ( G_IsTeamHoldStatIndex( (teamScoreStatIndex_t)fieldIndex ) ) {
+				fields[fieldIndex] += G_GetClientTeamHoldStatSeconds( cl, (teamScoreStatIndex_t)fieldIndex, level.time );
+			} else {
+				fields[fieldIndex] += cl->pers.teamScoreStats[fieldIndex];
+			}
+		}
+	}
+
+	if ( fieldCount > TEAMSTAT_MAP_PICKUPS ) {
+		int mapPickups;
+		int i;
+		static const teamScoreStatIndex_t mapPickupSources[] = {
+			TEAMSTAT_PICKUPS_RA,
+			TEAMSTAT_PICKUPS_YA,
+			TEAMSTAT_PICKUPS_GA,
+			TEAMSTAT_PICKUPS_MH,
+			TEAMSTAT_PICKUPS_QUAD,
+			TEAMSTAT_PICKUPS_BS,
+			TEAMSTAT_PICKUPS_FLAG,
+			TEAMSTAT_PICKUPS_MEDKIT,
+			TEAMSTAT_PICKUPS_REGEN,
+			TEAMSTAT_PICKUPS_HASTE,
+			TEAMSTAT_PICKUPS_INVIS
+		};
+
+		mapPickups = 0;
+		for ( i = 0; i < sizeof( mapPickupSources ) / sizeof( mapPickupSources[0] ); i++ ) {
+			int fieldIndex;
+
+			fieldIndex = mapPickupSources[i];
+			if ( fieldIndex < fieldCount ) {
+				mapPickups += fields[fieldIndex];
+			}
+		}
+
+		if ( mapPickups > 0 ) {
+			fields[TEAMSTAT_MAP_PICKUPS] = mapPickups;
+		} else {
+			fields[TEAMSTAT_MAP_PICKUPS] = G_TeamMapPickupProxyTotal( team );
+		}
+	}
+}
+
+/*
+==================
+G_SendTeamScoreStatsMessage
+
+Sends team pickup/time-held aggregates used by team ownerdraw panels.
+==================
+*/
+static void G_SendTeamScoreStatsMessage( gentity_t *ent ) {
+	char	payload[1024];
+	char	entry[32];
+	int		teamFields[2][TEAMSTAT_COUNT];
+	int		teamIndex;
+	int		fieldIndex;
+	qboolean	truncated;
+
+	if ( !ent ) {
+		return;
+	}
+
+	G_BuildTeamScoreStatsFields( TEAM_RED, teamFields[0], TEAMSTAT_COUNT );
+	G_BuildTeamScoreStatsFields( TEAM_BLUE, teamFields[1], TEAMSTAT_COUNT );
+
+	payload[0] = '\0';
+	truncated = qfalse;
+	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
+		for ( fieldIndex = 0; fieldIndex < TEAMSTAT_COUNT; fieldIndex++ ) {
+			Com_sprintf( entry, sizeof( entry ), " %i", teamFields[teamIndex][fieldIndex] );
+			if ( strlen( payload ) + strlen( entry ) + 1 >= sizeof( payload ) ) {
+				truncated = qtrue;
+				break;
+			}
+			Q_strcat( payload, sizeof( payload ), entry );
+		}
+		if ( truncated ) {
+			break;
+		}
+	}
+
+	trap_SendServerCommand( ent - g_entities, va( "scorestats_team %i%s", TEAMSTAT_COUNT, payload ) );
+}
+
+/*
+==================
+G_FindNextActivePlacementClient
+
+Returns the next connected non-spectator client index from level.sortedClients.
+==================
+*/
+static int G_FindNextActivePlacementClient( int startIndex ) {
+	int	i;
+
+	for ( i = startIndex; i < level.numConnectedClients; i++ ) {
+		int			clientNum;
+		const gclient_t	*cl;
+
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		cl = &level.clients[clientNum];
+		if ( cl->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( cl->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		return i;
+	}
+
+	return -1;
+}
+
+/*
+==================
+G_AppendScoreStatsWeaponValues
+
+Serializes per-weapon values using the supplied weapon order table.
+==================
+*/
+static void G_AppendScoreStatsWeaponValues( char *buffer, size_t bufferSize, const int *values, const weapon_t *weaponOrder, int weaponCount ) {
+	int		i;
+	char	entry[32];
+
+	if ( !buffer || !values || !weaponOrder || weaponCount <= 0 ) {
+		return;
+	}
+
+	for ( i = 0; i < weaponCount; i++ ) {
+		int weapon = weaponOrder[i];
+
+		if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+			continue;
+		}
+
+		Com_sprintf( entry, sizeof( entry ), " %i", values[weapon] );
+		Q_strcat( buffer, bufferSize, entry );
+	}
+}
+
+/*
+==================
+G_GetPlacementPickupAverageSeconds
+
+Returns the rounded average interval in seconds between matching pickup events.
+==================
+*/
+static int G_GetPlacementPickupAverageSeconds( const gclient_t *cl, scorestatPickupIndex_t pickupIndex ) {
+	int intervalCount;
+	int totalIntervalMs;
+
+	if ( !cl ) {
+		return 0;
+	}
+
+	if ( pickupIndex < 0 || pickupIndex >= SCORESTAT_PICKUP_COUNT ) {
+		return 0;
+	}
+
+	intervalCount = cl->pers.pickupIntervalCount[pickupIndex];
+	if ( intervalCount <= 0 ) {
+		return 0;
+	}
+
+	totalIntervalMs = cl->pers.pickupIntervalTotalMs[pickupIndex];
+	if ( totalIntervalMs <= 0 ) {
+		return 0;
+	}
+
+	return ( totalIntervalMs + ( intervalCount * 500 ) ) / ( intervalCount * 1000 );
+}
+
+/*
+==================
+G_GetPlacementProgressionPr
+
+Resolves placement PR value from session skill metadata.
+==================
+*/
+static int G_GetPlacementProgressionPr( const gclient_t *cl ) {
+	int progressionPr;
+
+	if ( !cl ) {
+		return 0;
+	}
+
+	progressionPr = cl->sess.skill1;
+	if ( progressionPr < 0 ) {
+		progressionPr = 0;
+	}
+
+	return progressionPr;
+}
+
+/*
+==================
+G_GetPlacementProgressionTier
+
+Resolves placement tier value from session skill metadata.
+==================
+*/
+static int G_GetPlacementProgressionTier( const gclient_t *cl ) {
+	int progressionTier;
+
+	if ( !cl ) {
+		return 0;
+	}
+
+	progressionTier = cl->sess.skill2;
+	if ( progressionTier < 0 ) {
+		progressionTier = 0;
+	}
+
+	return progressionTier;
+}
+
+/*
+==================
+G_SendScoreStatsMessage
+
+Sends a compact placement stat payload (weapons + pickups) for top rows.
+==================
+*/
+static void G_SendScoreStatsMessage( gentity_t *ent ) {
+	char	payload[1024];
+	char	entry[32];
+	int		slot;
+	int		sortedIndex;
+	int		emitted;
+
+	if ( !ent ) {
+		return;
+	}
+
+	payload[0] = '\0';
+	sortedIndex = 0;
+	emitted = 0;
+
+	for ( slot = 0; slot < SCORESTAT_PLACEMENT_SLOTS; slot++ ) {
+		int			clientNum;
+		const gclient_t	*cl;
+
+		sortedIndex = G_FindNextActivePlacementClient( sortedIndex );
+		if ( sortedIndex < 0 ) {
+			break;
+		}
+
+		clientNum = level.sortedClients[sortedIndex];
+		sortedIndex++;
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		cl = &level.clients[clientNum];
+		Com_sprintf( entry, sizeof( entry ), " %i", clientNum );
+		Q_strcat( payload, sizeof( payload ), entry );
+
+		G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponFrags, scorestatFragWeapons, SCORESTAT_FRAG_WEAPON_COUNT );
+		G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );
+		G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );
+		G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponDamage, scorestatFragWeapons, SCORESTAT_DMG_WEAPON_COUNT );
+		{
+			int pickupIndex;
+
+			for ( pickupIndex = 0; pickupIndex < SCORESTAT_PICKUP_COUNT; pickupIndex++ ) {
+				int countValue;
+				char valueEntry[32];
+				teamScoreStatIndex_t teamStatIndex;
+
+				teamStatIndex = scorestatPlacementPickupTeamStats[pickupIndex];
+				countValue = cl->pers.teamScoreStats[teamStatIndex];
+				Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", countValue );
+				Q_strcat( payload, sizeof( payload ), valueEntry );
+			}
+
+			for ( pickupIndex = 0; pickupIndex < SCORESTAT_PICKUP_COUNT; pickupIndex++ ) {
+				int avgSeconds;
+				char valueEntry[32];
+
+				avgSeconds = G_GetPlacementPickupAverageSeconds( cl, (scorestatPickupIndex_t)pickupIndex );
+				Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", avgSeconds );
+				Q_strcat( payload, sizeof( payload ), valueEntry );
+			}
+
+			{
+				int progressionPr;
+				int progressionTier;
+				char valueEntry[32];
+
+				progressionPr = G_GetPlacementProgressionPr( cl );
+				progressionTier = G_GetPlacementProgressionTier( cl );
+
+				Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", progressionPr );
+				Q_strcat( payload, sizeof( payload ), valueEntry );
+				Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", progressionTier );
+				Q_strcat( payload, sizeof( payload ), valueEntry );
+			}
+		}
+		emitted++;
+	}
+
+	trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );
+}
+
+/*
+==================
+G_GetCAWeaponAccuracy
+
+Returns the retail-style per-weapon accuracy percentage used by castats rows.
+==================
+*/
+static int G_GetCAWeaponAccuracy( const gclient_t *cl, weapon_t weapon ) {
+	int shots;
+	int hits;
+
+	if ( !cl ) {
+		return 0;
+	}
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return 0;
+	}
+
+	shots = cl->pers.accuracy_shots[weapon];
+	if ( shots <= 0 ) {
+		return 0;
+	}
+
+	hits = cl->pers.accuracy_hits[weapon];
+	if ( hits <= 0 ) {
+		return 0;
+	}
+
+	return hits * 100 / shots;
+}
+
+/*
+==================
+G_SendCAStatsMessage
+
+Publishes the retail intermission-only castats rows for Clan Arena.
+==================
+*/
+static void G_SendCAStatsMessage( gentity_t *ent ) {
+	int i;
+
+	if ( !ent ) {
+		return;
+	}
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		char		payload[1024];
+		char		entry[32];
+		int		clientNum;
+		gclient_t	*cl;
+		int		weaponIndex;
+
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		cl = &level.clients[clientNum];
+		payload[0] = '\0';
+
+		Com_sprintf( entry, sizeof( entry ), " %i %i", cl->pers.damageGiven, cl->pers.damageReceived );
+		Q_strcat( payload, sizeof( payload ), entry );
+
+		for ( weaponIndex = 0; weaponIndex < CASTAT_WEAPON_COUNT; weaponIndex++ ) {
+			weapon_t weapon;
+			int accuracy;
+
+			weapon = castatWeapons[weaponIndex];
+			accuracy = G_GetCAWeaponAccuracy( cl, weapon );
+
+			Com_sprintf( entry, sizeof( entry ), " %i %i", cl->pers.weaponFrags[weapon], accuracy );
+			Q_strcat( payload, sizeof( payload ), entry );
+		}
+
+		trap_SendServerCommand( ent - g_entities, va( "castats %i%s", i, payload ) );
+	}
+}
+
+/*
+==================
+G_SendTDMStatsMessage
+
+Publishes the retail intermission-only tdmstats rows for TDM-family scoreboards.
+Retail uses pickup, damage, team-damage, and world-death counters here rather
+than the older source-side hold/objective mix.
+==================
+*/
+static void G_SendTDMStatsMessage( gentity_t *ent ) {
+	int i;
+
+	if ( !ent ) {
+		return;
+	}
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		char		payload[1024];
+		char		entry[32];
+		int		clientNum;
+		gclient_t	*cl;
+		int		values[TDMSTAT_FIELD_COUNT];
+		int		fieldIndex;
+
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		cl = &level.clients[clientNum];
+		payload[0] = '\0';
+
+		values[0] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_BS];
+		values[1] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_QUAD];
+		values[2] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_MH];
+		values[3] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_GA];
+		values[4] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_YA];
+		values[5] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_RA];
+		values[6] = cl->pers.damageReceived;
+		values[7] = cl->pers.damageGiven;
+		values[8] = cl->teamDamageEventsReceived;
+		values[9] = cl->teamDamageEventsGiven;
+		values[10] = cl->environmentalDeaths;
+
+		for ( fieldIndex = 0; fieldIndex < TDMSTAT_FIELD_COUNT; fieldIndex++ ) {
+			Com_sprintf( entry, sizeof( entry ), " %i", values[fieldIndex] );
+			Q_strcat( payload, sizeof( payload ), entry );
+		}
+
+		trap_SendServerCommand( ent - g_entities, va( "tdmstats %i%s", i, payload ) );
+	}
+}
+
+/*
+==================
+G_SendCTFStatsMessage
+
+Publishes the retail intermission-only ctfstats rows for shared CTF-family
+scoreboards. Retail reuses a pickup and damage row here instead of the classic
+teamState objective counters.
+==================
+*/
+static void G_SendCTFStatsMessage( gentity_t *ent ) {
+	int i;
+
+	if ( !ent ) {
+		return;
+	}
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		char		payload[1024];
+		char		entry[32];
+		int		clientNum;
+		gclient_t	*cl;
+		int		values[CTFSTAT_FIELD_COUNT];
+		int		fieldIndex;
+
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		cl = &level.clients[clientNum];
+		payload[0] = '\0';
+
+		values[0] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_INVIS];
+		values[1] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_HASTE];
+		values[2] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_REGEN];
+		values[3] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_BS];
+		values[4] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_QUAD];
+		values[5] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_MH];
+		values[6] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_GA];
+		values[7] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_YA];
+		values[8] = cl->pers.teamScoreStats[TEAMSTAT_PICKUPS_RA];
+		values[9] = cl->pers.damageReceived;
+		values[10] = cl->pers.damageGiven;
+		values[11] = cl->environmentalDeaths;
+
+		for ( fieldIndex = 0; fieldIndex < CTFSTAT_FIELD_COUNT; fieldIndex++ ) {
+			Com_sprintf( entry, sizeof( entry ), " %i", values[fieldIndex] );
+			Q_strcat( payload, sizeof( payload ), entry );
+		}
+
+		trap_SendServerCommand( ent - g_entities, va( "ctfstats %i%s", i, payload ) );
+	}
+}
+
+/*
+==================
+G_CopyRetailTeamScoreboardHeaderValues
+
+Builds the retail-style team aggregate header block used by team-family rich
+scoreboard payloads from the existing per-team ownerdraw stat cache.
+==================
+*/
+static void G_CopyRetailTeamScoreboardHeaderValues( team_t team, const teamScoreStatIndex_t *statOrder, int statCount, int *values ) {
+	int teamFields[TEAMSTAT_COUNT];
+	int i;
+
+	if ( !statOrder || !values || statCount <= 0 ) {
+		return;
+	}
+
+	G_BuildTeamScoreStatsFields( team, teamFields, TEAMSTAT_COUNT );
+	for ( i = 0; i < statCount; i++ ) {
+		values[i] = teamFields[statOrder[i]];
+	}
+}
+
+/*
+==================
+G_AppendPreparedRetailTeamScoreboardHeader
+
+Appends a prebuilt red/blue retail team aggregate header block to a scoreboard
+payload, returning qfalse when the combined message would overflow.
+==================
+*/
+static qboolean G_AppendPreparedRetailTeamScoreboardHeader( char *payload, int payloadSize, int teamValues[2][RETAIL_CTF_TEAMSTAT_COUNT], int statCount ) {
+	char entry[32];
+	int teamIndex;
+	int statIndex;
+
+	if ( !payload || payloadSize <= 0 ) {
+		return qfalse;
+	}
+	if ( !teamValues || statCount <= 0 || statCount > RETAIL_CTF_TEAMSTAT_COUNT ) {
+		return qfalse;
+	}
+
+	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
+		for ( statIndex = 0; statIndex < statCount; statIndex++ ) {
+			Com_sprintf( entry, sizeof( entry ), " %i", teamValues[teamIndex][statIndex] );
+			if ( strlen( payload ) + strlen( entry ) + 1 >= payloadSize ) {
+				return qfalse;
+			}
+			Q_strcat( payload, payloadSize, entry );
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_AppendRetailTeamScoreboardHeader
+
+Appends a retail-style red/blue team aggregate header block to a scoreboard
+payload, returning qfalse when the combined message would overflow.
+==================
+*/
+static qboolean G_AppendRetailTeamScoreboardHeader( char *payload, int payloadSize, const teamScoreStatIndex_t *statOrder, int statCount ) {
+	int teamValues[2][RETAIL_CTF_TEAMSTAT_COUNT];
+	int teamIndex;
+
+	if ( !payload || payloadSize <= 0 ) {
+		return qfalse;
+	}
+	if ( !statOrder || statCount <= 0 || statCount > RETAIL_CTF_TEAMSTAT_COUNT ) {
+		return qfalse;
+	}
+
+	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
+		G_CopyRetailTeamScoreboardHeaderValues(
+			( teamIndex == 0 ) ? TEAM_RED : TEAM_BLUE,
+			statOrder,
+			statCount,
+			teamValues[teamIndex] );
+	}
+
+	return G_AppendPreparedRetailTeamScoreboardHeader( payload, payloadSize, teamValues, statCount );
+}
+
+/*
+==================
+G_ApplyRetailCTFEnemyHeaderSuppression
+
+Retail scores_ctf hides most opposing-team aggregate header fields for live
+red/blue viewers, while preserving three specific slots and restoring the full
+header during intermission or spectator views.
+==================
+*/
+static void G_ApplyRetailCTFEnemyHeaderSuppression( const gentity_t *viewer, int teamValues[2][RETAIL_CTF_TEAMSTAT_COUNT] ) {
+	int enemyTeamIndex;
+	int statIndex;
+	team_t viewerTeam;
+
+	if ( !viewer || !viewer->client || level.intermissiontime ) {
+		return;
+	}
+
+	viewerTeam = viewer->client->sess.sessionTeam;
+	if ( viewerTeam != TEAM_RED && viewerTeam != TEAM_BLUE ) {
+		return;
+	}
+
+	enemyTeamIndex = ( viewerTeam == TEAM_RED ) ? 1 : 0;
+	for ( statIndex = 0; statIndex < RETAIL_CTF_TEAMSTAT_COUNT; statIndex++ ) {
+		if ( statIndex == 8 || statIndex == 10 || statIndex == 16 ) {
+			continue;
+		}
+
+		teamValues[enemyTeamIndex][statIndex] = 0;
+	}
+}
+
+/*
+==================
+G_BuildTeamScoreboardMessage
+
+Builds the retail-style TDM rich scoreboard header block and appends the
+current GPL-shaped per-client row payload.
+==================
+*/
+static qboolean G_BuildTeamScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	char rowPayload[MAX_STRING_CHARS];
+	char counts[64];
+	int count;
+
+	if ( !payload || payloadSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( !G_BuildTdmScoreboardRows( rowPayload, sizeof( rowPayload ), &count ) ) {
+		return qfalse;
+	}
+
+	payload[0] = '\0';
+	if ( !G_AppendRetailTeamScoreboardHeader( payload, payloadSize, retailTdmTeamStatOrder, RETAIL_TDM_TEAMSTAT_COUNT ) ) {
+		return qfalse;
+	}
+
+	Com_sprintf( counts, sizeof( counts ), " %i %i %i", count, level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE] );
+	if ( strlen( payload ) + strlen( counts ) + strlen( rowPayload ) + 1 >= payloadSize ) {
+		return qfalse;
+	}
+
+	Q_strcat( payload, payloadSize, counts );
+	Q_strcat( payload, payloadSize, rowPayload );
+
+	if ( emittedCount ) {
+		*emittedCount = count;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_BuildCTFStyleScoreboardMessage
+
+Builds the retail-style shared CTF-family rich scoreboard header block and
+appends the current GPL-shaped per-client row payload.
+==================
+*/
+static qboolean G_BuildCTFStyleScoreboardMessage( gentity_t *viewer, char *payload, int payloadSize, int *emittedCount ) {
+	char rowPayload[MAX_STRING_CHARS];
+	char counts[64];
+	int teamValues[2][RETAIL_CTF_TEAMSTAT_COUNT];
+	int count;
+
+	if ( !payload || payloadSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( !G_BuildCtfScoreboardRows( rowPayload, sizeof( rowPayload ), &count ) ) {
+		return qfalse;
+	}
+
+	payload[0] = '\0';
+	G_CopyRetailTeamScoreboardHeaderValues( TEAM_RED, retailCtfTeamStatOrder, RETAIL_CTF_TEAMSTAT_COUNT, teamValues[0] );
+	G_CopyRetailTeamScoreboardHeaderValues( TEAM_BLUE, retailCtfTeamStatOrder, RETAIL_CTF_TEAMSTAT_COUNT, teamValues[1] );
+	G_ApplyRetailCTFEnemyHeaderSuppression( viewer, teamValues );
+	if ( !G_AppendPreparedRetailTeamScoreboardHeader( payload, payloadSize, teamValues, RETAIL_CTF_TEAMSTAT_COUNT ) ) {
+		return qfalse;
+	}
+
+	Com_sprintf( counts, sizeof( counts ), " %i %i %i", count, level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE] );
+	if ( strlen( payload ) + strlen( counts ) + strlen( rowPayload ) + 1 >= payloadSize ) {
+		return qfalse;
+	}
+
+	Q_strcat( payload, payloadSize, counts );
+	Q_strcat( payload, payloadSize, rowPayload );
+
+	if ( emittedCount ) {
+		*emittedCount = count;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_BuildFreezeScoreboardMessage
+
+Retail Freeze reuses the same red/blue team aggregate header shape as the TDM
+family before appending its per-client row block.
+==================
+*/
+static qboolean G_BuildFreezeScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	char rowPayload[MAX_STRING_CHARS];
+	char counts[64];
+	int count;
+
+	if ( !payload || payloadSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( !G_BuildFreezeScoreboardRows( rowPayload, sizeof( rowPayload ), &count ) ) {
+		return qfalse;
+	}
+
+	payload[0] = '\0';
+	if ( !G_AppendRetailTeamScoreboardHeader( payload, payloadSize, retailTdmTeamStatOrder, RETAIL_TDM_TEAMSTAT_COUNT ) ) {
+		return qfalse;
+	}
+
+	Com_sprintf( counts, sizeof( counts ), " %i %i %i", count, level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE] );
+	if ( strlen( payload ) + strlen( counts ) + strlen( rowPayload ) + 1 >= payloadSize ) {
+		return qfalse;
+	}
+
+	Q_strcat( payload, payloadSize, counts );
+	Q_strcat( payload, payloadSize, rowPayload );
+
+	if ( emittedCount ) {
+		*emittedCount = count;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_GetScoreboardPing
+
+Clamps scoreboard ping values to the retail-visible range.
+==================
+*/
+static int G_GetScoreboardPing( const gclient_t *cl ) {
+	if ( cl->pers.connected == CON_CONNECTING ) {
+		return -1;
+	}
+
+	if ( cl->ps.ping >= 999 ) {
+		return 999;
+	}
+
+	return cl->ps.ping;
+}
+
+/*
+==================
+G_GetScoreboardFallbackWeapon
+
+Returns the retail-style fallback weapon used by team-family scoreboard rows
+when a client has no recorded frag leader yet.
+==================
+*/
+static weapon_t G_GetScoreboardFallbackWeapon( const gclient_t *cl ) {
+	unsigned int	weaponMask;
+	weapon_t	weapon;
+
+	weaponMask = cl ? (unsigned int)cl->ps.stats[STAT_WEAPONS] : 0u;
+	if ( !weaponMask ) {
+		if ( g_startingWeapons.integer > 0 ) {
+			weaponMask = (unsigned int)g_startingWeapons.integer;
+		} else {
+			weaponMask = g_factoryCvarConfig.startingWeaponsStatMask;
+		}
+	}
+	if ( !weaponMask ) {
+		weaponMask = ( 1u << WP_MACHINEGUN ) | ( 1u << WP_GAUNTLET );
+	}
+
+	if ( weaponMask & ( 1u << WP_MACHINEGUN ) ) {
+		return WP_MACHINEGUN;
+	}
+
+	for ( weapon = WP_NUM_WEAPONS - 1; weapon > WP_NONE; --weapon ) {
+		if ( weapon == WP_MACHINEGUN ) {
+			continue;
+		}
+
+		if ( weaponMask & ( 1u << weapon ) ) {
+			return weapon;
+		}
+	}
+
+	if ( weaponMask & ( 1u << WP_GAUNTLET ) ) {
+		return WP_GAUNTLET;
+	}
+
+	return WP_MACHINEGUN;
+}
+
+/*
+==================
+G_GetClientScoreboardWeapon
+
+Mirrors the retail best-weapon selector used by the team-family scoreboard
+rows: highest frag count wins, otherwise the current loadout fallback is used.
+==================
+*/
+static weapon_t G_GetClientScoreboardWeapon( const gclient_t *cl ) {
+	int		bestCount;
+	weapon_t	bestWeapon;
+	weapon_t	weapon;
+
+	if ( !cl ) {
+		return WP_MACHINEGUN;
+	}
+
+	bestCount = 0;
+	bestWeapon = WP_NONE;
+	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {
+		if ( cl->pers.weaponFrags[weapon] > bestCount ) {
+			bestCount = cl->pers.weaponFrags[weapon];
+			bestWeapon = weapon;
+		}
+	}
+
+	if ( bestWeapon != WP_NONE ) {
+		return bestWeapon;
+	}
+
+	return G_GetScoreboardFallbackWeapon( cl );
+}
+
+/*
+==================
+G_GetClientScoreboardAccuracy
+
+Returns the retail-style scoreboard accuracy percentage for the current match.
+==================
+*/
+static int G_GetClientScoreboardAccuracy( const gclient_t *cl ) {
+	if ( !cl || !cl->accuracy_shots ) {
+		return 0;
+	}
+
+	return cl->accuracy_hits * 100 / cl->accuracy_shots;
+}
+
+/*
+==================
+G_BuildTdmScoreboardRows
+
+Builds the retail GT_TEAM per-client scoreboard row block.
+==================
+*/
+static qboolean G_BuildTdmScoreboardRows( char *payload, int payloadSize, int *emittedCount ) {
+	char		entry[1024];
+	int		stringlength;
+	int		i;
+	int		emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		const int	clientNum = level.sortedClients[i];
+		gclient_t	*cl;
+		int		j;
+
+		cl = &level.clients[clientNum];
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+			clientNum,
+			cl->sess.sessionTeam,
+			cl->ps.persistant[PERS_SCORE],
+			G_GetScoreboardPing( cl ),
+			(level.time - cl->pers.enterTime) / 60000,
+			cl->killCount,
+			cl->deathCount,
+			G_GetClientScoreboardAccuracy( cl ),
+			G_GetClientScoreboardWeapon( cl ),
+			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
+			cl->ps.persistant[PERS_EXCELLENT_COUNT],
+			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
+			cl->teamDamageEventsGiven,
+			cl->teamDamageEventsReceived,
+			cl->pers.damageGiven );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_BuildCtfScoreboardRows
+
+Builds the retail shared CTF-family per-client scoreboard row block.
+==================
+*/
+static qboolean G_BuildCtfScoreboardRows( char *payload, int payloadSize, int *emittedCount ) {
+	char		entry[1024];
+	int		stringlength;
+	int		i;
+	int		emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		const int	clientNum = level.sortedClients[i];
+		gclient_t	*cl;
+		int		perfect;
+		int		j;
+
+		cl = &level.clients[clientNum];
+		perfect = ( cl->ps.persistant[PERS_RANK] == 0 && cl->ps.persistant[PERS_KILLED] == 0 ) ? 1 : 0;
+
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+			clientNum,
+			cl->sess.sessionTeam,
+			cl->ps.persistant[PERS_SCORE],
+			G_GetScoreboardPing( cl ),
+			(level.time - cl->pers.enterTime) / 60000,
+			cl->killCount,
+			cl->deathCount,
+			G_GetClientScoreboardAccuracy( cl ),
+			G_GetClientScoreboardWeapon( cl ),
+			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
+			cl->ps.persistant[PERS_EXCELLENT_COUNT],
+			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
+			cl->ps.persistant[PERS_DEFEND_COUNT],
+			cl->ps.persistant[PERS_ASSIST_COUNT],
+			cl->ps.persistant[PERS_CAPTURES],
+			perfect,
+			(cl->ps.pm_type == PM_NORMAL) ? 1 : 0 );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_BuildFreezeScoreboardRows
+
+Builds the retail Freeze per-client scoreboard row block.
+==================
+*/
+static qboolean G_BuildFreezeScoreboardRows( char *payload, int payloadSize, int *emittedCount ) {
+	char		entry[1024];
+	int		stringlength;
+	int		i;
+	int		emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		const int	clientNum = level.sortedClients[i];
+		gclient_t	*cl;
+		int		j;
+
+		cl = &level.clients[clientNum];
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+			clientNum,
+			cl->sess.sessionTeam,
+			cl->ps.persistant[PERS_SCORE],
+			G_GetScoreboardPing( cl ),
+			(level.time - cl->pers.enterTime) / 60000,
+			cl->killCount,
+			cl->deathCount,
+			G_GetClientScoreboardAccuracy( cl ),
+			G_GetClientScoreboardWeapon( cl ),
+			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
+			cl->ps.persistant[PERS_EXCELLENT_COUNT],
+			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
+			cl->ps.persistant[PERS_ASSIST_COUNT],
+			cl->teamDamageEventsGiven,
+			cl->teamDamageEventsReceived,
+			cl->pers.damageGiven,
+			(cl->ps.pm_type == PM_NORMAL) ? 1 : 0 );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_BuildRichScoreboardMessage
+
+Builds the current full scoreboard payload and reports whether all rows fit
+within the retail-sized server command budget.
+==================
+*/
+static qboolean G_BuildRichScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	char		entry[1024];
+	int			stringlength;
+	int			i;
+	int			emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		gclient_t	*cl;
+		int			accuracy;
+		int			perfect;
+		int			ping;
+		int			j;
+
+		cl = &level.clients[level.sortedClients[i]];
+		ping = G_GetScoreboardPing( cl );
+
+		if ( cl->accuracy_shots ) {
+			accuracy = cl->accuracy_hits * 100 / cl->accuracy_shots;
+		} else {
+			accuracy = 0;
+		}
+
+		perfect = ( cl->ps.persistant[PERS_RANK] == 0 && cl->ps.persistant[PERS_KILLED] == 0 ) ? 1 : 0;
+
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+			level.sortedClients[i],
+			cl->ps.persistant[PERS_SCORE],
+			ping,
+			(level.time - cl->pers.enterTime) / 60000,
+			0,
+			g_entities[level.sortedClients[i]].s.powerups,
+			accuracy,
+			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
+			cl->ps.persistant[PERS_EXCELLENT_COUNT],
+			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
+			cl->ps.persistant[PERS_DEFEND_COUNT],
+			cl->ps.persistant[PERS_ASSIST_COUNT],
+			perfect,
+			cl->ps.persistant[PERS_CAPTURES],
+			cl->pers.damageGiven,
+			cl->ps.persistant[PERS_KILLED] );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_BuildObeliskScoreboardMessage
+
+Builds the retail generic/default scoreboard payload used by Overload and the
+legacy fallback command path.
+==================
+*/
+static qboolean G_BuildObeliskScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+}
+
+/*
+==================
+G_BuildFFAScoreboardMessage
+
+Builds the retail FFA rich scoreboard payload.
+==================
+*/
+static qboolean G_BuildFFAScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+}
+
+/*
+==================
+G_BuildDuelScoreboardMessage
+
+Caches the retail low/high duel client pair and builds the generic duel payload
+shape that the current client parser already consumes.
+==================
+*/
+static qboolean G_BuildDuelScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	level.duelScoreboardLowClientNum = -1;
+	level.duelScoreboardHighClientNum = -1;
+
+	if ( level.numPlayingClients > 0 ) {
+		int		firstClientNum;
+		int		secondClientNum;
+
+		firstClientNum = level.sortedClients[0];
+		secondClientNum = firstClientNum;
+		if ( level.numPlayingClients > 1 ) {
+			secondClientNum = level.sortedClients[1];
+		}
+
+		if ( firstClientNum < secondClientNum ) {
+			level.duelScoreboardLowClientNum = firstClientNum;
+			level.duelScoreboardHighClientNum = secondClientNum;
+		} else {
+			level.duelScoreboardLowClientNum = secondClientNum;
+			level.duelScoreboardHighClientNum = firstClientNum;
+		}
+	}
+
+	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+}
+
+/*
+==================
+G_BuildClanArenaScoreboardMessage
+
+Builds the retail Clan Arena scoreboard payload.
+==================
+*/
+static qboolean G_BuildClanArenaScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+}
+
+/*
+==================
+G_BuildRedRoverScoreboardMessage
+
+Builds the retail Red Rover scoreboard payload.
+==================
+*/
+static qboolean G_BuildRedRoverScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+}
+
+/*
+==================
+G_BuildCompactScoreboardMessage
+
+Builds the retail compact smscores payload used when the full scoreboard would
+overflow or the server forces the compact path.
+==================
+*/
+static qboolean G_BuildCompactScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+	char		entry[256];
+	int			stringlength;
+	int			i;
+	int			emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		gclient_t	*cl;
+		int			ping;
+		int			j;
+
+		cl = &level.clients[level.sortedClients[i]];
+		ping = G_GetScoreboardPing( cl );
+
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i",
+			level.sortedClients[i],
+			cl->ps.persistant[PERS_SCORE],
+			ping,
+			(level.time - cl->pers.enterTime) / 60000,
+			g_entities[level.sortedClients[i]].s.powerups,
+			(cl->ps.pm_type == PM_NORMAL) ? 1 : 0,
+			cl->pers.damageGiven,
+			cl->ps.persistant[PERS_KILLED] );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
+}
+
 /*
 ==================
 DeathmatchScoreboardMessage
@@ -32,58 +1860,14 @@ DeathmatchScoreboardMessage
 ==================
 */
 void DeathmatchScoreboardMessage( gentity_t *ent ) {
-	char		entry[1024];
-	char		string[1400];
-	int			stringlength;
-	int			i, j;
-	gclient_t	*cl;
-	int			numSorted, scoreFlags, accuracy, perfect;
+	char		string[MAX_STRING_CHARS];
+	int			emittedCount;
+	qboolean	useCompact;
 	const char	*cmd;
 
-	// send the latest information on all clients
-	string[0] = 0;
-	stringlength = 0;
-	scoreFlags = 0;
-
-	numSorted = level.numConnectedClients;
-	
-	for (i=0 ; i < numSorted ; i++) {
-		int		ping;
-
-		cl = &level.clients[level.sortedClients[i]];
-
-		if ( cl->pers.connected == CON_CONNECTING ) {
-			ping = -1;
-		} else {
-			ping = cl->ps.ping < 999 ? cl->ps.ping : 999;
-		}
-
-		if( cl->accuracy_shots ) {
-			accuracy = cl->accuracy_hits * 100 / cl->accuracy_shots;
-		}
-		else {
-			accuracy = 0;
-		}
-		perfect = ( cl->ps.persistant[PERS_RANK] == 0 && cl->ps.persistant[PERS_KILLED] == 0 ) ? 1 : 0;
-
-		Com_sprintf (entry, sizeof(entry),
-			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i", level.sortedClients[i],
-			cl->ps.persistant[PERS_SCORE], ping, (level.time - cl->pers.enterTime)/60000,
-			scoreFlags, g_entities[level.sortedClients[i]].s.powerups, accuracy, 
-			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
-			cl->ps.persistant[PERS_EXCELLENT_COUNT],
-			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT], 
-			cl->ps.persistant[PERS_DEFEND_COUNT], 
-			cl->ps.persistant[PERS_ASSIST_COUNT], 
-			perfect,
-			cl->ps.persistant[PERS_CAPTURES],
-			cl->pers.damageGiven,
-			cl->ps.persistant[PERS_KILLED]);
-		j = strlen(entry);
-		if (stringlength + j > 1024)
-			break;
-		strcpy (string + stringlength, entry);
-		stringlength += j;
+	if ( g_gametype.integer == GT_RACE ) {
+		G_BuildRaceScoreboardMessage( ent );
+		return;
 	}
 
 	switch ( g_gametype.integer ) {
@@ -93,6 +1877,9 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 	case GT_TOURNAMENT:
 		cmd = "scores_duel";
 		break;
+	case GT_OBELISK:
+		cmd = "scores";
+		break;
 	case GT_TEAM:
 		cmd = "scores_tdm";
 		break;
@@ -101,13 +1888,15 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 		break;
 	case GT_CTF:
 	case GT_1FCTF:
+	case GT_HARVESTER:
+	case GT_DOMINATION:
 		cmd = "scores_ctf";
-		break;
-	case GT_FREEZE:
-		cmd = "scores_ft";
 		break;
 	case GT_ATTACK_DEFEND:
 		cmd = "scores_ad";
+		break;
+	case GT_FREEZE:
+		cmd = "scores_ft";
 		break;
 	case GT_RED_ROVER:
 		cmd = "scores_rr";
@@ -117,9 +1906,77 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 		break;
 	}
 
-	trap_SendServerCommand( ent-g_entities, va("%s %i %i %i%s", cmd, i,
-		level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE],
-		string ) );
+	useCompact = g_forceSmallScoreboardMessage.integer ? qtrue : qfalse;
+	if ( !useCompact ) {
+		switch ( g_gametype.integer ) {
+		case GT_FFA:
+			useCompact = G_BuildFFAScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_TOURNAMENT:
+			useCompact = G_BuildDuelScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_OBELISK:
+			useCompact = G_BuildObeliskScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_TEAM:
+			useCompact = G_BuildTeamScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_CLAN_ARENA:
+			useCompact = G_BuildClanArenaScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_CTF:
+		case GT_1FCTF:
+		case GT_HARVESTER:
+		case GT_DOMINATION:
+		case GT_ATTACK_DEFEND:
+			useCompact = G_BuildCTFStyleScoreboardMessage( ent, string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_FREEZE:
+			useCompact = G_BuildFreezeScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		case GT_RED_ROVER:
+			useCompact = G_BuildRedRoverScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		default:
+			useCompact = G_BuildRichScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			break;
+		}
+	}
+
+	if ( useCompact ) {
+		G_BuildCompactScoreboardMessage( string, sizeof( string ), &emittedCount );
+		trap_SendServerCommand( ent-g_entities, va( "smscores %i %i %i%s",
+			emittedCount,
+			level.teamScores[TEAM_RED],
+			level.teamScores[TEAM_BLUE],
+			string ) );
+	} else {
+		if ( g_gametype.integer == GT_TEAM || g_gametype.integer == GT_FREEZE || G_IsCTFStyleScoreboardGametype() ) {
+			trap_SendServerCommand( ent-g_entities, va( "%s%s", cmd, string ) );
+		} else {
+			trap_SendServerCommand( ent-g_entities, va( "%s %i %i %i%s",
+				cmd,
+				emittedCount,
+				level.teamScores[TEAM_RED],
+				level.teamScores[TEAM_BLUE],
+				string ) );
+		}
+	}
+
+	G_SendScoreStatsMessage( ent );
+	G_SendTeamScoreStatsMessage( ent );
+	if ( level.intermissiontime ) {
+		if ( g_gametype.integer == GT_TEAM || g_gametype.integer == GT_FREEZE ) {
+			G_SendTDMStatsMessage( ent );
+		}
+		if ( g_gametype.integer == GT_CLAN_ARENA ) {
+			G_SendCAStatsMessage( ent );
+		}
+		if ( G_IsCTFStyleScoreboardGametype() ) {
+			G_SendCTFStatsMessage( ent );
+		}
+	}
+	G_SendAllClientKeyMasks( ent - g_entities );
 }
 
 
@@ -141,26 +1998,120 @@ void Cmd_Score_f( gentity_t *ent ) {
 
 /*
 ==================
+Team_CountsBalanced
+
+Returns qtrue when the red/blue roster spread is no greater than one player.
+==================
+*/
+static qboolean Team_CountsBalanced( int redCount, int blueCount ) {
+	int		delta;
+
+	delta = redCount - blueCount;
+	if ( delta < 0 ) {
+		delta = -delta;
+	}
+
+	return ( delta <= 1 ) ? qtrue : qfalse;
+}
+
+/*
+==================
+G_RRResolveAutoJoinTeam
+
+Selects the retail Red Rover auto-join target while ensuring both infection teams can seed.
+==================
+*/
+static team_t G_RRResolveAutoJoinTeam( int clientNum ) {
+	int		redCount;
+	int		blueCount;
+
+	if ( g_gametype.integer != GT_RED_ROVER || !g_rrInfected.integer ) {
+		return PickTeam( clientNum );
+	}
+
+	redCount = TeamCount( clientNum, TEAM_RED );
+	blueCount = TeamCount( clientNum, TEAM_BLUE );
+	if ( redCount <= 0 ) {
+		return TEAM_RED;
+	}
+	if ( blueCount <= 0 ) {
+		return TEAM_BLUE;
+	}
+
+	return PickTeam( clientNum );
+}
+
+/*
+==================
+G_GetReadyUpBlockedMessage
+
+Returns a retail-aligned denial string when warmup cannot accept ready-up state.
+==================
+*/
+static const char *G_GetReadyUpBlockedMessage( void ) {
+	int redCount;
+	int blueCount;
+	int required;
+
+	if ( level.warmupTime == 0 ) {
+		return "print \"The match has already started.\n\"";
+	}
+
+	if ( Team_HasMinimumPlayersForWarmup() ) {
+		return NULL;
+	}
+
+	if ( g_gametype.integer < GT_TEAM ) {
+		return "print \"Cannot ready up until more players are present.\n\"";
+	}
+
+	redCount = TeamCount( -1, TEAM_RED );
+	blueCount = TeamCount( -1, TEAM_BLUE );
+	if ( redCount < 1 || blueCount < 1 ) {
+		return "print \"Players cannot ready up until both teams are present.\n\"";
+	}
+
+	if ( g_teamForceBalance.integer && !Team_CountsBalanced( redCount, blueCount ) ) {
+		return "print \"Cannot ready up until more players are present.\n\"";
+	}
+
+	required = g_teamSizeMin.integer;
+	if ( required < 0 ) {
+		required = 0;
+	}
+
+	if ( required > 1 && g_teamForcePresent.integer && ( redCount < required || blueCount < required ) ) {
+		return "print \"Players cannot ready up until both teams are fully present.\n\"";
+	}
+
+	return "print \"Cannot ready up until more players are present.\n\"";
+}
+
+/*
+==================
 Cmd_Ready_f
 ==================
 */
 void Cmd_Ready_f( gentity_t *ent ) {
+	const char *blockedMessage;
+
 	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Spectators cannot ready up.\n\"" );
 		return;
 	}
 
-	if ( level.warmupTime == 0 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"The match has already started.\n\"" );
+	blockedMessage = G_GetReadyUpBlockedMessage();
+	if ( blockedMessage ) {
+		trap_SendServerCommand( ent-g_entities, blockedMessage );
 		return;
 	}
 
-	if ( ent->client->ps.eFlags & EF_READY ) {
+	if ( G_ClientIsReady( ent->client ) ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You are already ready.\n\"" );
 		return;
 	}
 
-	ent->client->ps.eFlags |= EF_READY;
+	G_SetClientReadyState( ent->client, qtrue );
 	trap_SendServerCommand( ent-g_entities, "print \"You are now ready.\n\"" );
 }
 
@@ -170,21 +2121,24 @@ Cmd_ReadyUp_f
 ==================
 */
 void Cmd_ReadyUp_f( gentity_t *ent ) {
+	const char *blockedMessage;
+
 	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Spectators cannot ready up.\n\"" );
 		return;
 	}
 
-	if ( level.warmupTime == 0 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"The match has already started.\n\"" );
+	blockedMessage = G_GetReadyUpBlockedMessage();
+	if ( blockedMessage ) {
+		trap_SendServerCommand( ent-g_entities, blockedMessage );
 		return;
 	}
 
-	if ( ent->client->ps.eFlags & EF_READY ) {
-		ent->client->ps.eFlags &= ~EF_READY;
+	if ( G_ClientIsReady( ent->client ) ) {
+		G_SetClientReadyState( ent->client, qfalse );
 		trap_SendServerCommand( ent-g_entities, "print \"You are now ^1NOT ^7ready.\n\"" );
 	} else {
-		ent->client->ps.eFlags |= EF_READY;
+		G_SetClientReadyState( ent->client, qtrue );
 		trap_SendServerCommand( ent-g_entities, "print \"You are now ^2READY^7.\n\"" );
 	}
 }
@@ -205,12 +2159,12 @@ void Cmd_NotReady_f( gentity_t *ent ) {
 		return;
 	}
 
-	if ( !(ent->client->ps.eFlags & EF_READY) ) {
+	if ( !G_ClientIsReady( ent->client ) ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You are already not ready.\n\"" );
 		return;
 	}
 
-	ent->client->ps.eFlags &= ~EF_READY;
+	G_SetClientReadyState( ent->client, qfalse );
 	trap_SendServerCommand( ent-g_entities, "print \"You are now not ready.\n\"" );
 }
 
@@ -378,7 +2332,8 @@ char	*ConcatArgs( int start ) {
 ============
 G_FloodLimited
 
-Applies the configured flood control policy and optionally records a usage.
+Tracks command flood usage against the retail shared counter. Active-client
+code performs the actual drop once the count exceeds the limit.
 ============
 */
 static qboolean G_FloodLimited( gentity_t *ent, const char *action, qboolean recordUsage ) {
@@ -399,14 +2354,11 @@ static qboolean G_FloodLimited( gentity_t *ent, const char *action, qboolean rec
 
 	client = ent->client;
 	label = ( action && action[0] ) ? action : "issuing commands";
+	client->floodPenaltyTime = 0;
 
-	if ( client->floodPenaltyTime > level.time ) {
-		const int	remainingMs = client->floodPenaltyTime - level.time;
-		const int	remainingSeconds = ( remainingMs + 999 ) / 1000;
-
-		trap_SendServerCommand( ent - g_entities,
-			va( "print \"Flood protection: wait %d second%s before %s.\\n\"",
-			remainingSeconds, ( remainingSeconds == 1 ) ? "" : "s", label ) );
+	if ( client->floodCount > maxCount ) {
+		G_LogPrintf( "floodprot: client %i (%s) pending drop via %s\n",
+			ent - g_entities, client->pers.netname, label );
 		return qtrue;
 	}
 
@@ -414,38 +2366,11 @@ static qboolean G_FloodLimited( gentity_t *ent, const char *action, qboolean rec
 		return qfalse;
 	}
 
-	if ( client->floodLastTime > 0 ) {
-		const int elapsed = level.time - client->floodLastTime;
-		if ( elapsed > 0 ) {
-			int reduction = elapsed / decay;
-			if ( reduction > 0 ) {
-				client->floodCount -= reduction;
-				if ( client->floodCount < 0 ) {
-					client->floodCount = 0;
-				}
-			}
-		}
-	}
-
 	client->floodLastTime = level.time;
 	client->floodCount++;
 	if ( client->floodCount > maxCount ) {
-		int penalty = g_floodprot_penalty.integer;
-		if ( penalty <= 0 ) {
-			penalty = decay * maxCount;
-			if ( penalty <= 0 ) {
-				penalty = decay;
-			}
-		}
-
-		client->floodPenaltyTime = level.time + penalty;
-		client->floodCount = 0;
-
-		trap_SendServerCommand( ent - g_entities,
-			va( "print \"Flood protection triggered. Please wait %d second%s before %s.\\n\"",
-			( penalty + 999 ) / 1000, ( ( penalty + 999 ) / 1000 ) == 1 ? "" : "s", label ) );
-		G_LogPrintf( "floodprot: client %i (%s) blocked for %dms via %s\n",
-			ent - g_entities, client->pers.netname, penalty, label );
+		G_LogPrintf( "floodprot: client %i (%s) exceeded limit via %s\n",
+			ent - g_entities, client->pers.netname, label );
 		return qtrue;
 	}
 
@@ -603,6 +2528,7 @@ qboolean G_GiveItemByName( gentity_t *ent, const char *name ) {
 
 	if ( Q_stricmp( name, "armor" ) == 0 ) {
 		ent->client->ps.stats[STAT_ARMOR] = 200;
+		BG_UpdateArmorTierFromCurrentArmor( &ent->client->ps, g_armorTiered.integer ? qtrue : qfalse );
 		return qtrue;
 	}
 
@@ -918,6 +2844,159 @@ static const char *G_ForfeitGametypeName( int gametype ) {
 
 /*
 =============
+G_CanForfeit
+
+Mirrors the retail shared forfeit gate used by both the client command path
+and the automatic exit-rule checks.
+=============
+*/
+qboolean G_CanForfeit( gentity_t *ent, qboolean fromCommand ) {
+	int			gametype;
+	const char	*gametypeName;
+	team_t		team;
+	int			redScore;
+	int			blueScore;
+	int			redPlayerCount;
+	int			bluePlayerCount;
+	gclient_t		*opponent;
+	int			opponentScore;
+	int			i;
+
+	gametype = g_gametype.integer;
+	gametypeName = G_ForfeitGametypeName( gametype );
+
+	if ( !fromCommand ) {
+		if ( level.time - level.startTime <= 60000 ) {
+			return qfalse;
+		}
+
+		if ( level.warmupTime != 0 || level.intermissionQueued != 0 || level.intermissiontime != 0 ) {
+			return qfalse;
+		}
+
+		if ( G_IsRoundCountdownActive() ) {
+			return qfalse;
+		}
+
+		if ( gametype == GT_TOURNAMENT || gametype == GT_RED_ROVER ) {
+			return ( level.numPlayingClients < 2 ) ? qtrue : qfalse;
+		}
+
+		if ( gametype < GT_TEAM ) {
+			return qfalse;
+		}
+
+		redPlayerCount = TeamCount( -1, TEAM_RED );
+		bluePlayerCount = TeamCount( -1, TEAM_BLUE );
+		return ( redPlayerCount < 1 || bluePlayerCount < 1 ) ? qtrue : qfalse;
+	}
+
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+
+	if ( g_allowForfeit.integer <= 0 ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Forfeits are not enabled on this server.\\n\"" );
+		return qfalse;
+	}
+
+	if ( level.warmupTime != 0 ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Forfeit is not available in warmup.\\n\"" );
+		return qfalse;
+	}
+
+	if ( gametype == GT_FFA || gametype == GT_RACE || gametype == GT_RED_ROVER ) {
+		trap_SendServerCommand( ent-g_entities, va( "print \"Forfeit is not available in %s.\\n\"", gametypeName ) );
+		return qfalse;
+	}
+
+	if ( gametype >= GT_TEAM ) {
+		team = ent->client->sess.sessionTeam;
+		if ( team != TEAM_RED && team != TEAM_BLUE ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to members of the losing team.\\n\"" );
+			return qfalse;
+		}
+
+		redScore = level.teamScores[TEAM_RED];
+		blueScore = level.teamScores[TEAM_BLUE];
+
+		if ( redScore < blueScore ) {
+			if ( team != TEAM_RED ) {
+				trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to members of the losing team.\\n\"" );
+				return qfalse;
+			}
+
+			if ( TeamCount( ent->client->ps.clientNum, TEAM_RED ) > 0 ) {
+				trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the last remaining player on the losing team.\\n\"" );
+				return qfalse;
+			}
+
+			return qtrue;
+		}
+
+		if ( blueScore < redScore ) {
+			if ( team != TEAM_BLUE ) {
+				trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to members of the losing team.\\n\"" );
+				return qfalse;
+			}
+
+			if ( TeamCount( ent->client->ps.clientNum, TEAM_BLUE ) > 0 ) {
+				trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the last remaining player on the losing team.\\n\"" );
+				return qfalse;
+			}
+
+			return qtrue;
+		}
+
+		trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to members of the losing team.\\n\"" );
+		return qfalse;
+	}
+
+	if ( gametype == GT_TOURNAMENT ) {
+		opponent = NULL;
+		opponentScore = 0;
+
+		for ( i = 0; i < level.maxclients; i++ ) {
+			gclient_t *client;
+
+			if ( i == ent->client->ps.clientNum ) {
+				continue;
+			}
+
+			client = &level.clients[i];
+			if ( client->pers.connected != CON_CONNECTED ) {
+				continue;
+			}
+			if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+				continue;
+			}
+
+			opponent = client;
+			opponentScore = client->ps.persistant[PERS_SCORE];
+			break;
+		}
+
+		if ( !opponent ) {
+			return qfalse;
+		}
+
+		if ( ent->client->ps.persistant[PERS_SCORE] >= opponentScore
+			|| ent->client->ps.pm_type != PM_NORMAL
+			|| ent->health <= 0 ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the losing player.\\n\"" );
+			return qfalse;
+		}
+
+		return qtrue;
+	}
+
+	trap_SendServerCommand( ent-g_entities, va( "print \"Forfeit is not available in %s.\\n\"", gametypeName ) );
+	return qfalse;
+}
+
+
+/*
+=============
 Cmd_Kill_f
 
 Executes the self-kill command while honouring the g_allowKill cooldown.
@@ -973,17 +3052,6 @@ Processes the player forfeit command.
 =============
 */
 void Cmd_Forfeit_f( gentity_t *ent ) {
-	int		gametype;
-	const char	*gametypeName;
-	team_t	team;
-	team_t	losingTeam;
-	int		redScore;
-	int		blueScore;
-	int		teammateCount;
-	gclient_t	*opponent;
-	int		opponentScore;
-	int		i;
-
 	if ( !ent || !ent->client ) {
 		return;
 	}
@@ -993,16 +3061,6 @@ void Cmd_Forfeit_f( gentity_t *ent ) {
 	}
 
 	if ( ent->health <= 0 ) {
-		return;
-	}
-
-	if ( g_allowForfeit.integer <= 0 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Forfeits are not enabled on this server.\\n\"" );
-		return;
-	}
-
-	if ( level.warmupTime != 0 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Forfeit is not available in warmup.\\n\"" );
 		return;
 	}
 
@@ -1016,87 +3074,9 @@ void Cmd_Forfeit_f( gentity_t *ent ) {
 		return;
 	}
 
-	gametype = g_gametype.integer;
-	gametypeName = G_ForfeitGametypeName( gametype );
-
-	if ( gametype == GT_FFA || gametype == GT_RACE || gametype == GT_RED_ROVER ) {
-		trap_SendServerCommand( ent-g_entities, va( "print \"Forfeit is not available in %s.\\n\"", gametypeName ) );
-		return;
+	if ( G_CanForfeit( ent, qtrue ) ) {
+		G_ApplyForfeit();
 	}
-
-	if ( gametype >= GT_TEAM ) {
-		team = ent->client->sess.sessionTeam;
-		if ( team != TEAM_RED && team != TEAM_BLUE ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to members of the losing team.\\n\"" );
-			return;
-		}
-
-		redScore = level.teamScores[TEAM_RED];
-		blueScore = level.teamScores[TEAM_BLUE];
-		if ( redScore == blueScore ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the losing player.\\n\"" );
-			return;
-		}
-
-		losingTeam = ( redScore < blueScore ) ? TEAM_RED : TEAM_BLUE;
-		if ( team != losingTeam ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to members of the losing team.\\n\"" );
-			return;
-		}
-
-		teammateCount = TeamCount( ent->client->ps.clientNum, team );
-		if ( teammateCount > 0 ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the last remaining player on the losing team.\\n\"" );
-			return;
-		}
-
-		G_HandleForfeit( ent );
-		return;
-	}
-
-	if ( gametype == GT_TOURNAMENT ) {
-		opponent = NULL;
-		opponentScore = 0;
-
-		for ( i = 0; i < level.maxclients; i++ ) {
-			gclient_t *client;
-
-			if ( i == ent->client->ps.clientNum ) {
-				continue;
-			}
-
-			client = &level.clients[i];
-			if ( client->pers.connected != CON_CONNECTED ) {
-				continue;
-			}
-			if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
-				continue;
-			}
-
-			opponent = client;
-			opponentScore = client->ps.persistant[PERS_SCORE];
-			break;
-		}
-
-		if ( !opponent ) {
-			return;
-		}
-
-		if ( ent->client->ps.persistant[PERS_SCORE] >= opponentScore ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the losing player.\\n\"" );
-			return;
-		}
-
-		if ( ent->client->ps.pm_type != PM_NORMAL || ent->health <= 0 ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Forfeit is only available to the losing player.\\n\"" );
-			return;
-		}
-
-		G_HandleForfeit( ent );
-		return;
-	}
-
-	trap_SendServerCommand( ent-g_entities, va( "print \"Forfeit is not available in %s.\\n\"", gametypeName ) );
 }
 
 /*
@@ -1135,11 +3115,19 @@ void SetTeam( gentity_t *ent, char *s ) {
 	spectatorState_t	specState;
 	int					specClient;
 	int					teamLeader;
+	qboolean			requestedSpectator;
+	qboolean			wasSpectateOnly;
+	qboolean			sendQueueMessage;
+	qboolean			sendSpectateOnlyMessage;
 
 	//
 	// see what change is requested
 	//
 	client = ent->client;
+	requestedSpectator = qfalse;
+	sendQueueMessage = qfalse;
+	sendSpectateOnlyMessage = qfalse;
+	wasSpectateOnly = client->sess.spectateOnly;
 
 	clientNum = client - level.clients;
 	specClient = 0;
@@ -1147,17 +3135,21 @@ void SetTeam( gentity_t *ent, char *s ) {
 	if ( !Q_stricmp( s, "scoreboard" ) || !Q_stricmp( s, "score" )  ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_SCOREBOARD;
+		requestedSpectator = qtrue;
 	} else if ( !Q_stricmp( s, "follow1" ) ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FOLLOW;
 		specClient = -1;
+		requestedSpectator = qtrue;
 	} else if ( !Q_stricmp( s, "follow2" ) ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FOLLOW;
 		specClient = -2;
+		requestedSpectator = qtrue;
 	} else if ( !Q_stricmp( s, "spectator" ) || !Q_stricmp( s, "s" ) ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FREE;
+		requestedSpectator = qtrue;
 	} else if ( g_gametype.integer >= GT_TEAM ) {
 		// if running a team game, assign player to one of the teams
 		specState = SPECTATOR_NOT;
@@ -1166,32 +3158,32 @@ void SetTeam( gentity_t *ent, char *s ) {
 		} else if ( !Q_stricmp( s, "blue" ) || !Q_stricmp( s, "b" ) ) {
 			team = TEAM_BLUE;
 		} else if ( !Q_stricmp( s, "auto" ) ) {
-			// pick the team with the least number of players
-			team = PickTeam( clientNum );
+			team = G_RRResolveAutoJoinTeam( clientNum );
 		} else {
-			// pick the team with the least number of players
-			team = PickTeam( clientNum );
+			team = G_RRResolveAutoJoinTeam( clientNum );
 		}
 
 		if ( g_teamForceBalance.integer  ) {
 			int		counts[TEAM_NUM_TEAMS];
+			int		nextRedCount;
+			int		nextBlueCount;
 
 			counts[TEAM_BLUE] = TeamCount( ent->client->ps.clientNum, TEAM_BLUE );
 			counts[TEAM_RED] = TeamCount( ent->client->ps.clientNum, TEAM_RED );
+			nextRedCount = counts[TEAM_RED] + ( team == TEAM_RED ? 1 : 0 );
+			nextBlueCount = counts[TEAM_BLUE] + ( team == TEAM_BLUE ? 1 : 0 );
 
-			// We allow a spread of two
-			if ( team == TEAM_RED && counts[TEAM_RED] - counts[TEAM_BLUE] > 1 ) {
-				trap_SendServerCommand( ent->client->ps.clientNum, 
-					"cp \"Red team has too many players.\n\"" );
+			if ( !Team_CountsBalanced( nextRedCount, nextBlueCount ) ) {
+				if ( team == TEAM_RED ) {
+					trap_SendServerCommand( ent->client->ps.clientNum, 
+						"cp \"Red team has too many players.\n\"" );
+				}
+				else {
+					trap_SendServerCommand( ent->client->ps.clientNum, 
+						"cp \"Blue team has too many players.\n\"" );
+				}
 				return; // ignore the request
 			}
-			if ( team == TEAM_BLUE && counts[TEAM_BLUE] - counts[TEAM_RED] > 1 ) {
-				trap_SendServerCommand( ent->client->ps.clientNum, 
-					"cp \"Blue team has too many players.\n\"" );
-				return; // ignore the request
-			}
-
-			// It's ok, the team we are switching to has less or same number of players
 		}
 
 	} else {
@@ -1225,6 +3217,26 @@ void SetTeam( gentity_t *ent, char *s ) {
 		return;
 	}
 
+	if ( g_gametype.integer == GT_TOURNAMENT ) {
+		client->sess.spectatorQueuePosition = 0;
+		client->sess.spectatorQueuePositionDirty = qfalse;
+		if ( requestedSpectator ) {
+			client->sess.spectateOnly = qtrue;
+			if ( oldTeam != TEAM_SPECTATOR || !wasSpectateOnly ) {
+				sendSpectateOnlyMessage = qtrue;
+			}
+		} else {
+			client->sess.spectateOnly = qfalse;
+			if ( team == TEAM_SPECTATOR && ( oldTeam != TEAM_SPECTATOR || wasSpectateOnly ) ) {
+				sendQueueMessage = qtrue;
+			}
+		}
+	} else {
+		client->sess.spectateOnly = qfalse;
+		client->sess.spectatorQueuePosition = 0;
+		client->sess.spectatorQueuePositionDirty = qfalse;
+	}
+
 	//
 	// execute the team change
 	//
@@ -1236,6 +3248,7 @@ void SetTeam( gentity_t *ent, char *s ) {
 
 	// he starts at 'base'
 	client->pers.teamState.state = TEAM_BEGIN;
+	G_SetClientReadyState( client, qfalse );
 	if ( oldTeam != TEAM_SPECTATOR ) {
 		// Kill him (makes sure he loses flags, etc)
 		ent->flags &= ~FL_GODMODE;
@@ -1258,6 +3271,8 @@ void SetTeam( gentity_t *ent, char *s ) {
 	client->friendlyFireComplaintEndTime = 0;
 	client->teammateDamageGiven = 0;
 	client->teammateDamageThisLife = 0;
+	client->teamDamageEventsGiven = 0;
+	client->teamDamageEventsReceived = 0;
 
 	client->sess.teamLeader = qfalse;
 	if ( team == TEAM_RED || team == TEAM_BLUE ) {
@@ -1273,6 +3288,13 @@ void SetTeam( gentity_t *ent, char *s ) {
 	}
 
 	BroadcastTeamChange( client, oldTeam );
+
+	if ( sendQueueMessage ) {
+		trap_SendServerCommand( ent - g_entities, "cp \"You are in the queue to play\n\"" );
+	}
+	if ( sendSpectateOnlyMessage ) {
+		trap_SendServerCommand( ent - g_entities, "cp \"You are set to spectate only\n\"" );
+	}
 
 	// get and distribute relevent paramters
 	ClientUserinfoChanged( clientNum );
@@ -1303,6 +3325,8 @@ void StopFollowing( gentity_t *ent ) {
 	ent->client->friendlyFireComplaintEndTime = 0;
 	ent->client->teammateDamageGiven = 0;
 	ent->client->teammateDamageThisLife = 0;
+	ent->client->teamDamageEventsGiven = 0;
+	ent->client->teamDamageEventsReceived = 0;
 	ent->client->ps.pm_flags &= ~PMF_FOLLOW;
 	ent->r.svFlags &= ~SVF_BOT;
 	ent->client->ps.clientNum = ent - g_entities;
@@ -1980,9 +4004,16 @@ void Cmd_Where_f( gentity_t *ent ) {
 #define VF_NO_NEXTMAP			0x0004
 #define VF_NO_GAMETYPE			0x0008
 #define VF_NO_KICK			0x0010
-#define VF_NO_BOTS          0x0020
-#define VF_NO_TIME_LIMIT		0x0040
-#define VF_NO_FRAG_LIMIT		0x0080
+#define VF_NO_TIME_LIMIT		0x0020
+#define VF_NO_FRAG_LIMIT		0x0040
+#define VF_NO_SHUFFLE			0x0080
+#define VF_NO_TEAMSIZE			0x0100
+#define VF_NO_RANDOM			0x0200
+#define VF_NO_LOADOUTS			0x0400
+#define VF_NO_AMMO			0x1000
+#define VF_NO_TIMERS			0x2000
+#define VF_NO_WEAPRESPAWN		0x4000
+#define VF_NO_BOTS			0x8000
 
 static const char *gameNames[] = {
 "Free For All",
@@ -2030,6 +4061,60 @@ static int G_VoteSelectionKey( const char *command, const char *option ) {
 }
 
 /*
+=============
+G_VoteArgumentIsUnsignedInteger
+
+Reports whether a callvote argument is a non-empty unsigned integer token.
+=============
+*/
+static qboolean G_VoteArgumentIsUnsignedInteger( const char *text ) {
+	const unsigned char	*scan;
+
+	if ( !text || !text[0] ) {
+		return qfalse;
+	}
+
+	for ( scan = (const unsigned char *)text; *scan; scan++ ) {
+		if ( *scan < '0' || *scan > '9' ) {
+			return qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+G_ClientBypassesCallVoteRestrictions
+
+Retail allows moderators and above to bypass the public-vote, vote-limit,
+spectator, and vote-flag disable gates in Cmd_CallVote_f.
+=============
+*/
+static qboolean G_ClientBypassesCallVoteRestrictions( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return ( client->sess.privilege >= PRIV_MOD ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_CallVoteHelpColor
+
+Retail colors disabled callvote commands red and available ones green.
+=============
+*/
+static int G_CallVoteHelpColor( int voteFlagMask ) {
+	if ( g_voteFlags.integer & voteFlagMask ) {
+		return 1;
+	}
+
+	return 5;
+}
+
+/*
 ==================
 Cmd_CallVote_f
 ==================
@@ -2045,6 +4130,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	int             remaining;
 	qboolean        isSpectator;
 	qboolean        midGame;
+	qboolean        privilegedCallVote;
 
 	if ( !ent || !ent->client ) {
 		return;
@@ -2064,6 +4150,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	delayMsec = g_voteDelay.integer > 0 ? g_voteDelay.integer * 1000 : 0;
 	isSpectator = ( client->sess.sessionTeam == TEAM_SPECTATOR );
 	midGame = ( level.warmupTime <= 0 && level.intermissiontime == 0 );
+	privilegedCallVote = G_ClientBypassesCallVoteRestrictions( client );
 
 	if ( delayMsec > 0 ) {
 		int             startWindow;
@@ -2084,22 +4171,22 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		}
 	}
 
-	if ( !g_allowVote.integer ) {
+	if ( !g_allowVote.integer && !privilegedCallVote ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Public voting is not allowed here.\\n\"" );
 		return;
 	}
 
-	if ( g_voteLimit.integer > 0 && client->pers.voteCount >= g_voteLimit.integer ) {
+	if ( g_voteLimit.integer > 0 && client->pers.voteCount >= g_voteLimit.integer && !privilegedCallVote ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You have called the maximum number of votes.\\n\"" );
 		return;
 	}
 
-	if ( isSpectator && !g_allowSpecVote.integer ) {
+	if ( isSpectator && !g_allowSpecVote.integer && !privilegedCallVote ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Not allowed to call a vote as spectator.\\n\"" );
 		return;
 	}
 
-	if ( !g_allowVoteMidGame.integer && midGame ) {
+	if ( !g_allowVoteMidGame.integer && midGame && !privilegedCallVote ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Voting is only allowed during warmup.\\n\"" );
 		return;
 	}
@@ -2117,7 +4204,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	voteSelection = -1;
 
 	if ( !Q_stricmp( arg1, "map_restart" ) ) {
-		if ( g_voteFlags.integer & VF_NO_MAP_RESTART ) {
+		if ( ( g_voteFlags.integer & VF_NO_MAP_RESTART ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting on a map restart is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2125,7 +4212,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Q_strncpyz( level.voteDisplayString, level.voteString, sizeof( level.voteDisplayString ) );
 		voteSelection = G_VoteSelectionKey( arg1, NULL );
 	} else if ( !Q_stricmp( arg1, "nextmap" ) ) {
-		if ( g_voteFlags.integer & VF_NO_NEXTMAP ) {
+		if ( ( g_voteFlags.integer & VF_NO_NEXTMAP ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to move to the next map is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2144,7 +4231,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		char		voteOptionBuffer[MAX_STRING_TOKENS];
 		const char	*voteOption;
 
-		if ( g_voteFlags.integer & VF_NO_MAP ) {
+		if ( ( g_voteFlags.integer & VF_NO_MAP ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to change the map being played is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2199,7 +4286,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else if ( !Q_stricmp( arg1, "g_gametype" ) ) {
 		int             gametype;
 
-		if ( g_voteFlags.integer & VF_NO_GAMETYPE ) {
+		if ( ( g_voteFlags.integer & VF_NO_GAMETYPE ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to change the gametype being played is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2218,19 +4305,83 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Shuffle is only available in team games.\\n\"" );
 			return;
 		}
+		if ( ( g_voteFlags.integer & VF_NO_SHUFFLE ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to shuffle the teams is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( midGame ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to shuffle the teams is only permitted during warmup.\\n\"" );
+			return;
+		}
+		if ( arg2[0] ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Too many parameters called for a shuffle.\\n\"" );
+			return;
+		}
 		Com_sprintf( level.voteString, sizeof( level.voteString ), "shuffle_teams" );
 		Q_strncpyz( level.voteDisplayString, "Shuffle Teams", sizeof( level.voteDisplayString ) );
 		voteSelection = G_VoteSelectionKey( arg1, NULL );
 	} else if ( !Q_stricmp( arg1, "teamsize" ) ) {
-		if ( g_gametype.integer < GT_TEAM ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Teamsize is only available in team games.\\n\"" );
+		int desiredSize;
+		int activeCounts[TEAM_NUM_TEAMS];
+		int totalActivePlayers;
+		int maxSize;
+
+		if ( g_gametype.integer == GT_TOURNAMENT ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Teamsize is not available in Duel.\\n\"" );
 			return;
 		}
-		Com_sprintf( level.voteString, sizeof( level.voteString ), "teamsize %d", atoi( arg2 ) );
+		if ( ( g_voteFlags.integer & VF_NO_TEAMSIZE ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to change team size is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( !arg2[0] ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Missing desired teamsize.\\n\"" );
+			return;
+		}
+		if ( !G_VoteArgumentIsUnsignedInteger( arg2 ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Invalid desired teamsize, parameter must be an integer.\\n\"" );
+			return;
+		}
+
+		desiredSize = atoi( arg2 );
+		if ( desiredSize > 0 ) {
+			G_CountActivePlayersByTeam( activeCounts );
+			totalActivePlayers = activeCounts[TEAM_FREE] + activeCounts[TEAM_RED] + activeCounts[TEAM_BLUE];
+			if ( desiredSize < totalActivePlayers ) {
+				trap_SendServerCommand( ent-g_entities,
+					va( "print \"^1The arena has more than %d players. Players must leave before this teamsize can be set.^7\"", desiredSize ) );
+				return;
+			}
+			if ( activeCounts[TEAM_RED] > desiredSize ) {
+				trap_SendServerCommand( ent-g_entities,
+					va( "print \"^1%s has more than %d players. Players must leave the team before this teamsize can be set.^7\"",
+						"Red Team", desiredSize ) );
+				return;
+			}
+			if ( activeCounts[TEAM_BLUE] > desiredSize ) {
+				trap_SendServerCommand( ent-g_entities,
+					va( "print \"^1%s has more than %d players. Players must leave the team before this teamsize can be set.^7\"",
+						"Blue Team", desiredSize ) );
+				return;
+			}
+
+			if ( g_gametype.integer >= GT_TEAM ) {
+				maxSize = level.maxclients / 2;
+			} else {
+				maxSize = level.maxclients;
+			}
+			if ( desiredSize < 0 || desiredSize > maxSize ) {
+				trap_SendServerCommand( ent-g_entities,
+					va( "print \"Invalid team size. (Valid Range: %d - %d)\\n\"", 0, maxSize ) );
+				return;
+			}
+		}
+
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "teamsize %d", desiredSize );
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "teamsize %s", arg2 );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "kickbot" ) ) {
-		if ( g_voteFlags.integer & VF_NO_KICK ) {
+		if ( ( g_voteFlags.integer & VF_NO_KICK ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to kick bots is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2242,7 +4393,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		}
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "addbot" ) ) {
-		if ( g_voteFlags.integer & VF_NO_BOTS ) {
+		if ( ( g_voteFlags.integer & VF_NO_BOTS ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to add bots is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2253,7 +4404,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else if ( !Q_stricmp( arg1, "kick" ) ) {
 		int             clientNum;
 
-		if ( g_voteFlags.integer & VF_NO_KICK ) {
+		if ( ( g_voteFlags.integer & VF_NO_KICK ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to kick a player is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2284,7 +4435,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	} else if ( !Q_stricmp( arg1, "clientkick" ) ) {
 		int             clientNum;
 
-		if ( g_voteFlags.integer & VF_NO_KICK ) {
+		if ( ( g_voteFlags.integer & VF_NO_KICK ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to kick a player is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2309,7 +4460,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "clientkick %d", clientNum );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "timelimit" ) ) {
-		if ( g_voteFlags.integer & VF_NO_TIME_LIMIT ) {
+		if ( ( g_voteFlags.integer & VF_NO_TIME_LIMIT ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to change the games time limit is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2318,7 +4469,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "timelimit %s", arg2 );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "fraglimit" ) ) {
-		if ( g_voteFlags.integer & VF_NO_FRAG_LIMIT ) {
+		if ( ( g_voteFlags.integer & VF_NO_FRAG_LIMIT ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to change the games frag limit is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2335,11 +4486,115 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "roundlimit %s", arg2 );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "cointoss" ) ) {
-		Com_sprintf( level.voteString, sizeof( level.voteString ), "cointoss" );
-		Q_strncpyz( level.voteDisplayString, "Coin Toss", sizeof( level.voteDisplayString ) );
-		voteSelection = G_VoteSelectionKey( arg1, NULL );
+		if ( ( g_voteFlags.integer & VF_NO_RANDOM ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to coin toss is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( arg2[0] ) {
+			if ( Q_stricmp( arg2, "heads" ) && Q_stricmp( arg2, "h" )
+					&& Q_stricmp( arg2, "tails" ) && Q_stricmp( arg2, "t" ) ) {
+				trap_SendServerCommand( ent-g_entities, "print \"Valid cointoss parameters are:    ^5heads    ^5tails ^7\\n\"" );
+				return;
+			}
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "cointoss %s", arg2 );
+			Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "cointoss %s", arg2 );
+			voteSelection = G_VoteSelectionKey( arg1, arg2 );
+		} else {
+			Com_sprintf( level.voteString, sizeof( level.voteString ), "cointoss" );
+			Q_strncpyz( level.voteDisplayString, "Coin Toss", sizeof( level.voteDisplayString ) );
+			voteSelection = G_VoteSelectionKey( arg1, NULL );
+		}
+	} else if ( !Q_stricmp( arg1, "random" ) ) {
+		int upperLimit;
+
+		if ( ( g_voteFlags.integer & VF_NO_RANDOM ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Random number generation is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( !G_VoteArgumentIsUnsignedInteger( arg2 ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Invalid upper limit, parameter must be an integer.\\n\"" );
+			return;
+		}
+
+		upperLimit = atoi( arg2 );
+		if ( upperLimit < 2 || upperLimit > 100 ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Invalid upper limit. (Valid Range: 2 - 100)\\n\"" );
+			return;
+		}
+
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "random %d", upperLimit );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "random %d", upperLimit );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "loadouts" ) ) {
+		if ( ( g_voteFlags.integer & VF_NO_LOADOUTS ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter loadouts is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( midGame ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter loadouts is only allowed during the warm up period.\\n\"" );
+			return;
+		}
+		if ( Q_stricmp( arg2, "on" ) && Q_stricmp( arg2, "off" ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"^3Valid loadout options are:    ^5ON    ^5OFF^7\\n\"" );
+			return;
+		}
+
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "loadouts %s", arg2 );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "loadouts %s", arg2 );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "ammo" ) ) {
+		if ( ( g_voteFlags.integer & VF_NO_AMMO ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the ammo system is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( midGame ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the ammo system is only allowed during the warm up period.\\n\"" );
+			return;
+		}
+		if ( Q_stricmp( arg2, "global" ) && Q_stricmp( arg2, "weap" ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"^3Valid ammo options are:    ^5GLOBAL    ^5WEAP^7\\n\"" );
+			return;
+		}
+
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "ammo %s", arg2 );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "ammo %s", arg2 );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "timers" ) ) {
+		if ( ( g_voteFlags.integer & VF_NO_TIMERS ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the item timers is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( midGame ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the item timers is only allowed during the warm up period.\\n\"" );
+			return;
+		}
+		if ( Q_stricmp( arg2, "on" ) && Q_stricmp( arg2, "off" ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"^3Valid item timer options are:    ^5ON    ^5OFF^7\\n\"" );
+			return;
+		}
+
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "timers %s", arg2 );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "timers %s", arg2 );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
+	} else if ( !Q_stricmp( arg1, "weaprespawn" ) ) {
+		if ( ( g_voteFlags.integer & VF_NO_WEAPRESPAWN ) && !privilegedCallVote ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Voting to change the weapon respawn time is disabled on this server.\\n\"" );
+			return;
+		}
+		if ( !arg2[0] ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Missing desired weapon respawn time.\\n\"" );
+			return;
+		}
+		if ( !G_VoteArgumentIsUnsignedInteger( arg2 ) ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Invalid desired weapon respawn time, parameter must be an integer.\\n\"" );
+			return;
+		}
+
+		Com_sprintf( level.voteString, sizeof( level.voteString ), "weaprespawn %d", atoi( arg2 ) );
+		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "weaprespawn %s", arg2 );
+		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else if ( !Q_stricmp( arg1, "randommap" ) ) {
-		if ( g_voteFlags.integer & VF_NO_MAP ) {
+		if ( ( g_voteFlags.integer & VF_NO_MAP ) && !privilegedCallVote ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to change the map being played is disabled on this server.\\n\"" );
 			return;
 		}
@@ -2375,8 +4630,32 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "g_doWarmup %s", arg2 );
 		voteSelection = G_VoteSelectionKey( arg1, arg2 );
 	} else {
-		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\\n\"" );
-		trap_SendServerCommand( ent-g_entities, "print \"Vote commands are: map_restart, nextmap, map <mapname>, g_gametype <n>, kick <player>, clientkick <clientnum>, g_doWarmup, timelimit <time>, fraglimit <frags>.\\n\"" );
+		trap_SendServerCommand( ent-g_entities, "print \"^3Callvote commands:\\n\"" );
+		trap_SendServerCommand( ent-g_entities,
+			va( "print \"^%imap           ^%inextmap        ^%imap_restart   ^7\\n\"",
+				G_CallVoteHelpColor( VF_NO_MAP ),
+				G_CallVoteHelpColor( VF_NO_NEXTMAP ),
+				G_CallVoteHelpColor( VF_NO_MAP_RESTART ) ) );
+		trap_SendServerCommand( ent-g_entities,
+			va( "print \"^%ikick          ^%iclientkick                      ^7\\n\"",
+				G_CallVoteHelpColor( VF_NO_KICK ),
+				G_CallVoteHelpColor( VF_NO_KICK ) ) );
+		trap_SendServerCommand( ent-g_entities,
+			va( "print \"^%ishuffle       ^%iteamsize       ^%icointoss      ^7\\n\"",
+				G_CallVoteHelpColor( VF_NO_SHUFFLE ),
+				G_CallVoteHelpColor( VF_NO_TEAMSIZE ),
+				G_CallVoteHelpColor( VF_NO_RANDOM ) ) );
+		trap_SendServerCommand( ent-g_entities,
+			va( "print \"^%itimelimit     ^%ifraglimit      ^%iweaprespawn   ^7\\n\"",
+				G_CallVoteHelpColor( VF_NO_TIME_LIMIT ),
+				G_CallVoteHelpColor( VF_NO_FRAG_LIMIT ),
+				G_CallVoteHelpColor( VF_NO_WEAPRESPAWN ) ) );
+		trap_SendServerCommand( ent-g_entities,
+			va( "print \"^%iloadouts      ^%iammo           ^%itimers        ^7\\n\"",
+				G_CallVoteHelpColor( VF_NO_LOADOUTS ),
+				G_CallVoteHelpColor( VF_NO_AMMO ),
+				G_CallVoteHelpColor( VF_NO_TIMERS ) ) );
+		trap_SendServerCommand( ent-g_entities, "print \"Usage: ^3\\\\callvote <command> <params>^7\\n\"" );
 		return;
 	}
 
@@ -2400,14 +4679,21 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	}
 
 	for ( voteSelection = 0 ; voteSelection < level.maxclients ; voteSelection++ ) {
+		if ( level.clients[voteSelection].pers.connected != CON_CONNECTED || ( g_entities[voteSelection].r.svFlags & SVF_BOT ) ) {
+			level.clients[voteSelection].pers.voteState = VOTE_STATE_NONE;
+		} else if ( level.clients[voteSelection].sess.sessionTeam == TEAM_SPECTATOR && !g_allowSpecVote.integer ) {
+			level.clients[voteSelection].pers.voteState = VOTE_STATE_NONE;
+		} else {
+			level.clients[voteSelection].pers.voteState = VOTE_STATE_ELIGIBLE;
+		}
 		level.clients[voteSelection].ps.eFlags &= ~EF_VOTED;
 	}
+	client->pers.voteState = VOTE_STATE_YES;
 	client->ps.eFlags |= EF_VOTED;
 
 	trap_SetConfigstring( CS_VOTE_TIME, va( "%i", level.voteTime ) );
 	trap_SetConfigstring( CS_VOTE_STRING, level.voteDisplayString );
-	trap_SetConfigstring( CS_VOTE_YES, va( "%i", level.voteYes ) );
-	trap_SetConfigstring( CS_VOTE_NO, va( "%i", level.voteNo ) );
+	G_UpdateVoteCounts();
 }
 
 
@@ -2420,7 +4706,7 @@ Process a client's ballot during an active vote, applying spectator and throttle
 */
 void Cmd_Vote_f( gentity_t *ent ) {
 	char		msg[64];
-	int		voteSelection;
+	voteState_t	voteState;
 	gclient_t	*client;
 
 	if ( !level.voteTime ) {
@@ -2434,16 +4720,11 @@ void Cmd_Vote_f( gentity_t *ent ) {
 	}
 
 	trap_Argv( 1, msg, sizeof( msg ) );
-	voteSelection = atoi( msg );
-	if ( voteSelection <= 0 ) {
-		if ( msg[0] == 'y' || msg[0] == 'Y' ) {
-			voteSelection = 1;
-		} else if ( msg[0] == 'n' || msg[0] == 'N' ) {
-			voteSelection = 2;
-		}
-	}
-
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR && !g_allowSpecVote.integer ) {
+		trap_SendServerCommand( ent-g_entities, "print \"You may not participate in this vote.\n\"" );
+		return;
+	}
+	if ( client->pers.voteState == VOTE_STATE_NONE ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You may not participate in this vote.\n\"" );
 		return;
 	}
@@ -2458,7 +4739,35 @@ void Cmd_Vote_f( gentity_t *ent ) {
 		return;
 	}
 
-	if ( voteSelection >= 0 && voteSelection == client->pers.voteLastSelection ) {
+	voteState = VOTE_STATE_NONE;
+	if ( client->sess.privilege >= PRIV_MOD ) {
+		if ( !Q_stricmp( msg, "pass" ) ) {
+			voteState = VOTE_STATE_FORCE_PASS;
+		} else if ( !Q_stricmp( msg, "veto" ) ) {
+			voteState = VOTE_STATE_FORCE_VETO;
+		}
+	}
+
+	if ( voteState == VOTE_STATE_NONE ) {
+		int voteSelection;
+
+		voteSelection = atoi( msg );
+		if ( voteSelection <= 0 ) {
+			if ( msg[0] == 'y' || msg[0] == 'Y' ) {
+				voteSelection = 1;
+			} else if ( msg[0] == 'n' || msg[0] == 'N' ) {
+				voteSelection = 2;
+			}
+		}
+
+		if ( msg[0] == 'y' || msg[0] == 'Y' || msg[0] == '1' ) {
+			voteState = VOTE_STATE_YES;
+		} else {
+			voteState = VOTE_STATE_NO;
+		}
+	}
+
+	if ( client->pers.voteLastSelection == voteState ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You already voted for this arena.\n\"" );
 		return;
 	}
@@ -2466,19 +4775,13 @@ void Cmd_Vote_f( gentity_t *ent ) {
 	trap_SendServerCommand( ent-g_entities, "print \"Vote cast.\n\"" );
 
 	client->ps.eFlags |= EF_VOTED;
+	client->pers.voteState = voteState;
 	client->pers.voteDelayTime = level.time;
-	client->pers.voteLastSelection = voteSelection;
+	client->pers.voteLastSelection = voteState;
 	client->pers.voteLastEnableFrame = -1;
 
 	trap_SendServerCommand( ent-g_entities, "disable_vote_ui" );
-
-	if ( msg[0] == 'y' || msg[0] == 'Y' || msg[0] == '1' ) {
-		level.voteYes++;
-		trap_SetConfigstring( CS_VOTE_YES, va("%i", level.voteYes ) );
-	} else {
-		level.voteNo++;
-		trap_SetConfigstring( CS_VOTE_NO, va("%i", level.voteNo ) );
-	}
+	G_UpdateVoteCounts();
 
 	// a majority will be determined in CheckVote, which will also account
 	// for players entering or leaving
@@ -3290,6 +5593,7 @@ Cmd_AllReady_f
 void Cmd_AllReady_f( gentity_t *ent ) {
 	char userinfo[MAX_INFO_STRING];
 	const char *steamId;
+	const char *blockedMessage;
 	int priv;
 	int i;
 
@@ -3304,9 +5608,15 @@ void Cmd_AllReady_f( gentity_t *ent ) {
 		return;
 	}
 
+	blockedMessage = G_GetReadyUpBlockedMessage();
+	if ( blockedMessage ) {
+		trap_SendServerCommand( ent-g_entities, blockedMessage );
+		return;
+	}
+
 	for ( i = 0; i < level.maxclients; i++ ) {
 		if ( level.clients[i].pers.connected == CON_CONNECTED && level.clients[i].sess.sessionTeam != TEAM_SPECTATOR ) {
-			level.clients[i].ps.eFlags |= EF_READY;
+			G_SetClientReadyState( &level.clients[i], qtrue );
 		}
 	}
 	trap_SendServerCommand( -1, "print \"All players set to ready by admin.\n\"" );
@@ -3320,9 +5630,13 @@ Cmd_Map_f
 void Cmd_Map_f( gentity_t *ent ) {
 	char map[MAX_TOKEN_CHARS];
 	char factory[MAX_TOKEN_CHARS];
+	char expandedMap[MAX_QPATH];
+	fileHandle_t mapFile;
 	char userinfo[MAX_INFO_STRING];
 	const char *steamId;
+	const factoryDefinition_t *factoryOverride;
 	int priv;
+	int mapLen;
 
 	if ( !ent || !ent->client ) return;
 
@@ -3353,13 +5667,27 @@ void Cmd_Map_f( gentity_t *ent ) {
 		return;
 	}
 
+	Com_sprintf( expandedMap, sizeof( expandedMap ), "maps/%s.bsp", map );
+	mapLen = trap_FS_FOpenFile( expandedMap, &mapFile, FS_READ );
+	if ( mapLen < 0 ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Map does not exist.\n\"" );
+		return;
+	}
+	trap_FS_FCloseFile( mapFile );
+
+	factoryOverride = NULL;
 	if ( factory[0] ) {
-		if ( !Factory_FindById( factory ) ) {
+		factoryOverride = Factory_FindById( factory );
+		if ( !factoryOverride ) {
 			if ( ent ) {
 				trap_SendServerCommand( ent - g_entities, "print \"Invalid factory specified.\\n\"" );
 			} else {
 				G_Printf( "Invalid factory specified.\n" );
 			}
+			return;
+		}
+		if ( !G_MapSupportsGametype( map, factoryOverride->baseGametype ) ) {
+			trap_SendServerCommand( ent - g_entities, "print \"Map not supported for this gametype.\n\"" );
 			return;
 		}
 		trap_SendConsoleCommand( EXEC_APPEND, va("map %s %s\n", map, factory) );
@@ -3723,6 +6051,7 @@ void Cmd_Admin_f( gentity_t *ent ) {
 
 	if ( !Q_stricmp( arg, "map" ) ) {
 		char factory[MAX_TOKEN_CHARS];
+		const factoryDefinition_t	*factoryOverride;
 
 		if ( priv < PRIV_ADMIN ) {
 			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
@@ -3735,6 +6064,21 @@ void Cmd_Admin_f( gentity_t *ent ) {
 		}
 		trap_Argv( 3, factory, sizeof( factory ) );
 		if ( factory[0] ) {
+			if ( strchr( factory, ';' ) || strchr( factory, '\n' ) ) {
+				trap_SendServerCommand( ent - g_entities, "print \"Invalid characters in factory name.\n\"" );
+				return;
+			}
+
+			factoryOverride = Factory_FindById( factory );
+			if ( !factoryOverride ) {
+				trap_SendServerCommand( ent - g_entities, "print \"Invalid factory specified.\n\"" );
+				return;
+			}
+			if ( !G_MapSupportsGametype( val, factoryOverride->baseGametype ) ) {
+				trap_SendServerCommand( ent - g_entities, "print \"Map not supported for this gametype.\n\"" );
+				return;
+			}
+
 			trap_SendConsoleCommand( EXEC_APPEND, va("map %s %s\n", val, factory) );
 		} else {
 			trap_SendConsoleCommand( EXEC_APPEND, va("map %s\n", val) );
@@ -3759,9 +6103,9 @@ void Cmd_Admin_f( gentity_t *ent ) {
 			return;
 		}
 		if ( level.voteTime ) {
-			level.voteYes = level.maxclients; // Force pass
-			level.voteNo = 0;
-			// It will be processed in CheckVote
+			ent->client->pers.voteState = VOTE_STATE_FORCE_PASS;
+			ent->client->ps.eFlags |= EF_VOTED;
+			G_UpdateVoteCounts();
 			G_LogPrintf( "Admin %s passed vote\n", ent->client->pers.netname );
 		}
 		return;
@@ -3773,8 +6117,7 @@ void Cmd_Admin_f( gentity_t *ent ) {
 			return;
 		}
 		if ( level.voteTime ) {
-			level.voteTime = 0;
-			trap_SetConfigstring( CS_VOTE_TIME, "" );
+			G_ClearVoteState();
 			trap_SendServerCommand( -1, "print \"Vote cancelled by admin.\n\"" );
 			G_LogPrintf( "Admin %s cancelled vote\n", ent->client->pers.netname );
 		}

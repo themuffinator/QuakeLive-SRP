@@ -126,15 +126,11 @@ def next_pow2(value: int) -> int:
     return 1 << (value - 1).bit_length()
 
 
-def ensure_freetype_available() -> None:
-    if importlib.util.find_spec("freetype") is None:
-        raise SystemExit(
-            "Missing freetype-py dependency. Install with `python3 -m pip install freetype-py`."
-        )
+def freetype_available() -> bool:
+    return importlib.util.find_spec("freetype") is not None
 
 
 def load_glyph_bitmaps(ttf_path: pathlib.Path, *, point_size: int) -> List[GlyphBitmap]:
-    ensure_freetype_available()
     import freetype  # pylint: disable=import-error
 
     face = freetype.Face(str(ttf_path))
@@ -192,6 +188,11 @@ def write_tga(tga_path: pathlib.Path, *, width: int, height: int, pixels: bytes)
     header[17] = 0x20
 
     tga_path.write_bytes(header + pixels)
+
+
+def write_placeholder_atlas(tga_path: pathlib.Path) -> Tuple[int, int, int]:
+    write_tga(tga_path, width=1, height=1, pixels=bytes((0, 0, 0, 0)))
+    return 1, 1, 0
 
 
 def rasterize_atlas(ttf_path: pathlib.Path, tga_path: pathlib.Path, *, point_size: int,
@@ -263,6 +264,7 @@ def bake_fonts(manifest_path: pathlib.Path, output_root: pathlib.Path, log_path:
 
     fonts_dir = output_root / "fonts"
     fonts_dir.mkdir(parents=True, exist_ok=True)
+    can_rasterize = freetype_available()
 
     for role, config in TARGETS.items():
         atlas = config["atlas"]
@@ -278,9 +280,12 @@ def bake_fonts(manifest_path: pathlib.Path, output_root: pathlib.Path, log_path:
         except ValueError:
             source_display = source.as_posix()
         write_metadata(dat_path, atlas, metrics, point_size=point_size, source_display=source_display)
-        atlas_width, atlas_height, glyph_count = rasterize_atlas(
-            source, tga_path, point_size=point_size
-        )
+        if can_rasterize:
+            atlas_width, atlas_height, glyph_count = rasterize_atlas(
+                source, tga_path, point_size=point_size
+            )
+        else:
+            atlas_width, atlas_height, glyph_count = write_placeholder_atlas(tga_path)
 
         entry = {
             "role": role,
@@ -295,17 +300,29 @@ def bake_fonts(manifest_path: pathlib.Path, output_root: pathlib.Path, log_path:
             "atlasSize": [atlas_width, atlas_height],
         }
         metrics_payload[atlas] = entry
-        logs.append(
-            "Baked {role} -> fonts/{atlas}.dat (glyphs={glyphs}, unitsPerEm={units}) "
-            "and fonts/{atlas}.tga ({width}x{height})".format(
-                role=role,
-                atlas=atlas,
-                glyphs=glyph_count,
-                units=metrics.units_per_em,
-                width=atlas_width,
-                height=atlas_height,
+        if can_rasterize:
+            logs.append(
+                "Baked {role} -> fonts/{atlas}.dat (glyphs={glyphs}, unitsPerEm={units}) "
+                "and fonts/{atlas}.tga ({width}x{height})".format(
+                    role=role,
+                    atlas=atlas,
+                    glyphs=glyph_count,
+                    units=metrics.units_per_em,
+                    width=atlas_width,
+                    height=atlas_height,
+                )
             )
-        )
+        else:
+            logs.append(
+                "Wrote metadata-only fallback for {role} -> fonts/{atlas}.dat "
+                "and placeholder fonts/{atlas}.tga ({width}x{height}); "
+                "install freetype-py for rasterized atlases".format(
+                    role=role,
+                    atlas=atlas,
+                    width=atlas_width,
+                    height=atlas_height,
+                )
+            )
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text("\n".join(logs) + "\n", encoding="utf-8")

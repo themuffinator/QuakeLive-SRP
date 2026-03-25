@@ -62,6 +62,24 @@
       "destination": "ui",
       "include": ["**/*.menu", "**/*.txt"],
       "description": "Menu scripts and HUD definitions consumed by the native UI module"
+    },
+    {
+      "source_dir": "assets/quakelive/baseq3/ui/assets",
+      "destination": "ui/assets",
+      "include": ["**/*"],
+      "description": "Retail UI art payload referenced by Quake Live menus"
+    },
+    {
+      "source_dir": "assets/quakelive/baseq3/icons",
+      "destination": "baseq3/icons",
+      "include": ["**/*"],
+      "description": "Gameplay icons consumed by browser, scoreboard, and HUD overlays"
+    },
+    {
+      "source_dir": "assets/quakelive/baseq3/levelshots",
+      "destination": "baseq3/levelshots",
+      "include": ["**/*"],
+      "description": "Retail levelshots consumed by map preview and browser UI"
     }
   ],
   "audit": {

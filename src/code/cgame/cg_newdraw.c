@@ -33,16 +33,62 @@ typedef enum cgVoteSlotField_e {
 	CG_VOTE_FIELD_COUNT
 	} cgVoteSlotField_t;
 
+typedef struct cgStartingWeaponInfo_s {
+	const char *token;
+	weapon_t weapon;
+} cgStartingWeaponInfo_t;
+
 //
 // Forward declarations for HUD ownerdraw helpers used by Quake Live menus.
 //
 static const char *CG_ResolveWeaponName( int weapon );
 static void CG_ParseActiveVoteCommand( char *command, size_t commandSize, char *argument, size_t argumentSize );
 static void CG_DrawVoteShot(rectDef_t *rect, int slot);
+static void CG_MenuScript_OpenScoreboard( void );
 
 #define CG_RACE_CHECKPOINT_HALF_WIDTH 24.0f
 #define CG_RACE_CHECKPOINT_HEIGHT 48.0f
 #define CG_SPECTATOR_TRACK_TIMEOUT 5000
+
+#define CG_STARTING_WEAPON_ICON_COUNT 14
+#define CG_SCORE_FORFEIT -999
+
+static const cgStartingWeaponInfo_t cgStartingWeaponIcons[CG_STARTING_WEAPON_ICON_COUNT] = {
+	{ "g", WP_GAUNTLET },
+	{ "mg", WP_MACHINEGUN },
+	{ "sg", WP_SHOTGUN },
+	{ "gl", WP_GRENADE_LAUNCHER },
+	{ "rl", WP_ROCKET_LAUNCHER },
+	{ "lg", WP_LIGHTNING },
+	{ "rg", WP_RAILGUN },
+	{ "pg", WP_PLASMAGUN },
+	{ "bfg", WP_BFG },
+	{ "gh", WP_GRAPPLING_HOOK },
+	{ "ng", WP_NAILGUN },
+	{ "pl", WP_PROX_LAUNCHER },
+	{ "cg", WP_CHAINGUN },
+	{ "hmg", WP_HEAVY_MACHINEGUN }
+};
+
+static qhandle_t cgGameTypeIconShaders[GT_MAX_GAME_TYPE];
+
+static const char *cgMonthAbbrev[12] = {
+	"Jan", "Feb", "Mar",
+	"Apr", "May", "Jun",
+	"Jul", "Aug", "Sep",
+	"Oct", "Nov", "Dec"
+};
+
+/*
+=============
+CG_PluralSuffix
+
+Returns the plural suffix used by retail endgame summary strings.
+=============
+*/
+static const char *CG_PluralSuffix( int count ) {
+	return ( count == 1 ) ? "" : "s";
+}
 
 static void CG_DrawServerSettings(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle);
 static void CG_DrawStartingWeapons(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle);
@@ -1163,14 +1209,25 @@ Returns qtrue when the requested spectator slot matches the tracked client.
 */
 static qboolean CG_SpectatorSlotTracked( int slot ) {
 	int clientNum = -1;
+	int trackedTime = 0;
 
 	if ( slot == 0 ) {
 		clientNum = cg.spectatorPrimaryClient;
+		trackedTime = cg.spectatorSlotTrackedTime[0];
 	} else if ( slot == 1 ) {
 		clientNum = cg.spectatorSecondaryClient;
+		trackedTime = cg.spectatorSlotTrackedTime[1];
 	}
 
-	return ( clientNum >= 0 && clientNum == cg.spectatorTrackedClient );
+	if ( clientNum < 0 ) {
+		return qfalse;
+	}
+
+	if ( trackedTime > cg.time ) {
+		return qtrue;
+	}
+
+	return ( clientNum == cg.spectatorTrackedClient );
 }
 
 /*
@@ -1202,23 +1259,42 @@ Determines whether automatic follow commands should be issued for a track event.
 =============
 */
 static qboolean CG_ShouldAutoFollowTrack( cgSpectatorTrackType_t trackType ) {
-	int followMode;
-
 	if ( cg.demoPlayback ) {
 		return qfalse;
 	}
 	if ( !CG_IsSpectatorCamera() ) {
 		return qfalse;
 	}
+	if ( cg_followPowerup.integer <= 0 ) {
+		return qfalse;
+	}
 
-	followMode = cg_followPowerup.integer;
-	if ( followMode <= 0 ) {
-		return qfalse;
+	return ( trackType == CG_SPECTATOR_TRACK_FLAG || trackType == CG_SPECTATOR_TRACK_POWERUP );
+}
+
+/*
+=============
+CG_TryAutoFollowPowerup
+
+Mirrors the retail auto-follow command shape for powerup and flag-track events.
+=============
+*/
+static void CG_TryAutoFollowPowerup( int clientNum, cgSpectatorTrackType_t trackType ) {
+	const char	*suffix;
+
+	if ( !CG_ShouldAutoFollowTrack( trackType ) ) {
+		return;
 	}
-	if ( followMode > 1 && trackType != CG_SPECTATOR_TRACK_FLAG ) {
-		return qfalse;
+	if ( cg.spectatorCameraLocked ) {
+		return;
 	}
-	return qtrue;
+
+	suffix = "";
+	if ( cg_followPowerup.integer == 2 && trackType == CG_SPECTATOR_TRACK_POWERUP ) {
+		suffix = " pw";
+	}
+
+	trap_SendClientCommand( va( "follow %d%s", clientNum, suffix ) );
 }
 
 /*
@@ -1337,9 +1413,7 @@ void CG_SpectatorTrackEvent( int clientNum, cgSpectatorTrackType_t trackType ) {
 	cg.trackedPlayerPriority = trackType;
 	cg.trackedPlayerExpireTime = cg.time + CG_SPECTATOR_TRACK_TIMEOUT;
 
-	if ( CG_ShouldAutoFollowTrack( trackType ) && !cg.spectatorCameraLocked ) {
-		trap_SendClientCommand( va( "follow %d", clientNum ) );
-	}
+	CG_TryAutoFollowPowerup( clientNum, trackType );
 }
 
 /*
@@ -2335,43 +2409,142 @@ static void CG_GetServerInfoValue( const char *info, const char *key, char *buff
 =============
 CG_GetMapDisplayName
 
-Builds a human-readable map name stripped of directory prefixes and extensions.
+Returns the same clean map label used by the standalone map-name ownerdraw.
 =============
 */
 static void CG_GetMapDisplayName( char *buffer, size_t bufferSize ) {
-	const char *info;
-	const char *configName;
-	char		name[MAX_QPATH];
-	char		*ext;
+	CG_BuildCleanMapName( buffer, bufferSize );
+}
 
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
+/*
+=============
+CG_StartingWeaponFromToken
+
+Maps the queued-primary token onto the retail starting-weapon icon order.
+=============
+*/
+static weapon_t CG_StartingWeaponFromToken( const char *value ) {
+	char	buffer[128];
+	char	*cursor;
+	char	*token;
+	int		i;
+
+	if ( !value || !value[0] ) {
+		return WP_NONE;
+	}
+
+	Q_strncpyz( buffer, value, sizeof( buffer ) );
+	cursor = buffer;
+	token = COM_ParseExt( &cursor, qtrue );
+	if ( !token[0] ) {
+		return WP_NONE;
+	}
+
+	for ( i = 0; i < CG_STARTING_WEAPON_ICON_COUNT; i++ ) {
+		if ( !Q_stricmp( token, cgStartingWeaponIcons[i].token ) ) {
+			return cgStartingWeaponIcons[i].weapon;
+		}
+	}
+
+	if ( !Q_stricmp( token, "gauntlet" ) ) {
+		return WP_GAUNTLET;
+	}
+	if ( !Q_stricmp( token, "machinegun" ) ) {
+		return WP_MACHINEGUN;
+	}
+	if ( !Q_stricmp( token, "shotgun" ) ) {
+		return WP_SHOTGUN;
+	}
+	if ( !Q_stricmp( token, "grenade" ) || !Q_stricmp( token, "grenade_launcher" ) ) {
+		return WP_GRENADE_LAUNCHER;
+	}
+	if ( !Q_stricmp( token, "rocket" ) || !Q_stricmp( token, "rocket_launcher" ) ) {
+		return WP_ROCKET_LAUNCHER;
+	}
+	if ( !Q_stricmp( token, "lightning" ) ) {
+		return WP_LIGHTNING;
+	}
+	if ( !Q_stricmp( token, "railgun" ) ) {
+		return WP_RAILGUN;
+	}
+	if ( !Q_stricmp( token, "plasma" ) || !Q_stricmp( token, "plasmagun" ) ) {
+		return WP_PLASMAGUN;
+	}
+	if ( !Q_stricmp( token, "grapple" ) || !Q_stricmp( token, "grappling_hook" ) ) {
+		return WP_GRAPPLING_HOOK;
+	}
+	if ( !Q_stricmp( token, "nailgun" ) ) {
+		return WP_NAILGUN;
+	}
+	if ( !Q_stricmp( token, "prox" ) || !Q_stricmp( token, "proxlauncher" ) || !Q_stricmp( token, "prox_launcher" ) ) {
+		return WP_PROX_LAUNCHER;
+	}
+	if ( !Q_stricmp( token, "chaingun" ) ) {
+		return WP_CHAINGUN;
+	}
+	if ( !Q_stricmp( token, "heavy_machinegun" ) ) {
+		return WP_HEAVY_MACHINEGUN;
+	}
+
+	return WP_NONE;
+}
+
+/*
+=============
+CG_GetStartingWeaponPreviewMask
+
+Prefers the retail loadout-mask configstring and falls back to legacy
+g_startingWeapons serverinfo when the configstring is absent.
+=============
+*/
+static unsigned int CG_GetStartingWeaponPreviewMask( void ) {
+	const char	*maskText;
+	const char	*info;
+	char		value[MAX_INFO_VALUE];
+	unsigned int	serverMask;
+	unsigned int	previewMask;
+	weapon_t	weapon;
+
+	maskText = CG_ConfigString( CS_LOADOUT_MASK );
+	if ( maskText && maskText[0] ) {
+		return (unsigned int)strtoul( maskText, NULL, 0 );
 	}
 
 	info = CG_ConfigString( CS_SERVERINFO );
-	configName = NULL;
-	if ( info && *info ) {
-		configName = Info_ValueForKey( info, "mapname" );
+	if ( !info || !*info ) {
+		return 0u;
 	}
 
-	if ( configName && *configName ) {
-		Q_strncpyz( name, configName, sizeof( name ) );
-	} else if ( cgs.mapname[0] != '\0' ) {
-		Q_strncpyz( name, cgs.mapname, sizeof( name ) );
-	} else {
-		Q_strncpyz( name, "Unknown", sizeof( name ) );
+	CG_GetServerInfoValue( info, "g_startingWeapons", value, sizeof( value ) );
+	serverMask = value[0] ? (unsigned int)strtoul( value, NULL, 0 ) : 0u;
+	previewMask = 0u;
+
+	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; weapon++ ) {
+		if ( serverMask & ( 1u << weapon ) ) {
+			previewMask |= ( 1u << ( weapon - WP_GAUNTLET ) );
+		}
 	}
 
-	if ( !Q_stricmpn( name, "maps/", 5 ) ) {
-		memmove( name, name + 5, strlen( name + 5 ) + 1 );
+	return previewMask;
+}
+
+/*
+=============
+CG_GetStartingWeaponIconHandle
+
+Resolves the retail starting-weapon preview icon from the cgame weapon slab.
+=============
+*/
+static qhandle_t CG_GetStartingWeaponIconHandle( weapon_t weapon ) {
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return 0;
 	}
 
-	ext = strrchr( name, '.' );
-	if ( ext ) {
-		*ext = '\0';
+	if ( !cg_weapons[weapon].registered ) {
+		CG_RegisterWeapon( weapon );
 	}
 
-	Q_strncpyz( buffer, name, bufferSize );
+	return cg_weapons[weapon].weaponIcon;
 }
 
 /*
@@ -2409,7 +2582,7 @@ static void CG_GetServerLocation( char *buffer, size_t bufferSize ) {
 =============
 CG_GameTypeShortString
 
-Maps the active gametype to its short label (FFA, TDM, etc.).
+Maps the active gametype to the retail intro-panel abbreviation table.
 =============
 */
 static const char *CG_GameTypeShortString( void ) {
@@ -2417,9 +2590,9 @@ static const char *CG_GameTypeShortString( void ) {
 	case GT_FFA:
 		return "FFA";
 	case GT_TOURNAMENT:
-		return "Duel";
+		return "DUEL";
 	case GT_SINGLE_PLAYER:
-		return "Race";
+		return "RACE";
 	case GT_TEAM:
 		return "TDM";
 	case GT_CLAN_ARENA:
@@ -2427,21 +2600,21 @@ static const char *CG_GameTypeShortString( void ) {
 	case GT_CTF:
 		return "CTF";
 	case GT_1FCTF:
-		return "1FCTF";
+		return "1F";
 	case GT_OBELISK:
-		return "Overload";
+		return "OB";
 	case GT_HARVESTER:
-		return "Harvester";
+		return "HAR";
 	case GT_FREEZE:
-		return "Freeze";
+		return "FT";
 	case GT_DOMINATION:
-		return "Domination";
+		return "DOM";
 	case GT_ATTACK_DEFEND:
-		return "Attack & Defend";
+		return "AD";
 	case GT_RED_ROVER:
-		return "Red Rover";
+		return "RR";
 	default:
-		return "";
+		return "Unknown Gametype";
 	}
 }
 
@@ -2542,60 +2715,66 @@ static void CG_DrawServerSettings(rectDef_t *rect, float text_x, float text_y, f
 =============
 CG_DrawStartingWeapons
 
-Lists the spawn loadout when the server advertises g_startingWeapons.
+Draws the retail icon-strip loadout preview plus the queued primary weapon.
 =============
 */
 static void CG_DrawStartingWeapons(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
-	const char *info;
-	char		value[MAX_INFO_VALUE];
-	int		mask;
-	int		weapon;
-	char		buffer[256];
-	float	x;
-	float	y;
-	qboolean listed;
+	unsigned int	loadoutMask;
+	weapon_t	primaryWeapon;
+	int		i;
+	float		xOffset;
+	float		plusX;
+	float		plusY;
+	float		plusWidth;
+	qhandle_t	shader;
 
-	info = CG_ConfigString( CS_SERVERINFO );
-	if ( !info || !*info ) {
+	if ( !rect || rect->w <= 0.0f || rect->h <= 0.0f ) {
 		return;
 	}
 
-	CG_GetServerInfoValue( info, "g_startingWeapons", value, sizeof( value ) );
-	mask = value[0] ? (int)strtol( value, NULL, 0 ) : 0;
-	buffer[0] = '\0';
-	listed = qfalse;
+	loadoutMask = CG_GetStartingWeaponPreviewMask();
+	xOffset = 0.0f;
 
-	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; weapon++ ) {
-		int bit;
-		const char *weaponName;
-
-		bit = 1 << ( weapon - 1 );
-		if ( ( mask & bit ) == 0 ) {
+	for ( i = 0; i < CG_STARTING_WEAPON_ICON_COUNT; i++ ) {
+		if ( ( loadoutMask & ( 1u << i ) ) == 0 ) {
 			continue;
 		}
 
-		weaponName = CG_ResolveWeaponName( weapon );
-		if ( !weaponName ) {
-			continue;
+		shader = CG_GetStartingWeaponIconHandle( cgStartingWeaponIcons[i].weapon );
+		if ( shader != 0 ) {
+			trap_R_SetColor( colorWhite );
+			CG_DrawPic( rect->x + xOffset, rect->y, rect->w, rect->h, shader );
+			trap_R_SetColor( NULL );
 		}
 
-		if ( listed ) {
-			Q_strcat( buffer, sizeof( buffer ), ", " );
-		}
-		Q_strcat( buffer, sizeof( buffer ), weaponName );
-		listed = qtrue;
+		xOffset += rect->w * 1.5f;
 	}
 
-	if ( !listed ) {
-		if ( CG_LoadoutsEnabled() ) {
-			Q_strncpyz( buffer, "Factory loadouts active", sizeof( buffer ) );
-		} else {
-			Q_strncpyz( buffer, "Default loadout", sizeof( buffer ) );
-		}
+	primaryWeapon = CG_StartingWeaponFromToken( cg_weaponPrimaryQueued.string );
+	if ( primaryWeapon == WP_NONE && cg_weaponPrimary.integer > WP_NONE && cg_weaponPrimary.integer < WP_NUM_WEAPONS ) {
+		primaryWeapon = (weapon_t)cg_weaponPrimary.integer;
 	}
 
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	if ( !CG_LoadoutsEnabled() || primaryWeapon == WP_NONE ) {
+		return;
+	}
+
+	plusWidth = CG_Text_Width( "+", scale, 0 );
+	plusX = rect->x + xOffset;
+	if ( plusWidth < rect->w ) {
+		plusX += ( rect->w - plusWidth ) * 0.5f;
+	}
+	plusY = rect->y + rect->h * 0.5f + CG_Text_Height( "+", scale, 0 ) * 0.5f;
+	CG_Text_Paint( plusX, plusY, scale, color, "+", 0, 0, textStyle );
+
+	shader = CG_GetStartingWeaponIconHandle( primaryWeapon );
+	if ( shader == 0 ) {
+		return;
+	}
+
+	trap_R_SetColor( colorWhite );
+	CG_DrawPic( rect->x + xOffset + rect->w, rect->y, rect->w, rect->h, shader );
+	trap_R_SetColor( NULL );
 }
 
 
@@ -2603,7 +2782,7 @@ static void CG_DrawStartingWeapons(rectDef_t *rect, float text_x, float text_y, 
 =============
 CG_DrawGameLimit
 
-Describes the active timelimit and score limits for the match.
+Renders the retail-style single limit label for the current ruleset.
 =============
 */
 static void CG_DrawGameLimit(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
@@ -2616,45 +2795,41 @@ static void CG_DrawGameLimit(rectDef_t *rect, float text_x, float text_y, float 
 
 	buffer[0] = '\0';
 	info = CG_ConfigString( CS_SERVERINFO );
-
-	if ( cgs.timelimit > 0 ) {
-		char segment[32];
-		Com_sprintf( segment, sizeof( segment ), "Time %i", cgs.timelimit );
-		CG_AppendServerSetting( buffer, sizeof( buffer ), segment );
-	}
-
 	limitValue = 0;
-	if ( cgs.gametype >= GT_CTF && cgs.gametype != GT_ATTACK_DEFEND ) {
-		limitValue = cgs.capturelimit;
-		if ( limitValue > 0 ) {
-			char segment[32];
-			Com_sprintf( segment, sizeof( segment ), "Captures %i", limitValue );
-			CG_AppendServerSetting( buffer, sizeof( buffer ), segment );
+
+	switch ( cgs.gametype ) {
+	case GT_CLAN_ARENA:
+	case GT_FREEZE:
+	case GT_RED_ROVER:
+		if ( info && *info ) {
+			CG_GetServerInfoValue( info, "roundlimit", value, sizeof( value ) );
+			limitValue = value[0] ? atoi( value ) : 0;
 		}
-	} else if ( cgs.gametype == GT_ATTACK_DEFEND ) {
+		if ( limitValue > 0 ) {
+			Com_sprintf( buffer, sizeof( buffer ), "Round Limit: %d", limitValue );
+		}
+		break;
+
+	case GT_ATTACK_DEFEND:
 		if ( info && *info ) {
 			CG_GetServerInfoValue( info, "g_scorelimit", value, sizeof( value ) );
 			limitValue = value[0] ? atoi( value ) : 0;
 		}
 		if ( limitValue > 0 ) {
-			char segment[32];
-			Com_sprintf( segment, sizeof( segment ), "Score %i", limitValue );
-			CG_AppendServerSetting( buffer, sizeof( buffer ), segment );
+			Com_sprintf( buffer, sizeof( buffer ), "Score Limit: %d", limitValue );
 		}
-	} else if ( cgs.fraglimit > 0 ) {
-		char segment[32];
-		Com_sprintf( segment, sizeof( segment ), "Frags %i", cgs.fraglimit );
-		CG_AppendServerSetting( buffer, sizeof( buffer ), segment );
-	}
+		break;
 
-	if ( info && *info ) {
-		CG_GetServerInfoValue( info, "mercylimit", value, sizeof( value ) );
-		limitValue = value[0] ? atoi( value ) : 0;
-		if ( limitValue > 0 ) {
-			char segment[32];
-			Com_sprintf( segment, sizeof( segment ), "Mercy %i", limitValue );
-			CG_AppendServerSetting( buffer, sizeof( buffer ), segment );
+	default:
+		if ( cgs.gametype >= GT_CTF ) {
+			limitValue = cgs.capturelimit;
+			if ( limitValue > 0 ) {
+				Com_sprintf( buffer, sizeof( buffer ), "Cap Limit: %d", limitValue );
+			}
+		} else if ( cgs.fraglimit > 0 ) {
+			Com_sprintf( buffer, sizeof( buffer ), "Frag Limit: %d", cgs.fraglimit );
 		}
+		break;
 	}
 
 	if ( !buffer[0] ) {
@@ -2667,38 +2842,42 @@ static void CG_DrawGameLimit(rectDef_t *rect, float text_x, float text_y, float 
 
 /*
 =============
+CG_RegisterGameTypeIcons
+
+Registers the retail HUD gametype icon set during graphics startup.
+=============
+*/
+void CG_RegisterGameTypeIcons( void ) {
+	memset( cgGameTypeIconShaders, 0, sizeof( cgGameTypeIconShaders ) );
+
+	cgGameTypeIconShaders[GT_FFA] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ffa.tga" );
+	cgGameTypeIconShaders[GT_TOURNAMENT] = trap_R_RegisterShaderNoMip( "ui/assets/hud/duel.tga" );
+	cgGameTypeIconShaders[GT_SINGLE_PLAYER] = trap_R_RegisterShaderNoMip( "ui/assets/hud/race.tga" );
+	cgGameTypeIconShaders[GT_TEAM] = trap_R_RegisterShaderNoMip( "ui/assets/hud/tdm.tga" );
+	cgGameTypeIconShaders[GT_CLAN_ARENA] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ca.tga" );
+	cgGameTypeIconShaders[GT_CTF] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ctf.tga" );
+	cgGameTypeIconShaders[GT_1FCTF] = trap_R_RegisterShaderNoMip( "ui/assets/hud/1f.tga" );
+	cgGameTypeIconShaders[GT_OBELISK] = trap_R_RegisterShaderNoMip( "ui/assets/hud/dom.tga" );
+	cgGameTypeIconShaders[GT_HARVESTER] = trap_R_RegisterShaderNoMip( "ui/assets/hud/har.tga" );
+	cgGameTypeIconShaders[GT_FREEZE] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ft.tga" );
+	cgGameTypeIconShaders[GT_DOMINATION] = trap_R_RegisterShaderNoMip( "ui/assets/hud/dom.tga" );
+	cgGameTypeIconShaders[GT_ATTACK_DEFEND] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ad.tga" );
+	cgGameTypeIconShaders[GT_RED_ROVER] = trap_R_RegisterShaderNoMip( "ui/assets/hud/rr.tga" );
+}
+
+/*
+=============
 CG_GameTypeIconShader
 
-Returns the shader handle for the supplied gametype icon, registering it on demand.
+Returns the pre-registered shader handle for the supplied gametype icon.
 =============
 */
 static qhandle_t CG_GameTypeIconShader( gametype_t gametype ) {
-	static const char *paths[GT_MAX_GAME_TYPE] = {
-		[GT_FFA] = "ui/assets/hud/ffa.png",
-		[GT_TOURNAMENT] = "ui/assets/hud/duel.png",
-		[GT_SINGLE_PLAYER] = "ui/assets/hud/race.png",
-		[GT_TEAM] = "ui/assets/hud/tdm.png",
-		[GT_CLAN_ARENA] = "ui/assets/hud/ca.png",
-		[GT_CTF] = "ui/assets/hud/ctf.png",
-		[GT_1FCTF] = "ui/assets/hud/flag.png",
-		[GT_OBELISK] = "ui/assets/hud/dom.png",
-		[GT_HARVESTER] = "ui/assets/hud/har.png",
-		[GT_FREEZE] = "ui/assets/hud/ft.png",
-		[GT_DOMINATION] = "ui/assets/hud/dom.png",
-		[GT_ATTACK_DEFEND] = "ui/assets/hud/ad.png",
-		[GT_RED_ROVER] = "ui/assets/hud/rr.png"
-	};
-	static qhandle_t shaders[GT_MAX_GAME_TYPE];
-
 	if ( gametype < 0 || gametype >= GT_MAX_GAME_TYPE ) {
 		return 0;
 	}
 
-	if ( !shaders[gametype] && paths[gametype] ) {
-		shaders[gametype] = trap_R_RegisterShaderNoMip( paths[gametype] );
-	}
-
-	return shaders[gametype];
+	return cgGameTypeIconShaders[gametype];
 }
 
 /*
@@ -2723,19 +2902,17 @@ static void CG_DrawGameTypeIcon(rectDef_t *rect) {
 =============
 CG_DrawGameTypeMap
 
-Outputs "Gametype Fullname - Server Location - Map" for intro panels.
+Outputs the retail "Gametype Fullname - Map" intro-panel label.
 =============
 */
 static void CG_DrawGameTypeMap(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
-	char	location[64];
 	char	mapName[MAX_QPATH];
 	char	buffer[256];
 	float	x;
 	float	y;
 
-	CG_GetServerLocation( location, sizeof( location ) );
 	CG_GetMapDisplayName( mapName, sizeof( mapName ) );
-	Com_sprintf( buffer, sizeof( buffer ), "%s - %s - %s", CG_GameTypeString(), location, mapName );
+	Com_sprintf( buffer, sizeof( buffer ), "%s - %s", CG_GameTypeString(), mapName );
 
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
 	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
@@ -2775,21 +2952,39 @@ static const char *CG_GetMatchStateLabel( void ) {
 
 /*
 =============
+CG_GetMatchDetailsPhaseLabel
+
+Returns the narrower retail phase label used by the intro-panel ownerdraw.
+=============
+*/
+static const char *CG_GetMatchDetailsPhaseLabel( void ) {
+	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return "MATCH SUMMARY";
+	}
+
+	if ( cg.warmup != 0 ) {
+		return "MATCH WARMUP";
+	}
+
+	return "MATCH IN PROGRESS";
+}
+
+/*
+=============
 CG_DrawMatchDetails
 
-Renders "Game state - Gametype Shortname - Server Location - Map" text.
+Renders the retail "Match phase - Gametype Shortname - Map" text.
 =============
 */
 static void CG_DrawMatchDetails(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
-	char	location[64];
 	char	mapName[MAX_QPATH];
 	char	buffer[256];
 	float	x;
 	float	y;
 
-	CG_GetServerLocation( location, sizeof( location ) );
 	CG_GetMapDisplayName( mapName, sizeof( mapName ) );
-	Com_sprintf( buffer, sizeof( buffer ), "%s - %s - %s - %s", CG_GetMatchStateLabel(), CG_GameTypeShortString(), location, mapName );
+	Com_sprintf( buffer, sizeof( buffer ), "%s - %s - %s",
+		CG_GetMatchDetailsPhaseLabel(), CG_GameTypeShortString(), mapName );
 
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
 	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
@@ -2903,13 +3098,42 @@ static void CG_DrawMatchEndCondition(rectDef_t *rect, float text_x, float text_y
 
 /*
 =============
+CG_GetMatchStatusText
+
+Builds the retail phase-plus-status text used by the match-status ownerdraw.
+=============
+*/
+static const char *CG_GetMatchStatusText( void ) {
+	static char	buffer[256];
+	const char	*phase;
+	const char	*status;
+
+	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		phase = "MATCH SUMMARY";
+	} else if ( cg.warmup != 0 ) {
+		phase = "MATCH WARMUP";
+	} else {
+		phase = "MATCH IN PROGRESS";
+	}
+
+	status = CG_GetGameStatusText();
+	if ( !status || !status[0] ) {
+		return phase;
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "%s - %s", phase, status );
+	return buffer;
+}
+
+/*
+=============
 CG_DrawMatchStatus
 
 Renders "Game State - Scores message" using the existing HUD helpers.
 =============
 */
 static void CG_DrawMatchStatus(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
-	char	buffer[256];
+	const char	*statusText;
 	float	x;
 	float	y;
 
@@ -2917,9 +3141,260 @@ static void CG_DrawMatchStatus(rectDef_t *rect, float text_x, float text_y, floa
 		return;
 	}
 
-	Com_sprintf( buffer, sizeof( buffer ), "%s - %s", CG_GetMatchStateLabel(), CG_GetGameStatusText() );
+	statusText = CG_GetMatchStatusText();
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	CG_Text_Paint( x, y, scale, color, statusText, 0, 0, textStyle );
+}
+
+/*
+=============
+CG_IsActiveScoreEntry
+
+Reports whether the score row belongs to an active non-spectator client.
+=============
+*/
+static qboolean CG_IsActiveScoreEntry( const score_t *score ) {
+	const clientInfo_t	*ci;
+
+	if ( !score ) {
+		return qfalse;
+	}
+
+	if ( score->client < 0 || score->client >= cgs.maxclients ) {
+		return qfalse;
+	}
+
+	ci = &cgs.clientinfo[score->client];
+	if ( !ci->infoValid ) {
+		return qfalse;
+	}
+
+	if ( ci->team == TEAM_SPECTATOR || score->team == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_GetActiveScoreByIndex
+
+Returns the Nth active (non-spectator) scoreboard row.
+=============
+*/
+static const score_t *CG_GetActiveScoreByIndex( int activeIndex ) {
+	int	i;
+	int	count;
+
+	if ( activeIndex < 0 ) {
+		return NULL;
+	}
+
+	count = 0;
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( !CG_IsActiveScoreEntry( &cg.scores[i] ) ) {
+			continue;
+		}
+
+		if ( count == activeIndex ) {
+			return &cg.scores[i];
+		}
+
+		count++;
+	}
+
+	return NULL;
+}
+
+/*
+=============
+CG_GetEndGameScoreText
+
+Builds the local player's summary text used by end-game score menus.
+=============
+*/
+static const char *CG_GetEndGameScoreText( void ) {
+	static char	buffer[128];
+	int		score;
+	int		rank;
+	int		defends;
+	int		assists;
+	int		captures;
+
+	buffer[0] = '\0';
+
+	if ( !cg.snap ) {
+		return "";
+	}
+
+	score = cg.snap->ps.persistant[PERS_SCORE];
+	rank = cg.snap->ps.persistant[PERS_RANK] + 1;
+	defends = cg.snap->ps.persistant[PERS_DEFEND_COUNT];
+	assists = cg.snap->ps.persistant[PERS_ASSIST_COUNT];
+	captures = cg.snap->ps.persistant[PERS_CAPTURES];
+
+	if ( cgs.gametype == GT_SINGLE_PLAYER || cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+		return "";
+	}
+
+	if ( cgs.gametype < GT_TEAM || cgs.gametype == GT_RED_ROVER ) {
+		if ( score == SCORE_NOT_PRESENT ) {
+			return "";
+		}
+		if ( score == CG_SCORE_FORFEIT ) {
+			return "You forfeited the match.";
+		}
+
+		Com_sprintf( buffer, sizeof( buffer ), "You finished %s with a score of %d",
+			CG_PlaceString( rank ), score );
+		return buffer;
+	}
+
+	if ( captures > 0 ) {
+		if ( cgs.gametype == GT_HARVESTER ) {
+			Com_sprintf( buffer, sizeof( buffer ), "You captured %d skull%s.",
+				captures, CG_PluralSuffix( captures ) );
+		} else {
+			Com_sprintf( buffer, sizeof( buffer ), "You had %d flag capture%s.",
+				captures, CG_PluralSuffix( captures ) );
+		}
+		return buffer;
+	}
+
+	if ( assists > 0 ) {
+		Com_sprintf( buffer, sizeof( buffer ), "You had %d assist%s.",
+			assists, CG_PluralSuffix( assists ) );
+		return buffer;
+	}
+
+	if ( defends > 0 ) {
+		Com_sprintf( buffer, sizeof( buffer ), "You had %d defend%s.",
+			defends, CG_PluralSuffix( defends ) );
+		return buffer;
+	}
+
+	if ( score == SCORE_NOT_PRESENT ) {
+		return "";
+	}
+	if ( score == CG_SCORE_FORFEIT ) {
+		return "You forfeited the match.";
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "You finished with a score of %d.", score );
+	return buffer;
+}
+
+/*
+=============
+CG_GetMatchWinnerText
+
+Builds the winner line used by end-game score menus.
+=============
+*/
+static const char *CG_GetMatchWinnerText( void ) {
+	static char		buffer[128];
+	const score_t		*winner;
+	const score_t		*runnerUp;
+	const clientInfo_t	*ci;
+	team_t			winningTeam;
+	qboolean		byForfeit;
+
+	buffer[0] = '\0';
+	byForfeit = qfalse;
+
+	if ( cgs.gametype >= GT_TEAM && cgs.gametype != GT_RED_ROVER ) {
+		if ( cg.teamScores[0] == cg.teamScores[1] ) {
+			return "Match tied";
+		}
+
+		winningTeam = ( cg.teamScores[0] > cg.teamScores[1] ) ? TEAM_RED : TEAM_BLUE;
+		if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION &&
+			( cg.teamScores[0] == CG_SCORE_FORFEIT || cg.teamScores[1] == CG_SCORE_FORFEIT ) ) {
+			Com_sprintf( buffer, sizeof( buffer ), "^%c%s^7 WINS by forfeit",
+				( winningTeam == TEAM_RED ) ? '1' : '4',
+				CG_GetTeamName( winningTeam ) );
+		} else {
+			Com_sprintf( buffer, sizeof( buffer ), "Winner: %s", CG_GetTeamName( winningTeam ) );
+		}
+		return buffer;
+	}
+
+	winner = CG_GetActiveScoreByIndex( 0 );
+	runnerUp = CG_GetActiveScoreByIndex( 1 );
+	if ( winner && runnerUp && winner->score == runnerUp->score ) {
+		return "Match tied";
+	}
+	if ( !winner ) {
+		return "Match complete";
+	}
+	if ( winner->score == CG_SCORE_FORFEIT ) {
+		byForfeit = qtrue;
+		winner = runnerUp;
+	}
+	if ( !winner ) {
+		return "";
+	}
+	if ( winner->score == SCORE_NOT_PRESENT ) {
+		return "";
+	}
+
+	ci = &cgs.clientinfo[winner->client];
+	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		if ( byForfeit ) {
+			Com_sprintf( buffer, sizeof( buffer ), "%s^7 WINS by forfeit",
+				ci->name[0] ? ci->name : "Unknown player" );
+		} else {
+			Com_sprintf( buffer, sizeof( buffer ), "%s^7 WINS",
+				ci->name[0] ? ci->name : "Unknown player" );
+		}
+		return buffer;
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "Winner: %s", ci->name[0] ? ci->name : "Unknown player" );
+	return buffer;
+}
+
+/*
+=============
+CG_DrawMatchWinner
+
+Paints the winner line for end-game scoreboards.
+=============
+*/
+static void CG_DrawMatchWinner( rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle ) {
+	const char	*winnerText;
+	float		x;
+	float		y;
+
+	winnerText = CG_GetMatchWinnerText();
+	if ( !winnerText || !winnerText[0] ) {
+		return;
+	}
+
+	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
+	CG_Text_Paint( x, y, scale, color, winnerText, 0, 0, textStyle );
+}
+
+/*
+=============
+CG_DrawEndGameScore
+
+Paints the local score/placement line for end-game scoreboards.
+=============
+*/
+static void CG_DrawEndGameScore( rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle ) {
+	const char	*scoreText;
+	float		x;
+	float		y;
+
+	scoreText = CG_GetEndGameScoreText();
+	if ( !scoreText || !scoreText[0] ) {
+		return;
+	}
+
+	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
+	CG_Text_Paint( x, y, scale, color, scoreText, 0, 0, textStyle );
 }
 
 /*
@@ -2947,17 +3422,25 @@ static void CG_DrawRoundLabel(rectDef_t *rect, float text_x, float text_y, float
 =============
 CG_DrawLocalTime
 
-Paints the client's current local time in hours and minutes.
+Paints the client's local date/time label using the retail HUD format.
 =============
 */
 static void CG_DrawLocalTime(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
-	qtime_t	qt;
-	char	buffer[32];
-	float	x;
-	float	y;
+	qtime_t		qt;
+	const char	*monthLabel;
+	char		buffer[64];
+	float		x;
+	float		y;
 
 	trap_RealTime( &qt );
-	Com_sprintf( buffer, sizeof( buffer ), "%02i:%02i", qt.tm_hour, qt.tm_min );
+	if ( qt.tm_mon >= 0 && qt.tm_mon < (int)( sizeof( cgMonthAbbrev ) / sizeof( cgMonthAbbrev[0] ) ) ) {
+		monthLabel = cgMonthAbbrev[qt.tm_mon];
+	} else {
+		monthLabel = cgMonthAbbrev[0];
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "%02d:%02d (%s %02d, %d)",
+		qt.tm_hour, qt.tm_min, monthLabel, qt.tm_mday, 1900 + qt.tm_year );
 
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
 	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
@@ -3406,6 +3889,7 @@ static void CG_DrawSelectedPlayerBestWeapon(rectDef_t *rect, float scale, vec4_t
 	const char			*weaponName;
 	score_t				*score;
 	int					clientNum;
+	int					weapon;
 
 	score = CG_GetSelectedScore();
 	if ( !score ) {
@@ -3423,12 +3907,796 @@ static void CG_DrawSelectedPlayerBestWeapon(rectDef_t *rect, float scale, vec4_t
 	}
 
 	cent = &cg_entities[clientNum];
-	weaponName = CG_ResolveWeaponName( cent->currentState.weapon );
+	weapon = score->bestWeapon;
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		weapon = cent->currentState.weapon;
+	}
+	weaponName = CG_ResolveWeaponName( weapon );
 	if ( !weaponName ) {
 		weaponName = "Unknown";
 	}
 
 	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, weaponName, 0, 0, textStyle);
+}
+
+/*
+=============
+CG_DrawProfileModel
+
+Draws a client profile image with the shared retail active/inactive modulation.
+=============
+*/
+static void CG_DrawProfileModel( rectDef_t *rect, int clientNum, qboolean active ) {
+	const clientInfo_t	*ci;
+	qhandle_t		shader;
+	vec4_t			modulate;
+
+	if ( clientNum < 0 || clientNum >= cgs.maxclients ) {
+		return;
+	}
+
+	ci = &cgs.clientinfo[clientNum];
+	if ( !ci->infoValid ) {
+		return;
+	}
+
+	shader = ci->modelIcon;
+	if ( !shader ) {
+		shader = CG_GetProfileFallbackShader();
+	}
+	if ( !shader ) {
+		return;
+	}
+
+	Vector4Set( modulate, 1.0f, 1.0f, 1.0f, active ? 1.0f : 0.8f );
+	trap_R_SetColor( modulate );
+	CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );
+	trap_R_SetColor( NULL );
+}
+
+/*
+=============
+CG_DrawFirstPlaceModel
+
+Draws the first-place player profile image for endgame scoreboards.
+=============
+*/
+static void CG_DrawFirstPlaceModel( rectDef_t *rect, qboolean active ) {
+	const score_t		*score;
+
+	score = CG_GetActiveScoreByIndex( 0 );
+	if ( !score || score->client < 0 || score->client >= cgs.maxclients ) {
+		return;
+	}
+
+	CG_DrawProfileModel( rect, score->client, active );
+}
+
+/*
+=============
+CG_DrawPlayerModel
+
+Mirrors the retail player-model ownerdraw wrapper for the tracked/local client.
+=============
+*/
+static void CG_DrawPlayerModel( rectDef_t *rect ) {
+	int clientNum;
+
+	clientNum = cg.spectatorTrackedClient;
+	if ( clientNum < 0 && cg.snap ) {
+		clientNum = cg.snap->ps.clientNum;
+	}
+
+	CG_DrawProfileModel( rect, clientNum, qtrue );
+}
+
+/*
+=============
+CG_GetTeamPickupOwnerDrawMeta
+
+Resolves team and stat-index metadata for team pickup/time-held ownerdraw IDs.
+=============
+*/
+static qboolean CG_GetTeamPickupOwnerDrawMeta( int ownerDraw, team_t *team, int *statIndex ) {
+	int		resolvedStatIndex;
+	team_t	resolvedTeam;
+
+	resolvedStatIndex = -1;
+	resolvedTeam = TEAM_FREE;
+
+	if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {
+		resolvedTeam = TEAM_RED;
+		resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;
+	} else if ( ownerDraw >= CG_BLUE_TEAM_MAP_PICKUPS && ownerDraw <= CG_BLUE_TEAM_TIMEHELD_INVIS ) {
+		resolvedTeam = TEAM_BLUE;
+		resolvedStatIndex = ownerDraw - CG_BLUE_TEAM_MAP_PICKUPS;
+	}
+
+	if ( resolvedStatIndex < 0 || resolvedStatIndex >= CG_TEAMSTAT_COUNT ) {
+		return qfalse;
+	}
+
+	if ( team ) {
+		*team = resolvedTeam;
+	}
+	if ( statIndex ) {
+		*statIndex = resolvedStatIndex;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_IsTeamPickupOwnerDraw
+
+Reports whether an ownerdraw is a red/blue team pickup or time-held metric.
+=============
+*/
+static qboolean CG_IsTeamPickupOwnerDraw( int ownerDraw ) {
+	return CG_GetTeamPickupOwnerDrawMeta( ownerDraw, NULL, NULL );
+}
+
+/*
+=============
+CG_BuildTeamPickupText
+
+Builds team pickup/time-held ownerdraw text from parsed scorestats_team payloads.
+=============
+*/
+static qboolean CG_BuildTeamPickupText( int ownerDraw, char *buffer, size_t bufferSize ) {
+	team_t	team;
+	int	teamIndex;
+	int	statIndex;
+	int	value;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( !CG_GetTeamPickupOwnerDrawMeta( ownerDraw, &team, &statIndex ) ) {
+		return qfalse;
+	}
+
+	teamIndex = ( team == TEAM_RED ) ? 0 : 1;
+	if ( !cg.teamScoreStats.valid ) {
+		return qfalse;
+	}
+	if ( cg.teamScoreStats.fieldCount <= 0 || statIndex >= cg.teamScoreStats.fieldCount ) {
+		return qfalse;
+	}
+
+	value = cg.teamScoreStats.values[teamIndex][statIndex];
+	if ( value < 0 ) {
+		value = 0;
+	}
+
+	Com_sprintf( buffer, bufferSize, "%i", value );
+	return qtrue;
+}
+
+/*
+=============
+CG_DrawTeamPickupOwnerDraw
+
+Draws the current team pickup/time-held value for team scoreboard ownerdraws.
+=============
+*/
+static void CG_DrawTeamPickupOwnerDraw( rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw ) {
+	char	buffer[32];
+
+	if ( !CG_BuildTeamPickupText( ownerDraw, buffer, sizeof( buffer ) ) ) {
+		return;
+	}
+
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
+}
+
+/*
+=============
+CG_GetPlacementScore
+
+Returns the active scoreboard row for first/second place ownerdraws.
+=============
+*/
+static const score_t *CG_GetPlacementScore( int slot ) {
+	return CG_GetActiveScoreByIndex( slot );
+}
+
+/*
+=============
+CG_GetPlacementClientInfo
+
+Resolves client info for a placement score row.
+=============
+*/
+static const clientInfo_t *CG_GetPlacementClientInfo( const score_t *score ) {
+	if ( !score ) {
+		return NULL;
+	}
+
+	if ( score->client < 0 || score->client >= cgs.maxclients ) {
+		return NULL;
+	}
+
+	return &cgs.clientinfo[score->client];
+}
+
+#define CG_SCORESTAT_FRAG_WEAPON_COUNT		13
+#define CG_SCORESTAT_ACCURACY_WEAPON_COUNT	12
+#define CG_SCORESTAT_DMG_WEAPON_COUNT		13
+
+static const weapon_t cgScoreStatFragWeapons[CG_SCORESTAT_FRAG_WEAPON_COUNT] = {
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_CHAINGUN,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_HEAVY_MACHINEGUN
+};
+
+static const weapon_t cgScoreStatAccuracyWeapons[CG_SCORESTAT_ACCURACY_WEAPON_COUNT] = {
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_CHAINGUN,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_HEAVY_MACHINEGUN
+};
+
+/*
+=============
+CG_GetPlacementScoreStats
+
+Returns parsed per-weapon score stats for the supplied placement row.
+=============
+*/
+static const cgScoreStats_t *CG_GetPlacementScoreStats( const score_t *score ) {
+	if ( !score ) {
+		return NULL;
+	}
+
+	if ( score->client < 0 || score->client >= MAX_CLIENTS ) {
+		return NULL;
+	}
+
+	if ( !cg.scoreStats[score->client].valid ) {
+		return NULL;
+	}
+
+	return &cg.scoreStats[score->client];
+}
+
+/*
+=============
+CG_BuildPlacementWeaponMetricText
+
+Builds per-weapon first/second placement ownerdraw text from parsed scorestats payloads.
+=============
+*/
+static qboolean CG_BuildPlacementWeaponMetricText( int ownerDraw, const score_t *score, char *buffer, size_t bufferSize ) {
+	const cgScoreStats_t	*stats;
+	int			index;
+	weapon_t		weapon;
+	int			shots;
+	int			hits;
+
+	if ( !score || !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( ownerDraw < CG_1ST_PLYR_FRAGS_G || ownerDraw > CG_1ST_PLYR_ACC_HMG ) {
+		return qfalse;
+	}
+
+	stats = CG_GetPlacementScoreStats( score );
+	if ( !stats ) {
+		Q_strncpyz( buffer, "-", bufferSize );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_FRAGS_G && ownerDraw <= CG_1ST_PLYR_FRAGS_HMG ) {
+		index = ownerDraw - CG_1ST_PLYR_FRAGS_G;
+		weapon = cgScoreStatFragWeapons[index];
+		Com_sprintf( buffer, bufferSize, "%i", stats->weaponFrags[weapon] );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_HITS_MG && ownerDraw <= CG_1ST_PLYR_HITS_HMG ) {
+		index = ownerDraw - CG_1ST_PLYR_HITS_MG;
+		weapon = cgScoreStatAccuracyWeapons[index];
+		Com_sprintf( buffer, bufferSize, "%i", stats->weaponHits[weapon] );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_SHOTS_MG && ownerDraw <= CG_1ST_PLYR_SHOTS_HMG ) {
+		index = ownerDraw - CG_1ST_PLYR_SHOTS_MG;
+		weapon = cgScoreStatAccuracyWeapons[index];
+		Com_sprintf( buffer, bufferSize, "%i", stats->weaponShots[weapon] );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_DMG_G && ownerDraw <= CG_1ST_PLYR_DMG_HMG ) {
+		index = ownerDraw - CG_1ST_PLYR_DMG_G;
+		weapon = cgScoreStatFragWeapons[index];
+		Com_sprintf( buffer, bufferSize, "%i", stats->weaponDamage[weapon] );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_ACC_MG && ownerDraw <= CG_1ST_PLYR_ACC_HMG ) {
+		index = ownerDraw - CG_1ST_PLYR_ACC_MG;
+		weapon = cgScoreStatAccuracyWeapons[index];
+		shots = stats->weaponShots[weapon];
+		hits = stats->weaponHits[weapon];
+		if ( shots > 0 ) {
+			Com_sprintf( buffer, bufferSize, "%i%%", ( hits * 100 ) / shots );
+		} else {
+			Q_strncpyz( buffer, "0%", bufferSize );
+		}
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_BuildPlacementPickupMetricText
+
+Builds placement pickup-count and average-interval ownerdraw text from scorestats.
+=============
+*/
+static qboolean CG_BuildPlacementPickupMetricText( int ownerDraw, const score_t *score, char *buffer, size_t bufferSize ) {
+	const cgScoreStats_t	*stats;
+	int			index;
+
+	if ( !score || !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( ownerDraw < CG_1ST_PLYR_PICKUPS || ownerDraw > CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {
+		return qfalse;
+	}
+
+	stats = CG_GetPlacementScoreStats( score );
+	if ( !stats ) {
+		Q_strncpyz( buffer, "-", bufferSize );
+		return qtrue;
+	}
+
+	if ( ownerDraw == CG_1ST_PLYR_PICKUPS ) {
+		int total;
+
+		total = 0;
+		for ( index = 0; index < CG_SCORESTAT_PICKUP_COUNT; index++ ) {
+			total += stats->pickupCounts[index];
+		}
+		Com_sprintf( buffer, bufferSize, "%i", total );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_PICKUPS_RA && ownerDraw <= CG_1ST_PLYR_PICKUPS_MH ) {
+		index = ownerDraw - CG_1ST_PLYR_PICKUPS_RA;
+		Com_sprintf( buffer, bufferSize, "%i", stats->pickupCounts[index] );
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_1ST_PLYR_AVG_PICKUP_TIME_RA && ownerDraw <= CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {
+		index = ownerDraw - CG_1ST_PLYR_AVG_PICKUP_TIME_RA;
+		if ( stats->pickupCounts[index] <= 1 || stats->pickupAvgSeconds[index] <= 0 ) {
+			Q_strncpyz( buffer, "-", bufferSize );
+		} else {
+			Com_sprintf( buffer, bufferSize, "%i", stats->pickupAvgSeconds[index] );
+		}
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_BuildPlacementProgressionMetricText
+
+Builds placement progression (PR/TIER) ownerdraw text from scorestats.
+=============
+*/
+static qboolean CG_BuildPlacementProgressionMetricText( int ownerDraw, const score_t *score, char *buffer, size_t bufferSize ) {
+	const cgScoreStats_t	*stats;
+
+	if ( !score || !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( ownerDraw != CG_1ST_PLYR_PR && ownerDraw != CG_1ST_PLYR_TIER ) {
+		return qfalse;
+	}
+
+	stats = CG_GetPlacementScoreStats( score );
+	if ( !stats ) {
+		Q_strncpyz( buffer, "-", bufferSize );
+		return qtrue;
+	}
+
+	if ( ownerDraw == CG_1ST_PLYR_PR ) {
+		Com_sprintf( buffer, bufferSize, "%i", stats->progressionPr );
+	} else {
+		Com_sprintf( buffer, bufferSize, "%i", stats->progressionTier );
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_GetPlacementFragCount
+
+Returns the frag tally for placement ownerdraws. Retail team-family scoreboard
+rows publish kills separately from the score column, while legacy layouts still
+use score as the visible frag count.
+=============
+*/
+static int CG_GetPlacementFragCount( const score_t *score ) {
+	if ( !score ) {
+		return 0;
+	}
+
+	switch ( cgs.gametype ) {
+	case GT_TEAM:
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_HARVESTER:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+	case GT_FREEZE:
+		return score->kills;
+	default:
+		return score->score;
+	}
+}
+
+/*
+=============
+CG_ClientReadyOnIntermission
+
+Reports whether a client has marked ready during intermission.
+=============
+*/
+static qboolean CG_ClientReadyOnIntermission( int clientNum ) {
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	if ( clientNum < 0 || clientNum >= 32 ) {
+		return qfalse;
+	}
+
+	return ( cg.snap->ps.stats[STAT_CLIENTS_READY] & ( 1 << clientNum ) ) ? qtrue : qfalse;
+}
+
+/*
+=============
+CG_BuildPlacementMetricText
+
+Builds a text payload for first/second place metric ownerdraws.
+=============
+*/
+static qboolean CG_BuildPlacementMetricText( int ownerDraw, const score_t *score, const clientInfo_t *ci, char *buffer, size_t bufferSize ) {
+	team_t	team;
+	qboolean hasFlag;
+
+	if ( !score || !ci || !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+
+	buffer[0] = '\0';
+
+	switch ( ownerDraw ) {
+	case CG_1ST_PLYR_SCORE:
+	case CG_1ST_PLYR_AVATAR:
+	case CG_1ST_PLYR_HEALTH_ARMOR:
+		return qfalse;
+	case CG_1ST_PLYR_READY:
+		Q_strncpyz( buffer, CG_ClientReadyOnIntermission( score->client ) ? "Ready" : "-", bufferSize );
+		return qtrue;
+	case CG_1ST_PLYR_FRAGS:
+		Com_sprintf( buffer, bufferSize, "%i", CG_GetPlacementFragCount( score ) );
+		return qtrue;
+	case CG_1ST_PLYR_DEATHS:
+		Com_sprintf( buffer, bufferSize, "%i", score->deaths );
+		return qtrue;
+	case CG_1ST_PLYR_DMG:
+		Com_sprintf( buffer, bufferSize, "%i", score->damage );
+		return qtrue;
+	case CG_1ST_PLYR_TIME:
+		Com_sprintf( buffer, bufferSize, "%i", score->time );
+		return qtrue;
+	case CG_1ST_PLYR_PING:
+		Com_sprintf( buffer, bufferSize, "%i", score->ping );
+		return qtrue;
+	case CG_1ST_PLYR_WINS:
+		Com_sprintf( buffer, bufferSize, "%i", ci->wins );
+		return qtrue;
+	case CG_1ST_PLYR_ACC:
+		Com_sprintf( buffer, bufferSize, "%i%%", score->accuracy );
+		return qtrue;
+	case CG_1ST_PLYR_FLAG:
+		hasFlag = ( ci->powerups & ( ( 1 << PW_REDFLAG ) | ( 1 << PW_BLUEFLAG ) | ( 1 << PW_NEUTRALFLAG ) ) ) ? qtrue : qfalse;
+		Q_strncpyz( buffer, hasFlag ? "Yes" : "-", bufferSize );
+		return qtrue;
+	case CG_1ST_PLYR_TIMEOUT_COUNT:
+		team = CG_ClampTeamValue( ci->team );
+		if ( team == TEAM_RED || team == TEAM_BLUE ) {
+			Com_sprintf( buffer, bufferSize, "%i", cgs.matchTimeoutRemaining[team] );
+		} else {
+			Q_strncpyz( buffer, "-", bufferSize );
+		}
+		return qtrue;
+	case CG_1ST_PLYR_EXCELLENT:
+		Com_sprintf( buffer, bufferSize, "%i", score->excellentCount );
+		return qtrue;
+	case CG_1ST_PLYR_IMPRESSIVE:
+		Com_sprintf( buffer, bufferSize, "%i", score->impressiveCount );
+		return qtrue;
+	case CG_1ST_PLYR_HUMILIATION:
+		Com_sprintf( buffer, bufferSize, "%i", score->guantletCount );
+		return qtrue;
+	default:
+		break;
+	}
+
+	if ( CG_BuildPlacementWeaponMetricText( ownerDraw, score, buffer, bufferSize ) ) {
+		return qtrue;
+	}
+
+	if ( CG_BuildPlacementPickupMetricText( ownerDraw, score, buffer, bufferSize ) ) {
+		return qtrue;
+	}
+
+	if ( CG_BuildPlacementProgressionMetricText( ownerDraw, score, buffer, bufferSize ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_DrawPlacementMetricOwnerDraw
+
+Renders first/second place metric ownerdraws from available scoreboard fields.
+=============
+*/
+static qboolean CG_DrawPlacementMetricOwnerDraw( rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw ) {
+	const score_t		*score;
+	const clientInfo_t	*ci;
+	char			buffer[64];
+	int			normalized;
+	int			slot;
+
+	slot = -1;
+	normalized = ownerDraw;
+
+	if ( ownerDraw >= CG_1ST_PLYR_READY && ownerDraw <= CG_1ST_PLYR_TIER ) {
+		slot = 0;
+	} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {
+		slot = 1;
+		normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );
+	}
+
+	if ( slot < 0 ) {
+		return qfalse;
+	}
+
+	score = CG_GetPlacementScore( slot );
+	ci = CG_GetPlacementClientInfo( score );
+	if ( !score || !ci ) {
+		return qfalse;
+	}
+
+	if ( !CG_BuildPlacementMetricText( normalized, score, ci, buffer, sizeof( buffer ) ) ) {
+		return qfalse;
+	}
+
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
+	return qtrue;
+}
+
+/*
+=============
+CG_AwardMetricValue
+
+Calculates a sortable metric value for endgame award ownerdraws.
+=============
+*/
+static int CG_AwardMetricValue( int ownerDraw, const score_t *score ) {
+	if ( !score ) {
+		return -1;
+	}
+
+	switch ( ownerDraw ) {
+	case CG_MOST_DAMAGEDEALT_PLYR:
+		return score->damage;
+	case CG_MOST_ACCURATE_PLYR:
+		return score->accuracy;
+	case CG_MOST_VALUABLE_OFFENSIVE_PLYR:
+		return score->captures * 100 + score->assistCount * 10 + score->score;
+	case CG_MOST_VALUABLE_DEFENSIVE_PLYR:
+		return score->defendCount * 100 + score->score;
+	case CG_MOST_VALUABLE_PLYR:
+		return score->score;
+	case CG_BEST_ITEMCONTROL_PLYR:
+		return score->captures * 4 + score->defendCount * 2 + score->assistCount;
+	default:
+		return -1;
+	}
+}
+
+/*
+=============
+CG_FindAwardScore
+
+Finds the best active scoreboard row for a given award ownerdraw.
+=============
+*/
+static const score_t *CG_FindAwardScore( int ownerDraw ) {
+	const score_t	*best;
+	int		bestMetric;
+	int		i;
+
+	best = NULL;
+	bestMetric = -1;
+
+	for ( i = 0; i < cg.numScores; i++ ) {
+		const score_t	*score;
+		int		metric;
+
+		score = &cg.scores[i];
+		if ( !CG_IsActiveScoreEntry( score ) ) {
+			continue;
+		}
+
+		metric = CG_AwardMetricValue( ownerDraw, score );
+		if ( metric < 0 ) {
+			continue;
+		}
+
+		if ( !best || metric > bestMetric || ( metric == bestMetric && score->score > best->score ) ) {
+			best = score;
+			bestMetric = metric;
+		}
+	}
+
+	return best;
+}
+
+/*
+=============
+CG_DrawAwardOwnerDraw
+
+Renders endgame award ownerdraws that depend on scoreboard metrics.
+=============
+*/
+static qboolean CG_DrawAwardOwnerDraw( rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw ) {
+	const score_t		*score;
+	const clientInfo_t	*ci;
+	char			buffer[128];
+
+	switch ( ownerDraw ) {
+	case CG_MOST_DAMAGEDEALT_PLYR:
+	case CG_MOST_ACCURATE_PLYR:
+	case CG_MOST_VALUABLE_OFFENSIVE_PLYR:
+	case CG_MOST_VALUABLE_DEFENSIVE_PLYR:
+	case CG_MOST_VALUABLE_PLYR:
+	case CG_BEST_ITEMCONTROL_PLYR:
+		break;
+	default:
+		return qfalse;
+	}
+
+	score = CG_FindAwardScore( ownerDraw );
+	ci = CG_GetPlacementClientInfo( score );
+	if ( !score || !ci ) {
+		return qtrue;
+	}
+
+	switch ( ownerDraw ) {
+	case CG_MOST_DAMAGEDEALT_PLYR:
+		Com_sprintf( buffer, sizeof( buffer ), "%s (%i)", ci->name, score->damage );
+		break;
+	case CG_MOST_ACCURATE_PLYR:
+		Com_sprintf( buffer, sizeof( buffer ), "%s (%i%%)", ci->name, score->accuracy );
+		break;
+	default:
+		Q_strncpyz( buffer, ci->name, sizeof( buffer ) );
+		break;
+	}
+
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
+	return qtrue;
+}
+
+/*
+=============
+CG_IsPlacementMetricOwnerDraw
+
+Returns qtrue when the ownerdraw targets first/second place stats.
+=============
+*/
+static qboolean CG_IsPlacementMetricOwnerDraw( int ownerDraw ) {
+	if ( ownerDraw >= CG_1ST_PLYR_READY && ownerDraw <= CG_1ST_PLYR_TIER ) {
+		return qtrue;
+	}
+
+	if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_IsAwardOwnerDraw
+
+Returns qtrue when the ownerdraw maps to an endgame award string.
+=============
+*/
+static qboolean CG_IsAwardOwnerDraw( int ownerDraw ) {
+	switch ( ownerDraw ) {
+	case CG_MOST_DAMAGEDEALT_PLYR:
+	case CG_MOST_ACCURATE_PLYR:
+	case CG_MOST_VALUABLE_OFFENSIVE_PLYR:
+	case CG_MOST_VALUABLE_DEFENSIVE_PLYR:
+	case CG_MOST_VALUABLE_PLYR:
+	case CG_BEST_ITEMCONTROL_PLYR:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+=============
+CG_IsCompetitiveScoreOwnerDraw
+
+Reports whether an ownerdraw should refresh competitive scoreboard cache.
+=============
+*/
+static qboolean CG_IsCompetitiveScoreOwnerDraw( int ownerDraw ) {
+	if ( ownerDraw == CG_ROUNDTIMER || ownerDraw == CG_OVERTIME ||
+		ownerDraw == CG_1ST_PLYR || ownerDraw == CG_1ST_PLYR_SCORE ||
+		ownerDraw == CG_1ST_PLYR_HEALTH_ARMOR || ownerDraw == CG_1ST_PLYR_AVATAR ||
+		ownerDraw == CG_2ND_PLYR || ownerDraw == CG_2ND_PLYR_SCORE ||
+		ownerDraw == CG_2ND_PLYR_HEALTH_ARMOR || ownerDraw == CG_2ND_PLYR_AVATAR ||
+		ownerDraw == CG_MATCH_WINNER || ownerDraw == CG_PLYR_END_GAME_SCORE ||
+		ownerDraw == CG_1STPLACE_PLYR_MODEL || ownerDraw == CG_1STPLACE_PLYR_MODEL_ACTIVE ||
+		ownerDraw == CG_FLAG_STATUS || ownerDraw == CG_RED_BASESTATUS || ownerDraw == CG_BLUE_BASESTATUS ) {
+		return qtrue;
+	}
+
+	if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {
+		return qtrue;
+	}
+
+	if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {
+		return qtrue;
+	}
+
+	return CG_IsAwardOwnerDraw( ownerDraw );
 }
 
 /*
@@ -3492,6 +4760,9 @@ static qboolean CG_BuildSuddenDeathLabel( char *buffer, size_t bufferSize ) {
 	int		capSeconds;
 
 	if ( !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+	if ( !cgs.matchSuddenDeathActive ) {
 		return qfalse;
 	}
 
@@ -3642,15 +4913,16 @@ static qboolean CG_DrawPregameCoach(rectDef_t *rect, float scale, vec4_t color, 
 =============
 CG_DrawSpectatorMessages
 
-Shows spectator follow hints or pregame coach text inside the owner-draw rect.
+Shows the retail spectator/pregame text family inside the owner-draw rect.
 =============
 */
 static void CG_DrawSpectatorMessages(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
 	char line1[64];
 	char line2[96];
+	char line3[64];
+	char line4[64];
 	vec4_t drawColor;
 	float y;
-	const clientInfo_t *ci;
 
 	if (!cg.snap) {
 		return;
@@ -3663,31 +4935,51 @@ static void CG_DrawSpectatorMessages(rectDef_t *rect, float scale, vec4_t color,
 		if (!cg_drawSpecMessages.integer) {
 			return;
 		}
+
+		switch ( cgs.gametype ) {
+		case GT_CLAN_ARENA:
+		case GT_FREEZE:
+		case GT_ATTACK_DEFEND:
+		case GT_RED_ROVER:
+			if ( cgs.matchRoundState == ROUNDSTATE_ACTIVE ) {
+				Q_strncpyz( line1, "Round In Progress", sizeof( line1 ) );
+				y = rect->y + CG_Text_Height( line1, scale, 0 );
+				CG_Text_Paint( rect->x, y, scale, color, line1, 0, 0, textStyle );
+			}
+			break;
+		}
+
+		return;
 	}
 
-	if (!cg_drawSpecMessages.integer || cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR) {
+	if (!cg_drawSpecMessages.integer) {
 		return;
 	}
 
 	Vector4Copy(color, drawColor);
-
-	if (cg.snap->ps.pm_flags & PMF_FOLLOW) {
-		ci = CG_SpectatorClientInfo(0);
-		if (ci) {
-			Com_sprintf(line1, sizeof(line1), "FOLLOWING %s", ci->name);
-		} else {
-			Q_strncpyz(line1, "FOLLOWING", sizeof(line1));
-		}
-		Q_strncpyz(line2, "Press FIRE to cycle, JUMP for free camera", sizeof(line2));
-	} else {
-		Q_strncpyz(line1, "FREE SPECTATE", sizeof(line1));
-		Q_strncpyz(line2, "Press FIRE to follow a player", sizeof(line2));
+	Q_strncpyz(line1, "SPECTATOR MODE", sizeof(line1));
+	Q_strncpyz(line2, "Press mouse button 1 to cycle through players", sizeof(line2));
+	line3[0] = '\0';
+	line4[0] = '\0';
+	if ( cgs.gametype == GT_TOURNAMENT ) {
+		Q_strncpyz( line3, "waiting to play", sizeof( line3 ) );
+	} else if ( cgs.gametype >= GT_TEAM ) {
+		Q_strncpyz( line3, "press ESC and use the JOIN buttons", sizeof( line3 ) );
+		Q_strncpyz( line4, "to enter the game", sizeof( line4 ) );
 	}
 
 	y = rect->y + CG_Text_Height(line1, scale, 0);
 	CG_Text_Paint(rect->x, y, scale, drawColor, line1, 0, 0, textStyle);
 	y += CG_Text_Height(line2, scale * 0.8f, 0) + 2.0f;
 	CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line2, 0, 0, textStyle);
+	if ( line3[0] ) {
+		y += CG_Text_Height(line3, scale * 0.8f, 0) + 2.0f;
+		CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line3, 0, 0, textStyle);
+	}
+	if ( line4[0] ) {
+		y += CG_Text_Height(line4, scale * 0.8f, 0) + 2.0f;
+		CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line4, 0, 0, textStyle);
+	}
 }
 
 /*
@@ -3710,7 +5002,7 @@ static void CG_DrawNewChatArea(rectDef_t *rect, float scale, vec4_t color, int t
 
 	chatHeight = CG_GetChatHistoryLength();
 
-	maxLines = chatHeight;
+	maxLines = cg.chatHistoryVisible ? chatHeight : 1;
 	lineHeight = CG_Text_Height("A", scale, 0);
 	y = rect->y + rect->h - lineHeight;
 
@@ -3730,6 +5022,9 @@ static void CG_DrawNewChatArea(rectDef_t *rect, float scale, vec4_t color, int t
 		}
 
 		elapsed = cg.time - cgs.teamChatMsgTimes[index];
+		if (elapsed < 0) {
+			elapsed = 0;
+		}
 		if (elapsed >= cg_teamChatTime.integer || !cgs.teamChatMsgs[index][0]) {
 			continue;
 		}
@@ -4048,6 +5343,8 @@ static void CG_DrawOvertimeBackground(rectDef_t *rect, qhandle_t shader, vec4_t 
 
 static void CG_DrawLevelTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
 	int		seconds;
+	int		width;
+	float	x;
 	char	buffer[32];
 
 	seconds = CG_GetScoreboardTimerSeconds();
@@ -4055,8 +5352,10 @@ static void CG_DrawLevelTimer(rectDef_t *rect, float scale, vec4_t color, int te
 		seconds = 0;
 	}
 
-	Com_sprintf( buffer, sizeof( buffer ), "%02i:%02i", seconds / 60, seconds % 60 );
-	CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );
+	Com_sprintf( buffer, sizeof( buffer ), "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );
+	width = CG_Text_Width( buffer, scale, 0 );
+	x = rect->x + ( rect->w - width ) * 0.5f;
+	CG_Text_Paint( x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
 }
 
 static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
@@ -4085,9 +5384,14 @@ CG_Text_Paint(rect->x, rect->y, scale, color, text, 0, 0, textStyle);
 }
 
 void CG_InitTeamChat() {
-  memset(teamChat1, 0, sizeof(teamChat1));
-  memset(teamChat2, 0, sizeof(teamChat2));
-  memset(systemChat, 0, sizeof(systemChat));
+	memset( teamChat1, 0, sizeof( teamChat1 ) );
+	memset( teamChat2, 0, sizeof( teamChat2 ) );
+	memset( systemChat, 0, sizeof( systemChat ) );
+	memset( cgs.teamChatMsgs, 0, sizeof( cgs.teamChatMsgs ) );
+	memset( cgs.teamChatMsgTimes, 0, sizeof( cgs.teamChatMsgTimes ) );
+	cgs.teamChatPos = 0;
+	cgs.teamLastChatPos = 0;
+	cg.chatHistoryVisible = qfalse;
 }
 
 void CG_SetPrintString(int type, const char *p) {
@@ -4560,6 +5864,100 @@ static void CG_DrawPlayerItem( rectDef_t *rect, float scale, qboolean draw2D) {
 
 }
 
+typedef struct {
+	int			bit;
+	const char	*classname;
+} cgKeyIconDef_t;
+
+static const cgKeyIconDef_t cgKeyIconDefs[] = {
+	{ KEY_FLAG_SILVER, "item_key_silver" },
+	{ KEY_FLAG_GOLD, "item_key_gold" },
+	{ KEY_FLAG_MASTER, "item_key_master" }
+};
+
+/*
+=============
+CG_KeyOwnerClientNum
+
+Resolves which client should drive key ownerdraw state.
+=============
+*/
+static int CG_KeyOwnerClientNum( void ) {
+	if ( !cg.snap ) {
+		return -1;
+	}
+
+	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) &&
+		cg.spectatorFollowClient >= 0 &&
+		cg.spectatorFollowClient < cgs.maxclients ) {
+		return cg.spectatorFollowClient;
+	}
+
+	if ( cg.snap->ps.clientNum < 0 || cg.snap->ps.clientNum >= cgs.maxclients ) {
+		return -1;
+	}
+
+	return cg.snap->ps.clientNum;
+}
+
+/*
+=============
+CG_DrawPlayerHasKey
+
+Draws carried key icons for the local/followed player in key-enabled maps.
+=============
+*/
+static void CG_DrawPlayerHasKey( rectDef_t *rect ) {
+	int		clientNum;
+	int		mask;
+	float	x;
+	int		i;
+
+	clientNum = CG_KeyOwnerClientNum();
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	mask = cg.clientKeyMask[clientNum];
+	if ( mask <= 0 ) {
+		return;
+	}
+
+	x = rect->x;
+	for ( i = 0; i < sizeof( cgKeyIconDefs ) / sizeof( cgKeyIconDefs[0] ); i++ ) {
+		const cgKeyIconDef_t	*def;
+		gitem_t			*item;
+		int			itemNum;
+		qhandle_t		icon;
+
+		def = &cgKeyIconDefs[i];
+		if ( !( mask & def->bit ) ) {
+			continue;
+		}
+
+		item = BG_FindItemByClassname( def->classname );
+		if ( !item || !item->icon || !item->icon[0] ) {
+			continue;
+		}
+
+		icon = 0;
+		itemNum = (int)( item - bg_itemlist );
+		if ( itemNum > 0 && itemNum < bg_numItems ) {
+			CG_RegisterItemVisuals( itemNum );
+			icon = cg_items[itemNum].icon;
+		}
+		if ( !icon ) {
+			icon = trap_R_RegisterShader( item->icon );
+		}
+		if ( !icon ) {
+			continue;
+		}
+
+		CG_DrawPic( x, rect->y, rect->w, rect->h, icon );
+		x += rect->w * 0.65f;
+	}
+}
+
 
 static void CG_DrawSelectedPlayerPowerup( rectDef_t *rect, qboolean draw2D ) {
 	clientInfo_t *ci;
@@ -4911,6 +6309,147 @@ static void CG_OneFlagStatus(rectDef_t *rect) {
 			}
 		}
 	}
+}
+
+/*
+=============
+CG_FlagStatusText
+
+Converts a flag status enum to the compact status labels used by team overlays.
+=============
+*/
+static const char *CG_FlagStatusText( int status ) {
+	switch ( status ) {
+	case FLAG_ATBASE:
+		return "At Base";
+	case FLAG_TAKEN:
+		return "Taken";
+	case FLAG_DROPPED:
+		return "Dropped";
+	default:
+		return "-";
+	}
+}
+
+/*
+=============
+CG_GetTeamBaseFlagState
+
+Resolves the base-state flag enum for a specific team in CTF and 1FCTF.
+=============
+*/
+static int CG_GetTeamBaseFlagState( team_t team ) {
+	if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		return -1;
+	}
+
+	if ( cgs.gametype == GT_CTF ) {
+		return ( team == TEAM_RED ) ? cgs.redflag : cgs.blueflag;
+	}
+
+	if ( cgs.gametype == GT_1FCTF ) {
+		if ( cgs.flagStatus == FLAG_DROPPED ) {
+			return FLAG_DROPPED;
+		}
+		if ( team == TEAM_RED && cgs.flagStatus == FLAG_TAKEN_RED ) {
+			return FLAG_TAKEN;
+		}
+		if ( team == TEAM_BLUE && cgs.flagStatus == FLAG_TAKEN_BLUE ) {
+			return FLAG_TAKEN;
+		}
+		return FLAG_ATBASE;
+	}
+
+	return -1;
+}
+
+/*
+=============
+CG_BuildFlagStatusLabel
+
+Builds human-readable CTF/1FCTF status text for CG_FLAG_STATUS.
+=============
+*/
+static qboolean CG_BuildFlagStatusLabel( char *buffer, size_t bufferSize ) {
+	if ( !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+
+	buffer[0] = '\0';
+
+	if ( cgs.gametype == GT_CTF ) {
+		if ( cgs.redflag == FLAG_TAKEN && cgs.blueflag == FLAG_TAKEN ) {
+			Q_strncpyz( buffer, "Both Flags Taken", bufferSize );
+		} else if ( cgs.redflag == FLAG_TAKEN ) {
+			Com_sprintf( buffer, bufferSize, "%s Flag Taken", CG_GetTeamName( TEAM_RED ) );
+		} else if ( cgs.blueflag == FLAG_TAKEN ) {
+			Com_sprintf( buffer, bufferSize, "%s Flag Taken", CG_GetTeamName( TEAM_BLUE ) );
+		} else if ( cgs.redflag == FLAG_DROPPED ) {
+			Com_sprintf( buffer, bufferSize, "%s Flag Dropped", CG_GetTeamName( TEAM_RED ) );
+		} else if ( cgs.blueflag == FLAG_DROPPED ) {
+			Com_sprintf( buffer, bufferSize, "%s Flag Dropped", CG_GetTeamName( TEAM_BLUE ) );
+		} else {
+			Q_strncpyz( buffer, "Flags At Base", bufferSize );
+		}
+		return qtrue;
+	}
+
+	if ( cgs.gametype == GT_1FCTF ) {
+		switch ( cgs.flagStatus ) {
+		case FLAG_TAKEN_RED:
+			Com_sprintf( buffer, bufferSize, "%s Has Flag", CG_GetTeamName( TEAM_RED ) );
+			break;
+		case FLAG_TAKEN_BLUE:
+			Com_sprintf( buffer, bufferSize, "%s Has Flag", CG_GetTeamName( TEAM_BLUE ) );
+			break;
+		case FLAG_DROPPED:
+			Q_strncpyz( buffer, "Neutral Flag Dropped", bufferSize );
+			break;
+		default:
+			Q_strncpyz( buffer, "Neutral Flag At Base", bufferSize );
+			break;
+		}
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_DrawFlagStatusText
+
+Draws textual CTF/1FCTF flag state for ownerdraws that expect a string payload.
+=============
+*/
+static void CG_DrawFlagStatusText( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	char buffer[64];
+
+	if ( !CG_BuildFlagStatusLabel( buffer, sizeof( buffer ) ) ) {
+		return;
+	}
+
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
+}
+
+/*
+=============
+CG_DrawTeamBaseStatus
+
+Draws a team-specific base status label for CTF/1FCTF team overlays.
+=============
+*/
+static void CG_DrawTeamBaseStatus( rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team ) {
+	char buffer[32];
+	int	status;
+
+	status = CG_GetTeamBaseFlagState( team );
+	if ( status < 0 ) {
+		return;
+	}
+
+	Q_strncpyz( buffer, CG_FlagStatusText( status ), sizeof( buffer ) );
+	CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
 }
 
 
@@ -5468,21 +7007,33 @@ static void CG_Draw2ndPlace(rectDef_t *rect, float scale, vec4_t color, qhandle_
 }
 
 const char *CG_GetGameStatusText() {
-	const char *s = "";
-	if ( cgs.gametype < GT_TEAM) {
-		if (cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR ) {
-			s = va("%s place with %i",CG_PlaceString( cg.snap->ps.persistant[PERS_RANK] + 1 ),cg.snap->ps.persistant[PERS_SCORE] );
-		}
-	} else {
-		if ( cg.teamScores[0] == cg.teamScores[1] ) {
-			s = va("Teams are tied at %i", cg.teamScores[0] );
-		} else if ( cg.teamScores[0] >= cg.teamScores[1] ) {
-			s = va("Red leads Blue, %i to %i", cg.teamScores[0], cg.teamScores[1] );
-		} else {
-			s = va("Blue leads Red, %i to %i", cg.teamScores[1], cg.teamScores[0] );
-		}
+	if ( !cg.snap ) {
+		return "";
 	}
-	return s;
+
+	switch ( cgs.gametype ) {
+	case GT_SINGLE_PLAYER:
+		return "";
+
+	case GT_FFA:
+	case GT_TOURNAMENT:
+	case GT_RED_ROVER:
+		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+			return "";
+		}
+		return va( "%s place with %i",
+			CG_PlaceString( cg.snap->ps.persistant[PERS_RANK] + 1 ),
+			cg.snap->ps.persistant[PERS_SCORE] );
+
+	default:
+		if ( cg.teamScores[0] == cg.teamScores[1] ) {
+			return va( "Teams are tied at %i", cg.teamScores[0] );
+		}
+		if ( cg.teamScores[0] > cg.teamScores[1] ) {
+			return va( "^1Red^7 leads ^4Blue^7, %i to %i", cg.teamScores[0], cg.teamScores[1] );
+		}
+		return va( "^4Blue^7 leads ^1Red^7, %i to %i", cg.teamScores[1], cg.teamScores[0] );
+	}
 }
 	
 static void CG_DrawGameStatus(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
@@ -5514,11 +7065,11 @@ const char *CG_GameTypeString() {
 	case GT_DOMINATION:
 		return "Domination";
 	case GT_ATTACK_DEFEND:
-		return "Attack & Defend";
+		return "Attack and Defend";
 	case GT_RED_ROVER:
 		return "Red Rover";
 	default:
-		return "";
+		return "Unknown Gametype";
 	}
 }
 static void CG_DrawGameType(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
@@ -5867,12 +7418,16 @@ rect.y = y;
 	rect.w = w;
 	rect.h = h;
 
-	if ( ownerDraw == CG_ROUNDTIMER || ownerDraw == CG_OVERTIME ||
-		ownerDraw == CG_1ST_PLYR || ownerDraw == CG_1ST_PLYR_SCORE ||
-		ownerDraw == CG_1ST_PLYR_HEALTH_ARMOR || ownerDraw == CG_1ST_PLYR_AVATAR ||
-		ownerDraw == CG_2ND_PLYR || ownerDraw == CG_2ND_PLYR_SCORE ||
-		ownerDraw == CG_2ND_PLYR_HEALTH_ARMOR || ownerDraw == CG_2ND_PLYR_AVATAR ) {
+	if ( CG_IsCompetitiveScoreOwnerDraw( ownerDraw ) ) {
 		CG_TouchCompetitiveScores();
+	}
+
+	if ( CG_DrawPlacementMetricOwnerDraw( &rect, scale, color, textStyle, ownerDraw ) ) {
+		return;
+	}
+
+	if ( CG_DrawAwardOwnerDraw( &rect, scale, color, textStyle, ownerDraw ) ) {
+		return;
 	}
 
 	switch (ownerDraw) {
@@ -6181,6 +7736,12 @@ break;
   case CG_SELECTED_PLYR_ACCURACY:
 		CG_DrawSelectedPlayerAccuracy(&rect, scale, color, textStyle);
 		break;
+  case CG_WP_VERTICAL:
+		CG_DrawSelectedPlayerBestWeapon(&rect, scale, color, textStyle);
+		break;
+  case CG_ACC_VERTICAL:
+		CG_DrawSelectedPlayerAccuracy(&rect, scale, color, textStyle);
+		break;
   case CG_PLYR_BEST_WEAPON_NAME:
 		CG_DrawSelectedPlayerBestWeapon(&rect, scale, color, textStyle);
 		break;
@@ -6195,6 +7756,12 @@ break;
   case CG_1STPLACE:
     CG_Draw1stPlace(&rect, scale, color, shader, textStyle);
                 break;
+  case CG_1STPLACE_PLYR_MODEL:
+		CG_DrawFirstPlaceModel( &rect, qfalse );
+		break;
+  case CG_1STPLACE_PLYR_MODEL_ACTIVE:
+		CG_DrawFirstPlaceModel( &rect, qtrue );
+		break;
   case CG_2NDPLACE:
     CG_Draw2ndPlace(&rect, scale, color, shader, textStyle);
                 break;
@@ -6290,9 +7857,50 @@ break;
 	case CG_FOLLOW_PLAYER_NAME_EX:
 		CG_DrawFollowPlayerNameEx(&rect, scale, color, textStyle);
 		break;
+	case CG_RED_TEAM_MAP_PICKUPS:
+	case CG_RED_TEAM_PICKUPS_RA:
+	case CG_RED_TEAM_PICKUPS_YA:
+	case CG_RED_TEAM_PICKUPS_GA:
+	case CG_RED_TEAM_PICKUPS_MH:
+	case CG_RED_TEAM_PICKUPS_QUAD:
+	case CG_RED_TEAM_PICKUPS_BS:
+	case CG_RED_TEAM_TIMEHELD_QUAD:
+	case CG_RED_TEAM_TIMEHELD_BS:
+	case CG_RED_TEAM_PICKUPS_FLAG:
+	case CG_RED_TEAM_PICKUPS_MEDKIT:
+	case CG_RED_TEAM_PICKUPS_REGEN:
+	case CG_RED_TEAM_PICKUPS_HASTE:
+	case CG_RED_TEAM_PICKUPS_INVIS:
+	case CG_RED_TEAM_TIMEHELD_FLAG:
+	case CG_RED_TEAM_TIMEHELD_REGEN:
+	case CG_RED_TEAM_TIMEHELD_HASTE:
+	case CG_RED_TEAM_TIMEHELD_INVIS:
+	case CG_BLUE_TEAM_MAP_PICKUPS:
+	case CG_BLUE_TEAM_PICKUPS_RA:
+	case CG_BLUE_TEAM_PICKUPS_YA:
+	case CG_BLUE_TEAM_PICKUPS_GA:
+	case CG_BLUE_TEAM_PICKUPS_MH:
+	case CG_BLUE_TEAM_PICKUPS_QUAD:
+	case CG_BLUE_TEAM_PICKUPS_BS:
+	case CG_BLUE_TEAM_TIMEHELD_QUAD:
+	case CG_BLUE_TEAM_TIMEHELD_BS:
+	case CG_BLUE_TEAM_PICKUPS_FLAG:
+	case CG_BLUE_TEAM_PICKUPS_MEDKIT:
+	case CG_BLUE_TEAM_PICKUPS_REGEN:
+	case CG_BLUE_TEAM_PICKUPS_HASTE:
+	case CG_BLUE_TEAM_PICKUPS_INVIS:
+	case CG_BLUE_TEAM_TIMEHELD_FLAG:
+	case CG_BLUE_TEAM_TIMEHELD_REGEN:
+	case CG_BLUE_TEAM_TIMEHELD_HASTE:
+	case CG_BLUE_TEAM_TIMEHELD_INVIS:
+		CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );
+		break;
 	case CG_MATCH_WINNER:
-	CG_DrawGameStatus(&rect, scale, color, shader, textStyle);
-	break;
+		CG_DrawMatchWinner( &rect, text_x, text_y, scale, color, textStyle );
+		break;
+	case CG_PLYR_END_GAME_SCORE:
+		CG_DrawEndGameScore( &rect, text_x, text_y, scale, color, textStyle );
+		break;
 	case CG_RACE_STATUS:
 	CG_DrawRaceStatus(&rect, scale, color, textStyle);
 	break;
@@ -6300,10 +7908,17 @@ break;
 	CG_DrawRaceTimes(&rect, scale, color, textStyle);
 	break;
 	case CG_FLAG_STATUS:
+		CG_DrawFlagStatusText( &rect, scale, color, textStyle );
+		break;
 	case CG_RED_BASESTATUS:
+		CG_DrawTeamBaseStatus( &rect, scale, color, textStyle, TEAM_RED );
+		break;
 	case CG_BLUE_BASESTATUS:
+		CG_DrawTeamBaseStatus( &rect, scale, color, textStyle, TEAM_BLUE );
+		break;
 	case CG_PLAYER_HASKEY:
-	break;
+		CG_DrawPlayerHasKey( &rect );
+		break;
   case CG_SPEEDOMETER:
 CG_DrawSpeedometer(&rect, scale, color, textStyle);
 break;
@@ -6420,14 +8035,43 @@ void CG_ShowTeamMenu() {
 
 /*
 ==================
+CG_RefreshDisplayContext
+==================
+*/
+static void CG_RefreshDisplayContext( void ) {
+	trap_GetGlconfig( &cgs.glconfig );
+	cgs.screenXScale = cgs.glconfig.vidWidth / 640.0f;
+	cgs.screenYScale = cgs.glconfig.vidHeight / 480.0f;
+	if ( cgs.glconfig.vidWidth * SCREEN_HEIGHT > cgs.glconfig.vidHeight * SCREEN_WIDTH ) {
+		cgs.screenXBias = 0.5f * ( (float)cgs.glconfig.vidWidth - ( (float)cgs.glconfig.vidHeight * ( (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT ) ) );
+	} else {
+		cgs.screenXBias = 0.0f;
+	}
+
+	cgDC.glconfig = cgs.glconfig;
+	cgDC.xscale = cgs.screenXScale;
+	cgDC.yscale = cgs.screenYScale;
+	cgDC.bias = cgs.screenXBias;
+
+	Init_Display( &cgDC );
+}
+
+/*
+==================
 CG_EventHandling
 ==================
  type 0 - no event handling
       1 - team menu
       2 - hud editor
+      4 - refresh display context
 
 */
 void CG_EventHandling(int type) {
+	if ( type == CGAME_EVENT_REFRESH_DISPLAY_CONTEXT ) {
+		CG_RefreshDisplayContext();
+		return;
+	}
+
 	cgs.eventHandling = type;
   if (type == CGAME_EVENT_NONE) {
     CG_HideTeamMenu();
@@ -6440,6 +8084,49 @@ void CG_EventHandling(int type) {
 
 /*
 =============
+CG_HandleHudBindingCommand
+
+Mirrors the retail HUD key path that intercepts specific bound commands.
+=============
+*/
+static qboolean CG_HandleHudBindingCommand( const char *binding ) {
+	char		command[MAX_STRING_CHARS];
+	const char	*cursor;
+	const char	*token;
+
+	if ( !binding || !binding[0] ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( command, binding, sizeof( command ) );
+	cursor = command;
+	token = COM_ParseExt( &cursor, qtrue );
+	if ( !token || !token[0] ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( token, "messagemode" ) ||
+		!Q_stricmp( token, "screenshot" ) ||
+		!Q_stricmp( token, "screenshotJPEG" ) ) {
+		trap_Cmd_ExecuteText( EXEC_APPEND, va( "%s\n", binding ) );
+		return qtrue;
+	}
+
+	if ( !Q_stricmp( token, "+voice" ) ) {
+		CG_ShowResponseHead();
+		return qtrue;
+	}
+
+	if ( !Q_stricmp( token, "+scores" ) ) {
+		CG_MenuScript_OpenScoreboard();
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
 CG_KeyEvent
 
 Forwards key input to the HUD when the spectator UI is visible.
@@ -6447,6 +8134,7 @@ Forwards key input to the HUD when the spectator UI is visible.
 */
 void CG_KeyEvent(int key, qboolean down) {
 	qboolean allowSpectatorUi;
+	char bindingBuf[MAX_STRING_CHARS];
 
 	if ( !down ) {
 		return;
@@ -6457,6 +8145,11 @@ void CG_KeyEvent(int key, qboolean down) {
 	if ( cg.predictedPlayerState.pm_type == PM_NORMAL || ( cg.predictedPlayerState.pm_type == PM_SPECTATOR && !allowSpectatorUi && cg.showScores == qfalse ) ) {
 		CG_EventHandling(CGAME_EVENT_NONE);
 		trap_Key_SetCatcher(0);
+		return;
+	}
+
+	trap_Key_GetBindingBuf( key, bindingBuf, sizeof( bindingBuf ) );
+	if ( CG_HandleHudBindingCommand( bindingBuf ) ) {
 		return;
 	}
 

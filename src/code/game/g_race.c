@@ -813,16 +813,27 @@ void G_RaceClientSpawn( gentity_t *ent ) {
 
 /*
 =============
-G_RaceSendScoreboard
+G_BuildRaceScoreboardMessage
 
-Responds to the "score" command while in Race gametype.
+Builds and sends the retail `scores_race` payload for one client.
 =============
 */
-void G_RaceSendScoreboard( gentity_t *ent ) {
+void G_BuildRaceScoreboardMessage( gentity_t *ent ) {
 	if ( g_gametype.integer != GT_RACE || !ent || !ent->client ) {
 		return;
 	}
 
 	G_RaceBuildScoreString();
 	trap_SendServerCommand( ent - g_entities, g_raceScores );
+}
+
+/*
+=============
+G_RaceSendScoreboard
+
+Responds to the "score" command while in Race gametype.
+=============
+*/
+void G_RaceSendScoreboard( gentity_t *ent ) {
+	G_BuildRaceScoreboardMessage( ent );
 }

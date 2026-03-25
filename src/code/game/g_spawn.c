@@ -445,6 +445,7 @@ void SP_path_corner (gentity_t *self);
 
 void SP_misc_teleporter_dest (gentity_t *self);
 void SP_misc_model(gentity_t *ent);
+void SP_advertisement( gentity_t *ent );
 void SP_misc_portal_camera(gentity_t *ent);
 void SP_misc_portal_surface(gentity_t *ent);
 
@@ -522,6 +523,7 @@ spawn_t	spawns[] = {
 
 	{"misc_teleporter_dest", SP_misc_teleporter_dest},
 	{"misc_model", SP_misc_model},
+	{"advertisement", SP_advertisement},
 	{"misc_portal_surface", SP_misc_portal_surface},
 	{"misc_portal_camera", SP_misc_portal_camera},
 	{"race_point", SP_race_point},
@@ -731,6 +733,31 @@ static qboolean G_SpawnGametypeMatchesFilter( const char *value ) {
 
 /*
 ===================
+G_SpawnClassExemptFromSpawnFilter
+
+Returns qtrue when a classname bypasses the normal retail gametype spawn filters.
+===================
+*/
+static qboolean G_SpawnClassExemptFromSpawnFilter( const char *classname ) {
+	if ( !classname || !classname[0] ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( classname, "item_armor_shard" ) ) {
+		return qtrue;
+	}
+	if ( !Q_stricmp( classname, "team_redobelisk" ) ) {
+		return qtrue;
+	}
+	if ( !Q_stricmp( classname, "team_blueobelisk" ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+===================
 G_SpawnGEntityFromSpawnVars
 
 Spawn an entity and fill in all of the level fields from
@@ -741,6 +768,8 @@ void G_SpawnGEntityFromSpawnVars( void ) {
 	int			i;
 	gentity_t	*ent;
 	char		*value;
+	char		*classname;
+	qboolean	spawnFilterExempt;
 
 	// get the next free entity
 	ent = G_Spawn();
@@ -748,6 +777,9 @@ void G_SpawnGEntityFromSpawnVars( void ) {
 	for ( i = 0 ; i < level.numSpawnVars ; i++ ) {
 		G_ParseField( level.spawnVars[i][0], level.spawnVars[i][1], ent );
 	}
+
+	G_SpawnString( "classname", "", &classname );
+	spawnFilterExempt = G_SpawnClassExemptFromSpawnFilter( classname );
 
 	// check for "notsingle" flag
 	if ( g_gametype.integer == GT_SINGLE_PLAYER ) {
@@ -757,18 +789,34 @@ void G_SpawnGEntityFromSpawnVars( void ) {
 			return;
 		}
 	}
-	// check for "notteam" flag (GT_FFA, GT_TOURNAMENT, GT_SINGLE_PLAYER)
-	if ( g_gametype.integer >= GT_TEAM ) {
-		G_SpawnInt( "notteam", "0", &i );
-		if ( i ) {
-			G_FreeEntity( ent );
-			return;
+	if ( !spawnFilterExempt ) {
+		// check for "notteam" flag (GT_FFA, GT_TOURNAMENT, GT_SINGLE_PLAYER)
+		if ( g_gametype.integer >= GT_TEAM ) {
+			G_SpawnInt( "notteam", "0", &i );
+			if ( i ) {
+				G_FreeEntity( ent );
+				return;
+			}
+		} else {
+			G_SpawnInt( "notfree", "0", &i );
+			if ( i ) {
+				G_FreeEntity( ent );
+				return;
+			}
 		}
-	} else {
-		G_SpawnInt( "notfree", "0", &i );
-		if ( i ) {
-			G_FreeEntity( ent );
-			return;
+
+		if ( G_SpawnString( "gametype", NULL, &value ) ) {
+			if ( !G_SpawnGametypeMatchesFilter( value ) ) {
+				G_FreeEntity( ent );
+				return;
+			}
+		}
+
+		if ( G_SpawnString( "not_gametype", NULL, &value ) ) {
+			if ( G_SpawnGametypeMatchesFilter( value ) ) {
+				G_FreeEntity( ent );
+				return;
+			}
 		}
 	}
 
@@ -776,13 +824,6 @@ void G_SpawnGEntityFromSpawnVars( void ) {
 	if ( i ) {
 		G_FreeEntity( ent );
 		return;
-	}
-
-	if ( G_SpawnString( "gametype", NULL, &value ) ) {
-		if ( !G_SpawnGametypeMatchesFilter( value ) ) {
-			G_FreeEntity( ent );
-			return;
-		}
 	}
 
 	// move editor origin to pos
@@ -961,6 +1002,7 @@ void SP_worldspawn( void ) {
 	trap_SetConfigstring( CS_WARMUP, "" );
 	G_UpdateReadyUpConfigstring();
 	trap_SetConfigstring( CS_MATCH_STATE, "" );
+	trap_SetConfigstring( CS_SUDDENDEATH_STATUS, "0" );
 	trap_Cvar_Set( "g_gameState", "PRE_GAME" );
 
 	if ( g_restarted.integer ) {

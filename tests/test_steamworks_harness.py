@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ctypes
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -24,6 +26,14 @@ BEGIN_AUTH_INVALID_TICKET = 1
 TICKET_BUFFER = 256
 
 
+def _find_c_compiler() -> str:
+    compiler = shutil.which("gcc") or shutil.which("clang") or shutil.which("cc")
+    if not compiler:
+        pytest.skip("No C compiler found for Steamworks harness")
+
+    return compiler
+
+
 class AuthResponse(ctypes.Structure):
     _fields_ = [
         ("result", ctypes.c_int),
@@ -36,16 +46,24 @@ class AuthResponse(ctypes.Structure):
 def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory) -> tuple[ctypes.CDLL, bool]:
     enabled = bool(request.param)
     build_dir = tmp_path_factory.mktemp(f"steamworks_harness_{'on' if enabled else 'off'}")
-    lib_path = build_dir / "libsteamworks_harness.so"
+    lib_path = build_dir / ("steamworks_harness.dll" if os.name == "nt" else "libsteamworks_harness.so")
+    compile_args = [
+        _find_c_compiler(),
+        "-shared",
+    ]
+
+    if os.name != "nt":
+        compile_args.append("-fPIC")
+    else:
+        compile_args.extend(["-DWIN32", "-D_CRT_SECURE_NO_WARNINGS", "-Wno-return-type"])
 
     compile_cmd = [
-        "gcc",
-        "-shared",
-        "-fPIC",
+        *compile_args,
         "-Isrc/common",
         "-Isrc/code",
         "-Isrc/code/game",
         "-Isrc/code/qcommon",
+        "-DQL_BUILD_ONLINE_SERVICES=%d" % (1 if enabled else 0),
         "-DQL_BUILD_STEAMWORKS=%d" % (1 if enabled else 0),
         str(REPO_ROOT / "tests" / "steamworks_harness.c"),
         "-o",

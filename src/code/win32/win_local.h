@@ -62,6 +62,8 @@ void	IN_DeactivateWin32Mouse( void);
 
 void	IN_Activate (qboolean active);
 void	IN_Frame (void);
+qboolean WIN_FastVidRestart( int *width, int *height, qboolean *fullscreen );
+void WIN_SyncAltTabState( void );
 
 // window procedure
 LONG WINAPI MainWndProc (

@@ -912,6 +912,32 @@ static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {
 				break;
 			}
 			return ((qboolean (QDECL *)( void ))exportFunc)();
+		case UI_REFRESH_DISPLAY_CONTEXT:
+			exportFunc = dllExports[uiExportIndex];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((int (QDECL *)( void ))exportFunc)();
+		case UI_MENUS_ANY_VISIBLE:
+			exportFunc = dllExports[uiExportIndex];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( void ))exportFunc)();
+		case UI_FOR_EACH_ARENA_NAME:
+			exportFunc = dllExports[uiExportIndex];
+			if ( !exportFunc ) {
+				break;
+			}
+			((void (QDECL *)( uiArenaNameCallback_t ))exportFunc)( (uiArenaNameCallback_t)(intptr_t)args[0] );
+			return 0;
+		case UI_DRAW_ADVERTISEMENT_WAIT_SCREEN:
+			exportFunc = dllExports[uiExportIndex];
+			if ( !exportFunc ) {
+				break;
+			}
+			((void (QDECL *)( const char * ))exportFunc)( (const char *)(intptr_t)args[0] );
+			return 0;
 		default:
 			Com_Error( ERR_DROP, "VM_CallNativeExports: bad ui call %i", callnum );
 		}
@@ -981,6 +1007,70 @@ static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
+		case CG_CHAT_DOWN:
+			exportFunc = dllExports[CG_CHAT_DOWN];
+			if ( !exportFunc ) {
+				break;
+			}
+			((void (QDECL *)( void ))exportFunc)();
+			return 0;
+		case CG_CHAT_UP:
+			exportFunc = dllExports[CG_CHAT_UP];
+			if ( !exportFunc ) {
+				break;
+			}
+			((void (QDECL *)( void ))exportFunc)();
+			return 0;
+		case CG_SHOW_1ST_TRACKED_PLAYER:
+			exportFunc = dllExports[CG_SHOW_1ST_TRACKED_PLAYER];
+			if ( !exportFunc ) {
+				break;
+			}
+			((void (QDECL *)( void ))exportFunc)();
+			return 0;
+		case CG_SHOW_2ND_TRACKED_PLAYER:
+			exportFunc = dllExports[CG_SHOW_2ND_TRACKED_PLAYER];
+			if ( !exportFunc ) {
+				break;
+			}
+			((void (QDECL *)( void ))exportFunc)();
+			return 0;
+		case CG_COPY_CLIENT_IDENTITY:
+			exportFunc = dllExports[CG_COPY_CLIENT_IDENTITY];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int, void * ))exportFunc)( args[0], (void *)(intptr_t)args[1] );
+		case CG_GET_CHAT_FIELD_Y:
+			exportFunc = dllExports[CG_GET_CHAT_FIELD_Y];
+			if ( !exportFunc ) {
+				break;
+			}
+			return (int)((float (QDECL *)( void ))exportFunc)();
+		case CG_GET_CHAT_FIELD_PIXEL_WIDTH:
+			exportFunc = dllExports[CG_GET_CHAT_FIELD_PIXEL_WIDTH];
+			if ( !exportFunc ) {
+				break;
+			}
+			return (int)((float (QDECL *)( void ))exportFunc)();
+		case CG_GET_CHAT_FIELD_WIDTH_IN_CHARS:
+			exportFunc = dllExports[CG_GET_CHAT_FIELD_WIDTH_IN_CHARS];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((int (QDECL *)( void ))exportFunc)();
+		case CG_SET_CLIENT_SPEAKING_STATE:
+			exportFunc = dllExports[CG_SET_CLIENT_SPEAKING_STATE];
+			if ( !exportFunc ) {
+				break;
+			}
+			return (int)(intptr_t)((void *(QDECL *)( int, int ))exportFunc)( args[0], args[1] );
+		case CG_GET_PHYSICS_TIME:
+			exportFunc = dllExports[CG_GET_PHYSICS_TIME];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((int (QDECL *)( void ))exportFunc)();
 		default:
 			Com_Error( ERR_DROP, "VM_CallNativeExports: bad cgame call %i", callnum );
 		}

@@ -3,10 +3,9 @@
 
 #include <stdarg.h>
 
-void Com_Printf( const char *fmt, ... );
-void Com_sprintf( char *dest, int size, const char *fmt, ... );
-int Q_stricmp( const char *s1, const char *s2 );
-int Q_stricmpn( const char *s1, const char *s2, int n );
-void Q_strncpyz( char *dest, const char *src, int destsize );
+#include "q_shared.h"
+
+qboolean CL_OnlineServicesEnabled( void );
+qboolean CL_SteamServicesEnabled( void );
 
 #endif /* CLIENT_H */

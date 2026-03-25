@@ -241,6 +241,11 @@ qhandle_t CL_Steam_RegisterShader( const char *url ) {
 		return re.RegisterShaderNoMip( url );
 	}
 
+	if ( !CL_SteamServicesEnabled() ) {
+		Com_DPrintf( "UI: Steam resource request stubbed for %s\n", url ? url : "<null>" );
+		return 0;
+	}
+
 	slot = CL_SteamResources_FindSlot( url );
 	persist = ( cl_steamCachePersist && cl_steamCachePersist->integer );
 	CL_SteamResources_SanitizeCacheName( url, cachePath, sizeof( cachePath ) );
@@ -273,8 +278,12 @@ Initialises the Steam resource bridge and related configuration.
 */
 void CL_InitSteamResources( void ) {
 	Com_Memset( cl_steamResources, 0, sizeof( cl_steamResources ) );
-	cl_steamCachePersist = Cvar_Get( "cl_steamCachePersist", "1", CVAR_ARCHIVE );
+	cl_steamCachePersist = Cvar_Get( "cl_steamCachePersist", CL_SteamServicesEnabled() ? "1" : "0", CVAR_ARCHIVE );
 	cl_steamCachePath = Cvar_Get( "cl_steamCachePath", "steamcache", CVAR_ARCHIVE );
+
+	if ( !CL_SteamServicesEnabled() ) {
+		Com_Printf( "Steam resource bridge disabled by build/runtime policy\n" );
+	}
 }
 
 /*
@@ -304,7 +313,11 @@ qboolean Sys_Steam_RequestURL( const char *url, byte **outBuffer, int *outSize )
 		*outSize = 0;
 	}
 
-	Com_Printf( "Steam backend unavailable for %s\n", url ? url : "<null>" );
+	if ( !CL_SteamServicesEnabled() ) {
+		Com_Printf( "Steam backend disabled by build/runtime policy for %s\n", url ? url : "<null>" );
+	} else {
+		Com_Printf( "Steam backend unavailable for %s\n", url ? url : "<null>" );
+	}
 	return qfalse;
 }
 

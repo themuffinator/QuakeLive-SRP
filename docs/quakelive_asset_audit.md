@@ -12,14 +12,16 @@
 
 ## UI Asset Audit (Retail Snapshot vs `src/ui`)
 
-This inventory compares the retail capture under `assets/quakelive/baseq3/ui` against the scripts currently mirrored in `src/ui`. The goal is to identify missing art/font bundles and layout drift that would diverge from retail UI captures.
+This inventory compares the retail capture under `assets/quakelive/baseq3/ui` against the
+read-only mirror in `src/ui`. The goal is to identify the remaining drift that still needs
+to be corrected through runtime hooks or layered override packages.
 
-### Missing UI Art/Icon Coverage
+### `src/ui` Inventory State
 
-| Retail capture evidence | Gap in repo coverage | Notes |
+| Retail capture evidence | Current `src/ui` state | Notes |
 | --- | --- | --- |
-| The retail UI VM loads cursor, gradient bar, scrollbar, and slider textures from `ui/assets/*` during initialization (e.g., `ui/assets/gradientbar2.tga`, `ui/assets/scrollbar.tga`, `ui/assets/slider2.tga`).【F:references/hlil/quakelive/uix86.all/uix86.dll_hlil_split/uix86.dll_hlil_part01.txt†L2327-L2367】 | `src/ui/` contains only menu scripts and no `ui/assets` art payload, so these textures must come from packaged assets or the retail snapshot directory. | Without the `ui/assets` bundle, scrollbars, gradients, and cursor sprites fall back or render blank. |
-| Competitive HUD menus reference scorebox and ink-fade textures under `ui/assets/score/` (e.g., `scorebox_spec.tga`, `scorebox_follow.tga`, `ink_fade_left.tga`, `ink_fade_right.tga`).【F:assets/quakelive/baseq3/ui/comp_spectator_follow.menu†L163-L289】 | The scorebox textures are not present in `src/ui` and must be sourced from the retail `ui/assets` tree. | Missing textures remove the visible scorebox backgrounds, reducing HUD legibility. |
+| The retail UI VM loads cursor, gradient bar, scrollbar, and slider textures from `ui/assets/*` during initialization (e.g., `ui/assets/gradientbar2.tga`, `ui/assets/scrollbar.tga`, `ui/assets/slider2.tga`).【F:references/hlil/quakelive/uix86.all/uix86.dll_hlil_split/uix86.dll_hlil_part01.txt†L2327-L2367】 | `src/ui/assets/` is now a full mirror of `assets/quakelive/baseq3/ui/assets/`: `454` files on each side with `0` content diffs. | The remaining `src/ui` parity gap is no longer missing HUD art inside `src/ui`; it is limited to text-script/header drift in a 7-file set. |
+| Competitive HUD menus reference scorebox and ink-fade textures under `ui/assets/score/` (e.g., `scorebox_spec.tga`, `scorebox_follow.tga`, `ink_fade_left.tga`, `ink_fade_right.tga`).【F:assets/quakelive/baseq3/ui/comp_spectator_follow.menu†L163-L289】 | The referenced scorebox art is present in both the retail snapshot and the frozen `src/ui/assets/score/` tree. | Packaging/runtime work still needs to ensure those files are mounted, but this is not a remaining `src/ui` mirror gap. |
 
 ### Font Coverage Notes
 
@@ -32,6 +34,22 @@ The retail HUD scripts expect baked font atlases (`fonts/font`, `fonts/smallfont
 | Spectator comparison health panels | Uses `CG_SPEC_COMPARE_PRIMARY` / `CG_SPEC_COMPARE_SECONDARY` in `comp_spectator.menu` to draw the two-player comparison bars.【F:assets/quakelive/baseq3/ui/comp_spectator.menu†L150-L161】 | Uses `CG_1ST_PLYR_HEALTH_ARMOR` / `CG_2ND_PLYR_HEALTH_ARMOR`, diverging from retail ownerdraw IDs.【F:src/ui/comp_spectator.menu†L150-L161】 | Mismatched ownerdraw IDs change which HUD data feeds the panel; retail comparison bars may not render as intended. |
 | Spectator follow highlight | Retail uses `CG_SPEC_FOLLOW_PRIMARY` / `CG_SPEC_FOLLOW_SECONDARY` for the follow badges on the scoreboxes.【F:assets/quakelive/baseq3/ui/comp_spectator_follow.menu†L202-L252】 | `src/ui` swaps to `CG_HEALTH_COLORIZED` with follow-specific ownerdraw flags (`CG_SHOW_IF_1ST_PLYR_FOLLOWED`, `CG_SHOW_IF_2ND_PLYR_FOLLOWED`).【F:src/ui/comp_spectator_follow.menu†L202-L254】 | The follow badges no longer map to the retail ownerdraw handlers, risking incorrect highlight behavior. |
 | In-game join panel | Retail `ingame_join.menu` omits a country dropdown panel in the join pop-up.【F:assets/quakelive/baseq3/ui/ingame_join.menu†L35-L100】 | `src/ui` inserts a country label/list fed by `FEEDER_COUNTRIES`.【F:src/ui/ingame_join.menu†L35-L122】 | Layout expands beyond the retail capture and depends on a feeder ID absent in the retail `menudef.h` list.【F:src/ui/menudef.h†L70-L86】【F:assets/quakelive/baseq3/ui/menudef.h†L70-L85】 |
+| Merge-conflict damage | Retail `hud.txt`, `hud3.txt`, and `ingame_callvote.menu` are clean text sources. | The frozen `src/ui` copies still contain merge-conflict markers. | These files cannot be repaired in place, so they must be corrected through layered overrides. |
+| Header drift | Retail `menudef.h` omits local-only feeder definitions such as `FEEDER_COUNTRIES`. | `src/ui/menudef.h` still carries local header additions absent from the retail file. | Source-based includes can diverge from the retail menu tree unless a retail-correct overlay header is mounted alongside the scripts. |
+
+The committed file inventory is otherwise exact at `520 / 520`, and the remaining raw
+`src/ui` content drift is limited to these seven files:
+- `comp_spectator.menu`
+- `comp_spectator_follow.menu`
+- `hud.txt`
+- `hud3.txt`
+- `ingame_callvote.menu`
+- `ingame_join.menu`
+- `menudef.h`
+
+The writable correction path is the retail overlay generator in
+`scripts/ui/write_retail_ui_overrides.py`, which now also feeds the layered
+`pak_ui_src_retail_overlay.pk3` output path in `tools/build_ui_bundle.sh`.
 
 ## Configuration Defaults
 
@@ -44,9 +62,10 @@ The reference dump enumerates the Windows launcher (`quakelive_steam.exe`) and s
 ## Packaging & Regeneration Process
 
 1. **Extract Quake Live UI assets** – Use `tools/build_ui_bundle.sh` (via the manifest) to copy `baseq3/ui/*.menu` and `baseq3/ui/*.txt` into `build/ui_bundle/staging/ui/`. Maintain directory layout to satisfy `trap_FS_FOpenFile` lookups.
+   - The same build flow now emits `pak_ui_src_retail_overlay.pk3`, containing just the seven retail-correct replacements needed to neutralize the remaining frozen `src/ui` drift without editing that tree directly.
 2. **Compile UI code** – Extend the native build pipeline described in `docs/build-pipeline.md` to emit `uix86.dll`, linking against the VS2010 runtime to mirror import tables.【docs/build-pipeline.md†L20-L34】 Place the binary next to the staged UI scripts so clients can load the native module.
 3. **Prepare shader and font resources** – Copy `scripts/ui*.shader` into `baseq3/scripts/` and run the Quake III font generator (or an equivalent freetype-based tool) against the TTFs stored under `assets/quakelive/baseq3/fonts/` to produce `.tga` atlases referenced by the menus. Record the generator inputs so future HUD changes can be rebuilt reproducibly and call out the source/license for each TTF (Handel Gothic is redistribution-restricted, Droid/Noto are Apache 2.0).
-4. **Bundle art dependencies** – Stage icons and levelshots used by the menus under `baseq3/icons/` and `baseq3/levelshots/`. The renderer already accepts PNG/JPG/TGA via the `tr_image.c` load path, so keep the snapshot PNG/JPEG assets unless a downstream toolchain requires TGA conversion.
+4. **Bundle art dependencies** – Stage icons and levelshots used by the menus under `baseq3/icons/` and `baseq3/levelshots/`, and keep the full retail `ui/assets/` tree mounted beside the menu scripts. The renderer already accepts PNG/JPG/TGA via the `tr_image.c` load path, so keep the snapshot PNG/JPEG assets unless a downstream toolchain requires TGA conversion.
 5. **Assemble distributable packages** – Zip the staged directories into PK3 archives (e.g., `pak100ql.pk3`) or embed them in a platform-specific installer. Ensure `default.cfg` and curated configs live at the root of the PK3 so the engine bootstrap succeeds, and honor the packaging manifest at `tools/packaging/ui_bundle_manifest.json` so the reference fonts are copied from `assets/quakelive/baseq3/fonts/` into `fonts/*.ttf` for `FS_InitFilesystem` checks.
 6. **Verify bootstrap diagnostics** – The filesystem now emits preflight warnings enumerating which search path (homepath/basepath/cdpath) was missing `default.cfg`, key `ui/*.menu` scripts, or the required TTFs. Use these logs to confirm your PK3 layout matches the expected Quake Live directory tree before distributing builds.
 7. **Document regeneration commands** – Add scripts (PowerShell/Bash) that call out the exact copy, conversion, and `zip` commands, allowing automated rebuilds when upstream assets change. Reference this document from README/porting guides so contributors can rerun the pipeline.
@@ -60,7 +79,7 @@ export REPO_ROOT="$(git rev-parse --show-toplevel)"
 bash tools/build_ui_bundle.sh
 ```
 
-The script copies `default.cfg`, the Quake Live TTF set (`fonts/*.ttf`), shader scripts (`scripts/ui*.shader`), and the entire `ui/*.menu`/`ui/*.txt` tree into `build/ui_bundle/staging/`. It then enforces the manifest-defined audit gates (required paths and globs) before invoking `zip`, causing the build to fail if any required file is missing or placed under the wrong PK3 path.
+The script copies `default.cfg`, the Quake Live TTF set (`fonts/*.ttf`), shader scripts (`scripts/ui*.shader`), the full retail `ui/assets/` tree, gameplay `icons/`, `levelshots/`, and the entire `ui/*.menu`/`ui/*.txt` tree into `build/ui_bundle/staging/`. It also emits `pak_ui_src_retail_overlay.pk3`, containing the 7 retail-correct replacements for the frozen `src/ui` drift set. The build enforces the manifest-defined audit gates before packaging. When `freetype-py` is unavailable, the font bake step falls back to deterministic metrics plus placeholder atlas files so the bundle still completes.
 
 ## Configuration Alignment Plan
 

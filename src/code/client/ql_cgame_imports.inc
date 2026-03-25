@@ -680,11 +680,56 @@ static int QDECL QL_CG_trap_Key_GetKey( const char *binding ) {
 
 /*
 ==============
+QL_CG_trap_Cmd_ExecuteText
+==============
+*/
+static void QDECL QL_CG_trap_Cmd_ExecuteText( int exec_when, const char *text ) {
+	CG_Import_Syscall( CG_CMD_EXECUTETEXT, exec_when, text );
+}
+
+/*
+==============
 QL_CG_trap_Key_KeynumToStringBuf
 ==============
 */
 static void QDECL QL_CG_trap_Key_KeynumToStringBuf( int keynum, char *buf, int buflen ) {
 	CG_Import_Syscall( CG_KEY_KEYNUMTOSTRINGBUF, keynum, buf, buflen );
+}
+
+/*
+==============
+QL_CG_trap_Key_GetBindingBuf
+==============
+*/
+static void QDECL QL_CG_trap_Key_GetBindingBuf( int keynum, char *buf, int buflen ) {
+	CG_Import_Syscall( CG_KEY_GETBINDINGBUF, keynum, buf, buflen );
+}
+
+/*
+==============
+QL_CG_trap_Key_SetBinding
+==============
+*/
+static void QDECL QL_CG_trap_Key_SetBinding( int keynum, const char *binding ) {
+	CG_Import_Syscall( CG_KEY_SETBINDING, keynum, binding );
+}
+
+/*
+==============
+QL_CG_trap_Key_GetOverstrikeMode
+==============
+*/
+static qboolean QDECL QL_CG_trap_Key_GetOverstrikeMode( void ) {
+	return CG_Import_Syscall( CG_KEY_GETOVERSTRIKEMODE );
+}
+
+/*
+==============
+QL_CG_trap_Key_SetOverstrikeMode
+==============
+*/
+static void QDECL QL_CG_trap_Key_SetOverstrikeMode( qboolean state ) {
+	CG_Import_Syscall( CG_KEY_SETOVERSTRIKEMODE, state );
 }
 
 /*
@@ -938,4 +983,40 @@ QL_CG_trap_ACos
 */
 static float QDECL QL_CG_trap_ACos( float x ) {
 	return Q_acos( x );
+}
+
+/*
+==============
+QL_CG_trap_AdvertisementBridge_InitCGame
+==============
+*/
+static void QDECL QL_CG_trap_AdvertisementBridge_InitCGame( void ) {
+	CG_Import_Syscall( CG_ADVERTISEMENTBRIDGE_INITCGAME );
+}
+
+/*
+==============
+QL_CG_trap_AdvertisementBridge_ShutdownCGame
+==============
+*/
+static void QDECL QL_CG_trap_AdvertisementBridge_ShutdownCGame( void ) {
+	CG_Import_Syscall( CG_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME );
+}
+
+/*
+==============
+QL_CG_trap_AdvertisementBridge_UpdateLoadingViewParameters
+==============
+*/
+static void QDECL QL_CG_trap_AdvertisementBridge_UpdateLoadingViewParameters( void ) {
+	CG_Import_Syscall( CG_ADVERTISEMENTBRIDGE_UPDATELOADINGVIEWPARAMETERS );
+}
+
+/*
+==============
+QL_CG_trap_AdvertisementBridge_SetFrameTime
+==============
+*/
+static void QDECL QL_CG_trap_AdvertisementBridge_SetFrameTime( int frameTime ) {
+	CG_Import_Syscall( CG_ADVERTISEMENTBRIDGE_SETFRAMETIME, frameTime );
 }

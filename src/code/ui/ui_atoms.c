@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 	User interface building blocks and support functions.
 **********************************************************************/
 #include "ui_local.h"
+#include <string.h>
 
 qboolean		m_entersound;		// after a frame, so caching won't disrupt the sound
 
@@ -52,6 +53,37 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	va_end (argptr);
 
 	trap_Print( va("%s", text) );
+}
+
+/*
+=============
+Com_DPrintf
+
+Route debug UI logging through the same trap-backed print channel in standalone
+native UI builds where qcommon's developer print helper is not linked.
+=============
+*/
+void QDECL Com_DPrintf( const char *msg, ... ) {
+	va_list		argptr;
+	char		text[1024];
+
+	va_start( argptr, msg );
+	vsprintf( text, msg, argptr );
+	va_end( argptr );
+
+	trap_Print( va("%s", text) );
+}
+
+/*
+=============
+Com_Memset
+
+Provide the qcommon memory helper expected by the shared GPL UI modules when
+the native UI DLL is linked without qcommon/common.c.
+=============
+*/
+void Com_Memset( void *dest, const int val, const size_t count ) {
+	memset( dest, val, count );
 }
 
 #endif
@@ -454,6 +486,47 @@ void UI_ClearScores() {
 
 static void	UI_Cache_f() {
 	Display_CacheAll();
+	UI_CDKeyMenu_Cache();
+}
+
+/*
+=======================
+UI_ConsoleCommand_MenuClose
+=======================
+*/
+static void UI_ConsoleCommand_MenuClose( void ) {
+	char menuName[MAX_QPATH];
+
+	if ( trap_Argc() < 2 ) {
+		return;
+	}
+
+	Q_strncpyz( menuName, UI_Argv( 1 ), sizeof( menuName ) );
+	if ( !menuName[0] ) {
+		return;
+	}
+
+	Menus_CloseByName( menuName );
+}
+
+/*
+=======================
+UI_ConsoleCommand_MenuOpen
+=======================
+*/
+static void UI_ConsoleCommand_MenuOpen( void ) {
+	char menuName[MAX_QPATH];
+
+	if ( trap_Argc() < 2 ) {
+		return;
+	}
+
+	Q_strncpyz( menuName, UI_Argv( 1 ), sizeof( menuName ) );
+	if ( !menuName[0] ) {
+		return;
+	}
+
+	Menus_OpenByName( menuName );
 }
 
 /*
@@ -638,6 +711,11 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		return qtrue;
 	}
 
+	if ( Q_stricmp (cmd, "listPlayerModels") == 0 ) {
+		UI_ListPlayerModels();
+		return qtrue;
+	}
+
 	if ( Q_stricmp (cmd, "ui_load") == 0 ) {
 		UI_Load();
 		return qtrue;
@@ -664,13 +742,23 @@ qboolean UI_ConsoleCommand( int realTime ) {
 		return qtrue;
 	}
 
+	if ( Q_stricmp (cmd, "menu_close") == 0 ) {
+		UI_ConsoleCommand_MenuClose();
+		return qtrue;
+	}
+
+	if ( Q_stricmp (cmd, "menu_open") == 0 ) {
+		UI_ConsoleCommand_MenuOpen();
+		return qtrue;
+	}
+
 	if ( Q_stricmp (cmd, "ui_teamOrders") == 0 ) {
 		//UI_TeamOrdersMenu_f();
 		return qtrue;
 	}
 
 	if ( Q_stricmp (cmd, "ui_cdkey") == 0 ) {
-		//UI_CDKeyMenu_f();
+		UI_CDKeyMenu_f();
 		return qtrue;
 	}
 

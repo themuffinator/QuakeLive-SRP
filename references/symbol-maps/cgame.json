@@ -1,0 +1,3370 @@
+{
+  "schema_version": 1,
+  "binary": "cgame",
+  "input_path": "assets/quakelive/baseq3/cgamex86.dll",
+  "generated_at": "2026-03-20T00:00:00Z",
+  "normalization": {
+    "alias_source": "references/analysis/quakelive_symbol_aliases.json",
+    "unresolved_prefix": "UNRESOLVED_CGAME"
+  },
+  "functions": [
+    {
+      "address": "0x100068E0",
+      "raw_name": "FUN_100068e0",
+      "normalized_name": "CG_InitTeamChat",
+      "status": "matched",
+      "signature": "void CG_InitTeamChat(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail buffered-chat reset helper used during CG_Init and again by the clearChat server command; the closest source analogue is CG_InitTeamChat, but retail clears a timed chat ring instead of three flat strings."
+    },
+    {
+      "address": "0x10006910",
+      "raw_name": "FUN_10006910",
+      "normalized_name": "CG_PushPrintString",
+      "status": "matched",
+      "signature": "static void CG_PushPrintString(const char *text, int type, int holdTime)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail name for the timed buffered chat/print writer: it rotates the live entry into the 24-slot history ring when needed, timestamps the new active slot, trims a trailing newline, and copies the new text into the live print record."
+    },
+    {
+      "address": "0x10006A10",
+      "raw_name": "FUN_10006a10",
+      "normalized_name": "CG_DrawNewChatArea",
+      "status": "matched",
+      "signature": "static void CG_DrawNewChatArea(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail timed chat-stack renderer reached from the ownerdraw dispatcher for the new chat area; HLIL only exposes the scale float directly because the ownerdraw call frame carries the rect/color context."
+    },
+    {
+      "address": "0x10006BE0",
+      "raw_name": "sub_10006be0",
+      "normalized_name": "CG_TargetCommand_f",
+      "status": "matched",
+      "signature": "static void CG_TargetCommand_f(void)",
+      "string_refs": [
+        "0x100686DC"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tcmd` console-command handler; HLIL resolves the same `gc %i %i` crosshair-target dispatch as the public-source CG_TargetCommand_f."
+    },
+    {
+      "address": "0x10006C50",
+      "raw_name": "sub_10006c50",
+      "normalized_name": "CG_SizeUp_f",
+      "status": "matched",
+      "signature": "static void CG_SizeUp_f(void)",
+      "string_refs": [
+        "0x1006874C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `sizeup` console-command handler that increments `cg_viewsize` by ten, matching the public-source CG_SizeUp_f."
+    },
+    {
+      "address": "0x10006C80",
+      "raw_name": "sub_10006c80",
+      "normalized_name": "CG_SizeDown_f",
+      "status": "matched",
+      "signature": "static void CG_SizeDown_f(void)",
+      "string_refs": [
+        "0x10068740"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `sizedown` console-command handler that decrements `cg_viewsize` by ten, matching the public-source CG_SizeDown_f."
+    },
+    {
+      "address": "0x10006CB0",
+      "raw_name": "sub_10006cb0",
+      "normalized_name": "CG_Viewpos_f",
+      "status": "matched",
+      "signature": "static void CG_Viewpos_f(void)",
+      "string_refs": [
+        "0x10068794"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `viewpos` console-command handler; HLIL prints the current view origin and yaw with the same format used by CG_Viewpos_f."
+    },
+    {
+      "address": "0x10006CF0",
+      "raw_name": "sub_10006cf0",
+      "normalized_name": "CG_ScoresDown_f",
+      "status": "matched",
+      "signature": "static void CG_ScoresDown_f(void)",
+      "string_refs": [
+        "0x1006878C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `+scores` handler that raises the score-display latch and refreshes the scoreboard when the cached scores are stale, matching CG_ScoresDown_f."
+    },
+    {
+      "address": "0x10006D40",
+      "raw_name": "sub_10006d40",
+      "normalized_name": "CG_ScoresUp_f",
+      "status": "matched",
+      "signature": "static void CG_ScoresUp_f(void)",
+      "string_refs": [
+        "0x10068784"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `-scores` handler that clears the score-display latch, matching the public-source CG_ScoresUp_f."
+    },
+    {
+      "address": "0x10006E40",
+      "raw_name": "sub_10006e40",
+      "normalized_name": "CG_LoadHud_f",
+      "status": "matched",
+      "signature": "static void CG_LoadHud_f(void)",
+      "string_refs": [
+        "0x100686D4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `loadhud` console-command wrapper that resets the menu parser, reads `cg_hudFiles`, falls back to `ui/hud.txt`, and reloads the HUD. This resolves the earlier `0x10006E40` loader-clone ambiguity as CG_LoadHud_f."
+    },
+    {
+      "address": "0x10006F50",
+      "raw_name": "sub_10006f50",
+      "normalized_name": "CG_TellTarget_f",
+      "status": "matched",
+      "signature": "static void CG_TellTarget_f(void)",
+      "string_refs": [
+        "0x10068714"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tell_target` wrapper that builds `tell %i %s` for the current crosshair target, matching CG_TellTarget_f."
+    },
+    {
+      "address": "0x10006FF0",
+      "raw_name": "sub_10006ff0",
+      "normalized_name": "CG_TellAttacker_f",
+      "status": "matched",
+      "signature": "static void CG_TellAttacker_f(void)",
+      "string_refs": [
+        "0x10068704"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tell_attacker` wrapper that targets the last attacker with `tell %i %s`, matching CG_TellAttacker_f."
+    },
+    {
+      "address": "0x10007090",
+      "raw_name": "sub_10007090",
+      "normalized_name": "CG_VoiceTellTarget_f",
+      "status": "matched",
+      "signature": "static void CG_VoiceTellTarget_f(void)",
+      "string_refs": [
+        "0x100686F4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `vtell_target` wrapper that builds the same `vtell %i %s` dispatch as CG_VoiceTellTarget_f."
+    },
+    {
+      "address": "0x10007120",
+      "raw_name": "sub_10007120",
+      "normalized_name": "CG_VoiceTellAttacker_f",
+      "status": "matched",
+      "signature": "static void CG_VoiceTellAttacker_f(void)",
+      "string_refs": [
+        "0x100686E4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `vtell_attacker` wrapper that targets the last attacker with `vtell %i %s`, matching CG_VoiceTellAttacker_f."
+    },
+    {
+      "address": "0x100071C0",
+      "raw_name": "sub_100071c0",
+      "normalized_name": "CG_NextTeamMember_f",
+      "status": "matched",
+      "signature": "static void CG_NextTeamMember_f(void)",
+      "string_refs": [
+        "0x100686C4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `nextTeamMember` command wrapper that advances team follow state, matching the public-source CG_NextTeamMember_f."
+    },
+    {
+      "address": "0x100071F0",
+      "raw_name": "sub_100071f0",
+      "normalized_name": "CG_PrevTeamMember_f",
+      "status": "matched",
+      "signature": "static void CG_PrevTeamMember_f(void)",
+      "string_refs": [
+        "0x100686B4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `prevTeamMember` command wrapper that reverses team follow state, matching the public-source CG_PrevTeamMember_f."
+    },
+    {
+      "address": "0x10007220",
+      "raw_name": "sub_10007220",
+      "normalized_name": "CG_NextOrder_f",
+      "status": "matched",
+      "signature": "static void CG_NextOrder_f(void)",
+      "string_refs": [
+        "0x100686A8"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `nextOrder` handler that cycles the order selector, skips unavailable tasks, and refreshes the order timeout, matching CG_NextOrder_f."
+    },
+    {
+      "address": "0x100072C0",
+      "raw_name": "sub_100072c0",
+      "normalized_name": "CG_ConfirmOrder_f",
+      "status": "matched",
+      "signature": "static void CG_ConfirmOrder_f(void)",
+      "string_refs": [
+        "0x10068698"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `confirmOrder` handler that sends the confirm voice command and applies the pending team task, matching CG_ConfirmOrder_f."
+    },
+    {
+      "address": "0x10007330",
+      "raw_name": "sub_10007330",
+      "normalized_name": "CG_DenyOrder_f",
+      "status": "matched",
+      "signature": "static void CG_DenyOrder_f(void)",
+      "string_refs": [
+        "0x1006868C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `denyOrder` handler that sends the deny voice command and clears the pending order state, matching CG_DenyOrder_f."
+    },
+    {
+      "address": "0x10007380",
+      "raw_name": "sub_10007380",
+      "normalized_name": "CG_TaskOffense_f",
+      "status": "matched",
+      "signature": "static void CG_TaskOffense_f(void)",
+      "string_refs": [
+        "0x10068680"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskOffense` wrapper that emits `vsay_team onoffense` and updates team-task state, matching CG_TaskOffense_f."
+    },
+    {
+      "address": "0x100073F0",
+      "raw_name": "sub_100073f0",
+      "normalized_name": "CG_TaskDefense_f",
+      "status": "matched",
+      "signature": "static void CG_TaskDefense_f(void)",
+      "string_refs": [
+        "0x10068674"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskDefense` wrapper that emits `vsay_team ondefense` and updates team-task state, matching CG_TaskDefense_f."
+    },
+    {
+      "address": "0x10007430",
+      "raw_name": "sub_10007430",
+      "normalized_name": "CG_TaskPatrol_f",
+      "status": "matched",
+      "signature": "static void CG_TaskPatrol_f(void)",
+      "string_refs": [
+        "0x10068668"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskPatrol` wrapper that emits `vsay_team onpatrol` and updates team-task state, matching CG_TaskPatrol_f."
+    },
+    {
+      "address": "0x10007470",
+      "raw_name": "sub_10007470",
+      "normalized_name": "CG_TaskCamp_f",
+      "status": "matched",
+      "signature": "static void CG_TaskCamp_f(void)",
+      "string_refs": [
+        "0x1006865C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskCamp` wrapper that emits `vsay_team oncamping` and updates team-task state, matching CG_TaskCamp_f."
+    },
+    {
+      "address": "0x100074B0",
+      "raw_name": "sub_100074b0",
+      "normalized_name": "CG_TaskFollow_f",
+      "status": "matched",
+      "signature": "static void CG_TaskFollow_f(void)",
+      "string_refs": [
+        "0x10068650"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskFollow` wrapper that emits `vsay_team onfollow` and updates team-task state, matching CG_TaskFollow_f."
+    },
+    {
+      "address": "0x100074F0",
+      "raw_name": "sub_100074f0",
+      "normalized_name": "CG_TaskRetrieve_f",
+      "status": "matched",
+      "signature": "static void CG_TaskRetrieve_f(void)",
+      "string_refs": [
+        "0x10068640"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskRetrieve` wrapper that emits `vsay_team onreturnflag` and updates team-task state, matching CG_TaskRetrieve_f."
+    },
+    {
+      "address": "0x10007530",
+      "raw_name": "sub_10007530",
+      "normalized_name": "CG_TaskEscort_f",
+      "status": "matched",
+      "signature": "static void CG_TaskEscort_f(void)",
+      "string_refs": [
+        "0x10068634"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskEscort` wrapper that emits `vsay_team onfollowcarrier` and updates team-task state, matching CG_TaskEscort_f."
+    },
+    {
+      "address": "0x10007570",
+      "raw_name": "sub_10007570",
+      "normalized_name": "CG_TaskOwnFlag_f",
+      "status": "matched",
+      "signature": "static void CG_TaskOwnFlag_f(void)",
+      "string_refs": [
+        "0x1006861C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskOwnFlag` wrapper that announces `ihaveflag`, matching CG_TaskOwnFlag_f."
+    },
+    {
+      "address": "0x100075A0",
+      "raw_name": "sub_100075a0",
+      "normalized_name": "CG_TauntKillInsult_f",
+      "status": "matched",
+      "signature": "static void CG_TauntKillInsult_f(void)",
+      "string_refs": [
+        "0x1006860C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tauntKillInsult` wrapper that dispatches `cmd vsay kill_insult`, matching CG_TauntKillInsult_f."
+    },
+    {
+      "address": "0x100075C0",
+      "raw_name": "sub_100075c0",
+      "normalized_name": "CG_TauntPraise_f",
+      "status": "matched",
+      "signature": "static void CG_TauntPraise_f(void)",
+      "string_refs": [
+        "0x10068600"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tauntPraise` wrapper that dispatches `cmd vsay praise`, matching CG_TauntPraise_f."
+    },
+    {
+      "address": "0x100075E0",
+      "raw_name": "sub_100075e0",
+      "normalized_name": "CG_TauntTaunt_f",
+      "status": "matched",
+      "signature": "static void CG_TauntTaunt_f(void)",
+      "string_refs": [
+        "0x100685F4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tauntTaunt` wrapper that dispatches `cmd vtaunt`, matching CG_TauntTaunt_f."
+    },
+    {
+      "address": "0x10007600",
+      "raw_name": "sub_10007600",
+      "normalized_name": "CG_TauntDeathInsult_f",
+      "status": "matched",
+      "signature": "static void CG_TauntDeathInsult_f(void)",
+      "string_refs": [
+        "0x100685E0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tauntDeathInsult` wrapper that dispatches `cmd vsay death_insult`, matching CG_TauntDeathInsult_f."
+    },
+    {
+      "address": "0x10007620",
+      "raw_name": "sub_10007620",
+      "normalized_name": "CG_TauntGauntlet_f",
+      "status": "matched",
+      "signature": "static void CG_TauntGauntlet_f(void)",
+      "string_refs": [
+        "0x100685D0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tauntGauntlet` wrapper that dispatches `cmd vsay kill_gauntlet`, correcting the old public-source typo while otherwise matching CG_TauntGauntlet_f."
+    },
+    {
+      "address": "0x10007640",
+      "raw_name": "sub_10007640",
+      "normalized_name": "CG_TaskSuicide_f",
+      "status": "matched",
+      "signature": "static void CG_TaskSuicide_f(void)",
+      "string_refs": [
+        "0x10068628"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `taskSuicide` wrapper that tells the selected teammate to suicide, matching CG_TaskSuicide_f."
+    },
+    {
+      "address": "0x100076B0",
+      "raw_name": "sub_100076b0",
+      "normalized_name": "CG_DropFlag_f",
+      "status": "matched",
+      "signature": "static void CG_DropFlag_f(void)",
+      "string_refs": [
+        "0x100689C0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `dropflag` command wrapper that gates flag drops by gametype before forwarding the server command."
+    },
+    {
+      "address": "0x100076F0",
+      "raw_name": "sub_100076f0",
+      "normalized_name": "CG_DropPowerup_f",
+      "status": "matched",
+      "signature": "static void CG_DropPowerup_f(void)",
+      "string_refs": [
+        "0x10068A58"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `droppowerup` command wrapper that validates team and mode restrictions before forwarding the server command."
+    },
+    {
+      "address": "0x10007780",
+      "raw_name": "sub_10007780",
+      "normalized_name": "CG_DropRune_f",
+      "status": "matched",
+      "signature": "static void CG_DropRune_f(void)",
+      "string_refs": [
+        "0x10068A84"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `droprune` command wrapper that enforces the rune-capable mode gate before forwarding the server command."
+    },
+    {
+      "address": "0x100077B0",
+      "raw_name": "sub_100077b0",
+      "normalized_name": "CG_DropWeapon_f",
+      "status": "matched",
+      "signature": "static void CG_DropWeapon_f(void)",
+      "string_refs": [
+        "0x10068B14"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `dropweapon` command wrapper that validates the current ruleset before forwarding the server command."
+    },
+    {
+      "address": "0x10007840",
+      "raw_name": "sub_10007840",
+      "normalized_name": "CG_ReadyUp_f",
+      "status": "matched",
+      "signature": "static void CG_ReadyUp_f(void)",
+      "string_refs": [
+        "0x10068B20"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `readyup` command wrapper that checks the current warmup state before forwarding the server command."
+    },
+    {
+      "address": "0x10007880",
+      "raw_name": "sub_10007880",
+      "normalized_name": "CG_Team_f",
+      "status": "matched",
+      "signature": "static void CG_Team_f(void)",
+      "string_refs": [
+        "0x10068BC4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `team` command wrapper that forwards the requested team string and then refreshes the local team/follow state."
+    },
+    {
+      "address": "0x10007900",
+      "raw_name": "sub_10007900",
+      "normalized_name": "CG_Forfeit_f",
+      "status": "matched",
+      "signature": "static void CG_Forfeit_f(void)",
+      "string_refs": [
+        "0x10068B54"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `forfeit` command wrapper that enforces the active duel/race conditions before forwarding the server command."
+    },
+    {
+      "address": "0x10007960",
+      "raw_name": "sub_10007960",
+      "normalized_name": "CG_RageQuit_f",
+      "status": "matched",
+      "signature": "static void CG_RageQuit_f(void)",
+      "string_refs": [
+        "0x10068B5C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `ragequit` command wrapper that forwards the server command and arms the local quit-state side effect observed in HLIL."
+    },
+    {
+      "address": "0x10007BA0",
+      "raw_name": "sub_10007ba0",
+      "normalized_name": "CG_SetTeamColor_f",
+      "status": "matched",
+      "signature": "static void CG_SetTeamColor_f(void)",
+      "string_refs": [
+        "0x10068580"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `setteamcolor` wrapper around the shared color-parse helper at `0x10007980`; it updates the `cg_team*Color` cvars."
+    },
+    {
+      "address": "0x10007BB0",
+      "raw_name": "sub_10007bb0",
+      "normalized_name": "CG_SetEnemyColor_f",
+      "status": "matched",
+      "signature": "static void CG_SetEnemyColor_f(void)",
+      "string_refs": [
+        "0x10068570"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only `setenemycolor` wrapper around the shared color-parse helper at `0x10007980`; it updates the `cg_enemy*Color` cvars."
+    },
+    {
+      "address": "0x10007BC0",
+      "raw_name": "sub_10007bc0",
+      "normalized_name": "CG_StartOrbit_f",
+      "status": "matched",
+      "signature": "static void CG_StartOrbit_f(void)",
+      "string_refs": [
+        "0x100685C4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail startOrbit console-command handler; it reads developer and toggles the orbit-camera third-person cvars exactly like the public-source CG_StartOrbit_f."
+    },
+    {
+      "address": "0x10007CD0",
+      "raw_name": "sub_10007cd0",
+      "normalized_name": "CG_ChatDown_f",
+      "status": "matched",
+      "signature": "static void CG_ChatDown_f(void)",
+      "string_refs": [
+        "0x100685AC"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail +chat console-command handler that raises the buffered chat-history latch consumed by the new-chat ownerdraw path."
+    },
+    {
+      "address": "0x10007CF0",
+      "raw_name": "sub_10007cf0",
+      "normalized_name": "CG_ChatUp_f",
+      "status": "matched",
+      "signature": "static void CG_ChatUp_f(void)",
+      "string_refs": [
+        "0x100685A4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail -chat console-command handler that clears the buffered chat-history latch consumed by the new-chat ownerdraw path."
+    },
+    {
+      "address": "0x10007D10",
+      "raw_name": "sub_10007d10",
+      "normalized_name": "CG_ToggleChatHistory_f",
+      "status": "matched",
+      "signature": "static void CG_ToggleChatHistory_f(void)",
+      "string_refs": [
+        "0x10068590"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail togglechathistory console-command handler; it flips the same chat-history visibility latch used by +chat and -chat."
+    },
+    {
+      "address": "0x10007D30",
+      "raw_name": "sub_10007d30",
+      "normalized_name": "CG_Print_f",
+      "status": "matched",
+      "signature": "static void CG_Print_f(void)",
+      "string_refs": [
+        "0x10068568"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail print console-command handler that concatenates Argv(1..) and forwards the resulting line into the buffered chat/print ring writer at 0x10006910."
+    },
+    {
+      "address": "0x10007E90",
+      "raw_name": "sub_10007e90",
+      "normalized_name": "CG_ClientMute_f",
+      "status": "matched",
+      "signature": "static void CG_ClientMute_f(void)",
+      "string_refs": [
+        "0x1006855C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail clientmute console-command handler that parses a client slot, reads the backing identity words from the clientinfo block, and forwards them through a private native mute/social import."
+    },
+    {
+      "address": "0x10020A70",
+      "raw_name": "dllEntry",
+      "normalized_name": "dllEntry",
+      "status": "matched",
+      "signature": "void dllEntry(int (QDECL *syscallptr)(int arg, ...))",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Named export that installs the cgame syscall table."
+    },
+    {
+      "address": "0x10020A90",
+      "raw_name": "FUN_10020a90",
+      "normalized_name": "Com_Printf",
+      "status": "matched",
+      "signature": "void QDECL Com_Printf(const char *msg, ...)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail varargs print helper wired into the HUD callback table as cgDC.print; HLIL forwards directly to trap_Print, which matches the narrower Com_Printf role better than source CG_Printf with its chat-beep side path."
+    },
+    {
+      "address": "0x10020AF0",
+      "raw_name": "FUN_10020af0",
+      "normalized_name": "Com_Error",
+      "status": "matched",
+      "signature": "void QDECL Com_Error(int level, const char *error, ...)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail varargs error adapter assigned into the HUD callback table as cgDC.Error; it preserves the Quake-style error level parameter before forwarding into the cgame error path."
+    },
+    {
+      "address": "0x10020BB0",
+      "raw_name": "FUN_10020bb0",
+      "normalized_name": "CG_RegisterCvars",
+      "status": "matched",
+      "signature": "void CG_RegisterCvars(void)",
+      "string_refs": [
+        "0x1006A8AC",
+        "0x1006CDD8"
+      ],
+      "relocation_refs": [],
+      "comment": "Registers the retail cvar table, pins the model/headmodel defaults, publishes cg_version, and clears ui_voteactive."
+    },
+    {
+      "address": "0x10020CA0",
+      "raw_name": "FUN_10020ca0",
+      "normalized_name": "CG_UpdateCvars",
+      "status": "matched",
+      "signature": "void CG_UpdateCvars(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the registered cvar table and triggers the tracked client-refresh path before frame rendering continues."
+    },
+    {
+      "address": "0x10020D60",
+      "raw_name": "sub_10020d60",
+      "normalized_name": "CG_CrosshairPlayer",
+      "status": "matched",
+      "signature": "int CG_CrosshairPlayer(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Native cgame API-table slot returning the crosshair-traced client index while cg.crosshairClientTime is still live."
+    },
+    {
+      "address": "0x10020D80",
+      "raw_name": "sub_10020d80",
+      "normalized_name": "CG_LastAttacker",
+      "status": "matched",
+      "signature": "int CG_LastAttacker(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Native cgame API-table slot returning the last attacker from the current playerstate while cg.attackerTime is active."
+    },
+    {
+      "address": "0x10007F00",
+      "raw_name": "sub_10007f00",
+      "normalized_name": "CG_ConsoleCommand",
+      "status": "matched",
+      "signature": "qboolean CG_ConsoleCommand(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Native cgame API-table slot that reads Argv(0), scans the static console-command table, dispatches the matched handler, and returns qtrue or qfalse."
+    },
+    {
+      "address": "0x10007F80",
+      "raw_name": "FUN_10007f80",
+      "normalized_name": "CG_InitConsoleCommands",
+      "status": "matched",
+      "signature": "void CG_InitConsoleCommands(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail console-command registrar that walks the same command table as CG_ConsoleCommand and issues trap_AddCommand calls during CG_Init."
+    },
+    {
+      "address": "0x10018E60",
+      "raw_name": "FUN_10018e60",
+      "normalized_name": "CG_PlaceString",
+      "status": "matched",
+      "signature": "const char *CG_PlaceString(int rank)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail rank/place formatter used by obituary and scoreboard text. HLIL preserves the tied-rank mask handling plus the ordinal-suffix selection from the source helper even though the recovered calling convention carries extra register noise."
+    },
+    {
+      "address": "0x10019130",
+      "raw_name": "FUN_10019130",
+      "normalized_name": "CG_Obituary",
+      "status": "matched",
+      "signature": "static void CG_Obituary(entityState_t *ent)",
+      "string_refs": [
+        "0x10069820",
+        "0x10069A90",
+        "0x10069AE4",
+        "0x10069AF4",
+        "0x10069BE8",
+        "0x10069D7C",
+        "0x10069D8C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail obituary handler with the target-range guard, local kill-centerprint variants, frozen/thawed obituary text, delayed follow-killer scheduling, and the final obituary print selection from the source CG_Obituary path."
+    },
+    {
+      "address": "0x10019AF0",
+      "raw_name": "FUN_10019af0",
+      "normalized_name": "CG_UseItem",
+      "status": "matched",
+      "signature": "static void CG_UseItem(centity_t *cent)",
+      "string_refs": [
+        "0x10069DB4",
+        "0x10069DD0",
+        "0x10069DE0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail use-item event helper with the invalid-item guard, local centerprint for \"No item to use\" / \"Use %s\", medkit usage timestamp update, and the expected holdable-use sound dispatch."
+    },
+    {
+      "address": "0x10019CA0",
+      "raw_name": "FUN_10019ca0",
+      "normalized_name": "CG_PainEvent",
+      "status": "matched",
+      "signature": "void CG_PainEvent(centity_t *cent, int health)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail pain-event helper reached from EV_PAIN. HLIL still shows the same 500 ms debounce, painTime update, painDirection toggle, and player pain-sound dispatch that define the source CG_PainEvent contract."
+    },
+    {
+      "address": "0x10019D20",
+      "raw_name": "sub_10019d20",
+      "normalized_name": "CG_TryAutoFollowPowerup",
+      "status": "matched",
+      "signature": "static void CG_TryAutoFollowPowerup(int clientNum, qboolean fromTeamSound)",
+      "string_refs": [
+        "0x10069E28",
+        "0x10069E2C"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail spectator helper. The only HLIL callsites are the global powerup-pickup path plus GTS_RED_TAKEN / GTS_BLUE_TAKEN; it then applies narrow spectator/follow-mode gates and emits `follow %d%s`, using the ` pw` suffix only on the direct powerup path."
+    },
+    {
+      "address": "0x100208F0",
+      "raw_name": "sub_100208f0",
+      "normalized_name": "CG_MouseEvent",
+      "status": "matched",
+      "signature": "void CG_MouseEvent(int dx, int dy)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-only native entry-table wrapper for the retail mouse-input export: it copies the live cursor globals into the cgDC cursor fields and tail-jumps into the shared HUD mouse handler, matching the CG_MOUSE_EVENT path in the source vmMain."
+    },
+    {
+      "address": "0x10020910",
+      "raw_name": "sub_10020910",
+      "normalized_name": "CG_CopyClientIdentity",
+      "status": "matched",
+      "signature": "static qboolean CG_CopyClientIdentity(int clientNum, void *outIdentity)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the retail client-identity marshaller: it validates the client slot, copies the sidecar words at 0x10A42400 / 0x10A42418 / 0x10A4241C, and copies two 0x27-byte identity strings into the caller buffer."
+    },
+    {
+      "address": "0x100209E0",
+      "raw_name": "sub_100209e0",
+      "normalized_name": "CG_GetChatFieldY",
+      "status": "matched",
+      "signature": "static float CG_GetChatFieldY(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the 640-space chat-line Y selector. The host chat-input draw path at 0x004B4100 calls slot data_146cc38 + 0x44 before its SCR_AdjustFrom640-style scaler, and the retail body returns 413 or 455 depending on data_10A9C214."
+    },
+    {
+      "address": "0x10020A00",
+      "raw_name": "sub_10020a00",
+      "normalized_name": "CG_GetChatFieldPixelWidth",
+      "status": "matched",
+      "signature": "static float CG_GetChatFieldPixelWidth(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the 640-space chat-line width selector. The same host draw path calls slot data_146cc38 + 0x48, and the retail body returns 640 or 300 depending on data_10A9C214."
+    },
+    {
+      "address": "0x10020A20",
+      "raw_name": "sub_10020a20",
+      "normalized_name": "CG_GetChatFieldWidthInChars",
+      "status": "matched",
+      "signature": "static int CG_GetChatFieldWidthInChars(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the chat field_t.widthInChars selector. Host say / say_team openers store slot data_146cc38 + 0x4C directly into data_1648C88, which is the widthInChars member of the live field_t rooted at data_1648C80; retail returns 73 or 30 depending on data_10A9C214."
+    },
+    {
+      "address": "0x10020A40",
+      "raw_name": "sub_10020a40",
+      "normalized_name": "CG_SetClientSpeakingState",
+      "status": "matched",
+      "signature": "static void *CG_SetClientSpeakingState(int clientNum, int speaking)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the retail speaking-state setter: it writes the per-client speaking flag at 0x10A4240C, timestamps 0x10A42410 with cg.time, and returns the client block pointer."
+    },
+    {
+      "address": "0x10029820",
+      "raw_name": "sub_10029820",
+      "normalized_name": "CG_Init",
+      "status": "matched",
+      "signature": "void CG_Init(int serverMessageNum, int serverCommandSequence, int clientNum)",
+      "string_refs": [
+        "0x10070410",
+        "0x10070460",
+        "0x10070470",
+        "0x10070478",
+        "0x10070484"
+      ],
+      "relocation_refs": [],
+      "comment": "HLIL-only function boundary matching the retail startup sequence; this address is not present in the committed Ghidra function inventory."
+    },
+    {
+      "address": "0x10029FC0",
+      "raw_name": "sub_10029fc0",
+      "normalized_name": "CG_Shutdown",
+      "status": "matched",
+      "signature": "void CG_Shutdown(void)",
+      "string_refs": [
+        "0x1006A8D4"
+      ],
+      "relocation_refs": [],
+      "comment": "Native cgame API-table slot that performs the retail teardown path, issues the shutdown-side syscall, and restores ui_mainmenu before returning."
+    },
+    {
+      "address": "0x10029FF0",
+      "raw_name": "sub_10029ff0",
+      "normalized_name": "CG_Show1stTrackedPlayer",
+      "status": "matched",
+      "signature": "static void CG_Show1stTrackedPlayer(void)",
+      "string_refs": [
+        "0x1006B460"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the first tracked-slot notifier: it arms the 3000 ms latch later consumed by CG_SHOW_IF_1ST_PLYR_TRACKED, reloads cg_lastmsg, and replays that text through the buffered print stack."
+    },
+    {
+      "address": "0x1002A060",
+      "raw_name": "sub_1002a060",
+      "normalized_name": "CG_Show2ndTrackedPlayer",
+      "status": "matched",
+      "signature": "static void CG_Show2ndTrackedPlayer(void)",
+      "string_refs": [
+        "0x1006B460"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the second tracked-slot notifier: it arms the 3000 ms latch later consumed by CG_SHOW_IF_2ND_PLYR_TRACKED, reloads cg_lastmsg, and replays that text through the buffered print stack."
+    },
+    {
+      "address": "0x1002AF70",
+      "raw_name": "sub_1002af70",
+      "normalized_name": "CG_ClearParticles",
+      "status": "matched",
+      "signature": "void CG_ClearParticles(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail particle reset helper identified by the 0x1F000 memset, 0x7C-stride free-list rebuild, and the single explode1 shader-animation registration table rooted at data_10076658 / data_100766d8 / data_10076758."
+    },
+    {
+      "address": "0x1002D680",
+      "raw_name": "FUN_1002d680",
+      "normalized_name": "CG_AddParticles",
+      "status": "matched",
+      "signature": "void CG_AddParticles(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail active-particle update loop reached from the main client frame path; HLIL shows the same lazy init call to CG_ClearParticles, copied view axes, rolling view-basis update, active-list walk, and per-type lifetime handling used by the source particle system."
+    },
+    {
+      "address": "0x1002D980",
+      "raw_name": "sub_1002d980",
+      "normalized_name": "CG_ParticleExplosion",
+      "status": "matched",
+      "signature": "void CG_ParticleExplosion(const char *animStr, vec3_t origin, vec3_t vel, int duration, int sizeStart, int sizeEnd)",
+      "string_refs": [
+        "0x10070520",
+        "0x10070578",
+        "0x100705C0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail explode1 particle spawner matched by the literal explode1 lookup, the two diagnostic strings, the free-list-to-active-list push, the 0.5 alpha seed, and the 20/30 size progression scaled by the animation aspect ratio table."
+    },
+    {
+      "address": "0x10020E70",
+      "raw_name": "FUN_10020e70",
+      "normalized_name": "CG_RegisterSounds",
+      "status": "matched",
+      "signature": "static void CG_RegisterSounds(void)",
+      "string_refs": [
+        "0x1006D804"
+      ],
+      "relocation_refs": [],
+      "comment": "Sound and announcer registration pass reached from CG_Init after the retail loading string switches to \"sounds\"."
+    },
+    {
+      "address": "0x10022F40",
+      "raw_name": "FUN_10022f40",
+      "normalized_name": "CG_RegisterGraphics",
+      "status": "matched",
+      "signature": "static void CG_RegisterGraphics(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Graphics and media registration pass reached from CG_Init after the retail loading string switches to \"graphics\"."
+    },
+    {
+      "address": "0x10025260",
+      "raw_name": "FUN_10025260",
+      "normalized_name": "CG_RegisterClients",
+      "status": "matched",
+      "signature": "static void CG_RegisterClients(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Client registration loop reached from CG_Init after the retail loading string switches to \"clients\"."
+    },
+    {
+      "address": "0x100252F0",
+      "raw_name": "FUN_100252f0",
+      "normalized_name": "CG_ConfigString",
+      "status": "matched",
+      "signature": "const char *CG_ConfigString(int index)",
+      "string_refs": [
+        "0x1006FCC8"
+      ],
+      "relocation_refs": [],
+      "comment": "Tiny configstring accessor with bounds checking against the cached gameState offsets."
+    },
+    {
+      "address": "0x10025320",
+      "raw_name": "FUN_10025320",
+      "normalized_name": "CG_StartMusic",
+      "status": "matched",
+      "signature": "void CG_StartMusic(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the CS_MUSIC configstring and starts the background tracks."
+    },
+    {
+      "address": "0x10025CA0",
+      "raw_name": "FUN_10025ca0",
+      "normalized_name": "CG_LoadMenus",
+      "status": "matched",
+      "signature": "void CG_LoadMenus(const char *menuFile)",
+      "string_refs": [
+        "0x1006FEA4",
+        "0x1006FED8",
+        "0x1006FF24"
+      ],
+      "relocation_refs": [],
+      "comment": "Menu parser with fallback to ui/hud.txt, size guards, Menu_Reset, and loadmenu token handling."
+    },
+    {
+      "address": "0x10025E60",
+      "raw_name": "sub_10025e60",
+      "normalized_name": "CG_OwnerDrawHandleKey",
+      "status": "matched",
+      "signature": "qboolean CG_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD callback-table stub assigned into cgDC.ownerDrawHandleKey; the retail body is a pure qfalse return."
+    },
+    {
+      "address": "0x10025E70",
+      "raw_name": "sub_10025e70",
+      "normalized_name": "CG_FeederCount",
+      "status": "matched",
+      "signature": "int CG_FeederCount(float feederID)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD feeder-count callback that tallies scoreboard and team-list rows across the retail feeder ids."
+    },
+    {
+      "address": "0x10028830",
+      "raw_name": "FUN_10028830",
+      "normalized_name": "CG_FeederItemImage",
+      "status": "matched",
+      "signature": "qhandle_t CG_FeederItemImage(float feederID, int index)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail cgDC.feederItemImage target that dispatches across scoreboard/team feeder variants, unlike the older public-source stub that simply returned 0."
+    },
+    {
+      "address": "0x10028B10",
+      "raw_name": "sub_10028b10",
+      "normalized_name": "CG_FeederItemText",
+      "status": "matched",
+      "signature": "const char *CG_FeederItemText(float feederID, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD feeder-text callback that formats the retail scoreboard and team-list name, score, ping, ready, and spectator columns."
+    },
+    {
+      "address": "0x10028C30",
+      "raw_name": "sub_10028c30",
+      "normalized_name": "CG_Cvar_Get",
+      "status": "matched",
+      "signature": "float CG_Cvar_Get(const char *cvar)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Value-returning cgDC callback that parses the current cvar string through atof, falling back to trap_Cvar_VariableStringBuffer when needed."
+    },
+    {
+      "address": "0x10028CE0",
+      "raw_name": "sub_10028ce0",
+      "normalized_name": "CG_Cvar_GetString",
+      "status": "matched",
+      "signature": "void CG_Cvar_GetString(const char *cvar, char *buffer, int bufsize)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate adapter name for the retail cgDC.getCVarString slot. HLIL first checks the native token helper used by the client and, when that path is empty, falls back to trap_Cvar_VariableStringBuffer exactly like the public callback contract expects."
+    },
+    {
+      "address": "0x10028D30",
+      "raw_name": "sub_10028d30",
+      "normalized_name": "CG_Text_PaintWithCursor",
+      "status": "matched",
+      "signature": "void CG_Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Thin HUD bridge wrapper that forwards the cursor-aware text draw call into the shared text painter."
+    },
+    {
+      "address": "0x10028D80",
+      "raw_name": "sub_10028d80",
+      "normalized_name": "CG_OwnerDrawWidth",
+      "status": "matched",
+      "signature": "int CG_OwnerDrawWidth(int ownerDraw, float scale)",
+      "string_refs": [
+        "0x10066964",
+        "0x10070788"
+      ],
+      "relocation_refs": [],
+      "comment": "HUD callback that computes text widths for ownerdraw labels such as the gametype string and the obituary-style 'Fragged by %s' line."
+    },
+    {
+      "address": "0x10028E80",
+      "raw_name": "sub_10028e80",
+      "normalized_name": "CG_PlayCinematic",
+      "status": "matched",
+      "signature": "int CG_PlayCinematic(const char *name, float x, float y, float w, float h)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD cinematic callback wrapping trap_CIN_PlayCinematic with integer extents and the retail looping mode."
+    },
+    {
+      "address": "0x10028EC0",
+      "raw_name": "sub_10028ec0",
+      "normalized_name": "CG_StopCinematic",
+      "status": "matched",
+      "signature": "void CG_StopCinematic(int handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD cinematic callback tail-jumping directly into trap_CIN_StopCinematic."
+    },
+    {
+      "address": "0x10028ED0",
+      "raw_name": "sub_10028ed0",
+      "normalized_name": "CG_DrawCinematic",
+      "status": "matched",
+      "signature": "static void CG_DrawCinematic(int handle, float x, float y, float w, float h)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-only cgDC draw-cinematic wrapper boundary recovered from the direct slot assignment at data_10a256e0: it converts the float extents, calls trap_CIN_SetExtents, and then calls trap_CIN_DrawCinematic exactly like the public-source CG_DrawCinematic."
+    },
+    {
+      "address": "0x10028F20",
+      "raw_name": "sub_10028f20",
+      "normalized_name": "CG_RunCinematicFrame",
+      "status": "matched",
+      "signature": "void CG_RunCinematicFrame(int handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD cinematic callback tail-jumping directly into trap_CIN_RunCinematic."
+    },
+    {
+      "address": "0x10029120",
+      "raw_name": "FUN_10029120",
+      "normalized_name": "CG_LoadHudMenu",
+      "status": "matched",
+      "signature": "void CG_LoadHudMenu(void)",
+      "string_refs": [
+        "0x100687E0",
+        "0x100687EC"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail helper that reads cg_hudFiles, falls back to ui/hud.txt, calls CG_LoadMenus, and performs the loading half of the source-level HUD bootstrap."
+    },
+    {
+      "address": "0x10029210",
+      "raw_name": "FUN_10029210",
+      "normalized_name": "CG_InitDisplayContext",
+      "status": "matched",
+      "signature": "static void CG_InitDisplayContext(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail name for the split cgDC bootstrap helper. The body mirrors the callback assignments that current source still keeps inline in CG_LoadHudMenu and finishes by publishing &cgDC through the ui_shared Init_Display context pointer."
+    },
+    {
+      "address": "0x10029420",
+      "raw_name": "FUN_10029420",
+      "normalized_name": "CG_AssetCache",
+      "status": "matched",
+      "signature": "void CG_AssetCache(void)",
+      "string_refs": [
+        "0x1007002C",
+        "0x100700DC"
+      ],
+      "relocation_refs": [],
+      "comment": "Registers the shared UI art cache used by the cgame HUD/menu code."
+    },
+    {
+      "address": "0x10030C00",
+      "raw_name": "sub_10030c00",
+      "normalized_name": "CG_DrawLevelTimer",
+      "status": "matched",
+      "signature": "static void CG_DrawLevelTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10068E38"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_LEVELTIMER` ownerdraw that formats the live clock as `%i:%i%i` before routing through the standard centered text path."
+    },
+    {
+      "address": "0x10031610",
+      "raw_name": "sub_10031610",
+      "normalized_name": "CG_GetValue",
+      "status": "matched",
+      "signature": "float CG_GetValue(int ownerDraw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-only callback-table target that returns ownerdraw-driven score, stat, and selected-player values for the HUD scripting layer."
+    },
+    {
+      "address": "0x10031790",
+      "raw_name": "FUN_10031790",
+      "normalized_name": "CG_OwnerDrawVisible",
+      "status": "matched",
+      "signature": "qboolean CG_OwnerDrawVisible(int flags)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail HUD visibility predicate assigned into cgDC.ownerDrawVisible; evaluates ownerdraw bitmasks against gametype, team, follow, vote, and scoreboard state."
+    },
+    {
+      "address": "0x10032110",
+      "raw_name": "sub_10032110",
+      "normalized_name": "CG_DrawKiller",
+      "status": "matched",
+      "signature": "static void CG_DrawKiller(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [
+        "0x10070788"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail HUD obituary-line helper that centers the local killer text. HLIL uses cg.killerName directly and inlines the CG_GetKillerText formatting step before measuring and drawing the \"Fragged by %s\" string."
+    },
+    {
+      "address": "0x10032240",
+      "raw_name": "sub_10032240",
+      "normalized_name": "CG_GetScoreboardTimerSeconds",
+      "status": "matched",
+      "signature": "int CG_GetScoreboardTimerSeconds(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Small scoreboard-timer helper that reads the retail match clock in milliseconds, clamps negative values to zero, and rounds to whole seconds with the same +500 bias as the source helper."
+    },
+    {
+      "address": "0x10032260",
+      "raw_name": "sub_10032260",
+      "normalized_name": "CG_DrawCapFragLimit",
+      "status": "matched",
+      "signature": "static void CG_DrawCapFragLimit(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HUD score-limit drawer that selects frag, capture, or score limits from the same gametype buckets as the source helper and paints the chosen numeric limit through the shared text path."
+    },
+    {
+      "address": "0x100335F0",
+      "raw_name": "sub_100335f0",
+      "normalized_name": "CG_DrawClanArenaPlayers",
+      "status": "matched",
+      "signature": "static void CG_DrawClanArenaPlayers(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail ownerdraw helper reached from `CG_RED_CLAN_PLYRS` and `CG_BLUE_CLAN_PLYRS`; HLIL selects the round-based per-team count and paints it through the shared numeric text path."
+    },
+    {
+      "address": "0x10033650",
+      "raw_name": "sub_10033650",
+      "normalized_name": "CG_DrawPlayerCount",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, qboolean friendly)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail ownerdraw helper reached from `CG_TEAM_PLYR_COUNT` and `CG_ENEMY_PLYR_COUNT`; HLIL swaps the local team when the enemy slot is requested and paints the centered living-player count through the same numeric path as the source helper."
+    },
+    {
+      "address": "0x100336E0",
+      "raw_name": "sub_100336e0",
+      "normalized_name": "CG_DrawRoundLabel",
+      "status": "matched",
+      "signature": "static void CG_DrawRoundLabel(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070804",
+        "0x10070810"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail round-label ownerdraw that emits either \"Warmup\" or \"Round %d\" before routing through the shared text alignment path."
+    },
+    {
+      "address": "0x100337A0",
+      "raw_name": "sub_100337a0",
+      "normalized_name": "CG_DrawDominationOwnedFlags",
+      "status": "matched",
+      "signature": "static void CG_DrawDominationOwnedFlags(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail ownerdraw helper reached from `CG_RED_OWNED_FLAGS` and `CG_BLUE_OWNED_FLAGS`; HLIL selects the per-team Domination owned-flag counter and paints it through the shared numeric HUD text path."
+    },
+    {
+      "address": "0x10033800",
+      "raw_name": "sub_10033800",
+      "normalized_name": "CG_DrawGameLimit",
+      "status": "matched",
+      "signature": "static void CG_DrawGameLimit(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070818",
+        "0x10070828",
+        "0x10070838",
+        "0x10070848"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail legacy `CG_GAME_LIMIT` ownerdraw that selects one of the exact `Cap Limit`, `Frag Limit`, `Round Limit`, or `Score Limit` formats and centers the result. Narrower than the current source helper, but clearly the same HUD slot."
+    },
+    {
+      "address": "0x10033910",
+      "raw_name": "sub_10033910",
+      "normalized_name": "CG_DrawStartingWeapons",
+      "status": "matched",
+      "signature": "static void CG_DrawStartingWeapons(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_STARTING_WEAPONS` ownerdraw that walks the starting-weapon mask and renders the configured loadout through the intro-panel draw path. The current source helper prints a text list instead, but the owning slot and role still line up cleanly."
+    },
+    {
+      "address": "0x10033D80",
+      "raw_name": "sub_10033d80",
+      "normalized_name": "CG_DrawLocalTime",
+      "status": "matched",
+      "signature": "static void CG_DrawLocalTime(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x100708A0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_LOCALTIME` ownerdraw. Unlike the current source helper's `HH:MM` output, retail formats a full local time/date label with month, day, and year before routing through the shared text path."
+    },
+    {
+      "address": "0x10034280",
+      "raw_name": "sub_10034280",
+      "normalized_name": "CG_DrawMatchEndCondition",
+      "status": "matched",
+      "signature": "static void CG_DrawMatchEndCondition(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070974",
+        "0x1007099C",
+        "0x100709C8",
+        "0x100709F0",
+        "0x10070A14",
+        "0x10070A38",
+        "0x10070A58",
+        "0x10070A78",
+        "0x10070A98"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_MATCH_END_CONDITION` ownerdraw that selects the winning condition text family for race, team, round-limit, mercy, score-limit, and end-of-game cases before drawing it directly."
+    },
+    {
+      "address": "0x100343D0",
+      "raw_name": "sub_100343d0",
+      "normalized_name": "CG_DrawMapName",
+      "status": "matched",
+      "signature": "static void CG_DrawMapName(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_MAP_NAME` ownerdraw that paints the prebuilt current-map label buffer directly through the HUD text path."
+    },
+    {
+      "address": "0x10034420",
+      "raw_name": "sub_10034420",
+      "normalized_name": "CG_DrawMatchDetails",
+      "status": "matched",
+      "signature": "static void CG_DrawMatchDetails(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070AC0",
+        "0x10070AD0",
+        "0x10070AE0",
+        "0x10070AF4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_MATCH_DETAILS` ownerdraw that formats the current phase label plus gametype and the prebuilt panel string via `%s - %s - %s`. Narrower than the newer source helper, but clearly the same overlay slot."
+    },
+    {
+      "address": "0x100344B0",
+      "raw_name": "sub_100344b0",
+      "normalized_name": "CG_DrawGameTypeMap",
+      "status": "matched",
+      "signature": "static void CG_DrawGameTypeMap(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070B04"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_GAME_TYPE_MAP` ownerdraw that formats the gametype label plus the same prebuilt panel string through `%s - %s`. The current source helper now expands that slot to a three-part location/map line."
+    },
+    {
+      "address": "0x10034590",
+      "raw_name": "sub_10034590",
+      "normalized_name": "CG_DrawSelectedPlayerAccuracy",
+      "status": "matched",
+      "signature": "static void CG_DrawSelectedPlayerAccuracy(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070744"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail selected-player accuracy ownerdraw for `CG_SELECTED_PLYR_ACCURACY`; HLIL formats the tracked scoreboard client's accuracy as `%d%%` and paints it through the standard text path."
+    },
+    {
+      "address": "0x100345F0",
+      "raw_name": "sub_100345f0",
+      "normalized_name": "CG_DrawSelectedPlayerBestWeapon",
+      "status": "matched",
+      "signature": "static void CG_DrawSelectedPlayerBestWeapon(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail selected-player best-weapon ownerdraw for `CG_PLYR_BEST_WEAPON_NAME`; HLIL maps the tracked weapon index to the same human-readable weapon-name family used by the source helper."
+    },
+    {
+      "address": "0x100346E0",
+      "raw_name": "sub_100346e0",
+      "normalized_name": "CG_DrawEndGameScore",
+      "status": "matched",
+      "signature": "static void CG_DrawEndGameScore(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070B38",
+        "0x10070B54",
+        "0x10070B70",
+        "0x10070B88",
+        "0x10070BA0",
+        "0x10070BBC",
+        "0x10070BE0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLYR_END_GAME_SCORE` ownerdraw that emits the richer local endgame summary family for placement, score, assists, defends, captures, skulls, and forfeits before painting the selected text line."
+    },
+    {
+      "address": "0x10034840",
+      "raw_name": "sub_10034840",
+      "normalized_name": "CG_DrawGameTypeIcon",
+      "status": "matched",
+      "signature": "static void CG_DrawGameTypeIcon(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail HUD icon drawer that selects the pre-registered gametype art handle for the current gametype and paints it into the supplied rect."
+    },
+    {
+      "address": "0x10034900",
+      "raw_name": "sub_10034900",
+      "normalized_name": "CG_DrawFirstPlaceModel",
+      "status": "matched",
+      "signature": "static void CG_DrawFirstPlaceModel(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail endgame ownerdraw reached from `CG_1STPLACE_PLYR_MODEL`; HLIL forwards the first-place client slot through the shared profile/model draw helper and matches the non-active scoreboard role of the source analogue."
+    },
+    {
+      "address": "0x10034980",
+      "raw_name": "sub_10034980",
+      "normalized_name": "CG_DrawPlayerModel",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerModel(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail name for the old `CG_PLAYERMODEL` ownerdraw wrapper. HLIL reaches it from ownerdraw case `0x1A`, selects either the tracked client slot or the live local client slot, and forwards that client through the same shared profile/model draw helper used by `CG_DrawFirstPlaceModel`."
+    },
+    {
+      "address": "0x10034A00",
+      "raw_name": "sub_10034a00",
+      "normalized_name": "CG_GetMatchStatusText",
+      "status": "matched",
+      "signature": "const char *CG_GetMatchStatusText(void)",
+      "string_refs": [
+        "0x10070AC0",
+        "0x10070AD0",
+        "0x10070AE0",
+        "0x10070C28",
+        "0x10070C50"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail name for the match-status text compositor consumed by the HUD draw and width path. HLIL prefixes the current match-phase label and appends the same placement or team-score text family exposed by CG_GetGameStatusText."
+    },
+    {
+      "address": "0x10034B30",
+      "raw_name": "sub_10034b30",
+      "normalized_name": "CG_GetGameStatusText",
+      "status": "matched",
+      "signature": "const char *CG_GetGameStatusText(void)",
+      "string_refs": [
+        "0x10070CB0",
+        "0x10070CC4",
+        "0x10070CDC",
+        "0x10070D00"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail status-text helper used by both ownerdraw width and the match-status HUD path; HLIL preserves the free-for-all placement string and the red/blue team-score lead messages."
+    },
+    {
+      "address": "0x10034BD0",
+      "raw_name": "sub_10034bd0",
+      "normalized_name": "CG_DrawGameStatus",
+      "status": "matched",
+      "signature": "static void CG_DrawGameStatus(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Thin HUD text wrapper that draws the retail CG_GetGameStatusText result at the ownerdraw baseline."
+    },
+    {
+      "address": "0x10034C20",
+      "raw_name": "sub_10034c20",
+      "normalized_name": "CG_DrawGameType",
+      "status": "matched",
+      "signature": "static void CG_DrawGameType(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail gametype-text ownerdraw that selects the current gametype label from the same static gametype string table used by CG_OwnerDrawWidth and paints it through the shared text path."
+    },
+    {
+      "address": "0x10034CC0",
+      "raw_name": "sub_10034cc0",
+      "normalized_name": "CG_DrawMatchStatus",
+      "status": "matched",
+      "signature": "static void CG_DrawMatchStatus(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail match-status ownerdraw. Instead of composing the label inline like the current source tree, it pulls the already-combined retail status string from the synthetic helper at 0x10034A00 and then draws it with the standard HUD alignment rules."
+    },
+    {
+      "address": "0x10034D70",
+      "raw_name": "sub_10034d70",
+      "normalized_name": "CG_DrawSpectatorMessages",
+      "status": "matched",
+      "signature": "static void CG_DrawSpectatorMessages(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070D24",
+        "0x10070D38",
+        "0x10070D48",
+        "0x10070D80"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail spectator-message ownerdraw reached from `CG_SPEC_MESSAGES`; HLIL draws the older `Round In Progress`, `SPECTATOR MODE`, `waiting to play`, and mouse-cycle hint text family in the same HUD slot used by the source helper."
+    },
+    {
+      "address": "0x1003B0F0",
+      "raw_name": "FUN_1003b0f0",
+      "normalized_name": "CG_OwnerDraw",
+      "status": "matched",
+      "signature": "void CG_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Large ownerdraw dispatcher assigned into cgDC.ownerDrawItem; switches over the HUD ownerdraw IDs and forwards to the expected draw helpers."
+    },
+    {
+      "address": "0x1003C620",
+      "raw_name": "sub_1003c620",
+      "normalized_name": "CG_EventHandling",
+      "status": "matched",
+      "signature": "void CG_EventHandling(int type)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Native cgame API-table slot that updates the retail HUD interaction mode; the retail event ids extend or shift the public-source enum, but the state-setting behavior still matches CG_EventHandling."
+    },
+    {
+      "address": "0x1003C6F0",
+      "raw_name": "FUN_1003c6f0",
+      "normalized_name": "CG_KeyEvent",
+      "status": "matched",
+      "signature": "void CG_KeyEvent(int key, qboolean down)",
+      "string_refs": [
+        "0x1006878C",
+        "0x10071144",
+        "0x10071150",
+        "0x1007115C",
+        "0x1007116C",
+        "0x10071174"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail key-input handler reached from the native export table; unlike the GPL path, it inspects the bound command string directly to intercept messagemode, screenshot, +voice, and +scores behavior for the spectator/HUD overlay."
+    },
+    {
+      "address": "0x1003C870",
+      "raw_name": "sub_1003c870",
+      "normalized_name": "CG_RunMenuScript",
+      "status": "matched",
+      "signature": "void CG_RunMenuScript(char **args)",
+      "string_refs": [
+        "0x1007117C",
+        "0x1007119C",
+        "0x100711B0",
+        "0x100711BC"
+      ],
+      "relocation_refs": [],
+      "comment": "HLIL-only menu-script bridge assigned into cgDC.runScript; parses HUD script tokens and handles the retail fullscreen toggle commands before issuing vid_restart."
+    },
+    {
+      "address": "0x1003C9A0",
+      "raw_name": "sub_1003c9a0",
+      "normalized_name": "CG_GetTeamColor",
+      "status": "matched",
+      "signature": "void CG_GetTeamColor(vec4_t *color)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-only callback-table target that writes the red, blue, or neutral HUD tint vector based on the local player's team."
+    },
+    {
+      "address": "0x1003EDD0",
+      "raw_name": "sub_1003edd0",
+      "normalized_name": "CG_LoadDeferredPlayers",
+      "status": "matched",
+      "signature": "void CG_LoadDeferredPlayers(void)",
+      "string_refs": [
+        "0x100685B4"
+      ],
+      "relocation_refs": [],
+      "comment": "Deferred player-model loader that walks the client list, skips low-memory cases, and promotes deferred registrations exactly like the public-source CG_LoadDeferredPlayers."
+    },
+    {
+      "address": "0x10019EB0",
+      "raw_name": "FUN_10019eb0",
+      "normalized_name": "CG_EntityEvent",
+      "status": "matched",
+      "signature": "void CG_EntityEvent(centity_t *cent, vec3_t position)",
+      "string_refs": [
+        "0x1006A678"
+      ],
+      "relocation_refs": [],
+      "comment": "Large event dispatcher handling footsteps, item pickup, weapon fire, obituary flow, and the unknown-event fatal path."
+    },
+    {
+      "address": "0x100446E0",
+      "raw_name": "FUN_100446e0",
+      "normalized_name": "CG_PredictPlayerState",
+      "status": "matched",
+      "signature": "void CG_PredictPlayerState(void)",
+      "string_refs": [
+        "0x10071898",
+        "0x100718FC",
+        "0x10071914"
+      ],
+      "relocation_refs": [],
+      "comment": "Prediction loop with prediction error, dropped-event, and double-event debug output."
+    },
+    {
+      "address": "0x10049980",
+      "raw_name": "FUN_10049980",
+      "normalized_name": "CG_ConfigStringModified",
+      "status": "matched",
+      "signature": "static void CG_ConfigStringModified(void)",
+      "string_refs": [
+        "0x1006FCC8"
+      ],
+      "relocation_refs": [],
+      "comment": "Server-command configstring update dispatcher that reads Argv(1), parses the changed index, and switches over special handling paths."
+    },
+    {
+      "address": "0x1004A2E0",
+      "raw_name": "FUN_1004a2e0",
+      "normalized_name": "CG_MapRestart",
+      "status": "matched",
+      "signature": "static void CG_MapRestart(void)",
+      "string_refs": [
+        "0x10071FB4"
+      ],
+      "relocation_refs": [],
+      "comment": "Map restart reset path that clears transient state, restarts music, and resets vote and third-person state."
+    },
+    {
+      "address": "0x1004A460",
+      "raw_name": "FUN_1004a460",
+      "normalized_name": "CG_ParseStopRecord",
+      "status": "matched",
+      "signature": "static void CG_ParseStopRecord(void)",
+      "string_refs": [
+        "0x10071FC4"
+      ],
+      "relocation_refs": [],
+      "comment": "Small server-command helper that issues the retail stoprecord console command variant with an added wait."
+    },
+    {
+      "address": "0x1004A4A0",
+      "raw_name": "FUN_1004a4a0",
+      "normalized_name": "CG_ParseRecord",
+      "status": "matched",
+      "signature": "static void CG_ParseRecord(void)",
+      "string_refs": [
+        "0x10071FD8"
+      ],
+      "relocation_refs": [],
+      "comment": "Server-command helper that forwards record requests to the console command buffer, preserving the optional demo name."
+    },
+    {
+      "address": "0x1004A500",
+      "raw_name": "FUN_1004a500",
+      "normalized_name": "CG_ParseScreenshot",
+      "status": "matched",
+      "signature": "static void CG_ParseScreenshot(void)",
+      "string_refs": [
+        "0x10071FE8"
+      ],
+      "relocation_refs": [],
+      "comment": "Server-command helper that forwards screenshot requests to screenshotJPEG, preserving the optional filename."
+    },
+    {
+      "address": "0x1004A560",
+      "raw_name": "FUN_1004a560",
+      "normalized_name": "CG_HeadModelVoiceChats",
+      "status": "matched",
+      "signature": "int CG_HeadModelVoiceChats(char *filename)",
+      "string_refs": [
+        "0x10072000"
+      ],
+      "relocation_refs": [],
+      "comment": "Loads a voice-chat script, enforces the MAX_VOICEFILESIZE guard, parses the list header, and returns the cached voice-chat index or -1."
+    },
+    {
+      "address": "0x1004A6A0",
+      "raw_name": "FUN_1004a6a0",
+      "normalized_name": "CG_GetVoiceChat",
+      "status": "matched",
+      "signature": "qboolean CG_GetVoiceChat(voiceChatList_t *voiceChatList, const char *id, sfxHandle_t *snd, char **chat)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Looks up a voice-chat id inside a loaded list and picks a random sound/chat pair from the matching entry."
+    },
+    {
+      "address": "0x1004A740",
+      "raw_name": "FUN_1004a740",
+      "normalized_name": "CG_VoiceChatListForClient",
+      "status": "matched",
+      "signature": "voiceChatList_t *CG_VoiceChatListForClient(int clientNum)",
+      "string_refs": [
+        "0x10072044"
+      ],
+      "relocation_refs": [],
+      "comment": "Builds the head-model lookup path, consults the per-headmodel cache, tries scripts/%s.vc, and falls back by gender when no exact voice-chat file is available."
+    },
+    {
+      "address": "0x1004AAC0",
+      "raw_name": "FUN_1004aac0",
+      "normalized_name": "CG_PlayVoiceChat",
+      "status": "matched",
+      "signature": "void CG_PlayVoiceChat(bufferedVoiceChat_t *vchat)",
+      "string_refs": [
+        "0x1006957C"
+      ],
+      "relocation_refs": [],
+      "comment": "Plays the buffered voice chat, opens the voice menu for order prompts, updates accept-order state, and echoes text chat when allowed."
+    },
+    {
+      "address": "0x1004ABC0",
+      "raw_name": "FUN_1004abc0",
+      "normalized_name": "CG_PlayBufferedVoiceChats",
+      "status": "matched",
+      "signature": "void CG_PlayBufferedVoiceChats(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Drains the buffered voice-chat ring once cg.voiceChatTime expires, plays the oldest entry, and delays the next playback by one second."
+    },
+    {
+      "address": "0x1004AC30",
+      "raw_name": "FUN_1004ac30",
+      "normalized_name": "CG_AddBufferedVoiceChat",
+      "status": "matched",
+      "signature": "void CG_AddBufferedVoiceChat(bufferedVoiceChat_t *vchat)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Copies a voice chat into the ring buffer and forces playback of the oldest entry when the buffer wraps."
+    },
+    {
+      "address": "0x1004AC90",
+      "raw_name": "FUN_1004ac90",
+      "normalized_name": "CG_VoiceChatLocal",
+      "status": "matched",
+      "signature": "void CG_VoiceChatLocal(int mode, qboolean voiceOnly, int clientNum, int color, const char *cmd)",
+      "string_refs": [
+        "0x10072054"
+      ],
+      "relocation_refs": [],
+      "comment": "Normalizes the client index, resolves the client's voice-chat list, formats the colored chat line, and queues the buffered local voice chat."
+    },
+    {
+      "address": "0x1004AD90",
+      "raw_name": "FUN_1004ad90",
+      "normalized_name": "CG_RemoveChatEscapeChar",
+      "status": "matched",
+      "signature": "static void CG_RemoveChatEscapeChar(char *text)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Tiny in-place filter that strips the 0x19 chat-escape byte before text is printed or added to team chat."
+    },
+    {
+      "address": "0x1004ADC0",
+      "raw_name": "FUN_1004adc0",
+      "normalized_name": "CG_ServerCommand",
+      "status": "matched",
+      "signature": "static void CG_ServerCommand(void)",
+      "string_refs": [
+        "0x10072248"
+      ],
+      "relocation_refs": [],
+      "comment": "Main cgame server-command dispatcher covering configstring updates, race commands, vote UI control, map_restart, and other client-side commands."
+    },
+    {
+      "address": "0x1004C020",
+      "raw_name": "FUN_1004c020",
+      "normalized_name": "CG_TransitionSnapshot",
+      "status": "matched",
+      "signature": "static void CG_TransitionSnapshot(void)",
+      "string_refs": [
+        "0x1007226C",
+        "0x10072290"
+      ],
+      "relocation_refs": [],
+      "comment": "Snapshot handoff routine that advances cg.snap to cg.nextSnap and fires entity transition events."
+    },
+    {
+      "address": "0x1004C4D0",
+      "raw_name": "FUN_1004c4d0",
+      "normalized_name": "CG_ProcessSnapshots",
+      "status": "matched",
+      "signature": "void CG_ProcessSnapshots(void)",
+      "string_refs": [
+        "0x100722F4"
+      ],
+      "relocation_refs": [],
+      "comment": "Snapshot pump that reads the next snapshot, enforces server-time ordering, and calls CG_TransitionSnapshot when needed."
+    },
+    {
+      "address": "0x1004D5B0",
+      "raw_name": "sub_1004d5b0",
+      "normalized_name": "CG_ZoomDown_f",
+      "status": "matched",
+      "signature": "static void CG_ZoomDown_f(void)",
+      "string_refs": [
+        "0x1006875C"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `+zoom` command handler that arms zoom state and preserves the same timing and toggle semantics as CG_ZoomDown_f."
+    },
+    {
+      "address": "0x1004D610",
+      "raw_name": "sub_1004d610",
+      "normalized_name": "CG_ZoomUp_f",
+      "status": "matched",
+      "signature": "static void CG_ZoomUp_f(void)",
+      "string_refs": [
+        "0x10068754"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `-zoom` command handler that releases zoom state and preserves the same timing and toggle semantics as CG_ZoomUp_f."
+    },
+    {
+      "address": "0x1004E4D0",
+      "raw_name": "sub_1004e4d0",
+      "normalized_name": "CG_GetPhysicsTime",
+      "status": "matched",
+      "signature": "static int CG_GetPhysicsTime(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic native-export name for the one-word time getter. The host uses slot data_146cc38 + 0x38 when formatting [m:ss.mmm] notify/chat prefixes, falling back to host serverTime; the retail body itself returns cg.physicsTime."
+    },
+    {
+      "address": "0x1004E4E0",
+      "raw_name": "FUN_1004e4e0",
+      "normalized_name": "CG_DrawActiveFrame",
+      "status": "matched",
+      "signature": "void CG_DrawActiveFrame(int serverTime, stereoFrame_t stereoView, qboolean demoPlayback)",
+      "string_refs": [
+        "0x10069664"
+      ],
+      "relocation_refs": [],
+      "comment": "Top-level render/update frame loop that drives snapshot processing, prediction, scene build, and HUD presentation."
+    },
+    {
+      "address": "0x10053C40",
+      "raw_name": "sub_10053c40",
+      "normalized_name": "CG_NextWeapon_f",
+      "status": "matched",
+      "signature": "static void CG_NextWeapon_f(void)",
+      "string_refs": [
+        "0x10068734"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `weapnext` command handler for cycling the selected weapon, matching CG_NextWeapon_f."
+    },
+    {
+      "address": "0x10053C50",
+      "raw_name": "sub_10053c50",
+      "normalized_name": "CG_PrevWeapon_f",
+      "status": "matched",
+      "signature": "static void CG_PrevWeapon_f(void)",
+      "string_refs": [
+        "0x10068728"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `weapprev` command handler for cycling the selected weapon backward, matching CG_PrevWeapon_f."
+    },
+    {
+      "address": "0x10053C60",
+      "raw_name": "sub_10053c60",
+      "normalized_name": "CG_Weapon_f",
+      "status": "matched",
+      "signature": "static void CG_Weapon_f(void)",
+      "string_refs": [
+        "0x10068720"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `weapon` command handler that keeps the public-source selection path and also accepts the retail `toggle` argument variant."
+    }
+  ],
+  "strings": [
+    {
+      "address": "0x1006957C",
+      "value": "voiceMenu",
+      "xref_functions": [
+        "0x1004AAC0"
+      ],
+      "normalized_label": "str_voice_menu",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006A678",
+      "value": "Unknown event: %i",
+      "xref_functions": [
+        "0x10019EB0"
+      ],
+      "normalized_label": "str_unknown_event",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070410",
+      "value": "Client/Server game mismatch: %s/%s",
+      "xref_functions": [
+        "0x10029820"
+      ],
+      "normalized_label": "str_client_server_mismatch",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070460",
+      "value": "collision map",
+      "xref_functions": [
+        "0x10029820"
+      ],
+      "normalized_label": "str_loading_collision_map",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070470",
+      "value": "sounds",
+      "xref_functions": [
+        "0x10029820"
+      ],
+      "normalized_label": "str_loading_sounds",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070478",
+      "value": "graphics",
+      "xref_functions": [
+        "0x10029820"
+      ],
+      "normalized_label": "str_loading_graphics",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070484",
+      "value": "clients",
+      "xref_functions": [
+        "0x10029820"
+      ],
+      "normalized_label": "str_loading_clients",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006D804",
+      "value": "sound/weapons/noammo.ogg",
+      "xref_functions": [
+        "0x10020E70"
+      ],
+      "normalized_label": "str_sound_noammo",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006FCC8",
+      "value": "CG_ConfigString: bad index: %i",
+      "xref_functions": [
+        "0x100252F0",
+        "0x10049980"
+      ],
+      "normalized_label": "str_cg_configstring_bad_index",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006FEA4",
+      "value": "Warning: menu file not found: %s, using default\n",
+      "xref_functions": [
+        "0x10025CA0"
+      ],
+      "normalized_label": "str_menu_file_not_found",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006FED8",
+      "value": "^1default menu file not found: ui/hud.txt, unable to continue!\n",
+      "xref_functions": [
+        "0x10025CA0"
+      ],
+      "normalized_label": "str_default_hud_missing",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006FF24",
+      "value": "UI menu load time = %d milli seconds\n",
+      "xref_functions": [
+        "0x10025CA0"
+      ],
+      "normalized_label": "str_ui_menu_load_time",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006855C",
+      "value": "clientmute",
+      "xref_functions": [
+        "0x10007E90"
+      ],
+      "normalized_label": "str_console_clientmute",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068568",
+      "value": "print",
+      "xref_functions": [
+        "0x10007D30"
+      ],
+      "normalized_label": "str_console_print",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068570",
+      "value": "setenemycolor",
+      "xref_functions": [
+        "0x10007BB0"
+      ],
+      "normalized_label": "str_console_setenemycolor",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068580",
+      "value": "setteamcolor",
+      "xref_functions": [
+        "0x10007BA0"
+      ],
+      "normalized_label": "str_console_setteamcolor",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068590",
+      "value": "togglechathistory",
+      "xref_functions": [
+        "0x10007D10"
+      ],
+      "normalized_label": "str_console_toggle_chat_history",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685A4",
+      "value": "-chat",
+      "xref_functions": [
+        "0x10007CF0"
+      ],
+      "normalized_label": "str_console_chat_up",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685AC",
+      "value": "+chat",
+      "xref_functions": [
+        "0x10007CD0"
+      ],
+      "normalized_label": "str_console_chat_down",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685C4",
+      "value": "startOrbit",
+      "xref_functions": [
+        "0x10007BC0"
+      ],
+      "normalized_label": "str_console_start_orbit",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685B4",
+      "value": "loaddeferred",
+      "xref_functions": [
+        "0x1003EDD0"
+      ],
+      "normalized_label": "str_console_loaddeferred",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685D0",
+      "value": "tauntGauntlet",
+      "xref_functions": [
+        "0x10007620"
+      ],
+      "normalized_label": "str_console_taunt_gauntlet",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685E0",
+      "value": "tauntDeathInsult",
+      "xref_functions": [
+        "0x10007600"
+      ],
+      "normalized_label": "str_console_taunt_death_insult",
+      "status": "matched"
+    },
+    {
+      "address": "0x100685F4",
+      "value": "tauntTaunt",
+      "xref_functions": [
+        "0x100075E0"
+      ],
+      "normalized_label": "str_console_taunt_taunt",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068600",
+      "value": "tauntPraise",
+      "xref_functions": [
+        "0x100075C0"
+      ],
+      "normalized_label": "str_console_taunt_praise",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006860C",
+      "value": "tauntKillInsult",
+      "xref_functions": [
+        "0x100075A0"
+      ],
+      "normalized_label": "str_console_taunt_kill_insult",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006861C",
+      "value": "taskOwnFlag",
+      "xref_functions": [
+        "0x10007570"
+      ],
+      "normalized_label": "str_console_task_own_flag",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068628",
+      "value": "taskSuicide",
+      "xref_functions": [
+        "0x10007640"
+      ],
+      "normalized_label": "str_console_task_suicide",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068634",
+      "value": "taskEscort",
+      "xref_functions": [
+        "0x10007530"
+      ],
+      "normalized_label": "str_console_task_escort",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068640",
+      "value": "taskRetrieve",
+      "xref_functions": [
+        "0x100074F0"
+      ],
+      "normalized_label": "str_console_task_retrieve",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068650",
+      "value": "taskFollow",
+      "xref_functions": [
+        "0x100074B0"
+      ],
+      "normalized_label": "str_console_task_follow",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006865C",
+      "value": "taskCamp",
+      "xref_functions": [
+        "0x10007470"
+      ],
+      "normalized_label": "str_console_task_camp",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068668",
+      "value": "taskPatrol",
+      "xref_functions": [
+        "0x10007430"
+      ],
+      "normalized_label": "str_console_task_patrol",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068674",
+      "value": "taskDefense",
+      "xref_functions": [
+        "0x100073F0"
+      ],
+      "normalized_label": "str_console_task_defense",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068680",
+      "value": "taskOffense",
+      "xref_functions": [
+        "0x10007380"
+      ],
+      "normalized_label": "str_console_task_offense",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006868C",
+      "value": "denyOrder",
+      "xref_functions": [
+        "0x10007330"
+      ],
+      "normalized_label": "str_console_deny_order",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068698",
+      "value": "confirmOrder",
+      "xref_functions": [
+        "0x100072C0"
+      ],
+      "normalized_label": "str_console_confirm_order",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686A8",
+      "value": "nextOrder",
+      "xref_functions": [
+        "0x10007220"
+      ],
+      "normalized_label": "str_console_next_order",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686B4",
+      "value": "prevTeamMember",
+      "xref_functions": [
+        "0x100071F0"
+      ],
+      "normalized_label": "str_console_prev_team_member",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686C4",
+      "value": "nextTeamMember",
+      "xref_functions": [
+        "0x100071C0"
+      ],
+      "normalized_label": "str_console_next_team_member",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686D4",
+      "value": "loadhud",
+      "xref_functions": [
+        "0x10006E40"
+      ],
+      "normalized_label": "str_console_loadhud",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686DC",
+      "value": "tcmd",
+      "xref_functions": [
+        "0x10006BE0"
+      ],
+      "normalized_label": "str_console_target_command",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686E4",
+      "value": "vtell_attacker",
+      "xref_functions": [
+        "0x10007120"
+      ],
+      "normalized_label": "str_console_vtell_attacker",
+      "status": "matched"
+    },
+    {
+      "address": "0x100686F4",
+      "value": "vtell_target",
+      "xref_functions": [
+        "0x10007090"
+      ],
+      "normalized_label": "str_console_vtell_target",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068704",
+      "value": "tell_attacker",
+      "xref_functions": [
+        "0x10006FF0"
+      ],
+      "normalized_label": "str_console_tell_attacker",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068714",
+      "value": "tell_target",
+      "xref_functions": [
+        "0x10006F50"
+      ],
+      "normalized_label": "str_console_tell_target",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068720",
+      "value": "weapon",
+      "xref_functions": [
+        "0x10053C60"
+      ],
+      "normalized_label": "str_console_weapon",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068728",
+      "value": "weapprev",
+      "xref_functions": [
+        "0x10053C50"
+      ],
+      "normalized_label": "str_console_weapprev",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068734",
+      "value": "weapnext",
+      "xref_functions": [
+        "0x10053C40"
+      ],
+      "normalized_label": "str_console_weapnext",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068740",
+      "value": "sizedown",
+      "xref_functions": [
+        "0x10006C80"
+      ],
+      "normalized_label": "str_console_sizedown",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006874C",
+      "value": "sizeup",
+      "xref_functions": [
+        "0x10006C50"
+      ],
+      "normalized_label": "str_console_sizeup",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068754",
+      "value": "-zoom",
+      "xref_functions": [
+        "0x1004D610"
+      ],
+      "normalized_label": "str_console_zoom_up",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006875C",
+      "value": "+zoom",
+      "xref_functions": [
+        "0x1004D5B0"
+      ],
+      "normalized_label": "str_console_zoom_down",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068784",
+      "value": "-scores",
+      "xref_functions": [
+        "0x10006D40"
+      ],
+      "normalized_label": "str_console_scores_up",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006878C",
+      "value": "+scores",
+      "xref_functions": [
+        "0x10006CF0",
+        "0x1003C6F0"
+      ],
+      "normalized_label": "str_console_scores_down",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068794",
+      "value": "viewpos",
+      "xref_functions": [
+        "0x10006CB0"
+      ],
+      "normalized_label": "str_console_viewpos",
+      "status": "matched"
+    },
+    {
+      "address": "0x100687E0",
+      "value": "cg_hudFiles",
+      "xref_functions": [
+        "0x10006E40",
+        "0x10029120"
+      ],
+      "normalized_label": "str_cg_hudfiles",
+      "status": "matched"
+    },
+    {
+      "address": "0x100687EC",
+      "value": "ui/hud.txt",
+      "xref_functions": [
+        "0x10006E40",
+        "0x10029120"
+      ],
+      "normalized_label": "str_legacy_hud_file",
+      "status": "matched"
+    },
+    {
+      "address": "0x100689C0",
+      "value": "dropflag",
+      "xref_functions": [
+        "0x100076B0"
+      ],
+      "normalized_label": "str_console_dropflag",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068A58",
+      "value": "droppowerup",
+      "xref_functions": [
+        "0x100076F0"
+      ],
+      "normalized_label": "str_console_droppowerup",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068A84",
+      "value": "droprune",
+      "xref_functions": [
+        "0x10007780"
+      ],
+      "normalized_label": "str_console_droprune",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068B14",
+      "value": "dropweapon",
+      "xref_functions": [
+        "0x100077B0"
+      ],
+      "normalized_label": "str_console_dropweapon",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068B20",
+      "value": "readyup",
+      "xref_functions": [
+        "0x10007840"
+      ],
+      "normalized_label": "str_console_readyup",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068B54",
+      "value": "forfeit",
+      "xref_functions": [
+        "0x10007900"
+      ],
+      "normalized_label": "str_console_forfeit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068B5C",
+      "value": "ragequit",
+      "xref_functions": [
+        "0x10007960"
+      ],
+      "normalized_label": "str_console_ragequit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068BC4",
+      "value": "team",
+      "xref_functions": [
+        "0x10007880"
+      ],
+      "normalized_label": "str_console_team",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068CDC",
+      "value": "mute",
+      "xref_functions": [
+        "0x10007F80"
+      ],
+      "normalized_label": "str_console_mute",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068D90",
+      "value": "unmute",
+      "xref_functions": [
+        "0x10007F80"
+      ],
+      "normalized_label": "str_console_unmute",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007002C",
+      "value": "ui/assets/gradientbar2.tga",
+      "xref_functions": [
+        "0x10029420"
+      ],
+      "normalized_label": "str_asset_gradientbar",
+      "status": "matched"
+    },
+    {
+      "address": "0x100700DC",
+      "value": "ui/assets/scrollbar.tga",
+      "xref_functions": [
+        "0x10029420"
+      ],
+      "normalized_label": "str_asset_scrollbar",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007117C",
+      "value": "setFullScreen",
+      "xref_functions": [
+        "0x1003C870"
+      ],
+      "normalized_label": "str_menu_script_setfullscreen",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007119C",
+      "value": "vid_restart fast\n",
+      "xref_functions": [
+        "0x1003C870"
+      ],
+      "normalized_label": "str_vid_restart_fast",
+      "status": "matched"
+    },
+    {
+      "address": "0x100711B0",
+      "value": "setWindowed",
+      "xref_functions": [
+        "0x1003C870"
+      ],
+      "normalized_label": "str_menu_script_setwindowed",
+      "status": "matched"
+    },
+    {
+      "address": "0x100711BC",
+      "value": "toggleFullscreen",
+      "xref_functions": [
+        "0x1003C870"
+      ],
+      "normalized_label": "str_menu_script_togglefullscreen",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071144",
+      "value": "messagemode",
+      "xref_functions": [
+        "0x1003C6F0"
+      ],
+      "normalized_label": "str_bind_messagemode",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071150",
+      "value": "screenshot",
+      "xref_functions": [
+        "0x1003C6F0"
+      ],
+      "normalized_label": "str_bind_screenshot",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007115C",
+      "value": "screenshotJPEG",
+      "xref_functions": [
+        "0x1003C6F0"
+      ],
+      "normalized_label": "str_bind_screenshotjpeg",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007116C",
+      "value": "+voice",
+      "xref_functions": [
+        "0x1003C6F0"
+      ],
+      "normalized_label": "str_bind_voice",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071174",
+      "value": "+voice\n",
+      "xref_functions": [
+        "0x1003C6F0"
+      ],
+      "normalized_label": "str_bind_voice_exec",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071898",
+      "value": "prediction error\n",
+      "xref_functions": [
+        "0x100446E0"
+      ],
+      "normalized_label": "str_prediction_error",
+      "status": "matched"
+    },
+    {
+      "address": "0x100718FC",
+      "value": "WARNING: dropped event\n",
+      "xref_functions": [
+        "0x100446E0"
+      ],
+      "normalized_label": "str_warning_dropped_event",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071914",
+      "value": "WARNING: double event\n",
+      "xref_functions": [
+        "0x100446E0"
+      ],
+      "normalized_label": "str_warning_double_event",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071FB4",
+      "value": "CG_MapRestart\n",
+      "xref_functions": [
+        "0x1004A2E0"
+      ],
+      "normalized_label": "str_cg_maprestart",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071FC4",
+      "value": "stoprecord; wait\n",
+      "xref_functions": [
+        "0x1004A460"
+      ],
+      "normalized_label": "str_stoprecord_wait",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071FD8",
+      "value": "record \"%s\"\n",
+      "xref_functions": [
+        "0x1004A4A0"
+      ],
+      "normalized_label": "str_record_named",
+      "status": "matched"
+    },
+    {
+      "address": "0x10071FE8",
+      "value": "screenshotJPEG \"%s\"\n",
+      "xref_functions": [
+        "0x1004A500"
+      ],
+      "normalized_label": "str_screenshotjpeg_named",
+      "status": "matched"
+    },
+    {
+      "address": "0x10072000",
+      "value": "^1voice chat file too large: %s is %i, max allowed is %i",
+      "xref_functions": [
+        "0x1004A560"
+      ],
+      "normalized_label": "str_voice_chat_file_too_large",
+      "status": "matched"
+    },
+    {
+      "address": "0x10072044",
+      "value": "scripts/%s.vc",
+      "xref_functions": [
+        "0x1004A740"
+      ],
+      "normalized_label": "str_voicechat_script_path",
+      "status": "matched"
+    },
+    {
+      "address": "0x10072054",
+      "value": "(%s): %c%c%s",
+      "xref_functions": [
+        "0x1004AC90"
+      ],
+      "normalized_label": "str_voicechat_team_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x100720D4",
+      "value": "clearChat",
+      "xref_functions": [
+        "0x1004ADC0"
+      ],
+      "normalized_label": "str_clear_chat_command",
+      "status": "matched"
+    },
+    {
+      "address": "0x10072248",
+      "value": "Unknown client game command: %s\n",
+      "xref_functions": [
+        "0x1004ADC0"
+      ],
+      "normalized_label": "str_unknown_client_game_command",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007226C",
+      "value": "CG_TransitionSnapshot: NULL cg.snap",
+      "xref_functions": [
+        "0x1004C020"
+      ],
+      "normalized_label": "str_transition_snapshot_null_snap",
+      "status": "matched"
+    },
+    {
+      "address": "0x100722F4",
+      "value": "CG_ProcessSnapshots: n < cg.latestSnapshotNum",
+      "xref_functions": [
+        "0x1004C4D0"
+      ],
+      "normalized_label": "str_process_snapshots_latestnum",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069664",
+      "value": "CG_DrawActive: Undefined stereoView",
+      "xref_functions": [
+        "0x1004E4E0"
+      ],
+      "normalized_label": "str_drawactive_undefined_stereoview",
+      "status": "matched"
+    },
+    {
+      "address": "0x10066964",
+      "value": "Unknown Gametype",
+      "xref_functions": [
+        "0x10028D80"
+      ],
+      "normalized_label": "str_unknown_gametype",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006A8AC",
+      "value": "ui_voteactive",
+      "xref_functions": [
+        "0x10020BB0"
+      ],
+      "normalized_label": "str_ui_voteactive",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006A8D4",
+      "value": "ui_mainmenu",
+      "xref_functions": [
+        "0x10029FC0"
+      ],
+      "normalized_label": "str_ui_mainmenu",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006ABF0",
+      "value": "cg_trackPlayer",
+      "xref_functions": [
+        "0x10020BB0"
+      ],
+      "normalized_label": "str_cg_trackplayer",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006B460",
+      "value": "cg_lastmsg",
+      "xref_functions": [
+        "0x10029FF0",
+        "0x1002A060"
+      ],
+      "normalized_label": "str_cg_lastmsg",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006B6BC",
+      "value": "cg_followPowerup",
+      "xref_functions": [
+        "0x10020BB0"
+      ],
+      "normalized_label": "str_cg_followpowerup",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006CDD8",
+      "value": "cg_version",
+      "xref_functions": [
+        "0x10020BB0"
+      ],
+      "normalized_label": "str_cg_version",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E7BC",
+      "value": "ui/assets/score/muted",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_muted",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E7D4",
+      "value": "ui/assets/score/speaking",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_speaking",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E890",
+      "value": "ui/assets/score/1st_plyr_ready.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_1st_plyr_ready",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E8B4",
+      "value": "ui/assets/score/1st_plyr_notready.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_1st_plyr_notready",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E8DC",
+      "value": "ui/assets/score/2nd_plyr_ready.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_2nd_plyr_ready",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E900",
+      "value": "ui/assets/score/2nd_plyr_notready.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_2nd_plyr_notready",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E928",
+      "value": "ui/assets/score/1st_plyr_leads.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_1st_plyr_leads",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E94C",
+      "value": "ui/assets/score/1st_plyr_tied.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_1st_plyr_tied",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E970",
+      "value": "ui/assets/score/1st_plyr_trails.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_1st_plyr_trails",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E994",
+      "value": "ui/assets/score/2nd_plyr_leads.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_2nd_plyr_leads",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E9B8",
+      "value": "ui/assets/score/2nd_plyr_tied.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_2nd_plyr_tied",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006E9DC",
+      "value": "ui/assets/score/2nd_plyr_trails.tga",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_score_2nd_plyr_trails",
+      "status": "matched"
+    },
+    {
+      "address": "0x1006F520",
+      "value": "ui/assets/voiceWindow",
+      "xref_functions": [
+        "0x10022F40"
+      ],
+      "normalized_label": "str_asset_voice_window",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069820",
+      "value": "CG_Obituary: target out of range",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_error_cg_obituary_target_out_of_range",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069A90",
+      "value": "You fragged %s.",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_you_fragged_player",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069AE4",
+      "value": "You thawed %s.",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_you_thawed_player",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069AF4",
+      "value": "You froze %s, your teammate.",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_you_froze_teammate",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069BE8",
+      "value": "was ripped up by",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_obituary_was_ripped_up_by",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069D7C",
+      "value": "was thawed by",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_obituary_was_thawed_by",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069D8C",
+      "value": "was killed by",
+      "xref_functions": [
+        "0x10019130"
+      ],
+      "normalized_label": "str_obituary_was_killed_by",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069DB4",
+      "value": "CG_UseItem: invalid item %d",
+      "xref_functions": [
+        "0x10019AF0"
+      ],
+      "normalized_label": "str_error_cg_useitem_invalid_item",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069DD0",
+      "value": "No item to use",
+      "xref_functions": [
+        "0x10019AF0"
+      ],
+      "normalized_label": "str_no_item_to_use",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069DE0",
+      "value": "Use %s",
+      "xref_functions": [
+        "0x10019AF0"
+      ],
+      "normalized_label": "str_use_item",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069E28",
+      "value": " pw",
+      "xref_functions": [
+        "0x10019D20"
+      ],
+      "normalized_label": "str_follow_pw_suffix",
+      "status": "matched"
+    },
+    {
+      "address": "0x10069E2C",
+      "value": "follow %d%s",
+      "xref_functions": [
+        "0x10019D20"
+      ],
+      "normalized_label": "str_follow_fmt_with_suffix",
+      "status": "matched"
+    },
+    {
+      "address": "0x10072120",
+      "value": "ui_priv",
+      "xref_functions": [
+        "0x1004ADC0"
+      ],
+      "normalized_label": "str_servercmd_ui_priv",
+      "status": "matched"
+    },
+    {
+      "address": "0x10068E38",
+      "value": "%i:%i%i",
+      "xref_functions": [
+        "0x10030C00"
+      ],
+      "normalized_label": "str_level_timer_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070744",
+      "value": "%d%%",
+      "xref_functions": [
+        "0x10034590"
+      ],
+      "normalized_label": "str_percent_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070788",
+      "value": "Fragged by %s",
+      "xref_functions": [
+        "0x10028D80",
+        "0x10032110"
+      ],
+      "normalized_label": "str_fragged_by",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070804",
+      "value": "Round %d",
+      "xref_functions": [
+        "0x100336E0"
+      ],
+      "normalized_label": "str_round_label_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070810",
+      "value": "Warmup",
+      "xref_functions": [
+        "0x100336E0"
+      ],
+      "normalized_label": "str_warmup_label",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070818",
+      "value": "Cap Limit: %d",
+      "xref_functions": [
+        "0x10033800"
+      ],
+      "normalized_label": "str_game_limit_cap",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070828",
+      "value": "Round Limit: %d",
+      "xref_functions": [
+        "0x10033800"
+      ],
+      "normalized_label": "str_game_limit_round",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070838",
+      "value": "Score Limit: %d",
+      "xref_functions": [
+        "0x10033800"
+      ],
+      "normalized_label": "str_game_limit_score",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070848",
+      "value": "Frag Limit: %d",
+      "xref_functions": [
+        "0x10033800"
+      ],
+      "normalized_label": "str_game_limit_frag",
+      "status": "matched"
+    },
+    {
+      "address": "0x100708A0",
+      "value": "%02d:%02d (%s %02d, %d)",
+      "xref_functions": [
+        "0x10033D80"
+      ],
+      "normalized_label": "str_localtime_full_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070974",
+      "value": "Fastest race time within the time limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_race_time_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007099C",
+      "value": "Most flag captures within the time limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_flag_capture_time_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x100709C8",
+      "value": "Most rounds won within the time limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_round_time_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x100709F0",
+      "value": "Highest score within the time limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_score_time_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070A14",
+      "value": "First to reach the capture limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_capture_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070A38",
+      "value": "First to reach the mercy limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_mercy_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070A58",
+      "value": "First to reach the round limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_round_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070A78",
+      "value": "First to reach the score limit",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_score_limit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070A98",
+      "value": "Highest score at the end of the game",
+      "xref_functions": [
+        "0x10034280"
+      ],
+      "normalized_label": "str_match_end_score_game_end",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070AC0",
+      "value": "MATCH SUMMARY",
+      "xref_functions": [
+        "0x10034420",
+        "0x10034A00"
+      ],
+      "normalized_label": "str_match_summary",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070AD0",
+      "value": "MATCH WARMUP",
+      "xref_functions": [
+        "0x10034420",
+        "0x10034A00"
+      ],
+      "normalized_label": "str_match_warmup",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070AE0",
+      "value": "MATCH IN PROGRESS",
+      "xref_functions": [
+        "0x10034420",
+        "0x10034A00"
+      ],
+      "normalized_label": "str_match_in_progress",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070AF4",
+      "value": "%s - %s - %s",
+      "xref_functions": [
+        "0x10034420"
+      ],
+      "normalized_label": "str_match_details_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070B04",
+      "value": "%s - %s",
+      "xref_functions": [
+        "0x100344B0"
+      ],
+      "normalized_label": "str_game_type_map_format",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070B38",
+      "value": "You captured %d skull%s.",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_captured_skulls",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070B54",
+      "value": "You had %d flag capture%s.",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_flag_captures",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070B70",
+      "value": "You had %d assist%s.",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_assists",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070B88",
+      "value": "You had %d defend%s.",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_defends",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070BA0",
+      "value": "You forfeited the match.",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_forfeit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070BBC",
+      "value": "You finished with a score of %d.",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_finished_score",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070BE0",
+      "value": "You finished %s with a score of %d",
+      "xref_functions": [
+        "0x100346E0"
+      ],
+      "normalized_label": "str_endgame_finished_place_score",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070C28",
+      "value": " - %s place with %i",
+      "xref_functions": [
+        "0x10034A00"
+      ],
+      "normalized_label": "str_match_status_place_suffix",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070C50",
+      "value": " - Teams are tied at %i",
+      "xref_functions": [
+        "0x10034A00"
+      ],
+      "normalized_label": "str_match_status_tied_suffix",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070CB0",
+      "value": "%s place with %i",
+      "xref_functions": [
+        "0x10034B30"
+      ],
+      "normalized_label": "str_game_status_place",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070CC4",
+      "value": "Teams are tied at %i",
+      "xref_functions": [
+        "0x10034B30"
+      ],
+      "normalized_label": "str_game_status_tied",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070CDC",
+      "value": "^1Red^7 leads ^4Blue^7, %i to %i",
+      "xref_functions": [
+        "0x10034B30"
+      ],
+      "normalized_label": "str_game_status_red_leads",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070D00",
+      "value": "^4Blue^7 leads ^1Red^7, %i to %i",
+      "xref_functions": [
+        "0x10034B30"
+      ],
+      "normalized_label": "str_game_status_blue_leads",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070D24",
+      "value": "Round In Progress",
+      "xref_functions": [
+        "0x10034D70"
+      ],
+      "normalized_label": "str_round_in_progress",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070D38",
+      "value": "SPECTATOR MODE",
+      "xref_functions": [
+        "0x10034D70"
+      ],
+      "normalized_label": "str_spectator_mode",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070D48",
+      "value": "Press mouse button 1 to cycle through players",
+      "xref_functions": [
+        "0x10034D70"
+      ],
+      "normalized_label": "str_spectator_cycle_hint",
+      "status": "matched"
+    },
+    {
+      "address": "0x10070D80",
+      "value": "waiting to play",
+      "xref_functions": [
+        "0x10034D70"
+      ],
+      "normalized_label": "str_waiting_to_play",
+      "status": "matched"
+    }
+  ],
+  "relocations": [],
+  "stats": {
+    "function_total": 154,
+    "function_matched": 154,
+    "string_total": 168,
+    "string_resolved": 168,
+    "relocation_total": 0
+  }
+}

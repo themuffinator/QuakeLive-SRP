@@ -82,6 +82,51 @@ void	trap_Args( char *buffer, int bufferLength ) {
 	syscall( CG_ARGS, buffer, bufferLength );
 }
 
+/*
+=================
+trap_Cmd_ExecuteText
+=================
+*/
+void trap_Cmd_ExecuteText( int exec_when, const char *text ) {
+	syscall( CG_CMD_EXECUTETEXT, exec_when, text );
+}
+
+/*
+=================
+trap_AdvertisementBridge_InitCGame
+=================
+*/
+void trap_AdvertisementBridge_InitCGame( void ) {
+	syscall( CG_ADVERTISEMENTBRIDGE_INITCGAME );
+}
+
+/*
+=================
+trap_AdvertisementBridge_ShutdownCGame
+=================
+*/
+void trap_AdvertisementBridge_ShutdownCGame( void ) {
+	syscall( CG_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME );
+}
+
+/*
+=================
+trap_AdvertisementBridge_UpdateLoadingViewParameters
+=================
+*/
+void trap_AdvertisementBridge_UpdateLoadingViewParameters( void ) {
+	syscall( CG_ADVERTISEMENTBRIDGE_UPDATELOADINGVIEWPARAMETERS );
+}
+
+/*
+=================
+trap_AdvertisementBridge_SetFrameTime
+=================
+*/
+void trap_AdvertisementBridge_SetFrameTime( int frameTime ) {
+	syscall( CG_ADVERTISEMENTBRIDGE_SETFRAMETIME, frameTime );
+}
+
 int		trap_FS_FOpenFile( const char *qpath, fileHandle_t *f, fsMode_t mode ) {
 	return syscall( CG_FS_FOPENFILE, qpath, f, mode );
 }
@@ -363,6 +408,42 @@ int trap_Key_GetKey( const char *binding ) {
 
 void trap_Key_KeynumToStringBuf( int keynum, char *buf, int buflen ) {
 	syscall( CG_KEY_KEYNUMTOSTRINGBUF, keynum, buf, buflen );
+}
+
+/*
+=================
+trap_Key_GetBindingBuf
+=================
+*/
+void trap_Key_GetBindingBuf( int keynum, char *buf, int buflen ) {
+	syscall( CG_KEY_GETBINDINGBUF, keynum, buf, buflen );
+}
+
+/*
+=================
+trap_Key_SetBinding
+=================
+*/
+void trap_Key_SetBinding( int keynum, const char *binding ) {
+	syscall( CG_KEY_SETBINDING, keynum, binding );
+}
+
+/*
+=================
+trap_Key_GetOverstrikeMode
+=================
+*/
+qboolean trap_Key_GetOverstrikeMode( void ) {
+	return syscall( CG_KEY_GETOVERSTRIKEMODE );
+}
+
+/*
+=================
+trap_Key_SetOverstrikeMode
+=================
+*/
+void trap_Key_SetOverstrikeMode( qboolean state ) {
+	syscall( CG_KEY_SETOVERSTRIKEMODE, state );
 }
 
 int trap_PC_AddGlobalDefine( char *define ) {

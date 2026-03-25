@@ -6,6 +6,7 @@ This repository aims to reverse-engineer Quake Live by starting from the public 
 ## Top-Level Layout
 - `references/`: Archival material gathered from both Quake III Arena and Quake Live to inform the reverse-engineering process. It is split into:
   - `hlil/`: High Level Intermediate Language (HLIL) output produced by Binary Ninja for a range of Quake Live and Quake III binaries. Each binary has a monolithic HLIL text dump (`*.txt`) and a `*_split/` directory containing per-function files for easier comparison and diffing.
+  - `reverse-engineering/ghidra/`: OpenAlice-style committed Ghidra exports for the retail Quake Live binaries, including metadata, imports/exports, function inventories, analyst-promoted symbols, and top-function decompiles.
 - `assets/`: A snapshot of upstream assets. The `quake3/src/` subtree mirrors the original Quake III Arena source distribution, while `quakelive/` collects extracted Quake Live game assets (e.g. DLLs, bot files, maps) for reference while rebuilding features. Treat this directory as read-only so it continues to reflect the shipping data layout.
 - `src/`: The active working tree for the reconstructed codebase. It currently matches the Quake III Arena source and provides the starting point for Quake Live specific changes. Key subdirectories include:
   - `code/`: Engine and game VM sources. This houses the client (`client/`), game logic (`game/`), UI module (`ui/`), bot library (`botlib/`), renderer (`renderer/`), and supporting build files for different platforms (e.g. `win32/`, `unix/`, Visual Studio project files).
@@ -19,7 +20,8 @@ This repository aims to reverse-engineer Quake Live by starting from the public 
 - `tools/`: Automation and CI helpers used to stand up historical toolchains, build clean-room artefacts, and publish comparison data during review.【F:docs/toolchain-ci.md†L1-L24】【F:tools/ci/build-cleanroom.sh†L1-L44】
 - `artifacts/`: Structured output from the deterministic harnesses, including timelines, HUD hashes, and trace diffs organised per suite/target for downstream analysis.【F:docs/devops/ci-matrix.md†L15-L38】
 - `logs/`: Harness and workflow logs mirrored from CI so reviewers can inspect failure evidence without rerunning suites locally.【F:docs/devops/ci-matrix.md†L15-L34】
-- `ghidra_scripts/`: Automation used during symbol extraction and binary analysis passes, notably the export script that seeds the normalised symbol maps for the clean-room stages.【F:docs/reverse-engineering/handbook.md†L31-L37】
+- `ghidra_scripts/`: Legacy automation used during symbol extraction and binary analysis passes, notably the export script that seeds the normalised symbol maps for the clean-room stages.【F:docs/reverse-engineering/handbook.md†L31-L37】
+- `scripts/ghidra/`: OpenAlice-style Ghidra tooling for generating the committed Quake Live reference corpus and bootstrapping optional GhidrAssistMCP integration.
 - `docs/`: Living documentation covering build pipelines, reverse-engineering stages, gameplay audits, and test harnesses. Start with the reverse-engineering handbook, CI matrix, and documentation backlog when orienting yourself.【F:docs/reverse-engineering/handbook.md†L1-L37】【F:docs/devops/ci-matrix.md†L1-L38】【F:docs/documentation-backlog.md†L1-L29】
 
 ## Reverse-Engineering Workflow Notes
@@ -27,6 +29,10 @@ This repository aims to reverse-engineer Quake Live by starting from the public 
   Quake Live (`references/hlil/quakelive/`). Keeping the two sets side-by-side
   enables systematic diffing between the retail Quake III code and the decompiled
   Quake Live functions when porting behaviour.【F:docs/onboarding/overview.md†L6-L19】
+- The committed Ghidra corpus under `references/reverse-engineering/ghidra/`
+  mirrors the OpenAlice reverse-engineering workflow: start from metadata,
+  imports/exports, and function inventory, then descend into targeted decompile
+  output only after the owning subsystem is clear.
 - Quake Live assets under `assets/quakelive/` expose binary
   modules (`cgamex86.dll`, `qagamex86.dll`, etc.) and supporting data
   (fonts, icons, maps) to validate assumptions or reproduce file formats.【F:docs/onboarding/overview.md†L6-L19】

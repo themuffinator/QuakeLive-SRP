@@ -1,0 +1,59 @@
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _read(rel_path: str) -> str:
+	return (REPO_ROOT / rel_path).read_text(encoding="utf-8")
+
+
+def test_qagame_uses_compact_smscores_fallback_when_forced_or_overflowing() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+
+	assert "static qboolean G_BuildCompactScoreboardMessage( char *payload, int payloadSize, int *emittedCount )" in game_cmds
+	assert "\" %i %i %i %i %i %i %i %i\"" in game_cmds
+	assert "useCompact = g_forceSmallScoreboardMessage.integer ? qtrue : qfalse;" in game_cmds
+	assert "useCompact = G_BuildRichScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;" in game_cmds
+	assert 'trap_SendServerCommand( ent-g_entities, va( "smscores %i %i %i%s",' in game_cmds
+
+
+def test_cgame_parses_smscores_with_compact_row_stride() -> None:
+	servercmds = _read("src/code/cgame/cg_servercmds.c")
+
+	assert "static void CG_ParseCompactScores( void ) {" in servercmds
+	assert "cg.scores[i].client = atoi( CG_Argv( i * 8 + 4 ) );" in servercmds
+	assert "cg.scores[i].scoreFlags = atoi( CG_Argv( i * 8 + 9 ) );" in servercmds
+	assert "cg.scores[i].damage = atoi( CG_Argv( i * 8 + 10 ) );" in servercmds
+	assert "cg.scores[i].deaths = atoi( CG_Argv( i * 8 + 11 ) );" in servercmds
+	assert 'if ( !strcmp( cmd, "smscores" ) ) {' in servercmds
+	assert "CG_ParseCompactScores();" in servercmds
+
+
+def test_qagame_emits_retail_castats_rows_during_clan_arena_intermission() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+
+	assert "static void G_SendCAStatsMessage( gentity_t *ent ) {" in game_cmds
+	assert 'trap_SendServerCommand( ent - g_entities, va( "castats %i%s", i, payload ) );' in game_cmds
+	assert "if ( level.intermissiontime ) {" in game_cmds
+	assert "if ( g_gametype.integer == GT_CLAN_ARENA ) {" in game_cmds
+	assert "G_SendCAStatsMessage( ent );" in game_cmds
+
+
+def test_cgame_caches_and_parses_retail_castats_rows() -> None:
+	servercmds = _read("src/code/cgame/cg_servercmds.c")
+	local = _read("src/code/cgame/cg_local.h")
+
+	assert "typedef struct {\n\tqboolean\tvalid;\n\tint\t\tdamageGiven;\n\tint\t\tdamageReceived;" in local
+	assert "cgClanArenaStats_t\tclanArenaStats[MAX_CLIENTS];" in local
+
+	assert "static void CG_ClearClanArenaStatsCache( void ) {" in servercmds
+	assert "static void CG_ParseClanArenaStats( void ) {" in servercmds
+	assert "row = &cg.clanArenaStats[rowIndex];" in servercmds
+	assert "row->damageGiven = atoi( CG_Argv( 2 ) );" in servercmds
+	assert "row->damageReceived = atoi( CG_Argv( 3 ) );" in servercmds
+	assert "row->weaponFrags[weapon] = atoi( CG_Argv( arg++ ) );" in servercmds
+	assert "row->weaponAccuracy[weapon] = atoi( CG_Argv( arg++ ) );" in servercmds
+	assert "CG_ClearClanArenaStatsCache();" in servercmds
+	assert 'if ( !strcmp( cmd, "castats" ) ) {' in servercmds
+	assert "CG_ParseClanArenaStats();" in servercmds

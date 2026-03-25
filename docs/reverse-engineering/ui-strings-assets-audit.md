@@ -1,35 +1,97 @@
 # UI Strings & Assets Parity Audit (Quake Live)
 
 ## Scope
-This report cross-references UI strings/assets tracked in documentation with Quake Live asset drops and the UI HLIL dump to highlight gaps that require updates in `src/code/ui/` and `src/ui/`.
+This report cross-references the committed `src/ui/` tree with the retail Quake Live
+`assets/quakelive/baseq3/ui/` drop and the UI HLIL-backed mapping notes to highlight
+remaining parity gaps after the writable `src/code/ui/` runtime work.
 
 ## Sources Reviewed
-- `docs/documentation-backlog.md`
-- `docs/ui/localization/credential-menu_strings.md`
 - `assets/quakelive/baseq3/ui/`
 - `references/hlil/quakelive/uix86.all/uix86.dll_hlil.txt`
+- `docs/reverse-engineering/ui-mapping-pass-2026-03-20.md`
 - `src/code/ui/`
 - `src/ui/`
 
-## Outstanding UI Strings
-### Credential menu localization set not implemented in code or menus
-The localization table for credential menus lists runtime strings that should live in a dedicated UI implementation, but there is no corresponding menu script or C implementation in the current tree:
-- `docs/ui/localization/credential-menu_strings.md` references `src/code/ui/ui_cdkey.c`, which does not exist.
-- `src/code/ui/ui_local.h` declares `UI_CDKeyMenu`, `UI_CDKeyMenu_Cache`, and `UI_CDKeyMenu_f`, and `src/code/ui/ui_main.c` calls `UI_CDKeyMenu()` via the `openCredentials` script action.
-- No credential/`cdkey` menu definitions exist in `src/ui/` or `assets/quakelive/baseq3/ui/` (searching for “credential” yields no menu scripts).
+## Repository Constraint Note
+`src/ui/` is read-only in this repository, so remaining menu-script drift cannot be
+fixed in place by agent edits. The writable mitigation is now
+`scripts/ui/write_retail_ui_overrides.py`, which emits retail-correct copies of the
+drifted files into a writable homepath-style overlay.
 
-**Required change:** implement the credential menu UI (menu script in `src/ui/` and matching C implementation in `src/code/ui/`, e.g., a new `ui_cdkey.c`) and wire the localization strings into the menu or a string table to match the documented identifiers.
+## Inventory Parity
+`src/ui/` and `assets/quakelive/baseq3/ui/` currently have the same committed file
+inventory: `520` files on each side, including a fully mirrored `assets/` subtree.
 
-### CD key waiting prompt mismatch
-The HLIL dump includes a CD key prompt string that does not match the current UI text:
-- HLIL string: “Waiting for new key... Press ESC…”
-- `src/code/ui/ui_main.c` uses “Waiting for new key... Press ESCAPE to cancel”.
+Within `ui/assets`, the parity state is exact:
+- `src/ui/assets/` exists.
+- `src/ui/assets/` and `assets/quakelive/baseq3/ui/assets/` both contain `454` files.
+- There are `0` missing files, `0` extra files, and `0` content diffs in that subtree.
 
-**Required change:** align the prompt string with the HLIL wording (or capture the HLIL text in localization so menu text matches the retail UI).
+That means the current `src/ui` parity gaps are no longer missing-file or missing-asset
+problems inside `src/ui`; they are content drift problems in a small set of text panels.
 
-## Outstanding UI Assets
-### `menu/art/*` references missing from asset drop
-The HLIL dump references a small set of Quake Live menu art paths that do not exist under `assets/quakelive/baseq3/`:
+## Remaining `src/ui` Content Drift
+Only `7` committed `src/ui` files still differ from their retail Quake Live counterparts:
+- `comp_spectator.menu`
+- `comp_spectator_follow.menu`
+- `hud.txt`
+- `hud3.txt`
+- `ingame_callvote.menu`
+- `ingame_join.menu`
+- `menudef.h`
+
+The observed drift breaks down into three buckets:
+- Unresolved merge-conflict damage:
+  - `hud.txt`
+  - `hud3.txt`
+  - `ingame_callvote.menu`
+- Source-biased menu-script drift:
+  - `comp_spectator.menu`
+  - `comp_spectator_follow.menu`
+  - `ingame_join.menu`
+- Header drift:
+  - `menudef.h`
+
+Representative mismatches:
+- The spectator compare menus in `src/ui/comp_spectator.menu` and
+  `src/ui/comp_spectator_follow.menu` still use the older
+  `CG_1ST_PLYR_HEALTH_ARMOR`, `CG_2ND_PLYR_HEALTH_ARMOR`, and
+  `CG_HEALTH_COLORIZED` ownerdraw surface, while the retail files use the Quake Live
+  spectator ids `CG_SPEC_COMPARE_PRIMARY`, `CG_SPEC_COMPARE_SECONDARY`,
+  `CG_SPEC_FOLLOW_PRIMARY`, and `CG_SPEC_FOLLOW_SECONDARY`.
+- `src/ui/ingame_join.menu` still carries the older country dropdown block that is not
+  present in the retail file.
+- `src/ui/menudef.h` still exposes a local `FEEDER_COUNTRIES` define and a block of
+  older ownerdraw ids that are absent from the retail header.
+
+## Writable Mitigation
+`scripts/ui/write_retail_ui_overrides.py` compares `src/ui/` against the retail
+`assets/quakelive/baseq3/ui/` tree and writes retail copies of the drifted files into
+a writable homepath-style overlay at `baseq3/ui/...`.
+
+`tools/build_ui_bundle.sh` now also packages the same drift set into
+`build/ui_bundle/pak_ui_src_retail_overlay.pk3`, so source-based layouts can ship the
+retail corrections as a layered UI package without mutating the frozen `src/ui` tree.
+
+Default usage:
+
+```powershell
+python scripts/ui/write_retail_ui_overrides.py
+```
+
+By default this writes overrides to:
+
+```text
+build/ui_retail_overrides/baseq3/ui/
+```
+
+That overlay can be mounted through a writable `fs_homepath` without mutating the
+read-only `src/ui` tree.
+
+## External Asset Gap Outside `src/ui`
+The remaining art discrepancy now sits outside `src/ui`: the mapped retail UI still
+references a small `menu/art/*` set that is absent from `assets/quakelive/baseq3/menu/art/`,
+including:
 - `menu/art/3_cursor2`
 - `menu/art/fx_base`
 - `menu/art/fx_blue`
@@ -41,12 +103,11 @@ The HLIL dump references a small set of Quake Live menu art paths that do not ex
 - `menu/art/fx_yel`
 - `menu/art/unknownmap`
 
-**Required change:** add the referenced art assets (or remap the UI to available art) so `src/ui/` has parity with the HLIL-referenced menu art.
-
-### UI asset directory not mirrored into `src/ui/`
-`assets/quakelive/baseq3/ui/assets/` contains the Quake Live UI artwork (cursor, buttons, HUD art, etc.), but there is no `src/ui/assets/` directory.
-
-**Required change:** stage the UI art hierarchy under `src/ui/assets/` (or update the build tooling to pull from the Quake Live asset drop) so the script-driven menus can reference the artwork in-tree.
+Those are not `src/ui` parity gaps, but they remain relevant to retail-correct UI
+rendering because the writable engine code still registers and uses those names.
 
 ## Notes on Backlog Items
-`docs/documentation-backlog.md` highlights missing metadata text tables (`country.txt`, `teaminfo.txt`, `hud3.txt`). These files already exist in both `assets/quakelive/baseq3/ui/` and `src/ui/` with matching content, so the backlog entry appears to be satisfied and should be updated once verified against additional HLIL/UI behaviour.
+`docs/documentation-backlog.md` highlights metadata text tables such as `country.txt`,
+`teaminfo.txt`, and `hud3.txt`. Those files already exist in both
+`assets/quakelive/baseq3/ui/` and `src/ui/`; the remaining issue is the content drift
+called out above, not file absence.

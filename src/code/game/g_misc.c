@@ -155,6 +155,27 @@ void SP_misc_model( gentity_t *ent ) {
 
 //===========================================================
 
+/*
+=============
+SP_advertisement
+
+Consumes Quake Live advertisement entities. Retail qagame recognizes this
+classname and reports entities missing a cellId. The advert delivery path is
+stubbed here, so the entity is removed after validation.
+=============
+*/
+void SP_advertisement( gentity_t *ent ) {
+	char	*cellId;
+
+	if ( !G_SpawnString( "cellId", "", &cellId ) || atoi( cellId ) == 0 ) {
+		G_Printf( "advertisement entity with no cellId at %s\n", vtos( ent->s.origin ) );
+	}
+
+	G_FreeEntity( ent );
+}
+
+//===========================================================
+
 void locateCamera( gentity_t *ent ) {
 	vec3_t		dir;
 	gentity_t	*target;

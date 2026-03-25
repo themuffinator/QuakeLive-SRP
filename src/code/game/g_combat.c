@@ -398,6 +398,9 @@ static int G_ClampModDamage( int damage, int mod, gentity_t *attacker ) {
 	case MOD_BFG_SPLASH:
 		configuredDamage = g_weaponConfig.bfgSplashDamage;
 		break;
+	case MOD_GRAPPLE:
+		configuredDamage = g_weaponConfig.grappleDamage;
+		break;
 	case MOD_PROXIMITY_MINE:
 		configuredDamage = g_weaponConfig.proximityLauncherDamage;
 		break;
@@ -410,6 +413,56 @@ static int G_ClampModDamage( int damage, int mod, gentity_t *attacker ) {
 	}
 
 	return damage;
+}
+
+/*
+=============
+G_ModToWeapon
+
+Maps a means-of-death code to the corresponding weapon slot for stat aggregation.
+=============
+*/
+static weapon_t G_ModToWeapon( int mod ) {
+	switch ( mod ) {
+	case MOD_GAUNTLET:
+		return WP_GAUNTLET;
+	case MOD_MACHINEGUN:
+		return WP_MACHINEGUN;
+	case MOD_HMG:
+		return WP_HEAVY_MACHINEGUN;
+	case MOD_SHOTGUN:
+		return WP_SHOTGUN;
+	case MOD_GRENADE:
+	case MOD_GRENADE_SPLASH:
+		return WP_GRENADE_LAUNCHER;
+	case MOD_ROCKET:
+	case MOD_ROCKET_SPLASH:
+		return WP_ROCKET_LAUNCHER;
+	case MOD_PLASMA:
+	case MOD_PLASMA_SPLASH:
+		return WP_PLASMAGUN;
+	case MOD_RAILGUN:
+	case MOD_RAILGUN_HEADSHOT:
+		return WP_RAILGUN;
+	case MOD_LIGHTNING:
+	case MOD_LIGHTNING_DISCHARGE:
+		return WP_LIGHTNING;
+	case MOD_BFG:
+	case MOD_BFG_SPLASH:
+		return WP_BFG;
+	case MOD_GRAPPLE:
+		return WP_GRAPPLING_HOOK;
+	case MOD_NAIL:
+		return WP_NAILGUN;
+	case MOD_CHAINGUN:
+		return WP_CHAINGUN;
+	case MOD_PROXIMITY_MINE:
+		return WP_PROX_LAUNCHER;
+	default:
+		break;
+	}
+
+	return WP_NONE;
 }
 /*
 =============
@@ -882,6 +935,23 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	self->enemy = attacker;
 
 	self->client->ps.persistant[PERS_KILLED]++;
+	self->client->deathCount++;
+	if ( ( !attacker || !attacker->client ) && self->client ) {
+		switch ( meansOfDeath ) {
+		case MOD_WATER:
+		case MOD_SLIME:
+		case MOD_LAVA:
+		case MOD_CRUSH:
+		case MOD_TELEFRAG:
+		case MOD_FALLING:
+		case MOD_TARGET_LASER:
+		case MOD_TRIGGER_HURT:
+			self->client->environmentalDeaths++;
+			break;
+		default:
+			break;
+		}
+	}
 
 	if (attacker && attacker->client) {
 		attacker->client->lastkilled_client = self->s.number;
@@ -889,8 +959,18 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		if ( attacker == self || OnSameTeam (self, attacker ) ) {
 			AddScore( attacker, self->r.currentOrigin, -1 );
 		} else {
+			attacker->client->killCount++;
 			AddScore( attacker, self->r.currentOrigin, 1 );
 			G_ADAwardBonus( attacker, self->r.currentOrigin, g_adElimScoreBonus.integer, S_COLOR_YELLOW "Elimination bonus" );
+
+			{
+				weapon_t fragWeapon;
+
+				fragWeapon = G_ModToWeapon( meansOfDeath );
+				if ( fragWeapon > WP_NONE && fragWeapon < WP_NUM_WEAPONS ) {
+					attacker->client->pers.weaponFrags[fragWeapon]++;
+				}
+			}
 
 			if( meansOfDeath == MOD_GAUNTLET ) {
 				
@@ -1083,6 +1163,7 @@ int CheckArmor (gentity_t *ent, int damage, int dflags)
 		return 0;
 
 	client->ps.stats[STAT_ARMOR] -= save;
+	BG_ClearArmorTierIfEmpty( &client->ps, g_armorTiered.integer ? qtrue : qfalse );
 
 	return save;
 }
@@ -1467,7 +1548,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 
 	damage = G_ClampModDamage( damage, mod, attacker );
 
-	if ( ( mod == MOD_RAILGUN || mod == MOD_RAILGUN_HEADSHOT ) && G_IsRailgunHeadshot( targ, point ) ) {
+	if ( mod == MOD_RAILGUN && G_IsRailgunHeadshot( targ, point ) ) {
 		mod = MOD_RAILGUN_HEADSHOT;
 		damage += g_weaponConfig.railgunHeadshotDamage;
 	}
@@ -1634,6 +1715,9 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	// save some from armor
 	asave = CheckArmor (targ, take, dflags);
 	take -= asave;
+	if ( take > 0 || asave > 0 ) {
+		G_ADHandleDamageScore( attacker, 0, targ, &take, &asave );
+	}
 	if ( take > 0 ) {
 		G_RRHandleDamageScore( attacker, targ, take );
 	}
@@ -1642,6 +1726,8 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		int teamDamage = take + asave;
 
 		if ( teamDamage > 0 ) {
+			attacker->client->teamDamageEventsGiven++;
+			targ->client->teamDamageEventsReceived++;
 			G_ComplaintConsiderForDamage( attacker, targ, teamDamage );
 		}
 	}
@@ -1684,9 +1770,29 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 
 	// do the damage
+	if ( targ && targ->client && ( take > 0 || asave > 0 ) ) {
+		targ->client->factoryRegenLastDamageTime = level.time;
+
+		if ( g_factoryCvarConfig.regenHealthDelayMilliseconds > 0
+			&& g_factoryCvarConfig.regenHealthRateMilliseconds > 0 ) {
+			targ->client->factoryRegenHealthPending = qtrue;
+		}
+
+		if ( g_factoryCvarConfig.regenArmorDelayMilliseconds > 0
+			&& g_factoryCvarConfig.regenArmorRateMilliseconds > 0 ) {
+			targ->client->factoryRegenArmorPending = qtrue;
+		}
+	}
+
 	if ( take ) {
 		if ( attacker && attacker->client ) {
+			weapon_t damageWeapon;
+
 			attacker->client->pers.damageGiven += take;
+			damageWeapon = G_ModToWeapon( mod );
+			if ( damageWeapon > WP_NONE && damageWeapon < WP_NUM_WEAPONS ) {
+				attacker->client->pers.weaponDamage[damageWeapon] += take;
+			}
 		}
 		if ( targ && targ->client ) {
 			targ->client->pers.damageReceived += take;

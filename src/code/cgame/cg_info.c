@@ -26,35 +26,187 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_LOADING_PLAYER_ICONS	16
 #define MAX_LOADING_ITEM_ICONS		26
+#define LOADING_BANNER_X			-400.0f
+#define LOADING_BANNER_WIDTH		1440.0f
+#define LOADING_BAR_HEIGHT			64.0f
+#define LOADING_INFO_BAND_Y			400.0f
+#define LOADING_INFO_BAND_HEIGHT	80.0f
+#define LOADING_LOGO_X				0.0f
+#define LOADING_LOGO_Y				0.0f
+#define LOADING_LOGO_WIDTH			256.0f
+#define LOADING_LOGO_HEIGHT			64.0f
+#define LOADING_GAMETYPE_BG_X		384.0f
+#define LOADING_GAMETYPE_BG_Y		0.0f
+#define LOADING_GAMETYPE_BG_WIDTH	256.0f
+#define LOADING_GAMETYPE_BG_HEIGHT	64.0f
+#define LOADING_STATUS_Y			370.0f
+#define LOADING_STATUS_SCALE		0.30f
+#define LOADING_AWAITING_GAMESTATE_Y	178.0f
+#define LOADING_TITLE_X				10.0f
+#define LOADING_TITLE_Y				400.0f
+#define LOADING_TITLE_SCALE			0.80f
+#define LOADING_AUTHOR_Y			447.0f
+#define LOADING_AUTHOR_ALT_Y		462.0f
+#define LOADING_META_SCALE			0.25f
+#define LOADING_GAMETYPE_Y			10.0f
+#define LOADING_GAMETYPE_SCALE		0.80f
+#define LOADING_GAMETYPE_RIGHT_X	620.0f
+#define LOADING_PROGRESS_COUNT		4
+#define LOADING_PROGRESS_X			292.0f
+#define LOADING_PROGRESS_Y			380.0f
+#define LOADING_PROGRESS_SIZE		8.0f
+#define LOADING_PROGRESS_STEP		16.0f
 
 static int			loadingPlayerIconCount;
 static int			loadingItemIconCount;
+static int			loadingProgressStage;
 static qhandle_t	loadingPlayerIcons[MAX_LOADING_PLAYER_ICONS];
 static qhandle_t	loadingItemIcons[MAX_LOADING_ITEM_ICONS];
+static const vec4_t	loadingBannerColor = { 0.375f, 0.125f, 0.125f, 0.75f };
+static const vec4_t	loadingPanelColor = { 0.0f, 0.0f, 0.0f, 0.75f };
+static const vec4_t	loadingProgressFilledColor = { 0.375f, 0.125f, 0.125f, 1.0f };
+static const vec4_t	loadingProgressEmptyColor = { 0.0f, 0.0f, 0.0f, 0.75f };
+static const char	*const loadingGametypeNames[] = {
+	"Free For All",
+	"Duel",
+	"Race",
+	"Team Deathmatch",
+	"Clan Arena",
+	"Capture the Flag",
+	"One Flag CTF",
+	"Overload",
+	"Harvester",
+	"Freeze Tag",
+	"Domination",
+	"Attack and Defend",
+	"Red Rover"
+};
 
 
 /*
 ===================
-CG_DrawLoadingIcons
+CG_DrawLoadingBackground
 ===================
 */
-static void CG_DrawLoadingIcons( void ) {
-	int		n;
-	int		x, y;
+static void CG_DrawLoadingBackground( qhandle_t shader ) {
+	float	x;
+	float	y;
+	float	w;
+	float	h;
+	float	u1;
+	float	u2;
 
-	for( n = 0; n < loadingPlayerIconCount; n++ ) {
-		x = 16 + n * 78;
-		y = 324-40;
-		CG_DrawPic( x, y, 64, 64, loadingPlayerIcons[n] );
+	if ( !shader ) {
+		return;
 	}
 
-	for( n = 0; n < loadingItemIconCount; n++ ) {
-		y = 400-40;
-		if( n >= 13 ) {
-			y += 40;
-		}
-		x = 16 + n % 13 * 48;
-		CG_DrawPic( x, y, 32, 32, loadingItemIcons[n] );
+	x = 0.0f;
+	y = 0.0f;
+	w = cgs.glconfig.vidWidth;
+	h = cgs.glconfig.vidHeight;
+	u1 = 0.0f;
+	u2 = 1.0f;
+
+	if ( cgs.glconfig.vidHeight > 0 ) {
+		u1 = 0.5f * ( ( 1920.0f - ( 1080.0f / cgs.glconfig.vidHeight ) * cgs.glconfig.vidWidth ) / 1920.0f );
+		u2 = 1.0f - u1;
+	}
+
+	trap_R_SetColor( NULL );
+	trap_R_DrawStretchPic( x, y, w, h, u1, 0, u2, 1, shader );
+}
+
+
+/*
+===================
+CG_GetLoadingGametype
+===================
+*/
+static const char *CG_GetLoadingGametype( void ) {
+	if ( cgs.gametype >= 0 && cgs.gametype < ARRAY_LEN( loadingGametypeNames ) ) {
+		return loadingGametypeNames[cgs.gametype];
+	}
+
+	return "Unknown Gametype";
+}
+
+
+/*
+===================
+CG_DrawLoadingText
+===================
+*/
+static void CG_DrawLoadingText( float x, float y, float scale, const char *text, qboolean center ) {
+	int		width;
+	float	drawX;
+
+	if ( !text || !text[0] ) {
+		return;
+	}
+
+	drawX = x;
+	if ( center ) {
+		width = CG_Text_Width( text, scale, 0 );
+		drawX -= width * 0.5f;
+	}
+
+	CG_Text_Paint( drawX, y, scale, colorWhite, text, 0, 0, 0 );
+}
+
+
+/*
+===================
+CG_SetLoadingScreenText
+===================
+*/
+static void CG_SetLoadingScreenText( const char *text ) {
+	Q_strncpyz( cg.infoScreenText, text, sizeof( cg.infoScreenText ) );
+	trap_UpdateScreen();
+	trap_AdvertisementBridge_UpdateLoadingViewParameters();
+	trap_AdvertisementBridge_SetFrameTime( 1000 );
+}
+
+
+/*
+===================
+CG_DrawLoadingProgress
+===================
+*/
+static void CG_DrawLoadingProgress( void ) {
+	int			i;
+	float		x;
+	const float	*color;
+
+	for ( i = 0; i < LOADING_PROGRESS_COUNT; ++i ) {
+		x = LOADING_PROGRESS_X + i * LOADING_PROGRESS_STEP;
+		color = ( loadingProgressStage > i ) ? loadingProgressFilledColor : loadingProgressEmptyColor;
+		CG_FillRect( x, LOADING_PROGRESS_Y, LOADING_PROGRESS_SIZE, LOADING_PROGRESS_SIZE, color );
+	}
+}
+
+
+/*
+===================
+CG_ResetLoadingState
+===================
+*/
+void CG_ResetLoadingState( void ) {
+	loadingPlayerIconCount = 0;
+	loadingItemIconCount = 0;
+	loadingProgressStage = 0;
+	memset( loadingPlayerIcons, 0, sizeof( loadingPlayerIcons ) );
+	memset( loadingItemIcons, 0, sizeof( loadingItemIcons ) );
+}
+
+
+/*
+=========================
+CG_AdvanceLoadingProgress
+=========================
+*/
+void CG_AdvanceLoadingProgress( void ) {
+	if ( loadingProgressStage < LOADING_PROGRESS_COUNT ) {
+		loadingProgressStage++;
 	}
 }
 
@@ -62,13 +214,10 @@ static void CG_DrawLoadingIcons( void ) {
 /*
 ======================
 CG_LoadingString
-
 ======================
 */
 void CG_LoadingString( const char *s ) {
-	Q_strncpyz( cg.infoScreenText, s, sizeof( cg.infoScreenText ) );
-
-	trap_UpdateScreen();
+	CG_SetLoadingScreenText( s );
 }
 
 /*
@@ -85,7 +234,7 @@ void CG_LoadingItem( int itemNum ) {
 		loadingItemIcons[loadingItemIconCount++] = trap_R_RegisterShaderNoMip( item->icon );
 	}
 
-	CG_LoadingString( item->pickup_name );
+	CG_SetLoadingScreenText( item->pickup_name );
 }
 
 /*
@@ -95,6 +244,7 @@ CG_LoadingClient
 */
 void CG_LoadingClient( int clientNum ) {
 	const char		*info;
+	char			*slash;
 	char			*skin;
 	char			personality[MAX_QPATH];
 	char			model[MAX_QPATH];
@@ -104,9 +254,10 @@ void CG_LoadingClient( int clientNum ) {
 
 	if ( loadingPlayerIconCount < MAX_LOADING_PLAYER_ICONS ) {
 		Q_strncpyz( model, Info_ValueForKey( info, "model" ), sizeof( model ) );
-		skin = Q_strrchr( model, '/' );
-		if ( skin ) {
-			*skin++ = '\0';
+		slash = Q_strrchr( model, '/' );
+		if ( slash ) {
+			*slash++ = '\0';
+			skin = slash;
 		} else {
 			skin = "default";
 		}
@@ -119,7 +270,7 @@ void CG_LoadingClient( int clientNum ) {
 			loadingPlayerIcons[loadingPlayerIconCount] = trap_R_RegisterShaderNoMip( iconName );
 		}
 		if ( !loadingPlayerIcons[loadingPlayerIconCount] ) {
-			Com_sprintf( iconName, MAX_QPATH, "models/players/%s/icon_%s.tga", DEFAULT_MODEL, "default" );
+			Com_sprintf( iconName, MAX_QPATH, "models/players/%s/icon_%s.tga", "sarge", "default" );
 			loadingPlayerIcons[loadingPlayerIconCount] = trap_R_RegisterShaderNoMip( iconName );
 		}
 		if ( loadingPlayerIcons[loadingPlayerIconCount] ) {
@@ -130,11 +281,7 @@ void CG_LoadingClient( int clientNum ) {
 	Q_strncpyz( personality, Info_ValueForKey( info, "n" ), sizeof(personality) );
 	Q_CleanStr( personality );
 
-	if( cgs.gametype == GT_SINGLE_PLAYER ) {
-		trap_S_RegisterSound( va( "sound/player/announce/%s.wav", personality ), qtrue );
-	}
-
-	CG_LoadingString( personality );
+	CG_SetLoadingScreenText( personality );
 }
 
 
@@ -146,173 +293,73 @@ Draw all the status / pacifier stuff during level loading
 ====================
 */
 void CG_DrawInformation( void ) {
-	const char	*s;
+	const char	*author;
+	const char	*authorAlt;
+	const char	*gametype;
+	const char	*mapname;
+	const char	*status;
+	const char	*title;
 	const char	*info;
-	const char	*sysInfo;
-	int			y;
-	int			value;
 	qhandle_t	levelshot;
-	qhandle_t	detail;
-	char		buf[1024];
+	int			width;
 
 	info = CG_ConfigString( CS_SERVERINFO );
-	sysInfo = CG_ConfigString( CS_SYSTEMINFO );
-
-	s = Info_ValueForKey( info, "mapname" );
-	levelshot = trap_R_RegisterShaderNoMip( va( "levelshots/%s.tga", s ) );
-	if ( !levelshot && cgs.media.loadingBackground ) {
-		levelshot = cgs.media.loadingBackground;
+	mapname = info ? Info_ValueForKey( info, "mapname" ) : "";
+	levelshot = 0;
+	if ( mapname && mapname[0] ) {
+		levelshot = trap_R_RegisterShaderNoMip( va( "levelshots/%s.tga", mapname ) );
 	}
 	if ( !levelshot ) {
 		levelshot = trap_R_RegisterShaderNoMip( "menu/art/unknownmap" );
 	}
-	trap_R_SetColor( NULL );
-	CG_DrawPic( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, levelshot );
 
-	// blend a detail texture over it
-	detail = cgs.media.menuSmokeShader;
-	if ( !detail ) {
-		detail = trap_R_RegisterShader( "levelShotDetail" );
-	}
-	if ( detail ) {
-		trap_R_DrawStretchPic( 0, 0, cgs.glconfig.vidWidth, cgs.glconfig.vidHeight, 0, 0, 2.5, 2, detail );
+	if ( !cg.infoScreenText[0] && cg.snap && ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
+		CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
+		CG_DrawLoadingBackground( cgs.media.loadingBackground );
+		CG_DrawLoadingText( SCREEN_WIDTH * 0.5f, LOADING_AWAITING_GAMESTATE_Y, LOADING_STATUS_SCALE,
+			"Awaiting gamestate...", qtrue );
+		CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
+		return;
 	}
 
-	// draw the icons of things as they are loaded
-	CG_DrawLoadingIcons();
+	CG_DrawLoadingBackground( levelshot );
+	CG_SetAdjustFrom640Mode( WIDESCREEN_LEFT );
+	CG_FillRect( LOADING_BANNER_X, LOADING_LOGO_Y, LOADING_BANNER_WIDTH, LOADING_BAR_HEIGHT, loadingBannerColor );
+	CG_FillRect( LOADING_BANNER_X, LOADING_INFO_BAND_Y, LOADING_BANNER_WIDTH, LOADING_INFO_BAND_HEIGHT,
+		loadingPanelColor );
 
-	// the first 150 rows are reserved for the client connection
-	// screen to write into
+	CG_DrawPic( LOADING_LOGO_X, LOADING_LOGO_Y, LOADING_LOGO_WIDTH, LOADING_LOGO_HEIGHT, cgs.media.logoBackground );
+	CG_DrawPic( LOADING_LOGO_X, LOADING_LOGO_Y, LOADING_LOGO_WIDTH, LOADING_LOGO_HEIGHT, cgs.media.qlLogo );
+	CG_DrawPic( LOADING_GAMETYPE_BG_X, LOADING_GAMETYPE_BG_Y, LOADING_GAMETYPE_BG_WIDTH,
+		LOADING_GAMETYPE_BG_HEIGHT, cgs.media.gameTypeBackground );
+
+	title = CG_ConfigString( CS_MESSAGE );
+	CG_DrawLoadingText( LOADING_TITLE_X, LOADING_TITLE_Y, LOADING_TITLE_SCALE, title, qfalse );
+
+	author = CG_ConfigString( CS_MAP_AUTHOR );
+	authorAlt = CG_ConfigString( CS_MAP_AUTHOR_ALT );
+	if ( author && author[0] ) {
+		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_Y, LOADING_META_SCALE, author, qfalse );
+		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_ALT_Y, LOADING_META_SCALE, authorAlt, qfalse );
+	}
+
+	CG_SetAdjustFrom640Mode( WIDESCREEN_RIGHT );
+	gametype = CG_GetLoadingGametype();
+	if ( gametype && gametype[0] ) {
+		width = CG_Text_Width( gametype, LOADING_GAMETYPE_SCALE, 0 );
+		CG_DrawLoadingText( LOADING_GAMETYPE_RIGHT_X - width, LOADING_GAMETYPE_Y, LOADING_GAMETYPE_SCALE,
+			gametype, qfalse );
+	}
+
+	CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
 	if ( cg.infoScreenText[0] ) {
-		UI_DrawProportionalString( 320, 128-32, va("Loading... %s", cg.infoScreenText),
-			UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+		status = va( "Loading %s", cg.infoScreenText );
 	} else {
-		UI_DrawProportionalString( 320, 128-32, "Awaiting snapshot...",
-			UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+		status = "Awaiting Snapshot";
 	}
 
-	// draw info string information
-
-	y = 180-32;
-
-	// don't print server lines if playing a local game
-	trap_Cvar_VariableStringBuffer( "sv_running", buf, sizeof( buf ) );
-	if ( !atoi( buf ) ) {
-		// server hostname
-		Q_strncpyz(buf, Info_ValueForKey( info, "sv_hostname" ), 1024);
-		Q_CleanStr(buf);
-		UI_DrawProportionalString( 320, y, buf,
-			UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-		y += PROP_HEIGHT;
-
-		// pure server
-		s = Info_ValueForKey( sysInfo, "sv_pure" );
-		if ( s[0] == '1' ) {
-			UI_DrawProportionalString( 320, y, "Pure Server",
-				UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-			y += PROP_HEIGHT;
-		}
-
-		// server-specific message of the day
-		s = CG_ConfigString( CS_MOTD );
-		if ( s[0] ) {
-			UI_DrawProportionalString( 320, y, s,
-				UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-			y += PROP_HEIGHT;
-		}
-
-		// some extra space after hostname and motd
-		y += 10;
-	}
-
-	// map-specific message (long map name)
-	s = CG_ConfigString( CS_MESSAGE );
-	if ( s[0] ) {
-		UI_DrawProportionalString( 320, y, s,
-			UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-		y += PROP_HEIGHT;
-	}
-
-	// cheats warning
-	s = Info_ValueForKey( sysInfo, "sv_cheats" );
-	if ( s[0] == '1' ) {
-		UI_DrawProportionalString( 320, y, "CHEATS ARE ENABLED",
-			UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-		y += PROP_HEIGHT;
-	}
-
-	// game type
-	switch ( cgs.gametype ) {
-	case GT_FFA:
-		s = "Free For All";
-		break;
-	case GT_TOURNAMENT:
-		s = "Duel";
-		break;
-	case GT_SINGLE_PLAYER:
-		s = "Race";
-		break;
-	case GT_TEAM:
-		s = "Team Deathmatch";
-		break;
-	case GT_CLAN_ARENA:
-		s = "Clan Arena";
-		break;
-	case GT_CTF:
-		s = "Capture The Flag";
-		break;
-	case GT_1FCTF:
-		s = "One Flag CTF";
-		break;
-	case GT_OBELISK:
-		s = "Overload";
-		break;
-	case GT_HARVESTER:
-		s = "Harvester";
-		break;
-	case GT_FREEZE:
-		s = "Freeze Tag";
-		break;
-	case GT_DOMINATION:
-		s = "Domination";
-		break;
-	case GT_ATTACK_DEFEND:
-		s = "Attack & Defend";
-		break;
-	case GT_RED_ROVER:
-		s = "Red Rover";
-		break;
-	default:
-		s = "Unknown Gametype";
-		break;
-	}
-	UI_DrawProportionalString( 320, y, s,
-		UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-	y += PROP_HEIGHT;
-		
-	value = atoi( Info_ValueForKey( info, "timelimit" ) );
-	if ( value ) {
-		UI_DrawProportionalString( 320, y, va( "timelimit %i", value ),
-			UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-		y += PROP_HEIGHT;
-	}
-
-	if (cgs.gametype < GT_CTF ) {
-		value = atoi( Info_ValueForKey( info, "fraglimit" ) );
-		if ( value ) {
-			UI_DrawProportionalString( 320, y, va( "fraglimit %i", value ),
-				UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-			y += PROP_HEIGHT;
-		}
-	}
-
-	if (cgs.gametype >= GT_CTF) {
-		value = atoi( Info_ValueForKey( info, "capturelimit" ) );
-		if ( value ) {
-			UI_DrawProportionalString( 320, y, va( "capturelimit %i", value ),
-				UI_CENTER|UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
-			y += PROP_HEIGHT;
-		}
-	}
+	CG_DrawLoadingText( SCREEN_WIDTH * 0.5f, LOADING_STATUS_Y, LOADING_STATUS_SCALE, status, qtrue );
+	CG_DrawLoadingProgress();
+	CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 }
 

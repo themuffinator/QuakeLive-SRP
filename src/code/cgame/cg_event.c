@@ -66,6 +66,49 @@ damagePlumColorStyle_t CG_GetDamagePlumColorStyle( void ) {
 }
 
 /*
+===============================
+CG_ShouldSuppressPredictedRailEvent
+
+Retail skips the local EV_RAILTRAIL entirely when the same shot was already
+spawned from prediction.
+===============================
+*/
+static qboolean CG_ShouldSuppressPredictedRailEvent( const entityState_t *es ) {
+	if ( !es ) {
+		return qfalse;
+	}
+	if ( !cg.predictLocalRailshots ) {
+		return qfalse;
+	}
+	if ( cg.demoPlayback || cg_nopredict.integer || cg_synchronousClients.integer ) {
+		return qfalse;
+	}
+	if ( !cg.snap || ( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR ) {
+		return qfalse;
+	}
+	if ( !cg.predictedLocalRailValid ) {
+		return qfalse;
+	}
+	if ( cg.time - cg.predictedLocalRailTime > 200 ) {
+		return qfalse;
+	}
+	if ( es->clientNum != cg.predictedPlayerState.clientNum ) {
+		return qfalse;
+	}
+	if ( cg.predictedLocalRailHit != ( es->eventParm != 255 ) ) {
+		return qfalse;
+	}
+	if ( DistanceSquared( cg.predictedLocalRailEnd, es->pos.trBase ) > Square( 8.0f ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
 ===================
 CG_PlaceString
 
@@ -296,19 +339,249 @@ static void CG_TrackFlagCarrierForEvent( int eventParm ) {
 
 /*
 =============
+CG_ObituaryFeedLimit
+
+Returns the active obituary row cap, clamped to the retail feed bounds.
+=============
+*/
+static int CG_ObituaryFeedLimit( void ) {
+	int		limit;
+
+	limit = cg_obituaryRowSize.integer;
+	if ( limit < 1 ) {
+		return 1;
+	}
+	if ( limit > MAX_OBITUARIES ) {
+		return MAX_OBITUARIES;
+	}
+
+	return limit;
+}
+
+/*
+=============
+CG_ObituaryColorIndexForClient
+
+Maps a client slot to the compact obituary color palette used by retail.
+=============
+*/
+static int CG_ObituaryColorIndexForClient( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return 3;
+	}
+
+	switch ( cgs.clientinfo[clientNum].team ) {
+	case TEAM_RED:
+		return 1;
+	case TEAM_BLUE:
+		return 2;
+	case TEAM_SPECTATOR:
+		return 3;
+	default:
+		return 0;
+	}
+}
+
+/*
+=============
+CG_SanitizeObituaryText
+
+Retail strips color escapes and low ASCII from obituary names in team games.
+=============
+*/
+static void CG_SanitizeObituaryText( char *text ) {
+	const char	*src;
+	char		*dst;
+
+	if ( !text || cgs.gametype < GT_TEAM ) {
+		return;
+	}
+
+	src = text;
+	dst = text;
+	while ( *src ) {
+		if ( Q_IsColorString( src ) ) {
+			src += 2;
+			continue;
+		}
+		if ( (unsigned char)*src >= 0x20 ) {
+			*dst++ = *src;
+		}
+		src++;
+	}
+	*dst = '\0';
+}
+
+/*
+=============
+CG_SetObituaryName
+
+Copies a player configstring name into the cached obituary payload.
+=============
+*/
+static void CG_SetObituaryName( char *buffer, int bufferSize, const char *playerInfo ) {
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+	if ( !playerInfo || !playerInfo[0] ) {
+		return;
+	}
+
+	Q_strncpyz( buffer, Info_ValueForKey( playerInfo, "n" ), bufferSize );
+	Q_strcat( buffer, bufferSize, S_COLOR_WHITE );
+	CG_SanitizeObituaryText( buffer );
+}
+
+/*
+=============
+CG_ClearObituaryEntry
+
+Resets one cached obituary slot.
+=============
+*/
+static void CG_ClearObituaryEntry( cgObituary_t *entry ) {
+	memset( entry, 0, sizeof( *entry ) );
+}
+
+/*
+=============
+CG_ShiftObituaryFeedLeft
+
+Compacts the cached obituary feed after expiry or row-cap trimming.
+=============
+*/
+static void CG_ShiftObituaryFeedLeft( int firstIndex ) {
+	int		i;
+
+	if ( firstIndex < 0 || firstIndex >= MAX_OBITUARIES ) {
+		return;
+	}
+
+	for ( i = firstIndex; i < MAX_OBITUARIES - 1; i++ ) {
+		cg.obituaries[i] = cg.obituaries[i + 1];
+	}
+
+	CG_ClearObituaryEntry( &cg.obituaries[MAX_OBITUARIES - 1] );
+}
+
+/*
+=============
+CG_CompactObituaryFeed
+
+Prunes expired obituary rows and keeps the live feed densely packed.
+=============
+*/
+static int CG_CompactObituaryFeed( void ) {
+	int		readIndex;
+	int		writeIndex;
+	int		activeCount;
+
+	writeIndex = 0;
+	for ( readIndex = 0; readIndex < MAX_OBITUARIES; readIndex++ ) {
+		cgObituary_t	*entry;
+
+		entry = &cg.obituaries[readIndex];
+		if ( !entry->active ) {
+			continue;
+		}
+		if ( cg.time - entry->time >= OBITUARY_TIME ) {
+			continue;
+		}
+
+		if ( writeIndex != readIndex ) {
+			cg.obituaries[writeIndex] = *entry;
+		}
+		writeIndex++;
+	}
+
+	activeCount = writeIndex;
+	while ( writeIndex < MAX_OBITUARIES ) {
+		CG_ClearObituaryEntry( &cg.obituaries[writeIndex] );
+		writeIndex++;
+	}
+
+	return activeCount;
+}
+
+/*
+=============
+CG_PruneObituaryFeed
+
+Applies expiry and visible-row capping to the cached obituary feed.
+=============
+*/
+void CG_PruneObituaryFeed( void ) {
+	int		activeCount;
+	int		limit;
+
+	activeCount = CG_CompactObituaryFeed();
+	limit = CG_ObituaryFeedLimit();
+
+	while ( activeCount > limit ) {
+		CG_ShiftObituaryFeedLeft( 0 );
+		activeCount--;
+	}
+}
+
+/*
+=============
+CG_RecordObituaryFeedEntry
+
+Stores the retail-style cached obituary row consumed by the draw path.
+=============
+*/
+static void CG_RecordObituaryFeedEntry( const char *targetName, int targetColorIndex,
+		const char *attackerName, int attackerColorIndex, qboolean hasAttacker,
+		qhandle_t icon, int attacker, int target, int mod ) {
+	cgObituary_t	*entry;
+	int			activeCount;
+	int			limit;
+
+	activeCount = CG_CompactObituaryFeed();
+	limit = CG_ObituaryFeedLimit();
+	while ( activeCount >= limit ) {
+		CG_ShiftObituaryFeedLeft( 0 );
+		activeCount--;
+	}
+
+	entry = &cg.obituaries[activeCount];
+	CG_ClearObituaryEntry( entry );
+	entry->active = qtrue;
+	entry->time = cg.time;
+	entry->targetColorIndex = targetColorIndex;
+	entry->attackerColorIndex = attackerColorIndex;
+	entry->hasAttacker = ( qboolean )( hasAttacker && attackerName && attackerName[0] );
+	entry->icon = icon;
+	entry->attacker = attacker;
+	entry->target = target;
+	entry->mod = mod;
+
+	Q_strncpyz( entry->targetName, targetName ? targetName : "", sizeof( entry->targetName ) );
+	Q_strncpyz( entry->attackerName, attackerName ? attackerName : "", sizeof( entry->attackerName ) );
+	CG_SanitizeObituaryText( entry->targetName );
+	CG_SanitizeObituaryText( entry->attackerName );
+}
+
+/*
+=============
 CG_Obituary
 =============
 */
 static void CG_Obituary( entityState_t *ent ) {
 	int			mod;
 	int			target, attacker;
+	int			targetColorIndex;
+	int			attackerColorIndex;
 	char		*message;
 	char		*message2;
 	const char	*targetInfo;
 	const char	*attackerInfo;
-	char		targetName[32];
-	char		attackerName[32];
+	char		targetName[CG_OBITUARY_NAME_SIZE];
+	char		attackerName[CG_OBITUARY_NAME_SIZE];
 	gender_t	gender;
+	qhandle_t	icon;
 	clientInfo_t	*ci;
 
 	target = ent->otherEntityNum;
@@ -317,6 +590,9 @@ static void CG_Obituary( entityState_t *ent ) {
 
 	if ( target < 0 || target >= MAX_CLIENTS ) {
 		CG_Error( "CG_Obituary: target out of range" );
+	}
+	if ( cg.snap && target == cg.snap->ps.clientNum ) {
+		cg.killerName[0] = '\0';
 	}
 	ci = &cgs.clientinfo[target];
 
@@ -327,18 +603,14 @@ static void CG_Obituary( entityState_t *ent ) {
 		attackerInfo = CG_ConfigString( CS_PLAYERS + attacker );
 	}
 
-	cg.obituaries[cg.obituaryIndex].time = cg.time;
-	cg.obituaries[cg.obituaryIndex].attacker = attacker;
-	cg.obituaries[cg.obituaryIndex].target = target;
-	cg.obituaries[cg.obituaryIndex].mod = mod;
-	cg.obituaryIndex = ( cg.obituaryIndex + 1 ) % MAX_OBITUARIES;
-
 	targetInfo = CG_ConfigString( CS_PLAYERS + target );
 	if ( !targetInfo ) {
 		return;
 	}
-	Q_strncpyz( targetName, Info_ValueForKey( targetInfo, "n" ), sizeof(targetName) - 2);
-	strcat( targetName, S_COLOR_WHITE );
+	CG_SetObituaryName( targetName, sizeof( targetName ), targetInfo );
+	targetColorIndex = CG_ObituaryColorIndexForClient( target );
+	attackerColorIndex = CG_ObituaryColorIndexForClient( attacker );
+	icon = CG_GetObituaryIcon( mod );
 
 	message2 = "";
 
@@ -430,6 +702,8 @@ static void CG_Obituary( entityState_t *ent ) {
 	CG_TryFollowKiller( target, attacker );
 
 	if (message) {
+		CG_RecordObituaryFeedEntry( targetName, targetColorIndex, "", attackerColorIndex,
+			qfalse, icon, attacker, target, mod );
 		CG_Printf( "%s %s.\n", targetName, message);
 		return;
 	}
@@ -456,10 +730,9 @@ static void CG_Obituary( entityState_t *ent ) {
 	// check for double client messages
 	if ( !attackerInfo ) {
 		attacker = ENTITYNUM_WORLD;
-		strcpy( attackerName, "noname" );
+		attackerName[0] = '\0';
 	} else {
-		Q_strncpyz( attackerName, Info_ValueForKey( attackerInfo, "n" ), sizeof(attackerName) - 2);
-		strcat( attackerName, S_COLOR_WHITE );
+		CG_SetObituaryName( attackerName, sizeof( attackerName ), attackerInfo );
 		// check for kill messages about the current clientNum
 		if ( target == cg.snap->ps.clientNum ) {
 			Q_strncpyz( cg.killerName, attackerName, sizeof( cg.killerName ) );
@@ -543,6 +816,8 @@ static void CG_Obituary( entityState_t *ent ) {
 		}
 
 		if (message) {
+			CG_RecordObituaryFeedEntry( targetName, targetColorIndex,
+				attackerName, attackerColorIndex, qtrue, icon, attacker, target, mod );
 			CG_Printf( "%s %s %s%s\n", 
 				targetName, message, attackerName, message2);
 			return;
@@ -550,6 +825,8 @@ static void CG_Obituary( entityState_t *ent ) {
 	}
 
 	// we don't know what it was
+	CG_RecordObituaryFeedEntry( targetName, targetColorIndex, "", attackerColorIndex,
+		qfalse, icon, attacker, target, mod );
 	CG_Printf( "%s died.\n", targetName );
 }
 
@@ -631,7 +908,7 @@ static void CG_ItemPickup( int itemNum ) {
 		// select it immediately
 		if ( cg_autoswitch.integer && bg_itemlist[itemNum].giTag != WP_MACHINEGUN ) {
 			cg.weaponSelectTime = cg.time;
-			cg.weaponSelect = bg_itemlist[itemNum].giTag;
+			CG_SetWeaponSelect( bg_itemlist[itemNum].giTag );
 		}
 	}
 
@@ -781,38 +1058,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_STEP_4:
 	case EV_STEP_8:
 	case EV_STEP_12:
-	case EV_STEP_16:		// smooth out step up transitions
+	case EV_STEP_16:
 		DEBUGNAME("EV_STEP");
-	{
-		float	oldStep;
-		int		delta;
-		int		step;
-
-		if ( clientNum != cg.predictedPlayerState.clientNum ) {
-			break;
-		}
-		// if we are interpolating, we don't need to smooth steps
-		if ( cg.demoPlayback || (cg.snap->ps.pm_flags & PMF_FOLLOW) ||
-			cg_nopredict.integer || cg_synchronousClients.integer ) {
-			break;
-		}
-		// check for stepping up before a previous step is completed
-		delta = cg.time - cg.stepTime;
-		if (delta < STEP_TIME) {
-			oldStep = cg.stepChange * (STEP_TIME - delta) / STEP_TIME;
-		} else {
-			oldStep = 0;
-		}
-
-		// add this amount
-		step = 4 * (event - EV_STEP_4 + 1 );
-		cg.stepChange = oldStep + step;
-		if ( cg.stepChange > MAX_STEP_CHANGE ) {
-			cg.stepChange = MAX_STEP_CHANGE;
-		}
-		cg.stepTime = cg.time;
+		// Retail smooths predicted stair climbs from pmove results in CG_PredictPlayerState.
 		break;
-	}
 
 	case EV_JUMP_PAD:
 		DEBUGNAME("EV_JUMP_PAD");
@@ -1064,6 +1313,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	//
 	case EV_PLAYER_TELEPORT_IN:
 		DEBUGNAME("EV_PLAYER_TELEPORT_IN");
+		if ( cgs.gametype == GT_FREEZE && es->eventParm == QL_EVENTPARM_FREEZE_THAW ) {
+			CG_ThawPlayer( position );
+			break;
+		}
 		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.teleInSound );
 		CG_SpawnEffect( position);
 		break;
@@ -1126,7 +1379,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 	case EV_JUICED:
 		DEBUGNAME("EV_JUICED");
-		CG_InvulnerabilityJuiced( cent->lerpOrigin );
+		if ( cgs.media.haveDlcGibs ) {
+			CG_InvulnerabilityJuiced( cent->lerpOrigin );
+		}
+		else {
+			CG_BigExplode( cent->lerpOrigin );
+		}
 		break;
 	case EV_LIGHTNINGBOLT:
 		DEBUGNAME("EV_LIGHTNINGBOLT");
@@ -1161,6 +1419,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_RAILTRAIL:
 		DEBUGNAME("EV_RAILTRAIL");
 		cent->currentState.weapon = WP_RAILGUN;
+		if ( CG_ShouldSuppressPredictedRailEvent( es ) ) {
+			cg.predictedLocalRailValid = qfalse;
+			break;
+		}
 		// if the end was on a nomark surface, don't make an explosion
 		CG_RailTrail( ci, es->origin2, es->pos.trBase );
 		if ( es->eventParm != 255 ) {

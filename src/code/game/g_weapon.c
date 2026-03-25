@@ -33,7 +33,7 @@ static	vec3_t	muzzle;
 =============
 G_GetMachinegunIronsightScale
 
-Returns a sanitized ironsight scalar for machinegun recoil/spread calculations.
+Returns the sanitized Quake Live machinegun tight-spread scalar.
 =============
 */
 static float G_GetMachinegunIronsightScale( void ) {
@@ -49,12 +49,12 @@ static float G_GetMachinegunIronsightScale( void ) {
 
 /*
 =============
-G_PlayerHasMachinegunIronsights
+G_PlayerUsesMachinegunTightSpread
 
-Returns whether the player has enabled ironsights/ADS for the machinegun.
+Retail applies g_ironsights_mg when the firing machinegun player is ducked.
 =============
 */
-static qboolean G_PlayerHasMachinegunIronsights( const gentity_t *ent ) {
+static qboolean G_PlayerUsesMachinegunTightSpread( const gentity_t *ent ) {
 	if ( !ent || !ent->client ) {
 		return qfalse;
 	}
@@ -63,79 +63,169 @@ static qboolean G_PlayerHasMachinegunIronsights( const gentity_t *ent ) {
 		return qfalse;
 	}
 
-	return ( ent->client->ps.pm_flags & PMF_IRONSIGHTS ) ? qtrue : qfalse;
+	return ( ent->client->ps.pm_flags & PMF_DUCKED ) ? qtrue : qfalse;
 }
 
 /*
 =============
-G_RailgunDidHeadshot
+G_GetMuzzleForwardOffset
 
-Checks whether the supplied trace impacted the target's head volume.
+Returns the retail forward muzzle offset based on the player's crouch state.
 =============
 */
-static qboolean G_RailgunDidHeadshot( gentity_t *target, const trace_t *trace ) {
-	float	headRegion;
-	float	headStart;
-
-	if ( !target || !target->client || !trace ) {
-		return qfalse;
+static float G_GetMuzzleForwardOffset( const gentity_t *ent ) {
+	if ( ent && ent->client && ( ent->client->ps.pm_flags & PMF_DUCKED ) ) {
+		return 3.0f;
 	}
 
-	headRegion = 8.0f;
-	headStart = target->r.absmax[2] - headRegion;
-	if ( headStart < target->r.absmin[2] ) {
-		headStart = target->r.absmin[2];
-	}
-
-	if ( trace->endpos[2] >= headStart ) {
-		return qtrue;
-	}
-
-	return qfalse;
+	return 5.0f;
 }
 
 /*
 =============
-G_GetGauntletSpeedScale
+G_GetChaingunSpread
 
-Returns the sanitized gauntlet swing scale.
+Returns the retail chaingun spread derived from the current weaponTime spin-up.
 =============
 */
-static float G_GetGauntletSpeedScale( void ) {
-	float	scale;
+static float G_GetChaingunSpread( const gentity_t *ent ) {
+	float	weaponTime;
+	float	spread;
 
-	scale = g_weaponConfig.gauntletSpeedFactor;
-	if ( scale <= 0.0f ) {
-		scale = 1.0f;
+	if ( !ent || !ent->client ) {
+		return 700.0f;
 	}
 
-	return scale;
+	weaponTime = ( float )ent->client->ps.weaponTime;
+	if ( weaponTime < 0.0f ) {
+		weaponTime = 0.0f;
+	} else if ( weaponTime > 1000.0f ) {
+		weaponTime = 1000.0f;
+	}
+
+	spread = 700.0f + ( weaponTime / 1000.0f ) * 700.0f;
+	if ( spread < 700.0f ) {
+		spread = 700.0f;
+	} else if ( spread > 1400.0f ) {
+		spread = 1400.0f;
+	}
+
+	return spread;
 }
 
 /*
 =============
-G_GetGauntletSwingTime
+G_RoundFloatToInt
 
-Resolves the current gauntlet weaponTime in milliseconds.
+Rounds floating-point values to the nearest integer to mirror retail qagame helper usage.
 =============
 */
-static int G_GetGauntletSwingTime( void ) {
-	float	speedScale;
-	int		baseTime;
-	int		scaledTime;
-
-	speedScale = G_GetGauntletSpeedScale();
-	baseTime = g_pmoveSettings.weaponReloadTimes[WP_GAUNTLET];
-	if ( baseTime <= 0 ) {
-		baseTime = 400;
+static int G_RoundFloatToInt( float value ) {
+	if ( value >= 0.0f ) {
+		return (int)( value + 0.5f );
 	}
 
-	scaledTime = (int)( (float)baseTime / speedScale );
-	if ( scaledTime < 0 ) {
-		scaledTime = 0;
+	return (int)( value - 0.5f );
+}
+
+/*
+=============
+G_GetLightningDamageForDistance
+
+Applies the retail lightning gun damage falloff steps based on beam distance.
+=============
+*/
+static int G_GetLightningDamageForDistance( float distance ) {
+	int	baseDamage;
+	int	distancePastFalloff;
+	int	falloffDamage;
+	int	falloffRange;
+
+	baseDamage = g_weaponConfig.lightningDamage;
+	falloffDamage = g_weaponConfig.lightningFalloffDamage;
+	falloffRange = g_weaponConfig.lightningFalloffRange;
+	if ( falloffDamage <= 0 || falloffRange <= 0 ) {
+		return baseDamage;
 	}
 
-	return scaledTime;
+	distancePastFalloff = G_RoundFloatToInt( distance - falloffRange );
+	while ( distancePastFalloff > 0 ) {
+		baseDamage -= falloffDamage;
+		distancePastFalloff -= falloffRange;
+	}
+
+	if ( baseDamage < 1 ) {
+		return 1;
+	}
+
+	return baseDamage;
+}
+
+/*
+=============
+G_ApplyRailJump
+
+Applies the retail rail jump impulse when solid geometry is close to the muzzle.
+=============
+*/
+static void G_ApplyRailJump( gentity_t *ent ) {
+	trace_t	trace;
+	vec3_t	end;
+	vec3_t	pushDir;
+	int		railJumpStrength;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	railJumpStrength = g_weaponConfig.railJumpStrength;
+	if ( railJumpStrength <= 0 ) {
+		return;
+	}
+
+	VectorMA( muzzle, 120.0f, forward, end );
+	trap_Trace( &trace, muzzle, NULL, NULL, end, ent->s.number, CONTENTS_SOLID );
+	if ( trace.fraction == 1.0f ) {
+		return;
+	}
+
+	VectorCopy( forward, pushDir );
+	VectorNormalize( pushDir );
+
+	ent->client->ps.velocity[0] -= railJumpStrength * pushDir[0];
+	ent->client->ps.velocity[1] -= railJumpStrength * pushDir[1];
+	ent->client->ps.velocity[2] -= railJumpStrength * pushDir[2];
+	ent->client->ps.velocity[2] += 20.0f;
+}
+
+/*
+=============
+G_GetShotgunPelletOffsets
+
+Builds the deterministic 20-pellet Quake Live shotgun pattern.
+=============
+*/
+static void G_GetShotgunPelletOffsets( int pelletIndex, float *r, float *u ) {
+	float	angle;
+	float	radius;
+
+	if ( !r || !u ) {
+		return;
+	}
+
+	if ( pelletIndex < 6 ) {
+		angle = pelletIndex * 60.0f;
+		radius = 4000.0f;
+	} else if ( pelletIndex < 12 ) {
+		angle = ( pelletIndex - 6 ) * 60.0f + 30.0f;
+		radius = 8000.0f;
+	} else {
+		angle = ( pelletIndex - 12 ) * 45.0f;
+		radius = 12000.0f;
+	}
+
+	*r = radius * cos( DEG2RAD( angle ) );
+	*u = radius * sin( DEG2RAD( angle ) );
 }
 
 #define NUM_NAILSHOTS 15
@@ -170,22 +260,13 @@ GAUNTLET
 =============
 Weapon_Gauntlet
 
-Drives gauntlet cadence, animation, and muzzle events with the configured speed factor.
+Mirrors the retail gauntlet fire event emission.
 =============
 */
 void Weapon_Gauntlet( gentity_t *ent ) {
-	int	swingTime;
-
 	if ( !ent || !ent->client ) {
 		return;
 	}
-
-	swingTime = G_GetGauntletSwingTime();
-	ent->client->ps.weaponTime = swingTime;
-	ent->client->ps.torsoTimer = swingTime;
-	ent->client->ps.weaponstate = WEAPON_FIRING;
-	ent->client->ps.torsoAnim =
-		( ( ent->client->ps.torsoAnim & ANIM_TOGGLEBIT ) ^ ANIM_TOGGLEBIT ) | TORSO_ATTACK2;
 
 	G_AddEvent( ent, EV_FIRE_WEAPON, 0 );
 }
@@ -195,7 +276,7 @@ void Weapon_Gauntlet( gentity_t *ent ) {
 =============
 CheckGauntletAttack
 
-Executes the gauntlet melee trace using the configured speed/length modifiers.
+Executes the retail 43-unit gauntlet melee trace.
 =============
 */
 qboolean CheckGauntletAttack( gentity_t *ent ) {
@@ -204,16 +285,18 @@ qboolean CheckGauntletAttack( gentity_t *ent ) {
 	gentity_t		*tent;
 	gentity_t		*traceEnt;
 	int				damage;
-	float	reachScale;
 	float	reach;
+
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
 
 	// set aiming directions
 	AngleVectors( ent->client->ps.viewangles, forward, right, up );
 
 	CalcMuzzlePoint( ent, forward, right, up, muzzle );
 
-	reachScale = G_GetGauntletSpeedScale();
-	reach = 32.0f * reachScale;
+	reach = 43.0f;
 	VectorMA( muzzle, reach, forward, end );
 
 	trap_Trace( &tr, muzzle, NULL, NULL, end, ent->s.number, MASK_SHOT );
@@ -280,12 +363,11 @@ void SnapVectorTowards( vec3_t v, vec3_t to ) {
 	}
 }
 
-#define CHAINGUN_SPREAD		600
-#define MACHINEGUN_SPREAD	200
+#define	MACHINEGUN_SPREAD	150
 #define	MACHINEGUN_DAMAGE	(g_weaponConfig.machinegunDamage)
-#define	MACHINEGUN_TEAM_DAMAGE	(g_weaponConfig.machinegunTeamDamage)		// wimpier MG in teamplay
-#define	HEAVY_MACHINEGUN_SPREAD	0
+#define	HEAVY_MACHINEGUN_SPREAD	350
 #define	HEAVY_MACHINEGUN_DAMAGE	(g_weaponConfig.heavyMachinegunDamage)
+#define	CHAINGUN_DAMAGE		(g_weaponConfig.chaingunDamage)
 
 /*
 =============
@@ -306,7 +388,7 @@ void Bullet_Fire( gentity_t *ent, float spread, int damage, meansOfDeath_t mod )
 	qboolean		ironsightKick;
 	float		ironsightScale;
 
-	ironsightKick = ( mod == MOD_MACHINEGUN ) && G_PlayerHasMachinegunIronsights( ent );
+	ironsightKick = ( mod == MOD_MACHINEGUN ) && G_PlayerUsesMachinegunTightSpread( ent );
 	ironsightScale = ironsightKick ? G_GetMachinegunIronsightScale() : 1.0f;
 
 	damage *= s_quadFactor;
@@ -465,8 +547,9 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent ) {
 	float		r, u;
 	vec3_t		end;
 	vec3_t		forward, right, up;
-	int			oldScore;
 	qboolean	hitClient = qfalse;
+
+	(void)seed;
 
 	// derive the right and up vectors from the forward vector, because
 	// the client won't have any other information
@@ -474,22 +557,9 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent ) {
 	PerpendicularVector( right, forward );
 	CrossProduct( forward, right, up );
 
-	oldScore = ent->client->ps.persistant[PERS_SCORE];
-
 	// generate the "random" spread pattern
 	for ( i = 0 ; i < DEFAULT_SHOTGUN_COUNT ; i++ ) {
-		if ( i == 0 ) {
-			r = 0;
-			u = 0;
-		} else if ( i < 6 ) {
-			float angle = (i - 1) * 72.0f;
-			r = DEFAULT_SHOTGUN_SPREAD * 0.5f * 16.0f * cos( DEG2RAD( angle ) );
-			u = DEFAULT_SHOTGUN_SPREAD * 0.5f * 16.0f * sin( DEG2RAD( angle ) );
-		} else {
-			float angle = (i - 6) * 72.0f + 36.0f;
-			r = DEFAULT_SHOTGUN_SPREAD * 16.0f * cos( DEG2RAD( angle ) );
-			u = DEFAULT_SHOTGUN_SPREAD * 16.0f * sin( DEG2RAD( angle ) );
-		}
+		G_GetShotgunPelletOffsets( i, &r, &u );
 
 		VectorMA( origin, 8192 * 16, forward, end);
 		VectorMA (end, r, right, end);
@@ -605,6 +675,7 @@ void weapon_railgun_fire (gentity_t *ent) {
 	gentity_t	*unlinkedEntities[MAX_RAIL_HITS];
 
 	damage = g_weaponConfig.railgunDamage * s_quadFactor;
+	G_ApplyRailJump( ent );
 
 	VectorMA (muzzle, 8192, forward, end);
 
@@ -638,30 +709,18 @@ void weapon_railgun_fire (gentity_t *ent) {
 					// the player can hit him/herself with the bounced rail
 					passent = ENTITYNUM_NONE;
 				}
-			}
-			else {
-			if( LogAccuracyHit( traceEnt, ent ) ) {
-				hits++;
-			}
-			{
-				qboolean		headshot;
-				int			shotDamage;
-				meansOfDeath_t	railMod;
-				int			headshotBonus;
-
-				headshot = G_RailgunDidHeadshot( traceEnt, &trace );
-				railMod = headshot ? MOD_RAILGUN_HEADSHOT : MOD_RAILGUN;
-				shotDamage = damage;
-				headshotBonus = g_weaponConfig.railgunHeadshotDamage;
-				if ( headshot && headshotBonus > 0 ) {
-					headshotBonus *= s_quadFactor;
-					shotDamage += headshotBonus;
+			} else {
+				if ( LogAccuracyHit( traceEnt, ent ) ) {
+					hits++;
 				}
 
-				G_Damage (traceEnt, ent, ent, forward, trace.endpos, shotDamage, 0, railMod);
+				int			shotDamage;
+
+				shotDamage = damage;
+
+				G_Damage( traceEnt, ent, ent, forward, trace.endpos, shotDamage, 0, MOD_RAILGUN );
 			}
-}
-}
+		}
 		if ( trace.contents & CONTENTS_SOLID ) {
 			break;		// we hit something solid enough to stop the beam
 		}
@@ -732,8 +791,12 @@ GRAPPLING HOOK
 
 void Weapon_GrapplingHook_Fire (gentity_t *ent)
 {
-	if (!ent->client->fireHeld && !ent->client->hook)
-		fire_grapple (ent, muzzle, forward);
+	gentity_t	*hook;
+
+	if ( !ent->client->fireHeld && !ent->client->hook ) {
+		hook = fire_grapple( ent, muzzle, forward );
+		hook->damage *= s_quadFactor;
+	}
 
 	ent->client->fireHeld = qtrue;
 }
@@ -792,6 +855,113 @@ static qboolean Weapon_LightningDischargeActive( void ) {
 	return ( g_weaponConfig.lightningDischargeFlags > 0 );
 }
 
+#define LIGHTNING_DISCHARGE_DEFAULT_AMMO	150
+
+/*
+=============
+Weapon_GetLightningDischargeAmmoCount
+
+Returns the retail ammo pool consumed by a lightning discharge burst.
+=============
+*/
+static int Weapon_GetLightningDischargeAmmoCount( const gentity_t *ent ) {
+	int		ammoCount;
+
+	if ( !ent || !ent->client ) {
+		return LIGHTNING_DISCHARGE_DEFAULT_AMMO;
+	}
+
+	ammoCount = ent->client->ps.ammo[WP_LIGHTNING];
+	if ( g_factoryCvarConfig.infiniteAmmo || ammoCount < 0 ) {
+		return LIGHTNING_DISCHARGE_DEFAULT_AMMO;
+	}
+
+	ammoCount += 1;
+	if ( ammoCount < 1 ) {
+		return 1;
+	}
+
+	return ammoCount;
+}
+
+/*
+=============
+Weapon_LightningDischargeDamage
+
+Applies the retail ammo-driven lightning discharge burst to nearby entities in hazardous media.
+=============
+*/
+static qboolean Weapon_LightningDischargeDamage( vec3_t origin, gentity_t *attacker, float damage, float radius ) {
+	float		points;
+	float		dist;
+	gentity_t	*ent;
+	int		entityList[MAX_GENTITIES];
+	int		numListedEntities;
+	vec3_t		mins;
+	vec3_t		maxs;
+	vec3_t		v;
+	vec3_t		dir;
+	int		i;
+	int		e;
+	qboolean	hitClient;
+
+	if ( !attacker || !attacker->client ) {
+		return qfalse;
+	}
+
+	if ( radius < 1.0f ) {
+		radius = 1.0f;
+	}
+
+	for ( i = 0; i < 3; i++ ) {
+		mins[i] = origin[i] - radius;
+		maxs[i] = origin[i] + radius;
+	}
+
+	hitClient = qfalse;
+	numListedEntities = trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );
+	for ( e = 0; e < numListedEntities; e++ ) {
+		ent = &g_entities[ entityList[e] ];
+		if ( !ent->takedamage ) {
+			continue;
+		}
+
+		for ( i = 0; i < 3; i++ ) {
+			if ( origin[i] < ent->r.absmin[i] ) {
+				v[i] = ent->r.absmin[i] - origin[i];
+			} else if ( origin[i] > ent->r.absmax[i] ) {
+				v[i] = origin[i] - ent->r.absmax[i];
+			} else {
+				v[i] = 0.0f;
+			}
+		}
+
+		dist = VectorLength( v );
+		if ( dist >= radius ) {
+			continue;
+		}
+
+		points = damage * ( 1.0f - dist / radius );
+		if ( points < 1.0f ) {
+			continue;
+		}
+
+		if ( !CanDamage( ent, origin ) ) {
+			continue;
+		}
+
+		if ( LogAccuracyHit( ent, attacker ) ) {
+			hitClient = qtrue;
+		}
+
+		VectorSubtract( ent->r.currentOrigin, origin, dir );
+		dir[2] += 24.0f;
+		G_Damage( ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS, MOD_LIGHTNING_DISCHARGE );
+	}
+
+	return hitClient;
+}
+
 /*
 =============
 Weapon_LightningFire
@@ -806,37 +976,39 @@ void Weapon_LightningFire( gentity_t *ent ) {
 	vec3_t impactpoint, bouncedir;
 	vec3_t		dischargePoint;
 	gentity_t	*traceEnt, *tent;
+	float		distance;
+	float		dischargeDamage;
+	float		dischargeRadius;
 	int			damage, i, passent;
 
-	damage = g_weaponConfig.lightningDamage * s_quadFactor;
+	damage = g_weaponConfig.lightningDamage;
 
 	passent = ent->s.number;
 	for (i = 0; i < 10; i++) {
 		VectorMA( muzzle, LIGHTNING_RANGE, forward, end );
 
 		if ( Weapon_LightningDischargeActive() ) {
-			trace_t dischargeTrace;
-			qboolean dischargePending = qfalse;
+			int dischargeAmmo;
 			int muzzleContents;
 
-			muzzleContents = trap_PointContents( muzzle, ent->s.number );
+			muzzleContents = trap_PointContents( muzzle, ENTITYNUM_NONE );
 			if ( muzzleContents & Weapon_LightningDischargeMask() ) {
-				VectorCopy( muzzle, dischargePoint );
-				dischargePending = qtrue;
-			} else {
-				trap_Trace( &dischargeTrace, muzzle, NULL, NULL, end, ent->s.number, Weapon_LightningDischargeMask() );
-				if ( ( dischargeTrace.contents & Weapon_LightningDischargeMask() ) && dischargeTrace.fraction < 1.0f ) {
-					VectorCopy( dischargeTrace.endpos, dischargePoint );
-					dischargePending = qtrue;
+				dischargeAmmo = Weapon_GetLightningDischargeAmmoCount( ent );
+				dischargeDamage = dischargeAmmo * g_weaponConfig.lightningDamage;
+				dischargeRadius = dischargeDamage + 16.0f;
+				if ( !g_factoryCvarConfig.infiniteAmmo && ent->client->ps.ammo[WP_LIGHTNING] >= 0 ) {
+					ent->client->ps.ammo[WP_LIGHTNING] = 0;
 				}
-			}
 
-			if ( dischargePending ) {
+				VectorCopy( muzzle, dischargePoint );
 				tent = G_TempEntity( dischargePoint, EV_LIGHTNINGBOLT );
 				VectorCopy( muzzle, tent->s.origin2 );
 				SnapVector( tent->s.origin2 );
 
-				G_Damage( ent, ent, ent, forward, dischargePoint, damage, 0, MOD_LIGHTNING_DISCHARGE );
+				if ( Weapon_LightningDischargeDamage( dischargePoint, ent, dischargeDamage, dischargeRadius ) ) {
+					ent->client->accuracy_hits++;
+					ent->client->pers.accuracy_hits[WP_LIGHTNING]++;
+				}
 				return;
 			}
 		}
@@ -876,6 +1048,8 @@ void Weapon_LightningFire( gentity_t *ent ) {
 				continue;
 			}
 			else {
+				distance = Distance( muzzle, tr.endpos );
+				damage = G_GetLightningDamageForDistance( distance ) * s_quadFactor;
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos,
 					damage, 0, MOD_LIGHTNING);
 			}
@@ -991,7 +1165,7 @@ set muzzle location relative to pivoting eye
 void CalcMuzzlePoint ( gentity_t *ent, vec3_t forward, vec3_t right, vec3_t up, vec3_t muzzlePoint ) {
 	VectorCopy( ent->s.pos.trBase, muzzlePoint );
 	muzzlePoint[2] += ent->client->ps.viewheight;
-	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
+	VectorMA( muzzlePoint, G_GetMuzzleForwardOffset( ent ), forward, muzzlePoint );
 	// snap to integer coordinates for more efficient network bandwidth usage
 	SnapVector( muzzlePoint );
 }
@@ -1004,9 +1178,11 @@ set muzzle location relative to pivoting eye
 ===============
 */
 void CalcMuzzlePointOrigin ( gentity_t *ent, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t muzzlePoint ) {
+	(void)origin;
+
 	VectorCopy( ent->s.pos.trBase, muzzlePoint );
 	muzzlePoint[2] += ent->client->ps.viewheight;
-	VectorMA( muzzlePoint, 14, forward, muzzlePoint );
+	VectorMA( muzzlePoint, G_GetMuzzleForwardOffset( ent ), forward, muzzlePoint );
 	// snap to integer coordinates for more efficient network bandwidth usage
 	SnapVector( muzzlePoint );
 }
@@ -1027,7 +1203,10 @@ void FireWeapon( gentity_t *ent ) {
 
 	// track shots taken for accuracy tracking.  Grapple is not a weapon and gauntet is just not tracked
 	if( ent->s.weapon != WP_GRAPPLING_HOOK && ent->s.weapon != WP_GAUNTLET ) {
-		if( ent->s.weapon == WP_NAILGUN ) {
+		if( ent->s.weapon == WP_SHOTGUN ) {
+			ent->client->accuracy_shots += DEFAULT_SHOTGUN_COUNT;
+			ent->client->pers.accuracy_shots[WP_SHOTGUN] += DEFAULT_SHOTGUN_COUNT;
+		} else if( ent->s.weapon == WP_NAILGUN ) {
 			ent->client->accuracy_shots += NUM_NAILSHOTS;
 			ent->client->pers.accuracy_shots[WP_NAILGUN] += NUM_NAILSHOTS;
 		} else {
@@ -1053,34 +1232,7 @@ void FireWeapon( gentity_t *ent ) {
 		weapon_supershotgun_fire( ent );
 		break;
 	case WP_MACHINEGUN:
-	{
-		qboolean		ironsightActive;
-		float		ironsightScale;
-		float		spreadValue;
-
-		ironsightActive = G_PlayerHasMachinegunIronsights( ent );
-		ironsightScale = ironsightActive ? G_GetMachinegunIronsightScale() : 1.0f;
-		spreadValue = MACHINEGUN_SPREAD;
-
-		if ( g_gametype.integer != GT_TEAM ) {
-			Bullet_Fire( ent, spreadValue, MACHINEGUN_DAMAGE, MOD_MACHINEGUN );
-		} else {
-			Bullet_Fire( ent, spreadValue, MACHINEGUN_TEAM_DAMAGE, MOD_MACHINEGUN );
-		}
-
-		if ( ironsightActive ) {
-			int			weaponTime;
-			int			scaledTime;
-
-			weaponTime = ent->client->ps.weaponTime;
-			scaledTime = (int)( (float)weaponTime * ironsightScale );
-			if ( scaledTime < 0 ) {
-				scaledTime = 0;
-			}
-			ent->client->ps.weaponTime = scaledTime;
-			ent->client->ps.torsoTimer = scaledTime;
-		}
-	}
+		Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE, MOD_MACHINEGUN );
 		break;
 	case WP_HEAVY_MACHINEGUN:
 		Bullet_Fire( ent, HEAVY_MACHINEGUN_SPREAD, HEAVY_MACHINEGUN_DAMAGE, MOD_HMG );
@@ -1110,7 +1262,7 @@ void FireWeapon( gentity_t *ent ) {
 		weapon_proxlauncher_fire( ent );
 		break;
 	case WP_CHAINGUN:
-		Bullet_Fire( ent, CHAINGUN_SPREAD, MACHINEGUN_DAMAGE, MOD_CHAINGUN );
+		Bullet_Fire( ent, G_GetChaingunSpread( ent ), CHAINGUN_DAMAGE, MOD_CHAINGUN );
 		break;
 	default:
 // FIXME		G_Error( "Bad ent->s.weapon" );

@@ -78,6 +78,7 @@ vmCvar_t g_factoryTitle;
 
 static char qlr_matchStateConfig[MAX_INFO_STRING];
 static int qlr_matchStateConfigUpdates;
+static char qlr_suddenDeathStatusConfig[32];
 static char qlr_factoryTitleConfig[MAX_STRING_CHARS];
 static char qlr_factoryFlagsConfig[32];
 static char qlr_factorySpawnHintsConfig[MAX_INFO_STRING];
@@ -225,6 +226,9 @@ void trap_SetConfigstring( int num, const char *string ) {
 @TAB@@TAB@qlr_matchStateConfigUpdates++;
 @TAB@@TAB@Q_strncpyz( qlr_matchStateConfig, value, sizeof( qlr_matchStateConfig ) );
 @TAB@@TAB@break;
+@TAB@case CS_SUDDENDEATH_STATUS:
+@TAB@@TAB@Q_strncpyz( qlr_suddenDeathStatusConfig, value, sizeof( qlr_suddenDeathStatusConfig ) );
+@TAB@@TAB@break;
 @TAB@case CS_FACTORY_TITLE:
 @TAB@@TAB@Q_strncpyz( qlr_factoryTitleConfig, value, sizeof( qlr_factoryTitleConfig ) );
 @TAB@@TAB@break;
@@ -260,6 +264,7 @@ Resets the captured configstring buffer.
 static void QLR_ClearMatchStateConfig( void ) {
 @TAB@memset( qlr_matchStateConfig, 0, sizeof( qlr_matchStateConfig ) );
 @TAB@qlr_matchStateConfigUpdates = 0;
+@TAB@memset( qlr_suddenDeathStatusConfig, 0, sizeof( qlr_suddenDeathStatusConfig ) );
 @TAB@memset( qlr_factoryTitleConfig, 0, sizeof( qlr_factoryTitleConfig ) );
 @TAB@memset( qlr_factoryFlagsConfig, 0, sizeof( qlr_factoryFlagsConfig ) );
 @TAB@memset( qlr_factorySpawnHintsConfig, 0, sizeof( qlr_factorySpawnHintsConfig ) );
@@ -458,6 +463,29 @@ Exposes the captured configstring to the Python harness.
 */
 const char *QLR_GetMatchStateConfigstring( void ) {
 @TAB@return qlr_matchStateConfig;
+}
+
+/*
+=============
+QLR_BuildSuddenDeathStatusConfigstring
+
+Publishes the mirrored sudden-death configstring for the requested active state.
+=============
+*/
+void QLR_BuildSuddenDeathStatusConfigstring( int active ) {
+@TAB@level.suddenDeathActive = active ? qtrue : qfalse;
+@TAB@G_UpdateMatchStateConfigString();
+}
+
+/*
+=============
+QLR_GetSuddenDeathStatusConfigstring
+
+Exposes the captured sudden-death configstring to the Python harness.
+=============
+*/
+const char *QLR_GetSuddenDeathStatusConfigstring( void ) {
+@TAB@return qlr_suddenDeathStatusConfig;
 }
 
 typedef struct qlrClientMatchState_s {
@@ -715,8 +743,12 @@ def _load_match_state_library(lib_path: Path) -> ctypes.CDLL:
     library.QLR_ResetMatchState.restype = None
     library.QLR_BuildMatchStateConfigstring.argtypes = []
     library.QLR_BuildMatchStateConfigstring.restype = None
+    library.QLR_BuildSuddenDeathStatusConfigstring.argtypes = [ctypes.c_int]
+    library.QLR_BuildSuddenDeathStatusConfigstring.restype = None
     library.QLR_GetMatchStateConfigstring.argtypes = []
     library.QLR_GetMatchStateConfigstring.restype = ctypes.c_char_p
+    library.QLR_GetSuddenDeathStatusConfigstring.argtypes = []
+    library.QLR_GetSuddenDeathStatusConfigstring.restype = ctypes.c_char_p
     library.QLR_ResetClientMatchState.argtypes = []
     library.QLR_ResetClientMatchState.restype = None
     library.QLR_ParseMatchStateOnClient.argtypes = []
@@ -826,6 +858,22 @@ def test_client_parser_receives_factory_config(match_state_library: ctypes.CDLL)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Match-state harness requires a POSIX toolchain")
+def test_match_state_configstring_mirrors_sudden_death_flag(match_state_library: ctypes.CDLL) -> None:
+    library = match_state_library
+    library.QLR_ResetMatchState()
+
+    library.QLR_BuildSuddenDeathStatusConfigstring(1)
+    active = library.QLR_GetSuddenDeathStatusConfigstring()
+    assert active is not None
+    assert active.decode("utf-8") == "1"
+
+    library.QLR_BuildSuddenDeathStatusConfigstring(0)
+    inactive = library.QLR_GetSuddenDeathStatusConfigstring()
+    assert inactive is not None
+    assert inactive.decode("utf-8") == "0"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Match-state harness requires a POSIX toolchain")
 def test_match_factory_updates_refresh_match_state_configstring(match_state_library: ctypes.CDLL) -> None:
     library = match_state_library
     library.QLR_ResetMatchState()
@@ -855,3 +903,28 @@ def test_match_factory_updates_refresh_match_state_configstring(match_state_libr
     assert library.QLR_GetClientSuddenDeathIncrementSeconds() == 4
     assert library.QLR_GetClientSuddenDeathPrintAnnouncements() == 0
     assert library.QLR_GetClientSuddenDeathSpawnDelayActive() == 1
+
+
+def test_cgame_match_flow_configstrings_are_wired() -> None:
+    servercmds = (CODE_DIR / "cgame" / "cg_servercmds.c").read_text(encoding="utf-8")
+
+    assert "CG_ParseSuddenDeathStatus();" in servercmds
+    assert "CG_ParseReadyUpStatus();" in servercmds
+    assert "CG_ParseWarmupReadyStatus();" in servercmds
+    assert "num == CS_SUDDENDEATH_STATUS" in servercmds
+    assert "num == CS_READYUP_STATUS" in servercmds
+    assert "num == CS_WARMUP_READY" in servercmds
+
+
+def test_client_hud_uses_runtime_sudden_death_and_ready_counts() -> None:
+    draw = (CODE_DIR / "cgame" / "cg_draw.c").read_text(encoding="utf-8")
+    newdraw = (CODE_DIR / "cgame" / "cg_newdraw.c").read_text(encoding="utf-8")
+    scoreboard = (CODE_DIR / "cgame" / "cg_scoreboard.c").read_text(encoding="utf-8")
+    match_state = (CODE_DIR / "game" / "g_match_state.c").read_text(encoding="utf-8")
+
+    assert "cgs.matchWarmupReadyEligible" in draw
+    assert "cgs.matchWarmupReadyCount" in draw
+    assert "cgs.matchReadyUpDeadline" in draw
+    assert "if ( !cgs.matchSuddenDeathActive )" in newdraw
+    assert "cgHudScoreboard.suddenDeathActive = cgs.matchSuddenDeathActive;" in scoreboard
+    assert 'trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );' in match_state

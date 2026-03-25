@@ -6,6 +6,12 @@
 
 #include "../src/common/platform/platform_steamworks.h"
 
+#ifdef _WIN32
+#define QLR_EXPORT __declspec(dllexport)
+#else
+#define QLR_EXPORT
+#endif
+
 #if QL_BUILD_STEAMWORKS
 
 #define QLR_TICKET_BUFFER 1024
@@ -72,7 +78,7 @@ QLR_SteamworksMock_Reset
 Restore default mock state for Steamworks entry points.
 =============
 */
-void QLR_SteamworksMock_Reset( void ) {
+QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.library_available = qtrue;
 	qlr_mock_state.init_result = qtrue;
 	qlr_mock_state.user_available = qtrue;
@@ -90,7 +96,7 @@ QLR_SteamworksMock_SetLibraryAvailable
 Configure whether dlopen succeeds when loading Steamworks.
 =============
 */
-void QLR_SteamworksMock_SetLibraryAvailable( qboolean available ) {
+QLR_EXPORT void QLR_SteamworksMock_SetLibraryAvailable( qboolean available ) {
 	qlr_mock_state.library_available = available;
 }
 
@@ -101,7 +107,7 @@ QLR_SteamworksMock_SetInitResult
 Set the return value for SteamAPI_Init.
 =============
 */
-void QLR_SteamworksMock_SetInitResult( qboolean result ) {
+QLR_EXPORT void QLR_SteamworksMock_SetInitResult( qboolean result ) {
 	qlr_mock_state.init_result = result;
 }
 
@@ -112,7 +118,7 @@ QLR_SteamworksMock_SetUserAvailable
 Toggle whether SteamAPI_SteamUser returns a valid handle.
 =============
 */
-void QLR_SteamworksMock_SetUserAvailable( qboolean available ) {
+QLR_EXPORT void QLR_SteamworksMock_SetUserAvailable( qboolean available ) {
 	qlr_mock_state.user_available = available;
 }
 
@@ -123,7 +129,7 @@ QLR_SteamworksMock_SetTicket
 Override the raw ticket contents and handle returned by GetAuthSessionTicket.
 =============
 */
-void QLR_SteamworksMock_SetTicket( const uint8_t *ticket, uint32_t length, HAuthTicket handle ) {
+QLR_EXPORT void QLR_SteamworksMock_SetTicket( const uint8_t *ticket, uint32_t length, HAuthTicket handle ) {
 	if ( ticket && length > 0 && length <= QLR_TICKET_BUFFER ) {
 		memcpy( qlr_mock_state.ticket, ticket, length );
 		qlr_mock_state.ticket_length = length;
@@ -139,7 +145,7 @@ QLR_SteamworksMock_SetAuthResult
 Set the BeginAuthSession result returned by the mock.
 =============
 */
-void QLR_SteamworksMock_SetAuthResult( EBeginAuthSessionResult result ) {
+QLR_EXPORT void QLR_SteamworksMock_SetAuthResult( EBeginAuthSessionResult result ) {
 	qlr_mock_state.auth_result = result;
 }
 
@@ -150,7 +156,7 @@ QLR_SteamworksMock_SetSteamId
 Define the SteamID returned by GetSteamID.
 =============
 */
-void QLR_SteamworksMock_SetSteamId( uint64_t steamId ) {
+QLR_EXPORT void QLR_SteamworksMock_SetSteamId( uint64_t steamId ) {
 	qlr_mock_state.steam_id_value = steamId;
 }
 
@@ -159,7 +165,7 @@ void QLR_SteamworksMock_SetSteamId( uint64_t steamId ) {
 Com_Printf
 =============
 */
-void Com_Printf( const char *fmt, ... ) {
+void QDECL Com_Printf( const char *fmt, ... ) {
 	va_list args;
 	va_start( args, fmt );
 	vfprintf( stdout, fmt, args );
@@ -171,11 +177,12 @@ void Com_Printf( const char *fmt, ... ) {
 Com_sprintf
 =============
 */
-void Com_sprintf( char *dest, int size, const char *fmt, ... ) {
+int QDECL Com_sprintf( char *dest, int size, const char *fmt, ... ) {
 	va_list args;
 	va_start( args, fmt );
-	vsnprintf( dest, (size_t)size, fmt, args );
+	int written = vsnprintf( dest, (size_t)size, fmt, args );
 	va_end( args );
+	return written;
 }
 
 /*
@@ -473,7 +480,7 @@ QLR_SteamworksMock_PrimeState
 Inject mock bindings directly into the Steamworks state for harness usage.
 =============
 */
-void QLR_SteamworksMock_PrimeState( void ) {
+QLR_EXPORT void QLR_SteamworksMock_PrimeState( void ) {
 	state.library = qlr_mock_state.library_available ? (void *)0x1 : NULL;
 	state.initialised = qfalse;
 	state.SteamAPI_Init = QLR_SteamAPI_Init;
@@ -497,7 +504,7 @@ QLR_Steamworks_Request
 Wrapper exposing QL_Steamworks_RequestAuthTicket for ctypes.
 =============
 */
-qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle ) {
+QLR_EXPORT qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle ) {
 	if ( !qlr_mock_state.library_available || !qlr_mock_state.init_result ) {
 		if ( ticketBuffer && ticketBufferSize > 0 ) {
 			ticketBuffer[0] = '\0';
@@ -522,7 +529,7 @@ return QL_Steamworks_RequestAuthTicket( ticketBuffer, ticketBufferSize, ticketLe
 QLR_Steamworks_Shutdown
 =============
 */
-void QLR_Steamworks_Shutdown( void ) {
+QLR_EXPORT void QLR_Steamworks_Shutdown( void ) {
 	QL_Steamworks_Shutdown();
 }
 
@@ -533,7 +540,7 @@ QLR_Steamworks_Validate
 Wrapper exposing QL_Steamworks_ValidateTicket for ctypes.
 =============
 */
-qboolean QLR_Steamworks_Validate( const char *ticketHex, ql_auth_response_t *response ) {
+QLR_EXPORT qboolean QLR_Steamworks_Validate( const char *ticketHex, ql_auth_response_t *response ) {
 	if ( !qlr_mock_state.library_available || !qlr_mock_state.init_result ) {
 		QL_Backend_SetAuthResponse( response, QL_AUTH_RESULT_ERROR, "Steam runtime unavailable" );
 		return qtrue;
@@ -551,7 +558,7 @@ return QL_Steamworks_ValidateTicket( ticketHex, response );
 QLR_Steamworks_Request
 =============
 */
-qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle ) {
+QLR_EXPORT qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle ) {
 	(void)ticketBuffer;
 	(void)ticketBufferSize;
 	(void)ticketLength;
@@ -564,7 +571,7 @@ qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBufferSize, in
 QLR_Steamworks_Validate
 =============
 */
-qboolean QLR_Steamworks_Validate( const char *ticketHex, ql_auth_response_t *response ) {
+QLR_EXPORT qboolean QLR_Steamworks_Validate( const char *ticketHex, ql_auth_response_t *response ) {
 	return QL_Steamworks_ValidateTicket( ticketHex, response );
 }
 
@@ -573,7 +580,7 @@ qboolean QLR_Steamworks_Validate( const char *ticketHex, ql_auth_response_t *res
 QLR_Steamworks_Shutdown
 =============
 */
-void QLR_Steamworks_Shutdown( void ) {
+QLR_EXPORT void QLR_Steamworks_Shutdown( void ) {
 	QL_Steamworks_Shutdown();
 }
 

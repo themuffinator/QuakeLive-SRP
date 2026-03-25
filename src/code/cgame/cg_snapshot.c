@@ -25,6 +25,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
+static qboolean	cg_refreshClientInfoContextQueued;
+
 
 
 /*
@@ -73,6 +75,46 @@ static void CG_TransitionEntity( centity_t *cent ) {
 
 
 /*
+===========================
+CG_RefreshClientInfoContext
+===========================
+*/
+static void CG_RefreshClientInfoContext( void ) {
+	int			i;
+
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		const char	*clientInfo;
+
+		if ( i == cg.clientNum ) {
+			continue;
+		}
+
+		clientInfo = CG_ConfigString( CS_PLAYERS + i );
+		if ( !clientInfo[0] ) {
+			continue;
+		}
+
+		CG_NewClientInfo( i );
+	}
+
+	CG_LoadDeferredPlayers();
+}
+
+/*
+=================================
+CG_QueueClientInfoContextRefresh
+=================================
+*/
+void CG_QueueClientInfoContextRefresh( void ) {
+	if ( cg.snap ) {
+		CG_RefreshClientInfoContext();
+		return;
+	}
+
+	cg_refreshClientInfoContextQueued = qtrue;
+}
+
+/*
 ==================
 CG_SetInitialSnapshot
 
@@ -115,6 +157,11 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 		// check for events
 		CG_CheckEvents( cent );
 	}
+
+	if ( cg_refreshClientInfoContextQueued ) {
+		cg_refreshClientInfoContextQueued = qfalse;
+		CG_RefreshClientInfoContext();
+	}
 }
 
 
@@ -140,10 +187,6 @@ static void CG_TransitionSnapshot( void ) {
 	// execute any server string commands before transitioning entities
 	CG_ExecuteNewServerCommands( cg.nextSnap->serverCommandSequence );
 
-	// if we had a map_restart, set everthing with initial
-	if ( !cg.snap ) {
-	}
-
 	// clear the currentValid flag for all entities in the existing snapshot
 	for ( i = 0 ; i < cg.snap->numEntities ; i++ ) {
 		cent = &cg_entities[ cg.snap->entities[ i ].number ];
@@ -165,8 +208,6 @@ static void CG_TransitionSnapshot( void ) {
 		cent->snapShotTime = cg.snap->serverTime;
 	}
 
-	cg.nextSnap = NULL;
-
 	// check for playerstate transition events
 	if ( oldFrame ) {
 		playerState_t	*ops, *ps;
@@ -184,8 +225,19 @@ static void CG_TransitionSnapshot( void ) {
 			|| cg_nopredict.integer || cg_synchronousClients.integer ) {
 			CG_TransitionPlayerState( ps, ops );
 		}
+
+		if ( ps->clientNum != ops->clientNum
+			|| ps->persistant[ PERS_TEAM ] != ops->persistant[ PERS_TEAM ] ) {
+			cg_refreshClientInfoContextQueued = qtrue;
+		}
 	}
 
+	if ( cg_refreshClientInfoContextQueued ) {
+		cg_refreshClientInfoContextQueued = qfalse;
+		CG_RefreshClientInfoContext();
+	}
+
+	cg.nextSnap = NULL;
 }
 
 
@@ -261,7 +313,7 @@ static snapshot_t *CG_ReadNextSnapshot( void ) {
 	snapshot_t	*dest;
 
 	if ( cg.latestSnapshotNum > cgs.processedSnapshotNum + 1000 ) {
-		CG_Printf( "WARNING: CG_ReadNextSnapshot: way out of range, %i > %i", 
+		CG_Printf( "WARNING: CG_ReadNextSnapshot: way out of range, %i > %i\n",
 			cg.latestSnapshotNum, cgs.processedSnapshotNum );
 	}
 
@@ -276,11 +328,6 @@ static snapshot_t *CG_ReadNextSnapshot( void ) {
 		// try to read the snapshot from the client system
 		cgs.processedSnapshotNum++;
 		r = trap_GetSnapshot( cgs.processedSnapshotNum, dest );
-
-		// FIXME: why would trap_GetSnapshot return a snapshot with the same server time
-		if ( cg.snap && r && dest->serverTime == cg.snap->serverTime ) {
-			//continue;
-		}
 
 		// if it succeeded, return
 		if ( r ) {
@@ -400,4 +447,3 @@ void CG_ProcessSnapshots( void ) {
 	}
 
 }
-

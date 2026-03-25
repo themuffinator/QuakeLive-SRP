@@ -1,0 +1,8 @@
+program_name=quakelive_steam.exe
+program_language=x86:LE:32:default
+program_compiler_spec=windows
+function_count=5473
+import_count=351
+export_count=2
+analysis_symbol_count=4377
+decompiled_function_count=180

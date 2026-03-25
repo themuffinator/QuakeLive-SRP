@@ -142,6 +142,10 @@ static qboolean G_ADBonusesEnabled( void ) {
 		return qfalse;
 	}
 
+	if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+		return qfalse;
+	}
+
 	return qtrue;
 }
 
@@ -186,6 +190,718 @@ void G_ADAwardBonus( gentity_t *player, const vec3_t origin, int bonus, const ch
 
 /*
 =============
+G_ADModeActive
+
+Returns qtrue when the Attack & Defend retail controller should run.
+=============
+*/
+static qboolean G_ADModeActive( void ) {
+	return ( g_gametype.integer == GT_ATTACK_DEFEND ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_ADRoundTeamForTurn
+
+Maps the internal retail turn index to a red or blue team slot.
+=============
+*/
+static team_t G_ADRoundTeamForTurn( int turnIndex ) {
+	return ( turnIndex != 0 ) ? TEAM_BLUE : TEAM_RED;
+}
+
+/*
+=============
+G_ADWinningTeamName
+
+Returns the printable team label used by the retail round-end messaging.
+=============
+*/
+static const char *G_ADWinningTeamName( team_t team ) {
+	switch ( team ) {
+	case TEAM_RED:
+		return "Red";
+	case TEAM_BLUE:
+		return "Blue";
+	default:
+		break;
+	}
+
+	return "No";
+}
+
+/*
+=============
+G_ADPublishScoreHistory
+
+Broadcasts the retail Attack & Defend round-delta history payload.
+=============
+*/
+static void G_ADPublishScoreHistory( void ) {
+	char	command[MAX_STRING_CHARS];
+	int		offset;
+	int		i;
+
+	offset = Com_sprintf( command, sizeof( command ), "scores_ad %d %d",
+		level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE] );
+
+	for ( i = 0; i < AD_SCORE_HISTORY_LENGTH && offset < (int)sizeof( command ); i++ ) {
+		offset += Com_sprintf( command + offset, sizeof( command ) - offset, " %d",
+			level.adPublishedScoreHistory[i] );
+	}
+
+	trap_SendServerCommand( -1, command );
+}
+
+/*
+=============
+G_ADResolveFollowTarget
+
+Selects the first live player that a round-eliminated CA/A&D client should follow.
+=============
+*/
+static int G_ADResolveFollowTarget( const gentity_t *ent ) {
+	int	clientNum;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		const gentity_t	*target;
+		const gclient_t	*client;
+
+		target = &g_entities[clientNum];
+		client = target->client;
+		if ( !target->inuse || !client ) {
+			continue;
+		}
+		if ( target == ent ) {
+			continue;
+		}
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != TEAM_RED && client->sess.sessionTeam != TEAM_BLUE ) {
+			continue;
+		}
+		if ( client->ps.pm_type != PM_NORMAL ) {
+			continue;
+		}
+
+		return clientNum;
+	}
+
+	return -1;
+}
+
+/*
+=============
+G_ADComputeRoundWinnerFromCounts
+
+Determines the current round winner from the active attacker/defender populations.
+=============
+*/
+static team_t G_ADComputeRoundWinnerFromCounts( void ) {
+	int	counts[TEAM_NUM_TEAMS];
+	int	attackingTeam;
+	int	defendingTeam;
+
+	attackingTeam = G_ADRoundTeamForTurn( level.adTurnIndex );
+	defendingTeam = G_ADRoundTeamForTurn( level.adTurnIndex ^ 1 );
+	if ( attackingTeam <= TEAM_FREE || defendingTeam <= TEAM_FREE ) {
+		return TEAM_FREE;
+	}
+
+	G_CountActivePlayersByTeam( counts );
+	if ( counts[attackingTeam] <= 0 && counts[defendingTeam] > 0 ) {
+		return defendingTeam;
+	}
+	if ( counts[defendingTeam] <= 0 && counts[attackingTeam] > 0 ) {
+		return attackingTeam;
+	}
+
+	return TEAM_FREE;
+}
+
+/*
+=============
+G_ADResetRoundClientDamage
+
+Clears the retail per-round damage bucket used by Attack & Defend scoring.
+=============
+*/
+static void G_ADResetRoundClientDamage( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	ent->client->adAccumulatedDamage = 0;
+}
+
+/*
+=============
+G_ADApplyHoldingState
+
+Places a respawned CA/A&D client into the pre-release freeze state.
+=============
+*/
+static void G_ADApplyHoldingState( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	ent->client->ps.pm_type = PM_FREEZE;
+	ent->client->respawnTime = level.time;
+	ent->takedamage = qtrue;
+	ent->r.contents = CONTENTS_BODY;
+}
+
+/*
+=============
+G_ADReleaseClientForRound
+
+Releases a thawed/held Attack & Defend client into live movement.
+=============
+*/
+static void G_ADReleaseClientForRound( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( ent->client->sess.sessionTeam != TEAM_RED && ent->client->sess.sessionTeam != TEAM_BLUE ) {
+		return;
+	}
+
+	ent->client->ps.pm_type = PM_NORMAL;
+	ent->client->respawnTime = level.time;
+	ent->takedamage = qtrue;
+	ent->r.contents = CONTENTS_BODY;
+	G_ADResetRoundClientDamage( ent );
+}
+
+/*
+=============
+G_ADResetScoreHistory
+
+Clears the retail 20-entry Attack & Defend score history and republishes scores_ad.
+=============
+*/
+int G_ADResetScoreHistory( void ) {
+	int	i;
+
+	for ( i = 0; i < AD_SCORE_HISTORY_LENGTH; i++ ) {
+		level.adScoreHistory[i] = -1;
+		level.adPublishedScoreHistory[i] = -1;
+	}
+
+	level.adLastTurnBaseScore[0] = level.teamScores[TEAM_RED];
+	level.adLastTurnBaseScore[1] = level.teamScores[TEAM_BLUE];
+	level.adCurrentTurnScoreDelta[0] = 0;
+	level.adCurrentTurnScoreDelta[1] = 0;
+	level.adScoreHistoryIndex = 0;
+	G_ADPublishScoreHistory();
+
+	return 1;
+}
+
+/*
+=============
+G_ADUpdateScoreHistory
+
+Appends the latest Attack & Defend turn delta and republishes the ordered history window.
+=============
+*/
+int G_ADUpdateScoreHistory( void ) {
+	int		turnIndex;
+	team_t	team;
+	int		delta;
+	int		count;
+	int		start;
+	int		i;
+
+	turnIndex = level.adTurnIndex;
+	team = G_ADRoundTeamForTurn( turnIndex );
+	delta = level.teamScores[team] - level.adLastTurnBaseScore[turnIndex];
+	level.adCurrentTurnScoreDelta[turnIndex] = delta;
+	level.adScoreHistory[level.adScoreHistoryIndex % AD_SCORE_HISTORY_LENGTH] = delta;
+	level.adLastTurnBaseScore[turnIndex] = level.teamScores[team];
+	level.adScoreHistoryIndex++;
+
+	for ( i = 0; i < AD_SCORE_HISTORY_LENGTH; i++ ) {
+		level.adPublishedScoreHistory[i] = -1;
+	}
+
+	count = level.adScoreHistoryIndex;
+	if ( count > AD_SCORE_HISTORY_LENGTH ) {
+		count = AD_SCORE_HISTORY_LENGTH;
+	}
+
+	start = level.adScoreHistoryIndex - count;
+	for ( i = 0; i < count; i++ ) {
+		level.adPublishedScoreHistory[AD_SCORE_HISTORY_LENGTH - count + i] =
+			level.adScoreHistory[( start + i ) % AD_SCORE_HISTORY_LENGTH];
+	}
+
+	G_ADPublishScoreHistory();
+	return delta;
+}
+
+/*
+=============
+G_CAADRespawnAsSpectator
+
+Respawns a Clan Arena / Attack & Defend player into the retail follow-spectator state.
+=============
+*/
+void G_CAADRespawnAsSpectator( gentity_t *ent ) {
+	int	counts[TEAM_NUM_TEAMS];
+	int	followTarget;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	CopyToBodyQue( ent );
+	ClientSpawn( ent );
+	ent->client->ps.pm_type = PM_SPECTATOR;
+	ent->client->respawnTime = level.time;
+	ent->takedamage = qfalse;
+	ent->r.contents = 0;
+	BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, qtrue );
+	VectorCopy( ent->client->ps.origin, ent->r.currentOrigin );
+	trap_LinkEntity( ent );
+
+	G_CountActivePlayersByTeam( counts );
+	if ( level.trainingMapActive || level.intermissiontime
+		|| counts[TEAM_RED] <= 0 || counts[TEAM_BLUE] <= 0 ) {
+		ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
+		ent->client->sess.spectatorClient = -1;
+		return;
+	}
+
+	followTarget = G_ADResolveFollowTarget( ent );
+	if ( followTarget >= 0 ) {
+		ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
+		ent->client->sess.spectatorClient = followTarget;
+		return;
+	}
+
+	ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
+	ent->client->sess.spectatorClient = -1;
+}
+
+/*
+=============
+G_CAADResetClientForRound
+
+Respawns or spectates a Clan Arena / Attack & Defend client according to the current round phase.
+=============
+*/
+void G_CAADResetClientForRound( gentity_t *ent ) {
+	int	state;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		ClientSpawn( ent );
+		return;
+	}
+
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		state = G_ADResolveRoundState();
+		if ( state == AD_ROUNDSTATE_INACTIVE ) {
+			ClientSpawn( ent );
+			return;
+		}
+		if ( state == AD_ROUNDSTATE_WARMUP ) {
+			ClientSpawn( ent );
+			G_ADApplyHoldingState( ent );
+			return;
+		}
+
+		G_CAADRespawnAsSpectator( ent );
+		return;
+	}
+
+	if ( g_gametype.integer != GT_CLAN_ARENA ) {
+		ClientSpawn( ent );
+		return;
+	}
+
+	state = level.roundState;
+	if ( state == ROUNDSTATE_INACTIVE ) {
+		ClientSpawn( ent );
+		return;
+	}
+	if ( state == ROUNDSTATE_WARMUP ) {
+		ClientSpawn( ent );
+		G_ADApplyHoldingState( ent );
+		return;
+	}
+
+	G_CAADRespawnAsSpectator( ent );
+}
+
+/*
+=============
+G_ADResolveRoundState
+
+Services any expired Attack & Defend transition and returns the live retail controller state.
+=============
+*/
+int G_ADResolveRoundState( void ) {
+	if ( !G_ADModeActive() ) {
+		return level.adRoundState;
+	}
+
+	if ( level.roundTransitionTime != ROUND_TRANSITION_NONE && level.time >= level.roundTransitionTime ) {
+		level.roundTransitionTime = ROUND_TRANSITION_NONE;
+		level.adRoundState = level.adPendingRoundState;
+		level.adStateChangeTime = level.time;
+		AD_RoundStateTransition( qfalse );
+	}
+
+	return level.adRoundState;
+}
+
+/*
+=============
+G_ADHandleDamageScore
+
+Applies Attack & Defend team-damage suppression and converts live enemy damage into retail score buckets.
+=============
+*/
+qboolean G_ADHandleDamageScore( gentity_t *attacker, int announce, gentity_t *targ, int *take, int *asave ) {
+	int	damage;
+	int	attackingTeam;
+
+	(void)announce;
+
+	if ( !G_ADModeActive() || !attacker || !attacker->client || !targ || !targ->client || !take || !asave ) {
+		return qfalse;
+	}
+
+	if ( attacker == targ ) {
+		return qtrue;
+	}
+
+	if ( OnSameTeam( attacker, targ ) ) {
+		if ( !g_friendlyFire.integer ) {
+			*take = 0;
+			*asave = 0;
+		}
+		return qtrue;
+	}
+
+	if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+		return qfalse;
+	}
+
+	attackingTeam = G_ADResolveAttackingTeam();
+	if ( attackingTeam <= TEAM_FREE || attacker->client->sess.sessionTeam != attackingTeam ) {
+		return qtrue;
+	}
+
+	damage = *take + *asave;
+	if ( damage <= 0 ) {
+		return qtrue;
+	}
+
+	attacker->client->adAccumulatedDamage += damage;
+	while ( attacker->client->adAccumulatedDamage >= 100 ) {
+		attacker->client->adAccumulatedDamage -= 100;
+		AddScore( attacker, targ->r.currentOrigin, 1 );
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+G_ADCheckExitRules
+
+Evaluates the retail Attack & Defend timelimit, scorelimit, and mercylimit rules.
+=============
+*/
+qboolean G_ADCheckExitRules( qboolean announce ) {
+	int	elapsed;
+	int	scoreDelta;
+	int	mercyWindowMinutes;
+	int	mercyWindowMsec;
+
+	if ( !G_ADModeActive() ) {
+		return qfalse;
+	}
+
+	if ( level.adTurnIndex != 1 ) {
+		return qfalse;
+	}
+
+	if ( level.teamScores[TEAM_RED] == level.teamScores[TEAM_BLUE] ) {
+		return qfalse;
+	}
+
+	elapsed = level.time - level.startTime;
+	if ( g_timelimit.integer && elapsed >= g_timelimit.integer * 60000 ) {
+		if ( announce ) {
+			trap_SendServerCommand( -1, "print \"Timelimit hit.\n\"" );
+			LogExit( "Timelimit hit." );
+		}
+		return qtrue;
+	}
+
+	if ( g_scorelimit.integer > 0 ) {
+		if ( level.teamScores[TEAM_RED] >= g_scorelimit.integer
+			&& level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE] ) {
+			if ( announce ) {
+				trap_SendServerCommand( -1, "print \"Red hit the scorelimit.\n\"" );
+				LogExit( "Scorelimit hit." );
+			}
+			return qtrue;
+		}
+
+		if ( level.teamScores[TEAM_BLUE] >= g_scorelimit.integer
+			&& level.teamScores[TEAM_BLUE] > level.teamScores[TEAM_RED] ) {
+			if ( announce ) {
+				trap_SendServerCommand( -1, "print \"Blue hit the scorelimit.\n\"" );
+				LogExit( "Scorelimit hit." );
+			}
+			return qtrue;
+		}
+	}
+
+	if ( mercylimit.integer <= 0 ) {
+		return qfalse;
+	}
+
+	mercyWindowMinutes = g_mercytime.integer;
+	if ( mercyWindowMinutes < 0 ) {
+		mercyWindowMinutes = 0;
+	}
+	if ( mercyWindowMinutes > 0 && mercyWindowMinutes > INT_MAX / 60000 ) {
+		mercyWindowMsec = INT_MAX;
+	} else {
+		mercyWindowMsec = mercyWindowMinutes * 60000;
+	}
+
+	if ( elapsed < mercyWindowMsec ) {
+		return qfalse;
+	}
+
+	scoreDelta = level.teamScores[TEAM_RED] - level.teamScores[TEAM_BLUE];
+	if ( scoreDelta >= mercylimit.integer ) {
+		if ( announce ) {
+			trap_SendServerCommand( -1, "print \"Red hit the mercylimit.\n\"" );
+			LogExit( "Mercylimit hit." );
+		}
+		return qtrue;
+	}
+
+	if ( -scoreDelta >= mercylimit.integer ) {
+		if ( announce ) {
+			trap_SendServerCommand( -1, "print \"Blue hit the mercylimit.\n\"" );
+			LogExit( "Mercylimit hit." );
+		}
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+G_ADResolveAttackingTeam
+
+Returns the currently attacking side during the live Attack & Defend phase.
+=============
+*/
+int G_ADResolveAttackingTeam( void ) {
+	if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+		return TEAM_FREE;
+	}
+
+	return G_ADRoundTeamForTurn( level.adTurnIndex );
+}
+
+/*
+=============
+G_ADResolveDefendingTeam
+
+Returns the currently defending side during the live Attack & Defend phase.
+=============
+*/
+int G_ADResolveDefendingTeam( void ) {
+	if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+		return TEAM_FREE;
+	}
+
+	return G_ADRoundTeamForTurn( level.adTurnIndex ^ 1 );
+}
+
+/*
+=============
+AD_RoundStateTransition
+
+Runs the retail-style Attack & Defend round controller transition for the current internal state.
+=============
+*/
+int AD_RoundStateTransition( qboolean announce ) {
+	int		clientNum;
+	int		delayMs;
+	team_t	winner;
+
+	(void)announce;
+
+	if ( !G_ADModeActive() ) {
+		return level.adRoundState;
+	}
+
+	switch ( level.adRoundState ) {
+	case AD_ROUNDSTATE_INACTIVE:
+		level.roundState = ROUNDSTATE_INACTIVE;
+		level.roundTransitionTime = ROUND_TRANSITION_NONE;
+		level.adPendingRoundState = AD_ROUNDSTATE_INACTIVE;
+		level.adStateChangeTime = level.time;
+		level.adRoundWinner = TEAM_FREE;
+		level.adRoundWinnerAlreadyScored = qfalse;
+		G_ADResetScoreHistory();
+		G_UpdateMatchStateConfigString();
+		return level.adRoundState;
+
+	case AD_ROUNDSTATE_WARMUP:
+		level.roundState = ROUNDSTATE_WARMUP;
+		level.roundTransitionTime = ROUND_TRANSITION_NONE;
+		level.adPendingRoundState = AD_ROUNDSTATE_WARMUP;
+		level.adStateChangeTime = level.time;
+		level.adRoundWinner = TEAM_FREE;
+		level.adRoundWinnerAlreadyScored = qfalse;
+
+		for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+			gentity_t	*ent;
+
+			ent = &g_entities[clientNum];
+			if ( !ent->inuse || !ent->client ) {
+				continue;
+			}
+			if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+				continue;
+			}
+
+			G_CAADResetClientForRound( ent );
+			G_ADResetRoundClientDamage( ent );
+		}
+
+		delayMs = g_roundWarmupDelay.integer;
+		if ( delayMs < 0 ) {
+			delayMs = 0;
+		}
+		if ( delayMs > 0 ) {
+			level.roundTransitionTime = level.time + delayMs;
+			level.adPendingRoundState = AD_ROUNDSTATE_ACTIVE;
+			G_UpdateMatchStateConfigString();
+			return level.adRoundState;
+		}
+
+		level.adRoundState = AD_ROUNDSTATE_ACTIVE;
+		level.adStateChangeTime = level.time;
+		return AD_RoundStateTransition( announce );
+
+	case AD_ROUNDSTATE_ACTIVE:
+		level.roundState = ROUNDSTATE_ACTIVE;
+		level.roundTransitionTime = ROUND_TRANSITION_NONE;
+		level.adPendingRoundState = AD_ROUNDSTATE_ACTIVE;
+		level.adStateChangeTime = level.time;
+		level.adRoundWinner = TEAM_FREE;
+		level.adRoundWinnerAlreadyScored = qfalse;
+
+		for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+			gentity_t	*ent;
+
+			ent = &g_entities[clientNum];
+			if ( !ent->inuse || !ent->client ) {
+				continue;
+			}
+			if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+				continue;
+			}
+
+			G_ADReleaseClientForRound( ent );
+		}
+
+		G_UpdateMatchStateConfigString();
+		return level.adRoundState;
+
+	case AD_ROUNDSTATE_COMPLETE:
+		level.roundState = ROUNDSTATE_COMPLETE;
+		level.roundTransitionTime = ROUND_TRANSITION_NONE;
+		level.adPendingRoundState = AD_ROUNDSTATE_COMPLETE;
+		level.adStateChangeTime = level.time;
+
+		for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+			gentity_t	*ent;
+
+			ent = &g_entities[clientNum];
+			if ( !ent->inuse || !ent->client ) {
+				continue;
+			}
+			if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+				continue;
+			}
+			if ( ent->client->ps.pm_type == PM_NORMAL ) {
+				ent->client->ps.pm_type = PM_FREEZE;
+			}
+		}
+
+		winner = level.adRoundWinner;
+		if ( winner != TEAM_RED && winner != TEAM_BLUE ) {
+			winner = G_ADComputeRoundWinnerFromCounts();
+		}
+
+		if ( winner == TEAM_RED || winner == TEAM_BLUE ) {
+			if ( !level.adRoundWinnerAlreadyScored ) {
+				level.teamScores[winner] += 1;
+			}
+			trap_SendServerCommand( -1,
+				va( "cp \"%s team wins the round\\n\"", G_ADWinningTeamName( winner ) ) );
+		}
+
+		CalculateRanks();
+		G_ADUpdateScoreHistory();
+
+		if ( G_ADCheckExitRules( qfalse ) ) {
+			level.roundTransitionTime = level.time + 1500;
+			level.adPendingRoundState = AD_ROUNDSTATE_EXIT;
+		} else {
+			level.roundTransitionTime = level.time + 3500;
+			level.adPendingRoundState = AD_ROUNDSTATE_WARMUP;
+		}
+
+		level.adTurnIndex ^= 1;
+		if ( level.adTurnIndex == 0 ) {
+			level.roundNumber++;
+		}
+
+		level.adRoundWinner = TEAM_FREE;
+		level.adRoundWinnerAlreadyScored = qfalse;
+		G_UpdateMatchStateConfigString();
+		return level.adRoundState;
+
+	case AD_ROUNDSTATE_EXIT:
+		level.roundState = ROUNDSTATE_COMPLETE;
+		level.roundTransitionTime = ROUND_TRANSITION_NONE;
+		level.adPendingRoundState = AD_ROUNDSTATE_EXIT;
+		level.adStateChangeTime = level.time;
+		G_UpdateMatchStateConfigString();
+		G_ADCheckExitRules( qtrue );
+		return level.adRoundState;
+
+	default:
+		G_Printf( "AD_RoundStateTransition: invalid state\n" );
+		return level.adRoundState;
+	}
+}
+
+/*
+=============
 Team_InitGame
 
 Initializes team tracking, domination points, and shuffle callbacks.
@@ -213,6 +929,14 @@ void Team_InitGame( void ) {
 	G_AutoShuffleCountdown_SetCompleteCallback( Team_HandleAutoShuffleCountdownComplete );
 	level.autoShuffleLastExecuteTime = 0;
 	s_teamAutoShuffleArmed = qfalse;
+
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		level.adRoundState = AD_ROUNDSTATE_INACTIVE;
+		level.adPendingRoundState = AD_ROUNDSTATE_INACTIVE;
+		level.adTurnIndex = 0;
+		level.roundNumber = 1;
+		G_ADResetScoreHistory();
+	}
 }
 
 
@@ -1374,6 +2098,410 @@ void AddTeamScore(const vec3_t origin, int team, int score) {
 
 /*
 ==============
+G_GetValidatedClientSlot
+
+Returns a client slot pointer when the supplied client number is in range.
+==============
+*/
+static gclient_t *G_GetValidatedClientSlot( int clientNum ) {
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return NULL;
+	}
+
+	return &level.clients[clientNum];
+}
+
+/*
+==============
+G_GetValidatedEntitySlot
+==============
+*/
+static gentity_t *G_GetValidatedEntitySlot( int entNum ) {
+	if ( entNum < 0 || entNum >= level.num_entities ) {
+		return NULL;
+	}
+
+	if ( !g_entities[entNum].inuse ) {
+		return NULL;
+	}
+
+	return &g_entities[entNum];
+}
+
+/*
+==============
+G_IsObjectiveFlagItemEntity
+==============
+*/
+static qboolean G_IsObjectiveFlagItemEntity( const gentity_t *ent, qboolean allowNeutralFlag ) {
+	if ( !ent || !ent->item || ent->item->giType != IT_TEAM ) {
+		return qfalse;
+	}
+
+	switch ( ent->item->giTag ) {
+	case PW_REDFLAG:
+	case PW_BLUEFLAG:
+		return qtrue;
+	case PW_NEUTRALFLAG:
+		return allowNeutralFlag ? qtrue : qfalse;
+	default:
+		break;
+	}
+
+	return qfalse;
+}
+
+/*
+==============
+G_IsOverloadObjectiveEntity
+==============
+*/
+static qboolean G_IsOverloadObjectiveEntity( const gentity_t *ent ) {
+	if ( !ent || !ent->classname ) {
+		return qfalse;
+	}
+
+	if ( strcmp( ent->classname, "team_redobelisk" ) == 0 ) {
+		return qtrue;
+	}
+
+	if ( strcmp( ent->classname, "team_blueobelisk" ) == 0 ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+==============
+G_RedRoverClientVisibilityEnabled
+==============
+*/
+static qboolean G_RedRoverClientVisibilityEnabled( void ) {
+	if ( g_gametype.integer != GT_RED_ROVER ) {
+		return qfalse;
+	}
+
+	if ( !g_rrInfected.integer ) {
+		return qfalse;
+	}
+
+	return ( level.roundState == ROUNDSTATE_ACTIVE ) ? qtrue : qfalse;
+}
+
+/*
+==============
+G_IsOneFlagBotCarrier
+==============
+*/
+static qboolean G_IsOneFlagBotCarrier( const gentity_t *ent, const gclient_t *client ) {
+	if ( g_gametype.integer != GT_1FCTF ) {
+		return qfalse;
+	}
+
+	if ( !ent ) {
+		return qfalse;
+	}
+
+	if ( !( ent->r.svFlags & SVF_BOT ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+==============
+G_CanClientSeeClient
+==============
+*/
+qboolean G_CanClientSeeClient( int viewerClientNum, int targetClientNum ) {
+	if ( viewerClientNum < 0 || viewerClientNum >= level.maxclients ) {
+		return qfalse;
+	}
+
+	if ( targetClientNum < 0 || targetClientNum >= level.maxclients ) {
+		return qfalse;
+	}
+
+	if ( G_IsOneFlagBotCarrier( &g_entities[targetClientNum], NULL ) ) {
+		return qtrue;
+	}
+
+	if ( g_gametype.integer >= GT_TEAM && G_ClientNumsOnSameTeam( viewerClientNum, targetClientNum ) ) {
+		return qtrue;
+	}
+
+	if ( G_IsClientSpectator( viewerClientNum ) ) {
+		return qtrue;
+	}
+
+	if ( G_RedRoverClientVisibilityEnabled()
+		&& !G_ClientNumsOnSameTeam( viewerClientNum, targetClientNum ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+==============
+G_ClientsOnSameTeam
+==============
+*/
+qboolean G_ClientsOnSameTeam( gclient_t *clientA, gclient_t *clientB ) {
+	team_t team1;
+	team_t team2;
+
+	if ( !clientA || !clientB ) {
+		return qfalse;
+	}
+
+	team1 = clientA->sess.sessionTeam;
+	team2 = clientB->sess.sessionTeam;
+
+	if ( team1 == TEAM_SPECTATOR && team2 == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+
+	if ( g_gametype.integer < GT_TEAM ) {
+		return qfalse;
+	}
+
+	if ( team1 == team2 ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+==============
+G_ClientNumsOnSameTeam
+==============
+*/
+qboolean G_ClientNumsOnSameTeam( int clientNumA, int clientNumB ) {
+	return G_ClientsOnSameTeam(
+		G_GetValidatedClientSlot( clientNumA ),
+		G_GetValidatedClientSlot( clientNumB ) );
+}
+
+/*
+==============
+G_AreEnemyClients
+==============
+*/
+qboolean G_AreEnemyClients( int clientNumA, int clientNumB ) {
+	gclient_t	*clientA;
+	gclient_t	*clientB;
+
+	if ( clientNumA == clientNumB ) {
+		return qfalse;
+	}
+
+	clientA = G_GetValidatedClientSlot( clientNumA );
+	clientB = G_GetValidatedClientSlot( clientNumB );
+	if ( !clientA || !clientB ) {
+		return qfalse;
+	}
+
+	if ( clientA->sess.sessionTeam == TEAM_SPECTATOR || clientB->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	return G_ClientsOnSameTeam( clientA, clientB ) ? qfalse : qtrue;
+}
+
+/*
+==============
+G_ShouldSuppressVoiceToClient
+==============
+*/
+qboolean G_ShouldSuppressVoiceToClient( int senderClientNum, int recipientClientNum ) {
+	gclient_t	*sender;
+	gclient_t	*recipient;
+	gentity_t	*senderEnt;
+	gentity_t	*recipientEnt;
+
+	sender = G_GetValidatedClientSlot( senderClientNum );
+	recipient = G_GetValidatedClientSlot( recipientClientNum );
+	senderEnt = G_GetValidatedEntitySlot( senderClientNum );
+	recipientEnt = G_GetValidatedEntitySlot( recipientClientNum );
+	if ( !sender || !recipient || !senderEnt || !recipientEnt ) {
+		return qtrue;
+	}
+
+	if ( sender->pers.connected != CON_CONNECTED || recipient->pers.connected != CON_CONNECTED ) {
+		return qtrue;
+	}
+
+	if ( recipientEnt->r.svFlags & SVF_BOT ) {
+		return qtrue;
+	}
+
+	if ( sender->sess.muted ) {
+		return qtrue;
+	}
+
+	if ( g_gametype.integer < GT_TEAM || g_allTalk.integer ) {
+		return qfalse;
+	}
+
+	// The host handles open/all-talk relay separately; this export only suppresses self
+	// echo on the team-routed voice path.
+	if ( senderClientNum == recipientClientNum ) {
+		return qtrue;
+	}
+
+	return G_ClientNumsOnSameTeam( senderClientNum, recipientClientNum ) ? qfalse : qtrue;
+}
+
+/*
+==============
+G_IsObjectiveEntity
+==============
+*/
+qboolean G_IsObjectiveEntity( int entNum ) {
+	gentity_t	*ent;
+
+	ent = G_GetValidatedEntitySlot( entNum );
+	if ( !ent ) {
+		return qfalse;
+	}
+
+	switch ( g_gametype.integer ) {
+	case GT_CTF:
+	case GT_ATTACK_DEFEND:
+		return G_IsObjectiveFlagItemEntity( ent, qfalse );
+
+	case GT_1FCTF:
+		if ( G_IsObjectiveFlagItemEntity( ent, qtrue ) ) {
+			return qtrue;
+		}
+
+		if ( ent->client && ent->target_ent && G_IsObjectiveFlagItemEntity( ent->target_ent, qtrue ) ) {
+			return qtrue;
+		}
+
+		return qfalse;
+
+	case GT_OBELISK:
+		return G_IsOverloadObjectiveEntity( ent );
+
+	default:
+		break;
+	}
+
+	return qfalse;
+}
+
+/*
+==============
+G_IsClientSpectator
+==============
+*/
+qboolean G_IsClientSpectator( int clientNum ) {
+	gclient_t	*client;
+
+	client = G_GetValidatedClientSlot( clientNum );
+	return ( client && client->sess.sessionTeam == TEAM_SPECTATOR ) ? qtrue : qfalse;
+}
+
+/*
+==============
+G_IsClientAdmin
+==============
+*/
+qboolean G_IsClientAdmin( int clientNum ) {
+	gclient_t	*client;
+
+	client = G_GetValidatedClientSlot( clientNum );
+	return ( client && client->sess.privilege == PRIV_ADMIN ) ? qtrue : qfalse;
+}
+
+/*
+==============
+G_GetClientScore
+==============
+*/
+int G_GetClientScore( int clientNum ) {
+	gclient_t	*client;
+
+	client = G_GetValidatedClientSlot( clientNum );
+	if ( !client ) {
+		return 0;
+	}
+
+	return client->ps.persistant[PERS_SCORE];
+}
+
+/*
+==============
+G_CountActivePlayersByTeam
+==============
+*/
+void G_CountActivePlayersByTeam( int counts[TEAM_NUM_TEAMS] ) {
+	int		clientNum;
+
+	if ( !counts ) {
+		return;
+	}
+
+	memset( counts, 0, sizeof( int ) * TEAM_NUM_TEAMS );
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gclient_t	*client;
+		team_t		team;
+
+		client = &level.clients[clientNum];
+		if ( client->pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+		if ( client->ps.pm_type != PM_NORMAL ) {
+			continue;
+		}
+
+		team = client->sess.sessionTeam;
+		if ( team < TEAM_FREE || team >= TEAM_NUM_TEAMS ) {
+			continue;
+		}
+
+		counts[team]++;
+	}
+}
+
+/*
+==============
+G_CountConnectedClientsByTeam
+==============
+*/
+void G_CountConnectedClientsByTeam( int counts[TEAM_NUM_TEAMS] ) {
+	int		clientNum;
+
+	if ( !counts ) {
+		return;
+	}
+
+	memset( counts, 0, sizeof( int ) * TEAM_NUM_TEAMS );
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gclient_t	*client;
+		team_t		team;
+
+		client = &level.clients[clientNum];
+		if ( client->pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+
+		team = client->sess.sessionTeam;
+		if ( team < TEAM_FREE || team >= TEAM_NUM_TEAMS ) {
+			continue;
+		}
+
+		counts[team]++;
+	}
+}
+
+/*
+==============
 OnSameTeam
 ==============
 */
@@ -1382,15 +2510,7 @@ qboolean OnSameTeam( gentity_t *ent1, gentity_t *ent2 ) {
 		return qfalse;
 	}
 
-	if ( g_gametype.integer < GT_TEAM ) {
-		return qfalse;
-	}
-
-	if ( ent1->client->sess.sessionTeam == ent2->client->sess.sessionTeam ) {
-		return qtrue;
-	}
-
-	return qfalse;
+	return G_ClientsOnSameTeam( ent1->client, ent2->client );
 }
 
 /*
@@ -1576,6 +2696,7 @@ flagDropResult_t G_TossFlag( gentity_t *carrier, int flagPowerup, flagDropContex
 		return FLAG_DROP_RESULT_NONE;
 	}
 
+	G_EndClientTeamHoldStat( carrier->client, TEAMSTAT_TIMEHELD_FLAG, level.time );
 	carrier->client->ps.powerups[ flagPowerup ] = 0;
 	suicide = ( context == FLAG_DROP_CONTEXT_DEATH && ( attacker == carrier || meansOfDeath == MOD_SUICIDE ) );
 	tackleDrop = qfalse;
@@ -1709,10 +2830,20 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 	char *c;
 	vec3_t v1, v2;
 	int team;
+	int adDefendingTeam;
 
 	// no bonus for fragging yourself or team mates
 	if (!targ->client || !attacker->client || targ == attacker || OnSameTeam(targ, attacker))
 		return;
+
+	adDefendingTeam = TEAM_FREE;
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+			return;
+		}
+
+		adDefendingTeam = G_ADResolveDefendingTeam();
+	}
 
 	team = targ->client->sess.sessionTeam;
 	otherteam = OtherTeam(targ->client->sess.sessionTeam);
@@ -1738,6 +2869,11 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 		tokens = targ->client->ps.generic1;
 	}
 	if (targ->client->ps.powerups[enemy_flag_pw]) {
+		if ( g_gametype.integer == GT_ATTACK_DEFEND
+			&& attacker->client->sess.sessionTeam != adDefendingTeam ) {
+			return;
+		}
+
 		attacker->client->pers.teamState.lastfraggedcarrier = level.time;
 		AddScore(attacker, targ->r.currentOrigin, CTF_FRAG_CARRIER_BONUS);
 		attacker->client->pers.teamState.fragcarrier++;
@@ -1775,6 +2911,11 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 	if (targ->client->pers.teamState.lasthurtcarrier &&
 		level.time - targ->client->pers.teamState.lasthurtcarrier < CTF_CARRIER_DANGER_PROTECT_TIMEOUT &&
 		!attacker->client->ps.powerups[flag_pw]) {
+		if ( g_gametype.integer == GT_ATTACK_DEFEND
+			&& attacker->client->sess.sessionTeam != adDefendingTeam ) {
+			return;
+		}
+
 		// attacker is on the same team as the flag carrier and
 		// fragged a guy who hurt our flag carrier
 		AddScore(attacker, targ->r.currentOrigin, CTF_CARRIER_DANGER_PROTECT_BONUS);
@@ -1794,6 +2935,11 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 
 	if (targ->client->pers.teamState.lasthurtcarrier &&
 		level.time - targ->client->pers.teamState.lasthurtcarrier < CTF_CARRIER_DANGER_PROTECT_TIMEOUT) {
+		if ( g_gametype.integer == GT_ATTACK_DEFEND
+			&& attacker->client->sess.sessionTeam != adDefendingTeam ) {
+			return;
+		}
+
 		// attacker is on the same team as the skull carrier and
 		AddScore(attacker, targ->r.currentOrigin, CTF_CARRIER_DANGER_PROTECT_BONUS);
 
@@ -1870,6 +3016,10 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 		( VectorLength(v2) < 200.0f &&
 		trap_InPVS(flag->r.currentOrigin, attacker->r.currentOrigin ) ) ) &&
 		attacker->client->sess.sessionTeam != targ->client->sess.sessionTeam) {
+		if ( g_gametype.integer == GT_ATTACK_DEFEND
+			&& attacker->client->sess.sessionTeam != adDefendingTeam ) {
+			return;
+		}
 
 		// we defended the base flag
 		AddScore(attacker, targ->r.currentOrigin, CTF_FLAG_DEFENSE_BONUS);
@@ -2174,6 +3324,7 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 	gentity_t		*player;
 	gclient_t		*cl;
 	int			enemy_flag;
+	int			attackingTeam;
 	qboolean		teammateTouch;
 	qboolean		tackleReturn;
 
@@ -2192,6 +3343,15 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 		} else {
 			enemy_flag = PW_REDFLAG;
 		}
+	}
+
+	attackingTeam = TEAM_FREE;
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+			return 0;
+		}
+
+		attackingTeam = G_ADResolveAttackingTeam();
 	}
 
 	teammateTouch = ( cl->sess.sessionTeam == team );
@@ -2233,6 +3393,9 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 
 	// the flag is at home base.  if the player has the enemy
 	// flag, he's just won!
+	if ( g_gametype.integer == GT_ATTACK_DEFEND && cl->sess.sessionTeam != attackingTeam ) {
+		return 0;
+	}
 	if (!cl->ps.powerups[enemy_flag])
 		return 0; // We don't have the flag
 	if( g_gametype.integer == GT_1FCTF ) {
@@ -2246,6 +3409,7 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 			TeamColorString(team), TeamName(team), cl->pers.netname, (int)heldTime / 60, (float)((int)heldTime % 60 + (heldTime - (int)heldTime)) );
 	}
 
+	G_EndClientTeamHoldStat( cl, TEAMSTAT_TIMEHELD_FLAG, level.time );
 	cl->ps.powerups[enemy_flag] = 0;
 
 	teamgame.last_flag_capture = level.time;
@@ -2307,6 +3471,14 @@ int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team ) {
 	}
 	Team_ResetFlags();
 
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		level.adRoundWinner = other->client->sess.sessionTeam;
+		level.adRoundWinnerAlreadyScored = qtrue;
+		level.adRoundState = AD_ROUNDSTATE_COMPLETE;
+		AD_RoundStateTransition( qtrue );
+		return 0;
+	}
+
 	CalculateRanks();
 
 	return 0; // Do not respawn this automatically
@@ -2316,6 +3488,16 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 	gclient_t *cl = other->client;
 	team_t statusTeam;
 	flagStatus_t status;
+
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		if ( G_ADResolveRoundState() != AD_ROUNDSTATE_ACTIVE ) {
+			return 0;
+		}
+
+		if ( cl->sess.sessionTeam != G_ADResolveAttackingTeam() ) {
+			return 0;
+		}
+	}
 
 	statusTeam = Team_FlagPickupStatusTeam( g_gametype.integer, team );
 	status = Team_FlagPickupStatusValue( g_gametype.integer, cl->sess.sessionTeam );
@@ -2338,6 +3520,8 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 			cl->ps.powerups[PW_BLUEFLAG] = INT_MAX; // flags never expire
 	}
 
+	G_FlushExpiredClientTeamHoldStats( cl, level.time );
+	G_BeginClientTeamHoldStat( cl, TEAMSTAT_TIMEHELD_FLAG );
 	Team_SetFlagStatus( statusTeam, status );
 
 	AddScore(other, ent->r.currentOrigin, CTF_FLAG_BONUS);

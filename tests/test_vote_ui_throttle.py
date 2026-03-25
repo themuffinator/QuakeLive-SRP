@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import textwrap
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -84,9 +87,12 @@ def test_vote_ui_throttle_transitions(tmp_path: Path) -> None:
         f"-I{REPO_ROOT / 'src' / 'code'}",
         f"-I{REPO_ROOT / 'src'}",
     ]
+    compiler = shutil.which("gcc")
+    if compiler is None:
+        pytest.skip("gcc is not available for the standalone vote-throttle probe")
 
     compile_cmd = [
-        "gcc",
+        compiler,
         "-std=c99",
         "-Wall",
         "-Werror",

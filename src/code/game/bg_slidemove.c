@@ -114,10 +114,6 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 		// save entity for contact
 		PM_AddTouchEnt( trace.entityNum );
 
-		if ( trace.entityNum != ENTITYNUM_NONE && trace.plane.normal[2] < MIN_WALK_NORMAL ) {
-			PM_RecordDoubleJumpSupport( trace.entityNum, trace.plane.normal, pm->cmd.serverTime );
-		}
-
 		time_left -= time_left * trace.fraction;
 
 		if (numplanes >= MAX_CLIP_PLANES) {
@@ -234,31 +230,144 @@ PM_StepSlideMove
 
 ==================
 */
+/*
+==================
+PM_CanProbeStepJump
+
+Returns whether the current state passes the coarse retail step-jump probe
+gates that are shared by both helper branches.
+==================
+*/
+static qboolean PM_CanProbeStepJump( const pmove_settings_t *settings ) {
+	if ( !pm || !pm->ps || !settings ) {
+		return qfalse;
+	}
+
+	if ( !settings->stepJump ) {
+		return qfalse;
+	}
+
+	if ( pm->ps->pm_type != PM_NORMAL ) {
+		return qfalse;
+	}
+
+	if ( pm->waterlevel >= 2 ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+PM_ShouldTryStepJump
+
+Returns whether the general retail step-jump helper should run.
+==================
+*/
+static qboolean PM_ShouldTryStepJump( const pmove_settings_t *settings ) {
+	if ( !PM_CanProbeStepJump( settings ) ) {
+		return qfalse;
+	}
+
+	if ( pm->cmd.upmove < 10 ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+PM_ShouldTryCrouchStepJump
+
+Returns whether the crouch-specific retail step-jump probe should run.
+==================
+*/
+static qboolean PM_ShouldTryCrouchStepJump( const pmove_settings_t *settings ) {
+	if ( !PM_CanProbeStepJump( settings ) ) {
+		return qfalse;
+	}
+
+	if ( !settings->crouchStepJump ) {
+		return qfalse;
+	}
+
+	if ( !( pm->ps->pm_flags & PMF_DUCKED ) ) {
+		return qfalse;
+	}
+
+	if ( pml.groundPlane ) {
+		return qfalse;
+	}
+
+	if ( pm->ps->velocity[2] < 0.0f ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+PM_CanPerformCrouchStepJump
+
+Validates the extra retail clearance trace for crouch step jumps.
+==================
+*/
+static qboolean PM_CanPerformCrouchStepJump( void ) {
+	vec3_t		mins, maxs;
+	vec3_t		end;
+	trace_t		trace;
+
+	VectorCopy( pm->mins, mins );
+	VectorCopy( pm->maxs, maxs );
+	mins[0] += 1.0f;
+	mins[1] += 1.0f;
+	maxs[0] -= 1.0f;
+	maxs[1] -= 1.0f;
+
+	VectorCopy( pm->ps->origin, end );
+	end[2] -= 64.0f;
+	pm->trace( &trace, pm->ps->origin, mins, maxs, end, pm->ps->clientNum, pm->tracemask );
+
+	return ( trace.fraction == 1.0f );
+}
+
 void PM_StepSlideMove( qboolean gravity, float stepHeight ) {
 	vec3_t		start_o, start_v;
 	vec3_t		down_o, down_v;
 	trace_t		trace;
-//	float		down_dist, up_dist;
-//	vec3_t		delta, delta2;
 	vec3_t		up, down;
+	vec3_t		end;
+	vec3_t		jumpProbeStart, jumpProbeEnd;
+	vec3_t		projectedEnd;
 	float		stepSize;
+	const pmove_settings_t	*settings;
 
 	pml.stepUp = 0.0f;
 	VectorCopy (pm->ps->origin, start_o);
 	VectorCopy (pm->ps->velocity, start_v);
+	settings = PM_GetActiveSettings();
 
 	if ( PM_SlideMove( gravity ) == 0 ) {
 		return;		// we got exactly where we wanted to go first try	
 	}
 
-	VectorCopy(start_o, down);
-	down[2] -= stepHeight;
-	pm->trace (&trace, start_o, pm->mins, pm->maxs, down, pm->ps->clientNum, pm->tracemask);
-	VectorSet(up, 0, 0, 1);
-	// never step up when you still have up velocity
-	if ( pm->ps->velocity[2] > 0 && (trace.fraction == 1.0 ||
-										DotProduct(trace.plane.normal, up) < 0.7)) {
-		return;
+	if ( pm_airsteps <= 0 ) {
+		VectorMA( start_o, pml.frametime, start_v, end );
+		pm->trace( &trace, start_o, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask );
+
+		VectorCopy( trace.endpos, down );
+		down[2] -= stepHeight;
+		pm->trace( &trace, trace.endpos, pm->mins, pm->maxs, down, pm->ps->clientNum, pm->tracemask );
+		VectorSet( up, 0, 0, 1 );
+
+		// retail QL only allows upward air stepping when the projected endpoint still
+		// finds support within the configured step height.
+		if ( start_v[2] > 0.0f && ( trace.fraction == 1.0f || DotProduct( trace.plane.normal, up ) < MIN_WALK_NORMAL ) ) {
+			return;
+		}
 	}
 
 	VectorCopy (pm->ps->origin, down_o);
@@ -309,28 +418,51 @@ void PM_StepSlideMove( qboolean gravity, float stepHeight ) {
 	{
 		// use the step move
 		float	delta;
+		float	stepFriction;
+		qboolean	canStepJump;
+		qboolean	canCrouchStepJump;
 
 		delta = pm->ps->origin[2] - start_o[2];
-		pml.stepUp = ( delta > 0.0f ) ? delta : 0.0f;
+		if ( delta > 2.0f ) {
+			pml.stepUp = delta;
+		}
 
-		if ( delta > 2 ) {
-			if ( delta < 7 ) {
-				PM_AddEvent( EV_STEP_4 );
-			} else if ( delta < 11 ) {
-				PM_AddEvent( EV_STEP_8 );
-			} else if ( delta < 15 ) {
-				PM_AddEvent( EV_STEP_12 );
-			} else {
-				PM_AddEvent( EV_STEP_16 );
+		if ( !pml.groundPlane && delta > 0.0f && start_v[2] > 0.0f ) {
+			stepFriction = 1.0f - pm_airstepfriction;
+			if ( stepFriction < 0.0f ) {
+				stepFriction = 0.0f;
+			}
+
+			pm->ps->velocity[0] *= stepFriction;
+			pm->ps->velocity[1] *= stepFriction;
+		}
+
+		canStepJump = qfalse;
+		canCrouchStepJump = qfalse;
+		if ( delta > 0.0f && settings ) {
+			canStepJump = PM_ShouldTryStepJump( settings );
+			canCrouchStepJump = PM_ShouldTryCrouchStepJump( settings );
+		}
+
+		if ( canStepJump || canCrouchStepJump ) {
+			VectorMA( start_o, pml.frametime, start_v, projectedEnd );
+			VectorCopy( projectedEnd, jumpProbeStart );
+			VectorCopy( projectedEnd, jumpProbeEnd );
+			jumpProbeStart[2] += stepHeight;
+			jumpProbeEnd[2] -= stepHeight;
+			pm->trace( &trace, jumpProbeStart, pm->mins, pm->maxs, jumpProbeEnd, pm->ps->clientNum, pm->tracemask );
+
+			if ( !trace.allsolid && trace.fraction < 1.0f && trace.plane.normal[2] >= MIN_WALK_NORMAL ) {
+				if ( canStepJump ) {
+					PM_ApplyStepJump( delta, qfalse );
+				} else if ( canCrouchStepJump && PM_CanPerformCrouchStepJump() ) {
+					PM_ApplyStepJump( delta, qtrue );
+				}
 			}
 		}
 
-		if ( delta > 0.0f && ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) ) {
-			PM_ApplyStepJump( delta, qtrue );
-		}
-
 		if ( pm->debugLevel ) {
-			Com_Printf("%i:stepped\n", c_pmove);
+			Com_Printf("%i:stepped %f\n", c_pmove, delta);
 		}
 	}
 }

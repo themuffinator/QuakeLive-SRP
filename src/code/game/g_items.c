@@ -364,6 +364,169 @@ static qboolean G_ShouldUseDroppedHealthCount( const gentity_t *ent ) {
 	return g_dropDamagedHealth.integer ? qtrue : qfalse;
 }
 
+/*
+=============
+G_RecordTeamPickupStat
+
+Increments a per-client pickup counter used for team aggregate scoreboard stats.
+=============
+*/
+static void G_RecordTeamPickupStat( gentity_t *player, teamScoreStatIndex_t statIndex ) {
+	if ( !player || !player->client ) {
+		return;
+	}
+
+	if ( statIndex < 0 || statIndex >= TEAMSTAT_COUNT ) {
+		return;
+	}
+
+	player->client->pers.teamScoreStats[statIndex]++;
+}
+
+/*
+=============
+G_RecordPlacementPickupTelemetry
+
+Updates per-player pickup count and interval timing for placement ownerdraw stats.
+=============
+*/
+static void G_RecordPlacementPickupTelemetry( gentity_t *player, scorestatPickupIndex_t pickupIndex ) {
+	int now;
+	int lastTime;
+	int interval;
+
+	if ( !player || !player->client ) {
+		return;
+	}
+
+	if ( pickupIndex < 0 || pickupIndex >= SCORESTAT_PICKUP_COUNT ) {
+		return;
+	}
+
+	now = level.time;
+	lastTime = player->client->pers.pickupLastTime[pickupIndex];
+	if ( lastTime > 0 && now > lastTime ) {
+		interval = now - lastTime;
+		player->client->pers.pickupIntervalTotalMs[pickupIndex] += interval;
+		player->client->pers.pickupIntervalCount[pickupIndex]++;
+	}
+
+	player->client->pers.pickupLastTime[pickupIndex] = now;
+}
+
+/*
+=============
+G_GetTeamPickupStatForItem
+
+Classifies an item entity into a team pickup stat bucket when applicable.
+=============
+*/
+static qboolean G_GetTeamPickupStatForItem( const gentity_t *ent, teamScoreStatIndex_t *statIndex ) {
+	const gitem_t	*item;
+
+	if ( !ent || !ent->item || !statIndex ) {
+		return qfalse;
+	}
+
+	item = ent->item;
+	if ( !item->classname ) {
+		return qfalse;
+	}
+
+	switch ( item->giType ) {
+	case IT_ARMOR:
+		if ( !Q_stricmp( item->classname, "item_armor_body" ) ) {
+			*statIndex = TEAMSTAT_PICKUPS_RA;
+			return qtrue;
+		}
+		if ( !Q_stricmp( item->classname, "item_armor_combat" ) ) {
+			*statIndex = TEAMSTAT_PICKUPS_YA;
+			return qtrue;
+		}
+		if ( !Q_stricmp( item->classname, "item_armor_jacket" ) ) {
+			*statIndex = TEAMSTAT_PICKUPS_GA;
+			return qtrue;
+		}
+		return qfalse;
+	case IT_HEALTH:
+		if ( !Q_stricmp( item->classname, "item_health_mega" ) ) {
+			*statIndex = TEAMSTAT_PICKUPS_MH;
+			return qtrue;
+		}
+		return qfalse;
+	case IT_POWERUP:
+		switch ( item->giTag ) {
+		case PW_QUAD:
+			*statIndex = TEAMSTAT_PICKUPS_QUAD;
+			return qtrue;
+		case PW_BATTLESUIT:
+			*statIndex = TEAMSTAT_PICKUPS_BS;
+			return qtrue;
+		case PW_REGEN:
+			*statIndex = TEAMSTAT_PICKUPS_REGEN;
+			return qtrue;
+		case PW_HASTE:
+			*statIndex = TEAMSTAT_PICKUPS_HASTE;
+			return qtrue;
+		case PW_INVIS:
+			*statIndex = TEAMSTAT_PICKUPS_INVIS;
+			return qtrue;
+		default:
+			return qfalse;
+		}
+	case IT_HOLDABLE:
+		if ( item->giTag == HI_MEDKIT ) {
+			*statIndex = TEAMSTAT_PICKUPS_MEDKIT;
+			return qtrue;
+		}
+		return qfalse;
+	case IT_TEAM:
+		if ( item->giTag == PW_REDFLAG || item->giTag == PW_BLUEFLAG || item->giTag == PW_NEUTRALFLAG ) {
+			*statIndex = TEAMSTAT_PICKUPS_FLAG;
+			return qtrue;
+		}
+		return qfalse;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+=============
+G_GetPlacementPickupIndexForItem
+
+Maps pickup entities that drive 1st/2nd place pickup timing ownerdraws.
+=============
+*/
+static qboolean G_GetPlacementPickupIndexForItem( const gentity_t *ent, scorestatPickupIndex_t *pickupIndex ) {
+	teamScoreStatIndex_t teamStatIndex;
+
+	if ( !pickupIndex ) {
+		return qfalse;
+	}
+
+	if ( !G_GetTeamPickupStatForItem( ent, &teamStatIndex ) ) {
+		return qfalse;
+	}
+
+	switch ( teamStatIndex ) {
+	case TEAMSTAT_PICKUPS_RA:
+		*pickupIndex = SCORESTAT_PICKUP_RA;
+		return qtrue;
+	case TEAMSTAT_PICKUPS_YA:
+		*pickupIndex = SCORESTAT_PICKUP_YA;
+		return qtrue;
+	case TEAMSTAT_PICKUPS_GA:
+		*pickupIndex = SCORESTAT_PICKUP_GA;
+		return qtrue;
+	case TEAMSTAT_PICKUPS_MH:
+		*pickupIndex = SCORESTAT_PICKUP_MH;
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
 static void G_ApplyItemBounceSettings( gentity_t *dropped, gitem_t *item ) {
 	qboolean	factoryAllowsBounce;
 
@@ -423,6 +586,16 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 		other->client->ps.powerups[ent->item->giTag] += quantity * 1000;
 	}
 
+	{
+		teamScoreStatIndex_t holdStatIndex;
+
+		holdStatIndex = G_TeamHoldStatForPowerup( ent->item->giTag );
+		if ( holdStatIndex >= 0 && holdStatIndex < TEAMSTAT_COUNT ) {
+			G_FlushExpiredClientTeamHoldStats( other->client, level.time );
+			G_BeginClientTeamHoldStat( other->client, holdStatIndex );
+		}
+	}
+
 	if ( ent->item->giTag == PW_QUAD ) {
 		G_QuadHogOnPickup( other );
 	}
@@ -479,7 +652,7 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 //======================================================================
 
 int Pickup_PersistantPowerup( gentity_t *ent, gentity_t *other ) {
-	other->client->ps.stats[STAT_PERSISTANT_POWERUP] = ent->item->giTag;
+	other->client->ps.stats[STAT_PERSISTANT_POWERUP] = ITEM_INDEX( ent->item );
 	other->client->persistantPowerup = ent;
 	other->client->ps.powerups[ent->item->giTag] = INT_MAX;
 
@@ -519,6 +692,7 @@ static int Pickup_Key( gentity_t *ent, gentity_t *other ) {
 	}
 
 	other->keyMask |= keyBit;
+	G_BroadcastClientKeyMask( other->s.number );
 
 	if ( other->client ) {
 		trap_RankReportInt( other->s.number, -1, QGR_KEY_FLAG_PICKUP, 1, 1 );
@@ -727,14 +901,40 @@ int Pickup_Ammo (gentity_t *ent, gentity_t *other)
 {
 	int			quantity;
 	int			respawn;
+	int			weapon;
 
-	quantity = G_ResolveAmmoPickupAmount( ent );
+	if ( ent && ent->item && ent->item->giTag == WP_NUM_WEAPONS ) {
+		int fallback;
 
-	if ( quantity < 0 ) {
-		quantity = 0;
+		if ( ent->count < 0 ) {
+			fallback = 0;
+		} else if ( ent->count > 0 ) {
+			fallback = ent->count;
+		} else {
+			fallback = 0;
+		}
+
+		for ( weapon = WP_MACHINEGUN; weapon < WP_NUM_WEAPONS; weapon++ ) {
+			if ( !( other->client->ps.stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {
+				continue;
+			}
+
+			quantity = G_GetAmmoPackPickupCount( (weapon_t)weapon, fallback );
+			if ( quantity <= 0 ) {
+				continue;
+			}
+
+			Add_Ammo( other, weapon, quantity );
+		}
+	} else {
+		quantity = G_ResolveAmmoPickupAmount( ent );
+
+		if ( quantity < 0 ) {
+			quantity = 0;
+		}
+
+		Add_Ammo( other, ent->item->giTag, quantity );
 	}
-
-	Add_Ammo (other, ent->item->giTag, quantity);
 
 	respawn = G_GetConfiguredAmmoRespawnSeconds();
 	if ( respawn <= 0 ) {
@@ -865,20 +1065,16 @@ Adds armor from pickups and clamps it based on the player's current powerups.
 =============
 */
 int Pickup_Armor( gentity_t *ent, gentity_t *other ) {
-	int		upperBound;
 	playerState_t	*ps;
+	qboolean	armorTiered;
 
 	if ( !other || !other->client ) {
 		return RESPAWN_ARMOR;
 	}
 
 	ps = &other->client->ps;
-	ps->stats[STAT_ARMOR] += ent->item->quantity;
-
-	upperBound = BG_GetArmorUpperBound( ps );
-	if ( upperBound > 0 && ps->stats[STAT_ARMOR] > upperBound ) {
-		ps->stats[STAT_ARMOR] = upperBound;
-	}
+	armorTiered = g_armorTiered.integer ? qtrue : qfalse;
+	BG_ApplyArmorPickup( ps, ent ? ent->item : NULL, armorTiered );
 
 	return RESPAWN_ARMOR;
 }
@@ -1024,6 +1220,19 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	if ( !respawn ) {
 		return;
 	}
+
+	{
+		teamScoreStatIndex_t	teamStatIndex;
+		scorestatPickupIndex_t	pickupIndex;
+
+		if ( G_GetTeamPickupStatForItem( ent, &teamStatIndex ) ) {
+			G_RecordTeamPickupStat( other, teamStatIndex );
+		}
+		if ( G_GetPlacementPickupIndexForItem( ent, &pickupIndex ) ) {
+			G_RecordPlacementPickupTelemetry( other, pickupIndex );
+		}
+	}
+
 	G_UpdateClientItemUnlockProgress( other->client, ent->item );
 
 	// play the normal pickup sound
@@ -1110,6 +1319,87 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 //======================================================================
 
 /*
+=================
+G_DroppedPowerupRunFrame
+
+Mirrors the retail dropped-powerup trigger bridge for jump pads and teleporters.
+=================
+*/
+static void G_DroppedPowerupRunFrame( gentity_t *ent, float thinktime ) {
+	int			i;
+	int			num;
+	int			touch[MAX_GENTITIES];
+	vec3_t		mins;
+	vec3_t		maxs;
+
+	(void)thinktime;
+
+	if ( !ent->item || ent->item->giType != IT_POWERUP ) {
+		return;
+	}
+
+	VectorSet( mins,
+		ent->r.currentOrigin[0] - 15.0f,
+		ent->r.currentOrigin[1] - 15.0f,
+		ent->r.currentOrigin[2] - 15.0f );
+	VectorSet( maxs,
+		ent->r.currentOrigin[0] + 15.0f,
+		ent->r.currentOrigin[1] + 15.0f,
+		ent->r.currentOrigin[2] + 15.0f );
+
+	num = trap_EntitiesInBox( mins, maxs, touch, MAX_GENTITIES );
+	for ( i = 0; i < num; i++ ) {
+		gentity_t	*trigger;
+
+		trigger = &g_entities[touch[i]];
+		if ( trigger == ent || !trigger->inuse || !trigger->classname ) {
+			continue;
+		}
+
+		if ( !Q_stricmp( trigger->classname, "trigger_push" ) ) {
+			if ( ent->fly_sound_debounce_time < level.time ) {
+				gentity_t	*te;
+
+				ent->fly_sound_debounce_time = level.time + 1500;
+				te = G_TempEntity( ent->r.currentOrigin, EV_GENERAL_SOUND );
+				te->s.eventParm = G_SoundIndex( "sound/world/jumppad.wav" );
+			}
+
+			VectorCopy( ent->r.currentOrigin, ent->s.pos.trBase );
+			VectorCopy( trigger->s.origin2, ent->s.pos.trDelta );
+			ent->s.pos.trTime = level.previousTime;
+			continue;
+		}
+
+		if ( !Q_stricmp( trigger->classname, "trigger_teleport" ) ) {
+			gentity_t	*dest;
+			gentity_t	*te;
+			vec3_t		forward;
+
+			dest = G_PickTarget( trigger->target );
+			if ( !dest ) {
+				G_Printf( "Couldn't find teleporter destination\n" );
+				return;
+			}
+
+			te = G_TempEntity( ent->r.currentOrigin, EV_GENERAL_SOUND );
+			te->s.eventParm = G_SoundIndex( "sound/world/teleout.ogg" );
+
+			VectorCopy( dest->s.origin, ent->r.currentOrigin );
+			VectorCopy( dest->s.origin, ent->s.pos.trBase );
+			AngleVectors( dest->s.angles, forward, NULL, NULL );
+			VectorScale( forward, 400, ent->s.pos.trDelta );
+			ent->s.pos.trDelta[2] += 96;
+			SnapVector( ent->s.pos.trDelta );
+			ent->s.pos.trTime = level.previousTime;
+
+			te = G_TempEntity( ent->r.currentOrigin, EV_GENERAL_SOUND );
+			te->s.eventParm = G_SoundIndex( "sound/world/telein.ogg" );
+		}
+	}
+}
+
+/*
 ================
 LaunchItem
 
@@ -1141,6 +1431,9 @@ gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity ) {
 	dropped->s.pos.trType = TR_GRAVITY;
 	dropped->s.pos.trTime = level.time;
 	VectorCopy( velocity, dropped->s.pos.trDelta );
+	if ( item->giType == IT_POWERUP ) {
+		dropped->runFrame = G_DroppedPowerupRunFrame;
+	}
 
 	G_ApplyItemBounceSettings( dropped, item );
 	if ( ( g_gametype.integer == GT_CTF || g_gametype.integer == GT_1FCTF )			&& item->giType == IT_TEAM ) { // Special case for CTF flags
@@ -1191,6 +1484,9 @@ gentity_t *Drop_Item( gentity_t *ent, gitem_t *item, float angle ) {
 	dropped = LaunchItem( item, ent->s.pos.trBase, velocity );
 	if ( dropped && ent && item->giType == IT_KEY ) {
 		ent->keyMask &= ~item->giTag;
+		if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
+			G_BroadcastClientKeyMask( ent->s.number );
+		}
 	}
 
 	return dropped;
@@ -1232,6 +1528,9 @@ void G_DropClientKeys( gentity_t *ent ) {
 	}
 
 	ent->keyMask = 0;
+	if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
+		G_BroadcastClientKeyMask( ent->s.number );
+	}
 }
 
 
@@ -1572,9 +1871,10 @@ void G_RunItem( gentity_t *ent ) {
 		}
 	}
 
+	// retail services per-frame item callbacks before deciding whether motion continues
+	G_RunThink( ent );
+
 	if ( ent->s.pos.trType == TR_STATIONARY ) {
-		// check think function
-		G_RunThink( ent );
 		return;
 	}
 
@@ -1597,9 +1897,6 @@ void G_RunItem( gentity_t *ent ) {
 	}
 
 	trap_LinkEntity( ent );	// FIXME: avoid this for stationary?
-
-	// check think function
-	G_RunThink( ent );
 
 	if ( tr.fraction == 1 ) {
 		return;

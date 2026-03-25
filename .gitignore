@@ -40,3 +40,11 @@ src/ui/assets/
 *.userosscache
 *.VC.db
 *.VC.VC.opendb
+
+# Ralph loop runtime artifacts
+.codex/ralph/archive/
+.codex/ralph/events.log
+.codex/ralph/run.log
+.codex/ralph/last-message.md
+.codex/ralph/prompt.current.md
+.codex/ralph/.last-branch

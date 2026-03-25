@@ -1201,10 +1201,6 @@ typedef struct playerState_s {
 	int			groundTraceLatestEntNum;
 	vec3_t		groundTraceLatestNormal;
 
-	int			doubleJumpTime;
-	int			doubleJumpEntNum;
-	vec3_t		doubleJumpNormal;
-
 	int			legsTimer;		// don't change low priority animations until this runs out
 	int			legsAnim;		// mask off ANIM_TOGGLEBIT
 
@@ -1250,15 +1246,18 @@ typedef struct playerState_s {
 	int			loopSound;
 	int			jumppad_ent;	// jumppad entity hit this frame
 
+	// pmove timing state tracked by the server and replicated for client prediction
+	int			jumpTime;
+	int			doubleJumped;
+	int			crouchTime;
+	int			crouchSlideTime;
+
 	// not communicated over the net at all
 	int			ping;			// server to game info for scoreboard
 	int			pmove_framecount;	// FIXME: don't transmit over the network
 	int			jumppad_frame;
 	int			entityEventSequence;
-
-	// pmove timers tracked by the server but also replicated for client prediction
-	int			crouchTime;
-	int			crouchSlideTime;
+	int			armorTier;		// retail Quake Live tiered armor state: 0=green, 1=yellow, 2=red
 } playerState_t;
 
 

@@ -231,6 +231,7 @@ static void CG_Item( centity_t *cent ) {
 	float			frac;
 	float			scale;
 	weaponInfo_t	*wi;
+	char			skipItems[32];
 
 	es = &cent->currentState;
 	if ( es->modelindex >= bg_numItems ) {
@@ -243,6 +244,11 @@ static void CG_Item( centity_t *cent ) {
 	}
 
 	item = &bg_itemlist[ es->modelindex ];
+	trap_Cvar_VariableStringBuffer( "cg_skipItems", skipItems, sizeof( skipItems ) );
+	if ( skipItems[0] == '1' ) {
+		return;
+	}
+
 	if ( cg_simpleItems.integer && item->giType != IT_TEAM ) {
 		memset( &ent, 0, sizeof( ent ) );
 		ent.reType = RT_SPRITE;
@@ -600,22 +606,36 @@ Also called as an event
 ===============
 */
 void CG_Beam( centity_t *cent ) {
-	refEntity_t			ent;
+	localEntity_t		*le;
+	refEntity_t			*beam;
 	entityState_t		*s1;
 
 	s1 = &cent->currentState;
 
-	// create the render entity
-	memset (&ent, 0, sizeof(ent));
-	VectorCopy( s1->pos.trBase, ent.origin );
-	VectorCopy( s1->origin2, ent.oldorigin );
-	AxisClear( ent.axis );
-	ent.reType = RT_BEAM;
+	le = CG_AllocLocalEntity();
+	le->leFlags = 0;
+	le->leType = LE_SHOWREFENTITY;
+	le->startTime = cg.time;
+	le->endTime = cg.time + 500;
+	le->lifeRate = 1.0f / ( le->endTime - le->startTime );
+	le->color[0] = 0.75f;
+	le->color[1] = 0.0f;
+	le->color[2] = 0.0f;
+	le->color[3] = 1.0f;
 
-	ent.renderfx = RF_NOSHADOW;
+	beam = &le->refEntity;
+	beam->reType = RT_RAIL_CORE;
+	beam->customShader = cgs.media.railCoreShader;
+	beam->shaderTime = cg.time / 1000.0f;
+	beam->radius = 256.0f;
+	beam->shaderRGBA[0] = 0xbf;
+	beam->shaderRGBA[1] = 0x00;
+	beam->shaderRGBA[2] = 0x00;
+	beam->shaderRGBA[3] = 0xff;
+	VectorCopy( s1->pos.trBase, beam->origin );
+	VectorCopy( s1->origin2, beam->oldorigin );
+	AxisClear( beam->axis );
 
-	// add to refresh list
-	trap_R_AddRefEntityToScene(&ent);
 }
 
 
@@ -1230,8 +1250,14 @@ void CG_AddPacketEntities( void ) {
 
 	// generate and add the entity from the playerstate
 	ps = &cg.predictedPlayerState;
-	BG_PlayerStateToEntityState( ps, &cg.predictedPlayerEntity.currentState, qfalse );
-	CG_AddCEntity( &cg.predictedPlayerEntity );
+	BG_PlayerStateToEntityStateExtraPolate( ps, &cg.predictedPlayerEntity.currentState, cg.time, qfalse );
+	if ( !( ps->pm_flags & PMF_FOLLOW ) || ps->stats[STAT_HEALTH] <= GIB_HEALTH ) {
+		CG_AddCEntity( &cg.predictedPlayerEntity );
+	} else {
+		CG_CalcEntityLerpPositions( &cg.predictedPlayerEntity );
+		CG_EntityEffects( &cg.predictedPlayerEntity );
+		CG_Player( &cg.predictedPlayerEntity );
+	}
 
 	// lerp the non-predicted value for lightning gun origins
 	CG_CalcEntityLerpPositions( &cg_entities[ cg.snap->ps.clientNum ] );

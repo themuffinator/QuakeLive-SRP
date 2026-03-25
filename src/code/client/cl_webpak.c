@@ -72,6 +72,11 @@ void CL_WebPak_Init( void ) {
 		cl_webPak = NULL;
 	}
 
+	if ( !CL_OnlineServicesEnabled() ) {
+		Com_Printf( "web.pak mount skipped: online services disabled by build/runtime policy\n" );
+		return;
+	}
+
 	Cvar_VariableStringBuffer( "fs_homepath", homePath, sizeof( homePath ) );
 	osPath = FS_BuildOSPath( homePath, "", "web.pak" );
 	Q_strncpyz( pakPath, osPath, sizeof( pakPath ) );
@@ -127,7 +132,7 @@ CL_WebPak_Available
 =============
 */
 qboolean CL_WebPak_Available( void ) {
-	return ( cl_webPak != NULL );
+	return ( CL_OnlineServicesEnabled() && cl_webPak != NULL );
 }
 
 /*
@@ -140,6 +145,10 @@ freed with Z_Free.
 */
 qboolean CL_WebPak_Fetch( const char *virtualPath, void **outBuffer, int *outLength ) {
 	char			normalized[MAX_QPATH];
+
+	if ( !CL_OnlineServicesEnabled() ) {
+		return qfalse;
+	}
 
 	if ( !CL_WebPak_NormalizePath( virtualPath, normalized, sizeof( normalized ) ) ) {
 		return qfalse;
@@ -164,6 +173,10 @@ qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *o
 
 	if ( outBuffer ) {
 		*outBuffer = NULL;
+	}
+
+	if ( !CL_OnlineServicesEnabled() ) {
+		return qfalse;
 	}
 
 	if ( !CL_WebPak_NormalizePath( virtualPath, normalized, sizeof( normalized ) ) ) {
@@ -202,5 +215,9 @@ Bridge HTTP/UI requests through web.pak before falling back to other sources.
 =============
 */
 qboolean CL_LauncherRequestData( const char *virtualPath, void **outBuffer, int *outLength ) {
+	if ( !CL_OnlineServicesEnabled() ) {
+		return qfalse;
+	}
+
 	return CL_WebRequestResolve( virtualPath, outBuffer, outLength );
 }

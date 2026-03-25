@@ -1,128 +1,4493 @@
 {
   "schema_version": 1,
   "binary": "ui",
-  "input_path": "assets/ui.x86",
-  "generated_at": "2024-05-01T00:00:00Z",
+  "retail_binary": "uix86.dll",
+  "input_path": "assets/quakelive/baseq3/uix86.dll",
+  "generated_at": "2026-03-20T00:00:00Z",
+  "coverage": {
+    "mode": "curated_high_confidence_subset_plus_hlil_anchors",
+    "ghidra_function_count": 348,
+    "ghidra_mapped_function_count": 348,
+    "hlil_only_anchor_count": 96,
+    "corpus_anchor_count": 444,
+    "mapped_function_count": 444,
+    "notes": "Coverage now tracks the combined committed retail address corpus: all 348 Ghidra functions from functions.csv plus 96 additional HLIL-only addresses carried by the curated map. This pass closes the remaining export-table-adjacent HLIL-only wrappers after UI_HasUniqueCDKey, including the display-context refresh helper, the any-visible-menu predicate, the arena-name iterator, and the advertisement wait-screen drawer."
+  },
+  "sources": [
+    "references/reverse-engineering/ghidra/uix86/metadata.txt",
+    "references/reverse-engineering/ghidra/uix86/functions.csv",
+    "references/reverse-engineering/ghidra/uix86/analysis_symbols.txt",
+    "references/reverse-engineering/ghidra/uix86/decompile_top_functions.c",
+    "references/hlil/quakelive/uix86.all/uix86.dll_hlil.txt",
+    "src/code/game/q_shared.c",
+    "src/code/game/q_math.c",
+    "src/code/ui/ui_atoms.c",
+    "src/code/ui/ui_main.c",
+    "src/code/ui/ui_gameinfo.c",
+    "src/code/ui/ui_players.c",
+    "src/code/ui/ui_shared.c"
+  ],
   "normalization": {
     "alias_source": "references/analysis/quakelive_symbol_aliases.json",
     "unresolved_prefix": "UNRESOLVED_UI"
   },
   "functions": [
     {
-      "address": "0x00301020",
-      "raw_name": "UI_Init",
-      "normalized_name": "UI_Init",
+      "address": "0x10001000",
+      "raw_name": "FUN_10001000",
+      "normalized_name": "UI_GetCallvoteGametypeToken",
       "status": "matched",
-      "signature": "void UI_Init(void)",
-      "string_refs": ["0x0058A010"],
-      "relocation_refs": ["0x000C1010"],
-      "comment": "Initializes Quake Live menu system"
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the short retail callvote factory token for a gametype enum, such as the values later formatted into callvote map commands."
     },
     {
-      "address": "0x00301840",
-      "raw_name": "sub_301840",
+      "address": "0x10001090",
+      "raw_name": "FUN_10001090",
+      "normalized_name": "UI_StartingWeaponIndexFromToken",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [
+        "cg_weaponPrimaryQueued"
+      ],
+      "relocation_refs": [],
+      "comment": "Parses the queued primary-weapon token and returns the 1-based retail starting-weapons table index used by UI_DrawStartingWeapons."
+    },
+    {
+      "address": "0x100010F0",
+      "raw_name": "FUN_100010f0",
+      "normalized_name": "AnglesToAxis",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds a 3x3 axis matrix from Euler angles by calling AngleVectors and negating the intermediate right vector into axis[1]."
+    },
+    {
+      "address": "0x10001140",
+      "raw_name": "FUN_10001140",
+      "normalized_name": "AngleSubtract",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Normalizes the angle delta a1 - a2 into the shared Quake range [-180, 180] for player animation and orientation code."
+    },
+    {
+      "address": "0x100011C0",
+      "raw_name": "FUN_100011c0",
+      "normalized_name": "MatrixMultiply",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Multiplies two 3x3 axis matrices, exactly matching the shared tag-attachment and player-model composition helper."
+    },
+    {
+      "address": "0x100012A0",
+      "raw_name": "FUN_100012a0",
+      "normalized_name": "AngleVectors",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds optional forward, right, and up vectors from Euler angles, matching the shared AngleVectors helper used by player preview code."
+    },
+    {
+      "address": "0x10001400",
+      "raw_name": "FUN_10001400",
+      "normalized_name": "COM_Compress",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "In-place parser prepass that strips comments, collapses whitespace, and preserves quoted strings."
+    },
+    {
+      "address": "0x10001500",
+      "raw_name": "FUN_10001500",
+      "normalized_name": "COM_ParseExt",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared token parser with allowLineBreaks handling, comment skipping, quoted-string support, and the module-global token buffer."
+    },
+    {
+      "address": "0x10001670",
+      "raw_name": "FUN_10001670",
+      "normalized_name": "String_IsNumeric",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns true when the inspected substring contains only digits with at most one decimal point, matching the retail choice-list formatting gate."
+    },
+    {
+      "address": "0x100016C0",
+      "raw_name": "FUN_100016c0",
+      "normalized_name": "Q_stricmpn",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Case-insensitive bounded compare with Quake-style null handling used across parser and command dispatch paths."
+    },
+    {
+      "address": "0x10001730",
+      "raw_name": "FUN_10001730",
+      "normalized_name": "Q_stricmp",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Thin fixed-limit wrapper over Q_stricmpn that preserves the shared layer's null-sentinel return semantics."
+    },
+    {
+      "address": "0x10001750",
+      "raw_name": "FUN_10001750",
+      "normalized_name": "Q_strncpyz",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Fatal-checking bounded string copy used throughout the retail UI utility layer."
+    },
+    {
+      "address": "0x100017E0",
+      "raw_name": "FUN_100017e0",
+      "normalized_name": "Q_CleanStr",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "In-place shared string cleaner that strips Quake color escapes and non-printable bytes while preserving printable ASCII."
+    },
+    {
+      "address": "0x10001830",
+      "raw_name": "FUN_10001830",
+      "normalized_name": "Com_sprintf",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats into a large temporary buffer, reports overflow, then copies into the bounded destination."
+    },
+    {
+      "address": "0x10001900",
+      "raw_name": "FUN_10001900",
+      "normalized_name": "va",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats into the rotating two-buffer varargs scratch ring used across the UI module."
+    },
+    {
+      "address": "0x10001940",
+      "raw_name": "FUN_10001940",
+      "normalized_name": "Info_ValueForKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses \\\\key\\\\value infostrings with alternating scratch buffers and returns the matched value."
+    },
+    {
+      "address": "0x10001A60",
+      "raw_name": "FUN_10001a60",
+      "normalized_name": "Info_RemoveKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Removes a key and its paired value from a mutable info string after oversize validation."
+    },
+    {
+      "address": "0x10001B80",
+      "raw_name": "FUN_10001b80",
+      "normalized_name": "Info_SetValueForKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Rejects illegal info-string characters, removes any prior key, and appends the new \\\\key\\\\value pair."
+    },
+    {
+      "address": "0x10001D60",
+      "raw_name": "FUN_10001d60",
+      "normalized_name": "Color_LerpBytesToPacked",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Blends two RGB byte triplets with a fractional weight, applies a final scalar, clamps each channel, and returns a packed 0xRRGGBBFF color."
+    },
+    {
+      "address": "0x10001E20",
+      "raw_name": "FUN_10001e20",
+      "normalized_name": "Color_PackedToScaledRGBA",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Unpacks a packed RGBA word into destination bytes, scales RGB by an integer brightness factor, and preserves the packed alpha byte."
+    },
+    {
+      "address": "0x10001E70",
+      "raw_name": "FUN_10001e70",
+      "normalized_name": "Com_Error",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats a fatal message and forwards it through the UI syscall error slot."
+    },
+    {
+      "address": "0x10001EE0",
+      "raw_name": "FUN_10001ee0",
+      "normalized_name": "Com_Printf",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats a message and forwards it through the UI syscall print slot."
+    },
+    {
+      "address": "0x10001F50",
+      "raw_name": "FUN_10001f50",
+      "normalized_name": "UI_Cvar_VariableString",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Fetches a cvar string into the shared 0x400-byte UI scratch buffer and returns it."
+    },
+    {
+      "address": "0x10001F70",
+      "raw_name": "FUN_10001f70",
+      "normalized_name": "UI_SetBestScores",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Sets the postgame ui_score* cvars, including mirrored second-player score fields."
+    },
+    {
+      "address": "0x10002350",
+      "raw_name": "FUN_10002350",
+      "normalized_name": "UI_LoadBestScores",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads saved score and demo metadata from the per-map postgame files."
+    },
+    {
+      "address": "0x10002490",
+      "raw_name": "FUN_10002490",
+      "normalized_name": "UI_ConsoleCommand_MenuClose",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only console-command helper behind menu_close that reads argv(1), resolves the named menu, clears its open state, and runs the close path."
+    },
+    {
+      "address": "0x10002520",
+      "raw_name": "FUN_10002520",
+      "normalized_name": "UI_ConsoleCommand_MenuOpen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only console-command helper behind menu_open that reads argv(1) and forwards the requested menu name to Menus_ActivateByName."
+    },
+    {
+      "address": "0x10002550",
+      "raw_name": "FUN_10002550",
+      "normalized_name": "UI_CalcPostGameStats",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Calculates postgame bonuses, best-score state, and follow-up cvar writes."
+    },
+    {
+      "address": "0x10002AC0",
+      "raw_name": "sub_10002ac0",
+      "normalized_name": "UI_ConsoleCommand",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Dispatches the retail UI console commands, including listPlayerModels, ui_report, ui_load, postgame, ui_cache, menu_open, and menu_close."
+    },
+    {
+      "address": "0x10002BF0",
+      "raw_name": "FUN_10002bf0",
+      "normalized_name": "UI_AdjustFrom640",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scales 640x480 UI coordinates through the current xscale, yscale, and widescreen bias."
+    },
+    {
+      "address": "0x10002C50",
+      "raw_name": "FUN_10002c50",
+      "normalized_name": "UI_DrawHandlePic",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Draws a shader-backed picture rectangle and flips UVs when width or height are negative."
+    },
+    {
+      "address": "0x10002D60",
+      "raw_name": "FUN_10002d60",
+      "normalized_name": "UI_FillRect",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Fills a solid rectangle using the cached white shader and current color."
+    },
+    {
+      "address": "0x10002E20",
+      "raw_name": "FUN_10002e20",
+      "normalized_name": "UI_LoadArenasFromFile",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads an arena script file, validates size, and parses arena info blocks into the arena list."
+    },
+    {
+      "address": "0x10003070",
+      "raw_name": "FUN_10003070",
+      "normalized_name": "UI_ParseInfos",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads arena or bot info files into info-string records while enforcing the retail brace and EOF parse guards."
+    },
+    {
+      "address": "0x10003190",
+      "raw_name": "FUN_10003190",
+      "normalized_name": "UI_LoadArenas",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads the arena catalog via g_arenasFile and the scripts/arenas.txt fallback path."
+    },
+    {
+      "address": "0x10003640",
+      "raw_name": "FUN_10003640",
+      "normalized_name": "UI_LoadBotsFromFile",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads a bot script file, validates size, and parses bot info blocks."
+    },
+    {
+      "address": "0x10003770",
+      "raw_name": "FUN_10003770",
+      "normalized_name": "UI_LoadBots",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads the bot catalog via g_botsFile and scripts/*.bot fallback enumeration."
+    },
+    {
+      "address": "0x100038C0",
+      "raw_name": "FUN_100038c0",
+      "normalized_name": "UI_GetBotNameByNumber",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the cleaned bot name for a valid bot index and falls back to Sarge when no bot info is available."
+    },
+    {
+      "address": "0x10003910",
+      "raw_name": "sub_10003910",
+      "normalized_name": "UI_HasUniqueCDKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns qtrue through the native export-table slot that replaces the old UI_HASUNIQUECDKEY vmMain case."
+    },
+    {
+      "address": "0x10003920",
+      "raw_name": "sub_10003920",
+      "normalized_name": "UI_RefreshDisplayContext",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Extended native export-table helper that refreshes the 640x480 UI scale state through UI_RefreshDisplayContextScale and republishes the retail uiDC pointer."
+    },
+    {
+      "address": "0x10003930",
+      "raw_name": "sub_10003930",
+      "normalized_name": "UI_ForEachArenaName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Extended native export-table helper that lazily loads arenas and invokes a caller-supplied callback for each non-null arena display-name pointer."
+    },
+    {
+      "address": "0x10003970",
+      "raw_name": "dllEntry",
+      "normalized_name": "dllEntry",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Native module bootstrap that installs the export table and caches the syscall table pointer."
+    },
+    {
+      "address": "0x10003990",
+      "raw_name": "FUN_10003990",
+      "normalized_name": "AssetCache",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Registers gradient, FX art, scrollbars, slider art, and the crosshair shader set."
+    },
+    {
+      "address": "0x10003B30",
+      "raw_name": "FUN_10003b30",
+      "normalized_name": "_UI_DrawSides",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Draws the left and right edges of the UI outline rectangle."
+    },
+    {
+      "address": "0x10003C20",
+      "raw_name": "FUN_10003c20",
+      "normalized_name": "_UI_DrawTopBottom",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Draws the top and bottom edges of the UI outline rectangle."
+    },
+    {
+      "address": "0x10003D90",
+      "raw_name": "FUN_10003d90",
+      "normalized_name": "Text_GetDimensions",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Lower-level retail text-bounds helper that measures string width and height through out-parameters and sits underneath the Text_Width and Text_Height wrappers."
+    },
+    {
+      "address": "0x10003E60",
+      "raw_name": "sub_10003e60",
+      "normalized_name": "Text_Width",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-only wrapper over the retail text-bounds helper that returns width and is assigned to uiDC.textWidth during _UI_Init."
+    },
+    {
+      "address": "0x10003E90",
+      "raw_name": "sub_10003e90",
+      "normalized_name": "Text_Height",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-only wrapper over the retail text-bounds helper that returns height and is assigned to uiDC.textHeight during _UI_Init."
+    },
+    {
+      "address": "0x10003EC0",
+      "raw_name": "FUN_10003ec0",
+      "normalized_name": "Text_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Font renderer assigned into uiDC.drawText during _UI_Init."
+    },
+    {
+      "address": "0x10004070",
+      "raw_name": "FUN_10004070",
+      "normalized_name": "Text_PaintWithCursor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints text while drawing a blinking insert or overstrike cursor at the active position."
+    },
+    {
+      "address": "0x10004280",
+      "raw_name": "FUN_10004280",
+      "normalized_name": "Text_Paint_Limit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scaled-text helper behind UI_DrawServerMOTD that clips text against *maxX, temporarily projects the out-parameter into screen space, and draws through the retail import[94] text path."
+    },
+    {
+      "address": "0x10004390",
+      "raw_name": "sub_10004390",
+      "normalized_name": "_UI_Refresh",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances UI realtime and FPS state, refreshes cvars, paints menus, ticks the browser refresh work, and draws the cursor."
+    },
+    {
+      "address": "0x100044E0",
+      "raw_name": "sub_100044e0",
+      "normalized_name": "_UI_Shutdown",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Tail-jumps through the syscall table to save cached LAN servers, matching the entire native shutdown entrypoint."
+    },
+    {
+      "address": "0x100044F0",
+      "raw_name": "FUN_100044f0",
+      "normalized_name": "GetMenuBuffer",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads a menu script into the static buffer with default fallback and size guards."
+    },
+    {
+      "address": "0x100045B0",
+      "raw_name": "FUN_100045b0",
+      "normalized_name": "Asset_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses assetGlobalDef menu blocks and populates shared UI asset definitions."
+    },
+    {
+      "address": "0x10004B20",
+      "raw_name": "FUN_10004b20",
+      "normalized_name": "UI_ParseMenu",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Opens a menu file buffer and parses its top-level assetGlobalDef and menudef blocks."
+    },
+    {
+      "address": "0x10004E10",
+      "raw_name": "FUN_10004e10",
+      "normalized_name": "UI_LoadMenus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads a menu set with fallback-to-default handling and optional display reset."
+    },
+    {
+      "address": "0x10004FC0",
+      "raw_name": "FUN_10004fc0",
+      "normalized_name": "UI_Load",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reloads the active menu file set from ui_menuFiles and the ingame fallback file."
+    },
+    {
+      "address": "0x10005100",
+      "raw_name": "FUN_10005100",
+      "normalized_name": "UI_DrawHandicap",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clamps the handicap cvar into the retail 5..100 range, indexes the handicap label table, and paints the selected value."
+    },
+    {
+      "address": "0x100051B0",
+      "raw_name": "FUN_100051b0",
+      "normalized_name": "UI_SetCapFragLimits",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Computes the retail default capture and frag limits for the current gametype and writes either the ui_* preview cvars or the live gameplay cvars."
+    },
+    {
+      "address": "0x10005220",
+      "raw_name": "FUN_10005220",
+      "normalized_name": "UI_DrawGameType",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the current single-player game-type label from the retail game-type table."
+    },
+    {
+      "address": "0x10005260",
+      "raw_name": "FUN_10005260",
+      "normalized_name": "UI_DrawNetGameType",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates ui_netGameType and ui_actualNetGameType against the retail bounds and paints the selected net game-type label."
+    },
+    {
+      "address": "0x100052E0",
+      "raw_name": "FUN_100052e0",
+      "normalized_name": "UI_DrawJoinGameType",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates ui_joinGameType against the retail join-game-type count and paints the selected join label."
+    },
+    {
+      "address": "0x10005350",
+      "raw_name": "FUN_10005350",
+      "normalized_name": "UI_DrawSkill",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clamps g_spSkill into the retail 1..5 range and paints the matching skill-level string."
+    },
+    {
+      "address": "0x100053C0",
+      "raw_name": "FUN_100053c0",
+      "normalized_name": "UI_DrawMapPreview",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates the active map selector for the chosen preview path, caches the levelshot shader on first use, and falls back to `menu/art/unknownmap` when no preview is available."
+    },
+    {
+      "address": "0x100054A0",
+      "raw_name": "FUN_100054a0",
+      "normalized_name": "UI_DrawMapTimeToBeat",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves the active map's time-to-beat for the current gametype, formats it as `%02i:%02i`, and paints the result."
+    },
+    {
+      "address": "0x10005560",
+      "raw_name": "FUN_10005560",
+      "normalized_name": "UI_DrawMapCinematic",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs or lazily starts the selected map cinematic, then falls back to UI_DrawMapPreview when the ROQ is unavailable."
+    },
+    {
+      "address": "0x10005690",
+      "raw_name": "FUN_10005690",
+      "normalized_name": "UI_DrawPlayerModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the cached player preview model from the retail model and headmodel cvars, updates the playerInfo block, and renders it through UI_DrawPlayer."
+    },
+    {
+      "address": "0x10005850",
+      "raw_name": "FUN_10005850",
+      "normalized_name": "UI_DrawTeamPlayerModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds and renders the forced team-model preview using cg_forceTeamModel, cg_forceTeamSkin, and the team color cvars."
+    },
+    {
+      "address": "0x10005C20",
+      "raw_name": "FUN_10005c20",
+      "normalized_name": "UI_DrawEnemyPlayerModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds and renders the forced enemy-model preview using cg_forceEnemyModel, cg_forceEnemySkin, and the enemy color cvars."
+    },
+    {
+      "address": "0x10005FF0",
+      "raw_name": "FUN_10005ff0",
+      "normalized_name": "UI_DrawRedTeamModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds and renders the forced red-team model preview using cg_forceRedTeamModel and the team color cvars."
+    },
+    {
+      "address": "0x100062A0",
+      "raw_name": "FUN_100062a0",
+      "normalized_name": "UI_DrawBlueTeamModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds and renders the forced blue-team model preview using cg_forceBlueTeamModel and the enemy color cvars."
+    },
+    {
+      "address": "0x10006550",
+      "raw_name": "FUN_10006550",
+      "normalized_name": "UI_DrawNetSource",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats and paints the current browser source label as `Source: %s`."
+    },
+    {
+      "address": "0x100065B0",
+      "raw_name": "FUN_100065b0",
+      "normalized_name": "UI_DrawNetMapPreview",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Draws the current server preview shader or falls back to `menu/art/unknownmap`."
+    },
+    {
+      "address": "0x10006600",
+      "raw_name": "FUN_10006600",
+      "normalized_name": "UI_DrawNetMapCinematic",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs and draws the current server cinematic when available, then falls back to UI_DrawNetMapPreview."
+    },
+    {
+      "address": "0x100066D0",
+      "raw_name": "FUN_100066d0",
+      "normalized_name": "UI_DrawNetFilter",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats and paints the current browser filter label as `Filter: %s`."
+    },
+    {
+      "address": "0x10006730",
+      "raw_name": "FUN_10006730",
+      "normalized_name": "UI_DrawOpponent",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the cached opponent playerInfo from ui_opponentModel and renders the preview through UI_DrawPlayer."
+    },
+    {
+      "address": "0x10006890",
+      "raw_name": "FUN_10006890",
+      "normalized_name": "UI_DrawAllMapsSelection",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Draws the current map or net-map display name for the shared all-maps ownerdraw path, with the final flag selecting the active selection slot."
+    },
+    {
+      "address": "0x100068F0",
+      "raw_name": "FUN_100068f0",
+      "normalized_name": "UI_DrawOpponentName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads ui_opponentName into the shared UI cvar buffer and paints it directly."
+    },
+    {
+      "address": "0x10006B30",
+      "raw_name": "FUN_10006b30",
+      "normalized_name": "UI_DrawBotName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves the active bot or character name, falls back to Sarge for invalid entries, and paints the resulting label."
+    },
+    {
+      "address": "0x10006BC0",
+      "raw_name": "FUN_10006bc0",
+      "normalized_name": "UI_DrawBotSkill",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the selected bot skill label from the retail skill-level table."
+    },
+    {
+      "address": "0x10006C10",
+      "raw_name": "FUN_10006c10",
+      "normalized_name": "UI_DrawRedBlue",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints `Red` or `Blue` from the current redBlue toggle state."
+    },
+    {
+      "address": "0x10006C60",
+      "raw_name": "FUN_10006c60",
+      "normalized_name": "UI_DrawCrosshair",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the current crosshair with the retail size, brightness, health-color, and palette-color handling before drawing the selected shader."
+    },
+    {
+      "address": "0x10006950",
+      "raw_name": "sub_10006950",
+      "normalized_name": "UI_OwnerDrawWidth",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Computes rendered text widths for ownerdraw labels such as handicap, team names, skill, and selected-player text."
+    },
+    {
+      "address": "0x10006EA0",
+      "raw_name": "FUN_10006ea0",
+      "normalized_name": "UI_DrawNextMap",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Fetches the localized next-map text block from the string table and paints it into the target rect."
+    },
+    {
+      "address": "0x10006F30",
+      "raw_name": "FUN_10006f30",
+      "normalized_name": "UI_DrawVoteString",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads ui_votestring, centers it using the text-measure helper, and paints the current vote text."
+    },
+    {
+      "address": "0x10007030",
+      "raw_name": "FUN_10007030",
+      "normalized_name": "UI_DrawServerSettings",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Renders the in-game server settings panel, including gametype limits, gameplay modifiers, and the modified-weapons icon list."
+    },
+    {
+      "address": "0x10008730",
+      "raw_name": "FUN_10008730",
+      "normalized_name": "UI_DrawStartingWeapons",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the starting-weapon icon row and the queued-primary label using the retail loadout mask and modified-weapon indicators."
+    },
+    {
+      "address": "0x10008B60",
+      "raw_name": "FUN_10008b60",
+      "normalized_name": "UI_BuildPlayerList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the player and team name caches from player configstrings and refreshes the selected-player cvars."
+    },
+    {
+      "address": "0x10008E90",
+      "raw_name": "FUN_10008e90",
+      "normalized_name": "UI_DrawSelectedPlayer",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the player cache on a timer and paints either the selected teammate name or the local player name."
+    },
+    {
+      "address": "0x10008F20",
+      "raw_name": "FUN_10008f20",
+      "normalized_name": "UI_DrawServerRefreshDate",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints either the pulsing active-refresh message or the cached ui_lastServerRefresh timestamp."
+    },
+    {
+      "address": "0x10009080",
+      "raw_name": "FUN_10009080",
+      "normalized_name": "UI_DrawServerMOTD",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scrolls the current server MOTD across the rectangle with the Welcome to Team Arena fallback and wraparound dual-paint handling."
+    },
+    {
+      "address": "0x100092F0",
+      "raw_name": "FUN_100092f0",
+      "normalized_name": "UI_DrawKeyBindStatus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints either the normal keybind hint or the pending-bind cancellation prompt based on the current keybind state."
+    },
+    {
+      "address": "0x10009340",
+      "raw_name": "FUN_10009340",
+      "normalized_name": "UI_DrawAdvert",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only ownerdraw helper behind UI_ADVERT that tints, draws, and updates the current advertisement surface."
+    },
+    {
+      "address": "0x100093B0",
+      "raw_name": "FUN_100093b0",
+      "normalized_name": "UI_DrawGLInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the GL vendor, version, renderer, and pixel-format diagnostics, then wraps the extension string into multiple lines across the available rect."
+    },
+    {
+      "address": "0x10009660",
+      "raw_name": "FUN_10009660",
+      "normalized_name": "UI_DrawCrosshairColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Draws the retail crosshair-color selector bar and current swatch while honoring the crosshair-health color override."
+    },
+    {
+      "address": "0x100097B0",
+      "raw_name": "FUN_100097b0",
+      "normalized_name": "UI_OwnerDraw",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Large ownerdraw dispatcher assigned into uiDC.ownerDrawItem during _UI_Init."
+    },
+    {
+      "address": "0x10009D30",
+      "raw_name": "FUN_10009d30",
+      "normalized_name": "UI_OwnerDrawVisible",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Evaluates the retail UI_SHOW_* visibility flags against gametype, leader, browser, and score-state conditions."
+    },
+    {
+      "address": "0x1000A040",
+      "raw_name": "FUN_1000a040",
+      "normalized_name": "UI_Handicap_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the handicap cvar in 5-point steps, clamps it to the retail 5..100 range, and wraps through the minimum and maximum values."
+    },
+    {
+      "address": "0x1000A110",
+      "raw_name": "FUN_1000a110",
+      "normalized_name": "UI_GameType_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances the single-player gametype selector, refreshes cap and frag limits, reloads best scores, and resets the map feeder when the map count changes."
+    },
+    {
+      "address": "0x1000A210",
+      "raw_name": "FUN_1000a210",
+      "normalized_name": "UI_NetGameType_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the net gametype selection, skips the retail hidden enums, updates the visible and actual gametype cvars, resets the current net map, and refreshes the feeder."
+    },
+    {
+      "address": "0x1000A300",
+      "raw_name": "FUN_1000a300",
+      "normalized_name": "UI_JoinGameType_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the join-game gametype selector, updates ui_joinGameType, and rebuilds the visible server browser list."
+    },
+    {
+      "address": "0x1000A390",
+      "raw_name": "FUN_1000a390",
+      "normalized_name": "UI_Skill_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles g_spSkill through the retail one-to-five range and wraps at the ends."
+    },
+    {
+      "address": "0x1000A420",
+      "raw_name": "FUN_1000a420",
+      "normalized_name": "UI_NetSource_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the network source selector, skips the unused Mplayer slot, rebuilds the server list, optionally starts a refresh, and writes ui_netSource."
+    },
+    {
+      "address": "0x1000A4F0",
+      "raw_name": "FUN_1000a4f0",
+      "normalized_name": "UI_NetFilter_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the active server filter index with wraparound and rebuilds the server display list."
+    },
+    {
+      "address": "0x1000A570",
+      "raw_name": "FUN_1000a570",
+      "normalized_name": "UI_BotName_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the bot selection, switching between the retail character and bot-list bounds based on the active gametype."
+    },
+    {
+      "address": "0x1000A5D0",
+      "raw_name": "FUN_1000a5d0",
+      "normalized_name": "UI_BotSkill_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles the bot skill selector through the retail skill-level list with wraparound."
+    },
+    {
+      "address": "0x1000A640",
+      "raw_name": "FUN_1000a640",
+      "normalized_name": "UI_Crosshair_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cycles cg_drawCrosshair through the retail crosshair set with wraparound and writes the updated cvar."
+    },
+    {
+      "address": "0x1000A6C0",
+      "raw_name": "FUN_1000a6c0",
+      "normalized_name": "UI_SelectedPlayer_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Rebuilds the player list, cycles the selected player or Everyone entry for team leaders, and updates both selected-player cvars."
+    },
+    {
+      "address": "0x1000A790",
+      "raw_name": "FUN_1000a790",
+      "normalized_name": "UI_CrosshairColor_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only handler that cycles cg_crosshairColor through the numbered palette range and writes the wrapped result back to the cvar."
+    },
+    {
+      "address": "0x1000A820",
+      "raw_name": "FUN_1000a820",
+      "normalized_name": "UI_OwnerDrawHandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Routes ownerdraw key events to the retail per-widget handlers for handicap, gametype, team, bot, crosshair, and selected-player controls."
+    },
+    {
+      "address": "0x1000A980",
+      "raw_name": "sub_1000a980",
+      "normalized_name": "UI_GetValue",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Stubbed display-context getValue callback currently returning 0 for retail ownerdraw value lookups."
+    },
+    {
+      "address": "0x1000A9D0",
+      "raw_name": "FUN_1000a9d0",
+      "normalized_name": "UI_LoadMods",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads the retail $modlist pairs into the mod feeder, interns both mod names and descriptions, and stops at MAX_MODS."
+    },
+    {
+      "address": "0x1000AC00",
+      "raw_name": "FUN_1000ac00",
+      "normalized_name": "UI_LoadMovies",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Enumerates .roq files from the video directory, strips the extension, uppercases the names, and interns the movie feeder entries."
+    },
+    {
+      "address": "0x1000ACF0",
+      "raw_name": "FUN_1000acf0",
+      "normalized_name": "UI_LoadDemos",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the dm_<protocol> extension pair, enumerates demos, strips the protocol suffix, uppercases the names, and interns the demo feeder entries."
+    },
+    {
+      "address": "0x1000AE50",
+      "raw_name": "FUN_1000ae50",
+      "normalized_name": "UI_Update",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [
+        "ui_SetName",
+        "ui_setRate",
+        "ui_GetName",
+        "r_colorBits",
+        "ui_mousePitch"
+      ],
+      "relocation_refs": [],
+      "comment": "Handles retail UI script-side cvar synchronization for name, rate, colorbits, and mouse-pitch updates, exactly matching the current UI_Update helper."
+    },
+    {
+      "address": "0x1000B0E0",
+      "raw_name": "FUN_1000b0e0",
+      "normalized_name": "UI_RunMenuScript",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs menu-script commands and logs unknown UI script handlers."
+    },
+    {
+      "address": "0x1000D2F0",
+      "raw_name": "sub_1000d2f0",
+      "normalized_name": "UI_GetTeamColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Stubbed display-context getTeamColor callback kept in the native callback table even though the retail body is presently empty."
+    },
+    {
+      "address": "0x1000D300",
+      "raw_name": "FUN_1000d300",
+      "normalized_name": "UI_CVMapCountByGameType",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks maps active for the FEEDER_CVMAPS callvote filter using the selected or forced callvote gametype and returns the visible map count."
+    },
+    {
+      "address": "0x1000D3C0",
+      "raw_name": "FUN_1000d3c0",
+      "normalized_name": "UI_MapCountByGameType",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks maps active for the current gametype filter and returns the visible map count, with the single-player path requiring the extra GT_SINGLE_PLAYER bit."
+    },
+    {
+      "address": "0x1000D490",
+      "raw_name": "FUN_1000d490",
+      "normalized_name": "UI_PlayerModelEntryHasSkin",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds models/players/%s/lower_%s.skin from the retail player-model table and returns whether that lower-skin file exists."
+    },
+    {
+      "address": "0x1000D530",
+      "raw_name": "FUN_1000d530",
+      "normalized_name": "UI_CountPlayerModelEntries",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Counts valid retail player-model entries, caching successful skin probes and skipping the team-color skin aliases for the FEEDER_Q3HEADS-style path."
+    },
+    {
+      "address": "0x1000D630",
+      "raw_name": "FUN_1000d630",
+      "normalized_name": "UI_InsertServerIntoDisplayList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Inserts a server index into the displayServers array at a validated position by shifting later entries upward."
+    },
+    {
+      "address": "0x1000D670",
+      "raw_name": "FUN_1000d670",
+      "normalized_name": "UI_RemoveServerFromDisplayList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Removes the first matching server index from the displayServers array and compacts the remaining entries."
+    },
+    {
+      "address": "0x1000D6C0",
+      "raw_name": "FUN_1000d6c0",
+      "normalized_name": "UI_BinaryServerInsertion",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Binary-searches the sorted display server list with trap_LAN_CompareServers and inserts the server at the resolved position."
+    },
+    {
+      "address": "0x1000D740",
+      "raw_name": "FUN_1000d740",
+      "normalized_name": "UI_BuildServerDisplayList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Rebuilds the visible server list, refreshes MOTD metadata, filters server rows, and updates the displayed server counters."
+    },
+    {
+      "address": "0x1000DA60",
+      "raw_name": "FUN_1000da60",
+      "normalized_name": "UI_SortServerStatusInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reorders named server-status cvars to the front of the table and translates Quake Live gametype numbers into display names."
+    },
+    {
+      "address": "0x1000DB60",
+      "raw_name": "FUN_1000db60",
+      "normalized_name": "UI_GetServerStatusInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Fetches server status text, tokenizes cvar and player lines in place, and populates the serverStatusInfo line table."
+    },
+    {
+      "address": "0x1000DE40",
+      "raw_name": "FUN_1000de40",
+      "normalized_name": "stristr",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Static UI-main helper that performs a case-insensitive substring search for the find-player browser path."
+    },
+    {
+      "address": "0x1000DEB0",
+      "raw_name": "FUN_1000deb0",
+      "normalized_name": "UI_BuildFindPlayerList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Drives the asynchronous find-player scan, harvesting matching names from server status replies and updating the found-server list."
+    },
+    {
+      "address": "0x1000E3B0",
+      "raw_name": "FUN_1000e3b0",
+      "normalized_name": "UI_BuildServerStatus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the selected server's status table, resetting outstanding requests on forced rebuilds and retrying until data arrives."
+    },
+    {
+      "address": "0x1000E470",
+      "raw_name": "sub_1000e470",
+      "normalized_name": "UI_FeederCount",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the active row count for retail feeders including maps, servers, player lists, mods, movies, demos, clans, and match summaries."
+    },
+    {
+      "address": "0x1000E600",
+      "raw_name": "FUN_1000e600",
+      "normalized_name": "UI_SelectedMap",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Converts a visible feeder row into the backing active map index and returns that map's display name."
+    },
+    {
+      "address": "0x1000E640",
+      "raw_name": "sub_1000e640",
+      "normalized_name": "UI_FeederItemImage",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves feeder row images such as character heads, map levelshots, callvote maps, and clan emblems."
+    },
+    {
+      "address": "0x1000EA80",
+      "raw_name": "sub_1000ea80",
+      "normalized_name": "UI_FeederItemText",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns feeder row text for heads, maps, server browser columns, mods, movies, demos, clans, and match-summary tables."
+    },
+    {
+      "address": "0x1000EBA0",
+      "raw_name": "FUN_1000eba0",
+      "normalized_name": "UI_FeederSelection",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Applies feeder selection side effects such as model cvar writes, cinematic refresh, server status selection, and map or demo activation state."
+    },
+    {
+      "address": "0x1000F140",
+      "raw_name": "FUN_1000f140",
+      "normalized_name": "Character_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one characters block from teaminfo into the retail model and skin table and builds each head icon path."
+    },
+    {
+      "address": "0x1000F2B0",
+      "raw_name": "FUN_1000f2b0",
+      "normalized_name": "UI_ParseTeamInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads the retail teaminfo buffer and dispatches the top-level characters block into Character_Parse."
+    },
+    {
+      "address": "0x1000F340",
+      "raw_name": "FUN_1000f340",
+      "normalized_name": "GameType_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses gametype and joingametype blocks into the UI gametype tables."
+    },
+    {
+      "address": "0x1000F4C0",
+      "raw_name": "FUN_1000f4c0",
+      "normalized_name": "MapList_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses map entries into uiInfo.mapList and replaces the last slot on overflow."
+    },
+    {
+      "address": "0x1000F6D0",
+      "raw_name": "FUN_1000f6d0",
+      "normalized_name": "UI_ParseGameInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Dispatches gametypes, joingametypes, and maps blocks to the specific parsers."
+    },
+    {
+      "address": "0x1000F7B0",
+      "raw_name": "sub_1000f7b0",
+      "normalized_name": "UI_Pause",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Pauses or resumes the client while toggling KEYCATCH_UI and clearing key state on unpause."
+    },
+    {
+      "address": "0x1000F960",
+      "raw_name": "FUN_1000f960",
+      "normalized_name": "UI_ListPlayerModels",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only console-command helper behind listPlayerModels that prints the currently loaded model and skin entries."
+    },
+    {
+      "address": "0x1000F9F0",
+      "raw_name": "FUN_1000f9f0",
+      "normalized_name": "UI_RefreshDisplayContextScale",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads the renderer glconfig and rebuilds the 640x480 virtual-screen bias and scale values used by the retail UI drawing helpers."
+    },
+    {
+      "address": "0x1000FAB0",
+      "raw_name": "FUN_1000fab0",
+      "normalized_name": "_UI_Init",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Full UI bootstrap: registers cvars, wires uiDC, loads menus, initializes scores, bots, and render assets."
+    },
+    {
+      "address": "0x1000FF40",
+      "raw_name": "sub_1000ff40",
+      "normalized_name": "_UI_KeyEvent",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Routes key events to the focused menu, closes unfocused UI on ESC, and clears KEYCATCH_UI when no focused menu remains."
+    },
+    {
+      "address": "0x10010000",
+      "raw_name": "sub_10010000",
+      "normalized_name": "_UI_MouseEvent",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Accumulates cursor deltas, clamps them to the 640x480 UI bounds, and forwards movement into Display_MouseMove."
+    },
+    {
+      "address": "0x10010080",
+      "raw_name": "FUN_10010080",
+      "normalized_name": "UI_LoadNonIngame",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads the non-ingame menu set and clears the ingame-load state flag."
+    },
+    {
+      "address": "0x100100D0",
+      "raw_name": "sub_100100d0",
+      "normalized_name": "_UI_SetActiveMenu",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Switches on the native UIMENU command, updates key catcher and pause state, reloads menu sets when needed, and activates the named retail menus."
+    },
+    {
+      "address": "0x10010380",
+      "raw_name": "FUN_10010380",
+      "normalized_name": "_UI_IsFullscreen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns whether any visible fullscreen menu is active."
+    },
+    {
+      "address": "0x100103C0",
+      "raw_name": "sub_100103c0",
+      "normalized_name": "Menus_AnyVisible",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Extended native export-table predicate that scans the retail menu array and returns qtrue when any menu has WINDOW_VISIBLE set."
+    },
+    {
+      "address": "0x100103F0",
+      "raw_name": "FUN_100103f0",
+      "normalized_name": "UI_ReadableSize",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats byte counts as bytes, KB, MB, or GB strings for the connect and download UI."
+    },
+    {
+      "address": "0x10010540",
+      "raw_name": "FUN_10010540",
+      "normalized_name": "UI_PrintTime",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats millisecond durations into sec, min/sec, or hr/min strings for the connect and download UI."
+    },
+    {
+      "address": "0x100105F0",
+      "raw_name": "FUN_100105f0",
+      "normalized_name": "Text_PaintCenter",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Measures text width and paints it centered around the supplied x coordinate."
+    },
+    {
+      "address": "0x10010660",
+      "raw_name": "FUN_10010660",
+      "normalized_name": "Text_PaintCenter_AutoWrapped",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Wraps text on spaces to fit a maximum width and paints each line centered."
+    },
+    {
+      "address": "0x100108D0",
+      "raw_name": "FUN_100108d0",
+      "normalized_name": "UI_DisplayDownloadInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats download progress, transfer rate, and ETA strings for the connect screen."
+    },
+    {
+      "address": "0x10010E30",
+      "raw_name": "FUN_10010e30",
       "normalized_name": "UI_DrawConnectScreen",
       "status": "matched",
-      "signature": "void UI_DrawConnectScreen(qboolean overlay)",
-      "string_refs": ["0x0058A220", "0x0058A240"],
-      "relocation_refs": ["0x000C2020"],
-      "comment": "Draws the loading/connect status"
-    },
-    {
-      "address": "0x0030F8A0",
-      "raw_name": "sub_30F8A0",
-      "normalized_name": "UNRESOLVED_UI_func_0030F8A0",
-      "status": "unresolved",
       "signature": null,
-      "string_refs": ["0x0058F200"],
+      "string_refs": [],
       "relocation_refs": [],
-      "comment": "Unknown UI dispatcher referenced by new challenges"
+      "comment": "Draws the connection and download status screen, including abort and retry messaging."
     },
     {
-      "address": "0x00311AB0",
-      "raw_name": "UI_OpenMenu",
-      "normalized_name": "UI_OpenMenu",
+      "address": "0x10011130",
+      "raw_name": "sub_10011130",
+      "normalized_name": "UI_DrawAdvertisementWaitScreen",
       "status": "matched",
-      "signature": "void UI_OpenMenu(const char *menuName)",
-      "string_refs": ["0x0058B010"],
-      "relocation_refs": ["0x000C3030"],
-      "comment": "Entry point for scripted menus"
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Extended native export-table drawer that optionally paints a named menu and then centers the retail 'Waiting on Advertisement' and 'Press ESC to cancel' prompts."
     },
     {
-      "address": "0x00312FD0",
-      "raw_name": "Menuframework_Draw",
-      "normalized_name": "Menuframework_Draw",
+      "address": "0x10011510",
+      "raw_name": "FUN_10011510",
+      "normalized_name": "UI_UpdateForceModelBrightness",
       "status": "matched",
-      "signature": "void Menuframework_Draw(menuDef_t *menu)",
-      "string_refs": ["0x0058B420"],
-      "relocation_refs": ["0x000C4040"],
-      "comment": "Generic menu renderer"
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Normalizes the current force-model and force-skin cvars to lowercase, checks for the bright skin token, and updates the paired UI bright-model toggle cvar."
+    },
+    {
+      "address": "0x10011630",
+      "raw_name": "FUN_10011630",
+      "normalized_name": "UI_UpdateForceTeamModelSettings",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the retail ui_forceTeamModelBright state from cg_forceTeamModel/cg_forceTeamSkin and marks the team-model preset state dirty."
+    },
+    {
+      "address": "0x10011660",
+      "raw_name": "FUN_10011660",
+      "normalized_name": "UI_UpdateForceEnemyModelSettings",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the retail ui_forceEnemyModelBright state from cg_forceEnemyModel/cg_forceEnemySkin and marks the enemy-model preset state dirty."
+    },
+    {
+      "address": "0x10011690",
+      "raw_name": "FUN_10011690",
+      "normalized_name": "UI_UpdateAnnouncer",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Plays the preview voice clip for the selected cg_announcer profile and mirrors the current selection into ui_announcer."
+    },
+    {
+      "address": "0x10011730",
+      "raw_name": "FUN_10011730",
+      "normalized_name": "UI_RegisterCvars",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Registers the UI vmCvar table during startup."
+    },
+    {
+      "address": "0x100118A0",
+      "raw_name": "FUN_100118a0",
+      "normalized_name": "UI_UpdateCvars",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Updates the UI vmCvar table and runs any registered per-cvar change handlers."
+    },
+    {
+      "address": "0x100118F0",
+      "raw_name": "FUN_100118f0",
+      "normalized_name": "UI_StopServerRefresh",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Stops the server browser refresh pass and prints the listed-server and player summary."
+    },
+    {
+      "address": "0x10011970",
+      "raw_name": "FUN_10011970",
+      "normalized_name": "UI_DoServerRefresh",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Pumps visible server pings and finalizes the refresh when the scan completes."
+    },
+    {
+      "address": "0x10011A30",
+      "raw_name": "FUN_10011a30",
+      "normalized_name": "UI_StartServerRefresh",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Starts LAN or global server refresh commands and stamps the refresh time cvars."
+    },
+    {
+      "address": "0x10011C50",
+      "raw_name": "FUN_10011c50",
+      "normalized_name": "UI_PlayerInfo_SetWeapon",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Loads weapon, barrel, and flash assets for the UI player preview model."
+    },
+    {
+      "address": "0x10011F40",
+      "raw_name": "FUN_10011f40",
+      "normalized_name": "UI_ForceLegsAnim",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Toggles the legs animation state and primes the jump timer when LEGS_JUMP is selected."
+    },
+    {
+      "address": "0x10011F70",
+      "raw_name": "FUN_10011f70",
+      "normalized_name": "UI_SetLegsAnim",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Applies any pending legs animation override, then forces the resolved legs animation."
+    },
+    {
+      "address": "0x10011FC0",
+      "raw_name": "FUN_10011fc0",
+      "normalized_name": "UI_ForceTorsoAnim",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Toggles the torso animation state and primes the gesture or attack timers for the selected sequence."
+    },
+    {
+      "address": "0x10012000",
+      "raw_name": "FUN_10012000",
+      "normalized_name": "UI_SetTorsoAnim",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Applies any pending torso animation override, then forces the resolved torso animation."
+    },
+    {
+      "address": "0x10012060",
+      "raw_name": "FUN_10012060",
+      "normalized_name": "UI_TorsoSequencing",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances torso gesture, attack, and weapon-switch sequencing and triggers weapon model swaps."
+    },
+    {
+      "address": "0x10012100",
+      "raw_name": "FUN_10012100",
+      "normalized_name": "UI_LegsSequencing",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances jump and land leg sequencing while maintaining the shared preview jump-height state."
+    },
+    {
+      "address": "0x10012190",
+      "raw_name": "FUN_10012190",
+      "normalized_name": "UI_PositionEntityOnTag",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Lerps a parent tag, offsets origin through the parent axes, and copies backlerp onto the child entity."
+    },
+    {
+      "address": "0x10012290",
+      "raw_name": "FUN_10012290",
+      "normalized_name": "UI_PositionRotatedEntityOnTag",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Lerps a parent tag, composes child and parent axes, and positions the rotated entity on that tag."
+    },
+    {
+      "address": "0x10012390",
+      "raw_name": "FUN_10012390",
+      "normalized_name": "UI_SetLerpFrameAnimation",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Selects an animation record, validates the animation number, and primes the lerp-frame timing state."
+    },
+    {
+      "address": "0x10012490",
+      "raw_name": "FUN_10012490",
+      "normalized_name": "UI_RunLerpFrame",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances the current animation frames over time and computes the active backlerp value."
+    },
+    {
+      "address": "0x10012550",
+      "raw_name": "FUN_10012550",
+      "normalized_name": "UI_SwingAngles",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Smoothly swings an angle toward a destination with tolerance-based speed scaling and clamp limits."
+    },
+    {
+      "address": "0x10012760",
+      "raw_name": "FUN_10012760",
+      "normalized_name": "UI_MovedirAdjustment",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Converts view and move angle deltas into the fixed strafe yaw adjustments used by the preview model."
+    },
+    {
+      "address": "0x10012900",
+      "raw_name": "FUN_10012900",
+      "normalized_name": "UI_PlayerAngles",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the preview legs, torso, and head axes from view angles, movement direction, and swing state."
+    },
+    {
+      "address": "0x10012C00",
+      "raw_name": "FUN_10012c00",
+      "normalized_name": "UI_PlayerFloatSprite",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Spawns and draws a sprite marker above the player preview origin."
+    },
+    {
+      "address": "0x10012CA0",
+      "raw_name": "FUN_10012ca0",
+      "normalized_name": "UI_MachinegunSpinAngle",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Updates the barrel spin or coast state from realtime and torso attack animation state."
+    },
+    {
+      "address": "0x10012D90",
+      "raw_name": "FUN_10012d90",
+      "normalized_name": "UI_DrawPlayer",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Full player preview renderer for legs, torso, head, weapon, barrel, muzzle flash, chat icon, and accent lights."
+    },
+    {
+      "address": "0x10013850",
+      "raw_name": "FUN_10013850",
+      "normalized_name": "UI_FindClientHeadFile",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves head skin and model file paths through the team, head, and fallback search variants."
+    },
+    {
+      "address": "0x100139A0",
+      "raw_name": "FUN_100139a0",
+      "normalized_name": "UI_RegisterClientSkin",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Registers lower, upper, and head skins and falls back across model path variants."
+    },
+    {
+      "address": "0x10013BA0",
+      "raw_name": "FUN_10013ba0",
+      "normalized_name": "UI_ParseAnimationFile",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses animation.cfg content for UI player model animation state."
+    },
+    {
+      "address": "0x10013E70",
+      "raw_name": "FUN_10013e70",
+      "normalized_name": "UI_RegisterClientModelname",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Registers player model geometry, skins, and animation data for preview rendering."
+    },
+    {
+      "address": "0x10014250",
+      "raw_name": "FUN_10014250",
+      "normalized_name": "UI_PlayerInfo_SetModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clears the preview struct, registers the requested model set, and seeds default machinegun state."
+    },
+    {
+      "address": "0x100142E0",
+      "raw_name": "FUN_100142e0",
+      "normalized_name": "UI_PlayerInfo_SetInfo",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Updates preview view and move angles, weapon transitions, animation sequencing, and chat state."
+    },
+    {
+      "address": "0x100144C0",
+      "raw_name": "FUN_100144c0",
+      "normalized_name": "UI_Alloc",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Allocates from the fixed UI memory pool with 16-byte alignment and emits the out-of-memory warning."
+    },
+    {
+      "address": "0x10014510",
+      "raw_name": "FUN_10014510",
+      "normalized_name": "hashForString",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Lowercases a string and accumulates the 2048-slot hash used by the interned string table."
+    },
+    {
+      "address": "0x10014560",
+      "raw_name": "FUN_10014560",
+      "normalized_name": "String_Alloc",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Interns a string into the pooled string table and reuses existing entries by hash-chain lookup."
+    },
+    {
+      "address": "0x10014670",
+      "raw_name": "FUN_10014670",
+      "normalized_name": "String_Report",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Prints string-pool and UI memory-pool usage as percentages and byte totals."
+    },
+    {
+      "address": "0x10014710",
+      "raw_name": "FUN_10014710",
+      "normalized_name": "PC_SourceError",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Formats a parser error with source filename and line information and prints it as an ERROR."
+    },
+    {
+      "address": "0x100147A0",
+      "raw_name": "FUN_100147a0",
+      "normalized_name": "LerpColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Interpolates each RGBA component between two colors and clamps the results into the 0..1 range."
+    },
+    {
+      "address": "0x100148A0",
+      "raw_name": "FUN_100148a0",
+      "normalized_name": "Float_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads one token from a script string and converts it to a float."
+    },
+    {
+      "address": "0x100148D0",
+      "raw_name": "FUN_100148d0",
+      "normalized_name": "PC_Float_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads one parser token, accepts an optional minus sign, validates TT_NUMBER, and returns a float."
+    },
+    {
+      "address": "0x10014990",
+      "raw_name": "FUN_10014990",
+      "normalized_name": "Color_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses four float components from a script string into a vec4 color."
+    },
+    {
+      "address": "0x100149D0",
+      "raw_name": "FUN_100149d0",
+      "normalized_name": "PC_Color_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads four numeric parser tokens into a vec4 color with parser-side error reporting."
+    },
+    {
+      "address": "0x10014AB0",
+      "raw_name": "FUN_10014ab0",
+      "normalized_name": "Int_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads one token from a script string and converts it to an integer."
+    },
+    {
+      "address": "0x10014AE0",
+      "raw_name": "FUN_10014ae0",
+      "normalized_name": "PC_Int_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads one parser token, accepts an optional minus sign, validates TT_NUMBER, and returns an integer."
+    },
+    {
+      "address": "0x10014BA0",
+      "raw_name": "FUN_10014ba0",
+      "normalized_name": "Rect_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses four float values from a script string into a rectangle definition."
+    },
+    {
+      "address": "0x10014C30",
+      "raw_name": "FUN_10014c30",
+      "normalized_name": "String_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads one token from a script string and interns it through String_Alloc."
+    },
+    {
+      "address": "0x10014C60",
+      "raw_name": "FUN_10014c60",
+      "normalized_name": "PC_String_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads one parser token and interns the token text through String_Alloc."
+    },
+    {
+      "address": "0x10014CF0",
+      "raw_name": "FUN_10014cf0",
+      "normalized_name": "PC_Script_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Collects a brace-delimited parser script into a single interned command string."
+    },
+    {
+      "address": "0x10014E50",
+      "raw_name": "FUN_10014e50",
+      "normalized_name": "GradientBar_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Sets the draw color, paints the shared gradient bar shader, and then restores the draw color."
+    },
+    {
+      "address": "0x10014EA0",
+      "raw_name": "FUN_10014ea0",
+      "normalized_name": "Fade",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances fade-in or fade-out alpha state using the next-time gate, clamp, and fade amount."
+    },
+    {
+      "address": "0x10014F00",
+      "raw_name": "FUN_10014f00",
+      "normalized_name": "Window_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Core window renderer handling filled, gradient, shader, team-color, and cinematic styles plus border variants."
+    },
+    {
+      "address": "0x10015410",
+      "raw_name": "FUN_10015410",
+      "normalized_name": "Item_SetScreenCoords",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the item screen rectangle from parent offsets and rectClient while clearing cached text extents."
+    },
+    {
+      "address": "0x10015470",
+      "raw_name": "FUN_10015470",
+      "normalized_name": "Item_UpdatePosition",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Recomputes an item's screen-space rectangle from its parent menu and current border offsets."
+    },
+    {
+      "address": "0x100154E0",
+      "raw_name": "FUN_100154e0",
+      "normalized_name": "Menu_SetupAdvertCellShaders",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs immediately after retail menu parse to walk advert items, compute their bounds, and seed each item background through the setup advert-cell-shader callback."
+    },
+    {
+      "address": "0x100155A0",
+      "raw_name": "FUN_100155a0",
+      "normalized_name": "Menu_RefreshAdvertCellShaders",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Walks the same advert items during menu open, close, and refresh paths, recomputing each item background through the refresh advert-cell-shader callback."
+    },
+    {
+      "address": "0x100156B0",
+      "raw_name": "FUN_100156b0",
+      "normalized_name": "Menu_UpdatePresetLists",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scans retail preset-list items in a menu, compares their linked preset definitions against live cvar values, and forces the preset-list cvar to `Custom` when no named preset still matches."
+    },
+    {
+      "address": "0x100159A0",
+      "raw_name": "FUN_100159a0",
+      "normalized_name": "Menu_UpdatePosition",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Rebuilds each child item's screen-space rectangle from the menu's current screen origin and border offsets while clearing cached text extents."
+    },
+    {
+      "address": "0x10015A80",
+      "raw_name": "FUN_10015a80",
+      "normalized_name": "Menu_ClearFocus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clears focus from every item in a menu, returns the previous focus item, and runs any leaveFocus scripts."
+    },
+    {
+      "address": "0x10015C50",
+      "raw_name": "FUN_10015c50",
+      "normalized_name": "Menu_ItemsMatchingGroup",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Counts menu items whose window name or group matches the requested token."
+    },
+    {
+      "address": "0x10015CC0",
+      "raw_name": "FUN_10015cc0",
+      "normalized_name": "Menu_GetMatchingItemByNumber",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the Nth menu item whose window name or group matches the requested token."
+    },
+    {
+      "address": "0x10015C00",
+      "raw_name": "FUN_10015c00",
+      "normalized_name": "Rect_ContainsPoint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns whether the supplied point lies strictly inside the given retail rect bounds, with a null-rect guard."
+    },
+    {
+      "address": "0x10015D50",
+      "raw_name": "FUN_10015d50",
+      "normalized_name": "Script_SetColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a target color slot plus four floats and writes backColor, foreColor, or borderColor on the current item."
+    },
+    {
+      "address": "0x10015E30",
+      "raw_name": "sub_10015e30",
+      "normalized_name": "Script_SetAsset",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail stub for the setasset command that parses and interns one asset token without further mutation."
+    },
+    {
+      "address": "0x10015E60",
+      "raw_name": "sub_10015e60",
+      "normalized_name": "Script_SetBackground",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one asset token, registers it as a shader, and stores the handle in item->window.background."
+    },
+    {
+      "address": "0x10015EA0",
+      "raw_name": "FUN_10015ea0",
+      "normalized_name": "Menu_FindItemByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the first menu item whose window.name matches the requested item name."
+    },
+    {
+      "address": "0x10015F10",
+      "raw_name": "FUN_10015f10",
+      "normalized_name": "Script_SetTeamColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Copies the display-context team color callback result into the current item's background color."
+    },
+    {
+      "address": "0x10015F90",
+      "raw_name": "FUN_10015f90",
+      "normalized_name": "Script_SetItemColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a target item/group name, a color field selector, and a vec4, then applies it across matching items."
+    },
+    {
+      "address": "0x100160F0",
+      "raw_name": "FUN_100160f0",
+      "normalized_name": "Menu_ShowItemByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shows or hides all matching items by name or group and stops active cinematics when hiding."
+    },
+    {
+      "address": "0x10016160",
+      "raw_name": "FUN_10016160",
+      "normalized_name": "Menus_FindByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scans the global menu array and returns the menu whose window.name matches the requested token."
+    },
+    {
+      "address": "0x100161B0",
+      "raw_name": "FUN_100161b0",
+      "normalized_name": "Menus_CloseByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Finds a named menu, runs its close script when visible, clears visibility and focus state, and refreshes the menu afterward."
+    },
+    {
+      "address": "0x10016220",
+      "raw_name": "FUN_10016220",
+      "normalized_name": "Menus_CloseAll",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs close scripts for all menus, clears visibility and focus state across the global menu array, and refreshes each menu afterward."
+    },
+    {
+      "address": "0x100162C0",
+      "raw_name": "sub_100162c0",
+      "normalized_name": "Script_Show",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one item or group token and forwards it to Menu_ShowItemByName with the show path enabled."
+    },
+    {
+      "address": "0x10016300",
+      "raw_name": "sub_10016300",
+      "normalized_name": "Script_Hide",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one item or group token and forwards it to Menu_ShowItemByName with the hide path enabled."
+    },
+    {
+      "address": "0x10016340",
+      "raw_name": "FUN_10016340",
+      "normalized_name": "Script_FadeIn",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one item/group token and marks matching items visible plus fading-in."
+    },
+    {
+      "address": "0x100163B0",
+      "raw_name": "sub_100163b0",
+      "normalized_name": "Script_FadeOut",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one item or group token and marks matching items visible plus fading-out."
+    },
+    {
+      "address": "0x10016420",
+      "raw_name": "sub_10016420",
+      "normalized_name": "Script_Open",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one menu name and routes it through the named-menu activation helper."
+    },
+    {
+      "address": "0x10016450",
+      "raw_name": "FUN_10016450",
+      "normalized_name": "Script_ConditionalOpen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads a cvar and two menu names, then opens the zero or non-zero branch menu."
+    },
+    {
+      "address": "0x100164F0",
+      "raw_name": "sub_100164f0",
+      "normalized_name": "Script_Close",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one menu name and closes it through the named-menu close path, including the menu close script."
+    },
+    {
+      "address": "0x10016580",
+      "raw_name": "sub_10016580",
+      "normalized_name": "Script_Toggle",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only menu toggle command that alternates a named menu between the open and close helpers."
+    },
+    {
+      "address": "0x100165E0",
+      "raw_name": "FUN_100165e0",
+      "normalized_name": "Menu_TransitionItemByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Finds matching items by name or group, marks them visible plus in-transition, seeds rectClient and rectEffects state, and refreshes their screen coordinates."
+    },
+    {
+      "address": "0x100167B0",
+      "raw_name": "FUN_100167b0",
+      "normalized_name": "Script_Transition",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a target name, source rect, destination rect, time, and step amount for transition setup."
+    },
+    {
+      "address": "0x100168A0",
+      "raw_name": "FUN_100168a0",
+      "normalized_name": "Menu_OrbitItemByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Finds matching items by name or group, marks them visible plus orbiting, seeds the orbit center and starting rectClient position, and refreshes their screen coordinates."
+    },
+    {
+      "address": "0x100169D0",
+      "raw_name": "FUN_100169d0",
+      "normalized_name": "Script_Orbit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses orbit target, x/y position, center, and time, then schedules orbit motion for matching items."
+    },
+    {
+      "address": "0x10016AD0",
+      "raw_name": "sub_10016ad0",
+      "normalized_name": "Script_ActivateAdvert",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only advert command that parses one integer token, invokes the advert activation callback, and clears the current item's focus bit."
+    },
+    {
+      "address": "0x10016B10",
+      "raw_name": "sub_10016b10",
+      "normalized_name": "Script_SetFocus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses an item name, resolves it in the parent menu, clears prior focus, runs the new onFocus script, and plays the focus sound."
+    },
+    {
+      "address": "0x10016BA0",
+      "raw_name": "sub_10016ba0",
+      "normalized_name": "Script_SetPlayerModel",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one model token and writes it into the retail player-model cvar through the display-context setCVar callback."
+    },
+    {
+      "address": "0x10016BE0",
+      "raw_name": "sub_10016be0",
+      "normalized_name": "Script_SetPlayerHead",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one head model token and writes it into the retail player-head cvar through the display-context setCVar callback."
+    },
+    {
+      "address": "0x10016C20",
+      "raw_name": "FUN_10016c20",
+      "normalized_name": "Script_SetCvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a cvar name/value pair and forwards it to the UI setCVar display callback."
+    },
+    {
+      "address": "0x10016C80",
+      "raw_name": "sub_10016c80",
+      "normalized_name": "Script_Exec",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one console command token, formats it as \"%s ; \", and appends it through the executeText callback."
+    },
+    {
+      "address": "0x10016CD0",
+      "raw_name": "sub_10016cd0",
+      "normalized_name": "Script_Play",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one sound token, registers it, and starts it on the local UI sound channel."
+    },
+    {
+      "address": "0x10016D20",
+      "raw_name": "sub_10016d20",
+      "normalized_name": "Script_playLooped",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses one track token, stops the current background track, and restarts it as both intro and loop."
+    },
+    {
+      "address": "0x10016D70",
+      "raw_name": "FUN_10016d70",
+      "normalized_name": "Item_RunScript",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Tokenizes a semicolon-delimited UI script, dispatches handlers from the retail command table, and falls back to executeText for unknown commands."
+    },
+    {
+      "address": "0x10016E70",
+      "raw_name": "FUN_10016e70",
+      "normalized_name": "Item_EnableShowViaCvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Checks the item's enable/show cvar test lists against the current cvar string and returns the retail visibility/enabled decision for the requested flag."
+    },
+    {
+      "address": "0x10016FC0",
+      "raw_name": "FUN_10016fc0",
+      "normalized_name": "Item_SetFocus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Rejects decorative or cvar-gated items, clears prior focus, runs the new onFocus path, and updates the parent menu cursor index."
+    },
+    {
+      "address": "0x10017190",
+      "raw_name": "FUN_10017190",
+      "normalized_name": "Item_ListBox_MaxScroll",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Computes the maximum listbox scroll position from feeder count, element size, and horizontal versus vertical layout."
+    },
+    {
+      "address": "0x100171F0",
+      "raw_name": "FUN_100171f0",
+      "normalized_name": "Item_ListBox_ThumbPosition",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Converts the listbox start position into the scrollbar thumb pixel position for the current orientation."
+    },
+    {
+      "address": "0x10017310",
+      "raw_name": "FUN_10017310",
+      "normalized_name": "Item_ListBox_ThumbDrawPosition",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Uses live cursor drag state to draw the thumb in motion and otherwise falls back to the normal thumb position helper."
+    },
+    {
+      "address": "0x10017410",
+      "raw_name": "FUN_10017410",
+      "normalized_name": "Item_Slider_ThumbPosition",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads the slider cvar, clamps it to the edit-field range, and maps the normalized value into the retail slider thumb x position."
+    },
+    {
+      "address": "0x10017500",
+      "raw_name": "FUN_10017500",
+      "normalized_name": "Item_Slider_OverSlider",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the slider thumb hit rectangle around Item_Slider_ThumbPosition and returns the thumb-hover flag when the cursor overlaps it."
+    },
+    {
+      "address": "0x10017570",
+      "raw_name": "FUN_10017570",
+      "normalized_name": "Item_ListBox_OverLB",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Tests the cursor against the retail listbox arrows, page regions, and thumb, returning the WINDOW_LB_* bitmask."
+    },
+    {
+      "address": "0x10017880",
+      "raw_name": "FUN_10017880",
+      "normalized_name": "Item_ListBox_MouseEnter",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes listbox hover flags from Item_ListBox_OverLB and updates cursorPos when the pointer enters the selectable body region."
+    },
+    {
+      "address": "0x100179D0",
+      "raw_name": "FUN_100179d0",
+      "normalized_name": "Item_MouseEnter",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Applies cvar gating, drives mouseEnter and mouseEnterText scripts, and delegates listbox-specific hover handling when needed."
+    },
+    {
+      "address": "0x10017B50",
+      "raw_name": "FUN_10017b50",
+      "normalized_name": "Item_MouseLeave",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs the retail mouse-exit scripts and clears the text-hover and listbox arrow hover flags for the item."
+    },
+    {
+      "address": "0x10017B90",
+      "raw_name": "FUN_10017b90",
+      "normalized_name": "Item_ListBox_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Implements the retail listbox keyboard, mouse click, paging, selection, and double-click handling paths."
+    },
+    {
+      "address": "0x100180A0",
+      "raw_name": "FUN_100180a0",
+      "normalized_name": "Item_YesNo_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Handles focused yes-no activation by hit-testing the cursor inside the item and toggling the bound cvar on mouse or enter keys."
+    },
+    {
+      "address": "0x100181A0",
+      "raw_name": "FUN_100181a0",
+      "normalized_name": "Item_Multi_FindCvarByValue",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scans the current multi-choice cvar value and returns the matching option index, defaulting to `0` when retail finds no entry."
+    },
+    {
+      "address": "0x10018280",
+      "raw_name": "FUN_10018280",
+      "normalized_name": "Item_Multi_Setting",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the current display label for the bound multi-choice cvar, falling back to the retail empty string when no entry matches."
+    },
+    {
+      "address": "0x10018370",
+      "raw_name": "FUN_10018370",
+      "normalized_name": "Item_Multi_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances the current multi-choice selection on focused mouse or enter activation and writes the next string or numeric cvar value through the retail display context."
+    },
+    {
+      "address": "0x10018510",
+      "raw_name": "FUN_10018510",
+      "normalized_name": "Item_PresetList_Setting",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns the current display label for the bound preset-list cvar, falling back to the retail `Custom` string when no linked preset matches."
+    },
+    {
+      "address": "0x100185D0",
+      "raw_name": "FUN_100185d0",
+      "normalized_name": "Item_PresetList_FindCvarByValue",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scans the current preset-list cvar value and returns the matching option index, or `-1` when retail finds no named preset."
+    },
+    {
+      "address": "0x10018680",
+      "raw_name": "FUN_10018680",
+      "normalized_name": "Item_PresetList_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Advances the focused preset-list selection, applies the linked hidden preset item's cvar set, and writes the selected preset name back through the retail display context."
+    },
+    {
+      "address": "0x10018870",
+      "raw_name": "FUN_10018870",
+      "normalized_name": "Item_TextField_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Implements retail edit-field key handling, including cursor movement, insert and overwrite edits, numeric gating, and backspace or delete behavior on the active cvar buffer."
+    },
+    {
+      "address": "0x10018C50",
+      "raw_name": "sub_10018c50",
+      "normalized_name": "Scroll_ListBox_AutoFunc",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Autorepeats listbox arrow scrolling by simulating repeated listbox handle-key calls while tightening the repeat interval."
+    },
+    {
+      "address": "0x10018CB0",
+      "raw_name": "FUN_10018cb0",
+      "normalized_name": "Scroll_ListBox_ThumbFunc",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Updates listbox startPos from thumb dragging and keeps the retail auto-scroll timing state in sync during capture."
+    },
+    {
+      "address": "0x10018E60",
+      "raw_name": "FUN_10018e60",
+      "normalized_name": "Scroll_Slider_ThumbFunc",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Maps the captured cursor position across the slider track and writes the resulting value back through the UI setCVar callback."
+    },
+    {
+      "address": "0x10019000",
+      "raw_name": "FUN_10019000",
+      "normalized_name": "Item_StartCapture",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Installs the retail capture callback and scroll state for listbox arrow repeat, listbox thumb drag, and slider thumb drag."
+    },
+    {
+      "address": "0x10019180",
+      "raw_name": "FUN_10019180",
+      "normalized_name": "Item_Slider_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Processes slider mouse and enter activation by mapping cursor position across the retail 96-pixel track and writing the resulting cvar value."
+    },
+    {
+      "address": "0x10019350",
+      "raw_name": "FUN_10019350",
+      "normalized_name": "Item_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clears or starts retail capture state, rejects key-up events, and dispatches item-type-specific key handling for listboxes, sliders, binds, ownerdraws, and choice widgets."
+    },
+    {
+      "address": "0x100194B0",
+      "raw_name": "FUN_100194b0",
+      "normalized_name": "Menu_SetPrevCursorItem",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Walks backward through menu items with wraparound until Item_SetFocus accepts a candidate, then recenters mouse handling on that item."
+    },
+    {
+      "address": "0x100195B0",
+      "raw_name": "FUN_100195b0",
+      "normalized_name": "Menu_SetNextCursorItem",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Walks forward through menu items with wraparound until Item_SetFocus accepts a candidate, then recenters mouse handling on that item."
+    },
+    {
+      "address": "0x100196B0",
+      "raw_name": "FUN_100196b0",
+      "normalized_name": "Display_CloseCinematics",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Walks the global menu array, stopping active window cinematics plus ownerdraw cinematics across every visible UI menu."
+    },
+    {
+      "address": "0x10019790",
+      "raw_name": "FUN_10019790",
+      "normalized_name": "Menus_HandleOOBClick",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Implements out-of-bounds popup click routing by closing the current menu, activating the menu under the cursor, forwarding the key, and maintaining pause and cinematic state."
+    },
+    {
+      "address": "0x10019970",
+      "raw_name": "FUN_10019970",
+      "normalized_name": "Item_CorrectedTextRect",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the retail corrected text rectangle from item->textRect and shifts the y origin upward by the text height when the rect is active."
+    },
+    {
+      "address": "0x10019A10",
+      "raw_name": "FUN_10019a10",
+      "normalized_name": "Display_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Routes retail UI key input across bind capture, edit capture, popup OOB clicks, focused-item dispatch, menu cursor navigation, and menu-level script or screenshot actions."
+    },
+    {
+      "address": "0x10019F10",
+      "raw_name": "FUN_10019f10",
+      "normalized_name": "Item_SetTextExtents",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Computes item->textRect dimensions and aligned origin from the current item text or cvar string using the retail text-metrics callbacks."
+    },
+    {
+      "address": "0x1001A150",
+      "raw_name": "FUN_1001a150",
+      "normalized_name": "Item_TextColor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the live item text color, including fade, focus pulse, blink, and disabled-color paths gated through Item_EnableShowViaCvar."
+    },
+    {
+      "address": "0x1001A3D0",
+      "raw_name": "FUN_1001a3d0",
+      "normalized_name": "Item_Text_AutoWrapped_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Auto-wraps item text against the item width, updates retail textRect metrics per line, and paints each wrapped segment."
+    },
+    {
+      "address": "0x1001A630",
+      "raw_name": "FUN_1001a630",
+      "normalized_name": "Item_Text_Wrapped_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Walks carriage-return-delimited text lines, updates retail textRect metrics, and paints the wrapped text block line by line."
+    },
+    {
+      "address": "0x1001A7E0",
+      "raw_name": "FUN_1001a7e0",
+      "normalized_name": "Item_Text_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Dispatches retail wrapped and auto-wrapped text paths or computes aligned text metrics and color before drawing plain item text."
+    },
+    {
+      "address": "0x1001A8E0",
+      "raw_name": "FUN_1001a8e0",
+      "normalized_name": "Item_TextField_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the base item text plus the editable cvar string, including focus cursor rendering and paintOffset scrolling for active fields."
+    },
+    {
+      "address": "0x1001AB30",
+      "raw_name": "FUN_1001ab30",
+      "normalized_name": "Item_YesNo_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Reads the bound cvar value, builds the standard focus pulse color, and paints the retail `Yes` or `No` label beside the item text."
+    },
+    {
+      "address": "0x1001AD40",
+      "raw_name": "FUN_1001ad40",
+      "normalized_name": "Item_Multi_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves the current multi-choice display label through Item_Multi_Setting, then paints it with the standard text-item alignment and focus handling."
+    },
+    {
+      "address": "0x1001AF00",
+      "raw_name": "FUN_1001af00",
+      "normalized_name": "Item_PresetList_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves the current preset-list display label through Item_PresetList_Setting, then paints it with the standard text-item alignment and focus handling."
+    },
+    {
+      "address": "0x1001B0C0",
+      "raw_name": "FUN_1001b0c0",
+      "normalized_name": "Controls_GetConfig",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Refreshes the retail binding table by querying the current two-key assignment for each command and storing bind1 and bind2 back into g_bindings."
+    },
+    {
+      "address": "0x1001B1E0",
+      "raw_name": "FUN_1001b1e0",
+      "normalized_name": "Controls_SetConfig",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Writes the current retail binding table back through setBinding for both key slots and appends `in_restart` to refresh input."
+    },
+    {
+      "address": "0x1001B250",
+      "raw_name": "FUN_1001b250",
+      "normalized_name": "BindingIDFromName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scans the retail binding-command table and returns the matching binding index or `-1` when the name is unknown."
+    },
+    {
+      "address": "0x1001B2A0",
+      "raw_name": "FUN_1001b2a0",
+      "normalized_name": "BindingFromName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the uppercase display string for the named command's primary and secondary bindings, joining them with ` or ` and falling back to `???`."
+    },
+    {
+      "address": "0x1001B3D0",
+      "raw_name": "FUN_1001b3d0",
+      "normalized_name": "Item_Slider_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the retail slider bar and thumb, using Item_Slider_ThumbPosition to place the handle against the bound cvar value."
+    },
+    {
+      "address": "0x1001B5C0",
+      "raw_name": "FUN_1001b5c0",
+      "normalized_name": "Item_SliderColor_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints the retail slider-color bar and colorized thumb, reusing Item_Slider_ThumbPosition to place the handle against the bound cvar value."
+    },
+    {
+      "address": "0x1001B7C0",
+      "raw_name": "FUN_1001b7c0",
+      "normalized_name": "Item_Bind_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the current key-binding display string, applies the focused bind pulse, and paints the label plus bound-key text."
+    },
+    {
+      "address": "0x1001B9E0",
+      "raw_name": "FUN_1001b9e0",
+      "normalized_name": "Item_Bind_HandleKey",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Implements retail key-bind capture, cancellation, deletion, replacement, and Controls_SetConfig update behavior."
+    },
+    {
+      "address": "0x1001BC30",
+      "raw_name": "FUN_1001bc30",
+      "normalized_name": "Item_Model_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Builds the retail model-preview refdef and entity, advances model rotation when configured, and renders the item model inside the window rect."
+    },
+    {
+      "address": "0x1001BFB0",
+      "raw_name": "FUN_1001bfb0",
+      "normalized_name": "Item_ListBox_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints retail listbox contents, scrollbar arrows and thumb, selection highlighting, and feeder-driven image or text rows."
+    },
+    {
+      "address": "0x1001CA50",
+      "raw_name": "FUN_1001ca50",
+      "normalized_name": "Item_OwnerDraw_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Computes ownerdraw color and optional text-label state, then calls the retail ownerdraw callback for the item."
+    },
+    {
+      "address": "0x1001CED0",
+      "raw_name": "FUN_1001ced0",
+      "normalized_name": "Item_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Performs retail orbit and transition updates, visibility and show or hide cvar gating, Window_Paint, and the per-item type dispatch chain."
+    },
+    {
+      "address": "0x1001D390",
+      "raw_name": "FUN_1001d390",
+      "normalized_name": "Menu_GetFocused",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scans the global menu array and returns the first menu whose window carries both focus and visible flags."
+    },
+    {
+      "address": "0x1001D3D0",
+      "raw_name": "FUN_1001d3d0",
+      "normalized_name": "Menu_SetFeederSelection",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resolves the target menu by current focus or explicit name, resets listbox selection state for index zero, stores the new cursorPos, and fires the feederSelection callback."
+    },
+    {
+      "address": "0x1001D4A0",
+      "raw_name": "FUN_1001d4a0",
+      "normalized_name": "Menus_ActivateByName",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Finds the named menu, clears focus on the rest, runs the activation onOpen and sound paths, pushes the previous focus onto the open-menu stack, and closes cinematics."
+    },
+    {
+      "address": "0x1001D7B0",
+      "raw_name": "FUN_1001d7b0",
+      "normalized_name": "Menu_Paint",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Paints one visible or forced menu, including fullscreen background handling, ownerdraw visibility gating, Window_Paint, per-item paint dispatch, and the debug rectangle."
+    },
+    {
+      "address": "0x1001D600",
+      "raw_name": "FUN_1001d600",
+      "normalized_name": "Menu_HandleMouseMove",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs the two-pass retail menu hover and focus update, including cvar gating, corrected-text hit testing, mouse enter and leave scripts, and focus assignment."
+    },
+    {
+      "address": "0x1001DA70",
+      "raw_name": "FUN_1001da70",
+      "normalized_name": "Item_ValidateTypeData",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Allocates and initializes retail listbox, edit, multi, or model typeData blocks according to item->type, including the default edit-field paint limit."
+    },
+    {
+      "address": "0x1001DB60",
+      "raw_name": "FUN_1001db60",
+      "normalized_name": "Parse_name",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail parser for the item and menu `name` keywords that interns the parsed string into window.name."
+    },
+    {
+      "address": "0x1001DC00",
+      "raw_name": "FUN_1001dc00",
+      "normalized_name": "ItemParse_focusSound",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a focus-sound token, registers it through the display context, and stores the resulting sound handle on the item."
+    },
+    {
+      "address": "0x1001DCB0",
+      "raw_name": "FUN_1001dcb0",
+      "normalized_name": "ItemParse_group",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses and interns item->window.group from the retail item keyword table."
+    },
+    {
+      "address": "0x1001DD50",
+      "raw_name": "FUN_1001dd50",
+      "normalized_name": "ItemParse_asset_model",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates model typeData, registers the item model asset, and seeds the preview angle with the retail rand()%360 path."
+    },
+    {
+      "address": "0x1001DE20",
+      "raw_name": "sub_1001de20",
+      "normalized_name": "ItemParse_widescreen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the retail item widescreen mode, rejects out-of-range values, and marks the item widescreen override as set."
+    },
+    {
+      "address": "0x1001DE60",
+      "raw_name": "FUN_1001de60",
+      "normalized_name": "ItemParse_asset_shader",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a shader token and stores the registered no-mip shader handle in item->asset."
+    },
+    {
+      "address": "0x1001DF10",
+      "raw_name": "FUN_1001df10",
+      "normalized_name": "ItemParse_model_origin",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates model typeData and parses three floats into the preview model origin vector."
+    },
+    {
+      "address": "0x1001DF70",
+      "raw_name": "FUN_1001df70",
+      "normalized_name": "Parse_model_fovx_or_elementwidth",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail float parser reused by the item `model_fovx` and `elementwidth` keywords."
+    },
+    {
+      "address": "0x1001DFA0",
+      "raw_name": "sub_1001dfa0",
+      "normalized_name": "Parse_model_fovy_or_elementheight",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail float parser reused by the item `model_fovy` and `elementheight` keywords."
+    },
+    {
+      "address": "0x1001DFD0",
+      "raw_name": "sub_1001dfd0",
+      "normalized_name": "ItemParse_model_rotation",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates model typeData and parses the preview model rotation-speed integer."
+    },
+    {
+      "address": "0x1001E000",
+      "raw_name": "sub_1001e000",
+      "normalized_name": "ItemParse_model_angle",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates model typeData and parses the preview model angle integer."
+    },
+    {
+      "address": "0x1001E030",
+      "raw_name": "FUN_1001e030",
+      "normalized_name": "ItemParse_rect",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses four floats into item->window.rectClient."
+    },
+    {
+      "address": "0x1001E090",
+      "raw_name": "sub_1001e090",
+      "normalized_name": "ItemParse_decoration",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks the item window with WINDOW_DECORATION."
+    },
+    {
+      "address": "0x1001E0A0",
+      "raw_name": "sub_1001e0a0",
+      "normalized_name": "ItemParse_notselectable",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates listbox typeData and marks the retail listbox as not selectable."
+    },
+    {
+      "address": "0x1001E0D0",
+      "raw_name": "sub_1001e0d0",
+      "normalized_name": "ItemParse_wrapped",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks the item window with WINDOW_WRAPPED."
+    },
+    {
+      "address": "0x1001E0F0",
+      "raw_name": "sub_1001e0f0",
+      "normalized_name": "ItemParse_autowrapped",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks the item window with WINDOW_AUTOWRAPPED."
+    },
+    {
+      "address": "0x1001E110",
+      "raw_name": "sub_1001e110",
+      "normalized_name": "ItemParse_horizontalscroll",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks the item window with WINDOW_HORIZONTAL."
+    },
+    {
+      "address": "0x1001E130",
+      "raw_name": "sub_1001e130",
+      "normalized_name": "ItemParse_type",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses item->type and immediately validates or allocates retail typeData for types that require it."
+    },
+    {
+      "address": "0x1001E160",
+      "raw_name": "sub_1001e160",
+      "normalized_name": "ItemParse_elementtype",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates listbox typeData and parses the retail list element style."
+    },
+    {
+      "address": "0x1001E190",
+      "raw_name": "FUN_1001e190",
+      "normalized_name": "ItemParse_columns",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates listbox typeData, parses the column count plus per-column pos, width, and maxChars triples, and clamps to the retail maximum."
+    },
+    {
+      "address": "0x1001E260",
+      "raw_name": "sub_1001e260",
+      "normalized_name": "Parse_visible",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail parser for the `visible` keyword; it parses an int and sets WINDOW_VISIBLE when non-zero."
+    },
+    {
+      "address": "0x1001E290",
+      "raw_name": "sub_1001e290",
+      "normalized_name": "ItemParse_ownerdraw",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses item->window.ownerDraw and forces item->type to ITEM_TYPE_OWNERDRAW."
+    },
+    {
+      "address": "0x1001E2C0",
+      "raw_name": "sub_1001e2c0",
+      "normalized_name": "ItemParse_align",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses item->alignment."
+    },
+    {
+      "address": "0x1001E2E0",
+      "raw_name": "sub_1001e2e0",
+      "normalized_name": "Parse_textalign_or_fadeCycle",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail int parser reused by item `textalign` and menu `fadeCycle`."
+    },
+    {
+      "address": "0x1001E300",
+      "raw_name": "sub_1001e300",
+      "normalized_name": "Parse_textaligny_or_fadeAmount",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail float parser reused by item `textaligny` and menu `fadeAmount`."
+    },
+    {
+      "address": "0x1001E320",
+      "raw_name": "sub_1001e320",
+      "normalized_name": "ItemParse_font",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only item parser that interns the item's font token."
+    },
+    {
+      "address": "0x1001E340",
+      "raw_name": "sub_1001e340",
+      "normalized_name": "ItemParse_textscale",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses item->textscale."
+    },
+    {
+      "address": "0x1001E360",
+      "raw_name": "sub_1001e360",
+      "normalized_name": "ItemParse_textstyle",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses item->textStyle."
+    },
+    {
+      "address": "0x1001E380",
+      "raw_name": "FUN_1001e380",
+      "normalized_name": "Parse_backcolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail four-float color parser for the `backcolor` keyword."
+    },
+    {
+      "address": "0x1001E470",
+      "raw_name": "FUN_1001e470",
+      "normalized_name": "Parse_forecolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail four-float color parser for the `forecolor` keyword that also marks WINDOW_FORECOLORSET."
+    },
+    {
+      "address": "0x1001E570",
+      "raw_name": "FUN_1001e570",
+      "normalized_name": "Parse_bordercolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail four-float color parser for the `bordercolor` keyword."
+    },
+    {
+      "address": "0x1001E660",
+      "raw_name": "sub_1001e660",
+      "normalized_name": "Parse_outlinecolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail color parser for the `outlinecolor` keyword."
+    },
+    {
+      "address": "0x1001E680",
+      "raw_name": "sub_1001e680",
+      "normalized_name": "ItemParse_altrowcolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail item-only color parser for the `altrowcolor` keyword."
+    },
+    {
+      "address": "0x1001E6A0",
+      "raw_name": "sub_1001e6a0",
+      "normalized_name": "ItemParse_elementcolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail item-only color parser for the `elementcolor` keyword."
+    },
+    {
+      "address": "0x1001E6C0",
+      "raw_name": "sub_1001e6c0",
+      "normalized_name": "ItemParse_selectedcolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail item-only color parser for the `selectedcolor` keyword."
+    },
+    {
+      "address": "0x1001E6E0",
+      "raw_name": "FUN_1001e6e0",
+      "normalized_name": "ItemParse_outlineimage",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the retail outline-image shader token and stores the registered handle on the item."
+    },
+    {
+      "address": "0x1001E790",
+      "raw_name": "FUN_1001e790",
+      "normalized_name": "Parse_background",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail parser for the `background` keyword that registers a no-mip shader and stores the handle."
+    },
+    {
+      "address": "0x1001E840",
+      "raw_name": "FUN_1001e840",
+      "normalized_name": "Parse_cinematic",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail parser for the `cinematic` keyword that interns the cinematic name string."
+    },
+    {
+      "address": "0x1001E8E0",
+      "raw_name": "sub_1001e8e0",
+      "normalized_name": "ItemParse_doubleClick",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates listbox typeData and parses the `doubleclick` script into the retail listbox callback slot."
+    },
+    {
+      "address": "0x1001E920",
+      "raw_name": "sub_1001e920",
+      "normalized_name": "ItemParse_cellId",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only item parser for the integer `cellId` keyword."
+    },
+    {
+      "address": "0x1001E940",
+      "raw_name": "FUN_1001e940",
+      "normalized_name": "ItemParse_defaultContent",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only item parser that interns the `defaultContent` string."
+    },
+    {
+      "address": "0x1001E9E0",
+      "raw_name": "sub_1001e9e0",
+      "normalized_name": "ItemParse_precision",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only item parser for the integer `precision` keyword."
+    },
+    {
+      "address": "0x1001EA00",
+      "raw_name": "sub_1001ea00",
+      "normalized_name": "ItemParse_onFocus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `onFocus` script block."
+    },
+    {
+      "address": "0x1001EA20",
+      "raw_name": "sub_1001ea20",
+      "normalized_name": "ItemParse_leaveFocus",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `leaveFocus` script block."
+    },
+    {
+      "address": "0x1001EA40",
+      "raw_name": "sub_1001ea40",
+      "normalized_name": "ItemParse_mouseEnter",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `mouseEnter` script block."
+    },
+    {
+      "address": "0x1001EA60",
+      "raw_name": "sub_1001ea60",
+      "normalized_name": "ItemParse_mouseExit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `mouseExit` script block."
+    },
+    {
+      "address": "0x1001EA80",
+      "raw_name": "sub_1001ea80",
+      "normalized_name": "ItemParse_mouseEnterText",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `mouseEnterText` script block."
+    },
+    {
+      "address": "0x1001EAA0",
+      "raw_name": "sub_1001eaa0",
+      "normalized_name": "ItemParse_mouseExitText",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `mouseExitText` script block."
+    },
+    {
+      "address": "0x1001EAC0",
+      "raw_name": "sub_1001eac0",
+      "normalized_name": "ItemParse_action",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the item `action` script block."
+    },
+    {
+      "address": "0x1001EAE0",
+      "raw_name": "sub_1001eae0",
+      "normalized_name": "Parse_feeder_or_special",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail float parser reused by the item `feeder` and `special` keywords."
+    },
+    {
+      "address": "0x1001EB00",
+      "raw_name": "FUN_1001eb00",
+      "normalized_name": "ItemParse_cvarTest",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the first retail cvar-test string slot."
+    },
+    {
+      "address": "0x1001EBA0",
+      "raw_name": "FUN_1001eba0",
+      "normalized_name": "ItemParse_cvarTest2",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the second retail cvar-test string slot."
+    },
+    {
+      "address": "0x1001EC40",
+      "raw_name": "FUN_1001ec40",
+      "normalized_name": "ItemParse_cvarTest3",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the third retail cvar-test string slot."
+    },
+    {
+      "address": "0x1001ECE0",
+      "raw_name": "FUN_1001ece0",
+      "normalized_name": "ItemParse_cvarTest4",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the fourth retail cvar-test string slot."
+    },
+    {
+      "address": "0x1001ED80",
+      "raw_name": "FUN_1001ed80",
+      "normalized_name": "ItemParse_cvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates the item edit or multi typeData, parses the backing cvar name, and resets the retail edit-field min, max, and default values when applicable."
+    },
+    {
+      "address": "0x1001EE70",
+      "raw_name": "sub_1001ee70",
+      "normalized_name": "ItemParse_cvara",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only item parser that reuses `ItemParse_cvar` and then seeds the parsed cvar through the display-context setter with the empty default string."
+    },
+    {
+      "address": "0x1001EEC0",
+      "raw_name": "sub_1001eec0",
+      "normalized_name": "ItemParse_maxChars",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates edit typeData and parses the integer `maxChars` limit."
+    },
+    {
+      "address": "0x1001EF30",
+      "raw_name": "sub_1001ef30",
+      "normalized_name": "ItemParse_maxPaintChars",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Validates edit typeData and parses the integer `maxPaintChars` limit."
+    },
+    {
+      "address": "0x1001EFA0",
+      "raw_name": "FUN_1001efa0",
+      "normalized_name": "ItemParse_cvarFloat",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a cvar name plus default, min, and max floats into the edit-field range definition."
+    },
+    {
+      "address": "0x1001F010",
+      "raw_name": "FUN_1001f010",
+      "normalized_name": "ItemParse_cvarFloatList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a brace-delimited multi list of string and float pairs into the float-backed multi-selector table."
+    },
+    {
+      "address": "0x1001F150",
+      "raw_name": "FUN_1001f150",
+      "normalized_name": "ItemParse_cvarInt",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only integer variant of the cvar-range parser that reads the cvar plus default, min, and max values and marks integer mode."
+    },
+    {
+      "address": "0x1001F1D0",
+      "raw_name": "FUN_1001f1d0",
+      "normalized_name": "ItemParse_cvarPreset",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only preset parser that reads brace-delimited preset labels plus numeric values into the multi-selector string and float tables."
+    },
+    {
+      "address": "0x1001F370",
+      "raw_name": "FUN_1001f370",
+      "normalized_name": "ItemParse_cvarStrList",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses alternating brace-delimited string pairs into the string-backed multi-selector table; retail also reuses this handler for cvarPresetList."
+    },
+    {
+      "address": "0x1001F4C0",
+      "raw_name": "FUN_1001f4c0",
+      "normalized_name": "ItemParse_addColorRange",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses low, high, and color triplets and appends them to the item's retail color-range array up to the fixed limit."
+    },
+    {
+      "address": "0x1001F580",
+      "raw_name": "sub_1001f580",
+      "normalized_name": "Parse_ownerdrawFlag",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail int parser for the `ownerdrawFlag` keyword."
+    },
+    {
+      "address": "0x1001F5B0",
+      "raw_name": "sub_1001f5b0",
+      "normalized_name": "Parse_ownerdrawFlag2",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail int parser for the retail-only `ownerdrawFlag2` keyword."
+    },
+    {
+      "address": "0x1001F5E0",
+      "raw_name": "FUN_1001f5e0",
+      "normalized_name": "ItemParse_enableCvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the enable-cvar script and marks the item with CVAR_ENABLE gating."
+    },
+    {
+      "address": "0x1001F610",
+      "raw_name": "FUN_1001f610",
+      "normalized_name": "ItemParse_disableCvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the disable-cvar script and marks the item with CVAR_DISABLE gating."
+    },
+    {
+      "address": "0x1001F650",
+      "raw_name": "FUN_1001f650",
+      "normalized_name": "ItemParse_showCvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the show-cvar script and marks the item with CVAR_SHOW gating."
+    },
+    {
+      "address": "0x1001F690",
+      "raw_name": "FUN_1001f690",
+      "normalized_name": "ItemParse_hideCvar",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the hide-cvar script and marks the item with CVAR_HIDE gating."
+    },
+    {
+      "address": "0x1001F6D0",
+      "raw_name": "sub_1001f6d0",
+      "normalized_name": "Parse_showCvar2_or_hideCvar2",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail script parser reused by the `showCvar2` and `hideCvar2` keywords."
+    },
+    {
+      "address": "0x1001F6F0",
+      "raw_name": "sub_1001f6f0",
+      "normalized_name": "Parse_showCvar3_or_hideCvar3",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail script parser reused by the `showCvar3` and `hideCvar3` keywords."
+    },
+    {
+      "address": "0x1001F710",
+      "raw_name": "sub_1001f710",
+      "normalized_name": "Parse_showCvar4_or_hideCvar4",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail script parser reused by the `showCvar4` and `hideCvar4` keywords."
+    },
+    {
+      "address": "0x1001F730",
+      "raw_name": "FUN_1001f730",
+      "normalized_name": "Item_SetupKeywordHash",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clears the retail item keyword-hash table and inserts every item parser keyword record from the static keyword array."
+    },
+    {
+      "address": "0x1001F7C0",
+      "raw_name": "FUN_1001f7c0",
+      "normalized_name": "Item_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses an itemDef block, resolves tokens through the item keyword hash, and reports unknown or malformed retail item keywords."
+    },
+    {
+      "address": "0x1001F9D0",
+      "raw_name": "FUN_1001f9d0",
+      "normalized_name": "MenuParse_font",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Normalizes the menu font path, registers the retail text, small, and big fonts on first use, and stores the resolved menu font token."
+    },
+    {
+      "address": "0x1001FAA0",
+      "raw_name": "sub_1001faa0",
+      "normalized_name": "MenuParse_fullscreen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the menu fullScreen flag."
+    },
+    {
+      "address": "0x1001FAC0",
+      "raw_name": "sub_1001fac0",
+      "normalized_name": "MenuParse_widescreen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the retail menu widescreen mode and rejects out-of-range values."
+    },
+    {
+      "address": "0x1001FB00",
+      "raw_name": "FUN_1001fb00",
+      "normalized_name": "MenuParse_rect",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses four floats into menu->window.rectClient."
+    },
+    {
+      "address": "0x1001FB60",
+      "raw_name": "sub_1001fb60",
+      "normalized_name": "Parse_style",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail int parser for the `style` keyword."
+    },
+    {
+      "address": "0x1001FB80",
+      "raw_name": "sub_1001fb80",
+      "normalized_name": "MenuParse_onOpen",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the menu `onOpen` script block."
+    },
+    {
+      "address": "0x1001FBA0",
+      "raw_name": "sub_1001fba0",
+      "normalized_name": "MenuParse_onClose",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the menu `onClose` script block."
+    },
+    {
+      "address": "0x1001FBC0",
+      "raw_name": "sub_1001fbc0",
+      "normalized_name": "MenuParse_onESC",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses the menu `onESC` script block."
+    },
+    {
+      "address": "0x1001FBE0",
+      "raw_name": "sub_1001fbe0",
+      "normalized_name": "Parse_border",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail int parser for the `border` keyword."
+    },
+    {
+      "address": "0x1001FC00",
+      "raw_name": "sub_1001fc00",
+      "normalized_name": "Parse_borderSize",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail float parser for the `borderSize` and `bordersize` keywords."
+    },
+    {
+      "address": "0x1001FC20",
+      "raw_name": "FUN_1001fc20",
+      "normalized_name": "MenuParse_focuscolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses four floats into menu->focusColor."
+    },
+    {
+      "address": "0x1001FD10",
+      "raw_name": "FUN_1001fd10",
+      "normalized_name": "MenuParse_disablecolor",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses four floats into menu->disableColor."
+    },
+    {
+      "address": "0x1001FE00",
+      "raw_name": "FUN_1001fe00",
+      "normalized_name": "MenuParse_backgroundSize",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only menu parser that reads the four-float `backgroundSize` value."
+    },
+    {
+      "address": "0x1001FE70",
+      "raw_name": "sub_1001fe70",
+      "normalized_name": "MenuParse_ownerdraw",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses menu->window.ownerDraw."
+    },
+    {
+      "address": "0x1001FE90",
+      "raw_name": "sub_1001fe90",
+      "normalized_name": "MenuParse_popup",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks the menu window with WINDOW_POPUP."
+    },
+    {
+      "address": "0x1001FEB0",
+      "raw_name": "sub_1001feb0",
+      "normalized_name": "MenuParse_outOfBounds",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Marks the menu window with WINDOW_OOB_CLICK."
+    },
+    {
+      "address": "0x1001FED0",
+      "raw_name": "FUN_1001fed0",
+      "normalized_name": "Parse_text_or_soundLoop",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail string parser reused by item `text` and menu `soundLoop`."
+    },
+    {
+      "address": "0x1001FF70",
+      "raw_name": "sub_1001ff70",
+      "normalized_name": "Parse_textalignx_or_fadeClamp",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared retail float parser reused by item `textalignx` and menu `fadeClamp`."
+    },
+    {
+      "address": "0x1001FF90",
+      "raw_name": "sub_1001ff90",
+      "normalized_name": "MenuParse_itemDef",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Allocates, initializes, parses, post-initializes, and parents a new menu item until the retail item limit is reached."
+    },
+    {
+      "address": "0x10020100",
+      "raw_name": "FUN_10020100",
+      "normalized_name": "Menu_SetupKeywordHash",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Clears the retail menu keyword-hash table and inserts every menu parser keyword record from the static menu keyword array."
+    },
+    {
+      "address": "0x10020190",
+      "raw_name": "FUN_10020190",
+      "normalized_name": "Menu_Parse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Parses a menudef block, resolves tokens through the menu keyword hash, and reports unknown or malformed retail menu keywords."
+    },
+    {
+      "address": "0x100203A0",
+      "raw_name": "FUN_100203a0",
+      "normalized_name": "Menu_PaintAll",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs any active capture callback, paints every menu, and draws the retail debug FPS overlay when debug mode is enabled."
+    },
+    {
+      "address": "0x10020740",
+      "raw_name": "FUN_10020740",
+      "normalized_name": "Display_MouseMove",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail null-menu variant of Display_MouseMove that routes the current cursor position to the focused popup menu or to every menu and returns qtrue."
+    },
+    {
+      "address": "0x100207F0",
+      "raw_name": "FUN_100207f0",
+      "normalized_name": "Display_CacheAll",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Caches every menu's cinematic and sound dependencies by replaying the menu, item, and window content-cache walk behind the retail ui_cache command."
+    },
+    {
+      "address": "0x100208F0",
+      "raw_name": "FUN_100208f0",
+      "normalized_name": "Menu_OverActiveItem",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Returns whether the cursor is over any non-decoration active item in a visible menu, including corrected-text-rect handling for text items and cvar visibility gating."
+    },
+    {
+      "address": "0x100209E9",
+      "raw_name": "__security_check_cookie",
+      "normalized_name": "__security_check_cookie",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact MSVC GS cookie verifier used by the protected retail stack-frame epilog and wired into the EH4 exception path."
+    },
+    {
+      "address": "0x10020A46",
+      "raw_name": "__CRT_INIT@12",
+      "normalized_name": "__CRT_INIT@12",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Runs the CRT process-attach and process-detach initializer, including constructor or destructor dispatch around the native DLL entrypoint."
+    },
+    {
+      "address": "0x10020C50",
+      "raw_name": "___DllMainCRTStartup",
+      "normalized_name": "___DllMainCRTStartup",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact MSVC DLL startup wrapper that initializes the CRT, forwards into _DllMain@12, and handles attach-failure unwind paths."
+    },
+    {
+      "address": "0x10020D5B",
+      "raw_name": "FUN_10020d5b",
+      "normalized_name": "CRT_ResetNativeDllMainReason",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Resets the cached DLL startup reason to -1 after ___DllMainCRTStartup finishes its attach or detach path."
+    },
+    {
+      "address": "0x10020D66",
+      "raw_name": "entry",
+      "normalized_name": "_start",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Module start stub that runs ___security_init_cookie on process attach and then tail-calls ___DllMainCRTStartup."
+    },
+    {
+      "address": "0x10020D89",
+      "raw_name": "___report_gsfailure",
+      "normalized_name": "___report_gsfailure",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "GS failure reporter that captures processor state and terminates through the Windows unhandled-exception path."
+    },
+    {
+      "address": "0x10020E9B",
+      "raw_name": "__onexit",
+      "normalized_name": "__onexit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Registers an atexit callback through the encoded CRT onexit tables, falling back to _onexit when the DLL CRT is not initialized."
+    },
+    {
+      "address": "0x10020F33",
+      "raw_name": "FUN_10020f33",
+      "normalized_name": "CRT_UnlockOnExitTable",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Tiny CRT cleanup stub that releases lock 8 after __dllonexit updates the encoded onexit tables."
+    },
+    {
+      "address": "0x10020F3C",
+      "raw_name": "_atexit",
+      "normalized_name": "_atexit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Thin wrapper over __onexit that returns 0 on success and -1 on failure."
+    },
+    {
+      "address": "0x10020FA0",
+      "raw_name": "__ValidateImageBase",
+      "normalized_name": "__ValidateImageBase",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Checks the DOS and PE signatures for a candidate module image before CRT section scanning."
+    },
+    {
+      "address": "0x10020FE0",
+      "raw_name": "__FindPESection",
+      "normalized_name": "__FindPESection",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Finds the PE section record that covers a candidate RVA inside the current image."
+    },
+    {
+      "address": "0x10021030",
+      "raw_name": "__IsNonwritableInCurrentImage",
+      "normalized_name": "__IsNonwritableInCurrentImage",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Uses __ValidateImageBase and __FindPESection to test whether a pointer lies in a non-writable section of the current module image."
+    },
+    {
+      "address": "0x100210EC",
+      "raw_name": "initterm",
+      "normalized_name": "initterm",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT thunk that tail-calls the initterm constructor walker."
+    },
+    {
+      "address": "0x100210F2",
+      "raw_name": "initterm_e",
+      "normalized_name": "initterm_e",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT thunk that tail-calls the initterm_e constructor walker."
+    },
+    {
+      "address": "0x100210F8",
+      "raw_name": "_amsg_exit",
+      "normalized_name": "_amsg_exit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT fatal-startup message exit thunk."
+    },
+    {
+      "address": "0x10021104",
+      "raw_name": "_DllMain@12",
+      "normalized_name": "_DllMain@12",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Small DLL entry wrapper that tail-calls the module's exported dllEntry function."
+    },
+    {
+      "address": "0x10021130",
+      "raw_name": "__SEH_prolog4",
+      "normalized_name": "__SEH_prolog4",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact MSVC SEH frame prolog helper for GS-protected functions."
+    },
+    {
+      "address": "0x10021175",
+      "raw_name": "__SEH_epilog4",
+      "normalized_name": "__SEH_epilog4",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact MSVC SEH frame epilog helper for GS-protected functions."
+    },
+    {
+      "address": "0x10021189",
+      "raw_name": "FUN_10021189",
+      "normalized_name": "__except_handler4",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact EH4 exception handler wrapper that forwards into _except_handler4_common with the security-cookie callbacks."
+    },
+    {
+      "address": "0x100211AE",
+      "raw_name": "___security_init_cookie",
+      "normalized_name": "___security_init_cookie",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "MSVC GS cookie initializer that seeds __security_cookie and its complement from time, pid, tid, tickcount, and performance-counter state."
+    },
+    {
+      "address": "0x1002124A",
+      "raw_name": "_crt_debugger_hook",
+      "normalized_name": "_crt_debugger_hook",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT debugger hook thunk."
+    },
+    {
+      "address": "0x10021256",
+      "raw_name": "_unlock",
+      "normalized_name": "_unlock",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT lock-release thunk."
+    },
+    {
+      "address": "0x1002125C",
+      "raw_name": "__dllonexit",
+      "normalized_name": "__dllonexit",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT DLL onexit registration thunk."
+    },
+    {
+      "address": "0x10021262",
+      "raw_name": "_lock",
+      "normalized_name": "_lock",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT lock-acquire thunk."
+    },
+    {
+      "address": "0x10021268",
+      "raw_name": "except_handler4_common",
+      "normalized_name": "except_handler4_common",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "CRT EH4 common-handler thunk."
+    },
+    {
+      "address": "0x10021270",
+      "raw_name": "FUN_10021270",
+      "normalized_name": "__ftol2_sse",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler float-to-int helper that uses the SSE fast path when enabled and falls back to __ftol2 otherwise."
+    },
+    {
+      "address": "0x100212A6",
+      "raw_name": "FUN_100212a6",
+      "normalized_name": "__ftol2",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler x87 long-double-to-int helper used by retail color, layout, and coordinate conversion code."
+    },
+    {
+      "address": "0x1002131C",
+      "raw_name": "memset",
+      "normalized_name": "memset",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Imported memset thunk."
+    },
+    {
+      "address": "0x10021322",
+      "raw_name": "_CIcos",
+      "normalized_name": "_CIcos",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler intrinsic cosine thunk."
+    },
+    {
+      "address": "0x10021328",
+      "raw_name": "_CIsin",
+      "normalized_name": "_CIsin",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler intrinsic sine thunk."
+    },
+    {
+      "address": "0x10021330",
+      "raw_name": "__alloca_probe",
+      "normalized_name": "__alloca_probe",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Stack probing helper used before large local allocations."
+    },
+    {
+      "address": "0x1002135C",
+      "raw_name": "_CIatan2",
+      "normalized_name": "_CIatan2",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler intrinsic atan2 thunk."
+    },
+    {
+      "address": "0x10021362",
+      "raw_name": "_CItan",
+      "normalized_name": "_CItan",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler intrinsic tangent thunk."
+    },
+    {
+      "address": "0x10021370",
+      "raw_name": "__aulldiv",
+      "normalized_name": "__aulldiv",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler unsigned 64-bit division helper."
+    },
+    {
+      "address": "0x100213E0",
+      "raw_name": "__allmul",
+      "normalized_name": "__allmul",
+      "status": "matched",
+      "signature": null,
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Compiler 64-bit multiply helper."
     }
   ],
-  "strings": [
-    {
-      "address": "0x0058A010",
-      "value": "----- UI_Init -----",
-      "xref_functions": ["0x00301020"],
-      "normalized_label": "str_ui_init_banner",
-      "status": "matched"
-    },
-    {
-      "address": "0x0058A220",
-      "value": "Awaiting connection...",
-      "xref_functions": ["0x00301840"],
-      "normalized_label": "str_awaiting_connection",
-      "status": "matched"
-    },
-    {
-      "address": "0x0058A240",
-      "value": "Press ESC to abort",
-      "xref_functions": ["0x00301840"],
-      "normalized_label": "str_press_esc_abort",
-      "status": "matched"
-    },
-    {
-      "address": "0x0058B010",
-      "value": "menu: %s",
-      "xref_functions": ["0x00311AB0"],
-      "normalized_label": "str_menu_fmt",
-      "status": "matched"
-    },
-    {
-      "address": "0x0058F200",
-      "value": "challenge hub update pending",
-      "xref_functions": ["0x0030F8A0"],
-      "normalized_label": "UNRESOLVED_UI_str_0058F200",
-      "status": "unresolved"
-    }
-  ],
-  "relocations": [
-    {
-      "offset": "0x000C1010",
-      "type": "R_386_PC32",
-      "symbol": "uiInfo.uiDC.draw"
-    },
-    {
-      "offset": "0x000C2020",
-      "type": "R_386_PC32",
-      "symbol": "trap_R_SetColor"
-    },
-    {
-      "offset": "0x000C3030",
-      "type": "R_386_PC32",
-      "symbol": "trap_Key_SetCatcher"
-    },
-    {
-      "offset": "0x000C4040",
-      "type": "R_386_PC32",
-      "symbol": "Menu_PostParse"
-    }
-  ],
+  "strings": [],
+  "relocations": [],
   "stats": {
-    "function_total": 5,
-    "function_matched": 4,
-    "string_total": 5,
-    "string_resolved": 4,
-    "relocation_total": 4
+    "function_total": 444,
+    "function_matched": 444,
+    "string_total": 0,
+    "string_resolved": 0,
+    "relocation_total": 0
   }
 }

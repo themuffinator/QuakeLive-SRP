@@ -17,53 +17,6 @@ typedef struct {
 
 /*
 =============
-QL_ClientAuth_StringRepresentsTrue
-
-Returns qtrue when a string value should be interpreted as enabled.
-=============
-*/
-static qboolean QL_ClientAuth_StringRepresentsTrue( const char *value ) {
-	if ( !value || !value[0] ) {
-		return qfalse;
-	}
-
-	if ( value[0] == '0' && value[1] == '\0' ) {
-		return qfalse;
-	}
-
-	if ( !Q_stricmp( value, "false" ) || !Q_stricmp( value, "no" ) || !Q_stricmp( value, "off" ) ) {
-		return qfalse;
-	}
-
-	return qtrue;
-}
-
-/*
-=============
-QL_ClientAuth_ExternalEcosystemsDisabled
-
-Checks runtime toggles that disable Steam/Awesomium integrations.
-=============
-*/
-static qboolean QL_ClientAuth_ExternalEcosystemsDisabled( void ) {
-	const char *value;
-
-	value = getenv( "QL_DISABLE_EXTERNAL_ECOSYSTEMS" );
-	if ( QL_ClientAuth_StringRepresentsTrue( value ) ) {
-		return qtrue;
-	}
-
-	value = getenv( "QL_DISABLE_STEAMWORKS" );
-	if ( QL_ClientAuth_StringRepresentsTrue( value ) ) {
-		return qtrue;
-	}
-
-	value = getenv( "QL_DISABLE_AWESOMIUM" );
-	return QL_ClientAuth_StringRepresentsTrue( value );
-}
-
-/*
-=============
 QL_ClientAuth_MapOutcome
 
 Maps a backend result code into the public-facing outcome enum.
@@ -244,7 +197,7 @@ static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credenti
 		return qfalse;
 	}
 
-	if ( QL_ClientAuth_ExternalEcosystemsDisabled() ) {
+	if ( !CL_SteamServicesEnabled() ) {
 		return qfalse;
 	}
 
@@ -275,7 +228,7 @@ Validates a Steam ticket using the native Steamworks APIs.
 static qboolean QL_ClientAuth_HandleSteamworksTicket( const ql_client_auth_transport_t *transport, const ql_auth_credential_t *credential, ql_auth_response_t *response ) {
 	(void)transport;
 
-	if ( QL_ClientAuth_ExternalEcosystemsDisabled() ) {
+	if ( !CL_SteamServicesEnabled() ) {
 		return qfalse;
 	}
 
@@ -312,6 +265,10 @@ Routes standalone launcher tokens to the Open Steam adapter backend.
 */
 static qboolean QL_ClientAuth_HandleStandaloneToken( const ql_auth_credential_t *credential, ql_auth_response_t *response ) {
 	if ( !credential || credential->kind != QL_AUTH_CREDENTIAL_STANDALONE_TOKEN ) {
+		return qfalse;
+	}
+
+	if ( !CL_OnlineServicesEnabled() ) {
 		return qfalse;
 	}
 
@@ -407,9 +364,9 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 	steamHex[0] = '\0';
 
 	if ( credential->kind == QL_AUTH_CREDENTIAL_STEAM ) {
-		if ( QL_ClientAuth_ExternalEcosystemsDisabled() ) {
+		if ( !CL_SteamServicesEnabled() ) {
 			QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_ERROR,
-			"Steam authentication disabled by runtime flags" );
+			"Steam authentication disabled by build/runtime policy" );
 			return qfalse;
 		}
 
@@ -423,6 +380,12 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 		}
 
 		activeCredential = &steamCredential;
+	}
+
+	if ( credential->kind == QL_AUTH_CREDENTIAL_STANDALONE_TOKEN && !CL_OnlineServicesEnabled() ) {
+		QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_ERROR,
+		"Standalone launcher authentication disabled by build/runtime policy" );
+		return qfalse;
 	}
 
 	const ql_platform_service_table *services = QL_GetPlatformServices();

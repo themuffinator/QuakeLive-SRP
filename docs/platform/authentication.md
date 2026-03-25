@@ -9,13 +9,14 @@ This document describes how the client dispatches external authentication reques
 - **Steam** – `/steam/session/validate`
 - **Standalone launcher** – `/launcher/auth/verify`
 
-The build definitions `QL_BUILD_STEAMWORKS` and `QL_BUILD_OPEN_STEAM` funnel through `platform_config.h`, which exposes the normalised capability flags consumed by `QL_GetPlatformServices`. The table below maps the supported flag permutations to the advertised provider label and dispatch endpoints surfaced by the runtime. Regression probes compile the dispatcher with each flag combination to confirm the descriptors match the configuration.【F:src/common/platform/platform_config.h†L1-L34】【F:src/common/platform/platform_services.c†L16-L75】【F:tests/test_platform_services.py†L11-L132】
+The build definitions `QL_BUILD_ONLINE_SERVICES`, `QL_BUILD_STEAMWORKS`, and `QL_BUILD_OPEN_STEAM` funnel through `platform_config.h`, which exposes the normalised capability flags consumed by `QL_GetPlatformServices`. The table below maps the supported flag permutations to the advertised provider label and dispatch endpoints surfaced by the runtime. Regression probes compile the dispatcher with each flag combination to confirm the descriptors match the configuration, including the default build-disabled policy path.【F:src/common/platform/platform_config.h†L1-L40】【F:src/common/platform/platform_services.c†L16-L89】【F:tests/test_platform_services.py†L11-L154】
 
 | Build macro preset | Provider label reported by `QL_GetPlatformServices` | Dispatch endpoints |
 | --- | --- | --- |
-| `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=0` | `Steamworks` | `/steam/session/validate` |
-| `QL_BUILD_STEAMWORKS=0`, `QL_BUILD_OPEN_STEAM=1` | `Open Steam Adapter` | `/launcher/auth/verify` |
-| `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=1` | `Hybrid` (Steam primary, open fallback) | Steam: `/steam/session/validate`<br>Fallback: `/launcher/auth/verify` |
+| `QL_BUILD_ONLINE_SERVICES=0` | `Build-disabled (QL_BUILD_ONLINE_SERVICES=0)` | none; policy stubs reject live-service auth attempts |
+| `QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=0` | `Steamworks` | `/steam/session/validate` |
+| `QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=0`, `QL_BUILD_OPEN_STEAM=1` | `Open Steam Adapter` | `/launcher/auth/verify` |
+| `QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=1` | `Hybrid` (Steam primary, open fallback) | Steam: `/steam/session/validate`<br>Fallback: `/launcher/auth/verify` |
 
 Each dispatch prints a log entry with the provider label, summarizes the credential using a masked preview, and writes the final outcome to the shared response object.【F:src/code/client/ql_auth.c†L44-L273】 The service table ensures that builds compiled without a given backend still advertise accurate capabilities.【F:src/common/platform/platform_services.c†L16-L75】
 

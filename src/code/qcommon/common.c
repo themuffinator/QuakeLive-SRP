@@ -23,7 +23,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../game/q_shared.h"
 #include "qcommon.h"
+#include "../../common/platform/platform_config.h"
 #include "../../../src-re/include/fs_imports.h"
+#include <stdlib.h>
 #include <setjmp.h>
 #include <ctype.h>
 #ifdef __linux__
@@ -2715,6 +2717,37 @@ static void Com_WriteCDKey( const char *filename, const char *ikey ) {
 
 /*
 =================
+Com_SetEnvironmentVariable
+=================
+*/
+static void Com_SetEnvironmentVariable( const char *name, const char *value ) {
+	if ( !name || !name[0] ) {
+		return;
+	}
+
+#if defined(_WIN32)
+	_putenv_s( name, value ? value : "" );
+#else
+	setenv( name, value ? value : "", 1 );
+#endif
+}
+
+/*
+=================
+Com_ApplyOnlineServicesBuildPolicy
+=================
+*/
+static void Com_ApplyOnlineServicesBuildPolicy( void ) {
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	Com_SetEnvironmentVariable( "QL_DISABLE_EXTERNAL_ECOSYSTEMS", "1" );
+	Com_SetEnvironmentVariable( "QL_DISABLE_AWESOMIUM", "1" );
+	Com_SetEnvironmentVariable( "QL_DISABLE_STEAMWORKS", "1" );
+	Com_Printf( "Online services: build-disabled (QL_BUILD_ONLINE_SERVICES=0); forcing advert/web/Steam fallbacks.\n" );
+#endif
+}
+
+/*
+=================
 Com_Init
 =================
 */
@@ -2734,6 +2767,7 @@ void Com_Init( char *commandLine ) {
 
 	Com_InitSmallZoneMemory();
 	Cvar_Init ();
+	Com_ApplyOnlineServicesBuildPolicy();
 
 	// prepare enough of the subsystems to handle
 	// cvar and command buffer management
@@ -2748,8 +2782,13 @@ void Com_Init( char *commandLine ) {
         Cvar_BootstrapExpandedDefaults();
 
 	// Make early filesystem/bootstrap diagnostics visible in qconsole.log.
+#ifdef _DEBUG
+	com_developer = Cvar_Get( "developer", "1", CVAR_TEMP );
+	com_logfile = Cvar_Get( "logfile", "2", CVAR_TEMP );
+#else
 	com_developer = Cvar_Get( "developer", "0", CVAR_TEMP );
 	com_logfile = Cvar_Get( "logfile", "0", CVAR_TEMP );
+#endif
 
         // override anything from the config files with command line args
         Com_StartupVariable( NULL );
@@ -2759,7 +2798,7 @@ void Com_Init( char *commandLine ) {
 	Com_StartupVariable( "logfile" );
 
 #if defined(_WIN32) && defined(_DEBUG)
-	com_noErrorInterrupt = Cvar_Get( "com_noErrorInterrupt", "0", 0 );
+	com_noErrorInterrupt = Cvar_Get( "com_noErrorInterrupt", "1", 0 );
 #endif
 
 	// done early so bind command exists
@@ -2804,8 +2843,13 @@ void Com_Init( char *commandLine ) {
 	com_maxfps = Cvar_Get ("com_maxfps", "85", CVAR_ARCHIVE);
 	com_blood = Cvar_Get ("com_blood", "1", CVAR_ARCHIVE);
 
+#ifdef _DEBUG
+	com_developer = Cvar_Get ("developer", "1", CVAR_TEMP );
+	com_logfile = Cvar_Get ("logfile", "2", CVAR_TEMP );
+#else
 	com_developer = Cvar_Get ("developer", "0", CVAR_TEMP );
 	com_logfile = Cvar_Get ("logfile", "0", CVAR_TEMP );
+#endif
 
 	com_timescale = Cvar_Get ("timescale", "1", CVAR_CHEAT | CVAR_SYSTEMINFO );
 	com_fixedtime = Cvar_Get ("fixedtime", "0", CVAR_CHEAT);

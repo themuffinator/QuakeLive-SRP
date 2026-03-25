@@ -23,7 +23,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "client.h"
 #include "../../common/auth_credentials.h"
+#include "../../common/platform/platform_config.h"
 #include <limits.h>
+#include <stdlib.h>
+
+#ifdef _WIN32
+#include "../win32/win_local.h"
+#endif
 
 /*
 =============
@@ -54,20 +60,83 @@ qboolean CL_ShouldFilterConsoleText( const char *text ) {
 
 /*
 =============
+CL_StringRepresentsTrue
+
+Returns qtrue when an environment string should be treated as enabled.
+=============
+*/
+static qboolean CL_StringRepresentsTrue( const char *value ) {
+	if ( !value || !value[0] ) {
+		return qfalse;
+	}
+
+	if ( value[0] == '0' && value[1] == '\0' ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( value, "false" ) || !Q_stricmp( value, "no" ) || !Q_stricmp( value, "off" ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CL_OnlineServicesEnabled
+
+Returns qtrue when Quake Live-specific online services are available in this build and runtime.
+=============
+*/
+qboolean CL_OnlineServicesEnabled( void ) {
+	const char *value;
+
+	if ( !QL_PLATFORM_HAS_ONLINE_SERVICES ) {
+		return qfalse;
+	}
+
+	value = getenv( "QL_DISABLE_EXTERNAL_ECOSYSTEMS" );
+	if ( CL_StringRepresentsTrue( value ) ) {
+		return qfalse;
+	}
+
+	value = getenv( "QL_DISABLE_AWESOMIUM" );
+	if ( CL_StringRepresentsTrue( value ) ) {
+		return qfalse;
+	}
+
+	value = getenv( "QL_DISABLE_STEAMWORKS" );
+	if ( CL_StringRepresentsTrue( value ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CL_SteamServicesEnabled
+
+Returns qtrue when Steam-backed services are compiled in and available for use.
+=============
+*/
+qboolean CL_SteamServicesEnabled( void ) {
+	if ( !QL_PLATFORM_HAS_STEAM_SERVICES ) {
+		return qfalse;
+	}
+
+	return CL_OnlineServicesEnabled();
+}
+
+/*
+=============
 CL_UseDisconnectedConsoleFallback
 
 Enables a console-first disconnected experience when launcher ecosystems are disabled.
 =============
 */
 qboolean CL_UseDisconnectedConsoleFallback( void ) {
-	const char *value;
-
-	value = getenv( "QL_DISABLE_EXTERNAL_ECOSYSTEMS" );
-	if ( value && value[0] && atoi( value ) != 0 ) {
-		return qtrue;
-	}
-
-	return qfalse;
+	return !CL_OnlineServicesEnabled();
 }
 
 cvar_t	*cl_nodelta;
@@ -1216,15 +1285,19 @@ CL_SendPureChecksums
 void CL_SendPureChecksums( void ) {
 	const char *pChecksums;
 	char cMsg[MAX_INFO_VALUE];
+	int binChecksum;
 	int i;
 
 	// if we are pure we need to send back a command with our referenced pk3 checksums
 	pChecksums = FS_ReferencedPakPureChecksums();
+	if ( FS_FileIsInPAK( "cgamex86.dll", &binChecksum ) != 1 ) {
+		Com_Error( ERR_FATAL, "CL_SendPureChecksums: no pak file for binaries" );
+	}
 
 	// "cp"
 	// "Yf"
 	Com_sprintf(cMsg, sizeof(cMsg), "Yf ");
-	Q_strcat(cMsg, sizeof(cMsg), va("%d ", cl.serverId) );
+	Q_strcat(cMsg, sizeof(cMsg), va("%d %d ", cl.serverId, binChecksum) );
 	Q_strcat(cMsg, sizeof(cMsg), pChecksums);
 	for (i = 0; i < 2; i++) {
 		cMsg[i] += 10;
@@ -1252,6 +1325,29 @@ doesn't know what graphics to reload
 =================
 */
 void CL_Vid_Restart_f( void ) {
+#ifdef _WIN32
+	if ( !Cvar_VariableIntegerValue( "r_noFastRestart" ) && Cmd_Argc() > 1 && !Q_stricmp( Cmd_Argv( 1 ), "fast" ) ) {
+		int vidWidth;
+		int vidHeight;
+		qboolean fullscreen;
+
+		if ( WIN_FastVidRestart( &vidWidth, &vidHeight, &fullscreen ) ) {
+			cls.glconfig.vidWidth = vidWidth;
+			cls.glconfig.vidHeight = vidHeight;
+			cls.glconfig.isFullscreen = fullscreen;
+			g_console_field_width = cls.glconfig.vidWidth / SMALLCHAR_WIDTH - 2;
+			g_consoleField.widthInChars = g_console_field_width;
+			Cbuf_AddText( "postprocess_restart\n" );
+			if ( cgvm ) {
+				VM_Call( cgvm, CG_EVENT_HANDLING, CGAME_EVENT_REFRESH_DISPLAY_CONTEXT );
+			}
+			if ( uivm ) {
+				VM_Call( uivm, UI_REFRESH_DISPLAY_CONTEXT );
+			}
+			return;
+		}
+	}
+#endif
 
 	// don't let them loop during the restart
 	S_StopAllSounds();

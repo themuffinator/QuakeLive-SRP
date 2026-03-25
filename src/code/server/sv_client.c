@@ -1238,7 +1238,7 @@ This routine would be a bit simpler with a goto but i abstained
 =================
 */
 static void SV_VerifyPaks_f( client_t *cl ) {
-	int nChkSum1, nChkSum2, nClientPaks, nServerPaks, i, j, nCurArg;
+	int nBinChkSum, nChkSum1, nClientPaks, nServerPaks, i, j, nCurArg;
 	int nClientChkSum[1024];
 	int nServerChkSum[1024];
 	const char *pPaks, *pArg;
@@ -1251,11 +1251,9 @@ static void SV_VerifyPaks_f( client_t *cl ) {
 	if ( sv_pure->integer != 0 ) {
 
 		bGood = qtrue;
-		nChkSum1 = nChkSum2 = 0;
-		// we run the game, so determine which cgame and ui the client "should" be running
-		bGood = (FS_FileIsInPAK("vm/cgame.qvm", &nChkSum1) == 1);
-		if (bGood)
-			bGood = (FS_FileIsInPAK("vm/ui.qvm", &nChkSum2) == 1);
+		nBinChkSum = nChkSum1 = 0;
+		// Quake Live pure mode verifies a single binary pack checksum before the delimiter.
+		bGood = (FS_FileIsInPAK("cgamex86.dll", &nBinChkSum) == 1);
 
 		nClientPaks = Cmd_Argc();
 
@@ -1281,27 +1279,21 @@ static void SV_VerifyPaks_f( client_t *cl ) {
 		// we basically use this while loop to avoid using 'goto' :)
 		while (bGood) {
 
-			// must be at least 6: "cl_paks cgame ui @ firstref ... numChecksums"
+			// must be at least 6: "serverId bin @ firstref ... numChecksums"
 			// numChecksums is encoded
 			if (nClientPaks < 6) {
 				bGood = qfalse;
 				break;
 			}
-			// verify first to be the cgame checksum
+			// verify first to be the binary checksum
 			pArg = Cmd_Argv(nCurArg++);
-			if (!pArg || *pArg == '@' || atoi(pArg) != nChkSum1 ) {
-				bGood = qfalse;
-				break;
-			}
-			// verify the second to be the ui checksum
-			pArg = Cmd_Argv(nCurArg++);
-			if (!pArg || *pArg == '@' || atoi(pArg) != nChkSum2 ) {
+			if (!pArg || *pArg == '@' || atoi(pArg) != nBinChkSum ) {
 				bGood = qfalse;
 				break;
 			}
 			// should be sitting at the delimeter now
 			pArg = Cmd_Argv(nCurArg++);
-			if (*pArg != '@') {
+			if (!pArg || *pArg != '@') {
 				bGood = qfalse;
 				break;
 			}

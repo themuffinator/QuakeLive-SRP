@@ -100,8 +100,9 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros">
-    <QLBuildSteamworks>0</QLBuildSteamworks>
-    <QLBuildOpenSteam>1</QLBuildOpenSteam>
+    <QLBuildOnlineServices Condition="'$(QLBuildOnlineServices)'==''">0</QLBuildOnlineServices>
+    <QLBuildSteamworks Condition="'$(QLBuildSteamworks)'==''">0</QLBuildSteamworks>
+    <QLBuildOpenSteam Condition="'$(QLBuildOpenSteam)'==''">0</QLBuildOpenSteam>
     <QLEnableOgg Condition="'$(QLEnableOgg)'==''">1</QLEnableOgg>
     <QLEnablePng Condition="'$(QLEnablePng)'==''">1</QLEnablePng>
   </PropertyGroup>
@@ -125,12 +126,12 @@
   </PropertyGroup>
   <PropertyGroup Label="Steamworks">
     <SteamworksSdkDir Condition="'$(SteamworksSdkDir)'==''">$(ProjectDir)..\steamworks</SteamworksSdkDir>
-    <SteamworksIncludeDir Condition="'$(QLBuildSteamworks)'=='1'">$(SteamworksSdkDir)\sdk\public</SteamworksIncludeDir>
-    <SteamworksIncludeDir Condition="'$(QLBuildSteamworks)'!='1'"></SteamworksIncludeDir>
-    <SteamworksLibDir Condition="'$(QLBuildSteamworks)'=='1'">$(SteamworksSdkDir)\sdk\redistributable_bin</SteamworksLibDir>
-    <SteamworksLibDir Condition="'$(QLBuildSteamworks)'!='1'"></SteamworksLibDir>
-    <SteamworksDependencies Condition="'$(QLBuildSteamworks)'=='1'">steam_api.lib</SteamworksDependencies>
-    <SteamworksDependencies Condition="'$(QLBuildSteamworks)'!='1'"></SteamworksDependencies>
+    <SteamworksIncludeDir Condition="'$(QLBuildOnlineServices)'=='1' and '$(QLBuildSteamworks)'=='1'">$(SteamworksSdkDir)\sdk\public</SteamworksIncludeDir>
+    <SteamworksIncludeDir Condition="'$(QLBuildOnlineServices)'!='1' or '$(QLBuildSteamworks)'!='1'"></SteamworksIncludeDir>
+    <SteamworksLibDir Condition="'$(QLBuildOnlineServices)'=='1' and '$(QLBuildSteamworks)'=='1'">$(SteamworksSdkDir)\sdk\redistributable_bin</SteamworksLibDir>
+    <SteamworksLibDir Condition="'$(QLBuildOnlineServices)'!='1' or '$(QLBuildSteamworks)'!='1'"></SteamworksLibDir>
+    <SteamworksDependencies Condition="'$(QLBuildOnlineServices)'=='1' and '$(QLBuildSteamworks)'=='1'">steam_api.lib</SteamworksDependencies>
+    <SteamworksDependencies Condition="'$(QLBuildOnlineServices)'!='1' or '$(QLBuildSteamworks)'!='1'"></SteamworksDependencies>
   </PropertyGroup>
   <PropertyGroup>
     <_ProjectFileVersion>17.0.34511.75</_ProjectFileVersion>
@@ -178,7 +179,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(VorbisIncludeDir);$(PngIncludeDir);$(SteamworksIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>QL_ENABLE_OGG=$(QLEnableOgg);QL_ENABLE_PNG=$(QLEnablePng);QL_AUTH_HAS_CLIENT_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>QL_BUILD_ONLINE_SERVICES=$(QLBuildOnlineServices);QL_ENABLE_OGG=$(QLEnableOgg);QL_ENABLE_PNG=$(QLEnablePng);QL_AUTH_HAS_CLIENT_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(VorbisLibDir);$(PngLibDir);$(SteamworksLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -192,6 +193,13 @@
     <Error Condition="!Exists('$(VorbisLibDir)')" Text="Vorbis SDK library path '$(VorbisLibDir)' was not found. Install the codec SDK or set QLEnableOgg=0." />
     <Error Condition="!Exists('$(VorbisLibDir)\\vorbisfile.lib') or !Exists('$(VorbisLibDir)\\vorbis.lib') or !Exists('$(VorbisLibDir)\\ogg.lib')" Text="Vorbis support enabled but vorbisfile.lib/vorbis.lib/ogg.lib were not found in $(VorbisLibDir). Provide the SDK import libraries or build with QLEnableOgg=0 for dedicated-only targets." />
     <Message Text="Vorbis/OGG decoding enabled (include: $(VorbisIncludeDir), lib: $(VorbisLibDir))" Importance="High" />
+  </Target>
+  <Target Name="ValidatePng" BeforeTargets="ClCompile" Condition="'$(QLEnablePng)'=='1'">
+    <Error Condition="!Exists('$(PngIncludeDir)')" Text="PNG SDK include path '$(PngIncludeDir)' was not found. Either install libpng, override PngSdkDir, or set QLEnablePng=0 for renderer-only fallback builds." />
+    <Error Condition="!Exists('$(PngIncludeDir)\\png.h')" Text="libpng headers missing under $(PngIncludeDir). Install libpng development headers or set QLEnablePng=0." />
+    <Error Condition="!Exists('$(PngLibDir)')" Text="PNG SDK library path '$(PngLibDir)' was not found. Install libpng/zlib import libraries or set QLEnablePng=0." />
+    <Error Condition="!Exists('$(PngLibDir)\\libpng16.lib') or !Exists('$(PngLibDir)\\zlib.lib')" Text="PNG support enabled but libpng16.lib/zlib.lib were not found in $(PngLibDir). Provide the SDK import libraries or build with QLEnablePng=0." />
+    <Message Text="libpng decoding enabled (include: $(PngIncludeDir), lib: $(PngLibDir))" Importance="High" />
   </Target>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|Win32'">
     <ClCompile>
@@ -815,7 +823,7 @@ if exist "$(ProjectDir)..\libs\libpng\bin\*.dll" xcopy /y /d /i "$(ProjectDir)..
       <Optimization Condition="'$(Configuration)|$(Platform)'=='vector|Win32'">MaxSpeed</Optimization>
     </ClCompile>
     <ClCompile Include="..\common\platform\backends\platform_backend_open_steam.c">
-      <ExcludedFromBuild Condition="'$(QLBuildOpenSteam)'=='0'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(QLBuildOnlineServices)'=='0' or '$(QLBuildOpenSteam)'=='0'">true</ExcludedFromBuild>
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug TA DEMO|Win32'">Disabled</Optimization>
       <BrowseInformation Condition="'$(Configuration)|$(Platform)'=='Debug TA DEMO|Win32'">true</BrowseInformation>
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug TA|Win32'">Disabled</Optimization>
@@ -829,7 +837,7 @@ if exist "$(ProjectDir)..\libs\libpng\bin\*.dll" xcopy /y /d /i "$(ProjectDir)..
       <Optimization Condition="'$(Configuration)|$(Platform)'=='vector|Win32'">MaxSpeed</Optimization>
     </ClCompile>
     <ClCompile Include="..\common\platform\backends\platform_backend_steamworks.c">
-      <ExcludedFromBuild Condition="'$(QLBuildSteamworks)'=='0'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(QLBuildOnlineServices)'=='0' or '$(QLBuildSteamworks)'=='0'">true</ExcludedFromBuild>
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug TA DEMO|Win32'">Disabled</Optimization>
       <BrowseInformation Condition="'$(Configuration)|$(Platform)'=='Debug TA DEMO|Win32'">true</BrowseInformation>
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug TA|Win32'">Disabled</Optimization>
@@ -843,7 +851,7 @@ if exist "$(ProjectDir)..\libs\libpng\bin\*.dll" xcopy /y /d /i "$(ProjectDir)..
       <Optimization Condition="'$(Configuration)|$(Platform)'=='vector|Win32'">MaxSpeed</Optimization>
     </ClCompile>
     <ClCompile Include="..\common\platform\platform_steamworks.c">
-      <ExcludedFromBuild Condition="'$(QLBuildSteamworks)'=='0'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(QLBuildOnlineServices)'=='0' or '$(QLBuildSteamworks)'=='0'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\common\platform\platform_services.c">
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug TA DEMO|Win32'">Disabled</Optimization>

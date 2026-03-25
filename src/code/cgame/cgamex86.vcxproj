@@ -97,6 +97,13 @@
       <AdditionalDependencies>$(VorbisDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <Target Name="ValidateVorbis" BeforeTargets="ClCompile" Condition="'$(QLEnableOgg)'=='1'">
+    <Error Condition="!Exists('$(VorbisIncludeDir)')" Text="Vorbis SDK include path '$(VorbisIncludeDir)' was not found. Either install the SDK, override VorbisSdkDir, or set QLEnableOgg=0." />
+    <Error Condition="!Exists('$(VorbisIncludeDir)\\vorbis\\vorbisfile.h')" Text="Vorbis headers missing under $(VorbisIncludeDir). Install libvorbis/libogg development headers or set QLEnableOgg=0." />
+    <Error Condition="!Exists('$(VorbisLibDir)')" Text="Vorbis SDK library path '$(VorbisLibDir)' was not found. Install the codec SDK or set QLEnableOgg=0." />
+    <Error Condition="!Exists('$(VorbisLibDir)\\vorbisfile.lib') or !Exists('$(VorbisLibDir)\\vorbis.lib') or !Exists('$(VorbisLibDir)\\ogg.lib')" Text="Vorbis support enabled but vorbisfile.lib/vorbis.lib/ogg.lib were not found in $(VorbisLibDir). Provide the SDK import libraries or build with QLEnableOgg=0." />
+    <Message Text="cgame OGG support enabled (include: $(VorbisIncludeDir), lib: $(VorbisLibDir))" Importance="High" />
+  </Target>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|Win32'">
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
@@ -479,6 +486,7 @@
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MaxSpeed</Optimization>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">WIN32;NDEBUG;_WINDOWS</PreprocessorDefinitions>
     </ClCompile>
+    <ClCompile Include="cg_particles.c" />
     <ClCompile Include="cg_players.c">
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug TA|Win32'">Disabled</Optimization>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug TA|Win32'">WIN32;_DEBUG;_WINDOWS</PreprocessorDefinitions>

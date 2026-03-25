@@ -1,0 +1,2578 @@
+{
+  "schema_version": 1,
+  "binary": "qagame",
+  "input_path": "assets/quakelive/baseq3/qagamex86.dll",
+  "generated_at": "2026-03-21T00:00:00Z",
+  "normalization": {
+    "alias_source": "references/analysis/quakelive_symbol_aliases.json",
+    "unresolved_prefix": "UNRESOLVED_QAGAME"
+  },
+  "functions": [
+    {
+      "address": "0x10023400",
+      "raw_name": "FUN_10023400",
+      "normalized_name": "BotAIStartFrame",
+      "status": "matched",
+      "signature": "int BotAIStartFrame(int time)",
+      "string_refs": [
+        "0x1007DF98",
+        "0x1007DFA4"
+      ],
+      "relocation_refs": [],
+      "comment": "Bot frame driver that updates bot debug cvars and routing state, then advances active bot clients each server frame."
+    },
+    {
+      "address": "0x10033800",
+      "raw_name": "FUN_10033800",
+      "normalized_name": "P_DamageFeedback",
+      "status": "matched",
+      "signature": "void P_DamageFeedback(gentity_t *player)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "End-of-frame damage accumulator that converts client damage totals into damagePitch/damageYaw, EV_PAIN, and the outgoing damageCount payload."
+    },
+    {
+      "address": "0x10033950",
+      "raw_name": "FUN_10033950",
+      "normalized_name": "P_WorldEffects",
+      "status": "matched",
+      "signature": "void P_WorldEffects(gentity_t *ent)",
+      "string_refs": [
+        "0x10081F54",
+        "0x10081F6C"
+      ],
+      "relocation_refs": [],
+      "comment": "Water, drowning, lava, and slime handler anchored by the gurp sounds and the battlesuit/world-damage control flow."
+    },
+    {
+      "address": "0x10033B20",
+      "raw_name": "FUN_10033b20",
+      "normalized_name": "G_SetClientSound",
+      "status": "matched",
+      "signature": "void G_SetClientSound(gentity_t *ent)",
+      "string_refs": [
+        "0x10081F84"
+      ],
+      "relocation_refs": [],
+      "comment": "Loop-sound selector for proxmine ticking and lava/slime fry ambience."
+    },
+    {
+      "address": "0x10033B80",
+      "raw_name": "FUN_10033b80",
+      "normalized_name": "ClientImpacts",
+      "status": "matched",
+      "signature": "void ClientImpacts(gentity_t *ent, pmove_t *pm)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Unique touch-entity walker that dispatches bot self-touch callbacks and touched-entity handlers after pmove."
+    },
+    {
+      "address": "0x10033C00",
+      "raw_name": "FUN_10033c00",
+      "normalized_name": "G_TouchTriggers",
+      "status": "matched",
+      "signature": "void G_TouchTriggers(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Trigger scanner using the 40/40/52 spectator-safe range box, ET_ITEM touch checks, and jump-pad frame reset logic."
+    },
+    {
+      "address": "0x10033E30",
+      "raw_name": "FUN_10033e30",
+      "normalized_name": "SpectatorThink",
+      "status": "matched",
+      "signature": "void SpectatorThink(gentity_t *ent, usercmd_t *ucmd)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Spectator pmove path that sets PM_SPECTATOR, unlinks before pmove, touches triggers afterward, and handles follow cycling from the attack-button edge exactly like the source spectator think routine."
+    },
+    {
+      "address": "0x10033FD0",
+      "raw_name": "FUN_10033fd0",
+      "normalized_name": "ClientInactivityTimer",
+      "status": "matched",
+      "signature": "qboolean ClientInactivityTimer(gclient_t *client)",
+      "string_refs": [
+        "0x10081FA8",
+        "0x10081FD4",
+        "0x10082004"
+      ],
+      "relocation_refs": [],
+      "comment": "Inactivity watchdog that refreshes timers on input, warns shortly before timeout, and drops idle clients with the retail inactivity strings."
+    },
+    {
+      "address": "0x100341E0",
+      "raw_name": "FUN_100341e0",
+      "normalized_name": "G_CheckClientFlood",
+      "status": "matched",
+      "signature": "qboolean G_CheckClientFlood(gentity_t *ent)",
+      "string_refs": [
+        "0x10082020"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only flood-drop helper reached from ClientThink_real; it decays floodCount/floodLastTime against the flood-protection cvars and drops clients who exceed the server flood limit."
+    },
+    {
+      "address": "0x10034260",
+      "raw_name": "FUN_10034260",
+      "normalized_name": "G_RunFactoryHealthRegen",
+      "status": "matched",
+      "signature": "void G_RunFactoryHealthRegen(gentity_t *ent, int msec)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only split from the current G_RunFactoryRegen helper. Tailcalled from ClientTimerActions, it advances the health regen accumulator after the last-damage delay expires, stops once health reaches the configured target, and applies whole-point health ticks to ent->health."
+    },
+    {
+      "address": "0x100342F0",
+      "raw_name": "FUN_100342f0",
+      "normalized_name": "G_RunFactoryArmorRegen",
+      "status": "matched",
+      "signature": "void G_RunFactoryArmorRegen(gentity_t *ent, int msec)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only split from the current G_RunFactoryRegen helper. Tailcalled from ClientTimerActions after the health sidecar, it advances the armor regen accumulator after the last-damage delay, honors the regenArmorAfterHealth gate, and applies whole-point armor ticks into ps.stats[STAT_ARMOR]."
+    },
+    {
+      "address": "0x100343E0",
+      "raw_name": "FUN_100343e0",
+      "normalized_name": "ClientTimerActions",
+      "status": "matched",
+      "signature": "void ClientTimerActions(gentity_t *ent, int msec)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Once-per-second client maintenance that accumulates timeResidual, applies regen and armor-decay behavior, and emits the regeneration event through adjacent Quake Live subhelpers."
+    },
+    {
+      "address": "0x10034860",
+      "raw_name": "FUN_10034860",
+      "normalized_name": "ClientEvents",
+      "status": "matched",
+      "signature": "void ClientEvents(gentity_t *ent, int oldEventSequence)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Server-side player event switch reached from ClientThink_real. It walks recent playerstate events, applies fall damage, fires weapons, and handles teleporter, medkit, kamikaze, portal, invulnerability, and Harvester skull-drop use-item side effects."
+    },
+    {
+      "address": "0x10034B50",
+      "raw_name": "FUN_10034b50",
+      "normalized_name": "StuckInOtherClient",
+      "status": "matched",
+      "signature": "qboolean StuckInOtherClient(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Static living-client overlap test reused by ClientThink_real during invulnerability expansion. It scans the active client entities and returns true once the expanded mins/maxs still intersect another live client."
+    },
+    {
+      "address": "0x10034C00",
+      "raw_name": "FUN_10034c00",
+      "normalized_name": "SendPendingPredictableEvents",
+      "status": "matched",
+      "signature": "void SendPendingPredictableEvents(playerState_t *ps)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Predictable-event flusher that turns pending playerstate events into temporary ET_EVENTS entities addressed to all other clients."
+    },
+    {
+      "address": "0x10034C90",
+      "raw_name": "FUN_10034c90",
+      "normalized_name": "ClientThink_real",
+      "status": "matched",
+      "signature": "void ClientThink_real(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Main per-command client simulation path covering command-time clamping, spectator and inactivity branches, pmove, events, linking, impacts, respawn checks, and once-per-second timers."
+    },
+    {
+      "address": "0x10035410",
+      "raw_name": "sub_10035410",
+      "normalized_name": "ClientThink",
+      "status": "matched",
+      "signature": "void ClientThink(int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-visible native export that fetches the latest usercmd, stamps lastCmdTime, and forwards non-bot clients into the deeper think routine."
+    },
+    {
+      "address": "0x10035470",
+      "raw_name": "FUN_10035470",
+      "normalized_name": "SpectatorClientEndFrame",
+      "status": "matched",
+      "signature": "void SpectatorClientEndFrame(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Spectator follow/POI/scoreboard updater that mirrors followed players and falls back to free or scoreboard spectators when follow targets disappear."
+    },
+    {
+      "address": "0x10035600",
+      "raw_name": "FUN_10035600",
+      "normalized_name": "ClientEndFrame",
+      "status": "matched",
+      "signature": "void ClientEndFrame(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Per-client end-of-frame maintenance covering spectator handoff, expired powerups, world effects, connection flagging, and playerstate-to-entitystate sync."
+    },
+    {
+      "address": "0x10035960",
+      "raw_name": "FUN_10035960",
+      "normalized_name": "G_CAADRespawnAsSpectator",
+      "status": "matched",
+      "signature": "void G_CAADRespawnAsSpectator(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared Clan Arena / Attack and Defend respawn helper. Reached from the dead-client respawn gate once those modes push a player back into spectator follow, it copies the corpse into the body queue, forces PM_SPECTATOR, reruns ClientSpawn, and enters follow mode when both teams still have active players."
+    },
+    {
+      "address": "0x10035780",
+      "raw_name": "FUN_10035780",
+      "normalized_name": "G_ADResolveRoundState",
+      "status": "matched",
+      "signature": "int G_ADResolveRoundState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend controller read helper. It resolves any expired deferred AD_RoundStateTransition work and returns the current A/D round-state value for damage, objective, and HUD callers."
+    },
+    {
+      "address": "0x100357D0",
+      "raw_name": "FUN_100357d0",
+      "normalized_name": "G_ADHandleDamageScore",
+      "status": "matched",
+      "signature": "qboolean G_ADHandleDamageScore(gentity_t *attacker, int announce, gentity_t *targ, int *take, int *asave)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend damage helper reached from the main damage path. It applies the mode-specific self/team-damage suppression flags, resolves pending AD round-state work, and during the active attack phase converts enemy damage dealt into score increments once the accumulated threshold reaches 100."
+    },
+    {
+      "address": "0x10035A20",
+      "raw_name": "FUN_10035a20",
+      "normalized_name": "G_ADCheckExitRules",
+      "status": "matched",
+      "signature": "qboolean G_ADCheckExitRules(qboolean announce)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend exit-rule helper. It suppresses match exit while the sides are tied, then checks the A/D timelimit, per-side scorelimit, and late mercylimit paths, optionally printing and logging the matching retail limit-hit message."
+    },
+    {
+      "address": "0x10035B70",
+      "raw_name": "FUN_10035b70",
+      "normalized_name": "AD_RoundStateTransition",
+      "status": "matched",
+      "signature": "int AD_RoundStateTransition(qboolean announce)",
+      "string_refs": [
+        "0x10082190"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail Attack and Defend round-state controller anchored by the preserved invalid-state diagnostic. It resolves pending transition timers, updates the match-state configstrings, respawns or releases participants for the active phase, settles round winners, rotates turns, and schedules the next countdown or restart transition."
+    },
+    {
+      "address": "0x100363E0",
+      "raw_name": "FUN_100363e0",
+      "normalized_name": "G_ADResolveAttackingTeam",
+      "status": "matched",
+      "signature": "int G_ADResolveAttackingTeam(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend side resolver. It resolves any expired deferred AD_RoundStateTransition work and, during the active phase, returns the current attacking team slot for shuffle, objective, and HUD callers."
+    },
+    {
+      "address": "0x10036440",
+      "raw_name": "FUN_10036440",
+      "normalized_name": "G_ADResolveDefendingTeam",
+      "status": "matched",
+      "signature": "int G_ADResolveDefendingTeam(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend side resolver. It resolves any expired deferred AD_RoundStateTransition work and, during the active phase, returns the defending team slot used by defense-award and objective callers."
+    },
+    {
+      "address": "0x100364A0",
+      "raw_name": "FUN_100364a0",
+      "normalized_name": "G_ADResetScoreHistory",
+      "status": "matched",
+      "signature": "int G_ADResetScoreHistory(void)",
+      "string_refs": [
+        "0x100821B8"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend scoreboard helper. It clears the retained 20-entry round-delta history, resets the history cursor, and publishes the baseline scores_ad server command with the current team totals and empty history slots."
+    },
+    {
+      "address": "0x100365F0",
+      "raw_name": "FUN_100365f0",
+      "normalized_name": "G_ADUpdateScoreHistory",
+      "status": "matched",
+      "signature": "int G_ADUpdateScoreHistory(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend scoreboard helper. It records the latest per-turn score delta into the 20-entry circular history, rebuilds the ordered history window, and republishes the scores_ad payload."
+    },
+    {
+      "address": "0x10038160",
+      "raw_name": "FUN_10038160",
+      "normalized_name": "G_CAADResetClientForRound",
+      "status": "matched",
+      "signature": "void G_CAADResetClientForRound(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared Clan Arena / Attack and Defend per-client round reset helper. Reused from both ClientBegin and the delayed respawn path, it respawns immediately in the live release state, respawns into the holding state during the pre-release countdown, and otherwise falls back to the spectator-follow reset path used after round loss."
+    },
+    {
+      "address": "0x1003A270",
+      "raw_name": "FUN_1003a270",
+      "normalized_name": "G_UpdateTournamentQueuePositions",
+      "status": "matched",
+      "signature": "void G_UpdateTournamentQueuePositions(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only duel helper that gathers eligible spectator queue clients, sorts them by spectatorTime, and updates their one-based pq userinfo field while marking changed positions dirty for republish."
+    },
+    {
+      "address": "0x1003A450",
+      "raw_name": "FUN_1003a450",
+      "normalized_name": "ClientUserinfoChanged",
+      "status": "matched",
+      "signature": "void ClientUserinfoChanged(int clientNum)",
+      "string_refs": [
+        "0x10082A8C"
+      ],
+      "relocation_refs": [],
+      "comment": "Client configstring and userinfo rebuilder anchored by the retail ClientUserinfoChanged log line."
+    },
+    {
+      "address": "0x1003AC10",
+      "raw_name": "FUN_1003ac10",
+      "normalized_name": "ClientConnect",
+      "status": "matched",
+      "signature": "char *ClientConnect(int clientNum, qboolean firstTime, qboolean isBot)",
+      "string_refs": [
+        "0x10082B30"
+      ],
+      "relocation_refs": [],
+      "comment": "Connect path covering bot masking, session init and read, and platform auth checks."
+    },
+    {
+      "address": "0x1003B030",
+      "raw_name": "FUN_1003b030",
+      "normalized_name": "ClientBegin",
+      "status": "matched",
+      "signature": "void ClientBegin(int clientNum)",
+      "string_refs": [
+        "0x10082B88"
+      ],
+      "relocation_refs": [],
+      "comment": "Post-connect begin and initial spawn bootstrap identified by the ClientBegin log line."
+    },
+    {
+      "address": "0x1003B5A0",
+      "raw_name": "FUN_1003b5a0",
+      "normalized_name": "G_FinalizeSpawnLoadout",
+      "status": "matched",
+      "signature": "void G_FinalizeSpawnLoadout(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only post-ClientSpawn loadout finalizer. It honors the persisted selected_spawn_weapon choice, parses the configured spawn grant tokens, seeds the starting ammo and weapon masks through the deeper helper at 0x1003B2A0, and applies the remaining intermission and live-weapon cleanup for the spawned client."
+    },
+    {
+      "address": "0x1003BC30",
+      "raw_name": "FUN_1003bc30",
+      "normalized_name": "ClientSpawn",
+      "status": "matched",
+      "signature": "void ClientSpawn(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Full retail player spawn/bootstrap boundary. It selects the spawn point, preserves the persistent and session state that survive respawn, rebuilds the playerstate and entity defaults for the new life, links the player at the chosen origin, and then fans into the deeper post-spawn loadout and finalization helper."
+    },
+    {
+      "address": "0x1003C7E0",
+      "raw_name": "FUN_1003c7e0",
+      "normalized_name": "ClientDisconnect",
+      "status": "matched",
+      "signature": "void ClientDisconnect(int clientNum)",
+      "string_refs": [
+        "0x10082BCC"
+      ],
+      "relocation_refs": [],
+      "comment": "Disconnect cleanup path anchored by the ClientDisconnect log line and export-table slot."
+    },
+    {
+      "address": "0x1003CBF0",
+      "raw_name": "FUN_1003cbf0",
+      "normalized_name": "DeathmatchScoreboardMessage",
+      "status": "matched",
+      "signature": "void DeathmatchScoreboardMessage(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail scoreboard sender aligned with the stock DeathmatchScoreboardMessage role. It dispatches through per-gametype scoreboard builders, falls back to the compact smscores builder when the rich payload would overflow the server-command budget, sends the resulting payload to one client, and during intermission fans into the extra per-mode stat publishers."
+    },
+    {
+      "address": "0x1003CD70",
+      "raw_name": "FUN_1003cd70",
+      "normalized_name": "G_BuildCompactScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildCompactScoreboardMessage(void)",
+      "string_refs": [
+        "0x10082C7C"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only compact scoreboard serializer. Reached from DeathmatchScoreboardMessage when the richer payload would exceed the 1024-byte server-command limit or the compact-scoreboard gate is active, it emits the shorter smscores layout with the reduced per-client summary columns."
+    },
+    {
+      "address": "0x1003CEC0",
+      "raw_name": "FUN_1003cec0",
+      "normalized_name": "G_BuildObeliskScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildObeliskScoreboardMessage(void)",
+      "string_refs": [
+        "0x10082CC8"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Overload scoreboard serializer. Reached from DeathmatchScoreboardMessage's GT_OBELISK default case, it emits the legacy generic scores payload with the extra per-client objective columns that the current GPL tree keeps under the unspecialized team scoreboard path."
+    },
+    {
+      "address": "0x1003D090",
+      "raw_name": "FUN_1003d090",
+      "normalized_name": "G_BuildFFAScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildFFAScoreboardMessage(void)",
+      "string_refs": [
+        "0x10082CDC"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only FFA scoreboard serializer that emits the scores_ffa payload with the expanded per-client stat block and the Quake Live progression-side extras appended after the stock score, ping, and medal data."
+    },
+    {
+      "address": "0x1003D2B0",
+      "raw_name": "FUN_1003d2b0",
+      "normalized_name": "G_BuildDuelScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildDuelScoreboardMessage(gentity_t *viewer)",
+      "string_refs": [
+        "0x10082D58",
+        "0x10082D6C",
+        "0x10082D84"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only duel scoreboard serializer. It caches the lower and higher live duel client numbers into the level tail, builds the viewer-facing per-player weapon and timing summaries, and emits the appropriate scores_duel payload shape for one or two players depending on match and intermission state."
+    },
+    {
+      "address": "0x1003DBB0",
+      "raw_name": "FUN_1003dbb0",
+      "normalized_name": "G_BuildRaceScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildRaceScoreboardMessage(void)",
+      "string_refs": [
+        "0x10082DA8"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Race scoreboard serializer aligned with the current g_race.c scoreboard publisher. It emits the scores_race payload with the sorted racer list and the race-specific timing columns."
+    },
+    {
+      "address": "0x1003DD20",
+      "raw_name": "FUN_1003dd20",
+      "normalized_name": "G_BuildTeamScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildTeamScoreboardMessage(gentity_t *viewer)",
+      "string_refs": [
+        "0x10082DF0"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only team scoreboard serializer for GT_TEAM. It emits the scores_tdm payload with the current red and blue totals plus the expanded per-client team stat block used by the retail scoreboard UI."
+    },
+    {
+      "address": "0x1003E1B0",
+      "raw_name": "FUN_1003e1b0",
+      "normalized_name": "G_SendTDMStatsMessage",
+      "status": "matched",
+      "signature": "void G_SendTDMStatsMessage(gentity_t *ent)",
+      "string_refs": [
+        "0x10082E80"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only postgame stats publisher. Called from DeathmatchScoreboardMessage during intermission for the TDM and Freeze scoreboard families, it walks connected clients and emits the tdmstats payload with the retained team damage and objective aggregates."
+    },
+    {
+      "address": "0x1003E300",
+      "raw_name": "FUN_1003e300",
+      "normalized_name": "G_BuildClanArenaScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildClanArenaScoreboardMessage(void)",
+      "string_refs": [
+        "0x10082EC4"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Clan Arena scoreboard serializer. It emits the scores_ca payload with the round-oriented per-client stat block that includes team, score, accuracy, and arena-specific combat counters."
+    },
+    {
+      "address": "0x1003E510",
+      "raw_name": "FUN_1003e510",
+      "normalized_name": "G_SendCAStatsMessage",
+      "status": "matched",
+      "signature": "void G_SendCAStatsMessage(gentity_t *ent)",
+      "string_refs": [
+        "0x10082EE4"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Clan Arena postgame stats publisher. During intermission it emits the per-client castats payload containing the retained weapon-accuracy and round-combat counters that sit alongside the scores_ca scoreboard rows."
+    },
+    {
+      "address": "0x1003E6D0",
+      "raw_name": "FUN_1003e6d0",
+      "normalized_name": "G_BuildCTFStyleScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildCTFStyleScoreboardMessage(gentity_t *viewer)",
+      "string_refs": [
+        "0x10082F28"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared CTF-style scoreboard serializer. Reused by CTF, One Flag, Harvester, Domination, and Attack and Defend, it emits the scores_ctf payload with the shared team-stat columns and hides the opposing-team detail block from live non-intermission viewers when the retail UI policy requires it."
+    },
+    {
+      "address": "0x1003EC40",
+      "raw_name": "FUN_1003ec40",
+      "normalized_name": "G_SendCTFStatsMessage",
+      "status": "matched",
+      "signature": "void G_SendCTFStatsMessage(gentity_t *ent)",
+      "string_refs": [
+        "0x10082FCC"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared CTF-style postgame stats publisher. During intermission it walks connected clients and emits the ctfstats payload with the retained capture, defense, return, and related objective aggregates used by the retail team-mode scoreboard UI."
+    },
+    {
+      "address": "0x1003EDA0",
+      "raw_name": "FUN_1003eda0",
+      "normalized_name": "G_BuildFreezeScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildFreezeScoreboardMessage(gentity_t *viewer)",
+      "string_refs": [
+        "0x10082FE0"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Freeze scoreboard serializer. It emits the scores_ft payload with the team totals and the Freeze-specific per-client round and thaw statistics needed by the retail postgame UI."
+    },
+    {
+      "address": "0x1003F260",
+      "raw_name": "FUN_1003f260",
+      "normalized_name": "G_BuildRedRoverScoreboardMessage",
+      "status": "matched",
+      "signature": "char *G_BuildRedRoverScoreboardMessage(void)",
+      "string_refs": [
+        "0x10083088"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover scoreboard serializer. It emits the scores_rr payload with the team totals and the Red Rover per-client stat block used by the retail scoreboard and intermission UI."
+    },
+    {
+      "address": "0x100400F0",
+      "raw_name": "FUN_100400f0",
+      "normalized_name": "Cmd_TeamTask_f",
+      "status": "matched",
+      "signature": "void Cmd_TeamTask_f(gentity_t *ent)",
+      "string_refs": [
+        "0x10082900"
+      ],
+      "relocation_refs": [],
+      "comment": "Simple teamtask command handler that parses the integer argument, rewrites the teamtask userinfo key, and republishes the caller through ClientUserinfoChanged."
+    },
+    {
+      "address": "0x100406D0",
+      "raw_name": "FUN_100406d0",
+      "normalized_name": "SetTeam",
+      "status": "matched",
+      "signature": "void SetTeam(gentity_t *ent, char *s)",
+      "string_refs": [
+        "0x100832D0",
+        "0x100832F4",
+        "0x1008331C"
+      ],
+      "relocation_refs": [],
+      "comment": "HLIL-visible outer team-change wrapper that parses spectator/follow/team requests, enforces duel/team limits, and forwards into the deeper retail team-change executor."
+    },
+    {
+      "address": "0x100423A0",
+      "raw_name": "FUN_100423a0",
+      "normalized_name": "Cmd_CallVote_f",
+      "status": "matched",
+      "signature": "void Cmd_CallVote_f(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Vote-start handler with the retail vote-limit enforcement and callvote-help strings."
+    },
+    {
+      "address": "0x10044270",
+      "raw_name": "FUN_10044270",
+      "normalized_name": "Cmd_Vote_f",
+      "status": "matched",
+      "signature": "void Cmd_Vote_f(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Vote-cast handler using the retail no-vote, vote-cast, and disable-vote-ui payloads."
+    },
+    {
+      "address": "0x100456B0",
+      "raw_name": "FUN_100456b0",
+      "normalized_name": "Cmd_Forfeit_f",
+      "status": "matched",
+      "signature": "void Cmd_Forfeit_f(gentity_t *ent)",
+      "string_refs": [
+        "0x10084CDC",
+        "0x10084D1C"
+      ],
+      "relocation_refs": [],
+      "comment": "Thin retail forfeit-command gate that rejects pause/timeout and round-countdown cases locally, then defers to deeper forfeit eligibility and execution helpers."
+    },
+    {
+      "address": "0x10045BD0",
+      "raw_name": "FUN_10045bd0",
+      "normalized_name": "Cmd_ReadyUp_f",
+      "status": "matched",
+      "signature": "void Cmd_ReadyUp_f(gentity_t *ent)",
+      "string_refs": [
+        "0x10084DBC",
+        "0x10084DFC",
+        "0x10084E38"
+      ],
+      "relocation_refs": [],
+      "comment": "Ready-up command helper that toggles the retail per-client ready latch, enforces the minimum-player and team-presence gates, and prints the Ready/Not Ready centerprint broadcast while the match is still in warmup."
+    },
+    {
+      "address": "0x10045DD0",
+      "raw_name": "sub_10045dd0",
+      "normalized_name": "ClientCommand",
+      "status": "matched",
+      "signature": "void ClientCommand(int clientNum)",
+      "string_refs": [
+        "0x10084EAC",
+        "0x10084ED0",
+        "0x10084EE4",
+        "0x10084F7C"
+      ],
+      "relocation_refs": [],
+      "comment": "HLIL-visible client command dispatcher for chat, voice, follow/team, give/god/noclip/kill, vote, and callvote command families."
+    },
+    {
+      "address": "0x1004BC30",
+      "raw_name": "FUN_1004bc30",
+      "normalized_name": "G_FreezeResolveRoundState",
+      "status": "matched",
+      "signature": "int G_FreezeResolveRoundState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Freeze controller read helper. It resolves any expired deferred state transition via Freeze_RoundStateTransition and then returns the current Freeze round-state value used by HUD and end-frame callers."
+    },
+    {
+      "address": "0x1004BC80",
+      "raw_name": "FUN_1004bc80",
+      "normalized_name": "G_FreezeSetClientFrozenState",
+      "status": "matched",
+      "signature": "void G_FreezeSetClientFrozenState(gentity_t *ent, qboolean frozen)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared Freeze state mutator spanning the current GPL tree's separate freeze-apply and thaw helpers. The frozen path latches the client into the round's inert state and updates the round counts, while the thaw path clears the frozen state, emits the matching temp entities, and restores the client to active play."
+    },
+    {
+      "address": "0x1004BDE0",
+      "raw_name": "FUN_1004bde0",
+      "normalized_name": "G_FreezeResetClientForRound",
+      "status": "matched",
+      "signature": "void G_FreezeResetClientForRound(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only per-client Freeze reset helper. It is reused by both the spawn/bootstrap path and the delayed active-client reset path, restoring clients to PM_NORMAL during warmup and active round starts or pushing them back into the spectator-side holding state when the controller is not yet ready."
+    },
+    {
+      "address": "0x1004BF10",
+      "raw_name": "FUN_1004bf10",
+      "normalized_name": "G_FreezeTeamIsFullyFrozen",
+      "status": "matched",
+      "signature": "qboolean G_FreezeTeamIsFullyFrozen(team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only hidden Freeze team predicate consumed by G_FreezeEvaluateRoundWinner. HLIL shows it scanning connected clients on a register-passed sessionTeam and returning true only when no members remain unfrozen, letting the outer winner helper distinguish win versus draw."
+    },
+    {
+      "address": "0x1004BF60",
+      "raw_name": "FUN_1004bf60",
+      "normalized_name": "G_FreezeEvaluateRoundWinner",
+      "status": "matched",
+      "signature": "qboolean G_FreezeEvaluateRoundWinner(int counts[TEAM_NUM_TEAMS], int health[TEAM_NUM_TEAMS])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Freeze result helper. It compares the PM_NORMAL living-player tallies and, when the configured draw delay expires, the corresponding living-health totals, then stores the winning team latch used by the adjacent round-state controller."
+    },
+    {
+      "address": "0x1004C1B0",
+      "raw_name": "FUN_1004c1b0",
+      "normalized_name": "Freeze_RoundStateTransition",
+      "status": "matched",
+      "signature": "void Freeze_RoundStateTransition(void)",
+      "string_refs": [
+        "0x100854C4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail Freeze round-state controller anchored by the preserved invalid-state diagnostic. It resolves pending transition timers, updates the match-state configstring, resets clients for warmup and active states, and applies the freeze round-complete transition."
+    },
+    {
+      "address": "0x1004CB80",
+      "raw_name": "FUN_1004cb80",
+      "normalized_name": "G_FreezeRunFrame",
+      "status": "matched",
+      "signature": "void G_FreezeRunFrame(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Source-faithful outer Freeze frame driver. Retail keeps the round-state readback and winner-selection work split into adjacent helpers, but this boundary still performs the per-frame freeze update and round-end dispatch."
+    },
+    {
+      "address": "0x1004CD40",
+      "raw_name": "FUN_1004cd40",
+      "normalized_name": "G_FreezeClientEndFrame",
+      "status": "matched",
+      "signature": "void G_FreezeClientEndFrame(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Source-faithful frozen-client end-frame handler. It tracks thaw progress, scans nearby allies with line-of-sight and distance gates, applies auto-thaw timing, and eventually fans into the shared retail Freeze state mutator when the client should thaw."
+    },
+    {
+      "address": "0x1004EE20",
+      "raw_name": "FUN_1004ee20",
+      "normalized_name": "RespawnItem",
+      "status": "matched",
+      "signature": "void RespawnItem(gentity_t *ent)",
+      "string_refs": [
+        "0x100855DC"
+      ],
+      "relocation_refs": [],
+      "comment": "Source-faithful item respawn helper anchored by `RespawnItem: bad teammaster`. It validates grouped item respawns through the teammaster/teamchain path, restores contents and visibility, emits the item respawn event, and selects the retail powerup or kamikaze respawn sound when appropriate."
+    },
+    {
+      "address": "0x1004F020",
+      "raw_name": "FUN_1004f020",
+      "normalized_name": "Touch_Item",
+      "status": "matched",
+      "signature": "void Touch_Item(gentity_t *ent, gentity_t *other, trace_t *trace)",
+      "string_refs": [
+        "0x100855F8"
+      ],
+      "relocation_refs": [],
+      "comment": "Source-faithful item touch dispatcher anchored by `Item: %i %s\\n`. It validates the touching client, routes by `item->giType` into the deeper pickup helpers, applies the pickup sound and event path, and updates the retail per-item pickup telemetry fields."
+    },
+    {
+      "address": "0x1004FD20",
+      "raw_name": "sub_1004fd20",
+      "normalized_name": "Use_Item",
+      "status": "matched",
+      "signature": "void Use_Item(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-visible retail trampoline that preserves the classic item-use respawn boundary by tailcalling `RespawnItem(ent)`."
+    },
+    {
+      "address": "0x1004FD30",
+      "raw_name": "FUN_1004fd30",
+      "normalized_name": "G_CheckTeamItems",
+      "status": "matched",
+      "signature": "void G_CheckTeamItems(void)",
+      "string_refs": [
+        "0x10085608",
+        "0x10085630",
+        "0x10085658",
+        "0x10085684",
+        "0x100856AC"
+      ],
+      "relocation_refs": [],
+      "comment": "Source-faithful team-objective validator anchored by the missing red/blue/neutral flag and obelisk warning strings. It verifies the required team items exist for the active gametype before the map can support that ruleset cleanly."
+    },
+    {
+      "address": "0x100503F0",
+      "raw_name": "FUN_100503f0",
+      "normalized_name": "FinishSpawningItem",
+      "status": "matched",
+      "signature": "void FinishSpawningItem(gentity_t *ent)",
+      "string_refs": [
+        "0x10085738"
+      ],
+      "relocation_refs": [],
+      "comment": "Source-faithful late item bootstrap anchored by `FinishSpawningItem: %s startsolid at %s`. It sets the ET_ITEM state, model indices, touch and use callbacks, the drop-to-floor path, and the delayed powerup spawn gate before linking the entity."
+    },
+    {
+      "address": "0x100507E0",
+      "raw_name": "FUN_100507e0",
+      "normalized_name": "G_SpawnItem",
+      "status": "matched",
+      "signature": "void G_SpawnItem(gentity_t *ent, gitem_t *item)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Source-faithful outer item spawn helper. It stores the `gitem_t`, parses the retail `wait` and `random` overrides, registers the item assets, seeds the persistent-powerup and global-sound flags, and schedules `FinishSpawningItem`."
+    },
+    {
+      "address": "0x10052DC0",
+      "raw_name": "sub_10052dc0",
+      "normalized_name": "G_CanClientSeeClient",
+      "status": "matched",
+      "signature": "qboolean G_CanClientSeeClient(int viewerClientNum, int targetClientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only native export helper used by the server snapshot builder for client entities. It allows forced client-entity visibility for same-team viewers, spectators, the active Red Rover infection phase, and the One Flag bot special case instead of relying only on the stock PVS test."
+    },
+    {
+      "address": "0x10052E40",
+      "raw_name": "sub_10052e40",
+      "normalized_name": "G_AreEnemyClients",
+      "status": "matched",
+      "signature": "qboolean G_AreEnemyClients(int clientNumA, int clientNumB)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-visible native export helper that returns true only when both validated client slots are distinct, non-spectators, and not on the same team. This is stricter than a plain !OnSameTeam check because self and spectator pairs are rejected."
+    },
+    {
+      "address": "0x10052E90",
+      "raw_name": "sub_10052e90",
+      "normalized_name": "G_ShouldSuppressVoiceToClient",
+      "status": "matched",
+      "signature": "qboolean G_ShouldSuppressVoiceToClient(int senderClientNum, int recipientClientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only native export helper used by the Steam voice relay path. It suppresses delivery to bots, muted senders, and self in non-tell modes; in open/all-talk cases it returns false, and otherwise it blocks relay unless the sender and recipient satisfy the same-team or spectator policy."
+    },
+    {
+      "address": "0x10052F40",
+      "raw_name": "sub_10052f40",
+      "normalized_name": "G_IsObjectiveEntity",
+      "status": "matched",
+      "signature": "qboolean G_IsObjectiveEntity(int entNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-visible native export classifier for live objective entities. It recognizes flag items in CTF and Attack/Defend, the One Flag flag carrier target, obelisk classnames in Overload, and the Quake Live extended item-objective flag path."
+    },
+    {
+      "address": "0x10053020",
+      "raw_name": "sub_10053020",
+      "normalized_name": "G_FreezeCanSeeThawProgressEvent",
+      "status": "matched",
+      "signature": "qboolean G_FreezeCanSeeThawProgressEvent(int clientNum, int entNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Freeze native export helper for temp-entity event 0x58 from the thaw-progress path. It validates the Freeze gametype/controller state, confirms the temp entity and its linked player/entity, and returns true only for clients on the same team as the linked target."
+    },
+    {
+      "address": "0x100530C0",
+      "raw_name": "sub_100530c0",
+      "normalized_name": "G_IsClientAdmin",
+      "status": "matched",
+      "signature": "qboolean G_IsClientAdmin(int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-visible native export helper that returns true only when the validated client slot has sess.privilege == PRIV_ADMIN. The equality check is exact, so this is narrower than a generic non-zero privilege predicate."
+    },
+    {
+      "address": "0x100530F0",
+      "raw_name": "sub_100530f0",
+      "normalized_name": "G_GetClientScore",
+      "status": "matched",
+      "signature": "int G_GetClientScore(int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "HLIL-visible native export getter that validates the client slot and returns gclient->ps.persistant[PERS_SCORE] from offset 0x100."
+    },
+    {
+      "address": "0x10053120",
+      "raw_name": "dllEntry",
+      "normalized_name": "dllEntry",
+      "status": "matched",
+      "signature": "void dllEntry(void **exports, void *imports, int *apiVersion)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Named native export that stores the import table pointer, returns the direct-export table, and reports native qagame API version 10."
+    },
+    {
+      "address": "0x10053290",
+      "raw_name": "FUN_10053290",
+      "normalized_name": "G_FindTeams",
+      "status": "matched",
+      "signature": "void G_FindTeams(void)",
+      "string_refs": [
+        "0x100876B0"
+      ],
+      "relocation_refs": [],
+      "comment": "Entity-team linker that chains grouped entities and prints the grouped-entity summary."
+    },
+    {
+      "address": "0x10054920",
+      "raw_name": "FUN_10054920",
+      "normalized_name": "G_RegisterCvars",
+      "status": "matched",
+      "signature": "void G_RegisterCvars(void)",
+      "string_refs": [
+        "0x10087318",
+        "0x10087710"
+      ],
+      "relocation_refs": [],
+      "comment": "Initial game cvar-table registration pass that tracks custom settings, clamps gametype, and explicitly registers g_version."
+    },
+    {
+      "address": "0x10054DD0",
+      "raw_name": "FUN_10054dd0",
+      "normalized_name": "G_UpdateCvars",
+      "status": "matched",
+      "signature": "void G_UpdateCvars(void)",
+      "string_refs": [
+        "0x10087318"
+      ],
+      "relocation_refs": [],
+      "comment": "Main cvar update pass that tracks modification counts, refreshes custom settings state, and fans out follow-on handlers."
+    },
+    {
+      "address": "0x10054F00",
+      "raw_name": "FUN_10054f00",
+      "normalized_name": "FindIntermissionPoint",
+      "status": "matched",
+      "signature": "void FindIntermissionPoint(void)",
+      "string_refs": [
+        "0x1008771C",
+        "0x10087738"
+      ],
+      "relocation_refs": [],
+      "comment": "Intermission spawn locator anchored by the info_player_intermission classname, the warning fallback, and the target-facing angle adjustment when an intermission target is present."
+    },
+    {
+      "address": "0x10055000",
+      "raw_name": "FUN_10055000",
+      "normalized_name": "G_CountSpawnPoints",
+      "status": "matched",
+      "signature": "void G_CountSpawnPoints(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only helper that clears the cached spawn counters, then scans all entities for info_player_deathmatch, team_CTF_redspawn, and team_CTF_bluespawn classnames before G_InitGame continues."
+    },
+    {
+      "address": "0x10055110",
+      "raw_name": "FUN_10055110",
+      "normalized_name": "G_InitGame",
+      "status": "matched",
+      "signature": "void G_InitGame(int levelTime, int randomSeed, int restart)",
+      "string_refs": [
+        "0x10087830"
+      ],
+      "relocation_refs": [],
+      "comment": "Main level bootstrap. Retail inlines the world-session check and outer spawn loop inside this boundary."
+    },
+    {
+      "address": "0x10055610",
+      "raw_name": "FUN_10055610",
+      "normalized_name": "G_ShutdownGame",
+      "status": "matched",
+      "signature": "void G_ShutdownGame(int restart)",
+      "string_refs": [
+        "0x10087880"
+      ],
+      "relocation_refs": [],
+      "comment": "Shutdown path that logs the shutdown banner and persists session state."
+    },
+    {
+      "address": "0x10055710",
+      "raw_name": "FUN_10055710",
+      "normalized_name": "G_FindNextTournamentPlayer",
+      "status": "matched",
+      "signature": "gentity_t *G_FindNextTournamentPlayer(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only helper factored out of the duel queue path; it returns the oldest waiting spectator who is not a scoreboard spectator or invalid follow target."
+    },
+    {
+      "address": "0x10055780",
+      "raw_name": "FUN_10055780",
+      "normalized_name": "AddTournamentPlayer",
+      "status": "matched",
+      "signature": "void AddTournamentPlayer(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Duel queue promotion helper that counts active non-spectators, selects the oldest waiting spectator, calls SetTeam with the retail \"f\" payload, and resets warmup and game-state latches when a second player is added."
+    },
+    {
+      "address": "0x10055900",
+      "raw_name": "FUN_10055900",
+      "normalized_name": "RemoveTournamentLoser",
+      "status": "matched",
+      "signature": "void RemoveTournamentLoser(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Duel queue demotion helper that picks level.sortedClients[1] when exactly two players are active, then calls SetTeam with the retail \"s\" payload to move the loser back to spectator."
+    },
+    {
+      "address": "0x10055950",
+      "raw_name": "FUN_10055950",
+      "normalized_name": "AdjustTournamentScores",
+      "status": "matched",
+      "signature": "void AdjustTournamentScores(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Tournament intermission helper that increments the winner's wins and loser's losses using level.sortedClients, then refreshes both client configstrings through ClientUserinfoChanged."
+    },
+    {
+      "address": "0x100559E0",
+      "raw_name": "FUN_100559e0",
+      "normalized_name": "G_UpdateAwardConfigstrings",
+      "status": "matched",
+      "signature": "void G_UpdateAwardConfigstrings(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only award publisher tailcalled from both SendScoreboardMessageToAllClients and CalculateRanks; it selects winning clients for the legacy award configstrings at 0x2B4, 0x2B5, and 0x2B8-0x2BB."
+    },
+    {
+      "address": "0x10055E50",
+      "raw_name": "FUN_10055e50",
+      "normalized_name": "SendScoreboardMessageToAllClients",
+      "status": "matched",
+      "signature": "void SendScoreboardMessageToAllClients(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Scoreboard broadcast wrapper that loops connected clients through DeathmatchScoreboardMessage, then falls through into the shared retail award-configstring refresh at 0x100559E0."
+    },
+    {
+      "address": "0x10055EB0",
+      "raw_name": "FUN_10055eb0",
+      "normalized_name": "SortRanks",
+      "status": "matched",
+      "signature": "int QDECL SortRanks(const void *a, const void *b)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "qsort comparator for the scoreboard ordering that keeps scoreboard/follow spectators last and otherwise sorts active clients by session, score, and race-specific tiebreak state."
+    },
+    {
+      "address": "0x10056070",
+      "raw_name": "FUN_10056070",
+      "normalized_name": "CalculateRanks",
+      "status": "matched",
+      "signature": "void CalculateRanks(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Main rank rebuild that counts connected and non-spectator clients, sorts level.sortedClients, assigns rank/tie state, updates score and leader configstrings, resends scoreboards during intermission, and then tails into the shared retail award-configstring refresh."
+    },
+    {
+      "address": "0x10056B30",
+      "raw_name": "FUN_10056b30",
+      "normalized_name": "MoveClientToIntermission",
+      "status": "matched",
+      "signature": "void MoveClientToIntermission(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Per-client intermission transition that breaks follow mode, moves the client to the stored intermission origin/angles, switches to PM_INTERMISSION, and clears transient combat state."
+    },
+    {
+      "address": "0x10056CB0",
+      "raw_name": "FUN_10056cb0",
+      "normalized_name": "BeginIntermission",
+      "status": "matched",
+      "signature": "void BeginIntermission(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail intermission bootstrap that latches intermission time, runs tournament score adjustment, moves every client to intermission, clears vote state, and performs the extended nextmaps/setup work around the stock GPL path."
+    },
+    {
+      "address": "0x10057000",
+      "raw_name": "FUN_10057000",
+      "normalized_name": "ExitLevel",
+      "status": "matched",
+      "signature": "void ExitLevel(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Intermission exit handler that triggers match-end autoactions, removes the duel loser on tournament restarts, resolves the nextmaps rotation or map_restart path, writes session data, and pushes connected clients back to CON_CONNECTING."
+    },
+    {
+      "address": "0x100573F0",
+      "raw_name": "FUN_100573f0",
+      "normalized_name": "G_LogPrintf",
+      "status": "matched",
+      "signature": "void QDECL G_LogPrintf(const char *fmt, ...)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Timestamped logfile writer used by init, shutdown, connect, disconnect, and match flow."
+    },
+    {
+      "address": "0x10057510",
+      "raw_name": "FUN_10057510",
+      "normalized_name": "LogExit",
+      "status": "matched",
+      "signature": "void LogExit(const char *string)",
+      "string_refs": [
+        "0x10087970",
+        "0x1008797C",
+        "0x10087990"
+      ],
+      "relocation_refs": [],
+      "comment": "Intermission transition logger that prints exit, team-score, and per-client score lines while queueing the match shutdown flow."
+    },
+    {
+      "address": "0x10057AD0",
+      "raw_name": "FUN_10057ad0",
+      "normalized_name": "CheckIntermissionExit",
+      "status": "matched",
+      "signature": "void CheckIntermissionExit(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Intermission ready-mask and delayed-exit handler identified by the propagated ready bitmask, the nextmaps-dependent grace window, and the final ExitLevel transition."
+    },
+    {
+      "address": "0x10057C60",
+      "raw_name": "FUN_10057c60",
+      "normalized_name": "ScoreIsTied",
+      "status": "matched",
+      "signature": "qboolean ScoreIsTied(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Match-end tie detector that compares the active duel leaders or the red/blue team scores depending on gametype before exit-rule decisions."
+    },
+    {
+      "address": "0x10057CD0",
+      "raw_name": "FUN_10057cd0",
+      "normalized_name": "G_CanForfeit",
+      "status": "matched",
+      "signature": "qboolean G_CanForfeit(gentity_t *ent, qboolean fromCommand)",
+      "string_refs": [
+        "0x100879C0",
+        "0x100879EC",
+        "0x10087A20",
+        "0x10087A50",
+        "0x10087A90",
+        "0x10087AE8"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only shared forfeit eligibility helper used by both the client command path and automatic match-flow checks, anchored by the forfeit rejection strings and the losing-team/player validation logic."
+    },
+    {
+      "address": "0x10057F10",
+      "raw_name": "FUN_10057f10",
+      "normalized_name": "G_ApplyForfeit",
+      "status": "matched",
+      "signature": "void G_ApplyForfeit(void)",
+      "string_refs": [
+        "0x10087B2C",
+        "0x10087B50"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail forfeit executor that forces the losing side's visible score state into the forfeited marker, sets the match-forfeited latch, broadcasts the forfeiture message, and logs Players have forfeited."
+    },
+    {
+      "address": "0x10058030",
+      "raw_name": "FUN_10058030",
+      "normalized_name": "CheckExitRules",
+      "status": "matched",
+      "signature": "void CheckExitRules(void)",
+      "string_refs": [
+        "0x10082064",
+        "0x10087B88",
+        "0x10087C04"
+      ],
+      "relocation_refs": [],
+      "comment": "Match-end rule checker anchored by the retail time, frag, and capture limit strings."
+    },
+    {
+      "address": "0x10058410",
+      "raw_name": "FUN_10058410",
+      "normalized_name": "G_SyncTournamentQueueTeamTasks",
+      "status": "matched",
+      "signature": "void G_SyncTournamentQueueTeamTasks(void)",
+      "string_refs": [
+        "0x10082900"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only duel queue helper that notices dirty pq updates, rewrites each eligible queued spectator's teamtask userinfo key to match the one-based queue slot, and republishes them through ClientUserinfoChanged."
+    },
+    {
+      "address": "0x10058580",
+      "raw_name": "FUN_10058580",
+      "normalized_name": "G_CheckReadyUpDelayAction",
+      "status": "matched",
+      "signature": "void G_CheckReadyUpDelayAction(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only duel warmup helper keyed by g_warmupReadyDelay and g_warmupReadyDelayAction; it arms CS_READYUP_STATUS, then either forces players ready or moves unready players to spectate-only once the deadline expires."
+    },
+    {
+      "address": "0x100586E0",
+      "raw_name": "FUN_100586e0",
+      "normalized_name": "CheckTournament",
+      "status": "matched",
+      "signature": "void CheckTournament(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Warmup and game-state transition logic used by the tournament flow checker."
+    },
+    {
+      "address": "0x100588F0",
+      "raw_name": "FUN_100588f0",
+      "normalized_name": "G_UpdateVoteCounts",
+      "status": "matched",
+      "signature": "int G_UpdateVoteCounts(void)",
+      "string_refs": [
+        "0x10087C48",
+        "0x10087C68"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only vote tally helper that walks per-client vote states, updates the yes/no configstrings, and short-circuits explicit player pass or veto outcomes before returning a status code to CheckVote."
+    },
+    {
+      "address": "0x10058AB0",
+      "raw_name": "FUN_10058ab0",
+      "normalized_name": "G_TryExecuteVoteString",
+      "status": "matched",
+      "signature": "qboolean G_TryExecuteVoteString(char *voteString)",
+      "string_refs": [
+        "0x10083CE4",
+        "0x10083DBC",
+        "0x10083E8C",
+        "0x10084078",
+        "0x1008411C",
+        "0x100841D8",
+        "0x100843A8"
+      ],
+      "relocation_refs": [],
+      "comment": "Quake Live-specific vote executor for cointoss, random, loadouts, timers, shuffle, teamsize, and weaprespawn commands; returns false so CheckVote can fall back to the generic console-command path for ordinary vote strings."
+    },
+    {
+      "address": "0x10059130",
+      "raw_name": "FUN_10059130",
+      "normalized_name": "G_ClearVoteState",
+      "status": "matched",
+      "signature": "void G_ClearVoteState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only vote reset helper that clears vote timing/display configstrings, resets the extra Quake Live vote UI state configstring, and zeroes each client's vote-status field."
+    },
+    {
+      "address": "0x100591B0",
+      "raw_name": "FUN_100591b0",
+      "normalized_name": "CheckVote",
+      "status": "matched",
+      "signature": "void CheckVote(void)",
+      "string_refs": [
+        "0x1008477C",
+        "0x10087DD8",
+        "0x10087DF0"
+      ],
+      "relocation_refs": [],
+      "comment": "Outer vote result checker that executes delayed vote strings, handles pass/fail/timeout outcomes, and clears vote state; Quake Live adds the explicit vote-expired print path."
+    },
+    {
+      "address": "0x100592C0",
+      "raw_name": "FUN_100592c0",
+      "normalized_name": "CheckCvars",
+      "status": "matched",
+      "signature": "void CheckCvars(void)",
+      "string_refs": [
+        "0x10086908"
+      ],
+      "relocation_refs": [],
+      "comment": "Password watcher that recomputes g_needpass when g_password changes and republishes the paired server configstrings."
+    },
+    {
+      "address": "0x10059370",
+      "raw_name": "FUN_10059370",
+      "normalized_name": "G_RunThink",
+      "status": "matched",
+      "signature": "void G_RunThink(gentity_t *ent)",
+      "string_refs": [
+        "0x10087E08"
+      ],
+      "relocation_refs": [],
+      "comment": "Entity callback dispatcher that preserves the classic nextthink/ent->think gate, emits the NULL ent->think error, and also services the adjacent pre-think callback slot at ent+0x2FC."
+    },
+    {
+      "address": "0x100593E0",
+      "raw_name": "FUN_100593e0",
+      "normalized_name": "G_UpdateTeamCountConfigstrings",
+      "status": "matched",
+      "signature": "void G_UpdateTeamCountConfigstrings(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only publisher for the auxiliary team-count configstrings at 0x297 and 0x298. It refreshes them at a 250 ms cadence, using raw TeamCount in ordinary team states and the PM_NORMAL-filtered active-player counter during round-controller states."
+    },
+    {
+      "address": "0x100594D0",
+      "raw_name": "FUN_100594d0",
+      "normalized_name": "G_RunFrame",
+      "status": "matched",
+      "signature": "void G_RunFrame(int levelTime)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Top-level game frame loop advancing time, stepping entities, and running match state checks."
+    },
+    {
+      "address": "0x10061800",
+      "raw_name": "sub_10061800",
+      "normalized_name": "Cmd_AllReady_f",
+      "status": "matched",
+      "signature": "void Cmd_AllReady_f(gentity_t *ent)",
+      "string_refs": [
+        "0x10088C90"
+      ],
+      "relocation_refs": [],
+      "comment": "HLIL-visible admin ready helper from the allready command table entry; it validates access, enforces the duel two-player restriction, and sets every connected client's retail ready latch."
+    },
+    {
+      "address": "0x10064280",
+      "raw_name": "FUN_10064280",
+      "normalized_name": "G_RRResolveRoundState",
+      "status": "matched",
+      "signature": "int G_RRResolveRoundState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover controller read helper mirroring the Freeze-side resolver at 0x1004BC30. It advances any expired pending RR_RoundStateTransition and returns the current Red Rover round-state value."
+    },
+    {
+      "address": "0x10064380",
+      "raw_name": "FUN_10064380",
+      "normalized_name": "G_RRFinalizeSpawnLoadout",
+      "status": "matched",
+      "signature": "void G_RRFinalizeSpawnLoadout(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover spawn finalizer reached from ClientSpawn. Survivors fall through to the generic G_FinalizeSpawnLoadout path, while infected clients are forced onto the zombie role loadout by seeding the reduced weapon mask, selected weapon, and health/maxHealth directly."
+    },
+    {
+      "address": "0x100643E0",
+      "raw_name": "FUN_100643e0",
+      "normalized_name": "G_RRHandleDamageScore",
+      "status": "matched",
+      "signature": "qboolean G_RRHandleDamageScore(gentity_t *attacker, gentity_t *targ, int *take, int *asave)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover infection damage helper. Called from the main damage path after armor resolution, it applies the shared self/team damage suppression policy, clamps survivor-vs-infected damage during the active infection state, accumulates per-attacker threshold credit, and converts each completed bucket into a score award plus CalculateRanks refresh."
+    },
+    {
+      "address": "0x100645A0",
+      "raw_name": "FUN_100645a0",
+      "normalized_name": "G_RRResetClientForRound",
+      "status": "matched",
+      "signature": "void G_RRResetClientForRound(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover per-client round reset helper. Reused from both ClientBegin and the delayed respawn path, it reruns ClientSpawn, reapplies the Red Rover role-aware spawn finalizer, and pushes the client into the holding state while the round controller is still in its pre-release phase."
+    },
+    {
+      "address": "0x100645E0",
+      "raw_name": "FUN_100645e0",
+      "normalized_name": "G_RRInitClient",
+      "status": "matched",
+      "signature": "void G_RRInitClient(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail per-client Red Rover infection bootstrap reached from the spawn/begin path. It seeds the infection-role flag bits from sess.sessionTeam, clears those bits for survivors according to the current RR cvar toggles, and forces the holding-state flag while warmup or the pre-active round state is still in effect."
+    },
+    {
+      "address": "0x10064670",
+      "raw_name": "FUN_10064670",
+      "normalized_name": "G_RRCheckRoundCompletion",
+      "status": "matched",
+      "signature": "qboolean G_RRCheckRoundCompletion(int counts[TEAM_NUM_TEAMS])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover completion helper. It evaluates the connected-team counts gathered by the caller, applies the configured draw-delay gate before ending tied states, and records the last surviving infected client when the infection ruleset leaves exactly one zombie standing."
+    },
+    {
+      "address": "0x10064710",
+      "raw_name": "FUN_10064710",
+      "normalized_name": "G_RRCheckExitRules",
+      "status": "matched",
+      "signature": "qboolean G_RRCheckExitRules(qboolean announce)",
+      "string_refs": [
+        "0x10089448"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover exit-rule helper. It suppresses match exit while ScoreIsTied is true, otherwise checks the RR timelimit and roundlimit paths, optionally broadcasts the corresponding print string, and logs the shared Timelimit hit./Roundlimit hit. messages."
+    },
+    {
+      "address": "0x100647C0",
+      "raw_name": "FUN_100647c0",
+      "normalized_name": "G_RRResolveAutoJoinTeam",
+      "status": "matched",
+      "signature": "team_t G_RRResolveAutoJoinTeam(int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only infection autojoin helper reached from SetTeam when Red Rover infection mode assigns a player without an explicit team request. It resolves any pending RR_RoundStateTransition work, then returns TEAM_RED for the preserved or newly selected infected slots and TEAM_BLUE for everyone else."
+    },
+    {
+      "address": "0x10064820",
+      "raw_name": "FUN_10064820",
+      "normalized_name": "G_RRSeedInfectionTeams",
+      "status": "matched",
+      "signature": "int G_RRSeedInfectionTeams(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only infection round-seeding helper reached from the infection branch of G_RRTrackRoundActivity. It moves connected TEAM_RED participants back to TEAM_BLUE survivors, restores the latched infected client when one is already known, otherwise picks a random connected client from level.sortedClients, stores that slot, and returns the selected infected client number."
+    },
+    {
+      "address": "0x100649F0",
+      "raw_name": "FUN_100649f0",
+      "normalized_name": "RR_RoundStateTransition",
+      "status": "matched",
+      "signature": "void RR_RoundStateTransition(void)",
+      "string_refs": [
+        "0x10089470"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail Red Rover round-state controller anchored by the preserved invalid-state diagnostic. It resolves pending transition timers, updates the match-state configstrings, resets live participants, and drives the active, complete, and restart phases of the round flow."
+    },
+    {
+      "address": "0x100652B0",
+      "raw_name": "FUN_100652b0",
+      "normalized_name": "G_RRApplySurvivalBonus",
+      "status": "matched",
+      "signature": "void G_RRApplySurvivalBonus(qboolean forceAward)",
+      "string_refs": [
+        "0x10089498"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover infection helper. When the infection ruleset is active it checks the survival-bonus timer, awards the configured \"Survival Bonus\" score delta to the connected team-2 participants, emits the matching temp-entity event, and refreshes ranks."
+    },
+    {
+      "address": "0x10065410",
+      "raw_name": "FUN_10065410",
+      "normalized_name": "G_RRCheckInfectionSpread",
+      "status": "matched",
+      "signature": "void G_RRCheckInfectionSpread(void)",
+      "string_refs": [
+        "0x100894B8"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover infection helper. It sends the countdown centerprint for the next spread window and, once the delay expires, converts the next eligible connected participant through the deeper team/state mutation helper before rearming the timer."
+    },
+    {
+      "address": "0x100655A0",
+      "raw_name": "FUN_100655a0",
+      "normalized_name": "G_RRTrackRoundActivity",
+      "status": "matched",
+      "signature": "void G_RRTrackRoundActivity(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Source-faithful outer Red Rover activity monitor. Called once per frame from the Red Rover branch in G_RunFrame, it refreshes the controller state, applies the survival-bonus and infection-spread helpers when infection is active, evaluates round completion, and advances the round-state controller when the round ends."
+    },
+    {
+      "address": "0x10065680",
+      "raw_name": "FUN_10065680",
+      "normalized_name": "G_RRInitRoundController",
+      "status": "matched",
+      "signature": "void G_RRInitRoundController(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Red Rover init helper reached from G_InitGame. It clears the infection-selection trackers, seeds the first pending controller state, and primes RR_RoundStateTransition for either the ordinary or infection-enabled opener."
+    },
+    {
+      "address": "0x10065700",
+      "raw_name": "FUN_10065700",
+      "normalized_name": "G_RRHandlePlayerDeath",
+      "status": "matched",
+      "signature": "void G_RRHandlePlayerDeath(team_t oldTeam, gentity_t *victim, int meansOfDeath)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail Red Rover death-path helper and closest analogue to g_client.c::G_RRHandlePlayerDeath. It receives the victim's pre-mutation team, flips or infects the victim, refreshes userinfo, emits the infection temp-entity when applicable, updates the infection timers/bonus state, and reevaluates round completion."
+    },
+    {
+      "address": "0x10065F30",
+      "raw_name": "FUN_10065f30",
+      "normalized_name": "G_SpawnClassExemptFromSpawnFilter",
+      "status": "matched",
+      "signature": "qboolean G_SpawnClassExemptFromSpawnFilter(const char *classname)",
+      "string_refs": [
+        "0x1007DBAC",
+        "0x1007DBDC",
+        "0x1007FAB8"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail-only spawn helper that whitelists specific item and obelisk classnames against the normal notfree/notteam/gametype rejection path."
+    },
+    {
+      "address": "0x10066230",
+      "raw_name": "FUN_10066230",
+      "normalized_name": "G_ParseSpawnVars",
+      "status": "matched",
+      "signature": "qboolean G_ParseSpawnVars(void)",
+      "string_refs": [
+        "0x10089884"
+      ],
+      "relocation_refs": [],
+      "comment": "Brace-bounded entity parser. Retail inlines G_AddSpawnVarToken inside this boundary."
+    },
+    {
+      "address": "0x10066440",
+      "raw_name": "FUN_10066440",
+      "normalized_name": "SP_worldspawn",
+      "status": "matched",
+      "signature": "void SP_worldspawn(void)",
+      "string_refs": [
+        "0x1008993C"
+      ],
+      "relocation_refs": [],
+      "comment": "Worldspawn initializer that reads map metadata and sets up warmup and configstring state."
+    },
+    {
+      "address": "0x10066B90",
+      "raw_name": "sub_10066b90",
+      "normalized_name": "ConsoleCommand",
+      "status": "matched",
+      "signature": "qboolean ConsoleCommand(void)",
+      "string_refs": [
+        "0x10089BC8",
+        "0x10089BD4",
+        "0x10089BE0",
+        "0x10089BEC"
+      ],
+      "relocation_refs": [],
+      "comment": "HLIL-visible console-command dispatcher for entitylist, forceteam, game_memory, addbot, and botlist."
+    },
+    {
+      "address": "0x10067EC0",
+      "raw_name": "FUN_10067ec0",
+      "normalized_name": "G_ClientsOnSameTeam",
+      "status": "matched",
+      "signature": "qboolean G_ClientsOnSameTeam(gclient_t *clientA, gclient_t *clientB)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only native helper that compares two gclient_t sessionTeam values directly. Unlike the stock GPL OnSameTeam path, the retail helper still allows matching spectator pairs when the gametype is below GT_TEAM."
+    },
+    {
+      "address": "0x10067F00",
+      "raw_name": "FUN_10067f00",
+      "normalized_name": "G_ClientNumsOnSameTeam",
+      "status": "matched",
+      "signature": "qboolean G_ClientNumsOnSameTeam(int clientNumA, int clientNumB)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only client-number wrapper around G_ClientsOnSameTeam. It validates both client slots against level.clients and then tails into the underlying sessionTeam comparison helper."
+    },
+    {
+      "address": "0x10067F30",
+      "raw_name": "FUN_10067f30",
+      "normalized_name": "OnSameTeam",
+      "status": "matched",
+      "signature": "qboolean OnSameTeam(gentity_t *ent1, gentity_t *ent2)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Entity-level same-team predicate used broadly across combat, chat, and objective logic. Retail keeps the classic client/sessionTeam equality test, but broadens the non-team-gametype case to treat matching spectators as same-team instead of always returning false."
+    },
+    {
+      "address": "0x10067F70",
+      "raw_name": "FUN_10067f70",
+      "normalized_name": "G_IsClientSpectator",
+      "status": "matched",
+      "signature": "qboolean G_IsClientSpectator(int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only client predicate that validates the slot and returns true when the target client's sess.sessionTeam is TEAM_SPECTATOR."
+    },
+    {
+      "address": "0x100680C0",
+      "raw_name": "FUN_100680c0",
+      "normalized_name": "TeamCount",
+      "status": "matched",
+      "signature": "team_t TeamCount(int ignoreClientNum, int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Source-faithful team counter. The committed decomp still hides the register-passed ignoreClientNum, but HLIL preserves the classic ignore-self gate before counting connected clients on the requested sessionTeam."
+    },
+    {
+      "address": "0x10068100",
+      "raw_name": "FUN_10068100",
+      "normalized_name": "Team_CountsBalanced",
+      "status": "matched",
+      "signature": "qboolean Team_CountsBalanced(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only force-balance helper extracted around g_teamForceBalance. It returns true when the current red and blue roster spread is at most one player, and both SetTeam and Cmd_ReadyUp_f use it before applying stricter destination-team checks."
+    },
+    {
+      "address": "0x10068140",
+      "raw_name": "FUN_10068140",
+      "normalized_name": "Team_HasMinimumPlayersForWarmup",
+      "status": "matched",
+      "signature": "qboolean Team_HasMinimumPlayersForWarmup(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Warmup gate that checks the retail minimum-player thresholds for duel and team modes, including the stronger both-teams-present requirement used by readyup and allready."
+    },
+    {
+      "address": "0x10068490",
+      "raw_name": "FUN_10068490",
+      "normalized_name": "TeamplayInfoMessage",
+      "status": "matched",
+      "signature": "void TeamplayInfoMessage(gentity_t *ent)",
+      "string_refs": [
+        "0x10089DA4"
+      ],
+      "relocation_refs": [],
+      "comment": "Team overlay payload builder using the retail tinfo client-command format."
+    },
+    {
+      "address": "0x1006AAF0",
+      "raw_name": "FUN_1006aaf0",
+      "normalized_name": "SpawnObelisk",
+      "status": "matched",
+      "signature": "void SpawnObelisk(vec3_t origin, int team, int spawnflags)",
+      "string_refs": [
+        "0x1008A084"
+      ],
+      "relocation_refs": [],
+      "comment": "Overload and obelisk spawn helper anchored by the startsolid diagnostic."
+    },
+    {
+      "address": "0x1006B110",
+      "raw_name": "FUN_1006b110",
+      "normalized_name": "G_TotalLivingHealthByTeam",
+      "status": "matched",
+      "signature": "void G_TotalLivingHealthByTeam(int counts[TEAM_NUM_TEAMS])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Freeze tally helper. It sums entity health for the same connected PM_NORMAL clients counted by the adjacent active-player helper, and feeds the freeze round-end health summary and tiebreak path."
+    },
+    {
+      "address": "0x1006B170",
+      "raw_name": "FUN_1006b170",
+      "normalized_name": "G_CountActivePlayersByTeam",
+      "status": "matched",
+      "signature": "void G_CountActivePlayersByTeam(int counts[TEAM_NUM_TEAMS])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared team counter. HLIL shows it walking connected clients with ps.pm_type == PM_NORMAL and accumulating per-sessionTeam tallies for Freeze, Red Rover, teamsize checks, and the auxiliary team-count configstring publisher."
+    },
+    {
+      "address": "0x1006B1C0",
+      "raw_name": "FUN_1006b1c0",
+      "normalized_name": "G_CountConnectedClientsByTeam",
+      "status": "matched",
+      "signature": "void G_CountConnectedClientsByTeam(int counts[TEAM_NUM_TEAMS])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only roster counter that tallies every connected client by sessionTeam without the PM_NORMAL filter used by the adjacent active-player helper."
+    }
+  ],
+  "strings": [
+    {
+      "address": "0x10081F54",
+      "value": "sound/player/gurp1.wav",
+      "xref_functions": [
+        "0x10033950"
+      ],
+      "normalized_label": "str_sound_gurp1",
+      "status": "matched"
+    },
+    {
+      "address": "0x10081F6C",
+      "value": "sound/player/gurp2.wav",
+      "xref_functions": [
+        "0x10033950"
+      ],
+      "normalized_label": "str_sound_gurp2",
+      "status": "matched"
+    },
+    {
+      "address": "0x10081F84",
+      "value": "sound/weapons/proxmine/wstbtick.wav",
+      "xref_functions": [
+        "0x10033B20"
+      ],
+      "normalized_label": "str_sound_proxmine_tick",
+      "status": "matched"
+    },
+    {
+      "address": "0x10081FA8",
+      "value": "Dropped due to inactivity",
+      "xref_functions": [
+        "0x10033FD0"
+      ],
+      "normalized_label": "str_drop_inactivity",
+      "status": "matched"
+    },
+    {
+      "address": "0x10081FD4",
+      "value": "cp \"%i second%s until dropped for inactivity!\n\"",
+      "xref_functions": [
+        "0x10033FD0"
+      ],
+      "normalized_label": "str_warn_inactivity_drop",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082004",
+      "value": "client:%i inactivity:%i\n",
+      "xref_functions": [
+        "0x10033FD0"
+      ],
+      "normalized_label": "str_debug_inactivity",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082020",
+      "value": "Dropped for flooding the server",
+      "xref_functions": [
+        "0x100341E0"
+      ],
+      "normalized_label": "str_drop_flooding",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082190",
+      "value": "AD_RoundStateTransition: invalid state",
+      "xref_functions": [
+        "0x10035B70"
+      ],
+      "normalized_label": "str_ad_roundstate_invalid",
+      "status": "matched"
+    },
+    {
+      "address": "0x100821B8",
+      "value": "scores_ad %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+      "xref_functions": [
+        "0x100364A0"
+      ],
+      "normalized_label": "str_scores_ad",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082C7C",
+      "value": "smscores %i %i %i%s",
+      "xref_functions": [
+        "0x1003CD70"
+      ],
+      "normalized_label": "str_smscores",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082CC8",
+      "value": "scores %i %i %i%s",
+      "xref_functions": [
+        "0x1003CEC0"
+      ],
+      "normalized_label": "str_scores_default",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082CDC",
+      "value": "scores_ffa %i %i %i%s",
+      "xref_functions": [
+        "0x1003D090"
+      ],
+      "normalized_label": "str_scores_ffa",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082D58",
+      "value": "scores_duel 2 %s %s",
+      "xref_functions": [
+        "0x1003D2B0"
+      ],
+      "normalized_label": "str_scores_duel_two_players",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082D6C",
+      "value": "scores_duel %i %s %s",
+      "xref_functions": [
+        "0x1003D2B0"
+      ],
+      "normalized_label": "str_scores_duel_pair",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082D84",
+      "value": "scores_duel %i %s",
+      "xref_functions": [
+        "0x1003D2B0"
+      ],
+      "normalized_label": "str_scores_duel_single",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082DA8",
+      "value": "scores_race %i%s",
+      "xref_functions": [
+        "0x1003DBB0"
+      ],
+      "normalized_label": "str_scores_race",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082DF0",
+      "value": "scores_tdm %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i%s",
+      "xref_functions": [
+        "0x1003DD20"
+      ],
+      "normalized_label": "str_scores_tdm",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082E80",
+      "value": "tdmstats %i%s",
+      "xref_functions": [
+        "0x1003E1B0"
+      ],
+      "normalized_label": "str_tdmstats",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082EC4",
+      "value": "scores_ca %i %i %i%s",
+      "xref_functions": [
+        "0x1003E300"
+      ],
+      "normalized_label": "str_scores_ca",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082EE4",
+      "value": "castats %i%s",
+      "xref_functions": [
+        "0x1003E510"
+      ],
+      "normalized_label": "str_castats",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082F28",
+      "value": "scores_ctf %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i%s",
+      "xref_functions": [
+        "0x1003E6D0"
+      ],
+      "normalized_label": "str_scores_ctf",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082FCC",
+      "value": "ctfstats %i%s",
+      "xref_functions": [
+        "0x1003EC40"
+      ],
+      "normalized_label": "str_ctfstats",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082FE0",
+      "value": "scores_ft %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i%s",
+      "xref_functions": [
+        "0x1003EDA0"
+      ],
+      "normalized_label": "str_scores_ft",
+      "status": "matched"
+    },
+    {
+      "address": "0x10083088",
+      "value": "scores_rr %i %i %i%s",
+      "xref_functions": [
+        "0x1003F260"
+      ],
+      "normalized_label": "str_scores_rr",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007DBAC",
+      "value": "team_redobelisk",
+      "xref_functions": [
+        "0x10065F30"
+      ],
+      "normalized_label": "str_class_team_redobelisk",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007DBDC",
+      "value": "team_blueobelisk",
+      "xref_functions": [
+        "0x10065F30"
+      ],
+      "normalized_label": "str_class_team_blueobelisk",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007DF98",
+      "value": "memorydump",
+      "xref_functions": [
+        "0x10023400"
+      ],
+      "normalized_label": "str_cmd_memorydump",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007DFA4",
+      "value": "bot_memorydump",
+      "xref_functions": [
+        "0x10023400"
+      ],
+      "normalized_label": "str_cmd_bot_memorydump",
+      "status": "matched"
+    },
+    {
+      "address": "0x1007FAB8",
+      "value": "item_armor_shard",
+      "xref_functions": [
+        "0x10065F30"
+      ],
+      "normalized_label": "str_class_item_armor_shard",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082064",
+      "value": "Timelimit hit.",
+      "xref_functions": [
+        "0x10058030"
+      ],
+      "normalized_label": "str_timelimit_hit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082A8C",
+      "value": "ClientUserinfoChanged: %i %s\n",
+      "xref_functions": [
+        "0x1003A450"
+      ],
+      "normalized_label": "str_client_userinfo_changed",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082B30",
+      "value": "ClientConnect: %i\n",
+      "xref_functions": [
+        "0x1003AC10"
+      ],
+      "normalized_label": "str_client_connect",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082B88",
+      "value": "ClientBegin: %i\n",
+      "xref_functions": [
+        "0x1003B030"
+      ],
+      "normalized_label": "str_client_begin",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082900",
+      "value": "teamtask",
+      "xref_functions": [
+        "0x100400F0",
+        "0x10058410"
+      ],
+      "normalized_label": "str_key_teamtask",
+      "status": "matched"
+    },
+    {
+      "address": "0x10082BCC",
+      "value": "ClientDisconnect: %i\n",
+      "xref_functions": [
+        "0x1003C7E0"
+      ],
+      "normalized_label": "str_client_disconnect",
+      "status": "matched"
+    },
+    {
+      "address": "0x100832D0",
+      "value": "cp \"%s^7%sjoined the spectators.\\n\"",
+      "xref_functions": [
+        "0x100406D0"
+      ],
+      "normalized_label": "str_joined_spectators",
+      "status": "matched"
+    },
+    {
+      "address": "0x100832F4",
+      "value": "cp \"%s^7%sjoined the battle.\\n\"",
+      "xref_functions": [
+        "0x100406D0"
+      ],
+      "normalized_label": "str_joined_battle",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008331C",
+      "value": "You are set to spectate only",
+      "xref_functions": [
+        "0x100406D0"
+      ],
+      "normalized_label": "str_spectate_only",
+      "status": "matched"
+    },
+    {
+      "address": "0x10083CE4",
+      "value": "weaprespawn",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_weaprespawn",
+      "status": "matched"
+    },
+    {
+      "address": "0x10083DBC",
+      "value": "shuffle",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_shuffle",
+      "status": "matched"
+    },
+    {
+      "address": "0x10083E8C",
+      "value": "teamsize",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_teamsize",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084078",
+      "value": "cointoss",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_cointoss",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008411C",
+      "value": "random",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_random",
+      "status": "matched"
+    },
+    {
+      "address": "0x100841D8",
+      "value": "loadouts",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_loadouts",
+      "status": "matched"
+    },
+    {
+      "address": "0x100843A8",
+      "value": "timers",
+      "xref_functions": [
+        "0x10058AB0"
+      ],
+      "normalized_label": "str_vote_cmd_timers",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008477C",
+      "value": "print \"Voting time has expired.\n",
+      "xref_functions": [
+        "0x100591B0"
+      ],
+      "normalized_label": "str_vote_expired",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084CDC",
+      "value": "print \"Forfeit is not available during a pause or timeout.\n",
+      "xref_functions": [
+        "0x100456B0"
+      ],
+      "normalized_label": "str_forfeit_unavailable_timeout",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084D1C",
+      "value": "print \"Forfeit is not available during a round countdown.\n",
+      "xref_functions": [
+        "0x100456B0"
+      ],
+      "normalized_label": "str_forfeit_unavailable_round_countdown",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084DBC",
+      "value": "print \"Players cannot ready up until both teams are present.\n",
+      "xref_functions": [
+        "0x10045BD0"
+      ],
+      "normalized_label": "str_readyup_both_teams_present",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084DFC",
+      "value": "print \"Cannot ready up until more players are present.\n",
+      "xref_functions": [
+        "0x10045BD0"
+      ],
+      "normalized_label": "str_readyup_more_players",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084E38",
+      "value": "print \"Players cannot ready up until both teams are fully present.\n",
+      "xref_functions": [
+        "0x10045BD0"
+      ],
+      "normalized_label": "str_readyup_teams_fully_present",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084EAC",
+      "value": "say_team",
+      "xref_functions": [
+        "0x10045DD0"
+      ],
+      "normalized_label": "str_cmd_say_team",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084ED0",
+      "value": "vsay_team",
+      "xref_functions": [
+        "0x10045DD0"
+      ],
+      "normalized_label": "str_cmd_vsay_team",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084EE4",
+      "value": "vosay_team",
+      "xref_functions": [
+        "0x10045DD0"
+      ],
+      "normalized_label": "str_cmd_vosay_team",
+      "status": "matched"
+    },
+    {
+      "address": "0x10084F7C",
+      "value": "callvote",
+      "xref_functions": [
+        "0x10045DD0"
+      ],
+      "normalized_label": "str_cmd_callvote",
+      "status": "matched"
+    },
+    {
+      "address": "0x100854C4",
+      "value": "Freeze_RoundStateTransition: invalid state",
+      "xref_functions": [
+        "0x1004C1B0"
+      ],
+      "normalized_label": "str_freeze_roundstate_invalid",
+      "status": "matched"
+    },
+    {
+      "address": "0x10086908",
+      "value": "g_needpass",
+      "xref_functions": [
+        "0x100592C0"
+      ],
+      "normalized_label": "str_cvar_g_needpass",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087318",
+      "value": "g_customSettings",
+      "xref_functions": [
+        "0x10054920",
+        "0x10054DD0"
+      ],
+      "normalized_label": "str_cvar_g_customsettings",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087710",
+      "value": "g_version",
+      "xref_functions": [
+        "0x10054920"
+      ],
+      "normalized_label": "str_cvar_g_version",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008771C",
+      "value": "info_player_intermission",
+      "xref_functions": [
+        "0x10054F00"
+      ],
+      "normalized_label": "str_info_player_intermission",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087738",
+      "value": "WARNING: no info_player_intermission\n",
+      "xref_functions": [
+        "0x10054F00"
+      ],
+      "normalized_label": "str_no_info_player_intermission",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087830",
+      "value": "InitGame: %s\n",
+      "xref_functions": [
+        "0x10055110"
+      ],
+      "normalized_label": "str_initgame_serverinfo",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087880",
+      "value": "==== ShutdownGame ====\n",
+      "xref_functions": [
+        "0x10055610"
+      ],
+      "normalized_label": "str_shutdown_banner",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087970",
+      "value": "Exit: %s\n",
+      "xref_functions": [
+        "0x10057510"
+      ],
+      "normalized_label": "str_log_exit",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008797C",
+      "value": "red:%i  blue:%i\n",
+      "xref_functions": [
+        "0x10057510"
+      ],
+      "normalized_label": "str_log_team_scores",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087990",
+      "value": "score: %i  ping: %i  client: %i %s stats: %d \n",
+      "xref_functions": [
+        "0x10057510"
+      ],
+      "normalized_label": "str_log_client_score",
+      "status": "matched"
+    },
+    {
+      "address": "0x100879C0",
+      "value": "print \"Forfeit is not available in %s.\n",
+      "xref_functions": [
+        "0x10057CD0"
+      ],
+      "normalized_label": "str_forfeit_unavailable_gametype",
+      "status": "matched"
+    },
+    {
+      "address": "0x100879EC",
+      "value": "print \"Forfeits are not enabled on this server.\n",
+      "xref_functions": [
+        "0x10057CD0"
+      ],
+      "normalized_label": "str_forfeits_disabled",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087A20",
+      "value": "print \"Forfeit is not available in warmup.\n",
+      "xref_functions": [
+        "0x10057CD0"
+      ],
+      "normalized_label": "str_forfeit_unavailable_warmup",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087A50",
+      "value": "print \"Forfeit is only available to the losing player.\n",
+      "xref_functions": [
+        "0x10057CD0"
+      ],
+      "normalized_label": "str_forfeit_only_losing_player",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087A90",
+      "value": "print \"Forfeit is only available to the last remaining player on the losing team.\n",
+      "xref_functions": [
+        "0x10057CD0"
+      ],
+      "normalized_label": "str_forfeit_only_last_loser",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087AE8",
+      "value": "print \"Forfeit is only available to members of the losing team.\n",
+      "xref_functions": [
+        "0x10057CD0"
+      ],
+      "normalized_label": "str_forfeit_only_losing_team",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087B2C",
+      "value": "print \"Game has been forfeited.\n",
+      "xref_functions": [
+        "0x10057F10"
+      ],
+      "normalized_label": "str_game_forfeited",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087B50",
+      "value": "Players have forfeited.",
+      "xref_functions": [
+        "0x10057F10"
+      ],
+      "normalized_label": "str_players_forfeited",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087B88",
+      "value": "Fraglimit hit.",
+      "xref_functions": [
+        "0x10058030"
+      ],
+      "normalized_label": "str_fraglimit_hit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087C04",
+      "value": "Capturelimit hit.",
+      "xref_functions": [
+        "0x10058030"
+      ],
+      "normalized_label": "str_capturelimit_hit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087C48",
+      "value": "print \"%s passed the vote.\n",
+      "xref_functions": [
+        "0x100588F0"
+      ],
+      "normalized_label": "str_vote_passed_by_player",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087C68",
+      "value": "print \"%s vetoed the vote.\n",
+      "xref_functions": [
+        "0x100588F0"
+      ],
+      "normalized_label": "str_vote_vetoed_by_player",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087DD8",
+      "value": "print \"Vote passed.\n",
+      "xref_functions": [
+        "0x100591B0"
+      ],
+      "normalized_label": "str_vote_passed",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087DF0",
+      "value": "print \"Vote failed.\n",
+      "xref_functions": [
+        "0x100591B0"
+      ],
+      "normalized_label": "str_vote_failed",
+      "status": "matched"
+    },
+    {
+      "address": "0x10087E08",
+      "value": "NULL ent->think",
+      "xref_functions": [
+        "0x10059370"
+      ],
+      "normalized_label": "str_null_ent_think",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089884",
+      "value": "G_ParseSpawnVars: found %s when expecting {",
+      "xref_functions": [
+        "0x10066230"
+      ],
+      "normalized_label": "str_parse_spawnvars_bad_open",
+      "status": "matched"
+    },
+    {
+      "address": "0x10088C90",
+      "value": "print \"Allready may not be used until two players are in the match.\n",
+      "xref_functions": [
+        "0x10061800"
+      ],
+      "normalized_label": "str_allready_two_players",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089448",
+      "value": "print \"Game hit the roundlimit.\n\"",
+      "xref_functions": [
+        "0x10064710"
+      ],
+      "normalized_label": "str_rr_game_roundlimit_hit",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089470",
+      "value": "RR_RoundStateTransition: invalid state",
+      "xref_functions": [
+        "0x100649F0"
+      ],
+      "normalized_label": "str_rr_roundstate_invalid",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089498",
+      "value": "print \"Survival Bonus! +%i\n\"",
+      "xref_functions": [
+        "0x100652B0"
+      ],
+      "normalized_label": "str_rr_survival_bonus",
+      "status": "matched"
+    },
+    {
+      "address": "0x100894B8",
+      "value": "cp \" ^3Infection spreads in %i second%s!\"",
+      "xref_functions": [
+        "0x10065410"
+      ],
+      "normalized_label": "str_rr_infection_spreads",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008993C",
+      "value": "SP_worldspawn: The first entity isn't 'worldspawn'",
+      "xref_functions": [
+        "0x10066440"
+      ],
+      "normalized_label": "str_worldspawn_missing",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089BC8",
+      "value": "entitylist",
+      "xref_functions": [
+        "0x10066B90"
+      ],
+      "normalized_label": "str_cmd_entitylist",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089BD4",
+      "value": "forceteam",
+      "xref_functions": [
+        "0x10066B90"
+      ],
+      "normalized_label": "str_cmd_forceteam",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089BE0",
+      "value": "game_memory",
+      "xref_functions": [
+        "0x10066B90"
+      ],
+      "normalized_label": "str_cmd_game_memory",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089BEC",
+      "value": "addbot",
+      "xref_functions": [
+        "0x10066B90"
+      ],
+      "normalized_label": "str_cmd_addbot",
+      "status": "matched"
+    },
+    {
+      "address": "0x10089DA4",
+      "value": "tinfo %i %s",
+      "xref_functions": [
+        "0x10068490"
+      ],
+      "normalized_label": "str_teamplay_info_cmd",
+      "status": "matched"
+    },
+    {
+      "address": "0x1008A084",
+      "value": "SpawnObelisk: %s startsolid at %s\n",
+      "xref_functions": [
+        "0x1006AAF0"
+      ],
+      "normalized_label": "str_spawn_obelisk_startsolid",
+      "status": "matched"
+    },
+    {
+      "address": "0x100855DC",
+      "value": "RespawnItem: bad teammaster",
+      "xref_functions": [
+        "0x1004EE20"
+      ],
+      "normalized_label": "str_respawn_item_bad_teammaster",
+      "status": "matched"
+    },
+    {
+      "address": "0x100855F8",
+      "value": "Item: %i %s\n",
+      "xref_functions": [
+        "0x1004F020"
+      ],
+      "normalized_label": "str_item_pickup_log",
+      "status": "matched"
+    },
+    {
+      "address": "0x10085608",
+      "value": "^3WARNING: No team_CTF_redflag in map",
+      "xref_functions": [
+        "0x1004FD30"
+      ],
+      "normalized_label": "str_warn_no_team_ctf_redflag",
+      "status": "matched"
+    },
+    {
+      "address": "0x10085630",
+      "value": "^3WARNING: No team_CTF_blueflag in map",
+      "xref_functions": [
+        "0x1004FD30"
+      ],
+      "normalized_label": "str_warn_no_team_ctf_blueflag",
+      "status": "matched"
+    },
+    {
+      "address": "0x10085658",
+      "value": "^3WARNING: No team_CTF_neutralflag in map",
+      "xref_functions": [
+        "0x1004FD30"
+      ],
+      "normalized_label": "str_warn_no_team_ctf_neutralflag",
+      "status": "matched"
+    },
+    {
+      "address": "0x10085684",
+      "value": "^3WARNING: No team_redobelisk in map",
+      "xref_functions": [
+        "0x1004FD30"
+      ],
+      "normalized_label": "str_warn_no_team_redobelisk",
+      "status": "matched"
+    },
+    {
+      "address": "0x100856AC",
+      "value": "^3WARNING: No team_blueobelisk in map",
+      "xref_functions": [
+        "0x1004FD30"
+      ],
+      "normalized_label": "str_warn_no_team_blueobelisk",
+      "status": "matched"
+    },
+    {
+      "address": "0x10085738",
+      "value": "FinishSpawningItem: %s startsolid at %s\n",
+      "xref_functions": [
+        "0x100503F0"
+      ],
+      "normalized_label": "str_finish_spawning_item_startsolid",
+      "status": "matched"
+    }
+  ],
+  "relocations": [],
+  "stats": {
+    "function_total": 147,
+    "function_matched": 147,
+    "string_total": 102,
+    "string_resolved": 102,
+    "relocation_total": 0
+  }
+}

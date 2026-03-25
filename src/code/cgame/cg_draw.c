@@ -591,7 +591,7 @@ CG_DrawStatusBar
 CG_GetObituaryIcon
 ================
 */
-static qhandle_t CG_GetObituaryIcon( int mod ) {
+qhandle_t CG_GetObituaryIcon( int mod ) {
 	switch ( mod ) {
 	case MOD_SHOTGUN:
 		return cg_weapons[WP_SHOTGUN].weaponIcon;
@@ -657,89 +657,104 @@ static qhandle_t CG_GetObituaryIcon( int mod ) {
 }
 
 /*
+=============
+CG_ObituaryColorForIndex
+
+Maps the retail obituary palette index to the draw color for one name column.
+=============
+*/
+static void CG_ObituaryColorForIndex( int colorIndex, float alpha, vec4_t color ) {
+	switch ( colorIndex ) {
+	case 1:
+		color[0] = 1.0f;
+		color[1] = 0.5f;
+		color[2] = 0.5f;
+		break;
+	case 2:
+		color[0] = 0.5f;
+		color[1] = 0.75f;
+		color[2] = 1.0f;
+		break;
+	case 3:
+		color[0] = 0.85f;
+		color[1] = 0.85f;
+		color[2] = 0.85f;
+		break;
+	default:
+		color[0] = 1.0f;
+		color[1] = 1.0f;
+		color[2] = 1.0f;
+		break;
+	}
+
+	color[3] = alpha;
+}
+
+/*
 ================
 CG_DrawObituaries
 ================
 */
 static float CG_DrawObituaries( float y ) {
-	int i;
-	int attacker, target, mod;
-	const char *attackerName, *targetName;
-	qhandle_t icon;
-	float alpha;
-	vec4_t color;
-	int w, h;
-	int time;
-	float x;
+	int		i;
+	float		alpha;
+	vec4_t	targetColor;
+	vec4_t	attackerColor;
+	int		w;
+	int		h;
+	int		time;
+	float		x;
+
+	CG_PruneObituaryFeed();
 
 	if ( cg_drawFragMessages.integer == 0 ) {
 		return y;
 	}
 
 	for ( i = 0; i < MAX_OBITUARIES; i++ ) {
-		if ( !cg.obituaries[i].time ) {
-			continue;
+		const cgObituary_t	*entry;
+
+		entry = &cg.obituaries[i];
+		if ( !entry->active ) {
+			break;
 		}
 
-		time = cg.time - cg.obituaries[i].time;
-		if ( time > OBITUARY_TIME ) {
-			continue;
-		}
-
+		time = cg.time - entry->time;
 		if ( time > OBITUARY_TIME - FADE_TIME ) {
 			alpha = (float)( OBITUARY_TIME - time ) / FADE_TIME;
 		} else {
 			alpha = 1.0f;
 		}
 
-		attacker = cg.obituaries[i].attacker;
-		target = cg.obituaries[i].target;
-		mod = cg.obituaries[i].mod;
-
-		if ( attacker < 0 || attacker >= MAX_CLIENTS ) {
-			attacker = -1;
-			attackerName = NULL;
-		} else {
-			attackerName = cgs.clientinfo[attacker].name;
-		}
-
-		if ( target < 0 || target >= MAX_CLIENTS ) {
-			targetName = NULL; // Should not happen
-		} else {
-			targetName = cgs.clientinfo[target].name;
-		}
-
-		icon = CG_GetObituaryIcon( mod );
-
-		color[0] = color[1] = color[2] = 1.0f;
-		color[3] = alpha;
-		trap_R_SetColor( color );
-
 		h = SMALLCHAR_HEIGHT;
 		w = SMALLCHAR_WIDTH;
+		x = 640 - 2;
 
-		// Draw Target Name
-		if ( targetName ) {
-			int nameWidth = CG_DrawStrlen( targetName ) * w;
+		if ( entry->targetName[0] ) {
+			int nameWidth;
+
+			CG_ObituaryColorForIndex( entry->targetColorIndex, alpha, targetColor );
+			nameWidth = CG_DrawStrlen( entry->targetName ) * w;
 			x = 640 - nameWidth - 2;
-			CG_DrawStringExt( x, y, targetName, color, qfalse, qtrue, w, h, 0 );
+			CG_DrawStringExt( x, y, entry->targetName, targetColor, qfalse, qtrue, w, h, 0 );
 			x -= ( w + 2 );
-		} else {
-			x = 640 - 2;
 		}
 
-		// Draw Icon
-		if ( icon ) {
-			x -= 20; // Icon width
-			CG_DrawPic( x, y - 2, 20, 20, icon );
+		if ( entry->icon ) {
+			trap_R_SetColor( colorWhite );
+			x -= 20;
+			CG_DrawPic( x, y - 2, 20, 20, entry->icon );
+			trap_R_SetColor( NULL );
 			x -= 4;
 		}
 
-		// Draw Attacker Name
-		if ( attackerName && attacker != target ) {
-			int nameWidth = CG_DrawStrlen( attackerName ) * w;
+		if ( entry->hasAttacker && entry->attackerName[0] ) {
+			int nameWidth;
+
+			CG_ObituaryColorForIndex( entry->attackerColorIndex, alpha, attackerColor );
+			nameWidth = CG_DrawStrlen( entry->attackerName ) * w;
 			x -= nameWidth;
-			CG_DrawStringExt( x, y, attackerName, color, qfalse, qtrue, w, h, 0 );
+			CG_DrawStringExt( x, y, entry->attackerName, attackerColor, qfalse, qtrue, w, h, 0 );
 		}
 
 		y += h + 4;
@@ -2199,15 +2214,40 @@ static void CG_DrawWarmup( void ) {
 	const char	*s;
 
 	sec = cg.warmup;
+	if ( sec == 0 && cgs.matchReadyUpDeadline > 0 ) {
+		sec = cgs.matchReadyUpDeadline;
+	}
 	if ( !sec ) {
 		return;
 	}
 
 	if ( sec < 0 ) {
+		float	promptY;
+
 		s = "Waiting for players";		
 		w = CG_DrawStrlen( s ) * BIGCHAR_WIDTH;
 		CG_DrawBigString(320 - w / 2, 24, s, 1.0F);
 		cg.warmupCount = 0;
+		promptY = 45.0f;
+
+		if ( cgs.matchWarmupReadyEligible > 0 ) {
+			char status[64];
+
+			if ( cgs.matchWarmupReadyPercent > 0 ) {
+				Com_sprintf( status, sizeof( status ), "%i/%i ready (%i%% required)",
+					cgs.matchWarmupReadyCount,
+					cgs.matchWarmupReadyEligible,
+					cgs.matchWarmupReadyPercent );
+			} else {
+				Com_sprintf( status, sizeof( status ), "%i/%i ready",
+					cgs.matchWarmupReadyCount,
+					cgs.matchWarmupReadyEligible );
+			}
+
+			w = CG_Text_Width( status, 0.25f, 0 );
+			CG_Text_Paint( 320 - w / 2, promptY, 0.25f, colorWhite, status, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+			promptY += 15.0f;
+		}
 
 		// if local player is not ready, draw the ready string
 		if ( !( cg.snap->ps.eFlags & EF_READY ) ) {
@@ -2221,7 +2261,7 @@ static void CG_DrawWarmup( void ) {
 
 			s = va( "Press %s to ready yourself", keyName );
 			w = CG_Text_Width( s, 0.25f, 0 );
-			CG_Text_Paint( 320 - w / 2, 45, 0.25f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+			CG_Text_Paint( 320 - w / 2, promptY, 0.25f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 		}
 		return;
 	}

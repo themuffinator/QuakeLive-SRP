@@ -27,7 +27,13 @@ The stripped Quake Live routine at `0x100594D0` follows the Quake III Arena
    to process game rules, but now with extra guards for backend throttles such as
    `data_105de9d4`/`data_105de9d8` (matchmaker-driven locks) and
    `data_105df41c` (respawn timer).【F:references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil.txt†L64482-L64538】
+5. **Inline client stepping** – The entity loop does not appear to preserve a
+   standalone `G_RunClient` wrapper in this retail build. Non-client entities
+   dispatch through `sub_10059370` (`G_RunThink`), while client entities branch
+   directly to `sub_10034c90` (`ClientThink_real`) inside the same loop, leaving
+   the classic thin wrapper effectively inlined or absent.【F:references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil.txt†L64552-L64581】
 
-The remainder of the function fans out to the usual Quake III helpers (`RunThink`,
-`ClientThink`, `CheckEvents`, etc.), which appear as the adjacent calls to
-`sub_10059370`/`sub_100593E0` in the HLIL listing.
+The remainder of the function therefore fans out to the usual Quake III helper
+families (`G_RunThink`, `ClientThink_real`, the vote/match-state chain, and the
+adjacent team-count refresh) rather than a clean standalone `G_RunClient`
+boundary.

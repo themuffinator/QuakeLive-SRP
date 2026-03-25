@@ -32,6 +32,69 @@ localEntity_t	cg_activeLocalEntities;		// double linked list
 localEntity_t	*cg_freeLocalEntities;		// single linked list
 
 /*
+==================
+CG_GetLocalTrajectoryExtra
+==================
+*/
+static float CG_GetLocalTrajectoryExtra( const localEntity_t *le, const trajectory_t *tr ) {
+	if ( tr == &le->pos ) {
+		return le->posTrajExtra;
+	}
+
+	if ( tr == &le->angles ) {
+		return le->anglesTrajExtra;
+	}
+
+	return 0.0f;
+}
+
+/*
+==================
+CG_EvaluateLocalTrajectory
+
+Retail cgame extends trajectory_t with a tenth dword used by local entities.
+==================
+*/
+static void CG_EvaluateLocalTrajectory( const localEntity_t *le, const trajectory_t *tr, int atTime, vec3_t result ) {
+	float	deltaTime;
+	float	extra;
+
+	if ( tr->trType != TR_QL_ACCEL ) {
+		BG_EvaluateTrajectory( tr, atTime, result );
+		return;
+	}
+
+	deltaTime = ( atTime - tr->trTime ) * 0.001f;
+	extra = CG_GetLocalTrajectoryExtra( le, tr );
+
+	result[0] = tr->trBase[0] + tr->trDelta[0] * deltaTime;
+	result[1] = tr->trBase[1] + tr->trDelta[1] * deltaTime;
+	result[2] = tr->trBase[2] + tr->trDelta[2] * deltaTime - 0.5f * extra * deltaTime * deltaTime;
+}
+
+/*
+==================
+CG_EvaluateLocalTrajectoryDelta
+==================
+*/
+static void CG_EvaluateLocalTrajectoryDelta( const localEntity_t *le, const trajectory_t *tr, int atTime, vec3_t result ) {
+	float	deltaTime;
+	float	extra;
+
+	if ( tr->trType != TR_QL_ACCEL ) {
+		BG_EvaluateTrajectoryDelta( tr, atTime, result );
+		return;
+	}
+
+	deltaTime = ( atTime - tr->trTime ) * 0.001f;
+	extra = CG_GetLocalTrajectoryExtra( le, tr );
+
+	result[0] = tr->trDelta[0];
+	result[1] = tr->trDelta[1];
+	result[2] = tr->trDelta[2] - extra * deltaTime;
+}
+
+/*
 ===================
 CG_InitLocalEntities
 
@@ -115,7 +178,7 @@ or generates more localentities along a trail.
 ================
 CG_BloodTrail
 
-Leave expanding blood puffs behind gibs
+Leave the retail blood spray trail behind gib fragments
 ================
 */
 void CG_BloodTrail( localEntity_t *le ) {
@@ -124,26 +187,68 @@ void CG_BloodTrail( localEntity_t *le ) {
 	int		step;
 	vec3_t	newOrigin;
 	localEntity_t	*blood;
+	qhandle_t	shader;
 
-	step = 150;
+	if ( !cgs.media.bloodSprayShaders[0] ) {
+		return;
+	}
+
+	step = 50;
 	t = step * ( (cg.time - cg.frametime + step ) / step );
 	t2 = step * ( cg.time / step );
 
 	for ( ; t <= t2; t += step ) {
-		BG_EvaluateTrajectory( &le->pos, t, newOrigin );
+		CG_EvaluateLocalTrajectory( le, &le->pos, t, newOrigin );
+		shader = cgs.media.bloodSprayShaders[rand() & 3];
 
 		blood = CG_SmokePuff( newOrigin, vec3_origin, 
 					  20,		// radius
 					  1, 1, 1, 1,	// color
-					  2000,		// trailTime
+					  500,		// trailTime
 					  t,		// startTime
 					  0,		// fadeInTime
 					  0,		// flags
-					  cgs.media.bloodTrailShader );
+					  shader );
 		// use the optimized version
 		blood->leType = LE_FALL_SCALE_FADE;
 		// drop a total of 40 units over its lifetime
 		blood->pos.trDelta[2] = 40;
+	}
+}
+
+/*
+================
+CG_IceTrail
+================
+*/
+static void CG_IceTrail( localEntity_t *le ) {
+	int				t;
+	int				t2;
+	int				step;
+	vec3_t			newOrigin;
+	localEntity_t	*trail;
+
+	if ( !cgs.media.iceTrailShader ) {
+		return;
+	}
+
+	step = 150;
+	t = step * ( ( cg.time - cg.frametime + step ) / step );
+	t2 = step * ( cg.time / step );
+
+	for ( ; t <= t2; t += step ) {
+		CG_EvaluateLocalTrajectory( le, &le->pos, t, newOrigin );
+
+		trail = CG_SmokePuff( newOrigin, vec3_origin,
+			20,
+			1, 1, 1, 1,
+			2000,
+			t,
+			0,
+			0,
+			cgs.media.iceTrailShader );
+		trail->leType = LE_FALL_SCALE_FADE;
+		trail->pos.trDelta[2] = 40;
 	}
 }
 
@@ -155,23 +260,37 @@ CG_FragmentBounceMark
 */
 void CG_FragmentBounceMark( localEntity_t *le, trace_t *trace ) {
 	int			radius;
+	qhandle_t	shader;
 
-	if ( le->leMarkType == LEMT_BLOOD ) {
+	if ( le->fragmentMarkType == LEMT_BLOOD ) {
 
-		radius = 16 + (rand()&31);
-		CG_ImpactMark( cgs.media.bloodMarkShader, trace->endpos, trace->plane.normal, random()*360,
-			1,1,1,1, qtrue, radius, qfalse );
-	} else if ( le->leMarkType == LEMT_BURN ) {
+		if ( cgs.media.bloodSprayShaders[0] ) {
+			radius = 16 + ( rand() & 31 );
+			shader = cgs.media.bloodSprayShaders[2 + ( rand() & 1 )];
+			CG_ImpactMark( shader, trace->endpos, trace->plane.normal, random() * 360,
+				1, 1, 1, 1, qtrue, radius, qfalse );
+		}
+	} else if ( le->fragmentMarkType == LEMT_BURN ) {
 
-		radius = 8 + (rand()&15);
-		CG_ImpactMark( cgs.media.burnMarkShader, trace->endpos, trace->plane.normal, random()*360,
-			1,1,1,1, qtrue, radius, qfalse );
+		radius = 8 + ( rand() & 15 );
+		CG_ImpactMark( cgs.media.burnMarkShader, trace->endpos, trace->plane.normal, random() * 360,
+			1, 1, 1, 1, qtrue, radius, qfalse );
+	} else if ( le->fragmentMarkType == LEMT_BURN_SMALL ) {
+
+		radius = 4 + ( rand() & 7 );
+		CG_ImpactMark( cgs.media.burnMarkShader, trace->endpos, trace->plane.normal, random() * 360,
+			1, 1, 1, 1, qtrue, radius, qfalse );
+	} else if ( le->fragmentMarkType == LEMT_ICE && cgs.media.iceMarkShader ) {
+
+		radius = 16 + ( rand() & 31 );
+		CG_ImpactMark( cgs.media.iceMarkShader, trace->endpos, trace->plane.normal, random() * 360,
+			1, 1, 1, 1, qtrue, radius, qfalse );
 	}
 
 
 	// don't allow a fragment to make multiple marks, or they
 	// pile up while settling
-	le->leMarkType = LEMT_NONE;
+	le->fragmentMarkType = LEMT_NONE;
 }
 
 /*
@@ -180,12 +299,12 @@ CG_FragmentBounceSound
 ================
 */
 void CG_FragmentBounceSound( localEntity_t *le, trace_t *trace ) {
-	if ( le->leBounceSoundType == LEBS_BLOOD ) {
-		// half the gibs will make splat sounds
-		if ( rand() & 1 ) {
-			int r = rand()&3;
+	if ( le->fragmentBounceSoundType == LEBS_BLOOD ) {
+		if ( cgs.media.bloodSprayShaders[0] ) {
+			int			r;
 			sfxHandle_t	s;
 
+			r = rand() & 3;
 			if ( r == 0 ) {
 				s = cgs.media.gibBounce1Sound;
 			} else if ( r == 1 ) {
@@ -193,15 +312,27 @@ void CG_FragmentBounceSound( localEntity_t *le, trace_t *trace ) {
 			} else {
 				s = cgs.media.gibBounce3Sound;
 			}
+			if ( s ) {
+				trap_S_StartSound( trace->endpos, ENTITYNUM_WORLD, CHAN_AUTO, s );
+			}
+		}
+	} else if ( le->fragmentBounceSoundType == LEBS_ELECTRO ) {
+		sfxHandle_t	s;
+
+		// Retail masks rand() with 4 here, so only sounds 01 and 04 are reachable.
+		if ( rand() & 4 ) {
+			s = cgs.media.electroGibBounce4Sound;
+		} else {
+			s = cgs.media.electroGibBounce1Sound;
+		}
+		if ( s ) {
 			trap_S_StartSound( trace->endpos, ENTITYNUM_WORLD, CHAN_AUTO, s );
 		}
-	} else if ( le->leBounceSoundType == LEBS_BRASS ) {
-
 	}
 
 	// don't allow a fragment to make multiple bounce sounds,
 	// or it gets too noisy as they settle
-	le->leBounceSoundType = LEBS_NONE;
+	le->fragmentBounceSoundType = LEBS_NONE;
 }
 
 
@@ -217,7 +348,7 @@ void CG_ReflectVelocity( localEntity_t *le, trace_t *trace ) {
 
 	// reflect the velocity on the trace plane
 	hitTime = cg.time - cg.frametime + cg.frametime * trace->fraction;
-	BG_EvaluateTrajectoryDelta( &le->pos, hitTime, velocity );
+	CG_EvaluateLocalTrajectoryDelta( le, &le->pos, hitTime, velocity );
 	dot = DotProduct( velocity, trace->plane.normal );
 	VectorMA( velocity, -2*dot, trace->plane.normal, le->pos.trDelta );
 
@@ -239,10 +370,45 @@ void CG_ReflectVelocity( localEntity_t *le, trace_t *trace ) {
 
 /*
 ================
-CG_AddFragment
+CG_AddFragmentTrail
 ================
 */
-void CG_AddFragment( localEntity_t *le ) {
+static void CG_AddFragmentTrail( localEntity_t *le, qhandle_t shader ) {
+	int				t;
+	int				t2;
+	int				step;
+	vec3_t			newOrigin;
+	localEntity_t	*trail;
+
+	if ( !shader ) {
+		return;
+	}
+
+	step = 20;
+	t = step * ( ( cg.time - cg.frametime + step ) / step );
+	t2 = step * ( cg.time / step );
+
+	for ( ; t <= t2; t += step ) {
+		CG_EvaluateLocalTrajectory( le, &le->pos, t, newOrigin );
+
+		trail = CG_SmokePuff( newOrigin, le->pos.trDelta,
+			3.0f,
+			0.25f, 0.25f, 0.25f, 1.0f,
+			200,
+			t,
+			0,
+			LEF_PUFF_DONT_SCALE,
+			shader );
+		trail->pos.trType = TR_STATIONARY;
+	}
+}
+
+/*
+================
+CG_AddFragmentImpl
+================
+*/
+static qboolean CG_AddFragmentImpl( localEntity_t *le ) {
 	vec3_t	newOrigin;
 	trace_t	trace;
 
@@ -266,11 +432,11 @@ void CG_AddFragment( localEntity_t *le ) {
 			trap_R_AddRefEntityToScene( &le->refEntity );
 		}
 
-		return;
+		return qfalse;
 	}
 
 	// calculate new position
-	BG_EvaluateTrajectory( &le->pos, cg.time, newOrigin );
+	CG_EvaluateLocalTrajectory( le, &le->pos, cg.time, newOrigin );
 
 	// trace a line from previous position to new position
 	CG_Trace( &trace, le->refEntity.origin, NULL, NULL, newOrigin, -1, CONTENTS_SOLID );
@@ -281,18 +447,20 @@ void CG_AddFragment( localEntity_t *le ) {
 		if ( le->leFlags & LEF_TUMBLE ) {
 			vec3_t angles;
 
-			BG_EvaluateTrajectory( &le->angles, cg.time, angles );
+			CG_EvaluateLocalTrajectory( le, &le->angles, cg.time, angles );
 			AnglesToAxis( angles, le->refEntity.axis );
 		}
 
 		trap_R_AddRefEntityToScene( &le->refEntity );
 
-		// add a blood trail
-		if ( le->leBounceSoundType == LEBS_BLOOD ) {
+		// add the retail fragment trail family
+		if ( le->fragmentBounceSoundType == LEBS_BLOOD ) {
 			CG_BloodTrail( le );
+		} else if ( le->fragmentBounceSoundType == LEBS_ICE ) {
+			CG_IceTrail( le );
 		}
 
-		return;
+		return qtrue;
 	}
 
 	// if it is in a nodrop zone, remove it
@@ -300,7 +468,7 @@ void CG_AddFragment( localEntity_t *le ) {
 	// and floating levels
 	if ( trap_CM_PointContents( trace.endpos, 0 ) & CONTENTS_NODROP ) {
 		CG_FreeLocalEntity( le );
-		return;
+		return qfalse;
 	}
 
 	// leave a mark
@@ -313,6 +481,36 @@ void CG_AddFragment( localEntity_t *le ) {
 	CG_ReflectVelocity( le, &trace );
 
 	trap_R_AddRefEntityToScene( &le->refEntity );
+	return qtrue;
+}
+
+/*
+================
+CG_AddFragment
+================
+*/
+void CG_AddFragment( localEntity_t *le ) {
+	(void)CG_AddFragmentImpl( le );
+}
+
+/*
+==================
+CG_AddFragment14
+==================
+*/
+static void CG_AddFragment14( localEntity_t *le ) {
+	(void)CG_AddFragmentImpl( le );
+	CG_AddFragmentTrail( le, cgs.media.tracerShader );
+}
+
+/*
+==================
+CG_AddFragment16
+==================
+*/
+static void CG_AddFragment16( localEntity_t *le ) {
+	CG_AddFragmentTrail( le, cgs.media.iceballShader );
+	(void)CG_AddFragmentImpl( le );
 }
 
 /*
@@ -348,22 +546,74 @@ void CG_AddFadeRGB( localEntity_t *le ) {
 
 /*
 =================
-CG_AddScaleFadeOut
+CG_AddType05Common
 =================
 */
-static void CG_AddScaleFadeOut( localEntity_t *le ) {
+static qboolean CG_AddType05Common( localEntity_t *le ) {
 	refEntity_t	*re;
 	float		c;
+	vec3_t		delta;
+	float		len;
 
 	re = &le->refEntity;
 
-	// fade time
-	c = ( le->endTime - cg.time ) * le->lifeRate;
+	if ( le->fadeInTime > le->startTime && cg.time < le->fadeInTime ) {
+		c = 1.0 - (float)( le->fadeInTime - cg.time ) / ( le->fadeInTime - le->startTime );
+	}
+	else {
+		c = ( le->endTime - cg.time ) * le->lifeRate;
+	}
 
+	re->shaderRGBA[0] = 0xff * c * le->color[0];
+	re->shaderRGBA[1] = 0xff * c * le->color[1];
+	re->shaderRGBA[2] = 0xff * c * le->color[2];
 	re->shaderRGBA[3] = 0xff * c * le->color[3];
-	re->radius = le->radius * c;
+
+	if ( !( le->leFlags & LEF_PUFF_DONT_SCALE ) ) {
+		re->radius = le->radius * ( 1.0 - c ) + 8;
+	}
+
+	CG_EvaluateLocalTrajectory( le, &le->pos, cg.time, re->origin );
+
+	VectorSubtract( re->origin, cg.refdef.vieworg, delta );
+	len = VectorLength( delta );
+	if ( len < le->radius ) {
+		CG_FreeLocalEntity( le );
+		return qfalse;
+	}
 
 	trap_R_AddRefEntityToScene( re );
+	return qtrue;
+}
+
+/*
+=================
+CG_AddType05
+=================
+*/
+static void CG_AddType05( localEntity_t *le ) {
+	(void)CG_AddType05Common( le );
+}
+
+/*
+================
+CG_AddType0F
+================
+*/
+static void CG_AddType0F( localEntity_t *le ) {
+	if ( CG_AddType05Common( le ) && le->light ) {
+		float		light;
+
+		light = (float)( cg.time - le->startTime ) / ( le->endTime - le->startTime );
+		if ( light < 0.5f ) {
+			light = 1.0f;
+		}
+		else {
+			light = 1.0f - ( light - 0.5f ) * 2.0f;
+		}
+		trap_R_AddLightToScene( le->refEntity.origin, le->light * light,
+			le->lightColor[0], le->lightColor[1], le->lightColor[2] );
+	}
 }
 
 /*
@@ -522,7 +772,7 @@ static void CG_AddMoveScaleFade( localEntity_t *le ) {
 		re->radius = le->radius * ( 1.0 - c ) + 8;
 	}
 
-	BG_EvaluateTrajectory( &le->pos, cg.time, re->origin );
+	CG_EvaluateLocalTrajectory( le, &le->pos, cg.time, re->origin );
 
 	// if the view would be "inside" the sprite, kill the sprite
 	// so it doesn't add too much overdraw
@@ -690,126 +940,7 @@ CG_AddKamikaze
 ====================
 */
 void CG_AddKamikaze( localEntity_t *le ) {
-	refEntity_t	*re;
-	refEntity_t shockwave;
-	float		c;
-	vec3_t		test, axis[3];
-	int			t;
-
-	re = &le->refEntity;
-
-	t = cg.time - le->startTime;
-	VectorClear( test );
-	AnglesToAxis( test, axis );
-
-	if (t > KAMI_SHOCKWAVE_STARTTIME && t < KAMI_SHOCKWAVE_ENDTIME) {
-
-		if (!(le->leFlags & LEF_SOUND1)) {
-//			trap_S_StartSound (re->origin, ENTITYNUM_WORLD, CHAN_AUTO, cgs.media.kamikazeExplodeSound );
-			trap_S_StartLocalSound(cgs.media.kamikazeExplodeSound, CHAN_AUTO);
-			le->leFlags |= LEF_SOUND1;
-		}
-		// 1st kamikaze shockwave
-		memset(&shockwave, 0, sizeof(shockwave));
-		shockwave.hModel = cgs.media.kamikazeShockWave;
-		shockwave.reType = RT_MODEL;
-		shockwave.shaderTime = re->shaderTime;
-		VectorCopy(re->origin, shockwave.origin);
-
-		c = (float)(t - KAMI_SHOCKWAVE_STARTTIME) / (float)(KAMI_SHOCKWAVE_ENDTIME - KAMI_SHOCKWAVE_STARTTIME);
-		VectorScale( axis[0], c * KAMI_SHOCKWAVE_MAXRADIUS / KAMI_SHOCKWAVEMODEL_RADIUS, shockwave.axis[0] );
-		VectorScale( axis[1], c * KAMI_SHOCKWAVE_MAXRADIUS / KAMI_SHOCKWAVEMODEL_RADIUS, shockwave.axis[1] );
-		VectorScale( axis[2], c * KAMI_SHOCKWAVE_MAXRADIUS / KAMI_SHOCKWAVEMODEL_RADIUS, shockwave.axis[2] );
-		shockwave.nonNormalizedAxes = qtrue;
-
-		if (t > KAMI_SHOCKWAVEFADE_STARTTIME) {
-			c = (float)(t - KAMI_SHOCKWAVEFADE_STARTTIME) / (float)(KAMI_SHOCKWAVE_ENDTIME - KAMI_SHOCKWAVEFADE_STARTTIME);
-		}
-		else {
-			c = 0;
-		}
-		c *= 0xff;
-		shockwave.shaderRGBA[0] = 0xff - c;
-		shockwave.shaderRGBA[1] = 0xff - c;
-		shockwave.shaderRGBA[2] = 0xff - c;
-		shockwave.shaderRGBA[3] = 0xff - c;
-
-		trap_R_AddRefEntityToScene( &shockwave );
-	}
-
-	if (t > KAMI_EXPLODE_STARTTIME && t < KAMI_IMPLODE_ENDTIME) {
-		// explosion and implosion
-		c = ( le->endTime - cg.time ) * le->lifeRate;
-		c *= 0xff;
-		re->shaderRGBA[0] = le->color[0] * c;
-		re->shaderRGBA[1] = le->color[1] * c;
-		re->shaderRGBA[2] = le->color[2] * c;
-		re->shaderRGBA[3] = le->color[3] * c;
-
-		if( t < KAMI_IMPLODE_STARTTIME ) {
-			c = (float)(t - KAMI_EXPLODE_STARTTIME) / (float)(KAMI_IMPLODE_STARTTIME - KAMI_EXPLODE_STARTTIME);
-		}
-		else {
-			if (!(le->leFlags & LEF_SOUND2)) {
-//				trap_S_StartSound (re->origin, ENTITYNUM_WORLD, CHAN_AUTO, cgs.media.kamikazeImplodeSound );
-				trap_S_StartLocalSound(cgs.media.kamikazeImplodeSound, CHAN_AUTO);
-				le->leFlags |= LEF_SOUND2;
-			}
-			c = (float)(KAMI_IMPLODE_ENDTIME - t) / (float) (KAMI_IMPLODE_ENDTIME - KAMI_IMPLODE_STARTTIME);
-		}
-		VectorScale( axis[0], c * KAMI_BOOMSPHERE_MAXRADIUS / KAMI_BOOMSPHEREMODEL_RADIUS, re->axis[0] );
-		VectorScale( axis[1], c * KAMI_BOOMSPHERE_MAXRADIUS / KAMI_BOOMSPHEREMODEL_RADIUS, re->axis[1] );
-		VectorScale( axis[2], c * KAMI_BOOMSPHERE_MAXRADIUS / KAMI_BOOMSPHEREMODEL_RADIUS, re->axis[2] );
-		re->nonNormalizedAxes = qtrue;
-
-		trap_R_AddRefEntityToScene( re );
-		// add the dlight
-		trap_R_AddLightToScene( re->origin, c * 1000.0, 1.0, 1.0, c );
-	}
-
-	if (t > KAMI_SHOCKWAVE2_STARTTIME && t < KAMI_SHOCKWAVE2_ENDTIME) {
-		// 2nd kamikaze shockwave
-		if (le->angles.trBase[0] == 0 &&
-			le->angles.trBase[1] == 0 &&
-			le->angles.trBase[2] == 0) {
-			le->angles.trBase[0] = random() * 360;
-			le->angles.trBase[1] = random() * 360;
-			le->angles.trBase[2] = random() * 360;
-		}
-		else {
-			c = 0;
-		}
-		memset(&shockwave, 0, sizeof(shockwave));
-		shockwave.hModel = cgs.media.kamikazeShockWave;
-		shockwave.reType = RT_MODEL;
-		shockwave.shaderTime = re->shaderTime;
-		VectorCopy(re->origin, shockwave.origin);
-
-		test[0] = le->angles.trBase[0];
-		test[1] = le->angles.trBase[1];
-		test[2] = le->angles.trBase[2];
-		AnglesToAxis( test, axis );
-
-		c = (float)(t - KAMI_SHOCKWAVE2_STARTTIME) / (float)(KAMI_SHOCKWAVE2_ENDTIME - KAMI_SHOCKWAVE2_STARTTIME);
-		VectorScale( axis[0], c * KAMI_SHOCKWAVE2_MAXRADIUS / KAMI_SHOCKWAVEMODEL_RADIUS, shockwave.axis[0] );
-		VectorScale( axis[1], c * KAMI_SHOCKWAVE2_MAXRADIUS / KAMI_SHOCKWAVEMODEL_RADIUS, shockwave.axis[1] );
-		VectorScale( axis[2], c * KAMI_SHOCKWAVE2_MAXRADIUS / KAMI_SHOCKWAVEMODEL_RADIUS, shockwave.axis[2] );
-		shockwave.nonNormalizedAxes = qtrue;
-
-		if (t > KAMI_SHOCKWAVE2FADE_STARTTIME) {
-			c = (float)(t - KAMI_SHOCKWAVE2FADE_STARTTIME) / (float)(KAMI_SHOCKWAVE2_ENDTIME - KAMI_SHOCKWAVE2FADE_STARTTIME);
-		}
-		else {
-			c = 0;
-		}
-		c *= 0xff;
-		shockwave.shaderRGBA[0] = 0xff - c;
-		shockwave.shaderRGBA[1] = 0xff - c;
-		shockwave.shaderRGBA[2] = 0xff - c;
-		shockwave.shaderRGBA[3] = 0xff - c;
-
-		trap_R_AddRefEntityToScene( &shockwave );
-	}
+	CG_AddType10( le );
 }
 
 /*
@@ -837,7 +968,12 @@ void CG_AddInvulnerabilityJuiced( localEntity_t *le ) {
 	}
 	if ( t > 5000 ) {
 		le->endTime = 0;
-		CG_GibPlayer( le->refEntity.origin );
+		if ( cgs.media.haveDlcGibs ) {
+			CG_GibPlayer( le->refEntity.origin );
+		}
+		else {
+			CG_BigExplodeJuiced( le->refEntity.origin );
+		}
 	}
 	else {
 		trap_R_AddRefEntityToScene( &le->refEntity );
@@ -993,6 +1129,10 @@ void CG_AddLocalEntities( void ) {
 			CG_AddMoveScaleFade( le );
 			break;
 
+		case LE_05:
+			CG_AddType05( le );
+			break;
+
 		case LE_FADE_RGB:				// teleporters, railtrails
 			CG_AddFadeRGB( le );
 			break;
@@ -1009,11 +1149,8 @@ void CG_AddLocalEntities( void ) {
 			CG_AddScorePlum( le );
 			break;
 
-		case LE_KAMIKAZE:
-			CG_AddKamikaze( le );
-			break;
 		case LE_10:
-			CG_AddType10( le );
+			CG_AddKamikaze( le );
 			break;
 		case LE_INVULIMPACT:
 			CG_AddInvulnerabilityImpact( le );
@@ -1024,12 +1161,14 @@ void CG_AddLocalEntities( void ) {
 		case LE_SHOWREFENTITY:
 			CG_AddRefEntity( le );
 			break;
-		case LE_SCALE_FADE_OUT:
-			CG_AddScaleFadeOut( le );
+		case LE_0F:
+			CG_AddType0F( le );
 			break;
 		case LE_FRAGMENT_14:
+			CG_AddFragment14( le );
+			break;
 		case LE_FRAGMENT_16:
-			CG_AddFragment( le );
+			CG_AddFragment16( le );
 			break;
 		}
 	}

@@ -45,7 +45,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define KEY_FLAG_MASTER         0x04
 
 #define DEFAULT_SHOTGUN_SPREAD	700
-#define DEFAULT_SHOTGUN_COUNT	11
+#define DEFAULT_SHOTGUN_COUNT	20
 
 #define	ITEM_RADIUS			15		// item sizes are needed for client side pickup detection
 
@@ -89,23 +89,22 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_SHADERSTATE			24
 #define CS_BOTINFO				25
 #define CS_MATCH_STATE				0x295		// timeout/overtime state info payload
+// Auxiliary round-based team counters refreshed by retail qagame for HUD ownerdraws.
+#define CS_TEAM_COUNT_RED			0x297
+#define CS_TEAM_COUNT_BLUE			0x298
 // CS_FORCED_COSMETICS broadcasts an info string with the following keys:
 // \sb\<0|1>  - Forces the compact scoreboard tipline when set.
 // \hud\<0|1> - Enables HUD coaching widgets even if players disabled them.
 // \dmg\<0|1> - Advertises damage-through-surface overrides to clients.
 // \atm\<str> - Optional atmosphere token mirrored from the worldspawn or server override.
 #define CS_FORCED_COSMETICS		0x2B3
-// Tutorial configstrings broadcast lightweight coaching text for the HUD.
-#define CS_TUTORIAL_NAME		(CS_FORCED_COSMETICS + 1)
-#define CS_TUTORIAL_TEXT		(CS_FORCED_COSMETICS + 2)
-#define CS_FREEZE_TIP_OBJECTIVE	(CS_TUTORIAL_TEXT + 1)
-#define CS_FREEZE_TIP_THAW		(CS_TUTORIAL_TEXT + 2)
-#define CS_FREEZE_TIP_FREEZE	(CS_TUTORIAL_TEXT + 3)
-#define CS_FREEZE_TIP_SHOOT	(CS_TUTORIAL_TEXT + 4)
-#define CS_FREEZE_TIP_SUMMARY	(CS_TUTORIAL_TEXT + 5)
-#define CS_READYUP_STATUS		0x2C4		// millisecond deadline for the ready-up clock
-#define CS_WARMUP_READY		0x2C8		// warmup ready threshold and readiness snapshot
-
+// Retail qagame reserves these legacy client-number slots for postgame award winners.
+#define CS_AWARD_BEST_ITEMCONTROL	0x2B4
+#define CS_AWARD_MOST_ACCURATE	0x2B5
+#define CS_AWARD_MOST_VALUABLE	0x2B8
+#define CS_AWARD_MOST_VALUABLE_OFFENSIVE	0x2B9
+#define CS_AWARD_MOST_VALUABLE_DEFENSIVE	0x2BA
+#define CS_AWARD_MOST_DAMAGEDEALT	0x2BB
 //
 // Factory metadata configstrings provide clients with human-readable match factory data.
 // CS_FACTORY_FLAGS encodes FACTORY_FLAG_* bits, while CS_SPAWN_HINTS is an info string
@@ -156,8 +155,17 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_LOADOUT_FLAGS		0x2C7		// bitmask of forced loadout toggles
 #define CS_WARMUP_READY		0x2C8		// warmup ready threshold and readiness snapshot
 #define CS_LOADOUT_MASK		0x2C9		// bitmask of disabled loadout entries
+// Tutorial/freezetip coaching strings are kept on reconstruction-local slots so the
+// recovered retail award configstring block at 0x2B4/0x2B5/0x2B8-0x2BB stays intact.
+#define CS_TUTORIAL_NAME		0x2CA
+#define CS_TUTORIAL_TEXT		0x2CB
+#define CS_FREEZE_TIP_OBJECTIVE	0x2CC
+#define CS_FREEZE_TIP_THAW		0x2CD
+#define CS_FREEZE_TIP_FREEZE	0x2CE
+#define CS_FREEZE_TIP_SHOOT	0x2CF
+#define CS_FREEZE_TIP_SUMMARY	0x2D0
 
-#define CS_MAX					(CS_LOADOUT_MASK + 1)
+#define CS_MAX					(CS_FREEZE_TIP_SUMMARY + 1)
 
 #if (CS_MAX) > MAX_CONFIGSTRINGS
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS
@@ -231,7 +239,7 @@ typedef enum {
 #define PMF_FOLLOW			4096	// spectate following another player
 #define PMF_SCOREBOARD		8192	// spectate as a scoreboard
 #define PMF_INVULEXPAND		16384	// invulnerability sphere set to full size
-#define PMF_CROUCH_SLIDE	32768	// crouch slide friction effect is active
+#define PMF_CROUCH_SLIDE	32768	// crouch slide behavior enabled; crouchSlideTime tracks remaining slide resource
 #define PMF_RAMP_JUMP		65536	// ramp jump scale applied to takeoff
 #define PMF_CHAIN_JUMP	131072	// jump executed within chain window
 #define PMF_DOUBLE_JUMP	262144	// performed a double jump since last landing
@@ -288,6 +296,9 @@ typedef struct {
 
 	const pmoveParams_t	*pmoveParams;
 	const pmove_settings_t	*pmoveSettings;
+
+	float		stepUp;				// positive stair delta accumulated during this Pmove
+	int			stepUpTime;			// command time of the latest positive stair delta
 
 	// callbacks to test the world
 	// these will be different functions during game and cgame
@@ -443,6 +454,8 @@ typedef enum weaponHandicapType_e {
 	HANDICAP_SCALAR_MAX
 } handicap_type_t;
 
+typedef struct gitem_s gitem_t;
+
 extern const bgWeaponStats_t bg_weaponStats[];
 extern const int bg_weaponStatsCount;
 
@@ -454,6 +467,10 @@ int BG_GetWeaponAmmoPackMaxStack( weapon_t weapon );
 qboolean BG_PlayerHasPersistantPowerup( const playerState_t *ps, powerup_t powerup );
 int BG_GetArmorUpperBound( const playerState_t *ps );
 int BG_GetHealthUpperBound( const playerState_t *ps, int pickupQuantity );
+void BG_UpdateArmorTierFromCurrentArmor( playerState_t *ps, qboolean armorTiered );
+void BG_ClearArmorTierIfEmpty( playerState_t *ps, qboolean armorTiered );
+int BG_GetArmorRegenTarget( const playerState_t *ps, qboolean armorTiered );
+void BG_ApplyArmorPickup( playerState_t *ps, const gitem_t *item, qboolean armorTiered );
 
 
 struct pmove_settings_s {
@@ -645,6 +662,8 @@ typedef enum {
 
 } entity_event_t;
 
+#define QL_EVENTPARM_FREEZE_THAW	1
+
 
 typedef enum {
 	GTS_RED_CAPTURE,
@@ -816,13 +835,13 @@ typedef enum {
 	IT_HOLDABLE,			// single use, holdable item
 							// EFX: rotate + bob
 	IT_PERSISTANT_POWERUP,
-	IT_KEY,
-	IT_TEAM
+	IT_TEAM,
+	IT_KEY
 } itemType_t;
 
 #define MAX_ITEM_MODELS 4
 
-typedef struct gitem_s {
+struct gitem_s {
 	char		*classname;	// spawning name
 	char		*pickup_sound;
 	char		*world_model[MAX_ITEM_MODELS];
@@ -837,7 +856,7 @@ typedef struct gitem_s {
 
 	char		*precaches;		// string of all models and images this item will use
 	char		*sounds;		// string of all sounds this item will use
-} gitem_t;
+};
 
 // included in both the game dll and the client
 extern	gitem_t	bg_itemlist[];

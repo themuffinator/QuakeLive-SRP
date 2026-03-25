@@ -968,6 +968,10 @@ int CL_UISystemCalls( int *args ) {
 			return length;
 		}
 
+		if ( !CL_OnlineServicesEnabled() ) {
+			return length;
+		}
+
 		Com_Memset( resolved, 0, sizeof( resolved ) );
 		if ( qlr_fs_imports.fopen_web_file_read( request, file, resolved, sizeof( resolved ) ) && *file ) {
 			CL_UI_LogFsOpen( request, args[3], qlr_fs_imports.filelength( *file ), resolved );
@@ -1431,7 +1435,8 @@ QL_UI_trap_Import82
 */
 static void QDECL QL_UI_trap_Import82( void ) {
 	// uix86.dll HLIL: import[82] (offset 0x148) is invoked during UI init with no args.
-	// Quake Live retail thunks to an optional overlay hook and safely no-ops when absent.
+	// Quake Live retail thunks to an optional overlay hook; sync the provider state and leave fallbacks active when absent.
+	CL_RefreshOnlineServicesBridgeState();
 }
 
 /*
@@ -1453,6 +1458,10 @@ QL_UI_trap_Import93
 */
 static int QDECL QL_UI_trap_Import93( int arg1 ) {
 	// uix86.dll HLIL: import[93] (offset 0x174) checks Steam subscription for app IDs.
+	if ( !CL_SteamServicesEnabled() ) {
+		return 0;
+	}
+
 	return QL_Steamworks_IsSubscribedApp( (uint32_t)arg1 ) ? 1 : 0;
 }
 
@@ -1759,18 +1768,19 @@ CL_InitUI
 ====================
 */
 #define UI_OLD_API_VERSION	4
-#define QL_UI_API_VERSION	8
 
 void CL_InitUI( void ) {
 	int		v;
 	vmInterpret_t		interpret;
 
 	Com_Printf( "----- UI Initialization -----\n" );
+	CL_RefreshOnlineServicesBridgeState();
+
 	// load the dll or bytecode
 	interpret = Cvar_VariableValue( "vm_ui" );
 	CL_InitUIImports();
 
-	uivm = VM_Create( "ui", CL_UISystemCalls, interpret, ql_ui_imports, QL_UI_API_VERSION );
+	uivm = VM_Create( "ui", CL_UISystemCalls, interpret, ql_ui_imports, UI_QL_API_VERSION );
 	if ( !uivm ) {
 		Com_Error( ERR_FATAL, "VM_Create on UI failed" );
 	}
@@ -1781,8 +1791,8 @@ void CL_InitUI( void ) {
 		// init for this gamestate
 		VM_Call( uivm, UI_INIT, (cls.state >= CA_AUTHORIZING && cls.state < CA_ACTIVE));
 	}
-	else if (v != UI_API_VERSION && v != QL_UI_API_VERSION) {
-		Com_Error( ERR_DROP, "User Interface is version %d, expected %d", v, QL_UI_API_VERSION );
+	else if (v != UI_API_VERSION && v != UI_QL_API_VERSION) {
+		Com_Error( ERR_DROP, "User Interface is version %d, expected %d", v, UI_QL_API_VERSION );
 		cls.uiStarted = qfalse;
 	}
 	else {

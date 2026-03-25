@@ -75,6 +75,36 @@ static void (*captureFunc) (void *p) = NULL;
 static void *captureData = NULL;
 static itemDef_t *itemCapture = NULL;   // item that has the mouse captured ( if any )
 
+static const vec3_t uiSliderColorPalette[] = {
+	{ 1.00f, 1.00f, 1.00f },
+	{ 1.00f, 1.00f, 1.00f },
+	{ 0.90f, 0.90f, 0.90f },
+	{ 0.75f, 0.75f, 0.75f },
+	{ 0.50f, 0.50f, 0.50f },
+	{ 0.25f, 0.25f, 0.25f },
+	{ 0.00f, 0.00f, 0.00f },
+	{ 1.00f, 0.35f, 0.35f },
+	{ 1.00f, 0.00f, 0.00f },
+	{ 0.70f, 0.00f, 0.00f },
+	{ 1.00f, 0.55f, 0.00f },
+	{ 1.00f, 0.80f, 0.00f },
+	{ 1.00f, 1.00f, 0.00f },
+	{ 0.80f, 1.00f, 0.00f },
+	{ 0.55f, 1.00f, 0.00f },
+	{ 0.00f, 1.00f, 0.00f },
+	{ 0.00f, 1.00f, 0.55f },
+	{ 0.00f, 1.00f, 0.80f },
+	{ 0.00f, 1.00f, 1.00f },
+	{ 0.00f, 0.80f, 1.00f },
+	{ 0.00f, 0.55f, 1.00f },
+	{ 0.00f, 0.00f, 1.00f },
+	{ 0.35f, 0.00f, 1.00f },
+	{ 0.55f, 0.00f, 1.00f },
+	{ 0.80f, 0.00f, 1.00f },
+	{ 1.00f, 0.00f, 1.00f },
+	{ 1.00f, 0.00f, 0.55f }
+};
+
 displayContextDef_t *DC = NULL;
 
 static qboolean g_waitingForKey = qfalse;
@@ -105,9 +135,13 @@ void Item_SetupKeywordHash(void);
 void Menu_SetupKeywordHash(void);
 int BindingIDFromName(const char *name);
 qboolean Item_Bind_HandleKey(itemDef_t *item, int key, qboolean down);
+void Item_Slider_Paint(itemDef_t *item);
 itemDef_t *Menu_SetPrevCursorItem(menuDef_t *menu);
 itemDef_t *Menu_SetNextCursorItem(menuDef_t *menu);
 static qboolean Menu_OverActiveItem(menuDef_t *menu, float x, float y);
+static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh);
+static void Menu_SetupAdvertCellShaders(menuDef_t *menu);
+static void Menu_RefreshAdvertCellShaders(menuDef_t *menu);
 
 #ifdef CGAME
 #define MEM_POOL_SIZE  128 * 1024
@@ -798,6 +832,10 @@ static void UI_ApplyWidescreenRect(rectDef_t *rect, int widescreen) {
 		return;
 	}
 
+	if (DC && DC->setAdjustFrom640Mode) {
+		return;
+	}
+
 	if (widescreen == WIDESCREEN_STRETCH) {
 		return;
 	}
@@ -919,6 +957,87 @@ void Menu_UpdatePosition(menuDef_t *menu) {
 	}
 }
 
+/*
+==================
+Item_UpdateAdvertShader
+
+Resolves the current shader for retail Quake Live advert ownerdraw items.
+==================
+*/
+static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh) {
+	rectDef_t rect;
+	qhandle_t shader;
+
+	if (!item || item->window.ownerDraw != UI_ADVERT || !item->defaultContent || !item->defaultContent[0]) {
+		return 0;
+	}
+	if (!DC) {
+		return 0;
+	}
+
+	rect = item->window.rect;
+	shader = 0;
+
+	if (refresh) {
+		if (DC->refreshAdvertCellShader) {
+			shader = DC->refreshAdvertCellShader(item->defaultContent, &rect, item->cellId);
+		}
+	} else {
+		if (DC->setupAdvertCellShader) {
+			shader = DC->setupAdvertCellShader(item->defaultContent, &rect, item->cellId);
+		}
+	}
+
+	if (!shader && DC->registerShaderNoMip) {
+		shader = DC->registerShaderNoMip(item->defaultContent);
+	}
+
+	if (shader) {
+		item->window.background = shader;
+		item->window.style = WINDOW_STYLE_SHADER;
+	}
+
+	return shader;
+}
+
+/*
+==================
+Menu_SetupAdvertCellShaders
+
+Initialises retail Quake Live advert cell shaders after menu parsing.
+==================
+*/
+static void Menu_SetupAdvertCellShaders(menuDef_t *menu) {
+	int i;
+
+	if (!menu) {
+		return;
+	}
+
+	for (i = 0; i < menu->itemCount; i++) {
+		Item_UpdateAdvertShader(menu->items[i], qfalse);
+	}
+}
+
+/*
+==================
+Menu_RefreshAdvertCellShaders
+
+Refreshes retail Quake Live advert cell shaders after menu state changes.
+==================
+*/
+static void Menu_RefreshAdvertCellShaders(menuDef_t *menu) {
+	int i;
+
+	if (!menu) {
+		return;
+	}
+
+	for (i = 0; i < menu->itemCount; i++) {
+		Item_UpdateAdvertShader(menu->items[i], qtrue);
+	}
+}
+
 void Menu_PostParse(menuDef_t *menu) {
 	if (menu == NULL) {
 		return;
@@ -930,6 +1049,7 @@ void Menu_PostParse(menuDef_t *menu) {
 		menu->window.rectClient.h = SCREEN_HEIGHT;
 	}
 	Menu_UpdatePosition(menu);
+	Menu_SetupAdvertCellShaders(menu);
 }
 
 itemDef_t *Menu_ClearFocus(menuDef_t *menu) {
@@ -1058,6 +1178,194 @@ itemDef_t *Menu_FindItemByName(menuDef_t *menu, const char *p) {
   return NULL;
 }
 
+/*
+=============
+UI_IsNumericValue
+
+Matches the retail numeric-string probe used by preset comparison and preset application.
+=============
+*/
+static qboolean UI_IsNumericValue(const char *text) {
+	qboolean sawDecimal;
+
+	if (text == NULL || *text == '\0') {
+		return qfalse;
+	}
+
+	sawDecimal = qfalse;
+	while (*text) {
+		if (*text >= '0' && *text <= '9') {
+			text++;
+			continue;
+		}
+
+		if (*text == '.') {
+			if (sawDecimal) {
+				return qfalse;
+			}
+
+			sawDecimal = qtrue;
+			text++;
+			continue;
+		}
+
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+UI_FormatBoundCvarValue
+
+Formats retail slider and text cvar output using integer and precision metadata.
+=============
+*/
+static void UI_FormatBoundCvarValue(itemDef_t *item, float value, char *buffer, int bufferSize) {
+	char format[16];
+
+	if (bufferSize <= 0) {
+		return;
+	}
+
+	if (item != NULL && item->integer) {
+		Com_sprintf(buffer, bufferSize, "%i", (int)ceil(value));
+		return;
+	}
+
+	if (item != NULL && item->precision > 0) {
+		Com_sprintf(format, sizeof(format), "%%.%df", item->precision);
+		Com_sprintf(buffer, bufferSize, format, value);
+		return;
+	}
+
+	Com_sprintf(buffer, bufferSize, "%f", value);
+}
+
+/*
+=============
+Item_GetTextSource
+
+Resolves retail cvar-backed text using precision or integer formatting when requested.
+=============
+*/
+static const char *Item_GetTextSource(itemDef_t *item, char *buffer, int bufferSize) {
+	if (item->text != NULL) {
+		return item->text;
+	}
+
+	if (item->cvar == NULL) {
+		return NULL;
+	}
+
+	if (item->integer || item->precision > 0) {
+		UI_FormatBoundCvarValue(item, DC->getCVarValue(item->cvar), buffer, bufferSize);
+	} else {
+		DC->getCVarString(item->cvar, buffer, bufferSize);
+	}
+
+	return buffer;
+}
+
+/*
+=============
+UI_SetItemCvarValue
+
+Writes retail slider and preset values with the same integer and precision rules used by the parser surface.
+=============
+*/
+static void UI_SetItemCvarValue(itemDef_t *item, float value) {
+	char formattedValue[64];
+
+	if (item == NULL || item->cvar == NULL) {
+		return;
+	}
+
+	UI_FormatBoundCvarValue(item, value, formattedValue, sizeof(formattedValue));
+	DC->setCVar(item->cvar, formattedValue);
+}
+
+/*
+=============
+UI_PresetValueMatchesCvar
+
+Compares a preset entry against the live cvar string, falling back to epsilon float comparison for numeric strings.
+=============
+*/
+static qboolean UI_PresetValueMatchesCvar(const char *cvarName, const char *presetValue, float presetNumericValue) {
+	char currentValue[64];
+
+	if (cvarName == NULL || presetValue == NULL) {
+		return qfalse;
+	}
+
+	DC->getCVarString(cvarName, currentValue, sizeof(currentValue));
+	if (Q_stricmp(currentValue, presetValue) == 0) {
+		return qtrue;
+	}
+
+	if (!UI_IsNumericValue(currentValue) || !UI_IsNumericValue(presetValue)) {
+		return qfalse;
+	}
+
+	return fabs(DC->getCVarValue(cvarName) - presetNumericValue) <= 0.001f;
+}
+
+/*
+=============
+Menu_UpdatePresetLists
+
+Validates the selected retail preset label against the linked hidden preset cvar set.
+=============
+*/
+static void Menu_UpdatePresetLists(menuDef_t *menu) {
+	char currentPreset[1024];
+	int i;
+
+	if (menu == NULL) {
+		return;
+	}
+
+	for (i = 0; i < menu->itemCount; i++) {
+		int j;
+		int presetIndex;
+		itemDef_t *item;
+		itemDef_t *presetItem;
+		multiDef_t *presetList;
+		multiDef_t *presetValues;
+
+		item = menu->items[i];
+		if (item == NULL || item->type != ITEM_TYPE_PRESETLIST || item->cvar == NULL || item->typeData == NULL) {
+			continue;
+		}
+
+		presetList = (multiDef_t *)item->typeData;
+		DC->getCVarString(item->cvar, currentPreset, sizeof(currentPreset));
+
+		for (presetIndex = 0; presetIndex < presetList->count; presetIndex++) {
+			if (presetList->cvarList[presetIndex] == NULL || Q_stricmp(presetList->cvarList[presetIndex], currentPreset) != 0) {
+				continue;
+			}
+
+			presetItem = Menu_FindItemByName(menu, presetList->cvarStr[presetIndex]);
+			if (presetItem == NULL || presetItem->typeData == NULL) {
+				break;
+			}
+
+			presetValues = (multiDef_t *)presetItem->typeData;
+			for (j = 0; j < presetValues->count; j++) {
+				if (!UI_PresetValueMatchesCvar(presetValues->cvarList[j], presetValues->cvarStr[j], presetValues->cvarValue[j])) {
+					DC->setCVar(item->cvar, "Custom");
+					break;
+				}
+			}
+
+			break;
+		}
+	}
+}
+
 void Script_SetTeamColor(itemDef_t *item, char **args) {
   if (DC->getTeamColor) {
     int i;
@@ -1180,6 +1488,7 @@ static void Menu_RunCloseScript(menuDef_t *menu) {
 void Menus_CloseByName(const char *p) {
   menuDef_t *menu = Menus_FindByName(p);
   if (menu != NULL) {
+		Menu_RefreshAdvertCellShaders(menu);
 		Menu_RunCloseScript(menu);
 		menu->window.flags &= ~(WINDOW_VISIBLE | WINDOW_HASFOCUS);
   }
@@ -1188,6 +1497,7 @@ void Menus_CloseByName(const char *p) {
 void Menus_CloseAll() {
   int i;
   for (i = 0; i < menuCount; i++) {
+		Menu_RefreshAdvertCellShaders(&Menus[i]);
 		Menu_RunCloseScript(&Menus[i]);
 		Menus[i].window.flags &= ~(WINDOW_HASFOCUS | WINDOW_VISIBLE);
   }
@@ -1252,6 +1562,35 @@ void Script_Close(itemDef_t *item, char **args) {
   if (String_Parse(args, &name)) {
     Menus_CloseByName(name);
   }
+}
+
+/*
+=============
+Script_Toggle
+
+Mirrors the retail named-menu toggle flow by closing visible menus and
+reactivating hidden ones.
+=============
+*/
+static void Script_Toggle(itemDef_t *item, char **args) {
+	const char *name;
+	menuDef_t *menu;
+
+	if (!String_Parse(args, &name)) {
+		return;
+	}
+
+	menu = Menus_FindByName(name);
+	if (menu == NULL) {
+		return;
+	}
+
+	if (menu->window.flags & WINDOW_VISIBLE) {
+		Menus_CloseByName(name);
+		return;
+	}
+
+	Menus_ActivateByName(name);
 }
 
 void Menu_TransitionItemByName(menuDef_t *menu, const char *p, rectDef_t rectFrom, rectDef_t rectTo, int time, float amt) {
@@ -1344,14 +1683,14 @@ void Script_SetFocus(itemDef_t *item, char **args) {
 void Script_SetPlayerModel(itemDef_t *item, char **args) {
   const char *name;
   if (String_Parse(args, &name)) {
-    DC->setCVar("team_model", name);
+    DC->setCVar("model", name);
   }
 }
 
 void Script_SetPlayerHead(itemDef_t *item, char **args) {
   const char *name;
   if (String_Parse(args, &name)) {
-    DC->setCVar("team_headmodel", name);
+    DC->setCVar("headmodel", name);
   }
 }
 
@@ -1374,6 +1713,29 @@ void Script_Play(itemDef_t *item, char **args) {
 	const char *val;
 	if (String_Parse(args, &val)) {
 		DC->startLocalSound(DC->registerSound(val, qfalse), CHAN_LOCAL_SOUND);
+	}
+}
+
+/*
+=============
+Script_ActivateAdvert
+
+Runs the retail Quake Live advert activation callback when available.
+=============
+*/
+static void Script_ActivateAdvert(itemDef_t *item, char **args) {
+	const char *cellIdToken;
+
+	if (!String_Parse(args, &cellIdToken)) {
+		return;
+	}
+
+	if (DC->activateAdvert) {
+		DC->activateAdvert(atoi(cellIdToken));
+	}
+
+	if (item) {
+		item->window.flags &= ~WINDOW_HASFOCUS;
 	}
 }
 
@@ -1457,6 +1819,7 @@ commandDef_t commandList[] =
 	{"open", &Script_Open},				// menu
 	{"conditionalopen", &Script_ConditionalOpen},	// menu
 	{"close", &Script_Close},				// menu
+	{"toggle", &Script_Toggle},
 	{"setasset", &Script_SetAsset},			// works on this
 	{"setbackground", &Script_SetBackground},	// works on this
 	{"setitemcolor", &Script_SetItemColor},	// group/name
@@ -1468,6 +1831,7 @@ commandDef_t commandList[] =
 	{"setcvar", &Script_SetCvar},			// group/name
 	{"exec", &Script_Exec},			// group/name
 	{"play", &Script_Play},				// group/name
+	{"activateAdvert", &Script_ActivateAdvert},
 	{"playlooped", &Script_playLooped},		// group/name
 	{"playlaunchercinematic", &Script_PlayLauncherCinematic},
 	{"stoprefresh", &Script_StopRefresh},
@@ -1515,42 +1879,87 @@ void Item_RunScript(itemDef_t *item, const char *s) {
   }
 }
 
+/*
+=================
+Item_HasCvarFlags
+=================
+*/
+static qboolean Item_HasCvarFlags( const itemDef_t *item, int mask ) {
+	int i;
+
+	if ( item == NULL ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < ITEM_CVAR_SLOT_COUNT; i++ ) {
+		if ( item->cvarFlags[i] & mask ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+========================
+Item_EnableShowViaCvarSlot
+========================
+*/
+static qboolean Item_EnableShowViaCvarSlot( const itemDef_t *item, int slot, int flag ) {
+	char script[1024], *p;
+	char buff[1024];
+
+	if ( item == NULL ) {
+		return qtrue;
+	}
+
+	if ( slot < 0 || slot >= ITEM_CVAR_SLOT_COUNT ) {
+		return qtrue;
+	}
+
+	if ( item->enableCvar[slot] == NULL || *item->enableCvar[slot] == '\0' ||
+		item->cvarTest[slot] == NULL || *item->cvarTest[slot] == '\0' ) {
+		return qtrue;
+	}
+
+	memset( script, 0, sizeof( script ) );
+	DC->getCVarString( item->cvarTest[slot], buff, sizeof( buff ) );
+	Q_strcat( script, sizeof( script ), item->enableCvar[slot] );
+	p = script;
+
+	while ( 1 ) {
+		const char *val;
+
+		if ( !String_Parse( &p, &val ) ) {
+			return ( item->cvarFlags[slot] & flag ) ? qfalse : qtrue;
+		}
+
+		if ( val[0] == ';' && val[1] == '\0' ) {
+			continue;
+		}
+
+		if ( item->cvarFlags[slot] & flag ) {
+			if ( Q_stricmp( buff, val ) == 0 ) {
+				return qtrue;
+			}
+		} else {
+			if ( Q_stricmp( buff, val ) == 0 ) {
+				return qfalse;
+			}
+		}
+	}
+}
+
 
 qboolean Item_EnableShowViaCvar(itemDef_t *item, int flag) {
-  char script[1024], *p;
-  memset(script, 0, sizeof(script));
-  if (item && item->enableCvar && *item->enableCvar && item->cvarTest && *item->cvarTest) {
-		char buff[1024];
-	  DC->getCVarString(item->cvarTest, buff, sizeof(buff));
+	int i;
 
-    Q_strcat(script, 1024, item->enableCvar);
-    p = script;
-    while (1) {
-      const char *val;
-      // expect value then ; or NULL, NULL ends list
-      if (!String_Parse(&p, &val)) {
-				return (item->cvarFlags & flag) ? qfalse : qtrue;
-      }
+	for ( i = 0; i < ITEM_CVAR_SLOT_COUNT; i++ ) {
+		if ( !Item_EnableShowViaCvarSlot( item, i, flag ) ) {
+			return qfalse;
+		}
+	}
 
-      if (val[0] == ';' && val[1] == '\0') {
-        continue;
-      }
-
-			// enable it if any of the values are true
-			if (item->cvarFlags & flag) {
-        if (Q_stricmp(buff, val) == 0) {
-					return qtrue;
-				}
-			} else {
-				// disable it if any of the values are true
-        if (Q_stricmp(buff, val) == 0) {
-					return qfalse;
-				}
-			}
-
-    }
-		return (item->cvarFlags & flag) ? qfalse : qtrue;
-  }
 	return qtrue;
 }
 
@@ -1571,11 +1980,11 @@ qboolean Item_SetFocus(itemDef_t *item, float x, float y) {
 	parent = (menuDef_t*)item->parent; 
       
 	// items can be enabled and disabled based on cvars
-	if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
+	if (Item_HasCvarFlags(item, CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
 		return qfalse;
 	}
 
-	if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(item, CVAR_SHOW)) {
+	if (Item_HasCvarFlags(item, CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(item, CVAR_SHOW)) {
 		return qfalse;
 	}
 
@@ -1861,11 +2270,11 @@ void Item_MouseEnter(itemDef_t *item, float x, float y) {
 		// in the text rect?
 
 		// items can be enabled and disabled based on cvars
-		if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
+		if (Item_HasCvarFlags(item, CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
 			return;
 		}
 
-		if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(item, CVAR_SHOW)) {
+		if (Item_HasCvarFlags(item, CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(item, CVAR_SHOW)) {
 			return;
 		}
 
@@ -2217,6 +2626,54 @@ const char *Item_Multi_Setting(itemDef_t *item) {
 	return "";
 }
 
+/*
+=============
+Item_PresetList_Setting
+
+Returns the retail preset-list label, falling back to the literal "Custom" when no preset is selected.
+=============
+*/
+const char *Item_PresetList_Setting(itemDef_t *item) {
+	char buff[1024];
+	int i;
+	multiDef_t *multiPtr = (multiDef_t*)item->typeData;
+
+	if (multiPtr && item->cvar) {
+		DC->getCVarString(item->cvar, buff, sizeof(buff));
+		for (i = 0; i < multiPtr->count; i++) {
+			if (multiPtr->cvarList[i] != NULL && Q_stricmp(buff, multiPtr->cvarList[i]) == 0) {
+				return multiPtr->cvarList[i];
+			}
+		}
+	}
+
+	return "Custom";
+}
+
+/*
+=============
+Item_PresetList_FindCvarByValue
+
+Finds the currently selected retail preset-list label or returns -1 when the selection is custom.
+=============
+*/
+int Item_PresetList_FindCvarByValue(itemDef_t *item) {
+	char buff[1024];
+	int i;
+	multiDef_t *multiPtr = (multiDef_t*)item->typeData;
+
+	if (multiPtr && item->cvar) {
+		DC->getCVarString(item->cvar, buff, sizeof(buff));
+		for (i = 0; i < multiPtr->count; i++) {
+			if (multiPtr->cvarList[i] != NULL && Q_stricmp(buff, multiPtr->cvarList[i]) == 0) {
+				return i;
+			}
+		}
+	}
+
+	return -1;
+}
+
 qboolean Item_Multi_HandleKey(itemDef_t *item, int key) {
 	multiDef_t *multiPtr = (multiDef_t*)item->typeData;
 	if (multiPtr) {
@@ -2243,6 +2700,62 @@ qboolean Item_Multi_HandleKey(itemDef_t *item, int key) {
 		}
 	}
   return qfalse;
+}
+
+/*
+=============
+Item_PresetList_HandleKey
+
+Advances the visible retail preset selector and applies the linked hidden preset cvar set.
+=============
+*/
+qboolean Item_PresetList_HandleKey(itemDef_t *item, int key) {
+	int current;
+	int i;
+	itemDef_t *presetItem;
+	menuDef_t *menu;
+	multiDef_t *multiPtr = (multiDef_t*)item->typeData;
+	multiDef_t *presetValues;
+
+	if (multiPtr == NULL) {
+		return qfalse;
+	}
+
+	if (multiPtr->count <= 0) {
+		return qfalse;
+	}
+
+	if (!Rect_ContainsPoint(&item->window.rect, DC->cursorx, DC->cursory) || !(item->window.flags & WINDOW_HASFOCUS) || item->cvar == NULL) {
+		return qfalse;
+	}
+
+	if (key != K_MOUSE1 && key != K_ENTER && key != K_MOUSE2 && key != K_MOUSE3) {
+		return qfalse;
+	}
+
+	current = Item_PresetList_FindCvarByValue(item) + 1;
+	if (current < 0 || current >= multiPtr->count) {
+		current = 0;
+	}
+
+	menu = (menuDef_t *)item->parent;
+	presetItem = Menu_FindItemByName(menu, multiPtr->cvarStr[current]);
+	if (presetItem != NULL && presetItem->typeData != NULL) {
+		presetValues = (multiDef_t *)presetItem->typeData;
+		for (i = 0; i < presetValues->count; i++) {
+			if (UI_IsNumericValue(presetValues->cvarStr[i])) {
+				char formattedValue[64];
+
+				Com_sprintf(formattedValue, sizeof(formattedValue), "%f", presetValues->cvarValue[i]);
+				DC->setCVar(presetValues->cvarList[i], formattedValue);
+			} else {
+				DC->setCVar(presetValues->cvarList[i], presetValues->cvarStr[i]);
+			}
+		}
+	}
+
+	DC->setCVar(item->cvar, multiPtr->cvarList[current]);
+	return qtrue;
 }
 
 qboolean Item_TextField_HandleKey(itemDef_t *item, int key) {
@@ -2490,7 +3003,7 @@ static void Scroll_Slider_ThumbFunc(void *p) {
 	value /= SLIDER_WIDTH;
 	value *= (editDef->maxVal - editDef->minVal);
 	value += editDef->minVal;
-	DC->setCVar(si->item->cvar, va("%f", value));
+	UI_SetItemCvarValue(si->item, value);
 }
 
 void Item_StartCapture(itemDef_t *item, int key) {
@@ -2574,7 +3087,7 @@ qboolean Item_Slider_HandleKey(itemDef_t *item, int key, qboolean down) {
 					// vm fuckage
 					// value = (((float)(DC->cursorx - x)/ SLIDER_WIDTH) * (editDef->maxVal - editDef->minVal));
 					value += editDef->minVal;
-					DC->setCVar(item->cvar, va("%f", value));
+					UI_SetItemCvarValue(item, value);
 					return qtrue;
 				}
 			}
@@ -2637,7 +3150,11 @@ qboolean Item_HandleKey(itemDef_t *item, int key, qboolean down) {
 			return Item_Bind_HandleKey(item, key, down);
       break;
     case ITEM_TYPE_SLIDER:
+    case ITEM_TYPE_SLIDER_COLOR:
       return Item_Slider_HandleKey(item, key, down);
+      break;
+    case ITEM_TYPE_PRESETLIST:
+      return Item_PresetList_HandleKey(item, key);
       break;
     //case ITEM_TYPE_IMAGE:
     //  Item_Image_Paint(item);
@@ -2752,6 +3269,7 @@ void  Menus_Activate(menuDef_t *menu) {
 		DC->startBackgroundTrack(menu->soundName, menu->soundName);
 	}
 
+	Menu_RefreshAdvertCellShaders(menu);
 	Display_CloseCinematics();
 
 }
@@ -2983,8 +3501,63 @@ void Rect_ToWindowCoords(rectDef_t *rect, windowDef_t *window) {
 	ToWindowCoords(&rect->x, &rect->y, window);
 }
 
+/*
+=================
+Item_TextWidth
+=================
+*/
+static int Item_TextWidth(itemDef_t *item, const char *text, int limit) {
+	if (DC->textWidthExt && item != NULL) {
+		return DC->textWidthExt(text, item->textscale, limit, item->fontIndex);
+	}
+
+	return DC->textWidth(text, item->textscale, limit);
+}
+
+/*
+=================
+Item_TextHeight
+=================
+*/
+static int Item_TextHeight(itemDef_t *item, const char *text, int limit) {
+	if (DC->textHeightExt && item != NULL) {
+		return DC->textHeightExt(text, item->textscale, limit, item->fontIndex);
+	}
+
+	return DC->textHeight(text, item->textscale, limit);
+}
+
+/*
+=================
+Item_DrawText
+=================
+*/
+static void Item_DrawText(itemDef_t *item, float x, float y, vec4_t color, const char *text, float adjust, int limit) {
+	if (DC->drawTextExt && item != NULL) {
+		DC->drawTextExt(x, y, item->textscale, color, text, adjust, limit, item->textStyle, item->fontIndex);
+		return;
+	}
+
+	DC->drawText(x, y, item->textscale, color, text, adjust, limit, item->textStyle);
+}
+
+/*
+=================
+Item_DrawTextWithCursor
+=================
+*/
+static void Item_DrawTextWithCursor(itemDef_t *item, float x, float y, vec4_t color, const char *text, int cursorPos, char cursor, int limit) {
+	if (DC->drawTextWithCursorExt && item != NULL) {
+		DC->drawTextWithCursorExt(x, y, item->textscale, color, text, cursorPos, cursor, limit, item->textStyle, item->fontIndex);
+		return;
+	}
+
+	DC->drawTextWithCursor(x, y, item->textscale, color, text, cursorPos, cursor, limit, item->textStyle);
+}
+
 void Item_SetTextExtents(itemDef_t *item, int *width, int *height, const char *text) {
-	const char *textPtr = (text) ? text : item->text;
+	char textBuffer[1024];
+	const char *textPtr = (text) ? text : Item_GetTextSource(item, textBuffer, sizeof(textBuffer));
 
 	if (textPtr == NULL ) {
 		return;
@@ -2995,18 +3568,18 @@ void Item_SetTextExtents(itemDef_t *item, int *width, int *height, const char *t
 
 	// keeps us from computing the widths and heights more than once
 	if (*width == 0 || (item->type == ITEM_TYPE_OWNERDRAW && item->textalignment == ITEM_ALIGN_CENTER)) {
-		int originalWidth = DC->textWidth(item->text, item->textscale, 0);
+		int originalWidth = Item_TextWidth(item, textPtr, 0);
 
 		if (item->type == ITEM_TYPE_OWNERDRAW && (item->textalignment == ITEM_ALIGN_CENTER || item->textalignment == ITEM_ALIGN_RIGHT)) {
 			originalWidth += DC->ownerDrawWidth(item->window.ownerDraw, item->textscale);
 		} else if (item->type == ITEM_TYPE_EDITFIELD && item->textalignment == ITEM_ALIGN_CENTER && item->cvar) {
 			char buff[256];
 			DC->getCVarString(item->cvar, buff, 256);
-			originalWidth += DC->textWidth(buff, item->textscale, 0);
+			originalWidth += Item_TextWidth(item, buff, 0);
 		}
 
-		*width = DC->textWidth(textPtr, item->textscale, 0);
-		*height = DC->textHeight(textPtr, item->textscale, 0);
+		*width = Item_TextWidth(item, textPtr, 0);
+		*height = Item_TextHeight(item, textPtr, 0);
 		item->textRect.w = *width;
 		item->textRect.h = *height;
 		item->textRect.x = item->textalignx;
@@ -3044,8 +3617,8 @@ void Item_TextColor(itemDef_t *item, vec4_t *newColor) {
 		// items can be enabled and disabled based on cvars
 	}
 
-	if (item->enableCvar && *item->enableCvar && item->cvarTest && *item->cvarTest) {
-		if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
+	if (Item_HasCvarFlags(item, CVAR_ENABLE | CVAR_DISABLE)) {
+		if (!Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
 			memcpy(newColor, &parent->disableColor, sizeof(vec4_t));
 		}
 	}
@@ -3062,17 +3635,9 @@ void Item_Text_AutoWrapped_Paint(itemDef_t *item) {
 	textWidth = 0;
 	newLinePtr = NULL;
 
-	if (item->text == NULL) {
-		if (item->cvar == NULL) {
-			return;
-		}
-		else {
-			DC->getCVarString(item->cvar, text, sizeof(text));
-			textPtr = text;
-		}
-	}
-	else {
-		textPtr = item->text;
+	textPtr = Item_GetTextSource(item, text, sizeof(text));
+	if (textPtr == NULL) {
+		return;
 	}
 	if (*textPtr == '\0') {
 		return;
@@ -3092,7 +3657,7 @@ void Item_Text_AutoWrapped_Paint(itemDef_t *item) {
 			newLinePtr = p+1;
 			newLineWidth = textWidth;
 		}
-		textWidth = DC->textWidth(buff, item->textscale, 0);
+		textWidth = Item_TextWidth(item, buff, 0);
 		if ( (newLine && textWidth > item->window.rect.w) || *p == '\n' || *p == '\0') {
 			if (len) {
 				if (item->textalignment == ITEM_ALIGN_LEFT) {
@@ -3106,7 +3671,7 @@ void Item_Text_AutoWrapped_Paint(itemDef_t *item) {
 				ToWindowCoords(&item->textRect.x, &item->textRect.y, &item->window);
 				//
 				buff[newLine] = '\0';
-				DC->drawText(item->textRect.x, item->textRect.y, item->textscale, color, buff, 0, 0, item->textStyle);
+				Item_DrawText(item, item->textRect.x, item->textRect.y, color, buff, 0, 0);
 			}
 			if (*p == '\0') {
 				break;
@@ -3135,17 +3700,9 @@ void Item_Text_Wrapped_Paint(itemDef_t *item) {
 	// now paint the text and/or any optional images
 	// default to left
 
-	if (item->text == NULL) {
-		if (item->cvar == NULL) {
-			return;
-		}
-		else {
-			DC->getCVarString(item->cvar, text, sizeof(text));
-			textPtr = text;
-		}
-	}
-	else {
-		textPtr = item->text;
+	textPtr = Item_GetTextSource(item, text, sizeof(text));
+	if (textPtr == NULL) {
+		return;
 	}
 	if (*textPtr == '\0') {
 		return;
@@ -3161,12 +3718,12 @@ void Item_Text_Wrapped_Paint(itemDef_t *item) {
 	while (p && *p) {
 		strncpy(buff, start, p-start+1);
 		buff[p-start] = '\0';
-		DC->drawText(x, y, item->textscale, color, buff, 0, 0, item->textStyle);
+		Item_DrawText(item, x, y, color, buff, 0, 0);
 		y += height + 5;
 		start += p - start + 1;
 		p = strchr(p+1, '\r');
 	}
-	DC->drawText(x, y, item->textscale, color, start, 0, 0, item->textStyle);
+	Item_DrawText(item, x, y, color, start, 0, 0);
 }
 
 void Item_Text_Paint(itemDef_t *item) {
@@ -3184,17 +3741,9 @@ void Item_Text_Paint(itemDef_t *item) {
 		return;
 	}
 
-	if (item->text == NULL) {
-		if (item->cvar == NULL) {
-			return;
-		}
-		else {
-			DC->getCVarString(item->cvar, text, sizeof(text));
-			textPtr = text;
-		}
-	}
-	else {
-		textPtr = item->text;
+	textPtr = Item_GetTextSource(item, text, sizeof(text));
+	if (textPtr == NULL) {
+		return;
 	}
 
 	// this needs to go here as it sets extents for cvar types as well
@@ -3236,7 +3785,7 @@ void Item_Text_Paint(itemDef_t *item) {
 //		DC->drawText(item->textRect.x - 1, item->textRect.y + 1, item->textscale * 1.02, item->window.outlineColor, textPtr, adjust);
 //	}
 
-	DC->drawText(item->textRect.x, item->textRect.y, item->textscale, color, textPtr, 0, 0, item->textStyle);
+	Item_DrawText(item, item->textRect.x, item->textRect.y, color, textPtr, 0, 0);
 }
 
 
@@ -3274,9 +3823,9 @@ void Item_TextField_Paint(itemDef_t *item) {
 	offset = (item->text && *item->text) ? 8 : 0;
 	if (item->window.flags & WINDOW_HASFOCUS && g_editingField) {
 		char cursor = DC->getOverstrikeMode() ? '_' : '|';
-		DC->drawTextWithCursor(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset , cursor, editPtr->maxPaintChars, item->textStyle);
+		Item_DrawTextWithCursor(item, item->textRect.x + item->textRect.w + offset, item->textRect.y, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset , cursor, editPtr->maxPaintChars);
 	} else {
-		DC->drawText(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, editPtr->maxPaintChars, item->textStyle);
+		Item_DrawText(item, item->textRect.x + item->textRect.w + offset, item->textRect.y, newColor, buff + editPtr->paintOffset, 0, editPtr->maxPaintChars);
 	}
 
 }
@@ -3300,9 +3849,9 @@ void Item_YesNo_Paint(itemDef_t *item) {
 
 	if (item->text) {
 		Item_Text_Paint(item);
-		DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, (value != 0) ? "Yes" : "No", 0, 0, item->textStyle);
+		Item_DrawText(item, item->textRect.x + item->textRect.w + 8, item->textRect.y, newColor, (value != 0) ? "Yes" : "No", 0, 0);
 	} else {
-		DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, (value != 0) ? "Yes" : "No", 0, 0, item->textStyle);
+		Item_DrawText(item, item->textRect.x, item->textRect.y, newColor, (value != 0) ? "Yes" : "No", 0, 0);
 	}
 }
 
@@ -3325,10 +3874,101 @@ void Item_Multi_Paint(itemDef_t *item) {
 
 	if (item->text) {
 		Item_Text_Paint(item);
-		DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, text, 0, 0, item->textStyle);
+		Item_DrawText(item, item->textRect.x + item->textRect.w + 8, item->textRect.y, newColor, text, 0, 0);
 	} else {
-		DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, text, 0, 0, item->textStyle);
+		Item_DrawText(item, item->textRect.x, item->textRect.y, newColor, text, 0, 0);
 	}
+}
+
+/*
+=============
+Item_PresetList_Paint
+
+Paints the retail preset-list selector using the resolved preset label or the "Custom" fallback.
+=============
+*/
+void Item_PresetList_Paint(itemDef_t *item) {
+	vec4_t newColor, lowLight;
+	const char *text = "";
+	menuDef_t *parent = (menuDef_t*)item->parent;
+
+	if (item->window.flags & WINDOW_HASFOCUS) {
+		lowLight[0] = 0.8 * parent->focusColor[0];
+		lowLight[1] = 0.8 * parent->focusColor[1];
+		lowLight[2] = 0.8 * parent->focusColor[2];
+		lowLight[3] = 0.8 * parent->focusColor[3];
+		LerpColor(parent->focusColor, lowLight, newColor, 0.5 + 0.5 * sin(DC->realTime / PULSE_DIVISOR));
+	} else {
+		memcpy(&newColor, &item->window.foreColor, sizeof(vec4_t));
+	}
+
+	text = Item_PresetList_Setting(item);
+
+	if (item->text) {
+		Item_Text_Paint(item);
+		Item_DrawText(item, item->textRect.x + item->textRect.w + 8, item->textRect.y, newColor, text, 0, 0);
+	} else {
+		Item_DrawText(item, item->textRect.x, item->textRect.y, newColor, text, 0, 0);
+	}
+}
+
+/*
+=============
+Item_SliderColor_Paint
+
+Paints the retail slider-color widget by tinting the thumb from the numbered Quake Live color palette.
+=============
+*/
+void Item_SliderColor_Paint(itemDef_t *item) {
+	vec4_t barColor, thumbColor;
+	float x, y;
+	int colorIndex;
+	int paletteCount;
+	menuDef_t *parent = (menuDef_t*)item->parent;
+
+	if (item->cvar == NULL) {
+		Item_Slider_Paint(item);
+		return;
+	}
+
+	if (item->window.flags & WINDOW_HASFOCUS) {
+		vec4_t lowLight;
+
+		lowLight[0] = 0.8f * parent->focusColor[0];
+		lowLight[1] = 0.8f * parent->focusColor[1];
+		lowLight[2] = 0.8f * parent->focusColor[2];
+		lowLight[3] = 0.8f * parent->focusColor[3];
+		LerpColor(parent->focusColor, lowLight, barColor, 0.5f + 0.5f * sin(DC->realTime / PULSE_DIVISOR));
+	} else {
+		memcpy(&barColor, &item->window.foreColor, sizeof(vec4_t));
+	}
+
+	y = item->window.rect.y;
+	if (item->text) {
+		Item_Text_Paint(item);
+		x = item->textRect.x + item->textRect.w + 8;
+	} else {
+		x = item->window.rect.x;
+	}
+
+	DC->setColor(barColor);
+	DC->drawHandlePic(x, y, SLIDER_WIDTH, SLIDER_HEIGHT, DC->Assets.sliderBar);
+
+	colorIndex = (int)ceil(DC->getCVarValue(item->cvar));
+	paletteCount = (int)(sizeof(uiSliderColorPalette) / sizeof(uiSliderColorPalette[0]));
+	if (colorIndex < 1 || colorIndex >= paletteCount) {
+		colorIndex = 1;
+	}
+
+	thumbColor[0] = uiSliderColorPalette[colorIndex][0];
+	thumbColor[1] = uiSliderColorPalette[colorIndex][1];
+	thumbColor[2] = uiSliderColorPalette[colorIndex][2];
+	thumbColor[3] = 1.0f;
+
+	DC->setColor(thumbColor);
+	x = Item_Slider_ThumbPosition(item);
+	DC->drawHandlePic(x - (SLIDER_THUMB_WIDTH / 2), y - 2, SLIDER_THUMB_WIDTH, SLIDER_THUMB_HEIGHT, DC->Assets.sliderThumb);
+	DC->setColor(NULL);
 }
 
 
@@ -3648,9 +4288,9 @@ void Item_Bind_Paint(itemDef_t *item) {
 	if (item->text) {
 		Item_Text_Paint(item);
 		BindingFromName(item->cvar);
-		DC->drawText(item->textRect.x + item->textRect.w + 8, item->textRect.y, item->textscale, newColor, g_nameBind1, 0, maxChars, item->textStyle);
+		Item_DrawText(item, item->textRect.x + item->textRect.w + 8, item->textRect.y, newColor, g_nameBind1, 0, maxChars);
 	} else {
-		DC->drawText(item->textRect.x, item->textRect.y, item->textscale, newColor, (value != 0) ? "FIXME" : "FIXME", 0, maxChars, item->textStyle);
+		Item_DrawText(item, item->textRect.x, item->textRect.y, newColor, (value != 0) ? "FIXME" : "FIXME", 0, maxChars);
 	}
 }
 
@@ -3757,11 +4397,23 @@ qboolean Item_Bind_HandleKey(itemDef_t *item, int key, qboolean down) {
 
 
 void AdjustFrom640(float *x, float *y, float *w, float *h) {
-	//*x = *x * DC->scale + DC->bias;
-	*x *= DC->xscale;
-	*y *= DC->yscale;
-	*w *= DC->xscale;
-	*h *= DC->yscale;
+	if (DC && DC->adjustFrom640) {
+		DC->adjustFrom640(x, y, w, h);
+		return;
+	}
+
+	if (x) {
+		*x *= DC->xscale;
+	}
+	if (y) {
+		*y *= DC->yscale;
+	}
+	if (w) {
+		*w *= DC->xscale;
+	}
+	if (h) {
+		*h *= DC->yscale;
+	}
 }
 
 void Item_Model_Paint(itemDef_t *item) {
@@ -3977,7 +4629,7 @@ void Item_ListBox_Paint(itemDef_t *item) {
 						if (optionalImage >= 0) {
 							DC->drawHandlePic(x + 4 + listPtr->columnInfo[j].pos, y - 1 + listPtr->elementHeight / 2, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
 						} else if (text) {
-							DC->drawText(x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars, item->textStyle);
+							Item_DrawText(item, x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars);
 						}
 					}
 				} else {
@@ -3985,7 +4637,7 @@ void Item_ListBox_Paint(itemDef_t *item) {
 					if (optionalImage >= 0) {
 						//DC->drawHandlePic(x + 4 + listPtr->elementHeight, y, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
 					} else if (text) {
-						DC->drawText(x + 4, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle);
+						Item_DrawText(item, x + 4, y + listPtr->elementHeight, item->window.foreColor, text, 0, 0);
 					}
 				}
 
@@ -4046,8 +4698,12 @@ void Item_OwnerDraw_Paint(itemDef_t *item) {
 			LerpColor(item->window.foreColor,lowLight,color,0.5+0.5*sin(DC->realTime / PULSE_DIVISOR));
 		}
 
-		if (item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
+		if (Item_HasCvarFlags(item, CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(item, CVAR_ENABLE)) {
 		  memcpy(color, parent->disableColor, sizeof(vec4_t)); // bk001207 - FIXME: Com_Memcpy
+		}
+
+		if (item->window.ownerDraw == UI_ADVERT) {
+			Item_UpdateAdvertShader(item, qtrue);
 		}
 	
 		if (item->text) {
@@ -4187,7 +4843,7 @@ void Item_Paint(itemDef_t *item) {
 		}
 	}
 
-	if (item->cvarFlags & (CVAR_SHOW | CVAR_HIDE)) {
+	if (Item_HasCvarFlags(item, CVAR_SHOW | CVAR_HIDE)) {
 		if (!Item_EnableShowViaCvar(item, CVAR_SHOW)) {
 			return;
 		}
@@ -4200,6 +4856,10 @@ void Item_Paint(itemDef_t *item) {
   if (!(item->window.flags & WINDOW_VISIBLE)) {
     return;
   }
+
+	if (DC->setAdjustFrom640Mode && item->widescreenSet) {
+		DC->setAdjustFrom640Mode(item->widescreen);
+	}
 
   // paint the rect first.. 
   Window_Paint(&item->window, parent->fadeAmount , parent->fadeClamp, parent->fadeCycle);
@@ -4214,48 +4874,62 @@ void Item_Paint(itemDef_t *item) {
 
   //DC->drawRect(item->window.rect.x, item->window.rect.y, item->window.rect.w, item->window.rect.h, 1, red);
 
-  switch (item->type) {
-    case ITEM_TYPE_OWNERDRAW:
-      Item_OwnerDraw_Paint(item);
-      break;
-    case ITEM_TYPE_TEXT:
-    case ITEM_TYPE_BUTTON:
-      Item_Text_Paint(item);
-      break;
-    case ITEM_TYPE_RADIOBUTTON:
-      break;
-    case ITEM_TYPE_CHECKBOX:
-      break;
-    case ITEM_TYPE_EDITFIELD:
-    case ITEM_TYPE_NUMERICFIELD:
-      Item_TextField_Paint(item);
-      break;
-    case ITEM_TYPE_COMBO:
-      break;
-    case ITEM_TYPE_LISTBOX:
-      Item_ListBox_Paint(item);
-      break;
-    //case ITEM_TYPE_IMAGE:
-    //  Item_Image_Paint(item);
-    //  break;
-    case ITEM_TYPE_MODEL:
-      Item_Model_Paint(item);
-      break;
-    case ITEM_TYPE_YESNO:
-      Item_YesNo_Paint(item);
-      break;
-    case ITEM_TYPE_MULTI:
-      Item_Multi_Paint(item);
-      break;
-    case ITEM_TYPE_BIND:
-      Item_Bind_Paint(item);
-      break;
-    case ITEM_TYPE_SLIDER:
-      Item_Slider_Paint(item);
-      break;
-    default:
-      break;
-  }
+	if (item->window.ownerDraw == UI_ADVERT) {
+		Item_OwnerDraw_Paint(item);
+	} else {
+		switch (item->type) {
+		case ITEM_TYPE_OWNERDRAW:
+			Item_OwnerDraw_Paint(item);
+			break;
+		case ITEM_TYPE_TEXT:
+		case ITEM_TYPE_BUTTON:
+			Item_Text_Paint(item);
+			break;
+		case ITEM_TYPE_RADIOBUTTON:
+			break;
+		case ITEM_TYPE_CHECKBOX:
+			break;
+		case ITEM_TYPE_EDITFIELD:
+		case ITEM_TYPE_NUMERICFIELD:
+			Item_TextField_Paint(item);
+			break;
+		case ITEM_TYPE_COMBO:
+			break;
+		case ITEM_TYPE_LISTBOX:
+			Item_ListBox_Paint(item);
+			break;
+		//case ITEM_TYPE_IMAGE:
+		//	Item_Image_Paint(item);
+		//	break;
+		case ITEM_TYPE_MODEL:
+			Item_Model_Paint(item);
+			break;
+		case ITEM_TYPE_YESNO:
+			Item_YesNo_Paint(item);
+			break;
+		case ITEM_TYPE_MULTI:
+			Item_Multi_Paint(item);
+			break;
+		case ITEM_TYPE_BIND:
+			Item_Bind_Paint(item);
+			break;
+		case ITEM_TYPE_SLIDER:
+			Item_Slider_Paint(item);
+			break;
+		case ITEM_TYPE_SLIDER_COLOR:
+			Item_SliderColor_Paint(item);
+			break;
+		case ITEM_TYPE_PRESETLIST:
+			Item_PresetList_Paint(item);
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (DC->setAdjustFrom640Mode) {
+		DC->setAdjustFrom640Mode(parent ? parent->widescreen : WIDESCREEN_STRETCH);
+	}
 
 }
 
@@ -4331,14 +5005,40 @@ void Menu_SetFeederSelection(menuDef_t *menu, int feeder, int index, const char 
 	}
 }
 
-qboolean Menus_AnyFullScreenVisible() {
-  int i;
-  for (i = 0; i < menuCount; i++) {
-    if (Menus[i].window.flags & WINDOW_VISIBLE && Menus[i].fullScreen) {
+/*
+=============
+Menus_AnyVisible
+
+Returns qtrue when any menu is currently visible, regardless of fullscreen state.
+=============
+*/
+qboolean Menus_AnyVisible() {
+	int i;
+
+	for (i = 0; i < menuCount; i++) {
+		if (Menus[i].window.flags & WINDOW_VISIBLE) {
 			return qtrue;
-    }
-  }
-  return qfalse;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+Menus_AnyFullScreenVisible
+=============
+*/
+qboolean Menus_AnyFullScreenVisible() {
+	int i;
+
+	for (i = 0; i < menuCount; i++) {
+		if (Menus[i].window.flags & WINDOW_VISIBLE && Menus[i].fullScreen) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
 }
 
 menuDef_t *Menus_ActivateByName(const char *p) {
@@ -4363,6 +5063,7 @@ menuDef_t *Menus_ActivateByName(const char *p) {
 
 void Item_Init(itemDef_t *item) {
 	memset(item, 0, sizeof(itemDef_t));
+	item->fontIndex = ITEM_FONT_INHERIT;
 	item->textscale = 0.55f;
 	item->widescreen = WIDESCREEN_STRETCH;
 	item->widescreenSet = qfalse;
@@ -4403,11 +5104,11 @@ void Menu_HandleMouseMove(menuDef_t *menu, float x, float y) {
       }
 
 			// items can be enabled and disabled based on cvars
-			if (menu->items[i]->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(menu->items[i], CVAR_ENABLE)) {
+			if (Item_HasCvarFlags(menu->items[i], CVAR_ENABLE | CVAR_DISABLE) && !Item_EnableShowViaCvar(menu->items[i], CVAR_ENABLE)) {
 				continue;
 			}
 
-			if (menu->items[i]->cvarFlags & (CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(menu->items[i], CVAR_SHOW)) {
+			if (Item_HasCvarFlags(menu->items[i], CVAR_SHOW | CVAR_HIDE) && !Item_EnableShowViaCvar(menu->items[i], CVAR_SHOW)) {
 				continue;
 			}
 
@@ -4461,11 +5162,28 @@ void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 		menu->window.flags |= WINDOW_FORCED;
 	}
 
+	Menu_UpdatePresetLists(menu);
+
+	if (DC->setAdjustFrom640Mode) {
+		DC->setAdjustFrom640Mode(menu->widescreen);
+	}
+
 	// draw the background if necessary
 	if (menu->fullScreen) {
+		rectDef_t backgroundRect;
+
+		backgroundRect.x = 0;
+		backgroundRect.y = 0;
+		backgroundRect.w = SCREEN_WIDTH;
+		backgroundRect.h = SCREEN_HEIGHT;
+
+		if (menu->backgroundSizeSet) {
+			backgroundRect = menu->backgroundRect;
+		}
+
 		// implies a background shader
 		// FIXME: make sure we have a default shader if fullscreen is set with no background
-		DC->drawHandlePic( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background );
+		DC->drawHandlePic( backgroundRect.x, backgroundRect.y, backgroundRect.w, backgroundRect.h, menu->window.background );
 	} else if (menu->window.background) {
 		// this allows a background shader without being full screen
 		//UI_DrawHandlePic(menu->window.rect.x, menu->window.rect.y, menu->window.rect.w, menu->window.rect.h, menu->backgroundShader);
@@ -4484,6 +5202,10 @@ void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 		color[1] = 0;
 		DC->drawRect(menu->window.rect.x, menu->window.rect.y, menu->window.rect.w, menu->window.rect.h, 1, color);
 	}
+
+	if (DC->setAdjustFrom640Mode) {
+		DC->setAdjustFrom640Mode(WIDESCREEN_STRETCH);
+	}
 }
 
 /*
@@ -4499,7 +5221,7 @@ void Item_ValidateTypeData(itemDef_t *item) {
 	if (item->type == ITEM_TYPE_LISTBOX) {
 		item->typeData = UI_Alloc(sizeof(listBoxDef_t));
 		memset(item->typeData, 0, sizeof(listBoxDef_t));
-	} else if (item->type == ITEM_TYPE_EDITFIELD || item->type == ITEM_TYPE_NUMERICFIELD || item->type == ITEM_TYPE_YESNO || item->type == ITEM_TYPE_BIND || item->type == ITEM_TYPE_SLIDER || item->type == ITEM_TYPE_TEXT) {
+	} else if (item->type == ITEM_TYPE_EDITFIELD || item->type == ITEM_TYPE_NUMERICFIELD || item->type == ITEM_TYPE_YESNO || item->type == ITEM_TYPE_BIND || item->type == ITEM_TYPE_SLIDER || item->type == ITEM_TYPE_SLIDER_COLOR || item->type == ITEM_TYPE_TEXT) {
 		item->typeData = UI_Alloc(sizeof(editFieldDef_t));
 		memset(item->typeData, 0, sizeof(editFieldDef_t));
 		if (item->type == ITEM_TYPE_EDITFIELD) {
@@ -4507,7 +5229,7 @@ void Item_ValidateTypeData(itemDef_t *item) {
 				((editFieldDef_t *) item->typeData)->maxPaintChars = MAX_EDITFIELD;
 			}
 		}
-	} else if (item->type == ITEM_TYPE_MULTI) {
+	} else if (item->type == ITEM_TYPE_MULTI || item->type == ITEM_TYPE_PRESET || item->type == ITEM_TYPE_PRESETLIST) {
 		item->typeData = UI_Alloc(sizeof(multiDef_t));
 	} else if (item->type == ITEM_TYPE_MODEL) {
 		item->typeData = UI_Alloc(sizeof(modelDef_t));
@@ -4924,6 +5646,20 @@ qboolean ItemParse_textaligny( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+/*
+=============
+ItemParse_font
+
+Retail Quake Live stores per-item font buckets as an integer enum.
+=============
+*/
+qboolean ItemParse_font( itemDef_t *item, int handle ) {
+	if (!PC_Int_Parse(handle, &item->fontIndex)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 qboolean ItemParse_textscale( itemDef_t *item, int handle ) {
 	if (!PC_Float_Parse(handle, &item->textscale)) {
 		return qfalse;
@@ -5018,6 +5754,30 @@ qboolean ItemParse_doubleClick( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+/*
+==================
+ItemParse_cellId
+==================
+*/
+qboolean ItemParse_cellId( itemDef_t *item, int handle ) {
+	if (!PC_Int_Parse(handle, &item->cellId)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
+/*
+==================
+ItemParse_defaultContent
+==================
+*/
+qboolean ItemParse_defaultContent( itemDef_t *item, int handle ) {
+	if (!PC_String_Parse(handle, &item->defaultContent)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 qboolean ItemParse_onFocus( itemDef_t *item, int handle ) {
 	if (!PC_Script_Parse(handle, &item->onFocus)) {
 		return qfalse;
@@ -5067,6 +5827,18 @@ qboolean ItemParse_action( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+/*
+=============
+ItemParse_precision
+=============
+*/
+qboolean ItemParse_precision( itemDef_t *item, int handle ) {
+	if (!PC_Int_Parse(handle, &item->precision)) {
+		return qfalse;
+	}
+	return qtrue;
+}
+
 qboolean ItemParse_special( itemDef_t *item, int handle ) {
 	if (!PC_Float_Parse(handle, &item->special)) {
 		return qfalse;
@@ -5074,11 +5846,52 @@ qboolean ItemParse_special( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
-qboolean ItemParse_cvarTest( itemDef_t *item, int handle ) {
-	if (!PC_String_Parse(handle, &item->cvarTest)) {
+/*
+======================
+ItemParse_cvarTestSlot
+======================
+*/
+static qboolean ItemParse_cvarTestSlot( itemDef_t *item, int handle, int slot ) {
+	if ( slot < 0 || slot >= ITEM_CVAR_SLOT_COUNT ) {
 		return qfalse;
 	}
+
+	if ( !PC_String_Parse( handle, &item->cvarTest[slot] ) ) {
+		return qfalse;
+	}
+
 	return qtrue;
+}
+
+qboolean ItemParse_cvarTest( itemDef_t *item, int handle ) {
+	return ItemParse_cvarTestSlot( item, handle, 0 );
+}
+
+/*
+==================
+ItemParse_cvarTest2
+==================
+*/
+qboolean ItemParse_cvarTest2( itemDef_t *item, int handle ) {
+	return ItemParse_cvarTestSlot( item, handle, 1 );
+}
+
+/*
+==================
+ItemParse_cvarTest3
+==================
+*/
+qboolean ItemParse_cvarTest3( itemDef_t *item, int handle ) {
+	return ItemParse_cvarTestSlot( item, handle, 2 );
+}
+
+/*
+==================
+ItemParse_cvarTest4
+==================
+*/
+qboolean ItemParse_cvarTest4( itemDef_t *item, int handle ) {
+	return ItemParse_cvarTestSlot( item, handle, 3 );
 }
 
 qboolean ItemParse_cvar( itemDef_t *item, int handle ) {
@@ -5094,6 +5907,24 @@ qboolean ItemParse_cvar( itemDef_t *item, int handle ) {
 		editPtr->maxVal = -1;
 		editPtr->defVal = -1;
 	}
+	item->integer = qfalse;
+	return qtrue;
+}
+
+/*
+=============
+ItemParse_cvara
+=============
+*/
+qboolean ItemParse_cvara( itemDef_t *item, int handle ) {
+	if (!ItemParse_cvar(item, handle)) {
+		return qfalse;
+	}
+
+	if (DC->setCVar && item->cvar) {
+		DC->setCVar(item->cvar, "");
+	}
+
 	return qtrue;
 }
 
@@ -5142,9 +5973,95 @@ qboolean ItemParse_cvarFloat( itemDef_t *item, int handle ) {
 		PC_Float_Parse(handle, &editPtr->defVal) &&
 		PC_Float_Parse(handle, &editPtr->minVal) &&
 		PC_Float_Parse(handle, &editPtr->maxVal)) {
+		item->integer = qfalse;
 		return qtrue;
 	}
 	return qfalse;
+}
+
+/*
+=============
+ItemParse_cvarInt
+=============
+*/
+qboolean ItemParse_cvarInt( itemDef_t *item, int handle ) {
+	editFieldDef_t *editPtr;
+	int defVal;
+	int minVal;
+	int maxVal;
+
+	Item_ValidateTypeData(item);
+	if (!item->typeData) {
+		return qfalse;
+	}
+
+	editPtr = (editFieldDef_t*)item->typeData;
+	if (PC_String_Parse(handle, &item->cvar) &&
+		PC_Int_Parse(handle, &defVal) &&
+		PC_Int_Parse(handle, &minVal) &&
+		PC_Int_Parse(handle, &maxVal)) {
+		editPtr->defVal = (float)defVal;
+		editPtr->minVal = (float)minVal;
+		editPtr->maxVal = (float)maxVal;
+		item->integer = qtrue;
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+ItemParse_cvarPreset
+=============
+*/
+qboolean ItemParse_cvarPreset( itemDef_t *item, int handle ) {
+	pc_token_t token;
+	multiDef_t *multiPtr;
+
+	Item_ValidateTypeData(item);
+	if (!item->typeData) {
+		return qfalse;
+	}
+
+	multiPtr = (multiDef_t*)item->typeData;
+	multiPtr->count = 0;
+	multiPtr->strDef = qtrue;
+
+	if (!trap_PC_ReadToken(handle, &token)) {
+		return qfalse;
+	}
+	if (*token.string != '{') {
+		return qfalse;
+	}
+
+	while (1) {
+		if (!trap_PC_ReadToken(handle, &token)) {
+			PC_SourceError(handle, "end of file inside menu item\n");
+			return qfalse;
+		}
+
+		if (*token.string == '}') {
+			return qtrue;
+		}
+
+		if (*token.string == ',' || *token.string == ';') {
+			continue;
+		}
+
+		multiPtr->cvarList[multiPtr->count] = String_Alloc(token.string);
+		if (!PC_String_Parse(handle, &multiPtr->cvarStr[multiPtr->count])) {
+			return qfalse;
+		}
+
+		multiPtr->cvarValue[multiPtr->count] = atof(multiPtr->cvarStr[multiPtr->count]);
+		multiPtr->count++;
+		if (multiPtr->count >= MAX_MULTI_CVARS) {
+			return qfalse;
+		}
+	}
+
+	return qfalse;	// bk001205 - LCC missing return value
 }
 
 qboolean ItemParse_cvarStrList( itemDef_t *item, int handle ) {
@@ -5267,36 +6184,119 @@ qboolean ItemParse_ownerdrawFlag( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
-qboolean ItemParse_enableCvar( itemDef_t *item, int handle ) {
-	if (PC_Script_Parse(handle, &item->enableCvar)) {
-		item->cvarFlags = CVAR_ENABLE;
+/*
+========================
+ItemParse_enableCvarSlot
+========================
+*/
+static qboolean ItemParse_enableCvarSlot( itemDef_t *item, int handle, int slot, int flag ) {
+	if ( slot < 0 || slot >= ITEM_CVAR_SLOT_COUNT ) {
+		return qfalse;
+	}
+
+	if ( PC_Script_Parse( handle, &item->enableCvar[slot] ) ) {
+		item->cvarFlags[slot] = flag;
 		return qtrue;
 	}
+
 	return qfalse;
+}
+
+qboolean ItemParse_enableCvar( itemDef_t *item, int handle ) {
+	return ItemParse_enableCvarSlot( item, handle, 0, CVAR_ENABLE );
 }
 
 qboolean ItemParse_disableCvar( itemDef_t *item, int handle ) {
-	if (PC_Script_Parse(handle, &item->enableCvar)) {
-		item->cvarFlags = CVAR_DISABLE;
-		return qtrue;
-	}
-	return qfalse;
+	return ItemParse_enableCvarSlot( item, handle, 0, CVAR_DISABLE );
 }
 
 qboolean ItemParse_showCvar( itemDef_t *item, int handle ) {
-	if (PC_Script_Parse(handle, &item->enableCvar)) {
-		item->cvarFlags = CVAR_SHOW;
-		return qtrue;
-	}
-	return qfalse;
+	return ItemParse_enableCvarSlot( item, handle, 0, CVAR_SHOW );
 }
 
 qboolean ItemParse_hideCvar( itemDef_t *item, int handle ) {
-	if (PC_Script_Parse(handle, &item->enableCvar)) {
-		item->cvarFlags = CVAR_HIDE;
-		return qtrue;
-	}
-	return qfalse;
+	return ItemParse_enableCvarSlot( item, handle, 0, CVAR_HIDE );
+}
+
+/*
+===========================
+Parse_showCvar2_or_hideCvar2
+===========================
+*/
+static qboolean Parse_showCvar2_or_hideCvar2( itemDef_t *item, int handle, int flag ) {
+	return ItemParse_enableCvarSlot( item, handle, 1, flag );
+}
+
+/*
+===========================
+Parse_showCvar3_or_hideCvar3
+===========================
+*/
+static qboolean Parse_showCvar3_or_hideCvar3( itemDef_t *item, int handle, int flag ) {
+	return ItemParse_enableCvarSlot( item, handle, 2, flag );
+}
+
+/*
+===========================
+Parse_showCvar4_or_hideCvar4
+===========================
+*/
+static qboolean Parse_showCvar4_or_hideCvar4( itemDef_t *item, int handle, int flag ) {
+	return ItemParse_enableCvarSlot( item, handle, 3, flag );
+}
+
+/*
+==================
+ItemParse_showCvar2
+==================
+*/
+qboolean ItemParse_showCvar2( itemDef_t *item, int handle ) {
+	return Parse_showCvar2_or_hideCvar2( item, handle, CVAR_SHOW );
+}
+
+/*
+==================
+ItemParse_hideCvar2
+==================
+*/
+qboolean ItemParse_hideCvar2( itemDef_t *item, int handle ) {
+	return Parse_showCvar2_or_hideCvar2( item, handle, CVAR_HIDE );
+}
+
+/*
+==================
+ItemParse_showCvar3
+==================
+*/
+qboolean ItemParse_showCvar3( itemDef_t *item, int handle ) {
+	return Parse_showCvar3_or_hideCvar3( item, handle, CVAR_SHOW );
+}
+
+/*
+==================
+ItemParse_hideCvar3
+==================
+*/
+qboolean ItemParse_hideCvar3( itemDef_t *item, int handle ) {
+	return Parse_showCvar3_or_hideCvar3( item, handle, CVAR_HIDE );
+}
+
+/*
+==================
+ItemParse_showCvar4
+==================
+*/
+qboolean ItemParse_showCvar4( itemDef_t *item, int handle ) {
+	return Parse_showCvar4_or_hideCvar4( item, handle, CVAR_SHOW );
+}
+
+/*
+==================
+ItemParse_hideCvar4
+==================
+*/
+qboolean ItemParse_hideCvar4( itemDef_t *item, int handle ) {
+	return Parse_showCvar4_or_hideCvar4( item, handle, CVAR_HIDE );
 }
 
 
@@ -5333,6 +6333,7 @@ keywordHash_t itemParseKeywords[] = {
 	{"textalign", ItemParse_textalign, NULL},
 	{"textalignx", ItemParse_textalignx, NULL},
 	{"textaligny", ItemParse_textaligny, NULL},
+	{"font", ItemParse_font, NULL},
 	{"textscale", ItemParse_textscale, NULL},
 	{"textstyle", ItemParse_textstyle, NULL},
 	{"backcolor", ItemParse_backcolor, NULL},
@@ -5346,22 +6347,38 @@ keywordHash_t itemParseKeywords[] = {
 	{"mouseExit", ItemParse_mouseExit, NULL},
 	{"mouseEnterText", ItemParse_mouseEnterText, NULL},
 	{"mouseExitText", ItemParse_mouseExitText, NULL},
+	{"cellId", ItemParse_cellId, NULL},
 	{"action", ItemParse_action, NULL},
+	{"defaultContent", ItemParse_defaultContent, NULL},
 	{"special", ItemParse_special, NULL},
+	{"precision", ItemParse_precision, NULL},
 	{"cvar", ItemParse_cvar, NULL},
+	{"cvara", ItemParse_cvara, NULL},
 	{"maxChars", ItemParse_maxChars, NULL},
 	{"maxPaintChars", ItemParse_maxPaintChars, NULL},
 	{"focusSound", ItemParse_focusSound, NULL},
 	{"cvarFloat", ItemParse_cvarFloat, NULL},
+	{"cvarInt", ItemParse_cvarInt, NULL},
+	{"cvarPreset", ItemParse_cvarPreset, NULL},
 	{"cvarStrList", ItemParse_cvarStrList, NULL},
+	{"cvarPresetList", ItemParse_cvarStrList, NULL},
 	{"cvarFloatList", ItemParse_cvarFloatList, NULL},
 	{"addColorRange", ItemParse_addColorRange, NULL},
 	{"ownerdrawFlag", ItemParse_ownerdrawFlag, NULL},
 	{"enableCvar", ItemParse_enableCvar, NULL},
 	{"cvarTest", ItemParse_cvarTest, NULL},
+	{"cvarTest2", ItemParse_cvarTest2, NULL},
+	{"cvarTest3", ItemParse_cvarTest3, NULL},
+	{"cvarTest4", ItemParse_cvarTest4, NULL},
 	{"disableCvar", ItemParse_disableCvar, NULL},
 	{"showCvar", ItemParse_showCvar, NULL},
+	{"showCvar2", ItemParse_showCvar2, NULL},
+	{"showCvar3", ItemParse_showCvar3, NULL},
+	{"showCvar4", ItemParse_showCvar4, NULL},
 	{"hideCvar", ItemParse_hideCvar, NULL},
+	{"hideCvar2", ItemParse_hideCvar2, NULL},
+	{"hideCvar3", ItemParse_hideCvar3, NULL},
+	{"hideCvar4", ItemParse_hideCvar4, NULL},
 	{"cinematic", ItemParse_cinematic, NULL},
 	{"doubleclick", ItemParse_doubleClick, NULL},
 	{NULL, NULL, NULL}
@@ -5676,6 +6693,22 @@ qboolean MenuParse_background( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+/*
+========================
+MenuParse_backgroundSize
+========================
+*/
+qboolean MenuParse_backgroundSize( itemDef_t *item, int handle ) {
+	menuDef_t *menu = (menuDef_t*)item;
+
+	if ( !PC_Rect_Parse( handle, &menu->backgroundRect ) ) {
+		return qfalse;
+	}
+
+	menu->backgroundSizeSet = qtrue;
+	return qtrue;
+}
+
 qboolean MenuParse_cinematic( itemDef_t *item, int handle ) {
 	menuDef_t *menu = (menuDef_t*)item;
 
@@ -5793,6 +6826,7 @@ keywordHash_t menuParseKeywords[] = {
 	{"disablecolor", MenuParse_disablecolor, NULL},
 	{"outlinecolor", MenuParse_outlinecolor, NULL},
 	{"background", MenuParse_background, NULL},
+	{"backgroundSize", MenuParse_backgroundSize, NULL},
 	{"ownerdraw", MenuParse_ownerdraw, NULL},
 	{"ownerdrawFlag", MenuParse_ownerdrawFlag, NULL},
 	{"outOfBoundsClick", MenuParse_outOfBounds, NULL},
@@ -5922,28 +6956,32 @@ void *Display_CaptureItem(int x, int y) {
 }
 
 
-// FIXME: 
+/*
+=============
+Display_MouseMove
+
+Retail `uix86.dll` only routes the current cursor position through popup-focused
+or all-menu mouse-move handling. The older GPL drag path that mutates
+`menu->window.rectClient` is not present in the retail helper.
+=============
+*/
 qboolean Display_MouseMove(void *p, int x, int y) {
 	int i;
 	menuDef_t *menu = p;
 
 	if (menu == NULL) {
-    menu = Menu_GetFocused();
-		if (menu) {
-			if (menu->window.flags & WINDOW_POPUP) {
-				Menu_HandleMouseMove(menu, x, y);
-				return qtrue;
-			}
+		menu = Menu_GetFocused();
+		if (menu && (menu->window.flags & WINDOW_POPUP)) {
+			Menu_HandleMouseMove(menu, x, y);
+			return qtrue;
 		}
+
 		for (i = 0; i < menuCount; i++) {
 			Menu_HandleMouseMove(&Menus[i], x, y);
 		}
-	} else {
-		menu->window.rectClient.x += x;
-		menu->window.rectClient.y += y;
-		Menu_UpdatePosition(menu);
 	}
- 	return qtrue;
+
+	return qtrue;
 
 }
 

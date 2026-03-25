@@ -7,9 +7,9 @@ This audit compares the Quake Live reference snapshot in `assets/quakelive/baseq
 ### Definition Parity
 | Category | Reference Count | GPL Count | Notes |
 | --- | --- | --- | --- |
-| `.menu` / `.txt` definitions | 65 | 65 | Definitions align numerically, but the GPL tree swaps in bootstrap helpers (`credential.menu`, `ingame_quakelive.txt`, `menus_quakelive.txt`) while omitting Quake Live’s `country.txt`, `hud3.txt`, and `teaminfo.txt` tables.
+| `.menu` / `.txt` definitions | 65 | 65 | The file inventory is now exact. The remaining raw drift is content-only and limited to `comp_spectator.menu`, `comp_spectator_follow.menu`, `hud.txt`, `hud3.txt`, `ingame_callvote.menu`, and `ingame_join.menu`.
 | `menudef.h` | 1 | 1 | The Quake Live enum definitions exist in both trees and remain the canonical owner-draw ID source.
-| Accessory config (`hud*.txt`) | 3 | 2 | `hud.txt` and `hud2.txt` are staged, but the legacy `hud3.txt` preset is still absent from the GPL tree.
+| Accessory config (`hud*.txt`) | 3 | 3 | `hud3.txt` is present in both trees; the remaining issue is that the frozen `src/ui/hud3.txt` text still differs from retail and contains merge-conflict damage.
 
 ### GPL-Only Bootstrap Files
 The GPL branch introduces the following convenience files to seed the port:
@@ -22,23 +22,23 @@ These files should remain, but their dependencies must be harmonised with the re
 ## Supporting Assets & Dependencies
 | Area | Reference Location | GPL Status | Gap Summary |
 | --- | --- | --- | --- |
-| HUD & menu art | `ui/assets/{hud,score,menu,flags,main_menu,statusbar}` | Missing | Scoreboard state badges, menu chrome, and national flag textures are unavailable, forcing Quake III fallbacks and stripping visual cues from score widgets and navigation flows.
+| HUD & menu art | `ui/assets/{hud,score,menu,flags,main_menu,statusbar}` | Mirrored | `src/ui/assets/` now matches the retail `ui/assets/` subtree exactly (`454 / 454` files, `0` content diffs). Remaining work is packaging/mounting, not asset mirroring.
 | Fonts | `baseq3/fonts/*.ttf` | Automated | `tools/build_ui_bundle.sh` pulls in the Quake Live TTFs declared in `tools/packaging/ui_bundle_manifest.json`, bakes deterministic `.dat`/`.tga` pairs via `tools/packaging/bake_fonts.py`, and records glyph metrics in `artifacts/ui_bundle/metrics/font_metrics.json` for CI triage.
-| Shader scripts | `baseq3/scripts/ui*.shader` (tracked in the global asset audit) | Missing | Gradient, cursor, and overlay materials referenced by menus do not compile without the Quake Live shader definitions.
-| Packaging hooks | `pak/ui` structure in the reference PK3s | In Progress | `tools/build_ui_bundle.sh` now archives fonts/scripts into `build/ui_bundle/pak_uiql.pk3` and emits logs for CI uploads; the art and shader payloads still need to be staged to complete the bundle.
+| Shader scripts | `baseq3/scripts/ui*.shader` (tracked in the global asset audit) | Packaged | The UI bundle manifest stages the retail `ui*.shader` scripts into the main bundle, so gradient, cursor, and overlay materials are now part of the packaged UI payload.
+| Packaging hooks | `pak/ui` structure in the reference PK3s | Automated | `tools/build_ui_bundle.sh` now stages the retail `ui/*.menu`, `ui/*.txt`, `ui/assets/*`, `baseq3/icons/*`, `baseq3/levelshots/*`, and emits both `pak_uiql.pk3` and `pak_ui_src_retail_overlay.pk3`. The remaining work is runtime QA rather than missing bundle plumbing.
 
 ## Parity Gaps & Recommended Actions
 | Area | Gap | Action |
 | --- | --- | --- |
-| Locale & team metadata | `country.txt` and `teaminfo.txt` remain exclusive to the reference snapshot, blocking country pickers and spectator team callouts. | Import both tables, validate UTF-8 encoding, and confirm dropdown population inside `ingame_join.menu` and scoreboard panels.
-| Legacy HUD preset | `hud3.txt` is missing, preventing the legacy HUD preset from appearing in configuration utilities. | Stage `hud3.txt`, add it to the HUD selector list, and test preset rotation to ensure bindings persist.
-| HUD/menu art | Quake Live’s art hierarchy is absent, so gradients, scoreboxes, and iconography degrade to Quake III defaults. | Stage `ui/assets/*` inside a dedicated PK3 (e.g., `pak_uiql.pk3`), then repoint menu scripts to the restored textures.
+| Frozen `src/ui` drift | The read-only `src/ui` tree still differs from retail in 7 files, including merge-conflicted `hud.txt`, `hud3.txt`, and `ingame_callvote.menu`. | Generate and mount the retail override layer (`scripts/ui/write_retail_ui_overrides.py` or `pak_ui_src_retail_overlay.pk3`) instead of editing `src/ui` directly.
+| HUD/menu art | Quake Live’s art hierarchy is mirrored in `src/ui/assets`, and the bundle now stages those files along with icons/levelshots. | Validate runtime mounting and screenshot parity rather than adding more packaging entries.
 | Fonts & readability | Glyph counts must remain in lockstep with Quake Live defaults to keep scripted `textscale` stable. | Run `tools/build_ui_bundle.sh` (font bake) and `python tests/run_ui_validation.py` before landing HUD changes so glyph or shader drift is caught in CI logs.
-| Shader/material coverage | UI shader scripts are missing, leading to placeholder gradients and cursors. | Import the `ui*.shader` definitions alongside the art bundle and trigger shader cache regeneration in the build pipeline.
-| Build integration | There is no automated packaging flow for HUD assets. | Extend the data build to archive menus, art, fonts, and shaders into reproducible PK3s and document the process in the scripting guide.
+| Shader/material coverage | The retail shader scripts are now packaged, but they still need runtime verification to confirm gradients/cursors resolve as expected. | Validate the packaged `ui*.shader` set in a launch-time renderer smoke test and capture screenshot evidence.
+| Build integration | The package flow now exists, but it still needs runtime verification against in-game renders and mount order. | Keep `tools/build_ui_bundle.sh` and `tests/run_ui_validation.py` in CI, and add launch-time UI screenshot checks on top.
 
 ## Follow-Up Validation Checklist
-- [ ] Confirm all menu and metadata files referenced by Quake Live scripts exist in `src/ui` with identical casing.
+- [x] Confirm all menu and metadata files referenced by Quake Live scripts exist in `src/ui` with identical casing.
+- [ ] Confirm the 7-file frozen drift set remains stable and that the overlay package reproduces byte-identical retail replacements.
 - [ ] Verify that UI art directories resolve in-game by launching with a clean homepath and inspecting HUD, scoreboard, and menu screens.
 - [x] Run font bake tooling and compare generated atlas metrics against Quake Live defaults to ensure `textscale` directives remain accurate (`tools/build_ui_bundle.sh` + `tests/run_ui_validation.py`).
 - [ ] Recompile shader caches with the imported `ui*.shader` files and validate gradients/cursors in the renderer.

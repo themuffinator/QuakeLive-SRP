@@ -261,38 +261,18 @@ Provides the compiled reload fallback for a specific weapon slot.
 =============
 */
 static int G_PmoveDefaultWeaponReloadTime( weapon_t weapon ) {
-	switch ( weapon ) {
-	case WP_GAUNTLET:
-		return 400;
-	case WP_MACHINEGUN:
-		return 100;
-	case WP_SHOTGUN:
-		return 1000;
-	case WP_GRENADE_LAUNCHER:
-		return 800;
-	case WP_ROCKET_LAUNCHER:
-		return 800;
-	case WP_LIGHTNING:
-		return 50;
-	case WP_RAILGUN:
-		return 1500;
-	case WP_PLASMAGUN:
-		return 100;
-	case WP_BFG:
-		return 200;
-	case WP_GRAPPLING_HOOK:
-		return 400;
-	case WP_HEAVY_MACHINEGUN:
-		return 75;
-	case WP_NAILGUN:
-		return 1000;
-	case WP_PROX_LAUNCHER:
-		return 800;
-	case WP_CHAINGUN:
-		return 30;
-	default:
+	const pmove_settings_t	*defaults;
+
+	if ( weapon < WP_NONE || weapon >= WP_NUM_WEAPONS ) {
 		return 0;
 	}
+
+	defaults = PM_GetDefaultSettings();
+	if ( !defaults ) {
+		return 0;
+	}
+
+	return defaults->weaponReloadTimes[weapon];
 }
 
 /*
@@ -303,6 +283,9 @@ Copies the latched pmove cvar values into the live movement settings.
 =============
 */
 static void G_PmoveCacheSettings( void ) {
+	const pmove_settings_t	*defaults;
+
+	defaults = PM_GetDefaultSettings();
 	g_pmoveSettings.airAccel = g_pmove_airAccel_cvar.value;
 	g_pmoveSettings.airControl = g_pmove_airControl_cvar.value;
 	g_pmoveSettings.airStepFriction = g_pmove_airStepFriction_cvar.value;
@@ -342,10 +325,8 @@ static void G_PmoveCacheSettings( void ) {
 	g_pmoveSettings.stepJumpVelocity = g_pmove_stepJumpVelocity_cvar.value;
 	g_pmoveSettings.strafeAccel = g_pmove_strafeAccel_cvar.value;
 	{
-		const pmove_settings_t	*defaults;
 		float	grappleSpeed;
 
-		defaults = PM_GetDefaultSettings();
 		grappleSpeed = ( float )g_weaponConfig.grappleSpeed;
 		if ( grappleSpeed <= 0.0f ) {
 			grappleSpeed = g_pmove_velocityGh_cvar.value;
@@ -368,7 +349,7 @@ static void G_PmoveCacheSettings( void ) {
 
 		machinegunIronsightsScale = g_weaponConfig.machinegunIronsightsScale;
 		if ( machinegunIronsightsScale <= 0.0f ) {
-			machinegunIronsightsScale = 1.0f;
+			machinegunIronsightsScale = defaults ? defaults->machinegunIronsightsScale : 1.0f;
 		}
 
 		g_pmoveSettings.machinegunIronsightsScale = machinegunIronsightsScale;
@@ -378,7 +359,7 @@ static void G_PmoveCacheSettings( void ) {
 
 		gauntletSpeedFactor = g_weaponConfig.gauntletSpeedFactor;
 		if ( gauntletSpeedFactor <= 0.0f ) {
-			gauntletSpeedFactor = 1.0f;
+			gauntletSpeedFactor = defaults ? defaults->gauntletSpeedFactor : 1.0f;
 		}
 
 		g_pmoveSettings.gauntletSpeedFactor = gauntletSpeedFactor;
@@ -386,7 +367,7 @@ static void G_PmoveCacheSettings( void ) {
 	g_pmoveSettings.midAirMinimumHeight = g_weaponConfig.midAirMinimumHeight;
 	g_pmoveSettings.nailgunBounceEnabled = ( g_weaponConfig.nailgunBounceEnabled != 0 );
 	g_pmoveSettings.nailgunBouncePercentage = g_weaponConfig.nailgunBouncePercentage;
-	g_pmoveSettings.quadDamageMultiplier = ( g_weaponConfig.quadDamageMultiplier > 0.0f ) ? g_weaponConfig.quadDamageMultiplier : 1.0f;
+	g_pmoveSettings.quadDamageMultiplier = ( g_weaponConfig.quadDamageMultiplier > 0.0f ) ? g_weaponConfig.quadDamageMultiplier : ( defaults ? defaults->quadDamageMultiplier : 1.0f );
 	g_pmoveSettings.guidedRocketEnabled = ( g_weaponConfig.guidedRocketEnabled != 0 );
 	g_pmoveSettings.quadHogEnabled = g_weaponConfig.quadHogEnabled;
 	g_pmoveSettings.quadHogIdleSeconds = g_weaponConfig.quadHogIdleSeconds;
@@ -521,8 +502,8 @@ void G_RegisterPmoveCvars( void ) {
 	G_PmoveRegisterCvar( &g_pmove_velocityGh_cvar, "pmove_velocity_gh", "800" );
 	G_PmoveRegisterCvar( &g_pmove_walkAccel_cvar, "pmove_WalkAccel", "10.0f" );
 	G_PmoveRegisterCvar( &g_pmove_walkFriction_cvar, "pmove_WalkFriction", "6.0f" );
-	G_PmoveRegisterCvar( &g_pmove_waterSwimScale_cvar, "pmove_WaterSwimScale", "0.6f" );
-	G_PmoveRegisterCvar( &g_pmove_waterWadeScale_cvar, "pmove_WaterWadeScale", "0.8f" );
+	G_PmoveRegisterCvar( &g_pmove_waterSwimScale_cvar, "pmove_WaterSwimScale", "0.5f" );
+	G_PmoveRegisterCvar( &g_pmove_waterWadeScale_cvar, "pmove_WaterWadeScale", "0.75f" );
 	G_PmoveRegisterCvar( &g_pmove_weaponDropTime_cvar, "pmove_WeaponDropTime", "200" );
 	G_PmoveRegisterCvar( &g_pmove_weaponRaiseTime_cvar, "pmove_WeaponRaiseTime", "200" );
 	G_PmoveRegisterCvar( &g_pmove_wishSpeed_cvar, "pmove_WishSpeed", "400.0f" );

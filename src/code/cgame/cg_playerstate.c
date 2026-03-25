@@ -212,7 +212,7 @@ void CG_Respawn( void ) {
 	cg.weaponSelectTime = cg.time;
 
 	// select the weapon the server says we are using
-	cg.weaponSelect = cg.snap->ps.weapon;
+	CG_SetWeaponSelect( cg.snap->ps.weapon );
 
 	cg.autoActionFired = qfalse;
 	cg.autoActionScreenshotQueued = qfalse;

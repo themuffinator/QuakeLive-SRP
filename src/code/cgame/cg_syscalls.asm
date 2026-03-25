@@ -103,4 +103,8 @@ equ	ceil						-109
 equ	testPrintInt				-110
 equ	testPrintFloat				-111
 equ acos						-112
+equ trap_AdvertisementBridge_InitCGame	-113
+equ trap_AdvertisementBridge_ShutdownCGame	-114
+equ trap_AdvertisementBridge_UpdateLoadingViewParameters	-115
+equ trap_AdvertisementBridge_SetFrameTime	-116
 

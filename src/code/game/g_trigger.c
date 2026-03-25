@@ -194,6 +194,18 @@ void AimAtTarget( gentity_t *self ) {
 	self->s.origin2[2] = time * gravity;
 }
 
+/*
+=================
+AimAtTargetRunFrame
+
+Runs the retail per-frame AimAtTarget refresh for trigger_push.
+=================
+*/
+static void AimAtTargetRunFrame( gentity_t *self, float thinktime ) {
+	(void)thinktime;
+	AimAtTarget( self );
+}
+
 
 /*QUAKED trigger_push (.5 .5 .5) ?
 Must point at a target_position, which will be the apex of the leap.
@@ -210,8 +222,7 @@ void SP_trigger_push( gentity_t *self ) {
 
 	self->s.eType = ET_PUSH_TRIGGER;
 	self->touch = trigger_push_touch;
-	self->think = AimAtTarget;
-	self->nextthink = level.time + FRAMETIME;
+	self->runFrame = AimAtTargetRunFrame;
 	trap_LinkEntity (self);
 }
 

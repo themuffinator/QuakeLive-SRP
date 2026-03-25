@@ -12,12 +12,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INCLUDE_DIR = REPO_ROOT / "src" / "code" / "game"
 
 C_SOURCE = r"""
+#include <string.h>
 #include "q_shared.h"
 #include "bg_public.h"
 #include "bg_local.h"
 #include "bg_pmove_jump.h"
 
-float qlr_jump_scale(int contact_time, int command_time, float threshold, float offset, float scale_add, int *out_delta) {
+float qlr_jump_scale(int jump_time, int command_time, float threshold, float offset, float scale_add, int *out_delta) {
         playerState_t ps;
         pmove_settings_t settings;
         int delta;
@@ -26,13 +27,7 @@ float qlr_jump_scale(int contact_time, int command_time, float threshold, float 
         memset(&ps, 0, sizeof(ps));
         memset(&settings, 0, sizeof(settings));
 
-        ps.groundTraceHistoryCount = 1;
-        ps.groundTraceHistoryIndex = 0;
-        ps.groundTraceEntNums[0] = 1;
-        ps.groundTraceTimes[0] = contact_time;
-        ps.groundTraceNormals[0][0] = 0.0f;
-        ps.groundTraceNormals[0][1] = 0.0f;
-        ps.groundTraceNormals[0][2] = 1.0f;
+        ps.jumpTime = jump_time;
 
         settings.jumpVelocityTimeThreshold = threshold;
         settings.jumpVelocityTimeThresholdOffset = offset;

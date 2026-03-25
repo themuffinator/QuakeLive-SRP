@@ -25,6 +25,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "q_shared.h"
 #include "bg_public.h"
 
+#ifdef CGAME
+extern vmCvar_t cg_armorTiered;
+#else
+#ifdef QAGAME
+extern vmCvar_t g_armorTiered;
+#endif
+#endif
+
 const bgWeaponStats_t bg_weaponStats[] = {
 	{ WP_GAUNTLET, 0, -1, 0, 0.000000000f, 0.847000003f, 1.000000000f, 1.000000000f },
 	{ WP_MACHINEGUN, 50, 200, 0, 1.000000000f, 1.000000000f, 0.000000000f, 1.000000000f },
@@ -207,18 +215,11 @@ Returns the maximum armor stack allowed for the supplied playerstate.
 =============
 */
 int BG_GetArmorUpperBound( const playerState_t *ps ) {
-	int	upperBound;
-
 	if ( !ps ) {
 		return 0;
 	}
 
-	upperBound = ps->stats[STAT_MAX_HEALTH] * 2;
-	if ( BG_PlayerHasPersistantPowerup( ps, PW_GUARD ) ) {
-		upperBound = ps->stats[STAT_MAX_HEALTH];
-	}
-
-	return upperBound;
+	return ps->stats[STAT_MAX_HEALTH] * 2;
 }
 
 /*
@@ -237,15 +238,137 @@ int BG_GetHealthUpperBound( const playerState_t *ps, int pickupQuantity ) {
 	}
 
 	upperBound = ps->stats[STAT_MAX_HEALTH];
-	if ( BG_PlayerHasPersistantPowerup( ps, PW_GUARD ) ) {
-		return upperBound;
-	}
-
 	if ( pickupQuantity == 5 || pickupQuantity == 100 ) {
 		upperBound = ps->stats[STAT_MAX_HEALTH] * 2;
 	}
 
 	return upperBound;
+}
+
+/*
+=============
+BG_UpdateArmorTierFromCurrentArmor
+
+Rebuilds the replicated retail armor tier from the current armor amount.
+=============
+*/
+void BG_UpdateArmorTierFromCurrentArmor( playerState_t *ps, qboolean armorTiered ) {
+	if ( !ps || !armorTiered || ps->stats[STAT_ARMOR] <= 0 ) {
+		if ( ps ) {
+			ps->armorTier = 0;
+		}
+		return;
+	}
+
+	if ( ps->stats[STAT_ARMOR] < 100 ) {
+		ps->armorTier = 0;
+	} else if ( ps->stats[STAT_ARMOR] < 150 ) {
+		ps->armorTier = 1;
+	} else {
+		ps->armorTier = 2;
+	}
+}
+
+/*
+=============
+BG_ClearArmorTierIfEmpty
+
+Retail resets the armor tier once the player is fully stripped of armor.
+=============
+*/
+void BG_ClearArmorTierIfEmpty( playerState_t *ps, qboolean armorTiered ) {
+	if ( !ps ) {
+		return;
+	}
+
+	if ( !armorTiered || ps->stats[STAT_ARMOR] < 1 ) {
+		ps->armorTier = 0;
+	}
+}
+
+/*
+=============
+BG_GetArmorRegenTarget
+
+Returns the retail armor-regen cap for the current armor tier.
+=============
+*/
+int BG_GetArmorRegenTarget( const playerState_t *ps, qboolean armorTiered ) {
+	if ( !ps ) {
+		return 0;
+	}
+
+	if ( !armorTiered ) {
+		return ps->stats[STAT_MAX_HEALTH];
+	}
+
+	switch ( ps->armorTier ) {
+	case 2:
+		return 150;
+	case 1:
+		return 100;
+	default:
+		return 50;
+	}
+}
+
+/*
+=============
+BG_ApplyArmorPickup
+
+Applies retail Quake Live armor pickup semantics, including tiered armor.
+=============
+*/
+void BG_ApplyArmorPickup( playerState_t *ps, const gitem_t *item, qboolean armorTiered ) {
+	int	upperBound;
+
+	if ( !ps || !item ) {
+		return;
+	}
+
+	if ( !armorTiered ) {
+		ps->stats[STAT_ARMOR] += item->quantity;
+		upperBound = BG_GetArmorUpperBound( ps );
+		if ( upperBound > 0 && ps->stats[STAT_ARMOR] > upperBound ) {
+			ps->stats[STAT_ARMOR] = upperBound;
+		}
+		return;
+	}
+
+	switch ( item->giTag ) {
+	case 1:
+		ps->stats[STAT_ARMOR] += 150;
+		if ( ps->stats[STAT_ARMOR] > 200 ) {
+			ps->stats[STAT_ARMOR] = 200;
+		}
+		ps->armorTier = 2;
+		break;
+	case 2:
+		ps->stats[STAT_ARMOR] += 100;
+		if ( ps->stats[STAT_ARMOR] > 150 ) {
+			ps->stats[STAT_ARMOR] = 150;
+		}
+		ps->armorTier = 1;
+		break;
+	case 3:
+		ps->stats[STAT_ARMOR] += 50;
+		if ( ps->stats[STAT_ARMOR] > 100 ) {
+			ps->stats[STAT_ARMOR] = 100;
+		}
+		ps->armorTier = 0;
+		break;
+	default:
+		if ( ps->stats[STAT_ARMOR] < 1 ) {
+			ps->armorTier = 0;
+		}
+		ps->stats[STAT_ARMOR] += 2;
+		break;
+	}
+
+	upperBound = BG_GetArmorUpperBound( ps );
+	if ( upperBound > 0 && ps->stats[STAT_ARMOR] > upperBound ) {
+		ps->stats[STAT_ARMOR] = upperBound;
+	}
 }
 
 /*QUAKED item_***** ( 0 0 0 ) (-16 -16 -16) (16 16 16) suspended
@@ -313,7 +436,7 @@ gitem_t	bg_itemlist[] =
 /* pickup */	"Armor",
 		50,
 		IT_ARMOR,
-		0,
+		2,
 /* precache */ "",
 /* sounds */ ""
 	},
@@ -329,7 +452,7 @@ gitem_t	bg_itemlist[] =
 /* pickup */	"Heavy Armor",
 		100,
 		IT_ARMOR,
-		0,
+		1,
 /* precache */ "",
 /* sounds */ ""
 	},
@@ -345,7 +468,7 @@ gitem_t	bg_itemlist[] =
 /* pickup */	"Green Armor",
 		25,
 		IT_ARMOR,
-		0,
+		3,
 /* precache */	"",
 /* sounds */	""
 	},
@@ -470,22 +593,6 @@ gitem_t	bg_itemlist[] =
 		50,	// QL ammo pickup (Q3 default: 40)
 		IT_WEAPON,
 		WP_MACHINEGUN,
-/* precache */ "",
-/* sounds */ ""
-	},
-
-/*QUAKED weapon_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
-*/
-	{
-		"weapon_hmg",
-		"sound/misc/w_pkup.wav",
-        { "models/weapons3/hmg/hmg.md3",
-		0, 0, 0},
-/* icon */		"icons/weap_hmg",
-/* pickup */	"Heavy Machinegun",
-		50,
-		IT_WEAPON,
-		WP_HEAVY_MACHINEGUN,
 /* precache */ "",
 /* sounds */ ""
 	},
@@ -638,22 +745,6 @@ gitem_t	bg_itemlist[] =
 /* sounds */ ""
 	},
 
-/*QUAKED ammo_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
-*/
-	{
-		"ammo_hmg",
-		"sound/misc/am_pkup.wav",
-        { "models/powerups/ammo/hmgam.md3",
-		0, 0, 0},
-/* icon */		"icons/ammo_hmg",
-/* pickup */	"Heavy Bullets",
-		50,
-		IT_AMMO,
-		WP_HEAVY_MACHINEGUN,
-/* precache */ "",
-/* sounds */ ""
-	},
-
 /*QUAKED ammo_grenades (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
 */
 	{
@@ -786,55 +877,6 @@ gitem_t	bg_itemlist[] =
 /* sounds */ "sound/items/use_medkit.wav"
 	},
 
-        //
-        // KEY ITEMS
-        //
-/*QUAKED item_key_silver (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
-*/
-        {
-                "item_key_silver",
-                "sound/items/key_silver.wav",
-        { "models/powerups/keys/key_silver.md3",
-                0, 0, 0},
-/* icon */              "icons/key_silver",
-/* pickup */    "Silver Key",
-                0,
-                IT_KEY,
-                KEY_FLAG_SILVER,
-/* precache */ "",
-/* sounds */ ""
-        },
-/*QUAKED item_key_gold (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
-*/
-        {
-                "item_key_gold",
-                "sound/items/key_gold.wav",
-        { "models/powerups/keys/key_gold.md3",
-                0, 0, 0},
-/* icon */              "icons/key_gold",
-/* pickup */    "Gold Key",
-                0,
-                IT_KEY,
-                KEY_FLAG_GOLD,
-/* precache */ "",
-/* sounds */ ""
-        },
-/*QUAKED item_key_master (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
-*/
-        {
-                "item_key_master",
-                "sound/items/key_gold.wav",
-        { "models/powerups/keys/key_master.md3",
-                0, 0, 0},
-/* icon */              "icons/key_master",
-/* pickup */    "Master Key",
-                0,
-                IT_KEY,
-                KEY_FLAG_MASTER,
-/* precache */ "",
-/* sounds */ ""
-        },
-
 
 	//
 	// POWERUP ITEMS
@@ -843,7 +885,7 @@ gitem_t	bg_itemlist[] =
 */
 	{
 		"item_quad", 
-		"sound/items/quaddamage.wav",
+		"sound/items/damage3.ogg",
         { "models/powerups/instant/quad.md3", 
         "models/powerups/instant/quad_ring.md3",
 		0, 0 },
@@ -877,12 +919,12 @@ gitem_t	bg_itemlist[] =
 */
 	{
 		"item_haste",
-		"sound/items/haste.wav",
+		"sound/items/guard.wav",
         { "models/powerups/instant/haste.md3", 
 		"models/powerups/instant/haste_ring.md3", 
 		0, 0 },
 /* icon */		"icons/haste",
-/* pickup */	"Speed",
+/* pickup */	"Haste",
 		30,
 		IT_POWERUP,
 		PW_HASTE,
@@ -894,7 +936,7 @@ gitem_t	bg_itemlist[] =
 */
 	{
 		"item_invis",
-		"sound/items/invisibility.wav",
+		"sound/items/holdable.wav",
         { "models/powerups/instant/invis.md3", 
 		"models/powerups/instant/invis_ring.md3", 
 		0, 0 },
@@ -911,7 +953,7 @@ gitem_t	bg_itemlist[] =
 */
 	{
 		"item_regen",
-		"sound/items/regeneration.wav",
+		"sound/items/holdable.wav",
         { "models/powerups/instant/regen.md3", 
 		"models/powerups/instant/regen_ring.md3", 
 		0, 0 },
@@ -1078,7 +1120,7 @@ Only in CTF games
 */
 	{
 		"item_scout",
-		"sound/items/scout.wav",
+		"sound/items/scout.ogg",
         { "models/powerups/scout.md3", 
 		0, 0, 0 },
 /* icon */		"icons/scout",
@@ -1094,7 +1136,7 @@ Only in CTF games
 */
 	{
 		"item_guard",
-		"sound/items/guard.wav",
+		"sound/items/guard.ogg",
         { "models/powerups/guard.md3", 
 		0, 0, 0 },
 /* icon */		"icons/guard",
@@ -1110,11 +1152,11 @@ Only in CTF games
 */
 	{
 		"item_doubler",
-		"sound/items/doubler.wav",
+		"sound/items/damage.ogg",
         { "models/powerups/doubler.md3", 
 		0, 0, 0 },
 /* icon */		"icons/doubler",
-/* pickup */	"Doubler",
+/* pickup */	"Damage",
 		30,
 		IT_PERSISTANT_POWERUP,
 		PW_DOUBLER,
@@ -1125,12 +1167,12 @@ Only in CTF games
 /*QUAKED item_doubler (.3 .3 1) (-16 -16 -16) (16 16 16) suspended redTeam blueTeam
 */
 	{
-		"item_ammoregen",
-		"sound/items/ammoregen.wav",
+		"item_armorregen",
+		"sound/items/armorregen.ogg",
         { "models/powerups/ammo.md3",
 		0, 0, 0 },
-/* icon */		"icons/ammo_regen",
-/* pickup */	"Ammo Regen",
+/* icon */		"icons/armor_regen",
+/* pickup */	"Armor Regen",
 		30,
 		IT_PERSISTANT_POWERUP,
 		PW_AMMOREGEN,
@@ -1235,6 +1277,114 @@ Only in One Flag CTF games
 /* sounds */ "sound/weapons/vulcan/wvulwind.wav"
 	},
 
+	{
+		"item_spawnarmor",
+		NULL,
+		{ 0, 0, 0, 0 },
+/* icon */		"icons/spawnarmor",
+/* pickup */	"Spawn Armor",
+		0,
+		IT_POWERUP,
+		0,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+/*QUAKED weapon_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"weapon_hmg",
+		"sound/misc/w_pkup.wav",
+        { "models/weapons3/hmg/hmg.md3",
+		0, 0, 0},
+/* icon */		"icons/weap_hmg",
+/* pickup */	"Heavy Machinegun",
+		100,
+		IT_WEAPON,
+		WP_HEAVY_MACHINEGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+/*QUAKED ammo_hmg (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"ammo_hmg",
+		"sound/misc/am_pkup.wav",
+        { "models/powerups/ammo/hmgam.md3",
+		0, 0, 0},
+/* icon */		"icons/ammo_hmg",
+/* pickup */	"Heavy Bullets",
+		50,
+		IT_AMMO,
+		WP_HEAVY_MACHINEGUN,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+	{
+		"ammo_pack",
+		"sound/misc/am_pkup.wav",
+        { "models/powerups/ammo/ammopack.md3",
+		0, 0, 0},
+/* icon */		"icons/ammo_pack",
+/* pickup */	"Ammo Pack",
+		1,
+		IT_AMMO,
+		WP_NUM_WEAPONS,
+/* precache */ "",
+/* sounds */ ""
+	},
+
+	//
+	// KEY ITEMS
+	//
+/*QUAKED item_key_silver (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"item_key_silver",
+		"sound/items/key_silver.wav",
+        { "models/powerups/keys/key_silver.md3",
+		0, 0, 0},
+/* icon */		"icons/key_silver",
+/* pickup */	"Silver Key",
+		0,
+		IT_KEY,
+		KEY_FLAG_SILVER,
+/* precache */ "",
+/* sounds */ ""
+	},
+/*QUAKED item_key_gold (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"item_key_gold",
+		"sound/items/key_gold.wav",
+        { "models/powerups/keys/key_gold.md3",
+		0, 0, 0},
+/* icon */		"icons/key_gold",
+/* pickup */	"Gold Key",
+		0,
+		IT_KEY,
+		KEY_FLAG_GOLD,
+/* precache */ "",
+/* sounds */ ""
+	},
+/*QUAKED item_key_master (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+*/
+	{
+		"item_key_master",
+		"sound/items/key_gold.wav",
+        { "models/powerups/keys/key_master.md3",
+		0, 0, 0},
+/* icon */		"icons/key_master",
+/* pickup */	"Master Key",
+		0,
+		IT_KEY,
+		KEY_FLAG_MASTER,
+/* precache */ "",
+/* sounds */ ""
+	},
+
 	// end of list marker
 	{NULL}
 };
@@ -1250,15 +1400,33 @@ BG_FindItemForPowerup
 gitem_t	*BG_FindItemForPowerup( powerup_t pw ) {
 	int		i;
 
+	if ( pw <= PW_NONE || pw >= PW_NUM_POWERUPS ) {
+		return NULL;
+	}
+
+	if ( pw == PW_INVULNERABILITY ) {
+		return BG_FindItemForHoldable( HI_INVULNERABILITY );
+	}
+
+	if ( pw == PW_SCOUT || pw == PW_GUARD || pw == PW_DOUBLER || pw == PW_AMMOREGEN ) {
+		for ( i = 0 ; i < bg_numItems ; i++ ) {
+			if ( bg_itemlist[i].giType == IT_PERSISTANT_POWERUP && bg_itemlist[i].giTag == pw ) {
+				return &bg_itemlist[i];
+			}
+		}
+
+		Com_Error( ERR_DROP, "BG_FindItemForPowerup: couldn't find TA rune %i", pw );
+		return NULL;
+	}
+
 	for ( i = 0 ; i < bg_numItems ; i++ ) {
-		if ( (bg_itemlist[i].giType == IT_POWERUP || 
-					bg_itemlist[i].giType == IT_TEAM ||
-					bg_itemlist[i].giType == IT_PERSISTANT_POWERUP) && 
+		if ( ( bg_itemlist[i].giType == IT_POWERUP || bg_itemlist[i].giType == IT_TEAM ) &&
 			bg_itemlist[i].giTag == pw ) {
 			return &bg_itemlist[i];
 		}
 	}
 
+	Com_Error( ERR_DROP, "BG_FindItemForPowerup: couldn't find item for powerup %i", pw );
 	return NULL;
 }
 
@@ -1350,16 +1518,29 @@ grabbing them easier
 */
 qboolean	BG_PlayerTouchesItem( playerState_t *ps, entityState_t *item, int atTime ) {
 	vec3_t		origin;
+	const gitem_t	*itemDef;
+	float		maxZDelta;
 
 	BG_EvaluateTrajectory( &item->pos, atTime, origin );
+	itemDef = NULL;
+	maxZDelta = 29.0f;
+
+	if ( item->modelindex > 0 && item->modelindex < bg_numItems ) {
+		itemDef = &bg_itemlist[item->modelindex];
+
+		if ( itemDef->giType == IT_TEAM &&
+			( itemDef->giTag == PW_REDFLAG || itemDef->giTag == PW_BLUEFLAG || itemDef->giTag == PW_NEUTRALFLAG ) ) {
+			maxZDelta = 64.0f;
+		}
+	}
 
 	// we are ignoring ducked differences here
-	if ( ps->origin[0] - origin[0] > 44
-		|| ps->origin[0] - origin[0] < -50
+	if ( ps->origin[0] - origin[0] > 36
+		|| ps->origin[0] - origin[0] < -36
 		|| ps->origin[1] - origin[1] > 36
 		|| ps->origin[1] - origin[1] < -36
-		|| ps->origin[2] - origin[2] > 36
-		|| ps->origin[2] - origin[2] < -36 ) {
+		|| ps->origin[2] - origin[2] > maxZDelta
+		|| ps->origin[2] - origin[2] < -50 ) {
 		return qfalse;
 	}
 
@@ -1386,14 +1567,56 @@ typedef qboolean (*bgItemGrabFunc_t)( int gametype, int currentTime, const entit
 
 /*
 =============
+BG_IsArmorTieredModeEnabled
+
+Resolves the module-local cvar that mirrors the retail tiered armor toggle.
+=============
+*/
+static qboolean BG_IsArmorTieredModeEnabled( void ) {
+#ifdef CGAME
+	return cg_armorTiered.integer ? qtrue : qfalse;
+#elif defined(QAGAME)
+	return g_armorTiered.integer ? qtrue : qfalse;
+#else
+	return qfalse;
+#endif
+}
+
+/*
+=============
 BG_CanGrabWeaponItem
 
-Translated from the DLL helper sub_1002d1c0; currently weapons are always available.
+Translated from the DLL helper sub_1002d1c0. The retail helper also checks a
+pm_flags bit that is not yet mapped in this tree; the duplicate-weapon branch
+below matches the confirmed item, ammo, and dropped-item conditions.
 =============
 */
 static qboolean BG_CanGrabWeaponItem( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped )
 {
-	return qtrue;
+	int weapon;
+
+	if ( !ps || !item ) {
+		return qfalse;
+	}
+
+	if ( dropped ) {
+		return qtrue;
+	}
+
+	weapon = item->giTag;
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return qtrue;
+	}
+
+	if ( !( ps->stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {
+		return qtrue;
+	}
+
+	if ( ps->ammo[weapon] == 0 ) {
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 /*
@@ -1407,19 +1630,23 @@ static qboolean BG_CanGrabAmmoItem( int gametype, int currentTime, const entityS
 {
 	int weapon;
 
+	if ( gametype == GT_DOMINATION ) {
+		return qtrue;
+	}
+
 	if ( dropped ) {
 		return qtrue;
 	}
 
-	if ( item->giTag <= WP_NONE || item->giTag >= WP_NUM_WEAPONS ) {
-		return qtrue;
-	}
-
-	if ( item->giTag == WP_NONE ) {
-		for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; weapon++ ) {
+	if ( item->giTag == WP_NUM_WEAPONS ) {
+		for ( weapon = WP_MACHINEGUN; weapon < WP_NUM_WEAPONS; weapon++ ) {
 			const int maxAmmo = BG_GetWeaponMaxAmmo( weapon );
 
 			if ( maxAmmo <= 0 ) {
+				continue;
+			}
+
+			if ( !( ps->stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {
 				continue;
 			}
 
@@ -1428,6 +1655,10 @@ static qboolean BG_CanGrabAmmoItem( int gametype, int currentTime, const entityS
 			}
 		}
 
+		return qfalse;
+	}
+
+	if ( item->giTag <= WP_NONE || item->giTag >= WP_NUM_WEAPONS ) {
 		return qfalse;
 	}
 
@@ -1447,22 +1678,46 @@ Implements the shared armor pickup checks used by the DLL's case tables.
 */
 static qboolean BG_CanGrabArmorItem( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped )
 {
-	int	upperBound;
+	const qboolean	armorTiered = BG_IsArmorTieredModeEnabled();
+	const int	armor = ps ? ps->stats[STAT_ARMOR] : 0;
+
+	if ( !ps || !item ) {
+		return qfalse;
+	}
 
 	if ( BG_PlayerHasPersistantPowerup( ps, PW_SCOUT ) ) {
 		return qfalse;
 	}
 
-	upperBound = BG_GetArmorUpperBound( ps );
-	if ( upperBound <= 0 ) {
-		return qfalse;
+	if ( !armorTiered ) {
+		return ( armor < BG_GetArmorUpperBound( ps ) ) ? qtrue : qfalse;
 	}
 
-	if ( ps->stats[STAT_ARMOR] >= upperBound ) {
-		return qfalse;
+	if ( item->quantity == 100 ) {
+		return ( armor < 200 ) ? qtrue : qfalse;
 	}
 
-	return qtrue;
+	if ( item->quantity == 50 ) {
+		if ( ps->armorTier <= 1 ) {
+			return ( armor < 150 ) ? qtrue : qfalse;
+		}
+
+		return ( armor <= 132 ) ? qtrue : qfalse;
+	}
+
+	if ( item->quantity == 25 ) {
+		if ( ps->armorTier == 0 ) {
+			return ( armor < 100 ) ? qtrue : qfalse;
+		}
+
+		if ( ps->armorTier == 1 ) {
+			return ( armor <= 75 ) ? qtrue : qfalse;
+		}
+
+		return ( armor <= 66 ) ? qtrue : qfalse;
+	}
+
+	return ( armor < BG_GetArmorUpperBound( ps ) ) ? qtrue : qfalse;
 }
 
 /*
@@ -1555,7 +1810,7 @@ static qboolean BG_CanGrabTeamItem( int gametype, int currentTime, const entityS
 	return BG_TeamFlagCanBeGrabbed( gametype, item, ent, ps );
 }
 
-static const bgItemGrabFunc_t bg_itemGrabHandlers[IT_TEAM + 1] = {
+static const bgItemGrabFunc_t bg_itemGrabHandlers[IT_KEY + 1] = {
 	NULL,						// IT_BAD
 	BG_CanGrabWeaponItem,		// IT_WEAPON
 	BG_CanGrabAmmoItem,		// IT_AMMO
@@ -1564,8 +1819,8 @@ static const bgItemGrabFunc_t bg_itemGrabHandlers[IT_TEAM + 1] = {
 	BG_CanGrabPowerupItem,		// IT_POWERUP
 	BG_CanGrabHoldableItem,		// IT_HOLDABLE
 	BG_CanGrabPersistantPowerupItem,	// IT_PERSISTANT_POWERUP
-	BG_CanGrabKeyItem,		// IT_KEY
-	BG_CanGrabTeamItem		// IT_TEAM
+	BG_CanGrabTeamItem,		// IT_TEAM
+	BG_CanGrabKeyItem		// IT_KEY
 };
 
 static qboolean BG_PlayerCarryingFlag( const playerState_t *ps ) {
@@ -1662,6 +1917,31 @@ static qboolean BG_TeamFlagCanBeGrabbed( int gametype, const gitem_t *item, cons
 	case GT_HARVESTER:
 		return qtrue;
 
+	case GT_ATTACK_DEFEND:
+		if ( dropped ) {
+			return qfalse;
+		}
+
+		if ( playerTeam == TEAM_RED ) {
+			if ( flagTag == PW_BLUEFLAG ) {
+				return qtrue;
+			}
+
+			if ( flagTag == PW_REDFLAG ) {
+				return ps->powerups[PW_BLUEFLAG] != 0;
+			}
+		}
+		else if ( playerTeam == TEAM_BLUE ) {
+			if ( flagTag == PW_REDFLAG ) {
+				return qtrue;
+			}
+
+			if ( flagTag == PW_BLUEFLAG ) {
+				return ps->powerups[PW_REDFLAG] != 0;
+			}
+		}
+		break;
+
 	default:
 		break;
 	}
@@ -1694,8 +1974,8 @@ qboolean BG_CanItemBeGrabbed( int gametype, int currentTime, const entityState_t
 		return qfalse;
 	}
 
-	if ( item->giType < IT_BAD || item->giType > IT_TEAM ) {
-		Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: IT_BAD" );
+	if ( item->giType < IT_BAD || item->giType > IT_KEY ) {
+		Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: invalid item type %d", item->giType );
 	}
   
 	handler = bg_itemGrabHandlers[item->giType];

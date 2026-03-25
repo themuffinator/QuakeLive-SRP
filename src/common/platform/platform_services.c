@@ -104,6 +104,22 @@ static ql_platform_service_table QL_BuildServiceTable( void ) {
 	qboolean externalDisabled;
 
 	memset( &table, 0, sizeof( table ) );
+
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	table.auth.provider = "Build-disabled (QL_BUILD_ONLINE_SERVICES=0)";
+	table.matchmaking.provider = "Build-disabled (QL_BUILD_ONLINE_SERVICES=0)";
+	table.workshop.provider = "Build-disabled (QL_BUILD_ONLINE_SERVICES=0)";
+	table.overlay.provider = "Build-disabled (QL_BUILD_ONLINE_SERVICES=0)";
+	table.stats.provider = "Build-disabled (QL_BUILD_ONLINE_SERVICES=0)";
+
+	QL_FinaliseDescriptor( &table.auth, "Unavailable" );
+	QL_FinaliseDescriptor( &table.matchmaking, "Unavailable" );
+	QL_FinaliseDescriptor( &table.workshop, "Unavailable" );
+	QL_FinaliseDescriptor( &table.overlay, "Unavailable" );
+	QL_FinaliseDescriptor( &table.stats, "Unavailable" );
+	return table;
+#endif
+
 	externalDisabled = QL_PlatformExternalEcosystemsDisabled();
 
 	if ( externalDisabled ) {

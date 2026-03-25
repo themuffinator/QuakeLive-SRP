@@ -177,7 +177,7 @@ static void CG_ResetHudScoreboard( qboolean timersActive ) {
 	cgHudScoreboard.overtimeCount = cgs.matchOvertimeCount;
 	cgHudScoreboard.suddenDeathConfigured =
 			( cgs.matchSuddenDeathStartSeconds > 0 && cgs.matchSuddenDeathTickSeconds > 0 );
-	cgHudScoreboard.suddenDeathActive = cgs.matchSuddenDeathSpawnDelayActive;
+	cgHudScoreboard.suddenDeathActive = cgs.matchSuddenDeathActive;
 	cgHudScoreboard.suddenDeathRespawns = cgs.matchSuddenDeathRespawnsEnabled;
 	cgHudScoreboard.suddenDeathDelayActive = cgs.matchSuddenDeathSpawnDelayActive;
 	cgHudScoreboard.suddenDeathStart = cgs.matchSuddenDeathStartSeconds;
@@ -242,7 +242,7 @@ static void CG_UpdateHudScoreboardBanners( void ) {
 	const char			*delaySuffix;
 
 	cgHudScoreboard.overtimeVisible = (qboolean)( cgHudScoreboard.overtimeConfigured || cgHudScoreboard.overtimeActive );
-	cgHudScoreboard.suddenDeathVisible = (qboolean)( cgHudScoreboard.suddenDeathConfigured || cgHudScoreboard.suddenDeathActive );
+	cgHudScoreboard.suddenDeathVisible = cgHudScoreboard.suddenDeathActive;
 
 	cgHudScoreboard.overtimeLabel[0] = '\0';
 	cgHudScoreboard.suddenDeathLabel[0] = '\0';

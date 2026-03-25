@@ -6,6 +6,7 @@ ui_players
 ui_util
 ui_shared
 ui_gameinfo
+ui_cdkey
 bg_misc
 bg_lib
 q_math

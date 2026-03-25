@@ -31,9 +31,17 @@ you contribute effectively to the reconstruction effort.
      in [`tools/containers/msvc-2010.Dockerfile`](../../tools/containers/msvc-2010.Dockerfile)
      or partner with a teammate who can validate the DLL artefacts.【F:docs/reverse-engineering/build-recapture.md†L41-L70】
 4. **Set up analysis tooling**
-   - Install Ghidra 10.3 or later for binary diffing and HLIL export comparison,
-     and configure Binary Ninja with the Quake-specific HLIL projects stored under
-     `references/hlil/` for side-by-side analysis.【F:docs/reverse-engineering/handbook.md†L7-L24】
+   - Install Ghidra 12.0.4 (or a compatible recent build) and Binary Ninja so you
+     can work with both committed corpora: the OpenAlice-style Ghidra exports under
+     `references/reverse-engineering/ghidra/` and the Quake-specific HLIL projects
+     stored under `references/hlil/`. Read
+     [`docs/reverse-engineering/ghidra-reference-workflow.md`](../reverse-engineering/ghidra-reference-workflow.md)
+     and
+     [`docs/reverse-engineering/ghidra-module-mapping.md`](../reverse-engineering/ghidra-module-mapping.md)
+     before starting ad-hoc decompiler work.【F:docs/reverse-engineering/handbook.md†L7-L24】
+   - If you want live MCP-assisted analysis inside Ghidra, use
+     `scripts\ghidra\setup_ghidrassist_mcp.ps1 -Mode release` and follow
+     [`docs/reverse-engineering/ghidrassist-mcp.md`](../reverse-engineering/ghidrassist-mcp.md). Treat MCP output as advisory until it is revalidated against the committed corpus and HLIL dumps.【F:docs/reverse-engineering/ghidrassist-mcp.md†L1-L44】
    - Review the deterministic trace harness overview so you know how the logs in
      `artifacts/tests/` and `logs/` are produced during reconstruction work.【F:docs/reverse-engineering/handbook.md†L15-L33】
 5. **Bootstrap deterministic testing harnesses**
@@ -55,11 +63,19 @@ you contribute effectively to the reconstruction effort.
 3. **Reverse-engineering handbook** – Dive into [`docs/reverse-engineering/handbook.md`](../reverse-engineering/handbook.md)
    plus the reconstruction tracker to see stage outputs, clean-room drops, and
    review cadence expectations.【F:docs/reverse-engineering/handbook.md†L1-L60】
-4. **Build, toolchain, and CI guides** – Work through [`docs/qvmtools.md`](../qvmtools.md),
+4. **Ghidra workflow and mapping** – Read
+   [`docs/reverse-engineering/ghidra-reference-workflow.md`](../reverse-engineering/ghidra-reference-workflow.md),
+   [`docs/reverse-engineering/ghidra-module-mapping.md`](../reverse-engineering/ghidra-module-mapping.md),
+   and
+   [`docs/reverse-engineering/ghidrassist-mcp.md`](../reverse-engineering/ghidrassist-mcp.md)
+   so you understand the evidence hierarchy imported from the OpenAlice workflow:
+   retail binaries plus HLIL are canonical, committed Ghidra exports are the
+   structured companion corpus, and live MCP output is advisory until validated.
+5. **Build, toolchain, and CI guides** – Work through [`docs/qvmtools.md`](../qvmtools.md),
    [`docs/build/windows.md`](../build/windows.md), [`docs/windows-native-pipeline.md`](../windows-native-pipeline.md), and
    [`docs/toolchain-ci.md`](../toolchain-ci.md) so you understand the guardrails
    that keep bytecode, DLL, and reverse builds aligned.【F:docs/qvmtools.md†L1-L38】【F:docs/build/windows.md†L1-L31】【F:docs/windows-native-pipeline.md†L1-L64】【F:docs/toolchain-ci.md†L1-L24】
-5. **Deterministic testing playbooks** – Finish with [`docs/testing-strategy.md`](../testing-strategy.md),
+6. **Deterministic testing playbooks** – Finish with [`docs/testing-strategy.md`](../testing-strategy.md),
    [`docs/testing/match-sim.md`](../testing/match-sim.md), [`docs/testing/client-regression.md`](../testing/client-regression.md),
    [`docs/testing/rules-fixtures.md`](../testing/rules-fixtures.md), and the
    harness matrix in [`docs/devops/ci-matrix.md`](../devops/ci-matrix.md) to see
@@ -69,8 +85,9 @@ you contribute effectively to the reconstruction effort.
 
 - **Baseline parity audit** – Choose a gameplay system (e.g., weapon prediction or
   item respawn logic) and confirm the reconstructed source matches the Quake Live
-  HLIL dump. Capture findings in `docs/reverse-engineering/` with before/after
-  snippets and note any unknown branches in the reconstruction tracker.【F:docs/reverse-engineering/reconstruction-tracker.md†L1-L40】
+  HLIL dump and the matching committed Ghidra corpus directory. Capture findings
+  in `docs/reverse-engineering/` with before/after snippets and note any unknown
+  branches in the reconstruction tracker.【F:docs/reverse-engineering/reconstruction-tracker.md†L1-L40】
 - **Harness enrichment** – Extend the deterministic harness suite (match simulation,
   client regression, rules fixtures, or trace harness) with an additional edge
   case, update `tests/run_harnesses.py`, and document the scenario in the testing
@@ -79,7 +96,8 @@ you contribute effectively to the reconstruction effort.
   refresh expectations or capture new regressions, and cross-check any findings
   against the build recapture notes before filing follow-ups.【F:tools/ci/verify-qvm-toolchain.sh†L1-L45】【F:tools/ci/build-cleanroom.sh†L1-L44】【F:docs/reverse-engineering/build-recapture.md†L41-L75】
 - **Documentation traceability** – For any functions you investigate, annotate
-  the mapping spreadsheet in `docs/reference-mapping.md` and log follow-ups in
+  the mapping notes in `docs/reference-mapping.md` or
+  `docs/reverse-engineering/ghidra-module-mapping.md` and log follow-ups in
   `docs/documentation-backlog.md` to keep the team aligned on outstanding gaps.【F:docs/reference-mapping.md†L1-L42】【F:docs/documentation-backlog.md†L1-L40】
 - **Mentorship sync** – Pair with your assigned mentor from the rotation schedule
   in the repository root README to review findings, unblock questions, and plan

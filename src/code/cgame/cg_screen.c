@@ -24,6 +24,98 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
+static qhandle_t	cg_screenDamageBlendShader;
+
+/*
+================
+CG_GetScreenDamageBlendShader
+
+Lazily resolves the retail no-blood damage blend shader.
+================
+*/
+static qhandle_t CG_GetScreenDamageBlendShader( void ) {
+	if ( !cg_screenDamageBlendShader ) {
+		cg_screenDamageBlendShader = trap_R_RegisterShader( "viewDamageBlend" );
+	}
+
+	if ( cg_screenDamageBlendShader ) {
+		return cg_screenDamageBlendShader;
+	}
+
+	return cgs.media.whiteShader;
+}
+
+/*
+================
+CG_GetScreenDamageColor
+
+Selects the retail screen-damage tint variant for the current attacker.
+================
+*/
+static qboolean CG_GetScreenDamageColor( vec4_t color, float *alphaScale ) {
+	int				attackerClientNum;
+	team_t			playerTeam;
+	clientInfo_t	*attackerInfo;
+
+	Vector4Copy( cg.screenDamageColor, color );
+	*alphaScale = cg.screenDamageAlpha;
+
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	attackerClientNum = cg.snap->ps.persistant[PERS_ATTACKER];
+	if ( attackerClientNum == cg.snap->ps.clientNum ) {
+		Vector4Copy( cg.screenDamageSelfColor, color );
+		return qtrue;
+	}
+
+	if ( cgs.gametype < GT_TEAM ) {
+		return qfalse;
+	}
+
+	playerTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+	if ( playerTeam != TEAM_RED && playerTeam != TEAM_BLUE ) {
+		return qfalse;
+	}
+
+	if ( attackerClientNum < 0 || attackerClientNum >= cgs.maxclients ) {
+		return qfalse;
+	}
+
+	attackerInfo = &cgs.clientinfo[attackerClientNum];
+	if ( !attackerInfo->infoValid || attackerInfo->team != playerTeam ) {
+		return qfalse;
+	}
+
+	Vector4Copy( cg.screenDamageTeamColor, color );
+	*alphaScale = cg.screenDamageAlphaTeam;
+	return qfalse;
+}
+
+/*
+================
+CG_SetScreenDamageEntityColor
+
+Applies the retail screen-damage tint to a sprite entity.
+================
+*/
+static void CG_SetScreenDamageEntityColor( refEntity_t *ent, const vec4_t color, float alphaScale, float fade, qboolean useColorAlpha ) {
+	float	alphaByte;
+
+	ent->shaderRGBA[0] = (byte)( Com_Clamp( 0.0f, 1.0f, color[0] ) * 255.0f );
+	ent->shaderRGBA[1] = (byte)( Com_Clamp( 0.0f, 1.0f, color[1] ) * 255.0f );
+	ent->shaderRGBA[2] = (byte)( Com_Clamp( 0.0f, 1.0f, color[2] ) * 255.0f );
+
+	if ( useColorAlpha ) {
+		alphaByte = Com_Clamp( 0.0f, 1.0f, color[3] ) * 255.0f;
+	} else {
+		alphaByte = Com_Clamp( 0.0f, 255.0f, alphaScale );
+	}
+
+	ent->shaderRGBA[3] = (byte)Com_Clamp( 0.0f, 255.0f, alphaByte * fade );
+}
+
 /*
 ================
 CG_DamageBlendBlob
@@ -34,6 +126,10 @@ First person view damage feedback (red blob)
 void CG_DamageBlendBlob( void ) {
 	int			t;
 	int			maxTime;
+	float		fade;
+	float		alphaScale;
+	qboolean	useColorAlpha;
+	vec4_t		color;
 	refEntity_t		ent;
 
 	if ( !cg.damageValue ) {
@@ -51,6 +147,8 @@ void CG_DamageBlendBlob( void ) {
 		return;
 	}
 
+	fade = 1.0f - (float)t / maxTime;
+
 	memset( &ent, 0, sizeof( ent ) );
 	ent.reType = RT_SPRITE;
 	ent.renderfx = RF_FIRST_PERSON;
@@ -59,12 +157,18 @@ void CG_DamageBlendBlob( void ) {
 	VectorMA( ent.origin, cg.damageX * -8, cg.refdef.viewaxis[1], ent.origin );
 	VectorMA( ent.origin, cg.damageY * 8, cg.refdef.viewaxis[2], ent.origin );
 
-	ent.radius = cg.damageValue * 0.4 * ( 1.0 - (float)t / maxTime );
+	ent.radius = cg.damageValue * 2.0f * fade;
 
-	if ( cg.snap->ps.stats[STAT_HEALTH] <= 30 ) {
-		ent.customShader = cgs.media.bloodExplosionShader;
-	} else {
+	useColorAlpha = CG_GetScreenDamageColor( color, &alphaScale );
+	CG_SetScreenDamageEntityColor( &ent, color, alphaScale, fade, useColorAlpha );
+	if ( ent.shaderRGBA[3] == 0 ) {
+		return;
+	}
+
+	if ( cgs.media.viewBloodShader ) {
 		ent.customShader = cgs.media.viewBloodShader;
+	} else {
+		ent.customShader = CG_GetScreenDamageBlendShader();
 	}
 	trap_R_AddRefEntityToScene( &ent );
 }
@@ -77,34 +181,5 @@ CG_DrawScreenDamage
 ================
 */
 void CG_DrawScreenDamage( void ) {
-	vec4_t		color;
-	float		alpha;
-	int			t;
-
-	if ( !cg.damageValue ) {
-		return;
-	}
-
-	// rage pro systems can't fade blends, so don't obscure the screen
-	if ( cgs.glconfig.hardwareType == GLHW_RAGEPRO ) {
-		return;
-	}
-
-	t = cg.time - cg.damageTime;
-	if ( t <= 0 || t >= DAMAGE_TIME ) {
-		return;
-	}
-
-	alpha = cg.screenDamageAlpha * ( 1.0 - (float)t / DAMAGE_TIME );
-	if ( alpha <= 0 ) {
-		return;
-	}
-
-	// Use the configured color
-	VectorCopy( cg.screenDamageColor, color );
-	color[3] = alpha / 255.0f;
-
-	trap_R_SetColor( color );
-	CG_DrawPic( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, cgs.media.whiteShader );
-	trap_R_SetColor( NULL );
+	// Retail cgame keeps damage-screen feedback on the first-person sprite path.
 }

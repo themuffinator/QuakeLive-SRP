@@ -68,6 +68,7 @@ static int	s_forceSmallScoreboardMessageModCount = -1;
 static int	s_forceSendConfigstringModCount = -1;
 static int	s_forceAtmosphericEffectsModCount = -1;
 static int	s_forceDmgThroughSurfaceModCount = -1;
+static int	s_armorTieredModCount = -1;
 static int	s_disableLoadoutModCount = 0;
 static int	s_forcedAtmosphereModCount = -1;
 static int	s_factoryModCount = 0;
@@ -100,6 +101,7 @@ static void G_SyncAdminConfig( void );
 static void G_ResetAdminAccessList( void );
 static void G_UpdateGameStateForLevel( void );
 static void G_SyncRulesetCvar( void );
+static void G_SyncAllClientArmorTiers( void );
 static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut );
 static void G_InsertAdminAccessEntry( const char *steamId, int tier );
 static void G_LoadAdminAccessFile( void );
@@ -228,6 +230,23 @@ static void G_SyncRulesetCvar( void ) {
 	}
 }
 
+/*
+=============
+G_SyncAllClientArmorTiers
+
+Refreshes the replicated armor tier state after the server toggle changes.
+=============
+*/
+static void G_SyncAllClientArmorTiers( void ) {
+	int		i;
+	qboolean	armorTiered;
+
+	armorTiered = g_armorTiered.integer ? qtrue : qfalse;
+	for ( i = 0; i < level.maxclients; i++ ) {
+		BG_UpdateArmorTierFromCurrentArmor( &level.clients[i].ps, armorTiered );
+	}
+}
+
 
 void QLR_Game_BindFrameContext( qlr_game_frame_context_t *ctx ) {
 	g_qlr_frame_ctx = ctx;
@@ -283,6 +302,8 @@ vmCvar_t	g_motd;
 vmCvar_t	g_synchronousClients;
 vmCvar_t	g_warmup;
 vmCvar_t	g_doWarmup;
+vmCvar_t	g_warmupReadyDelay;
+vmCvar_t	g_warmupReadyDelayAction;
 vmCvar_t	g_restarted;
 vmCvar_t	g_log;
 vmCvar_t	g_logSync;
@@ -409,6 +430,7 @@ vmCvar_t	g_velocity_pg;
 vmCvar_t	g_velocity_bfg;
 vmCvar_t	g_velocity_gh;
 vmCvar_t	g_lightningDischarge;
+vmCvar_t	g_railJump;
 vmCvar_t	g_gauntletSpeedFactor;
 vmCvar_t	g_headShotDamage_rg;
 vmCvar_t	g_ironsights_mg;
@@ -584,16 +606,17 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional model path used to override every player's model selection server-wide." },
 	{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },
 	{ &g_allowCustomHeadmodels, "g_allowCustomHeadmodels", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow clients to request independent headmodel strings; disabling forces heads to track the enforced player model." },
-	{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggles the Quake Live player-cylinder collision volumes so forced cosmetics line up with the server's hitboxes." },
+	{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggles the Quake Live player-cylinder collision volumes so forced cosmetics line up with the server's hitboxes." },
 	{ &g_playerheadScale, "g_playerheadScale", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Primary multiplier applied to forced head models for visibility parity." },
 	{ &g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Secondary head-model scalar layered on top of g_playerheadScale so admins can fine-tune the enforced size." },
 	{ &g_playerModelScale, "g_playerModelScale", "1.1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Applies a global scale multiplier to server-enforced player models." },
 	{ &g_autoAction, "g_autoAction", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Comma or semicolon separated list of event:command pairs executed automatically (match_start, match_end, player_connect, player_disconnect)." },
 	{ &g_floodprot_maxcount, "g_floodprot_maxcount", "8", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum chat or command bursts allowed before flood protection engages; 0 disables the limiter." },
 	{ &g_floodprot_decay, "g_floodprot_decay", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds required before a flood point decays back off the counter." },
-	{ &g_floodprot_penalty, "g_floodprot_penalty", "4000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds players are muted from commands after tripping flood protection; 0 scales to decay*maxcount." },
+	{ &g_floodprot_penalty, "g_floodprot_penalty", "4000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Legacy compatibility knob retained for configs; retail flood protection drops clients on overflow instead of muting commands." },
 	{ &g_startingHealth, "g_startingHealth", "100", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Health awarded to players when they spawn." },
 	{ &g_startingArmor, "g_startingArmor", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Armor awarded to players when they spawn." },
+	{ &g_armorTiered, "g_armorTiered", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable retail Quake Live tiered armor behaviour for pickups, regen, and HUD serverinfo." },
 	{ &g_startingWeapons, "g_startingWeapons", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Bitmask of weapons awarded to players when they spawn." },
         { &g_flightThrust, "g_flightThrust", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Overrides the upward thrust applied while the Flight powerup is active; 0 keeps the compiled movement behaviour." },
         { &g_flightRefuelRate, "g_flightRefuelRate", "1.0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Multiplier applied to the duration granted when refuelling the Flight powerup." },
@@ -602,7 +625,6 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_kickBadUserinfo, "g_kickBadUserinfo", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Drop clients submitting malformed userinfo when non-zero; 0 only warns and repairs the data." },
 	{ &g_botsFile, "g_botsFile", "", CVAR_INIT | CVAR_ROM, 0, qfalse, qfalse, "Override bot definition list with a custom script when specified." },
 	{ &g_botSpawnList, "g_botSpawnList", "", 0, 0, qfalse, qfalse, "Space-separated bot names automatically spawned on map start when set." },
-	{ &g_training, "g_training", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Enable the training progression gate so players must complete tutorials." },
 	{ &g_adTouchScoreBonus, "g_adTouchScoreBonus", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend touch bonus added to the scoring totals whenever an attacker grabs the flag." },
 	{ &g_adElimScoreBonus, "g_adElimScoreBonus", "2", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend elimination bonus granted to teams and players for each enemy frag." },
 	{ &g_adCaptureScoreBonus, "g_adCaptureScoreBonus", "3", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend capture bonus layered on top of the base team point whenever the flag is secured." },
@@ -644,7 +666,6 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_allowVoteMidGame, "g_allowVoteMidGame", "0", 0, 0, qfalse },
 	{ &g_allowForfeit, "g_allowForfeit", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Enables the forfeit console command when non-zero so duel and CA leagues can permit early surrenders." },
 	{ &g_allowKill, "g_allowKill", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Minimum milliseconds between kill commands; 0 restores instant suicides." },
-	{ &g_allowForfeit, "g_allowForfeit", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Enables the forfeit console command when non-zero so early concessions can be honored." },
 	{ &g_complaintLimit, "g_complaintLimit", "5", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum complaints before a player is automatically kicked; 0 disables kicking." },
 	{ &g_complaintDamageThreshold, "g_complaintDamageThreshold", "400", CVAR_ARCHIVE, 0, qfalse, qfalse, "Minimum damage from a teammate required to present the complaint prompt." },
 	{ &g_voteFlags, "g_voteFlags", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse },
@@ -652,6 +673,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_voteLimit, "g_voteLimit", "0", 0, 0, qfalse },
 	{ &g_warmup, "g_warmup", "20", CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_doWarmup, "g_doWarmup", "1", 0, 0, qtrue  },
+	{ &g_warmupReadyDelay, "g_warmupReadyDelay", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds to wait in duel after exactly one player readies before applying g_warmupReadyDelayAction; 0 disables the retail delay controller." },
+	{ &g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail duel ready-delay action: 1 moves the unready duelist to spectate-only, 2 forces both duelists ready." },
 	{ &g_training, "g_training", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Marks training sessions and disables competitive match flow when set." },
 	{ &g_forcedAtmosphere, "g_forcedAtmosphere", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional atmosphere effect applied when a map lacks an atmosphere worldspawn key." },
 	{ &g_listEntity, "g_listEntity", "0", 0, 0, qfalse },
@@ -699,8 +722,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_splashRadius_bfg, "g_splashRadius_bfg", "120", 0, 0, qtrue },
 	{ &g_damage_sg_falloff, "g_damage_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fractional shotgun damage multiplier applied once a target exceeds g_range_sg_falloff; 0 preserves the legacy drop-off curve." },
 	{ &g_range_sg_falloff, "g_range_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before shotgun damage begins to fall off; 0 keeps the compiled default distance." },
-	{ &g_damage_lg_falloff, "g_damage_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fractional lightning gun damage applied while beams exceed g_range_lg_falloff; 0 leaves Quake III style damage intact." },
-	{ &g_range_lg_falloff, "g_range_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before lightning gun damage begins scaling down; 0 reuses the original compiled distance." },
+	{ &g_damage_lg_falloff, "g_damage_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Damage subtracted from lightning gun hits for each retail falloff interval beyond g_range_lg_falloff; 0 keeps constant damage." },
+	{ &g_range_lg_falloff, "g_range_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before retail lightning falloff starts, with each additional interval removing another g_damage_lg_falloff step." },
 	{ &g_accelFactor_rl, "g_accelFactor_rl", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Scale applied to rocket acceleration tests when factories enable projectile acceleration; 0 keeps stock speeds." },
 	{ &g_accelRate_rl, "g_accelRate_rl", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds between rocket acceleration steps when g_accelFactor_rl is active; 0 reuses the baked timing." },
 	{ &g_accelFactor_pg, "g_accelFactor_pg", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Scale applied to plasmagun bolt acceleration when Quake Live factories request faster bolts." },
@@ -713,6 +736,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_velocity_bfg, "g_velocity_bfg", "2000", 0, 0, qtrue, qfalse, "BFG projectile speed in ups pulled from the retail DLL defaults." },
 	{ &g_velocity_gh, "g_velocity_gh", "800", 0, 0, qtrue, qfalse, "Grappling Hook projectile speed in ups; 800 preserves the vanilla behaviour." },
 	{ &g_lightningDischarge, "g_lightningDischarge", "0", 0, 0, qtrue, qfalse, "When enabled, lightning gun shots discharge and damage the shooter when fired in hazardous volumes." },
+	{ &g_railJump, "g_railJump", "0", 0, 0, qtrue, qfalse, "Strength of the retail rail jump push applied when a rail shot hits solid geometry within 120 units." },
 	{ &g_gauntletSpeedFactor, "g_gauntletSpeedFactor", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Gauntlet swing speed multiplier requested by Quake Live factories; 1.0 retains stock timing." },
 	{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", 0, 0, qtrue, qfalse, "Extra railgun damage applied to headshots whenever headshot mutators run; 0 keeps the classic behaviour." },
 	{ &g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Machinegun ironsight spread/recoil scale pulled from the HLIL weapon tables." },
@@ -895,6 +919,7 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.machinegunDamage = G_ReadWeaponCvar( &g_damage_mg, 5, "g_damage_mg" );
 	g_weaponConfig.machinegunTeamDamage = G_ReadWeaponCvar( &g_damage_mg_team, 5, "g_damage_mg_team" );
 	g_weaponConfig.heavyMachinegunDamage = G_ReadWeaponCvar( &g_damage_hmg, 8, "g_damage_hmg" );
+	g_weaponConfig.chaingunDamage = G_ReadWeaponCvar( &g_damage_cg, 8, "g_damage_cg" );
 	g_weaponConfig.shotgunDamage = G_ReadWeaponCvar( &g_damage_sg, 5, "g_damage_sg" );
 	g_weaponConfig.shotgunFalloffScale = G_ReadWeaponFloatCvarNonNegative( &g_damage_sg_falloff, 0.0f, "g_damage_sg_falloff" );
 	g_weaponConfig.shotgunFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_sg_falloff, 0, "g_range_sg_falloff" );
@@ -916,8 +941,9 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.plasmaAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_pg, 0.0f, "g_accelFactor_pg" );
 	g_weaponConfig.plasmaAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 0, "g_accelRate_pg" );
 	g_weaponConfig.lightningDamage = G_ReadWeaponCvar( &g_damage_lg, 6, "g_damage_lg" );
-	g_weaponConfig.lightningFalloffScale = G_ReadWeaponFloatCvarNonNegative( &g_damage_lg_falloff, 0.0f, "g_damage_lg_falloff" );
+	g_weaponConfig.lightningFalloffDamage = G_ReadWeaponCvarNonNegative( &g_damage_lg_falloff, 0, "g_damage_lg_falloff" );
 	g_weaponConfig.lightningFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_lg_falloff, 0, "g_range_lg_falloff" );
+	g_weaponConfig.railJumpStrength = G_ReadWeaponCvarNonNegative( &g_railJump, 0, "g_railJump" );
 	g_weaponConfig.railgunDamage = G_ReadWeaponCvar( &g_damage_rg, 80, "g_damage_rg" );
 	g_weaponConfig.bfgDamage = G_ReadWeaponCvar( &g_damage_bfg, 100, "g_damage_bfg" );
 	g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100, "g_splashDamage_bfg" );
@@ -925,6 +951,7 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.bfgSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_bfg, 2000, "g_velocity_bfg", 1 );
 	g_weaponConfig.bfgAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_bfg, 0.0f, "g_accelFactor_bfg" );
 	g_weaponConfig.bfgAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 0, "g_accelRate_bfg" );
+	g_weaponConfig.grappleDamage = G_ReadWeaponCvar( &g_damage_gh, 10, "g_damage_gh" );
 	g_weaponConfig.grappleSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_gh, 800, "g_velocity_gh", 1 );
 	g_weaponConfig.gauntletSpeedFactor = G_ReadWeaponFloatCvarNonNegative( &g_gauntletSpeedFactor, 1.0f, "g_gauntletSpeedFactor" );
 	g_weaponConfig.lightningDischargeFlags = G_ReadWeaponCvarNonNegative( &g_lightningDischarge, 0, "g_lightningDischarge" );
@@ -1229,6 +1256,7 @@ LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) 
 	s_forceSendConfigstringModCount = g_forceSendConfigstring.modificationCount;
 	s_forceAtmosphericEffectsModCount = g_forceAtmosphericEffects.modificationCount;
 	s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
+	s_armorTieredModCount = g_armorTiered.modificationCount;
 	s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
 	s_roundWarmupDelayModCount = g_roundWarmupDelay.modificationCount;
 	s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
@@ -1303,6 +1331,11 @@ void G_UpdateCvars( void ) {
 	if ( g_ruleset.modificationCount != s_rulesetModCount ) {
 		s_rulesetModCount = g_ruleset.modificationCount;
 		G_SyncRulesetCvar();
+	}
+
+	if ( g_armorTiered.modificationCount != s_armorTieredModCount ) {
+		s_armorTieredModCount = g_armorTiered.modificationCount;
+		G_SyncAllClientArmorTiers();
 	}
 
 	if ( g_factory.modificationCount != s_factoryModCount ) {
@@ -1614,30 +1647,38 @@ static void G_LoadAdminAccessFile( void ) {
 
 	cursor = buffer;
 	while ( qtrue ) {
-		char	*steamToken;
-		char	*tierToken;
-		int		tier;
+		char				*line;
+		char				*carriageReturn;
+		unsigned long long	steamIdValue;
+		char				steamToken[ 32 ];
+		char				tierToken[ 16 ];
+		int					tier;
 
-		steamToken = COM_ParseExt( &cursor, qtrue );
-		if ( !steamToken[0] ) {
+		line = strtok( cursor, "\n" );
+		cursor = NULL;
+		if ( !line ) {
 			break;
 		}
 
-		tierToken = COM_ParseExt( &cursor, qtrue );
-		if ( !tierToken[0] ) {
-			G_Printf( "WARNING: malformed access entry missing tier for SteamID %s\n", steamToken );
+		if ( line[0] == '#' ) {
 			continue;
 		}
 
-		if ( !G_ParseAdminAccessTier( tierToken, &tier ) ) {
-			G_Printf( "WARNING: invalid access tier '%s' for SteamID %s\n", tierToken, steamToken );
+		carriageReturn = strchr( line, '\r' );
+		if ( carriageReturn ) {
+			*carriageReturn = '\0';
+		}
+
+		if ( sscanf( line, "%llu|%15s", &steamIdValue, tierToken ) != 2 || !G_ParseAdminAccessTier( tierToken, &tier ) ) {
+			G_Printf( "^1invalid admin access format, skipping: %s\n", line );
 			continue;
 		}
 
+		Com_sprintf( steamToken, sizeof( steamToken ), "%llu", steamIdValue );
 		G_InsertAdminAccessEntry( steamToken, tier );
 	}
 
-	G_Printf( "loaded %i access entries from %s\n", level.adminAccessEntryCount, g_accessFile.string );
+	G_Printf( "loaded %i steam ids into the access list\n", level.adminAccessEntryCount );
 }
 
 /*
@@ -1666,6 +1707,53 @@ int G_AdminAccessForSteamID( const char *steamId ) {
 
 #include "g_gametype_lifecycle.inc"
 
+
+/*
+============
+G_CountSpawnPoints
+
+Caches the retail spawn-point counts gathered during level init.
+============
+*/
+static void G_CountSpawnPoints( void ) {
+	int			entNum;
+	gentity_t	*spot;
+
+	level.deathmatchSpawnPointCount = 0;
+	level.redSpawnPointCount = 0;
+	level.blueSpawnPointCount = 0;
+
+	for ( entNum = 0; entNum < level.num_entities; entNum++ ) {
+		gentity_t	*ent;
+
+		ent = &g_entities[entNum];
+		if ( !ent->inuse || !ent->classname ) {
+			continue;
+		}
+
+		if ( Q_stricmp( ent->classname, "info_player_deathmatch" ) ) {
+			continue;
+		}
+
+		if ( level.deathmatchSpawnPointCount < 25 ) {
+			level.deathmatchSpawnPointCount++;
+		}
+	}
+
+	spot = NULL;
+	while ( ( spot = G_Find( spot, FOFS( classname ), "team_CTF_redspawn" ) ) != NULL ) {
+		if ( level.redSpawnPointCount < 25 ) {
+			level.redSpawnPointCount++;
+		}
+	}
+
+	spot = NULL;
+	while ( ( spot = G_Find( spot, FOFS( classname ), "team_CTF_bluespawn" ) ) != NULL ) {
+		if ( level.blueSpawnPointCount < 25 ) {
+			level.blueSpawnPointCount++;
+		}
+	}
+}
 
 /*
 ============
@@ -1715,6 +1803,12 @@ G_UpdateTrainingState();
 	level.startTime = levelTime;
 	level.roundState = ROUNDSTATE_INACTIVE;
 	level.roundTransitionTime = ROUND_TRANSITION_NONE;
+	level.adRoundState = AD_ROUNDSTATE_INACTIVE;
+	level.adPendingRoundState = AD_ROUNDSTATE_INACTIVE;
+	level.adStateChangeTime = levelTime;
+	level.adTurnIndex = 0;
+	level.adRoundWinner = TEAM_FREE;
+	level.adRoundWinnerAlreadyScored = qfalse;
 	G_SetGameState( GAME_STATE_PRE_GAME );
 
 	level.timeoutOwner = -1;
@@ -1793,6 +1887,7 @@ G_UpdateTrainingState();
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
+	G_CountSpawnPoints();
 	G_UpdateTrainingState();
 	if ( level.trainingMapActive ) {
 		int team;
@@ -1836,7 +1931,9 @@ G_UpdateTrainingState();
 
 	LevelCheckTimers();
 	G_UpdateMatchStateConfigString();
+	G_UpdateTeamCountConfigstrings();
 	G_MatchConfig_UpdateConfigstrings();
+	G_UpdateTournamentQueuePositions();
 
 	{
 		char		mapName[MAX_QPATH];
@@ -1919,6 +2016,170 @@ PLAYER COUNTING / SCORE SORTING
 
 /*
 =============
+G_FindNextTournamentPlayer
+
+Returns the oldest eligible waiting spectator for duel queue promotion.
+=============
+*/
+gentity_t *G_FindNextTournamentPlayer( void ) {
+	gentity_t	*nextInLine;
+	int		i;
+
+	nextInLine = NULL;
+
+	for ( i = 0 ; i < level.maxclients ; i++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[i];
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( client->sess.spectateOnly ) {
+			continue;
+		}
+		// never select the dedicated follow or scoreboard clients
+		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD ||
+			client->sess.spectatorClient < 0 ) {
+			continue;
+		}
+
+		if ( !nextInLine || client->sess.spectatorTime < nextInLine->client->sess.spectatorTime ) {
+			nextInLine = &g_entities[i];
+		}
+	}
+
+	return nextInLine;
+}
+
+/*
+=============
+G_CompareTournamentQueueTimes
+
+=============
+*/
+static int QDECL G_CompareTournamentQueueTimes( const void *a, const void *b ) {
+	const gclient_t	*clientA;
+	const gclient_t	*clientB;
+
+	clientA = &level.clients[*(const int *)a];
+	clientB = &level.clients[*(const int *)b];
+
+	if ( clientA->sess.spectatorTime > clientB->sess.spectatorTime ) {
+		return 1;
+	}
+	if ( clientA->sess.spectatorTime < clientB->sess.spectatorTime ) {
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
+=============
+G_UpdateTournamentQueuePositions
+
+=============
+*/
+void G_UpdateTournamentQueuePositions( void ) {
+	int	queuedClients[MAX_CLIENTS];
+	int	queuedCount;
+	int	i;
+
+	if ( g_gametype.integer != GT_TOURNAMENT ) {
+		return;
+	}
+
+	queuedCount = 0;
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		int		clientNum;
+		gclient_t	*client;
+
+		clientNum = level.sortedClients[i];
+		client = &level.clients[clientNum];
+
+		if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			continue;
+		}
+		if ( client->sess.spectateOnly ) {
+			continue;
+		}
+
+		queuedClients[queuedCount] = clientNum;
+		queuedCount++;
+	}
+
+	qsort( queuedClients, queuedCount, sizeof( queuedClients[0] ), G_CompareTournamentQueueTimes );
+
+	for ( i = 0; i < queuedCount; i++ ) {
+		gclient_t	*client;
+		int		queuePosition;
+
+		client = &level.clients[queuedClients[i]];
+		queuePosition = i + 1;
+
+		if ( client->sess.spectatorQueuePosition != queuePosition ) {
+			client->sess.spectatorQueuePosition = queuePosition;
+			client->sess.spectatorQueuePositionDirty = qtrue;
+		}
+	}
+}
+
+/*
+=============
+G_SyncTournamentQueueTeamTasks
+
+=============
+*/
+void G_SyncTournamentQueueTeamTasks( void ) {
+	char		userinfo[MAX_INFO_STRING];
+	qboolean	anyDirty;
+	int		i;
+
+	if ( g_gametype.integer != GT_TOURNAMENT ) {
+		return;
+	}
+
+	anyDirty = qfalse;
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[level.sortedClients[i]];
+		if ( client->sess.spectatorQueuePositionDirty ) {
+			client->sess.spectatorQueuePositionDirty = qfalse;
+			anyDirty = qtrue;
+		}
+	}
+
+	if ( !anyDirty ) {
+		return;
+	}
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		int		clientNum;
+		gclient_t	*client;
+
+		clientNum = level.sortedClients[i];
+		client = &level.clients[clientNum];
+
+		if ( client->sess.spectateOnly ) {
+			continue;
+		}
+		if ( client->sess.spectatorQueuePosition == 0 ) {
+			continue;
+		}
+
+		trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
+		Info_SetValueForKey( userinfo, "teamtask", va( "%d", client->sess.spectatorQueuePosition ) );
+		trap_SetUserinfo( clientNum, userinfo );
+		ClientUserinfoChanged( clientNum );
+	}
+}
+
+/*
+=============
 AddTournamentPlayer
 
 If there are less than two tournament players, put a
@@ -1926,9 +2187,7 @@ spectator in the game and restart
 =============
 */
 void AddTournamentPlayer( void ) {
-	int			i;
-	gclient_t	*client;
-	gclient_t	*nextInLine;
+	gentity_t	*nextInLine;
 
 	if ( level.numPlayingClients >= 2 ) {
 		return;
@@ -1939,27 +2198,7 @@ void AddTournamentPlayer( void ) {
 		return;
 	}
 
-	nextInLine = NULL;
-
-	for ( i = 0 ; i < level.maxclients ; i++ ) {
-		client = &level.clients[i];
-		if ( client->pers.connected != CON_CONNECTED ) {
-			continue;
-		}
-		if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
-			continue;
-		}
-		// never select the dedicated follow or scoreboard clients
-		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD || 
-			client->sess.spectatorClient < 0  ) {
-			continue;
-		}
-
-		if ( !nextInLine || client->sess.spectatorTime < nextInLine->sess.spectatorTime ) {
-			nextInLine = client;
-		}
-	}
-
+	nextInLine = G_FindNextTournamentPlayer();
 	if ( !nextInLine ) {
 		return;
 	}
@@ -1967,7 +2206,7 @@ void AddTournamentPlayer( void ) {
 	level.warmupTime = -1;
 
 	// set them to free-for-all team
-	SetTeam( &g_entities[ nextInLine - level.clients ], "f" );
+	SetTeam( nextInLine, "f" );
 }
 
 /*
@@ -2036,6 +2275,198 @@ void AdjustTournamentScores( void ) {
 		ClientUserinfoChanged( clientNum );
 	}
 
+}
+
+/*
+=============
+G_SetAwardConfigstring
+
+Publishes one of the recovered retail award winner client-number slots.
+=============
+*/
+static void G_SetAwardConfigstring( int configstringIndex, int clientNum ) {
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		trap_SetConfigstring( configstringIndex, "" );
+		return;
+	}
+
+	if ( level.clients[clientNum].pers.connected != CON_CONNECTED ) {
+		trap_SetConfigstring( configstringIndex, "" );
+		return;
+	}
+
+	trap_SetConfigstring( configstringIndex, va( "%i", clientNum ) );
+}
+
+/*
+=============
+G_UpdateAwardConfigstrings
+
+Refreshes the retail postgame-award winner configstrings recovered from qagame.
+=============
+*/
+static void G_UpdateAwardConfigstrings( void ) {
+	int		clientNum;
+	int		eligibleCount;
+	int		bestItemControlClient;
+	int		bestItemControlMetric;
+	int		bestItemControlScore;
+	int		bestAccuracyClient;
+	int		bestAccuracyMetric;
+	int		bestAccuracyShots;
+	int		bestMostValuableClient;
+	int		bestMostValuableMetric;
+	int		bestOffensiveClient;
+	int		bestOffensiveMetric;
+	int		bestOffensiveScore;
+	int		bestDefensiveClient;
+	int		bestDefensiveMetric;
+	int		bestDefensiveScore;
+	int		bestDamageClient;
+	int		bestDamageMetric;
+	int		bestDamageScore;
+
+	eligibleCount = 0;
+	bestItemControlClient = -1;
+	bestItemControlMetric = -1;
+	bestItemControlScore = -1;
+	bestAccuracyClient = -1;
+	bestAccuracyMetric = -1;
+	bestAccuracyShots = -1;
+	bestMostValuableClient = -1;
+	bestMostValuableMetric = -1;
+	bestOffensiveClient = -1;
+	bestOffensiveMetric = -1;
+	bestOffensiveScore = -1;
+	bestDefensiveClient = -1;
+	bestDefensiveMetric = -1;
+	bestDefensiveScore = -1;
+	bestDamageClient = -1;
+	bestDamageMetric = -1;
+	bestDamageScore = -1;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gclient_t	*cl;
+		int		score;
+		int		captures;
+		int		defends;
+		int		assists;
+		int		itemControlMetric;
+		int		accuracyMetric;
+		int		accuracyShots;
+		int		offensiveMetric;
+		int		defensiveMetric;
+		int		damageMetric;
+
+		cl = &level.clients[clientNum];
+		if ( cl->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( cl->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		eligibleCount++;
+		score = cl->ps.persistant[PERS_SCORE];
+		captures = cl->ps.persistant[PERS_CAPTURES];
+		defends = cl->ps.persistant[PERS_DEFEND_COUNT];
+		assists = cl->ps.persistant[PERS_ASSIST_COUNT];
+		itemControlMetric = captures * 4 + defends * 2 + assists;
+		damageMetric = cl->pers.damageGiven;
+		if ( cl->accuracy_shots > 0 && cl->accuracy_hits > 0 ) {
+			accuracyMetric = cl->accuracy_hits * 100 / cl->accuracy_shots;
+			accuracyShots = cl->accuracy_shots;
+		} else {
+			accuracyMetric = 0;
+			accuracyShots = 0;
+		}
+		offensiveMetric = captures * 100 + assists * 10 + score;
+		defensiveMetric = defends * 100 + score;
+
+		if ( itemControlMetric > bestItemControlMetric
+			|| ( itemControlMetric == bestItemControlMetric && score > bestItemControlScore ) ) {
+			bestItemControlMetric = itemControlMetric;
+			bestItemControlScore = score;
+			bestItemControlClient = clientNum;
+		}
+
+		if ( accuracyMetric > bestAccuracyMetric
+			|| ( accuracyMetric == bestAccuracyMetric && accuracyShots > bestAccuracyShots ) ) {
+			bestAccuracyMetric = accuracyMetric;
+			bestAccuracyShots = accuracyShots;
+			bestAccuracyClient = clientNum;
+		}
+
+		if ( score > bestMostValuableMetric ) {
+			bestMostValuableMetric = score;
+			bestMostValuableClient = clientNum;
+		}
+
+		if ( offensiveMetric > bestOffensiveMetric
+			|| ( offensiveMetric == bestOffensiveMetric && score > bestOffensiveScore ) ) {
+			bestOffensiveMetric = offensiveMetric;
+			bestOffensiveScore = score;
+			bestOffensiveClient = clientNum;
+		}
+
+		if ( defensiveMetric > bestDefensiveMetric
+			|| ( defensiveMetric == bestDefensiveMetric && score > bestDefensiveScore ) ) {
+			bestDefensiveMetric = defensiveMetric;
+			bestDefensiveScore = score;
+			bestDefensiveClient = clientNum;
+		}
+
+		if ( damageMetric > bestDamageMetric
+			|| ( damageMetric == bestDamageMetric && score > bestDamageScore ) ) {
+			bestDamageMetric = damageMetric;
+			bestDamageScore = score;
+			bestDamageClient = clientNum;
+		}
+	}
+
+	if ( eligibleCount <= 0 ) {
+		G_SetAwardConfigstring( CS_AWARD_BEST_ITEMCONTROL, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_ACCURATE, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE_OFFENSIVE, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE_DEFENSIVE, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_DAMAGEDEALT, -1 );
+		return;
+	}
+
+	G_SetAwardConfigstring( CS_AWARD_BEST_ITEMCONTROL, bestItemControlClient );
+	G_SetAwardConfigstring( CS_AWARD_MOST_ACCURATE, bestAccuracyClient );
+
+	switch ( g_gametype.integer ) {
+	case GT_RACE:
+	case GT_CLAN_ARENA:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+	case GT_RED_ROVER:
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE, -1 );
+		break;
+	default:
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE, bestMostValuableClient );
+		break;
+	}
+
+	switch ( g_gametype.integer ) {
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_OBELISK:
+	case GT_HARVESTER:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE_OFFENSIVE, bestOffensiveClient );
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE_DEFENSIVE, bestDefensiveClient );
+		G_SetAwardConfigstring( CS_AWARD_MOST_DAMAGEDEALT, bestDamageClient );
+		break;
+	default:
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE_OFFENSIVE, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_VALUABLE_DEFENSIVE, -1 );
+		G_SetAwardConfigstring( CS_AWARD_MOST_DAMAGEDEALT, -1 );
+		break;
+	}
 }
 
 /*
@@ -2211,6 +2642,8 @@ void CalculateRanks( void ) {
 	if ( level.intermissiontime ) {
 		SendScoreboardMessageToAllClients();
 	}
+
+	G_UpdateAwardConfigstrings();
 }
 
 
@@ -2238,6 +2671,8 @@ void SendScoreboardMessageToAllClients( void ) {
 			DeathmatchScoreboardMessage( g_entities + i );
 		}
 	}
+
+	G_UpdateAwardConfigstrings();
 }
 
 /*
@@ -2328,6 +2763,8 @@ void BeginIntermission( void ) {
 		trap_Cvar_Set("ui_singlePlayerActive", "0");
 		UpdateTournamentInfo();
 	}
+
+	G_ClearVoteState();
 
 	// move all clients to the intermission point
 	for (i=0 ; i< level.maxclients ; i++) {
@@ -2510,26 +2947,107 @@ void LogExit( const char *string ) {
 
 /*
 =============
-G_ApplyForfeit
+G_GetForfeitDuelLoser
 
-Ends the current match because a player forfeited.
+Returns the duel-side client whose visible score should be marked as forfeited.
 =============
 */
-void G_ApplyForfeit( gentity_t *ent ) {
+static gclient_t *G_GetForfeitDuelLoser( void ) {
+	gclient_t	*first;
+	gclient_t	*second;
+	int			i;
+
+	first = NULL;
+	second = NULL;
+
+	for ( i = 0; i < level.numConnectedClients && i < level.maxclients; i++ ) {
+		int			clientNum;
+		gclient_t	*client;
+
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		client = &level.clients[clientNum];
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		if ( !first ) {
+			first = client;
+			continue;
+		}
+
+		second = client;
+		break;
+	}
+
+	if ( !first || !second ) {
+		return NULL;
+	}
+
+	if ( first->sess.sessionTeam != TEAM_FREE ) {
+		return first;
+	}
+
+	if ( second->sess.sessionTeam != TEAM_FREE ) {
+		return second;
+	}
+
+	return ( first->ps.persistant[PERS_SCORE] <= second->ps.persistant[PERS_SCORE] ) ? first : second;
+}
+
+
+/*
+=============
+G_ApplyForfeit
+
+Ends the current match because a player or side forfeited.
+=============
+*/
+void G_ApplyForfeit( void ) {
+	team_t		losingTeam;
+	gclient_t	*losingClient;
+	int			redPlayerCount;
+	int			bluePlayerCount;
+
 	if ( level.matchForfeited ) {
 		return;
 	}
 
 	level.matchForfeited = qtrue;
+	losingTeam = TEAM_FREE;
+	losingClient = NULL;
 
 	if ( g_gametype.integer == GT_TOURNAMENT ) {
-		if ( ent && ent->client && ent->health > 0 ) {
-			ent->flags &= ~FL_GODMODE;
-			ent->client->ps.stats[STAT_HEALTH] = ent->health = -999;
-			player_die( ent, ent, ent, 100000, MOD_SUICIDE );
+		losingClient = G_GetForfeitDuelLoser();
+		if ( losingClient ) {
+			losingClient->ps.persistant[PERS_SCORE] = -999;
+		}
+	} else if ( g_gametype.integer >= GT_TEAM ) {
+		redPlayerCount = TeamCount( -1, TEAM_RED );
+		bluePlayerCount = TeamCount( -1, TEAM_BLUE );
+
+		if ( redPlayerCount < 1 && bluePlayerCount >= 1 ) {
+			losingTeam = TEAM_RED;
+		} else if ( bluePlayerCount < 1 && redPlayerCount >= 1 ) {
+			losingTeam = TEAM_BLUE;
+		} else if ( level.teamScores[TEAM_RED] < level.teamScores[TEAM_BLUE] ) {
+			losingTeam = TEAM_RED;
+		} else if ( level.teamScores[TEAM_BLUE] < level.teamScores[TEAM_RED] ) {
+			losingTeam = TEAM_BLUE;
+		}
+
+		if ( losingTeam == TEAM_RED || losingTeam == TEAM_BLUE ) {
+			level.teamScores[losingTeam] = -999;
+			trap_SetConfigstring(
+				( losingTeam == TEAM_RED ) ? CS_SCORES1 : CS_SCORES2,
+				va( "%i", level.teamScores[losingTeam] ) );
 		}
 	}
 
+	CalculateRanks();
 	trap_SendServerCommand( -1, "print \"Game has been forfeited.\\n\"" );
 	LogExit( "Players have forfeited." );
 }
@@ -2672,6 +3190,18 @@ void CheckExitRules( void ) {
 		return;
 	}
 
+	if ( G_CanForfeit( NULL, qfalse ) ) {
+		G_ApplyForfeit();
+		return;
+	}
+
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		if ( level.adRoundState == AD_ROUNDSTATE_EXIT ) {
+			G_ADCheckExitRules( qtrue );
+		}
+		return;
+	}
+
 	// check for sudden death
 	{
 		qboolean suddenDeath = ScoreIsTied();
@@ -2684,6 +3214,8 @@ void CheckExitRules( void ) {
 			} else {
 				G_Printf( "Sudden death cleared; ammo respawn resumes.\n" );
 			}
+
+			G_UpdateMatchStateConfigString();
 		}
 
 		if ( suddenDeath ) {
@@ -2822,8 +3354,167 @@ Publishes the next ready-up deadline for HUD consumers.
 void G_UpdateReadyUpConfigstring( void ) {
 	int	deadline;
 
-	deadline = ( level.warmupTime > 0 ) ? level.warmupTime : 0;
+	if ( level.readyUpDelayDeadline > 0 ) {
+		deadline = level.readyUpDelayDeadline;
+	} else {
+		deadline = ( level.warmupTime > 0 ) ? level.warmupTime : 0;
+	}
 	trap_SetConfigstring( CS_READYUP_STATUS, va( "%i", deadline ) );
+}
+
+/*
+=============
+G_GetDuelReadyStateCounts
+
+Counts active duelists and the subset that are currently marked ready.
+=============
+*/
+static void G_GetDuelReadyStateCounts( int *eligibleCount, int *readyCount ) {
+	int	i;
+
+	if ( eligibleCount ) {
+		*eligibleCount = 0;
+	}
+	if ( readyCount ) {
+		*readyCount = 0;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[i];
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != TEAM_FREE ) {
+			continue;
+		}
+
+		if ( eligibleCount ) {
+			( *eligibleCount )++;
+		}
+		if ( readyCount && G_ClientIsReady( client ) ) {
+			( *readyCount )++;
+		}
+	}
+}
+
+/*
+=============
+G_ResetDuelWarmupState
+
+Returns duel warmup to the retail waiting state and optionally clears ready latches.
+=============
+*/
+static void G_ResetDuelWarmupState( qboolean clearReadyFlags ) {
+	int			i;
+	qboolean	configChanged;
+	qboolean	warmupChanged;
+
+	configChanged = qfalse;
+	warmupChanged = qfalse;
+	if ( level.warmupTime != -1 ) {
+		level.warmupTime = -1;
+		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+		configChanged = qtrue;
+		warmupChanged = qtrue;
+	}
+	if ( level.readyUpDelayDeadline != 0 ) {
+		level.readyUpDelayDeadline = 0;
+		configChanged = qtrue;
+	}
+
+	if ( clearReadyFlags ) {
+		for ( i = 0; i < level.maxclients; i++ ) {
+			gclient_t	*client;
+
+			client = &level.clients[i];
+			if ( client->pers.connected != CON_CONNECTED ) {
+				continue;
+			}
+			if ( client->sess.sessionTeam != TEAM_FREE ) {
+				continue;
+			}
+			if ( !G_ClientIsReady( client ) ) {
+				continue;
+			}
+
+			G_SetClientReadyState( client, qfalse );
+		}
+	}
+
+	if ( configChanged ) {
+		G_UpdateReadyUpConfigstring();
+	}
+	if ( warmupChanged ) {
+		G_SetGameState( GAME_STATE_PRE_GAME );
+		G_LogPrintf( "Warmup:\n" );
+	}
+}
+
+/*
+=============
+G_CheckReadyUpDelayAction
+
+Mirrors the retail duel delay controller keyed by g_warmupReadyDelay and g_warmupReadyDelayAction.
+=============
+*/
+static void G_CheckReadyUpDelayAction( void ) {
+	int		i;
+	int		eligibleCount;
+	int		readyCount;
+
+	if ( g_gametype.integer != GT_TOURNAMENT || !g_doWarmup.integer || g_warmupReadyDelay.integer <= 0 ) {
+		if ( level.readyUpDelayDeadline != 0 ) {
+			level.readyUpDelayDeadline = 0;
+			G_UpdateReadyUpConfigstring();
+		}
+		return;
+	}
+
+	G_GetDuelReadyStateCounts( &eligibleCount, &readyCount );
+	if ( level.numPlayingClients != 2 || eligibleCount != 2 || readyCount != 1 ) {
+		if ( level.readyUpDelayDeadline != 0 ) {
+			level.readyUpDelayDeadline = 0;
+			G_UpdateReadyUpConfigstring();
+		}
+		return;
+	}
+
+	if ( level.readyUpDelayDeadline == 0 ) {
+		level.readyUpDelayDeadline = level.time + g_warmupReadyDelay.integer * 1000;
+		G_UpdateReadyUpConfigstring();
+		return;
+	}
+
+	if ( level.time <= level.readyUpDelayDeadline ) {
+		return;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[i];
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != TEAM_FREE ) {
+			continue;
+		}
+
+		if ( g_warmupReadyDelayAction.integer == 1 ) {
+			if ( !G_ClientIsReady( client ) ) {
+				SetTeam( &g_entities[i], "s" );
+			} else {
+				G_SetClientReadyState( client, qfalse );
+			}
+		} else if ( g_warmupReadyDelayAction.integer == 2 ) {
+			G_SetClientReadyState( client, qtrue );
+		}
+	}
+
+	level.readyUpDelayDeadline = 0;
+	G_UpdateReadyUpConfigstring();
 }
 
 void G_ApplyTimeoutPauseDelta( int msec ) {
@@ -2909,55 +3600,6 @@ static void G_StopOvertime( void ) {
 	G_UpdateMatchStateConfigString();
 }
 
-
-/*
-=============
-G_HandleForfeit
-
-Transitions the current match into a forfeited state and synchronises timers, scores, and logs.
-=============
-*/
-void G_HandleForfeit( gentity_t *caller ) {
-	int pausedDuration;
-
-	if ( level.matchForfeited ) {
-		return;
-	}
-
-	level.matchForfeited = qtrue;
-
-	pausedDuration = 0;
-	if ( level.timeoutActive ) {
-		if ( level.timeoutStartTime > 0 && level.time > level.timeoutStartTime ) {
-			pausedDuration = level.time - level.timeoutStartTime;
-		}
-		if ( pausedDuration > 0 ) {
-			G_ApplyTimeoutPauseDelta( pausedDuration );
-		}
-	}
-
-	G_ResetTimeoutState();
-	G_StopOvertime();
-	G_UpdateMatchStateConfigString();
-
-	if ( g_gametype.integer >= GT_TEAM ) {
-		level.teamScores[TEAM_RED] = -999;
-		level.teamScores[TEAM_BLUE] = -999;
-		trap_SetConfigstring( CS_SCORES1, va( "%i", level.teamScores[TEAM_RED] ) );
-		trap_SetConfigstring( CS_SCORES2, va( "%i", level.teamScores[TEAM_BLUE] ) );
-	} else if ( g_gametype.integer == GT_TOURNAMENT && caller && caller->client ) {
-		if ( caller->health > 0 ) {
-			caller->flags &= ~FL_GODMODE;
-			caller->client->ps.stats[STAT_HEALTH] = caller->health = -999;
-			caller->client->pers.killCommandTime = level.time;
-			player_die( caller, caller, caller, 100000, MOD_SUICIDE );
-		}
-	}
-
-	trap_SendServerCommand( -1, "print \"Game has been forfeited.\n\"" );
-	LogExit( "Players have forfeited." );
-	CalculateRanks();
-}
 
 static void LevelCheckTimers( void ) {
 	int team;
@@ -3080,6 +3722,8 @@ void CheckTournament( void ) {
 	}
 
 	if ( g_gametype.integer == GT_TOURNAMENT ) {
+		int	eligibleCount;
+		int	readyCount;
 
 		// pull in a spectator if needed
 		if ( level.numPlayingClients < 2 ) {
@@ -3088,12 +3732,7 @@ void CheckTournament( void ) {
 
 		// if we don't have two players, go back to "waiting for players"
 		if ( level.numPlayingClients != 2 ) {
-			if ( level.warmupTime != -1 ) {
-				level.warmupTime = -1;
-				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
-				G_UpdateReadyUpConfigstring();
-				G_LogPrintf( "Warmup:\n" );
-			}
+			G_ResetDuelWarmupState( qfalse );
 			return;
 		}
 
@@ -3101,47 +3740,72 @@ void CheckTournament( void ) {
 			return;
 		}
 
-	if ( level.warmupTime > 0 ) {
-		int remaining = ( level.warmupTime - level.time ) / 1000;
-		if ( remaining < 0 ) {
-			level.warmupTime = 0;
-			trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
-			G_UpdateReadyUpConfigstring();
-			trap_Cvar_Set( "g_gameState", "IN_PROGRESS" );
-			return;
-		}
-		if ( remaining != level.warmupModificationCount ) {
-			level.warmupModificationCount = remaining;
-			if ( remaining == 3 ) {
-				trap_SendServerCommand( -1, "cp \"Match begins in 3...\"" );
-				G_GlobalSound( G_SoundIndex( "sound/world/3.wav" ) );
-			} else if ( remaining == 2 ) {
-				trap_SendServerCommand( -1, "cp \"Match begins in 2...\"" );
-				G_GlobalSound( G_SoundIndex( "sound/world/2.wav" ) );
-			} else if ( remaining == 1 ) {
-				trap_SendServerCommand( -1, "cp \"Match begins in 1...\"" );
-				G_GlobalSound( G_SoundIndex( "sound/world/1.wav" ) );
-			} else if ( remaining == 0 ) {
-				trap_SendServerCommand( -1, "cp \"Match begins!\"" );
-				G_GlobalSound( G_SoundIndex( "sound/world/go.wav" ) );
+		eligibleCount = 0;
+		readyCount = 0;
+		if ( g_doWarmup.integer ) {
+			G_GetDuelReadyStateCounts( &eligibleCount, &readyCount );
+
+			if ( level.warmupTime > 0 && ( eligibleCount != 2 || readyCount != 2 ) ) {
+				G_ResetDuelWarmupState( qtrue );
+				return;
 			}
 		}
-		return;
-	}
+
+		if ( level.warmupTime > 0 ) {
+			int remaining = ( level.warmupTime - level.time ) / 1000;
+
+			if ( remaining < 0 ) {
+				level.warmupTime = 0;
+				level.readyUpDelayDeadline = 0;
+				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+				G_UpdateReadyUpConfigstring();
+				G_SetGameState( GAME_STATE_IN_PROGRESS );
+				return;
+			}
+			if ( remaining != level.warmupModificationCount ) {
+				level.warmupModificationCount = remaining;
+				if ( remaining == 3 ) {
+					trap_SendServerCommand( -1, "cp \"Match begins in 3...\"" );
+					G_GlobalSound( G_SoundIndex( "sound/world/3.wav" ) );
+				} else if ( remaining == 2 ) {
+					trap_SendServerCommand( -1, "cp \"Match begins in 2...\"" );
+					G_GlobalSound( G_SoundIndex( "sound/world/2.wav" ) );
+				} else if ( remaining == 1 ) {
+					trap_SendServerCommand( -1, "cp \"Match begins in 1...\"" );
+					G_GlobalSound( G_SoundIndex( "sound/world/1.wav" ) );
+				} else if ( remaining == 0 ) {
+					trap_SendServerCommand( -1, "cp \"Match begins!\"" );
+					G_GlobalSound( G_SoundIndex( "sound/world/go.wav" ) );
+				}
+			}
+			return;
+		}
 
 		// if the warmup is changed at the console, restart it
 		if ( g_warmup.modificationCount != level.warmupModificationCount ) {
 			level.warmupModificationCount = g_warmup.modificationCount;
 			level.warmupTime = -1;
+			level.readyUpDelayDeadline = 0;
+			trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+			G_UpdateReadyUpConfigstring();
+			G_SetGameState( GAME_STATE_PRE_GAME );
 			G_InitWeaponConfig();
 		}
 
 		// if all players have arrived, start the countdown
 		if ( level.warmupTime < 0 ) {
-			if ( level.numPlayingClients == 2 ) {
+			if ( g_doWarmup.integer ) {
+				if ( eligibleCount == 2 && readyCount == 2 ) {
+					level.warmupTime = level.time + 10000;
+					trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+					G_UpdateReadyUpConfigstring();
+				} else {
+					G_CheckReadyUpDelayAction();
+				}
+			} else if ( level.numPlayingClients == 2 ) {
 				// fudge by -1 to account for extra delays
 				level.warmupTime = level.time + ( g_warmup.integer - 1 ) * 1000;
-				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
+				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
 				G_UpdateReadyUpConfigstring();
 			}
 			return;
@@ -3196,7 +3860,7 @@ void CheckTournament( void ) {
 					if ( cl->pers.connected != CON_CONNECTED || cl->sess.sessionTeam == TEAM_SPECTATOR ) {
 						continue;
 					}
-					if ( !(cl->ps.eFlags & EF_READY) ) {
+					if ( !G_ClientIsReady( cl ) ) {
 						break;
 					}
 					readyCount++;
@@ -3226,7 +3890,7 @@ void CheckTournament( void ) {
 				if ( cl->pers.connected != CON_CONNECTED || cl->sess.sessionTeam == TEAM_SPECTATOR ) {
 					continue;
 				}
-				if ( !(cl->ps.eFlags & EF_READY) ) {
+				if ( !G_ClientIsReady( cl ) ) {
 					break;
 				}
 				readyCount++;
@@ -3257,30 +3921,36 @@ CheckVote
 ==================
 */
 void CheckVote( void ) {
+	int	voteResult;
+
 	if ( level.voteExecuteTime && level.voteExecuteTime < level.time ) {
 		level.voteExecuteTime = 0;
-		trap_SendConsoleCommand( EXEC_APPEND, va( "%s\n", level.voteString ) );
+		if ( G_TryExecuteVoteString( level.voteString ) == qfalse ) {
+			trap_SendConsoleCommand( EXEC_APPEND, va( "%s\n", level.voteString ) );
+		}
 	}
 	if ( !level.voteTime ) {
 		return;
 	}
-	if ( level.time - level.voteTime >= VOTE_TIME ) {
-		trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
-	} else {
-		if ( level.voteYes > level.numVotingClients / 2 ) {
-			// execute the command, then remove the vote
-			trap_SendServerCommand( -1, "print \"Vote passed.\n\"" );
-			level.voteExecuteTime = level.time + 3000;
-		} else if ( level.voteNo >= level.numVotingClients / 2 ) {
-			// same behavior as a timeout
-			trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
-		} else {
-			// still waiting for a majority
-			return;
+
+	voteResult = G_UpdateVoteCounts();
+	if ( voteResult == 1 ) {
+		if ( level.time - level.voteTime >= VOTE_TIME ) {
+			trap_SendServerCommand( -1, "print \"Voting time has expired.\n\"" );
+			G_ClearVoteState();
 		}
+		return;
 	}
-	level.voteTime = 0;
-	trap_SetConfigstring( CS_VOTE_TIME, "" );
+
+	if ( voteResult == 2 ) {
+		trap_SendServerCommand( -1, "print \"Vote passed.\n\"" );
+		G_ClearVoteState();
+		level.voteExecuteTime = level.time + 3000;
+		return;
+	}
+
+	trap_SendServerCommand( -1, "print \"Vote failed.\n\"" );
+	G_ClearVoteState();
 }
 
 /*
@@ -3707,6 +4377,9 @@ void G_RunThink (gentity_t *ent) {
 	float	thinktime;
 
 	thinktime = ent->nextthink;
+	if ( ent->runFrame ) {
+		ent->runFrame( ent, thinktime );
+	}
 	if (thinktime <= 0) {
 		return;
 	}
@@ -3912,8 +4585,10 @@ void G_RunFrame( int levelTime ) {
 		G_QuadHogFrame();
 	}
 	G_FinishClientFrames( ctx );
+	G_SyncTournamentQueueTeamTasks();
 	CheckTournament();
 	G_Frame_UpdateRoundController();
+	G_UpdateTeamCountConfigstrings();
 	G_CheckLevelTimers( ctx, previousWarmupTime, previousIntermissionQueued );
 
 	if ( g_listEntity.integer ) {
@@ -3963,3 +4638,4 @@ static void G_UpdateGametypeTutorialText( void ) {
 		trap_SetConfigstring( CS_FREEZE_TIP_SUMMARY, tips->summary );
 	}
 }
+

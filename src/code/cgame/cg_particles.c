@@ -91,47 +91,33 @@ typedef enum
 #define	MAX_SHADER_ANIMS		32
 #define	MAX_SHADER_ANIM_FRAMES	64
 
-static char *shaderAnimNames[MAX_SHADER_ANIMS] = {
+// Retail HLIL only retains the explode1 animation in the client particle table.
+static const char *shaderAnimNames[MAX_SHADER_ANIMS] = {
 	"explode1",
-	"blacksmokeanim",
-	"twiltb2",
-	"expblue",
-	"blacksmokeanimb",	// uses 'explode1' sequence
-	"blood",
 	NULL
 };
 static qhandle_t shaderAnims[MAX_SHADER_ANIMS][MAX_SHADER_ANIM_FRAMES];
-static int	shaderAnimCounts[MAX_SHADER_ANIMS] = {
-	23,
-	25,
-	45,
-	25,
-	23,
-	5,
+static const int	shaderAnimCounts[MAX_SHADER_ANIMS] = {
+	23
 };
-static float	shaderAnimSTRatio[MAX_SHADER_ANIMS] = {
-	1.405f,
-	1.0f,
-	1.0f,
-	1.0f,
-	1.0f,
-	1.0f,
+static const float	shaderAnimSTRatio[MAX_SHADER_ANIMS] = {
+	1.0f
 };
 static int	numShaderAnims;
 // done.
 
 #define		PARTICLE_GRAVITY	40
-#define		MAX_PARTICLES	1024 * 8
+#define		MAX_PARTICLES	1024
 
-cparticle_t	*active_particles, *free_particles;
-cparticle_t	particles[MAX_PARTICLES];
-int		cl_numparticles = MAX_PARTICLES;
+static cparticle_t	*active_particles, *free_particles;
+static cparticle_t	particles[MAX_PARTICLES];
+static int		cl_numparticles = MAX_PARTICLES;
 
-qboolean		initparticles = qfalse;
-vec3_t			vforward, vright, vup;
-vec3_t			rforward, rright, rup;
+static qboolean	initparticles = qfalse;
+static vec3_t		vforward, vright, vup;
+static vec3_t		rforward, rright, rup;
 
-float			oldtime;
+static float		oldtime;
 
 /*
 ===============
@@ -173,10 +159,49 @@ void CG_ClearParticles (void)
 
 /*
 =====================
+CG_GetParticlePaletteColor
+=====================
+*/
+static void CG_GetParticlePaletteColor( int colorType, vec3_t color )
+{
+	switch ( colorType ) {
+	case 5:
+		VectorSet( color, 0.375f, 0.75f, 1.0f );
+		break;
+	case 6:
+	case 13:
+		VectorSet( color, 1.0f, 0.0f, 0.0f );
+		break;
+	case 7:
+		VectorSet( color, 1.0f, 1.0f, 0.0f );
+		break;
+	case 8:
+		VectorSet( color, 0.4f, 0.6875f, 0.284999996f );
+		break;
+	case 9:
+		VectorSet( color, 0.0f, 0.885999978f, 0.939999998f );
+		break;
+	case 10:
+		VectorSet( color, 1.0f, 0.65f, 1.0f );
+		break;
+	case 11:
+		VectorSet( color, 0.713999987f, 0.879999995f, 0.0f );
+		break;
+	case 12:
+		VectorSet( color, 0.0f, 0.0f, 1.0f );
+		break;
+	default:
+		VectorSet( color, 1.0f, 1.0f, 1.0f );
+		break;
+	}
+}
+
+/*
+=====================
 CG_AddParticleToScene
 =====================
 */
-void CG_AddParticleToScene (cparticle_t *p, vec3_t org, float alpha)
+static void CG_AddParticleToScene (cparticle_t *p, vec3_t org)
 {
 
 	vec3_t		point;
@@ -326,12 +351,14 @@ void CG_AddParticleToScene (cparticle_t *p, vec3_t org, float alpha)
 		}
 	
 	}
-	else if (p->type == P_SPRITE)
+	else if (p->type == P_SPRITE || p->type == P_BAT || p->type == P_ROTATE || p->type == P_FLAT_SCALEUP_FADE)
 	{
 		vec3_t	rr, ru;
 		vec3_t	rotate_ang;
+		float	particleAlpha;
 
-		VectorSet (color, 1.0, 1.0, 1.0);
+		CG_GetParticlePaletteColor( p->color, color );
+		particleAlpha = p->alpha;
 		time = cg.time - p->time;
 		time2 = p->endtime - p->time;
 		ratio = time / time2;
@@ -355,10 +382,10 @@ void CG_AddParticleToScene (cparticle_t *p, vec3_t org, float alpha)
 		VectorCopy (point, verts[0].xyz);	
 		verts[0].st[0] = 0;	
 		verts[0].st[1] = 0;	
-		verts[0].modulate[0] = 255;	
-		verts[0].modulate[1] = 255;	
-		verts[0].modulate[2] = 255;	
-		verts[0].modulate[3] = 255;
+		verts[0].modulate[0] = 255 * color[0];	
+		verts[0].modulate[1] = 255 * color[1];	
+		verts[0].modulate[2] = 255 * color[2];	
+		verts[0].modulate[3] = 255 * particleAlpha;
 
 		if (p->roll) {
 			VectorMA (point, 2*height, ru, point);	
@@ -368,10 +395,10 @@ void CG_AddParticleToScene (cparticle_t *p, vec3_t org, float alpha)
 		VectorCopy (point, verts[1].xyz);	
 		verts[1].st[0] = 0;	
 		verts[1].st[1] = 1;	
-		verts[1].modulate[0] = 255;	
-		verts[1].modulate[1] = 255;	
-		verts[1].modulate[2] = 255;	
-		verts[1].modulate[3] = 255;	
+		verts[1].modulate[0] = 255 * color[0];	
+		verts[1].modulate[1] = 255 * color[1];	
+		verts[1].modulate[2] = 255 * color[2];	
+		verts[1].modulate[3] = 255 * particleAlpha;	
 
 		if (p->roll) {
 			VectorMA (point, 2*width, rr, point);	
@@ -381,10 +408,10 @@ void CG_AddParticleToScene (cparticle_t *p, vec3_t org, float alpha)
 		VectorCopy (point, verts[2].xyz);	
 		verts[2].st[0] = 1;	
 		verts[2].st[1] = 1;	
-		verts[2].modulate[0] = 255;	
-		verts[2].modulate[1] = 255;	
-		verts[2].modulate[2] = 255;	
-		verts[2].modulate[3] = 255;	
+		verts[2].modulate[0] = 255 * color[0];	
+		verts[2].modulate[1] = 255 * color[1];	
+		verts[2].modulate[2] = 255 * color[2];	
+		verts[2].modulate[3] = 255 * particleAlpha;	
 
 		if (p->roll) {
 			VectorMA (point, -2*height, ru, point);	
@@ -394,10 +421,10 @@ void CG_AddParticleToScene (cparticle_t *p, vec3_t org, float alpha)
 		VectorCopy (point, verts[3].xyz);	
 		verts[3].st[0] = 1;	
 		verts[3].st[1] = 0;	
-		verts[3].modulate[0] = 255;	
-		verts[3].modulate[1] = 255;	
-		verts[3].modulate[2] = 255;	
-		verts[3].modulate[3] = 255;	
+		verts[3].modulate[0] = 255 * color[0];	
+		verts[3].modulate[1] = 255 * color[1];	
+		verts[3].modulate[2] = 255 * color[2];	
+		verts[3].modulate[3] = 255 * particleAlpha;	
 	}
 	else if (p->type == P_SMOKE || p->type == P_SMOKE_IMPACT)
 	{// create a front rotating facing polygon
@@ -833,9 +860,7 @@ void CG_AddParticles (void)
 	float			alpha;
 	float			time, time2;
 	vec3_t			org;
-	int				color;
 	cparticle_t		*active, *tail;
-	int				type;
 	vec3_t			rotate_ang;
 
 	if (!initparticles)
@@ -863,7 +888,7 @@ void CG_AddParticles (void)
 		time = (cg.time - p->time)*0.001;
 
 		alpha = p->alpha + time*p->alphavel;
-		if (alpha <= 0)
+		if (!(0.0f < alpha))
 		{	// faded out
 			p->next = free_particles;
 			free_particles = p;
@@ -917,9 +942,9 @@ void CG_AddParticles (void)
 
 		}
 
-		if ((p->type == P_BAT || p->type == P_SPRITE) && p->endtime < 0) {
+		if ((p->type == P_BAT || p->type == P_SPRITE) && !(0.0f <= p->endtime)) {
 			// temporary sprite
-			CG_AddParticleToScene (p, p->org, alpha);
+			CG_AddParticleToScene (p, p->org);
 			p->next = free_particles;
 			free_particles = p;
 			p->type = 0;
@@ -937,20 +962,13 @@ void CG_AddParticles (void)
 			tail = p;
 		}
 
-		if (alpha > 1.0)
-			alpha = 1;
-
-		color = p->color;
-
 		time2 = time*time;
 
 		org[0] = p->org[0] + p->vel[0]*time + p->accel[0]*time2;
 		org[1] = p->org[1] + p->vel[1]*time + p->accel[1]*time2;
 		org[2] = p->org[2] + p->vel[2]*time + p->accel[2]*time2;
 
-		type = p->type;
-
-		CG_AddParticleToScene (p, org, alpha);
+		CG_AddParticleToScene (p, org);
 	}
 
 	active_particles = active;
@@ -961,7 +979,7 @@ void CG_AddParticles (void)
 CG_AddParticles
 ======================
 */
-void CG_ParticleSnowFlurry (qhandle_t pshader, centity_t *cent)
+static void CG_ParticleSnowFlurry (qhandle_t pshader, centity_t *cent)
 {
 	cparticle_t	*p;
 	qboolean turb = qtrue;
@@ -1029,7 +1047,7 @@ void CG_ParticleSnowFlurry (qhandle_t pshader, centity_t *cent)
 
 }
 
-void CG_ParticleSnow (qhandle_t pshader, vec3_t origin, vec3_t origin2, int turb, float range, int snum)
+static void CG_ParticleSnow (qhandle_t pshader, vec3_t origin, vec3_t origin2, int turb, float range, int snum)
 {
 	cparticle_t	*p;
 
@@ -1086,7 +1104,7 @@ void CG_ParticleSnow (qhandle_t pshader, vec3_t origin, vec3_t origin2, int turb
 
 }
 
-void CG_ParticleBubble (qhandle_t pshader, vec3_t origin, vec3_t origin2, int turb, float range, int snum)
+static void CG_ParticleBubble (qhandle_t pshader, vec3_t origin, vec3_t origin2, int turb, float range, int snum)
 {
 	cparticle_t	*p;
 	float		randsize;
@@ -1147,7 +1165,7 @@ void CG_ParticleBubble (qhandle_t pshader, vec3_t origin, vec3_t origin2, int tu
 
 }
 
-void CG_ParticleSmoke (qhandle_t pshader, centity_t *cent)
+static void CG_ParticleSmoke (qhandle_t pshader, centity_t *cent)
 {
 
 	// using cent->density = enttime
@@ -1195,7 +1213,7 @@ void CG_ParticleSmoke (qhandle_t pshader, centity_t *cent)
 }
 
 
-void CG_ParticleBulletDebris (vec3_t org, vec3_t vel, int duration)
+static void CG_ParticleBulletDebris (vec3_t org, vec3_t vel, int duration)
 {
 
 	cparticle_t	*p;
@@ -1242,7 +1260,7 @@ CG_ParticleExplosion
 ======================
 */
 
-void CG_ParticleExplosion (char *animStr, vec3_t origin, vec3_t vel, int duration, int sizeStart, int sizeEnd)
+void CG_ParticleExplosion (const char *animStr, vec3_t origin, vec3_t vel, int duration, int sizeStart, int sizeEnd)
 {
 	cparticle_t	*p;
 	int anim;
@@ -1252,7 +1270,7 @@ void CG_ParticleExplosion (char *animStr, vec3_t origin, vec3_t vel, int duratio
 
 	// find the animation string
 	for (anim=0; shaderAnimNames[anim]; anim++) {
-		if (!stricmp( animStr, shaderAnimNames[anim] ))
+		if (!Q_stricmp( animStr, shaderAnimNames[anim] ))
 			break;
 	}
 	if (!shaderAnimNames[anim]) {
@@ -1267,7 +1285,7 @@ void CG_ParticleExplosion (char *animStr, vec3_t origin, vec3_t vel, int duratio
 	p->next = active_particles;
 	active_particles = p;
 	p->time = cg.time;
-	p->alpha = 1.0;
+	p->alpha = 0.5f;
 	p->alphavel = 0;
 
 	if (duration < 0) {
@@ -1296,7 +1314,7 @@ void CG_ParticleExplosion (char *animStr, vec3_t origin, vec3_t vel, int duratio
 }
 
 // Rafael Shrapnel
-void CG_AddParticleShrapnel (localEntity_t *le)
+static void CG_AddParticleShrapnel (localEntity_t *le)
 {
 	return;
 }
@@ -1398,7 +1416,7 @@ void	CG_SnowLink (centity_t *cent, qboolean particleOn)
 	}
 }
 
-void CG_ParticleImpactSmokePuff (qhandle_t pshader, vec3_t origin)
+static void CG_ParticleImpactSmokePuff (qhandle_t pshader, vec3_t origin)
 {
 	cparticle_t	*p;
 
@@ -1438,7 +1456,7 @@ void CG_ParticleImpactSmokePuff (qhandle_t pshader, vec3_t origin)
 	p->rotate = qtrue;
 }
 
-void CG_Particle_Bleed (qhandle_t pshader, vec3_t start, vec3_t dir, int fleshEntityNum, int duration)
+static void CG_Particle_Bleed (qhandle_t pshader, vec3_t start, vec3_t dir, int fleshEntityNum, int duration)
 {
 	cparticle_t	*p;
 
@@ -1488,7 +1506,7 @@ void CG_Particle_Bleed (qhandle_t pshader, vec3_t start, vec3_t dir, int fleshEn
 
 }
 
-void CG_Particle_OilParticle (qhandle_t pshader, centity_t *cent)
+static void CG_Particle_OilParticle (qhandle_t pshader, centity_t *cent)
 {
 	cparticle_t	*p;
 
@@ -1552,7 +1570,7 @@ void CG_Particle_OilParticle (qhandle_t pshader, centity_t *cent)
 }
 
 
-void CG_Particle_OilSlick (qhandle_t pshader, centity_t *cent)
+static void CG_Particle_OilSlick (qhandle_t pshader, centity_t *cent)
 {
 	cparticle_t	*p;
 	
@@ -1618,7 +1636,7 @@ void CG_Particle_OilSlick (qhandle_t pshader, centity_t *cent)
 
 }
 
-void CG_OilSlickRemove (centity_t *cent)
+static void CG_OilSlickRemove (centity_t *cent)
 {
 	cparticle_t		*p, *next;
 	int				id;
@@ -1646,7 +1664,7 @@ void CG_OilSlickRemove (centity_t *cent)
 	}
 }
 
-qboolean ValidBloodPool (vec3_t start)
+static qboolean ValidBloodPool (vec3_t start)
 {
 #define EXTRUDE_DIST	0.5
 
@@ -1692,7 +1710,7 @@ qboolean ValidBloodPool (vec3_t start)
 	return qtrue;
 }
 
-void CG_BloodPool (localEntity_t *le, qhandle_t pshader, trace_t *tr)
+static void CG_BloodPool (localEntity_t *le, qhandle_t pshader, trace_t *tr)
 {	
 	cparticle_t	*p;
 	qboolean	legit;
@@ -1755,7 +1773,7 @@ void CG_BloodPool (localEntity_t *le, qhandle_t pshader, trace_t *tr)
 #define NORMALSIZE	16
 #define LARGESIZE	32
 
-void CG_ParticleBloodCloud (centity_t *cent, vec3_t origin, vec3_t dir)
+static void CG_ParticleBloodCloud (centity_t *cent, vec3_t origin, vec3_t dir)
 {
 	float	length;
 	float	dist;
@@ -1832,7 +1850,7 @@ void CG_ParticleBloodCloud (centity_t *cent, vec3_t origin, vec3_t dir)
 	
 }
 
-void CG_ParticleSparks (vec3_t org, vec3_t vel, int duration, float x, float y, float speed)
+static void CG_ParticleSparks (vec3_t org, vec3_t vel, int duration, float x, float y, float speed)
 {
 	cparticle_t	*p;
 
@@ -1880,7 +1898,7 @@ void CG_ParticleSparks (vec3_t org, vec3_t vel, int duration, float x, float y, 
 	
 }
 
-void CG_ParticleDust (centity_t *cent, vec3_t origin, vec3_t dir)
+static void CG_ParticleDust (centity_t *cent, vec3_t origin, vec3_t dir)
 {
 	float	length;
 	float	dist;
@@ -1976,7 +1994,7 @@ void CG_ParticleDust (centity_t *cent, vec3_t origin, vec3_t dir)
 	
 }
 
-void CG_ParticleMisc (qhandle_t pshader, vec3_t origin, int size, int duration, float alpha)
+static void CG_ParticleMisc (qhandle_t pshader, vec3_t origin, int size, int duration, float alpha)
 {
 	cparticle_t	*p;
 
@@ -1991,7 +2009,8 @@ void CG_ParticleMisc (qhandle_t pshader, vec3_t origin, int size, int duration, 
 	p->next = active_particles;
 	active_particles = p;
 	p->time = cg.time;
-	p->alpha = 1.0;
+	p->color = 0;
+	p->alpha = alpha;
 	p->alphavel = 0;
 	p->roll = rand()%179;
 

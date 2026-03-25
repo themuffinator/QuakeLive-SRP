@@ -6,11 +6,12 @@ This matrix captures the expected authentication behaviour across Steam-only, op
 
 | Build flag preset | `QL_PLATFORM_HAS_STEAMWORKS` | `QL_PLATFORM_HAS_OPEN_STEAM` | Effective provider | Dispatch endpoint |
 | --- | --- | --- | --- | --- |
-| Steam-only (`QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=0`) | `1` | `0` | Steamworks | `/steam/session/validate` |
-| Open-only (`QL_BUILD_STEAMWORKS=0`, `QL_BUILD_OPEN_STEAM=1`) | `0` | `1` | Open Steam Adapter | `/launcher/auth/verify` |
-| Hybrid (`QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=1`) | `1` | `1` | Hybrid dispatcher (Steam primary, open fallback) | Steam: `/steam/session/validate`<br>Fallback: `/launcher/auth/verify` |
+| Default offline (`QL_BUILD_ONLINE_SERVICES=0`) | `0` | `0` | `Build-disabled (QL_BUILD_ONLINE_SERVICES=0)` | none; policy stubs reject live-service auth attempts |
+| Steam-only (`QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=0`) | `1` | `0` | Steamworks | `/steam/session/validate` |
+| Open-only (`QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=0`, `QL_BUILD_OPEN_STEAM=1`) | `0` | `1` | Open Steam Adapter | `/launcher/auth/verify` |
+| Hybrid (`QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=1`) | `1` | `1` | Hybrid dispatcher (Steam primary, open fallback) | Steam: `/steam/session/validate`<br>Fallback: `/launcher/auth/verify` |
 
-The `platform_config.h` macros turn the `QL_BUILD_*` definitions into capability flags, and `platform_services.c` exposes the matching provider names via `QL_GetPlatformServices`.【F:src/common/platform/platform_config.h†L1-L37】【F:src/common/platform/platform_services.c†L1-L54】
+The `platform_config.h` macros turn the `QL_BUILD_*` definitions into capability flags, force the service-specific provider flags off when `QL_BUILD_ONLINE_SERVICES=0`, and `platform_services.c` exposes the matching provider names via `QL_GetPlatformServices`.【F:src/common/platform/platform_config.h†L1-L40】【F:src/common/platform/platform_services.c†L1-L89】
 
 ## Test Plan: Steam-only Build
 
@@ -18,7 +19,7 @@ The `platform_config.h` macros turn the `QL_BUILD_*` definitions into capability
 
 **Preconditions**
 
-- Build with `QL_BUILD_STEAMWORKS=1` and `QL_BUILD_OPEN_STEAM=0`, allowing only the Steamworks capability flags to resolve in `QL_GetPlatformServices`.【F:src/common/platform/platform_config.h†L1-L37】【F:src/common/platform/platform_services.c†L1-L54】
+- Build with `QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=1`, and `QL_BUILD_OPEN_STEAM=0`, allowing only the Steamworks capability flags to resolve in `QL_GetPlatformServices`.【F:src/common/platform/platform_config.h†L1-L40】【F:src/common/platform/platform_services.c†L1-L89】
 - Prepare a Steam credential (e.g., `steam:<token>`) for `QL_ParseCredentialString`.【F:src/common/auth_credentials.c†L62-L105】
 
 **Procedure**
@@ -42,7 +43,7 @@ The `platform_config.h` macros turn the `QL_BUILD_*` definitions into capability
 
 **Preconditions**
 
-- Build with `QL_BUILD_STEAMWORKS=0` and `QL_BUILD_OPEN_STEAM=1`, restricting the capability flags to the open adapter.【F:src/common/platform/platform_config.h†L1-L37】【F:src/common/platform/platform_services.c†L1-L54】
+- Build with `QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=0`, and `QL_BUILD_OPEN_STEAM=1`, restricting the capability flags to the open adapter.【F:src/common/platform/platform_config.h†L1-L40】【F:src/common/platform/platform_services.c†L1-L89】
 - Prepare launcher credentials (e.g., `standalone:<token>`).【F:src/common/auth_credentials.c†L69-L105】
 
 **Procedure**
@@ -65,7 +66,7 @@ The `platform_config.h` macros turn the `QL_BUILD_*` definitions into capability
 
 **Preconditions**
 
-- Enable both providers (`QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=1`). This configuration exposes the hybrid dispatcher that wraps both handlers.【F:src/common/platform/platform_config.h†L1-L37】【F:src/common/platform/platform_services.c†L1-L54】
+- Enable both providers with the master flag (`QL_BUILD_ONLINE_SERVICES=1`, `QL_BUILD_STEAMWORKS=1`, `QL_BUILD_OPEN_STEAM=1`). This configuration exposes the hybrid dispatcher that wraps both handlers.【F:src/common/platform/platform_config.h†L1-L40】【F:src/common/platform/platform_services.c†L1-L89】
 - Prepare a Steam credential containing the substring `retry` so the Steamworks result returns `QL_AUTH_RESULT_PENDING`.【F:src/code/client/ql_auth.c†L111-L163】
 
 **Procedure**

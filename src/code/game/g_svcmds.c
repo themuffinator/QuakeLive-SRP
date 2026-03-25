@@ -446,27 +446,18 @@ Reports the current flood protection counters for each connected client.
 static void Svcmd_FloodStatus_f( void ) {
 	int			maxCount;
 	int			decay;
-	int			penalty;
 	int			visibleClients;
 	qboolean	found;
 	int			i;
 
 	maxCount = g_floodprot_maxcount.integer;
 	decay = g_floodprot_decay.integer;
-	penalty = g_floodprot_penalty.integer;
 	if ( maxCount <= 0 || decay <= 0 ) {
 		G_Printf( "Flood protection is disabled. Set g_floodprot_maxcount and g_floodprot_decay to enable it.\n" );
 		return;
 	}
 
-	if ( penalty <= 0 ) {
-		penalty = decay * maxCount;
-		if ( penalty <= 0 ) {
-			penalty = decay;
-		}
-	}
-
-	G_Printf( "Flood protection window: %d uses / %dms decay / %dms penalty\n", maxCount, decay, penalty );
+	G_Printf( "Flood protection window: %d uses / %dms decay / drop-on-overflow\n", maxCount, decay );
 	found = qfalse;
 	visibleClients = 0;
 
@@ -474,7 +465,7 @@ static void Svcmd_FloodStatus_f( void ) {
 		gclient_t       *cl;
 		char            lastBuffer[32];
 		const char      *lastDesc;
-		int             penaltyRemaining;
+		const char      *state;
 		int             sinceLast;
 
 		cl = &level.clients[i];
@@ -483,11 +474,6 @@ static void Svcmd_FloodStatus_f( void ) {
 		}
 
 		visibleClients++;
-		penaltyRemaining = cl->floodPenaltyTime - level.time;
-		if ( penaltyRemaining < 0 ) {
-			penaltyRemaining = 0;
-		}
-
 		sinceLast = ( cl->floodLastTime > 0 ) ? level.time - cl->floodLastTime : -1;
 		if ( sinceLast >= 0 ) {
 			Com_sprintf( lastBuffer, sizeof( lastBuffer ), "%ims ago", sinceLast );
@@ -496,17 +482,18 @@ static void Svcmd_FloodStatus_f( void ) {
 			lastDesc = "no activity";
 		}
 
-		if ( cl->floodCount <= 0 && penaltyRemaining <= 0 ) {
+		if ( cl->floodCount <= 0 ) {
 			continue;
 		}
 
+		state = ( cl->floodCount > maxCount ) ? "pending_drop" : "tracking";
 		found = qtrue;
-		G_Printf( "#%i %s: count=%i penalty=%ims last=%s\n", i, cl->pers.netname, cl->floodCount, penaltyRemaining, lastDesc );
+		G_Printf( "#%i %s: count=%i state=%s last=%s\n", i, cl->pers.netname, cl->floodCount, state, lastDesc );
 	}
 
 	if ( !found ) {
 		if ( visibleClients > 0 ) {
-			G_Printf( "No clients currently have flood counters or penalties.\n" );
+			G_Printf( "No clients currently have flood counters pending decay or drop.\n" );
 		} else {
 			G_Printf( "No active clients to report.\n" );
 		}
@@ -563,6 +550,17 @@ void Cmd_RandomMap_f( void ) {
 
 /*
 =================
+Svcmd_ScorestatsDump_f
+
+Pushes a full scoreboard refresh so scorestats-side ownerdraw payloads can be inspected at runtime.
+=================
+*/
+static void Svcmd_ScorestatsDump_f( void ) {
+	SendScoreboardMessageToAllClients();
+}
+
+/*
+=================
 ConsoleCommand
 
 =================
@@ -591,6 +589,10 @@ qboolean	ConsoleCommand( void ) {
 	}
 	if ( Q_stricmp (cmd, "randommap") == 0 ) {
 		Cmd_RandomMap_f();
+		return qtrue;
+	}
+	if ( Q_stricmp( cmd, "scorestats_dump" ) == 0 ) {
+		Svcmd_ScorestatsDump_f();
 		return qtrue;
 	}
 

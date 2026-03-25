@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_match_config.h"
 #include "../game/match_state_keys.h"
 
+static int s_nextTeamCountConfigstringUpdateTime;
+
 /*
 =============
 G_SetMatchStateInt
@@ -68,6 +70,74 @@ static void G_SetMatchFactoryConfigFields( char *info, const matchFactoryConfig_
 
 /*
 =============
+G_UsesRoundControllerTeamCounts
+
+Returns qtrue when retail publishes live PM_NORMAL team counts instead of raw rosters.
+=============
+*/
+static qboolean G_UsesRoundControllerTeamCounts( void ) {
+	switch ( g_gametype.integer ) {
+	case GT_CLAN_ARENA:
+	case GT_ATTACK_DEFEND:
+	case GT_FREEZE:
+	case GT_RED_ROVER:
+		return ( level.roundState != ROUNDSTATE_INACTIVE ) ? qtrue : qfalse;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+=============
+G_BuildPublishedTeamCounts
+
+Builds the retail-facing team-count payload for HUD and match-state publishers.
+=============
+*/
+static void G_BuildPublishedTeamCounts( int counts[TEAM_NUM_TEAMS] ) {
+	if ( !counts ) {
+		return;
+	}
+
+	if ( g_gametype.integer < GT_TEAM ) {
+		memset( counts, 0, sizeof( int ) * TEAM_NUM_TEAMS );
+		return;
+	}
+
+	if ( G_UsesRoundControllerTeamCounts() ) {
+		G_CountActivePlayersByTeam( counts );
+		return;
+	}
+
+	G_CountConnectedClientsByTeam( counts );
+}
+
+/*
+=============
+G_UpdateTeamCountConfigstrings
+
+Refreshes the auxiliary retail team-count configstrings on the observed 250 ms cadence.
+=============
+*/
+void G_UpdateTeamCountConfigstrings( void ) {
+	int counts[TEAM_NUM_TEAMS];
+
+	if ( level.time < ( s_nextTeamCountConfigstringUpdateTime - 250 ) ) {
+		s_nextTeamCountConfigstringUpdateTime = 0;
+	}
+
+	if ( level.time < s_nextTeamCountConfigstringUpdateTime ) {
+		return;
+	}
+
+	G_BuildPublishedTeamCounts( counts );
+	trap_SetConfigstring( CS_TEAM_COUNT_RED, va( "%i", counts[TEAM_RED] ) );
+	trap_SetConfigstring( CS_TEAM_COUNT_BLUE, va( "%i", counts[TEAM_BLUE] ) );
+	s_nextTeamCountConfigstringUpdateTime = level.time + 250;
+}
+
+/*
+=============
 G_UpdateMatchStateConfigString
 
 Builds the configstring payload describing round timers, overtime, and timeout state.
@@ -76,6 +146,7 @@ Builds the configstring payload describing round timers, overtime, and timeout s
 void G_UpdateMatchStateConfigString( void ) {
 	char info[MAX_INFO_STRING];
 	const matchFactoryConfig_t *config;
+	int counts[TEAM_NUM_TEAMS];
 	int red;
 	int blue;
 	int duel;
@@ -102,7 +173,11 @@ void G_UpdateMatchStateConfigString( void ) {
 		blue = 0;
 	}
 
-	turn = level.roundNumber & 1;
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		turn = level.adTurnIndex;
+	} else {
+		turn = level.roundNumber & 1;
+	}
 
 	G_SetMatchStateInt( info, MATCH_STATE_KEY_TIME, level.roundTransitionTime );
 	G_SetMatchStateInt( info, MATCH_STATE_KEY_ROUND, level.roundNumber );
@@ -121,11 +196,10 @@ void G_UpdateMatchStateConfigString( void ) {
 	G_SetMatchFactoryConfigFields( info, config );
 
 	if ( g_gametype.integer >= GT_TEAM ) {
-		int redCount = TeamCount( -1, TEAM_RED );
-		int blueCount = TeamCount( -1, TEAM_BLUE );
+		G_BuildPublishedTeamCounts( counts );
 
-		G_SetMatchStateInt( info, MATCH_STATE_KEY_TEAM_RED_COUNT, redCount );
-		G_SetMatchStateInt( info, MATCH_STATE_KEY_TEAM_BLUE_COUNT, blueCount );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_TEAM_RED_COUNT, counts[TEAM_RED] );
+		G_SetMatchStateInt( info, MATCH_STATE_KEY_TEAM_BLUE_COUNT, counts[TEAM_BLUE] );
 		G_SetMatchStateInt( info, MATCH_STATE_KEY_RESPAWN_RED, Team_GetRespawnRatioForTeam( TEAM_RED ) );
 		G_SetMatchStateInt( info, MATCH_STATE_KEY_RESPAWN_BLUE, Team_GetRespawnRatioForTeam( TEAM_BLUE ) );
 		G_SetMatchStateInt( info, MATCH_STATE_KEY_SHUFFLE_ARMED, Team_IsAutoShuffleArmed() ? 1 : 0 );
@@ -133,4 +207,5 @@ void G_UpdateMatchStateConfigString( void ) {
 	}
 
 	trap_SetConfigstring( CS_MATCH_STATE, info );
+	trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );
 }

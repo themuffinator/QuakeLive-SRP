@@ -37,6 +37,97 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define UI_INGAME_FILE_QUAKELIVE "ui/ingame.txt"
 #define UI_INGAME_FILE_QUAKELIVE_BRIDGE "ui/ingame_quakelive_bridge.auto.txt"
 
+/*
+=============
+Retail compatibility gaps
+
+The read-only Quake Live `src/ui/menudef.h` drops several older GPL-era ids
+that `ui_main.c` still references for dormant compatibility paths. Define them
+locally so the native UI DLL can build against the retail menu tree.
+=============
+*/
+#ifndef FEEDER_MATCHSUMMARY_END
+#define FEEDER_MATCHSUMMARY_END			0x15
+#endif
+#ifndef FEEDER_MATCHSUMMARY_RED
+#define FEEDER_MATCHSUMMARY_RED			0x16
+#endif
+#ifndef FEEDER_MATCHSUMMARY_BLUE
+#define FEEDER_MATCHSUMMARY_BLUE		0x17
+#endif
+
+#ifndef FEEDER_MAP_ROTATIONS
+#define FEEDER_MAP_ROTATIONS			0x18
+#endif
+
+#ifndef callvoteRotationIndex
+#define callvoteRotationIndex		currentMapRotation
+#endif
+
+#ifndef UI_EFFECTS
+#define UI_EFFECTS				600
+#endif
+#ifndef UI_CLANNAME
+#define UI_CLANNAME				601
+#endif
+#ifndef UI_CLANLOGO
+#define UI_CLANLOGO				602
+#endif
+#ifndef UI_PLAYERLOGO
+#define UI_PLAYERLOGO			603
+#endif
+#ifndef UI_PLAYERLOGO_METAL
+#define UI_PLAYERLOGO_METAL		604
+#endif
+#ifndef UI_PLAYERLOGO_NAME
+#define UI_PLAYERLOGO_NAME		605
+#endif
+#ifndef UI_OPPONENTLOGO
+#define UI_OPPONENTLOGO			606
+#endif
+#ifndef UI_OPPONENTLOGO_METAL
+#define UI_OPPONENTLOGO_METAL	607
+#endif
+#ifndef UI_OPPONENTLOGO_NAME
+#define UI_OPPONENTLOGO_NAME	608
+#endif
+#ifndef UI_BLUETEAMNAME
+#define UI_BLUETEAMNAME			609
+#endif
+#ifndef UI_REDTEAMNAME
+#define UI_REDTEAMNAME			610
+#endif
+#ifndef UI_BLUETEAM1
+#define UI_BLUETEAM1			611
+#endif
+#ifndef UI_BLUETEAM2
+#define UI_BLUETEAM2			612
+#endif
+#ifndef UI_BLUETEAM3
+#define UI_BLUETEAM3			613
+#endif
+#ifndef UI_BLUETEAM4
+#define UI_BLUETEAM4			614
+#endif
+#ifndef UI_BLUETEAM5
+#define UI_BLUETEAM5			615
+#endif
+#ifndef UI_REDTEAM1
+#define UI_REDTEAM1				616
+#endif
+#ifndef UI_REDTEAM2
+#define UI_REDTEAM2				617
+#endif
+#ifndef UI_REDTEAM3
+#define UI_REDTEAM3				618
+#endif
+#ifndef UI_REDTEAM4
+#define UI_REDTEAM4				619
+#endif
+#ifndef UI_REDTEAM5
+#define UI_REDTEAM5				620
+#endif
+
 // global display context
 
 extern vmCvar_t	ui_ffa_fraglimit;
@@ -224,6 +315,8 @@ qhandle_t UI_ImageCache_Register( const char *uri );
 void UI_ImageCache_Shutdown( void );
 const char *UI_DefaultMenuFile(void);
 const char *UI_DefaultIngameFile(void);
+void UI_ParseMenu(const char *menuFile);
+int UI_ParseCallvoteGametypeToken(const char *token);
 
 #define RCOLUMN_OFFSET			( BIGCHAR_WIDTH )
 #define LCOLUMN_OFFSET			(-BIGCHAR_WIDTH )
@@ -232,7 +325,7 @@ const char *UI_DefaultIngameFile(void);
 #define	MAX_EDIT_LINE			256
 
 #define MAX_MENUDEPTH			8
-#define MAX_MENUITEMS			96
+#define MAX_MENUITEMS			1024
 
 #define MTYPE_NULL				0
 #define MTYPE_SLIDER			1	
@@ -442,6 +535,7 @@ extern sfxHandle_t	MenuField_Key( menufield_s* m, int* key );
 //
 void UI_Report();
 void UI_Load();
+void UI_ListPlayerModels( void );
 void UI_LoadMenus(const char *menuFile, qboolean reset);
 void _UI_SetActiveMenu( uiMenuCommand_t menu );
 int UI_AdjustTimeByGame(int time);

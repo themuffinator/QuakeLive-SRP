@@ -145,6 +145,11 @@ Skips over a JSON string literal, handling escapes.
 =============
 */
 static qboolean SV_FactorySkipJsonString( svFactoryParseState_t *state ) {
+	if ( !state || !state->cursor || state->cursor >= state->end ) {
+		return qfalse;
+	}
+
+	SV_FactorySkipWhitespace( state );
 	if ( !state || !state->cursor || state->cursor >= state->end || *state->cursor != '"' ) {
 		SV_FactoryReportParseError( state, "expected string" );
 		return qfalse;
@@ -289,9 +294,9 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 										}
 
 										switch ( *state->cursor ) {
-										case '{':
-												state->cursor++;
-												while ( state->cursor < state->end ) {
+													case '{':
+															state->cursor++;
+															while ( state->cursor < state->end ) {
 													if ( !SV_FactorySkipJsonString( state ) ) {
 														return qfalse;
 													}
@@ -309,14 +314,19 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 														state->cursor++;
 														return qtrue;
 													}
-													if ( *state->cursor != ',' ) {
-														SV_FactoryReportParseError( state, "expected ',' or '}'" );
+															if ( *state->cursor != ',' ) {
+																SV_FactoryReportParseError( state, "expected ',' or '}'" );
+																return qfalse;
+															}
+															state->cursor++;
+															SV_FactorySkipWhitespace( state );
+															if ( state->cursor < state->end && *state->cursor == '}' ) {
+																state->cursor++;
+																return qtrue;
+															}
+														}
+														SV_FactoryReportParseError( state, "unterminated object" );
 														return qfalse;
-													}
-													state->cursor++;
-												}
-												SV_FactoryReportParseError( state, "unterminated object" );
-												return qfalse;
 											case '[':
 													state->cursor++;
 													while ( state->cursor < state->end ) {
@@ -331,12 +341,17 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 															state->cursor++;
 															return qtrue;
 														}
-														if ( *state->cursor != ',' ) {
-															SV_FactoryReportParseError( state, "expected ',' or ']'" );
-															return qfalse;
+															if ( *state->cursor != ',' ) {
+																SV_FactoryReportParseError( state, "expected ',' or ']'" );
+																return qfalse;
+															}
+															state->cursor++;
+															SV_FactorySkipWhitespace( state );
+															if ( state->cursor < state->end && *state->cursor == ']' ) {
+																state->cursor++;
+																return qtrue;
+															}
 														}
-														state->cursor++;
-													}
 													SV_FactoryReportParseError( state, "unterminated array" );
 													return qfalse;
 												case '"':
@@ -355,10 +370,10 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 													=============
 													*/
 													static qboolean SV_FactoryMapBaseGametype( const char *token, gametype_t *outType ) {
-														static const struct {
-															const char *name;
-															gametype_t type;
-														} s_gametypeMap[] = {
+	static const struct {
+		const char *name;
+		gametype_t type;
+	} s_gametypeMap[] = {
 															{ "ffa", GT_FFA },
 															{ "duel", GT_TOURNAMENT },
 															{ "race", GT_RACE },
@@ -367,11 +382,12 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 															{ "ctf", GT_CTF },
 															{ "oneflag", GT_1FCTF },
 															{ "dom", GT_DOMINATION },
-															{ "ad", GT_ATTACK_DEFEND },
-															{ "ft", GT_FREEZE },
-															{ "har", GT_HARVESTER },
-															{ "rr", GT_RED_ROVER }
-														};
+		{ "ad", GT_ATTACK_DEFEND },
+		{ "ft", GT_FREEZE },
+		{ "har", GT_HARVESTER },
+		{ "obelisk", GT_OBELISK },
+		{ "rr", GT_RED_ROVER }
+	};
 														int i;
 
 														if ( !token || !*token ) {
@@ -474,6 +490,11 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 																goto fail;
 															}
 															state->cursor++;
+															SV_FactorySkipWhitespace( state );
+															if ( state->cursor < state->end && *state->cursor == '}' ) {
+																state->cursor++;
+																break;
+															}
 														}
 
 														if ( !id ) {
@@ -538,12 +559,13 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 													=============
 													SV_FactoryParseFactoriesBuffer
 
-													Reads a JSON array of factory definitions from memory.
+													Reads factory definitions from a JSON document (array or singleton object).
 													=============
 													*/
 													static int SV_FactoryParseFactoriesBuffer( const char *filename, const char *buffer, int length ) {
 														svFactoryParseState_t state;
 														int count;
+														svFactoryDefinition_t *definition;
 
 														if ( !buffer || length <= 0 ) {
 															return 0;
@@ -555,7 +577,33 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 														state.line = 1;
 
 														SV_FactorySkipWhitespace( &state );
+														if ( state.cursor >= state.end || *state.cursor == '\0' ) {
+															return 0;
+														}
+
+														count = 0;
+														if ( *state.cursor == '{' ) {
+															definition = SV_FactoryParseDefinition( &state, filename );
+															if ( !definition ) {
+																return 0;
+															}
+															if ( SV_FactoryRegisterDefinition( definition ) ) {
+																count++;
+															}
+															SV_FactorySkipWhitespace( &state );
+															if ( state.cursor < state.end ) {
+																SV_FactorySkipWhitespace( &state );
+																if ( state.cursor < state.end && *state.cursor == ',' ) {
+																	state.cursor++;
+																	SV_FactorySkipWhitespace( &state );
+																}
+																SV_FactoryReportParseError( &state, "trailing data after factory object" );
+															}
+															return count;
+														}
+
 														if ( !SV_FactoryParseExpectedChar( &state, '[' ) ) {
+															SV_FactoryReportParseError( &state, "expected '[' or '{'" );
 															return 0;
 														}
 
@@ -582,6 +630,11 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 																return count;
 															}
 															state.cursor++;
+															SV_FactorySkipWhitespace( &state );
+															if ( state.cursor < state.end && *state.cursor == ']' ) {
+																state.cursor++;
+																return count;
+															}
 														}
 
 														SV_FactoryReportParseError( &state, "unterminated factory array" );

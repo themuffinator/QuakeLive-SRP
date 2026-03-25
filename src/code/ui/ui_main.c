@@ -32,6 +32,7 @@ USER INTERFACE MAIN
 //#define PRE_RELEASE_TADEMO
 
 #include "ui_local.h"
+#include <stdint.h>
 #include <stdlib.h>
 
 uiInfo_t uiInfo;
@@ -136,6 +137,7 @@ static void UI_BuildFindPlayerList(qboolean force);
 static int QDECL UI_ServersQsortCompare( const void *arg1, const void *arg2 );
 static int UI_MapCountByGameType(qboolean singlePlayer);
 static int UI_HeadCountByTeam( void );
+static void UI_GetTeamColor(vec4_t *color);
 static void UI_ParseGameInfo(const char *teamFile);
 static void UI_ParseTeamInfo(const char *teamFile);
 static void UI_LoadCountries(void);
@@ -145,6 +147,14 @@ static void UI_ResetClanList(void);
 	static const char *UI_SelectedMap(int index, int *actual);
 	static const char *UI_SelectedHead(int index, int *actual);
 	static int UI_GetIndexFromSelection(int actual);
+	static int UI_GetCallvoteRotationGametype(const mapRotationInfo_t *rotation);
+	static int UI_CountVisibleCallvoteRotations(void);
+	static void UI_HandleCallvoteMapPreviewScript(void);
+	static void UI_HandleCallvotePresetScript(void);
+	int Text_Width(const char *text, float scale, int limit);
+	void Text_Paint(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style);
+	void _UI_Init( qboolean inGameLoad );
+	void _UI_Shutdown( void );
 
 	int ProcessNewUI( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6 );
 
@@ -162,6 +172,10 @@ static void UI_ResetClanList(void);
 	vmCvar_t  ui_teamArenaFirstRun;
 	vmCvar_t  ui_menuFlow;
 	vmCvar_t  ui_browserAwesomium;
+	extern vmCvar_t ui_cvGameType;
+	extern vmCvar_t ui_cvPresetRotation;
+	extern vmCvar_t ui_cvPresetGametype;
+	extern vmCvar_t ui_cvPresetActive;
 
 	static uiMenuFlow_t ui_activeMenuFlow = UI_MENU_FLOW_QUAKELIVE;
 	static qboolean ui_browserActiveKnown = qfalse;
@@ -451,9 +465,6 @@ static void UI_UpdateActiveMenuFlow(void) {
 /*
 =============
 UI_ApplyMenuFlowChange
-/*
-=============
-UI_ApplyMenuFlowChange
 
 Apply a menu flow change and optionally reload the UI to pick up new defaults.
 =============
@@ -466,6 +477,153 @@ void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload) {
 	}
 }
 
+/*
+=============
+UI_RefreshDisplayContextScale
+
+Refreshes the retail-compatible 640x480 scale state from the current renderer config.
+=============
+*/
+static int UI_RefreshDisplayContextScale(void) {
+	trap_GetGlconfig(&uiInfo.uiDC.glconfig);
+
+	uiInfo.uiDC.yscale = uiInfo.uiDC.glconfig.vidHeight * (1.0f / 480.0f);
+	uiInfo.uiDC.xscale = uiInfo.uiDC.glconfig.vidWidth * (1.0f / 640.0f);
+	if (uiInfo.uiDC.glconfig.vidWidth * SCREEN_HEIGHT > uiInfo.uiDC.glconfig.vidHeight * SCREEN_WIDTH) {
+		uiInfo.uiDC.bias = 0.5f * (uiInfo.uiDC.glconfig.vidWidth - (uiInfo.uiDC.glconfig.vidHeight * (640.0f / 480.0f)));
+	} else {
+		uiInfo.uiDC.bias = 0.0f;
+	}
+
+	return uiInfo.uiDC.glconfig.vidWidth * SCREEN_HEIGHT;
+}
+
+/*
+=============
+UI_RefreshDisplayContext
+
+Refreshes the UI display context scale state and republishes the active display context.
+=============
+*/
+static int UI_RefreshDisplayContext(void) {
+	int result = UI_RefreshDisplayContextScale();
+
+	Init_Display(&uiInfo.uiDC);
+	return result;
+}
+
+/*
+=============
+UI_ForEachArenaName
+
+Visits each loaded arena display name for native host consumers.
+=============
+*/
+static void UI_ForEachArenaName(uiArenaNameCallback_t callback) {
+	int i;
+
+	if (!callback) {
+		return;
+	}
+
+	if (uiInfo.mapCount < 1) {
+		UI_LoadArenas();
+	}
+
+	for (i = 0; i < uiInfo.mapCount; i++) {
+		if (uiInfo.mapList[i].mapName) {
+			callback(uiInfo.mapList[i].mapName);
+		}
+	}
+}
+
+/*
+=============
+UI_DrawAdvertisementWaitScreen
+
+Paints the optional named menu and the retail advertisement wait prompts.
+=============
+*/
+static void UI_DrawAdvertisementWaitScreen(const char *menuName) {
+	static const char *waitingText = "Waiting on Advertisement";
+	static const char *cancelText = "Press ESC to cancel";
+	menuDef_t *menu;
+	float scale;
+	float x;
+
+	if (menuName && menuName[0]) {
+		menu = Menus_FindByName(menuName);
+		if (menu) {
+			Menu_Paint(menu, qtrue);
+		}
+	}
+
+	scale = 0.5f;
+
+	x = 320.0f - (Text_Width(waitingText, scale, 0) * 0.5f);
+	Text_Paint(x, 178.0f, scale, colorWhite, waitingText, 0.0f, 0, 0);
+
+	x = 320.0f - (Text_Width(cancelText, scale, 0) * 0.5f);
+	Text_Paint(x, 440.0f, scale, colorWhite, cancelText, 0.0f, 0, 0);
+}
+
+/*
+=============
+UI_InitAdvertisementBridge
+
+Initialises the retail advertisement bridge when a host implementation exists.
+=============
+*/
+static void UI_InitAdvertisementBridge(void) {
+}
+
+/*
+=============
+UI_SetupAdvertCellShader
+
+Provides the retail advert-cell setup callback with a default-content fallback.
+=============
+*/
+static qhandle_t UI_SetupAdvertCellShader(const char *defaultContent, const rectDef_t *rect, int cellId) {
+	(void)rect;
+	(void)cellId;
+
+	if (!defaultContent || !defaultContent[0]) {
+		return 0;
+	}
+
+	return trap_R_RegisterShaderNoMip(defaultContent);
+}
+
+/*
+=============
+UI_RefreshAdvertCellShader
+
+Provides the retail advert-cell refresh callback with a default-content fallback.
+=============
+*/
+static qhandle_t UI_RefreshAdvertCellShader(const char *defaultContent, const rectDef_t *rect, int cellId) {
+	(void)rect;
+	(void)cellId;
+
+	if (!defaultContent || !defaultContent[0]) {
+		return 0;
+	}
+
+	return trap_R_RegisterShaderNoMip(defaultContent);
+}
+
+/*
+=============
+UI_ActivateAdvert
+
+Handles the retail activateAdvert script command when no external bridge is present.
+=============
+*/
+static void UI_ActivateAdvert(int cellId) {
+	(void)cellId;
+}
+
 void _UI_KeyEvent( int key, qboolean down );
 void _UI_MouseEvent( int dx, int dy );
 void _UI_Refresh( int realtime );
@@ -474,7 +632,7 @@ void UI_Load( void );
 int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11  ) {
 	switch ( command ) {
 	case UI_GETAPIVERSION:
-		return UI_API_VERSION;
+		return UI_QL_API_VERSION;
 
 	case UI_INIT:
 		_UI_Init(arg0);
@@ -511,6 +669,16 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 		return 0;
 	case UI_HASUNIQUECDKEY: // mod authors need to observe this
 		return qtrue; // bk010117 - change this to qfalse for mods!
+	case UI_REFRESH_DISPLAY_CONTEXT:
+		return UI_RefreshDisplayContext();
+	case UI_MENUS_ANY_VISIBLE:
+		return Menus_AnyVisible();
+	case UI_FOR_EACH_ARENA_NAME:
+		UI_ForEachArenaName((uiArenaNameCallback_t)(intptr_t)arg0);
+		return 0;
+	case UI_DRAW_ADVERTISEMENT_WAIT_SCREEN:
+		UI_DrawAdvertisementWaitScreen((const char *)(intptr_t)arg0);
+		return 0;
 }
 
 	return -1;
@@ -763,77 +931,128 @@ void _UI_DrawRect( float x, float y, float width, float height, float size, cons
 	trap_R_SetColor( NULL );
 		}
 
-int Text_Width(const char *text, float scale, int limit) {
-  int count,len;
+/*
+=================
+UI_SelectTextFont
+
+Uses the retail per-item font bucket when present and otherwise preserves the
+legacy scale-driven font selection used by the existing UI code.
+=================
+*/
+static fontInfo_t *UI_SelectTextFont(float scale, int fontIndex) {
+	if (fontIndex != ITEM_FONT_INHERIT) {
+		switch (fontIndex) {
+			case FONT_DEFAULT:
+				return &uiInfo.uiDC.Assets.textFont;
+
+			case FONT_SANS:
+			case FONT_MONO:
+				return &uiInfo.uiDC.Assets.smallFont;
+		}
+	}
+
+	if (scale <= ui_smallFont.value) {
+		return &uiInfo.uiDC.Assets.smallFont;
+	}
+
+	if (scale >= ui_bigFont.value) {
+		return &uiInfo.uiDC.Assets.bigFont;
+	}
+
+	return &uiInfo.uiDC.Assets.textFont;
+}
+
+/*
+=================
+Text_WidthExt
+=================
+*/
+static int Text_WidthExt(const char *text, float scale, int limit, int fontIndex) {
+	int count, len;
 	float out;
 	glyphInfo_t *glyph;
 	float useScale;
 	const char *s = text;
-	fontInfo_t *font = &uiInfo.uiDC.Assets.textFont;
-	if (scale <= ui_smallFont.value) {
-		font = &uiInfo.uiDC.Assets.smallFont;
-	} else if (scale >= ui_bigFont.value) {
-		font = &uiInfo.uiDC.Assets.bigFont;
-	}
+	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+
 	useScale = scale * font->glyphScale;
-  out = 0;
-  if (text) {
-    len = strlen(text);
+	out = 0;
+	if (text) {
+		len = strlen(text);
 		if (limit > 0 && len > limit) {
 			len = limit;
 		}
 		count = 0;
 		while (s && *s && count < len) {
-			if ( Q_IsColorString(s) ) {
+			if (Q_IsColorString(s)) {
 				s += 2;
 				continue;
-			} else {
-				glyph = &font->glyphs[(int)*s];
-				out += glyph->xSkip;
-				s++;
-				count++;
 			}
-    }
-  }
-  return out * useScale;
-		}
 
-int Text_Height(const char *text, float scale, int limit) {
-  int len, count;
+			glyph = &font->glyphs[(int)*s];
+			out += glyph->xSkip;
+			s++;
+			count++;
+		}
+	}
+	return out * useScale;
+}
+
+/*
+=================
+Text_Width
+=================
+*/
+int Text_Width(const char *text, float scale, int limit) {
+	return Text_WidthExt(text, scale, limit, ITEM_FONT_INHERIT);
+}
+
+/*
+=================
+Text_HeightExt
+=================
+*/
+static int Text_HeightExt(const char *text, float scale, int limit, int fontIndex) {
+	int len, count;
 	float max;
 	glyphInfo_t *glyph;
 	float useScale;
 	const char *s = text; // bk001206 - unsigned
-	fontInfo_t *font = &uiInfo.uiDC.Assets.textFont;
-	if (scale <= ui_smallFont.value) {
-		font = &uiInfo.uiDC.Assets.smallFont;
-	} else if (scale >= ui_bigFont.value) {
-		font = &uiInfo.uiDC.Assets.bigFont;
-	}
+	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+
 	useScale = scale * font->glyphScale;
-  max = 0;
-  if (text) {
-    len = strlen(text);
+	max = 0;
+	if (text) {
+		len = strlen(text);
 		if (limit > 0 && len > limit) {
 			len = limit;
 		}
 		count = 0;
 		while (s && *s && count < len) {
-			if ( Q_IsColorString(s) ) {
+			if (Q_IsColorString(s)) {
 				s += 2;
 				continue;
-			} else {
-				glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-	      if (max < glyph->height) {
-		      max = glyph->height;
-			  }
-				s++;
-				count++;
 			}
-    }
-  }
-  return max * useScale;
+
+			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
+			if (max < glyph->height) {
+				max = glyph->height;
+			}
+			s++;
+			count++;
 		}
+	}
+	return max * useScale;
+}
+
+/*
+=================
+Text_Height
+=================
+*/
+int Text_Height(const char *text, float scale, int limit) {
+	return Text_HeightExt(text, scale, limit, ITEM_FONT_INHERIT);
+}
 
 void Text_PaintChar(float x, float y, float width, float height, float scale, float s, float t, float s2, float t2, qhandle_t hShader) {
   float w, h;
@@ -843,171 +1062,187 @@ void Text_PaintChar(float x, float y, float width, float height, float scale, fl
   trap_R_DrawStretchPic( x, y, w, h, s, t, s2, t2, hShader );
 		}
 
-void Text_Paint(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style) {
-  int len, count;
+/*
+=================
+Text_PaintExt
+=================
+*/
+static void Text_PaintExt(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style, int fontIndex) {
+	int len, count;
 	vec4_t newColor;
 	glyphInfo_t *glyph;
 	float useScale;
-	fontInfo_t *font = &uiInfo.uiDC.Assets.textFont;
-	if (scale <= ui_smallFont.value) {
-		font = &uiInfo.uiDC.Assets.smallFont;
-	} else if (scale >= ui_bigFont.value) {
-		font = &uiInfo.uiDC.Assets.bigFont;
-	}
+	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+
 	useScale = scale * font->glyphScale;
-  if (text) {
-    const char *s = text; // bk001206 - unsigned
-		trap_R_SetColor( color );
+	if (text) {
+		const char *s = text; // bk001206 - unsigned
+		trap_R_SetColor(color);
 		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-    len = strlen(text);
+		len = strlen(text);
 		if (limit > 0 && len > limit) {
 			len = limit;
 		}
 		count = 0;
 		while (s && *s && count < len) {
 			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-      //int yadj = Assets.textFont.glyphs[text[i]].bottom + Assets.textFont.glyphs[text[i]].top;
-      //float yadj = scale * (Assets.textFont.glyphs[text[i]].imageHeight - Assets.textFont.glyphs[text[i]].height);
-			if ( Q_IsColorString( s ) ) {
-				memcpy( newColor, g_color_table[ColorIndex(*(s+1))], sizeof( newColor ) );
+			if (Q_IsColorString(s)) {
+				memcpy(newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
 				newColor[3] = color[3];
-				trap_R_SetColor( newColor );
+				trap_R_SetColor(newColor);
 				s += 2;
 				continue;
-			} else {
+			}
+
+			{
 				float yadj = useScale * glyph->top;
 				if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
 					int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
 					colorBlack[3] = newColor[3];
-					trap_R_SetColor( colorBlack );
-					Text_PaintChar(x + ofs, y - yadj + ofs, 
-														glyph->imageWidth,
-														glyph->imageHeight,
-														useScale, 
-														glyph->s,
-														glyph->t,
-														glyph->s2,
-														glyph->t2,
-														glyph->glyph);
-					trap_R_SetColor( newColor );
+					trap_R_SetColor(colorBlack);
+					Text_PaintChar(x + ofs, y - yadj + ofs,
+						glyph->imageWidth,
+						glyph->imageHeight,
+						useScale,
+						glyph->s,
+						glyph->t,
+						glyph->s2,
+						glyph->t2,
+						glyph->glyph);
+					trap_R_SetColor(newColor);
 					colorBlack[3] = 1.0;
 				}
-				Text_PaintChar(x, y - yadj, 
-													glyph->imageWidth,
-													glyph->imageHeight,
-													useScale, 
-													glyph->s,
-													glyph->t,
-													glyph->s2,
-													glyph->t2,
-													glyph->glyph);
-
-				x += (glyph->xSkip * useScale) + adjust;
-				s++;
-				count++;
+				Text_PaintChar(x, y - yadj,
+					glyph->imageWidth,
+					glyph->imageHeight,
+					useScale,
+					glyph->s,
+					glyph->t,
+					glyph->s2,
+					glyph->t2,
+					glyph->glyph);
 			}
-    }
-	  trap_R_SetColor( NULL );
-  }
-		}
 
-void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style) {
-  int len, count;
+			x += (glyph->xSkip * useScale) + adjust;
+			s++;
+			count++;
+		}
+		trap_R_SetColor(NULL);
+	}
+}
+
+/*
+=================
+Text_Paint
+=================
+*/
+void Text_Paint(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style) {
+	Text_PaintExt(x, y, scale, color, text, adjust, limit, style, ITEM_FONT_INHERIT);
+}
+
+/*
+=================
+Text_PaintWithCursorExt
+=================
+*/
+static void Text_PaintWithCursorExt(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style, int fontIndex) {
+	int len, count;
 	vec4_t newColor;
 	glyphInfo_t *glyph, *glyph2;
 	float yadj;
 	float useScale;
-	fontInfo_t *font = &uiInfo.uiDC.Assets.textFont;
-	if (scale <= ui_smallFont.value) {
-		font = &uiInfo.uiDC.Assets.smallFont;
-	} else if (scale >= ui_bigFont.value) {
-		font = &uiInfo.uiDC.Assets.bigFont;
-	}
+	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+
 	useScale = scale * font->glyphScale;
-  if (text) {
-    const char *s = text; // bk001206 - unsigned
-		trap_R_SetColor( color );
+	if (text) {
+		const char *s = text; // bk001206 - unsigned
+		trap_R_SetColor(color);
 		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-    len = strlen(text);
+		len = strlen(text);
 		if (limit > 0 && len > limit) {
 			len = limit;
 		}
 		count = 0;
-		glyph2 = &font->glyphs[ (int) cursor]; // bk001206 - possible signed char
+		glyph2 = &font->glyphs[(int)cursor]; // bk001206 - possible signed char
 		while (s && *s && count < len) {
 			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-      //int yadj = Assets.textFont.glyphs[text[i]].bottom + Assets.textFont.glyphs[text[i]].top;
-      //float yadj = scale * (Assets.textFont.glyphs[text[i]].imageHeight - Assets.textFont.glyphs[text[i]].height);
-			if ( Q_IsColorString( s ) ) {
-				memcpy( newColor, g_color_table[ColorIndex(*(s+1))], sizeof( newColor ) );
+			if (Q_IsColorString(s)) {
+				memcpy(newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
 				newColor[3] = color[3];
-				trap_R_SetColor( newColor );
+				trap_R_SetColor(newColor);
 				s += 2;
 				continue;
-			} else {
-				yadj = useScale * glyph->top;
-				if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
-					int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
-					colorBlack[3] = newColor[3];
-					trap_R_SetColor( colorBlack );
-					Text_PaintChar(x + ofs, y - yadj + ofs, 
-														glyph->imageWidth,
-														glyph->imageHeight,
-														useScale, 
-														glyph->s,
-														glyph->t,
-														glyph->s2,
-														glyph->t2,
-														glyph->glyph);
-					colorBlack[3] = 1.0;
-					trap_R_SetColor( newColor );
-				}
-				Text_PaintChar(x, y - yadj, 
-													glyph->imageWidth,
-													glyph->imageHeight,
-													useScale, 
-													glyph->s,
-													glyph->t,
-													glyph->s2,
-													glyph->t2,
-													glyph->glyph);
-
-	      yadj = useScale * glyph2->top;
-		    if (count == cursorPos && !((uiInfo.uiDC.realTime/BLINK_DIVISOR) & 1)) {
-					Text_PaintChar(x, y - yadj, 
-														glyph2->imageWidth,
-														glyph2->imageHeight,
-														useScale, 
-														glyph2->s,
-														glyph2->t,
-														glyph2->s2,
-														glyph2->t2,
-														glyph2->glyph);
-				}
-
-				x += (glyph->xSkip * useScale);
-				s++;
-				count++;
 			}
-    }
-    // need to paint cursor at end of text
-    if (cursorPos == len && !((uiInfo.uiDC.realTime/BLINK_DIVISOR) & 1)) {
-        yadj = useScale * glyph2->top;
-        Text_PaintChar(x, y - yadj, 
-                          glyph2->imageWidth,
-                          glyph2->imageHeight,
-                          useScale, 
-                          glyph2->s,
-                          glyph2->t,
-                          glyph2->s2,
-                          glyph2->t2,
-                          glyph2->glyph);
 
-    }
+			yadj = useScale * glyph->top;
+			if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
+				int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
+				colorBlack[3] = newColor[3];
+				trap_R_SetColor(colorBlack);
+				Text_PaintChar(x + ofs, y - yadj + ofs,
+					glyph->imageWidth,
+					glyph->imageHeight,
+					useScale,
+					glyph->s,
+					glyph->t,
+					glyph->s2,
+					glyph->t2,
+					glyph->glyph);
+				colorBlack[3] = 1.0;
+				trap_R_SetColor(newColor);
+			}
+			Text_PaintChar(x, y - yadj,
+				glyph->imageWidth,
+				glyph->imageHeight,
+				useScale,
+				glyph->s,
+				glyph->t,
+				glyph->s2,
+				glyph->t2,
+				glyph->glyph);
 
-	  trap_R_SetColor( NULL );
-  }
+			yadj = useScale * glyph2->top;
+			if (count == cursorPos && !((uiInfo.uiDC.realTime / BLINK_DIVISOR) & 1)) {
+				Text_PaintChar(x, y - yadj,
+					glyph2->imageWidth,
+					glyph2->imageHeight,
+					useScale,
+					glyph2->s,
+					glyph2->t,
+					glyph2->s2,
+					glyph2->t2,
+					glyph2->glyph);
+			}
+
+			x += (glyph->xSkip * useScale);
+			s++;
+			count++;
 		}
+		if (cursorPos == len && !((uiInfo.uiDC.realTime / BLINK_DIVISOR) & 1)) {
+			yadj = useScale * glyph2->top;
+			Text_PaintChar(x, y - yadj,
+				glyph2->imageWidth,
+				glyph2->imageHeight,
+				useScale,
+				glyph2->s,
+				glyph2->t,
+				glyph2->s2,
+				glyph2->t2,
+				glyph2->glyph);
+		}
+
+		trap_R_SetColor(NULL);
+	}
+}
+
+/*
+=================
+Text_PaintWithCursor
+=================
+*/
+void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style) {
+	Text_PaintWithCursorExt(x, y, scale, color, text, cursorPos, cursor, limit, style, ITEM_FONT_INHERIT);
+}
 
 
 static void Text_Paint_Limit(float *maxX, float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit) {
@@ -2218,7 +2453,7 @@ static int UI_OwnerDrawWidth(int ownerDraw, float scale) {
 			break;
 		case UI_KEYBINDSTATUS:
 			if (Display_KeyBindPending()) {
-				s = "Waiting for new key... Press ESCAPE to cancel";
+				s = "Waiting for new key... Press ESC...";
 			} else {
 				s = "Press ENTER or CLICK to change, Press BACKSPACE to clear";
 			}
@@ -2264,14 +2499,691 @@ static void UI_DrawRedBlue(rectDef_t *rect, float scale, vec4_t color, int textS
   Text_Paint(rect->x, rect->y, scale, color, (uiInfo.redBlue == 0) ? "Red" : "Blue", 0, 0, textStyle);
 		}
 
+#define UI_CROSSHAIR_COLOR_COUNT	27
+
+static const vec3_t uiCrosshairPalette[UI_CROSSHAIR_COLOR_COUNT] = {
+	{ 1.00f, 1.00f, 1.00f },
+	{ 1.00f, 1.00f, 1.00f },
+	{ 0.90f, 0.90f, 0.90f },
+	{ 0.75f, 0.75f, 0.75f },
+	{ 0.50f, 0.50f, 0.50f },
+	{ 0.25f, 0.25f, 0.25f },
+	{ 0.00f, 0.00f, 0.00f },
+	{ 1.00f, 0.35f, 0.35f },
+	{ 1.00f, 0.00f, 0.00f },
+	{ 0.70f, 0.00f, 0.00f },
+	{ 1.00f, 0.55f, 0.00f },
+	{ 1.00f, 0.80f, 0.00f },
+	{ 1.00f, 1.00f, 0.00f },
+	{ 0.80f, 1.00f, 0.00f },
+	{ 0.55f, 1.00f, 0.00f },
+	{ 0.00f, 1.00f, 0.00f },
+	{ 0.00f, 1.00f, 0.55f },
+	{ 0.00f, 1.00f, 0.80f },
+	{ 0.00f, 1.00f, 1.00f },
+	{ 0.00f, 0.80f, 1.00f },
+	{ 0.00f, 0.55f, 1.00f },
+	{ 0.00f, 0.00f, 1.00f },
+	{ 0.35f, 0.00f, 1.00f },
+	{ 0.55f, 0.00f, 1.00f },
+	{ 0.80f, 0.00f, 1.00f },
+	{ 1.00f, 0.00f, 1.00f },
+	{ 1.00f, 0.00f, 0.55f }
+};
+
+typedef struct {
+	const char *token;
+	const char *iconPath;
+} uiStartingWeaponIconInfo_t;
+
+#define UI_STARTING_WEAPON_ICON_COUNT	14
+
+static const uiStartingWeaponIconInfo_t uiStartingWeaponIcons[UI_STARTING_WEAPON_ICON_COUNT] = {
+	{ "g", "icons/iconw_gauntlet.tga" },
+	{ "mg", "icons/iconw_machinegun.tga" },
+	{ "sg", "icons/iconw_shotgun.tga" },
+	{ "gl", "icons/iconw_grenade.tga" },
+	{ "rl", "icons/iconw_rocket.tga" },
+	{ "lg", "icons/iconw_lightning.tga" },
+	{ "rg", "icons/iconw_railgun.tga" },
+	{ "pg", "icons/iconw_plasma.tga" },
+	{ "bfg", "icons/iconw_bfg.tga" },
+	{ "gh", "icons/iconw_grapple.tga" },
+	{ "ng", "icons/iconw_nailgun.tga" },
+	{ "pl", "icons/iconw_proxlauncher.tga" },
+	{ "cg", "icons/iconw_chaingun.tga" },
+	{ "hmg", "icons/weap_hmg.tga" }
+};
+
+static qhandle_t uiStartingWeaponIconHandles[UI_STARTING_WEAPON_ICON_COUNT];
+static qhandle_t uiModifiedWeaponIconHandle;
+static void UI_EnsureStartingWeaponIcons( void );
+
+/*
+=============
+UI_GetCrosshairColorIndex
+
+Returns the retail palette-backed crosshair color index, defaulting to 1.
+=============
+*/
+static int UI_GetCrosshairColorIndex( void ) {
+	int index;
+
+	index = (int)trap_Cvar_VariableValue( "cg_crosshairColor" );
+	if ( index < 1 || index >= UI_CROSSHAIR_COLOR_COUNT ) {
+		index = 1;
+	}
+
+	return index;
+}
+
+/*
+=============
+UI_GetCrosshairPreviewColor
+
+Resolves the preview crosshair color using the retail health-color and palette rules.
+=============
+*/
+static void UI_GetCrosshairPreviewColor( const vec4_t baseColor, vec4_t previewColor ) {
+	float brightness;
+	int i;
+
+	brightness = Com_Clamp( 0.0f, 2.0f, trap_Cvar_VariableValue( "cg_crosshairBrightness" ) );
+	if ( trap_Cvar_VariableValue( "cg_crosshairHealth" ) != 0.0f ) {
+		VectorCopy( baseColor, previewColor );
+	} else {
+		VectorCopy( uiCrosshairPalette[UI_GetCrosshairColorIndex()], previewColor );
+	}
+
+	for ( i = 0; i < 3; i++ ) {
+		previewColor[i] = Com_Clamp( 0.0f, 1.0f, previewColor[i] * brightness );
+	}
+	previewColor[3] = Com_Clamp( 0.0f, 1.0f, brightness );
+}
+
+/*
+=============
+UI_DrawCrosshairColor
+
+Paints the retail crosshair color chooser using the numbered palette range.
+=============
+*/
+static void UI_DrawCrosshairColor( rectDef_t *rect ) {
+	vec4_t swatchColor;
+	vec4_t outlineColor;
+	float segmentWidth;
+	float top;
+	float x;
+	int i;
+	int selected;
+
+	selected = UI_GetCrosshairColorIndex() - 1;
+	segmentWidth = rect->w / (float)( UI_CROSSHAIR_COLOR_COUNT - 1 );
+	if ( segmentWidth <= 0.0f ) {
+		return;
+	}
+
+	top = rect->y - rect->h + ( rect->h - 12.0f );
+	if ( top < rect->y - rect->h ) {
+		top = rect->y - rect->h;
+	}
+
+	for ( i = 1; i < UI_CROSSHAIR_COLOR_COUNT; i++ ) {
+		x = rect->x + ( i - 1 ) * segmentWidth;
+		VectorCopy( uiCrosshairPalette[i], swatchColor );
+		swatchColor[3] = 1.0f;
+		UI_FillRect( x, top + 2.0f, segmentWidth, 8.0f, swatchColor );
+	}
+
+	outlineColor[0] = 1.0f;
+	outlineColor[1] = 1.0f;
+	outlineColor[2] = 1.0f;
+	outlineColor[3] = 1.0f;
+	_UI_DrawRect( rect->x + selected * segmentWidth, top, segmentWidth, 12.0f, 1.0f, outlineColor );
+}
+
 static void UI_DrawCrosshair(rectDef_t *rect, float scale, vec4_t color) {
-	trap_R_SetColor(color);
+	vec4_t previewColor;
+	float size;
+	float x;
+	float y;
+
 	if (uiInfo.currentCrosshair < 0 || uiInfo.currentCrosshair >= NUM_CROSSHAIRS) {
 		uiInfo.currentCrosshair = 0;
 	}
-	UI_DrawHandlePic(rect->x, rect->y - rect->h, rect->w, rect->h, uiInfo.uiDC.Assets.crosshairShader[uiInfo.currentCrosshair]);
+
+	if (uiInfo.currentCrosshair == 0) {
+		return;
+	}
+
+	UI_GetCrosshairPreviewColor(color, previewColor);
+	size = trap_Cvar_VariableValue("cg_crosshairSize");
+	if (size < 16.0f) {
+		size = 16.0f;
+	}
+	if (rect->w > 0.0f && size > rect->w) {
+		size = rect->w;
+	}
+	if (rect->h > 0.0f && size > rect->h) {
+		size = rect->h;
+	}
+	x = rect->x + (rect->w - size) * 0.5f;
+	y = rect->y - rect->h + (rect->h - size) * 0.5f;
+
+	trap_R_SetColor(previewColor);
+	UI_DrawHandlePic(x, y, size, size, uiInfo.uiDC.Assets.crosshairShader[uiInfo.currentCrosshair]);
 	trap_R_SetColor(NULL);
 		}
+
+/*
+=============
+UI_DrawAdvert
+
+Paints the current advert shader for retail Quake Live advert ownerdraw items.
+=============
+*/
+static void UI_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader) {
+	if (!rect || !shader) {
+		return;
+	}
+
+	trap_R_SetColor(color);
+	UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, shader);
+	trap_R_SetColor(NULL);
+}
+
+/*
+=============
+UI_DrawVoteString
+
+Paints the active vote string centered within the ownerdraw rect.
+=============
+*/
+static void UI_DrawVoteString(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	const char *voteString;
+	float x;
+
+	voteString = UI_Cvar_VariableString("ui_votestring");
+	if (!voteString || !voteString[0]) {
+		return;
+	}
+
+	x = rect->x + (rect->w - Text_Width(voteString, scale, 0)) * 0.5f;
+	Text_Paint(x, rect->y, scale, color, voteString, 0, 0, textStyle);
+}
+
+#define UI_SERVER_SETTINGS_COLUMN_ROWS		8
+#define UI_SERVER_SETTINGS_COLUMN_WIDTH	110.0f
+#define UI_SERVER_SETTINGS_LINE_HEIGHT		12.0f
+#define UI_SERVER_SETTINGS_COLUMN_RESET	84.0f
+#define UI_SERVER_SETTINGS_ICON_SIZE		8.0f
+#define UI_SERVER_SETTINGS_ICON_SPACING	12.0f
+#define UI_SERVER_SETTINGS_ICON_WRAP		8
+#define UI_SERVER_SETTINGS_WEAPON_MASK	0x1FFFu
+
+/*
+=============
+UI_QLGametypeName
+
+Returns the retail-facing gametype label used by status widgets.
+=============
+*/
+static const char *UI_QLGametypeName( int gametype ) {
+	static const char *const qlGametypeNames[GT_MAX_GAME_TYPE] = {
+		"Free For All",
+		"Duel",
+		"Race",
+		"Team Deathmatch",
+		"Clan Arena",
+		"Capture the Flag",
+		"1-Flag CTF",
+		"Overload",
+		"Harvester",
+		"Freeze Tag",
+		"Domination",
+		"Attack & Defend",
+		"Red Rover"
+	};
+
+	if ( gametype < 0 || gametype >= GT_MAX_GAME_TYPE ) {
+		return "Unknown Gametype";
+	}
+
+	return qlGametypeNames[gametype];
+}
+
+/*
+=============
+UI_GetServerSettingInt
+
+Looks up an integer setting from the current serverinfo payload and falls back
+to the local cvar when the server did not publish a value.
+=============
+*/
+static qboolean UI_GetServerSettingInt( const char *serverInfo, const char *key, const char *fallbackCvar, int *valueOut ) {
+	char buffer[MAX_CVAR_VALUE_STRING];
+	const char *valueText;
+
+	if ( valueOut == NULL || key == NULL || key[0] == '\0' ) {
+		return qfalse;
+	}
+
+	valueText = ( serverInfo != NULL ) ? Info_ValueForKey( serverInfo, key ) : "";
+	if ( valueText == NULL || valueText[0] == '\0' ) {
+		buffer[0] = '\0';
+		if ( fallbackCvar != NULL && fallbackCvar[0] != '\0' ) {
+			trap_Cvar_VariableStringBuffer( fallbackCvar, buffer, sizeof( buffer ) );
+		}
+		valueText = buffer;
+	}
+
+	if ( valueText == NULL || valueText[0] == '\0' ) {
+		return qfalse;
+	}
+
+	*valueOut = atoi( valueText );
+	return qtrue;
+}
+
+/*
+=============
+UI_GetPmoveSettingFloat
+
+Parses a numeric field from the JSON-serialized `CS_PMOVE_SETTINGS` payload.
+=============
+*/
+static qboolean UI_GetPmoveSettingFloat( const char *settingsText, const char *key, float *valueOut ) {
+	char pattern[64];
+	char *endPtr;
+	const char *valueText;
+
+	if ( settingsText == NULL || key == NULL || valueOut == NULL ) {
+		return qfalse;
+	}
+
+	Com_sprintf( pattern, sizeof( pattern ), "\"%s\":", key );
+	valueText = strstr( settingsText, pattern );
+	if ( valueText == NULL ) {
+		return qfalse;
+	}
+
+	valueText += strlen( pattern );
+	*valueOut = (float)strtod( valueText, &endPtr );
+	return ( endPtr != valueText );
+}
+
+/*
+=============
+UI_GetPmoveSettingBool
+
+Parses a boolean field from the JSON-serialized `CS_PMOVE_SETTINGS` payload.
+=============
+*/
+static qboolean UI_GetPmoveSettingBool( const char *settingsText, const char *key, qboolean *valueOut ) {
+	char pattern[64];
+	const char *valueText;
+
+	if ( settingsText == NULL || key == NULL || valueOut == NULL ) {
+		return qfalse;
+	}
+
+	Com_sprintf( pattern, sizeof( pattern ), "\"%s\":", key );
+	valueText = strstr( settingsText, pattern );
+	if ( valueText == NULL ) {
+		return qfalse;
+	}
+
+	valueText += strlen( pattern );
+	if ( !Q_strncmp( valueText, "true", 4 ) ) {
+		*valueOut = qtrue;
+		return qtrue;
+	}
+	if ( !Q_strncmp( valueText, "false", 5 ) ) {
+		*valueOut = qfalse;
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+UI_AdvanceServerSettingsCursor
+
+Moves the retail settings-panel cursor forward, wrapping into the next column
+after eight entries.
+=============
+*/
+static void UI_AdvanceServerSettingsCursor( float *x, float *y, int *rowCount ) {
+	if ( x == NULL || y == NULL || rowCount == NULL ) {
+		return;
+	}
+
+	*rowCount += 1;
+	*y += UI_SERVER_SETTINGS_LINE_HEIGHT;
+	if ( *rowCount >= UI_SERVER_SETTINGS_COLUMN_ROWS ) {
+		*rowCount = 0;
+		*x += UI_SERVER_SETTINGS_COLUMN_WIDTH;
+		*y -= UI_SERVER_SETTINGS_COLUMN_RESET;
+	}
+}
+
+/*
+=============
+UI_DrawServerSettingsEntry
+
+Draws one retail server-settings row and advances the layout cursor.
+=============
+*/
+static void UI_DrawServerSettingsEntry( float *x, float *y, int *rowCount, float scale, vec4_t color, int textStyle, const char *text ) {
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	Text_Paint( *x, *y, scale, color, text, 0, 0, textStyle );
+	UI_AdvanceServerSettingsCursor( x, y, rowCount );
+}
+
+/*
+=============
+UI_DrawServerSettingsModifiedWeapons
+
+Draws the retail modified-weapons icon strip for the low custom-settings mask
+bits that qagame already exposes through `CS_CUSTOM_SETTINGS`.
+=============
+*/
+static void UI_DrawServerSettingsModifiedWeapons( float x, float y, unsigned int weaponMask ) {
+	int i;
+	int iconCount;
+
+	UI_EnsureStartingWeaponIcons();
+
+	if ( uiModifiedWeaponIconHandle == 0 ) {
+		uiModifiedWeaponIconHandle = trap_R_RegisterShaderNoMip( "icons/modified" );
+		if ( uiModifiedWeaponIconHandle == 0 ) {
+			uiModifiedWeaponIconHandle = trap_R_RegisterShaderNoMip( "icons/modified.png" );
+		}
+	}
+
+	y += 6.0f;
+	iconCount = 0;
+	for ( i = 0; i < 13; i++ ) {
+		if ( ( weaponMask & ( 1u << i ) ) == 0 ) {
+			continue;
+		}
+
+		if ( uiStartingWeaponIconHandles[i] != 0 ) {
+			UI_DrawHandlePic( x, y, UI_SERVER_SETTINGS_ICON_SIZE, UI_SERVER_SETTINGS_ICON_SIZE, uiStartingWeaponIconHandles[i] );
+		}
+		if ( uiModifiedWeaponIconHandle != 0 ) {
+			UI_DrawHandlePic( x + 6.0f, y + 4.0f, 4.0f, 4.0f, uiModifiedWeaponIconHandle );
+		}
+
+		iconCount++;
+		x += UI_SERVER_SETTINGS_ICON_SPACING;
+		if ( iconCount >= UI_SERVER_SETTINGS_ICON_WRAP ) {
+			iconCount = 0;
+			y += UI_SERVER_SETTINGS_ICON_SPACING;
+			x -= 96.0f;
+		}
+	}
+}
+
+/*
+=============
+UI_DrawServerSettings
+
+Reconstructs the retail `UI_SERVER_SETTINGS` ownerdraw from the current server
+payload surface, using serverinfo, `CS_PMOVE_SETTINGS`, and `CS_CUSTOM_SETTINGS`
+where this tree already mirrors the Quake Live data paths.
+=============
+*/
+static void UI_DrawServerSettings( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	char serverInfo[MAX_INFO_STRING];
+	char pmoveSettings[MAX_INFO_STRING];
+	char customSettings[MAX_INFO_STRING];
+	char text[64];
+	float x;
+	float y;
+	float airControl;
+	unsigned int modifiedWeaponMask;
+	int rowCount;
+	int gametype;
+	int value;
+	qboolean hasRampJump;
+
+	if ( rect == NULL ) {
+		return;
+	}
+
+	trap_GetConfigString( CS_SERVERINFO, serverInfo, sizeof( serverInfo ) );
+	trap_GetConfigString( CS_PMOVE_SETTINGS, pmoveSettings, sizeof( pmoveSettings ) );
+	trap_GetConfigString( CS_CUSTOM_SETTINGS, customSettings, sizeof( customSettings ) );
+
+	x = rect->x;
+	y = rect->y;
+	rowCount = 0;
+
+	if ( !UI_GetServerSettingInt( serverInfo, "g_gametype", "g_gametype", &gametype ) ) {
+		gametype = -1;
+	}
+	UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, UI_QLGametypeName( gametype ) );
+
+	if ( UI_GetServerSettingInt( serverInfo, "timelimit", "timelimit", &value ) ) {
+		Com_sprintf( text, sizeof( text ), "Time Limit: %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( gametype >= 0 && gametype < GT_CLAN_ARENA &&
+		UI_GetServerSettingInt( serverInfo, "fraglimit", "fraglimit", &value ) ) {
+		Com_sprintf( text, sizeof( text ), "Frag Limit: %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( gametype >= GT_TEAM &&
+		UI_GetServerSettingInt( serverInfo, "mercylimit", "mercylimit", &value ) &&
+		value != 0 ) {
+		Com_sprintf( text, sizeof( text ), "Mercy Limit: %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( gametype == GT_CTF &&
+		UI_GetServerSettingInt( serverInfo, "capturelimit", "capturelimit", &value ) ) {
+		Com_sprintf( text, sizeof( text ), "Capture Limit: %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( ( gametype == GT_CLAN_ARENA || gametype == GT_FREEZE ||
+		gametype == GT_ATTACK_DEFEND || gametype == GT_RED_ROVER ) &&
+		UI_GetServerSettingInt( serverInfo, "roundlimit", "roundlimit", &value ) ) {
+		Com_sprintf( text, sizeof( text ), "Round Limit: %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( ( gametype == GT_DOMINATION || gametype == GT_ATTACK_DEFEND ) &&
+		UI_GetServerSettingInt( serverInfo, "g_scorelimit", "g_scorelimit", &value ) ) {
+		Com_sprintf( text, sizeof( text ), "Score Limit: %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( UI_GetPmoveSettingFloat( pmoveSettings, "airControl", &airControl ) && airControl > 0.0f ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Air Control" );
+	}
+
+	if ( UI_GetPmoveSettingBool( pmoveSettings, "rampJump", &hasRampJump ) && hasRampJump ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Ramp Jumping" );
+	}
+
+	if ( UI_GetServerSettingInt( serverInfo, "g_instaGib", "g_instaGib", &value ) && value != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "InstaGib" );
+	}
+
+	modifiedWeaponMask = (unsigned int)( strtoull( customSettings, NULL, 10 ) & UI_SERVER_SETTINGS_WEAPON_MASK );
+	if ( modifiedWeaponMask == 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Default Settings" );
+		return;
+	}
+
+	UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "MODIFIED WEAPONS:" );
+	UI_DrawServerSettingsModifiedWeapons( x, y, modifiedWeaponMask );
+}
+
+/*
+=============
+UI_EnsureStartingWeaponIcons
+
+Registers the retail starting-weapon preview icons on demand.
+=============
+*/
+static void UI_EnsureStartingWeaponIcons( void ) {
+	int i;
+
+	for ( i = 0; i < UI_STARTING_WEAPON_ICON_COUNT; i++ ) {
+		if ( uiStartingWeaponIconHandles[i] == 0 ) {
+			uiStartingWeaponIconHandles[i] = trap_R_RegisterShaderNoMip( uiStartingWeaponIcons[i].iconPath );
+		}
+	}
+}
+
+/*
+=============
+UI_StartingWeaponIndexFromToken
+
+Maps the queued-primary token to the retail starting-weapon icon ordering.
+=============
+*/
+static int UI_StartingWeaponIndexFromToken( const char *value ) {
+	char buffer[128];
+	char *cursor;
+	char *token;
+	int i;
+
+	if ( !value || !value[0] ) {
+		return 0;
+	}
+
+	Q_strncpyz( buffer, value, sizeof( buffer ) );
+	cursor = buffer;
+	token = COM_ParseExt( &cursor, qtrue );
+	if ( !token[0] ) {
+		return 0;
+	}
+
+	for ( i = 0; i < UI_STARTING_WEAPON_ICON_COUNT; i++ ) {
+		if ( !Q_stricmp( token, uiStartingWeaponIcons[i].token ) ) {
+			return i + 1;
+		}
+	}
+
+	if ( !Q_stricmp( token, "gauntlet" ) ) {
+		return 1;
+	}
+	if ( !Q_stricmp( token, "machinegun" ) ) {
+		return 2;
+	}
+	if ( !Q_stricmp( token, "shotgun" ) ) {
+		return 3;
+	}
+	if ( !Q_stricmp( token, "grenade" ) || !Q_stricmp( token, "grenade_launcher" ) ) {
+		return 4;
+	}
+	if ( !Q_stricmp( token, "rocket" ) || !Q_stricmp( token, "rocket_launcher" ) ) {
+		return 5;
+	}
+	if ( !Q_stricmp( token, "lightning" ) ) {
+		return 6;
+	}
+	if ( !Q_stricmp( token, "railgun" ) ) {
+		return 7;
+	}
+	if ( !Q_stricmp( token, "plasma" ) || !Q_stricmp( token, "plasmagun" ) ) {
+		return 8;
+	}
+	if ( !Q_stricmp( token, "grapple" ) || !Q_stricmp( token, "grappling_hook" ) ) {
+		return 10;
+	}
+	if ( !Q_stricmp( token, "nailgun" ) ) {
+		return 11;
+	}
+	if ( !Q_stricmp( token, "prox" ) || !Q_stricmp( token, "proxlauncher" ) || !Q_stricmp( token, "prox_launcher" ) ) {
+		return 12;
+	}
+	if ( !Q_stricmp( token, "chaingun" ) ) {
+		return 13;
+	}
+	if ( !Q_stricmp( token, "heavy_machinegun" ) ) {
+		return 14;
+	}
+
+	return 0;
+}
+
+/*
+=============
+UI_DrawStartingWeapons
+
+Draws the retail loadout icon strip plus the queued-primary preview.
+=============
+*/
+static void UI_DrawStartingWeapons( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	char loadoutMaskText[MAX_INFO_STRING];
+	int queuedIndex;
+	int i;
+	float xOffset;
+	float plusX;
+	float plusY;
+	float plusWidth;
+	unsigned int loadoutMask;
+	qhandle_t shader;
+
+	if ( !rect || rect->w <= 0.0f || rect->h <= 0.0f ) {
+		return;
+	}
+
+	UI_EnsureStartingWeaponIcons();
+	trap_GetConfigString( CS_LOADOUT_MASK, loadoutMaskText, sizeof( loadoutMaskText ) );
+	loadoutMask = loadoutMaskText[0] ? (unsigned int)strtoul( loadoutMaskText, NULL, 0 ) : 0u;
+	xOffset = 0.0f;
+
+	for ( i = 0; i < UI_STARTING_WEAPON_ICON_COUNT; i++ ) {
+		if ( ( loadoutMask & ( 1u << i ) ) == 0 ) {
+			continue;
+		}
+
+		shader = uiStartingWeaponIconHandles[i];
+		if ( shader != 0 ) {
+			trap_R_SetColor( colorWhite );
+			UI_DrawHandlePic( rect->x + xOffset, rect->y, rect->w, rect->h, shader );
+			trap_R_SetColor( NULL );
+		}
+
+		xOffset += rect->w * 1.5f;
+	}
+
+	if ( trap_Cvar_VariableValue( "cg_loadout" ) == 0.0f ) {
+		return;
+	}
+
+	plusWidth = Text_Width( "+", scale, 0 );
+	plusX = rect->x + xOffset;
+	if ( plusWidth < rect->w ) {
+		plusX += ( rect->w - plusWidth ) * 0.5f;
+	}
+	plusY = rect->y + rect->h * 0.5f + Text_Height( "+", scale, 0 ) * 0.5f;
+	Text_Paint( plusX, plusY, scale, color, "+", 0, 0, textStyle );
+
+	queuedIndex = UI_StartingWeaponIndexFromToken( UI_Cvar_VariableString( "cg_weaponPrimaryQueued" ) );
+	if ( queuedIndex <= 0 || queuedIndex > UI_STARTING_WEAPON_ICON_COUNT ) {
+		queuedIndex = UI_STARTING_WEAPON_ICON_COUNT;
+	}
+
+	shader = uiStartingWeaponIconHandles[queuedIndex - 1];
+	if ( shader != 0 ) {
+		trap_R_SetColor( colorWhite );
+		UI_DrawHandlePic( rect->x + xOffset + rect->w, rect->y, rect->w, rect->h, shader );
+		trap_R_SetColor( NULL );
+	}
+}
 
 /*
 =============
@@ -2450,6 +3362,77 @@ static mapRotationInfo_t *UI_MapRotationEntryForIndex(int index) {
 	return &uiInfo.mapRotations[index];
 		}
 
+#define UI_NEXTMAP_CONFIGSTRING	0x29A
+
+/*
+=============
+UI_GetNextMapText
+
+Fetches the retail next-map label from the undocumented configstring slot used
+by `UI_DrawNextMap`, then falls back to the mirrored rotation preview payload or
+cached rotation metadata when the current source tree has not published that
+slot yet.
+=============
+*/
+static const char *UI_GetNextMapText( void ) {
+	static char nextMapText[MAX_INFO_STRING];
+	char rotationTitles[MAX_INFO_STRING];
+	const char *valueText;
+	mapRotationInfo_t *rotation;
+
+	nextMapText[0] = '\0';
+	trap_GetConfigString( UI_NEXTMAP_CONFIGSTRING, nextMapText, sizeof( nextMapText ) );
+	if ( nextMapText[0] != '\0' ) {
+		return nextMapText;
+	}
+
+	trap_GetConfigString( CS_ROTATION_TITLES, rotationTitles, sizeof( rotationTitles ) );
+	valueText = Info_ValueForKey( rotationTitles, "title_0" );
+	if ( valueText == NULL || valueText[0] == '\0' ) {
+		valueText = Info_ValueForKey( rotationTitles, "map_0" );
+	}
+	if ( valueText != NULL && valueText[0] != '\0' ) {
+		Q_strncpyz( nextMapText, valueText, sizeof( nextMapText ) );
+		return nextMapText;
+	}
+
+	rotation = UI_MapRotationEntryForIndex( 0 );
+	if ( rotation != NULL ) {
+		if ( rotation->mapTitle[0] != '\0' ) {
+			return rotation->mapTitle;
+		}
+		if ( rotation->mapName[0] != '\0' ) {
+			return rotation->mapName;
+		}
+	}
+
+	return "";
+}
+
+/*
+=============
+UI_DrawNextMap
+
+Restores the retail `UI_NEXTMAP` ownerdraw by painting the next-map label from
+the same configstring seam used by the native UI, with bounded fallbacks for the
+currently reconstructed source tree.
+=============
+*/
+static void UI_DrawNextMap( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	const char *nextMapText;
+
+	if ( rect == NULL ) {
+		return;
+	}
+
+	nextMapText = UI_GetNextMapText();
+	if ( nextMapText == NULL || nextMapText[0] == '\0' ) {
+		return;
+	}
+
+	Text_Paint( rect->x, rect->y, scale, color, nextMapText, 0, 0, textStyle );
+}
+
 
 
 /*
@@ -2592,7 +3575,7 @@ static void UI_DrawServerMOTD(rectDef_t *rect, float scale, vec4_t color) {
 static void UI_DrawKeyBindStatus(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
 //	int ofs = 0; TTimo: unused
 	if (Display_KeyBindPending()) {
-		Text_Paint(rect->x, rect->y, scale, color, "Waiting for new key... Press ESCAPE to cancel", 0, 0, textStyle);
+		Text_Paint(rect->x, rect->y, scale, color, "Waiting for new key... Press ESC...", 0, 0, textStyle);
 	} else {
 		Text_Paint(rect->x, rect->y, scale, color, "Press ENTER or CLICK to change, Press BACKSPACE to clear", 0, 0, textStyle);
 	}
@@ -2793,8 +3776,26 @@ static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float
 		case UI_CROSSHAIR:
 			UI_DrawCrosshair(&rect, scale, color);
 			break;
+		case UI_CROSSHAIR_COLOR:
+			UI_DrawCrosshairColor(&rect);
+			break;
+		case UI_ADVERT:
+			UI_DrawAdvert(&rect, color, shader);
+			break;
+		case UI_NEXTMAP:
+			UI_DrawNextMap(&rect, scale, color, textStyle);
+			break;
 		case UI_SELECTEDPLAYER:
 			UI_DrawSelectedPlayer(&rect, scale, color, textStyle);
+			break;
+		case UI_VOTESTRING:
+			UI_DrawVoteString(&rect, scale, color, textStyle);
+			break;
+		case UI_SERVER_SETTINGS:
+			UI_DrawServerSettings(&rect, scale, color, textStyle);
+			break;
+		case UI_STARTING_WEAPONS:
+			UI_DrawStartingWeapons(&rect, scale, color, textStyle);
 			break;
 		case UI_SERVERREFRESHDATE:
 			UI_DrawServerRefreshDate(&rect, scale, color, textStyle);
@@ -3297,6 +4298,37 @@ static qboolean UI_Crosshair_HandleKey(int flags, float *special, int key) {
 	return qfalse;
 		}
 
+/*
+=============
+UI_CrosshairColor_HandleKey
+
+Advances the retail numbered crosshair color palette.
+=============
+*/
+static qboolean UI_CrosshairColor_HandleKey(int flags, float *special, int key) {
+	int colorIndex;
+
+	if (key != K_MOUSE1 && key != K_MOUSE2 && key != K_ENTER && key != K_KP_ENTER) {
+		return qfalse;
+	}
+
+	colorIndex = UI_GetCrosshairColorIndex();
+	if (key == K_MOUSE2) {
+		colorIndex--;
+	} else {
+		colorIndex++;
+	}
+
+	if (colorIndex >= UI_CROSSHAIR_COLOR_COUNT) {
+		colorIndex = 1;
+	} else if (colorIndex < 1) {
+		colorIndex = UI_CROSSHAIR_COLOR_COUNT - 1;
+	}
+
+	trap_Cvar_Set("cg_crosshairColor", va("%d", colorIndex));
+	return qtrue;
+}
+
 
 
 static qboolean UI_SelectedPlayer_HandleKey(int flags, float *special, int key) {
@@ -3395,6 +4427,9 @@ static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, 
 			break;
 		case UI_CROSSHAIR:
 			UI_Crosshair_HandleKey(flags, special, key);
+			break;
+		case UI_CROSSHAIR_COLOR:
+			return UI_CrosshairColor_HandleKey(flags, special, key);
 			break;
 		case UI_SELECTEDPLAYER:
 			UI_SelectedPlayer_HandleKey(flags, special, key);
@@ -3947,7 +4982,6 @@ static void UI_Update(const char *name) {
 		}
 	}
 }
-}
 
 /*
 =============
@@ -4458,7 +5492,8 @@ static void UI_RunMenuScript(char **args) {
 						// successfully added
 						Com_Printf("Added favorite server %s\n", addr);
 					}
-		}
+				}
+			}
 		} else if (Q_stricmp(name, "glCustom") == 0) {
 			trap_Cvar_Set("ui_glCustom", "4");
 		} else if (Q_stricmp(name, "update") == 0) {
@@ -4474,7 +5509,7 @@ static void UI_RunMenuScript(char **args) {
 			Com_Printf("unknown UI script %s\n", name);
 		}
 	}
-		}
+}
 
 static void UI_GetTeamColor(vec4_t *color) {
 		}
@@ -5261,6 +6296,32 @@ static int UI_FeederCount(float feederID) {
 	return 0;
 }
 
+/*
+=============
+UI_SelectedMap
+
+Returns the active map entry for a feeder row while reporting the backing index.
+=============
+*/
+static const char *UI_SelectedMap(int index, int *actual) {
+	int i, c;
+
+	c = 0;
+	*actual = 0;
+	for (i = 0; i < uiInfo.mapCount; i++) {
+		if (uiInfo.mapList[i].active) {
+			if (c == index) {
+				*actual = i;
+				return uiInfo.mapList[i].mapName;
+			}
+
+			c++;
+		}
+	}
+
+	return "";
+}
+
 static const char *UI_SelectedHead(int index, int *actual) {
 	int i, c;
 	c = 0;
@@ -5401,7 +6462,7 @@ UI_ParseCallvoteGametypeToken
 Converts textual factory tokens to the corresponding gametype enumeration.
 =============
 */
-static int UI_ParseCallvoteGametypeToken(const char *token) {
+int UI_ParseCallvoteGametypeToken(const char *token) {
 	int value;
 
 	if (token == NULL || token[0] == '\0') {
@@ -6051,7 +7112,7 @@ if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
 			updateModel = qtrue;
 		}
 	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
-	    int actual, previous;
+	    int actual, previous, map;
 		map = (feederID == FEEDER_ALLMAPS) ? ui_currentNetMap.integer : ui_currentMap.integer;
 		// HLIL map-rotation strings (`^1map rotation item missing map…`) show the native
 		// UI reusing the same cinematic + metadata pairing when browsing rotation
@@ -6750,6 +7811,24 @@ static void UI_BuildQ3Model_List( void )
 
 		}
 
+/*
+=================
+UI_ListPlayerModels
+=================
+*/
+void UI_ListPlayerModels( void ) {
+	int i;
+
+	UI_BuildQ3Model_List();
+
+	Com_Printf( "Player Models\n" );
+	Com_Printf( "=============\n" );
+
+	for ( i = 0; i < uiInfo.q3HeadCount; i++ ) {
+		Com_Printf( "%s\n", uiInfo.q3HeadNames[i] );
+	}
+}
+
 
 
 /*
@@ -6777,19 +7856,7 @@ void _UI_Init( qboolean inGameLoad ) {
 	UI_ResetMatchSummaryCache();
 
 	// cache redundant calulations
-	trap_GetGlconfig( &uiInfo.uiDC.glconfig );
-
-	// for 640x480 virtualized screen
-	uiInfo.uiDC.yscale = uiInfo.uiDC.glconfig.vidHeight * (1.0/480.0);
-	uiInfo.uiDC.xscale = uiInfo.uiDC.glconfig.vidWidth * (1.0/640.0);
-	if ( uiInfo.uiDC.glconfig.vidWidth * 480 > uiInfo.uiDC.glconfig.vidHeight * 640 ) {
-		// wide screen
-		uiInfo.uiDC.bias = 0.5 * ( uiInfo.uiDC.glconfig.vidWidth - ( uiInfo.uiDC.glconfig.vidHeight * (640.0/480.0) ) );
-	}
-	else {
-		// no wide screen
-		uiInfo.uiDC.bias = 0;
-	}
+	UI_RefreshDisplayContextScale();
 
 
   //UI_Load();
@@ -6798,8 +7865,11 @@ void _UI_Init( qboolean inGameLoad ) {
 	uiInfo.uiDC.drawHandlePic = &UI_DrawHandlePic;
 	uiInfo.uiDC.drawStretchPic = &trap_R_DrawStretchPic;
 	uiInfo.uiDC.drawText = &Text_Paint;
+	uiInfo.uiDC.drawTextExt = &Text_PaintExt;
 	uiInfo.uiDC.textWidth = &Text_Width;
+	uiInfo.uiDC.textWidthExt = &Text_WidthExt;
 	uiInfo.uiDC.textHeight = &Text_Height;
+	uiInfo.uiDC.textHeightExt = &Text_HeightExt;
 	uiInfo.uiDC.registerModel = &trap_R_RegisterModel;
 	uiInfo.uiDC.modelBounds = &trap_R_ModelBounds;
 	uiInfo.uiDC.fillRect = &UI_FillRect;
@@ -6820,6 +7890,7 @@ void _UI_Init( qboolean inGameLoad ) {
 	uiInfo.uiDC.getCVarString = trap_Cvar_VariableStringBuffer;
 	uiInfo.uiDC.getCVarValue = trap_Cvar_VariableValue;
 	uiInfo.uiDC.drawTextWithCursor = &Text_PaintWithCursor;
+	uiInfo.uiDC.drawTextWithCursorExt = &Text_PaintWithCursorExt;
 	uiInfo.uiDC.setOverstrikeMode = &trap_Key_SetOverstrikeMode;
 	uiInfo.uiDC.getOverstrikeMode = &trap_Key_GetOverstrikeMode;
 	uiInfo.uiDC.startLocalSound = &trap_S_StartLocalSound;
@@ -6844,6 +7915,13 @@ void _UI_Init( qboolean inGameLoad ) {
 	uiInfo.uiDC.stopCinematic = &UI_StopCinematic;
 	uiInfo.uiDC.drawCinematic = &UI_DrawCinematic;
 	uiInfo.uiDC.runCinematicFrame = &UI_RunCinematicFrame;
+	uiInfo.uiDC.adjustFrom640 = &UI_AdjustFrom640;
+	uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;
+	uiInfo.uiDC.refreshAdvertCellShader = &UI_RefreshAdvertCellShader;
+	uiInfo.uiDC.activateAdvert = &UI_ActivateAdvert;
+	uiInfo.uiDC.initAdvertisementBridge = &UI_InitAdvertisementBridge;
+
+	uiInfo.uiDC.initAdvertisementBridge();
 
 	Init_Display(&uiInfo.uiDC);
 

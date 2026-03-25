@@ -85,10 +85,10 @@
 
 #define DEFAULT_RESPAWN_DELAY_MIN_MILLISECONDS      500
 #define DEFAULT_RESPAWN_DELAY_MAX_MILLISECONDS      3500
-#define DEFAULT_REGEN_HEALTH_FIXED_POINT            1250
-#define DEFAULT_REGEN_HEALTH_RATE_FIXED_POINT       133
-#define DEFAULT_REGEN_ARMOR_FIXED_POINT             1250
-#define DEFAULT_REGEN_ARMOR_RATE_FIXED_POINT        133
+#define DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS     1250
+#define DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS      133
+#define DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS      1250
+#define DEFAULT_REGEN_ARMOR_RATE_MILLISECONDS       133
 #define DEFAULT_REGEN_ARMOR_AFTER_HEALTH            1
 #define DEFAULT_SPAWN_ITEM_POWERUP                  0
 #define DEFAULT_SPAWN_ITEM_HOLDABLE                 0
@@ -132,6 +132,7 @@ extern vmCvar_t g_suddenDeathRespawn;
 vmCvar_t        g_startingHealth;
 vmCvar_t        g_startingHealthBonus;
 vmCvar_t        g_startingArmor;
+vmCvar_t        g_armorTiered;
 vmCvar_t        g_respawn_delay_min;
 vmCvar_t        g_respawn_delay_max;
 vmCvar_t        g_regenHealth;
@@ -220,22 +221,19 @@ static configCvarTable_t s_configCvarTable[] = {
         { &weapon_reload_cg,       "weapon_reload_cg",       "0", 0, "Chaingun refire delay override in milliseconds." },
         { &weapon_reload_hmg,      "weapon_reload_hmg",      "0", 0, "Heavy Machinegun refire delay override in milliseconds." },
 
-        { &g_startingWeapons,      "g_startingWeapons",      STRINGIZE( DEFAULT_STARTING_WEAPONS_MASK ), CVAR_ARCHIVE, "Bitmask describing which weapons players spawn with; bit (weapon-1) matches the WP_* enum used by Quake Live factories." },
         { &g_infiniteAmmo,         "g_infiniteAmmo",         STRINGIZE( DEFAULT_INFINITE_AMMO ), CVAR_ARCHIVE, "When non-zero, spawn loadouts grant infinite ammunition mirroring Quake Live practice factories." },
         { &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_ARCHIVE, "Enable Quake Live ammo pack sizing so pickups follow factory scripts instead of compiled defaults." },
         { &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_ARCHIVE, "Legacy Quake Live ammo pack override used by classic map factories." },
 	{ &g_ammoRespawn,          "g_ammoRespawn",          STRINGIZE( DEFAULT_AMMO_RESPAWN_SECONDS ), CVAR_ARCHIVE, "Seconds before ammo entities respawn; Quake Live factories reduce this for faster loops." },
 	{ &g_suddenDeathRespawn,   "g_suddenDeathRespawn",   STRINGIZE( DEFAULT_SUDDEN_DEATH_RESPAWN ), CVAR_ARCHIVE, "Allow ammo to continue respawning during sudden death when set to 1." },
-	{ &g_startingHealth,       "g_startingHealth",       STRINGIZE( DEFAULT_STARTING_HEALTH ), CVAR_ARCHIVE, "Base health applied to spawns before handicap and health bonuses." },
 	{ &g_startingHealthBonus,  "g_startingHealthBonus",  STRINGIZE( DEFAULT_STARTING_HEALTH_BONUS ), CVAR_ARCHIVE, "Extra health layered on top of the base value during spawns." },
-	{ &g_startingArmor,        "g_startingArmor",        STRINGIZE( DEFAULT_STARTING_ARMOR ), CVAR_ARCHIVE, "Armor granted on spawn when positive, mirroring Quake Live factories." },
 	{ &g_respawn_delay_min,    "g_respawn_delay_min",    STRINGIZE( DEFAULT_RESPAWN_DELAY_MIN_MILLISECONDS ), CVAR_ARCHIVE, "Minimum respawn delay in milliseconds applied when factories gate staggered spawns." },
 	{ &g_respawn_delay_max,    "g_respawn_delay_max",    STRINGIZE( DEFAULT_RESPAWN_DELAY_MAX_MILLISECONDS ), CVAR_ARCHIVE, "Maximum respawn delay in milliseconds enforced by queue-driven factories." },
-	{ &g_regenHealth,          "g_regenHealth",          STRINGIZE( DEFAULT_REGEN_HEALTH_FIXED_POINT ), CVAR_ARCHIVE, "Fixed-point health pool replenished when loadout modes enable regeneration (1250 = 125 health)." },
-	{ &g_regenHealthRate,      "g_regenHealthRate",      STRINGIZE( DEFAULT_REGEN_HEALTH_RATE_FIXED_POINT ), CVAR_ARCHIVE, "Fixed-point health added per tick while regeneration runs; Quake Live Domination factories use 133." },
-	{ &g_regenArmor,           "g_regenArmor",           STRINGIZE( DEFAULT_REGEN_ARMOR_FIXED_POINT ), CVAR_ARCHIVE, "Fixed-point armor pool restored by regeneration-enabled factories (1250 = 125 armor)." },
-	{ &g_regenArmorRate,       "g_regenArmorRate",       STRINGIZE( DEFAULT_REGEN_ARMOR_RATE_FIXED_POINT ), CVAR_ARCHIVE, "Fixed-point armor added per regeneration tick when enabled." },
-	{ &g_regenArmorAfterHealth, "g_regenArmorAfterHealth", STRINGIZE( DEFAULT_REGEN_ARMOR_AFTER_HEALTH ), CVAR_ARCHIVE, "When non-zero, armor regeneration waits for the health pool to finish refilling before ticking." },
+	{ &g_regenHealth,          "g_regenHealth",          STRINGIZE( DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds after taking damage before factory health regeneration begins." },
+	{ &g_regenHealthRate,      "g_regenHealthRate",      STRINGIZE( DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds per health point while factory health regeneration is active; Quake Live Domination factories use 133." },
+	{ &g_regenArmor,           "g_regenArmor",           STRINGIZE( DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds after taking damage before factory armor regeneration begins." },
+	{ &g_regenArmorRate,       "g_regenArmorRate",       STRINGIZE( DEFAULT_REGEN_ARMOR_RATE_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds per armor point while factory armor regeneration is active." },
+	{ &g_regenArmorAfterHealth, "g_regenArmorAfterHealth", STRINGIZE( DEFAULT_REGEN_ARMOR_AFTER_HEALTH ), CVAR_ARCHIVE, "When non-zero, armor regeneration waits for the health pool to refill before ticking." },
 	{ &g_spawnItemPowerup,     "g_spawnItemPowerup",     STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ), CVAR_ARCHIVE, "Allow map-placed powerups to spawn when factories do not rely solely on loadouts." },
 	{ &g_spawnItemHoldable,    "g_spawnItemHoldable",    STRINGIZE( DEFAULT_SPAWN_ITEM_HOLDABLE ), CVAR_ARCHIVE, "Enable holdable item spawns in loadout modes when set to 1." },
 	{ &g_spawnItemWeapons,     "g_spawnItemWeapons",     STRINGIZE( DEFAULT_SPAWN_ITEM_WEAPONS ), CVAR_ARCHIVE, "Permit world weapons to spawn alongside loadouts in modes such as Domination when non-zero." },
@@ -548,11 +546,11 @@ static factoryCvarConfig_t G_LoadFactoryCvarConfig( void ) {
         if ( config.respawnDelayMaxMilliseconds < config.respawnDelayMinMilliseconds ) {
                 config.respawnDelayMaxMilliseconds = config.respawnDelayMinMilliseconds;
         }
-        config.regenHealthFixedPoint = G_ReadFactoryNonNegativeCvar( &g_regenHealth, DEFAULT_REGEN_HEALTH_FIXED_POINT, "g_regenHealth" );
-        config.regenHealthRateFixedPoint = G_ReadFactoryNonNegativeCvar( &g_regenHealthRate, DEFAULT_REGEN_HEALTH_RATE_FIXED_POINT, "g_regenHealthRate" );
-        config.regenArmorFixedPoint = G_ReadFactoryNonNegativeCvar( &g_regenArmor, DEFAULT_REGEN_ARMOR_FIXED_POINT, "g_regenArmor" );
-        config.regenArmorRateFixedPoint = G_ReadFactoryNonNegativeCvar( &g_regenArmorRate, DEFAULT_REGEN_ARMOR_RATE_FIXED_POINT, "g_regenArmorRate" );
-        config.regenArmorAfterHealth = G_ReadFactoryBoolCvar( &g_regenArmorAfterHealth, DEFAULT_REGEN_ARMOR_AFTER_HEALTH ? qtrue : qfalse, "g_regenArmorAfterHealth" );
+	config.regenHealthDelayMilliseconds = G_ReadFactoryNonNegativeCvar( &g_regenHealth, DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS, "g_regenHealth" );
+	config.regenHealthRateMilliseconds = G_ReadFactoryNonNegativeCvar( &g_regenHealthRate, DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS, "g_regenHealthRate" );
+	config.regenArmorDelayMilliseconds = G_ReadFactoryNonNegativeCvar( &g_regenArmor, DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS, "g_regenArmor" );
+	config.regenArmorRateMilliseconds = G_ReadFactoryNonNegativeCvar( &g_regenArmorRate, DEFAULT_REGEN_ARMOR_RATE_MILLISECONDS, "g_regenArmorRate" );
+	config.regenArmorAfterHealth = G_ReadFactoryBoolCvar( &g_regenArmorAfterHealth, DEFAULT_REGEN_ARMOR_AFTER_HEALTH ? qtrue : qfalse, "g_regenArmorAfterHealth" );
         config.spawnItemPowerup = G_ReadFactoryBoolCvar( &g_spawnItemPowerup, DEFAULT_SPAWN_ITEM_POWERUP ? qtrue : qfalse, "g_spawnItemPowerup" );
         config.spawnItemHoldable = G_ReadFactoryBoolCvar( &g_spawnItemHoldable, DEFAULT_SPAWN_ITEM_HOLDABLE ? qtrue : qfalse, "g_spawnItemHoldable" );
         config.spawnItemWeapons = G_ReadFactoryBoolCvar( &g_spawnItemWeapons, DEFAULT_SPAWN_ITEM_WEAPONS ? qtrue : qfalse, "g_spawnItemWeapons" );
@@ -575,7 +573,7 @@ static void G_LogFactoryLoadoutState( const char *reason, const factoryCvarConfi
                 return;
         }
 
-	G_Printf( "Factory loadout (%s): mask=%i statMask=0x%X infiniteAmmo=%i ammoPack=%i hack=%i ammoRespawn=%i powerupRespawn=%i suddenDeathRespawn=%i startHealth=%i bonus=%i armor=%i allowKill=%i complaintThreshold=%i complaintLimit=%i respawnMin=%i respawnMax=%i regenHealth=%i regenHealthRate=%i regenArmor=%i regenArmorRate=%i regenArmorAfterHealth=%i spawnPowerup=%i spawnHoldable=%i spawnWeapons=%i spawnHealth=%i spawnArmor=%i spawnAmmo=%i\n",
+	G_Printf( "Factory loadout (%s): mask=%i statMask=0x%X infiniteAmmo=%i ammoPack=%i hack=%i ammoRespawn=%i powerupRespawn=%i suddenDeathRespawn=%i startHealth=%i bonus=%i armor=%i allowKill=%i complaintThreshold=%i complaintLimit=%i respawnMin=%i respawnMax=%i regenHealthDelay=%i regenHealthRate=%i regenArmorDelay=%i regenArmorRate=%i regenArmorAfterHealth=%i spawnPowerup=%i spawnHoldable=%i spawnWeapons=%i spawnHealth=%i spawnArmor=%i spawnAmmo=%i\n",
 	reason,
 	config->startingWeaponsMask,
 	config->startingWeaponsStatMask,
@@ -593,10 +591,10 @@ static void G_LogFactoryLoadoutState( const char *reason, const factoryCvarConfi
 	config->complaintLimit,
 	config->respawnDelayMinMilliseconds,
 	config->respawnDelayMaxMilliseconds,
-	config->regenHealthFixedPoint,
-	config->regenHealthRateFixedPoint,
-	config->regenArmorFixedPoint,
-	config->regenArmorRateFixedPoint,
+	config->regenHealthDelayMilliseconds,
+	config->regenHealthRateMilliseconds,
+	config->regenArmorDelayMilliseconds,
+	config->regenArmorRateMilliseconds,
 	config->regenArmorAfterHealth ? 1 : 0,
 	config->spawnItemPowerup ? 1 : 0,
 	config->spawnItemHoldable ? 1 : 0,
@@ -647,10 +645,10 @@ void G_UpdateFactoryCvarConfig( void ) {
 	|| config.complaintLimit != s_reportedFactoryConfig.complaintLimit
 	|| config.respawnDelayMinMilliseconds != s_reportedFactoryConfig.respawnDelayMinMilliseconds
 	|| config.respawnDelayMaxMilliseconds != s_reportedFactoryConfig.respawnDelayMaxMilliseconds
-	|| config.regenHealthFixedPoint != s_reportedFactoryConfig.regenHealthFixedPoint
-	|| config.regenHealthRateFixedPoint != s_reportedFactoryConfig.regenHealthRateFixedPoint
-	|| config.regenArmorFixedPoint != s_reportedFactoryConfig.regenArmorFixedPoint
-	|| config.regenArmorRateFixedPoint != s_reportedFactoryConfig.regenArmorRateFixedPoint
+	|| config.regenHealthDelayMilliseconds != s_reportedFactoryConfig.regenHealthDelayMilliseconds
+	|| config.regenHealthRateMilliseconds != s_reportedFactoryConfig.regenHealthRateMilliseconds
+	|| config.regenArmorDelayMilliseconds != s_reportedFactoryConfig.regenArmorDelayMilliseconds
+	|| config.regenArmorRateMilliseconds != s_reportedFactoryConfig.regenArmorRateMilliseconds
 	|| config.regenArmorAfterHealth != s_reportedFactoryConfig.regenArmorAfterHealth
 	|| config.spawnItemPowerup != s_reportedFactoryConfig.spawnItemPowerup
 	|| config.spawnItemHoldable != s_reportedFactoryConfig.spawnItemHoldable

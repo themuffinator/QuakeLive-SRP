@@ -466,20 +466,41 @@ qboolean ClientInactivityTimer( gclient_t *client ) {
 }
 
 /*
-=============
-G_FactoryRegenEnabled
+=================
+G_CheckClientFlood
 
-Returns whether a factory selection with regeneration settings is active.
-=============
+Retail qagame decays the shared flood counter from the active-client path and
+drops clients once the burst limit is exceeded.
+=================
 */
-static qboolean G_FactoryRegenEnabled( void ) {
-	if ( !g_factory.string[0] ) {
+static qboolean G_CheckClientFlood( gentity_t *ent ) {
+	gclient_t	*client;
+	int		maxCount;
+	int		decay;
+
+	if ( !ent || !ent->client ) {
+		return qtrue;
+	}
+
+	maxCount = g_floodprot_maxcount.integer;
+	decay = g_floodprot_decay.integer;
+	client = ent->client;
+	client->floodPenaltyTime = 0;
+
+	if ( maxCount <= 0 || decay <= 0 ) {
+		return qtrue;
+	}
+
+	if ( client->floodCount > maxCount ) {
+		trap_DropClient( ent - g_entities, "Dropped for flooding the server" );
 		return qfalse;
 	}
 
-	if ( g_factoryCvarConfig.regenHealthFixedPoint <= 0
-		&& g_factoryCvarConfig.regenArmorFixedPoint <= 0 ) {
-		return qfalse;
+	if ( client->floodLastTime > 0 && level.time - client->floodLastTime > decay ) {
+		client->floodLastTime = level.time;
+		if ( client->floodCount > 0 ) {
+			client->floodCount--;
+		}
 	}
 
 	return qtrue;
@@ -487,59 +508,67 @@ static qboolean G_FactoryRegenEnabled( void ) {
 
 /*
 =============
-G_FactoryFixedPointToInt
+G_FactoryHealthRegenEnabled
 
-Converts tenths-based fixed-point values into whole units.
+Returns whether retail-style factory health regeneration is configured.
 =============
 */
-static int G_FactoryFixedPointToInt( int value ) {
-	if ( value <= 0 ) {
-		return 0;
+static qboolean G_FactoryHealthRegenEnabled( void ) {
+	if ( !g_factory.string[0] ) {
+		return qfalse;
 	}
 
-	return value / FACTORY_FIXED_POINT_SCALE;
+	return ( g_factoryCvarConfig.regenHealthDelayMilliseconds > 0
+		&& g_factoryCvarConfig.regenHealthRateMilliseconds > 0 ) ? qtrue : qfalse;
 }
 
 /*
 =============
-G_FactoryConsumeRegenRate
+G_FactoryArmorRegenEnabled
 
-Accumulates a fixed-point regeneration rate and emits whole-unit deltas.
+Returns whether retail-style factory armor regeneration is configured.
 =============
 */
-static int G_FactoryConsumeRegenRate( int *remainder, int rateFixedPoint ) {
-	int		delta;
-
-	if ( !remainder || rateFixedPoint <= 0 ) {
-		return 0;
+static qboolean G_FactoryArmorRegenEnabled( void ) {
+	if ( !g_factory.string[0] ) {
+		return qfalse;
 	}
 
-	*remainder += rateFixedPoint;
-	if ( *remainder < FACTORY_FIXED_POINT_SCALE ) {
-		return 0;
-	}
-
-	delta = *remainder / FACTORY_FIXED_POINT_SCALE;
-	*remainder %= FACTORY_FIXED_POINT_SCALE;
-
-	return delta;
+	return ( g_factoryCvarConfig.regenArmorDelayMilliseconds > 0
+		&& g_factoryCvarConfig.regenArmorRateMilliseconds > 0 ) ? qtrue : qfalse;
 }
 
 /*
 =============
-G_RunFactoryRegen
+G_ResetFactoryRegenState
 
-Applies factory-driven health and armor regeneration for the supplied entity.
+Clears the retail-style regeneration accumulators and pending latches.
 =============
 */
-static void G_RunFactoryRegen( gentity_t *ent ) {
+static void G_ResetFactoryRegenState( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	client->factoryRegenHealthAccumulatorMs = 0;
+	client->factoryRegenArmorAccumulatorMs = 0;
+	client->factoryRegenLastDamageTime = 0;
+	client->factoryRegenHealthPending = qfalse;
+	client->factoryRegenArmorPending = qfalse;
+}
+
+/*
+=============
+G_RunFactoryHealthRegen
+
+Applies the mapped retail health-regen sidecar once the post-damage delay has elapsed.
+=============
+*/
+static void G_RunFactoryHealthRegen( gentity_t *ent, int msec ) {
 	gclient_t	*client;
 	int		healthTarget;
-	int		armorTarget;
-	qboolean	healthFilled;
-	int		delta;
 
-	if ( !ent || !ent->client ) {
+	if ( !ent || !ent->client || msec <= 0 ) {
 		return;
 	}
 
@@ -552,55 +581,147 @@ static void G_RunFactoryRegen( gentity_t *ent ) {
 	}
 
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 ) {
-		client->factoryRegenHealthRemainder = 0;
-		client->factoryRegenArmorRemainder = 0;
+		G_ResetFactoryRegenState( client );
 		return;
 	}
 
-	if ( !G_FactoryRegenEnabled() ) {
-		client->factoryRegenHealthRemainder = 0;
-		client->factoryRegenArmorRemainder = 0;
+	if ( !G_FactoryHealthRegenEnabled() ) {
+		client->factoryRegenHealthAccumulatorMs = 0;
+		client->factoryRegenHealthPending = qfalse;
 		return;
 	}
 
-	healthTarget = G_FactoryFixedPointToInt( g_factoryCvarConfig.regenHealthFixedPoint );
-	armorTarget = G_FactoryFixedPointToInt( g_factoryCvarConfig.regenArmorFixedPoint );
-	if ( healthTarget <= 0 && armorTarget <= 0 ) {
-		client->factoryRegenHealthRemainder = 0;
-		client->factoryRegenArmorRemainder = 0;
+	healthTarget = client->ps.stats[STAT_MAX_HEALTH];
+	if ( healthTarget <= 0 ) {
+		client->factoryRegenHealthAccumulatorMs = 0;
+		client->factoryRegenHealthPending = qfalse;
 		return;
 	}
 
-	healthFilled = qtrue;
-	if ( healthTarget > 0 ) {
-		if ( ent->health < healthTarget ) {
-			healthFilled = qfalse;
-			delta = G_FactoryConsumeRegenRate( &client->factoryRegenHealthRemainder, g_factoryCvarConfig.regenHealthRateFixedPoint );
-			if ( delta > 0 ) {
-				ent->health += delta;
-				if ( ent->health > healthTarget ) {
-					ent->health = healthTarget;
-				}
-				if ( client->ps.stats[STAT_HEALTH] < ent->health ) {
-					client->ps.stats[STAT_HEALTH] = ent->health;
-				}
-			}
-			if ( ent->health >= healthTarget ) {
-				healthFilled = qtrue;
-			}
+	if ( ent->health >= healthTarget ) {
+		client->factoryRegenHealthAccumulatorMs = 0;
+		client->factoryRegenHealthPending = qfalse;
+		if ( client->ps.stats[STAT_HEALTH] > ent->health ) {
+			client->ps.stats[STAT_HEALTH] = ent->health;
+		}
+		return;
+	}
+
+	if ( !client->factoryRegenHealthPending || client->factoryRegenLastDamageTime <= 0 ) {
+		return;
+	}
+
+	if ( level.time - client->factoryRegenLastDamageTime <= g_factoryCvarConfig.regenHealthDelayMilliseconds ) {
+		return;
+	}
+
+	client->factoryRegenHealthAccumulatorMs += msec;
+	while ( client->factoryRegenHealthAccumulatorMs >= g_factoryCvarConfig.regenHealthRateMilliseconds ) {
+		client->factoryRegenHealthAccumulatorMs -= g_factoryCvarConfig.regenHealthRateMilliseconds;
+
+		if ( ent->health >= healthTarget ) {
+			client->factoryRegenHealthPending = qfalse;
+			client->factoryRegenHealthAccumulatorMs = 0;
+			break;
+		}
+
+		ent->health += 1;
+		if ( ent->health > healthTarget ) {
+			ent->health = healthTarget;
+		}
+		client->ps.stats[STAT_HEALTH] = ent->health;
+	}
+
+	if ( ent->health >= healthTarget ) {
+		client->factoryRegenHealthPending = qfalse;
+		client->factoryRegenHealthAccumulatorMs = 0;
+	}
+}
+
+/*
+=============
+G_RunFactoryArmorRegen
+
+Applies the mapped retail armor-regen sidecar once the post-damage delay has elapsed.
+=============
+*/
+static void G_RunFactoryArmorRegen( gentity_t *ent, int msec ) {
+	gclient_t	*client;
+	int		armorTarget;
+
+	if ( !ent || !ent->client || msec <= 0 ) {
+		return;
+	}
+
+	client = ent->client;
+	if ( client->ps.pm_type == PM_DEAD
+		|| client->ps.pm_type == PM_SPECTATOR
+		|| client->ps.pm_type == PM_FREEZE
+		|| client->ps.pm_type == PM_INTERMISSION ) {
+		return;
+	}
+
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 ) {
+		G_ResetFactoryRegenState( client );
+		return;
+	}
+
+	if ( !G_FactoryArmorRegenEnabled() ) {
+		client->factoryRegenArmorAccumulatorMs = 0;
+		client->factoryRegenArmorPending = qfalse;
+		return;
+	}
+
+	if ( client->ps.stats[STAT_MAX_HEALTH] <= 0 ) {
+		client->factoryRegenArmorAccumulatorMs = 0;
+		client->factoryRegenArmorPending = qfalse;
+		return;
+	}
+
+	armorTarget = BG_GetArmorRegenTarget( &client->ps, g_armorTiered.integer ? qtrue : qfalse );
+	if ( armorTarget <= 0 ) {
+		client->factoryRegenArmorAccumulatorMs = 0;
+		client->factoryRegenArmorPending = qfalse;
+		return;
+	}
+
+	if ( client->ps.stats[STAT_ARMOR] >= armorTarget ) {
+		client->factoryRegenArmorAccumulatorMs = 0;
+		client->factoryRegenArmorPending = qfalse;
+		return;
+	}
+
+	if ( !client->factoryRegenArmorPending || client->factoryRegenLastDamageTime <= 0 ) {
+		return;
+	}
+
+	if ( level.time - client->factoryRegenLastDamageTime <= g_factoryCvarConfig.regenArmorDelayMilliseconds ) {
+		return;
+	}
+
+	if ( g_factoryCvarConfig.regenArmorAfterHealth && ent->health < client->ps.stats[STAT_MAX_HEALTH] ) {
+		return;
+	}
+
+	client->factoryRegenArmorAccumulatorMs += msec;
+	while ( client->factoryRegenArmorAccumulatorMs >= g_factoryCvarConfig.regenArmorRateMilliseconds ) {
+		client->factoryRegenArmorAccumulatorMs -= g_factoryCvarConfig.regenArmorRateMilliseconds;
+
+		if ( client->ps.stats[STAT_ARMOR] >= armorTarget ) {
+			client->factoryRegenArmorPending = qfalse;
+			client->factoryRegenArmorAccumulatorMs = 0;
+			break;
+		}
+
+		client->ps.stats[STAT_ARMOR] += 1;
+		if ( client->ps.stats[STAT_ARMOR] > armorTarget ) {
+			client->ps.stats[STAT_ARMOR] = armorTarget;
 		}
 	}
 
-	if ( armorTarget > 0 && client->ps.stats[STAT_ARMOR] < armorTarget ) {
-		if ( !g_factoryCvarConfig.regenArmorAfterHealth || healthFilled ) {
-			delta = G_FactoryConsumeRegenRate( &client->factoryRegenArmorRemainder, g_factoryCvarConfig.regenArmorRateFixedPoint );
-			if ( delta > 0 ) {
-				client->ps.stats[STAT_ARMOR] += delta;
-				if ( client->ps.stats[STAT_ARMOR] > armorTarget ) {
-					client->ps.stats[STAT_ARMOR] = armorTarget;
-				}
-			}
-		}
+	if ( client->ps.stats[STAT_ARMOR] >= armorTarget ) {
+		client->factoryRegenArmorPending = qfalse;
+		client->factoryRegenArmorAccumulatorMs = 0;
 	}
 }
 
@@ -608,7 +729,7 @@ static void G_RunFactoryRegen( gentity_t *ent ) {
 ==================
 ClientTimerActions
 
-Actions that happen once a second
+Runs once-per-second timers and the retail-style per-frame factory regen sidecars.
 ==================
 */
 void ClientTimerActions( gentity_t *ent, int msec ) {
@@ -620,8 +741,6 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 
 	while ( client->timeResidual >= 1000 ) {
 		client->timeResidual -= 1000;
-
-		G_RunFactoryRegen( ent );
 
 		// regenerate
 		if( bg_itemlist[client->ps.stats[STAT_PERSISTANT_POWERUP]].giTag == PW_GUARD ) {
@@ -655,46 +774,62 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 		}
 
 		// count down armor when over max
-		if ( client->ps.stats[STAT_ARMOR] > client->ps.stats[STAT_MAX_HEALTH] ) {
+		if ( !g_armorTiered.integer && client->ps.stats[STAT_ARMOR] > client->ps.stats[STAT_MAX_HEALTH] ) {
 			client->ps.stats[STAT_ARMOR]--;
 		}
 	}
 	if( bg_itemlist[client->ps.stats[STAT_PERSISTANT_POWERUP]].giTag == PW_AMMOREGEN ) {
 		int w, max, inc, t, i;
-    int weapList[]={WP_MACHINEGUN,WP_SHOTGUN,WP_GRENADE_LAUNCHER,WP_ROCKET_LAUNCHER,WP_LIGHTNING,WP_RAILGUN,WP_PLASMAGUN,WP_BFG,WP_NAILGUN,WP_PROX_LAUNCHER,WP_CHAINGUN};
-    int weapCount = sizeof(weapList) / sizeof(int);
+		int weapList[] = {
+			WP_MACHINEGUN,
+			WP_SHOTGUN,
+			WP_GRENADE_LAUNCHER,
+			WP_ROCKET_LAUNCHER,
+			WP_LIGHTNING,
+			WP_RAILGUN,
+			WP_PLASMAGUN,
+			WP_BFG,
+			WP_NAILGUN,
+			WP_PROX_LAUNCHER,
+			WP_CHAINGUN
+		};
+		int weapCount = ARRAY_LEN( weapList );
 		//
-    for (i = 0; i < weapCount; i++) {
-		  w = weapList[i];
+		for ( i = 0; i < weapCount; i++ ) {
+			w = weapList[i];
 
-		  switch(w) {
-			  case WP_MACHINEGUN: max = 50; inc = 4; t = 1000; break;
-			  case WP_SHOTGUN: max = 10; inc = 1; t = 1500; break;
-			  case WP_GRENADE_LAUNCHER: max = 10; inc = 1; t = 2000; break;
-			  case WP_ROCKET_LAUNCHER: max = 10; inc = 1; t = 1750; break;
-			  case WP_LIGHTNING: max = 50; inc = 5; t = 1500; break;
-			  case WP_RAILGUN: max = 10; inc = 1; t = 1750; break;
-			  case WP_PLASMAGUN: max = 50; inc = 5; t = 1500; break;
-			  case WP_BFG: max = 10; inc = 1; t = 4000; break;
-			  case WP_NAILGUN: max = 10; inc = 1; t = 1250; break;
-			  case WP_PROX_LAUNCHER: max = 5; inc = 1; t = 2000; break;
-			  case WP_CHAINGUN: max = 100; inc = 5; t = 1000; break;
-			  default: max = 0; inc = 0; t = 1000; break;
-		  }
-		  client->ammoTimes[w] += msec;
-		  if ( client->ps.ammo[w] >= max ) {
-			  client->ammoTimes[w] = 0;
-		  }
-		  if ( client->ammoTimes[w] >= t ) {
-			  while ( client->ammoTimes[w] >= t )
-				  client->ammoTimes[w] -= t;
-			  client->ps.ammo[w] += inc;
-			  if ( client->ps.ammo[w] > max ) {
-				  client->ps.ammo[w] = max;
-			  }
-		  }
-    }
+			switch ( w ) {
+				case WP_MACHINEGUN: max = 50; inc = 4; t = 1000; break;
+				case WP_SHOTGUN: max = 10; inc = 1; t = 1500; break;
+				case WP_GRENADE_LAUNCHER: max = 10; inc = 1; t = 2000; break;
+				case WP_ROCKET_LAUNCHER: max = 10; inc = 1; t = 1750; break;
+				case WP_LIGHTNING: max = 50; inc = 5; t = 1500; break;
+				case WP_RAILGUN: max = 10; inc = 1; t = 1750; break;
+				case WP_PLASMAGUN: max = 50; inc = 5; t = 1500; break;
+				case WP_BFG: max = 10; inc = 1; t = 4000; break;
+				case WP_NAILGUN: max = 10; inc = 1; t = 1250; break;
+				case WP_PROX_LAUNCHER: max = 5; inc = 1; t = 2000; break;
+				case WP_CHAINGUN: max = 100; inc = 5; t = 1000; break;
+				default: max = 0; inc = 0; t = 1000; break;
+			}
+			client->ammoTimes[w] += msec;
+			if ( client->ps.ammo[w] >= max ) {
+				client->ammoTimes[w] = 0;
+			}
+			if ( client->ammoTimes[w] >= t ) {
+				while ( client->ammoTimes[w] >= t ) {
+					client->ammoTimes[w] -= t;
+				}
+				client->ps.ammo[w] += inc;
+				if ( client->ps.ammo[w] > max ) {
+					client->ps.ammo[w] = max;
+				}
+			}
+		}
 	}
+
+	G_RunFactoryHealthRegen( ent, msec );
+	G_RunFactoryArmorRegen( ent, msec );
 }
 
 /*
@@ -1017,6 +1152,10 @@ void ClientThink_real( gentity_t *ent ) {
 		return;
 	}
 
+	if ( !G_CheckClientFlood( ent ) ) {
+		return;
+	}
+
 	// clear the rewards if time
 	if ( level.time > client->rewardTime ) {
 		client->ps.eFlags &= ~(EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP );
@@ -1295,7 +1434,10 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 			} else {
 				// POI gone?
 				ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
-				ClientBegin( ent->client - level.clients );
+				ent->client->sess.spectatorClient = -1;
+				if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+					ClientBegin( ent->client - level.clients );
+				}
 			}
 		} else if ( clientNum >= 0 ) {
 			cl = &level.clients[ clientNum ];
@@ -1309,7 +1451,10 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 				// drop them to free spectators unless they are dedicated camera followers
 				if ( ent->client->sess.spectatorClient >= 0 ) {
 				ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
-				ClientBegin( ent->client - level.clients );
+				ent->client->sess.spectatorClient = -1;
+				if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+					ClientBegin( ent->client - level.clients );
+				}
 				}
 			}
 		}
@@ -1339,7 +1484,9 @@ void ClientEndFrame( gentity_t *ent ) {
 		G_ComplaintResolve( ent, qfalse );
 	}
 
-	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR
+		|| ( ( g_gametype.integer == GT_CLAN_ARENA || g_gametype.integer == GT_ATTACK_DEFEND )
+			&& ent->client->ps.pm_type == PM_SPECTATOR ) ) {
 		SpectatorClientEndFrame( ent );
 		return;
 	}
@@ -1430,6 +1577,12 @@ Transitions the round controller into the warmup state.
 */
 static void G_FreezeScheduleWarmupDelay( void );
 static void G_FreezeResetClientsForRound( qboolean warmup );
+static int G_FreezeResolveRoundState( void );
+static int Freeze_RoundStateTransition( qboolean announce );
+static void G_RRSeedInfectionTeams( void );
+static void G_RRInitRoundController( void );
+static int RR_RoundStateTransition( qboolean announce );
+static qboolean G_Frame_CheckRoundLimit( void );
 void G_Frame_BeginRoundWarmup( void ) {
 	level.roundState = ROUNDSTATE_WARMUP;
 	level.roundTransitionTime = ROUND_TRANSITION_NONE;
@@ -1453,12 +1606,87 @@ Returns qtrue when the round controller should run for the active gametype.
 static qboolean G_RoundControllerGametypeEnabled( void ) {
 	switch ( g_gametype.integer ) {
 	case GT_CLAN_ARENA:
+	case GT_ATTACK_DEFEND:
 	case GT_RED_ROVER:
 	case GT_FREEZE:
 		return qtrue;
 	default:
 		return qfalse;
 	}
+}
+
+/*
+=============
+G_Frame_UpdateAttackDefendRoundController
+
+Runs the Attack & Defend retail controller and advances round outcomes once a side is eliminated.
+=============
+*/
+static void G_Frame_UpdateAttackDefendRoundController( void ) {
+	int		state;
+	int		counts[TEAM_NUM_TEAMS];
+	int		attackingTeam;
+	int		defendingTeam;
+	team_t	winner;
+
+	if ( !Team_HasMinimumPlayersForWarmup() ) {
+		if ( level.adRoundState != AD_ROUNDSTATE_INACTIVE
+			|| level.roundState != ROUNDSTATE_INACTIVE
+			|| level.roundTransitionTime != ROUND_TRANSITION_NONE ) {
+			level.roundState = ROUNDSTATE_INACTIVE;
+			level.adRoundState = AD_ROUNDSTATE_INACTIVE;
+			level.adPendingRoundState = AD_ROUNDSTATE_INACTIVE;
+			level.roundTransitionTime = ROUND_TRANSITION_NONE;
+			level.adTurnIndex = 0;
+			level.adRoundWinner = TEAM_FREE;
+			level.adRoundWinnerAlreadyScored = qfalse;
+			level.adStateChangeTime = level.time;
+			if ( level.roundNumber <= 0 ) {
+				level.roundNumber = 1;
+			}
+			G_ADResetScoreHistory();
+			G_UpdateMatchStateConfigString();
+		}
+		return;
+	}
+
+	if ( level.roundNumber <= 0 ) {
+		level.roundNumber = 1;
+	}
+
+	state = G_ADResolveRoundState();
+	if ( state == AD_ROUNDSTATE_INACTIVE ) {
+		level.adRoundState = AD_ROUNDSTATE_WARMUP;
+		AD_RoundStateTransition( qtrue );
+		return;
+	}
+
+	if ( state != AD_ROUNDSTATE_ACTIVE ) {
+		return;
+	}
+
+	attackingTeam = G_ADResolveAttackingTeam();
+	defendingTeam = G_ADResolveDefendingTeam();
+	if ( attackingTeam <= TEAM_FREE || defendingTeam <= TEAM_FREE ) {
+		return;
+	}
+
+	G_CountActivePlayersByTeam( counts );
+	winner = TEAM_FREE;
+	if ( counts[attackingTeam] <= 0 && counts[defendingTeam] > 0 ) {
+		winner = defendingTeam;
+	} else if ( counts[defendingTeam] <= 0 && counts[attackingTeam] > 0 ) {
+		winner = attackingTeam;
+	}
+
+	if ( winner == TEAM_FREE ) {
+		return;
+	}
+
+	level.adRoundWinner = winner;
+	level.adRoundWinnerAlreadyScored = qfalse;
+	level.adRoundState = AD_ROUNDSTATE_COMPLETE;
+	AD_RoundStateTransition( qtrue );
 }
 
 /*
@@ -1489,6 +1717,21 @@ Returns qtrue when the freeze ruleset should run for the active gametype.
 */
 qboolean G_FreezeGametypeEnabled( void ) {
 	return ( g_gametype.integer == GT_FREEZE ) ? qtrue : qfalse;
+}
+
+/*
+============
+G_FreezeResolveRoundState
+
+Returns the active Freeze round-state view consumed by the retail controller helpers.
+============
+*/
+static int G_FreezeResolveRoundState( void ) {
+	if ( !G_FreezeGametypeEnabled() ) {
+		return ROUNDSTATE_INACTIVE;
+	}
+
+	return level.roundState;
 }
 
 /*
@@ -1594,6 +1837,45 @@ Respawns or restores each player before a freeze round begins.
 */
 static void G_FreezeThawWinningPlayers( team_t winner );
 
+/*
+============
+G_FreezeResetClientForRound
+
+Respawns or restores one player before the next Freeze round begins.
+============
+*/
+static void G_FreezeResetClientForRound( gentity_t *ent, qboolean warmup ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return;
+	}
+
+	if ( level.freezeConfig.resetWeapons ) {
+		G_RequestClientSpawn( ent, warmup, qfalse );
+		return;
+	}
+
+	G_FreezeInitClient( ent );
+	ent->client->freezeFrozen = qfalse;
+	ent->client->ps.pm_type = PM_NORMAL;
+	ent->client->respawnTime = level.time;
+	ent->takedamage = qtrue;
+	if ( level.freezeConfig.resetHealth ) {
+		ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
+		ent->client->ps.stats[STAT_HEALTH] = ent->health;
+	}
+	if ( level.freezeConfig.resetArmor ) {
+		ent->client->ps.stats[STAT_ARMOR] = g_factoryCvarConfig.startingArmor;
+		BG_UpdateArmorTierFromCurrentArmor( &ent->client->ps, g_armorTiered.integer ? qtrue : qfalse );
+	}
+	if ( level.freezeConfig.removePowerups ) {
+		memset( ent->client->ps.powerups, 0, sizeof( ent->client->ps.powerups ) );
+	}
+}
+
 static void G_FreezeResetClientsForRound( qboolean warmup ) {
 	int			clientNum;
 
@@ -1608,48 +1890,24 @@ static void G_FreezeResetClientsForRound( qboolean warmup ) {
 		if ( !ent->inuse || !ent->client ) {
 			continue;
 		}
-
-		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
-			continue;
-		}
-
-		if ( level.freezeConfig.resetWeapons ) {
-			G_RequestClientSpawn( ent, warmup, qfalse );
-			continue;
-		}
-
-		G_FreezeInitClient( ent );
-		ent->client->freezeFrozen = qfalse;
-		ent->client->ps.pm_type = PM_NORMAL;
-		ent->client->respawnTime = level.time;
-		ent->takedamage = qtrue;
-		if ( level.freezeConfig.resetHealth ) {
-			ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
-			ent->client->ps.stats[STAT_HEALTH] = ent->health;
-		}
-		if ( level.freezeConfig.resetArmor ) {
-			ent->client->ps.stats[STAT_ARMOR] = g_factoryCvarConfig.startingArmor;
-		}
-		if ( level.freezeConfig.removePowerups ) {
-			memset( ent->client->ps.powerups, 0, sizeof( ent->client->ps.powerups ) );
-		}
+		G_FreezeResetClientForRound( ent, warmup );
 	}
 }
 
 /*
 ============
-G_FreezeRecountLivingClients
+G_TotalLivingHealthByTeam
 
-Rebuilds the cached living-player and health tallies for each team.
+Sums the living health pool for the specified Freeze team.
 ============
 */
-static void G_FreezeRecountLivingClients( void ) {
-	int			clientNum;
-	int			team;
+static int G_TotalLivingHealthByTeam( team_t team ) {
+	int		clientNum;
+	int		totalHealth;
 
-	for ( team = 0; team < TEAM_NUM_TEAMS; team++ ) {
-		level.freezeLivingCount[team] = 0;
-		level.freezeLivingHealth[team] = 0;
+	totalHealth = 0;
+	if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		return 0;
 	}
 
 	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
@@ -1661,25 +1919,79 @@ static void G_FreezeRecountLivingClients( void ) {
 		if ( !ent->inuse || !client ) {
 			continue;
 		}
-
-		team = client->sess.sessionTeam;
-		if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		if ( client->pers.connected == CON_DISCONNECTED ) {
 			continue;
 		}
-
-		if ( client->freezeFrozen ) {
+		if ( client->sess.sessionTeam != team ) {
 			continue;
 		}
+		if ( client->ps.pm_type != PM_NORMAL ) {
+			continue;
+		}
+		if ( ent->health > 0 ) {
+			totalHealth += ent->health;
+		}
+	}
 
+	return totalHealth;
+}
+
+/*
+============
+G_FreezeRecountLivingClients
+
+Rebuilds the cached living-player and health tallies for each team.
+============
+*/
+static void G_FreezeRecountLivingClients( void ) {
+	int			team;
+
+	G_CountActivePlayersByTeam( level.freezeLivingCount );
+	for ( team = 0; team < TEAM_NUM_TEAMS; team++ ) {
+		level.freezeLivingHealth[team] = 0;
+	}
+	level.freezeLivingHealth[TEAM_RED] = G_TotalLivingHealthByTeam( TEAM_RED );
+	level.freezeLivingHealth[TEAM_BLUE] = G_TotalLivingHealthByTeam( TEAM_BLUE );
+}
+
+/*
+============
+G_FreezeTeamIsFullyFrozen
+
+Returns qtrue once a Freeze team no longer has any unfrozen live members.
+============
+*/
+static qboolean G_FreezeTeamIsFullyFrozen( team_t team ) {
+	int		clientNum;
+
+	if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		return qfalse;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+
+		ent = &g_entities[clientNum];
+		client = ent->client;
+		if ( !ent->inuse || !client ) {
+			continue;
+		}
+		if ( client->pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+		if ( client->sess.sessionTeam != team ) {
+			continue;
+		}
 		if ( client->ps.pm_type == PM_DEAD ) {
 			continue;
 		}
-
-		level.freezeLivingCount[team]++;
-		if ( ent->health > 0 ) {
-			level.freezeLivingHealth[team] += ent->health;
+		if ( !client->freezeFrozen ) {
+			return qfalse;
 		}
 	}
+
+	return qtrue;
 }
 
 /*
@@ -1690,22 +2002,18 @@ Returns the winning team once only one side has living players left.
 ============
 */
 static team_t G_FreezeEvaluateRoundWinner( void ) {
-	qboolean	redAlive;
-	qboolean	blueAlive;
+	qboolean	redFrozen;
+	qboolean	blueFrozen;
 	team_t		winner;
 
 	G_FreezeRecountLivingClients();
-	redAlive = ( level.freezeLivingCount[TEAM_RED] > 0 ) ? qtrue : qfalse;
-	blueAlive = ( level.freezeLivingCount[TEAM_BLUE] > 0 ) ? qtrue : qfalse;
+	redFrozen = G_FreezeTeamIsFullyFrozen( TEAM_RED );
+	blueFrozen = G_FreezeTeamIsFullyFrozen( TEAM_BLUE );
 
-	if ( redAlive && blueAlive ) {
+	if ( redFrozen == blueFrozen ) {
 		return TEAM_FREE;
 	}
-	if ( !redAlive && !blueAlive ) {
-		return TEAM_FREE;
-	}
-
-	winner = redAlive ? TEAM_RED : TEAM_BLUE;
+	winner = redFrozen ? TEAM_BLUE : TEAM_RED;
 	if ( level.freezeConfig.thawWinningTeam ) {
 		G_FreezeThawWinningPlayers( winner );
 	}
@@ -1782,6 +2090,67 @@ static void G_FreezeHandleRoundEnd( team_t winner ) {
 
 /*
 =============
+Freeze_RoundStateTransition
+
+Runs the retail-style Freeze controller transition for the current internal state.
+=============
+*/
+static int Freeze_RoundStateTransition( qboolean announce ) {
+	(void)announce;
+
+	if ( !G_FreezeGametypeEnabled() ) {
+		return level.roundState;
+	}
+
+	switch ( G_FreezeResolveRoundState() ) {
+	case ROUNDSTATE_INACTIVE:
+		G_Frame_BeginRoundWarmup();
+		break;
+
+	case ROUNDSTATE_WARMUP:
+		if ( g_gametype.integer >= GT_TEAM && !Team_HasMinimumPlayersForWarmup() ) {
+			if ( level.warmupTime != -1 ) {
+				level.warmupTime = -1;
+				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+				G_UpdateReadyUpConfigstring();
+				G_LogPrintf( "Warmup:\n" );
+			}
+			break;
+		}
+
+		if ( level.warmupTime < 0 ) {
+			G_FreezeScheduleWarmupDelay();
+			break;
+		}
+
+		Team_ClampWarmupToShuffleCountdown();
+		if ( level.warmupTime == 0 ) {
+			G_Frame_BeginRoundActive();
+		}
+		break;
+
+	case ROUNDSTATE_COMPLETE:
+		if ( G_Frame_CheckRoundLimit() ) {
+			break;
+		}
+		if ( level.roundTransitionTime == 0 ) {
+			G_Frame_BeginRoundWarmup();
+			break;
+		}
+		if ( level.roundTransitionTime > 0 && level.time >= level.roundTransitionTime ) {
+			G_Frame_BeginRoundWarmup();
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return level.roundState;
+}
+
+/*
+=============
 G_Frame_CheckRoundLimit
 
 Ends the match when the configured round limit has been reached.
@@ -1803,6 +2172,119 @@ static qboolean G_Frame_CheckRoundLimit( void ) {
 
 /*
 =============
+G_RRSeedInfectionTeams
+
+Reapplies the retail Red Rover infection role split from the active team assignments.
+=============
+*/
+static void G_RRSeedInfectionTeams( void ) {
+	int		clientNum;
+
+	if ( g_gametype.integer != GT_RED_ROVER || !g_rrInfected.integer ) {
+		return;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*ent;
+
+		ent = &g_entities[clientNum];
+		if ( !ent->inuse || !ent->client ) {
+			continue;
+		}
+		if ( ent->client->pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		G_RRInitClient( ent );
+	}
+}
+
+/*
+=============
+G_RRInitRoundController
+
+Initializes the Red Rover round controller whenever the mode enters a new round phase.
+=============
+*/
+static void G_RRInitRoundController( void ) {
+	if ( g_gametype.integer != GT_RED_ROVER ) {
+		return;
+	}
+
+	level.roundStartTime = level.time;
+	G_RRSeedInfectionTeams();
+}
+
+/*
+=============
+RR_RoundStateTransition
+
+Runs the retail-style Red Rover round controller for the current state.
+=============
+*/
+static int RR_RoundStateTransition( qboolean announce ) {
+	(void)announce;
+
+	if ( g_gametype.integer != GT_RED_ROVER ) {
+		return level.roundState;
+	}
+
+	switch ( level.roundState ) {
+	case ROUNDSTATE_INACTIVE:
+		G_Frame_BeginRoundWarmup();
+		break;
+
+	case ROUNDSTATE_WARMUP:
+		if ( g_gametype.integer >= GT_TEAM && !Team_HasMinimumPlayersForWarmup() ) {
+			if ( level.warmupTime != -1 ) {
+				level.warmupTime = -1;
+				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+				G_UpdateReadyUpConfigstring();
+				G_LogPrintf( "Warmup:\n" );
+			}
+			break;
+		}
+
+		if ( level.warmupTime < 0 ) {
+			break;
+		}
+
+		Team_ClampWarmupToShuffleCountdown();
+		if ( level.warmupTime == 0 ) {
+			G_Frame_BeginRoundActive();
+			G_RRInitRoundController();
+		}
+		break;
+
+	case ROUNDSTATE_ACTIVE:
+		G_RRTrackRoundActivity();
+		break;
+
+	case ROUNDSTATE_COMPLETE:
+		if ( G_Frame_CheckRoundLimit() ) {
+			break;
+		}
+		if ( level.roundTransitionTime == 0 ) {
+			G_Frame_BeginRoundWarmup();
+			break;
+		}
+		if ( level.roundTransitionTime > 0 && level.time >= level.roundTransitionTime ) {
+			G_Frame_BeginRoundWarmup();
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return level.roundState;
+}
+
+/*
+=============
 G_Frame_UpdateRoundController
 
 Runs per-frame updates for the round controller state machine.
@@ -1815,6 +2297,24 @@ void G_Frame_UpdateRoundController( void ) {
 			level.roundTransitionTime = ROUND_TRANSITION_NONE;
 			G_UpdateMatchStateConfigString();
 		}
+		return;
+	}
+
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		G_Frame_UpdateAttackDefendRoundController();
+		G_FreezeRunFrame();
+		return;
+	}
+
+	if ( g_gametype.integer == GT_RED_ROVER ) {
+		RR_RoundStateTransition( qtrue );
+		G_FreezeRunFrame();
+		return;
+	}
+
+	if ( g_gametype.integer == GT_FREEZE ) {
+		Freeze_RoundStateTransition( qtrue );
+		G_FreezeRunFrame();
 		return;
 	}
 
@@ -1886,7 +2386,7 @@ void G_FreezeRunFrame( void ) {
 		return;
 	}
 
-	if ( level.roundState == ROUNDSTATE_WARMUP ) {
+	if ( G_FreezeResolveRoundState() == ROUNDSTATE_WARMUP ) {
 		if ( level.warmupTime > 0 && level.time >= level.warmupTime ) {
 			level.warmupTime = 0;
 			trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
@@ -1895,7 +2395,7 @@ void G_FreezeRunFrame( void ) {
 		return;
 	}
 
-	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+	if ( G_FreezeResolveRoundState() != ROUNDSTATE_ACTIVE ) {
 		return;
 	}
 

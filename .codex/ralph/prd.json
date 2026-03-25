@@ -1,0 +1,96 @@
+{
+  "project": "Quake Live Reverse Ralph Backlog",
+  "branchName": "ralph/quakelive-parity",
+  "description": "Starter Ralph backlog seeded from IMPLEMENTATION_PLAN.md on 2026-03-21. Stories may be decomposed into smaller executable slices before implementation.",
+  "verificationCommands": {
+    "build_debug_x86": "pwsh -NoProfile -ExecutionPolicy Bypass -File .vscode/build.ps1",
+    "match_state_pytest": "pytest tests/test_match_state_configstring.py",
+    "ownerdraw_pytest": "pytest tests/test_ownerdraw_stats_logging.py"
+  },
+  "userStories": [
+    {
+      "id": "QLR-021",
+      "title": "Native launcher and platform host reconstruction",
+      "description": "Close the largest remaining parity gap around the retail quakelive_steam.exe host stack. Prefer a smallest vertical slice that improves real platform or menu behavior without requiring the full browser runtime.",
+      "files": [
+        "IMPLEMENTATION_PLAN.md",
+        "AUDIT.md",
+        "docs/reverse-engineering/quakelive_steam_parity_plan.md",
+        "references/reverse-engineering/ghidra/quakelive_steam/",
+        "references/hlil/quakelive/quakelive_steam.exe/",
+        "src/code/client/",
+        "src/code/qcommon/"
+      ],
+      "acceptanceCriteria": [
+        "Either the story is decomposed into smaller executable slices in .codex/ralph/prd.json or one evidence-backed vertical slice is implemented",
+        "Any behavior claim cites committed reference evidence from the retail host binary",
+        ".codex/ralph/progress.txt records the work performed and a before/after parity estimate"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Start from the owning retail binary and use metadata.txt, imports.txt, exports.txt, functions.csv, and HLIL before deciding where to land code."
+    },
+    {
+      "id": "QLR-022",
+      "title": "UI and menu compatibility remediation",
+      "description": "Improve engine-side tolerance for missing retail UI assets and compatibility warnings without editing the read-only src/ui tree. Distinguish hard parity blockers from harmless warnings.",
+      "files": [
+        "IMPLEMENTATION_PLAN.md",
+        "docs/reverse-engineering/ui-uiinfo.md",
+        "docs/ui_followup_issues.md",
+        "src/code/client/",
+        "src/code/qcommon/",
+        "src/code/renderer/"
+      ],
+      "acceptanceCriteria": [
+        "Either the story is decomposed into smaller executable slices in .codex/ralph/prd.json or one engine-side compatibility improvement lands outside src/ui",
+        "Runtime-visible warning or asset behavior is documented with observed facts separated from inference",
+        ".codex/ralph/progress.txt records the work performed and a before/after parity estimate"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "src/ui is read-only. Fixes must land in engine-side compatibility code, supporting docs, or validation harnesses."
+    },
+    {
+      "id": "QLR-023",
+      "title": "Ownerdraw and stat payload completion",
+      "description": "Finish the remaining ownerdraw and scorestats payload details, then refresh targeted fixtures so the runtime and tests stay aligned with retail expectations.",
+      "files": [
+        "IMPLEMENTATION_PLAN.md",
+        "src/code/game/",
+        "src/code/cgame/",
+        "tests/test_ownerdraw_stats_logging.py",
+        "tests/expectations/ownerdraw_runtime_baseline.json",
+        "artifacts/tests/"
+      ],
+      "acceptanceCriteria": [
+        "Either the story is decomposed into smaller executable slices in .codex/ralph/prd.json or one residual payload gap is closed with matching test or fixture updates",
+        "Targeted validation is run and logged",
+        ".codex/ralph/progress.txt records the work performed and a before/after parity estimate"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Prefer small, test-backed slices over broad payload rewrites."
+    },
+    {
+      "id": "QLR-024",
+      "title": "Gameplay validation sweep",
+      "description": "Run targeted Race and gametype validation after gameplay-side changes, capture concrete regressions, and land focused test coverage instead of relying on broad manual inspection.",
+      "files": [
+        "IMPLEMENTATION_PLAN.md",
+        "docs/testing/",
+        "src/code/game/",
+        "src/code/cgame/",
+        "tests/"
+      ],
+      "acceptanceCriteria": [
+        "Either the story is decomposed into smaller executable slices in .codex/ralph/prd.json or one focused validation gap is closed with updated documentation or tests",
+        "Validation evidence names the exact mode, command, or fixture used",
+        ".codex/ralph/progress.txt records the work performed and a before/after parity estimate"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "If you uncover a regression, prefer a narrowly scoped test or harness update over a broad gameplay rewrite."
+    }
+  ]
+}

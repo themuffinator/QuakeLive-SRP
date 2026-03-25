@@ -467,32 +467,96 @@ vidmode_t r_vidModes[] =
     { "Mode  0: 320x240",		320,	240,	1 },
     { "Mode  1: 400x300",		400,	300,	1 },
     { "Mode  2: 512x384",		512,	384,	1 },
-    { "Mode  3: 640x480",		640,	480,	1 },
-    { "Mode  4: 800x600",		800,	600,	1 },
-    { "Mode  5: 960x720",		960,	720,	1 },
-    { "Mode  6: 1024x768",		1024,	768,	1 },
-    { "Mode  7: 1152x864",		1152,	864,	1 },
-    { "Mode  8: 1280x1024",		1280,	1024,	1 },
-    { "Mode  9: 1600x1200",		1600,	1200,	1 },
-    { "Mode 10: 2048x1536",		2048,	1536,	1 },
-    { "Mode 11: 856x480 (wide)",856,	480,	1 }
+    { "Mode  3: 640x360",		640,	360,	1 },
+    { "Mode  4: 640x400",		640,	400,	1 },
+    { "Mode  5: 640x480",		640,	480,	1 },
+    { "Mode  6: 800x450",		800,	450,	1 },
+    { "Mode  7: 852x480",		852,	480,	1 },
+    { "Mode  8: 800x500",		800,	500,	1 },
+    { "Mode  9: 800x600",		800,	600,	1 },
+    { "Mode 10: 1024x640",		1024,	640,	1 },
+    { "Mode 11: 1024x576",		1024,	576,	1 },
+    { "Mode 12: 1024x768",		1024,	768,	1 },
+    { "Mode 13: 1152x864",		1152,	864,	1 },
+    { "Mode 14: 1280x720",		1280,	720,	1 },
+    { "Mode 15: 1280x768",		1280,	768,	1 },
+    { "Mode 16: 1280x800",		1280,	800,	1 },
+    { "Mode 17: 1280x1024",		1280,	1024,	1 },
+    { "Mode 18: 1440x900",		1440,	900,	1 },
+    { "Mode 19: 1600x900",		1600,	900,	1 },
+    { "Mode 20: 1600x1000",		1600,	1000,	1 },
+    { "Mode 21: 1680x1050",		1680,	1050,	1 },
+    { "Mode 22: 1600x1200",		1600,	1200,	1 },
+    { "Mode 23: 1920x1080",		1920,	1080,	1 },
+    { "Mode 24: 1920x1200",		1920,	1200,	1 },
+    { "Mode 25: 1920x1440",		1920,	1440,	1 },
+    { "Mode 26: 2048x1536",		2048,	1536,	1 },
+    { "Mode 27: 2560x1600",		2560,	1600,	1 }
 };
 static int	s_numVidModes = ( sizeof( r_vidModes ) / sizeof( r_vidModes[0] ) );
 
-qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode ) {
-	vidmode_t	*vm;
-
-    if ( mode < -1 ) {
-        return qfalse;
+/*
+=============
+R_IsValidMode
+=============
+*/
+static qboolean R_IsValidMode( int mode )
+{
+	if ( mode < -1 ) {
+		return qfalse;
 	}
+
 	if ( mode >= s_numVidModes ) {
 		return qfalse;
 	}
 
+	return qtrue;
+}
+
+/*
+=============
+R_GetMode
+=============
+*/
+int R_GetMode( void )
+{
+	if ( r_fullscreen && !r_fullscreen->integer && r_windowedMode ) {
+		return r_windowedMode->integer;
+	}
+
+	if ( r_mode ) {
+		return r_mode->integer;
+	}
+
+	return 3;
+}
+
+/*
+=============
+R_GetModeInfo
+=============
+*/
+qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode, qboolean fullscreen ) {
+	vidmode_t	*vm;
+
+	if ( !R_IsValidMode( mode ) ) {
+		return qfalse;
+	}
+
 	if ( mode == -1 ) {
-		*width = r_customwidth->integer;
-		*height = r_customheight->integer;
-		*windowAspect = r_customaspect->value;
+		if ( fullscreen ) {
+			*width = r_customwidth->integer;
+			*height = r_customheight->integer;
+		} else {
+			*width = r_windowedWidth->integer;
+			*height = r_windowedHeight->integer;
+		}
+
+		if ( *width <= 0 || *height <= 0 ) {
+			return qfalse;
+		}
+
+		*windowAspect = (float)*width / (float)*height;
 		return qtrue;
 	}
 
@@ -503,6 +567,44 @@ qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode )
     *windowAspect = (float)vm->width / ( vm->height * vm->pixelAspect );
 
     return qtrue;
+}
+
+/*
+====================
+R_ValidateModeCvars
+====================
+*/
+static void R_ValidateModeCvars( void )
+{
+	if ( r_mode && !R_IsValidMode( r_mode->integer ) ) {
+		ri.Printf( PRINT_WARNING, "WARNING: invalid r_mode %d, resetting to 3\n", r_mode->integer );
+		ri.Cvar_Set( "r_mode", "3" );
+	}
+
+	if ( r_windowedMode && !R_IsValidMode( r_windowedMode->integer ) ) {
+		ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedMode %d, resetting to 12\n", r_windowedMode->integer );
+		ri.Cvar_Set( "r_windowedMode", "12" );
+	}
+
+	if ( r_customwidth && r_customwidth->integer <= 0 ) {
+		ri.Printf( PRINT_WARNING, "WARNING: invalid r_customwidth %d, resetting to 1600\n", r_customwidth->integer );
+		ri.Cvar_Set( "r_customwidth", "1600" );
+	}
+
+	if ( r_customheight && r_customheight->integer <= 0 ) {
+		ri.Printf( PRINT_WARNING, "WARNING: invalid r_customheight %d, resetting to 1024\n", r_customheight->integer );
+		ri.Cvar_Set( "r_customheight", "1024" );
+	}
+
+	if ( r_windowedWidth && r_windowedWidth->integer <= 0 ) {
+		ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedWidth %d, resetting to 1600\n", r_windowedWidth->integer );
+		ri.Cvar_Set( "r_windowedWidth", "1600" );
+	}
+
+	if ( r_windowedHeight && r_windowedHeight->integer <= 0 ) {
+		ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedHeight %d, resetting to 1024\n", r_windowedHeight->integer );
+		ri.Cvar_Set( "r_windowedHeight", "1024" );
+	}
 }
 
 /*
@@ -548,6 +650,7 @@ RB_TakeScreenshot
 void RB_TakeScreenshot( int x, int y, int width, int height, char *fileName ) {
 	byte		*buffer;
 	int			i, c, temp;
+	GLint		readBuffer;
 		
 	buffer = ri.Hunk_AllocateTempMemory(glConfig.vidWidth*glConfig.vidHeight*3+18);
 
@@ -559,7 +662,10 @@ void RB_TakeScreenshot( int x, int y, int width, int height, char *fileName ) {
 	buffer[15] = height >> 8;
 	buffer[16] = 24;	// pixel size
 
+	qglGetIntegerv( GL_READ_BUFFER, &readBuffer );
+	qglReadBuffer( GL_FRONT );
 	qglReadPixels( x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer+18 ); 
+	qglReadBuffer( readBuffer );
 
 	// swap rgb to bgr
 	c = 18 + width * height * 3;
@@ -586,10 +692,14 @@ RB_TakeScreenshotJPEG
 */  
 void RB_TakeScreenshotJPEG( int x, int y, int width, int height, char *fileName ) {
 	byte		*buffer;
+	GLint		readBuffer;
 
 	buffer = ri.Hunk_AllocateTempMemory(glConfig.vidWidth*glConfig.vidHeight*4);
 
+	qglGetIntegerv( GL_READ_BUFFER, &readBuffer );
+	qglReadBuffer( GL_FRONT );
 	qglReadPixels( x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer ); 
+	qglReadBuffer( readBuffer );
 
 	// gamma correct
 	if ( ( tr.overbrightBits > 0 ) && glConfig.deviceSupportsGamma ) {
@@ -711,6 +821,7 @@ void R_LevelShot( void ) {
 	int			r, g, b;
 	float		xScale, yScale;
 	int			xx, yy;
+	GLint		readBuffer;
 
 	sprintf( checkname, "levelshots/%s.tga", tr.world->baseName );
 
@@ -723,7 +834,10 @@ void R_LevelShot( void ) {
 	buffer[14] = 128;
 	buffer[16] = 24;	// pixel size
 
+	qglGetIntegerv( GL_READ_BUFFER, &readBuffer );
+	qglReadBuffer( GL_FRONT );
 	qglReadPixels( 0, 0, glConfig.vidWidth, glConfig.vidHeight, GL_RGB, GL_UNSIGNED_BYTE, source ); 
+	qglReadBuffer( readBuffer );
 
 	// resample from source
 	xScale = glConfig.vidWidth / 512.0f;
@@ -951,7 +1065,7 @@ void GfxInfo_f( void )
 	ri.Printf( PRINT_ALL, "GL_MAX_TEXTURE_SIZE: %d\n", glConfig.maxTextureSize );
 	ri.Printf( PRINT_ALL, "GL_MAX_ACTIVE_TEXTURES_ARB: %d\n", glConfig.maxActiveTextures );
 	ri.Printf( PRINT_ALL, "\nPIXELFORMAT: color(%d-bits) Z(%d-bit) stencil(%d-bits)\n", glConfig.colorBits, glConfig.depthBits, glConfig.stencilBits );
-	ri.Printf( PRINT_ALL, "MODE: %d, %d x %d %s hz:", r_mode->integer, glConfig.vidWidth, glConfig.vidHeight, fsstrings[r_fullscreen->integer == 1] );
+	ri.Printf( PRINT_ALL, "MODE: %d, %d x %d %s hz:", R_GetMode(), glConfig.vidWidth, glConfig.vidHeight, fsstrings[r_fullscreen->integer == 1] );
 	if ( glConfig.displayFrequency )
 	{
 		ri.Printf( PRINT_ALL, "%d\n", glConfig.displayFrequency );
@@ -1116,6 +1230,16 @@ void R_UpdatePostProcessCvars( void ) {
 	}
 }
 
+/*
+=============
+R_PostProcessRestart_f
+=============
+*/
+static void R_PostProcessRestart_f( void ) {
+	R_UpdatePostProcessCvars();
+	tr.postProcessNeedsReset = qtrue;
+}
+
 
 /*
 ===============
@@ -1181,6 +1305,7 @@ r_bloomBrightThreshold = ri.Cvar_Get( "r_bloomBrightThreshold", "0.25", CVAR_ARC
 	r_customheight = ri.Cvar_Get( "r_customheight", "1024", CVAR_ARCHIVE | CVAR_LATCH );
 	r_customaspect = ri.Cvar_Get( "r_customaspect", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_aspectRatio = ri.Cvar_Get( "r_aspectRatio", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	R_ValidateModeCvars();
 	r_simpleMipMaps = ri.Cvar_Get( "r_simpleMipMaps", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_vertexLight = ri.Cvar_Get( "r_vertexLight", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_uiFullScreen = ri.Cvar_Get( "r_uifullscreen", "0", 0);
@@ -1299,6 +1424,7 @@ r_bloomBrightThreshold = ri.Cvar_Get( "r_bloomBrightThreshold", "0.25", CVAR_ARC
 	ri.Cmd_AddCommand( "modelist", R_ModeList_f );
 	ri.Cmd_AddCommand( "screenshot", R_ScreenShot_f );
 	ri.Cmd_AddCommand( "screenshotJPEG", R_ScreenShotJPEG_f );
+	ri.Cmd_AddCommand( "postprocess_restart", R_PostProcessRestart_f );
 	ri.Cmd_AddCommand( "gfxinfo", GfxInfo_f );
 }
 
@@ -1430,6 +1556,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	ri.Cmd_RemoveCommand ("skinlist");
 	ri.Cmd_RemoveCommand ("gfxinfo");
 	ri.Cmd_RemoveCommand( "modelist" );
+	ri.Cmd_RemoveCommand( "postprocess_restart" );
 	ri.Cmd_RemoveCommand( "shaderstate" );
 
 

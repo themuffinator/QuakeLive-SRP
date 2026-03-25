@@ -7,6 +7,30 @@ This repository documents and reconstructs the Quake Live gameplay stack on top 
 open-source Quake III Arena codebase. Use the documentation under `docs/` to navigate
 build pipelines, testing harnesses, and reverse-engineering references.
 
+## Reverse-engineering references
+
+The repository now carries two complementary reverse-engineering corpora:
+
+- Binary Ninja HLIL dumps under `references/hlil/`, which remain the canonical
+  parity reference for retail Quake Live behavior.
+- OpenAlice-style committed Ghidra exports under
+  `references/reverse-engineering/ghidra/`, which provide structured
+  `metadata.txt`, `functions.csv`, `imports.txt`, `exports.txt`,
+  `analysis_symbols.txt`, and `decompile_top_functions.c` snapshots for the retail
+  Quake Live binaries in `assets/quakelive/`.
+
+Primary workflow docs:
+
+- `docs/reverse-engineering/ghidra-reference-workflow.md`
+- `docs/reverse-engineering/ghidra-module-mapping.md`
+- `docs/reverse-engineering/ghidrassist-mcp.md`
+
+Refresh the committed Ghidra corpus with:
+
+```powershell
+scripts\ghidra\run_quakelive_reference.ps1
+```
+
 ## Mentorship rotation schedule
 
 | Week | Mentor | Focus Area |

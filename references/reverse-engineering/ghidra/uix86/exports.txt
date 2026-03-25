@@ -1,0 +1,2 @@
+10003970 dllEntry
+10020d66 entry

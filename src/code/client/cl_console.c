@@ -64,6 +64,166 @@ cvar_t		*con_notifytime;
 
 vec4_t	console_color = {1.0, 1.0, 1.0, 1.0};
 
+/*
+================
+Con_GetChatFieldWidthInChars
+
+Returns the retail chat-field width, including the team-chat reduction.
+================
+*/
+static int Con_GetChatFieldWidthInChars( qboolean teamChat ) {
+	int width = 30;
+
+	if ( cgvm ) {
+		int cgameWidth = VM_Call( cgvm, CG_GET_CHAT_FIELD_WIDTH_IN_CHARS );
+
+		if ( cgameWidth > 0 ) {
+			width = cgameWidth;
+		}
+	}
+
+	if ( teamChat && width > 5 ) {
+		width -= 5;
+	}
+
+	return width;
+}
+
+/*
+================
+Con_GetChatFieldY
+
+Returns the retail 640-space Y origin for the live chat input field.
+================
+*/
+static int Con_GetChatFieldY( void ) {
+	int chatFieldY = 413;
+
+	if ( cgvm ) {
+		int cgameY = VM_Call( cgvm, CG_GET_CHAT_FIELD_Y );
+
+		if ( cgameY > 0 ) {
+			chatFieldY = cgameY;
+		}
+	}
+
+	return chatFieldY;
+}
+
+/*
+================
+Con_GetChatFieldPixelWidth
+
+Returns the retail 640-space width for the live chat input field.
+================
+*/
+static int Con_GetChatFieldPixelWidth( void ) {
+	int chatFieldWidth = 640;
+
+	if ( cgvm ) {
+		int cgameWidth = VM_Call( cgvm, CG_GET_CHAT_FIELD_PIXEL_WIDTH );
+
+		if ( cgameWidth > 0 ) {
+			chatFieldWidth = cgameWidth;
+		}
+	}
+
+	return chatFieldWidth;
+}
+
+/*
+================
+Con_ResetChatField
+
+Clears the live chat field using the retail cgame-selected width.
+================
+*/
+static void Con_ResetChatField( qboolean teamChat ) {
+	Field_Clear( &chatField );
+	chatField.widthInChars = Con_GetChatFieldWidthInChars( teamChat );
+}
+
+/*
+================
+Con_GetTimestampTime
+
+Returns the retail console timestamp source, preferring cgame physics time.
+================
+*/
+static int Con_GetTimestampTime( void ) {
+	int timestampTime;
+
+	timestampTime = ( cls.state >= CA_CONNECTED ) ? cl.serverTime : cls.realtime;
+	if ( cgvm && cl_contimestamps && cl_contimestamps->integer == 1 ) {
+		int physicsTime = VM_Call( cgvm, CG_GET_PHYSICS_TIME );
+
+		if ( physicsTime > 0 ) {
+			timestampTime = physicsTime;
+		}
+	}
+
+	if ( timestampTime < 0 ) {
+		timestampTime = 0;
+	}
+
+	return timestampTime;
+}
+
+/*
+================
+Con_FormatTimestamp
+
+Builds the retail `[m:ss.mmm]` notify/console prefix.
+================
+*/
+static void Con_FormatTimestamp( char *buffer, int bufferSize ) {
+	int timestampTime;
+	int totalSeconds;
+	int minutes;
+	int seconds;
+	int millis;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	timestampTime = Con_GetTimestampTime();
+	totalSeconds = timestampTime / 1000;
+	minutes = totalSeconds / 60;
+	seconds = totalSeconds % 60;
+	millis = timestampTime % 1000;
+
+	Com_sprintf( buffer, bufferSize, "[%d:%02d.%03d] ", minutes, seconds, millis );
+}
+
+/*
+================
+Con_GetChatPrompt
+
+Returns the retail live-chat prompt string and field skip width.
+================
+*/
+static const char *Con_GetChatPrompt( int *skip ) {
+	if ( chat_playerNum != -1 ) {
+		if ( skip ) {
+			*skip = 7;
+		}
+		return "reply:";
+	}
+
+	if ( chat_team ) {
+		if ( skip ) {
+			*skip = 11;
+		}
+		return "say team:";
+	}
+
+	if ( skip ) {
+		*skip = 6;
+	}
+	return "say:";
+}
+
 
 /*
 ================
@@ -92,8 +252,7 @@ Con_MessageMode_f
 void Con_MessageMode_f (void) {
 	chat_playerNum = -1;
 	chat_team = qfalse;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 30;
+	Con_ResetChatField( qfalse );
 
 	cls.keyCatchers ^= KEYCATCH_MESSAGE;
 }
@@ -106,8 +265,7 @@ Con_MessageMode2_f
 void Con_MessageMode2_f (void) {
 	chat_playerNum = -1;
 	chat_team = qtrue;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 25;
+	Con_ResetChatField( qtrue );
 	cls.keyCatchers ^= KEYCATCH_MESSAGE;
 }
 
@@ -123,8 +281,7 @@ void Con_MessageMode3_f (void) {
 		return;
 	}
 	chat_team = qfalse;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 30;
+	Con_ResetChatField( qfalse );
 	cls.keyCatchers ^= KEYCATCH_MESSAGE;
 }
 
@@ -140,8 +297,7 @@ void Con_MessageMode4_f (void) {
 		return;
 	}
 	chat_team = qfalse;
-	Field_Clear( &chatField );
-	chatField.widthInChars = 30;
+	Con_ResetChatField( qfalse );
 	cls.keyCatchers ^= KEYCATCH_MESSAGE;
 }
 
@@ -407,17 +563,7 @@ void CL_ConsolePrint( char *txt ) {
 	}
 
 	if ( timestampMode ) {
-		if ( timestampMode == 1 ) {
-			Com_sprintf( timestamp, sizeof( timestamp ), "^7[%i] ", cls.realtime / 1000 );
-		} else {
-			// server time is not always available or might be 0, falling back to game time logic or system time if we had it
-			// For parity with "2 = Server time", we use cl.serverTime if connected.
-			if ( cls.state >= CA_CONNECTED ) {
-				Com_sprintf( timestamp, sizeof( timestamp ), "^7[%i] ", cl.serverTime / 1000 );
-			} else {
-				Com_sprintf( timestamp, sizeof( timestamp ), "^7[%i] ", cls.realtime / 1000 );
-			}
-		}
+		Con_FormatTimestamp( timestamp, sizeof( timestamp ) );
 	}
 
 	while ( (c = *txt) != 0 ) {
@@ -618,21 +764,21 @@ void Con_DrawNotify (void)
 	// draw the chat line
 	if ( cls.keyCatchers & KEYCATCH_MESSAGE )
 	{
-		if (chat_team)
-		{
-			SCR_DrawBigString (8, v, "say_team:", 1.0f );
-			skip = 11;
-		}
-		else
-		{
-			SCR_DrawBigString (8, v, "say:", 1.0f );
-			skip = 5;
+		const char *prompt;
+		int chatFieldY;
+		int chatFieldWidth;
+		int drawWidth;
+
+		prompt = Con_GetChatPrompt( &skip );
+		chatFieldY = Con_GetChatFieldY();
+		chatFieldWidth = Con_GetChatFieldPixelWidth();
+		drawWidth = chatFieldWidth - ( skip + 1 ) * BIGCHAR_WIDTH;
+		if ( drawWidth < BIGCHAR_WIDTH ) {
+			drawWidth = BIGCHAR_WIDTH;
 		}
 
-		Field_BigDraw( &chatField, skip * BIGCHAR_WIDTH, v,
-			SCREEN_WIDTH - ( skip + 1 ) * BIGCHAR_WIDTH, qtrue );
-
-		v += BIGCHAR_HEIGHT;
+		SCR_DrawBigString (8, chatFieldY, prompt, 1.0f );
+		Field_BigDraw( &chatField, skip * BIGCHAR_WIDTH, chatFieldY, drawWidth, qtrue );
 	}
 
 }

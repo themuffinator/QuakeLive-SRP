@@ -1,0 +1,12 @@
+# Ralph Progress Log
+Started: 2026-03-21
+Purpose: Repo-local Codex Ralph loop for Quake Live parity work.
+Target branch: ralph/quakelive-parity
+Seed source: IMPLEMENTATION_PLAN.md (2026-03-21 snapshot)
+---
+## Starter Checklist
+- [ ] QLR-021: Native launcher and platform host reconstruction
+- [ ] QLR-022: UI and menu compatibility remediation
+- [ ] QLR-023: Ownerdraw and stat payload completion
+- [ ] QLR-024: Gameplay validation sweep
+---

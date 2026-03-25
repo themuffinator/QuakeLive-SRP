@@ -899,7 +899,7 @@ int GLW_SetMode( const char *drivername, int mode, qboolean fullscreen )
 
   ri.Printf (PRINT_ALL, "...setting mode %d:", mode );
 
-  if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, mode ) )
+  if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, mode, fullscreen ) )
   {
     ri.Printf( PRINT_ALL, " invalid mode\n" );
     return RSERR_INVALID_MODE;
@@ -1332,12 +1332,15 @@ static qboolean GLW_LoadOpenGL( const char *name )
   // load the QGL layer
   if ( QGL_Init( name ) )
   {
+    int mode;
+
     fullscreen = r_fullscreen->integer;
+    mode = R_GetMode();
 
     // create the window and set up the context
-    if ( !GLW_StartDriverAndSetMode( name, r_mode->integer, fullscreen ) )
+    if ( !GLW_StartDriverAndSetMode( name, mode, fullscreen ) )
     {
-      if (r_mode->integer != 3)
+      if ( mode != 3 )
       {
         if ( !GLW_StartDriverAndSetMode( name, 3, fullscreen ) )
         {

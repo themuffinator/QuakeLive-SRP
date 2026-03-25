@@ -253,57 +253,459 @@ static void CG_PrevTeamMember_f( void ) {
 
 /*
 =============
-CG_SpectatorFollowNext_f
+CG_ClientMute_f
 
-Cycles to the next follow target while spectating.
+Toggles the local retail-style scoreboard mute state for a client slot.
 =============
 */
-static void CG_SpectatorFollowNext_f( void ) {
-	CG_SpectatorFollowCycle( 1 );
+static void CG_ClientMute_f( void ) {
+	char	arg[16];
+	int		clientNum;
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+	if ( !arg[0] ) {
+		return;
+	}
+
+	clientNum = atoi( arg );
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	cg.clientMuted[clientNum] = (qboolean)!cg.clientMuted[clientNum];
 }
 
 /*
 =============
-CG_SpectatorFollowPrev_f
+CG_IsInstaGibMode
 
-Cycles to the previous follow target while spectating.
+Returns qtrue when the retail dmflags bit that blocks dropweapon and droppowerup is set.
 =============
 */
-static void CG_SpectatorFollowPrev_f( void ) {
-	CG_SpectatorFollowCycle( -1 );
+static qboolean CG_IsInstaGibMode( void ) {
+	return ( cgs.dmflags & 0x20000 ) != 0;
 }
 
 /*
 =============
-CG_SpectatorStopFollow_f
+CG_DropFlag_f
 
-Stops following any player and releases the spectator camera.
+Mirrors the retail local dropflag gate and only forwards in flag-objective modes.
 =============
 */
-static void CG_SpectatorStopFollow_f( void ) {
-	CG_StopSpectatorFollow();
+static void CG_DropFlag_f( void ) {
+	if ( cgs.gametype != GT_CTF && cgs.gametype != GT_1FCTF &&
+			cgs.gametype != GT_ATTACK_DEFEND ) {
+		Com_Printf( "DropFlag is not available in non-flag gametypes.\n" );
+		return;
+	}
+
+	trap_SendClientCommand( "dropflag" );
 }
 
 /*
 =============
-CG_SpectatorLockCamera_f
+CG_DropPowerup_f
 
-Locks the spectator camera onto the current follow target.
+Mirrors the retail local droppowerup gate across team-mode, mode-specific, and InstaGib checks.
 =============
 */
-static void CG_SpectatorLockCamera_f( void ) {
-	CG_SetSpectatorCameraLock( qtrue );
+static void CG_DropPowerup_f( void ) {
+	if ( cgs.gametype < GT_TEAM ) {
+		Com_Printf( "DropPowerup is not available in non-team gametypes.\n" );
+		return;
+	}
+
+	if ( cgs.gametype == GT_CLAN_ARENA || cgs.gametype == GT_DOMINATION ||
+			cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_RED_ROVER ) {
+		Com_Printf( "DropPowerup is not available in %s.\n", CG_GameTypeString() );
+		return;
+	}
+
+	if ( CG_IsInstaGibMode() ) {
+		Com_Printf( "DropPowerup is not available in InstaGib.\n" );
+		return;
+	}
+
+	trap_SendClientCommand( "droppowerup" );
 }
 
 /*
 =============
-CG_SpectatorUnlockCamera_f
+CG_DropRune_f
 
-Releases any spectator camera lock so targets can be changed.
+Mirrors the retail local droprune gate, which only blocks the Race slot.
 =============
 */
-static void CG_SpectatorUnlockCamera_f( void ) {
-	CG_SetSpectatorCameraLock( qfalse );
+static void CG_DropRune_f( void ) {
+	if ( cgs.gametype == GT_RACE ) {
+		Com_Printf( "DropRune not available in %s.\n", CG_GameTypeString() );
+		return;
+	}
+
+	trap_SendClientCommand( "droprune" );
+}
+
+/*
+=============
+CG_DropWeapon_f
+
+Mirrors the retail local dropweapon gate across team-mode, mode-specific, and InstaGib checks.
+=============
+*/
+static void CG_DropWeapon_f( void ) {
+	if ( cgs.gametype < GT_TEAM ) {
+		Com_Printf( "DropWeapon is not available in non-team gametypes.\n" );
+		return;
+	}
+
+	if ( cgs.gametype == GT_CLAN_ARENA || cgs.gametype == GT_DOMINATION ||
+			cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_RED_ROVER ) {
+		Com_Printf( "DropWeapon is not available in %s.\n", CG_GameTypeString() );
+		return;
+	}
+
+	if ( CG_IsInstaGibMode() ) {
+		Com_Printf( "DropWeapon is not available in InstaGib.\n" );
+		return;
+	}
+
+	trap_SendClientCommand( "dropweapon" );
+}
+
+/*
+=============
+CG_Forfeit_f
+
+Mirrors the retail local forfeit gate and only forwards in supported match types.
+=============
+*/
+static void CG_Forfeit_f( void ) {
+	if ( cgs.gametype == GT_FFA || cgs.gametype == GT_RACE ||
+			cgs.gametype == GT_RED_ROVER ) {
+		Com_Printf( "Forfeit is not available in %s.\n", CG_GameTypeString() );
+		return;
+	}
+
+	trap_SendClientCommand( "forfeit" );
+}
+
+/*
+=============
+CG_RageQuit_f
+
+Mirrors the retail ragequit wrapper and arms the existing client-side quit latch.
+=============
+*/
+static void CG_RageQuit_f( void ) {
+	trap_SendClientCommand( "ragequit" );
+	cg.rageQuitTime = 2;
+}
+
+/*
+=============
+CG_IsRetailReadyUpPregameBypassActive
+
+Returns qtrue for the special tutorial/training pregame path that retail gates through
+an unresolved match-phase discriminator.
+=============
+*/
+static qboolean CG_IsRetailReadyUpPregameBypassActive( void ) {
+	const char	*info;
+	const char	*trainingValue;
+	const char	*tutorialName;
+	const char	*tutorialText;
+
+	info = CG_ConfigString( CS_SERVERINFO );
+	if ( info && *info ) {
+		trainingValue = Info_ValueForKey( info, "g_training" );
+		if ( trainingValue && trainingValue[0] && atoi( trainingValue ) ) {
+			return qtrue;
+		}
+	}
+
+	tutorialName = CG_ConfigString( CS_TUTORIAL_NAME );
+	if ( tutorialName && tutorialName[0] ) {
+		return qtrue;
+	}
+
+	tutorialText = CG_ConfigString( CS_TUTORIAL_TEXT );
+	return ( tutorialText && tutorialText[0] ) ? qtrue : qfalse;
+}
+
+/*
+=============
+CG_ReadyUp_f
+
+Mirrors the retail local readyup wrapper by requiring an active ready-up window and
+blocking spectators outside the special tutorial/training pregame path.
+=============
+*/
+static void CG_ReadyUp_f( void ) {
+	qboolean	allowPregameBypass;
+
+	allowPregameBypass = CG_IsRetailReadyUpPregameBypassActive();
+
+	if ( !cg.snap ) {
+		if ( !allowPregameBypass ) {
+			return;
+		}
+	} else {
+		if ( cg.warmup == 0 && cgs.matchReadyUpDeadline <= 0 && !allowPregameBypass ) {
+			return;
+		}
+
+		if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
+				!allowPregameBypass ) {
+			return;
+		}
+	}
+
+	trap_SendClientCommand( "readyup" );
+}
+
+/*
+=============
+CG_ClearRetailCommandCaptureState
+
+Closes the cgame-owned capture paths that the retail team wrapper dismisses after forwarding.
+=============
+*/
+static void CG_ClearRetailCommandCaptureState( void ) {
+	int catcher;
+
+	if ( cgs.eventHandling == CGAME_EVENT_TEAMMENU ||
+			cgs.eventHandling == CGAME_EVENT_EDITHUD ) {
+		CG_EventHandling( CGAME_EVENT_NONE );
+	}
+
+	catcher = trap_Key_GetCatcher();
+	if ( catcher & KEYCATCH_CGAME ) {
+		trap_Key_SetCatcher( catcher & ~KEYCATCH_CGAME );
+	}
+}
+
+/*
+=============
+CG_Team_f
+
+Mirrors the retail local team wrapper by forwarding the team command and dismissing any cgame-owned capture state.
+=============
+*/
+static void CG_Team_f( void ) {
+	char	teamArg[128];
+	char	command[160];
+
+	trap_Argv( 1, teamArg, sizeof( teamArg ) );
+	Com_sprintf( command, sizeof( command ), "team %s", teamArg );
+	trap_SendClientCommand( command );
+	CG_ClearRetailCommandCaptureState();
+}
+
+static const unsigned int cg_retailCommandColorPalette[26] = {
+	0x800000ffu,
+	0x802300ffu,
+	0x804000ffu,
+	0x805e00ffu,
+	0x808000ffu,
+	0x5e8000ffu,
+	0x408000ffu,
+	0x238000ffu,
+	0x008000ffu,
+	0x008023ffu,
+	0x008040ffu,
+	0x00805effu,
+	0x008080ffu,
+	0x005e80ffu,
+	0x004080ffu,
+	0x002380ffu,
+	0x000080ffu,
+	0x230080ffu,
+	0x400080ffu,
+	0x5e0080ffu,
+	0x800080ffu,
+	0x80005effu,
+	0x800040ffu,
+	0x800023ffu,
+	0x808080ffu,
+	0x404040ffu
+};
+
+/*
+=============
+CG_ColorCommandCharToPaletteIndex
+
+Maps a retail color-command letter into the observed 26-entry palette, defaulting invalid input to the first slot.
+=============
+*/
+static int CG_ColorCommandCharToPaletteIndex( char ch ) {
+	ch = (char)tolower( (unsigned char)ch );
+	if ( ch < 'a' || ch > 'z' ) {
+		return 0;
+	}
+	return ch - 'a';
+}
+
+/*
+=============
+CG_FormatRetailCommandColor
+
+Formats one retail command-palette entry as the lowercase RGBA hex string used by the color wrappers.
+=============
+*/
+static void CG_FormatRetailCommandColor( char ch, char *buffer, int bufferSize ) {
+	int index;
+
+	index = CG_ColorCommandCharToPaletteIndex( ch );
+	Com_sprintf( buffer, bufferSize, "0x%08x", cg_retailCommandColorPalette[index] );
+}
+
+/*
+=============
+CG_ApplyCommandColorString
+
+Applies the retail upper/lower/head command ordering to the source-side team or enemy color cvars.
+=============
+*/
+static void CG_ApplyCommandColorString( qboolean useTeam, const char *colorArg ) {
+	char upperColor[16];
+	char lowerColor[16];
+	char headColor[16];
+	char upperChar;
+	char lowerChar;
+	char headChar;
+	int len;
+
+	if ( !colorArg || !colorArg[0] ) {
+		return;
+	}
+
+	len = strlen( colorArg );
+	if ( len < 1 ) {
+		return;
+	}
+
+	upperChar = colorArg[0];
+	lowerChar = colorArg[( len > 1 ) ? 1 : ( len - 1 )];
+	headChar = colorArg[( len > 2 ) ? 2 : ( len - 1 )];
+
+	CG_FormatRetailCommandColor( headChar, headColor, sizeof( headColor ) );
+	CG_FormatRetailCommandColor( upperChar, upperColor, sizeof( upperColor ) );
+	CG_FormatRetailCommandColor( lowerChar, lowerColor, sizeof( lowerColor ) );
+
+	trap_Cvar_Set( useTeam ? "cg_teamHeadColor" : "cg_enemyHeadColor", headColor );
+	trap_Cvar_Set( useTeam ? "cg_teamUpperColor" : "cg_enemyUpperColor", upperColor );
+	trap_Cvar_Set( useTeam ? "cg_teamLowerColor" : "cg_enemyLowerColor", lowerColor );
+}
+
+/*
+=============
+CG_SetColorCommand_f
+
+Mirrors the retail team and enemy color wrappers using the observed 26-entry palette and upper/lower/head token ordering.
+=============
+*/
+static void CG_SetColorCommand_f( qboolean useTeam ) {
+	char colorArg[128];
+	char currentColor[128];
+	int len;
+
+	trap_Argv( 1, colorArg, sizeof( colorArg ) );
+	if ( !colorArg[0] ) {
+		trap_Cvar_VariableStringBuffer( useTeam ? "cg_teamColors" : "cg_enemyColors",
+			currentColor, sizeof( currentColor ) );
+		Com_Printf( "Current %s color: %s\n", useTeam ? "team" : "enemy", currentColor );
+		return;
+	}
+
+	len = strlen( colorArg );
+	if ( len > 3 ) {
+		colorArg[3] = '\0';
+	}
+
+	trap_Cvar_Set( useTeam ? "cg_teamColors" : "cg_enemyColors", colorArg );
+	CG_ApplyCommandColorString( useTeam, colorArg );
+}
+
+/*
+=============
+CG_SetTeamColor_f
+
+Mirrors the retail local team-color wrapper.
+=============
+*/
+static void CG_SetTeamColor_f( void ) {
+	CG_SetColorCommand_f( qtrue );
+}
+
+/*
+=============
+CG_SetEnemyColor_f
+
+Mirrors the retail local enemy-color wrapper.
+=============
+*/
+static void CG_SetEnemyColor_f( void ) {
+	CG_SetColorCommand_f( qfalse );
+}
+
+/*
+=============
+CG_ChatDown_f
+
+Raises the buffered chat-history latch used by the retail HUD ownerdraw path.
+=============
+*/
+static void CG_ChatDown_f( void ) {
+	cg.chatHistoryVisible = qtrue;
+}
+
+/*
+=============
+CG_ChatUp_f
+
+Clears the buffered chat-history latch used by the retail HUD ownerdraw path.
+=============
+*/
+static void CG_ChatUp_f( void ) {
+	cg.chatHistoryVisible = qfalse;
+}
+
+/*
+=============
+CG_ToggleChatHistory_f
+
+Toggles the buffered chat-history latch used by the retail HUD ownerdraw path.
+=============
+*/
+static void CG_ToggleChatHistory_f( void ) {
+	cg.chatHistoryVisible = (qboolean)!cg.chatHistoryVisible;
+}
+
+/*
+=============
+CG_Print_f
+
+Joins the command arguments into one line and forwards them into the buffered chat ring.
+=============
+*/
+static void CG_Print_f( void ) {
+	char	buffer[MAX_STRING_CHARS];
+	char	arg[MAX_STRING_CHARS];
+	int		i;
+	int		argc;
+
+	buffer[0] = '\0';
+	argc = trap_Argc();
+	for ( i = 1; i < argc; i++ ) {
+		trap_Argv( i, arg, sizeof( arg ) );
+		if ( i > 1 ) {
+			Q_strcat( buffer, sizeof( buffer ), " " );
+		}
+		Q_strcat( buffer, sizeof( buffer ), arg );
+	}
+
+	CG_PushPrintString( buffer, SYSTEM_PRINT, 0 );
 }
 
 /*
@@ -442,7 +844,7 @@ static void CG_TauntDeathInsult_f (void ) {
 }
 
 static void CG_TauntGauntlet_f (void ) {
-	trap_SendConsoleCommand("cmd vsay kill_guantlet\n");
+	trap_SendConsoleCommand("cmd vsay kill_gauntlet\n");
 }
 
 static void CG_TaskSuicide_f (void ) {
@@ -554,15 +956,25 @@ static consoleCommand_t	commands[] = {
 	{ "tell_attacker", CG_TellAttacker_f },
 	{ "vtell_target", CG_VoiceTellTarget_f },
 	{ "vtell_attacker", CG_VoiceTellAttacker_f },
+	{ "+chat", CG_ChatDown_f },
+	{ "-chat", CG_ChatUp_f },
+	{ "togglechathistory", CG_ToggleChatHistory_f },
+	{ "print", CG_Print_f },
+	{ "dropflag", CG_DropFlag_f },
+	{ "droppowerup", CG_DropPowerup_f },
+	{ "droprune", CG_DropRune_f },
+	{ "dropweapon", CG_DropWeapon_f },
+	{ "forfeit", CG_Forfeit_f },
+	{ "ragequit", CG_RageQuit_f },
+	{ "readyup", CG_ReadyUp_f },
+	{ "team", CG_Team_f },
+	{ "setteamcolor", CG_SetTeamColor_f },
+	{ "setenemycolor", CG_SetEnemyColor_f },
 	{ "tcmd", CG_TargetCommand_f },
 	{ "loadhud", CG_LoadHud_f },
 	{ "nextTeamMember", CG_NextTeamMember_f },
 	{ "prevTeamMember", CG_PrevTeamMember_f },
-	{ "spectatorFollowNext", CG_SpectatorFollowNext_f },
-	{ "spectatorFollowPrev", CG_SpectatorFollowPrev_f },
-	{ "spectatorFollowStop", CG_SpectatorStopFollow_f },
-	{ "spectatorCameraLock", CG_SpectatorLockCamera_f },
-	{ "spectatorCameraUnlock", CG_SpectatorUnlockCamera_f },
+	{ "clientmute", CG_ClientMute_f },
 	{ "nextOrder", CG_NextOrder_f },
 	{ "confirmOrder", CG_ConfirmOrder_f },
 	{ "denyOrder", CG_DenyOrder_f },
@@ -634,7 +1046,15 @@ void CG_InitConsoleCommands( void ) {
 	// the game server will interpret these commands, which will be automatically
 	// forwarded to the server after they are not recognized locally
 	//
+	trap_AddCommand ("abort");
+	trap_AddCommand ("addadmin");
 	trap_AddCommand ("kill");
+	trap_AddCommand ("addbot");
+	trap_AddCommand ("addmod");
+	trap_AddCommand ("addscore");
+	trap_AddCommand ("addteamscore");
+	trap_AddCommand ("allready");
+	trap_AddCommand ("ban");
 	trap_AddCommand ("say");
 	trap_AddCommand ("say_team");
 	trap_AddCommand ("tell");
@@ -645,20 +1065,44 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("vosay");
 	trap_AddCommand ("vosay_team");
 	trap_AddCommand ("votell");
+	trap_AddCommand ("callvote");
+	trap_AddCommand ("demote");
+	trap_AddCommand ("dropflag");
+	trap_AddCommand ("droppowerup");
+	trap_AddCommand ("droprune");
+	trap_AddCommand ("dropweapon");
+	trap_AddCommand ("follow");
+	trap_AddCommand ("forfeit");
 	trap_AddCommand ("give");
 	trap_AddCommand ("god");
+	trap_AddCommand ("levelshot");
+	trap_AddCommand ("listaccess");
+	trap_AddCommand ("lock");
+	trap_AddCommand ("mute");
 	trap_AddCommand ("notarget");
 	trap_AddCommand ("noclip");
+	trap_AddCommand ("opsay");
+	trap_AddCommand ("pause");
+	trap_AddCommand ("players");
+	trap_AddCommand ("put");
+	trap_AddCommand ("ragequit");
+	trap_AddCommand ("rcon");
+	trap_AddCommand ("reload_access");
 	trap_AddCommand ("team");
-	trap_AddCommand ("follow");
-	trap_AddCommand ("levelshot");
-	trap_AddCommand ("addbot");
+	trap_AddCommand ("setmatchtime");
 	trap_AddCommand ("setviewpos");
-	trap_AddCommand ("callvote");
+	trap_AddCommand ("spec");
 	trap_AddCommand ("vote");
 	trap_AddCommand ("callteamvote");
 	trap_AddCommand ("teamvote");
 	trap_AddCommand ("stats");
 	trap_AddCommand ("teamtask");
+	trap_AddCommand ("tempban");
+	trap_AddCommand ("timein");
+	trap_AddCommand ("timeout");
+	trap_AddCommand ("unban");
+	trap_AddCommand ("unlock");
+	trap_AddCommand ("unmute");
+	trap_AddCommand ("unpause");
 	trap_AddCommand ("loaddefered");	// spelled wrong, but not changing for demo
 }

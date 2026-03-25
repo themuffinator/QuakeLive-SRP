@@ -81,6 +81,23 @@ static void WIN_EnableAltTab( void )
 
 /*
 ==================
+WIN_SyncAltTabState
+==================
+*/
+void WIN_SyncAltTabState( void )
+{
+	if ( r_fullscreen && r_fullscreen->integer )
+	{
+		WIN_DisableAltTab();
+	}
+	else
+	{
+		WIN_EnableAltTab();
+	}
+}
+
+/*
+==================
 VID_AppActivate
 ==================
 */
@@ -432,7 +449,7 @@ LONG WINAPI MainWndProc (
 			if ( r_fullscreen )
 			{
 				Cvar_SetValue( "r_fullscreen", !r_fullscreen->integer );
-				Cbuf_AddText( "vid_restart\n" );
+				Cbuf_AddText( "vid_restart fast\n" );
 			}
 			return 0;
 		}

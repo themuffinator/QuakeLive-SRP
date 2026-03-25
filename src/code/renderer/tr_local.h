@@ -384,6 +384,7 @@ typedef struct shader_s {
 	qboolean	polygonOffset;			// set for decals and other items that must be offset 
 	qboolean	noMipMaps;				// for console fonts, 2D elements, etc.
 	qboolean	noPicMip;				// for images that must always be full resolution
+	qboolean	noVertexLightCollapse;		// disable vertex-light pass collapsing
 
 	fogPass_t	fogPass;				// draw a blended pass, possibly with depth test equals
 
@@ -1231,7 +1232,8 @@ image_t		*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicm
 
 image_t		*R_CreateImage( const char *name, const byte *pic, int width, int height, qboolean mipmap
 					, qboolean allowPicmip, int wrapClampMode );
-qboolean	R_GetModeInfo( int *width, int *height, float *windowAspect, int mode );
+int			R_GetMode( void );
+qboolean	R_GetModeInfo( int *width, int *height, float *windowAspect, int mode, qboolean fullscreen );
 
 void		R_SetColorMappings( void );
 void		R_GammaCorrect( byte *buffer, int bufSize );

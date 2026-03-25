@@ -119,6 +119,11 @@
       <PreprocessorDefinitions>QL_ENABLE_PNG=$(QLEnablePng);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+  <Target Name="ValidatePng" BeforeTargets="ClCompile" Condition="'$(QLEnablePng)'=='1'">
+    <Error Condition="!Exists('$(PngIncludeDir)')" Text="PNG SDK include path '$(PngIncludeDir)' was not found. Either install libpng, override PngSdkDir, or set QLEnablePng=0." />
+    <Error Condition="!Exists('$(PngIncludeDir)\\png.h')" Text="libpng headers missing under $(PngIncludeDir). Install libpng development headers or set QLEnablePng=0." />
+    <Message Text="Renderer PNG support enabled (include: $(PngIncludeDir))" Importance="High" />
+  </Target>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug TA|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>

@@ -57,6 +57,56 @@ static const orderTask_t validOrders[] = {
 
 static const int numValidOrders = sizeof(validOrders) / sizeof(orderTask_t);
 
+#define CG_RETAIL_TDM_TEAMSTAT_COUNT	14
+#define CG_RETAIL_CTF_TEAMSTAT_COUNT	17
+#define CG_RETAIL_TDM_SCORE_ROW_FIELDS	15
+#define CG_RETAIL_CTF_SCORE_ROW_FIELDS	17
+#define CG_RETAIL_FREEZE_SCORE_ROW_FIELDS	17
+
+static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder[CG_RETAIL_TDM_TEAMSTAT_COUNT] = {
+	CG_TEAMSTAT_MAP_PICKUPS,
+	CG_TEAMSTAT_PICKUPS_RA,
+	CG_TEAMSTAT_PICKUPS_YA,
+	CG_TEAMSTAT_PICKUPS_GA,
+	CG_TEAMSTAT_PICKUPS_MH,
+	CG_TEAMSTAT_PICKUPS_QUAD,
+	CG_TEAMSTAT_PICKUPS_BS,
+	CG_TEAMSTAT_TIMEHELD_QUAD,
+	CG_TEAMSTAT_TIMEHELD_BS,
+	CG_TEAMSTAT_PICKUPS_FLAG,
+	CG_TEAMSTAT_PICKUPS_MEDKIT,
+	CG_TEAMSTAT_PICKUPS_REGEN,
+	CG_TEAMSTAT_PICKUPS_HASTE,
+	CG_TEAMSTAT_PICKUPS_INVIS
+};
+
+static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder[CG_RETAIL_CTF_TEAMSTAT_COUNT] = {
+	CG_TEAMSTAT_PICKUPS_RA,
+	CG_TEAMSTAT_PICKUPS_YA,
+	CG_TEAMSTAT_PICKUPS_GA,
+	CG_TEAMSTAT_PICKUPS_MH,
+	CG_TEAMSTAT_PICKUPS_QUAD,
+	CG_TEAMSTAT_PICKUPS_BS,
+	CG_TEAMSTAT_TIMEHELD_QUAD,
+	CG_TEAMSTAT_TIMEHELD_BS,
+	CG_TEAMSTAT_PICKUPS_FLAG,
+	CG_TEAMSTAT_PICKUPS_MEDKIT,
+	CG_TEAMSTAT_PICKUPS_REGEN,
+	CG_TEAMSTAT_PICKUPS_HASTE,
+	CG_TEAMSTAT_PICKUPS_INVIS,
+	CG_TEAMSTAT_TIMEHELD_FLAG,
+	CG_TEAMSTAT_TIMEHELD_REGEN,
+	CG_TEAMSTAT_TIMEHELD_HASTE,
+	CG_TEAMSTAT_TIMEHELD_INVIS
+};
+
+static void CG_RemoveChatEscapeChar( char *text );
+static void CG_ClearScoreStatsCache( void );
+static void CG_ClearTeamScoreStatsCache( void );
+static void CG_ClearClanArenaStatsCache( void );
+static void CG_ClearTDMStatsCache( void );
+static void CG_ClearCTFStatsCache( void );
+
 /*
 =============
 CG_CopyDefaultPmoveSettings
@@ -685,6 +735,11 @@ static void CG_ParseRaceScores( void ) {
 	cg.teamScores[1] = 0;
 
 	memset( cg.scores, 0, sizeof( cg.scores ) );
+	CG_ClearScoreStatsCache();
+	CG_ClearTeamScoreStatsCache();
+	CG_ClearClanArenaStatsCache();
+	CG_ClearTDMStatsCache();
+	CG_ClearCTFStatsCache();
 	for ( i = 0 ; i < cg.numScores ; i++ ) {
 		cg.scores[i].client = atoi( CG_Argv( i * 4 + 2 ) );
 		cg.scores[i].score = atoi( CG_Argv( i * 4 + 3 ) );
@@ -711,17 +766,931 @@ static void CG_ParseRaceScores( void ) {
 
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
+	memset( cg.scoreStats, 0, sizeof( cg.scoreStats ) );
+	memset( &cg.teamScoreStats, 0, sizeof( cg.teamScoreStats ) );
 	CG_SetScoreSelection(NULL);
+}
+
+#define CG_SCORESTAT_FRAG_WEAPON_COUNT		13
+#define CG_SCORESTAT_ACCURACY_WEAPON_COUNT	12
+#define CG_SCORESTAT_DMG_WEAPON_COUNT		13
+#define CG_SCORESTAT_PLACEMENT_SLOTS		2
+#define CG_SCORESTAT_FIELDS_PER_CLIENT		( 1 + CG_SCORESTAT_FRAG_WEAPON_COUNT + ( 2 * CG_SCORESTAT_ACCURACY_WEAPON_COUNT ) + CG_SCORESTAT_DMG_WEAPON_COUNT + ( 2 * CG_SCORESTAT_PICKUP_COUNT ) + 2 )
+#define CG_CASTAT_WEAPON_COUNT				( WP_NUM_WEAPONS - 1 )
+
+static const weapon_t cgScoreStatFragWeapons[CG_SCORESTAT_FRAG_WEAPON_COUNT] = {
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_CHAINGUN,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_HEAVY_MACHINEGUN
+};
+
+static const weapon_t cgScoreStatAccuracyWeapons[CG_SCORESTAT_ACCURACY_WEAPON_COUNT] = {
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_CHAINGUN,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_HEAVY_MACHINEGUN
+};
+
+static const weapon_t cgCAStatWeapons[CG_CASTAT_WEAPON_COUNT] = {
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_HEAVY_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_GRAPPLING_HOOK,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_CHAINGUN
+};
+
+/*
+=================
+CG_DebugAppendIntCsv
+
+Builds a comma-separated integer list used by ownerdraw debug logging.
+=================
+*/
+static void CG_DebugAppendIntCsv( char *buffer, int bufferSize, const int *values, int count ) {
+	int	i;
+	char	entry[24];
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+	if ( !values || count <= 0 ) {
+		return;
+	}
+
+	for ( i = 0; i < count; i++ ) {
+		Com_sprintf( entry, sizeof( entry ), "%s%i", ( i > 0 ) ? "," : "", values[i] );
+		Q_strcat( buffer, bufferSize, entry );
+	}
 }
 
 /*
 =================
-CG_ParseScores
+CG_DebugDumpPlacementOwnerdrawScoreStats
 
+Dumps parsed first/second placement ownerdraw inputs for validation harnesses.
 =================
 */
-static void CG_ParseScores( void ) {
-	int		i, powerups;
+static void CG_DebugDumpPlacementOwnerdrawScoreStats( void ) {
+	int		placementIndex;
+
+	if ( !cg_debugOwnerdrawStats.integer ) {
+		return;
+	}
+
+	if ( cg.numScores <= 0 ) {
+		CG_Printf( "ownerdraw_stats: placement rows unavailable (numScores=0)\n" );
+		return;
+	}
+
+	for ( placementIndex = 0; placementIndex < cg.numScores && placementIndex < CG_SCORESTAT_PLACEMENT_SLOTS; placementIndex++ ) {
+		const score_t		*score;
+		int			clientNum;
+		const cgScoreStats_t	*stats;
+		int			fragValues[CG_SCORESTAT_FRAG_WEAPON_COUNT];
+		int			hitValues[CG_SCORESTAT_ACCURACY_WEAPON_COUNT];
+		int			shotValues[CG_SCORESTAT_ACCURACY_WEAPON_COUNT];
+		int			damageValues[CG_SCORESTAT_DMG_WEAPON_COUNT];
+		int			pickupValues[CG_SCORESTAT_PICKUP_COUNT];
+		int			pickupAvgValues[CG_SCORESTAT_PICKUP_COUNT];
+		char			fragCsv[256];
+		char			hitCsv[256];
+		char			shotCsv[256];
+		char			damageCsv[256];
+		char			pickupCsv[96];
+		char			pickupAvgCsv[96];
+		int			i;
+
+		score = &cg.scores[placementIndex];
+		clientNum = score->client;
+		if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+			CG_Printf( "ownerdraw_stats: place=%i invalid client index=%i\n", placementIndex + 1, clientNum );
+			continue;
+		}
+
+		stats = &cg.scoreStats[clientNum];
+		if ( !stats->valid ) {
+			CG_Printf( "ownerdraw_stats: place=%i client=%i valid=0\n", placementIndex + 1, clientNum );
+			continue;
+		}
+
+		for ( i = 0; i < CG_SCORESTAT_FRAG_WEAPON_COUNT; i++ ) {
+			int weapon = cgScoreStatFragWeapons[i];
+			fragValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponFrags[weapon] : 0;
+		}
+		for ( i = 0; i < CG_SCORESTAT_ACCURACY_WEAPON_COUNT; i++ ) {
+			int weapon = cgScoreStatAccuracyWeapons[i];
+			hitValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponHits[weapon] : 0;
+			shotValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponShots[weapon] : 0;
+		}
+		for ( i = 0; i < CG_SCORESTAT_DMG_WEAPON_COUNT; i++ ) {
+			int weapon = cgScoreStatFragWeapons[i];
+			damageValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponDamage[weapon] : 0;
+		}
+		for ( i = 0; i < CG_SCORESTAT_PICKUP_COUNT; i++ ) {
+			pickupValues[i] = stats->pickupCounts[i];
+			pickupAvgValues[i] = stats->pickupAvgSeconds[i];
+		}
+
+		CG_DebugAppendIntCsv( fragCsv, sizeof( fragCsv ), fragValues, CG_SCORESTAT_FRAG_WEAPON_COUNT );
+		CG_DebugAppendIntCsv( hitCsv, sizeof( hitCsv ), hitValues, CG_SCORESTAT_ACCURACY_WEAPON_COUNT );
+		CG_DebugAppendIntCsv( shotCsv, sizeof( shotCsv ), shotValues, CG_SCORESTAT_ACCURACY_WEAPON_COUNT );
+		CG_DebugAppendIntCsv( damageCsv, sizeof( damageCsv ), damageValues, CG_SCORESTAT_DMG_WEAPON_COUNT );
+		CG_DebugAppendIntCsv( pickupCsv, sizeof( pickupCsv ), pickupValues, CG_SCORESTAT_PICKUP_COUNT );
+		CG_DebugAppendIntCsv( pickupAvgCsv, sizeof( pickupAvgCsv ), pickupAvgValues, CG_SCORESTAT_PICKUP_COUNT );
+
+		CG_Printf(
+			"ownerdraw_stats: place=%i client=%i valid=%i frags=%s hits=%s shots=%s dmg=%s pickups=%s pickupAvg=%s pr=%i tier=%i\n",
+			placementIndex + 1,
+			clientNum,
+			stats->valid ? 1 : 0,
+			fragCsv,
+			hitCsv,
+			shotCsv,
+			damageCsv,
+			pickupCsv,
+			pickupAvgCsv,
+			stats->progressionPr,
+			stats->progressionTier );
+	}
+}
+
+/*
+=================
+CG_DebugDumpTeamOwnerdrawScoreStats
+
+Dumps parsed red/blue team pickup and time-held ownerdraw inputs.
+=================
+*/
+static void CG_DebugDumpTeamOwnerdrawScoreStats( int fieldCount ) {
+	int		teamIndex;
+
+	if ( !cg_debugOwnerdrawStats.integer ) {
+		return;
+	}
+
+	if ( fieldCount <= 0 || fieldCount > CG_TEAMSTAT_COUNT ) {
+		fieldCount = CG_TEAMSTAT_COUNT;
+	}
+
+	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
+		int	values[CG_TEAMSTAT_COUNT];
+		int	i;
+		char	csv[512];
+
+		for ( i = 0; i < fieldCount; i++ ) {
+			values[i] = cg.teamScoreStats.values[teamIndex][i];
+		}
+
+		CG_DebugAppendIntCsv( csv, sizeof( csv ), values, fieldCount );
+		CG_Printf(
+			"ownerdraw_stats_team: team=%s fields=%i valid=%i values=%s\n",
+			( teamIndex == 0 ) ? "red" : "blue",
+			fieldCount,
+			cg.teamScoreStats.valid ? 1 : 0,
+			csv );
+	}
+}
+
+/*
+=================
+CG_ClearScoreStatsCache
+
+Clears cached per-weapon placement stats until a fresh scorestats command arrives.
+=================
+*/
+static void CG_ClearScoreStatsCache( void ) {
+	memset( cg.scoreStats, 0, sizeof( cg.scoreStats ) );
+}
+
+/*
+=================
+CG_ClearTeamScoreStatsCache
+
+Clears cached team pickup/time-held scoreboard aggregates.
+=================
+*/
+static void CG_ClearTeamScoreStatsCache( void ) {
+	memset( &cg.teamScoreStats, 0, sizeof( cg.teamScoreStats ) );
+}
+
+/*
+=================
+CG_ClearClanArenaStatsCache
+
+Clears cached retail castats rows until a fresh intermission update arrives.
+=================
+*/
+static void CG_ClearClanArenaStatsCache( void ) {
+	memset( cg.clanArenaStats, 0, sizeof( cg.clanArenaStats ) );
+}
+
+/*
+=================
+CG_ClearTDMStatsCache
+
+Clears cached retail tdmstats rows until a fresh intermission update arrives.
+=================
+*/
+static void CG_ClearTDMStatsCache( void ) {
+	memset( cg.tdmStats, 0, sizeof( cg.tdmStats ) );
+}
+
+/*
+=================
+CG_ClearCTFStatsCache
+
+Clears cached retail ctfstats rows until a fresh intermission update arrives.
+=================
+*/
+static void CG_ClearCTFStatsCache( void ) {
+	memset( cg.ctfStats, 0, sizeof( cg.ctfStats ) );
+}
+
+/*
+=================
+CG_ResetParsedScoreboardCaches
+
+Clears the active scoreboard row caches before a new scoreboard payload is
+parsed.
+=================
+*/
+static void CG_ResetParsedScoreboardCaches( void ) {
+	memset( cg.scores, 0, sizeof( cg.scores ) );
+	CG_ClearScoreStatsCache();
+	CG_ClearTeamScoreStatsCache();
+	CG_ClearClanArenaStatsCache();
+	CG_ClearTDMStatsCache();
+	CG_ClearCTFStatsCache();
+}
+
+/*
+=================
+CG_FinalizeParsedScoreRow
+
+Clamps a parsed scoreboard row, publishes its score into clientinfo, and
+optionally updates the mirrored powerup bits when the transport provides them.
+=================
+*/
+static void CG_FinalizeParsedScoreRow( score_t *score, int powerups ) {
+	if ( !score ) {
+		return;
+	}
+
+	if ( score->client < 0 || score->client >= MAX_CLIENTS ) {
+		score->client = 0;
+	}
+
+	cgs.clientinfo[score->client].score = score->score;
+	if ( powerups >= 0 ) {
+		score->powerUps = powerups;
+		cgs.clientinfo[score->client].powerups = powerups;
+	}
+
+	if ( score->team < TEAM_FREE || score->team >= TEAM_NUM_TEAMS ) {
+		score->team = cgs.clientinfo[score->client].team;
+	}
+}
+
+/*
+=================
+CG_ParseGenericScoreRows
+
+Parses the current GPL-shaped 16-column scoreboard row layout from an arbitrary
+argument offset and stride.
+=================
+*/
+static void CG_ParseGenericScoreRows( int rowStartArg, int rowStride ) {
+	int		i;
+	int		argc;
+
+	argc = trap_Argc();
+	for ( i = 0 ; i < cg.numScores ; i++ ) {
+		int		baseArg;
+		int		powerups;
+
+		baseArg = rowStartArg + i * rowStride;
+		if ( argc <= ( baseArg + 15 ) ) {
+			break;
+		}
+
+		cg.scores[i].client = atoi( CG_Argv( baseArg ) );
+		cg.scores[i].score = atoi( CG_Argv( baseArg + 1 ) );
+		cg.scores[i].ping = atoi( CG_Argv( baseArg + 2 ) );
+		cg.scores[i].time = atoi( CG_Argv( baseArg + 3 ) );
+		cg.scores[i].scoreFlags = atoi( CG_Argv( baseArg + 4 ) );
+		powerups = atoi( CG_Argv( baseArg + 5 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( baseArg + 6 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( baseArg + 7 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( baseArg + 8 ) );
+		cg.scores[i].guantletCount = atoi( CG_Argv( baseArg + 9 ) );
+		cg.scores[i].defendCount = atoi( CG_Argv( baseArg + 10 ) );
+		cg.scores[i].assistCount = atoi( CG_Argv( baseArg + 11 ) );
+		cg.scores[i].perfect = atoi( CG_Argv( baseArg + 12 ) );
+		cg.scores[i].captures = atoi( CG_Argv( baseArg + 13 ) );
+		cg.scores[i].damage = atoi( CG_Argv( baseArg + 14 ) );
+		cg.scores[i].deaths = atoi( CG_Argv( baseArg + 15 ) );
+		cg.scores[i].kills = 0;
+		cg.scores[i].bestWeapon = WP_NONE;
+		cg.scores[i].activePlayer = qfalse;
+		cg.scores[i].team = TEAM_FREE;
+
+		CG_FinalizeParsedScoreRow( &cg.scores[i], powerups );
+	}
+}
+
+/*
+=================
+CG_ParseRetailTdmScoreRows
+
+Parses the retail GT_TEAM per-client scoreboard block.
+=================
+*/
+static void CG_ParseRetailTdmScoreRows( int rowStartArg ) {
+	int i;
+	int argc;
+
+	argc = trap_Argc();
+	for ( i = 0; i < cg.numScores; i++ ) {
+		int baseArg;
+
+		baseArg = rowStartArg + i * CG_RETAIL_TDM_SCORE_ROW_FIELDS;
+		if ( argc <= ( baseArg + ( CG_RETAIL_TDM_SCORE_ROW_FIELDS - 1 ) ) ) {
+			break;
+		}
+
+		cg.scores[i].client = atoi( CG_Argv( baseArg ) );
+		cg.scores[i].team = atoi( CG_Argv( baseArg + 1 ) );
+		cg.scores[i].score = atoi( CG_Argv( baseArg + 2 ) );
+		cg.scores[i].ping = atoi( CG_Argv( baseArg + 3 ) );
+		cg.scores[i].time = atoi( CG_Argv( baseArg + 4 ) );
+		cg.scores[i].kills = atoi( CG_Argv( baseArg + 5 ) );
+		cg.scores[i].deaths = atoi( CG_Argv( baseArg + 6 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( baseArg + 7 ) );
+		cg.scores[i].bestWeapon = atoi( CG_Argv( baseArg + 8 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( baseArg + 9 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( baseArg + 10 ) );
+		cg.scores[i].guantletCount = atoi( CG_Argv( baseArg + 11 ) );
+		cg.scores[i].teamDamageGiven = atoi( CG_Argv( baseArg + 12 ) );
+		cg.scores[i].teamDamageReceived = atoi( CG_Argv( baseArg + 13 ) );
+		cg.scores[i].damage = atoi( CG_Argv( baseArg + 14 ) );
+		cg.scores[i].activePlayer = ( cg.scores[i].team != TEAM_SPECTATOR ) ? qtrue : qfalse;
+
+		CG_FinalizeParsedScoreRow( &cg.scores[i], -1 );
+	}
+}
+
+/*
+=================
+CG_ParseRetailCtfScoreRows
+
+Parses the retail shared CTF-family per-client scoreboard block.
+=================
+*/
+static void CG_ParseRetailCtfScoreRows( int rowStartArg ) {
+	int i;
+	int argc;
+
+	argc = trap_Argc();
+	for ( i = 0; i < cg.numScores; i++ ) {
+		int baseArg;
+
+		baseArg = rowStartArg + i * CG_RETAIL_CTF_SCORE_ROW_FIELDS;
+		if ( argc <= ( baseArg + ( CG_RETAIL_CTF_SCORE_ROW_FIELDS - 1 ) ) ) {
+			break;
+		}
+
+		cg.scores[i].client = atoi( CG_Argv( baseArg ) );
+		cg.scores[i].team = atoi( CG_Argv( baseArg + 1 ) );
+		cg.scores[i].score = atoi( CG_Argv( baseArg + 2 ) );
+		cg.scores[i].ping = atoi( CG_Argv( baseArg + 3 ) );
+		cg.scores[i].time = atoi( CG_Argv( baseArg + 4 ) );
+		cg.scores[i].kills = atoi( CG_Argv( baseArg + 5 ) );
+		cg.scores[i].deaths = atoi( CG_Argv( baseArg + 6 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( baseArg + 7 ) );
+		cg.scores[i].bestWeapon = atoi( CG_Argv( baseArg + 8 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( baseArg + 9 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( baseArg + 10 ) );
+		cg.scores[i].guantletCount = atoi( CG_Argv( baseArg + 11 ) );
+		cg.scores[i].defendCount = atoi( CG_Argv( baseArg + 12 ) );
+		cg.scores[i].assistCount = atoi( CG_Argv( baseArg + 13 ) );
+		cg.scores[i].captures = atoi( CG_Argv( baseArg + 14 ) );
+		cg.scores[i].perfect = atoi( CG_Argv( baseArg + 15 ) );
+		cg.scores[i].activePlayer = atoi( CG_Argv( baseArg + 16 ) ) ? qtrue : qfalse;
+
+		CG_FinalizeParsedScoreRow( &cg.scores[i], -1 );
+	}
+}
+
+/*
+=================
+CG_ParseRetailFreezeScoreRows
+
+Parses the retail Freeze per-client scoreboard block.
+=================
+*/
+static void CG_ParseRetailFreezeScoreRows( int rowStartArg ) {
+	int i;
+	int argc;
+
+	argc = trap_Argc();
+	for ( i = 0; i < cg.numScores; i++ ) {
+		int baseArg;
+
+		baseArg = rowStartArg + i * CG_RETAIL_FREEZE_SCORE_ROW_FIELDS;
+		if ( argc <= ( baseArg + ( CG_RETAIL_FREEZE_SCORE_ROW_FIELDS - 1 ) ) ) {
+			break;
+		}
+
+		cg.scores[i].client = atoi( CG_Argv( baseArg ) );
+		cg.scores[i].team = atoi( CG_Argv( baseArg + 1 ) );
+		cg.scores[i].score = atoi( CG_Argv( baseArg + 2 ) );
+		cg.scores[i].ping = atoi( CG_Argv( baseArg + 3 ) );
+		cg.scores[i].time = atoi( CG_Argv( baseArg + 4 ) );
+		cg.scores[i].kills = atoi( CG_Argv( baseArg + 5 ) );
+		cg.scores[i].deaths = atoi( CG_Argv( baseArg + 6 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( baseArg + 7 ) );
+		cg.scores[i].bestWeapon = atoi( CG_Argv( baseArg + 8 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( baseArg + 9 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( baseArg + 10 ) );
+		cg.scores[i].guantletCount = atoi( CG_Argv( baseArg + 11 ) );
+		cg.scores[i].assistCount = atoi( CG_Argv( baseArg + 12 ) );
+		cg.scores[i].teamDamageGiven = atoi( CG_Argv( baseArg + 13 ) );
+		cg.scores[i].teamDamageReceived = atoi( CG_Argv( baseArg + 14 ) );
+		cg.scores[i].damage = atoi( CG_Argv( baseArg + 15 ) );
+		cg.scores[i].activePlayer = atoi( CG_Argv( baseArg + 16 ) ) ? qtrue : qfalse;
+
+		CG_FinalizeParsedScoreRow( &cg.scores[i], -1 );
+	}
+}
+
+/*
+=================
+CG_ParseRetailTeamScoreHeader
+
+Parses the retail red/blue team aggregate header block carried by team-family
+scoreboard payloads into the shared ownerdraw cache.
+=================
+*/
+static void CG_ParseRetailTeamScoreHeader( int headerStartArg, const cgTeamStatIndex_t *statOrder, int statCount ) {
+	int	arg;
+	int	teamIndex;
+	int	fieldIndex;
+	int	maxField;
+
+	if ( !statOrder || statCount <= 0 ) {
+		return;
+	}
+
+	CG_ClearTeamScoreStatsCache();
+	arg = headerStartArg;
+	maxField = 0;
+	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
+		for ( fieldIndex = 0; fieldIndex < statCount; fieldIndex++ ) {
+			cg.teamScoreStats.values[teamIndex][statOrder[fieldIndex]] = atoi( CG_Argv( arg++ ) );
+			if ( statOrder[fieldIndex] > maxField ) {
+				maxField = statOrder[fieldIndex];
+			}
+		}
+	}
+
+	cg.teamScoreStats.fieldCount = maxField + 1;
+	cg.teamScoreStats.valid = qtrue;
+	CG_DebugDumpTeamOwnerdrawScoreStats( cg.teamScoreStats.fieldCount );
+}
+
+/*
+=================
+CG_ParseScoreStats
+
+Parses compact placement stats (weapon + pickup data) published by server.
+=================
+*/
+static void CG_ParseScoreStats( void ) {
+	int argc;
+	int count;
+	int arg;
+	int i;
+
+	CG_ClearScoreStatsCache();
+
+	argc = trap_Argc();
+	if ( argc < 2 ) {
+		return;
+	}
+
+	count = atoi( CG_Argv( 1 ) );
+	if ( count < 0 ) {
+		count = 0;
+	}
+	if ( count > MAX_CLIENTS ) {
+		count = MAX_CLIENTS;
+	}
+
+	arg = 2;
+	for ( i = 0; i < count; i++ ) {
+		int clientNum;
+		int j;
+
+		if ( arg >= argc ) {
+			break;
+		}
+		if ( ( argc - arg ) < CG_SCORESTAT_FIELDS_PER_CLIENT ) {
+			if ( cg_debugOwnerdrawStats.integer ) {
+				CG_Printf(
+					"ownerdraw_stats: truncated scorestats payload at index=%i remaining=%i expected=%i\n",
+					i,
+					argc - arg,
+					CG_SCORESTAT_FIELDS_PER_CLIENT );
+			}
+			break;
+		}
+
+		clientNum = atoi( CG_Argv( arg++ ) );
+
+		for ( j = 0; j < CG_SCORESTAT_FRAG_WEAPON_COUNT && arg < argc; j++ ) {
+			int value;
+			weapon_t weapon;
+
+			value = atoi( CG_Argv( arg++ ) );
+			weapon = cgScoreStatFragWeapons[j];
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS && weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+				cg.scoreStats[clientNum].weaponFrags[weapon] = value;
+			}
+		}
+
+		for ( j = 0; j < CG_SCORESTAT_ACCURACY_WEAPON_COUNT && arg < argc; j++ ) {
+			int value;
+			weapon_t weapon;
+
+			value = atoi( CG_Argv( arg++ ) );
+			weapon = cgScoreStatAccuracyWeapons[j];
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS && weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+				cg.scoreStats[clientNum].weaponHits[weapon] = value;
+			}
+		}
+
+		for ( j = 0; j < CG_SCORESTAT_ACCURACY_WEAPON_COUNT && arg < argc; j++ ) {
+			int value;
+			weapon_t weapon;
+
+			value = atoi( CG_Argv( arg++ ) );
+			weapon = cgScoreStatAccuracyWeapons[j];
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS && weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+				cg.scoreStats[clientNum].weaponShots[weapon] = value;
+			}
+		}
+
+		for ( j = 0; j < CG_SCORESTAT_DMG_WEAPON_COUNT && arg < argc; j++ ) {
+			int value;
+			weapon_t weapon;
+
+			value = atoi( CG_Argv( arg++ ) );
+			weapon = cgScoreStatFragWeapons[j];
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS && weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+				cg.scoreStats[clientNum].weaponDamage[weapon] = value;
+			}
+		}
+
+		for ( j = 0; j < CG_SCORESTAT_PICKUP_COUNT && arg < argc; j++ ) {
+			int value;
+
+			value = atoi( CG_Argv( arg++ ) );
+			if ( value < 0 ) {
+				value = 0;
+			}
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+				cg.scoreStats[clientNum].pickupCounts[j] = value;
+			}
+		}
+
+		for ( j = 0; j < CG_SCORESTAT_PICKUP_COUNT && arg < argc; j++ ) {
+			int value;
+
+			value = atoi( CG_Argv( arg++ ) );
+			if ( value < 0 ) {
+				value = 0;
+			}
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+				cg.scoreStats[clientNum].pickupAvgSeconds[j] = value;
+			}
+		}
+
+		if ( arg < argc ) {
+			int value;
+
+			value = atoi( CG_Argv( arg++ ) );
+			if ( value < 0 ) {
+				value = 0;
+			}
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+				cg.scoreStats[clientNum].progressionPr = value;
+			}
+		}
+
+		if ( arg < argc ) {
+			int value;
+
+			value = atoi( CG_Argv( arg++ ) );
+			if ( value < 0 ) {
+				value = 0;
+			}
+			if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+				cg.scoreStats[clientNum].progressionTier = value;
+			}
+		}
+
+		if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+			cg.scoreStats[clientNum].valid = qtrue;
+		}
+	}
+
+	CG_DebugDumpPlacementOwnerdrawScoreStats();
+}
+
+/*
+=================
+CG_ParseTeamScoreStats
+
+Parses compact team pickup/time-held aggregates published by the server.
+=================
+*/
+static void CG_ParseTeamScoreStats( void ) {
+	int	argc;
+	int	fieldCount;
+	int	arg;
+	int	teamIndex;
+	int	fieldIndex;
+
+	CG_ClearTeamScoreStatsCache();
+
+	argc = trap_Argc();
+	if ( argc < 2 ) {
+		return;
+	}
+
+	fieldCount = atoi( CG_Argv( 1 ) );
+	if ( fieldCount < 0 ) {
+		fieldCount = 0;
+	}
+	if ( fieldCount > CG_TEAMSTAT_COUNT ) {
+		fieldCount = CG_TEAMSTAT_COUNT;
+	}
+	if ( fieldCount <= 0 ) {
+		return;
+	}
+
+	if ( argc < ( 2 + fieldCount * 2 ) ) {
+		return;
+	}
+
+	arg = 2;
+	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
+		for ( fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++ ) {
+			cg.teamScoreStats.values[teamIndex][fieldIndex] = atoi( CG_Argv( arg++ ) );
+		}
+	}
+
+	cg.teamScoreStats.fieldCount = fieldCount;
+	cg.teamScoreStats.valid = qtrue;
+	CG_DebugDumpTeamOwnerdrawScoreStats( fieldCount );
+}
+
+/*
+=================
+CG_ParseClanArenaStats
+
+Consumes the retail castats row transport keyed by scoreboard row index.
+=================
+*/
+static void CG_ParseClanArenaStats( void ) {
+	int			argc;
+	int			rowIndex;
+	int			arg;
+	int			weaponIndex;
+	cgClanArenaStats_t	*row;
+
+	argc = trap_Argc();
+	if ( argc < 4 ) {
+		return;
+	}
+
+	rowIndex = atoi( CG_Argv( 1 ) );
+	if ( rowIndex < 0 || rowIndex >= MAX_CLIENTS ) {
+		return;
+	}
+
+	row = &cg.clanArenaStats[rowIndex];
+	memset( row, 0, sizeof( *row ) );
+	row->damageGiven = atoi( CG_Argv( 2 ) );
+	row->damageReceived = atoi( CG_Argv( 3 ) );
+
+	arg = 4;
+	for ( weaponIndex = 0; weaponIndex < CG_CASTAT_WEAPON_COUNT && ( arg + 1 ) < argc; weaponIndex++ ) {
+		weapon_t weapon;
+
+		weapon = cgCAStatWeapons[weaponIndex];
+		if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+			arg += 2;
+			continue;
+		}
+
+		row->weaponFrags[weapon] = atoi( CG_Argv( arg++ ) );
+		row->weaponAccuracy[weapon] = atoi( CG_Argv( arg++ ) );
+	}
+
+	row->valid = qtrue;
+}
+
+/*
+=================
+CG_ParseTDMStats
+
+Consumes the retail tdmstats row transport keyed by scoreboard row index.
+=================
+*/
+static void CG_ParseTDMStats( void ) {
+	int		argc;
+	int		rowIndex;
+	int		arg;
+	int		fieldIndex;
+	cgTdmStats_t	*row;
+
+	argc = trap_Argc();
+	if ( argc < ( 2 + CG_TDMSTAT_FIELD_COUNT ) ) {
+		return;
+	}
+
+	rowIndex = atoi( CG_Argv( 1 ) );
+	if ( rowIndex < 0 || rowIndex >= MAX_CLIENTS ) {
+		return;
+	}
+
+	row = &cg.tdmStats[rowIndex];
+	memset( row, 0, sizeof( *row ) );
+
+	arg = 2;
+	for ( fieldIndex = 0; fieldIndex < CG_TDMSTAT_FIELD_COUNT && arg < argc; fieldIndex++ ) {
+		row->values[fieldIndex] = atoi( CG_Argv( arg++ ) );
+	}
+
+	row->valid = qtrue;
+}
+
+/*
+=================
+CG_ParseCTFStats
+
+Consumes the retail ctfstats row transport keyed by scoreboard row index.
+=================
+*/
+static void CG_ParseCTFStats( void ) {
+	int		argc;
+	int		rowIndex;
+	int		arg;
+	int		fieldIndex;
+	cgCtfStats_t	*row;
+
+	argc = trap_Argc();
+	if ( argc < ( 2 + CG_CTFSTAT_FIELD_COUNT ) ) {
+		return;
+	}
+
+	rowIndex = atoi( CG_Argv( 1 ) );
+	if ( rowIndex < 0 || rowIndex >= MAX_CLIENTS ) {
+		return;
+	}
+
+	row = &cg.ctfStats[rowIndex];
+	memset( row, 0, sizeof( *row ) );
+
+	arg = 2;
+	for ( fieldIndex = 0; fieldIndex < CG_CTFSTAT_FIELD_COUNT && arg < argc; fieldIndex++ ) {
+		row->values[fieldIndex] = atoi( CG_Argv( arg++ ) );
+	}
+
+	row->valid = qtrue;
+}
+
+/*
+=================
+CG_ParseKeyMask
+
+Parses a single key-mask update for one client.
+=================
+*/
+static void CG_ParseKeyMask( void ) {
+	int	clientNum;
+	int	mask;
+
+	if ( trap_Argc() < 3 ) {
+		return;
+	}
+
+	clientNum = atoi( CG_Argv( 1 ) );
+	mask = atoi( CG_Argv( 2 ) );
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	if ( mask < 0 ) {
+		mask = 0;
+	}
+
+	cg.clientKeyMask[clientNum] = mask;
+}
+
+/*
+=================
+CG_ParseKeyMasks
+
+Parses a full key-mask table snapshot for connected clients.
+=================
+*/
+static void CG_ParseKeyMasks( void ) {
+	int argc;
+	int count;
+	int arg;
+	int i;
+
+	memset( cg.clientKeyMask, 0, sizeof( cg.clientKeyMask ) );
+
+	argc = trap_Argc();
+	if ( argc < 2 ) {
+		return;
+	}
+
+	count = atoi( CG_Argv( 1 ) );
+	if ( count < 0 ) {
+		count = 0;
+	}
+	if ( count > MAX_CLIENTS ) {
+		count = MAX_CLIENTS;
+	}
+
+	arg = 2;
+	for ( i = 0; i < count; i++ ) {
+		int clientNum;
+		int mask;
+
+		if ( arg + 1 >= argc ) {
+			break;
+		}
+
+		clientNum = atoi( CG_Argv( arg++ ) );
+		mask = atoi( CG_Argv( arg++ ) );
+
+		if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+			continue;
+		}
+		if ( mask < 0 ) {
+			mask = 0;
+		}
+
+		cg.clientKeyMask[clientNum] = mask;
+	}
+}
+
+/*
+=================
+CG_ParseCompactScores
+
+Consumes the retail compact smscores payload, which uses an 8-column client
+stride instead of the full 16-column scoreboard layout.
+=================
+*/
+static void CG_ParseCompactScores( void ) {
+	int		i;
+	int		powerups;
 
 	cg.numScores = atoi( CG_Argv( 1 ) );
 	if ( cg.numScores > MAX_CLIENTS ) {
@@ -731,36 +1700,132 @@ static void CG_ParseScores( void ) {
 	cg.teamScores[0] = atoi( CG_Argv( 2 ) );
 	cg.teamScores[1] = atoi( CG_Argv( 3 ) );
 
-	memset( cg.scores, 0, sizeof( cg.scores ) );
+	CG_ResetParsedScoreboardCaches();
 	for ( i = 0 ; i < cg.numScores ; i++ ) {
-		//
-		cg.scores[i].client = atoi( CG_Argv( i * 16 + 4 ) );
-		cg.scores[i].score = atoi( CG_Argv( i * 16 + 5 ) );
-		cg.scores[i].ping = atoi( CG_Argv( i * 16 + 6 ) );
-		cg.scores[i].time = atoi( CG_Argv( i * 16 + 7 ) );
-		cg.scores[i].scoreFlags = atoi( CG_Argv( i * 16 + 8 ) );
-		powerups = atoi( CG_Argv( i * 16 + 9 ) );
-		cg.scores[i].accuracy = atoi(CG_Argv(i * 16 + 10));
-		cg.scores[i].impressiveCount = atoi(CG_Argv(i * 16 + 11));
-		cg.scores[i].excellentCount = atoi(CG_Argv(i * 16 + 12));
-		cg.scores[i].guantletCount = atoi(CG_Argv(i * 16 + 13));
-		cg.scores[i].defendCount = atoi(CG_Argv(i * 16 + 14));
-		cg.scores[i].assistCount = atoi(CG_Argv(i * 16 + 15));
-		cg.scores[i].perfect = atoi(CG_Argv(i * 16 + 16));
-		cg.scores[i].captures = atoi(CG_Argv(i * 16 + 17));
-		cg.scores[i].damage = atoi(CG_Argv(i * 16 + 18));
-		cg.scores[i].deaths = atoi(CG_Argv(i * 16 + 19));
+		cg.scores[i].client = atoi( CG_Argv( i * 8 + 4 ) );
+		cg.scores[i].score = atoi( CG_Argv( i * 8 + 5 ) );
+		cg.scores[i].ping = atoi( CG_Argv( i * 8 + 6 ) );
+		cg.scores[i].time = atoi( CG_Argv( i * 8 + 7 ) );
+		powerups = atoi( CG_Argv( i * 8 + 8 ) );
+		cg.scores[i].scoreFlags = atoi( CG_Argv( i * 8 + 9 ) );
+		cg.scores[i].damage = atoi( CG_Argv( i * 8 + 10 ) );
+		cg.scores[i].deaths = atoi( CG_Argv( i * 8 + 11 ) );
 
 		if ( cg.scores[i].client < 0 || cg.scores[i].client >= MAX_CLIENTS ) {
 			cg.scores[i].client = 0;
 		}
-		cgs.clientinfo[ cg.scores[i].client ].score = cg.scores[i].score;
-		cgs.clientinfo[ cg.scores[i].client ].powerups = powerups;
 
+		cgs.clientinfo[cg.scores[i].client].score = cg.scores[i].score;
+		cgs.clientinfo[cg.scores[i].client].powerups = powerups;
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
+
+	CG_SetScoreSelection( NULL );
+}
+
+/*
+=================
+CG_ParseScores
+
+=================
+*/
+static void CG_ParseScores( void ) {
+	cg.numScores = atoi( CG_Argv( 1 ) );
+	if ( cg.numScores > MAX_CLIENTS ) {
+		cg.numScores = MAX_CLIENTS;
+	}
+
+	cg.teamScores[0] = atoi( CG_Argv( 2 ) );
+	cg.teamScores[1] = atoi( CG_Argv( 3 ) );
+
+	CG_ResetParsedScoreboardCaches();
+	CG_ParseGenericScoreRows( 4, 16 );
 	CG_SetScoreSelection(NULL);
 
+}
+
+/*
+=================
+CG_ParseTdmScores
+
+Consumes the retail team-family scoreboard transport, which prefixes 28
+red/blue aggregate fields ahead of the current per-client row block.
+=================
+*/
+static void CG_ParseTdmScores( void ) {
+	if ( trap_Argc() < 32 ) {
+		return;
+	}
+
+	CG_ResetParsedScoreboardCaches();
+	CG_ParseRetailTeamScoreHeader( 1, cgRetailTdmTeamStatOrder, CG_RETAIL_TDM_TEAMSTAT_COUNT );
+
+	cg.numScores = atoi( CG_Argv( 29 ) );
+	if ( cg.numScores > MAX_CLIENTS ) {
+		cg.numScores = MAX_CLIENTS;
+	}
+
+	cg.teamScores[0] = atoi( CG_Argv( 30 ) );
+	cg.teamScores[1] = atoi( CG_Argv( 31 ) );
+
+	CG_ParseRetailTdmScoreRows( 32 );
+	CG_SetScoreSelection( NULL );
+}
+
+/*
+=================
+CG_ParseCtfScores
+
+Consumes the retail shared CTF-family scoreboard transport, which prefixes 34
+red/blue aggregate fields ahead of the current per-client row block.
+=================
+*/
+static void CG_ParseCtfScores( void ) {
+	if ( trap_Argc() < 38 ) {
+		return;
+	}
+
+	CG_ResetParsedScoreboardCaches();
+	CG_ParseRetailTeamScoreHeader( 1, cgRetailCtfTeamStatOrder, CG_RETAIL_CTF_TEAMSTAT_COUNT );
+
+	cg.numScores = atoi( CG_Argv( 35 ) );
+	if ( cg.numScores > MAX_CLIENTS ) {
+		cg.numScores = MAX_CLIENTS;
+	}
+
+	cg.teamScores[0] = atoi( CG_Argv( 36 ) );
+	cg.teamScores[1] = atoi( CG_Argv( 37 ) );
+
+	CG_ParseRetailCtfScoreRows( 38 );
+	CG_SetScoreSelection( NULL );
+}
+
+/*
+=================
+CG_ParseFreezeScores
+
+Consumes the retail Freeze scoreboard transport, which shares the 28-field
+team header with TDM but carries its own 17-column per-client row block.
+=================
+*/
+static void CG_ParseFreezeScores( void ) {
+	if ( trap_Argc() < 32 ) {
+		return;
+	}
+
+	CG_ResetParsedScoreboardCaches();
+	CG_ParseRetailTeamScoreHeader( 1, cgRetailTdmTeamStatOrder, CG_RETAIL_TDM_TEAMSTAT_COUNT );
+
+	cg.numScores = atoi( CG_Argv( 29 ) );
+	if ( cg.numScores > MAX_CLIENTS ) {
+		cg.numScores = MAX_CLIENTS;
+	}
+
+	cg.teamScores[0] = atoi( CG_Argv( 30 ) );
+	cg.teamScores[1] = atoi( CG_Argv( 31 ) );
+
+	CG_ParseRetailFreezeScoreRows( 32 );
+	CG_SetScoreSelection( NULL );
 }
 
 /*
@@ -898,6 +1963,26 @@ void CG_ParseServerinfo( void ) {
 
 		cg.armorTieredEnabled = (qboolean)( atoi( armorTieredValue ) != 0 );
 		trap_Cvar_Set( "cg_armorTiered", armorTieredValue );
+	}
+
+	{
+		const char	*playerCylindersValue;
+
+		/*
+		 * Retail cgame loads the shared box-vs-capsule trace gate into
+		 * `data_10a5fd9c` from configstring slot 0x2a2 in the 0x10049420 /
+		 * 0x10049d20 update path, and retail qagame publishes that same 0x2a2 slot
+		 * from the literal `g_playerCylinders` cvar. The remaining divergence here
+		 * is transport, not identity: source still mirrors the value through
+		 * `CS_SERVERINFO` instead of a dedicated 0x2a2 configstring.
+		 */
+		playerCylindersValue = Info_ValueForKey( info, "g_playerCylinders" );
+		if ( !playerCylindersValue[0] ) {
+			playerCylindersValue = "0";
+		}
+
+		cgs.playerCylindersEnabled = (qboolean)( atoi( playerCylindersValue ) != 0 );
+		trap_Cvar_Set( "cg_playerCylinders", playerCylindersValue );
 	}
   
 	mapname = Info_ValueForKey( info, "mapname" );
@@ -1113,6 +2198,88 @@ static void CG_ParseMatchState( void ) {
 		if ( ( !wasOvertimeActive || cgs.matchOvertimeCount > previousOvertimeCount ) && cgs.media.overtimeSound ) {
 			trap_S_StartLocalSound( cgs.media.overtimeSound, CHAN_ANNOUNCER );
 		}
+	}
+}
+
+/*
+=============
+CG_ParseSuddenDeathStatus
+
+Parses the sudden-death active flag mirrored through its dedicated configstring.
+=============
+*/
+static void CG_ParseSuddenDeathStatus( void ) {
+	const char	*info;
+	int		value;
+
+	info = CG_ConfigString( CS_SUDDENDEATH_STATUS );
+	value = ( info && *info ) ? atoi( info ) : 0;
+
+	cgs.matchSuddenDeathActive = value ? qtrue : qfalse;
+}
+
+/*
+=============
+CG_ParseReadyUpStatus
+
+Parses the ready-up deadline published by the match controller.
+=============
+*/
+static void CG_ParseReadyUpStatus( void ) {
+	const char	*info;
+	int		deadline;
+
+	info = CG_ConfigString( CS_READYUP_STATUS );
+	deadline = ( info && *info ) ? atoi( info ) : 0;
+	if ( deadline < 0 ) {
+		deadline = 0;
+	}
+
+	cgs.matchReadyUpDeadline = deadline;
+}
+
+/*
+=============
+CG_ParseWarmupReadyStatus
+
+Parses the warmup readiness snapshot for HUD consumers.
+=============
+*/
+static void CG_ParseWarmupReadyStatus( void ) {
+	const char	*info;
+	int		value;
+
+	cgs.matchWarmupReadyPercent = 0;
+	cgs.matchWarmupReadyCount = 0;
+	cgs.matchWarmupReadyEligible = 0;
+
+	info = CG_ConfigString( CS_WARMUP_READY );
+	if ( !info || !*info ) {
+		return;
+	}
+
+	value = atoi( Info_ValueForKey( info, "pct" ) );
+	if ( value < 0 ) {
+		value = 0;
+	} else if ( value > 100 ) {
+		value = 100;
+	}
+	cgs.matchWarmupReadyPercent = value;
+
+	value = atoi( Info_ValueForKey( info, "ready" ) );
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchWarmupReadyCount = value;
+
+	value = atoi( Info_ValueForKey( info, "eligible" ) );
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchWarmupReadyEligible = value;
+
+	if ( cgs.matchWarmupReadyCount > cgs.matchWarmupReadyEligible ) {
+		cgs.matchWarmupReadyCount = cgs.matchWarmupReadyEligible;
 	}
 }
 
@@ -1355,6 +2522,9 @@ void CG_SetConfigValues( void ) {
 	}
 	cg.warmup = atoi( CG_ConfigString( CS_WARMUP ) );
 	CG_ParseMatchState();
+	CG_ParseSuddenDeathStatus();
+	CG_ParseReadyUpStatus();
+	CG_ParseWarmupReadyStatus();
 	CG_ParseForcedCosmetics();
 	CG_ParseFreezeTipConfigstrings();
 	CG_ParseFactoryMetadata();
@@ -1430,6 +2600,12 @@ static void CG_ConfigStringModified( void ) {
 		CG_ParseWarmup();
 	} else if ( num == CS_MATCH_STATE ) {
 		CG_ParseMatchState();
+	} else if ( num == CS_SUDDENDEATH_STATUS ) {
+		CG_ParseSuddenDeathStatus();
+	} else if ( num == CS_READYUP_STATUS ) {
+		CG_ParseReadyUpStatus();
+	} else if ( num == CS_WARMUP_READY ) {
+		CG_ParseWarmupReadyStatus();
 	} else if ( num == CS_SCORES1 ) {
 		cgs.scores1 = atoi( str );
 	} else if ( num == CS_SCORES2 ) {
@@ -1483,10 +2659,14 @@ static void CG_ConfigStringModified( void ) {
 		if ( str[0] != '*' ) {	// player specific sounds don't register here
 			cgs.gameSounds[ num-CS_SOUNDS] = trap_S_RegisterSound( str, qfalse );
 		}
-} else if ( num >= CS_PLAYERS && num < CS_PLAYERS+MAX_CLIENTS ) {
-CG_NewClientInfo( num - CS_PLAYERS );
-CG_BuildSpectatorString();
-} else if ( num == CS_FLAGSTATUS ) {
+	} else if ( num >= CS_PLAYERS && num < CS_PLAYERS+MAX_CLIENTS ) {
+		if ( num - CS_PLAYERS == cg.clientNum ) {
+			CG_QueueClientInfoContextRefresh();
+		}
+
+		CG_NewClientInfo( num - CS_PLAYERS );
+		CG_BuildSpectatorString();
+	} else if ( num == CS_FLAGSTATUS ) {
 if( cgs.gametype == GT_CTF ) {
 // format is rb where its red/blue, 0 is at base, 1 is taken, 2 is dropped
 cgs.redflag = str[0] - '0';
@@ -1512,71 +2692,58 @@ CG_AddToTeamChat
 =======================
 */
 static void CG_AddToTeamChat( const char *str ) {
-	int len;
-	char *p, *ls;
-	int lastcolor;
-	int chatHeight;
-
-	chatHeight = CG_GetChatHistoryLength();
-
-	if ( chatHeight <= 0 || cg_teamChatTime.integer <= 0 ) {
-		// team chat disabled, dump into normal chat
-		cgs.teamChatPos = cgs.teamLastChatPos = 0;
-		return;
-	}
-
 	if ( cg_teamChatBeep.integer && cgs.media.talkSound ) {
 		trap_S_StartLocalSound( cgs.media.talkSound, CHAN_LOCAL_SOUND );
 	}
 
-	len = 0;
+	CG_PushPrintString( str, TEAMCHAT_PRINT, 0 );
+}
 
-	p = cgs.teamChatMsgs[cgs.teamChatPos % chatHeight];
-	*p = 0;
+/*
+=================
+CG_ParseBufferedChat
 
-	lastcolor = '7';
+Mirrors the retail bchat servercmd: beep, print the line, and push it
+through the timed buffered-chat stack with a server-supplied hold time.
+=================
+*/
+static void CG_ParseBufferedChat( void ) {
+	char	text[MAX_SAY_TEXT];
+	int		holdTime;
 
-	ls = NULL;
-	while (*str) {
-		if (len > TEAMCHAT_WIDTH - 1) {
-			if (ls) {
-				str -= (p - ls);
-				str++;
-				p -= (p - ls);
-			}
-			*p = 0;
-
-			cgs.teamChatMsgTimes[cgs.teamChatPos % chatHeight] = cg.time;
-
-			cgs.teamChatPos++;
-			p = cgs.teamChatMsgs[cgs.teamChatPos % chatHeight];
-			*p = 0;
-			*p++ = Q_COLOR_ESCAPE;
-			*p++ = lastcolor;
-			len = 0;
-			ls = NULL;
-		}
-
-		if ( Q_IsColorString( str ) ) {
-			*p++ = *str++;
-			lastcolor = *str;
-			*p++ = *str++;
-			continue;
-		}
-		if (*str == ' ') {
-			ls = p;
-		}
-		*p++ = *str++;
-		len++;
+	if ( cgs.media.talkSound ) {
+		trap_S_StartLocalSound( cgs.media.talkSound, CHAN_LOCAL_SOUND );
 	}
-	*p = 0;
 
-	cgs.teamChatMsgTimes[cgs.teamChatPos % chatHeight] = cg.time;
-	cgs.teamChatPos++;
+	Q_strncpyz( text, CG_Argv( 1 ), sizeof( text ) );
+	CG_RemoveChatEscapeChar( text );
+	CG_Printf( "%s\n", text );
 
-	if (cgs.teamChatPos - cgs.teamLastChatPos > chatHeight)
-		cgs.teamLastChatPos = cgs.teamChatPos - chatHeight;
-	}
+	holdTime = atoi( CG_Argv( 2 ) ) * 1000;
+	CG_PushPrintString( text, SYSTEM_PRINT, holdTime );
+}
+
+/*
+=================
+CG_ParseClearChat
+
+Resets the buffered chat ring in response to the retail clearChat servercmd.
+=================
+*/
+static void CG_ParseClearChat( void ) {
+	CG_InitTeamChat();
+}
+
+/*
+=================
+CG_ParseUiPriv
+
+Publishes the retail ui_priv bridge payload through the matching UI cvar.
+=================
+*/
+static void CG_ParseUiPriv( void ) {
+	trap_Cvar_Set( "ui_priv", CG_Argv( 1 ) );
+}
 
 /*
 ===============
@@ -2044,7 +3211,7 @@ void CG_VoiceChatLocal( int mode, qboolean voiceOnly, int clientNum, int color, 
 	}
 	ci = &cgs.clientinfo[ clientNum ];
 
-	cgs.currentVoiceClient = clientNum;
+	CG_SetClientSpeakingState( clientNum, qtrue );
 
 	voiceChatList = CG_VoiceChatListForClient( clientNum );
 
@@ -2144,7 +3311,7 @@ CG_ParseStopRecord
 =================
 */
 static void CG_ParseStopRecord( void ) {
-	trap_SendConsoleCommand( "stoprecord\n" );
+	trap_SendConsoleCommand( "stoprecord; wait\n" );
 }
 
 /*
@@ -2242,6 +3409,7 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "print" ) ) {
+		CG_PushPrintString( CG_Argv(1), SYSTEM_PRINT, 0 );
 		CG_Printf( "%s", CG_Argv(1) );
 		cmd = CG_Argv(1);			// yes, this is obviously a hack, but so is the way we hear about
 									// votes passing or failing
@@ -2257,6 +3425,7 @@ static void CG_ServerCommand( void ) {
 		if ( !cg_teamChatsOnly.integer ) {
 			Q_strncpyz( text, CG_Argv(1), MAX_SAY_TEXT );
 			CG_RemoveChatEscapeChar( text );
+			CG_PushPrintString( text, CHAT_PRINT, 0 );
 			CG_Printf( "%s\n", text );
 		}
 		return;
@@ -2265,10 +3434,16 @@ static void CG_ServerCommand( void ) {
 	if ( !strcmp( cmd, "tchat" ) ) {
 		Q_strncpyz( text, CG_Argv(1), MAX_SAY_TEXT );
 		CG_RemoveChatEscapeChar( text );
-		CG_AddToTeamChat( text );
+		CG_PushPrintString( text, TEAMCHAT_PRINT, 0 );
 		CG_Printf( "%s\n", text );
 		return;
 	}
+
+	if ( !strcmp( cmd, "bchat" ) ) {
+		CG_ParseBufferedChat();
+		return;
+	}
+
 	if ( !strcmp( cmd, "vchat" ) ) {
 		CG_VoiceChat( SAY_ALL );
 		return;
@@ -2305,7 +3480,7 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "scores_tdm" ) ) {
-		CG_ParseScores();
+		CG_ParseTdmScores();
 		return;
 	}
 
@@ -2315,17 +3490,17 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "scores_ctf" ) ) {
-		CG_ParseScores();
+		CG_ParseCtfScores();
 		return;
 	}
 
 	if ( !strcmp( cmd, "scores_ft" ) ) {
-		CG_ParseScores();
+		CG_ParseFreezeScores();
 		return;
 	}
 
 	if ( !strcmp( cmd, "scores_ad" ) ) {
-		CG_ParseScores();
+		CG_ParseCtfScores();
 		return;
 	}
 
@@ -2339,8 +3514,43 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	if ( !strcmp( cmd, "scorestats" ) ) {
+		CG_ParseScoreStats();
+		return;
+	}
+
+	if ( !strcmp( cmd, "scorestats_team" ) ) {
+		CG_ParseTeamScoreStats();
+		return;
+	}
+
+	if ( !strcmp( cmd, "castats" ) ) {
+		CG_ParseClanArenaStats();
+		return;
+	}
+
+	if ( !strcmp( cmd, "tdmstats" ) ) {
+		CG_ParseTDMStats();
+		return;
+	}
+
+	if ( !strcmp( cmd, "ctfstats" ) ) {
+		CG_ParseCTFStats();
+		return;
+	}
+
+	if ( !strcmp( cmd, "keymask" ) ) {
+		CG_ParseKeyMask();
+		return;
+	}
+
+	if ( !strcmp( cmd, "keymasks" ) ) {
+		CG_ParseKeyMasks();
+		return;
+	}
+
 	if ( !strcmp( cmd, "smscores" ) ) {
-		CG_ParseScores();
+		CG_ParseCompactScores();
 		return;
 	}
 
@@ -2376,6 +3586,11 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	if ( !strcmp( cmd, "clearChat" ) ) {
+		CG_ParseClearChat();
+		return;
+	}
+
 	if ( !strcmp( cmd, "playMusic" ) ) {
 		CG_ParsePlayMusic();
 		return;
@@ -2388,6 +3603,11 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "playSound" ) ) {
 		CG_ParsePlaySound();
+		return;
+	}
+
+	if ( !strcmp( cmd, "ui_priv" ) ) {
+		CG_ParseUiPriv();
 		return;
 	}
 

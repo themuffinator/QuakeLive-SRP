@@ -104,6 +104,7 @@ typedef struct weaponConfig_s {
 	int		machinegunDamage;
 	int		machinegunTeamDamage;
 	int		heavyMachinegunDamage;
+	int		chaingunDamage;
 	int		shotgunDamage;
 	float		shotgunFalloffScale;
 	int		shotgunFalloffRange;
@@ -125,8 +126,9 @@ typedef struct weaponConfig_s {
 	float		plasmaAccelerationFactor;
 	int		plasmaAccelerationRate;
 	int		lightningDamage;
-	float		lightningFalloffScale;
+	int		lightningFalloffDamage;
 	int		lightningFalloffRange;
+	int		railJumpStrength;
 	int		railgunDamage;
 	int		bfgDamage;
 	int		bfgSplashDamage;
@@ -134,6 +136,7 @@ typedef struct weaponConfig_s {
 	int		bfgSpeed;
 	float		bfgAccelerationFactor;
 	int		bfgAccelerationRate;
+	int		grappleDamage;
 	int		grappleSpeed;
 	float		gauntletSpeedFactor;
 	int		lightningDischargeFlags;
@@ -231,10 +234,10 @@ typedef struct factoryCvarConfig_s {
 	int		complaintLimit;
 	int		respawnDelayMinMilliseconds;
 	int		respawnDelayMaxMilliseconds;
-	int		regenHealthFixedPoint;
-	int		regenHealthRateFixedPoint;
-	int		regenArmorFixedPoint;
-	int		regenArmorRateFixedPoint;
+	int		regenHealthDelayMilliseconds;
+	int		regenHealthRateMilliseconds;
+	int		regenArmorDelayMilliseconds;
+	int		regenArmorRateMilliseconds;
 	qboolean	regenArmorAfterHealth;
 	qboolean	spawnItemPowerup;
 	qboolean	spawnItemHoldable;
@@ -243,8 +246,6 @@ typedef struct factoryCvarConfig_s {
 	qboolean	spawnItemArmor;
 	qboolean	spawnItemAmmo;
 } factoryCvarConfig_t;
-
-#define FACTORY_FIXED_POINT_SCALE	10
 
 typedef struct factoryOverride_s {
 	const char			*name;
@@ -273,6 +274,7 @@ void G_ClearCustomSettingsDirtyFlag( void );
 extern vmCvar_t g_startingHealth;
 extern vmCvar_t g_startingHealthBonus;
 extern vmCvar_t g_startingArmor;
+extern vmCvar_t g_armorTiered;
 extern vmCvar_t g_damage_hmg;
 extern vmCvar_t g_damageGauntletLegacy;
 extern vmCvar_t g_vampiricDamage;
@@ -354,6 +356,7 @@ extern vmCvar_t g_quadHogPingRate;
 extern vmCvar_t g_damage_sg_falloff;
 extern vmCvar_t g_damage_lg_falloff;
 extern vmCvar_t g_lightningDischarge;
+extern vmCvar_t g_railJump;
 extern vmCvar_t g_gauntletSpeedFactor;
 extern vmCvar_t g_headShotDamage_rg;
 extern vmCvar_t g_ironsights_mg;
@@ -564,6 +567,7 @@ struct gentity_s {
 
 	int			nextthink;
 	void		(*think)(gentity_t *self);
+	void		(*runFrame)(gentity_t *self, float thinktime);	// retail-only per-frame callback serviced before think
 	void		(*reached)(gentity_t *self);	// movers call this when hitting endpoint
 	void		(*blocked)(gentity_t *self, gentity_t *other);
 	void		(*touch)(gentity_t *self, gentity_t *other, trace_t *trace);
@@ -644,6 +648,16 @@ typedef enum {
 	ROUNDSTATE_COMPLETE
 } roundState_t;
 
+#define AD_SCORE_HISTORY_LENGTH	20
+
+typedef enum {
+	AD_ROUNDSTATE_INACTIVE = 0,
+	AD_ROUNDSTATE_WARMUP = 1,
+	AD_ROUNDSTATE_ACTIVE = 3,
+	AD_ROUNDSTATE_COMPLETE = 4,
+	AD_ROUNDSTATE_EXIT = 5
+} adRoundState_t;
+
 #define ROUND_TRANSITION_NONE	-1
 
 typedef enum {
@@ -685,11 +699,11 @@ typedef struct {
 	int			spectatorClient;	// for chasecam and follow mode
 	int			wins, losses;		// tournament stats
 	qboolean	teamLeader;			// true when this client is a team leader
-	int			sessionState;
+	qboolean	spectateOnly;		// retail-style duel "so" latch for opt-out spectators
 	int			privilege;
-	int			roundState;
+	int			spectatorQueuePosition;	// retail-style duel "pq" slot
 	int			skill1;
-	int			_pad1;
+	qboolean	spectatorQueuePositionDirty;
 	int			skill2;
 	int			skill3;
 	qboolean	muted;
@@ -715,6 +729,45 @@ typedef struct {
 	qboolean	inuse;
 } poi_t;
 
+typedef enum {
+	TEAMSTAT_MAP_PICKUPS = 0,
+	TEAMSTAT_PICKUPS_RA,
+	TEAMSTAT_PICKUPS_YA,
+	TEAMSTAT_PICKUPS_GA,
+	TEAMSTAT_PICKUPS_MH,
+	TEAMSTAT_PICKUPS_QUAD,
+	TEAMSTAT_PICKUPS_BS,
+	TEAMSTAT_TIMEHELD_QUAD,
+	TEAMSTAT_TIMEHELD_BS,
+	TEAMSTAT_PICKUPS_FLAG,
+	TEAMSTAT_PICKUPS_MEDKIT,
+	TEAMSTAT_PICKUPS_REGEN,
+	TEAMSTAT_PICKUPS_HASTE,
+	TEAMSTAT_PICKUPS_INVIS,
+	TEAMSTAT_TIMEHELD_FLAG,
+	TEAMSTAT_TIMEHELD_REGEN,
+	TEAMSTAT_TIMEHELD_HASTE,
+	TEAMSTAT_TIMEHELD_INVIS,
+	TEAMSTAT_COUNT
+} teamScoreStatIndex_t;
+
+typedef enum {
+	SCORESTAT_PICKUP_RA = 0,
+	SCORESTAT_PICKUP_YA,
+	SCORESTAT_PICKUP_GA,
+	SCORESTAT_PICKUP_MH,
+	SCORESTAT_PICKUP_COUNT
+} scorestatPickupIndex_t;
+
+typedef enum {
+	VOTE_STATE_NONE = 0,
+	VOTE_STATE_ELIGIBLE,
+	VOTE_STATE_YES,
+	VOTE_STATE_NO,
+	VOTE_STATE_FORCE_PASS,
+	VOTE_STATE_FORCE_VETO
+} voteState_t;
+
 typedef struct {
 	clientConnected_t	connected;	
 	usercmd_t	cmd;				// we would lose angles if not persistant
@@ -727,8 +780,10 @@ typedef struct {
 	int			enterTime;			// level.time the client entered the game
 	playerTeamState_t teamState;	// status in teamplay games
 	int			voteCount;			// to prevent people from constantly calling votes
+	int			voteState;			// retail-style per-client vote role/state latch
 	int			teamVoteCount;		// to prevent people from constantly calling votes
 	qboolean	teamInfo;			// send team overlay updates?
+	qboolean	readyUpLatch;		// retail-style persistent ready latch mirrored into EF_READY
 	int		voteDelayTime;
 	int		voteLastSelection;
 	int		voteLastEnableFrame;
@@ -744,8 +799,15 @@ typedef struct {
 
 	int			damageGiven;
 	int			damageReceived;
+	int			weaponFrags[WP_NUM_WEAPONS];
+	int			weaponDamage[WP_NUM_WEAPONS];
 	int			accuracy_shots[WP_NUM_WEAPONS];
 	int			accuracy_hits[WP_NUM_WEAPONS];
+	int			teamScoreStats[TEAMSTAT_COUNT];
+	int			teamHoldStartTime[TEAMSTAT_COUNT];
+	int			pickupLastTime[SCORESTAT_PICKUP_COUNT];
+	int			pickupIntervalTotalMs[SCORESTAT_PICKUP_COUNT];
+	int			pickupIntervalCount[SCORESTAT_PICKUP_COUNT];
 } clientPersistant_t;
 
 
@@ -810,6 +872,11 @@ struct gclient_s {
 	int			friendlyFireComplaintEndTime;	// time when the latest complaint penalty expires
 	int			teammateDamageGiven;	// accumulated teammate damage across the match
 	int			teammateDamageThisLife;	// accumulated teammate damage for the current life
+	int			killCount;		// retail-style running kill total used by scoreboard/stat output
+	int			deathCount;		// retail-style running death total used by scoreboard/stat output
+	int			teamDamageEventsGiven;	// retail-style count of friendly-fire incidents inflicted
+	int			teamDamageEventsReceived;	// retail-style count of friendly-fire incidents suffered
+	int			environmentalDeaths;	// retail-style count of world/environment deaths tracked for intermission stats
 
 	qboolean	fireHeld;			// used for hook
 	gentity_t	*hook;				// grapple hook if out
@@ -823,11 +890,14 @@ struct gclient_s {
 	int			complaintDamage;
 	int			complaintLastDamageTime;
 
-	// timeResidual is used to handle events that happen every second
-	// like health / armor countdowns and regeneration
+	// timeResidual handles once-per-second timers; factory regeneration now
+	// tracks its own per-frame retail-style accumulators and damage latches.
 	int			timeResidual;
-	int			factoryRegenHealthRemainder;
-	int			factoryRegenArmorRemainder;
+	int			factoryRegenHealthAccumulatorMs;
+	int			factoryRegenArmorAccumulatorMs;
+	int			factoryRegenLastDamageTime;
+	qboolean	factoryRegenHealthPending;
+	qboolean	factoryRegenArmorPending;
 
 	int		dominationTouchFrame[DOMINATION_MAX_POINTS];
 	gentity_t	*persistantPowerup;
@@ -851,6 +921,7 @@ struct gclient_s {
 	int			rrInfectionNextWarningTime;
 	int			rrInfectionNextPingTime;
 	int			rrAccumulatedDamage;
+	int			adAccumulatedDamage;
 	raceClientState_t	raceState;
 };
 
@@ -912,6 +983,17 @@ typedef struct {
 	int			warmupTime;			// restart match at this time
 	roundState_t	roundState;
 	int			roundTransitionTime;
+	adRoundState_t	adRoundState;
+	adRoundState_t	adPendingRoundState;
+	int			adStateChangeTime;
+	int			adTurnIndex;
+	int			adLastTurnBaseScore[2];
+	int			adCurrentTurnScoreDelta[2];
+	int			adScoreHistory[AD_SCORE_HISTORY_LENGTH];
+	int			adPublishedScoreHistory[AD_SCORE_HISTORY_LENGTH];
+	int			adScoreHistoryIndex;
+	team_t		adRoundWinner;
+	qboolean	adRoundWinnerAlreadyScored;
 
 	fileHandle_t	logFile;
 
@@ -927,6 +1009,9 @@ typedef struct {
 
 	int			teamScores[TEAM_NUM_TEAMS];
 	int			lastTeamLocationTime;		// last time of client team location update
+	int			deathmatchSpawnPointCount;
+	int			redSpawnPointCount;
+	int			blueSpawnPointCount;
 
 	qboolean	newSession;				// don't use any old session data, because
 										// we changed gametype
@@ -994,6 +1079,7 @@ typedef struct {
 	int		suddenDeathLastDelay;
 	qboolean	suddenDeathNoRespawnLogged;
 	qboolean	matchForfeited;
+	int		readyUpDelayDeadline;
 	int		timeoutRemaining[TEAM_NUM_TEAMS];
 	qboolean	timeoutActive;
 	int		timeoutTeam;
@@ -1028,6 +1114,8 @@ typedef struct {
 	int		quadHogLastActiveTime;
 	int		quadHogNextPingTime;
 	qboolean		trainingMapActive;
+	int			duelScoreboardLowClientNum;
+	int			duelScoreboardHighClientNum;
 	unsigned int		disableLoadoutMapMask;
 	gentity_t		*racePoints[MAX_RACE_POINTS];
 	int			racePointCount;
@@ -1055,6 +1143,7 @@ void	G_FreezeInitClient( gentity_t *ent );
 void	G_FreezeThawClient( gentity_t *ent, qboolean wasAuto, int helperNum );
 int		G_FreezeCountThawHelpers( gentity_t *ent, gentity_t **helperOut );
 void	G_FreezeApplyFreezeState( gentity_t *self, qboolean environmental );
+qboolean	G_FreezeCanSeeThawProgressEvent( int clientNum, int entNum );
 void	G_FreezeClientEndFrame( gentity_t *ent );
 qboolean	G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath );
 void	G_FreezeRunFrame( void );
@@ -1071,6 +1160,7 @@ void	G_RaceInitLevel( void );
 void	G_RaceClientBegin( gentity_t *ent );
 void	G_RaceClientSpawn( gentity_t *ent );
 void	G_RaceHandlePointTouch( gentity_t *point, gentity_t *player );
+void	G_BuildRaceScoreboardMessage( gentity_t *ent );
 void	G_RaceSendScoreboard( gentity_t *ent );
 void	G_RaceAdminCommand( gentity_t *ent );
 void	G_RaceBroadcastInitCommand( int clientNum );
@@ -1084,6 +1174,9 @@ void	G_AutoAction( autoActionEvent_t event, const gentity_t *subject, const char
 // g_cmds.c
 //
 void Cmd_Score_f (gentity_t *ent);
+void G_SendClientKeyMask( int targetClientNum, int subjectClientNum );
+void G_BroadcastClientKeyMask( int subjectClientNum );
+void G_SendAllClientKeyMasks( int targetClientNum );
 void Cmd_Timeout_f( gentity_t *ent );
 void Cmd_Timein_f( gentity_t *ent );
 void Cmd_ShuffleTeams_f( void );
@@ -1091,7 +1184,8 @@ void StopFollowing( gentity_t *ent );
 void BroadcastTeamChange( gclient_t *client, int oldTeam );
 void SetTeam( gentity_t *ent, char *s );
 void Cmd_FollowCycle_f( gentity_t *ent, int dir );
-void G_ApplyForfeit( gentity_t *ent );
+qboolean G_CanForfeit( gentity_t *ent, qboolean fromCommand );
+void G_ApplyForfeit( void );
 void G_SendItemTimerState( int clientNum, int enabled, int height );
 void G_BroadcastItemTimerState( int enabled, int height );
 qboolean G_GiveItemByName( gentity_t *ent, const char *name );
@@ -1272,6 +1366,16 @@ void G_RRHandlePlayerDeath( gentity_t *victim, gentity_t *attacker );
 void G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int damage );
 void G_RRResetRoundState( void );
 void G_RRTrackRoundActivity( void );
+int G_ADResolveRoundState( void );
+qboolean G_ADHandleDamageScore( gentity_t *attacker, int announce, gentity_t *targ, int *take, int *asave );
+qboolean G_ADCheckExitRules( qboolean announce );
+int AD_RoundStateTransition( qboolean announce );
+int G_ADResolveAttackingTeam( void );
+int G_ADResolveDefendingTeam( void );
+int G_ADResetScoreHistory( void );
+int G_ADUpdateScoreHistory( void );
+void G_CAADRespawnAsSpectator( gentity_t *ent );
+void G_CAADResetClientForRound( gentity_t *ent );
 qboolean SpotWouldTelefrag( gentity_t *spot );
 
 //
@@ -1307,6 +1411,9 @@ void DeathmatchScoreboardMessage (gentity_t *client);
 // g_main.c
 //
 void FindIntermissionPoint( void );
+gentity_t *G_FindNextTournamentPlayer( void );
+void G_UpdateTournamentQueuePositions( void );
+void G_SyncTournamentQueueTeamTasks( void );
 void PrintTeam( int team, char *message );
 void SetLeader(int team, int client);
 void CheckTeamLeader( int team );
@@ -1318,18 +1425,25 @@ void G_UpdateMatchStateConfigString( void );
 void G_UpdateMatchFactoryConfig( void );
 void G_SetGameState( const char *state );
 void G_ResetTimeoutState( void );
-void G_HandleForfeit( gentity_t *caller );
 void G_ApplyTimeoutPauseDelta( int msec );
 void G_InitClientVoteThrottle( gclient_t *client );
 void G_ResetClientVoteThrottle( gclient_t *client );
 void G_RegisterVoteCall( gclient_t *client, int clientNum, int voteSelection );
 void G_UpdateVoteThrottle( void );
+int G_UpdateVoteCounts( void );
+qboolean G_TryExecuteVoteString( const char *voteString );
+void G_ClearVoteState( void );
 void G_ComplaintResetClient( gclient_t *client, qboolean resetCount );
 void G_ComplaintConsiderForDamage( gentity_t *attacker, gentity_t *victim, int damage );
 void G_ComplaintResolve( gentity_t *victim, qboolean filed );
 void G_ComplaintClientDisconnected( int clientNum );
 void QDECL G_Printf( const char *fmt, ... );
 void QDECL G_Error( const char *fmt, ... );
+teamScoreStatIndex_t G_TeamHoldStatForPowerup( int powerup );
+void G_BeginClientTeamHoldStat( gclient_t *client, teamScoreStatIndex_t statIndex );
+void G_EndClientTeamHoldStat( gclient_t *client, teamScoreStatIndex_t statIndex, int endTime );
+void G_FlushExpiredClientTeamHoldStats( gclient_t *client, int now );
+int G_GetClientTeamHoldStatSeconds( gclient_t *client, teamScoreStatIndex_t statIndex, int now );
 
 //
 // g_client.c
@@ -1339,6 +1453,9 @@ void ClientUserinfoChanged( int clientNum );
 void ClientDisconnect( int clientNum );
 void ClientBegin( int clientNum );
 void ClientCommand( int clientNum );
+qboolean G_ClientIsReady( const gclient_t *client );
+void G_SetClientReadyState( gclient_t *client, qboolean ready );
+void G_SyncClientReadyState( gclient_t *client );
 void G_RunGrantScript( gentity_t *ent, const char *script );
 
 void G_UpdateForcedCosmeticsConfigstring( qboolean forceBroadcast );
@@ -1358,6 +1475,18 @@ void G_RunClient( gentity_t *ent );
 //
 // g_team.c
 //
+qboolean G_CanClientSeeClient( int viewerClientNum, int targetClientNum );
+qboolean G_ClientsOnSameTeam( gclient_t *clientA, gclient_t *clientB );
+qboolean G_ClientNumsOnSameTeam( int clientNumA, int clientNumB );
+qboolean G_AreEnemyClients( int clientNumA, int clientNumB );
+qboolean G_ShouldSuppressVoiceToClient( int senderClientNum, int recipientClientNum );
+qboolean G_IsObjectiveEntity( int entNum );
+qboolean G_IsClientSpectator( int clientNum );
+qboolean G_IsClientAdmin( int clientNum );
+int G_GetClientScore( int clientNum );
+void G_CountActivePlayersByTeam( int counts[TEAM_NUM_TEAMS] );
+void G_CountConnectedClientsByTeam( int counts[TEAM_NUM_TEAMS] );
+void G_UpdateTeamCountConfigstrings( void );
 qboolean OnSameTeam( gentity_t *ent1, gentity_t *ent2 );
 void Team_CheckDroppedItem( gentity_t *dropped );
 flagDropResult_t G_TossFlag( gentity_t *carrier, int flagPowerup, flagDropContext_t context, gentity_t *attacker, int meansOfDeath, gentity_t **dropped );
@@ -1502,6 +1631,8 @@ extern	vmCvar_t	g_synchronousClients;
 extern	vmCvar_t	g_motd;
 extern	vmCvar_t	g_warmup;
 extern	vmCvar_t	g_doWarmup;
+extern	vmCvar_t	g_warmupReadyDelay;
+extern	vmCvar_t	g_warmupReadyDelayAction;
 extern	vmCvar_t	g_timeoutLen;
 extern	vmCvar_t	g_timeoutCount;
 extern	vmCvar_t	g_pauseAudio;

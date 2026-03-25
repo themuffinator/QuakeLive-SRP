@@ -103,6 +103,112 @@ static void CG_LocalProjectileNudge( vec3_t origin, int *msec ) {
 }
 
 /*
+==========================
+CG_UpdatePredictedRailFire
+
+Retail `CG_PredictPlayerState` calls the `0x10044CE0` helper before replaying
+commands. HLIL/Ghidra show it is railgun-specific: it checks the current
+predicted weapon/weaponTime, the latest attack command, the local ammo state,
+and a short refire window before refreshing the cached predicted rail shot.
+=============================
+*/
+static void CG_UpdatePredictedRailFire( const usercmd_t *cmd ) {
+	clientInfo_t	*ci;
+	vec3_t		impactDir;
+	vec3_t		predictedStart;
+	vec3_t		predictedEnd;
+	qboolean	addImpact;
+	int		weaponTime;
+
+	if ( !cmd ) {
+		return;
+	}
+	if ( !cg.predictLocalRailshots ) {
+		return;
+	}
+	if ( cg.predictedPlayerState.pm_type == PM_INTERMISSION || cg.predictedPlayerState.pm_type == PM_SPINTERMISSION ) {
+		return;
+	}
+	if ( cg.predictedPlayerState.weapon != WP_RAILGUN ) {
+		return;
+	}
+	if ( cmd->weapon != WP_RAILGUN ) {
+		return;
+	}
+	if ( !( cmd->buttons & BUTTON_ATTACK ) ) {
+		return;
+	}
+	if ( cmd->buttons & BUTTON_TALK ) {
+		return;
+	}
+	if ( cg.predictedPlayerState.ammo[ WP_RAILGUN ] == 0 ) {
+		return;
+	}
+	weaponTime = cg.predictedPlayerState.weaponTime - cg.frametime;
+	if ( weaponTime >= 1 ) {
+		return;
+	}
+	if ( cg.time - cg.predictedLocalRailTime <= 100 ) {
+		return;
+	}
+
+	addImpact = qfalse;
+	if ( !CG_BuildPredictedRailForPlayerState( &cg.predictedPlayerState, cg.predictedPlayerState.clientNum,
+		predictedStart, predictedEnd, impactDir, &addImpact ) ) {
+		return;
+	}
+
+	cg.predictedLocalRailValid = qtrue;
+	cg.predictedLocalRailTime = cg.time;
+	cg.predictedLocalRailHit = addImpact;
+	VectorCopy( predictedStart, cg.predictedLocalRailStart );
+	VectorCopy( predictedEnd, cg.predictedLocalRailEnd );
+
+	ci = &cgs.clientinfo[ cg.predictedPlayerState.clientNum ];
+	CG_RailTrail( ci, predictedStart, predictedEnd );
+	if ( addImpact ) {
+		CG_MissileHitWall( WP_RAILGUN, cg.predictedPlayerState.clientNum, predictedEnd, impactDir, IMPACTSOUND_DEFAULT );
+	}
+
+	cg.predictedPlayerEntity.muzzleFlashTime = cg.time;
+}
+
+/*
+=====================
+CG_UpdateStepChange
+
+Retail prediction smooths stair climbs directly from the pmove results after
+each predicted Pmove instead of replaying the old EV_STEP_* events.
+=====================
+*/
+static void CG_UpdateStepChange( void ) {
+	float	oldStep;
+	int		delta;
+
+	if ( cg_pmove.stepUp <= 0.0f ) {
+		return;
+	}
+
+	if ( cg_pmove.stepUpTime <= cg.stepTime ) {
+		return;
+	}
+
+	delta = cg.time - cg.stepTime;
+	if ( delta >= 100 ) {
+		oldStep = 0.0f;
+	} else {
+		oldStep = cg.stepChange * (float)( 100 - delta ) / 100.0f;
+	}
+
+	cg.stepChange = oldStep + cg_pmove.stepUp;
+	if ( cg.stepChange > MAX_STEP_CHANGE ) {
+		cg.stepChange = MAX_STEP_CHANGE;
+	}
+
+	cg.stepTime = cg.time;
+}
+
+/*
 ====================
 CG_BuildSolidList
 
@@ -146,6 +252,18 @@ void CG_BuildSolidList( void ) {
 
 /*
 ====================
+CG_UseCapsuleTrace
+
+Returns whether predicted collision traces should mirror Quake Live's
+capsule-based player volumes.
+====================
+*/
+static qboolean CG_UseCapsuleTrace( void ) {
+	return cgs.playerCylindersEnabled;
+}
+
+/*
+====================
 CG_ClipMoveToEntities
 
 ====================
@@ -159,6 +277,9 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 	vec3_t		bmins, bmaxs;
 	vec3_t		origin, angles;
 	centity_t	*cent;
+	qboolean	useCapsule;
+
+	useCapsule = CG_UseCapsuleTrace();
 
 	for ( i = 0 ; i < cg_numSolidEntities ; i++ ) {
 		cent = cg_solidEntities[ i ];
@@ -184,14 +305,21 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 			bmins[2] = -zd;
 			bmaxs[2] = zu;
 
-			cmodel = trap_CM_TempBoxModel( bmins, bmaxs );
+			if ( useCapsule ) {
+				cmodel = trap_CM_TempCapsuleModel( bmins, bmaxs );
+			} else {
+				cmodel = trap_CM_TempBoxModel( bmins, bmaxs );
+			}
 			VectorCopy( vec3_origin, angles );
 			VectorCopy( cent->lerpOrigin, origin );
 		}
 
 
-		trap_CM_TransformedBoxTrace ( &trace, start, end,
-			mins, maxs, cmodel,  mask, origin, angles);
+		if ( useCapsule ) {
+			trap_CM_TransformedCapsuleTrace( &trace, start, end, mins, maxs, cmodel, mask, origin, angles );
+		} else {
+			trap_CM_TransformedBoxTrace( &trace, start, end, mins, maxs, cmodel, mask, origin, angles );
+		}
 
 		if (trace.allsolid || trace.fraction < tr->fraction) {
 			trace.entityNum = ent->number;
@@ -214,7 +342,11 @@ void	CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 					 int skipNumber, int mask ) {
 	trace_t	t;
 
-	trap_CM_BoxTrace ( &t, start, end, mins, maxs, 0, mask);
+	if ( CG_UseCapsuleTrace() ) {
+		trap_CM_CapsuleTrace( &t, start, end, mins, maxs, 0, mask );
+	} else {
+		trap_CM_BoxTrace( &t, start, end, mins, maxs, 0, mask );
+	}
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
 	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t);
@@ -395,16 +527,19 @@ static void CG_TouchTriggerPrediction( void ) {
 	entityState_t	*ent;
 	clipHandle_t cmodel;
 	centity_t	*cent;
-	qboolean	spectator;
 
 	// dead clients don't activate triggers
 	if ( cg.predictedPlayerState.stats[STAT_HEALTH] <= 0 ) {
 		return;
 	}
 
-	spectator = ( cg.predictedPlayerState.pm_type == PM_SPECTATOR );
-
-	if ( cg.predictedPlayerState.pm_type != PM_NORMAL && !spectator ) {
+	// Retail 0x100444D0 skips trigger prediction for noclip, spectator, dead,
+	// and intermission pm_types, but still leaves the PM_FREEZE path active.
+	if ( cg.predictedPlayerState.pm_type == PM_NOCLIP
+		|| cg.predictedPlayerState.pm_type == PM_SPECTATOR
+		|| cg.predictedPlayerState.pm_type == PM_DEAD
+		|| cg.predictedPlayerState.pm_type == PM_INTERMISSION
+		|| cg.predictedPlayerState.pm_type == PM_SPINTERMISSION ) {
 		return;
 	}
 
@@ -412,7 +547,7 @@ static void CG_TouchTriggerPrediction( void ) {
 		cent = cg_triggerEntities[ i ];
 		ent = &cent->currentState;
 
-		if ( ent->eType == ET_ITEM && !spectator ) {
+		if ( ent->eType == ET_ITEM ) {
 			CG_TouchItem( cent );
 			continue;
 		}
@@ -426,6 +561,8 @@ static void CG_TouchTriggerPrediction( void ) {
 			continue;
 		}
 
+		// Retail 0x100444D0 keeps trigger-touch prediction on the box syscall even
+		// when the shared player collision gate flips normal traces over to capsule.
 		trap_CM_BoxTrace( &trace, cg.predictedPlayerState.origin, cg.predictedPlayerState.origin, 
 			cg_pmove.mins, cg_pmove.maxs, cmodel, -1 );
 
@@ -550,6 +687,7 @@ void CG_PredictPlayerState( void ) {
 
 	// get the latest command so we can know which commands are from previous map_restarts
 	trap_GetUserCmd( current, &latestCmd );
+	CG_UpdatePredictedRailFire( &latestCmd );
 
 	// get the most recent information we have, even if
 	// the server time is beyond our current cg.time,
@@ -623,7 +761,7 @@ void CG_PredictPlayerState( void ) {
 				len = VectorLength( delta );
 				if ( len > 0.1 ) {
 					if ( cg_showmiss.integer ) {
-						CG_Printf("Prediction miss: %f\n", len);
+						CG_Printf(" Prediction miss: %f { %f %f %f }\n", len, delta[0], delta[1], delta[2]);
 					}
 					if ( cg_errorDecay.integer ) {
 						int		t;
@@ -635,7 +773,7 @@ void CG_PredictPlayerState( void ) {
 							f = 0;
 						}
 						if ( f > 0 && cg_showmiss.integer ) {
-							CG_Printf("Double prediction decay: %f\n", f);
+							CG_Printf("Double prediction decay: %.3f\n", f);
 						}
 						VectorScale( cg.predictedError, f, cg.predictedError );
 					} else {
@@ -656,6 +794,7 @@ void CG_PredictPlayerState( void ) {
 		}
 
 		Pmove (&cg_pmove);
+		CG_UpdateStepChange();
 
 		{
 			vec3_t		nudgedOrigin;

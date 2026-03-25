@@ -19,9 +19,8 @@ C_SOURCE = r"""
 #include "qcommon.h"
 
 typedef struct qlr_ps_values_s {
-	int		doubleJumpTime;
-	int		doubleJumpEntNum;
-	float	doubleJumpNormal[3];
+	int		jumpTime;
+	int		doubleJumped;
 	int		crouchTime;
 	int		crouchSlideTime;
 } qlr_ps_values_t;
@@ -94,12 +93,12 @@ static void QLR_WriteAndReadPlayerState( const playerState_t *from, const player
 
 /*
 =============
-QLR_ReplicateDoubleJump
+QLR_ReplicateJumpState
 
-Generates a double jump delta and captures the replicated fields for verification.
+Generates a jump timing delta and captures the replicated fields for verification.
 =============
 */
-void QLR_ReplicateDoubleJump( qlr_ps_values_t *values ) {
+void QLR_ReplicateJumpState( qlr_ps_values_t *values ) {
 	playerState_t from;
 	playerState_t server;
 	playerState_t client;
@@ -109,19 +108,13 @@ void QLR_ReplicateDoubleJump( qlr_ps_values_t *values ) {
 	Com_Memset( &client, 0, sizeof( client ) );
 	Com_Memset( values, 0, sizeof( *values ) );
 
-	server.doubleJumpTime = 1337331;
-	server.doubleJumpEntNum = 42;
-	server.doubleJumpNormal[0] = -0.25f;
-	server.doubleJumpNormal[1] = 0.5f;
-	server.doubleJumpNormal[2] = 0.75f;
+	server.jumpTime = 1337331;
+	server.doubleJumped = 1;
 
 	QLR_WriteAndReadPlayerState( &from, &server, &client );
 
-	values->doubleJumpTime = client.doubleJumpTime;
-	values->doubleJumpEntNum = client.doubleJumpEntNum;
-	values->doubleJumpNormal[0] = client.doubleJumpNormal[0];
-	values->doubleJumpNormal[1] = client.doubleJumpNormal[1];
-	values->doubleJumpNormal[2] = client.doubleJumpNormal[2];
+	values->jumpTime = client.jumpTime;
+	values->doubleJumped = client.doubleJumped;
 }
 
 /*
@@ -156,9 +149,8 @@ pytestmark = pytest.mark.skipif(os.name == "nt", reason="MSVC build configuratio
 
 class PlayerStateReplication(ctypes.Structure):
 	_fields_ = [
-		("doubleJumpTime", ctypes.c_int),
-		("doubleJumpEntNum", ctypes.c_int),
-		("doubleJumpNormal", ctypes.c_float * 3),
+		("jumpTime", ctypes.c_int),
+		("doubleJumped", ctypes.c_int),
 		("crouchTime", ctypes.c_int),
 		("crouchSlideTime", ctypes.c_int),
 	]
@@ -228,8 +220,8 @@ def _build_test_library(tmp_path: Path) -> Path:
 
 def _load_library(lib_path: Path) -> ctypes.CDLL:
 	library = ctypes.CDLL(str(lib_path))
-	library.QLR_ReplicateDoubleJump.argtypes = [ctypes.POINTER(PlayerStateReplication)]
-	library.QLR_ReplicateDoubleJump.restype = None
+	library.QLR_ReplicateJumpState.argtypes = [ctypes.POINTER(PlayerStateReplication)]
+	library.QLR_ReplicateJumpState.restype = None
 	library.QLR_ReplicateCrouchSlide.argtypes = [ctypes.POINTER(PlayerStateReplication)]
 	library.QLR_ReplicateCrouchSlide.restype = None
 	return library
@@ -242,16 +234,12 @@ def playerstate_library(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL
 	return _load_library(lib_path)
 
 
-def test_double_jump_state_round_trip(playerstate_library: ctypes.CDLL) -> None:
+def test_jump_state_round_trip(playerstate_library: ctypes.CDLL) -> None:
 	values = PlayerStateReplication()
-	playerstate_library.QLR_ReplicateDoubleJump(ctypes.byref(values))
+	playerstate_library.QLR_ReplicateJumpState(ctypes.byref(values))
 
-	assert values.doubleJumpTime == 1337331
-	assert values.doubleJumpEntNum == 42
-	normal = tuple(values.doubleJumpNormal)
-	assert normal[0] == pytest.approx(-0.25, rel=1e-6)
-	assert normal[1] == pytest.approx(0.5, rel=1e-6)
-	assert normal[2] == pytest.approx(0.75, rel=1e-6)
+	assert values.jumpTime == 1337331
+	assert values.doubleJumped == 1
 
 
 def test_crouch_slide_timers_round_trip(playerstate_library: ctypes.CDLL) -> None:

@@ -31,8 +31,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../game/q_shared.h"
 #include "qcommon.h"
+#include "../../common/platform/platform_config.h"
 #include "vm_local.h"
 #include "unzip.h"
+#include <stdlib.h>
 #include <stdint.h>
 #if defined(_WIN32)
 #include <excpt.h>
@@ -549,6 +551,61 @@ static const char *FS_StripProtocol( const char *uri ) {
 
 /*
 =============
+FS_StringRepresentsTrue
+
+Returns qtrue when an environment string should be treated as enabled.
+=============
+*/
+static qboolean FS_StringRepresentsTrue( const char *value ) {
+	if ( !value || !value[0] ) {
+		return qfalse;
+	}
+
+	if ( value[0] == '0' && value[1] == '\0' ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( value, "false" ) || !Q_stricmp( value, "no" ) || !Q_stricmp( value, "off" ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+FS_OnlineServicesEnabled
+
+Returns qtrue when launcher-style web fallbacks are permitted in the current build and runtime.
+=============
+*/
+static qboolean FS_OnlineServicesEnabled( void ) {
+	const char *value;
+
+	if ( !QL_PLATFORM_HAS_ONLINE_SERVICES ) {
+		return qfalse;
+	}
+
+	value = getenv( "QL_DISABLE_EXTERNAL_ECOSYSTEMS" );
+	if ( FS_StringRepresentsTrue( value ) ) {
+		return qfalse;
+	}
+
+	value = getenv( "QL_DISABLE_AWESOMIUM" );
+	if ( FS_StringRepresentsTrue( value ) ) {
+		return qfalse;
+	}
+
+	value = getenv( "QL_DISABLE_STEAMWORKS" );
+	if ( FS_StringRepresentsTrue( value ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
 FS_RewriteWebPath
 
 Normalize an intercepted URI into a quake path. Screenshots are forced to
@@ -585,6 +642,10 @@ qboolean FS_RewriteWebPath( const char *uri, char *outPath, int outSize ) {
 	if ( !Q_stricmpn( localPath, "screenshots/", 12 ) ) {
 		Q_strncpyz( outPath, localPath, outSize );
 		return qtrue;
+	}
+
+	if ( !FS_OnlineServicesEnabled() ) {
+		return qfalse;
 	}
 
 	if ( !fs_webpath || !fs_webpath->string[0] ) {
@@ -1023,6 +1084,10 @@ static int FS_FOpenFileReadForRoot( const char *root, const char *filename, file
 	int index;
 
 	if ( !request || !file ) {
+	return qfalse;
+	}
+
+	if ( !FS_OnlineServicesEnabled() ) {
 	return qfalse;
 	}
 

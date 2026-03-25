@@ -475,11 +475,17 @@ Parses a single rotation definition and appends it to the cache when valid.
 static void UI_AddMapRotationFromLine( const char *line, const char *sourceTag ) {
 	char			buffer[MAX_MAP_ROTATION_TOKEN * 2];
 	char			*cursor;
-	char			*separator;
+	char			*factorySeparator;
+	char			*configSeparator;
 	char			*comment;
 	mapRotationInfo_t	rotation;
 	const char		*sourceName = ( sourceTag && sourceTag[0] ) ? sourceTag : "map rotation source";
 	int			mapIndex;
+	const char		*mapToken;
+	const char		*factoryToken;
+	const char		*configToken;
+	const char		*factoryGameTypeToken;
+	int				gameType;
 
 	if ( line == NULL ) {
 		return;
@@ -499,20 +505,49 @@ static void UI_AddMapRotationFromLine( const char *line, const char *sourceTag )
 		*comment = '\0';
 	}
 
-	separator = strchr( cursor, '|' );
-	if ( separator == NULL ) {
+	factorySeparator = strchr( cursor, '|' );
+	if ( factorySeparator == NULL ) {
 		Com_Printf( S_COLOR_RED "^1map rotation item missing map or factory name, skipping: %s\n", cursor );
 		return;
 	}
 
-	*separator = '\0';
-	separator++;
-	UI_TrimRotationToken( cursor );
-	UI_TrimRotationToken( separator );
+	*factorySeparator = '\0';
+	mapToken = cursor;
+	factoryToken = factorySeparator + 1;
+	UI_TrimRotationToken( ( char * )mapToken );
+	UI_TrimRotationToken( ( char * )factoryToken );
 
-	if ( cursor[0] == '\0' || separator[0] == '\0' ) {
+	if ( mapToken[0] == '\0' || factoryToken[0] == '\0' ) {
 		Com_Printf( S_COLOR_RED "^1map rotation item missing map or factory name, skipping: %s\n", line );
 		return;
+	}
+
+	if ( factoryToken[0] == '_' ) {
+		Com_Printf( S_COLOR_RED "^1invalid factory found in rotation, skipping: %s\n", line );
+		return;
+	}
+
+	configToken = NULL;
+	factoryGameTypeToken = NULL;
+	configSeparator = strchr( (char *)factoryToken, '|' );
+	if ( configSeparator ) {
+		*configSeparator = '\0';
+		configToken = configSeparator + 1;
+		UI_TrimRotationToken( ( char * )configToken );
+
+		factorySeparator = strchr( (char *)configToken, '|' );
+		if ( factorySeparator ) {
+			*factorySeparator = '\0';
+			factoryGameTypeToken = factorySeparator + 1;
+			UI_TrimRotationToken( ( char * )factoryGameTypeToken );
+		}
+	}
+
+	if ( configToken && !configToken[0] ) {
+		configToken = NULL;
+	}
+	if ( factoryGameTypeToken && !factoryGameTypeToken[0] ) {
+		factoryGameTypeToken = NULL;
 	}
 
 	if ( uiInfo.mapRotationCount >= MAX_MAP_ROTATIONS ) {
@@ -521,16 +556,33 @@ static void UI_AddMapRotationFromLine( const char *line, const char *sourceTag )
 		return;
 	}
 
-	mapIndex = UI_MapIndexForRotationToken( cursor );
+	mapIndex = UI_MapIndexForRotationToken( mapToken );
 	if ( mapIndex < 0 ) {
-		Com_Printf( S_COLOR_RED "^1map doesn't exist, skipping: %s\n", cursor );
+		Com_Printf( S_COLOR_RED "^1map doesn't exist, skipping: %s\n", mapToken );
 		return;
 	}
 
+	if ( factoryGameTypeToken && factoryGameTypeToken[0] ) {
+		gameType = UI_ParseCallvoteGametypeToken( factoryGameTypeToken );
+		if ( gameType >= GT_FFA && gameType < GT_MAX_GAME_TYPE ) {
+			const mapInfo *map = &uiInfo.mapList[mapIndex];
+			if ( ( map->typeBits & ( 1 << gameType ) ) == 0 ) {
+				Com_Printf( S_COLOR_RED "^1map isn't valid for factory gametype, skipping: %s\n", line );
+				return;
+			}
+		}
+	}
+
 	Com_Memset( &rotation, 0, sizeof( rotation ) );
-	Q_strncpyz( rotation.mapName, cursor, sizeof( rotation.mapName ) );
-	Q_strncpyz( rotation.factoryId, separator, sizeof( rotation.factoryId ) );
-	Q_strncpyz( rotation.mapTitle, cursor, sizeof( rotation.mapTitle ) );
+	Q_strncpyz( rotation.mapName, mapToken, sizeof( rotation.mapName ) );
+	Q_strncpyz( rotation.factoryId, factoryToken, sizeof( rotation.factoryId ) );
+	if ( configToken ) {
+		Q_strncpyz( rotation.factoryConfig, configToken, sizeof( rotation.factoryConfig ) );
+	}
+	if ( factoryGameTypeToken ) {
+		Q_strncpyz( rotation.factoryGameType, factoryGameTypeToken, sizeof( rotation.factoryGameType ) );
+	}
+	Q_strncpyz( rotation.mapTitle, mapToken, sizeof( rotation.mapTitle ) );
 	UI_PopulateRotationMetadata( &rotation, mapIndex );
 
 	uiInfo.mapRotations[uiInfo.mapRotationCount++] = rotation;

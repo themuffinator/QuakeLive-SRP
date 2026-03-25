@@ -78,19 +78,19 @@ RPM_RELEASE=1
 DLL_ONLY=false
 # bk010215 - TODO - add all defaults / kill Ryan
 
-# Platform backend toggles default to the open adapter unless Steamworks support
-# is explicitly requested.
+# Quake Live-only online services are build-disabled by default and individual
+# adapters stay off unless the master flag and their specific toggle are both enabled.
+QL_BUILD_ONLINE_SERVICES ?= 0
 QL_BUILD_STEAMWORKS ?= 0
+QL_BUILD_OPEN_STEAM ?= 0
 QL_ENABLE_OGG ?= 1
-ifeq ($(origin QL_BUILD_OPEN_STEAM), undefined)
-  ifeq ($(QL_BUILD_STEAMWORKS),1)
-    QL_BUILD_OPEN_STEAM := 0
-  else
-    QL_BUILD_OPEN_STEAM := 1
-  endif
+
+ifeq ($(QL_BUILD_ONLINE_SERVICES),0)
+override QL_BUILD_STEAMWORKS := 0
+override QL_BUILD_OPEN_STEAM := 0
 endif
 
-PLATFORM_BACKEND_DEFS = -DQL_BUILD_STEAMWORKS=$(QL_BUILD_STEAMWORKS) -DQL_BUILD_OPEN_STEAM=$(QL_BUILD_OPEN_STEAM) -DQL_ENABLE_OGG=$(QL_ENABLE_OGG)
+PLATFORM_BACKEND_DEFS = -DQL_BUILD_ONLINE_SERVICES=$(QL_BUILD_ONLINE_SERVICES) -DQL_BUILD_STEAMWORKS=$(QL_BUILD_STEAMWORKS) -DQL_BUILD_OPEN_STEAM=$(QL_BUILD_OPEN_STEAM) -DQL_ENABLE_OGG=$(QL_ENABLE_OGG)
 
 ifeq ($(QL_BUILD_STEAMWORKS),1)
   STEAMWORKS_SDK_DIR ?= $(MOUNT_DIR)/../steamworks

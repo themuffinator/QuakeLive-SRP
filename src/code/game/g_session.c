@@ -52,9 +52,9 @@ void G_WriteClientSessionData( gclient_t *client ) {
 		client->sess.wins,
 		client->sess.losses,
 		client->sess.teamLeader,
-		client->sess.sessionState,
+		client->sess.spectateOnly,
 		client->sess.privilege,
-		client->sess.roundState,
+		client->sess.spectatorQueuePosition,
 		client->sess.skill1,
 		client->sess.skill2,
 		client->sess.skill3,
@@ -94,15 +94,16 @@ void G_ReadSessionData( gclient_t *client, qboolean firstTime ) {
 		&client->sess.wins,
 		&client->sess.losses,
 		&teamLeader,                  // bk010221 - format
-		&client->sess.sessionState,
+		&client->sess.spectateOnly,
 		&client->sess.privilege,
-		&client->sess.roundState,
+		&client->sess.spectatorQueuePosition,
 		&client->sess.skill1,
 		&client->sess.skill2,
 		&client->sess.skill3,
 		&muted
 		);
 	client->sess.muted = (qboolean)muted;
+	client->sess.spectatorQueuePositionDirty = qfalse;
 
 	// bk001205 - format issues
 	client->sess.sessionTeam = (team_t)sessionTeam;
@@ -111,9 +112,17 @@ void G_ReadSessionData( gclient_t *client, qboolean firstTime ) {
 		client->sess.sessionTeam = TEAM_SPECTATOR;
 		client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
 		client->sess.spectatorClient = -1;
+		client->sess.spectateOnly = qfalse;
+		client->sess.spectatorQueuePosition = 0;
+		client->sess.spectatorQueuePositionDirty = qfalse;
 	}
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecFreeCam.integer && client->sess.spectatorState == SPECTATOR_FREE ) {
 		client->sess.spectatorState = SPECTATOR_SCOREBOARD;
+	}
+	if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		client->sess.spectateOnly = qfalse;
+		client->sess.spectatorQueuePosition = 0;
+		client->sess.spectatorQueuePositionDirty = qfalse;
 	}
 	client->sess.teamLeader = (qboolean)teamLeader;
 }
@@ -171,11 +180,14 @@ void G_InitSessionData( gclient_t *client, char *userinfo ) {
 	}
 	sess->spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
 	sess->spectatorTime = level.time;
+	sess->spectateOnly = qfalse;
+	sess->spectatorQueuePosition = 0;
+	sess->spectatorQueuePositionDirty = qfalse;
 
 	sess->privilege = G_AdminAccessForSteamID( Info_ValueForKey( userinfo, "steamid" ) );
 	sess->skill1 = 0;
-	if ( g_gametype.integer == GT_TOURNAMENT ) {
-		sess->roundState = 1;
+	if ( g_gametype.integer == GT_TOURNAMENT && value[0] == 's' ) {
+		sess->spectateOnly = qtrue;
 	}
 
 	G_WriteClientSessionData( client );

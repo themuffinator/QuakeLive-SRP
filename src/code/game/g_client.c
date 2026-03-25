@@ -88,6 +88,56 @@ static void G_LoadClientRatingMetadata( gclient_t *client, const char *userinfo 
 
 /*
 =============
+G_ClientIsReady
+
+Returns qtrue when the retail-style persistent ready latch is set.
+=============
+*/
+qboolean G_ClientIsReady( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return client->pers.readyUpLatch ? qtrue : qfalse;
+}
+
+/*
+=============
+G_SetClientReadyState
+
+Updates the persistent ready latch and keeps the HUD-visible EF_READY bit in sync.
+=============
+*/
+void G_SetClientReadyState( gclient_t *client, qboolean ready ) {
+	if ( !client ) {
+		return;
+	}
+
+	client->pers.readyUpLatch = ready ? qtrue : qfalse;
+	if ( client->pers.readyUpLatch ) {
+		client->ps.eFlags |= EF_READY;
+	} else {
+		client->ps.eFlags &= ~EF_READY;
+	}
+}
+
+/*
+=============
+G_SyncClientReadyState
+
+Reapplies the visible ready flag from the persistent client latch after playerstate rebuilds.
+=============
+*/
+void G_SyncClientReadyState( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	G_SetClientReadyState( client, client->pers.readyUpLatch );
+}
+
+/*
+=============
 G_FreezeClientEndFrame
 
 Runs the thaw and auto-respawn timers for frozen players.
@@ -1016,12 +1066,33 @@ void respawn( gentity_t *ent ) {
 	gentity_t	*tent;
 	qboolean	spawnedImmediately;
 	qboolean	warmupSpawn;
+	int		adState;
+	qboolean	useRoundFollowReset;
 
-	CopyToBodyQue( ent );
-	warmupSpawn = ( level.warmupTime > 0 ) ? qtrue : qfalse;
-	spawnedImmediately = G_RequestClientSpawn( ent, warmupSpawn, qfalse );
+	useRoundFollowReset = qfalse;
+	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
+		adState = G_ADResolveRoundState();
+		useRoundFollowReset = ( adState != AD_ROUNDSTATE_INACTIVE && adState != AD_ROUNDSTATE_WARMUP ) ? qtrue : qfalse;
+	} else if ( g_gametype.integer == GT_CLAN_ARENA ) {
+		useRoundFollowReset = ( level.roundState != ROUNDSTATE_INACTIVE && level.roundState != ROUNDSTATE_WARMUP ) ? qtrue : qfalse;
+	}
 
-	if ( spawnedImmediately && ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+	if ( useRoundFollowReset ) {
+		G_CAADResetClientForRound( ent );
+		spawnedImmediately = ( ent->client->ps.pm_type != PM_SPECTATOR ) ? qtrue : qfalse;
+	} else {
+		CopyToBodyQue( ent );
+		if ( g_gametype.integer == GT_ATTACK_DEFEND || g_gametype.integer == GT_CLAN_ARENA ) {
+			G_CAADResetClientForRound( ent );
+			spawnedImmediately = qtrue;
+		} else {
+			warmupSpawn = ( level.warmupTime > 0 ) ? qtrue : qfalse;
+			spawnedImmediately = G_RequestClientSpawn( ent, warmupSpawn, qfalse );
+		}
+	}
+
+	if ( spawnedImmediately && ent->client->sess.sessionTeam != TEAM_SPECTATOR
+		&& ent->client->ps.pm_type != PM_SPECTATOR ) {
 		// add a teleportation effect
 		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_IN );
 		tent->s.clientNum = ent->s.clientNum;
@@ -1418,6 +1489,7 @@ void ClientUserinfoChanged( int clientNum ) {
 	teamTask = atoi(Info_ValueForKey(userinfo, "teamtask"));
 	// team Leader (1 = leader, 0 is normal player)
 	teamLeader = client->sess.teamLeader;
+	G_UpdateTournamentQueuePositions();
 
 	// colors
 	strcpy(c1, Info_ValueForKey( userinfo, "color1" ));
@@ -1429,14 +1501,16 @@ void ClientUserinfoChanged( int clientNum ) {
 	// send over a subset of the userinfo keys so other clients can
 	// print scoreboards, display models, and play custom sounds
 	if ( ent->r.svFlags & SVF_BOT ) {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d",
+		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d\\so\\%i\\pq\\%i",
 			client->pers.netname, team, model, headModel, c1, c2, 
 			client->pers.maxHealth, client->sess.wins, client->sess.losses,
-			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader );
+			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader,
+			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	} else {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d",
+		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\so\\%i\\pq\\%i",
 			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, c1, c2, 
-			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader);
+			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
+			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	}
 
 	trap_SetConfigstring( CS_PLAYERS+clientNum, s );
@@ -1667,6 +1741,11 @@ void ClientBegin( int clientNum ) {
 	client->pers.connected = CON_CONNECTED;
 	client->pers.enterTime = level.time;
 	client->pers.teamState.state = TEAM_BEGIN;
+	memset( client->pers.teamScoreStats, 0, sizeof( client->pers.teamScoreStats ) );
+	memset( client->pers.teamHoldStartTime, 0, sizeof( client->pers.teamHoldStartTime ) );
+	memset( client->pers.pickupLastTime, 0, sizeof( client->pers.pickupLastTime ) );
+	memset( client->pers.pickupIntervalTotalMs, 0, sizeof( client->pers.pickupIntervalTotalMs ) );
+	memset( client->pers.pickupIntervalCount, 0, sizeof( client->pers.pickupIntervalCount ) );
 
 	client->lastKillCommandTime = 0;
 	client->killCommandCooldownExpires = 0;
@@ -1674,6 +1753,11 @@ void ClientBegin( int clientNum ) {
 	client->friendlyFireComplaintEndTime = 0;
 	client->teammateDamageGiven = 0;
 	client->teammateDamageThisLife = 0;
+	client->killCount = 0;
+	client->deathCount = 0;
+	client->teamDamageEventsGiven = 0;
+	client->teamDamageEventsReceived = 0;
+	client->environmentalDeaths = 0;
 
 	// save eflags around this, because changing teams will
 	// cause this to happen with a valid entity, and we
@@ -1683,12 +1767,20 @@ void ClientBegin( int clientNum ) {
 	flags = client->ps.eFlags;
 	memset( &client->ps, 0, sizeof( client->ps ) );
 	client->ps.eFlags = flags;
+	G_SyncClientReadyState( client );
 
 	// locate ent at a spawn point
 	warmupSpawn = ( level.warmupTime > 0 ) ? qtrue : qfalse;
-	spawnedImmediately = G_RequestClientSpawn( ent, warmupSpawn, qtrue );
+	if ( ( g_gametype.integer == GT_ATTACK_DEFEND || g_gametype.integer == GT_CLAN_ARENA )
+		&& client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		G_CAADResetClientForRound( ent );
+		spawnedImmediately = qtrue;
+	} else {
+		spawnedImmediately = G_RequestClientSpawn( ent, warmupSpawn, qtrue );
+	}
 
-	if ( spawnedImmediately && client->sess.sessionTeam != TEAM_SPECTATOR ) {
+	if ( spawnedImmediately && client->sess.sessionTeam != TEAM_SPECTATOR
+		&& client->ps.pm_type != PM_SPECTATOR ) {
 		// send event
 		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_IN );
 		tent->s.clientNum = ent->s.clientNum;
@@ -1704,6 +1796,7 @@ void ClientBegin( int clientNum ) {
 	// count current clients and rank for scoreboard
 	G_SendItemTimerState( clientNum, g_itemTimers.integer ? 1 : 0, g_itemHeight.integer );
 	CalculateRanks();
+	G_SendAllClientKeyMasks( clientNum );
 
 	// Check g_motd
 	if ( g_motd.string[0] ) {
@@ -1825,6 +1918,90 @@ static weapon_t G_SelectFactorySpawnWeapon( unsigned int statMask ) {
 }
 
 /*
+=============
+G_FinalizeSpawnLoadout
+
+Rebuilds the retail-style spawn loadout from the active factory and spawn cvars.
+=============
+*/
+static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {
+	gclient_t		*client;
+	unsigned int	startingMask;
+	weapon_t		weapon;
+	weapon_t		spawnWeapon;
+	int			spawnHealth;
+	const int		startingAmmoTable[WP_NUM_WEAPONS] = {
+		[WP_NONE] = 0,
+		[WP_GAUNTLET] = g_startingAmmoConfig.gauntlet,
+		[WP_MACHINEGUN] = g_startingAmmoConfig.machinegun,
+		[WP_SHOTGUN] = g_startingAmmoConfig.shotgun,
+		[WP_GRENADE_LAUNCHER] = g_startingAmmoConfig.grenadeLauncher,
+		[WP_ROCKET_LAUNCHER] = g_startingAmmoConfig.rocketLauncher,
+		[WP_LIGHTNING] = g_startingAmmoConfig.lightningGun,
+		[WP_RAILGUN] = g_startingAmmoConfig.railgun,
+		[WP_PLASMAGUN] = g_startingAmmoConfig.plasmagun,
+		[WP_BFG] = g_startingAmmoConfig.bfg,
+		[WP_GRAPPLING_HOOK] = g_startingAmmoConfig.grapplingHook,
+		[WP_NAILGUN] = g_startingAmmoConfig.nailgun,
+		[WP_PROX_LAUNCHER] = g_startingAmmoConfig.proximityLauncher,
+		[WP_CHAINGUN] = g_startingAmmoConfig.chaingun,
+		[WP_HEAVY_MACHINEGUN] = g_startingAmmoConfig.heavyMachinegun,
+	};
+
+	if ( !ent || !ent->client || !factoryConfig ) {
+		return WP_MACHINEGUN;
+	}
+
+	client = ent->client;
+
+	if ( g_startingWeapons.integer > 0 ) {
+		startingMask = g_startingWeapons.integer;
+	}
+	else {
+		startingMask = factoryConfig->startingWeaponsStatMask;
+	}
+
+	if ( startingMask == 0 ) {
+		startingMask = ( 1u << WP_MACHINEGUN ) | ( 1u << WP_GAUNTLET );
+	}
+
+	client->ps.stats[STAT_WEAPONS] = startingMask;
+	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {
+		if ( startingMask & ( 1u << weapon ) ) {
+			G_SeedConfiguredSpawnAmmo( &client->ps, weapon, startingAmmoTable[weapon] );
+		}
+	}
+
+	spawnWeapon = G_SelectFactorySpawnWeapon( startingMask );
+	spawnHealth = client->ps.stats[STAT_MAX_HEALTH] + factoryConfig->startingHealthBonus;
+	if ( spawnHealth < 1 ) {
+		spawnHealth = 1;
+	}
+
+	ent->health = client->ps.stats[STAT_HEALTH] = spawnHealth;
+	if ( g_startingArmor.integer > 0 ) {
+		client->ps.stats[STAT_ARMOR] = g_startingArmor.integer;
+	}
+	else if ( factoryConfig->startingArmor > 0 ) {
+		client->ps.stats[STAT_ARMOR] = factoryConfig->startingArmor;
+	}
+
+	BG_UpdateArmorTierFromCurrentArmor( &client->ps, g_armorTiered.integer ? qtrue : qfalse );
+	return spawnWeapon;
+}
+
+/*
+=============
+G_RRFinalizeSpawnLoadout
+
+Applies the retail Red Rover spawn-side infection finalization after the base loadout is ready.
+=============
+*/
+static void G_RRFinalizeSpawnLoadout( gentity_t *ent ) {
+	G_RRInitClient( ent );
+}
+
+/*
 ===========
 ClientSpawn
 
@@ -1857,17 +2034,24 @@ void ClientSpawn(gentity_t *ent) {
 	int		savedFriendlyFireComplaints;
 	int		savedFriendlyFireComplaintEndTime;
 	int		savedTeammateDamageGiven;
+	int		savedKillCount;
+	int		savedDeathCount;
+	int		savedTeamDamageEventsGiven;
+	int		savedTeamDamageEventsReceived;
+	int		savedEnvironmentalDeaths;
 //	char	*savedAreaBits;
 	int		accuracy_hits, accuracy_shots;
 	int		eventSequence;
 	char	userinfo[MAX_INFO_STRING];
 	const factoryCvarConfig_t	*factoryConfig;
 	int		baseHealth;
-	int		spawnHealth;
 
 	index = ent - g_entities;
 	client = ent->client;
 	ent->keyMask = 0;
+	if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
+		G_BroadcastClientKeyMask( ent->s.number );
+	}
 	factoryConfig = &g_factoryCvarConfig;
 	level.clientFactoryLoadoutQueued[index] = qfalse;
 
@@ -1931,6 +2115,14 @@ void ClientSpawn(gentity_t *ent) {
 	flags = ent->client->ps.eFlags & (EF_TELEPORT_BIT | EF_VOTED | EF_TEAMVOTED);
 	flags ^= EF_TELEPORT_BIT;
 
+	G_FlushExpiredClientTeamHoldStats( client, level.time );
+	G_EndClientTeamHoldStat( client, TEAMSTAT_TIMEHELD_QUAD, level.time );
+	G_EndClientTeamHoldStat( client, TEAMSTAT_TIMEHELD_BS, level.time );
+	G_EndClientTeamHoldStat( client, TEAMSTAT_TIMEHELD_FLAG, level.time );
+	G_EndClientTeamHoldStat( client, TEAMSTAT_TIMEHELD_REGEN, level.time );
+	G_EndClientTeamHoldStat( client, TEAMSTAT_TIMEHELD_HASTE, level.time );
+	G_EndClientTeamHoldStat( client, TEAMSTAT_TIMEHELD_INVIS, level.time );
+
 	// clear everything but the persistant data
 
 	saved = client->pers;
@@ -1941,6 +2133,11 @@ void ClientSpawn(gentity_t *ent) {
 	savedFriendlyFireComplaints = client->friendlyFireComplaints;
 	savedFriendlyFireComplaintEndTime = client->friendlyFireComplaintEndTime;
 	savedTeammateDamageGiven = client->teammateDamageGiven;
+	savedKillCount = client->killCount;
+	savedDeathCount = client->deathCount;
+	savedTeamDamageEventsGiven = client->teamDamageEventsGiven;
+	savedTeamDamageEventsReceived = client->teamDamageEventsReceived;
+	savedEnvironmentalDeaths = client->environmentalDeaths;
 //	savedAreaBits = client->areabits;
 	accuracy_hits = client->accuracy_hits;
 	accuracy_shots = client->accuracy_shots;
@@ -1964,6 +2161,11 @@ void ClientSpawn(gentity_t *ent) {
 	client->friendlyFireComplaintEndTime = savedFriendlyFireComplaintEndTime;
 	client->teammateDamageGiven = savedTeammateDamageGiven;
 	client->teammateDamageThisLife = 0;
+	client->killCount = savedKillCount;
+	client->deathCount = savedDeathCount;
+	client->teamDamageEventsGiven = savedTeamDamageEventsGiven;
+	client->teamDamageEventsReceived = savedTeamDamageEventsReceived;
+	client->environmentalDeaths = savedEnvironmentalDeaths;
 
 	for ( i = 0 ; i < MAX_PERSISTANT ; i++ ) {
 		client->ps.persistant[i] = persistant[i];
@@ -2002,6 +2204,7 @@ void ClientSpawn(gentity_t *ent) {
 	// clear entity values
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 	client->ps.eFlags = flags;
+	G_SyncClientReadyState( client );
 
 	G_RefreshClientRatingModifiers( client );
 
@@ -2021,62 +2224,7 @@ void ClientSpawn(gentity_t *ent) {
 	VectorCopy (playerMaxs, ent->r.maxs);
 
 	client->ps.clientNum = index;
-
-	{
-		unsigned int startingMask;
-
-		if ( g_startingWeapons.integer > 0 ) {
-			startingMask = g_startingWeapons.integer;
-		} else {
-			startingMask = g_factoryCvarConfig.startingWeaponsStatMask;
-		}
-
-		weapon_t weapon;
-		const int startingAmmoTable[WP_NUM_WEAPONS] = {
-			[WP_NONE] = 0,
-			[WP_GAUNTLET] = g_startingAmmoConfig.gauntlet,
-			[WP_MACHINEGUN] = g_startingAmmoConfig.machinegun,
-			[WP_SHOTGUN] = g_startingAmmoConfig.shotgun,
-			[WP_GRENADE_LAUNCHER] = g_startingAmmoConfig.grenadeLauncher,
-			[WP_ROCKET_LAUNCHER] = g_startingAmmoConfig.rocketLauncher,
-			[WP_LIGHTNING] = g_startingAmmoConfig.lightningGun,
-			[WP_RAILGUN] = g_startingAmmoConfig.railgun,
-			[WP_PLASMAGUN] = g_startingAmmoConfig.plasmagun,
-			[WP_BFG] = g_startingAmmoConfig.bfg,
-			[WP_GRAPPLING_HOOK] = g_startingAmmoConfig.grapplingHook,
-			[WP_NAILGUN] = g_startingAmmoConfig.nailgun,
-			[WP_PROX_LAUNCHER] = g_startingAmmoConfig.proximityLauncher,
-			[WP_CHAINGUN] = g_startingAmmoConfig.chaingun,
-			[WP_HEAVY_MACHINEGUN] = g_startingAmmoConfig.heavyMachinegun,
-		};
-
-		if ( startingMask == 0 ) {
-			startingMask = ( 1u << WP_MACHINEGUN ) | ( 1u << WP_GAUNTLET );
-		}
-
-		client->ps.stats[STAT_WEAPONS] = startingMask;
-
-		for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {
-			if ( startingMask & ( 1u << weapon ) ) {
-				G_SeedConfiguredSpawnAmmo( &client->ps, weapon, startingAmmoTable[weapon] );
-			}
-		}
-
-		spawnWeapon = G_SelectFactorySpawnWeapon( startingMask );
-	}
-
-	// health will count down towards max_health
-	spawnHealth = client->ps.stats[STAT_MAX_HEALTH] + factoryConfig->startingHealthBonus;
-	if ( spawnHealth < 1 ) {
-		spawnHealth = 1;
-	}
-	ent->health = client->ps.stats[STAT_HEALTH] = spawnHealth;
-
-	if ( g_startingArmor.integer > 0 ) {
-		client->ps.stats[STAT_ARMOR] = g_startingArmor.integer;
-	} else if ( factoryConfig->startingArmor > 0 ) {
-		client->ps.stats[STAT_ARMOR] = factoryConfig->startingArmor;
-	}
+	spawnWeapon = G_FinalizeSpawnLoadout( ent, factoryConfig );
 
 	G_SetOrigin( ent, spawn_origin );
 	VectorCopy( spawn_origin, client->ps.origin );
@@ -2137,7 +2285,7 @@ void ClientSpawn(gentity_t *ent) {
 	// run the presend to set anything else
 	G_GametypeClientSpawn( ent );
 	G_GrantConfiguredItems( ent );
-	G_RRInitClient( ent );
+	G_RRFinalizeSpawnLoadout( ent );
 	ClientEndFrame( ent );
 
 	// clear entity state values
@@ -2234,6 +2382,13 @@ void ClientDisconnect( int clientNum ) {
 	ent->client->friendlyFireComplaintEndTime = 0;
 	ent->client->teammateDamageGiven = 0;
 	ent->client->teammateDamageThisLife = 0;
+	ent->client->killCount = 0;
+	ent->client->deathCount = 0;
+	ent->client->teamDamageEventsGiven = 0;
+	ent->client->teamDamageEventsReceived = 0;
+	ent->client->environmentalDeaths = 0;
+	ent->keyMask = 0;
+	G_BroadcastClientKeyMask( clientNum );
 
 	trap_SetConfigstring( CS_PLAYERS + clientNum, "");
 
@@ -2263,6 +2418,21 @@ static qboolean G_RRIsActive( void ) {
 	}
 
 	return qtrue;
+}
+
+/*
+=============
+G_RRResolveRoundState
+
+Returns the active Red Rover round-state view used by the infection helpers.
+=============
+*/
+static int G_RRResolveRoundState( void ) {
+	if ( !G_RRIsActive() ) {
+		return ROUNDSTATE_INACTIVE;
+	}
+
+	return level.roundState;
 }
 
 /*
@@ -2327,6 +2497,24 @@ static void G_RRApplyScoreDelta( gentity_t *ent, int score ) {
 
 /*
 =============
+G_RRApplySurvivalBonus
+
+Applies the configured Red Rover round-survival bonus to one client.
+=============
+*/
+static void G_RRApplySurvivalBonus( gentity_t *ent ) {
+	int			score;
+
+	score = G_RRResolveScoreValue( g_rrRoundScoreBonus.value );
+	if ( score <= 0 ) {
+		return;
+	}
+
+	G_RRApplyScoreDelta( ent, score );
+}
+
+/*
+=============
 G_RRSetClientState
 
 Transitions a player between survivor and infected states.
@@ -2369,6 +2557,21 @@ static void G_RRSetClientState( gentity_t *ent, rrInfectionState_t state, qboole
 			G_RRAnnounceState( ent, "You are a survivor." );
 		}
 	}
+}
+
+/*
+=============
+G_RRResetClientForRound
+
+Reapplies the Red Rover round-side infection state for one live participant.
+=============
+*/
+static void G_RRResetClientForRound( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	G_RRFinalizeSpawnLoadout( ent );
 }
 
 /*
@@ -2421,6 +2624,36 @@ static void G_RRWarnSurvivor( gentity_t *ent ) {
 
 /*
 =============
+G_RRCheckInfectionSpread
+
+Executes the retail Red Rover warning and forced-infection timer checks for one survivor.
+=============
+*/
+static qboolean G_RRCheckInfectionSpread( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return qfalse;
+	}
+
+	if ( g_rrInfectedSpreadTime.integer <= 0 ) {
+		return qfalse;
+	}
+
+	if ( ent->client->rrInfectionNextSpreadTime <= level.time ) {
+		G_RRSetClientState( ent, RR_STATE_INFECTED, qtrue );
+		return qtrue;
+	}
+
+	if ( ent->client->rrInfectionNextWarningTime > 0
+		&& level.time >= ent->client->rrInfectionNextWarningTime ) {
+		G_RRAnnounceState( ent, "Warning! The infection is spreading." );
+		ent->client->rrInfectionNextWarningTime = 0;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
 G_RRProcessClient
 
 Runs per-frame infection logic for the specified player.
@@ -2458,16 +2691,8 @@ void G_RRProcessClient( gentity_t *ent ) {
 		}
 	}
 
-	if ( g_rrInfectedSpreadTime.integer > 0 ) {
-		if ( ent->client->rrInfectionNextSpreadTime <= level.time ) {
-			G_RRSetClientState( ent, RR_STATE_INFECTED, qtrue );
-			return;
-		}
-		if ( ent->client->rrInfectionNextWarningTime > 0
-			&& level.time >= ent->client->rrInfectionNextWarningTime ) {
-			G_RRAnnounceState( ent, "Warning! The infection is spreading." );
-			ent->client->rrInfectionNextWarningTime = 0;
-		}
+	if ( G_RRCheckInfectionSpread( ent ) ) {
+		return;
 	}
 }
 
@@ -2479,13 +2704,7 @@ Awards the configured round bonus to the specified team.
 =============
 */
 static void G_RRGrantRoundBonus( team_t team ) {
-	int			score;
 	int	clientNum;
-
-	score = G_RRResolveScoreValue( g_rrRoundScoreBonus.value );
-	if ( score <= 0 ) {
-		return;
-	}
 
 	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
 		gentity_t	*target;
@@ -2499,7 +2718,7 @@ static void G_RRGrantRoundBonus( team_t team ) {
 			continue;
 		}
 
-		G_RRApplyScoreDelta( target, score );
+		G_RRApplySurvivalBonus( target );
 	}
 }
 
@@ -2516,11 +2735,7 @@ static void G_RRCheckRoundCompletion( void ) {
 	int			clientNum;
 	team_t	winner;
 
-	if ( !G_RRIsActive() ) {
-		return;
-	}
-
-	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+	if ( G_RRResolveRoundState() != ROUNDSTATE_ACTIVE ) {
 		return;
 	}
 
@@ -2644,8 +2859,38 @@ void G_RRResetRoundState( void ) {
 		if ( !ent->inuse || !ent->client ) {
 			continue;
 		}
-		G_RRInitClient( ent );
+		G_RRResetClientForRound( ent );
 	}
+}
+
+/*
+=============
+G_RRCheckExitRules
+
+Applies the retail Red Rover active-round timeout rule and advances the round when it expires.
+=============
+*/
+static qboolean G_RRCheckExitRules( void ) {
+	int			limit;
+
+	if ( G_RRResolveRoundState() != ROUNDSTATE_ACTIVE ) {
+		return qfalse;
+	}
+
+	limit = roundtimelimit.integer;
+	if ( limit <= 0 ) {
+		return qfalse;
+	}
+
+	if ( level.time - level.roundStartTime < limit * 1000 ) {
+		return qfalse;
+	}
+
+	G_RRGrantRoundBonus( TEAM_RED );
+	level.roundState = ROUNDSTATE_COMPLETE;
+	level.roundTransitionTime = level.time + 2000;
+	G_UpdateMatchStateConfigString();
+	return qtrue;
 }
 
 /*
@@ -2656,29 +2901,16 @@ Monitors round timers and completion state each frame.
 =============
 */
 void G_RRTrackRoundActivity( void ) {
-	int			limit;
-
-	if ( !G_RRIsActive() ) {
-		return;
-	}
-
-	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+	if ( G_RRResolveRoundState() != ROUNDSTATE_ACTIVE ) {
 		return;
 	}
 
 	G_RRCheckRoundCompletion();
-
-	limit = roundtimelimit.integer;
-	if ( limit <= 0 ) {
+	if ( G_RRResolveRoundState() != ROUNDSTATE_ACTIVE ) {
 		return;
 	}
 
-	if ( level.time - level.roundStartTime >= limit * 1000 ) {
-		G_RRGrantRoundBonus( TEAM_RED );
-		level.roundState = ROUNDSTATE_COMPLETE;
-		level.roundTransitionTime = level.time + 2000;
-		G_UpdateMatchStateConfigString();
-	}
+	G_RRCheckExitRules();
 }
 
 

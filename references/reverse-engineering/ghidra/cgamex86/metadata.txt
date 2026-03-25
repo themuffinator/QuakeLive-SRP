@@ -1,0 +1,8 @@
+program_name=cgamex86.dll
+program_language=x86:LE:32:default
+program_compiler_spec=windows
+function_count=751
+import_count=55
+export_count=2
+analysis_symbol_count=2564
+decompiled_function_count=180

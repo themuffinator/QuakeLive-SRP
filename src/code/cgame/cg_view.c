@@ -30,6 +30,18 @@ static void CG_ResetViewAngleFilter( const vec3_t angles );
 static void CG_FilterViewAngles( vec3_t angles );
 static void CG_UpdateSpectatorCvar( void );
 
+#define CG_VIEW_FILTER_TARGET_NONE	-1
+#define CG_VIEW_FILTER_MAX_CVAR_SAMPLES	( CG_VIEW_FILTER_MAX_SAMPLES - 1 )
+#define CG_BUFFERED_ANNOUNCER_COUNT	32
+#define CG_BUFFERED_ANNOUNCER_DELAY	1500
+
+static int cg_viewFilterTargetKey = CG_VIEW_FILTER_TARGET_NONE;
+static int cg_bufferedSoundHead;
+static int cg_bufferedSoundTail;
+static sfxHandle_t cg_bufferedSounds[CG_BUFFERED_ANNOUNCER_COUNT];
+static int cg_bufferedSoundTimes[CG_BUFFERED_ANNOUNCER_COUNT];
+static int cg_bufferedSoundDelays[CG_BUFFERED_ANNOUNCER_COUNT];
+
 
 /*
 =============
@@ -97,6 +109,54 @@ static float CG_CalcHorPlusFov( float baseFov ) {
 
 	x = targetHeight / tan( fovY / 360.0f * M_PI );
 	return atan2( targetWidth, x ) * 360.0f / M_PI;
+}
+
+/*
+=============
+CG_CalcAspectAdjustedFovFromVertical
+
+Matches the retail helper used by the smart third-person trace path. The input
+FOV is treated as a 4:3 vertical FOV and expanded horizontally when an
+`r_aspectRatio` preset is active.
+=============
+*/
+static float CG_CalcAspectAdjustedFovFromVertical( float baseFov ) {
+	float targetWidth;
+	float targetHeight;
+	float x;
+
+	if ( !CG_GetTargetAspectDimensions( &targetWidth, &targetHeight ) ) {
+		return baseFov;
+	}
+
+	x = targetHeight / tan( baseFov / 360.0f * M_PI );
+	return atan2( targetWidth, x ) * 360.0f / M_PI;
+}
+
+/*
+=============
+CG_CalcSmartCameraTraceRange
+
+Reconstructs the retail smart third-person trace radius from `cg_fov`,
+`r_aspectRatio`, and `r_znear`.
+=============
+*/
+static float CG_CalcSmartCameraTraceRange( void ) {
+	char	zNearBuffer[MAX_CVAR_VALUE_STRING];
+	float	zNear;
+	float	x;
+	float	fovY;
+	float	fovX;
+
+	trap_Cvar_VariableStringBuffer( "r_znear", zNearBuffer, sizeof( zNearBuffer ) );
+	zNear = atof( zNearBuffer );
+
+	x = 640.0f / tan( cg_fov.value / 360.0f * M_PI );
+	fovY = atan2( 480.0f, x ) * 360.0f / M_PI;
+	fovX = CG_CalcAspectAdjustedFovFromVertical( fovY );
+	x = zNear / tan( ( 90.0f - fovX * 0.5f ) / 180.0f * M_PI );
+
+	return sqrt( x * x + zNear * zNear );
 }
 
 
@@ -288,6 +348,32 @@ static void CG_CalcVrect (void) {
 
 /*
 ===============
+CG_OffsetThirdPersonViewSpecial
+
+Matches the retail cg_thirdPerson == 2 camera helper, which applies the
+configured yaw and pitch directly before offsetting straight back along the
+resulting forward vector.
+===============
+*/
+static void CG_OffsetThirdPersonViewSpecial( void ) {
+	vec3_t		forward;
+
+	cg.refdef.vieworg[2] += cg.predictedPlayerState.viewheight;
+
+	if ( cg_thirdPersonAngle.value != 0.0f ) {
+		cg.refdefViewAngles[YAW] += cg_thirdPersonAngle.value;
+	}
+
+	if ( cg_thirdPersonPitch.value != -1.0f ) {
+		cg.refdefViewAngles[PITCH] = cg_thirdPersonPitch.value;
+	}
+
+	AngleVectors( cg.refdefViewAngles, forward, NULL, NULL );
+	VectorMA( cg.refdef.vieworg, -cg_thirdPersonRange.value, forward, cg.refdef.vieworg );
+}
+
+/*
+===============
 CG_OffsetThirdPersonView
 
 ===============
@@ -298,6 +384,9 @@ CG_OffsetThirdPersonView
 static void CG_OffsetThirdPersonView( void ) {
 	vec3_t		forward, right, up;
 	vec3_t		view;
+	vec3_t		smartStart;
+	vec3_t		smartMins;
+	vec3_t		smartMaxs;
 	vec3_t		focusAngles;
 	trace_t		trace;
 	static vec3_t	mins = { -4, -4, -4 };
@@ -305,29 +394,29 @@ static void CG_OffsetThirdPersonView( void ) {
 	vec3_t		focusPoint;
 	float		focusDist;
 	float		forwardScale, sideScale;
-	float		thirdPersonPitch;
+	float		smartTraceRange;
+	float		zNear;
+	char		zNearBuffer[MAX_CVAR_VALUE_STRING];
+	qboolean	useSimpleTrace;
+
+	if ( cg_thirdPerson.integer == 2 ) {
+		CG_OffsetThirdPersonViewSpecial();
+		return;
+	}
 
 	cg.refdef.vieworg[2] += cg.predictedPlayerState.viewheight;
 
-	thirdPersonPitch = cg_thirdPersonPitch.value;
-	if ( thirdPersonPitch < THIRD_PERSON_PITCH_MIN ) {
-		thirdPersonPitch = THIRD_PERSON_PITCH_MIN;
-	} else if ( thirdPersonPitch > THIRD_PERSON_PITCH_MAX ) {
-		thirdPersonPitch = THIRD_PERSON_PITCH_MAX;
-	}
-
 	VectorCopy( cg.refdefViewAngles, focusAngles );
-	focusAngles[PITCH] -= thirdPersonPitch;
 
 	// if dead, look at killer
 	if ( cg.predictedPlayerState.stats[STAT_HEALTH] <= 0 ) {
 		focusAngles[YAW] = cg.predictedPlayerState.stats[STAT_DEAD_YAW];
 		cg.refdefViewAngles[YAW] = cg.predictedPlayerState.stats[STAT_DEAD_YAW];
 		CG_HandleZoomOutOnDeath();
-	}
 
-	if ( focusAngles[PITCH] > 45 ) {
-		focusAngles[PITCH] = 45;		// don't go too far overhead
+		if ( focusAngles[PITCH] > 45.0f ) {
+			focusAngles[PITCH] = 45.0f;		// don't go too far overhead
+		}
 	}
 	AngleVectors( focusAngles, forward, NULL, NULL );
 
@@ -337,7 +426,6 @@ static void CG_OffsetThirdPersonView( void ) {
 
 	view[2] += 8;
 
-	cg.refdefViewAngles[PITCH] -= thirdPersonPitch;
 	cg.refdefViewAngles[PITCH] *= 0.5;
 
 	AngleVectors( cg.refdefViewAngles, forward, right, up );
@@ -350,17 +438,47 @@ static void CG_OffsetThirdPersonView( void ) {
 	// trace a ray from the origin to the viewpoint to make sure the view isn't
 	// in a solid block.  Use an 8 by 8 block to prevent the view from near clipping anything
 
-	if (!cg_cameraMode.integer) {
-		CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
+	if ( !cg_cameraMode.integer ) {
+		useSimpleTrace = qfalse;
 
-		if ( trace.fraction != 1.0 ) {
-			VectorCopy( trace.endpos, view );
-			view[2] += (1.0 - trace.fraction) * 32;
-			// try another trace to this position, because a tunnel may have the ceiling
-			// close enogh that this is poking out
+		if ( ( cg_thirdPerson.integer == 0 || cg_cameraThirdPersonSmartMode.integer == 0 ) &&
+			cg_cameraSmartMode.integer == 0 &&
+			( cg.predictedPlayerState.pm_type == PM_INTERMISSION ||
+			cg.predictedPlayerState.stats[STAT_HEALTH] > 0 ) ) {
+			useSimpleTrace = qtrue;
+		}
 
+		if ( useSimpleTrace ) {
 			CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
-			VectorCopy( trace.endpos, view );
+
+			if ( trace.fraction != 1.0f ) {
+				VectorCopy( trace.endpos, view );
+				view[2] += ( 1.0f - trace.fraction ) * 32.0f;
+				// try another trace to this position, because a tunnel may have the ceiling
+				// close enogh that this is poking out
+
+				CG_Trace( &trace, cg.refdef.vieworg, mins, maxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
+				VectorCopy( trace.endpos, view );
+			}
+		} else {
+			smartTraceRange = CG_CalcSmartCameraTraceRange();
+			VectorSet( smartMins, -smartTraceRange, -smartTraceRange, -smartTraceRange );
+			VectorSet( smartMaxs, smartTraceRange, smartTraceRange, smartTraceRange );
+			VectorMA( view, cg_thirdPersonRange.value, forward, smartStart );
+
+			CG_Trace( &trace, smartStart, smartMins, smartMaxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
+
+			if ( trace.fraction != 1.0f ) {
+				trap_Cvar_VariableStringBuffer( "r_znear", zNearBuffer, sizeof( zNearBuffer ) );
+				zNear = atof( zNearBuffer );
+				VectorMA( trace.endpos, zNear, forward, view );
+				view[2] += ( 1.0f - trace.fraction ) * 32.0f;
+
+				CG_Trace( &trace, smartStart, smartMins, smartMaxs, view, cg.predictedPlayerState.clientNum, MASK_SOLID );
+				if ( trace.fraction != 1.0f ) {
+					VectorMA( trace.endpos, zNear, forward, view );
+				}
+			}
 		}
 	}
 
@@ -560,6 +678,12 @@ Starts or toggles zoom mode based on cg_zoomToggle.
 =============
 */
 void CG_ZoomDown_f( void ) {
+	int pmType = cg.snap ? cg.snap->ps.pm_type : cg.predictedPlayerState.pm_type;
+
+	if ( pmType == PM_DEAD || pmType == PM_FREEZE ) {
+		return;
+	}
+
 	if ( cg.zoomToggle ) {
 		CG_SetZoomState( cg.zoomed ? qfalse : qtrue );
 		return;
@@ -623,26 +747,75 @@ static void CG_ResetViewAngleFilter( const vec3_t angles ) {
 =============
 CG_ViewFilterAverage
 
-Returns the average delta stored in the view filter sample buffer.
+Returns the average stored in the retail view filter sample buffer.
 =============
 */
-static float CG_ViewFilterAverage( const float *samples, int count, int sampleLimit, int index ) {
+static float CG_ViewFilterAverage( const float *samples, int count, int index ) {
 	float sum = 0.0f;
 	int i;
 	int sampleIndex = index;
 
-	if ( count <= 0 || sampleLimit <= 0 ) {
+	if ( count <= 0 ) {
 		return 0.0f;
 	}
 
 	for ( i = 0; i < count; i++ ) {
-		if ( --sampleIndex < 0 ) {
-			sampleIndex = sampleLimit - 1;
-		}
 		sum += samples[sampleIndex];
+		sampleIndex--;
+		if ( sampleIndex < 0 ) {
+			sampleIndex = CG_VIEW_FILTER_MAX_SAMPLES - 1;
+		}
 	}
 
 	return sum / (float)count;
+}
+
+/*
+=============
+CG_GetViewFilterTargetKey
+
+Returns the current spectator-camera target key so the retail smoothing ring
+can be reset when the followed view changes.
+=============
+*/
+static int CG_GetViewFilterTargetKey( void ) {
+	if ( !cg.snap || !CG_IsSpectatorCamera() ) {
+		return CG_VIEW_FILTER_TARGET_NONE;
+	}
+
+	return cg.snap->ps.clientNum;
+}
+
+/*
+=============
+CG_CalcZoomSensitivityScale
+
+Returns the retail zoom-sensitivity ratio derived from the current zoomed
+vertical FOV versus the unzoomed baseline vertical FOV for the active view.
+=============
+*/
+static float CG_CalcZoomSensitivityScale( float currentFovY, float baseFovX ) {
+	float x;
+	float baseFovY;
+
+	if ( currentFovY <= 0.0f || cg.refdef.width <= 0 || cg.refdef.height <= 0 ) {
+		return 1.0f;
+	}
+
+	if ( baseFovX < 1.0f ) {
+		baseFovX = 1.0f;
+	} else if ( baseFovX > 130.0f ) {
+		baseFovX = 130.0f;
+	}
+
+	x = cg.refdef.width / tan( baseFovX / 360.0f * M_PI );
+	baseFovY = atan2( cg.refdef.height, x );
+	baseFovY = baseFovY * 360.0f / M_PI;
+	if ( baseFovY <= 0.0f ) {
+		return 1.0f;
+	}
+
+	return currentFovY / baseFovY;
 }
 
 /*
@@ -654,56 +827,93 @@ Applies HLIL-style smoothing to the spectator camera view angles.
 */
 static void CG_FilterViewAngles( vec3_t angles ) {
 	int sampleLimit;
-	float yawDelta;
-	float pitchDelta;
+	int targetKey;
+	int sampleIndex;
+	int i;
 	float averageYaw;
 	float averagePitch;
+	float yawDelta;
+	float yawOffset;
 
 	sampleLimit = cg_filter_angles.integer;
 	if ( sampleLimit < 0 ) {
+		trap_Cvar_Set( "cg_filter_angles", "0" );
+		cg_filter_angles.integer = 0;
+		cg_filter_angles.value = 0.0f;
 		sampleLimit = 0;
 	}
-	if ( sampleLimit > CG_VIEW_FILTER_MAX_SAMPLES ) {
-		sampleLimit = CG_VIEW_FILTER_MAX_SAMPLES;
+	if ( sampleLimit > CG_VIEW_FILTER_MAX_CVAR_SAMPLES ) {
+		trap_Cvar_Set( "cg_filter_angles", va( "%d", CG_VIEW_FILTER_MAX_CVAR_SAMPLES ) );
+		cg_filter_angles.integer = CG_VIEW_FILTER_MAX_CVAR_SAMPLES;
+		cg_filter_angles.value = (float)CG_VIEW_FILTER_MAX_CVAR_SAMPLES;
+		sampleLimit = CG_VIEW_FILTER_MAX_CVAR_SAMPLES;
 	}
 
-	if ( sampleLimit == 0 || !CG_IsSpectatorCamera() ) {
+	targetKey = CG_GetViewFilterTargetKey();
+	if ( sampleLimit == 0 || targetKey == CG_VIEW_FILTER_TARGET_NONE ) {
+		cg_viewFilterTargetKey = targetKey;
 		CG_ResetViewAngleFilter( angles );
 		return;
+	}
+
+	if ( cg_viewFilterTargetKey != targetKey ) {
+		cg_viewFilterTargetKey = targetKey;
+		CG_ResetViewAngleFilter( angles );
 	}
 
 	if ( cg.viewFilter.count == 0 ) {
 		CG_ResetViewAngleFilter( angles );
 	}
 
-	if ( cg.viewFilter.index >= sampleLimit ) {
+	if ( cg.viewFilter.index >= CG_VIEW_FILTER_MAX_SAMPLES ) {
 		cg.viewFilter.index = 0;
 	}
 	if ( cg.viewFilter.count > sampleLimit ) {
 		cg.viewFilter.count = sampleLimit;
 	}
 
-	yawDelta = AngleSubtract( angles[YAW], cg.viewFilter.lastYaw );
-	pitchDelta = angles[PITCH] - cg.viewFilter.lastPitch;
-
-	cg.viewFilter.yawSamples[cg.viewFilter.index] = yawDelta;
-	cg.viewFilter.pitchSamples[cg.viewFilter.index] = pitchDelta;
-	cg.viewFilter.index++;
-	if ( cg.viewFilter.index >= sampleLimit ) {
-		cg.viewFilter.index = 0;
+	yawDelta = angles[YAW] - cg.viewFilter.lastYaw;
+	if ( fabs( yawDelta ) > 350.0f ) {
+		yawOffset = yawDelta >= 0.0f ? 360.0f : -360.0f;
+		for ( i = 1; i < cg.viewFilter.count; i++ ) {
+			sampleIndex = cg.viewFilter.index - i;
+			if ( sampleIndex < 0 ) {
+				sampleIndex += CG_VIEW_FILTER_MAX_SAMPLES;
+			}
+			cg.viewFilter.yawSamples[sampleIndex] += yawOffset;
+		}
 	}
+
+	cg.viewFilter.lastYaw = angles[YAW];
+	cg.viewFilter.lastPitch = angles[PITCH];
+	cg.viewFilter.yawSamples[cg.viewFilter.index] = angles[YAW];
+	cg.viewFilter.pitchSamples[cg.viewFilter.index] = angles[PITCH];
 	if ( cg.viewFilter.count < sampleLimit ) {
 		cg.viewFilter.count++;
 	}
 
-	averageYaw = CG_ViewFilterAverage( cg.viewFilter.yawSamples, cg.viewFilter.count, sampleLimit, cg.viewFilter.index );
-	averagePitch = CG_ViewFilterAverage( cg.viewFilter.pitchSamples, cg.viewFilter.count, sampleLimit, cg.viewFilter.index );
+	averageYaw = CG_ViewFilterAverage( cg.viewFilter.yawSamples, cg.viewFilter.count, cg.viewFilter.index );
+	averagePitch = CG_ViewFilterAverage( cg.viewFilter.pitchSamples, cg.viewFilter.count, cg.viewFilter.index );
 
-	cg.viewFilter.lastYaw = AngleNormalize360( cg.viewFilter.lastYaw + averageYaw );
-	cg.viewFilter.lastPitch += averagePitch;
+	angles[YAW] = averageYaw;
+	angles[PITCH] = averagePitch;
+	cg.viewFilter.index = ( cg.viewFilter.index + 1 ) % CG_VIEW_FILTER_MAX_SAMPLES;
+}
 
-	angles[YAW] = cg.viewFilter.lastYaw;
-	angles[PITCH] = cg.viewFilter.lastPitch;
+/*
+=============
+CG_ClearBufferedSounds
+
+Clears the local announcer queue, matching the retail buffered-sound reset
+behaviour when the queue is disabled or invalidated.
+=============
+*/
+static void CG_ClearBufferedSounds( void ) {
+	cg_bufferedSoundHead = 0;
+	cg_bufferedSoundTail = 0;
+	memset( cg_bufferedSounds, 0, sizeof( cg_bufferedSounds ) );
+	memset( cg_bufferedSoundTimes, 0, sizeof( cg_bufferedSoundTimes ) );
+	memset( cg_bufferedSoundDelays, 0, sizeof( cg_bufferedSoundDelays ) );
 }
 
 /*
@@ -714,7 +924,7 @@ Keeps the cg_spectating ROM cvar in sync with the current spectator state.
 =============
 */
 static void CG_UpdateSpectatorCvar( void ) {
-	qboolean spectating = CG_IsSpectatorCamera();
+	qboolean spectating = (qboolean)( cg.snap && cg.snap->ps.pm_type == PM_SPECTATOR );
 	int desired = spectating ? 1 : 0;
 
 	if ( cg_spectating.integer == desired ) {
@@ -744,7 +954,9 @@ static int CG_CalcFov( void ) {
 	float	fov_x, fov_y;
 	float	zoomFov;
 	float	f;
+	float	baseFovX = 90.0f;
 	int		inwater;
+	qboolean zoomScaling;
 
 	if ( cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
 		// if in intermission, use a fixed value
@@ -758,32 +970,42 @@ static int CG_CalcFov( void ) {
 			fov_x = cg_fov.value;
 			if ( fov_x < 1 ) {
 				fov_x = 1;
-			} else if ( fov_x > 160 ) {
-				fov_x = 160;
+			} else if ( fov_x > 130 ) {
+				fov_x = 130;
 			}
 		}
+		baseFovX = fov_x;
 
 		// account for zooms
 		zoomFov = cg_zoomFov.value;
 		if ( zoomFov < 1 ) {
 			zoomFov = 1;
-		} else if ( zoomFov > 160 ) {
-			zoomFov = 160;
+		} else if ( zoomFov > 130 ) {
+			zoomFov = 130;
 		}
+		zoomScaling = (qboolean)( cg_zoomScaling.integer != 0 );
 
 		if ( cg.zoomed ) {
-			f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME;
-			if ( f > 1.0 ) {
+			if ( !zoomScaling ) {
 				fov_x = zoomFov;
 			} else {
-				fov_x = fov_x + f * ( zoomFov - fov_x );
+				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME;
+				if ( f > 1.0 ) {
+					fov_x = zoomFov;
+				} else {
+					fov_x = fov_x + f * ( zoomFov - fov_x );
+				}
 			}
 		} else {
-			f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME;
-			if ( f > 1.0 ) {
-				fov_x = fov_x;
+			if ( !zoomScaling ) {
+				fov_x = baseFovX;
 			} else {
-				fov_x = zoomFov + f * ( fov_x - zoomFov );
+				f = ( cg.time - cg.zoomTime ) / (float)ZOOM_TIME;
+				if ( f > 1.0 ) {
+					fov_x = baseFovX;
+				} else {
+					fov_x = zoomFov + f * ( baseFovX - zoomFov );
+				}
 			}
 		}
 	}
@@ -813,7 +1035,9 @@ static int CG_CalcFov( void ) {
 	cg.refdef.fov_y = fov_y;
 
 	if ( !cg.zoomed ) {
-		cg.zoomSensitivity = 1;
+		cg.zoomSensitivity = 1.0f;
+	} else if ( cg_zoomSensitivity.value > 0.0f ) {
+		cg.zoomSensitivity = CG_CalcZoomSensitivityScale( cg.refdef.fov_y, baseFovX ) * cg_zoomSensitivity.value;
 	} else {
 		cg.zoomSensitivity = cg.refdef.fov_y / 75.0;
 	}
@@ -944,10 +1168,16 @@ void CG_AddBufferedSound( sfxHandle_t sfx ) {
 	if ( cgs.announcerProfile == ANNOUNCER_PROFILE_DISABLED ) {
 		return;
 	}
-	cg.soundBuffer[cg.soundBufferIn] = sfx;
-	cg.soundBufferIn = (cg.soundBufferIn + 1) % MAX_SOUNDBUFFER;
-	if (cg.soundBufferIn == cg.soundBufferOut) {
-		cg.soundBufferOut++;
+
+	cg_bufferedSounds[cg_bufferedSoundHead] = sfx;
+	cg_bufferedSoundDelays[cg_bufferedSoundHead] = CG_BUFFERED_ANNOUNCER_DELAY;
+	if ( cg_bufferedSoundTimes[cg_bufferedSoundHead] == 0 ) {
+		cg_bufferedSoundTimes[cg_bufferedSoundHead] = cg.time;
+	}
+
+	cg_bufferedSoundHead = ( cg_bufferedSoundHead + 1 ) % CG_BUFFERED_ANNOUNCER_COUNT;
+	if ( cg_bufferedSoundHead == cg_bufferedSoundTail ) {
+		cg_bufferedSoundTail = ( cg_bufferedSoundTail + 1 ) % CG_BUFFERED_ANNOUNCER_COUNT;
 	}
 }
 
@@ -957,18 +1187,32 @@ CG_PlayBufferedSounds
 =====================
 */
 static void CG_PlayBufferedSounds( void ) {
+	int nextIndex;
+	sfxHandle_t sfx;
+
 	if ( cgs.announcerProfile == ANNOUNCER_PROFILE_DISABLED ) {
-		cg.soundBufferOut = cg.soundBufferIn;
+		CG_ClearBufferedSounds();
 		return;
 	}
-	if ( cg.soundTime < cg.time ) {
-		if (cg.soundBufferOut != cg.soundBufferIn && cg.soundBuffer[cg.soundBufferOut]) {
-			trap_S_StartLocalSound(cg.soundBuffer[cg.soundBufferOut], CHAN_ANNOUNCER);
-			cg.soundBuffer[cg.soundBufferOut] = 0;
-			cg.soundBufferOut = (cg.soundBufferOut + 1) % MAX_SOUNDBUFFER;
-			cg.soundTime = cg.time + 750;
-		}
+
+	if ( cg_bufferedSoundTimes[cg_bufferedSoundTail] > cg.time ) {
+		return;
 	}
+
+	sfx = cg_bufferedSounds[cg_bufferedSoundTail];
+	if ( !sfx || cg_bufferedSoundTail == cg_bufferedSoundHead ) {
+		return;
+	}
+
+	nextIndex = ( cg_bufferedSoundTail + 1 ) % CG_BUFFERED_ANNOUNCER_COUNT;
+
+	trap_S_StartLocalSound( sfx, CHAN_ANNOUNCER );
+
+	cg_bufferedSoundTimes[nextIndex] = cg_bufferedSoundDelays[cg_bufferedSoundTail] + cg.time;
+	cg_bufferedSounds[cg_bufferedSoundTail] = 0;
+	cg_bufferedSoundTimes[cg_bufferedSoundTail] = 0;
+	cg_bufferedSoundDelays[cg_bufferedSoundTail] = 0;
+	cg_bufferedSoundTail = nextIndex;
 }
 
 //=========================================================================
@@ -985,6 +1229,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
+	if ( cg.clientFrame == 0 ) {
+		cg_viewFilterTargetKey = CG_VIEW_FILTER_TARGET_NONE;
+		CG_ClearBufferedSounds();
+	}
 
 	// update cvars
 	CG_UpdateCvars();
@@ -1015,9 +1263,6 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	CG_RunQueuedAutoActions();
 
-	// let the client system know what our weapon and zoom settings are
-	trap_SetUserCmdValue( cg.weaponSelect, cg.zoomSensitivity );
-
 	// this counter will be bumped for every valid scene we generate
 	cg.clientFrame++;
 
@@ -1027,11 +1272,15 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	CG_UpdateSpectatorCvar();
 
 	// decide on third person view
-	cg.renderingThirdPerson = cg_thirdPerson.integer || (cg.snap->ps.stats[STAT_HEALTH] <= 0);
+	cg.renderingThirdPerson = (qboolean)( ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )
+		|| ( cg_thirdPerson.integer && ( cg.demoPlayback || cg_singlePlayerActive.integer ) ) );
 
 
 	// build cg.refdef
 	inwater = CG_CalcViewValues();
+
+	// let the client system know what our weapon and zoom settings are
+	trap_SetUserCmdValue( cg.weaponSelect, cg.zoomSensitivity );
 
 	// first person blend blobs, done after AnglesToAxis
 	if ( !cg.renderingThirdPerson ) {

@@ -25,6 +25,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
+qhandle_t cg_deathEffectShader;
+qhandle_t cg_gibSphereModel;
+
 
 /*
 ==================
@@ -203,6 +206,7 @@ CG_LightningBoltBeam
 void CG_LightningBoltBeam( vec3_t start, vec3_t end ) {
 	localEntity_t	*le;
 	refEntity_t		*beam;
+	int				styleIndex;
 
 	le = CG_AllocLocalEntity();
 	le->leFlags = 0;
@@ -217,7 +221,19 @@ void CG_LightningBoltBeam( vec3_t start, vec3_t end ) {
 	VectorCopy( end, beam->oldorigin );
 
 	beam->reType = RT_LIGHTNING;
-	beam->customShader = cgs.media.lightningShader;
+	beam->radius = 256.0f;
+
+	styleIndex = cg_lightningStyle.integer - 1;
+	if ( styleIndex < 0 ) {
+		styleIndex = 0;
+	} else if ( styleIndex >= CG_MAX_LIGHTNING_STYLES ) {
+		styleIndex = CG_MAX_LIGHTNING_STYLES - 1;
+	}
+
+	beam->customShader = cgs.media.lightningStyleShaders[styleIndex];
+	if ( !beam->customShader ) {
+		beam->customShader = cgs.media.lightningShader;
+	}
 }
 
 /*
@@ -346,6 +362,11 @@ void CG_InvulnerabilityJuiced( vec3_t org ) {
 	refEntity_t		*re;
 	vec3_t			angles;
 
+	if ( !cgs.media.haveDlcGibs ) {
+		CG_BigExplode( org );
+		return;
+	}
+
 	le = CG_AllocLocalEntity();
 	le->leFlags = 0;
 	le->leType = LE_INVULJUICED;
@@ -398,8 +419,8 @@ void CG_ScorePlum( int client, vec3_t org, int score ) {
 	le->radius = score;
 	
 	VectorCopy( org, le->pos.trBase );
-	if (org[2] >= lastPos[2] - 20 && org[2] <= lastPos[2] + 20) {
-		le->pos.trBase[2] -= 20;
+	if ( org[2] >= lastPos[2] - 20.0f && org[2] <= lastPos[2] ) {
+		le->pos.trBase[2] -= 20.0f;
 	}
 
 	//CG_Printf( "Plum origin %i %i %i -- %i\n", (int)org[0], (int)org[1], (int)org[2], (int)Distance(org, lastPos));
@@ -471,7 +492,7 @@ localEntity_t *CG_MakeExplosion( vec3_t origin, vec3_t dir,
 	VectorCopy( newOrigin, ex->refEntity.origin );
 	VectorCopy( newOrigin, ex->refEntity.oldorigin );
 
-	ex->color[0] = ex->color[1] = ex->color[2] = 1.0;
+	ex->color[0] = ex->color[1] = ex->color[2] = ex->color[3] = 1.0f;
 
 	return ex;
 }
@@ -485,32 +506,254 @@ This is the spurt of blood when a character gets hit
 =================
 */
 void CG_Bleed( vec3_t origin, int entityNum ) {
-	localEntity_t	*ex;
+	localEntity_t	*blood;
+	qhandle_t		bloodShader;
 
-	if ( !cg_blood.integer ) {
+	if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {
 		return;
 	}
 
-	ex = CG_AllocLocalEntity();
-	ex->leType = LE_EXPLOSION;
-
-	ex->startTime = cg.time;
-	ex->endTime = ex->startTime + 500;
-	
-	VectorCopy ( origin, ex->refEntity.origin);
-	ex->refEntity.reType = RT_SPRITE;
-	ex->refEntity.rotation = rand() % 360;
-	ex->refEntity.radius = 24;
-
-	ex->refEntity.customShader = cgs.media.bloodExplosionShader;
+	bloodShader = cgs.media.bloodSprayShaders[rand() & 3];
+	blood = CG_SmokePuff( origin, vec3_origin,
+					  32.0f,
+					  1.0f, 1.0f, 1.0f, 1.0f,
+					  500,
+					  cg.time,
+					  0,
+					  0,
+					  bloodShader );
+	blood->leType = LE_FALL_SCALE_FADE;
+	blood->pos.trDelta[2] = 40.0f;
 
 	// don't show player's own blood in view
 	if ( entityNum == cg.snap->ps.clientNum ) {
-		ex->refEntity.renderfx |= RF_THIRD_PERSON;
+		blood->refEntity.renderfx |= RF_THIRD_PERSON;
 	}
 }
 
 
+
+/*
+==================
+CG_SpawnDeathEffect
+==================
+*/
+static void CG_SpawnDeathEffect( const vec3_t origin, qboolean elevatedShell ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+	vec3_t			effectOrigin;
+
+	if ( !cg_deathEffectShader ) {
+		return;
+	}
+
+	VectorCopy( origin, effectOrigin );
+	if ( elevatedShell ) {
+		effectOrigin[2] += 26.0f;
+	}
+
+	le = CG_AllocLocalEntity();
+	le->leFlags = LEF_PUFF_DONT_SCALE;
+	le->leType = LE_SCALE_FADE_OUT;
+	le->startTime = cg.time;
+	le->endTime = cg.time + 500;
+	le->lifeRate = 1.0f / ( le->endTime - le->startTime );
+	le->color[0] = 0.25f;
+	le->color[1] = 0.25f;
+	le->color[2] = 0.25f;
+	le->color[3] = 0.25f;
+	le->radius = 50.0f;
+	le->light = 400.0f;
+	le->lightColor[0] = 1.0f;
+	le->lightColor[1] = 0.75f;
+	le->lightColor[2] = 0.0f;
+	le->pos.trTime = cg.time;
+	VectorCopy( effectOrigin, le->pos.trBase );
+
+	re = &le->refEntity;
+	re->reType = RT_SPRITE;
+	re->customShader = cg_deathEffectShader;
+	re->shaderTime = cg.time / 1000.0f;
+	re->radius = le->radius;
+	VectorCopy( effectOrigin, re->origin );
+}
+
+/*
+==================
+CG_SpawnBigExplodeTracer
+==================
+*/
+static void CG_SpawnBigExplodeTracer( const vec3_t origin, int startTime, int lifetime ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+
+	if ( !cgs.media.tracerShader ) {
+		return;
+	}
+
+	le = CG_AllocLocalEntity();
+	le->leFlags = LEF_PUFF_DONT_SCALE;
+	le->leType = LE_05;
+	le->startTime = startTime;
+	le->endTime = startTime + lifetime;
+	le->fadeInTime = 0;
+	le->lifeRate = 1.0f / ( le->endTime - le->startTime );
+	le->color[0] = 0.5f;
+	le->color[1] = 0.5f;
+	le->color[2] = 0.5f;
+	le->color[3] = 0.5f;
+	le->radius = 3.0f;
+
+	le->pos.trType = TR_QL_ACCEL;
+	le->pos.trTime = startTime;
+	VectorCopy( origin, le->pos.trBase );
+	VectorClear( le->pos.trDelta );
+	le->posTrajExtra = -240.0f;
+
+	re = &le->refEntity;
+	re->reType = RT_SPRITE;
+	re->rotation = 0.0f;
+	re->customShader = cgs.media.tracerShader;
+	re->shaderTime = startTime / 1000.0f;
+	re->radius = le->radius;
+	VectorCopy( origin, re->origin );
+}
+
+/*
+==================
+CG_SpawnBigExplodeTracers
+==================
+*/
+static void CG_SpawnBigExplodeTracers( const vec3_t origin, qboolean elevatedShell ) {
+	vec3_t	tracerOrigin;
+	int		i;
+
+	for ( i = 0; i < 36; i++ ) {
+		tracerOrigin[0] = origin[0] + crandom() * 16.0f;
+		tracerOrigin[1] = origin[1] + crandom() * 16.0f;
+		if ( elevatedShell ) {
+			tracerOrigin[2] = origin[2] + 20.0f + crandom() * 16.0f;
+		}
+		else {
+			tracerOrigin[2] = origin[2] + 2.0f + crandom() * 4.0f;
+		}
+
+		CG_SpawnBigExplodeTracer( tracerOrigin, cg.time + crandom() * 500.0f,
+			500 + crandom() * 250.0f );
+	}
+}
+
+#define	EXP_RING_STEP					0.62831854820251465f
+#define	EXP_RING_RADIUS				5.5f
+#define	EXP_RING_RADIUS_JITTER		2.75f
+#define	EXP_RING_CENTER_OFFSET		8.0f
+#define	EXP_RING_VELOCITY			20.0f
+#define	EXP_RING_VELOCITY_SCALE		21.0f
+#define	EXP_RING_VELOCITY_JITTER	10.5f
+#define	EXP_JUICED_ORIGIN_OFFSET	8.0f
+
+void CG_LaunchExplode( const vec3_t origin, const vec3_t velocity, qhandle_t hModel );
+
+/*
+==================
+CG_LaunchBigExplodeFragments
+
+Retail no-DLC fallback uses a downward 10-step ring basis for the sphere burst.
+==================
+*/
+static void CG_LaunchBigExplodeFragments( const vec3_t playerOrigin, qboolean elevatedShell ) {
+	vec3_t	direction;
+	vec3_t	origin;
+	vec3_t	right;
+	vec3_t	up;
+	vec3_t	originBase;
+	vec3_t	center;
+	vec3_t	point;
+	vec3_t	velocity;
+	float	angle;
+	float	rightRadius;
+	float	upRadius;
+	int		i;
+
+	VectorSet( direction, 0.0f, 0.0f, -1.0f );
+	PerpendicularVector( right, direction );
+	CrossProduct( direction, right, up );
+	VectorCopy( playerOrigin, origin );
+
+	VectorCopy( playerOrigin, originBase );
+	if ( elevatedShell ) {
+		originBase[2] += EXP_JUICED_ORIGIN_OFFSET;
+	}
+
+	VectorMA( originBase, EXP_RING_CENTER_OFFSET, direction, center );
+
+	for ( i = 0; i < 10; i++ ) {
+		angle = i * EXP_RING_STEP;
+		rightRadius = cos( angle ) * ( EXP_RING_RADIUS + crandom() * EXP_RING_RADIUS_JITTER );
+		upRadius = sin( angle ) * ( EXP_RING_RADIUS + crandom() * EXP_RING_RADIUS_JITTER );
+
+		VectorCopy( center, point );
+		VectorMA( point, rightRadius, right, point );
+		VectorMA( point, upRadius, up, point );
+
+		VectorSubtract( point, originBase, velocity );
+		VectorMA( velocity, EXP_RING_VELOCITY, direction, velocity );
+
+		velocity[0] *= EXP_RING_VELOCITY_SCALE + crandom() * EXP_RING_VELOCITY_JITTER;
+		velocity[1] *= EXP_RING_VELOCITY_SCALE + crandom() * EXP_RING_VELOCITY_JITTER;
+		velocity[2] *= EXP_RING_VELOCITY_SCALE + crandom() * EXP_RING_VELOCITY_JITTER;
+
+		CG_LaunchExplode( origin, velocity, cg_gibSphereModel );
+	}
+}
+
+/*
+==================
+CG_BigExplodeImpl
+==================
+*/
+static void CG_BigExplodeImpl( const vec3_t playerOrigin, qboolean elevatedShell ) {
+	if ( cg_gibSphereModel ) {
+		CG_LaunchBigExplodeFragments( playerOrigin, elevatedShell );
+	}
+
+	CG_SpawnDeathEffect( playerOrigin, elevatedShell );
+	CG_SpawnBigExplodeTracers( playerOrigin, elevatedShell );
+}
+
+/*
+==================
+CG_LaunchFragmentEntity
+==================
+*/
+static localEntity_t *CG_LaunchFragmentEntity( const vec3_t origin, const vec3_t velocity, qhandle_t hModel,
+	leType_t leType, int baseLifetime, int randomLifetime, float bounceFactor,
+	leFragmentBounceSoundType_t bounceSoundType, leFragmentMarkType_t markType ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+
+	le = CG_AllocLocalEntity();
+	re = &le->refEntity;
+
+	le->leType = leType;
+	le->startTime = cg.time;
+	le->endTime = le->startTime + baseLifetime + random() * randomLifetime;
+
+	VectorCopy( origin, re->origin );
+	AxisCopy( axisDefault, re->axis );
+	re->hModel = hModel;
+
+	le->pos.trType = TR_GRAVITY;
+	VectorCopy( origin, le->pos.trBase );
+	VectorCopy( velocity, le->pos.trDelta );
+	le->pos.trTime = cg.time;
+
+	le->bounceFactor = bounceFactor;
+	le->fragmentBounceSoundType = bounceSoundType;
+	le->fragmentMarkType = markType;
+
+	return le;
+}
 
 /*
 ==================
@@ -518,150 +761,60 @@ CG_LaunchGib
 ==================
 */
 void CG_LaunchGib( vec3_t origin, vec3_t velocity, qhandle_t hModel ) {
-	localEntity_t	*le;
-	refEntity_t		*re;
+	CG_LaunchFragmentEntity( origin, velocity, hModel, LE_FRAGMENT, 5000, 3000, 0.6f,
+		LEBS_BLOOD, LEMT_BLOOD );
+}
 
-	le = CG_AllocLocalEntity();
-	re = &le->refEntity;
-
-	le->leType = LE_FRAGMENT;
-	le->startTime = cg.time;
-	le->endTime = le->startTime + 5000 + random() * 3000;
-
-	VectorCopy( origin, re->origin );
-	AxisCopy( axisDefault, re->axis );
-	re->hModel = hModel;
-
-	le->pos.trType = TR_GRAVITY;
-	VectorCopy( origin, le->pos.trBase );
-	VectorCopy( velocity, le->pos.trDelta );
-	le->pos.trTime = cg.time;
-
-	le->bounceFactor = 0.6f;
-
-	le->leBounceSoundType = LEBS_BLOOD;
-	le->leMarkType = LEMT_BLOOD;
+/*
+==================
+CG_LaunchThawGib
+==================
+*/
+static void CG_LaunchThawGib( vec3_t origin, vec3_t velocity, qhandle_t hModel ) {
+	CG_LaunchFragmentEntity( origin, velocity, hModel, LE_FRAGMENT, 5000, 3000, 0.6f,
+		LEBS_ICE, LEMT_ICE );
 }
 
 /*
 ===================
-CG_GibPlayer
+CG_ThawPlayer
 
-Generated a bunch of gibs launching out from the bodies location
+Retail thaw burst using alternating brain/abdomen shards.
 ===================
 */
 #define	GIB_VELOCITY	250
 #define	GIB_JUMP		250
-void CG_GibPlayer( vec3_t playerOrigin ) {
-	vec3_t	origin, velocity;
+void CG_ThawPlayer( vec3_t playerOrigin ) {
+	vec3_t		origin, velocity;
+	qhandle_t	thawModels[7];
+	int			i;
 
 	if ( !cg_blood.integer ) {
 		return;
 	}
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	if ( rand() & 1 ) {
-		CG_LaunchGib( origin, velocity, cgs.media.gibSkull );
-	} else {
-		CG_LaunchGib( origin, velocity, cgs.media.gibBrain );
-	}
-
-	// allow gibs to be turned off for speed
-	if ( !cg_gibs.integer ) {
+	if ( !cgs.media.gibBrain || !cgs.media.gibAbdomen ) {
 		return;
 	}
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibAbdomen );
+	thawModels[0] = cgs.media.gibBrain;
+	thawModels[1] = cgs.media.gibAbdomen;
+	thawModels[2] = cgs.media.gibBrain;
+	thawModels[3] = cgs.media.gibAbdomen;
+	thawModels[4] = cgs.media.gibBrain;
+	thawModels[5] = cgs.media.gibAbdomen;
+	thawModels[6] = cgs.media.gibBrain;
 
 	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibArm );
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibChest );
-
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibFist );
-
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibFoot );
-
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibForearm );
-
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibIntestine );
-
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibLeg );
-
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*GIB_VELOCITY;
-	velocity[1] = crandom()*GIB_VELOCITY;
-	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
-	CG_LaunchGib( origin, velocity, cgs.media.gibLeg );
+	for ( i = 0; i < ARRAY_LEN( thawModels ); i++ ) {
+		velocity[0] = crandom() * GIB_VELOCITY;
+		velocity[1] = crandom() * GIB_VELOCITY;
+		velocity[2] = GIB_JUMP + crandom() * GIB_VELOCITY;
+		CG_LaunchThawGib( origin, velocity, thawModels[i] );
+	}
 }
 
-/*
-==================
-CG_LaunchGib
-==================
-*/
-void CG_LaunchExplode( vec3_t origin, vec3_t velocity, qhandle_t hModel ) {
-	localEntity_t	*le;
-	refEntity_t		*re;
-
-	le = CG_AllocLocalEntity();
-	re = &le->refEntity;
-
-	le->leType = LE_FRAGMENT;
-	le->startTime = cg.time;
-	le->endTime = le->startTime + 10000 + random() * 6000;
-
-	VectorCopy( origin, re->origin );
-	AxisCopy( axisDefault, re->axis );
-	re->hModel = hModel;
-
-	le->pos.trType = TR_GRAVITY;
-	VectorCopy( origin, le->pos.trBase );
-	VectorCopy( velocity, le->pos.trDelta );
-	le->pos.trTime = cg.time;
-
-	le->bounceFactor = 0.1f;
-
-	le->leBounceSoundType = LEBS_BRASS;
-	le->leMarkType = LEMT_NONE;
-}
-
-#define	EXP_VELOCITY	100
-#define	EXP_JUMP		150
 /*
 ===================
 CG_GibPlayer
@@ -669,41 +822,92 @@ CG_GibPlayer
 Generated a bunch of gibs launching out from the bodies location
 ===================
 */
-void CG_BigExplode( vec3_t playerOrigin ) {
+void CG_GibPlayer( vec3_t playerOrigin ) {
 	vec3_t	origin, velocity;
+	qhandle_t	gibModels[13];
+	int		i;
 
 	if ( !cg_blood.integer ) {
 		return;
 	}
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*EXP_VELOCITY;
-	velocity[1] = crandom()*EXP_VELOCITY;
-	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
-	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
+	if ( !cgs.media.haveDlcGibs ) {
+		CG_BigExplode( playerOrigin );
+		return;
+	}
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*EXP_VELOCITY;
-	velocity[1] = crandom()*EXP_VELOCITY;
-	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
-	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
+	gibModels[0] = cgs.media.gibChest;
+	gibModels[1] = cgs.media.gibAbdomen;
+	gibModels[2] = cgs.media.gibIntestine;
+	gibModels[3] = cgs.media.gibArm;
+	gibModels[4] = cgs.media.gibArm;
+	gibModels[5] = cgs.media.gibForearm;
+	gibModels[6] = cgs.media.gibForearm;
+	gibModels[7] = cgs.media.gibFist;
+	gibModels[8] = cgs.media.gibFist;
+	gibModels[9] = cgs.media.gibLeg;
+	gibModels[10] = cgs.media.gibLeg;
+	gibModels[11] = cgs.media.gibFoot;
+	gibModels[12] = cgs.media.gibFoot;
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*EXP_VELOCITY*1.5;
-	velocity[1] = crandom()*EXP_VELOCITY*1.5;
-	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
-	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
+	if ( !( rand() & 1 ) ) {
+		VectorCopy( playerOrigin, origin );
+		velocity[0] = crandom() * GIB_VELOCITY;
+		velocity[1] = crandom() * GIB_VELOCITY;
+		velocity[2] = GIB_JUMP + crandom() * GIB_VELOCITY;
+		CG_LaunchGib( origin, velocity, cgs.media.gibSkull );
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*EXP_VELOCITY*2.0;
-	velocity[1] = crandom()*EXP_VELOCITY*2.0;
-	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
-	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
+		VectorCopy( playerOrigin, origin );
+		velocity[0] = crandom() * GIB_VELOCITY;
+		velocity[1] = crandom() * GIB_VELOCITY;
+		velocity[2] = GIB_JUMP + crandom() * GIB_VELOCITY;
+		CG_LaunchGib( origin, velocity, cgs.media.gibBrain );
+	}
 
-	VectorCopy( playerOrigin, origin );
-	velocity[0] = crandom()*EXP_VELOCITY*2.5;
-	velocity[1] = crandom()*EXP_VELOCITY*2.5;
-	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
-	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
+	for ( i = 0; i < ARRAY_LEN( gibModels ); i++ ) {
+		VectorCopy( playerOrigin, origin );
+		velocity[0] = crandom() * GIB_VELOCITY;
+		velocity[1] = crandom() * GIB_VELOCITY;
+		velocity[2] = GIB_JUMP + crandom() * GIB_VELOCITY;
+		CG_LaunchGib( origin, velocity, gibModels[i] );
+	}
+}
+
+/*
+==================
+CG_LaunchExplode
+==================
+*/
+void CG_LaunchExplode( const vec3_t origin, const vec3_t velocity, qhandle_t hModel ) {
+	localEntity_t	*le;
+
+	le = CG_LaunchFragmentEntity( origin, velocity, hModel, LE_FRAGMENT_14, 375, 750, 0.35f,
+		LEBS_ELECTRO, LEMT_BURN_SMALL );
+	le->pos.trType = TR_QL_ACCEL;
+	le->posTrajExtra = 425.0f;
+	le->startTime = cg.time + crandom() * 250.0f;
+	le->endTime = le->startTime + 375 + random() * 750.0f;
+}
+
+/*
+===================
+CG_BigExplode
+
+Retail no-DLC gib fallback using sphere fragments and the death-effect sprite.
+===================
+*/
+void CG_BigExplode( vec3_t playerOrigin ) {
+	CG_BigExplodeImpl( playerOrigin, qfalse );
+}
+
+/*
+===================
+CG_BigExplodeJuiced
+
+Retail invulnerability fallback keeps the deathEffect/tracer shell elevated.
+===================
+*/
+void CG_BigExplodeJuiced( vec3_t playerOrigin ) {
+	CG_BigExplodeImpl( playerOrigin, qtrue );
 }
 

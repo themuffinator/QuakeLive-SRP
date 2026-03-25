@@ -8,6 +8,7 @@
 typedef struct factoryParseState_s {
 	const char      *cursor;
 	const char      *end;
+	const char      *start;
 	const char      *filename;
 	int             line;
 } factoryParseState_t;
@@ -69,13 +70,22 @@ Logs a descriptive parse error so administrators can diagnose malformed JSON.
 */
 static void Factory_ReportParseError( const factoryParseState_t *state, const char *message ) {
 	const char  *filename = state && state->filename ? state->filename : "<unknown>";
+	const char  *cursor = state ? state->cursor : NULL;
 	int         line = state ? state->line : 0;
+	ptrdiff_t   offset = 0;
 
 	if ( !message ) {
 		message = "unknown parse error";
 	}
 
-	G_Printf( "factories: parse error in %s at line %i: %s\n", filename, line, message );
+	if ( state && state->cursor ) {
+		offset = cursor - state->filename;
+	}
+
+	G_Printf( "factories: parse error in %s at line %i: %s (cursor=%td)\n", filename, line, message, offset );
+	if ( cursor && state && cursor < state->end ) {
+		G_Printf( "factories: cursor context byte=0x%02x char='%c' line=%i\n", ( unsigned char )*cursor, *cursor, line );
+	}
 }
 
 /*
@@ -141,6 +151,9 @@ static qboolean Factory_SkipJsonString( factoryParseState_t *state ) {
 
 	Factory_SkipWhitespace( state );
 	if ( state->cursor >= state->end || *state->cursor != '"' ) {
+		if ( state && state->cursor < state->end ) {
+			G_Printf( "factories: parser state before failure: byte=%d line=%d\n", ( unsigned char )*state->cursor, state->line );
+		}
 		Factory_ReportParseError( state, "expected string" );
 		return qfalse;
 	}
@@ -188,6 +201,9 @@ static char *Factory_ParseJsonString( factoryParseState_t *state ) {
 
 	Factory_SkipWhitespace( state );
 	if ( state->cursor >= state->end || *state->cursor != '"' ) {
+		if ( state && state->cursor < state->end ) {
+			G_Printf( "factories: parser state before failure: byte=%d line=%d\n", ( unsigned char )*state->cursor, state->line );
+		}
 		Factory_ReportParseError( state, "expected string" );
 		return NULL;
 	}
@@ -461,6 +477,11 @@ static qboolean Factory_ParseCvarOverrides( factoryParseState_t *state, factoryD
 
 		if ( *state->cursor == ',' ) {
 			state->cursor++;
+			Factory_SkipWhitespace( state );
+			if ( state->cursor < state->end && *state->cursor == '}' ) {
+				state->cursor++;
+				return qtrue;
+			}
 			continue;
 		}
 
@@ -500,6 +521,7 @@ static qboolean Factory_MapBaseGametype( const char *token, gametype_t *outType 
 		{ "ad", GT_ATTACK_DEFEND },
 		{ "ft", GT_FREEZE },
 		{ "har", GT_HARVESTER },
+		{ "obelisk", GT_OBELISK },
 		{ "rr", GT_RED_ROVER }
 	};
 	int i;
@@ -586,6 +608,11 @@ static factoryDefinition_t *Factory_ParseDefinition( factoryParseState_t *state,
 
 		if ( *state->cursor == ',' ) {
 			state->cursor++;
+			Factory_SkipWhitespace( state );
+			if ( state->cursor < state->end && *state->cursor == '}' ) {
+				state->cursor++;
+				break;
+			}
 			continue;
 		}
 
@@ -624,12 +651,13 @@ static factoryDefinition_t *Factory_ParseDefinition( factoryParseState_t *state,
 =============
 Factory_ParseFactoriesBuffer
 
-Reads a JSON array of factory definitions from memory.
+Reads factory definitions from a JSON document (array or singleton object).
 =============
 */
 static int Factory_ParseFactoriesBuffer( const char *filename, const char *buffer, int length ) {
 	factoryParseState_t    state;
 	int                   parsed = 0;
+	factoryDefinition_t   *definition;
 
 	if ( !buffer || length <= 0 ) {
 		return 0;
@@ -637,11 +665,39 @@ static int Factory_ParseFactoriesBuffer( const char *filename, const char *buffe
 
 	state.cursor = buffer;
 	state.end = buffer + length;
+	state.start = buffer;
 	state.filename = filename;
 	state.line = 1;
 
 	Factory_SkipWhitespace( &state );
+	if ( state.cursor >= state.end || *state.cursor == '\0' ) {
+		return 0;
+	}
+
+	if ( *state.cursor == '{' ) {
+		definition = Factory_ParseDefinition( &state, filename );
+		if ( !definition ) {
+			return 0;
+		}
+		if ( Factory_RegisterDefinition( definition ) ) {
+			parsed++;
+		}
+		Factory_SkipWhitespace( &state );
+		if ( state.cursor < state.end ) {
+			Factory_SkipWhitespace( &state );
+			if ( state.cursor < state.end && *state.cursor == ',' ) {
+				state.cursor++;
+				Factory_SkipWhitespace( &state );
+			}
+			if ( state.cursor < state.end ) {
+				Factory_ReportParseError( &state, "trailing data after factory object" );
+			}
+		}
+		return parsed;
+	}
+
 	if ( !Factory_ParseExpectedChar( &state, '[' ) ) {
+		Factory_ReportParseError( &state, "expected '[' or '{'" );
 		return 0;
 	}
 
@@ -652,7 +708,7 @@ static int Factory_ParseFactoriesBuffer( const char *filename, const char *buffe
 	}
 
 	while ( state.cursor < state.end ) {
-		factoryDefinition_t *definition = Factory_ParseDefinition( &state, filename );
+		definition = Factory_ParseDefinition( &state, filename );
 
 		if ( !definition ) {
 			return parsed;
@@ -670,6 +726,11 @@ static int Factory_ParseFactoriesBuffer( const char *filename, const char *buffe
 
 		if ( *state.cursor == ',' ) {
 			state.cursor++;
+			Factory_SkipWhitespace( &state );
+			if ( state.cursor < state.end && *state.cursor == ']' ) {
+				state.cursor++;
+				return parsed;
+			}
 			continue;
 		}
 

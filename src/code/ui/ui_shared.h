@@ -85,13 +85,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define QL_FONT_SMALL_POINT_SIZE 16
 #define QL_FONT_BIG_POINT_SIZE 48
 
+#define ITEM_FONT_INHERIT -1
+
 #define MAX_MENUNAME 32
 #define MAX_ITEMTEXT 64
 #define MAX_ITEMACTION 64
 #define MAX_MENUDEFFILE 4096
 #define MAX_MENUFILE 32768
 #define MAX_MENUS 64
-#define MAX_MENUITEMS 96
+#define MAX_MENUITEMS 1024
 #define MAX_COLOR_RANGES 10
 #define MAX_OPEN_MENUS 16
 
@@ -274,6 +276,8 @@ typedef struct modelDef_s {
 #define CVAR_SHOW			0x00000004
 #define CVAR_HIDE			0x00000008
 
+#define ITEM_CVAR_SLOT_COUNT 4
+
 typedef struct itemDef_s {
   Window window;                 // common positional, border, style, layout info
   Rectangle textRect;            // rectangle the text ( if any ) consumes     
@@ -282,6 +286,7 @@ typedef struct itemDef_s {
   int textalignment;             // ( optional ) alignment for text within rect based on text width
   float textalignx;              // ( optional ) text alignment x coord
   float textaligny;              // ( optional ) text alignment x coord
+  int fontIndex;                 // retail item font bucket
   float textscale;               // scale percentage from 72pts
   int textStyle;                 // ( optional ) style, normal and shadowed are it for now
   const char *text;              // display text
@@ -295,16 +300,20 @@ typedef struct itemDef_s {
   const char *onFocus;           // select script
   const char *leaveFocus;        // select script
   const char *cvar;              // associated cvar 
-  const char *cvarTest;          // associated cvar for enable actions
-	const char *enableCvar;			   // enable, disable, show, or hide based on value, this can contain a list
-	int cvarFlags;								 //	what type of action to take on cvarenables
+  const char *cvarTest[ITEM_CVAR_SLOT_COUNT];     // retail cvar-test slots for enable or show actions
+	const char *enableCvar[ITEM_CVAR_SLOT_COUNT];  // enable, disable, show, or hide lists for each retail cvar-test slot
+	int cvarFlags[ITEM_CVAR_SLOT_COUNT];           // what type of action to take on each cvar-enable slot
   sfxHandle_t focusSound;
+	int precision;								 // retail precision for cvar-backed text and sliders
+	qboolean integer;							 // retail integer-mode cvar formatting flag
 	int numColors;								 // number of color ranges
 	colorRangeDef_t colorRanges[MAX_COLOR_RANGES];
 	float special;								 // used for feeder id's etc.. diff per type
+	int cellId;									 // retail Quake Live advert cell id
   int cursorPos;                 // cursor position in characters
 	int widescreen;
 	qboolean widescreenSet;
+	const char *defaultContent;		 // retail Quake Live advert fallback shader
 	void *typeData;								 // type specific data ptr's	
 } itemDef_t;
 
@@ -313,6 +322,8 @@ typedef struct {
   const char  *font;								// font
   qboolean fullScreen;							// covers entire screen 
 	int widescreen;
+	Rectangle backgroundRect;					// retail full-screen background paint rect
+	qboolean backgroundSizeSet;				// backgroundRect came from backgroundSize
   int itemCount;										// number of items;
   int fontIndex;										// 
   int cursorItem;										// which item as the cursor
@@ -425,6 +436,11 @@ typedef struct {
 	void (*stopCinematic)(int handle);
 	void (*drawCinematic)(int handle, float x, float y, float w, float h);
 	void (*runCinematicFrame)(int handle);
+	qhandle_t (*setupAdvertCellShader)(const char *defaultContent, const rectDef_t *rect, int cellId);
+	qhandle_t (*refreshAdvertCellShader)(const char *defaultContent, const rectDef_t *rect, int cellId);
+	void (*activateAdvert)(int cellId);
+	void (*adjustFrom640)(float *x, float *y, float *w, float *h);
+	void (*setAdjustFrom640Mode)(int widescreen);
 
   float			yscale;
   float			xscale;
@@ -442,6 +458,11 @@ typedef struct {
   qhandle_t gradientImage;
   qhandle_t cursor;
 	float FPS;
+	void (*drawTextExt)(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style, int fontIndex);
+	int (*textWidthExt)(const char *text, float scale, int limit, int fontIndex);
+	int (*textHeightExt)(const char *text, float scale, int limit, int fontIndex);
+	void (*drawTextWithCursorExt)(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style, int fontIndex);
+	void (*initAdvertisementBridge)(void);
 
 } displayContextDef_t;
 
@@ -474,6 +495,7 @@ void Menu_New(int handle);
 void Menu_PaintAll();
 menuDef_t *Menus_ActivateByName(const char *p);
 void Menu_Reset();
+qboolean Menus_AnyVisible();
 qboolean Menus_AnyFullScreenVisible();
 void  Menus_Activate(menuDef_t *menu);
 

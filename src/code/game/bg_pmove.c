@@ -34,8 +34,8 @@ pml_t		pml;
 // movement parameters
 float	pm_stopspeed = 100.0f;
 float	pm_duckScale = 0.25f;
-float	pm_swimScale = 0.60f;
-float	pm_wadeScale = 0.80f;
+float	pm_swimScale = 0.50f;
+float	pm_wadeScale = 0.75f;
 
 float	pm_accelerate = 10.0f;
 float	pm_airaccelerate = 1.0f;
@@ -111,8 +111,8 @@ static const pmove_settings_t	pm_defaultSettings = {
 	.velocityGh = 800.0f,
 	.walkAccel = 10.0f,
 	.walkFriction = 6.0f,
-	.waterSwimScale = 0.60f,
-	.waterWadeScale = 0.80f,
+	.waterSwimScale = 0.50f,
+	.waterWadeScale = 0.75f,
 	.weaponDropTime = 200,
 	.weaponRaiseTime = 200,
 	.wishSpeed = 400.0f,
@@ -244,10 +244,10 @@ static void PM_LoadMoveParams( const pmoveParams_t *params ) {
 				derived.airAccel = settings->airAccel;
 			}
 			derived.airControl = settings->airControl;
-			if ( settings->airStepFriction > 0.0f ) {
+			if ( settings->airStepFriction >= 0.0f ) {
 				derived.airStepFriction = settings->airStepFriction;
 			}
-			if ( settings->airSteps > 0 ) {
+			if ( settings->airSteps >= 0 ) {
 				derived.airSteps = settings->airSteps;
 			}
 			if ( settings->airStopAccel >= 0.0f ) {
@@ -271,8 +271,8 @@ static void PM_LoadMoveParams( const pmoveParams_t *params ) {
 	pm_friction = ( cfg->walkFriction > 0.0f ) ? cfg->walkFriction : pm_defaultParams.walkFriction;
 	pm_airaccelerate = ( cfg->airAccel > 0.0f ) ? cfg->airAccel : pm_defaultParams.airAccel;
 	pm_aircontrol = cfg->airControl;
-	pm_airstepfriction = ( cfg->airStepFriction > 0.0f ) ? cfg->airStepFriction : pm_defaultParams.airStepFriction;
-	pm_airsteps = ( cfg->airSteps > 0 ) ? cfg->airSteps : pm_defaultParams.airSteps;
+	pm_airstepfriction = ( cfg->airStepFriction >= 0.0f ) ? cfg->airStepFriction : pm_defaultParams.airStepFriction;
+	pm_airsteps = ( cfg->airSteps >= 0 ) ? cfg->airSteps : pm_defaultParams.airSteps;
 	pm_airstopaccelerate = ( cfg->airStopAccel >= 0.0f ) ? cfg->airStopAccel : pm_defaultParams.airStopAccel;
 	pm_strafeaccelerate = ( cfg->strafeAccel >= 0.0f ) ? cfg->strafeAccel : pm_defaultParams.strafeAccel;
 	pm_circlestrafe_friction = ( cfg->circleStrafeFriction >= 0.0f ) ? cfg->circleStrafeFriction : pm_defaultParams.circleStrafeFriction;
@@ -351,11 +351,14 @@ static qboolean PM_ShouldRequireJumpRelease( const pmove_settings_t *settings ) 
 	return qtrue;
 }
 
+static qboolean PM_CheckJump( qboolean allowAirDoubleJump );
+
 /*
 =============
 PM_ApplyStepJump
 
-Ensures the configured step jump velocity is applied when stepping upwards.
+Triggers the retail-style step jump path only when the current command
+would legitimately produce a jump takeoff.
 =============
 */
 void PM_ApplyStepJump( float stepDelta, qboolean fromCrouchSlide ) {
@@ -371,26 +374,32 @@ void PM_ApplyStepJump( float stepDelta, qboolean fromCrouchSlide ) {
 		return;
 	}
 
-	stepJumpVelocity = settings->stepJumpVelocity;
-	if ( stepJumpVelocity <= 0.0f ) {
-		return;
-	}
-
 	if ( fromCrouchSlide ) {
-		if ( !( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) ) {
+		if ( !( pm->ps->pm_flags & PMF_DUCKED ) ) {
 			return;
 		}
 
-		if ( !settings->crouchSlide || !settings->crouchStepJump ) {
+		if ( !settings->crouchStepJump ) {
 			return;
 		}
 	}
 
-	if ( pm->ps->velocity[2] >= stepJumpVelocity ) {
+	if ( pm->cmd.upmove < 10 ) {
 		return;
 	}
 
-	pm->ps->velocity[2] = stepJumpVelocity;
+	if ( !PM_CheckJump( qfalse ) ) {
+		return;
+	}
+
+	stepJumpVelocity = settings->stepJumpVelocity;
+	if ( stepJumpVelocity > 0.0f ) {
+		pm->ps->velocity[2] += stepJumpVelocity;
+
+		if ( settings->jumpVelocityMax > 0.0f && pm->ps->velocity[2] > settings->jumpVelocityMax ) {
+			pm->ps->velocity[2] = settings->jumpVelocityMax;
+		}
+	}
 }
 
 /*
@@ -428,136 +437,6 @@ void PM_AddTouchEnt( int entityNum ) {
 	// add it
 	pm->touchents[pm->numtouch] = entityNum;
 	pm->numtouch++;
-}
-
-/*
-=============
-PM_RecordDoubleJumpSupport
-
-Caches the most recent non-walkable collision that can seed a double jump.
-=============
-*/
-void PM_RecordDoubleJumpSupport( int entityNum, const vec3_t normal, int contactTime ) {
-	const pmove_settings_t	*settings;
-
-	if ( !pm || !pm->ps || !normal ) {
-		return;
-	}
-
-	settings = PM_GetActiveSettings();
-	if ( !settings || !settings->doubleJump ) {
-		return;
-	}
-
-	if ( entityNum == ENTITYNUM_NONE ) {
-		return;
-	}
-
-	if ( normal[2] >= MIN_WALK_NORMAL ) {
-		return;
-	}
-
-	if ( contactTime <= 0 ) {
-		return;
-	}
-
-	if ( contactTime < pm->ps->doubleJumpTime ) {
-		return;
-	}
-
-	pm->ps->doubleJumpTime = contactTime;
-	pm->ps->doubleJumpEntNum = entityNum;
-	VectorCopy( normal, pm->ps->doubleJumpNormal );
-}
-
-/*
-=============
-PM_ResetDoubleJumpSupport
-
-Clears the cached double jump contact state.
-=============
-*/
-static void PM_ResetDoubleJumpSupport( void ) {
-	if ( !pm || !pm->ps ) {
-		return;
-	}
-
-	pm->ps->doubleJumpTime = 0;
-	pm->ps->doubleJumpEntNum = ENTITYNUM_NONE;
-	VectorClear( pm->ps->doubleJumpNormal );
-}
-
-/*
-=============
-PM_CanTriggerDoubleJump
-
-Evaluates whether the stored collision data enables a double jump.
-=============
-*/
-static qboolean PM_CanTriggerDoubleJump( const pmove_settings_t *settings, int commandTime, int timeDelta ) {
-	int	supportDelta;
-	int	groundDelta;
-
-	if ( !pm || !pm->ps || !settings ) {
-		return qfalse;
-	}
-
-	if ( !settings->doubleJump ) {
-		PM_ResetDoubleJumpSupport();
-		return qfalse;
-	}
-
-	if ( pm->ps->pm_flags & PMF_DOUBLE_JUMP ) {
-		return qfalse;
-	}
-
-	if ( pm->ps->doubleJumpEntNum == ENTITYNUM_NONE ) {
-		PM_ResetDoubleJumpSupport();
-		return qfalse;
-	}
-
-	if ( pm->ps->doubleJumpTime <= 0 ) {
-		PM_ResetDoubleJumpSupport();
-		return qfalse;
-	}
-
-	if ( commandTime < pm->ps->doubleJumpTime ) {
-		PM_ResetDoubleJumpSupport();
-		return qfalse;
-	}
-
-	if ( pm->ps->doubleJumpNormal[2] >= MIN_WALK_NORMAL ) {
-		PM_ResetDoubleJumpSupport();
-		return qfalse;
-	}
-
-	supportDelta = commandTime - pm->ps->doubleJumpTime;
-	if ( supportDelta < 0 ) {
-		supportDelta = 0;
-	}
-	if ( settings->jumpTimeDeltaMin > 0.0f && (float)supportDelta > settings->jumpTimeDeltaMin ) {
-		PM_ResetDoubleJumpSupport();
-		return qfalse;
-	}
-
-	if ( pm->ps->groundTraceLatestTime > 0 && pm->ps->groundTraceLatestTime >= pm->ps->doubleJumpTime ) {
-		groundDelta = pm->ps->groundTraceLatestTime - pm->ps->doubleJumpTime;
-		if ( groundDelta < 0 ) {
-			groundDelta = 0;
-		}
-		if ( settings->jumpTimeDeltaMin > 0.0f && (float)groundDelta > settings->jumpTimeDeltaMin ) {
-			PM_ResetDoubleJumpSupport();
-			return qfalse;
-		}
-	}
-
-	if ( timeDelta >= 0 && settings->jumpTimeDeltaMin > 0.0f ) {
-		if ( (float)timeDelta >= settings->jumpTimeDeltaMin ) {
-			return qfalse;
-		}
-	}
-
-	return qtrue;
 }
 
 /*
@@ -650,7 +529,6 @@ static void PM_Friction( void ) {
 	float	drop;
 	const pmove_settings_t	*settings;
 	float	frictionScale;
-	float	waterFrictionScale;
 	
 	vel = pm->ps->velocity;
 	settings = PM_GetActiveSettings();
@@ -677,26 +555,14 @@ static void PM_Friction( void ) {
 				control = speed < pm_stopspeed ? pm_stopspeed : speed;
 				frictionScale = 1.0f;
 
-				if ( ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) && settings->crouchSlide ) {
+				if ( ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) && settings->crouchSlide
+					&& pm->cmd.upmove < 0 && pm->ps->crouchSlideTime > 0 ) {
 					float targetScale = settings->crouchSlideFriction;
-					float slideDuration = ( settings->crouchSlideTime > 0 ) ? (float)settings->crouchSlideTime : 0.0f;
-					float timeLeft = (float)pm->ps->crouchSlideTime;
 
 					if ( targetScale < 0.0f ) {
 						targetScale = 0.0f;
 					}
-
-					if ( slideDuration > 0.0f ) {
-						if ( timeLeft < 0.0f ) {
-							timeLeft = 0.0f;
-						} else if ( timeLeft > slideDuration ) {
-							timeLeft = slideDuration;
-						}
-
-						frictionScale = targetScale + ( 1.0f - targetScale ) * ( 1.0f - ( timeLeft / slideDuration ) );
-					} else {
-						frictionScale = targetScale;
-					}
+					frictionScale = targetScale;
 
 					if ( frictionScale < 0.0f ) {
 						frictionScale = 0.0f;
@@ -710,15 +576,7 @@ static void PM_Friction( void ) {
 
 	// apply water friction even if just wading
 	if ( pm->waterlevel ) {
-		if ( pm->waterlevel >= 3 ) {
-			waterFrictionScale = pm_swimScale;
-		} else if ( pm->waterlevel == 2 ) {
-			waterFrictionScale = 0.5f * ( pm_wadeScale + pm_swimScale );
-		} else {
-			waterFrictionScale = pm_wadeScale;
-		}
-
-		drop += speed * pm_waterfriction * pm->waterlevel * waterFrictionScale * pml.frametime;
+		drop += speed * pm_waterfriction * pm->waterlevel * pml.frametime;
 	}
 
 	// apply flying friction
@@ -756,6 +614,7 @@ static void PM_Accelerate( vec3_t wishdir, float wishspeed, float accel ) {
 	float	addSpeed;
 	float	accelSpeed;
 	float	effectiveAccel = accel;
+	qboolean	airborneMove = qfalse;
 	int		i;
 
 	if ( pm_wishspeed > 0.0f && cappedWishSpeed > pm_wishspeed ) {
@@ -764,7 +623,11 @@ static void PM_Accelerate( vec3_t wishdir, float wishspeed, float accel ) {
 
 	currentSpeed = DotProduct( pm->ps->velocity, wishdir );
 
-	if ( pm_bunnyhop || pm_autohop ) {
+	if ( pm && pm->ps && pm->ps->pm_type == PM_NORMAL && !pml.walking && pm->waterlevel <= 1 ) {
+		airborneMove = qtrue;
+	}
+
+	if ( airborneMove && ( pm_bunnyhop || pm_autohop ) ) {
 		if ( pm_airstopaccelerate > 0.0f && currentSpeed < 0.0f ) {
 			effectiveAccel = pm_airstopaccelerate;
 		} else if ( pm_strafeaccelerate > 0.0f ) {
@@ -972,7 +835,7 @@ static void PM_ApplyJumpPlanarVelocity( qboolean chainJumpActive, qboolean rampJ
 PM_CheckJump
 =============
 */
-static qboolean PM_CheckJump( void ) {
+static qboolean PM_CheckJump( qboolean allowAirDoubleJump ) {
 	const pmove_settings_t	*settings;
 	float			jumpVelocity;
 	float			jumpVelocityScale;
@@ -994,37 +857,51 @@ static qboolean PM_CheckJump( void ) {
 	settings = PM_GetActiveSettings();
 	releaseRequired = PM_ShouldRequireJumpRelease( settings );
 
-	// must wait for jump to be released
-	if ( releaseRequired && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
-		// clear upmove so cmdscale doesn't lower running speed
-		pm->cmd.upmove = 0;
-		return qfalse;
+	if ( allowAirDoubleJump ) {
+		if ( !settings->doubleJump || pm->ps->doubleJumped ) {
+			return qfalse;
+		}
+
+		// retail air double jumps still require a fresh jump press.
+		if ( pm->ps->pm_flags & PMF_JUMP_HELD ) {
+			pm->cmd.upmove = 0;
+			return qfalse;
+		}
+	} else {
+		// must wait for jump to be released
+		if ( releaseRequired && ( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
+			// clear upmove so cmdscale doesn't lower running speed
+			pm->cmd.upmove = 0;
+			return qfalse;
+		}
 	}
 
 	jumpVelocity = ( settings->jumpVelocity > 0.0f ) ? settings->jumpVelocity : JUMP_VELOCITY;
 	jumpVelocityScale = 1.0f;
 	chainJumpActive = qfalse;
-	rampJumpActive = qfalse;
-	doubleJumpActive = qfalse;
 	timeDelta = -1;
 
 	jumpVelocityScale = PM_EvaluateJumpVelocityScale( pm->ps, settings, pm->cmd.serverTime, &timeDelta );
 
 	if ( settings->jumpTimeDeltaMin > 0.0f && timeDelta >= 0 ) {
 		if ( (float)timeDelta < settings->jumpTimeDeltaMin ) {
-			if ( settings->doubleJump && PM_CanTriggerDoubleJump( settings, pm->cmd.serverTime, timeDelta ) ) {
-				doubleJumpActive = qtrue;
-			} else if ( settings->chainJump ) {
-				chainJumpActive = qtrue;
-			} else {
-				return qfalse;
-			}
+			pm->cmd.upmove = 0;
+			return qfalse;
 		}
 	}
 
-	if ( settings->rampJump && pm->ps->groundTraceLatestEntNum != ENTITYNUM_NONE ) {
-		if ( pm->ps->groundTraceLatestNormal[2] < 0.999f ) {
-			rampJumpActive = qtrue;
+	rampJumpActive = qfalse;
+	doubleJumpActive = allowAirDoubleJump;
+
+	if ( !allowAirDoubleJump ) {
+		if ( settings->chainJump && jumpVelocityScale > 1.0f ) {
+			chainJumpActive = qtrue;
+		}
+
+		if ( settings->rampJump && pm->ps->groundTraceLatestEntNum != ENTITYNUM_NONE ) {
+			if ( pm->ps->groundTraceLatestNormal[2] < 0.999f ) {
+				rampJumpActive = qtrue;
+			}
 		}
 	}
 
@@ -1041,20 +918,22 @@ static qboolean PM_CheckJump( void ) {
 	pml.groundPlane = qfalse;		// jumping away
 	pml.walking = qfalse;
 	pm->ps->pm_flags |= PMF_JUMP_HELD;
+	if ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) {
+		pm->ps->crouchSlideTime = 0;
+	}
 
 	pm->ps->groundEntityNum = ENTITYNUM_NONE;
 	pm->ps->groundTraceLatestEntNum = ENTITYNUM_NONE;
 	pm->ps->groundTraceLatestTime = pm->cmd.serverTime;
+	pm->ps->jumpTime = pm->cmd.serverTime;
 	VectorClear( pm->ps->groundTraceLatestNormal );
 	pm->ps->velocity[2] = jumpVelocity;
 
 	if ( doubleJumpActive ) {
 		PM_AddEvent( EV_DOUBLE_JUMP );
-		pm->ps->pm_flags |= PMF_DOUBLE_JUMP;
-		PM_ResetDoubleJumpSupport();
+		pm->ps->doubleJumped = qtrue;
 	} else {
 		PM_AddEvent( EV_JUMP );
-		pm->ps->pm_flags &= ~PMF_DOUBLE_JUMP;
 	}
 
 	if ( chainJumpActive ) {
@@ -1290,10 +1169,6 @@ static void PM_FlyMove( void ) {
 	PM_Accelerate (wishdir, wishspeed, pm_flyaccelerate);
 
 	PM_StepSlideMove( qfalse, pm_stepHeight );
-
-	if ( !( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) ) {
-		PM_ApplyStepJump( pml.stepUp, qfalse );
-	}
 }
 
 
@@ -1304,6 +1179,7 @@ PM_AirMove
 ===================
 */
 static void PM_AirMove( void ) {
+	const pmove_settings_t	*settings;
 	int		i;
 	vec3_t	wishvel;
 	float	fmove, smove;
@@ -1311,9 +1187,8 @@ static void PM_AirMove( void ) {
 	float	wishspeed;
 	float	scale;
 	usercmd_t	cmd;
-	int		stepIndex;
-	int		stepCount;
 
+	settings = PM_GetActiveSettings();
 	PM_Friction();
 
 	fmove = pm->cmd.forwardmove;
@@ -1362,22 +1237,10 @@ static void PM_AirMove( void ) {
 		PM_ClipVelocity( pm->ps->velocity, pml.groundTrace.plane.normal, pm->ps->velocity, OVERCLIP );
 	}
 
-	stepCount = ( pm_airsteps > 1 ) ? pm_airsteps : 1;
-	for ( stepIndex = 0; stepIndex < stepCount; stepIndex++ ) {
-		PM_StepSlideMove( qtrue, pm_stepHeight );
+	PM_StepSlideMove( qtrue, pm_stepHeight );
 
-		if ( stepIndex + 1 < stepCount ) {
-			float stepFriction = pm_airstepfriction;
-
-			if ( stepFriction < 0.0f ) {
-				stepFriction = 0.0f;
-			}
-
-			if ( stepFriction != 1.0f ) {
-				pm->ps->velocity[0] *= stepFriction;
-				pm->ps->velocity[1] *= stepFriction;
-			}
-		}
+	if ( settings && settings->doubleJump ) {
+		PM_CheckJump( qtrue );
 	}
 }
 
@@ -1427,11 +1290,13 @@ PM_WalkMove
 ===================
 */
 static void PM_WalkMove( void ) {
+	const pmove_settings_t	*settings;
 	int			i;
 	vec3_t		wishvel;
 	float		fmove, smove;
 	vec3_t		wishdir;
 	float		wishspeed;
+	float		duckScale;
 	float		scale;
 	usercmd_t	cmd;
 	float		accelerate;
@@ -1443,8 +1308,9 @@ static void PM_WalkMove( void ) {
 		return;
 	}
 
+	settings = PM_GetActiveSettings();
 
-	if ( PM_CheckJump () ) {
+	if ( PM_CheckJump( qfalse ) ) {
 		// jumped away
 		if ( pm->waterlevel > 1 ) {
 			PM_WaterMove();
@@ -1455,6 +1321,13 @@ static void PM_WalkMove( void ) {
 	}
 
 	PM_Friction ();
+
+	if ( ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) && pm->cmd.upmove >= 0 && settings->crouchSlideTime > 0 ) {
+		pm->ps->crouchSlideTime += pml.msec * 5;
+		if ( pm->ps->crouchSlideTime > settings->crouchSlideTime ) {
+			pm->ps->crouchSlideTime = settings->crouchSlideTime;
+		}
+	}
 
 	fmove = pm->cmd.forwardmove;
 	smove = pm->cmd.rightmove;
@@ -1488,8 +1361,13 @@ static void PM_WalkMove( void ) {
 
 	// clamp the speed lower if ducking
 	if ( pm->ps->pm_flags & PMF_DUCKED ) {
-		if ( wishspeed > pm->ps->speed * pm_duckScale ) {
-			wishspeed = pm->ps->speed * pm_duckScale;
+		duckScale = pm_duckScale;
+		if ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) {
+			duckScale = 0.75f;
+		}
+
+		if ( wishspeed > pm->ps->speed * duckScale ) {
+			wishspeed = pm->ps->speed * duckScale;
 		}
 	}
 
@@ -1497,12 +1375,10 @@ static void PM_WalkMove( void ) {
 	if ( pm->waterlevel ) {
 		float	waterScale;
 
-		if ( pm->waterlevel >= 3 ) {
-			waterScale = pm_swimScale;
-		} else if ( pm->waterlevel == 2 ) {
-			waterScale = 0.5f * ( pm_wadeScale + pm_swimScale );
-		} else {
+		if ( pm->waterlevel == 1 ) {
 			waterScale = pm_wadeScale;
+		} else {
+			waterScale = 1.0f - ( ( (float)pm->waterlevel ) / 3.0f ) * ( 1.0f - pm_swimScale );
 		}
 
 		if ( waterScale > 0.0f && wishspeed > pm->ps->speed * waterScale ) {
@@ -1546,10 +1422,6 @@ static void PM_WalkMove( void ) {
 	}
 
 	PM_StepSlideMove( qfalse, pm_stepHeight );
-
-	if ( !( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) ) {
-		PM_ApplyStepJump( pml.stepUp, qfalse );
-	}
 
 	//Com_Printf("velocity2 = %1.1f\n", VectorLength(pm->ps->velocity));
 
@@ -1955,6 +1827,7 @@ static void PM_GroundTrace( void ) {
 	pml.groundPlane = qtrue;
 	pml.walking = qtrue;
 	pm->ps->pm_flags &= ~( PMF_RAMP_JUMP | PMF_CHAIN_JUMP );
+	pm->ps->doubleJumped = qfalse;
 	pm->ps->groundTraceLatestTime = pm->cmd.serverTime;
 	pm->ps->groundTraceLatestEntNum = trace.entityNum;
 	VectorCopy( trace.plane.normal, pm->ps->groundTraceLatestNormal );
@@ -1973,8 +1846,6 @@ static void PM_GroundTrace( void ) {
 		}
 		
 		PM_CrashLand();
-
-		pm->ps->pm_flags &= ~PMF_DOUBLE_JUMP;
 
 		// don't do landing time if we were just going down a slope
 		if ( pml.previous_velocity[2] < -200 ) {
@@ -2048,53 +1919,30 @@ Maintains crouch slide timers and activation flags after duck state updates.
 static void PM_UpdateCrouchSlideState( qboolean wasDucked ) {
 	const pmove_settings_t	*settings;
 	qboolean	crouched;
-	float	horizontalSpeed;
 
+	(void)wasDucked;
 	settings = PM_GetActiveSettings();
 	crouched = ( pm->ps->pm_flags & PMF_DUCKED ) ? qtrue : qfalse;
 
-	if ( !settings->crouchSlide || !crouched ) {
-		pm->ps->pm_flags &= ~PMF_CROUCH_SLIDE;
+	if ( crouched && pm->cmd.upmove < 0 && pm->ps->crouchTime == 0 ) {
+		pm->ps->crouchTime = pm->cmd.serverTime;
+	}
+
+	if ( !settings->crouchSlide || !( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) || settings->crouchSlideTime <= 0 ) {
 		pm->ps->crouchSlideTime = 0;
-		pm->ps->crouchTime = 0;
 		return;
 	}
 
-	if ( pm->ps->crouchTime < 0 ) {
-		pm->ps->crouchTime = 0;
+	if ( pm->ps->crouchSlideTime < 0 ) {
+		pm->ps->crouchSlideTime = 0;
 	}
 
-	pm->ps->crouchTime += pml.msec;
-	if ( settings->crouchSlideTime > 0 && pm->ps->crouchTime > settings->crouchSlideTime ) {
-		pm->ps->crouchTime = settings->crouchSlideTime;
-	}
-
-	horizontalSpeed = sqrtf( pm->ps->velocity[0] * pm->ps->velocity[0] + pm->ps->velocity[1] * pm->ps->velocity[1] );
-
-	if ( !wasDucked && pm->ps->groundEntityNum != ENTITYNUM_NONE && horizontalSpeed > 0.0f ) {
-		pm->ps->pm_flags |= PMF_CROUCH_SLIDE;
+	if ( pm->ps->crouchSlideTime > settings->crouchSlideTime ) {
 		pm->ps->crouchSlideTime = settings->crouchSlideTime;
 	}
 
-	if ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) {
-		if ( settings->crouchSlideTime > 0 && pm->ps->crouchSlideTime > settings->crouchSlideTime ) {
-			pm->ps->crouchSlideTime = settings->crouchSlideTime;
-		}
-
-		if ( settings->crouchSlideTime > 0 ) {
-			pm->ps->crouchSlideTime -= pml.msec;
-			if ( pm->ps->crouchSlideTime < 0 ) {
-				pm->ps->crouchSlideTime = 0;
-			}
-		}
-
-		if ( pm->ps->groundEntityNum == ENTITYNUM_NONE ) {
-			pm->ps->pm_flags &= ~PMF_CROUCH_SLIDE;
-		} else if ( settings->crouchSlideTime > 0 && pm->ps->crouchSlideTime <= 0 ) {
-			pm->ps->pm_flags &= ~PMF_CROUCH_SLIDE;
-		} else if ( horizontalSpeed <= 0.0f ) {
-			pm->ps->pm_flags &= ~PMF_CROUCH_SLIDE;
-		}
+	if ( !crouched && pm->ps->crouchSlideTime != 0 ) {
+		pm->ps->crouchSlideTime = 0;
 	}
 }
 
@@ -2161,6 +2009,9 @@ static void PM_CheckDuck (void)
 
 	if (pm->ps->pm_flags & PMF_DUCKED)
 	{
+		if ( ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) && pm->ps->crouchSlideTime == 0 && pm->ps->speed < 400 ) {
+			pm->ps->speed = 400;
+		}
 		pm->maxs[2] = 16;
 		pm->ps->viewheight = CROUCH_VIEWHEIGHT;
 	}
@@ -2609,6 +2460,13 @@ static void PM_DropTimers( void ) {
 			pm->ps->torsoTimer = 0;
 		}
 	}
+
+	if ( ( pm->ps->pm_flags & PMF_CROUCH_SLIDE ) && pml.groundPlane && pm->ps->crouchSlideTime > 0 ) {
+		pm->ps->crouchSlideTime -= pml.msec;
+		if ( pm->ps->crouchSlideTime < 0 ) {
+			pm->ps->crouchSlideTime = 0;
+		}
+	}
 }
 
 /*
@@ -2665,6 +2523,12 @@ void PmoveSingle (pmove_t *pmove) {
 	PM_LoadMoveParams( pm->pmoveParams );
 	PM_LoadMoveSettings();
 	settings = PM_GetActiveSettings();
+	if ( settings->crouchSlide ) {
+		pm->ps->pm_flags |= PMF_CROUCH_SLIDE;
+	} else {
+		pm->ps->pm_flags &= ~PMF_CROUCH_SLIDE;
+		pm->ps->crouchSlideTime = 0;
+	}
 
 	if ( pm->debugLevel > 1 ) {
 		Com_Printf( "pmove_cfg: wish=%.3f airAccel=%.3f airControl=%.3f airSteps=%d stop=%.3f strafe=%.3f autoHop=%d bunnyHop=%d\n",
@@ -2870,6 +2734,9 @@ Can be called by either the server or the client
 void Pmove (pmove_t *pmove) {
 	int			finalTime;
 
+	pmove->stepUp = 0.0f;
+	pmove->stepUpTime = 0;
+
 	finalTime = pmove->cmd.serverTime;
 
 	if ( finalTime < pmove->ps->commandTime ) {
@@ -2903,6 +2770,10 @@ void Pmove (pmove_t *pmove) {
 		originalUpmove = pmove->cmd.upmove;
 		pmove->cmd.serverTime = pmove->ps->commandTime + msec;
 		PmoveSingle( pmove );
+		if ( pml.stepUp > 0.0f ) {
+			pmove->stepUp += pml.stepUp;
+			pmove->stepUpTime = pmove->cmd.serverTime;
+		}
 
 		if ( ( pmove->ps->pm_flags & PMF_JUMP_HELD ) && originalUpmove >= 10 ) {
 			pmove->cmd.upmove = 20;

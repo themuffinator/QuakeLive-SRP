@@ -410,12 +410,9 @@ static qboolean	CG_FindClientHeadFile( char *filename, int length, clientInfo_t 
 		team = "default";
 	}
 
+	headsFolder = "";
 	if ( headModelName[0] == '*' ) {
-		headsFolder = "heads/";
 		headModelName++;
-	}
-	else {
-		headsFolder = "";
 	}
 	while(1) {
 		for ( i = 0; i < 2; i++ ) {
@@ -558,7 +555,7 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 	}
 
 	if( headName[0] == '*' ) {
-		Com_sprintf( filename, sizeof( filename ), "models/players/heads/%s/%s.md3", &headModelName[1], &headModelName[1] );
+		Com_sprintf( filename, sizeof( filename ), "models/players/%s/head.md3", &headName[1] );
 	}
 	else {
 		Com_sprintf( filename, sizeof( filename ), "models/players/%s/head.md3", headName );
@@ -608,6 +605,9 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 		ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
 	}
 	else if ( CG_FindClientHeadFile( filename, sizeof(filename), ci, teamName, headName, headSkinName, "icon", "tga" ) ) {
+		ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
+	}
+	else if ( CG_FindClientHeadFile( filename, sizeof(filename), ci, teamName, headName, headSkinName, "icon", "png" ) ) {
 		ci->modelIcon = trap_R_RegisterShaderNoMip( filename );
 	}
 
@@ -705,7 +705,7 @@ static void CG_LoadClientInfo( clientInfo_t *ci ) {
 				CG_Error( "DEFAULT_TEAM_MODEL / skin (%s/%s) failed to register", DEFAULT_TEAM_MODEL, ci->skinName );
 			}
 		} else {
-			if ( !CG_RegisterClientModelname( ci, DEFAULT_MODEL, "default", DEFAULT_MODEL, "default", teamname ) ) {
+			if ( !CG_RegisterClientModelname( ci, DEFAULT_MODEL, "default", DEFAULT_HEAD, "default", teamname ) ) {
 				CG_Error( "DEFAULT_MODEL (%s) failed to register", DEFAULT_MODEL );
 			}
 		}
@@ -1423,18 +1423,18 @@ void CG_NewClientInfo( int clientNum ) {
 			if ( slash ) {
 				Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
 			}
-		} else {
-			Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
+		}
+	} else {
+		Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
 
-			slash = strchr( newInfo.headModelName, '/' );
-			if ( !slash ) {
-				// modelName didn not include a skin name
-				Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
-			} else {
-				Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
-				// truncate modelName
-				*slash = 0;
-			}
+		slash = strchr( newInfo.headModelName, '/' );
+		if ( !slash ) {
+			// modelName didn not include a skin name
+			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
+		} else {
+			Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
+			// truncate modelName
+			*slash = 0;
 		}
 	}
 

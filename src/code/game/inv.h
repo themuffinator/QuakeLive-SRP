@@ -101,62 +101,65 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MODELINDEX_GAUNTLET             9
 #define MODELINDEX_SHOTGUN              10
 #define MODELINDEX_MACHINEGUN           11
-#define MODELINDEX_HEAVYMACHINEGUN      12
-#define MODELINDEX_GRENADELAUNCHER      13
-#define MODELINDEX_ROCKETLAUNCHER       14
-#define MODELINDEX_LIGHTNING            15
-#define MODELINDEX_RAILGUN              16
-#define MODELINDEX_PLASMAGUN            17
-#define MODELINDEX_BFG10K               18
-#define MODELINDEX_GRAPPLINGHOOK        19
+#define MODELINDEX_GRENADELAUNCHER      12
+#define MODELINDEX_ROCKETLAUNCHER       13
+#define MODELINDEX_LIGHTNING            14
+#define MODELINDEX_RAILGUN              15
+#define MODELINDEX_PLASMAGUN            16
+#define MODELINDEX_BFG10K               17
+#define MODELINDEX_GRAPPLINGHOOK        18
 
-#define MODELINDEX_SHELLS               20
-#define MODELINDEX_BULLETS              21
-#define MODELINDEX_HEAVYBULLETS         22
-#define MODELINDEX_GRENADES             23
-#define MODELINDEX_CELLS                24
-#define MODELINDEX_LIGHTNINGAMMO        25
-#define MODELINDEX_ROCKETS              26
-#define MODELINDEX_SLUGS                27
-#define MODELINDEX_BFGAMMO              28
+#define MODELINDEX_SHELLS               19
+#define MODELINDEX_BULLETS              20
+#define MODELINDEX_GRENADES             21
+#define MODELINDEX_CELLS                22
+#define MODELINDEX_LIGHTNINGAMMO        23
+#define MODELINDEX_ROCKETS              24
+#define MODELINDEX_SLUGS                25
+#define MODELINDEX_BFGAMMO              26
 
-#define MODELINDEX_TELEPORTER           29
-#define MODELINDEX_MEDKIT               30
-#define MODELINDEX_SILVERKEY            31
-#define MODELINDEX_GOLDKEY              32
-#define MODELINDEX_MASTERKEY            33
-#define MODELINDEX_QUAD                 34
-#define MODELINDEX_ENVIRONMENTSUIT      35
-#define MODELINDEX_HASTE                36
-#define MODELINDEX_INVISIBILITY         37
-#define MODELINDEX_REGEN                38
-#define MODELINDEX_FLIGHT               39
+#define MODELINDEX_TELEPORTER           27
+#define MODELINDEX_MEDKIT               28
+#define MODELINDEX_QUAD                 29
+#define MODELINDEX_ENVIRONMENTSUIT      30
+#define MODELINDEX_HASTE                31
+#define MODELINDEX_INVISIBILITY         32
+#define MODELINDEX_REGEN                33
+#define MODELINDEX_FLIGHT               34
 
-#define MODELINDEX_REDFLAG              40
-#define MODELINDEX_BLUEFLAG             41
+#define MODELINDEX_REDFLAG              35
+#define MODELINDEX_BLUEFLAG             36
 
 // mission pack only defines
 
-#define MODELINDEX_KAMIKAZE             42
-#define MODELINDEX_PORTAL               43
-#define MODELINDEX_INVULNERABILITY      44
+#define MODELINDEX_KAMIKAZE             37
+#define MODELINDEX_PORTAL               38
+#define MODELINDEX_INVULNERABILITY      39
 
-#define MODELINDEX_NAILS                45
-#define MODELINDEX_MINES                46
-#define MODELINDEX_BELT                 47
+#define MODELINDEX_NAILS                40
+#define MODELINDEX_MINES                41
+#define MODELINDEX_BELT                 42
 
-#define MODELINDEX_SCOUT                48
-#define MODELINDEX_GUARD                49
-#define MODELINDEX_DOUBLER              50
-#define MODELINDEX_AMMOREGEN            51
+#define MODELINDEX_SCOUT                43
+#define MODELINDEX_GUARD                44
+#define MODELINDEX_DOUBLER              45
+#define MODELINDEX_ARMORREGEN           46
+#define MODELINDEX_AMMOREGEN            MODELINDEX_ARMORREGEN
 
-#define MODELINDEX_NEUTRALFLAG          52
-#define MODELINDEX_REDCUBE              53
-#define MODELINDEX_BLUECUBE             54
+#define MODELINDEX_NEUTRALFLAG          47
+#define MODELINDEX_REDCUBE              48
+#define MODELINDEX_BLUECUBE             49
 
-#define MODELINDEX_NAILGUN              55
-#define MODELINDEX_PROXLAUNCHER         56
-#define MODELINDEX_CHAINGUN             57
+#define MODELINDEX_NAILGUN              50
+#define MODELINDEX_PROXLAUNCHER         51
+#define MODELINDEX_CHAINGUN             52
+#define MODELINDEX_SPAWNARMOR           53
+#define MODELINDEX_HEAVYMACHINEGUN      54
+#define MODELINDEX_HEAVYBULLETS         55
+#define MODELINDEX_AMMOPACK             56
+#define MODELINDEX_SILVERKEY            57
+#define MODELINDEX_GOLDKEY              58
+#define MODELINDEX_MASTERKEY            59
 
 
 

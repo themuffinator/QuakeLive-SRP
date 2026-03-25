@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../game/botlib.h"
 #include "../qcommon/vm_local.h"
+#include "../../common/platform/platform_services.h"
 #include "../../../src-re/include/fs_imports.h"
 #include <stdlib.h>
 
@@ -37,51 +38,89 @@ extern qboolean getCameraInfo(int time, vec3_t *origin, vec3_t *angles);
 static qboolean cl_webBrowserVisible = qfalse;
 static char cl_webBrowserHash[MAX_STRING_CHARS];
 
+typedef struct {
+	qboolean	initialised;
+	qboolean	overlayCompiled;
+	qboolean	overlayAvailable;
+	int			frameTime;
+	int			viewWidth;
+	int			viewHeight;
+} clAdvertisementBridgeState_t;
+
+static clAdvertisementBridgeState_t cl_advertisementBridge;
+
 /*
 =============
-CL_WebStringRepresentsTrue
+CL_ResetBrowserOverlayState
 
-Returns qtrue when a text value should be treated as enabled.
+Clears the browser overlay state when the online service bridge is unavailable.
 =============
 */
-static qboolean CL_WebStringRepresentsTrue( const char *value ) {
-	if ( !value || !value[0] ) {
-		return qfalse;
-	}
-
-	if ( value[0] == '0' && value[1] == '\0' ) {
-		return qfalse;
-	}
-
-	if ( !Q_stricmp( value, "false" ) || !Q_stricmp( value, "no" ) || !Q_stricmp( value, "off" ) ) {
-		return qfalse;
-	}
-
-	return qtrue;
+static void CL_ResetBrowserOverlayState( void ) {
+	cl_webBrowserVisible = qfalse;
+	cl_webBrowserHash[0] = '\0';
+	Cvar_Set( "web_browserActive", "0" );
 }
 
 /*
 =============
-CL_WebExternalEcosystemsDisabled
+CL_GetOverlayServiceDescriptor
 
-Checks runtime environment flags that disable browser/Steam integrations.
+Returns the current platform-service descriptor for the browser overlay seam.
 =============
 */
-static qboolean CL_WebExternalEcosystemsDisabled( void ) {
-	const char *value;
+static const ql_platform_feature_descriptor *CL_GetOverlayServiceDescriptor( void ) {
+	const ql_platform_service_table *services = QL_GetPlatformServices();
 
-	value = getenv( "QL_DISABLE_EXTERNAL_ECOSYSTEMS" );
-	if ( CL_WebStringRepresentsTrue( value ) ) {
-		return qtrue;
+	if ( !services ) {
+		return NULL;
 	}
 
-	value = getenv( "QL_DISABLE_AWESOMIUM" );
-	if ( CL_WebStringRepresentsTrue( value ) ) {
-		return qtrue;
-	}
+	return &services->overlay;
+}
 
-	value = getenv( "QL_DISABLE_STEAMWORKS" );
-	return CL_WebStringRepresentsTrue( value );
+/*
+=============
+CL_OverlayServiceAvailable
+
+Returns qtrue when an online-services overlay provider is compiled and initialised.
+=============
+*/
+static qboolean CL_OverlayServiceAvailable( void ) {
+	const ql_platform_feature_descriptor *overlay = CL_GetOverlayServiceDescriptor();
+
+	return ( overlay && overlay->compiled && overlay->initialised );
+}
+
+/*
+=============
+CL_RefreshOnlineServicesBridgeState
+
+Synchronises client-visible browser and advert bridge state with the platform-service table.
+=============
+*/
+void CL_RefreshOnlineServicesBridgeState( void ) {
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	cl_advertisementBridge.overlayCompiled = qfalse;
+	cl_advertisementBridge.overlayAvailable = qfalse;
+	cl_advertisementBridge.viewWidth = 0;
+	cl_advertisementBridge.viewHeight = 0;
+	Cvar_Set( "ui_browserAwesomium", "0" );
+	CL_ResetBrowserOverlayState();
+#else
+	const ql_platform_feature_descriptor *overlay = CL_GetOverlayServiceDescriptor();
+	qboolean overlayAvailable = CL_OverlayServiceAvailable();
+
+	cl_advertisementBridge.overlayCompiled = ( overlay && overlay->compiled );
+	cl_advertisementBridge.overlayAvailable = overlayAvailable;
+	cl_advertisementBridge.viewWidth = cls.glconfig.vidWidth;
+	cl_advertisementBridge.viewHeight = cls.glconfig.vidHeight;
+
+	Cvar_Set( "ui_browserAwesomium", overlayAvailable ? "1" : "0" );
+	if ( !overlayAvailable ) {
+		CL_ResetBrowserOverlayState();
+	}
+#endif
 }
 
 /*
@@ -92,11 +131,14 @@ Marks the browser overlay as visible and records an optional hash target.
 =============
 */
 void CL_Web_ShowBrowser_f( void ) {
-	if ( CL_WebExternalEcosystemsDisabled() ) {
-		cl_webBrowserVisible = qfalse;
-		cl_webBrowserHash[0] = '\0';
-		Cvar_Set( "web_browserActive", "0" );
-		Com_DPrintf( "web_showBrowser ignored: external ecosystems disabled\n" );
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	CL_ResetBrowserOverlayState();
+	Com_DPrintf( "web_showBrowser ignored: online services disabled by build settings\n" );
+	return;
+#else
+	CL_RefreshOnlineServicesBridgeState();
+	if ( !CL_OverlayServiceAvailable() ) {
+		Com_DPrintf( "web_showBrowser ignored: browser overlay provider unavailable\n" );
 		return;
 	}
 
@@ -104,9 +146,12 @@ void CL_Web_ShowBrowser_f( void ) {
 	if ( Cmd_Argc() > 1 ) {
 		const char *hash = Cmd_ArgsFrom( 1 );
 		Q_strncpyz( cl_webBrowserHash, hash, sizeof( cl_webBrowserHash ) );
+	} else {
+		cl_webBrowserHash[0] = '\0';
 	}
 	Cvar_Set( "web_browserActive", "1" );
 	Com_DPrintf( "web_showBrowser\n" );
+#endif
 }
 
 /*
@@ -117,11 +162,14 @@ Updates the browser target and ensures the overlay remains visible.
 =============
 */
 void CL_Web_ChangeHash_f( void ) {
-	if ( CL_WebExternalEcosystemsDisabled() ) {
-		cl_webBrowserVisible = qfalse;
-		cl_webBrowserHash[0] = '\0';
-		Cvar_Set( "web_browserActive", "0" );
-		Com_DPrintf( "web_changeHash ignored: external ecosystems disabled\n" );
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	CL_ResetBrowserOverlayState();
+	Com_DPrintf( "web_changeHash ignored: online services disabled by build settings\n" );
+	return;
+#else
+	CL_RefreshOnlineServicesBridgeState();
+	if ( !CL_OverlayServiceAvailable() ) {
+		Com_DPrintf( "web_changeHash ignored: browser overlay provider unavailable\n" );
 		return;
 	}
 
@@ -130,21 +178,25 @@ void CL_Web_ChangeHash_f( void ) {
 	cl_webBrowserVisible = qtrue;
 	Cvar_Set( "web_browserActive", "1" );
 	Com_DPrintf( "web_changeHash %s\n", cl_webBrowserHash );
+#endif
 }
 
 /*
 =============
 CL_Web_BrowserActive_f
 
-Stub for toggling the browser overlay active state used by the UI VM.
+Toggles the browser overlay active state used by the UI VM.
 =============
 */
 void CL_Web_BrowserActive_f( void ) {
-	if ( CL_WebExternalEcosystemsDisabled() ) {
-		cl_webBrowserVisible = qfalse;
-		cl_webBrowserHash[0] = '\0';
-		Cvar_Set( "web_browserActive", "0" );
-		Com_DPrintf( "web_browserActive ignored: external ecosystems disabled\n" );
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	CL_ResetBrowserOverlayState();
+	Com_DPrintf( "web_browserActive ignored: online services disabled by build settings\n" );
+	return;
+#else
+	CL_RefreshOnlineServicesBridgeState();
+	if ( !CL_OverlayServiceAvailable() ) {
+		Com_DPrintf( "web_browserActive ignored: browser overlay provider unavailable\n" );
 		return;
 	}
 
@@ -153,22 +205,86 @@ void CL_Web_BrowserActive_f( void ) {
 	cl_webBrowserVisible = active;
 	Cvar_Set( "web_browserActive", active ? "1" : "0" );
 	Com_DPrintf( "web_browserActive %s\n", active ? "1" : "0" );
+#endif
 }
 
 /*
 =============
 CL_Web_StopRefresh_f
 
-Stub handler for stopping Awesomium refresh cycles triggered by UI scripts.
+Handles Awesomium refresh-stop requests when an overlay provider is active.
 =============
 */
 void CL_Web_StopRefresh_f( void ) {
-	if ( CL_WebExternalEcosystemsDisabled() ) {
-		Com_DPrintf( "web_stopRefresh ignored: external ecosystems disabled\n" );
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	Com_DPrintf( "web_stopRefresh ignored: online services disabled by build settings\n" );
+	return;
+#else
+	CL_RefreshOnlineServicesBridgeState();
+	if ( !CL_OverlayServiceAvailable() ) {
+		Com_DPrintf( "web_stopRefresh ignored: browser overlay provider unavailable\n" );
 		return;
 	}
 
 	Com_DPrintf( "web_stopRefresh\n" );
+#endif
+}
+
+/*
+====================
+CL_AdvertisementBridge_InitCGame
+
+Bridges the retail cgame advert lifecycle into the host when available.
+====================
+*/
+static void CL_AdvertisementBridge_InitCGame( void ) {
+	cl_advertisementBridge.initialised = qtrue;
+	cl_advertisementBridge.frameTime = 0;
+	CL_RefreshOnlineServicesBridgeState();
+}
+
+/*
+====================
+CL_AdvertisementBridge_ShutdownCGame
+
+Tears down the retail cgame advert lifecycle bridge when a host exists.
+====================
+*/
+static void CL_AdvertisementBridge_ShutdownCGame( void ) {
+	cl_advertisementBridge.initialised = qfalse;
+	cl_advertisementBridge.frameTime = 0;
+	CL_RefreshOnlineServicesBridgeState();
+}
+
+/*
+====================
+CL_AdvertisementBridge_UpdateLoadingViewParameters
+
+Mirrors the retail loading-text bridge tail when a host implementation exists.
+====================
+*/
+static void CL_AdvertisementBridge_UpdateLoadingViewParameters( void ) {
+	if ( !cl_advertisementBridge.initialised ) {
+		return;
+	}
+
+	CL_RefreshOnlineServicesBridgeState();
+}
+
+/*
+====================
+CL_AdvertisementBridge_SetFrameTime
+
+Mirrors the retail frame-time update used by the loading-screen bridge tail.
+====================
+*/
+static void CL_AdvertisementBridge_SetFrameTime( int frameTime ) {
+	if ( !cl_advertisementBridge.initialised ) {
+		return;
+	}
+
+	cl_advertisementBridge.frameTime = frameTime;
+	CL_RefreshOnlineServicesBridgeState();
 }
 
 /*
@@ -589,6 +705,9 @@ int CL_CgameSystemCalls( int *args ) {
 	case CG_ARGS:
 		Cmd_ArgsBuffer( VMA(1), args[2] );
 		return 0;
+	case CG_CMD_EXECUTETEXT:
+		Cbuf_ExecuteText( args[1], VMA(2) );
+		return 0;
 	case CG_FS_FOPENFILE:
 		return qlr_fs_imports.fopen_file_by_mode( VMA(1), VMA(2), args[3] );
 	case CG_FS_READ:
@@ -762,6 +881,29 @@ int CL_CgameSystemCalls( int *args ) {
 	case CG_KEY_KEYNUMTOSTRINGBUF:
 		Q_strncpyz( VMA(2), Key_KeynumToString( args[1] ), args[3] );
 		return 0;
+	case CG_KEY_GETBINDINGBUF:
+		Q_strncpyz( VMA(2), Key_GetBinding( args[1] ), args[3] );
+		return 0;
+	case CG_KEY_SETBINDING:
+		Key_SetBinding( args[1], VMA(2) );
+		return 0;
+	case CG_KEY_GETOVERSTRIKEMODE:
+		return Key_GetOverstrikeMode();
+	case CG_KEY_SETOVERSTRIKEMODE:
+		Key_SetOverstrikeMode( args[1] );
+		return 0;
+	case CG_ADVERTISEMENTBRIDGE_INITCGAME:
+		CL_AdvertisementBridge_InitCGame();
+		return 0;
+	case CG_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME:
+		CL_AdvertisementBridge_ShutdownCGame();
+		return 0;
+	case CG_ADVERTISEMENTBRIDGE_UPDATELOADINGVIEWPARAMETERS:
+		CL_AdvertisementBridge_UpdateLoadingViewParameters();
+		return 0;
+	case CG_ADVERTISEMENTBRIDGE_SETFRAMETIME:
+		CL_AdvertisementBridge_SetFrameTime( args[1] );
+		return 0;
 
 
 	case CG_MEMSET:
@@ -877,7 +1019,7 @@ static int QDECL CG_Import_Syscall( int arg, ... ) {
 
 typedef void (QDECL *ql_import_f)( void );
 
-#define QL_CGAME_IMPORT_COUNT (CG_ACOS + 1)
+#define QL_CGAME_IMPORT_COUNT (CG_ADVERTISEMENTBRIDGE_SETFRAMETIME + 1)
 
 static ql_import_f ql_cgame_imports[QL_CGAME_IMPORT_COUNT] = {
 	[CG_PRINT] = (ql_import_f)QL_CG_trap_Print,
@@ -956,6 +1098,11 @@ static ql_import_f ql_cgame_imports[QL_CGAME_IMPORT_COUNT] = {
 	[CG_KEY_SETCATCHER] = (ql_import_f)QL_CG_trap_Key_SetCatcher,
 	[CG_KEY_GETKEY] = (ql_import_f)QL_CG_trap_Key_GetKey,
 	[CG_KEY_KEYNUMTOSTRINGBUF] = (ql_import_f)QL_CG_trap_Key_KeynumToStringBuf,
+	[CG_KEY_GETBINDINGBUF] = (ql_import_f)QL_CG_trap_Key_GetBindingBuf,
+	[CG_KEY_SETBINDING] = (ql_import_f)QL_CG_trap_Key_SetBinding,
+	[CG_KEY_GETOVERSTRIKEMODE] = (ql_import_f)QL_CG_trap_Key_GetOverstrikeMode,
+	[CG_KEY_SETOVERSTRIKEMODE] = (ql_import_f)QL_CG_trap_Key_SetOverstrikeMode,
+	[CG_CMD_EXECUTETEXT] = (ql_import_f)QL_CG_trap_Cmd_ExecuteText,
 	[CG_PC_ADD_GLOBAL_DEFINE] = (ql_import_f)QL_CG_trap_PC_AddGlobalDefine,
 	[CG_PC_LOAD_SOURCE] = (ql_import_f)QL_CG_trap_PC_LoadSource,
 	[CG_PC_FREE_SOURCE] = (ql_import_f)QL_CG_trap_PC_FreeSource,
@@ -983,6 +1130,10 @@ static ql_import_f ql_cgame_imports[QL_CGAME_IMPORT_COUNT] = {
 	[CG_TESTPRINTINT] = (ql_import_f)QL_CG_trap_TestPrintInt,
 	[CG_TESTPRINTFLOAT] = (ql_import_f)QL_CG_trap_TestPrintFloat,
 	[CG_ACOS] = (ql_import_f)QL_CG_trap_ACos,
+	[CG_ADVERTISEMENTBRIDGE_INITCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_InitCGame,
+	[CG_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_ShutdownCGame,
+	[CG_ADVERTISEMENTBRIDGE_UPDATELOADINGVIEWPARAMETERS] = (ql_import_f)QL_CG_trap_AdvertisementBridge_UpdateLoadingViewParameters,
+	[CG_ADVERTISEMENTBRIDGE_SETFRAMETIME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_SetFrameTime,
 };
 
 

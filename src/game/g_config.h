@@ -11,6 +11,7 @@ extern vmCvar_t g_ammoRespawn;
 extern vmCvar_t g_startingHealth;
 extern vmCvar_t g_startingHealthBonus;
 extern vmCvar_t g_startingArmor;
+extern vmCvar_t g_armorTiered;
 
 extern vmCvar_t g_ammoPack_bfg;
 extern vmCvar_t g_ammoPack_cg;

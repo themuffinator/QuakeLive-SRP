@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 import textwrap
+import os
 from pathlib import Path
 from typing import Dict, Tuple
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -27,6 +31,28 @@ qboolean QL_Steamworks_Init( void ) {
     return QL_STEAMWORKS_INIT_RESULT;
 }
 #endif
+
+    static int qlower(int ch) {
+        return tolower(ch & 0xff);
+    }
+
+    int Q_stricmp( const char *s1, const char *s2 ) {
+        if ( !s1 ) {
+            s1 = "";
+        }
+        if ( !s2 ) {
+            s2 = "";
+        }
+
+        while ( *s1 && *s2 ) {
+            int diff = qlower(*s1++) - qlower(*s2++);
+            if ( diff ) {
+                return diff;
+            }
+        }
+
+        return qlower(*s1) - qlower(*s2);
+    }
 
     static void dump_descriptor(const char *label, const ql_platform_feature_descriptor *descriptor) {
         const char *provider = descriptor && descriptor->provider ? descriptor->provider : "<null>";
@@ -120,25 +146,25 @@ return qfalse;
         return tolower(ch & 0xff);
     }
 
-    void Com_Printf( const char *fmt, ... ) {
+    void QDECL Com_Printf( const char *fmt, ... ) {
         va_list args;
         va_start(args, fmt);
         vfprintf(stderr, fmt, args);
         va_end(args);
     }
 
-    void Com_sprintf( char *dest, int size, const char *fmt, ... ) {
+    int QDECL Com_sprintf( char *dest, int size, const char *fmt, ... ) {
         if ( !dest || size <= 0 ) {
-            return;
+            return 0;
         }
 
         va_list args;
         va_start(args, fmt);
         int written = vsnprintf(dest, (size_t)size, fmt, args);
-        (void)written;
         va_end(args);
 
         dest[size - 1] = '\\0';
+        return written;
     }
 
     void Q_strncpyz( char *dest, const char *src, int destsize ) {
@@ -203,6 +229,32 @@ return qfalse;
         return 0;
     }
 
+/*
+=============
+CL_OnlineServicesEnabled
+=============
+*/
+qboolean CL_OnlineServicesEnabled( void ) {
+#if QL_BUILD_ONLINE_SERVICES
+        return qtrue;
+#else
+        return qfalse;
+#endif
+}
+
+/*
+=============
+CL_SteamServicesEnabled
+=============
+*/
+qboolean CL_SteamServicesEnabled( void ) {
+#if QL_PLATFORM_HAS_STEAM_SERVICES
+        return CL_OnlineServicesEnabled();
+#else
+        return qfalse;
+#endif
+}
+
     int main(void) {
         ql_auth_credential_t credential;
         memset(&credential, 0, sizeof(credential));
@@ -236,18 +288,30 @@ def _compile_and_run(
     c_path = workdir / "probe.c"
     c_path.write_text(source, encoding="utf-8")
     exe_path = workdir / "probe"
+    compiler = shutil.which("gcc") or shutil.which("clang") or shutil.which("cc")
+
+    if not compiler:
+        pytest.skip("No C compiler found for platform service probe")
 
     include_args = [f"-I{REPO_ROOT}", "-Isrc/common", "-Isrc/code", "-Isrc/code/game", "-Isrc/code/qcommon"]
     if include_client_stub:
         include_args.insert(0, "-Itests/stubs")
 
     macro_args = [f"-D{key}={value}" for key, value in macros.items()]
+    platform_args = []
+
+    if os.name == "nt":
+        platform_args.extend(["-DWIN32", "-D_CRT_SECURE_NO_WARNINGS", "-Wno-return-type"])
+
+    if include_client_stub:
+        macro_args.append("-DQL_AUTH_HAS_CLIENT_BACKEND=1")
 
     compile_cmd = [
-        "gcc",
+        compiler,
         "-std=c99",
         "-Wall",
         "-Werror",
+        *platform_args,
         *include_args,
         *macro_args,
         str(c_path),
@@ -268,10 +332,48 @@ def _parse_service_output(output: str) -> Dict[str, Tuple[str, bool, bool]]:
     return services
 
 
+def _extract_function_block(text: str, signature: str) -> str:
+    start = text.find(signature)
+    if start == -1:
+        raise AssertionError(f"function signature not found: {signature}")
+
+    brace_start = text.find("{", start)
+    if brace_start == -1:
+        raise AssertionError(f"opening brace not found for: {signature}")
+
+    depth = 0
+    for index in range(brace_start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+
+    raise AssertionError(f"unterminated function block for: {signature}")
+
+
 def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
+    build_disabled = {
+        "auth": ("Build-disabled (QL_BUILD_ONLINE_SERVICES=0)", False, False),
+        "matchmaking": ("Build-disabled (QL_BUILD_ONLINE_SERVICES=0)", False, False),
+        "workshop": ("Build-disabled (QL_BUILD_ONLINE_SERVICES=0)", False, False),
+        "overlay": ("Build-disabled (QL_BUILD_ONLINE_SERVICES=0)", False, False),
+        "stats": ("Build-disabled (QL_BUILD_ONLINE_SERVICES=0)", False, False),
+    }
+
     scenarios = [
         (
-            {"QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 0},
+            {},
+            build_disabled,
+        ),
+        (
+            {"QL_BUILD_ONLINE_SERVICES": 0, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1},
+            build_disabled,
+        ),
+        (
+            {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 0},
             {
                 "auth": ("Steamworks", True, True),
                 "matchmaking": ("Steamworks", True, True),
@@ -281,7 +383,7 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
             },
         ),
         (
-            {"QL_BUILD_STEAMWORKS": 0, "QL_BUILD_OPEN_STEAM": 1},
+            {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 0, "QL_BUILD_OPEN_STEAM": 1},
             {
                 "auth": ("Open Steam Adapter", True, True),
                 "matchmaking": ("GameNetworkingSockets", True, True),
@@ -291,7 +393,7 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
             },
         ),
         (
-            {"QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1},
+            {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1},
             {
                 "auth": ("Hybrid", True, True),
                 "matchmaking": ("Hybrid: Steamworks + GameNetworkingSockets", True, True),
@@ -301,7 +403,7 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
             },
         ),
         (
-            {"QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 0, "QL_STEAMWORKS_INIT_RESULT": 0},
+            {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 0, "QL_STEAMWORKS_INIT_RESULT": 0},
             {
                 "auth": ("Steamworks", True, False),
                 "matchmaking": ("Steamworks", True, False),
@@ -311,7 +413,7 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
             },
         ),
         (
-            {"QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1, "QL_STEAMWORKS_INIT_RESULT": 0},
+            {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1, "QL_STEAMWORKS_INIT_RESULT": 0},
             {
                 "auth": ("Hybrid", True, True),
                 "matchmaking": ("Hybrid: Steamworks + GameNetworkingSockets", True, True),
@@ -334,7 +436,7 @@ def test_hybrid_fallback_accepts_when_steam_pending(tmp_path) -> None:
     output = _compile_and_run(
         workdir,
         _HYBRID_FALLBACK_PROBE,
-        {"QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1},
+        {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1},
         include_client_stub=True,
     )
 
@@ -344,3 +446,29 @@ def test_hybrid_fallback_accepts_when_steam_pending(tmp_path) -> None:
     assert details["result"] == str(QL_AUTH_RESULT_ACCEPTED := 1)
     assert details["outcome"] == str(QL_AUTH_OUTCOME_SUCCESS := 0)
     assert "Hybrid fallback accepted credential via open adapter" in details["message"]
+
+
+def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
+    cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+    cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
+
+    refresh_block = _extract_function_block(cl_cgame, "void CL_RefreshOnlineServicesBridgeState( void )")
+    assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in refresh_block
+    assert 'Cvar_Set( "ui_browserAwesomium", "0" );' in refresh_block
+    assert "CL_GetOverlayServiceDescriptor()" in refresh_block
+    assert 'Cvar_Set( "ui_browserAwesomium", overlayAvailable ? "1" : "0" );' in refresh_block
+
+    show_browser_block = _extract_function_block(cl_cgame, "void CL_Web_ShowBrowser_f( void )")
+    assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in show_browser_block
+    assert "CL_RefreshOnlineServicesBridgeState();" in show_browser_block
+    assert "CL_OnlineServicesEnabled()" not in show_browser_block
+
+    advert_init_block = _extract_function_block(cl_cgame, "static void CL_AdvertisementBridge_InitCGame( void )")
+    assert "cl_advertisementBridge.initialised = qtrue;" in advert_init_block
+    assert "CL_RefreshOnlineServicesBridgeState();" in advert_init_block
+
+    import82_block = _extract_function_block(cl_ui, "static void QDECL QL_UI_trap_Import82( void )")
+    assert "CL_RefreshOnlineServicesBridgeState();" in import82_block
+
+    init_ui_block = _extract_function_block(cl_ui, "void CL_InitUI( void )")
+    assert "CL_RefreshOnlineServicesBridgeState();" in init_ui_block
