@@ -1333,7 +1333,7 @@ if exist "$(ProjectDir)..\libs\libpng\bin\*.dll" xcopy /y /d /i "$(ProjectDir)..
     <None Include="win32\cursor3.cur" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="win32\qe3.ico" />
+    <Image Include="win32\qz.ico" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="win32\winquake.rc">

@@ -96,28 +96,28 @@
     <_ProjectFileVersion>17.0.34511.75</_ProjectFileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='vector|Win32'">
-    <OutDir>$(SolutionDir)..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
-    <IntDir>$(SolutionDir)..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <OutDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
+    <IntDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|Win32'">
-    <OutDir>$(SolutionDir)..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
-    <IntDir>$(SolutionDir)..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <OutDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
+    <IntDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
-    <IntDir>$(SolutionDir)..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <OutDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
+    <IntDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
-    <IntDir>$(SolutionDir)..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <OutDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
+    <IntDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug TA|Win32'">
-    <OutDir>$(SolutionDir)..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
-    <IntDir>$(SolutionDir)..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
+    <OutDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\bin\baseq3\</OutDir>
+    <IntDir>$(ProjectDir)..\..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup>

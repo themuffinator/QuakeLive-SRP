@@ -38,6 +38,18 @@ char systemChat[256];
 char teamChat1[256];
 char teamChat2[256];
 
+#define CG_SPEEDOMETER_HISTORY_SAMPLES	128
+#define CG_SPEEDOMETER_RANGE			960.0f
+
+static float	cg_speedometerHistory[CG_SPEEDOMETER_HISTORY_SAMPLES];
+static int	cg_speedometerHistoryCount;
+static int	cg_speedometerHistoryHead = -1;
+static int	cg_speedometerHistoryTime;
+static qhandle_t	cg_inputCmdUpShader;
+static qhandle_t	cg_inputCmdDownShader;
+static qhandle_t	cg_inputCmdRightShader;
+static qhandle_t	cg_inputCmdLeftShader;
+
 
 /*
 =============
@@ -70,6 +82,166 @@ Decides whether the HUD speedometer should be visible.
 */
 qboolean CG_ShouldDrawSpeedometer( void ) {
 	return ( qboolean )( cg_speedometer.integer != 0 );
+}
+
+/*
+=============
+CG_SampleLegacySpeedometer
+
+Samples the current horizontal movement speed for the classic HUD renderer.
+=============
+*/
+static float CG_SampleLegacySpeedometer( void ) {
+	vec3_t	horizontalVelocity;
+
+	if ( !cg.snap ) {
+		return 0.0f;
+	}
+
+	VectorCopy( cg.snap->ps.velocity, horizontalVelocity );
+	horizontalVelocity[2] = 0.0f;
+	return VectorLength( horizontalVelocity );
+}
+
+/*
+=============
+CG_RecordSpeedometerSample
+
+Maintains the retail-style 128-sample history ring used by the classic HUD
+speedometer graph.
+=============
+*/
+static void CG_RecordSpeedometerSample( void ) {
+	if ( !cg.snap ) {
+		cg_speedometerHistoryCount = 0;
+		cg_speedometerHistoryHead = -1;
+		cg_speedometerHistoryTime = cg.time;
+		return;
+	}
+
+	if ( cg_speedometerHistoryTime == cg.time ) {
+		return;
+	}
+
+	if ( cg_speedometerHistoryTime > cg.time ) {
+		cg_speedometerHistoryCount = 0;
+		cg_speedometerHistoryHead = -1;
+	}
+
+	cg_speedometerHistoryHead = ( cg_speedometerHistoryHead + 1 ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );
+	cg_speedometerHistory[cg_speedometerHistoryHead] = CG_SampleLegacySpeedometer();
+	if ( cg_speedometerHistoryCount < CG_SPEEDOMETER_HISTORY_SAMPLES ) {
+		cg_speedometerHistoryCount++;
+	}
+	cg_speedometerHistoryTime = cg.time;
+}
+
+/*
+=============
+CG_RegisterInputCmdShaders
+
+Lazily registers the retail race command-arrow icons used by the classic HUD.
+=============
+*/
+static void CG_RegisterInputCmdShaders( void ) {
+	if ( !cg_inputCmdUpShader ) {
+		cg_inputCmdUpShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/cmd_up" );
+	}
+	if ( !cg_inputCmdDownShader ) {
+		cg_inputCmdDownShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/cmd_down" );
+	}
+	if ( !cg_inputCmdRightShader ) {
+		cg_inputCmdRightShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/cmd_right" );
+	}
+	if ( !cg_inputCmdLeftShader ) {
+		cg_inputCmdLeftShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/cmd_left" );
+	}
+}
+
+/*
+=============
+CG_DrawInputCmds
+
+Restores the retail classic-HUD command arrow slab, using live usercmd bytes
+for the local player and mirrored playerstate bytes for follow/demo playback.
+=============
+*/
+static void CG_DrawInputCmds( void ) {
+	usercmd_t	cmd;
+	float		x;
+	float		y;
+	float		size;
+	int		cmdNum;
+	int		forwardMove;
+	int		rightMove;
+	int		upMove;
+	qhandle_t	upShader;
+	qhandle_t	downShader;
+	qhandle_t	rightShader;
+	qhandle_t	leftShader;
+
+	if ( !cg.snap || cg_drawInputCmds.integer == 0 ) {
+		return;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return;
+	}
+
+	if ( cg_drawInputCmds.integer == 2 && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return;
+	}
+
+	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) || cg.demoPlayback ) {
+		forwardMove = cg.snap->ps.forwardmove;
+		rightMove = cg.snap->ps.rightmove;
+		upMove = cg.snap->ps.upmove;
+	} else {
+		cmdNum = trap_GetCurrentCmdNumber();
+		if ( !trap_GetUserCmd( cmdNum, &cmd ) ) {
+			return;
+		}
+
+		forwardMove = cmd.forwardmove;
+		rightMove = cmd.rightmove;
+		upMove = cmd.upmove;
+	}
+
+	CG_RegisterInputCmdShaders();
+	upShader = cg_inputCmdUpShader;
+	downShader = cg_inputCmdDownShader;
+	rightShader = cg_inputCmdRightShader;
+	leftShader = cg_inputCmdLeftShader;
+	if ( !upShader || !downShader || !rightShader || !leftShader ) {
+		return;
+	}
+
+	x = cg_drawInputCmdsX.value;
+	y = cg_drawInputCmdsY.value;
+	size = cg_drawInputCmdsSize.value;
+
+	if ( forwardMove > 0 ) {
+		CG_DrawPic( x - 8.0f, y - size - 16.0f, 16.0f, 16.0f, upShader );
+	}
+	if ( forwardMove < 0 ) {
+		CG_DrawPic( x - 8.0f, y + size, 16.0f, 16.0f, downShader );
+	}
+	if ( rightMove > 0 ) {
+		CG_DrawPic( x + size, y - 8.0f, 16.0f, 16.0f, rightShader );
+	}
+	if ( rightMove < 0 ) {
+		CG_DrawPic( x - size - 16.0f, y - 8.0f, 16.0f, 16.0f, leftShader );
+	}
+	if ( upMove > 0 ) {
+		CG_DrawPic( x + size + 16.0f, y - size - 16.0f, 16.0f, 16.0f, upShader );
+	}
+	if ( upMove < 0 ) {
+		CG_DrawPic( x + size + 16.0f, y + size, 16.0f, 16.0f, downShader );
+	}
 }
 
 /*
@@ -301,6 +473,458 @@ static qboolean CG_WorldCoordToScreenCoord( const vec3_t world, float *x, float 
 	return qtrue;
 }
 
+#define CG_TEAMMATE_POI_LABEL_SCALE			0.22f
+#define CG_TEAMMATE_POI_ICON_SIZE			10.0f
+#define CG_TEAMMATE_POI_BAR_HEIGHT			3.0f
+#define CG_TEAMMATE_POI_PADDING_X			3.0f
+#define CG_TEAMMATE_POI_PADDING_Y			2.0f
+#define CG_TEAMMATE_POI_WORLD_Z_OFFSET		48.0f
+#define CG_TEAMMATE_POI_MAX_LABEL_CHARS		40
+#define CG_TEAMMATE_POI_MAX_ICONS			4
+
+/*
+=============
+CG_ShouldDrawTeammatePOIs
+
+Applies the retail-style teammate POI gates before the projected pass runs.
+=============
+*/
+static qboolean CG_ShouldDrawTeammatePOIs( void ) {
+	team_t	myTeam;
+
+	if ( !cg.snap || cgs.gametype < GT_TEAM ) {
+		return qfalse;
+	}
+
+	myTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+	if ( myTeam != TEAM_RED && myTeam != TEAM_BLUE ) {
+		return qfalse;
+	}
+
+	if ( cg.predictedPlayerState.stats[STAT_HEALTH] <= 0 ) {
+		return qfalse;
+	}
+
+	if ( cg_teammateNames.integer == 0 && cg_teammatePOIs.integer == 0 ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_GetTeammatePOIArmorColor
+
+Matches the retail armor tier colors used by the HUD bar paths.
+=============
+*/
+static void CG_GetTeammatePOIArmorColor( int armor, vec4_t color ) {
+	if ( armor >= 150 ) {
+		color[0] = 0.9f;
+		color[1] = 0.15f;
+		color[2] = 0.15f;
+		color[3] = 1.0f;
+	} else if ( armor >= 100 ) {
+		color[0] = 0.95f;
+		color[1] = 0.75f;
+		color[2] = 0.2f;
+		color[3] = 1.0f;
+	} else if ( armor > 0 ) {
+		color[0] = 0.2f;
+		color[1] = 0.8f;
+		color[2] = 0.2f;
+		color[3] = 1.0f;
+	} else {
+		color[0] = 0.4f;
+		color[1] = 0.4f;
+		color[2] = 0.4f;
+		color[3] = 0.6f;
+	}
+}
+
+/*
+=============
+CG_TeammatePOILocation
+
+Returns the location string used by the projected teammate label.
+=============
+*/
+static const char *CG_TeammatePOILocation( const clientInfo_t *ci ) {
+	const char	*location;
+
+	if ( !ci || ci->location <= 0 ) {
+		return "";
+	}
+
+	location = CG_ConfigString( CS_LOCATIONS + ci->location );
+	if ( !location || !location[0] ) {
+		return "";
+	}
+
+	return location;
+}
+
+/*
+=============
+CG_TrimTeammatePOILabelToWidth
+
+Applies the retail-style ".." prefix when the projected label would overrun its width budget.
+=============
+*/
+static void CG_TrimTeammatePOILabelToWidth( const char *source, char *buffer, size_t bufferSize, float scale, float maxWidth ) {
+	const char	*trimmed;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	if ( !source || !source[0] ) {
+		buffer[0] = '\0';
+		return;
+	}
+
+	Q_strncpyz( buffer, source, bufferSize );
+	if ( maxWidth <= 0.0f || CG_Text_Width( buffer, scale, 0 ) <= maxWidth ) {
+		return;
+	}
+
+	trimmed = source;
+	while ( *trimmed ) {
+		Com_sprintf( buffer, bufferSize, "..%s", trimmed );
+		if ( CG_Text_Width( buffer, scale, 0 ) <= maxWidth ) {
+			return;
+		}
+		trimmed++;
+	}
+
+	Q_strncpyz( buffer, "..", bufferSize );
+}
+
+/*
+=============
+CG_BuildTeammatePOILabel
+
+Builds the retail-style name/location slab used above projected teammates.
+=============
+*/
+static void CG_BuildTeammatePOILabel( const clientInfo_t *ci, char *buffer, size_t bufferSize ) {
+	char		baseLabel[128];
+	const char	*location;
+	float		maxWidth;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+	if ( !ci || !ci->infoValid ) {
+		return;
+	}
+
+	location = CG_TeammatePOILocation( ci );
+	if ( cg_teammateNames.integer ) {
+		if ( location[0] ) {
+			Com_sprintf( baseLabel, sizeof( baseLabel ), "%s [%s]", ci->name, location );
+		} else {
+			Q_strncpyz( baseLabel, ci->name, sizeof( baseLabel ) );
+		}
+	} else if ( location[0] ) {
+		Q_strncpyz( baseLabel, location, sizeof( baseLabel ) );
+	} else {
+		return;
+	}
+
+	maxWidth = cg_teammatePOIsMaxWidth.value * SMALLCHAR_WIDTH;
+	if ( maxWidth < 0.0f ) {
+		maxWidth = 0.0f;
+	}
+
+	CG_TrimTeammatePOILabelToWidth( baseLabel, buffer, bufferSize, CG_TEAMMATE_POI_LABEL_SCALE, maxWidth );
+}
+
+/*
+=============
+CG_TeammatePOIPowerupIcon
+
+Resolves the icon used for projected teammate markers.
+=============
+*/
+static qhandle_t CG_TeammatePOIPowerupIcon( int powerup ) {
+	gitem_t	*item;
+
+	item = BG_FindItemForPowerup( powerup );
+	if ( item ) {
+		return cg_items[ITEM_INDEX( item )].icon;
+	}
+
+	switch ( powerup ) {
+	case PW_QUAD:
+		return cgs.media.quadShader;
+	case PW_BATTLESUIT:
+		return cgs.media.battleSuitShader;
+	case PW_REGEN:
+		return cgs.media.regenShader;
+	case PW_INVIS:
+		return cgs.media.invisShader;
+	default:
+		return 0;
+	}
+}
+
+/*
+=============
+CG_TeammatePOIIconCount
+
+Counts the status markers that will be appended to a teammate POI slab.
+=============
+*/
+static int CG_TeammatePOIIconCount( const clientInfo_t *ci ) {
+	static const int powerups[] = {
+		PW_REDFLAG,
+		PW_BLUEFLAG,
+		PW_NEUTRALFLAG,
+		PW_QUAD,
+		PW_BATTLESUIT,
+		PW_REGEN,
+		PW_HASTE,
+		PW_INVIS
+	};
+	int	i;
+	int	count;
+
+	if ( !ci || !ci->infoValid || cg_teammatePOIs.integer == 0 ) {
+		return 0;
+	}
+
+	count = ( ci->teamTask != TEAMTASK_NONE ) ? 1 : 0;
+	for ( i = 0; i < ARRAY_LEN( powerups ) && count < CG_TEAMMATE_POI_MAX_ICONS; i++ ) {
+		if ( ci->powerups & ( 1 << powerups[i] ) ) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+=============
+CG_DrawTeammatePOIBar
+
+Draws a compact retail-style teammate health or armor bar.
+=============
+*/
+static void CG_DrawTeammatePOIBar( float x, float y, float width, qhandle_t shader, float fraction, const vec4_t color ) {
+	vec4_t	backgroundColor = { 0.0f, 0.0f, 0.0f, 0.35f };
+	float	drawX;
+	float	drawY;
+	float	drawW;
+	float	drawH;
+
+	CG_FillRect( x, y, width, CG_TEAMMATE_POI_BAR_HEIGHT, backgroundColor );
+	if ( fraction <= 0.0f ) {
+		return;
+	}
+
+	fraction = Com_Clamp( 0.0f, 1.0f, fraction );
+	drawX = x;
+	drawY = y;
+	drawW = width * fraction;
+	drawH = CG_TEAMMATE_POI_BAR_HEIGHT;
+	CG_AdjustFrom640( &drawX, &drawY, &drawW, &drawH );
+
+	trap_R_SetColor( color );
+	trap_R_DrawStretchPic( drawX, drawY, drawW, drawH, 0.0f, 0.0f, fraction, 1.0f, shader ? shader : cgs.media.whiteShader );
+	trap_R_SetColor( NULL );
+}
+
+/*
+=============
+CG_DrawTeammatePOIIcons
+
+Appends task, flag, and powerup markers beside the projected teammate slab.
+=============
+*/
+static void CG_DrawTeammatePOIIcons( const clientInfo_t *ci, float x, float y ) {
+	static const int powerups[] = {
+		PW_REDFLAG,
+		PW_BLUEFLAG,
+		PW_NEUTRALFLAG,
+		PW_QUAD,
+		PW_BATTLESUIT,
+		PW_REGEN,
+		PW_HASTE,
+		PW_INVIS
+	};
+	int			i;
+	int			drawn;
+	qhandle_t	icon;
+
+	if ( !ci || !ci->infoValid || cg_teammatePOIs.integer == 0 ) {
+		return;
+	}
+
+	drawn = 0;
+	if ( ci->teamTask != TEAMTASK_NONE ) {
+		icon = CG_StatusHandle( ci->teamTask );
+		if ( icon ) {
+			CG_DrawPic( x, y, CG_TEAMMATE_POI_ICON_SIZE, CG_TEAMMATE_POI_ICON_SIZE, icon );
+			x += CG_TEAMMATE_POI_ICON_SIZE + 1.0f;
+			drawn++;
+		}
+	}
+
+	for ( i = 0; i < ARRAY_LEN( powerups ) && drawn < CG_TEAMMATE_POI_MAX_ICONS; i++ ) {
+		if ( !( ci->powerups & ( 1 << powerups[i] ) ) ) {
+			continue;
+		}
+
+		icon = CG_TeammatePOIPowerupIcon( powerups[i] );
+		if ( !icon ) {
+			continue;
+		}
+
+		CG_DrawPic( x, y, CG_TEAMMATE_POI_ICON_SIZE, CG_TEAMMATE_POI_ICON_SIZE, icon );
+		x += CG_TEAMMATE_POI_ICON_SIZE + 1.0f;
+		drawn++;
+	}
+}
+
+/*
+=============
+CG_DrawTeammatePOIs
+
+Projects retail-style teammate POI slabs above visible teammates.
+=============
+*/
+static void CG_DrawTeammatePOIs( void ) {
+	vec4_t			backgroundColor;
+	vec4_t			textColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vec4_t			healthColor;
+	vec4_t			armorColor;
+	team_t			myTeam;
+	int				i;
+
+	if ( !CG_ShouldDrawTeammatePOIs() ) {
+		return;
+	}
+
+	myTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+	for ( i = 0; i < cgs.maxclients; i++ ) {
+		centity_t		*cent;
+		clientInfo_t	*ci;
+		vec3_t			poiOrigin;
+		char			label[CG_TEAMMATE_POI_MAX_LABEL_CHARS];
+		float			screenX;
+		float			screenY;
+		float			minWidth;
+		float			labelWidth;
+		float			boxWidth;
+		float			boxHeight;
+		float			boxX;
+		float			boxY;
+		float			textBaseline;
+		float			barWidth;
+		float			iconOffset;
+		int				iconCount;
+
+		if ( i == cg.snap->ps.clientNum ) {
+			continue;
+		}
+
+		ci = &cgs.clientinfo[i];
+		cent = &cg_entities[i];
+		if ( !ci->infoValid || ci->team != myTeam || !cent->currentValid ) {
+			continue;
+		}
+		if ( cent->currentState.eFlags & EF_DEAD ) {
+			continue;
+		}
+		if ( ci->health <= 0 ) {
+			continue;
+		}
+
+		VectorCopy( cent->lerpOrigin, poiOrigin );
+		poiOrigin[2] += CG_TEAMMATE_POI_WORLD_Z_OFFSET;
+		if ( !trap_R_inPVS( cg.refdef.vieworg, poiOrigin ) ) {
+			continue;
+		}
+		if ( !CG_WorldCoordToScreenCoord( poiOrigin, &screenX, &screenY ) ) {
+			continue;
+		}
+
+		CG_BuildTeammatePOILabel( ci, label, sizeof( label ) );
+		iconCount = CG_TeammatePOIIconCount( ci );
+		if ( label[0] == '\0' && iconCount == 0 ) {
+			continue;
+		}
+
+		labelWidth = label[0] ? (float)CG_Text_Width( label, CG_TEAMMATE_POI_LABEL_SCALE, 0 ) : 0.0f;
+		minWidth = cg_teammatePOIsMinWidth.value * SMALLCHAR_WIDTH;
+		boxWidth = labelWidth;
+		if ( boxWidth < minWidth ) {
+			boxWidth = minWidth;
+		}
+
+		if ( cg_teammatePOIs.integer ) {
+			if ( boxWidth < 40.0f ) {
+				boxWidth = 40.0f;
+			}
+		}
+
+		boxHeight = 12.0f;
+		if ( label[0] ) {
+			boxHeight += CG_Text_Height( label, CG_TEAMMATE_POI_LABEL_SCALE, 0 );
+		}
+		if ( cg_teammatePOIs.integer ) {
+			boxHeight += ( CG_TEAMMATE_POI_BAR_HEIGHT * 2.0f ) + 3.0f;
+		}
+		boxHeight += CG_TEAMMATE_POI_PADDING_Y * 2.0f;
+
+		boxX = screenX - ( boxWidth * 0.5f ) - CG_TEAMMATE_POI_PADDING_X;
+		boxY = screenY - boxHeight - 18.0f;
+		iconOffset = iconCount > 0 ? (float)iconCount * ( CG_TEAMMATE_POI_ICON_SIZE + 1.0f ) + 2.0f : 0.0f;
+
+		Vector4Copy( CG_TeamColor( ci->team ), backgroundColor );
+		backgroundColor[3] = ( ci->powerups & ( ( 1 << PW_REDFLAG ) | ( 1 << PW_BLUEFLAG ) | ( 1 << PW_NEUTRALFLAG ) ) ) ? 0.40f : 0.28f;
+		CG_FillRect( boxX, boxY, boxWidth + ( CG_TEAMMATE_POI_PADDING_X * 2.0f ) + iconOffset, boxHeight, backgroundColor );
+
+		textBaseline = boxY + CG_TEAMMATE_POI_PADDING_Y;
+		if ( label[0] ) {
+			textBaseline += CG_Text_Height( label, CG_TEAMMATE_POI_LABEL_SCALE, 0 );
+			CG_Text_Paint( boxX + CG_TEAMMATE_POI_PADDING_X, textBaseline, CG_TEAMMATE_POI_LABEL_SCALE, textColor, label, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+		}
+
+		if ( cg_teammatePOIs.integer ) {
+			barWidth = boxWidth;
+			textBaseline += 2.0f;
+			CG_GetColorForHealth( ci->health, ci->armor, healthColor );
+			healthColor[3] = 1.0f;
+			CG_DrawTeammatePOIBar(
+				boxX + CG_TEAMMATE_POI_PADDING_X,
+				textBaseline,
+				barWidth,
+				cgs.media.healthTick200,
+				Com_Clamp( 0.0f, 200.0f, (float)ci->health ) / 200.0f,
+				healthColor
+			);
+
+			textBaseline += CG_TEAMMATE_POI_BAR_HEIGHT + 1.0f;
+			CG_GetTeammatePOIArmorColor( ci->armor, armorColor );
+			CG_DrawTeammatePOIBar(
+				boxX + CG_TEAMMATE_POI_PADDING_X,
+				textBaseline,
+				barWidth,
+				cgs.media.armorTick200,
+				Com_Clamp( 0.0f, 200.0f, (float)ci->armor ) / 200.0f,
+				armorColor
+			);
+
+			CG_DrawTeammatePOIIcons( ci, boxX + boxWidth + ( CG_TEAMMATE_POI_PADDING_X * 2.0f ), boxY + CG_TEAMMATE_POI_PADDING_Y );
+		}
+	}
+}
+
 /*
 =============
 CG_DrawRacePoints
@@ -452,7 +1076,10 @@ void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t head
 
 		// calculate distance so the head nearly fills the box
 		// assume heads are taller than wide
-		len = 0.7 * ( maxs[2] - mins[2] );		
+		len = 0.7 * ( maxs[2] - mins[2] );
+		if ( cgs.playerModelScale > 0.0f ) {
+			len *= cgs.playerModelScale;
+		}
 		origin[0] = len / 0.268;	// len / tan( fov/2 )
 
 		// allow per-model tweaking
@@ -1164,6 +1791,247 @@ Draw the small two score display
 CG_DrawPowerups
 ================
 */
+/*
+=============
+CG_CountActiveTimedPowerups
+
+Counts the active timed powerups on the current playerstate for the lower-right
+stack count popup.
+=============
+*/
+static int CG_CountActiveTimedPowerups( const playerState_t *ps ) {
+	int	i;
+	int	count;
+
+	if ( !ps ) {
+		return 0;
+	}
+
+	count = 0;
+	for ( i = 0; i < MAX_POWERUPS; i++ ) {
+		if ( ps->powerups[i] <= cg.time || ps->powerups[i] >= 999000 ) {
+			continue;
+		}
+
+		if ( !BG_FindItemForPowerup( i ) ) {
+			continue;
+		}
+
+		count++;
+	}
+
+	return count;
+}
+
+/*
+=============
+CG_DrawPowerups
+
+Restores the retail lower-right powerup popup around the mirrored
+`cg.powerupActive` / `cg.powerupTime` seam.
+=============
+*/
+static float CG_DrawPowerups( float y ) {
+	playerState_t	*ps;
+	gitem_t		*item;
+	char		powerupTimeText[16];
+	char		stackText[16];
+	float		*color;
+	float		scale;
+	float		textY;
+	float		x;
+	int		msec;
+	int		seconds;
+	int		mins;
+	int		tens;
+	int		textWidth;
+	int		activeCount;
+	qhandle_t	icon;
+
+	y -= 48.0f;
+
+	if ( !cg.snap ) {
+		return y;
+	}
+
+	ps = &cg.snap->ps;
+	if ( cg.showScores || cg.warmup || ps->stats[STAT_HEALTH] < 1 ) {
+		return y;
+	}
+
+	if ( cg.powerupActive <= PW_NONE || cg.powerupActive >= PW_NUM_POWERUPS ) {
+		return y;
+	}
+
+	if ( ps->powerups[cg.powerupActive] <= cg.time || ps->powerups[cg.powerupActive] >= 999000 ) {
+		return y;
+	}
+
+	color = CG_FadeColor( cg.powerupTime, 3000 );
+	if ( !color ) {
+		cg.powerupActive = PW_NONE;
+		return y;
+	}
+
+	item = BG_FindItemForPowerup( cg.powerupActive );
+	if ( !item ) {
+		return y;
+	}
+
+	msec = ps->powerups[cg.powerupActive] - cg.time;
+	seconds = msec / 1000;
+	mins = seconds / 60;
+	seconds -= mins * 60;
+	tens = seconds / 10;
+	seconds -= tens * 10;
+	Com_sprintf( powerupTimeText, sizeof( powerupTimeText ), "%i:%i%i", mins, tens, seconds );
+
+	scale = 0.28f;
+	textY = y + (float)CG_Text_Height( powerupTimeText, scale, 0 );
+	CG_Text_Paint( 5.0f, textY, scale, color, powerupTimeText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+
+	textWidth = CG_Text_Width( powerupTimeText, scale, 0 );
+	x = (float)textWidth + 13.0f;
+
+	icon = CG_TeammatePOIPowerupIcon( cg.powerupActive );
+	if ( !icon ) {
+		icon = trap_R_RegisterShader( item->icon );
+	}
+	if ( icon ) {
+		CG_DrawPic( x, y, 16.0f, 16.0f, icon );
+		x += 24.0f;
+	}
+
+	CG_Text_Paint( x, y + (float)CG_Text_Height( item->pickup_name, scale, 0 ), scale, color, item->pickup_name, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	x += (float)CG_Text_Width( item->pickup_name, scale, 0 ) + 8.0f;
+
+	activeCount = CG_CountActiveTimedPowerups( ps );
+	if ( activeCount > 1 ) {
+		Com_sprintf( stackText, sizeof( stackText ), "x%i", activeCount );
+		CG_Text_Paint( x, y + (float)CG_Text_Height( stackText, scale, 0 ), scale, color, stackText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	}
+
+	return y;
+}
+
+/*
+=============
+CG_DrawSpeedometer
+
+Rebuilds the retail classic-HUD speedometer graph and label ahead of the
+legacy corner stacks.
+=============
+*/
+static void CG_DrawSpeedometer( void ) {
+	static const vec4_t speedFillColor = { 0.2f, 0.85f, 0.2f, 0.75f };
+	static const vec4_t speedOverflowColor = { 1.0f, 0.82f, 0.2f, 0.85f };
+	static const vec4_t speedBackColor = { 0.0f, 0.0f, 0.0f, 0.35f };
+	char		speedText[16];
+	float		graphX;
+	float		graphY;
+	float		graphWidth;
+	float		graphHeight;
+	float		barWidth;
+	float		barScale;
+	float		halfHeight;
+	float		barHeight;
+	float		fullHeight;
+	float		overflowHeight;
+	float		textScale;
+	float		textX;
+	float		textY;
+	float		currentSpeed;
+	int		mode;
+	int		sampleCount;
+	int		sampleIndex;
+	int		i;
+
+	if ( !CG_ShouldDrawSpeedometer() || !cg.snap ) {
+		return;
+	}
+
+	if ( cg.showScores || cg.warmup || cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return;
+	}
+
+	mode = cg_speedometer.integer;
+	if ( mode <= 0 ) {
+		return;
+	}
+
+	CG_RecordSpeedometerSample();
+	if ( cg_speedometerHistoryCount <= 0 || cg_speedometerHistoryHead < 0 ) {
+		return;
+	}
+
+	if ( mode < 2 ) {
+		graphX = 592.0f;
+		graphY = 384.0f;
+		graphWidth = 48.0f;
+		graphHeight = 48.0f;
+		textScale = 0.25f;
+		CG_FillRect( graphX, graphY, graphWidth, graphHeight, speedBackColor );
+	} else {
+		graphX = 256.0f;
+		graphY = 241.0f;
+		graphWidth = 128.0f;
+		graphHeight = 32.0f;
+		textScale = 0.15f;
+	}
+
+	barWidth = graphWidth * ( 1.0f / (float)CG_SPEEDOMETER_HISTORY_SAMPLES );
+	barScale = ( graphHeight - 5.0f ) / CG_SPEEDOMETER_RANGE;
+	halfHeight = graphHeight * 0.5f;
+	sampleCount = cg_speedometerHistoryCount;
+	if ( sampleCount > CG_SPEEDOMETER_HISTORY_SAMPLES ) {
+		sampleCount = CG_SPEEDOMETER_HISTORY_SAMPLES;
+	}
+
+	if ( mode < 3 ) {
+		for ( i = 0; i < sampleCount; i++ ) {
+			sampleIndex = ( cg_speedometerHistoryHead - sampleCount + 1 + i + CG_SPEEDOMETER_HISTORY_SAMPLES ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );
+			currentSpeed = cg_speedometerHistory[sampleIndex];
+			if ( currentSpeed <= 0.0f ) {
+				continue;
+			}
+
+			fullHeight = currentSpeed * barScale;
+			barHeight = fullHeight;
+			if ( barHeight > halfHeight ) {
+				barHeight = halfHeight;
+			}
+
+			CG_FillRect(
+				graphX + barWidth * (float)i,
+				graphY + graphHeight - barHeight,
+				barWidth,
+				barHeight,
+				speedFillColor
+			);
+
+			if ( fullHeight > halfHeight ) {
+				overflowHeight = fullHeight - barHeight;
+				if ( overflowHeight > halfHeight ) {
+					overflowHeight = halfHeight;
+				}
+
+				CG_FillRect(
+					graphX + barWidth * (float)i,
+					graphY + graphHeight - barHeight - overflowHeight,
+					barWidth,
+					overflowHeight,
+					speedOverflowColor
+				);
+			}
+		}
+	}
+
+	currentSpeed = cg_speedometerHistory[cg_speedometerHistoryHead];
+	Com_sprintf( speedText, sizeof( speedText ), "%i", (int)currentSpeed );
+	textX = graphX + ( graphWidth - CG_Text_Width( speedText, textScale, 0 ) ) * 0.5f;
+	textY = graphY + graphHeight + ( mode < 2 ? 14.0f : 8.0f );
+	CG_Text_Paint( textX, textY, textScale, colorWhite, speedText, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+}
 
 /*
 =====================
@@ -1171,6 +2039,24 @@ CG_DrawLowerRight
 
 =====================
 */
+/*
+=====================
+CG_DrawLowerRight
+
+Rebuilds the retail lower-right wrapper around the existing team overlay seam
+and the restored powerup popup helper.
+=====================
+*/
+static void CG_DrawLowerRight( void ) {
+	float	y;
+
+	y = 408.0f;
+	if ( cgs.gametype >= GT_TEAM && cg_drawTeamOverlay.integer == 2 ) {
+		y = CG_DrawTeamOverlay( y, qtrue, qfalse );
+	}
+
+	CG_DrawPowerups( y );
+}
 
 /*
 ===================
@@ -1193,6 +2079,353 @@ CG_DrawLowerLeft
 CG_DrawTeamInfo
 =================
 */
+/*
+=============
+CG_GetTeamInfoArmorColor
+
+Returns the armor color tier for the fixed team info bars.
+=============
+*/
+static void CG_GetTeamInfoArmorColor( int armor, vec4_t color ) {
+	if ( armor >= 150 ) {
+		color[0] = 0.9f;
+		color[1] = 0.15f;
+		color[2] = 0.15f;
+		color[3] = 1.0f;
+	} else if ( armor >= 100 ) {
+		color[0] = 0.95f;
+		color[1] = 0.75f;
+		color[2] = 0.2f;
+		color[3] = 1.0f;
+	} else if ( armor > 0 ) {
+		color[0] = 0.2f;
+		color[1] = 0.8f;
+		color[2] = 0.2f;
+		color[3] = 1.0f;
+	} else {
+		color[0] = 0.4f;
+		color[1] = 0.4f;
+		color[2] = 0.4f;
+		color[3] = 0.6f;
+	}
+}
+
+/*
+=============
+CG_TeamInfoBarFraction
+
+Normalizes a team-info stat value into the retail 0-200 bar range.
+=============
+*/
+static float CG_TeamInfoBarFraction( int value ) {
+	return Com_Clamp( 0.0f, 200.0f, (float)value ) * ( 1.0f / 200.0f );
+}
+
+/*
+=============
+CG_DrawTeamInfoBar
+
+Draws one retail-style team info stat bar, falling back to a solid fill if
+the Quake Live HUD shader isn't available.
+=============
+*/
+static void CG_DrawTeamInfoBar( float x, float y, float width, float height, float fraction, qhandle_t shader, const vec4_t color ) {
+	float	drawX;
+	float	drawY;
+	float	drawW;
+	float	drawH;
+
+	if ( width <= 0.0f || height <= 0.0f || fraction <= 0.0f ) {
+		return;
+	}
+
+	if ( fraction > 1.0f ) {
+		fraction = 1.0f;
+	}
+
+	if ( shader ) {
+		drawX = x;
+		drawY = y;
+		drawW = width * fraction;
+		drawH = height;
+		CG_AdjustFrom640( &drawX, &drawY, &drawW, &drawH );
+		trap_R_SetColor( color );
+		trap_R_DrawStretchPic( drawX, drawY, drawW, drawH, 0.0f, 0.0f, fraction, 1.0f, shader );
+		trap_R_SetColor( NULL );
+	} else {
+		CG_FillRect( x, y, width * fraction, height, color );
+	}
+}
+
+/*
+=============
+CG_TeamInfoLocation
+
+Returns the team info location text, mirroring the retail "unknown" fallback.
+=============
+*/
+static const char *CG_TeamInfoLocation( const clientInfo_t *ci ) {
+	const char	*location;
+
+	if ( !ci || ci->location <= 0 ) {
+		return "unknown";
+	}
+
+	location = CG_ConfigString( CS_LOCATIONS + ci->location );
+	if ( !location || !location[0] ) {
+		return "unknown";
+	}
+
+	return location;
+}
+
+/*
+=============
+CG_TeamInfoCarryIcon
+
+Returns the leading carry or powerup icon used by the fixed team info slab.
+=============
+*/
+static qhandle_t CG_TeamInfoCarryIcon( const clientInfo_t *ci ) {
+	static const int powerups[] = {
+		PW_REDFLAG,
+		PW_BLUEFLAG,
+		PW_NEUTRALFLAG,
+		PW_QUAD,
+		PW_BATTLESUIT,
+		PW_REGEN,
+		PW_HASTE,
+		PW_INVIS
+	};
+	int	i;
+
+	if ( !ci ) {
+		return 0;
+	}
+
+	for ( i = 0; i < ARRAY_LEN( powerups ); i++ ) {
+		if ( ci->powerups & ( 1 << powerups[i] ) ) {
+			return CG_TeammatePOIPowerupIcon( powerups[i] );
+		}
+	}
+
+	return 0;
+}
+
+/*
+=============
+CG_HasActiveTeamScoreRows
+
+Returns true when the mirrored score list still carries usable team rows for
+the fixed overlay fallback path.
+=============
+*/
+static qboolean CG_HasActiveTeamScoreRows( void ) {
+	int				i;
+	const score_t	*score;
+
+	for ( i = 0; i < cg.numScores; i++ ) {
+		score = &cg.scores[i];
+		if ( score->client < 0 || score->client >= MAX_CLIENTS ) {
+			continue;
+		}
+		if ( !cgs.clientinfo[score->client].infoValid ) {
+			continue;
+		}
+		if ( score->team == TEAM_RED || score->team == TEAM_BLUE ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_ShouldDrawTeamInfo
+
+Gates the fixed retail team info slab on the reconstructed cvar and team-mode
+transport surfaces.
+=============
+*/
+static qboolean CG_ShouldDrawTeamInfo( void ) {
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	if ( cg_drawTeamOverlay.integer <= 0 || cgs.gametype < GT_TEAM ) {
+		return qfalse;
+	}
+
+	if ( numSortedTeamPlayers > 0 ) {
+		return qtrue;
+	}
+
+	return CG_HasActiveTeamScoreRows();
+}
+
+/*
+=============
+CG_DrawTeamInfoRow
+
+Paints one fixed-position retail team-info row, mirroring the recovered 16px
+icon cadence, stat bars, and clipped name/location text layout.
+=============
+*/
+static void CG_DrawTeamInfoRow( const clientInfo_t *ci, team_t team, float y ) {
+	char		nameText[MAX_NAME_LENGTH];
+	char		locationText[MAX_QPATH];
+	vec4_t		healthColor;
+	vec4_t		armorColor;
+	vec4_t		backColor;
+	vec4_t		textColor;
+	qhandle_t	carryIcon;
+	qhandle_t	taskIcon;
+	float		nameWidth;
+	float		locationWidth;
+	float		panelLeft;
+	float		panelRight;
+	float		iconX;
+	float		taskX;
+	float		barX;
+	float		textStartX;
+	float		textRight;
+	float		textAvailable;
+	float		locationX;
+	float		nameX;
+
+	if ( !ci || !ci->infoValid ) {
+		return;
+	}
+
+	panelLeft = ( team == TEAM_RED ) ? 5.0f : 320.0f;
+	panelRight = ( team == TEAM_RED ) ? 315.0f : 635.0f;
+	backColor[0] = 0.0f;
+	backColor[1] = 0.0f;
+	backColor[2] = 0.0f;
+	backColor[3] = 0.35f;
+	textColor[0] = 1.0f;
+	textColor[1] = 1.0f;
+	textColor[2] = 1.0f;
+	textColor[3] = 1.0f;
+
+	CG_GetColorForHealth( ci->health, ci->armor, healthColor );
+	healthColor[3] = 1.0f;
+	CG_GetTeamInfoArmorColor( ci->armor, armorColor );
+	armorColor[3] = 1.0f;
+
+	if ( team == TEAM_RED ) {
+		iconX = panelLeft;
+		taskX = iconX + 18.0f;
+		barX = taskX + 18.0f;
+		textStartX = barX + 70.0f;
+		textRight = panelRight;
+	} else {
+		iconX = panelRight - 16.0f;
+		taskX = iconX - 18.0f;
+		barX = taskX - 66.0f;
+		textStartX = panelLeft;
+		textRight = barX - 4.0f;
+	}
+
+	textAvailable = textRight - textStartX;
+	if ( textAvailable < 32.0f ) {
+		textAvailable = 32.0f;
+	}
+
+	CG_TrimTeammatePOILabelToWidth( ci->name, nameText, sizeof( nameText ), 0.18f, textAvailable * 0.55f );
+	CG_TrimTeammatePOILabelToWidth( CG_TeamInfoLocation( ci ), locationText, sizeof( locationText ), 0.18f, textAvailable * 0.40f );
+	nameWidth = (float)CG_Text_Width( nameText, 0.18f, 0 );
+	locationWidth = (float)CG_Text_Width( locationText, 0.18f, 0 );
+
+	if ( team == TEAM_RED ) {
+		nameX = textStartX;
+		locationX = textRight - locationWidth;
+		if ( locationX < nameX + nameWidth + 4.0f ) {
+			locationX = nameX + nameWidth + 4.0f;
+		}
+	} else {
+		locationX = textRight - locationWidth;
+		nameX = locationX - nameWidth - 4.0f;
+		if ( nameX < textStartX ) {
+			nameX = textStartX;
+		}
+	}
+
+	CG_FillRect( barX, y + 3.0f, 64.0f, 6.0f, backColor );
+	CG_FillRect( barX, y + 11.0f, 64.0f, 6.0f, backColor );
+	CG_DrawTeamInfoBar( barX, y + 3.0f, 64.0f, 6.0f, CG_TeamInfoBarFraction( ci->health ), cgs.media.healthBar200, healthColor );
+	CG_DrawTeamInfoBar( barX, y + 11.0f, 64.0f, 6.0f, CG_TeamInfoBarFraction( ci->armor ), cgs.media.armorBar200, armorColor );
+
+	carryIcon = CG_TeamInfoCarryIcon( ci );
+	if ( carryIcon ) {
+		CG_DrawPic( iconX, y, 16.0f, 16.0f, carryIcon );
+	}
+
+	taskIcon = CG_StatusHandle( ci->teamTask );
+	if ( taskIcon ) {
+		CG_DrawPic( taskX, y, 16.0f, 16.0f, taskIcon );
+	}
+
+	if ( cg.snap && ci == &cgs.clientinfo[cg.snap->ps.clientNum] ) {
+		CG_DrawRect( iconX - 1.0f, y - 1.0f, 18.0f, 18.0f, 1.0f, colorWhite );
+	}
+
+	CG_Text_Paint( nameX, y + 18.0f, 0.18f, textColor, nameText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	CG_Text_Paint( locationX, y + 18.0f, 0.18f, textColor, locationText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+}
+
+/*
+=================
+CG_DrawTeamInfo
+=================
+*/
+static void CG_DrawTeamInfo( void ) {
+	float			teamY[TEAM_NUM_TEAMS];
+	int				i;
+	const score_t	*score;
+	const clientInfo_t	*ci;
+
+	if ( !CG_ShouldDrawTeamInfo() ) {
+		return;
+	}
+
+	memset( teamY, 0, sizeof( teamY ) );
+
+	if ( numSortedTeamPlayers > 0 ) {
+		for ( i = 0; i < numSortedTeamPlayers; i++ ) {
+			ci = &cgs.clientinfo[sortedTeamPlayers[i]];
+			if ( !ci->infoValid ) {
+				continue;
+			}
+			if ( ci->team != TEAM_RED && ci->team != TEAM_BLUE ) {
+				continue;
+			}
+
+			CG_DrawTeamInfoRow( ci, ci->team, teamY[ci->team] );
+			teamY[ci->team] += 22.0f;
+		}
+		return;
+	}
+
+	for ( i = 0; i < cg.numScores; i++ ) {
+		score = &cg.scores[i];
+		if ( score->client < 0 || score->client >= MAX_CLIENTS ) {
+			continue;
+		}
+		if ( score->team != TEAM_RED && score->team != TEAM_BLUE ) {
+			continue;
+		}
+
+		ci = &cgs.clientinfo[score->client];
+		if ( !ci->infoValid ) {
+			continue;
+		}
+
+		CG_DrawTeamInfoRow( ci, score->team, teamY[score->team] );
+		teamY[score->team] += 22.0f;
+	}
+}
 
 /*
 ===================
@@ -1716,6 +2949,125 @@ static void CG_ScanForCrosshairEntity( void ) {
 
 /*
 =============
+CG_ShouldDrawCrosshairTeamVitals
+
+Applies the retail same-team gate for the health/armor readout beneath the
+crosshair name.
+=============
+*/
+static qboolean CG_ShouldDrawCrosshairTeamVitals( const clientInfo_t *ci ) {
+	team_t	myTeam;
+	team_t	targetTeam;
+
+	if ( !cg.snap || !ci || !ci->infoValid ) {
+		return qfalse;
+	}
+
+	if ( cg_drawCrosshairTeamHealth.integer <= 0 || cgs.gametype < GT_TEAM ) {
+		return qfalse;
+	}
+
+	myTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+	targetTeam = ci->team;
+
+	if ( myTeam != targetTeam ) {
+		return qfalse;
+	}
+
+	return ( qboolean )( myTeam != TEAM_FREE && myTeam != TEAM_SPECTATOR );
+}
+
+/*
+=============
+CG_GetCrosshairTeamVitalColor
+
+Rebuilds the retail 0-2 mode color ramp for teammate crosshair health and
+armor strings.
+=============
+*/
+static void CG_GetCrosshairTeamVitalColor( int value, int maxValue, float alpha, vec4_t color ) {
+	float	lowComponent;
+	float	highComponent;
+
+	if ( maxValue <= 0 ) {
+		maxValue = 100;
+	}
+
+	if ( value < maxValue ) {
+		lowComponent = (float)value / (float)maxValue;
+		if ( lowComponent <= 0.0f ) {
+			lowComponent = 0.0f;
+		}
+		highComponent = 0.0f;
+	} else {
+		lowComponent = 1.0f;
+		highComponent = (float)value / (float)( maxValue + maxValue );
+		if ( highComponent > 1.0f ) {
+			highComponent = 1.0f;
+		}
+	}
+
+	color[0] = 1.0f;
+	color[1] = lowComponent;
+	color[2] = highComponent;
+	color[3] = alpha;
+}
+
+/*
+=============
+CG_DrawCrosshairTeamVitals
+
+Renders the retail teammate health/armor readout centered beneath the
+crosshair target name.
+=============
+*/
+static void CG_DrawCrosshairTeamVitals( const clientInfo_t *ci, const vec4_t baseColor ) {
+	char	healthText[16];
+	char	armorText[16];
+	float	textScale;
+	float	textY;
+	float	healthWidth;
+	int		maxHealth;
+	vec4_t	healthColor;
+	vec4_t	slashColor;
+	vec4_t	armorColor;
+
+	if ( !CG_ShouldDrawCrosshairTeamVitals( ci ) ) {
+		return;
+	}
+
+	textScale = cg_drawCrosshairTeamHealthSize.value;
+	if ( textScale <= 0.0f ) {
+		return;
+	}
+
+	maxHealth = cg.snap->ps.stats[STAT_MAX_HEALTH];
+	Com_sprintf( healthText, sizeof( healthText ), "%i ", ci->health );
+	Com_sprintf( armorText, sizeof( armorText ), " %i", ci->armor );
+
+	Vector4Copy( baseColor, healthColor );
+	Vector4Copy( baseColor, slashColor );
+	Vector4Copy( baseColor, armorColor );
+
+	if ( cg_drawCrosshairTeamHealth.integer == 2 ) {
+		CG_GetCrosshairTeamVitalColor( ci->health, maxHealth, baseColor[3], healthColor );
+		slashColor[0] = 1.0f;
+		slashColor[1] = 1.0f;
+		slashColor[2] = 1.0f;
+		slashColor[3] = baseColor[3];
+		CG_GetCrosshairTeamVitalColor( ci->armor, maxHealth, baseColor[3], armorColor );
+	}
+
+	healthWidth = CG_Text_Width( healthText, textScale, 0 );
+	textY = 198.0f + textScale * 16.0f;
+
+	CG_Text_Paint( 320.0f - healthWidth, textY, textScale, healthColor, healthText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	CG_Text_Paint( 320.0f, textY, textScale, slashColor, "/", 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	CG_Text_Paint( 325.0f, textY, textScale, armorColor, armorText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+}
+
+/*
+=============
 CG_ShouldRenderCrosshairName
 
 Determines if the current crosshair target should have their name displayed.
@@ -1798,7 +3150,7 @@ static void CG_DrawCrosshairNames( void ) {
 	name = ci->name;
 	color[3] *= ( 0.5f * opacityScale );
 
-	nameScale = 0.3f;
+	nameScale = 0.26f;
 	w = CG_Text_Width( name, nameScale, 0 );
 	if ( cg_overheadNamesWidth.value > 0.0f && w > cg_overheadNamesWidth.value ) {
 		float clampedScale = cg_overheadNamesWidth.value / w;
@@ -1810,6 +3162,7 @@ static void CG_DrawCrosshairNames( void ) {
 	}
 
 	CG_Text_Paint( 320 - w / 2, 190, nameScale, color, name, 0, 0, ITEM_TEXTSTYLE_SHADOWED);
+	CG_DrawCrosshairTeamVitals( ci, color );
 	trap_R_SetColor( NULL );
 }
 
@@ -2433,6 +3786,7 @@ static void CG_Draw2D( void ) {
 		}
 
 		if ( cgs.gametype >= GT_TEAM ) {
+			CG_DrawTeammatePOIs();
 		}
 	}
 
@@ -2455,6 +3809,11 @@ static void CG_Draw2D( void ) {
 	CG_DrawLagometer();
 
 	if (!cg_paused.integer) {
+		if ( !menuHudActive ) {
+			CG_DrawInputCmds();
+			CG_DrawSpeedometer();
+			CG_DrawLowerRight();
+		}
 		CG_DrawUpperRight();
 	}
 
@@ -2462,6 +3821,7 @@ static void CG_Draw2D( void ) {
 	if ( !CG_DrawFollow() ) {
 		CG_DrawWarmup();
 	}
+	CG_DrawTeamInfo();
 
 	if ( cgs.gametype == GT_RACE ) {
 		CG_DrawRacePoints();

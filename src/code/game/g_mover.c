@@ -652,7 +652,13 @@ void Use_BinaryMover( gentity_t *ent, gentity_t *other, gentity_t *activator ) {
 
 		// starting sound
 		if ( ent->sound1to2 ) {
-			G_AddEvent( ent, EV_GENERAL_SOUND, ent->sound1to2 );
+			if ( ent->spawnflags & 16 ) {
+				G_AddEvent( ent, EV_GENERAL_SOUND, G_SoundIndex( "sound/movers/doors/door_silver.wav" ) );
+			} else if ( ent->spawnflags & 32 ) {
+				G_AddEvent( ent, EV_GENERAL_SOUND, G_SoundIndex( "sound/movers/doors/door_gold.wav" ) );
+			} else {
+				G_AddEvent( ent, EV_GENERAL_SOUND, ent->sound1to2 );
+			}
 		}
 
 		// looping sound
@@ -861,7 +867,7 @@ Touch_DoorTrigger
 ================
 */
 void Touch_DoorTrigger( gentity_t *ent, gentity_t *other, trace_t *trace ) {
-	if ( other->client && other->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+	if ( other->client && other->client->ps.pm_type == PM_SPECTATOR ) {
 		// if the door is not open and not opening
 		if ( ent->parent->moverState != MOVER_1TO2 &&
 			ent->parent->moverState != MOVER_POS2) {
@@ -870,6 +876,43 @@ void Touch_DoorTrigger( gentity_t *ent, gentity_t *other, trace_t *trace ) {
 	}
 	else if ( ent->parent->moverState != MOVER_1TO2 ) {
 		Use_BinaryMover( ent->parent, ent, other );
+	}
+}
+
+/*
+================
+Touch_DoorTriggerKeyed
+================
+*/
+static void Touch_DoorTriggerKeyed( gentity_t *ent, gentity_t *other, trace_t *trace ) {
+	gentity_t	*door;
+	int		requiredKeys;
+
+	if ( !other->client ) {
+		return;
+	}
+
+	door = ent->parent;
+	if ( other->client->ps.pm_type == PM_SPECTATOR ) {
+		if ( door->moverState != MOVER_1TO2 && door->moverState != MOVER_POS2 ) {
+			Touch_DoorTriggerSpectator( ent, other, trace );
+		}
+		return;
+	}
+
+	if ( door->moverState == MOVER_1TO2 ) {
+		return;
+	}
+
+	requiredKeys = 0;
+	if ( door->spawnflags & 16 ) {
+		requiredKeys |= KEY_FLAG_SILVER | KEY_FLAG_MASTER;
+	}
+	if ( door->spawnflags & 32 ) {
+		requiredKeys |= KEY_FLAG_GOLD | KEY_FLAG_MASTER;
+	}
+	if ( requiredKeys && ( other->keyMask & requiredKeys ) ) {
+		Use_BinaryMover( door, ent, other );
 	}
 }
 
@@ -926,6 +969,53 @@ void Think_SpawnNewDoorTrigger( gentity_t *ent ) {
 	MatchTeam( ent, ent->moverState, level.time );
 }
 
+/*
+======================
+Think_SpawnNewDoorTriggerKeyed
+
+Keyed doors keep their team members non-shootable and install the keyed
+touch gate instead of the generic door trigger.
+======================
+*/
+static void Think_SpawnNewDoorTriggerKeyed( gentity_t *ent ) {
+	gentity_t		*other;
+	vec3_t		mins, maxs;
+	int			i, best;
+
+	for ( other = ent ; other ; other = other->teamchain ) {
+		other->takedamage = qfalse;
+	}
+
+	VectorCopy( ent->r.absmin, mins );
+	VectorCopy( ent->r.absmax, maxs );
+
+	for ( other = ent->teamchain ; other ; other = other->teamchain ) {
+		AddPointToBounds( other->r.absmin, mins, maxs );
+		AddPointToBounds( other->r.absmax, mins, maxs );
+	}
+
+	best = 0;
+	for ( i = 1 ; i < 3 ; i++ ) {
+		if ( maxs[i] - mins[i] < maxs[best] - mins[best] ) {
+			best = i;
+		}
+	}
+	maxs[best] += 120;
+	mins[best] -= 120;
+
+	other = G_Spawn();
+	other->classname = "door_trigger";
+	VectorCopy( mins, other->r.mins );
+	VectorCopy( maxs, other->r.maxs );
+	other->parent = ent;
+	other->r.contents = CONTENTS_TRIGGER;
+	other->touch = Touch_DoorTriggerKeyed;
+	other->count = best;
+	trap_LinkEntity( other );
+
+	MatchTeam( ent, ent->moverState, level.time );
+}
+
 void Think_MatchTeam( gentity_t *ent ) {
 	MatchTeam( ent, ent->moverState, level.time );
 }
@@ -952,9 +1042,13 @@ void SP_func_door (gentity_t *ent) {
 	float	distance;
 	vec3_t	size;
 	float	lip;
+	char	*startSound;
+	char	*endSound;
 
-	ent->sound1to2 = ent->sound2to1 = G_SoundIndex("sound/movers/doors/dr1_strt.wav");
-	ent->soundPos1 = ent->soundPos2 = G_SoundIndex("sound/movers/doors/dr1_end.wav");
+	G_SpawnString( "startsound", "sound/movers/doors/dr1_strt.wav", &startSound );
+	G_SpawnString( "endsound", "sound/movers/doors/dr1_end.wav", &endSound );
+	ent->sound1to2 = ent->sound2to1 = G_SoundIndex( startSound );
+	ent->soundPos1 = ent->soundPos2 = G_SoundIndex( endSound );
 
 	ent->blocked = Blocked_Door;
 
@@ -1006,7 +1100,9 @@ void SP_func_door (gentity_t *ent) {
 		if ( health ) {
 			ent->takedamage = qtrue;
 		}
-		if ( ent->targetname || health ) {
+		if ( ent->spawnflags & ( 16 | 32 ) ) {
+			ent->think = Think_SpawnNewDoorTriggerKeyed;
+		} else if ( ent->targetname || health ) {
 			// non touch/shoot doors
 			ent->think = Think_MatchTeam;
 		} else {

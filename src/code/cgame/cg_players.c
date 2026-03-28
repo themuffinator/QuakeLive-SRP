@@ -1438,6 +1438,11 @@ void CG_NewClientInfo( int clientNum ) {
 		}
 	}
 
+	if ( !cgs.allowCustomHeadmodels ) {
+		Q_strncpyz( newInfo.headModelName, newInfo.modelName, sizeof( newInfo.headModelName ) );
+		Q_strncpyz( newInfo.headSkinName, newInfo.skinName, sizeof( newInfo.headSkinName ) );
+	}
+
 	overrideContext = CG_GetClientOverrideContext( clientNum, &newInfo );
 	CG_ApplyClientModelOverrides( &newInfo, overrideContext );
 	CG_ApplyClientColorOverrides( &newInfo, overrideContext );

@@ -269,16 +269,34 @@ void CG_DrawStringExt( int x, int y, const char *string, const float *setColor,
 	trap_R_SetColor( NULL );
 }
 
-void CG_DrawBigString( int x, int y, const char *s, float alpha ) {
-	float	color[4];
+/*
+================
+CG_DrawBigString
 
-	color[0] = color[1] = color[2] = 1.0;
+Matches the retail big-string wrapper by routing through CG_Text_Paint at the
+lifted baseline instead of the legacy shadowed CG_DrawStringExt path.
+================
+*/
+void CG_DrawBigString( int x, int y, const char *s, float alpha ) {
+	vec4_t	color;
+
+	color[0] = 1.0f;
+	color[1] = 1.0f;
+	color[2] = 1.0f;
 	color[3] = alpha;
-	CG_DrawStringExt( x, y, s, color, qfalse, qtrue, BIGCHAR_WIDTH, BIGCHAR_HEIGHT, 0 );
+	CG_Text_Paint( (float)x, (float)( y + BIGCHAR_HEIGHT ), 0.25f, color, s, 0, 0, 0 );
 }
 
+/*
+================
+CG_DrawBigStringColor
+
+Matches the retail colored big-string wrapper by forwarding directly into the
+modern text painter at the lifted baseline.
+================
+*/
 void CG_DrawBigStringColor( int x, int y, const char *s, vec4_t color ) {
-	CG_DrawStringExt( x, y, s, color, qtrue, qtrue, BIGCHAR_WIDTH, BIGCHAR_HEIGHT, 0 );
+	CG_Text_Paint( (float)x, (float)( y + BIGCHAR_HEIGHT ), 0.25f, color, s, 0, 0, 0 );
 }
 
 void CG_DrawSmallString( int x, int y, const char *s, float alpha ) {

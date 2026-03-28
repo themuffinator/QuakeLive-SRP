@@ -1169,7 +1169,10 @@ netField_t	playerStateFields[] =
 { PSF(loopSound), 16 },
 { PSF(crouchTime), 32 },
 { PSF(crouchSlideTime), 32 },
-{ PSF(armorTier), 2 }
+{ PSF(armorTier), 2 },
+{ PSF(forwardmove), 8 },
+{ PSF(rightmove), 8 },
+{ PSF(upmove), 8 }
 };
 
 /*

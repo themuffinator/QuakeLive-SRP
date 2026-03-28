@@ -25,11 +25,21 @@ def test_team_balance_helper_is_split_out_for_setteam_and_readyup() -> None:
 
 def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	game_client = _read("src/code/game/g_client.c")
+	game_team = _read("src/code/game/g_team.c")
+	game_local = _read("src/code/game/g_local.h")
 
 	assert "static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {" in game_client
 	assert "spawnWeapon = G_FinalizeSpawnLoadout( ent, factoryConfig );" in game_client
 	assert "static void G_RRFinalizeSpawnLoadout( gentity_t *ent ) {" in game_client
 	assert "G_RRFinalizeSpawnLoadout( ent );" in game_client
+	assert "gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {" in game_client
+	assert "static gentity_t *G_SelectClientSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {" in game_client
+	assert "spawnPoint = G_SelectClientSpawnPoint( ent, spawn_origin, spawn_angles );" in game_client
+	assert "gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {" in game_team
+	assert "spawnPoint = Team_SelectDominationSpawnPoint( ent, origin, angles );" in game_client
+	assert "return G_SelectRankedSpawnPoint( spots, count, origin, angles );" in game_team
+	assert "gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles );" in game_local
+	assert "gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles );" in game_local
 
 
 def test_freeze_helpers_match_recovered_retail_boundaries() -> None:
@@ -56,3 +66,70 @@ def test_red_rover_helpers_match_recovered_retail_boundaries() -> None:
 	assert "if ( G_RRResolveRoundState() != ROUNDSTATE_ACTIVE ) {" in game_client
 	assert "static void G_RRResetClientForRound( gentity_t *ent ) {" in game_client
 	assert "G_RRResetClientForRound( ent );" in game_client
+
+
+def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	game_match_state = _read("src/code/game/g_match_state.c")
+	game_main = _read("src/code/game/g_main.c")
+	game_race = _read("src/code/game/g_race.c")
+	game_client = _read("src/code/game/g_client.c")
+	game_svcmds = _read("src/code/game/g_svcmds.c")
+	game_local = _read("src/code/game/g_local.h")
+
+	assert "static qboolean G_StartTimeout( gentity_t *ent, int durationSeconds ) {" in game_cmds
+	assert "static qboolean G_BeginTimein( gentity_t *ent ) {" in game_cmds
+	assert "void Cmd_Pause_f( gentity_t *ent ) {" in game_cmds
+	assert "static int G_KickOrBanClient( gentity_t *ent, char *targetToken, qboolean banTarget ) {" in game_cmds
+	assert 'trap_SendServerCommand( ent-g_entities, "print \\"Can not kick admins.\\n\\"" );' in game_cmds
+	assert "G_KickOrBanClient( ent, arg, qfalse );" in game_cmds
+	assert "G_KickOrBanClient( ent, arg, qtrue );" in game_cmds
+	assert "G_KickOrBanClient( ent, val, qfalse );" in game_cmds
+	assert "G_KickOrBanClient( ent, val, qtrue );" in game_cmds
+
+	assert "void G_UpdateTimeoutConfigStrings( void ) {" in game_match_state
+	assert "trap_SetConfigstring( CS_TIMEOUT_START_TIME" in game_match_state
+	assert "trap_SetConfigstring( CS_TIMEOUT_EXPIRE_TIME" in game_match_state
+	assert "trap_SetConfigstring( CS_TIMEOUT_COUNT_RED" in game_match_state
+	assert "trap_SetConfigstring( CS_TIMEOUT_COUNT_BLUE" in game_match_state
+	assert "G_UpdateTimeoutConfigStrings();" in game_match_state
+
+	assert "static void G_CheckTimeoutExpired( void ) {" in game_main
+	assert "G_CheckTimeoutExpired();" in game_main
+	assert "static void G_UpdateDominationCaptureTimeConfigstring( qboolean forceBroadcast ) {" in game_main
+	assert "trap_SetConfigstring( CS_DOMINATION_CAPTURE_TIME, payload );" in game_main
+	assert "static void G_UpdateRRInfectedSurvivorPingRateConfigstring( qboolean forceBroadcast ) {" in game_main
+	assert "trap_SetConfigstring( CS_RR_INFECTED_SURVIVOR_PING_RATE, payload );" in game_main
+	assert "static void G_UpdateModeSpecificConfigstrings( qboolean forceBroadcast ) {" in game_main
+	assert "G_UpdateModeSpecificConfigstrings( qtrue );" in game_main
+	assert "G_UpdateModeSpecificConfigstrings( qfalse );" in game_main
+	assert "static int G_AdminAccessForConnectedClient( int clientNum ) {" in game_main
+	assert "void G_ReloadAdminAccess( void ) {" in game_main
+	assert "client->sess.privilege = G_AdminAccessForConnectedClient( clientNum );" in game_main
+	assert "void\tG_ReloadAdminAccess( void );" in game_local
+	assert "trap_SetConfigstring( CS_SPAWN_HINTS" not in _read("src/game/g_match_config.c")
+
+	assert "void G_RaceResetClientAndSpawn( gentity_t *ent ) {" in game_race
+	assert "G_RaceBroadcastInitCommand( ent->s.number );" in game_race
+	assert "G_RaceResetClientAndSpawn( ent );" in game_client
+
+	assert "static void Svcmd_DumpVars_f( void ) {" in game_svcmds
+	assert 'G_Printf( "Data Dump: (%s)\\n", cl->pers.netname );' in game_svcmds
+	assert 'G_Printf( "clientNum: %d\\n", ( int )( cl - level.clients ) );' in game_svcmds
+	assert 'G_Printf( "pm_type: 0x%08x\\n", cl->ps.pm_type );' in game_svcmds
+	assert 'G_Printf( "pm_flags: 0x%08x\\n", cl->ps.pm_flags );' in game_svcmds
+	assert 'G_Printf( "pm_time: %d\\n", cl->ps.pm_time );' in game_svcmds
+	assert 'G_Printf( "eFlags: %d\\n", cl->ps.eFlags );' in game_svcmds
+	assert 'G_Printf( "origin: (%0.3f, %0.3f, %0.3f)\\n", cl->ps.origin[0], cl->ps.origin[1], cl->ps.origin[2] );' in game_svcmds
+	assert "static void Svcmd_GameCrash_f( void ) {" in game_svcmds
+	assert 'trap_Cvar_VariableIntegerValue( "developer" ) < 1' in game_svcmds
+	assert "*(volatile int *)0 = 0x12345678;" in game_svcmds
+	assert "static void Svcmd_ReloadAccess_f( void ) {" in game_svcmds
+	assert "G_ReloadAdminAccess();" in game_svcmds
+	assert 'if ( Q_stricmp (cmd, "game_crash") == 0 ) {' in game_svcmds
+	assert 'if ( Q_stricmp (cmd, "forceshuffle") == 0 ) {' in game_svcmds
+	assert 'if ( Q_stricmp (cmd, "dumpvars") == 0 ) {' in game_svcmds
+	assert 'if ( Q_stricmp (cmd, "reload_access") == 0 ) {' in game_svcmds
+	assert "Svcmd_GameCrash_f();" in game_svcmds
+	assert "Svcmd_DumpVars_f();" in game_svcmds
+	assert "Svcmd_ReloadAccess_f();" in game_svcmds

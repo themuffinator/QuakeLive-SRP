@@ -50,3 +50,11 @@ def test_freeze_visibility_helper_matches_retail_export_boundary() -> None:
 	assert "targetClientNum = ent->s.otherEntityNum;" in freeze_c
 	assert "targetClientNum = ent->s.clientNum;" in freeze_c
 	assert "return G_ClientNumsOnSameTeam( clientNum, targetClientNum );" in freeze_c
+
+
+def test_qagame_native_import_table_uses_public_header_count() -> None:
+	public_h = _read("src/code/game/g_public.h")
+	sv_game = _read("src/code/server/sv_game.c")
+
+	assert "#define GAME_NATIVE_IMPORT_COUNT\t(G_RANK_REPORT_STR + 1)" in public_h
+	assert "static ql_import_f ql_game_imports[GAME_NATIVE_IMPORT_COUNT] = {" in sv_game

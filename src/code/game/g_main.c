@@ -77,7 +77,13 @@ static int	s_roundWarmupDelayModCount = 0;
 static int	s_teamSizeMinModCount = 0;
 static char	s_worldspawnAtmosphere[MAX_QPATH];
 static char	s_lastForcedCosmeticsPayload[MAX_INFO_STRING];
+static char	s_serverSettingsInfoPayloadA[MAX_INFO_STRING];
+static char	s_serverSettingsInfoPayloadB[MAX_INFO_STRING];
+static char	s_weaponReloadPayload[MAX_INFO_STRING];
+static char	s_playerAppearancePayload[MAX_INFO_STRING];
 static char	s_gameStateBuffer[GAME_STATE_BUFFER_LENGTH];
+static char	s_dominationCaptureTimePayload[32];
+static char	s_rrInfectedSurvivorPingRatePayload[32];
 static char	s_customSettingsPayload[MAX_INFO_STRING];
 static qboolean s_customSettingsDirty = qtrue;
 static uint64_t s_lastCustomSettingsMask = 0;
@@ -105,7 +111,10 @@ static void G_SyncAllClientArmorTiers( void );
 static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut );
 static void G_InsertAdminAccessEntry( const char *steamId, int tier );
 static void G_LoadAdminAccessFile( void );
-static qboolean G_CustomSettingMatchesDefault( const cvarTable_t *cv );
+static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast );
+static void G_UpdateWeaponReloadConfigstring( qboolean forceBroadcast );
+static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast );
+static void G_UpdateModeSpecificConfigstrings( qboolean forceBroadcast );
 static uint64_t G_ComputeCustomSettingsMask( void );
 static void G_UpdateCustomSettingsConfigstring( qboolean forceBroadcast );
 void G_SuddenDeathThink( void );
@@ -1054,6 +1063,7 @@ static void G_UpdateItemTimerConfig( qboolean forceBroadcast ) {
 }
 
 static void LevelCheckTimers( void );
+static void G_CheckTimeoutExpired( void );
 void G_UpdateMatchStateConfigString( void );
 static void G_StartOrExtendOvertime( void );
 static void G_StopOvertime( void );
@@ -1061,6 +1071,7 @@ static void G_TrackSuddenDeathAnnouncements( void );
 void G_InitGame( int levelTime, int randomSeed, int restart );
 void G_RunFrame( int levelTime );
 void G_ShutdownGame( int restart );
+void G_RegisterCvars( void );
 void CheckExitRules( void );
 
 
@@ -1104,9 +1115,54 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 		return ConsoleCommand();
 	case BOTAI_START_FRAME:
 		return BotAIStartFrame( arg0 );
+	case GAME_CAN_CLIENT_SEE_CLIENT:
+		return G_CanClientSeeClient( arg0, arg1 );
+	case GAME_FREEZE_CAN_SEE_THAW_PROGRESS_EVENT:
+		return G_FreezeCanSeeThawProgressEvent( arg0, arg1 );
+	case GAME_IS_OBJECTIVE_ENTITY:
+		return G_IsObjectiveEntity( arg0 );
+	case GAME_SHOULD_SUPPRESS_VOICE_TO_CLIENT:
+		return G_ShouldSuppressVoiceToClient( arg0, arg1 );
+	case GAME_IS_CLIENT_ADMIN:
+		return G_IsClientAdmin( arg0 );
+	case GAME_ARE_ENEMY_CLIENTS:
+		return G_AreEnemyClients( arg0, arg1 );
+	case GAME_GET_CLIENT_SCORE:
+		return G_GetClientScore( arg0 );
 	}
 
 	return -1;
+}
+
+static void *g_nativeExports[GAME_NATIVE_EXPORT_COUNT] = {
+	[GAME_NATIVE_EXPORT_SHUTDOWN] = G_ShutdownGame,
+	[GAME_NATIVE_EXPORT_RUN_FRAME] = G_RunFrame,
+	[GAME_NATIVE_EXPORT_REGISTER_CVARS] = G_RegisterCvars,
+	[GAME_NATIVE_EXPORT_INIT] = G_InitGame,
+	[GAME_NATIVE_EXPORT_CONSOLE_COMMAND] = ConsoleCommand,
+	[GAME_NATIVE_EXPORT_CLIENT_USERINFO_CHANGED] = ClientUserinfoChanged,
+	[GAME_NATIVE_EXPORT_CLIENT_THINK] = ClientThink,
+	[GAME_NATIVE_EXPORT_CLIENT_DISCONNECT] = ClientDisconnect,
+	[GAME_NATIVE_EXPORT_CLIENT_CONNECT] = ClientConnect,
+	[GAME_NATIVE_EXPORT_CLIENT_COMMAND] = ClientCommand,
+	[GAME_NATIVE_EXPORT_CLIENT_BEGIN] = ClientBegin,
+	[GAME_NATIVE_EXPORT_BOTAI_START_FRAME] = BotAIStartFrame,
+	[GAME_NATIVE_EXPORT_CAN_CLIENT_SEE_CLIENT] = G_CanClientSeeClient,
+	[GAME_NATIVE_EXPORT_FREEZE_CAN_SEE_THAW_PROGRESS_EVENT] = G_FreezeCanSeeThawProgressEvent,
+	[GAME_NATIVE_EXPORT_IS_OBJECTIVE_ENTITY] = G_IsObjectiveEntity,
+	[GAME_NATIVE_EXPORT_SHOULD_SUPPRESS_VOICE_TO_CLIENT] = G_ShouldSuppressVoiceToClient,
+	[GAME_NATIVE_EXPORT_IS_CLIENT_ADMIN] = G_IsClientAdmin,
+	[GAME_NATIVE_EXPORT_ARE_ENEMY_CLIENTS] = G_AreEnemyClients,
+	[GAME_NATIVE_EXPORT_GET_CLIENT_SCORE] = G_GetClientScore
+};
+
+/*
+================
+G_GetNativeExportTable
+================
+*/
+void **G_GetNativeExportTable( void ) {
+	return g_nativeExports;
 }
 
 
@@ -1283,6 +1339,10 @@ LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) 
 
 	G_SyncAdminConfig();
 	G_RefreshPmoveSettings();
+	G_UpdateServerSettingsInfoConfigstrings( qtrue );
+	G_UpdateWeaponReloadConfigstring( qtrue );
+	G_UpdatePlayerAppearanceConfigstring( qtrue );
+	G_UpdateModeSpecificConfigstrings( qtrue );
 	G_UpdateCustomSettingsConfigstring( qtrue );
 }
 
@@ -1381,6 +1441,10 @@ void G_UpdateCvars( void ) {
 	G_UpdateTrainingState();
 	G_UpdateGametypeTutorialText();
 	G_RefreshPmoveSettings();
+	G_UpdateServerSettingsInfoConfigstrings( qfalse );
+	G_UpdateWeaponReloadConfigstring( qfalse );
+	G_UpdatePlayerAppearanceConfigstring( qfalse );
+	G_UpdateModeSpecificConfigstrings( qfalse );
 	G_UpdateCustomSettingsConfigstring( qfalse );
 }
 
@@ -1410,54 +1474,197 @@ void G_ClearCustomSettingsDirtyFlag( void ) {
 
 /*
 =============
-G_CustomSettingMatchesDefault
+G_UpdateServerSettingsInfoConfigstrings
 
-Returns whether the tracked CVar is still set to its default value.
+Publishes the retail server-settings info-string slab consumed by the UI ownerdraw.
 =============
 */
-static qboolean G_CustomSettingMatchesDefault( const cvarTable_t *cv ) {
-	if ( !cv || !cv->vmCvar ) {
-		return qtrue;
+static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast ) {
+	char	payloadA[MAX_INFO_STRING];
+	char	payloadB[MAX_INFO_STRING];
+
+	payloadA[0] = '\0';
+	payloadB[0] = '\0';
+
+	Info_SetValueForKey( payloadA, "armor_tiered", va( "%i", g_armorTiered.integer ) );
+	Info_SetValueForKey( payloadB, "g_quadDamageFactor", va( "%i", g_quadDamageFactor.integer ) );
+	Info_SetValueForKey( payloadB, "g_gravity", va( "%i", g_gravity.integer ) );
+
+	if ( forceBroadcast || Q_stricmp( payloadA, s_serverSettingsInfoPayloadA ) != 0 ) {
+		trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_A, payloadA );
+		Q_strncpyz( s_serverSettingsInfoPayloadA, payloadA, sizeof( s_serverSettingsInfoPayloadA ) );
 	}
 
-	if ( !cv->defaultString ) {
-		return ( cv->vmCvar->string[0] == '\0' ) ? qtrue : qfalse;
+	if ( forceBroadcast || Q_stricmp( payloadB, s_serverSettingsInfoPayloadB ) != 0 ) {
+		trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_B, payloadB );
+		Q_strncpyz( s_serverSettingsInfoPayloadB, payloadB, sizeof( s_serverSettingsInfoPayloadB ) );
+	}
+}
+
+/*
+=============
+G_UpdatePlayerAppearanceConfigstring
+
+Publishes the retail player-appearance info string consumed by cgame's
+forced-player visual parser.
+=============
+*/
+static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast ) {
+	char	payload[MAX_INFO_STRING];
+
+	payload[0] = '\0';
+
+	Info_SetValueForKey( payload, "g_playermodelOverride", g_playermodelOverride.string );
+	Info_SetValueForKey( payload, "g_playerheadmodelOverride", g_playerheadmodelOverride.string );
+	Info_SetValueForKey( payload, "g_allowCustomHeadmodels", va( "%i", g_allowCustomHeadmodels.integer ) );
+	Info_SetValueForKey( payload, "g_playerheadScale", va( "%g", g_playerheadScale.value ) );
+	Info_SetValueForKey( payload, "g_playerheadScaleOffset", va( "%g", g_playerheadScaleOffset.value ) );
+	Info_SetValueForKey( payload, "g_playerModelScale", va( "%g", g_playerModelScale.value ) );
+
+	if ( forceBroadcast || Q_stricmp( payload, s_playerAppearancePayload ) != 0 ) {
+		trap_SetConfigstring( CS_PLAYER_APPEARANCE, payload );
+		Q_strncpyz( s_playerAppearancePayload, payload, sizeof( s_playerAppearancePayload ) );
+	}
+}
+
+/*
+=============
+G_UpdateWeaponReloadConfigstring
+
+Publishes the retail compact weapon-refire configstring consumed by cgame's
+dedicated reload parser.
+=============
+*/
+static void G_UpdateWeaponReloadConfigstring( qboolean forceBroadcast ) {
+	char	payload[MAX_INFO_STRING];
+
+	Com_sprintf(
+		payload,
+		sizeof( payload ),
+		"%i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+		g_pmoveSettings.weaponReloadTimes[WP_GAUNTLET],
+		g_pmoveSettings.weaponReloadTimes[WP_MACHINEGUN],
+		g_pmoveSettings.weaponReloadTimes[WP_SHOTGUN],
+		g_pmoveSettings.weaponReloadTimes[WP_GRENADE_LAUNCHER],
+		g_pmoveSettings.weaponReloadTimes[WP_ROCKET_LAUNCHER],
+		g_pmoveSettings.weaponReloadTimes[WP_LIGHTNING],
+		g_pmoveSettings.weaponReloadTimes[WP_RAILGUN],
+		g_pmoveSettings.weaponReloadTimes[WP_PLASMAGUN],
+		g_pmoveSettings.weaponReloadTimes[WP_BFG],
+		g_pmoveSettings.weaponReloadTimes[WP_GRAPPLING_HOOK],
+		g_pmoveSettings.weaponReloadTimes[WP_NAILGUN],
+		g_pmoveSettings.weaponReloadTimes[WP_PROX_LAUNCHER],
+		g_pmoveSettings.weaponReloadTimes[WP_CHAINGUN],
+		g_pmoveSettings.weaponReloadTimes[WP_HEAVY_MACHINEGUN]
+	);
+
+	if ( forceBroadcast || Q_stricmp( payload, s_weaponReloadPayload ) != 0 ) {
+		trap_SetConfigstring( CS_WEAPON_RELOAD_TIMES, payload );
+		Q_strncpyz( s_weaponReloadPayload, payload, sizeof( s_weaponReloadPayload ) );
+	}
+}
+
+/*
+=============
+G_UpdateDominationCaptureTimeConfigstring
+
+Publishes the retail Domination capture-time configstring sourced from g_domCapTime.
+=============
+*/
+static void G_UpdateDominationCaptureTimeConfigstring( qboolean forceBroadcast ) {
+	char	payload[32];
+
+	Com_sprintf( payload, sizeof( payload ), "%f", g_domCapTime.value );
+	if ( !forceBroadcast && !Q_stricmp( payload, s_dominationCaptureTimePayload ) ) {
+		return;
 	}
 
-	return ( Q_stricmp( cv->vmCvar->string, cv->defaultString ) == 0 ) ? qtrue : qfalse;
+	trap_SetConfigstring( CS_DOMINATION_CAPTURE_TIME, payload );
+	Q_strncpyz( s_dominationCaptureTimePayload, payload, sizeof( s_dominationCaptureTimePayload ) );
+}
+
+/*
+=============
+G_UpdateRRInfectedSurvivorPingRateConfigstring
+
+Publishes the retail Red Rover survivor-ping cadence configstring.
+=============
+*/
+static void G_UpdateRRInfectedSurvivorPingRateConfigstring( qboolean forceBroadcast ) {
+	char	payload[32];
+
+	Com_sprintf( payload, sizeof( payload ), "%f", g_rrInfectedSurvivorPingRate.value );
+	if ( !forceBroadcast && !Q_stricmp( payload, s_rrInfectedSurvivorPingRatePayload ) ) {
+		return;
+	}
+
+	trap_SetConfigstring( CS_RR_INFECTED_SURVIVOR_PING_RATE, payload );
+	Q_strncpyz( s_rrInfectedSurvivorPingRatePayload, payload, sizeof( s_rrInfectedSurvivorPingRatePayload ) );
+}
+
+/*
+=============
+G_UpdateModeSpecificConfigstrings
+
+Refreshes the retail mode-specific numeric configstrings owned by qagame.
+=============
+*/
+static void G_UpdateModeSpecificConfigstrings( qboolean forceBroadcast ) {
+	G_UpdateDominationCaptureTimeConfigstring( forceBroadcast );
+	G_UpdateRRInfectedSurvivorPingRateConfigstring( forceBroadcast );
 }
 
 /*
 =============
 G_ComputeCustomSettingsMask
 
-Aggregates the bitmask representing all gameplay CVars flagged as custom
-settings that currently deviate from their defaults.
+Aggregates the retail custom-settings mask from the current effective gameplay
+configuration instead of the older source-only customSetting flag walk.
 =============
 */
 static uint64_t G_ComputeCustomSettingsMask( void ) {
 	uint64_t	mask;
-	uint64_t	bit;
-	int		i;
-	cvarTable_t	*cv;
 
-	mask = 0;
-	bit = 1;
+	mask = G_ComputeConfigCustomSettingsMask();
 
-	for ( i = 0, cv = gameCvarTable; i < gameCvarTableSize; i++, cv++ ) {
-		if ( !cv->customSetting ) {
-			continue;
-		}
-
-		if ( bit == 0 ) {
-			break;
-		}
-
-		if ( !G_CustomSettingMatchesDefault( cv ) ) {
-			mask |= bit;
-		}
-
-		bit <<= 1;
+	if ( G_PmoveHasAirControlCustomSetting() ) {
+		mask |= CUSTOM_SETTING_AIR_CONTROL;
+	}
+	if ( G_PmoveHasRampJumpCustomSetting() ) {
+		mask |= CUSTOM_SETTING_RAMP_JUMP;
+	}
+	if ( g_speed.integer != 320 || G_PmoveHasPhysicsCustomSetting() ) {
+		mask |= CUSTOM_SETTING_PHYSICS;
+	}
+	if ( G_PmoveHasWeaponSwitchingCustomSetting() ) {
+		mask |= CUSTOM_SETTING_WEAPON_SWITCHING;
+	}
+	if ( g_instaGib.integer != 0 ) {
+		mask |= CUSTOM_SETTING_INSTAGIB;
+	}
+	if ( g_quadHog.integer != 0 ) {
+		mask |= CUSTOM_SETTING_QUAD_HOG;
+	}
+	if ( g_dropDamagedHealth.integer != 1 ) {
+		mask |= CUSTOM_SETTING_DROP_HEALTH;
+	}
+	if ( g_vampiricDamage.value != 0.0f ) {
+		mask |= CUSTOM_SETTING_VAMPIRIC_DAMAGE;
+	}
+	if ( g_headShotDamage_rg.integer != 0 ) {
+		mask |= CUSTOM_SETTING_HEADSHOTS;
+	}
+	if ( g_railJump.integer != 0 ) {
+		mask |= CUSTOM_SETTING_RAIL_JUMPING;
+	}
+	if ( G_PmoveHasNoPlayerClipCustomSetting() ) {
+		mask |= CUSTOM_SETTING_NO_PLAYER_CLIP;
+	}
+	if ( g_rrInfected.integer != 0 ) {
+		mask |= CUSTOM_SETTING_INFECTED;
+	}
+	if ( g_lightningDischarge.integer != 0 ) {
+		mask |= CUSTOM_SETTING_LIGHTNING_DISCHARGE;
 	}
 
 	return mask;
@@ -1474,10 +1681,6 @@ publishes the value to CS_CUSTOM_SETTINGS when the payload changes.
 static void G_UpdateCustomSettingsConfigstring( qboolean forceBroadcast ) {
 	uint64_t	mask;
 	char		payload[MAX_INFO_STRING];
-
-	if ( !forceBroadcast && !G_CustomSettingsDirty() ) {
-		return;
-	}
 
 	mask = G_ComputeCustomSettingsMask();
 	Com_sprintf( payload, sizeof( payload ), "%llu", (unsigned long long)mask );
@@ -1702,6 +1905,72 @@ int G_AdminAccessForSteamID( const char *steamId ) {
 	}
 
 	return 0;
+}
+
+/*
+=============
+G_AdminAccessForConnectedClient
+
+Rebuilds the cached privilege tier for a live client after access-list changes.
+=============
+*/
+static int G_AdminAccessForConnectedClient( int clientNum ) {
+	gclient_t			*client;
+	char				userinfo[MAX_INFO_STRING];
+	const char			*ip;
+	unsigned long long	steamIdValue;
+	char				steamIdString[32];
+
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return PRIV_NONE;
+	}
+
+	client = &level.clients[clientNum];
+	if ( client->pers.connected == CON_DISCONNECTED ) {
+		return PRIV_NONE;
+	}
+
+	if ( client->pers.localClient ) {
+		return PRIV_ROOT;
+	}
+
+	trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
+	ip = Info_ValueForKey( userinfo, "ip" );
+	if ( ip[0] && !Q_stricmp( ip, "localhost" ) ) {
+		return PRIV_ROOT;
+	}
+
+	if ( client->pers.steamIdValid ) {
+		steamIdValue = ( (unsigned long long)client->pers.steamIdHigh << 32 ) | client->pers.steamIdLow;
+		Com_sprintf( steamIdString, sizeof( steamIdString ), "%llu", steamIdValue );
+		return G_AdminAccessForSteamID( steamIdString );
+	}
+
+	return G_AdminAccessForSteamID( Info_ValueForKey( userinfo, "steamid" ) );
+}
+
+/*
+=============
+G_ReloadAdminAccess
+
+Reloads the access file and refreshes cached privilege tiers for connected clients.
+=============
+*/
+void G_ReloadAdminAccess( void ) {
+	int	clientNum;
+
+	G_LoadAdminAccessFile();
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[clientNum];
+		if ( client->pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+
+		client->sess.privilege = G_AdminAccessForConnectedClient( clientNum );
+	}
 }
 
 
@@ -3537,6 +3806,33 @@ void G_ApplyTimeoutPauseDelta( int msec ) {
 	}
 }
 
+/*
+=============
+G_CheckTimeoutExpired
+
+Resumes play once the active timeout countdown reaches its expiry time.
+=============
+*/
+static void G_CheckTimeoutExpired( void ) {
+	int	pausedDuration;
+
+	if ( !level.timeoutActive ) {
+		return;
+	}
+	if ( !level.timeoutExpireTime || level.time < level.timeoutExpireTime ) {
+		return;
+	}
+
+	pausedDuration = 0;
+	if ( level.timeoutStartTime > 0 && level.time > level.timeoutStartTime ) {
+		pausedDuration = level.time - level.timeoutStartTime;
+	}
+
+	G_ApplyTimeoutPauseDelta( pausedDuration );
+	G_ResetTimeoutState();
+	G_UpdateMatchStateConfigString();
+}
+
 int G_GetSuddenDeathRespawnDelay( void ) {
 	const matchFactoryConfig_t *config = &g_matchFactoryConfig;
 
@@ -3636,29 +3932,8 @@ static void LevelCheckTimers( void ) {
 	G_AutoShuffleCountdown_Frame();
 	Team_UpdateAutoShuffleState();
 
+	G_CheckTimeoutExpired();
 	if ( level.timeoutActive ) {
-		if ( level.timeoutExpireTime && level.time >= level.timeoutExpireTime ) {
-			int pausedDuration = 0;
-			team_t team = level.timeoutTeam;
-			int owner = level.timeoutOwner;
-
-			if ( level.timeoutStartTime > 0 && level.time > level.timeoutStartTime ) {
-				pausedDuration = level.time - level.timeoutStartTime;
-			}
-
-			G_ApplyTimeoutPauseDelta( pausedDuration );
-
-			trap_SendServerCommand( -1, "print \"Timeout expired; match resuming.\\n\"" );
-			G_LogPrintf( "match: timeout expired team %i owner %i\n", team, owner );
-
-			level.timeoutActive = qfalse;
-			level.timeoutOwner = -1;
-			level.timeoutTeam = TEAM_FREE;
-			level.timeoutExpireTime = 0;
-			level.timeoutStartTime = 0;
-
-			G_UpdateMatchStateConfigString();
-		}
 		return;
 	}
 	if ( g_timelimit.integer && !level.warmupTime ) {

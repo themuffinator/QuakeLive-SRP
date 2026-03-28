@@ -642,6 +642,53 @@ void SP_info_player_intermission( gentity_t *ent ) {
 =======================================================================
 */
 
+#define	MAX_SPAWN_POINTS	128
+#define	MAX_RANKED_SPAWN_POINTS	32
+
+/*
+================
+G_CopySpawnPointSelection
+
+Copies the chosen spawn entity into the player spawn outputs.
+================
+*/
+static void G_CopySpawnPointSelection( const gentity_t *spot, vec3_t origin, vec3_t angles ) {
+	if ( !spot ) {
+		return;
+	}
+
+	VectorCopy( spot->s.origin, origin );
+	origin[2] += 9;
+	VectorCopy( spot->s.angles, angles );
+}
+
+/*
+================
+G_CollectSpawnPointsByClassname
+
+Builds a temporary candidate list for the requested spawn classname.
+================
+*/
+static int G_CollectSpawnPointsByClassname( const char *classname, gentity_t *spots[], int maxSpots ) {
+	gentity_t	*spot;
+	int		count;
+
+	if ( !classname || !classname[0] || !spots || maxSpots <= 0 ) {
+		return 0;
+	}
+
+	count = 0;
+	spot = NULL;
+	while ( ( spot = G_Find( spot, FOFS( classname ), classname ) ) != NULL ) {
+		spots[count++] = spot;
+		if ( count >= maxSpots ) {
+			break;
+		}
+	}
+
+	return count;
+}
+
 /*
 ================
 SpotWouldTelefrag
@@ -672,12 +719,123 @@ qboolean SpotWouldTelefrag( gentity_t *spot ) {
 
 /*
 ================
+G_SelectRankedSpawnPoint
+
+Ranks candidate spawns against live players and returns a random pick from the best half.
+================
+*/
+gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {
+	gentity_t	*rankedSpots[MAX_RANKED_SPAWN_POINTS];
+	float		rankedDistances[MAX_RANKED_SPAWN_POINTS];
+	gentity_t	*spot;
+	float		bestDistance;
+	int		rankedCount;
+	int		i, j;
+	int		selectionCount;
+	int		selection;
+
+	if ( !spots || spotCount <= 0 ) {
+		return NULL;
+	}
+
+	rankedCount = 0;
+	for ( i = 0; i < spotCount; i++ ) {
+		gentity_t	*other;
+
+		spot = spots[i];
+		if ( !spot ) {
+			continue;
+		}
+		if ( SpotWouldTelefrag( spot ) ) {
+			continue;
+		}
+
+		bestDistance = 999999.0f;
+		for ( j = 0; j < level.maxclients; j++ ) {
+			vec3_t	delta;
+			float	dist;
+
+			other = &g_entities[j];
+			if ( !other->inuse || !other->client ) {
+				continue;
+			}
+			if ( other->client->pers.connected != CON_CONNECTED ) {
+				continue;
+			}
+			if ( other->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+				continue;
+			}
+			if ( other->health <= 0 ) {
+				continue;
+			}
+
+			VectorSubtract( spot->s.origin, other->client->ps.origin, delta );
+			dist = VectorLength( delta );
+			if ( dist < bestDistance ) {
+				bestDistance = dist;
+			}
+		}
+
+		for ( j = 0; j < rankedCount; j++ ) {
+			if ( bestDistance > rankedDistances[j] ) {
+				int	k;
+
+				if ( rankedCount >= MAX_RANKED_SPAWN_POINTS ) {
+					rankedCount = MAX_RANKED_SPAWN_POINTS - 1;
+				}
+				for ( k = rankedCount; k > j; k-- ) {
+					rankedDistances[k] = rankedDistances[k - 1];
+					rankedSpots[k] = rankedSpots[k - 1];
+				}
+				rankedDistances[j] = bestDistance;
+				rankedSpots[j] = spot;
+				rankedCount++;
+				if ( rankedCount > MAX_RANKED_SPAWN_POINTS ) {
+					rankedCount = MAX_RANKED_SPAWN_POINTS;
+				}
+				break;
+			}
+		}
+
+		if ( j >= rankedCount && rankedCount < MAX_RANKED_SPAWN_POINTS ) {
+			rankedDistances[rankedCount] = bestDistance;
+			rankedSpots[rankedCount] = spot;
+			rankedCount++;
+		}
+	}
+
+	if ( !rankedCount ) {
+		for ( i = 0; i < spotCount; i++ ) {
+			spot = spots[i];
+			if ( !spot ) {
+				continue;
+			}
+
+			G_CopySpawnPointSelection( spot, origin, angles );
+			return spot;
+		}
+
+		return NULL;
+	}
+
+	selectionCount = rankedCount / 2;
+	if ( selectionCount <= 0 ) {
+		selectionCount = 1;
+	}
+
+	selection = rand() % selectionCount;
+	spot = rankedSpots[selection];
+	G_CopySpawnPointSelection( spot, origin, angles );
+	return spot;
+}
+
+/*
+================
 SelectNearestDeathmatchSpawnPoint
 
 Find the spot that we DON'T want to use
 ================
 */
-#define	MAX_SPAWN_POINTS	128
 gentity_t *SelectNearestDeathmatchSpawnPoint( vec3_t from ) {
 	gentity_t	*spot;
 	vec3_t		delta;
@@ -709,7 +867,6 @@ SelectRandomDeathmatchSpawnPoint
 go to a random point that doesn't telefrag
 ================
 */
-#define	MAX_SPAWN_POINTS	128
 gentity_t *SelectRandomDeathmatchSpawnPoint( void ) {
 	gentity_t	*spot;
 	int			count;
@@ -743,62 +900,25 @@ Chooses a player start, deathmatch start, etc
 ============
 */
 gentity_t *SelectRandomFurthestSpawnPoint ( vec3_t avoidPoint, vec3_t origin, vec3_t angles ) {
+	gentity_t	*spots[MAX_SPAWN_POINTS];
 	gentity_t	*spot;
-	vec3_t		delta;
-	float		dist;
-	float		list_dist[64];
-	gentity_t	*list_spot[64];
-	int			numSpots, rnd, i, j;
+	int		spotCount;
 
-	numSpots = 0;
-	spot = NULL;
+	(void)avoidPoint;
 
-	while ((spot = G_Find (spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
-		if ( SpotWouldTelefrag( spot ) ) {
-			continue;
-		}
-		VectorSubtract( spot->s.origin, avoidPoint, delta );
-		dist = VectorLength( delta );
-		for (i = 0; i < numSpots; i++) {
-			if ( dist > list_dist[i] ) {
-				if ( numSpots >= 64 )
-					numSpots = 64-1;
-				for (j = numSpots; j > i; j--) {
-					list_dist[j] = list_dist[j-1];
-					list_spot[j] = list_spot[j-1];
-				}
-				list_dist[i] = dist;
-				list_spot[i] = spot;
-				numSpots++;
-				if (numSpots > 64)
-					numSpots = 64;
-				break;
-			}
-		}
-		if (i >= numSpots && numSpots < 64) {
-			list_dist[numSpots] = dist;
-			list_spot[numSpots] = spot;
-			numSpots++;
-		}
-	}
-	if (!numSpots) {
-		spot = G_Find( NULL, FOFS(classname), "info_player_deathmatch");
-		if (!spot)
-			G_Error( "Couldn't find a spawn point" );
-		VectorCopy (spot->s.origin, origin);
-		origin[2] += 9;
-		VectorCopy (spot->s.angles, angles);
+	spotCount = G_CollectSpawnPointsByClassname( "info_player_deathmatch", spots, ARRAY_LEN( spots ) );
+	spot = G_SelectRankedSpawnPoint( spots, spotCount, origin, angles );
+	if ( spot ) {
 		return spot;
 	}
 
-	// select a random spot from the spawn points furthest away
-	rnd = random() * (numSpots / 2);
+	spot = G_Find( NULL, FOFS( classname ), "info_player_deathmatch" );
+	if ( !spot ) {
+		G_Error( "Couldn't find a spawn point" );
+	}
 
-	VectorCopy (list_spot[rnd]->s.origin, origin);
-	origin[2] += 9;
-	VectorCopy (list_spot[rnd]->s.angles, angles);
-
-	return list_spot[rnd];
+	G_CopySpawnPointSelection( spot, origin, angles );
+	return spot;
 }
 
 /*
@@ -862,10 +982,7 @@ gentity_t *SelectInitialSpawnPoint( vec3_t origin, vec3_t angles ) {
 		return SelectSpawnPoint( vec3_origin, origin, angles );
 	}
 
-	VectorCopy (spot->s.origin, origin);
-	origin[2] += 9;
-	VectorCopy (spot->s.angles, angles);
-
+	G_CopySpawnPointSelection( spot, origin, angles );
 	return spot;
 }
 
@@ -882,6 +999,53 @@ gentity_t *SelectSpectatorSpawnPoint( vec3_t origin, vec3_t angles ) {
 	VectorCopy( level.intermission_angle, angles );
 
 	return NULL;
+}
+
+/*
+=============
+G_SelectClientSpawnPoint
+
+Routes ClientSpawn through the retail-style per-gametype spawn helpers.
+=============
+*/
+static gentity_t *G_SelectClientSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {
+	gclient_t	*client;
+	gentity_t	*spawnPoint;
+	qboolean	useInitialSpawn;
+
+	if ( !ent || !ent->client ) {
+		return NULL;
+	}
+
+	client = ent->client;
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return SelectSpectatorSpawnPoint( origin, angles );
+	}
+
+	if ( g_gametype.integer == GT_DOMINATION && client->pers.teamState.state == TEAM_ACTIVE ) {
+		spawnPoint = Team_SelectDominationSpawnPoint( ent, origin, angles );
+		if ( spawnPoint ) {
+			return spawnPoint;
+		}
+	}
+
+	if ( g_gametype.integer >= GT_CTF ) {
+		return SelectCTFSpawnPoint( client->sess.sessionTeam, client->pers.teamState.state, origin, angles );
+	}
+
+	useInitialSpawn = qfalse;
+	if ( !client->pers.initialSpawn ) {
+		if ( client->pers.localClient || g_gametype.integer == GT_TOURNAMENT || level.trainingMapActive ) {
+			client->pers.initialSpawn = qtrue;
+			useInitialSpawn = qtrue;
+		}
+	}
+
+	if ( useInitialSpawn ) {
+		return SelectInitialSpawnPoint( origin, angles );
+	}
+
+	return SelectSpawnPoint( client->ps.origin, origin, angles );
 }
 
 /*
@@ -1082,7 +1246,10 @@ void respawn( gentity_t *ent ) {
 		spawnedImmediately = ( ent->client->ps.pm_type != PM_SPECTATOR ) ? qtrue : qfalse;
 	} else {
 		CopyToBodyQue( ent );
-		if ( g_gametype.integer == GT_ATTACK_DEFEND || g_gametype.integer == GT_CLAN_ARENA ) {
+		if ( g_gametype.integer == GT_RACE ) {
+			G_RaceResetClientAndSpawn( ent );
+			spawnedImmediately = qtrue;
+		} else if ( g_gametype.integer == GT_ATTACK_DEFEND || g_gametype.integer == GT_CLAN_ARENA ) {
 			G_CAADResetClientForRound( ent );
 			spawnedImmediately = qtrue;
 		} else {
@@ -1771,7 +1938,10 @@ void ClientBegin( int clientNum ) {
 
 	// locate ent at a spawn point
 	warmupSpawn = ( level.warmupTime > 0 ) ? qtrue : qfalse;
-	if ( ( g_gametype.integer == GT_ATTACK_DEFEND || g_gametype.integer == GT_CLAN_ARENA )
+	if ( g_gametype.integer == GT_RACE && client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		G_RaceResetClientAndSpawn( ent );
+		spawnedImmediately = qtrue;
+	} else if ( ( g_gametype.integer == GT_ATTACK_DEFEND || g_gametype.integer == GT_CLAN_ARENA )
 		&& client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		G_CAADResetClientForRound( ent );
 		spawnedImmediately = qtrue;
@@ -2072,24 +2242,9 @@ void ClientSpawn(gentity_t *ent) {
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		spawnPoint = SelectSpectatorSpawnPoint ( 
 						spawn_origin, spawn_angles);
-	} else if (g_gametype.integer >= GT_CTF ) {
-		// all base oriented team games use the CTF spawn points
-		spawnPoint = SelectCTFSpawnPoint ( 
-						client->sess.sessionTeam, 
-						client->pers.teamState.state, 
-						spawn_origin, spawn_angles);
 	} else {
 		do {
-			// the first spawn should be at a good looking spot
-			if ( !client->pers.initialSpawn && client->pers.localClient ) {
-				client->pers.initialSpawn = qtrue;
-				spawnPoint = SelectInitialSpawnPoint( spawn_origin, spawn_angles );
-			} else {
-				// don't spawn near existing origin if possible
-				spawnPoint = SelectSpawnPoint ( 
-					client->ps.origin, 
-					spawn_origin, spawn_angles);
-			}
+			spawnPoint = G_SelectClientSpawnPoint( ent, spawn_origin, spawn_angles );
 
 			// Tim needs to prevent bots from spawning at the initial point
 			// on q3dm0...

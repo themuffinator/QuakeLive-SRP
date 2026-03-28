@@ -46,6 +46,35 @@ static qboolean	CG_GetStoredPredictedBeam( weapon_t weapon, vec3_t start, vec3_t
 
 /*
 ===============
+CG_GetWeaponReloadTime
+
+Returns the active reload duration from the live pmove cache, falling back to
+the shared defaults when the replicated override is absent.
+===============
+*/
+static int CG_GetWeaponReloadTime( weapon_t weapon ) {
+	const pmove_settings_t	*defaults;
+	int			reloadTime;
+
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return 0;
+	}
+
+	reloadTime = cg_pmoveSettings.weaponReloadTimes[weapon];
+	if ( reloadTime > 0 ) {
+		return reloadTime;
+	}
+
+	defaults = PM_GetDefaultSettings();
+	if ( defaults ) {
+		return defaults->weaponReloadTimes[weapon];
+	}
+
+	return 0;
+}
+
+/*
+===============
 CG_SetWeaponSelect
 
 Keeps the last two local weapon selections in sync so retail `weapon toggle`
@@ -1715,8 +1744,14 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		if ( cg.predictedPlayerState.weapon == WP_RAILGUN 
 			&& cg.predictedPlayerState.weaponstate == WEAPON_FIRING ) {
 			float	f;
+			int	railReloadTime;
 
-			f = (float)cg.predictedPlayerState.weaponTime / 1500;
+			railReloadTime = CG_GetWeaponReloadTime( WP_RAILGUN );
+			if ( railReloadTime <= 0 ) {
+				railReloadTime = 1500;
+			}
+
+			f = (float)cg.predictedPlayerState.weaponTime / (float)railReloadTime;
 			gun.shaderRGBA[1] = 0;
 			gun.shaderRGBA[0] = 
 			gun.shaderRGBA[2] = 255 * ( 1.0 - f );

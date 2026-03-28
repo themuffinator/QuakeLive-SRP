@@ -20,13 +20,15 @@ this pass closes the nested member layout and the current owner semantics.
   `UI_ResetMatchSummaryCache`, `UI_MatchSummaryAppend`,
   `UI_MatchSummaryParseFromPostgame`, `UI_MatchSummaryListForFeeder`,
   `UI_FeederCount`, `UI_FeederItemText`, and `UI_FeederSelection`.
-- The parse entrypoint is also wired from `UI_SPPostgameMenu_f` in
-  `src/code/ui/ui_atoms.c`, which calls `UI_MatchSummaryParseFromPostgame()`
-  after unpacking the `postgame` command payload.
-- Retail parity is weaker here than for the older UI subsystems. The committed
-  `uix86.dll` HLIL still shows the `postgame` command dispatcher, but the
-  member-level roles below are primarily current-tree/source-backed until the
-  raw retail helper behind this Quake Live-compatible cache is promoted.
+- The current parse entrypoint is wired through `UI_CalcPostGameStats` in
+  `src/code/ui/ui_atoms.c`, which still owns the `postgame` command flow and
+  now calls `UI_MatchSummaryParseFromPostgame()` as one step inside that work.
+- Retail parity is mixed rather than uniformly weak here. The committed
+  `uix86.dll` corpus already promotes the `postgame` console-command target as
+  `UI_CalcPostGameStats`, but that retail helper still reads like the older
+  best-score / postgame-file core. The dedicated `matchSummary` cache and its
+  feeder-facing row materialization remain primarily current-tree/source-backed
+  unless stronger retail-only anchors appear later.
 
 ## Hard Layout Facts
 
@@ -92,9 +94,9 @@ the end-of-match feeders.
 | `0x0C` | `redScore` | `int` | Team-red score parsed from `UI_Argv(11)`. Stored in the cache for match-summary consumers, but no direct reader was found in the current tree; the older postgame cvar update path in `ui_atoms.c` separately tracks the same payload. |
 | `0x10` | `blueScore` | `int` | Team-blue score parsed from `UI_Argv(12)`. Same ownership story as `redScore`. |
 | `0x14` | `matchTimeSeconds` | `int` | Match duration in seconds, derived from `UI_Argv(13) / 1000`. Stored with the summary metadata, but no current reader was found. |
-| `0x18` | `endOfMatch` | `uiMatchPlayerList_t` | Full postgame player list in payload order. Routed to `FEEDER_MATCHSUMMARY_END`, `FEEDER_ENDSCOREBOARD`, and `FEEDER_SCOREBOARD`. |
-| `0x101C` | `redTeam` | `uiMatchPlayerList_t` | Red-team subset built from rows whose parsed `team` is `TEAM_RED`. Routed to `FEEDER_MATCHSUMMARY_RED`, `FEEDER_REDTEAM_STATS`, and `FEEDER_REDTEAM_LIST`. |
-| `0x2020` | `blueTeam` | `uiMatchPlayerList_t` | Blue-team subset built from rows whose parsed `team` is `TEAM_BLUE`. Routed to `FEEDER_MATCHSUMMARY_BLUE`, `FEEDER_BLUETEAM_STATS`, and `FEEDER_BLUETEAM_LIST`. |
+| `0x18` | `endOfMatch` | `uiMatchPlayerList_t` | Full postgame player list in payload order. In the current UI tree it feeds `FEEDER_MATCHSUMMARY_END` and also the compatibility aliases `FEEDER_ENDSCOREBOARD` / `FEEDER_SCOREBOARD`, but the committed retail scoreboard feeder family is owned by cgame rather than `uix86.dll`. |
+| `0x101C` | `redTeam` | `uiMatchPlayerList_t` | Red-team subset built from rows whose parsed `team` is `TEAM_RED`. In the current UI tree it feeds `FEEDER_MATCHSUMMARY_RED` and the compatibility aliases `FEEDER_REDTEAM_STATS` / `FEEDER_REDTEAM_LIST`, while retail ownership of those scoreboard feeders sits on the cgame side. |
+| `0x2020` | `blueTeam` | `uiMatchPlayerList_t` | Blue-team subset built from rows whose parsed `team` is `TEAM_BLUE`. In the current UI tree it feeds `FEEDER_MATCHSUMMARY_BLUE` and the compatibility aliases `FEEDER_BLUETEAM_STATS` / `FEEDER_BLUETEAM_LIST`, while retail ownership of those scoreboard feeders sits on the cgame side. |
 
 The struct ends immediately after `blueTeam.entryCount`, so:
 
@@ -103,27 +105,81 @@ The struct ends immediately after `blueTeam.entryCount`, so:
 
 ## Current Data Flow
 
-The current tree uses this cache in four stages:
+The current tree uses this cache in six stages:
 
-1. `UI_ResetMatchSummaryCache` zeroes the entire `uiInfo.matchSummary` block
+1. `UI_ConsoleCommand` still dispatches the `postgame` command into
+   `UI_CalcPostGameStats`, matching the committed retail `uix86.dll` command
+   path.
+2. `UI_CalcPostGameStats` preserves the retail-aligned postgame core
+   (best-score file load/save, bonus computation, `ui_score*` cvar updates, and
+   `UI_ShowPostGame`) and now calls `UI_MatchSummaryParseFromPostgame()` as a
+   Quake Live-compatible sidecar before that older flow finishes.
+3. `UI_ResetMatchSummaryCache` zeroes the entire `uiInfo.matchSummary` block
    and also resets `uiInfo.currentMatchSummaryEnd`,
    `uiInfo.currentMatchSummaryRed`, and `uiInfo.currentMatchSummaryBlue`.
-2. `UI_MatchSummaryParseFromPostgame` decodes the `postgame` command payload,
+4. `UI_MatchSummaryParseFromPostgame` decodes the `postgame` command payload,
    fills the metadata header, clears the three lists, builds one
    `uiMatchPlayerInfo_t` per valid client, and appends that row into the full
    list plus the matching team subset.
-3. `UI_MatchSummaryListForFeeder` converts a feeder ID into one of the three
+5. `UI_MatchSummaryListForFeeder` converts a feeder ID into one of the three
    cached lists, but only while `valid` is true.
-4. `UI_FeederCount`, `UI_FeederItemText`, and `UI_FeederSelection` expose the
-   cached rows to menu scripts, including the separate selection cursors for the
-   end-of-match, red-team, and blue-team feeders.
+6. `UI_FeederCount`, `UI_FeederItemText`, and `UI_FeederSelection` expose the
+   cached rows to menu scripts, including the separate selection cursors for
+   the end-of-match, red-team, and blue-team match-summary feeders plus the
+   current UI-side compatibility aliases for scoreboard-style lists.
+
+## Retail Core Versus Current Sidecar
+
+The committed retail evidence is strong enough to bound what is and is not
+already retail-backed:
+
+- `UI_ConsoleCommand` in retail dispatches the literal `"postgame"` command
+  directly into the already-promoted `UI_CalcPostGameStats`.
+- Retail `UI_CalcPostGameStats` still shows the older per-map
+  `games/%s_%i.game` file path, the same `UI_Argv(3..14)` stat unpacking used
+  by the current source, the same `ui_matchStartTime` / `g_spSkill` flow, the
+  same cvar restore band, and the same `UI_SetBestScores` tail.
+- The retail asset tree definitely consumes the scoreboard feeders themselves:
+  `assets/quakelive/baseq3/ui/end_scoreboard_*.menu`,
+  `endscorenoteam.menu`, `endscoreteam.menu`, and the
+  `ingame_scoreboard_*.menu` family all reference `FEEDER_SCOREBOARD`,
+  `FEEDER_REDTEAM_LIST`, `FEEDER_BLUETEAM_LIST`, `FEEDER_REDTEAM_STATS`, or
+  `FEEDER_BLUETEAM_STATS`.
+- Those scoreboard feeders no longer read as unresolved `uix86.dll` ownership.
+  The retail menu assets themselves include comments such as
+  `CG_FeederSelection in cg_main.c`, the current `cg_main.c` assigns
+  `CG_FeederCount`, `CG_FeederItemImage`, `CG_FeederItemText`, and
+  `CG_FeederSelection` into `cgDC`, and the committed cgame mapping already
+  promotes that feeder bridge. The scoreboard/team-list family is therefore a
+  cgame/HUD ownership seam, not a remaining UI-DLL seam.
+- The committed retail `uix86.dll` feeder callbacks also stop short of that
+  scoreboard family. `UI_FeederCount` and `UI_FeederItemText` show committed
+  retail branches for the older UI feeder set, but not for
+  `FEEDER_SCOREBOARD`, `FEEDER_ENDSCOREBOARD`, `FEEDER_REDTEAM_STATS`, or
+  `FEEDER_BLUETEAM_STATS`.
+- No committed `uix86.dll` HLIL string was found for `matchSummary`,
+  `FEEDER_MATCHSUMMARY_END`, `FEEDER_MATCHSUMMARY_RED`,
+  `FEEDER_MATCHSUMMARY_BLUE`, or the newer row-cache helper names in the
+  current source tree.
+
+That means the current `matchSummary` cache is best understood as a
+Quake Live-compatible reconstruction layered inside a retail-backed
+`UI_CalcPostGameStats` command path. The retail scoreboard/team feeder family
+already has a stronger home in the cgame `cgDC` bridge, while any direct
+UI-owned `matchSummary`-style feeder layer beyond `postgame ->
+UI_CalcPostGameStats` remains unpromoted in the committed `uix86.dll` map.
 
 ## Open Questions
 
-1. Promote the raw `uix86.dll` helper that owns the Quake Live-compatible
-   `postgame` summary cache so these member roles can be upgraded from
-   source-backed to directly retail-backed.
+1. Determine whether retail ever exposed any direct UI-owned
+   `matchSummary`-style feeder or row cache beyond the older
+   `UI_CalcPostGameStats` postgame core, or whether the current
+   `matchSummary` family should remain documented as a compatibility-only
+   staging layer now that the scoreboard/team feeder family is tied to cgame.
 2. Determine whether `localClientNum`, `redScore`, `blueScore`, and
    `matchTimeSeconds` ever feed script/native UI paths directly in retail, or
    whether they are compatibility carry-overs currently retained only for
-   future scoreboard work.
+   future scoreboard work. The separate top-level timing slots
+   `showPostGameTime` and `startPostGameTime` no longer look like live gaps:
+   they are already present in the older Team Arena `uiInfo_t` baseline and no
+   reader/writer has been found there or in the current tree.

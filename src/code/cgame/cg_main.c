@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../ui/ui_shared.h"
 // display context for new ui stuff
 displayContextDef_t cgDC;
+extern menuDef_t *menuScoreboard;
 
 #define DEFAULT_WEAPON_BAR_GRENADE_COLOR	"0x007000FF"
 #define DEFAULT_SCREEN_DAMAGE_COLOR		"0x700000C8"
@@ -79,6 +80,7 @@ static int crosshairHitColorModificationCount = -1;
 
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum );
 void CG_Shutdown( void );
+void CG_RegisterCvars( void );
 static void CG_UpdateSimpleItemsSettings( void );
 static void CG_UpdateCrosshairColorSettings( void );
 static void CG_UpdateCrosshairPulseSettings( void );
@@ -163,6 +165,68 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 		break;
 	}
 	return -1;
+}
+
+/*
+================
+CG_NativeMouseEvent
+================
+*/
+static void CG_NativeMouseEvent( int dx, int dy ) {
+	cgDC.cursorx = cgs.cursorX;
+	cgDC.cursory = cgs.cursorY;
+	CG_MouseEvent( dx, dy );
+}
+
+/*
+================
+CG_NativeChatDown
+================
+*/
+static void CG_NativeChatDown( void ) {
+	cg.chatHistoryVisible = qtrue;
+}
+
+/*
+================
+CG_NativeChatUp
+================
+*/
+static void CG_NativeChatUp( void ) {
+	cg.chatHistoryVisible = qfalse;
+}
+
+static void *cg_nativeExports[CG_NATIVE_EXPORT_COUNT] = {
+	[CG_NATIVE_EXPORT_INIT] = CG_Init,
+	[CG_NATIVE_EXPORT_REGISTER_CVARS] = CG_RegisterCvars,
+	[CG_NATIVE_EXPORT_SHUTDOWN] = CG_Shutdown,
+	[CG_NATIVE_EXPORT_CONSOLE_COMMAND] = CG_ConsoleCommand,
+	[CG_NATIVE_EXPORT_DRAW_ACTIVE_FRAME] = CG_DrawActiveFrame,
+	[CG_NATIVE_EXPORT_CROSSHAIR_PLAYER] = CG_CrosshairPlayer,
+	[CG_NATIVE_EXPORT_LAST_ATTACKER] = CG_LastAttacker,
+	[CG_NATIVE_EXPORT_KEY_EVENT] = CG_KeyEvent,
+	[CG_NATIVE_EXPORT_MOUSE_EVENT] = CG_NativeMouseEvent,
+	[CG_NATIVE_EXPORT_EVENT_HANDLING] = CG_EventHandling,
+	[CG_NATIVE_EXPORT_SHOW_1ST_TRACKED_PLAYER] = CG_Show1stTrackedPlayer,
+	[CG_NATIVE_EXPORT_SHOW_2ND_TRACKED_PLAYER] = CG_Show2ndTrackedPlayer,
+	[CG_NATIVE_EXPORT_CHAT_DOWN] = CG_NativeChatDown,
+	[CG_NATIVE_EXPORT_CHAT_UP] = CG_NativeChatUp,
+	[CG_NATIVE_EXPORT_GET_PHYSICS_TIME] = CG_GetPhysicsTime,
+	[CG_NATIVE_EXPORT_COPY_CLIENT_IDENTITY] = CG_CopyClientIdentity,
+	[CG_NATIVE_EXPORT_RESERVED_NULL] = NULL,
+	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_Y] = CG_GetChatFieldY,
+	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_PIXEL_WIDTH] = CG_GetChatFieldPixelWidth,
+	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_WIDTH_IN_CHARS] = CG_GetChatFieldWidthInChars,
+	[CG_NATIVE_EXPORT_SET_CLIENT_SPEAKING_STATE] = CG_SetClientSpeakingState
+};
+
+/*
+================
+CG_GetNativeExportTable
+================
+*/
+void **CG_GetNativeExportTable( void ) {
+	return cg_nativeExports;
 }
 
 
@@ -466,6 +530,8 @@ typedef struct {
 static unsigned int CG_ParseDamagePlumWeaponValue( const char *value, damagePlumPreset_t *preset );
 static damagePlumColorStyle_t CG_ParseDamagePlumColorStyleValue( int rawValue );
 static void CG_UpdateDamagePlumSettings( void );
+static const char *CG_RetailAnnouncerFolderForProfile( cgAnnouncerProfile_t profile );
+static sfxHandle_t CG_RegisterRetailAnnouncerClip( cgAnnouncerProfile_t profile, const char *sample );
 static sfxHandle_t CG_RegisterAnnouncerClip( const char *folder, const char *sample );
 static void CG_RegisterAnnouncerVoiceSet( cgAnnouncerProfile_t profile, const char *folder );
 static sfxHandle_t CG_RegisterRaceCueSound( const char *name );
@@ -545,7 +611,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 { &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
 { &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "1", CVAR_ARCHIVE },
 { &cg_teammateCrosshairNamesOpacity, "cg_teammateCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
-{ &cg_drawCrosshairTeamHealth, "cg_drawCrosshairTeamHealth", "29", CVAR_ARCHIVE },
+{ &cg_drawCrosshairTeamHealth, "cg_drawCrosshairTeamHealth", "2", CVAR_ARCHIVE },
 	{ &cg_drawCrosshairTeamHealthSize, "cg_drawCrosshairTeamHealthSize", "0.12", CVAR_ARCHIVE },
 	{ &cg_crosshairX, "cg_crosshairX", "0", CVAR_ARCHIVE },
 	{ &cg_crosshairY, "cg_crosshairY", "0", CVAR_ARCHIVE },
@@ -1249,6 +1315,7 @@ void CG_RegisterCvars( void ) {
 	trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );
 	trap_Cvar_Register(NULL, "cg_version", Q3_VERSION, CVAR_ROM );
 	trap_Cvar_Set( "ui_voteactive", "0" );
+	trap_Cvar_Set( "ui_votestring", "" );
 
 	announcerModificationCount = cg_announcer.modificationCount;
 }
@@ -2134,11 +2201,13 @@ void QDECL Com_Error( int level, const char *error, ... ) {
 	va_list		argptr;
 	char		text[1024];
 
+	(void)level;
+
 	va_start (argptr, error);
 	vsprintf (text, error, argptr);
 	va_end (argptr);
 
-	CG_Error( "%s", text);
+	trap_Error( text );
 }
 
 void QDECL Com_Printf( const char *msg, ... ) {
@@ -2149,7 +2218,7 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	vsprintf (text, msg, argptr);
 	va_end (argptr);
 
-	CG_Printf ("%s", text);
+	trap_Print( text );
 }
 
 #endif
@@ -2222,6 +2291,56 @@ static void CG_RegisterItemSounds( int itemNum ) {
 
 /*
 ============
+CG_RetailAnnouncerFolderForProfile
+
+Returns the retail announcer folder name used by the native cgame helper path.
+============
+*/
+static const char *CG_RetailAnnouncerFolderForProfile( cgAnnouncerProfile_t profile ) {
+	switch ( profile ) {
+		case ANNOUNCER_PROFILE_DEFAULT:
+			return "vo";
+		case ANNOUNCER_PROFILE_VADRIGAR:
+			return "vo_evil";
+		case ANNOUNCER_PROFILE_DAEMIA:
+			return "vo_female";
+		default:
+			return NULL;
+	}
+}
+
+/*
+============
+CG_RegisterRetailAnnouncerClip
+
+Tries the retail announcer folder layout before broader source-side fallbacks.
+============
+*/
+static sfxHandle_t CG_RegisterRetailAnnouncerClip( cgAnnouncerProfile_t profile, const char *sample ) {
+	static const char *const exts[] = { ".ogg", ".wav" };
+	const char	*folder;
+	char		path[MAX_QPATH];
+	sfxHandle_t	sfx;
+	int		i;
+
+	folder = CG_RetailAnnouncerFolderForProfile( profile );
+	if ( !folder || !folder[0] || !sample || !sample[0] ) {
+		return 0;
+	}
+
+	for ( i = 0; i < 2; i++ ) {
+		Com_sprintf( path, sizeof( path ), "sound/%s/%s%s", folder, sample, exts[i] );
+		sfx = trap_S_RegisterSound( path, qtrue );
+		if ( sfx ) {
+			return sfx;
+		}
+	}
+
+	return 0;
+}
+
+/*
+============
 CG_RegisterAnnouncerClip
 
 Registers an announcer clip, falling back to the default voice set when needed.
@@ -2269,13 +2388,22 @@ static void CG_RegisterAnnouncerVoiceSet( cgAnnouncerProfile_t profile, const ch
 	}
 
 	set = &cgs.media.announcerSoundSets[profile];
-	set->oneMinuteSound = CG_RegisterAnnouncerClip( folder, "1_minute" );
-	set->fiveMinuteSound = CG_RegisterAnnouncerClip( folder, "5_minute" );
-	set->suddenDeathSound = CG_RegisterAnnouncerClip( folder, "sudden_death" );
-	set->overtimeSound = CG_RegisterAnnouncerClip( folder, "overtime" );
-	set->oneFragSound = CG_RegisterAnnouncerClip( folder, "1_frag" );
-	set->twoFragSound = CG_RegisterAnnouncerClip( folder, "2_frags" );
-	set->threeFragSound = CG_RegisterAnnouncerClip( folder, "3_frags" );
+
+#define CG_REGISTER_ANNOUNCER_SAMPLE(field, sample) \
+	set->field = CG_RegisterRetailAnnouncerClip( profile, sample ); \
+	if ( !set->field ) { \
+		set->field = CG_RegisterAnnouncerClip( folder, sample ); \
+	}
+
+	CG_REGISTER_ANNOUNCER_SAMPLE( oneMinuteSound, "1_minute" );
+	CG_REGISTER_ANNOUNCER_SAMPLE( fiveMinuteSound, "5_minute" );
+	CG_REGISTER_ANNOUNCER_SAMPLE( suddenDeathSound, "sudden_death" );
+	CG_REGISTER_ANNOUNCER_SAMPLE( overtimeSound, "overtime" );
+	CG_REGISTER_ANNOUNCER_SAMPLE( oneFragSound, "1_frag" );
+	CG_REGISTER_ANNOUNCER_SAMPLE( twoFragSound, "2_frags" );
+	CG_REGISTER_ANNOUNCER_SAMPLE( threeFragSound, "3_frags" );
+
+#undef CG_REGISTER_ANNOUNCER_SAMPLE
 }
 
 /*
@@ -2428,6 +2556,11 @@ static void CG_RegisterSounds( void ) {
 	CG_RegisterAnnouncerVoiceSet( ANNOUNCER_PROFILE_VADRIGAR, "vadrigar" );
 	CG_RegisterAnnouncerVoiceSet( ANNOUNCER_PROFILE_DAEMIA, "daemia" );
 	CG_UpdateAnnouncerProfileFromCvar( qtrue );
+#define CG_REGISTER_RETAIL_REWARD_SAMPLE(field, retailSample, fallbackSample) \
+	cgs.media.field = CG_RegisterRetailAnnouncerClip( ANNOUNCER_PROFILE_DEFAULT, retailSample ); \
+	if ( !cgs.media.field ) { \
+		cgs.media.field = CG_RegisterAnnouncerClip( NULL, fallbackSample ); \
+	}
 	cgs.media.count3Sound = trap_S_RegisterSound( "sound/feedback/three.wav", qtrue );
 	cgs.media.count2Sound = trap_S_RegisterSound( "sound/feedback/two.wav", qtrue );
 	cgs.media.count1Sound = trap_S_RegisterSound( "sound/feedback/one.wav", qtrue );
@@ -2547,16 +2680,26 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.firstImpressiveSound = trap_S_RegisterSound( "sound/feedback/first_impressive.wav", qtrue );
 	cgs.media.firstExcellentSound = trap_S_RegisterSound( "sound/feedback/first_excellent.wav", qtrue );
 	cgs.media.firstHumiliationSound = trap_S_RegisterSound( "sound/feedback/first_gauntlet.wav", qtrue );
-	cgs.media.midairSound = trap_S_RegisterSound( "sound/feedback/midair1.wav", qtrue );
-	cgs.media.midairSound2 = trap_S_RegisterSound( "sound/feedback/midair2.wav", qtrue );
-	cgs.media.midairSound3 = trap_S_RegisterSound( "sound/feedback/midair3.wav", qtrue );
-	cgs.media.perfectSound = trap_S_RegisterSound( "sound/feedback/perfect.wav", qtrue );
-	cgs.media.quadGodSound = trap_S_RegisterSound( "sound/feedback/quad_god.wav", qtrue );
-	cgs.media.rampageSound = trap_S_RegisterSound( "sound/feedback/rampage.wav", qtrue );
-	cgs.media.revengeSound = trap_S_RegisterSound( "sound/feedback/revenge.wav", qtrue );
-	cgs.media.perforatedSound = trap_S_RegisterSound( "sound/feedback/perforated.wav", qtrue );
-	cgs.media.headshotSound = trap_S_RegisterSound( "sound/feedback/headshot.wav", qtrue );
-	cgs.media.firstFragSound = trap_S_RegisterSound( "sound/feedback/first_frag.wav", qtrue );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( comboKillSound, "combokill1", "combokill1" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( comboKillSound2, "combokill2", "combokill2" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( comboKillSound3, "combokill3", "combokill3" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( midairSound, "midair1", "midair1" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( midairSound2, "midair2", "midair2" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( midairSound3, "midair3", "midair3" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( accuracySound, "accuracy", "accuracy" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( perfectSound, "perfect", "perfect" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( quadGodSound, "quad_god", "quad_god" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( rampageSound, "rampage1", "rampage" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( rampageSound2, "rampage2", "rampage" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( rampageSound3, "rampage3", "rampage" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( revengeSound, "revenge1", "revenge" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( revengeSound2, "revenge2", "revenge" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( revengeSound3, "revenge3", "revenge" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( perforatedSound, "perforated", "perforated" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( headshotSound, "headshot", "headshot" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( firstFragSound, "first_frag", "first_frag" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( infectedSound, "infected", "infected" );
+	CG_REGISTER_RETAIL_REWARD_SAMPLE( newHighScoreSound, "new_high_score", "new_high_score" );
 
 	cgs.media.takenLeadSound = trap_S_RegisterSound( "sound/feedback/takenlead.wav", qtrue);
 	cgs.media.tiedLeadSound = trap_S_RegisterSound( "sound/feedback/tiedlead.wav", qtrue);
@@ -2565,6 +2708,8 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.voteNow = trap_S_RegisterSound( "sound/feedback/vote_now.wav", qtrue);
 	cgs.media.votePassed = trap_S_RegisterSound( "sound/feedback/vote_passed.wav", qtrue);
 	cgs.media.voteFailed = trap_S_RegisterSound( "sound/feedback/vote_failed.wav", qtrue);
+
+#undef CG_REGISTER_RETAIL_REWARD_SAMPLE
 
 	cgs.media.watrInSound = trap_S_RegisterSound( "sound/player/watr_in.ogg", qfalse);
 	cgs.media.watrOutSound = trap_S_RegisterSound( "sound/player/watr_out.ogg", qfalse);
@@ -2977,6 +3122,8 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.medalDefend = trap_R_RegisterShaderNoMip( "medal_defend" );
 	cgs.media.medalAssist = trap_R_RegisterShaderNoMip( "medal_assist" );
 	cgs.media.medalCapture = trap_R_RegisterShaderNoMip( "medal_capture" );
+	cgs.media.medalAccuracy = trap_R_RegisterShaderNoMip( "medal_accuracy" );
+	cgs.media.medalComboKill = trap_R_RegisterShaderNoMip( "medal_combokill" );
 	cgs.media.medalMidair = trap_R_RegisterShaderNoMip( "medal_midair" );
 	cgs.media.medalPerfect = trap_R_RegisterShaderNoMip( "medal_perfect" );
 	cgs.media.medalPerforated = trap_R_RegisterShaderNoMip( "medal_perforated" );
@@ -3420,6 +3567,29 @@ qboolean CG_Load_Menu(char **p) {
 	return qfalse;
 }
 
+/*
+=============
+CG_InitBrowserRuntime
+
+Rebuilds the shared browser/menu parser runtime before HUD loads and reloads.
+=============
+*/
+void CG_InitBrowserRuntime( void ) {
+	String_Init();
+}
+
+/*
+=============
+CG_ResetBrowserOverlayState
+
+Clears the shared browser/menu state and drops cached cgame overlay pointers.
+=============
+*/
+void CG_ResetBrowserOverlayState( void ) {
+	Menu_Reset();
+	menuScoreboard = NULL;
+}
+
 
 
 void CG_LoadMenus(const char *menuFile) {
@@ -3452,7 +3622,7 @@ void CG_LoadMenus(const char *menuFile) {
 
 	COM_Compress(buf);
 
-	Menu_Reset();
+	CG_ResetBrowserOverlayState();
 
 	p = buf;
 
@@ -3487,6 +3657,17 @@ void CG_LoadMenus(const char *menuFile) {
 
 	Com_Printf("UI menu load time = %d milli seconds\n", trap_Milliseconds() - start);
 
+}
+
+/*
+=============
+CG_SetBrowserFeederSelection
+
+Bridges retail browser feeder-selection calls onto the shared menu runtime.
+=============
+*/
+void CG_SetBrowserFeederSelection( void *overlay, int feeder, int index ) {
+	Menu_SetFeederSelection( (menuDef_t *)overlay, feeder, index, NULL );
 }
 
 
@@ -3580,9 +3761,9 @@ void CG_SetScoreSelection(void *p) {
 			feeder = FEEDER_BLUETEAM_LIST;
 			i = blue;
 		}
-		Menu_SetFeederSelection(menu, feeder, i, NULL);
+		CG_SetBrowserFeederSelection(menu, feeder, i);
 	} else {
-		Menu_SetFeederSelection(menu, FEEDER_SCOREBOARD, cg.selectedScore, NULL);
+		CG_SetBrowserFeederSelection(menu, FEEDER_SCOREBOARD, cg.selectedScore);
 	}
 }
 
@@ -4352,8 +4533,6 @@ void CG_LoadHudMenu() {
 	char buff[1024];
 	const char *hudSet;
 
-	Menu_Reset();
-
 	trap_Cvar_VariableStringBuffer("cg_hudFiles", buff, sizeof(buff));
 	hudSet = buff;
 	if (hudSet[0] == '\0') {
@@ -4498,7 +4677,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 
 	trap_CM_LoadMap( cgs.mapname );
 
-	String_Init();
+	CG_InitBrowserRuntime();
 	CG_AdvanceLoadingProgress();
 
 	cg.loading = qtrue;		// force players to load instead of defer

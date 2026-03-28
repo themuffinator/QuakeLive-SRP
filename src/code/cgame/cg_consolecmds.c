@@ -111,17 +111,13 @@ static void CG_ScoresUp_f( void ) {
 	}
 }
 
-extern menuDef_t *menuScoreboard;
-void Menu_Reset();			// FIXME: add to right include file
-
 static void CG_LoadHud_f( void) {
 	char buff[1024];
 	const char *hudSet;
 
 	memset(buff, 0, sizeof(buff));
 
-	String_Init();
-	Menu_Reset();
+	CG_InitBrowserRuntime();
 
 	trap_Cvar_VariableStringBuffer("cg_hudFiles", buff, sizeof(buff));
 	hudSet = buff;
@@ -130,7 +126,6 @@ static void CG_LoadHud_f( void) {
 	}
 
 	CG_LoadMenus(hudSet);
-	menuScoreboard = NULL;
 }
 
 static void CG_scrollScoresDown_f( void) {
@@ -400,6 +395,17 @@ Mirrors the retail ragequit wrapper and arms the existing client-side quit latch
 static void CG_RageQuit_f( void ) {
 	trap_SendClientCommand( "ragequit" );
 	cg.rageQuitTime = 2;
+}
+
+/*
+=============
+CG_Kill_f
+
+Reconstructs the retail local kill command entry point.
+=============
+*/
+static void CG_Kill_f( void ) {
+	trap_SendClientCommand( "kill" );
 }
 
 /*
@@ -966,6 +972,7 @@ static consoleCommand_t	commands[] = {
 	{ "dropweapon", CG_DropWeapon_f },
 	{ "forfeit", CG_Forfeit_f },
 	{ "ragequit", CG_RageQuit_f },
+	{ "kill", CG_Kill_f },
 	{ "readyup", CG_ReadyUp_f },
 	{ "team", CG_Team_f },
 	{ "setteamcolor", CG_SetTeamColor_f },

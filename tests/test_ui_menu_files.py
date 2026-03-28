@@ -73,10 +73,27 @@ def test_ui_menu_defaults_use_existing_assets() -> None:
 def test_ui_extended_native_exports_match_retail_bridge_surface() -> None:
     ui_public = (REPO_ROOT / "src/code/ui/ui_public.h").read_text(encoding="utf-8")
     assert "#define UI_QL_API_VERSION\t8" in ui_public
+    assert "#define UI_QL_NATIVE_IMPORT_COUNT\t256" in ui_public
     assert "UI_REFRESH_DISPLAY_CONTEXT" in ui_public
     assert "UI_MENUS_ANY_VISIBLE" in ui_public
     assert "UI_FOR_EACH_ARENA_NAME" in ui_public
     assert "UI_DRAW_ADVERTISEMENT_WAIT_SCREEN" in ui_public
+    assert "UI_QL_IMPORT_LAN_GETPINGQUEUECOUNT = 53" in ui_public
+    assert "UI_QL_IMPORT_LAN_SAVECACHEDSERVERS = 58" in ui_public
+    assert "UI_QL_IMPORT_LAN_ADDSERVER = 62" in ui_public
+    assert "UI_QL_IMPORT_LAN_SERVERSTATUS = 65" in ui_public
+    assert "UI_QL_IMPORT_LAN_COMPARESERVERS = 66" in ui_public
+    assert "UI_QL_IMPORT_MEMORY_REMAINING = 67" in ui_public
+    assert "UI_QL_IMPORT_S_STOPBACKGROUNDTRACK = 71" in ui_public
+    assert "UI_QL_IMPORT_R_REMAP_SHADER = 78" in ui_public
+    assert "UI_QL_IMPORT_SETUP_ADVERT_CELL_SHADER = 80" in ui_public
+    assert "UI_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER = 81" in ui_public
+    assert "UI_QL_IMPORT_INIT_ADVERTISEMENT_BRIDGE = 82" in ui_public
+    assert "UI_QL_IMPORT_ACTIVATE_ADVERT = 84" in ui_public
+    assert "UI_QL_IMPORT_SET_CURSOR_POS = 86" in ui_public
+    assert "UI_QL_IMPORT_GET_CURSOR_POS = 87" in ui_public
+    assert "UI_QL_IMPORT_PC_ADD_GLOBAL_DEFINE = 88" in ui_public
+    assert "UI_QL_IMPORT_GET_ITEM_DOWNLOAD_INFO = 96" in ui_public
 
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     assert "return UI_QL_API_VERSION;" in ui_main
@@ -94,6 +111,7 @@ def test_ui_extended_native_exports_match_retail_bridge_surface() -> None:
     assert "case UI_MENUS_ANY_VISIBLE:" in vm_text
     assert "case UI_FOR_EACH_ARENA_NAME:" in vm_text
     assert "case UI_DRAW_ADVERTISEMENT_WAIT_SCREEN:" in vm_text
+    assert "VM_CallNativeExports(ui): callnum=" not in vm_text
 
     ui_vcxproj = (REPO_ROOT / "src/code/ui/ui.vcxproj").read_text(encoding="utf-8")
     debug_group = _extract_vcxproj_group(ui_vcxproj, "'$(Configuration)|$(Platform)'=='Debug|Win32'")
@@ -156,7 +174,87 @@ def test_ui_retail_console_command_wrappers_restored() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     assert "void UI_ListPlayerModels( void ) {" in ui_main
     assert 'Com_Printf( "Player Models\\n" );' in ui_main
-    assert 'Com_Printf( "%s\\n", uiInfo.q3HeadNames[i] );' in ui_main
+    assert "UI_CountPlayerModelEntries( qfalse );" in ui_main
+    assert 'Com_Printf( "%s\\n", ui_playerModelEntries[i].modelName );' in ui_main
+    assert 'Com_Printf( "%s/%s\\n", ui_playerModelEntries[i].modelName, ui_playerModelEntries[i].skinName );' in ui_main
+
+
+def test_ui_player_model_catalog_matches_retail_skin_filtering() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    assert "static qboolean UI_PlayerModelSkinIsAlias( const char *skinName )" in ui_main
+    assert 'Q_stricmp( skinName, "blue" ) == 0' in ui_main
+    assert 'Q_stricmp( skinName, "bright" ) == 0' in ui_main
+    assert 'Q_stricmp( skinName, "red" ) == 0' in ui_main
+    assert 'Q_stricmp( skinName, "sport" ) == 0' in ui_main
+    assert 'Q_stricmp( skinName, "sport_blue" ) == 0' in ui_main
+    assert 'Q_stricmp( skinName, "sport_red" ) == 0' in ui_main
+    assert "static qboolean UI_PlayerModelEntryHasSkin( int index )" in ui_main
+    assert 'Com_sprintf( filename, sizeof( filename ), "models/players/%s/lower_%s.skin", entry->modelName, entry->skinName );' in ui_main
+    assert "static int UI_CountPlayerModelEntries( qboolean skipAliasSkins )" in ui_main
+    assert "UI_AddPlayerModelEntry( dirptr, skinname + 5, iconShaderName );" in ui_main
+    assert "if ( UI_PlayerModelSkinIsAlias( ui_playerModelEntries[i].skinName ) ) {" in ui_main
+
+
+def test_ui_startup_uses_retail_teaminfo_path() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    assert "static const char *UI_GetRetailMenuPathAlias( const char *filename ) {" in ui_main
+    assert 'if ( !Q_stricmp( filename, "teaminfo.txt" ) ) {' in ui_main
+    assert 'return "ui/teaminfo.txt";' in ui_main
+    assert 'if ( !Q_stricmp( filename, "country.txt" ) ) {' in ui_main
+    assert 'return "ui/country.txt";' in ui_main
+
+    init_block = _extract_function_block(ui_main, "void _UI_Init( qboolean inGameLoad ) {")
+    assert 'UI_ParseTeamInfo("ui/teaminfo.txt");' in init_block
+    assert 'UI_ParseTeamInfo("teaminfo.txt");' not in init_block
+    assert "UI_LoadTeams();" not in init_block
+    assert 'UI_ParseGameInfo("gameinfo.txt");' not in init_block
+    assert 'buff = GetMenuBuffer("ui/country.txt");' in ui_main
+    assert 'buff = GetMenuBuffer("country.txt");' not in ui_main
+
+
+def test_ui_project_outputs_runtime_dll_to_launcher_build_tree() -> None:
+    ui_vcxproj = (REPO_ROOT / "src/code/ui/ui.vcxproj").read_text(encoding="utf-8")
+    assert "<OutDir>$(ProjectDir)..\\..\\..\\build\\win32\\$(Configuration)\\bin\\baseq3\\" in ui_vcxproj
+    assert "<IntDir>$(ProjectDir)..\\..\\..\\build\\win32\\$(Configuration)\\obj\\$(ProjectName)\\" in ui_vcxproj
+    assert "$(SolutionDir)..\\..\\build\\win32\\$(Configuration)\\bin\\baseq3\\" not in ui_vcxproj
+
+
+def test_ui_retail_gameinfo_paths_do_not_bootstrap_map_rotation_cache() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+
+    load_block = _extract_function_block(ui_main, "void UI_Load() {")
+    assert 'UI_ParseGameInfo("gameinfo.txt");' in load_block
+    assert "UI_LoadArenas();" in load_block
+    assert "UI_LoadMapRotations();" not in load_block
+
+    init_block = _extract_function_block(ui_main, "void _UI_Init( qboolean inGameLoad ) {")
+    assert 'UI_ParseGameInfo("gameinfo.txt");' not in init_block
+    assert "UI_LoadMapRotations();" not in init_block
+
+    run_menu_script_block = _extract_function_block(
+        ui_main, "static void UI_RunMenuScript(char **args) {"
+    )
+    assert '} else if (Q_stricmp(name, "loadGameInfo") == 0) {' in run_menu_script_block
+    assert 'UI_ParseGameInfo("gameinfo.txt");' in run_menu_script_block
+    assert "UI_LoadBestScores(uiInfo.mapList[ui_currentMap.integer].mapLoadName, uiInfo.gameTypes[ui_gameType.integer].gtEnum);" in run_menu_script_block
+    load_gameinfo_slice = run_menu_script_block[
+        run_menu_script_block.index('} else if (Q_stricmp(name, "loadGameInfo") == 0) {'):
+        run_menu_script_block.index('} else if (Q_stricmp(name, "resetScores") == 0) {')
+    ]
+    assert "UI_LoadMapRotations();" not in load_gameinfo_slice
+
+
+def test_ui_best_score_loader_skips_unseeded_metadata_probes() -> None:
+    ui_atoms = (REPO_ROOT / "src/code/ui/ui_atoms.c").read_text(encoding="utf-8")
+
+    load_best_scores_block = _extract_function_block(
+        ui_atoms, "void UI_LoadBestScores(const char *map, int game) {"
+    )
+    assert "uiInfo.demoAvailable = qfalse;" in load_best_scores_block
+    assert "if ( !map || !map[0] || game < 0 || game >= GT_MAX_GAME_TYPE ) {" in load_best_scores_block
+    assert "UI_SetBestScores(&newInfo, qfalse);" in load_best_scores_block
+    assert 'Com_sprintf(fileName, MAX_QPATH, "games/%s_%i.game", map, game);' in load_best_scores_block
+    assert 'Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.dm_%d", map, game, (int)trap_Cvar_VariableValue("protocol"));' in load_best_scores_block
 
 
 def test_ui_retail_ownerdraw_extensions_restored() -> None:
@@ -195,21 +293,185 @@ def test_ui_retail_advert_runtime_seam_restored() -> None:
     assert "static void Menu_RefreshAdvertCellShaders(menuDef_t *menu)" in ui_shared
     assert "static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh)" in ui_shared
     assert 'if (item->window.ownerDraw == UI_ADVERT)' in ui_shared
+    assert "parent = (menuDef_t *)item->parent;" in ui_shared
+    assert "!(parent->window.flags & WINDOW_VISIBLE)" in ui_shared
+    assert "!(parent->window.flags & WINDOW_FORCED)" in ui_shared
+    assert "rect.x = 0.0f;" in ui_shared
+    assert "rect.y = 0.0f;" in ui_shared
+    assert "rect.w = 0.0f;" in ui_shared
+    assert "rect.h = 0.0f;" in ui_shared
     assert "static void Script_ActivateAdvert(itemDef_t *item, char **args)" in ui_shared
     assert '{"activateAdvert", &Script_ActivateAdvert}' in ui_shared
     assert '{"cellId", ItemParse_cellId, NULL}' in ui_shared
     assert '{"defaultContent", ItemParse_defaultContent, NULL}' in ui_shared
+
+    ui_local = (REPO_ROOT / "src/code/ui/ui_local.h").read_text(encoding="utf-8")
+    assert "void\t\t\ttrap_QL_InitAdvertisementBridge( void );" in ui_local
+    assert "qhandle_t\t\ttrap_QL_SetupAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId );" in ui_local
+    assert "qhandle_t\t\ttrap_QL_RefreshAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId );" in ui_local
+    assert "void\t\t\ttrap_QL_UpdateAdvert( int handleOrToken, int area );" in ui_local
+    assert "void\t\t\ttrap_QL_ActivateAdvert( int cellId );" in ui_local
 
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     assert "static qhandle_t UI_SetupAdvertCellShader" in ui_main
     assert "static qhandle_t UI_RefreshAdvertCellShader" in ui_main
     assert "static void UI_ActivateAdvert(int cellId)" in ui_main
     assert "static void UI_InitAdvertisementBridge(void)" in ui_main
+    assert "trap_QL_InitAdvertisementBridge();" in ui_main
+    assert "qhandle_t shader = trap_QL_SetupAdvertCellShader( defaultContent, rect, cellId );" in ui_main
+    assert "qhandle_t shader = trap_QL_RefreshAdvertCellShader( defaultContent, rect, cellId );" in ui_main
+    assert "trap_QL_UpdateAdvert( shader, pixelArea );" in ui_main
+    assert "trap_QL_ActivateAdvert( cellId );" in ui_main
     assert "static void UI_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader)" in ui_main
     assert "case UI_ADVERT:" in ui_main
+    assert "UI_InitAdvertisementBridge();" in ui_main
     assert "uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;" in ui_main
     assert "uiInfo.uiDC.refreshAdvertCellShader = &UI_RefreshAdvertCellShader;" in ui_main
     assert "uiInfo.uiDC.activateAdvert = &UI_ActivateAdvert;" in ui_main
+    assert "uiInfo.uiDC.initAdvertisementBridge();" not in ui_main
+    assert ui_main.index("UI_InitAdvertisementBridge();") < ui_main.index("uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;")
+
+
+def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
+    cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
+
+    for expected in (
+        "static qhandle_t QL_UI_RegisterDefaultAdvertCellShader( const char *defaultContent ) {",
+        "static qhandle_t QDECL QL_UI_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {",
+        "static qhandle_t QDECL QL_UI_trap_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {",
+        "static void QDECL QL_UI_trap_InitAdvertisementBridge( void ) {",
+        "static void QDECL QL_UI_trap_UpdateAdvert( int handleOrToken, int area ) {",
+        "static void QDECL QL_UI_trap_ActivateAdvert( int cellId ) {",
+        "static int QDECL QL_UI_trap_Unused85( void ) {",
+        "static int QDECL QL_UI_trap_SetCursorPos( int x, int y ) {",
+        "static int QDECL QL_UI_trap_GetCursorPos( int *x, int *y ) {",
+        "static int QDECL QL_UI_trap_IsSubscribedApp( int arg1 ) {",
+        "static void QDECL QL_UI_trap_DrawScaledText(",
+        "static unsigned long long QDECL QL_UI_trap_MeasureText(",
+        "static void QDECL QL_UI_trap_GetItemDownloadInfo(",
+        "static ql_import_f ql_ui_imports[UI_QL_NATIVE_IMPORT_COUNT];",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_GETPINGQUEUECOUNT] = (ql_import_f)QL_UI_trap_LAN_GetPingQueueCount;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_CLEARPING] = (ql_import_f)QL_UI_trap_LAN_ClearPing;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_GETPING] = (ql_import_f)QL_UI_trap_LAN_GetPing;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_GETPINGINFO] = (ql_import_f)QL_UI_trap_LAN_GetPingInfo;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_SAVECACHEDSERVERS] = (ql_import_f)QL_UI_trap_LAN_SaveCachedServers;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_ADDSERVER] = (ql_import_f)QL_UI_trap_LAN_AddServer;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_SERVERSTATUS] = (ql_import_f)QL_UI_trap_LAN_ServerStatus;",
+        "ql_ui_imports[UI_QL_IMPORT_LAN_COMPARESERVERS] = (ql_import_f)QL_UI_trap_LAN_CompareServers;",
+        "ql_ui_imports[UI_QL_IMPORT_MEMORY_REMAINING] = (ql_import_f)QL_UI_trap_MemoryRemaining;",
+        "ql_ui_imports[UI_QL_IMPORT_S_STOPBACKGROUNDTRACK] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;",
+        "ql_ui_imports[UI_QL_IMPORT_R_REMAP_SHADER] = (ql_import_f)QL_UI_trap_R_RemapShader;",
+        "ql_ui_imports[UI_QL_IMPORT_SETUP_ADVERT_CELL_SHADER] = (ql_import_f)QL_UI_trap_SetupAdvertCellShader;",
+        "ql_ui_imports[UI_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER] = (ql_import_f)QL_UI_trap_RefreshAdvertCellShader;",
+        "ql_ui_imports[UI_QL_IMPORT_INIT_ADVERTISEMENT_BRIDGE] = (ql_import_f)QL_UI_trap_InitAdvertisementBridge;",
+        "ql_ui_imports[UI_QL_IMPORT_UNUSED_83] = (ql_import_f)QL_UI_trap_UpdateAdvert;",
+        "ql_ui_imports[UI_QL_IMPORT_ACTIVATE_ADVERT] = (ql_import_f)QL_UI_trap_ActivateAdvert;",
+        "ql_ui_imports[UI_QL_IMPORT_UNUSED_85] = (ql_import_f)QL_UI_trap_Unused85;",
+        "ql_ui_imports[UI_QL_IMPORT_SET_CURSOR_POS] = (ql_import_f)QL_UI_trap_SetCursorPos;",
+        "ql_ui_imports[UI_QL_IMPORT_GET_CURSOR_POS] = (ql_import_f)QL_UI_trap_GetCursorPos;",
+        "ql_ui_imports[UI_QL_IMPORT_PC_ADD_GLOBAL_DEFINE] = (ql_import_f)QL_UI_trap_PC_AddGlobalDefine;",
+        "ql_ui_imports[UI_QL_IMPORT_IS_SUBSCRIBED_APP] = (ql_import_f)QL_UI_trap_IsSubscribedApp;",
+        "ql_ui_imports[UI_QL_IMPORT_DRAW_SCALED_TEXT] = (ql_import_f)QL_UI_trap_DrawScaledText;",
+        "ql_ui_imports[UI_QL_IMPORT_MEASURE_TEXT] = (ql_import_f)QL_UI_trap_MeasureText;",
+        "ql_ui_imports[UI_QL_IMPORT_GET_ITEM_DOWNLOAD_INFO] = (ql_import_f)QL_UI_trap_GetItemDownloadInfo;",
+    ):
+        assert expected in cl_ui
+
+    assert "ql_ui_imports[85] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;" not in cl_ui
+    assert "UI_QL_IMPORT_MEMORY_REMAINING = 101" not in cl_ui
+    assert "UI_QL_IMPORT_R_REMAP_SHADER = 104" not in cl_ui
+
+
+def test_ui_native_syscall_bridge_matches_recovered_retail_slots() -> None:
+    ui_syscalls = (REPO_ROOT / "src/code/ui/ui_syscalls.c").read_text(encoding="utf-8")
+
+    for expected in (
+        "static int UI_MapNativeImport( int arg ) {",
+        "case UI_LAN_GETPINGQUEUECOUNT: return UI_QL_IMPORT_LAN_GETPINGQUEUECOUNT;",
+        "case UI_LAN_CLEARPING: return UI_QL_IMPORT_LAN_CLEARPING;",
+        "case UI_LAN_GETPING: return UI_QL_IMPORT_LAN_GETPING;",
+        "case UI_LAN_GETPINGINFO: return UI_QL_IMPORT_LAN_GETPINGINFO;",
+        "case UI_LAN_LOADCACHEDSERVERS: return UI_QL_IMPORT_LAN_LOADCACHEDSERVERS;",
+        "case UI_LAN_SAVECACHEDSERVERS: return UI_QL_IMPORT_LAN_SAVECACHEDSERVERS;",
+        "case UI_LAN_ADDSERVER: return UI_QL_IMPORT_LAN_ADDSERVER;",
+        "case UI_LAN_SERVERSTATUS: return UI_QL_IMPORT_LAN_SERVERSTATUS;",
+        "case UI_LAN_COMPARESERVERS: return UI_QL_IMPORT_LAN_COMPARESERVERS;",
+        "case UI_MEMORY_REMAINING: return UI_QL_IMPORT_MEMORY_REMAINING;",
+        "case UI_S_STOPBACKGROUNDTRACK: return UI_QL_IMPORT_S_STOPBACKGROUNDTRACK;",
+        "case UI_CIN_SETEXTENTS: return UI_QL_IMPORT_CIN_SETEXTENTS;",
+        "case UI_R_REMAP_SHADER: return UI_QL_IMPORT_R_REMAP_SHADER;",
+        "case UI_VERIFY_CDKEY: return UI_QL_IMPORT_VERIFY_CDKEY;",
+        "case UI_SET_PBCLSTATUS: return UI_QL_IMPORT_SET_PBCLSTATUS;",
+        "case UI_LAUNCHER_READSCREENSHOT: return UI_QL_IMPORT_LAUNCHER_READSCREENSHOT;",
+        "static int QDECL UI_NativeImportSyscall( int arg, ... ) {",
+        "importIndex = UI_MapNativeImport( arg );",
+        "if ( importIndex < 0 || importIndex >= UI_QL_NATIVE_IMPORT_COUNT ) {",
+        "import = ui_imports[importIndex];",
+        "void dllEntry( void **exports, void *imports, int *apiVersion ) {",
+        "ui_imports = (ql_import_f *)imports;",
+        "syscall = UI_NativeImportSyscall;",
+        "*exports = UI_GetNativeExportTable();",
+        "*apiVersion = UI_QL_API_VERSION;",
+        "static ql_import_f UI_GetNativeImportFunction( int importIndex ) {",
+        "void trap_QL_InitAdvertisementBridge( void ) {",
+        "qhandle_t trap_QL_SetupAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId ) {",
+        "qhandle_t trap_QL_RefreshAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId ) {",
+        "void trap_QL_UpdateAdvert( int handleOrToken, int area ) {",
+        "void trap_QL_ActivateAdvert( int cellId ) {",
+        "qboolean trap_QL_SetCursorPos( int x, int y ) {",
+        "qboolean trap_QL_GetCursorPos( int *x, int *y ) {",
+        "qboolean trap_QL_IsSubscribedApp( int appId ) {",
+        "void trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor ) {",
+        "unsigned long long trap_QL_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft ) {",
+        "void trap_QL_GetItemDownloadInfo( unsigned int itemHi, unsigned int itemLo, unsigned long long *outDownloaded, unsigned long long *outTotal ) {",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_INIT_ADVERTISEMENT_BRIDGE )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_SETUP_ADVERT_CELL_SHADER )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_ACTIVATE_ADVERT )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_SET_CURSOR_POS )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_GET_CURSOR_POS )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_IS_SUBSCRIBED_APP )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_DRAW_SCALED_TEXT )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_MEASURE_TEXT )",
+        "UI_GetNativeImportFunction( UI_QL_IMPORT_GET_ITEM_DOWNLOAD_INFO )",
+    ):
+        assert expected in ui_syscalls
+
+    assert "case UI_S_STOPBACKGROUNDTRACK: return UI_QL_IMPORT_UNUSED_85;" not in ui_syscalls
+
+
+def test_ui_native_export_table_matches_recovered_retail_order() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+
+    for expected in (
+        "static void *ui_nativeExports[UI_NATIVE_EXPORT_COUNT] = {",
+        "[UI_NATIVE_EXPORT_INIT] = _UI_Init,",
+        "[UI_NATIVE_EXPORT_SHUTDOWN] = _UI_Shutdown,",
+        "[UI_NATIVE_EXPORT_KEY_EVENT] = _UI_KeyEvent,",
+        "[UI_NATIVE_EXPORT_MOUSE_EVENT] = _UI_MouseEvent,",
+        "[UI_NATIVE_EXPORT_REFRESH] = _UI_Refresh,",
+        "[UI_NATIVE_EXPORT_IS_FULLSCREEN] = _UI_IsFullscreen,",
+        "[UI_NATIVE_EXPORT_SET_ACTIVE_MENU] = _UI_SetActiveMenu,",
+        "[UI_NATIVE_EXPORT_CONSOLE_COMMAND] = UI_ConsoleCommand,",
+        "[UI_NATIVE_EXPORT_DRAW_CONNECT_SCREEN] = UI_DrawConnectScreen,",
+        "[UI_NATIVE_EXPORT_HAS_UNIQUE_CD_KEY] = UI_NativeHasUniqueCDKey,",
+        "[UI_NATIVE_EXPORT_REFRESH_DISPLAY_CONTEXT] = UI_RefreshDisplayContext,",
+        "[UI_NATIVE_EXPORT_MENUS_ANY_VISIBLE] = Menus_AnyVisible,",
+        "[UI_NATIVE_EXPORT_FOR_EACH_ARENA_NAME] = UI_ForEachArenaName,",
+        "[UI_NATIVE_EXPORT_DRAW_ADVERTISEMENT_WAIT_SCREEN] = UI_DrawAdvertisementWaitScreen",
+        "void **UI_GetNativeExportTable( void ) {",
+        "return ui_nativeExports;",
+    ):
+        assert expected in ui_main
+
+    ui_def = (REPO_ROOT / "src/code/ui/ui.def").read_text(encoding="utf-8")
+    assert "EXPORTS" in ui_def
+    assert "\tvmMain" in ui_def
+    assert "\tdllEntry" in ui_def
+
+    export_manifest = (REPO_ROOT / "tools/ci/manifests/native-dll-exports.json").read_text(encoding="utf-8")
+    assert '"name": "uix86.dll"' in export_manifest
+    assert '"exports": ["dllEntry", "vmMain"]' in export_manifest
 
 
 def test_ui_retail_toggle_script_command_restored() -> None:
@@ -356,16 +618,115 @@ def test_ui_retail_parser_gating_extensions_restored() -> None:
 
 
 def test_ui_retail_server_settings_ownerdraw_restored() -> None:
+    bg_public = (REPO_ROOT / "src/code/game/bg_public.h").read_text(encoding="utf-8")
+    assert "#define CS_SERVER_SETTINGS_INFO_A\t0x2A9" in bg_public
+    assert "#define CS_SERVER_SETTINGS_INFO_B\t0x2AA" in bg_public
+    assert "#define CS_WEAPON_RELOAD_TIMES\t\t0x2AB" in bg_public
+    assert "#define CUSTOM_SETTING_MACHINEGUN\t\t0x00000002u" in bg_public
+    assert "#define CUSTOM_SETTING_ITEM_SPAWNING\t\t0x00400000u" in bg_public
+    assert "#define CUSTOM_SETTING_WEAPON_MASK" in bg_public
+
+    g_config_h = (REPO_ROOT / "src/game/g_config.h").read_text(encoding="utf-8")
+    assert "uint64_t G_ComputeConfigCustomSettingsMask( void );" in g_config_h
+
+    g_pmove = (REPO_ROOT / "src/code/game/g_pmove.c").read_text(encoding="utf-8")
+    assert "qboolean G_PmoveHasAirControlCustomSetting( void ) {" in g_pmove
+    assert "qboolean G_PmoveHasPhysicsCustomSetting( void ) {" in g_pmove
+    assert "qboolean G_PmoveHasGrappleVelocityCustomSetting( void ) {" in g_pmove
+    assert 'return ( g_pmove_velocityGh_cvar.value != 800.0f ) ? qtrue : qfalse;' in g_pmove
+
+    g_config = (REPO_ROOT / "src/game/g_config.c").read_text(encoding="utf-8")
+    assert "uint64_t G_ComputeConfigCustomSettingsMask( void ) {" in g_config
+    assert "g_weaponConfig.machinegunIronsightsScale" in g_config
+    assert "G_PmoveHasGrappleVelocityCustomSetting()" in g_config
+    assert "mask |= CUSTOM_SETTING_MACHINEGUN;" in g_config
+    assert "mask |= CUSTOM_SETTING_ROCKET_LAUNCHER;" in g_config
+    assert "mask |= CUSTOM_SETTING_GRAPPLING_HOOK;" in g_config
+    assert "mask |= CUSTOM_SETTING_NAILGUN;" in g_config
+    assert "mask |= CUSTOM_SETTING_ITEM_SPAWNING;" in g_config
+
+    g_main = (REPO_ROOT / "src/code/game/g_main.c").read_text(encoding="utf-8")
+    assert "static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast ) {" in g_main
+    assert 'Info_SetValueForKey( payloadA, "armor_tiered", va( "%i", g_armorTiered.integer ) );' in g_main
+    assert 'Info_SetValueForKey( payloadB, "g_quadDamageFactor", va( "%i", g_quadDamageFactor.integer ) );' in g_main
+    assert 'Info_SetValueForKey( payloadB, "g_gravity", va( "%i", g_gravity.integer ) );' in g_main
+    assert "trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_A, payloadA );" in g_main
+    assert "trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_B, payloadB );" in g_main
+    compute_mask_block = _extract_function_block(
+        g_main, "static uint64_t G_ComputeCustomSettingsMask( void ) {"
+    )
+    assert "mask = G_ComputeConfigCustomSettingsMask();" in compute_mask_block
+    assert "CUSTOM_SETTING_AIR_CONTROL" in compute_mask_block
+    assert "CUSTOM_SETTING_PHYSICS" in compute_mask_block
+    assert "CUSTOM_SETTING_INSTAGIB" in compute_mask_block
+    assert "CUSTOM_SETTING_NO_PLAYER_CLIP" in compute_mask_block
+    assert "CUSTOM_SETTING_LIGHTNING_DISCHARGE" in compute_mask_block
+
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     assert "static void UI_DrawServerSettings( rectDef_t *rect, float scale, vec4_t color, int textStyle )" in ui_main
     assert 'UI_QLGametypeName( gametype )' in ui_main
-    assert 'trap_GetConfigString( CS_PMOVE_SETTINGS, pmoveSettings, sizeof( pmoveSettings ) );' in ui_main
-    assert 'UI_GetPmoveSettingFloat( pmoveSettings, "airControl", &airControl )' in ui_main
-    assert 'UI_GetPmoveSettingBool( pmoveSettings, "rampJump", &hasRampJump )' in ui_main
+    assert 'trap_GetConfigString( CS_SERVER_SETTINGS_INFO_A, serverSettingsA, sizeof( serverSettingsA ) );' in ui_main
+    assert 'trap_GetConfigString( CS_SERVER_SETTINGS_INFO_B, serverSettingsB, sizeof( serverSettingsB ) );' in ui_main
+    assert 'static qboolean UI_GetInfoSettingInt( const char *settingsText, const char *key, int *valueOut ) {' in ui_main
+    assert '"Tiered Armor"' in ui_main
+    assert '"Weapon Switching"' in ui_main
+    assert '"Physics"' in ui_main
+    assert '"Quad Hog"' in ui_main
+    assert '"Regen Health"' in ui_main
+    assert '"Drop Health"' in ui_main
+    assert '"Vampiric Damage"' in ui_main
+    assert '"Item Spawning"' in ui_main
+    assert '"Headshots"' in ui_main
+    assert '"Rail Jumping"' in ui_main
+    assert "static qboolean UI_ServerSettingsWeaponHiddenForGametype( unsigned int weaponBit, int gametype ) {" in ui_main
+    assert "case CUSTOM_SETTING_SHOTGUN:" in ui_main
+    assert "case CUSTOM_SETTING_GRENADE_LAUNCHER:" in ui_main
+    assert "case CUSTOM_SETTING_ROCKET_LAUNCHER:" in ui_main
+    assert "case CUSTOM_SETTING_RAILGUN:" in ui_main
+    assert "case CUSTOM_SETTING_PLASMAGUN:" in ui_main
     assert '"MODIFIED WEAPONS:"' in ui_main
     assert '"Default Settings"' in ui_main
     assert "case UI_SERVER_SETTINGS:" in ui_main
     assert "UI_DrawServerSettings(&rect, scale, color, textStyle);" in ui_main
+
+
+def test_game_retail_player_appearance_configstring_restored() -> None:
+    bg_public = (REPO_ROOT / "src/code/game/bg_public.h").read_text(encoding="utf-8")
+    g_main = (REPO_ROOT / "src/code/game/g_main.c").read_text(encoding="utf-8")
+
+    assert "#define CS_PLAYER_APPEARANCE\t\t0x2AC" in bg_public
+    assert "static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast ) {" in g_main
+
+    for expected in (
+        'Info_SetValueForKey( payload, "g_playermodelOverride", g_playermodelOverride.string );',
+        'Info_SetValueForKey( payload, "g_playerheadmodelOverride", g_playerheadmodelOverride.string );',
+        'Info_SetValueForKey( payload, "g_allowCustomHeadmodels", va( "%i", g_allowCustomHeadmodels.integer ) );',
+        'Info_SetValueForKey( payload, "g_playerheadScale", va( "%g", g_playerheadScale.value ) );',
+        'Info_SetValueForKey( payload, "g_playerheadScaleOffset", va( "%g", g_playerheadScaleOffset.value ) );',
+        'Info_SetValueForKey( payload, "g_playerModelScale", va( "%g", g_playerModelScale.value ) );',
+        "trap_SetConfigstring( CS_PLAYER_APPEARANCE, payload );",
+        "G_UpdatePlayerAppearanceConfigstring( qtrue );",
+        "G_UpdatePlayerAppearanceConfigstring( qfalse );",
+    ):
+        assert expected in g_main
+
+
+def test_game_retail_weapon_reload_configstring_restored() -> None:
+    bg_public = (REPO_ROOT / "src/code/game/bg_public.h").read_text(encoding="utf-8")
+    g_main = (REPO_ROOT / "src/code/game/g_main.c").read_text(encoding="utf-8")
+
+    assert "#define CS_WEAPON_RELOAD_TIMES\t\t0x2AB" in bg_public
+    assert "static void G_UpdateWeaponReloadConfigstring( qboolean forceBroadcast ) {" in g_main
+
+    for expected in (
+        "g_pmoveSettings.weaponReloadTimes[WP_GAUNTLET],",
+        "g_pmoveSettings.weaponReloadTimes[WP_BFG],",
+        "g_pmoveSettings.weaponReloadTimes[WP_HEAVY_MACHINEGUN]",
+        "trap_SetConfigstring( CS_WEAPON_RELOAD_TIMES, payload );",
+        "G_UpdateWeaponReloadConfigstring( qtrue );",
+        "G_UpdateWeaponReloadConfigstring( qfalse );",
+    ):
+        assert expected in g_main
 
 
 def test_ui_retail_nextmap_ownerdraw_restored() -> None:
@@ -381,3 +742,109 @@ def test_ui_retail_nextmap_ownerdraw_restored() -> None:
     assert "Text_Paint( rect->x, rect->y, scale, color, nextMapText, 0, 0, textStyle );" in ui_main
     assert "case UI_NEXTMAP:" in ui_main
     assert "UI_DrawNextMap(&rect, scale, color, textStyle);" in ui_main
+
+
+def test_ui_retail_callvote_map_token_path_restored() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+
+    helper_block = _extract_function_block(
+        ui_main, "static const char *UI_GetCallvoteGametypeToken(int gametype) {"
+    )
+    for expected in (
+        'case GT_FFA:\n\t\t\treturn "ffa";',
+        'case GT_TOURNAMENT:\n\t\t\treturn "duel";',
+        'case GT_SINGLE_PLAYER:\n\t\t\treturn "race";',
+        'case GT_TEAM:\n\t\t\treturn "tdm";',
+        'case GT_CLAN_ARENA:\n\t\t\treturn "ca";',
+        'case GT_CTF:\n\t\t\treturn "ctf";',
+        'case GT_1FCTF:\n\t\t\treturn "oneflag";',
+        'case GT_HARVESTER:\n\t\t\treturn "har";',
+        'case GT_FREEZE:\n\t\t\treturn "ft";',
+        'case GT_DOMINATION:\n\t\t\treturn "dom";',
+        'case GT_ATTACK_DEFEND:\n\t\t\treturn "ad";',
+        'case GT_RED_ROVER:\n\t\t\treturn "rr";',
+        'default:\n\t\t\treturn "";',
+    ):
+        assert expected in helper_block
+    assert "case GT_OBELISK:" not in helper_block
+
+    run_menu_script_block = _extract_function_block(
+        ui_main, "static void UI_RunMenuScript(char **args) {"
+    )
+    assert 'const char *gametypeToken = "";' in run_menu_script_block
+    assert "gametypeToken = UI_GetCallvoteGametypeToken(ui_cvGameType.integer);" in run_menu_script_block
+    assert 'trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s %s\\n", mapName, gametypeToken));' in run_menu_script_block
+    assert "rotation->factoryId" not in run_menu_script_block
+    assert 'va("callvote map %s\\n", mapName)' not in run_menu_script_block
+
+    init_block = _extract_function_block(ui_main, "void _UI_Init( qboolean inGameLoad ) {")
+    assert 'trap_Cvar_Set("ui_cvGameType", "-1");' in init_block
+    assert "trap_Cvar_Update(&ui_cvGameType);" in init_block
+
+    active_menu_block = _extract_function_block(
+        ui_main, "void _UI_SetActiveMenu( uiMenuCommand_t menu ) {"
+    )
+    assert 'trap_Cvar_Set( "ui_cvGameType", "-1" );' in active_menu_block
+    assert "trap_Cvar_Update( &ui_cvGameType );" in active_menu_block
+
+
+def test_ui_retail_callvote_map_feeder_uses_active_map_slab() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+
+    assert "static int UI_CVMapCountByGameType(void);" in ui_main
+    assert "static void UI_SelectCallvoteMap(int index);" in ui_main
+
+    feeder_count_block = _extract_function_block(ui_main, "static int UI_FeederCount(float feederID) {")
+    assert "if (feederID == FEEDER_CVMAPS) {" in feeder_count_block
+    assert "return UI_CVMapCountByGameType();" in feeder_count_block
+
+    cv_count_block = _extract_function_block(ui_main, "static int UI_CVMapCountByGameType(void) {")
+    for expected in (
+        "gametype = UI_GetFilteredCallvoteGametype();",
+        "uiInfo.mapList[i].active = qfalse;",
+        "for (i = 0; i < uiInfo.mapRotationCount; i++) {",
+        "mapIndex = uiInfo.mapRotations[i].mapIndex;",
+        "if (uiInfo.mapList[mapIndex].active) {",
+        "uiInfo.mapList[mapIndex].active = qtrue;",
+    ):
+        assert expected in cv_count_block
+
+    select_callvote_map_block = _extract_function_block(
+        ui_main, "static void UI_SelectCallvoteMap(int index) {"
+    )
+    assert "available = UI_CVMapCountByGameType();" in select_callvote_map_block
+    assert "UI_SelectedMap(index, &actual);" in select_callvote_map_block
+    assert 'trap_Cvar_Set("ui_mapIndex", va("%d", index));' in select_callvote_map_block
+    assert "rotationIndex = UI_FindCallvoteRotationIndexForMap(actual, uiInfo.callvoteRotationIndex);" in select_callvote_map_block
+    assert "UI_SetCurrentNetMap(actual);" in select_callvote_map_block
+
+    preview_block = _extract_function_block(
+        ui_main, "static void UI_HandleCallvoteMapPreviewScript(void) {"
+    )
+    assert "available = UI_CVMapCountByGameType();" in preview_block
+    assert "displayRow = UI_GetIndexFromSelection(mapIndex);" in preview_block
+    assert "mapIndex = ui_currentNetMap.integer;" in preview_block
+    assert "UI_GetCallvoteDisplayRowForRotation" not in preview_block
+
+    feeder_text_block = _extract_function_block(
+        ui_main, "static const char *UI_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {"
+    )
+    assert "UI_CVMapCountByGameType();" in feeder_text_block
+    assert "return UI_SelectedMap(index, &actual);" in feeder_text_block
+
+    feeder_image_block = _extract_function_block(
+        ui_main, "static qhandle_t UI_FeederItemImage(float feederID, int index) {"
+    )
+    assert "UI_CVMapCountByGameType();" in feeder_image_block
+    assert "UI_SelectedMap(index, &actual);" in feeder_image_block
+    assert "uiInfo.mapList[actual].levelShot" in feeder_image_block
+
+    feeder_selection_block = _extract_function_block(
+        ui_main, "static void UI_FeederSelection(float feederID, int index) {"
+    )
+    assert "UI_SelectCallvoteMap(index);" in feeder_selection_block
+
+    assert "UI_CountVisibleCallvoteRotations" not in ui_main
+    assert "UI_GetCallvoteRotationIndexFromDisplayRow" not in ui_main
+    assert "UI_GetCallvoteDisplayRowForRotation" not in ui_main
+    assert "UI_GetCallvoteRotationEntryForDisplay" not in ui_main

@@ -89,6 +89,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_SHADERSTATE			24
 #define CS_BOTINFO				25
 #define CS_MATCH_STATE				0x295		// timeout/overtime state info payload
+#define CS_TIMEOUT_START_TIME		0x29D		// active timeout start time, cleared when idle
+#define CS_TIMEOUT_EXPIRE_TIME		0x29E		// active timeout expiry, or 0 for indefinite pauses
+#define CS_TIMEOUT_COUNT_RED		0x29F		// remaining timeout count mirrored for red/free
+#define CS_TIMEOUT_COUNT_BLUE		0x2A0		// remaining timeout count mirrored for blue/free
 // Auxiliary round-based team counters refreshed by retail qagame for HUD ownerdraws.
 #define CS_TEAM_COUNT_RED			0x297
 #define CS_TEAM_COUNT_BLUE			0x298
@@ -107,22 +111,62 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_AWARD_MOST_DAMAGEDEALT	0x2BB
 //
 // Factory metadata configstrings provide clients with human-readable match factory data.
-// CS_FACTORY_FLAGS encodes FACTORY_FLAG_* bits, while CS_SPAWN_HINTS is an info string
-// containing the keys: toCount, toLength, otLength, sd, sdStart, sdTick, sdMax, sdInc,
-// sdPrint, and sdDelay.
+// Retail qagame mirrors timeout, overtime, and sudden-death metadata through
+// CS_MATCH_STATE; 0x2A5 and 0x2C5 remain mode-specific numeric configstrings.
 //
 #define CS_FACTORY_TITLE		0x2A2		// descriptive title for the active match factory
 #define CS_FACTORY_FLAGS		0x2A3		// decimal bitmask describing customized factory settings
 #define CS_ENABLE_BREATH		0x2A4		// global breath effect toggle
-#define CS_SPAWN_HINTS		0x2A5	// info string exposing timeout and sudden death metadata
+#define CS_DOMINATION_CAPTURE_TIME	0x2A5		// floating-point g_domCapTime payload
 #define CS_MAP_AUTHOR		0x2A6		// primary author name lifted from the worldspawn
 #define CS_MAP_AUTHOR_ALT		0x2A7		// optional secondary author (author2 key)
+#define CS_SERVER_SETTINGS_INFO_A	0x2A9		// retail info string carrying server-settings flags such as armor_tiered
+#define CS_SERVER_SETTINGS_INFO_B	0x2AA		// retail info string carrying server-settings scalars such as quad and gravity
+#define CS_WEAPON_RELOAD_TIMES		0x2AB		// retail compact weapon refire timings slab consumed by cgame
+#define CS_PLAYER_APPEARANCE		0x2AC		// retail info string carrying enforced player-model/head overrides plus scale controls
+// Legacy reconstruction alias kept temporarily while the downstream cgame consumers
+// move off the old spawn-hints naming.
+#define CS_SPAWN_HINTS		CS_DOMINATION_CAPTURE_TIME
 
 #define CS_ITEMS				27		// string of 0's and 1's that tell which items are present
 #define CS_RED_TEAM_NAME					28
 #define CS_BLUE_TEAM_NAME					29
 #define	ITEM_TIMER_DEFAULT_HEIGHT	20		// default fallback height for HUD timer spacing
 #define	ITEM_TIMER_MAX_HEIGHT		128		// prevent oversized HUD timer spacing from breaking layouts
+
+#define CUSTOM_SETTING_GAUNTLET			0x00000001u
+#define CUSTOM_SETTING_MACHINEGUN		0x00000002u
+#define CUSTOM_SETTING_SHOTGUN			0x00000004u
+#define CUSTOM_SETTING_GRENADE_LAUNCHER	0x00000008u
+#define CUSTOM_SETTING_ROCKET_LAUNCHER	0x00000010u
+#define CUSTOM_SETTING_LIGHTNING_GUN		0x00000020u
+#define CUSTOM_SETTING_RAILGUN			0x00000040u
+#define CUSTOM_SETTING_PLASMAGUN		0x00000080u
+#define CUSTOM_SETTING_BFG				0x00000100u
+#define CUSTOM_SETTING_GRAPPLING_HOOK	0x00000200u
+#define CUSTOM_SETTING_NAILGUN			0x00000400u
+#define CUSTOM_SETTING_PROX_LAUNCHER		0x00000800u
+#define CUSTOM_SETTING_CHAINGUN			0x00001000u
+#define CUSTOM_SETTING_AIR_CONTROL		0x00002000u
+#define CUSTOM_SETTING_RAMP_JUMP		0x00004000u
+#define CUSTOM_SETTING_PHYSICS			0x00008000u
+#define CUSTOM_SETTING_WEAPON_SWITCHING	0x00010000u
+#define CUSTOM_SETTING_INSTAGIB			0x00020000u
+#define CUSTOM_SETTING_QUAD_HOG			0x00040000u
+#define CUSTOM_SETTING_REGEN_HEALTH		0x00080000u
+#define CUSTOM_SETTING_DROP_HEALTH		0x00100000u
+#define CUSTOM_SETTING_VAMPIRIC_DAMAGE	0x00200000u
+#define CUSTOM_SETTING_ITEM_SPAWNING		0x00400000u
+#define CUSTOM_SETTING_HEADSHOTS		0x00800000u
+#define CUSTOM_SETTING_RAIL_JUMPING		0x01000000u
+#define CUSTOM_SETTING_NO_PLAYER_CLIP	0x02000000u
+#define CUSTOM_SETTING_INFECTED			0x04000000u
+#define CUSTOM_SETTING_LIGHTNING_DISCHARGE	0x08000000u
+#define CUSTOM_SETTING_WEAPON_MASK		( CUSTOM_SETTING_GAUNTLET | CUSTOM_SETTING_MACHINEGUN | CUSTOM_SETTING_SHOTGUN | \
+										  CUSTOM_SETTING_GRENADE_LAUNCHER | CUSTOM_SETTING_ROCKET_LAUNCHER | \
+										  CUSTOM_SETTING_LIGHTNING_GUN | CUSTOM_SETTING_RAILGUN | CUSTOM_SETTING_PLASMAGUN | \
+										  CUSTOM_SETTING_BFG | CUSTOM_SETTING_GRAPPLING_HOOK | CUSTOM_SETTING_NAILGUN | \
+										  CUSTOM_SETTING_PROX_LAUNCHER | CUSTOM_SETTING_CHAINGUN )
 
 #define CS_MODELS				32
 
@@ -150,11 +194,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_ROTATION_CONFIGS		0x2C2		// queued map configs (map/cfg/gt triplets)
 #define CS_SUDDENDEATH_STATUS		0x2C3		// sudden-death toggle mirrored for clients
 #define CS_READYUP_STATUS		0x2C4		// ready-up controller state machine payload
-#define CS_SPAWN_HINTS_ALT		0x2C5		// floating-point spawn metadata for HUD hints
+#define CS_RR_INFECTED_SURVIVOR_PING_RATE	0x2C5		// floating-point g_rrInfectedSurvivorPingRate payload
 #define CS_RACE_RECORDS		0x2C6		// race checkpoint history used by race_init
 #define CS_LOADOUT_FLAGS		0x2C7		// bitmask of forced loadout toggles
 #define CS_WARMUP_READY		0x2C8		// warmup ready threshold and readiness snapshot
 #define CS_LOADOUT_MASK		0x2C9		// bitmask of disabled loadout entries
+#define CS_SPAWN_HINTS_ALT		CS_RR_INFECTED_SURVIVOR_PING_RATE
 // Tutorial/freezetip coaching strings are kept on reconstruction-local slots so the
 // recovered retail award configstring block at 0x2B4/0x2B5/0x2B8-0x2BB stays intact.
 #define CS_TUTORIAL_NAME		0x2CA

@@ -1,14 +1,16 @@
 # Quake Live Parity Audit
 
-Last updated: 2026-03-06
+Last updated: 2026-03-26
 
 This audit reflects the current repository state against the retail Quake Live HLIL references and a fresh Windows `Debug|x86` build/runtime pass. The goal is not to score every file equally; it is to rank the gaps that still materially separate the repo from retail behavior.
 
 ## Overall assessment
 
+- The engine-to-module native ABI is now in the `high parity for source-built DLLs` range: the rebuilt engine loads native `ui`, `qagame`, and `cgame` DLLs through the recovered Quake Live-style `dllEntry` import/export seam.
 - Core game and cgame reconstruction are now in the `medium-high parity` range.
-- The largest remaining parity deficits are no longer basic gameplay systems; they are the native launcher/platform layer and the missing retail UI asset/menu stack.
+- The largest remaining parity deficits are no longer basic gameplay systems; they are retail-binary host compatibility beyond the current source-built DLL path, the native launcher/platform layer, and the missing retail UI asset/menu stack.
 - The most actionable gameplay-side gap found in this audit was match-flow configstring parity. That gap is now closed for the sudden-death/ready-up/warmup-ready path.
+- The strategic parity target is that the reconstructed engine should, in theory, be able to replace the retail Quake Live engine, host retail game binaries, load the retail main menu, and interoperate with retail Quake Live servers or platform flows once their remaining dependencies are reconstructed.
 
 ## What this audit closed
 
@@ -32,7 +34,24 @@ Result: match-flow HUD state is materially closer to the retail side-channel mod
 
 ## Current parity by area
 
-### 1. Native launcher and platform host
+### 1. Game-module import/export ABI
+Status: High parity for source-built DLLs, medium parity for retail-binary hosting
+Priority: Highest
+
+This area advanced materially in the latest runtime pass.
+
+- The engine now prefers the structured Quake Live native `dllEntry` interface, not just the legacy `vmMain` ABI.
+- `cgame`, `qagame`, and `ui` export-slot layouts are mapped explicitly instead of assuming the old enum order matches the retail native table.
+- Source-built native DLLs now load on the normal startup path and on gameplay-map startup, with `vm_trace.log` showing native `ui`, `qagame`, and `cgame` creation.
+- Native import-table traffic is no longer misclassified as legacy VM syscall-contract traffic during validation.
+
+What still remains in this area:
+
+- strict host-compatibility validation against the retail DLLs themselves, not only reconstructed source-built binaries
+- confirmation of pointer-return ownership, restart behavior, and other edge contracts that retail binaries may rely on more heavily than the current source path
+- continued runtime evidence collection whenever this seam changes
+
+### 2. Native launcher and platform host
 Status: Low parity
 Priority: Highest
 
@@ -44,13 +63,13 @@ This remains the largest gap in the repository.
 
 This is the highest-value parity target, but it is also the broadest reconstruction effort.
 
-### 2. Retail UI asset/menu parity
+### 3. Retail UI asset/menu parity
 Status: Low-medium parity
 Priority: High
 
 A fresh runtime pass still reports large volumes of missing retail UI assets and menu incompatibilities.
 
-Observed on 2026-03-06:
+Observed on 2026-03-26:
 
 - many missing `ui/assets/...` images
 - missing font atlas assets with fallback text rendering
@@ -64,7 +83,7 @@ Impact:
 
 Because the UI tree is read-only, the best short-term path is engine-side tolerance, bridge validation, and documenting which retail UI expectations are still unmet.
 
-### 3. Ownerdraw/stat payload completion
+### 4. Ownerdraw/stat payload completion
 Status: Medium parity
 Priority: High
 
@@ -72,13 +91,13 @@ The repo has made substantial progress on scorestats, team pickup telemetry, key
 
 The current codebase already contains a large in-progress payload expansion. The next meaningful work here is to finish the remaining retail field mapping and keep validating against captured runtime baselines.
 
-### 4. Match flow, warmup, sudden death, and scoreboard state
+### 5. Match flow, warmup, sudden death, and scoreboard state
 Status: Medium-high parity
 Priority: Medium
 
 This area improved in this task. The remaining work is lower-impact than the launcher/UI gaps and is now mostly about chasing smaller sequencing differences instead of missing whole data channels.
 
-### 5. Physics, race, and gametype-specific gameplay
+### 6. Physics, race, and gametype-specific gameplay
 Status: Medium-high parity
 Priority: Medium
 
@@ -87,31 +106,37 @@ The repo already has substantial reconstruction in movement and gametype logic. 
 ## High-priority gaps to close next
 
 1. Reconstruct the native launcher/platform host behavior currently represented only by HLIL and documentation.
-2. Reduce retail UI/menu parity failures that still surface as missing assets, font fallbacks, and menu parse warnings at runtime.
-3. Finish the remaining ownerdraw/stat payload parity work and keep runtime validation aligned with retail captures.
+2. Validate the engine against the retail gameplay DLLs themselves and close any remaining import/export edge-contract mismatches.
+3. Reduce retail UI/menu parity failures that still surface as missing assets, font fallbacks, and menu parse warnings at runtime.
+4. Finish the remaining ownerdraw/stat payload parity work and keep runtime validation aligned with retail captures.
 
 ## Verification snapshot
 
-Fresh verification completed on 2026-03-06:
+Fresh verification completed on 2026-03-26:
 
 - `MSBuild` solution build: `Debug|x86` succeeded
-- focused pytest: `tests/test_match_state_configstring.py -q` passed the new match-flow assertions on Windows
-- normal runtime pass: reached active gameplay state and produced an engine screenshot
+- native export validation: `tools/ci/assert-dll-exports.ps1` passed for rebuilt `uix86.dll`, `qagamex86.dll`, and `cgamex86.dll`
+- normal runtime pass: loaded native `ui` and reached the main-menu path
+- gameplay runtime pass: loaded native `ui`, `qagame`, and `cgame` on `campgrounds`, then reached clean shutdown
 - forced-crash pass: produced a fresh dump under `build\\win32\\Debug\\dumps`
 
 Artifacts from the fresh runtime passes:
 
-- normal engine screenshot: `build\\win32\\Debug\\bin\\baseq3\\screenshots\\ownerdraw_capture.jpg`
-- crash-pass window capture metadata: `build\\win32\\Debug\\dumps\\screenshots\\startup_crash_window_20260306_112842.json`
-- crash-pass screenshot: `build\\win32\\Debug\\dumps\\screenshots\\startup_crash_window_20260306_112842.png`
-- crash dump: `build\\win32\\Debug\\dumps\\quakelive_steam_20260306_112848_445.dmp`
+- map-pass engine screenshot: `build\\win32\\Debug\\bin\\baseq3\\screenshots\\campgrounds_engine_20260326_094835.jpg`
+- map-pass window capture metadata: `build\\win32\\Debug\\dumps\\screenshots\\campgrounds_window_20260326_094835.json`
+- map-pass screenshot: `build\\win32\\Debug\\dumps\\screenshots\\campgrounds_window_20260326_094835.png`
+- crash-pass engine screenshot: `build\\win32\\Debug\\bin\\baseq3\\screenshots\\crash_engine_20260326_095011.jpg`
+- crash-pass window capture metadata: `build\\win32\\Debug\\dumps\\screenshots\\crash_window_20260326_095011.json`
+- crash-pass screenshot: `build\\win32\\Debug\\dumps\\screenshots\\crash_window_20260326_095011.png`
+- crash dump: `build\\win32\\Debug\\dumps\\quakelive_steam_20260326_095025_597.dmp`
 
 ## Bottom line
 
-The repo is no longer blocked on missing basic gameplay plumbing in the audited area. The highest remaining parity gaps are now:
+The repo is no longer blocked on missing basic gameplay plumbing or on the basic source-built native gameplay DLL handshake. The highest remaining parity gaps are now:
 
+- retail-binary host compatibility beyond the reconstructed source-built DLL path
 - launcher/platform reconstruction
 - retail UI/menu asset parity
 - final ownerdraw/stat payload cleanup
 
-The code change implemented in this task addressed the most concrete high-impact gameplay/UI state gap that was both HLIL-backed and directly actionable in the writable source tree.
+The strategic target is now explicit: the engine should, in theory, be capable of replacing the retail Quake Live engine once those remaining host, platform, asset, and strict retail-binary compatibility gaps are closed.

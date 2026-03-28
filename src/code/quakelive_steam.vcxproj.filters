@@ -279,7 +279,7 @@
     <None Include="Construct" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="win32\qe3.ico">
+    <Image Include="win32\qz.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

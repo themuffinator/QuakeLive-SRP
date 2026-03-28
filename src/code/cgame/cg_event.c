@@ -28,6 +28,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../ui/menudef.h"
 //==========================================================================
 
+enum {
+	QL_EV_OVERTIME = 0x54,
+	QL_EV_GAMEOVER = 0x55,
+	QL_EV_LIGHTNING_DISCHARGE = 0x5c,
+	QL_EV_RACE_START = 0x5d,
+	QL_EV_RACE_CHECKPOINT = 0x5e,
+	QL_EV_RACE_FINISH = 0x5f,
+	QL_EV_AWARD = 0x61,
+	QL_EV_INFECTED = 0x62,
+	QL_EV_NEW_HIGH_SCORE = 99
+};
+
 /*
 =============
 CG_DamagePlumsEnabled
@@ -63,6 +75,175 @@ Returns the cached damage plum color style.
 */
 damagePlumColorStyle_t CG_GetDamagePlumColorStyle( void ) {
 	return cg.damagePlumColorStyle;
+}
+
+/*
+=============
+CG_GetDamagePlumColor
+
+Approximates the retail color-style selector for source-side damage-plum
+reconstruction.
+=============
+*/
+static void CG_GetDamagePlumColor( int damage, weapon_t weapon, vec4_t color ) {
+	color[0] = 1.0f;
+	color[1] = 1.0f;
+	color[2] = 1.0f;
+	color[3] = 1.0f;
+
+	switch ( CG_GetDamagePlumColorStyle() ) {
+	case DAMAGE_PLUM_COLOR_STYLE_DAMAGE:
+		if ( damage >= 100 ) {
+			color[0] = 1.0f;
+			color[1] = 0.2f;
+			color[2] = 0.2f;
+		}
+		else if ( damage >= 75 ) {
+			color[0] = 1.0f;
+			color[1] = 0.45f;
+			color[2] = 0.15f;
+		}
+		else if ( damage >= 50 ) {
+			color[0] = 1.0f;
+			color[1] = 0.8f;
+			color[2] = 0.15f;
+		}
+		else if ( damage >= 25 ) {
+			color[0] = 0.6f;
+			color[1] = 1.0f;
+			color[2] = 0.2f;
+		}
+		else {
+			color[0] = 0.25f;
+			color[1] = 1.0f;
+			color[2] = 0.25f;
+		}
+		break;
+
+	case DAMAGE_PLUM_COLOR_STYLE_WEAPON:
+		switch ( weapon ) {
+		case WP_GAUNTLET:
+			color[0] = 1.0f;
+			color[1] = 0.3f;
+			color[2] = 0.3f;
+			break;
+		case WP_MACHINEGUN:
+			color[0] = 1.0f;
+			color[1] = 0.95f;
+			color[2] = 0.35f;
+			break;
+		case WP_SHOTGUN:
+			color[0] = 1.0f;
+			color[1] = 1.0f;
+			color[2] = 1.0f;
+			break;
+		case WP_GRENADE_LAUNCHER:
+			color[0] = 0.55f;
+			color[1] = 0.9f;
+			color[2] = 0.2f;
+			break;
+		case WP_ROCKET_LAUNCHER:
+			color[0] = 1.0f;
+			color[1] = 0.45f;
+			color[2] = 0.1f;
+			break;
+		case WP_LIGHTNING:
+			color[0] = 0.35f;
+			color[1] = 0.7f;
+			color[2] = 1.0f;
+			break;
+		case WP_RAILGUN:
+			color[0] = 0.2f;
+			color[1] = 1.0f;
+			color[2] = 1.0f;
+			break;
+		case WP_PLASMAGUN:
+			color[0] = 1.0f;
+			color[1] = 0.2f;
+			color[2] = 1.0f;
+			break;
+		case WP_BFG:
+			color[0] = 0.45f;
+			color[1] = 1.0f;
+			color[2] = 0.35f;
+			break;
+		case WP_GRAPPLING_HOOK:
+			color[0] = 0.25f;
+			color[1] = 0.9f;
+			color[2] = 0.8f;
+			break;
+		case WP_NAILGUN:
+			color[0] = 0.6f;
+			color[1] = 0.85f;
+			color[2] = 0.25f;
+			break;
+		case WP_PROX_LAUNCHER:
+			color[0] = 1.0f;
+			color[1] = 0.8f;
+			color[2] = 0.2f;
+			break;
+		case WP_CHAINGUN:
+			color[0] = 1.0f;
+			color[1] = 0.7f;
+			color[2] = 0.15f;
+			break;
+		default:
+			break;
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+/*
+=============
+CG_DamagePlum
+
+Stages the mapped retail damage-plum producer through the existing
+LE_SCOREPLUM renderer until the binary's queued world-marker path lands.
+=============
+*/
+static void CG_DamagePlum( vec3_t org, int damage, weapon_t weapon ) {
+	localEntity_t	*le;
+	refEntity_t		*re;
+	vec3_t			angles;
+	vec4_t			color;
+
+	if ( damage <= 0 || !CG_DamagePlumsEnabled() ) {
+		return;
+	}
+	if ( !CG_ShouldRenderDamagePlumForWeapon( weapon ) ) {
+		return;
+	}
+
+	CG_GetDamagePlumColor( damage, weapon, color );
+
+	le = CG_AllocLocalEntity();
+	le->leFlags = LEF_SCOREPLUM_CUSTOMCOLOR;
+	le->leType = LE_SCOREPLUM;
+	le->startTime = cg.time;
+	le->endTime = cg.time + 2000;
+	le->lifeRate = 1.0f / ( le->endTime - le->startTime );
+	le->radius = damage;
+
+	le->color[0] = color[0];
+	le->color[1] = color[1];
+	le->color[2] = color[2];
+	le->color[3] = color[3];
+
+	VectorCopy( org, le->pos.trBase );
+	le->pos.trBase[0] += crandom() * 10.0f;
+	le->pos.trBase[1] += crandom() * 10.0f;
+	le->pos.trBase[2] += crandom() * 10.0f;
+
+	re = &le->refEntity;
+	re->reType = RT_SPRITE;
+	re->radius = 16;
+
+	VectorClear( angles );
+	AnglesToAxis( angles, re->axis );
 }
 
 /*
@@ -249,6 +430,303 @@ int CG_GetScoreboardTimerSeconds( void ) {
 	}
 
 	return ( elapsed + 500 ) / 1000;
+}
+
+/*
+=============
+CG_IsRetailLocalEventClient
+
+Determines whether a retail event targets the live local client or the
+currently followed player.
+=============
+*/
+static qboolean CG_IsRetailLocalEventClient( int clientNum ) {
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qfalse;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return ( qboolean )( clientNum == cg.spectatorFollowClient );
+	}
+
+	return ( qboolean )( clientNum == cg.clientNum );
+}
+
+/*
+=============
+CG_IsLocalPlayerWinner
+
+Retail endgame predicate for local winner handling.
+=============
+*/
+static qboolean CG_IsLocalPlayerWinner( void ) {
+	int		rank;
+	team_t	localTeam;
+
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	localTeam = cg.snap->ps.persistant[PERS_TEAM];
+	if ( localTeam == TEAM_SPECTATOR ) {
+		return qfalse;
+	}
+
+	if ( cgs.gametype < GT_TEAM || cgs.gametype == GT_RED_ROVER ) {
+		rank = cg.snap->ps.persistant[PERS_RANK];
+		if ( rank & RANK_TIED_FLAG ) {
+			return qfalse;
+		}
+		return ( qboolean )( rank == 0 );
+	}
+
+	if ( cg.teamScores[0] == cg.teamScores[1] ) {
+		return qfalse;
+	}
+	if ( localTeam == TEAM_RED ) {
+		return ( qboolean )( cg.teamScores[0] > cg.teamScores[1] );
+	}
+	if ( localTeam == TEAM_BLUE ) {
+		return ( qboolean )( cg.teamScores[1] > cg.teamScores[0] );
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_GetOvertimeCount
+
+Returns the current overtime round count, falling back to the elapsed retail
+match-state seam when the cached count has not landed yet.
+=============
+*/
+static int CG_GetOvertimeCount( void ) {
+	int		anchor;
+	int		regulationEnd;
+	int		elapsed;
+	int		overtimeWindow;
+
+	if ( cgs.matchOvertimeCount > 0 ) {
+		return cgs.matchOvertimeCount;
+	}
+	if ( cgs.timelimit <= 0 || cgs.matchOvertimeLengthSeconds <= 0 || cgs.levelStartTime <= 0 ) {
+		return 0;
+	}
+
+	anchor = cgs.matchOvertimeStartTime;
+	if ( anchor <= 0 ) {
+		anchor = cgs.matchOvertimeEndTime;
+	}
+	if ( anchor <= 0 ) {
+		anchor = cg.time;
+	}
+
+	regulationEnd = cgs.levelStartTime + ( cgs.timelimit * 60000 );
+	elapsed = anchor - regulationEnd;
+	if ( elapsed <= 0 ) {
+		return 0;
+	}
+
+	overtimeWindow = cgs.matchOvertimeLengthSeconds * 1000;
+	if ( overtimeWindow <= 0 ) {
+		return 0;
+	}
+
+	return elapsed / overtimeWindow;
+}
+
+/*
+=============
+CG_GetRetailEventClientNum
+
+Bridges retail temp-entity recipient payloads through the current source
+entityState_t layout until qagame parity restores the original field offsets.
+=============
+*/
+static int CG_GetRetailEventClientNum( const entityState_t *es ) {
+	if ( !es ) {
+		return -1;
+	}
+	if ( es->clientNum >= 0 && es->clientNum < MAX_CLIENTS ) {
+		return es->clientNum;
+	}
+
+	return es->number;
+}
+
+/*
+=============
+CG_GetRetailDamagePlumDamage
+
+Bridges the recovered retail damage payload through the current source
+entityState_t layout until qagame parity restores the original field slot.
+=============
+*/
+static int CG_GetRetailDamagePlumDamage( const entityState_t *es ) {
+	if ( !es ) {
+		return 0;
+	}
+	if ( es->time > 0 ) {
+		return es->time;
+	}
+
+	return es->eventParm;
+}
+
+/*
+=============
+CG_GetRetailDamagePlumWeapon
+
+Bridges the recovered retail weapon payload, falling back to the live local
+weapon while the qagame emitter still follows the GPL event path.
+=============
+*/
+static weapon_t CG_GetRetailDamagePlumWeapon( const entityState_t *es ) {
+	weapon_t	weapon;
+
+	if ( es ) {
+		weapon = (weapon_t)es->weapon;
+		if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+			return weapon;
+		}
+	}
+
+	weapon = (weapon_t)cg.predictedPlayerState.weapon;
+	if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+		return weapon;
+	}
+	if ( cg.snap ) {
+		weapon = (weapon_t)cg.snap->ps.weapon;
+		if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+			return weapon;
+		}
+	}
+
+	return WP_NONE;
+}
+
+/*
+=============
+CG_GetRetailAwardType
+
+Returns the staged retail award identifier for EV_AWARD.
+=============
+*/
+static int CG_GetRetailAwardType( const entityState_t *es ) {
+	if ( !es ) {
+		return -1;
+	}
+	if ( es->generic1 >= 0 && es->generic1 <= 9 ) {
+		return es->generic1;
+	}
+
+	return es->eventParm;
+}
+
+/*
+=============
+CG_GetRetailAwardCount
+
+Returns the staged retail award count for EV_AWARD.
+=============
+*/
+static int CG_GetRetailAwardCount( const entityState_t *es ) {
+	if ( !es || es->frame <= 0 ) {
+		return 1;
+	}
+
+	return es->frame;
+}
+
+/*
+=============
+CG_HandleRetailAwardEvent
+
+Routes the recovered retail EV_AWARD taxonomy through the existing reward stack.
+=============
+*/
+static void CG_HandleRetailAwardEvent( const entityState_t *es ) {
+	int			clientNum;
+	int			rewardCount;
+	int			variant;
+	sfxHandle_t	sfx;
+	qhandle_t	shader;
+
+	if ( !es ) {
+		return;
+	}
+
+	clientNum = CG_GetRetailEventClientNum( es );
+	if ( !CG_IsRetailLocalEventClient( clientNum ) ) {
+		return;
+	}
+
+	rewardCount = CG_GetRetailAwardCount( es );
+	sfx = 0;
+	shader = 0;
+	variant = rand() % 3;
+
+	switch ( CG_GetRetailAwardType( es ) ) {
+	case 0:
+		sfx = ( variant == 0 ) ? cgs.media.comboKillSound :
+			( ( variant == 1 ) ? cgs.media.comboKillSound2 : cgs.media.comboKillSound3 );
+		shader = cgs.media.medalComboKill;
+		break;
+	case 1:
+		sfx = ( variant == 0 ) ? cgs.media.rampageSound :
+			( ( variant == 1 ) ? cgs.media.rampageSound2 : cgs.media.rampageSound3 );
+		shader = cgs.media.medalRampage;
+		break;
+	case 2:
+		sfx = ( variant == 0 ) ? cgs.media.midairSound :
+			( ( variant == 1 ) ? cgs.media.midairSound2 : cgs.media.midairSound3 );
+		shader = cgs.media.medalMidair;
+		break;
+	case 3:
+		sfx = ( variant == 0 ) ? cgs.media.revengeSound :
+			( ( variant == 1 ) ? cgs.media.revengeSound2 : cgs.media.revengeSound3 );
+		shader = cgs.media.medalRevenge;
+		break;
+	case 4:
+		sfx = cgs.media.perforatedSound;
+		shader = cgs.media.medalPerforated;
+		break;
+	case 5:
+		sfx = cgs.media.headshotSound;
+		shader = cgs.media.medalHeadshot;
+		break;
+	case 6:
+		sfx = cgs.media.accuracySound;
+		shader = cgs.media.medalAccuracy;
+		break;
+	case 7:
+		sfx = cgs.media.quadGodSound;
+		shader = cgs.media.medalQuadGod;
+		break;
+	case 8:
+		sfx = cgs.media.firstFragSound;
+		shader = cgs.media.medalFirstFrag;
+		rewardCount = 1;
+		break;
+	case 9:
+		sfx = cgs.media.perfectSound;
+		shader = cgs.media.medalPerfect;
+		break;
+	default:
+		return;
+	}
+
+	if ( !sfx && !shader ) {
+		return;
+	}
+
+	pushReward( sfx, shader, rewardCount );
 }
 
 /*
@@ -1394,6 +1872,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_SCOREPLUM");
 		CG_ScorePlum( cent->currentState.otherEntityNum, cent->lerpOrigin, cent->currentState.time );
 		break;
+	case EV_DAMAGEPLUM:
+		DEBUGNAME("EV_DAMAGEPLUM");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
+			CG_DamagePlum( cent->lerpOrigin, CG_GetRetailDamagePlumDamage( es ), CG_GetRetailDamagePlumWeapon( es ) );
+		}
+		break;
 
 	//
 	// missile impacts
@@ -1658,6 +2142,87 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_DEBUG_LINE:
 		DEBUGNAME("EV_DEBUG_LINE");
 		CG_Beam( cent );
+		break;
+
+	case QL_EV_OVERTIME:
+		DEBUGNAME("EV_OVERTIME");
+		if ( cg.snap ) {
+			trap_S_StartSound( NULL, cg.snap->ps.clientNum, CHAN_AUTO,
+				trap_S_RegisterSound( "sound/world/klaxon2.ogg", qfalse ) );
+		}
+		{
+			int secondsAdded = ( cgs.matchOvertimeLengthSeconds > 0 ) ? cgs.matchOvertimeLengthSeconds : 90;
+
+			CG_CenterPrint( va( "Overtime! %d seconds added", secondsAdded ), 90, BIGCHAR_WIDTH );
+		}
+		if ( CG_GetOvertimeCount() == 0 && cgs.media.overtimeSound ) {
+			CG_AddBufferedSound( cgs.media.overtimeSound );
+		}
+		break;
+
+	case QL_EV_GAMEOVER:
+		DEBUGNAME("EV_GAMEOVER");
+		CG_ClearBufferedAnnouncements();
+		trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
+		if ( CG_IsLocalPlayerWinner() ) {
+			if ( cgs.media.winnerSound ) {
+				CG_AddBufferedSound( cgs.media.winnerSound );
+			}
+			trap_S_StartBackgroundTrack( "music/win", "" );
+		} else if ( cg.snap && cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+			trap_S_StartBackgroundTrack( "music/win", "" );
+		} else {
+			if ( cgs.media.loserSound ) {
+				CG_AddBufferedSound( cgs.media.loserSound );
+			}
+			trap_S_StartBackgroundTrack( "music/loss", "" );
+		}
+		break;
+
+	case QL_EV_LIGHTNING_DISCHARGE:
+		DEBUGNAME("EV_LIGHTNING_DISCHARGE");
+		CG_LightningDischargeEffect( cent->lerpOrigin, es->eventParm );
+		break;
+
+	case QL_EV_RACE_START:
+		DEBUGNAME("EV_RACE_START");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
+			CG_RacePlayCue( CG_RACE_CUE_START );
+		}
+		break;
+
+	case QL_EV_RACE_CHECKPOINT:
+		DEBUGNAME("EV_RACE_CHECKPOINT");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
+			CG_RacePlayCue( CG_RACE_CUE_CHECKPOINT );
+		}
+		break;
+
+	case QL_EV_RACE_FINISH:
+		DEBUGNAME("EV_RACE_FINISH");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
+			CG_RaceResetState();
+			CG_RacePlayCue( CG_RACE_CUE_FINISH );
+		}
+		break;
+
+	case QL_EV_AWARD:
+		DEBUGNAME("EV_AWARD");
+		CG_HandleRetailAwardEvent( es );
+		break;
+
+	case QL_EV_INFECTED:
+		DEBUGNAME("EV_INFECTED");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) && cgs.media.infectedSound ) {
+			CG_AddBufferedSound( cgs.media.infectedSound );
+		}
+		break;
+
+	case QL_EV_NEW_HIGH_SCORE:
+		DEBUGNAME("EV_NEW_HIGH_SCORE");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) && cgs.media.newHighScoreSound ) {
+			CG_AddBufferedSound( cgs.media.newHighScoreSound );
+		}
 		break;
 
 	default:

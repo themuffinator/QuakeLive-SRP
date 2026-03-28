@@ -237,6 +237,33 @@ void CG_LightningBoltBeam( vec3_t start, vec3_t end ) {
 }
 
 /*
+==========================
+CG_LightningDischargeEffect
+
+Spawns the retail hazardous-lightning discharge sprite.
+==========================
+*/
+void CG_LightningDischargeEffect( vec3_t origin, int magnitude ) {
+	localEntity_t	*le;
+	qhandle_t		shader;
+	float			radius;
+	int				duration;
+
+	if ( magnitude < 0 ) {
+		magnitude = 0;
+	}
+
+	shader = trap_R_RegisterShader( "models/weaphits/electric.tga" );
+	radius = (float)( ( magnitude * 10 + 48 ) >> 4 );
+	duration = magnitude + 300;
+
+	le = CG_SmokePuff( origin, vec3_origin, radius,
+		1.0f, 1.0f, 1.0f, 1.0f,
+		(float)duration, cg.time, 0, 0, shader );
+	le->leType = LE_SCALE_FADE;
+}
+
+/*
 ==================
 CG_KamikazeEffect
 ==================
@@ -295,7 +322,7 @@ CG_ObeliskPain
 ==================
 */
 void CG_ObeliskPain( vec3_t org ) {
-	float r;
+	int r;
 	sfxHandle_t sfx;
 
 	// hit sound

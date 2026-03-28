@@ -47,7 +47,7 @@ function Read-DumpbinExports {
 
     $exports = @()
     foreach ($line in $output) {
-        if ($line -match '^[ \t]*[0-9]+[ \t]+[0-9A-Fa-f]+[ \t]+[0-9A-Fa-f]+[ \t]+(?<Name>\S+)$') {
+        if ($line -match '^[ \t]*[0-9]+[ \t]+[0-9A-Fa-f]+[ \t]+[0-9A-Fa-f]+[ \t]+(?<Name>\S+?)(?:[ \t]*=[ \t]*\S+)?$') {
             $exports += $Matches['Name']
         }
     }
@@ -133,8 +133,8 @@ function Get-RelativePathSafe {
 
 $tool = Get-ExportTool
 $searchRoots = @(
-    Join-Path $RepoRoot 'build',
-    Join-Path $RepoRoot 'src/code'
+    (Join-Path $RepoRoot 'build'),
+    (Join-Path $RepoRoot 'src/code')
 )
 
 $failures = @()

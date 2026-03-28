@@ -540,7 +540,6 @@ Renders the active match factory metadata sourced from configstrings.
 */
 static void CG_DrawFactoryMetadata( float fade ) {
 	vec4_t	color;
-	char	hints[MAX_STRING_CHARS];
 	char	line[MAX_STRING_CHARS];
 	int	x;
 	int	y;
@@ -559,7 +558,21 @@ static void CG_DrawFactoryMetadata( float fade ) {
 		return;
 	}
 
-	if ( !cgs.factoryTitle[0] && !cgs.factorySpawnHints[0] && cgs.factoryFlags == 0u ) {
+	timeoutCount = cgs.matchTimeoutCountPerTeam;
+	timeoutLength = cgs.matchTimeoutLengthSeconds;
+	overtimeLength = cgs.matchOvertimeLengthSeconds;
+	sdEnabled = cgs.matchSuddenDeathRespawnsEnabled;
+	sdStart = cgs.matchSuddenDeathStartSeconds;
+	sdTick = cgs.matchSuddenDeathTickSeconds;
+	sdMax = cgs.matchSuddenDeathMaxSeconds;
+	sdInc = cgs.matchSuddenDeathIncrementSeconds;
+	sdPrint = cgs.matchSuddenDeathPrintAnnouncements;
+	sdDelay = cgs.matchSuddenDeathSpawnDelayActive;
+
+	if ( !cgs.factoryTitle[0] && cgs.factoryFlags == 0u &&
+		 timeoutCount <= 0 && timeoutLength <= 0 && overtimeLength <= 0 &&
+		 !sdEnabled && sdStart <= 0 && sdTick <= 0 && sdMax <= 0 &&
+		 sdInc <= 0 && !sdPrint && !sdDelay ) {
 		return;
 	}
 
@@ -598,21 +611,11 @@ static void CG_DrawFactoryMetadata( float fade ) {
 		y += SMALLCHAR_HEIGHT;
 	}
 
-	if ( !cgs.factorySpawnHints[0] ) {
+	if ( timeoutCount <= 0 && timeoutLength <= 0 && overtimeLength <= 0 &&
+		 !sdEnabled && sdStart <= 0 && sdTick <= 0 && sdMax <= 0 &&
+		 sdInc <= 0 && !sdPrint && !sdDelay ) {
 		return;
 	}
-
-	Q_strncpyz( hints, cgs.factorySpawnHints, sizeof( hints ) );
-	timeoutCount = atoi( Info_ValueForKey( hints, "toCount" ) );
-	timeoutLength = atoi( Info_ValueForKey( hints, "toLength" ) );
-	overtimeLength = atoi( Info_ValueForKey( hints, "otLength" ) );
-	sdEnabled = atoi( Info_ValueForKey( hints, "sd" ) ) ? qtrue : qfalse;
-	sdStart = atoi( Info_ValueForKey( hints, "sdStart" ) );
-	sdTick = atoi( Info_ValueForKey( hints, "sdTick" ) );
-	sdMax = atoi( Info_ValueForKey( hints, "sdMax" ) );
-	sdInc = atoi( Info_ValueForKey( hints, "sdInc" ) );
-	sdPrint = atoi( Info_ValueForKey( hints, "sdPrint" ) ) ? qtrue : qfalse;
-	sdDelay = atoi( Info_ValueForKey( hints, "sdDelay" ) ) ? qtrue : qfalse;
 
 	if ( timeoutCount > 0 && timeoutLength > 0 ) {
 		Com_sprintf( line, sizeof( line ), "Timeouts: %ix%is", timeoutCount, timeoutLength );

@@ -79,7 +79,8 @@ function Assert-FilesAvailable {
 
 $projectChecks = @(
     'src/code/game/game.vcxproj',
-    'src/code/cgame/cgame.vcxproj'
+    'src/code/cgame/cgame.vcxproj',
+    'src/code/awesomium_process.vcxproj'
 )
 foreach ($project in $projectChecks) {
     Assert-PlatformToolset -ProjectRelativePath $project -ExpectedToolset $PlatformToolset
@@ -108,3 +109,10 @@ Assert-FilesAvailable -FileNames $launcherPayload -SearchRoots @($launcherRoot) 
 
 $builder = Join-Path $PSScriptRoot 'build-windows-dlls.ps1'
 & $builder -RepoRoot $RepoRoot -Configuration $Configuration -Platform $Platform -PlatformToolset $PlatformToolset
+
+$awesomiumProcessPath = Join-Path $RepoRoot "build\win32\$Configuration\bin\awesomium_process.exe"
+if (-not (Test-Path $awesomiumProcessPath)) {
+    throw "Expected awesomium_process.exe at '$awesomiumProcessPath' after the native Windows build."
+}
+
+Write-Host "Validated awesomium_process build output: $awesomiumProcessPath"

@@ -1003,15 +1003,22 @@ CG_AddScorePlum
 void CG_AddScorePlum( localEntity_t *le ) {
 	refEntity_t	*re;
 	vec3_t		origin, delta, dir, vec, up = {0, 0, 1};
+	float		alphaScale;
 	float		c, len;
 	int			i, score, digits[10], numdigits, negative;
 
 	re = &le->refEntity;
 
 	c = ( le->endTime - cg.time ) * le->lifeRate;
+	alphaScale = Com_Clamp( 0.0f, 1.0f, le->color[3] );
 
 	score = le->radius;
-	if (score < 0) {
+	if ( le->leFlags & LEF_SCOREPLUM_CUSTOMCOLOR ) {
+		re->shaderRGBA[0] = (byte)( 0xff * Com_Clamp( 0.0f, 1.0f, le->color[0] ) );
+		re->shaderRGBA[1] = (byte)( 0xff * Com_Clamp( 0.0f, 1.0f, le->color[1] ) );
+		re->shaderRGBA[2] = (byte)( 0xff * Com_Clamp( 0.0f, 1.0f, le->color[2] ) );
+	}
+	else if (score < 0) {
 		re->shaderRGBA[0] = 0xff;
 		re->shaderRGBA[1] = 0x11;
 		re->shaderRGBA[2] = 0x11;
@@ -1031,10 +1038,12 @@ void CG_AddScorePlum( localEntity_t *le ) {
 		}
 
 	}
-	if (c < 0.25)
-		re->shaderRGBA[3] = 0xff * 4 * c;
-	else
-		re->shaderRGBA[3] = 0xff;
+	if (c < 0.25) {
+		re->shaderRGBA[3] = (byte)( 0xff * alphaScale * 4 * c );
+	}
+	else {
+		re->shaderRGBA[3] = (byte)( 0xff * alphaScale );
+	}
 
 	re->radius = NUMBER_SIZE / 2;
 

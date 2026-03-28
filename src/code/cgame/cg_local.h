@@ -336,7 +336,8 @@ typedef enum {
 	LEF_PUFF_DONT_SCALE  = 0x0001,			// do not scale size over time
 	LEF_TUMBLE			 = 0x0002,			// tumble over time, used for ejecting shells
 	LEF_SOUND1			 = 0x0004,			// sound 1 for kamikaze
-	LEF_SOUND2			 = 0x0008			// sound 2 for kamikaze
+	LEF_SOUND2			 = 0x0008,			// sound 2 for kamikaze
+	LEF_SCOREPLUM_CUSTOMCOLOR = 0x0010		// source-side retail damage-plum bridge
 } leFlag_t;
 
 typedef enum {
@@ -1197,6 +1198,8 @@ typedef struct {
 	qhandle_t	medalDefend;
 	qhandle_t	medalAssist;
 	qhandle_t	medalCapture;
+	qhandle_t	medalAccuracy;
+	qhandle_t	medalComboKill;
 	qhandle_t	medalMidair;
 	qhandle_t	medalPerfect;
 	qhandle_t	medalQuadGod;
@@ -1289,16 +1292,26 @@ typedef struct {
 	sfxHandle_t firstImpressiveSound;
 	sfxHandle_t firstExcellentSound;
 	sfxHandle_t firstHumiliationSound;
+	sfxHandle_t comboKillSound;
+	sfxHandle_t comboKillSound2;
+	sfxHandle_t comboKillSound3;
 	sfxHandle_t midairSound;
 	sfxHandle_t midairSound2;
 	sfxHandle_t midairSound3;
+	sfxHandle_t accuracySound;
 	sfxHandle_t perfectSound;
 	sfxHandle_t quadGodSound;
 	sfxHandle_t rampageSound;
+	sfxHandle_t rampageSound2;
+	sfxHandle_t rampageSound3;
 	sfxHandle_t revengeSound;
+	sfxHandle_t revengeSound2;
+	sfxHandle_t revengeSound3;
 	sfxHandle_t perforatedSound;
 	sfxHandle_t headshotSound;
 	sfxHandle_t firstFragSound;
+	sfxHandle_t infectedSound;
+	sfxHandle_t newHighScoreSound;
 
 	sfxHandle_t takenLeadSound;
 	sfxHandle_t tiedLeadSound;
@@ -1434,6 +1447,10 @@ typedef struct {
 	char			blueTeamName[MAX_TEAMNAME];
 	char			playermodelOverride[MAX_QPATH];
 	char			playerheadmodelOverride[MAX_QPATH];
+	qboolean		allowCustomHeadmodels;
+	float			playerHeadScale;
+	float			playerHeadScaleOffset;
+	float			playerModelScale;
 
 	int				voteTime;
 	int				voteYes;
@@ -1487,6 +1504,10 @@ typedef struct {
 	int		matchWarmupReadyEligible;
 	char		factoryTitle[MAX_STRING_CHARS];
 	unsigned int	factoryFlags;
+	unsigned long long	customSettingsMask;
+	qboolean	serverSettingsArmorTiered;
+	int		serverSettingsQuadFactor;
+	int		serverSettingsGravity;
 	char		factorySpawnHints[MAX_STRING_CHARS];
 	qboolean	itemTimersEnabled;
 	int		itemTimerHeight;
@@ -1857,6 +1878,9 @@ int CG_CrosshairPlayer( void );
 int CG_LastAttacker( void );
 int CG_GetChatHistoryLength( void );
 qboolean CG_ShouldDisplayVoiceIndicator( void );
+void CG_InitBrowserRuntime( void );
+void CG_ResetBrowserOverlayState( void );
+void CG_SetBrowserFeederSelection( void *overlay, int feeder, int index );
 void CG_LoadMenus(const char *menuFile);
 void CG_KeyEvent(int key, qboolean down);
 void CG_MouseEvent(int x, int y);
@@ -1879,6 +1903,7 @@ void CG_TestModelPrevSkin_f (void);
 void CG_ZoomDown_f( void );
 void CG_ZoomUp_f( void );
 void CG_AddBufferedSound( sfxHandle_t sfx);
+void CG_ClearBufferedAnnouncements( void );
 
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback );
 
@@ -2128,6 +2153,7 @@ void CG_ObeliskPain( vec3_t org );
 void CG_InvulnerabilityImpact( vec3_t org, vec3_t angles );
 void CG_InvulnerabilityJuiced( vec3_t org );
 void CG_LightningBoltBeam( vec3_t start, vec3_t end );
+void CG_LightningDischargeEffect( vec3_t origin, int magnitude );
 void CG_ScorePlum( int client, vec3_t org, int score );
 
 void CG_ThawPlayer( vec3_t playerOrigin );
@@ -2211,6 +2237,7 @@ qboolean CG_IsSelfOnTeamOverlay( void );
 void CG_Respawn( void );
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops );
 void CG_CheckChangedPredictableEvents( playerState_t *ps );
+void pushReward( sfxHandle_t sfx, qhandle_t shader, int rewardCount );
 
 
 //===============================================
@@ -2420,6 +2447,7 @@ void		trap_startCamera(int time);
 qboolean	trap_getCameraInfo(int time, vec3_t *origin, vec3_t *angles);
 
 qboolean	trap_GetEntityToken( char *buffer, int bufferSize );
+qboolean	trap_R_inPVS( const vec3_t p1, const vec3_t p2 );
 
 void	CG_ClearParticles (void);
 void	CG_AddParticles (void);

@@ -965,6 +965,7 @@ Resolves the current shader for retail Quake Live advert ownerdraw items.
 ==================
 */
 static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh) {
+	menuDef_t *parent;
 	rectDef_t rect;
 	qhandle_t shader;
 
@@ -975,10 +976,20 @@ static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh) {
 		return 0;
 	}
 
+	parent = (menuDef_t *)item->parent;
 	rect = item->window.rect;
 	shader = 0;
 
 	if (refresh) {
+		if (parent &&
+			!(parent->window.flags & WINDOW_VISIBLE) &&
+			!(parent->window.flags & WINDOW_FORCED)) {
+			rect.x = 0.0f;
+			rect.y = 0.0f;
+			rect.w = 0.0f;
+			rect.h = 0.0f;
+		}
+
 		if (DC->refreshAdvertCellShader) {
 			shader = DC->refreshAdvertCellShader(item->defaultContent, &rect, item->cellId);
 		}

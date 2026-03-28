@@ -1003,9 +1003,15 @@ aligned with the GPL sources while we add new feeders.
 
 - `FEEDER_HEADS` / `FEEDER_Q3HEADS` → `characterList[]`, `q3HeadNames[]`, the
 avatar banks exposed on the player setup menus.
-- `FEEDER_MAPS`, `FEEDER_ALLMAPS`, and the unimplemented `FEEDER_CVMAPS`
-options all draw from `mapList[]` so upcoming map-rotation menus can reuse the
-already-cached level metadata.
+- `FEEDER_MAPS` and `FEEDER_ALLMAPS` draw directly from `mapList[]`.
+- `FEEDER_CVMAPS` projects the callvote-visible subset of `mapRotations[]`
+through `mapList[]` so the vote-preview path can reuse cached level metadata,
+levelshots, and cinematics; both the current source menu tree and the retail
+`ingame_callvote.menu` script bind that feeder into the callvote map preview,
+and the committed retail path resolves that selection through
+`UI_CVMapCountByGameType`, `UI_SelectedMap`, and `UI_FeederSelection`, while
+the paired retail `voteMap` submit token comes from `ui_cvGameType` through
+`UI_GetCallvoteGametypeToken` rather than from feeder-row factory metadata.
 - `FEEDER_MAP_ROTATIONS` surfaces the parsed `mapRotations[]` cache so rotation
 pool menus can inspect the resolved map/factory metadata.
 - `FEEDER_SERVERS` uses `serverStatus.displayServers[]`, while
@@ -1018,17 +1024,29 @@ with the live client list.
 `modList[]`, `movieList[]`, and `demoList[]` respectively.
 - `FEEDER_MATCHSUMMARY_END`, `FEEDER_MATCHSUMMARY_RED`, and
 `FEEDER_MATCHSUMMARY_BLUE` read from the cached `matchSummary` player lists
-populated after each `postgame` command.
+populated from the `postgame` command through the current
+`UI_CalcPostGameStats` sidecar cache path.
 - `FEEDER_ENDSCOREBOARD`, `FEEDER_REDTEAM_STATS`, `FEEDER_BLUETEAM_STATS`,
 `FEEDER_REDTEAM_LIST`, `FEEDER_BLUETEAM_LIST`, and `FEEDER_SCOREBOARD` reuse
-the `matchSummary` caches to drive the end-of-match scoreboards until native
-network payloads are recovered.
+the `matchSummary` caches as a current-source compatibility path, but retail
+ownership of that scoreboard/team feeder family sits in the cgame `cgDC`
+bridge rather than the UI DLL; the retail `end_scoreboard_*.menu`,
+`endscore*.menu`, and `ingame_scoreboard_*.menu` files even include
+`CG_FeederSelection in cg_main.c` comments on the team-list items.
 - `FEEDER_COUNTRIES` enumerates `countryList[]` loaded from `ui/country.txt` so
-UI scripts can expose locale dropdowns.
-
-Definitions that only exist in the menu scripts today (`FEEDER_CLANS`) do not
-yet have backing storage inside `uiInfo_t`. The HLIL-guided parity plan calls
-for those feeders once their data sources have been recovered.
+UI scripts can expose locale dropdowns; the current source menu tree uses it in
+`ingame_join.menu`, but the retail asset audit shows that dropdown block and
+the local `FEEDER_COUNTRIES` define are not present in the retail UI files.
+- `FEEDER_CLANS` uses `clanList[]`, including the current placeholder roster
+and lazy emblem-image registration path, although neither the committed source
+menu tree nor the retail asset tree currently references the feeder outside the
+shared `menudef.h` constant; the committed host `qz_instance` method table at
+`0x0055C008-0x0055C17C` exposes `GetMapList`, `GetFactoryList`, `GetDemoList`,
+`GetConfig`, lobby helpers, friend-list helpers, `GetAllUGC`, and related
+browser utilities but no clan-roster method; the bounded browser publish
+surface likewise exposes lobby/game/web events but no clan event family, and
+the misleading `UI_CLANNAME` / `UI_CLANLOGO` labels are older `teamList[]`
+team-branding ownerdraws rather than clan-roster consumers.
 =============
 */
 
@@ -1217,6 +1235,7 @@ void UI_SPSkillMenu_Cache( void );
 //
 // ui_syscalls.c
 //
+void QDECL		Com_DPrintf( const char *msg, ... );
 void			trap_Print( const char *string );
 void			trap_Error( const char *string );
 int				trap_Milliseconds( void );
@@ -1301,6 +1320,20 @@ void			trap_R_RemapShader( const char *oldShader, const char *newShader, const c
 qboolean		trap_VerifyCDKey( const char *key, const char *chksum);
 
 void			trap_SetPbClStatus( int status );
+
+#ifndef Q3_VM
+void			trap_QL_InitAdvertisementBridge( void );
+qhandle_t		trap_QL_SetupAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId );
+qhandle_t		trap_QL_RefreshAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId );
+void			trap_QL_UpdateAdvert( int handleOrToken, int area );
+void			trap_QL_ActivateAdvert( int cellId );
+qboolean		trap_QL_SetCursorPos( int x, int y );
+qboolean		trap_QL_GetCursorPos( int *x, int *y );
+qboolean		trap_QL_IsSubscribedApp( int appId );
+void			trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor );
+unsigned long long	trap_QL_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft );
+void			trap_QL_GetItemDownloadInfo( unsigned int itemHi, unsigned int itemLo, unsigned long long *outDownloaded, unsigned long long *outTotal );
+#endif
 
 //
 // ui_addbots.c

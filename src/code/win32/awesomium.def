@@ -1,0 +1,4 @@
+LIBRARY awesomium.dll
+
+EXPORTS
+	?ChildProcessMain@Awesomium@@YAHPAUHINSTANCE__@@@Z

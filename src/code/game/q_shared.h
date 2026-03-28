@@ -1258,6 +1258,9 @@ typedef struct playerState_s {
 	int			jumppad_frame;
 	int			entityEventSequence;
 	int			armorTier;		// retail Quake Live tiered armor state: 0=green, 1=yellow, 2=red
+	int			forwardmove;	// mirrored usercmd byte for retail follow/demo HUD widgets
+	int			rightmove;	// mirrored usercmd byte for retail follow/demo HUD widgets
+	int			upmove;		// mirrored usercmd byte for retail follow/demo HUD widgets
 } playerState_t;
 
 

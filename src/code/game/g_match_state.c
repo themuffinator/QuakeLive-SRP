@@ -70,6 +70,44 @@ static void G_SetMatchFactoryConfigFields( char *info, const matchFactoryConfig_
 
 /*
 =============
+G_BuildPublishedTimeoutCounts
+
+Builds the retail timeout-count payload for match-state and auxiliary configstrings.
+=============
+*/
+static void G_BuildPublishedTimeoutCounts( int *redOut, int *blueOut ) {
+	int	red;
+	int	blue;
+	int	duel;
+
+	if ( !redOut || !blueOut ) {
+		return;
+	}
+
+	red = level.timeoutRemaining[TEAM_RED];
+	blue = level.timeoutRemaining[TEAM_BLUE];
+	if ( g_gametype.integer < GT_TEAM ) {
+		duel = level.timeoutRemaining[TEAM_FREE];
+		if ( duel < 0 ) {
+			duel = 0;
+		}
+		red = duel;
+		blue = duel;
+	}
+
+	if ( red < 0 ) {
+		red = 0;
+	}
+	if ( blue < 0 ) {
+		blue = 0;
+	}
+
+	*redOut = red;
+	*blueOut = blue;
+}
+
+/*
+=============
 G_UsesRoundControllerTeamCounts
 
 Returns qtrue when retail publishes live PM_NORMAL team counts instead of raw rosters.
@@ -138,6 +176,30 @@ void G_UpdateTeamCountConfigstrings( void ) {
 
 /*
 =============
+G_UpdateTimeoutConfigStrings
+
+Publishes the retail timeout auxiliary configstrings alongside CS_MATCH_STATE.
+=============
+*/
+void G_UpdateTimeoutConfigStrings( void ) {
+	int	red;
+	int	blue;
+
+	G_BuildPublishedTimeoutCounts( &red, &blue );
+
+	trap_SetConfigstring( CS_TIMEOUT_COUNT_RED, va( "%i", red ) );
+	trap_SetConfigstring( CS_TIMEOUT_COUNT_BLUE, va( "%i", blue ) );
+	trap_SetConfigstring( CS_TIMEOUT_EXPIRE_TIME, va( "%i", level.timeoutExpireTime ) );
+
+	if ( level.timeoutStartTime > 0 ) {
+		trap_SetConfigstring( CS_TIMEOUT_START_TIME, va( "%i", level.timeoutStartTime ) );
+	} else {
+		trap_SetConfigstring( CS_TIMEOUT_START_TIME, "" );
+	}
+}
+
+/*
+=============
 G_UpdateMatchStateConfigString
 
 Builds the configstring payload describing round timers, overtime, and timeout state.
@@ -149,29 +211,12 @@ void G_UpdateMatchStateConfigString( void ) {
 	int counts[TEAM_NUM_TEAMS];
 	int red;
 	int blue;
-	int duel;
 	int turn;
 
 	info[0] = '\0';
 	config = &g_matchFactoryConfig;
 
-	red = level.timeoutRemaining[TEAM_RED];
-	blue = level.timeoutRemaining[TEAM_BLUE];
-	if ( g_gametype.integer < GT_TEAM ) {
-		duel = level.timeoutRemaining[TEAM_FREE];
-		if ( duel < 0 ) {
-			duel = 0;
-		}
-		red = duel;
-		blue = duel;
-	}
-
-	if ( red < 0 ) {
-		red = 0;
-	}
-	if ( blue < 0 ) {
-		blue = 0;
-	}
+	G_BuildPublishedTimeoutCounts( &red, &blue );
 
 	if ( g_gametype.integer == GT_ATTACK_DEFEND ) {
 		turn = level.adTurnIndex;
@@ -207,5 +252,6 @@ void G_UpdateMatchStateConfigString( void ) {
 	}
 
 	trap_SetConfigstring( CS_MATCH_STATE, info );
+	G_UpdateTimeoutConfigStrings();
 	trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );
 }

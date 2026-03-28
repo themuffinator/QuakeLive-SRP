@@ -451,12 +451,17 @@ def test_hybrid_fallback_accepts_when_steam_pending(tmp_path) -> None:
 def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
     cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
 
     refresh_block = _extract_function_block(cl_cgame, "void CL_RefreshOnlineServicesBridgeState( void )")
     assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in refresh_block
     assert 'Cvar_Set( "ui_browserAwesomium", "0" );' in refresh_block
     assert "CL_GetOverlayServiceDescriptor()" in refresh_block
     assert 'Cvar_Set( "ui_browserAwesomium", overlayAvailable ? "1" : "0" );' in refresh_block
+
+    assert '#include "../../common/platform/platform_config.h"' in ui_main
+    assert "#define UI_BROWSER_AWESOMIUM_DEFAULT \"0\"" in ui_main
+    assert '"ui_browserAwesomium", UI_BROWSER_AWESOMIUM_DEFAULT, CVAR_TEMP' in ui_main
 
     show_browser_block = _extract_function_block(cl_cgame, "void CL_Web_ShowBrowser_f( void )")
     assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in show_browser_block
@@ -467,8 +472,30 @@ def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     assert "cl_advertisementBridge.initialised = qtrue;" in advert_init_block
     assert "CL_RefreshOnlineServicesBridgeState();" in advert_init_block
 
-    import82_block = _extract_function_block(cl_ui, "static void QDECL QL_UI_trap_Import82( void )")
+    import82_block = _extract_function_block(cl_ui, "static void QDECL QL_UI_trap_InitAdvertisementBridge( void )")
     assert "CL_RefreshOnlineServicesBridgeState();" in import82_block
 
     init_ui_block = _extract_function_block(cl_ui, "void CL_InitUI( void )")
     assert "CL_RefreshOnlineServicesBridgeState();" in init_ui_block
+
+
+def test_disabled_online_services_no_longer_force_console_fallback() -> None:
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    cl_scrn = (REPO_ROOT / "src/code/client/cl_scrn.c").read_text(encoding="utf-8")
+    client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
+
+    assert "CL_UseDisconnectedConsoleFallback" not in client_h
+    assert "CL_UseDisconnectedConsoleFallback" not in cl_main
+    assert "CL_UseDisconnectedConsoleFallback" not in cl_scrn
+    assert "disconnected console fallback active" not in cl_main
+    assert "fallback draw path active" not in cl_scrn
+
+    frame_block = _extract_function_block(cl_main, "void CL_Frame ( int msec ) {")
+    assert 'VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );' in frame_block
+    assert "cls.keyCatchers = KEYCATCH_CONSOLE;" not in frame_block
+    assert "S_StopBackgroundTrack();" not in frame_block
+
+    draw_block = _extract_function_block(cl_scrn, "void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {")
+    assert "uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN );" in draw_block
+    assert 'VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );' in draw_block
+    assert "consoleFallback" not in draw_block

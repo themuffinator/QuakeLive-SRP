@@ -38,6 +38,11 @@ typedef struct cgStartingWeaponInfo_s {
 	weapon_t weapon;
 } cgStartingWeaponInfo_t;
 
+typedef struct cgServerSettingsWeaponIcon_s {
+	unsigned int bit;
+	weapon_t weapon;
+} cgServerSettingsWeaponIcon_t;
+
 //
 // Forward declarations for HUD ownerdraw helpers used by Quake Live menus.
 //
@@ -68,6 +73,22 @@ static const cgStartingWeaponInfo_t cgStartingWeaponIcons[CG_STARTING_WEAPON_ICO
 	{ "pl", WP_PROX_LAUNCHER },
 	{ "cg", WP_CHAINGUN },
 	{ "hmg", WP_HEAVY_MACHINEGUN }
+};
+
+static const cgServerSettingsWeaponIcon_t cgServerSettingsWeaponIcons[] = {
+	{ CUSTOM_SETTING_GAUNTLET, WP_GAUNTLET },
+	{ CUSTOM_SETTING_MACHINEGUN, WP_MACHINEGUN },
+	{ CUSTOM_SETTING_SHOTGUN, WP_SHOTGUN },
+	{ CUSTOM_SETTING_GRENADE_LAUNCHER, WP_GRENADE_LAUNCHER },
+	{ CUSTOM_SETTING_ROCKET_LAUNCHER, WP_ROCKET_LAUNCHER },
+	{ CUSTOM_SETTING_LIGHTNING_GUN, WP_LIGHTNING },
+	{ CUSTOM_SETTING_RAILGUN, WP_RAILGUN },
+	{ CUSTOM_SETTING_PLASMAGUN, WP_PLASMAGUN },
+	{ CUSTOM_SETTING_BFG, WP_BFG },
+	{ CUSTOM_SETTING_GRAPPLING_HOOK, WP_GRAPPLING_HOOK },
+	{ CUSTOM_SETTING_NAILGUN, WP_NAILGUN },
+	{ CUSTOM_SETTING_PROX_LAUNCHER, WP_PROX_LAUNCHER },
+	{ CUSTOM_SETTING_CHAINGUN, WP_CHAINGUN }
 };
 
 static qhandle_t cgGameTypeIconShaders[GT_MAX_GAME_TYPE];
@@ -158,10 +179,14 @@ void CG_RaceResetState( void ) {
 
 	memset( cgs.raceProgress, 0, sizeof( cgs.raceProgress ) );
 	memset( cgs.raceStatus, 0, sizeof( cgs.raceStatus ) );
+	memset( cgs.raceLeaderSplits, 0, sizeof( cgs.raceLeaderSplits ) );
 	cgs.raceStatusSequence = 0;
 	cgs.raceLeaderClientNum = -1;
 	for ( i = 0; i < MAX_CLIENTS; ++i ) {
 		cgs.raceProgress[i].currentCheckpoint = -1;
+	}
+	if ( cgs.gametype == GT_RACE ) {
+		trap_SendClientCommand( "raceinit" );
 	}
 }
 
@@ -2642,73 +2667,141 @@ static void CG_GetTextPosition( const rectDef_t *rect, float text_x, float text_
 
 /*
 =============
-CG_AppendServerSetting
-
-Appends a fragment to the composite server settings line.
-=============
-*/
-static void CG_AppendServerSetting( char *buffer, size_t bufferSize, const char *text ) {
-	if ( !buffer || bufferSize <= 0 || !text || !*text ) {
-		return;
-	}
-
-	if ( buffer[0] ) {
-		Q_strcat( buffer, bufferSize, "  |  " );
-	}
-	Q_strcat( buffer, bufferSize, text );
-}
-
-/*
-=============
 CG_DrawServerSettings
 
-Summarizes factory metadata and server toggles for the intro/about overlays.
+Draws the retail custom-settings panel consumed by the intro/about overlays.
 =============
 */
 static void CG_DrawServerSettings(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
-	char	buffer[256];
-	char	value[MAX_INFO_VALUE];
-	const char *info;
-	float	x;
-	float	y;
-	qboolean loadoutsEnabled;
-	qboolean itemTimersEnabled;
-	qboolean trainingEnabled;
+	unsigned int	weaponMask;
+	float		x;
+	float		y;
+	float		lineHeight;
+	int		activeCount;
+	char		buffer[64];
+	int		i;
 
-	info = CG_ConfigString( CS_SERVERINFO );
-	buffer[0] = '\0';
-	loadoutsEnabled = CG_LoadoutsEnabled();
-	itemTimersEnabled = qfalse;
-	trainingEnabled = qfalse;
-
-	if ( info && *info ) {
-		CG_GetServerInfoValue( info, "g_itemTimers", value, sizeof( value ) );
-		if ( value[0] && atoi( value ) ) {
-			itemTimersEnabled = qtrue;
-		}
-		CG_GetServerInfoValue( info, "g_training", value, sizeof( value ) );
-		if ( value[0] && atoi( value ) ) {
-			trainingEnabled = qtrue;
-		}
-	}
-
-	if ( cgs.factoryTitle[0] ) {
-		CG_AppendServerSetting( buffer, sizeof( buffer ), cgs.factoryTitle );
-	} else {
-		CG_AppendServerSetting( buffer, sizeof( buffer ), "Standard factory" );
-	}
-	CG_AppendServerSetting( buffer, sizeof( buffer ), loadoutsEnabled ? "Loadouts on" : "Loadouts off" );
-	CG_AppendServerSetting( buffer, sizeof( buffer ), itemTimersEnabled ? "Item timers on" : "Item timers off" );
-	if ( trainingEnabled ) {
-		CG_AppendServerSetting( buffer, sizeof( buffer ), "Training mode" );
-	}
-
-	if ( !buffer[0] ) {
+	if ( !rect ) {
 		return;
 	}
 
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	lineHeight = (float)CG_Text_Height( "AIR CONTROL", scale, 0 );
+	if ( lineHeight <= 0.0f ) {
+		lineHeight = 10.0f;
+	}
+	lineHeight += 2.0f;
+	activeCount = 0;
+	weaponMask = (unsigned int)( cgs.customSettingsMask & CUSTOM_SETTING_WEAPON_MASK );
+
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_AIR_CONTROL ) {
+		CG_Text_Paint( x, y, scale, color, "AIR CONTROL", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_RAMP_JUMP ) {
+		CG_Text_Paint( x, y, scale, color, "RAMP JUMPING", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.serverSettingsArmorTiered ) {
+		CG_Text_Paint( x, y, scale, color, "TIERED ARMOR", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_WEAPON_SWITCHING ) {
+		CG_Text_Paint( x, y, scale, color, "MODIFIED WEAPON SWITCH", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.serverSettingsQuadFactor != 3 ) {
+		Com_sprintf( buffer, sizeof( buffer ), "%ix QUAD", cgs.serverSettingsQuadFactor );
+		CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_PHYSICS ) {
+		CG_Text_Paint( x, y, scale, color, "MODIFIED PHYSICS", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.serverSettingsGravity != 800 ) {
+		Com_sprintf( buffer, sizeof( buffer ), "GRAVITY %i", cgs.serverSettingsGravity );
+		CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_INSTAGIB ) {
+		CG_Text_Paint( x, y, scale, color, "INSTAGIB", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_QUAD_HOG ) {
+		CG_Text_Paint( x, y, scale, color, "QUAD HOG", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_REGEN_HEALTH ) {
+		CG_Text_Paint( x, y, scale, color, "REGEN HEALTH", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( ( cgs.customSettingsMask & CUSTOM_SETTING_DROP_HEALTH ) && !( cgs.customSettingsMask & CUSTOM_SETTING_INSTAGIB ) ) {
+		CG_Text_Paint( x, y, scale, color, "DROP DAMAGED HEALTH", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_VAMPIRIC_DAMAGE ) {
+		CG_Text_Paint( x, y, scale, color, "VAMPIRIC DAMAGE", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_ITEM_SPAWNING ) {
+		CG_Text_Paint( x, y, scale, color, "MODIFIED ITEM SPAWNING", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_HEADSHOTS ) {
+		CG_Text_Paint( x, y, scale, color, "HEADSHOTS ENABLED", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( cgs.customSettingsMask & CUSTOM_SETTING_RAIL_JUMPING ) {
+		CG_Text_Paint( x, y, scale, color, "RAIL JUMPING", 0, 0, textStyle );
+		y += lineHeight;
+		activeCount++;
+	}
+	if ( weaponMask != 0u ) {
+		CG_Text_Paint( x, y, scale, color, "MODIFIED WEAPONS", 0, 0, textStyle );
+		if ( activeCount < 15 ) {
+			float	iconSize;
+			float	iconX;
+			float	iconY;
+
+			y += lineHeight;
+			iconSize = lineHeight + 2.0f;
+			iconX = x;
+			iconY = y - iconSize + 2.0f;
+
+			for ( i = 0; i < ARRAY_LEN( cgServerSettingsWeaponIcons ); i++ ) {
+				qhandle_t	icon;
+				weapon_t	weapon;
+
+				if ( ( weaponMask & cgServerSettingsWeaponIcons[i].bit ) == 0u ) {
+					continue;
+				}
+
+				weapon = cgServerSettingsWeaponIcons[i].weapon;
+				icon = cg_weapons[weapon].weaponIcon;
+				if ( !icon ) {
+					continue;
+				}
+
+				CG_DrawPic( iconX, iconY, iconSize, iconSize, icon );
+				iconX += iconSize + 2.0f;
+			}
+		}
+	}
 }
 
 /*
@@ -3590,13 +3683,15 @@ Paints the running vote count for the requested slot.
 */
 static void CG_DrawVoteCount(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot) {
 	char	buffer[MAX_CVAR_VALUE_STRING];
+	char	countText[MAX_CVAR_VALUE_STRING];
 	float	x;
 	float	y;
 
-	CG_GetVoteSlotString( slot, "Count", buffer, sizeof( buffer ) );
-	if ( !buffer[0] ) {
+	CG_GetVoteSlotString( slot, "Count", countText, sizeof( countText ) );
+	if ( !countText[0] ) {
 		return;
 	}
+	Com_sprintf( buffer, sizeof( buffer ), "Votes: %s", countText );
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
 	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
 }
@@ -3618,10 +3713,13 @@ static void CG_DrawVoteTimer(rectDef_t *rect, float text_x, float text_y, float 
 		return;
 	}
 	remaining = ( VOTE_TIME - ( cg.time - cgs.voteTime ) + 999 ) / 1000;
-	if ( remaining < 0 ) {
-		remaining = 0;
+	if ( remaining < 1 ) {
+		Q_strncpyz( buffer, "Voting has ended.", sizeof( buffer ) );
+	} else if ( remaining == 1 ) {
+		Com_sprintf( buffer, sizeof( buffer ), "Voting ends in %i second.", remaining );
+	} else {
+		Com_sprintf( buffer, sizeof( buffer ), "Voting ends in %i seconds.", remaining );
 	}
-	Com_sprintf( buffer, sizeof( buffer ), "Vote %is", remaining );
 	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
 	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
 }
@@ -7959,6 +8057,50 @@ static qboolean CG_ShouldCaptureSpectatorUi( void ) {
 
 /*
 =============
+CG_BrowserDisplayCursorType
+
+Routes browser cursor-shape queries through the shared display runtime.
+=============
+*/
+static int CG_BrowserDisplayCursorType( int x, int y ) {
+	return Display_CursorType( x, y );
+}
+
+/*
+=============
+CG_BrowserDisplayMouseMove
+
+Routes browser mouse motion through the shared display runtime.
+=============
+*/
+static qboolean CG_BrowserDisplayMouseMove( void *overlay, int x, int y ) {
+	return Display_MouseMove( overlay, x, y );
+}
+
+/*
+=============
+CG_BrowserDisplayHandleKey
+
+Routes browser key handling through the shared display runtime.
+=============
+*/
+static void CG_BrowserDisplayHandleKey( int key, qboolean down, int x, int y ) {
+	Display_HandleKey( key, down, x, y );
+}
+
+/*
+=============
+CG_BrowserDisplayCaptureItem
+
+Routes browser capture hit-testing through the shared display runtime.
+=============
+*/
+static void *CG_BrowserDisplayCaptureItem( int x, int y ) {
+	return Display_CaptureItem( x, y );
+}
+
+/*
+=============
 CG_MouseEvent
 
 Routes mouse movement through the HUD when spectator overlays are active.
@@ -7994,7 +8136,7 @@ void CG_MouseEvent( int x, int y ) {
 		cgs.cursorY = 480;
 	}
 
-	n = Display_CursorType( cgs.cursorX, cgs.cursorY );
+	n = CG_BrowserDisplayCursorType( cgs.cursorX, cgs.cursorY );
 	cgs.activeCursor = 0;
 	if ( n == CURSOR_ARROW ) {
 		cgs.activeCursor = cgs.media.selectCursor;
@@ -8003,9 +8145,9 @@ void CG_MouseEvent( int x, int y ) {
 	}
 
 	if ( cgs.capturedItem ) {
-		Display_MouseMove( cgs.capturedItem, x, y );
+		CG_BrowserDisplayMouseMove( cgs.capturedItem, x, y );
 	} else {
-		Display_MouseMove( NULL, cgs.cursorX, cgs.cursorY );
+		CG_BrowserDisplayMouseMove( NULL, cgs.cursorX, cgs.cursorY );
 	}
 }
 
@@ -8153,19 +8295,19 @@ void CG_KeyEvent(int key, qboolean down) {
 		return;
 	}
 
-	//if (key == trap_Key_GetKey("teamMenu") || !Display_CaptureItem(cgs.cursorX, cgs.cursorY)) {
+	//if (key == trap_Key_GetKey("teamMenu") || !CG_BrowserDisplayCaptureItem( cgs.cursorX, cgs.cursorY )) {
 	// if we see this then we should always be visible
 	//  CG_EventHandling(CGAME_EVENT_NONE);
 	//  trap_Key_SetCatcher(0);
 	//}
 
-	Display_HandleKey(key, down, cgs.cursorX, cgs.cursorY);
+	CG_BrowserDisplayHandleKey(key, down, cgs.cursorX, cgs.cursorY);
 
 	if (cgs.capturedItem) {
 		cgs.capturedItem = NULL;
 	} else {
 		if (key == K_MOUSE2 && down) {
-			cgs.capturedItem = Display_CaptureItem(cgs.cursorX, cgs.cursorY);
+			cgs.capturedItem = CG_BrowserDisplayCaptureItem( cgs.cursorX, cgs.cursorY );
 		}
 	}
 }

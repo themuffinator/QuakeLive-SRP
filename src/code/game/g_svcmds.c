@@ -415,6 +415,32 @@ gclient_t	*ClientForString( const char *s ) {
 
 /*
 ===================
+Svcmd_DumpVars_f
+
+Prints a compact playerstate snapshot for the selected client.
+===================
+*/
+static void Svcmd_DumpVars_f( void ) {
+	gclient_t	*cl;
+	char		str[MAX_TOKEN_CHARS];
+
+	trap_Argv( 1, str, sizeof( str ) );
+	cl = ClientForString( str );
+	if ( !cl ) {
+		return;
+	}
+
+	G_Printf( "Data Dump: (%s)\n", cl->pers.netname );
+	G_Printf( "clientNum: %d\n", ( int )( cl - level.clients ) );
+	G_Printf( "pm_type: 0x%08x\n", cl->ps.pm_type );
+	G_Printf( "pm_flags: 0x%08x\n", cl->ps.pm_flags );
+	G_Printf( "pm_time: %d\n", cl->ps.pm_time );
+	G_Printf( "eFlags: %d\n", cl->ps.eFlags );
+	G_Printf( "origin: (%0.3f, %0.3f, %0.3f)\n", cl->ps.origin[0], cl->ps.origin[1], cl->ps.origin[2] );
+}
+
+/*
+===================
 Svcmd_ForceTeam_f
 
 forceteam <player> <team>
@@ -434,6 +460,32 @@ void	Svcmd_ForceTeam_f( void ) {
 	// set the team
 	trap_Argv( 2, str, sizeof( str ) );
 	SetTeam( &g_entities[cl - level.clients], str );
+}
+
+/*
+=============
+Svcmd_GameCrash_f
+
+Mirrors the retail developer-only hard crash path exposed through ConsoleCommand.
+=============
+*/
+static void Svcmd_GameCrash_f( void ) {
+	if ( trap_Cvar_VariableIntegerValue( "developer" ) < 1 ) {
+		return;
+	}
+
+	*(volatile int *)0 = 0x12345678;
+}
+
+/*
+=============
+Svcmd_ReloadAccess_f
+
+Reloads the cached access list and refreshes connected-client privilege tiers.
+=============
+*/
+static void Svcmd_ReloadAccess_f( void ) {
+	G_ReloadAdminAccess();
 }
 
 /*
@@ -575,6 +627,47 @@ qboolean	ConsoleCommand( void ) {
 		Svcmd_EntityList_f();
 		return qtrue;
 	}
+	if ( Q_stricmp (cmd, "forceteam") == 0 ) {
+		Svcmd_ForceTeam_f();
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "game_memory") == 0) {
+		Svcmd_GameMem_f();
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "addbot") == 0) {
+		Svcmd_AddBot_f();
+		return qtrue;
+	}
+	if (Q_stricmp (cmd, "botlist") == 0) {
+		Svcmd_BotList_f();
+		return qtrue;
+	}
+	if ( Q_stricmp (cmd, "game_crash") == 0 ) {
+		Svcmd_GameCrash_f();
+		return qtrue;
+	}
+	if ( Q_stricmp (cmd, "forceshuffle") == 0 ) {
+		Cmd_ShuffleTeams_f();
+		return qtrue;
+	}
+	if ( Q_stricmp (cmd, "dumpvars") == 0 ) {
+		Svcmd_DumpVars_f();
+		return qtrue;
+	}
+	// Retail qagame still recognizes these legacy debug tokens, but the
+	// committed HLIL shows them resolving to a handled no-op inside
+	// ConsoleCommand rather than to a separate worker body.
+	if ( Q_stricmp( cmd, "markstate" ) == 0 ||
+		Q_stricmp( cmd, "diffstate" ) == 0 ||
+		Q_stricmp( cmd, "dumpentities" ) == 0 ||
+		Q_stricmp( cmd, "printentitystates" ) == 0 ) {
+		return qtrue;
+	}
+	if ( Q_stricmp (cmd, "reload_access") == 0 ) {
+		Svcmd_ReloadAccess_f();
+		return qtrue;
+	}
 	if ( Q_stricmp (cmd, "shuffle_teams") == 0 ) {
 		Cmd_ShuffleTeams_f();
 		return qtrue;
@@ -595,32 +688,10 @@ qboolean	ConsoleCommand( void ) {
 		Svcmd_ScorestatsDump_f();
 		return qtrue;
 	}
-
-	if ( Q_stricmp (cmd, "forceteam") == 0 ) {
-		Svcmd_ForceTeam_f();
-		return qtrue;
-	}
-
 	if ( Q_stricmp( cmd, "floodstatus" ) == 0 ) {
 		Svcmd_FloodStatus_f();
 		return qtrue;
 	}
-
-	if (Q_stricmp (cmd, "game_memory") == 0) {
-		Svcmd_GameMem_f();
-		return qtrue;
-	}
-
-	if (Q_stricmp (cmd, "addbot") == 0) {
-		Svcmd_AddBot_f();
-		return qtrue;
-	}
-
-	if (Q_stricmp (cmd, "botlist") == 0) {
-		Svcmd_BotList_f();
-		return qtrue;
-	}
-
 	if (Q_stricmp (cmd, "abort_podium") == 0) {
 		Svcmd_AbortPodium_f();
 		return qtrue;

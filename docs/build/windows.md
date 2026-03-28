@@ -1,10 +1,12 @@
 # Windows Native Build Targets
 
 The Visual Studio solution under `src/code/quakelive.sln` now ships with dedicated
-native builds for the Quake Live gameplay modules. Each native project is a
-copy of its VM counterpart, but the output is redirected to
-`build/win32/<Config>/modules/<ProjectName>/` and the Visual Studio 2010 (`v100`) toolset is enforced so
-the produced DLLs match the shipping runtime.【F:src/code/game/qagamex86.vcxproj†L2-L135】【F:src/code/cgame/cgamex86.vcxproj†L2-L110】
+native builds for the Quake Live gameplay modules plus the reconstructed
+`awesomium_process.exe` helper. The native module projects are copies of their VM
+counterparts, but the output is redirected to
+`build/win32/<Config>/modules/<ProjectName>/`, while the helper executable lands in
+`build/win32/<Config>/bin/`. The Visual Studio 2010 (`v100`) toolset is enforced so
+the produced binaries stay aligned with the shipping runtime.【F:src/code/game/qagamex86.vcxproj†L2-L135】【F:src/code/cgame/cgamex86.vcxproj†L2-L110】【F:src/code/awesomium_process.vcxproj†L1-L177】
 
 For runtime prerequisites and validation steps on WOW64 hosts, see the
 [Windows 32-bit Runtime Guide](../platform/windows-32bit-runtime.md).
@@ -15,6 +17,7 @@ For runtime prerequisites and validation steps on WOW64 hosts, see the
 |-------------|--------------|-----------------|
 | `qagamex86` | `src/code/game/qagamex86.vcxproj` | `build/win32/<Config>/modules/qagamex86/qagamex86.dll` |
 | `cgamex86`  | `src/code/cgame/cgamex86.vcxproj` | `build/win32/<Config>/modules/cgamex86/cgamex86.dll` |
+| `awesomium_process` | `src/code/awesomium_process.vcxproj` | `build/win32/<Config>/bin/awesomium_process.exe` |
 
 ## Building from the command line
 
@@ -23,7 +26,7 @@ These `/t:` selectors are the switches that route MSBuild toward the
 corresponding pipeline:
 
 ```powershell
-msbuild src\code\quakelive.sln /t:qagamex86;cgamex86 /p:Configuration=Release /p:Platform=Win32
+msbuild src\code\quakelive.sln /t:qagamex86;cgamex86;awesomium_process /p:Configuration=Release /p:Platform=x86 /p:PlatformToolset=v100
 ```
 
 The original VM builds remain available under the historical target names. For
@@ -31,7 +34,25 @@ example, the following command rebuilds the interpreted modules while leaving
 the native DLLs untouched:
 
 ```powershell
-msbuild src\code\quakelive.sln /t:game;cgame /p:Configuration=Release /p:Platform=Win32
+msbuild src\code\quakelive.sln /t:game;cgame /p:Configuration=Release /p:Platform=x86
+```
+
+`awesomium_process.exe` respects the same online-services policy as the rest of
+the launcher stack. `QLBuildOnlineServices` defaults to `0`, which produces an
+offline-safe stub that exits cleanly without loading `awesomium.dll`. Set
+`/p:QLBuildOnlineServices=1` if you want the helper to forward into the retail
+Awesomium child-process entry point:
+
+```powershell
+msbuild src\code\awesomium_process.vcxproj /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v100 /p:QLBuildOnlineServices=1
+```
+
+For a parity-oriented rebuild of the helper, keep `QLBuildOnlineServices=1` and
+run the dedicated verifier after the build. This checks the retail-facing
+version resource, import surface, and linker/header profile for the executable:
+
+```powershell
+pwsh tools\ci\verify-awesomium-process-parity.ps1
 ```
 
 ## Vorbis codec prerequisites
@@ -51,6 +72,10 @@ msbuild src\code\quakelive.sln /t:quakelive_steam /p:Configuration=Debug /p:Vorb
 Without these libraries the linker fails fast, mirroring the Unix makefile’s
 `OGG_CFLAGS`/`OGG_LDFLAGS` checks.
 
+When you target a `.vcxproj` directly, keep using `/p:Platform=Win32`. The
+solution-level builds use `x86` because that is the platform name advertised by
+`src/code/quakelive.sln`.
+
 ## Verifying incremental builds
 
 To confirm that MSBuild’s tracking stays intact for both pipelines, run each set
@@ -59,10 +84,10 @@ project is already up to date (look for "Project is up-to-date" or "Skipping
 project" in the output):
 
 ```powershell
-msbuild src\code\quakelive.sln /t:qagamex86;cgamex86 /p:Configuration=Debug /p:Platform=Win32
-msbuild src\code\quakelive.sln /t:qagamex86;cgamex86 /p:Configuration=Debug /p:Platform=Win32
-msbuild src\code\quakelive.sln /t:game;cgame /p:Configuration=Debug /p:Platform=Win32
-msbuild src\code\quakelive.sln /t:game;cgame /p:Configuration=Debug /p:Platform=Win32
+msbuild src\code\quakelive.sln /t:qagamex86;cgamex86;awesomium_process /p:Configuration=Debug /p:Platform=x86
+msbuild src\code\quakelive.sln /t:qagamex86;cgamex86;awesomium_process /p:Configuration=Debug /p:Platform=x86
+msbuild src\code\quakelive.sln /t:game;cgame /p:Configuration=Debug /p:Platform=x86
+msbuild src\code\quakelive.sln /t:game;cgame /p:Configuration=Debug /p:Platform=x86
 ```
 
 Successful “up-to-date” messages on the second pass confirm incremental builds

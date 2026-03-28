@@ -40,7 +40,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Returns the short retail callvote factory token for a gametype enum, such as the values later formatted into callvote map commands."
+      "comment": "Returns the short retail callvote gametype token for a gametype enum, such as `ffa`, `duel`, `race`, `tdm`, `ca`, `ctf`, `oneflag`, `har`, `ft`, `dom`, `ad`, and `rr`. The retail `voteMap` branch later formats that token into `callvote map %s %s\\n` from the active `ui_cvGameType` state, falling back to the empty string when the cvar is `-1`."
     },
     {
       "address": "0x10001090",
@@ -312,7 +312,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Calculates postgame bonuses, best-score state, and follow-up cvar writes."
+      "comment": "Retail postgame core. It reads the `postgame` argv payload, loads and updates the per-map `games/%s_%i.game` record, computes bonuses and best-score state, restores the saved cvars, and drives the `ui_score*` cvar writes through `UI_SetBestScores`. The newer `matchSummary` cache in the current source tree is layered inside this flow as a reconstruction-side sidecar."
     },
     {
       "address": "0x10002AC0",
@@ -322,7 +322,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Dispatches the retail UI console commands, including listPlayerModels, ui_report, ui_load, postgame, ui_cache, menu_open, and menu_close."
+      "comment": "Dispatches the retail UI console commands, including listPlayerModels, ui_report, ui_load, postgame, ui_cache, menu_open, and menu_close. The committed HLIL shows the `postgame` branch going directly into `UI_CalcPostGameStats`, with no separate retail match-summary parser exposed in the current symbol map."
     },
     {
       "address": "0x10002BF0",
@@ -1206,9 +1206,14 @@
       "normalized_name": "UI_RunMenuScript",
       "status": "matched",
       "signature": null,
-      "string_refs": [],
+      "string_refs": [
+        "updateCallvoteMapPreview",
+        "voteMap",
+        "voteKick",
+        "voteGame"
+      ],
       "relocation_refs": [],
-      "comment": "Runs menu-script commands and logs unknown UI script handlers."
+      "comment": "Runs menu-script commands including the retail callvote-map preview and submission branches, vote/admin handlers, favorite management, and model-color synchronization, then logs unknown UI script handlers. The retail `ingame_callvote.menu` file binds this same path through `ui_cvGameType`, `updateCallvoteMapPreview`, `FEEDER_CVMAPS`, and `voteMap`; in the committed HLIL, the preview branch calls straight into `UI_FeederSelection` for feeder `19`, and the submit branch formats `callvote map %s %s\\n` inline from the selected net map plus `UI_GetCallvoteGametypeToken(ui_cvGameType)` or an empty fallback."
     },
     {
       "address": "0x1000D2F0",
@@ -1228,7 +1233,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Marks maps active for the FEEDER_CVMAPS callvote filter using the selected or forced callvote gametype and returns the visible map count."
+      "comment": "Marks maps active for the FEEDER_CVMAPS callvote filter using the active callvote-gametype state behind ui_cvGameType and returns the visible preview-row count. In retail this is the first helper in the FEEDER_CVMAPS preview-selection chain later reused by `UI_FeederSelection` before `UI_SelectedMap` resolves the chosen visible row, and it consumes the same `ui_cvGameType` state later reused by the `voteMap` submission token path."
     },
     {
       "address": "0x1000D3C0",
@@ -1358,7 +1363,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Returns the active row count for retail feeders including maps, servers, player lists, mods, movies, demos, clans, and match summaries."
+      "comment": "Returns the active row count for the committed retail UI feeder set: heads, maps, servers, clans, player/team lists, mods, demos, cinematics, and the callvote-map filter. The committed `uix86.dll` body stops short of the scoreboard/team feeder family, which is already mapped on the cgame `cgDC` side; the actual clan-feeder branch exists in the dispatcher, but no committed retail menu item or bounded host `qz_instance` / `EnginePublish` browser contract currently consumes it. The similarly named `UI_CLANNAME` / `UI_CLANLOGO` ownerdraws are older `teamList[]` branding carry-overs rather than clan-feeder consumers."
     },
     {
       "address": "0x1000E600",
@@ -1368,7 +1373,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Converts a visible feeder row into the backing active map index and returns that map's display name."
+      "comment": "Converts a visible feeder row into the backing active map index and returns that map's display name. Retail FEEDER_CVMAPS selection rebuilds visibility through `UI_CVMapCountByGameType` and then uses this helper to resolve the backing map before refreshing `ui_currentNetMap`."
     },
     {
       "address": "0x1000E640",
@@ -1378,7 +1383,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Resolves feeder row images such as character heads, map levelshots, callvote maps, and clan emblems."
+      "comment": "Resolves feeder row images such as character heads, map levelshots, callvote maps, and clan emblems. The actual clan-feeder emblem branch remains compatibility-heavy because no committed retail menu item currently consumes the clan UI surfaces and the bounded host `qz_instance` / `EnginePublish` browser contract exposes neither a clan-roster RPC nor a clan event family. This is separate from the misleading `UI_CLANLOGO` ownerdraw label, which is an older `teamList[]` branding path."
     },
     {
       "address": "0x1000EA80",
@@ -1388,7 +1393,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Returns feeder row text for heads, maps, server browser columns, mods, movies, demos, clans, and match-summary tables."
+      "comment": "Returns feeder row text for the committed retail UI feeder set: heads, maps, server browser columns, mods, movies, demos, clans, and the older player/team list families. The committed `uix86.dll` dispatcher does not currently expose scoreboard or match-summary feeder branches; those scoreboard/team callbacks are already anchored in cgame, and the actual clan-feeder text branch currently lacks both a committed retail menu consumer and a bounded host/browser contract with clan RPCs or clan events. The misleading `UI_CLANNAME` ownerdraw label is instead an older `teamList[]` branding path."
     },
     {
       "address": "0x1000EBA0",
@@ -1396,9 +1401,11 @@
       "normalized_name": "UI_FeederSelection",
       "status": "matched",
       "signature": null,
-      "string_refs": [],
+      "string_refs": [
+        "ui_currentNetMap"
+      ],
       "relocation_refs": [],
-      "comment": "Applies feeder selection side effects such as model cvar writes, cinematic refresh, server status selection, and map or demo activation state."
+      "comment": "Applies feeder selection side effects such as model cvar writes, cinematic refresh, server-status selection, and the FEEDER_CVMAPS branch that rebuilds the visible callvote set through `UI_CVMapCountByGameType`, resolves the chosen row through `UI_SelectedMap`, and then refreshes `ui_currentNetMap` for the retail voteMap preview path. The paired submit leg later reuses that preview state plus `UI_GetCallvoteGametypeToken(ui_cvGameType)`."
     },
     {
       "address": "0x1000F140",
@@ -1488,7 +1495,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Full UI bootstrap: registers cvars, wires uiDC, loads menus, initializes scores, bots, and render assets."
+      "comment": "Full UI bootstrap: registers cvars, wires uiDC, loads menus, initializes scores, bots, and render assets, and seeds the retail `ui_cvGameType` callvote filter cvar to `-1` before menu scripts run."
     },
     {
       "address": "0x1000FF40",
@@ -1528,7 +1535,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Switches on the native UIMENU command, updates key catcher and pause state, reloads menu sets when needed, and activates the named retail menus."
+      "comment": "Switches on the native UIMENU command, updates key catcher and pause state, reloads menu sets when needed, and activates the named retail menus. The ingame-menu branch also rebuilds the player list and resets the retail `ui_cvGameType` callvote filter cvar to `-1` before activating the ingame menu set."
     },
     {
       "address": "0x10010380",

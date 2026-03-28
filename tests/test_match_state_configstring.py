@@ -79,6 +79,10 @@ vmCvar_t g_factoryTitle;
 static char qlr_matchStateConfig[MAX_INFO_STRING];
 static int qlr_matchStateConfigUpdates;
 static char qlr_suddenDeathStatusConfig[32];
+static char qlr_timeoutStartConfig[32];
+static char qlr_timeoutExpireConfig[32];
+static char qlr_timeoutCountRedConfig[32];
+static char qlr_timeoutCountBlueConfig[32];
 static char qlr_factoryTitleConfig[MAX_STRING_CHARS];
 static char qlr_factoryFlagsConfig[32];
 static char qlr_factorySpawnHintsConfig[MAX_INFO_STRING];
@@ -229,6 +233,18 @@ void trap_SetConfigstring( int num, const char *string ) {
 @TAB@case CS_SUDDENDEATH_STATUS:
 @TAB@@TAB@Q_strncpyz( qlr_suddenDeathStatusConfig, value, sizeof( qlr_suddenDeathStatusConfig ) );
 @TAB@@TAB@break;
+@TAB@case CS_TIMEOUT_START_TIME:
+@TAB@@TAB@Q_strncpyz( qlr_timeoutStartConfig, value, sizeof( qlr_timeoutStartConfig ) );
+@TAB@@TAB@break;
+@TAB@case CS_TIMEOUT_EXPIRE_TIME:
+@TAB@@TAB@Q_strncpyz( qlr_timeoutExpireConfig, value, sizeof( qlr_timeoutExpireConfig ) );
+@TAB@@TAB@break;
+@TAB@case CS_TIMEOUT_COUNT_RED:
+@TAB@@TAB@Q_strncpyz( qlr_timeoutCountRedConfig, value, sizeof( qlr_timeoutCountRedConfig ) );
+@TAB@@TAB@break;
+@TAB@case CS_TIMEOUT_COUNT_BLUE:
+@TAB@@TAB@Q_strncpyz( qlr_timeoutCountBlueConfig, value, sizeof( qlr_timeoutCountBlueConfig ) );
+@TAB@@TAB@break;
 @TAB@case CS_FACTORY_TITLE:
 @TAB@@TAB@Q_strncpyz( qlr_factoryTitleConfig, value, sizeof( qlr_factoryTitleConfig ) );
 @TAB@@TAB@break;
@@ -265,6 +281,10 @@ static void QLR_ClearMatchStateConfig( void ) {
 @TAB@memset( qlr_matchStateConfig, 0, sizeof( qlr_matchStateConfig ) );
 @TAB@qlr_matchStateConfigUpdates = 0;
 @TAB@memset( qlr_suddenDeathStatusConfig, 0, sizeof( qlr_suddenDeathStatusConfig ) );
+@TAB@memset( qlr_timeoutStartConfig, 0, sizeof( qlr_timeoutStartConfig ) );
+@TAB@memset( qlr_timeoutExpireConfig, 0, sizeof( qlr_timeoutExpireConfig ) );
+@TAB@memset( qlr_timeoutCountRedConfig, 0, sizeof( qlr_timeoutCountRedConfig ) );
+@TAB@memset( qlr_timeoutCountBlueConfig, 0, sizeof( qlr_timeoutCountBlueConfig ) );
 @TAB@memset( qlr_factoryTitleConfig, 0, sizeof( qlr_factoryTitleConfig ) );
 @TAB@memset( qlr_factoryFlagsConfig, 0, sizeof( qlr_factoryFlagsConfig ) );
 @TAB@memset( qlr_factorySpawnHintsConfig, 0, sizeof( qlr_factorySpawnHintsConfig ) );
@@ -425,11 +445,12 @@ static void QLR_SeedMatchStateValues( void ) {
 @TAB@level.overtimeEndTime = 222333;
 @TAB@level.overtimeCount = 3;
 @TAB@level.timeoutActive = qtrue;
+@TAB@level.timeoutStartTime = 333000;
 @TAB@level.timeoutTeam = TEAM_BLUE;
 @TAB@level.timeoutExpireTime = 333444;
 @TAB@level.timeoutOwner = 7;
-@TAB@level.timeoutRemaining[TEAM_RED] = 60000;
-@TAB@level.timeoutRemaining[TEAM_BLUE] = 45000;
+@TAB@level.timeoutRemaining[TEAM_RED] = 2;
+@TAB@level.timeoutRemaining[TEAM_BLUE] = 1;
 @TAB@g_matchFactoryConfig.timeoutLengthSeconds = 75;
 @TAB@g_matchFactoryConfig.timeoutCountPerTeam = 2;
 @TAB@g_matchFactoryConfig.overtimeLengthSeconds = 120;
@@ -486,6 +507,50 @@ Exposes the captured sudden-death configstring to the Python harness.
 */
 const char *QLR_GetSuddenDeathStatusConfigstring( void ) {
 @TAB@return qlr_suddenDeathStatusConfig;
+}
+
+/*
+=============
+QLR_GetTimeoutStartConfigstring
+
+Exposes the captured timeout-start configstring for assertions.
+=============
+*/
+const char *QLR_GetTimeoutStartConfigstring( void ) {
+@TAB@return qlr_timeoutStartConfig;
+}
+
+/*
+=============
+QLR_GetTimeoutExpireConfigstring
+
+Exposes the captured timeout-expire configstring for assertions.
+=============
+*/
+const char *QLR_GetTimeoutExpireConfigstring( void ) {
+@TAB@return qlr_timeoutExpireConfig;
+}
+
+/*
+=============
+QLR_GetTimeoutCountRedConfigstring
+
+Exposes the captured red timeout-count configstring for assertions.
+=============
+*/
+const char *QLR_GetTimeoutCountRedConfigstring( void ) {
+@TAB@return qlr_timeoutCountRedConfig;
+}
+
+/*
+=============
+QLR_GetTimeoutCountBlueConfigstring
+
+Exposes the captured blue timeout-count configstring for assertions.
+=============
+*/
+const char *QLR_GetTimeoutCountBlueConfigstring( void ) {
+@TAB@return qlr_timeoutCountBlueConfig;
 }
 
 typedef struct qlrClientMatchState_s {
@@ -749,6 +814,14 @@ def _load_match_state_library(lib_path: Path) -> ctypes.CDLL:
     library.QLR_GetMatchStateConfigstring.restype = ctypes.c_char_p
     library.QLR_GetSuddenDeathStatusConfigstring.argtypes = []
     library.QLR_GetSuddenDeathStatusConfigstring.restype = ctypes.c_char_p
+    library.QLR_GetTimeoutStartConfigstring.argtypes = []
+    library.QLR_GetTimeoutStartConfigstring.restype = ctypes.c_char_p
+    library.QLR_GetTimeoutExpireConfigstring.argtypes = []
+    library.QLR_GetTimeoutExpireConfigstring.restype = ctypes.c_char_p
+    library.QLR_GetTimeoutCountRedConfigstring.argtypes = []
+    library.QLR_GetTimeoutCountRedConfigstring.restype = ctypes.c_char_p
+    library.QLR_GetTimeoutCountBlueConfigstring.argtypes = []
+    library.QLR_GetTimeoutCountBlueConfigstring.restype = ctypes.c_char_p
     library.QLR_ResetClientMatchState.argtypes = []
     library.QLR_ResetClientMatchState.restype = None
     library.QLR_ParseMatchStateOnClient.argtypes = []
@@ -820,8 +893,8 @@ def test_match_state_configstring_includes_expected_keys(match_state_library: ct
         "toTeam": "2",
         "toExpire": "333444",
         "toOwner": "7",
-        "toRed": "60000",
-        "toBlue": "45000",
+        "toRed": "2",
+        "toBlue": "1",
         "toLength": "75",
         "toCount": "2",
         "sdRespawns": "1",
@@ -835,6 +908,18 @@ def test_match_state_configstring_includes_expected_keys(match_state_library: ct
 
     for key, expected_value in expected.items():
         assert fields.get(key) == expected_value, f"Missing or incorrect value for {key}"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Match-state harness requires a POSIX toolchain")
+def test_timeout_auxiliary_configstrings_publish_retail_values(match_state_library: ctypes.CDLL) -> None:
+    library = match_state_library
+    library.QLR_ResetMatchState()
+    library.QLR_BuildMatchStateConfigstring()
+
+    assert library.QLR_GetTimeoutStartConfigstring().decode("utf-8") == "333000"
+    assert library.QLR_GetTimeoutExpireConfigstring().decode("utf-8") == "333444"
+    assert library.QLR_GetTimeoutCountRedConfigstring().decode("utf-8") == "2"
+    assert library.QLR_GetTimeoutCountBlueConfigstring().decode("utf-8") == "1"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Match-state harness requires a POSIX toolchain")

@@ -131,12 +131,6 @@ void	* QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoin
     }
     
     vmMain = (vmMain_t)dlsym( libHandle, "_vmMain" );
-    if ( vmMain ) {
-		*entryPoint = vmMain;
-		dllEntry(systemcalls);
-		return libHandle;
-    }
-
 	if ( dllExports && imports && apiVersion ) {
 		dllEntryQL = (dllEntryQL_t)dllEntry;
 		dllEntryQL( dllExports, imports, apiVersion );
@@ -144,6 +138,12 @@ void	* QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoin
 			return libHandle;
 		}
 	}
+
+    if ( vmMain ) {
+		*entryPoint = vmMain;
+		dllEntry(systemcalls);
+		return libHandle;
+    }
 
 	if ( systemcalls ) {
 		dllEntryRet = (dllEntryRet_t)dllEntry;

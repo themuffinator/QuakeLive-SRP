@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include <stdint.h>
 
 // this file is only included when building a dll
 // g_syscalls.asm is included instead when building a qvm
@@ -28,11 +29,196 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #error "Do not use in VM build"
 #endif
 
+typedef void (QDECL *ql_import_f)( void );
+typedef intptr_t (QDECL *ql_import_invoke15_t)(
+	intptr_t arg0, intptr_t arg1, intptr_t arg2, intptr_t arg3, intptr_t arg4,
+	intptr_t arg5, intptr_t arg6, intptr_t arg7, intptr_t arg8, intptr_t arg9,
+	intptr_t arg10, intptr_t arg11, intptr_t arg12, intptr_t arg13, intptr_t arg14
+);
+
 static int (QDECL *syscall)( int arg, ... ) = (int (QDECL *)( int, ...))-1;
+static ql_import_f *g_imports = NULL;
 
+void **G_GetNativeExportTable( void );
 
-void dllEntry( int (QDECL *syscallptr)( int arg,... ) ) {
-	syscall = syscallptr;
+/*
+=================
+G_InvokeImport
+=================
+*/
+static int QDECL G_InvokeImport( ql_import_f import, const intptr_t *args ) {
+	return (int)((ql_import_invoke15_t)import)(
+		args[0], args[1], args[2], args[3], args[4],
+		args[5], args[6], args[7], args[8], args[9],
+		args[10], args[11], args[12], args[13], args[14]
+	);
+}
+
+/*
+=================
+G_MapNativeImport
+=================
+*/
+static int G_MapNativeImport( int arg, const intptr_t *stack ) {
+	(void)stack;
+
+	switch ( arg ) {
+	case G_SEND_CONSOLE_COMMAND: return G_QL_IMPORT_SEND_CONSOLE_COMMAND;
+	case G_PRINT: return G_QL_IMPORT_PRINT;
+	case G_FS_WRITE: return G_QL_IMPORT_FS_WRITE;
+	case G_FS_READ: return G_QL_IMPORT_FS_READ;
+	case G_FS_GETFILELIST: return G_QL_IMPORT_FS_GETFILELIST;
+	case G_FS_FOPEN_FILE: return G_QL_IMPORT_FS_FOPEN_FILE;
+	case G_FS_FCLOSE_FILE: return G_QL_IMPORT_FS_FCLOSE_FILE;
+	case G_ERROR: return G_QL_IMPORT_ERROR;
+	case G_CVAR_VARIABLE_INTEGER_VALUE: return G_QL_IMPORT_CVAR_VARIABLE_INTEGER_VALUE;
+	case G_CVAR_UPDATE: return G_QL_IMPORT_CVAR_UPDATE;
+	case G_CVAR_VARIABLE_STRING_BUFFER: return G_QL_IMPORT_CVAR_VARIABLE_STRING_BUFFER;
+	case G_CVAR_SET: return G_QL_IMPORT_CVAR_SET;
+	case G_CVAR_REGISTER: return G_QL_IMPORT_CVAR_REGISTER;
+	case G_ARGV: return G_QL_IMPORT_ARGV;
+	case G_ARGC: return G_QL_IMPORT_ARGC;
+	case G_LOCATE_GAME_DATA: return G_QL_IMPORT_LOCATE_GAME_DATA;
+	case G_DROP_CLIENT: return G_QL_IMPORT_DROP_CLIENT;
+	case G_SEND_SERVER_COMMAND: return G_QL_IMPORT_SEND_SERVER_COMMAND;
+	case G_SET_CONFIGSTRING: return G_QL_IMPORT_SET_CONFIGSTRING;
+	case G_GET_CONFIGSTRING: return G_QL_IMPORT_GET_CONFIGSTRING;
+	case G_GET_USERINFO: return G_QL_IMPORT_GET_USERINFO;
+	case G_SET_USERINFO: return G_QL_IMPORT_SET_USERINFO;
+	case G_GET_SERVERINFO: return G_QL_IMPORT_GET_SERVERINFO;
+	case G_SET_BRUSH_MODEL: return G_QL_IMPORT_SET_BRUSH_MODEL;
+	case G_TRACE: return G_QL_IMPORT_TRACE;
+	case G_TRACECAPSULE: return G_QL_IMPORT_TRACECAPSULE;
+	case G_POINT_CONTENTS: return G_QL_IMPORT_POINT_CONTENTS;
+	case G_IN_PVS: return G_QL_IMPORT_IN_PVS;
+	case G_ADJUST_AREA_PORTAL_STATE: return G_QL_IMPORT_ADJUST_AREA_PORTAL_STATE;
+	case G_UNLINKENTITY: return G_QL_IMPORT_UNLINK_ENTITY;
+	case G_LINKENTITY: return G_QL_IMPORT_LINKENTITY;
+	case G_ENTITIES_IN_BOX: return G_QL_IMPORT_ENTITIES_IN_BOX;
+	case G_BOT_ALLOCATE_CLIENT: return G_QL_IMPORT_BOT_ALLOCATE_CLIENT;
+	case G_GET_USERCMD: return G_QL_IMPORT_GET_USERCMD;
+	case G_GET_ENTITY_TOKEN: return G_QL_IMPORT_GET_ENTITY_TOKEN;
+	case BOTLIB_SETUP: return G_QL_IMPORT_BOTLIB_SETUP;
+	case BOTLIB_SHUTDOWN: return G_QL_IMPORT_BOTLIB_SHUTDOWN;
+	case BOTLIB_LIBVAR_SET: return G_QL_IMPORT_BOTLIB_LIBVAR_SET;
+	case BOTLIB_PC_ADD_GLOBAL_DEFINE: return G_QL_IMPORT_BOTLIB_PC_ADD_GLOBAL_DEFINE;
+	case BOTLIB_LOAD_MAP: return G_QL_IMPORT_BOTLIB_LOAD_MAP;
+	case BOTLIB_GET_SNAPSHOT_ENTITY: return G_QL_IMPORT_BOTLIB_GET_SNAPSHOT_ENTITY;
+	case BOTLIB_GET_CONSOLE_MESSAGE: return G_QL_IMPORT_BOTLIB_GET_CONSOLE_MESSAGE;
+	case BOTLIB_USER_COMMAND: return G_QL_IMPORT_BOTLIB_USER_COMMAND;
+	case BOTLIB_AAS_ENTITY_INFO: return G_QL_IMPORT_BOTLIB_AAS_ENTITY_INFO;
+	case BOTLIB_AI_CHARACTERISTIC_BFLOAT: return G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_BFLOAT;
+	case BOTLIB_AI_CHARACTERISTIC_BINTEGER: return G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_BINTEGER;
+	case BOTLIB_AI_CHARACTERISTIC_STRING: return G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_STRING;
+	case BOTLIB_AI_ALLOC_CHAT_STATE: return G_QL_IMPORT_BOTLIB_AI_ALLOC_CHAT_STATE;
+	case BOTLIB_AI_FREE_CHAT_STATE: return G_QL_IMPORT_BOTLIB_AI_FREE_CHAT_STATE;
+	case BOTLIB_AI_QUEUE_CONSOLE_MESSAGE: return G_QL_IMPORT_BOTLIB_AI_QUEUE_CONSOLE_MESSAGE;
+	case BOTLIB_AI_NEXT_CONSOLE_MESSAGE: return G_QL_IMPORT_BOTLIB_AI_NEXT_CONSOLE_MESSAGE;
+	case BOTLIB_AI_NUM_CONSOLE_MESSAGE: return G_QL_IMPORT_BOTLIB_AI_NUM_CONSOLE_MESSAGE;
+	case BOTLIB_AI_INITIAL_CHAT: return G_QL_IMPORT_BOTLIB_AI_INITIAL_CHAT;
+	case BOTLIB_AI_NUM_INITIAL_CHATS: return G_QL_IMPORT_BOTLIB_AI_NUM_INITIAL_CHATS;
+	case BOTLIB_AI_ENTER_CHAT: return G_QL_IMPORT_BOTLIB_AI_ENTER_CHAT;
+	case BOTLIB_AI_GET_CHAT_MESSAGE: return G_QL_IMPORT_BOTLIB_AI_GET_CHAT_MESSAGE;
+	case BOTLIB_AI_FIND_MATCH: return G_QL_IMPORT_BOTLIB_AI_FIND_MATCH;
+	case BOTLIB_AI_MATCH_VARIABLE: return G_QL_IMPORT_BOTLIB_AI_MATCH_VARIABLE;
+	case BOTLIB_AI_UNIFY_WHITE_SPACES: return G_QL_IMPORT_BOTLIB_AI_UNIFY_WHITE_SPACES;
+	case BOTLIB_AI_REPLACE_SYNONYMS: return G_QL_IMPORT_BOTLIB_AI_REPLACE_SYNONYMS;
+	case BOTLIB_AI_LOAD_CHAT_FILE: return G_QL_IMPORT_BOTLIB_AI_LOAD_CHAT_FILE;
+	case BOTLIB_AI_SET_CHAT_GENDER: return G_QL_IMPORT_BOTLIB_AI_SET_CHAT_GENDER;
+	case BOTLIB_AI_SET_CHAT_NAME: return G_QL_IMPORT_BOTLIB_AI_SET_CHAT_NAME;
+	case BOTLIB_AI_RESET_GOAL_STATE: return G_QL_IMPORT_BOTLIB_AI_RESET_GOAL_STATE;
+	case BOTLIB_AI_REMOVE_FROM_AVOID_GOALS: return G_QL_IMPORT_BOTLIB_AI_REMOVE_FROM_AVOID_GOALS;
+	case BOTLIB_AI_RESET_AVOID_GOALS: return G_QL_IMPORT_BOTLIB_AI_RESET_AVOID_GOALS;
+	case BOTLIB_AI_PUSH_GOAL: return G_QL_IMPORT_BOTLIB_AI_PUSH_GOAL;
+	case BOTLIB_AI_POP_GOAL: return G_QL_IMPORT_BOTLIB_AI_POP_GOAL;
+	case BOTLIB_AI_GOAL_NAME: return G_QL_IMPORT_BOTLIB_AI_GOAL_NAME;
+	case BOTLIB_AI_GET_TOP_GOAL: return G_QL_IMPORT_BOTLIB_AI_GET_TOP_GOAL;
+	case BOTLIB_AI_GET_SECOND_GOAL: return G_QL_IMPORT_BOTLIB_AI_GET_SECOND_GOAL;
+	case BOTLIB_AI_CHOOSE_LTG_ITEM: return G_QL_IMPORT_BOTLIB_AI_CHOOSE_LTG_ITEM;
+	case BOTLIB_AI_CHOOSE_NBG_ITEM: return G_QL_IMPORT_BOTLIB_AI_CHOOSE_NBG_ITEM;
+	case BOTLIB_AI_TOUCHING_GOAL: return G_QL_IMPORT_BOTLIB_AI_TOUCHING_GOAL;
+	case BOTLIB_AI_ITEM_GOAL_IN_VIS_BUT_NOT_VISIBLE: return G_QL_IMPORT_BOTLIB_AI_ITEM_GOAL_IN_VIS_BUT_NOT_VISIBLE;
+	case BOTLIB_AI_GET_NEXT_CAMP_SPOT_GOAL: return G_QL_IMPORT_BOTLIB_AI_GET_NEXT_CAMP_SPOT_GOAL;
+	case BOTLIB_AI_GET_LEVEL_ITEM_GOAL: return G_QL_IMPORT_BOTLIB_AI_GET_LEVEL_ITEM_GOAL;
+	case BOTLIB_AI_SET_AVOID_GOAL_TIME: return G_QL_IMPORT_BOTLIB_AI_SET_AVOID_GOAL_TIME;
+	case BOTLIB_AI_MOVE_TO_GOAL: return G_QL_IMPORT_BOTLIB_AI_MOVE_TO_GOAL;
+	case BOTLIB_AI_MOVE_IN_DIRECTION: return G_QL_IMPORT_BOTLIB_AI_MOVE_IN_DIRECTION;
+	case BOTLIB_AI_RESET_AVOID_REACH: return G_QL_IMPORT_BOTLIB_AI_RESET_AVOID_REACH;
+	case BOTLIB_AI_RESET_LAST_AVOID_REACH: return G_QL_IMPORT_BOTLIB_AI_RESET_LAST_AVOID_REACH;
+	case BOTLIB_AI_MOVEMENT_VIEW_TARGET: return G_QL_IMPORT_BOTLIB_AI_MOVEMENT_VIEW_TARGET;
+	case BOTLIB_AI_INIT_MOVE_STATE: return G_QL_IMPORT_BOTLIB_AI_INIT_MOVE_STATE;
+	case BOTLIB_AI_ADD_AVOID_SPOT: return G_QL_IMPORT_BOTLIB_AI_ADD_AVOID_SPOT;
+	case BOTLIB_AI_CHOOSE_BEST_FIGHT_WEAPON: return G_QL_IMPORT_BOTLIB_AI_CHOOSE_BEST_FIGHT_WEAPON;
+	case BOTLIB_AI_GET_WEAPON_INFO: return G_QL_IMPORT_BOTLIB_AI_GET_WEAPON_INFO;
+	case BOTLIB_AI_LOAD_WEAPON_WEIGHTS: return G_QL_IMPORT_BOTLIB_AI_LOAD_WEAPON_WEIGHTS;
+	case BOTLIB_AI_ALLOC_WEAPON_STATE: return G_QL_IMPORT_BOTLIB_AI_ALLOC_WEAPON_STATE;
+	case BOTLIB_AI_FREE_WEAPON_STATE: return G_QL_IMPORT_BOTLIB_AI_FREE_WEAPON_STATE;
+	case BOTLIB_AI_RESET_WEAPON_STATE: return G_QL_IMPORT_BOTLIB_AI_RESET_WEAPON_STATE;
+	case BOTLIB_AI_GENETIC_PARENTS_AND_CHILD_SELECTION: return G_QL_IMPORT_BOTLIB_AI_GENETIC_PARENTS_AND_CHILD_SELECTION;
+	case G_STEAMID_QUERY: return G_QL_IMPORT_STEAMID_QUERY;
+	case G_STEAM_AUTH_VALIDATE: return G_QL_IMPORT_STEAM_AUTH_VALIDATE;
+	default:
+		if ( arg >= 0 && arg < GAME_LEGACY_IMPORT_COUNT ) {
+			return G_QL_IMPORT_COMPAT_BASE + arg;
+		}
+		return -1;
+	}
+}
+
+/*
+=================
+G_GetMappedImport
+=================
+*/
+static ql_import_f G_GetMappedImport( int arg, const intptr_t *stack ) {
+	int importIndex;
+
+	if ( !g_imports ) {
+		return NULL;
+	}
+
+	importIndex = G_MapNativeImport( arg, stack );
+	if ( importIndex < 0 || importIndex >= GAME_NATIVE_IMPORT_COUNT ) {
+		return NULL;
+	}
+
+	return g_imports[importIndex];
+}
+
+/*
+=================
+G_NativeImportSyscall
+=================
+*/
+static int QDECL G_NativeImportSyscall( int arg, ... ) {
+	const intptr_t *stack;
+	ql_import_f import;
+
+	stack = (const intptr_t *)&arg;
+	import = G_GetMappedImport( arg, stack );
+	if ( !import ) {
+		return 0;
+	}
+
+	return G_InvokeImport( import, &stack[1] );
+}
+
+/*
+=================
+dllEntry
+=================
+*/
+void dllEntry( void **exports, void *imports, int *apiVersion ) {
+	g_imports = (ql_import_f *)imports;
+	syscall = G_NativeImportSyscall;
+
+	if ( exports ) {
+		*exports = G_GetNativeExportTable();
+	}
+
+	if ( apiVersion ) {
+		*apiVersion = GAME_NATIVE_API_VERSION;
+	}
 }
 
 int PASSFLOAT( float x ) {
@@ -401,6 +587,13 @@ void trap_AAS_PresenceTypeBoundingBox(int presencetype, vec3_t mins, vec3_t maxs
 
 float trap_AAS_Time(void) {
 	int temp;
+
+	ql_import_f import = G_GetMappedImport( BOTLIB_AAS_TIME, NULL );
+
+	if ( import ) {
+		return ((float (QDECL *)( void ))import)();
+	}
+
 	temp = syscall( BOTLIB_AAS_TIME );
 	return (*(float*)&temp);
 }
@@ -587,12 +780,26 @@ void trap_BotFreeCharacter(int character) {
 
 float trap_Characteristic_Float(int character, int index) {
 	int temp;
+
+	ql_import_f import = G_GetMappedImport( BOTLIB_AI_CHARACTERISTIC_FLOAT, NULL );
+
+	if ( import ) {
+		return ((float (QDECL *)( int, int ))import)( character, index );
+	}
+
 	temp = syscall( BOTLIB_AI_CHARACTERISTIC_FLOAT, character, index );
 	return (*(float*)&temp);
 }
 
 float trap_Characteristic_BFloat(int character, int index, float min, float max) {
 	int temp;
+
+	ql_import_f import = G_GetMappedImport( BOTLIB_AI_CHARACTERISTIC_BFLOAT, NULL );
+
+	if ( import ) {
+		return ((float (QDECL *)( int, int, float, float ))import)( character, index, min, max );
+	}
+
 	temp = syscall( BOTLIB_AI_CHARACTERISTIC_BFLOAT, character, index, PASSFLOAT(min), PASSFLOAT(max) );
 	return (*(float*)&temp);
 }
@@ -763,6 +970,13 @@ int trap_BotGetMapLocationGoal(char *name, void /* struct bot_goal_s */ *goal) {
 
 float trap_BotAvoidGoalTime(int goalstate, int number) {
 	int temp;
+
+	ql_import_f import = G_GetMappedImport( BOTLIB_AI_AVOID_GOAL_TIME, NULL );
+
+	if ( import ) {
+		return ((float (QDECL *)( int, int ))import)( goalstate, number );
+	}
+
 	temp = syscall( BOTLIB_AI_AVOID_GOAL_TIME, goalstate, number );
 	return (*(float*)&temp);
 }

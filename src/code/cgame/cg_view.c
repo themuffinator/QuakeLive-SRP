@@ -918,6 +918,17 @@ static void CG_ClearBufferedSounds( void ) {
 
 /*
 =============
+CG_ClearBufferedAnnouncements
+
+Exposes the retail buffered-announcer reset path outside cg_view.c.
+=============
+*/
+void CG_ClearBufferedAnnouncements( void ) {
+	CG_ClearBufferedSounds();
+}
+
+/*
+=============
 CG_UpdateSpectatorCvar
 
 Keeps the cg_spectating ROM cvar in sync with the current spectator state.

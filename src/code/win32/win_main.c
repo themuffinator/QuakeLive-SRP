@@ -631,13 +631,6 @@ void * QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoin
 			libHandle = NULL;
 			continue;
 		}
-		if ( vmMain ) {
-			dllEntry( systemcalls );
-			*entryPoint = vmMain;
-			Q_strncpyz( fqpath, fn, MAX_QPATH );
-			return libHandle;
-		}
-
 		if ( dllExports && imports && apiVersion ) {
 			dllEntryQL = ( dllEntryQL_t )dllEntry;
 			dllEntryQL( dllExports, imports, apiVersion );
@@ -645,6 +638,12 @@ void * QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoin
 				Q_strncpyz( fqpath, fn, MAX_QPATH );
 				return libHandle;
 			}
+		}
+		if ( vmMain ) {
+			dllEntry( systemcalls );
+			*entryPoint = vmMain;
+			Q_strncpyz( fqpath, fn, MAX_QPATH );
+			return libHandle;
 		}
 		if ( systemcalls ) {
 			dllEntryRet = ( dllEntryRet_t )dllEntry;

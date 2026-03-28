@@ -1,0 +1,8 @@
+program_name=awesomium_process.exe
+program_language=x86:LE:32:default
+program_compiler_spec=windows
+function_count=139
+import_count=54
+export_count=1
+analysis_symbol_count=312
+decompiled_function_count=139

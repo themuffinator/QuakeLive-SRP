@@ -14,6 +14,7 @@ This repository currently has the following rules for agents:
 - Treat Quake Live-only online services (advert fetching, Awesomium/web menu fetching, and Steam integration) as an explicit divergence from the repository's accuracy-prioritizing reverse-engineering goal: keep them behind `QL_BUILD_ONLINE_SERVICES`, default that setting to disabled, and prefer elegant stubs or fallbacks over live service usage until a documented open replacement path exists.
 - Prefer `rg` instead of `ls -R` or `grep -R` for repository searches.
 - Never launch the game in fullscreen; always use `+set r_fullscreen 0` for every automated or manual launch command.
+- Only launch the game when there is a credible investigative or testing need that cannot be resolved by static analysis, unit/integration tests, log inspection, or other lower-cost evidence. Prefer the cheapest runtime mode that answers the question: use dedicated or otherwise headless-style probes for qagame/server-only work when possible, prefer reduced-render client probes such as `+set r_norefresh 1 +set s_initsound 0` when visuals are not under test, and reserve full visual client launches for renderer, UI, input, cgame, or rendered-output validation.
 - After committing changes, generate a pull request message using the `make_pr` tool.
 - For each task completion, estimate before and after parity percentages versus the retail Quake Live source base outlined in the Binary Ninja HLIL references.
 - **Read-only access to the `assets/` and `src/ui/` directory trees.**
@@ -62,10 +63,14 @@ Reference tooling:
 
 ## Automatic Debugging Process (Windows)
 
-Use this process after code changes that can affect startup/runtime stability:
+Use this process only when code changes create a credible startup/runtime question that static evidence and automated tests do not settle. Pure mapping, naming, or source-reconstruction work does not require a launch unless the reconstruction itself needs runtime confirmation.
 
 1. Build `Debug|x86` and ensure the binary is up to date.
-2. Run a normal launch pass with logging enabled:
+2. Choose the lowest-cost runtime probe that can answer the question:
+   - Prefer dedicated or otherwise headless-style execution for qagame/server-only investigations when the client and renderer are not part of the hypothesis under test.
+   - If a client process is still needed but rendered output is not, prefer reduced-render probes such as `+set r_norefresh 1 +set s_initsound 0`.
+   - Escalate to a normal visual client launch only when UI, cgame, renderer, input, screenshot evidence, or other rendered-output behavior is part of the investigation.
+3. When a visual client launch is required, run a normal launch pass with logging enabled:
    - Use `+set developer 1 +set logfile 2 +set g_logfile 1`.
    - Always force windowed mode with `+set r_fullscreen 0`. Fullscreen launches are prohibited.
    - Set `+set fs_basepath C:\\Program Files (x86)\\Steam\\steamapps\\common\\Quake Live` (or equivalent retail install containing `baseq3\\pak00.pk3`).
@@ -77,22 +82,22 @@ Use this process after code changes that can affect startup/runtime stability:
      2. Engine-generated screenshot (`screenshotJPEG` preferred for tooling compatibility).
    - If process-bound capture and engine screenshot disagree, treat the engine-generated screenshot as authoritative for rendered output.
    - Avoid full-desktop captures; screenshots must prove they came from the game process.
-3. Read the newest `build\\win32\\Debug\\bin\\baseq3\\qconsole.log` and classify result:
+4. Read the newest `build\\win32\\Debug\\bin\\baseq3\\qconsole.log` and classify result:
    - Success path: confirm non-zero pk3 mounts, preflight checks, UI init completion, and clean shutdown sequence.
    - Crash/fatal path: capture exact failing subsystem and message from log.
-4. Validate dump generation on crash paths:
+5. Validate dump generation on crash paths only when crash handling, dump generation, or crash-path behavior is part of the investigation:
    - Set `QLR_DUMP_PATH=${workspaceFolder}\\build\\win32\\Debug\\dumps`.
    - Trigger/observe crash and verify a fresh `quakelive_steam_*.dmp` file appears.
    - Capture a screenshot near the crash moment (or immediately after relaunch if the process exits too fast).
    - Record window handle/title/rect metadata with the screenshot path to prove capture came from the game process.
    - Also collect an engine screenshot immediately before/after crash probe when possible; this helps distinguish renderer failure from OS capture artifacts.
-5. Iterate fix -> rebuild -> relaunch:
-   - If crash occurred, inspect dump/log evidence, patch root cause, then rerun steps 2-4.
-   - If normal launch succeeded, run one forced-crash pass (`+crash`) to confirm dump pipeline remains functional.
-6. Report outcomes with artifact evidence:
+6. Iterate fix -> rebuild -> relaunch:
+   - If crash occurred, inspect dump/log evidence, patch root cause, then rerun the minimum probe needed to retest the hypothesis.
+   - Do not add a forced-crash pass by default; only run `+crash` when dump-pipeline validation or crash-path behavior is itself under test.
+7. Report outcomes with artifact evidence:
    - Log snippets (startup and failure/success markers).
    - Dump filename/timestamp/size when crashes are tested.
-   - Screenshot filenames/timestamps for each pass.
+   - Screenshot filenames/timestamps for each visual pass.
    - Whether post-fix relaunch is stable.
 
 # Work Queue

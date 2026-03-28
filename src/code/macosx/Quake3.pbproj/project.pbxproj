@@ -4736,7 +4736,7 @@ sourceTree = "<group>";
 		012ADB5F00868211C697A10E = {
 			isa = PBXFileReference;
 			lastKnownFileType = image.ico;
-			path = qe3.ico;
+			path = qz.ico;
 			refType = 4;
 			sourceTree = "<group>";
 		};

@@ -568,3 +568,99 @@ void G_RefreshPmoveSettings( void ) {
 	g_pmove_last_frame = level.framenum;
 	g_pmove_force_update = qfalse;
 }
+
+/*
+=============
+G_PmoveHasAirControlCustomSetting
+
+Returns whether the retail air-control custom-setting bit should be raised.
+=============
+*/
+qboolean G_PmoveHasAirControlCustomSetting( void ) {
+	return ( g_pmove_airControl_cvar.value != 0.0f ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_PmoveHasRampJumpCustomSetting
+
+Returns whether the retail ramp-jump custom-setting bit should be raised.
+=============
+*/
+qboolean G_PmoveHasRampJumpCustomSetting( void ) {
+	return ( g_pmove_rampJump_cvar.integer != 0 ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_PmoveHasPhysicsCustomSetting
+
+Returns whether the retail physics custom-setting bit should be raised for the
+movement cvar slab owned by qagame.
+=============
+*/
+qboolean G_PmoveHasPhysicsCustomSetting( void ) {
+	if ( g_pmove_airAccel_cvar.value != 1.0f ) {
+		return qtrue;
+	}
+	if ( g_pmove_walkAccel_cvar.value != 10.0f ) {
+		return qtrue;
+	}
+	if ( g_pmove_walkFriction_cvar.value != 6.0f ) {
+		return qtrue;
+	}
+	if ( g_pmove_airSteps_cvar.integer != 1 ) {
+		return qtrue;
+	}
+	if ( g_pmove_bunnyHop_cvar.integer != 1 ) {
+		return qtrue;
+	}
+	if ( g_pmove_stepJump_cvar.integer != 1 ) {
+		return qtrue;
+	}
+	if ( g_pmove_stepHeight_cvar.value != 22.0f ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+G_PmoveHasWeaponSwitchingCustomSetting
+
+Returns whether retail weapon raise/drop timings differ from their stock values.
+=============
+*/
+qboolean G_PmoveHasWeaponSwitchingCustomSetting( void ) {
+	if ( g_pmove_weaponRaiseTime_cvar.integer != 200 ) {
+		return qtrue;
+	}
+	if ( g_pmove_weaponDropTime_cvar.integer != 200 ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+G_PmoveHasNoPlayerClipCustomSetting
+
+Returns whether the retail no-player-clip custom-setting bit should be raised.
+=============
+*/
+qboolean G_PmoveHasNoPlayerClipCustomSetting( void ) {
+	return ( g_pmove_noPlayerClip_cvar.integer != 0 ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_PmoveHasGrappleVelocityCustomSetting
+
+Returns whether the hook velocity override surface differs from retail defaults.
+=============
+*/
+qboolean G_PmoveHasGrappleVelocityCustomSetting( void ) {
+	return ( g_pmove_velocityGh_cvar.value != 800.0f ) ? qtrue : qfalse;
+}

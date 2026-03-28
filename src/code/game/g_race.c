@@ -780,6 +780,36 @@ void G_RaceInitLevel( void ) {
 
 /*
 =============
+G_RaceResetClientAndSpawn
+
+Resets a race client, republishes the retail race-init state, and reruns ClientSpawn.
+=============
+*/
+void G_RaceResetClientAndSpawn( gentity_t *ent ) {
+	int	racePointCount;
+
+	if ( g_gametype.integer != GT_RACE || !ent || !ent->client ) {
+		return;
+	}
+
+	G_RaceResetClient( ent->client );
+
+	racePointCount = level.racePointCount;
+	if ( racePointCount < 0 ) {
+		racePointCount = 0;
+	}
+	if ( racePointCount > MAX_RACE_POINTS ) {
+		racePointCount = MAX_RACE_POINTS;
+	}
+
+	trap_SetConfigstring( CS_RACE_RECORDS, va( "%i", racePointCount ) );
+	G_RaceBroadcastInitCommand( ent->s.number );
+	G_RaceUpdateConfigstrings();
+	ClientSpawn( ent );
+}
+
+/*
+=============
 G_RaceClientBegin
 
 Initializes race state when a client finishes connecting.

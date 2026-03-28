@@ -56,6 +56,22 @@ static const orderTask_t validOrders[] = {
 };
 
 static const int numValidOrders = sizeof(validOrders) / sizeof(orderTask_t);
+static const weapon_t cg_retailWeaponReloadOrder[] = {
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_GRAPPLING_HOOK,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_CHAINGUN,
+	WP_HEAVY_MACHINEGUN
+};
 
 #define CG_RETAIL_TDM_TEAMSTAT_COUNT	14
 #define CG_RETAIL_CTF_TEAMSTAT_COUNT	17
@@ -1897,10 +1913,6 @@ void CG_ParseServerinfo( void ) {
 	const char	*info;
 	const char	*gametypeValue;
 	char	*mapname;
-	char	oldModelOverride[MAX_QPATH];
-	char	oldHeadOverride[MAX_QPATH];
-	const char	*modelOverride;
-	const char	*headOverride;
 	const char	*voteFlagsValue;
 	qboolean	mapVotingDisabled;
 	const char	*serverLoadout;
@@ -1908,8 +1920,6 @@ void CG_ParseServerinfo( void ) {
 	int		voteFlags;
 
 	info = CG_ConfigString( CS_SERVERINFO );
-	Q_strncpyz( oldModelOverride, cgs.playermodelOverride, sizeof( oldModelOverride ) );
-	Q_strncpyz( oldHeadOverride, cgs.playerheadmodelOverride, sizeof( oldHeadOverride ) );
 	gametypeValue = Info_ValueForKey( info, "g_gametype" );
 	cgs.gametype = atoi( gametypeValue );
 	trap_Cvar_Set( "cg_gametype", gametypeValue );
@@ -1989,13 +1999,6 @@ void CG_ParseServerinfo( void ) {
 	Com_sprintf( cgs.mapname, sizeof( cgs.mapname ), "maps/%s.bsp", mapname );
 CG_SetTeamNameCvar( "g_redteam", Info_ValueForKey( info, "g_redTeam" ), DEFAULT_REDTEAM_NAME, cgs.redTeam, sizeof( cgs.redTeam ) );
 CG_SetTeamNameCvar( "g_blueteam", Info_ValueForKey( info, "g_blueTeam" ), DEFAULT_BLUETEAM_NAME, cgs.blueTeam, sizeof( cgs.blueTeam ) );
-	modelOverride = Info_ValueForKey( info, "g_playermodelOverride" );
-	headOverride = Info_ValueForKey( info, "g_playerheadmodelOverride" );
-	Q_strncpyz( cgs.playermodelOverride, modelOverride, sizeof( cgs.playermodelOverride ) );
-	Q_strncpyz( cgs.playerheadmodelOverride, headOverride, sizeof( cgs.playerheadmodelOverride ) );
-	if ( Q_stricmp( oldModelOverride, cgs.playermodelOverride ) || Q_stricmp( oldHeadOverride, cgs.playerheadmodelOverride ) ) {
-		CG_ApplyModelOverrides();
-	}
 
 	voteFlagsString = Info_ValueForKey( info, "g_voteFlags" );
 	voteFlags = atoi( voteFlagsString );
@@ -2033,6 +2036,136 @@ static void CG_ParseWarmup( void ) {
 
 	cg.warmup = warmup;
 	trap_Cvar_Set( "ui_warmup", va( "%i", cg.warmup ) );
+}
+
+/*
+=============
+CG_ResetPlayerAppearanceState
+
+Restores the retail forced-player appearance cache to the current defaults.
+=============
+*/
+static void CG_ResetPlayerAppearanceState( void ) {
+	cgs.playermodelOverride[0] = '\0';
+	cgs.playerheadmodelOverride[0] = '\0';
+	cgs.allowCustomHeadmodels = qfalse;
+	cgs.playerHeadScale = 1.0f;
+	cgs.playerHeadScaleOffset = 1.0f;
+	cgs.playerModelScale = 1.1f;
+}
+
+/*
+==================
+CG_ParsePlayerAppearanceConfigString
+
+Decodes the retail player-appearance payload that carries enforced model and
+head overrides plus the shared head/model scale controls.
+==================
+*/
+static void CG_ParsePlayerAppearanceConfigString( void ) {
+	const char	*info;
+	const char	*value;
+	const char	*fallbackInfo;
+	char		oldModelOverride[MAX_QPATH];
+	char		oldHeadOverride[MAX_QPATH];
+	qboolean	oldAllowCustomHeadmodels;
+
+	Q_strncpyz( oldModelOverride, cgs.playermodelOverride, sizeof( oldModelOverride ) );
+	Q_strncpyz( oldHeadOverride, cgs.playerheadmodelOverride, sizeof( oldHeadOverride ) );
+	oldAllowCustomHeadmodels = cgs.allowCustomHeadmodels;
+
+	CG_ResetPlayerAppearanceState();
+
+	info = CG_ConfigString( CS_PLAYER_APPEARANCE );
+	if ( info && info[0] ) {
+		value = Info_ValueForKey( info, "g_playermodelOverride" );
+		if ( value && value[0] ) {
+			Q_strncpyz( cgs.playermodelOverride, value, sizeof( cgs.playermodelOverride ) );
+		}
+
+		value = Info_ValueForKey( info, "g_playerheadmodelOverride" );
+		if ( value && value[0] ) {
+			Q_strncpyz( cgs.playerheadmodelOverride, value, sizeof( cgs.playerheadmodelOverride ) );
+		}
+
+		value = Info_ValueForKey( info, "g_allowCustomHeadmodels" );
+		if ( value && value[0] ) {
+			cgs.allowCustomHeadmodels = (qboolean)( atoi( value ) != 0 );
+		}
+
+		value = Info_ValueForKey( info, "g_playerheadScale" );
+		if ( value && value[0] ) {
+			cgs.playerHeadScale = (float)atof( value );
+		}
+
+		value = Info_ValueForKey( info, "g_playerheadScaleOffset" );
+		if ( value && value[0] ) {
+			cgs.playerHeadScaleOffset = (float)atof( value );
+		}
+
+		value = Info_ValueForKey( info, "g_playerModelScale" );
+		if ( value && value[0] ) {
+			cgs.playerModelScale = (float)atof( value );
+		}
+	} else {
+		/*
+		 * Older source builds carried the override strings through CS_SERVERINFO.
+		 * Keep that fallback until every path is fully migrated to the retail
+		 * configstring slab.
+		 */
+		fallbackInfo = CG_ConfigString( CS_SERVERINFO );
+
+		value = Info_ValueForKey( fallbackInfo, "g_playermodelOverride" );
+		if ( value && value[0] ) {
+			Q_strncpyz( cgs.playermodelOverride, value, sizeof( cgs.playermodelOverride ) );
+		}
+
+		value = Info_ValueForKey( fallbackInfo, "g_playerheadmodelOverride" );
+		if ( value && value[0] ) {
+			Q_strncpyz( cgs.playerheadmodelOverride, value, sizeof( cgs.playerheadmodelOverride ) );
+		}
+	}
+
+	if ( Q_stricmp( oldModelOverride, cgs.playermodelOverride ) ||
+		Q_stricmp( oldHeadOverride, cgs.playerheadmodelOverride ) ||
+		oldAllowCustomHeadmodels != cgs.allowCustomHeadmodels ) {
+		CG_ApplyModelOverrides();
+	}
+}
+
+/*
+==================
+CG_ParseWeaponReloadConfigString
+
+Decodes the retail compact weapon-refire timing slab into the live pmove cache.
+==================
+*/
+static void CG_ParseWeaponReloadConfigString( void ) {
+	const char	*payload;
+	const char	*cursor;
+	int		parsed[ARRAY_LEN( cg_retailWeaponReloadOrder )];
+	int		i;
+
+	payload = CG_ConfigString( CS_WEAPON_RELOAD_TIMES );
+	if ( !payload || !payload[0] ) {
+		return;
+	}
+
+	cursor = payload;
+	for ( i = 0; i < ARRAY_LEN( parsed ); ++i ) {
+		const char *token;
+
+		token = COM_ParseExt( &cursor, qfalse );
+		if ( !token || !token[0] ) {
+			return;
+		}
+
+		parsed[i] = atoi( token );
+	}
+
+	for ( i = 0; i < ARRAY_LEN( parsed ); ++i ) {
+		cg_pmoveSettings.weaponReloadTimes[cg_retailWeaponReloadOrder[i]] = parsed[i];
+	}
 }
 
 /*
@@ -2461,12 +2594,57 @@ static void CG_ParseFactoryMetadata( void ) {
 		cgs.factoryFlags = 0u;
 	}
 
-	info = CG_ConfigString( CS_SPAWN_HINTS );
-	if ( info && *info ) {
-		Q_strncpyz( cgs.factorySpawnHints, info, sizeof( cgs.factorySpawnHints ) );
-	} else {
-		cgs.factorySpawnHints[0] = '\0';
+	cgs.factorySpawnHints[0] = '\0';
 }
+
+/*
+==================
+CG_ParseCustomSettingsConfigString
+
+Decodes the retail custom-settings mask published by qagame.
+==================
+*/
+static void CG_ParseCustomSettingsConfigString( void ) {
+	const char		*info;
+	char			*end;
+	unsigned long long	value;
+
+	info = CG_ConfigString( CS_CUSTOM_SETTINGS );
+	if ( !info || !info[0] ) {
+		cgs.customSettingsMask = 0ull;
+		return;
+	}
+
+	value = strtoull( info, &end, 0 );
+	if ( end == info ) {
+		cgs.customSettingsMask = 0ull;
+		return;
+	}
+
+	cgs.customSettingsMask = value;
+}
+
+/*
+==================
+CG_ParseServerSettingsInfoConfigStrings
+
+Refreshes the retail server-settings scalar payloads used by the settings ownerdraw.
+==================
+*/
+static void CG_ParseServerSettingsInfoConfigStrings( void ) {
+	const char	*info;
+	const char	*value;
+
+	info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_A );
+	value = ( info && info[0] ) ? Info_ValueForKey( info, "armor_tiered" ) : "";
+	cgs.serverSettingsArmorTiered = (qboolean)( value[0] && atoi( value ) != 0 );
+
+	info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_B );
+	value = ( info && info[0] ) ? Info_ValueForKey( info, "g_quadDamageFactor" ) : "";
+	cgs.serverSettingsQuadFactor = value[0] ? atoi( value ) : 3;
+
+	value = ( info && info[0] ) ? Info_ValueForKey( info, "g_gravity" ) : "";
+	cgs.serverSettingsGravity = value[0] ? atoi( value ) : 800;
 }
 
 /*
@@ -2509,6 +2687,12 @@ void CG_SetConfigValues( void ) {
 	cgs.scores1 = atoi( CG_ConfigString( CS_SCORES1 ) );
 	cgs.scores2 = atoi( CG_ConfigString( CS_SCORES2 ) );
 	cgs.levelStartTime = atoi( CG_ConfigString( CS_LEVEL_START_TIME ) );
+	cgs.voteTime = atoi( CG_ConfigString( CS_VOTE_TIME ) );
+	cgs.voteYes = atoi( CG_ConfigString( CS_VOTE_YES ) );
+	cgs.voteNo = atoi( CG_ConfigString( CS_VOTE_NO ) );
+	Q_strncpyz( cgs.voteString, CG_ConfigString( CS_VOTE_STRING ), sizeof( cgs.voteString ) );
+	trap_Cvar_Set( "ui_voteactive", cgs.voteTime ? "1" : "0" );
+	trap_Cvar_Set( "ui_votestring", cgs.voteString );
 	CG_SetTeamNameFromConfigString( TEAM_RED, CG_ConfigString( CS_RED_TEAM_NAME ) );
 	CG_SetTeamNameFromConfigString( TEAM_BLUE, CG_ConfigString( CS_BLUE_TEAM_NAME ) );
 	if( cgs.gametype == GT_CTF ) {
@@ -2528,7 +2712,11 @@ void CG_SetConfigValues( void ) {
 	CG_ParseForcedCosmetics();
 	CG_ParseFreezeTipConfigstrings();
 	CG_ParseFactoryMetadata();
+	CG_ParseCustomSettingsConfigString();
+	CG_ParseServerSettingsInfoConfigStrings();
+	CG_ParsePlayerAppearanceConfigString();
 	CG_ParsePmoveConfigString( CG_ConfigString( CS_PMOVE_SETTINGS ) );
+	CG_ParseWeaponReloadConfigString();
 	CG_ParseRaceInfoString( CG_ConfigString( CS_RACE_INFO ) );
 	CG_ParseRaceStatusString( CG_ConfigString( CS_RACE_STATUS ) );
 }
@@ -2616,8 +2804,14 @@ static void CG_ConfigStringModified( void ) {
 		CG_SetTeamNameFromConfigString( TEAM_BLUE, str );
 	} else if ( num == CS_LEVEL_START_TIME ) {
 		cgs.levelStartTime = atoi( str );
-	} else if ( num == CS_FACTORY_TITLE || num == CS_FACTORY_FLAGS || num == CS_SPAWN_HINTS ) {
+	} else if ( num == CS_FACTORY_TITLE || num == CS_FACTORY_FLAGS ) {
 		CG_ParseFactoryMetadata();
+	} else if ( num == CS_CUSTOM_SETTINGS ) {
+		CG_ParseCustomSettingsConfigString();
+	} else if ( num == CS_SERVER_SETTINGS_INFO_A || num == CS_SERVER_SETTINGS_INFO_B ) {
+		CG_ParseServerSettingsInfoConfigStrings();
+	} else if ( num == CS_PLAYER_APPEARANCE ) {
+		CG_ParsePlayerAppearanceConfigString();
 	} else if ( num == CS_FORCED_COSMETICS ) {
 		CG_ParseForcedCosmetics();
 	} else if ( num >= CS_FREEZE_TIP_OBJECTIVE && num <= CS_FREEZE_TIP_SUMMARY ) {
@@ -2638,6 +2832,7 @@ static void CG_ConfigStringModified( void ) {
 		cgs.voteModified = qtrue;
 	} else if ( num == CS_VOTE_STRING ) {
 		Q_strncpyz( cgs.voteString, str, sizeof( cgs.voteString ) );
+		trap_Cvar_Set( "ui_votestring", cgs.voteString );
 		trap_S_StartLocalSound( cgs.media.voteNow, CHAN_ANNOUNCER );
 	} else if ( num >= CS_TEAMVOTE_TIME && num <= CS_TEAMVOTE_TIME + 1) {
 		cgs.teamVoteTime[num-CS_TEAMVOTE_TIME] = atoi( str );
@@ -2678,6 +2873,8 @@ cgs.flagStatus = str[0] - '0';
 }
 else if ( num == CS_SHADERSTATE ) {
 CG_ShaderStateChanged();
+} else if ( num == CS_WEAPON_RELOAD_TIMES ) {
+CG_ParseWeaponReloadConfigString();
 } else if ( num == CS_PMOVE_SETTINGS ) {
 CG_ParsePmoveConfigString( str );
 }
@@ -2773,7 +2970,11 @@ static void CG_MapRestart( void ) {
 	cg.intermissionStarted = qfalse;
 
 	cgs.voteTime = 0;
+	cgs.voteYes = 0;
+	cgs.voteNo = 0;
+	cgs.voteString[0] = '\0';
 	trap_Cvar_Set( "ui_voteactive", "0" );
+	trap_Cvar_Set( "ui_votestring", "" );
 
 	cg.mapRestart = qtrue;
 

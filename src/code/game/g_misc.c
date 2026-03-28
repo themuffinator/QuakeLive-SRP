@@ -357,13 +357,6 @@ void SP_shooter_grenade( gentity_t *ent ) {
 	InitShooter( ent, WP_GRENADE_LAUNCHER);
 }
 
-
-static void PortalDie (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod) {
-	G_FreeEntity( self );
-	//FIXME do something more interesting
-}
-
-
 void DropPortalDestination( gentity_t *player ) {
 	gentity_t	*ent;
 	vec3_t		snapped;
@@ -384,7 +377,7 @@ void DropPortalDestination( gentity_t *player ) {
 	ent->r.contents = CONTENTS_CORPSE;
 	ent->takedamage = qtrue;
 	ent->health = 200;
-	ent->die = PortalDie;
+	ent->die = ( void (*)( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod ) )G_FreeEntity;
 
 	VectorCopy( player->s.apos.trBase, ent->s.angles );
 
@@ -474,7 +467,7 @@ void DropPortalSource( gentity_t *player ) {
 	ent->r.contents = CONTENTS_CORPSE | CONTENTS_TRIGGER;
 	ent->takedamage = qtrue;
 	ent->health = 200;
-	ent->die = PortalDie;
+	ent->die = ( void (*)( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod ) )G_FreeEntity;
 
 	trap_LinkEntity( ent );
 

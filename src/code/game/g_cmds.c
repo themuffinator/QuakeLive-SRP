@@ -5130,6 +5130,93 @@ static qboolean G_ClientCanControlTimeouts( gentity_t *ent, team_t *teamOut ) {
 	return qtrue;
 }
 
+/*
+=============
+G_TimeoutCallerName
+
+Returns the retail-facing timeout caller label for player and server-owned pauses.
+=============
+*/
+static const char *G_TimeoutCallerName( gentity_t *ent ) {
+	if ( ent && ent->client ) {
+		return ent->client->pers.netname;
+	}
+
+	return "The server";
+}
+
+/*
+=============
+G_StartTimeout
+
+Starts a timed timeout or indefinite pause and publishes the updated timeout state.
+=============
+*/
+static qboolean G_StartTimeout( gentity_t *ent, int durationSeconds ) {
+	team_t	team;
+
+	if ( level.timeoutActive ) {
+		return qfalse;
+	}
+
+	team = TEAM_FREE;
+	if ( ent && ent->client ) {
+		if ( g_gametype.integer >= GT_TEAM ) {
+			team = ent->client->sess.sessionTeam;
+			if ( team != TEAM_RED && team != TEAM_BLUE ) {
+				team = TEAM_FREE;
+			}
+		}
+		level.timeoutOwner = ent->client->ps.clientNum;
+	} else {
+		level.timeoutOwner = -1;
+	}
+
+	level.timeoutActive = qtrue;
+	level.timeoutTeam = team;
+	level.timeoutStartTime = level.time;
+	if ( durationSeconds > 0 ) {
+		level.timeoutExpireTime = level.time + durationSeconds * 1000;
+	} else {
+		level.timeoutExpireTime = 0;
+	}
+
+	if ( durationSeconds > 0 ) {
+		trap_SendServerCommand( -1,
+			va( "print \"%s has called timeout (%ds)\\n\"", G_TimeoutCallerName( ent ), durationSeconds ) );
+	} else {
+		trap_SendServerCommand( -1,
+			va( "print \"%s has paused the match\\n\"", G_TimeoutCallerName( ent ) ) );
+	}
+
+	G_UpdateMatchStateConfigString();
+	return qtrue;
+}
+
+/*
+=============
+G_BeginTimein
+
+Arms the retail-style five-second resume countdown for the active timeout.
+=============
+*/
+static qboolean G_BeginTimein( gentity_t *ent ) {
+	if ( !level.timeoutActive ) {
+		return qfalse;
+	}
+
+	if ( ent && ent->client && level.timeoutOwner != ent->client->ps.clientNum ) {
+		trap_SendServerCommand( ent-g_entities, "print \"You did not call the current timeout\n\"" );
+		return qfalse;
+	}
+
+	level.timeoutExpireTime = level.time + 5000;
+	trap_SendServerCommand( -1,
+		va( "print \"%s has called timein\\n\"", G_TimeoutCallerName( ent ) ) );
+	G_UpdateMatchStateConfigString();
+	return qtrue;
+}
+
 void Cmd_Timeout_f( gentity_t *ent ) {
 	team_t team;
 	int remaining;
@@ -5144,40 +5231,65 @@ void Cmd_Timeout_f( gentity_t *ent ) {
 		return;
 	}
 
-	remaining = level.timeoutRemaining[team];
-	if ( remaining <= 0 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"No timeouts remaining.\\n\"" );
+	timeoutLength = g_matchFactoryConfig.timeoutLengthSeconds;
+	if ( timeoutLength <= 0 ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Timeouts are not enabled on this server.\n\"" );
 		return;
 	}
 
-	level.timeoutActive = qtrue;
-	level.timeoutTeam = team;
-	level.timeoutOwner = ent->client->ps.clientNum;
-	level.timeoutStartTime = level.time;
-
-        timeoutLength = g_matchFactoryConfig.timeoutLengthSeconds;
-        if ( timeoutLength > 0 ) {
-                level.timeoutExpireTime = level.time + timeoutLength * 1000;
-        } else {
-                level.timeoutExpireTime = 0;
-        }
+	remaining = level.timeoutRemaining[team];
+	if ( remaining <= 0 ) {
+		if ( g_gametype.integer >= GT_TEAM ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Your team has no timeouts left to call\n\"" );
+		} else {
+			trap_SendServerCommand( ent-g_entities, "print \"You have no timeouts left to call\n\"" );
+		}
+		return;
+	}
 
 	level.timeoutRemaining[team] = remaining - 1;
 	if ( level.timeoutRemaining[team] < 0 ) {
 		level.timeoutRemaining[team] = 0;
 	}
 
-	trap_SendServerCommand( -1, va( "print \"%s called a timeout (%i remaining).\\n\"", ent->client->pers.netname, level.timeoutRemaining[team] ) );
-	G_LogPrintf( "match: timeout called team %i owner %i remaining %i length %i\n", team, level.timeoutOwner, level.timeoutRemaining[team], timeoutLength );
+	if ( !G_StartTimeout( ent, timeoutLength ) ) {
+		level.timeoutRemaining[team] = remaining;
+	}
+}
 
-	G_UpdateMatchStateConfigString();
+/*
+=============
+Cmd_Pause_f
+
+Starts an indefinite pause without consuming the timeout pool, or lets a player claim a server-owned pause.
+=============
+*/
+void Cmd_Pause_f( gentity_t *ent ) {
+	team_t team;
+
+	if ( !G_ClientCanControlTimeouts( ent, &team ) ) {
+		return;
+	}
+
+	if ( !level.timeoutActive ) {
+		G_StartTimeout( ent, 0 );
+		return;
+	}
+
+	if ( level.timeoutOwner < 0 ) {
+		level.timeoutOwner = ent->client->ps.clientNum;
+		if ( g_gametype.integer >= GT_TEAM && team >= TEAM_RED && team < TEAM_NUM_TEAMS ) {
+			level.timeoutTeam = team;
+		}
+		trap_SendServerCommand( ent-g_entities, "print \"You have taken ownership of the current timeout\n\"" );
+		G_UpdateMatchStateConfigString();
+		return;
+	}
+
+	trap_SendServerCommand( ent-g_entities, "print \"A timeout is already active.\n\"" );
 }
 
 void Cmd_Timein_f( gentity_t *ent ) {
-	int pausedDuration = 0;
-	team_t owningTeam;
-	int owner;
-
 	if ( level.trainingMapActive ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Training matches do not support timeouts.\n\"" );
 		return;
@@ -5188,30 +5300,7 @@ void Cmd_Timein_f( gentity_t *ent ) {
 		return;
 	}
 
-	owningTeam = level.timeoutTeam;
-	owner = level.timeoutOwner;
-
-	if ( owningTeam == TEAM_FREE ) {
-		if ( ent->client->ps.clientNum != owner ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Only the caller may resume play.\\n\"" );
-			return;
-		}
-	} else if ( ent->client->sess.sessionTeam != owningTeam ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Only the calling team may resume play.\\n\"" );
-		return;
-	}
-
-	if ( level.timeoutStartTime > 0 && level.time > level.timeoutStartTime ) {
-		pausedDuration = level.time - level.timeoutStartTime;
-	}
-
-	G_ApplyTimeoutPauseDelta( pausedDuration );
-
-	trap_SendServerCommand( -1, va( "print \"%s called time in.\\n\"", ent->client->pers.netname ) );
-	G_LogPrintf( "match: timeout resumed team %i owner %i caller %i\n", owningTeam, owner, ent->client->ps.clientNum );
-
-	G_ResetTimeoutState();
-	G_UpdateMatchStateConfigString();
+	G_BeginTimein( ent );
 }
 
 /*
@@ -5813,12 +5902,52 @@ void Cmd_Clan_f( gentity_t *ent ) {
 
 /*
 ==================
+G_KickOrBanClient
+==================
+*/
+static int G_KickOrBanClient( gentity_t *ent, char *targetToken, qboolean banTarget ) {
+	int		clientNum;
+	gentity_t	*target;
+
+	if ( !targetToken || !targetToken[0] ) {
+		return -1;
+	}
+
+	clientNum = ClientNumberFromString( ent, targetToken );
+	if ( clientNum < 0 ) {
+		return -1;
+	}
+
+	target = &g_entities[clientNum];
+	if ( target->client && target->client->sess.privilege >= PRIV_ADMIN ) {
+		if ( ent && ent->client ) {
+			trap_SendServerCommand( ent-g_entities, "print \"Can not kick admins.\n\"" );
+		}
+		return -1;
+	}
+
+	if ( banTarget ) {
+		char	targetUserinfo[MAX_INFO_STRING];
+		char	*ip;
+
+		trap_GetUserinfo( clientNum, targetUserinfo, sizeof( targetUserinfo ) );
+		ip = Info_ValueForKey( targetUserinfo, "ip" );
+		if ( ip && ip[0] ) {
+			trap_SendConsoleCommand( EXEC_APPEND, va( "addip %s\n", ip ) );
+		}
+	}
+
+	trap_SendConsoleCommand( EXEC_APPEND, va( "clientkick %d\n", clientNum ) );
+	return clientNum;
+}
+
+/*
+==================
 Cmd_Kick_f
 ==================
 */
 void Cmd_Kick_f( gentity_t *ent ) {
 	char arg[MAX_TOKEN_CHARS];
-	int clientNum;
 	char userinfo[MAX_INFO_STRING];
 	const char *steamId;
 	int priv;
@@ -5840,10 +5969,7 @@ void Cmd_Kick_f( gentity_t *ent ) {
 	}
 
 	trap_Argv( 1, arg, sizeof( arg ) );
-	clientNum = ClientNumberFromString( ent, arg );
-	if ( clientNum >= 0 ) {
-		trap_SendConsoleCommand( EXEC_APPEND, va("clientkick %d\n", clientNum) );
-	}
+	G_KickOrBanClient( ent, arg, qfalse );
 }
 
 /*
@@ -5853,7 +5979,6 @@ Cmd_Ban_f
 */
 void Cmd_Ban_f( gentity_t *ent ) {
 	char arg[MAX_TOKEN_CHARS];
-	int clientNum;
 	char userinfo[MAX_INFO_STRING];
 	const char *steamId;
 	int priv;
@@ -5875,15 +6000,7 @@ void Cmd_Ban_f( gentity_t *ent ) {
 	}
 
 	trap_Argv( 1, arg, sizeof( arg ) );
-	clientNum = ClientNumberFromString( ent, arg );
-	if ( clientNum >= 0 ) {
-		char targetUserinfo[MAX_INFO_STRING];
-		char *ip;
-		trap_GetUserinfo( clientNum, targetUserinfo, sizeof(targetUserinfo) );
-		ip = Info_ValueForKey( targetUserinfo, "ip" );
-		trap_SendConsoleCommand( EXEC_APPEND, va("addip %s\n", ip) );
-		trap_SendConsoleCommand( EXEC_APPEND, va("clientkick %d\n", clientNum) );
-	}
+	G_KickOrBanClient( ent, arg, qtrue );
 }
 
 /*
@@ -6015,9 +6132,8 @@ void Cmd_Admin_f( gentity_t *ent ) {
 			return;
 		}
 
-		clientNum = ClientNumberFromString( ent, val );
+		clientNum = G_KickOrBanClient( ent, val, qfalse );
 		if ( clientNum >= 0 ) {
-			trap_SendConsoleCommand( EXEC_APPEND, va("clientkick %d\n", clientNum) );
 			G_LogPrintf( "Admin %s kicked %s\n", ent->client->pers.netname, level.clients[clientNum].pers.netname );
 		}
 		return;
@@ -6035,16 +6151,9 @@ void Cmd_Admin_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent - g_entities, "print \"usage: admin ban <client>\n\"" );
 			return;
 		}
-		clientNum = ClientNumberFromString( ent, val );
+		clientNum = G_KickOrBanClient( ent, val, qtrue );
 		if ( clientNum >= 0 ) {
-			char targetUserinfo[MAX_INFO_STRING];
-			char *ip;
-
-			trap_GetUserinfo( clientNum, targetUserinfo, sizeof(targetUserinfo) );
-			ip = Info_ValueForKey( targetUserinfo, "ip" );
-			trap_SendConsoleCommand( EXEC_APPEND, va("addip %s\n", ip) );
-			trap_SendConsoleCommand( EXEC_APPEND, va("clientkick %d\n", clientNum) );
-			G_LogPrintf( "Admin %s banned %s (%s)\n", ent->client->pers.netname, level.clients[clientNum].pers.netname, ip );
+			G_LogPrintf( "Admin %s banned %s\n", ent->client->pers.netname, level.clients[clientNum].pers.netname );
 		}
 		return;
 	}
@@ -6216,27 +6325,15 @@ void Cmd_Admin_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
 			return;
 		}
-		// Force timeout logic (bypass G_ClientCanControlTimeouts)
 		if ( level.timeoutActive ) {
 			trap_SendServerCommand( ent - g_entities, "print \"Timeout already active.\n\"" );
 			return;
 		}
-		level.timeoutActive = qtrue;
-		level.timeoutTeam = TEAM_FREE; // Admin timeout
-		level.timeoutOwner = ent->s.number;
-		level.timeoutStartTime = level.time;
-		level.timeoutExpireTime = 0; // Infinite until timein? Or use g_timeoutLen
-		if ( g_matchFactoryConfig.timeoutLengthSeconds > 0 ) {
-			level.timeoutExpireTime = level.time + g_matchFactoryConfig.timeoutLengthSeconds * 1000;
-		}
-		trap_SendServerCommand( -1, va( "print \"%s called an admin timeout.\n\"", ent->client->pers.netname ) );
-		G_UpdateMatchStateConfigString();
+		G_StartTimeout( NULL, g_matchFactoryConfig.timeoutLengthSeconds );
 		return;
 	}
 
 	if ( !Q_stricmp( arg, "timein" ) ) {
-		int pausedDuration = 0;
-
 		if ( priv < PRIV_MOD ) {
 			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
 			return;
@@ -6245,14 +6342,7 @@ void Cmd_Admin_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent - g_entities, "print \"No timeout active.\n\"" );
 			return;
 		}
-		// Force timein
-		if ( level.timeoutStartTime > 0 && level.time > level.timeoutStartTime ) {
-			pausedDuration = level.time - level.timeoutStartTime;
-		}
-		G_ApplyTimeoutPauseDelta( pausedDuration );
-		trap_SendServerCommand( -1, va( "print \"%s called time in.\n\"", ent->client->pers.netname ) );
-		G_ResetTimeoutState();
-		G_UpdateMatchStateConfigString();
+		G_BeginTimein( NULL );
 		return;
 	}
 
@@ -6458,7 +6548,9 @@ void ClientCommand( int clientNum ) {
 		Cmd_TeamVote_f (ent);
 	else if (Q_stricmp (cmd, "gc") == 0)
 		Cmd_GameCommand_f( ent );
-	else if ( !Q_stricmp( cmd, "timeout" ) || !Q_stricmp( cmd, "pause" ) )
+	else if ( !Q_stricmp( cmd, "pause" ) )
+		Cmd_Pause_f( ent );
+	else if ( !Q_stricmp( cmd, "timeout" ) )
 		Cmd_Timeout_f( ent );
 	else if ( !Q_stricmp( cmd, "timein" ) || !Q_stricmp( cmd, "resume" ) || !Q_stricmp( cmd, "unpause" ) )
 		Cmd_Timein_f( ent );

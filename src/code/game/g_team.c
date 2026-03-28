@@ -1499,6 +1499,58 @@ static void Team_DominationBuildSpawnList( dominationPoint_t *point ) {
 
 /*
 =============
+Team_SelectDominationSpawnPoint
+
+Chooses a Domination-linked spawn owned by the client's team.
+=============
+*/
+gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {
+	gentity_t	*spots[DOMINATION_MAX_POINTS * DOMINATION_MAX_POINT_SPAWNS];
+	dominationPoint_t	*point;
+	team_t		team;
+	int		count;
+	int		i, j;
+
+	if ( !ent || !ent->client ) {
+		return NULL;
+	}
+
+	team = ent->client->sess.sessionTeam;
+	if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		return NULL;
+	}
+
+	count = 0;
+	for ( i = 0; i < teamgame.dominationPointCount; i++ ) {
+		point = &teamgame.dominationPoints[i];
+		if ( point->ownerTeam != team ) {
+			continue;
+		}
+		if ( point->spawnTargetCount <= 0 ) {
+			continue;
+		}
+
+		for ( j = 0; j < point->spawnTargetCount; j++ ) {
+			if ( !point->spawnTargets[j] ) {
+				continue;
+			}
+
+			spots[count++] = point->spawnTargets[j];
+			if ( count >= ARRAY_LEN( spots ) ) {
+				return G_SelectRankedSpawnPoint( spots, count, origin, angles );
+			}
+		}
+	}
+
+	if ( !count ) {
+		return NULL;
+	}
+
+	return G_SelectRankedSpawnPoint( spots, count, origin, angles );
+}
+
+/*
+=============
 Team_DominationPointThink
 
 Retries spawn linking for Domination metadata entities.
@@ -3711,17 +3763,41 @@ SelectCTFSpawnPoint
 ============
 */
 gentity_t *SelectCTFSpawnPoint ( team_t team, int teamstate, vec3_t origin, vec3_t angles ) {
+	gentity_t	*spots[MAX_TEAM_SPAWN_POINTS];
 	gentity_t	*spot;
+	char		*classname;
+	int		count;
 
-	spot = SelectRandomTeamSpawnPoint ( teamstate, team );
+	if (teamstate == TEAM_BEGIN) {
+		if (team == TEAM_RED)
+			classname = "team_CTF_redplayer";
+		else if (team == TEAM_BLUE)
+			classname = "team_CTF_blueplayer";
+		else
+			return SelectSpawnPoint( vec3_origin, origin, angles );
+	} else {
+		if (team == TEAM_RED)
+			classname = "team_CTF_redspawn";
+		else if (team == TEAM_BLUE)
+			classname = "team_CTF_bluespawn";
+		else
+			return SelectSpawnPoint( vec3_origin, origin, angles );
+	}
+
+	count = 0;
+	spot = NULL;
+	while ( ( spot = G_Find( spot, FOFS( classname ), classname ) ) != NULL ) {
+		spots[count++] = spot;
+		if ( count >= ARRAY_LEN( spots ) ) {
+			break;
+		}
+	}
+
+	spot = G_SelectRankedSpawnPoint( spots, count, origin, angles );
 
 	if (!spot) {
 		return SelectSpawnPoint( vec3_origin, origin, angles );
 	}
-
-	VectorCopy (spot->s.origin, origin);
-	origin[2] += 9;
-	VectorCopy (spot->s.angles, angles);
 
 	return spot;
 }

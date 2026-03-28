@@ -2,6 +2,7 @@
 #define G_CONFIG_H
 
 #include "../code/game/q_shared.h"
+#include <stdint.h>
 
 extern vmCvar_t g_startingWeapons;
 extern vmCvar_t g_infiniteAmmo;
@@ -74,5 +75,6 @@ typedef struct matchFactoryConfig_s {
 
 void G_Config_RegisterCvars( void );
 void G_Config_UpdateCvars( void );
+uint64_t G_ComputeConfigCustomSettingsMask( void );
 
 #endif // G_CONFIG_H

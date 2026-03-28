@@ -428,7 +428,18 @@ void UI_LoadBestScores(const char *map, int game) {
 	char		fileName[MAX_QPATH];
 	fileHandle_t f;
 	postGameInfo_t newInfo;
+
 	memset(&newInfo, 0, sizeof(postGameInfo_t));
+	uiInfo.demoAvailable = qfalse;
+
+	// Retail reaches this helper with a populated current map/gametype selection.
+	// The reconstructed runtime can hit it before gameinfo metadata exists, so keep
+	// the zeroed score state and skip invalid file probes until that table is loaded.
+	if ( !map || !map[0] || game < 0 || game >= GT_MAX_GAME_TYPE ) {
+		UI_SetBestScores(&newInfo, qfalse);
+		return;
+	}
+
 	Com_sprintf(fileName, MAX_QPATH, "games/%s_%i.game", map, game);
 	if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0) {
 		int size = 0;
@@ -441,7 +452,6 @@ void UI_LoadBestScores(const char *map, int game) {
 	UI_SetBestScores(&newInfo, qfalse);
 
 	Com_sprintf(fileName, MAX_QPATH, "demos/%s_%d.dm_%d", map, game, (int)trap_Cvar_VariableValue("protocol"));
-	uiInfo.demoAvailable = qfalse;
 	if (trap_FS_FOpenFile(fileName, &f, FS_READ) >= 0) {
 		uiInfo.demoAvailable = qtrue;
 		trap_FS_FCloseFile(f);

@@ -436,9 +436,7 @@ This will be called twice if rendering in stereo mode
 ==================
 */
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
-	qboolean consoleFallback;
 	qboolean uiFullscreen;
-	static qboolean fallbackDrawLogged = qfalse;
 
 	re.BeginFrame( stereoFrame );
 
@@ -457,25 +455,9 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		return;
 	}
 
-	consoleFallback = CL_UseDisconnectedConsoleFallback()
-		&& cls.state == CA_DISCONNECTED
-		&& !com_sv_running->integer;
-	if ( consoleFallback ) {
-		cls.keyCatchers = KEYCATCH_CONSOLE;
-		if ( !fallbackDrawLogged ) {
-			Com_Printf( "SCR_DrawScreenField: fallback draw path active (state=%d keyCatchers=%d)\n",
-				cls.state, cls.keyCatchers );
-			fallbackDrawLogged = qtrue;
-		}
-	}
-
 	// if the menu is going to cover the entire screen, we
 	// don't need to render anything under it
-	if ( consoleFallback ) {
-		uiFullscreen = qfalse;
-	} else {
-		uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN );
-	}
+	uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN );
 
 	if ( !uiFullscreen ) {
 		switch( cls.state ) {
@@ -486,11 +468,9 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 			SCR_DrawCinematic();
 			break;
 		case CA_DISCONNECTED:
-			if ( !consoleFallback ) {
-				// force menu up
-				S_StopAllSounds();
-				VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );
-			}
+			// force menu up
+			S_StopAllSounds();
+			VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );
 			break;
 		case CA_CONNECTING:
 		case CA_CHALLENGING:

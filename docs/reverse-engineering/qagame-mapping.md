@@ -1,7 +1,7 @@
 # Qagame Mapping Ledger
 
-This round maps a new high-confidence slice of the retail `qagamex86.dll`
-against `src/code/game/` using the committed Ghidra corpus in
+This ledger tracks recurring high-confidence passes over the retail
+`qagamex86.dll` against `src/code/game/` using the committed Ghidra corpus in
 `references/reverse-engineering/ghidra/qagamex86/` and the Binary Ninja HLIL
 dump in `references/hlil/quakelive/qagamex86.dll/`.
 
@@ -9,6 +9,156 @@ Observed facts come from exports, `functions.csv`, native dispatch-table slots,
 log strings, and call flow. Inferred names are only promoted when the retail
 behavior and source analogue align cleanly.
 
+## Latest Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `727` -> `731` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `659/1027` -> `663/1027` mapped functions (`64.17%` -> `64.56%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: `162/180` -> `163/180` mapped functions (`90.00%` -> `90.56%`).
+- Delta from this pass: `+4` curated names, `+4` corpus-overlap matches, `+0.39` percentage points on full-corpus parity, and `+1` match on the top-decompiled slice.
+- Note: curated overhang stays flat at `68` because every promoted helper in this batch is present in the committed `functions.csv` corpus; the top-slice gain is `BotUpdateTrainingState`.
+
+## Newly Mapped In This Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Retail training selectors | `BotGetLocalClient` and `BotGetFirstBotClient` |
+| Training-state helpers | `BotSetTrainingBotState` and `BotUpdateTrainingState` |
+| Source-side cleanup | `src/code/game/ai_main.c` now drops the dead GPL `BotReportStatus`, `BotTeamplayReport`, `BotSetInfoConfigString`, and `BotUpdateInfoConfigStrings` slab after the earlier `BotAIStartFrame` retail correction |
+
+This pass closes the next retail-only training seam that feeds the late
+`BotAIStartFrame` tail. The newly named selectors identify the local player and
+the first bot client used by the tutorial flow, while the adjacent state
+helpers cover the training-mode entity flag toggle and the broader training
+state updater that manages tutorial cvars, starting skill bootstrap, and music.
+On the source side, `src/code/game/ai_main.c` now removes the dead GPL
+`CS_BOTINFO` report helper slab that no longer has any retail frame-path
+callers after the earlier `bot_report` cleanup.
+
+## Previous Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `720` -> `727` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `652/1027` -> `659/1027` mapped functions (`63.49%` -> `64.17%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: `160/180` -> `162/180` mapped functions (`88.89%` -> `90.00%`).
+- Delta from this pass: `+7` curated names, `+7` corpus-overlap matches, `+0.68` percentage points on full-corpus parity, and `+2` matches on the top-decompiled slice.
+- Note: curated overhang stays flat at `68` because every promoted helper in this batch is present in the committed `functions.csv` corpus; the top-slice gains are `BotFindInstaGibTarget` and `BotPublishDebugInfoString`.
+
+## Newly Mapped In The Previous Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Instagib target-goal seam | `BotFindInstaGibTarget`, `BotRefreshInstaGibTargetGoal`, and `BotGetInstaGibTargetGoal` |
+| `ai_main` retail telemetry | `BotPublishDebugInfoString`, `BotCanSpawnTourPoint`, `BotUpdateItemDelayTime`, and `BotAppendDynamicSkillSample` |
+| Source-side frame correction | `BotAIStartFrame` now matches retail more closely by keeping `bot_report` updated without running the stale GPL `BotUpdateInfoConfigStrings()` / `CS_BOTINFO` publish loop |
+
+This pass closes the next retail-only `ai_main` support seam around the
+instagib tutorial node, the selected-bot debug publisher, and the training
+tail that sits after `BotAIStartFrame`'s main bot-think loop. The instagib
+cluster now has coherent target-finding and goal-refresh names, while the
+later `ai_main` helpers cover the exact `bot_itemDelayTime` cvar writer, the
+dynamic-skill sample recorder, and the tour-point spawn gate used by the
+tutorial flow. On the source side, `src/code/game/ai_main.c` now drops the
+stale GPL-era `bot_report` info-configstring publish branch that no longer
+appears in the retail `BotAIStartFrame` body.
+
+## Previous Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `594` -> `607` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `526/1027` -> `539/1027` mapped functions (`51.22%` -> `52.48%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: `149/180` -> `152/180` mapped functions (`82.78%` -> `84.44%`).
+- Delta from this pass: `+13` curated names, `+13` corpus-overlap matches, `+1.27` percentage points on full-corpus parity, and `+3` matches on the top-decompiled slice.
+- Note: curated overhang stays flat at `68` because every promoted helper in this batch is present in the committed `functions.csv` corpus; only `BotUpdateInventory`, `BotUseKamikaze`, and `BotUseInvulnerability` land inside `decompile_top_functions.c`.
+
+## Newly Mapped In The Previous Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Inventory and aggression seam | `BotUpdateInventory`, `BotUpdateBattleInventory`, `BotAggression`, `BotCanAndWantsToRocketJump`, and `BotHasPersistantPowerupAndWeapon` |
+| Active battle item use | `BotUseKamikaze`, `BotUseInvulnerability`, `BotBattleUseItems`, and `BotIsObserver` |
+| Camping and powerup flow | `BotGoCamp`, `BotWantsToCamp`, `BotDontAvoid`, and `BotGoForPowerups` |
+
+This pass closes the next coherent `ai_dmq3.c` utility seam around bot
+inventory refresh, consumable use, and long-term camp or powerup decisions. The
+recovered set covers the live inventory snapshot, enemy-distance bookkeeping,
+aggression scoring, kamikaze and invulnerability activation, and the full camp
+spot plus avoid-goal helpers that feed higher-level long-term goal selection.
+
+## Previous Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `374` -> `377` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `342/1027` -> `345/1027` mapped functions (`33.30%` -> `33.59%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: `108/180` -> `110/180` mapped functions (`60.00%` -> `61.11%`).
+- Delta from this pass: `+3` curated names, `+3` corpus-overlap matches, `+0.29` percentage points on full-corpus parity, and `+2` matches on the top-decompiled slice.
+- Note: `32` curated helper names currently sit outside `functions.csv`, so curated symbol-map totals are tracked separately from corpus-overlap parity.
+
+## Newly Reconstructed In The Previous Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Spawn ranking seam | retail-only `G_SelectRankedSpawnPoint`, retail-only `G_SelectClientSpawnPoint`, and retail-only `Team_SelectDominationSpawnPoint` |
+| Source-side spawn reconstruction | Domination now selects owned point-linked respawns instead of piggybacking entirely on the CTF path, and `ClientSpawn` now routes through the recovered retail helper split instead of keeping all gametype branching inline |
+
+This pass closes the next high-yield qagame spawn-selection seam around the
+ClientSpawn path. The remaining hidden debug-command tail still needs a cleaner
+body-to-dispatch match before promotion, but the broader spawn-selection band
+is now mapped through the Domination-specific path, the shared ranked picker,
+and the ClientSpawn-side wrapper.
+
+## Earlier Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `362` -> `370` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `331/1027` -> `338/1027` mapped functions (`32.23%` -> `32.91%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: `105/180` -> `105/180` mapped functions (`58.33%` -> `58.33%`).
+- Delta from this pass: `+8` curated names, `+7` corpus-overlap matches, `+0.68` percentage points on full-corpus parity, and no change on the top-decompiled slice.
+- Note: `32` curated helper names currently sit outside `functions.csv`, so curated symbol-map totals are tracked separately from corpus-overlap parity.
+
+## Newly Mapped In The Earlier Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Direct command surface | retail-only `Cmd_SetMatchTime_f` |
+| Auto-record naming | retail-only `G_SanitizeFilenameToken`, retail-only `G_BuildAutoRecordBasename` |
+| Match media automation | retail-only `G_StopAutoRecord`, retail-only `G_StartAutoRecordForClient`, retail-only `G_CheckAutoRecord` |
+| Timeout state publication | retail-only `G_UpdateTimeoutConfigStrings` |
+| Race respawn flow | retail-only `G_RaceResetClientAndSpawn` |
+
+The remaining highest-yield unmapped seams now skew more toward the hidden
+`markstate` / `diffstate` / `dumpentities` / `printentitystates` debug band
+and the larger gameplay bootstrap and round-support bodies that still sit
+outside the current curated map.
+
+## Prior Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Before this pass: `147` curated mapped functions, `33/180` decompiled-top functions (`18.33%`).
+- After this pass: `169` curated mapped functions, `55/180` decompiled-top functions (`30.56%`).
+- Delta from this pass: `+22` curated mapped functions and `+12.23` percentage points on the top-decompiled slice.
+- Curated string coverage was unchanged at `102/102`; that round widened function naming coverage rather than the string ledger.
+
+## Previously Mapped In The Prior Sweep
+
+| Area | Recovered functions |
+| --- | --- |
+| Bot chat and state nodes | `BotChatTest`, `BotGetLongTermGoal`, `AINode_Seek_NBG`, `AINode_Seek_LTG`, `AINode_Battle_Fight`, `AINode_Battle_Chase`, `AINode_Battle_Retreat`, `AINode_Battle_NBG` |
+| Bot bootstrap and team control | `BotAI`, `BotAISetupClient`, `BotInitLibrary`, `BotSetupDeathmatchAI`, `BotTeamAI` |
+| Bot spawn and writable gameplay helpers | `G_AddRandomBot`, `G_AddBot`, `RegisterItem`, `G_Say`, `Cmd_SetViewpos_f` |
+| Gameplay utility and objective flow | `G_DroppedPowerupRunFrame`, `G_TryPushingEntity`, `Team_FragBonuses`, `Team_TouchOurFlag` |
+
+The highest-yield remaining seams after that sweep skewed more toward
+tutorial-specific bot flows, ranking/stat publishers, and other retail-only
+utility helpers outside that widened control surface.
+
+## Earlier Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Before this pass: `169` curated mapped functions, `55/180` decompiled-top functions (`30.56%`).
+- After this pass: `185` curated mapped functions, `71/180` decompiled-top functions (`39.44%`).
+- Delta from this pass: `+16` curated mapped functions and `+8.89` percentage points on the top-decompiled slice.
+- Curated string coverage was unchanged at `102/102`; that pass widened function naming coverage rather than the string ledger.
 ## Key Mappings
 
 | Retail address | Recovered name | Closest source analogue | Evidence summary | Confidence |
@@ -42,6 +192,9 @@ behavior and source analogue align cleanly.
 | `0x100364A0` | `G_ADResetScoreHistory` | Retail-only Attack and Defend scoreboard helper | Clears the retained A/D round-delta history and publishes the baseline `scores_ad` payload with current team totals and empty history slots. | High |
 | `0x100365F0` | `G_ADUpdateScoreHistory` | Retail-only Attack and Defend scoreboard helper | Records the latest per-turn A/D score delta into the 20-entry circular history, rebuilds the ordered history window, and republishes `scores_ad`. | High |
 | `0x10038160` | `G_CAADResetClientForRound` | Retail-only shared Clan Arena / Attack and Defend round helper | Reused from both `ClientBegin` and the delayed respawn path for GT_CLAN_ARENA and GT_ATTACK_DEFEND; it respawns immediately in the live release state, respawns into the holding state during the pre-release countdown, and otherwise falls back to the spectator-follow reset path used after round loss. | High |
+| `0x10038B60` | `Team_SelectDominationSpawnPoint` | Retail-only Domination spawn helper / `g_team.c` analogue | Reached from the ClientSpawn-side spawn wrapper only for active GT_DOMINATION respawns; it walks `team_dom_point` entities, collects linked `info_player_deathmatch` targets for the owning team, ranks them against live players, and writes the chosen origin/angles. | High |
+| `0x10039080` | `G_SelectRankedSpawnPoint` | Retail-only shared spawn helper spanning `g_client.c::SelectRandomFurthestSpawnPoint` and `g_team.c::SelectCTFSpawnPoint` | Anchored by the `info_player_deathmatch`, `team_CTF_redspawn`, `team_CTF_bluespawn`, `team_CTF_redplayer`, and `team_CTF_blueplayer` classnames plus the `FindIntermissionPoint` fallback; it filters telefragging candidates, ranks them against live players, and picks from the best-ranked subset. | High |
+| `0x10039730` | `G_SelectClientSpawnPoint` | Retail-only ClientSpawn-side spawn wrapper | Called directly from `ClientSpawn` before the respawn bootstrap continues; it chooses between domination-linked spawns, team/base spawn classes, and the initial non-team spawn path, then falls back through the shared ranked spawn picker. | High |
 | `0x1003A270` | `G_UpdateTournamentQueuePositions` | Retail-only duel queue helper | Sorts eligible waiting spectators by the stored queue timestamp, assigns one-based `pq` queue positions, and marks changed entries dirty for the follow-on userinfo republish pass. | High |
 | `0x1003A450` | `ClientUserinfoChanged` | `g_client.c::ClientUserinfoChanged` | Native dispatch-table slot plus `ClientUserinfoChanged: %i %s` log string and matching configstring rebuild flow. | High |
 | `0x1003AC10` | `ClientConnect` | `g_client.c::ClientConnect` | `ClientConnect: %i` log string, bot masking, session init/read, and platform auth checks match the source connect routine. | High |
@@ -70,6 +223,7 @@ behavior and source analogue align cleanly.
 | `0x100456B0` | `Cmd_Forfeit_f` | `g_cmds.c::Cmd_Forfeit_f` | Thin forfeit-command wrapper identified by the local pause/timeout and round-countdown rejection strings before the tailcall into the deeper retail forfeit helpers. | High |
 | `0x10045BD0` | `Cmd_ReadyUp_f` | `g_cmds.c::Cmd_ReadyUp_f` | Retail ready-up command helper that toggles the per-client ready latch, enforces the minimum-player and team-presence gates, and prints the `Ready` / `Not Ready` warmup centerprint. | High |
 | `0x10045DD0` | `ClientCommand` | `g_cmds.c::ClientCommand` | HLIL-visible command dispatch over `say_team`, `vsay_team`, `vosay_team`, `callvote`, `give`, `follow`, `team`, and other retail client commands matches the source dispatcher. | High |
+| `0x10046970` | `TossClientCubes` | `g_combat.c::TossClientCubes` | Harvester skull-drop helper backed by the carried-skull count, the `Red Skull` / `Blue Skull` item lookups, and the death-path call that ejects the cubes before corpse cleanup. | High |
 | `0x1004BC30` | `G_FreezeResolveRoundState` | Retail-only Freeze controller helper | Resolves any expired deferred round-state transition through `Freeze_RoundStateTransition` and returns the current Freeze controller state for HUD/end-frame callers. | High |
 | `0x1004BC80` | `G_FreezeSetClientFrozenState` | Retail-only shared Freeze helper spanning `g_freeze.c::G_FreezeApplyFreezeState` and `g_freeze.c::G_FreezeThawClient` | Shared retail-only mutator that applies frozen or thawed client state, emits the corresponding temp-entity/event path, and refreshes the active-player tally used by the surrounding round controller. | High |
 | `0x1004BDE0` | `G_FreezeResetClientForRound` | Retail-only per-client Freeze helper / `g_active.c::G_FreezeResetClientsForRound` analogue | Reused from `ClientBegin` and the delayed active-client reset path; restores clients for warmup or active-round starts and pushes them into the holding state when the controller is not ready to release them. | High |
@@ -93,7 +247,9 @@ behavior and source analogue align cleanly.
 | `0x100530F0` | `G_GetClientScore` | Retail-only native export helper | Validates the client slot and returns `gclient->ps.persistant[PERS_SCORE]` from offset `0x100`. | High |
 | `0x10053120` | `dllEntry` | Native qagame interface / `g_syscalls.c::dllEntry` analogue | Named export in HLIL and Ghidra. Retail stores the import table pointer, returns the direct-export table, and writes API version `10` through the third out-parameter. | High |
 | `0x10053290` | `G_FindTeams` | `g_main.c::G_FindTeams` | Groups entities with matching `team` keys and ends with `%i teams with %i entities`. | High |
+| `0x10053400` | `G_UpdateCustomSettingsMaskForCvar` | Retail-only cvar-table helper | Reused from both `G_RegisterCvars` and `G_UpdateCvars`; it recognizes custom-setting CVars such as `weapon_reload_gauntlet` and `g_damage_sg_outer`, then sets or clears the corresponding bits in the published `g_customSettings` mask. | High |
 | `0x10054920` | `G_RegisterCvars` | `g_main.c::G_RegisterCvars` | Walks the main game cvar table, tracks `g_customSettings`, clamps `g_gametype`, and explicitly registers `g_version`, matching the retail registration pass. | High |
+| `0x100549E0` | `G_InitPublishedCvarState` | Retail-only `G_InitGame` sidecar | Called immediately after `G_RegisterCvars`; it seeds the published factory/custom/loadout configstring slab plus the retail Domination/Red Rover numeric configstrings and snapshots the related cvar mirrors used later in gameplay. | High |
 | `0x10054DD0` | `G_UpdateCvars` | `g_main.c::G_UpdateCvars` | Walks the same cvar table with modification-count tracking, refreshes `g_customSettings`, and fans into follow-on update handlers just like the retail cvar update pass. | High |
 | `0x10054F00` | `FindIntermissionPoint` | `g_main.c::FindIntermissionPoint` | Anchored by `info_player_intermission` plus the warning fallback and the target-facing intermission-angle adjustment. | High |
 | `0x10055000` | `G_CountSpawnPoints` | Retail-only descriptive helper inside `g_main.c::G_InitGame` | Clears the cached spawn counters, then scans all entities for `info_player_deathmatch`, `team_CTF_redspawn`, and `team_CTF_bluespawn` before the rest of `G_InitGame` continues. | High |
@@ -147,7 +303,7 @@ behavior and source analogue align cleanly.
 | `0x10065F30` | `G_SpawnClassExemptFromSpawnFilter` | Retail-only `g_spawn.c` helper (no direct GPL analogue) | Anchored by `item_armor_shard`, `team_redobelisk`, and `team_blueobelisk`, then used inside `G_SpawnGEntityFromSpawnVars` to bypass the normal `notfree` / `notteam` / `gametype` / `not_gametype` rejection path for specific classes. | High |
 | `0x10066230` | `G_ParseSpawnVars` | `g_spawn.c::G_ParseSpawnVars` | Parse/error strings match the brace-bounded entity parser. Retail inlines `G_AddSpawnVarToken` here. | High |
 | `0x10066440` | `SP_worldspawn` | `g_spawn.c::SP_worldspawn` | `SP_worldspawn: The first entity isn't 'worldspawn'` string, world metadata parsing, and warmup/configstring setup. | High |
-| `0x10066B90` | `ConsoleCommand` | `g_svcmds.c::ConsoleCommand` | HLIL-only boundary dispatching `entitylist`, `forceteam`, `game_memory`, `addbot`, and `botlist`, matching the source console-command handler. | High |
+| `0x10066B90` | `ConsoleCommand` | `g_svcmds.c::ConsoleCommand` | HLIL-only boundary dispatching `entitylist`, `forceteam`, `game_memory`, `addbot`, `botlist`, `game_crash`, `forceshuffle`, `dumpvars`, and `reload_access` before the remaining hidden debug/admin fallthrough. | High |
 | `0x10067EC0` | `G_ClientsOnSameTeam` | Retail-only native export helper wrapping `g_team.c::OnSameTeam` | Compares two `gclient_t` session teams directly and keeps the retail spectator-equality allowance that survives below `GT_TEAM`. | High |
 | `0x10067F00` | `G_ClientNumsOnSameTeam` | Retail-only native export helper wrapping `g_team.c::OnSameTeam` | Validates two client numbers against `level.clients` and then tails into `G_ClientsOnSameTeam`. | High |
 | `0x10067F30` | `OnSameTeam` | `g_team.c::OnSameTeam` | Entity-level same-team predicate used across combat, chat, and objective logic; retail keeps the classic client/sessionTeam comparison but treats matching spectators as same-team even outside team gametypes. | High |

@@ -82,6 +82,8 @@
 #define DEFAULT_STARTING_HEALTH            100
 #define DEFAULT_STARTING_HEALTH_BONUS      25
 #define DEFAULT_STARTING_ARMOR             0
+#define DEFAULT_MACHINEGUN_IRONSIGHTS_SCALE 1.0f
+#define DEFAULT_PROX_MINE_TIMEOUT         20000
 
 #define DEFAULT_RESPAWN_DELAY_MIN_MILLISECONDS      500
 #define DEFAULT_RESPAWN_DELAY_MAX_MILLISECONDS      3500
@@ -661,6 +663,159 @@ void G_UpdateFactoryCvarConfig( void ) {
         }
 
         g_factoryCvarConfig = config;
+}
+
+/*
+=============
+G_ConfigFloatDiffersFromDefault
+
+Returns whether a float-backed retail server-settings field differs from its
+compiled default.
+=============
+*/
+static qboolean G_ConfigFloatDiffersFromDefault( float value, float defaultValue ) {
+	if ( value < defaultValue - 0.0001f ) {
+		return qtrue;
+	}
+	if ( value > defaultValue + 0.0001f ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+G_ComputeConfigCustomSettingsMask
+
+Builds the retail custom-settings mask bits owned by the gameplay config and
+weapon configuration surfaces.
+=============
+*/
+uint64_t G_ComputeConfigCustomSettingsMask( void ) {
+	uint64_t mask;
+
+	mask = 0;
+
+	if ( g_weaponReloadConfig.gauntlet != DEFAULT_WEAPON_RELOAD_GAUNTLET ||
+		 g_weaponConfig.gauntletDamage != 50 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.gauntlet, DEFAULT_KNOCKBACK_G ) ) {
+		mask |= CUSTOM_SETTING_GAUNTLET;
+	}
+
+	if ( g_weaponReloadConfig.machinegun != DEFAULT_WEAPON_RELOAD_MG ||
+		 g_weaponConfig.machinegunDamage != 5 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.machinegun, DEFAULT_KNOCKBACK_MG ) ||
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.machinegunIronsightsScale, DEFAULT_MACHINEGUN_IRONSIGHTS_SCALE ) ) {
+		mask |= CUSTOM_SETTING_MACHINEGUN;
+	}
+
+	if ( g_weaponReloadConfig.shotgun != DEFAULT_WEAPON_RELOAD_SG ||
+		 g_weaponConfig.shotgunDamage != 5 ||
+		 g_damage_sg_outer.integer != 5 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.shotgun, DEFAULT_KNOCKBACK_SG ) ||
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.shotgunFalloffScale, 0.0f ) ) {
+		mask |= CUSTOM_SETTING_SHOTGUN;
+	}
+
+	if ( g_weaponReloadConfig.grenadeLauncher != DEFAULT_WEAPON_RELOAD_GL ||
+		 g_weaponConfig.grenadeDamage != 100 ||
+		 g_weaponConfig.grenadeSplashDamage != 100 ||
+		 g_weaponConfig.grenadeSplashRadius != 150 ||
+		 g_weaponConfig.grenadeSpeed != 700 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.grenadeLauncher, DEFAULT_KNOCKBACK_GL ) ) {
+		mask |= CUSTOM_SETTING_GRENADE_LAUNCHER;
+	}
+
+	if ( g_weaponReloadConfig.rocketLauncher != DEFAULT_WEAPON_RELOAD_RL ||
+		 g_weaponConfig.rocketDamage != 100 ||
+		 g_weaponConfig.rocketSplashDamage != 100 ||
+		 g_weaponConfig.rocketSplashRadius != 120 ||
+		 g_weaponConfig.rocketSpeed != 900 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.rocketLauncher, DEFAULT_KNOCKBACK_RL ) ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.rocketLauncherSelf, DEFAULT_KNOCKBACK_RL_SELF ) ||
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 0.0f ) ) {
+		mask |= CUSTOM_SETTING_ROCKET_LAUNCHER;
+	}
+
+	if ( g_weaponReloadConfig.lightningGun != DEFAULT_WEAPON_RELOAD_LG ||
+		 g_weaponConfig.lightningDamage != 6 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.lightningGun, DEFAULT_KNOCKBACK_LG ) ||
+		 g_weaponConfig.lightningFalloffDamage != 0 ) {
+		mask |= CUSTOM_SETTING_LIGHTNING_GUN;
+	}
+
+	if ( g_weaponReloadConfig.railgun != DEFAULT_WEAPON_RELOAD_RG ||
+		 g_weaponConfig.railgunDamage != 80 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.railgun, DEFAULT_KNOCKBACK_RG ) ) {
+		mask |= CUSTOM_SETTING_RAILGUN;
+	}
+
+	if ( g_weaponReloadConfig.plasmagun != DEFAULT_WEAPON_RELOAD_PG ||
+		 g_weaponConfig.plasmaDamage != 20 ||
+		 g_weaponConfig.plasmaSplashDamage != 15 ||
+		 g_weaponConfig.plasmaSplashRadius != 20 ||
+		 g_weaponConfig.plasmaSpeed != 2000 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagun, DEFAULT_KNOCKBACK_PG ) ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagunSelf, DEFAULT_KNOCKBACK_PG_SELF ) ||
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 0.0f ) ) {
+		mask |= CUSTOM_SETTING_PLASMAGUN;
+	}
+
+	if ( g_weaponReloadConfig.bfg != DEFAULT_WEAPON_RELOAD_BFG ||
+		 g_weaponConfig.bfgDamage != 100 ||
+		 g_weaponConfig.bfgSplashDamage != 100 ||
+		 g_weaponConfig.bfgSplashRadius != 120 ||
+		 g_weaponConfig.bfgSpeed != 2000 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.bfg, DEFAULT_KNOCKBACK_BFG ) ||
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 0.0f ) ) {
+		mask |= CUSTOM_SETTING_BFG;
+	}
+
+	if ( g_weaponConfig.grappleDamage != 10 ||
+		 g_weaponReloadConfig.grapplingHook != DEFAULT_WEAPON_RELOAD_GH ||
+		 g_weaponReloadConfig.hook != DEFAULT_WEAPON_RELOAD_HOOK ||
+		 g_weaponConfig.grappleSpeed != 800 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.grapplingHook, DEFAULT_KNOCKBACK_GH ) ||
+		 G_PmoveHasGrappleVelocityCustomSetting() ) {
+		mask |= CUSTOM_SETTING_GRAPPLING_HOOK;
+	}
+
+	if ( g_weaponReloadConfig.nailgun != DEFAULT_WEAPON_RELOAD_NG ||
+		 g_damage_ng.integer != 12 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.nailgun, DEFAULT_KNOCKBACK_NG ) ||
+		 g_nailbounce.integer != 1 ||
+		 g_nailbouncepercentage.integer != 65 ) {
+		mask |= CUSTOM_SETTING_NAILGUN;
+	}
+
+	if ( g_weaponReloadConfig.proximityLauncher != DEFAULT_WEAPON_RELOAD_PROX ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.proximityLauncher, DEFAULT_KNOCKBACK_PL ) ||
+		 g_proxMineTimeout.integer != DEFAULT_PROX_MINE_TIMEOUT ) {
+		mask |= CUSTOM_SETTING_PROX_LAUNCHER;
+	}
+
+	if ( g_weaponReloadConfig.chaingun != DEFAULT_WEAPON_RELOAD_CG ||
+		 g_weaponConfig.chaingunDamage != 8 ||
+		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.chaingun, DEFAULT_KNOCKBACK_CG ) ) {
+		mask |= CUSTOM_SETTING_CHAINGUN;
+	}
+
+	if ( g_factoryCvarConfig.regenHealthDelayMilliseconds != DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS ||
+		 g_factoryCvarConfig.regenArmorDelayMilliseconds != DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS ) {
+		mask |= CUSTOM_SETTING_REGEN_HEALTH;
+	}
+
+	if ( g_factoryCvarConfig.spawnItemWeapons != DEFAULT_SPAWN_ITEM_WEAPONS ||
+		 g_factoryCvarConfig.spawnItemPowerup != DEFAULT_SPAWN_ITEM_POWERUP ||
+		 g_factoryCvarConfig.spawnItemHoldable != DEFAULT_SPAWN_ITEM_HOLDABLE ||
+		 g_factoryCvarConfig.spawnItemHealth != DEFAULT_SPAWN_ITEM_HEALTH ||
+		 g_factoryCvarConfig.spawnItemArmor != DEFAULT_SPAWN_ITEM_ARMOR ||
+		 g_factoryCvarConfig.spawnItemAmmo != DEFAULT_SPAWN_ITEM_AMMO ) {
+		mask |= CUSTOM_SETTING_ITEM_SPAWNING;
+	}
+
+	return mask;
 }
 
 static int G_ReadStartingAmmoCvar( const vmCvar_t *cvar, int fallback, const char *cvarName ) {

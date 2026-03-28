@@ -128,17 +128,6 @@ qboolean CL_SteamServicesEnabled( void ) {
 	return CL_OnlineServicesEnabled();
 }
 
-/*
-=============
-CL_UseDisconnectedConsoleFallback
-
-Enables a console-first disconnected experience when launcher ecosystems are disabled.
-=============
-*/
-qboolean CL_UseDisconnectedConsoleFallback( void ) {
-	return !CL_OnlineServicesEnabled();
-}
-
 cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
 cvar_t	*cl_allowConsoleChat;
@@ -2160,8 +2149,6 @@ CL_Frame
 ==================
 */
 void CL_Frame ( int msec ) {
-	static qboolean	disconnectedFallbackLogged = qfalse;
-
 	if ( !com_cl_running->integer ) {
 		return;
 	}
@@ -2172,18 +2159,7 @@ void CL_Frame ( int msec ) {
 		VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_NEED_CD );
 	} else	if ( cls.state == CA_DISCONNECTED
 		&& !com_sv_running->integer ) {
-		if ( CL_UseDisconnectedConsoleFallback() ) {
-			if ( uivm && ( cls.keyCatchers & KEYCATCH_UI ) ) {
-				VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_NONE );
-			}
-			S_StopBackgroundTrack();
-			cls.keyCatchers = KEYCATCH_CONSOLE;
-			if ( !disconnectedFallbackLogged ) {
-				Com_Printf( "CL_Frame: disconnected console fallback active (state=%d keyCatchers=%d)\n",
-					cls.state, cls.keyCatchers );
-				disconnectedFallbackLogged = qtrue;
-			}
-		} else if ( !( cls.keyCatchers & KEYCATCH_UI ) ) {
+		if ( !( cls.keyCatchers & KEYCATCH_UI ) ) {
 			// if disconnected, bring up the menu
 			S_StopAllSounds();
 			VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );

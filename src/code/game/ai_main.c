@@ -78,6 +78,7 @@ vmCvar_t bot_report;
 vmCvar_t bot_testsolid;
 vmCvar_t bot_testclusters;
 vmCvar_t bot_developer;
+vmCvar_t bot_log;
 vmCvar_t bot_interbreedchar;
 vmCvar_t bot_interbreedbots;
 vmCvar_t bot_interbreedcycle;
@@ -265,290 +266,6 @@ void BotTestAAS(vec3_t origin) {
 			trap_AAS_AreaInfo(areanum, &info);
 			BotAI_Print(PRT_MESSAGE, "\rarea %d, cluster %d       ", areanum, info.cluster);
 		}
-	}
-}
-
-/*
-==================
-BotReportStatus
-==================
-*/
-void BotReportStatus(bot_state_t *bs) {
-	char goalname[MAX_MESSAGE_SIZE];
-	char netname[MAX_MESSAGE_SIZE];
-	char *leader, flagstatus[32];
-	//
-	ClientName(bs->client, netname, sizeof(netname));
-	if (Q_stricmp(netname, bs->teamleader) == 0) leader = "L";
-	else leader = " ";
-
-	strcpy(flagstatus, "  ");
-	if (gametype == GT_CTF) {
-		if (BotCTFCarryingFlag(bs)) {
-			if (BotTeam(bs) == TEAM_RED) strcpy(flagstatus, S_COLOR_RED"F ");
-			else strcpy(flagstatus, S_COLOR_BLUE"F ");
-		}
-	}
-	else if (gametype == GT_1FCTF) {
-		if (Bot1FCTFCarryingFlag(bs)) {
-			if (BotTeam(bs) == TEAM_RED) strcpy(flagstatus, S_COLOR_RED"F ");
-			else strcpy(flagstatus, S_COLOR_BLUE"F ");
-		}
-	}
-	else if (gametype == GT_HARVESTER) {
-		if (BotHarvesterCarryingCubes(bs)) {
-			if (BotTeam(bs) == TEAM_RED) Com_sprintf(flagstatus, sizeof(flagstatus), S_COLOR_RED"%2d", bs->inventory[INVENTORY_REDCUBE]);
-			else Com_sprintf(flagstatus, sizeof(flagstatus), S_COLOR_BLUE"%2d", bs->inventory[INVENTORY_BLUECUBE]);
-		}
-	}
-
-	switch(bs->ltgtype) {
-		case LTG_TEAMHELP:
-		{
-			EasyClientName(bs->teammate, goalname, sizeof(goalname));
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: helping %s\n", netname, leader, flagstatus, goalname);
-			break;
-		}
-		case LTG_TEAMACCOMPANY:
-		{
-			EasyClientName(bs->teammate, goalname, sizeof(goalname));
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: accompanying %s\n", netname, leader, flagstatus, goalname);
-			break;
-		}
-		case LTG_DEFENDKEYAREA:
-		{
-			trap_BotGoalName(bs->teamgoal.number, goalname, sizeof(goalname));
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: defending %s\n", netname, leader, flagstatus, goalname);
-			break;
-		}
-		case LTG_GETITEM:
-		{
-			trap_BotGoalName(bs->teamgoal.number, goalname, sizeof(goalname));
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: getting item %s\n", netname, leader, flagstatus, goalname);
-			break;
-		}
-		case LTG_KILL:
-		{
-			ClientName(bs->teamgoal.entitynum, goalname, sizeof(goalname));
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: killing %s\n", netname, leader, flagstatus, goalname);
-			break;
-		}
-		case LTG_CAMP:
-		case LTG_CAMPORDER:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: camping\n", netname, leader, flagstatus);
-			break;
-		}
-		case LTG_PATROL:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: patrolling\n", netname, leader, flagstatus);
-			break;
-		}
-		case LTG_GETFLAG:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: capturing flag\n", netname, leader, flagstatus);
-			break;
-		}
-		case LTG_RUSHBASE:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: rushing base\n", netname, leader, flagstatus);
-			break;
-		}
-		case LTG_RETURNFLAG:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: returning flag\n", netname, leader, flagstatus);
-			break;
-		}
-		case LTG_ATTACKENEMYBASE:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: attacking the enemy base\n", netname, leader, flagstatus);
-			break;
-		}
-		case LTG_HARVEST:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: harvesting\n", netname, leader, flagstatus);
-			break;
-		}
-		default:
-		{
-			BotAI_Print(PRT_MESSAGE, "%-20s%s%s: roaming\n", netname, leader, flagstatus);
-			break;
-		}
-	}
-}
-
-/*
-==================
-BotTeamplayReport
-==================
-*/
-void BotTeamplayReport(void) {
-	int i;
-	char buf[MAX_INFO_STRING];
-
-	BotAI_Print(PRT_MESSAGE, S_COLOR_RED"RED\n");
-	for (i = 0; i < maxclients && i < MAX_CLIENTS; i++) {
-		//
-		if ( !botstates[i] || !botstates[i]->inuse ) continue;
-		//
-		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
-		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
-		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_RED) {
-			BotReportStatus(botstates[i]);
-		}
-	}
-	BotAI_Print(PRT_MESSAGE, S_COLOR_BLUE"BLUE\n");
-	for (i = 0; i < maxclients && i < MAX_CLIENTS; i++) {
-		//
-		if ( !botstates[i] || !botstates[i]->inuse ) continue;
-		//
-		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
-		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
-		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_BLUE) {
-			BotReportStatus(botstates[i]);
-		}
-	}
-}
-
-/*
-==================
-BotSetInfoConfigString
-==================
-*/
-void BotSetInfoConfigString(bot_state_t *bs) {
-	char goalname[MAX_MESSAGE_SIZE];
-	char netname[MAX_MESSAGE_SIZE];
-	char action[MAX_MESSAGE_SIZE];
-	char *leader, carrying[32], *cs;
-	bot_goal_t goal;
-	//
-	ClientName(bs->client, netname, sizeof(netname));
-	if (Q_stricmp(netname, bs->teamleader) == 0) leader = "L";
-	else leader = " ";
-
-	strcpy(carrying, "  ");
-	if (gametype == GT_CTF) {
-		if (BotCTFCarryingFlag(bs)) {
-			strcpy(carrying, "F ");
-		}
-	}
-	else if (gametype == GT_1FCTF) {
-		if (Bot1FCTFCarryingFlag(bs)) {
-			strcpy(carrying, "F ");
-		}
-	}
-	else if (gametype == GT_HARVESTER) {
-		if (BotHarvesterCarryingCubes(bs)) {
-			if (BotTeam(bs) == TEAM_RED) Com_sprintf(carrying, sizeof(carrying), "%2d", bs->inventory[INVENTORY_REDCUBE]);
-			else Com_sprintf(carrying, sizeof(carrying), "%2d", bs->inventory[INVENTORY_BLUECUBE]);
-		}
-	}
-
-	switch(bs->ltgtype) {
-		case LTG_TEAMHELP:
-		{
-			EasyClientName(bs->teammate, goalname, sizeof(goalname));
-			Com_sprintf(action, sizeof(action), "helping %s", goalname);
-			break;
-		}
-		case LTG_TEAMACCOMPANY:
-		{
-			EasyClientName(bs->teammate, goalname, sizeof(goalname));
-			Com_sprintf(action, sizeof(action), "accompanying %s", goalname);
-			break;
-		}
-		case LTG_DEFENDKEYAREA:
-		{
-			trap_BotGoalName(bs->teamgoal.number, goalname, sizeof(goalname));
-			Com_sprintf(action, sizeof(action), "defending %s", goalname);
-			break;
-		}
-		case LTG_GETITEM:
-		{
-			trap_BotGoalName(bs->teamgoal.number, goalname, sizeof(goalname));
-			Com_sprintf(action, sizeof(action), "getting item %s", goalname);
-			break;
-		}
-		case LTG_KILL:
-		{
-			ClientName(bs->teamgoal.entitynum, goalname, sizeof(goalname));
-			Com_sprintf(action, sizeof(action), "killing %s", goalname);
-			break;
-		}
-		case LTG_CAMP:
-		case LTG_CAMPORDER:
-		{
-			Com_sprintf(action, sizeof(action), "camping");
-			break;
-		}
-		case LTG_PATROL:
-		{
-			Com_sprintf(action, sizeof(action), "patrolling");
-			break;
-		}
-		case LTG_GETFLAG:
-		{
-			Com_sprintf(action, sizeof(action), "capturing flag");
-			break;
-		}
-		case LTG_RUSHBASE:
-		{
-			Com_sprintf(action, sizeof(action), "rushing base");
-			break;
-		}
-		case LTG_RETURNFLAG:
-		{
-			Com_sprintf(action, sizeof(action), "returning flag");
-			break;
-		}
-		case LTG_ATTACKENEMYBASE:
-		{
-			Com_sprintf(action, sizeof(action), "attacking the enemy base");
-			break;
-		}
-		case LTG_HARVEST:
-		{
-			Com_sprintf(action, sizeof(action), "harvesting");
-			break;
-		}
-		default:
-		{
-			trap_BotGetTopGoal(bs->gs, &goal);
-			trap_BotGoalName(goal.number, goalname, sizeof(goalname));
-			Com_sprintf(action, sizeof(action), "roaming %s", goalname);
-			break;
-		}
-	}
-  	cs = va("l\\%s\\c\\%s\\a\\%s",
-				leader,
-				carrying,
-				action);
-  	trap_SetConfigstring (CS_BOTINFO + bs->client, cs);
-}
-
-/*
-==============
-BotUpdateInfoConfigStrings
-==============
-*/
-void BotUpdateInfoConfigStrings(void) {
-	int i;
-	char buf[MAX_INFO_STRING];
-
-	for (i = 0; i < maxclients && i < MAX_CLIENTS; i++) {
-		//
-		if ( !botstates[i] || !botstates[i]->inuse )
-			continue;
-		//
-		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
-		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n")))
-			continue;
-		BotSetInfoConfigString(botstates[i]);
 	}
 }
 
@@ -1388,12 +1105,6 @@ int BotAIStartFrame(int time) {
 	trap_Cvar_Update(&bot_pause);
 	trap_Cvar_Update(&bot_report);
 
-	if (bot_report.integer) {
-//		BotTeamplayReport();
-//		trap_Cvar_Set("bot_report", "0");
-		BotUpdateInfoConfigStrings();
-	}
-
 	if (bot_pause.integer) {
 		// execute bot user commands every frame
 		for( i = 0; i < MAX_CLIENTS; i++ ) {
@@ -1427,6 +1138,7 @@ int BotAIStartFrame(int time) {
 	if (bot_thinktime.integer > 200) {
 		trap_Cvar_Set("bot_thinktime", "200");
 	}
+	trap_BotLibVarSet("bot_showPath", "0");
 	//if the bot think time changed we should reschedule the bots
 	if (bot_thinktime.integer != lastbotthink_time) {
 		lastbotthink_time = bot_thinktime.integer;
@@ -1581,7 +1293,9 @@ int BotInitLibrary(void) {
 	trap_BotLibVarSet("g_gametype", buf);
 	//bot developer mode and log file
 	trap_BotLibVarSet("bot_developer", bot_developer.string);
-	trap_BotLibVarSet("log", buf);
+	trap_BotLibVarSet("bot_showPath", "0");
+	trap_Cvar_VariableStringBuffer("bot_log", buf, sizeof(buf));
+	trap_BotLibVarSet("bot_log", buf);
 	//no chatting
 	trap_Cvar_VariableStringBuffer("bot_nochat", buf, sizeof(buf));
 	if (strlen(buf)) trap_BotLibVarSet("nochat", "0");
@@ -1630,6 +1344,7 @@ BotAISetup
 int BotAISetup( int restart ) {
 	int			errnum;
 
+	trap_Cvar_Register(&bot_log, "bot_log", "0", 0);
 	trap_Cvar_Register(&bot_thinktime, "bot_thinktime", "100", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_memorydump, "bot_memorydump", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_saveroutingcache, "bot_saveroutingcache", "0", CVAR_CHEAT);

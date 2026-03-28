@@ -134,3 +134,11 @@ def test_client_true_shotgun_pattern_matches_server_ring() -> None:
     assert "u = 8000.0f * sin( DEG2RAD( angle ) );" in pattern_body
     assert "r = 12000.0f * cos( DEG2RAD( angle ) );" in pattern_body
     assert "u = 12000.0f * sin( DEG2RAD( angle ) );" in pattern_body
+
+
+def test_retail_weapon_reload_defaults_match_recovered_cgame_table() -> None:
+    bg_pmove_c = _read("src/code/game/bg_pmove.c")
+
+    assert "[WP_BFG] = 300," in bg_pmove_c
+    assert "[WP_GRAPPLING_HOOK] = 200," in bg_pmove_c
+    assert "[WP_HEAVY_MACHINEGUN] = 80," in bg_pmove_c

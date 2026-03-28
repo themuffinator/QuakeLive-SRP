@@ -36,6 +36,10 @@ country, map-rotation, ruleset, and match-summary state.
 - The catalog-side nested records `characterInfo`, `aliasInfo`, `teamInfo`,
   `gameTypeInfo`, `mapInfo`, and `tierInfo` are now documented separately in
   `docs/reverse-engineering/ui-catalog-struct-layouts.md`.
+- The Quake Live catalog-extension records `uiClanInfo_t`,
+  `mapRotationInfo_t`, `rulesetInfo_t`, and the flat `countryList[]` feeder
+  bank are now documented separately in
+  `docs/reverse-engineering/ui-quakelive-catalog-struct-layouts.md`.
 - The display-context nested records `displayContextDef_t` and
   `cachedAssets_t` are now documented separately in
   `docs/reverse-engineering/ui-display-context-struct-layouts.md`.
@@ -78,7 +82,7 @@ best-score and postgame helpers maintain the timing and visibility latches.
 | `0x000000` | `uiDC` | `displayContextDef_t` | Master UI display/render context. `_UI_Init` assigns renderer hooks, text helpers, feeder callbacks, cinematic hooks, screen scaling, cursor, white shader, fonts, and cached assets into this block. |
 | `0x011ECC` | `newHighScoreTime` | `int` | Real-time deadline for the `UI_SHOW_NEWHIGHSCORE` visibility gate. Written by `UI_CalcPostGameStats` and read by ownerdraw visibility checks. |
 | `0x011ED0` | `newBestTime` | `int` | Real-time deadline for the `UI_SHOW_NEWBESTTIME` gate. |
-| `0x011ED4` | `showPostGameTime` | `int` | Legacy carry-over postgame timing slot. Structurally present, but the current tree does not expose an active writer or reader. |
+| `0x011ED4` | `showPostGameTime` | `int` | Dormant Team Arena carry-over postgame timing slot. It exists in the older `assets/quake3` `uiInfo_t` baseline too, and neither that baseline nor the current tree exposes a live writer or reader. |
 | `0x011ED8` | `newHighScore` | `qboolean` | Postgame high-score latch populated through `UI_SetBestScores`. |
 | `0x011EDC` | `demoAvailable` | `qboolean` | Indicates whether a matching recorded demo exists for the current map/gametype. `UI_LoadBestScores` sets it by probing `demos/<map>_<gt>.dm_*`, and ownerdraw visibility uses it for `UI_SHOW_DEMOAVAILABLE`. |
 | `0x011EE0` | `soundHighScore` | `qboolean` | One-shot audio latch for the announcer high-score sound. The ownerdraw visibility path clears it after playing `newHighScoreSound`. |
@@ -87,7 +91,10 @@ best-score and postgame helpers maintain the timing and visibility latches.
 
 This band is mostly content-cache state. Retail evidence is strongest for the
 player/team list sub-band via `UI_BuildPlayerList`; the clan and country
-extensions are currently source-backed Quake Live additions.
+extensions are Quake Live additions, but the clan side now reads as a
+compatibility-heavy cache with no committed menu consumer and no bounded
+host-side `qz_instance` clan-roster contract or clan event family in the
+bounded browser publish surface.
 
 | Offset | Member | Type | Role |
 | --- | --- | --- | --- |
@@ -99,7 +106,7 @@ extensions are currently source-backed Quake Live additions.
 | `0x0127F0` | `teamCount` | `int` | Number of team definitions in `teamList[]`. |
 | `0x0127F4` | `teamList` | `teamInfo[MAX_TEAMS]` | Team metadata and icon/cinematic cache used by team-selection ownerdraws and setup flows. |
 | `0x0132F4` | `clanCount` | `int` | Number of live clan entries in `clanList[]`. Quake Live-specific addition. |
-| `0x0132F8` | `clanList` | `uiClanInfo_t[MAX_CLANS]` | Clan roster cache with id/name/tag/emblem metadata. Used by the clan feeder and emblem ownerdraws. |
+| `0x0132F8` | `clanList` | `uiClanInfo_t[MAX_CLANS]` | Clan roster cache with id/name/tag/emblem metadata. The current runtime code still exposes feeder paths for it, but no committed source or retail menu tree currently consumes those clan UI surfaces, and the bounded host `qz_instance` bridge likewise exposes no clan-roster RPC. The similarly named `UI_CLANNAME` / `UI_CLANLOGO` ownerdraws are older `teamList[]`-backed team-branding carry-overs, not consumers of this cache. |
 | `0x01F6F8` | `currentClan` | `int` | Selected clan index, or `-1` when no valid selection exists. |
 | `0x01F6FC` | `clanListLoaded` | `qboolean` | Guard indicating whether the clan cache has been populated. |
 | `0x01F700` | `countryCount` | `int` | Number of parsed country-code entries in `countryList[]`. Quake Live-specific addition. |
@@ -108,9 +115,12 @@ extensions are currently source-backed Quake Live additions.
 ## Gametype, Player Selection, Map, Rotation, Ruleset, And Tier Cache
 
 This is the main selection/catalog slab for offline and browser menus. Retail
-anchors are strongest for `UI_ParseGameInfo` and `UI_BuildPlayerList`; map
-rotations and rulesets are Quake Live extensions currently backed by the local
-reconstruction.
+anchors are strongest for `UI_ParseGameInfo` and `UI_BuildPlayerList`; the
+map-rotation cache now reads as a retail split between host-side map-pool
+loading and UI-side preview/filter consumers, with the retail callvote submit
+token tied to `ui_cvGameType` rather than to rotation rows, while the ruleset
+cache now reads as compatibility staging over game/host-owned
+ruleset-factory state rather than as a retail UI-owned menu band.
 
 | Offset | Member | Type | Role |
 | --- | --- | --- | --- |
@@ -132,12 +142,12 @@ reconstruction.
 | `0x020D2C` | `mapCount` | `int` | Number of valid `mapList[]` entries. |
 | `0x020D30` | `mapList` | `mapInfo[MAX_MAPS]` | Cached map metadata, levelshots, cinematics, and time-to-beat values populated by `UI_LoadArenas` / `UI_ParseGameInfo`. |
 | `0x023F30` | `mapRotationCount` | `int` | Number of valid `mapRotations[]` entries. Quake Live-specific addition. |
-| `0x023F34` | `mapRotations` | `mapRotationInfo_t[MAX_MAP_ROTATIONS]` | Parsed map-rotation/factory cache exposed through the callvote and feeder flows. |
+| `0x023F34` | `mapRotations` | `mapRotationInfo_t[MAX_MAP_ROTATIONS]` | Parsed map-rotation/factory cache exposed through the reconstructed callvote and feeder flows. Retail `uix86.dll` clearly consumes equivalent preview/filter state, while committed `quakelive_steam.exe` HLIL shows the file-backed `sv_mapPoolFile` bootstrap and parser living in the native host; the retail `voteMap` submit token itself is now better bounded to `ui_cvGameType -> UI_GetCallvoteGametypeToken` rather than to a rotation-row field. |
 | `0x164334` | `currentMapRotation` | `int` | Selected map-rotation index for the callvote rotation feeder. |
 | `0x164338` | `rulesetCount` | `int` | Number of valid ruleset entries in `rulesets[]`. Quake Live-specific addition. |
 | `0x16433C` | `rulesetIndex` | `int` | Selected ruleset entry index. |
-| `0x164340` | `rulesets` | `rulesetInfo_t[MAX_RULESETS]` | Cached ruleset token/description table loaded by `UI_LoadRulesets`. |
-| `0x168340` | `activeRuleset` | `char[MAX_CVAR_VALUE_STRING]` | Raw `g_ruleset` token used to seed and match the ruleset feeder cache. |
+| `0x164340` | `rulesets` | `rulesetInfo_t[MAX_RULESETS]` | Cached ruleset token/description table loaded by `UI_LoadRulesets`. The current best reading is a compatibility cache layered over game/host-owned ruleset-factory state rather than a retail UI-owned menu record. |
+| `0x168340` | `activeRuleset` | `char[MAX_CVAR_VALUE_STRING]` | Raw `g_ruleset` token used to seed and match the ruleset feeder cache from authoritative game state. |
 | `0x168440` | `tierCount` | `int` | Number of single-player tiers in `tierList[]`. |
 | `0x168444` | `tierList` | `tierInfo[MAX_TIERS]` | Single-player tier metadata reused by level/tier ownerdraws. |
 | `0x1686C4` | `skillIndex` | `int` | Current skill selection index for addbot and offline setup menus. |
@@ -186,7 +196,7 @@ Live additions for end-of-match scoreboards.
 | Offset | Member | Type | Role |
 | --- | --- | --- | --- |
 | `0x16DFD8` | `currentCrosshair` | `int` | Current crosshair selection index mirrored to `cg_drawCrosshair`. |
-| `0x16DFDC` | `startPostGameTime` | `int` | Legacy carry-over postgame anchor. Structurally present, but the current tree does not expose an active owner. |
+| `0x16DFDC` | `startPostGameTime` | `int` | Dormant Team Arena carry-over postgame anchor. It is already present in the older `assets/quake3` `uiInfo_t` baseline, and neither that baseline nor the current tree exposes a live owner. |
 | `0x16DFE0` | `newHighScoreSound` | `sfxHandle_t` | Registered announcer sound handle used when a new high score is shown. |
 | `0x16DFE4` | `q3HeadCount` | `int` | Number of fallback Quake III player-model heads discovered by `UI_BuildQ3Model_List`. |
 | `0x16DFE8` | `q3HeadNames` | `char[MAX_PLAYERMODELS][64]` | Fallback Q3 head/model name table. |
@@ -194,7 +204,7 @@ Live additions for end-of-match scoreboards.
 | `0x1723E8` | `q3SelectedHead` | `int` | Selected fallback Q3 head index. |
 | `0x1723EC` | `effectsColor` | `int` | Current effects-color/cosmetics selection mirrored to `color1`. |
 | `0x1723F0` | `inGameLoad` | `qboolean` | In-game-load mode latch. The original `_UI_Init(inGameLoad)` assignment is currently commented out, but later menu flow still checks this slot. |
-| `0x1723F4` | `matchSummary` | `uiMatchSummaryCache_t` | Quake Live-specific cached end-of-match summary: overall, red-team, and blue-team player lists plus match score/time metadata. |
+| `0x1723F4` | `matchSummary` | `uiMatchSummaryCache_t` | Quake Live-specific cached end-of-match summary: overall, red-team, and blue-team player lists plus match score/time metadata. In the current tree it also backs compatibility aliases for scoreboard-style feeders, but the retail scoreboard/team feeder family is already better anchored on the cgame `cgDC` side. |
 | `0x175418` | `currentMatchSummaryEnd` | `int` | Selected row index for the end-of-match feeder. |
 | `0x17541C` | `currentMatchSummaryRed` | `int` | Selected row index for the red-team summary feeder. |
 | `0x175420` | `currentMatchSummaryBlue` | `int` | Selected row index for the blue-team summary feeder. |
@@ -231,9 +241,15 @@ The Quake Live-era top-level additions are the following:
 
 ## Open Questions
 
-1. Promote the remaining retail `uix86.dll` helpers that own the clan, country,
-   map-rotation, ruleset, and match-summary flows so those bands can be marked
-   as directly retail-backed instead of only source-backed.
-2. Revisit the weak carry-over fields `showPostGameTime` and
-   `startPostGameTime` if later retail evidence shows that the current tree is
-   missing their live owners.
+1. Determine whether retail ever exposed any clan-roster ownership outside the
+   committed native/browser corpus. Within the local retail evidence set, the
+   native answer is already effectively "no": `FEEDER_CLANS` has no menu
+   consumer, `ui_clanName` / `ui_clanIndex` have no committed UI or host
+   anchors, the bounded host `qz_instance` table exposes map/factory/demo/
+   config, lobby, friend-list, and UGC helpers but no clan-roster contract,
+   and the bounded `EnginePublish` event vocabulary exposes lobby/game/web
+   event families but no clan event family. The misleading `UI_CLANNAME` /
+   `UI_CLANLOGO` ownerdraw labels are already accounted for in the older
+   `teamList[]` band, not in `clanList[]`. The host bootstrap also expects a
+   `web.pak` browser payload that is not present in the local retail asset set,
+   so the external browser layer remains unrepresented in this corpus.

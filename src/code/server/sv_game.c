@@ -456,9 +456,10 @@ static int	FloatAsInt( float f ) {
 
 /*
 ====================
-SV_GameSystemCalls
+SV_GameSystemCallsImpl
 
-The module is making a system call
+Implements the qagame trap surface for both legacy syscall dispatch and the
+native import-table bridge.
 ====================
 */
 //rcg010207 - see my comments in VM_DllSyscall(), in qcommon/vm.c ...
@@ -470,8 +471,11 @@ The module is making a system call
 
 #define	VMF(x)	((float *)args)[x]
 
-int SV_GameSystemCalls( int *args ) {
-	SyscallContract_LogEvent( "shim-game", "qagame", args, SYSCALL_CONTRACT_MAX_ARGS );
+static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
+	if ( logContract ) {
+		SyscallContract_LogEvent( "shim-game", "qagame", args, SYSCALL_CONTRACT_MAX_ARGS );
+	}
+
 	switch( args[0] ) {
 	case G_PRINT:
 		Com_Printf( "%s", VMA(1) );
@@ -1050,6 +1054,15 @@ int SV_GameSystemCalls( int *args ) {
 
 /*
 ====================
+SV_GameSystemCalls
+====================
+*/
+int SV_GameSystemCalls( int *args ) {
+	return SV_GameSystemCallsImpl( args, qtrue );
+}
+
+/*
+====================
 G_Import_Syscall
 ====================
 */
@@ -1067,9 +1080,9 @@ static int QDECL G_Import_Syscall( int arg, ... ) {
 	}
 	va_end(ap);
 
-	return SV_GameSystemCalls( args );
+	return SV_GameSystemCallsImpl( args, qfalse );
 #else
-	return SV_GameSystemCalls( &arg );
+	return SV_GameSystemCallsImpl( &arg, qfalse );
 #endif
 }
 
@@ -1077,9 +1090,9 @@ static int QDECL G_Import_Syscall( int arg, ... ) {
 
 typedef void (QDECL *ql_import_f)( void );
 
-#define QL_GAME_IMPORT_COUNT (G_RANK_REPORT_STR + 1)
+static ql_import_f ql_game_imports[GAME_NATIVE_IMPORT_COUNT];
 
-static ql_import_f ql_game_imports[QL_GAME_IMPORT_COUNT] = {
+static const ql_import_f ql_game_compat_imports[GAME_LEGACY_IMPORT_COUNT] = {
 	[G_PRINT] = (ql_import_f)QL_G_trap_Printf,
 	[G_ERROR] = (ql_import_f)QL_G_trap_Error,
 	[G_MILLISECONDS] = (ql_import_f)QL_G_trap_Milliseconds,
@@ -1290,6 +1303,232 @@ static ql_import_f ql_game_imports[QL_GAME_IMPORT_COUNT] = {
 };
 
 /*
+=================
+SV_ClientAddSteamStat
+
+Retail qagame calls this raw native import when medal/stat events fire. The
+open backend path is still unrecovered, so keep the slot alive as a no-op.
+=================
+*/
+static void SV_ClientAddSteamStat( int clientNum, int statIndex, int delta ) {
+	(void)clientNum;
+	(void)statIndex;
+	(void)delta;
+}
+
+/*
+=================
+SV_ClientUnlockSteamAchievement
+
+Retail qagame treats this as a fire-and-forget backend hook.
+=================
+*/
+static void SV_ClientUnlockSteamAchievement( int clientNum, int achievementId ) {
+	(void)clientNum;
+	(void)achievementId;
+}
+
+/*
+=================
+SV_ClientHasSteamAchievement
+
+Retail qagame probes this before firing duplicate achievement unlocks.
+=================
+*/
+static qboolean SV_ClientHasSteamAchievement( int clientNum, int achievementId ) {
+	(void)clientNum;
+	(void)achievementId;
+	return qfalse;
+}
+
+/*
+=================
+SV_SubmitMatchReport
+
+The recovered retail qagame publishes a JSON-like match report through this
+native slot. Keep the ABI stable until the backend contract is reconstructed.
+=================
+*/
+static void SV_SubmitMatchReport( void *report ) {
+	(void)report;
+}
+
+/*
+=================
+SV_ReportPlayerEvent
+
+Observed HLIL calls pass a SteamID pair, the client's retail stats block, an
+event label, and a JSON-like payload object.
+=================
+*/
+static void SV_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload ) {
+	(void)steamIdLow;
+	(void)steamIdHigh;
+	(void)clientStats;
+	(void)eventName;
+	(void)payload;
+}
+
+/*
+=================
+QL_G_trap_SubmitMatchReport
+=================
+*/
+static void QDECL QL_G_trap_SubmitMatchReport( void *report ) {
+	SV_SubmitMatchReport( report );
+}
+
+/*
+=================
+QL_G_trap_ReportPlayerEvent
+=================
+*/
+static void QDECL QL_G_trap_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload ) {
+	SV_ReportPlayerEvent( steamIdLow, steamIdHigh, clientStats, eventName, payload );
+}
+
+/*
+=================
+QL_G_trap_AddSteamStat
+=================
+*/
+static void QDECL QL_G_trap_AddSteamStat( int clientNum, int statIndex, int delta ) {
+	SV_ClientAddSteamStat( clientNum, statIndex, delta );
+}
+
+/*
+=================
+QL_G_trap_UnlockSteamAchievement
+=================
+*/
+static void QDECL QL_G_trap_UnlockSteamAchievement( int clientNum, int achievementId ) {
+	SV_ClientUnlockSteamAchievement( clientNum, achievementId );
+}
+
+/*
+=================
+QL_G_trap_HasSteamAchievement
+=================
+*/
+static qboolean QDECL QL_G_trap_HasSteamAchievement( int clientNum, int achievementId ) {
+	return SV_ClientHasSteamAchievement( clientNum, achievementId );
+}
+
+/*
+=================
+SV_InitGameImports
+
+Builds the retail qagame native import slab, then appends the legacy syscall
+table as a compatibility tail for source-built qagame and unrecovered slots.
+=================
+*/
+static void SV_InitGameImports( void ) {
+	Com_Memset( ql_game_imports, 0, sizeof( ql_game_imports ) );
+
+	ql_game_imports[G_QL_IMPORT_SEND_CONSOLE_COMMAND] = (ql_import_f)QL_G_trap_SendConsoleCommand;
+	ql_game_imports[G_QL_IMPORT_PRINT] = (ql_import_f)QL_G_trap_Printf;
+	ql_game_imports[G_QL_IMPORT_FS_WRITE] = (ql_import_f)QL_G_trap_FS_Write;
+	ql_game_imports[G_QL_IMPORT_FS_READ] = (ql_import_f)QL_G_trap_FS_Read;
+	ql_game_imports[G_QL_IMPORT_FS_GETFILELIST] = (ql_import_f)QL_G_trap_FS_GetFileList;
+	ql_game_imports[G_QL_IMPORT_FS_FOPEN_FILE] = (ql_import_f)QL_G_trap_FS_FOpenFile;
+	ql_game_imports[G_QL_IMPORT_FS_FCLOSE_FILE] = (ql_import_f)QL_G_trap_FS_FCloseFile;
+	ql_game_imports[G_QL_IMPORT_ERROR] = (ql_import_f)QL_G_trap_Error;
+	ql_game_imports[G_QL_IMPORT_CVAR_VARIABLE_INTEGER_VALUE] = (ql_import_f)QL_G_trap_Cvar_VariableIntegerValue;
+	ql_game_imports[G_QL_IMPORT_CVAR_UPDATE] = (ql_import_f)QL_G_trap_Cvar_Update;
+	ql_game_imports[G_QL_IMPORT_CVAR_VARIABLE_STRING_BUFFER] = (ql_import_f)QL_G_trap_Cvar_VariableStringBuffer;
+	ql_game_imports[G_QL_IMPORT_CVAR_SET] = (ql_import_f)QL_G_trap_Cvar_Set;
+	ql_game_imports[G_QL_IMPORT_CVAR_REGISTER] = (ql_import_f)QL_G_trap_Cvar_Register;
+	ql_game_imports[G_QL_IMPORT_ARGV] = (ql_import_f)QL_G_trap_Argv;
+	ql_game_imports[G_QL_IMPORT_ARGC] = (ql_import_f)QL_G_trap_Argc;
+	ql_game_imports[G_QL_IMPORT_LOCATE_GAME_DATA] = (ql_import_f)QL_G_trap_LocateGameData;
+	ql_game_imports[G_QL_IMPORT_DROP_CLIENT] = (ql_import_f)QL_G_trap_DropClient;
+	ql_game_imports[G_QL_IMPORT_SEND_SERVER_COMMAND] = (ql_import_f)QL_G_trap_SendServerCommand;
+	ql_game_imports[G_QL_IMPORT_SET_CONFIGSTRING] = (ql_import_f)QL_G_trap_SetConfigstring;
+	ql_game_imports[G_QL_IMPORT_GET_CONFIGSTRING] = (ql_import_f)QL_G_trap_GetConfigstring;
+	ql_game_imports[G_QL_IMPORT_GET_USERINFO] = (ql_import_f)QL_G_trap_GetUserinfo;
+	ql_game_imports[G_QL_IMPORT_SET_USERINFO] = (ql_import_f)QL_G_trap_SetUserinfo;
+	ql_game_imports[G_QL_IMPORT_GET_SERVERINFO] = (ql_import_f)QL_G_trap_GetServerinfo;
+	ql_game_imports[G_QL_IMPORT_SET_BRUSH_MODEL] = (ql_import_f)QL_G_trap_SetBrushModel;
+	ql_game_imports[G_QL_IMPORT_TRACE] = (ql_import_f)QL_G_trap_Trace;
+	ql_game_imports[G_QL_IMPORT_TRACECAPSULE] = (ql_import_f)QL_G_trap_TraceCapsule;
+	ql_game_imports[G_QL_IMPORT_POINT_CONTENTS] = (ql_import_f)QL_G_trap_PointContents;
+	ql_game_imports[G_QL_IMPORT_IN_PVS] = (ql_import_f)QL_G_trap_InPVS;
+	ql_game_imports[G_QL_IMPORT_ADJUST_AREA_PORTAL_STATE] = (ql_import_f)QL_G_trap_AdjustAreaPortalState;
+	ql_game_imports[G_QL_IMPORT_UNLINK_ENTITY] = (ql_import_f)QL_G_trap_UnlinkEntity;
+	ql_game_imports[G_QL_IMPORT_LINKENTITY] = (ql_import_f)QL_G_trap_LinkEntity;
+	ql_game_imports[G_QL_IMPORT_ENTITIES_IN_BOX] = (ql_import_f)QL_G_trap_EntitiesInBox;
+	ql_game_imports[G_QL_IMPORT_BOT_ALLOCATE_CLIENT] = (ql_import_f)QL_G_trap_BotAllocateClient;
+	ql_game_imports[G_QL_IMPORT_GET_USERCMD] = (ql_import_f)QL_G_trap_GetUsercmd;
+	ql_game_imports[G_QL_IMPORT_GET_ENTITY_TOKEN] = (ql_import_f)QL_G_trap_GetEntityToken;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_SETUP] = (ql_import_f)QL_G_trap_BotLibSetup;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_SHUTDOWN] = (ql_import_f)QL_G_trap_BotLibShutdown;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_LIBVAR_SET] = (ql_import_f)QL_G_trap_BotLibVarSet;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_PC_ADD_GLOBAL_DEFINE] = (ql_import_f)QL_G_trap_BotLibDefine;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_LOAD_MAP] = (ql_import_f)QL_G_trap_BotLibLoadMap;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_GET_SNAPSHOT_ENTITY] = (ql_import_f)QL_G_trap_BotGetSnapshotEntity;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_GET_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotGetServerCommand;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_USER_COMMAND] = (ql_import_f)QL_G_trap_BotUserCommand;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_ENTITY_INFO] = (ql_import_f)QL_G_trap_AAS_EntityInfo;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_BFLOAT] = (ql_import_f)QL_G_trap_Characteristic_BFloat;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_BINTEGER] = (ql_import_f)QL_G_trap_Characteristic_BInteger;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_STRING] = (ql_import_f)QL_G_trap_Characteristic_String;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ALLOC_CHAT_STATE] = (ql_import_f)QL_G_trap_BotAllocChatState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_CHAT_STATE] = (ql_import_f)QL_G_trap_BotFreeChatState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_QUEUE_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotQueueConsoleMessage;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_NEXT_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotNextConsoleMessage;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_NUM_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotNumConsoleMessages;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_INITIAL_CHAT] = (ql_import_f)QL_G_trap_BotInitialChat;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_NUM_INITIAL_CHATS] = (ql_import_f)QL_G_trap_BotNumInitialChats;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ENTER_CHAT] = (ql_import_f)QL_G_trap_BotEnterChat;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_CHAT_MESSAGE] = (ql_import_f)QL_G_trap_BotGetChatMessage;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FIND_MATCH] = (ql_import_f)QL_G_trap_BotFindMatch;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MATCH_VARIABLE] = (ql_import_f)QL_G_trap_BotMatchVariable;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_UNIFY_WHITE_SPACES] = (ql_import_f)QL_G_trap_UnifyWhiteSpaces;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_REPLACE_SYNONYMS] = (ql_import_f)QL_G_trap_BotReplaceSynonyms;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_LOAD_CHAT_FILE] = (ql_import_f)QL_G_trap_BotLoadChatFile;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_SET_CHAT_GENDER] = (ql_import_f)QL_G_trap_BotSetChatGender;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_SET_CHAT_NAME] = (ql_import_f)QL_G_trap_BotSetChatName;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_GOAL_STATE] = (ql_import_f)QL_G_trap_BotResetGoalState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_REMOVE_FROM_AVOID_GOALS] = (ql_import_f)QL_G_trap_BotRemoveFromAvoidGoals;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_AVOID_GOALS] = (ql_import_f)QL_G_trap_BotResetAvoidGoals;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_PUSH_GOAL] = (ql_import_f)QL_G_trap_BotPushGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_POP_GOAL] = (ql_import_f)QL_G_trap_BotPopGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GOAL_NAME] = (ql_import_f)QL_G_trap_BotGoalName;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_TOP_GOAL] = (ql_import_f)QL_G_trap_BotGetTopGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_SECOND_GOAL] = (ql_import_f)QL_G_trap_BotGetSecondGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHOOSE_LTG_ITEM] = (ql_import_f)QL_G_trap_BotChooseLTGItem;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHOOSE_NBG_ITEM] = (ql_import_f)QL_G_trap_BotChooseNBGItem;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_TOUCHING_GOAL] = (ql_import_f)QL_G_trap_BotTouchingGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ITEM_GOAL_IN_VIS_BUT_NOT_VISIBLE] = (ql_import_f)QL_G_trap_BotItemGoalInVisButNotVisible;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_NEXT_CAMP_SPOT_GOAL] = (ql_import_f)QL_G_trap_BotGetNextCampSpotGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_LEVEL_ITEM_GOAL] = (ql_import_f)QL_G_trap_BotGetLevelItemGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_SET_AVOID_GOAL_TIME] = (ql_import_f)QL_G_trap_BotSetAvoidGoalTime;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MOVE_TO_GOAL] = (ql_import_f)QL_G_trap_BotMoveToGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MOVE_IN_DIRECTION] = (ql_import_f)QL_G_trap_BotMoveInDirection;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_AVOID_REACH] = (ql_import_f)QL_G_trap_BotResetAvoidReach;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_LAST_AVOID_REACH] = (ql_import_f)QL_G_trap_BotResetLastAvoidReach;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MOVEMENT_VIEW_TARGET] = (ql_import_f)QL_G_trap_BotMovementViewTarget;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_INIT_MOVE_STATE] = (ql_import_f)QL_G_trap_BotInitMoveState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ADD_AVOID_SPOT] = (ql_import_f)QL_G_trap_BotAddAvoidSpot;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHOOSE_BEST_FIGHT_WEAPON] = (ql_import_f)QL_G_trap_BotChooseBestFightWeapon;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_WEAPON_INFO] = (ql_import_f)QL_G_trap_BotGetWeaponInfo;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_LOAD_WEAPON_WEIGHTS] = (ql_import_f)QL_G_trap_BotLoadWeaponWeights;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ALLOC_WEAPON_STATE] = (ql_import_f)QL_G_trap_BotAllocWeaponState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_WEAPON_STATE] = (ql_import_f)QL_G_trap_BotFreeWeaponState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_WEAPON_STATE] = (ql_import_f)QL_G_trap_BotResetWeaponState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GENETIC_PARENTS_AND_CHILD_SELECTION] = (ql_import_f)QL_G_trap_GeneticParentsAndChildSelection;
+	ql_game_imports[G_QL_IMPORT_SUBMIT_MATCH_REPORT] = (ql_import_f)QL_G_trap_SubmitMatchReport;
+	ql_game_imports[G_QL_IMPORT_REPORT_PLAYER_EVENT] = (ql_import_f)QL_G_trap_ReportPlayerEvent;
+	ql_game_imports[G_QL_IMPORT_STEAMID_QUERY] = (ql_import_f)QL_G_trap_GetSteamId;
+	ql_game_imports[G_QL_IMPORT_STEAM_STAT_ADD] = (ql_import_f)QL_G_trap_AddSteamStat;
+	ql_game_imports[G_QL_IMPORT_STEAM_UNLOCK_ACHIEVEMENT] = (ql_import_f)QL_G_trap_UnlockSteamAchievement;
+	ql_game_imports[G_QL_IMPORT_STEAM_HAS_ACHIEVEMENT] = (ql_import_f)QL_G_trap_HasSteamAchievement;
+	ql_game_imports[G_QL_IMPORT_STEAM_AUTH_VALIDATE] = (ql_import_f)QL_G_trap_VerifySteamAuth;
+
+	Com_Memcpy( &ql_game_imports[G_QL_IMPORT_COMPAT_BASE], ql_game_compat_imports, sizeof( ql_game_compat_imports ) );
+}
+
+/*
 ===============
 SV_ShutdownGameProgs
 
@@ -1367,6 +1606,7 @@ static vm_t *SV_LoadGameModule( vmInterpret_t interpret ) {
 	vm_t	*vm;
 
 	vm = NULL;
+	SV_InitGameImports();
 
 	if ( interpret != VMI_COMPILED ) {
 		vm = VM_Create( "qagame", SV_GameSystemCalls, VMI_NATIVE, ql_game_imports, GAME_API_VERSION );

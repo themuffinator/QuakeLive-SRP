@@ -3834,7 +3834,7 @@ RelativePath="client\snd_wavelet.c">
 				RelativePath="win32\cursor3.cur">
 			</File>
 			<File
-				RelativePath="win32\qe3.ico">
+				RelativePath="win32\qz.ico">
 			</File>
 			<File
 				RelativePath="win32\winquake.rc">

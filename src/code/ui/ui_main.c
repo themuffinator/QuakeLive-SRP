@@ -32,10 +32,17 @@ USER INTERFACE MAIN
 //#define PRE_RELEASE_TADEMO
 
 #include "ui_local.h"
+#include "../../common/platform/platform_config.h"
 #include <stdint.h>
 #include <stdlib.h>
 
 uiInfo_t uiInfo;
+
+#if QL_PLATFORM_HAS_ONLINE_SERVICES
+#define UI_BROWSER_AWESOMIUM_DEFAULT "1"
+#else
+#define UI_BROWSER_AWESOMIUM_DEFAULT "0"
+#endif
 
 static const char *MonthAbbrev[] = {
 	"Jan","Feb","Mar",
@@ -147,8 +154,12 @@ static void UI_ResetClanList(void);
 	static const char *UI_SelectedMap(int index, int *actual);
 	static const char *UI_SelectedHead(int index, int *actual);
 	static int UI_GetIndexFromSelection(int actual);
+	static const char *UI_GetCallvoteGametypeToken(int gametype);
 	static int UI_GetCallvoteRotationGametype(const mapRotationInfo_t *rotation);
-	static int UI_CountVisibleCallvoteRotations(void);
+	static int UI_CVMapCountByGameType(void);
+	static int UI_FindCallvoteRotationIndexForMap(int mapIndex, int preferredRotationIndex);
+	static void UI_SelectCallvoteMap(int index);
+	static void UI_SetCurrentNetMap(int mapIndex);
 	static void UI_HandleCallvoteMapPreviewScript(void);
 	static void UI_HandleCallvotePresetScript(void);
 	int Text_Width(const char *text, float scale, int limit);
@@ -575,6 +586,9 @@ Initialises the retail advertisement bridge when a host implementation exists.
 =============
 */
 static void UI_InitAdvertisementBridge(void) {
+#ifndef Q3_VM
+	trap_QL_InitAdvertisementBridge();
+#endif
 }
 
 /*
@@ -585,6 +599,14 @@ Provides the retail advert-cell setup callback with a default-content fallback.
 =============
 */
 static qhandle_t UI_SetupAdvertCellShader(const char *defaultContent, const rectDef_t *rect, int cellId) {
+#ifndef Q3_VM
+	qhandle_t shader = trap_QL_SetupAdvertCellShader( defaultContent, rect, cellId );
+
+	if ( shader ) {
+		return shader;
+	}
+#endif
+
 	(void)rect;
 	(void)cellId;
 
@@ -603,6 +625,14 @@ Provides the retail advert-cell refresh callback with a default-content fallback
 =============
 */
 static qhandle_t UI_RefreshAdvertCellShader(const char *defaultContent, const rectDef_t *rect, int cellId) {
+#ifndef Q3_VM
+	qhandle_t shader = trap_QL_RefreshAdvertCellShader( defaultContent, rect, cellId );
+
+	if ( shader ) {
+		return shader;
+	}
+#endif
+
 	(void)rect;
 	(void)cellId;
 
@@ -621,13 +651,18 @@ Handles the retail activateAdvert script command when no external bridge is pres
 =============
 */
 static void UI_ActivateAdvert(int cellId) {
+#ifndef Q3_VM
+	trap_QL_ActivateAdvert( cellId );
+#else
 	(void)cellId;
+#endif
 }
 
 void _UI_KeyEvent( int key, qboolean down );
 void _UI_MouseEvent( int dx, int dy );
 void _UI_Refresh( int realtime );
 qboolean _UI_IsFullscreen( void );
+void _UI_SetActiveMenu( uiMenuCommand_t menu );
 void UI_Load( void );
 int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11  ) {
 	switch ( command ) {
@@ -682,6 +717,41 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 }
 
 	return -1;
+}
+
+/*
+================
+UI_NativeHasUniqueCDKey
+================
+*/
+static qboolean UI_NativeHasUniqueCDKey( void ) {
+	return qtrue;
+}
+
+static void *ui_nativeExports[UI_NATIVE_EXPORT_COUNT] = {
+	[UI_NATIVE_EXPORT_INIT] = _UI_Init,
+	[UI_NATIVE_EXPORT_SHUTDOWN] = _UI_Shutdown,
+	[UI_NATIVE_EXPORT_KEY_EVENT] = _UI_KeyEvent,
+	[UI_NATIVE_EXPORT_MOUSE_EVENT] = _UI_MouseEvent,
+	[UI_NATIVE_EXPORT_REFRESH] = _UI_Refresh,
+	[UI_NATIVE_EXPORT_IS_FULLSCREEN] = _UI_IsFullscreen,
+	[UI_NATIVE_EXPORT_SET_ACTIVE_MENU] = _UI_SetActiveMenu,
+	[UI_NATIVE_EXPORT_CONSOLE_COMMAND] = UI_ConsoleCommand,
+	[UI_NATIVE_EXPORT_DRAW_CONNECT_SCREEN] = UI_DrawConnectScreen,
+	[UI_NATIVE_EXPORT_HAS_UNIQUE_CD_KEY] = UI_NativeHasUniqueCDKey,
+	[UI_NATIVE_EXPORT_REFRESH_DISPLAY_CONTEXT] = UI_RefreshDisplayContext,
+	[UI_NATIVE_EXPORT_MENUS_ANY_VISIBLE] = Menus_AnyVisible,
+	[UI_NATIVE_EXPORT_FOR_EACH_ARENA_NAME] = UI_ForEachArenaName,
+	[UI_NATIVE_EXPORT_DRAW_ADVERTISEMENT_WAIT_SCREEN] = UI_DrawAdvertisementWaitScreen
+};
+
+/*
+================
+UI_GetNativeExportTable
+================
+*/
+void **UI_GetNativeExportTable( void ) {
+	return ui_nativeExports;
 }
 
 static const char *const uiQLTextureNames[] = {
@@ -1395,12 +1465,49 @@ void _UI_Shutdown( void ) {
 
 char *defaultMenu = NULL;
 
+/*
+=================
+UI_GetRetailMenuPathAlias
+
+Resolves the known Quake Live metadata tables that moved under ui/.
+=================
+*/
+static const char *UI_GetRetailMenuPathAlias( const char *filename ) {
+	if ( !filename || !filename[0] ) {
+		return filename;
+	}
+
+	if ( strchr( filename, '/' ) || strchr( filename, '\\' ) ) {
+		return filename;
+	}
+
+	if ( !Q_stricmp( filename, "teaminfo.txt" ) ) {
+		return "ui/teaminfo.txt";
+	}
+
+	if ( !Q_stricmp( filename, "country.txt" ) ) {
+		return "ui/country.txt";
+	}
+
+	return filename;
+}
+
+/*
+=================
+GetMenuBuffer
+=================
+*/
 char *GetMenuBuffer(const char *filename) {
-	int	len;
+	const char	*resolvedFilename;
+	int		len;
 	fileHandle_t	f;
 	static char buf[MAX_MENUFILE];
 
-	len = trap_FS_FOpenFile( filename, &f, FS_READ );
+	resolvedFilename = UI_GetRetailMenuPathAlias( filename );
+	len = trap_FS_FOpenFile( resolvedFilename, &f, FS_READ );
+	if ( !f && resolvedFilename != filename ) {
+		len = trap_FS_FOpenFile( filename, &f, FS_READ );
+	}
 	if ( !f ) {
 		trap_Print( va( S_COLOR_RED "menu file not found: %s, using default\n", filename ) );
 		return defaultMenu;
@@ -1758,10 +1865,8 @@ void UI_Load() {
 
 #ifdef PRE_RELEASE_TADEMO
 	UI_ParseGameInfo("demogameinfo.txt");
-	UI_LoadMapRotations();
 #else
 	UI_ParseGameInfo("gameinfo.txt");
-	UI_LoadMapRotations();
 	UI_LoadArenas();
 	UI_LoadRulesets();
 #endif
@@ -2689,6 +2794,18 @@ static void UI_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader) {
 
 	trap_R_SetColor(color);
 	UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, shader);
+
+#ifndef Q3_VM
+	{
+		int pixelArea;
+
+		// Retail UI fires the slot-83 advert callback after drawing with an opaque first token and the draw area.
+		// The retail host provider is a no-op stub; the advert shader handle is the closest local proxy for that token.
+		pixelArea = (int)(rect->w * rect->h);
+		trap_QL_UpdateAdvert( shader, pixelArea );
+	}
+#endif
+
 	trap_R_SetColor(NULL);
 }
 
@@ -2719,7 +2836,7 @@ static void UI_DrawVoteString(rectDef_t *rect, float scale, vec4_t color, int te
 #define UI_SERVER_SETTINGS_ICON_SIZE		8.0f
 #define UI_SERVER_SETTINGS_ICON_SPACING	12.0f
 #define UI_SERVER_SETTINGS_ICON_WRAP		8
-#define UI_SERVER_SETTINGS_WEAPON_MASK	0x1FFFu
+#define UI_SERVER_SETTINGS_WEAPON_MASK	CUSTOM_SETTING_WEAPON_MASK
 
 /*
 =============
@@ -2787,63 +2904,50 @@ static qboolean UI_GetServerSettingInt( const char *serverInfo, const char *key,
 
 /*
 =============
-UI_GetPmoveSettingFloat
+UI_GetInfoSettingInt
 
-Parses a numeric field from the JSON-serialized `CS_PMOVE_SETTINGS` payload.
+Parses an integer field from an info-string configstring payload.
 =============
 */
-static qboolean UI_GetPmoveSettingFloat( const char *settingsText, const char *key, float *valueOut ) {
-	char pattern[64];
-	char *endPtr;
+static qboolean UI_GetInfoSettingInt( const char *settingsText, const char *key, int *valueOut ) {
 	const char *valueText;
 
 	if ( settingsText == NULL || key == NULL || valueOut == NULL ) {
 		return qfalse;
 	}
 
-	Com_sprintf( pattern, sizeof( pattern ), "\"%s\":", key );
-	valueText = strstr( settingsText, pattern );
-	if ( valueText == NULL ) {
+	valueText = Info_ValueForKey( settingsText, key );
+	if ( valueText == NULL || valueText[0] == '\0' ) {
 		return qfalse;
 	}
 
-	valueText += strlen( pattern );
-	*valueOut = (float)strtod( valueText, &endPtr );
-	return ( endPtr != valueText );
+	*valueOut = atoi( valueText );
+	return qtrue;
 }
 
 /*
 =============
-UI_GetPmoveSettingBool
+UI_ServerSettingsWeaponHiddenForGametype
 
-Parses a boolean field from the JSON-serialized `CS_PMOVE_SETTINGS` payload.
+Returns whether the retail server-settings weapon strip suppresses the icon for
+the active gametype.
 =============
 */
-static qboolean UI_GetPmoveSettingBool( const char *settingsText, const char *key, qboolean *valueOut ) {
-	char pattern[64];
-	const char *valueText;
-
-	if ( settingsText == NULL || key == NULL || valueOut == NULL ) {
+static qboolean UI_ServerSettingsWeaponHiddenForGametype( unsigned int weaponBit, int gametype ) {
+	if ( gametype != GT_SINGLE_PLAYER ) {
 		return qfalse;
 	}
 
-	Com_sprintf( pattern, sizeof( pattern ), "\"%s\":", key );
-	valueText = strstr( settingsText, pattern );
-	if ( valueText == NULL ) {
+	switch ( weaponBit ) {
+	case CUSTOM_SETTING_SHOTGUN:
+	case CUSTOM_SETTING_GRENADE_LAUNCHER:
+	case CUSTOM_SETTING_ROCKET_LAUNCHER:
+	case CUSTOM_SETTING_RAILGUN:
+	case CUSTOM_SETTING_PLASMAGUN:
+		return qtrue;
+	default:
 		return qfalse;
 	}
-
-	valueText += strlen( pattern );
-	if ( !Q_strncmp( valueText, "true", 4 ) ) {
-		*valueOut = qtrue;
-		return qtrue;
-	}
-	if ( !Q_strncmp( valueText, "false", 5 ) ) {
-		*valueOut = qfalse;
-		return qtrue;
-	}
-
-	return qfalse;
 }
 
 /*
@@ -2892,9 +2996,10 @@ Draws the retail modified-weapons icon strip for the low custom-settings mask
 bits that qagame already exposes through `CS_CUSTOM_SETTINGS`.
 =============
 */
-static void UI_DrawServerSettingsModifiedWeapons( float x, float y, unsigned int weaponMask ) {
+static void UI_DrawServerSettingsModifiedWeapons( float x, float y, unsigned int weaponMask, int gametype ) {
 	int i;
 	int iconCount;
+	unsigned int weaponBit;
 
 	UI_EnsureStartingWeaponIcons();
 
@@ -2908,7 +3013,11 @@ static void UI_DrawServerSettingsModifiedWeapons( float x, float y, unsigned int
 	y += 6.0f;
 	iconCount = 0;
 	for ( i = 0; i < 13; i++ ) {
-		if ( ( weaponMask & ( 1u << i ) ) == 0 ) {
+		weaponBit = 1u << i;
+		if ( ( weaponMask & weaponBit ) == 0 ) {
+			continue;
+		}
+		if ( UI_ServerSettingsWeaponHiddenForGametype( weaponBit, gametype ) ) {
 			continue;
 		}
 
@@ -2934,35 +3043,37 @@ static void UI_DrawServerSettingsModifiedWeapons( float x, float y, unsigned int
 UI_DrawServerSettings
 
 Reconstructs the retail `UI_SERVER_SETTINGS` ownerdraw from the current server
-payload surface, using serverinfo, `CS_PMOVE_SETTINGS`, and `CS_CUSTOM_SETTINGS`
-where this tree already mirrors the Quake Live data paths.
+payload surface, using serverinfo, the recovered `0x2A9`/`0x2AA` slab, and
+`CS_CUSTOM_SETTINGS`.
 =============
 */
 static void UI_DrawServerSettings( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
 	char serverInfo[MAX_INFO_STRING];
-	char pmoveSettings[MAX_INFO_STRING];
+	char serverSettingsA[MAX_INFO_STRING];
+	char serverSettingsB[MAX_INFO_STRING];
 	char customSettings[MAX_INFO_STRING];
 	char text[64];
 	float x;
 	float y;
-	float airControl;
+	uint64_t customSettingsMask;
 	unsigned int modifiedWeaponMask;
 	int rowCount;
 	int gametype;
 	int value;
-	qboolean hasRampJump;
 
 	if ( rect == NULL ) {
 		return;
 	}
 
 	trap_GetConfigString( CS_SERVERINFO, serverInfo, sizeof( serverInfo ) );
-	trap_GetConfigString( CS_PMOVE_SETTINGS, pmoveSettings, sizeof( pmoveSettings ) );
+	trap_GetConfigString( CS_SERVER_SETTINGS_INFO_A, serverSettingsA, sizeof( serverSettingsA ) );
+	trap_GetConfigString( CS_SERVER_SETTINGS_INFO_B, serverSettingsB, sizeof( serverSettingsB ) );
 	trap_GetConfigString( CS_CUSTOM_SETTINGS, customSettings, sizeof( customSettings ) );
 
 	x = rect->x;
 	y = rect->y;
 	rowCount = 0;
+	customSettingsMask = strtoull( customSettings, NULL, 10 );
 
 	if ( !UI_GetServerSettingInt( serverInfo, "g_gametype", "g_gametype", &gametype ) ) {
 		gametype = -1;
@@ -3006,26 +3117,81 @@ static void UI_DrawServerSettings( rectDef_t *rect, float scale, vec4_t color, i
 		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
 	}
 
-	if ( UI_GetPmoveSettingFloat( pmoveSettings, "airControl", &airControl ) && airControl > 0.0f ) {
+	if ( ( customSettingsMask & CUSTOM_SETTING_AIR_CONTROL ) != 0 ) {
 		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Air Control" );
 	}
 
-	if ( UI_GetPmoveSettingBool( pmoveSettings, "rampJump", &hasRampJump ) && hasRampJump ) {
+	if ( ( customSettingsMask & CUSTOM_SETTING_RAMP_JUMP ) != 0 ) {
 		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Ramp Jumping" );
 	}
 
-	if ( UI_GetServerSettingInt( serverInfo, "g_instaGib", "g_instaGib", &value ) && value != 0 ) {
+	if ( UI_GetInfoSettingInt( serverSettingsA, "armor_tiered", &value ) && value != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Tiered Armor" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_WEAPON_SWITCHING ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Weapon Switching" );
+	}
+
+	if ( UI_GetInfoSettingInt( serverSettingsB, "g_quadDamageFactor", &value ) && value != 3 ) {
+		Com_sprintf( text, sizeof( text ), "%ix Quad", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_PHYSICS ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Physics" );
+	}
+
+	if ( UI_GetInfoSettingInt( serverSettingsB, "g_gravity", &value ) && value != 800 ) {
+		Com_sprintf( text, sizeof( text ), "Gravity %i", value );
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_INSTAGIB ) != 0 ) {
 		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "InstaGib" );
 	}
 
-	modifiedWeaponMask = (unsigned int)( strtoull( customSettings, NULL, 10 ) & UI_SERVER_SETTINGS_WEAPON_MASK );
+	if ( ( customSettingsMask & CUSTOM_SETTING_QUAD_HOG ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Quad Hog" );
+	}
+
+	if ( gametype == GT_RED_ROVER && ( customSettingsMask & CUSTOM_SETTING_INFECTED ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Infected" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_REGEN_HEALTH ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Regen Health" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_DROP_HEALTH ) != 0 &&
+		 ( customSettingsMask & CUSTOM_SETTING_INSTAGIB ) == 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Drop Health" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_VAMPIRIC_DAMAGE ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Vampiric Damage" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_ITEM_SPAWNING ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Item Spawning" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_HEADSHOTS ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Headshots" );
+	}
+
+	if ( ( customSettingsMask & CUSTOM_SETTING_RAIL_JUMPING ) != 0 ) {
+		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Rail Jumping" );
+	}
+
+	modifiedWeaponMask = (unsigned int)( customSettingsMask & UI_SERVER_SETTINGS_WEAPON_MASK );
 	if ( modifiedWeaponMask == 0 ) {
 		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "Default Settings" );
 		return;
 	}
 
 	UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, "MODIFIED WEAPONS:" );
-	UI_DrawServerSettingsModifiedWeapons( x, y, modifiedWeaponMask );
+	UI_DrawServerSettingsModifiedWeapons( x, y, modifiedWeaponMask, gametype );
 }
 
 /*
@@ -4572,7 +4738,7 @@ static void UI_LoadTeams() {
 =============
 UI_LoadCountries
 
-Loads the country.txt table so dropdown feeders can enumerate country codes.
+Loads the retail ui/country.txt table so dropdown feeders can enumerate country codes.
 =============
 */
 static void UI_LoadCountries(void) {
@@ -4581,7 +4747,7 @@ static void UI_LoadCountries(void) {
 	char	*buff;
 
 	uiInfo.countryCount = 0;
-	buff = GetMenuBuffer("country.txt");
+	buff = GetMenuBuffer("ui/country.txt");
 	if (!buff) {
 		return;
 	}
@@ -5172,10 +5338,8 @@ static void UI_RunMenuScript(char **args) {
 		} else if (Q_stricmp(name, "loadGameInfo") == 0) {
 #ifdef PRE_RELEASE_TADEMO
 			UI_ParseGameInfo("demogameinfo.txt");
-			UI_LoadMapRotations();
 #else
 			UI_ParseGameInfo("gameinfo.txt");
-			UI_LoadMapRotations();
 #endif
 			UI_LoadBestScores(uiInfo.mapList[ui_currentMap.integer].mapLoadName, uiInfo.gameTypes[ui_gameType.integer].gtEnum);
 		} else if (Q_stricmp(name, "resetScores") == 0) {
@@ -5394,22 +5558,14 @@ static void UI_RunMenuScript(char **args) {
 			}
 		} else if (Q_stricmp(name, "voteMap") == 0) {
 			if (ui_currentNetMap.integer >= 0 && ui_currentNetMap.integer < uiInfo.mapCount) {
-				const mapRotationInfo_t *rotation = NULL;
-				const char *factoryId = NULL;
+				const char *gametypeToken = "";
 				const char *mapName = uiInfo.mapList[ui_currentNetMap.integer].mapLoadName;
 
-				if (uiInfo.callvoteRotationIndex >= 0 && uiInfo.callvoteRotationIndex < uiInfo.mapRotationCount) {
-					rotation = &uiInfo.mapRotations[uiInfo.callvoteRotationIndex];
-					if (rotation->factoryId[0]) {
-						factoryId = rotation->factoryId;
-					}
+				if (ui_cvGameType.integer != -1) {
+					gametypeToken = UI_GetCallvoteGametypeToken(ui_cvGameType.integer);
 				}
 
-				if (factoryId && factoryId[0]) {
-					trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s %s\n", mapName, factoryId));
-				} else {
-					trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s\n", mapName));
-				}
+				trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s %s\n", mapName, gametypeToken));
 			}
 		} else if (Q_stricmp(name, "updateCallvoteMapPreview") == 0) {
 			UI_HandleCallvoteMapPreviewScript();
@@ -6211,7 +6367,7 @@ static int UI_FeederCount(float feederID) {
 	}
 
 	if (feederID == FEEDER_CVMAPS) {
-		return UI_CountVisibleCallvoteRotations();
+		return UI_CVMapCountByGameType();
 	}
 
 	if (feederID == FEEDER_MAP_ROTATIONS) {
@@ -6425,6 +6581,44 @@ static int UI_GetPresetRotationIndex(void) {
 
 /*
 =============
+UI_GetCallvoteGametypeToken
+
+Returns the retail short factory token for the selected callvote gametype.
+=============
+*/
+static const char *UI_GetCallvoteGametypeToken(int gametype) {
+	switch (gametype) {
+		case GT_FFA:
+			return "ffa";
+		case GT_TOURNAMENT:
+			return "duel";
+		case GT_SINGLE_PLAYER:
+			return "race";
+		case GT_TEAM:
+			return "tdm";
+		case GT_CLAN_ARENA:
+			return "ca";
+		case GT_CTF:
+			return "ctf";
+		case GT_1FCTF:
+			return "oneflag";
+		case GT_HARVESTER:
+			return "har";
+		case GT_FREEZE:
+			return "ft";
+		case GT_DOMINATION:
+			return "dom";
+		case GT_ATTACK_DEFEND:
+			return "ad";
+		case GT_RED_ROVER:
+			return "rr";
+		default:
+			return "";
+	}
+		}
+
+/*
+=============
 UI_GetFilteredCallvoteGametype
 
 Normalizes the callvote gametype filter so out-of-range values fall back to Default.
@@ -6582,22 +6776,39 @@ static qboolean UI_RotationMatchesGametype(const mapRotationInfo_t *rotation, in
 
 /*
 =============
-UI_CountVisibleCallvoteRotations
+UI_CVMapCountByGameType
 
-Counts the rotation entries that pass the current gametype filter.
+Builds the retail callvote-visible map slab from the filtered rotation cache.
 =============
 */
-static int UI_CountVisibleCallvoteRotations(void) {
+static int UI_CVMapCountByGameType(void) {
 	int count;
 	int gametype;
 	int i;
 
 	count = 0;
 	gametype = UI_GetFilteredCallvoteGametype();
+	for (i = 0; i < uiInfo.mapCount; i++) {
+		uiInfo.mapList[i].active = qfalse;
+	}
+
 	for (i = 0; i < uiInfo.mapRotationCount; i++) {
-		if (UI_RotationMatchesGametype(&uiInfo.mapRotations[i], gametype)) {
-			count++;
+		int mapIndex;
+
+		if (!UI_RotationMatchesGametype(&uiInfo.mapRotations[i], gametype)) {
+			continue;
 		}
+
+		mapIndex = uiInfo.mapRotations[i].mapIndex;
+		if (mapIndex < 0 || mapIndex >= uiInfo.mapCount) {
+			continue;
+		}
+		if (uiInfo.mapList[mapIndex].active) {
+			continue;
+		}
+
+		uiInfo.mapList[mapIndex].active = qtrue;
+		count++;
 	}
 
 	return count;
@@ -6605,30 +6816,34 @@ static int UI_CountVisibleCallvoteRotations(void) {
 
 /*
 =============
-UI_GetCallvoteRotationIndexFromDisplayRow
+UI_FindCallvoteRotationIndexForMap
 
-Translates a feeder row into the backing rotation index while honoring filters.
+Finds a filtered rotation entry backing the provided active map selection.
 =============
 */
-static int UI_GetCallvoteRotationIndexFromDisplayRow(int row) {
+static int UI_FindCallvoteRotationIndexForMap(int mapIndex, int preferredRotationIndex) {
 	int gametype;
-	int visible;
 	int i;
 
-	if (row < 0) {
+	if (mapIndex < 0 || mapIndex >= uiInfo.mapCount) {
 			return -1;
 	}
 
 	gametype = UI_GetFilteredCallvoteGametype();
-	visible = 0;
+	if (preferredRotationIndex >= 0 && preferredRotationIndex < uiInfo.mapRotationCount) {
+		if (uiInfo.mapRotations[preferredRotationIndex].mapIndex == mapIndex &&
+			UI_RotationMatchesGametype(&uiInfo.mapRotations[preferredRotationIndex], gametype)) {
+			return preferredRotationIndex;
+		}
+	}
+
 	for (i = 0; i < uiInfo.mapRotationCount; i++) {
 		if (!UI_RotationMatchesGametype(&uiInfo.mapRotations[i], gametype)) {
 			continue;
 		}
-		if (visible == row) {
+		if (uiInfo.mapRotations[i].mapIndex == mapIndex) {
 			return i;
 		}
-		visible++;
 	}
 
 		return -1;
@@ -6636,55 +6851,42 @@ static int UI_GetCallvoteRotationIndexFromDisplayRow(int row) {
 
 /*
 =============
-UI_GetCallvoteDisplayRowForRotation
+UI_SelectCallvoteMap
 
-Finds the feeder row associated with a specific rotation index.
+Updates the retail callvote-map feeder selection while preserving the source-side
+rotation metadata used by preset helpers.
 =============
 */
-static int UI_GetCallvoteDisplayRowForRotation(int rotationIndex) {
-	int gametype;
-	int row;
-	int i;
-
-	if (rotationIndex < 0 || rotationIndex >= uiInfo.mapRotationCount) {
-			return -1;
-	}
-
-	gametype = UI_GetFilteredCallvoteGametype();
-	row = 0;
-	for (i = 0; i < uiInfo.mapRotationCount; i++) {
-		if (!UI_RotationMatchesGametype(&uiInfo.mapRotations[i], gametype)) {
-			continue;
-		}
-		if (i == rotationIndex) {
-			return row;
-		}
-		row++;
-	}
-
-		return -1;
-		}
-
-/*
-=============
-UI_GetCallvoteRotationEntryForDisplay
-
-Returns the rotation entry for a filtered feeder index and optionally reports the backing index.
-=============
-*/
-static const mapRotationInfo_t *UI_GetCallvoteRotationEntryForDisplay(int index, int *rotationIndex) {
+static void UI_SelectCallvoteMap(int index) {
 	int actual;
+	int available;
+	int rotationIndex;
 
-	actual = UI_GetCallvoteRotationIndexFromDisplayRow(index);
-	if (rotationIndex) {
-			*rotationIndex = actual;
-	}
-	if (actual < 0 || actual >= uiInfo.mapRotationCount) {
-		return NULL;
+	available = UI_CVMapCountByGameType();
+	if (index < 0 || index >= available) {
+		uiInfo.callvoteRotationIndex = -1;
+		return;
 	}
 
-	return &uiInfo.mapRotations[actual];
-		}
+	UI_SelectedMap(index, &actual);
+	if (actual < 0 || actual >= uiInfo.mapCount || !uiInfo.mapList[actual].active) {
+		uiInfo.callvoteRotationIndex = -1;
+		return;
+	}
+
+	trap_Cvar_Set("ui_mapIndex", va("%d", index));
+	ui_mapIndex.integer = index;
+
+	if (ui_callvotePresetInFlight) {
+		ui_callvotePresetInFlight = qfalse;
+	} else {
+		UI_ClearCallvotePresetState();
+	}
+
+	rotationIndex = UI_FindCallvoteRotationIndexForMap(actual, uiInfo.callvoteRotationIndex);
+	uiInfo.callvoteRotationIndex = rotationIndex;
+	UI_SetCurrentNetMap(actual);
+}
 
 /*
 =============
@@ -6722,38 +6924,6 @@ static void UI_SetCurrentNetMap(int mapIndex) {
 
 /*
 =============
-UI_SelectCallvoteRotation
-
-Updates the current callvote selection and refreshes the preview map state.
-=============
-*/
-static void UI_SelectCallvoteRotation(int rotationIndex) {
-	int mapIndex;
-
-	if (rotationIndex < 0 || rotationIndex >= uiInfo.mapRotationCount) {
-		uiInfo.callvoteRotationIndex = -1;
-		return;
-	}
-
-	if (ui_callvotePresetInFlight) {
-		ui_callvotePresetInFlight = qfalse;
-	} else {
-		UI_ClearCallvotePresetState();
-	}
-
-	mapIndex = uiInfo.mapRotations[rotationIndex].mapIndex;
-	if (mapIndex < 0 || mapIndex >= uiInfo.mapCount) {
-		uiInfo.callvoteRotationIndex = -1;
-		return;
-	}
-
-	uiInfo.callvoteRotationIndex = rotationIndex;
-	UI_SetCurrentNetMap(mapIndex);
-		}
-
-
-/*
-=============
 UI_HandleCallvoteMapPreviewScript
 
 Rebuilds the callvote map preview when gametype filters change.
@@ -6761,33 +6931,42 @@ Rebuilds the callvote map preview when gametype filters change.
 */
 static void UI_HandleCallvoteMapPreviewScript(void) {
 	int available;
+	int mapIndex;
 	int rotationIndex;
 	int displayRow;
 	mapRotationInfo_t *rotation;
 
-	available = UI_CountVisibleCallvoteRotations();
+	available = UI_CVMapCountByGameType();
 	if (available <= 0) {
 		uiInfo.callvoteRotationIndex = -1;
 		return;
 	}
 
 	rotationIndex = uiInfo.callvoteRotationIndex;
-	if (rotationIndex >= 0 && rotationIndex < uiInfo.mapRotationCount) {
-		if (UI_RotationMatchesGametype(&uiInfo.mapRotations[rotationIndex], UI_GetFilteredCallvoteGametype())) {
-			displayRow = UI_GetCallvoteDisplayRowForRotation(rotationIndex);
-			if (displayRow >= 0) {
-				Menu_SetFeederSelection(NULL, FEEDER_CVMAPS, displayRow, NULL);
-				return;
-			}
+	rotation = UI_MapRotationEntryForIndex(rotationIndex);
+	if (rotation) {
+		mapIndex = rotation->mapIndex;
+		if (mapIndex >= 0 && mapIndex < uiInfo.mapCount && uiInfo.mapList[mapIndex].active) {
+			displayRow = UI_GetIndexFromSelection(mapIndex);
+			Menu_SetFeederSelection(NULL, FEEDER_CVMAPS, displayRow, NULL);
+			return;
 		}
+	}
+
+	mapIndex = ui_currentNetMap.integer;
+	if (mapIndex >= 0 && mapIndex < uiInfo.mapCount && uiInfo.mapList[mapIndex].active) {
+		displayRow = UI_GetIndexFromSelection(mapIndex);
+		Menu_SetFeederSelection(NULL, FEEDER_CVMAPS, displayRow, NULL);
+		return;
 	}
 
 	if (ui_cvPresetActive.integer > 0) {
 		rotationIndex = UI_GetPresetRotationIndex();
 		rotation = UI_MapRotationEntryForIndex(rotationIndex);
-		if (rotation && UI_RotationMatchesGametype(rotation, UI_GetFilteredCallvoteGametype())) {
-			displayRow = UI_GetCallvoteDisplayRowForRotation(rotationIndex);
-			if (displayRow >= 0) {
+		if (rotation) {
+			mapIndex = rotation->mapIndex;
+			if (mapIndex >= 0 && mapIndex < uiInfo.mapCount && uiInfo.mapList[mapIndex].active) {
+				displayRow = UI_GetIndexFromSelection(mapIndex);
 				ui_callvotePresetInFlight = qtrue;
 				Menu_SetFeederSelection(NULL, FEEDER_CVMAPS, displayRow, NULL);
 				return;
@@ -6862,16 +7041,10 @@ static const char *UI_FeederItemText(float feederID, int index, int column, qhan
                 int actual;
                 return UI_SelectedMap(index, &actual);
         } else if (feederID == FEEDER_CVMAPS) {
-                const mapRotationInfo_t *rotation;
+				int actual;
 
-                rotation = UI_GetCallvoteRotationEntryForDisplay(index, NULL);
-                if (rotation) {
-                        if (rotation->mapTitle[0]) {
-                                return rotation->mapTitle;
-                        }
-                        return rotation->mapName;
-                }
-                return "";
+				UI_CVMapCountByGameType();
+				return UI_SelectedMap(index, &actual);
         } else if (feederID == FEEDER_MAP_ROTATIONS) {
                 mapRotationInfo_t *entry = UI_MapRotationEntryForIndex(index);
                 if (entry) {
@@ -7061,14 +7234,15 @@ if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
 			return uiInfo.mapList[index].levelShot;
 		}
 	} else if (feederID == FEEDER_CVMAPS) {
-		const mapRotationInfo_t *rotation;
+		int actual;
 
-		rotation = UI_GetCallvoteRotationEntryForDisplay(index, NULL);
-		if (rotation && rotation->mapIndex >= 0 && rotation->mapIndex < uiInfo.mapCount) {
-			if (uiInfo.mapList[rotation->mapIndex].levelShot == -1) {
-				uiInfo.mapList[rotation->mapIndex].levelShot = trap_R_RegisterShaderNoMip(uiInfo.mapList[rotation->mapIndex].imageName);
+		UI_CVMapCountByGameType();
+		UI_SelectedMap(index, &actual);
+		if (actual >= 0 && actual < uiInfo.mapCount && uiInfo.mapList[actual].active) {
+			if (uiInfo.mapList[actual].levelShot == -1) {
+				uiInfo.mapList[actual].levelShot = trap_R_RegisterShaderNoMip(uiInfo.mapList[actual].imageName);
 			}
-	return uiInfo.mapList[rotation->mapIndex].levelShot;
+	return uiInfo.mapList[actual].levelShot;
 	}
 	} else if (feederID == FEEDER_CLANS) {
 		if (!uiInfo.clanListLoaded) {
@@ -7114,9 +7288,6 @@ if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
 	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
 	    int actual, previous, map;
 		map = (feederID == FEEDER_ALLMAPS) ? ui_currentNetMap.integer : ui_currentMap.integer;
-		// HLIL map-rotation strings (`^1map rotation item missing map…`) show the native
-		// UI reusing the same cinematic + metadata pairing when browsing rotation
-		// entries, so future FEEDER_CVMAPS wiring belongs inside this block.
 		if (uiInfo.mapList[map].cinematic >= 0) {
 		  trap_CIN_StopCinematic(uiInfo.mapList[map].cinematic);
 		  uiInfo.mapList[map].cinematic = -1;
@@ -7146,16 +7317,7 @@ if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
 			uiInfo.callvoteRotationIndex = -1;
 		}
 	} else if (feederID == FEEDER_CVMAPS) {
-		int rotationIndex;
-		const mapRotationInfo_t *rotation;
-
-		rotation = UI_GetCallvoteRotationEntryForDisplay(index, &rotationIndex);
-		if (!rotation) {
-			uiInfo.callvoteRotationIndex = -1;
-			return;
-		}
-
-		UI_SelectCallvoteRotation(rotationIndex);
+		UI_SelectCallvoteMap(index);
 	} else if (feederID == FEEDER_MAP_ROTATIONS) {
 	if (UI_MapRotationEntryForIndex(index)) {
 	uiInfo.currentMapRotation = index;
@@ -7740,6 +7902,120 @@ static void UI_RunCinematicFrame(int handle) {
 	trap_CIN_RunCinematic(handle);
 		}
 
+typedef struct {
+	char		modelName[64];
+	char		skinName[64];
+	qhandle_t	iconShader;
+	int			hasValidatedSkin;
+} uiPlayerModelEntry_t;
+
+static uiPlayerModelEntry_t ui_playerModelEntries[MAX_PLAYERMODELS];
+static int ui_playerModelEntryCount;
+
+/*
+=================
+UI_PlayerModelSkinIsAlias
+=================
+*/
+static qboolean UI_PlayerModelSkinIsAlias( const char *skinName ) {
+	if ( !skinName || !skinName[0] ) {
+		return qfalse;
+	}
+
+	return (Q_stricmp( skinName, "blue" ) == 0 ||
+		Q_stricmp( skinName, "bright" ) == 0 ||
+		Q_stricmp( skinName, "red" ) == 0 ||
+		Q_stricmp( skinName, "sport" ) == 0 ||
+		Q_stricmp( skinName, "sport_blue" ) == 0 ||
+		Q_stricmp( skinName, "sport_red" ) == 0) ? qtrue : qfalse;
+}
+
+/*
+=================
+UI_AddPlayerModelEntry
+=================
+*/
+static void UI_AddPlayerModelEntry( const char *modelName, const char *skinName, const char *iconShaderName ) {
+	int i;
+	uiPlayerModelEntry_t *entry;
+
+	if ( !modelName || !modelName[0] || !skinName || !skinName[0] || !iconShaderName || !iconShaderName[0] ) {
+		return;
+	}
+
+	for ( i = 0; i < ui_playerModelEntryCount; i++ ) {
+		if ( Q_stricmp( ui_playerModelEntries[i].modelName, modelName ) == 0 &&
+			Q_stricmp( ui_playerModelEntries[i].skinName, skinName ) == 0 ) {
+			return;
+		}
+	}
+
+	if ( ui_playerModelEntryCount >= MAX_PLAYERMODELS ) {
+		return;
+	}
+
+	entry = &ui_playerModelEntries[ui_playerModelEntryCount++];
+	Q_strncpyz( entry->modelName, modelName, sizeof( entry->modelName ) );
+	Q_strncpyz( entry->skinName, skinName, sizeof( entry->skinName ) );
+	entry->iconShader = trap_R_RegisterShaderNoMip( iconShaderName );
+	entry->hasValidatedSkin = 0;
+}
+
+/*
+=================
+UI_PlayerModelEntryHasSkin
+=================
+*/
+static qboolean UI_PlayerModelEntryHasSkin( int index ) {
+	char filename[MAX_QPATH];
+	uiPlayerModelEntry_t *entry;
+
+	if ( index < 0 || index >= ui_playerModelEntryCount ) {
+		return qfalse;
+	}
+
+	entry = &ui_playerModelEntries[index];
+	if ( entry->hasValidatedSkin ) {
+		return qtrue;
+	}
+
+	/*
+	Retail uix86.dll validates player-model entries by probing the lower skin
+	path directly. The writable source still discovers candidates from icon art,
+	then applies the same lower-skin validation before exposing the Q3 head bank.
+	*/
+	Com_sprintf( filename, sizeof( filename ), "models/players/%s/lower_%s.skin", entry->modelName, entry->skinName );
+	if ( trap_FS_FOpenFile( filename, 0, FS_READ ) <= 0 ) {
+		return qfalse;
+	}
+
+	entry->hasValidatedSkin = 1;
+	return qtrue;
+}
+
+/*
+=================
+UI_CountPlayerModelEntries
+=================
+*/
+static int UI_CountPlayerModelEntries( qboolean skipAliasSkins ) {
+	int i;
+	int count;
+
+	count = 0;
+
+	for ( i = 0; i < ui_playerModelEntryCount; i++ ) {
+		if ( skipAliasSkins && UI_PlayerModelSkinIsAlias( ui_playerModelEntries[i].skinName ) ) {
+			continue;
+		}
+
+		if ( UI_PlayerModelEntryHasSkin( i ) ) {
+			count++;
+		}
+	}
+
+	return count;
+}
 
 
 /*
@@ -7754,14 +8030,15 @@ static void UI_BuildQ3Model_List( void )
 	char	dirlist[2048];
 	char	filelist[2048];
 	char	skinname[64];
-	char	scratch[256];
+	char	iconShaderName[MAX_QPATH];
 	char*	dirptr;
 	char*	fileptr;
 	int		i;
-	int		j, k, dirty;
+	int		j;
 	int		dirlen;
 	int		filelen;
 
+	ui_playerModelEntryCount = 0;
 	uiInfo.q3HeadCount = 0;
 
 	// iterate directory of all player models
@@ -7785,29 +8062,35 @@ static void UI_BuildQ3Model_List( void )
 
 			COM_StripExtension(fileptr,skinname);
 
-			// look for icon_????
-			if (Q_stricmpn(skinname, "icon_", 5) == 0 && !(Q_stricmp(skinname,"icon_blue") == 0 || Q_stricmp(skinname,"icon_red") == 0))
+			if (Q_stricmpn(skinname, "icon_", 5) == 0 && skinname[5] != '\0')
 			{
-				if (Q_stricmp(skinname, "icon_default") == 0) {
-					Com_sprintf( scratch, sizeof(scratch), dirptr);
-				} else {
-					Com_sprintf( scratch, sizeof(scratch), "%s/%s",dirptr, skinname + 5);
-				}
-				dirty = 0;
-				for(k=0;k<uiInfo.q3HeadCount;k++) {
-					if (!Q_stricmp(scratch, uiInfo.q3HeadNames[uiInfo.q3HeadCount])) {
-						dirty = 1;
-						break;
-					}
-				}
-				if (!dirty) {
-					Com_sprintf( uiInfo.q3HeadNames[uiInfo.q3HeadCount], sizeof(uiInfo.q3HeadNames[uiInfo.q3HeadCount]), scratch);
-					uiInfo.q3HeadIcons[uiInfo.q3HeadCount++] = trap_R_RegisterShaderNoMip(va("models/players/%s/%s",dirptr,skinname));
-				}
+				Com_sprintf( iconShaderName, sizeof( iconShaderName ), "models/players/%s/%s", dirptr, skinname );
+				UI_AddPlayerModelEntry( dirptr, skinname + 5, iconShaderName );
 			}
 
 		}
-	}	
+	}
+
+	for ( i = 0; i < ui_playerModelEntryCount && uiInfo.q3HeadCount < MAX_PLAYERMODELS; i++ ) {
+		if ( UI_PlayerModelSkinIsAlias( ui_playerModelEntries[i].skinName ) ) {
+			continue;
+		}
+
+		if ( !UI_PlayerModelEntryHasSkin( i ) ) {
+			continue;
+		}
+
+		if ( Q_stricmp( ui_playerModelEntries[i].skinName, "default" ) == 0 ) {
+			Com_sprintf( uiInfo.q3HeadNames[uiInfo.q3HeadCount], sizeof( uiInfo.q3HeadNames[uiInfo.q3HeadCount] ),
+				"%s", ui_playerModelEntries[i].modelName );
+		} else {
+			Com_sprintf( uiInfo.q3HeadNames[uiInfo.q3HeadCount], sizeof( uiInfo.q3HeadNames[uiInfo.q3HeadCount] ),
+				"%s/%s", ui_playerModelEntries[i].modelName, ui_playerModelEntries[i].skinName );
+		}
+
+		uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = ui_playerModelEntries[i].iconShader;
+		uiInfo.q3HeadCount++;
+	}
 
 		}
 
@@ -7820,12 +8103,21 @@ void UI_ListPlayerModels( void ) {
 	int i;
 
 	UI_BuildQ3Model_List();
+	UI_CountPlayerModelEntries( qfalse );
 
 	Com_Printf( "Player Models\n" );
 	Com_Printf( "=============\n" );
 
-	for ( i = 0; i < uiInfo.q3HeadCount; i++ ) {
-		Com_Printf( "%s\n", uiInfo.q3HeadNames[i] );
+	for ( i = 0; i < ui_playerModelEntryCount; i++ ) {
+		if ( !UI_PlayerModelEntryHasSkin( i ) ) {
+			continue;
+		}
+
+		if ( Q_stricmp( ui_playerModelEntries[i].skinName, "default" ) == 0 ) {
+			Com_Printf( "%s\n", ui_playerModelEntries[i].modelName );
+		} else {
+			Com_Printf( "%s/%s\n", ui_playerModelEntries[i].modelName, ui_playerModelEntries[i].skinName );
+		}
 	}
 }
 
@@ -7844,6 +8136,9 @@ void _UI_Init( qboolean inGameLoad ) {
 
 	UI_RegisterCvars();
 	UI_UpdateCvars();
+	// Retail _UI_Init seeds the callvote map filter back to Default before menu scripts run.
+	trap_Cvar_Set("ui_cvGameType", "-1");
+	trap_Cvar_Update(&ui_cvGameType);
 	if (UI_ExternalEcosystemsDisabled()) {
 		if (ui_browserAwesomium.integer != 0) {
 			trap_Cvar_Set("ui_browserAwesomium", "0");
@@ -7916,12 +8211,14 @@ void _UI_Init( qboolean inGameLoad ) {
 	uiInfo.uiDC.drawCinematic = &UI_DrawCinematic;
 	uiInfo.uiDC.runCinematicFrame = &UI_RunCinematicFrame;
 	uiInfo.uiDC.adjustFrom640 = &UI_AdjustFrom640;
+
+	// Retail uix86.dll calls the advertisement-bridge init import before wiring the Quake Live advert callbacks.
+	UI_InitAdvertisementBridge();
+
 	uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;
 	uiInfo.uiDC.refreshAdvertCellShader = &UI_RefreshAdvertCellShader;
 	uiInfo.uiDC.activateAdvert = &UI_ActivateAdvert;
 	uiInfo.uiDC.initAdvertisementBridge = &UI_InitAdvertisementBridge;
-
-	uiInfo.uiDC.initAdvertisementBridge();
 
 	Init_Display(&uiInfo.uiDC);
 
@@ -7948,12 +8245,8 @@ void _UI_Init( qboolean inGameLoad ) {
 #ifdef PRE_RELEASE_TADEMO
 	UI_ParseTeamInfo("demoteaminfo.txt");
 	UI_ParseGameInfo("demogameinfo.txt");
-	UI_LoadMapRotations();
 #else
-	UI_ParseTeamInfo("teaminfo.txt");
-	UI_LoadTeams();
-	UI_ParseGameInfo("gameinfo.txt");
-	UI_LoadMapRotations();
+	UI_ParseTeamInfo("ui/teaminfo.txt");
 #endif
 
         menuSet = UI_Cvar_VariableString("ui_menuFiles");
@@ -8132,6 +8425,9 @@ void _UI_SetActiveMenu( uiMenuCommand_t menu ) {
 		  return;
 	  case UIMENU_INGAME:
 		  trap_Cvar_Set( "cl_paused", "1" );
+			// Retail resets the ingame callvote filter each time the menu is reopened.
+			trap_Cvar_Set( "ui_cvGameType", "-1" );
+			trap_Cvar_Update( &ui_cvGameType );
 			trap_Key_SetCatcher( KEYCATCH_UI );
 			UI_BuildPlayerList();
 			Menus_CloseAll();
@@ -8695,7 +8991,7 @@ static cvarTable_t		cvarTable[] = {
 	{ &ui_globalpreset, "ui_globalpreset", "0", CVAR_ARCHIVE },
 	{ &ui_screenDamage_Team_preset, "ui_screenDamage_Team_preset", "0", CVAR_ARCHIVE },
 	{ &ui_screenDamage_preset, "ui_screenDamage_preset", "0", CVAR_ARCHIVE },
-	{ &ui_browserAwesomium, "ui_browserAwesomium", "1", CVAR_TEMP },
+	{ &ui_browserAwesomium, "ui_browserAwesomium", UI_BROWSER_AWESOMIUM_DEFAULT, CVAR_TEMP },
 	{ &ui_currentTier, "ui_currentTier", "0", CVAR_ARCHIVE },
 	{ &ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE },
 	{ &ui_currentNetMap, "ui_currentNetMap", "0", CVAR_ARCHIVE },

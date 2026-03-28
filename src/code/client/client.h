@@ -430,7 +430,6 @@ void CL_VerifyCode( void );
 qboolean CL_ShouldFilterConsoleText( const char *text );
 qboolean CL_OnlineServicesEnabled( void );
 qboolean CL_SteamServicesEnabled( void );
-qboolean CL_UseDisconnectedConsoleFallback( void );
 
 float CL_KeyState (kbutton_t *key);
 char *Key_KeynumToString (int keynum);

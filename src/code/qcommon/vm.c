@@ -59,6 +59,7 @@ vm_t	vmTable[MAX_VM];
 
 void VM_VmInfo_f( void );
 void VM_VmProfile_f( void );
+static void VM_LogTraceEvent( const char *fmt, ... );
 
 
 // converts a VM pointer to a C pointer and
@@ -69,6 +70,61 @@ void	*VM_VM2C( vmptr_t p, int length ) {
 
 void VM_Debug( int level ) {
 	vm_debugLevel = level;
+}
+
+/*
+=============
+VM_GetExpectedNativeApiVersion
+
+Returns the recovered retail native API version for structured dllEntry()
+modules that expose explicit import/export tables.
+=============
+*/
+static int VM_GetExpectedNativeApiVersion( const char *module ) {
+	if ( !Q_stricmp( module, "ui" ) ) {
+		return UI_QL_API_VERSION;
+	}
+
+	if ( !Q_stricmp( module, "cgame" ) ) {
+		return CGAME_NATIVE_API_VERSION;
+	}
+
+	if ( !Q_stricmp( module, "qagame" ) ) {
+		return GAME_NATIVE_API_VERSION;
+	}
+
+	return 0;
+}
+
+/*
+=============
+VM_ValidateNativeDllInterface
+
+Rejects structured native DLLs whose reported ABI version does not match the
+recovered retail interface expected by the host engine.
+=============
+*/
+static qboolean VM_ValidateNativeDllInterface( vm_t *vm ) {
+	int expectedApiVersion;
+
+	if ( !vm || !vm->dllExports || !vm->dllImports ) {
+		return qtrue;
+	}
+
+	expectedApiVersion = VM_GetExpectedNativeApiVersion( vm->name );
+	if ( !expectedApiVersion ) {
+		return qtrue;
+	}
+
+	if ( vm->dllApiVersion != expectedApiVersion ) {
+		Com_Printf( "Rejected DLL '%s': native API %d does not match expected %d for %s\n",
+			vm->fqpath[0] ? vm->fqpath : vm->name, vm->dllApiVersion, expectedApiVersion, vm->name );
+		VM_LogTraceEvent( "reject %s native api %d expected %d",
+			vm->name, vm->dllApiVersion, expectedApiVersion );
+		return qfalse;
+	}
+
+	return qtrue;
 }
 
 /*
@@ -616,10 +672,29 @@ vm_t *VM_Create( const char *module, int (*systemCalls)(int *),
 			}
 
 			if ( vm->dllExports ) {
-				vm->dllInterface = qtrue;
+				if ( !VM_ValidateNativeDllInterface( vm ) ) {
+					Sys_UnloadDll( vm->dllHandle );
+					vm->dllHandle = NULL;
+					vm->entryPoint = NULL;
+					vm->dllExports = NULL;
+					vm->dllApiVersion = dllApiVersion;
+					vm->fqpath[0] = '\0';
+				} else {
+					vm->dllInterface = qtrue;
+				}
 			}
-			VM_LogTraceEvent( "create %s native %s", module, vm->fqpath );
-			return vm;
+
+			if ( vm->dllHandle ) {
+				if ( vm->dllExports ) {
+					VM_LogTraceEvent( "create %s native %s", module, vm->fqpath );
+					return vm;
+				}
+
+				if ( vm->entryPoint ) {
+					VM_LogTraceEvent( "create %s native %s", module, vm->fqpath );
+					return vm;
+				}
+			}
 		}
 
 		Com_Printf( "Failed to load dll, looking for qvm.\n" );
@@ -767,11 +842,10 @@ void *VM_ExplicitArgPtr( vm_t *vm, int intValue ) {
 		return NULL;
 	}
 
-	// bk010124 - currentVM is missing on reconnect here as well?
-	if ( currentVM==NULL )
-	  return NULL;
+	if ( !vm ) {
+		return NULL;
+	}
 
-	//
 	if ( vm->dllInterface ) {
 		return (void *)(intptr_t)intValue;
 	}
@@ -827,9 +901,6 @@ static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {
 
 	if ( !Q_stricmp( vm->name, "ui" ) ) {
 		int uiExportIndex = callnum;
-
-		Com_DPrintf( "VM_CallNativeExports(ui): callnum=%d api=%d iface=%d\n",
-			callnum, vm->dllApiVersion, vm->dllInterface );
 
 		if ( vm->dllInterface && vm->dllApiVersion > UI_API_VERSION ) {
 			if ( callnum == UI_GETAPIVERSION ) {
@@ -948,125 +1019,125 @@ static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {
 	if ( !Q_stricmp( vm->name, "cgame" ) ) {
 		switch ( callnum ) {
 		case CG_INIT:
-			exportFunc = dllExports[CG_INIT];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_INIT];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int, int, int ))exportFunc)( args[0], args[1], args[2] );
 			return 0;
 		case CG_SHUTDOWN:
-			exportFunc = dllExports[CG_SHUTDOWN];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_SHUTDOWN];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( void ))exportFunc)();
 			return 0;
 		case CG_CONSOLE_COMMAND:
-			exportFunc = dllExports[CG_CONSOLE_COMMAND];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_CONSOLE_COMMAND];
 			if ( !exportFunc ) {
 				break;
 			}
 			return ((qboolean (QDECL *)( void ))exportFunc)();
 		case CG_DRAW_ACTIVE_FRAME:
-			exportFunc = dllExports[CG_DRAW_ACTIVE_FRAME];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_DRAW_ACTIVE_FRAME];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int, stereoFrame_t, qboolean ))exportFunc)( args[0], args[1], args[2] );
 			return 0;
 		case CG_CROSSHAIR_PLAYER:
-			exportFunc = dllExports[CG_CROSSHAIR_PLAYER];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_CROSSHAIR_PLAYER];
 			if ( !exportFunc ) {
 				break;
 			}
 			return ((int (QDECL *)( void ))exportFunc)();
 		case CG_LAST_ATTACKER:
-			exportFunc = dllExports[CG_LAST_ATTACKER];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_LAST_ATTACKER];
 			if ( !exportFunc ) {
 				break;
 			}
 			return ((int (QDECL *)( void ))exportFunc)();
 		case CG_KEY_EVENT:
-			exportFunc = dllExports[CG_KEY_EVENT];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_KEY_EVENT];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int, qboolean ))exportFunc)( args[0], args[1] );
 			return 0;
 		case CG_MOUSE_EVENT:
-			exportFunc = dllExports[CG_MOUSE_EVENT];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_MOUSE_EVENT];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int, int ))exportFunc)( args[0], args[1] );
 			return 0;
 		case CG_EVENT_HANDLING:
-			exportFunc = dllExports[CG_EVENT_HANDLING];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_EVENT_HANDLING];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case CG_CHAT_DOWN:
-			exportFunc = dllExports[CG_CHAT_DOWN];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_CHAT_DOWN];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( void ))exportFunc)();
 			return 0;
 		case CG_CHAT_UP:
-			exportFunc = dllExports[CG_CHAT_UP];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_CHAT_UP];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( void ))exportFunc)();
 			return 0;
 		case CG_SHOW_1ST_TRACKED_PLAYER:
-			exportFunc = dllExports[CG_SHOW_1ST_TRACKED_PLAYER];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_SHOW_1ST_TRACKED_PLAYER];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( void ))exportFunc)();
 			return 0;
 		case CG_SHOW_2ND_TRACKED_PLAYER:
-			exportFunc = dllExports[CG_SHOW_2ND_TRACKED_PLAYER];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_SHOW_2ND_TRACKED_PLAYER];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( void ))exportFunc)();
 			return 0;
 		case CG_COPY_CLIENT_IDENTITY:
-			exportFunc = dllExports[CG_COPY_CLIENT_IDENTITY];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_COPY_CLIENT_IDENTITY];
 			if ( !exportFunc ) {
 				break;
 			}
 			return ((qboolean (QDECL *)( int, void * ))exportFunc)( args[0], (void *)(intptr_t)args[1] );
 		case CG_GET_CHAT_FIELD_Y:
-			exportFunc = dllExports[CG_GET_CHAT_FIELD_Y];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_GET_CHAT_FIELD_Y];
 			if ( !exportFunc ) {
 				break;
 			}
 			return (int)((float (QDECL *)( void ))exportFunc)();
 		case CG_GET_CHAT_FIELD_PIXEL_WIDTH:
-			exportFunc = dllExports[CG_GET_CHAT_FIELD_PIXEL_WIDTH];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_GET_CHAT_FIELD_PIXEL_WIDTH];
 			if ( !exportFunc ) {
 				break;
 			}
 			return (int)((float (QDECL *)( void ))exportFunc)();
 		case CG_GET_CHAT_FIELD_WIDTH_IN_CHARS:
-			exportFunc = dllExports[CG_GET_CHAT_FIELD_WIDTH_IN_CHARS];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_GET_CHAT_FIELD_WIDTH_IN_CHARS];
 			if ( !exportFunc ) {
 				break;
 			}
 			return ((int (QDECL *)( void ))exportFunc)();
 		case CG_SET_CLIENT_SPEAKING_STATE:
-			exportFunc = dllExports[CG_SET_CLIENT_SPEAKING_STATE];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_SET_CLIENT_SPEAKING_STATE];
 			if ( !exportFunc ) {
 				break;
 			}
 			return (int)(intptr_t)((void *(QDECL *)( int, int ))exportFunc)( args[0], args[1] );
 		case CG_GET_PHYSICS_TIME:
-			exportFunc = dllExports[CG_GET_PHYSICS_TIME];
+			exportFunc = dllExports[CG_NATIVE_EXPORT_GET_PHYSICS_TIME];
 			if ( !exportFunc ) {
 				break;
 			}
@@ -1081,80 +1152,121 @@ static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {
 	if ( !Q_stricmp( vm->name, "qagame" ) ) {
 		switch ( callnum ) {
 		case GAME_INIT:
-			exportFunc = dllExports[GAME_INIT];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_INIT];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int, int, int ))exportFunc)( args[0], args[1], args[2] );
 			return 0;
 		case GAME_SHUTDOWN:
-			exportFunc = dllExports[GAME_SHUTDOWN];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_SHUTDOWN];
 			if ( !exportFunc ) {
 				break;
 			}
-			((void (QDECL *)( void ))exportFunc)();
+			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_CLIENT_CONNECT:
-			exportFunc = dllExports[GAME_CLIENT_CONNECT];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CLIENT_CONNECT];
 			if ( !exportFunc ) {
 				break;
 			}
 			return (int)(intptr_t)((const char *(QDECL *)( int, qboolean, qboolean ))exportFunc)( args[0], args[1], args[2] );
 		case GAME_CLIENT_BEGIN:
-			exportFunc = dllExports[GAME_CLIENT_BEGIN];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CLIENT_BEGIN];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_CLIENT_USERINFO_CHANGED:
-			exportFunc = dllExports[GAME_CLIENT_USERINFO_CHANGED];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CLIENT_USERINFO_CHANGED];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_CLIENT_DISCONNECT:
-			exportFunc = dllExports[GAME_CLIENT_DISCONNECT];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CLIENT_DISCONNECT];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_CLIENT_COMMAND:
-			exportFunc = dllExports[GAME_CLIENT_COMMAND];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CLIENT_COMMAND];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_CLIENT_THINK:
-			exportFunc = dllExports[GAME_CLIENT_THINK];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CLIENT_THINK];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_RUN_FRAME:
-			exportFunc = dllExports[GAME_RUN_FRAME];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_RUN_FRAME];
 			if ( !exportFunc ) {
 				break;
 			}
 			((void (QDECL *)( int ))exportFunc)( args[0] );
 			return 0;
 		case GAME_CONSOLE_COMMAND:
-			exportFunc = dllExports[GAME_CONSOLE_COMMAND];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CONSOLE_COMMAND];
 			if ( !exportFunc ) {
 				break;
 			}
 			return ((qboolean (QDECL *)( void ))exportFunc)();
 		case BOTAI_START_FRAME:
-			exportFunc = dllExports[BOTAI_START_FRAME];
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_BOTAI_START_FRAME];
 			if ( !exportFunc ) {
 				break;
 			}
-			((void (QDECL *)( int ))exportFunc)( args[0] );
-			return 0;
+			return ((int (QDECL *)( int ))exportFunc)( args[0] );
+		case GAME_CAN_CLIENT_SEE_CLIENT:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_CAN_CLIENT_SEE_CLIENT];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int, int ))exportFunc)( args[0], args[1] );
+		case GAME_FREEZE_CAN_SEE_THAW_PROGRESS_EVENT:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_FREEZE_CAN_SEE_THAW_PROGRESS_EVENT];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int, int ))exportFunc)( args[0], args[1] );
+		case GAME_IS_OBJECTIVE_ENTITY:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_IS_OBJECTIVE_ENTITY];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int ))exportFunc)( args[0] );
+		case GAME_SHOULD_SUPPRESS_VOICE_TO_CLIENT:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_SHOULD_SUPPRESS_VOICE_TO_CLIENT];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int, int ))exportFunc)( args[0], args[1] );
+		case GAME_IS_CLIENT_ADMIN:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_IS_CLIENT_ADMIN];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int ))exportFunc)( args[0] );
+		case GAME_ARE_ENEMY_CLIENTS:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_ARE_ENEMY_CLIENTS];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((qboolean (QDECL *)( int, int ))exportFunc)( args[0], args[1] );
+		case GAME_GET_CLIENT_SCORE:
+			exportFunc = dllExports[GAME_NATIVE_EXPORT_GET_CLIENT_SCORE];
+			if ( !exportFunc ) {
+				break;
+			}
+			return ((int (QDECL *)( int ))exportFunc)( args[0] );
 		default:
 			Com_Error( ERR_DROP, "VM_CallNativeExports: bad game call %i", callnum );
 		}

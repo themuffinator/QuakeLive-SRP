@@ -1096,6 +1096,9 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 	// mark the time, so the connection sprite can be removed
 	ucmd = &ent->client->pers.cmd;
+	client->ps.forwardmove = ucmd->forwardmove;
+	client->ps.rightmove = ucmd->rightmove;
+	client->ps.upmove = ucmd->upmove;
 
 	// sanity check the command time to prevent speedup cheating
 	if ( ucmd->serverTime > level.time + 200 ) {

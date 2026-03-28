@@ -22,6 +22,7 @@ else {
 
 $binaries = @(
 	(Join-Path $quakeliveRootAbs "quakelive_steam.exe"),
+	(Join-Path $quakeliveRootAbs "awesomium_process.exe"),
 	(Join-Path $quakeliveRootAbs "baseq3\cgamex86.dll"),
 	(Join-Path $quakeliveRootAbs "baseq3\qagamex86.dll"),
 	(Join-Path $quakeliveRootAbs "baseq3\uix86.dll")
@@ -53,6 +54,7 @@ $args = @(
 	"-import", $binaries[1],
 	"-import", $binaries[2],
 	"-import", $binaries[3],
+	"-import", $binaries[4],
 	"-overwrite",
 	"-scriptPath", $scriptPath,
 	"-postScript", "ExportQuakeLiveReference.java", $outputAbs, "$MaxDecompFunctions",

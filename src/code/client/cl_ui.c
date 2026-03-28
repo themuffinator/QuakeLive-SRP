@@ -26,6 +26,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../common/auth_credentials.h"
 #include "../../common/platform/platform_steamworks.h"
 #include "../../../src-re/include/fs_imports.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 extern	botlib_export_t	*botlib_export;
 
@@ -621,10 +624,10 @@ static void CL_GetGlconfig( glconfig_t *config ) {
 
 /*
 ====================
-GetClipboardData
+CL_UI_GetClipboardData
 ====================
 */
-static void GetClipboardData( char *buf, int buflen ) {
+static void CL_UI_GetClipboardData( char *buf, int buflen ) {
 	char	*cbd;
 
 	cbd = Sys_GetClipboardData();
@@ -861,13 +864,17 @@ static void CL_UI_LogFsOpen( const char *request, int mode, int length, const ch
 
 /*
 ====================
-CL_UISystemCalls
+CL_UISystemCallsImpl
 
-The ui module is making a system call
+Implements the UI trap surface for both legacy syscall dispatch and the
+native import-table bridge.
 ====================
 */
-int CL_UISystemCalls( int *args ) {
-	SyscallContract_LogEvent( "shim-ui", "ui", args, SYSCALL_CONTRACT_MAX_ARGS );
+static int CL_UISystemCallsImpl( int *args, qboolean logContract ) {
+	if ( logContract ) {
+		SyscallContract_LogEvent( "shim-ui", "ui", args, SYSCALL_CONTRACT_MAX_ARGS );
+	}
+
 	switch( args[0] ) {
 	case UI_ERROR:
 		Com_Error( ERR_DROP, "%s", VMA(1) );
@@ -1091,7 +1098,7 @@ int CL_UISystemCalls( int *args ) {
 		return 0;
 
 	case UI_GETCLIPBOARDDATA:
-		GetClipboardData( VMA(1), args[2] );
+		CL_UI_GetClipboardData( VMA(1), args[2] );
 		return 0;
 
 	case UI_GETCLIENTSTATE:
@@ -1274,6 +1281,15 @@ int CL_UISystemCalls( int *args ) {
 
 /*
 ====================
+CL_UISystemCalls
+====================
+*/
+int CL_UISystemCalls( int *args ) {
+	return CL_UISystemCallsImpl( args, qtrue );
+}
+
+/*
+====================
 UI_Import_Syscall
 ====================
 */
@@ -1290,7 +1306,7 @@ static int QDECL UI_Import_Syscall( int arg, ... ) {
 	}
 	va_end(ap);
 
-	return CL_UISystemCalls( args );
+	return CL_UISystemCallsImpl( args, qfalse );
 }
 
 #include "ql_ui_imports.inc"
@@ -1430,10 +1446,49 @@ static void QL_UI_DrawGlyph( float x, float y, float scaleFactor, glyphInfo_t *g
 
 /*
 ==============
-QL_UI_trap_Import82
+QL_UI_RegisterDefaultAdvertCellShader
 ==============
 */
-static void QDECL QL_UI_trap_Import82( void ) {
+static qhandle_t QL_UI_RegisterDefaultAdvertCellShader( const char *defaultContent ) {
+	if ( !defaultContent || !defaultContent[0] ) {
+		return 0;
+	}
+
+	return re.RegisterShaderNoMip( defaultContent );
+}
+
+/*
+==============
+QL_UI_trap_SetupAdvertCellShader
+==============
+*/
+static qhandle_t QDECL QL_UI_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
+	// uix86.dll HLIL: import[80] (offset 0x140) prepares an advert cell shader and falls back to default content.
+	(void)rect;
+	(void)cellId;
+
+	return QL_UI_RegisterDefaultAdvertCellShader( defaultContent );
+}
+
+/*
+==============
+QL_UI_trap_RefreshAdvertCellShader
+==============
+*/
+static qhandle_t QDECL QL_UI_trap_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
+	// uix86.dll HLIL: import[81] (offset 0x144) refreshes an advert cell shader and falls back to default content.
+	(void)rect;
+	(void)cellId;
+
+	return QL_UI_RegisterDefaultAdvertCellShader( defaultContent );
+}
+
+/*
+==============
+QL_UI_trap_InitAdvertisementBridge
+==============
+*/
+static void QDECL QL_UI_trap_InitAdvertisementBridge( void ) {
 	// uix86.dll HLIL: import[82] (offset 0x148) is invoked during UI init with no args.
 	// Quake Live retail thunks to an optional overlay hook; sync the provider state and leave fallbacks active when absent.
 	CL_RefreshOnlineServicesBridgeState();
@@ -1441,22 +1496,94 @@ static void QDECL QL_UI_trap_Import82( void ) {
 
 /*
 ==============
-QL_UI_trap_Import83
+QL_UI_trap_UpdateAdvert
 ==============
 */
-static void QDECL QL_UI_trap_Import83( void *arg1, int arg2 ) {
-	// uix86.dll HLIL: import[83] (offset 0x14c) called with (arg1, arg2) in ownerdraw.
-	// Quake Live retail resolves this to a stub (sub_4d7980).
-	(void)arg1;
-	(void)arg2;
+static void QDECL QL_UI_trap_UpdateAdvert( int handleOrToken, int area ) {
+	// uix86.dll HLIL: import[83] (offset 0x14c) is called by the retail UI advert ownerdraw after the quad draw.
+	// The committed host slab resolves the provider to the inert sub_4d7980 stub, so the arguments remain opaque.
+	(void)handleOrToken;
+	(void)area;
 }
 
 /*
 ==============
-QL_UI_trap_Import93
+QL_UI_trap_ActivateAdvert
 ==============
 */
-static int QDECL QL_UI_trap_Import93( int arg1 ) {
+static void QDECL QL_UI_trap_ActivateAdvert( int cellId ) {
+	// uix86.dll HLIL: import[84] (offset 0x150) activates an advert cell. Retail leaves this inert without a host bridge.
+	(void)cellId;
+}
+
+/*
+==============
+QL_UI_trap_Unused85
+==============
+*/
+static int QDECL QL_UI_trap_Unused85( void ) {
+	// uix86.dll HLIL: import[85] (offset 0x154) resolves to a no-op placeholder in retail.
+	return 0;
+}
+
+/*
+==============
+QL_UI_trap_SetCursorPos
+==============
+*/
+static int QDECL QL_UI_trap_SetCursorPos( int x, int y ) {
+#if defined( _WIN32 )
+	return SetCursorPos( x, y ) ? 1 : 0;
+#else
+	(void)x;
+	(void)y;
+	return 0;
+#endif
+}
+
+/*
+==============
+QL_UI_trap_GetCursorPos
+==============
+*/
+static int QDECL QL_UI_trap_GetCursorPos( int *x, int *y ) {
+#if defined( _WIN32 )
+	POINT point;
+
+	if ( !GetCursorPos( &point ) ) {
+		if ( x ) {
+			*x = 0;
+		}
+		if ( y ) {
+			*y = 0;
+		}
+		return 0;
+	}
+
+	if ( x ) {
+		*x = point.x;
+	}
+	if ( y ) {
+		*y = point.y;
+	}
+	return 1;
+#else
+	if ( x ) {
+		*x = 0;
+	}
+	if ( y ) {
+		*y = 0;
+	}
+	return 0;
+#endif
+}
+
+/*
+==============
+QL_UI_trap_IsSubscribedApp
+==============
+*/
+static int QDECL QL_UI_trap_IsSubscribedApp( int arg1 ) {
 	// uix86.dll HLIL: import[93] (offset 0x174) checks Steam subscription for app IDs.
 	if ( !CL_SteamServicesEnabled() ) {
 		return 0;
@@ -1467,10 +1594,10 @@ static int QDECL QL_UI_trap_Import93( int arg1 ) {
 
 /*
 ==============
-QL_UI_trap_Import94
+QL_UI_trap_DrawScaledText
 ==============
 */
-static void QDECL QL_UI_trap_Import94( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, int forceColor ) {
+static void QDECL QL_UI_trap_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, int forceColor ) {
 	fontInfo_t *font;
 	const char *s;
 	vec4_t baseColor;
@@ -1542,10 +1669,10 @@ static void QDECL QL_UI_trap_Import94( int x, int y, const char *text, int fontH
 
 /*
 ==============
-QL_UI_trap_Import95
+QL_UI_trap_MeasureText
 ==============
 */
-static unsigned long long QDECL QL_UI_trap_Import95( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft ) {
+static unsigned long long QDECL QL_UI_trap_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft ) {
 	fontInfo_t *font;
 	const char *s;
 	float width;
@@ -1609,10 +1736,10 @@ static unsigned long long QDECL QL_UI_trap_Import95( const char *text, const cha
 
 /*
 ==============
-QL_UI_trap_Import96
+QL_UI_trap_GetItemDownloadInfo
 ==============
 */
-static void QDECL QL_UI_trap_Import96( unsigned int arg1, unsigned int arg2, unsigned long long *outDownloaded, unsigned long long *outTotal ) {
+static void QDECL QL_UI_trap_GetItemDownloadInfo( unsigned int arg1, unsigned int arg2, unsigned long long *outDownloaded, unsigned long long *outTotal ) {
 	unsigned long long downloaded = 0;
 	unsigned long long total = 0;
 
@@ -1630,9 +1757,7 @@ static void QDECL QL_UI_trap_Import96( unsigned int arg1, unsigned int arg2, uns
 	}
 }
 
-#define QL_UI_IMPORT_COUNT 256
-
-static ql_import_f ql_ui_imports[QL_UI_IMPORT_COUNT];
+static ql_import_f ql_ui_imports[UI_QL_NATIVE_IMPORT_COUNT];
 
 /*
 ==============
@@ -1642,104 +1767,129 @@ CL_InitUIImports
 static void CL_InitUIImports( void ) {
 	int i;
 
-	for ( i = 0; i < QL_UI_IMPORT_COUNT; ++i ) {
+	for ( i = 0; i < UI_QL_NATIVE_IMPORT_COUNT; ++i ) {
 		ql_ui_imports[i] = (ql_import_f)QL_UI_trap_Stub;
 	}
 
 	// uix86.dll HLIL: import[0] is Print, import[1] is Error.
-	ql_ui_imports[0] = (ql_import_f)QL_UI_trap_Print;
-	ql_ui_imports[1] = (ql_import_f)QL_UI_trap_Error;
-	ql_ui_imports[2] = (ql_import_f)QL_UI_trap_Milliseconds;
+	ql_ui_imports[UI_QL_IMPORT_PRINT] = (ql_import_f)QL_UI_trap_Print;
+	ql_ui_imports[UI_QL_IMPORT_ERROR] = (ql_import_f)QL_UI_trap_Error;
+	ql_ui_imports[UI_QL_IMPORT_MILLISECONDS] = (ql_import_f)QL_UI_trap_Milliseconds;
 	// uix86.dll HLIL: import[3] is RealTime, import[6] is Cvar_Update.
-	ql_ui_imports[3] = (ql_import_f)QL_UI_trap_RealTime;
-	ql_ui_imports[4] = (ql_import_f)QL_UI_trap_Cvar_Register;
-	ql_ui_imports[5] = (ql_import_f)QL_UI_trap_Cvar_Create;
-	ql_ui_imports[6] = (ql_import_f)QL_UI_trap_Cvar_Update;
-	ql_ui_imports[7] = (ql_import_f)QL_UI_trap_Cvar_Set;
-	ql_ui_imports[8] = (ql_import_f)QL_UI_trap_Cvar_SetValue;
-	ql_ui_imports[9] = (ql_import_f)QL_UI_trap_Cvar_VariableStringBuffer;
-	ql_ui_imports[10] = (ql_import_f)QL_UI_trap_Cvar_VariableValue;
-	ql_ui_imports[11] = (ql_import_f)QL_UI_trap_Argc;
-	ql_ui_imports[12] = (ql_import_f)QL_UI_trap_Argv;
-	ql_ui_imports[13] = (ql_import_f)QL_UI_trap_Cmd_ArgsBuffer_QL;
-	ql_ui_imports[14] = (ql_import_f)QL_UI_trap_FS_FOpenFile;
-	ql_ui_imports[15] = (ql_import_f)QL_UI_trap_FS_Read;
-	ql_ui_imports[16] = (ql_import_f)QL_UI_trap_FS_Write;
-	ql_ui_imports[17] = (ql_import_f)QL_UI_trap_FS_FCloseFile;
-	ql_ui_imports[18] = (ql_import_f)QL_UI_trap_FS_Seek;
-	ql_ui_imports[19] = (ql_import_f)QL_UI_trap_FS_GetFileList;
-	ql_ui_imports[20] = (ql_import_f)QL_UI_trap_Cmd_ExecuteText_QL;
+	ql_ui_imports[UI_QL_IMPORT_REAL_TIME] = (ql_import_f)QL_UI_trap_RealTime;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_REGISTER] = (ql_import_f)QL_UI_trap_Cvar_Register;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_CREATE] = (ql_import_f)QL_UI_trap_Cvar_Create;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_UPDATE] = (ql_import_f)QL_UI_trap_Cvar_Update;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_SET] = (ql_import_f)QL_UI_trap_Cvar_Set;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_SET_VALUE] = (ql_import_f)QL_UI_trap_Cvar_SetValue;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_VARIABLE_STRING_BUFFER] = (ql_import_f)QL_UI_trap_Cvar_VariableStringBuffer;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_VARIABLE_VALUE] = (ql_import_f)QL_UI_trap_Cvar_VariableValue;
+	ql_ui_imports[UI_QL_IMPORT_ARGC] = (ql_import_f)QL_UI_trap_Argc;
+	ql_ui_imports[UI_QL_IMPORT_ARGV] = (ql_import_f)QL_UI_trap_Argv;
+	ql_ui_imports[UI_QL_IMPORT_CMD_ARGS_BUFFER] = (ql_import_f)QL_UI_trap_Cmd_ArgsBuffer_QL;
+	ql_ui_imports[UI_QL_IMPORT_FS_FOPENFILE] = (ql_import_f)QL_UI_trap_FS_FOpenFile;
+	ql_ui_imports[UI_QL_IMPORT_FS_READ] = (ql_import_f)QL_UI_trap_FS_Read;
+	ql_ui_imports[UI_QL_IMPORT_FS_WRITE] = (ql_import_f)QL_UI_trap_FS_Write;
+	ql_ui_imports[UI_QL_IMPORT_FS_FCLOSEFILE] = (ql_import_f)QL_UI_trap_FS_FCloseFile;
+	ql_ui_imports[UI_QL_IMPORT_FS_SEEK] = (ql_import_f)QL_UI_trap_FS_Seek;
+	ql_ui_imports[UI_QL_IMPORT_FS_GETFILELIST] = (ql_import_f)QL_UI_trap_FS_GetFileList;
+	ql_ui_imports[UI_QL_IMPORT_CMD_EXECUTETEXT] = (ql_import_f)QL_UI_trap_Cmd_ExecuteText_QL;
 	// uix86.dll HLIL: no dedicated Cvar_Reset import appears (no data_106b40a8 + 0x20/0x2c usage).
 	// The "resetDefaults" command path uses Cmd_ExecuteText("cvar_restart\n") instead.
-	ql_ui_imports[21] = (ql_import_f)QL_UI_trap_R_RegisterModel;
-	ql_ui_imports[22] = (ql_import_f)QL_UI_trap_R_RegisterSkin;
-	ql_ui_imports[23] = (ql_import_f)QL_UI_trap_R_RegisterShaderNoMip;
-	ql_ui_imports[24] = (ql_import_f)QL_UI_trap_R_ClearScene;
-	ql_ui_imports[25] = (ql_import_f)QL_UI_trap_R_AddRefEntityToScene;
-	ql_ui_imports[26] = (ql_import_f)QL_UI_trap_R_AddPolyToScene;
-	ql_ui_imports[27] = (ql_import_f)QL_UI_trap_R_AddLightToScene;
-	ql_ui_imports[28] = (ql_import_f)QL_UI_trap_R_RenderScene;
-	ql_ui_imports[29] = (ql_import_f)QL_UI_trap_R_SetColor_QL;
-	ql_ui_imports[30] = (ql_import_f)QL_UI_trap_R_DrawStretchPic;
-	ql_ui_imports[31] = (ql_import_f)QL_UI_trap_R_ModelBounds;
-	ql_ui_imports[32] = (ql_import_f)QL_UI_trap_UpdateScreen;
-	ql_ui_imports[33] = (ql_import_f)QL_UI_trap_CM_LerpTag;
-	ql_ui_imports[34] = (ql_import_f)QL_UI_trap_S_StartLocalSound;
-	ql_ui_imports[35] = (ql_import_f)QL_UI_trap_S_RegisterSound_QL;
-	ql_ui_imports[36] = (ql_import_f)QL_UI_trap_Key_KeynumToStringBuf;
-	ql_ui_imports[37] = (ql_import_f)QL_UI_trap_Key_GetBindingBuf;
-	ql_ui_imports[38] = (ql_import_f)QL_UI_trap_Key_SetBinding;
-	ql_ui_imports[39] = (ql_import_f)QL_UI_trap_Key_IsDown;
-	ql_ui_imports[40] = (ql_import_f)QL_UI_trap_Key_GetOverstrikeMode;
-	ql_ui_imports[41] = (ql_import_f)QL_UI_trap_Key_SetOverstrikeMode;
-	ql_ui_imports[42] = (ql_import_f)QL_UI_trap_Key_ClearStates;
-	ql_ui_imports[43] = (ql_import_f)QL_UI_trap_Key_GetCatcher;
-	ql_ui_imports[44] = (ql_import_f)QL_UI_trap_Key_SetCatcher;
-	ql_ui_imports[45] = (ql_import_f)QL_UI_trap_GetClipboardData;
-	ql_ui_imports[46] = (ql_import_f)QL_UI_trap_GetClientState;
-	ql_ui_imports[47] = (ql_import_f)QL_UI_trap_GetGlconfig;
-	ql_ui_imports[48] = (ql_import_f)QL_UI_trap_GetConfigString;
-	ql_ui_imports[49] = (ql_import_f)QL_UI_trap_LAN_GetServerCount;
-	ql_ui_imports[50] = (ql_import_f)QL_UI_trap_LAN_GetServerAddressString;
-	ql_ui_imports[51] = (ql_import_f)QL_UI_trap_LAN_GetServerInfo;
-	ql_ui_imports[52] = (ql_import_f)QL_UI_trap_LAN_GetServerPing;
-	ql_ui_imports[57] = (ql_import_f)QL_UI_trap_LAN_LoadCachedServers;
-	ql_ui_imports[59] = (ql_import_f)QL_UI_trap_LAN_MarkServerVisible;
-	ql_ui_imports[60] = (ql_import_f)QL_UI_trap_LAN_ServerIsVisible;
-	ql_ui_imports[61] = (ql_import_f)QL_UI_trap_LAN_UpdateVisiblePings;
-	ql_ui_imports[63] = (ql_import_f)QL_UI_trap_LAN_RemoveServer;
-	ql_ui_imports[64] = (ql_import_f)QL_UI_trap_LAN_ResetPings;
-	ql_ui_imports[65] = (ql_import_f)QL_UI_trap_LAN_GetPingInfo;
-	ql_ui_imports[66] = (ql_import_f)QL_UI_trap_LAN_GetPing;
+	ql_ui_imports[UI_QL_IMPORT_R_REGISTERMODEL] = (ql_import_f)QL_UI_trap_R_RegisterModel;
+	ql_ui_imports[UI_QL_IMPORT_R_REGISTERSKIN] = (ql_import_f)QL_UI_trap_R_RegisterSkin;
+	ql_ui_imports[UI_QL_IMPORT_R_REGISTERSHADERNOMIP] = (ql_import_f)QL_UI_trap_R_RegisterShaderNoMip;
+	ql_ui_imports[UI_QL_IMPORT_R_CLEARSCENE] = (ql_import_f)QL_UI_trap_R_ClearScene;
+	ql_ui_imports[UI_QL_IMPORT_R_ADDREFENTITYTOSCENE] = (ql_import_f)QL_UI_trap_R_AddRefEntityToScene;
+	ql_ui_imports[UI_QL_IMPORT_R_ADDPOLYTOSCENE] = (ql_import_f)QL_UI_trap_R_AddPolyToScene;
+	ql_ui_imports[UI_QL_IMPORT_R_ADDLIGHTTOSCENE] = (ql_import_f)QL_UI_trap_R_AddLightToScene;
+	ql_ui_imports[UI_QL_IMPORT_R_RENDERSCENE] = (ql_import_f)QL_UI_trap_R_RenderScene;
+	ql_ui_imports[UI_QL_IMPORT_R_SETCOLOR] = (ql_import_f)QL_UI_trap_R_SetColor_QL;
+	ql_ui_imports[UI_QL_IMPORT_R_DRAWSTRETCHPIC] = (ql_import_f)QL_UI_trap_R_DrawStretchPic;
+	ql_ui_imports[UI_QL_IMPORT_R_MODELBOUNDS] = (ql_import_f)QL_UI_trap_R_ModelBounds;
+	ql_ui_imports[UI_QL_IMPORT_UPDATESCREEN] = (ql_import_f)QL_UI_trap_UpdateScreen;
+	ql_ui_imports[UI_QL_IMPORT_CM_LERPTAG] = (ql_import_f)QL_UI_trap_CM_LerpTag;
+	ql_ui_imports[UI_QL_IMPORT_S_STARTLOCALSOUND] = (ql_import_f)QL_UI_trap_S_StartLocalSound;
+	ql_ui_imports[UI_QL_IMPORT_S_REGISTERSOUND] = (ql_import_f)QL_UI_trap_S_RegisterSound_QL;
+	ql_ui_imports[UI_QL_IMPORT_KEY_KEYNUMTOSTRINGBUF] = (ql_import_f)QL_UI_trap_Key_KeynumToStringBuf;
+	ql_ui_imports[UI_QL_IMPORT_KEY_GETBINDINGBUF] = (ql_import_f)QL_UI_trap_Key_GetBindingBuf;
+	ql_ui_imports[UI_QL_IMPORT_KEY_SETBINDING] = (ql_import_f)QL_UI_trap_Key_SetBinding;
+	ql_ui_imports[UI_QL_IMPORT_KEY_ISDOWN] = (ql_import_f)QL_UI_trap_Key_IsDown;
+	ql_ui_imports[UI_QL_IMPORT_KEY_GETOVERSTRIKEMODE] = (ql_import_f)QL_UI_trap_Key_GetOverstrikeMode;
+	ql_ui_imports[UI_QL_IMPORT_KEY_SETOVERSTRIKEMODE] = (ql_import_f)QL_UI_trap_Key_SetOverstrikeMode;
+	ql_ui_imports[UI_QL_IMPORT_KEY_CLEARSTATES] = (ql_import_f)QL_UI_trap_Key_ClearStates;
+	ql_ui_imports[UI_QL_IMPORT_KEY_GETCATCHER] = (ql_import_f)QL_UI_trap_Key_GetCatcher;
+	ql_ui_imports[UI_QL_IMPORT_KEY_SETCATCHER] = (ql_import_f)QL_UI_trap_Key_SetCatcher;
+	ql_ui_imports[UI_QL_IMPORT_GETCLIPBOARDDATA] = (ql_import_f)QL_UI_trap_GetClipboardData;
+	ql_ui_imports[UI_QL_IMPORT_GETCLIENTSTATE] = (ql_import_f)QL_UI_trap_GetClientState;
+	ql_ui_imports[UI_QL_IMPORT_GETGLCONFIG] = (ql_import_f)QL_UI_trap_GetGlconfig;
+	ql_ui_imports[UI_QL_IMPORT_GETCONFIGSTRING] = (ql_import_f)QL_UI_trap_GetConfigString;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETSERVERCOUNT] = (ql_import_f)QL_UI_trap_LAN_GetServerCount;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETSERVERADDRESSSTRING] = (ql_import_f)QL_UI_trap_LAN_GetServerAddressString;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETSERVERINFO] = (ql_import_f)QL_UI_trap_LAN_GetServerInfo;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETSERVERPING] = (ql_import_f)QL_UI_trap_LAN_GetServerPing;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETPINGQUEUECOUNT] = (ql_import_f)QL_UI_trap_LAN_GetPingQueueCount;
+	ql_ui_imports[UI_QL_IMPORT_LAN_CLEARPING] = (ql_import_f)QL_UI_trap_LAN_ClearPing;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETPING] = (ql_import_f)QL_UI_trap_LAN_GetPing;
+	ql_ui_imports[UI_QL_IMPORT_LAN_GETPINGINFO] = (ql_import_f)QL_UI_trap_LAN_GetPingInfo;
+	ql_ui_imports[UI_QL_IMPORT_LAN_LOADCACHEDSERVERS] = (ql_import_f)QL_UI_trap_LAN_LoadCachedServers;
+	ql_ui_imports[UI_QL_IMPORT_LAN_SAVECACHEDSERVERS] = (ql_import_f)QL_UI_trap_LAN_SaveCachedServers;
+	ql_ui_imports[UI_QL_IMPORT_LAN_MARKSERVERVISIBLE] = (ql_import_f)QL_UI_trap_LAN_MarkServerVisible;
+	ql_ui_imports[UI_QL_IMPORT_LAN_SERVERISVISIBLE] = (ql_import_f)QL_UI_trap_LAN_ServerIsVisible;
+	ql_ui_imports[UI_QL_IMPORT_LAN_UPDATEVISIBLEPINGS] = (ql_import_f)QL_UI_trap_LAN_UpdateVisiblePings;
+	ql_ui_imports[UI_QL_IMPORT_LAN_ADDSERVER] = (ql_import_f)QL_UI_trap_LAN_AddServer;
+	ql_ui_imports[UI_QL_IMPORT_LAN_REMOVESERVER] = (ql_import_f)QL_UI_trap_LAN_RemoveServer;
+	ql_ui_imports[UI_QL_IMPORT_LAN_RESETPINGS] = (ql_import_f)QL_UI_trap_LAN_ResetPings;
+	ql_ui_imports[UI_QL_IMPORT_LAN_SERVERSTATUS] = (ql_import_f)QL_UI_trap_LAN_ServerStatus;
+	ql_ui_imports[UI_QL_IMPORT_LAN_COMPARESERVERS] = (ql_import_f)QL_UI_trap_LAN_CompareServers;
 
-	// uix86.dll HLIL: cdkey helpers at offsets 0x110..0x13c.
-	ql_ui_imports[68] = (ql_import_f)QL_UI_trap_GetCDKey;
-	ql_ui_imports[69] = (ql_import_f)QL_UI_trap_SetCDKey_QL;
-	ql_ui_imports[79] = (ql_import_f)QL_UI_trap_VerifyCDKey;
+	// Retail native UI order keeps MemoryRemaining directly before the cdkey slice.
+	ql_ui_imports[UI_QL_IMPORT_MEMORY_REMAINING] = (ql_import_f)QL_UI_trap_MemoryRemaining;
+
+	// uix86.dll/native UI: cdkey helpers at offsets 0x110..0x13c.
+	ql_ui_imports[UI_QL_IMPORT_GET_CDKEY] = (ql_import_f)QL_UI_trap_GetCDKey;
+	ql_ui_imports[UI_QL_IMPORT_SET_CDKEY] = (ql_import_f)QL_UI_trap_SetCDKey_QL;
 
 	// uix86.dll HLIL: import[70] (offset 0x118) is trap_R_RegisterFont(fontName, pointSize, fontInfo*).
-	ql_ui_imports[70] = (ql_import_f)QL_UI_trap_R_RegisterFont;
-	ql_ui_imports[72] = (ql_import_f)QL_UI_trap_S_StartBackgroundTrack;
-	ql_ui_imports[73] = (ql_import_f)QL_UI_trap_CIN_PlayCinematic;
-	ql_ui_imports[74] = (ql_import_f)QL_UI_trap_CIN_StopCinematic;
-	ql_ui_imports[75] = (ql_import_f)QL_UI_trap_CIN_DrawCinematic;
-	ql_ui_imports[76] = (ql_import_f)QL_UI_trap_CIN_RunCinematic;
-	ql_ui_imports[77] = (ql_import_f)QL_UI_trap_CIN_SetExtents;
-	ql_ui_imports[85] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;
+	ql_ui_imports[UI_QL_IMPORT_R_REGISTERFONT] = (ql_import_f)QL_UI_trap_R_RegisterFont;
+	ql_ui_imports[UI_QL_IMPORT_S_STOPBACKGROUNDTRACK] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;
+	ql_ui_imports[UI_QL_IMPORT_S_STARTBACKGROUNDTRACK] = (ql_import_f)QL_UI_trap_S_StartBackgroundTrack;
+	ql_ui_imports[UI_QL_IMPORT_CIN_PLAYCINEMATIC] = (ql_import_f)QL_UI_trap_CIN_PlayCinematic;
+	ql_ui_imports[UI_QL_IMPORT_CIN_STOPCINEMATIC] = (ql_import_f)QL_UI_trap_CIN_StopCinematic;
+	ql_ui_imports[UI_QL_IMPORT_CIN_DRAWCINEMATIC] = (ql_import_f)QL_UI_trap_CIN_DrawCinematic;
+	ql_ui_imports[UI_QL_IMPORT_CIN_RUNCINEMATIC] = (ql_import_f)QL_UI_trap_CIN_RunCinematic;
+	ql_ui_imports[UI_QL_IMPORT_CIN_SETEXTENTS] = (ql_import_f)QL_UI_trap_CIN_SetExtents;
+	ql_ui_imports[UI_QL_IMPORT_R_REMAP_SHADER] = (ql_import_f)QL_UI_trap_R_RemapShader;
+	ql_ui_imports[UI_QL_IMPORT_VERIFY_CDKEY] = (ql_import_f)QL_UI_trap_VerifyCDKey;
 
-	// uix86.dll HLIL: parser imports at offsets 0x164..0x170 (indices 89-92).
-	ql_ui_imports[89] = (ql_import_f)QL_UI_trap_PC_LoadSource;
-	ql_ui_imports[90] = (ql_import_f)QL_UI_trap_PC_FreeSource;
-	ql_ui_imports[91] = (ql_import_f)QL_UI_trap_PC_ReadToken;
-	ql_ui_imports[92] = (ql_import_f)QL_UI_trap_PC_SourceFileAndLine;
+	// uix86.dll HLIL: Quake Live-specific imports at offsets 0x140..0x180.
+	ql_ui_imports[UI_QL_IMPORT_SETUP_ADVERT_CELL_SHADER] = (ql_import_f)QL_UI_trap_SetupAdvertCellShader;
+	ql_ui_imports[UI_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER] = (ql_import_f)QL_UI_trap_RefreshAdvertCellShader;
+	ql_ui_imports[UI_QL_IMPORT_INIT_ADVERTISEMENT_BRIDGE] = (ql_import_f)QL_UI_trap_InitAdvertisementBridge;
+	ql_ui_imports[UI_QL_IMPORT_UNUSED_83] = (ql_import_f)QL_UI_trap_UpdateAdvert;
+	ql_ui_imports[UI_QL_IMPORT_ACTIVATE_ADVERT] = (ql_import_f)QL_UI_trap_ActivateAdvert;
+	ql_ui_imports[UI_QL_IMPORT_UNUSED_85] = (ql_import_f)QL_UI_trap_Unused85;
+	ql_ui_imports[UI_QL_IMPORT_SET_CURSOR_POS] = (ql_import_f)QL_UI_trap_SetCursorPos;
+	ql_ui_imports[UI_QL_IMPORT_GET_CURSOR_POS] = (ql_import_f)QL_UI_trap_GetCursorPos;
 
-	// uix86.dll HLIL: Quake Live-specific imports at offsets 0x148..0x180.
-	ql_ui_imports[82] = (ql_import_f)QL_UI_trap_Import82;
-	ql_ui_imports[83] = (ql_import_f)QL_UI_trap_Import83;
-	ql_ui_imports[93] = (ql_import_f)QL_UI_trap_Import93;
-	ql_ui_imports[94] = (ql_import_f)QL_UI_trap_Import94;
-	ql_ui_imports[95] = (ql_import_f)QL_UI_trap_Import95;
-	ql_ui_imports[96] = (ql_import_f)QL_UI_trap_Import96;
+	// uix86.dll HLIL: parser imports at offsets 0x160..0x170 (indices 88-92).
+	ql_ui_imports[UI_QL_IMPORT_PC_ADD_GLOBAL_DEFINE] = (ql_import_f)QL_UI_trap_PC_AddGlobalDefine;
+	ql_ui_imports[UI_QL_IMPORT_PC_LOAD_SOURCE] = (ql_import_f)QL_UI_trap_PC_LoadSource;
+	ql_ui_imports[UI_QL_IMPORT_PC_FREE_SOURCE] = (ql_import_f)QL_UI_trap_PC_FreeSource;
+	ql_ui_imports[UI_QL_IMPORT_PC_READ_TOKEN] = (ql_import_f)QL_UI_trap_PC_ReadToken;
+	ql_ui_imports[UI_QL_IMPORT_PC_SOURCE_FILE_AND_LINE] = (ql_import_f)QL_UI_trap_PC_SourceFileAndLine;
+
+	ql_ui_imports[UI_QL_IMPORT_IS_SUBSCRIBED_APP] = (ql_import_f)QL_UI_trap_IsSubscribedApp;
+	ql_ui_imports[UI_QL_IMPORT_DRAW_SCALED_TEXT] = (ql_import_f)QL_UI_trap_DrawScaledText;
+	ql_ui_imports[UI_QL_IMPORT_MEASURE_TEXT] = (ql_import_f)QL_UI_trap_MeasureText;
+	ql_ui_imports[UI_QL_IMPORT_GET_ITEM_DOWNLOAD_INFO] = (ql_import_f)QL_UI_trap_GetItemDownloadInfo;
+
+	// Source-side native bridge extensions beyond the recovered retail slab.
+	ql_ui_imports[UI_QL_IMPORT_CVAR_RESET] = (ql_import_f)QL_UI_trap_Cvar_Reset;
+	ql_ui_imports[UI_QL_IMPORT_CVAR_INFOSTRINGBUFFER] = (ql_import_f)QL_UI_trap_Cvar_InfoStringBuffer;
+	ql_ui_imports[UI_QL_IMPORT_CM_LOADMODEL] = (ql_import_f)QL_UI_trap_CM_LoadModel;
+	ql_ui_imports[UI_QL_IMPORT_SET_PBCLSTATUS] = (ql_import_f)QL_UI_trap_SetPbClStatus;
+	ql_ui_imports[UI_QL_IMPORT_LAUNCHER_READSCREENSHOT] = (ql_import_f)QL_UI_trap_Launcher_ReadScreenshot;
 }
 
 /*

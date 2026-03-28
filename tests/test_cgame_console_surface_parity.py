@@ -10,6 +10,21 @@ CG_CONSOLECMDS = REPO_ROOT / "src" / "code" / "cgame" / "cg_consolecmds.c"
 CG_NEWDRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_newdraw.c"
 
 
+def _block_from_marker(source: str, marker: str) -> str:
+	start = source.rindex(marker)
+	brace_start = source.index("{", start)
+	depth = 0
+	for index in range(brace_start, len(source)):
+		char = source[index]
+		if char == "{":
+			depth += 1
+		elif char == "}":
+			depth -= 1
+			if depth == 0:
+				return source[start:index + 1]
+	raise AssertionError(f"Unbalanced block for marker: {marker}")
+
+
 def test_local_console_surface_stays_narrower_like_retail() -> None:
 	console_source = CG_CONSOLECMDS.read_text(encoding="utf-8")
 	menu_source = CG_NEWDRAW.read_text(encoding="utf-8")
@@ -90,12 +105,14 @@ def test_retail_local_drop_and_ragequit_wrappers_remain_in_console_surface() -> 
 		'{ "dropweapon", CG_DropWeapon_f },',
 		'{ "forfeit", CG_Forfeit_f },',
 		'{ "ragequit", CG_RageQuit_f },',
+		'{ "kill", CG_Kill_f },',
 		'trap_SendClientCommand( "dropflag" );',
 		'trap_SendClientCommand( "droppowerup" );',
 		'trap_SendClientCommand( "droprune" );',
 		'trap_SendClientCommand( "dropweapon" );',
 		'trap_SendClientCommand( "forfeit" );',
 		'trap_SendClientCommand( "ragequit" );',
+		'trap_SendClientCommand( "kill" );',
 		'cg.rageQuitTime = 2;',
 		'"DropFlag is not available in non-flag gametypes.\\n"',
 		'"DropPowerup is not available in non-team gametypes.\\n"',
@@ -111,6 +128,13 @@ def test_retail_local_drop_and_ragequit_wrappers_remain_in_console_surface() -> 
 		assert expected in source
 
 	assert "kill_guantlet" not in source
+
+
+def test_retail_local_kill_wrapper_remains_in_console_surface() -> None:
+	source = CG_CONSOLECMDS.read_text(encoding="utf-8")
+	block = _block_from_marker(source, "static void CG_Kill_f")
+
+	assert 'trap_SendClientCommand( "kill" );' in block
 
 
 def test_retail_local_color_wrappers_remain_in_console_surface() -> None:
@@ -165,3 +189,29 @@ def test_retail_local_readyup_wrapper_remains_in_console_surface() -> None:
 		'trap_SendClientCommand( "readyup" );',
 	):
 		assert expected in source
+
+
+def test_browser_input_bridge_wraps_shared_display_dispatch() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	cursor_block = _block_from_marker(source, "static int CG_BrowserDisplayCursorType")
+	move_block = _block_from_marker(source, "static qboolean CG_BrowserDisplayMouseMove")
+	key_block = _block_from_marker(source, "static void CG_BrowserDisplayHandleKey")
+	capture_block = _block_from_marker(source, "static void *CG_BrowserDisplayCaptureItem")
+	mouse_event_block = _block_from_marker(source, "void CG_MouseEvent")
+	key_event_block = _block_from_marker(source, "void CG_KeyEvent")
+
+	assert "return Display_CursorType( x, y );" in cursor_block
+	assert "return Display_MouseMove( overlay, x, y );" in move_block
+	assert "Display_HandleKey( key, down, x, y );" in key_block
+	assert "return Display_CaptureItem( x, y );" in capture_block
+
+	assert "n = CG_BrowserDisplayCursorType( cgs.cursorX, cgs.cursorY );" in mouse_event_block
+	assert "CG_BrowserDisplayMouseMove( cgs.capturedItem, x, y );" in mouse_event_block
+	assert "CG_BrowserDisplayMouseMove( NULL, cgs.cursorX, cgs.cursorY );" in mouse_event_block
+	assert "Display_CursorType(" not in mouse_event_block
+	assert "Display_MouseMove(" not in mouse_event_block
+
+	assert "CG_BrowserDisplayHandleKey(key, down, cgs.cursorX, cgs.cursorY);" in key_event_block
+	assert "cgs.capturedItem = CG_BrowserDisplayCaptureItem( cgs.cursorX, cgs.cursorY );" in key_event_block
+	assert "Display_HandleKey(key, down, cgs.cursorX, cgs.cursorY);" not in key_event_block
+	assert "Display_CaptureItem(" not in key_event_block

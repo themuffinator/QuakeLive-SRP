@@ -14,17 +14,22 @@ if (-not (Test-Path $solutionPath)) {
     throw "Solution file not found at '$solutionPath'."
 }
 
+$msbuildPlatform = $Platform
+if ([System.IO.Path]::GetExtension($solutionPath) -ieq '.sln' -and $Platform -eq 'Win32') {
+    $msbuildPlatform = 'x86'
+}
+
 $msbuild = Get-Command msbuild.exe -ErrorAction SilentlyContinue
 if (-not $msbuild) {
     throw 'msbuild.exe was not found in PATH. Install Visual Studio Build Tools or ensure msbuild is available.'
 }
 
-Write-Host "Building '$Solution' ($Configuration|$Platform) with toolset $PlatformToolset."
+Write-Host "Building '$Solution' ($Configuration|$msbuildPlatform) with toolset $PlatformToolset."
 $arguments = @(
     $solutionPath,
     '/m',
     "/p:Configuration=$Configuration",
-    "/p:Platform=$Platform",
+    "/p:Platform=$msbuildPlatform",
     "/p:PlatformToolset=$PlatformToolset",
     '/p:PreferredToolArchitecture=x86'
 )
@@ -34,7 +39,7 @@ if ($process.ExitCode -ne 0) {
     throw "msbuild.exe failed with exit code $($process.ExitCode)."
 }
 
-Write-Host 'Gameplay DLL build completed successfully.'
+Write-Host 'Native Windows solution build completed successfully.'
 
 $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
 if (-not $cl) {

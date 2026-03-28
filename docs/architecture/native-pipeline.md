@@ -2,6 +2,17 @@
 
 This document captures every `VM_Create` and `VM_Call` usage across the client, server, and shared subsystems so we can plan the removal of the QVM seam. Each entry records the current lifecycle responsibility and the proposed native entry point or shim that will replace the VM trampoline. Signature notes highlight where the vararg `VM_Call` interface must be tightened when moving to native exports.
 
+## Status update (2026-03-26)
+
+The source-built native DLL ABI slice is now largely in place:
+
+- platform loaders prefer the structured Quake Live-style `dllEntry(exports, imports, apiVersion)` interface before the legacy `vmMain` fallback
+- `cgame`, `qagame`, and `ui` now publish recovered native export-slot tables distinct from the legacy `vmMain` enums
+- `VM_Call` native dispatch maps engine call numbers onto the recovered retail native export order
+- engine-side native import dispatch is split from legacy syscall-contract logging, so native DLL traffic no longer appears as old VM syscall traffic during validation
+
+That closes the core import/export replication work for the reconstructed source-built gameplay DLLs. The remaining work in this area is strict compatibility validation against the retail DLLs themselves, plus the host/platform/bootstrap surfaces those binaries expect from the retail engine.
+
 ## Client UI VM (`uivm`)
 | Lifecycle | Location(s) | Current invocation | Proposed native entry (signature) | Notes / blockers |
 | --- | --- | --- | --- | --- |
@@ -66,10 +77,10 @@ This document captures every `VM_Create` and `VM_Call` usage across the client, 
 | `SV_SpawnServer` bot reconnect | Post-spawn loop unwraps denial pointers via `VM_ExplicitArgPtr`. 【F:src/code/server/sv_init.c†L440-L499】 | Extend reconnect helper to accept structured responses and skip pointer aliasing. |
 
 ## Blockers and shared utilities to migrate
-* **System call tables**: `CL_UISystemCalls`, `CL_CgameSystemCalls`, and `SV_GameSystemCalls` must be formalized into shared import structures exported to each native DLL instead of being accessed through VM trampolines. This requires creating headers that define the import surface and moving helper utilities currently private to the engine (e.g., file system, renderer handles) into those headers. 【F:src/code/client/cl_ui.c†L1133-L1205】【F:src/code/client/cl_cgame.c†L758-L816】【F:src/code/server/sv_game.c†L894-L980】
-* **Pointer marshalling helpers**: Server code relies on `VM_ExplicitArgPtr` to reinterpret VM return values (notably denial strings from `G_ClientConnect`). A native transition needs an explicit ownership model for those buffers, likely switching to engine-owned `static` strings or explicit result structs. 【F:src/code/server/sv_client.c†L546-L558】【F:src/code/server/sv_ccmds.c†L298-L307】【F:src/code/server/sv_init.c†L440-L499】
-* **Restart semantics**: `SV_RestartGameProgs` expects `VM_Restart` to hot-reload the game module without tearing down allocations. A native DLL must expose equivalent `G_Restart` or support full unload/reload while preserving persistent data (bot states, cvars). 【F:src/code/server/sv_game.c†L922-L935】【F:src/code/qcommon/vm.c†L360-L385】
-* **Module unload hooks**: `CL_ShutdownUI` and `SV_ShutdownGameProgs` depend on `VM_Free` to drop DLL handles and clear the active VM globals. Native equivalents must release resources and null out cached pointers so stale handles are not reused. 【F:src/code/client/cl_ui.c†L1133-L1141】【F:src/code/server/sv_game.c†L882-L935】【F:src/code/qcommon/vm.c†L580-L604】
-* **Global state access**: Many calls pass engine globals implicitly (e.g., `cls`, `svs`, `clc`). Moving to native code will require defining context structs or accessor callbacks to avoid tight coupling. The import surface should include read-only snapshots of these globals or query APIs, matching the dependencies enumerated above.
-* **Command buffer bridging**: Console command handlers for UI, client game, and server modules still expect to pull arguments through the engine's `Cmd_*` API after `VM_Call`. Native exports need explicit argument lists or a parsed command descriptor so DLLs do not rely on ambient globals. 【F:src/code/client/cl_ui.c†L1193-L1205】【F:src/code/client/cl_cgame.c†L792-L805】【F:src/code/server/sv_client.c†L1322-L1374】
+* **System call tables**: Completed for the current source-built native DLL path. `CL_UISystemCalls`, `CL_CgameSystemCalls`, and `SV_GameSystemCalls` are now exposed through structured native import tables passed via the Quake Live-style `dllEntry` handshake instead of only through legacy VM trampolines. Further work here is validation against retail DLL expectations, not first-time plumbing.
+* **Pointer-return ownership**: Retail-binary hosting still needs stricter validation around places that historically relied on VM pointer reinterpretation, especially denial strings from `G_ClientConnect`. The reconstructed source-built DLLs share the current engine conventions, but retail DLLs may still expose tighter ownership or lifetime assumptions. 【F:src/code/server/sv_client.c†L546-L558】【F:src/code/server/sv_ccmds.c†L298-L307】【F:src/code/server/sv_init.c†L440-L499】
+* **Restart semantics**: `SV_RestartGameProgs` and `VM_Restart` work for the rebuilt source path, but retail-binary hosting still needs explicit validation that unload, reload, and map-restart behavior match the retail engine's expectations. 【F:src/code/server/sv_game.c†L922-L935】【F:src/code/qcommon/vm.c†L360-L385】
+* **Module unload hooks**: `CL_ShutdownUI` and `SV_ShutdownGameProgs` already drive native DLL unload through the current VM wrapper layer, but stale-pointer/lifetime behavior should still be rechecked against retail binaries whenever host ownership rules are recovered more precisely. 【F:src/code/client/cl_ui.c†L1133-L1141】【F:src/code/server/sv_game.c†L882-L935】【F:src/code/qcommon/vm.c†L580-L604】
+* **Global state access**: The current import surface intentionally preserves ambient engine-query behavior for compatibility. Removing the QVM seam entirely is still a separate cleanup task from retail native ABI parity.
+* **Command buffer bridging**: Console command handlers still rely on the engine `Cmd_*` API through the import table, which is compatible with the current native ABI. Tightening that into explicit typed command descriptors is optional cleanup unless retail evidence shows a concrete mismatch. 【F:src/code/client/cl_ui.c†L1193-L1205】【F:src/code/client/cl_cgame.c†L792-L805】【F:src/code/server/sv_client.c†L1322-L1374】
 

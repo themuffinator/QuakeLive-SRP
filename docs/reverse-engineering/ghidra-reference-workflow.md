@@ -11,6 +11,7 @@ existing Binary Ninja HLIL dumps so reverse-engineering work has both:
 Reference binaries:
 
 - `assets/quakelive/quakelive_steam.exe`
+- `assets/quakelive/awesomium_process.exe`
 - `assets/quakelive/baseq3/cgamex86.dll`
 - `assets/quakelive/baseq3/qagamex86.dll`
 - `assets/quakelive/baseq3/uix86.dll`
@@ -20,6 +21,7 @@ Reference binaries:
 Generated outputs are committed under:
 
 - `references/reverse-engineering/ghidra/quakelive_steam/`
+- `references/reverse-engineering/ghidra/awesomium_process/`
 - `references/reverse-engineering/ghidra/cgamex86/`
 - `references/reverse-engineering/ghidra/qagamex86/`
 - `references/reverse-engineering/ghidra/uix86/`
@@ -44,6 +46,13 @@ instead of it:
 - `references/hlil/quakelive/uix86.all/`
 - `references/symbol-maps/`
 - `docs/reverse-engineering/ghidra-module-mapping.md`
+
+`awesomium_process.exe` still only has the committed Ghidra companion corpus plus
+the PE/toolchain metadata in `references/analysis/quakelive_toolchain_metadata.json`
+on the reverse-engineering side; there is no committed Binary Ninja HLIL dump for
+that helper yet. The current source reconstruction for the thin bootstrap lives in
+`src/code/win32/awesomium_process.cpp`, `src/code/win32/awesomium.def`, and
+`src/code/awesomium_process.vcxproj`.
 
 Precedence rule:
 
@@ -97,6 +106,7 @@ Optional parameters:
 Reference binary MD5 values:
 
 - `quakelive_steam.exe`: `B8E404E377AB33E482DF9D6063F67DA5`
+- `awesomium_process.exe`: `C4B3D8ED06ECBEC2B2FD0D1FAEDB1FEF`
 - `cgamex86.dll`: `375A1CC258A7432DF35EBBE0A5215B9B`
 - `qagamex86.dll`: `005D0C49D4190FE82F325E4FB6437AD0`
 - `uix86.dll`: `64321E7C6357A59063AE8900E2A20732`
