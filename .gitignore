@@ -45,6 +45,11 @@ src/ui/assets/
 *.VC.db
 *.VC.VC.opendb
 
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
 # Ralph loop runtime artifacts
 .codex/ralph/archive/
 .codex/ralph/events.log
