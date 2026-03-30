@@ -7,7 +7,7 @@ on:
 
 jobs:
   native-dll:
-    runs-on: windows-latest
+    runs-on: windows-2019
     defaults:
       run:
         shell: pwsh
