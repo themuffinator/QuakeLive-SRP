@@ -45,6 +45,14 @@ src/ui/assets/
 *.VC.db
 *.VC.VC.opendb
 
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# UI bundle staging output
+build/ui_bundle/src_ui_retail_overlay/
+
 # Ralph loop runtime artifacts
 .codex/ralph/archive/
 .codex/ralph/events.log

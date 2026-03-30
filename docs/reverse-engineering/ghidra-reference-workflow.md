@@ -35,6 +35,19 @@ Each folder contains:
 - `analysis_symbols.txt`
 - `decompile_top_functions.c`
 
+The `uix86/` folder additionally contains:
+
+- `decompile_annotated.c` — `decompile_top_functions.c` with every raw
+  `FUN_XXXXXXXX` token replaced by its normalized name from
+  `references/symbol-maps/ui.json`.  All 275 of the 276 unique `FUN_`
+  tokens in the top-functions decompile are resolved; the single
+  exception (`PTR_FUN_1002a01c`) is a data-pointer label, not a function
+  entry point.  Regenerate with:
+
+  ```
+  python3 scripts/ghidra/build_ui_annotated.py
+  ```
+
 ## Companion Binary Ninja / Mapping Material
 
 Use the committed Ghidra corpus with the existing Binary Ninja material rather than
@@ -63,10 +76,74 @@ Precedence rule:
 - Treat live MCP output and ad-hoc decompiler sessions as advisory until they are
   revalidated against committed corpus files and, when needed, the HLIL dumps.
 
+## UI Module: Symbol-Annotated Reference and Source Recreation
+
+The UI module has a dedicated two-step workflow built on top of the standard
+Ghidra export:
+
+### Step 1 — Apply symbol map to a live Ghidra project
+
+```
+analyzeHeadless <project_dir> <project_name> \
+    -process uix86.dll \
+    -postScript ghidra_scripts/ApplyUISymbolMap.py
+```
+
+`ApplyUISymbolMap.py` renames every `FUN_XXXXXXXX` function in the open
+Ghidra database using the `normalized_name` from
+`references/symbol-maps/ui.json` and appends the `comment` field as a
+plate comment on the function entry point.
+
+### Step 2 — Export annotated C source from Ghidra
+
+Run after Step 1:
+
+```
+analyzeHeadless <project_dir> <project_name> \
+    -process uix86.dll \
+    -postScript ghidra_scripts/ExportUISourceRecreation.py \
+    [<output_root>]
+```
+
+`ExportUISourceRecreation.py` decompiles every non-external function and
+writes the result to:
+
+```
+<output_root>/ui/
+    ui_reconstruction.c   -- full annotated decompile of all 348 functions
+    include/
+        ui_prototypes.h   -- forward declarations for all decompiled functions
+```
+
+`<output_root>` defaults to `src-re/ui/`.
+
+### Offline annotation (no Ghidra required)
+
+The committed `decompile_top_functions.c` (top 180 functions by body size)
+can be re-annotated offline using the Python helper:
+
+```
+python3 scripts/ghidra/build_ui_annotated.py
+```
+
+This regenerates `references/reverse-engineering/ghidra/uix86/decompile_annotated.c`.
+
+### Source reconstruction workspace
+
+`src-re/ui/` is the active reconstruction workspace:
+
+- `include/ui_local.h` — Quake Live-specific types, syscall-table slot
+  constants, and prototypes recovered from the symbol map.
+- `ui_main.c` — Initial reconstruction stubs for the module entry point
+  and all `_UI_*` engine-facing API functions.
+
 ## Tooling
 
 - Headless exporter script: `scripts/ghidra/ExportQuakeLiveReference.java`
 - Runner wrapper: `scripts/ghidra/run_quakelive_reference.ps1`
+- UI symbol-map application: `ghidra_scripts/ApplyUISymbolMap.py`
+- UI source-recreation export: `ghidra_scripts/ExportUISourceRecreation.py`
+- Offline UI annotation helper: `scripts/ghidra/build_ui_annotated.py`
 - Optional GhidrAssistMCP bootstrap: `scripts/ghidra/setup_ghidrassist_mcp.ps1`
 - Default Ghidra install path used by the wrapper:
   - `C:\Users\djdac\Tools\ghidra_12.0.4_PUBLIC`
