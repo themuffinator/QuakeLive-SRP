@@ -83,6 +83,28 @@ static float G_GetMuzzleForwardOffset( const gentity_t *ent ) {
 
 /*
 =============
+G_WeaponUsesLagHaxTimeshift
+
+Returns qtrue for the hidden retail hitscan weapon set that brackets traces
+with the lag-hax rewind helpers.
+=============
+*/
+static qboolean G_WeaponUsesLagHaxTimeshift( weapon_t weapon ) {
+	switch ( weapon ) {
+	case WP_MACHINEGUN:
+	case WP_HEAVY_MACHINEGUN:
+	case WP_SHOTGUN:
+	case WP_LIGHTNING:
+	case WP_RAILGUN:
+	case WP_CHAINGUN:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+=============
 G_GetChaingunSpread
 
 Returns the retail chaingun spread derived from the current weaponTime spin-up.
@@ -1195,6 +1217,8 @@ FireWeapon
 ===============
 */
 void FireWeapon( gentity_t *ent ) {
+	qboolean	lagHaxActive;
+
 	if ( ent->client->ps.powerups[PW_QUAD] ) {
 		s_quadFactor = g_weaponConfig.quadDamageMultiplier;
 	} else {
@@ -1219,6 +1243,15 @@ void FireWeapon( gentity_t *ent ) {
 	AngleVectors (ent->client->ps.viewangles, forward, right, up);
 
 	CalcMuzzlePointOrigin ( ent, ent->client->oldOrigin, forward, right, up, muzzle );
+
+	lagHaxActive = qfalse;
+	if ( G_WeaponUsesLagHaxTimeshift( ent->s.weapon )
+		&& g_lagHaxHistory.integer > 0
+		&& g_lagHaxMs.integer > 0
+		&& !( ent->r.svFlags & SVF_BOT ) ) {
+		G_TimeShiftAllClients( ent, ent->client->ps.commandTime );
+		lagHaxActive = qtrue;
+	}
 
 	// fire the specific weapon
 	switch( ent->s.weapon ) {
@@ -1264,9 +1297,13 @@ void FireWeapon( gentity_t *ent ) {
 	case WP_CHAINGUN:
 		Bullet_Fire( ent, G_GetChaingunSpread( ent ), CHAINGUN_DAMAGE, MOD_CHAINGUN );
 		break;
-	default:
+default:
 // FIXME		G_Error( "Bad ent->s.weapon" );
 		break;
+	}
+
+	if ( lagHaxActive ) {
+		G_UnTimeShiftAllClients();
 	}
 }
 

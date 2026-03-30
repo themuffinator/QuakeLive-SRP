@@ -187,6 +187,23 @@ static ql_import_f G_GetMappedImport( int arg, const intptr_t *stack ) {
 
 /*
 =================
+G_GetDirectImport
+=================
+*/
+static ql_import_f G_GetDirectImport( int importIndex ) {
+	if ( !g_imports ) {
+		return NULL;
+	}
+
+	if ( importIndex < 0 || importIndex >= GAME_NATIVE_IMPORT_COUNT ) {
+		return NULL;
+	}
+
+	return g_imports[importIndex];
+}
+
+/*
+=================
 G_NativeImportSyscall
 =================
 */
@@ -336,7 +353,7 @@ Queries the engine for the client's SteamID split into 32-bit parts.
 =============
 */
 qboolean trap_GetSteamId( int clientNum, unsigned int *steamIdLow, unsigned int *steamIdHigh ) {
-	return syscall( G_STEAMID_QUERY, clientNum, steamIdLow, steamIdHigh );
+	return syscall( G_STEAMID_QUERY, clientNum, steamIdLow, steamIdHigh ) ? qtrue : qfalse;
 }
 
 /*
@@ -347,7 +364,98 @@ Validates the client's Steam authentication state on the server.
 =============
 */
 qboolean trap_VerifySteamAuth( int clientNum ) {
-	return syscall( G_STEAM_AUTH_VALIDATE, clientNum );
+	return syscall( G_STEAM_AUTH_VALIDATE, clientNum ) ? qtrue : qfalse;
+}
+
+/*
+=============
+trap_SubmitMatchReport
+
+Forwards the retail match-report submission hook through the native import slab.
+=============
+*/
+void trap_SubmitMatchReport( void *report ) {
+	ql_import_f import = G_GetDirectImport( G_QL_IMPORT_SUBMIT_MATCH_REPORT );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( void * ))import)( report );
+}
+
+/*
+=============
+trap_ReportPlayerEvent
+
+Forwards the retail per-player JSON event publisher through the native import slab.
+=============
+*/
+void trap_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload ) {
+	ql_import_f import = G_GetDirectImport( G_QL_IMPORT_REPORT_PLAYER_EVENT );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( uint32_t, uint32_t, const void *, const char *, void * ))import)(
+		steamIdLow,
+		steamIdHigh,
+		clientStats,
+		eventName,
+		payload
+	);
+}
+
+/*
+=============
+trap_AddSteamStat
+
+Forwards the retail additive Steam stat hook through the native import slab.
+=============
+*/
+void trap_AddSteamStat( int clientNum, int statIndex, int delta ) {
+	ql_import_f import = G_GetDirectImport( G_QL_IMPORT_STEAM_STAT_ADD );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( int, int, int ))import)( clientNum, statIndex, delta );
+}
+
+/*
+=============
+trap_UnlockSteamAchievement
+
+Forwards the retail fire-and-forget achievement unlock hook.
+=============
+*/
+void trap_UnlockSteamAchievement( int clientNum, int achievementId ) {
+	ql_import_f import = G_GetDirectImport( G_QL_IMPORT_STEAM_UNLOCK_ACHIEVEMENT );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( int, int ))import)( clientNum, achievementId );
+}
+
+/*
+=============
+trap_HasSteamAchievement
+
+Queries the retail achievement gate before emitting duplicate unlocks.
+=============
+*/
+qboolean trap_HasSteamAchievement( int clientNum, int achievementId ) {
+	ql_import_f import = G_GetDirectImport( G_QL_IMPORT_STEAM_HAS_ACHIEVEMENT );
+
+	if ( !import ) {
+		return qfalse;
+	}
+
+	return ((qboolean (QDECL *)( int, int ))import)( clientNum, achievementId ) ? qtrue : qfalse;
 }
 
 /*
@@ -380,7 +488,7 @@ Checks whether the rankings layer has been initialised.
 =============
 */
 qboolean trap_RankCheckInit( void ) {
-	return syscall( G_RANK_CHECK_INIT );
+	return syscall( G_RANK_CHECK_INIT ) ? qtrue : qfalse;
 }
 
 /*
@@ -391,7 +499,7 @@ Reports whether rankings are currently active on the server.
 =============
 */
 qboolean trap_RankActive( void ) {
-	return syscall( G_RANK_ACTIVE );
+	return syscall( G_RANK_ACTIVE ) ? qtrue : qfalse;
 }
 
 /*
@@ -424,7 +532,7 @@ Submits an integer ranking report for one or two players.
 =============
 */
 void trap_RankReportInt( int index1, int index2, int key, int value, qboolean accum ) {
-	syscall( G_RANK_REPORT_INT, index1, index2, key, value, accum );
+	syscall( G_RANK_REPORT_INT, index1, index2, key, value, accum ? qtrue : qfalse );
 }
 
 /*
@@ -456,19 +564,19 @@ int trap_PointContents( const vec3_t point, int passEntityNum ) {
 
 
 qboolean trap_InPVS( const vec3_t p1, const vec3_t p2 ) {
-	return syscall( G_IN_PVS, p1, p2 );
+	return syscall( G_IN_PVS, p1, p2 ) ? qtrue : qfalse;
 }
 
 qboolean trap_InPVSIgnorePortals( const vec3_t p1, const vec3_t p2 ) {
-	return syscall( G_IN_PVS_IGNORE_PORTALS, p1, p2 );
+	return syscall( G_IN_PVS_IGNORE_PORTALS, p1, p2 ) ? qtrue : qfalse;
 }
 
 void trap_AdjustAreaPortalState( gentity_t *ent, qboolean open ) {
-	syscall( G_ADJUST_AREA_PORTAL_STATE, ent, open );
+	syscall( G_ADJUST_AREA_PORTAL_STATE, ent, open ? qtrue : qfalse );
 }
 
 qboolean trap_AreasConnected( int area1, int area2 ) {
-	return syscall( G_AREAS_CONNECTED, area1, area2 );
+	return syscall( G_AREAS_CONNECTED, area1, area2 ) ? qtrue : qfalse;
 }
 
 void trap_LinkEntity( gentity_t *ent ) {
@@ -484,11 +592,11 @@ int trap_EntitiesInBox( const vec3_t mins, const vec3_t maxs, int *list, int max
 }
 
 qboolean trap_EntityContact( const vec3_t mins, const vec3_t maxs, const gentity_t *ent ) {
-	return syscall( G_ENTITY_CONTACT, mins, maxs, ent );
+	return syscall( G_ENTITY_CONTACT, mins, maxs, ent ) ? qtrue : qfalse;
 }
 
 qboolean trap_EntityContactCapsule( const vec3_t mins, const vec3_t maxs, const gentity_t *ent ) {
-	return syscall( G_ENTITY_CONTACTCAPSULE, mins, maxs, ent );
+	return syscall( G_ENTITY_CONTACTCAPSULE, mins, maxs, ent ) ? qtrue : qfalse;
 }
 
 int trap_BotAllocateClient( void ) {
@@ -504,7 +612,7 @@ void trap_GetUsercmd( int clientNum, usercmd_t *cmd ) {
 }
 
 qboolean trap_GetEntityToken( char *buffer, int bufferSize ) {
-	return syscall( G_GET_ENTITY_TOKEN, buffer, bufferSize );
+	return syscall( G_GET_ENTITY_TOKEN, buffer, bufferSize ) ? qtrue : qfalse;
 }
 
 int trap_DebugPolygonCreate(int color, int numPoints, vec3_t *points) {

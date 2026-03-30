@@ -1615,7 +1615,7 @@ Origin will be the exact tag point, which is slightly
 different than the muzzle point used for determining hits.
 ===============
 */
-static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin, qboolean forcePredicted ) {
+static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin ) {
 	clientInfo_t	*ci;
 	vec3_t	start;
 	vec3_t	end;
@@ -1623,19 +1623,13 @@ static void CG_SpawnRailTrail( centity_t *cent, vec3_t origin, qboolean forcePre
 	if ( cent->currentState.weapon != WP_RAILGUN ) {
 		return;
 	}
-	if ( forcePredicted ) {
-		if ( !CG_GetStoredPredictedBeam( WP_RAILGUN, start, end, NULL ) ) {
-			forcePredicted = qfalse;
-		}
+	if ( !cent->pe.railgunFlash ) {
+		return;
 	}
-	if ( !forcePredicted ) {
-		if ( !cent->pe.railgunFlash ) {
-			return;
-		}
-		cent->pe.railgunFlash = qfalse;
-		VectorCopy( origin, start );
-		VectorCopy( cent->pe.railgunImpact, end );
-	}
+
+	cent->pe.railgunFlash = qfalse;
+	VectorCopy( origin, start );
+	VectorCopy( cent->pe.railgunImpact, end );
 	ci = &cgs.clientinfo[ cent->currentState.clientNum ];
 	CG_RailTrail( ci, start, end );
 }
@@ -1683,7 +1677,11 @@ static float	CG_MachinegunSpinAngle( centity_t *cent ) {
 CG_AddWeaponWithPowerups
 ========================
 */
-static void CG_AddWeaponWithPowerups( refEntity_t *gun, int powerups ) {
+static void CG_AddWeaponWithPowerups( const centity_t *cent, refEntity_t *gun ) {
+	int		powerups;
+
+	powerups = cent->currentState.powerups;
+
 	// add powerup effects
 	if ( powerups & ( 1 << PW_INVIS ) ) {
 		gun->customShader = cgs.media.invisShader;
@@ -1782,7 +1780,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 	CG_PositionEntityOnTag( &gun, parent, parent->hModel, "tag_weapon");
 
-	CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups );
+	CG_AddWeaponWithPowerups( cent, &gun );
 
 	// add the spinning barrel
 	if ( weapon->barrelModel ) {
@@ -1799,7 +1797,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 		CG_PositionRotatedEntityOnTag( &barrel, &gun, weapon->weaponModel, "tag_barrel" );
 
-		CG_AddWeaponWithPowerups( &barrel, cent->currentState.powerups );
+		CG_AddWeaponWithPowerups( cent, &barrel );
 	}
 
 	if ( weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel && !( cent->currentState.eFlags & EF_FIRING ) ) {
@@ -1811,7 +1809,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		AxisClear( ammo.axis );
 
 		CG_PositionRotatedEntityOnTag( &ammo, &gun, weapon->weaponModel, "tag_ammo" );
-		CG_AddWeaponWithPowerups( &ammo, cent->currentState.powerups );
+		CG_AddWeaponWithPowerups( cent, &ammo );
 	}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG
@@ -1873,7 +1871,7 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		CG_LightningBolt( nonPredictedCent, flash.origin );
 
 		// add rail trail
-		CG_SpawnRailTrail( cent, flash.origin, qfalse );
+		CG_SpawnRailTrail( cent, flash.origin );
 
 		if ( weapon->flashDlightColor[0] || weapon->flashDlightColor[1] || weapon->flashDlightColor[2] ) {
 			trap_R_AddLightToScene( flash.origin, 300 + (rand()&31), weapon->flashDlightColor[0],
@@ -2080,11 +2078,14 @@ static qboolean CG_WeaponSelectable( int i ) {
 }
 
 /*
-===============
-CG_NextWeapon_f
-===============
+========================
+CG_CycleWeaponSelection
+
+Retail shared weapon-cycling helper used by the forward and backward command
+wrappers.
+========================
 */
-void CG_NextWeapon_f( void ) {
+static void CG_CycleWeaponSelection( qboolean next ) {
 	int		i;
 	int		selected;
 
@@ -2098,13 +2099,21 @@ void CG_NextWeapon_f( void ) {
 	cg.weaponSelectTime = cg.time;
 	selected = cg.weaponSelect;
 
-	for ( i = 0 ; i < 16 ; i++ ) {
-		selected++;
-		if ( selected == 16 ) {
-			selected = 0;
+	for ( i = 0 ; i < MAX_WEAPONS ; i++ ) {
+		if ( next ) {
+			selected++;
+			if ( selected == MAX_WEAPONS ) {
+				selected = 0;
+			}
+		} else {
+			selected--;
+			if ( selected < 0 ) {
+				selected = WP_NUM_WEAPONS;
+			}
 		}
-		if ( selected == WP_GAUNTLET ) {
-			continue;		// never cycle to gauntlet
+
+		if ( selected == WP_GAUNTLET || selected == WP_NUM_WEAPONS ) {
+			continue;
 		}
 		if ( CG_WeaponSelectable( selected ) ) {
 			CG_SetWeaponSelect( selected );
@@ -2114,37 +2123,45 @@ void CG_NextWeapon_f( void ) {
 }
 
 /*
+=====================
+CG_SelectHighestWeapon
+
+Retail out-of-ammo fallback that walks the owned weapon set from the highest
+slot down and skips the `WP_NUM_WEAPONS` sentinel.
+=====================
+*/
+static void CG_SelectHighestWeapon( void ) {
+	int		i;
+
+	cg.weaponSelectTime = cg.time;
+
+	for ( i = MAX_WEAPONS - 1 ; i > 0 ; i-- ) {
+		if ( i == WP_NUM_WEAPONS ) {
+			continue;
+		}
+		if ( CG_WeaponSelectable( i ) ) {
+			CG_SetWeaponSelect( i );
+			return;
+		}
+	}
+}
+
+/*
+===============
+CG_NextWeapon_f
+===============
+*/
+void CG_NextWeapon_f( void ) {
+	CG_CycleWeaponSelection( qtrue );
+}
+
+/*
 ===============
 CG_PrevWeapon_f
 ===============
 */
 void CG_PrevWeapon_f( void ) {
-	int		i;
-	int		selected;
-
-	if ( !cg.snap ) {
-		return;
-	}
-	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
-		return;
-	}
-
-	cg.weaponSelectTime = cg.time;
-	selected = cg.weaponSelect;
-
-	for ( i = 0 ; i < 16 ; i++ ) {
-		selected--;
-		if ( selected == -1 ) {
-			selected = 15;
-		}
-		if ( selected == WP_GAUNTLET ) {
-			continue;		// never cycle to gauntlet
-		}
-		if ( CG_WeaponSelectable( selected ) ) {
-			CG_SetWeaponSelect( selected );
-			return;
-		}
-	}
+	CG_CycleWeaponSelection( qfalse );
 }
 
 /*
@@ -2206,20 +2223,11 @@ The current weapon has just run out of ammo
 ===================
 */
 void CG_OutOfAmmoChange( void ) {
-	int		i;
-
 	if ( !cg_switchOnEmpty.integer ) {
 		return;
 	}
 
-	cg.weaponSelectTime = cg.time;
-
-	for ( i = 15 ; i > 0 ; i-- ) {
-		if ( CG_WeaponSelectable( i ) ) {
-			CG_SetWeaponSelect( i );
-			break;
-		}
-	}
+	CG_SelectHighestWeapon();
 }
 
 

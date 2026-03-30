@@ -117,6 +117,7 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 
 	// use the precise origin for linking
 	VectorCopy( player->client->ps.origin, player->r.currentOrigin );
+	G_ClearLagHaxHistory( player );
 
 	if ( player->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		trap_LinkEntity (player);
@@ -172,6 +173,138 @@ void SP_advertisement( gentity_t *ent ) {
 	}
 
 	G_FreeEntity( ent );
+}
+
+//===========================================================
+
+/*
+=============
+G_HideTourPointLinkedEntity
+
+Hides an entity through the same no-client/nodraw path the retail
+`info_tour_point` finisher applies to linked tutorial entities.
+=============
+*/
+static void G_HideTourPointLinkedEntity( gentity_t *ent ) {
+	if ( !ent ) {
+		return;
+	}
+
+	ent->r.svFlags |= SVF_NOCLIENT;
+	ent->s.eFlags |= EF_NODRAW;
+	ent->r.contents = 0;
+	trap_LinkEntity( ent );
+}
+
+/*
+=============
+FinishSpawningTourPoint
+
+Completes the deferred retail `info_tour_point` spawn path.
+=============
+*/
+static void FinishSpawningTourPoint( gentity_t *ent ) {
+	int			touch[MAX_GENTITIES];
+	int			num;
+	int			i;
+	vec3_t		mins;
+	vec3_t		maxs;
+	gentity_t	*match;
+	gentity_t	*other;
+
+	if ( !ent ) {
+		return;
+	}
+
+	if ( ent->spawnflags & 0x80 ) {
+		VectorAdd( ent->r.currentOrigin, ent->r.mins, mins );
+		VectorAdd( ent->r.currentOrigin, ent->r.maxs, maxs );
+
+		num = trap_EntitiesInBox( mins, maxs, touch, MAX_GENTITIES );
+		for ( i = 0; i < num; i++ ) {
+			other = &g_entities[ touch[i] ];
+
+			if ( other->s.eType != ET_ITEM ) {
+				continue;
+			}
+
+			if ( other->item &&
+				( other->item->giType == IT_PERSISTANT_POWERUP || other->item->giType == IT_TEAM ) ) {
+				continue;
+			}
+
+			G_HideTourPointLinkedEntity( other );
+		}
+
+		if ( ent->targetname ) {
+			match = NULL;
+			while ( ( match = G_Find( match, FOFS( targetname ), ent->targetname ) ) != NULL ) {
+				if ( match->target_ent ) {
+					G_HideTourPointLinkedEntity( match );
+				}
+			}
+		}
+	}
+
+	ent->target_ent = NULL;
+	if ( ent->target ) {
+		ent->target_ent = G_Find( NULL, FOFS( targetname ), ent->target );
+		if ( !ent->target_ent ) {
+			G_Printf( "info_tour_point with no tourPointTarget at %s!\n", vtos( ent->s.origin ) );
+		}
+	}
+
+	trap_LinkEntity( ent );
+}
+
+/*
+=============
+SP_info_tour_point
+
+Constructs a retail Quake Live tutorial tour point and defers its linkage.
+=============
+*/
+void SP_info_tour_point( gentity_t *ent ) {
+	char	*value;
+	int		ignorePlayerLocation;
+
+	if ( !G_SpawnString( "tourPointTargetName", "", &value ) || !value[0] ) {
+		if ( !( ent->spawnflags & 1 ) ) {
+			G_Printf( "info_tour_point with no tourPointTargetName at %s\n", vtos( ent->s.origin ) );
+			G_FreeEntity( ent );
+			return;
+		}
+	} else {
+		ent->targetname = G_NewString( value );
+	}
+
+	if ( G_SpawnString( "tourPointTarget", "", &value ) && value[0] ) {
+		ent->target = G_NewString( value );
+	}
+
+	G_SpawnFloat( "radius", "300", &ent->tourPointRadius );
+	G_SpawnFloat( "cvarValue", "-1.0f", &ent->tourPointCvarValue );
+	G_SpawnFloat( "printChatTextTime", "2.0f", &ent->tourPointPrintChatTextTime );
+	G_SpawnInt( "ignorePlayerLocation", "0", &ignorePlayerLocation );
+	ent->tourPointIgnorePlayerLocation = ignorePlayerLocation ? qtrue : qfalse;
+
+	if ( G_SpawnString( "noise", "", &value ) && value[0] ) {
+		ent->noise_index = G_SoundIndex( value );
+	}
+
+	ent->s.eType = ET_GENERAL;
+	G_SetOrigin( ent, ent->s.origin );
+	VectorClear( ent->s.apos.trBase );
+	ent->s.apos.trType = TR_STATIONARY;
+	ent->s.apos.trTime = 0;
+	ent->s.apos.trDuration = 0;
+	VectorClear( ent->s.apos.trDelta );
+
+	VectorSet( ent->r.mins, -16, -16, -24 );
+	VectorSet( ent->r.maxs, 16, 16, 32 );
+
+	ent->nextthink = level.time + FRAMETIME;
+	ent->think = FinishSpawningTourPoint;
 }
 
 //===========================================================

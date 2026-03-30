@@ -283,6 +283,17 @@ void trap_Cmd_ExecuteText( int exec_when, const char *text ) {
 
 /*
 =================
+trap_QL_UpdateAdvert
+=================
+*/
+void trap_QL_UpdateAdvert( int handleOrToken, int area ) {
+	if ( cg_imports && cg_imports[CG_QL_IMPORT_UPDATE_ADVERT] ) {
+		((void (QDECL *)( int, int ))cg_imports[CG_QL_IMPORT_UPDATE_ADVERT])( handleOrToken, area );
+	}
+}
+
+/*
+=================
 trap_AdvertisementBridge_InitCGame
 =================
 */
@@ -427,7 +438,7 @@ void	trap_S_StartLocalSound( sfxHandle_t sfx, int channelNum ) {
 }
 
 void	trap_S_ClearLoopingSounds( qboolean killall ) {
-	syscall( CG_S_CLEARLOOPINGSOUNDS, killall );
+	syscall( CG_S_CLEARLOOPINGSOUNDS, killall ? qtrue : qfalse );
 }
 
 void	trap_S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx ) {
@@ -451,7 +462,7 @@ void	trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], in
 }
 
 sfxHandle_t	trap_S_RegisterSound( const char *sample, qboolean compressed ) {
-	return syscall( CG_S_REGISTERSOUND, sample, compressed );
+	return syscall( CG_S_REGISTERSOUND, sample, compressed ? qtrue : qfalse );
 }
 
 void	trap_S_StartBackgroundTrack( const char *intro, const char *loop ) {
@@ -549,11 +560,11 @@ void		trap_GetCurrentSnapshotNumber( int *snapshotNumber, int *serverTime ) {
 }
 
 qboolean	trap_GetSnapshot( int snapshotNumber, snapshot_t *snapshot ) {
-	return syscall( CG_GETSNAPSHOT, snapshotNumber, snapshot );
+	return syscall( CG_GETSNAPSHOT, snapshotNumber, snapshot ) ? qtrue : qfalse;
 }
 
 qboolean	trap_GetServerCommand( int serverCommandNumber ) {
-	return syscall( CG_GETSERVERCOMMAND, serverCommandNumber );
+	return syscall( CG_GETSERVERCOMMAND, serverCommandNumber ) ? qtrue : qfalse;
 }
 
 int			trap_GetCurrentCmdNumber( void ) {
@@ -561,7 +572,7 @@ int			trap_GetCurrentCmdNumber( void ) {
 }
 
 qboolean	trap_GetUserCmd( int cmdNumber, usercmd_t *ucmd ) {
-	return syscall( CG_GETUSERCMD, cmdNumber, ucmd );
+	return syscall( CG_GETUSERCMD, cmdNumber, ucmd ) ? qtrue : qfalse;
 }
 
 void		trap_SetUserCmdValue( int stateValue, float sensitivityScale ) {
@@ -581,7 +592,7 @@ int trap_MemoryRemaining( void ) {
 }
 
 qboolean trap_Key_IsDown( int keynum ) {
-	return syscall( CG_KEY_ISDOWN, keynum );
+	return syscall( CG_KEY_ISDOWN, keynum ) ? qtrue : qfalse;
 }
 
 int trap_Key_GetCatcher( void ) {
@@ -624,7 +635,7 @@ trap_Key_GetOverstrikeMode
 =================
 */
 qboolean trap_Key_GetOverstrikeMode( void ) {
-	return syscall( CG_KEY_GETOVERSTRIKEMODE );
+	return syscall( CG_KEY_GETOVERSTRIKEMODE ) ? qtrue : qfalse;
 }
 
 /*
@@ -633,7 +644,7 @@ trap_Key_SetOverstrikeMode
 =================
 */
 void trap_Key_SetOverstrikeMode( qboolean state ) {
-	syscall( CG_KEY_SETOVERSTRIKEMODE, state );
+	syscall( CG_KEY_SETOVERSTRIKEMODE, state ? qtrue : qfalse );
 }
 
 int trap_PC_AddGlobalDefine( char *define ) {
@@ -712,9 +723,9 @@ qboolean trap_getCameraInfo( int time, vec3_t *origin, vec3_t *angles) {
 */
 
 qboolean trap_GetEntityToken( char *buffer, int bufferSize ) {
-	return syscall( CG_GET_ENTITY_TOKEN, buffer, bufferSize );
+	return syscall( CG_GET_ENTITY_TOKEN, buffer, bufferSize ) ? qtrue : qfalse;
 }
 
 qboolean trap_R_inPVS( const vec3_t p1, const vec3_t p2 ) {
-	return syscall( CG_R_INPVS, p1, p2 );
+	return syscall( CG_R_INPVS, p1, p2 ) ? qtrue : qfalse;
 }

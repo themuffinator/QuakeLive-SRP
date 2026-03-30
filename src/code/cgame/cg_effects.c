@@ -581,7 +581,7 @@ static void CG_SpawnDeathEffect( const vec3_t origin, qboolean elevatedShell ) {
 
 	le = CG_AllocLocalEntity();
 	le->leFlags = LEF_PUFF_DONT_SCALE;
-	le->leType = LE_SCALE_FADE_OUT;
+	le->leType = LE_DEATH_EFFECT;
 	le->startTime = cg.time;
 	le->endTime = cg.time + 500;
 	le->lifeRate = 1.0f / ( le->endTime - le->startTime );
@@ -620,7 +620,7 @@ static void CG_SpawnBigExplodeTracer( const vec3_t origin, int startTime, int li
 
 	le = CG_AllocLocalEntity();
 	le->leFlags = LEF_PUFF_DONT_SCALE;
-	le->leType = LE_05;
+	le->leType = LE_BIGEXPLODE_TRACER;
 	le->startTime = startTime;
 	le->endTime = startTime + lifetime;
 	le->fadeInTime = 0;

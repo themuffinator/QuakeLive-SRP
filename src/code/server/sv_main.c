@@ -34,6 +34,17 @@ static qboolean SV_ClientReadyForWarmup( const client_t *cl );
 static void SV_ComputeDisplayedCounts( int *clientCount, int *botCount );
 static int s_botMaskRefreshTime = 0;
 static int s_steamP2PKeepAliveTime = 0;
+static int s_steamPublishedStateTime = 0;
+static int s_steamPublishedNeedPass = -1;
+static qboolean s_steamPublishedTagsInitialised = qfalse;
+static int s_steamPublishedTagGametype = 0;
+static int s_steamPublishedTagCheats = 0;
+static int s_steamPublishedTagInstagib = 0;
+static int s_steamPublishedTagRRInfected = 0;
+static int s_steamPublishedTagQuadHog = 0;
+static char s_steamPublishedTagGravity[MAX_CVAR_VALUE_STRING];
+static char s_steamPublishedTagVampiric[MAX_CVAR_VALUE_STRING];
+static char s_steamPublishedTagCustom[MAX_CVAR_VALUE_STRING];
 
 /*
 =============
@@ -270,6 +281,7 @@ cvar_t	*sv_maxclients;
 
 cvar_t	*sv_privateClients;		// number of clients reserved for password
 cvar_t	*sv_hostname;
+cvar_t	*sv_tags;
 cvar_t	*sv_master[MAX_MASTER_SERVERS];		// master server ip address
 cvar_t	*sv_reconnectlimit;		// minimum seconds between connect messages
 cvar_t	*sv_showloss;			// report when usercmds are lost
@@ -626,6 +638,330 @@ static void SV_ComputeDisplayedCounts( int *clientCount, int *botCount ) {
 	if ( botCount ) {
 		*botCount = reportedBots;
 	}
+}
+
+/*
+=============
+SV_SteamServerGameDescription
+
+Returns the retail-facing Steam game description for the active gametype.
+=============
+*/
+static const char *SV_SteamServerGameDescription( int gametype ) {
+	static const char *const s_gametypeDescriptions[GT_MAX_GAME_TYPE] = {
+		"Free For All",
+		"Duel",
+		"Race",
+		"Team Deathmatch",
+		"Clan Arena",
+		"Capture the Flag",
+		"1-Flag CTF",
+		"Overload",
+		"Harvester",
+		"Freeze Tag",
+		"Domination",
+		"Attack & Defend",
+		"Red Rover"
+	};
+
+	if ( gametype < 0 || gametype >= GT_MAX_GAME_TYPE ) {
+		return "Unknown Gametype";
+	}
+
+	return s_gametypeDescriptions[gametype];
+}
+
+/*
+=============
+SV_SteamServerGameTagName
+
+Returns the retail Steam short gametype tag used in the published game-tags string.
+=============
+*/
+static const char *SV_SteamServerGameTagName( int gametype ) {
+	static const char *const s_gametypeTags[GT_MAX_GAME_TYPE] = {
+		"ffa",
+		"duel",
+		"race",
+		"tdm",
+		"clanarena",
+		"ctf",
+		"oneflag",
+		"overload",
+		"harvester",
+		"freezetag",
+		"domination",
+		"a&d",
+		"redrover"
+	};
+
+	if ( gametype < 0 || gametype >= GT_MAX_GAME_TYPE ) {
+		return "";
+	}
+
+	return s_gametypeTags[gametype];
+}
+
+/*
+=============
+SV_SteamServerAppendGameTag
+
+Appends a single tag and keeps the retail comma-delimited builder format intact.
+=============
+*/
+static void SV_SteamServerAppendGameTag( char *tags, int size, const char *tag ) {
+	size_t length;
+
+	if ( !tags || size <= 0 || !tag || !tag[0] ) {
+		return;
+	}
+
+	Q_strcat( tags, size, tag );
+	length = strlen( tags );
+	if ( length > 0 && tags[length - 1] != ',' ) {
+		Q_strcat( tags, size, "," );
+	}
+}
+
+/*
+=============
+SV_SteamServerTrimGameTags
+
+Removes the final comma before the string is published to Steam.
+=============
+*/
+static void SV_SteamServerTrimGameTags( char *tags ) {
+	size_t length;
+
+	if ( !tags || !tags[0] ) {
+		return;
+	}
+
+	length = strlen( tags );
+	if ( length > 0 && tags[length - 1] == ',' ) {
+		tags[length - 1] = '\0';
+	}
+}
+
+/*
+=============
+SV_SteamServerBuildGameTags
+
+Reconstructs the cvar-owned retail Steam game-tags tranche from the published-state owner.
+=============
+*/
+static void SV_SteamServerBuildGameTags( char *tags, int size ) {
+	int		gametype;
+	float	gravity;
+
+	if ( !tags || size <= 0 ) {
+		return;
+	}
+
+	tags[0] = '\0';
+	gametype = Cvar_VariableIntegerValue( "g_gametype" );
+	SV_SteamServerAppendGameTag( tags, size, SV_SteamServerGameTagName( gametype ) );
+
+	if ( Cvar_VariableIntegerValue( "sv_cheats" ) ) {
+		SV_SteamServerAppendGameTag( tags, size, "cheats" );
+	}
+
+	if ( Cvar_VariableIntegerValue( "g_instagib" ) ) {
+		SV_SteamServerAppendGameTag( tags, size, "instagib" );
+	}
+
+	gravity = Cvar_VariableValue( "g_gravity" );
+	if ( gravity < 800.0f ) {
+		SV_SteamServerAppendGameTag( tags, size, "lowgrav" );
+	} else if ( gravity > 800.0f ) {
+		SV_SteamServerAppendGameTag( tags, size, "highgrav" );
+	}
+
+	if ( Cvar_VariableValue( "g_vampiricDamage" ) > 0.0f ) {
+		SV_SteamServerAppendGameTag( tags, size, "vampiric" );
+	}
+
+	if ( gametype == GT_RED_ROVER && Cvar_VariableIntegerValue( "g_rrInfected" ) ) {
+		SV_SteamServerAppendGameTag( tags, size, "infected" );
+	}
+
+	if ( gametype == GT_FFA && Cvar_VariableIntegerValue( "g_quadhog" ) ) {
+		SV_SteamServerAppendGameTag( tags, size, "quadhog" );
+	}
+
+	if ( sv_tags && sv_tags->string[0] ) {
+		Q_strcat( tags, size, sv_tags->string );
+		if ( tags[0] && tags[strlen( tags ) - 1] != ',' ) {
+			Q_strcat( tags, size, "," );
+		}
+	}
+
+	SV_SteamServerTrimGameTags( tags );
+}
+
+/*
+=============
+SV_SteamServerUpdatePublishedState
+
+Reconstructs the mapped retail Steam game-server published-state owner.
+=============
+*/
+void SV_SteamServerUpdatePublishedState( qboolean fullUpdate ) {
+	int				i;
+	int				now;
+	int				needPass;
+	int				tagGametype;
+	int				tagCheats;
+	int				tagInstagib;
+	int				tagRRInfected;
+	int				tagQuadHog;
+	int				botCount;
+	qboolean		refreshPlayers;
+	qboolean		refreshTags;
+	client_t		*cl;
+	char			redScore[16];
+	char			blueScore[16];
+	char			tagGravity[MAX_CVAR_VALUE_STRING];
+	char			tagVampiric[MAX_CVAR_VALUE_STRING];
+	char			tagCustom[MAX_CVAR_VALUE_STRING];
+	char			gameTags[MAX_CVAR_VALUE_STRING];
+
+	if ( fullUpdate || ( sv_maxclients && sv_maxclients->modified ) ) {
+		QL_Steamworks_ServerSetMaxPlayerCount( sv_maxclients ? sv_maxclients->integer : 0 );
+	}
+
+	needPass = Cvar_VariableIntegerValue( "g_needpass" );
+	if ( fullUpdate || needPass != s_steamPublishedNeedPass ) {
+		QL_Steamworks_ServerSetPasswordProtected( needPass ? qtrue : qfalse );
+		s_steamPublishedNeedPass = needPass;
+	}
+
+	if ( fullUpdate || ( sv_hostname && sv_hostname->modified ) ) {
+		QL_Steamworks_ServerSetServerName( sv_hostname->string );
+	}
+
+	if ( fullUpdate || ( sv_mapname && sv_mapname->modified ) ) {
+		QL_Steamworks_ServerSetMapName( sv_mapname->string );
+	}
+
+	if ( fullUpdate || ( sv_gametype && sv_gametype->modified ) ) {
+		QL_Steamworks_ServerSetGameDescription( SV_SteamServerGameDescription( sv_gametype->integer ) );
+	}
+
+	tagGametype = Cvar_VariableIntegerValue( "g_gametype" );
+	tagCheats = Cvar_VariableIntegerValue( "sv_cheats" );
+	tagInstagib = Cvar_VariableIntegerValue( "g_instagib" );
+	tagRRInfected = Cvar_VariableIntegerValue( "g_rrInfected" );
+	tagQuadHog = Cvar_VariableIntegerValue( "g_quadhog" );
+	Cvar_VariableStringBuffer( "g_gravity", tagGravity, sizeof( tagGravity ) );
+	Cvar_VariableStringBuffer( "g_vampiricDamage", tagVampiric, sizeof( tagVampiric ) );
+
+	if ( sv_tags ) {
+		Q_strncpyz( tagCustom, sv_tags->string, sizeof( tagCustom ) );
+	} else {
+		tagCustom[0] = '\0';
+	}
+
+	refreshTags = fullUpdate;
+	if ( !refreshTags && !s_steamPublishedTagsInitialised ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && tagGametype != s_steamPublishedTagGametype ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && tagCheats != s_steamPublishedTagCheats ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && tagInstagib != s_steamPublishedTagInstagib ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && tagRRInfected != s_steamPublishedTagRRInfected ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && tagQuadHog != s_steamPublishedTagQuadHog ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && Q_stricmp( tagGravity, s_steamPublishedTagGravity ) ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && Q_stricmp( tagVampiric, s_steamPublishedTagVampiric ) ) {
+		refreshTags = qtrue;
+	}
+	if ( !refreshTags && Q_stricmp( tagCustom, s_steamPublishedTagCustom ) ) {
+		refreshTags = qtrue;
+	}
+
+	if ( refreshTags ) {
+		SV_SteamServerBuildGameTags( gameTags, sizeof( gameTags ) );
+		QL_Steamworks_ServerSetGameTags( gameTags );
+		s_steamPublishedTagsInitialised = qtrue;
+		s_steamPublishedTagGametype = tagGametype;
+		s_steamPublishedTagCheats = tagCheats;
+		s_steamPublishedTagInstagib = tagInstagib;
+		s_steamPublishedTagRRInfected = tagRRInfected;
+		s_steamPublishedTagQuadHog = tagQuadHog;
+		Q_strncpyz( s_steamPublishedTagGravity, tagGravity, sizeof( s_steamPublishedTagGravity ) );
+		Q_strncpyz( s_steamPublishedTagVampiric, tagVampiric, sizeof( s_steamPublishedTagVampiric ) );
+		Q_strncpyz( s_steamPublishedTagCustom, tagCustom, sizeof( s_steamPublishedTagCustom ) );
+	}
+
+	now = Sys_Milliseconds();
+	if ( now < s_steamPublishedStateTime ) {
+		s_steamPublishedStateTime = 0;
+	}
+
+	refreshPlayers = ( fullUpdate || now - s_steamPublishedStateTime > 3000 ) ? qtrue : qfalse;
+	if ( !refreshPlayers ) {
+		return;
+	}
+
+	s_steamPublishedStateTime = now;
+
+	Cvar_VariableStringBuffer( "g_redScore", redScore, sizeof( redScore ) );
+	Cvar_VariableStringBuffer( "g_blueScore", blueScore, sizeof( blueScore ) );
+	QL_Steamworks_ServerSetKeyValue( "g_redScore", redScore );
+	QL_Steamworks_ServerSetKeyValue( "g_blueScore", blueScore );
+
+	botCount = 0;
+
+	for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+		CSteamID		steamId;
+		const char		*rawName;
+		char			playerName[MAX_NAME_LENGTH + 8];
+		playerState_t	*playerState;
+
+		if ( cl->state < CS_CONNECTED ) {
+			continue;
+		}
+
+		if ( SV_ClientIsBot( cl ) ) {
+			botCount++;
+		}
+
+		if ( !SV_GetClientSteamId( cl, &steamId ) ) {
+			continue;
+		}
+
+		rawName = Info_ValueForKey( cl->userinfo, "name" );
+		if ( !rawName || !rawName[0] ) {
+			rawName = cl->name;
+		}
+
+		if ( SV_ClientIsBot( cl ) ) {
+			Com_sprintf( playerName, sizeof( playerName ), "(Bot) %s", rawName );
+		} else {
+			Q_strncpyz( playerName, rawName, sizeof( playerName ) );
+		}
+
+		playerState = SV_GameClientNum( i );
+		if ( !playerState ) {
+			continue;
+		}
+
+		QL_Steamworks_ServerUpdateUserData( &steamId, playerName, (uint32_t)playerState->persistant[PERS_SCORE] );
+	}
+
+	QL_Steamworks_ServerSetBotPlayerCount( botCount );
 }
 
 
@@ -1200,6 +1536,7 @@ void SV_Frame( int msec ) {
 	int		startTime;
 	int		i;
 	client_t	*cl;
+	char	*serverInfo;
 
 	// the menu kills the server with this cvar
 	if ( sv_killserver->integer ) {
@@ -1212,7 +1549,7 @@ void SV_Frame( int msec ) {
 		return;
 	}
 
-	QL_Steamworks_RunCallbacks();
+	SV_SteamServerNetworkingFrame();
 	if ( svs.time < s_botMaskRefreshTime ) {
 		s_botMaskRefreshTime = 0;
 	}
@@ -1285,13 +1622,17 @@ void SV_Frame( int msec ) {
 
 	// update infostrings if anything has been changed
 	if ( cvar_modifiedFlags & CVAR_SERVERINFO ) {
-		SV_SetConfigstring( CS_SERVERINFO, Cvar_InfoString( CVAR_SERVERINFO ) );
+		serverInfo = Cvar_InfoString( CVAR_SERVERINFO );
+		QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );
+		SV_SetConfigstring( CS_SERVERINFO, serverInfo );
 		cvar_modifiedFlags &= ~CVAR_SERVERINFO;
 	}
 	if ( cvar_modifiedFlags & CVAR_SYSTEMINFO ) {
 		SV_SetConfigstring( CS_SYSTEMINFO, Cvar_InfoString_Big( CVAR_SYSTEMINFO ) );
 		cvar_modifiedFlags &= ~CVAR_SYSTEMINFO;
 	}
+
+	SV_SteamServerUpdatePublishedState( qfalse );
 
 	if ( com_speeds->integer ) {
 		startTime = Sys_Milliseconds ();

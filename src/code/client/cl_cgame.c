@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/botlib.h"
 #include "../qcommon/vm_local.h"
 #include "../../common/platform/platform_services.h"
+#include "../../common/platform/platform_steamworks.h"
 #include "../../../src-re/include/fs_imports.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -48,6 +49,8 @@ typedef struct {
 	int			frameTime;
 	int			viewWidth;
 	int			viewHeight;
+	int			activeAdvertCellId;
+	int			activatedAdvertCellId;
 } clAdvertisementBridgeState_t;
 
 static clAdvertisementBridgeState_t cl_advertisementBridge;
@@ -124,6 +127,45 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 		CL_ResetBrowserOverlayState();
 	}
 #endif
+}
+
+/*
+=============
+CL_AdvertisementBridge_InitUI
+
+Mirrors the retail UI advertisement-bridge init hook.
+=============
+*/
+void CL_AdvertisementBridge_InitUI( void ) {
+	CL_RefreshOnlineServicesBridgeState();
+}
+
+/*
+=============
+CL_AdvertisementBridge_ActivateAdvert
+
+Mirrors the retail UI-side advert activation bridge path.
+=============
+*/
+void CL_AdvertisementBridge_ActivateAdvert( int cellId ) {
+	cl_advertisementBridge.activatedAdvertCellId = cellId;
+	CL_RefreshOnlineServicesBridgeState();
+}
+
+/*
+=============
+CL_AdvertisementBridge_SetActiveAdvert
+
+Mirrors the retail cgame-side active advert selection/reset helper.
+=============
+*/
+void CL_AdvertisementBridge_SetActiveAdvert( int cellId ) {
+	cl_advertisementBridge.activeAdvertCellId = cellId;
+	if ( cellId == 0 ) {
+		cl_advertisementBridge.activatedAdvertCellId = 0;
+	}
+
+	CL_RefreshOnlineServicesBridgeState();
 }
 
 /*
@@ -213,6 +255,90 @@ void CL_Web_BrowserActive_f( void ) {
 
 /*
 =============
+CL_Web_HideBrowser_f
+
+Hides the browser overlay and clears the active cvar latch.
+=============
+*/
+void CL_Web_HideBrowser_f( void ) {
+	cl_webBrowserVisible = qfalse;
+	Cvar_Set( "web_browserActive", "0" );
+	Com_DPrintf( "web_hideBrowser\n" );
+}
+
+/*
+=============
+CL_Web_ClearSessionState
+
+Clears the retained URI cache layer that stands in for the retail browser
+session cache.
+=============
+*/
+static void CL_Web_ClearSessionState( void ) {
+	CL_ClearSteamResourceCache( qtrue );
+}
+
+/*
+=============
+CL_Web_ShowError_f
+
+Publishes a browser error through the fallback error state when no live host bridge exists.
+=============
+*/
+void CL_Web_ShowError_f( void ) {
+	const char *message = ( Cmd_Argc() > 1 ) ? Cmd_ArgsFrom( 1 ) : "";
+
+	if ( !message ) {
+		message = "";
+	}
+
+	Cvar_Set( "com_errorMessage", message );
+
+#if QL_PLATFORM_HAS_ONLINE_SERVICES
+	CL_RefreshOnlineServicesBridgeState();
+	if ( CL_OverlayServiceAvailable() ) {
+		cl_webBrowserVisible = qtrue;
+		Cvar_Set( "web_browserActive", "1" );
+	}
+#endif
+
+	Com_DPrintf( "web_showError %s\n", message );
+}
+
+/*
+=============
+CL_Web_ClearCache_f
+
+Keeps the retail browser cache-clear command wired into the retained session-cache seam.
+=============
+*/
+void CL_Web_ClearCache_f( void ) {
+	CL_Web_ClearSessionState();
+	Com_DPrintf( "web_clearCache\n" );
+}
+
+/*
+=============
+CL_Web_Reload_f
+
+Keeps the retail browser reload command wired into the host/browser seam.
+=============
+*/
+void CL_Web_Reload_f( void ) {
+	CL_Web_ClearSessionState();
+
+#if QL_PLATFORM_HAS_ONLINE_SERVICES
+	CL_RefreshOnlineServicesBridgeState();
+	if ( CL_OverlayServiceAvailable() && cl_webBrowserVisible ) {
+		Cvar_Set( "web_browserActive", "1" );
+	}
+#endif
+
+	Com_DPrintf( "web_reload\n" );
+}
+
+/*
+=============
 CL_Web_StopRefresh_f
 
 Handles Awesomium refresh-stop requests when an overlay provider is active.
@@ -243,6 +369,7 @@ Bridges the retail cgame advert lifecycle into the host when available.
 static void CL_AdvertisementBridge_InitCGame( void ) {
 	cl_advertisementBridge.initialised = qtrue;
 	cl_advertisementBridge.frameTime = 0;
+	cl_advertisementBridge.activeAdvertCellId = 0;
 	CL_RefreshOnlineServicesBridgeState();
 }
 
@@ -256,6 +383,8 @@ Tears down the retail cgame advert lifecycle bridge when a host exists.
 static void CL_AdvertisementBridge_ShutdownCGame( void ) {
 	cl_advertisementBridge.initialised = qfalse;
 	cl_advertisementBridge.frameTime = 0;
+	cl_advertisementBridge.activeAdvertCellId = 0;
+	cl_advertisementBridge.activatedAdvertCellId = 0;
 	CL_RefreshOnlineServicesBridgeState();
 }
 
@@ -784,7 +913,7 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		S_StartLocalSound( args[1], args[2] );
 		return 0;
 	case CG_S_CLEARLOOPINGSOUNDS:
-		S_ClearLoopingSounds(args[1]);
+		S_ClearLoopingSounds( args[1] ? qtrue : qfalse );
 		return 0;
 	case CG_S_ADDLOOPINGSOUND:
 		S_AddLoopingSound( args[1], VMA(2), VMA(3), args[4] );
@@ -802,7 +931,7 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		S_Respatialize( args[1], VMA(2), VMA(3), args[4] );
 		return 0;
 	case CG_S_REGISTERSOUND:
-		return S_RegisterSound( VMA(1), args[2] );
+		return S_RegisterSound( VMA(1), args[2] ? qtrue : qfalse );
 	case CG_S_STARTBACKGROUNDTRACK:
 		S_StartBackgroundTrack( VMA(1), VMA(2) );
 		return 0;
@@ -863,20 +992,20 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		CL_GetCurrentSnapshotNumber( VMA(1), VMA(2) );
 		return 0;
 	case CG_GETSNAPSHOT:
-		return CL_GetSnapshot( args[1], VMA(2) );
+		return CL_GetSnapshot( args[1], VMA(2) ) ? qtrue : qfalse;
 	case CG_GETSERVERCOMMAND:
-		return CL_GetServerCommand( args[1] );
+		return CL_GetServerCommand( args[1] ) ? qtrue : qfalse;
 	case CG_GETCURRENTCMDNUMBER:
 		return CL_GetCurrentCmdNumber();
 	case CG_GETUSERCMD:
-		return CL_GetUserCmd( args[1], VMA(2) );
+		return CL_GetUserCmd( args[1], VMA(2) ) ? qtrue : qfalse;
 	case CG_SETUSERCMDVALUE:
 		CL_SetUserCmdValue( args[1], VMF(2) );
 		return 0;
 	case CG_MEMORY_REMAINING:
 		return Hunk_MemoryRemaining();
   case CG_KEY_ISDOWN:
-		return Key_IsDown( args[1] );
+		return Key_IsDown( args[1] ) ? qtrue : qfalse;
   case CG_KEY_GETCATCHER:
 		return Key_GetCatcher();
   case CG_KEY_SETCATCHER:
@@ -895,9 +1024,9 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		Key_SetBinding( args[1], VMA(2) );
 		return 0;
 	case CG_KEY_GETOVERSTRIKEMODE:
-		return Key_GetOverstrikeMode();
+		return Key_GetOverstrikeMode() ? qtrue : qfalse;
 	case CG_KEY_SETOVERSTRIKEMODE:
-		Key_SetOverstrikeMode( args[1] );
+		Key_SetOverstrikeMode( args[1] ? qtrue : qfalse );
 		return 0;
 	case CG_ADVERTISEMENTBRIDGE_INITCGAME:
 		CL_AdvertisementBridge_InitCGame();
@@ -990,9 +1119,9 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		return getCameraInfo(args[1], VMA(2), VMA(3));
 */
 	case CG_GET_ENTITY_TOKEN:
-		return re.GetEntityToken( VMA(1), args[2] );
+		return re.GetEntityToken( VMA(1), args[2] ) ? qtrue : qfalse;
 	case CG_R_INPVS:
-		return re.inPVS( VMA(1), VMA(2) );
+		return re.inPVS( VMA(1), VMA(2) ) ? qtrue : qfalse;
 
 	default:
 	        assert(0); // bk010102
@@ -1041,15 +1170,6 @@ static qboolean ql_cgame_defaultFontLoaded = qfalse;
 static uint64_t ql_cgame_mutedIdentitySet[MAX_CLIENTS];
 static int ql_cgame_mutedIdentityCount = 0;
 static ql_import_f ql_cgame_imports[CGAME_NATIVE_IMPORT_COUNT];
-
-/*
-==============
-QL_CG_trap_Stub
-==============
-*/
-static int QDECL QL_CG_trap_Stub( void ) {
-	return 0;
-}
 
 /*
 ==============
@@ -1113,7 +1233,7 @@ static qhandle_t QL_CG_RegisterDefaultAdvertCellShader( const char *defaultConte
 		return 0;
 	}
 
-	return re.RegisterShaderNoMip( defaultContent );
+	return CL_Steam_RegisterShader( defaultContent );
 }
 
 /*
@@ -1237,7 +1357,19 @@ QL_CG_trap_SetActiveAdvert
 ==============
 */
 static void QDECL QL_CG_trap_SetActiveAdvert( int cellId ) {
-	(void)cellId;
+	CL_AdvertisementBridge_SetActiveAdvert( cellId );
+}
+
+/*
+==============
+QL_CG_trap_UpdateAdvert
+==============
+*/
+static void QDECL QL_CG_trap_UpdateAdvert( int handleOrToken, int area ) {
+	// cgamex86.dll HLIL: import[58] is called by the retail advert ownerdraw after the shader quad draw.
+	// The recovered host-side provider remains inert here as well, so preserve the callback surface without inventing behavior.
+	(void)handleOrToken;
+	(void)area;
 }
 
 /*
@@ -1501,9 +1633,20 @@ QL_CG_trap_GetAvatarImageHandle
 ==============
 */
 static qhandle_t QDECL QL_CG_trap_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh ) {
-	(void)identityLow;
-	(void)identityHigh;
-	return 0;
+	uint64_t identity;
+	char url[MAX_QPATH];
+
+	if ( !CL_SteamServicesEnabled() ) {
+		return 0;
+	}
+
+	identity = QL_CG_CombineIdentityWords( identityLow, identityHigh );
+	if ( !identity ) {
+		return 0;
+	}
+
+	Com_sprintf( url, sizeof( url ), "steam://avatar/large/%llu", (unsigned long long)identity );
+	return CL_Steam_RegisterShader( url );
 }
 
 /*
@@ -1512,11 +1655,7 @@ CL_InitCGameImports
 ==============
 */
 static void CL_InitCGameImports( void ) {
-	int i;
-
-	for ( i = 0; i < CGAME_NATIVE_IMPORT_COUNT; ++i ) {
-		ql_cgame_imports[i] = (ql_import_f)QL_CG_trap_Stub;
-	}
+	Com_Memset( ql_cgame_imports, 0, sizeof( ql_cgame_imports ) );
 
 	ql_cgame_currentColor[0] = 1.0f;
 	ql_cgame_currentColor[1] = 1.0f;
@@ -1578,6 +1717,7 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_SETUP_ADVERT_CELL_SHADER] = (ql_import_f)QL_CG_trap_SetupAdvertCellShader;
 	ql_cgame_imports[CG_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER] = (ql_import_f)QL_CG_trap_RefreshAdvertCellShader;
 	ql_cgame_imports[CG_QL_IMPORT_SET_ACTIVE_ADVERT] = (ql_import_f)QL_CG_trap_SetActiveAdvert;
+	ql_cgame_imports[CG_QL_IMPORT_UPDATE_ADVERT] = (ql_import_f)QL_CG_trap_UpdateAdvert;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_SET_MAP_PATH] = (ql_import_f)QL_CG_trap_AdvertisementBridge_SetMapPath;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_INITCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_InitCGame;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_ShutdownCGame;
@@ -1756,7 +1896,7 @@ qboolean CL_GameCommand( void ) {
 		return qfalse;
 	}
 
-	return VM_Call( cgvm, CG_CONSOLE_COMMAND );
+	return VM_Call( cgvm, CG_CONSOLE_COMMAND ) ? qtrue : qfalse;
 }
 
 
@@ -1767,7 +1907,10 @@ CL_CGameRendering
 =====================
 */
 void CL_CGameRendering( stereoFrame_t stereo ) {
-	VM_Call( cgvm, CG_DRAW_ACTIVE_FRAME, cl.serverTime, stereo, clc.demoplaying );
+	qboolean	demoPlaying;
+
+	demoPlaying = clc.demoplaying ? qtrue : qfalse;
+	VM_Call( cgvm, CG_DRAW_ACTIVE_FRAME, cl.serverTime, stereo, demoPlaying );
 	VM_Debug( 0 );
 }
 
@@ -1851,6 +1994,21 @@ void CL_AdjustTimeDelta( void ) {
 	}
 }
 
+/*
+==================
+CL_Steam_SetMatchRichPresence
+
+Mirrors the retail game-start status write once the first active snapshot lands.
+==================
+*/
+static void CL_Steam_SetMatchRichPresence( void ) {
+	if ( !CL_SteamServicesEnabled() || clc.demoplaying ) {
+		return;
+	}
+
+	QL_Steamworks_SetRichPresence( "status", "Playing a match" );
+}
+
 
 /*
 ==================
@@ -1869,6 +2027,7 @@ void CL_FirstSnapshot( void ) {
 	cl.oldServerTime = cl.snap.serverTime;
 
 	clc.timeDemoBaseTime = cl.snap.serverTime;
+	CL_Steam_SetMatchRichPresence();
 
 	// if this is the first frame of active play,
 	// execute the contents of activeAction now

@@ -347,13 +347,25 @@ static int CG_MatchClockMilliseconds( void ) {
 	int		now;
 	int		overtimeEnd;
 	int		suddenMax;
+	int		timeoutStart;
 
 	anchor = cgs.levelStartTime;
 	if ( anchor <= 0 ) {
 		return 0;
 	}
 
-	now = ( cgs.matchTimeoutActive && cgs.matchTimeoutExpireTime > 0 ) ? cgs.matchTimeoutExpireTime : cg.time;
+	timeoutStart = CG_GetMatchTimeoutStartTime();
+	if ( cgs.matchTimeoutActive ) {
+		if ( cgs.matchTimeoutExpireTime > 0 ) {
+			now = cgs.matchTimeoutExpireTime;
+		} else if ( timeoutStart > 0 ) {
+			now = timeoutStart;
+		} else {
+			now = cg.time;
+		}
+	} else {
+		now = cg.time;
+	}
 
 	overtimeEnd = cgs.matchOvertimeEndTime;
 	if ( cgs.matchOvertimeActive && !overtimeEnd && cgs.matchOvertimeStartTime > 0 && cgs.matchOvertimeLengthSeconds > 0 ) {
@@ -506,7 +518,7 @@ Returns the current overtime round count, falling back to the elapsed retail
 match-state seam when the cached count has not landed yet.
 =============
 */
-static int CG_GetOvertimeCount( void ) {
+int CG_GetOvertimeCount( void ) {
 	int		anchor;
 	int		regulationEnd;
 	int		elapsed;

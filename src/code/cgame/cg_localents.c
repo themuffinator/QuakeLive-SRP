@@ -491,26 +491,10 @@ CG_AddFragment
 */
 void CG_AddFragment( localEntity_t *le ) {
 	(void)CG_AddFragmentImpl( le );
-}
 
-/*
-==================
-CG_AddFragment14
-==================
-*/
-static void CG_AddFragment14( localEntity_t *le ) {
-	(void)CG_AddFragmentImpl( le );
-	CG_AddFragmentTrail( le, cgs.media.tracerShader );
-}
-
-/*
-==================
-CG_AddFragment16
-==================
-*/
-static void CG_AddFragment16( localEntity_t *le ) {
-	CG_AddFragmentTrail( le, cgs.media.iceballShader );
-	(void)CG_AddFragmentImpl( le );
+	if ( le->leType == LE_FRAGMENT_14 ) {
+		CG_AddFragmentTrail( le, cgs.media.tracerShader );
+	}
 }
 
 /*
@@ -545,11 +529,14 @@ void CG_AddFadeRGB( localEntity_t *le ) {
 }
 
 /*
-=================
-CG_AddType05Common
-=================
+======================
+CG_AddSpriteEffectCommon
+
+Retail uses this shared fade/move/cull path for both the big-explode tracer
+sprite and the death-effect sprite.
+======================
 */
-static qboolean CG_AddType05Common( localEntity_t *le ) {
+static qboolean CG_AddSpriteEffectCommon( localEntity_t *le ) {
 	refEntity_t	*re;
 	float		c;
 	vec3_t		delta;
@@ -587,21 +574,21 @@ static qboolean CG_AddType05Common( localEntity_t *le ) {
 }
 
 /*
-=================
-CG_AddType05
-=================
+========================
+CG_AddBigExplodeTracer
+========================
 */
-static void CG_AddType05( localEntity_t *le ) {
-	(void)CG_AddType05Common( le );
+static void CG_AddBigExplodeTracer( localEntity_t *le ) {
+	(void)CG_AddSpriteEffectCommon( le );
 }
 
 /*
 ================
-CG_AddType0F
+CG_AddDeathEffect
 ================
 */
-static void CG_AddType0F( localEntity_t *le ) {
-	if ( CG_AddType05Common( le ) && le->light ) {
+static void CG_AddDeathEffect( localEntity_t *le ) {
+	if ( CG_AddSpriteEffectCommon( le ) && le->light ) {
 		float		light;
 
 		light = (float)( cg.time - le->startTime ) / ( le->endTime - le->startTime );
@@ -1138,8 +1125,8 @@ void CG_AddLocalEntities( void ) {
 			CG_AddMoveScaleFade( le );
 			break;
 
-		case LE_05:
-			CG_AddType05( le );
+		case LE_BIGEXPLODE_TRACER:
+			CG_AddBigExplodeTracer( le );
 			break;
 
 		case LE_FADE_RGB:				// teleporters, railtrails
@@ -1170,14 +1157,12 @@ void CG_AddLocalEntities( void ) {
 		case LE_SHOWREFENTITY:
 			CG_AddRefEntity( le );
 			break;
-		case LE_0F:
-			CG_AddType0F( le );
-			break;
 		case LE_FRAGMENT_14:
-			CG_AddFragment14( le );
-			break;
 		case LE_FRAGMENT_16:
-			CG_AddFragment16( le );
+			CG_AddFragment( le );
+			break;
+		case LE_DEATH_EFFECT:
+			CG_AddDeathEffect( le );
 			break;
 		}
 	}

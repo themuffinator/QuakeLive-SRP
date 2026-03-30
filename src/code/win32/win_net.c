@@ -1023,9 +1023,11 @@ void NET_Sleep( int msec ) {
 
 /*
 ====================
-NET_Restart_f
+NET_Restart
 ====================
 */
 void NET_Restart( void ) {
+	QL_Steamworks_ServerShutdown();
 	NET_Config( networkingEnabled );
+	Com_InitSteamGameServer();
 }

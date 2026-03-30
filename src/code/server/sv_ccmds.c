@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "server.h"
+#include "../../common/platform/platform_steamworks.h"
 
 #define SV_FACTORY_MAX_JSON_STRING        4096
 #define SV_FACTORY_FILE_LIST_BUFFER       4096
@@ -1218,7 +1219,7 @@ This allows fair starts with variable load times.
 static void SV_MapRestart_f( void ) {
 	int			i;
 	client_t	*client;
-	char		*denied;
+	const char	*denied;
 	qboolean	isBot;
 	int			delay;
 
@@ -1312,7 +1313,7 @@ static void SV_MapRestart_f( void ) {
 		SV_AddServerCommand( client, "map_restart\n" );
 
 		// connect the client again, without the firstTime flag
-		denied = VM_ExplicitArgPtr( gvm, VM_Call( gvm, GAME_CLIENT_CONNECT, i, qfalse, isBot ) );
+		denied = SV_GameClientConnect( i, qfalse, isBot );
 		if ( denied ) {
 			// this generally shouldn't happen, because the client
 			// was connected before the level change
@@ -1713,6 +1714,112 @@ static void SV_KillServer_f( void ) {
 	SV_Shutdown( "killserver" );
 }
 
+/*
+=============
+SV_SteamWorkshop_SplitItemId
+
+Splits a decimal workshop item ID into the low/high 32-bit pair used by the
+SteamUGC wrappers.
+=============
+*/
+static qboolean SV_SteamWorkshop_SplitItemId( unsigned long long itemId, uint32_t *itemIdLow, uint32_t *itemIdHigh ) {
+	if ( itemIdLow ) {
+		*itemIdLow = (uint32_t)( itemId & 0xffffffffull );
+	}
+	if ( itemIdHigh ) {
+		*itemIdHigh = (uint32_t)( ( itemId >> 32 ) & 0xffffffffull );
+	}
+
+	return itemIdLow != NULL && itemIdHigh != NULL;
+}
+
+/*
+=============
+SV_SteamCmd_DownloadUGC_f
+
+Mirrors the retail manual workshop download command surface.
+=============
+*/
+static void SV_SteamCmd_DownloadUGC_f( void ) {
+	unsigned long long itemId = 0;
+	uint32_t itemIdLow;
+	uint32_t itemIdHigh;
+
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "Usage: steam_downloadugc <itemid>\n" );
+		return;
+	}
+
+	sscanf( Cmd_Argv( 1 ), "%llu", &itemId );
+	if ( !SV_SteamWorkshop_SplitItemId( itemId, &itemIdLow, &itemIdHigh ) ) {
+		return;
+	}
+
+	if ( QL_Steamworks_GetItemState( itemIdLow, itemIdHigh ) & 4u ) {
+		Com_Printf( "Workshop item %llu: in cache.\n", itemId );
+		return;
+	}
+
+	Com_Printf( "Workshop item %llu: download\n", itemId );
+	if ( !QL_Steamworks_DownloadItem( itemIdLow, itemIdHigh, qtrue ) ) {
+		Com_Printf( "Workshop item %llu: download request failed.\n", itemId );
+	}
+}
+
+/*
+=============
+SV_SteamCmd_SubscribeUGC_f
+
+Mirrors the retail manual workshop subscribe command surface.
+=============
+*/
+static void SV_SteamCmd_SubscribeUGC_f( void ) {
+	unsigned long long itemId = 0;
+	uint32_t itemIdLow;
+	uint32_t itemIdHigh;
+
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "Usage: steam_subscribeugc <itemid>\n" );
+		return;
+	}
+
+	sscanf( Cmd_Argv( 1 ), "%llu", &itemId );
+	if ( !SV_SteamWorkshop_SplitItemId( itemId, &itemIdLow, &itemIdHigh ) ) {
+		return;
+	}
+
+	if ( !QL_Steamworks_SubscribeItem( itemIdLow, itemIdHigh ) ) {
+		Com_Printf( "Workshop item %llu: subscribe request failed.\n", itemId );
+	}
+}
+
+/*
+=============
+SV_SteamCmd_UnsubscribeUGC_f
+
+Mirrors the retail manual workshop unsubscribe command surface.
+=============
+*/
+static void SV_SteamCmd_UnsubscribeUGC_f( void ) {
+	unsigned long long itemId = 0;
+	uint32_t itemIdLow;
+	uint32_t itemIdHigh;
+
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "Usage: steam_unsubscribeugc <itemid>\n" );
+		return;
+	}
+
+	sscanf( Cmd_Argv( 1 ), "%llu", &itemId );
+	if ( !SV_SteamWorkshop_SplitItemId( itemId, &itemIdLow, &itemIdHigh ) ) {
+		return;
+	}
+
+	if ( !QL_Steamworks_UnsubscribeItem( itemIdLow, itemIdHigh ) ) {
+		Com_Printf( "Workshop item %llu: unsubscribe request failed.\n", itemId );
+	}
+}
+
 //===========================================================
 
 /*
@@ -1746,6 +1853,9 @@ void SV_AddOperatorCommands( void ) {
 	Cmd_AddCommand ("spdevmap", SV_Map_f);
 #endif
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
+	Cmd_AddCommand ("steam_downloadugc", SV_SteamCmd_DownloadUGC_f);
+	Cmd_AddCommand ("steam_subscribeugc", SV_SteamCmd_SubscribeUGC_f);
+	Cmd_AddCommand ("steam_unsubscribeugc", SV_SteamCmd_UnsubscribeUGC_f);
 	if( com_dedicated->integer ) {
 		Cmd_AddCommand ("say", SV_ConSay_f);
 	}

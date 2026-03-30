@@ -516,6 +516,8 @@ static qboolean	CG_RegisterClientSkin( clientInfo_t *ci, const char *teamName, c
 	return qtrue;
 }
 
+static qboolean CG_UpdateClientHeadOffset( clientInfo_t *ci );
+
 /*
 ==========================
 CG_RegisterClientModelname
@@ -616,11 +618,6 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 		return qfalse;
 	}
 
-	if ( !Q_stricmp( modelName, "orbb" ) ) {
-		ci->headOffset[2] = 1.0f;
-		return qtrue;
-	}
-
 	ci->newAnims = qfalse;
 	if ( ci->torsoModel ) {
 		orientation_t tag;
@@ -630,6 +627,49 @@ static qboolean CG_RegisterClientModelname( clientInfo_t *ci, const char *modelN
 		}
 	}
 
+	CG_UpdateClientHeadOffset( ci );
+
+	return qtrue;
+}
+
+/*
+==========================
+CG_UpdateClientHeadOffset
+==========================
+*/
+static qboolean CG_UpdateClientHeadOffset( clientInfo_t *ci ) {
+	vec3_t mins, maxs;
+	orientation_t tag;
+	float totalHeight;
+
+	if ( !ci ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( ci->modelName, "orbb" ) ) {
+		ci->headOffset[0] = 1.0f;
+		return qtrue;
+	}
+
+	if ( !ci->legsModel || !ci->torsoModel || !ci->headModel ) {
+		ci->headOffset[0] = 1.0f;
+		return qfalse;
+	}
+
+	trap_R_ModelBounds( ci->headModel, mins, maxs );
+	totalHeight = maxs[2] + 24.0f;
+	if ( trap_R_LerpTag( &tag, ci->legsModel, 0, 0, 1.0f, "tag_torso" ) ) {
+		totalHeight += tag.origin[2];
+	}
+	if ( trap_R_LerpTag( &tag, ci->torsoModel, 0, 0, 1.0f, "tag_head" ) ) {
+		totalHeight += tag.origin[2];
+	}
+	if ( totalHeight <= 0.0f ) {
+		ci->headOffset[0] = 1.0f;
+		return qfalse;
+	}
+
+	ci->headOffset[0] = ( 56.0f / totalHeight ) * cgs.playerModelScale;
 	return qtrue;
 }
 
@@ -658,6 +698,113 @@ static void CG_ColorFromString( const char *v, vec3_t color ) {
 	}
 	if ( val & 4 ) {
 		color[0] = 1.0f;
+	}
+}
+
+/*
+==========================
+CG_DefaultTeamSkinName
+==========================
+*/
+static const char *CG_DefaultTeamSkinName( team_t team ) {
+	if ( team == TEAM_RED ) {
+		return "red";
+	}
+	if ( team == TEAM_BLUE ) {
+		return "blue";
+	}
+	return "default";
+}
+
+/*
+==========================
+CG_NormalizeClientSkinName
+
+Mirrors the retail model-skin normalizer beneath CG_NewClientInfo.
+==========================
+*/
+static void CG_NormalizeClientSkinName( clientInfo_t *ci ) {
+	char	modelToken[MAX_QPATH];
+	char	*skinToken;
+
+	if ( !ci ) {
+		return;
+	}
+
+	Q_strncpyz( modelToken, ci->modelName, sizeof( modelToken ) );
+	skinToken = strchr( modelToken, '/' );
+	if ( skinToken ) {
+		*skinToken++ = '\0';
+		Q_strncpyz( ci->modelName, modelToken, sizeof( ci->modelName ) );
+		if ( *skinToken ) {
+			Q_strncpyz( ci->skinName, skinToken, sizeof( ci->skinName ) );
+		}
+	}
+
+	if ( !ci->skinName[0] ) {
+		if ( cgs.gametype >= GT_TEAM ) {
+			Q_strncpyz( ci->skinName, CG_DefaultTeamSkinName( ci->team ), sizeof( ci->skinName ) );
+		} else {
+			Q_strncpyz( ci->skinName, "default", sizeof( ci->skinName ) );
+		}
+	}
+
+	if ( cgs.gametype >= GT_TEAM && !Q_stricmp( ci->skinName, "sport" ) ) {
+		if ( ci->team == TEAM_RED ) {
+			Q_strncpyz( ci->skinName, "sport_red", sizeof( ci->skinName ) );
+		} else if ( ci->team == TEAM_BLUE ) {
+			Q_strncpyz( ci->skinName, "sport_blue", sizeof( ci->skinName ) );
+		}
+	}
+
+	if ( !ci->skinName[0] ) {
+		Q_strncpyz( ci->skinName, "default", sizeof( ci->skinName ) );
+	}
+}
+
+/*
+==========================
+CG_NormalizeClientHeadSkinName
+
+Mirrors the retail head-skin normalizer beneath CG_NewClientInfo.
+==========================
+*/
+static void CG_NormalizeClientHeadSkinName( clientInfo_t *ci ) {
+	char	headModelToken[MAX_QPATH];
+	char	*skinToken;
+
+	if ( !ci ) {
+		return;
+	}
+
+	Q_strncpyz( headModelToken, ci->headModelName, sizeof( headModelToken ) );
+	skinToken = strchr( headModelToken, '/' );
+	if ( skinToken ) {
+		*skinToken++ = '\0';
+		Q_strncpyz( ci->headModelName, headModelToken, sizeof( ci->headModelName ) );
+		if ( *skinToken ) {
+			Q_strncpyz( ci->headSkinName, skinToken, sizeof( ci->headSkinName ) );
+		}
+	}
+
+	if ( !ci->headSkinName[0] ) {
+		if ( cgs.gametype >= GT_TEAM ) {
+			Q_strncpyz( ci->headSkinName, CG_DefaultTeamSkinName( ci->team ), sizeof( ci->headSkinName ) );
+		} else {
+			Q_strncpyz( ci->headSkinName, "default", sizeof( ci->headSkinName ) );
+		}
+	}
+
+	if ( cgs.gametype >= GT_TEAM && !Q_stricmp( ci->headSkinName, "sport" ) ) {
+		if ( ci->team == TEAM_RED ) {
+			Q_strncpyz( ci->headSkinName, "sport_red", sizeof( ci->headSkinName ) );
+		} else if ( ci->team == TEAM_BLUE ) {
+			Q_strncpyz( ci->headSkinName, "sport_blue", sizeof( ci->headSkinName ) );
+		}
+	}
+
+	if ( !ci->headSkinName[0] ) {
+		Q_strncpyz( ci->headSkinName, "default", sizeof( ci->headSkinName ) );
 	}
 }
 
@@ -897,6 +1044,26 @@ void CG_ApplyModelOverrides( void ) {
 		}
 
 		CG_NewClientInfo( i );
+	}
+}
+
+/*
+==========================
+CG_RefreshClientHeadOffsets
+==========================
+*/
+void CG_RefreshClientHeadOffsets( void ) {
+	int i;
+
+	for ( i = 0; i < cgs.maxclients; ++i ) {
+		clientInfo_t *ci;
+
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid ) {
+			continue;
+		}
+
+		CG_UpdateClientHeadOffset( ci );
 	}
 }
 
@@ -1248,22 +1415,61 @@ static qboolean CG_ShouldTintDeadBody( const centity_t *cent, const clientInfo_t
 
 /*
 =============
+CG_GetPlayerColorScale
+
+Retail doubles player override colors when renderer-side color correction
+is inactive.
+=============
+*/
+static int CG_GetPlayerColorScale( void ) {
+	char	value[16];
+
+	trap_Cvar_VariableStringBuffer( "r_colorCorrectActive", value, sizeof( value ) );
+	return atof( value ) > 0.0f ? 1 : 2;
+}
+
+/*
+=============
+CG_SetScaledShaderRGBA
+
+Copies a normalized color into shader RGBA bytes using the retail player
+color scale.
+=============
+*/
+static void CG_SetScaledShaderRGBA( byte *rgba, const vec4_t color, int colorScale ) {
+	int		component;
+	int		value;
+	float	clamped;
+
+	if ( !rgba ) {
+		return;
+	}
+
+	for ( component = 0 ; component < 3 ; component++ ) {
+		clamped = Com_Clamp( 0.0f, 1.0f, color[component] );
+		value = (int)( clamped * 255.0f ) * colorScale;
+		if ( value > 255 ) {
+			value = 255;
+		}
+		rgba[component] = (byte)value;
+	}
+
+	clamped = Com_Clamp( 0.0f, 1.0f, color[3] );
+	rgba[3] = (byte)( clamped * 255.0f );
+}
+
+/*
+=============
 CG_ApplyDeadBodyTint
 
 Copies the cached corpse color into a render entity.
 =============
 */
-static void CG_ApplyDeadBodyTint( refEntity_t *re ) {
-	int component;
-	float clamped;
-
+static void CG_ApplyDeadBodyTint( refEntity_t *re, int colorScale ) {
 	if ( !re ) {
 		return;
 	}
-	for ( component = 0 ; component < 4 ; component++ ) {
-		clamped = Com_Clamp( 0.0f, 1.0f, cg.deadBodyColor[component] );
-		re->shaderRGBA[component] = (byte)( clamped * 255.0f );
-	}
+	CG_SetScaledShaderRGBA( re->shaderRGBA, cg.deadBodyColor, colorScale );
 }
 
 /*
@@ -1273,11 +1479,62 @@ CG_SetRefEntityColor
 Applies a custom RGB color to the reference entity.
 =============
 */
-static void CG_SetRefEntityColor( refEntity_t *ent, vec3_t color ) {
-	ent->shaderRGBA[0] = (byte)( color[0] * 255.0f );
-	ent->shaderRGBA[1] = (byte)( color[1] * 255.0f );
-	ent->shaderRGBA[2] = (byte)( color[2] * 255.0f );
-	ent->shaderRGBA[3] = 255;
+static void CG_SetRefEntityColor( refEntity_t *ent, vec3_t color, int colorScale ) {
+	vec4_t	shaderColor;
+
+	shaderColor[0] = color[0];
+	shaderColor[1] = color[1];
+	shaderColor[2] = color[2];
+	shaderColor[3] = 1.0f;
+	CG_SetScaledShaderRGBA( ent->shaderRGBA, shaderColor, colorScale );
+}
+
+/*
+=============
+CG_ApplyPlayerColors
+
+Applies the retail shared player-color leaf across the legs, torso, and
+head reference entities.
+=============
+*/
+static void CG_ApplyPlayerColors( centity_t *cent, const clientInfo_t *ci, refEntity_t *legs, refEntity_t *torso, refEntity_t *head ) {
+	int	colorScale;
+
+	if ( !cent || !ci || !legs || !torso || !head ) {
+		return;
+	}
+
+	colorScale = CG_GetPlayerColorScale();
+
+	legs->shaderRGBA[0] = 255;
+	legs->shaderRGBA[1] = 255;
+	legs->shaderRGBA[2] = 255;
+	legs->shaderRGBA[3] = 255;
+	torso->shaderRGBA[0] = 255;
+	torso->shaderRGBA[1] = 255;
+	torso->shaderRGBA[2] = 255;
+	torso->shaderRGBA[3] = 255;
+	head->shaderRGBA[0] = 255;
+	head->shaderRGBA[1] = 255;
+	head->shaderRGBA[2] = 255;
+	head->shaderRGBA[3] = 255;
+
+	if ( CG_ShouldTintDeadBody( cent, ci ) ) {
+		CG_ApplyDeadBodyTint( legs, colorScale );
+		CG_ApplyDeadBodyTint( torso, colorScale );
+		CG_ApplyDeadBodyTint( head, colorScale );
+		return;
+	}
+
+	if ( ci->lowerColorForced ) {
+		CG_SetRefEntityColor( legs, ci->lowerColor, colorScale );
+	}
+	if ( ci->upperColorForced ) {
+		CG_SetRefEntityColor( torso, ci->upperColor, colorScale );
+	}
+	if ( ci->headColorForced ) {
+		CG_SetRefEntityColor( head, ci->headColor, colorScale );
+	}
 }
 
 /*
@@ -1290,7 +1547,7 @@ void CG_NewClientInfo( int clientNum ) {
 	clientInfo_t newInfo;
 	const char	*configstring;
 	const char	*v;
-	char		*slash;
+	const char	*skinToken;
 	cgClientOverrideContext_t overrideContext;
 
 	ci = &cgs.clientinfo[clientNum];
@@ -1344,11 +1601,22 @@ void CG_NewClientInfo( int clientNum ) {
 	v = Info_ValueForKey( configstring, "tl" );
 	newInfo.teamLeader = atoi(v);
 
+	// pure spectator / duel queue metadata
+	v = Info_ValueForKey( configstring, "so" );
+	newInfo.spectateOnly = atoi( v );
+
+	v = Info_ValueForKey( configstring, "pq" );
+	newInfo.spectatorQueuePosition = atoi( v );
+
 	v = Info_ValueForKey( configstring, "g_redteam" );
 	Q_strncpyz(newInfo.redTeam, v, MAX_TEAMNAME);
 
 	v = Info_ValueForKey( configstring, "g_blueteam" );
 	Q_strncpyz(newInfo.blueTeam, v, MAX_TEAMNAME);
+
+	v = Info_ValueForKey( configstring, "country" );
+	Q_strncpyz( newInfo.country, v, sizeof( newInfo.country ) );
+	newInfo.countryFlagShader = CG_RegisterCountryFlag( newInfo.country );
 
 	// model
 	v = Info_ValueForKey( configstring, "model" );
@@ -1356,43 +1624,21 @@ void CG_NewClientInfo( int clientNum ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
 		char modelStr[MAX_QPATH];
-		char *skin;
 
 		if( cgs.gametype >= GT_TEAM ) {
 			Q_strncpyz( newInfo.modelName, DEFAULT_TEAM_MODEL, sizeof( newInfo.modelName ) );
-			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
+			skinToken = strchr( v, '/' );
+			if ( skinToken ) {
+				Q_strncpyz( newInfo.skinName, skinToken + 1, sizeof( newInfo.skinName ) );
+			}
 		} else {
 			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
-				skin = "default";
-			} else {
-				*skin++ = 0;
-			}
-
-			Q_strncpyz( newInfo.skinName, skin, sizeof( newInfo.skinName ) );
 			Q_strncpyz( newInfo.modelName, modelStr, sizeof( newInfo.modelName ) );
-		}
-
-		if ( cgs.gametype >= GT_TEAM ) {
-			// keep skin name
-			slash = strchr( v, '/' );
-			if ( slash ) {
-				Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );
-			}
 		}
 	} else {
 		Q_strncpyz( newInfo.modelName, v, sizeof( newInfo.modelName ) );
-
-		slash = strchr( newInfo.modelName, '/' );
-		if ( !slash ) {
-			// modelName didn not include a skin name
-			Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
-		} else {
-			Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );
-			// truncate modelName
-			*slash = 0;
-		}
 	}
+	CG_NormalizeClientSkinName( &newInfo );
 
 	// head model
 	v = Info_ValueForKey( configstring, "hmodel" );
@@ -1400,43 +1646,21 @@ void CG_NewClientInfo( int clientNum ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
 		char modelStr[MAX_QPATH];
-		char *skin;
 
 		if( cgs.gametype >= GT_TEAM ) {
 			Q_strncpyz( newInfo.headModelName, DEFAULT_TEAM_MODEL, sizeof( newInfo.headModelName ) );
-			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
+			skinToken = strchr( v, '/' );
+			if ( skinToken ) {
+				Q_strncpyz( newInfo.headSkinName, skinToken + 1, sizeof( newInfo.headSkinName ) );
+			}
 		} else {
 			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
-			if ( ( skin = strchr( modelStr, '/' ) ) == NULL) {
-				skin = "default";
-			} else {
-				*skin++ = 0;
-			}
-
-			Q_strncpyz( newInfo.headSkinName, skin, sizeof( newInfo.headSkinName ) );
 			Q_strncpyz( newInfo.headModelName, modelStr, sizeof( newInfo.headModelName ) );
-		}
-
-		if ( cgs.gametype >= GT_TEAM ) {
-			// keep skin name
-			slash = strchr( v, '/' );
-			if ( slash ) {
-				Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
-			}
 		}
 	} else {
 		Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
-
-		slash = strchr( newInfo.headModelName, '/' );
-		if ( !slash ) {
-			// modelName didn not include a skin name
-			Q_strncpyz( newInfo.headSkinName, "default", sizeof( newInfo.headSkinName ) );
-		} else {
-			Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );
-			// truncate modelName
-			*slash = 0;
-		}
 	}
+	CG_NormalizeClientHeadSkinName( &newInfo );
 
 	if ( !cgs.allowCustomHeadmodels ) {
 		Q_strncpyz( newInfo.headModelName, newInfo.modelName, sizeof( newInfo.headModelName ) );
@@ -2726,7 +2950,6 @@ void CG_Player( centity_t *cent ) {
 	float			c;
 	float			angle;
 	vec3_t			dir, angles;
-	qboolean		tintCorpse;
 
 	// the client number is stored in clientNum.  It can't be derived
 	// from the entity number, because a single client may have
@@ -2736,7 +2959,6 @@ void CG_Player( centity_t *cent ) {
 		CG_Error( "Bad clientNum on player entity");
 	}
 	ci = &cgs.clientinfo[ clientNum ];
-	tintCorpse = CG_ShouldTintDeadBody( cent, ci );
 
 	// it is possible to see corpses from disconnected players that may
 	// not have valid clientinfo
@@ -2760,6 +2982,7 @@ void CG_Player( centity_t *cent ) {
 	memset( &legs, 0, sizeof(legs) );
 	memset( &torso, 0, sizeof(torso) );
 	memset( &head, 0, sizeof(head) );
+	CG_ApplyPlayerColors( cent, ci, &legs, &torso, &head );
 
 	// get the rotation information
 	CG_PlayerAngles( cent, legs.axis, torso.axis, head.axis );
@@ -2796,11 +3019,6 @@ void CG_Player( centity_t *cent ) {
 	legs.shadowPlane = shadowPlane;
 	legs.renderfx = renderfx;
 	VectorCopy (legs.origin, legs.oldorigin);	// don't positionally lerp at all
-	if ( tintCorpse ) {
-		CG_ApplyDeadBodyTint( &legs );
-	} else if ( ci->lowerColorForced ) {
-		CG_SetRefEntityColor( &legs, ci->lowerColor );
-	}
 
 	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team );
 
@@ -2825,11 +3043,6 @@ void CG_Player( centity_t *cent ) {
 
 	torso.shadowPlane = shadowPlane;
 	torso.renderfx = renderfx;
-	if ( tintCorpse ) {
-		CG_ApplyDeadBodyTint( &torso );
-	} else if ( ci->upperColorForced ) {
-		CG_SetRefEntityColor( &torso, ci->upperColor );
-	}
 
 	CG_AddRefEntityWithPowerups( &torso, &cent->currentState, ci->team );
 
@@ -3053,11 +3266,6 @@ void CG_Player( centity_t *cent ) {
 
 	head.shadowPlane = shadowPlane;
 	head.renderfx = renderfx;
-	if ( tintCorpse ) {
-		CG_ApplyDeadBodyTint( &head );
-	} else if ( ci->headColorForced ) {
-		CG_SetRefEntityColor( &head, ci->headColor );
-	}
 
 	CG_AddRefEntityWithPowerups( &head, &cent->currentState, ci->team );
 

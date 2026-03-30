@@ -370,7 +370,7 @@ void trap_S_StartLocalSound( sfxHandle_t sfx, int channelNum ) {
 }
 
 sfxHandle_t	trap_S_RegisterSound( const char *sample, qboolean compressed ) {
-	return syscall( UI_S_REGISTERSOUND, sample, compressed );
+	return syscall( UI_S_REGISTERSOUND, sample, compressed ? qtrue : qfalse );
 }
 
 void trap_Key_KeynumToStringBuf( int keynum, char *buf, int buflen ) {
@@ -386,15 +386,15 @@ void trap_Key_SetBinding( int keynum, const char *binding ) {
 }
 
 qboolean trap_Key_IsDown( int keynum ) {
-	return syscall( UI_KEY_ISDOWN, keynum );
+	return syscall( UI_KEY_ISDOWN, keynum ) ? qtrue : qfalse;
 }
 
 qboolean trap_Key_GetOverstrikeMode( void ) {
-	return syscall( UI_KEY_GETOVERSTRIKEMODE );
+	return syscall( UI_KEY_GETOVERSTRIKEMODE ) ? qtrue : qfalse;
 }
 
 void trap_Key_SetOverstrikeMode( qboolean state ) {
-	syscall( UI_KEY_SETOVERSTRIKEMODE, state );
+	syscall( UI_KEY_SETOVERSTRIKEMODE, state ? qtrue : qfalse );
 }
 
 void trap_Key_ClearStates( void ) {
@@ -474,7 +474,7 @@ void trap_LAN_GetPingInfo( int n, char *buf, int buflen ) {
 }
 
 void trap_LAN_MarkServerVisible( int source, int n, qboolean visible ) {
-	syscall( UI_LAN_MARKSERVERVISIBLE, source, n, visible );
+	syscall( UI_LAN_MARKSERVERVISIBLE, source, n, visible ? qtrue : qfalse );
 }
 
 int trap_LAN_ServerIsVisible( int source, int n) {
@@ -482,7 +482,7 @@ int trap_LAN_ServerIsVisible( int source, int n) {
 }
 
 qboolean trap_LAN_UpdateVisiblePings( int source ) {
-	return syscall( UI_LAN_UPDATEVISIBLEPINGS, source );
+	return syscall( UI_LAN_UPDATEVISIBLEPINGS, source ) ? qtrue : qfalse;
 }
 
 int trap_LAN_AddServer(int source, const char *name, const char *addr) {
@@ -576,7 +576,7 @@ void	trap_R_RemapShader( const char *oldShader, const char *newShader, const cha
 }
 
 qboolean trap_VerifyCDKey( const char *key, const char *chksum) {
-	return syscall( UI_VERIFY_CDKEY, key, chksum);
+	return syscall( UI_VERIFY_CDKEY, key, chksum ) ? qtrue : qfalse;
 }
 
 void trap_SetPbClStatus( int status ) {
@@ -687,7 +687,7 @@ qboolean trap_QL_SetCursorPos( int x, int y ) {
 		return qfalse;
 	}
 
-	return ((int (QDECL *)( int, int ))import)( x, y ) != 0;
+	return ((int (QDECL *)( int, int ))import)( x, y ) ? qtrue : qfalse;
 }
 
 /*
@@ -702,7 +702,7 @@ qboolean trap_QL_GetCursorPos( int *x, int *y ) {
 		return qfalse;
 	}
 
-	return ((int (QDECL *)( int *, int * ))import)( x, y ) != 0;
+	return ((int (QDECL *)( int *, int * ))import)( x, y ) ? qtrue : qfalse;
 }
 
 /*
@@ -717,7 +717,7 @@ qboolean trap_QL_IsSubscribedApp( int appId ) {
 		return qfalse;
 	}
 
-	return ((int (QDECL *)( int ))import)( appId ) != 0;
+	return ((int (QDECL *)( int ))import)( appId ) ? qtrue : qfalse;
 }
 
 /*
@@ -732,7 +732,7 @@ void trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, flo
 		return;
 	}
 
-	((void (QDECL *)( int, int, const char *, int, float, int, float *, int ))import)( x, y, text, fontHandle, scale, maxX, outMaxX, forceColor );
+	((void (QDECL *)( int, int, const char *, int, float, int, float *, int ))import)( x, y, text, fontHandle, scale, maxX, outMaxX, forceColor ? qtrue : qfalse );
 }
 
 /*

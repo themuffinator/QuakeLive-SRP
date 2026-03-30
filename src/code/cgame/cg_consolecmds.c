@@ -111,6 +111,31 @@ static void CG_ScoresUp_f( void ) {
 	}
 }
 
+/*
+=============
+CG_AccDown_f
+
+Mirrors the retail `+acc` command by arming the vertical accuracy overlay and
+requesting an immediate refresh from the server.
+=============
+*/
+static void CG_AccDown_f( void ) {
+	cg.accRequestActive = qtrue;
+	cg.accRequestTime = 0;
+	trap_SendClientCommand( "acc" );
+}
+
+/*
+=============
+CG_AccUp_f
+
+Mirrors the retail `-acc` command by dismissing the vertical accuracy overlay.
+=============
+*/
+static void CG_AccUp_f( void ) {
+	cg.accRequestActive = qfalse;
+}
+
 static void CG_LoadHud_f( void) {
 	char buff[1024];
 	const char *hudSet;
@@ -951,6 +976,8 @@ static consoleCommand_t	commands[] = {
 	{ "viewpos", CG_Viewpos_f },
 	{ "+scores", CG_ScoresDown_f },
 	{ "-scores", CG_ScoresUp_f },
+	{ "+acc", CG_AccDown_f },
+	{ "-acc", CG_AccUp_f },
 	{ "+zoom", CG_ZoomDown_f },
 	{ "-zoom", CG_ZoomUp_f },
 	{ "sizeup", CG_SizeUp_f },
@@ -1095,6 +1122,7 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("ragequit");
 	trap_AddCommand ("rcon");
 	trap_AddCommand ("reload_access");
+	trap_AddCommand ("acc");
 	trap_AddCommand ("team");
 	trap_AddCommand ("setmatchtime");
 	trap_AddCommand ("setviewpos");

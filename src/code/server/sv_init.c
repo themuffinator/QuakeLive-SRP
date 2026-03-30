@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "server.h"
+#include "../../common/platform/platform_steamworks.h"
 
 /*
 ===============
@@ -337,6 +338,74 @@ void SV_TouchCGame(void) {
 
 /*
 ================
+SV_SteamServerHasConfiguredMasters
+
+Returns qtrue when the retained multi-master source base has at least one
+configured heartbeat target.
+================
+*/
+static qboolean SV_SteamServerHasConfiguredMasters( void ) {
+	int i;
+
+	for ( i = 0; i < MAX_MASTER_SERVERS; ++i ) {
+		if ( sv_master[i] && sv_master[i]->string[0] ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+================
+SV_SteamServerInitDefaultHostname
+
+Mirrors the retail Steam hostname bootstrap, using com_buildScript as the closest retained build-harness gate.
+================
+*/
+static void SV_SteamServerInitDefaultHostname( void ) {
+	char personaName[MAX_CVAR_VALUE_STRING];
+	char defaultHostname[MAX_CVAR_VALUE_STRING];
+
+	if ( com_buildScript && com_buildScript->integer ) {
+		sv_hostname = Cvar_Get ("sv_hostname", "noname", CVAR_SERVERINFO | CVAR_ARCHIVE );
+		return;
+	}
+
+	if ( !QL_Steamworks_Init() || !QL_Steamworks_GetPersonaName( personaName, sizeof( personaName ) ) ) {
+		Q_strncpyz( personaName, "anon", sizeof( personaName ) );
+	}
+
+	Com_sprintf( defaultHostname, sizeof( defaultHostname ), "%s's Match", personaName );
+	sv_hostname = Cvar_Get ("sv_hostname", defaultHostname, CVAR_SERVERINFO | CVAR_ARCHIVE );
+}
+
+/*
+================
+SV_SteamServerPublishIdentity
+
+Mirrors the retail Steam game-server identity publication path.
+================
+*/
+static void SV_SteamServerPublishIdentity( void ) {
+	uint32_t			steamIdLow;
+	uint32_t			steamIdHigh;
+	unsigned long long	steamIdValue;
+	char				steamIdString[32];
+
+	if ( !QL_Steamworks_ServerGetSteamID( &steamIdLow, &steamIdHigh ) ) {
+		return;
+	}
+
+	steamIdValue = ( (unsigned long long)steamIdHigh << 32 ) | steamIdLow;
+	Com_sprintf( steamIdString, sizeof( steamIdString ), "%llu", steamIdValue );
+	SV_SetConfigstring( 0x2ca, steamIdString );
+	Cvar_Set( "sv_referencedSteamworks", steamIdString );
+	SV_SetConfigstring( 0x2cb, steamIdString );
+}
+
+/*
+================
 SV_SpawnServer
 
 Change the server to a new map, taking all connected
@@ -350,6 +419,7 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	qboolean	isBot;
 	char		systemInfo[16384];
 	const char	*p;
+	char		*serverInfo;
 
 	// shut down the existing game if it is running
 	SV_ShutdownGameProgs();
@@ -450,7 +520,7 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	for (i=0 ; i<sv_maxclients->integer ; i++) {
 		// send the new gamestate to all connected clients
 		if (svs.clients[i].state >= CS_CONNECTED) {
-			char	*denied;
+			const char	*denied;
 
 			isBot = SV_ClientIsBot( &svs.clients[i] );
 			if ( isBot && killBots ) {
@@ -459,7 +529,7 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 			}
 
 			// connect the client again
-			denied = VM_ExplicitArgPtr( gvm, VM_Call( gvm, GAME_CLIENT_CONNECT, i, qfalse, isBot ) );	// firstTime = qfalse
+			denied = SV_GameClientConnect( i, qfalse, isBot );	// firstTime = qfalse
 			if ( denied ) {
 				// this generally shouldn't happen, because the client
 				// was connected before the level change
@@ -528,13 +598,18 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	cvar_modifiedFlags &= ~CVAR_SYSTEMINFO;
 	SV_SetConfigstring( CS_SYSTEMINFO, systemInfo );
 
-	SV_SetConfigstring( CS_SERVERINFO, Cvar_InfoString( CVAR_SERVERINFO ) );
+	serverInfo = Cvar_InfoString( CVAR_SERVERINFO );
+	SV_SetConfigstring( CS_SERVERINFO, serverInfo );
 	cvar_modifiedFlags &= ~CVAR_SERVERINFO;
 
 	// any media configstring setting now should issue a warning
 	// and any configstring changes should be reliably transmitted
 	// to all clients
 	sv.state = SS_GAME;
+	SV_SteamServerPublishIdentity();
+	QL_Steamworks_ServerEnableHeartbeats( SV_SteamServerHasConfiguredMasters() );
+	SV_SteamServerUpdatePublishedState( qtrue );
+	QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );
 
 	// send a heartbeat now so the master will get up to date info
 	SV_Heartbeat_f();
@@ -565,7 +640,8 @@ void SV_Init (void) {
 	Cvar_Get ("protocol", va("%i", PROTOCOL_VERSION), CVAR_SERVERINFO | CVAR_ROM);
 	sv_mapname = Cvar_Get ("mapname", "nomap", CVAR_SERVERINFO | CVAR_ROM);
 	sv_privateClients = Cvar_Get ("sv_privateClients", "0", CVAR_SERVERINFO);
-	sv_hostname = Cvar_Get ("sv_hostname", "noname", CVAR_SERVERINFO | CVAR_ARCHIVE );
+	SV_SteamServerInitDefaultHostname();
+	sv_tags = Cvar_Get ("sv_tags", "", CVAR_ARCHIVE );
 	sv_maxclients = Cvar_Get ("sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH);
 
 	sv_maxRate = Cvar_Get ("sv_maxRate", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
@@ -590,6 +666,7 @@ void SV_Init (void) {
 	Cvar_Get ("sv_pakNames", "", CVAR_SYSTEMINFO | CVAR_ROM );
 	Cvar_Get ("sv_referencedPaks", "", CVAR_SYSTEMINFO | CVAR_ROM );
 	Cvar_Get ("sv_referencedPakNames", "", CVAR_SYSTEMINFO | CVAR_ROM );
+	Cvar_Get ("sv_referencedSteamworks", "", CVAR_ROM );
 
 	// server vars
 	sv_rconPassword = Cvar_Get ("rconPassword", "", CVAR_TEMP );
@@ -610,9 +687,10 @@ void SV_Init (void) {
 	sv_padPackets = Cvar_Get ("sv_padPackets", "0", 0);
 sv_killserver = Cvar_Get ("sv_killserver", "0", 0);
 sv_mapChecksum = Cvar_Get ("sv_mapChecksum", "", CVAR_ROM);
-sv_lanForceRate = Cvar_Get ("sv_lanForceRate", "1", CVAR_ARCHIVE );
-sv_strictAuth = Cvar_Get ("sv_strictAuth", "1", CVAR_ARCHIVE );
-net_fakevacban = Cvar_Get ("net_fakevacban", "0", CVAR_TEMP );
+	sv_lanForceRate = Cvar_Get ("sv_lanForceRate", "1", CVAR_ARCHIVE );
+	sv_strictAuth = Cvar_Get ("sv_strictAuth", "1", CVAR_ARCHIVE );
+	Cvar_Get ("sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );
+	net_fakevacban = Cvar_Get ("net_fakevacban", "0", CVAR_TEMP );
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
 	SV_BotInitCvars();
@@ -688,6 +766,7 @@ void SV_Shutdown( char *finalmsg ) {
 
 	Cvar_Set( "sv_running", "0" );
 	Cvar_Set("ui_singlePlayerActive", "0");
+	QL_Steamworks_ServerEnableHeartbeats( qfalse );
 
 	Com_Printf( "---------------------------\n" );
 

@@ -253,6 +253,7 @@ extern	cvar_t	*sv_maxclients;
 
 extern	cvar_t	*sv_privateClients;
 extern	cvar_t	*sv_hostname;
+extern	cvar_t	*sv_tags;
 extern	cvar_t	*sv_master[MAX_MASTER_SERVERS];
 extern	cvar_t	*sv_reconnectlimit;
 extern	cvar_t	*sv_showloss;
@@ -334,6 +335,7 @@ void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK );
 void SV_ClientThink (client_t *cl, usercmd_t *cmd);
 
 void SV_WriteDownloadToClient( client_t *cl , msg_t *msg );
+void SV_SteamServerUpdatePublishedState( qboolean fullUpdate );
 
 //
 // sv_ccmds.c
@@ -361,6 +363,7 @@ sharedEntity_t *SV_GEntityForSvEntity( svEntity_t *svEnt );
 void		SV_InitGameProgs ( void );
 void		SV_ShutdownGameProgs ( void );
 void		SV_RestartGameProgs( void );
+const char	*SV_GameClientConnect( int clientNum, qboolean firstTime, qboolean isBot );
 qboolean	SV_inPVS (const vec3_t p1, const vec3_t p2);
 
 //

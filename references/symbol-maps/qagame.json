@@ -249,6 +249,36 @@
       "comment": "Bot chat exerciser anchored by the preserved game_enter/game_exit/level_start and death_* initial-chat keys; the retail body iterates those scripted chats exactly like ai_chat.c::BotChatTest."
     },
     {
+      "address": "0x10004930",
+      "raw_name": "FUN_10004930",
+      "normalized_name": "BotGetItemTeamGoal",
+      "status": "matched",
+      "signature": "int BotGetItemTeamGoal(char *goalname, bot_goal_t *goal)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact team-goal item resolver from ai_cmd.c::BotGetItemTeamGoal. It rejects empty goal names, walks `trap_BotGetLevelItemGoal`, skips dropped items via `GFL_DROPPED`, and returns the first persistent level-item goal that matches the requested name."
+    },
+    {
+      "address": "0x10004970",
+      "raw_name": "FUN_10004970",
+      "normalized_name": "BotGetMessageTeamGoal",
+      "status": "matched",
+      "signature": "int BotGetMessageTeamGoal(bot_state_t *bs, char *goalname, bot_goal_t *goal)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact message-goal resolver from ai_cmd.c::BotGetMessageTeamGoal. It first reuses `BotGetItemTeamGoal`, then falls back to the waypoint list under `bs->checkpoints`, copying the matched waypoint goal into the caller's output buffer."
+    },
+    {
+      "address": "0x100049D0",
+      "raw_name": "FUN_100049d0",
+      "normalized_name": "BotGetTime",
+      "status": "matched",
+      "signature": "float BotGetTime(bot_match_t *match)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact time-parser from ai_cmd.c::BotGetTime. The retail body gates on `ST_TIME`, extracts the TIME token, resolves `MTCONTEXT_TIME`, handles the `forever` / `for a while` / `for a long time` aliases, and otherwise converts minute or second payloads into an absolute `FloatTime()` deadline."
+    },
+    {
       "address": "0x10004BB0",
       "raw_name": "FUN_10004bb0",
       "normalized_name": "FindClientByName",
@@ -949,6 +979,16 @@
       "comment": "Retail-only teammate pursuit node anchored by the exact seek teammate observer/no ai node/no client strings and the surrounding movement, chat, and node handoff flow for the tutorial teammate state."
     },
     {
+      "address": "0x1000F7F0",
+      "raw_name": "FUN_1000f7f0",
+      "normalized_name": "BotSetLeadTeamGoal",
+      "status": "matched",
+      "signature": "void BotSetLeadTeamGoal(bot_state_t *bs)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only tutorial lead helper. Called only from the recovered `AINode_Lead_Teammate` flow, it seeds `bs->lead_teamgoal` from the bot's current origin and area number using the standard standing player bounds."
+    },
+    {
       "address": "0x1000F880",
       "raw_name": "FUN_1000f880",
       "normalized_name": "AIEnter_Lead_Teammate",
@@ -987,6 +1027,29 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail-only taunt-heavy tutorial node anchored by the exact torment human observer/no ai node strings and the preserved say Kill me if you can - fragbait! chat branch in the human-harassment state."
+    },
+    {
+      "address": "0x10012430",
+      "raw_name": "FUN_10012430",
+      "normalized_name": "AIEnter_Lead_Teammate_FragBait",
+      "status": "matched",
+      "signature": "void AIEnter_Lead_Teammate_FragBait(bot_state_t *bs)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only late tutorial enter helper. `BotDeathmatchAI` enters this state when the recovered training phase selector reaches `3`, and the body resets the late-training timers and flags, reapplies the tutorial bot-state bits, and records the node switch under the retail `lead teammate` label before handing control to the adjacent fragbait / return node."
+    },
+    {
+      "address": "0x10012560",
+      "raw_name": "FUN_10012560",
+      "normalized_name": "AINode_Lead_Teammate_FragBait",
+      "status": "matched",
+      "signature": "int AINode_Lead_Teammate_FragBait(bot_state_t *bs)",
+      "string_refs": [
+        "0x1007D540",
+        "0x1007D5BC"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only late tutorial lead node. It reuses the `lead teammate: observer` / `intermission` / `bot dead` / `no ai node` / `no client` exits, drives the preserved `say Kill me if you can - fragbait!` and `say Well done! Let's get back to the tutorial. Follow me.` chat branches, and routes through `BotGetLocalClient`, `BotSetTrainingBotState`, and the adjacent point-facing helper while the tutorial bot alternates between fragbaiting and escorting the local player back into the script."
     },
     {
       "address": "0x100133C0",
@@ -1341,6 +1404,16 @@
       "comment": "Team-preference pickup handler identified by the kamikaze, invulnerability, scout, guard, doubler, and ammoregen delta checks, the offense or defense preference toggles, and the WANTONOFFENSE or WANTONDEFENSE voice-chat branches from ai_dmq3.c::BotCheckItemPickup."
     },
     {
+      "address": "0x100162D0",
+      "raw_name": "FUN_100162d0",
+      "normalized_name": "BotNormalizeAmmoInventory",
+      "status": "matched",
+      "signature": "void BotNormalizeAmmoInventory(bot_state_t *bs)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only inventory helper tailcalled from `BotUpdateInventory`. HLIL shows it walking the ammo inventory slab from `INVENTORY_SHELLS` through `INVENTORY_BELT` and rewriting any retail `-1` sentinel values to `999`, which preserves the built-in infinite-ammo convention before the later pickup and battle inventory logic runs."
+    },
+    {
       "address": "0x10016380",
       "raw_name": "FUN_10016380",
       "normalized_name": "BotUpdateInventory",
@@ -1561,16 +1634,6 @@
       "comment": "Combat-movement helper identified by the attack chase-goal fast path, the attack_skill/jumper/croucher characteristic reads, the BFL_STRAFERIGHT flip logic, and the forward/backward/sideward movement selection from ai_dmq3.c::BotAttackMove."
     },
     {
-      "address": "0x10018B20",
-      "raw_name": "FUN_10018b20",
-      "normalized_name": "BotEntityVisible",
-      "status": "matched",
-      "signature": "float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int ent)",
-      "string_refs": [],
-      "relocation_refs": [],
-      "comment": "Visibility scorer identified by the midpoint-of-bbox setup, the InFieldOfVision gate, the water and fog trace handling, and the bestvis accumulation over middle/bottom/top samples from ai_dmq3.c::BotEntityVisible."
-    },
-    {
       "address": "0x10018900",
       "raw_name": "FUN_10018900",
       "normalized_name": "BotSameTeam",
@@ -1579,6 +1642,26 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Team-membership helper identified by the teamplay gate, the pair of CS_PLAYERS configstring fetches for bs->client and entnum, and the compare of their parsed t fields from ai_dmq3.c::BotSameTeam."
+    },
+    {
+      "address": "0x10018A00",
+      "raw_name": "FUN_10018a00",
+      "normalized_name": "InFieldOfVision",
+      "status": "matched",
+      "signature": "int InFieldOfVision(vec3_t viewangles, float fov, vec3_t angles)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact match for ai_dmq3.c::InFieldOfVision. The helper normalizes the first two angle axes with AngleMod, wraps the signed delta across +/-180 degrees, and rejects headings outside the +/-fov*0.5 window."
+    },
+    {
+      "address": "0x10018B20",
+      "raw_name": "FUN_10018b20",
+      "normalized_name": "BotEntityVisible",
+      "status": "matched",
+      "signature": "float BotEntityVisible(int viewer, vec3_t eye, vec3_t viewangles, float fov, int ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Visibility scorer identified by the midpoint-of-bbox setup, the InFieldOfVision gate, the water and fog trace handling, and the bestvis accumulation over middle/bottom/top samples from ai_dmq3.c::BotEntityVisible."
     },
     {
       "address": "0x10019290",
@@ -1931,6 +2014,28 @@
       "comment": "Bot deathmatch bootstrap anchored by the exact CTF/One Flag/Obelisk/Harvester missing-objective warnings and the follow-on entity-number setup for Red, Blue, and Neutral obelisks."
     },
     {
+      "address": "0x1001F9C0",
+      "raw_name": "FUN_1001f9c0",
+      "normalized_name": "BotSelectTormentTarget",
+      "status": "matched",
+      "signature": "int BotSelectTormentTarget(bot_state_t *bs, float maxDist)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only tutorial target selector used by `AINode_Torment_Human`. It first revalidates the cached torment target with a 360-degree visibility, distance, and reachability check, then scans the live client and entity slabs for the nearest reachable candidate within the supplied radius before returning the chosen entity number or `-1`."
+    },
+    {
+      "address": "0x1001FEC0",
+      "raw_name": "FUN_1001fec0",
+      "normalized_name": "BotResolveTourPoint",
+      "status": "matched",
+      "signature": "int BotResolveTourPoint(int currentEntnum, vec3_t origin, vec3_t targetOrigin)",
+      "string_refs": [
+        "0x1007D220"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only tutorial helper used by the lead-teammate and torment-human nodes. It resolves either the current entity-linked `info_tour_point` or the first active fallback tour point, traces that point to floor height, writes the point origin plus linked `info_notnull` target origin to the output vectors, and returns the chosen tour-point entity number."
+    },
+    {
       "address": "0x10020980",
       "raw_name": "FUN_10020980",
       "normalized_name": "BotAI_Print",
@@ -1959,6 +2064,26 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Client-state fetcher identified by the in-use and client-present guards on `g_entities[clientNum]` and the final memcpy of `client->ps`, matching ai_main.c::BotAI_GetClientState."
+    },
+    {
+      "address": "0x10020BE0",
+      "raw_name": "FUN_10020be0",
+      "normalized_name": "BotClientHasNoTargetFlag",
+      "status": "matched",
+      "signature": "qboolean BotClientHasNoTargetFlag(int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only enemy-filter helper used by the hidden-candidate branch in `BotFindEnemy`. It validates that the requested client entity is live and has a client slab, then returns whether `g_entities[clientNum].flags` carries `FL_NOTARGET`."
+    },
+    {
+      "address": "0x10020C10",
+      "raw_name": "FUN_10020c10",
+      "normalized_name": "BotAcceptOffscreenEnemyCandidate",
+      "status": "matched",
+      "signature": "qboolean BotAcceptOffscreenEnemyCandidate(bot_state_t *bs, int clientNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only `BotFindEnemy` sidecar reached only when the direct `BotEntityVisible` test fails. HLIL shows it rechecking the current enemy slot, consulting the live candidate entity state through the botlib imports, and returning true when the unseen client still qualifies as a promotable enemy candidate."
     },
     {
       "address": "0x10020D70",
@@ -2236,6 +2361,36 @@
       "comment": "Bot-AI shutdown helper identified by the restart-only loop over active bot clients calling `BotAIShutdownClient` and the non-restart `trap_BotLibShutdown` fallback from ai_main.c::BotAIShutdown."
     },
     {
+      "address": "0x100243D0",
+      "raw_name": "FUN_100243d0",
+      "normalized_name": "BotEntityBoundsGap",
+      "status": "matched",
+      "signature": "float BotEntityBoundsGap(int ent1, int ent2)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only tutorial spacing helper. It snapshots both entity states and computes the separating gap between their bounding boxes, which is the exact proximity test the late training nodes reuse before deciding whether the local player is close enough to stop, talk, or keep moving."
+    },
+    {
+      "address": "0x10024530",
+      "raw_name": "FUN_10024530",
+      "normalized_name": "BotSetIdealViewAnglesToPoint",
+      "status": "matched",
+      "signature": "void BotSetIdealViewAnglesToPoint(bot_state_t *bs, vec3_t target)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only point-facing helper. It subtracts the target point from the bot origin, feeds the delta through `vectoangles`, writes `bs->ideal_viewangles`, and halves the third component exactly like the repeated inline point-facing snippets in ai_dmnet.c."
+    },
+    {
+      "address": "0x10024590",
+      "raw_name": "FUN_10024590",
+      "normalized_name": "BotSetPredictItemPickupDisabled",
+      "status": "matched",
+      "signature": "void BotSetPredictItemPickupDisabled(int client, qboolean disabled)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only training helper. It toggles the same `client->ps.eFlags` `0x40000` mirror that `ClientUserinfoChanged` derives from the `cg_predictItems` userinfo key, allowing the dynamic-skill flow to disable predictable pickup events before it republishes the client."
+    },
+    {
       "address": "0x100245C0",
       "raw_name": "FUN_100245c0",
       "normalized_name": "BotSetTrainingBotState",
@@ -2278,6 +2433,18 @@
       "comment": "Descriptive retail-only bot training helper. The body polls cl_running and g_spSkill, recalculates dynamic skill feedback, reloads character and weapon weights, and refreshes client userinfo when the single-player training skill shifts."
     },
     {
+      "address": "0x10024E10",
+      "raw_name": "FUN_10024e10",
+      "normalized_name": "BotApplyBeyondRealityTravelFlags",
+      "status": "matched",
+      "signature": "void BotApplyBeyondRealityTravelFlags(int *travelFlags)",
+      "string_refs": [
+        "0x1007D71C"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only map-specific travel-flag helper. It reads the current `mapname` from serverinfo and clears `TFL_FUNCBOB` unless the map is exactly `beyondreality`, matching the dedicated func-bobbing exception used by the late tutorial lead path."
+    },
+    {
       "address": "0x10024EA0",
       "raw_name": "FUN_10024ea0",
       "normalized_name": "BotGetLocalClient",
@@ -2296,6 +2463,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Descriptive retail-only bot selector. It scans connected clients for the first entity carrying `SVF_BOT`, and the surrounding training helpers use that client index as the active tutorial bot."
+    },
+    {
+      "address": "0x10024F20",
+      "raw_name": "FUN_10024f20",
+      "normalized_name": "BotSetTrainingCvarIfChanged",
+      "status": "matched",
+      "signature": "qboolean BotSetTrainingCvarIfChanged(const char *name, const char *value)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only training cvar helper. It reads the current value for the supplied cvar name, compares it against the requested string, and only forwards the update to `trap_Cvar_Set` when the value actually changes; `BotUpdateTrainingState` uses it for the `g_training`, `bot_training`, `bot_dynamicSkill`, `bot_followMe`, `bot_itemDelayTime`, and `bot_startingSkill` resets."
     },
     {
       "address": "0x10024FA0",
@@ -2563,6 +2740,426 @@
       "comment": "Teamplay coordinator anchored by the iamteamleader/whoisteamleader/startleader strings and the matching ai_team.c logic that elects a leader and emits team orders through vsay_team."
     },
     {
+      "address": "0x1002B9B0",
+      "raw_name": "FUN_1002b9b0",
+      "normalized_name": "BotVoiceChat_GetFlag",
+      "status": "matched",
+      "signature": "void BotVoiceChat_GetFlag(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact voice-command handler from ai_vcmd.c. The retail `getflag` table slot validates the active CTF-style flag goals, marks the bot ordered by `client`, sets `LTG_GETFLAG`, and seeds the alternate-route request toward the enemy base."
+    },
+    {
+      "address": "0x1002BAA0",
+      "raw_name": "sub_1002baa0",
+      "normalized_name": "BotVoiceChat_Offense",
+      "status": "matched",
+      "signature": "void BotVoiceChat_Offense(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact voice-command offense handler from ai_vcmd.c. Retail forwards CTF and 1FCTF straight into `BotVoiceChat_GetFlag`, uses `LTG_HARVEST` for Harvester, and otherwise assigns the attack-enemy-base long-term goal."
+    },
+    {
+      "address": "0x1002BBC0",
+      "raw_name": "FUN_1002bbc0",
+      "normalized_name": "BotVoiceChat_Defend",
+      "status": "matched",
+      "signature": "void BotVoiceChat_Defend(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact voice-command defend handler from ai_vcmd.c. The retail body selects the home obelisk or flag goal for the bot team, marks the bot ordered by `client`, and assigns the `LTG_DEFENDKEYAREA` task."
+    },
+    {
+      "address": "0x1002BD00",
+      "raw_name": "j_sub_1002bbc0",
+      "normalized_name": "BotVoiceChat_DefendFlag",
+      "status": "matched",
+      "signature": "void BotVoiceChat_DefendFlag(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact trivial `defendflag` wrapper from ai_vcmd.c. The retail voice-command table points that token at a tailcall thunk into `BotVoiceChat_Defend`, matching the GPL wrapper."
+    },
+    {
+      "address": "0x1002BD10",
+      "raw_name": "sub_1002bd10",
+      "normalized_name": "BotVoiceChat_Patrol",
+      "status": "matched",
+      "signature": "void BotVoiceChat_Patrol(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact patrol-order handler from ai_vcmd.c. Retail clears the current long-term team task, emits the `dismissed` chat plus `onpatrol` voice response, and refreshes the cached team-status slab."
+    },
+    {
+      "address": "0x1002BE10",
+      "raw_name": "sub_1002be10",
+      "normalized_name": "BotVoiceChat_Camp",
+      "status": "matched",
+      "signature": "void BotVoiceChat_Camp(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact camp-order handler from ai_vcmd.c. It snapshots the requesting teammate into `bs->teamgoal` when a reachable PVS position is available, otherwise asks `whereareyou`, and on success assigns the `LTG_CAMPORDER` task."
+    },
+    {
+      "address": "0x1002C010",
+      "raw_name": "FUN_1002c010",
+      "normalized_name": "BotVoiceChat_FollowMe",
+      "status": "matched",
+      "signature": "void BotVoiceChat_FollowMe(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact accompany-order handler from ai_vcmd.c. Retail snapshots the teammate goal when visible, otherwise asks `whereareyou`, then assigns `LTG_TEAMACCOMPANY`, resets arrival state, and seeds the 3.5-meter formation distance."
+    },
+    {
+      "address": "0x1002C250",
+      "raw_name": "sub_1002c250",
+      "normalized_name": "BotVoiceChat_FollowFlagCarrier",
+      "status": "matched",
+      "signature": "void BotVoiceChat_FollowFlagCarrier(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact flag-carrier escort handler from ai_vcmd.c. It scans live teammates for the active flag carrier and forwards the order into `BotVoiceChat_FollowMe` once one is found."
+    },
+    {
+      "address": "0x1002C310",
+      "raw_name": "FUN_1002c310",
+      "normalized_name": "BotVoiceChat_ReturnFlag",
+      "status": "matched",
+      "signature": "void BotVoiceChat_ReturnFlag(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact return-flag order handler from ai_vcmd.c. The retail body is gated to CTF and 1FCTF, marks the bot ordered by `client`, sets `LTG_RETURNFLAG`, and clears the rush-base timeout."
+    },
+    {
+      "address": "0x1002C3C0",
+      "raw_name": "sub_1002c3c0",
+      "normalized_name": "BotVoiceChat_StartLeader",
+      "status": "matched",
+      "signature": "void BotVoiceChat_StartLeader(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact tiny leader-start wrapper from ai_vcmd.c. The retail `startleader` table slot is just the bounded client-name copy into `bs->teamleader`."
+    },
+    {
+      "address": "0x1002C3F0",
+      "raw_name": "sub_1002c3f0",
+      "normalized_name": "BotVoiceChat_StopLeader",
+      "status": "matched",
+      "signature": "void BotVoiceChat_StopLeader(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact leader-stop handler from ai_vcmd.c. Retail resolves the named client, compares that name against `bs->teamleader`, and on match clears the leader string and marks the client as unwilling to lead."
+    },
+    {
+      "address": "0x1002C470",
+      "raw_name": "sub_1002c470",
+      "normalized_name": "BotVoiceChat_WhoIsLeader",
+      "status": "matched",
+      "signature": "void BotVoiceChat_WhoIsLeader(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact leader-query response handler from ai_vcmd.c. When team play is active and the bot's own name matches `bs->teamleader`, retail emits the `iamteamleader` chat and the `startleader` voice cue to the team."
+    },
+    {
+      "address": "0x1002C530",
+      "raw_name": "FUN_1002c530",
+      "normalized_name": "BotVoiceChat_WantOnDefense",
+      "status": "matched",
+      "signature": "void BotVoiceChat_WantOnDefense(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact defense-preference handler from ai_vcmd.c. It flips the teammate preference bits toward `TEAMTP_DEFENDER`, replies with the `keepinmind` chat, sends the `yes` voice response, and triggers the affirmative action gesture."
+    },
+    {
+      "address": "0x1002C680",
+      "raw_name": "FUN_1002c680",
+      "normalized_name": "BotVoiceChat_WantOnOffense",
+      "status": "matched",
+      "signature": "void BotVoiceChat_WantOnOffense(bot_state_t *bs, int client, int mode)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact offense-preference handler from ai_vcmd.c. Retail mirrors `BotVoiceChat_WantOnDefense`, but flips the teammate preference bits toward `TEAMTP_ATTACKER` before sending the same `keepinmind` acknowledgment and affirmative response."
+    },
+    {
+      "address": "0x1002C7D0",
+      "raw_name": "FUN_1002c7d0",
+      "normalized_name": "BotVoiceChatCommand",
+      "status": "matched",
+      "signature": "int BotVoiceChatCommand(bot_state_t *bs, int mode, char *voiceChat)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact voice-chat parser and dispatcher from ai_vcmd.c. The retail body rejects SAY_ALL and cross-team senders, parses the `voiceOnly clientNum color command` preamble, and dispatches the command token through the interleaved `voiceCommands` table."
+    },
+    {
+      "address": "0x1002C9E0",
+      "raw_name": "FUN_1002c9e0",
+      "normalized_name": "G_GametypeRequiresBothTeamsPresent",
+      "status": "matched",
+      "signature": "static qboolean G_GametypeRequiresBothTeamsPresent(int gametype)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only warmup/readyup predicate. HLIL shows this pure helper returning false for FFA, Duel, Race, and Red Rover, and true for the remaining team-side readyup modes that require both teams to exist before the stricter denial path is used."
+    },
+    {
+      "address": "0x1002CA00",
+      "raw_name": "FUN_1002ca00",
+      "normalized_name": "G_ShortGametypeName",
+      "status": "matched",
+      "signature": "const char *G_ShortGametypeName(int gametype)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only gametype label helper. The switch returns the compact HUD/report tags `FFA`, `DUEL`, `RACE`, `TDM`, `CA`, `CTF`, `1F`, `OB`, `HAR`, `FT`, `DOM`, `AD`, and `RR`, with `ERR` as the fallback."
+    },
+    {
+      "address": "0x1002CAA0",
+      "raw_name": "FUN_1002caa0",
+      "normalized_name": "TeamName",
+      "status": "matched",
+      "signature": "const char *TeamName(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact pure team-name helper from g_team.c::TeamName. It returns RED, BLUE, SPECTATOR, or FREE for TEAM_RED, TEAM_BLUE, TEAM_SPECTATOR, and all other team values."
+    },
+    {
+      "address": "0x1002CAD0",
+      "raw_name": "FUN_1002cad0",
+      "normalized_name": "TeamColorString",
+      "status": "matched",
+      "signature": "const char *TeamColorString(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact pure team-color helper from g_team.c::TeamColorString. Retail returns `^1` for red, `^4` for blue, and `^7` for every other team value, including spectators."
+    },
+    {
+      "address": "0x1002CAF0",
+      "raw_name": "FUN_1002caf0",
+      "normalized_name": "OtherTeam",
+      "status": "matched",
+      "signature": "int OtherTeam(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact team-swap helper from g_team.c::OtherTeam. It flips red to blue, blue to red, and leaves all other team values unchanged."
+    },
+    {
+      "address": "0x1002CB10",
+      "raw_name": "FUN_1002cb10",
+      "normalized_name": "BG_FindItemByTypeAndTag",
+      "status": "matched",
+      "signature": "gitem_t *BG_FindItemByTypeAndTag(itemType_t type, int tag)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail-only generic item-table lookup helper. HLIL shows it scanning `bg_itemlist` for a matching `giType` plus `giTag` pair and raising `Couldn't find item for type %i tag %i` on failure."
+    },
+    {
+      "address": "0x1002CB60",
+      "raw_name": "FUN_1002cb60",
+      "normalized_name": "BG_FindItemForPowerup",
+      "status": "matched",
+      "signature": "gitem_t *BG_FindItemForPowerup(powerup_t pw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact powerup lookup helper from bg_misc.c::BG_FindItemForPowerup. The retail body preserves the invulnerability holdable remap, the TA-rune branch, and the final shared powerup or team-item scan."
+    },
+    {
+      "address": "0x1002CC40",
+      "raw_name": "FUN_1002cc40",
+      "normalized_name": "G_RaceFormatMillisecondsString",
+      "status": "matched",
+      "signature": "char *G_RaceFormatMillisecondsString(int milliseconds)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only race time formatter. It converts signed milliseconds into an absolute minute-plus-seconds value, keeps the sign prefix when needed, zero-pads sub-10 second remainders, and returns the formatted `%s%d:%s%.03f` string through the shared varargs buffer."
+    },
+    {
+      "address": "0x1002CCD0",
+      "raw_name": "FUN_1002ccd0",
+      "normalized_name": "BG_FindItem",
+      "status": "matched",
+      "signature": "gitem_t *BG_FindItem(const char *pickupName)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact pickup-name lookup helper from bg_misc.c::BG_FindItem. Retail walks `bg_itemlist`, compares the requested pickup name against each item's display name with `Q_stricmp`, and returns the matching `gitem_t *` or NULL."
+    },
+    {
+      "address": "0x1002CD30",
+      "raw_name": "FUN_1002cd30",
+      "normalized_name": "BG_PlayerTouchesItem",
+      "status": "matched",
+      "signature": "qboolean BG_PlayerTouchesItem(playerState_t *ps, entityState_t *item, int atTime)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact touch-bounds helper from bg_misc.c::BG_PlayerTouchesItem. It evaluates the item trajectory, uses the wider 35-unit Z reach for flag-style team items, and keeps the retail 44x44 horizontal plus -50 vertical pickup bounds."
+    },
+    {
+      "address": "0x1002CE00",
+      "raw_name": "FUN_1002ce00",
+      "normalized_name": "BG_CanGrabHealthItem",
+      "status": "matched",
+      "signature": "static qboolean BG_CanGrabHealthItem(int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Standalone retail health-pickup helper used from `BG_CanItemBeGrabbed`. The compiler drops unused switch parameters, but the body matches the 100/50/25 quantity branches and armor-tier health gates carried by bg_misc.c::BG_CanGrabHealthItem."
+    },
+    {
+      "address": "0x1002D1C0",
+      "raw_name": "FUN_1002d1c0",
+      "normalized_name": "BG_CanGrabWeaponItem",
+      "status": "matched",
+      "signature": "static qboolean BG_CanGrabWeaponItem(int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact weapon-pickup helper from bg_misc.c::BG_CanGrabWeaponItem. HLIL shows the early `ps->pm_flags & PMF_IRONSIGHTS` rejection followed by the dropped-item, missing-weapon, zero-ammo, and duplicate-weapon checks."
+    },
+    {
+      "address": "0x1002D210",
+      "raw_name": "FUN_1002d210",
+      "normalized_name": "BG_EvaluateTrajectory",
+      "status": "matched",
+      "signature": "void BG_EvaluateTrajectory(const trajectory_t *tr, int atTime, vec3_t result)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact trajectory evaluator from bg_misc.c::BG_EvaluateTrajectory. The retail switch covers stationary, interpolate, linear, sine, linear-stop, and gravity, then faults on unknown trajectory types."
+    },
+    {
+      "address": "0x1002D3E0",
+      "raw_name": "FUN_1002d3e0",
+      "normalized_name": "BG_EvaluateTrajectoryDelta",
+      "status": "matched",
+      "signature": "void BG_EvaluateTrajectoryDelta(const trajectory_t *tr, int atTime, vec3_t result)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact trajectory-velocity evaluator from bg_misc.c::BG_EvaluateTrajectoryDelta. The retail body preserves the sine derivative path, the linear-stop zeroing after expiry, and the gravity Z subtraction."
+    },
+    {
+      "address": "0x1002D5B0",
+      "raw_name": "FUN_1002d5b0",
+      "normalized_name": "BG_PlayerStateToEntityState",
+      "status": "matched",
+      "signature": "void BG_PlayerStateToEntityState(playerState_t *ps, entityState_t *s, qboolean snap)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact playerstate-to-entitystate bridge from bg_misc.c::BG_PlayerStateToEntityState. The body mirrors the pm_type and health driven eType selection, the origin and velocity copies, and the full event, animation, powerup, and client-state replication."
+    },
+    {
+      "address": "0x1002D540",
+      "raw_name": "FUN_1002d540",
+      "normalized_name": "BG_TouchJumpPad",
+      "status": "matched",
+      "signature": "void BG_TouchJumpPad(playerState_t *ps, entityState_t *jumppad)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact jump-pad touch helper from bg_misc.c::BG_TouchJumpPad. Retail keeps the spectator and flight early-outs, suppresses duplicate triggers for the same pad, emits the shared jump-pad predictable event with parm 0, and then copies the pad velocity into the playerstate."
+    },
+    {
+      "address": "0x1002DAF0",
+      "raw_name": "FUN_1002daf0",
+      "normalized_name": "PM_AddEvent",
+      "status": "matched",
+      "signature": "void PM_AddEvent(int newEvent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact predictable-event wrapper from bg_pmove.c::PM_AddEvent. It appends the supplied event to `pm->ps` with an event parm of 0."
+    },
+    {
+      "address": "0x1002DB20",
+      "raw_name": "FUN_1002db20",
+      "normalized_name": "PM_AddTouchEnt",
+      "status": "matched",
+      "signature": "void PM_AddTouchEnt(int entityNum)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact touch-entity accumulator from bg_pmove.c::PM_AddTouchEnt. Retail skips `ENTITYNUM_WORLD`, caps the list at `MAXTOUCH`, and preserves the duplicate-suppression scan before appending a new touched entity."
+    },
+    {
+      "address": "0x1002DB60",
+      "raw_name": "FUN_1002db60",
+      "normalized_name": "PM_StartTorsoAnim",
+      "status": "matched",
+      "signature": "static void PM_StartTorsoAnim(int anim)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact torso-animation starter from bg_pmove.c::PM_StartTorsoAnim. The retail helper only checks `pm_type < PM_DEAD`, then flips the toggle bit and writes the requested torso animation."
+    },
+    {
+      "address": "0x1002DBE0",
+      "raw_name": "FUN_1002dbe0",
+      "normalized_name": "PM_ContinueLegsAnim",
+      "status": "matched",
+      "signature": "static void PM_ContinueLegsAnim(int anim)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact low-priority legs-animation helper from bg_pmove.c::PM_ContinueLegsAnim. Retail returns early when the current legs anim already matches or a legs timer is active, otherwise it toggles into the requested animation."
+    },
+    {
+      "address": "0x1002DC20",
+      "raw_name": "FUN_1002dc20",
+      "normalized_name": "PM_ForceLegsAnim",
+      "status": "matched",
+      "signature": "static void PM_ForceLegsAnim(int anim)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact forced legs-animation helper from bg_pmove.c::PM_ForceLegsAnim. It clears the legs timer and then toggles in the requested legs animation if the player is still below `PM_DEAD`."
+    },
+    {
+      "address": "0x1002DC50",
+      "raw_name": "FUN_1002dc50",
+      "normalized_name": "PM_ClipVelocity",
+      "status": "matched",
+      "signature": "void PM_ClipVelocity(vec3_t in, vec3_t normal, vec3_t out, float overbounce)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact collision-response helper from bg_pmove.c::PM_ClipVelocity. It computes the overbounce-adjusted backoff and subtracts the normal-projected change from each axis of the input velocity."
+    },
+    {
+      "address": "0x1002DCD0",
+      "raw_name": "FUN_1002dcd0",
+      "normalized_name": "PM_Friction",
+      "status": "matched",
+      "signature": "static void PM_Friction(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact friction helper from bg_pmove.c::PM_Friction. The retail body zeroes tiny speeds, applies the grounded, water, flight, and spectator drops, then rescales all three velocity components by the resulting newspeed fraction."
+    },
+    {
+      "address": "0x1002DEF0",
+      "raw_name": "FUN_1002def0",
+      "normalized_name": "PM_Accelerate",
+      "status": "matched",
+      "signature": "static void PM_Accelerate(vec3_t wishdir, float wishspeed, float accel)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact acceleration helper from bg_pmove.c::PM_Accelerate. Retail computes current speed along the wish direction, clamps the added speed by the accel and frametime budget, and pushes velocity along the normalized wish direction."
+    },
+    {
+      "address": "0x1002E070",
+      "raw_name": "FUN_1002e070",
+      "normalized_name": "PM_CmdScale",
+      "status": "matched",
+      "signature": "static float PM_CmdScale(usercmd_t *cmd)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact command-scaling helper from bg_pmove.c::PM_CmdScale. It finds the largest axial input component, computes the total movement vector length, and returns the speed-preserving scale factor for the `-127..127` command range."
+    },
+    {
+      "address": "0x1002E1F0",
+      "raw_name": "FUN_1002e1f0",
+      "normalized_name": "PM_SetMovementDir",
+      "status": "matched",
+      "signature": "static void PM_SetMovementDir(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact legs-facing helper from bg_pmove.c::PM_SetMovementDir. The retail ladder maps forward and strafe combinations to the eight movement directions and snaps idle sideways cases back to the diagonal poses."
+    },
+    {
+      "address": "0x1002E590",
+      "raw_name": "FUN_1002e590",
+      "normalized_name": "PM_CheckJump",
+      "status": "matched",
+      "signature": "static qboolean PM_CheckJump(qboolean allowAirDoubleJump)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact jump gate from bg_pmove.c::PM_CheckJump. The retail helper enforces the jump-held and timing checks, handles the air double-jump allowance, and then dispatches into the adjacent takeoff body when a jump is accepted."
+    },
+    {
       "address": "0x1002CED0",
       "raw_name": "FUN_1002ced0",
       "normalized_name": "BG_CanItemBeGrabbed",
@@ -2633,6 +3230,16 @@
       "comment": "Exact match for bg_pmove.c::PM_FlyMove. It applies normal friction, builds a wish direction from the command axes, accelerates with flight thrust, and then steps through PM_StepSlideMove without gravity."
     },
     {
+      "address": "0x1002FBA0",
+      "raw_name": "FUN_1002fba0",
+      "normalized_name": "PM_AirControl",
+      "status": "matched",
+      "signature": "static void PM_AirControl(vec3_t wishdir, float wishspeed)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact air-control redirect helper from bg_pmove.c::PM_AirControl. Retail zeroes the vertical component, computes the planar dot with the wish direction, applies the classic `32 * pm_aircontrol * dot^2 * frametime` correction, renormalizes, and then restores the saved vertical speed."
+    },
+    {
       "address": "0x1002FCB0",
       "raw_name": "FUN_1002fcb0",
       "normalized_name": "PM_AirMove",
@@ -2651,6 +3258,26 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact match for bg_pmove.c::PM_GrappleMove. It offsets the grapple point by the forward vector, pulls toward that anchor, clamps short pulls to a scaled length and long pulls to the grapple speed, then marks the player off the ground plane."
+    },
+    {
+      "address": "0x10030120",
+      "raw_name": "FUN_10030120",
+      "normalized_name": "PM_LadderMove",
+      "status": "matched",
+      "signature": "static void PM_LadderMove(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact ladder-movement path from bg_pmove.c::PM_LadderMove. Retail applies friction, builds a full-axis wish direction from the command vector, caps climb and descent speed to 66% of player speed, accelerates with the shared movement accel, clips against the ground plane when needed, and finishes with PM_SlideMove without gravity."
+    },
+    {
+      "address": "0x10030360",
+      "raw_name": "FUN_10030360",
+      "normalized_name": "PM_CheckLadder",
+      "status": "matched",
+      "signature": "static void PM_CheckLadder(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact ladder probe from bg_pmove.c::PM_CheckLadder. Retail normalizes the horizontal forward vector, traces one unit ahead with `MASK_PLAYERSOLID`, and latches the ladder flag when the contacted surface carries `SURF_LADDER`."
     },
     {
       "address": "0x10030430",
@@ -2874,7 +3501,7 @@
         "0x10081E54"
       ],
       "relocation_refs": [],
-      "comment": "High-confidence access-file loader anchored by the exact initializing access list, invalid admin access format, and loaded %i steam ids into the access list prints. The retail body opens g_accessFile, parses steamid|tier lines, skips comments, normalizes CRLF, and repopulates the cached SteamID privilege table exactly like the current g_main.c loader, though the retail tier tokens are symbolic (`ban`, `mod`, `admin`) rather than the current numeric form."
+      "comment": "High-confidence access-file loader anchored by the exact initializing access list, invalid admin access format, and loaded %i steam ids into the access list prints. The retail body opens g_accessFile, parses symbolic `steamid|ban`, `steamid|mod`, and `steamid|admin` lines, skips comments, normalizes CRLF, and repopulates the cached SteamID privilege table."
     },
     {
       "address": "0x10032770",
@@ -3152,6 +3779,16 @@
       "comment": "Descriptive retail-only shared Clan Arena / Attack and Defend respawn helper. Reached from the dead-client respawn gate once those modes push a player back into spectator follow, it copies the corpse into the body queue, forces PM_SPECTATOR, reruns ClientSpawn, and enters follow mode when both teams still have active players."
     },
     {
+      "address": "0x100359E0",
+      "raw_name": "FUN_100359e0",
+      "normalized_name": "G_ADShouldTimeoutActiveRound",
+      "status": "matched",
+      "signature": "qboolean G_ADShouldTimeoutActiveRound(const int counts[TEAM_NUM_TEAMS])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend timeout helper. It returns true only when both sides still have active players, no objective winner was already latched, and the active-round elapsed time has reached `roundtimelimit * 1000`."
+    },
+    {
       "address": "0x10035780",
       "raw_name": "FUN_10035780",
       "normalized_name": "G_ADResolveRoundState",
@@ -3192,6 +3829,16 @@
       ],
       "relocation_refs": [],
       "comment": "Retail Attack and Defend round-state controller anchored by the preserved invalid-state diagnostic. It resolves pending transition timers, updates the match-state configstrings, respawns or releases participants for the active phase, settles round winners, rotates turns, and schedules the next countdown or restart transition."
+    },
+    {
+      "address": "0x10036300",
+      "raw_name": "FUN_10036300",
+      "normalized_name": "G_ADNotifyLastAlivePlayer",
+      "status": "matched",
+      "signature": "int G_ADNotifyLastAlivePlayer(team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Attack and Defend round helper. It services deferred controller transitions, counts active players by team during the live round, and when the queried side is down to one survivor it triggers the shared last-alive notification path."
     },
     {
       "address": "0x100363E0",
@@ -3236,6 +3883,19 @@
       "comment": "Descriptive retail-only Attack and Defend scoreboard helper. It records the latest per-turn score delta into the 20-entry circular history, rebuilds the ordered history window, and republishes the scores_ad payload."
     },
     {
+      "address": "0x100367C0",
+      "raw_name": "FUN_100367c0",
+      "normalized_name": "G_ParseInfos",
+      "status": "matched",
+      "signature": "int G_ParseInfos(char *buf, int max, char *infos[])",
+      "string_refs": [
+        "0x10082224",
+        "0x10082274"
+      ],
+      "relocation_refs": [],
+      "comment": "Exact info-block parser from g_bot.c::G_ParseInfos. It requires leading `{` tokens, copies each parsed info string into the destination table, and emits the preserved `Missing { in info file`, `Max infos exceeded`, and `Unexpected end of info file` diagnostics on malformed input."
+    },
+    {
       "address": "0x10036A20",
       "raw_name": "FUN_10036a20",
       "normalized_name": "G_AddRandomBot",
@@ -3246,6 +3906,86 @@
       "comment": "Random bot enqueuer identified by the addbot %s %f %s %i command format plus the g_spSkill lookup; the retail loop matches g_bot.c::G_AddRandomBot."
     },
     {
+      "address": "0x10036CB0",
+      "raw_name": "FUN_10036cb0",
+      "normalized_name": "G_RemoveRandomBot",
+      "status": "matched",
+      "signature": "int G_RemoveRandomBot(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact first-match bot remover from g_bot.c::G_RemoveRandomBot. It scans connected bot clients, applies the optional team filter, cleans the candidate name, and issues the preserved `clientkick %i\\n` command for the first qualifying slot."
+    },
+    {
+      "address": "0x10036D80",
+      "raw_name": "FUN_10036d80",
+      "normalized_name": "G_CountHumanPlayers",
+      "status": "matched",
+      "signature": "int G_CountHumanPlayers(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact player counter from g_bot.c::G_CountHumanPlayers. It walks connected clients, rejects bot slots, applies the optional team filter, and returns the remaining human count."
+    },
+    {
+      "address": "0x10036DE0",
+      "raw_name": "FUN_10036de0",
+      "normalized_name": "G_CountBotPlayers",
+      "status": "matched",
+      "signature": "int G_CountBotPlayers(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact player counter from g_bot.c::G_CountBotPlayers. It counts connected bot clients that satisfy the optional team filter, then adds queued bot spawns whose scheduled begin time is already due."
+    },
+    {
+      "address": "0x10036E80",
+      "raw_name": "FUN_10036e80",
+      "normalized_name": "G_CheckMinimumPlayers",
+      "status": "matched",
+      "signature": "void G_CheckMinimumPlayers(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact `bot_minplayers` balancer from g_bot.c::G_CheckMinimumPlayers. Retail throttles the check to once every 10 seconds, skips intermission and zero settings, clamps the target against team or maxclient limits, and then adds or removes random bots for the current gametype."
+    },
+    {
+      "address": "0x10037130",
+      "raw_name": "FUN_10037130",
+      "normalized_name": "G_CheckBotSpawn",
+      "status": "matched",
+      "signature": "void G_CheckBotSpawn(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bot spawn-queue pump from g_bot.c::G_CheckBotSpawn. It first runs G_CheckMinimumPlayers, then begins every queued bot whose spawn time has matured, playing the single-player intro sound for those delayed begins."
+    },
+    {
+      "address": "0x10037170",
+      "raw_name": "FUN_10037170",
+      "normalized_name": "AddBotToSpawnQueue",
+      "status": "matched",
+      "signature": "void AddBotToSpawnQueue(int clientNum, int delay)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bot begin deferrer from g_bot.c::AddBotToSpawnQueue. It stores `level.time + delay` in the first free queue slot, and if the queue is full it prints `^3Unable to delay spawn\\n` before falling back to the immediate ClientBegin path."
+    },
+    {
+      "address": "0x100373B0",
+      "raw_name": "FUN_100373b0",
+      "normalized_name": "G_BotConnect",
+      "status": "matched",
+      "signature": "qboolean G_BotConnect(int clientNum, qboolean restart)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bot-connect worker from g_bot.c::G_BotConnect. It reads `characterfile`, `skill`, and `team` from bot userinfo, calls BotAISetupClient, and drops the client with `BotAISetupClient failed` if setup does not succeed."
+    },
+    {
+      "address": "0x100374D0",
+      "raw_name": "FUN_100374d0",
+      "normalized_name": "G_GetBotInfoByName",
+      "status": "matched",
+      "signature": "char *G_GetBotInfoByName(const char *name)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bot-info lookup from g_bot.c::G_GetBotInfoByName. It linearly scans `g_botInfos` and returns the first record whose `name` key matches the requested bot name case-insensitively."
+    },
+    {
       "address": "0x10037520",
       "raw_name": "FUN_10037520",
       "normalized_name": "G_AddBot",
@@ -3254,6 +3994,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Bot creation helper anchored by the exact Error: Bot '%s' not defined diagnostic and the surrounding userinfo/model/team/skill formatting flow from g_bot.c::G_AddBot."
+    },
+    {
+      "address": "0x100378E0",
+      "raw_name": "FUN_100378e0",
+      "normalized_name": "G_AddTrainerBot",
+      "status": "matched",
+      "signature": "int G_AddTrainerBot(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only training bootstrap helper. It enqueues the fixed `Trainer` bot through G_AddBot with a 5000 ms delay, then issues the usual `loaddeferred\\n` media warmup command."
     },
     {
       "address": "0x10037910",
@@ -3276,6 +4026,46 @@
       "comment": "Direct ConsoleCommand target for `botlist`. It prints the same four-column bot roster header as g_bot.c::Svcmd_BotList_f and applies the same `UnnamedPlayer`, empty `funname`, `visor/default`, and `bots/default_c.c` fallbacks while dumping each cached bot info record."
     },
     {
+      "address": "0x10037D00",
+      "raw_name": "FUN_10037d00",
+      "normalized_name": "G_LoadBotsFromFile",
+      "status": "matched",
+      "signature": "void G_LoadBotsFromFile(char *filename)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bot-definition file loader from g_bot.c::G_LoadBotsFromFile. It rejects missing or oversized files, reads the whole buffer, null-terminates it, and appends the parsed infos into `g_botInfos` via G_ParseInfos."
+    },
+    {
+      "address": "0x10037E10",
+      "raw_name": "FUN_10037e10",
+      "normalized_name": "G_LoadBots",
+      "status": "matched",
+      "signature": "void G_LoadBots(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bot-definition bootstrap from g_bot.c::G_LoadBots. Retail gates on `bot_enable`, clears `g_numBots`, loads `g_botsFile` or `scripts/bots.txt`, walks every `scripts/*.bot`, and prints `%i bots parsed` when the cache is ready."
+    },
+    {
+      "address": "0x10037F80",
+      "raw_name": "FUN_10037f80",
+      "normalized_name": "G_CAResolveRoundState",
+      "status": "matched",
+      "signature": "int G_CAResolveRoundState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Clan Arena controller read helper. It resolves any expired deferred CA_RoundStateTransition work, refreshes the controller timestamps, and returns the current Clan Arena round-state latch."
+    },
+    {
+      "address": "0x10037FD0",
+      "raw_name": "FUN_10037fd0",
+      "normalized_name": "G_CAHandleDamageScore",
+      "status": "matched",
+      "signature": "qboolean G_CAHandleDamageScore(gentity_t *attacker, gentity_t *targ, int *take, int *asave)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Clan Arena damage helper reached from the main damage path. It applies the mode-specific self and team damage suppression flags, resolves pending CA round-state work, and during the live round converts dealt damage into the same 100-point score buckets used by the retail CA HUD/stat flow."
+    },
+    {
       "address": "0x10038160",
       "raw_name": "FUN_10038160",
       "normalized_name": "G_CAADResetClientForRound",
@@ -3294,6 +4084,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Descriptive retail-only Clan Arena round-state controller anchored by the preserved CA_RoundStateTransition: invalid state diagnostic plus the matching round win prints and `\\time\\%d\\round\\%d` / `\\round\\%d` configstring updates."
+    },
+    {
+      "address": "0x100389F0",
+      "raw_name": "FUN_100389f0",
+      "normalized_name": "G_CANotifyLastAlivePlayer",
+      "status": "matched",
+      "signature": "int G_CANotifyLastAlivePlayer(team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Clan Arena round helper. It services deferred CA controller transitions, counts active players by team during the live round, and triggers the shared last-alive notification path when the queried side is down to one survivor."
     },
     {
       "address": "0x10038AD0",
@@ -3462,6 +4262,38 @@
       "comment": "Post-connect begin and initial spawn bootstrap identified by the ClientBegin log line."
     },
     {
+      "address": "0x1003B1F0",
+      "raw_name": "FUN_1003b1f0",
+      "normalized_name": "G_ClearSpawnAmmoOverrides",
+      "status": "matched",
+      "signature": "static void G_ClearSpawnAmmoOverrides(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only spawn helper reached from the deeper loadout path. When the active gameplay configuration wants the default spawn-ammo table suppressed, it walks the weapon-ammo slots and writes the retail `-1` sentinel values before the later loadout finalization runs."
+    },
+    {
+      "address": "0x1003B230",
+      "raw_name": "FUN_1003b230",
+      "normalized_name": "G_ApplySpawnHealth",
+      "status": "matched",
+      "signature": "static void G_ApplySpawnHealth(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only spawn helper split out of the loadout finalizer. It computes the spawn health from the configured base plus bonus, falls back to max health when that sum is nonpositive, clamps the result to 999, and mirrors it into both `ent->health` and `ps.stats[STAT_HEALTH]`."
+    },
+    {
+      "address": "0x1003B2A0",
+      "raw_name": "FUN_1003b2a0",
+      "normalized_name": "G_SeedSpawnWeaponsAndAmmo",
+      "status": "matched",
+      "signature": "static void G_SeedSpawnWeaponsAndAmmo(gentity_t *ent)",
+      "string_refs": [
+        "0x10082B9C"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only loadout helper used by `G_FinalizeSpawnLoadout`. It rebuilds the starting weapon mask and ammo slab from the `g_startingAmmo_*` cvars and the active loadout restrictions, registers newly granted items for configstring publication, and seeds the selected spawn weapon for the spawned client."
+    },
+    {
       "address": "0x1003B5A0",
       "raw_name": "FUN_1003b5a0",
       "normalized_name": "G_FinalizeSpawnLoadout",
@@ -3469,7 +4301,7 @@
       "signature": "void G_FinalizeSpawnLoadout(gentity_t *ent)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Descriptive retail-only post-ClientSpawn loadout finalizer. It honors the persisted selected_spawn_weapon choice, parses the configured spawn grant tokens, seeds the starting ammo and weapon masks through the deeper helper at 0x1003B2A0, and applies the remaining intermission and live-weapon cleanup for the spawned client."
+      "comment": "Descriptive retail-only post-ClientSpawn loadout finalizer. It honors the persisted selected_spawn_weapon choice, parses the configured spawn grant tokens, seeds the starting ammo and weapon masks through `G_SeedSpawnWeaponsAndAmmo`, applies `G_ApplySpawnHealth`, and then performs the remaining intermission and live-weapon cleanup for the spawned client."
     },
     {
       "address": "0x1003B6C0",
@@ -3480,6 +4312,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Simple item-registration helper anchored by the exact RegisterItem: NULL error and the matching g_items.c logic that marks the bg_itemlist slot as precached."
+    },
+    {
+      "address": "0x1003BB90",
+      "raw_name": "FUN_1003bb90",
+      "normalized_name": "G_GiveItemByName",
+      "status": "matched",
+      "signature": "qboolean G_GiveItemByName(gentity_t *ent, const char *name)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact item-grant helper from g_cmds.c::G_GiveItemByName once the higher-level alias handling has been resolved. The retail body walks `bg_itemlist` by classname, spawns a temporary entity at the player's origin, routes it through `G_SpawnItem`, `FinishSpawningItem`, and `Touch_Item`, then frees the temporary entity if it remains in use."
     },
     {
       "address": "0x1003BC30",
@@ -4161,6 +5003,29 @@
       "comment": "Thin retail forfeit-command gate that rejects pause/timeout and round-countdown cases locally, then defers to deeper forfeit eligibility and execution helpers."
     },
     {
+      "address": "0x10045770",
+      "raw_name": "FUN_10045770",
+      "normalized_name": "Cmd_Spec_f",
+      "status": "matched",
+      "signature": "void Cmd_Spec_f(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact spectator-cycle command helper anchored by the `SPEC command error: Not enough arguments` diagnostic and the retail client-iteration path that resolves the next eligible spectator target."
+    },
+    {
+      "address": "0x10045A80",
+      "raw_name": "FUN_10045a80",
+      "normalized_name": "G_ResetTrainingSession",
+      "status": "matched",
+      "signature": "void G_ResetTrainingSession(gentity_t *ent)",
+      "string_refs": [
+        "0x10084DA4",
+        "0x10084DB0"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only training ready-up helper reached from `Cmd_ReadyUp_f` on the local tutorial client. It restores the retail training cvar set, respawns each connected client through `ClientSpawn`, clears the stale ready/award flags, and sends the local `clearChat` / `clearSounds` commands before normal ready-up flow continues."
+    },
+    {
       "address": "0x10045BD0",
       "raw_name": "FUN_10045bd0",
       "normalized_name": "Cmd_ReadyUp_f",
@@ -4190,6 +5055,36 @@
       "comment": "HLIL-visible client command dispatcher for chat, voice, follow/team, give/god/noclip/kill, vote, and callvote command families."
     },
     {
+      "address": "0x10046510",
+      "raw_name": "FUN_10046510",
+      "normalized_name": "ScorePlum",
+      "status": "matched",
+      "signature": "void ScorePlum(gentity_t *ent, vec3_t origin, int score)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact score-plum temp-entity helper from g_combat.c. The retail body spawns `EV_SCOREPLUM` at the supplied origin, restricts it to the scoring client with `SVF_SINGLECLIENT`, and stores both the client number and score payload in the event state."
+    },
+    {
+      "address": "0x10046620",
+      "raw_name": "FUN_10046620",
+      "normalized_name": "AddScore",
+      "status": "matched",
+      "signature": "void AddScore(gentity_t *ent, vec3_t origin, int score)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact scoring helper from g_combat.c. The retail body gates out warmup/intermission scoring, emits the score plum, applies the raw delta to `PERS_SCORE`, forwards GT_TEAM score changes into the team totals, and then recomputes ranks."
+    },
+    {
+      "address": "0x10046760",
+      "raw_name": "FUN_10046760",
+      "normalized_name": "TossClientItems",
+      "status": "matched",
+      "signature": "void TossClientItems(gentity_t *self, gentity_t *attacker, flagDropContext_t context, int meansOfDeath)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact death-drop helper from g_combat.c. The retail body iterates the carried powerup timers, drops non-team powerups plus the flag set through the standard dropped-item path, restores persisted flag metadata on the drops, and conditionally throws the active weapon when the player still owns ammo for it."
+    },
+    {
       "address": "0x10046970",
       "raw_name": "FUN_10046970",
       "normalized_name": "TossClientCubes",
@@ -4203,6 +5098,64 @@
       "comment": "Harvester skull-drop helper matched by the carried-skull count in client persistant state, the exact `Red Skull` / `Blue Skull` item lookups, and the death-path call that spawns the dropped cubes before the corpse cleanup continues."
     },
     {
+      "address": "0x10046D80",
+      "raw_name": "FUN_10046d80",
+      "normalized_name": "GibEntity",
+      "status": "matched",
+      "signature": "void GibEntity(gentity_t *self)",
+      "string_refs": [
+        "0x1007FAA0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail gib helper matched by the exact kamikaze-timer owner scan, the `EV_GIB_PLAYER` event emission, the corpse invisibility/content clear, and the shared reuse from both the live-player gib path and the corpse-die wrapper."
+    },
+    {
+      "address": "0x10046F00",
+      "raw_name": "FUN_10046f00",
+      "normalized_name": "body_die",
+      "status": "matched",
+      "signature": "void body_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact corpse-die wrapper from g_combat.c. The retail body ignores the extra damage callback arguments, checks the `GIB_HEALTH` threshold, and then tail-calls GibEntity."
+    },
+    {
+      "address": "0x10046F20",
+      "raw_name": "FUN_10046f20",
+      "normalized_name": "Kamikaze_DeathActivate",
+      "status": "matched",
+      "signature": "void Kamikaze_DeathActivate(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact delayed kamikaze activation callback. The body immediately forwards into G_StartKamikaze and then frees the timer entity through the normal G_FreeEntity path."
+    },
+    {
+      "address": "0x10046F80",
+      "raw_name": "FUN_10046f80",
+      "normalized_name": "CheckAlmostCapture",
+      "status": "matched",
+      "signature": "void CheckAlmostCapture(gentity_t *self, gentity_t *attacker)",
+      "string_refs": [
+        "0x1007E79C",
+        "0x1007E7AC"
+      ],
+      "relocation_refs": [],
+      "comment": "Exact near-capture helper from g_combat.c. It keys off carried CTF/1FCTF flags, resolves the correct home-flag classname, skips dropped or hidden flag entities, and toggles the holyshit player-event when the carrier dies within 200 units of the capture point."
+    },
+    {
+      "address": "0x10047110",
+      "raw_name": "FUN_10047110",
+      "normalized_name": "CheckAlmostScored",
+      "status": "matched",
+      "signature": "void CheckAlmostScored(gentity_t *self, gentity_t *attacker)",
+      "string_refs": [
+        "0x1007E7BC",
+        "0x1007E7D0"
+      ],
+      "relocation_refs": [],
+      "comment": "Exact Harvester near-score helper from g_combat.c. It checks the carried-skull count in `ps.generic1`, resolves the opposing obelisk, and toggles the holyshit player-event when the carrier dies within 200 units of the score point."
+    },
+    {
       "address": "0x10047200",
       "raw_name": "FUN_10047200",
       "normalized_name": "player_die",
@@ -4213,6 +5166,36 @@
       "comment": "Primary death-path helper anchored by the exact Kill: %i %i %i log, <world>/<non-client>/<bad obituary> fallback strings, obituary temp-entity emission, reward handling, and the retail item-drop and corpse transition flow."
     },
     {
+      "address": "0x10048700",
+      "raw_name": "FUN_10048700",
+      "normalized_name": "RaySphereIntersections",
+      "status": "matched",
+      "signature": "int RaySphereIntersections(vec3_t origin, float radius, vec3_t point, vec3_t dir, vec3_t intersections[2])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact geometric helper from g_combat.c. The body normalizes the incoming ray direction, solves the sphere intersection quadratic, writes one or two hit points through `VectorMA`, and returns the retail hit-count result."
+    },
+    {
+      "address": "0x100488C0",
+      "raw_name": "FUN_100488c0",
+      "normalized_name": "G_InvulnerabilityEffect",
+      "status": "matched",
+      "signature": "qboolean G_InvulnerabilityEffect(gentity_t *targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact invulnerability impact helper from g_combat.c. It reverses the incoming damage direction, intersects it against the target's 42-unit sphere, emits `EV_INVUL_IMPACT`, and optionally returns both the impact point and normalized bounce direction."
+    },
+    {
+      "address": "0x10048B50",
+      "raw_name": "FUN_10048b50",
+      "normalized_name": "CheckArmor",
+      "status": "matched",
+      "signature": "int CheckArmor(gentity_t *ent, int damage, int dflags)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact armor-save helper from g_combat.c. The retail body rejects null clients plus `DAMAGE_NO_ARMOR`, applies the active armor-protection scale, clamps the saved amount to the remaining armor total, and subtracts the final save from `STAT_ARMOR`."
+    },
+    {
       "address": "0x10048C30",
       "raw_name": "FUN_10048c30",
       "normalized_name": "G_Damage",
@@ -4221,6 +5204,46 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Main damage routine identified by the preserved g_knockback_cripple, g_knockback_pg_self, and g_knockback_rl_self cvar reads, the friendly-fire training warning, and the exact damage and armor debug prints used by the retail combat path."
+    },
+    {
+      "address": "0x10049D80",
+      "raw_name": "FUN_10049d80",
+      "normalized_name": "CanDamage",
+      "status": "matched",
+      "signature": "qboolean CanDamage(gentity_t *targ, vec3_t origin)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact line-of-effect helper from g_combat.c. Retail traces from the supplied origin to the midpoint and the four +/-15 corner offsets of the target bounds, returning true on the first unobstructed hit."
+    },
+    {
+      "address": "0x1004A090",
+      "raw_name": "FUN_1004a090",
+      "normalized_name": "G_RadiusDamage",
+      "status": "matched",
+      "signature": "qboolean G_RadiusDamage(vec3_t origin, gentity_t *attacker, float damage, float radius, gentity_t *ignore, int mod, qboolean *splashMidAir)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail splash-damage walker from g_combat.c. It expands an entities-in-box query from the radius, applies the edge-distance falloff, gates each candidate through CanDamage, updates splash-hit telemetry, and then fans into G_Damage."
+    },
+    {
+      "address": "0x1004A3E0",
+      "raw_name": "FUN_1004a3e0",
+      "normalized_name": "G_RadiusDamageOffset",
+      "status": "matched",
+      "signature": "qboolean G_RadiusDamageOffset(vec3_t offsetOrigin, gentity_t *attacker, float damage, float radius, gentity_t *ignore, int mod)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only alternate splash helper used by the offset-origin explosion path. It mirrors G_RadiusDamage, but preserves the separate offset point for distance and damage-direction calculations before falling back to the normal splash resolution."
+    },
+    {
+      "address": "0x1004A7A0",
+      "raw_name": "FUN_1004a7a0",
+      "normalized_name": "Weapon_LightningDischargeDamage",
+      "status": "matched",
+      "signature": "qboolean Weapon_LightningDischargeDamage(vec3_t origin, gentity_t *attacker, float damage, float radius)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact lightning-water discharge splash helper from g_weapon.c. It scans the radius box, reuses CanDamage, and applies MOD_LIGHTNING_DISCHARGE damage to each valid client in the discharge volume."
     },
     {
       "address": "0x1004BC30",
@@ -4295,6 +5318,16 @@
       "comment": "Source-faithful outer Freeze frame driver. Retail keeps the round-state readback and winner-selection work split into adjacent helpers, but this boundary still performs the per-frame freeze update and round-end dispatch."
     },
     {
+      "address": "0x1004CC20",
+      "raw_name": "FUN_1004cc20",
+      "normalized_name": "G_FreezeNotifyLastAlivePlayer",
+      "status": "matched",
+      "signature": "int G_FreezeNotifyLastAlivePlayer(team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Freeze round helper. It services deferred Freeze_RoundStateTransition work, counts active players by team during the live round, and triggers the shared last-alive notification path when the queried side is down to one thawed survivor."
+    },
+    {
       "address": "0x1004CD40",
       "raw_name": "FUN_1004cd40",
       "normalized_name": "G_FreezeClientEndFrame",
@@ -4303,6 +5336,86 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Source-faithful frozen-client end-frame handler. It tracks thaw progress, scans nearby allies with line-of-sight and distance gates, applies auto-thaw timing, and eventually fans into the shared retail Freeze state mutator when the client should thaw."
+    },
+    {
+      "address": "0x1004D290",
+      "raw_name": "FUN_1004d290",
+      "normalized_name": "Touch_QuadHogItem",
+      "status": "matched",
+      "signature": "void Touch_QuadHogItem(gentity_t *ent, gentity_t *other, trace_t *trace)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Quad Hog touch wrapper. It resolves the touching client's netname, broadcasts the `\"%s is the ^5Quad Hog!\"` centerprint, and then falls through to the shared `Touch_Item` pickup path."
+    },
+    {
+      "address": "0x1004D2D0",
+      "raw_name": "FUN_1004d2d0",
+      "normalized_name": "LaunchQuadHogItem",
+      "status": "matched",
+      "signature": "gentity_t *LaunchQuadHogItem(gitem_t *item, vec3_t origin, vec3_t velocity)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Quad Hog item launcher. It allocates a dropped `item_quad` entity, installs the custom Quad Hog touch wrapper, enables dropped-item bounce physics, sets the standard 30-second free timer, and links the entity into the world."
+    },
+    {
+      "address": "0x1004D420",
+      "raw_name": "FUN_1004d420",
+      "normalized_name": "G_SpawnQuadHogQuad",
+      "status": "matched",
+      "signature": "void G_SpawnQuadHogQuad(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Quad Hog world-item spawner. It chooses a random `info_player_deathmatch` origin, constructs the special Quad item entity there, plays the powerup-respawn sound, and broadcasts the `^5Quad ^7respawned!` centerprint."
+    },
+    {
+      "address": "0x1004D500",
+      "raw_name": "FUN_1004d500",
+      "normalized_name": "G_EnsureQuadHogQuad",
+      "status": "matched",
+      "signature": "void G_EnsureQuadHogQuad(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Quad Hog maintenance helper. It returns early while any live player is carrying Quad, scans the world for an active `item_quad` entity, and respawns one through `G_SpawnQuadHogQuad` when the mode is enabled in FFA and no world Quad remains."
+    },
+    {
+      "address": "0x1004D570",
+      "raw_name": "FUN_1004d570",
+      "normalized_name": "G_ResetKeyItem",
+      "status": "matched",
+      "signature": "gentity_t *G_ResetKeyItem(int bit)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only key reset helper. It resolves the silver, gold, or master key classname from the carried bit, frees any dropped copies, and respawns the matching world key entity before the caller clears the carrier's key mask."
+    },
+    {
+      "address": "0x1004D650",
+      "raw_name": "FUN_1004d650",
+      "normalized_name": "G_SpawnItemPowerup",
+      "status": "matched",
+      "signature": "gentity_t *G_SpawnItemPowerup(powerup_t powerup, team_t preferredTeam)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only dynamic persistant-powerup spawn helper. HLIL shows it choosing an eligible red, blue, or deathmatch spawn point, excluding the other active powerup spots, resolving the target item through BG_FindItemForPowerup, and constructing a live ET_ITEM entity on that spawn."
+    },
+    {
+      "address": "0x1004D950",
+      "raw_name": "FUN_1004d950",
+      "normalized_name": "G_SpawnItemPowerups",
+      "status": "matched",
+      "signature": "void G_SpawnItemPowerups(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only level-init driver for the random persistant-powerup set. It gates on the spawnItemPowerup toggle, selects team-spawn alternation when both CTF sides have enough spots, falls back to deathmatch spawns otherwise, and seeds the Guard, Doubler, Armor Regen, and Invulnerability entries."
+    },
+    {
+      "address": "0x1004DA10",
+      "raw_name": "FUN_1004da10",
+      "normalized_name": "G_RespawnItemPowerup",
+      "status": "matched",
+      "signature": "void G_RespawnItemPowerup(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only dropped-rune respawn helper. It frees the expired persistant-powerup entity, selects a fresh preferred team spawn set when available, and reuses G_SpawnItemPowerup to reinsert that powerup into the level."
     },
     {
       "address": "0x1004DAB0",
@@ -4418,7 +5531,7 @@
       "signature": "gentity_t *LaunchItem(gitem_t *item, vec3_t origin, vec3_t velocity)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact dropped-item constructor from g_items.c. Retail spawns an `ET_ITEM`, sets `modelindex2 = 1`, installs `Touch_Item`, seeds gravity motion from the supplied velocity, routes dropped powerups through `G_DroppedPowerupRunFrame`, and chooses the flag-return or auto-free think path."
+      "comment": "Exact dropped-item constructor from g_items.c. Retail spawns an `ET_ITEM`, sets `modelindex2 = 1`, installs `Touch_Item`, seeds gravity motion from the supplied velocity, routes dropped powerups through `G_DroppedPowerupRunFrame`, and chooses the flag-return, persistant-powerup respawn, or auto-free think path."
     },
     {
       "address": "0x1004F740",
@@ -4429,6 +5542,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact retail item-drop helper. It builds the forward toss velocity from the owner's view angles, preserves the Attack and Defend quad-drop special case, and then tailcalls `LaunchItem`."
+    },
+    {
+      "address": "0x1004F8C0",
+      "raw_name": "FUN_1004f8c0",
+      "normalized_name": "G_DropDamagedHealth",
+      "status": "matched",
+      "signature": "void G_DropDamagedHealth(gentity_t *targ, gentity_t *attacker, int damage)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only damaged-health drop helper. When the dropDamagedHealth toggle is enabled, it fans the lost health out into 25- and 5-point item spawns around the damaged client using the shared LaunchItem path."
     },
     {
       "address": "0x1004FD20",
@@ -4464,7 +5587,7 @@
       "signature": "void ClearRegisteredItems(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Source-faithful retail item-registration reset helper. It clears the `itemRegistered` table, restores the baseline always-precached items, and preserves the Quake Live conditional registration of Harvester skulls and the extra factory-enabled health items."
+      "comment": "Source-faithful retail item-registration reset helper. It clears the `itemRegistered` table, restores the baseline always-precached items, and preserves the Quake Live conditional registration of Harvester skulls plus the factory-enabled persistant-powerup and extra health pickups."
     },
     {
       "address": "0x100502E0",
@@ -4477,6 +5600,56 @@
       ],
       "relocation_refs": [],
       "comment": "Exact item-registration helper from g_items.c, anchored by `RegisterItem: NULL`. It validates the `gitem_t *` and marks the corresponding `itemRegistered` slot for later configstring publication."
+    },
+    {
+      "address": "0x10050350",
+      "raw_name": "FUN_10050350",
+      "normalized_name": "G_ClientHasQuadDamage",
+      "status": "matched",
+      "signature": "qboolean G_ClientHasQuadDamage(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only gclient powerup predicate. The helper is a null-safe wrapper around `client->ps.powerups[PW_QUAD]`, and the kill-path carrier announcer uses it to choose the `Quad Damage` label."
+    },
+    {
+      "address": "0x10050370",
+      "raw_name": "FUN_10050370",
+      "normalized_name": "G_ClientHasBattleSuit",
+      "status": "matched",
+      "signature": "qboolean G_ClientHasBattleSuit(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only gclient powerup predicate. The helper is a null-safe wrapper around `client->ps.powerups[PW_BATTLESUIT]`, and the adjacent carrier-announcement slab uses it to choose the `Battle Suit` label."
+    },
+    {
+      "address": "0x10050390",
+      "raw_name": "FUN_10050390",
+      "normalized_name": "G_ClientHasRegeneration",
+      "status": "matched",
+      "signature": "qboolean G_ClientHasRegeneration(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only gclient powerup predicate. The helper is a null-safe wrapper around `client->ps.powerups[PW_REGEN]`, and the carrier-announcement path uses it to choose the `Regeneration` label."
+    },
+    {
+      "address": "0x100503B0",
+      "raw_name": "FUN_100503b0",
+      "normalized_name": "G_ClientHasHaste",
+      "status": "matched",
+      "signature": "qboolean G_ClientHasHaste(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only gclient powerup predicate. The helper is a null-safe wrapper around `client->ps.powerups[PW_HASTE]`, and the carrier-announcement path uses it to choose the `Haste` label."
+    },
+    {
+      "address": "0x100503D0",
+      "raw_name": "FUN_100503d0",
+      "normalized_name": "G_ClientHasInvisibility",
+      "status": "matched",
+      "signature": "qboolean G_ClientHasInvisibility(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only gclient powerup predicate. The helper is a null-safe wrapper around `client->ps.powerups[PW_INVIS]`, and the carrier-announcement path uses it to choose the `Invisibility` label."
     },
     {
       "address": "0x100503F0",
@@ -4539,6 +5712,56 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Source-faithful retail persistent-powerup toss helper from g_combat.c. Unlike the current simplified source version, retail reconstructs a dropped item spawn around the client, preserves the unobstructed placement trace, and arms the dropped entity through the item runframe path."
+    },
+    {
+      "address": "0x10051660",
+      "raw_name": "FUN_10051660",
+      "normalized_name": "G_InitLagHaxHistory",
+      "status": "matched",
+      "signature": "void G_InitLagHaxHistory(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only initializer for the hidden `g_lagHaxHistory` rewind ring. It allocates `g_lagHaxHistory.integer` 0x30-byte history nodes per client through `G_Alloc`, stitches each slab into a circular doubly linked list, and seeds the current head table used by the rewind helpers."
+    },
+    {
+      "address": "0x10051750",
+      "raw_name": "FUN_10051750",
+      "normalized_name": "G_StoreHistory",
+      "status": "matched",
+      "signature": "void G_StoreHistory(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact history recorder from the hidden retail lag-hax seam. Tailcalled from `ClientEndFrame`, it advances the per-client history ring, zeros the slot for non-player entity states, and otherwise stores `s.pos.trBase`, `r.mins`, `r.maxs`, and `level.time` for later rewind interpolation."
+    },
+    {
+      "address": "0x100517E0",
+      "raw_name": "FUN_100517e0",
+      "normalized_name": "G_TimeShiftClient",
+      "status": "matched",
+      "signature": "void G_TimeShiftClient(gentity_t *ent, int time)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact single-client rewind helper from the hidden retail lag-hax seam. It walks backward through the per-client history ring, unlinks the entity, interpolates `r.currentOrigin` toward the requested command time, copies the matching bounds from the newer history node, and relinks the rewound client."
+    },
+    {
+      "address": "0x10051970",
+      "raw_name": "FUN_10051970",
+      "normalized_name": "G_TimeShiftAllClients",
+      "status": "matched",
+      "signature": "void G_TimeShiftAllClients(gentity_t *skip, int time)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail hitscan rewind wrapper. For eligible non-bot shooters it clamps the requested rewind time by `g_lagHaxMs`, saves each other live client's current origin and bounds into the flat restore slab, and then calls `G_TimeShiftClient` across the active client set."
+    },
+    {
+      "address": "0x10051A50",
+      "raw_name": "FUN_10051a50",
+      "normalized_name": "G_UnTimeShiftAllClients",
+      "status": "matched",
+      "signature": "void G_UnTimeShiftAllClients(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail restore pass paired with `G_TimeShiftAllClients`. It walks the saved client slab, restores any slot stamped with the current `level.time` back into `r.currentOrigin`, `r.mins`, and `r.maxs`, and relinks each restored client."
     },
     {
       "address": "0x10052DC0",
@@ -4894,6 +6117,16 @@
       ],
       "relocation_refs": [],
       "comment": "Intermission transition logger that prints exit, team-score, and per-client score lines while queueing the match shutdown flow."
+    },
+    {
+      "address": "0x100577A0",
+      "raw_name": "FUN_100577a0",
+      "normalized_name": "G_WarmupReadyToStart",
+      "status": "matched",
+      "signature": "qboolean G_WarmupReadyToStart(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only warmup gate used by `Cmd_CallVote_f`. The helper rebuilds the warmup-ready counts and bitmask, short-circuits once countdown warmup is already active, and otherwise returns true only when the current duel or team warmup state has enough ready players to enter the retail start path."
     },
     {
       "address": "0x10057AD0",
@@ -6143,6 +7376,16 @@
       "comment": "High-confidence retail shuffle implementation reached both from gameplay vote/admin paths and directly from ConsoleCommand on `forceshuffle`. The body prints `Shuffling Teams.\\n`, gathers active players, sorts them through the shared balance comparator, redistributes teams, and forces the same respawn/reset flow exposed by the current shuffle command surface."
     },
     {
+      "address": "0x10067E80",
+      "raw_name": "FUN_10067e80",
+      "normalized_name": "Team_ForceGesture",
+      "status": "matched",
+      "signature": "void Team_ForceGesture(int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact team gesture broadcaster from g_team.c::Team_ForceGesture. It scans connected clients on the requested team and sets FL_FORCE_GESTURE on each entity."
+    },
+    {
       "address": "0x10067EC0",
       "raw_name": "FUN_10067ec0",
       "normalized_name": "G_ClientsOnSameTeam",
@@ -6325,6 +7568,16 @@
       "comment": "Exact team-message varargs helper from g_team.c::PrintMsg. It formats into the shared 1024-byte buffer, hard-stops on overrun, and sends the resulting print command either to the targeted client or to all clients."
     },
     {
+      "address": "0x10068930",
+      "raw_name": "FUN_10068930",
+      "normalized_name": "Team_CheckDroppedItem",
+      "status": "matched",
+      "signature": "void Team_CheckDroppedItem(gentity_t *dropped)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact dropped-flag status helper from g_team.c::Team_CheckDroppedItem. It resolves the dropped team item tag and republishes the red, blue, or neutral flag state as dropped through Team_SetFlagStatus."
+    },
+    {
       "address": "0x10068970",
       "raw_name": "FUN_10068970",
       "normalized_name": "Team_FragBonuses",
@@ -6475,6 +7728,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Descriptive retail-only roster counter that tallies every connected client by sessionTeam without the PM_NORMAL filter used by the adjacent active-player helper."
+    },
+    {
+      "address": "0x1006B210",
+      "raw_name": "FUN_1006b210",
+      "normalized_name": "G_NotifyLastAlivePlayer",
+      "status": "matched",
+      "signature": "int G_NotifyLastAlivePlayer(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only shared round alert helper. It locates the sole surviving PM_NORMAL client on the selected team, emits the paired temp-entity/event, and sends that client the preserved centerprint notification used by the A/D, CA, Freeze, and Red Rover last-alive paths."
     },
     {
       "address": "0x1006CA70",
@@ -6857,6 +8120,16 @@
       "comment": "Descriptive retail-only per-player rankings summary publisher anchored by the explicit PLAYER_STATS event name and the broad stat payload covering SCORE, KILLS, DEATHS, ACCURACY, MEDALS, item pickups, and per-weapon timing/usage totals. Retail calls it from match-end and team-switch teardown paths."
     },
     {
+      "address": "0x10076FE0",
+      "raw_name": "FUN_10076fe0",
+      "normalized_name": "G_RankSubmitMatchReport",
+      "status": "matched",
+      "signature": "void G_RankSubmitMatchReport(qboolean aborted)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings submitter called from `LogExit` after the per-player stats pass. The body builds the full match report payload, including EXIT_MSG, training and mutator flags, LAST_SCORER / LAST_TEAMSCORER, MATCH_GUID, and SERVER_TITLE, then hands it to the native `trap_SubmitMatchReport` bridge."
+    },
+    {
       "address": "0x10077A30",
       "raw_name": "FUN_10077a30",
       "normalized_name": "G_RankSendMatchStarted",
@@ -6877,6 +8150,28 @@
       "comment": "Exact QL-only G_CallSpawn dispatch-table constructor from g_team.c::SP_team_dom_point."
     },
     {
+      "address": "0x10059D40",
+      "raw_name": "FUN_10059d40",
+      "normalized_name": "G_AnnouncePowerupCarrierKill",
+      "status": "matched",
+      "signature": "void G_AnnouncePowerupCarrierKill(gentity_t *attacker, gentity_t *targ)",
+      "string_refs": [
+        "0x10087E98"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only kill-path announcer anchored by the exact `print \"%s%s killed the %s carrier!^7\\n\"` payload. It rejects self and same-team pairs, suppresses Harvester skull carriers, classifies the victim's carried Quad/Battle Suit/Regeneration/Haste/Invisibility powerup, and broadcasts the matching carrier kill banner."
+    },
+    {
+      "address": "0x10059E50",
+      "raw_name": "FUN_10059e50",
+      "normalized_name": "G_PowerupCarrierKillUsesWhitePrefix",
+      "status": "matched",
+      "signature": "static qboolean G_PowerupCarrierKillUsesWhitePrefix(int gametype)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only carrier-banner color predicate. HLIL shows this compact helper returning true only for CTF, 1FCTF, Overload, Harvester, and Attack and Defend so the kill banner keeps the white prefix there and falls back to `^3` elsewhere."
+    },
+    {
       "address": "0x10059EE0",
       "raw_name": "FUN_10059ee0",
       "normalized_name": "SP_advertisement",
@@ -6885,6 +8180,18 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact QL-only G_CallSpawn dispatch-table constructor from g_misc.c::SP_advertisement. Retail validates the `cellId` key, preserves the missing advert diagnostic, and then frees the entity."
+    },
+    {
+      "address": "0x10059FD0",
+      "raw_name": "FUN_10059fd0",
+      "normalized_name": "FinishSpawningTourPoint",
+      "status": "matched",
+      "signature": "void FinishSpawningTourPoint(gentity_t *ent)",
+      "string_refs": [
+        "0x10087F74"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only deferred `info_tour_point` finisher. It optionally hides overlapping ET_ITEM entities except persistant-powerup and team items, reapplies that hide path to matching tutorial targets, resolves `tourPointTarget` through `G_Find(..., FOFS(targetname), ...)`, preserves the missing tour-point diagnostic, and only then links the live entity."
     },
     {
       "address": "0x1005A1F0",
@@ -6897,6 +8204,16 @@
       "comment": "Exact QL-only G_CallSpawn dispatch-table constructor anchored by the preserved `info_tour_point with no tourPointTarget...` diagnostics and the retail `radius`, `cvarValue`, `printChatTextTime`, `ignorePlayerLocation`, and `noise` spawnvars."
     },
     {
+      "address": "0x1005A420",
+      "raw_name": "sub_1005a420",
+      "normalized_name": "TeleportPlayer",
+      "status": "matched",
+      "signature": "void TeleportPlayer(gentity_t *player, vec3_t origin, vec3_t angles)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact g_misc.c teleport helper. Retail emits the paired teleport temp events for non-spectators, unlinks before the telefrag check, reapplies view angles and the 400 ups launch velocity, toggles EF_TELEPORT_BIT, kills blocking entities at the destination, mirrors the new playerstate back into the entitystate, and only relinks non-spectators."
+    },
+    {
       "address": "0x1005A660",
       "raw_name": "FUN_1005a660",
       "normalized_name": "G_FreeEntity",
@@ -6905,6 +8222,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Shared g_utils.c free routine. Retail reuses this exact body for the `SP_info_null` / `SP_light` cleanup path and for the portal and proxmine free callbacks that collapse directly onto G_FreeEntity in the binary."
+    },
+    {
+      "address": "0x1005A6C0",
+      "raw_name": "sub_1005a6c0",
+      "normalized_name": "locateCamera",
+      "status": "matched",
+      "signature": "void locateCamera(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact g_misc.c portal-surface think callback. The body resolves the targeted `misc_portal_camera`, preserves the missing-target diagnostic, mirrors the camera spawnflags into the portal surface rotation state, copies the camera origin into `s.origin2`, and encodes the look direction from either the camera target or `s.angles` via DirToByte."
     },
     {
       "address": "0x1005A820",
@@ -7281,6 +8608,18 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_mover.c::SP_func_pendulum."
     },
     {
+      "address": "0x10063A60",
+      "raw_name": "FUN_10063a60",
+      "normalized_name": "FinishSpawningRacePoint",
+      "status": "matched",
+      "signature": "void FinishSpawningRacePoint(gentity_t *ent)",
+      "string_refs": [
+        "0x10089238"
+      ],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only race checkpoint spawn finisher. Reached one frame after `SP_race_point`, it applies the suspended-vs-drop-to-floor branch, preserves the `FinishSpawningItem: race_point startsolid...` diagnostic, snaps the final origin to integer coordinates with the +1 Z lift, and then links the trigger in place for the race-point touch path."
+    },
+    {
       "address": "0x10063CD0",
       "raw_name": "FUN_10063cd0",
       "normalized_name": "SP_race_point",
@@ -7321,6 +8660,26 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_remove_powerups."
     },
     {
+      "address": "0x100671C0",
+      "raw_name": "sub_100671c0",
+      "normalized_name": "Think_Target_Delay",
+      "status": "matched",
+      "signature": "void Think_Target_Delay(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact delayed target-fire think callback from g_target.c::Think_Target_Delay. Retail forwards to G_UseTargets with the cached activator."
+    },
+    {
+      "address": "0x100671E0",
+      "raw_name": "sub_100671e0",
+      "normalized_name": "Use_Target_Delay",
+      "status": "matched",
+      "signature": "void Use_Target_Delay(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_delay use callback from g_target.c::Use_Target_Delay, identified by the wait/random milliseconds scheduling and activator cache."
+    },
+    {
       "address": "0x10067250",
       "raw_name": "sub_10067250",
       "normalized_name": "SP_target_delay",
@@ -7329,6 +8688,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_delay."
+    },
+    {
+      "address": "0x100672E0",
+      "raw_name": "sub_100672e0",
+      "normalized_name": "Use_Target_Score",
+      "status": "matched",
+      "signature": "void Use_Target_Score(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_score use callback from g_target.c::Use_Target_Score, recovered through the AddScore call with ent->r.currentOrigin and ent->count."
     },
     {
       "address": "0x10067300",
@@ -7341,6 +8710,16 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_score."
     },
     {
+      "address": "0x10067330",
+      "raw_name": "sub_10067330",
+      "normalized_name": "Use_Target_Print",
+      "status": "matched",
+      "signature": "void Use_Target_Print(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_print use callback from g_target.c::Use_Target_Print, identified by the private/team/global centerprint routing."
+    },
+    {
       "address": "0x10067410",
       "raw_name": "sub_10067410",
       "normalized_name": "SP_target_print",
@@ -7349,6 +8728,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_print."
+    },
+    {
+      "address": "0x10067420",
+      "raw_name": "FUN_10067420",
+      "normalized_name": "Use_Target_Speaker",
+      "status": "matched",
+      "signature": "void Use_Target_Speaker(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_speaker use callback from g_target.c::Use_Target_Speaker. The retail body preserves the loop-toggle branch and the activator/global/general sound event dispatch."
     },
     {
       "address": "0x100674A0",
@@ -7361,6 +8750,36 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_speaker."
     },
     {
+      "address": "0x10067670",
+      "raw_name": "FUN_10067670",
+      "normalized_name": "target_laser_think",
+      "status": "matched",
+      "signature": "void target_laser_think(gentity_t *self)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_laser beam-think callback from g_target.c::target_laser_think, recovered through the enemy midpoint aim update, 2048-unit trace, G_Damage call, and FRAMETIME reschedule."
+    },
+    {
+      "address": "0x10067830",
+      "raw_name": "sub_10067830",
+      "normalized_name": "target_laser_use",
+      "status": "matched",
+      "signature": "void target_laser_use(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_laser toggle wrapper from g_target.c::target_laser_use. Retail folds the on/off branches into this standalone helper before calling target_laser_think."
+    },
+    {
+      "address": "0x10067880",
+      "raw_name": "FUN_10067880",
+      "normalized_name": "target_laser_start",
+      "status": "matched",
+      "signature": "void target_laser_start(gentity_t *self)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_laser bootstrap from g_target.c::target_laser_start, identified by the bad-target warning, movedir fallback, default damage=1, and START_ON gate."
+    },
+    {
       "address": "0x100679A0",
       "raw_name": "FUN_100679a0",
       "normalized_name": "SP_target_laser",
@@ -7369,6 +8788,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_laser."
+    },
+    {
+      "address": "0x100679D0",
+      "raw_name": "FUN_100679d0",
+      "normalized_name": "target_teleporter_use",
+      "status": "matched",
+      "signature": "void target_teleporter_use(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_teleporter use callback from g_target.c::target_teleporter_use, recovered through the G_PickTarget lookup, missing-destination warning, and TeleportPlayer call."
     },
     {
       "address": "0x10067A20",
@@ -7381,6 +8810,16 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_teleporter."
     },
     {
+      "address": "0x10067AA0",
+      "raw_name": "FUN_10067aa0",
+      "normalized_name": "target_relay_use",
+      "status": "matched",
+      "signature": "void target_relay_use(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_relay use callback from g_target.c::target_relay_use, identified by the red-only, blue-only, random-target, and G_UseTargets branches."
+    },
+    {
       "address": "0x10067B20",
       "raw_name": "sub_10067b20",
       "normalized_name": "SP_target_relay",
@@ -7389,6 +8828,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_relay."
+    },
+    {
+      "address": "0x10067B30",
+      "raw_name": "sub_10067b30",
+      "normalized_name": "target_kill_use",
+      "status": "matched",
+      "signature": "void target_kill_use(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_kill use callback from g_target.c::target_kill_use, recovered through the 100000 telefrag-style G_Damage call."
     },
     {
       "address": "0x10067B50",
@@ -7411,6 +8860,16 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_misc.c::SP_info_notnull. Retail merges the same `G_SetOrigin` body with `SP_info_camp` and `SP_target_position`."
     },
     {
+      "address": "0x10067BB0",
+      "raw_name": "sub_10067bb0",
+      "normalized_name": "target_location_linkup",
+      "status": "matched",
+      "signature": "void target_location_linkup(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact target_location link pass from g_target.c::target_location_linkup, identified by the `unknown` base configstring publish, the `target_location` classname scan, the MAX_LOCATIONS-1 cap, and the level.locationHead threading."
+    },
+    {
       "address": "0x10067C60",
       "raw_name": "sub_10067c60",
       "normalized_name": "SP_target_location",
@@ -7421,6 +8880,16 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_target.c::SP_target_location."
     },
     {
+      "address": "0x10067CD0",
+      "raw_name": "sub_10067cd0",
+      "normalized_name": "Use_Target_Cvar",
+      "status": "matched",
+      "signature": "void Use_Target_Cvar(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail `target_cvar` use callback. It ignores the caller context, formats the constructor-loaded `cvarValue` float with `%f`, and feeds it to `trap_Cvar_Set` using the entity's message string as the cvar name."
+    },
+    {
       "address": "0x10067D20",
       "raw_name": "sub_10067d20",
       "normalized_name": "SP_target_cvar",
@@ -7429,6 +8898,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact QL-only G_CallSpawn dispatch-table constructor from g_target.c::SP_target_cvar."
+    },
+    {
+      "address": "0x10067D60",
+      "raw_name": "FUN_10067d60",
+      "normalized_name": "Use_Target_Achievement",
+      "status": "matched",
+      "signature": "void Use_Target_Achievement(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail `target_achievement` use callback. It interprets `ent->health` as a tutorial achievement slot, remaps it through the observed `0,2,3,4,5,6,7,8` table, queries the Steam-achievement gate, and only then fires the native unlock import for the activator client."
     },
     {
       "address": "0x10067DE0",
@@ -7481,6 +8960,36 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_team.c::SP_team_neutralobelisk."
     },
     {
+      "address": "0x1006B340",
+      "raw_name": "FUN_1006b340",
+      "normalized_name": "multi_trigger",
+      "status": "matched",
+      "signature": "void multi_trigger(gentity_t *ent, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact delayed trigger helper from g_trigger.c::multi_trigger. Retail latches the activator, enforces the red and blue team gates, fires targets, and then either arms `multi_wait` or schedules `G_FreeEntity` for one-shot triggers."
+    },
+    {
+      "address": "0x1006B430",
+      "raw_name": "sub_1006b430",
+      "normalized_name": "Use_Multi",
+      "status": "matched",
+      "signature": "void Use_Multi(gentity_t *ent, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact file-private use wrapper from g_trigger.c::Use_Multi. Retail ignores the middle argument and forwards the activator into `multi_trigger`."
+    },
+    {
+      "address": "0x1006B440",
+      "raw_name": "sub_1006b440",
+      "normalized_name": "Touch_Multi",
+      "status": "matched",
+      "signature": "void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact file-private touch wrapper from g_trigger.c::Touch_Multi. Retail ignores non-clients and forwards the touching entity into `multi_trigger`."
+    },
+    {
       "address": "0x1006B460",
       "raw_name": "sub_1006b460",
       "normalized_name": "SP_trigger_multiple",
@@ -7499,6 +9008,36 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_trigger.c::SP_trigger_always."
+    },
+    {
+      "address": "0x1006B540",
+      "raw_name": "FUN_1006b540",
+      "normalized_name": "trigger_always_think",
+      "status": "matched",
+      "signature": "void trigger_always_think(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact always-trigger callback from g_trigger.c::trigger_always_think. Retail fires the entity's targets with itself as the activator and then frees the trigger."
+    },
+    {
+      "address": "0x1006B5D0",
+      "raw_name": "sub_1006b5d0",
+      "normalized_name": "trigger_push_touch",
+      "status": "matched",
+      "signature": "void trigger_push_touch(gentity_t *self, gentity_t *other, trace_t *trace)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact file-private jump-pad touch wrapper from g_trigger.c::trigger_push_touch. Retail requires a client-backed toucher and forwards the embedded playerstate to `BG_TouchJumpPad`."
+    },
+    {
+      "address": "0x1006B600",
+      "raw_name": "FUN_1006b600",
+      "normalized_name": "AimAtTarget",
+      "status": "matched",
+      "signature": "void AimAtTarget(gentity_t *self)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact push-target velocity solver from g_trigger.c::AimAtTarget. Retail resolves the target entity, computes the trigger midpoint and ballistic travel time, writes the resulting launch vector into `s.origin2`, and frees the entity on failure cases."
     },
     {
       "address": "0x1006B7B0",
@@ -7521,6 +9060,26 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_trigger.c::SP_target_push."
     },
     {
+      "address": "0x1006B810",
+      "raw_name": "sub_1006b810",
+      "normalized_name": "Use_target_push",
+      "status": "matched",
+      "signature": "void Use_target_push(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact file-private target_push use callback from g_trigger.c::Use_target_push. Retail rejects non-clients, abnormal movement, and flight powerups before copying the launch velocity and rate-limiting the fly sound."
+    },
+    {
+      "address": "0x1006B9A0",
+      "raw_name": "FUN_1006b9a0",
+      "normalized_name": "trigger_teleporter_touch",
+      "status": "matched",
+      "signature": "void trigger_teleporter_touch(gentity_t *self, gentity_t *other, trace_t *trace)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact teleporter touch helper from g_trigger.c::trigger_teleporter_touch. Retail rejects non-clients, dead players, and non-spectators on spectator-only teleports, resolves the destination target, and then calls `TeleportPlayer`."
+    },
+    {
       "address": "0x1006BA00",
       "raw_name": "sub_1006ba00",
       "normalized_name": "SP_trigger_teleport",
@@ -7531,6 +9090,26 @@
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_trigger.c::SP_trigger_teleport."
     },
     {
+      "address": "0x1006BA60",
+      "raw_name": "sub_1006ba60",
+      "normalized_name": "hurt_use",
+      "status": "matched",
+      "signature": "void hurt_use(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact file-private trigger_hurt use callback from g_trigger.c::hurt_use. Retail toggles the trigger's linked state through `trap_LinkEntity` and `trap_UnlinkEntity`."
+    },
+    {
+      "address": "0x1006BA90",
+      "raw_name": "sub_1006ba90",
+      "normalized_name": "hurt_touch",
+      "status": "matched",
+      "signature": "void hurt_touch(gentity_t *self, gentity_t *other, trace_t *trace)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact file-private trigger_hurt touch callback from g_trigger.c::hurt_touch. Retail checks takedamage, enforces the timestamp debounce and SLOW rate, optionally plays the hurt sound, and applies `MOD_TRIGGER_HURT` with the NO_PROTECTION flag when requested."
+    },
+    {
       "address": "0x1006BB50",
       "raw_name": "sub_1006bb50",
       "normalized_name": "SP_trigger_hurt",
@@ -7539,6 +9118,26 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_trigger.c::SP_trigger_hurt."
+    },
+    {
+      "address": "0x1006BBE0",
+      "raw_name": "FUN_1006bbe0",
+      "normalized_name": "func_timer_think",
+      "status": "matched",
+      "signature": "void func_timer_think(gentity_t *self)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact timer callback from g_trigger.c::func_timer_think. Retail fires targets with the stored activator and rearms the timer from the wait plus random variance window."
+    },
+    {
+      "address": "0x1006BC40",
+      "raw_name": "sub_1006bc40",
+      "normalized_name": "func_timer_use",
+      "status": "matched",
+      "signature": "void func_timer_use(gentity_t *self, gentity_t *other, gentity_t *activator)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact timer use callback from g_trigger.c::func_timer_use. Retail stores the activator, turns active timers off by clearing `nextthink`, and otherwise arms the timer through `func_timer_think`."
     },
     {
       "address": "0x1006BC70",
@@ -7559,6 +9158,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact G_CallSpawn dispatch-table constructor from g_trigger.c::SP_trigger_capturezone."
+    },
+    {
+      "address": "0x1006BE90",
+      "raw_name": "FUN_1006be90",
+      "normalized_name": "G_FindConfigstringIndex",
+      "status": "matched",
+      "signature": "int G_FindConfigstringIndex(char *name, int start, int max, qboolean create)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact configstring-slot resolver from g_utils.c. Retail skips empty names, scans the requested configstring range for an existing match, preserves the overflow error, and optionally publishes a new slot through `trap_SetConfigstring`."
     },
     {
       "address": "0x1006BFA0",
@@ -7589,6 +9198,346 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Exact g_utils.c target-dispatch loop. Retail iterates matching targetname entities through G_Find, warns on self-use, invokes each use callback, and preserves the entity-was-removed diagnostic."
+    },
+    {
+      "address": "0x1006C340",
+      "raw_name": "FUN_1006c340",
+      "normalized_name": "G_Spawn",
+      "status": "matched",
+      "signature": "gentity_t *G_Spawn(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact entity allocator from g_utils.c. It reuses free slots outside the recent-freetime window, opens a new entity slot through `trap_LocateGameData` when needed, and preserves the `G_Spawn: no free entities` fatal path."
+    },
+    {
+      "address": "0x1006C490",
+      "raw_name": "FUN_1006c490",
+      "normalized_name": "G_TempEntity",
+      "status": "matched",
+      "signature": "gentity_t *G_TempEntity(vec3_t origin, int event)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact temporary-event spawner from g_utils.c. Retail allocates a new entity through `G_Spawn`, marks it as an auto-free event entity, snaps the origin for network efficiency, and links it for the PVS path."
+    },
+    {
+      "address": "0x1006C540",
+      "raw_name": "FUN_1006c540",
+      "normalized_name": "G_KillBox",
+      "status": "matched",
+      "signature": "void G_KillBox(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact telefrag helper from g_utils.c. It builds the destination bounds from the client's origin plus entity mins/maxs, enumerates touches through `trap_EntitiesInBox`, and applies unconditional telefrag damage to overlapping clients."
+    },
+    {
+      "address": "0x1004DC20",
+      "raw_name": "FUN_1004dc20",
+      "normalized_name": "G_AnnouncePersistantPowerupPickup",
+      "status": "matched",
+      "signature": "void G_AnnouncePersistantPowerupPickup(gentity_t *player, gentity_t *item, qboolean broadcast)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only persistent-powerup pickup-message helper. It compares the picked-up rune against the cached red and blue base origins, chooses the matching color prefix, and emits either the global pickup announcement or the opponent-side-only pickup notice used by the retail Pickup_PersistantPowerup flow."
+    },
+    {
+      "address": "0x10069190",
+      "raw_name": "FUN_10069190",
+      "normalized_name": "G_InitItemPowerupState",
+      "status": "matched",
+      "signature": "void G_InitItemPowerupState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only item-powerup cache initializer. It resolves the red and blue flag-base entities, caches their origins, clears the per-item availability counters, and rebuilds those counts from active map entities for the dynamic persistent-powerup and damaged-health systems."
+    },
+    {
+      "address": "0x10078400",
+      "raw_name": "FUN_10078400",
+      "normalized_name": "G_RankResetClientStats",
+      "status": "matched",
+      "signature": "void G_RankResetClientStats(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings-state reset helper. It zeroes the per-client rankings slab, seeds the timestamp fields from `level.time`, and initializes the session token reused by the retail PLAYER_CONNECT and PLAYER_DISCONNECT publishers."
+    },
+    {
+      "address": "0x10078450",
+      "raw_name": "FUN_10078450",
+      "normalized_name": "G_RankClientConnect",
+      "status": "matched",
+      "signature": "void G_RankClientConnect(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail rankings connect publisher anchored by the explicit PLAYER_CONNECT event name. It builds the TIME, WARMUP, MATCH_GUID, NAME, and STEAM_ID payload and emits that event from the ClientConnect path."
+    },
+    {
+      "address": "0x100786D0",
+      "raw_name": "FUN_100786d0",
+      "normalized_name": "G_RankClientDisconnect",
+      "status": "matched",
+      "signature": "void G_RankClientDisconnect(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact retail rankings disconnect publisher anchored by the explicit PLAYER_DISCONNECT event name. It mirrors the connect payload keys, reuses the per-client session token, and is called from ClientDisconnect before the client is unlinked."
+    },
+    {
+      "address": "0x10078960",
+      "raw_name": "FUN_10078960",
+      "normalized_name": "G_RankAccumulateWeaponTime",
+      "status": "matched",
+      "signature": "void G_RankAccumulateWeaponTime(gentity_t *ent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings accumulator. It advances the total active-time counter plus the current-weapon bucket from the last timestamp, skips spectator-style states, and refreshes the timestamp consumed by later disconnect and score-message publishers."
+    },
+    {
+      "address": "0x100789D0",
+      "raw_name": "FUN_100789d0",
+      "normalized_name": "G_RankResolvePreferredWeapon",
+      "status": "matched",
+      "signature": "int G_RankResolvePreferredWeapon(gclient_t *client)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings helper. It picks the preferred-weapon index from the enabled-weapon mask and the accumulated per-weapon time totals, then feeds that result into the extended ranked score-message builders."
+    },
+    {
+      "address": "0x100793A0",
+      "raw_name": "FUN_100793a0",
+      "normalized_name": "JsonValueDestroy",
+      "status": "matched",
+      "signature": "void JsonValueDestroy(void *value)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Json value destructor. HLIL shows it switching on the tagged Json payload kind, releasing allocator-owned strings, recursively freeing map-backed array/object storage through the adjacent tree clear helper, and then freeing the optional comment array."
+    },
+    {
+      "address": "0x10079490",
+      "raw_name": "FUN_10079490",
+      "normalized_name": "JsonValueAssign",
+      "status": "matched",
+      "signature": "void JsonValueAssign(void *dest, void *src)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Json value assignment helper. The body copy-constructs a temporary value from the source, swaps payload/tag/comment fields into the destination, and then destroys the displaced temporary value."
+    },
+    {
+      "address": "0x10079510",
+      "raw_name": "FUN_10079510",
+      "normalized_name": "JsonValueEquals",
+      "status": "matched",
+      "signature": "qboolean JsonValueEquals(const void *lhs, const void *rhs)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Json equality predicate. HLIL compares the tagged value kinds first, then handles int/uint/real/string/bool directly and falls through to the map-backed array/object comparison path for the container kinds."
+    },
+    {
+      "address": "0x10079850",
+      "raw_name": "FUN_10079850",
+      "normalized_name": "JsonValueResolveMemberReference",
+      "status": "matched",
+      "signature": "void *JsonValueResolveMemberReference(void *value, const char *key)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only object-member resolver. When the incoming value is null it promotes it to the map-backed object kind, then performs the CZString-style key lookup/insert path and returns the nested member slot for the requested key."
+    },
+    {
+      "address": "0x10079A10",
+      "raw_name": "FUN_10079a10",
+      "normalized_name": "JsonValueGetSize",
+      "status": "matched",
+      "signature": "int JsonValueGetSize(const void *value)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only Json size helper. The array path walks to the highest indexed sparse entry and returns index-plus-one, while the object path returns the stored member count from the backing map header."
+    },
+    {
+      "address": "0x10079A90",
+      "raw_name": "FUN_10079a90",
+      "normalized_name": "JsonValueInitMapStorage",
+      "status": "matched",
+      "signature": "void *JsonValueInitMapStorage(void *storage)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only constructor for the map-backed Json storage header. It allocates the 0x30-byte red-black-tree sentinel node, points the root/left/right links back at that sentinel, and seeds the empty-tree color flags."
+    },
+    {
+      "address": "0x10079B00",
+      "raw_name": "FUN_10079b00",
+      "normalized_name": "JsonValueEraseMemberNode",
+      "status": "matched",
+      "signature": "void JsonValueEraseMemberNode(void *storage, void **nextNode, void *node)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only red-black-tree erase helper used by the map-backed Json container. It validates the iterator node, unlinks the target, performs the standard tree-fixup rotations and recoloring, destroys the embedded Json value payload, and decrements the stored member count."
+    },
+    {
+      "address": "0x10079DB0",
+      "raw_name": "FUN_10079db0",
+      "normalized_name": "JsonValueCopyMapStorage",
+      "status": "matched",
+      "signature": "void *JsonValueCopyMapStorage(void *storage, const void *source)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only copy-constructor helper for the map-backed Json storage used by array/object values. It allocates a fresh sentinel node, initializes the empty tree header, and then clones the source member tree through the adjacent iterator/copy path."
+    },
+    {
+      "address": "0x10079E80",
+      "raw_name": "FUN_10079e80",
+      "normalized_name": "JsonValueClearMapRange",
+      "status": "matched",
+      "signature": "void JsonValueClearMapRange(void *storage, void **out, void *first, void *last)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only tree-range clear helper for the map-backed Json storage. It special-cases full-map clears into the recursive node-destroy path, otherwise walks the selected range and repeatedly erases nodes through `JsonValueEraseMemberNode`."
+    },
+    {
+      "address": "0x10079F40",
+      "raw_name": "FUN_10079f40",
+      "normalized_name": "JsonValueDestroyMapNodes",
+      "status": "matched",
+      "signature": "void JsonValueDestroyMapNodes(void *node)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only recursive node destructor for the map-backed Json container. It descends the tree, destroys each embedded Json value plus allocator-owned key storage, and frees every non-sentinel node."
+    },
+    {
+      "address": "0x10070110",
+      "raw_name": "FUN_10070110",
+      "normalized_name": "DirToByte",
+      "status": "matched",
+      "signature": "int DirToByte(vec3_t dir)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact directional-quantization helper from q_math.c. It scans the 162-entry `bytedirs` table, picks the highest dot-product match for the supplied unit vector, and returns the compact direction index used by events such as gibs and impacts."
+    },
+    {
+      "address": "0x100702B0",
+      "raw_name": "FUN_100702b0",
+      "normalized_name": "vectoangles",
+      "status": "matched",
+      "signature": "void vectoangles(const vec3_t value1, vec3_t angles)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact vector-to-Euler helper from q_math.c. The body handles the straight-up/straight-down special cases, computes yaw plus pitch with `atan2`, wraps them into the 0..360 retail range, and clears roll."
+    },
+    {
+      "address": "0x100703F0",
+      "raw_name": "FUN_100703f0",
+      "normalized_name": "ProjectPointOnPlane",
+      "status": "matched",
+      "signature": "void ProjectPointOnPlane(vec3_t dst, const vec3_t p, const vec3_t normal)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact projection helper from q_math.c. The retail body removes the normal component from the input point and writes the projected result back into the destination vector."
+    },
+    {
+      "address": "0x100704C0",
+      "raw_name": "FUN_100704c0",
+      "normalized_name": "RadiusFromBounds",
+      "status": "matched",
+      "signature": "float RadiusFromBounds(const vec3_t mins, const vec3_t maxs)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact bounds-radius helper from q_math.c. It picks the maximum absolute extent on each axis from the mins/maxs pair and returns the resulting vector length."
+    },
+    {
+      "address": "0x100705B0",
+      "raw_name": "FUN_100705b0",
+      "normalized_name": "VectorNormalize",
+      "status": "matched",
+      "signature": "vec_t VectorNormalize(vec3_t v)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact in-place normalization helper from q_math.c. The retail body computes the vector length, rescales the components when the length is non-zero, and returns the original magnitude."
+    },
+    {
+      "address": "0x10070650",
+      "raw_name": "FUN_10070650",
+      "normalized_name": "VectorNormalize2",
+      "status": "matched",
+      "signature": "vec_t VectorNormalize2(const vec3_t v, vec3_t out)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact normalize-into-output helper from q_math.c. It copies the normalized vector into the destination when the input length is non-zero, otherwise clears the destination and returns zero."
+    },
+    {
+      "address": "0x100706E0",
+      "raw_name": "FUN_100706e0",
+      "normalized_name": "AngleVectors",
+      "status": "matched",
+      "signature": "void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact Euler-basis helper from q_math.c. The body computes the sine/cosine pairs for yaw, pitch, and roll, then fills the optional forward/right/up outputs with the retail direction basis."
+    },
+    {
+      "address": "0x10070830",
+      "raw_name": "FUN_10070830",
+      "normalized_name": "COM_ParseExt",
+      "status": "matched",
+      "signature": "char *COM_ParseExt(char **data_p, qboolean allowLineBreaks)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Exact shared parser helper from q_shared.c::COM_ParseExt. The retail body skips whitespace plus // and /* */ comments, tracks line breaks through `com_lines`, preserves the quoted-token path, and returns the shared static token buffer."
+    },
+    {
+      "address": "0x100711B0",
+      "raw_name": "FUN_100711b0",
+      "normalized_name": "G_RankMeansOfDeathName",
+      "status": "matched",
+      "signature": "const char *G_RankMeansOfDeathName(int meansOfDeath)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings stringifier anchored by the explicit SHOTGUN / ROCKET / LIGHTNING / SWITCHTEAM / THAW / LIGHTNING_DISCHARGE literals plus the OTHER_DEATH fallback. The adjacent PLAYER_DEATH publisher uses it for the means-of-death payload naming."
+    },
+    {
+      "address": "0x10071320",
+      "raw_name": "FUN_10071320",
+      "normalized_name": "G_RankMeansOfDeathWeapon",
+      "status": "matched",
+      "signature": "int G_RankMeansOfDeathWeapon(int meansOfDeath)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings bucket resolver. It collapses means-of-death ids onto the reduced weapon index space reused by the kill/death publishers and the adjacent per-weapon damage accumulators."
+    },
+    {
+      "address": "0x100713E0",
+      "raw_name": "FUN_100713e0",
+      "normalized_name": "G_RankWeaponName",
+      "status": "matched",
+      "signature": "const char *G_RankWeaponName(int weaponIndex)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings weapon-name helper anchored by the explicit GAUNTLET / MACHINEGUN / SHOTGUN / ROCKET / LIGHTNING / RAILGUN / PLASMA / NAILGUN / PROXMINE / CHAINGUN literals and the OTHER_WEAPON fallback."
+    },
+    {
+      "address": "0x10071480",
+      "raw_name": "FUN_10071480",
+      "normalized_name": "G_RankPowerupName",
+      "status": "matched",
+      "signature": "const char *G_RankPowerupName(int powerup)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings powerup-name helper anchored by the explicit RED_FLAG / BLUE_FLAG / QUAD / BATTLESUIT / HASTE / INVULNERABILITY / GUARD / DOUBLER / ARMOR_REGEN literals and the OTHER_POWERUP fallback."
+    },
+    {
+      "address": "0x10071580",
+      "raw_name": "FUN_10071580",
+      "normalized_name": "G_RankAccumulateDamage",
+      "status": "matched",
+      "signature": "void G_RankAccumulateDamage(gentity_t *victim, gentity_t *attacker, int meansOfDeath, int damage)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings damage accumulator. It derives the reduced weapon bucket through `G_RankMeansOfDeathWeapon`, updates the victim's total and per-weapon damage-taken counters plus cached armor/health snapshots, and credits the attacker's damage-given buckets when the hit is not self-damage or filtered team damage."
+    },
+    {
+      "address": "0x100720E0",
+      "raw_name": "FUN_100720e0",
+      "normalized_name": "G_RankSendRoundOver",
+      "status": "matched",
+      "signature": "void G_RankSendRoundOver(int round, int winningTeam, qboolean draw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Descriptive retail-only rankings publisher anchored by the explicit ROUND_OVER event name and the TIME, WARMUP, MATCH_GUID, ROUND, and TEAM_WON payload keys. Retail round-resolution paths pass the round index, winning team, and draw flag into this helper at round end."
     }
   ],
   "strings": [
@@ -8515,8 +10464,8 @@
   ],
   "relocations": [],
   "stats": {
-    "function_total": 731,
-    "function_matched": 731,
+    "function_total": 923,
+    "function_matched": 923,
     "string_total": 102,
     "string_resolved": 102,
     "relocation_total": 0

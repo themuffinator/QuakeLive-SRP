@@ -664,13 +664,42 @@ void _UI_Refresh( int realtime );
 qboolean _UI_IsFullscreen( void );
 void _UI_SetActiveMenu( uiMenuCommand_t menu );
 void UI_Load( void );
+
+/*
+================
+UI_NativeInit
+================
+*/
+static void UI_NativeInit( qboolean inGameLoad ) {
+	_UI_Init( inGameLoad );
+}
+
+/*
+================
+UI_NativeKeyEvent
+================
+*/
+static void UI_NativeKeyEvent( int key, qboolean down, int time ) {
+	(void)time;
+	_UI_KeyEvent( key, down );
+}
+
+/*
+================
+UI_NativeDrawConnectScreen
+================
+*/
+static void UI_NativeDrawConnectScreen( qboolean overlay ) {
+	UI_DrawConnectScreen( overlay );
+}
+
 int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11  ) {
 	switch ( command ) {
 	case UI_GETAPIVERSION:
 		return UI_QL_API_VERSION;
 
 	case UI_INIT:
-		_UI_Init(arg0);
+		UI_NativeInit( arg0 ? qtrue : qfalse );
 		return 0;
 
 	case UI_SHUTDOWN:
@@ -678,7 +707,7 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 		return 0;
 
 	case UI_KEY_EVENT:
-		_UI_KeyEvent( arg0, arg1 );
+		UI_NativeKeyEvent( arg0, arg1 ? qtrue : qfalse, arg2 );
 		return 0;
 
 	case UI_MOUSE_EVENT:
@@ -700,7 +729,7 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 		return UI_ConsoleCommand(arg0);
 
 	case UI_DRAW_CONNECT_SCREEN:
-		UI_DrawConnectScreen( arg0 );
+		UI_NativeDrawConnectScreen( arg0 ? qtrue : qfalse );
 		return 0;
 	case UI_HASUNIQUECDKEY: // mod authors need to observe this
 		return qtrue; // bk010117 - change this to qfalse for mods!
@@ -729,15 +758,15 @@ static qboolean UI_NativeHasUniqueCDKey( void ) {
 }
 
 static void *ui_nativeExports[UI_NATIVE_EXPORT_COUNT] = {
-	[UI_NATIVE_EXPORT_INIT] = _UI_Init,
+	[UI_NATIVE_EXPORT_INIT] = UI_NativeInit,
 	[UI_NATIVE_EXPORT_SHUTDOWN] = _UI_Shutdown,
-	[UI_NATIVE_EXPORT_KEY_EVENT] = _UI_KeyEvent,
+	[UI_NATIVE_EXPORT_KEY_EVENT] = UI_NativeKeyEvent,
 	[UI_NATIVE_EXPORT_MOUSE_EVENT] = _UI_MouseEvent,
 	[UI_NATIVE_EXPORT_REFRESH] = _UI_Refresh,
 	[UI_NATIVE_EXPORT_IS_FULLSCREEN] = _UI_IsFullscreen,
 	[UI_NATIVE_EXPORT_SET_ACTIVE_MENU] = _UI_SetActiveMenu,
 	[UI_NATIVE_EXPORT_CONSOLE_COMMAND] = UI_ConsoleCommand,
-	[UI_NATIVE_EXPORT_DRAW_CONNECT_SCREEN] = UI_DrawConnectScreen,
+	[UI_NATIVE_EXPORT_DRAW_CONNECT_SCREEN] = UI_NativeDrawConnectScreen,
 	[UI_NATIVE_EXPORT_HAS_UNIQUE_CD_KEY] = UI_NativeHasUniqueCDKey,
 	[UI_NATIVE_EXPORT_REFRESH_DISPLAY_CONTEXT] = UI_RefreshDisplayContext,
 	[UI_NATIVE_EXPORT_MENUS_ANY_VISIBLE] = Menus_AnyVisible,

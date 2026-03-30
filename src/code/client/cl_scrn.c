@@ -457,7 +457,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 
 	// if the menu is going to cover the entire screen, we
 	// don't need to render anything under it
-	uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN );
+	uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN ) ? qtrue : qfalse;
 
 	if ( !uiFullscreen ) {
 		switch( cls.state ) {

@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // g_local.h -- local definitions for game module
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "q_shared.h"
 #include "bg_public.h"
@@ -279,6 +280,8 @@ extern vmCvar_t g_damage_hmg;
 extern vmCvar_t g_damageGauntletLegacy;
 extern vmCvar_t g_vampiricDamage;
 extern vmCvar_t g_training;
+extern vmCvar_t g_lagHaxHistory;
+extern vmCvar_t g_lagHaxMs;
 extern vmCvar_t g_gameState;
 extern vmCvar_t g_botsFile;
 extern vmCvar_t g_botSpawnList;
@@ -487,11 +490,6 @@ extern knockbackConfig_t g_knockbackConfig;
 void G_InitKnockbackConfig( void );
 void G_UpdateKnockbackConfig( void );
 
-typedef struct targetCvarConfig_s {
-	char		cvarName[MAX_CVAR_VALUE_STRING];
-	char		cvarValue[MAX_CVAR_VALUE_STRING];
-} targetCvarConfig_t;
-
 typedef struct keyItemDef_s {
 	int	bit;
 	const char	*classname;
@@ -500,8 +498,6 @@ typedef struct keyItemDef_s {
 const keyItemDef_t *G_KeyItemDefs( int *count );
 gitem_t *G_KeyItemForBit( int bit );
 void G_DropClientKeys( gentity_t *ent );
-
-#define MAX_TARGET_CVAR_PAIRS	8
 
 struct gentity_s {
 	entityState_t	s;				// communicated by server to clients
@@ -611,15 +607,15 @@ struct gentity_s {
 
 	gitem_t		*item;			// for bonus items
 	int			keyMask;
-	int			targetCvarCount;
-	targetCvarConfig_t	*targetCvars;
-	int			targetAchievementCount;
-	int			*targetAchievementIds;
 	int			racePointIndex;
 	qboolean		racePointAdminSpawned;
 	qboolean		flagDroppedByEnemy;
 	qboolean		flagDroppedBySuicide;
 	int			flagDroppedByClientNum;
+	float		tourPointRadius;
+	float		tourPointCvarValue;
+	float		tourPointPrintChatTextTime;
+	qboolean	tourPointIgnorePlayerLocation;
 };
 
 
@@ -810,6 +806,14 @@ typedef struct {
 	int			pickupIntervalCount[SCORESTAT_PICKUP_COUNT];
 } clientPersistant_t;
 
+typedef struct {
+	int			sessionStartTime;
+	int			matchStartTime;
+	unsigned int	steamIdLow;
+	unsigned int	steamIdHigh;
+	char			sessionToken[32];
+} rankClientStats_t;
+
 
 // this structure is cleared on each ClientSpawn(),
 // except for 'client->pers' and 'client->sess'
@@ -923,6 +927,7 @@ struct gclient_s {
 	int			rrAccumulatedDamage;
 	int			adAccumulatedDamage;
 	raceClientState_t	raceState;
+	rankClientStats_t	rankStats;
 };
 
 
@@ -971,6 +976,7 @@ typedef struct {
 typedef struct {
 	char		steamId[MAX_ADMIN_STEAMID_LENGTH];
 	int			privilegeTier;
+	qboolean	temporary;
 } adminAccessEntry_t;
 
 typedef struct {
@@ -1006,6 +1012,9 @@ typedef struct {
 	int			msec;				// time elapsed since previous frame
 
 	int			startTime;				// level.time the map was started
+	char			rankMatchGuid[32];
+	qboolean		rankMatchStartedSent;
+	qboolean		rankMatchReportSent;
 
 	int			teamScores[TEAM_NUM_TEAMS];
 	int			lastTeamLocationTime;		// last time of client team location update
@@ -1113,6 +1122,7 @@ typedef struct {
 	int		quadHogExpireTime;
 	int		quadHogLastActiveTime;
 	int		quadHogNextPingTime;
+	qboolean		trainingMap;
 	qboolean		trainingMapActive;
 	int			duelScoreboardLowClientNum;
 	int			duelScoreboardHighClientNum;
@@ -1234,6 +1244,9 @@ gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity );
 void SetRespawn (gentity_t *ent, float delay);
 void G_SpawnItem (gentity_t *ent, gitem_t *item);
 void FinishSpawningItem( gentity_t *ent );
+void G_SpawnItemPowerups( void );
+void G_SpawnQuadHogQuad( void );
+void G_EnsureQuadHogQuad( void );
 void Think_Weapon (gentity_t *ent);
 int ArmorIndex (gentity_t *ent);
 void	Add_Ammo (gentity_t *ent, int weapon, int count);
@@ -1323,7 +1336,6 @@ void Touch_DoorTrigger( gentity_t *ent, gentity_t *other, trace_t *trace );
 //
 // g_trigger.c
 //
-void trigger_teleporter_touch (gentity_t *self, gentity_t *other, trace_t *trace );
 void InitTrigger( gentity_t *self );
 
 
@@ -1363,7 +1375,7 @@ void InitClientResp (gclient_t *client);
 void InitBodyQue (void);
 void ClientSpawn( gentity_t *ent );
 void player_die (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
-void AddScore( gentity_t *ent, const vec3_t origin, int score );
+void AddScore( gentity_t *ent, vec3_t origin, int score );
 void CalculateRanks( void );
 void G_RRInitClient( gentity_t *ent );
 void G_RRProcessClient( gentity_t *ent );
@@ -1462,6 +1474,12 @@ qboolean G_ClientIsReady( const gclient_t *client );
 void G_SetClientReadyState( gclient_t *client, qboolean ready );
 void G_SyncClientReadyState( gclient_t *client );
 void G_RunGrantScript( gentity_t *ent, const char *script );
+void G_RankResetClientStats( gclient_t *client );
+void G_RankClientConnect( gentity_t *ent );
+void G_RankClientDisconnect( gentity_t *ent );
+void G_RankSendMatchStarted( void );
+void G_RankSubmitMatchReport( qboolean aborted );
+qboolean G_WarmupReadyToStart( void );
 
 void G_UpdateForcedCosmeticsConfigstring( qboolean forceBroadcast );
 void G_SetWorldspawnAtmosphere( const char *atmosphere );
@@ -1474,6 +1492,11 @@ void G_Frame_BeginRoundWarmup( void );
 void G_Frame_UpdateRoundController( void );
 void G_SetClientRatingModifiers( gclient_t *client, float damageScale, float scoreScale );
 void G_RefreshClientRatingModifiers( gclient_t *client );
+void G_InitLagHaxHistory( void );
+void G_ClearLagHaxHistory( gentity_t *ent );
+void G_StoreHistory( gentity_t *ent );
+void G_TimeShiftAllClients( gentity_t *skip, int time );
+void G_UnTimeShiftAllClients( void );
 void ClientEndFrame( gentity_t *ent );
 void G_RunClient( gentity_t *ent );
 
@@ -1688,6 +1711,8 @@ extern	vmCvar_t	g_maxDeferredSpawns;
 extern	vmCvar_t	g_playermodelOverride;
 extern	vmCvar_t	g_playerheadmodelOverride;
 extern	vmCvar_t	g_training;
+extern	vmCvar_t	g_lagHaxHistory;
+extern	vmCvar_t	g_lagHaxMs;
 extern	vmCvar_t	g_obeliskHealth;
 extern	vmCvar_t	g_obeliskRegenPeriod;
 extern	vmCvar_t	g_obeliskRegenAmount;
@@ -1788,6 +1813,11 @@ void	trap_SetUserinfo( int num, const char *buffer );
 void	trap_GetServerinfo( char *buffer, int bufferSize );
 qboolean	trap_GetSteamId( int clientNum, unsigned int *steamIdLow, unsigned int *steamIdHigh );
 qboolean	trap_VerifySteamAuth( int clientNum );
+void	trap_SubmitMatchReport( void *report );
+void	trap_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload );
+void	trap_AddSteamStat( int clientNum, int statIndex, int delta );
+void	trap_UnlockSteamAchievement( int clientNum, int achievementId );
+qboolean	trap_HasSteamAchievement( int clientNum, int achievementId );
 qboolean	trap_RankActive( void );
 void	trap_RankBegin( char *gamekey );
 qboolean	trap_RankCheckInit( void );

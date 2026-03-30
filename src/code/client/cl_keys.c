@@ -1026,14 +1026,16 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 	char	cmd[1024];
 	clTranslatedKey_t translated;
 	int		dispatchKey;
+	qboolean	dispatchDown;
 
 	translated = CL_TranslateRetailKeycode( key );
 	dispatchKey = translated.dispatchKey;
+	dispatchDown = down ? qtrue : qfalse;
 
 	// update auto-repeat status and BUTTON_ANY status
-	keys[key].down = down;
+	keys[key].down = dispatchDown;
 
-	if (down) {
+	if ( dispatchDown ) {
 		keys[key].repeats++;
 		if ( keys[key].repeats == 1) {
 			anykeydown++;
@@ -1073,7 +1075,7 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 
 	// console key is hardcoded, so the user can never unbind it
 	if (key == '`' || key == '~') {
-		if (!down) {
+		if ( !dispatchDown ) {
 			return;
 		}
     Con_ToggleConsole_f ();
@@ -1082,7 +1084,7 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 
 
 	// keys can still be used for bound actions
-	if ( down && ( key < 128 || key == K_MOUSE1 ) && ( clc.demoplaying || cls.state == CA_CINEMATIC ) && !cls.keyCatchers) {
+	if ( dispatchDown && ( key < 128 || key == K_MOUSE1 ) && ( clc.demoplaying || cls.state == CA_CINEMATIC ) && !cls.keyCatchers) {
 
 		if (Cvar_VariableValue ("com_cameraMode") == 0) {
 			Cvar_Set ("nextdemo","");
@@ -1092,7 +1094,7 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 
 
 	// escape is always handled special
-	if ( key == K_ESCAPE && down ) {
+	if ( key == K_ESCAPE && dispatchDown ) {
 		if ( cls.keyCatchers & KEYCATCH_MESSAGE ) {
 			// clear message mode
 			Message_Key( key );
@@ -1118,7 +1120,7 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 			return;
 		}
 
-		VM_Call( uivm, UI_KEY_EVENT, dispatchKey, down, time );
+		VM_Call( uivm, UI_KEY_EVENT, dispatchKey, dispatchDown, time );
 		return;
 	}
 
@@ -1128,15 +1130,15 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 	// console mode and menu mode, to keep the character from continuing 
 	// an action started before a mode switch.
 	//
-	if (!down) {
+	if ( !dispatchDown ) {
 		kb = keys[key].binding;
 
 		CL_AddKeyUpCommands( key, kb );
 
 		if ( cls.keyCatchers & KEYCATCH_UI && uivm ) {
-			VM_Call( uivm, UI_KEY_EVENT, dispatchKey, down, time );
+			VM_Call( uivm, UI_KEY_EVENT, dispatchKey, dispatchDown, time );
 		} else if ( cls.keyCatchers & KEYCATCH_CGAME && cgvm ) {
-			VM_Call( cgvm, CG_KEY_EVENT, dispatchKey, down );
+			VM_Call( cgvm, CG_KEY_EVENT, dispatchKey, dispatchDown );
 		} 
 
 		return;
@@ -1148,11 +1150,11 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 		Console_Key( key );
 	} else if ( cls.keyCatchers & KEYCATCH_UI ) {
 		if ( uivm ) {
-			VM_Call( uivm, UI_KEY_EVENT, dispatchKey, down, time );
+			VM_Call( uivm, UI_KEY_EVENT, dispatchKey, dispatchDown, time );
 		} 
 	} else if ( cls.keyCatchers & KEYCATCH_CGAME ) {
 		if ( cgvm ) {
-			VM_Call( cgvm, CG_KEY_EVENT, dispatchKey, down );
+			VM_Call( cgvm, CG_KEY_EVENT, dispatchKey, dispatchDown );
 		} 
 	} else if ( cls.keyCatchers & KEYCATCH_MESSAGE ) {
 		Message_Key( key );

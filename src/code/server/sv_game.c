@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../../src-re/include/fs_imports.h"
 
 botlib_export_t	*botlib_export;
+static char	sv_gameClientConnectDenied[MAX_STRING_CHARS];
 
 void SV_GameError( const char *string ) {
 	Com_Error( ERR_DROP, "%s", string );
@@ -541,9 +542,9 @@ static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
 	case G_ENTITIES_IN_BOX:
 		return SV_AreaEntities( VMA(1), VMA(2), VMA(3), args[4] );
 	case G_ENTITY_CONTACT:
-		return SV_EntityContact( VMA(1), VMA(2), VMA(3), /*int capsule*/ qfalse );
+		return SV_EntityContact( VMA(1), VMA(2), VMA(3), /*int capsule*/ qfalse ) ? qtrue : qfalse;
 	case G_ENTITY_CONTACTCAPSULE:
-		return SV_EntityContact( VMA(1), VMA(2), VMA(3), /*int capsule*/ qtrue );
+		return SV_EntityContact( VMA(1), VMA(2), VMA(3), /*int capsule*/ qtrue ) ? qtrue : qfalse;
 	case G_TRACE:
 		SV_Trace( VMA(1), VMA(2), VMA(3), VMA(4), VMA(5), args[6], args[7], /*int capsule*/ qfalse );
 		return 0;
@@ -556,9 +557,9 @@ static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
 		SV_SetBrushModel( VMA(1), VMA(2) );
 		return 0;
 	case G_IN_PVS:
-		return SV_inPVS( VMA(1), VMA(2) );
+		return SV_inPVS( VMA(1), VMA(2) ) ? qtrue : qfalse;
 	case G_IN_PVS_IGNORE_PORTALS:
-		return SV_inPVSIgnorePortals( VMA(1), VMA(2) );
+		return SV_inPVSIgnorePortals( VMA(1), VMA(2) ) ? qtrue : qfalse;
 
 	case G_SET_CONFIGSTRING:
 		SV_SetConfigstring( args[1], VMA(2) );
@@ -576,9 +577,9 @@ static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
 		SV_GetServerinfo( VMA(1), args[2] );
 		return 0;
 	case G_STEAMID_QUERY:
-		return SV_GetClientSteamId( args[1], (uint32_t *)VMA(2), (uint32_t *)VMA(3) );
+		return SV_GetClientSteamId( args[1], (uint32_t *)VMA(2), (uint32_t *)VMA(3) ) ? qtrue : qfalse;
 	case G_STEAM_AUTH_VALIDATE:
-		return SV_VerifyClientSteamAuth( args[1] );
+		return SV_VerifyClientSteamAuth( args[1] ) ? qtrue : qfalse;
 	case G_RANK_BEGIN:
 		SV_RankBegin( VMA(1) );
 		return 0;
@@ -601,7 +602,7 @@ static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
 		SV_RankReportStr( args[1], args[2], args[3], VMA(4) );
 		return 0;
 	case G_ADJUST_AREA_PORTAL_STATE:
-		SV_AdjustAreaPortalState( VMA(1), args[2] );
+		SV_AdjustAreaPortalState( VMA(1), args[2] ? qtrue : qfalse );
 		return 0;
 	case G_AREAS_CONNECTED:
 		return CM_AreasConnected( args[1], args[2] );
@@ -1653,6 +1654,37 @@ void SV_InitGameProgs( void ) {
 	SV_InitGameVM( qfalse );
 }
 
+/*
+====================
+SV_GameClientConnect
+
+Normalizes the native `GAME_CLIENT_CONNECT` denial string into engine-owned
+storage so restart and reconnect owners do not depend on VM pointer lifetime.
+====================
+*/
+const char *SV_GameClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
+	int			deniedOffset;
+	const char	*denied;
+
+	sv_gameClientConnectDenied[0] = '\0';
+
+	if ( !gvm ) {
+		return NULL;
+	}
+
+	deniedOffset = VM_Call( gvm, GAME_CLIENT_CONNECT, clientNum, firstTime, isBot );
+	if ( !deniedOffset ) {
+		return NULL;
+	}
+
+	denied = VM_ExplicitArgPtr( gvm, deniedOffset );
+	if ( denied ) {
+		Q_strncpyz( sv_gameClientConnectDenied, denied, sizeof( sv_gameClientConnectDenied ) );
+	}
+
+	return sv_gameClientConnectDenied;
+}
+
 
 /*
 ====================
@@ -1666,6 +1698,6 @@ qboolean SV_GameCommand( void ) {
 		return qfalse;
 	}
 
-	return VM_Call( gvm, GAME_CONSOLE_COMMAND );
+	return VM_Call( gvm, GAME_CONSOLE_COMMAND ) ? qtrue : qfalse;
 }
 

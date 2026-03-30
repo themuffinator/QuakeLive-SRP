@@ -11,29 +11,116 @@ behavior and source analogue align cleanly.
 
 ## Latest Coverage Update
 
-- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
-- Curated symbol-map totals: `727` -> `731` matched functions, with string coverage unchanged at `102/102`.
-- Corpus-overlap parity: `659/1027` -> `663/1027` mapped functions (`64.17%` -> `64.56%`) when measured against the committed `functions.csv` retail corpus.
-- Top decompiled slice: `162/180` -> `163/180` mapped functions (`90.00%` -> `90.56%`).
-- Delta from this pass: `+4` curated names, `+4` corpus-overlap matches, `+0.39` percentage points on full-corpus parity, and `+1` match on the top-decompiled slice.
-- Note: curated overhang stays flat at `68` because every promoted helper in this batch is present in the committed `functions.csv` corpus; the top-slice gain is `BotUpdateTrainingState`.
+- Reference totals: `1027` functions in `functions.csv` and `180` unique decompiled entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `918` -> `923` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `825/1027` -> `830/1027` mapped functions (`80.33%` -> `80.82%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: unchanged at `180/180` mapped functions (`100.00%`).
+- Delta from this pass: `+5` curated names, `+5` corpus-overlap matches, and `+0.49` percentage points on full-corpus parity.
+- Note: curated overhang stays flat at `93` because every promoted helper in this pass already has a standalone row in the committed `functions.csv` export.
+- Note: the embedded `qagame.json` stats block is now realigned to the live curated total of `923/923`.
 
 ## Newly Mapped In This Pass
 
 | Area | Recovered functions |
 | --- | --- |
-| Retail training selectors | `BotGetLocalClient` and `BotGetFirstBotClient` |
-| Training-state helpers | `BotSetTrainingBotState` and `BotUpdateTrainingState` |
-| Source-side cleanup | `src/code/game/ai_main.c` now drops the dead GPL `BotReportStatus`, `BotTeamplayReport`, `BotSetInfoConfigString`, and `BotUpdateInfoConfigStrings` slab after the earlier `BotAIStartFrame` retail correction |
+| Hidden lag-hax / rewind seam | `G_InitLagHaxHistory`, `G_StoreHistory`, `G_TimeShiftClient`, `G_TimeShiftAllClients`, and `G_UnTimeShiftAllClients` |
+| Source-side parity | `src/code/game/g_main.c` now registers the hidden `g_lagHaxHistory=4` and `g_lagHaxMs=80` cvars, `src/code/game/g_active.c` reconstructs the retail rewind history ring and per-frame store/rewind flow, `src/code/game/g_weapon.c` brackets the retail hitscan weapon set with rewind restore calls, and `src/code/game/g_client.c` plus `src/code/game/g_misc.c` invalidate the current history head on spawn, disconnect, and teleport transitions |
 
-This pass closes the next retail-only training seam that feeds the late
-`BotAIStartFrame` tail. The newly named selectors identify the local player and
-the first bot client used by the tutorial flow, while the adjacent state
-helpers cover the training-mode entity flag toggle and the broader training
-state updater that manages tutorial cvars, starting skill bootstrap, and music.
-On the source side, `src/code/game/ai_main.c` now removes the dead GPL
-`CS_BOTINFO` report helper slab that no longer has any retail frame-path
-callers after the earlier `bot_report` cleanup.
+This pass closes the hidden Quake Live lag-hax seam that sits between
+`ClientEndFrame`, the hitscan weapon dispatcher, and the client collision
+history used by rewind traces. The recovered set covers the per-client ring
+allocator, the frame-tail history recorder, the single-client interpolating
+rewind helper, the outer per-shot rewind pass, and the matching restore pass.
+
+On the source side, the live code now follows the observed retail behavior more
+closely. `ClientEndFrame` records the latest collision history, `FireWeapon`
+rewinds and restores the retail hitscan set (`MG`, `HMG`, `SG`, `LG`, `RG`,
+and `CG`) using the hidden `g_lagHaxHistory` / `g_lagHaxMs` cvars, and the
+spawn/teleport/disconnect transitions now invalidate the current history head so
+stale bounds are not reused across those state changes.
+
+## Previous Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `893` -> `906` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `807/1027` -> `820/1027` mapped functions (`78.58%` -> `79.84%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: unchanged at `180/180` mapped functions (`100.00%`).
+- Delta from this pass: `+13` curated names, `+13` corpus-overlap matches, and `+1.27` percentage points on full-corpus parity.
+- Note: curated overhang stays flat at `86` because every recovered helper in this pass already has a standalone row in the committed `functions.csv` export.
+
+## Newly Mapped In The Previous Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Combat scoring and death-drop seam | `ScorePlum`, `AddScore`, `TossClientItems`, `RaySphereIntersections`, `G_InvulnerabilityEffect`, and `CheckArmor` |
+| Shared `q_math` helper seam | `DirToByte`, `vectoangles`, `ProjectPointOnPlane`, `RadiusFromBounds`, `VectorNormalize`, `VectorNormalize2`, and `AngleVectors` |
+| Source-side parity | `src/code/game/g_combat.c` now restores retail raw score application in `AddScore` and emits score plums unconditionally through `ScorePlum` instead of routing both behaviors through the non-retail `scoreModifier` / `g_damagePlums` gates |
+
+This pass closes the next exact-name slab in the shared combat utilities and
+the reused `q_math` layer. On the gameplay side, the recovered names cover the
+score-plum emitter, the core score accumulator, the death-time item/powerup
+drop helper, and the invulnerability collision/armor helpers that sit on the
+main `G_Damage` path. On the shared-library side, the new names recover the
+compact direction encoder plus the vector/angle projection and normalization
+helpers that the gameplay, bot, and missile code all reuse.
+
+On the source side, `src/code/game/g_combat.c` now matches the observed retail
+scoring path more closely. `ScorePlum` no longer hides behind the built-source
+`g_damagePlums` toggle, and `AddScore` now applies the incoming raw score delta
+directly instead of running it through the non-retail per-client
+`scoreModifier` scaler before the plum, team-score update, and rank refresh.
+
+## Earlier Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `756` -> `764` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `680/1027` -> `687/1027` mapped functions (`66.21%` -> `66.89%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: unchanged at `164/180` mapped functions (`91.11%`).
+- Delta from this pass: `+8` curated names, `+7` corpus-overlap matches, `+0.68` percentage points on full-corpus parity, and `+0` matches on the top-decompiled slice.
+- Note: curated overhang rises `76` -> `77` because retail keeps `BG_CanGrabHealthItem` as a standalone helper at `0x1002ce00`, but that entry is still absent from the committed `functions.csv` corpus.
+
+## Newly Mapped In The Earlier Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| `bg_misc` item lookup and touch seam | `BG_FindItemByTypeAndTag`, `BG_FindItemForPowerup`, and `BG_PlayerTouchesItem` |
+| Retail pickup and trajectory helpers | `BG_CanGrabHealthItem`, `BG_CanGrabWeaponItem`, `BG_EvaluateTrajectory`, `BG_EvaluateTrajectoryDelta`, and `BG_PlayerStateToEntityState` |
+| Source-side pickup parity | `src/code/game/bg_misc.c` now mirrors the retail `BG_CanGrabWeaponItem` early rejection when `ps->pm_flags & PMF_IRONSIGHTS` is set |
+
+This pass closes the next high-yield `bg_misc` seam around item lookup, item
+touch tests, pickup gating, and the shared movement-state projection helpers.
+The recovered names cover the standalone retail powerup lookup path, the
+touch-bounds helper used by client prediction, the compiler-split health and
+weapon pickup gates, the trajectory evaluators, and the playerstate-to-
+entitystate bridge used throughout both gameplay and bot logic. On the source
+side, `src/code/game/bg_misc.c` now follows the observed retail weapon-pickup
+path more closely by rejecting pickups while the ironsights bit is active.
+
+## Previous Coverage Update
+
+- Reference totals: `1027` functions in `functions.csv`, `180` entries in `decompile_top_functions.c`.
+- Curated symbol-map totals: `751` -> `756` matched functions, with string coverage unchanged at `102/102`.
+- Corpus-overlap parity: `675/1027` -> `680/1027` mapped functions (`65.72%` -> `66.21%`) when measured against the committed `functions.csv` retail corpus.
+- Top decompiled slice: unchanged at `164/180` mapped functions (`91.11%`).
+- Delta from this pass: `+5` curated names, `+5` corpus-overlap matches, `+0.49` percentage points on full-corpus parity, and `+0` matches on the top-decompiled slice.
+- Note: curated overhang stays flat at `76` because every promoted helper in this batch is present in the committed `functions.csv` corpus.
+
+## Newly Mapped In The Previous Pass
+
+| Area | Recovered functions |
+| --- | --- |
+| Early `g_team` pure/helper seam | `TeamName`, `TeamColorString`, `OtherTeam`, `Team_ForceGesture`, and `Team_CheckDroppedItem` |
+| Source-side team visibility/color parity | `src/code/game/g_team.c` now returns retail `^7` for non-red/non-blue `TeamColorString` cases and no longer gates Red Rover infected visibility on `level.roundState` |
+
+This pass closes the next exact `g_team` helper slab that the retail binary
+keeps as standalone bodies instead of inlining away. The recovered names cover
+the classic team-string helpers, the red/blue swap helper, the dropped-flag
+status updater, and the force-gesture broadcaster used by the team objective
+announcements. On the source side, `src/code/game/g_team.c` now follows the
+observed retail behavior more closely by treating every non-red/non-blue team
+as white in `TeamColorString` and by enabling the Red Rover infected visibility
+path whenever the gametype is `GT_RED_ROVER` and `g_rrInfected` is non-zero,
+without the extra GPL-era `ROUNDSTATE_ACTIVE` gate.
 
 ## Previous Coverage Update
 
@@ -183,15 +270,22 @@ utility helpers outside that widened control surface.
 | `0x10035470` | `SpectatorClientEndFrame` | `g_active.c::SpectatorClientEndFrame` | The body handles spectator follow targets, `follow1` / `follow2`, POI camera branches, `ClientBegin` fallback, and scoreboard flag toggling exactly like the source spectator end-frame routine. | High |
 | `0x10035600` | `ClientEndFrame` | `g_active.c::ClientEndFrame` | Spectator short-circuit into `SpectatorClientEndFrame`, expired powerup cleanup, world/damage end-frame helpers, EF_CONNECTION handling, and final entity-state sync match the source end-frame path. | High |
 | `0x10035960` | `G_CAADRespawnAsSpectator` | Retail-only shared Clan Arena / Attack and Defend respawn helper | Reached from the dead-client respawn gate once those modes push a player back into spectator follow; it copies the corpse into the body queue, forces `PM_SPECTATOR`, reruns `ClientSpawn`, and enters follow mode when both teams still have active players. | High |
+| `0x100359E0` | `G_ADShouldTimeoutActiveRound` | Retail-only Attack and Defend timeout helper | Returns true once both sides still have active players, no objective winner is already latched, and the active-round elapsed time has reached `roundtimelimit`. | High |
 | `0x10035780` | `G_ADResolveRoundState` | Retail-only Attack and Defend controller helper | Resolves expired deferred `AD_RoundStateTransition` work and returns the current A/D round-state latch used by damage, objective, and HUD callers. | High |
 | `0x100357D0` | `G_ADHandleDamageScore` | Retail-only Attack and Defend damage helper | Reached from the main damage path; it applies the A/D self/team-damage suppression flags, resolves pending round-state work, and converts active-phase enemy damage into score once the accumulated threshold reaches 100. | High |
 | `0x10035A20` | `G_ADCheckExitRules` | Retail-only Attack and Defend exit helper | Tie-aware A/D limit checker covering timelimit, side-specific scorelimit, and late mercylimit, with the matching retail print/log side effects. | High |
 | `0x10035B70` | `AD_RoundStateTransition` | Retail-only Attack and Defend round-state controller | Anchored by `AD_RoundStateTransition: invalid state`; it updates the A/D match-state configstrings, respawns or releases participants, settles round winners, rotates turns, and schedules the next countdown/restart transition. | High |
+| `0x10036300` | `G_ADNotifyLastAlivePlayer` | Retail-only Attack and Defend round alert helper | Services deferred `AD_RoundStateTransition` work, counts live players by team during the active round, and when the queried side is down to one survivor triggers the shared last-alive notification path. | High |
 | `0x100363E0` | `G_ADResolveAttackingTeam` | Retail-only Attack and Defend side helper | Resolves expired deferred `AD_RoundStateTransition` work and returns the currently attacking side during the active A/D phase. | High |
 | `0x10036440` | `G_ADResolveDefendingTeam` | Retail-only Attack and Defend side helper | Resolves expired deferred `AD_RoundStateTransition` work and returns the currently defending side; the defense-award path calls it directly before incrementing `DEFENSE` credit. | High |
 | `0x100364A0` | `G_ADResetScoreHistory` | Retail-only Attack and Defend scoreboard helper | Clears the retained A/D round-delta history and publishes the baseline `scores_ad` payload with current team totals and empty history slots. | High |
 | `0x100365F0` | `G_ADUpdateScoreHistory` | Retail-only Attack and Defend scoreboard helper | Records the latest per-turn A/D score delta into the 20-entry circular history, rebuilds the ordered history window, and republishes `scores_ad`. | High |
+| `0x100367C0` | `G_ParseInfos` | `g_bot.c::G_ParseInfos` | Exact info-block parser that requires leading `{` tokens, copies each parsed info string into the output table, and emits the preserved malformed-file diagnostics. | High |
+| `0x100378E0` | `G_AddTrainerBot` | Retail-only training bootstrap helper | Enqueues the fixed `Trainer` bot through `G_AddBot` with a 5000 ms delay, then issues the usual `loaddeferred` media warmup command. | High |
+| `0x10037F80` | `G_CAResolveRoundState` | Retail-only Clan Arena controller helper | Resolves expired deferred `CA_RoundStateTransition` work and returns the current Clan Arena round-state latch used by HUD and end-frame callers. | High |
+| `0x10037FD0` | `G_CAHandleDamageScore` | Retail-only Clan Arena damage helper | Reached from the main damage path; it applies the Clan Arena self/team-damage suppression flags, resolves pending CA round-state work, and during the live round converts damage dealt into the retail 100-point score buckets. | High |
 | `0x10038160` | `G_CAADResetClientForRound` | Retail-only shared Clan Arena / Attack and Defend round helper | Reused from both `ClientBegin` and the delayed respawn path for GT_CLAN_ARENA and GT_ATTACK_DEFEND; it respawns immediately in the live release state, respawns into the holding state during the pre-release countdown, and otherwise falls back to the spectator-follow reset path used after round loss. | High |
+| `0x100389F0` | `G_CANotifyLastAlivePlayer` | Retail-only Clan Arena round alert helper | Services deferred `CA_RoundStateTransition` work, counts live players by team during the active round, and triggers the shared last-alive notification path when the queried side is down to one survivor. | High |
 | `0x10038B60` | `Team_SelectDominationSpawnPoint` | Retail-only Domination spawn helper / `g_team.c` analogue | Reached from the ClientSpawn-side spawn wrapper only for active GT_DOMINATION respawns; it walks `team_dom_point` entities, collects linked `info_player_deathmatch` targets for the owning team, ranks them against live players, and writes the chosen origin/angles. | High |
 | `0x10039080` | `G_SelectRankedSpawnPoint` | Retail-only shared spawn helper spanning `g_client.c::SelectRandomFurthestSpawnPoint` and `g_team.c::SelectCTFSpawnPoint` | Anchored by the `info_player_deathmatch`, `team_CTF_redspawn`, `team_CTF_bluespawn`, `team_CTF_redplayer`, and `team_CTF_blueplayer` classnames plus the `FindIntermissionPoint` fallback; it filters telefragging candidates, ranks them against live players, and picks from the best-ranked subset. | High |
 | `0x10039730` | `G_SelectClientSpawnPoint` | Retail-only ClientSpawn-side spawn wrapper | Called directly from `ClientSpawn` before the respawn bootstrap continues; it chooses between domination-linked spawns, team/base spawn classes, and the initial non-team spawn path, then falls back through the shared ranked spawn picker. | High |
@@ -231,6 +325,7 @@ utility helpers outside that widened control surface.
 | `0x1004BF60` | `G_FreezeEvaluateRoundWinner` | Retail-only Freeze result helper / `g_active.c::G_FreezeEvaluateRoundWinner` analogue | Compares the PM_NORMAL living-player tallies and, once the configured draw-delay path is active, the corresponding living-health totals before storing the winning team latch consumed by the adjacent Freeze controller. | High |
 | `0x1004C1B0` | `Freeze_RoundStateTransition` | Retail-only Freeze round-state controller | Anchored by `Freeze_RoundStateTransition: invalid state`; it resolves pending transition timers, updates `CS_MATCH_STATE`, resets clients for warmup and active states, and applies the Freeze round-complete transition. | High |
 | `0x1004CB80` | `G_FreezeRunFrame` | `g_active.c::G_FreezeRunFrame` | Source-faithful Freeze outer frame boundary. Retail keeps the round-state readback and winner-selection pieces in adjacent helpers, but this function still performs the per-frame freeze update and round-end dispatch. | High |
+| `0x1004CC20` | `G_FreezeNotifyLastAlivePlayer` | Retail-only Freeze round alert helper | Services deferred `Freeze_RoundStateTransition` work, counts thawed live players by team during the active round, and triggers the shared last-alive notification path when the queried side is down to one survivor. | High |
 | `0x1004CD40` | `G_FreezeClientEndFrame` | `g_client.c::G_FreezeClientEndFrame` | Tracks thaw progress, nearby allies, LOS and distance gates, and the auto-thaw timer before fanning into the shared retail Freeze state mutator. | High |
 | `0x1004EE20` | `RespawnItem` | `g_items.c::RespawnItem` | Anchored by `RespawnItem: bad teammaster`; it restores grouped item spawns through the teammaster path, reenables item contents and visibility, emits the respawn event, and selects the retail powerup or kamikaze respawn sound. | High |
 | `0x1004F020` | `Touch_Item` | `g_items.c::Touch_Item` | Anchored by `Item: %i %s\n`; it validates the touching client, routes by `item->giType` into the deeper pickup helpers, applies the pickup event/sound path, and updates retail per-item pickup telemetry. | High |
@@ -316,14 +411,17 @@ utility helpers outside that widened control surface.
 | `0x1006B110` | `G_TotalLivingHealthByTeam` | Retail-only Freeze tally helper | Sums entity health for the connected `PM_NORMAL` clients grouped by `sess.sessionTeam`, feeding the freeze round-end health summary and tiebreak path. | High |
 | `0x1006B170` | `G_CountActivePlayersByTeam` | Retail-only shared team counter | Counts connected clients whose `ps.pm_type == PM_NORMAL`, grouped by `sess.sessionTeam`; retail reuses it for Freeze, Red Rover, teamsize validation, and the auxiliary team-count configstrings. | High |
 | `0x1006B1C0` | `G_CountConnectedClientsByTeam` | Retail-only shared roster counter | Counts all connected clients by `sess.sessionTeam` without the `PM_NORMAL` filter used by `G_CountActivePlayersByTeam`. | High |
+| `0x1006B210` | `G_NotifyLastAlivePlayer` | Retail-only shared round alert helper | Locates the sole surviving `PM_NORMAL` client on the selected team, emits the paired temp-entity/event, and sends that client the preserved centerprint notification reused by A/D, Clan Arena, Freeze, and Red Rover. | High |
 
 ## Supporting Helper Aliases Added In The Same Pass
 
 - Active-client helpers: `P_DamageFeedback`, `P_WorldEffects`, `G_SetClientSound`, `ClientImpacts`, `G_TouchTriggers`, `SpectatorThink`, `ClientInactivityTimer`, `G_CheckClientFlood`, `G_RunFactoryHealthRegen`, `G_RunFactoryArmorRegen`, `ClientTimerActions`, `ClientEvents`, `StuckInOtherClient`, `SendPendingPredictableEvents`, `ClientThink_real`, `ClientSpawn`.
+- Bot and training helpers: `G_ParseInfos`, `G_AddTrainerBot`.
 - Spawn/reset helpers: `G_CAADRespawnAsSpectator`, `G_CAADResetClientForRound`, `G_FinalizeSpawnLoadout`, `G_RRFinalizeSpawnLoadout`, `G_RRResetClientForRound`.
 - Item lifecycle helpers: `RespawnItem`, `Touch_Item`, `Use_Item`, `G_CheckTeamItems`, `FinishSpawningItem`, `G_SpawnItem`.
-- Attack and Defend controller helpers: `G_ADResolveRoundState`, `G_ADResolveAttackingTeam`, `G_ADResolveDefendingTeam`, `G_ADHandleDamageScore`, `G_ADCheckExitRules`, `AD_RoundStateTransition`, `G_ADResetScoreHistory`, `G_ADUpdateScoreHistory`.
-- Freeze and round-controller helpers: `G_FreezeResolveRoundState`, `G_FreezeSetClientFrozenState`, `G_FreezeResetClientForRound`, `G_FreezeTeamIsFullyFrozen`, `G_FreezeEvaluateRoundWinner`, `Freeze_RoundStateTransition`, `G_FreezeRunFrame`, `G_FreezeClientEndFrame`, `RR_RoundStateTransition`, `G_UpdateTeamCountConfigstrings`, `G_TotalLivingHealthByTeam`, `G_CountActivePlayersByTeam`, `G_CountConnectedClientsByTeam`.
+- Attack and Defend controller helpers: `G_ADShouldTimeoutActiveRound`, `G_ADResolveRoundState`, `G_ADResolveAttackingTeam`, `G_ADResolveDefendingTeam`, `G_ADHandleDamageScore`, `G_ADCheckExitRules`, `AD_RoundStateTransition`, `G_ADNotifyLastAlivePlayer`, `G_ADResetScoreHistory`, `G_ADUpdateScoreHistory`.
+- Clan Arena round helpers: `G_CAResolveRoundState`, `G_CAHandleDamageScore`, `G_CANotifyLastAlivePlayer`.
+- Freeze and round-controller helpers: `G_FreezeResolveRoundState`, `G_FreezeSetClientFrozenState`, `G_FreezeResetClientForRound`, `G_FreezeTeamIsFullyFrozen`, `G_FreezeEvaluateRoundWinner`, `Freeze_RoundStateTransition`, `G_FreezeRunFrame`, `G_FreezeNotifyLastAlivePlayer`, `G_FreezeClientEndFrame`, `G_NotifyLastAlivePlayer`, `RR_RoundStateTransition`, `G_UpdateTeamCountConfigstrings`, `G_TotalLivingHealthByTeam`, `G_CountActivePlayersByTeam`, `G_CountConnectedClientsByTeam`.
 - Red Rover controller helpers: `G_RRResolveRoundState`, `G_RRHandleDamageScore`, `G_RRInitClient`, `G_RRCheckRoundCompletion`, `G_RRCheckExitRules`, `G_RRResolveAutoJoinTeam`, `G_RRSeedInfectionTeams`, `G_RRApplySurvivalBonus`, `G_RRCheckInfectionSpread`, `G_RRTrackRoundActivity`, `G_RRInitRoundController`, `G_RRHandlePlayerDeath`.
 - Ready/warmup helpers: `Cmd_ReadyUp_f`, `Cmd_AllReady_f`, `G_CheckReadyUpDelayAction`, `Team_HasMinimumPlayersForWarmup`.
 - Command/tournament queue helpers: `Cmd_TeamTask_f`, `SetTeam`, `G_UpdateTournamentQueuePositions`, `G_SyncTournamentQueueTeamTasks`.
@@ -350,7 +448,9 @@ utility helpers outside that widened control surface.
 - `G_FinalizeSpawnLoadout` at `0x1003B5A0` is a descriptive retail-only recovery name. The current GPL-derived tree spreads the same selected-weapon, grant-script, and starting-ammo/item work across `ClientSpawn`, `G_GrantConfiguredItems`, and adjacent spawn helpers instead of preserving a standalone post-spawn finalizer.
 - Retail keeps the item lifecycle split cleanly across `G_SpawnItem -> FinishSpawningItem -> Touch_Item` with the optional `Use_Item -> RespawnItem` trampoline, while `G_CheckTeamItems` remains a separate objective-validator pass. The current GPL-derived tree preserves the same core behavior, but some map bootstrap and spawn-side item setup is easier to read inline than in this retail helper chain.
 - `G_ADResolveRoundState`, `G_ADResolveAttackingTeam`, `G_ADResolveDefendingTeam`, `G_ADHandleDamageScore`, `G_ADCheckExitRules`, `G_ADResetScoreHistory`, and `G_ADUpdateScoreHistory` are descriptive retail-only helper names. The current GPL-derived tree keeps Attack and Defend round-state reads, side selection, damage-credit thresholds, and `scores_ad` publishing distributed across broader mode logic rather than exposing these exact standalone boundaries.
+- `G_ADShouldTimeoutActiveRound`, `G_ADNotifyLastAlivePlayer`, `G_CAResolveRoundState`, `G_CAHandleDamageScore`, `G_CANotifyLastAlivePlayer`, `G_FreezeNotifyLastAlivePlayer`, and `G_NotifyLastAlivePlayer` are likewise descriptive retail-only helper names. The current GPL-derived tree keeps the active-round timeout and last-survivor alert logic folded into broader round-controller code instead of preserving these exact standalone boundaries.
 - `AD_RoundStateTransition` at `0x10035B70` is a retail-only controller name recovered directly from the preserved invalid-state diagnostic. The current GPL-derived tree does not preserve an exact standalone Attack and Defend controller with this boundary or the adjacent side-resolver and score-history publisher split.
+- `G_AddTrainerBot` at `0x100378E0` is a descriptive retail-only training helper name. The current GPL-derived tree keeps training-map bootstrap logic in broader init/setup flows instead of preserving a dedicated wrapper that only spawns the fixed `Trainer` bot and immediately issues `loaddeferred`.
 - `G_InitWorldSession` is inlined into retail `G_InitGame`. The `session` cvar read and the `Gametype changed, clearing session data.` print occur inside `G_InitGame`, not a separate helper boundary.
 - The outer `G_SpawnEntitiesFromString` loop is likewise inlined into `G_InitGame`: retail parses the first entity, runs `SP_worldspawn`, then loops `G_SpawnGEntityFromSpawnVars` until `G_ParseSpawnVars` returns false.
 - `G_CountSpawnPoints` at `0x10055000` is a descriptive recovery name. The source tree keeps the spawn counter reset and entity scan inside the broader `G_InitGame` setup instead of exposing a standalone helper.

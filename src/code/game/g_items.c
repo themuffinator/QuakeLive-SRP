@@ -48,6 +48,13 @@ static const keyItemDef_t g_keyItemDefs[] = {
 	{ KEY_FLAG_GOLD, "item_key_gold" },
 	{ KEY_FLAG_MASTER, "item_key_master" }
 };
+static const powerup_t g_spawnItemPowerupTags[] = {
+	PW_GUARD,
+	PW_DOUBLER,
+	PW_AMMOREGEN,
+	PW_INVULNERABILITY
+};
+static gentity_t *g_spawnItemPowerupSpots[4];
 
 /*
 ===============
@@ -86,6 +93,38 @@ gitem_t *G_KeyItemForBit( int bit ) {
 	}
 
 	return NULL;
+}
+
+/*
+===============
+G_ResetKeyItem
+
+Restores the keyed world item for the specified bit and frees any dropped copies.
+===============
+*/
+static gentity_t *G_ResetKeyItem( int bit ) {
+	gentity_t	*ent;
+	gentity_t	*result;
+	gitem_t		*item;
+
+	item = G_KeyItemForBit( bit );
+	if ( !item ) {
+		return NULL;
+	}
+
+	result = NULL;
+	ent = NULL;
+	while ( ( ent = G_Find( ent, FOFS( classname ), item->classname ) ) != NULL ) {
+		if ( ent->flags & FL_DROPPED_ITEM ) {
+			G_FreeEntity( ent );
+			continue;
+		}
+
+		result = ent;
+		RespawnItem( ent );
+	}
+
+	return result;
 }
 
 #define	RESPAWN_POWERUP		120
@@ -362,6 +401,222 @@ static qboolean G_ShouldUseDroppedHealthCount( const gentity_t *ent ) {
 	}
 
 	return g_dropDamagedHealth.integer ? qtrue : qfalse;
+}
+
+/*
+=============
+G_SpawnItemPowerupSlot
+
+Maps the retail random persistant-powerup set onto the tracked spawn slots used
+to avoid reusing the same spawn point for multiple active entries.
+=============
+*/
+static int G_SpawnItemPowerupSlot( powerup_t powerup ) {
+	int	i;
+
+	for ( i = 0; i < ARRAY_LEN( g_spawnItemPowerupTags ); i++ ) {
+		if ( g_spawnItemPowerupTags[i] == powerup ) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+/*
+=============
+G_SpawnItemPowerupSpawnflags
+
+Builds the persistant-powerup team restriction bits used by
+BG_CanGrabPersistantPowerupItem.
+=============
+*/
+static int G_SpawnItemPowerupSpawnflags( team_t preferredTeam ) {
+	switch ( preferredTeam ) {
+	case TEAM_RED:
+		return 2;
+	case TEAM_BLUE:
+		return 4;
+	default:
+		return 0;
+	}
+}
+
+/*
+=============
+G_SpawnItemPowerupSpawnClassname
+
+Chooses the retail spawn-point class used for dynamic persistant powerups.
+=============
+*/
+static const char *G_SpawnItemPowerupSpawnClassname( team_t preferredTeam ) {
+	switch ( preferredTeam ) {
+	case TEAM_RED:
+		return "team_CTF_redspawn";
+	case TEAM_BLUE:
+		return "team_CTF_bluespawn";
+	default:
+		return "info_player_deathmatch";
+	}
+}
+
+/*
+=============
+G_SpawnItemPowerup
+
+Spawns one of the retail random persistant powerups on an eligible spawn point.
+=============
+*/
+static gentity_t *G_SpawnItemPowerup( powerup_t powerup, team_t preferredTeam ) {
+	gentity_t	*spot;
+	gentity_t	*spawned;
+	gentity_t	*candidates[16];
+	gitem_t		*item;
+	const char	*classname;
+	int		slotIndex;
+	int		candidateCount;
+	int		i;
+
+	if ( !g_factoryCvarConfig.spawnItemPowerup ) {
+		return NULL;
+	}
+
+	classname = G_SpawnItemPowerupSpawnClassname( preferredTeam );
+	slotIndex = G_SpawnItemPowerupSlot( powerup );
+	spot = NULL;
+	candidateCount = 0;
+
+	while ( candidateCount < ARRAY_LEN( candidates ) &&
+		( spot = G_Find( spot, FOFS( classname ), classname ) ) != NULL ) {
+		qboolean	occupied;
+
+		occupied = qfalse;
+		if ( slotIndex >= 0 ) {
+			for ( i = 0; i < ARRAY_LEN( g_spawnItemPowerupSpots ); i++ ) {
+				if ( g_spawnItemPowerupSpots[i] == spot ) {
+					occupied = qtrue;
+					break;
+				}
+			}
+		}
+
+		if ( occupied ) {
+			continue;
+		}
+
+		candidates[candidateCount++] = spot;
+	}
+
+	if ( !candidateCount ) {
+		return NULL;
+	}
+
+	spot = candidates[rand() % candidateCount];
+	if ( slotIndex >= 0 ) {
+		g_spawnItemPowerupSpots[slotIndex] = spot;
+	}
+
+	item = BG_FindItemForPowerup( powerup );
+	if ( !item ) {
+		G_Error( "G_SpawnItemPowerup: missing powerup %i", powerup );
+	}
+
+	RegisterItem( item );
+
+	spawned = G_Spawn();
+	spawned->s.eType = ET_ITEM;
+	spawned->s.modelindex = ITEM_INDEX( item );
+	spawned->s.modelindex2 = 0;
+	spawned->classname = item->classname;
+	spawned->item = item;
+	VectorSet( spawned->r.mins, -ITEM_RADIUS, -ITEM_RADIUS, -ITEM_RADIUS );
+	VectorSet( spawned->r.maxs, ITEM_RADIUS, ITEM_RADIUS, ITEM_RADIUS );
+	spawned->r.contents = CONTENTS_TRIGGER;
+	spawned->touch = Touch_Item;
+	spawned->physicsBounce = G_MatchFactoryBounceAllowed() ? 0.50f : 0.0f;
+	spawned->spawnflags = G_SpawnItemPowerupSpawnflags( preferredTeam );
+	spawned->s.generic1 = spawned->spawnflags;
+	G_SetOrigin( spawned, spot->s.origin );
+	spawned->s.pos.trType = TR_GRAVITY;
+	spawned->s.pos.trTime = level.time;
+	VectorClear( spawned->s.pos.trDelta );
+	spawned->s.groundEntityNum = ENTITYNUM_NONE;
+	trap_LinkEntity( spawned );
+
+	return spawned;
+}
+
+/*
+=============
+G_RespawnItemPowerup
+
+Respawns a dropped retail persistant powerup at a fresh eligible spawn point.
+=============
+*/
+static void G_RespawnItemPowerup( gentity_t *ent ) {
+	powerup_t	powerup;
+	team_t		preferredTeam;
+
+	if ( !ent || !ent->item ) {
+		return;
+	}
+
+	powerup = (powerup_t)ent->item->giTag;
+	if ( level.redSpawnPointCount >= 5 && level.blueSpawnPointCount >= 5 ) {
+		preferredTeam = ( rand() & 1 ) ? TEAM_RED : TEAM_BLUE;
+	} else {
+		preferredTeam = TEAM_FREE;
+	}
+
+	G_FreeEntity( ent );
+	if ( !g_factoryCvarConfig.spawnItemPowerup ) {
+		return;
+	}
+
+	G_SpawnItemPowerup( powerup, preferredTeam );
+}
+
+/*
+=============
+G_SpawnItemPowerups
+
+Seeds the retail random persistant-powerup set during level init.
+=============
+*/
+void G_SpawnItemPowerups( void ) {
+	team_t	preferredTeam;
+	int		i;
+
+	memset( g_spawnItemPowerupSpots, 0, sizeof( g_spawnItemPowerupSpots ) );
+
+	if ( !g_factoryCvarConfig.spawnItemPowerup ) {
+		return;
+	}
+
+	if ( g_gametype.integer == GT_SINGLE_PLAYER ) {
+		return;
+	}
+
+	if ( level.redSpawnPointCount >= 5 && level.blueSpawnPointCount >= 5 ) {
+		preferredTeam = ( rand() & 1 ) ? TEAM_RED : TEAM_BLUE;
+	} else {
+		if ( level.deathmatchSpawnPointCount < 5 ) {
+			G_Printf( "WARNING: not enough available spawn points for spawned persistant powerups\n" );
+			return;
+		}
+
+		preferredTeam = TEAM_FREE;
+	}
+
+	for ( i = 0; i < ARRAY_LEN( g_spawnItemPowerupTags ); i++ ) {
+		G_SpawnItemPowerup( g_spawnItemPowerupTags[i], preferredTeam );
+
+		if ( preferredTeam == TEAM_RED ) {
+			preferredTeam = TEAM_BLUE;
+		} else if ( preferredTeam == TEAM_BLUE ) {
+			preferredTeam = TEAM_RED;
+		}
+	}
 }
 
 /*
@@ -651,10 +906,91 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 
 //======================================================================
 
+/*
+=============
+G_FindPersistantPowerupFlagBase
+
+Resolves the home-base flag entity for the requested team item classname.
+=============
+*/
+static gentity_t *G_FindPersistantPowerupFlagBase( const char *classname ) {
+	gentity_t	*flag;
+
+	flag = NULL;
+	while ( ( flag = G_Find( flag, FOFS( classname ), classname ) ) != NULL ) {
+		if ( !( flag->flags & FL_DROPPED_ITEM ) ) {
+			return flag;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=============
+G_PersistantPowerupColorPrefix
+
+Uses the nearest CTF base flag to mirror retail pickup message coloring.
+=============
+*/
+static const char *G_PersistantPowerupColorPrefix( gentity_t *ent ) {
+	gentity_t	*redFlag;
+	gentity_t	*blueFlag;
+
+	if ( !ent || g_gametype.integer < GT_TEAM ) {
+		return S_COLOR_WHITE;
+	}
+
+	redFlag = G_FindPersistantPowerupFlagBase( "team_CTF_redflag" );
+	blueFlag = G_FindPersistantPowerupFlagBase( "team_CTF_blueflag" );
+	if ( !redFlag && !blueFlag ) {
+		return S_COLOR_WHITE;
+	}
+	if ( !redFlag ) {
+		return S_COLOR_BLUE;
+	}
+	if ( !blueFlag ) {
+		return S_COLOR_RED;
+	}
+
+	return ( DistanceSquared( ent->r.currentOrigin, redFlag->r.currentOrigin ) <=
+		DistanceSquared( ent->r.currentOrigin, blueFlag->r.currentOrigin ) ) ? S_COLOR_RED : S_COLOR_BLUE;
+}
+
+/*
+=============
+G_AnnouncePersistantPowerupPickup
+
+Restores the retail pickup banner for spawned persistant powerups.
+=============
+*/
+static void G_AnnouncePersistantPowerupPickup( gentity_t *ent, gentity_t *other ) {
+	const char	*pickupName;
+	const char	*colorPrefix;
+
+	if ( !ent || !ent->item || !other || !other->client ) {
+		return;
+	}
+
+	if ( ent->flags & FL_DROPPED_ITEM ) {
+		return;
+	}
+
+	pickupName = ent->item->pickup_name ? ent->item->pickup_name : ent->item->classname;
+	if ( !pickupName || !pickupName[0] ) {
+		return;
+	}
+
+	colorPrefix = G_PersistantPowerupColorPrefix( ent );
+	trap_SendServerCommand( -1,
+		va( "print \"%s%s got the %s!^7\n\"", colorPrefix, other->client->pers.netname, pickupName ) );
+}
+
 int Pickup_PersistantPowerup( gentity_t *ent, gentity_t *other ) {
 	other->client->ps.stats[STAT_PERSISTANT_POWERUP] = ITEM_INDEX( ent->item );
 	other->client->persistantPowerup = ent;
 	other->client->ps.powerups[ent->item->giTag] = INT_MAX;
+	G_AnnouncePersistantPowerupPickup( ent, other );
 
 	return -1;
 }
@@ -1401,6 +1737,166 @@ static void G_DroppedPowerupRunFrame( gentity_t *ent, float thinktime ) {
 
 /*
 ================
+Touch_QuadHogItem
+
+Announces the current Quad Hog carrier before falling back to the normal item pickup path.
+================
+*/
+static void Touch_QuadHogItem( gentity_t *ent, gentity_t *other, trace_t *trace ) {
+	if ( !other || !other->client ) {
+		return;
+	}
+
+	trap_SendServerCommand( -1, va( "cp \"%s is the ^5Quad Hog!\"", other->client->pers.netname ) );
+	Touch_Item( ent, other, trace );
+}
+
+/*
+================
+LaunchQuadHogItem
+
+Spawns the retail Quad Hog world Quad entity with the custom touch announcer.
+================
+*/
+static gentity_t *LaunchQuadHogItem( gitem_t *item, vec3_t origin, vec3_t velocity ) {
+	gentity_t	*dropped;
+
+	dropped = G_Spawn();
+
+	dropped->s.eType = ET_ITEM;
+	dropped->s.modelindex = item - bg_itemlist;
+	dropped->s.modelindex2 = 1;
+	dropped->classname = item->classname;
+	dropped->item = item;
+	VectorSet( dropped->r.mins, -ITEM_RADIUS, -ITEM_RADIUS, -ITEM_RADIUS );
+	VectorSet( dropped->r.maxs, ITEM_RADIUS, ITEM_RADIUS, ITEM_RADIUS );
+	dropped->r.contents = CONTENTS_TRIGGER;
+	dropped->touch = Touch_QuadHogItem;
+	G_SetOrigin( dropped, origin );
+	dropped->s.pos.trType = TR_GRAVITY;
+	dropped->s.pos.trTime = level.time;
+	VectorCopy( velocity, dropped->s.pos.trDelta );
+	dropped->s.eFlags |= EF_BOUNCE_HALF;
+	dropped->physicsBounce = 0.50f;
+	dropped->flags = FL_DROPPED_ITEM;
+	dropped->think = G_FreeEntity;
+	dropped->nextthink = level.time + 30000;
+	trap_LinkEntity( dropped );
+
+	return dropped;
+}
+
+/*
+================
+G_SpawnQuadHogQuad
+
+Seeds the retail Quad Hog world Quad on a random deathmatch spawn.
+================
+*/
+void G_SpawnQuadHogQuad( void ) {
+	gentity_t	*spot;
+	gentity_t	*countSpot;
+	gitem_t		*item;
+	int		choice;
+	int		count;
+	vec3_t		velocity;
+
+	if ( !level.quadHogEnabled || g_gametype.integer != GT_FFA ) {
+		return;
+	}
+
+	if ( level.intermissionQueued || level.intermissiontime ) {
+		return;
+	}
+
+	item = BG_FindItemForPowerup( PW_QUAD );
+	if ( !item ) {
+		return;
+	}
+
+	RegisterItem( item );
+
+	count = 0;
+	countSpot = NULL;
+	while ( ( countSpot = G_Find( countSpot, FOFS( classname ), "info_player_deathmatch" ) ) != NULL ) {
+		count++;
+	}
+
+	spot = NULL;
+	if ( count > 0 ) {
+		choice = rand() % count;
+		while ( choice-- >= 0 ) {
+			spot = G_Find( spot, FOFS( classname ), "info_player_deathmatch" );
+			if ( !spot ) {
+				break;
+			}
+		}
+	}
+
+	if ( !spot ) {
+		spot = G_Find( NULL, FOFS( classname ), "info_player_deathmatch" );
+	}
+	if ( !spot ) {
+		return;
+	}
+
+	VectorClear( velocity );
+	LaunchQuadHogItem( item, spot->s.origin, velocity );
+	{
+		gentity_t	*te;
+
+		te = G_TempEntity( spot->s.origin, EV_GLOBAL_SOUND );
+		te->s.eventParm = G_SoundIndex( "sound/items/poweruprespawn.wav" );
+		te->r.svFlags |= SVF_BROADCAST;
+	}
+	trap_SendServerCommand( -1, "cp \"^5Quad ^7respawned!\"" );
+}
+
+/*
+================
+G_EnsureQuadHogQuad
+
+Maintains the retail Quad Hog world Quad while no player is currently carrying Quad.
+================
+*/
+void G_EnsureQuadHogQuad( void ) {
+	gentity_t	*ent;
+	int		i;
+
+	if ( !level.quadHogEnabled || g_gametype.integer != GT_FFA ) {
+		return;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t	*player;
+
+		player = &g_entities[i];
+		if ( !player->inuse || !player->client ) {
+			continue;
+		}
+
+		if ( player->client->ps.powerups[PW_QUAD] != 0 ) {
+			return;
+		}
+	}
+
+	ent = NULL;
+	while ( ( ent = G_Find( ent, FOFS( classname ), "item_quad" ) ) != NULL ) {
+		if ( !ent->inuse ) {
+			continue;
+		}
+		if ( ent->r.contents == 0 || ( ent->s.eFlags & EF_NODRAW ) != 0 ) {
+			continue;
+		}
+
+		return;
+	}
+
+	G_SpawnQuadHogQuad();
+}
+
+/*
+================
 LaunchItem
 
 Spawns an item and tosses it forward
@@ -1411,6 +1907,11 @@ gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity ) {
 
 	if ( !G_MatchFactoryDropAllowed() && item && item->giType != IT_TEAM && item->giType != IT_KEY ) {
 		return NULL;
+	}
+
+	if ( item && level.quadHogEnabled && g_gametype.integer == GT_FFA &&
+		!Q_stricmp( item->classname, "item_quad" ) ) {
+		return LaunchQuadHogItem( item, origin, velocity );
 	}
 
 	dropped = G_Spawn();
@@ -1448,6 +1949,9 @@ gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity ) {
 			dropped->timestamp = level.time + dropTimeout;
 			dropped->nextthink = dropped->timestamp;
 		}
+	} else if ( item->giType == IT_PERSISTANT_POWERUP ) {
+		dropped->think = G_RespawnItemPowerup;
+		dropped->nextthink = level.time + 30000;
 	} else { // auto-remove after 30 seconds
 		dropped->think = G_FreeEntity;
 		dropped->nextthink = level.time + 30000;
@@ -1511,20 +2015,13 @@ void G_DropClientKeys( gentity_t *ent ) {
 	defs = G_KeyItemDefs( &count );
 	for ( i = 0 ; i < count ; i++ ) {
 		const keyItemDef_t	*def;
-		gitem_t			*item;
 
 		def = &defs[i];
 		if ( !( ent->keyMask & def->bit ) ) {
 			continue;
 		}
 
-		item = BG_FindItemByClassname( def->classname );
-		if ( !item ) {
-			G_Printf( "WARNING: missing key definition for %s\n", def->classname );
-			continue;
-		}
-
-		Drop_Item( ent, item, 0 );
+		G_ResetKeyItem( def->bit );
 	}
 
 	ent->keyMask = 0;
@@ -1708,6 +2205,8 @@ ClearRegisteredItems
 ==============
 */
 void ClearRegisteredItems( void ) {
+	int	i;
+
 	memset( itemRegistered, 0, sizeof( itemRegistered ) );
 
 	// players always start with the base weapon
@@ -1716,6 +2215,12 @@ void ClearRegisteredItems( void ) {
 	if( g_gametype.integer == GT_HARVESTER ) {
 		RegisterItem( BG_FindItem( "Red Cube" ) );
 		RegisterItem( BG_FindItem( "Blue Cube" ) );
+	}
+
+	if ( g_factoryCvarConfig.spawnItemPowerup ) {
+		for ( i = 0; i < ARRAY_LEN( g_spawnItemPowerupTags ); i++ ) {
+			RegisterItem( BG_FindItemForPowerup( g_spawnItemPowerupTags[i] ) );
+		}
 	}
 }
 

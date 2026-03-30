@@ -437,7 +437,7 @@ void SV_DirectConnect( netadr_t from ) {
 	int			challenge;
 	char		*password;
 	int			startIndex;
-	char		*denied;
+	const char	*denied;
 	int			count;
 	char		 serverTypeError[MAX_STRING_CHARS];
 
@@ -698,11 +698,8 @@ gotnewcl:
 #endif
 
 	// get the game a chance to reject this connection or modify the userinfo
-	denied = (char *)VM_Call( gvm, GAME_CLIENT_CONNECT, clientNum, qtrue, qfalse ); // firstTime = qtrue
+	denied = SV_GameClientConnect( clientNum, qtrue, qfalse ); // firstTime = qtrue
 	if ( denied ) {
-		// we can't just use VM_ArgPtr, because that is only valid inside a VM_Call
-		denied = VM_ExplicitArgPtr( gvm, (int)denied );
-
 #if SV_HAS_PLATFORM_AUTH
 		SV_FinalisePlatformAuthState( newcl, qfalse, denied );
 		SV_LogPlatformAuth( &from, newcl, "denied", denied );

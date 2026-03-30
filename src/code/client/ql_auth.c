@@ -15,6 +15,8 @@ typedef struct {
 	const char *logPrefix;
 } ql_client_auth_transport_t;
 
+static uint32_t cl_clientAuthSteamTicketHandle = 0;
+
 /*
 =============
 QL_ClientAuth_MapOutcome
@@ -181,6 +183,22 @@ static qboolean QL_ClientAuth_InvokeBackend( qboolean (*backend)( const ql_auth_
 
 /*
 =============
+QL_ClientAuth_SetSteamTicketHandle
+
+Retains the most recent Steam auth-ticket handle so disconnect cleanup can
+mirror the retail lifetime owner.
+=============
+*/
+static void QL_ClientAuth_SetSteamTicketHandle( uint32_t ticketHandle ) {
+	if ( cl_clientAuthSteamTicketHandle && cl_clientAuthSteamTicketHandle != ticketHandle ) {
+		QL_Steamworks_CancelAuthTicket( cl_clientAuthSteamTicketHandle );
+	}
+
+	cl_clientAuthSteamTicketHandle = ticketHandle;
+}
+
+/*
+=============
 QL_ClientAuth_RequestSteamTicket
 
 Fetches a Steam auth ticket via the Steamworks wrapper for dispatch.
@@ -188,6 +206,7 @@ Fetches a Steam auth ticket via the Steamworks wrapper for dispatch.
 */
 static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize ) {
 	int ticketLength = 0;
+	uint32_t ticketHandle = 0;
 
 	if ( logBuffer && logBufferSize > 0 ) {
 		logBuffer[0] = '\0';
@@ -203,19 +222,36 @@ static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credenti
 
 	QL_Steamworks_RunCallbacks();
 
-	if ( !QL_Steamworks_RequestAuthTicket( credential->value, sizeof( credential->value ), &ticketLength, NULL ) ) {
+	if ( !QL_Steamworks_RequestAuthTicket( credential->value, sizeof( credential->value ), &ticketLength, &ticketHandle ) ) {
 		return qfalse;
 	}
 
 	QL_Steamworks_RunCallbacks();
 
 	credential->length = (size_t)ticketLength;
+	QL_ClientAuth_SetSteamTicketHandle( ticketHandle );
 
 	if ( logBuffer && logBufferSize > 0 ) {
 		Q_strncpyz( logBuffer, credential->value, logBufferSize );
 	}
 
 	return qtrue;
+}
+
+/*
+=============
+QL_ClientAuth_CancelSteamTicket
+
+Cancels the retained Steam auth ticket during disconnect/error cleanup.
+=============
+*/
+void QL_ClientAuth_CancelSteamTicket( void ) {
+	if ( !cl_clientAuthSteamTicketHandle ) {
+		return;
+	}
+
+	QL_Steamworks_CancelAuthTicket( cl_clientAuthSteamTicketHandle );
+	cl_clientAuthSteamTicketHandle = 0;
 }
 
 /*

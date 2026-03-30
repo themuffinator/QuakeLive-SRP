@@ -39,6 +39,21 @@ markPoly_t	cg_markPolys[MAX_MARK_POLYS];
 static		int	markTotal;
 
 /*
+=================
+CG_BuildMarkAxis
+
+Rebuilds the retail impact-mark orientation basis from the incoming plane
+normal and optional rotation.
+=================
+*/
+static void CG_BuildMarkAxis( const vec3_t dir, float orientation, vec3_t axis[3] ) {
+	VectorNormalize2( dir, axis[0] );
+	PerpendicularVector( axis[1], axis[0] );
+	RotatePointAroundVector( axis[2], axis[0], axis[1], orientation );
+	CrossProduct( axis[0], axis[2], axis[1] );
+}
+
+/*
 ===================
 CG_InitMarkPolys
 
@@ -154,10 +169,7 @@ void CG_ImpactMark( qhandle_t markShader, const vec3_t origin, const vec3_t dir,
 	//}
 
 	// create the texture axis
-	VectorNormalize2( dir, axis[0] );
-	PerpendicularVector( axis[1], axis[0] );
-	RotatePointAroundVector( axis[2], axis[0], axis[1], orientation );
-	CrossProduct( axis[0], axis[2], axis[1] );
+	CG_BuildMarkAxis( dir, orientation, axis );
 
 	texCoordScale = 0.5 * 1.0 / radius;
 

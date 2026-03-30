@@ -22,6 +22,291 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "g_local.h"
 
+typedef struct g_lagHaxHistory_s {
+	struct g_lagHaxHistory_s	*next;
+	struct g_lagHaxHistory_s	*prev;
+	vec3_t				currentOrigin;
+	vec3_t				mins;
+	vec3_t				maxs;
+	int				time;
+} g_lagHaxHistory_t;
+
+typedef struct {
+	vec3_t	currentOrigin;
+	vec3_t	mins;
+	vec3_t	maxs;
+	int	time;
+} g_lagHaxSave_t;
+
+static g_lagHaxHistory_t	*g_lagHaxHistoryHeads[MAX_CLIENTS];
+static g_lagHaxSave_t		g_lagHaxSaved[MAX_CLIENTS];
+
+/*
+=============
+G_InitLagHaxHistory
+
+Allocates the hidden retail lag-hax rewind history ring for each client slot.
+=============
+*/
+void G_InitLagHaxHistory( void ) {
+	int			clientNum;
+	int			historyCount;
+	g_lagHaxHistory_t	*history;
+	g_lagHaxHistory_t	*cursor;
+	int			i;
+
+	memset( g_lagHaxHistoryHeads, 0, sizeof( g_lagHaxHistoryHeads ) );
+	memset( g_lagHaxSaved, 0, sizeof( g_lagHaxSaved ) );
+
+	if ( level.maxclients <= 0 ) {
+		return;
+	}
+
+	historyCount = g_lagHaxHistory.integer;
+	if ( historyCount <= 0 || g_lagHaxMs.integer <= 0 ) {
+		return;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		history = G_Alloc( historyCount * (int)sizeof( *history ) );
+		if ( !history ) {
+			break;
+		}
+
+		g_lagHaxHistoryHeads[clientNum] = history;
+		cursor = history;
+
+		for ( i = 1; i < historyCount; i++ ) {
+			cursor->time = 0;
+			cursor->next = cursor + 1;
+			cursor->next->prev = cursor;
+			cursor = cursor->next;
+		}
+
+		cursor->time = 0;
+		cursor->next = history;
+		history->prev = cursor;
+	}
+}
+
+/*
+=============
+G_ClearLagHaxHistory
+
+Invalidates the current rewind head for the given client after spawn,
+teleport, or disconnect transitions.
+=============
+*/
+void G_ClearLagHaxHistory( gentity_t *ent ) {
+	int			clientNum;
+	g_lagHaxHistory_t	*history;
+
+	if ( !ent ) {
+		return;
+	}
+
+	clientNum = ent - g_entities;
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return;
+	}
+
+	history = g_lagHaxHistoryHeads[clientNum];
+	if ( !history ) {
+		return;
+	}
+
+	history->time = 0;
+}
+
+/*
+=============
+G_StoreHistory
+
+Records the latest collision origin and bounds into the retail rewind ring.
+Non-player entity states invalidate the current slot instead.
+=============
+*/
+void G_StoreHistory( gentity_t *ent ) {
+	int			clientNum;
+	g_lagHaxHistory_t	*history;
+
+	if ( !ent ) {
+		return;
+	}
+
+	clientNum = ent - g_entities;
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return;
+	}
+
+	history = g_lagHaxHistoryHeads[clientNum];
+	if ( !history ) {
+		return;
+	}
+
+	history = history->next;
+	g_lagHaxHistoryHeads[clientNum] = history;
+
+	if ( ent->s.eType != ET_PLAYER ) {
+		history->time = 0;
+		return;
+	}
+
+	history->time = level.time;
+	VectorCopy( ent->s.pos.trBase, history->currentOrigin );
+	VectorCopy( ent->r.mins, history->mins );
+	VectorCopy( ent->r.maxs, history->maxs );
+}
+
+/*
+=============
+G_TimeShiftClient
+
+Rewinds a single target client toward the requested command time using the
+retail history ring interpolation path.
+=============
+*/
+static void G_TimeShiftClient( gentity_t *ent, int time ) {
+	int			clientNum;
+	g_lagHaxHistory_t	*older;
+	g_lagHaxHistory_t	*newer;
+	float			frac;
+	vec3_t			delta;
+
+	if ( !ent ) {
+		return;
+	}
+
+	clientNum = ent - g_entities;
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return;
+	}
+
+	older = g_lagHaxHistoryHeads[clientNum];
+	if ( !older ) {
+		return;
+	}
+
+	newer = older;
+	if ( time > older->time ) {
+		return;
+	}
+
+	while ( time < older->time ) {
+		newer = older;
+		older = older->prev;
+		if ( older->time >= newer->time ) {
+			older = newer;
+			break;
+		}
+	}
+
+	if ( older->time == 0 ) {
+		return;
+	}
+
+	trap_UnlinkEntity( ent );
+
+	if ( newer == older ) {
+		VectorCopy( newer->currentOrigin, ent->r.currentOrigin );
+	} else if ( older->time != newer->time ) {
+		frac = (float)( time - older->time ) / (float)( newer->time - older->time );
+		VectorSubtract( newer->currentOrigin, older->currentOrigin, delta );
+		VectorMA( older->currentOrigin, frac, delta, ent->r.currentOrigin );
+	}
+
+	VectorCopy( newer->mins, ent->r.mins );
+	VectorCopy( newer->maxs, ent->r.maxs );
+	trap_LinkEntity( ent );
+}
+
+/*
+=============
+G_TimeShiftAllClients
+
+Rewinds eligible target clients around hitscan weapon traces for the hidden
+retail lag-hax path.
+=============
+*/
+void G_TimeShiftAllClients( gentity_t *skip, int time ) {
+	int		clientNum;
+	int		earliestTime;
+	gentity_t	*ent;
+
+	if ( !skip ) {
+		return;
+	}
+
+	if ( g_lagHaxMs.integer <= 0 || g_lagHaxHistory.integer <= 0 ) {
+		return;
+	}
+
+	if ( skip->r.svFlags & SVF_BOT ) {
+		return;
+	}
+
+	earliestTime = level.time - g_lagHaxMs.integer;
+	if ( time < earliestTime ) {
+		time = earliestTime;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		ent = &g_entities[clientNum];
+		g_lagHaxSaved[clientNum].time = 0;
+
+		if ( !ent->client ) {
+			continue;
+		}
+
+		if ( ent == skip ) {
+			continue;
+		}
+
+		if ( ent->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		if ( ent->client->ps.pm_type == PM_DEAD ) {
+			continue;
+		}
+
+		VectorCopy( ent->r.currentOrigin, g_lagHaxSaved[clientNum].currentOrigin );
+		VectorCopy( ent->r.mins, g_lagHaxSaved[clientNum].mins );
+		VectorCopy( ent->r.maxs, g_lagHaxSaved[clientNum].maxs );
+		g_lagHaxSaved[clientNum].time = level.time;
+
+		G_TimeShiftClient( ent, time );
+	}
+}
+
+/*
+=============
+G_UnTimeShiftAllClients
+
+Restores any clients rewound during the current lag-hax hitscan pass.
+=============
+*/
+void G_UnTimeShiftAllClients( void ) {
+	int		clientNum;
+	gentity_t	*ent;
+
+	if ( g_lagHaxMs.integer <= 0 || g_lagHaxHistory.integer <= 0 ) {
+		return;
+	}
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		if ( g_lagHaxSaved[clientNum].time != level.time ) {
+			continue;
+		}
+
+		ent = &g_entities[clientNum];
+		VectorCopy( g_lagHaxSaved[clientNum].currentOrigin, ent->r.currentOrigin );
+		VectorCopy( g_lagHaxSaved[clientNum].mins, ent->r.mins );
+		VectorCopy( g_lagHaxSaved[clientNum].maxs, ent->r.maxs );
+		trap_LinkEntity( ent );
+	}
+}
+
 
 /*
 ===============
@@ -1569,6 +1854,8 @@ void ClientEndFrame( gentity_t *ent ) {
 	// set the bit for the reachability area the client is currently in
 //	i = trap_AAS_PointReachabilityAreaIndex( ent->client->ps.origin );
 //	ent->client->areabits[i >> 3] |= 1 << (i & 7);
+
+	G_StoreHistory( ent );
 }
 
 /*
@@ -1620,9 +1907,47 @@ static qboolean G_RoundControllerGametypeEnabled( void ) {
 
 /*
 =============
+G_ADShouldTimeoutActiveRound
+
+Returns qtrue when the retail Attack & Defend active round should end on
+roundtimelimit rather than elimination or objective capture.
+=============
+*/
+static qboolean G_ADShouldTimeoutActiveRound( const int counts[TEAM_NUM_TEAMS] ) {
+	int	attackingTeam;
+	int	defendingTeam;
+
+	if ( !counts ) {
+		return qfalse;
+	}
+
+	attackingTeam = G_ADResolveAttackingTeam();
+	defendingTeam = G_ADResolveDefendingTeam();
+	if ( attackingTeam <= TEAM_FREE || defendingTeam <= TEAM_FREE ) {
+		return qfalse;
+	}
+
+	if ( counts[attackingTeam] <= 0 || counts[defendingTeam] <= 0 ) {
+		return qfalse;
+	}
+
+	if ( level.adRoundWinnerAlreadyScored ) {
+		return qfalse;
+	}
+
+	if ( roundtimelimit.integer <= 0 ) {
+		return qfalse;
+	}
+
+	return ( level.time - level.adStateChangeTime ) >= roundtimelimit.integer * 1000;
+}
+
+/*
+=============
 G_Frame_UpdateAttackDefendRoundController
 
-Runs the Attack & Defend retail controller and advances round outcomes once a side is eliminated.
+Runs the Attack & Defend retail controller and advances round outcomes once a
+side is eliminated or the active round times out.
 =============
 */
 static void G_Frame_UpdateAttackDefendRoundController( void ) {
@@ -1682,7 +2007,7 @@ static void G_Frame_UpdateAttackDefendRoundController( void ) {
 		winner = attackingTeam;
 	}
 
-	if ( winner == TEAM_FREE ) {
+	if ( winner == TEAM_FREE && !G_ADShouldTimeoutActiveRound( counts ) ) {
 		return;
 	}
 

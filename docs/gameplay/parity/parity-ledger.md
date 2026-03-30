@@ -90,8 +90,8 @@ This ledger tracks the implementation status of Quake Live gameplay behaviours r
 ## Entity Targets
 
 - **`target_remove_keys`** – Drops any carried key items from the activator, clearing the bitmask used by scripted door logic. Map authors do not need any additional keys: the helper simply inspects the activator’s inventory when triggered. 【F:src/code/game/g_target.c†L94-L138】
-- **`target_cvar`** – Accepts `cvar`/`value` pairs (or numbered variants such as `cvar1`/`value1`) and applies up to eight server cvar updates in one go. Values fall back to the legacy `cvarValue` keys so existing map sources remain compatible, and every trigger automatically refreshes the cached match factory config so sudden-death and timeout CVars remain in sync. 【F:src/code/game/g_target.c†L172-L274】
-- **`target_achievement`** – Emits achievement IDs (from `achievement`/`award` keys) to the triggering player so backend listeners or HUD scripts can raise notifications. Multiple IDs are allowed per entity, letting a single trigger report a bundle of awards. 【F:src/code/game/g_target.c†L466-L535】
+- **`target_cvar`** – Mirrors the retail single-cvar path: the map entity uses its standard `message` key as the target cvar name, reads `cvarValue` into the reused `random` float slot, and writes the formatted `%f` payload through `trap_Cvar_Set` when triggered. 【F:src/code/game/g_target.c†L157-L182】
+- **`target_achievement`** – Mirrors the retail single-id tutorial unlock path: the map entity reads an `id` spawnvar into `health`, remaps that slot through the recovered `0,2,3,4,5,6,7,8` achievement table, checks whether the activator already has the Steam achievement, and only then fires the unlock import. 【F:src/code/game/g_target.c†L541-L582】
 
 ## Validation Checklist
 - [ ] Confirm new ports against the linked HLIL snippets prior to merging.

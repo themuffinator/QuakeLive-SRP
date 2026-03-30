@@ -18,7 +18,7 @@ static qboolean CL_WebPak_NormalizePath( const char *virtualPath, char *normaliz
 		virtualPath++;
 	}
 
-	if ( strstr( virtualPath, ".." ) || strstr( virtualPath, "::" ) ) {
+	if ( strstr( virtualPath, ".." ) || strstr( virtualPath, "::" ) || strchr( virtualPath, ':' ) ) {
 		return qfalse;
 	}
 
@@ -49,6 +49,65 @@ static qboolean CL_WebPak_ReadInternal( const char *normalizedPath, void **outBu
 	if ( outLength ) {
 		*outLength = length;
 	}
+	return qtrue;
+}
+
+/*
+=============
+CL_WebRequestReadMappedFile
+
+Reads a launcher request through the retail-style fs_webpath / screenshots
+fallback mappings owned by the engine filesystem.
+=============
+*/
+static qboolean CL_WebRequestReadMappedFile( const char *request, void **outBuffer, int *outLength ) {
+	fileHandle_t	file;
+	char		resolvedPath[MAX_QPATH];
+	int		length;
+	byte		*buffer;
+
+	if ( outBuffer ) {
+		*outBuffer = NULL;
+	}
+
+	if ( outLength ) {
+		*outLength = 0;
+	}
+
+	if ( !request || !outBuffer ) {
+		return qfalse;
+	}
+
+	if ( !FS_FOpenWebFileRead( request, &file, resolvedPath, sizeof( resolvedPath ) ) ) {
+		return qfalse;
+	}
+
+	length = FS_filelength( file );
+	if ( length < 0 ) {
+		FS_FCloseFile( file );
+		return qfalse;
+	}
+
+	buffer = Z_Malloc( length + 1 );
+	if ( !buffer ) {
+		FS_FCloseFile( file );
+		return qfalse;
+	}
+
+	if ( length > 0 && FS_Read( buffer, length, file ) != length ) {
+		Z_Free( buffer );
+		FS_FCloseFile( file );
+		return qfalse;
+	}
+
+	buffer[length] = 0;
+	FS_FCloseFile( file );
+
+	*outBuffer = buffer;
+	if ( outLength ) {
+		*outLength = length;
+	}
+
 	return qtrue;
 }
 
@@ -161,13 +220,14 @@ qboolean CL_WebPak_Fetch( const char *virtualPath, void **outBuffer, int *outLen
 =============
 CL_WebRequestResolve
 
-Resolve launcher/UI requests using web.pak first and fall back to the
-regular filesystem search order. The returned buffer should be freed with
-Z_Free.
+Resolve launcher/UI requests using web.pak first, then the retail-style mapped
+filesystem interceptor path, and finally the regular filesystem search order.
+The returned buffer should be freed with Z_Free.
 =============
 */
 qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *outLength ) {
 	char			normalized[MAX_QPATH];
+	qboolean		normalizedValid;
 	void			*fsBuffer;
 	int			length;
 
@@ -179,12 +239,18 @@ qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *o
 		return qfalse;
 	}
 
-	if ( !CL_WebPak_NormalizePath( virtualPath, normalized, sizeof( normalized ) ) ) {
-		return qfalse;
+	normalizedValid = CL_WebPak_NormalizePath( virtualPath, normalized, sizeof( normalized ) );
+
+	if ( normalizedValid && CL_WebPak_ReadInternal( normalized, outBuffer, outLength ) ) {
+		return qtrue;
 	}
 
-	if ( CL_WebPak_ReadInternal( normalized, outBuffer, outLength ) ) {
+	if ( CL_WebRequestReadMappedFile( virtualPath, outBuffer, outLength ) ) {
 		return qtrue;
+	}
+
+	if ( !normalizedValid ) {
+		return qfalse;
 	}
 
 	length = FS_ReadFile( normalized, &fsBuffer );
@@ -211,7 +277,8 @@ qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *o
 =============
 CL_LauncherRequestData
 
-Bridge HTTP/UI requests through web.pak before falling back to other sources.
+Bridges launcher/UI requests through web.pak before falling back to the
+retail-style mapped filesystem interceptor path.
 =============
 */
 qboolean CL_LauncherRequestData( const char *virtualPath, void **outBuffer, int *outLength ) {

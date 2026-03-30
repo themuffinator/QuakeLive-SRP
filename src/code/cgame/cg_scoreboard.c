@@ -248,7 +248,7 @@ static void CG_UpdateHudScoreboardBanners( void ) {
 	cgHudScoreboard.suddenDeathLabel[0] = '\0';
 
 	if ( cgHudScoreboard.overtimeVisible ) {
-		if ( cgHudScoreboard.overtimeCount > 0 ) {
+		if ( cgHudScoreboard.overtimeCount > 1 ) {
 			Com_sprintf( cgHudScoreboard.overtimeLabel, sizeof( cgHudScoreboard.overtimeLabel ),
 				"Overtime x%i", cgHudScoreboard.overtimeCount );
 		} else {

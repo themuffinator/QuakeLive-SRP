@@ -26,6 +26,7 @@ static char g_raceScores[MAX_STRING_CHARS];
 static char g_raceInfo[MAX_STRING_CHARS];
 
 static void G_RaceUpdateInfoConfigString( void );
+static void G_RaceRegisterPoint( gentity_t *ent );
 
 /*
 =============
@@ -49,35 +50,43 @@ static void G_RacePrintMessage( gentity_t *ent, const char *message ) {
 
 /*
 =============
-G_RaceDropPointToFloor
+FinishSpawningRacePoint
 
-Drops a checkpoint to the ground and reports startsolid errors.
+Drops a race checkpoint to the floor through the deferred retail spawn path.
 =============
 */
-static qboolean G_RaceDropPointToFloor( gentity_t *ent ) {
+static void FinishSpawningRacePoint( gentity_t *ent ) {
 	trace_t	tr;
 	vec3_t	dest;
+	vec3_t	snapped;
 
 	if ( !ent ) {
-		return qfalse;
+		return;
 	}
 
 	if ( ent->spawnflags & 1 ) {
 		G_SetOrigin( ent, ent->s.origin );
-		return qtrue;
+	} else {
+		VectorSet( dest, ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 4096.0f );
+		trap_Trace( &tr, ent->s.origin, ent->r.mins, ent->r.maxs, dest, ent->s.number, MASK_SOLID );
+		if ( tr.startsolid ) {
+			G_Printf( "FinishSpawningItem: race_point startsolid at %s\n", vtos( ent->s.origin ) );
+			G_FreeEntity( ent );
+			return;
+		}
+
+		ent->s.groundEntityNum = tr.entityNum;
+		G_SetOrigin( ent, tr.endpos );
 	}
 
-	VectorSet( dest, ent->s.origin[0], ent->s.origin[1], ent->s.origin[2] - 4096 );
-	trap_Trace( &tr, ent->s.origin, ent->r.mins, ent->r.maxs, dest, ent->s.number, MASK_SOLID );
-	if ( tr.startsolid ) {
-		G_Printf( "SP_race_point: startsolid at %s\n", vtos( ent->s.origin ) );
-		G_FreeEntity( ent );
-		return qfalse;
-	}
+	VectorCopy( ent->s.origin, snapped );
+	snapped[0] = (float)( (int)snapped[0] );
+	snapped[1] = (float)( (int)snapped[1] );
+	snapped[2] = (float)( (int)( snapped[2] + 1.0f ) );
+	G_SetOrigin( ent, snapped );
 
-	ent->s.groundEntityNum = tr.entityNum;
-	G_SetOrigin( ent, tr.endpos );
-	return qtrue;
+	trap_LinkEntity( ent );
+	G_RaceRegisterPoint( ent );
 }
 
 /*
@@ -182,23 +191,27 @@ Formats a millisecond duration into a mm:ss.mmm string.
 =============
 */
 static void G_RaceFormatMilliseconds( int milliseconds, char *buffer, size_t bufferSize ) {
+	unsigned int	absoluteMilliseconds;
+	const char		*signPrefix;
+	const char		*secondPrefix;
 	int minutes;
-	int seconds;
-	int ms;
+	float seconds;
 
 	if ( !buffer || bufferSize <= 0 ) {
 		return;
 	}
 
+	signPrefix = "";
+	absoluteMilliseconds = (unsigned int)milliseconds;
 	if ( milliseconds < 0 ) {
-		Q_strncpyz( buffer, "0:00.000", bufferSize );
-		return;
+		signPrefix = "-";
+		absoluteMilliseconds = (unsigned int)( -( milliseconds + 1 ) ) + 1u;
 	}
 
-	minutes = milliseconds / 60000;
-	seconds = ( milliseconds % 60000 ) / 1000;
-	ms = milliseconds % 1000;
-	Com_sprintf( buffer, bufferSize, "%d:%02d.%03d", minutes, seconds, ms );
+	minutes = absoluteMilliseconds / 60000u;
+	seconds = ( absoluteMilliseconds % 60000u ) / 1000.0f;
+	secondPrefix = ( seconds < 10.0f ) ? "0" : "";
+	Com_sprintf( buffer, bufferSize, "%s%d:%s%.03f", signPrefix, minutes, secondPrefix, seconds );
 }
 
 /*
@@ -586,18 +599,15 @@ void SP_race_point( gentity_t *ent ) {
 	}
 
 	ent->classname = "race_point";
-	VectorSet( ent->r.mins, -24.0f, -24.0f, 0.0f );
-	VectorSet( ent->r.maxs, 24.0f, 24.0f, 48.0f );
+	VectorSet( ent->r.mins, -40.0f, -40.0f, -15.0f );
+	VectorSet( ent->r.maxs, 40.0f, 40.0f, 128.0f );
 	ent->r.contents = CONTENTS_TRIGGER;
-	ent->clipmask = CONTENTS_PLAYERCLIP | CONTENTS_BODY;
 	ent->r.svFlags |= SVF_NOCLIENT;
 	ent->touch = G_RacePointTouch;
 	ent->racePointIndex = -1;
-	if ( !G_RaceDropPointToFloor( ent ) ) {
-		return;
-	}
+	ent->think = FinishSpawningRacePoint;
+	ent->nextthink = level.time + 1;
 	trap_LinkEntity( ent );
-	G_RaceRegisterPoint( ent );
 }
 
 /*

@@ -1103,6 +1103,82 @@ static void PM_WaterMove( void ) {
 
 /*
 ===================
+PM_CheckLadder
+
+===================
+*/
+static void PM_CheckLadder( void ) {
+	trace_t	trace;
+	vec3_t	spot;
+	vec3_t	flatforward;
+
+	pml.ladder = qfalse;
+
+	VectorCopy( pml.forward, flatforward );
+	flatforward[2] = 0;
+	VectorNormalize( flatforward );
+
+	VectorAdd( pm->ps->origin, flatforward, spot );
+
+	pm->trace( &trace, pm->ps->origin, pm->mins, pm->maxs, spot, pm->ps->clientNum, MASK_PLAYERSOLID );
+	if ( trace.fraction < 1.0f && ( trace.surfaceFlags & SURF_LADDER ) ) {
+		pml.ladder = qtrue;
+	}
+}
+
+/*
+===================
+PM_LadderMove
+
+===================
+*/
+static void PM_LadderMove( void ) {
+	int		i;
+	vec3_t	wishvel;
+	vec3_t	wishdir;
+	float	wishspeed;
+	float	scale;
+	float	vel;
+
+	PM_Friction();
+
+	scale = PM_CmdScale( &pm->cmd );
+	if ( !scale ) {
+		VectorClear( wishvel );
+	} else {
+		for ( i = 0 ; i < 3 ; i++ ) {
+			wishvel[i] = scale * pml.forward[i] * pm->cmd.forwardmove + scale * pml.right[i] * pm->cmd.rightmove;
+		}
+		wishvel[2] += scale * pm->cmd.upmove;
+	}
+
+	if ( pm->cmd.upmove > 0 ) {
+		wishvel[2] = pm->ps->speed * 0.66f;
+	} else if ( pm->cmd.upmove < 0 ) {
+		wishvel[2] = -pm->ps->speed * 0.66f;
+	}
+
+	VectorCopy( wishvel, wishdir );
+	wishspeed = VectorNormalize( wishdir );
+
+	if ( wishspeed > pm->ps->speed * 0.66f ) {
+		wishspeed = pm->ps->speed * 0.66f;
+	}
+
+	PM_Accelerate( wishdir, wishspeed, pm_accelerate );
+
+	if ( pml.groundPlane && DotProduct( pm->ps->velocity, pml.groundTrace.plane.normal ) < 0 ) {
+		vel = VectorLength( pm->ps->velocity );
+		PM_ClipVelocity( pm->ps->velocity, pml.groundTrace.plane.normal, pm->ps->velocity, OVERCLIP );
+		VectorNormalize( pm->ps->velocity );
+		VectorScale( pm->ps->velocity, vel, pm->ps->velocity );
+	}
+
+	PM_SlideMove( qfalse );
+}
+
+/*
+===================
 PM_InvulnerabilityMove
 
 Only with the invulnerability powerup
@@ -2677,6 +2753,7 @@ void PmoveSingle (pmove_t *pmove) {
 	}
 
 	PM_DropTimers();
+	PM_CheckLadder();
 
 	if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
 		PM_InvulnerabilityMove();
@@ -2693,6 +2770,8 @@ void PmoveSingle (pmove_t *pmove) {
 	} else if ( pm->waterlevel > 1 ) {
 		// swimming
 		PM_WaterMove();
+	} else if ( pml.ladder ) {
+		PM_LadderMove();
 	} else if ( pml.walking ) {
 		// walking on ground
 		PM_WalkMove();

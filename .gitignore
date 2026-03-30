@@ -3,6 +3,7 @@ src/code/**/Debug/
 src/code/**/Release/
 src/code/**/build/
 build/win32/
+src/build/**
 
 # Native DLL staging / CI output
 build/win32-native/

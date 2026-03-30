@@ -69,6 +69,24 @@ static const weapon_t scorestatAccuracyWeapons[SCORESTAT_ACCURACY_WEAPON_COUNT] 
 	WP_HEAVY_MACHINEGUN
 };
 
+static const weapon_t retailAccuracyCommandOrder[] = {
+	WP_NONE,
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_GRAPPLING_HOOK,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_CHAINGUN,
+	WP_HEAVY_MACHINEGUN
+};
+
 static const weapon_t castatWeapons[CASTAT_WEAPON_COUNT] = {
 	WP_GAUNTLET,
 	WP_MACHINEGUN,
@@ -133,7 +151,7 @@ static const teamScoreStatIndex_t retailCtfTeamStatOrder[RETAIL_CTF_TEAMSTAT_COU
 static qboolean G_BuildRichScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
 static qboolean G_BuildObeliskScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
 static qboolean G_BuildFFAScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
-static qboolean G_BuildDuelScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
+static char *G_BuildDuelScoreboardMessage( gentity_t *viewer );
 static qboolean G_BuildClanArenaScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
 static qboolean G_BuildRedRoverScoreboardMessage( char *payload, int payloadSize, int *emittedCount );
 static qboolean G_BuildTdmScoreboardRows( char *payload, int payloadSize, int *emittedCount );
@@ -1454,6 +1472,200 @@ static int G_GetClientScoreboardAccuracy( const gclient_t *cl ) {
 
 /*
 ==================
+G_GetDuelScoreboardPickupCount
+
+Returns the retail duel scoreboard pickup-count field for the requested item.
+==================
+*/
+static int G_GetDuelScoreboardPickupCount( const gclient_t *cl, scorestatPickupIndex_t pickupIndex ) {
+	if ( !cl || pickupIndex < 0 || pickupIndex >= SCORESTAT_PICKUP_COUNT ) {
+		return 0;
+	}
+
+	return cl->pers.pickupIntervalCount[pickupIndex];
+}
+
+/*
+==================
+G_GetDuelScoreboardPickupAverageSeconds
+
+Returns the retail duel scoreboard pickup-average field in seconds.
+==================
+*/
+static float G_GetDuelScoreboardPickupAverageSeconds( const gclient_t *cl, scorestatPickupIndex_t pickupIndex ) {
+	int	count;
+	int	totalMs;
+
+	if ( !cl || pickupIndex < 0 || pickupIndex >= SCORESTAT_PICKUP_COUNT ) {
+		return 0.0f;
+	}
+
+	count = cl->pers.pickupIntervalCount[pickupIndex];
+	totalMs = cl->pers.pickupIntervalTotalMs[pickupIndex];
+	if ( count <= 0 || totalMs <= 0 ) {
+		return 0.0f;
+	}
+
+	return ( (float)totalMs / 1000.0f ) / (float)count;
+}
+
+/*
+==================
+G_AppendDuelWeaponScoreboardStats
+
+Builds the retail per-weapon duel stat tail appended to each scores_duel row.
+==================
+*/
+static void G_AppendDuelWeaponScoreboardStats( char *payload, int payloadSize, const gclient_t *cl ) {
+	char		entry[64];
+	weapon_t	weapon;
+
+	if ( !payload || payloadSize <= 0 ) {
+		return;
+	}
+
+	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {
+		int	shots;
+		int	hits;
+		int	accuracy;
+		int	frags;
+		int	damage;
+
+		shots = cl ? cl->pers.accuracy_shots[weapon] : 0;
+		hits = cl ? cl->pers.accuracy_hits[weapon] : 0;
+		accuracy = 0;
+		if ( shots > 0 ) {
+			accuracy = hits * 100 / shots;
+		}
+
+		frags = cl ? cl->pers.weaponFrags[weapon] : 0;
+		damage = cl ? cl->pers.weaponDamage[weapon] : 0;
+
+		Com_sprintf( entry, sizeof( entry ), " %i %i %i %i %i",
+			frags,
+			damage,
+			accuracy,
+			shots,
+			hits );
+		Q_strcat( payload, payloadSize, entry );
+	}
+}
+
+/*
+==================
+G_ShouldRevealDuelScoreboardDetails
+
+Mirrors the retail duel item-timing visibility split for the local player and
+spectators while leaving the public row redacted for active opponents.
+==================
+*/
+static qboolean G_ShouldRevealDuelScoreboardDetails( const gentity_t *viewer, int clientNum ) {
+	if ( level.intermissiontime ) {
+		return qtrue;
+	}
+
+	if ( !viewer || !viewer->client ) {
+		return qfalse;
+	}
+
+	if ( viewer->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return qtrue;
+	}
+
+	return ( ( viewer - g_entities ) == clientNum ) ? qtrue : qfalse;
+}
+
+/*
+==================
+G_BuildDuelScoreboardRow
+
+Builds one retail scores_duel row for the selected player.
+==================
+*/
+static void G_BuildDuelScoreboardRow( char *payload, int payloadSize, int clientNum, qboolean revealPickupTiming ) {
+	gclient_t		*cl;
+	int			kills;
+	int			deaths;
+	int			accuracy;
+	int			bestWeapon;
+	int			damage;
+	int			impressiveCount;
+	int			excellentCount;
+	int			gauntletCount;
+	int			activePlayer;
+	int			redArmorCount;
+	float			redArmorAverage;
+	int			yellowArmorCount;
+	float			yellowArmorAverage;
+	int			greenArmorCount;
+	float			greenArmorAverage;
+	int			megaHealthCount;
+	float			megaHealthAverage;
+
+	payload[0] = '\0';
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	cl = &level.clients[clientNum];
+	kills = cl->killCount;
+	deaths = cl->deathCount;
+	accuracy = G_GetClientScoreboardAccuracy( cl );
+	bestWeapon = G_GetClientScoreboardWeapon( cl );
+	damage = cl->pers.damageGiven;
+	impressiveCount = cl->ps.persistant[PERS_IMPRESSIVE_COUNT];
+	excellentCount = cl->ps.persistant[PERS_EXCELLENT_COUNT];
+	gauntletCount = cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT];
+	activePlayer = ( cl->sess.sessionTeam != TEAM_SPECTATOR && cl->ps.pm_type == PM_NORMAL ) ? 1 : 0;
+
+	redArmorCount = 0;
+	redArmorAverage = 0.0f;
+	yellowArmorCount = 0;
+	yellowArmorAverage = 0.0f;
+	greenArmorCount = 0;
+	greenArmorAverage = 0.0f;
+	megaHealthCount = 0;
+	megaHealthAverage = 0.0f;
+	if ( revealPickupTiming ) {
+		redArmorCount = G_GetDuelScoreboardPickupCount( cl, SCORESTAT_PICKUP_RA );
+		redArmorAverage = G_GetDuelScoreboardPickupAverageSeconds( cl, SCORESTAT_PICKUP_RA );
+		yellowArmorCount = G_GetDuelScoreboardPickupCount( cl, SCORESTAT_PICKUP_YA );
+		yellowArmorAverage = G_GetDuelScoreboardPickupAverageSeconds( cl, SCORESTAT_PICKUP_YA );
+		greenArmorCount = G_GetDuelScoreboardPickupCount( cl, SCORESTAT_PICKUP_GA );
+		greenArmorAverage = G_GetDuelScoreboardPickupAverageSeconds( cl, SCORESTAT_PICKUP_GA );
+		megaHealthCount = G_GetDuelScoreboardPickupCount( cl, SCORESTAT_PICKUP_MH );
+		megaHealthAverage = G_GetDuelScoreboardPickupAverageSeconds( cl, SCORESTAT_PICKUP_MH );
+	}
+
+	Com_sprintf( payload, payloadSize,
+		"%i %i %i %i %i %i %i %i %i %i %i %i %i %i %3.2f %i %3.2f %i %3.2f %i %3.2f",
+		clientNum,
+		cl->ps.persistant[PERS_SCORE],
+		G_GetScoreboardPing( cl ),
+		(level.time - cl->pers.enterTime) / 60000,
+		kills,
+		deaths,
+		accuracy,
+		bestWeapon,
+		damage,
+		impressiveCount,
+		excellentCount,
+		gauntletCount,
+		activePlayer,
+		redArmorCount,
+		redArmorAverage,
+		yellowArmorCount,
+		yellowArmorAverage,
+		greenArmorCount,
+		greenArmorAverage,
+		megaHealthCount,
+		megaHealthAverage );
+
+	G_AppendDuelWeaponScoreboardStats( payload, payloadSize, cl );
+}
+
+/*
+==================
 G_BuildTdmScoreboardRows
 
 Builds the retail GT_TEAM per-client scoreboard row block.
@@ -1744,34 +1956,59 @@ static qboolean G_BuildFFAScoreboardMessage( char *payload, int payloadSize, int
 ==================
 G_BuildDuelScoreboardMessage
 
-Caches the retail low/high duel client pair and builds the generic duel payload
-shape that the current client parser already consumes.
+Caches the retail low/high duel client pair, applies the per-viewer pickup
+timing visibility split, and builds the retail scores_duel payload.
 ==================
 */
-static qboolean G_BuildDuelScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
+static char *G_BuildDuelScoreboardMessage( gentity_t *viewer ) {
+	int		numRows;
+	int		firstClientNum;
+	int		secondClientNum;
+	char		lowPublic[MAX_STRING_CHARS];
+	char		lowPrivate[MAX_STRING_CHARS];
+	char		highPublic[MAX_STRING_CHARS];
+	char		highPrivate[MAX_STRING_CHARS];
+	const char	*lowRow;
+	const char	*highRow;
+
 	level.duelScoreboardLowClientNum = -1;
 	level.duelScoreboardHighClientNum = -1;
 
-	if ( level.numPlayingClients > 0 ) {
-		int		firstClientNum;
-		int		secondClientNum;
-
-		firstClientNum = level.sortedClients[0];
-		secondClientNum = firstClientNum;
-		if ( level.numPlayingClients > 1 ) {
-			secondClientNum = level.sortedClients[1];
-		}
-
-		if ( firstClientNum < secondClientNum ) {
-			level.duelScoreboardLowClientNum = firstClientNum;
-			level.duelScoreboardHighClientNum = secondClientNum;
-		} else {
-			level.duelScoreboardLowClientNum = secondClientNum;
-			level.duelScoreboardHighClientNum = firstClientNum;
-		}
+	numRows = level.numPlayingClients;
+	if ( numRows > 2 ) {
+		numRows = 2;
+	}
+	if ( numRows <= 0 ) {
+		return va( "scores_duel %i %s", 0, "" );
 	}
 
-	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+	firstClientNum = level.sortedClients[0];
+	secondClientNum = firstClientNum;
+	if ( level.numPlayingClients > 1 ) {
+		secondClientNum = level.sortedClients[1];
+	}
+
+	if ( firstClientNum < secondClientNum ) {
+		level.duelScoreboardLowClientNum = firstClientNum;
+		level.duelScoreboardHighClientNum = secondClientNum;
+	} else {
+		level.duelScoreboardLowClientNum = secondClientNum;
+		level.duelScoreboardHighClientNum = firstClientNum;
+	}
+
+	G_BuildDuelScoreboardRow( lowPublic, sizeof( lowPublic ), level.duelScoreboardLowClientNum, qfalse );
+	G_BuildDuelScoreboardRow( lowPrivate, sizeof( lowPrivate ), level.duelScoreboardLowClientNum, qtrue );
+	lowRow = G_ShouldRevealDuelScoreboardDetails( viewer, level.duelScoreboardLowClientNum ) ? lowPrivate : lowPublic;
+
+	if ( numRows <= 1 ) {
+		return va( "scores_duel %i %s", 1, lowRow );
+	}
+
+	G_BuildDuelScoreboardRow( highPublic, sizeof( highPublic ), level.duelScoreboardHighClientNum, qfalse );
+	G_BuildDuelScoreboardRow( highPrivate, sizeof( highPrivate ), level.duelScoreboardHighClientNum, qtrue );
+	highRow = G_ShouldRevealDuelScoreboardDetails( viewer, level.duelScoreboardHighClientNum ) ? highPrivate : highPublic;
+
+	return va( "scores_duel %i %s %s", numRows, lowRow, highRow );
 }
 
 /*
@@ -1913,7 +2150,10 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 			useCompact = G_BuildFFAScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
 			break;
 		case GT_TOURNAMENT:
-			useCompact = G_BuildDuelScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
+			emittedCount = level.numPlayingClients;
+			if ( emittedCount > 2 ) {
+				emittedCount = 2;
+			}
 			break;
 		case GT_OBELISK:
 			useCompact = G_BuildObeliskScoreboardMessage( string, sizeof( string ), &emittedCount ) ? qfalse : qtrue;
@@ -1951,7 +2191,9 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 			level.teamScores[TEAM_BLUE],
 			string ) );
 	} else {
-		if ( g_gametype.integer == GT_TEAM || g_gametype.integer == GT_FREEZE || G_IsCTFStyleScoreboardGametype() ) {
+		if ( g_gametype.integer == GT_TOURNAMENT ) {
+			trap_SendServerCommand( ent-g_entities, G_BuildDuelScoreboardMessage( ent ) );
+		} else if ( g_gametype.integer == GT_TEAM || g_gametype.integer == GT_FREEZE || G_IsCTFStyleScoreboardGametype() ) {
 			trap_SendServerCommand( ent-g_entities, va( "%s%s", cmd, string ) );
 		} else {
 			trap_SendServerCommand( ent-g_entities, va( "%s %i %i %i%s",
@@ -2016,6 +2258,30 @@ static qboolean Team_CountsBalanced( int redCount, int blueCount ) {
 
 /*
 ==================
+G_GametypeRequiresBothTeamsPresent
+
+Returns qtrue for retail warmup modes that deny ready-up until both teams exist.
+==================
+*/
+static qboolean G_GametypeRequiresBothTeamsPresent( void ) {
+	switch ( g_gametype.integer ) {
+	case GT_TEAM:
+	case GT_CLAN_ARENA:
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_OBELISK:
+	case GT_HARVESTER:
+	case GT_FREEZE:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+/*
+==================
 G_RRResolveAutoJoinTeam
 
 Selects the retail Red Rover auto-join target while ensuring both infection teams can seed.
@@ -2043,6 +2309,47 @@ static team_t G_RRResolveAutoJoinTeam( int clientNum ) {
 
 /*
 ==================
+G_ResetTrainingSession
+
+Restores the retail tutorial reset path that hangs off `readyup`.
+==================
+*/
+static void G_ResetTrainingSession( gentity_t *ent ) {
+	int			i;
+	gentity_t	*player;
+	gclient_t	*client;
+
+	trap_Cvar_Set( "g_training", "1" );
+	trap_Cvar_Set( "bot_training", "0" );
+	trap_Cvar_Set( "bot_dynamicSkill", "1" );
+	trap_Cvar_Set( "bot_followMe", "0" );
+	trap_Cvar_Set( "bot_gauntlet", "0" );
+	trap_Cvar_Set( "g_skipTrainingEnable", "0" );
+	trap_Cvar_Update( &g_training );
+	level.trainingMapActive = ( g_training.integer != 0 ) ? qtrue : qfalse;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		player = &g_entities[i];
+		client = player->client;
+		if ( !client || client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		G_SetClientReadyState( client, qfalse );
+		client->ps.eFlags &= ~( EF_PLAYER_EVENT | EF_AWARD_ASSIST );
+		if ( player->r.svFlags & SVF_BOT ) {
+			client->ps.eFlags &= ~EF_AWARD_DEFEND;
+		}
+
+		ClientSpawn( player );
+	}
+
+	trap_SendServerCommand( ent - g_entities, "clearChat" );
+	trap_SendServerCommand( ent - g_entities, "clearSounds" );
+}
+
+/*
+==================
 G_GetReadyUpBlockedMessage
 
 Returns a retail-aligned denial string when warmup cannot accept ready-up state.
@@ -2061,7 +2368,7 @@ static const char *G_GetReadyUpBlockedMessage( void ) {
 		return NULL;
 	}
 
-	if ( g_gametype.integer < GT_TEAM ) {
+	if ( !G_GametypeRequiresBothTeamsPresent() ) {
 		return "print \"Cannot ready up until more players are present.\n\"";
 	}
 
@@ -2112,6 +2419,7 @@ void Cmd_Ready_f( gentity_t *ent ) {
 	}
 
 	G_SetClientReadyState( ent->client, qtrue );
+	G_WarmupReadyToStart();
 	trap_SendServerCommand( ent-g_entities, "print \"You are now ready.\n\"" );
 }
 
@@ -2122,9 +2430,21 @@ Cmd_ReadyUp_f
 */
 void Cmd_ReadyUp_f( gentity_t *ent ) {
 	const char *blockedMessage;
+	qboolean	ready;
 
 	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Spectators cannot ready up.\n\"" );
+		return;
+	}
+
+	if ( ( level.warmupTime < 0 || level.intermissiontime != 0 ) &&
+		g_training.integer != 0 && ent->client->pers.localClient ) {
+		G_ResetTrainingSession( ent );
+	}
+
+	if ( level.warmupTime < 0 && !Team_HasMinimumPlayersForWarmup() && G_ClientIsReady( ent->client ) ) {
+		G_SetClientReadyState( ent->client, qfalse );
+		ClientUserinfoChanged( ent - g_entities );
 		return;
 	}
 
@@ -2134,12 +2454,25 @@ void Cmd_ReadyUp_f( gentity_t *ent ) {
 		return;
 	}
 
-	if ( G_ClientIsReady( ent->client ) ) {
-		G_SetClientReadyState( ent->client, qfalse );
-		trap_SendServerCommand( ent-g_entities, "print \"You are now ^1NOT ^7ready.\n\"" );
-	} else {
-		G_SetClientReadyState( ent->client, qtrue );
+	if ( level.intermissiontime != 0 && G_ClientIsReady( ent->client ) ) {
+		return;
+	}
+
+	ready = G_ClientIsReady( ent->client ) ? qfalse : qtrue;
+	G_SetClientReadyState( ent->client, ready );
+	ClientUserinfoChanged( ent - g_entities );
+	G_WarmupReadyToStart();
+
+	if ( level.warmupTime < 0 ) {
+		trap_SendServerCommand( -1, va( "cp \"%s ^7is ^7%s\n\"",
+			ent->client->pers.netname, ready ? "Ready" : "Not Ready" ) );
+		return;
+	}
+
+	if ( ready ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You are now ^2READY^7.\n\"" );
+	} else {
+		trap_SendServerCommand( ent-g_entities, "print \"You are now ^1NOT ^7ready.\n\"" );
 	}
 }
 
@@ -2165,6 +2498,7 @@ void Cmd_NotReady_f( gentity_t *ent ) {
 	}
 
 	G_SetClientReadyState( ent->client, qfalse );
+	G_WarmupReadyToStart();
 	trap_SendServerCommand( ent-g_entities, "print \"You are now not ready.\n\"" );
 }
 
@@ -2221,24 +2555,84 @@ void Cmd_Teams_f( gentity_t *ent ) {
 
 /*
 =================
+G_RetailAccuracySourceClient
+
+Resolves the retail accuracy source, following the chased client when a
+spectator requests `acc`.
+=================
+*/
+static gclient_t *G_RetailAccuracySourceClient( gentity_t *ent ) {
+	int clientNum;
+
+	if ( !ent || !ent->client ) {
+		return NULL;
+	}
+
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR &&
+			ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
+		clientNum = ent->client->sess.spectatorClient;
+		if ( clientNum >= 0 && clientNum < level.maxclients &&
+				level.clients[clientNum].pers.connected == CON_CONNECTED ) {
+			return &level.clients[clientNum];
+		}
+	}
+
+	return ent->client;
+}
+
+/*
+=================
+G_SendRetailAccuracyCommand
+
+Builds the retail compact `acc` payload across the fixed weapon-order slab.
+=================
+*/
+static void G_SendRetailAccuracyCommand( gentity_t *ent ) {
+	gclient_t	*client;
+	char		payload[256];
+	char		entry[16];
+	int		accuracy;
+	int		hits;
+	int		i;
+	int		shots;
+	weapon_t	weapon;
+
+	if ( !ent ) {
+		return;
+	}
+
+	client = G_RetailAccuracySourceClient( ent );
+	if ( !client ) {
+		return;
+	}
+
+	payload[0] = '\0';
+	for ( i = 0; i < ARRAY_LEN( retailAccuracyCommandOrder ); i++ ) {
+		weapon = retailAccuracyCommandOrder[i];
+		accuracy = 0;
+
+		if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+			hits = client->pers.accuracy_hits[weapon];
+			shots = client->pers.accuracy_shots[weapon];
+			if ( hits > 0 && shots > 0 ) {
+				accuracy = hits * 100 / shots;
+			}
+		}
+
+		Com_sprintf( entry, sizeof( entry ), " %i", accuracy );
+		Q_strcat( payload, sizeof( payload ), entry );
+	}
+
+	trap_SendServerCommand( ent-g_entities, va( "acc %s", payload ) );
+}
+
+/*
+=================
 Cmd_Acc_f
 =================
 */
 void Cmd_Acc_f( gentity_t *ent ) {
-	int accuracy;
-
-	if ( !ent->client ) {
-		return;
-	}
-
-	if ( ent->client->accuracy_shots ) {
-		accuracy = ent->client->accuracy_hits * 100 / ent->client->accuracy_shots;
-	} else {
-		accuracy = 0;
-	}
-
-	trap_SendServerCommand( ent-g_entities, va("print \"Accuracy: %i%% (%i hits / %i shots)\n\"",
-		accuracy, ent->client->accuracy_hits, ent->client->accuracy_shots) );
+	G_SendRetailAccuracyCommand( ent );
 }
 
 /*
@@ -4129,8 +4523,8 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 	int             delayMsec;
 	int             remaining;
 	qboolean        isSpectator;
-	qboolean        midGame;
 	qboolean        privilegedCallVote;
+	qboolean        warmupReady;
 
 	if ( !ent || !ent->client ) {
 		return;
@@ -4149,8 +4543,8 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 
 	delayMsec = g_voteDelay.integer > 0 ? g_voteDelay.integer * 1000 : 0;
 	isSpectator = ( client->sess.sessionTeam == TEAM_SPECTATOR );
-	midGame = ( level.warmupTime <= 0 && level.intermissiontime == 0 );
 	privilegedCallVote = G_ClientBypassesCallVoteRestrictions( client );
+	warmupReady = G_WarmupReadyToStart();
 
 	if ( delayMsec > 0 ) {
 		int             startWindow;
@@ -4176,6 +4570,11 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		return;
 	}
 
+	if ( level.trainingMapActive ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Voting is not allowed in training.\\n\"" );
+		return;
+	}
+
 	if ( g_voteLimit.integer > 0 && client->pers.voteCount >= g_voteLimit.integer && !privilegedCallVote ) {
 		trap_SendServerCommand( ent-g_entities, "print \"You have called the maximum number of votes.\\n\"" );
 		return;
@@ -4186,8 +4585,8 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		return;
 	}
 
-	if ( !g_allowVoteMidGame.integer && midGame && !privilegedCallVote ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Voting is only allowed during warmup.\\n\"" );
+	if ( !g_allowVoteMidGame.integer && warmupReady && !privilegedCallVote ) {
+		trap_SendServerCommand( ent-g_entities, "print \"Voting is only allowed during the warm up period.\\n\"" );
 		return;
 	}
 
@@ -4309,7 +4708,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to shuffle the teams is disabled on this server.\\n\"" );
 			return;
 		}
-		if ( midGame ) {
+		if ( warmupReady ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to shuffle the teams is only permitted during warmup.\\n\"" );
 			return;
 		}
@@ -4530,7 +4929,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter loadouts is disabled on this server.\\n\"" );
 			return;
 		}
-		if ( midGame ) {
+		if ( warmupReady ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter loadouts is only allowed during the warm up period.\\n\"" );
 			return;
 		}
@@ -4547,7 +4946,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the ammo system is disabled on this server.\\n\"" );
 			return;
 		}
-		if ( midGame ) {
+		if ( warmupReady ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the ammo system is only allowed during the warm up period.\\n\"" );
 			return;
 		}
@@ -4564,7 +4963,7 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the item timers is disabled on this server.\\n\"" );
 			return;
 		}
-		if ( midGame ) {
+		if ( warmupReady ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Voting to alter the item timers is only allowed during the warm up period.\\n\"" );
 			return;
 		}

@@ -194,6 +194,99 @@ void CG_DamageFeedback( int yawByte, int pitchByte, int damage ) {
 	cg.damageTime = cg.snap->serverTime;
 }
 
+/*
+================
+CG_RespawnWeaponFromToken
+
+Maps the retail respawn primary-weapon token list onto cgame weapon ids.
+================
+*/
+static weapon_t CG_RespawnWeaponFromToken( const char *token ) {
+	if ( !token || !token[0] ) {
+		return WP_NONE;
+	}
+
+	if ( !Q_stricmp( token, "gauntlet" ) ) {
+		return WP_GAUNTLET;
+	}
+	if ( !Q_stricmp( token, "machinegun" ) ) {
+		return WP_MACHINEGUN;
+	}
+	if ( !Q_stricmp( token, "shotgun" ) ) {
+		return WP_SHOTGUN;
+	}
+	if ( !Q_stricmp( token, "grenade" ) || !Q_stricmp( token, "grenade_launcher" ) ) {
+		return WP_GRENADE_LAUNCHER;
+	}
+	if ( !Q_stricmp( token, "rocket" ) || !Q_stricmp( token, "rocket_launcher" ) ) {
+		return WP_ROCKET_LAUNCHER;
+	}
+	if ( !Q_stricmp( token, "lightning" ) ) {
+		return WP_LIGHTNING;
+	}
+	if ( !Q_stricmp( token, "railgun" ) ) {
+		return WP_RAILGUN;
+	}
+	if ( !Q_stricmp( token, "plasma" ) || !Q_stricmp( token, "plasmagun" ) ) {
+		return WP_PLASMAGUN;
+	}
+	if ( !Q_stricmp( token, "grapple" ) || !Q_stricmp( token, "grappling_hook" ) ) {
+		return WP_GRAPPLING_HOOK;
+	}
+	if ( !Q_stricmp( token, "nailgun" ) ) {
+		return WP_NAILGUN;
+	}
+	if ( !Q_stricmp( token, "prox" ) || !Q_stricmp( token, "proxlauncher" ) || !Q_stricmp( token, "prox_launcher" ) ) {
+		return WP_PROX_LAUNCHER;
+	}
+	if ( !Q_stricmp( token, "chaingun" ) ) {
+		return WP_CHAINGUN;
+	}
+	if ( !Q_stricmp( token, "heavy_machinegun" ) ) {
+		return WP_HEAVY_MACHINEGUN;
+	}
+
+	return (weapon_t)atoi( token );
+}
+
+/*
+================
+CG_SelectRespawnWeapon
+
+Parses the retail respawn primary-weapon preference list and selects the
+first currently available entry before falling back to the server weapon.
+================
+*/
+static void CG_SelectRespawnWeapon( void ) {
+	char		buffer[MAX_CVAR_VALUE_STRING];
+	char		*cursor;
+	char		*token;
+	weapon_t	weapon;
+
+	trap_Cvar_VariableStringBuffer( "cg_weaponPrimary", buffer, sizeof( buffer ) );
+	cursor = buffer;
+
+	for ( ;; ) {
+		token = COM_ParseExt( &cursor, qtrue );
+		if ( !token[0] ) {
+			break;
+		}
+
+		weapon = CG_RespawnWeaponFromToken( token );
+		if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+			continue;
+		}
+		if ( !( cg.snap->ps.stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {
+			continue;
+		}
+
+		CG_SetWeaponSelect( weapon );
+		return;
+	}
+
+	CG_SetWeaponSelect( cg.snap->ps.weapon );
+}
+
 
 
 
@@ -211,8 +304,8 @@ void CG_Respawn( void ) {
 	// display weapons available
 	cg.weaponSelectTime = cg.time;
 
-	// select the weapon the server says we are using
-	CG_SetWeaponSelect( cg.snap->ps.weapon );
+	// prefer the retail primary-weapon list before falling back to the server weapon
+	CG_SelectRespawnWeapon();
 
 	cg.autoActionFired = qfalse;
 	cg.autoActionScreenshotQueued = qfalse;

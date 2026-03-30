@@ -1586,9 +1586,7 @@ static qboolean BG_IsArmorTieredModeEnabled( void ) {
 =============
 BG_CanGrabWeaponItem
 
-Translated from the DLL helper sub_1002d1c0. The retail helper also checks a
-pm_flags bit that is not yet mapped in this tree; the duplicate-weapon branch
-below matches the confirmed item, ammo, and dropped-item conditions.
+Shared translation of the DLL helper sub_1002d1c0 for weapon pickups.
 =============
 */
 static qboolean BG_CanGrabWeaponItem( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped )
@@ -1596,6 +1594,10 @@ static qboolean BG_CanGrabWeaponItem( int gametype, int currentTime, const entit
 	int weapon;
 
 	if ( !ps || !item ) {
+		return qfalse;
+	}
+
+	if ( ps->pm_flags & PMF_IRONSIGHTS ) {
 		return qfalse;
 	}
 
@@ -2218,10 +2220,6 @@ BG_TouchJumpPad
 ========================
 */
 void BG_TouchJumpPad( playerState_t *ps, entityState_t *jumppad ) {
-	vec3_t	angles;
-	float p;
-	int effectNum;
-
 	// spectators don't use jump pads
 	if ( ps->pm_type != PM_NORMAL ) {
 		return;
@@ -2235,15 +2233,8 @@ void BG_TouchJumpPad( playerState_t *ps, entityState_t *jumppad ) {
 	// if we didn't hit this same jumppad the previous frame
 	// then don't play the event sound again if we are in a fat trigger
 	if ( ps->jumppad_ent != jumppad->number ) {
-
-		vectoangles( jumppad->origin2, angles);
-		p = fabs( AngleNormalize180( angles[PITCH] ) );
-		if( p < 45 ) {
-			effectNum = 0;
-		} else {
-			effectNum = 1;
-		}
-		BG_AddPredictableEventToPlayerstate( EV_JUMP_PAD, effectNum, ps );
+		// Retail always emits the shared jump-pad event with parm 0 here.
+		BG_AddPredictableEventToPlayerstate( EV_JUMP_PAD, 0, ps );
 	}
 	// remember hitting this jumppad this frame
 	ps->jumppad_ent = jumppad->number;

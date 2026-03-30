@@ -270,6 +270,65 @@ void BotTestAAS(vec3_t origin) {
 }
 
 /*
+==================
+BotGetLocalClient
+==================
+*/
+int BotGetLocalClient( void ) {
+	int i;
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( level.clients[i].pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( !level.clients[i].pers.localClient ) {
+			continue;
+		}
+		return i;
+	}
+
+	return -1;
+}
+
+/*
+==================
+BotGetFirstBotClient
+==================
+*/
+int BotGetFirstBotClient( void ) {
+	int i;
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( level.clients[i].pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( !( g_entities[i].r.svFlags & SVF_BOT ) ) {
+			continue;
+		}
+		return i;
+	}
+
+	return -1;
+}
+
+/*
+==================
+BotSetTrainingCvarIfChanged
+==================
+*/
+qboolean BotSetTrainingCvarIfChanged( const char *name, const char *value ) {
+	char current[MAX_CVAR_VALUE_STRING];
+
+	trap_Cvar_VariableStringBuffer( name, current, sizeof( current ) );
+	if ( !Q_stricmp( current, value ) ) {
+		return qfalse;
+	}
+
+	trap_Cvar_Set( name, value );
+	return qtrue;
+}
+
+/*
 ==============
 BotInterbreedBots
 ==============

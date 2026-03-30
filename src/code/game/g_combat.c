@@ -235,10 +235,6 @@ ScorePlum
 void ScorePlum( gentity_t *ent, vec3_t origin, int score ) {
 	gentity_t *plum;
 
-	if ( !g_damagePlums.integer ) {
-		return;
-	}
-
 	plum = G_TempEntity( origin, EV_SCOREPLUM );
 	// only send this temp entity to a single client
 	plum->r.svFlags |= SVF_SINGLECLIENT;
@@ -255,35 +251,13 @@ AddScore
 Adds score to both the client and his team
 ============
 */
-void AddScore( gentity_t *ent, const vec3_t origin, int score ) {
+void AddScore( gentity_t *ent, vec3_t origin, int score ) {
 	if ( !ent->client ) {
 		return;
 	}
 	// no scoring during pre-match warmup
 	if ( level.warmupTime ) {
 		return;
-	}
-
-	if ( ent->client->scoreModifier > 0.0f && ent->client->scoreModifier != 1.0f ) {
-		float	scaled;
-		int		resolved;
-
-		scaled = (float)score * ent->client->scoreModifier;
-		if ( scaled > 0.0f ) {
-			resolved = (int)( scaled + 0.5f );
-			if ( resolved < 1 ) {
-				resolved = 1;
-			}
-		} else if ( scaled < 0.0f ) {
-			resolved = (int)( scaled - 0.5f );
-			if ( resolved > -1 ) {
-				resolved = -1;
-			}
-		} else {
-			resolved = 0;
-		}
-
-		score = resolved;
 	}
 	// show score plum
 	ScorePlum(ent, origin, score);
@@ -665,9 +639,10 @@ void LookAtKiller( gentity_t *self, gentity_t *inflictor, gentity_t *attacker ) 
 GibEntity
 ==================
 */
-void GibEntity( gentity_t *self, int killer ) {
+void GibEntity( gentity_t *self ) {
 	gentity_t *ent;
 	int i;
+	vec3_t dir;
 
 	//if this entity still has kamikaze
 	if (self->s.eFlags & EF_KAMIKAZE) {
@@ -684,7 +659,14 @@ void GibEntity( gentity_t *self, int killer ) {
 			break;
 		}
 	}
-	G_AddEvent( self, EV_GIB_PLAYER, killer );
+
+	if ( self->client ) {
+		G_AddPredictableEvent( self, EV_GIB_PLAYER, DirToByte( self->client->damage_from ) );
+	} else {
+		VectorSet( dir, 0, 0, -1 );
+		G_AddEvent( self, EV_GIB_PLAYER, DirToByte( dir ) );
+	}
+
 	self->takedamage = qfalse;
 	self->s.eType = ET_INVISIBLE;
 	self->r.contents = 0;
@@ -696,15 +678,16 @@ body_die
 ==================
 */
 void body_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath ) {
+	(void)inflictor;
+	(void)attacker;
+	(void)damage;
+	(void)meansOfDeath;
+
 	if ( self->health > GIB_HEALTH ) {
 		return;
 	}
-	if ( !g_blood.integer ) {
-		self->health = GIB_HEALTH+1;
-		return;
-	}
 
-	GibEntity( self, 0 );
+	GibEntity( self );
 }
 
 
@@ -860,6 +843,133 @@ void CheckAlmostScored( gentity_t *self, gentity_t *attacker ) {
 
 /*
 ==================
+G_ClientHasQuadDamage
+==================
+*/
+static qboolean G_ClientHasQuadDamage( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return client->ps.powerups[PW_QUAD] != 0 ? qtrue : qfalse;
+}
+
+/*
+==================
+G_ClientHasBattleSuit
+==================
+*/
+static qboolean G_ClientHasBattleSuit( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return client->ps.powerups[PW_BATTLESUIT] != 0 ? qtrue : qfalse;
+}
+
+/*
+==================
+G_ClientHasHaste
+==================
+*/
+static qboolean G_ClientHasHaste( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return client->ps.powerups[PW_HASTE] != 0 ? qtrue : qfalse;
+}
+
+/*
+==================
+G_ClientHasInvisibility
+==================
+*/
+static qboolean G_ClientHasInvisibility( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return client->ps.powerups[PW_INVIS] != 0 ? qtrue : qfalse;
+}
+
+/*
+==================
+G_ClientHasRegeneration
+==================
+*/
+static qboolean G_ClientHasRegeneration( const gclient_t *client ) {
+	if ( !client ) {
+		return qfalse;
+	}
+
+	return client->ps.powerups[PW_REGEN] != 0 ? qtrue : qfalse;
+}
+
+/*
+==================
+G_PowerupCarrierKillColorPrefix
+==================
+*/
+static const char *G_PowerupCarrierKillColorPrefix( void ) {
+	switch ( g_gametype.integer ) {
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_OBELISK:
+	case GT_HARVESTER:
+	case GT_ATTACK_DEFEND:
+		return S_COLOR_WHITE;
+	default:
+		return S_COLOR_YELLOW;
+	}
+}
+
+/*
+==================
+G_AnnouncePowerupCarrierKill
+==================
+*/
+static void G_AnnouncePowerupCarrierKill( gentity_t *attacker, gentity_t *targ ) {
+	const char	*powerupName;
+	const char	*colorPrefix;
+
+	if ( !attacker || !attacker->client || !targ || !targ->client ) {
+		return;
+	}
+
+	if ( attacker == targ || OnSameTeam( attacker, targ ) ) {
+		return;
+	}
+
+	if ( g_gametype.integer == GT_HARVESTER && targ->client->ps.generic1 ) {
+		return;
+	}
+
+	powerupName = NULL;
+	if ( G_ClientHasQuadDamage( targ->client ) ) {
+		powerupName = "Quad Damage";
+	} else if ( G_ClientHasBattleSuit( targ->client ) ) {
+		powerupName = "Battle Suit";
+	} else if ( G_ClientHasRegeneration( targ->client ) ) {
+		powerupName = "Regeneration";
+	} else if ( G_ClientHasHaste( targ->client ) ) {
+		powerupName = "Haste";
+	} else if ( G_ClientHasInvisibility( targ->client ) ) {
+		powerupName = "Invisibility";
+	}
+
+	if ( !powerupName ) {
+		return;
+	}
+
+	colorPrefix = G_PowerupCarrierKillColorPrefix();
+	trap_SendServerCommand( -1,
+		va( "print \"%s%s killed the %s carrier!^7\n\"",
+			colorPrefix, attacker->client->pers.netname, powerupName ) );
+}
+
+/*
+==================
 player_die
 ==================
 */
@@ -924,6 +1034,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	G_LogPrintf("Kill: %i %i %i: %s killed %s by %s\n", 
 		killer, self->s.number, meansOfDeath, killerName, 
 		self->client->pers.netname, obit );
+	G_AnnouncePowerupCarrierKill( attacker, self );
 
 	// broadcast the death event to everyone
 	ent = G_TempEntity( self->r.currentOrigin, EV_OBITUARY );
@@ -1084,7 +1195,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	// never gib in a nodrop
 	if ( (self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP) && g_blood.integer) || meansOfDeath == MOD_SUICIDE) {
 		// gib death
-		GibEntity( self, killer );
+		GibEntity( self );
 	} else {
 		// normal death
 		static int i;

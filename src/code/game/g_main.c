@@ -109,14 +109,17 @@ static void G_UpdateGameStateForLevel( void );
 static void G_SyncRulesetCvar( void );
 static void G_SyncAllClientArmorTiers( void );
 static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut );
+static const char *G_AdminAccessTierToken( int tier );
 static void G_InsertAdminAccessEntry( const char *steamId, int tier );
 static void G_LoadAdminAccessFile( void );
+static void G_WriteAdminAccessFile( void );
 static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast );
 static void G_UpdateWeaponReloadConfigstring( qboolean forceBroadcast );
 static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast );
 static void G_UpdateModeSpecificConfigstrings( qboolean forceBroadcast );
 static uint64_t G_ComputeCustomSettingsMask( void );
 static void G_UpdateCustomSettingsConfigstring( qboolean forceBroadcast );
+static void G_PublishWarmupReadyConfigstring( int readyCount, int eligibleCount, int readyMask );
 void G_SuddenDeathThink( void );
 
 /*
@@ -367,6 +370,8 @@ vmCvar_t	g_kickBadUserinfo;
 vmCvar_t	g_playermodelOverride;
 vmCvar_t	g_playerheadmodelOverride;
 vmCvar_t	g_training;
+vmCvar_t	g_lagHaxHistory;
+vmCvar_t	g_lagHaxMs;
 vmCvar_t	g_botsFile;
 vmCvar_t	g_botSpawnList;
 vmCvar_t	g_accessFile;
@@ -685,6 +690,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_warmupReadyDelay, "g_warmupReadyDelay", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds to wait in duel after exactly one player readies before applying g_warmupReadyDelayAction; 0 disables the retail delay controller." },
 	{ &g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail duel ready-delay action: 1 moves the unready duelist to spectate-only, 2 forces both duelists ready." },
 	{ &g_training, "g_training", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Marks training sessions and disables competitive match flow when set." },
+	{ &g_lagHaxHistory, "g_lagHaxHistory", "4", 0, 0, qfalse, qfalse, "Hidden Quake Live rewind history depth used by the retail lag compensation seam." },
+	{ &g_lagHaxMs, "g_lagHaxMs", "80", 0, 0, qfalse, qfalse, "Hidden Quake Live rewind window in milliseconds for the retail lag compensation seam." },
 	{ &g_forcedAtmosphere, "g_forcedAtmosphere", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional atmosphere effect applied when a map lacks an atmosphere worldspawn key." },
 	{ &g_listEntity, "g_listEntity", "0", 0, 0, qfalse },
 	{ &g_overtime, "g_overtime", "120", CVAR_SERVERINFO | CVAR_NORESTART, 0, qfalse, qfalse, "Overtime period length in seconds once regulation ends tied; 0 keeps sudden death active until the tie is broken." },
@@ -1074,6 +1081,33 @@ void G_ShutdownGame( int restart );
 void G_RegisterCvars( void );
 void CheckExitRules( void );
 
+/*
+================
+G_NativeInit
+================
+*/
+static void G_NativeInit( int levelTime, int randomSeed, qboolean restart ) {
+	G_InitGame( levelTime, randomSeed, restart );
+}
+
+/*
+================
+G_NativeShutdown
+================
+*/
+static void G_NativeShutdown( qboolean restart ) {
+	G_ShutdownGame( restart );
+}
+
+/*
+================
+G_NativeClientConnect
+================
+*/
+static const char *G_NativeClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
+	return ClientConnect( clientNum, firstTime, isBot );
+}
+
 
 /*
 ================
@@ -1086,13 +1120,13 @@ This must be the very first function compiled into the .q3vm file
 int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7, int arg8, int arg9, int arg10, int arg11  ) {
 	switch ( command ) {
 	case GAME_INIT:
-		G_InitGame( arg0, arg1, arg2 );
+		G_NativeInit( arg0, arg1, arg2 ? qtrue : qfalse );
 		return 0;
 	case GAME_SHUTDOWN:
-		G_ShutdownGame( arg0 );
+		G_NativeShutdown( arg0 ? qtrue : qfalse );
 		return 0;
 	case GAME_CLIENT_CONNECT:
-		return (int)ClientConnect( arg0, arg1, arg2 );
+		return (int)(intptr_t)G_NativeClientConnect( arg0, arg1 ? qtrue : qfalse, arg2 ? qtrue : qfalse );
 	case GAME_CLIENT_THINK:
 		ClientThink( arg0 );
 		return 0;
@@ -1135,15 +1169,15 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 }
 
 static void *g_nativeExports[GAME_NATIVE_EXPORT_COUNT] = {
-	[GAME_NATIVE_EXPORT_SHUTDOWN] = G_ShutdownGame,
+	[GAME_NATIVE_EXPORT_SHUTDOWN] = G_NativeShutdown,
 	[GAME_NATIVE_EXPORT_RUN_FRAME] = G_RunFrame,
 	[GAME_NATIVE_EXPORT_REGISTER_CVARS] = G_RegisterCvars,
-	[GAME_NATIVE_EXPORT_INIT] = G_InitGame,
+	[GAME_NATIVE_EXPORT_INIT] = G_NativeInit,
 	[GAME_NATIVE_EXPORT_CONSOLE_COMMAND] = ConsoleCommand,
 	[GAME_NATIVE_EXPORT_CLIENT_USERINFO_CHANGED] = ClientUserinfoChanged,
 	[GAME_NATIVE_EXPORT_CLIENT_THINK] = ClientThink,
 	[GAME_NATIVE_EXPORT_CLIENT_DISCONNECT] = ClientDisconnect,
-	[GAME_NATIVE_EXPORT_CLIENT_CONNECT] = ClientConnect,
+	[GAME_NATIVE_EXPORT_CLIENT_CONNECT] = G_NativeClientConnect,
 	[GAME_NATIVE_EXPORT_CLIENT_COMMAND] = ClientCommand,
 	[GAME_NATIVE_EXPORT_CLIENT_BEGIN] = ClientBegin,
 	[GAME_NATIVE_EXPORT_BOTAI_START_FRAME] = BotAIStartFrame,
@@ -1742,32 +1776,50 @@ static void G_ResetAdminAccessList( void ) {
 
 /*
 =============
+G_AdminAccessTierToken
+
+Returns the retail symbolic token for a persisted admin access tier.
+=============
+*/
+static const char *G_AdminAccessTierToken( int tier ) {
+	switch ( tier ) {
+	case -1:
+		return "ban";
+	case PRIV_MOD:
+		return "mod";
+	case PRIV_ADMIN:
+		return "admin";
+	default:
+		return NULL;
+	}
+}
+
+/*
+=============
 G_ParseAdminAccessTier
 
 Validates the privilege tier token pulled from the access file.
 =============
 */
 static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut ) {
-	char		*endptr;
-	long		value;
-
 	if ( !token || !token[0] || !tierOut ) {
 		return qfalse;
 	}
 
-	value = strtol( token, &endptr, 10 );
-	if ( *endptr != '\0' ) {
-		return qfalse;
+	if ( !Q_stricmp( token, "ban" ) ) {
+		*tierOut = -1;
+		return qtrue;
+	}
+	if ( !Q_stricmp( token, "mod" ) ) {
+		*tierOut = PRIV_MOD;
+		return qtrue;
+	}
+	if ( !Q_stricmp( token, "admin" ) ) {
+		*tierOut = PRIV_ADMIN;
+		return qtrue;
 	}
 
-	if ( value < 0 ) {
-		value = 0;
-	} else if ( value > INT_MAX ) {
-		value = INT_MAX;
-	}
-
-	*tierOut = ( int )value;
-	return qtrue;
+	return qfalse;
 }
 
 /*
@@ -1787,6 +1839,7 @@ static void G_InsertAdminAccessEntry( const char *steamId, int tier ) {
 	for ( i = 0; i < level.adminAccessEntryCount; i++ ) {
 		if ( !Q_stricmp( level.adminAccessList[i].steamId, steamId ) ) {
 			level.adminAccessList[i].privilegeTier = tier;
+			level.adminAccessList[i].temporary = qfalse;
 			return;
 		}
 	}
@@ -1799,6 +1852,7 @@ static void G_InsertAdminAccessEntry( const char *steamId, int tier ) {
 	Q_strncpyz( level.adminAccessList[level.adminAccessEntryCount].steamId, steamId,
 			sizeof( level.adminAccessList[level.adminAccessEntryCount].steamId ) );
 	level.adminAccessList[level.adminAccessEntryCount].privilegeTier = tier;
+	level.adminAccessList[level.adminAccessEntryCount].temporary = qfalse;
 	level.adminAccessEntryCount++;
 }
 
@@ -1882,6 +1936,61 @@ static void G_LoadAdminAccessFile( void ) {
 	}
 
 	G_Printf( "loaded %i steam ids into the access list\n", level.adminAccessEntryCount );
+}
+
+/*
+=============
+G_WriteAdminAccessFile
+
+Persists the retail symbolic admin access list back to g_accessFile.
+=============
+*/
+static void G_WriteAdminAccessFile( void ) {
+	static const char accessHeader[] =
+		"# Be sure to run /reload_access if editing this file while server is running.\r\n"
+		"# The server will overwrite your changes on map exit and shutdown\r\n"
+		"# 1 entry per line, format: steamid|(mod|admin|ban)\r\n"
+		"# ex: 76561198072786081|ban\r\n";
+	fileHandle_t	handle;
+	int		length;
+	int		i;
+
+	if ( !g_accessFile.string[0] ) {
+		G_Printf( "file not found: %s\n", g_accessFile.string );
+		return;
+	}
+
+	length = trap_FS_FOpenFile( g_accessFile.string, &handle, FS_WRITE );
+	if ( length < 0 || !handle ) {
+		if ( handle ) {
+			trap_FS_FCloseFile( handle );
+		}
+		G_Printf( "file not found: %s\n", g_accessFile.string );
+		return;
+	}
+
+	trap_FS_Write( accessHeader, (int)strlen( accessHeader ), handle );
+
+	for ( i = 0; i < level.adminAccessEntryCount; i++ ) {
+		const adminAccessEntry_t	*entry;
+		const char			*tierToken;
+		char				line[64];
+
+		entry = &level.adminAccessList[i];
+		if ( entry->temporary ) {
+			continue;
+		}
+
+		tierToken = G_AdminAccessTierToken( entry->privilegeTier );
+		if ( !tierToken ) {
+			continue;
+		}
+
+		Com_sprintf( line, sizeof( line ), "%s|%s\r\n", entry->steamId, tierToken );
+		trap_FS_Write( line, (int)strlen( line ), handle );
+	}
+
+	trap_FS_FCloseFile( handle );
 }
 
 /*
@@ -2070,6 +2179,10 @@ G_UpdateTrainingState();
 	G_FreezeSyncCvars();
 	level.time = levelTime;
 	level.startTime = levelTime;
+	Com_sprintf( level.rankMatchGuid, sizeof( level.rankMatchGuid ), "%08X%08X",
+		(unsigned int)level.startTime, (unsigned int)( randomSeed ^ rand() ) );
+	level.rankMatchStartedSent = qfalse;
+	level.rankMatchReportSent = qfalse;
 	level.roundState = ROUNDSTATE_INACTIVE;
 	level.roundTransitionTime = ROUND_TRANSITION_NONE;
 	level.adRoundState = AD_ROUNDSTATE_INACTIVE;
@@ -2157,6 +2270,9 @@ G_UpdateTrainingState();
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
 	G_CountSpawnPoints();
+	G_SpawnItemPowerups();
+	G_SpawnQuadHogQuad();
+	G_InitLagHaxHistory();
 	G_UpdateTrainingState();
 	if ( level.trainingMapActive ) {
 		int team;
@@ -2238,6 +2354,7 @@ void G_ShutdownGame( int restart ) {
 
 	// write all the client session data so we can get it back
 	G_WriteSessionData();
+	G_WriteAdminAccessFile();
 
 	if ( trap_Cvar_VariableIntegerValue( "bot_enable" ) ) {
 		BotAIShutdown( restart );
@@ -3153,6 +3270,108 @@ void QDECL G_LogPrintf( const char *fmt, ... ) {
 
 /*
 ================
+G_RankResetClientStats
+
+Reinitializes the lightweight client rankings/report state used by the retail
+event bridge.
+================
+*/
+void G_RankResetClientStats( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	memset( &client->rankStats, 0, sizeof( client->rankStats ) );
+	client->rankStats.sessionStartTime = level.time;
+	client->rankStats.matchStartTime = level.startTime;
+	client->rankStats.steamIdLow = client->pers.steamIdLow;
+	client->rankStats.steamIdHigh = client->pers.steamIdHigh;
+	Com_sprintf( client->rankStats.sessionToken, sizeof( client->rankStats.sessionToken ),
+		"%08X%08X%08X",
+		client->rankStats.steamIdLow,
+		client->rankStats.steamIdHigh,
+		(unsigned int)( level.time ^ rand() ) );
+}
+
+/*
+================
+G_RankClientConnect
+
+Mirrors the retail PLAYER_CONNECT publication timing. The detailed JSON payload
+is still pending reconstruction, so the stub bridge currently carries the event
+name plus the recovered SteamID and client-stats owner.
+================
+*/
+void G_RankClientConnect( gentity_t *ent ) {
+	gclient_t	*client;
+
+	if ( !ent || !ent->client || ( ent->r.svFlags & SVF_BOT ) ) {
+		return;
+	}
+
+	client = ent->client;
+	trap_ReportPlayerEvent( client->pers.steamIdLow, client->pers.steamIdHigh,
+		&client->rankStats, "PLAYER_CONNECT", NULL );
+}
+
+/*
+================
+G_RankClientDisconnect
+
+Mirrors the retail PLAYER_DISCONNECT publication timing before the client is
+fully unlinked from the world.
+================
+*/
+void G_RankClientDisconnect( gentity_t *ent ) {
+	gclient_t	*client;
+
+	if ( !ent || !ent->client || ( ent->r.svFlags & SVF_BOT ) ) {
+		return;
+	}
+
+	client = ent->client;
+	trap_ReportPlayerEvent( client->pers.steamIdLow, client->pers.steamIdHigh,
+		&client->rankStats, "PLAYER_DISCONNECT", NULL );
+}
+
+/*
+================
+G_RankSendMatchStarted
+
+Publishes the retail MATCH_STARTED transition once per match bootstrap.
+================
+*/
+void G_RankSendMatchStarted( void ) {
+	if ( level.rankMatchStartedSent ) {
+		return;
+	}
+
+	level.rankMatchStartedSent = qtrue;
+	trap_ReportPlayerEvent( 0, 0, NULL, "MATCH_STARTED", NULL );
+}
+
+/*
+================
+G_RankSubmitMatchReport
+
+Claims the retail match-report submission point from LogExit. The full payload
+builder is still under reconstruction, so the current bridge holds the submit
+timing and single-fire semantics while routing a stub report object.
+================
+*/
+void G_RankSubmitMatchReport( qboolean aborted ) {
+	(void)aborted;
+
+	if ( level.rankMatchReportSent ) {
+		return;
+	}
+
+	level.rankMatchReportSent = qtrue;
+	trap_SubmitMatchReport( NULL );
+}
+
+/*
+================
 LogExit
 
 Append information about this game to the log file
@@ -3209,6 +3428,10 @@ void LogExit( const char *string ) {
 			won = level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE];
 		}
 		trap_SendConsoleCommand( EXEC_APPEND, (won) ? "spWin\n" : "spLose\n" );
+	}
+
+	if ( !level.rankMatchReportSent && !trap_Cvar_VariableIntegerValue( "g_restarted" ) ) {
+		G_RankSubmitMatchReport( qfalse );
 	}
 
 
@@ -3633,6 +3856,126 @@ void G_UpdateReadyUpConfigstring( void ) {
 
 /*
 =============
+G_PublishWarmupReadyConfigstring
+
+Publishes the retail warmup readiness snapshot consumed by the HUD.
+=============
+*/
+static void G_PublishWarmupReadyConfigstring( int readyCount, int eligibleCount, int readyMask ) {
+	char	info[MAX_INFO_STRING];
+	char	value[16];
+	int	i;
+	int	percent;
+
+	if ( readyCount < 0 ) {
+		readyCount = 0;
+	}
+	if ( eligibleCount < 0 ) {
+		eligibleCount = 0;
+	}
+	if ( readyCount > eligibleCount ) {
+		readyCount = eligibleCount;
+	}
+
+	percent = 0;
+	if ( eligibleCount > 0 ) {
+		percent = ( readyCount * 100 ) / eligibleCount;
+	}
+
+	info[0] = '\0';
+	Com_sprintf( value, sizeof( value ), "%i", percent );
+	Info_SetValueForKey( info, "pct", value );
+	Com_sprintf( value, sizeof( value ), "%i", readyCount );
+	Info_SetValueForKey( info, "ready", value );
+	Com_sprintf( value, sizeof( value ), "%i", eligibleCount );
+	Info_SetValueForKey( info, "eligible", value );
+	trap_SetConfigstring( CS_WARMUP_READY, info );
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[i];
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		client->ps.stats[STAT_CLIENTS_READY] = readyMask;
+	}
+}
+
+/*
+=============
+G_WarmupReadyToStart
+
+Returns qtrue once warmup has enough ready players to enter or remain in the
+retail start-countdown path, and republishes the HUD readiness snapshot.
+=============
+*/
+qboolean G_WarmupReadyToStart( void ) {
+	int	i;
+	int	eligibleCount;
+	int	readyCount;
+	int	readyMask;
+
+	eligibleCount = 0;
+	readyCount = 0;
+	readyMask = 0;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gclient_t	*client;
+
+		client = &level.clients[i];
+		if ( client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( g_gametype.integer == GT_TOURNAMENT ) {
+			if ( client->sess.sessionTeam != TEAM_FREE ) {
+				continue;
+			}
+		} else if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		eligibleCount++;
+		if ( G_ClientIsReady( client ) ) {
+			readyCount++;
+			if ( i < 16 ) {
+				readyMask |= 1 << i;
+			}
+		}
+	}
+
+	G_PublishWarmupReadyConfigstring( readyCount, eligibleCount, readyMask );
+
+	if ( level.trainingMapActive ) {
+		return qtrue;
+	}
+
+	if ( !g_doWarmup.integer ) {
+		return qtrue;
+	}
+
+	if ( level.warmupTime >= 0 ) {
+		return qtrue;
+	}
+
+	if ( g_gametype.integer == GT_TOURNAMENT ) {
+		return ( eligibleCount == 2 && readyCount == 2 ) ? qtrue : qfalse;
+	}
+
+	if ( g_gametype.integer >= GT_TEAM ) {
+		if ( !Team_HasMinimumPlayersForWarmup() ) {
+			return qfalse;
+		}
+	} else if ( level.numPlayingClients < 2 ) {
+		return qfalse;
+	}
+
+	return ( eligibleCount > 0 && readyCount == eligibleCount ) ? qtrue : qfalse;
+}
+
+/*
+=============
 G_GetDuelReadyStateCounts
 
 Counts active duelists and the subset that are currently marked ready.
@@ -3890,6 +4233,7 @@ static void G_StopOvertime( void ) {
 	level.overtimeEndTime = 0;
 	level.overtimeStartTime = 0;
 	level.suddenDeathActive = qfalse;
+	trap_SetConfigstring( CS_WARMUP_READY, "" );
 	level.suddenDeathLastDelay = -1;
 	level.suddenDeathNoRespawnLogged = qfalse;
 	G_LogPrintf( "match: overtime cleared\n" );
@@ -3984,6 +4328,7 @@ void CheckTournament( void ) {
 	}
 
 	if ( level.trainingMapActive ) {
+		G_WarmupReadyToStart();
 		if ( level.warmupTime != 0 ) {
 			level.warmupTime = 0;
 			trap_SetConfigstring( CS_WARMUP, "" );
@@ -3995,6 +4340,8 @@ void CheckTournament( void ) {
 	if ( level.timeoutActive ) {
 		return;
 	}
+
+	G_WarmupReadyToStart();
 
 	if ( g_gametype.integer == GT_TOURNAMENT ) {
 		int	eligibleCount;
@@ -4630,15 +4977,19 @@ static void G_CheckLevelTimers( qlr_game_frame_context_t *ctx, int previousWarmu
 
 	if ( !ctx ) {
 		return;
-        }
+	}
 
-        if ( ctx->hooks.begin_match && previousWarmupTime > 0 && level.warmupTime <= 0 ) {
-                ctx->hooks.begin_match();
-        }
+	if ( previousWarmupTime > 0 && level.warmupTime <= 0 ) {
+		G_RankSendMatchStarted();
+	}
 
-        if ( ctx->hooks.begin_intermission && previousIntermissionQueued == 0 && level.intermissionQueued != 0 ) {
-                ctx->hooks.begin_intermission();
-        }
+	if ( ctx->hooks.begin_match && previousWarmupTime > 0 && level.warmupTime <= 0 ) {
+		ctx->hooks.begin_match();
+	}
+
+	if ( ctx->hooks.begin_intermission && previousIntermissionQueued == 0 && level.intermissionQueued != 0 ) {
+		ctx->hooks.begin_intermission();
+	}
 }
 
 /*
@@ -4744,10 +5095,12 @@ void G_QuadHogFrame( void ) {
 	gentity_t	*owner;
 	qboolean	active = qfalse;
 
-	if ( !level.quadHogEnabled ) {
+	if ( !level.quadHogEnabled || g_gametype.integer != GT_FFA ) {
 		G_QuadHogReset();
 		return;
 	}
+
+	G_EnsureQuadHogQuad();
 
 	if ( level.quadHogOwner < 0 || level.quadHogOwner >= level.maxclients ) {
 		G_QuadHogReset();

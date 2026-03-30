@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "client.h"
 #include "../../common/auth_credentials.h"
 #include "../../common/platform/platform_config.h"
+#include "../../common/platform/platform_steamworks.h"
 #include <limits.h>
 #include <stdlib.h>
 
@@ -196,6 +197,8 @@ cvar_t	*cl_punkbuster;
 
 cvar_t	*cl_serverStatusResendTime;
 cvar_t	*cl_trn;
+static cvar_t	*cl_lobbyAutoConnect;
+static cvar_t	*cl_steamMaxLobbyClients;
 clientActive_t		cl;
 clientConnection_t	clc;
 clientStatic_t		cls;
@@ -231,7 +234,281 @@ void CL_ServerStatusResponse( netadr_t from, msg_t *msg );
 void CL_Web_ShowBrowser_f( void );
 void CL_Web_ChangeHash_f( void );
 void CL_Web_BrowserActive_f( void );
+void CL_Web_HideBrowser_f( void );
+void CL_Web_ShowError_f( void );
+void CL_Web_ClearCache_f( void );
+void CL_Web_Reload_f( void );
 void CL_Web_StopRefresh_f( void );
+
+/*
+=============
+CL_Steam_ClearStats_f
+
+Mirrors the retail stats_clear command through the Steam user-stats reset path.
+=============
+*/
+static void CL_Steam_ClearStats_f( void ) {
+	if ( !CL_SteamServicesEnabled() ) {
+		Com_DPrintf( "stats_clear ignored: Steam services unavailable\n" );
+		return;
+	}
+
+	if ( !QL_Steamworks_Init() || !QL_Steamworks_ClearStats( qtrue ) ) {
+		Com_DPrintf( "stats_clear ignored: Steam stats backend unavailable\n" );
+		return;
+	}
+
+	Com_DPrintf( "stats_clear\n" );
+}
+
+/*
+=============
+CL_ParseSteamIdString
+
+Parses a decimal SteamID string into two 32-bit identity words.
+=============
+*/
+static qboolean CL_ParseSteamIdString( const char *steamId, uint32_t *steamIdLow, uint32_t *steamIdHigh ) {
+	const char *ch;
+	unsigned long long value;
+
+	if ( steamIdLow ) {
+		*steamIdLow = 0;
+	}
+	if ( steamIdHigh ) {
+		*steamIdHigh = 0;
+	}
+
+	if ( !steamId || !steamId[0] || !steamIdLow || !steamIdHigh ) {
+		return qfalse;
+	}
+
+	value = 0;
+	for ( ch = steamId; *ch; ++ch ) {
+		unsigned int digit;
+
+		if ( *ch < '0' || *ch > '9' ) {
+			return qfalse;
+		}
+
+		digit = (unsigned int)( *ch - '0' );
+		if ( value > ( ULLONG_MAX - digit ) / 10ull ) {
+			return qfalse;
+		}
+
+		value = value * 10ull + digit;
+	}
+
+	*steamIdLow = (uint32_t)( value & 0xffffffffull );
+	*steamIdHigh = (uint32_t)( ( value >> 32 ) & 0xffffffffull );
+	return qtrue;
+}
+
+/*
+=============
+CL_GetClientSteamId
+
+Resolves a scoreboard client slot into the Steam identity used by the retail
+overlay commands.
+=============
+*/
+static qboolean CL_GetClientSteamId( int clientNum, uint32_t *steamIdLow, uint32_t *steamIdHigh ) {
+	char info[MAX_INFO_STRING];
+	int offset;
+	const char *steamId;
+
+	if ( steamIdLow ) {
+		*steamIdLow = 0;
+	}
+	if ( steamIdHigh ) {
+		*steamIdHigh = 0;
+	}
+
+	if ( !steamIdLow || !steamIdHigh || clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+
+	offset = cl.gameState.stringOffsets[CS_PLAYERS + clientNum];
+	if ( !offset ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( info, cl.gameState.stringData + offset, sizeof( info ) );
+	steamId = Info_ValueForKey( info, "steamid" );
+
+	return CL_ParseSteamIdString( steamId, steamIdLow, steamIdHigh );
+}
+
+/*
+=============
+CL_Steam_OverlayCommand_f
+
+Mirrors the retail clientviewprofile and clientfriendinvite command handler.
+=============
+*/
+static void CL_Steam_OverlayCommand_f( void ) {
+	const char *commandName;
+	const char *dialog;
+	int clientNum;
+	uint32_t steamIdLow;
+	uint32_t steamIdHigh;
+
+	if ( Cmd_Argc() < 2 || !CL_SteamServicesEnabled() ) {
+		return;
+	}
+
+	commandName = Cmd_Argv( 0 );
+	dialog = NULL;
+
+	if ( !Q_stricmp( commandName, "clientviewprofile" ) ) {
+		dialog = "steamid";
+	} else if ( !Q_stricmp( commandName, "clientfriendinvite" ) ) {
+		dialog = "friendadd";
+	}
+
+	if ( !dialog ) {
+		return;
+	}
+
+	clientNum = atoi( Cmd_Argv( 1 ) );
+	if ( !CL_GetClientSteamId( clientNum, &steamIdLow, &steamIdHigh ) ) {
+		return;
+	}
+
+	QL_Steamworks_ActivateOverlayToUser( dialog, steamIdLow, steamIdHigh );
+}
+
+/*
+=============
+CL_Steam_ExecuteImmediateCommand
+
+Routes Steam callback payloads through the retail immediate command path.
+=============
+*/
+static void CL_Steam_ExecuteImmediateCommand( const char *command ) {
+	if ( !command || !command[0] ) {
+		return;
+	}
+
+	Cbuf_ExecuteText( EXEC_NOW, command );
+}
+
+/*
+=============
+CL_Steam_OnRichPresenceJoinRequested
+
+Mirrors the retail rich-presence join callback by executing the provided
+command string immediately through the client command path.
+=============
+*/
+void CL_Steam_OnRichPresenceJoinRequested( const char *command ) {
+	CL_Steam_ExecuteImmediateCommand( command );
+}
+
+/*
+=============
+CL_Steam_OnGameServerChangeRequested
+
+Mirrors the retail server-change callback by seeding the password cvar when
+present and routing the server target through the immediate connect path.
+=============
+*/
+void CL_Steam_OnGameServerChangeRequested( const char *server, const char *password ) {
+	if ( !server || !server[0] ) {
+		return;
+	}
+
+	if ( password && password[0] ) {
+		Cvar_Set( "password", password );
+	}
+
+	CL_Steam_ExecuteImmediateCommand( va( "connect %s\n", server ) );
+}
+
+/*
+=============
+CL_Steam_ConnectLobby_f
+
+Mirrors the retail connect_lobby handler by storing the requested Steam lobby
+ID into lobby_autoconnect.
+=============
+*/
+static void CL_Steam_ConnectLobby_f( void ) {
+	Cvar_Set( "lobby_autoconnect", Cmd_Argv( 1 ) );
+}
+
+/*
+=============
+CL_Steam_SetMainMenuRichPresence
+
+Seeds the retail main-menu Steam rich-presence value during client bootstrap.
+=============
+*/
+static void CL_Steam_SetMainMenuRichPresence( void ) {
+	if ( !CL_SteamServicesEnabled() ) {
+		return;
+	}
+
+	QL_Steamworks_SetRichPresence( "status", "At the main menu" );
+}
+
+/*
+=============
+CL_Steam_SyncPersonaNameCvar
+
+Mirrors the retail Steam persona bootstrap, using com_buildScript as the closest build-harness gate in the current tree.
+=============
+*/
+static void CL_Steam_SyncPersonaNameCvar( void ) {
+	char personaName[MAX_CVAR_VALUE_STRING];
+
+	if ( !CL_SteamServicesEnabled() ) {
+		return;
+	}
+
+	if ( com_buildScript && com_buildScript->integer ) {
+		return;
+	}
+
+	if ( !QL_Steamworks_Init() ) {
+		return;
+	}
+
+	if ( QL_Steamworks_GetPersonaName( personaName, sizeof( personaName ) ) ) {
+		Cvar_Set( "name", personaName );
+		return;
+	}
+
+	Cvar_Set( "name", "anon" );
+}
+
+/*
+=============
+CL_Steam_SeedCountryCvar
+
+Seeds the country userinfo field from Steam when the current cvar is blank.
+=============
+*/
+static void CL_Steam_SeedCountryCvar( void ) {
+	char country[MAX_CVAR_VALUE_STRING];
+
+	if ( !CL_SteamServicesEnabled() ) {
+		return;
+	}
+
+	Cvar_VariableStringBuffer( "country", country, sizeof( country ) );
+	if ( country[0] ) {
+		return;
+	}
+
+	if ( !QL_Steamworks_Init() ) {
+		return;
+	}
+
+	if ( QL_Steamworks_GetIPCountry( country, sizeof( country ) ) && country[0] ) {
+		Cvar_Set( "country", country );
+	}
+}
 
 /*
 ===============
@@ -870,6 +1147,8 @@ void CL_Disconnect( qboolean showMainMenu ) {
 	if ( clc.demorecording ) {
 		CL_StopRecord_f ();
 	}
+
+	QL_ClientAuth_CancelSteamTicket();
 
 	if (clc.download) {
 		FS_FCloseFile( clc.download );
@@ -2468,9 +2747,13 @@ void CL_Init( void ) {
 	cl_quitOnDemoCompleted = Cvar_Get ("cl_quitOnDemoCompleted", "0", 0 );
 	cl_allowConsoleChat = Cvar_Get ("cl_allowConsoleChat", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 	Cvar_Get ("web_browserActive", "0", CVAR_TEMP );
+	Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );
+	Cvar_Get ("web_console", "0", CVAR_ARCHIVE );
 	rcon_client_password = Cvar_Get ("rconPassword", "", CVAR_TEMP );
 	cl_activeAction = Cvar_Get( "activeAction", "", CVAR_TEMP );
 	cl_demoRecordMessage = Cvar_Get ("cl_demoRecordMessage", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	cl_lobbyAutoConnect = Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );
+	cl_steamMaxLobbyClients = Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );
 
 	cl_timedemo = Cvar_Get ("timedemo", "0", 0);
 	cl_avidemo = Cvar_Get ("cl_avidemo", "0", 0);
@@ -2589,8 +2872,19 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("model", CL_SetModel_f );
 	Cmd_AddCommand ("web_showBrowser", CL_Web_ShowBrowser_f );
 	Cmd_AddCommand ("web_changeHash", CL_Web_ChangeHash_f );
+	Cmd_AddCommand ("web_hideBrowser", CL_Web_HideBrowser_f );
+	Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );
+	Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );
+	Cmd_AddCommand ("web_reload", CL_Web_Reload_f );
 	Cmd_AddCommand ("web_browserActive", CL_Web_BrowserActive_f );
 	Cmd_AddCommand ("web_stopRefresh", CL_Web_StopRefresh_f );
+	Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );
+	Cmd_AddCommand ("clientviewprofile", CL_Steam_OverlayCommand_f );
+	Cmd_AddCommand ("clientfriendinvite", CL_Steam_OverlayCommand_f );
+	Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );
+	CL_Steam_SetMainMenuRichPresence();
+	CL_Steam_SyncPersonaNameCvar();
+	CL_Steam_SeedCountryCvar();
 	CL_WebPak_Init();
 	CL_InitRef();
 
@@ -2649,6 +2943,18 @@ void CL_Shutdown( void ) {
 	Cmd_RemoveCommand ("serverstatus");
 	Cmd_RemoveCommand ("showip");
 	Cmd_RemoveCommand ("model");
+	Cmd_RemoveCommand ("web_showBrowser");
+	Cmd_RemoveCommand ("web_changeHash");
+	Cmd_RemoveCommand ("web_hideBrowser");
+	Cmd_RemoveCommand ("web_showError");
+	Cmd_RemoveCommand ("web_clearCache");
+	Cmd_RemoveCommand ("web_reload");
+	Cmd_RemoveCommand ("web_browserActive");
+	Cmd_RemoveCommand ("web_stopRefresh");
+	Cmd_RemoveCommand ("connect_lobby");
+	Cmd_RemoveCommand ("clientviewprofile");
+	Cmd_RemoveCommand ("clientfriendinvite");
+	Cmd_RemoveCommand ("stats_clear");
 
 	Cvar_Set( "cl_running", "0" );
 

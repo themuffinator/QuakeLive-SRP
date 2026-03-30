@@ -2077,8 +2077,6 @@ const char *TeamColorString(int team) {
 		return S_COLOR_RED;
 	else if (team==TEAM_BLUE)
 		return S_COLOR_BLUE;
-	else if (team==TEAM_SPECTATOR)
-		return S_COLOR_YELLOW;
 	return S_COLOR_WHITE;
 }
 
@@ -2238,7 +2236,7 @@ static qboolean G_RedRoverClientVisibilityEnabled( void ) {
 		return qfalse;
 	}
 
-	return ( level.roundState == ROUNDSTATE_ACTIVE ) ? qtrue : qfalse;
+	return qtrue;
 }
 
 /*

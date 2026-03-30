@@ -2,15 +2,15 @@
   "schema_version": 1,
   "binary": "cgame",
   "input_path": "assets/quakelive/baseq3/cgamex86.dll",
-  "generated_at": "2026-03-26T00:00:00Z",
+  "generated_at": "2026-03-29T00:00:00Z",
   "coverage": {
     "mode": "curated_high_confidence_subset_plus_hlil_anchors",
     "ghidra_function_count": 751,
-    "ghidra_mapped_function_count": 442,
-    "hlil_only_anchor_count": 96,
-    "corpus_anchor_count": 847,
-    "mapped_function_count": 538,
-    "notes": "Coverage is normalized against the committed cgame corpus instead of the curated function list itself. This pass promotes the retail compact reload parser `CG_ParseWeaponReloadConfigString`, publishes the dedicated `CS_WEAPON_RELOAD_TIMES` slab from qagame, and reconstructs the matching cgame parser / railgun cooldown consumer around the recovered weapon refire timings."
+    "ghidra_mapped_function_count": 547,
+    "hlil_only_anchor_count": 100,
+    "corpus_anchor_count": 851,
+    "mapped_function_count": 647,
+    "notes": "Coverage is normalized against the committed cgame corpus instead of the curated function list itself. This pass promotes the retail local-entity render seam beneath `CG_AddLocalEntities`, including the shared fragment leaf plus the named big-explode tracer and death-effect sprite slots, while reconstructing the same dispatcher split in `cg_localents.c`."
   },
   "sources": [
     "references/reverse-engineering/ghidra/cgamex86/metadata.txt",
@@ -144,6 +144,56 @@
       ],
       "relocation_refs": [],
       "comment": "Retail `-scores` handler that clears the score-display latch, matching the public-source CG_ScoresUp_f."
+    },
+    {
+      "address": "0x10006D60",
+      "raw_name": "sub_10006d60",
+      "normalized_name": "CG_AccDown_f",
+      "status": "matched",
+      "signature": "static void CG_AccDown_f(void)",
+      "string_refs": [
+        "0x1006877C",
+        "0x100687D4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `+acc` console-command wrapper. HLIL command-table references tie this helper directly to the `+acc` string, and the body throttles `acc` client commands to 1 Hz while setting the local vertical-overlay latch."
+    },
+    {
+      "address": "0x10006DB0",
+      "raw_name": "sub_10006db0",
+      "normalized_name": "CG_AccUp_f",
+      "status": "matched",
+      "signature": "static void CG_AccUp_f(void)",
+      "string_refs": [
+        "0x10068774"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `-acc` console-command wrapper. The adjacent command-table entry and the body both make the role explicit: it clears the same local accuracy-overlay latch armed by `CG_AccDown_f`."
+    },
+    {
+      "address": "0x10006DD0",
+      "raw_name": "sub_10006dd0",
+      "normalized_name": "CG_PStatsDown_f",
+      "status": "matched",
+      "signature": "static void CG_PStatsDown_f(void)",
+      "string_refs": [
+        "0x1006876C",
+        "0x100687D8"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `+pstats` console-command wrapper. HLIL command-table references plus the body show the same 1 Hz resend pattern as `+acc`, but the adjacent cgame-side `pstats` consumer remains an open reconstruction question in the committed corpus."
+    },
+    {
+      "address": "0x10006E20",
+      "raw_name": "sub_10006e20",
+      "normalized_name": "CG_PStatsUp_f",
+      "status": "matched",
+      "signature": "static void CG_PStatsUp_f(void)",
+      "string_refs": [
+        "0x10068764"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `-pstats` console-command wrapper that clears the companion local latch used by `CG_PStatsDown_f`."
     },
     {
       "address": "0x10006E40",
@@ -840,6 +890,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail flag preview helper used by the status bar and scoreboard. HLIL selects red, blue, or neutral flag assets from the team selector, renders the 3D model through `CG_Draw3DModel` when allowed, and falls back to 2D powerup icons otherwise; this stays mapped explicitly in `cgame.json` because the shared alias table already uses `FUN_10009660` for the UI binary."
+    },
+    {
+      "address": "0x10009850",
+      "raw_name": "FUN_10009850",
+      "normalized_name": "CG_DrawTeamBackground",
+      "status": "matched",
+      "signature": "void CG_DrawTeamBackground(int x, int y, int w, int h, float alpha, int team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Low-level retail team-color background helper reached directly from the `CG_TEAM_COLOR` ownerdraw. HLIL selects the same red/blue tint pair used by the source helper, modulates `cgs.media.teamStatusBar`, and skips drawing for non-team colors."
     },
     {
       "address": "0x10009930",
@@ -1570,6 +1630,26 @@
       "comment": "Retail thaw-burst producer reached directly from the `EV_THAW_PLAYER` event case. HLIL preserves the seven alternating brain/abdomen launches with randomized `GIB_VELOCITY` / `GIB_JUMP` vectors from src/code/cgame/cg_effects.c::CG_ThawPlayer."
     },
     {
+      "address": "0x10015240",
+      "raw_name": "FUN_10015240",
+      "normalized_name": "CG_PositionEntityOnTag",
+      "status": "matched",
+      "signature": "void CG_PositionEntityOnTag(refEntity_t *entity, const refEntity_t *parent, qhandle_t parentModel, char *tagName)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail tag-attachment helper that lerps the requested tag from the parent model, projects the tag origin along the parent axes, multiplies the tag basis against the parent axis, and copies `backlerp`, matching src/code/cgame/cg_ents.c::CG_PositionEntityOnTag."
+    },
+    {
+      "address": "0x10015340",
+      "raw_name": "FUN_10015340",
+      "normalized_name": "CG_PositionRotatedEntityOnTag",
+      "status": "matched",
+      "signature": "void CG_PositionRotatedEntityOnTag(refEntity_t *entity, const refEntity_t *parent, qhandle_t parentModel, char *tagName)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail rotated tag-attachment helper that shares the same lerped-tag origin placement as `CG_PositionEntityOnTag`, then folds the entity axis through the tag basis before applying the parent axis, matching src/code/cgame/cg_ents.c::CG_PositionRotatedEntityOnTag."
+    },
+    {
       "address": "0x10015450",
       "raw_name": "FUN_10015450",
       "normalized_name": "CG_SetEntitySoundPosition",
@@ -1943,6 +2023,108 @@
       "comment": "Fragment bounce reflection helper. HLIL shows the same hit-time interpolation, plane-normal reflection, `bounceFactor` scaling, base/time reset, and `TR_STATIONARY` stop test on shallow upward planes that src/code/cgame/cg_localents.c::CG_ReflectVelocity uses."
     },
     {
+      "address": "0x1001EE10",
+      "raw_name": "FUN_1001ee10",
+      "normalized_name": "CG_AddFragment",
+      "status": "matched",
+      "signature": "void CG_AddFragment(localEntity_t *le)",
+      "string_refs": [
+        "0x1006A758"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail fragment leaf beneath `CG_AddLocalEntities`. HLIL folds the free-fall render path, nodrop kill, bounce mark/sound reflection, blood/ice trail updates, and the `LE_FRAGMENT_14` tracer specialization into one committed helper instead of the broader GPL wrapper split."
+    },
+    {
+      "address": "0x1001F080",
+      "raw_name": "FUN_1001f080",
+      "normalized_name": "CG_AddFadeRGB",
+      "status": "matched",
+      "signature": "void CG_AddFadeRGB(localEntity_t *le)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail RGBA-fade leaf for `LE_FADE_RGB`. HLIL multiplies the life fade directly into all four shader color channels on `le->refEntity` and submits the entity exactly like src/code/cgame/cg_localents.c::CG_AddFadeRGB."
+    },
+    {
+      "address": "0x1001F180",
+      "raw_name": "FUN_1001f180",
+      "normalized_name": "CG_AddBigExplodeTracer",
+      "status": "matched",
+      "signature": "static void CG_AddBigExplodeTracer(localEntity_t *le)",
+      "string_refs": [
+        "0x1006A758"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail `LE_BIGEXPLODE_TRACER` leaf. The only committed producer is `CG_SpawnBigExplodeTracer`, and HLIL matches the same fade/move/cull sprite path now exposed in src/code/cgame/cg_localents.c::CG_AddBigExplodeTracer."
+    },
+    {
+      "address": "0x1001F370",
+      "raw_name": "FUN_1001f370",
+      "normalized_name": "CG_AddMoveScaleFade",
+      "status": "matched",
+      "signature": "static void CG_AddMoveScaleFade(localEntity_t *le)",
+      "string_refs": [
+        "0x1006A758"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail moving scale/fade sprite leaf used by water bubbles and similar transient puffs. HLIL keeps the fade-in handling, alpha-only modulation, trajectory evaluation, radius growth, near-camera cull, and final scene submission from src/code/cgame/cg_localents.c::CG_AddMoveScaleFade."
+    },
+    {
+      "address": "0x1001F4E0",
+      "raw_name": "FUN_1001f4e0",
+      "normalized_name": "CG_AddScaleFade",
+      "status": "matched",
+      "signature": "static void CG_AddScaleFade(localEntity_t *le)",
+      "string_refs": [
+        "0x1006A758"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail stationary scale/fade sprite leaf used by rocket trails. HLIL preserves the same alpha fade, radius growth, near-camera cull, and refEntity submission as src/code/cgame/cg_localents.c::CG_AddScaleFade."
+    },
+    {
+      "address": "0x1001F600",
+      "raw_name": "FUN_1001f600",
+      "normalized_name": "CG_AddFallScaleFade",
+      "status": "matched",
+      "signature": "static void CG_AddFallScaleFade(localEntity_t *le)",
+      "string_refs": [
+        "0x1006A758"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail falling scale/fade sprite leaf used by blood-mist trails. HLIL keeps the same alpha fade, vertical sink derived from `trDelta[2]`, `+16` radius bias, near-camera cull, and scene submission from src/code/cgame/cg_localents.c::CG_AddFallScaleFade."
+    },
+    {
+      "address": "0x1001F730",
+      "raw_name": "FUN_1001f730",
+      "normalized_name": "CG_AddDeathEffect",
+      "status": "matched",
+      "signature": "static void CG_AddDeathEffect(localEntity_t *le)",
+      "string_refs": [
+        "0x1006A758"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail `LE_DEATH_EFFECT` leaf. The only committed producer is `CG_SpawnDeathEffect`, and HLIL shows the same shared sprite fade/cull path plus the half-life dlight envelope now exposed in src/code/cgame/cg_localents.c::CG_AddDeathEffect."
+    },
+    {
+      "address": "0x1001F9B0",
+      "raw_name": "FUN_1001f9b0",
+      "normalized_name": "CG_AddExplosion",
+      "status": "matched",
+      "signature": "static void CG_AddExplosion(localEntity_t *ex)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail model-explosion renderer. HLIL forwards the live refEntity to the scene and applies the same triangular dlight falloff over the entity lifetime as src/code/cgame/cg_localents.c::CG_AddExplosion."
+    },
+    {
+      "address": "0x1001FA90",
+      "raw_name": "FUN_1001fa90",
+      "normalized_name": "CG_AddSpriteExplosion",
+      "status": "matched",
+      "signature": "static void CG_AddSpriteExplosion(localEntity_t *le)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail sprite-explosion renderer that clones `le->refEntity`, converts it to `RT_SPRITE`, applies the `42 * ( 1 - c ) + 30` radius ramp and `0.33` alpha scale, and then drives the same triangular dlight falloff as src/code/cgame/cg_localents.c::CG_AddSpriteExplosion."
+    },
+    {
       "address": "0x1001FC50",
       "raw_name": "FUN_1001fc50",
       "normalized_name": "CG_AddKamikaze",
@@ -2051,6 +2233,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Deliberate synthetic native-export name for the retail speaking-state setter: it writes the per-client speaking flag at 0x10A4240C, timestamps 0x10A42410 with cg.time, and returns the client block pointer."
+    },
+    {
+      "address": "0x10024FF0",
+      "raw_name": "FUN_10024ff0",
+      "normalized_name": "CG_BuildSpectatorString",
+      "status": "matched",
+      "signature": "void CG_BuildSpectatorString(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail spectator-cache builder reached from the client/bootstrap configstring refresh seam. HLIL gathers TEAM_SPECTATOR clientinfo rows, qsorts them by the recovered `spectateOnly` / `spectatorQueuePosition` duel metadata, strips color codes from each name, formats the `^7(^5s^7)` and `(%d)` tournament prefixes, and populates the paged spectator-row cache consumed by `CG_DrawTeamSpectators`."
     },
     {
       "address": "0x10029820",
@@ -2171,6 +2363,16 @@
       "comment": "Mark projection path anchored by the non-positive-radius diagnostic; HLIL and source both build the texture axes, call trap_CM_MarkFragments, and either submit temporary fragments immediately or persist them through CG_AllocMark."
     },
     {
+      "address": "0x1002ACA0",
+      "raw_name": "FUN_1002aca0",
+      "normalized_name": "CG_AddMarks",
+      "status": "matched",
+      "signature": "void CG_AddMarks(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Active mark renderer anchored by the `CG_FreeMarkPoly: not active` guard. HLIL walks the linked mark list, frees expired marks, applies the recovered energy-mark RGB fade or generic alpha / RGB fade across the terminal second, and submits surviving quads through `trap_R_AddPolyToScene`, matching `CG_AddMarks`."
+    },
+    {
       "address": "0x1002AF70",
       "raw_name": "sub_1002af70",
       "normalized_name": "CG_ClearParticles",
@@ -2179,6 +2381,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail particle reset helper identified by the 0x1F000 memset, 0x7C-stride free-list rebuild, and the single explode1 shader-animation registration table rooted at data_10076658 / data_100766d8 / data_10076758."
+    },
+    {
+      "address": "0x1002B080",
+      "raw_name": "FUN_1002b080",
+      "normalized_name": "CG_AddParticleToScene",
+      "status": "matched",
+      "signature": "static void CG_AddParticleToScene(cparticle_t *p, vec3_t org)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail per-particle submission leaf beneath `CG_AddParticles`; HLIL branches across the same weather, bubble, sprite, smoke, bleed, flat, and animated particle families, rebuilds the quad vertices from the live view basis, and finishes with `trap_R_AddPolyToScene`, matching the static `CG_AddParticleToScene` renderer."
     },
     {
       "address": "0x1002D680",
@@ -2203,6 +2415,18 @@
       ],
       "relocation_refs": [],
       "comment": "Retail explode1 particle spawner matched by the literal explode1 lookup, the two diagnostic strings, the free-list-to-active-list push, the 0.5 alpha seed, and the 20/30 size progression scaled by the animation aspect ratio table."
+    },
+    {
+      "address": "0x1002DF70",
+      "raw_name": "FUN_1002df70",
+      "normalized_name": "CG_RegisterCountryFlag",
+      "status": "matched",
+      "signature": "qhandle_t CG_RegisterCountryFlag(const char *countryCode)",
+      "string_refs": [
+        "0x1006FDAC"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail country-flag shader helper reused by the scoreboard and placement seams. HLIL formats `ui/assets/flags/%s.tga`, registers that shader, and falls back to `ui/assets/flags/none.tga` when the per-country asset is missing."
     },
     {
       "address": "0x10020E70",
@@ -2259,6 +2483,21 @@
       "comment": "Parses the CS_MUSIC configstring and starts the background tracks."
     },
     {
+      "address": "0x100253F0",
+      "raw_name": "FUN_100253f0",
+      "normalized_name": "CG_CacheCountryFlags",
+      "status": "matched",
+      "signature": "static void CG_CacheCountryFlags(void)",
+      "string_refs": [
+        "0x1006FD38",
+        "0x1006FD68",
+        "0x1006FDAC",
+        "0x10070504"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail bootstrap helper reached from CG_Init immediately after the serverinfo/game-info seam. HLIL registers `ui/assets/flags/none.tga`, loads `ui/country.txt`, emits exact `CG_CacheCountryFlags` size diagnostics, and pre-registers each `ui/assets/flags/%s.tga` token before gameplay loading continues."
+    },
+    {
       "address": "0x10025590",
       "raw_name": "FUN_10025590",
       "normalized_name": "CG_Asset_Parse",
@@ -2267,6 +2506,28 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail HUD asset parser for assetGlobalDef blocks; the committed Ghidra body walks the same font, gradient, cursor, fade, and sound tokens as src/code/cgame/cg_main.c::CG_Asset_Parse."
+    },
+    {
+      "address": "0x10025AC0",
+      "raw_name": "FUN_10025ac0",
+      "normalized_name": "CG_ParseMenu",
+      "status": "matched",
+      "signature": "void CG_ParseMenu(const char *menuFile)",
+      "string_refs": [
+        "0x1006FE98"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail HUD pc-source parser with the same `ui/testhud.menu` fallback as the GPL cgame path. HLIL walks `assetGlobalDef` and `menudef` tokens, dispatching the already-mapped `CG_Asset_Parse` and `Menu_New` leaves exactly like src/code/cgame/cg_main.c::CG_ParseMenu."
+    },
+    {
+      "address": "0x10025C40",
+      "raw_name": "FUN_10025c40",
+      "normalized_name": "CG_Load_Menu",
+      "status": "matched",
+      "signature": "qboolean CG_Load_Menu(char **p)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `loadmenu { ... }` walker directly beneath `CG_LoadMenus`. The committed body expects an opening brace, repeatedly parses nested menu filenames, and feeds each token back through `CG_ParseMenu` until the closing `}` or parse failure."
     },
     {
       "address": "0x10025CA0",
@@ -2290,7 +2551,7 @@
       "signature": "qboolean CG_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "HUD callback-table stub assigned into cgDC.ownerDrawHandleKey; the retail body is a pure qfalse return."
+      "comment": "HUD callback-table qfalse stub assigned into cgDC.ownerDrawHandleKey and, via the same raw start, reused for the retail cgDC.feederItemImage null callback."
     },
     {
       "address": "0x10025E70",
@@ -2300,27 +2561,137 @@
       "signature": "int CG_FeederCount(float feederID)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "HUD feeder-count callback that tallies scoreboard and team-list rows across the retail feeder ids."
+      "comment": "HUD feeder-count callback that tallies the retail scoreboard, team-list, and rich team-stats rows across the retail feeder ids, including `FEEDER_ENDSCOREBOARD` plus `FEEDER_REDTEAM_STATS` / `FEEDER_BLUETEAM_STATS`."
+    },
+    {
+      "address": "0x10025F60",
+      "raw_name": "FUN_10025f60",
+      "normalized_name": "CG_SetScoreSelection",
+      "status": "matched",
+      "signature": "void CG_SetScoreSelection(void *menu)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail scoreboard-selection helper reached from the score/race parser seam and the scoreboard draw path. HLIL first resolves the local player's absolute score row, then feeds that row back into `FEEDER_SCOREBOARD` or the active red/blue team-list feeder and derives the mirrored team-list cursor from the selected client."
+    },
+    {
+      "address": "0x100260E0",
+      "raw_name": "FUN_100260e0",
+      "normalized_name": "CG_InfoFromScoreIndex",
+      "status": "matched",
+      "signature": "static clientInfo_t *CG_InfoFromScoreIndex(int index, int team, int *scoreIndex)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail feeder helper directly beneath the scoreboard/team-list text leaves. In team games it walks the red/blue score rows to translate a team-local feeder row back to the absolute score index before returning the owning `clientInfo_t`; otherwise it falls back to `cg.scores[index].client`."
+    },
+    {
+      "address": "0x10026160",
+      "raw_name": "FUN_10026160",
+      "normalized_name": "CG_FeederItemTextScoreboard",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextScoreboard(int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail non-team scoreboard feeder leaf reached from `CG_FeederItemText` when the feeder id is neither a red/blue team list nor a red/blue team-stats list and the gametype is not Race. HLIL and the menu corpus agree that this body backs the standard `FEEDER_SCOREBOARD` / `FEEDER_ENDSCOREBOARD` rows outside the dedicated race scoreboard path."
+    },
+    {
+      "address": "0x100265A0",
+      "raw_name": "FUN_100265a0",
+      "normalized_name": "CG_FeederItemTextFallbackTeamList",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextFallbackTeamList(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic name for the generic retail red/blue team-list feeder leaf. The committed `CG_FeederItemText` dispatcher only reaches this start on the team-list path when the gametype falls outside the richer GT_TEAM / GT_FREEZE, GT_CLAN_ARENA, and CTF-family helpers, so the fallback role is stable even though the public GPL source has no direct equivalent."
+    },
+    {
+      "address": "0x100268B0",
+      "raw_name": "FUN_100268b0",
+      "normalized_name": "CG_FeederItemTextCTFFamilyTeamList",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextCTFFamilyTeamList(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail red/blue team-list feeder leaf shared by GT_CTF, GT_1FCTF, GT_HARVESTER, GT_DOMINATION, and GT_ATTACK_DEFEND. HLIL shows the `CG_FeederItemText` team-list branch dispatching those five gametypes here, and the committed body matches the 12-column CTF-family player rows used by the shipped `ingame_scoreboard_ctf.menu`, `end_scoreboard_ctf.menu`, and their related retail variants."
+    },
+    {
+      "address": "0x10026CF0",
+      "raw_name": "FUN_10026cf0",
+      "normalized_name": "CG_FeederItemTextCTFFamilyStats",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextCTFFamilyStats(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail rich team-stats feeder leaf for the shared CTF-family end-score menus. The committed `CG_FeederItemText` dispatcher routes `FEEDER_REDTEAM_STATS` / `FEEDER_BLUETEAM_STATS` here under GT_CTF, GT_1FCTF, GT_HARVESTER, GT_DOMINATION, and GT_ATTACK_DEFEND, and the 19-column body matches the shipped red/blue stats listboxes in those menus."
+    },
+    {
+      "address": "0x10027240",
+      "raw_name": "FUN_10027240",
+      "normalized_name": "CG_FeederItemTextClanArenaTeamList",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextClanArenaTeamList(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail Clan Arena red/blue team-list feeder leaf. The committed team-list dispatcher reaches this start only for GT_CLAN_ARENA, and the recovered 12-column body lines up with the shipped `ingame_scoreboard_ca.menu` / `end_scoreboard_ca.menu` player rows that expose score, K/D, damage, weapon, and companion columns."
+    },
+    {
+      "address": "0x10027720",
+      "raw_name": "FUN_10027720",
+      "normalized_name": "CG_FeederItemTextClanArenaStats",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextClanArenaStats(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail Clan Arena end-score stats feeder leaf. The committed dispatcher only reaches this start for `FEEDER_REDTEAM_STATS` / `FEEDER_BLUETEAM_STATS` under GT_CLAN_ARENA, and the 17-column body lines up with the shipped kill/accuracy weapon strip in `end_scoreboard_ca.menu`."
+    },
+    {
+      "address": "0x10027C40",
+      "raw_name": "FUN_10027c40",
+      "normalized_name": "CG_FeederItemTextRaceScoreboard",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextRaceScoreboard(int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail name for the dedicated Race scoreboard feeder leaf. The committed `CG_FeederItemText` dispatcher only selects this start on the non-team scoreboard path when `cgs.gametype == GT_RACE`, which matches the separate 7-column race scoreboard menus shipped with retail."
+    },
+    {
+      "address": "0x10027E30",
+      "raw_name": "FUN_10027e30",
+      "normalized_name": "CG_FeederItemTextTDMFreezeTeamList",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextTDMFreezeTeamList(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail red/blue team-list feeder leaf shared by GT_TEAM and GT_FREEZE. HLIL shows the team-list dispatcher routing both gametypes here, and the committed body branches internally on Freeze versus TDM-style numeric columns, matching the shipped `ingame_scoreboard_tdm.menu`, `end_scoreboard_tdm.menu`, `ingame_scoreboard_ft.menu`, and `end_scoreboard_ft.menu` player lists."
+    },
+    {
+      "address": "0x10028300",
+      "raw_name": "FUN_10028300",
+      "normalized_name": "CG_FeederItemTextTDMFreezeStats",
+      "status": "matched",
+      "signature": "static const char *CG_FeederItemTextTDMFreezeStats(int team, int index, int column, qhandle_t *handle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail rich team-stats feeder leaf shared by the TDM and Freeze end-score menus. The committed dispatcher routes `FEEDER_REDTEAM_STATS` / `FEEDER_BLUETEAM_STATS` here under GT_TEAM and GT_FREEZE, and the 18-column body matches the shipped rich stats listboxes for those two modes."
     },
     {
       "address": "0x10028830",
       "raw_name": "FUN_10028830",
-      "normalized_name": "CG_FeederItemImage",
+      "normalized_name": "CG_FeederItemText",
       "status": "matched",
-      "signature": "qhandle_t CG_FeederItemImage(float feederID, int index)",
+      "signature": "static const char *CG_FeederItemText(float feederID, int index, int column, qhandle_t *handle)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail cgDC.feederItemImage target that dispatches across scoreboard/team feeder variants, unlike the older public-source stub that simply returned 0."
+      "comment": "Retail cgDC.feederItemText dispatcher. The callback-table slot order in ui_shared.h, the committed `CG_InitDisplayContext` assignments, and the body itself all agree that this start routes the non-team scoreboard, red/blue team-list, and red/blue team-stats feeder ids across the recovered leaf helpers."
     },
     {
       "address": "0x10028B10",
       "raw_name": "sub_10028b10",
-      "normalized_name": "CG_FeederItemText",
+      "normalized_name": "CG_FeederSelection",
       "status": "matched",
-      "signature": "const char *CG_FeederItemText(float feederID, int index, int column, qhandle_t *handle)",
+      "signature": "static void CG_FeederSelection(float feederID, int index)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "HUD feeder-text callback that formats the retail scoreboard and team-list name, score, ping, ready, and spectator columns."
+      "comment": "HLIL-only cgDC.feederSelection callback. The body updates `cg.selectedScore`, searches the cached live/end scoreboard menu roots for `playerlistRED` / `playerlistBLUE`, writes the selected team-list cursor into the matching item, and clears the opposite team list to `-1`."
     },
     {
       "address": "0x10028C30",
@@ -2406,6 +2777,16 @@
       "comment": "HUD cinematic callback tail-jumping directly into trap_CIN_RunCinematic."
     },
     {
+      "address": "0x10028F30",
+      "raw_name": "FUN_10028f30",
+      "normalized_name": "CG_CacheScoreboardSelectionMenus",
+      "status": "matched",
+      "signature": "static void CG_CacheScoreboardSelectionMenus(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail helper that caches the live and end-scoreboard menu roots for the current gametype. HLIL shows two back-to-back `CG_FindBrowserOverlayByName` calls, and the cached pointers feed the later `playerlistRED` / `playerlistBLUE` cursor synchronization inside `CG_FeederSelection`."
+    },
+    {
       "address": "0x10029120",
       "raw_name": "FUN_10029120",
       "normalized_name": "CG_LoadHudMenu",
@@ -2442,6 +2823,261 @@
       "comment": "Registers the shared UI art cache used by the cgame HUD/menu code."
     },
     {
+      "address": "0x100295C0",
+      "raw_name": "FUN_100295c0",
+      "normalized_name": "CG_SetGameInfoCvars",
+      "status": "matched",
+      "signature": "static void CG_SetGameInfoCvars(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail name for the six-line `cg_gameInfo*` publisher beneath the HUD bootstrap. HLIL shows the helper switching to a fixed training text family when `g_training` is set and otherwise indexing the per-gametype six-column description table rooted at `data_10076870`, with callsites from both the init/bootstrap corridor and `CG_ParseServerinfo`."
+    },
+    {
+      "address": "0x1002E0B0",
+      "raw_name": "FUN_1002e0b0",
+      "normalized_name": "CG_CheckOrderPending",
+      "status": "matched",
+      "signature": "void CG_CheckOrderPending(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail team-order flush helper reached from the selected-player follow/order seam. HLIL resolves the exact `onoffense`/`offense`, `ondefense`/`defend`, `onpatrol`/`patrol`, `onfollow`/`followme`, `oncamp`/`camp`, `ongetflag`/`returnflag`, and `onfollowcarrier`/`followflagcarrier` pairs, emits `teamtask %i\\n`, `cmd vsay_team %s\\n`, or `cmd vtell %d %s\\n` as appropriate, optionally presses the `+button7..10` wheel bindings, and then clears `cgs.orderPending`."
+    },
+    {
+      "address": "0x1002E220",
+      "raw_name": "FUN_1002e220",
+      "normalized_name": "CG_SetSelectedPlayerName",
+      "status": "matched",
+      "signature": "static void CG_SetSelectedPlayerName(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail selected-player cvar publisher beneath the team-order widgets. The committed body sets `cg_selectedPlayerName`, updates `cg_selectedPlayer`, copies the selected teammate's `teamTask` into `cgs.currentOrder`, and falls back to `Everyone` for the broadcast slot."
+    },
+    {
+      "address": "0x1002E2B0",
+      "raw_name": "FUN_1002e2b0",
+      "normalized_name": "CG_GetPlacementMetricWeapon",
+      "status": "matched",
+      "signature": "static weapon_t CG_GetPlacementMetricWeapon(int ownerDraw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail helper beneath the placement weapon-stat ownerdraw leaves. HLIL collapses the first/second-place `CG_*_PLYR_FRAGS_*`, `HITS_*`, `SHOTS_*`, `DMG_*`, and `ACC_*` ownerdraw IDs into a shared weapon selector reused by the already-promoted `CG_DrawPlacementWeaponFragsOwnerDraw`, `CG_DrawPlacementWeaponHitsOwnerDraw`, `CG_DrawPlacementWeaponShotsOwnerDraw`, `CG_DrawPlacementWeaponDamageOwnerDraw`, and `CG_DrawPlacementWeaponAccuracyOwnerDraw` bodies."
+    },
+    {
+      "address": "0x1002E3F0",
+      "raw_name": "FUN_1002e3f0",
+      "normalized_name": "CG_DrawPlayerArmorIcon",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerArmorIcon(rectDef_t *rect, qboolean draw2D)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail armor-icon ownerdraw shared by `CG_PLAYER_ARMOR_ICON` and `CG_PLAYER_ARMOR_ICON2D`. HLIL either paints the 2D armor icon with the same status-bar offset or spins the armor model through the 3D path used by the current source helper."
+    },
+    {
+      "address": "0x1002E500",
+      "raw_name": "FUN_1002e500",
+      "normalized_name": "CG_DrawPlayerArmorValue",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerArmorValue(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail numeric armor ownerdraw for `CG_PLAYER_ARMOR_VALUE`. HLIL either paints the supplied shader or formats the live armor count through the shared text path."
+    },
+    {
+      "address": "0x1002E660",
+      "raw_name": "FUN_1002e660",
+      "normalized_name": "CG_DrawPlayerAmmoIcon",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerAmmoIcon(rectDef_t *rect, qboolean draw2D)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail ammo-icon ownerdraw shared by `CG_PLAYER_AMMO_ICON` and `CG_PLAYER_AMMO_ICON2D`. HLIL selects the current weapon ammo icon for the 2D path and the same rotating ammo model path used by the current source helper for the 3D case."
+    },
+    {
+      "address": "0x1002E7C0",
+      "raw_name": "FUN_1002e7c0",
+      "normalized_name": "CG_DrawPlayerAmmoValue",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerAmmoValue(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail ammo-count ownerdraw for `CG_PLAYER_AMMO_VALUE`. HLIL formats the current-weapon ammo count through the shared text path when finite and also carries a separate no-ammo fallback branch that the current source has not fully reconstructed yet."
+    },
+    {
+      "address": "0x1002ED50",
+      "raw_name": "FUN_1002ed50",
+      "normalized_name": "CG_DrawPlayerHealthBar100",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerHealthBar100(rectDef_t *rect, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_HEALTH_BAR_100` leaf. HLIL draws the primary health segment with the same ownerdraw shader clip path now exposed through the dedicated `CG_DrawPlayerHealthBar100` source wrapper."
+    },
+    {
+      "address": "0x1002EE50",
+      "raw_name": "FUN_1002ee50",
+      "normalized_name": "CG_DrawPlayerHealthBar200",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerHealthBar200(rectDef_t *rect, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_HEALTH_BAR_200` leaf. HLIL renders the excess-health segment through a separate clipped ownerdraw path instead of reusing the 100-range helper, which is why the current source now exposes a dedicated wrapper."
+    },
+    {
+      "address": "0x1002EFB0",
+      "raw_name": "FUN_1002efb0",
+      "normalized_name": "CG_DrawPlayerArmorBar100",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerArmorBar100(rectDef_t *rect, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_ARMOR_BAR_100` leaf. HLIL clips the primary armor segment through its own ownerdraw path, matching the dedicated source wrapper restored in this pass."
+    },
+    {
+      "address": "0x1002F0C0",
+      "raw_name": "FUN_1002f0c0",
+      "normalized_name": "CG_DrawPlayerArmorBar200",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerArmorBar200(rectDef_t *rect, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_ARMOR_BAR_200` leaf. HLIL treats the excess-armor segment as a separate draw leaf instead of a boolean branch, which is why the source now routes this slot through `CG_DrawPlayerArmorBar200`."
+    },
+    {
+      "address": "0x1002F6B0",
+      "raw_name": "FUN_1002f6b0",
+      "normalized_name": "CG_DrawHealthColorized",
+      "status": "matched",
+      "signature": "static void CG_DrawHealthColorized(rectDef_t *rect, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_HEALTH_COLORIZED` ownerdraw. HLIL selects the local or followed client health tint, modulates the supplied shader when present, and otherwise falls back to the same solid fill path used by the current source helper."
+    },
+    {
+      "address": "0x1002F780",
+      "raw_name": "FUN_1002f780",
+      "normalized_name": "CG_DrawArmorTieredColorized",
+      "status": "matched",
+      "signature": "static void CG_DrawArmorTieredColorized(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_ARMORTIERED_COLORIZED` ownerdraw. HLIL selects the replicated armor-tier tint and modulates the supplied rect directly, which aligns with the current source helper's role."
+    },
+    {
+      "address": "0x1002F950",
+      "raw_name": "FUN_1002f950",
+      "normalized_name": "CG_DrawPlayerHead",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerHead(rectDef_t *rect, qboolean draw2D)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail local-player head ownerdraw for `CG_PLAYER_HEAD`. HLIL preserves the same damage wobble, idle head-angle interpolation, and final `CG_DrawHead` call used by the current source helper."
+    },
+    {
+      "address": "0x1002FC70",
+      "raw_name": "FUN_1002fc70",
+      "normalized_name": "CG_DrawPlayerItem",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerItem(rectDef_t *rect, float scale, qboolean draw2D)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_ITEM` ownerdraw. HLIL resolves the active holdable item visuals and, for progress-based holdables, adds a centered `%d%%` overlay that the current source still has not fully reconstructed."
+    },
+    {
+      "address": "0x1002FDF0",
+      "raw_name": "FUN_1002fdf0",
+      "normalized_name": "CG_DrawPlayerHealth",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerHealth(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail numeric health ownerdraw for `CG_PLAYER_HEALTH`. HLIL either paints the supplied shader or formats the live health count through the same text path the current source helper already uses."
+    },
+    {
+      "address": "0x1002E9B0",
+      "raw_name": "FUN_1002e9b0",
+      "normalized_name": "CG_DrawPlayerObituary",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerObituary(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_OBIT` ownerdraw. HLIL compacts and ages the cached obituary-feed rows, then paints the target/icon/attacker columns with the compact retail palette; broader than the current narrow source wrapper, but the owning slot is unambiguous."
+    },
+    {
+      "address": "0x1002F1F0",
+      "raw_name": "FUN_1002f1f0",
+      "normalized_name": "CG_DrawRaceStatusAndTimes",
+      "status": "matched",
+      "signature": "static void CG_DrawRaceStatusAndTimes( rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw )",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate shared retail race-HUD leaf for `CG_RACE_STATUS` and `CG_RACE_TIMES`. The committed ownerdraw switch routes raw ids `0x34` and `0x35` here, and HLIL preserves both the respawn-binding prompt strings (`Bind 'kill' to respawn`, `Press %s to respawn.`) and the timing labels (`LAST TIME`, `CURRENT RUN`) in the same body, so a shared helper is the stable source analogue."
+    },
+    {
+      "address": "0x1002F5D0",
+      "raw_name": "FUN_1002f5d0",
+      "normalized_name": "CG_DrawTeamColorized",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamColorized(rectDef_t *rect, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail team-color fill helper reached from the colorized team ownerdraw slots. HLIL selects the live local team tint palette, modulates the supplied shader when present, and otherwise falls back to the same solid fill path exposed by `cg_newdraw.c::CG_DrawTeamColorized`."
+    },
+    {
+      "address": "0x1002F860",
+      "raw_name": "FUN_1002f860",
+      "normalized_name": "CG_DrawSelectedPlayerTeamColor",
+      "status": "matched",
+      "signature": "static void CG_DrawSelectedPlayerTeamColor(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail selected-player team-color backdrop helper. The committed body indexes the highlighted scoreboard row, chooses the same red, blue, or neutral tint family used by the current source, and fills the destination rect directly."
+    },
+    {
+      "address": "0x1002FF50",
+      "raw_name": "FUN_1002ff50",
+      "normalized_name": "CG_DrawTeamScore",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamScore(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team, int align)",
+      "string_refs": [
+        "0x10068420",
+        "0x100687A8"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail shared red/blue score ownerdraw reached from `CG_RED_SCORE` and `CG_BLUE_SCORE`. HLIL selects `cgs.scores1` or `cgs.scores2`, formats `%i`, falls back to `-` for the retail sentinel scores, and applies the ownerdraw alignment after widescreen translation."
+    },
+    {
+      "address": "0x10030090",
+      "raw_name": "FUN_10030090",
+      "normalized_name": "CG_DrawTeamName",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamName(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team, int align)",
+      "string_refs": [
+        "0x100669D4"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail shared red/blue team-name ownerdraw reached from `CG_RED_NAME` and `CG_BLUE_NAME`. HLIL copies the configured team name into a local buffer, falls back to the literal `Red Team` or `Blue Team`, and applies the ownerdraw alignment after widescreen translation."
+    },
+    {
+      "address": "0x10030240",
+      "raw_name": "FUN_10030240",
+      "normalized_name": "CG_DrawObjectiveStatus",
+      "status": "matched",
+      "signature": "static void CG_DrawObjectiveStatus(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic owner for the retail `CG_FLAG_STATUS` slot. The committed `CG_OwnerDraw` switch routes raw case `0x151` here, and HLIL shows a broader objective-status strip for CTF / 1FCTF / Obelisk / Harvester / Domination / Attack and Defend rather than a narrow text-only flag label. The current source now exposes `CG_DrawObjectiveStatus` as the stable slot owner, but the full retail strip graphics path is still only partially reconstructed."
+    },
+    {
+      "address": "0x10030A80",
+      "raw_name": "FUN_10030a80",
+      "normalized_name": "CG_DrawTeamFlagOrBaseStatus",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamFlagOrBaseStatus(rectDef_t *rect, team_t team, qboolean baseStatus, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate shared retail leaf for `CG_RED_FLAGSTATUS`, `CG_RED_BASESTATUS`, `CG_BLUE_FLAGSTATUS`, and `CG_BLUE_BASESTATUS`. HLIL derives the team and base-status mode from raw ownerdraw ids `0x11B`, `0x120`, `0x136`, and `0x13B`, consults `cgs.redflag`, `cgs.blueflag`, and `cgs.flagStatus`, and indexes the pre-registered red / blue / neutral icon table before drawing the selected objective icon."
+    },
+    {
       "address": "0x10030C00",
       "raw_name": "sub_10030c00",
       "normalized_name": "CG_DrawLevelTimer",
@@ -2452,6 +3088,58 @@
       ],
       "relocation_refs": [],
       "comment": "Retail `CG_LEVELTIMER` ownerdraw that formats the live clock as `%i:%i%i` before routing through the standard centered text path."
+    },
+    {
+      "address": "0x10033B10",
+      "raw_name": "FUN_10033b10",
+      "normalized_name": "CG_DrawRoundTimer",
+      "status": "matched",
+      "signature": "static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_ROUNDTIMER` ownerdraw reached from raw case `0x0E`. HLIL shows a dedicated round-mode lookup plus centered countdown formatting rather than a direct alias to `CG_DrawLevelTimer`; the current source now owns that leaf explicitly, while the exact retail last-30-second countdown still depends on a not-yet-reconstructed round-start anchor."
+    },
+    {
+      "address": "0x10030D20",
+      "raw_name": "FUN_10030d20",
+      "normalized_name": "CG_DrawOvertime",
+      "status": "matched",
+      "signature": "static void CG_DrawOvertime(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070760"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_OVERTIME` ownerdraw. The committed body gates on the active overtime HUD state, calls the recovered `CG_GetOvertimeCount` helper, formats `Overtime%s`, appends the exact ` x%i` suffix only when the count exceeds `1`, and paints the result through the shared text path."
+    },
+    {
+      "address": "0x10030DF0",
+      "raw_name": "FUN_10030df0",
+      "normalized_name": "CG_HarvesterSkulls",
+      "status": "matched",
+      "signature": "static void CG_HarvesterSkulls(rectDef_t *rect, float scale, vec4_t color, qboolean force2D, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail Harvester skull-count ownerdraw shared by `CG_HARVESTER_SKULLS` and `CG_HARVESTER_SKULLS2D`. HLIL formats the local skull count, paints it right-aligned, and then adds the matching cube icon plus the carried-cube marker branch."
+    },
+    {
+      "address": "0x10030FF0",
+      "raw_name": "FUN_10030ff0",
+      "normalized_name": "CG_OneFlagStatus",
+      "status": "matched",
+      "signature": "static void CG_OneFlagStatus(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_ONEFLAG_STATUS` ownerdraw. HLIL gates on `GT_1FCTF`, selects the dedicated neutral/red/blue/dropped icon family registered in `cg_main.c`, and paints the matching objective-status icon directly into the supplied rect."
+    },
+    {
+      "address": "0x100310F0",
+      "raw_name": "FUN_100310f0",
+      "normalized_name": "CG_DrawCTFPowerUp",
+      "status": "matched",
+      "signature": "static void CG_DrawCTFPowerUp(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_CTF_POWERUP` ownerdraw. HLIL reads `STAT_PERSISTANT_POWERUP`, resolves the matching item icon, and draws it directly whenever a persistent powerup is active."
     },
     {
       "address": "0x10031160",
@@ -2474,6 +3162,26 @@
       "comment": "HLIL-only callback-table target that returns ownerdraw-driven score, stat, and selected-player values for the HUD scripting layer."
     },
     {
+      "address": "0x100316B0",
+      "raw_name": "FUN_100316b0",
+      "normalized_name": "CG_ShowBlueTeamHasRedFlag",
+      "status": "matched",
+      "signature": "static qboolean CG_ShowBlueTeamHasRedFlag( void )",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail HUD visibility predicate for `CG_SHOW_BLUE_TEAM_HAS_REDFLAG`. The committed `CG_OwnerDrawVisible` body reaches this tiny helper from the `0x00000001` bit branch, and HLIL gates it to the retail CTF / 1FCTF / Attack Defend seam before checking the red-flag carrier state."
+    },
+    {
+      "address": "0x10031720",
+      "raw_name": "FUN_10031720",
+      "normalized_name": "CG_ShowRedTeamHasBlueFlag",
+      "status": "matched",
+      "signature": "static qboolean CG_ShowRedTeamHasBlueFlag( void )",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail HUD visibility predicate for `CG_SHOW_RED_TEAM_HAS_BLUEFLAG`. The committed `CG_OwnerDrawVisible` body reaches this helper from the `0x00000002` bit branch, and HLIL mirrors the same gametype gate while swapping the blue-flag carrier checks."
+    },
+    {
       "address": "0x10031790",
       "raw_name": "FUN_10031790",
       "normalized_name": "CG_OwnerDrawVisible",
@@ -2482,6 +3190,26 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail HUD visibility predicate assigned into cgDC.ownerDrawVisible; evaluates ownerdraw bitmasks against gametype, team, follow, vote, and scoreboard state."
+    },
+    {
+      "address": "0x10031CD0",
+      "raw_name": "FUN_10031cd0",
+      "normalized_name": "CG_DrawPlayerHasFlag",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerHasFlag(rectDef_t *rect, qboolean force2D)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail flag-carrier ownerdraw shared by `CG_PLAYER_HASFLAG` and `CG_PLAYER_HASFLAG2D`. HLIL selects the carried red, blue, or neutral flag, applies the 4-pixel 3D inset used by the source wrapper, and shows the `Press %s to throw.` hint for the neutral-flag carrier in 1FCTF."
+    },
+    {
+      "address": "0x10031F90",
+      "raw_name": "FUN_10031f90",
+      "normalized_name": "CG_DrawPlayerHasKey",
+      "status": "matched",
+      "signature": "static void CG_DrawPlayerHasKey(rectDef_t *rect)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_PLAYER_HASKEY` ownerdraw. HLIL reads the local key bitmask, resolves the silver/gold/master key item icons, and paints up to three overlapping key sprites across the destination rect."
     },
     {
       "address": "0x10032110",
@@ -2526,6 +3254,43 @@
       "comment": "Deliberate synthetic retail scorebox wrapper reached from the local, red, and blue score ownerdraw slots. HLIL selects the cached player or team score value, formats the same unavailable sentinel fallback, and routes the result through the shared HUD text path."
     },
     {
+      "address": "0x10032520",
+      "raw_name": "FUN_10032520",
+      "normalized_name": "CG_Draw1stPlaceScore",
+      "status": "matched",
+      "signature": "static void CG_Draw1stPlaceScore(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10068E10",
+        "0x10068E44",
+        "0x10070798",
+        "0x100707A8",
+        "0x100707B0",
+        "0x100707B4",
+        "0x100707B8",
+        "0x100707BC"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail wide first-place score ownerdraw for `CG_1ST_PLACE_SCORE`. Team modes choose the leading red/blue team name and score, while non-team modes paint the fixed `1. ` prefix, clip the leading player name in the middle, and right-align the live score or race time."
+    },
+    {
+      "address": "0x100329A0",
+      "raw_name": "FUN_100329a0",
+      "normalized_name": "CG_Draw2ndPlaceScore",
+      "status": "matched",
+      "signature": "static void CG_Draw2ndPlaceScore(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10068E10",
+        "0x10068E44",
+        "0x100707B0",
+        "0x100707B4",
+        "0x100707B8",
+        "0x100707C0",
+        "0x100707D0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail wide secondary placement score ownerdraw for `CG_2ND_PLACE_SCORE`. Team modes choose the trailing team line, while non-team modes either show the true runner-up or the local player's own ranked line depending on whether the local client is spectating or currently leading."
+    },
+    {
       "address": "0x10032F30",
       "raw_name": "FUN_10032f30",
       "normalized_name": "CG_DrawPlayerCounts",
@@ -2546,6 +3311,18 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail competitive scorebox comparison bar reached from the primary and secondary compare ownerdraws. HLIL fills the health and armor bands, places the opposing-slot comparison marker, and mirrors the same spectator duel comparison role as `cg_newdraw.c::CG_DrawSpectatorComparison`."
+    },
+    {
+      "address": "0x100333C0",
+      "raw_name": "FUN_100333c0",
+      "normalized_name": "CG_DrawTeamPlayerCount",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamPlayerCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team, int align)",
+      "string_refs": [
+        "0x10069444"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail shared red/blue player-count ownerdraw reached from `CG_RED_PLAYER_COUNT` and `CG_BLUE_PLAYER_COUNT`. HLIL counts active team score rows, selects the compact `(%d/%d)` or `%d Player%s` text family depending on gametype/team-cap context, and honors the menu alignment before painting."
     },
     {
       "address": "0x10033530",
@@ -2626,6 +3403,18 @@
       "comment": "Retail `CG_STARTING_WEAPONS` ownerdraw that walks the starting-weapon mask and renders the configured loadout through the intro-panel draw path. The current source helper prints a text list instead, but the owning slot and role still line up cleanly."
     },
     {
+      "address": "0x10033BF0",
+      "raw_name": "FUN_10033bf0",
+      "normalized_name": "CG_DrawFollowPlayerNameEx",
+      "status": "matched",
+      "signature": "static void CG_DrawFollowPlayerNameEx(rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw, int align)",
+      "string_refs": [
+        "0x10070860"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail follow-name ownerdraw shared by `CG_FOLLOW_PLAYER_NAME` and `CG_FOLLOW_PLAYER_NAME_EX`. HLIL prepends the exact `Following - ` prefix only for the first slot, tints the text by the followed client's team in team modes, and applies the ownerdraw alignment before painting."
+    },
+    {
       "address": "0x10033D80",
       "raw_name": "sub_10033d80",
       "normalized_name": "CG_DrawLocalTime",
@@ -2666,6 +3455,20 @@
       ],
       "relocation_refs": [],
       "comment": "Retail `CG_MATCH_END_CONDITION` ownerdraw that selects the winning condition text family for race, team, round-limit, mercy, score-limit, and end-of-game cases before drawing it directly."
+    },
+    {
+      "address": "0x10034360",
+      "raw_name": "FUN_10034360",
+      "normalized_name": "CG_DrawMatchState",
+      "status": "matched",
+      "signature": "static void CG_DrawMatchState(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [
+        "0x10070AC0",
+        "0x10070AD0",
+        "0x10070AE0"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `CG_MATCH_STATE` ownerdraw. HLIL selects only the uppercase phase banner `MATCH SUMMARY`, `MATCH WARMUP`, or `MATCH IN PROGRESS` and paints it directly, leaving timeout and overtime text to other dedicated ownerdraws."
     },
     {
       "address": "0x100343D0",
@@ -2851,6 +3654,46 @@
       "comment": "Retail spectator-message ownerdraw reached from `CG_SPEC_MESSAGES`; HLIL draws the older `Round In Progress`, `SPECTATOR MODE`, `waiting to play`, and mouse-cycle hint text family in the same HUD slot used by the source helper."
     },
     {
+      "address": "0x100350C0",
+      "raw_name": "FUN_100350c0",
+      "normalized_name": "CG_DrawSpeedometerOwnerDraw",
+      "status": "matched",
+      "signature": "static void CG_DrawSpeedometerOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail split ownerdraw leaf for `CG_SPEEDOMETER` (`0x60`). HLIL checks the speedometer cvar, formats the sampled velocity through the same `%i` path as the broader source helper, centers it inside the ownerdraw rect, and paints it through the shared text renderer."
+    },
+    {
+      "address": "0x100351A0",
+      "raw_name": "FUN_100351a0",
+      "normalized_name": "CG_DrawTeamSpectators",
+      "status": "matched",
+      "signature": "void CG_DrawTeamSpectators(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_SPECTATORS` ownerdraw. The committed body pages horizontally through the live spectator-name list, measures how many names fit across the current rect, paints that slice at the HUD baseline, and advances the starting slot on a timed cadence instead of using the older source placeholder that only showed primary/secondary tracked players."
+    },
+    {
+      "address": "0x10035340",
+      "raw_name": "FUN_10035340",
+      "normalized_name": "CG_DrawMedal",
+      "status": "matched",
+      "signature": "void CG_DrawMedal(int ownerDraw, rectDef_t *rect, float scale, vec4_t color, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail medal ownerdraw leaf shared by `CG_ACCURACY`, `CG_ASSISTS`, `CG_CAPTURES`, `CG_DEFEND`, `CG_EXCELLENT`, `CG_GAUNTLET`, `CG_IMPRESSIVE`, and `CG_PERFECT`. HLIL matches the current source flow exactly: it pulls the selected score row, emits `%i%%` for accuracy, the literal `Wow` for perfect, modulates alpha to `0.25` or `1.0`, then centers the text beneath the medal shader."
+    },
+    {
+      "address": "0x10035540",
+      "raw_name": "FUN_10035540",
+      "normalized_name": "CG_DrawAdvert",
+      "status": "matched",
+      "signature": "static void CG_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail advert ownerdraw reached from `UI_ADVERT` (`0x225`). The body mirrors the read-only `ui_main.c::UI_DrawAdvert` seam inside cgame: it visibility-gates the slot, modulates the color, draws the advert shader quad, fires the inert native advert callback with the draw token plus pixel area, and restores the renderer color."
+    },
+    {
       "address": "0x100355D0",
       "raw_name": "FUN_100355d0",
       "normalized_name": "CG_DrawVoteMapSlot",
@@ -2911,6 +3754,26 @@
       "comment": "Retail vote timer ownerdraw reached from `CG_VOTETIMER` (`0x22`). HLIL derives the remaining seconds from `cgs.voteTime`, switches between `Voting has ended.`, `Voting ends in %i second.`, and `Voting ends in %i seconds.`, then aligns and paints the final text with `CG_Text_Paint`."
     },
     {
+      "address": "0x10035A10",
+      "raw_name": "FUN_10035a10",
+      "normalized_name": "CG_DrawWeaponVertical",
+      "status": "matched",
+      "signature": "static void CG_DrawWeaponVertical(rectDef_t *rect, vec4_t color)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_WP_VERTICAL` ownerdraw (`97`). HLIL tints the draw state with the caller-supplied color, iterates the fixed local-accuracy weapon slab, skips the retail grappling-hook slot, and renders the vertical icon strip."
+    },
+    {
+      "address": "0x10035B10",
+      "raw_name": "FUN_10035b10",
+      "normalized_name": "CG_DrawAccVertical",
+      "status": "matched",
+      "signature": "static void CG_DrawAccVertical(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail `CG_ACC_VERTICAL` ownerdraw (`98`). HLIL walks the same vertical weapon slab as `CG_DrawWeaponVertical` and formats each cached `acc` percentage as `%i%%` from the parser-fed local accuracy table."
+    },
+    {
       "address": "0x10035BD0",
       "raw_name": "FUN_10035bd0",
       "normalized_name": "CG_DrawSpectatorPlayerName",
@@ -2941,6 +3804,42 @@
       "comment": "Deliberate synthetic retail split of `CG_DrawPlacementMetricOwnerDraw`; reached from the first and second placement ping ownerdraws, applies the same 40/80 warning thresholds, and paints the cached ping value through the standard text path."
     },
     {
+      "address": "0x100361F0",
+      "raw_name": "FUN_100361f0",
+      "normalized_name": "CG_DrawPlacementFragsOwnerDraw",
+      "status": "matched",
+      "signature": "static qboolean CG_DrawPlacementFragsOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot)",
+      "string_refs": [
+        "0x10068E44"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail split of `CG_DrawPlacementMetricOwnerDraw`; the committed ownerdraw switch routes `CG_1ST_PLYR_FRAGS` / `CG_2ND_PLYR_FRAGS` (`0x6A` / `0xC4`) here, and the body paints the cached frag tally through the standard integer HUD text path."
+    },
+    {
+      "address": "0x10036320",
+      "raw_name": "FUN_10036320",
+      "normalized_name": "CG_DrawPlacementDeathsOwnerDraw",
+      "status": "matched",
+      "signature": "static qboolean CG_DrawPlacementDeathsOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot)",
+      "string_refs": [
+        "0x10068E44"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail split of `CG_DrawPlacementMetricOwnerDraw`; `CG_1ST_PLYR_DEATHS` / `CG_2ND_PLYR_DEATHS` (`0x6B` / `0xC5`) land here in the committed ownerdraw switch, and the body renders the cached death count as `%d`."
+    },
+    {
+      "address": "0x10036450",
+      "raw_name": "FUN_10036450",
+      "normalized_name": "CG_DrawPlacementWinsOwnerDraw",
+      "status": "matched",
+      "signature": "static qboolean CG_DrawPlacementWinsOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot)",
+      "string_refs": [
+        "0x10068DE8"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail split of `CG_DrawPlacementMetricOwnerDraw`; the ownerdraw dispatcher routes `CG_1ST_PLYR_WINS` / `CG_2ND_PLYR_WINS` (`0x6F` / `0xC9`) here, and the committed body paints the cached slot-local wins text through the `%s` HUD path."
+    },
+    {
       "address": "0x10036570",
       "raw_name": "sub_10036570",
       "normalized_name": "CG_DrawPlacementAccuracyOwnerDraw",
@@ -2949,6 +3848,81 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Deliberate synthetic retail split of `CG_DrawPlacementMetricOwnerDraw`; HLIL reaches it from the first and second placement accuracy ownerdraws and formats the cached accuracy value as `%d%%`."
+    },
+    {
+      "address": "0x100366A0",
+      "raw_name": "FUN_100366a0",
+      "normalized_name": "CG_DrawPlacementAvatarOwnerDraw",
+      "status": "matched",
+      "signature": "static void CG_DrawPlacementAvatarOwnerDraw(rectDef_t *rect, int slot)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail split of the placement scorebox image path; the committed ownerdraw switch routes `CG_1ST_PLYR_AVATAR` / `CG_2ND_PLYR_AVATAR` (`0x72` / `0xCC`) here, and HLIL chooses the dedicated avatar handle when present before falling back to the cached model icon."
+    },
+    {
+      "address": "0x10036720",
+      "raw_name": "FUN_10036720",
+      "normalized_name": "CG_DrawPlacementFlagOwnerDraw",
+      "status": "matched",
+      "signature": "static void CG_DrawPlacementFlagOwnerDraw(rectDef_t *rect, int slot)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail split of the placement scorebox flag widget; `CG_1ST_PLYR_FLAG` / `CG_2ND_PLYR_FLAG` (`0x71` / `0xCB`) route here, and the committed parser/cache path proves the helper paints the pre-registered `ui/assets/flags/%s.tga` shader for the tracked slot."
+    },
+    {
+      "address": "0x10036770",
+      "raw_name": "FUN_10036770",
+      "normalized_name": "CG_DrawPlacementDamageOwnerDraw",
+      "status": "matched",
+      "signature": "static qboolean CG_DrawPlacementDamageOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot)",
+      "string_refs": [
+        "0x10068E44"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail split of `CG_DrawPlacementMetricOwnerDraw`; the committed ownerdraw switch routes `CG_1ST_PLYR_DMG` / `CG_2ND_PLYR_DMG` (`0x6C` / `0xC6`) here, and the helper renders the cached damage tally through the integer HUD text path."
+    },
+    {
+      "address": "0x10037F80",
+      "raw_name": "FUN_10037f80",
+      "normalized_name": "CG_DrawTeamPickupOwnerDraw",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamPickupOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail team-pickup ownerdraw shared by the red/blue pickup-count block (`0x124..0x12A`, `0x12D..0x131`, `0x13F..0x145`, `0x148..0x14C`). The current source now matches the per-slot numeric path directly, while the dedicated time-held slots are recovered separately at `0x10039AE0`. HLIL still shows an additional summary-row composition branch for the top-level `CG_RED_TEAM_MAP_PICKUPS` / `CG_BLUE_TEAM_MAP_PICKUPS` slots, so that richer aggregate format remains an explicit follow-up rather than a hidden assumption."
+    },
+    {
+      "address": "0x10039AE0",
+      "raw_name": "FUN_10039ae0",
+      "normalized_name": "CG_DrawTeamTimeHeldOwnerDraw",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamTimeHeldOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle, int ownerDraw)",
+      "string_refs": [
+        "0x10068420",
+        "0x10068DE8"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail team time-held ownerdraw reached from `CG_RED_TEAM_TIMEHELD_QUAD`, `CG_RED_TEAM_TIMEHELD_BS`, `CG_RED_TEAM_TIMEHELD_FLAG`, `CG_RED_TEAM_TIMEHELD_REGEN`, `CG_RED_TEAM_TIMEHELD_HASTE`, `CG_RED_TEAM_TIMEHELD_INVIS`, and the blue-team mirror slots. HLIL routes the ownerdraw through a 12-way table, formats the cached duration via the shared `m:ss` helper at `0x10057470`, and paints either that time string or the retail `-` fallback."
+    },
+    {
+      "address": "0x10039E70",
+      "raw_name": "FUN_10039e70",
+      "normalized_name": "CG_DrawTeamAveragePing",
+      "status": "matched",
+      "signature": "static void CG_DrawTeamAveragePing(rectDef_t *rect, float scale, vec4_t color, int textStyle, team_t team)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail average-ping ownerdraw shared by `CG_RED_AVG_PING` and `CG_BLUE_AVG_PING`. The committed `CG_OwnerDraw` switch reaches it only from raw cases `0x11F` and `0x13A`, and HLIL shows the helper averaging non-negative ping values for the requested team, applying the same threshold-based tinting, formatting `Avg ping %i`, and drawing it through the shared HUD text path."
+    },
+    {
+      "address": "0x1003A0D0",
+      "raw_name": "FUN_1003a0d0",
+      "normalized_name": "CG_DrawAwardPlayer",
+      "status": "matched",
+      "signature": "static qboolean CG_DrawAwardPlayer(rectDef_t *rect, int ownerDraw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail endgame award-player ownerdraw shared by `CG_MOST_VALUABLE_OFFENSIVE_PLYR` through `CG_MOST_DAMAGEDEALT_PLYR` (`0x4B..0x50`). The ownerdraw switch lands here directly, and the body resolves the winning client image handle for the requested award slot before painting it into the `summary_award*_player` rect. Current source reconstructs that slot with a cgame-owned profile-image helper while still deriving winners from active score rows until the dedicated retail award-result payload is recovered."
     },
     {
       "address": "0x100368A0",
@@ -3156,6 +4130,64 @@
       "comment": "Animation-script loader anchored by the retail CG_ParseAnimationFile diagnostics for bad footsteps tokens, unknown keywords, and incomplete animation tables; the body matches the public-source client animation parser."
     },
     {
+      "address": "0x1003D130",
+      "raw_name": "FUN_1003d130",
+      "normalized_name": "CG_RegisterClientSkin",
+      "status": "matched",
+      "signature": "static qboolean CG_RegisterClientSkin(clientInfo_t *ci, const char *teamName, const char *modelName, const char *skinName, const char *headModelName, const char *headSkinName)",
+      "string_refs": [
+        "0x10071350",
+        "0x10071368",
+        "0x10071384"
+      ],
+      "relocation_refs": [],
+      "comment": "Client skin registrar that formats the lower, upper, and head skin paths, registers each skin, logs the dedicated `Leg skin load failure`, `Torso skin load failure`, and `Head skin load failure` diagnostics, and returns failure if any handle stays null, matching `cg_players.c::CG_RegisterClientSkin`."
+    },
+    {
+      "address": "0x1003D260",
+      "raw_name": "FUN_1003d260",
+      "normalized_name": "CG_UpdateClientHeadOffset",
+      "status": "matched",
+      "signature": "static qboolean CG_UpdateClientHeadOffset(clientInfo_t *ci)",
+      "string_refs": [
+        "orbb",
+        "tag_torso",
+        "tag_head"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail head-offset refresher beneath `CG_RegisterClientModelname`. HLIL measures the stacked player model through the `tag_torso` and `tag_head` attachments, preserves the `orbb` fallback, and stores the derived preview X offset used by `CG_DrawHead` into the client info record."
+    },
+    {
+      "address": "0x1003D600",
+      "raw_name": "FUN_1003d600",
+      "normalized_name": "CG_NormalizeClientSkinName",
+      "status": "matched",
+      "signature": "static void CG_NormalizeClientSkinName(clientInfo_t *ci)",
+      "string_refs": [
+        "default",
+        "sport",
+        "sport_red",
+        "sport_blue"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail skin-name normalizer beneath `CG_NewClientInfo`. HLIL splits the model token on `/`, falls back to the team-colored `red` / `blue` / `default` skin family when team skins are implied, and remaps `sport` to the retail `sport_red` / `sport_blue` variants in team games before copying the final token into the client record."
+    },
+    {
+      "address": "0x1003D710",
+      "raw_name": "FUN_1003d710",
+      "normalized_name": "CG_NormalizeClientHeadSkinName",
+      "status": "matched",
+      "signature": "static void CG_NormalizeClientHeadSkinName(clientInfo_t *ci)",
+      "string_refs": [
+        "default",
+        "sport",
+        "sport_red",
+        "sport_blue"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail head-skin normalizer beneath `CG_NewClientInfo`. The committed body mirrors the same slash-splitting, team-color defaulting, and `sport` to `sport_red` / `sport_blue` remap as the body-skin helper, but targets the head-model/head-skin string pair."
+    },
+    {
       "address": "0x1003D380",
       "raw_name": "FUN_1003d380",
       "normalized_name": "CG_RegisterClientModelname",
@@ -3226,6 +4258,20 @@
       "comment": "Global model-override refresher that rebuilds every active client info through `CG_NewClientInfo` and then runs the retail `orbb` cleanup pass, matching the source-level `CG_ApplyModelOverrides` role."
     },
     {
+      "address": "0x1003E4B0",
+      "raw_name": "FUN_1003e4b0",
+      "normalized_name": "CG_RefreshClientHeadOffsets",
+      "status": "matched",
+      "signature": "void CG_RefreshClientHeadOffsets(void)",
+      "string_refs": [
+        "orbb",
+        "tag_torso",
+        "tag_head"
+      ],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail client-head-offset cache refresher. The body walks valid clientinfo records and reapplies the `CG_UpdateClientHeadOffset` logic, preserving the same `orbb` fallback and model-tag-derived preview offset refresh used after global player-model scale changes."
+    },
+    {
       "address": "0x1003E640",
       "raw_name": "FUN_1003e640",
       "normalized_name": "CG_NewClientInfo",
@@ -3246,6 +4292,16 @@
       ],
       "relocation_refs": [],
       "comment": "Deferred player-model loader that walks the client list, skips low-memory cases, and promotes deferred registrations exactly like the public-source CG_LoadDeferredPlayers."
+    },
+    {
+      "address": "0x1003EE80",
+      "raw_name": "FUN_1003ee80",
+      "normalized_name": "CG_RunLerpFrame",
+      "status": "matched",
+      "signature": "static void CG_RunLerpFrame(clientInfo_t *ci, lerpFrame_t *lf, int newAnimation, float speedScale)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Lerp-frame runner that switches animations when needed, advances the current and previous frames through the animation timing table, clamps overruns back to `cg.time`, and writes the resulting backlerp exactly like `cg_players.c::CG_RunLerpFrame`."
     },
     {
       "address": "0x1003F020",
@@ -3276,6 +4332,36 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Player axis builder anchored by the `Bad player movement angle` diagnostic and the same torso, legs, and head swing calls as `cg_players.c::CG_PlayerAngles`."
+    },
+    {
+      "address": "0x1003F8C0",
+      "raw_name": "FUN_1003f8c0",
+      "normalized_name": "CG_BreathPuffs",
+      "status": "matched",
+      "signature": "static void CG_BreathPuffs(centity_t *cent, refEntity_t *head)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Cold-breath emitter that skips the local first-person player, dead players, submerged heads, and the active puff cooldown before spawning the white head-level smoke puff and updating `breathPuffTime`, matching `cg_players.c::CG_BreathPuffs`."
+    },
+    {
+      "address": "0x1003FAB0",
+      "raw_name": "FUN_1003fab0",
+      "normalized_name": "CG_DustTrail",
+      "status": "matched",
+      "signature": "static void CG_DustTrail(centity_t *cent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Landing-dust helper that gates on the land animations and dust cooldown, traces beneath the player for `SURF_DUST`, and then spawns the downward drifting dust puff exactly like `cg_players.c::CG_DustTrail`."
+    },
+    {
+      "address": "0x1003FC20",
+      "raw_name": "FUN_1003fc20",
+      "normalized_name": "CG_TrailItem",
+      "status": "matched",
+      "signature": "static void CG_TrailItem(centity_t *cent, qhandle_t hModel)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Trailing-flag item renderer that flattens pitch and roll from `cent->lerpAngles`, offsets the model back and upward from the player origin, and submits the supplied model handle to the scene exactly like `cg_players.c::CG_TrailItem`."
     },
     {
       "address": "0x1003FD70",
@@ -3368,6 +4454,18 @@
       "comment": "Refentity submission helper used by the player renderer for legs, torso, and head. Retail keeps the same invisible, quad, regen, and battlesuit overlay role as `cg_players.c::CG_AddRefEntityWithPowerups` while also carrying a broader Quake Live overlay branch for extra player-state visuals."
     },
     {
+      "address": "0x100419F0",
+      "raw_name": "FUN_100419f0",
+      "normalized_name": "CG_ApplyPlayerColors",
+      "status": "matched",
+      "signature": "static void CG_ApplyPlayerColors(centity_t *cent, const clientInfo_t *ci, refEntity_t *legs, refEntity_t *torso, refEntity_t *head)",
+      "string_refs": [
+        "r_colorCorrectActive"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail shared player-color leaf beneath `CG_Player`. HLIL shows it querying `r_colorCorrectActive`, applying the corpse-tint fast path across legs / torso / head, and otherwise setting the lower, upper, and head `shaderRGBA` bytes from the cached client override colors exactly like the reconstructed `cg_players.c::CG_ApplyPlayerColors`."
+    },
+    {
       "address": "0x10041B80",
       "raw_name": "FUN_10041b80",
       "normalized_name": "CG_Player",
@@ -3378,6 +4476,18 @@
       ],
       "relocation_refs": [],
       "comment": "Primary player-entity renderer with the same clientNum validation, legs/torso/head assembly, powerup overlays, and weapon attachment flow as src/code/cgame/cg_players.c::CG_Player."
+    },
+    {
+      "address": "0x10042CA0",
+      "raw_name": "FUN_10042ca0",
+      "normalized_name": "CG_ResetPlayerEntity",
+      "status": "matched",
+      "signature": "void CG_ResetPlayerEntity(centity_t *cent)",
+      "string_refs": [
+        "0x1006A554"
+      ],
+      "relocation_refs": [],
+      "comment": "Player reset helper that stamps the no-error-decay sentinel, clears extrapolation, reinitializes both torso and legs lerp frames from the current animation numbers, reevaluates the live origin/angles trajectories, and resets the torso/legs yaw-pitch state exactly like `cg_players.c::CG_ResetPlayerEntity`."
     },
     {
       "address": "0x100435B0",
@@ -3420,6 +4530,18 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Directional damage-feedback helper that handles the centered 255/255 case, projects the hit direction into the current view axes, clamps `cg.damageX` / `cg.damageY`, and stamps the same view-kick timers and magnitudes as src/code/cgame/cg_playerstate.c::CG_DamageFeedback."
+    },
+    {
+      "address": "0x10043300",
+      "raw_name": "FUN_10043300",
+      "normalized_name": "CG_SelectRespawnWeapon",
+      "status": "matched",
+      "signature": "static void CG_SelectRespawnWeapon(void)",
+      "string_refs": [
+        "cg_weaponPrimary"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail respawn sidecar that tokenizes the `cg_weaponPrimary` preference list, resolves each token onto a weapon id, validates it against the current `STAT_WEAPONS` mask, and falls back to the server weapon when no preferred entry is available, matching the reconstructed `cg_playerstate.c::CG_SelectRespawnWeapon`."
     },
     {
       "address": "0x100433D0",
@@ -3494,10 +4616,10 @@
       "raw_name": "FUN_10043d40",
       "normalized_name": "CG_ClipMoveToEntities",
       "status": "matched",
-      "signature": "static void CG_ClipMoveToEntities(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, int mask, trace_t *tr)",
+      "signature": "static void CG_ClipMoveToEntities(const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, int mask, qboolean useCapsule, trace_t *tr)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Prediction collision helper that iterates the cached solid list, builds transformed inline or temporary collision models, and folds the best transformed trace back into the running result exactly like src/code/cgame/cg_predict.c::CG_ClipMoveToEntities."
+      "comment": "Prediction collision helper that iterates the cached solid list, selects the temporary box or capsule collision model path per call site, runs the matching transformed trace syscall, and folds the best hit back into the running result exactly like src/code/cgame/cg_predict.c::CG_ClipMoveToEntities."
     },
     {
       "address": "0x10044040",
@@ -3507,7 +4629,17 @@
       "signature": "void CG_Trace(trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, int mask)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail trace wrapper that runs the world collision syscall, seeds `ENTITYNUM_WORLD` / `ENTITYNUM_NONE`, and then hands the trace through `CG_ClipMoveToEntities`, matching src/code/cgame/cg_predict.c::CG_Trace."
+      "comment": "Retail prediction trace wrapper that dispatches to the dedicated box or capsule world-trace path, seeds `ENTITYNUM_WORLD` / `ENTITYNUM_NONE`, and then hands the trace through `CG_ClipMoveToEntities`, matching src/code/cgame/cg_predict.c::CG_Trace."
+    },
+    {
+      "address": "0x10044100",
+      "raw_name": "FUN_10044100",
+      "normalized_name": "CG_TraceCapsule",
+      "status": "matched",
+      "signature": "static void CG_TraceCapsule(trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, int mask)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail capsule-trace sidecar beneath `CG_Trace`. HLIL shows a direct `trap_CM_CapsuleTrace` world pass, the same `ENTITYNUM_WORLD` / `ENTITYNUM_NONE` seeding as the box wrapper, and a follow-on `CG_ClipMoveToEntities` call on the capsule path; the current source reconstruction now owns the same split in src/code/cgame/cg_predict.c::CG_TraceCapsule."
     },
     {
       "address": "0x100441A0",
@@ -3679,6 +4811,66 @@
       "comment": "Deliberate retail-only `scores_rr` parser. The command split, the qagame-side Red Rover scoreboard serializer, and the wider per-client row layout show that this is the dedicated Red Rover scoreboard transport rather than the generic GPL score parser."
     },
     {
+      "address": "0x100481F0",
+      "raw_name": "FUN_100481f0",
+      "normalized_name": "CG_ParseScores",
+      "status": "matched",
+      "signature": "static void CG_ParseScores(void)",
+      "string_refs": [
+        "scores"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail generic `scores` parser. `CG_ServerCommand` dispatches the literal `scores` token here, and the committed body clears the live scoreboard caches, reads the row count plus team totals, mirrors client scores into `clientinfo`, and refreshes scoreboard selection just like the current `cg_servercmds.c::CG_ParseScores` seam."
+    },
+    {
+      "address": "0x10048560",
+      "raw_name": "FUN_10048560",
+      "normalized_name": "CG_ParseCompactScores",
+      "status": "matched",
+      "signature": "static void CG_ParseCompactScores(void)",
+      "string_refs": [
+        "smscores"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail compact scoreboard parser for the `smscores` server command. The committed body reads the 8-column row transport used when the full scoreboard overflows, including the active-player bit between powerups and damage, then mirrors score/team state and refreshes selection."
+    },
+    {
+      "address": "0x100481A0",
+      "raw_name": "FUN_100481a0",
+      "normalized_name": "CG_ParseAcc",
+      "status": "matched",
+      "signature": "static void CG_ParseAcc(void)",
+      "string_refs": [
+        "acc"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `acc` server-command parser. Dispatcher evidence routes the literal token directly here, and the committed body reads 15 argv percentages into the local per-weapon accuracy cache later consumed by `CG_ACC_VERTICAL`."
+    },
+    {
+      "address": "0x100487B0",
+      "raw_name": "FUN_100487b0",
+      "normalized_name": "CG_ParseTeamInfo",
+      "status": "matched",
+      "signature": "static void CG_ParseTeamInfo(void)",
+      "string_refs": [
+        "tinfo"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `tinfo` parser. The server-command dispatcher routes the literal token to this helper, which matches the longstanding team-overlay role of `cg_servercmds.c::CG_ParseTeamInfo`: updating the sorted team-player list plus per-client location, health, armor, weapon, and powerup state."
+    },
+    {
+      "address": "0x10048820",
+      "raw_name": "FUN_10048820",
+      "normalized_name": "CG_ParseRaceInfo",
+      "status": "matched",
+      "signature": "static void CG_ParseRaceInfo(void)",
+      "string_refs": [
+        "race_info"
+      ],
+      "relocation_refs": [],
+      "comment": "Retail `race_info` server-command wrapper. Dispatcher evidence ties the literal command directly to this helper, and the current source reconstruction now exposes the same dedicated entry point that caches the live race point count and leader split list published by the server."
+    },
+    {
       "address": "0x10048910",
       "raw_name": "FUN_10048910",
       "normalized_name": "CG_ParseServerinfo",
@@ -3693,6 +4885,16 @@
       ],
       "relocation_refs": [],
       "comment": "Retail serverinfo parser: it fetches the serverinfo blob, updates gametype and rules fields, mirrors cg_loadout, rebuilds the map BSP path, and drives the map/end-map/gametype vote-disable cvars just like the current Quake Live CG_ParseServerinfo path."
+    },
+    {
+      "address": "0x10048C80",
+      "raw_name": "FUN_10048c80",
+      "normalized_name": "CG_ParseMatchState",
+      "status": "matched",
+      "signature": "static void CG_ParseMatchState(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail match-state parser centered on `CS_MATCH_STATE` (`0x295`). `CG_ConfigStringModified` dispatches the slot directly here and the bootstrap path calls the same helper before the dedicated timeout/team-count auxiliaries are consumed. The observed body refreshes the round transition time, round ordinal, turn marker, and round-state cache used by the round HUD/announcer paths; the surrounding current-source reconstruction now also mirrors retail by consuming `CS_TEAM_COUNT_*` and `CS_TIMEOUT_*` updates as immediate side channels."
     },
     {
       "address": "0x10048D10",
@@ -4319,6 +5521,36 @@
       "comment": "Lightning beam renderer that preserves the true-lightning / stored-prediction split, traces the end point, submits the RT_LIGHTNING beam, and adds the same impact flare as `cg_weapons.c::CG_LightningBolt`."
     },
     {
+      "address": "0x10052200",
+      "raw_name": "FUN_10052200",
+      "normalized_name": "CG_SpawnRailTrail",
+      "status": "matched",
+      "signature": "static void CG_SpawnRailTrail(centity_t *cent, vec3_t origin)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Railgun flash helper beneath `CG_AddPlayerWeapon`. HLIL gates on `WP_RAILGUN` plus the cached `pe.railgunFlash` latch, clears that latch, copies the muzzle-tag origin and cached impact point, and then forwards the beam to `CG_RailTrail`, matching the current `cg_weapons.c::CG_SpawnRailTrail` reconstruction."
+    },
+    {
+      "address": "0x10052250",
+      "raw_name": "FUN_10052250",
+      "normalized_name": "CG_MachinegunSpinAngle",
+      "status": "matched",
+      "signature": "static float CG_MachinegunSpinAngle(centity_t *cent)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Weapon-barrel spin helper under `CG_AddPlayerWeapon`. The body preserves the `SPIN_SPEED` / `COAST_TIME` timing, toggles the cached spin state on `EF_FIRING` transitions, updates the barrel angle/time fields, and plays the chaingun wind-down sound when the spinning state falls, matching `cg_weapons.c::CG_MachinegunSpinAngle`."
+    },
+    {
+      "address": "0x10052350",
+      "raw_name": "FUN_10052350",
+      "normalized_name": "CG_AddWeaponWithPowerups",
+      "status": "matched",
+      "signature": "static void CG_AddWeaponWithPowerups(const centity_t *cent, refEntity_t *gun)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Shared weapon-overlay helper beneath `CG_AddPlayerWeapon`. HLIL reads the owning `centity_t` powerup mask, applies invisibility first, otherwise submits the base entity and conditionally re-submits it through the battlesuit and quad weapon shaders, matching the current `cg_weapons.c::CG_AddWeaponWithPowerups` split."
+    },
+    {
       "address": "0x10052420",
       "raw_name": "FUN_10052420",
       "normalized_name": "CG_AddPlayerWeapon",
@@ -4329,6 +5561,16 @@
       "comment": "Weapon attachment path used for both view and world weapons; it registers weapon media, attaches gun/barrel/ammo models, handles the looping ready/firing sounds, and emits flash, lightning, and rail effects like `cg_weapons.c::CG_AddPlayerWeapon`."
     },
     {
+      "address": "0x10052CF0",
+      "raw_name": "FUN_10052cf0",
+      "normalized_name": "CG_AddViewWeapon",
+      "status": "matched",
+      "signature": "void CG_AddViewWeapon(playerState_t *ps)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "First-person view-weapon builder that applies the spectator/intermission/third-person/test-gun guards, computes the viewmodel origin from the current view axes plus FOV drop, maps torso animation frames onto the hand model, and then routes the finished hand entity through `CG_AddPlayerWeapon`, matching `cg_weapons.c::CG_AddViewWeapon`."
+    },
+    {
       "address": "0x10053100",
       "raw_name": "FUN_10053100",
       "normalized_name": "CG_DrawWeaponSelect",
@@ -4337,6 +5579,16 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Weapon-selection HUD drawer that fades from cg.weaponSelectTime, clears the pickup item display, paints the owned weapon icons plus the selection/no-ammo overlays, and prints the selected pickup name like `cg_weapons.c::CG_DrawWeaponSelect`."
+    },
+    {
+      "address": "0x10053BA0",
+      "raw_name": "FUN_10053ba0",
+      "normalized_name": "CG_CycleWeaponSelection",
+      "status": "matched",
+      "signature": "static void CG_CycleWeaponSelection(qboolean next)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail shared `weapnext` / `weapprev` helper. HLIL owns the local `cg.snap` / follow guard, updates `cg.weaponSelectTime`, walks the weapon cursor forward or backward based on the boolean argument, skips both `WP_GAUNTLET` and the `WP_NUM_WEAPONS` sentinel slot, and commits the first selectable weapon through `CG_SetWeaponSelect`, matching the new source-side helper split in `cg_weapons.c`."
     },
     {
       "address": "0x10053C40",
@@ -4373,6 +5625,26 @@
       ],
       "relocation_refs": [],
       "comment": "Retail `weapon` command handler that keeps the public-source selection path and also accepts the retail `toggle` argument variant."
+    },
+    {
+      "address": "0x10053D50",
+      "raw_name": "FUN_10053d50",
+      "normalized_name": "CG_SelectHighestWeapon",
+      "status": "matched",
+      "signature": "static void CG_SelectHighestWeapon(void)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail highest-slot fallback beneath the `EV_NOAMMO` seam. The body refreshes `cg.weaponSelectTime`, walks the owned/selectable weapon slots from high to low while skipping the `WP_NUM_WEAPONS` sentinel, and commits the first valid result through `CG_SetWeaponSelect`, matching the current `cg_weapons.c::CG_SelectHighestWeapon` helper."
+    },
+    {
+      "address": "0x10053D90",
+      "raw_name": "FUN_10053d90",
+      "normalized_name": "CG_SelectHighestWeaponExcluding",
+      "status": "matched",
+      "signature": "static void CG_SelectHighestWeaponExcluding(weapon_t excludedWeapon)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Retail sibling of `CG_SelectHighestWeapon` used by the unreconstructed `EV_DROP_WEAPON` seam in HLIL. The helper is identical to the highest-slot fallback except that it skips the weapon id passed through the second register argument before selecting the highest remaining owned/selectable slot."
     },
     {
       "address": "0x10053DE0",
@@ -4485,6 +5757,216 @@
       "string_refs": [],
       "relocation_refs": [],
       "comment": "Retail bullet-effects helper that computes the muzzle point, reproduces the water bubble-trail split and tracer chance, and then dispatches either `CG_Bleed` or `CG_MissileHitWall`, matching `cg_weapons.c::CG_Bullet`."
+    },
+    {
+      "address": "0x10056450",
+      "raw_name": "FUN_10056450",
+      "normalized_name": "RotatePointAroundVector",
+      "status": "matched",
+      "signature": "void RotatePointAroundVector(vec3_t dst, const vec3_t dir, const vec3_t point, float degrees)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local `q_math` rotation helper compiled into `cgamex86.dll`. HLIL builds the same orthonormal basis from `dir`, constructs the z-rotation matrix from `degrees`, multiplies the basis matrices, and rotates `point` into `dst`, matching `q_math.c::RotatePointAroundVector`."
+    },
+    {
+      "address": "0x10056780",
+      "raw_name": "FUN_10056780",
+      "normalized_name": "RotateAroundDirection",
+      "status": "matched",
+      "signature": "void RotateAroundDirection(vec3_t axis[3], float yaw)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local `q_math` axis-rotation helper compiled into `cgamex86.dll`. The body rebuilds `axis[1]` with `PerpendicularVector`, optionally rotates it around `axis[0]` through `RotatePointAroundVector`, and then recomputes `axis[2]` via the cross product, matching `q_math.c::RotateAroundDirection`."
+    },
+    {
+      "address": "0x100568A0",
+      "raw_name": "FUN_100568a0",
+      "normalized_name": "vectoangles",
+      "status": "matched",
+      "signature": "void vectoangles(const vec3_t value1, vec3_t angles)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local vector-to-Euler conversion helper compiled into `cgamex86.dll`. HLIL preserves the zero-forward special case, the `atan2` yaw/pitch calculation, the 0..360 wrapping, and the final `angles[PITCH] = -pitch; angles[YAW] = yaw; angles[ROLL] = 0;` layout from `q_math.c::vectoangles`."
+    },
+    {
+      "address": "0x10056A70",
+      "raw_name": "FUN_10056a70",
+      "normalized_name": "ProjectPointOnPlane",
+      "status": "matched",
+      "signature": "void ProjectPointOnPlane(vec3_t dst, const vec3_t p, const vec3_t normal)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local plane-projection helper compiled into `cgamex86.dll`. The body computes `inv_denom = 1 / DotProduct(normal, normal)`, projects `p` onto the plane defined by `normal`, and writes the result to `dst`, matching `q_math.c::ProjectPointOnPlane`."
+    },
+    {
+      "address": "0x10056B40",
+      "raw_name": "FUN_10056b40",
+      "normalized_name": "LerpAngle",
+      "status": "matched",
+      "signature": "float LerpAngle(float from, float to, float frac)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local angle-interpolation helper compiled into `cgamex86.dll`. HLIL preserves the same wrap-around correction across +/-180 degrees before blending toward `to` by `frac`, matching `q_math.c::LerpAngle`."
+    },
+    {
+      "address": "0x10056BC0",
+      "raw_name": "FUN_10056bc0",
+      "normalized_name": "AngleSubtract",
+      "status": "matched",
+      "signature": "float AngleSubtract(float a1, float a2)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local wrapped-angle subtraction helper compiled into `cgamex86.dll`. The loop structure matches the public `q_math.c::AngleSubtract` behavior of folding the difference back into the [-180, 180] range."
+    },
+    {
+      "address": "0x10056C40",
+      "raw_name": "FUN_10056c40",
+      "normalized_name": "VectorNormalize",
+      "status": "matched",
+      "signature": "vec_t VectorNormalize(vec3_t v)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local in-place vector normalization helper compiled into `cgamex86.dll`. HLIL computes the vector length, returns it, and scales the incoming vector by the inverse length when non-zero, matching `q_math.c::VectorNormalize`."
+    },
+    {
+      "address": "0x10056CD0",
+      "raw_name": "FUN_10056cd0",
+      "normalized_name": "VectorNormalize2",
+      "status": "matched",
+      "signature": "vec_t VectorNormalize2(const vec3_t v, vec3_t out)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local copy-normalization helper compiled into `cgamex86.dll`. The body computes the source length, writes the normalized vector to `out` when non-zero, otherwise clears `out`, and returns the original length, matching `q_math.c::VectorNormalize2`."
+    },
+    {
+      "address": "0x10056D60",
+      "raw_name": "FUN_10056d60",
+      "normalized_name": "MatrixMultiply",
+      "status": "matched",
+      "signature": "void MatrixMultiply(float in1[3][3], float in2[3][3], float out[3][3])",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local 3x3 matrix multiply helper compiled into `cgamex86.dll`. HLIL performs the same explicit nine-cell multiply-accumulate sequence as `q_math.c::MatrixMultiply`."
+    },
+    {
+      "address": "0x10056E40",
+      "raw_name": "FUN_10056e40",
+      "normalized_name": "AngleVectors",
+      "status": "matched",
+      "signature": "void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local Euler-to-basis helper compiled into `cgamex86.dll`. The body computes the yaw/pitch/roll sine and cosine terms and emits the same forward/right/up vectors as `q_math.c::AngleVectors`."
+    },
+    {
+      "address": "0x10056F90",
+      "raw_name": "FUN_10056f90",
+      "normalized_name": "CG_NormalizeMapFilename",
+      "status": "matched",
+      "signature": "static const char *CG_NormalizeMapFilename(const char *mapname)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Deliberate synthetic retail-only mapname canonicalizer. HLIL walks a 49-entry case-insensitive legacy-to-retail alias table (`qzca1 -> asylum`, `qzdm6 -> campgrounds`, `qztourney7 -> furiousheights`, `ztntourney1 -> bloodrun`) and returns the mapped retail basename when matched, otherwise the original token; the only observed cgame callsite is `CG_ParseServerinfo` immediately before `Com_sprintf(\"maps/%s.bsp\")`."
+    },
+    {
+      "address": "0x10057020",
+      "raw_name": "FUN_10057020",
+      "normalized_name": "COM_Compress",
+      "status": "matched",
+      "signature": "int COM_Compress(char *data_p)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local parser-text compressor compiled into `cgamex86.dll`. HLIL strips both `//` and `/* */` comments, folds whitespace runs down to a single space or newline, preserves quoted strings verbatim, and returns the compressed byte count, matching `q_shared.c::COM_Compress`."
+    },
+    {
+      "address": "0x10057120",
+      "raw_name": "FUN_10057120",
+      "normalized_name": "COM_ParseExt",
+      "status": "matched",
+      "signature": "char *COM_ParseExt(char **data_p, qboolean allowLineBreaks)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local token parser compiled into `cgamex86.dll`. The body resets the shared token buffer, skips whitespace and C-style comments, optionally returns early on line breaks, handles quoted strings, and advances the caller cursor exactly like `q_shared.c::COM_ParseExt`."
+    },
+    {
+      "address": "0x100572E0",
+      "raw_name": "FUN_100572e0",
+      "normalized_name": "Q_strncpyz",
+      "status": "matched",
+      "signature": "void Q_strncpyz(char *dest, const char *src, int destsize)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local safe string-copy helper compiled into `cgamex86.dll`. HLIL preserves the same fatal guards for null dest/src and `destsize < 1`, then copies `destsize - 1` bytes and forces a trailing zero, matching `q_shared.c::Q_strncpyz`."
+    },
+    {
+      "address": "0x10057330",
+      "raw_name": "FUN_10057330",
+      "normalized_name": "Q_stricmpn",
+      "status": "matched",
+      "signature": "int Q_stricmpn(const char *s1, const char *s2, int n)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local bounded case-insensitive compare helper compiled into `cgamex86.dll`. The loop structure, null handling, ASCII lowercase-to-uppercase fold, and `-1/0/1` return convention all line up with `q_shared.c::Q_stricmpn`."
+    },
+    {
+      "address": "0x100573A0",
+      "raw_name": "FUN_100573a0",
+      "normalized_name": "Q_strcat",
+      "status": "matched",
+      "signature": "void Q_strcat(char *dest, int size, const char *src)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local bounds-checked concatenation helper compiled into `cgamex86.dll`. HLIL measures the existing destination length, errors if the buffer is already full, and appends the new suffix through the recovered `Q_strncpyz` leaf, matching `q_shared.c::Q_strcat`."
+    },
+    {
+      "address": "0x10057430",
+      "raw_name": "FUN_10057430",
+      "normalized_name": "Q_PrintStrlen",
+      "status": "matched",
+      "signature": "int Q_PrintStrlen(const char *string)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local printable-length helper compiled into `cgamex86.dll`. The loop counts visible characters while skipping Quake color escapes `^0..^7`, matching `q_shared.c::Q_PrintStrlen`."
+    },
+    {
+      "address": "0x100574C0",
+      "raw_name": "FUN_100574c0",
+      "normalized_name": "Q_CleanStr",
+      "status": "matched",
+      "signature": "char *Q_CleanStr(char *string)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local in-place printable-string scrubber compiled into `cgamex86.dll`. HLIL skips Quake color escapes, copies only printable ASCII bytes into the destination cursor, terminates the cleaned string, and returns the original pointer, matching `q_shared.c::Q_CleanStr`."
+    },
+    {
+      "address": "0x10057510",
+      "raw_name": "FUN_10057510",
+      "normalized_name": "Com_sprintf",
+      "status": "matched",
+      "signature": "int Com_sprintf(char *dest, int size, const char *fmt, ...)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local bounded formatter compiled into `cgamex86.dll`. The function formats through a 32000-byte stack buffer, throws the same fatal `overflowed bigbuffer` error, prints the same overflow warning, and finishes via `Q_strncpyz`, matching `q_shared.c::Com_sprintf`."
+    },
+    {
+      "address": "0x100575E0",
+      "raw_name": "FUN_100575e0",
+      "normalized_name": "va",
+      "status": "matched",
+      "signature": "char *va(char *format, ...)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local temp-buffer varargs formatter compiled into `cgamex86.dll`. HLIL alternates between two 32000-byte static buffers and writes the formatted string with `vsprintf`, matching `q_shared.c::va`."
+    },
+    {
+      "address": "0x10057620",
+      "raw_name": "FUN_10057620",
+      "normalized_name": "Info_ValueForKey",
+      "status": "matched",
+      "signature": "char *Info_ValueForKey(const char *s, const char *key)",
+      "string_refs": [],
+      "relocation_refs": [],
+      "comment": "Local info-string lookup helper compiled into `cgamex86.dll`. HLIL preserves the BIG_INFO overflow guard, the alternating static return buffers, the backslash-delimited key/value scan, and the bounded compare against the requested key, matching `q_shared.c::Info_ValueForKey`."
     },
     {
       "address": "0x10058160",
@@ -7408,8 +8890,8 @@
   ],
   "relocations": [],
   "stats": {
-    "function_total": 538,
-    "function_matched": 538,
+    "function_total": 675,
+    "function_matched": 675,
     "string_total": 168,
     "string_resolved": 168,
     "relocation_total": 0

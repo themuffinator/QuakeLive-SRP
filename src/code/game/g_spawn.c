@@ -361,6 +361,7 @@ void SP_path_corner (gentity_t *self);
 void SP_misc_teleporter_dest (gentity_t *self);
 void SP_misc_model(gentity_t *ent);
 void SP_advertisement( gentity_t *ent );
+void SP_info_tour_point( gentity_t *ent );
 void SP_misc_portal_camera(gentity_t *ent);
 void SP_misc_portal_surface(gentity_t *ent);
 
@@ -390,6 +391,7 @@ spawn_t	spawns[] = {
 	{"info_null", SP_info_null},
 	{"info_notnull", SP_info_notnull},		// use target_position instead
 	{"info_camp", SP_info_camp},
+	{"info_tour_point", SP_info_tour_point},
 
 	{"func_plat", SP_func_plat},
 	{"func_button", SP_func_button},
@@ -896,6 +898,7 @@ void SP_worldspawn( void ) {
 	trap_SetConfigstring( CS_ENABLE_BREATH, s );
 
 	G_SpawnString( "trainingMap", "0", &s );
+	level.trainingMap = ( Q_stricmp( s, "0" ) != 0 ) ? qtrue : qfalse;
 	if ( atoi( s ) == 1 ) {
 		trap_Cvar_Set( "g_training", "1" );
 	}

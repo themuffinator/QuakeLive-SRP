@@ -316,7 +316,8 @@ typedef enum {
 	LE_SPRITE_EXPLOSION = 0x02,
 	LE_FRAGMENT = 0x03,
 	LE_MOVE_SCALE_FADE = 0x04,
-	LE_05 = 0x05,				// retail-only RGB/light fade slot; producer naming is still unresolved
+	LE_BIGEXPLODE_TRACER = 0x05,
+	LE_05 = LE_BIGEXPLODE_TRACER,		// compatibility alias for older mapping notes
 	LE_FALL_SCALE_FADE = 0x06,
 	LE_FADE_RGB = 0x07,
 	LE_SCALE_FADE = 0x08,
@@ -327,8 +328,9 @@ typedef enum {
 	LE_INVULJUICED = 0x0C,
 	LE_SHOWREFENTITY = 0x0D,
 	LE_FRAGMENT_14 = 0x0E,
-	LE_0F = 0x0F,				// retail-only sprite/light fade slot; producer naming is still unresolved
-	LE_SCALE_FADE_OUT = LE_0F,		// compatibility alias from the older mapping pass
+	LE_DEATH_EFFECT = 0x0F,
+	LE_0F = LE_DEATH_EFFECT,			// compatibility alias for older mapping notes
+	LE_SCALE_FADE_OUT = LE_DEATH_EFFECT,	// compatibility alias from the older mapping pass
 	LE_FRAGMENT_16 = 0x10
 } leType_t;
 
@@ -580,6 +582,8 @@ typedef struct {
 
 	int				teamTask;		// task in teamplay (offence/defence)
 	qboolean		teamLeader;		// true when this is a team leader
+	qboolean		spectateOnly;		// retail duel pure-spectator flag
+	int				spectatorQueuePosition;	// retail duel queue position
 
 	int				powerups;		// so can display quad/flag status
 
@@ -598,6 +602,8 @@ typedef struct {
 	char			headSkinName[MAX_QPATH];
 	char			redTeam[MAX_TEAMNAME];
 	char			blueTeam[MAX_TEAMNAME];
+	char			country[MAX_COUNTRY_CODE];
+	qhandle_t		countryFlagShader;
 	qboolean		deferred;
 
 	qboolean		newAnims;		// true if using the new mission pack animations
@@ -809,6 +815,9 @@ typedef struct {
 	int			autoActionScreenshotTime;
 	int			autoActionStatsTime;
 	int			autoActionDemoIndex;
+	int			weaponAccuracies[WP_NUM_WEAPONS];
+	qboolean	accRequestActive;
+	int			accRequestTime;
 	qboolean	deadBodyDarken;
 	vec4_t		deadBodyColor;
 
@@ -838,7 +847,9 @@ typedef struct {
 	cgObituary_t	obituaries[MAX_OBITUARIES];
 	int			obituaryIndex;
 	char			spectatorList[MAX_STRING_CHARS];		// list of names
+	char			spectatorEntries[MAX_CLIENTS][64];
 	int				spectatorLen;												// length of list
+	int				spectatorEntryCount;
 	float			spectatorWidth;											// width in device units
 	int				spectatorTime;											// next time to offset
 	int				spectatorPaintX;										// current paint x
@@ -1377,6 +1388,7 @@ typedef struct {
 	qhandle_t retrieveShader;
 	qhandle_t escortShader;
 	qhandle_t flagShaders[3];
+	qhandle_t countryFlagNoneShader;
 	qhandle_t	raceStartShader;
 	qhandle_t	raceCheckpointShader;
 	qhandle_t	raceFinishShader;
@@ -1438,6 +1450,7 @@ typedef struct {
 	int				timelimit;
 	int				voteFlags;
 	int				maxclients;
+	int				playerCountTeamSize;
 	char			mapname[MAX_QPATH];
 	char			loadout[MAX_INFO_VALUE];
 	qboolean		playerCylindersEnabled;
@@ -1882,6 +1895,7 @@ void CG_InitBrowserRuntime( void );
 void CG_ResetBrowserOverlayState( void );
 void CG_SetBrowserFeederSelection( void *overlay, int feeder, int index );
 void CG_LoadMenus(const char *menuFile);
+qhandle_t CG_RegisterCountryFlag( const char *countryCode );
 void CG_KeyEvent(int key, qboolean down);
 void CG_MouseEvent(int x, int y);
 void CG_EventHandling(int type);
@@ -2040,6 +2054,7 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 void CG_NewClientInfo( int clientNum );
 void CG_QueueClientInfoContextRefresh( void );
 void CG_ApplyModelOverrides( void );
+void CG_RefreshClientHeadOffsets( void );
 sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName );
 
 //
@@ -2058,6 +2073,7 @@ void CG_LoadDeferredPlayers( void );
 //
 void CG_CheckEvents( centity_t *cent );
 const char	*CG_PlaceString( int rank );
+int CG_GetOvertimeCount( void );
 void CG_EntityEvent( centity_t *cent, vec3_t position );
 void CG_PainEvent( centity_t *cent, int health );
 void CG_PruneObituaryFeed( void );
@@ -2214,6 +2230,7 @@ void CG_InitConsoleCommands( void );
 void CG_ExecuteNewServerCommands( int latestSequence );
 void CG_ParseServerinfo( void );
 void CG_SetConfigValues( void );
+int CG_GetMatchTimeoutStartTime( void );
 void CG_ParsePmoveConfigString( const char *payload );
 void CG_LoadVoiceChats( void );
 void CG_ShaderStateChanged(void);
@@ -2421,6 +2438,7 @@ void		trap_Key_SetBinding( int keynum, const char *binding );
 qboolean	trap_Key_GetOverstrikeMode( void );
 void		trap_Key_SetOverstrikeMode( qboolean state );
 void		trap_Cmd_ExecuteText( int exec_when, const char *text );
+void		trap_QL_UpdateAdvert( int handleOrToken, int area );
 void		trap_AdvertisementBridge_InitCGame( void );
 void		trap_AdvertisementBridge_ShutdownCGame( void );
 void		trap_AdvertisementBridge_UpdateLoadingViewParameters( void );

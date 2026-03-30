@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/q_shared.h"
 #include "qcommon.h"
 #include "../../common/platform/platform_config.h"
+#include "../../common/platform/platform_steamworks.h"
 #include "../../../src-re/include/fs_imports.h"
 #include <stdlib.h>
 #include <setjmp.h>
@@ -2748,6 +2749,72 @@ static void Com_ApplyOnlineServicesBuildPolicy( void ) {
 
 /*
 =================
+Com_SteamPackGameServerIP
+
+Converts the retained `net_ip` cvar into the big-endian word layout passed to
+the retail `SteamGameServer_Init(...)` import.
+=================
+*/
+#if QL_BUILD_STEAMWORKS
+static uint32_t Com_SteamPackGameServerIP( const char *addressString ) {
+	netadr_t	address;
+
+	if ( !addressString || !addressString[0] || !Q_stricmp( addressString, "localhost" ) ) {
+		return 0u;
+	}
+
+	Com_Memset( &address, 0, sizeof( address ) );
+	if ( !NET_StringToAdr( addressString, &address ) || address.type != NA_IP ) {
+		return 0u;
+	}
+
+	return ( (uint32_t)address.ip[0] << 24 ) |
+		( (uint32_t)address.ip[1] << 16 ) |
+		( (uint32_t)address.ip[2] << 8 ) |
+		(uint32_t)address.ip[3];
+}
+#endif
+
+/*
+=================
+Com_InitSteamGameServer
+
+Restores the bounded retail Steam game-server bootstrap in the common startup
+owner while preserving the repo's non-fatal fallback policy when Steam is not
+available.
+=================
+*/
+void Com_InitSteamGameServer( void ) {
+#if QL_BUILD_STEAMWORKS
+	char		netIp[MAX_CVAR_VALUE_STRING];
+	char		steamAccount[MAX_CVAR_VALUE_STRING];
+	cvar_t		*netPort;
+	cvar_t		*steamVac;
+	qboolean	dedicated;
+	uint32_t	steamIp;
+
+	dedicated = ( com_dedicated && com_dedicated->integer > 0 ) ? qtrue : qfalse;
+	Cvar_Get( "sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );
+	steamVac = Cvar_Get( "sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );
+	Cvar_VariableStringBuffer( "net_ip", netIp, sizeof( netIp ) );
+	netPort = Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH );
+	steamIp = Com_SteamPackGameServerIP( netIp );
+
+	if ( !QL_Steamworks_ServerInit( steamIp, (uint16_t)netPort->integer, steamVac && steamVac->integer ? qtrue : qfalse, dedicated ) ) {
+		return;
+	}
+
+	QL_Steamworks_ServerSetDedicated( dedicated );
+	Cvar_VariableStringBuffer( "sv_setSteamAccount", steamAccount, sizeof( steamAccount ) );
+	QL_Steamworks_ServerLogOn( steamAccount );
+	QL_Steamworks_ServerEnableHeartbeats( qfalse );
+	QL_Steamworks_ServerSetProduct( "Quake Live" );
+	QL_Steamworks_ServerSetGameDir( "baseq3" );
+#endif
+}
+
+/*
+=================
 Com_Init
 =================
 */
@@ -2832,6 +2899,7 @@ void Com_Init( char *commandLine ) {
 #endif
 	// allocate the stack based hunk allocator
 	Com_InitHunkMemory();
+	Com_InitSteamGameServer();
 
 	// if any archived cvars are modified after this, we will trigger a writing
 	// of the config file
@@ -3249,6 +3317,7 @@ void Com_Shutdown (void) {
 		com_journalFile = 0;
 	}
 
+	QL_Steamworks_Shutdown();
 	SyscallContract_Shutdown();
 
 }

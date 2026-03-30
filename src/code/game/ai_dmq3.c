@@ -267,6 +267,26 @@ qboolean EntityIsChatting(aas_entityinfo_t *entinfo) {
 
 /*
 ==================
+BotClientHasNoTargetFlag
+==================
+*/
+static qboolean BotClientHasNoTargetFlag( int clientNum ) {
+	gentity_t *ent;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+
+	ent = &g_entities[clientNum];
+	if ( !ent->inuse || !ent->client ) {
+		return qfalse;
+	}
+
+	return ( ent->flags & FL_NOTARGET ) != 0;
+}
+
+/*
+==================
 EntityHasQuad
 ==================
 */
@@ -1695,6 +1715,34 @@ void BotCheckItemPickup(bot_state_t *bs, int *oldinventory) {
 BotUpdateInventory
 ==================
 */
+static void BotNormalizeAmmoInventory( bot_state_t *bs ) {
+	static const int ammoSlots[] = {
+		INVENTORY_SHELLS,
+		INVENTORY_BULLETS,
+		INVENTORY_GRENADES,
+		INVENTORY_CELLS,
+		INVENTORY_LIGHTNINGAMMO,
+		INVENTORY_ROCKETS,
+		INVENTORY_SLUGS,
+		INVENTORY_BFGAMMO,
+		INVENTORY_NAILS,
+		INVENTORY_MINES,
+		INVENTORY_BELT
+	};
+	int i;
+
+	for ( i = 0; i < ARRAY_LEN( ammoSlots ); i++ ) {
+		if ( bs->inventory[ammoSlots[i]] == -1 ) {
+			bs->inventory[ammoSlots[i]] = 999;
+		}
+	}
+}
+
+/*
+==================
+BotUpdateInventory
+==================
+*/
 void BotUpdateInventory(bot_state_t *bs) {
 	int oldinventory[MAX_ITEMS];
 
@@ -1755,6 +1803,7 @@ void BotUpdateInventory(bot_state_t *bs) {
 		bs->inventory[INVENTORY_REDCUBE] = 0;
 		bs->inventory[INVENTORY_BLUECUBE] = bs->cur_ps.generic1;
 	}
+	BotNormalizeAmmoInventory( bs );
 	BotCheckItemPickup(bs, oldinventory);
 }
 
@@ -2944,6 +2993,7 @@ int BotFindEnemy(bot_state_t *bs, int curenemy) {
 		if (!entinfo.valid) continue;
 		//if the enemy isn't dead and the enemy isn't the bot self
 		if (EntityIsDead(&entinfo) || entinfo.number == bs->entitynum) continue;
+		if ( BotClientHasNoTargetFlag( i ) ) continue;
 		//if the enemy is invisible and not shooting
 		if (EntityIsInvisible(&entinfo) && !EntityIsShooting(&entinfo)) {
 			continue;
@@ -5275,8 +5325,10 @@ void BotSetEntityNumForGoal(bot_goal_t *goal, char *classname) {
 		if ( !ent->inuse ) {
 			continue;
 		}
-		if ( !Q_stricmp(ent->classname, classname) ) {
-			continue;
+		if ( ent->classname && classname ) {
+			if ( !Q_stricmp(ent->classname, classname) ) {
+				continue;
+			}
 		}
 		VectorSubtract(goal->origin, ent->s.origin, dir);
 		if (VectorLengthSquared(dir) < Square(10)) {

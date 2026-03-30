@@ -43,6 +43,11 @@ typedef struct {
 	int taskNum;
 } orderTask_t;
 
+typedef struct {
+	const char	*legacyName;
+	const char	*retailName;
+} cgRetailMapAlias_t;
+
 static const orderTask_t validOrders[] = {
 	{ VOICECHAT_GETFLAG,						TEAMTASK_OFFENSE },
 	{ VOICECHAT_OFFENSE,						TEAMTASK_OFFENSE },
@@ -72,12 +77,85 @@ static const weapon_t cg_retailWeaponReloadOrder[] = {
 	WP_CHAINGUN,
 	WP_HEAVY_MACHINEGUN
 };
+static const weapon_t cg_retailAccuracyCommandOrder[] = {
+	WP_NONE,
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
+	WP_GRENADE_LAUNCHER,
+	WP_ROCKET_LAUNCHER,
+	WP_LIGHTNING,
+	WP_RAILGUN,
+	WP_PLASMAGUN,
+	WP_BFG,
+	WP_GRAPPLING_HOOK,
+	WP_NAILGUN,
+	WP_PROX_LAUNCHER,
+	WP_CHAINGUN,
+	WP_HEAVY_MACHINEGUN
+};
+static const cgRetailMapAlias_t cg_retailMapAliases[] = {
+	{ "qzca1", "asylum" },
+	{ "qzca2", "trinity" },
+	{ "qzca3", "quarantine" },
+	{ "qzctf1", "duelingkeeps" },
+	{ "qzctf2", "troubledwaters" },
+	{ "qzctf3", "stronghold" },
+	{ "qzctf4", "spacectf" },
+	{ "qzctf5", "falloutbunker" },
+	{ "qzctf6", "beyondreality" },
+	{ "qzctf7", "ironworks" },
+	{ "qzctf8", "siberia" },
+	{ "qzctf9", "bloodlust" },
+	{ "qzctf10", "courtyard" },
+	{ "qzdm1", "arenagate" },
+	{ "qzdm2", "spillway" },
+	{ "qzdm3", "hearth" },
+	{ "qzdm4", "eviscerated" },
+	{ "qzdm5", "forgotten" },
+	{ "qzdm6", "campgrounds" },
+	{ "qzdm7", "retribution" },
+	{ "qzdm8", "brimstoneabbey" },
+	{ "qzdm9", "heroskeep" },
+	{ "qzdm10", "namelessplace" },
+	{ "qzdm11", "chemicalreaction" },
+	{ "qzdm12", "dredwerkz" },
+	{ "qzdm13", "lostworld" },
+	{ "qzdm14", "grimdungeons" },
+	{ "qzdm15", "demonkeep" },
+	{ "qzdm16", "cobaltstation" },
+	{ "qzdm17", "longestyard" },
+	{ "qzdm18", "spacechamber" },
+	{ "qzdm19", "terminalheights" },
+	{ "qzdm20", "hiddenfortress" },
+	{ "qzteam1", "basesiege" },
+	{ "qzteam2", "falloutbunker" },
+	{ "qzteam3", "innersanctums" },
+	{ "qzteam4", "scornforge" },
+	{ "qzteam6", "vortexportal" },
+	{ "qzteam7", "rebound" },
+	{ "qztourney1", "powerstation" },
+	{ "qztourney2", "provinggrounds" },
+	{ "qztourney3", "hellsgate" },
+	{ "qztourney4", "verticalvengeance" },
+	{ "qztourney5", "hellsgateredux" },
+	{ "qztourney6", "almostlost" },
+	{ "qztourney7", "furiousheights" },
+	{ "qztourney8", "sacellum" },
+	{ "qztourney9", "houseofdecay" },
+	{ "ztntourney1", "bloodrun" }
+};
+static int cg_matchTimeoutStartTime;
 
 #define CG_RETAIL_TDM_TEAMSTAT_COUNT	14
 #define CG_RETAIL_CTF_TEAMSTAT_COUNT	17
 #define CG_RETAIL_TDM_SCORE_ROW_FIELDS	15
 #define CG_RETAIL_CTF_SCORE_ROW_FIELDS	17
 #define CG_RETAIL_FREEZE_SCORE_ROW_FIELDS	17
+#define CG_RETAIL_DUEL_CORE_FIELDS		21
+#define CG_RETAIL_DUEL_WEAPON_FIELDS		5
+#define CG_RETAIL_DUEL_WEAPON_COUNT		( WP_NUM_WEAPONS - 1 )
+#define CG_RETAIL_DUEL_SCORE_ROW_FIELDS	( CG_RETAIL_DUEL_CORE_FIELDS + ( CG_RETAIL_DUEL_WEAPON_FIELDS * CG_RETAIL_DUEL_WEAPON_COUNT ) )
 
 static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder[CG_RETAIL_TDM_TEAMSTAT_COUNT] = {
 	CG_TEAMSTAT_MAP_PICKUPS,
@@ -114,6 +192,131 @@ static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder[CG_RETAIL_CTF_TEAMSTAT_C
 	CG_TEAMSTAT_TIMEHELD_REGEN,
 	CG_TEAMSTAT_TIMEHELD_HASTE,
 	CG_TEAMSTAT_TIMEHELD_INVIS
+};
+
+static const char *const cg_retailBlankGameInfoLines[6] = {
+	" ",
+	" ",
+	" ",
+	" ",
+	" ",
+	" "
+};
+
+static const char *const cg_retailTrainingGameInfoLines[6] = {
+	"Welcome to QUAKE LIVE training",
+	"A trainer named 'Crash' is waiting to give you a quick introduction",
+	"to the game. Follow 'Crash' through a tour of the warm-up arena, then",
+	"compete against her in a free-for-all deathmatch game.",
+	"",
+	"Click 'Start Training' to begin."
+};
+
+static const char *const cg_retailGameInfoLines[GT_MAX_GAME_TYPE][6] = {
+	[GT_FFA] = {
+		"This is a Free For All game",
+		"Shoot Everyone!",
+		"First player to reach the Frag Limit wins.",
+		"If time runs out, the player with the highest score wins.",
+		"If the time limit is hit and there is a tie, a Sudden Death round begins.",
+		" "
+	},
+	[GT_TOURNAMENT] = {
+		"This is a 1 vs 1 Duel game",
+		"Defeat your opponent!",
+		"If time runs out, the player with the highest score wins.",
+		"If the time limit is hit and there is a tie, the match extends",
+		"into overtime.",
+		" "
+	},
+	[GT_SINGLE_PLAYER] = {
+		"This is a Race game",
+		"Race to the finish!",
+		"Run through the course, hitting all checkpoints in order.",
+		"Use all your movement skills to complete the course the fastest.",
+		"The player with the shortest time at the end of the match wins.",
+		" "
+	},
+	[GT_TEAM] = {
+		"This is a Team Deathmatch game",
+		"Shoot anyone on the other team!",
+		"When time runs out, the team with the highest score wins.",
+		"If the time limit is hit and there is a tie, a Sudden Death round begins.",
+		" ",
+		" "
+	},
+	[GT_CLAN_ARENA] = {
+		"This is a Clan Arena game",
+		"Shoot anyone on the other team!",
+		"You spawn equipped with all weapons and full armor.",
+		"Completely eliminate the opposing team to win the round.",
+		"The first team to reach the round limit wins.",
+		" "
+	},
+	[GT_CTF] = {
+		"This is a Capture the Flag game",
+		"Grab the other teams flag and bring it back to your own flag.",
+		"First team to reach the Capture Limit wins.",
+		"If time runs out, the team with most captures wins.",
+		"If the time limit is hit and there is a tie, a Sudden Death round begins.",
+		" "
+	},
+	[GT_1FCTF] = {
+		"This is a One Flag game",
+		"Grab the white flag in the center, and carry it to the enemy flag stand.",
+		"First team to reach the Capture Limit wins.",
+		"If time runs out, the team with most captures wins.",
+		"If the time limit is hit and there is a tie, a Sudden Death round begins.",
+		" "
+	},
+	[GT_OBELISK] = {
+		"This is an Overload game",
+		"Destroy the enemy obelisk.",
+		"The obelisk will explode when enough damage is applied.",
+		"When it explodes, your team scores a capture.",
+		"First team to reach the Capture Limit wins.",
+		" "
+	},
+	[GT_HARVESTER] = {
+		"This is a Harvester game",
+		"When a player is fragged, a skull spawns from the skull generator.",
+		"Pick up enemy skulls.",
+		"Carry the skulls to the enemy flag stand.",
+		"First team to reach the Capture Limit wins.",
+		" "
+	},
+	[GT_FREEZE] = {
+		"This is a Freeze Tag game",
+		"Shoot everyone on the other team!",
+		"Fragging another player freezes them.",
+		"Freeze all enemy team members to score a team point.",
+		"Stand by frozen teammates for 3 seconds to thaw them.",
+		" "
+	},
+	[GT_DOMINATION] = {
+		"This is a Domination game",
+		"Capture domination points to earn points for your team.",
+		"Either team can capture any domination point.",
+		"Capture multiple points to earn more points for your team.",
+		"First team to reach the Score Limit wins.",
+		" "
+	},
+	[GT_ATTACK_DEFEND] = {
+		"This is an Attack and Defend game",
+		"Alternate each round Attacking or Defending the flag.",
+		"You spawn equipped with all weapons and full armor.",
+		"Touch the enemy's flag to be awarded a bonus point.",
+		"Eliminate the opposing team or capture their flag to win the round.",
+		" "
+	},
+	[GT_RED_ROVER] = {
+		"This is a Red Rover game",
+		"You spawn equipped with all weapons and full armor.",
+		"Frag enemies and they will respawn onto your team.",
+		"Compete against your teammates for the most damage and frags.",
+		"The player with the highest score at the end of the round limit wins.",
+		" "
+	}
 };
 
 static void CG_RemoveChatEscapeChar( char *text );
@@ -653,12 +856,12 @@ static void CG_ParseRaceInit( void ) {
 
 /*
 =============
-CG_ParseRaceInfoCommand
+CG_ParseRaceInfo
 
 Stores the latest leader split data from the race_info command.
 =============
 */
-static void CG_ParseRaceInfoCommand( void ) {
+static void CG_ParseRaceInfo( void ) {
 	int count = 0;
 	int argc;
 	int i;
@@ -785,6 +988,41 @@ static void CG_ParseRaceScores( void ) {
 	memset( cg.scoreStats, 0, sizeof( cg.scoreStats ) );
 	memset( &cg.teamScoreStats, 0, sizeof( cg.teamScoreStats ) );
 	CG_SetScoreSelection(NULL);
+}
+
+/*
+=============
+CG_ParseAcc
+
+Decodes the retail `acc` payload into the live per-weapon percentage cache used
+by the vertical local accuracy overlay.
+=============
+*/
+static void CG_ParseAcc( void ) {
+	int argc;
+	int i;
+
+	memset( cg.weaponAccuracies, 0, sizeof( cg.weaponAccuracies ) );
+
+	argc = trap_Argc();
+	for ( i = 0; i < ARRAY_LEN( cg_retailAccuracyCommandOrder ) && ( i + 1 ) < argc; i++ ) {
+		weapon_t weapon;
+		int value;
+
+		weapon = cg_retailAccuracyCommandOrder[i];
+		if ( weapon < 0 || weapon >= WP_NUM_WEAPONS ) {
+			continue;
+		}
+
+		value = atoi( CG_Argv( i + 1 ) );
+		if ( value < 0 ) {
+			value = 0;
+		} else if ( value > 100 ) {
+			value = 100;
+		}
+
+		cg.weaponAccuracies[weapon] = value;
+	}
 }
 
 #define CG_SCORESTAT_FRAG_WEAPON_COUNT		13
@@ -1723,17 +1961,15 @@ static void CG_ParseCompactScores( void ) {
 		cg.scores[i].ping = atoi( CG_Argv( i * 8 + 6 ) );
 		cg.scores[i].time = atoi( CG_Argv( i * 8 + 7 ) );
 		powerups = atoi( CG_Argv( i * 8 + 8 ) );
-		cg.scores[i].scoreFlags = atoi( CG_Argv( i * 8 + 9 ) );
+		cg.scores[i].scoreFlags = 0;
+		cg.scores[i].activePlayer = atoi( CG_Argv( i * 8 + 9 ) ) ? qtrue : qfalse;
 		cg.scores[i].damage = atoi( CG_Argv( i * 8 + 10 ) );
 		cg.scores[i].deaths = atoi( CG_Argv( i * 8 + 11 ) );
+		cg.scores[i].kills = 0;
+		cg.scores[i].bestWeapon = WP_NONE;
+		cg.scores[i].team = TEAM_FREE;
 
-		if ( cg.scores[i].client < 0 || cg.scores[i].client >= MAX_CLIENTS ) {
-			cg.scores[i].client = 0;
-		}
-
-		cgs.clientinfo[cg.scores[i].client].score = cg.scores[i].score;
-		cgs.clientinfo[cg.scores[i].client].powerups = powerups;
-		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
+		CG_FinalizeParsedScoreRow( &cg.scores[i], powerups );
 	}
 
 	CG_SetScoreSelection( NULL );
@@ -1758,6 +1994,75 @@ static void CG_ParseScores( void ) {
 	CG_ParseGenericScoreRows( 4, 16 );
 	CG_SetScoreSelection(NULL);
 
+}
+
+/*
+=================
+CG_ParseDuelScores
+
+Consumes the retail duel scoreboard transport, which omits the generic
+red/blue team-score header and packs a fixed per-player stat row.
+=================
+*/
+static void CG_ParseDuelScores( void ) {
+	int		i;
+	int		argc;
+
+	argc = trap_Argc();
+	if ( argc < 2 ) {
+		return;
+	}
+
+	cg.numScores = atoi( CG_Argv( 1 ) );
+	if ( cg.numScores < 0 ) {
+		cg.numScores = 0;
+	}
+	if ( cg.numScores > 2 ) {
+		cg.numScores = 2;
+	}
+	if ( cg.numScores > MAX_CLIENTS ) {
+		cg.numScores = MAX_CLIENTS;
+	}
+
+	cg.teamScores[0] = 0;
+	cg.teamScores[1] = 0;
+
+	CG_ResetParsedScoreboardCaches();
+	for ( i = 0; i < cg.numScores; i++ ) {
+		int	baseArg;
+
+		baseArg = 2 + i * CG_RETAIL_DUEL_SCORE_ROW_FIELDS;
+		if ( argc <= ( baseArg + ( CG_RETAIL_DUEL_SCORE_ROW_FIELDS - 1 ) ) ) {
+			break;
+		}
+
+		cg.scores[i].client = atoi( CG_Argv( baseArg ) );
+		cg.scores[i].score = atoi( CG_Argv( baseArg + 1 ) );
+		cg.scores[i].ping = atoi( CG_Argv( baseArg + 2 ) );
+		cg.scores[i].time = atoi( CG_Argv( baseArg + 3 ) );
+		cg.scores[i].kills = atoi( CG_Argv( baseArg + 4 ) );
+		cg.scores[i].deaths = atoi( CG_Argv( baseArg + 5 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( baseArg + 6 ) );
+		cg.scores[i].bestWeapon = atoi( CG_Argv( baseArg + 7 ) );
+		cg.scores[i].damage = atoi( CG_Argv( baseArg + 8 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( baseArg + 9 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( baseArg + 10 ) );
+		cg.scores[i].guantletCount = atoi( CG_Argv( baseArg + 11 ) );
+		cg.scores[i].activePlayer = atoi( CG_Argv( baseArg + 12 ) ) ? qtrue : qfalse;
+		cg.scores[i].scoreFlags = 0;
+		cg.scores[i].powerUps = 0;
+		cg.scores[i].defendCount = 0;
+		cg.scores[i].assistCount = 0;
+		cg.scores[i].captures = 0;
+		cg.scores[i].perfect = qfalse;
+		cg.scores[i].team = TEAM_FREE;
+		cg.scores[i].teamDamageGiven = 0;
+		cg.scores[i].teamDamageReceived = 0;
+
+		CG_FinalizeParsedScoreRow( &cg.scores[i], -1 );
+	}
+
+	CG_SetScoreSelection( NULL );
 }
 
 /*
@@ -1900,6 +2205,60 @@ static void CG_SetTeamNameCvar( const char *cvarName, const char *serverValue, c
 	}
 }
 
+/*
+=================
+CG_SetGameInfoCvars
+
+Publishes the six retail `cg_gameInfo*` HUD/menu cvars from the current
+serverinfo state.
+=================
+*/
+static void CG_SetGameInfoCvars( void ) {
+	const char		*info;
+	const char		*trainingValue;
+	const char *const	*gameInfo;
+
+	info = CG_ConfigString( CS_SERVERINFO );
+	gameInfo = cg_retailBlankGameInfoLines;
+
+	trainingValue = Info_ValueForKey( info, "g_training" );
+	if ( trainingValue[0] && atoi( trainingValue ) ) {
+		gameInfo = cg_retailTrainingGameInfoLines;
+	} else if ( cgs.gametype >= 0 && cgs.gametype < GT_MAX_GAME_TYPE ) {
+		gameInfo = cg_retailGameInfoLines[cgs.gametype];
+	}
+
+	trap_Cvar_Set( "cg_gameInfo1", gameInfo[0] );
+	trap_Cvar_Set( "cg_gameInfo2", gameInfo[1] );
+	trap_Cvar_Set( "cg_gameInfo3", gameInfo[2] );
+	trap_Cvar_Set( "cg_gameInfo4", gameInfo[3] );
+	trap_Cvar_Set( "cg_gameInfo5", gameInfo[4] );
+	trap_Cvar_Set( "cg_gameInfo6", gameInfo[5] );
+}
+
+/*
+========================
+CG_NormalizeMapFilename
+
+Maps legacy Quake 3 arena tokens onto the retail Quake Live BSP basenames.
+========================
+*/
+static const char *CG_NormalizeMapFilename( const char *mapname ) {
+	int	i;
+
+	if ( !mapname || !mapname[0] ) {
+		return "";
+	}
+
+	for ( i = 0; i < ARRAY_LEN( cg_retailMapAliases ); i++ ) {
+		if ( !Q_stricmp( mapname, cg_retailMapAliases[i].legacyName ) ) {
+			return cg_retailMapAliases[i].retailName;
+		}
+	}
+
+	return mapname;
+}
+
 
 /*
 ================
@@ -1912,7 +2271,7 @@ and whenever the server updates any serverinfo flagged cvars
 void CG_ParseServerinfo( void ) {
 	const char	*info;
 	const char	*gametypeValue;
-	char	*mapname;
+	const char	*mapname;
 	const char	*voteFlagsValue;
 	qboolean	mapVotingDisabled;
 	const char	*serverLoadout;
@@ -1929,6 +2288,7 @@ void CG_ParseServerinfo( void ) {
 	cgs.fraglimit = atoi( Info_ValueForKey( info, "fraglimit" ) );
 	cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );
 	cgs.timelimit = atoi( Info_ValueForKey( info, "timelimit" ) );
+	CG_SetGameInfoCvars();
 	voteFlagsValue = Info_ValueForKey( info, "g_voteFlags" );
 	cgs.voteFlags = atoi( voteFlagsValue );
 	mapVotingDisabled = ( cgs.voteFlags & ( CG_VOTEFLAG_NO_MAP | CG_VOTEFLAG_NO_NEXTMAP ) ) ? qtrue : qfalse;
@@ -1952,6 +2312,27 @@ void CG_ParseServerinfo( void ) {
 		trap_Cvar_Set( "ui_endMapVotingDisabled", endMapVotingDisabled ? "1" : "0" );
 	}
 	cgs.maxclients = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
+
+	{
+		const char	*playerCountTeamSizeValue;
+
+		/*
+		 * Retail `CG_PLAYER_COUNTS` / `CG_RED_PLAYER_COUNT` / `CG_BLUE_PLAYER_COUNT`
+		 * consume a shared serverinfo-side per-side cap rather than the live
+		 * round-team counters. The exact retail key name is still unresolved in the
+		 * current source tree, so mirror the strongest local candidates and keep the
+		 * fallback at zero when the server does not advertise one.
+		 */
+		playerCountTeamSizeValue = Info_ValueForKey( info, "teamsize" );
+		if ( !playerCountTeamSizeValue[0] ) {
+			playerCountTeamSizeValue = Info_ValueForKey( info, "g_teamSizeMin" );
+		}
+
+		cgs.playerCountTeamSize = playerCountTeamSizeValue[0] ? atoi( playerCountTeamSizeValue ) : 0;
+		if ( cgs.playerCountTeamSize < 0 ) {
+			cgs.playerCountTeamSize = 0;
+		}
+	}
   
 	serverLoadout = Info_ValueForKey( info, "loadout" );
 	if ( !serverLoadout || !serverLoadout[0] ) {
@@ -1994,11 +2375,11 @@ void CG_ParseServerinfo( void ) {
 		cgs.playerCylindersEnabled = (qboolean)( atoi( playerCylindersValue ) != 0 );
 		trap_Cvar_Set( "cg_playerCylinders", playerCylindersValue );
 	}
-  
-	mapname = Info_ValueForKey( info, "mapname" );
+
+	mapname = CG_NormalizeMapFilename( Info_ValueForKey( info, "mapname" ) );
 	Com_sprintf( cgs.mapname, sizeof( cgs.mapname ), "maps/%s.bsp", mapname );
-CG_SetTeamNameCvar( "g_redteam", Info_ValueForKey( info, "g_redTeam" ), DEFAULT_REDTEAM_NAME, cgs.redTeam, sizeof( cgs.redTeam ) );
-CG_SetTeamNameCvar( "g_blueteam", Info_ValueForKey( info, "g_blueTeam" ), DEFAULT_BLUETEAM_NAME, cgs.blueTeam, sizeof( cgs.blueTeam ) );
+	CG_SetTeamNameCvar( "g_redteam", Info_ValueForKey( info, "g_redTeam" ), DEFAULT_REDTEAM_NAME, cgs.redTeam, sizeof( cgs.redTeam ) );
+	CG_SetTeamNameCvar( "g_blueteam", Info_ValueForKey( info, "g_blueTeam" ), DEFAULT_BLUETEAM_NAME, cgs.blueTeam, sizeof( cgs.blueTeam ) );
 
 	voteFlagsString = Info_ValueForKey( info, "g_voteFlags" );
 	voteFlags = atoi( voteFlagsString );
@@ -2069,10 +2450,12 @@ static void CG_ParsePlayerAppearanceConfigString( void ) {
 	char		oldModelOverride[MAX_QPATH];
 	char		oldHeadOverride[MAX_QPATH];
 	qboolean	oldAllowCustomHeadmodels;
+	float		oldPlayerModelScale;
 
 	Q_strncpyz( oldModelOverride, cgs.playermodelOverride, sizeof( oldModelOverride ) );
 	Q_strncpyz( oldHeadOverride, cgs.playerheadmodelOverride, sizeof( oldHeadOverride ) );
 	oldAllowCustomHeadmodels = cgs.allowCustomHeadmodels;
+	oldPlayerModelScale = cgs.playerModelScale;
 
 	CG_ResetPlayerAppearanceState();
 
@@ -2130,6 +2513,8 @@ static void CG_ParsePlayerAppearanceConfigString( void ) {
 		Q_stricmp( oldHeadOverride, cgs.playerheadmodelOverride ) ||
 		oldAllowCustomHeadmodels != cgs.allowCustomHeadmodels ) {
 		CG_ApplyModelOverrides();
+	} else if ( oldPlayerModelScale != cgs.playerModelScale ) {
+		CG_RefreshClientHeadOffsets();
 	}
 }
 
@@ -2208,6 +2593,7 @@ static void CG_ResetMatchStateFields( void ) {
 	cgs.matchTimeoutTeam = TEAM_FREE;
 	cgs.matchTimeoutExpireTime = 0;
 	cgs.matchTimeoutOwner = -1;
+	cg_matchTimeoutStartTime = 0;
 	for ( i = 0; i < TEAM_NUM_TEAMS; i++ ) {
 		cgs.matchTimeoutRemaining[i] = 0;
 		cgs.matchTeamCount[i] = 0;
@@ -2259,6 +2645,80 @@ static void CG_ParseMatchFactoryConfig( const char *info ) {
 
 /*
 =============
+CG_ParseTimeoutConfigStrings
+
+Refreshes the retail timeout auxiliaries published alongside CS_MATCH_STATE.
+=============
+*/
+static void CG_ParseTimeoutConfigStrings( void ) {
+	const char	*info;
+	int		value;
+
+	info = CG_ConfigString( CS_TIMEOUT_START_TIME );
+	value = ( info && *info ) ? atoi( info ) : 0;
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cg_matchTimeoutStartTime = value;
+
+	info = CG_ConfigString( CS_TIMEOUT_EXPIRE_TIME );
+	value = ( info && *info ) ? atoi( info ) : 0;
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTimeoutExpireTime = value;
+
+	info = CG_ConfigString( CS_TIMEOUT_COUNT_RED );
+	if ( info && *info ) {
+		value = atoi( info );
+	} else {
+		value = cgs.matchTimeoutCountPerTeam;
+	}
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTimeoutRemaining[TEAM_RED] = value;
+
+	info = CG_ConfigString( CS_TIMEOUT_COUNT_BLUE );
+	if ( info && *info ) {
+		value = atoi( info );
+	} else {
+		value = cgs.matchTimeoutCountPerTeam;
+	}
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTimeoutRemaining[TEAM_BLUE] = value;
+}
+
+/*
+=============
+CG_ParseTeamCountConfigStrings
+
+Refreshes the retail team-count auxiliaries mirrored for round HUD widgets.
+=============
+*/
+static void CG_ParseTeamCountConfigStrings( void ) {
+	const char	*info;
+	int		value;
+
+	info = CG_ConfigString( CS_TEAM_COUNT_RED );
+	value = ( info && *info ) ? atoi( info ) : 0;
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTeamCount[TEAM_RED] = value;
+
+	info = CG_ConfigString( CS_TEAM_COUNT_BLUE );
+	value = ( info && *info ) ? atoi( info ) : 0;
+	if ( value < 0 ) {
+		value = 0;
+	}
+	cgs.matchTeamCount[TEAM_BLUE] = value;
+}
+
+/*
+=============
 CG_ParseMatchState
 
 Parses the match state configstring and updates client state.
@@ -2278,6 +2738,8 @@ static void CG_ParseMatchState( void ) {
 
 	info = CG_ConfigString( CS_MATCH_STATE );
 	if ( !info || !*info ) {
+		CG_ParseTimeoutConfigStrings();
+		CG_ParseTeamCountConfigStrings();
 		return;
 	}
 
@@ -2325,6 +2787,8 @@ static void CG_ParseMatchState( void ) {
 	}
 
 	CG_ParseMatchFactoryConfig( info );
+	CG_ParseTimeoutConfigStrings();
+	CG_ParseTeamCountConfigStrings();
 
 	if ( cgs.matchOvertimeActive ) {
 		cg.timelimitWarnings |= 4;
@@ -2414,6 +2878,17 @@ static void CG_ParseWarmupReadyStatus( void ) {
 	if ( cgs.matchWarmupReadyCount > cgs.matchWarmupReadyEligible ) {
 		cgs.matchWarmupReadyCount = cgs.matchWarmupReadyEligible;
 	}
+}
+
+/*
+=============
+CG_GetMatchTimeoutStartTime
+
+Returns the timeout start timestamp mirrored through CS_TIMEOUT_START_TIME.
+=============
+*/
+int CG_GetMatchTimeoutStartTime( void ) {
+	return cg_matchTimeoutStartTime;
 }
 
 /*
@@ -2706,6 +3181,8 @@ void CG_SetConfigValues( void ) {
 	}
 	cg.warmup = atoi( CG_ConfigString( CS_WARMUP ) );
 	CG_ParseMatchState();
+	CG_ParseTimeoutConfigStrings();
+	CG_ParseTeamCountConfigStrings();
 	CG_ParseSuddenDeathStatus();
 	CG_ParseReadyUpStatus();
 	CG_ParseWarmupReadyStatus();
@@ -2788,6 +3265,11 @@ static void CG_ConfigStringModified( void ) {
 		CG_ParseWarmup();
 	} else if ( num == CS_MATCH_STATE ) {
 		CG_ParseMatchState();
+	} else if ( num == CS_TEAM_COUNT_RED || num == CS_TEAM_COUNT_BLUE ) {
+		CG_ParseTeamCountConfigStrings();
+	} else if ( num == CS_TIMEOUT_START_TIME || num == CS_TIMEOUT_EXPIRE_TIME ||
+		num == CS_TIMEOUT_COUNT_RED || num == CS_TIMEOUT_COUNT_BLUE ) {
+		CG_ParseTimeoutConfigStrings();
 	} else if ( num == CS_SUDDENDEATH_STATUS ) {
 		CG_ParseSuddenDeathStatus();
 	} else if ( num == CS_READYUP_STATUS ) {
@@ -3600,7 +4082,7 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "race_info" ) ) {
-		CG_ParseRaceInfoCommand();
+		CG_ParseRaceInfo();
 		return;
 	}
 
@@ -3671,7 +4153,7 @@ static void CG_ServerCommand( void ) {
 	}
 
 	if ( !strcmp( cmd, "scores_duel" ) ) {
-		CG_ParseScores();
+		CG_ParseDuelScores();
 		return;
 	}
 
@@ -3752,6 +4234,11 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "smscores" ) ) {
 		CG_ParseCompactScores();
+		return;
+	}
+
+	if ( !strcmp( cmd, "acc" ) ) {
+		CG_ParseAcc();
 		return;
 	}
 

@@ -430,6 +430,8 @@ void CL_VerifyCode( void );
 qboolean CL_ShouldFilterConsoleText( const char *text );
 qboolean CL_OnlineServicesEnabled( void );
 qboolean CL_SteamServicesEnabled( void );
+void CL_Steam_OnRichPresenceJoinRequested( const char *command );
+void CL_Steam_OnGameServerChangeRequested( const char *server, const char *password );
 
 float CL_KeyState (kbutton_t *key);
 char *Key_KeynumToString (int keynum);
@@ -528,6 +530,9 @@ qboolean CL_WebPak_Fetch( const char *virtualPath, void **outBuffer, int *outLen
 qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *outLength );
 qboolean CL_LauncherRequestData( const char *virtualPath, void **outBuffer, int *outLength );
 void CL_RefreshOnlineServicesBridgeState( void );
+void CL_AdvertisementBridge_InitUI( void );
+void CL_AdvertisementBridge_ActivateAdvert( int cellId );
+void CL_AdvertisementBridge_SetActiveAdvert( int cellId );
 
 //
 // cl_ui.c
@@ -541,6 +546,8 @@ void LAN_SaveServersToCache();
 qhandle_t CL_Steam_RegisterShader( const char *url );
 void CL_InitSteamResources( void );
 void CL_ShutdownSteamResources( void );
+void CL_ClearSteamResourceCache( qboolean clearPersisted );
+void QL_ClientAuth_CancelSteamTicket( void );
 int CL_MenuReadScreenshot( const char *requestedName, byte *buffer, int bufferSize );
 
 

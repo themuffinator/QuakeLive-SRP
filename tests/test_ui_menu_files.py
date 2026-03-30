@@ -445,15 +445,15 @@ def test_ui_native_export_table_matches_recovered_retail_order() -> None:
 
     for expected in (
         "static void *ui_nativeExports[UI_NATIVE_EXPORT_COUNT] = {",
-        "[UI_NATIVE_EXPORT_INIT] = _UI_Init,",
+        "[UI_NATIVE_EXPORT_INIT] = UI_NativeInit,",
         "[UI_NATIVE_EXPORT_SHUTDOWN] = _UI_Shutdown,",
-        "[UI_NATIVE_EXPORT_KEY_EVENT] = _UI_KeyEvent,",
+        "[UI_NATIVE_EXPORT_KEY_EVENT] = UI_NativeKeyEvent,",
         "[UI_NATIVE_EXPORT_MOUSE_EVENT] = _UI_MouseEvent,",
         "[UI_NATIVE_EXPORT_REFRESH] = _UI_Refresh,",
         "[UI_NATIVE_EXPORT_IS_FULLSCREEN] = _UI_IsFullscreen,",
         "[UI_NATIVE_EXPORT_SET_ACTIVE_MENU] = _UI_SetActiveMenu,",
         "[UI_NATIVE_EXPORT_CONSOLE_COMMAND] = UI_ConsoleCommand,",
-        "[UI_NATIVE_EXPORT_DRAW_CONNECT_SCREEN] = UI_DrawConnectScreen,",
+        "[UI_NATIVE_EXPORT_DRAW_CONNECT_SCREEN] = UI_NativeDrawConnectScreen,",
         "[UI_NATIVE_EXPORT_HAS_UNIQUE_CD_KEY] = UI_NativeHasUniqueCDKey,",
         "[UI_NATIVE_EXPORT_REFRESH_DISPLAY_CONTEXT] = UI_RefreshDisplayContext,",
         "[UI_NATIVE_EXPORT_MENUS_ANY_VISIBLE] = Menus_AnyVisible,",

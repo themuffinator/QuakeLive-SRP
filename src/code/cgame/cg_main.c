@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // display context for new ui stuff
 displayContextDef_t cgDC;
 extern menuDef_t *menuScoreboard;
+static menuDef_t *cgScoreboardSelectionMenus[2];
 
 #define DEFAULT_WEAPON_BAR_GRENADE_COLOR	"0x007000FF"
 #define DEFAULT_SCREEN_DAMAGE_COLOR		"0x700000C8"
@@ -93,10 +94,31 @@ static float CG_GetChatFieldY( void );
 static float CG_GetChatFieldPixelWidth( void );
 static int CG_GetChatFieldWidthInChars( void );
 static qboolean CG_CopyClientIdentity( int clientNum, void *outIdentity );
+static int CG_NativeGetChatFieldY( void );
+static int CG_NativeGetChatFieldPixelWidth( void );
+static int CG_NativeSetClientSpeakingState( int clientNum, int speaking );
 static void CG_ShowTrackedPlayerSlot( int slot );
 static void CG_Show1stTrackedPlayer( void );
 static void CG_Show2ndTrackedPlayer( void );
 void CG_Cvar_GetString( const char *cvar, char *buffer, int bufsize );
+
+/*
+================
+CG_NativeDrawActiveFrame
+================
+*/
+static void CG_NativeDrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
+	CG_DrawActiveFrame( serverTime, stereoView, demoPlayback );
+}
+
+/*
+================
+CG_NativeKeyEvent
+================
+*/
+static void CG_NativeKeyEvent( int key, qboolean down ) {
+	CG_KeyEvent( key, down );
+}
 
 
 /*
@@ -119,14 +141,14 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 	case CG_CONSOLE_COMMAND:
 		return CG_ConsoleCommand();
 	case CG_DRAW_ACTIVE_FRAME:
-		CG_DrawActiveFrame( arg0, arg1, arg2 );
+		CG_NativeDrawActiveFrame( arg0, arg1, arg2 ? qtrue : qfalse );
 		return 0;
 	case CG_CROSSHAIR_PLAYER:
 		return CG_CrosshairPlayer();
 	case CG_LAST_ATTACKER:
 		return CG_LastAttacker();
 	case CG_KEY_EVENT:
-		CG_KeyEvent(arg0, arg1);
+		CG_NativeKeyEvent( arg0, arg1 ? qtrue : qfalse );
 		return 0;
 	case CG_MOUSE_EVENT:
 		cgDC.cursorx = cgs.cursorX;
@@ -151,13 +173,13 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 	case CG_COPY_CLIENT_IDENTITY:
 		return CG_CopyClientIdentity( arg0, (void *)(intptr_t)arg1 );
 	case CG_GET_CHAT_FIELD_Y:
-		return (int)CG_GetChatFieldY();
+		return CG_NativeGetChatFieldY();
 	case CG_GET_CHAT_FIELD_PIXEL_WIDTH:
-		return (int)CG_GetChatFieldPixelWidth();
+		return CG_NativeGetChatFieldPixelWidth();
 	case CG_GET_CHAT_FIELD_WIDTH_IN_CHARS:
 		return CG_GetChatFieldWidthInChars();
 	case CG_SET_CLIENT_SPEAKING_STATE:
-		return (int)(intptr_t)CG_SetClientSpeakingState( arg0, arg1 );
+		return CG_NativeSetClientSpeakingState( arg0, arg1 );
 	case CG_GET_PHYSICS_TIME:
 		return CG_GetPhysicsTime();
 	default:
@@ -201,10 +223,10 @@ static void *cg_nativeExports[CG_NATIVE_EXPORT_COUNT] = {
 	[CG_NATIVE_EXPORT_REGISTER_CVARS] = CG_RegisterCvars,
 	[CG_NATIVE_EXPORT_SHUTDOWN] = CG_Shutdown,
 	[CG_NATIVE_EXPORT_CONSOLE_COMMAND] = CG_ConsoleCommand,
-	[CG_NATIVE_EXPORT_DRAW_ACTIVE_FRAME] = CG_DrawActiveFrame,
+	[CG_NATIVE_EXPORT_DRAW_ACTIVE_FRAME] = CG_NativeDrawActiveFrame,
 	[CG_NATIVE_EXPORT_CROSSHAIR_PLAYER] = CG_CrosshairPlayer,
 	[CG_NATIVE_EXPORT_LAST_ATTACKER] = CG_LastAttacker,
-	[CG_NATIVE_EXPORT_KEY_EVENT] = CG_KeyEvent,
+	[CG_NATIVE_EXPORT_KEY_EVENT] = CG_NativeKeyEvent,
 	[CG_NATIVE_EXPORT_MOUSE_EVENT] = CG_NativeMouseEvent,
 	[CG_NATIVE_EXPORT_EVENT_HANDLING] = CG_EventHandling,
 	[CG_NATIVE_EXPORT_SHOW_1ST_TRACKED_PLAYER] = CG_Show1stTrackedPlayer,
@@ -214,10 +236,10 @@ static void *cg_nativeExports[CG_NATIVE_EXPORT_COUNT] = {
 	[CG_NATIVE_EXPORT_GET_PHYSICS_TIME] = CG_GetPhysicsTime,
 	[CG_NATIVE_EXPORT_COPY_CLIENT_IDENTITY] = CG_CopyClientIdentity,
 	[CG_NATIVE_EXPORT_RESERVED_NULL] = NULL,
-	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_Y] = CG_GetChatFieldY,
-	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_PIXEL_WIDTH] = CG_GetChatFieldPixelWidth,
+	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_Y] = CG_NativeGetChatFieldY,
+	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_PIXEL_WIDTH] = CG_NativeGetChatFieldPixelWidth,
 	[CG_NATIVE_EXPORT_GET_CHAT_FIELD_WIDTH_IN_CHARS] = CG_GetChatFieldWidthInChars,
-	[CG_NATIVE_EXPORT_SET_CLIENT_SPEAKING_STATE] = CG_SetClientSpeakingState
+	[CG_NATIVE_EXPORT_SET_CLIENT_SPEAKING_STATE] = CG_NativeSetClientSpeakingState
 };
 
 /*
@@ -3237,6 +3259,40 @@ static void CG_RegisterGraphics( void ) {
 
 
 
+/*
+=======================
+CG_CompareSpectatorClients
+
+=======================
+*/
+static int QDECL CG_CompareSpectatorClients( const void *a, const void *b ) {
+	const clientInfo_t	*clientA;
+	const clientInfo_t	*clientB;
+	int			clientNumA;
+	int			clientNumB;
+
+	clientNumA = *(const int *)a;
+	clientNumB = *(const int *)b;
+	clientA = &cgs.clientinfo[clientNumA];
+	clientB = &cgs.clientinfo[clientNumB];
+
+	if ( clientA->spectateOnly > clientB->spectateOnly ) {
+		return 1;
+	}
+	if ( clientA->spectateOnly < clientB->spectateOnly ) {
+		return -1;
+	}
+
+	if ( clientA->spectatorQueuePosition > clientB->spectatorQueuePosition ) {
+		return 1;
+	}
+	if ( clientA->spectatorQueuePosition < clientB->spectatorQueuePosition ) {
+		return -1;
+	}
+
+	return clientNumA - clientNumB;
+}
+
 /*																																			
 =======================
 CG_BuildSpectatorString
@@ -3244,17 +3300,86 @@ CG_BuildSpectatorString
 =======================
 */
 void CG_BuildSpectatorString() {
-	int i;
-	cg.spectatorList[0] = 0;
-	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (cgs.clientinfo[i].infoValid && cgs.clientinfo[i].team == TEAM_SPECTATOR ) {
-			Q_strcat(cg.spectatorList, sizeof(cg.spectatorList), va("%s     ", cgs.clientinfo[i].name));
+	int		i;
+	int		newEntryCount;
+	int		spectatorClients[MAX_CLIENTS];
+	char		newSpectatorList[MAX_STRING_CHARS];
+	char		newSpectatorEntries[MAX_CLIENTS][64];
+	qboolean	cacheChanged;
+
+	newSpectatorList[0] = '\0';
+	memset( newSpectatorEntries, 0, sizeof( newSpectatorEntries ) );
+	newEntryCount = 0;
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		const clientInfo_t	*ci;
+
+		ci = &cgs.clientinfo[i];
+		if ( !ci->infoValid || ci->team != TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		spectatorClients[newEntryCount] = i;
+		newEntryCount++;
+		Q_strcat( newSpectatorList, sizeof( newSpectatorList ), va( "%s     ", ci->name ) );
+	}
+
+	if ( newEntryCount > 1 ) {
+		qsort( spectatorClients, newEntryCount, sizeof( spectatorClients[0] ), CG_CompareSpectatorClients );
+	}
+
+	for ( i = 0; i < newEntryCount; i++ ) {
+		const clientInfo_t	*ci;
+		char			cleanName[MAX_NAME_LENGTH];
+		char			entry[64];
+
+		ci = &cgs.clientinfo[spectatorClients[i]];
+		Q_strncpyz( cleanName, ci->name, sizeof( cleanName ) );
+		Q_CleanStr( cleanName );
+		if ( !cleanName[0] ) {
+			Q_strncpyz( cleanName, "UnnamedPlayer", sizeof( cleanName ) );
+		}
+
+		if ( cgs.gametype == GT_TOURNAMENT ) {
+			if ( ci->spectateOnly ) {
+				Com_sprintf( entry, sizeof( entry ), "^7(^5s^7) %s", cleanName );
+			} else if ( ci->spectatorQueuePosition > 0 ) {
+				Com_sprintf( entry, sizeof( entry ), "(%d) %s", ci->spectatorQueuePosition, cleanName );
+			} else {
+				Q_strncpyz( entry, cleanName, sizeof( entry ) );
+			}
+		} else {
+			Q_strncpyz( entry, cleanName, sizeof( entry ) );
+		}
+
+		Q_strncpyz( newSpectatorEntries[i], entry, sizeof( newSpectatorEntries[i] ) );
+	}
+
+	cacheChanged = ( strcmp( cg.spectatorList, newSpectatorList ) != 0 );
+	if ( !cacheChanged && cg.spectatorEntryCount != newEntryCount ) {
+		cacheChanged = qtrue;
+	}
+	if ( !cacheChanged ) {
+		for ( i = 0; i < newEntryCount; i++ ) {
+			if ( strcmp( cg.spectatorEntries[i], newSpectatorEntries[i] ) != 0 ) {
+				cacheChanged = qtrue;
+				break;
+			}
 		}
 	}
-	i = strlen(cg.spectatorList);
-	if (i != cg.spectatorLen) {
-		cg.spectatorLen = i;
+
+	Q_strncpyz( cg.spectatorList, newSpectatorList, sizeof( cg.spectatorList ) );
+	memcpy( cg.spectatorEntries, newSpectatorEntries, sizeof( cg.spectatorEntries ) );
+	cg.spectatorEntryCount = newEntryCount;
+	cg.spectatorLen = strlen( cg.spectatorList );
+
+	if ( cacheChanged ) {
 		cg.spectatorWidth = -1;
+		cg.spectatorOffset = 0;
+		cg.spectatorPaintX = 0;
+		cg.spectatorPaintX2 = 0;
+		cg.spectatorPaintLen = 0;
+		cg.spectatorTime = 0;
 	}
 }
 
@@ -3695,34 +3820,94 @@ static int CG_FindScoreIndexForClient( int clientNum ) {
 	return -1;
 }
 
+typedef struct {
+	int					team;
+	int					scoreIndex;
+	int					clientNum;
+	clientInfo_t			*info;
+	score_t				*scoreRow;
+	const cgHudScoreboardEntry_t	*hudEntry;
+	qhandle_t				socialHandle;
+} cgFeederRow_t;
+
+/*
+=============
+CG_IsScoreboardFeeder
+
+Returns qtrue when the feeder id targets a non-team scoreboard list.
+=============
+*/
+static qboolean CG_IsScoreboardFeeder( float feederID ) {
+	return ( feederID == FEEDER_SCOREBOARD || feederID == FEEDER_ENDSCOREBOARD ) ? qtrue : qfalse;
+}
+
+/*
+=============
+CG_IsTeamStatsFeeder
+
+Returns qtrue when the feeder id targets one of the rich end-score team stats
+lists.
+=============
+*/
+static qboolean CG_IsTeamStatsFeeder( float feederID ) {
+	return ( feederID == FEEDER_REDTEAM_STATS || feederID == FEEDER_BLUETEAM_STATS ) ? qtrue : qfalse;
+}
+
+/*
+=============
+CG_GetFeederTeam
+
+Returns the team backing the current feeder, or -1 for non-team scoreboards.
+=============
+*/
+static int CG_GetFeederTeam( float feederID ) {
+	if ( feederID == FEEDER_REDTEAM_LIST || feederID == FEEDER_REDTEAM_STATS ) {
+		return TEAM_RED;
+	}
+
+	if ( feederID == FEEDER_BLUETEAM_LIST || feederID == FEEDER_BLUETEAM_STATS ) {
+		return TEAM_BLUE;
+	}
+
+	return -1;
+}
 
 
-static int CG_FeederCount(float feederID) {
+
+/*
+=============
+CG_FeederCount
+
+Returns the live row count for retail scoreboard, team-list, and team-stats
+feeders.
+=============
+*/
+static int CG_FeederCount( float feederID ) {
 	int i, count;
 	count = 0;
 
 	if ( cg.competitiveHudLoaded ) {
 		CG_BuildHudScoreboard();
 	}
-	if (feederID == FEEDER_REDTEAM_LIST) {
+	if ( feederID == FEEDER_REDTEAM_LIST || feederID == FEEDER_REDTEAM_STATS ) {
 		if ( cg.competitiveHudLoaded ) {
 			return CG_GetHudScoreboardTeamCount( TEAM_RED );
 		}
-		for (i = 0; i < cg.numScores; i++) {
-			if (cg.scores[i].team == TEAM_RED) {
+		for ( i = 0; i < cg.numScores; i++ ) {
+			if ( cg.scores[i].team == TEAM_RED ) {
 				count++;
 			}
 		}
-	} else if (feederID == FEEDER_BLUETEAM_LIST) {
+	} else if ( feederID == FEEDER_BLUETEAM_LIST || feederID == FEEDER_BLUETEAM_STATS ) {
 		if ( cg.competitiveHudLoaded ) {
 			return CG_GetHudScoreboardTeamCount( TEAM_BLUE );
 		}
-		for (i = 0; i < cg.numScores; i++) {
-			if (cg.scores[i].team == TEAM_BLUE) {
+		for ( i = 0; i < cg.numScores; i++ ) {
+			if ( cg.scores[i].team == TEAM_BLUE ) {
 				count++;
 			}
 		}
-	} else if (feederID == FEEDER_SCOREBOARD) {
+	} else if ( CG_IsScoreboardFeeder( feederID ) ) {
 		if ( cg.competitiveHudLoaded ) {
 			const cgHudScoreboard_t *hud = CG_GetHudScoreboard();
 			return hud ? hud->count : 0;
@@ -3734,36 +3919,230 @@ static int CG_FeederCount(float feederID) {
 
 
 void CG_SetScoreSelection(void *p) {
-	menuDef_t *menu = (menuDef_t*)p;
+	menuDef_t *menu = (menuDef_t *)p;
 	playerState_t *ps = &cg.snap->ps;
-	int i, red, blue;
-	red = blue = 0;
-	for (i = 0; i < cg.numScores; i++) {
-		if (cg.scores[i].team == TEAM_RED) {
-			red++;
-		} else if (cg.scores[i].team == TEAM_BLUE) {
-			blue++;
-		}
-		if (ps->clientNum == cg.scores[i].client) {
+	int i;
+
+	for ( i = 0; i < cg.numScores; i++ ) {
+		if ( ps->clientNum == cg.scores[i].client ) {
 			cg.selectedScore = i;
+			break;
 		}
 	}
 
-	if (menu == NULL) {
-		// just interested in setting the selected score
+	if ( menu == NULL ) {
+		return;
+	}
+
+	if ( cg.selectedScore < 0 || cg.selectedScore >= cg.numScores ) {
 		return;
 	}
 
 	if ( cgs.gametype >= GT_TEAM ) {
 		int feeder = FEEDER_REDTEAM_LIST;
-		i = red;
-		if (cg.scores[cg.selectedScore].team == TEAM_BLUE) {
+
+		if ( cg.scores[cg.selectedScore].team == TEAM_BLUE ) {
 			feeder = FEEDER_BLUETEAM_LIST;
-			i = blue;
 		}
-		CG_SetBrowserFeederSelection(menu, feeder, i);
+
+		CG_SetBrowserFeederSelection( menu, feeder, cg.selectedScore );
 	} else {
-		CG_SetBrowserFeederSelection(menu, FEEDER_SCOREBOARD, cg.selectedScore);
+		CG_SetBrowserFeederSelection( menu, FEEDER_SCOREBOARD, cg.selectedScore );
+	}
+}
+
+/*
+=============
+CG_GetScoreboardSelectionMenuName
+
+Returns the live or end-scoreboard menu name that retail caches for the
+team-list selection seam.
+=============
+*/
+static const char *CG_GetScoreboardSelectionMenuName( qboolean endScoreboard ) {
+	if ( endScoreboard ) {
+		switch ( cgs.gametype ) {
+		case GT_FFA:
+			return "endscore_menu_ffa";
+		case GT_TOURNAMENT:
+			return "endscore_menu_duel";
+		case GT_SINGLE_PLAYER:
+#if GT_RACE != GT_SINGLE_PLAYER
+		case GT_RACE:
+#endif
+			return "endscore_menu_race";
+		case GT_RED_ROVER:
+			return "endscore_menu_rr";
+		case GT_TEAM:
+			return "endteamscore_menu_tdm";
+		case GT_CLAN_ARENA:
+			return "endteamscore_menu_ca";
+		case GT_CTF:
+			return "endteamscore_menu_ctf";
+		case GT_1FCTF:
+			return "endteamscore_menu_1fctf";
+		case GT_HARVESTER:
+			return "endteamscore_menu_har";
+		case GT_FREEZE:
+			return "endteamscore_menu_ft";
+		case GT_DOMINATION:
+			return "endteamscore_menu_dom";
+		case GT_ATTACK_DEFEND:
+			return "endteamscore_menu_ad";
+		default:
+			break;
+		}
+
+		if ( cgs.gametype >= GT_TEAM ) {
+			return "endscoreteam";
+		}
+
+		return "endscorenoteam";
+	}
+
+	switch ( cgs.gametype ) {
+	case GT_FFA:
+		return "score_menu_ffa";
+	case GT_TOURNAMENT:
+		return "score_menu_duel";
+	case GT_SINGLE_PLAYER:
+#if GT_RACE != GT_SINGLE_PLAYER
+	case GT_RACE:
+#endif
+		return "score_menu_race";
+	case GT_RED_ROVER:
+		return "score_menu_rr";
+	case GT_TEAM:
+		return "teamscore_menu_tdm";
+	case GT_CLAN_ARENA:
+		return "teamscore_menu_ca";
+	case GT_CTF:
+		return "teamscore_menu_ctf";
+	case GT_1FCTF:
+		return "teamscore_menu_1fctf";
+	case GT_OBELISK:
+		return "teamscore_menu";
+	case GT_HARVESTER:
+		return "teamscore_menu_har";
+	case GT_FREEZE:
+		return "teamscore_menu_ft";
+	case GT_DOMINATION:
+		return "teamscore_menu_dom";
+	case GT_ATTACK_DEFEND:
+		return "teamscore_menu_ad";
+	default:
+		break;
+	}
+
+	if ( cgs.gametype >= GT_TEAM ) {
+		return "teamscore_menu";
+	}
+
+	return "score_menu";
+}
+
+/*
+=============
+CG_CacheScoreboardSelectionMenus
+
+Caches the live and end-scoreboard menu roots that retail reuses for team-list
+selection synchronization.
+=============
+*/
+static void CG_CacheScoreboardSelectionMenus( void ) {
+	const char	*liveMenuName;
+	const char	*endMenuName;
+
+	cgScoreboardSelectionMenus[0] = NULL;
+	cgScoreboardSelectionMenus[1] = NULL;
+
+	if ( !cg.competitiveHudLoaded ) {
+		return;
+	}
+
+	liveMenuName = CG_GetScoreboardSelectionMenuName( qfalse );
+	endMenuName = CG_GetScoreboardSelectionMenuName( qtrue );
+
+	if ( liveMenuName ) {
+		cgScoreboardSelectionMenus[0] = Menus_FindByName( liveMenuName );
+	}
+	if ( endMenuName ) {
+		cgScoreboardSelectionMenus[1] = Menus_FindByName( endMenuName );
+	}
+}
+
+/*
+=============
+CG_FindScoreboardTeamListItem
+
+Finds a named red/blue team-list item inside a cached scoreboard menu.
+=============
+*/
+static itemDef_t *CG_FindScoreboardTeamListItem( menuDef_t *menu, const char *itemName ) {
+	int			i;
+	itemDef_t	*item;
+
+	if ( !menu || !itemName || !itemName[0] ) {
+		return NULL;
+	}
+
+	for ( i = 0; i < menu->itemCount; i++ ) {
+		item = menu->items[i];
+		if ( !item || !item->window.name ) {
+			continue;
+		}
+
+		if ( !Q_stricmp( item->window.name, itemName ) ) {
+			return item;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=============
+CG_SetScoreboardTeamListCursor
+
+Applies the retail team-list cursor update to a cached scoreboard menu item.
+=============
+*/
+static void CG_SetScoreboardTeamListCursor( menuDef_t *menu, const char *itemName, int index ) {
+	itemDef_t		*item;
+	listBoxDef_t	*listPtr;
+
+	item = CG_FindScoreboardTeamListItem( menu, itemName );
+	if ( !item ) {
+		return;
+	}
+
+	item->cursorPos = index;
+
+	if ( index >= 0 && item->typeData ) {
+		listPtr = (listBoxDef_t *)item->typeData;
+		listPtr->cursorPos = index;
+	}
+}
+
+/*
+=============
+CG_SyncScoreboardTeamListSelection
+
+Keeps the cached live and end-scoreboard team-list cursors aligned with the
+current retail feeder selection.
+=============
+*/
+static void CG_SyncScoreboardTeamListSelection( team_t team, int index ) {
+	const char	*selectedItemName;
+	const char	*clearedItemName;
+	int			i;
+
+	selectedItemName = ( team == TEAM_RED ) ? "playerlistRED" : "playerlistBLUE";
+	clearedItemName = ( team == TEAM_RED ) ? "playerlistBLUE" : "playerlistRED";
+
+	for ( i = 0; i < ARRAY_LEN( cgScoreboardSelectionMenus ); i++ ) {
+		CG_SetScoreboardTeamListCursor( cgScoreboardSelectionMenus[i], selectedItemName, index );
+		CG_SetScoreboardTeamListCursor( cgScoreboardSelectionMenus[i], clearedItemName, -1 );
 	}
 }
 
@@ -3834,172 +4213,768 @@ static qhandle_t CG_FeederSocialHandle( int clientNum ) {
 	return cgs.media.scoreSpeakingShader;
 }
 
-static const char *CG_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {
-	gitem_t *item;
-	int scoreIndex = 0;
-	clientInfo_t *info = NULL;
-	int team = -1;
-	score_t *sp = NULL;
-	const cgHudScoreboardEntry_t	*hudEntry = NULL;
-	int clientNum = -1;
-	qhandle_t socialHandle = 0;
+/*
+=============
+CG_BuildFeederRow
 
-	*handle = -1;
-
-	if (feederID == FEEDER_REDTEAM_LIST) {
-		team = TEAM_RED;
-	} else if (feederID == FEEDER_BLUETEAM_LIST) {
-		team = TEAM_BLUE;
+Builds the shared row context used by the reconstructed retail feeder leaves.
+=============
+*/
+static qboolean CG_BuildFeederRow( int index, int team, cgFeederRow_t *row ) {
+	if ( !row ) {
+		return qfalse;
 	}
 
-	info = CG_InfoFromScoreIndex(index, team, &scoreIndex);
-	if ( scoreIndex >= 0 && scoreIndex < cg.numScores ) {
-		sp = &cg.scores[scoreIndex];
+	memset( row, 0, sizeof( *row ) );
+	row->team = team;
+	row->scoreIndex = -1;
+	row->clientNum = -1;
+	row->info = CG_InfoFromScoreIndex( index, team, &row->scoreIndex );
+
+	if ( row->scoreIndex >= 0 && row->scoreIndex < cg.numScores ) {
+		row->scoreRow = &cg.scores[row->scoreIndex];
 	}
+
 	if ( cg.competitiveHudLoaded ) {
-		hudEntry = CG_GetHudScoreboardEntry( index, team );
+		row->hudEntry = CG_GetHudScoreboardEntry( index, team );
 	}
 
-	if ( hudEntry ) {
-		clientNum = hudEntry->clientNum;
-	} else if ( sp ) {
-		clientNum = sp->client;
+	if ( row->hudEntry ) {
+		row->clientNum = row->hudEntry->clientNum;
+	} else if ( row->scoreRow ) {
+		row->clientNum = row->scoreRow->client;
 	}
-	socialHandle = CG_FeederSocialHandle( clientNum );
 
-	if (info && info->infoValid) {
-		switch (column) {
-			case 0:
-				if ( info->powerups & ( 1 << PW_NEUTRALFLAG ) ) {
-					item = BG_FindItemForPowerup( PW_NEUTRALFLAG );
-					*handle = cg_items[ ITEM_INDEX(item) ].icon;
-				} else if ( info->powerups & ( 1 << PW_REDFLAG ) ) {
-					item = BG_FindItemForPowerup( PW_REDFLAG );
-					*handle = cg_items[ ITEM_INDEX(item) ].icon;
-				} else if ( info->powerups & ( 1 << PW_BLUEFLAG ) ) {
-					item = BG_FindItemForPowerup( PW_BLUEFLAG );
-					*handle = cg_items[ ITEM_INDEX(item) ].icon;
-				} else {
-					if ( info->botSkill > 0 && info->botSkill <= 5 ) {
-						*handle = cgs.media.botSkillShaders[ info->botSkill - 1 ];
-					} else if ( info->handicap < 100 ) {
-					return va("%i", info->handicap );
-					}
-				}
+	row->socialHandle = CG_FeederSocialHandle( row->clientNum );
+	return qtrue;
+}
+
+/*
+=============
+CG_FeederItemTextBaseColumns
+
+Formats the shared classic scoreboard columns that retail still reuses across
+the generic scoreboard and basic team-list feeders.
+=============
+*/
+static const char *CG_FeederItemTextBaseColumns( const cgFeederRow_t *row, int column, qhandle_t *handle ) {
+	gitem_t		*item;
+
+	if ( !row || !row->info || !row->info->infoValid ) {
+		return "";
+	}
+
+	switch ( column ) {
+	case 0:
+		if ( row->info->powerups & ( 1 << PW_NEUTRALFLAG ) ) {
+			item = BG_FindItemForPowerup( PW_NEUTRALFLAG );
+			*handle = cg_items[ ITEM_INDEX( item ) ].icon;
+		} else if ( row->info->powerups & ( 1 << PW_REDFLAG ) ) {
+			item = BG_FindItemForPowerup( PW_REDFLAG );
+			*handle = cg_items[ ITEM_INDEX( item ) ].icon;
+		} else if ( row->info->powerups & ( 1 << PW_BLUEFLAG ) ) {
+			item = BG_FindItemForPowerup( PW_BLUEFLAG );
+			*handle = cg_items[ ITEM_INDEX( item ) ].icon;
+		} else if ( row->info->botSkill > 0 && row->info->botSkill <= 5 ) {
+			*handle = cgs.media.botSkillShaders[ row->info->botSkill - 1 ];
+		} else if ( row->info->handicap < 100 ) {
+			return va( "%i", row->info->handicap );
+		}
 		break;
-		case 1:
-			if (team == -1) {
-				if ( socialHandle ) {
-					*handle = socialHandle;
-				}
-				return "";
-			} else {
-				*handle = CG_StatusHandle(info->teamTask);
-				if ( *handle <= 0 && socialHandle ) {
-					*handle = socialHandle;
-				}
+	case 1:
+		if ( row->team == -1 ) {
+			if ( row->socialHandle ) {
+				*handle = row->socialHandle;
 			}
-			break;
-		case 2:
-			if ( clientNum >= 0 && ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << clientNum ) ) ) {
-				return "Ready";
-			}
-			if (team == -1) {
-				if (cgs.gametype == GT_TOURNAMENT) {
-					return va("%i/%i", info->wins, info->losses);
-				} else if (info->infoValid && info->team == TEAM_SPECTATOR ) {
-					return "Spectator";
-				} else {
-					return "";
-				}
-			} else {
-				if (info->teamLeader) {
-					return "Leader";
-				}
-			}
+			return "";
+		}
+
+		*handle = CG_StatusHandle( row->info->teamTask );
+		if ( *handle <= 0 && row->socialHandle ) {
+			*handle = row->socialHandle;
+		}
 		break;
-		case 3:
-			return info->name;
-		break;
-		case 4:
-			if ( hudEntry ) {
-				return va("%i", hudEntry->score );
+	case 2:
+		if ( row->clientNum >= 0 &&
+			 ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << row->clientNum ) ) ) {
+			return "Ready";
+		}
+		if ( row->team == -1 ) {
+			if ( cgs.gametype == GT_TOURNAMENT ) {
+				return va( "%i/%i", row->info->wins, row->info->losses );
 			}
-			return va("%i", info->score);
-		break;
-		case 5:
-			if ( hudEntry ) {
-				return va("%4i", hudEntry->time );
+			if ( row->info->team == TEAM_SPECTATOR ) {
+				return "Spectator";
 			}
-			return va("%4i", sp ? sp->time : 0 );
+			return "";
+		}
+		if ( row->info->teamLeader ) {
+			return "Leader";
+		}
 		break;
-		case 6:
-			if ( hudEntry ) {
-				if ( hudEntry->ping == -1 ) {
-					return "connecting";
-				}
-				return va("%4i", hudEntry->ping );
-			}
-			if ( sp && sp->ping == -1 ) {
+	case 3:
+		return row->info->name;
+	case 4:
+		if ( row->hudEntry ) {
+			return va( "%i", row->hudEntry->score );
+		}
+		return va( "%i", row->info->score );
+	case 5:
+		if ( row->hudEntry ) {
+			return va( "%4i", row->hudEntry->time );
+		}
+		return va( "%4i", row->scoreRow ? row->scoreRow->time : 0 );
+	case 6:
+		if ( row->hudEntry ) {
+			if ( row->hudEntry->ping == -1 ) {
 				return "connecting";
 			}
-			return va("%4i", sp ? sp->ping : 0 );
-		break;
+			return va( "%4i", row->hudEntry->ping );
 		}
+		if ( row->scoreRow && row->scoreRow->ping == -1 ) {
+			return "connecting";
+		}
+		return va( "%4i", row->scoreRow ? row->scoreRow->ping : 0 );
 	}
 
 	return "";
 }
 
+/*
+=============
+CG_FeederItemTextScoreboard
 
-static qhandle_t CG_FeederItemImage(float feederID, int index) {
-	int team = -1;
-	int scoreIndex = 0;
-	score_t *sp = NULL;
-	const cgHudScoreboardEntry_t	*hudEntry = NULL;
-	int clientNum = -1;
+Formats the retail non-team scoreboard and end-score feeder leaves.
+=============
+*/
+static const char *CG_FeederItemTextScoreboard( int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t	row;
 
-	if ( feederID == FEEDER_REDTEAM_LIST ) {
-		team = TEAM_RED;
-	} else if ( feederID == FEEDER_BLUETEAM_LIST ) {
-		team = TEAM_BLUE;
-	} else if ( feederID != FEEDER_SCOREBOARD ) {
-		return 0;
+	if ( !CG_BuildFeederRow( index, -1, &row ) ) {
+		return "";
 	}
 
-	CG_InfoFromScoreIndex( index, team, &scoreIndex );
-	if ( scoreIndex >= 0 && scoreIndex < cg.numScores ) {
-		sp = &cg.scores[scoreIndex];
-	}
-	if ( cg.competitiveHudLoaded ) {
-		hudEntry = CG_GetHudScoreboardEntry( index, team );
-	}
-
-	if ( hudEntry ) {
-		clientNum = hudEntry->clientNum;
-	} else if ( sp ) {
-		clientNum = sp->client;
-	}
-
-	return CG_FeederSocialHandle( clientNum );
+	return CG_FeederItemTextBaseColumns( &row, column, handle );
 }
 
+/*
+=============
+CG_FeederItemTextRaceScoreboard
+
+Formats the dedicated retail race scoreboard feeder leaf.
+=============
+*/
+static const char *CG_FeederItemTextRaceScoreboard( int index, int column, qhandle_t *handle ) {
+	return CG_FeederItemTextScoreboard( index, column, handle );
+}
+
+/*
+=============
+CG_FeederItemTextTeamListLeadColumns
+
+Formats the shared leading icon/name columns used by the retail team-list
+feeder leaves.
+=============
+*/
+static const char *CG_FeederItemTextTeamListLeadColumns( const cgFeederRow_t *row, int column, qhandle_t *handle ) {
+	gitem_t		*item;
+
+	if ( !row || !row->info || !row->info->infoValid ) {
+		return "";
+	}
+
+	switch ( column ) {
+	case 0:
+		if ( row->info->powerups & ( 1 << PW_NEUTRALFLAG ) ) {
+			item = BG_FindItemForPowerup( PW_NEUTRALFLAG );
+			*handle = cg_items[ ITEM_INDEX( item ) ].icon;
+		} else if ( row->info->powerups & ( 1 << PW_REDFLAG ) ) {
+			item = BG_FindItemForPowerup( PW_REDFLAG );
+			*handle = cg_items[ ITEM_INDEX( item ) ].icon;
+		} else if ( row->info->powerups & ( 1 << PW_BLUEFLAG ) ) {
+			item = BG_FindItemForPowerup( PW_BLUEFLAG );
+			*handle = cg_items[ ITEM_INDEX( item ) ].icon;
+		} else if ( row->info->botSkill > 0 && row->info->botSkill <= 5 ) {
+			*handle = cgs.media.botSkillShaders[ row->info->botSkill - 1 ];
+		} else if ( row->info->handicap < 100 ) {
+			return va( "%i", row->info->handicap );
+		}
+		return "";
+	case 1:
+		*handle = CG_StatusHandle( row->info->teamTask );
+		if ( *handle <= 0 && row->socialHandle ) {
+			*handle = row->socialHandle;
+		}
+		return "";
+	case 2:
+		if ( row->clientNum >= 0 &&
+			 ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << row->clientNum ) ) ) {
+			return "Ready";
+		}
+		if ( row->info->teamLeader ) {
+			return "Leader";
+		}
+		return "";
+	case 3:
+		if ( row->scoreRow && row->scoreRow->bestWeapon > WP_NONE &&
+			 row->scoreRow->bestWeapon < MAX_WEAPONS &&
+			 cg_weapons[ row->scoreRow->bestWeapon ].weaponIcon ) {
+			*handle = cg_weapons[ row->scoreRow->bestWeapon ].weaponIcon;
+		}
+		return "";
+	case 4:
+		if ( row->scoreRow && row->scoreRow->activePlayer ) {
+			return "*";
+		}
+		return "";
+	case 5:
+		return row->info->name;
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextFallbackTeamList
+
+Conservative synthetic name for the generic retail team-list feeder leaf used
+when the gametype does not select one of the richer per-family helpers.
+=============
+*/
+static const char *CG_FeederItemTextFallbackTeamList( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t	row;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ) {
+		return "";
+	}
+
+	if ( column <= 5 ) {
+		return CG_FeederItemTextTeamListLeadColumns( &row, column, handle );
+	}
+
+	switch ( column ) {
+	case 6:
+		return va( "%i", row.scoreRow->score );
+	case 7:
+		return va( "%4i", row.scoreRow->time );
+	case 8:
+		if ( row.scoreRow->ping == -1 ) {
+			return "connecting";
+		}
+		return va( "%4i", row.scoreRow->ping );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextCTFFamilyTeamList
+
+Formats the shared retail red/blue team-list feeder used by the CTF-family
+modes.
+=============
+*/
+static const char *CG_FeederItemTextCTFFamilyTeamList( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t	row;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ) {
+		return "";
+	}
+
+	if ( column <= 5 ) {
+		return CG_FeederItemTextTeamListLeadColumns( &row, column, handle );
+	}
+
+	switch ( column ) {
+	case 6:
+		return va( "%i", row.scoreRow->score );
+	case 7:
+		return va( "%i/%i", row.scoreRow->kills, row.scoreRow->deaths );
+	case 8:
+		return va( "%i", row.scoreRow->captures );
+	case 9:
+		return va( "%i", row.scoreRow->assistCount );
+	case 10:
+		return va( "%i", row.scoreRow->defendCount );
+	case 11:
+		return va( "%i%%", row.scoreRow->accuracy );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextClanArenaTeamList
+
+Formats the retail Clan Arena red/blue team-list feeder leaf.
+=============
+*/
+static const char *CG_FeederItemTextClanArenaTeamList( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t	row;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ) {
+		return "";
+	}
+
+	if ( column <= 5 ) {
+		return CG_FeederItemTextTeamListLeadColumns( &row, column, handle );
+	}
+
+	switch ( column ) {
+	case 6:
+		return va( "%i", row.scoreRow->score );
+	case 7:
+		return va( "%i/%i", row.scoreRow->kills, row.scoreRow->deaths );
+	case 8:
+		return va( "%i", row.scoreRow->damage );
+	case 9:
+		if ( row.scoreRow->bestWeapon > WP_NONE &&
+			 row.scoreRow->bestWeapon < MAX_WEAPONS &&
+			 cg_weapons[ row.scoreRow->bestWeapon ].weaponIcon ) {
+			*handle = cg_weapons[ row.scoreRow->bestWeapon ].weaponIcon;
+		}
+		return "";
+	case 10:
+		return va( "%i%%", row.scoreRow->accuracy );
+	case 11:
+		return va( "%4i", row.scoreRow->time );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextTDMFreezeTeamList
+
+Formats the retail red/blue team-list feeder leaf shared by TDM and Freeze.
+=============
+*/
+static const char *CG_FeederItemTextTDMFreezeTeamList( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t		row;
+	const cgTdmStats_t	*stats;
+	int				net;
+
+	stats = NULL;
+	net = 0;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ) {
+		return "";
+	}
+
+	if ( row.scoreIndex >= 0 && row.scoreIndex < MAX_CLIENTS ) {
+		stats = &cg.tdmStats[row.scoreIndex];
+	}
+
+	if ( column <= 5 ) {
+		return CG_FeederItemTextTeamListLeadColumns( &row, column, handle );
+	}
+
+	switch ( column ) {
+	case 6:
+		return va( "%i", row.scoreRow->score );
+	case 7:
+		if ( cgs.gametype == GT_FREEZE ) {
+			return va( "%i/%i", row.scoreRow->kills, row.scoreRow->deaths );
+		}
+		if ( stats && stats->valid ) {
+			net = row.scoreRow->kills + stats->values[8] - stats->values[9] - stats->values[10];
+		} else {
+			net = row.scoreRow->kills - row.scoreRow->deaths;
+		}
+		return va( "%i", net );
+	case 8:
+		if ( cgs.gametype == GT_FREEZE ) {
+			return va( "%i%%", row.scoreRow->accuracy );
+		}
+		return va( "%i", row.scoreRow->damage );
+	case 9:
+		if ( cgs.gametype == GT_FREEZE ) {
+			return row.scoreRow->activePlayer ? "*" : "";
+		}
+		return va( "%i%%", row.scoreRow->accuracy );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextTDMFreezeStats
+
+Formats the retail rich team-stats rows shared by TDM and Freeze end-score
+menus.
+=============
+*/
+static const char *CG_FeederItemTextTDMFreezeStats( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t		row;
+	const cgTdmStats_t	*stats;
+	int			kills;
+	int			net;
+
+	(void)handle;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ||
+		 row.scoreIndex < 0 || row.scoreIndex >= MAX_CLIENTS ) {
+		return "";
+	}
+
+	stats = &cg.tdmStats[row.scoreIndex];
+	if ( !stats->valid ) {
+		return "";
+	}
+
+	kills = row.scoreRow->kills;
+	net = kills + stats->values[8] - stats->values[9] - stats->values[10];
+
+	switch ( column ) {
+	case 0:
+		return row.info->name;
+	case 1:
+		return va( "%i", row.scoreRow->score );
+	case 2:
+		return va( "%i", kills );
+	case 3:
+		return va( "%i", row.scoreRow->deaths );
+	case 4:
+		return va( "%i", stats->values[10] );
+	case 5:
+		return va( "%i", stats->values[9] );
+	case 6:
+		return va( "%i", stats->values[8] );
+	case 7:
+		return va( "%i", net );
+	case 8:
+		return va( "%i", stats->values[7] );
+	case 9:
+		return va( "%i", stats->values[6] );
+	case 10:
+		return va( "%i%%", row.scoreRow->accuracy );
+	case 11:
+		return va( "%i", stats->values[5] );
+	case 12:
+		return va( "%i", stats->values[4] );
+	case 13:
+		return va( "%i", stats->values[3] );
+	case 14:
+		return va( "%i", stats->values[2] );
+	case 15:
+		return va( "%i", stats->values[1] );
+	case 16:
+		return va( "%i", stats->values[0] );
+	case 17:
+		return va( "%4i", row.scoreRow->time );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextClanArenaStats
+
+Formats the retail Clan Arena end-score kill/accuracy feeder rows.
+=============
+*/
+static const char *CG_FeederItemTextClanArenaStats( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t			row;
+	const cgClanArenaStats_t	*stats;
+
+	(void)handle;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ||
+		 row.scoreIndex < 0 || row.scoreIndex >= MAX_CLIENTS ) {
+		return "";
+	}
+
+	stats = &cg.clanArenaStats[row.scoreIndex];
+	if ( !stats->valid ) {
+		return "";
+	}
+
+	switch ( column ) {
+	case 0:
+		return row.info->name;
+	case 1:
+		return va( "%i", row.scoreRow->score );
+	case 2:
+		return va( "%i", row.scoreRow->kills );
+	case 3:
+		return va( "%i", row.scoreRow->deaths );
+	case 4:
+		return va( "%i", stats->damageGiven );
+	case 5:
+		return va( "%i", stats->damageReceived );
+	case 6:
+		return va( "%i%%", row.scoreRow->accuracy );
+	case 7:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_GAUNTLET], stats->weaponAccuracy[WP_GAUNTLET] );
+	case 8:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_MACHINEGUN], stats->weaponAccuracy[WP_MACHINEGUN] );
+	case 9:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_SHOTGUN], stats->weaponAccuracy[WP_SHOTGUN] );
+	case 10:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_GRENADE_LAUNCHER], stats->weaponAccuracy[WP_GRENADE_LAUNCHER] );
+	case 11:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_ROCKET_LAUNCHER], stats->weaponAccuracy[WP_ROCKET_LAUNCHER] );
+	case 12:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_LIGHTNING], stats->weaponAccuracy[WP_LIGHTNING] );
+	case 13:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_RAILGUN], stats->weaponAccuracy[WP_RAILGUN] );
+	case 14:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_PLASMAGUN], stats->weaponAccuracy[WP_PLASMAGUN] );
+	case 15:
+		return va( "^3%i ^7%i%%", stats->weaponFrags[WP_HEAVY_MACHINEGUN], stats->weaponAccuracy[WP_HEAVY_MACHINEGUN] );
+	case 16:
+		return va( "%4i", row.scoreRow->time );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemTextCTFFamilyStats
+
+Formats the retail shared CTF-family end-score feeder rows used by the CTF,
+1FCTF, Harvester, Domination, and Attack & Defend menus.
+=============
+*/
+static const char *CG_FeederItemTextCTFFamilyStats( int team, int index, int column, qhandle_t *handle ) {
+	cgFeederRow_t		row;
+	const cgCtfStats_t	*stats;
+	int			net;
+
+	(void)handle;
+
+	if ( !CG_BuildFeederRow( index, team, &row ) ) {
+		return "";
+	}
+	if ( !row.info || !row.info->infoValid || !row.scoreRow ||
+		 row.scoreIndex < 0 || row.scoreIndex >= MAX_CLIENTS ) {
+		return "";
+	}
+
+	stats = &cg.ctfStats[row.scoreIndex];
+	if ( !stats->valid ) {
+		return "";
+	}
+
+	net = row.scoreRow->kills - row.scoreRow->deaths - stats->values[11];
+
+	switch ( column ) {
+	case 0:
+		return row.info->name;
+	case 1:
+		return va( "%i", row.scoreRow->score );
+	case 2:
+		return va( "%i", row.scoreRow->kills );
+	case 3:
+		return va( "%i", row.scoreRow->deaths );
+	case 4:
+		return va( "%i", stats->values[11] );
+	case 5:
+		return va( "%i", net );
+	case 6:
+		return va( "%i", stats->values[10] );
+	case 7:
+		return va( "%i", stats->values[9] );
+	case 8:
+		return va( "%i%%", row.scoreRow->accuracy );
+	case 9:
+		return va( "%i", stats->values[8] );
+	case 10:
+		return va( "%i", stats->values[7] );
+	case 11:
+		return va( "%i", stats->values[6] );
+	case 12:
+		return va( "%i", stats->values[5] );
+	case 13:
+		return va( "%i", stats->values[4] );
+	case 14:
+		return va( "%i", stats->values[3] );
+	case 15:
+		return va( "%i", stats->values[2] );
+	case 16:
+		return va( "%i", stats->values[1] );
+	case 17:
+		return va( "%i", stats->values[0] );
+	case 18:
+		return va( "%4i", row.scoreRow->time );
+	}
+
+	return "";
+}
+
+/*
+=============
+CG_FeederItemText
+
+Dispatches the retail scoreboard, team-list, and team-stats feeders to the
+reconstructed leaf helpers.
+=============
+*/
+static const char *CG_FeederItemText( float feederID, int index, int column, qhandle_t *handle ) {
+	int		team;
+
+	*handle = -1;
+	team = CG_GetFeederTeam( feederID );
+
+	if ( CG_IsTeamStatsFeeder( feederID ) ) {
+		switch ( cgs.gametype ) {
+		case GT_TEAM:
+		case GT_FREEZE:
+			return CG_FeederItemTextTDMFreezeStats( team, index, column, handle );
+		case GT_CLAN_ARENA:
+			return CG_FeederItemTextClanArenaStats( team, index, column, handle );
+		case GT_CTF:
+		case GT_1FCTF:
+		case GT_HARVESTER:
+		case GT_DOMINATION:
+		case GT_ATTACK_DEFEND:
+			return CG_FeederItemTextCTFFamilyStats( team, index, column, handle );
+		default:
+			return "";
+		}
+	}
+
+	if ( CG_IsScoreboardFeeder( feederID ) ) {
+		if ( cgs.gametype == GT_RACE ) {
+			return CG_FeederItemTextRaceScoreboard( index, column, handle );
+		}
+		return CG_FeederItemTextScoreboard( index, column, handle );
+	}
+
+	switch ( cgs.gametype ) {
+	case GT_TEAM:
+	case GT_FREEZE:
+		return CG_FeederItemTextTDMFreezeTeamList( team, index, column, handle );
+	case GT_CLAN_ARENA:
+		return CG_FeederItemTextClanArenaTeamList( team, index, column, handle );
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_HARVESTER:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+		return CG_FeederItemTextCTFFamilyTeamList( team, index, column, handle );
+	default:
+		return CG_FeederItemTextFallbackTeamList( team, index, column, handle );
+	}
+}
+
+
+/*
+=============
+CG_FeederItemImage
+
+Retail keeps the cgDC.feederItemImage callback as a null stub and sources the
+scoreboard icons through the feeder-text handle out-param instead.
+=============
+*/
+static qhandle_t CG_FeederItemImage(float feederID, int index) {
+	(void)feederID;
+	(void)index;
+
+	return 0;
+}
+
+/*
+=============
+CG_FeederSelection
+
+Maintains the selected scoreboard row and mirrors the retail team-list cursor
+selection into the cached live/end scoreboard menus.
+=============
+*/
 static void CG_FeederSelection(float feederID, int index) {
-	if ( cgs.gametype >= GT_TEAM ) {
-		int i, count;
-		int team = (feederID == FEEDER_REDTEAM_LIST) ? TEAM_RED : TEAM_BLUE;
+	int		i;
+	int		selectedClient;
+	int		selectedIndex;
+	qboolean	foundSelection;
+	team_t	team;
+
+	if ( index == -1 ) {
+		return;
+	}
+
+	if ( cgs.gametype < GT_TEAM ) {
+		cg.selectedScore = index;
+		return;
+	}
+
+	team = ( feederID == FEEDER_REDTEAM_LIST || feederID == FEEDER_REDTEAM_STATS ) ? TEAM_RED : TEAM_BLUE;
+	selectedIndex = index;
+	foundSelection = qfalse;
+
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		int count;
+
 		count = 0;
-		for (i = 0; i < cg.numScores; i++) {
-			if (cg.scores[i].team == team) {
-				if (index == count) {
-					cg.selectedScore = i;
-				}
-				count++;
+		for ( i = 0; i < cg.numScores; i++ ) {
+			if ( cg.scores[i].team != team ) {
+				continue;
 			}
+
+			if ( index == count ) {
+				cg.selectedScore = i;
+				foundSelection = qtrue;
+				break;
+			}
+
+			count++;
 		}
 	} else {
 		cg.selectedScore = index;
+		foundSelection = ( index >= 0 && index < cg.numScores ) ? qtrue : qfalse;
 	}
+
+	if ( foundSelection ) {
+		selectedClient = cg.scores[cg.selectedScore].client;
+		selectedIndex = 0;
+
+		for ( i = 0; i < cg.numScores; i++ ) {
+			if ( cg.scores[i].team != team ) {
+				continue;
+			}
+
+			if ( cg.scores[i].client == selectedClient ) {
+				break;
+			}
+
+			selectedIndex++;
+		}
+
+		if ( i >= cg.numScores ) {
+			selectedIndex = index;
+		}
+	}
+
+	if ( !cgScoreboardSelectionMenus[0] && !cgScoreboardSelectionMenus[1] ) {
+		CG_CacheScoreboardSelectionMenus();
+	}
+
+	CG_SyncScoreboardTeamListSelection( team, selectedIndex );
 }
 
 static float CG_Cvar_Get(const char *cvar) {
@@ -4088,6 +5063,30 @@ static int CG_GetChatFieldWidthInChars( void ) {
 
 /*
 =============
+CG_NativeGetChatFieldY
+
+Exports the chat-field Y position through the integer contract used by vmMain
+and the recovered native cgame slot surface.
+=============
+*/
+static int CG_NativeGetChatFieldY( void ) {
+	return (int)CG_GetChatFieldY();
+}
+
+/*
+=============
+CG_NativeGetChatFieldPixelWidth
+
+Exports the chat-field pixel width through the integer contract used by vmMain
+and the recovered native cgame slot surface.
+=============
+*/
+static int CG_NativeGetChatFieldPixelWidth( void ) {
+	return (int)CG_GetChatFieldPixelWidth();
+}
+
+/*
+=============
 CG_CopyClientIdentity
 
 Marshals the reconstructed client-identity sidecar into the caller buffer.
@@ -4157,6 +5156,18 @@ void *CG_SetClientSpeakingState( int clientNum, int speaking ) {
 	}
 
 	return ci;
+}
+
+/*
+=============
+CG_NativeSetClientSpeakingState
+
+Exports the speaking-state sidecar through the integer/pointer contract used by
+vmMain and the recovered native cgame slot surface.
+=============
+*/
+static int CG_NativeSetClientSpeakingState( int clientNum, int speaking ) {
+	return (int)(intptr_t)CG_SetClientSpeakingState( clientNum, speaking );
 }
 
 void CG_Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style) {
@@ -4241,8 +5252,23 @@ static int CG_OwnerDrawWidth( int ownerDraw, float scale ) {
 	case CG_LEVELTIMER:
 	case CG_ROUNDTIMER:
 		return CG_LevelTimerWidth( scale );
-	case CG_OVERTIME:
-		return overtimeActive ? CG_Text_Width( "OVERTIME", scale, 0 ) : 0;
+	case CG_OVERTIME: {
+		char	buffer[32];
+		int		overtimeCount;
+
+		if ( !overtimeActive ) {
+			return 0;
+		}
+
+		overtimeCount = CG_GetOvertimeCount();
+		if ( overtimeCount > 1 ) {
+			Com_sprintf( buffer, sizeof( buffer ), "Overtime x%i", overtimeCount );
+		} else {
+			Q_strncpyz( buffer, "Overtime", sizeof( buffer ) );
+		}
+
+		return CG_Text_Width( buffer, scale, 0 );
+	}
 	case CG_ROUND:
 		return CG_RoundLabelWidth( scale );
 	case CG_HEALTH_COLORIZED:
@@ -4411,6 +5437,115 @@ CG_LoadHudMenu();
 =================
 */
 #define CG_HUD_SCRIPT_BUFFER 4096
+#define CG_COUNTRY_FILE_BUFFER 4096
+
+/*
+=============
+CG_IsCountryCodeToken
+
+Validates a country token before it is used in a shader path.
+=============
+*/
+static qboolean CG_IsCountryCodeToken( const char *countryCode ) {
+	int		i;
+	char	c;
+
+	if ( !countryCode || !countryCode[0] ) {
+		return qfalse;
+	}
+
+	for ( i = 0; ( c = countryCode[i] ) != '\0'; i++ ) {
+		if ( i >= MAX_COUNTRY_CODE - 1 ) {
+			return qfalse;
+		}
+
+		if ( ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) ||
+			( c >= '0' && c <= '9' ) || c == '_' || c == '-' ) {
+			continue;
+		}
+
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_RegisterCountryFlag
+
+Registers a country flag shader with the retail none-flag fallback.
+=============
+*/
+qhandle_t CG_RegisterCountryFlag( const char *countryCode ) {
+	char		normalized[MAX_COUNTRY_CODE];
+	char		filename[MAX_QPATH];
+	qhandle_t	shader;
+
+	if ( !cgs.media.countryFlagNoneShader ) {
+		cgs.media.countryFlagNoneShader = trap_R_RegisterShaderNoMip( "ui/assets/flags/none.tga" );
+	}
+
+	if ( !CG_IsCountryCodeToken( countryCode ) ) {
+		return cgs.media.countryFlagNoneShader;
+	}
+
+	Q_strncpyz( normalized, countryCode, sizeof( normalized ) );
+	Q_strlwr( normalized );
+	Com_sprintf( filename, sizeof( filename ), "ui/assets/flags/%s.tga", normalized );
+
+	shader = trap_R_RegisterShaderNoMip( filename );
+	if ( !shader ) {
+		return cgs.media.countryFlagNoneShader;
+	}
+
+	return shader;
+}
+
+/*
+=============
+CG_CacheCountryFlags
+
+Pre-registers the retail country-flag shader bank used by scoreboard widgets.
+=============
+*/
+static void CG_CacheCountryFlags( void ) {
+	static const char	filename[] = "ui/country.txt";
+	fileHandle_t		f;
+	int			len;
+	char			buffer[CG_COUNTRY_FILE_BUFFER];
+	char			*text_p;
+	char			*token;
+
+	cgs.media.countryFlagNoneShader = trap_R_RegisterShaderNoMip( "ui/assets/flags/none.tga" );
+
+	len = trap_FS_FOpenFile( filename, &f, FS_READ );
+	if ( len <= 0 ) {
+		CG_Printf( "ERROR: CG_CacheCountryFlags: %s too small\n", filename );
+		return;
+	}
+
+	if ( len >= sizeof( buffer ) ) {
+		CG_Printf( "ERROR: CG_CacheCountryFlags: %s too large. Size is %d, limit is %d\n",
+			filename, len, (int)( sizeof( buffer ) - 1 ) );
+		trap_FS_FCloseFile( f );
+		return;
+	}
+
+	trap_FS_Read( buffer, len, f );
+	buffer[len] = '\0';
+	trap_FS_FCloseFile( f );
+
+	text_p = buffer;
+	while ( 1 ) {
+		token = COM_Parse( &text_p );
+		if ( !token || !token[0] ) {
+			break;
+		}
+
+		CG_RegisterCountryFlag( token );
+	}
+}
 
 /*
 =============
@@ -4542,6 +5677,7 @@ void CG_LoadHudMenu() {
 	cg.competitiveHudLoaded = CG_HudScriptHasCompetitiveMenus( hudSet );
 	cgs.newHud = cg.competitiveHudLoaded;
 	CG_LoadMenus(hudSet);
+	CG_CacheScoreboardSelectionMenus();
 }
 
 
@@ -4667,6 +5803,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	cgs.levelStartTime = atoi( s );
 
 	CG_ParseServerinfo();
+	CG_CacheCountryFlags();
 
 	CG_InitDisplayContext();
 	CG_RegisterHudFonts();

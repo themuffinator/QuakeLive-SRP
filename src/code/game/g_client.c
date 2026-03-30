@@ -1467,6 +1467,7 @@ void ClientUserinfoChanged( int clientNum ) {
 	char	c2[MAX_INFO_STRING];
 	char	redTeam[MAX_INFO_STRING];
 	char	blueTeam[MAX_INFO_STRING];
+	char	country[MAX_COUNTRY_CODE];
 	char	userinfo[MAX_INFO_STRING];
 
 	ent = g_entities + clientNum;
@@ -1500,8 +1501,11 @@ void ClientUserinfoChanged( int clientNum ) {
 	s = Info_ValueForKey( userinfo, "cg_predictItems" );
 	if ( !atoi( s ) ) {
 		client->pers.predictItemPickup = qfalse;
+		// Retail mirrors cg_predictItems through this ps.eFlags bit as well.
+		client->ps.eFlags |= EF_AWARD_DENIED;
 	} else {
 		client->pers.predictItemPickup = qtrue;
+		client->ps.eFlags &= ~EF_AWARD_DENIED;
 	}
 
 	// set name
@@ -1664,18 +1668,19 @@ void ClientUserinfoChanged( int clientNum ) {
 
 	strcpy(redTeam, Info_ValueForKey( userinfo, "g_redteam" ));
 	strcpy(blueTeam, Info_ValueForKey( userinfo, "g_blueteam" ));
+	Q_strncpyz( country, Info_ValueForKey( userinfo, "country" ), sizeof( country ) );
 
 	// send over a subset of the userinfo keys so other clients can
 	// print scoreboards, display models, and play custom sounds
 	if ( ent->r.svFlags & SVF_BOT ) {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d\\so\\%i\\pq\\%i",
-			client->pers.netname, team, model, headModel, c1, c2, 
+		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\country\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d\\so\\%i\\pq\\%i",
+			client->pers.netname, team, model, headModel, country, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses,
 			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader,
 			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	} else {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\so\\%i\\pq\\%i",
-			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, c1, c2, 
+		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\country\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\so\\%i\\pq\\%i",
+			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, country, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
 			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	}
@@ -1686,6 +1691,76 @@ void ClientUserinfoChanged( int clientNum ) {
 	G_LogPrintf( "ClientUserinfoChanged: %i %s\n", clientNum, s );
 }
 
+
+/*
+===========
+G_ResolveConnectionPrivilege
+
+Resolves the retail access tier for a connecting client before session data is
+initialized.
+===========
+*/
+static int G_ResolveConnectionPrivilege( int clientNum, const char *userinfo, qboolean isBot,
+		qboolean *localClientOut, unsigned int *steamIdLowOut, unsigned int *steamIdHighOut,
+		qboolean *steamIdValidOut ) {
+	const char			*ip;
+	const char			*steamId;
+
+	if ( localClientOut ) {
+		*localClientOut = qfalse;
+	}
+	if ( steamIdLowOut ) {
+		*steamIdLowOut = 0;
+	}
+	if ( steamIdHighOut ) {
+		*steamIdHighOut = 0;
+	}
+	if ( steamIdValidOut ) {
+		*steamIdValidOut = qfalse;
+	}
+
+	if ( isBot || !userinfo ) {
+		return PRIV_NONE;
+	}
+
+	ip = Info_ValueForKey( userinfo, "ip" );
+	if ( ip[0] && !Q_stricmp( ip, "localhost" ) ) {
+		if ( localClientOut ) {
+			*localClientOut = qtrue;
+		}
+		return PRIV_ROOT;
+	}
+
+#if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
+	{
+		unsigned int		steamIdLow;
+		unsigned int		steamIdHigh;
+		unsigned long long	steamIdValue;
+		char			steamIdString[32];
+
+		if ( trap_GetSteamId( clientNum, &steamIdLow, &steamIdHigh ) ) {
+			if ( steamIdLowOut ) {
+				*steamIdLowOut = steamIdLow;
+			}
+			if ( steamIdHighOut ) {
+				*steamIdHighOut = steamIdHigh;
+			}
+			if ( steamIdValidOut ) {
+				*steamIdValidOut = qtrue;
+			}
+
+			steamIdValue = ((unsigned long long)steamIdHigh << 32) | steamIdLow;
+			Com_sprintf( steamIdString, sizeof( steamIdString ), "%llu", steamIdValue );
+			return G_AdminAccessForSteamID( steamIdString );
+		}
+	}
+#else
+	(void)clientNum;
+#endif
+
+	steamId = Info_ValueForKey( userinfo, "steamid" );
+	return G_AdminAccessForSteamID( steamId );
+}
 
 /*
 ===========
@@ -1713,6 +1788,11 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	gclient_t	*client;
 	char		userinfo[MAX_INFO_STRING];
 	gentity_t	*ent;
+	qboolean	localClient;
+	unsigned int	connectSteamIdLow;
+	unsigned int	connectSteamIdHigh;
+	qboolean	connectSteamIdValid;
+	int		connectionPrivilege;
 
 	ent = &g_entities[ clientNum ];
 	if ( isBot ) {
@@ -1732,10 +1812,14 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		return "You are banned from this server.";
 	}
 
-  // we don't check password for bots and local client
-  // NOTE: local client <-> "ip" "localhost"
-  //   this means this client is not running in our current process
-	if ( !( ent->r.svFlags & SVF_BOT ) && (strcmp(value, "localhost") != 0)) {
+	connectionPrivilege = G_ResolveConnectionPrivilege( clientNum, userinfo, isBot, &localClient,
+		&connectSteamIdLow, &connectSteamIdHigh, &connectSteamIdValid );
+	if ( connectionPrivilege < PRIV_NONE ) {
+		return "You are banned from this server.";
+	}
+
+	// we don't check password for bots, local clients, or admin/root access.
+	if ( !( ent->r.svFlags & SVF_BOT ) && !localClient && connectionPrivilege < PRIV_ADMIN ) {
 		// check for a password
 		value = Info_ValueForKey (userinfo, "password");
 		if ( g_password.string[0] && Q_stricmp( g_password.string, "none" ) &&
@@ -1752,6 +1836,10 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	memset( client, 0, sizeof(*client) );
 
+	client->pers.localClient = localClient;
+	client->pers.steamIdLow = connectSteamIdLow;
+	client->pers.steamIdHigh = connectSteamIdHigh;
+	client->pers.steamIdValid = connectSteamIdValid;
 	client->pers.connected = CON_CONNECTING;
 	client->pers.killCommandTime = -1;
 	client->pers.ratingDamageScale = 1.0f;
@@ -1761,24 +1849,12 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	client->pers.progressionFlags = 0;
 	G_InitClientVoteThrottle( client );
 
-#if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
-	{
-		unsigned int steamIdLow = 0;
-		unsigned int steamIdHigh = 0;
-
-		if ( !isBot && trap_GetSteamId( clientNum, &steamIdLow, &steamIdHigh ) ) {
-			client->pers.steamIdLow = steamIdLow;
-			client->pers.steamIdHigh = steamIdHigh;
-			client->pers.steamIdValid = qtrue;
-		}
-	}
-#endif
-
 	// read or initialize the session data
 	if ( firstTime || level.newSession ) {
 		G_InitSessionData( client, userinfo );
 	}
 	G_ReadSessionData( client, firstTime );
+	client->sess.privilege = connectionPrivilege;
 
 #if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
 	if ( !firstTime && !isBot ) {
@@ -1814,6 +1890,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	G_LogPrintf( "ClientConnect: %i\n", clientNum );
 	G_LogPrintf( "ClientMask: %i %s\n", clientNum, ( ent->r.svFlags & SVF_BOT ) ? "bot" : "human" );
 	ClientUserinfoChanged( clientNum );
+	G_RankResetClientStats( client );
 
 	// don't do the "xxx connected" messages if they were caried over from previous level
 	if ( firstTime ) {
@@ -1861,6 +1938,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		Q_strncpyz( autoDetail, ipInfo ? ipInfo : "", sizeof( autoDetail ) );
 		G_AutoAction( AUTOACTION_PLAYER_CONNECT, ent, autoDetail );
 	}
+	G_RankClientConnect( ent );
 
 	// for statistics
 //	client->areabits = areabits;
@@ -2089,6 +2167,33 @@ static weapon_t G_SelectFactorySpawnWeapon( unsigned int statMask ) {
 
 /*
 =============
+G_ApplySpawnHealth
+
+Applies the retail spawn-health clamp and mirrors the value into both entity
+and playerstate health slots.
+=============
+*/
+static void G_ApplySpawnHealth( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {
+	gclient_t	*client;
+	int		spawnHealth;
+
+	if ( !ent || !ent->client || !factoryConfig ) {
+		return;
+	}
+
+	client = ent->client;
+	spawnHealth = client->ps.stats[STAT_MAX_HEALTH] + factoryConfig->startingHealthBonus;
+	if ( spawnHealth <= 0 ) {
+		spawnHealth = client->ps.stats[STAT_MAX_HEALTH];
+	} else if ( spawnHealth > 999 ) {
+		spawnHealth = 999;
+	}
+
+	ent->health = client->ps.stats[STAT_HEALTH] = spawnHealth;
+}
+
+/*
+=============
 G_FinalizeSpawnLoadout
 
 Rebuilds the retail-style spawn loadout from the active factory and spawn cvars.
@@ -2099,7 +2204,6 @@ static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_
 	unsigned int	startingMask;
 	weapon_t		weapon;
 	weapon_t		spawnWeapon;
-	int			spawnHealth;
 	const int		startingAmmoTable[WP_NUM_WEAPONS] = {
 		[WP_NONE] = 0,
 		[WP_GAUNTLET] = g_startingAmmoConfig.gauntlet,
@@ -2143,12 +2247,7 @@ static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_
 	}
 
 	spawnWeapon = G_SelectFactorySpawnWeapon( startingMask );
-	spawnHealth = client->ps.stats[STAT_MAX_HEALTH] + factoryConfig->startingHealthBonus;
-	if ( spawnHealth < 1 ) {
-		spawnHealth = 1;
-	}
-
-	ent->health = client->ps.stats[STAT_HEALTH] = spawnHealth;
+	G_ApplySpawnHealth( ent, factoryConfig );
 	if ( g_startingArmor.integer > 0 ) {
 		client->ps.stats[STAT_ARMOR] = g_startingArmor.integer;
 	}
@@ -2441,6 +2540,7 @@ void ClientSpawn(gentity_t *ent) {
 	G_GametypeClientSpawn( ent );
 	G_GrantConfiguredItems( ent );
 	G_RRFinalizeSpawnLoadout( ent );
+	G_ClearLagHaxHistory( ent );
 	ClientEndFrame( ent );
 
 	// clear entity state values
@@ -2484,6 +2584,7 @@ void ClientDisconnect( int clientNum ) {
 		Q_strncpyz( autoDetail, ipInfo ? ipInfo : "", sizeof( autoDetail ) );
 		G_AutoAction( AUTOACTION_PLAYER_DISCONNECT, ent, autoDetail );
 	}
+	G_RankClientDisconnect( ent );
 
 	G_ComplaintClientDisconnected( clientNum );
 	G_ComplaintResetClient( ent->client, qtrue );
@@ -2546,6 +2647,7 @@ void ClientDisconnect( int clientNum ) {
 	G_BroadcastClientKeyMask( clientNum );
 
 	trap_SetConfigstring( CS_PLAYERS + clientNum, "");
+	G_ClearLagHaxHistory( ent );
 
 	CalculateRanks();
 

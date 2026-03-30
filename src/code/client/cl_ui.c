@@ -1058,7 +1058,7 @@ static int CL_UISystemCallsImpl( int *args, qboolean logContract ) {
 		return 0;
 
 	case UI_S_REGISTERSOUND:
-		return S_RegisterSound( VMA(1), args[2] );
+		return S_RegisterSound( VMA(1), args[2] ? qtrue : qfalse );
 
 	case UI_S_STARTLOCALSOUND:
 		S_StartLocalSound( args[1], args[2] );
@@ -1077,13 +1077,13 @@ static int CL_UISystemCallsImpl( int *args, qboolean logContract ) {
 		return 0;
 
 	case UI_KEY_ISDOWN:
-		return Key_IsDown( args[1] );
+		return Key_IsDown( args[1] ) ? qtrue : qfalse;
 
 	case UI_KEY_GETOVERSTRIKEMODE:
-		return Key_GetOverstrikeMode();
+		return Key_GetOverstrikeMode() ? qtrue : qfalse;
 
 	case UI_KEY_SETOVERSTRIKEMODE:
-		Key_SetOverstrikeMode( args[1] );
+		Key_SetOverstrikeMode( args[1] ? qtrue : qfalse );
 		return 0;
 
 	case UI_KEY_CLEARSTATES:
@@ -1157,14 +1157,14 @@ static int CL_UISystemCallsImpl( int *args, qboolean logContract ) {
 		return LAN_GetServerPing( args[1], args[2] );
 
 	case UI_LAN_MARKSERVERVISIBLE:
-		LAN_MarkServerVisible( args[1], args[2], args[3] );
+		LAN_MarkServerVisible( args[1], args[2], args[3] ? qtrue : qfalse );
 		return 0;
 
 	case UI_LAN_SERVERISVISIBLE:
-		return LAN_ServerIsVisible( args[1], args[2] );
+		return LAN_ServerIsVisible( args[1], args[2] ) ? qtrue : qfalse;
 
 	case UI_LAN_UPDATEVISIBLEPINGS:
-		return LAN_UpdateVisiblePings( args[1] );
+		return LAN_UpdateVisiblePings( args[1] ) ? qtrue : qfalse;
 
 	case UI_LAN_RESETPINGS:
 		LAN_ResetPings( args[1] );
@@ -1267,7 +1267,7 @@ static int CL_UISystemCallsImpl( int *args, qboolean logContract ) {
 		return 0;
 
 	case UI_VERIFY_CDKEY:
-		return CL_CDKeyValidate(VMA(1), VMA(2));
+		return CL_CDKeyValidate(VMA(1), VMA(2)) ? qtrue : qfalse;
 
 
 		
@@ -1312,15 +1312,6 @@ static int QDECL UI_Import_Syscall( int arg, ... ) {
 #include "ql_ui_imports.inc"
 
 typedef void (QDECL *ql_import_f)( void );
-
-/*
-==============
-QL_UI_trap_Stub
-==============
-*/
-static int QDECL QL_UI_trap_Stub( void ) {
-	return 0;
-}
 
 /*
 ==============
@@ -1454,7 +1445,7 @@ static qhandle_t QL_UI_RegisterDefaultAdvertCellShader( const char *defaultConte
 		return 0;
 	}
 
-	return re.RegisterShaderNoMip( defaultContent );
+	return CL_Steam_RegisterShader( defaultContent );
 }
 
 /*
@@ -1490,8 +1481,8 @@ QL_UI_trap_InitAdvertisementBridge
 */
 static void QDECL QL_UI_trap_InitAdvertisementBridge( void ) {
 	// uix86.dll HLIL: import[82] (offset 0x148) is invoked during UI init with no args.
-	// Quake Live retail thunks to an optional overlay hook; sync the provider state and leave fallbacks active when absent.
-	CL_RefreshOnlineServicesBridgeState();
+	// Quake Live retail thunks to AdvertisementBridge_InitUI; mirror the host bridge init even when the live provider is absent.
+	CL_AdvertisementBridge_InitUI();
 }
 
 /*
@@ -1512,8 +1503,8 @@ QL_UI_trap_ActivateAdvert
 ==============
 */
 static void QDECL QL_UI_trap_ActivateAdvert( int cellId ) {
-	// uix86.dll HLIL: import[84] (offset 0x150) activates an advert cell. Retail leaves this inert without a host bridge.
-	(void)cellId;
+	// uix86.dll HLIL: import[84] (offset 0x150) forwards the retail activateAdvert script command into AdvertisementBridge_ActivateAdvert.
+	CL_AdvertisementBridge_ActivateAdvert( cellId );
 }
 
 /*
@@ -1765,11 +1756,7 @@ CL_InitUIImports
 ==============
 */
 static void CL_InitUIImports( void ) {
-	int i;
-
-	for ( i = 0; i < UI_QL_NATIVE_IMPORT_COUNT; ++i ) {
-		ql_ui_imports[i] = (ql_import_f)QL_UI_trap_Stub;
-	}
+	Com_Memset( ql_ui_imports, 0, sizeof( ql_ui_imports ) );
 
 	// uix86.dll HLIL: import[0] is Print, import[1] is Error.
 	ql_ui_imports[UI_QL_IMPORT_PRINT] = (ql_import_f)QL_UI_trap_Print;
@@ -1921,6 +1908,7 @@ CL_InitUI
 
 void CL_InitUI( void ) {
 	int		v;
+	qboolean	inGame;
 	vmInterpret_t		interpret;
 
 	Com_Printf( "----- UI Initialization -----\n" );
@@ -1936,10 +1924,11 @@ void CL_InitUI( void ) {
 	}
 
 	v = VM_Call( uivm, UI_GETAPIVERSION );
+	inGame = ( cls.state >= CA_AUTHORIZING && cls.state < CA_ACTIVE ) ? qtrue : qfalse;
 	if (v == UI_OLD_API_VERSION) {
 //		Com_Printf(S_COLOR_YELLOW "WARNING: loading old Quake III Arena User Interface version %d\n", v );
 		// init for this gamestate
-		VM_Call( uivm, UI_INIT, (cls.state >= CA_AUTHORIZING && cls.state < CA_ACTIVE));
+		VM_Call( uivm, UI_INIT, inGame );
 	}
 	else if (v != UI_API_VERSION && v != UI_QL_API_VERSION) {
 		Com_Error( ERR_DROP, "User Interface is version %d, expected %d", v, UI_QL_API_VERSION );
@@ -1947,14 +1936,14 @@ void CL_InitUI( void ) {
 	}
 	else {
 		// init for this gamestate
-		VM_Call( uivm, UI_INIT, (cls.state >= CA_AUTHORIZING && cls.state < CA_ACTIVE) );
+		VM_Call( uivm, UI_INIT, inGame );
 	}
 	Com_Printf( "----- UI Initialization Complete -----\n" );
 }
 
 qboolean UI_usesUniqueCDKey() {
 	if (uivm) {
-		return (VM_Call( uivm, UI_HASUNIQUECDKEY) == qtrue);
+		return VM_Call( uivm, UI_HASUNIQUECDKEY ) ? qtrue : qfalse;
 	} else {
 		return qfalse;
 	}
@@ -1972,5 +1961,5 @@ qboolean UI_GameCommand( void ) {
 		return qfalse;
 	}
 
-	return VM_Call( uivm, UI_CONSOLE_COMMAND, cls.realtime );
+	return VM_Call( uivm, UI_CONSOLE_COMMAND, cls.realtime ) ? qtrue : qfalse;
 }
