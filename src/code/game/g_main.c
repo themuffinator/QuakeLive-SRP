@@ -38,6 +38,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_ADMIN_ACCESS_FILE_BYTES	8192
 #define GAME_STATE_BUFFER_LENGTH		16
+#define RANK_EVENT_PAYLOAD_MAX		16384
 
 level_locals_t	level;
 weaponConfig_t	g_weaponConfig;
@@ -3270,10 +3271,234 @@ void QDECL G_LogPrintf( const char *fmt, ... ) {
 
 /*
 ================
+G_RankAppendPayload
+
+Appends formatted text to a rankings event payload buffer.
+================
+*/
+static qboolean G_RankAppendPayload( char *buffer, size_t bufferSize, size_t *length, const char *fmt, ... ) {
+	va_list args;
+	int written;
+
+	if ( !buffer || !length || !fmt || bufferSize == 0 || *length >= bufferSize ) {
+		return qfalse;
+	}
+
+	va_start( args, fmt );
+	written = Q_vsnprintf( buffer + *length, bufferSize - *length, fmt, args );
+	va_end( args );
+
+	if ( written < 0 || ( size_t )written >= ( bufferSize - *length ) ) {
+		return qfalse;
+	}
+
+	*length += written;
+	return qtrue;
+}
+
+/*
+================
+G_RankEscapeJsonString
+
+Escapes control characters and quotes so netnames and hostnames remain valid
+inside the source-side JSON payload proxy.
+================
+*/
+static void G_RankEscapeJsonString( const char *src, char *dst, size_t dstSize ) {
+	size_t outIndex;
+	const char *cursor;
+
+	if ( !dst || dstSize == 0 ) {
+		return;
+	}
+
+	outIndex = 0;
+	cursor = src ? src : "";
+
+	while ( *cursor && outIndex + 1 < dstSize ) {
+		const char *escape = NULL;
+		size_t escapeLength = 0;
+		unsigned char ch = ( unsigned char )*cursor;
+
+		switch ( ch ) {
+		case '\\':
+			escape = "\\\\";
+			escapeLength = 2;
+			break;
+		case '"':
+			escape = "\\\"";
+			escapeLength = 2;
+			break;
+		case '\n':
+			escape = "\\n";
+			escapeLength = 2;
+			break;
+		case '\r':
+			escape = "\\r";
+			escapeLength = 2;
+			break;
+		case '\t':
+			escape = "\\t";
+			escapeLength = 2;
+			break;
+		default:
+			break;
+		}
+
+		if ( escape ) {
+			if ( outIndex + escapeLength >= dstSize ) {
+				break;
+			}
+
+			dst[outIndex++] = escape[0];
+			dst[outIndex++] = escape[1];
+			cursor++;
+			continue;
+		}
+
+		if ( ch < 0x20 ) {
+			dst[outIndex++] = ' ';
+			cursor++;
+			continue;
+		}
+
+		dst[outIndex++] = *cursor++;
+	}
+
+	dst[outIndex] = '\0';
+}
+
+/*
+================
+G_RankFormatSteamId
+
+Formats the recovered 64-bit SteamID form used by the retail rankings event
+publishers. Bots carry the retail "0" placeholder.
+================
+*/
+static void G_RankFormatSteamId( const gentity_t *ent, char *buffer, size_t bufferSize ) {
+	unsigned long long steamId;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	if ( !ent || !ent->client || ( ent->r.svFlags & SVF_BOT ) ) {
+		Q_strncpyz( buffer, "0", bufferSize );
+		return;
+	}
+
+	steamId = ( ( unsigned long long )ent->client->pers.steamIdHigh << 32 ) |
+		ent->client->pers.steamIdLow;
+	Com_sprintf( buffer, bufferSize, "%llu", steamId );
+}
+
+/*
+================
+G_RankBuildClientEventPayload
+
+Retail qagame publishes Json::Value payloads for player connect and disconnect
+events. The exact VM/native object ABI is still unrecovered in writable source,
+so the reconstructed bridge serializes an equivalent JSON-text payload proxy.
+================
+*/
+static qboolean G_RankBuildClientEventPayload( gentity_t *ent, char *buffer, size_t bufferSize ) {
+	char escapedName[MAX_NETNAME * 2 + 1];
+	char steamId[32];
+	size_t length;
+
+	if ( !ent || !ent->client || !buffer || bufferSize == 0 ) {
+		return qfalse;
+	}
+
+	buffer[0] = '\0';
+	length = 0;
+
+	G_RankEscapeJsonString( ent->client->pers.netname, escapedName, sizeof( escapedName ) );
+	G_RankFormatSteamId( ent, steamId, sizeof( steamId ) );
+
+	return G_RankAppendPayload( buffer, bufferSize, &length,
+		"{\"TIME\":%i,\"WARMUP\":%s,\"MATCH_GUID\":\"%s\",\"NAME\":\"%s\",\"STEAM_ID\":\"%s\"}",
+		( level.time - level.startTime ) / 1000,
+		( level.warmupTime != 0 ) ? "true" : "false",
+		level.rankMatchGuid,
+		escapedName,
+		steamId );
+}
+
+/*
+================
+G_RankBuildMatchStartedPayload
+
+Serializes the recovered MATCH_STARTED roster payload fields into the writable
+source's JSON-text proxy format.
+================
+*/
+static qboolean G_RankBuildMatchStartedPayload( char *buffer, size_t bufferSize ) {
+	char hostname[MAX_CVAR_VALUE_STRING];
+	char escapedHostname[MAX_CVAR_VALUE_STRING * 2 + 1];
+	size_t length;
+	qboolean firstPlayer;
+	int i;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return qfalse;
+	}
+
+	buffer[0] = '\0';
+	length = 0;
+	firstPlayer = qtrue;
+
+	trap_Cvar_VariableStringBuffer( "sv_hostname", hostname, sizeof( hostname ) );
+	G_RankEscapeJsonString( hostname, escapedHostname, sizeof( escapedHostname ) );
+
+	if ( !G_RankAppendPayload( buffer, bufferSize, &length,
+		"{\"MATCH_GUID\":\"%s\",\"SERVER_TITLE\":\"%s\",\"PLAYERS\":[",
+		level.rankMatchGuid,
+		escapedHostname ) ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t *ent;
+		gclient_t *client;
+		char escapedName[MAX_NETNAME * 2 + 1];
+		char steamId[32];
+
+		client = &level.clients[i];
+		if ( client->pers.connected == CON_DISCONNECTED ) {
+			continue;
+		}
+
+		ent = &g_entities[i];
+		G_RankEscapeJsonString( client->pers.netname, escapedName, sizeof( escapedName ) );
+		G_RankFormatSteamId( ent, steamId, sizeof( steamId ) );
+
+		if ( !firstPlayer && !G_RankAppendPayload( buffer, bufferSize, &length, "," ) ) {
+			return qfalse;
+		}
+
+		if ( !G_RankAppendPayload( buffer, bufferSize, &length,
+			"{\"NAME\":\"%s\",\"STEAM_ID\":\"%s\",\"TEAM\":%i}",
+			escapedName,
+			steamId,
+			client->sess.sessionTeam ) ) {
+			return qfalse;
+		}
+
+		firstPlayer = qfalse;
+	}
+
+	return G_RankAppendPayload( buffer, bufferSize, &length, "]}" );
+}
+
+/*
+================
 G_RankResetClientStats
 
-Reinitializes the lightweight client rankings/report state used by the retail
-event bridge.
+Reinitializes the lightweight source-side rankings/report bridge state. Retail
+clears a substantially larger per-client slab here; the writable source still
+carries the reduced proxy needed by the current event bridge.
 ================
 */
 void G_RankResetClientStats( gclient_t *client ) {
@@ -3297,21 +3522,24 @@ void G_RankResetClientStats( gclient_t *client ) {
 ================
 G_RankClientConnect
 
-Mirrors the retail PLAYER_CONNECT publication timing. The detailed JSON payload
-is still pending reconstruction, so the stub bridge currently carries the event
-name plus the recovered SteamID and client-stats owner.
+Mirrors the retail PLAYER_CONNECT publication timing. The native Json::Value
+ABI is still unrecovered in writable source, so the bridge forwards a serialized
+JSON-text proxy payload instead.
 ================
 */
 void G_RankClientConnect( gentity_t *ent ) {
 	gclient_t	*client;
+	char		payload[RANK_EVENT_PAYLOAD_MAX];
+	void		*payloadPtr;
 
 	if ( !ent || !ent->client || ( ent->r.svFlags & SVF_BOT ) ) {
 		return;
 	}
 
 	client = ent->client;
+	payloadPtr = G_RankBuildClientEventPayload( ent, payload, sizeof( payload ) ) ? payload : NULL;
 	trap_ReportPlayerEvent( client->pers.steamIdLow, client->pers.steamIdHigh,
-		&client->rankStats, "PLAYER_CONNECT", NULL );
+		&client->rankStats, "PLAYER_CONNECT", payloadPtr );
 }
 
 /*
@@ -3319,35 +3547,42 @@ void G_RankClientConnect( gentity_t *ent ) {
 G_RankClientDisconnect
 
 Mirrors the retail PLAYER_DISCONNECT publication timing before the client is
-fully unlinked from the world.
+fully unlinked from the world, again using the source-side JSON payload proxy.
 ================
 */
 void G_RankClientDisconnect( gentity_t *ent ) {
 	gclient_t	*client;
+	char		payload[RANK_EVENT_PAYLOAD_MAX];
+	void		*payloadPtr;
 
 	if ( !ent || !ent->client || ( ent->r.svFlags & SVF_BOT ) ) {
 		return;
 	}
 
 	client = ent->client;
+	payloadPtr = G_RankBuildClientEventPayload( ent, payload, sizeof( payload ) ) ? payload : NULL;
 	trap_ReportPlayerEvent( client->pers.steamIdLow, client->pers.steamIdHigh,
-		&client->rankStats, "PLAYER_DISCONNECT", NULL );
+		&client->rankStats, "PLAYER_DISCONNECT", payloadPtr );
 }
 
 /*
 ================
 G_RankSendMatchStarted
 
-Publishes the retail MATCH_STARTED transition once per match bootstrap.
+Publishes the retail MATCH_STARTED transition once per match bootstrap, using a
+serialized roster payload proxy until the retail Json::Value ABI is recovered.
 ================
 */
 void G_RankSendMatchStarted( void ) {
+	char payload[RANK_EVENT_PAYLOAD_MAX];
+
 	if ( level.rankMatchStartedSent ) {
 		return;
 	}
 
 	level.rankMatchStartedSent = qtrue;
-	trap_ReportPlayerEvent( 0, 0, NULL, "MATCH_STARTED", NULL );
+	trap_ReportPlayerEvent( 0, 0, NULL, "MATCH_STARTED",
+		G_RankBuildMatchStartedPayload( payload, sizeof( payload ) ) ? payload : NULL );
 }
 
 /*

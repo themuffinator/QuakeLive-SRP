@@ -5,12 +5,16 @@ migration-era tooling that now lives alongside the legacy Quake III sources.
 
 ## Repository layout
 - `src/` – Active working tree that mirrors the Quake III Arena GPL drop and will absorb Quake Live
-  features over time. Key subdirectories include the engine (`code/`), shared utilities (`common/`),
-  VM toolchain (`lcc/`, `q3asm/`), legacy tools (`q3map/`, `q3radiant/`), and bundled third-party
-  libraries (`libs/`).【F:docs/repo-overview.md†L10-L25】
+  features over time. Key subdirectories include the engine (`code/`), the shared utility and
+  platform/auth layer (`common/`), the writable gameplay support layer (`game/`), the VM toolchain
+  (`lcc/`, `q3asm/`), legacy tools (`q3map/`, `q3radiant/`), and bundled third-party libraries
+  (`libs/`).【F:docs/repo-overview.md†L10-L25】
 - `src-re/` – Clean-room reconstruction space used during reverse-engineering stages. It houses
   annotated walkthroughs, prototype shims, and the signed-off clean sources that are compiled via the
-  clean-room build helpers and traced against Quake Live baselines.【F:docs/reverse-engineering/handbook.md†L7-L27】
+  clean-room build helpers and traced against Quake Live baselines. `src-re/include/` also contains
+  reverse-engineered headers already consumed by parts of `src/code/`, so do not treat the whole tree
+  as dead scaffolding. Use [`docs/reverse-engineering/src-re-workspace.md`](../reverse-engineering/src-re-workspace.md)
+  for the promotion rules and the per-subdirectory breakdown.【F:docs/reverse-engineering/handbook.md†L7-L27】
 - `tests/` – Deterministic harness entry point (`tests/run_harnesses.py`) plus reverse expectations that
   back the CI matrix for QVM, native DLL, and reverse builds.【F:tests/run_harnesses.py†L27-L111】【F:docs/devops/ci-matrix.md†L1-L18】
 - `references/` – Reference material captured during the migration, including Binary Ninja HLIL dumps

@@ -3,7 +3,10 @@ src/code/**/Debug/
 src/code/**/Release/
 src/code/**/build/
 build/win32/
-src/build/**
+
+*.dll
+*.map
+*.bsc
 
 # Native DLL staging / CI output
 build/win32-native/
@@ -49,3 +52,4 @@ src/ui/assets/
 .codex/ralph/last-message.md
 .codex/ralph/prompt.current.md
 .codex/ralph/.last-branch
+/src/build/win32/Debug/bin/baseq3

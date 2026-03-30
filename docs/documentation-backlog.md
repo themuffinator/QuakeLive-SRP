@@ -5,8 +5,6 @@ This backlog tracks upcoming documentation work required to keep contributors al
 ## Repository & Workflow Updates
 - **Artefact store catalog:** Extend the CI documentation to map the folder hierarchy beneath `artifacts/` and `logs/`, explain
   naming conventions, and call out which harness uploads each data set so reviewers can trace evidence quickly.【F:docs/devops/ci-matrix.md†L15-L38】
-- **Clean-room workspace primer:** Author a short guide that walks through the `src-re/` tree, highlighting how prototypes, walkthroughs,
-  and clean builds line up with the reverse CI legs referenced in the handbook.【F:docs/reverse-engineering/handbook.md†L7-L37】
 - **Binary analysis tooling walkthrough:** Document how to run the Ghidra export scripts, where their outputs land, and how they seed the
   symbol maps consumed during reconstruction reviews.【F:docs/reverse-engineering/handbook.md†L31-L37】
 

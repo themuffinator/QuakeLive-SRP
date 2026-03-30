@@ -10,12 +10,13 @@ This repository aims to reverse-engineer Quake Live by starting from the public 
 - `assets/`: A snapshot of upstream assets. The `quake3/src/` subtree mirrors the original Quake III Arena source distribution, while `quakelive/` collects extracted Quake Live game assets (e.g. DLLs, bot files, maps) for reference while rebuilding features. Treat this directory as read-only so it continues to reflect the shipping data layout.
 - `src/`: The active working tree for the reconstructed codebase. It currently matches the Quake III Arena source and provides the starting point for Quake Live specific changes. Key subdirectories include:
   - `code/`: Engine and game VM sources. This houses the client (`client/`), game logic (`game/`), UI module (`ui/`), bot library (`botlib/`), renderer (`renderer/`), and supporting build files for different platforms (e.g. `win32/`, `unix/`, Visual Studio project files).
-  - `common/`: Shared utilities (math, BSP parsing, command handling, etc.) used by tools and the engine during asset processing.
+  - `common/`: Shared utilities and cross-cutting support code. This directory still carries the classic Quake III tool-side helpers (`cmdlib`, `mathlib`, BSP/image helpers, threading helpers) used by `q3map` and related tools, and it now also carries active Quake Live runtime layers such as credential parsing and platform/authentication services consumed by the engine and gameplay DLLs.
+  - `game/`: Writable Quake Live gameplay support sources that sit beside, rather than directly inside, the original GPL-era `src/code/game/` tree. The current contents are active build inputs (`g_config.c`, `g_match_config.c`, related headers) plus gameplay fixture utilities under `src/game/tests/` that are shared by native and QVM harnesses.
   - `lcc/`, `q3asm/`: Toolchain components for compiling the Quake Virtual Machine (QVM) bytecode.
   - `libs/`: Third-party libraries bundled with the original Quake III source (JPEG, zlib, etc.).
   - `q3map/`, `q3radiant/`: Level compilation and editing tools that ship with the Quake III source release.
   - `ui/`: Original mission pack UI sources included with the id Software release.
-- `src-re/`: Clean-room reconstruction workspace that holds annotated walkthroughs, vetted shims, and the replayable clean builds compiled by the reverse CI legs.【F:docs/reverse-engineering/handbook.md†L7-L34】
+- `src-re/`: Clean-room reconstruction workspace that holds annotated walkthroughs, vetted shims, and the replayable clean builds compiled by the reverse CI legs. Treat it as a separate staging area: `src-re/include/` already provides active reverse-engineered headers consumed by `src/code/`, `src-re/prototypes/` is built by the reverse clean-room CI legs, and `src-re/annotated/` plus `src-re/clean/` remain analysis/review artefacts rather than production runtime sources. See [`docs/reverse-engineering/src-re-workspace.md`](reverse-engineering/src-re-workspace.md) for the directory policy and promotion rules.【F:docs/reverse-engineering/handbook.md†L7-L34】
 - `tests/`: Deterministic harness entry points plus committed expectations that back the regression workflows across QVM, native DLL, and reverse targets.【F:tests/run_harnesses.py†L27-L116】【F:docs/devops/ci-matrix.md†L1-L18】
 - `tools/`: Automation and CI helpers used to stand up historical toolchains, build clean-room artefacts, and publish comparison data during review.【F:docs/toolchain-ci.md†L1-L24】【F:tools/ci/build-cleanroom.sh†L1-L44】
 - `artifacts/`: Structured output from the deterministic harnesses, including timelines, HUD hashes, and trace diffs organised per suite/target for downstream analysis.【F:docs/devops/ci-matrix.md†L15-L38】
@@ -37,7 +38,7 @@ This repository aims to reverse-engineer Quake Live by starting from the public 
   modules (`cgamex86.dll`, `qagamex86.dll`, etc.) and supporting data
   (fonts, icons, maps) to validate assumptions or reproduce file formats.【F:docs/onboarding/overview.md†L6-L19】
 - The active `src/` tree should evolve from the Quake III baseline towards Quake
-  Live parity while the clean-room `src-re/` prototypes and sign-off drops are
+  Live parity while the clean-room `src-re/` prototypes, shared ABI mirrors, and sign-off drops are
   traced through the deterministic harness for regression coverage.【F:docs/reverse-engineering/handbook.md†L11-L36】【F:docs/devops/ci-matrix.md†L1-L34】
 - Tests under `tests/` and automation under `tools/ci/` feed the deterministic
   harness workflow, publishing artefacts into `artifacts/` and `logs/` so
