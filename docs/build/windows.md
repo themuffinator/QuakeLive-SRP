@@ -10,6 +10,10 @@ the produced binaries stay aligned with the shipping runtime.【F:src/code/game/
 
 For runtime prerequisites and validation steps on WOW64 hosts, see the
 [Windows 32-bit Runtime Guide](../platform/windows-32bit-runtime.md).
+For the exact retail dependency matrix and a Steam-install verifier, see
+[Retail Windows Dependency Audit](../platform/retail-dependencies.md). For the
+retail compiler/linker configuration evidence, see
+[Retail Windows Toolchain Audit](../platform/retail-toolchain.md).
 
 ## Available targets
 
@@ -55,7 +59,7 @@ version resource, import surface, and linker/header profile for the executable:
 pwsh tools\ci\verify-awesomium-process-parity.ps1
 ```
 
-## Vorbis codec prerequisites
+## Codec SDK prerequisites
 
 The Visual Studio projects now assume the Vorbis headers and import libraries
 are available so the client’s Ogg decoder can link successfully. Place the
@@ -71,6 +75,19 @@ msbuild src\code\quakelive.sln /t:quakelive_steam /p:Configuration=Debug /p:Vorb
 
 Without these libraries the linker fails fast, mirroring the Unix makefile’s
 `OGG_CFLAGS`/`OGG_LDFLAGS` checks.
+
+The repo also carries libpng/zlib development copies under `src/libs/libpng/`.
+These codec SDK layouts are build-time conveniences, not part of the retail
+runtime surface: the Steam install does not ship `vorbisfile.dll`, `ogg.dll`,
+`libpng16.dll`, or `zlib1.dll`. Use
+`pwsh tools/ci/audit-retail-dependencies.ps1 -Strict` to verify that the staged
+runtime still matches the retail DLL payload.
+
+Run `pwsh tools/ci/audit-retail-toolchain.ps1 -Strict` to verify that the
+retail-facing project files still match the recovered VC10-era build settings
+and that the local machine actually has the `v100` toolset installed.
+Run `pwsh tools/ci/audit-retail-metadata.ps1` to verify that the launcher
+version resources and embedded manifests still match the retail executables.
 
 When you target a `.vcxproj` directly, keep using `/p:Platform=Win32`. The
 solution-level builds use `x86` because that is the platform name advertised by

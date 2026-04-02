@@ -1,23 +1,27 @@
 # Visual Studio 2010 Native Build Guidance
 
-Quake Live’s retail gameplay modules were compiled as Win32 DLLs with the Visual Studio 2010 (`v100`) toolset and import the Visual C++ 2010 CRT pair (`MSVCR100.dll`, `MSVCP100.dll`). The Visual Studio solution under `src/code/` now pins the supported gameplay projects (`game` and `cgame`) to that legacy toolset so Release builds continue to emit Quake Live–style binaries (`qagamex86.dll`, `cgamex86.dll`) with the same exports and CRT bindings.
+Quake Live’s retail gameplay modules were compiled as Win32 DLLs with the Visual Studio 2010 (`v100`) toolset and import the Visual C++ 2010 CRT pair (`MSVCR100.dll`, `MSVCP100.dll`). The retail-facing project files under `src/code/` now default back to that legacy toolset so Release builds continue to emit Quake Live-style binaries with the same CRT bindings and PE header shape.
 
 ## Required project files
 
 Open `src/code/quakelive.sln` inside Visual Studio and load the following projects:
 
-- `game/game.vcxproj` – Produces `../Release/qagamex86.dll` for the Release Win32 configuration and loads its export table from `game.def` (which lists `dllEntry` and `vmMain`).
-- `cgame/cgame.vcxproj` – Produces `../Release/cgamex86.dll` and wires the same export pair via `cgame.def`.
-- `ui/ui.vcxproj` – Build the `Release TA|Win32` (or equivalent retargeted Release) configuration to emit `../Release_TA/uix86.dll` and load `ui.def` so the UI DLL exports `dllEntry`/`vmMain` just like the VM loader expects.
+- `game/qagamex86.vcxproj` – Produces `build/win32/<Config>/modules/qagamex86/qagamex86.dll` and loads its export table from `game.def` (`dllEntry`, `vmMain`).
+- `cgame/cgamex86.vcxproj` – Produces `build/win32/<Config>/modules/cgamex86/cgamex86.dll` and wires the same export pair via `cgame.def`.
+- `ui/ui.vcxproj` – Produces `build/win32/<Config>/bin/baseq3/uix86.dll` and loads `ui.def` so the UI DLL exports `dllEntry` and `vmMain`.
+- `quakelive_steam.vcxproj` – Produces the native retail-style host executable under `build/win32/<Config>/bin/quakelive_steam.exe`.
+- `awesomium_process.vcxproj` – Produces the retail-style browser subprocess helper under `build/win32/<Config>/bin/awesomium_process.exe`.
 
 Each project already sets a Win32 dynamic-library configuration with explicit output paths and map/PDB generation so no additional post-build steps are required. Building the solution with the proper toolset will drop the DLLs into the `src/code/<project>/Release*/` directories alongside their `.lib`, `.pdb`, and `.map` files.
 
 ## Retargeting to the `v100` toolset
 
 1. Install Visual Studio 2010 SP1 or a newer Visual Studio release that includes the “Visual Studio 2010 (v100) toolset” optional component. Confirm that `vcvarsall.bat` accepts `-vcvars_ver=10.0` to load the toolchain.
-2. The game and cgame project files checked into source control already pin **ToolsVersion** to `4.0` and **Platform Toolset** to `v100`, ensuring MSBuild treats them as Visual Studio 2010 projects even when opened in newer IDEs. The UI project still targets a newer toolset and must be retargeted to `v100` to match the retail import tables before building native UI DLLs.
-3. Release configurations are locked to the `/MD` runtime (`MultiThreadedDLL`) so the shipped binaries keep importing the legacy CRT pair (`MSVCR100.dll`, `MSVCP100.dll`). The UI project currently uses `/MT`; update its `RuntimeLibrary` to `MultiThreadedDLL` so `uix86.dll` links against the same CRT as the game modules. Package the x86 redistributable alongside the DLLs when deploying to clean machines.
-4. Build the `Release|Win32` configuration (plus the UI Release TA/retargeted UI configuration) to generate the DLLs with aligned exports. The `.def` files enforce the two-function export tables required by the game engine loader.
+2. The checked-in retail-facing project files now pin **ToolsVersion** to `4.0` and **Platform Toolset** to `v100`, so MSBuild and newer IDEs stay on the Visual Studio 2010 compiler/linker stack by default.
+3. Release configurations for `qagamex86`, `cgamex86`, `uix86`, and `quakelive_steam.exe` are locked to `/MD` (`MultiThreadedDLL`) so the shipped binaries keep importing the legacy CRT pair (`MSVCR100.dll`, `MSVCP100.dll`). Debug configurations use `/MDd`.
+4. `awesomium_process.exe` intentionally stays on the retail static CRT path; the retail helper imports only `KERNEL32.dll` and `awesomium.dll`.
+5. The retail PE headers also matter: subsystem version `5.1`, module base address `0x10000000`, ASLR/NX enabled, SafeSEH on the gameplay/UI DLLs and `awesomium_process.exe`, and the retail launcher’s `1 MB` stack reserve are now encoded directly in the project files.
+6. Build the `Release|Win32` configuration to generate the DLLs and host executables with aligned exports, CRT bindings, and linker metadata. The `.def` files enforce the two-function export tables required by the game engine loader.
 
 ## Distribution staging
 
@@ -64,6 +68,16 @@ msbuild src\code\quakelive.sln /m /p:Configuration=Release /p:Platform=Win32 /p:
 ```
 
 The helper script `tools/ci/build-windows-dlls.ps1` wraps this command line and defaults to the `v100` toolset, ensuring the gameplay DLLs are compiled with the correct compiler/linker pair even on newer Visual Studio installations.
+
+Run `pwsh tools/ci/audit-retail-dependencies.ps1 -Strict` after staging the
+launcher payload to confirm the local Steam install still matches the committed
+retail dependency set.
+
+Run `pwsh tools/ci/audit-retail-toolchain.ps1 -Strict` to confirm the checked-in
+project metadata still matches the recovered retail VC10-era settings.
+
+Run `pwsh tools/ci/audit-retail-metadata.ps1` to confirm the executable version
+resources and embedded manifests still mirror the retail launcher and helper.
 
 ## Validating against the reference DLLs
 

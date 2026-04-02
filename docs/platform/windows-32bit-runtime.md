@@ -13,8 +13,9 @@ This guide covers how to prepare and verify a 32-bit runtime on modern Windows h
 
 1. **Visual C++ 2010 SP1 x86 runtime** – Required for the MSVC v100 toolset outputs. Install the x86 redistributable (`vcredist_x86.exe`) on WOW64 hosts; the x64 package does not provide the 32-bit CRT.
 2. **DirectX 9.0c runtime (June 2010)** – The launcher expects legacy D3DX and XAudio2 DLLs that are not shipped on newer Windows versions. Run the DirectX web installer or `DXSETUP.exe` from the redist package to seed the 32-bit copies into `%SystemRoot%\SysWOW64`.
-3. **Vorbis/OGG codecs** – For local development, place the SDK headers and import libraries under `src\libs\vorbis\` and ensure the 32-bit `vorbisfile.dll`/`ogg.dll` variants are discoverable on the PATH or alongside the built DLLs.
-4. **.NET Framework 4.x (Client profile)** – Needed only for auxiliary tools (e.g., launcher helpers). Install the 32-bit capable runtime on WOW64 hosts to keep the helper utilities aligned with the native client.
+3. **Retail launcher payload** – Keep the retail browser/media DLL set from `assets\quakelive\` available when testing parity-oriented client builds: `awesomium.dll`, `awesomium_process.exe`, `steam_api.dll`, `libEGL.dll`, `libGLESv2.dll`, `avcodec-53.dll`, `avformat-53.dll`, `avutil-51.dll`, `icudt.dll`, and `xinput9_1_0.dll`.
+4. **Codec SDKs are build-time only** – The repo currently carries development copies of libvorbis/libogg and libpng/zlib under `src\libs\`, but the retail Steam install does not ship `vorbisfile.dll`, `ogg.dll`, `libpng16.dll`, or `zlib1.dll`. Do not treat those DLLs as part of the retail runtime payload.
+5. **.NET Framework 4.x (Client profile)** – Needed only for auxiliary tools (e.g., launcher helpers). Install the 32-bit capable runtime on WOW64 hosts to keep the helper utilities aligned with the native client.
 
 ## Environment validation
 
@@ -23,7 +24,8 @@ Perform these checks after installing prerequisites:
 1. **Confirm WOW64 status:** Run `wmic OS get OSArchitecture` or `set PROCESSOR_ARCHITECTURE` and verify `AMD64` with `WOW64` enabled; `PROCESSOR_ARCHITEW6432` should be set when spawning a 32-bit shell (`%SystemRoot%\SysWOW64\cmd.exe`).
 2. **Verify redistributables:** Use `sigcheck -q -nobanner %SystemRoot%\SysWOW64\msvcr100.dll` (from Sysinternals) to ensure the 32-bit CRT is present and signed. If missing, reinstall the x86 Visual C++ runtime.
 3. **Check DirectX presence:** Run `dxdiag /whql:off` and inspect the `DirectX Files` tab for `d3dx9_43.dll` under `SysWOW64`. Absence indicates the June 2010 runtime is not installed for 32-bit binaries.
-4. **MSBuild targeting:** From a Visual Studio x86 Native Tools prompt, execute `msbuild src\code\quakelive.sln /t:qagamex86 /p:Platform=Win32 /p:Configuration=Debug` and verify outputs land in `build\win32\Debug\modules\qagamex86`. Any `“64-bit tools are not available”` warnings indicate the wrong developer prompt was used.
+4. **Retail payload parity:** Run `pwsh tools\ci\audit-retail-dependencies.ps1 -Strict` to confirm the local Steam install still matches the committed `assets\quakelive\` payload byte-for-byte.
+5. **MSBuild targeting:** From a Visual Studio x86 Native Tools prompt, execute `msbuild src\code\quakelive.sln /t:qagamex86 /p:Platform=Win32 /p:Configuration=Debug /p:PlatformToolset=v100` and verify outputs land in `build\win32\Debug\modules\qagamex86`. Any `“64-bit tools are not available”` warnings indicate the wrong developer prompt was used.
 
 ## Troubleshooting launch failures
 
@@ -32,7 +34,7 @@ Perform these checks after installing prerequisites:
 | `This application was unable to start correctly (0xc000007b)` | Mixing 64-bit CRT/DirectX DLLs with 32-bit binaries | Reinstall the x86 Visual C++ 2010 runtime and DirectX 9.0c; confirm DLL search order points at `SysWOW64` or co-located 32-bit copies. |
 | Missing `d3dx9_43.dll` or `xinput1_3.dll` | DirectX 9.0c redist not installed for WOW64 | Run the June 2010 DirectX installer; confirm files appear under `SysWOW64` and rerun the launcher. |
 | `MSVCR100.dll was not found` | x86 CRT not present | Install `vcredist_x86.exe` and rerun; avoid installing only the x64 redistributable. |
-| Launcher closes immediately with no logs | 32-bit helper fails to load dependent DLLs | Capture `ProcMon` traces filtered to the launcher process, verify DLL load paths, and co-locate missing 32-bit codecs or reroute `PATH` to the SDK directory. |
+| Launcher closes immediately with no logs | 32-bit helper fails to load the retail browser/media payload | Capture `ProcMon` traces filtered to the launcher process, verify `awesomium.dll` and the other retail payload DLLs are present, and compare the install with `pwsh tools\ci\audit-retail-dependencies.ps1 -Strict`. |
 | `Failed to initialize renderer` | Running from 64-bit tools or GPU driver blocking DX9 | Rebuild using `/p:Platform=Win32`, launch from `SysWOW64\cmd.exe`, and update GPU drivers; if Secure Boot enforcement blocks unsigned DX9 components, install the signed June 2010 package. |
 
 Capture Event Viewer `Application` log entries after each failure and attach `ProcMon` traces when escalating issues so the build team can reproduce the WOW64 environment.

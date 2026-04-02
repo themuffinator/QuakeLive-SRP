@@ -78,13 +78,21 @@ function Assert-FilesAvailable {
 }
 
 $projectChecks = @(
-    'src/code/game/game.vcxproj',
-    'src/code/cgame/cgame.vcxproj',
+    'src/code/game/qagamex86.vcxproj',
+    'src/code/cgame/cgamex86.vcxproj',
+    'src/code/ui/ui.vcxproj',
+    'src/code/quakelive_steam.vcxproj',
     'src/code/awesomium_process.vcxproj'
 )
 foreach ($project in $projectChecks) {
     Assert-PlatformToolset -ProjectRelativePath $project -ExpectedToolset $PlatformToolset
 }
+
+$toolchainAudit = Join-Path $PSScriptRoot 'audit-retail-toolchain.ps1'
+& $toolchainAudit -RepoRoot $RepoRoot -Strict:$true
+
+$metadataAudit = Join-Path $PSScriptRoot 'audit-retail-metadata.ps1'
+& $metadataAudit -RepoRoot $RepoRoot
 
 $launcherRoot = Join-Path $RepoRoot 'assets/quakelive'
 $launcherPayload = @(

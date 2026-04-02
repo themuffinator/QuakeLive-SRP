@@ -1238,7 +1238,7 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 	usedPrediction = qfalse;
 	addImpact = qfalse;
 
-	if ( cg_predictLocalRailshots.integer && cent->currentState.number == cg.predictedPlayerState.clientNum ) {
+	if ( cg.predictLocalRailshots && cent->currentState.number == cg.predictedPlayerState.clientNum ) {
 		if ( CG_GetStoredPredictedBeam( WP_LIGHTNING, storedStart, storedEnd, &storedHit ) ) {
 			usedPrediction = qtrue;
 			addImpact = storedHit;
@@ -1569,7 +1569,7 @@ Returns the cached start/end data for a previously predicted hitscan.
 =============
 */
 static qboolean CG_GetStoredPredictedBeam( weapon_t weapon, vec3_t start, vec3_t end, qboolean *hitWorld ) {
-	if ( !cg_predictLocalRailshots.integer ) {
+	if ( !cg.predictLocalRailshots ) {
 		return qfalse;
 	}
 
@@ -2526,7 +2526,7 @@ void CG_FireWeapon( centity_t *cent ) {
 	// append the flash to the weapon model
 	cent->muzzleFlashTime = cg.time;
 
-	if ( cg_predictLocalRailshots.integer && cent->currentState.number == cg.predictedPlayerState.clientNum ) {
+	if ( cg.predictLocalRailshots && cent->currentState.number == cg.predictedPlayerState.clientNum ) {
 		qboolean		hitWorld = qfalse;
 
 		if ( ent->weapon == WP_LIGHTNING ) {

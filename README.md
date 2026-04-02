@@ -1,130 +1,96 @@
 # Quake Live Reverse Engineering Project
 
+[![Accuracy First](https://img.shields.io/badge/Accuracy-First-1f6feb)](AUDIT.md)
+[![Current Status](https://img.shields.io/badge/Status-Non--Playable-b22222)](AUDIT.md)
+[![Implementation Plan](https://img.shields.io/badge/Work%20Queue-Implementation%20Plan-2ea44f)](IMPLEMENTATION_PLAN.md)
+[![Getting Started](https://img.shields.io/badge/Docs-Getting%20Started-6f42c1)](docs/onboarding/overview.md)
+
 [![Native DLL (VS2010)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/windows-native.yml/badge.svg?branch=main)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/windows-native.yml)
 [![QVM Toolchain](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/toolchain.yml/badge.svg?branch=main)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/toolchain.yml)
 
-This repository documents and reconstructs the Quake Live gameplay stack on top of the
-open-source Quake III Arena codebase. Use the documentation under `docs/` to navigate
-build pipelines, testing harnesses, and reverse-engineering references.
+This project aims to reconstruct the full Quake Live source code as faithfully as possible.
+It starts from the public Quake III Arena GPL source release and then rebuilds Quake Live
+behavior piece by piece using retail binaries, Binary Ninja HLIL exports, committed Ghidra
+references, symbol maps, and runtime validation.
+
+Accuracy is the top priority. This repository is not trying to make a "Quake Live-like"
+fork or a rough gameplay approximation. The goal is to recover how the retail game actually
+works, document what is known, and close the remaining gaps in a way that stays grounded in
+evidence instead of guesswork.
+
+## What "accuracy first" means here
+
+- Retail Quake Live behavior is the target, not convenience or approximation.
+- Reverse-engineering evidence is treated as the source of truth when the open GPL baseline
+  and the retail game differ.
+- Where evidence is incomplete, small intuitive fixes or compatibility wiring may still be
+  needed to keep the reconstruction working, but they should stay minimal and give way to
+  stronger evidence when it appears.
+- Unclear areas are tracked as open gaps instead of being filled in with confident-looking
+  assumptions.
+- Quake Live-specific online services can be disabled in builds when the retail dependency
+  cannot yet be reconstructed cleanly or does not have an open replacement.
+- Progress is measured by parity with the retail game, not just by whether the code builds
+  or runs.
 
 ## Current status
 
-> Snapshot dates: parity audit updated on 2026-03-26, implementation queue refreshed on 2026-03-06, and UI mapping notes tightened on 2026-04-01.
+The project is well past basic bring-up. Source-built native `ui`, `qagame`, and `cgame`
+DLLs load through the recovered Quake Live-style interfaces, and a large amount of gameplay
+and cgame behavior has already been reconstructed.
 
-The project is past the "basic bring-up" stage. Source-built native `ui`, `qagame`,
-and `cgame` DLLs load through the recovered Quake Live-style `dllEntry` seam, major
-gameplay and cgame systems are in the medium-high parity range, and the remaining gaps
-are now concentrated in the retail launcher/platform host, retail UI asset/menu
-behavior, and the final ownerdraw/stat payload edges.
+That said, the current codebase is not yet playable end to end. Some important wiring is
+still absent, so a successful build does not currently mean a fully working game.
 
-### Reconstruction snapshot
-
-| Area | Status | Current reading |
-|------|--------|-----------------|
-| Native game-module ABI | High parity for source-built DLLs | The engine loads native `ui`, `qagame`, and `cgame` DLLs through the recovered Quake Live import/export seam. The remaining gap is strict compatibility validation against the retail DLLs themselves rather than only reconstructed source-built binaries. |
-| Core gameplay and cgame | Medium-high parity | Most baseline gameplay systems are reconstructed and working. Current effort is focused on targeted retail validation, sequencing fixes, and smaller subsystem gaps instead of wholesale feature bring-up. |
-| Native launcher and platform host | Low parity | The retail `quakelive_steam.exe` bootstrap, Steam-backed platform flows, web/Awesomium-style navigation, and launcher-owned state publication remain the single largest structural gap. |
-| Retail UI asset and menu stack | Low-medium parity | Engine-side compatibility has improved materially, but many retail assets, fonts, and menu assumptions still fall back or warn at runtime because the retail UI stack is not fully reconstructed here. |
-| Ownerdraw and stat payloads | Medium parity | Scorestats, placement, and team telemetry are substantially farther along than before, but the repo is still finishing the last retail-aligned payload fields and validating them against runtime evidence. |
-
-### Latest audited progress
-
-- `Task 20` closed the match-flow configstring gap by publishing and consuming the
-  retail-side sudden-death, ready-up, and warmup-ready channels instead of partially
-  mirroring them.
-- `Task 25` restored the compact retail-backed cgame particle runtime, removing the
-  split between the compiled path and the stale duplicate source copy.
-- `Task 26` recovered the native `dllEntry` import/export contract for `ui`,
-  `qagame`, and `cgame`, validated the rebuilt export tables, and proved the normal
-  startup and gameplay map paths work with source-built DLLs.
-- The latest UI documentation pass on 2026-04-01 reports that the committed `uix86`
-  map now covers the full current anchor corpus at `444 / 444` anchors, shifting the
-  remaining UI uncertainty toward runtime behavior, asset coverage, and parser or
-  compatibility details rather than basic function ownership.
-
-### Active work queue
-
-1. Reconstruct the native launcher/platform host behavior and tighten validation
-   against the retail gameplay DLLs.
-2. Continue UI/menu compatibility work in writable engine-side layers, including UI
-   bridge and fallback validation, while `src/ui/` remains read-only.
-3. Finish ownerdraw/stat payload parity and keep runtime validation fixtures aligned
-   with the recovered data model.
-4. Run targeted gameplay validation sweeps, including PQL/CPMA air control,
-   movement, Race, and gametype-specific rules where retail sequencing still needs
-   confirmation.
-
-### Latest verification snapshot
-
-- `Debug|x86` solution build succeeded on 2026-03-26.
-- `tools/ci/assert-dll-exports.ps1` passed for rebuilt `uix86.dll`,
-  `qagamex86.dll`, and `cgamex86.dll`.
-- A normal runtime pass reached the native `ui` main-menu path.
-- A gameplay runtime pass on `campgrounds` loaded native `ui`, `qagame`, and
-  `cgame`, then shut down cleanly.
-- A forced-crash validation pass produced a fresh dump under
-  `build\\win32\\Debug\\dumps`.
-
-### Constraints that shape progress
-
-- `references/hlil/` remains the canonical parity reference; the committed Ghidra
-  exports and symbol maps act as the structured companion evidence base.
-- `src/ui/` is read-only, so retail UI progress is currently driven by engine-side
-  compatibility work, bridge validation, and documentation rather than direct UI VM
-  rewrites.
-- Quake Live-only online services stay behind `QL_BUILD_ONLINE_SERVICES`, default
-  disabled, until an open replacement path exists.
-
-For the full parity breakdown and the live reconstruction queue, see
+The biggest remaining gaps are still the hard ones: the retail launcher and platform host,
+the full retail UI and menu behavior, and the last rounds of parity validation against the
+shipping game. For the detailed parity breakdown and current task queue, see
 [`AUDIT.md`](AUDIT.md) and [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+
+## Repository guide
+
+- `src/` contains the active reconstructed codebase built on top of the Quake III Arena GPL
+  source layout.
+- `src-re/` is the clean-room reconstruction workspace used for staged reverse-engineering
+  work, prototypes, and promoted headers.
+- `references/` holds the main reverse-engineering evidence, including HLIL exports and the
+  committed Ghidra corpus.
+- `assets/` stores upstream and retail reference material used for validation and comparison.
+- `docs/` contains onboarding notes, workflow guides, parity documentation, and subsystem
+  research.
+- `tests/`, `tools/`, `artifacts/`, and `logs/` support the deterministic validation and CI
+  workflows used to check reconstruction progress.
 
 ## Reverse-engineering references
 
-The repository now carries two complementary reverse-engineering corpora:
+The project keeps its main evidence base in the repository so work can be reviewed and
+replayed:
 
-- Binary Ninja HLIL dumps under `references/hlil/`, which remain the canonical
-  parity reference for retail Quake Live behavior.
-- OpenAlice-style committed Ghidra exports under
-  `references/reverse-engineering/ghidra/`, which provide structured
-  `metadata.txt`, `functions.csv`, `imports.txt`, `exports.txt`,
-  `analysis_symbols.txt`, and `decompile_top_functions.c` snapshots for the retail
-  Quake Live binaries in `assets/quakelive/`.
+- `references/hlil/` contains Binary Ninja HLIL dumps for both Quake III Arena and Quake
+  Live binaries.
+- `references/reverse-engineering/ghidra/` contains the committed Ghidra exports used as a
+  structured companion corpus.
+- `references/symbol-maps/` and `references/analysis/quakelive_symbol_aliases.json` support
+  naming, ownership, and symbol recovery work.
 
-Primary workflow docs:
+If you are tracing a subsystem, start with the committed reference material before making new
+assumptions. The canonical workflow is documented in
+[`docs/reverse-engineering/ghidra-reference-workflow.md`](docs/reverse-engineering/ghidra-reference-workflow.md).
 
-- `docs/reverse-engineering/ghidra-reference-workflow.md`
-- `docs/reverse-engineering/ghidra-module-mapping.md`
-- `docs/reverse-engineering/ghidrassist-mcp.md`
+## Getting started
 
-Refresh the committed Ghidra corpus with:
+- Read [`docs/onboarding/overview.md`](docs/onboarding/overview.md) for the quickest project
+  orientation.
+- Read [`docs/repo-overview.md`](docs/repo-overview.md) for a fuller explanation of the
+  repository layout.
+- Use [`docs/platform/toolchain-matrix.md`](docs/platform/toolchain-matrix.md) to understand
+  build requirements and supported toolchains.
+- Use [`docs/reverse-engineering/ghidrassist-mcp.md`](docs/reverse-engineering/ghidrassist-mcp.md)
+  and related notes if you are working through the reverse-engineering reference workflow.
 
-```powershell
-scripts\ghidra\run_quakelive_reference.ps1
-```
+## Credits
 
-## Mentorship rotation schedule
-
-| Week | Mentor | Focus Area |
-|------|--------|------------|
-| 1    | Alex Rivera (@alex-r) | Tooling setup, QVM toolchain verification |
-| 2    | Priya Desai (@pdesai) | HLIL diffing workflow, Binary Ninja projects |
-| 3    | Morgan Lee (@mlee)    | Deterministic harness deep dive |
-| 4    | Casey Nguyen (@cnguyen) | Gameplay parity audits, documentation standards |
-
-- The rotation restarts after Week 4; ping the current mentor in #reverse-engineering.
-- Swap weeks as needed by opening a short PR that updates this table.
-- Pairings default to a 30-minute weekly sync plus ad-hoc Slack support.
-
-## How to get started
-
-- Read [`docs/onboarding/re-track.md`](docs/onboarding/re-track.md) for the full
-  onboarding flow.
-- Review the slide decks in [`docs/media/`](docs/media/) before your first mentor
-  sync so you can ask targeted questions about the harness and reconstruction
-  workflow.
-- Consult the [`Native Toolchain Support Matrix`](docs/platform/toolchain-matrix.md)
-  for host requirements, build status, and the 32-bit runtime payloads needed to
-  exercise the native DLLs on each platform.【F:docs/platform/toolchain-matrix.md†L1-L60】
-
-For calendar integration, subscribe to the shared "QL Reverse Mentorship" calendar
-which mirrors this rotation for visibility across time zones.
+- This project builds on the public Quake III Arena GPL source release from id Software:
+  [id-Software/Quake-III-Arena](https://github.com/id-Software/Quake-III-Arena)
+- This project exists to reconstruct the retail Quake Live codebase as accurately as
+  possible: [Quake Live](https://www.quakelive.com/)

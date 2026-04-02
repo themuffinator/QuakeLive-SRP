@@ -265,44 +265,247 @@ static int		weaponColorGrenadeModCount = -1;
 static int		lowAmmoWarningPercentileModCount = -1;
 static int		announcerModificationCount = -1;
 
-vmCvar_t	cg_railTrailTime;
-vmCvar_t	cg_centertime;
-vmCvar_t	cg_runpitch;
-vmCvar_t	cg_runroll;
+vmCvar_t	cg_armorTiered;
+vmCvar_t	cg_addMarks;
+vmCvar_t	cg_allowTaunt;
+vmCvar_t	cg_noTaunt;
+vmCvar_t	cg_animSpeed;
+vmCvar_t	cg_announcer;
+vmCvar_t	cg_announcerRewardsVO;
+vmCvar_t	cg_autoAction;
+vmCvar_t	cg_autoHop;
+vmCvar_t	cg_autoswitch;
+vmCvar_t	cg_autoProjectileNudge;
+vmCvar_t	cg_bigFont;
+vmCvar_t	cg_blood;
+vmCvar_t	cg_blueTeamName;
+vmCvar_t	cg_bob;
 vmCvar_t	cg_bobup;
 vmCvar_t	cg_bobpitch;
 vmCvar_t	cg_bobroll;
-vmCvar_t	cg_bob;
-vmCvar_t	cg_swingSpeed;
-vmCvar_t	cg_shadows;
-vmCvar_t	cg_drawTimer;
-vmCvar_t	cg_drawFPS;
-vmCvar_t	cg_drawSnapshot;
+vmCvar_t	cg_runpitch;
+vmCvar_t	cg_runroll;
+vmCvar_t	cg_brassTime;
+vmCvar_t	cg_buildScript;
+vmCvar_t	cg_cameraMode;
+vmCvar_t	cg_cameraOrbit;
+vmCvar_t	cg_cameraOrbitDelay;
+vmCvar_t	cg_cameraSmartMode;
+vmCvar_t	cg_cameraThirdPersonSmartMode;
+vmCvar_t	cg_centertime;
+vmCvar_t	cg_chatbeep;
+vmCvar_t	cg_chatHistoryLength;
+vmCvar_t	cg_crosshairBrightness;
+vmCvar_t	cg_crosshairColor;
+vmCvar_t	cg_crosshairHealth;
+vmCvar_t	cg_crosshairHitColor;
+vmCvar_t	cg_crosshairHitStyle;
+vmCvar_t	cg_crosshairHitTime;
+vmCvar_t	cg_crosshairPulse;
+vmCvar_t	cg_crosshairSize;
+vmCvar_t	cg_crosshairX;
+vmCvar_t	cg_crosshairY;
+vmCvar_t	cg_currentSelectedPlayer;
+vmCvar_t	cg_currentSelectedPlayerName;
+vmCvar_t	cg_damagePlum;
+vmCvar_t	cg_damagePlumColorStyle;
+vmCvar_t	cg_deadBodyColor;
+vmCvar_t	cg_deadBodyDarken;
+vmCvar_t	cg_debugAnim;
+vmCvar_t	cg_debugEvents;
+vmCvar_t	cg_debugPosition;
+vmCvar_t	cg_debugOwnerdrawStats;
+vmCvar_t	cg_deferPlayers;
+vmCvar_t	cg_disableLoadout_g;
+vmCvar_t	cg_disableLoadout_mg;
+vmCvar_t	cg_disableLoadout_sg;
+vmCvar_t	cg_disableLoadout_gl;
+vmCvar_t	cg_disableLoadout_rl;
+vmCvar_t	cg_disableLoadout_lg;
+vmCvar_t	cg_disableLoadout_rg;
+vmCvar_t	cg_disableLoadout_pg;
+vmCvar_t	cg_disableLoadout_bfg;
+vmCvar_t	cg_disableLoadout_gh;
+vmCvar_t	cg_disableLoadout_ng;
+vmCvar_t	cg_disableLoadout_pl;
+vmCvar_t	cg_disableLoadout_cg;
+vmCvar_t	cg_disableLoadout_hmg;
+vmCvar_t	cg_draw2D;
 vmCvar_t	cg_draw3dIcons;
-vmCvar_t	cg_drawIcons;
 vmCvar_t	cg_drawAmmoWarning;
-vmCvar_t	cg_lowAmmoWeaponBarWarning;
+vmCvar_t	cg_drawAttacker;
 vmCvar_t	cg_drawCrosshair;
-vmCvar_t	cg_drawCrosshairNames;
-vmCvar_t	cg_drawRewards;
-vmCvar_t	cg_drawRewardsRowSize;
-vmCvar_t	cg_announcer;
-vmCvar_t	cg_announcerRewardsVO;
-vmCvar_t	cg_raceBeep;
-vmCvar_t	cg_drawCheckpointRemaining;
-vmCvar_t	cg_levelTimerDirection;
-vmCvar_t	cg_drawProfileImages;
-vmCvar_t	cg_drawSprites;
-vmCvar_t	cg_drawPregameMessages;
-vmCvar_t	cg_drawSpecMessages;
-vmCvar_t	cg_drawItemPickups;
-vmCvar_t	cg_drawSpriteSelf;
+vmCvar_t	cg_drawCrosshairTeamHealth;
+vmCvar_t	cg_drawCrosshairTeamHealthSize;
+vmCvar_t	cg_drawDeadFriendTime;
 vmCvar_t	cg_drawDemoHUD;
+vmCvar_t	cg_drawFPS;
 vmCvar_t	cg_drawFragMessages;
+vmCvar_t	cg_drawFullWeaponBar;
+vmCvar_t	cg_drawGun;
+vmCvar_t	cg_drawHitFriendTime;
+vmCvar_t	cg_drawIcons;
 vmCvar_t	cg_drawInputCmds;
+vmCvar_t	cg_drawInputCmdsSize;
 vmCvar_t	cg_drawInputCmdsX;
 vmCvar_t	cg_drawInputCmdsY;
-vmCvar_t	cg_drawInputCmdsSize;
+vmCvar_t	cg_drawItemPickups;
+vmCvar_t	cg_drawPregameMessages;
+vmCvar_t	cg_drawProfileImages;
+vmCvar_t	cg_drawCheckpointRemaining;
+vmCvar_t	cg_drawRewards;
+vmCvar_t	cg_drawRewardsRowSize;
+vmCvar_t	cg_drawSnapshot;
+vmCvar_t	cg_drawTimer;
+vmCvar_t	cg_drawSpecMessages;
+vmCvar_t	cg_drawSprites;
+vmCvar_t	cg_drawSpriteSelf;
+vmCvar_t	cg_drawStatus;
+vmCvar_t	cg_drawTeamOverlay;
+vmCvar_t	cg_drawTeamOverlayOpacity;
+vmCvar_t	cg_drawTeamOverlaySize;
+vmCvar_t	cg_drawTeamOverlayX;
+vmCvar_t	cg_drawTeamOverlayY;
+vmCvar_t	cg_teamOverlayUserinfo;
+vmCvar_t	cg_drawTieredArmorAvailability;
+vmCvar_t	cg_enableDust;
+vmCvar_t	cg_enableBreath;
+vmCvar_t	cg_drawCrosshairNames;
+vmCvar_t	cg_enemyCrosshairNames;
+vmCvar_t	cg_enemyCrosshairNamesOpacity;
+vmCvar_t	cg_enemyColors;
+vmCvar_t	cg_enemyHeadColor;
+vmCvar_t	cg_enemyLowerColor;
+vmCvar_t	cg_enemyUpperColor;
+vmCvar_t	cg_errorDecay;
+vmCvar_t	cg_filter_angles;
+vmCvar_t	cg_followKiller;
+vmCvar_t	cg_followPowerup;
+vmCvar_t	cg_footsteps;
+vmCvar_t	cg_forceModel;
+vmCvar_t	cg_forceEnemyModel;
+vmCvar_t	cg_enemyModel;
+vmCvar_t	cg_forceEnemySkin;
+vmCvar_t	cg_forceEnemyWeaponColor;
+vmCvar_t	cg_forceTeamModel;
+vmCvar_t	cg_teamModel;
+vmCvar_t	cg_forceTeamSkin;
+vmCvar_t	cg_forceTeamWeaponColor;
+vmCvar_t	cg_fov;
+vmCvar_t	cg_gameInfo1;
+vmCvar_t	cg_gameInfo2;
+vmCvar_t	cg_gameInfo3;
+vmCvar_t	cg_gameInfo4;
+vmCvar_t	cg_gameInfo5;
+vmCvar_t	cg_gameInfo6;
+vmCvar_t	cg_gametype;
+vmCvar_t	cg_gun_x;
+vmCvar_t	cg_gun_y;
+vmCvar_t	cg_gun_z;
+vmCvar_t	cg_gun_frame;
+vmCvar_t	cg_hudFiles;
+vmCvar_t	cg_ignoreMouseInput;
+vmCvar_t	cg_itemTimers;
+vmCvar_t	cg_kickScale;
+vmCvar_t	cg_lagometer;
+vmCvar_t	cg_lastmsg;
+vmCvar_t	cg_levelTimerDirection;
+vmCvar_t	cg_lightningImpact;
+vmCvar_t	cg_lightningImpactCap;
+vmCvar_t	cg_lightningStyle;
+vmCvar_t	cg_loadout;
+vmCvar_t	cg_lowAmmoWarningPercentile;
+vmCvar_t	cg_lowAmmoWeaponBarWarning;
+vmCvar_t	cg_muzzleFlash;
+vmCvar_t	cg_noPlayerAnims;
+vmCvar_t	cg_nopredict;
+vmCvar_t	cg_synchronousClients;
+vmCvar_t	cg_obeliskRespawnDelay;
+vmCvar_t	cg_obituaryRowSize;
+vmCvar_t	cg_overheadNamesWidth;
+vmCvar_t	cg_paused;
+vmCvar_t	cg_preferredStartingWeapons;
+vmCvar_t	cg_oldPlasma;
+vmCvar_t	cg_playerCylinders;
+vmCvar_t	cg_smoothClients;
+vmCvar_t	pmove_fixed;
+vmCvar_t	pmove_msec;
+//vmCvar_t	cg_pmove_fixed;
+vmCvar_t	cg_predictItems;
+vmCvar_t	cg_predictLocalRailshots;
+vmCvar_t	cg_projectileNudge;
+vmCvar_t	cg_noProjectileTrail;
+vmCvar_t	cg_raceBeep;
+vmCvar_t	cg_oldRail;
+vmCvar_t	cg_railTrailTime;
+vmCvar_t	cg_recordSPDemo;
+vmCvar_t	cg_recordSPDemoName;
+vmCvar_t	cg_redTeamName;
+vmCvar_t	cg_oldRocket;
+vmCvar_t	cg_scorePlum;
+vmCvar_t	cg_screenDamage;
+vmCvar_t	cg_screenDamage_Self;
+vmCvar_t	cg_screenDamage_Team;
+vmCvar_t	cg_screenDamageAlpha;
+vmCvar_t	cg_screenDamageAlpha_Team;
+vmCvar_t	cg_selfOnTeamOverlay;
+vmCvar_t	cg_shadows;
+vmCvar_t	cg_showmiss;
+vmCvar_t	cg_simpleItems;
+vmCvar_t	cg_simpleItemsBob;
+vmCvar_t	cg_simpleItemsHeightOffset;
+vmCvar_t	cg_simpleItemsRadius;
+vmCvar_t	cg_singlePlayer;
+vmCvar_t	cg_singlePlayerActive;
+vmCvar_t	cg_smallFont;
+vmCvar_t	cg_spectating;
+vmCvar_t	cg_specItemTimers;
+vmCvar_t	cg_specItemTimersSize;
+vmCvar_t	cg_specItemTimersX;
+vmCvar_t	cg_specItemTimersY;
+vmCvar_t	cg_specNames;
+vmCvar_t	cg_specTeamVitals;
+vmCvar_t	cg_specTeamVitalsHealthColor;
+vmCvar_t	cg_speedometer;
+vmCvar_t	cg_stats;
+vmCvar_t	cg_stereoSeparation;
+vmCvar_t	cg_swingSpeed;
+vmCvar_t	cg_switchOnEmpty;
+vmCvar_t	cg_switchToEmpty;
+vmCvar_t	cg_teamChatBeep;
+vmCvar_t	cg_teamChatHeight;
+vmCvar_t	cg_teamChatsOnly;
+vmCvar_t	cg_teamChatTime;
+vmCvar_t	cg_teamColors;
+vmCvar_t	cg_teamHeadColor;
+vmCvar_t	cg_teamLowerColor;
+vmCvar_t	cg_teamUpperColor;
+vmCvar_t	cg_teammateCrosshairNames;
+vmCvar_t	cg_teammateCrosshairNamesOpacity;
+vmCvar_t	cg_drawFriend;
+vmCvar_t	cg_teammateNames;
+vmCvar_t	cg_teammatePOIs;
+vmCvar_t	cg_teammatePOIsMaxWidth;
+vmCvar_t	cg_teammatePOIsMinWidth;
+vmCvar_t	cg_thirdPerson;
+vmCvar_t	cg_thirdPersonAngle;
+vmCvar_t	cg_thirdPersonPitch;
+vmCvar_t	cg_thirdPersonRange;
+vmCvar_t	cg_timescale;
+vmCvar_t	cg_timescaleFadeEnd;
+vmCvar_t	cg_timescaleFadeSpeed;
+vmCvar_t	cg_tracerChance;
+vmCvar_t	cg_tracerLength;
+vmCvar_t	cg_tracerWidth;
+vmCvar_t	cg_trackPlayer;
+vmCvar_t	cg_trueLightning;
+vmCvar_t	cg_trueShotgun;
+vmCvar_t	cg_useItemMessage;
+vmCvar_t	cg_useItemWarning;
+vmCvar_t	cg_viewsize;
+vmCvar_t	cg_vignette;
+vmCvar_t	cg_voiceChatIndicator;
+vmCvar_t	cg_waterWarp;
 vmCvar_t	cg_weaponBar;
 vmCvar_t	cg_weaponColor_grenade;
 vmCvar_t	cg_weaponConfig;
@@ -322,222 +525,11 @@ vmCvar_t	cg_weaponConfig_cg;
 vmCvar_t	cg_weaponConfig_hmg;
 vmCvar_t	cg_weaponPrimary;
 vmCvar_t	cg_weaponPrimaryQueued;
-vmCvar_t	cg_crosshairSize;
-vmCvar_t	cg_crosshairX;
-vmCvar_t	cg_crosshairY;
-vmCvar_t	cg_crosshairHealth;
-vmCvar_t	cg_crosshairColor;
-vmCvar_t	cg_crosshairBrightness;
-vmCvar_t	cg_crosshairPulse;
-vmCvar_t	cg_crosshairHitStyle;
-vmCvar_t	cg_crosshairHitTime;
-vmCvar_t	cg_crosshairHitColor;
-vmCvar_t	cg_enemyCrosshairNames;
-vmCvar_t	cg_enemyCrosshairNamesOpacity;
-vmCvar_t	cg_teammateCrosshairNames;
-vmCvar_t	cg_teammateCrosshairNamesOpacity;
-vmCvar_t	cg_drawCrosshairTeamHealth;
-vmCvar_t	cg_drawCrosshairTeamHealthSize;
-vmCvar_t	cg_draw2D;
-vmCvar_t	cg_drawStatus;
-vmCvar_t	cg_animSpeed;
-vmCvar_t	cg_debugAnim;
-vmCvar_t	cg_debugPosition;
-vmCvar_t	cg_debugEvents;
-vmCvar_t	cg_debugOwnerdrawStats;
-vmCvar_t	cg_errorDecay;
-vmCvar_t	cg_nopredict;
-vmCvar_t	cg_noPlayerAnims;
-vmCvar_t	cg_showmiss;
-vmCvar_t	cg_footsteps;
-vmCvar_t	cg_addMarks;
-vmCvar_t	cg_brassTime;
-vmCvar_t	cg_viewsize;
-vmCvar_t	cg_drawGun;
-vmCvar_t	cg_gun_frame;
-vmCvar_t	cg_gun_x;
-vmCvar_t	cg_gun_y;
-vmCvar_t	cg_gun_z;
-vmCvar_t	cg_tracerChance;
-vmCvar_t	cg_tracerWidth;
-vmCvar_t	cg_tracerLength;
-vmCvar_t	cg_autoHop;
-vmCvar_t	cg_autoProjectileNudge;
-vmCvar_t	cg_autoswitch;
-vmCvar_t	cg_projectileNudge;
-vmCvar_t	cg_switchOnEmpty;
-vmCvar_t	cg_switchToEmpty;
-vmCvar_t	cg_simpleItems;
-vmCvar_t	cg_simpleItemsHeightOffset;
-vmCvar_t	cg_simpleItemsBob;
-vmCvar_t	cg_simpleItemsRadius;
-vmCvar_t	cg_fov;
 vmCvar_t	cg_zoomFov;
-vmCvar_t	cg_zoomToggle;
 vmCvar_t	cg_zoomOutOnDeath;
 vmCvar_t	cg_zoomScaling;
 vmCvar_t	cg_zoomSensitivity;
-vmCvar_t	cg_waterWarp;
-vmCvar_t	cg_thirdPerson;
-vmCvar_t	cg_thirdPersonRange;
-vmCvar_t	cg_thirdPersonAngle;
-vmCvar_t	cg_thirdPersonPitch;
-vmCvar_t	cg_stereoSeparation;
-vmCvar_t	cg_lagometer;
-vmCvar_t	cg_drawAttacker;
-vmCvar_t	cg_synchronousClients;
-vmCvar_t 	cg_teamChatTime;
-vmCvar_t 	cg_lowAmmoWarningPercentile;
-vmCvar_t 	cg_teamChatHeight;
-vmCvar_t	cg_chatHistoryLength;
-vmCvar_t	cg_chatbeep;
-vmCvar_t	cg_teamChatBeep;
-vmCvar_t 	cg_stats;
-vmCvar_t 	cg_buildScript;
-vmCvar_t 	cg_forceModel;
-vmCvar_t	cg_forceTeamModel;
-vmCvar_t	cg_teamModel;
-vmCvar_t	cg_teamColors;
-vmCvar_t	cg_forceTeamSkin;
-vmCvar_t	cg_enemyModel;
-vmCvar_t	cg_forceEnemyModel;
-vmCvar_t	cg_enemyColors;
-vmCvar_t	cg_forceEnemySkin;
-vmCvar_t	cg_forceTeamWeaponColor;
-vmCvar_t	cg_forceEnemyWeaponColor;
-vmCvar_t	cg_teamHeadColor;
-vmCvar_t	cg_teamUpperColor;
-vmCvar_t	cg_teamLowerColor;
-vmCvar_t	cg_enemyHeadColor;
-vmCvar_t	cg_enemyUpperColor;
-vmCvar_t	cg_enemyLowerColor;
-vmCvar_t	cg_paused;
-vmCvar_t	cg_blood;
-vmCvar_t	cg_predictItems;
-vmCvar_t	cg_deferPlayers;
-vmCvar_t	cg_drawTeamOverlay;
-vmCvar_t	cg_selfOnTeamOverlay;
-vmCvar_t	cg_drawTeamOverlayX;
-vmCvar_t	cg_drawTeamOverlayY;
-vmCvar_t	cg_drawTeamOverlaySize;
-vmCvar_t	cg_drawTeamOverlayOpacity;
-vmCvar_t	cg_teamOverlayUserinfo;
-vmCvar_t	cg_drawFriend;
-vmCvar_t	cg_teammateNames;
-vmCvar_t	cg_teammatePOIs;
-vmCvar_t	cg_teammatePOIsMinWidth;
-vmCvar_t	cg_teammatePOIsMaxWidth;
-vmCvar_t	cg_teamChatsOnly;
-vmCvar_t	cg_playVoiceChats;
-vmCvar_t	cg_showVoiceText;
-vmCvar_t	cg_useItemMessage;
-vmCvar_t	cg_useItemWarning;
-vmCvar_t	cg_allowTaunt;
-vmCvar_t	cg_muzzleFlash;
-vmCvar_t	cg_hudFiles;
-vmCvar_t	cg_kickScale;
-vmCvar_t 	cg_scorePlum;
-vmCvar_t 	cg_damagePlum;
-vmCvar_t 	cg_damagePlumColorStyle;
-vmCvar_t 	cg_preferredStartingWeapons;
-vmCvar_t 	cg_disableLoadout_g;
-vmCvar_t 	cg_disableLoadout_mg;
-vmCvar_t 	cg_disableLoadout_sg;
-vmCvar_t 	cg_disableLoadout_gl;
-vmCvar_t 	cg_disableLoadout_rl;
-vmCvar_t 	cg_disableLoadout_lg;
-vmCvar_t 	cg_disableLoadout_rg;
-vmCvar_t 	cg_disableLoadout_pg;
-vmCvar_t 	cg_disableLoadout_bfg;
-vmCvar_t 	cg_disableLoadout_gh;
-vmCvar_t 	cg_disableLoadout_ng;
-vmCvar_t 	cg_disableLoadout_pl;
-vmCvar_t 	cg_disableLoadout_cg;
-vmCvar_t 	cg_disableLoadout_hmg;
-vmCvar_t 	cg_trueShotgun;
-vmCvar_t 	cg_trackPlayer;
-vmCvar_t 	cg_followKiller;
-vmCvar_t 	cg_followPowerup;
-vmCvar_t 	cg_ignoreMouseInput;
-vmCvar_t 	cg_filter_angles;
-vmCvar_t 	cg_smoothClients;
-vmCvar_t 	cg_loadout;
-vmCvar_t	pmove_fixed;
-//vmCvar_t	cg_pmove_fixed;
-vmCvar_t	pmove_msec;
-vmCvar_t	cg_pmove_msec;
-vmCvar_t	cg_cameraMode;
-vmCvar_t	cg_cameraSmartMode;
-vmCvar_t	cg_cameraThirdPersonSmartMode;
-vmCvar_t	cg_cameraOrbit;
-vmCvar_t	cg_cameraOrbitDelay;
-vmCvar_t	cg_timescaleFadeEnd;
-vmCvar_t	cg_timescaleFadeSpeed;
-vmCvar_t	cg_timescale;
-vmCvar_t	cg_smallFont;
-vmCvar_t	cg_bigFont;
-vmCvar_t	cg_noTaunt;
-vmCvar_t	cg_noProjectileTrail;
-vmCvar_t	cg_oldRail;
-vmCvar_t	cg_oldRocket;
-vmCvar_t	cg_oldPlasma;
-vmCvar_t	cg_trueLightning;
-vmCvar_t	cg_predictLocalRailshots;
-vmCvar_t	cg_lightningStyle;
-vmCvar_t	cg_lightningImpact;
-vmCvar_t	cg_lightningImpactCap;
-vmCvar_t	cg_drawTieredArmorAvailability;
-vmCvar_t	cg_armorTiered;
-vmCvar_t	cg_playerCylinders;
-vmCvar_t	cg_drawFullWeaponBar;
-vmCvar_t	cg_drawHitFriendTime;
-vmCvar_t	cg_drawDeadFriendTime;
-vmCvar_t	cg_deadBodyDarken;
-vmCvar_t	cg_deadBodyColor;
-vmCvar_t	cg_speedometer;
-vmCvar_t	cg_specNames;
-vmCvar_t	cg_specItemTimers;
-vmCvar_t	cg_specItemTimersX;
-vmCvar_t	cg_specItemTimersY;
-vmCvar_t	cg_specItemTimersSize;
-vmCvar_t	cg_specTeamVitals;
-vmCvar_t	cg_specTeamVitalsHealthColor;
-vmCvar_t	cg_itemTimers;
-vmCvar_t	cg_screenDamage;
-vmCvar_t	cg_screenDamage_Self;
-vmCvar_t	cg_screenDamage_Team;
-vmCvar_t	cg_screenDamageAlpha;
-vmCvar_t	cg_screenDamageAlpha_Team;
-vmCvar_t	cg_overheadNamesWidth;
-vmCvar_t	cg_obituaryRowSize;
-vmCvar_t	cg_spectating;
-vmCvar_t	cg_gametype;
-vmCvar_t	cg_gameInfo1;
-vmCvar_t	cg_gameInfo2;
-vmCvar_t	cg_gameInfo3;
-vmCvar_t	cg_gameInfo4;
-vmCvar_t	cg_gameInfo5;
-vmCvar_t	cg_gameInfo6;
-vmCvar_t	cg_vignette;
-vmCvar_t	cg_voiceChatIndicator;
-vmCvar_t	cg_autoHop;
-vmCvar_t	cg_autoProjectileNudge;
-vmCvar_t	cg_projectileNudge;
-vmCvar_t	cg_predictLocalRailshots;
-vmCvar_t	cg_autoAction;
-
-vmCvar_t 	cg_redTeamName;
-vmCvar_t 	cg_blueTeamName;
-vmCvar_t	cg_currentSelectedPlayer;
-vmCvar_t	cg_currentSelectedPlayerName;
-vmCvar_t	cg_singlePlayer;
-vmCvar_t	cg_enableDust;
-vmCvar_t	cg_enableBreath;
-vmCvar_t	cg_singlePlayerActive;
-vmCvar_t	cg_recordSPDemo;
-vmCvar_t	cg_recordSPDemoName;
-vmCvar_t	cg_obeliskRespawnDelay;
-vmCvar_t	cg_lastmsg;
+vmCvar_t	cg_zoomToggle;
 
 typedef struct {
 	vmCvar_t	*vmCvar;
@@ -563,204 +555,246 @@ static void CG_WriteLastMessageCvar( int timestamp, const char *message );
 static void CG_ReplayLastMessageFromCvar( void );
 
 static cvarTable_t cvarTable[] = { // bk001129
-	{ &cg_autoHop, "cg_autoHop", "1", CVAR_ARCHIVE | CVAR_LATCH },
-	{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
-	{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
-	{ &cg_autoswitch, "cg_autoswitch", "1", CVAR_ARCHIVE },
-	{ &cg_switchOnEmpty, "cg_switchOnEmpty", "1", CVAR_ARCHIVE },
-	{ &cg_switchToEmpty, "cg_switchToEmpty", "1", CVAR_ARCHIVE },
-	{ &cg_drawGun, "cg_drawGun", "1", CVAR_ARCHIVE },
-	{ &cg_gun_frame, "cg_gun_frame", "0", CVAR_CHEAT },
-	{ &cg_zoomFov, "cg_zoomfov", "22.5", CVAR_ARCHIVE },
-	{ &cg_zoomToggle, "cg_zoomToggle", "0", CVAR_ARCHIVE },
-	{ &cg_zoomOutOnDeath, "cg_zoomOutOnDeath", "0", CVAR_ARCHIVE },
-	{ &cg_zoomScaling, "cg_zoomScaling", "1", CVAR_ARCHIVE },
-	{ &cg_zoomSensitivity, "cg_zoomSensitivity", "1", CVAR_ARCHIVE },
-	{ &cg_waterWarp, "cg_waterWarp", "1", CVAR_ARCHIVE },
-	{ &cg_fov, "cg_fov", "90", CVAR_ARCHIVE },
-	{ &cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE },
-	{ &cg_stereoSeparation, "cg_stereoSeparation", "0.4", CVAR_ARCHIVE  },
-	{ &cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE  },
-	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE  },
-	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE  },
-	{ &cg_vignette, "cg_vignette", "1", CVAR_ARCHIVE },
-	{ &cg_drawTimer, "cg_drawTimer", "0", CVAR_ARCHIVE  },
-	{ &cg_levelTimerDirection, "cg_levelTimerDirection", "up", CVAR_ARCHIVE },
-	{ &cg_drawFPS, "cg_drawFPS", "0", CVAR_ARCHIVE  },
-	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
-	{ &cg_draw3dIcons, "cg_draw3dIcons", "1", CVAR_ARCHIVE  },
-	{ &cg_drawIcons, "cg_drawIcons", "1", CVAR_ARCHIVE  },
-	{ &cg_drawAmmoWarning, "cg_drawAmmoWarning", "1", CVAR_ARCHIVE  },
-	{ &cg_lowAmmoWeaponBarWarning, "cg_lowAmmoWeaponBarWarning", "2", CVAR_ARCHIVE },
-	{ &cg_lowAmmoWarningPercentile, "cg_lowAmmoWarningPercentile", "0.20", CVAR_ARCHIVE },
-	{ &cg_drawAttacker, "cg_drawAttacker", "1", CVAR_ARCHIVE  },
-	{ &cg_drawCrosshair, "cg_drawCrosshair", "4", CVAR_ARCHIVE },
-	{ &cg_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE },
-	{ &cg_drawRewards, "cg_drawRewards", "1", CVAR_ARCHIVE },
-	{ &cg_drawRewardsRowSize, "cg_drawRewardsRowSize", "9", CVAR_ARCHIVE },
+	{ &cg_armorTiered, "cg_armorTiered", "1", CVAR_ARCHIVE },
+	{ &cg_addMarks, "cg_marks", "1", CVAR_ARCHIVE },
+	{ &cg_allowTaunt, "cg_allowTaunt", "1", CVAR_ARCHIVE },
+	{ &cg_noTaunt, "cg_noTaunt", "0", CVAR_ARCHIVE},
+	{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },
 	{ &cg_announcer, "cg_announcer", "1", CVAR_ARCHIVE },
 	{ &cg_announcerRewardsVO, "cg_announcerRewardsVO", "1", CVAR_ARCHIVE },
-	{ &cg_raceBeep, "cg_raceBeep", "1", CVAR_ARCHIVE },
-	{ &cg_drawCheckpointRemaining, "cg_drawCheckpointRemaining", "1", CVAR_ARCHIVE },
-	{ &cg_drawProfileImages, "cg_drawProfileImages", "1", CVAR_ARCHIVE },
-	{ &cg_drawSprites, "cg_drawSprites", "1", CVAR_ARCHIVE },
-	{ &cg_drawPregameMessages, "cg_drawPregameMessages", "1", CVAR_ARCHIVE },
-	{ &cg_drawSpecMessages, "cg_drawSpecMessages", "1", CVAR_ARCHIVE },
-	{ &cg_useItemMessage, "cg_useItemMessage", "1", CVAR_ARCHIVE },
-	{ &cg_useItemWarning, "cg_useItemWarning", "1", CVAR_ARCHIVE },
-	{ &cg_allowTaunt, "cg_allowTaunt", "1", CVAR_ARCHIVE },
-	{ &cg_muzzleFlash, "cg_muzzleFlash", "1", CVAR_ARCHIVE },
-{ &cg_drawItemPickups, "cg_drawItemPickups", "5", CVAR_ARCHIVE },
-{ &cg_drawSpriteSelf, "cg_drawSpriteSelf", "0", CVAR_ARCHIVE },
-{ &cg_drawDemoHUD, "cg_drawDemoHUD", "1", CVAR_ARCHIVE },
-{ &cg_drawFragMessages, "cg_drawFragMessages", "1", CVAR_ARCHIVE },
-{ &cg_drawInputCmds, "cg_drawInputCmds", "0", CVAR_ARCHIVE },
-	{ &cg_drawInputCmdsX, "cg_drawInputCmdsX", "640", CVAR_ARCHIVE },
-	{ &cg_drawInputCmdsY, "cg_drawInputCmdsY", "480", CVAR_ARCHIVE },
-	{ &cg_drawInputCmdsSize, "cg_drawInputCmdsSize", "16", CVAR_ARCHIVE },
-{ &cg_crosshairSize, "cg_crosshairSize", "24", CVAR_ARCHIVE },
-{ &cg_crosshairHealth, "cg_crosshairHealth", "1", CVAR_ARCHIVE },
-{ &cg_crosshairColor, "cg_crosshairColor", "4", CVAR_ARCHIVE },
-{ &cg_crosshairBrightness, "cg_crosshairBrightness", "1", CVAR_ARCHIVE },
-{ &cg_crosshairPulse, "cg_crosshairPulse", "1", CVAR_ARCHIVE },
-{ &cg_crosshairHitStyle, "cg_crosshairHitStyle", "2", CVAR_ARCHIVE },
-{ &cg_crosshairHitTime, "cg_crosshairHitTime", "200", CVAR_ARCHIVE },
-{ &cg_crosshairHitColor, "cg_crosshairHitColor", "1", CVAR_ARCHIVE },
-{ &cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", CVAR_ARCHIVE },
-{ &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
-{ &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "1", CVAR_ARCHIVE },
-{ &cg_teammateCrosshairNamesOpacity, "cg_teammateCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
-{ &cg_drawCrosshairTeamHealth, "cg_drawCrosshairTeamHealth", "2", CVAR_ARCHIVE },
-	{ &cg_drawCrosshairTeamHealthSize, "cg_drawCrosshairTeamHealthSize", "0.12", CVAR_ARCHIVE },
-	{ &cg_crosshairX, "cg_crosshairX", "0", CVAR_ARCHIVE },
-	{ &cg_crosshairY, "cg_crosshairY", "0", CVAR_ARCHIVE },
-	{ &cg_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE },
-	{ &cg_simpleItems, "cg_simpleItems", "0", CVAR_ARCHIVE },
-	{ &cg_simpleItemsHeightOffset, "cg_simpleItemsHeightOffset", "0", CVAR_ARCHIVE },
-	{ &cg_simpleItemsBob, "cg_simpleItemsBob", "0", CVAR_ARCHIVE },
-	{ &cg_simpleItemsRadius, "cg_simpleItemsRadius", "14", CVAR_ARCHIVE },
-	{ &cg_addMarks, "cg_marks", "1", CVAR_ARCHIVE },
-	{ &cg_lagometer, "cg_lagometer", "1", CVAR_ARCHIVE },
-	{ &cg_railTrailTime, "cg_railTrailTime", "400", CVAR_ARCHIVE  },
-	{ &cg_gun_x, "cg_gunX", "0", CVAR_CHEAT },
-	{ &cg_gun_y, "cg_gunY", "0", CVAR_CHEAT },
-	{ &cg_gun_z, "cg_gunZ", "0", CVAR_CHEAT },
-	{ &cg_centertime, "cg_centertime", "3", CVAR_CHEAT },
-	{ &cg_runpitch, "cg_runpitch", "0.002", CVAR_ARCHIVE},
-	{ &cg_runroll, "cg_runroll", "0.005", CVAR_ARCHIVE },
+	{ &cg_autoAction, "cg_autoAction", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_autoHop, "cg_autoHop", "1", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_autoswitch, "cg_autoswitch", "1", CVAR_ARCHIVE },
+	{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE},
+	{ &cg_blood, "com_blood", "1", CVAR_ARCHIVE },
+	{ &cg_blueTeamName, "g_blueteam", DEFAULT_BLUETEAM_NAME, CVAR_ARCHIVE },
+	{ &cg_bob, "cg_bob", "1", CVAR_ARCHIVE },
 	{ &cg_bobup , "cg_bobup", "0.005", CVAR_CHEAT },
 	{ &cg_bobpitch, "cg_bobpitch", "0.002", CVAR_ARCHIVE },
 	{ &cg_bobroll, "cg_bobroll", "0.002", CVAR_ARCHIVE },
-	{ &cg_bob, "cg_bob", "1", CVAR_ARCHIVE },
-	{ &cg_kickScale, "cg_kickScale", "1", CVAR_ARCHIVE },
-	{ &cg_swingSpeed, "cg_swingSpeed", "0.3", CVAR_CHEAT },
-	{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },
+	{ &cg_runpitch, "cg_runpitch", "0.002", CVAR_ARCHIVE},
+	{ &cg_runroll, "cg_runroll", "0.005", CVAR_ARCHIVE },
+	{ &cg_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE },
+	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
+	{ &cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},
+	{ &cg_cameraOrbit, "cg_cameraOrbit", "0", CVAR_CHEAT},
+	{ &cg_cameraOrbitDelay, "cg_cameraOrbitDelay", "50", CVAR_ARCHIVE},
+	{ &cg_cameraSmartMode, "cg_cameraSmartMode", "0", CVAR_CHEAT},
+	{ &cg_cameraThirdPersonSmartMode, "cg_cameraThirdPersonSmartMode", "1", CVAR_CHEAT},
+	{ &cg_centertime, "cg_centertime", "3", CVAR_CHEAT },
+	{ &cg_chatbeep, "cg_chatbeep", "1", CVAR_ARCHIVE },
+	{ &cg_chatHistoryLength, "cg_chatHistoryLength", "0", CVAR_ARCHIVE },
+	{ &cg_crosshairBrightness, "cg_crosshairBrightness", "1", CVAR_ARCHIVE },
+	{ &cg_crosshairColor, "cg_crosshairColor", "4", CVAR_ARCHIVE },
+	{ &cg_crosshairHealth, "cg_crosshairHealth", "1", CVAR_ARCHIVE },
+	{ &cg_crosshairHitColor, "cg_crosshairHitColor", "1", CVAR_ARCHIVE },
+	{ &cg_crosshairHitStyle, "cg_crosshairHitStyle", "2", CVAR_ARCHIVE },
+	{ &cg_crosshairHitTime, "cg_crosshairHitTime", "200", CVAR_ARCHIVE },
+	{ &cg_crosshairPulse, "cg_crosshairPulse", "1", CVAR_ARCHIVE },
+	{ &cg_crosshairSize, "cg_crosshairSize", "24", CVAR_ARCHIVE },
+	{ &cg_crosshairX, "cg_crosshairX", "0", CVAR_ARCHIVE },
+	{ &cg_crosshairY, "cg_crosshairY", "0", CVAR_ARCHIVE },
+	{ &cg_currentSelectedPlayer, "cg_currentSelectedPlayer", "0", CVAR_ARCHIVE},
+	{ &cg_currentSelectedPlayerName, "cg_currentSelectedPlayerName", "", CVAR_ARCHIVE},
+	{ &cg_damagePlum, "cg_damagePlum", "g mg sg gl rl lg rg pg bfg gh cg ng pl hmg", CVAR_USERINFO | CVAR_ARCHIVE },
+	{ &cg_damagePlumColorStyle, "cg_damagePlumColorStyle", "1", CVAR_ARCHIVE },
+	{ &cg_deadBodyColor, "cg_deadBodyColor", "0x333333ff", CVAR_ARCHIVE },
+	{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE },
 	{ &cg_debugAnim, "cg_debuganim", "0", CVAR_CHEAT },
-	{ &cg_debugPosition, "cg_debugposition", "0", CVAR_CHEAT },
 	{ &cg_debugEvents, "cg_debugevents", "0", CVAR_CHEAT },
+	{ &cg_debugPosition, "cg_debugposition", "0", CVAR_CHEAT },
 	{ &cg_debugOwnerdrawStats, "cg_debugOwnerdrawStats", "0", CVAR_ARCHIVE },
-	{ &cg_errorDecay, "cg_errordecay", "100", 0 },
-	{ &cg_nopredict, "cg_nopredict", "0", 0 },
-	{ &cg_noPlayerAnims, "cg_noplayeranims", "0", CVAR_CHEAT },
-	{ &cg_showmiss, "cg_showmiss", "0", 0 },
-	{ &cg_footsteps, "cg_footsteps", "1", CVAR_CHEAT },
-	{ &cg_tracerChance, "cg_tracerchance", "0.4", CVAR_CHEAT },
-	{ &cg_tracerWidth, "cg_tracerwidth", "1", CVAR_CHEAT },
-	{ &cg_tracerLength, "cg_tracerlength", "100", CVAR_CHEAT },
-	{ &cg_thirdPersonRange, "cg_thirdPersonRange", "40", CVAR_CHEAT },
-	{ &cg_thirdPersonAngle, "cg_thirdPersonAngle", "0", CVAR_CHEAT },
-	{ &cg_thirdPersonPitch, "cg_thirdPersonPitch", "4.0", CVAR_CHEAT },
-	{ &cg_thirdPerson, "cg_thirdPerson", "0", 0 },
-{ &cg_teamChatTime, "cg_teamChatTime", "3000", CVAR_ARCHIVE  },
-{ &cg_teamChatHeight, "cg_teamChatHeight", "0", CVAR_ARCHIVE  },
-{ &cg_chatHistoryLength, "cg_chatHistoryLength", "0", CVAR_ARCHIVE },
-{ &cg_chatbeep, "cg_chatbeep", "1", CVAR_ARCHIVE },
-{ &cg_teamChatBeep, "cg_teamChatBeep", "1", CVAR_ARCHIVE },
-	{ &cg_forceModel, "cg_forceModel", "0", CVAR_ARCHIVE  },
-	{ &cg_forceTeamModel, "cg_forceTeamModel", "", CVAR_ARCHIVE },
-	{ &cg_teamModel, "cg_teamModel", "", CVAR_ARCHIVE },
-	{ &cg_teamColors, "cg_teamColors", "", CVAR_ARCHIVE },
-	{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", CVAR_ARCHIVE },
-	{ &cg_enemyModel, "cg_enemyModel", "", CVAR_ARCHIVE },
-	{ &cg_forceEnemyModel, "cg_forceEnemyModel", "", CVAR_ARCHIVE },
-	{ &cg_enemyColors, "cg_enemyColors", "", CVAR_ARCHIVE },
-	{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", CVAR_ARCHIVE },
-	{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", CVAR_ARCHIVE },
-	{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", CVAR_ARCHIVE },
-	{ &cg_teamHeadColor, "cg_teamHeadColor", "", CVAR_ARCHIVE },
-	{ &cg_teamUpperColor, "cg_teamUpperColor", "", CVAR_ARCHIVE },
-	{ &cg_teamLowerColor, "cg_teamLowerColor", "", CVAR_ARCHIVE },
-	{ &cg_enemyHeadColor, "cg_enemyHeadColor", "", CVAR_ARCHIVE },
-	{ &cg_enemyUpperColor, "cg_enemyUpperColor", "", CVAR_ARCHIVE },
-	{ &cg_enemyLowerColor, "cg_enemyLowerColor", "", CVAR_ARCHIVE },
-	{ &cg_predictItems, "cg_predictItems", "1", CVAR_ARCHIVE },
 	{ &cg_deferPlayers, "cg_deferPlayers", "0", CVAR_ARCHIVE },
+	{ &cg_disableLoadout_g, "cg_disableLoadout_g", "0", CVAR_ROM },
+	{ &cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ROM },
+	{ &cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ROM },
+	{ &cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_bfg, "cg_disableLoadout_bfg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ROM },
+	{ &cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ROM },
+	{ &cg_disableLoadout_pl, "cg_disableLoadout_pl", "0", CVAR_ROM },
+	{ &cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ROM },
+	{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM },
+	{ &cg_draw2D, "cg_draw2D", "1", CVAR_ARCHIVE  },
+	{ &cg_draw3dIcons, "cg_draw3dIcons", "1", CVAR_ARCHIVE  },
+	{ &cg_drawAmmoWarning, "cg_drawAmmoWarning", "1", CVAR_ARCHIVE  },
+	{ &cg_drawAttacker, "cg_drawAttacker", "1", CVAR_ARCHIVE  },
+	{ &cg_drawCrosshair, "cg_drawCrosshair", "4", CVAR_ARCHIVE },
+	{ &cg_drawCrosshairTeamHealth, "cg_drawCrosshairTeamHealth", "2", CVAR_ARCHIVE },
+	{ &cg_drawCrosshairTeamHealthSize, "cg_drawCrosshairTeamHealthSize", "0.12", CVAR_ARCHIVE },
+	{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000", CVAR_ARCHIVE },
+	{ &cg_drawDemoHUD, "cg_drawDemoHUD", "1", CVAR_ARCHIVE },
+	{ &cg_drawFPS, "cg_drawFPS", "0", CVAR_ARCHIVE  },
+	{ &cg_drawFragMessages, "cg_drawFragMessages", "1", CVAR_ARCHIVE },
+	{ &cg_drawFullWeaponBar, "cg_drawFullWeaponBar", "0", CVAR_ARCHIVE },
+	{ &cg_drawGun, "cg_drawGun", "1", CVAR_ARCHIVE },
+	{ &cg_drawHitFriendTime, "cg_drawHitFriendTime", "5000", CVAR_ARCHIVE },
+	{ &cg_drawIcons, "cg_drawIcons", "1", CVAR_ARCHIVE  },
+	{ &cg_drawInputCmds, "cg_drawInputCmds", "0", CVAR_ARCHIVE },
+	{ &cg_drawInputCmdsSize, "cg_drawInputCmdsSize", "16", CVAR_ARCHIVE },
+	{ &cg_drawInputCmdsX, "cg_drawInputCmdsX", "640", CVAR_ARCHIVE },
+	{ &cg_drawInputCmdsY, "cg_drawInputCmdsY", "480", CVAR_ARCHIVE },
+	{ &cg_drawItemPickups, "cg_drawItemPickups", "5", CVAR_ARCHIVE },
+	{ &cg_drawPregameMessages, "cg_drawPregameMessages", "1", CVAR_ARCHIVE },
+	{ &cg_drawProfileImages, "cg_drawProfileImages", "1", CVAR_ARCHIVE },
+	{ &cg_drawCheckpointRemaining, "cg_drawCheckpointRemaining", "1", CVAR_ARCHIVE },
+	{ &cg_drawRewards, "cg_drawRewards", "1", CVAR_ARCHIVE },
+	{ &cg_drawRewardsRowSize, "cg_drawRewardsRowSize", "9", CVAR_ARCHIVE },
+	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE  },
+	{ &cg_drawTimer, "cg_drawTimer", "0", CVAR_ARCHIVE  },
+	{ &cg_drawSpecMessages, "cg_drawSpecMessages", "1", CVAR_ARCHIVE },
+	{ &cg_drawSprites, "cg_drawSprites", "1", CVAR_ARCHIVE },
+	{ &cg_drawSpriteSelf, "cg_drawSpriteSelf", "0", CVAR_ARCHIVE },
+	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE  },
 	{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "0", CVAR_ARCHIVE },
-	{ &cg_selfOnTeamOverlay, "cg_selfOnTeamOverlay", "0", CVAR_ARCHIVE },
+	{ &cg_drawTeamOverlayOpacity, "cg_drawTeamOverlayOpacity", "0.75", CVAR_ARCHIVE },
+	{ &cg_drawTeamOverlaySize, "cg_drawTeamOverlaySize", "0.16", CVAR_ARCHIVE },
 	{ &cg_drawTeamOverlayX, "cg_drawTeamOverlayX", "-640", CVAR_ARCHIVE },
 	{ &cg_drawTeamOverlayY, "cg_drawTeamOverlayY", "-480", CVAR_ARCHIVE },
-	{ &cg_drawTeamOverlaySize, "cg_drawTeamOverlaySize", "0.16", CVAR_ARCHIVE },
-	{ &cg_drawTeamOverlayOpacity, "cg_drawTeamOverlayOpacity", "0.75", CVAR_ARCHIVE },
 	{ &cg_teamOverlayUserinfo, "teamoverlay", "0", CVAR_ROM | CVAR_USERINFO },
+	{ &cg_drawTieredArmorAvailability, "cg_drawTieredArmorAvailability", "1", CVAR_ARCHIVE },
+	{ &cg_enableDust, "g_enableDust", "0", CVAR_SERVERINFO},
+	{ &cg_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO},
+	{ &cg_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE },
+	{ &cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", CVAR_ARCHIVE },
+	{ &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
+	{ &cg_enemyColors, "cg_enemyColors", "", CVAR_ARCHIVE },
+	{ &cg_enemyHeadColor, "cg_enemyHeadColor", "", CVAR_ARCHIVE },
+	{ &cg_enemyLowerColor, "cg_enemyLowerColor", "", CVAR_ARCHIVE },
+	{ &cg_enemyUpperColor, "cg_enemyUpperColor", "", CVAR_ARCHIVE },
+	{ &cg_errorDecay, "cg_errordecay", "100", 0 },
+	{ &cg_filter_angles, "cg_filter_angles", "0", CVAR_ARCHIVE },
+	{ &cg_followKiller, "cg_followKiller", "0", CVAR_ARCHIVE },
+	{ &cg_followPowerup, "cg_followPowerup", "0", CVAR_ARCHIVE },
+	{ &cg_footsteps, "cg_footsteps", "1", CVAR_CHEAT },
+	{ &cg_forceModel, "cg_forceModel", "0", CVAR_ARCHIVE  },
+	{ &cg_forceEnemyModel, "cg_forceEnemyModel", "", CVAR_ARCHIVE },
+	{ &cg_enemyModel, "cg_enemyModel", "", CVAR_ARCHIVE },
+	{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", CVAR_ARCHIVE },
+	{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", CVAR_ARCHIVE },
+	{ &cg_forceTeamModel, "cg_forceTeamModel", "", CVAR_ARCHIVE },
+	{ &cg_teamModel, "cg_teamModel", "", CVAR_ARCHIVE },
+	{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", CVAR_ARCHIVE },
+	{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", CVAR_ARCHIVE },
+	{ &cg_fov, "cg_fov", "90", CVAR_ARCHIVE },
+	{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },
+	{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },
+	{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },
+	{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },
+	{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },
+	{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },
+	{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },
+	{ &cg_gun_x, "cg_gunX", "0", CVAR_CHEAT },
+	{ &cg_gun_y, "cg_gunY", "0", CVAR_CHEAT },
+	{ &cg_gun_z, "cg_gunZ", "0", CVAR_CHEAT },
+	{ &cg_gun_frame, "cg_gun_frame", "0", CVAR_CHEAT },
+	{ &cg_hudFiles, "cg_hudFiles", "ui/hud3.txt", CVAR_ARCHIVE},
+	{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ARCHIVE },
+	{ &cg_itemTimers, "cg_itemTimers", "1", CVAR_ARCHIVE },
+	{ &cg_kickScale, "cg_kickScale", "1", CVAR_ARCHIVE },
+	{ &cg_lagometer, "cg_lagometer", "1", CVAR_ARCHIVE },
+	{ &cg_lastmsg, "cg_lastmsg", "0", CVAR_ARCHIVE },
+	{ &cg_levelTimerDirection, "cg_levelTimerDirection", "up", CVAR_ARCHIVE },
+	{ &cg_lightningImpact, "cg_lightningImpact", "1", CVAR_ARCHIVE },
+	{ &cg_lightningImpactCap, "cg_lightningImpactCap", "512", CVAR_ARCHIVE },
+	{ &cg_lightningStyle, "cg_lightningStyle", "1", CVAR_ARCHIVE },
+	{ &cg_loadout, "cg_loadout", "0", CVAR_ROM },
+	{ &cg_lowAmmoWarningPercentile, "cg_lowAmmoWarningPercentile", "0.20", CVAR_ARCHIVE },
+	{ &cg_lowAmmoWeaponBarWarning, "cg_lowAmmoWeaponBarWarning", "2", CVAR_ARCHIVE },
+	{ &cg_muzzleFlash, "cg_muzzleFlash", "1", CVAR_ARCHIVE },
+	{ &cg_noPlayerAnims, "cg_noplayeranims", "0", CVAR_CHEAT },
+	{ &cg_nopredict, "cg_nopredict", "0", 0 },
+	{ &cg_synchronousClients, "g_synchronousClients", "0", 0 },	// communicated by systeminfo
+	{ &cg_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO},
+	{ &cg_obituaryRowSize, "cg_obituaryRowSize", "5", CVAR_ARCHIVE },
+	{ &cg_overheadNamesWidth, "cg_overheadNamesWidth", "120", CVAR_ARCHIVE },
+	{ &cg_paused, "cl_paused", "0", CVAR_ROM },
+	{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", 0x00080801 },
+	{ &cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE},
+	{ &cg_playerCylinders, "cg_playerCylinders", "0", CVAR_ROM },
+	{ &cg_smoothClients, "cg_smoothClients", "0", CVAR_USERINFO | CVAR_ARCHIVE},
+	{ &pmove_fixed, "pmove_fixed", "0", 0},
+	{ &pmove_msec, "pmove_msec", "8", 0},
+	{ &cg_predictItems, "cg_predictItems", "1", CVAR_ARCHIVE },
+	{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_ARCHIVE | CVAR_LATCH },
+	{ &cg_noProjectileTrail, "cg_noProjectileTrail", "0", CVAR_ARCHIVE},
+	{ &cg_raceBeep, "cg_raceBeep", "1", CVAR_ARCHIVE },
+	{ &cg_oldRail, "cg_oldRail", "1", CVAR_ARCHIVE},
+	{ &cg_railTrailTime, "cg_railTrailTime", "400", CVAR_ARCHIVE  },
+	{ &cg_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE},
+	{ &cg_recordSPDemoName, "ui_recordSPDemoName", "", CVAR_ARCHIVE},
+	{ &cg_redTeamName, "g_redteam", DEFAULT_REDTEAM_NAME, CVAR_ARCHIVE },
+	{ &cg_oldRocket, "cg_oldRocket", "1", CVAR_ARCHIVE},
+	{ &cg_scorePlum, "cg_scorePlums", "1", CVAR_USERINFO | CVAR_ARCHIVE},
+	{ &cg_screenDamage, "cg_screenDamage", DEFAULT_SCREEN_DAMAGE_COLOR, CVAR_ARCHIVE },
+	{ &cg_screenDamage_Self, "cg_screenDamage_Self", DEFAULT_SCREEN_DAMAGE_SELF_COLOR, CVAR_ARCHIVE },
+	{ &cg_screenDamage_Team, "cg_screenDamage_Team", DEFAULT_SCREEN_DAMAGE_TEAM_COLOR, CVAR_ARCHIVE },
+	{ &cg_screenDamageAlpha, "cg_screenDamageAlpha", DEFAULT_SCREEN_DAMAGE_ALPHA, CVAR_ARCHIVE },
+	{ &cg_screenDamageAlpha_Team, "cg_screenDamageAlpha_Team", DEFAULT_SCREEN_DAMAGE_ALPHA, CVAR_ARCHIVE },
+	{ &cg_selfOnTeamOverlay, "cg_selfOnTeamOverlay", "0", CVAR_ARCHIVE },
+	{ &cg_shadows, "cg_shadows", "1", CVAR_ARCHIVE  },
+	{ &cg_showmiss, "cg_showmiss", "0", 0 },
+	{ &cg_simpleItems, "cg_simpleItems", "0", CVAR_ARCHIVE },
+	{ &cg_simpleItemsBob, "cg_simpleItemsBob", "0", CVAR_ARCHIVE },
+	{ &cg_simpleItemsHeightOffset, "cg_simpleItemsHeightOffset", "0", CVAR_ARCHIVE },
+	{ &cg_simpleItemsRadius, "cg_simpleItemsRadius", "14", CVAR_ARCHIVE },
+	{ &cg_singlePlayer, "ui_singlePlayerActive", "0", CVAR_USERINFO},
+	{ &cg_singlePlayerActive, "ui_singlePlayerActive", "0", CVAR_USERINFO},
+	{ &cg_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},
+	{ &cg_spectating, "cg_spectating", "0", CVAR_ROM },
+	{ &cg_specItemTimers, "cg_specItemTimers", "1", CVAR_ARCHIVE },
+	{ &cg_specItemTimersSize, "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE },
+	{ &cg_specItemTimersX, "cg_specItemTimersX", "0", CVAR_ARCHIVE },
+	{ &cg_specItemTimersY, "cg_specItemTimersY", "0", CVAR_ARCHIVE },
+	{ &cg_specNames, "cg_specNames", "1", CVAR_ARCHIVE },
+	{ &cg_specTeamVitals, "cg_specTeamVitals", "1", CVAR_ARCHIVE },
+	{ &cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", CVAR_ARCHIVE },
+	{ &cg_speedometer, "cg_speedometer", "0", CVAR_ARCHIVE },
 	{ &cg_stats, "cg_stats", "0", 0 },
+	{ &cg_stereoSeparation, "cg_stereoSeparation", "0.4", CVAR_ARCHIVE  },
+	{ &cg_swingSpeed, "cg_swingSpeed", "0.3", CVAR_CHEAT },
+	{ &cg_switchOnEmpty, "cg_switchOnEmpty", "1", CVAR_ARCHIVE },
+	{ &cg_switchToEmpty, "cg_switchToEmpty", "1", CVAR_ARCHIVE },
+	{ &cg_teamChatBeep, "cg_teamChatBeep", "1", CVAR_ARCHIVE },
+	{ &cg_teamChatHeight, "cg_teamChatHeight", "0", CVAR_ARCHIVE  },
+	{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE },
+	{ &cg_teamChatTime, "cg_teamChatTime", "3000", CVAR_ARCHIVE  },
+	{ &cg_teamColors, "cg_teamColors", "", CVAR_ARCHIVE },
+	{ &cg_teamHeadColor, "cg_teamHeadColor", "", CVAR_ARCHIVE },
+	{ &cg_teamLowerColor, "cg_teamLowerColor", "", CVAR_ARCHIVE },
+	{ &cg_teamUpperColor, "cg_teamUpperColor", "", CVAR_ARCHIVE },
+	{ &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "1", CVAR_ARCHIVE },
+	{ &cg_teammateCrosshairNamesOpacity, "cg_teammateCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE },
 	{ &cg_drawFriend, "cg_drawFriend", "1", CVAR_ARCHIVE },
 	{ &cg_teammateNames, "cg_teammateNames", "1", CVAR_ARCHIVE },
 	{ &cg_teammatePOIs, "cg_teammatePOIs", "1", CVAR_ARCHIVE },
-	{ &cg_teammatePOIsMinWidth, "cg_teammatePOIsMinWidth", "4.0", CVAR_ARCHIVE },
 	{ &cg_teammatePOIsMaxWidth, "cg_teammatePOIsMaxWidth", "24.0", CVAR_ARCHIVE },
-	{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE },
-	{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE },
-	{ &cg_autoAction, "cg_autoAction", "0", CVAR_ARCHIVE | CVAR_LATCH },
-	// the following variables are created in other parts of the system,
-	// but we also reference them here
-	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
-	{ &cg_paused, "cl_paused", "0", CVAR_ROM },
-	{ &cg_blood, "com_blood", "1", CVAR_ARCHIVE },
-	{ &cg_synchronousClients, "g_synchronousClients", "0", 0 },	// communicated by systeminfo
-	{ &cg_redTeamName, "g_redteam", DEFAULT_REDTEAM_NAME, CVAR_ARCHIVE },
-	{ &cg_blueTeamName, "g_blueteam", DEFAULT_BLUETEAM_NAME, CVAR_ARCHIVE },
-	{ &cg_currentSelectedPlayer, "cg_currentSelectedPlayer", "0", CVAR_ARCHIVE},
-	{ &cg_currentSelectedPlayerName, "cg_currentSelectedPlayerName", "", CVAR_ARCHIVE},
-	{ &cg_singlePlayer, "ui_singlePlayerActive", "0", CVAR_USERINFO},
-	{ &cg_enableDust, "g_enableDust", "0", CVAR_SERVERINFO},
-	{ &cg_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO},
-	{ &cg_singlePlayerActive, "ui_singlePlayerActive", "0", CVAR_USERINFO},
-	{ &cg_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE},
-	{ &cg_recordSPDemoName, "ui_recordSPDemoName", "", CVAR_ARCHIVE},
-	{ &cg_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO},
-	{ &cg_lastmsg, "cg_lastmsg", "0", CVAR_ARCHIVE },
-{ &cg_hudFiles, "cg_hudFiles", "ui/hud3.txt", CVAR_ARCHIVE},
-	{ &cg_cameraOrbit, "cg_cameraOrbit", "0", CVAR_CHEAT},
-	{ &cg_cameraOrbitDelay, "cg_cameraOrbitDelay", "50", CVAR_ARCHIVE},
+	{ &cg_teammatePOIsMinWidth, "cg_teammatePOIsMinWidth", "4.0", CVAR_ARCHIVE },
+	{ &cg_thirdPerson, "cg_thirdPerson", "0", 0 },
+	{ &cg_thirdPersonAngle, "cg_thirdPersonAngle", "0", CVAR_CHEAT },
+	{ &cg_thirdPersonPitch, "cg_thirdPersonPitch", "4.0", CVAR_CHEAT },
+	{ &cg_thirdPersonRange, "cg_thirdPersonRange", "40", CVAR_CHEAT },
+	{ &cg_timescale, "timescale", "1", 0},
 	{ &cg_timescaleFadeEnd, "cg_timescaleFadeEnd", "1", 0},
 	{ &cg_timescaleFadeSpeed, "cg_timescaleFadeSpeed", "0", 0},
-	{ &cg_timescale, "timescale", "1", 0},
-	{ &cg_scorePlum, "cg_scorePlums", "1", CVAR_USERINFO | CVAR_ARCHIVE},
-	{ &cg_damagePlum, "cg_damagePlum", "g mg sg gl rl lg rg pg bfg gh cg ng pl hmg", CVAR_USERINFO | CVAR_ARCHIVE },
-	{ &cg_damagePlumColorStyle, "cg_damagePlumColorStyle", "1", CVAR_ARCHIVE },
-	{ &cg_smoothClients, "cg_smoothClients", "0", CVAR_USERINFO | CVAR_ARCHIVE},
-	{ &cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},
-	{ &cg_cameraSmartMode, "cg_cameraSmartMode", "0", CVAR_CHEAT},
-	{ &cg_cameraThirdPersonSmartMode, "cg_cameraThirdPersonSmartMode", "1", CVAR_CHEAT},
-
-	{ &pmove_fixed, "pmove_fixed", "0", 0},
-	{ &pmove_msec, "pmove_msec", "8", 0},
-	{ &cg_noTaunt, "cg_noTaunt", "0", CVAR_ARCHIVE},
-	{ &cg_noProjectileTrail, "cg_noProjectileTrail", "0", CVAR_ARCHIVE},
-	{ &cg_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},
-	{ &cg_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE},
-	{ &cg_oldRail, "cg_oldRail", "1", CVAR_ARCHIVE},
-	{ &cg_oldRocket, "cg_oldRocket", "1", CVAR_ARCHIVE},
-	{ &cg_oldPlasma, "cg_oldPlasma", "1", CVAR_ARCHIVE},
+	{ &cg_tracerChance, "cg_tracerchance", "0.4", CVAR_CHEAT },
+	{ &cg_tracerLength, "cg_tracerlength", "100", CVAR_CHEAT },
+	{ &cg_tracerWidth, "cg_tracerwidth", "1", CVAR_CHEAT },
+	{ &cg_trackPlayer, "cg_trackPlayer", "-1", CVAR_CHEAT },
 	{ &cg_trueLightning, "cg_trueLightning", "0.0", CVAR_ARCHIVE },
-	{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "0", CVAR_ARCHIVE | CVAR_LATCH },
-	{ &cg_lightningStyle, "cg_lightningStyle", "1", CVAR_ARCHIVE },
-	{ &cg_lightningImpact, "cg_lightningImpact", "1", CVAR_ARCHIVE },
-	{ &cg_lightningImpactCap, "cg_lightningImpactCap", "512", CVAR_ARCHIVE },
-	{ &cg_drawTieredArmorAvailability, "cg_drawTieredArmorAvailability", "1", CVAR_ARCHIVE },
-	{ &cg_armorTiered, "cg_armorTiered", "1", CVAR_ARCHIVE },
-	{ &cg_playerCylinders, "cg_playerCylinders", "0", CVAR_ROM },
-	{ &cg_drawFullWeaponBar, "cg_drawFullWeaponBar", "0", CVAR_ARCHIVE },
+	{ &cg_trueShotgun, "cg_trueShotgun", "1", 0x00081801 },
+	{ &cg_useItemMessage, "cg_useItemMessage", "1", CVAR_ARCHIVE },
+	{ &cg_useItemWarning, "cg_useItemWarning", "1", CVAR_ARCHIVE },
+	{ &cg_viewsize, "cg_viewsize", "100", CVAR_ARCHIVE },
+	{ &cg_vignette, "cg_vignette", "1", CVAR_ARCHIVE },
+	{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE },
+	{ &cg_waterWarp, "cg_waterWarp", "1", CVAR_ARCHIVE },
 	{ &cg_weaponBar, "cg_weaponBar", "4", CVAR_ARCHIVE },
 	{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, CVAR_ARCHIVE },
 	{ &cg_weaponConfig, "cg_weaponConfig", "", CVAR_ARCHIVE },
@@ -780,57 +814,12 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE },
 	{ &cg_weaponPrimary, "cg_weaponPrimary", "", CVAR_ROM },
 	{ &cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP },
-	{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", 0x00080801 },
-	{ &cg_trueShotgun, "cg_trueShotgun", "1", 0x00081801 },
-	{ &cg_trackPlayer, "cg_trackPlayer", "-1", CVAR_CHEAT },
-	{ &cg_followKiller, "cg_followKiller", "0", CVAR_ARCHIVE },
-	{ &cg_followPowerup, "cg_followPowerup", "0", CVAR_ARCHIVE },
-	{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ARCHIVE },
-	{ &cg_filter_angles, "cg_filter_angles", "0", CVAR_ARCHIVE },
-	{ &cg_drawHitFriendTime, "cg_drawHitFriendTime", "5000", CVAR_ARCHIVE },
-	{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000", CVAR_ARCHIVE },
-	{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", CVAR_ARCHIVE },
-	{ &cg_deadBodyColor, "cg_deadBodyColor", "0x333333ff", CVAR_ARCHIVE },
-	{ &cg_speedometer, "cg_speedometer", "0", CVAR_ARCHIVE },
-	{ &cg_specNames, "cg_specNames", "1", CVAR_ARCHIVE },
-	{ &cg_specItemTimers, "cg_specItemTimers", "1", CVAR_ARCHIVE },
-	{ &cg_specItemTimersX, "cg_specItemTimersX", "0", CVAR_ARCHIVE },
-	{ &cg_specItemTimersY, "cg_specItemTimersY", "0", CVAR_ARCHIVE },
-	{ &cg_specItemTimersSize, "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE },
-	{ &cg_specTeamVitals, "cg_specTeamVitals", "1", CVAR_ARCHIVE },
-	{ &cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", CVAR_ARCHIVE },
-	{ &cg_itemTimers, "cg_itemTimers", "1", CVAR_ARCHIVE },
-	{ &cg_screenDamage, "cg_screenDamage", DEFAULT_SCREEN_DAMAGE_COLOR, CVAR_ARCHIVE },
-	{ &cg_screenDamage_Self, "cg_screenDamage_Self", DEFAULT_SCREEN_DAMAGE_SELF_COLOR, CVAR_ARCHIVE },
-	{ &cg_screenDamage_Team, "cg_screenDamage_Team", DEFAULT_SCREEN_DAMAGE_TEAM_COLOR, CVAR_ARCHIVE },
-	{ &cg_screenDamageAlpha, "cg_screenDamageAlpha", DEFAULT_SCREEN_DAMAGE_ALPHA, CVAR_ARCHIVE },
-	{ &cg_screenDamageAlpha_Team, "cg_screenDamageAlpha_Team", DEFAULT_SCREEN_DAMAGE_ALPHA, CVAR_ARCHIVE },
-	{ &cg_overheadNamesWidth, "cg_overheadNamesWidth", "120", CVAR_ARCHIVE },
-	{ &cg_obituaryRowSize, "cg_obituaryRowSize", "5", CVAR_ARCHIVE },
-	{ &cg_spectating, "cg_spectating", "0", CVAR_ROM },
-	{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },
-	{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },
-	{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },
-	{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },
-	{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },
-	{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },
-	{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },
-	{ &cg_disableLoadout_g, "cg_disableLoadout_g", "0", CVAR_ROM },
-	{ &cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ROM },
-	{ &cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ROM },
-	{ &cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_bfg, "cg_disableLoadout_bfg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ROM },
-	{ &cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ROM },
-	{ &cg_disableLoadout_pl, "cg_disableLoadout_pl", "0", CVAR_ROM },
-	{ &cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ROM },
-	{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM },
-	{ &cg_loadout, "cg_loadout", "0", CVAR_ROM }
-//	{ &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
+	{ &cg_zoomFov, "cg_zoomfov", "22.5", CVAR_ARCHIVE },
+	{ &cg_zoomOutOnDeath, "cg_zoomOutOnDeath", "0", CVAR_ARCHIVE },
+	{ &cg_zoomScaling, "cg_zoomScaling", "1", CVAR_ARCHIVE },
+	{ &cg_zoomSensitivity, "cg_zoomSensitivity", "1", CVAR_ARCHIVE },
+	{ &cg_zoomToggle, "cg_zoomToggle", "0", CVAR_ARCHIVE },
+	//	{ &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
 };
 
 #define DAMAGE_PLUM_WEAPON_BIT( weapon ) ( 1u << ( weapon ) )

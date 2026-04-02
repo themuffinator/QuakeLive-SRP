@@ -77,6 +77,43 @@ static const weapon_t cg_retailWeaponReloadOrder[] = {
 	WP_CHAINGUN,
 	WP_HEAVY_MACHINEGUN
 };
+typedef struct {
+	const char		*token;
+	unsigned int	mask;
+} cgDisableLoadoutToken_t;
+
+#define CG_DISABLE_LOADOUT_G		( 1u << 0 )
+#define CG_DISABLE_LOADOUT_MG		( 1u << 1 )
+#define CG_DISABLE_LOADOUT_SG		( 1u << 2 )
+#define CG_DISABLE_LOADOUT_GL		( 1u << 3 )
+#define CG_DISABLE_LOADOUT_RL		( 1u << 4 )
+#define CG_DISABLE_LOADOUT_LG		( 1u << 5 )
+#define CG_DISABLE_LOADOUT_RG		( 1u << 6 )
+#define CG_DISABLE_LOADOUT_PG		( 1u << 7 )
+#define CG_DISABLE_LOADOUT_BFG		( 1u << 8 )
+#define CG_DISABLE_LOADOUT_GH		( 1u << 9 )
+#define CG_DISABLE_LOADOUT_NG		( 1u << 10 )
+#define CG_DISABLE_LOADOUT_PL		( 1u << 11 )
+#define CG_DISABLE_LOADOUT_CG		( 1u << 12 )
+#define CG_DISABLE_LOADOUT_HMG		( 1u << 13 )
+
+static const cgDisableLoadoutToken_t cg_retailDisableLoadoutTokens[] = {
+	{ "g", CG_DISABLE_LOADOUT_G },
+	{ "mg", CG_DISABLE_LOADOUT_MG },
+	{ "sg", CG_DISABLE_LOADOUT_SG },
+	{ "gl", CG_DISABLE_LOADOUT_GL },
+	{ "rl", CG_DISABLE_LOADOUT_RL },
+	{ "lg", CG_DISABLE_LOADOUT_LG },
+	{ "rg", CG_DISABLE_LOADOUT_RG },
+	{ "pg", CG_DISABLE_LOADOUT_PG },
+	{ "bfg", CG_DISABLE_LOADOUT_BFG },
+	{ "gh", CG_DISABLE_LOADOUT_GH },
+	{ "ng", CG_DISABLE_LOADOUT_NG },
+	{ "pl", CG_DISABLE_LOADOUT_PL },
+	{ "cg", CG_DISABLE_LOADOUT_CG },
+	{ "hmg", CG_DISABLE_LOADOUT_HMG },
+	{ NULL, 0u }
+};
 static const weapon_t cg_retailAccuracyCommandOrder[] = {
 	WP_NONE,
 	WP_GAUNTLET,
@@ -2232,6 +2269,39 @@ static void CG_SetTeamNameCvar( const char *cvarName, const char *serverValue, c
 }
 
 /*
+==================
+CG_ParseDisableLoadoutConfigString
+
+Mirrors the retail loadout-disable configstring onto the per-weapon ROM cvars.
+==================
+*/
+static void CG_ParseDisableLoadoutConfigString( const char *configstring ) {
+	const cgDisableLoadoutToken_t	*entry;
+	unsigned long			flags;
+	char				*end;
+	char				cvarName[MAX_CVAR_VALUE_STRING];
+	char				currentValue[MAX_CVAR_VALUE_STRING];
+	const char			*resolvedValue;
+
+	flags = 0ul;
+	if ( configstring && configstring[0] ) {
+		flags = strtoul( configstring, &end, 0 );
+		if ( end == configstring ) {
+			flags = 0ul;
+		}
+	}
+
+	for ( entry = cg_retailDisableLoadoutTokens; entry->token; ++entry ) {
+		resolvedValue = ( flags & entry->mask ) ? "1" : "0";
+		Com_sprintf( cvarName, sizeof( cvarName ), "cg_disableLoadout_%s", entry->token );
+		trap_Cvar_VariableStringBuffer( cvarName, currentValue, sizeof( currentValue ) );
+		if ( Q_stricmp( currentValue, resolvedValue ) ) {
+			trap_Cvar_Set( cvarName, resolvedValue );
+		}
+	}
+}
+
+/*
 =================
 CG_SetGameInfoCvars
 
@@ -3149,6 +3219,22 @@ static void CG_ParseServerSettingsInfoConfigStrings( void ) {
 }
 
 /*
+==================
+CG_ParseEnableBreathConfigString
+
+Mirrors the retail CS_ENABLE_BREATH latch into the existing local cvar-backed
+breath gate used by CG_BreathPuffs.
+==================
+*/
+static void CG_ParseEnableBreathConfigString( const char *configstring ) {
+	const char	*value;
+
+	value = ( configstring && configstring[0] ) ? va( "%i", atoi( configstring ) ) : "0";
+	trap_Cvar_Set( "g_enableBreath", value );
+	trap_Cvar_Update( &cg_enableBreath );
+}
+
+/*
 =============
 CG_SetTeamNameFromConfigString
 
@@ -3196,6 +3282,8 @@ void CG_SetConfigValues( void ) {
 	trap_Cvar_Set( "ui_votestring", cgs.voteString );
 	CG_SetTeamNameFromConfigString( TEAM_RED, CG_ConfigString( CS_RED_TEAM_NAME ) );
 	CG_SetTeamNameFromConfigString( TEAM_BLUE, CG_ConfigString( CS_BLUE_TEAM_NAME ) );
+	CG_ParseDisableLoadoutConfigString( CG_ConfigString( CS_LOADOUT_FLAGS ) );
+	CG_ParseEnableBreathConfigString( CG_ConfigString( CS_ENABLE_BREATH ) );
 	if( cgs.gametype == GT_CTF ) {
 		s = CG_ConfigString( CS_FLAGSTATUS );
 		cgs.redflag = s[0] - '0';
@@ -3312,6 +3400,10 @@ static void CG_ConfigStringModified( void ) {
 		CG_SetTeamNameFromConfigString( TEAM_BLUE, str );
 	} else if ( num == CS_LEVEL_START_TIME ) {
 		cgs.levelStartTime = atoi( str );
+	} else if ( num == CS_LOADOUT_FLAGS ) {
+		CG_ParseDisableLoadoutConfigString( str );
+	} else if ( num == CS_ENABLE_BREATH ) {
+		CG_ParseEnableBreathConfigString( str );
 	} else if ( num == CS_FACTORY_TITLE || num == CS_FACTORY_FLAGS ) {
 		CG_ParseFactoryMetadata();
 	} else if ( num == CS_CUSTOM_SETTINGS ) {
