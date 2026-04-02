@@ -1,9 +1,23 @@
 name: Filesystem Search Paths
 
 on:
+  workflow_dispatch:
   push:
-    branches: ['**']
+    branches:
+      - main
+    paths:
+      - '.github/workflows/filesystem-search.yml'
+      - 'tests/test_fs_search_paths.py'
+      - 'tests/fs_searchpath_harness.c'
+      - 'src/code/qcommon/**'
+      - 'src/code/game/q_shared.h'
   pull_request:
+    paths:
+      - '.github/workflows/filesystem-search.yml'
+      - 'tests/test_fs_search_paths.py'
+      - 'tests/fs_searchpath_harness.c'
+      - 'src/code/qcommon/**'
+      - 'src/code/game/q_shared.h'
 
 jobs:
   fs-tests:

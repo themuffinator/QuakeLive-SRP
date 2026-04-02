@@ -19,7 +19,8 @@ you contribute effectively to the reconstruction effort.
      `tools/ci/verify-qvm-toolchain.sh` to confirm the bytecode compilers match the
      CI reference output.【F:docs/qvmtools.md†L1-L38】【F:tools/ci/verify-qvm-toolchain.sh†L1-L45】
    - Review the guardrails captured in [`docs/toolchain-ci.md`](../toolchain-ci.md)
-     so you understand how CI enforces toolchain parity on every push.【F:docs/toolchain-ci.md†L1-L24】
+     so you understand how CI enforces toolchain parity on pull requests and
+     mainline pushes.【F:docs/toolchain-ci.md†L1-L24】
 3. **Provision native build prerequisites (recommended)**
    - Work through [`docs/build/windows.md`](../build/windows.md) and the pipeline
      notes in [`docs/windows-native-pipeline.md`](../windows-native-pipeline.md) to

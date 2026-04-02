@@ -1,11 +1,11 @@
 # Deterministic CI Matrix
 
-The **Deterministic Harnesses** workflow executes the regression harnesses against every gameplay flavour on each push and pull request. A matrix fans the workflow out across the bytecode, native, and reverse-engineered targets so they execute the same pipeline in parallel.【F:.github/workflows/deterministic-harnesses.yml†L10-L33】
+The **Deterministic Harnesses** workflow executes the regression harnesses against every gameplay flavour on pull requests, on pushes to `main`, and on manual dispatch when the touched paths intersect the harness inputs. A matrix fans the workflow out across the bytecode, native, and reverse-engineered targets so they execute the same pipeline in parallel.【F:.github/workflows/deterministic-harnesses.yml†L10-L47】
 
 ## Matrix jobs
 
 - **Harnesses (QVM)** – Runs on `ubuntu-latest`, re-validates the legacy toolchain, reuses the clean-room build helper, and drives the deterministic harness suite against the VM output.【F:.github/workflows/deterministic-harnesses.yml†L16-L47】【F:.github/workflows/deterministic-harnesses.yml†L74-L79】
-- **Harnesses (DLL)** – Runs on `windows-latest`, provisions the Visual Studio 2010 components, verifies the `v100` toolset, rebuilds the gameplay DLLs, checks their export table, and then executes the shared harness runner.【F:.github/workflows/deterministic-harnesses.yml†L22-L79】
+- **Harnesses (DLL)** – Runs on `windows-latest`, provisions the Visual Studio 2010 components, verifies the `v100` toolset, validates the retail-aligned Windows native pipeline, and then executes the shared harness runner.【F:.github/workflows/deterministic-harnesses.yml†L22-L93】
 - **Harnesses (Reverse)** – Shares the Linux leg, rebuilds the clean-room modules via `tools/ci/build-cleanroom.sh`, and extends the harness invocation with the reverse build root so the trace harness can diff the clean-room binaries against the expected transcript.【F:.github/workflows/deterministic-harnesses.yml†L28-L47】【F:.github/workflows/deterministic-harnesses.yml†L74-L79】【F:tests/run_harnesses.py†L24-L112】
 
 ## Artefacts

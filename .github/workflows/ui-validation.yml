@@ -1,9 +1,29 @@
 name: UI Validation
 
 on:
+  workflow_dispatch:
   push:
-    branches: ['**']
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ui-validation.yml'
+      - 'src/ui/**'
+      - 'src/code/cgame/**'
+      - 'tests/run_ui_validation.py'
+      - 'tests/expectations/ui/**'
+      - 'tools/build_ui_bundle.sh'
+      - 'tools/packaging/**'
+      - 'assets/quakelive/baseq3/**'
   pull_request:
+    paths:
+      - '.github/workflows/ui-validation.yml'
+      - 'src/ui/**'
+      - 'src/code/cgame/**'
+      - 'tests/run_ui_validation.py'
+      - 'tests/expectations/ui/**'
+      - 'tools/build_ui_bundle.sh'
+      - 'tools/packaging/**'
+      - 'assets/quakelive/baseq3/**'
 
 jobs:
   ui-bundle:

@@ -1,9 +1,27 @@
 name: Deterministic Harnesses
 
 on:
+  workflow_dispatch:
   push:
-    branches: ['**']
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deterministic-harnesses.yml'
+      - 'src/**'
+      - 'src-re/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'references/hlil/**'
+      - 'assets/quakelive/**'
   pull_request:
+    paths:
+      - '.github/workflows/deterministic-harnesses.yml'
+      - 'src/**'
+      - 'src-re/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'references/hlil/**'
+      - 'assets/quakelive/**'
 
 jobs:
   harnesses:
