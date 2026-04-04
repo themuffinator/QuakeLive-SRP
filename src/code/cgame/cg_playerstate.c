@@ -34,70 +34,62 @@ int	cg_crosshairHitFeedbackValue = 1;
 ==============
 CG_CheckAmmo
 
-If the ammo has gone low enough to generate the warning, play a sound
+Retail low-ammo warning helper. The shipping client evaluates the currently
+selected weapon against its per-weapon ammo threshold instead of summing a
+total ammo budget across the entire loadout.
 ==============
 */
 void CG_CheckAmmo( void ) {
-	int		i;
-	int		total;
+	int		ammo;
 	int		previous;
-	int		weapons;
+	int		threshold;
 	int		warning;
+	weapon_t	weapon;
+	sfxHandle_t	warningSound;
 
-	// see about how many seconds of ammo we have remaining
-	weapons = cg.snap->ps.stats[ STAT_WEAPONS ];
-	total = 0;
-	for ( i = WP_MACHINEGUN ; i < WP_NUM_WEAPONS ; i++ ) {
-		if ( !( weapons & ( 1 << i ) ) ) {
-			continue;
-		}
-		switch ( i ) {
-		case WP_ROCKET_LAUNCHER:
-		case WP_GRENADE_LAUNCHER:
-		case WP_RAILGUN:
-		case WP_SHOTGUN:
-		case WP_PROX_LAUNCHER:
-			total += cg.snap->ps.ammo[i] * 1000;
-			break;
-		default:
-			total += cg.snap->ps.ammo[i] * 200;
-			break;
-		}
-		if ( total >= 5000 ) {
-			total = 5000;
-			break;
-		}
-	}
-
+	weapon = (weapon_t)cg.snap->ps.weapon;
 	previous = cg.lowAmmoWarning;
-
-	if ( total == 0 ) {
-		warning = 2;
-	} else if ( total < 5000 ) {
-		warning = 1;
-	} else {
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
 		warning = 0;
-	}
+	} else {
+		ammo = cg.snap->ps.ammo[ weapon ];
+		threshold = (int)( BG_GetWeaponMaxAmmo( weapon ) * cg.lowAmmoWarningPercentile );
 
-	if ( warning == 0 && !cg_switchOnEmpty.integer ) {
-		int	weapon;
-		int	ammo;
-
-		weapon = cg.snap->ps.weapon;
-		if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
-			ammo = cg.snap->ps.ammo[ weapon ];
-			if ( ammo == 0 && !cg_switchToEmpty.integer ) {
-				warning = 3;
-			}
+		if ( ammo == -1 || ammo >= threshold ) {
+			warning = 0;
+		} else if ( ammo != 0 ) {
+			warning = 1;
+		} else {
+			warning = 2;
 		}
 	}
 
 	cg.lowAmmoWarning = warning;
 
-	// play a sound on transitions
-	if ( cg.lowAmmoWarning != previous ) {
-		trap_S_StartLocalSound( cgs.media.noAmmoSound, CHAN_LOCAL_SOUND );
+	if ( warning == previous ) {
+		return;
 	}
+
+	if ( warning == 2 ) {
+		trap_S_StartLocalSound( cgs.media.noAmmoSound, CHAN_LOCAL_SOUND );
+		return;
+	}
+	if ( warning != 1 ) {
+		return;
+	}
+
+	switch ( cg_lowAmmoWarningSound.integer ) {
+	case 1:
+		warningSound = cgs.media.lowAmmoSound;
+		break;
+	case 2:
+		warningSound = cgs.media.noAmmoSound;
+		break;
+	default:
+		return;
+	}
+
+	trap_S_StartLocalSound( warningSound, CHAN_LOCAL_SOUND );
 }
 
 /*
@@ -317,6 +309,16 @@ void CG_Respawn( void ) {
 	cg.autoActionStatsQueued = qfalse;
 	cg.autoActionScreenshotTime = 0;
 	cg.autoActionStatsTime = 0;
+
+	if ( cgs.gametype == GT_RACE ) {
+		trap_SendClientCommand( "raceinit" );
+	}
+
+	// Retail `CG_Respawn` preserves this exact `specresp` gate on the
+	// recovered `0x00004000` player eFlags bit.
+	if ( cg.predictedPlayerState.eFlags & 0x00004000 ) {
+		trap_SendClientCommand( "specresp" );
+	}
 }
 
 extern char *eventnames[];
@@ -423,10 +425,6 @@ static void CG_RecordCrosshairHitFeedback( const playerState_t *ps, const player
 	int	armor;
 
 	if ( !ps || !ops ) {
-		return;
-	}
-
-	if ( ps->persistant[PERS_TEAM] != ops->persistant[PERS_TEAM] ) {
 		return;
 	}
 
@@ -702,8 +700,8 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
 
 	if ( cg.snap->ps.pm_type != PM_INTERMISSION
 		&& ps->persistant[PERS_TEAM] != TEAM_SPECTATOR ) {
-		CG_RecordCrosshairHitFeedback( ps, ops );
 		CG_CheckLocalSounds( ps, ops );
+		CG_RecordCrosshairHitFeedback( ps, ops );
 	}
 
 	if ( ops->pm_type != PM_INTERMISSION && ps->pm_type == PM_INTERMISSION ) {

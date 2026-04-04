@@ -219,6 +219,296 @@ static void CG_Speaker( centity_t *cent ) {
 }
 
 /*
+=====================
+CG_POILocalTeam
+
+Returns the local team used by the retail POI objective/item icon splits.
+=====================
+*/
+static team_t CG_POILocalTeam( void ) {
+	if ( !cg.snap ) {
+		return TEAM_FREE;
+	}
+
+	switch ( cg.snap->ps.persistant[PERS_TEAM] ) {
+	case TEAM_RED:
+		return TEAM_RED;
+	case TEAM_BLUE:
+		return TEAM_BLUE;
+	default:
+		break;
+	}
+
+	return TEAM_FREE;
+}
+
+/*
+=========================
+CG_POIObjectiveIndexForItem
+
+Maps retail team-objective items onto the cached POI origin slots.
+=========================
+*/
+static int CG_POIObjectiveIndexForItem( const gitem_t *item ) {
+	if ( !item || item->giType != IT_TEAM ) {
+		return -1;
+	}
+
+	switch ( item->giTag ) {
+	case PW_REDFLAG:
+		return CG_POI_OBJECTIVE_RED;
+	case PW_BLUEFLAG:
+		return CG_POI_OBJECTIVE_BLUE;
+	case PW_NEUTRALFLAG:
+		return CG_POI_OBJECTIVE_NEUTRAL;
+	default:
+		break;
+	}
+
+	return -1;
+}
+
+/*
+========================
+CG_UpdatePOIObjectiveCache
+
+Persists the latest retail team-objective origin for player and item POI helpers.
+========================
+*/
+static void CG_UpdatePOIObjectiveCache( const gitem_t *item, const vec3_t origin ) {
+	int	objectiveIndex;
+
+	objectiveIndex = CG_POIObjectiveIndexForItem( item );
+	if ( objectiveIndex < 0 || objectiveIndex >= CG_POI_OBJECTIVE_COUNT ) {
+		return;
+	}
+
+	VectorCopy( origin, cgs.poiObjectiveOrigins[objectiveIndex] );
+	cgs.poiObjectiveValid[objectiveIndex] = qtrue;
+}
+
+/*
+============================
+CG_ItemPOIPowerupLiveShader
+
+Resolves the retail live powerup POI sprite for a world item.
+============================
+*/
+static qhandle_t CG_ItemPOIPowerupLiveShader( const gitem_t *item ) {
+	if ( !item ) {
+		return 0;
+	}
+
+	switch ( item->giTag ) {
+	case PW_QUAD:
+		return cgs.media.poiPowerupQuadShader;
+	case PW_BATTLESUIT:
+		return cgs.media.poiPowerupBattleSuitShader;
+	case PW_HASTE:
+		return cgs.media.poiPowerupHasteShader;
+	case PW_INVIS:
+		return cgs.media.poiPowerupInvisShader;
+	case PW_REGEN:
+		return cgs.media.poiPowerupRegenShader;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+/*
+========================
+CG_ItemPOIPowerupMarker
+
+Builds the retail powerup POI state, including incoming icons and distance alpha.
+========================
+*/
+static qboolean CG_ItemPOIPowerupMarker( const centity_t *cent, const gitem_t *item, const vec3_t origin,
+		qhandle_t *shader, float *alpha ) {
+	int			markerTime;
+	float		nearDistance;
+	float		farDistance;
+	float		distance;
+	vec3_t		distanceOrigin;
+	qboolean	incoming;
+
+	if ( !shader || !alpha ) {
+		return qfalse;
+	}
+
+	*shader = 0;
+	*alpha = 1.0f;
+	if ( !cent || !item ) {
+		return qfalse;
+	}
+
+	*shader = CG_ItemPOIPowerupLiveShader( item );
+	if ( !*shader ) {
+		return qfalse;
+	}
+
+	markerTime = cent->currentState.time;
+	if ( cent->currentState.modelindex2 && markerTime < cg.time ) {
+		return qfalse;
+	}
+	if ( cg.time < markerTime - 10000 ) {
+		return qfalse;
+	}
+
+	incoming = (qboolean)( cg.time <= markerTime );
+	if ( ( cent->currentState.eFlags & EF_NODRAW ) && !incoming ) {
+		return qfalse;
+	}
+
+	if ( incoming ) {
+		if ( !cgs.media.poiPowerupIncomingShader ) {
+			return qfalse;
+		}
+
+		*shader = cgs.media.poiPowerupIncomingShader;
+	}
+
+	VectorCopy( origin, distanceOrigin );
+	distanceOrigin[2] += 8.0f;
+	distance = Distance( cg.refdef.vieworg, distanceOrigin );
+	if ( incoming ) {
+		nearDistance = 256.0f;
+		farDistance = 512.0f;
+	} else {
+		nearDistance = 512.0f;
+		farDistance = 768.0f;
+	}
+
+	if ( distance <= nearDistance ) {
+		*alpha = 0.0f;
+		return qfalse;
+	}
+	if ( distance < farDistance ) {
+		*alpha = ( distance - nearDistance ) * ( 1.0f / 256.0f );
+		return qtrue;
+	}
+
+	*alpha = 1.0f - ( distance - farDistance ) * ( 1.0f / 1024.0f );
+	if ( *alpha < 0.25f ) {
+		*alpha = 0.25f;
+	}
+
+	return qtrue;
+}
+
+/*
+=====================
+CG_ItemPOITeamShader
+
+Resolves the retail team-objective POI sprite for a flag item.
+=====================
+*/
+static qhandle_t CG_ItemPOITeamShader( const gitem_t *item ) {
+	team_t	localTeam;
+
+	if ( !item ) {
+		return 0;
+	}
+
+	localTeam = CG_POILocalTeam();
+	switch ( item->giTag ) {
+	case PW_REDFLAG:
+		if ( localTeam == TEAM_RED ) {
+			return cgs.media.poiDefendShader;
+		}
+		if ( localTeam == TEAM_BLUE ) {
+			return cgs.media.poiAttackShader;
+		}
+		if ( cgs.redflag == FLAG_DROPPED && cgs.media.poiFlagDroppedRedShader ) {
+			return cgs.media.poiFlagDroppedRedShader;
+		}
+		return cg_items[ITEM_INDEX( item )].icon;
+	case PW_BLUEFLAG:
+		if ( localTeam == TEAM_BLUE ) {
+			return cgs.media.poiDefendShader;
+		}
+		if ( localTeam == TEAM_RED ) {
+			return cgs.media.poiAttackShader;
+		}
+		if ( cgs.blueflag == FLAG_DROPPED && cgs.media.poiFlagDroppedBlueShader ) {
+			return cgs.media.poiFlagDroppedBlueShader;
+		}
+		return cg_items[ITEM_INDEX( item )].icon;
+	case PW_NEUTRALFLAG:
+		if ( localTeam == TEAM_RED || localTeam == TEAM_BLUE ) {
+			return cgs.media.poiCaptureShader;
+		}
+		if ( cgs.flagStatus == FLAG_DROPPED && cgs.media.poiFlagDroppedNeutralShader ) {
+			return cgs.media.poiFlagDroppedNeutralShader;
+		}
+		return cg_items[ITEM_INDEX( item )].icon;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+/*
+===================
+CG_QueueItemPOIMarker
+
+Queues the retail POI slab for persistent world items and objectives.
+===================
+*/
+static void CG_QueueItemPOIMarker( centity_t *cent, const gitem_t *item, const vec3_t origin ) {
+	cgQueuedWorldMarker_t	*marker;
+	qhandle_t		shader;
+	float			alpha;
+	float			zOffset;
+
+	if ( !cent || !item ) {
+		return;
+	}
+
+	shader = 0;
+	alpha = 1.0f;
+	zOffset = 24.0f;
+	switch ( item->giType ) {
+	case IT_POWERUP:
+		if ( !CG_ShouldDrawPOIMarkerMode( cg_powerupPOIs.integer, origin ) ) {
+			return;
+		}
+		if ( !CG_ItemPOIPowerupMarker( cent, item, origin, &shader, &alpha ) ) {
+			return;
+		}
+		zOffset = 0.0f;
+		break;
+	case IT_TEAM:
+		if ( !cg_flagPOIs.integer ) {
+			return;
+		}
+		shader = CG_ItemPOITeamShader( item );
+		break;
+	default:
+		return;
+	}
+
+	if ( !shader ) {
+		return;
+	}
+
+	marker = CG_AllocQueuedWorldMarkerForKey( CG_QUEUED_MARKER_KIND_ITEM_POI, cent->currentState.number );
+	if ( !marker ) {
+		return;
+	}
+
+	VectorCopy( origin, marker->origin );
+	marker->origin[2] += zOffset;
+	marker->duration = 200;
+	marker->fadeDelay = 200;
+	marker->size = CG_POIMarkerSizeForOrigin( marker->origin );
+	marker->shader = shader;
+	marker->color[3] = alpha;
+}
+
+/*
 ==================
 CG_Item
 ==================
@@ -238,14 +528,19 @@ static void CG_Item( centity_t *cent ) {
 		CG_Error( "Bad item index %i on entity", es->modelindex );
 	}
 
-	// if set to invisible, skip
-	if ( !es->modelindex || ( es->eFlags & EF_NODRAW ) ) {
+	if ( !es->modelindex ) {
 		return;
 	}
 
 	item = &bg_itemlist[ es->modelindex ];
 	trap_Cvar_VariableStringBuffer( "cg_skipItems", skipItems, sizeof( skipItems ) );
 	if ( skipItems[0] == '1' ) {
+		return;
+	}
+	if ( es->eFlags & EF_NODRAW ) {
+		if ( item->giType == IT_POWERUP ) {
+			CG_QueueItemPOIMarker( cent, item, cent->lerpOrigin );
+		}
 		return;
 	}
 
@@ -267,6 +562,8 @@ static void CG_Item( centity_t *cent ) {
 		ent.shaderRGBA[2] = 255;
 		ent.shaderRGBA[3] = 255;
 		trap_R_AddRefEntityToScene(&ent);
+		CG_UpdatePOIObjectiveCache( item, ent.origin );
+		CG_QueueItemPOIMarker( cent, item, ent.origin );
 		return;
 	}
 
@@ -351,6 +648,8 @@ static void CG_Item( centity_t *cent ) {
 
 	// add to refresh list
 	trap_R_AddRefEntityToScene(&ent);
+	CG_UpdatePOIObjectiveCache( item, ent.origin );
+	CG_QueueItemPOIMarker( cent, item, ent.origin );
 
 	if ( item->giType == IT_WEAPON && wi->barrelModel ) {
 		refEntity_t	barrel;
@@ -1164,7 +1463,10 @@ CG_AddCEntity
 */
 static void CG_AddCEntity( centity_t *cent ) {
 	// event-only entities will have been dealt with already
-	if ( cent->currentState.eType >= ET_EVENTS ) {
+	// Retail leaves the one-past-tail event slot on the slow path so it still
+	// trips the bad-entity-type fault instead of being silently skipped.
+	if ( cent->currentState.eType > ET_EVENTS
+		&& cent->currentState.eType != ( ET_EVENTS + EV_NEW_HIGH_SCORE + 1 ) ) {
 		return;
 	}
 
@@ -1214,36 +1516,6 @@ static void CG_AddCEntity( centity_t *cent ) {
 		break;
 	}
 }
-
-/*
-================
-CG_PredictItem
-================
-*/
-static void CG_PredictItem( centity_t *cent ) {
-	gitem_t	*item;
-
-	if ( !cg_predictItems.integer ) {
-		return;
-	}
-
-	if ( cent->currentState.modelindex >= bg_numItems ) {
-		return;
-	}
-
-	item = &bg_itemlist[ cent->currentState.modelindex ];
-
-	if ( !BG_PlayerTouchesItem( &cg.predictedPlayerState, &cent->currentState, cg.time ) ) {
-		return;
-	}
-
-	if ( !BG_CanItemBeGrabbed( cgs.gametype, cg.time, &cent->currentState, &cg.predictedPlayerState ) ) {
-		return;
-	}
-
-	cent->currentState.eFlags |= EF_NODRAW;
-}
-
 
 /*
 ===============
@@ -1300,9 +1572,6 @@ void CG_AddPacketEntities( void ) {
 	// add each entity sent over by the server
 	for ( num = 0 ; num < cg.snap->numEntities ; num++ ) {
 		cent = &cg_entities[ cg.snap->entities[ num ].number ];
-		if ( cent->currentState.eType == ET_ITEM ) {
-			CG_PredictItem( cent );
-		}
 		CG_AddCEntity( cent );
 	}
 }

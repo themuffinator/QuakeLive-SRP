@@ -2400,6 +2400,37 @@ static void CG_SelectHighestWeapon( void ) {
 }
 
 /*
+=============================
+CG_SelectHighestWeaponExcluding
+
+Retail drop-weapon fallback that skips the weapon being removed from the local
+selection walk.
+=============================
+*/
+void CG_SelectHighestWeaponExcluding( weapon_t excludedWeapon ) {
+	int		i;
+
+	if ( !cg.snap ) {
+		return;
+	}
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return;
+	}
+
+	cg.weaponSelectTime = cg.time;
+
+	for ( i = MAX_WEAPONS - 1 ; i > 0 ; i-- ) {
+		if ( i == WP_NUM_WEAPONS || i == excludedWeapon ) {
+			continue;
+		}
+		if ( CG_WeaponSelectable( i ) ) {
+			CG_SetWeaponSelect( i );
+			return;
+		}
+	}
+}
+
+/*
 ===============
 CG_NextWeapon_f
 ===============

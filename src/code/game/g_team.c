@@ -255,13 +255,14 @@ static void G_ADPublishScoreHistory( void ) {
 	int		offset;
 	int		i;
 
-	offset = Com_sprintf( command, sizeof( command ), "scores_ad %d %d",
-		level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE] );
+	offset = Com_sprintf( command, sizeof( command ), "scores_ad" );
 
 	for ( i = 0; i < AD_SCORE_HISTORY_LENGTH && offset < (int)sizeof( command ); i++ ) {
 		offset += Com_sprintf( command + offset, sizeof( command ) - offset, " %d",
 			level.adPublishedScoreHistory[i] );
 	}
+	offset += Com_sprintf( command + offset, sizeof( command ) - offset, " %d %d",
+		level.teamScores[TEAM_RED], level.teamScores[TEAM_BLUE] );
 
 	trap_SendServerCommand( -1, command );
 }
@@ -636,6 +637,25 @@ static gentity_t *G_FindLastAlivePlayer( team_t team ) {
 
 /*
 =============
+G_BroadcastGlobalTeamSound
+
+Publishes the recovered retail global-team-sound payloads while the qagame to
+cgame field layout still uses the source bridge slots.
+=============
+*/
+void G_BroadcastGlobalTeamSound( const vec3_t origin, global_team_sound_t sound, int trackedClientNum, team_t team, int index ) {
+	gentity_t	*te;
+
+	te = G_TempEntity( origin, EV_GLOBAL_TEAM_SOUND );
+	te->r.svFlags |= SVF_BROADCAST;
+	te->s.eventParm = sound;
+	te->s.otherEntityNum = ( trackedClientNum >= 0 && trackedClientNum < MAX_CLIENTS ) ? trackedClientNum : ENTITYNUM_NONE;
+	te->s.clientNum = team;
+	te->s.generic1 = index;
+}
+
+/*
+=============
 G_NotifyLastAlivePlayer
 
 Sends the recovered private last-man-standing centerprint to the lone survivor.
@@ -683,6 +703,7 @@ void G_ADNotifyLastAlivePlayer( team_t team ) {
 		return;
 	}
 
+	G_BroadcastGlobalTeamSound( vec3_origin, GTS_LAST_STANDING, -1, team, 0 );
 	G_NotifyLastAlivePlayer( team );
 }
 
@@ -716,6 +737,7 @@ void G_CANotifyLastAlivePlayer( team_t team ) {
 		return;
 	}
 
+	G_BroadcastGlobalTeamSound( vec3_origin, GTS_LAST_STANDING, -1, team, 0 );
 	G_NotifyLastAlivePlayer( team );
 }
 
@@ -749,6 +771,7 @@ void G_FreezeNotifyLastAlivePlayer( team_t team ) {
 		return;
 	}
 
+	G_BroadcastGlobalTeamSound( vec3_origin, GTS_LAST_STANDING, -1, team, 0 );
 	G_NotifyLastAlivePlayer( team );
 }
 
@@ -783,6 +806,7 @@ void G_RRNotifyLastAlivePlayer( team_t team ) {
 		return;
 	}
 
+	G_BroadcastGlobalTeamSound( vec3_origin, GTS_SURVIVOR_WARNING, -1, team, 0 );
 	G_NotifyLastAlivePlayer( team );
 }
 
@@ -1105,8 +1129,13 @@ int AD_RoundStateTransition( qboolean announce ) {
 			if ( !level.adRoundWinnerAlreadyScored ) {
 				level.teamScores[winner] += 1;
 			}
+			G_BroadcastGlobalTeamSound( vec3_origin,
+				( winner == TEAM_RED ) ? GTS_REDTEAM_WINS_ROUND : GTS_BLUETEAM_WINS_ROUND,
+				-1, winner, 0 );
 			trap_SendServerCommand( -1,
 				va( "cp \"%s team wins the round\\n\"", G_ADWinningTeamName( winner ) ) );
+		} else {
+			G_BroadcastGlobalTeamSound( vec3_origin, GTS_ROUND_DRAW, -1, TEAM_FREE, 0 );
 		}
 
 		CalculateRanks();
@@ -2108,8 +2137,8 @@ Broadcasts that a Domination point has changed hands.
 =============
 */
 static void Team_DominationAnnounceCapture( dominationPoint_t *point, team_t previousOwner ) {
-	gentity_t		*te;
 	const char	*teamName;
+	int		pointIndex;
 	vec3_t	origin;
 
 	if ( point->ownerTeam != TEAM_RED && point->ownerTeam != TEAM_BLUE ) {
@@ -2117,10 +2146,8 @@ static void Team_DominationAnnounceCapture( dominationPoint_t *point, team_t pre
 	}
 
 	Team_DominationEventOrigin( point, origin );
-
-	te = G_TempEntity( origin, EV_GLOBAL_TEAM_SOUND );
-	te->r.svFlags |= SVF_BROADCAST;
-	te->s.eventParm = ( point->ownerTeam == TEAM_RED ) ? GTS_RED_CAPTURE : GTS_BLUE_CAPTURE;
+	pointIndex = ( point - teamgame.dominationPoints ) + 1;
+	G_BroadcastGlobalTeamSound( origin, GTS_DOMINATION_POINT_EVENT, -1, point->ownerTeam, pointIndex );
 
 	teamName = TeamName( point->ownerTeam );
 	trap_SendServerCommand( -1, va( "cp \"%s captured %s\"", teamName, point->label ) );
@@ -2138,18 +2165,15 @@ Informs players that a Domination point has been neutralized.
 =============
 */
 static void Team_DominationAnnounceNeutralized( dominationPoint_t *point, team_t attacker ) {
-	gentity_t		*te;
-	team_t		victim;
+	int		pointIndex;
 	vec3_t	origin;
 
 	if ( attacker != TEAM_RED && attacker != TEAM_BLUE ) {
 		return;
 	}
 	Team_DominationEventOrigin( point, origin );
-	victim = ( attacker == TEAM_RED ) ? TEAM_BLUE : TEAM_RED;
-	te = G_TempEntity( origin, EV_GLOBAL_TEAM_SOUND );
-	te->r.svFlags |= SVF_BROADCAST;
-	te->s.eventParm = ( victim == TEAM_RED ) ? GTS_RED_TAKEN : GTS_BLUE_TAKEN;
+	pointIndex = ( point - teamgame.dominationPoints ) + 1;
+	G_BroadcastGlobalTeamSound( origin, GTS_DOMINATION_POINT_EVENT, -1, TEAM_FREE, pointIndex );
 	trap_SendServerCommand( -1, va( "cp \"%s neutralized %s\"", TeamName( attacker ), point->label ) );
 }
 
@@ -3503,9 +3527,7 @@ void Team_ReturnFlagSound( gentity_t *ent, int team ) {
 	te->r.svFlags |= SVF_BROADCAST;
 }
 
-void Team_TakeFlagSound( gentity_t *ent, int team ) {
-	gentity_t	*te;
-
+void Team_TakeFlagSound( gentity_t *ent, int team, int trackedClientNum ) {
 	if (ent == NULL) {
 		G_Printf ("Warning:  NULL passed to Team_TakeFlagSound\n");
 		return;
@@ -3531,14 +3553,9 @@ void Team_TakeFlagSound( gentity_t *ent, int team ) {
 			break;
 	}
 
-	te = G_TempEntity( ent->s.pos.trBase, EV_GLOBAL_TEAM_SOUND );
-	if( team == TEAM_BLUE ) {
-		te->s.eventParm = GTS_RED_TAKEN;
-	}
-	else {
-		te->s.eventParm = GTS_BLUE_TAKEN;
-	}
-	te->r.svFlags |= SVF_BROADCAST;
+	G_BroadcastGlobalTeamSound( ent->s.pos.trBase,
+		( team == TEAM_BLUE ) ? GTS_RED_TAKEN : GTS_BLUE_TAKEN,
+		trackedClientNum, TEAM_FREE, 0 );
 }
 
 void Team_CaptureFlagSound( gentity_t *ent, int team ) {
@@ -3671,7 +3688,6 @@ void Team_DroppedFlagThink( gentity_t *ent ) {
 		pingInterval = g_flagConfig.neutralFlagPingTimeMs;
 		if ( pingInterval > 0 ) {
 			int		pingThinkTime;
-			gentity_t	*te;
 
 			pingThinkTime = level.time + pingInterval;
 			if ( pingThinkTime > dropDeadline ) {
@@ -3679,10 +3695,6 @@ void Team_DroppedFlagThink( gentity_t *ent ) {
 			}
 
 			ent->nextthink = pingThinkTime;
-
-			te = G_TempEntity( ent->s.pos.trBase, EV_GLOBAL_TEAM_SOUND );
-			te->s.eventParm = GTS_NEUTRALFLAG_DROPPED;
-			te->r.svFlags |= SVF_BROADCAST;
 		}
 	}
 }
@@ -3904,7 +3916,7 @@ int Team_TouchEnemyFlag( gentity_t *ent, gentity_t *other, int team ) {
 	AddScore(other, ent->r.currentOrigin, CTF_FLAG_BONUS);
 	G_ADAwardBonus( other, ent->r.currentOrigin, g_adTouchScoreBonus.integer, S_COLOR_CYAN "Touch bonus" );
 	cl->pers.teamState.flagsince = level.time;
-	Team_TakeFlagSound( ent, team );
+	Team_TakeFlagSound( ent, team, other->s.number );
 
 	return -1; // Do not respawn this automatically, but do delete it if it was FL_DROPPED
 }

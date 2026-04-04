@@ -28,19 +28,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../ui/menudef.h"
 //==========================================================================
 
-enum {
-	QL_EV_ITEM_PICKUP_SPEC = 0x53,
-	QL_EV_OVERTIME = 0x54,
-	QL_EV_GAMEOVER = 0x55,
-	QL_EV_LIGHTNING_DISCHARGE = 0x5c,
-	QL_EV_RACE_START = 0x5d,
-	QL_EV_RACE_CHECKPOINT = 0x5e,
-	QL_EV_RACE_FINISH = 0x5f,
-	QL_EV_AWARD = 0x61,
-	QL_EV_INFECTED = 0x62,
-	QL_EV_NEW_HIGH_SCORE = 99
-};
-
 /*
 =============
 CG_DamagePlumsEnabled
@@ -202,14 +189,12 @@ static void CG_GetDamagePlumColor( int damage, weapon_t weapon, vec4_t color ) {
 =============
 CG_DamagePlum
 
-Stages the mapped retail damage-plum producer through the existing
-LE_SCOREPLUM renderer until the binary's queued world-marker path lands.
+Stages the mapped retail damage-plum producer through the queued world-marker
+path instead of the older local-entity score plum.
 =============
 */
 static void CG_DamagePlum( vec3_t org, int damage, weapon_t weapon ) {
-	localEntity_t	*le;
-	refEntity_t		*re;
-	vec3_t			angles;
+	cgQueuedWorldMarker_t	*marker;
 	vec4_t			color;
 
 	if ( damage <= 0 || !CG_DamagePlumsEnabled() ) {
@@ -221,30 +206,84 @@ static void CG_DamagePlum( vec3_t org, int damage, weapon_t weapon ) {
 
 	CG_GetDamagePlumColor( damage, weapon, color );
 
-	le = CG_AllocLocalEntity();
-	le->leFlags = LEF_SCOREPLUM_CUSTOMCOLOR;
-	le->leType = LE_SCOREPLUM;
-	le->startTime = cg.time;
-	le->endTime = cg.time + 2000;
-	le->lifeRate = 1.0f / ( le->endTime - le->startTime );
-	le->radius = damage;
+	marker = CG_AllocQueuedWorldMarker();
+	if ( !marker ) {
+		return;
+	}
 
-	le->color[0] = color[0];
-	le->color[1] = color[1];
-	le->color[2] = color[2];
-	le->color[3] = color[3];
+	VectorCopy( org, marker->origin );
+	marker->origin[0] += crandom() * 10.0f;
+	marker->origin[1] += crandom() * 10.0f;
+	marker->origin[2] += crandom() * 10.0f;
+	marker->duration = 2000;
+	marker->fadeDelay = 1000;
+	marker->rise = 100.0f;
+	marker->textScale = 0.18f;
+	Vector4Copy( color, marker->color );
+	Com_sprintf( marker->text, sizeof( marker->text ), "%d", damage );
+}
 
-	VectorCopy( org, le->pos.trBase );
-	le->pos.trBase[0] += crandom() * 10.0f;
-	le->pos.trBase[1] += crandom() * 10.0f;
-	le->pos.trBase[2] += crandom() * 10.0f;
+/*
+=============
+CG_POIEvent
 
-	re = &le->refEntity;
-	re->reType = RT_SPRITE;
-	re->radius = 16;
+Stages the retail EV_POI seam through the shared queued world-marker path.
+=============
+*/
+static void CG_POIEvent( centity_t *cent, const entityState_t *es ) {
+	cgQueuedWorldMarker_t	*marker;
+	qhandle_t		shader;
+	vec4_t			color;
+	float			size;
+	float			rise;
+	float			zOffset;
 
-	VectorClear( angles );
-	AnglesToAxis( angles, re->axis );
+	if ( !cent || !es ) {
+		return;
+	}
+
+	shader = 0;
+	size = ( es->eventParm > 0 ) ? (float)es->eventParm : 64.0f;
+	rise = size * 0.25f;
+	zOffset = 48.0f;
+	color[0] = 1.0f;
+	color[1] = 1.0f;
+	color[2] = 1.0f;
+	color[3] = 1.0f;
+
+	if ( cg_pmoveSettings.quadHogEnabled ) {
+		shader = cgs.media.poiQuadHogShader;
+		color[0] = 1.0f;
+		color[1] = 0.75f;
+		color[2] = 0.0f;
+	} else if ( cgs.customSettingsMask & CUSTOM_SETTING_INFECTED ) {
+		shader = cgs.media.poiInfectedShader;
+	} else {
+		shader = cgs.media.poiNeutralFlagCarrierShader;
+		size *= 0.75f;
+		zOffset = 64.0f;
+	}
+	if ( !shader ) {
+		shader = cgs.media.poiUnavailableShader;
+	}
+	if ( !shader ) {
+		return;
+	}
+
+	marker = CG_AllocQueuedWorldMarker();
+	if ( !marker ) {
+		return;
+	}
+
+	marker->kind = CG_QUEUED_MARKER_KIND_EVENT_POI;
+	VectorCopy( cent->lerpOrigin, marker->origin );
+	marker->origin[2] += zOffset;
+	marker->duration = 2000;
+	marker->fadeDelay = 1000;
+	marker->rise = rise;
+	marker->size = size;
+	Vector4Copy( color, marker->color );
+	marker->shader = shader;
 }
 
 /*
@@ -575,6 +614,104 @@ static int CG_GetRetailEventClientNum( const entityState_t *es ) {
 
 /*
 =============
+CG_GetGlobalTeamSoundTrackedClientNum
+
+Bridges the retail global-team-sound tracked-client payload through the current
+source entityState_t staging while qagame parity is still using source slots.
+=============
+*/
+static int CG_GetGlobalTeamSoundTrackedClientNum( const entityState_t *es ) {
+	if ( !es ) {
+		return -1;
+	}
+	if ( es->otherEntityNum >= 0 && es->otherEntityNum < MAX_CLIENTS ) {
+		return es->otherEntityNum;
+	}
+
+	return -1;
+}
+
+/*
+=============
+CG_GetGlobalTeamSoundTeam
+
+Bridges the retail global-team-sound team payload through the current source
+entityState_t layout until the original field slots are restored.
+=============
+*/
+static team_t CG_GetGlobalTeamSoundTeam( const entityState_t *es ) {
+	if ( !es ) {
+		return TEAM_FREE;
+	}
+	if ( es->clientNum >= TEAM_FREE && es->clientNum < TEAM_NUM_TEAMS ) {
+		return (team_t)es->clientNum;
+	}
+
+	return TEAM_FREE;
+}
+
+/*
+=============
+CG_GetGlobalTeamSoundIndex
+
+Returns the staged retail global-team-sound point/index payload.
+=============
+*/
+static int CG_GetGlobalTeamSoundIndex( const entityState_t *es ) {
+	if ( !es ) {
+		return 0;
+	}
+
+	return es->generic1;
+}
+
+/*
+=============
+CG_PlayDominationPointAnnouncement
+
+Routes the recovered retail Domination point announcer family through the
+current source point payload bridge.
+=============
+*/
+static void CG_PlayDominationPointAnnouncement( const entityState_t *es ) {
+	team_t		announcedTeam;
+	team_t		localTeam;
+	int			pointIndex;
+	sfxHandle_t	sound;
+
+	if ( !es ) {
+		return;
+	}
+
+	announcedTeam = CG_GetGlobalTeamSoundTeam( es );
+	if ( announcedTeam == TEAM_FREE ) {
+		CG_AddBufferedSound( cgs.media.returnOpponentSound );
+		return;
+	}
+
+	localTeam = cgs.clientinfo[cg.clientNum].team;
+	if ( localTeam != TEAM_RED && localTeam != TEAM_BLUE ) {
+		return;
+	}
+
+	pointIndex = CG_GetGlobalTeamSoundIndex( es ) - 1;
+	sound = 0;
+	if ( pointIndex >= 0 && pointIndex < QL_DOMINATION_ANNOUNCER_POINTS ) {
+		sound = ( localTeam == announcedTeam )
+			? cgs.media.dominationCapturedSounds[pointIndex]
+			: cgs.media.dominationLostSounds[pointIndex];
+	}
+	if ( !sound ) {
+		sound = ( localTeam == announcedTeam )
+			? cgs.media.captureYourTeamSound
+			: cgs.media.captureOpponentSound;
+	}
+
+	CG_AddBufferedSound( sound );
+}
+
+/*
+=============
 CG_GetRetailDamagePlumDamage
 
 Bridges the recovered retail damage payload through the current source
@@ -622,6 +759,112 @@ static weapon_t CG_GetRetailDamagePlumWeapon( const entityState_t *es ) {
 	}
 
 	return WP_NONE;
+}
+
+/*
+=============
+CG_GetRetailShotgunKillBurstCount
+
+Bridges the retail shotgun-kill gore count through the current source
+entityState_t layout until qagame restores the original payload slot.
+=============
+*/
+static int CG_GetRetailShotgunKillBurstCount( const entityState_t *es ) {
+	int	count;
+
+	count = 10;
+	if ( es ) {
+		if ( es->time > 0 ) {
+			count = es->time;
+		} else if ( es->eventParm > 0 ) {
+			count = es->eventParm;
+		}
+	}
+
+	count /= 5;
+	if ( count < 1 ) {
+		count = 1;
+	} else if ( count > 8 ) {
+		count = 8;
+	}
+
+	return count;
+}
+
+/*
+=============
+CG_ShotgunKillEffect
+
+Reconstructs the retail shotgun finisher gore burst around the victim origin.
+=============
+*/
+static void CG_ShotgunKillEffect( centity_t *cent, const entityState_t *es ) {
+	localEntity_t	*blood;
+	qhandle_t		bloodShader;
+	vec3_t			puffOrigin;
+	int				entityNum;
+	int				burstCount;
+	int				i;
+
+	if ( !cent ) {
+		return;
+	}
+	if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {
+		return;
+	}
+
+	entityNum = ENTITYNUM_NONE;
+	if ( es && es->otherEntityNum >= 0 && es->otherEntityNum < MAX_GENTITIES ) {
+		entityNum = es->otherEntityNum;
+	}
+
+	burstCount = CG_GetRetailShotgunKillBurstCount( es );
+	for ( i = 0; i < burstCount; i++ ) {
+		VectorCopy( cent->lerpOrigin, puffOrigin );
+		puffOrigin[0] += crandom() * 16.0f;
+		puffOrigin[1] += crandom() * 16.0f;
+		puffOrigin[2] += 8.0f + random() * 24.0f;
+		CG_Bleed( puffOrigin, entityNum );
+
+		puffOrigin[0] += crandom() * 6.0f;
+		puffOrigin[1] += crandom() * 6.0f;
+		puffOrigin[2] += crandom() * 6.0f;
+		CG_Bleed( puffOrigin, entityNum );
+
+		bloodShader = cgs.media.bloodSprayShaders[rand() & 3];
+		blood = CG_SmokePuff( puffOrigin, vec3_origin,
+			24.0f,
+			1.0f, 1.0f, 1.0f, 1.0f,
+			400,
+			cg.time,
+			0,
+			0,
+			bloodShader );
+		blood->leType = LE_FALL_SCALE_FADE;
+		blood->pos.trDelta[2] = 20.0f;
+		if ( cg.snap && entityNum == cg.snap->ps.clientNum ) {
+			blood->refEntity.renderfx |= RF_THIRD_PERSON;
+		}
+	}
+}
+
+/*
+=========================
+CG_MissileHitWallDmgThrough
+
+Restores the stable retail fallthrough from EV_MISSILE_MISS_DMGTHROUGH into the
+shared missile-impact wall helper.
+=========================
+*/
+static void CG_MissileHitWallDmgThrough( const entityState_t *es, vec3_t origin, vec3_t dir ) {
+	int	clientNum;
+
+	clientNum = 0;
+	if ( es && es->clientNum >= 0 && es->clientNum < MAX_CLIENTS ) {
+		clientNum = es->clientNum;
+	}
+
+	CG_MissileHitWall( es ? es->weapon : WP_NONE, clientNum, origin, dir, IMPACTSOUND_DEFAULT );
 }
 
 /*
@@ -828,10 +1071,21 @@ CG_TrackFlagCarrierForEvent
 Evaluates global team sound events to follow the current flag carrier.
 =============
 */
-static void CG_TrackFlagCarrierForEvent( int eventParm ) {
+static void CG_TrackFlagCarrierForEvent( const entityState_t *es ) {
+	int			clientNum;
 	powerup_t powerup = PW_NUM_POWERUPS;
 
-	switch ( eventParm ) {
+	if ( !es ) {
+		return;
+	}
+
+	clientNum = CG_GetGlobalTeamSoundTrackedClientNum( es );
+	if ( clientNum >= 0 && clientNum < cgs.maxclients ) {
+		CG_SpectatorTrackEvent( clientNum, CG_SPECTATOR_TRACK_FLAG );
+		return;
+	}
+
+	switch ( es->eventParm ) {
 		case GTS_RED_TAKEN:
 			powerup = ( cgs.gametype == GT_1FCTF ) ? PW_NEUTRALFLAG : PW_BLUEFLAG;
 			break;
@@ -1550,13 +1804,13 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		return;
 	}
 
-	if ( event == QL_EV_ITEM_PICKUP_SPEC && CG_IsSpectatorItemPickupEvent( es ) ) {
+	if ( event == EV_ITEM_PICKUP_SPEC && CG_IsSpectatorItemPickupEvent( es ) ) {
 		DEBUGNAME("EV_ITEM_PICKUP_SPEC");
 		CG_RecordSpectatorItemPickup( es );
 		return;
 	}
 
-	if ( event == QL_EV_OVERTIME && es->eType > ET_EVENTS ) {
+	if ( event == EV_OVERTIME && es->eType > ET_EVENTS ) {
 		DEBUGNAME("EV_OVERTIME");
 		CG_HandleRetailOvertimeEvent();
 		return;
@@ -1584,6 +1838,20 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if (cg_footsteps.integer) {
 			trap_S_StartSound (NULL, es->number, CHAN_BODY, 
 				cgs.media.footsteps[ FOOTSTEP_METAL ][rand()&3] );
+		}
+		break;
+	case EV_FOOTSTEP_SNOW:
+		DEBUGNAME("EV_FOOTSTEP_SNOW");
+		if ( cg_footsteps.integer ) {
+			trap_S_StartSound( NULL, es->number, CHAN_BODY,
+				cgs.media.footsteps[ FOOTSTEP_SNOW ][rand()&3] );
+		}
+		break;
+	case EV_FOOTSTEP_WOOD:
+		DEBUGNAME("EV_FOOTSTEP_WOOD");
+		if ( cg_footsteps.integer ) {
+			trap_S_StartSound( NULL, es->number, CHAN_BODY,
+				cgs.media.footsteps[ FOOTSTEP_WOOD ][rand()&3] );
 		}
 		break;
 	case EV_FOOTSPLASH:
@@ -1639,14 +1907,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		break;
 
-	case EV_STEP_4:
-	case EV_STEP_8:
-	case EV_STEP_12:
-	case EV_STEP_16:
-		DEBUGNAME("EV_STEP");
-		// Retail smooths predicted stair climbs from pmove results in CG_PredictPlayerState.
-		break;
-
 	case EV_JUMP_PAD:
 		DEBUGNAME("EV_JUMP_PAD");
 //		CG_Printf( "EV_JUMP_PAD w/effect #%i\n", es->eventParm );
@@ -1671,10 +1931,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_JUMP:
 		DEBUGNAME("EV_JUMP");
-		trap_S_StartSound (NULL, es->number, CHAN_VOICE, CG_CustomSound( es->number, "*jump1.wav" ) );
-		break;
-	case EV_DOUBLE_JUMP:
-		DEBUGNAME("EV_DOUBLE_JUMP");
 		trap_S_StartSound (NULL, es->number, CHAN_VOICE, CG_CustomSound( es->number, "*jump1.wav" ) );
 		break;
 	case EV_TAUNT:
@@ -1824,6 +2080,17 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_CHANGE_WEAPON");
 		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.selectSound );
 		break;
+	case EV_DROP_WEAPON:
+		DEBUGNAME("EV_DROP_WEAPON");
+		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
+			weapon_t	excludedWeapon;
+
+			excludedWeapon = ( es->weapon > WP_NONE && es->weapon < WP_NUM_WEAPONS )
+				? (weapon_t)es->weapon
+				: ( cg.snap ? (weapon_t)cg.snap->ps.weapon : WP_NONE );
+			CG_SelectHighestWeaponExcluding( excludedWeapon );
+		}
+		break;
 	case EV_FIRE_WEAPON:
 		DEBUGNAME("EV_FIRE_WEAPON");
 		CG_FireWeapon( cent );
@@ -1897,10 +2164,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	//
 	case EV_PLAYER_TELEPORT_IN:
 		DEBUGNAME("EV_PLAYER_TELEPORT_IN");
-		if ( cgs.gametype == GT_FREEZE && es->eventParm == QL_EVENTPARM_FREEZE_THAW ) {
-			CG_ThawPlayer( position );
-			break;
-		}
 		trap_S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.teleInSound );
 		CG_SpawnEffect( position);
 		break;
@@ -1984,10 +2247,30 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			CG_DamagePlum( cent->lerpOrigin, CG_GetRetailDamagePlumDamage( es ), CG_GetRetailDamagePlumWeapon( es ) );
 		}
 		break;
+	case EV_POI:
+		DEBUGNAME("EV_POI");
+		CG_POIEvent( cent, es );
+		break;
+	case EV_THAW_PLAYER:
+		DEBUGNAME("EV_THAW_PLAYER");
+		CG_ThawPlayer( position );
+		break;
+	case EV_THAW_TICK:
+		DEBUGNAME("EV_THAW_TICK");
+		if ( cgs.media.thawTickSound ) {
+			trap_S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.thawTickSound );
+		}
+		break;
 
 	//
 	// missile impacts
 	//
+	case EV_MISSILE_MISS_DMGTHROUGH:
+		DEBUGNAME("EV_MISSILE_MISS_DMGTHROUGH");
+		ByteToDir( es->eventParm, dir );
+		CG_MissileHitWallDmgThrough( es, position, dir );
+		break;
+
 	case EV_MISSILE_HIT:
 		DEBUGNAME("EV_MISSILE_HIT");
 		ByteToDir( es->eventParm, dir );
@@ -2035,6 +2318,11 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_SHOTGUN:
 		DEBUGNAME("EV_SHOTGUN");
 		CG_ShotgunFire( es );
+		break;
+
+	case EV_SHOTGUN_KILL:
+		DEBUGNAME("EV_SHOTGUN_KILL");
+		CG_ShotgunKillEffect( cent, es );
 		break;
 
 	case EV_GENERAL_SOUND:
@@ -2089,11 +2377,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				//
 				CG_AddBufferedSound( cgs.media.redFlagReturnedSound );
 				break;
-			case GTS_NEUTRALFLAG_DROPPED:
-				if ( cgs.media.neutralFlagReturnedSound ) {
-					CG_AddBufferedSound( cgs.media.neutralFlagReturnedSound );
-				}
-				break;
 
 			case GTS_RED_TAKEN: // CTF: red team took blue flag, 1FCTF: blue team took the neutral flag
 				// if this player picked up the flag then a sound is played in CG_CheckLocalSounds
@@ -2115,7 +2398,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 						}
 					}
 				}
-				CG_TrackFlagCarrierForEvent( es->eventParm );
+				CG_TrackFlagCarrierForEvent( es );
 				break;
 			case GTS_BLUE_TAKEN: // CTF: blue team took the red flag, 1FCTF red team took the neutral flag
 				// if this player picked up the flag then a sound is played in CG_CheckLocalSounds
@@ -2137,7 +2420,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 						}
 					}
 				}
-				CG_TrackFlagCarrierForEvent( es->eventParm );
+				CG_TrackFlagCarrierForEvent( es );
 				break;
 				case GTS_REDOBELISK_ATTACKED: // Overload: red obelisk is being attacked
 					if (cgs.clientinfo[cg.clientNum].team == TEAM_RED) {
@@ -2168,6 +2451,52 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				case GTS_KAMIKAZE:
 					trap_S_StartLocalSound(cgs.media.kamikazeFarSound, CHAN_ANNOUNCER);
 					break;
+				case GTS_REDTEAM_WINS:
+					CG_ClearBufferedAnnouncements();
+					trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
+					if ( cgs.clientinfo[cg.clientNum].team == TEAM_RED ) {
+						trap_S_StartBackgroundTrack( "music/win", "" );
+					} else if ( cgs.clientinfo[cg.clientNum].team == TEAM_BLUE ) {
+						trap_S_StartBackgroundTrack( "music/loss", "" );
+					}
+					CG_AddBufferedSound( cgs.media.redWinsSound );
+					break;
+				case GTS_BLUETEAM_WINS:
+					CG_ClearBufferedAnnouncements();
+					trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
+					if ( cgs.clientinfo[cg.clientNum].team == TEAM_BLUE ) {
+						trap_S_StartBackgroundTrack( "music/win", "" );
+					} else if ( cgs.clientinfo[cg.clientNum].team == TEAM_RED ) {
+						trap_S_StartBackgroundTrack( "music/loss", "" );
+					}
+					CG_AddBufferedSound( cgs.media.blueWinsSound );
+					break;
+				case GTS_REDTEAM_WINS_ROUND:
+					CG_AddBufferedSound( cgs.media.redWinsRoundSound );
+					break;
+				case GTS_BLUETEAM_WINS_ROUND:
+					CG_AddBufferedSound( cgs.media.blueWinsRoundSound );
+					break;
+				case GTS_ROUND_DRAW:
+					CG_ClearBufferedAnnouncements();
+					CG_AddBufferedSound( cgs.media.roundDrawSound );
+					break;
+				case GTS_LAST_STANDING:
+					if ( CG_GetGlobalTeamSoundTeam( es ) == cgs.clientinfo[cg.clientNum].team ) {
+						CG_AddBufferedSound( cgs.media.lastStandingSound );
+					}
+					break;
+				case GTS_ROUND_OVER:
+					CG_AddBufferedSound( cgs.media.roundOverSound );
+					break;
+				case GTS_DOMINATION_POINT_EVENT:
+					CG_PlayDominationPointAnnouncement( es );
+					break;
+				case GTS_SURVIVOR_WARNING:
+					if ( CG_GetGlobalTeamSoundTeam( es ) == cgs.clientinfo[cg.clientNum].team ) {
+						CG_AddBufferedSound( cgs.media.survivorWarningSound );
+					}
+					break;
 				default:
 					break;
 			}
@@ -2189,6 +2518,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_DEATHx");
 		trap_S_StartSound( NULL, es->number, CHAN_VOICE, 
 				CG_CustomSound( es->number, va("*death%i.wav", event - EV_DEATH1 + 1) ) );
+		break;
+	case EV_DROWN:
+		DEBUGNAME("EV_DROWN");
+		trap_S_StartSound( NULL, es->number, CHAN_VOICE, CG_CustomSound( es->number, "*drown.wav" ) );
 		break;
 
 
@@ -2227,6 +2560,15 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		trap_S_StartSound (NULL, es->number, CHAN_ITEM, cgs.media.regenSound );
 		CG_SpectatorTrackEvent( es->number, CG_SPECTATOR_TRACK_POWERUP );
 		break;
+	case EV_POWERUP_ARMORREGEN:
+		DEBUGNAME("EV_POWERUP_ARMORREGEN");
+		if ( es->number == cg.snap->ps.clientNum ) {
+			cg.powerupActive = PW_AMMOREGEN;
+			cg.powerupTime = cg.time;
+		}
+		trap_S_StartSound( NULL, es->number, CHAN_ITEM, cgs.media.armorregenSound );
+		CG_SpectatorTrackEvent( es->number, CG_SPECTATOR_TRACK_POWERUP );
+		break;
 
 	case EV_GIB_PLAYER:
 		DEBUGNAME("EV_GIB_PLAYER");
@@ -2239,18 +2581,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		CG_GibPlayer( cent->lerpOrigin );
 		break;
 
-	case EV_STOPLOOPINGSOUND:
-		DEBUGNAME("EV_STOPLOOPINGSOUND");
-		trap_S_StopLoopingSound( es->number );
-		es->loopSound = 0;
-		break;
-
 	case EV_DEBUG_LINE:
 		DEBUGNAME("EV_DEBUG_LINE");
 		CG_Beam( cent );
 		break;
 
-	case QL_EV_GAMEOVER:
+	case EV_GAMEOVER:
 		DEBUGNAME("EV_GAMEOVER");
 		CG_ClearBufferedAnnouncements();
 		trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
@@ -2269,26 +2605,26 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		break;
 
-	case QL_EV_LIGHTNING_DISCHARGE:
+	case EV_LIGHTNING_DISCHARGE:
 		DEBUGNAME("EV_LIGHTNING_DISCHARGE");
 		CG_LightningDischargeEffect( cent->lerpOrigin, es->eventParm );
 		break;
 
-	case QL_EV_RACE_START:
+	case EV_RACE_START:
 		DEBUGNAME("EV_RACE_START");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
 			CG_RacePlayCue( CG_RACE_CUE_START );
 		}
 		break;
 
-	case QL_EV_RACE_CHECKPOINT:
+	case EV_RACE_CHECKPOINT:
 		DEBUGNAME("EV_RACE_CHECKPOINT");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
 			CG_RacePlayCue( CG_RACE_CUE_CHECKPOINT );
 		}
 		break;
 
-	case QL_EV_RACE_FINISH:
+	case EV_RACE_FINISH:
 		DEBUGNAME("EV_RACE_FINISH");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
 			CG_RaceResetState();
@@ -2296,19 +2632,19 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		break;
 
-	case QL_EV_AWARD:
+	case EV_AWARD:
 		DEBUGNAME("EV_AWARD");
 		CG_HandleRetailAwardEvent( es );
 		break;
 
-	case QL_EV_INFECTED:
+	case EV_INFECTED:
 		DEBUGNAME("EV_INFECTED");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) && cgs.media.infectedSound ) {
 			CG_AddBufferedSound( cgs.media.infectedSound );
 		}
 		break;
 
-	case QL_EV_NEW_HIGH_SCORE:
+	case EV_NEW_HIGH_SCORE:
 		DEBUGNAME("EV_NEW_HIGH_SCORE");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) && cgs.media.newHighScoreSound ) {
 			CG_AddBufferedSound( cgs.media.newHighScoreSound );

@@ -682,12 +682,18 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
+	// Retail mirrors cg_autoHop through the recovered 0x00040000 pm_flags bit
+	// instead of forcing the local pmove settings block.
+	if ( cg.autoHopEnabled ) {
+		cg.predictedPlayerState.pm_flags &= ~0x00040000;
+	}
+	else {
+		cg.predictedPlayerState.pm_flags |= 0x00040000;
+	}
+
 	// prepare for pmove
 	cg_pmove.ps = &cg.predictedPlayerState;
 	memcpy( &localPmoveSettings, &cg_pmoveSettings, sizeof( localPmoveSettings ) );
-	if ( cg.autoHopEnabled ) {
-		localPmoveSettings.autoHop = qtrue;
-	}
 	cg_pmove.pmoveSettings = &localPmoveSettings;
 	cg_pmove.trace = CG_Trace;
 	cg_pmove.pointcontents = CG_PointContents;

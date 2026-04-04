@@ -757,6 +757,50 @@ static qboolean CG_RaceCheckpointDelta( const cgRaceClientStatus_t *status, cons
 
 /*
 =============
+CG_RaceBuildRespawnPrompt
+
+Builds the retail race respawn prompt when the local player is dead.
+=============
+*/
+static qboolean CG_RaceBuildRespawnPrompt( char *buffer, size_t bufferSize ) {
+	char	keyName[32];
+	int		key;
+
+	if ( !buffer || bufferSize <= 0 || !cg.snap ) {
+		return qfalse;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qfalse;
+	}
+
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		return qfalse;
+	}
+
+	if ( cg.snap->ps.stats[STAT_HEALTH] > 0 ) {
+		return qfalse;
+	}
+
+	key = trap_Key_GetKey( "kill" );
+	if ( key == -1 ) {
+		Q_strncpyz( buffer, "Bind 'kill' to respawn", bufferSize );
+		return qtrue;
+	}
+
+	if ( cg.killRespawnHintSuppressed ) {
+		return qfalse;
+	}
+
+	trap_Key_KeynumToStringBuf( key, keyName, sizeof( keyName ) );
+	Q_strupr( keyName );
+	Com_sprintf( buffer, bufferSize, "Press %s to respawn.", keyName );
+
+	return qtrue;
+}
+
+/*
+=============
 CG_RaceBuildStatusString
 
 Builds the race status ownerdraw text for the active client.
@@ -780,6 +824,9 @@ static qboolean CG_RaceBuildStatusString( char *buffer, size_t bufferSize ) {
 
 	if ( cg.warmup ) {
 		Q_strncpyz( buffer, "Warmup", bufferSize );
+		return qtrue;
+	}
+	if ( CG_RaceBuildRespawnPrompt( buffer, bufferSize ) ) {
 		return qtrue;
 	}
 
@@ -3885,7 +3932,7 @@ qboolean CG_ShouldDrawAccOverlay( void ) {
 		return qfalse;
 	}
 
-	if ( !cg.demoPlayback && cg.accRequestTime + 1000 < cg.time ) {
+	if ( cg.accRequestTime + 1000 < cg.time ) {
 		cg.accRequestTime = cg.time;
 		trap_SendClientCommand( "acc" );
 	}

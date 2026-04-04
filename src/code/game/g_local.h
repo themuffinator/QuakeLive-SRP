@@ -619,6 +619,9 @@ struct gentity_s {
 	float		tourPointCvarValue;
 	float		tourPointPrintChatTextTime;
 	qboolean	tourPointIgnorePlayerLocation;
+	int			spectatorItemPickupClientNum;
+	int			spectatorItemPickupPalette;
+	int			spectatorItemPickupLayoutOrder;
 };
 
 
@@ -1252,6 +1255,7 @@ void	G_RaceSendInfoCommand( int clientNum );
 qboolean	G_RaceSendPointMetadataCommand( int clientNum, int index );
 void	G_RaceServerClearPoints( void );
 void	G_RaceServerDumpPoints( void );
+void	G_SyncSpectatorItemStatesForClient( int clientNum );
 void	G_AutoAction( autoActionEvent_t event, const gentity_t *subject, const char *details );
 char	*G_CleanClientNameFromClientNum( int clientNum, char *dest );
 char	*G_CleanClientNameFromClient( char *dest, gclient_t *client );
@@ -1467,6 +1471,7 @@ void G_ADNotifyLastAlivePlayer( team_t team );
 void G_CANotifyLastAlivePlayer( team_t team );
 void G_FreezeNotifyLastAlivePlayer( team_t team );
 void G_RRNotifyLastAlivePlayer( team_t team );
+void G_BroadcastGlobalTeamSound( const vec3_t origin, global_team_sound_t sound, int trackedClientNum, team_t team, int index );
 int G_ADResetScoreHistory( void );
 int G_ADUpdateScoreHistory( void );
 void G_CAADRespawnAsSpectator( gentity_t *ent );

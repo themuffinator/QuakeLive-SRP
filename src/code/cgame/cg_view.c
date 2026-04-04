@@ -30,13 +30,12 @@ static void CG_ResetViewAngleFilter( const vec3_t angles );
 static void CG_FilterViewAngles( vec3_t angles );
 static void CG_UpdateSpectatorCvar( void );
 
-#define CG_VIEW_FILTER_TARGET_NONE	-1
 #define CG_VIEW_FILTER_MAX_CVAR_SAMPLES	( CG_VIEW_FILTER_MAX_SAMPLES - 1 )
 #define CG_BUFFERED_ANNOUNCER_COUNT	32
 #define CG_BUFFERED_ANNOUNCER_DELAY	1500
 #define CG_RETAIL_SELECTED_BOT_INFO_CONFIGSTRING	0x10
 
-static int cg_viewFilterTargetKey = CG_VIEW_FILTER_TARGET_NONE;
+static int cg_viewFilterModificationCount;
 static int cg_bufferedSoundHead;
 static int cg_bufferedSoundTail;
 static sfxHandle_t cg_bufferedSounds[CG_BUFFERED_ANNOUNCER_COUNT];
@@ -773,22 +772,6 @@ static float CG_ViewFilterAverage( const float *samples, int count, int index ) 
 
 /*
 =============
-CG_GetViewFilterTargetKey
-
-Returns the current spectator-camera target key so the retail smoothing ring
-can be reset when the followed view changes.
-=============
-*/
-static int CG_GetViewFilterTargetKey( void ) {
-	if ( !cg.snap || !CG_IsSpectatorCamera() ) {
-		return CG_VIEW_FILTER_TARGET_NONE;
-	}
-
-	return cg.snap->ps.clientNum;
-}
-
-/*
-=============
 CG_CalcZoomSensitivityScale
 
 Returns the retail zoom-sensitivity ratio derived from the current zoomed
@@ -823,12 +806,11 @@ static float CG_CalcZoomSensitivityScale( float currentFovY, float baseFovX ) {
 =============
 CG_FilterViewAngles
 
-Applies HLIL-style smoothing to the spectator camera view angles.
+Applies the retail `cg_filter_angles` smoothing ring to the current view.
 =============
 */
 static void CG_FilterViewAngles( vec3_t angles ) {
 	int sampleLimit;
-	int targetKey;
 	int sampleIndex;
 	int i;
 	float averageYaw;
@@ -841,7 +823,7 @@ static void CG_FilterViewAngles( vec3_t angles ) {
 		trap_Cvar_Set( "cg_filter_angles", "0" );
 		cg_filter_angles.integer = 0;
 		cg_filter_angles.value = 0.0f;
-		sampleLimit = 0;
+		return;
 	}
 	if ( sampleLimit > CG_VIEW_FILTER_MAX_CVAR_SAMPLES ) {
 		trap_Cvar_Set( "cg_filter_angles", va( "%d", CG_VIEW_FILTER_MAX_CVAR_SAMPLES ) );
@@ -850,19 +832,8 @@ static void CG_FilterViewAngles( vec3_t angles ) {
 		sampleLimit = CG_VIEW_FILTER_MAX_CVAR_SAMPLES;
 	}
 
-	targetKey = CG_GetViewFilterTargetKey();
-	if ( sampleLimit == 0 || targetKey == CG_VIEW_FILTER_TARGET_NONE ) {
-		cg_viewFilterTargetKey = targetKey;
-		CG_ResetViewAngleFilter( angles );
-		return;
-	}
-
-	if ( cg_viewFilterTargetKey != targetKey ) {
-		cg_viewFilterTargetKey = targetKey;
-		CG_ResetViewAngleFilter( angles );
-	}
-
-	if ( cg.viewFilter.count == 0 ) {
+	if ( cg_filter_angles.modificationCount != cg_viewFilterModificationCount ) {
+		cg_viewFilterModificationCount = cg_filter_angles.modificationCount;
 		CG_ResetViewAngleFilter( angles );
 	}
 
@@ -903,28 +874,52 @@ static void CG_FilterViewAngles( vec3_t angles ) {
 
 /*
 =============
+CG_ClearRewardStack
+
+Clears the retail medal/reward queue that is reset alongside buffered
+announcer playback on restart and game-over paths.
+=============
+*/
+static void CG_ClearRewardStack( void ) {
+	cg.rewardStack = 0;
+	cg.rewardTime = 0;
+	memset( cg.rewardCount, 0, sizeof( cg.rewardCount ) );
+	memset( cg.rewardShader, 0, sizeof( cg.rewardShader ) );
+	memset( cg.rewardSound, 0, sizeof( cg.rewardSound ) );
+}
+
+/*
+=============
 CG_ClearBufferedSounds
 
-Clears the local announcer queue, matching the retail buffered-sound reset
-behaviour when the queue is disabled or invalidated.
+Clears the local announcer queue while preserving any pending retail cooldown
+timestamp for the next queued announcement.
 =============
 */
 static void CG_ClearBufferedSounds( void ) {
+	int nextSoundTime = 0;
+
+	if ( cg_bufferedSoundTimes[cg_bufferedSoundTail] > cg.time ) {
+		nextSoundTime = cg_bufferedSoundTimes[cg_bufferedSoundTail];
+	}
+
 	cg_bufferedSoundHead = 0;
 	cg_bufferedSoundTail = 0;
 	memset( cg_bufferedSounds, 0, sizeof( cg_bufferedSounds ) );
 	memset( cg_bufferedSoundTimes, 0, sizeof( cg_bufferedSoundTimes ) );
 	memset( cg_bufferedSoundDelays, 0, sizeof( cg_bufferedSoundDelays ) );
+	cg_bufferedSoundTimes[0] = nextSoundTime;
 }
 
 /*
 =============
 CG_ClearBufferedAnnouncements
 
-Exposes the retail buffered-announcer reset path outside cg_view.c.
+Exposes the retail reward/buffered-announcer reset path outside cg_view.c.
 =============
 */
 void CG_ClearBufferedAnnouncements( void ) {
+	CG_ClearRewardStack();
 	CG_ClearBufferedSounds();
 }
 
@@ -944,8 +939,7 @@ static void CG_UpdateSpectatorCvar( void ) {
 	}
 
 	trap_Cvar_Set( "cg_spectating", desired ? "1" : "0" );
-	cg_spectating.integer = desired;
-	cg_spectating.value = (float)desired;
+	trap_Cvar_Update( &cg_spectating );
 }
 
 /*
@@ -1129,7 +1123,9 @@ static int CG_CalcViewValues( void ) {
 		CG_OffsetFirstPersonView();
 	}
 
-	CG_FilterViewAngles( cg.refdefViewAngles );
+	if ( cg_filter_angles.integer != 0 ) {
+		CG_FilterViewAngles( cg.refdefViewAngles );
+	}
 
 	// position eye reletive to origin
 	AnglesToAxis( cg.refdefViewAngles, cg.refdef.viewaxis );
@@ -1313,10 +1309,6 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	cg.time = serverTime;
 	cg.demoPlayback = demoPlayback;
-	if ( cg.clientFrame == 0 ) {
-		cg_viewFilterTargetKey = CG_VIEW_FILTER_TARGET_NONE;
-		CG_ClearBufferedSounds();
-	}
 
 	// update cvars
 	CG_UpdateCvars();
@@ -1335,6 +1327,8 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// clear all the render lists
 	trap_R_ClearScene();
 
+	CG_UpdateQueuedWorldMarkers();
+
 	// set up cg.snap and possibly cg.nextSnap
 	CG_ProcessSnapshots();
 
@@ -1345,16 +1339,13 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		return;
 	}
 
-	CG_RunQueuedAutoActions();
+	CG_UpdateSpectatorCvar();
 
 	// this counter will be bumped for every valid scene we generate
 	cg.clientFrame++;
 
 	// update cg.predictedPlayerState
 	CG_PredictPlayerState();
-	CG_UpdateSpectatorTracking();
-	CG_UpdateSpectatorCvar();
-	CG_RunPendingFollowKiller();
 
 	// decide on third person view
 	cg.renderingThirdPerson = (qboolean)( ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )
@@ -1381,21 +1372,20 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 	CG_AddViewWeapon( &cg.predictedPlayerState );
 
+	// finish up the rest of the refdef
+	cg.refdef.time = cg.time;
+	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
+
+	// warning sounds when powerup is wearing off
+	CG_PowerupTimerSounds();
+
 	// add buffered sounds
 	CG_PlayBufferedSounds();
 
 	// play buffered voice chats
 	CG_PlayBufferedVoiceChats();
 
-	// finish up the rest of the refdef
-	if ( cg.testModelEntity.hModel ) {
-		CG_AddTestModel();
-	}
-	cg.refdef.time = cg.time;
-	memcpy( cg.refdef.areamask, cg.snap->areamask, sizeof( cg.refdef.areamask ) );
-
-	// warning sounds when powerup is wearing off
-	CG_PowerupTimerSounds();
+	CG_RunPendingFollowKiller();
 
 	// update audio positions
 	trap_S_Respatialize( cg.snap->ps.clientNum, cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
@@ -1408,7 +1398,6 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		}
 		cg.oldTime = cg.time;
 		CG_AddLagometerFrameInfo();
-		CG_UpdateSpectatorItemPickups();
 	}
 	if (cg_timescale.value != cg_timescaleFadeEnd.value) {
 		if (cg_timescale.value < cg_timescaleFadeEnd.value) {

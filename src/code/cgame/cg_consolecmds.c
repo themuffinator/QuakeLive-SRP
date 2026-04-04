@@ -27,6 +27,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../ui/ui_shared.h"
 extern menuDef_t *menuScoreboard;
 
+static qboolean	cg_pstatsRequestActive;
+
 
 
 void CG_TargetCommand_f( void ) {
@@ -116,13 +118,25 @@ static void CG_ScoresUp_f( void ) {
 CG_AccDown_f
 
 Mirrors the retail `+acc` command by arming the vertical accuracy overlay and
-requesting an immediate refresh from the server.
+issuing an immediate request when the local client is not free-spectating.
 =============
 */
 static void CG_AccDown_f( void ) {
+	if ( !cg.snap ) {
+		return;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR &&
+			!( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return;
+	}
+
+	if ( cg.accRequestTime + 1000 < cg.time ) {
+		cg.accRequestTime = cg.time;
+		trap_SendClientCommand( "acc" );
+	}
+
 	cg.accRequestActive = qtrue;
-	cg.accRequestTime = 0;
-	trap_SendClientCommand( "acc" );
 }
 
 /*
@@ -133,7 +147,48 @@ Mirrors the retail `-acc` command by dismissing the vertical accuracy overlay.
 =============
 */
 static void CG_AccUp_f( void ) {
-	cg.accRequestActive = qfalse;
+	if ( cg.accRequestActive ) {
+		cg.accRequestActive = qfalse;
+	}
+}
+
+/*
+=============
+CG_PStatsDown_f
+
+Mirrors the retail `+pstats` command by issuing an immediate request when the
+local client is not free-spectating.
+=============
+*/
+static void CG_PStatsDown_f( void ) {
+	if ( !cg.snap ) {
+		return;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR &&
+			!( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return;
+	}
+
+	if ( cg.accRequestTime + 1000 < cg.time ) {
+		cg.accRequestTime = cg.time;
+		trap_SendClientCommand( "pstats" );
+	}
+
+	cg_pstatsRequestActive = qtrue;
+}
+
+/*
+=============
+CG_PStatsUp_f
+
+Mirrors the retail `-pstats` command by dismissing the pstats request latch.
+=============
+*/
+static void CG_PStatsUp_f( void ) {
+	if ( cg_pstatsRequestActive ) {
+		cg_pstatsRequestActive = qfalse;
+	}
 }
 
 /*
@@ -173,6 +228,7 @@ static void CG_spWin_f( void) {
 	trap_Cvar_Set("cg_thirdPerson", "1");
 	trap_Cvar_Set("cg_thirdPersonAngle", "0");
 	trap_Cvar_Set("cg_thirdPersonRange", "100");
+	CG_ClearBufferedAnnouncements();
 	CG_AddBufferedSound(cgs.media.winnerSound);
 	//trap_S_StartLocalSound(cgs.media.winnerSound, CHAN_ANNOUNCER);
 	CG_CenterPrint( "YOU WIN!", SCREEN_HEIGHT * .30f, 0.5f );
@@ -184,6 +240,7 @@ static void CG_spLose_f( void) {
 	trap_Cvar_Set("cg_thirdPerson", "1");
 	trap_Cvar_Set("cg_thirdPersonAngle", "0");
 	trap_Cvar_Set("cg_thirdPersonRange", "100");
+	CG_ClearBufferedAnnouncements();
 	CG_AddBufferedSound(cgs.media.loserSound);
 	//trap_S_StartLocalSound(cgs.media.loserSound, CHAN_ANNOUNCER);
 	CG_CenterPrint( "YOU LOSE...", SCREEN_HEIGHT * .30f, 0.5f );
@@ -271,24 +328,30 @@ static void CG_PrevTeamMember_f( void ) {
 =============
 CG_ClientMute_f
 
-Toggles the local retail-style scoreboard mute state for a client slot.
+Mirrors the retail identity-backed clientmute wrapper.
 =============
 */
 static void CG_ClientMute_f( void ) {
-	char	arg[16];
-	int		clientNum;
+	char				arg[16];
+	int					clientNum;
+	const clientInfo_t	*ci;
 
-	trap_Argv( 1, arg, sizeof( arg ) );
-	if ( !arg[0] ) {
+	if ( trap_Argc() < 2 ) {
 		return;
 	}
 
+	trap_Argv( 1, arg, sizeof( arg ) );
 	clientNum = atoi( arg );
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return;
 	}
 
-	cg.clientMuted[clientNum] = (qboolean)!cg.clientMuted[clientNum];
+	ci = &cgs.clientinfo[clientNum];
+	if ( ( ci->identityLow | ci->identityHigh ) == 0 ) {
+		return;
+	}
+
+	trap_QL_ToggleClientMute( ci->identityLow, ci->identityHigh );
 }
 
 /*
@@ -426,6 +489,7 @@ Reconstructs the retail local kill command entry point.
 =============
 */
 static void CG_Kill_f( void ) {
+	cg.killRespawnHintSuppressed = qtrue;
 	trap_SendClientCommand( "kill" );
 }
 
@@ -963,17 +1027,13 @@ typedef struct {
 } consoleCommand_t;
 
 static consoleCommand_t	commands[] = {
-	{ "testgun", CG_TestGun_f },
-	{ "testmodel", CG_TestModel_f },
-	{ "nextframe", CG_TestModelNextFrame_f },
-	{ "prevframe", CG_TestModelPrevFrame_f },
-	{ "nextskin", CG_TestModelNextSkin_f },
-	{ "prevskin", CG_TestModelPrevSkin_f },
 	{ "viewpos", CG_Viewpos_f },
 	{ "+scores", CG_ScoresDown_f },
 	{ "-scores", CG_ScoresUp_f },
 	{ "+acc", CG_AccDown_f },
 	{ "-acc", CG_AccUp_f },
+	{ "+pstats", CG_PStatsDown_f },
+	{ "-pstats", CG_PStatsUp_f },
 	{ "+zoom", CG_ZoomDown_f },
 	{ "-zoom", CG_ZoomUp_f },
 	{ "sizeup", CG_SizeUp_f },
@@ -985,26 +1045,10 @@ static consoleCommand_t	commands[] = {
 	{ "tell_attacker", CG_TellAttacker_f },
 	{ "vtell_target", CG_VoiceTellTarget_f },
 	{ "vtell_attacker", CG_VoiceTellAttacker_f },
-	{ "+chat", CG_ChatDown_f },
-	{ "-chat", CG_ChatUp_f },
-	{ "togglechathistory", CG_ToggleChatHistory_f },
-	{ "print", CG_Print_f },
-	{ "dropflag", CG_DropFlag_f },
-	{ "droppowerup", CG_DropPowerup_f },
-	{ "droprune", CG_DropRune_f },
-	{ "dropweapon", CG_DropWeapon_f },
-	{ "forfeit", CG_Forfeit_f },
-	{ "ragequit", CG_RageQuit_f },
-	{ "kill", CG_Kill_f },
-	{ "readyup", CG_ReadyUp_f },
-	{ "team", CG_Team_f },
-	{ "setteamcolor", CG_SetTeamColor_f },
-	{ "setenemycolor", CG_SetEnemyColor_f },
 	{ "tcmd", CG_TargetCommand_f },
 	{ "loadhud", CG_LoadHud_f },
 	{ "nextTeamMember", CG_NextTeamMember_f },
 	{ "prevTeamMember", CG_PrevTeamMember_f },
-	{ "clientmute", CG_ClientMute_f },
 	{ "nextOrder", CG_NextOrder_f },
 	{ "confirmOrder", CG_ConfirmOrder_f },
 	{ "denyOrder", CG_DenyOrder_f },
@@ -1022,13 +1066,37 @@ static consoleCommand_t	commands[] = {
 	{ "tauntTaunt", CG_TauntTaunt_f },
 	{ "tauntDeathInsult", CG_TauntDeathInsult_f },
 	{ "tauntGauntlet", CG_TauntGauntlet_f },
+	{ "startOrbit", CG_StartOrbit_f },
+	{ "loaddeferred", CG_LoadDeferredPlayers },
+	{ "dropflag", CG_DropFlag_f },
+	{ "droppowerup", CG_DropPowerup_f },
+	{ "droprune", CG_DropRune_f },
+	{ "dropweapon", CG_DropWeapon_f },
+	{ "+chat", CG_ChatDown_f },
+	{ "-chat", CG_ChatUp_f },
+	{ "readyup", CG_ReadyUp_f },
+	{ "team", CG_Team_f },
+	{ "togglechathistory", CG_ToggleChatHistory_f },
+	{ "forfeit", CG_Forfeit_f },
+	{ "ragequit", CG_RageQuit_f },
+	{ "setteamcolor", CG_SetTeamColor_f },
+	{ "setenemycolor", CG_SetEnemyColor_f },
+	{ "print", CG_Print_f },
+	{ "kill", CG_Kill_f },
+	{ "clientmute", CG_ClientMute_f }
+};
+
+static consoleCommand_t compatCommands[] = {
+	{ "testgun", CG_TestGun_f },
+	{ "testmodel", CG_TestModel_f },
+	{ "nextframe", CG_TestModelNextFrame_f },
+	{ "prevframe", CG_TestModelPrevFrame_f },
+	{ "nextskin", CG_TestModelNextSkin_f },
+	{ "prevskin", CG_TestModelPrevSkin_f },
 	{ "spWin", CG_spWin_f },
 	{ "spLose", CG_spLose_f },
 	{ "scoresDown", CG_scrollScoresDown_f },
-	{ "scoresUp", CG_scrollScoresUp_f },
-	{ "startOrbit", CG_StartOrbit_f },
-	//{ "camera", CG_Camera_f },
-	{ "loaddeferred", CG_LoadDeferredPlayers }	
+	{ "scoresUp", CG_scrollScoresUp_f }
 };
 
 
@@ -1046,9 +1114,16 @@ qboolean CG_ConsoleCommand( void ) {
 
 	cmd = CG_Argv(0);
 
-	for ( i = 0 ; i < sizeof( commands ) / sizeof( commands[0] ) ; i++ ) {
+	for ( i = 0 ; i < ARRAY_LEN( commands ) ; i++ ) {
 		if ( !Q_stricmp( cmd, commands[i].cmd ) ) {
 			commands[i].function();
+			return qtrue;
+		}
+	}
+
+	for ( i = 0 ; i < ARRAY_LEN( compatCommands ) ; i++ ) {
+		if ( !Q_stricmp( cmd, compatCommands[i].cmd ) ) {
+			compatCommands[i].function();
 			return qtrue;
 		}
 	}
@@ -1068,7 +1143,7 @@ so it can perform tab completion
 void CG_InitConsoleCommands( void ) {
 	int		i;
 
-	for ( i = 0 ; i < sizeof( commands ) / sizeof( commands[0] ) ; i++ ) {
+	for ( i = 0 ; i < ARRAY_LEN( commands ) ; i++ ) {
 		trap_AddCommand( commands[i].cmd );
 	}
 
@@ -1078,23 +1153,12 @@ void CG_InitConsoleCommands( void ) {
 	//
 	trap_AddCommand ("abort");
 	trap_AddCommand ("addadmin");
-	trap_AddCommand ("kill");
 	trap_AddCommand ("addbot");
 	trap_AddCommand ("addmod");
 	trap_AddCommand ("addscore");
 	trap_AddCommand ("addteamscore");
 	trap_AddCommand ("allready");
 	trap_AddCommand ("ban");
-	trap_AddCommand ("say");
-	trap_AddCommand ("say_team");
-	trap_AddCommand ("tell");
-	trap_AddCommand ("vsay");
-	trap_AddCommand ("vsay_team");
-	trap_AddCommand ("vtell");
-	trap_AddCommand ("vtaunt");
-	trap_AddCommand ("vosay");
-	trap_AddCommand ("vosay_team");
-	trap_AddCommand ("votell");
 	trap_AddCommand ("callvote");
 	trap_AddCommand ("demote");
 	trap_AddCommand ("dropflag");
@@ -1105,8 +1169,10 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("forfeit");
 	trap_AddCommand ("give");
 	trap_AddCommand ("god");
+	trap_AddCommand ("kill");
 	trap_AddCommand ("levelshot");
 	trap_AddCommand ("listaccess");
+	trap_AddCommand ("loaddeferred");
 	trap_AddCommand ("lock");
 	trap_AddCommand ("mute");
 	trap_AddCommand ("notarget");
@@ -1118,16 +1184,13 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("ragequit");
 	trap_AddCommand ("rcon");
 	trap_AddCommand ("reload_access");
-	trap_AddCommand ("acc");
-	trap_AddCommand ("team");
+	trap_AddCommand ("say");
+	trap_AddCommand ("say_team");
 	trap_AddCommand ("setmatchtime");
 	trap_AddCommand ("setviewpos");
 	trap_AddCommand ("spec");
-	trap_AddCommand ("vote");
-	trap_AddCommand ("callteamvote");
-	trap_AddCommand ("teamvote");
-	trap_AddCommand ("stats");
-	trap_AddCommand ("teamtask");
+	trap_AddCommand ("team");
+	trap_AddCommand ("tell");
 	trap_AddCommand ("tempban");
 	trap_AddCommand ("timein");
 	trap_AddCommand ("timeout");
@@ -1135,5 +1198,5 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("unlock");
 	trap_AddCommand ("unmute");
 	trap_AddCommand ("unpause");
-	trap_AddCommand ("loaddefered");	// spelled wrong, but not changing for demo
+	trap_AddCommand ("vote");
 }

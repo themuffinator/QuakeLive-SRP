@@ -1621,7 +1621,7 @@ static void SV_ConSay_f(void) {
 		return;
 	}
 
-	strcpy (text, "console: ");
+	strcpy (text, "Server: ");
 	p = Cmd_Args();
 
 	if ( *p == '"' ) {
@@ -1631,7 +1631,7 @@ static void SV_ConSay_f(void) {
 
 	strcat(text, p);
 
-	SV_SendServerCommand(NULL, "chat \"%s\n\"", text);
+	SV_SendServerCommand( NULL, "chat %d \"%s\n\"", MAX_CLIENTS - 1, text );
 }
 
 

@@ -110,6 +110,7 @@ Completed in this task:
 26. Reconstructed the retail launcher/resource-interceptor fallback seam by routing launcher URI reads through the existing `fs_webpath` / screenshot rewrite owner in `files.c`, preserving `web.pak` priority in `cl_webpak.c`, and extending the cached URI shader bridge so `steam://`, HTTP-like, and screenshot-backed launcher resources share one retained cache path in `cl_steam_resources.c`.
 27. Reconstructed the retail browser cache/reload registration seam by restoring the `web_zoom = "100"` and `web_console = "0"` cvar surface from `QLWebHost_RegisterCommands`, and by routing `web_clearCache` / `web_reload` through retained URI-cache invalidation instead of leaving them as log-only browser stubs.
 28. Reconstructed the retail Steam client auth-ticket lifetime seam by adding the missing `CancelAuthTicket` platform wrapper, retaining the issued client ticket handle in `ql_auth.c`, and cancelling that handle from `CL_Disconnect` so disconnect and error cleanup no longer leave the retail ticket lifetime owner absent from writable source.
+29. Reconstructed the remaining source-side cgame native import wrapper seam by exposing the recovered retail-only cvar, filesystem, advert, text, mirror, mute, and avatar helpers through `cg_syscalls.c` / `cg_local.h`, matching the existing engine-side native import slab without inventing new legacy Q3 syscall numbers.
 
 Remaining work after Task 26:
 

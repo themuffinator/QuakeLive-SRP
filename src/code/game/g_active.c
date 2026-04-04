@@ -472,7 +472,7 @@ void P_WorldEffects( gentity_t *ent ) {
 
 				// play a gurp sound instead of a normal pain sound
 				if (ent->health <= ent->damage) {
-					G_Sound(ent, CHAN_VOICE, G_SoundIndex("*drown.wav"));
+					G_AddEvent( ent, EV_DROWN, 0 );
 				} else if (rand()&1) {
 					G_Sound(ent, CHAN_VOICE, G_SoundIndex("sound/player/gurp1.wav"));
 				} else {
@@ -911,9 +911,11 @@ Runs once-per-second timers and the retail-style per-frame factory regen sidecar
 void ClientTimerActions( gentity_t *ent, int msec ) {
 	gclient_t	*client;
 	int			maxHealth;
+	qboolean	armorRegenTriggered;
 
 	client = ent->client;
 	client->timeResidual += msec;
+	armorRegenTriggered = qfalse;
 
 	while ( client->timeResidual >= 1000 ) {
 		client->timeResidual -= 1000;
@@ -1000,7 +1002,11 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 				if ( client->ps.ammo[w] > max ) {
 					client->ps.ammo[w] = max;
 				}
+				armorRegenTriggered = qtrue;
 			}
+		}
+		if ( armorRegenTriggered ) {
+			G_AddEvent( ent, EV_POWERUP_ARMORREGEN, 0 );
 		}
 	}
 
@@ -2308,6 +2314,9 @@ static void G_FreezeHandleRoundEnd( team_t winner ) {
 	level.teamScores[winner]++;
 	trap_SetConfigstring( CS_SCORES1, va( "%i", level.teamScores[TEAM_RED] ) );
 	trap_SetConfigstring( CS_SCORES2, va( "%i", level.teamScores[TEAM_BLUE] ) );
+	G_BroadcastGlobalTeamSound( vec3_origin,
+		( winner == TEAM_RED ) ? GTS_REDTEAM_WINS_ROUND : GTS_BLUETEAM_WINS_ROUND,
+		-1, winner, 0 );
 	winnerName = ( winner == TEAM_RED ) ? "Red" : "Blue";
 	trap_SendServerCommand( -1, va( "cp \"%s team wins the round\\n\"", winnerName ) );
 	if ( g_roundDrawLivingCount.integer ) {

@@ -24,8 +24,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_rankings.h"
 #include <limits.h>
 
-#define QL_EV_ITEM_PICKUP_SPEC	0x53
-
 /*
 
   Items are any object that a player can touch to gain some effect.
@@ -388,6 +386,21 @@ static int G_GetFlightRefuelMilliseconds( int baseMilliseconds ) {
 	}
 
 	return (int)scaled;
+}
+
+/*
+=============
+G_SetPowerupPOITime
+
+Mirrors the retail item-state timestamp consumed by cgame's incoming powerup POIs.
+=============
+*/
+static void G_SetPowerupPOITime( gentity_t *ent, int markerTime ) {
+	if ( !ent || !ent->item || ent->item->giType != IT_POWERUP ) {
+		return;
+	}
+
+	ent->s.time = markerTime;
 }
 
 /*
@@ -1603,9 +1616,13 @@ void RespawnItem( gentity_t *ent ) {
 			;
 	}
 
+	ent->spectatorItemPickupClientNum = 0;
+	ent->spectatorItemPickupPalette = 0;
+	ent->spectatorItemPickupLayoutOrder = 0;
 	ent->r.contents = CONTENTS_TRIGGER;
 	ent->s.eFlags &= ~EF_NODRAW;
 	ent->r.svFlags &= ~SVF_NOCLIENT;
+	G_SetPowerupPOITime( ent, level.time );
 	trap_LinkEntity (ent);
 
 	if ( ent->item->giType == IT_POWERUP ) {
@@ -1732,6 +1749,107 @@ static int G_GetSpectatorItemPickupLayoutOrder( const gentity_t *player ) {
 
 /*
 ===============
+G_IsSpectatorItemSyncClient
+
+Returns qtrue when the requested client is an active spectator observer.
+===============
+*/
+static qboolean G_IsSpectatorItemSyncClient( int clientNum ) {
+	gentity_t	*ent;
+
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return qfalse;
+	}
+
+	ent = &g_entities[clientNum];
+	if ( !ent->inuse || !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+		return qfalse;
+	}
+
+	return ( qboolean )( ent->client->sess.sessionTeam == TEAM_SPECTATOR );
+}
+
+/*
+===============
+G_SendSpectatorItemStateToClient
+
+Builds the synthetic spectator timer event for one spectator client.
+===============
+*/
+static void G_SendSpectatorItemStateToClient( int clientNum, gentity_t *itemEnt, qboolean initialSync ) {
+	gentity_t	*te;
+
+	if ( !G_IsSpectatorItemSyncClient( clientNum ) ) {
+		return;
+	}
+
+	if ( !itemEnt || !itemEnt->item || !G_IsSpectatorItemPickupItem( itemEnt->item ) ) {
+		return;
+	}
+
+	if ( ( itemEnt->flags & FL_DROPPED_ITEM ) || itemEnt->nextthink <= level.time ||
+		itemEnt->r.contents != 0 || !( itemEnt->s.eFlags & EF_NODRAW ) ) {
+		return;
+	}
+
+	if ( itemEnt->spectatorItemPickupClientNum <= 0 ||
+		itemEnt->spectatorItemPickupClientNum > level.maxclients ) {
+		return;
+	}
+
+	te = G_TempEntity( itemEnt->s.pos.trBase, EV_ITEM_PICKUP_SPEC );
+	te->r.svFlags |= SVF_SINGLECLIENT;
+	te->r.singleClient = clientNum;
+	te->s.groundEntityNum = itemEnt->spectatorItemPickupClientNum;
+	te->s.constantLight = itemEnt->spectatorItemPickupPalette;
+	te->s.origin[0] = (float)itemEnt->nextthink;
+	te->s.origin[1] = (float)( g_gametype.integer == GT_TOURNAMENT );
+	te->s.clientNum = itemEnt->s.modelindex;
+	te->s.frame = itemEnt->spectatorItemPickupLayoutOrder;
+	te->s.loopSound = initialSync ? 1 : 0;
+	te->s.modelindex2 = 0;
+}
+
+/*
+===============
+G_BroadcastSpectatorItemState
+
+Pushes the synthetic spectator timer event to all connected spectators.
+===============
+*/
+static void G_BroadcastSpectatorItemState( gentity_t *itemEnt ) {
+	int	i;
+
+	if ( !itemEnt || !itemEnt->item || !G_IsSpectatorItemPickupItem( itemEnt->item ) ) {
+		return;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		G_SendSpectatorItemStateToClient( i, itemEnt, qfalse );
+	}
+}
+
+/*
+===============
+G_SyncSpectatorItemStatesForClient
+
+Resends live spectator item timers to one client entering observer mode.
+===============
+*/
+void G_SyncSpectatorItemStatesForClient( int clientNum ) {
+	int	i;
+
+	if ( !G_IsSpectatorItemSyncClient( clientNum ) ) {
+		return;
+	}
+
+	for ( i = level.maxclients; i < level.num_entities; i++ ) {
+		G_SendSpectatorItemStateToClient( clientNum, &g_entities[i], qtrue );
+	}
+}
+
+/*
+===============
 G_RecordSpectatorItemPickup
 
 Publishes the synthetic retail major-item pickup event consumed by the
@@ -1739,8 +1857,6 @@ spectator timer overlay.
 ===============
 */
 static void G_RecordSpectatorItemPickup( gentity_t *itemEnt, gentity_t *player, int respawn ) {
-	gentity_t	*te;
-
 	if ( !itemEnt || !player || !player->client ) {
 		return;
 	}
@@ -1753,16 +1869,9 @@ static void G_RecordSpectatorItemPickup( gentity_t *itemEnt, gentity_t *player, 
 		return;
 	}
 
-	te = G_TempEntity( itemEnt->s.pos.trBase, QL_EV_ITEM_PICKUP_SPEC );
-	te->r.svFlags |= SVF_BROADCAST;
-	te->s.groundEntityNum = player->s.number + 1;
-	te->s.constantLight = G_GetSpectatorItemPickupPalette( player );
-	te->s.origin[0] = (float)( level.time + respawn * 1000 );
-	te->s.origin[1] = (float)( g_gametype.integer == GT_TOURNAMENT );
-	te->s.clientNum = itemEnt->s.modelindex;
-	te->s.frame = G_GetSpectatorItemPickupLayoutOrder( player );
-	te->s.loopSound = 0;
-	te->s.modelindex2 = 0;
+	itemEnt->spectatorItemPickupClientNum = player->s.number + 1;
+	itemEnt->spectatorItemPickupPalette = G_GetSpectatorItemPickupPalette( player );
+	itemEnt->spectatorItemPickupLayoutOrder = G_GetSpectatorItemPickupLayoutOrder( player );
 }
 
 
@@ -1888,6 +1997,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 		ent->r.svFlags |= SVF_NOCLIENT;
 		ent->s.eFlags |= EF_NODRAW;
 		ent->r.contents = 0;
+		G_SetPowerupPOITime( ent, level.time );
 		ent->unlinkAfterEvent = qtrue;
 		return;
 	}
@@ -1932,7 +2042,11 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 		ent->nextthink = level.time + respawn * 1000;
 		ent->think = RespawnItem;
 	}
+	if ( ent->item->giType == IT_POWERUP ) {
+		G_SetPowerupPOITime( ent, ( respawn > 0 ) ? ent->nextthink : level.time );
+	}
 	trap_LinkEntity( ent );
+	G_BroadcastSpectatorItemState( ent );
 }
 
 
@@ -2391,6 +2505,7 @@ void FinishSpawningItem( gentity_t *ent ) {
 		ent->r.contents = 0;
 		ent->nextthink = level.time + respawn * 1000;
 		ent->think = RespawnItem;
+		G_SetPowerupPOITime( ent, ent->nextthink );
 		return;
 	}
 

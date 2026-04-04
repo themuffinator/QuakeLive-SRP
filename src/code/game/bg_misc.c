@@ -2199,19 +2199,13 @@ char *eventnames[] = {
 	"EV_FOOTWADE",
 	"EV_SWIM",
 
-	"EV_STEP_4",
-	"EV_STEP_8",
-	"EV_STEP_12",
-	"EV_STEP_16",
-
 	"EV_FALL_SHORT",
 	"EV_FALL_MEDIUM",
 	"EV_FALL_FAR",
 
-	"EV_JUMP_PAD",			// boing sound at origin", jump sound on player
+	"EV_JUMP_PAD",
 
 	"EV_JUMP",
-	"EV_DOUBLE_JUMP",
 	"EV_WATER_TOUCH",	// foot touches
 	"EV_WATER_LEAVE",	// foot leaves
 	"EV_WATER_UNDER",	// head touches
@@ -2222,6 +2216,7 @@ char *eventnames[] = {
 
 	"EV_NOAMMO",
 	"EV_CHANGE_WEAPON",
+	"EV_DROP_WEAPON",
 	"EV_FIRE_WEAPON",
 
 	"EV_USE_ITEM0",
@@ -2239,7 +2234,7 @@ char *eventnames[] = {
 	"EV_USE_ITEM12",
 	"EV_USE_ITEM13",
 	"EV_USE_ITEM14",
-	"EV_USE_ITEM15",
+	"EV_UNUSED_24",
 
 	"EV_ITEM_RESPAWN",
 	"EV_ITEM_POP",
@@ -2260,33 +2255,59 @@ char *eventnames[] = {
 	"EV_MISSILE_MISS_METAL",
 	"EV_RAILTRAIL",
 	"EV_SHOTGUN",
-	"EV_BULLET",				// otherEntity is the shooter
+	"EV_UNUSED_34",
 
 	"EV_PAIN",
 	"EV_DEATH1",
 	"EV_DEATH2",
 	"EV_DEATH3",
+	"EV_DROWN",
 	"EV_OBITUARY",
 
 	"EV_POWERUP_QUAD",
 	"EV_POWERUP_BATTLESUIT",
 	"EV_POWERUP_REGEN",
+	"EV_POWERUP_ARMORREGEN",
 
 	"EV_GIB_PLAYER",			// gib a previously living player
 	"EV_SCOREPLUM",			// score plum
-	"EV_DAMAGEPLUM",			// damage plum
 
 	"EV_PROXIMITY_MINE_STICK",
 	"EV_PROXIMITY_MINE_TRIGGER",
 	"EV_KAMIKAZE",			// kamikaze explodes
 	"EV_OBELISKEXPLODE",		// obelisk explodes
+	"EV_OBELISKPAIN",
 	"EV_INVUL_IMPACT",		// invulnerability sphere impact
 	"EV_JUICED",				// invulnerability juiced effect
-	"EV_LIGHTNINGBOLT",		// lightning bolt bounced of invulnerability sphere
+	"EV_LIGHTNINGBOLT",		// lightning bolt bounced off invulnerability sphere
 
 	"EV_DEBUG_LINE",
-	"EV_STOPLOOPINGSOUND",
-	"EV_TAUNT"
+	"EV_TAUNT",
+	"EV_TAUNT_YES",
+	"EV_TAUNT_NO",
+	"EV_TAUNT_FOLLOWME",
+	"EV_TAUNT_GETFLAG",
+	"EV_TAUNT_GUARDBASE",
+	"EV_TAUNT_PATROL",
+	"EV_FOOTSTEP_SNOW",
+	"EV_FOOTSTEP_WOOD",
+	"EV_ITEM_PICKUP_SPEC",
+	"EV_OVERTIME",
+	"EV_GAMEOVER",
+	"EV_MISSILE_MISS_DMGTHROUGH",
+	"EV_THAW_PLAYER",
+	"EV_THAW_TICK",
+	"EV_SHOTGUN_KILL",
+	"EV_POI",
+	"EV_UNUSED_5B",
+	"EV_LIGHTNING_DISCHARGE",
+	"EV_RACE_START",
+	"EV_RACE_CHECKPOINT",
+	"EV_RACE_FINISH",
+	"EV_DAMAGEPLUM",
+	"EV_AWARD",
+	"EV_INFECTED",
+	"EV_NEW_HIGH_SCORE"
 
 };
 

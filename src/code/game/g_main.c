@@ -3151,6 +3151,7 @@ BeginIntermission
 void BeginIntermission( void ) {
 	int			i;
 	gentity_t	*client;
+	team_t		winningTeam;
 
 	if ( level.intermissiontime ) {
 		return;		// already active
@@ -3163,6 +3164,20 @@ void BeginIntermission( void ) {
 
 	level.intermissiontime = level.time;
 	FindIntermissionPoint();
+
+	winningTeam = TEAM_FREE;
+	if ( g_gametype.integer >= GT_TEAM ) {
+		if ( level.teamScores[TEAM_RED] > level.teamScores[TEAM_BLUE] ) {
+			winningTeam = TEAM_RED;
+		} else if ( level.teamScores[TEAM_BLUE] > level.teamScores[TEAM_RED] ) {
+			winningTeam = TEAM_BLUE;
+		}
+		if ( winningTeam == TEAM_RED || winningTeam == TEAM_BLUE ) {
+			G_BroadcastGlobalTeamSound( vec3_origin,
+				( winningTeam == TEAM_RED ) ? GTS_REDTEAM_WINS : GTS_BLUETEAM_WINS,
+				-1, winningTeam, 0 );
+		}
+	}
 
 	if (g_singlePlayer.integer) {
 		trap_Cvar_Set("ui_singlePlayerActive", "0");

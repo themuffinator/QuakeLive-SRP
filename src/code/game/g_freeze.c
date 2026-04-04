@@ -1,7 +1,5 @@
 #include "g_local.h"
 
-#define QL_EV_FREEZE_THAW_PROGRESS	0x58
-
 /*
 ============
 G_FreezeResolveThawProgressTarget
@@ -73,7 +71,7 @@ qboolean G_FreezeCanSeeThawProgressEvent( int clientNum, int entNum ) {
 		return qfalse;
 	}
 
-	if ( ent->s.eType != ET_EVENTS + QL_EV_FREEZE_THAW_PROGRESS ) {
+	if ( ent->s.eType != ET_EVENTS + EV_THAW_TICK ) {
 		return qfalse;
 	}
 
@@ -196,9 +194,8 @@ static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qbool
 	client->holdableInvulnerabilityTime = 0;
 
 	// Effect
-	tent = G_TempEntity( client->ps.origin, EV_PLAYER_TELEPORT_IN );
-	tent->s.clientNum = ent->s.clientNum;
-	tent->s.eventParm = QL_EVENTPARM_FREEZE_THAW;
+	tent = G_TempEntity( client->ps.origin, EV_THAW_PLAYER );
+	tent->s.otherEntityNum = ent->s.number;
 
 	// Sound
 	G_Sound( ent, CHAN_AUTO, G_SoundIndex( "sound/items/respawn1.wav" ) );

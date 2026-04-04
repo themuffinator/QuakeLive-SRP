@@ -26,8 +26,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../common/platform/platform_config.h"
 #include <limits.h>
 
-#define QL_EV_INFECTED	0x62
-
 static vec3_t	playerMins = { -15, -15, -24 };
 static vec3_t	playerMaxs = { 15, 15, 32 };
 
@@ -178,12 +176,23 @@ void G_FreezeClientEndFrame( gentity_t *ent ) {
 		helperCount = G_FreezeCountThawHelpers( ent, &helper );
 		if ( helperCount > 0 ) {
 			if ( client->freezeNextThawTick <= level.time ) {
+				int			oldSecondsRemaining;
+				int			newSecondsRemaining;
+				gentity_t	*tent;
+
+				oldSecondsRemaining = ( thawTotal - client->freezeAccumulatedThaw ) / 1000;
 				client->freezeAccumulatedThaw += helperCount * thawTick;
 				if ( client->freezeAccumulatedThaw > thawTotal ) {
 					client->freezeAccumulatedThaw = thawTotal;
 				}
 				client->freezeNextThawTick = level.time + thawTick;
 				client->freezeLastHelper = helper ? helper->s.number : -1;
+
+				newSecondsRemaining = ( thawTotal - client->freezeAccumulatedThaw ) / 1000;
+				if ( oldSecondsRemaining > 0 && oldSecondsRemaining != newSecondsRemaining ) {
+					tent = G_TempEntity( ent->client->ps.origin, EV_THAW_TICK );
+					tent->s.otherEntityNum = ent->s.number;
+				}
 			}
 			if ( client->freezeAccumulatedThaw >= thawTotal ) {
 				G_FreezeThawClient( ent, qfalse, client->freezeLastHelper );
@@ -2814,7 +2823,7 @@ static void G_RREmitInfectedEvent( gentity_t *ent ) {
 		return;
 	}
 
-	tent = G_TempEntity( ent->client->ps.origin, QL_EV_INFECTED );
+	tent = G_TempEntity( ent->client->ps.origin, EV_INFECTED );
 	tent->r.svFlags |= SVF_SINGLECLIENT;
 	tent->r.singleClient = ent->s.number;
 	tent->s.clientNum = ent->s.number;

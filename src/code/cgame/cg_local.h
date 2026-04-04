@@ -138,6 +138,8 @@ static ID_INLINE qboolean CG_IsTeamWinnerGametype( gametype_t gametype ) {
 	return (qboolean)( gametype >= GT_TEAM && gametype != GT_RED_ROVER );
 }
 
+#define QL_DOMINATION_ANNOUNCER_POINTS	5
+
 typedef enum {
 	FOOTSTEP_NORMAL,
 	FOOTSTEP_BOOT,
@@ -146,6 +148,8 @@ typedef enum {
 	FOOTSTEP_ENERGY,
 	FOOTSTEP_METAL,
 	FOOTSTEP_SPLASH,
+	FOOTSTEP_SNOW,
+	FOOTSTEP_WOOD,
 
 	FOOTSTEP_TOTAL
 } footstep_t;
@@ -288,6 +292,34 @@ typedef struct {
 	int		lapCount;
 	int		lastUpdateSequence;
 } cgRaceClientStatus_t;
+
+#define CG_MAX_QUEUED_WORLD_MARKERS		32
+#define CG_MAX_QUEUED_WORLD_MARKER_TEXT	32
+#define CG_QUEUED_MARKER_KIND_GENERIC	0
+#define CG_QUEUED_MARKER_KIND_ITEM_POI	1
+#define CG_QUEUED_MARKER_KIND_PLAYER_POI	2
+#define CG_QUEUED_MARKER_KIND_EVENT_POI	3
+#define CG_POI_OBJECTIVE_RED	0
+#define CG_POI_OBJECTIVE_BLUE	1
+#define CG_POI_OBJECTIVE_NEUTRAL	2
+#define CG_POI_OBJECTIVE_COUNT	3
+
+typedef struct {
+	qboolean	active;
+	int		kind;
+	int		key;
+	int		startTime;
+	int		duration;
+	int		fadeDelay;
+	float		alpha;
+	vec3_t		origin;
+	float		rise;
+	float		size;
+	float		textScale;
+	vec4_t		color;
+	qhandle_t	shader;
+	char		text[CG_MAX_QUEUED_WORLD_MARKER_TEXT];
+} cgQueuedWorldMarker_t;
 
 // centity_t have a direct corespondence with gentity_t in the game, but
 // only the entityState_t is directly communicated to the cgame
@@ -582,6 +614,8 @@ typedef struct {
 	qboolean		infoValid;
 
 	char			name[MAX_QPATH];
+	unsigned int	identityLow;
+	unsigned int	identityHigh;
 	team_t			team;
 
 	int				botSkill;		// 0 = not bot, 1-5 = bot
@@ -761,6 +795,8 @@ typedef struct {
 	int		layoutOrder;
 	vec3_t	origin;
 } cgSpectatorItemPickup_t;
+
+#define CG_AD_SCORE_HISTORY_LENGTH	20
  
 typedef struct {
 	int			clientFrame;		// incremented each frame
@@ -882,8 +918,11 @@ typedef struct {
 	cgClanArenaStats_t	clanArenaStats[MAX_CLIENTS];
 	cgTdmStats_t	tdmStats[MAX_CLIENTS];
 	cgCtfStats_t	ctfStats[MAX_CLIENTS];
+	int			adScoreHistory[CG_AD_SCORE_HISTORY_LENGTH];
 	int			clientKeyMask[MAX_CLIENTS];
 	qboolean		clientMuted[MAX_CLIENTS];
+	int			complaintClient;
+	int			complaintEndTime;
 	qboolean	showScores;
 	qboolean	scoreBoardShowing;
 	qboolean	scoreboardTimerRunning;
@@ -931,7 +970,7 @@ typedef struct {
 	int			centerPrintLines;
 
 	// low ammo warning state
-	int			lowAmmoWarning;		// 1 = low, 2 = empty, 3 = weapon empty w/manual switch
+	int			lowAmmoWarning;		// 1 = low, 2 = empty
 	float		lowAmmoWarningPercentile;
 	vec4_t		weaponBarGrenadeColor;
 
@@ -1053,6 +1092,7 @@ typedef struct {
 	char			testModelName[MAX_QPATH];
 	qboolean		testGun;
 
+	qboolean		killRespawnHintSuppressed;
 	int				rageQuitTime;
 } cg_t;
 
@@ -1208,6 +1248,23 @@ typedef struct {
 	qhandle_t	hastePuffShader;
 	qhandle_t	redKamikazeShader;
 	qhandle_t	blueKamikazeShader;
+	qhandle_t	poiPowerupQuadShader;
+	qhandle_t	poiPowerupBattleSuitShader;
+	qhandle_t	poiPowerupHasteShader;
+	qhandle_t	poiPowerupInvisShader;
+	qhandle_t	poiPowerupRegenShader;
+	qhandle_t	poiPowerupIncomingShader;
+	qhandle_t	poiFlagDroppedNeutralShader;
+	qhandle_t	poiFlagDroppedRedShader;
+	qhandle_t	poiFlagDroppedBlueShader;
+	qhandle_t	poiQuadHogShader;
+	qhandle_t	poiHarvesterCaptureShader;
+	qhandle_t	poiNeutralFlagCarrierShader;
+	qhandle_t	poiInfectedShader;
+	qhandle_t	poiAttackShader;
+	qhandle_t	poiCaptureShader;
+	qhandle_t	poiDefendShader;
+	qhandle_t	poiUnavailableShader;
 
 	// weapon effect models
 	qhandle_t	bulletFlashModel;
@@ -1322,8 +1379,10 @@ typedef struct {
 	sfxHandle_t	electroGibBounce5Sound;
 	sfxHandle_t	teleInSound;
 	sfxHandle_t	teleOutSound;
+	sfxHandle_t	lowAmmoSound;
 	sfxHandle_t	noAmmoSound;
 	sfxHandle_t	respawnSound;
+	sfxHandle_t	thawTickSound;
 	sfxHandle_t talkSound;
 	sfxHandle_t landSound;
 	sfxHandle_t fallSound;
@@ -1418,6 +1477,16 @@ typedef struct {
 	sfxHandle_t	youHaveFlagSound;
 	sfxHandle_t yourBaseIsUnderAttackSound;
 	sfxHandle_t holyShitSound;
+	sfxHandle_t redWinsSound;
+	sfxHandle_t blueWinsSound;
+	sfxHandle_t redWinsRoundSound;
+	sfxHandle_t blueWinsRoundSound;
+	sfxHandle_t roundDrawSound;
+	sfxHandle_t roundOverSound;
+	sfxHandle_t lastStandingSound;
+	sfxHandle_t survivorWarningSound;
+	sfxHandle_t dominationCapturedSounds[QL_DOMINATION_ANNOUNCER_POINTS];
+	sfxHandle_t dominationLostSounds[QL_DOMINATION_ANNOUNCER_POINTS];
 	sfxHandle_t dominationDistressSound;
 	sfxHandle_t raceStartBeep;
 	sfxHandle_t raceCheckpointBeep;
@@ -1429,6 +1498,7 @@ typedef struct {
 	sfxHandle_t	count1Sound;
 	sfxHandle_t	countFightSound;
 	sfxHandle_t	countPrepareSound;
+	sfxHandle_t	roundBeginsInSound;
 
 	// new stuff
 	qhandle_t patrolShader;
@@ -1447,6 +1517,7 @@ typedef struct {
 	sfxHandle_t	countPrepareTeamSound;
 
 	sfxHandle_t ammoregenSound;
+	sfxHandle_t armorregenSound;
 	sfxHandle_t doublerSound;
 	sfxHandle_t guardSound;
 	sfxHandle_t scoutSound;
@@ -1534,6 +1605,8 @@ typedef struct {
 	int				scores1, scores2;		// from configstrings
 	int				redflag, blueflag;		// flag status from configstrings
 	int				flagStatus;
+	vec3_t			poiObjectiveOrigins[CG_POI_OBJECTIVE_COUNT];
+	qboolean		poiObjectiveValid[CG_POI_OBJECTIVE_COUNT];
 
 	qboolean	matchOvertimeActive;
 	int		matchOvertimeStartTime;
@@ -1805,6 +1878,7 @@ extern	vmCvar_t		cg_lightningImpactCap;
 extern	vmCvar_t		cg_lightningStyle;
 extern	vmCvar_t		cg_loadout;
 extern	vmCvar_t		cg_lowAmmoWarningPercentile;
+extern	vmCvar_t		cg_lowAmmoWarningSound;
 extern	vmCvar_t		cg_lowAmmoWeaponBarWarning;
 extern	vmCvar_t		cg_muzzleFlash;
 extern	vmCvar_t		cg_noPlayerAnims;
@@ -1877,6 +1951,10 @@ extern	vmCvar_t		cg_teammateNames;
 extern	vmCvar_t		cg_teammatePOIs;
 extern	vmCvar_t		cg_teammatePOIsMaxWidth;
 extern	vmCvar_t		cg_teammatePOIsMinWidth;
+extern	vmCvar_t		cg_flagPOIs;
+extern	vmCvar_t		cg_powerupPOIs;
+extern	vmCvar_t		cg_poiMinWidth;
+extern	vmCvar_t		cg_poiMaxWidth;
 extern	vmCvar_t		cg_thirdPerson;
 extern	vmCvar_t		cg_thirdPersonAngle;
 extern	vmCvar_t		cg_thirdPersonPitch;
@@ -1964,6 +2042,13 @@ void CG_ZoomDown_f( void );
 void CG_ZoomUp_f( void );
 void CG_AddBufferedSound( sfxHandle_t sfx);
 void CG_ClearBufferedAnnouncements( void );
+void CG_ClearQueuedWorldMarkers( void );
+cgQueuedWorldMarker_t *CG_AllocQueuedWorldMarker( void );
+cgQueuedWorldMarker_t *CG_AllocQueuedWorldMarkerForKey( int kind, int key );
+float CG_POIMarkerSizeForOrigin( const vec3_t origin );
+qboolean CG_ShouldDrawPOIMarkerMode( int mode, const vec3_t origin );
+void CG_UpdateQueuedWorldMarkers( void );
+void CG_DrawQueuedWorldMarkers( void );
 
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback );
 
@@ -2177,6 +2262,7 @@ qboolean CG_BuildPredictedRailForPlayerState( const playerState_t *ps, int clien
 qboolean CG_BuildPredictedBeamForPlayerState( const playerState_t *ps, int clientNum, weapon_t weapon,
 	vec3_t start, vec3_t end, qboolean *hitWorld );
 
+void CG_SelectHighestWeaponExcluding( weapon_t excludedWeapon );
 void CG_OutOfAmmoChange( void );	// should this be in pmove?
 
 //
@@ -2330,6 +2416,7 @@ int			trap_Milliseconds( void );
 void		trap_Cvar_Register( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, int flags );
 void		trap_Cvar_Update( vmCvar_t *vmCvar );
 void		trap_Cvar_Set( const char *var_name, const char *value );
+float		trap_Cvar_VariableValue( const char *var_name );
 void		trap_Cvar_VariableStringBuffer( const char *var_name, char *buffer, int bufsize );
 
 // ServerCommand and ConsoleCommand parameter access
@@ -2354,6 +2441,7 @@ void		trap_SendConsoleCommand( const char *text );
 // register a command name so the console can perform command completion.
 // FIXME: replace this with a normal console command "defineCommand"?
 void		trap_AddCommand( const char *cmdName );
+void		trap_RemoveCommand( const char *cmdName );
 
 // send a string to the server over the network
 void		trap_SendClientCommand( const char *s );
@@ -2365,6 +2453,7 @@ void		trap_UpdateScreen( void );
 void		trap_CM_LoadMap( const char *mapname );
 int			trap_CM_NumInlineModels( void );
 clipHandle_t trap_CM_InlineModel( int index );		// 0 = world, 1+ = bmodels
+clipHandle_t	trap_CM_LoadModel( const char *name );
 clipHandle_t trap_CM_TempBoxModel( const vec3_t mins, const vec3_t maxs );
 clipHandle_t trap_CM_TempCapsuleModel( const vec3_t mins, const vec3_t maxs );
 int			trap_CM_PointContents( const vec3_t p, clipHandle_t model );
@@ -2429,6 +2518,7 @@ void		trap_R_AddRefEntityToScene( const refEntity_t *re );
 void		trap_R_AddPolyToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts );
 void		trap_R_AddPolysToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts, int numPolys );
 void		trap_R_AddLightToScene( const vec3_t org, float intensity, float r, float g, float b );
+void		trap_R_AddAdditiveLightToScene( const vec3_t org, float intensity, float r, float g, float b );
 int			trap_R_LightForPoint( vec3_t point, vec3_t ambientLight, vec3_t directedLight, vec3_t lightDir );
 void		trap_R_RenderScene( const refdef_t *fd );
 void		trap_R_SetColor( const float *rgba );	// NULL = 1,1,1,1
@@ -2490,11 +2580,148 @@ void		trap_Key_SetBinding( int keynum, const char *binding );
 qboolean	trap_Key_GetOverstrikeMode( void );
 void		trap_Key_SetOverstrikeMode( qboolean state );
 void		trap_Cmd_ExecuteText( int exec_when, const char *text );
+int			trap_PC_AddGlobalDefine( char *define );
+int			trap_PC_LoadSource( const char *filename );
+int			trap_PC_FreeSource( int handle );
+int			trap_PC_ReadToken( int handle, pc_token_t *pc_token );
+int			trap_PC_SourceFileAndLine( int handle, char *filename, int *line );
+int			trap_RealTime( qtime_t *qtime );
+#ifdef Q3_VM
+static ID_INLINE void trap_QL_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, float minimumValue, float maximumValue, int flags ) {
+	(void)minimumValue;
+	(void)maximumValue;
+	trap_Cvar_Register( vmCvar, varName, defaultValue, flags );
+}
+static ID_INLINE void trap_QL_Cvar_Reset( const char *varName ) {
+	(void)varName;
+}
+static ID_INLINE int trap_QL_FS_GetFileList( const char *path, const char *extension, char *listbuf, int bufsize ) {
+	(void)path;
+	(void)extension;
+	(void)listbuf;
+	(void)bufsize;
+	return 0;
+}
+static ID_INLINE void trap_QL_S_StartSoundVolume( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx, float volume ) {
+	(void)volume;
+	trap_S_StartSound( origin, entityNum, entchannel, sfx );
+}
+static ID_INLINE void trap_QL_S_StartLocalSoundVolume( sfxHandle_t sfx, int channelNum, float volume ) {
+	(void)volume;
+	trap_S_StartLocalSound( sfx, channelNum );
+}
+static ID_INLINE qhandle_t trap_QL_SetupAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId ) {
+	(void)defaultContent;
+	(void)rect;
+	(void)cellId;
+	return 0;
+}
+static ID_INLINE qhandle_t trap_QL_RefreshAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId ) {
+	(void)defaultContent;
+	(void)rect;
+	(void)cellId;
+	return 0;
+}
+static ID_INLINE void trap_QL_SetActiveAdvert( int cellId ) {
+	(void)cellId;
+}
+static ID_INLINE void trap_QL_UpdateAdvert( int handleOrToken, int area ) {
+	(void)handleOrToken;
+	(void)area;
+}
+static ID_INLINE void trap_QL_AdvertisementBridge_SetMapPath( const char *mapPath ) {
+	(void)mapPath;
+}
+static ID_INLINE void trap_AdvertisementBridge_InitCGame( void ) {
+}
+static ID_INLINE void trap_AdvertisementBridge_ShutdownCGame( void ) {
+}
+static ID_INLINE void trap_AdvertisementBridge_UpdateLoadingViewParameters( void ) {
+}
+static ID_INLINE void trap_AdvertisementBridge_SetFrameTime( int frameTime ) {
+	(void)frameTime;
+}
+static ID_INLINE void trap_QL_AdvertisementBridge_UpdateViewParameters( void ) {
+}
+static ID_INLINE void trap_QL_AdvertisementBridge_ClearDelay( void ) {
+}
+static ID_INLINE void trap_QL_TaggedCvarStringBuffer( const char *varName, char *buffer ) {
+	trap_Cvar_VariableStringBuffer( varName, buffer, BIG_INFO_STRING );
+}
+static ID_INLINE void trap_QL_R_MirrorPoint( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out ) {
+	(void)surface;
+	(void)camera;
+	VectorCopy( in, out );
+}
+static ID_INLINE void trap_QL_R_MirrorVector( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out ) {
+	(void)surface;
+	(void)camera;
+	VectorCopy( in, out );
+}
+static ID_INLINE void trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor ) {
+	(void)x;
+	(void)y;
+	(void)text;
+	(void)fontHandle;
+	(void)scale;
+	(void)maxX;
+	if ( outMaxX ) {
+		*outMaxX = 0.0f;
+	}
+	(void)forceColor;
+}
+static ID_INLINE unsigned long long trap_QL_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft ) {
+	(void)text;
+	(void)end;
+	(void)fontHandle;
+	(void)scale;
+	(void)maxX;
+	if ( outLeft ) {
+		*outLeft = 0.0f;
+	}
+	return 0;
+}
+static ID_INLINE int trap_QL_IsClientMuted( unsigned int identityLow, unsigned int identityHigh ) {
+	(void)identityLow;
+	(void)identityHigh;
+	return 0;
+}
+static ID_INLINE int trap_QL_ToggleClientMute( unsigned int identityLow, unsigned int identityHigh ) {
+	(void)identityLow;
+	(void)identityHigh;
+	return 0;
+}
+static ID_INLINE qhandle_t trap_QL_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh ) {
+	(void)identityLow;
+	(void)identityHigh;
+	return 0;
+}
+#else
+void		trap_QL_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, float minimumValue, float maximumValue, int flags );
+void		trap_QL_Cvar_Reset( const char *varName );
+int			trap_QL_FS_GetFileList( const char *path, const char *extension, char *listbuf, int bufsize );
+void		trap_QL_S_StartSoundVolume( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx, float volume );
+void		trap_QL_S_StartLocalSoundVolume( sfxHandle_t sfx, int channelNum, float volume );
+qhandle_t	trap_QL_SetupAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId );
+qhandle_t	trap_QL_RefreshAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId );
+void		trap_QL_SetActiveAdvert( int cellId );
 void		trap_QL_UpdateAdvert( int handleOrToken, int area );
+void		trap_QL_AdvertisementBridge_SetMapPath( const char *mapPath );
+int			trap_QL_IsClientMuted( unsigned int identityLow, unsigned int identityHigh );
+int			trap_QL_ToggleClientMute( unsigned int identityLow, unsigned int identityHigh );
 void		trap_AdvertisementBridge_InitCGame( void );
 void		trap_AdvertisementBridge_ShutdownCGame( void );
 void		trap_AdvertisementBridge_UpdateLoadingViewParameters( void );
 void		trap_AdvertisementBridge_SetFrameTime( int frameTime );
+void		trap_QL_AdvertisementBridge_UpdateViewParameters( void );
+void		trap_QL_AdvertisementBridge_ClearDelay( void );
+void		trap_QL_TaggedCvarStringBuffer( const char *varName, char *buffer );
+void		trap_QL_R_MirrorPoint( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out );
+void		trap_QL_R_MirrorVector( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out );
+void		trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor );
+unsigned long long trap_QL_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft );
+qhandle_t	trap_QL_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh );
+#endif
 
 
 typedef enum {

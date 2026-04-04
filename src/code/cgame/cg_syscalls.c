@@ -132,7 +132,7 @@ static int CG_MapNativeImport( int arg, const intptr_t *stack ) {
 	case CG_PC_READ_TOKEN: return CG_QL_IMPORT_PC_READ_TOKEN;
 	case CG_PC_SOURCE_FILE_AND_LINE: return CG_QL_IMPORT_PC_SOURCE_FILE_AND_LINE;
 	case CG_S_STOPBACKGROUNDTRACK: return CG_QL_IMPORT_S_STOPBACKGROUNDTRACK;
-	case CG_REAL_TIME: return CG_QL_IMPORT_COMPAT_REAL_TIME;
+	case CG_REAL_TIME: return CG_QL_IMPORT_REAL_TIME;
 	case CG_SNAPVECTOR: return CG_QL_IMPORT_COMPAT_SNAPVECTOR;
 	case CG_REMOVECOMMAND: return CG_QL_IMPORT_REMOVECOMMAND;
 	case CG_R_LIGHTFORPOINT: return CG_QL_IMPORT_R_LIGHTFORPOINT;
@@ -256,6 +256,13 @@ void	trap_Cvar_Set( const char *var_name, const char *value ) {
 	syscall( CG_CVAR_SET, var_name, value );
 }
 
+float trap_Cvar_VariableValue( const char *var_name ) {
+	char	buffer[MAX_CVAR_VALUE_STRING];
+
+	trap_Cvar_VariableStringBuffer( var_name, buffer, sizeof( buffer ) );
+	return atof( buffer );
+}
+
 void trap_Cvar_VariableStringBuffer( const char *var_name, char *buffer, int bufsize ) {
 	syscall( CG_CVAR_VARIABLESTRINGBUFFER, var_name, buffer, bufsize );
 }
@@ -283,13 +290,197 @@ void trap_Cmd_ExecuteText( int exec_when, const char *text ) {
 
 /*
 =================
+CG_GetNativeImportFunction
+=================
+*/
+static ql_import_f CG_GetNativeImportFunction( int importIndex ) {
+	if ( !cg_imports ) {
+		return NULL;
+	}
+
+	if ( importIndex < 0 || importIndex >= CGAME_NATIVE_IMPORT_COUNT ) {
+		return NULL;
+	}
+
+	return cg_imports[importIndex];
+}
+
+/*
+=================
+trap_QL_Cvar_RegisterRange
+=================
+*/
+void trap_QL_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, float minimumValue, float maximumValue, int flags ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_CVAR_REGISTER_RANGE );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( vmCvar_t *, const char *, const char *, float, float, int ))import)( vmCvar, varName, defaultValue, minimumValue, maximumValue, flags );
+}
+
+/*
+=================
+trap_QL_Cvar_Reset
+=================
+*/
+void trap_QL_Cvar_Reset( const char *varName ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_CVAR_RESET );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( const char * ))import)( varName );
+}
+
+/*
+=================
+trap_QL_FS_GetFileList
+=================
+*/
+int trap_QL_FS_GetFileList( const char *path, const char *extension, char *listbuf, int bufsize ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_FS_GETFILELIST );
+
+	if ( !import ) {
+		return 0;
+	}
+
+	return ((int (QDECL *)( const char *, const char *, char *, int ))import)( path, extension, listbuf, bufsize );
+}
+
+/*
+=================
+trap_QL_S_StartSoundVolume
+=================
+*/
+void trap_QL_S_StartSoundVolume( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx, float volume ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_S_STARTSOUND_VOLUME );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( vec3_t, int, int, sfxHandle_t, float ))import)( origin, entityNum, entchannel, sfx, volume );
+}
+
+/*
+=================
+trap_QL_S_StartLocalSoundVolume
+=================
+*/
+void trap_QL_S_StartLocalSoundVolume( sfxHandle_t sfx, int channelNum, float volume ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_S_STARTLOCALSOUND_VOLUME );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( sfxHandle_t, int, float ))import)( sfx, channelNum, volume );
+}
+
+/*
+=================
+trap_QL_SetupAdvertCellShader
+=================
+*/
+qhandle_t trap_QL_SetupAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_SETUP_ADVERT_CELL_SHADER );
+
+	if ( !import ) {
+		return 0;
+	}
+
+	return ((qhandle_t (QDECL *)( const char *, const rectDef_t *, int ))import)( defaultContent, rect, cellId );
+}
+
+/*
+=================
+trap_QL_RefreshAdvertCellShader
+=================
+*/
+qhandle_t trap_QL_RefreshAdvertCellShader( const char *defaultContent, const rectDef_t *rect, int cellId ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER );
+
+	if ( !import ) {
+		return 0;
+	}
+
+	return ((qhandle_t (QDECL *)( const char *, const rectDef_t *, int ))import)( defaultContent, rect, cellId );
+}
+
+/*
+=================
+trap_QL_SetActiveAdvert
+=================
+*/
+void trap_QL_SetActiveAdvert( int cellId ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_SET_ACTIVE_ADVERT );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( int ))import)( cellId );
+}
+
+/*
+=================
+trap_QL_IsClientMuted
+=================
+*/
+int trap_QL_IsClientMuted( unsigned int identityLow, unsigned int identityHigh ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_IS_CLIENT_MUTED );
+
+	if ( import ) {
+		return ((int (QDECL *)( unsigned int, unsigned int ))import)( identityLow, identityHigh );
+	}
+
+	return 0;
+}
+
+/*
+=================
+trap_QL_ToggleClientMute
+=================
+*/
+int trap_QL_ToggleClientMute( unsigned int identityLow, unsigned int identityHigh ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_TOGGLE_CLIENT_MUTE );
+
+	if ( import ) {
+		return ((int (QDECL *)( unsigned int, unsigned int ))import)( identityLow, identityHigh );
+	}
+
+	return 0;
+}
+
+/*
+=================
 trap_QL_UpdateAdvert
 =================
 */
 void trap_QL_UpdateAdvert( int handleOrToken, int area ) {
-	if ( cg_imports && cg_imports[CG_QL_IMPORT_UPDATE_ADVERT] ) {
-		((void (QDECL *)( int, int ))cg_imports[CG_QL_IMPORT_UPDATE_ADVERT])( handleOrToken, area );
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_UPDATE_ADVERT );
+
+	if ( import ) {
+		((void (QDECL *)( int, int ))import)( handleOrToken, area );
 	}
+}
+
+/*
+=================
+trap_QL_AdvertisementBridge_SetMapPath
+=================
+*/
+void trap_QL_AdvertisementBridge_SetMapPath( const char *mapPath ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_ADVERTISEMENTBRIDGE_SET_MAP_PATH );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( const char * ))import)( mapPath );
 }
 
 /*
@@ -326,6 +517,126 @@ trap_AdvertisementBridge_SetFrameTime
 */
 void trap_AdvertisementBridge_SetFrameTime( int frameTime ) {
 	syscall( CG_ADVERTISEMENTBRIDGE_SETFRAMETIME, frameTime );
+}
+
+/*
+=================
+trap_QL_AdvertisementBridge_UpdateViewParameters
+=================
+*/
+void trap_QL_AdvertisementBridge_UpdateViewParameters( void ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_ADVERTISEMENTBRIDGE_UPDATE_VIEW_PARAMETERS );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( void ))import)();
+}
+
+/*
+=================
+trap_QL_AdvertisementBridge_ClearDelay
+=================
+*/
+void trap_QL_AdvertisementBridge_ClearDelay( void ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_ADVERTISEMENTBRIDGE_CLEAR_DELAY );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( void ))import)();
+}
+
+/*
+=================
+trap_QL_TaggedCvarStringBuffer
+=================
+*/
+void trap_QL_TaggedCvarStringBuffer( const char *varName, char *buffer ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( const char *, char * ))import)( varName, buffer );
+}
+
+/*
+=================
+trap_QL_R_MirrorPoint
+=================
+*/
+void trap_QL_R_MirrorPoint( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_R_MIRROR_POINT );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( vec3_t, orientation_t *, orientation_t *, vec3_t ))import)( in, surface, camera, out );
+}
+
+/*
+=================
+trap_QL_R_MirrorVector
+=================
+*/
+void trap_QL_R_MirrorVector( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_R_MIRROR_VECTOR );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( vec3_t, orientation_t *, orientation_t *, vec3_t ))import)( in, surface, camera, out );
+}
+
+/*
+=================
+trap_QL_DrawScaledText
+=================
+*/
+void trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_DRAW_SCALED_TEXT );
+
+	if ( !import ) {
+		return;
+	}
+
+	((void (QDECL *)( int, int, const char *, int, float, int, float *, int ))import)( x, y, text, fontHandle, scale, maxX, outMaxX, forceColor ? qtrue : qfalse );
+}
+
+/*
+=================
+trap_QL_MeasureText
+=================
+*/
+unsigned long long trap_QL_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_MEASURE_TEXT );
+
+	if ( !import ) {
+		return 0;
+	}
+
+	return ((unsigned long long (QDECL *)( const char *, const char *, int, float, int, float * ))import)( text, end, fontHandle, scale, maxX, outLeft );
+}
+
+/*
+=================
+trap_QL_GetAvatarImageHandle
+=================
+*/
+qhandle_t trap_QL_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_GET_AVATAR_IMAGE_HANDLE );
+
+	if ( !import ) {
+		return 0;
+	}
+
+	return ((qhandle_t (QDECL *)( unsigned int, unsigned int ))import)( identityLow, identityHigh );
 }
 
 int		trap_FS_FOpenFile( const char *qpath, fileHandle_t *f, fsMode_t mode ) {
@@ -378,6 +689,15 @@ int		trap_CM_NumInlineModels( void ) {
 
 clipHandle_t trap_CM_InlineModel( int index ) {
 	return syscall( CG_CM_INLINEMODEL, index );
+}
+
+/*
+=================
+trap_CM_LoadModel
+=================
+*/
+clipHandle_t trap_CM_LoadModel( const char *name ) {
+	return syscall( CG_CM_LOADMODEL, name );
 }
 
 clipHandle_t trap_CM_TempBoxModel( const vec3_t mins, const vec3_t maxs ) {

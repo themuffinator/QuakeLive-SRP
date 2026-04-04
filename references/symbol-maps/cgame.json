@@ -2667,7 +2667,7 @@
         "0x100697A0"
       ],
       "relocation_refs": [],
-      "comment": "Per-entity packet renderer anchored by the `Bad entity type: %i` guard. HLIL keeps the same event-only skip, `CG_CalcEntityLerpPositions` call, `CG_EntityEffects` sidecar, and final `eType` dispatch into the general, player, item, missile, mover, beam, portal, speaker, grapple, and team render helpers from src/code/cgame/cg_ents.c::CG_AddCEntity."
+      "comment": "Per-entity packet renderer anchored by the `Bad entity type: %i` guard. HLIL keeps the same event-only skip, including the retained one-past-tail `0x71` exception that still faults through the bad-type path, followed by the `CG_CalcEntityLerpPositions` call, `CG_EntityEffects` sidecar, and final `eType` dispatch into the general, player, item, missile, mover, beam, portal, speaker, grapple, and team render helpers from src/code/cgame/cg_ents.c::CG_AddCEntity."
     },
     {
       "address": "0x10018BE0",
@@ -2677,7 +2677,7 @@
       "signature": "void CG_AddPacketEntities(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Packet-entity frame pass that computes `cg.frameInterpolation`, updates the shared auto-rotation axes, builds the predicted player entity, handles the follow-mode special case, refreshes the non-predicted local player for lightning origins, predicts item touches, and dispatches each snapshot entity through `CG_AddCEntity` exactly like src/code/cgame/cg_ents.c::CG_AddPacketEntities."
+      "comment": "Packet-entity frame pass that computes `cg.frameInterpolation`, updates the shared auto-rotation axes, builds the predicted player entity, handles the follow-mode special case, refreshes the non-predicted local player for lightning origins, and dispatches each snapshot entity through `CG_AddCEntity` exactly like src/code/cgame/cg_ents.c::CG_AddPacketEntities."
     },
     {
       "address": "0x10018E60",
@@ -5536,7 +5536,7 @@
       "signature": "void CG_CheckAmmo(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail low-ammo warning helper. HLIL keeps the same warning-state update and local warning sound transition as src/code/cgame/cg_playerstate.c::CG_CheckAmmo, even though the shipping DLL drives the warning threshold through the active-weapon table instead of the older GPL total-ammo budget."
+      "comment": "Retail low-ammo warning helper. HLIL drives the warning state from the active weapon, the per-weapon ammo threshold table, and the cg_lowAmmoWarningSound low/no-ammo sound selector, matching the reconstructed src/code/cgame/cg_playerstate.c::CG_CheckAmmo path."
     },
     {
       "address": "0x10042F10",

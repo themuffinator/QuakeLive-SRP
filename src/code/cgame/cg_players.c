@@ -1518,6 +1518,68 @@ static void CG_ApplyDeadBodyTint( refEntity_t *re, int colorScale ) {
 
 /*
 =============
+CG_ParseSteamIdString
+
+Parses the replicated SteamID string into the retail low/high identity words.
+=============
+*/
+static qboolean CG_ParseSteamIdString( const char *steamId, unsigned int *steamIdLow, unsigned int *steamIdHigh ) {
+	const char			*ch;
+	unsigned long long	value;
+
+	if ( steamIdLow ) {
+		*steamIdLow = 0;
+	}
+	if ( steamIdHigh ) {
+		*steamIdHigh = 0;
+	}
+
+	if ( !steamId || !steamId[0] || !steamIdLow || !steamIdHigh ) {
+		return qfalse;
+	}
+
+	value = 0ull;
+	for ( ch = steamId ; *ch ; ++ch ) {
+		unsigned int digit;
+
+		if ( *ch < '0' || *ch > '9' ) {
+			return qfalse;
+		}
+
+		digit = (unsigned int)( *ch - '0' );
+		if ( value > ( ~0ull - digit ) / 10ull ) {
+			return qfalse;
+		}
+
+		value = value * 10ull + digit;
+	}
+
+	*steamIdLow = (unsigned int)( value & 0xffffffffull );
+	*steamIdHigh = (unsigned int)( ( value >> 32 ) & 0xffffffffull );
+
+	return qtrue;
+}
+
+/*
+=============
+CG_UpdateClientIdentity
+
+Caches the retail mute/avatar identity words from the player configstring.
+=============
+*/
+static void CG_UpdateClientIdentity( const char *configstring, clientInfo_t *ci ) {
+	const char *steamId;
+
+	if ( !configstring || !ci ) {
+		return;
+	}
+
+	steamId = Info_ValueForKey( configstring, "steamid" );
+	CG_ParseSteamIdString( steamId, &ci->identityLow, &ci->identityHigh );
+}
+
+/*
+=============
 CG_SetRefEntityColor
 
 Applies a custom RGB color to the reference entity.
@@ -1599,6 +1661,7 @@ void CG_NewClientInfo( int clientNum ) {
 	configstring = CG_ConfigString( clientNum + CS_PLAYERS );
 	if ( !configstring[0] ) {
 		memset( ci, 0, sizeof( *ci ) );
+		cg.clientMuted[clientNum] = qfalse;
 		return;		// player just left
 	}
 
@@ -1609,6 +1672,7 @@ void CG_NewClientInfo( int clientNum ) {
 	// isolate the player's name
 	v = Info_ValueForKey(configstring, "n");
 	Q_strncpyz( newInfo.name, v, sizeof( newInfo.name ) );
+	CG_UpdateClientIdentity( configstring, &newInfo );
 
 	// colors
 	v = Info_ValueForKey( configstring, "c1" );
@@ -1739,6 +1803,11 @@ void CG_NewClientInfo( int clientNum ) {
 	// replace whatever was there with the new one
 	newInfo.infoValid = qtrue;
 	*ci = newInfo;
+	if ( ci->identityLow || ci->identityHigh ) {
+		cg.clientMuted[clientNum] = trap_QL_IsClientMuted( ci->identityLow, ci->identityHigh ) ? qtrue : qfalse;
+	} else {
+		cg.clientMuted[clientNum] = qfalse;
+	}
 }
 
 
@@ -2570,6 +2639,79 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 	}
 }
 
+/*
+=======================
+CG_PlayerObjectiveSprite
+
+Queues the retail local-player objective sprite against the cached team-item origins.
+=======================
+*/
+static void CG_PlayerObjectiveSprite( centity_t *cent ) {
+	cgQueuedWorldMarker_t	*marker;
+	qhandle_t		shader;
+	int			objectiveIndex;
+	int			localTeam;
+	int			powerups;
+
+	if ( !cent || !cg.snap ) {
+		return;
+	}
+
+	localTeam = cg.snap->ps.persistant[PERS_TEAM];
+	if ( localTeam != TEAM_RED && localTeam != TEAM_BLUE ) {
+		return;
+	}
+	if ( cent->currentState.clientNum != cg.snap->ps.clientNum ) {
+		return;
+	}
+
+	shader = 0;
+	objectiveIndex = -1;
+	if ( cgs.gametype == GT_HARVESTER && cent->currentState.generic1 > 0 ) {
+		shader = cgs.media.poiHarvesterCaptureShader;
+		objectiveIndex = ( localTeam == TEAM_RED ) ? CG_POI_OBJECTIVE_BLUE : CG_POI_OBJECTIVE_RED;
+	}
+
+	powerups = cent->currentState.powerups;
+	if ( powerups ) {
+		if ( cgs.gametype == GT_CTF ) {
+			if ( ( localTeam == TEAM_RED && cgs.redflag > FLAG_ATBASE ) ||
+				 ( localTeam == TEAM_BLUE && cgs.blueflag > FLAG_ATBASE ) ) {
+				return;
+			}
+		}
+
+		if ( powerups & ( 1 << PW_REDFLAG ) ) {
+			shader = cgs.media.poiCaptureShader;
+			objectiveIndex = ( cgs.gametype == GT_1FCTF ) ? CG_POI_OBJECTIVE_RED : CG_POI_OBJECTIVE_BLUE;
+		}
+		if ( powerups & ( 1 << PW_BLUEFLAG ) ) {
+			shader = cgs.media.poiCaptureShader;
+			objectiveIndex = ( cgs.gametype == GT_1FCTF ) ? CG_POI_OBJECTIVE_BLUE : CG_POI_OBJECTIVE_RED;
+		}
+		if ( powerups & ( 1 << PW_NEUTRALFLAG ) ) {
+			shader = cgs.media.poiCaptureShader;
+			objectiveIndex = ( localTeam == TEAM_RED ) ? CG_POI_OBJECTIVE_BLUE : CG_POI_OBJECTIVE_RED;
+		}
+	}
+
+	if ( !shader || objectiveIndex < 0 || objectiveIndex >= CG_POI_OBJECTIVE_COUNT ||
+			!cgs.poiObjectiveValid[objectiveIndex] ) {
+		return;
+	}
+
+	marker = CG_AllocQueuedWorldMarkerForKey( CG_QUEUED_MARKER_KIND_PLAYER_POI, cent->currentState.number );
+	if ( !marker ) {
+		return;
+	}
+
+	VectorCopy( cgs.poiObjectiveOrigins[objectiveIndex], marker->origin );
+	marker->duration = 200;
+	marker->fadeDelay = 200;
+	marker->size = CG_POIMarkerSizeForOrigin( marker->origin );
+	marker->shader = shader;
+}
+
 
 /*
 =============
@@ -3324,6 +3466,7 @@ void CG_Player( centity_t *cent ) {
 
 	// add powerups floating behind the player
 	CG_PlayerPowerups( cent, &torso );
+	CG_PlayerObjectiveSprite( cent );
 }
 
 

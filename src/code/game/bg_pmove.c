@@ -960,11 +960,9 @@ static void PM_ApplyJumpTakeoff( void ) {
 	pm->ps->velocity[2] = pm_jumpTakeoffVelocity;
 
 	if ( pm_jumpTakeoffDoubleJumpActive ) {
-		PM_AddEvent( EV_DOUBLE_JUMP );
 		pm->ps->doubleJumped = qtrue;
-	} else {
-		PM_AddEvent( EV_JUMP );
 	}
+	PM_AddEvent( EV_JUMP );
 
 	if ( pm_jumpTakeoffChainJumpActive ) {
 		pm->ps->pm_flags |= PMF_CHAIN_JUMP;

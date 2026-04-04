@@ -2020,7 +2020,63 @@ Builds the retail Clan Arena scoreboard payload.
 ==================
 */
 static qboolean G_BuildClanArenaScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
-	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+	char		entry[1024];
+	int		stringlength;
+	int		i;
+	int		emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		const int	clientNum = level.sortedClients[i];
+		gclient_t	*cl;
+		int		perfect;
+		int		activePlayer;
+		int		j;
+
+		cl = &level.clients[clientNum];
+		perfect = ( cl->ps.persistant[PERS_RANK] == 0 && cl->ps.persistant[PERS_KILLED] == 0 ) ? 1 : 0;
+		activePlayer = ( cl->sess.sessionTeam != TEAM_SPECTATOR && cl->ps.pm_type == PM_NORMAL ) ? 1 : 0;
+
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+			clientNum,
+			cl->sess.sessionTeam,
+			cl->ps.persistant[PERS_SCORE],
+			G_GetScoreboardPing( cl ),
+			(level.time - cl->pers.enterTime) / 60000,
+			cl->killCount,
+			cl->deathCount,
+			G_GetClientScoreboardAccuracy( cl ),
+			G_GetClientScoreboardWeapon( cl ),
+			0,
+			cl->pers.damageGiven,
+			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
+			cl->ps.persistant[PERS_EXCELLENT_COUNT],
+			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
+			perfect,
+			activePlayer );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
 }
 
 /*
@@ -2031,7 +2087,64 @@ Builds the retail Red Rover scoreboard payload.
 ==================
 */
 static qboolean G_BuildRedRoverScoreboardMessage( char *payload, int payloadSize, int *emittedCount ) {
-	return G_BuildRichScoreboardMessage( payload, payloadSize, emittedCount );
+	char		entry[1024];
+	int		stringlength;
+	int		i;
+	int		emitted;
+
+	payload[0] = '\0';
+	stringlength = 0;
+	emitted = 0;
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		const int	clientNum = level.sortedClients[i];
+		gclient_t	*cl;
+		int		activePlayer;
+		int		j;
+
+		cl = &level.clients[clientNum];
+		activePlayer = ( cl->sess.sessionTeam != TEAM_SPECTATOR && cl->ps.pm_type == PM_NORMAL ) ? 1 : 0;
+
+		Com_sprintf( entry, sizeof( entry ),
+			" %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i %i",
+			clientNum,
+			cl->ps.persistant[PERS_SCORE],
+			0,
+			G_GetScoreboardPing( cl ),
+			(level.time - cl->pers.enterTime) / 60000,
+			cl->killCount,
+			cl->deathCount,
+			G_GetClientScoreboardAccuracy( cl ),
+			G_GetClientScoreboardWeapon( cl ),
+			0,
+			cl->pers.damageGiven,
+			cl->ps.persistant[PERS_IMPRESSIVE_COUNT],
+			cl->ps.persistant[PERS_EXCELLENT_COUNT],
+			cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT],
+			cl->ps.persistant[PERS_DEFEND_COUNT],
+			cl->ps.persistant[PERS_ASSIST_COUNT],
+			activePlayer,
+			cl->ps.persistant[PERS_CAPTURES],
+			0 );
+
+		j = strlen( entry );
+		if ( stringlength + j + 32 >= payloadSize ) {
+			if ( emittedCount ) {
+				*emittedCount = emitted;
+			}
+			return qfalse;
+		}
+
+		Q_strcat( payload, payloadSize, entry );
+		stringlength += j;
+		emitted++;
+	}
+
+	if ( emittedCount ) {
+		*emittedCount = emitted;
+	}
+
+	return qtrue;
 }
 
 /*
@@ -2131,7 +2244,7 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 		cmd = "scores_ctf";
 		break;
 	case GT_ATTACK_DEFEND:
-		cmd = "scores_ad";
+		cmd = "scores_ctf";
 		break;
 	case GT_FREEZE:
 		cmd = "scores_ft";
@@ -3983,8 +4096,9 @@ static void G_SayTo( gentity_t *ent, gentity_t *other, int mode, int color, cons
 		return;
 	}
 
-	trap_SendServerCommand( other-g_entities, va( "%s \"%s%c%c%s\"",
+	trap_SendServerCommand( other-g_entities, va( "%s %d \"%s%c%c%s\"",
 		mode == SAY_TEAM ? "tchat" : "chat",
+		ent->s.number,
 		name, Q_COLOR_ESCAPE, color, message));
 }
 
@@ -6959,9 +7073,11 @@ void ClientCommand( int clientNum ) {
 		Cmd_Timein_f( ent );
 	else if ( !Q_stricmp( cmd, "forfeit" ) )
 		Cmd_Forfeit_f( ent );
+	else if ( !Q_stricmp( cmd, "specresp" ) )
+		G_SyncSpectatorItemStatesForClient( clientNum );
 	else if ( !Q_stricmp( cmd, "racepoint" ) )
 		G_RaceAdminCommand( ent );
-	else if ( !Q_stricmp( cmd, "race_init" ) ) {
+	else if ( !Q_stricmp( cmd, "raceinit" ) || !Q_stricmp( cmd, "race_init" ) ) {
 		if ( g_gametype.integer == GT_RACE ) {
 			G_RaceBroadcastInitCommand( ent - g_entities );
 		} else {

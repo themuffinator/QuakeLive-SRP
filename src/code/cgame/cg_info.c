@@ -315,7 +315,7 @@ void CG_DrawInformation( void ) {
 
 	if ( !cg.infoScreenText[0] && cg.snap && ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
 		CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
-		CG_DrawLoadingBackground( cgs.media.loadingBackground );
+		CG_DrawLoadingBackground( cgs.media.menuSmokeShader );
 		CG_DrawLoadingText( SCREEN_WIDTH * 0.5f, LOADING_AWAITING_GAMESTATE_Y, LOADING_STATUS_SCALE,
 			"Awaiting gamestate...", qtrue );
 		CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );

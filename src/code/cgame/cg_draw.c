@@ -500,6 +500,273 @@ static qboolean CG_WorldCoordToScreenCoord( const vec3_t world, float *x, float 
 	return qtrue;
 }
 
+static cgQueuedWorldMarker_t	cg_queuedWorldMarkers[CG_MAX_QUEUED_WORLD_MARKERS];
+
+/*
+===============================
+CG_ResetQueuedWorldMarkerDefaults
+
+Seeds the shared queued world-marker record with the retail defaults.
+===============================
+*/
+static void CG_ResetQueuedWorldMarkerDefaults( cgQueuedWorldMarker_t *marker ) {
+	if ( !marker ) {
+		return;
+	}
+
+	memset( marker, 0, sizeof( *marker ) );
+	marker->active = qtrue;
+	marker->startTime = cg.time;
+	marker->duration = 2000;
+	marker->alpha = 1.0f;
+	marker->size = 24.0f;
+	marker->textScale = 0.18f;
+	marker->color[0] = 1.0f;
+	marker->color[1] = 1.0f;
+	marker->color[2] = 1.0f;
+	marker->color[3] = 1.0f;
+}
+
+/*
+=========================
+CG_ClearQueuedWorldMarkers
+
+Clears the retail queued world-marker slab.
+=========================
+*/
+void CG_ClearQueuedWorldMarkers( void ) {
+	memset( cg_queuedWorldMarkers, 0, sizeof( cg_queuedWorldMarkers ) );
+}
+
+/*
+=======================
+CG_AllocQueuedWorldMarker
+
+Allocates a queued world-marker slot from the retail-sized slab.
+=======================
+*/
+cgQueuedWorldMarker_t *CG_AllocQueuedWorldMarker( void ) {
+	cgQueuedWorldMarker_t	*marker;
+	int				i;
+
+	for ( i = 0; i < ARRAY_LEN( cg_queuedWorldMarkers ); i++ ) {
+		marker = &cg_queuedWorldMarkers[i];
+		if ( marker->active ) {
+			continue;
+		}
+
+		CG_ResetQueuedWorldMarkerDefaults( marker );
+		return marker;
+	}
+
+	return NULL;
+}
+
+/*
+=============================
+CG_AllocQueuedWorldMarkerForKey
+
+Reuses a keyed queued world-marker slot when the same producer refreshes it.
+=============================
+*/
+cgQueuedWorldMarker_t *CG_AllocQueuedWorldMarkerForKey( int kind, int key ) {
+	cgQueuedWorldMarker_t	*marker;
+	int				i;
+
+	for ( i = 0; i < ARRAY_LEN( cg_queuedWorldMarkers ); i++ ) {
+		marker = &cg_queuedWorldMarkers[i];
+		if ( !marker->active || marker->kind != kind || marker->key != key ) {
+			continue;
+		}
+
+		CG_ResetQueuedWorldMarkerDefaults( marker );
+		marker->kind = kind;
+		marker->key = key;
+		return marker;
+	}
+
+	marker = CG_AllocQueuedWorldMarker();
+	if ( !marker ) {
+		return NULL;
+	}
+
+	marker->kind = kind;
+	marker->key = key;
+	return marker;
+}
+
+/*
+====================
+CG_POIMarkerSizeForOrigin
+
+Approximates the retail POI width clamp from the hidden cg_poi* cvars.
+====================
+*/
+float CG_POIMarkerSizeForOrigin( const vec3_t origin ) {
+	float	minWidth;
+	float	maxWidth;
+	float	distance;
+	float	frac;
+
+	maxWidth = ( cg_poiMaxWidth.value > 0.0f ) ? cg_poiMaxWidth.value : 32.0f;
+	minWidth = ( cg_poiMinWidth.value > 0.0f ) ? cg_poiMinWidth.value : 16.0f;
+	if ( minWidth > maxWidth ) {
+		minWidth = maxWidth;
+	}
+	if ( !cg.snap ) {
+		return maxWidth;
+	}
+
+	distance = Distance( cg.refdef.vieworg, origin );
+	if ( distance <= 256.0f ) {
+		return maxWidth;
+	}
+	if ( distance >= 768.0f ) {
+		return minWidth;
+	}
+
+	frac = ( distance - 256.0f ) / ( 768.0f - 256.0f );
+	return maxWidth + ( minWidth - maxWidth ) * frac;
+}
+
+/*
+=========================
+CG_ShouldDrawPOIMarkerMode
+
+Applies the retail cg_powerupPOIs mode split before queuing a persistent POI.
+=========================
+*/
+qboolean CG_ShouldDrawPOIMarkerMode( int mode, const vec3_t origin ) {
+	trace_t	trace;
+	int		skipNum;
+
+	if ( mode <= 0 ) {
+		return qfalse;
+	}
+	if ( mode >= 2 ) {
+		return qtrue;
+	}
+	if ( !cg.snap ) {
+		return qfalse;
+	}
+
+	skipNum = cg.predictedPlayerState.clientNum;
+	if ( skipNum < 0 ) {
+		skipNum = cg.snap->ps.clientNum;
+	}
+
+	CG_Trace( &trace, cg.refdef.vieworg, vec3_origin, vec3_origin, origin, skipNum, MASK_OPAQUE );
+	return (qboolean)( trace.fraction >= 1.0f );
+}
+
+/*
+==========================
+CG_UpdateQueuedWorldMarkers
+
+Updates queued world-marker lifetimes and fade alpha ahead of the frame build.
+==========================
+*/
+void CG_UpdateQueuedWorldMarkers( void ) {
+	cgQueuedWorldMarker_t	*marker;
+	int				elapsed;
+	int				i;
+
+	for ( i = 0; i < ARRAY_LEN( cg_queuedWorldMarkers ); i++ ) {
+		marker = &cg_queuedWorldMarkers[i];
+		if ( !marker->active ) {
+			continue;
+		}
+
+		elapsed = cg.time - marker->startTime;
+		if ( elapsed < 0 ) {
+			elapsed = 0;
+		}
+
+		if ( marker->duration > 0 && elapsed >= marker->duration ) {
+			memset( marker, 0, sizeof( *marker ) );
+			continue;
+		}
+
+		marker->alpha = 1.0f;
+		if ( marker->duration > 0 && marker->fadeDelay > 0 &&
+				elapsed > marker->fadeDelay && marker->fadeDelay < marker->duration ) {
+			float fadeFrac;
+
+			fadeFrac = (float)( elapsed - marker->fadeDelay ) /
+				(float)( marker->duration - marker->fadeDelay );
+			marker->alpha = 1.0f - fadeFrac;
+			if ( marker->alpha < 0.0f ) {
+				marker->alpha = 0.0f;
+			} else if ( marker->alpha > 1.0f ) {
+				marker->alpha = 1.0f;
+			}
+		}
+	}
+}
+
+/*
+========================
+CG_DrawQueuedWorldMarkers
+
+Projects and draws the active queued world-marker records.
+========================
+*/
+void CG_DrawQueuedWorldMarkers( void ) {
+	cgQueuedWorldMarker_t	*marker;
+	vec3_t			markerOrigin;
+	vec4_t			color;
+	float			screenX;
+	float			screenY;
+	float			textWidth;
+	float			textHeight;
+	float			elapsedFrac;
+	float			drawY;
+	int				i;
+
+	for ( i = 0; i < ARRAY_LEN( cg_queuedWorldMarkers ); i++ ) {
+		marker = &cg_queuedWorldMarkers[i];
+		if ( !marker->active || marker->alpha <= 0.0f ) {
+			continue;
+		}
+
+		VectorCopy( marker->origin, markerOrigin );
+		elapsedFrac = 0.0f;
+		if ( marker->duration > 0 ) {
+			elapsedFrac = (float)( cg.time - marker->startTime ) / (float)marker->duration;
+			if ( elapsedFrac < 0.0f ) {
+				elapsedFrac = 0.0f;
+			} else if ( elapsedFrac > 1.0f ) {
+				elapsedFrac = 1.0f;
+			}
+		}
+		markerOrigin[2] += marker->rise * elapsedFrac;
+
+		if ( !CG_WorldCoordToScreenCoord( markerOrigin, &screenX, &screenY ) ) {
+			continue;
+		}
+
+		Vector4Copy( marker->color, color );
+		color[3] *= marker->alpha;
+
+		drawY = screenY;
+		if ( marker->shader ) {
+			trap_R_SetColor( color );
+			CG_DrawPic( screenX - ( marker->size * 0.5f ), drawY - ( marker->size * 0.5f ),
+				marker->size, marker->size, marker->shader );
+			trap_R_SetColor( NULL );
+		}
+
+		if ( !marker->text[0] ) {
+			continue;
+		}
+
+		textWidth = (float)CG_Text_Width( marker->text, marker->textScale, 0 );
+		textHeight = (float)CG_Text_Height( marker->text, marker->textScale, 0 );
+		CG_Text_Paint( screenX - ( textWidth * 0.5f ), drawY + ( textHeight * 0.5f ),
+			marker->textScale, color, marker->text, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	}
+}
+
 #define CG_TEAMMATE_POI_LABEL_SCALE			0.22f
 #define CG_TEAMMATE_POI_ICON_SIZE			10.0f
 #define CG_TEAMMATE_POI_BAR_HEIGHT			3.0f
@@ -3396,14 +3663,8 @@ Draws the retail fullscreen vignette overlay when the cached cvar allows it.
 */
 static void CG_DrawScreenVignette( void ) {
 	static qhandle_t	vignetteShader;
-	char			browserActive[16];
 
 	if ( !cg.vignetteEnabled ) {
-		return;
-	}
-
-	trap_Cvar_VariableStringBuffer( "web_browserActive", browserActive, sizeof( browserActive ) );
-	if ( atoi( browserActive ) != 0 ) {
 		return;
 	}
 
@@ -4277,6 +4538,8 @@ static void CG_DrawWarmupStartBanner( void ) {
 		}
 	}
 
+	CG_ClearBufferedAnnouncements();
+
 	if ( sound ) {
 		trap_S_StartLocalSound( sound, CHAN_ANNOUNCER );
 	}
@@ -4314,8 +4577,15 @@ static void CG_PlayWarmupCountSound( int countdown ) {
 		break;
 
 	default:
-		if ( countdown > 3 && cgs.matchTimeoutActive && cgs.media.countPrepareSound ) {
-			trap_S_StartLocalSound( cgs.media.countPrepareSound, CHAN_ANNOUNCER );
+		if ( countdown > 3 ) {
+			if ( ( cgs.gametype == GT_CLAN_ARENA || cgs.gametype == GT_DOMINATION
+				|| cgs.gametype == GT_ATTACK_DEFEND
+				|| ( cgs.gametype == GT_FREEZE && countdown >= 5 ) )
+				&& cgs.media.roundBeginsInSound ) {
+				trap_S_StartLocalSound( cgs.media.roundBeginsInSound, CHAN_ANNOUNCER );
+			} else if ( cgs.media.countPrepareSound ) {
+				trap_S_StartLocalSound( cgs.media.countPrepareSound, CHAN_ANNOUNCER );
+			}
 		}
 		break;
 	}
@@ -4849,6 +5119,8 @@ static void CG_Draw2D( void ) {
 		CG_DrawTimedMenus();
 	}
 
+	CG_DrawQueuedWorldMarkers();
+
 	if ( spectator ) {
 		if ( !menuHudActive ) {
 			CG_DrawSpectator();
@@ -4900,9 +5172,6 @@ static void CG_Draw2D( void ) {
 			CG_DrawLowerLeft();
 		}
 		CG_DrawUpperRight();
-		if ( !menuHudActive ) {
-			CG_DrawSpectatorItemPickups();
-		}
 	}
 
 
@@ -4928,10 +5197,6 @@ static void CG_Draw2D( void ) {
 	CG_DrawStatsMenu();
 }
 
-
-static void CG_DrawTourneyScoreboard() {
-}
-
 /*
 =====================
 CG_DrawActive
@@ -4942,17 +5207,11 @@ Perform all drawing needed to completely fill the screen
 void CG_DrawActive( stereoFrame_t stereoView ) {
 	float		separation;
 	vec3_t		baseOrg;
+	char		browserActive[16];
 
 	// optionally draw the info screen instead
 	if ( !cg.snap ) {
 		CG_DrawInformation();
-		return;
-	}
-
-	// optionally draw the tournement scoreboard instead
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
-		( cg.snap->ps.pm_flags & PMF_SCOREBOARD ) ) {
-		CG_DrawTourneyScoreboard();
 		return;
 	}
 
@@ -4982,7 +5241,9 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	}
 
 	// draw 3D view
+	trap_QL_AdvertisementBridge_UpdateViewParameters();
 	trap_R_RenderScene( &cg.refdef );
+	trap_QL_AdvertisementBridge_ClearDelay();
 
 	// restore original viewpoint if running stereo
 	if ( separation != 0 ) {
@@ -4990,8 +5251,13 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	}
 
 	// draw status bar and other floating elements
-	CG_DrawScreenVignette();
-	CG_Draw2D();
+	trap_Cvar_VariableStringBuffer( "web_browserActive", browserActive, sizeof( browserActive ) );
+	if ( atoi( browserActive ) == 0 ) {
+		if ( !cg.renderingThirdPerson ) {
+			CG_DrawScreenVignette();
+		}
+		CG_Draw2D();
+	}
 }
 
 

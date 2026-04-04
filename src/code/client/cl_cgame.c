@@ -683,8 +683,17 @@ rescan:
 	cmd = Cmd_Argv(0);
 	argc = Cmd_Argc();
 	
-	if ( ( !strcmp( cmd, "chat" ) || !strcmp( cmd, "print" ) ) && CL_ShouldFilterConsoleText( Cmd_Argv( 1 ) ) ) {
-		return qfalse;
+	if ( ( !strcmp( cmd, "chat" ) || !strcmp( cmd, "print" ) ) ) {
+		const char *filterText;
+
+		filterText = Cmd_Argv( 1 );
+		if ( !strcmp( cmd, "chat" ) && argc > 2 ) {
+			filterText = Cmd_Argv( 2 );
+		}
+
+		if ( CL_ShouldFilterConsoleText( filterText ) ) {
+			return qfalse;
+		}
 	}
 
 	if ( !strcmp( cmd, "disconnect" ) ) {
@@ -887,6 +896,8 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		return CM_NumInlineModels();
 	case CG_CM_INLINEMODEL:
 		return CM_InlineModel( args[1] );
+	case CG_CM_LOADMODEL:
+		return 0;
 	case CG_CM_TEMPBOXMODEL:
 		return CM_TempBoxModel( VMA(1), VMA(2), /*int capsule*/ qfalse );
 	case CG_CM_TEMPCAPSULEMODEL:
@@ -1757,6 +1768,7 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_PRINT] = (ql_import_f)QL_CG_trap_Print;
 	ql_cgame_imports[CG_QL_IMPORT_ERROR] = (ql_import_f)QL_CG_trap_Error;
 	ql_cgame_imports[CG_QL_IMPORT_MILLISECONDS] = (ql_import_f)QL_CG_trap_Milliseconds;
+	ql_cgame_imports[CG_QL_IMPORT_REAL_TIME] = (ql_import_f)QL_CG_trap_RealTime;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_REGISTER] = (ql_import_f)QL_CG_trap_Cvar_Register;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_REGISTER_RANGE] = (ql_import_f)QL_CG_trap_Cvar_RegisterRange;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_UPDATE] = (ql_import_f)QL_CG_trap_Cvar_Update;
