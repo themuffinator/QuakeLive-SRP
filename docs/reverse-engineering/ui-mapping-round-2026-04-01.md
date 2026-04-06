@@ -239,6 +239,27 @@ bounded retail CD-key script/cvar band. What remains missing is the inner
 legacy qmenu widget-core family, so the qmenu struct note still stays
 conservative.
 
+## Phase 4 Closure Update (2026-04-06)
+
+The targeted Phase 4 recheck did not change that alias status. A fresh
+cross-check against the committed HLIL and Ghidra corpus still does not expose
+stable one-to-one retail helper owners for `Menu_AddItem`, `Menu_Draw`,
+`Menu_DefaultKey`, `MField_Draw`, or `ScrollList_Key`, so no new aliases were
+promoted in this pass.
+
+That negative result is still enough to close the active ownership gap. The
+outer active runtime paths are already bounded by promoted retail owners such
+as `_UI_KeyEvent`, `_UI_MouseEvent`, `_UI_SetActiveMenu`, `UI_RunMenuScript`,
+the shared menu/runtime paint slab, and the browser/service fallback surface.
+The correct Phase 4 outcome is therefore to document the qmenu widget-core
+family explicitly as source-backed compatibility helpers rather than to keep
+them in an open-ended "missing retail owner" bucket.
+
+No unresolved high-impact ownership gap remains in an active runtime path.
+What remains is a bounded documentation watchlist: only promote an inner qmenu
+alias later if a future committed retail pass yields at least two independent
+signals for a concrete standalone owner.
+
 ## Result
 
 This round raises the effective quality of the `ui` mapping notes without
@@ -251,4 +272,5 @@ the remaining open questions are narrowed to the genuinely weak areas:
 - dormant-versus-live legacy asset carry-over fields in `displayContextDef_t`
 - the folded-versus-standalone status of source-only helpers such as
   `String_Init` and `PC_SourceWarning`
-- the inner qmenu widget-core helper family
+- future-evidence revalidation for the explicitly bounded inner qmenu
+  widget-core helper family

@@ -58,6 +58,7 @@ int Menu_ItemsMatchingGroup( menuDef_t *menu, const char *name );
 itemDef_t *Menu_GetMatchingItemByNumber( menuDef_t *menu, int index, const char *name );
 itemDef_t *Menu_FindItemByName( menuDef_t *menu, const char *p );
 itemDef_t *Menu_ClearFocus( menuDef_t *menu );
+qboolean Rect_ContainsPoint( rectDef_t *rect, float x, float y );
 void Item_ValidateTypeData( itemDef_t *item );
 void Window_Paint( Window *w, float fadeAmount, float fadeClamp, float fadeCycle );
 void Item_Paint( itemDef_t *item );
@@ -117,6 +118,7 @@ void Script_SetCvar( itemDef_t *item, char **args );
 void Script_Exec( itemDef_t *item, char **args );
 void Script_Play( itemDef_t *item, char **args );
 void Script_playLooped( itemDef_t *item, char **args );
+static void *CG_ClearBrowserFocus( void *overlay );
 
 #define CG_RACE_CHECKPOINT_HALF_WIDTH 24.0f
 #define CG_RACE_CHECKPOINT_HEIGHT 48.0f

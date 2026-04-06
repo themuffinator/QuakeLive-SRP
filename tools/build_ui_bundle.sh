@@ -10,11 +10,18 @@ LOG_DIR="${ARTIFACT_ROOT}/logs"
 METRICS_DIR="${ARTIFACT_ROOT}/metrics"
 FONT_BAKE_TOOL="${REPO_ROOT}/tools/packaging/bake_fonts.py"
 UI_RETAIL_OVERRIDE_TOOL="${REPO_ROOT}/scripts/ui/write_retail_ui_overrides.py"
+UI_RETAIL_CORPUS_TOOL="${REPO_ROOT}/scripts/ui/check_retail_ui_corpus.py"
 OVERLAY_BUILD_ROOT="${BUILD_ROOT}/src_ui_retail_overlay"
 OVERLAY_STAGING="${OVERLAY_BUILD_ROOT}/staging"
 OVERLAY_MANIFEST_JSON="${ARTIFACT_ROOT}/ui_src_retail_overlay.json"
 OVERLAY_PACKAGE_NAME="pak_ui_src_retail_overlay.pk3"
 OVERLAY_PK3_PATH="${BUILD_ROOT}/${OVERLAY_PACKAGE_NAME}"
+UI_RETAIL_INVENTORY_JSON="${ARTIFACT_ROOT}/ui_retail_inventory.json"
+RETAIL_BASEQ3_ROOT=$(python3 - <<'PY'
+from scripts.ui.retail_ui_corpus import DEFAULT_BASEQ3_ROOT
+print(DEFAULT_BASEQ3_ROOT)
+PY
+)
 
 create_zip() {
 	local source_dir="$1"
@@ -41,8 +48,15 @@ mkdir -p "${STAGING}" "${LOG_DIR}" "${METRICS_DIR}"
 rm -rf "${STAGING}" && mkdir -p "${STAGING}"
 mkdir -p "${ARTIFACT_ROOT}"
 
+python3 "${UI_RETAIL_CORPUS_TOOL}" \
+	--baseq3-root "${RETAIL_BASEQ3_ROOT}" \
+	--bundle-manifest "${MANIFEST}" \
+	--inventory-out "${UI_RETAIL_INVENTORY_JSON}" \
+	--strict
+
 rm -rf "${OVERLAY_STAGING}" && mkdir -p "${OVERLAY_STAGING}"
 python3 "${UI_RETAIL_OVERRIDE_TOOL}" \
+	--retail-root "${RETAIL_BASEQ3_ROOT}/ui" \
 	--homepath-root "${OVERLAY_STAGING}" \
 	--manifest "${OVERLAY_MANIFEST_JSON}" \
 	--overlay-prefix "ui"
@@ -77,19 +91,19 @@ import pathlib
 import shutil
 import sys
 
+from scripts.ui.retail_ui_corpus import resolve_manifest_source_path
+
 manifest = json.loads(pathlib.Path("${MANIFEST}").read_text())
 staging = pathlib.Path("${STAGING}")
 log_path = pathlib.Path("${copy_log}")
 repo_root = pathlib.Path("${REPO_ROOT}")
+baseq3_root = pathlib.Path("${RETAIL_BASEQ3_ROOT}")
 logs = []
 copied_paths = []
 
 
 def resolve_path(path: str) -> pathlib.Path:
-    candidate = pathlib.Path(path)
-    if not candidate.is_absolute():
-        candidate = repo_root / candidate
-    return candidate
+    return resolve_manifest_source_path(path, baseq3_root)
 
 
 def copy_file(source: pathlib.Path, destination: pathlib.Path) -> None:
@@ -146,7 +160,12 @@ PY
 
 BAKE_LOG="${LOG_DIR}/font_bake.log"
 METRICS_JSON="${METRICS_DIR}/font_metrics.json"
-python3 "${FONT_BAKE_TOOL}" --manifest "${MANIFEST}" --output "${STAGING}" --log "${BAKE_LOG}" --metrics "${METRICS_JSON}"
+python3 "${FONT_BAKE_TOOL}" \
+	--manifest "${MANIFEST}" \
+	--output "${STAGING}" \
+	--log "${BAKE_LOG}" \
+	--metrics "${METRICS_JSON}" \
+	--baseq3-root "${RETAIL_BASEQ3_ROOT}"
 
 PK3_PATH="${BUILD_ROOT}/${PACKAGE_NAME}"
 rm -f "${PK3_PATH}"
@@ -158,6 +177,7 @@ UI bundle complete.
   package: ${PK3_PATH}
   src/ui retail overlay: ${OVERLAY_PK3_PATH}
   src/ui overlay manifest: ${OVERLAY_MANIFEST_JSON}
+  retail ui inventory: ${UI_RETAIL_INVENTORY_JSON}
   manifest log: ${LOG_DIR}/manifest_copy.log
   font bake log: ${BAKE_LOG}
   font metrics: ${METRICS_JSON}

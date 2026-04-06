@@ -9,6 +9,7 @@ from typing import Dict
 
 import pytest
 
+from scripts.ui.retail_ui_corpus import DEFAULT_BASEQ3_ROOT, DEFAULT_BUNDLE_MANIFEST, build_retail_ui_inventory
 from tests.run_harnesses import HarnessBundleResult, REPO_ROOT, run_harness_bundle
 
 
@@ -80,3 +81,10 @@ def harness_parity_runs(
     """Execute the harness bundle once per supported target for parity tests."""
 
     return _collect_harness_runs(tmp_path_factory)
+
+
+@pytest.fixture(scope="session")
+def retail_ui_corpus_inventory() -> dict[str, object]:
+    """Capture the staged retail UI corpus status once for UI parity tests."""
+
+    return build_retail_ui_inventory(DEFAULT_BASEQ3_ROOT, DEFAULT_BUNDLE_MANIFEST)

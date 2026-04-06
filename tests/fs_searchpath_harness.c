@@ -564,11 +564,35 @@ void QLR_FS_TestSetRestrict( int restrictValue ) {
 
 /*
 =============
+QLR_FS_TestSetDebug
+=============
+*/
+void QLR_FS_TestSetDebug( int debugValue ) {
+	char buffer[16];
+
+	fs_stub_debug.integer = debugValue;
+	fs_stub_debug.value = (float)debugValue;
+	snprintf( buffer, sizeof( buffer ), "%d", debugValue );
+	free( fs_stub_debug.string );
+	fs_stub_debug.string = strdup( buffer );
+}
+
+/*
+=============
 QLR_FS_TestAddGameDirectory
 =============
 */
 void QLR_FS_TestAddGameDirectory( const char *path, const char *gamedir ) {
 	FS_AddGameDirectory( path, gamedir );
+}
+
+/*
+=============
+QLR_FS_TestLoadedPakNames
+=============
+*/
+const char *QLR_FS_TestLoadedPakNames( void ) {
+	return FS_LoadedPakNames();
 }
 
 /*

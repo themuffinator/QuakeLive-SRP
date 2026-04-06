@@ -267,15 +267,37 @@ string width.
   widgets; the active variant is determined by the qmenu `type` tag, not by a
   different layout.
 
-## Open Questions
+## Phase 4 Ownership Closure (2026-04-06)
 
-1. Determine whether a bounded retail qmenu widget-core slab actually still
-   exists in the committed corpus or whether the current retail evidence really
-   stops at the outer dispatcher plus the CD-key cvar/script band.
-2. Revalidate directly against any future retail evidence for a concrete
-   `Menu_AddItem`-style boundary before treating the widened
-   `MAX_MENUITEMS = 96` contract as retail-backed rather than source-compatible.
-3. Recover any remaining qmenu-side stack owners beneath the already-mapped
-   `_UI_KeyEvent`, `_UI_MouseEvent`, `_UI_SetActiveMenu`, and
-   `UI_RunMenuScript` surface so the old framework and the newer `ui_shared`
-   system are documented side-by-side rather than piecemeal.
+The targeted Phase 4 HLIL + Ghidra recheck did not recover stable one-to-one
+retail helper owners for the inner qmenu widget-core slab. The strongest
+direct-retail surface still stops at the outer dispatchers
+`_UI_KeyEvent`, `_UI_MouseEvent`, `_UI_SetActiveMenu`, and the bounded
+`UI_RunMenuScript` CD-key/script band. That means the correct closure is not to
+invent new aliases for the inner qmenu leaves; it is to bound them explicitly
+as source-backed compatibility helpers until stronger retail evidence appears.
+
+| Helper | Strongest observed retail signal | Confidence | Phase 4 conclusion |
+| --- | --- | --- | --- |
+| `Menu_AddItem` | The committed retail corpus still does not expose a bounded standalone owner. The only concrete behavior surface available in this tree is the legacy qmenu struct write pattern: `parent`, `menuPosition`, `nitems`, and `items[]`, plus source callsites such as the retained CD-key menu builder. | Medium | Keep the source helper as the compatibility boundary. Do not promote a retail alias without a new two-signal retail corroboration pass. |
+| `Menu_Draw` | The committed retail surface still reaches qmenu draw behavior through outer refresh and menu activation owners, but no standalone inner draw leaf surfaced with stable symbol or control-flow boundaries. The current note can only bind the shared struct consumers (`statusbar`, `ownerdraw`, `parent->cursor`) and the surrounding active runtime owners. | Medium | Treat this as a bounded inner compatibility leaf. The active runtime above it is already retail-owned, so no high-impact runtime gap remains here. |
+| `Menu_DefaultKey` | Retail evidence cleanly bounds `_UI_KeyEvent`, but the fallback qmenu key-router below that dispatcher still does not separate into a committed standalone helper. The struct-level fallback seam (`menu->key` or default path) is still observable from source behavior and existing layout facts. | Medium | Preserve the source helper and keep the ownership claim narrow: retail-backed outer dispatch, source-backed inner fallback. |
+| `MField_Draw` | The committed corpus does not surface a bounded text-field leaf beneath the already-mapped outer menu/runtime owners. What remains directly observable is the `mfield_t` payload contract (`scroll`, `widthInChars`, `buffer`, `cursor`) and the source wrapper chain that consumes it. | Medium | Keep this as a source-backed leaf tied to hard layout facts only. No alias promotion is justified yet. |
+| `ScrollList_Key` | The committed retail surface still does not expose a stable widget-local scroll-list key owner beneath the outer menu dispatchers. The recoverable evidence remains the `menulist_s` layout and the source navigation behavior around `curvalue`, `top`, `height`, `columns`, and `seperation`. | Medium | Keep this helper source-backed and explicitly bounded as widget-local compatibility behavior, not an unresolved high-impact retail runtime gap. |
+
+No unresolved high-impact ownership gap remains in an active runtime path. The
+active retail-owned dispatchers above this slab are already mapped; the
+remaining qmenu-core band is now explicitly bounded as a low-risk
+compatibility layer rather than an open function-recovery blocker.
+
+## Future Evidence Watchlist
+
+1. Recheck the committed corpus only if new HLIL, Binary Ninja, or Ghidra
+   evidence surfaces a concrete standalone qmenu-core leaf with at least two
+   corroborating signals.
+2. Revalidate directly against any future retail evidence before treating the
+   widened `MAX_MENUITEMS = 96` contract as direct retail ownership rather than
+   source-compatible behavior.
+3. Keep documenting how the preserved qmenu framework interacts with the newer
+   `ui_shared` runtime without inventing intermediate owners that the committed
+   retail corpus still does not bound.

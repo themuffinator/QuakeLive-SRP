@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import shutil
 import subprocess
 import zipfile
 from pathlib import Path
@@ -16,9 +17,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def fs_harness(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
     build_dir = tmp_path_factory.mktemp("fs_harness_build")
     lib_path = build_dir / "libfs_harness.so"
+    compiler = shutil.which("gcc")
+
+    if compiler is None:
+        pytest.skip("gcc is not available for the filesystem search-path harness")
 
     compile_cmd = [
-        "gcc",
+        compiler,
         "-shared",
         "-fPIC",
         "-Isrc/code",
@@ -40,6 +45,9 @@ def fs_harness(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
     lib.QLR_FS_TestShutdown.argtypes = []
     lib.QLR_FS_TestAddGameDirectory.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     lib.QLR_FS_TestSetRestrict.argtypes = [ctypes.c_int]
+    lib.QLR_FS_TestSetDebug.argtypes = [ctypes.c_int]
+    lib.QLR_FS_TestLoadedPakNames.argtypes = []
+    lib.QLR_FS_TestLoadedPakNames.restype = ctypes.c_char_p
     lib.QLR_FS_TestReadFile.argtypes = [
         ctypes.c_char_p,
         ctypes.c_int,
@@ -68,6 +76,12 @@ def fs_environment(tmp_path: Path, fs_harness: ctypes.CDLL) -> Iterator[Tuple[ct
 
 def _write_pk3(root: Path, relative: str, content: str) -> None:
     pak_path = root / "baseq3" / "pak_test.pk3"
+    with zipfile.ZipFile(pak_path, "w") as archive:
+        archive.writestr(relative, content)
+
+
+def _write_named_pk3(root: Path, pak_name: str, relative: str, content: str) -> None:
+    pak_path = root / "baseq3" / pak_name
     with zipfile.ZipFile(pak_path, "w") as archive:
         archive.writestr(relative, content)
 
@@ -137,4 +151,30 @@ def test_unique_file_reopens_zip_handle(fs_environment: Tuple[ctypes.CDLL, Path,
     assert shared_handle != 0
     assert unique_handle != 0
     assert shared_handle != unique_handle
+
+
+def test_homepath_overlay_pk3_precedes_base_bundle_and_logs_source(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    lib, basepath, homepath = fs_environment
+
+    _write_named_pk3(basepath, "pak_uiql.pk3", "ui/hud.txt", "base-bundle")
+    _write_named_pk3(homepath, "pak_ui_src_retail_overlay.pk3", "ui/hud.txt", "overlay-bundle")
+
+    lib.QLR_FS_TestSetDebug(1)
+    lib.QLR_FS_TestAddGameDirectory(str(basepath).encode(), b"baseq3")
+    lib.QLR_FS_TestAddGameDirectory(str(homepath).encode(), b"baseq3")
+
+    loaded_paks = lib.QLR_FS_TestLoadedPakNames().decode()
+    assert loaded_paks.split()[:2] == ["pak_ui_src_retail_overlay", "pak_uiql"]
+
+    capfd.readouterr()
+    length, content, _ = _read_file(lib, "ui/hud.txt")
+    captured = capfd.readouterr().out
+
+    assert length == len("overlay-bundle")
+    assert content == "overlay-bundle"
+    assert "FS_FOpenFileRead: ui/hud.txt" in captured
+    assert str(homepath / "baseq3" / "pak_ui_src_retail_overlay.pk3") in captured
 

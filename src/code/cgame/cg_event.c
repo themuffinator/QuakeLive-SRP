@@ -742,7 +742,7 @@ static int CG_GetRetailDamagePlumDamage( const entityState_t *es ) {
 		return 0;
 	}
 
-	Com_Memcpy( &damage, &es->origin[0], sizeof( damage ) );
+	memcpy( &damage, &es->origin[0], sizeof( damage ) );
 	return damage;
 }
 

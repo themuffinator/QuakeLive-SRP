@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "ui_shared.h"
 
+qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText );
+
 #define SCROLL_TIME_START					500
 #define SCROLL_TIME_ADJUST				150
 #define SCROLL_TIME_ADJUSTOFFSET	40
@@ -144,7 +146,7 @@ static void Menu_SetupAdvertCellShaders(menuDef_t *menu);
 static void Menu_RefreshAdvertCellShaders(menuDef_t *menu);
 
 #ifdef CGAME
-#define MEM_POOL_SIZE  128 * 1024
+#define MEM_POOL_SIZE  0x600000
 #else
 #define MEM_POOL_SIZE  1024 * 1024
 #endif
@@ -1716,6 +1718,11 @@ void Script_SetCvar(itemDef_t *item, char **args) {
 void Script_Exec(itemDef_t *item, char **args) {
 	const char *val;
 	if (String_Parse(args, &val)) {
+#ifndef CGAME
+		if ( UI_HandleDeferredScriptExec( item, val ) ) {
+			return;
+		}
+#endif
 		DC->executeText(EXEC_APPEND, va("%s ; ", val));
 	}
 }
@@ -4629,9 +4636,28 @@ void Item_ListBox_Paint(itemDef_t *item) {
 			x = item->window.rect.x + 1;
 			y = item->window.rect.y + 1;
 			for (i = listPtr->startPos; i < count; i++) {
+				vec4_t textColor;
 				const char *text;
 				// always draw at least one
 				// which may overdraw the box if it is too small for the element
+
+				if ( i == item->cursorPos ) {
+					if ( listPtr->selectedColorSet ) {
+						memcpy( textColor, listPtr->selectedColor, sizeof( textColor ) );
+					} else {
+						memcpy( textColor, item->window.foreColor, sizeof( textColor ) );
+					}
+				} else {
+					if ( listPtr->elementColorSet ) {
+						memcpy( textColor, listPtr->elementColor, sizeof( textColor ) );
+					} else {
+						memcpy( textColor, item->window.foreColor, sizeof( textColor ) );
+					}
+
+					if ( listPtr->altRowColorSet && ( ( (int)i - listPtr->startPos ) & 1 ) ) {
+						DC->fillRect( x + 2, y + 2, item->window.rect.w - SCROLLBAR_SIZE - 4, listPtr->elementHeight, listPtr->altRowColor );
+					}
+				}
 
 				if (listPtr->numColumns > 0) {
 					int j;
@@ -4640,7 +4666,7 @@ void Item_ListBox_Paint(itemDef_t *item) {
 						if (optionalImage >= 0) {
 							DC->drawHandlePic(x + 4 + listPtr->columnInfo[j].pos, y - 1 + listPtr->elementHeight / 2, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
 						} else if (text) {
-							Item_DrawText(item, x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars);
+							Item_DrawText(item, x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight, textColor, text, 0, listPtr->columnInfo[j].maxChars);
 						}
 					}
 				} else {
@@ -4648,7 +4674,7 @@ void Item_ListBox_Paint(itemDef_t *item) {
 					if (optionalImage >= 0) {
 						//DC->drawHandlePic(x + 4 + listPtr->elementHeight, y, listPtr->columnInfo[j].width, listPtr->columnInfo[j].width, optionalImage);
 					} else if (text) {
-						Item_DrawText(item, x + 4, y + listPtr->elementHeight, item->window.foreColor, text, 0, 0);
+						Item_DrawText(item, x + 4, y + listPtr->elementHeight, textColor, text, 0, 0);
 					}
 				}
 
@@ -4847,6 +4873,14 @@ void Item_Paint(itemDef_t *item) {
 
 	if (item->window.ownerDrawFlags && DC->ownerDrawVisible) {
 		if (!DC->ownerDrawVisible(item->window.ownerDrawFlags)) {
+			item->window.flags &= ~WINDOW_VISIBLE;
+		} else {
+			item->window.flags |= WINDOW_VISIBLE;
+		}
+	}
+
+	if ( item->window.ownerDrawFlags2 && DC->ownerDrawVisible ) {
+		if ( !DC->ownerDrawVisible( item->window.ownerDrawFlags2 ) ) {
 			item->window.flags &= ~WINDOW_VISIBLE;
 		} else {
 			item->window.flags |= WINDOW_VISIBLE;
@@ -5167,6 +5201,10 @@ void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 	if (menu->window.ownerDrawFlags && DC->ownerDrawVisible && !DC->ownerDrawVisible(menu->window.ownerDrawFlags)) {
 		return;
 	}
+
+	if (menu->window.ownerDrawFlags2 && DC->ownerDrawVisible && !DC->ownerDrawVisible(menu->window.ownerDrawFlags2)) {
+		return;
+	}
 	
 	if (forcePaint) {
 		menu->window.flags |= WINDOW_FORCED;
@@ -5231,6 +5269,14 @@ void Item_ValidateTypeData(itemDef_t *item) {
 	if (item->type == ITEM_TYPE_LISTBOX) {
 		item->typeData = UI_Alloc(sizeof(listBoxDef_t));
 		memset(item->typeData, 0, sizeof(listBoxDef_t));
+		((listBoxDef_t *)item->typeData)->elementColor[0] = 1.0f;
+		((listBoxDef_t *)item->typeData)->elementColor[1] = 1.0f;
+		((listBoxDef_t *)item->typeData)->elementColor[2] = 1.0f;
+		((listBoxDef_t *)item->typeData)->elementColor[3] = 1.0f;
+		((listBoxDef_t *)item->typeData)->selectedColor[0] = 1.0f;
+		((listBoxDef_t *)item->typeData)->selectedColor[1] = 1.0f;
+		((listBoxDef_t *)item->typeData)->selectedColor[2] = 1.0f;
+		((listBoxDef_t *)item->typeData)->selectedColor[3] = 1.0f;
 	} else if (item->type == ITEM_TYPE_EDITFIELD || item->type == ITEM_TYPE_NUMERICFIELD || item->type == ITEM_TYPE_YESNO || item->type == ITEM_TYPE_BIND || item->type == ITEM_TYPE_SLIDER || item->type == ITEM_TYPE_SLIDER_COLOR || item->type == ITEM_TYPE_TEXT) {
 		item->typeData = UI_Alloc(sizeof(editFieldDef_t));
 		memset(item->typeData, 0, sizeof(editFieldDef_t));
@@ -5566,6 +5612,7 @@ qboolean ItemParse_elementtype( itemDef_t *item, int handle ) {
 // columns sets a number of columns and an x pos and width per.. 
 qboolean ItemParse_columns( itemDef_t *item, int handle ) {
 	int num, i;
+	int storedColumns;
 	listBoxDef_t *listPtr;
 
 	Item_ValidateTypeData(item);
@@ -5573,17 +5620,20 @@ qboolean ItemParse_columns( itemDef_t *item, int handle ) {
 		return qfalse;
 	listPtr = (listBoxDef_t*)item->typeData;
 	if (PC_Int_Parse(handle, &num)) {
-		if (num > MAX_LB_COLUMNS) {
-			num = MAX_LB_COLUMNS;
+		storedColumns = num;
+		if (storedColumns > MAX_LB_COLUMNS) {
+			storedColumns = MAX_LB_COLUMNS;
 		}
-		listPtr->numColumns = num;
+		listPtr->numColumns = storedColumns;
 		for (i = 0; i < num; i++) {
 			int pos, width, maxChars;
 
 			if (PC_Int_Parse(handle, &pos) && PC_Int_Parse(handle, &width) && PC_Int_Parse(handle, &maxChars)) {
-				listPtr->columnInfo[i].pos = pos;
-				listPtr->columnInfo[i].width = width;
-				listPtr->columnInfo[i].maxChars = maxChars;
+				if (i < MAX_LB_COLUMNS) {
+					listPtr->columnInfo[i].pos = pos;
+					listPtr->columnInfo[i].width = width;
+					listPtr->columnInfo[i].maxChars = maxChars;
+				}
 			} else {
 				return qfalse;
 			}
@@ -6195,6 +6245,119 @@ qboolean ItemParse_ownerdrawFlag( itemDef_t *item, int handle ) {
 }
 
 /*
+===================
+ItemParse_ownerdrawFlag2
+===================
+*/
+qboolean ItemParse_ownerdrawFlag2( itemDef_t *item, int handle ) {
+	int i;
+
+	if ( !PC_Int_Parse( handle, &i ) ) {
+		return qfalse;
+	}
+
+	item->window.ownerDrawFlags2 |= i;
+	return qtrue;
+}
+
+/*
+===================
+ItemParse_listBoxColor
+===================
+*/
+static qboolean ItemParse_listBoxColor( itemDef_t *item, int handle, vec4_t target, qboolean *colorSet ) {
+	listBoxDef_t *listPtr;
+	int i;
+	float component;
+
+	if ( item == NULL || item->type != ITEM_TYPE_LISTBOX ) {
+		return qfalse;
+	}
+
+	Item_ValidateTypeData( item );
+	listPtr = (listBoxDef_t *)item->typeData;
+	if ( listPtr == NULL ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < 4; i++ ) {
+		if ( !PC_Float_Parse( handle, &component ) ) {
+			return qfalse;
+		}
+		target[i] = component;
+	}
+
+	if ( colorSet != NULL ) {
+		*colorSet = qtrue;
+	}
+
+	return qtrue;
+}
+
+/*
+===================
+ItemParse_altrowcolor
+===================
+*/
+qboolean ItemParse_altrowcolor( itemDef_t *item, int handle ) {
+	listBoxDef_t *listPtr;
+
+	if ( item == NULL || item->type != ITEM_TYPE_LISTBOX ) {
+		return qfalse;
+	}
+
+	Item_ValidateTypeData( item );
+	listPtr = (listBoxDef_t *)item->typeData;
+	if ( listPtr == NULL ) {
+		return qfalse;
+	}
+
+	return ItemParse_listBoxColor( item, handle, listPtr->altRowColor, &listPtr->altRowColorSet );
+}
+
+/*
+===================
+ItemParse_elementcolor
+===================
+*/
+qboolean ItemParse_elementcolor( itemDef_t *item, int handle ) {
+	listBoxDef_t *listPtr;
+
+	if ( item == NULL || item->type != ITEM_TYPE_LISTBOX ) {
+		return qfalse;
+	}
+
+	Item_ValidateTypeData( item );
+	listPtr = (listBoxDef_t *)item->typeData;
+	if ( listPtr == NULL ) {
+		return qfalse;
+	}
+
+	return ItemParse_listBoxColor( item, handle, listPtr->elementColor, &listPtr->elementColorSet );
+}
+
+/*
+===================
+ItemParse_selectedcolor
+===================
+*/
+qboolean ItemParse_selectedcolor( itemDef_t *item, int handle ) {
+	listBoxDef_t *listPtr;
+
+	if ( item == NULL || item->type != ITEM_TYPE_LISTBOX ) {
+		return qfalse;
+	}
+
+	Item_ValidateTypeData( item );
+	listPtr = (listBoxDef_t *)item->typeData;
+	if ( listPtr == NULL ) {
+		return qfalse;
+	}
+
+	return ItemParse_listBoxColor( item, handle, listPtr->selectedColor, &listPtr->selectedColorSet );
+}
+
+/*
 ========================
 ItemParse_enableCvarSlot
 ========================
@@ -6375,6 +6538,10 @@ keywordHash_t itemParseKeywords[] = {
 	{"cvarFloatList", ItemParse_cvarFloatList, NULL},
 	{"addColorRange", ItemParse_addColorRange, NULL},
 	{"ownerdrawFlag", ItemParse_ownerdrawFlag, NULL},
+	{"ownerdrawFlag2", ItemParse_ownerdrawFlag2, NULL},
+	{"altrowcolor", ItemParse_altrowcolor, NULL},
+	{"elementcolor", ItemParse_elementcolor, NULL},
+	{"selectedcolor", ItemParse_selectedcolor, NULL},
 	{"enableCvar", ItemParse_enableCvar, NULL},
 	{"cvarTest", ItemParse_cvarTest, NULL},
 	{"cvarTest2", ItemParse_cvarTest2, NULL},
@@ -6739,6 +6906,23 @@ qboolean MenuParse_ownerdrawFlag( itemDef_t *item, int handle ) {
 	return qtrue;
 }
 
+/*
+===================
+MenuParse_ownerdrawFlag2
+===================
+*/
+qboolean MenuParse_ownerdrawFlag2( itemDef_t *item, int handle ) {
+	int i;
+	menuDef_t *menu = (menuDef_t *)item;
+
+	if ( !PC_Int_Parse( handle, &i ) ) {
+		return qfalse;
+	}
+
+	menu->window.ownerDrawFlags2 |= i;
+	return qtrue;
+}
+
 qboolean MenuParse_ownerdraw( itemDef_t *item, int handle ) {
 	menuDef_t *menu = (menuDef_t*)item;
 
@@ -6839,6 +7023,7 @@ keywordHash_t menuParseKeywords[] = {
 	{"backgroundSize", MenuParse_backgroundSize, NULL},
 	{"ownerdraw", MenuParse_ownerdraw, NULL},
 	{"ownerdrawFlag", MenuParse_ownerdrawFlag, NULL},
+	{"ownerdrawFlag2", MenuParse_ownerdrawFlag2, NULL},
 	{"outOfBoundsClick", MenuParse_outOfBounds, NULL},
 	{"soundLoop", MenuParse_soundLoop, NULL},
 	{"itemDef", MenuParse_itemDef, NULL},

@@ -489,6 +489,31 @@ def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     assert "CL_RefreshOnlineServicesBridgeState();" in init_ui_block
 
 
+def test_service_disabled_menu_verb_matrix_stays_explicit() -> None:
+    cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+
+    show_browser_block = _extract_function_block(cl_cgame, "void CL_Web_ShowBrowser_f( void )")
+    change_hash_block = _extract_function_block(cl_cgame, "void CL_Web_ChangeHash_f( void )")
+    browser_active_block = _extract_function_block(cl_cgame, "void CL_Web_BrowserActive_f( void )")
+    stop_refresh_block = _extract_function_block(cl_cgame, "void CL_Web_StopRefresh_f( void )")
+    deferred_exec_block = _extract_function_block(
+        ui_main, "qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText ) {"
+    )
+
+    assert 'Com_DPrintf( "web_showBrowser ignored: online services disabled by build settings\\n" );' in show_browser_block
+    assert 'Com_DPrintf( "web_showBrowser ignored: browser overlay provider unavailable\\n" );' in show_browser_block
+    assert 'Com_DPrintf( "web_changeHash ignored: online services disabled by build settings\\n" );' in change_hash_block
+    assert 'Com_DPrintf( "web_changeHash ignored: browser overlay provider unavailable\\n" );' in change_hash_block
+    assert 'Com_DPrintf( "web_browserActive ignored: online services disabled by build settings\\n" );' in browser_active_block
+    assert 'Com_DPrintf( "web_browserActive ignored: browser overlay provider unavailable\\n" );' in browser_active_block
+    assert 'Com_DPrintf( "web_stopRefresh ignored: online services disabled by build settings\\n" );' in stop_refresh_block
+    assert 'Com_DPrintf( "web_stopRefresh ignored: browser overlay provider unavailable\\n" );' in stop_refresh_block
+
+    assert 'Com_Printf( "UI: browser overlay unavailable; opening bridge server browser.\\n" );' in deferred_exec_block
+    assert 'Com_Printf( "UI: browser overlay unavailable; keeping native menu fallback for %s.\\n", commandText );' in deferred_exec_block
+
+
 def test_disabled_online_services_no_longer_force_console_fallback() -> None:
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     cl_scrn = (REPO_ROOT / "src/code/client/cl_scrn.c").read_text(encoding="utf-8")

@@ -458,6 +458,126 @@ void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload) {
 
 /*
 =============
+UI_EnsureNamedMenuLoaded
+
+Ensures a named menu is present, parsing the requested menu file on demand when
+the current loader set did not pre-seed it.
+=============
+*/
+static menuDef_t *UI_EnsureNamedMenuLoaded( const char *menuName, const char *menuFile ) {
+	menuDef_t *menu;
+
+	if ( !menuName || !*menuName ) {
+		return NULL;
+	}
+
+	menu = Menus_FindByName( menuName );
+	if ( menu || !menuFile || !*menuFile ) {
+		return menu;
+	}
+
+	UI_ParseMenu( menuFile );
+	return Menus_FindByName( menuName );
+}
+
+/*
+=============
+UI_ShowOfflineMenuFallbackError
+
+Publishes a native error popup when an offline browser fallback cannot open a
+local bridge surface.
+=============
+*/
+static void UI_ShowOfflineMenuFallbackError( const char *message ) {
+	menuDef_t *menu;
+
+	if ( !message || !*message ) {
+		return;
+	}
+
+	trap_Cvar_Set( "com_errorMessage", message );
+	menu = UI_EnsureNamedMenuLoaded( "error_popmenu", "ui/error.menu" );
+	if ( menu ) {
+		Menus_ActivateByName( "error_popmenu" );
+		return;
+	}
+
+	Com_Printf( "UI: %s\n", message );
+}
+
+/*
+=============
+UI_CommandTextMatches
+
+Checks whether a command string matches a specific console command name while
+allowing an optional argument tail.
+=============
+*/
+static qboolean UI_CommandTextMatches( const char *commandText, const char *commandName ) {
+	size_t length;
+
+	if ( !commandText || !commandName ) {
+		return qfalse;
+	}
+
+	length = strlen( commandName );
+	if ( Q_stricmpn( commandText, commandName, (int)length ) != 0 ) {
+		return qfalse;
+	}
+
+	return ( commandText[length] == '\0' || commandText[length] == ' ' || commandText[length] == '\t' ) ? qtrue : qfalse;
+}
+
+/*
+=============
+UI_HandleDeferredScriptExec
+
+Intercepts service-dependent exec commands from menu scripts so disabled-overlay
+builds stay navigable instead of dispatching into inert browser console stubs.
+=============
+*/
+qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText ) {
+	menuDef_t *parentMenu;
+	const char *menuName;
+	menuDef_t *bridgeBrowserMenu;
+
+	if ( !commandText || !commandText[0] || UI_BrowserOverlayAvailable() ) {
+		return qfalse;
+	}
+
+	parentMenu = ( item && item->parent ) ? (menuDef_t *)item->parent : NULL;
+	menuName = ( parentMenu && parentMenu->window.name ) ? parentMenu->window.name : "";
+
+	if ( UI_CommandTextMatches( commandText, "web_showBrowser" ) ) {
+		if ( UI_MenuFileEquals( menuName, "main" ) && UI_BrowserBridgeAvailable() ) {
+			bridgeBrowserMenu = UI_EnsureNamedMenuLoaded( "ql_bridge_browser", "ui/ql_bridge_browser.menu" );
+			if ( bridgeBrowserMenu ) {
+				Com_Printf( "UI: browser overlay unavailable; opening bridge server browser.\n" );
+				UI_SetActiveMenuFlow( UI_MENU_FLOW_BRIDGED );
+				Menus_ActivateByName( "ql_bridge_browser" );
+				return qtrue;
+			}
+		}
+
+		if ( UI_MenuFileEquals( menuName, "main" ) ) {
+			UI_ShowOfflineMenuFallbackError( "Browser overlay unavailable; offline bridge server browser could not be loaded." );
+		} else {
+			Com_Printf( "UI: browser overlay unavailable; keeping native menu fallback for %s.\n", commandText );
+		}
+
+		return qtrue;
+	}
+
+	if ( UI_CommandTextMatches( commandText, "web_changeHash" ) ) {
+		Com_Printf( "UI: browser overlay unavailable; keeping native menu fallback for %s.\n", commandText );
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
 UI_RefreshDisplayContextScale
 
 Refreshes the retail-compatible 640x480 scale state from the current renderer config.
@@ -1852,8 +1972,10 @@ int start;
 =============
 UI_ApplyRetailMenuFixups
 
-Hide source-only widgets from drifted read-only menu files so the active
-runtime stays aligned with the shipped retail menu set.
+Keep a defensive no-op seam for older drifted menu trees. The committed
+`src/ui/ingame_join.menu` now matches the retail panel, so these item lookups
+are expected to miss unless a future overlay or external tree reintroduces the
+older country dropdown widgets.
 =============
 */
 static void UI_ApplyRetailMenuFixups( void ) {

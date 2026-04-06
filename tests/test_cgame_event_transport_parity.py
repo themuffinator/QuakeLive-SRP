@@ -42,6 +42,9 @@ def test_shared_entity_state_restores_retail_event_data_slot() -> None:
 	assert "int\t\tretailEventPadding[4];" in q_shared_source
 	assert "int\t\tretailEventData;" in q_shared_source
 	assert "{ NETF(retailEventData), 8 }" in msg_source
+	assert "serializedBytes = sizeof( from->number );" in msg_source
+	assert "assert( serializedBytes <= sizeof( *from ) );" in msg_source
+	assert "assert( numFields + 1 == sizeof( *from )/4 );" not in msg_source
 
 
 def test_qagame_payload_helpers_publish_recovered_retail_slots() -> None:
@@ -52,7 +55,7 @@ def test_qagame_payload_helpers_publish_recovered_retail_slots() -> None:
 	global_team_sound_block = _block_from_marker(source, "void G_SetRetailGlobalTeamSoundPayload")
 
 	assert "ent->s.solid = ( clientNum >= 0 && clientNum < MAX_CLIENTS ) ? clientNum : ENTITYNUM_NONE;" in recipient_block
-	assert "Com_Memcpy( &state->origin[0], &value, sizeof( value ) );" in int_payload_block
+	assert "memcpy( &state->origin[0], &value, sizeof( value ) );" in int_payload_block
 	assert "state->retailEventData = value;" in data_block
 	assert "ent->s.weapon = sound;" in global_team_sound_block
 	assert "ent->s.groundEntityNum = ( trackedClientNum >= 0 && trackedClientNum < MAX_CLIENTS ) ? trackedClientNum : ENTITYNUM_NONE;" in global_team_sound_block
@@ -147,7 +150,7 @@ def test_cgame_damage_plum_reads_retail_int_and_data_slots_directly() -> None:
 	damage_block = _block_from_marker(source, "static int CG_GetRetailDamagePlumDamage")
 	weapon_block = _block_from_marker(source, "static weapon_t CG_GetRetailDamagePlumWeapon")
 
-	assert "Com_Memcpy( &damage, &es->origin[0], sizeof( damage ) );" in damage_block
+	assert "memcpy( &damage, &es->origin[0], sizeof( damage ) );" in damage_block
 	assert "return damage;" in damage_block
 	assert "return es->time;" not in damage_block
 	assert "eventParm" not in damage_block
@@ -209,8 +212,10 @@ def test_freeze_temp_entity_band_uses_explicit_retail_ordinals() -> None:
 	freeze_helper_block = _block_from_marker(g_freeze_source, "static void G_FreezeSetClientFrozenState")
 	freeze_frame_block = _block_from_marker(g_client_source, "void G_FreezeClientEndFrame")
 
-	assert "EV_THAW_PLAYER = 57," in bg_public_source
-	assert "EV_THAW_TICK = 58," in bg_public_source
+	assert "EV_DROWN = 57," in bg_public_source
+	assert "EV_OBITUARY = 58," in bg_public_source
+	assert "EV_THAW_PLAYER = 87," in bg_public_source
+	assert "EV_THAW_TICK = 88," in bg_public_source
 
 	assert "tent = G_TempEntity( client->ps.origin, EV_THAW_PLAYER );" in freeze_helper_block
 	assert "tent = G_TempEntity( ent->client->ps.origin, EV_THAW_TICK );" in freeze_frame_block

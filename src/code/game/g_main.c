@@ -96,7 +96,7 @@ static vmCvar_t	g_teamSizeLegacy;
 static legacyCvarAlias_t	s_legacyCvarAliases[] = {
 	{ &g_weaponRespawn, "g_weaponRespawn", &g_weaponRespawnLegacy, "g_weaponrespawn", "5", 0, -1, -1 },
 	{ &g_damage_g, "g_damage_g", &g_damageGauntletLegacy, "g_damage_gauntlet", "50", 0, -1, -1 },
-	{ &g_teamSizeMin, "g_teamSizeMin", &g_teamSizeLegacy, "teamsize", "0", CVAR_SERVERINFO | CVAR_NORESTART, 0, -1, -1 }
+	{ &g_teamSizeMin, "g_teamSizeMin", &g_teamSizeLegacy, "teamsize", "0", CVAR_SERVERINFO | CVAR_NORESTART, -1, -1 }
 };
 
 static qlr_game_frame_context_t *G_GetFrameContext( void );

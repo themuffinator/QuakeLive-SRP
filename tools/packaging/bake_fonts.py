@@ -13,6 +13,12 @@ import time
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple
 
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.ui.retail_ui_corpus import DEFAULT_BASEQ3_ROOT, resolve_manifest_source_path
+
 TARGETS = {
     "font": {"atlas": "font", "point_size": 24},
     "bigFont": {"atlas": "bigfont", "point_size": 48},
@@ -238,26 +244,29 @@ def load_manifest(manifest_path: pathlib.Path) -> Dict:
         return json.load(handle)
 
 
-def resolve_roles(manifest: Dict, repo_root: pathlib.Path) -> Dict[str, pathlib.Path]:
+def resolve_roles(
+    manifest: Dict,
+    repo_root: pathlib.Path,
+    baseq3_root: pathlib.Path,
+) -> Dict[str, pathlib.Path]:
     role_map: Dict[str, pathlib.Path] = {}
     for entry in manifest.get("files", []):
         source_field = entry.get("source")
         if not source_field:
             continue
-        source = pathlib.Path(source_field)
+        source = resolve_manifest_source_path(source_field, baseq3_root)
         if not source.is_absolute():
-            source = repo_root / source
-        source = source.resolve()
+            source = (repo_root / source).resolve()
         for role in entry.get("roles", []):
             role_map.setdefault(role, source)
     return role_map
 
 
 def bake_fonts(manifest_path: pathlib.Path, output_root: pathlib.Path, log_path: pathlib.Path,
-               metrics_path: pathlib.Path) -> None:
+               metrics_path: pathlib.Path, baseq3_root: pathlib.Path) -> None:
     manifest = load_manifest(manifest_path)
     repo_root = manifest_path.parents[2].resolve()
-    role_map = resolve_roles(manifest, repo_root)
+    role_map = resolve_roles(manifest, repo_root, baseq3_root.resolve())
 
     logs: List[str] = []
     metrics_payload: Dict[str, Dict[str, object]] = {}
@@ -337,9 +346,10 @@ def main(argv: Iterable[str]) -> int:
     parser.add_argument("--output", required=True, type=pathlib.Path)
     parser.add_argument("--log", required=True, type=pathlib.Path)
     parser.add_argument("--metrics", required=True, type=pathlib.Path)
+    parser.add_argument("--baseq3-root", type=pathlib.Path, default=DEFAULT_BASEQ3_ROOT)
     args = parser.parse_args(argv)
 
-    bake_fonts(args.manifest, args.output, args.log, args.metrics)
+    bake_fonts(args.manifest, args.output, args.log, args.metrics, args.baseq3_root)
     return 0
 
 

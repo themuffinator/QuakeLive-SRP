@@ -78,6 +78,34 @@ def test_cgame_display_context_wires_binding_and_execute_hooks() -> None:
 		assert stale not in source
 
 
+def test_cgame_ui_alloc_pool_matches_retail_mapping_note() -> None:
+	source = UI_SHARED.read_text(encoding="utf-8")
+
+	assert "#define MEM_POOL_SIZE  0x600000" in source
+	assert "#define MEM_POOL_SIZE  128 * 1024" not in source
+
+
+def test_cgame_register_graphics_uses_retail_cursor_assets_and_skips_nonretail_flag_icons() -> None:
+	source = CG_MAIN.read_text(encoding="utf-8")
+	register_block = _block_from_marker(source, "static void CG_RegisterGraphics( void )")
+	ghidra_source = (
+		REPO_ROOT / "references" / "reverse-engineering" / "ghidra" / "cgamex86" / "decompile_top_functions.c"
+	).read_text(encoding="utf-8")
+
+	assert 'cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );' in register_block
+	assert 'cgs.media.sizeCursor = trap_R_RegisterShaderNoMip( "ui/assets/sizecursor.tga" );' in register_block
+	assert 'cgs.media.selectCursor = trap_R_RegisterShaderNoMip( "ui/assets/3_cursor3.tga" );' in register_block
+	assert "selectcursor.tga" not in register_block
+	assert "flag_in_base.tga" not in register_block
+	assert "flag_capture.tga" not in register_block
+	assert "flag_missing.tga" not in register_block
+
+	assert '"ui/assets/sizecursor.tga"' in ghidra_source
+	assert '"ui/assets/3_cursor3.tga"' in ghidra_source
+	assert "selectcursor.tga" not in ghidra_source
+	assert "flag_in_base.tga" not in ghidra_source
+
+
 def test_cgame_weapon_reload_configstring_bridge_restored() -> None:
 	servercmds = CG_SERVERCMDS.read_text(encoding="utf-8")
 	weapons = CG_WEAPONS.read_text(encoding="utf-8")

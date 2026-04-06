@@ -581,7 +581,7 @@ void G_SetRetailEventIntPayload( entityState_t *state, int value ) {
 		return;
 	}
 
-	Com_Memcpy( &state->origin[0], &value, sizeof( value ) );
+	memcpy( &state->origin[0], &value, sizeof( value ) );
 }
 
 /*

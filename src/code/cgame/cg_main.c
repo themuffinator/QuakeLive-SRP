@@ -3468,10 +3468,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.escortShader = trap_R_RegisterShaderNoMip("ui/assets/statusbar/escort.tga");
 	cgs.media.cursor = trap_R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	cgs.media.sizeCursor = trap_R_RegisterShaderNoMip( "ui/assets/sizecursor.tga" );
-	cgs.media.selectCursor = trap_R_RegisterShaderNoMip( "ui/assets/selectcursor.tga" );
-	cgs.media.flagShaders[0] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_in_base.tga");
-	cgs.media.flagShaders[1] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_capture.tga");
-	cgs.media.flagShaders[2] = trap_R_RegisterShaderNoMip("ui/assets/statusbar/flag_missing.tga");
+	cgs.media.selectCursor = trap_R_RegisterShaderNoMip( "ui/assets/3_cursor3.tga" );
 	cgs.media.raceStartShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/start" );
 	cgs.media.raceCheckpointShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/checkpoint" );
 	cgs.media.raceFinishShader = trap_R_RegisterShaderNoMip( "gfx/2d/race/finish" );

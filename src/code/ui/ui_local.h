@@ -109,6 +109,9 @@ locally so the native UI DLL can build against the retail menu tree.
 #ifndef UI_REDTEAM5
 #define UI_REDTEAM5				620
 #endif
+#ifndef FEEDER_COUNTRIES
+#define FEEDER_COUNTRIES		0x14
+#endif
 
 // global display context
 
@@ -285,6 +288,7 @@ qboolean UI_BrowserBridgeAvailable(void);
 qboolean UI_BrowserBridgeActive(void);
 void UI_BrowserBridge_SetActive(qboolean active);
 void UI_BrowserBridge_Init(void);
+qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText );
 const char *UI_BrowserBridgeMenuFile(void);
 const char *UI_BrowserBridgeIngameFile(void);
 void UI_ApplyMenuFlowChange(uiMenuFlow_t flow, qboolean reload);
@@ -959,10 +963,11 @@ retail `end_scoreboard_*.menu`, `endscore*.menu`, and
 `ingame_scoreboard_*.menu` files even include `CG_FeederSelection in
 cg_main.c` comments on the team-list items, so the UI DLL no longer exposes a
 local postgame row-cache feeder layer for those scoreboard ids.
-- `FEEDER_COUNTRIES` enumerates `countryList[]` loaded from `ui/country.txt` so
-UI scripts can expose locale dropdowns; the current source menu tree uses it in
-`ingame_join.menu`, but the retail asset audit shows that dropdown block and
-the local `FEEDER_COUNTRIES` define are not present in the retail UI files.
+- `FEEDER_COUNTRIES` still enumerates `countryList[]` loaded from
+`ui/country.txt`, but the committed `src/ui/ingame_join.menu` now matches the
+retail panel and does not consume that feeder. The local define remains a
+source-side compatibility constant rather than an active retail-backed menu
+dependency.
 - `FEEDER_CLANS` remains only as a shared `menudef.h` constant; the local UI
 DLL no longer exposes a clan-roster feeder because neither the committed
 source menu tree nor the retail asset tree consumes it, the bounded host

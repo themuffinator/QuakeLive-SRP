@@ -71,13 +71,19 @@
     },
     {
       "source_dir": "assets/quakelive/baseq3/icons",
-      "destination": "baseq3/icons",
+      "destination": "icons",
       "include": ["**/*"],
       "description": "Gameplay icons consumed by browser, scoreboard, and HUD overlays"
     },
     {
+      "source_dir": "assets/quakelive/baseq3/menu/icons",
+      "destination": "menu/icons",
+      "include": ["**/*"],
+      "description": "Retail menu icon payload referenced directly by scoreboard and HUD menus"
+    },
+    {
       "source_dir": "assets/quakelive/baseq3/levelshots",
-      "destination": "baseq3/levelshots",
+      "destination": "levelshots",
       "include": ["**/*"],
       "description": "Retail levelshots consumed by map preview and browser UI"
     }
@@ -96,15 +102,17 @@
       "scripts/ui.shader",
       "scripts/ui_hud.shader",
       "ui/main.menu",
-      "baseq3/icons",
-      "baseq3/levelshots"
+      "icons",
+      "menu/icons",
+      "levelshots"
     ],
     "required_globs": [
       "ui/**/*.menu",
       "ui/**/*.txt",
       "scripts/ui*.shader",
-      "baseq3/icons/**/*",
-      "baseq3/levelshots/**/*"
+      "icons/**/*",
+      "menu/icons/**/*",
+      "levelshots/**/*"
     ]
   }
 }

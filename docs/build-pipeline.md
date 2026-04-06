@@ -29,6 +29,8 @@ For a step-by-step walkthrough of the retargeting process (including the relevan
 
 Quake Live's streamlined menu flow now depends on the embedded browser bridge. Transitional builds must bundle the Awesomium runtime (or a compatible replacement) and expose it to the client so the UI VM can advertise the capability. The `ui_browserAwesomium` cvar gates the new `ui_menuFlow` toggle—if the browser layer is absent the VM automatically falls back to legacy menus and server-browser logic for stability.【F:src/code/ui/ui_main.c†L178-L214】【F:src/code/ui/ui_atoms.c†L329-L368】
 
+The dedicated `UI Validation` workflow now also runs a unified parity gate after the bundle build and headless panel validation. That gate is implemented in `tests/test_ui_full_parity_gate.py` and writes `artifacts/ui_validation/logs/ui_full_parity_gate.json`, giving CI one machine-readable pass/fail summary across the current UI gap register (`UI-G01`..`UI-G06`) instead of leaving reviewers to reconcile multiple independent UI logs by hand. The final windowed runtime confirmation evidence for the current parity milestone is tracked separately in `artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json`.
+
 ## Migration Strategy
 
 The goal is to preserve the Quake III VM pipeline while layering in a native DLL build suitable for Quake Live parity. The following phased plan keeps the bytecode toolchain intact and introduces the new workflow in parallel:

@@ -860,6 +860,7 @@ void MSG_WriteDeltaEntity( msg_t *msg, struct entityState_s *from, struct entity
 						   qboolean force ) {
 	int			i, lc;
 	int			numFields;
+	int			serializedBytes;
 	netField_t	*field;
 	int			trunc;
 	float		fullFloat;
@@ -867,11 +868,18 @@ void MSG_WriteDeltaEntity( msg_t *msg, struct entityState_s *from, struct entity
 
 	numFields = sizeof(entityStateFields)/sizeof(entityStateFields[0]);
 
-	// all fields should be 32 bits to avoid any compiler packing issues
-	// the "number" field is not part of the field list
-	// if this assert fails, someone added a field to the entityState_t
-	// struct without updating the message fields
-	assert( numFields + 1 == sizeof( *from )/4 );
+	// All serialized fields should remain 32-bit aligned. The Quake Live
+	// reconstruction currently carries recovered tail payload slots beyond the
+	// classic Quake III delta field table, so only the serialized band is
+	// required to fit inside entityState_t.
+	serializedBytes = sizeof( from->number );
+	for ( i = 0; i < numFields; i++ ) {
+		assert( ( entityStateFields[i].offset & 3 ) == 0 );
+		if ( entityStateFields[i].offset + 4 > serializedBytes ) {
+			serializedBytes = entityStateFields[i].offset + 4;
+		}
+	}
+	assert( serializedBytes <= sizeof( *from ) );
 
 	// a NULL to is a delta remove message
 	if ( to == NULL ) {

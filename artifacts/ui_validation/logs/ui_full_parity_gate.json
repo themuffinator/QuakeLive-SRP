@@ -1,0 +1,107 @@
+{
+  "artifact_version": 1,
+  "phase": "UI-P5",
+  "parity_estimate": {
+    "before": 92,
+    "after": 97
+  },
+  "gap_order": [
+    "UI-G01",
+    "UI-G02",
+    "UI-G03",
+    "UI-G04",
+    "UI-G05",
+    "UI-G06"
+  ],
+  "tranches": {
+    "UI-G01": {
+      "gap_id": "UI-G01",
+      "status": "pass",
+      "summary": "Retail UI corpus is available and the tracked inventory artifact matches the runtime probe.",
+      "details": {
+        "inventory_artifact_path": "artifacts/ui_bundle/ui_retail_inventory.json",
+        "inventory_artifact_present": true,
+        "retail_ui_corpus_available": true,
+        "missing_required_inputs": [],
+        "artifact_matches_runtime_probe": true
+      }
+    },
+    "UI-G02": {
+      "gap_id": "UI-G02",
+      "status": "pass",
+      "summary": "Source-vs-retail panel drift is constrained to the approved overlay contract.",
+      "details": {
+        "overlay_manifest_path": "artifacts/ui_bundle/ui_src_retail_overlay.json",
+        "overlay_manifest_present": true,
+        "overlay_policy_mode": "overlay-first-read-only-src-ui",
+        "overlay_manifest_retail_ui_corpus_available": true,
+        "overlay_manifest_drift_files": [],
+        "missing_in_source": [],
+        "extra_in_source": [],
+        "content_diffs": [],
+        "drift_contract_ok": true,
+        "overlay_manifest_matches_drift": true
+      }
+    },
+    "UI-G03": {
+      "gap_id": "UI-G03",
+      "status": "pass",
+      "summary": "Bundle and validation artifacts are present and the tracked validation summary is clean.",
+      "details": {
+        "bundle_artifact_present": true,
+        "overlay_bundle_artifact_present": true,
+        "font_metrics_present": true,
+        "ui_validation_summary_present": true,
+        "glyph_drift_count": 0,
+        "missing_shader_groups": [],
+        "missing_configs": []
+      }
+    },
+    "UI-G04": {
+      "gap_id": "UI-G04",
+      "status": "pass",
+      "summary": "qmenu widget-core ownership remains explicitly bounded and no active runtime ownership gap is left open.",
+      "details": {
+        "helper_band": [
+          "Menu_AddItem",
+          "Menu_Draw",
+          "Menu_DefaultKey",
+          "MField_Draw",
+          "ScrollList_Key"
+        ],
+        "qmenu_note_closed": true,
+        "mapping_round_closed": true,
+        "ui_plan_closed": true
+      }
+    },
+    "UI-G05": {
+      "gap_id": "UI-G05",
+      "status": "pass",
+      "summary": "Service-disabled menu routing stays explicit in source and in the focused platform-service regression surface.",
+      "details": {
+        "deferred_exec_seam_present": true,
+        "script_exec_hook_present": true,
+        "platform_service_coverage_present": true
+      }
+    },
+    "UI-G06": {
+      "gap_id": "UI-G06",
+      "status": "pass",
+      "summary": "Unified UI parity gate is wired into the validation workflow and publishes a machine-readable status artifact.",
+      "details": {
+        "gate_test_path": "tests/test_ui_full_parity_gate.py",
+        "workflow_references_gate": true,
+        "workflow_runs_gate": true,
+        "scripting_guide_mentions_gate_artifact": true,
+        "release_mode_env_supported": true
+      }
+    }
+  },
+  "overall_status": "pass",
+  "non_passing_gap_ids": [],
+  "summary": {
+    "passing_count": 6,
+    "blocked_count": 0,
+    "failing_count": 0
+  }
+}

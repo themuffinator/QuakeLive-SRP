@@ -190,6 +190,7 @@ typedef struct {
   int border;                     //
   int ownerDraw;									// ownerDraw style
 	int ownerDrawFlags;							// show flags for ownerdraw items
+	int ownerDrawFlags2;						// retail secondary show flags
   float borderSize;               // 
   int flags;                      // visible, focus, mouseover, cursor
   Rectangle rectEffects;          // for various effects
@@ -221,7 +222,7 @@ typedef struct {
 // the benefits of c++ in DOOM will greatly help crap like this
 // FIXME: need to put a type ptr that points to specific type info per type
 // 
-#define MAX_LB_COLUMNS 16
+#define MAX_LB_COLUMNS 19
 
 typedef struct columnInfo_s {
 	int pos;
@@ -239,6 +240,12 @@ typedef struct listBoxDef_s {
 	int elementStyle;
 	int numColumns;
 	columnInfo_t columnInfo[MAX_LB_COLUMNS];
+	vec4_t altRowColor;
+	vec4_t elementColor;
+	vec4_t selectedColor;
+	qboolean altRowColorSet;
+	qboolean elementColorSet;
+	qboolean selectedColorSet;
 	const char *doubleClick;
 	qboolean notselectable;
 } listBoxDef_t;

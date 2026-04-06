@@ -8,6 +8,85 @@ The long-term parity target is that this engine should, in theory, be able to re
 
 ## Recently closed
 
+### Task 60: UI final runtime confirmation closure [COMPLETED]
+Priority: High
+Files: `src/code/cgame/cg_main.c`, `tools/packaging/ui_bundle_manifest.json`, `scripts/ui/retail_ui_corpus.py`, `tests/test_ui_menu_files.py`, `tests/test_ui_src_panel_parity.py`, `tests/test_cgame_displaycontext_parity.py`, `IMPLEMENTATION_PLAN.md`, `docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`, `docs/build-pipeline.md`, `docs/ui/scripting-guide.md`, `artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json`
+Parity estimate: **before 97% -> after 100%** (runtime evidence and packaging closure)
+
+`UI-P6` from the dedicated UI closure plan is now closed. The remaining work was no longer about source reconstruction alone; it was about proving that the rebuilt UI bundle, cgame runtime, and disabled-service fallback layer held up in a real windowed retail-style session.
+
+Completed work:
+
+1. Fixed the last live runtime blockers for the audited UI flows by staging retail runtime roots correctly inside `pak_uiql.pk3` (`icons/`, `menu/icons/`, `levelshots/`) and by aligning cgame cursor registration with committed retail evidence (`ui/assets/3_cursor3.tga` instead of the non-retail `selectcursor` path).
+2. Hardened the retail corpus materializer so manifest-scope changes refresh the cached extracted corpus instead of silently reusing a stale subset, then rebuilt the UI bundle and refreshed the live `cgamex86.dll` and `pak_uiql.pk3` runtime artifacts.
+3. Captured a new final runtime evidence set at `artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json`, covering main menu, ingame HUD, spectator, scoreboard, vote flow, and in-game menu states with matching process-bound window captures, supporting logs, and an all-green unified UI parity gate.
+
+### Task 59: UI unified parity gate closure [COMPLETED]
+Priority: High
+Files: `tests/test_ui_full_parity_gate.py`, `.github/workflows/ui-validation.yml`, `IMPLEMENTATION_PLAN.md`, `docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`, `docs/ui/scripting-guide.md`, `docs/build-pipeline.md`, `docs/reverse-engineering/ui-strings-assets-audit.md`
+Parity estimate: **before 92% -> after 97%** (verification and evidence-gating closure; runtime behavior unchanged)
+
+`UI-P5` from the dedicated UI closure plan is now closed. The repo no longer relies on reviewers to infer UI parity state by hand from separate menu tests, overlay manifests, bundle logs, and headless validation output.
+
+Completed work:
+
+1. Added `tests/test_ui_full_parity_gate.py`, which aggregates the current UI gap register (`UI-G01`..`UI-G06`) into one machine-readable report at `artifacts/ui_validation/logs/ui_full_parity_gate.json`, records per-tranche pass or fail or blocked status, and exposes an opt-in strict release mode through `UI_FULL_PARITY_GATE_ENFORCE=1`.
+2. Wired the gate into `.github/workflows/ui-validation.yml` after bundle generation and headless validation so CI now publishes a unified tranche-level UI status artifact instead of leaving the parity result fragmented across independent logs.
+3. Updated the UI workflow docs and parity plan so contributors know where the unified gate artifact lives, how to run it locally, and why the current non-passing tranches still resolve explicitly to the remaining missing-corpus and bundle-reproducibility gaps rather than to generic test failures.
+
+### Task 58: UI qmenu widget-core ownership-boundary closure [COMPLETED]
+Priority: High
+Files: `tests/test_ui_menu_files.py`, `IMPLEMENTATION_PLAN.md`, `docs/reverse-engineering/ui-qmenu-struct-layouts.md`, `docs/reverse-engineering/ui-mapping-round-2026-04-01.md`, `docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`
+Parity estimate: **before 86% -> after 92%** (runtime ownership-confidence closure; asset parity unchanged)
+
+`UI-P4` from the dedicated UI closure plan is now closed. The committed retail corpus still does not expose stable standalone owners for the inner qmenu widget-core helper family, but that ambiguity no longer needs to sit in the active gap register as an open runtime risk.
+
+Completed work:
+
+1. Re-ran the targeted qmenu/widget-core ownership pass against the committed HLIL and Ghidra evidence and confirmed the same negative result for `Menu_AddItem`, `Menu_Draw`, `Menu_DefaultKey`, `MField_Draw`, and `ScrollList_Key`: no new alias promotion met the repository's two-signal threshold.
+2. Converted the qmenu mapping notes from open-ended uncertainty into an explicit confidence-bounded ownership matrix, recording that the active retail-owned dispatcher/runtime slab above these leaves is already mapped and that the remaining helper family should stay source-backed until stronger retail evidence appears.
+3. Added a structural regression that locks the closure language across the qmenu note, the mapping round summary, and the UI parity plan so future edits cannot silently reopen `UI-G04` without updating the documented evidence position.
+
+### Task 57: UI disabled-service menu fallback closure [COMPLETED]
+Priority: High
+Files: `src/code/ui/ui_main.c`, `src/code/ui/ui_shared.c`, `tests/test_ui_menu_files.py`, `tests/test_platform_services.py`, `.github/workflows/ui-validation.yml`, `docs/ui/scripting-guide.md`, `docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`
+Parity estimate: **before 80% -> after 86%** (service-disabled menu routing and verification closure; asset parity unchanged)
+
+`UI-P3` from the dedicated UI closure plan is now closed. The remaining disabled-service gap was not the engine-side browser stubs themselves; it was that retail menu scripts reached those verbs through `exec web_*`, bypassing the UI-side fallback logic and leaving part of the offline menu flow implicit instead of explicit.
+
+Completed work:
+
+1. Added a writable UI-side `exec` interception seam so disabled-overlay builds now catch retail `web_showBrowser` and `web_changeHash` script verbs before they hit the inert host stubs, routing the retail main-menu open path into `ql_bridge_browser` when bridge scripts are available and otherwise surfacing a native `error_popmenu` fallback instead of a silent dead end.
+2. Kept in-game disabled-service control flow deterministic by swallowing `web_changeHash` and non-main `web_showBrowser` calls locally when the overlay is unavailable, preserving the native companion panels already opened by the read-only menu scripts (`ingame_about`, join controls, settings surfaces) rather than letting the UI depend on live browser services.
+3. Added focused structural coverage for the disabled-service routing matrix plus the connect-screen and advertisement wait-screen paths, and widened the UI validation workflow so CI now runs the menu/service parity tests alongside the overlay parity checks.
+
+### Task 56: UI overlay-first runtime strategy closure [COMPLETED]
+Priority: High
+Files: `scripts/ui/write_retail_ui_overrides.py`, `tests/test_ui_src_panel_parity.py`, `tests/fs_searchpath_harness.c`, `tests/test_fs_search_paths.py`, `.github/workflows/ui-validation.yml`, `docs/ui/scripting-guide.md`, `docs/reverse-engineering/ui-strings-assets-audit.md`, `docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`
+Parity estimate: **before 72% -> after 80%** (overlay packaging and verification closure; runtime menu logic unchanged)
+
+`UI-P2` from the dedicated UI closure plan is now closed. The repo now treats the overlay as a first-class, testable runtime layer rather than a best-effort side artifact.
+
+Completed work:
+
+1. Hardened `scripts/ui/write_retail_ui_overrides.py` so the overlay manifest now records deterministic per-file size and SHA-256 data, the active drift file list, explicit overlay policy metadata, and stale-file cleanup evidence whenever old overlay entries are removed.
+2. Tightened `tests/test_ui_src_panel_parity.py` so CI pins the repo to either the current known `src/ui` drift set or a future approved zero-drift state, and added a synthetic overlay test that verifies hash output plus stale-file cleanup proofs without depending on the local retail corpus checkout.
+3. Extended the filesystem search-path harness and `tests/test_fs_search_paths.py` to prove the supported runtime contract directly: a `pak_ui_src_retail_overlay.pk3` layer mounted from `fs_homepath` outranks the lower-priority base UI bundle and `FS_FOpenFileRead` logs the overlay package as the winning source for drift targets.
+4. Wired the UI overlay parity test into the UI validation workflow trigger surface and refreshed the overlay policy docs so contributors mount the overlay from `fs_homepath` instead of relying on same-directory PK3 ordering.
+
+### Task 55: UI retail corpus preflight and inventory closure [COMPLETED]
+Priority: High
+Files: `scripts/ui/retail_ui_corpus.py`, `scripts/ui/check_retail_ui_corpus.py`, `scripts/ui/write_retail_ui_overrides.py`, `tools/build_ui_bundle.sh`, `tests/conftest.py`, `tests/test_ui_src_panel_parity.py`, `tests/test_ui_menu_files.py`, `docs/ui/scripting-guide.md`, `docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`
+Parity estimate: **before 68% -> after 72%** (deterministic corpus validation, inventorying, and verification uplift; runtime behavior unchanged)
+
+`UI-P1` from the dedicated UI closure plan is now closed. The retail corpus is still absent in this checkout, but the repo no longer hard-fails ambiguously when that happens: the missing-corpus path is now explicit, machine-readable, and bundled into the normal UI tooling.
+
+Completed work:
+
+1. Added shared retail corpus validation and inventory helpers plus the `scripts/ui/check_retail_ui_corpus.py` entry point, which validates the manifest-tracked `baseq3` inputs and writes the deterministic `artifacts/ui_bundle/ui_retail_inventory.json` snapshot.
+2. Routed `tools/build_ui_bundle.sh` through the new preflight so bundle generation now reports all missing required retail inputs in one pass before packaging instead of dying on the first missing file, and refreshed the overlay manifest path so the override generator carries the same corpus-availability status.
+3. Updated the UI panel-drift tests and the one retail-backed menu test to run in strict compare mode only when the retail corpus exists, while emitting actionable skip/warn behavior when it is absent and still asserting the new preflight/reporting path.
+
 ### Task 54: Qagame full parity audit and closure-plan publication [COMPLETED]
 Priority: High
 Files: `AUDIT.md`, `IMPLEMENTATION_PLAN.md`, `docs/reverse-engineering/qagame-full-parity-audit-and-implementation-plan-2026-04-05.md`

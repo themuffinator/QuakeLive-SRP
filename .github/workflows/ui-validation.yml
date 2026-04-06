@@ -7,6 +7,13 @@ on:
       - main
     paths:
       - '.github/workflows/ui-validation.yml'
+      - 'scripts/ui/**'
+      - 'tests/test_ui_src_panel_parity.py'
+      - 'tests/test_ui_menu_files.py'
+      - 'tests/test_ui_full_parity_gate.py'
+      - 'tests/test_platform_services.py'
+      - 'src/code/ui/**'
+      - 'src/code/client/**'
       - 'src/ui/**'
       - 'src/code/cgame/**'
       - 'tests/run_ui_validation.py'
@@ -17,6 +24,13 @@ on:
   pull_request:
     paths:
       - '.github/workflows/ui-validation.yml'
+      - 'scripts/ui/**'
+      - 'tests/test_ui_src_panel_parity.py'
+      - 'tests/test_ui_menu_files.py'
+      - 'tests/test_ui_full_parity_gate.py'
+      - 'tests/test_platform_services.py'
+      - 'src/code/ui/**'
+      - 'src/code/client/**'
       - 'src/ui/**'
       - 'src/code/cgame/**'
       - 'tests/run_ui_validation.py'
@@ -39,6 +53,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run UI parity tests
+        run: |
+          pytest tests/test_ui_src_panel_parity.py tests/test_ui_menu_files.py -q
+          pytest tests/test_platform_services.py -k "test_online_service_bridge_only_hard_stubs_when_build_disabled or test_service_disabled_menu_verb_matrix_stays_explicit" -q
+
       - name: Build UI bundle
         run: tools/build_ui_bundle.sh
 
@@ -48,6 +70,9 @@ jobs:
           --bundle build/ui_bundle/pak_uiql.pk3
           --homepath build/ui_validation/home
           --log-dir "${{ env.UI_VALIDATION_ROOT }}/logs"
+
+      - name: Run unified UI parity gate
+        run: pytest tests/test_ui_full_parity_gate.py -q
 
       - name: Upload UI artefacts
         if: always()

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
+import pytest
+
+from scripts.ui.retail_ui_corpus import inventory_missing_reason
+from scripts.ui.retail_ui_corpus import DEFAULT_BASEQ3_ROOT
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -68,6 +73,48 @@ def test_ui_menu_defaults_use_existing_assets() -> None:
 
     for menu_file in (legacy_menu, legacy_ingame):
         assert (REPO_ROOT / "src" / menu_file).exists(), menu_file
+
+
+def test_ui_listbox_columns_consume_full_retail_scoreboard_rows() -> None:
+    ui_shared_h = (REPO_ROOT / "src/code/ui/ui_shared.h").read_text(encoding="utf-8")
+    ui_shared_c = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    end_scoreboard_dom = (REPO_ROOT / "src/ui/end_scoreboard_dom.menu").read_text(encoding="utf-8")
+
+    declared_columns = [int(match.group(1)) for match in re.finditer(r"\bcolumns\s+(\d+)", end_scoreboard_dom)]
+    assert declared_columns
+    assert max(declared_columns) == 19
+    assert "#define MAX_LB_COLUMNS 19" in ui_shared_h
+
+    parse_block = _extract_function_block(ui_shared_c, "qboolean ItemParse_columns( itemDef_t *item, int handle ) {")
+    assert "listPtr->numColumns = storedColumns;" in parse_block
+    assert "for (i = 0; i < num; i++) {" in parse_block
+    assert "if (i < MAX_LB_COLUMNS) {" in parse_block
+
+
+def test_ui_bundle_manifest_stages_runtime_icon_roots_without_baseq3_prefixes() -> None:
+    manifest = json.loads((REPO_ROOT / "tools/packaging/ui_bundle_manifest.json").read_text(encoding="utf-8"))
+    files = manifest["files"]
+    by_source_dir = {
+        entry["source_dir"]: entry
+        for entry in files
+        if "source_dir" in entry
+    }
+
+    assert by_source_dir["assets/quakelive/baseq3/icons"]["destination"] == "icons"
+    assert by_source_dir["assets/quakelive/baseq3/menu/icons"]["destination"] == "menu/icons"
+    assert by_source_dir["assets/quakelive/baseq3/levelshots"]["destination"] == "levelshots"
+
+    audit = manifest["audit"]
+    assert "icons" in audit["required_paths"]
+    assert "menu/icons" in audit["required_paths"]
+    assert "levelshots" in audit["required_paths"]
+    assert "baseq3/icons" not in audit["required_paths"]
+    assert "baseq3/levelshots" not in audit["required_paths"]
+    assert "icons/**/*" in audit["required_globs"]
+    assert "menu/icons/**/*" in audit["required_globs"]
+    assert "levelshots/**/*" in audit["required_globs"]
+    assert "baseq3/icons/**/*" not in audit["required_globs"]
+    assert "baseq3/levelshots/**/*" not in audit["required_globs"]
 
 
 def test_ui_extended_native_exports_match_retail_bridge_surface() -> None:
@@ -312,20 +359,148 @@ def test_ui_dead_legacy_helper_band_is_removed() -> None:
     assert "UI_RequestedMenuFlow" not in resolve_menu_flow_block
 
 
-def test_ui_runtime_hides_source_only_ingame_join_country_dropdown() -> None:
+def test_ui_service_disabled_exec_paths_keep_menu_flow_navigable() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    ui_local = (REPO_ROOT / "src/code/ui/ui_local.h").read_text(encoding="utf-8")
+    main_menu = (REPO_ROOT / "src/ui/main.menu").read_text(encoding="utf-8")
+    intro_menu = (REPO_ROOT / "src/ui/intro.menu").read_text(encoding="utf-8")
+    ingame_menu = (REPO_ROOT / "src/ui/ingame.menu").read_text(encoding="utf-8")
+    lowernav_menu = (REPO_ROOT / "src/ui/ingame_lowernav.menu").read_text(encoding="utf-8")
+
+    deferred_exec_block = _extract_function_block(
+        ui_main, "qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText ) {"
+    )
+    script_exec_block = _extract_function_block(ui_shared, "void Script_Exec(itemDef_t *item, char **args) {")
+    connect_block = _extract_function_block(ui_main, "void UI_DrawConnectScreen( qboolean overlay ) {")
+    advert_wait_block = _extract_function_block(
+        ui_main, "static void UI_DrawAdvertisementWaitScreen(const char *menuName) {"
+    )
+
+    assert "qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText );" in ui_local
+    assert 'UI_CommandTextMatches( commandText, "web_showBrowser" )' in deferred_exec_block
+    assert 'UI_CommandTextMatches( commandText, "web_changeHash" )' in deferred_exec_block
+    assert 'UI_EnsureNamedMenuLoaded( "ql_bridge_browser", "ui/ql_bridge_browser.menu" )' in deferred_exec_block
+    assert 'Menus_ActivateByName( "ql_bridge_browser" );' in deferred_exec_block
+    assert 'UI_ShowOfflineMenuFallbackError( "Browser overlay unavailable; offline bridge server browser could not be loaded." );' in deferred_exec_block
+    assert 'Com_Printf( "UI: browser overlay unavailable; keeping native menu fallback for %s.\\n", commandText );' in deferred_exec_block
+
+    assert "#ifndef CGAME" in script_exec_block
+    assert "if ( UI_HandleDeferredScriptExec( item, val ) ) {" in script_exec_block
+    assert 'DC->executeText(EXEC_APPEND, va("%s ; ", val));' in script_exec_block
+
+    assert "action { exec web_showBrowser }" in main_menu
+    assert 'action { exec "web_changeHash /"  ; open ingame_about ;' in intro_menu
+    assert 'action { exec "web_changeHash /settings" ; open ingame_about ;' in intro_menu
+    assert 'action { exec "web_changeHash /" ; open ingame_about ;' in ingame_menu
+    assert 'action { exec "web_changeHash /settings" ; open ingame_about ;' in ingame_menu
+    assert 'action { open ingame_about ; exec "web_showBrowser" }' in lowernav_menu
+
+    assert 'menuDef_t *menu = Menus_FindByName("Connect");' in connect_block
+    assert 'Text_PaintCenter(centerPoint, yStart + 48, scale, colorWhite, va("Starting up..."), ITEM_TEXTSTYLE_SHADOWEDMORE);' in connect_block
+    assert 'strcpy(text, va("Connecting to %s", cstate.servername));' in connect_block
+    assert 'Text_PaintCenter(centerPoint, yStart + 80, scale, colorWhite, s, 0);' in connect_block
+
+    assert 'static const char *waitingText = "Waiting on Advertisement";' in advert_wait_block
+    assert 'static const char *cancelText = "Press ESC to cancel";' in advert_wait_block
+    assert "Menus_FindByName(menuName);" in advert_wait_block
+    assert "Menu_Paint(menu, qtrue);" in advert_wait_block
+
+
+def test_ui_qmenu_widget_core_boundary_notes_are_explicitly_bounded() -> None:
+    ui_local = (REPO_ROOT / "src/code/ui/ui_local.h").read_text(encoding="utf-8")
+    qmenu_note = (
+        REPO_ROOT / "docs/reverse-engineering/ui-qmenu-struct-layouts.md"
+    ).read_text(encoding="utf-8")
+    mapping_round = (
+        REPO_ROOT / "docs/reverse-engineering/ui-mapping-round-2026-04-01.md"
+    ).read_text(encoding="utf-8")
+    parity_plan = (
+        REPO_ROOT
+        / "docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md"
+    ).read_text(encoding="utf-8")
+
+    for helper in (
+        "Menu_AddItem",
+        "Menu_Draw",
+        "Menu_DefaultKey",
+        "MField_Draw",
+        "ScrollList_Key",
+    ):
+        assert helper in ui_local
+        assert f"`{helper}`" in qmenu_note
+        assert f"`{helper}`" in mapping_round
+
+    assert "## Phase 4 Ownership Closure (2026-04-06)" in qmenu_note
+    assert "source-backed compatibility helpers" in qmenu_note
+    assert "No unresolved high-impact ownership gap remains in an active runtime path." in qmenu_note
+
+    assert "## Phase 4 Closure Update (2026-04-06)" in mapping_round
+    assert "no new aliases were" in mapping_round
+    assert "promoted in this pass" in mapping_round
+    assert 'open-ended "missing retail owner" bucket' in mapping_round
+    assert "No unresolved high-impact ownership gap remains in an active runtime path." in mapping_round
+
+    assert "Overall estimated UI module parity (behavior + data + assets + integration): **100%**." in parity_plan
+    assert "### UI-G04: Residual qmenu widget-core ownership uncertainty [Closed on 2026-04-06]" in parity_plan
+    assert "Remaining risk is limited to future-evidence alias promotion rather than current runtime uncertainty." in parity_plan
+    assert "- **UI-P4:** qmenu/widget-core boundary mapping pass. `[completed 2026-04-06]`" in parity_plan
+
+
+def test_ui_phase6_runtime_evidence_artifact_closes_full_parity_plan() -> None:
+    parity_plan = (
+        REPO_ROOT
+        / "docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md"
+    ).read_text(encoding="utf-8")
+    scripting_guide = (REPO_ROOT / "docs/ui/scripting-guide.md").read_text(encoding="utf-8")
+    runtime_evidence = json.loads(
+        (REPO_ROOT / "artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json").read_text(encoding="utf-8")
+    )
+
+    assert runtime_evidence["phase"] == "UI-P6"
+    assert runtime_evidence["parity_estimate"] == {"before": 97, "after": 100}
+    assert set(runtime_evidence["ingame_runtime_flow"]["stages"]) == {
+        "ingame",
+        "spectator",
+        "scoreboard",
+        "vote",
+        "ingamemenu",
+    }
+    assert runtime_evidence["parser_errors"] == []
+    assert runtime_evidence["blocking_service_script_failures"] == []
+
+    stage_hashes = {
+        runtime_evidence["ingame_runtime_flow"]["stages"][stage]["window_sha256"]
+        for stage in runtime_evidence["ingame_runtime_flow"]["stages"]
+    }
+    assert len(stage_hashes) == 5
+
+    assert "**Status:** Completed on 2026-04-06 via `artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json`" in parity_plan
+    assert "- **UI-P6:** Final runtime parity evidence pass and closure report. `[completed 2026-04-06]`" in parity_plan
+    assert "artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json" in scripting_guide
+
+
+def test_ui_runtime_ingame_join_matches_retail_and_fixup_stays_defensive(
+    retail_ui_corpus_inventory: dict[str, object],
+) -> None:
+    if not retail_ui_corpus_inventory["retail_ui_corpus_available"]:
+        pytest.skip(inventory_missing_reason(retail_ui_corpus_inventory))
+
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     src_join = (REPO_ROOT / "src/ui/ingame_join.menu").read_text(encoding="utf-8")
-    retail_join = (REPO_ROOT / "assets/quakelive/baseq3/ui/ingame_join.menu").read_text(encoding="utf-8")
+    retail_join = (DEFAULT_BASEQ3_ROOT / "ui" / "ingame_join.menu").read_text(encoding="utf-8")
 
+    assert src_join == retail_join
     for expected in (
         "name country_label",
         "name country_list",
         "feeder FEEDER_COUNTRIES",
     ):
-        assert expected in src_join
+        assert expected not in src_join
         assert expected not in retail_join
 
     fixup_block = _extract_function_block(ui_main, "static void UI_ApplyRetailMenuFixups( void ) {")
+    assert "defensive no-op seam" in ui_main
     assert 'menu = Menus_FindByName( "ingame_join" );' in fixup_block
     assert 'Menu_ShowItemByName( menu, "country_label", qfalse );' in fixup_block
     assert 'Menu_ShowItemByName( menu, "country_list", qfalse );' in fixup_block
@@ -423,6 +598,43 @@ def test_ui_retail_advert_runtime_seam_restored() -> None:
     assert "uiInfo.uiDC.activateAdvert = &UI_ActivateAdvert;" in ui_main
     assert "uiInfo.uiDC.initAdvertisementBridge();" not in ui_main
     assert ui_main.index("UI_InitAdvertisementBridge();") < ui_main.index("uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;")
+
+
+def test_ui_retail_listbox_and_secondary_ownerdraw_flags_parse_cleanly() -> None:
+    ui_shared_h = (REPO_ROOT / "src/code/ui/ui_shared.h").read_text(encoding="utf-8")
+    assert "int ownerDrawFlags2;" in ui_shared_h
+    assert "vec4_t altRowColor;" in ui_shared_h
+    assert "vec4_t elementColor;" in ui_shared_h
+    assert "vec4_t selectedColor;" in ui_shared_h
+    assert "qboolean altRowColorSet;" in ui_shared_h
+    assert "qboolean elementColorSet;" in ui_shared_h
+    assert "qboolean selectedColorSet;" in ui_shared_h
+
+    ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    for expected in (
+        "qboolean ItemParse_ownerdrawFlag2( itemDef_t *item, int handle ) {",
+        "static qboolean ItemParse_listBoxColor( itemDef_t *item, int handle, vec4_t target, qboolean *colorSet ) {",
+        "qboolean ItemParse_altrowcolor( itemDef_t *item, int handle ) {",
+        "qboolean ItemParse_elementcolor( itemDef_t *item, int handle ) {",
+        "qboolean ItemParse_selectedcolor( itemDef_t *item, int handle ) {",
+        "qboolean MenuParse_ownerdrawFlag2( itemDef_t *item, int handle ) {",
+        '{"ownerdrawFlag2", ItemParse_ownerdrawFlag2, NULL},',
+        '{"altrowcolor", ItemParse_altrowcolor, NULL},',
+        '{"elementcolor", ItemParse_elementcolor, NULL},',
+        '{"selectedcolor", ItemParse_selectedcolor, NULL},',
+        '{"ownerdrawFlag2", MenuParse_ownerdrawFlag2, NULL},',
+        "item->window.ownerDrawFlags2 |= i;",
+        "menu->window.ownerDrawFlags2 |= i;",
+        "if ( item->window.ownerDrawFlags2 && DC->ownerDrawVisible ) {",
+        "if (menu->window.ownerDrawFlags2 && DC->ownerDrawVisible && !DC->ownerDrawVisible(menu->window.ownerDrawFlags2)) {",
+        "((listBoxDef_t *)item->typeData)->elementColor[0] = 1.0f;",
+        "((listBoxDef_t *)item->typeData)->elementColor[3] = 1.0f;",
+        "((listBoxDef_t *)item->typeData)->selectedColor[0] = 1.0f;",
+        "((listBoxDef_t *)item->typeData)->selectedColor[3] = 1.0f;",
+        "if ( listPtr->altRowColorSet && ( ( (int)i - listPtr->startPos ) & 1 ) ) {",
+        "Item_DrawText(item, x + 4, y + listPtr->elementHeight, textColor, text, 0, 0);",
+    ):
+        assert expected in ui_shared
 
 
 def test_ui_native_import_table_matches_recovered_retail_slots() -> None:

@@ -43,8 +43,10 @@ def test_freeze_visibility_helper_matches_retail_export_boundary() -> None:
 	freeze_c = _read("src/code/game/g_freeze.c")
 
 	assert "qboolean\tG_FreezeCanSeeThawProgressEvent( int clientNum, int entNum );" in local_h
-	assert "EV_THAW_PLAYER = 57," in public_h
-	assert "EV_THAW_TICK = 58," in public_h
+	assert "EV_DROWN = 57," in public_h
+	assert "EV_OBITUARY = 58," in public_h
+	assert "EV_THAW_PLAYER = 87," in public_h
+	assert "EV_THAW_TICK = 88," in public_h
 	assert "static int G_FreezeResolveThawProgressTarget( const gentity_t *ent ) {" in freeze_c
 	assert "qboolean G_FreezeCanSeeThawProgressEvent( int clientNum, int entNum ) {" in freeze_c
 	assert "if ( level.roundState != ROUNDSTATE_ACTIVE ) {" in freeze_c

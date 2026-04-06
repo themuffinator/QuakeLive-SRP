@@ -73,6 +73,25 @@ a writable homepath-style overlay at `baseq3/ui/...`.
 `build/ui_bundle/pak_ui_src_retail_overlay.pk3`, so source-based layouts can ship the
 retail corrections as a layered UI package without mutating the frozen `src/ui` tree.
 
+Overlay policy for runtime use:
+- Keep `src/ui` as the read-only baseline and keep the broad retail UI bundle in the lower-priority package/root (`pak_uiql.pk3` under `fs_basepath` or `fs_cdpath`).
+- Mount `pak_ui_src_retail_overlay.pk3` from `fs_homepath/baseq3` so the filesystem search order gives the drift fixes precedence.
+- Do not place both packages in the same search root and assume alphabetical PK3 sorting will make the overlay win; the supported precedence contract is the separate `fs_homepath` layer.
+
+The generated overlay manifest `artifacts/ui_bundle/ui_src_retail_overlay.json` now records:
+- the drifted `ui` files covered by the overlay,
+- a deterministic size and SHA-256 hash per overlaid file,
+- stale-file cleanup evidence for removed overlay entries,
+- the runtime precedence contract used by the filesystem regression tests.
+
+The unified UI parity gate now consumes that overlay manifest together with
+`artifacts/ui_bundle/ui_retail_inventory.json` and
+`artifacts/ui_validation/logs/ui_validation_summary.json`, then writes
+`artifacts/ui_validation/logs/ui_full_parity_gate.json`. That gate reports the
+current status of `UI-G01`..`UI-G06` in one place, so missing retail corpus
+inputs, overlay drift mismatches, and clean bundle-validation evidence are no
+longer spread across unrelated logs.
+
 Default usage:
 
 ```powershell

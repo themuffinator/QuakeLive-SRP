@@ -1,0 +1,106 @@
+{
+  "artifact_version": 1,
+  "phase": "UI-P6",
+  "parity_estimate": {
+    "before": 97,
+    "after": 100
+  },
+  "runtime_root": "build/win32/Debug/bin/baseq3",
+  "retail_baseq3_root": "C:/Program Files (x86)/Steam/steamapps/common/Quake Live/baseq3",
+  "bundle_artifact": "build/win32/Debug/bin/baseq3/pak_uiql.pk3",
+  "overlay_artifact": "build/win32/Debug/bin/baseq3/pak_ui_src_retail_overlay.pk3",
+  "main_menu": {
+    "engine_screenshot": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\bin\\baseq3\\screenshots\\codex_ui_p6_main_20260406_104729.jpg",
+    "window_capture": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_main_20260406_104729_window.png",
+    "window_sha256": "5f981e78775ba3c5f935ee103a42d5e7fa1cfaff33010fdf1d8fdf4e1d6c2380",
+    "window_meta": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_main_20260406_104729_window.json",
+    "log": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\logs\\codex_ui_p6_main_20260406_104729.log"
+  },
+  "ingame_runtime_flow": {
+    "log": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\logs\\codex_ui_p6_20260406_104526.log",
+    "stages": {
+      "spectator": {
+        "window_capture": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_spectator_window.png",
+        "window_sha256": "60e5c091e377c87c88b4e2cb0b861cc424e23dd6a5f1aca76f0ce8607e72fa64",
+        "window_meta": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_spectator_window.json",
+        "engine_screenshot": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\bin\\baseq3\\screenshots\\codex_ui_p6_20260406_104526_spectator.jpg"
+      },
+      "scoreboard": {
+        "window_capture": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_scoreboard_window.png",
+        "window_sha256": "5fc2243eafc4ff8fbe27c7d742b32f48ef394e4c448e1b97072307ff86678315",
+        "window_meta": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_scoreboard_window.json",
+        "engine_screenshot": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\bin\\baseq3\\screenshots\\codex_ui_p6_20260406_104526_scoreboard.jpg"
+      },
+      "ingamemenu": {
+        "window_capture": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_ingamemenu_window.png",
+        "window_sha256": "34334047cd64ac63e1670ede3e8784af05c581c682c36baea8beecb8b2a056ef",
+        "window_meta": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_ingamemenu_window.json",
+        "engine_screenshot": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\bin\\baseq3\\screenshots\\codex_ui_p6_20260406_104526_ingamemenu.jpg"
+      },
+      "vote": {
+        "window_capture": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_vote_window.png",
+        "window_sha256": "1f091828eb2d80fe14e08be675165a96e206ffa1a6ba6649a40ad456bf923de1",
+        "window_meta": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_vote_window.json",
+        "engine_screenshot": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\bin\\baseq3\\screenshots\\codex_ui_p6_20260406_104526_vote.jpg"
+      },
+      "ingame": {
+        "window_capture": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_ingame_window.png",
+        "window_sha256": "c3ba15c1bb657364380d2ad974a8c3b2c3e3db499d1de7b33557244f71272774",
+        "window_meta": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\dumps\\screenshots\\codex_ui_p6_20260406_104526_ingame_window.json",
+        "engine_screenshot": "E:\\Repositories\\QuakeLive-reverse\\build\\win32\\Debug\\bin\\baseq3\\screenshots\\codex_ui_p6_20260406_104526_ingame.jpg"
+      }
+    }
+  },
+  "verified_log_markers": [
+    "Going from CS_PRIMED to CS_ACTIVE for UnnamedPlayer",
+    "Wrote screenshots/codex_ui_p6_20260406_104526_ingame.jpg",
+    "UnnamedPlayer^7 joined the spectators.",
+    "Wrote screenshots/codex_ui_p6_20260406_104526_scoreboard.jpg",
+    "scoreboard called a vote.",
+    "Vote passed.",
+    "Wrote screenshots/codex_ui_p6_20260406_104526_ingamemenu.jpg"
+  ],
+  "parser_errors": [],
+  "blocking_service_script_failures": [],
+  "retail_backed_runtime_regressions_closed": [
+    "icons/icon_time.png now staged at runtime root",
+    "menu/icons/*.png now staged at runtime root",
+    "cgame cursor registration now targets ui/assets/3_cursor3.tga",
+    "end_scoreboard listbox columns parse cleanly with live cgame"
+  ],
+  "remaining_nonblocking_notes": {
+    "png_fallback_examples": [
+      "ui/assets/score/votecast_backlit.tga -> ui/assets/score/votecast_backlit.png",
+      "icons/icon_time.tga -> icons/icon_time.png",
+      "menu/icons/quad.tga -> menu/icons/quad.png",
+      "menu/icons/invis.tga -> menu/icons/invis.png"
+    ],
+    "retail_absent_ui_names": [
+      "ui/assets/bluechip.tga",
+      "ui/assets/redchip.tga",
+      "ui/assets/hud/dm.tga",
+      "ui/assets/hud/tourn.tga",
+      "ui/assets/score/navbarl.tga",
+      "ui/assets/score/navbarm.tga",
+      "ui/assets/score/navbarr.tga",
+      "ui/assets/score/navfriends.tga",
+      "ui/assets/score/navleft.tga",
+      "ui/assets/score/navright.tga",
+      "menu/tab/name.tga",
+      "menu/tab/ping.tga",
+      "menu/tab/score.tga",
+      "menu/tab/time.tga"
+    ],
+    "retail_absent_voice_scripts": [
+      "scripts/female1.voice",
+      "scripts/female2.voice",
+      "scripts/female3.voice",
+      "scripts/male1.voice",
+      "scripts/male2.voice",
+      "scripts/male3.voice",
+      "scripts/male4.voice",
+      "scripts/male5.voice"
+    ],
+    "summary": "Audited UI flows reached the expected runtime states; remaining warnings are retail-absent names or extension-fallback probes rather than blocker parser, font, or service-script failures."
+  }
+}
