@@ -89,7 +89,7 @@ static void CG_UpdateCrosshairPulseSettings( void );
 static void CG_UpdateCrosshairHitSettings( void );
 static void CG_UpdateAutomationSettings( void );
 static void CG_ClearAutomationState( void );
-static qboolean CG_IsCompactChatHudActive( void );
+static qboolean CG_UseMatchSummaryChatLayout( void );
 static int CG_GetPhysicsTime( void );
 static float CG_GetChatFieldY( void );
 static float CG_GetChatFieldPixelWidth( void );
@@ -2497,6 +2497,9 @@ static sfxHandle_t CG_RegisterRetailAnnouncerClip( cgAnnouncerProfile_t profile,
 	sfxHandle_t	sfx;
 	int		i;
 
+	if ( !sample || !sample[0] ) {
+		return 0;
+	}
 	pathStem = CG_BuildAnnouncerSoundPathForProfile( profile, sample );
 	if ( !pathStem ) {
 		return 0;
@@ -5580,13 +5583,18 @@ void CG_Cvar_GetString( const char *cvar, char *buffer, int bufsize ) {
 
 /*
 =============
-CG_IsCompactChatHudActive
+CG_UseMatchSummaryChatLayout
 
-Tracks the retail compact-HUD discriminator used by the native chat helpers.
+Retail switches the native chat field into the narrower summary layout only
+during intermission.
 =============
 */
-static qboolean CG_IsCompactChatHudActive( void ) {
-	return cgs.newHud;
+static qboolean CG_UseMatchSummaryChatLayout( void ) {
+	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 /*
@@ -5608,7 +5616,7 @@ Returns the retail 640-space Y origin for the live chat input field.
 =============
 */
 static float CG_GetChatFieldY( void ) {
-	return CG_IsCompactChatHudActive() ? 413.0f : 455.0f;
+	return CG_UseMatchSummaryChatLayout() ? 455.0f : 413.0f;
 }
 
 /*
@@ -5619,7 +5627,7 @@ Returns the retail 640-space width for the live chat input field.
 =============
 */
 static float CG_GetChatFieldPixelWidth( void ) {
-	return CG_IsCompactChatHudActive() ? 300.0f : 640.0f;
+	return CG_UseMatchSummaryChatLayout() ? 300.0f : 640.0f;
 }
 
 /*
@@ -5630,7 +5638,7 @@ Returns the retail character width used by the live chat input field.
 =============
 */
 static int CG_GetChatFieldWidthInChars( void ) {
-	return CG_IsCompactChatHudActive() ? 30 : 73;
+	return CG_UseMatchSummaryChatLayout() ? 30 : 73;
 }
 
 /*
@@ -6254,7 +6262,6 @@ void CG_LoadHudMenu() {
 	}
 
 	cg.competitiveHudLoaded = CG_HudScriptHasCompetitiveMenus( hudSet );
-	cgs.newHud = cg.competitiveHudLoaded;
 	CG_LoadMenus(hudSet);
 	CG_CacheDraw2DMenuCache();
 	CG_CacheScoreboardSelectionMenus();

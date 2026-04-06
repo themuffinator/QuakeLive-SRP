@@ -170,7 +170,7 @@ ownership/summary ownerdraw code in `cg_newdraw.c`.
 
 | Offset | Member | Type | Role |
 | --- | --- | --- | --- |
-| `0x0A9C4` | `newHud` | `qboolean` | Retail HUD mode latch carried alongside the menu bootstrap. |
+| `0x0A9C4` | `hudState` | `int` | Retail HUD/layout state latch. Committed HLIL compares this slot against concrete mode values such as `2`, `3`, and `5`; value `5` drives the match-summary banner and the narrower native chat-field layout. |
 | `0x0A9C8` | `racePointCount` | `int` | Number of active race points/checkpoints. |
 | `0x0A9CC` | `raceLeaderSplitCount` | `int` | Number of leader split entries currently valid. |
 | `0x0A9D0` | `racePoints[MAX_RACE_POINTS]` | `cgRacePointInfo_t[64]` | Race point origin/target table. |

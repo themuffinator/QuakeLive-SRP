@@ -461,7 +461,13 @@ trap_QL_UpdateAdvert
 =================
 */
 void trap_QL_UpdateAdvert( int handleOrToken, int area ) {
-	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_UPDATE_ADVERT );
+	ql_import_f import;
+
+	if ( !cg_imports ) {
+		return;
+	}
+
+	import = cg_imports[CG_QL_IMPORT_UPDATE_ADVERT];
 
 	if ( import ) {
 		((void (QDECL *)( int, int ))import)( handleOrToken, area );
@@ -955,7 +961,7 @@ trap_Key_GetOverstrikeMode
 =================
 */
 qboolean trap_Key_GetOverstrikeMode( void ) {
-	return syscall( CG_KEY_GETOVERSTRIKEMODE ) ? qtrue : qfalse;
+	return syscall( CG_KEY_GETOVERSTRIKEMODE );
 }
 
 /*
@@ -964,7 +970,7 @@ trap_Key_SetOverstrikeMode
 =================
 */
 void trap_Key_SetOverstrikeMode( qboolean state ) {
-	syscall( CG_KEY_SETOVERSTRIKEMODE, state ? qtrue : qfalse );
+	syscall( CG_KEY_SETOVERSTRIKEMODE, state );
 }
 
 int trap_PC_AddGlobalDefine( char *define ) {

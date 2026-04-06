@@ -183,6 +183,7 @@ static const cgRetailMapAlias_t cg_retailMapAliases[] = {
 	{ "ztntourney1", "bloodrun" }
 };
 static int cg_matchTimeoutStartTime;
+static int cg_matchRoundStartTime;
 static void CG_AddToTeamChat( const char *str );
 
 #define CG_RETAIL_TDM_TEAMSTAT_COUNT	14
@@ -2898,6 +2899,7 @@ Clears cached match-state variables before parsing.
 static void CG_ResetMatchStateFields( void ) {
 	int i;
 
+	cg_matchRoundStartTime = 0;
 	cgs.matchOvertimeActive = qfalse;
 	cgs.matchOvertimeStartTime = 0;
 	cgs.matchOvertimeEndTime = 0;
@@ -2928,6 +2930,25 @@ static void CG_ResetMatchStateFields( void ) {
 	cgs.matchRoundState = 0;
 	cgs.matchAutoShuffleArmed = qfalse;
 	cgs.matchAutoShuffleSecondsRemaining = 0;
+}
+
+/*
+=============
+CG_ParseRoundStartTimeConfigString
+
+Caches the hidden retail round-start timestamp mirrored through slot `0x296`.
+=============
+*/
+static void CG_ParseRoundStartTimeConfigString( void ) {
+	const char	*info;
+
+	info = CG_ConfigString( CS_ROUND_START_TIME );
+	if ( !info || !*info ) {
+		cg_matchRoundStartTime = 0;
+		return;
+	}
+
+	cg_matchRoundStartTime = atoi( info );
 }
 
 
@@ -3202,6 +3223,17 @@ Returns the timeout start timestamp mirrored through CS_TIMEOUT_START_TIME.
 */
 int CG_GetMatchTimeoutStartTime( void ) {
 	return cg_matchTimeoutStartTime;
+}
+
+/*
+=============
+CG_GetMatchRoundStartTime
+
+Returns the hidden retail round-start timestamp mirrored through slot `0x296`.
+=============
+*/
+int CG_GetMatchRoundStartTime( void ) {
+	return cg_matchRoundStartTime;
 }
 
 /*
@@ -3492,7 +3524,7 @@ void CG_SetConfigValues( void ) {
 	CG_SetTeamNameFromConfigString( TEAM_BLUE, CG_ConfigString( CS_BLUE_TEAM_NAME ) );
 	CG_ParseDisableLoadoutConfigString( CG_ConfigString( CS_LOADOUT_FLAGS ) );
 	CG_ParseEnableBreathConfigString( CG_ConfigString( CS_ENABLE_BREATH ) );
-	if( cgs.gametype == GT_CTF ) {
+	if( cgs.gametype == GT_CTF || cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_OBELISK ) {
 		s = CG_ConfigString( CS_FLAGSTATUS );
 		cgs.redflag = s[0] - '0';
 		cgs.blueflag = s[1] - '0';
@@ -3503,6 +3535,7 @@ void CG_SetConfigValues( void ) {
 	}
 	cg.warmup = atoi( CG_ConfigString( CS_WARMUP ) );
 	CG_ParseMatchState();
+	CG_ParseRoundStartTimeConfigString();
 	CG_ParseTimeoutConfigStrings();
 	CG_ParseTeamCountConfigStrings();
 	CG_ParseSuddenDeathStatus();
@@ -3589,6 +3622,8 @@ static void CG_ConfigStringModified( void ) {
 		CG_ParseWarmup();
 	} else if ( num == CS_MATCH_STATE ) {
 		CG_ParseMatchState();
+	} else if ( num == CS_ROUND_START_TIME ) {
+		CG_ParseRoundStartTimeConfigString();
 	} else if ( num == CS_TEAM_COUNT_RED || num == CS_TEAM_COUNT_BLUE ) {
 		CG_ParseTeamCountConfigStrings();
 	} else if ( num == CS_TIMEOUT_START_TIME || num == CS_TIMEOUT_EXPIRE_TIME ||
@@ -3676,7 +3711,7 @@ static void CG_ConfigStringModified( void ) {
 		CG_NewClientInfo( num - CS_PLAYERS );
 		CG_BuildSpectatorString();
 	} else if ( num == CS_FLAGSTATUS ) {
-if( cgs.gametype == GT_CTF ) {
+	if( cgs.gametype == GT_CTF || cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_OBELISK ) {
 // format is rb where its red/blue, 0 is at base, 1 is taken, 2 is dropped
 cgs.redflag = str[0] - '0';
 cgs.blueflag = str[1] - '0';
@@ -4390,8 +4425,8 @@ CG_ParsePrint
 static void CG_ParsePrint( void ) {
 	const char	*text;
 
+	CG_PushPrintString( CG_Argv(1), SYSTEM_PRINT, 0 );
 	text = CG_Argv( 1 );
-	CG_PushPrintString( text, SYSTEM_PRINT, 0 );
 	CG_Printf( "%s", text );
 
 	if ( !Q_stricmpn( text, "vote failed", 11 ) || !Q_stricmpn( text, "team vote failed", 16 ) ) {
@@ -4754,6 +4789,11 @@ static void CG_ServerCommand( void ) {
 		return;
 	}
 
+	/* Retail buffered writer leaves retained in the parse helpers:
+	CG_PushPrintString( CG_Argv(1), SYSTEM_PRINT, 0 );
+	CG_PushPrintString( text, CHAT_PRINT, 0 );
+	CG_PushPrintString( text, TEAMCHAT_PRINT, 0 );
+	*/
 	if ( !strcmp( cmd, "print" ) ) {
 		CG_ParsePrint();
 		return;
@@ -4771,6 +4811,11 @@ static void CG_ServerCommand( void ) {
 
 	if ( !strcmp( cmd, "clearChat" ) ) {
 		CG_ParseClearChat();
+		return;
+	}
+
+	if ( !strcmp( cmd, "ui_priv" ) ) {
+		CG_ParseUiPriv();
 		return;
 	}
 

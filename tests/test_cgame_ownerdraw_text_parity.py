@@ -87,7 +87,7 @@ def test_level_timer_uses_retail_clock_format() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
     block = _block_from_marker(source, "static void CG_DrawLevelTimer")
 
-    assert '%i:%i%i' in block
+    assert 'Q_strncpyz( buffer, CG_FormatMinutesSeconds( seconds ), sizeof( buffer ) );' in block
     assert '%02i:%02i' not in block
 
 

@@ -1677,8 +1677,6 @@ typedef struct {
 	char		freezeTipShoot[MAX_STRING_CHARS];
 	char		freezeTipSummary[MAX_STRING_CHARS];
 
-	qboolean  newHud;
-
 	int		racePointCount;
 	int		raceLeaderSplitCount;
 	cgRacePointInfo_t	racePoints[MAX_RACE_POINTS];
@@ -2410,6 +2408,7 @@ void CG_ExecuteNewServerCommands( int latestSequence );
 void CG_ParseServerinfo( void );
 void CG_SetConfigValues( void );
 int CG_GetMatchTimeoutStartTime( void );
+int CG_GetMatchRoundStartTime( void );
 void CG_ParsePmoveConfigString( const char *payload );
 void CG_LoadVoiceChats( void );
 void CG_ShaderStateChanged(void);

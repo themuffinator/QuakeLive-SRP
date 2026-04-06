@@ -79,6 +79,7 @@ vmCvar_t g_factoryTitle;
 static char qlr_matchStateConfig[MAX_INFO_STRING];
 static int qlr_matchStateConfigUpdates;
 static char qlr_suddenDeathStatusConfig[32];
+static char qlr_roundStartConfig[32];
 static char qlr_timeoutStartConfig[32];
 static char qlr_timeoutExpireConfig[32];
 static char qlr_timeoutCountRedConfig[32];
@@ -232,6 +233,9 @@ void trap_SetConfigstring( int num, const char *string ) {
 @TAB@case CS_SUDDENDEATH_STATUS:
 @TAB@@TAB@Q_strncpyz( qlr_suddenDeathStatusConfig, value, sizeof( qlr_suddenDeathStatusConfig ) );
 @TAB@@TAB@break;
+@TAB@case CS_ROUND_START_TIME:
+@TAB@@TAB@Q_strncpyz( qlr_roundStartConfig, value, sizeof( qlr_roundStartConfig ) );
+@TAB@@TAB@break;
 @TAB@case CS_TIMEOUT_START_TIME:
 @TAB@@TAB@Q_strncpyz( qlr_timeoutStartConfig, value, sizeof( qlr_timeoutStartConfig ) );
 @TAB@@TAB@break;
@@ -277,6 +281,7 @@ static void QLR_ClearMatchStateConfig( void ) {
 @TAB@memset( qlr_matchStateConfig, 0, sizeof( qlr_matchStateConfig ) );
 @TAB@qlr_matchStateConfigUpdates = 0;
 @TAB@memset( qlr_suddenDeathStatusConfig, 0, sizeof( qlr_suddenDeathStatusConfig ) );
+@TAB@memset( qlr_roundStartConfig, 0, sizeof( qlr_roundStartConfig ) );
 @TAB@memset( qlr_timeoutStartConfig, 0, sizeof( qlr_timeoutStartConfig ) );
 @TAB@memset( qlr_timeoutExpireConfig, 0, sizeof( qlr_timeoutExpireConfig ) );
 @TAB@memset( qlr_timeoutCountRedConfig, 0, sizeof( qlr_timeoutCountRedConfig ) );
@@ -432,6 +437,7 @@ Initialises representative round, overtime, and timeout state.
 =============
 */
 static void QLR_SeedMatchStateValues( void ) {
+@TAB@level.roundStartTime = 222000;
 @TAB@level.roundTransitionTime = 222222;
 @TAB@level.roundNumber = 9;
 @TAB@level.roundState = ROUNDSTATE_ACTIVE;
@@ -502,6 +508,17 @@ Exposes the captured sudden-death configstring to the Python harness.
 */
 const char *QLR_GetSuddenDeathStatusConfigstring( void ) {
 @TAB@return qlr_suddenDeathStatusConfig;
+}
+
+/*
+=============
+QLR_GetRoundStartConfigstring
+
+Exposes the captured round-start configstring for assertions.
+=============
+*/
+const char *QLR_GetRoundStartConfigstring( void ) {
+@TAB@return qlr_roundStartConfig;
 }
 
 /*
@@ -809,6 +826,8 @@ def _load_match_state_library(lib_path: Path) -> ctypes.CDLL:
     library.QLR_GetMatchStateConfigstring.restype = ctypes.c_char_p
     library.QLR_GetSuddenDeathStatusConfigstring.argtypes = []
     library.QLR_GetSuddenDeathStatusConfigstring.restype = ctypes.c_char_p
+    library.QLR_GetRoundStartConfigstring.argtypes = []
+    library.QLR_GetRoundStartConfigstring.restype = ctypes.c_char_p
     library.QLR_GetTimeoutStartConfigstring.argtypes = []
     library.QLR_GetTimeoutStartConfigstring.restype = ctypes.c_char_p
     library.QLR_GetTimeoutExpireConfigstring.argtypes = []
@@ -911,6 +930,7 @@ def test_timeout_auxiliary_configstrings_publish_retail_values(match_state_libra
     library.QLR_ResetMatchState()
     library.QLR_BuildMatchStateConfigstring()
 
+    assert library.QLR_GetRoundStartConfigstring().decode("utf-8") == "222000"
     assert library.QLR_GetTimeoutStartConfigstring().decode("utf-8") == "333000"
     assert library.QLR_GetTimeoutExpireConfigstring().decode("utf-8") == "333444"
     assert library.QLR_GetTimeoutCountRedConfigstring().decode("utf-8") == "2"
@@ -998,13 +1018,12 @@ def test_cgame_match_flow_configstrings_are_wired() -> None:
 
 def test_client_hud_uses_runtime_sudden_death_and_ready_counts() -> None:
     draw = (CODE_DIR / "cgame" / "cg_draw.c").read_text(encoding="utf-8")
-    newdraw = (CODE_DIR / "cgame" / "cg_newdraw.c").read_text(encoding="utf-8")
     scoreboard = (CODE_DIR / "cgame" / "cg_scoreboard.c").read_text(encoding="utf-8")
     match_state = (CODE_DIR / "game" / "g_match_state.c").read_text(encoding="utf-8")
 
     assert "cgs.matchWarmupReadyEligible" in draw
     assert "cgs.matchWarmupReadyCount" in draw
     assert "cgs.matchReadyUpDeadline" in draw
-    assert "if ( !cgs.matchSuddenDeathActive )" in newdraw
+    assert 'title = cgs.matchSuddenDeathActive ? "Sudden Death" : "Round Begins in";' in draw
     assert "cgHudScoreboard.suddenDeathActive = cgs.matchSuddenDeathActive;" in scoreboard
     assert 'trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );' in match_state

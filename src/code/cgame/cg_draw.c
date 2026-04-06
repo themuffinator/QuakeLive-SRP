@@ -4019,9 +4019,9 @@ static void CG_DrawCrosshairTeamVitals( const clientInfo_t *ci, const vec4_t bas
 	healthWidth = CG_Text_Width( healthText, textScale, 0 );
 	textY = 198.0f + textScale * 16.0f;
 
-	CG_Text_PaintNoAdjust( 320.0f - healthWidth, textY, textScale, healthColor, healthText, 0, ITEM_TEXTSTYLE_SHADOWED );
-	CG_Text_PaintNoAdjust( 320.0f, textY, textScale, slashColor, "/", 0, ITEM_TEXTSTYLE_SHADOWED );
-	CG_Text_PaintNoAdjust( 325.0f, textY, textScale, armorColor, armorText, 0, ITEM_TEXTSTYLE_SHADOWED );
+	CG_Text_Paint( 320.0f - healthWidth, textY, textScale, healthColor, healthText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	CG_Text_Paint( 320.0f, textY, textScale, slashColor, "/", 0, 0, ITEM_TEXTSTYLE_SHADOWED );
+	CG_Text_Paint( 325.0f, textY, textScale, armorColor, armorText, 0, 0, ITEM_TEXTSTYLE_SHADOWED );
 }
 
 /*
@@ -4753,6 +4753,8 @@ static void CG_DrawADRoundScoreboard( void ) {
 	static const vec4_t activeTeamBlueFillColor = { 0.1f, 0.1f, 0.5f, 0.5f };
 	static const vec4_t activeRoundRedFillColor = { 1.0f, 0.0f, 0.0f, 0.5f };
 	static const vec4_t activeRoundBlueFillColor = { 0.0f, 0.0f, 1.0f, 0.5f };
+	static const vec4_t redColor = { 1.0f, 0.0f, 0.0f, 1.0f };
+	static const vec4_t blueColor = { 0.0f, 0.0f, 1.0f, 1.0f };
 	const vec4_t	*activeTeamFillColor;
 	const vec4_t	*activeRoundFillColor;
 	const char	*statusText;
@@ -4766,7 +4768,13 @@ static void CG_DrawADRoundScoreboard( void ) {
 		return;
 	}
 
+	CG_FillRect( 196.0f, 150.0f, 252.0f, 60.0f, panelColor );
+	/*
 	CG_FillRect( 200.0f, 150.0f, 240.0f, 48.0f, panelColor );
+	CG_Text_PaintNoAdjust( 204.0f, 178.0f, 0.25f, colorRed, "Red", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	CG_Text_PaintNoAdjust( 204.0f, 194.0f, 0.25f, colorBlue, "Blue", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	CG_Text_PaintNoAdjust( 404.0f, 162.0f, 0.25f, colorWhite, "Score", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	*/
 
 	roundWindowStart = ( cgs.matchRoundNumber > ( CG_AD_SCORE_HISTORY_LENGTH / 2 ) ) ?
 		( cgs.matchRoundNumber - ( CG_AD_SCORE_HISTORY_LENGTH / 2 ) + 1 ) : 1;
@@ -4791,8 +4799,8 @@ static void CG_DrawADRoundScoreboard( void ) {
 	CG_FillRect( 240.0f + activeColumn * 16.0f, activeRowY, 16.0f, 16.0f, *activeRoundFillColor );
 
 	CG_Text_PaintNoAdjust( 204.0f, 162.0f, 0.20f, colorWhite, "Round", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
-	CG_Text_PaintNoAdjust( 204.0f, 178.0f, 0.25f, colorRed, "Red", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
-	CG_Text_PaintNoAdjust( 204.0f, 194.0f, 0.25f, colorBlue, "Blue", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	CG_Text_PaintNoAdjust( 204.0f, 178.0f, 0.25f, redColor, "Red", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	CG_Text_PaintNoAdjust( 204.0f, 194.0f, 0.25f, blueColor, "Blue", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 
 	for ( column = 0; column < ( CG_AD_SCORE_HISTORY_LENGTH / 2 ); column++ ) {
 		char	buffer[16];
@@ -4812,18 +4820,18 @@ static void CG_DrawADRoundScoreboard( void ) {
 			Com_sprintf( buffer, sizeof( buffer ), "%i", cg.adScoreHistory[historyIndex] );
 			textWidth = CG_Text_Width( buffer, 0.25f, 0 );
 			CG_Text_PaintNoAdjust( cellX + ( 16.0f - (float)textWidth ) * 0.5f, 178.0f, 0.25f,
-				colorRed, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+				redColor, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 		}
 
 		if ( cg.adScoreHistory[historyIndex + 1] >= 0 ) {
 			Com_sprintf( buffer, sizeof( buffer ), "%i", cg.adScoreHistory[historyIndex + 1] );
 			textWidth = CG_Text_Width( buffer, 0.25f, 0 );
 			CG_Text_PaintNoAdjust( cellX + ( 16.0f - (float)textWidth ) * 0.5f, 194.0f, 0.25f,
-				colorBlue, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+				blueColor, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 		}
 	}
 
-	CG_Text_PaintNoAdjust( 404.0f, 162.0f, 0.25f, colorWhite, "Score", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+	CG_Text_PaintNoAdjust( 416.0f, 162.0f, 0.25f, colorWhite, "Score", 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 	{
 		char	buffer[16];
 		int		textWidth;
@@ -4831,12 +4839,12 @@ static void CG_DrawADRoundScoreboard( void ) {
 		Com_sprintf( buffer, sizeof( buffer ), "%i", cg.teamScores[0] );
 		textWidth = CG_Text_Width( buffer, 0.25f, 0 );
 		CG_Text_PaintNoAdjust( 416.0f + ( 16.0f - (float)textWidth ) * 0.5f, 178.0f, 0.25f,
-			colorRed, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+			redColor, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 
 		Com_sprintf( buffer, sizeof( buffer ), "%i", cg.teamScores[1] );
 		textWidth = CG_Text_Width( buffer, 0.25f, 0 );
 		CG_Text_PaintNoAdjust( 416.0f + ( 16.0f - (float)textWidth ) * 0.5f, 194.0f, 0.25f,
-			colorBlue, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
+			blueColor, buffer, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 	}
 
 	statusText = CG_ADRoundScoreboardStatusText();
@@ -4846,7 +4854,7 @@ static void CG_DrawADRoundScoreboard( void ) {
 
 		statusColor = &colorWhite;
 		if ( !Q_stricmp( statusText, "Red Wins! Good Game" ) ) {
-			statusColor = &colorRed;
+			statusColor = &redColor;
 		}
 
 		textWidth = CG_Text_Width( statusText, 0.30f, 0 );

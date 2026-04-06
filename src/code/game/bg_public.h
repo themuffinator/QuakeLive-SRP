@@ -90,6 +90,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_SHADERSTATE			24
 #define CS_BOTINFO				25
 #define CS_MATCH_STATE				0x295		// timeout/overtime state info payload
+#define CS_ROUND_START_TIME		0x296		// active round start time for CG_ROUNDTIMER
 #define CS_TIMEOUT_START_TIME		0x29D		// active timeout start time, cleared when idle
 #define CS_TIMEOUT_EXPIRE_TIME		0x29E		// active timeout expiry, or 0 for indefinite pauses
 #define CS_TIMEOUT_COUNT_RED		0x29F		// remaining timeout count mirrored for red/free

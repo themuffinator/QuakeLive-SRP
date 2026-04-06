@@ -139,12 +139,9 @@ static void CG_AccDown_f( void ) {
 		return;
 	}
 
-	if ( cg.accRequestTime + 1000 < cg.time ) {
-		cg.accRequestTime = cg.time;
-		trap_SendClientCommand( "acc" );
-	}
-
 	cg.accRequestActive = qtrue;
+	cg.accRequestTime = 0;
+	trap_SendClientCommand( "acc" );
 }
 
 /*
@@ -1155,6 +1152,7 @@ void CG_InitConsoleCommands( void ) {
 	// the game server will interpret these commands, which will be automatically
 	// forwarded to the server after they are not recognized locally
 	//
+	trap_AddCommand ("acc");
 	trap_AddCommand ("abort");
 	trap_AddCommand ("addadmin");
 	trap_AddCommand ("addbot");

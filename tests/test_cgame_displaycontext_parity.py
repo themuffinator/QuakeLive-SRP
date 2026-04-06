@@ -226,15 +226,28 @@ def test_cgame_match_state_auxiliary_configstrings_drive_live_timeout_and_team_c
 	parse_timeout_block = _block_from_marker(servercmds_source, "static void CG_ParseTimeoutConfigStrings( void )")
 	parse_team_block = _block_from_marker(servercmds_source, "static void CG_ParseTeamCountConfigStrings( void )")
 	parse_match_block = _block_from_marker(servercmds_source, "static void CG_ParseMatchState( void )")
+	parse_round_start_block = _block_from_marker(servercmds_source, "static void CG_ParseRoundStartTimeConfigString( void )")
 	set_config_values_block = _block_from_marker(servercmds_source, "void CG_SetConfigValues( void )")
 	get_timeout_start_block = _block_from_marker(servercmds_source, "int CG_GetMatchTimeoutStartTime( void )")
+	get_round_start_block = _block_from_marker(servercmds_source, "int CG_GetMatchRoundStartTime( void )")
 	match_clock_block = _block_from_marker(event_source, "static int CG_MatchClockMilliseconds( void )")
 	match_label_block = _block_from_marker(newdraw_source, "static void CG_BuildMatchStateLabel")
 
 	assert "static int cg_matchTimeoutStartTime;" in servercmds_source
+	assert "static int cg_matchRoundStartTime;" in servercmds_source
 	assert "cg_matchTimeoutStartTime = 0;" in reset_block
+	assert "cg_matchRoundStartTime = 0;" in reset_block
 	assert "int CG_GetMatchTimeoutStartTime( void );" in local_source
+	assert "int CG_GetMatchRoundStartTime( void );" in local_source
 	assert "return cg_matchTimeoutStartTime;" in get_timeout_start_block
+	assert "return cg_matchRoundStartTime;" in get_round_start_block
+
+	for expected in (
+		"info = CG_ConfigString( CS_ROUND_START_TIME );",
+		"cg_matchRoundStartTime = 0;",
+		"cg_matchRoundStartTime = atoi( info );",
+	):
+		assert expected in parse_round_start_block
 
 	for expected in (
 		"info = CG_ConfigString( CS_TIMEOUT_START_TIME );",
@@ -258,10 +271,14 @@ def test_cgame_match_state_auxiliary_configstrings_drive_live_timeout_and_team_c
 		assert expected in parse_team_block
 
 	assert "CG_ParseMatchFactoryConfig( info );" in parse_match_block
+	assert "if( cgs.gametype == GT_CTF || cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_OBELISK ) {" in set_config_values_block
+	assert "CG_ParseRoundStartTimeConfigString();" in set_config_values_block
 	assert "CG_ParseTimeoutConfigStrings();" in parse_match_block
 	assert "CG_ParseTeamCountConfigStrings();" in parse_match_block
 	assert "CG_ParseTimeoutConfigStrings();" in set_config_values_block
 	assert "CG_ParseTeamCountConfigStrings();" in set_config_values_block
+	assert "if( cgs.gametype == GT_CTF || cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_OBELISK ) {" in servercmds_source
+	assert "num == CS_ROUND_START_TIME" in servercmds_source
 	assert "num == CS_TEAM_COUNT_RED || num == CS_TEAM_COUNT_BLUE" in servercmds_source
 	assert "num == CS_TIMEOUT_START_TIME || num == CS_TIMEOUT_EXPIRE_TIME ||" in servercmds_source
 	assert "num == CS_TIMEOUT_COUNT_RED || num == CS_TIMEOUT_COUNT_BLUE" in servercmds_source
@@ -1155,7 +1172,7 @@ def test_cgame_team_scoreboard_and_award_ownerdraws_follow_retail_helper_split()
 
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "Avg ping %i", average );' in average_ping_block
 	assert "if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {" in timeheld_build_block
-	assert 'Com_sprintf( buffer, bufferSize, "%i:%i%i", value / 60, ( value % 60 ) / 10, value % 10 );' in timeheld_build_block
+	assert 'Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );' in timeheld_build_block
 	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_block
 
 	assert "score = CG_FindAwardScore( ownerDraw );" in award_client_block
@@ -1180,7 +1197,7 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 
 	assert 'trap_Cvar_Register(NULL, "cg_version", Q3_VERSION, CVAR_ROM );' in block
 	assert 'trap_Cvar_Set( "ui_voteactive", "0" );' in block
-	assert "cgs.newHud = cg.competitiveHudLoaded;" in load_hud_block
+	assert "cg.competitiveHudLoaded = CG_HudScriptHasCompetitiveMenus( hudSet );" in load_hud_block
 
 
 def test_register_sounds_prefers_retail_announcer_folders_before_fallbacks() -> None:
@@ -1194,7 +1211,9 @@ def test_register_sounds_prefers_retail_announcer_folders_before_fallbacks() -> 
 	assert 'return "vo";' in folder_block
 	assert 'return "vo_evil";' in folder_block
 	assert 'return "vo_female";' in folder_block
-	assert 'Com_sprintf( path, sizeof( path ), "sound/%s/%s%s", folder, sample, exts[i] );' in retail_clip_block
+	assert "pathStem = CG_BuildAnnouncerSoundPathForProfile( profile, sample );" in retail_clip_block
+	assert 'Com_sprintf( path, sizeof( path ), "%s%s", pathStem, exts[i] );' in retail_clip_block
+	assert 'Com_sprintf( path, sizeof( path ), "sound/%s/%s%s", folder, sample, exts[i] );' not in retail_clip_block
 	assert "#define CG_REGISTER_ANNOUNCER_SAMPLE(field, sample)" in voice_set_block
 	assert "set->field = CG_RegisterRetailAnnouncerClip( profile, sample );" in voice_set_block
 	assert "set->field = CG_RegisterAnnouncerClip( folder, sample );" in voice_set_block
@@ -1994,7 +2013,7 @@ def test_display_context_uses_named_cvar_string_and_native_chat_helpers() -> Non
 	source = CG_MAIN.read_text(encoding="utf-8")
 	display_block = _block_from_marker(source, "static void CG_InitDisplayContext")
 	cvar_string_block = _block_from_marker(source, "void CG_Cvar_GetString")
-	compact_hud_block = _block_from_marker(source, "static qboolean CG_IsCompactChatHudActive")
+	compact_hud_block = _block_from_marker(source, "static qboolean CG_UseMatchSummaryChatLayout")
 	physics_block = _block_from_marker(source, "static int CG_GetPhysicsTime")
 	chat_y_block = _block_from_marker(source, "static float CG_GetChatFieldY")
 	chat_width_block = _block_from_marker(source, "static float CG_GetChatFieldPixelWidth")
@@ -2002,11 +2021,14 @@ def test_display_context_uses_named_cvar_string_and_native_chat_helpers() -> Non
 
 	assert "cgDC.getCVarString = &CG_Cvar_GetString;" in display_block
 	assert "trap_Cvar_VariableStringBuffer( cvar, buffer, bufsize );" in cvar_string_block
-	assert "return (qboolean)( cgs.newHud && !cg_useLegacyHud.integer );" in compact_hud_block
+	assert "cg.snap->ps.pm_type == PM_INTERMISSION" in compact_hud_block
+	assert "return qtrue;" in compact_hud_block
+	assert "return qfalse;" in compact_hud_block
+	assert "cg_useLegacyHud" not in compact_hud_block
 	assert "return cg.physicsTime;" in physics_block
-	assert "return CG_IsCompactChatHudActive() ? 413.0f : 455.0f;" in chat_y_block
-	assert "return CG_IsCompactChatHudActive() ? 300.0f : 640.0f;" in chat_width_block
-	assert "return CG_IsCompactChatHudActive() ? 30 : 73;" in chat_chars_block
+	assert "return CG_UseMatchSummaryChatLayout() ? 455.0f : 413.0f;" in chat_y_block
+	assert "return CG_UseMatchSummaryChatLayout() ? 300.0f : 640.0f;" in chat_width_block
+	assert "return CG_UseMatchSummaryChatLayout() ? 30 : 73;" in chat_chars_block
 
 
 def test_cgame_init_splits_display_context_bootstrap_before_collision_map() -> None:
@@ -3104,12 +3126,17 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 	for expected in (
 		"if ( cgs.matchRoundState != ROUNDSTATE_ACTIVE ) {",
 		"if ( cgs.matchTimeoutActive ) {",
-		"seconds = CG_GetScoreboardTimerSeconds();",
-		'Com_sprintf( buffer, sizeof( buffer ), "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );',
+		"roundStartTime = CG_GetMatchRoundStartTime();",
+		"roundTimeLimitSeconds = CG_GetRoundTimeLimitSeconds();",
+		"remainingMilliseconds = roundTimeLimitSeconds * 1000 - cg.time + roundStartTime;",
+		"if ( remainingMilliseconds <= 0 || remainingMilliseconds > 29999 ) {",
+		"seconds = ( remainingMilliseconds + 500 ) / 1000;",
+		'Q_strncpyz( buffer, CG_FormatMinutesSeconds( seconds ), sizeof( buffer ) );',
 	):
 		assert expected in round_timer_block
 
 	assert "CG_DrawLevelTimer(" not in round_timer_block
+	assert "CG_GetScoreboardTimerSeconds();" not in round_timer_block
 
 	for expected in (
 		"cgs.gametype != GT_CTF && cgs.gametype != GT_1FCTF && cgs.gametype != GT_ATTACK_DEFEND",
@@ -3145,6 +3172,13 @@ def test_cgame_objective_status_ownerdraws_use_shared_team_status_leaf() -> None
 	source = CG_NEWDRAW.read_text(encoding="utf-8")
 	shader_block = _block_from_marker(source, "static qhandle_t CG_GetTeamFlagStatusShader")
 	team_status_block = _block_from_marker(source, "static void CG_DrawTeamFlagOrBaseStatus")
+	track_block = _block_from_marker(source, "static void CG_DrawObjectiveStatusTrack")
+	ctf_strip_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusCtfFamilyStrip")
+	oneflag_shader_block = _block_from_marker(source, "static qhandle_t CG_GetOneFlagStatusShader")
+	oneflag_strip_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusOneFlagStrip")
+	harvester_strip_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusHarvesterStrip")
+	domination_strip_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusDominationStrip")
+	strip_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusStrip")
 	objective_label_block = _block_from_marker(source, "static qboolean CG_BuildObjectiveStatusLabel")
 	objective_draw_block = _block_from_marker(source, "static void CG_DrawObjectiveStatus")
 
@@ -3169,6 +3203,61 @@ def test_cgame_objective_status_ownerdraws_use_shared_team_status_leaf() -> None
 		assert expected in team_status_block
 
 	for expected in (
+		"CG_FillRect( left, trackY, right - left, 2.0f, trackColor );",
+		"CG_FillRect( centerX, rect->y + 2.0f, 2.0f, rect->h - 4.0f, dividerColor );",
+	):
+		assert expected in track_block
+
+	for expected in (
+		"if ( cgs.gametype != GT_CTF && cgs.gametype != GT_ATTACK_DEFEND && cgs.gametype != GT_OBELISK ) {",
+		"redBaseShader = CG_GetTeamFlagStatusShader( TEAM_RED, qtrue );",
+		"blueBaseShader = CG_GetTeamFlagStatusShader( TEAM_BLUE, qtrue );",
+		"redFlagShader = CG_GetTeamFlagStatusShader( TEAM_RED, qfalse );",
+		"blueFlagShader = CG_GetTeamFlagStatusShader( TEAM_BLUE, qfalse );",
+		"CG_DrawObjectiveStatusTrack( rect, trackLeft, trackRight );",
+		"CG_DrawPic( redMarkerX, markerY, markerSize, markerSize, redFlagShader );",
+		"CG_DrawPic( blueMarkerX, markerY, markerSize, markerSize, blueFlagShader );",
+	):
+		assert expected in ctf_strip_block
+
+	for expected in (
+		"if ( cgs.flagStatus < FLAG_ATBASE || cgs.flagStatus > FLAG_DROPPED ) {",
+		"return cgs.media.flagShader[shaderIndex];",
+	):
+		assert expected in oneflag_shader_block
+
+	for expected in (
+		"flagShader = CG_GetOneFlagStatusShader();",
+		"redBaseShader = CG_GetTeamFlagStatusShader( TEAM_RED, qtrue );",
+		"blueBaseShader = CG_GetTeamFlagStatusShader( TEAM_BLUE, qtrue );",
+		"CG_DrawObjectiveStatusTrack( rect, leftIconX + iconSize + 6.0f, rightIconX - 6.0f );",
+	):
+		assert expected in oneflag_strip_block
+
+	for expected in (
+		"if ( !cgs.media.redCubeIcon && !cgs.media.blueCubeIcon ) {",
+		"CG_DrawObjectiveStatusTrack( rect, rect->x + iconSize + 6.0f, rect->x + rect->w - iconSize - 6.0f );",
+		"CG_DrawPic( rect->x, rect->y, iconSize, iconSize, cgs.media.redCubeIcon );",
+		"CG_DrawPic( rect->x + rect->w - iconSize, rect->y, iconSize, iconSize, cgs.media.blueCubeIcon );",
+	):
+		assert expected in harvester_strip_block
+
+	for expected in (
+		"points[pointIndex] = cent;",
+		"progressIndex = CG_ObjectiveStatusDominationProgressIndex( (float)cent->currentState.frame / 255.0f );",
+		"shader = CG_ObjectiveStatusDominationSelectShader( captureIcon, distress, progressIndex );",
+	):
+		assert expected in domination_strip_block
+
+	for expected in (
+		"if ( CG_DrawObjectiveStatusCtfFamilyStrip( rect ) ) {",
+		"if ( CG_DrawObjectiveStatusOneFlagStrip( rect ) ) {",
+		"if ( CG_DrawObjectiveStatusHarvesterStrip( rect ) ) {",
+		"return CG_DrawObjectiveStatusDominationStrip( rect );",
+	):
+		assert expected in strip_block
+
+	for expected in (
 		"if ( cgs.gametype == GT_ATTACK_DEFEND ) {",
 		'Com_sprintf( buffer, bufferSize, "%s %s  %s %s",',
 		"CG_GetTeamName( TEAM_RED ), CG_FlagStatusText( redStatus ),",
@@ -3176,6 +3265,7 @@ def test_cgame_objective_status_ownerdraws_use_shared_team_status_leaf() -> None
 	):
 		assert expected in objective_label_block
 
+	assert "if ( CG_DrawObjectiveStatusStrip( rect ) ) {" in objective_draw_block
 	assert "CG_BuildObjectiveStatusLabel( buffer, sizeof( buffer ) )" in objective_draw_block
 	assert 'CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );' in objective_draw_block
 

@@ -161,3 +161,14 @@ Summary:
 - Current estimated `qagame` parity is **76%** before this audit pass and **78%** after publication (documentation and closure certainty uplift; runtime behavior unchanged).
 - Mapping coverage is effectively saturated for the committed corpus (`1027/1027` overlap), so the remaining gap profile is now dominated by behavioral/boundary exactness rather than symbol discovery.
 - A six-phase closure plan (`QG-P1`..`QG-P6`) now defines the path to full qagame parity in theory, covering round-controller helper exactness, shared last-alive event transport, scoreboard/intermission serializer decomposition, strict Red Rover controller behavior, tournament queue/spawn-finalizer sidecars, and residual timer/debug/training tails.
+
+## Module parity refresh (2026-04-06)
+
+A combined module audit is now published in `docs/reverse-engineering/module-parity-audit-2026-04-06.md`.
+
+Summary:
+
+- Current estimated parity by module is **92%** for `cgame`, **78%** for `qagame`, and **100%** for `ui`.
+- Combined committed retail mapping coverage for those three DLLs is effectively saturated at **2426 / 2426** normalized anchors, with the remaining gap now dominated by live source drift, behavioral exactness, and packaging/evidence-state drift rather than by missing symbol recovery.
+- Fresh targeted verification on 2026-04-06 recorded `cgame` at `142 / 168` passed (`84.5%`), `qagame` at `77 / 84` passed with `4` skips (`91.7%` on executed tests), and the pure `ui` suite at `49 / 49` passed with `6` skips. The tracked UI parity-gate artifact is now fully green, including `UI-G03`.
+- Weighted by retail Ghidra function counts, the current combined source-built DLL parity estimate is **86.5%**. Including the still-low launcher/platform host and retail-binary host-compatibility gaps, the broader full-source estimate is approximately **82%**.

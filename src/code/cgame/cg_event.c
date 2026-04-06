@@ -28,6 +28,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../ui/menudef.h"
 //==========================================================================
 
+enum {
+	QL_EV_OVERTIME = 0x54,
+	QL_EV_GAMEOVER = 0x55,
+	QL_EV_LIGHTNING_DISCHARGE = 0x5c,
+	QL_EV_RACE_START = 0x5d,
+	QL_EV_RACE_CHECKPOINT = 0x5e,
+	QL_EV_RACE_FINISH = 0x5f,
+	QL_EV_AWARD = 0x61,
+	QL_EV_INFECTED = 0x62,
+	QL_EV_NEW_HIGH_SCORE = 99
+};
+
 /*
 =============
 CG_DamagePlumsEnabled
@@ -745,6 +757,8 @@ static int CG_GetRetailDamagePlumDamage( const entityState_t *es ) {
 	memcpy( &damage, &es->origin[0], sizeof( damage ) );
 	return damage;
 }
+
+/* Legacy transport note preserved for parity documentation: return es->eventParm; */
 
 /*
 =============
@@ -1711,12 +1725,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		return;
 	}
 
-	if ( event == EV_OVERTIME && es->eType > ET_EVENTS ) {
-		DEBUGNAME("EV_OVERTIME");
-		CG_HandleRetailOvertimeEvent();
-		return;
-	}
-
 	clientNum = es->clientNum;
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		clientNum = 0;
@@ -1727,6 +1735,16 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	//
 	// movement generated events
 	//
+	case QL_EV_OVERTIME:
+		DEBUGNAME("QL_EV_OVERTIME");
+		/*
+		trap_S_RegisterSound( "sound/world/klaxon2.ogg", qfalse )
+		CG_CenterPrint( va( "Overtime! %d seconds added", secondsAdded ), 90, BIGCHAR_WIDTH );
+		CG_AddBufferedSound( cgs.media.overtimeSound );
+		*/
+		CG_HandleRetailOvertimeEvent();
+		break;
+
 	case EV_FOOTSTEP:
 		DEBUGNAME("EV_FOOTSTEP");
 		if (cg_footsteps.integer) {
@@ -2485,8 +2503,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		CG_Beam( cent );
 		break;
 
-	case EV_GAMEOVER:
-		DEBUGNAME("EV_GAMEOVER");
+	case QL_EV_GAMEOVER:
+		DEBUGNAME("QL_EV_GAMEOVER");
 		CG_ClearBufferedAnnouncements();
 		trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
 		if ( CG_IsLocalPlayerWinner() ) {
@@ -2504,47 +2522,47 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 		break;
 
-	case EV_LIGHTNING_DISCHARGE:
-		DEBUGNAME("EV_LIGHTNING_DISCHARGE");
+	case QL_EV_LIGHTNING_DISCHARGE:
+		DEBUGNAME("QL_EV_LIGHTNING_DISCHARGE");
 		CG_LightningDischargeEffect( cent->lerpOrigin, es->eventParm );
 		break;
 
-	case EV_RACE_START:
-		DEBUGNAME("EV_RACE_START");
+	case QL_EV_RACE_START:
+		DEBUGNAME("QL_EV_RACE_START");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
 			CG_RacePlayCue( CG_RACE_CUE_START );
 		}
 		break;
 
-	case EV_RACE_CHECKPOINT:
-		DEBUGNAME("EV_RACE_CHECKPOINT");
+	case QL_EV_RACE_CHECKPOINT:
+		DEBUGNAME("QL_EV_RACE_CHECKPOINT");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
 			CG_RacePlayCue( CG_RACE_CUE_CHECKPOINT );
 		}
 		break;
 
-	case EV_RACE_FINISH:
-		DEBUGNAME("EV_RACE_FINISH");
+	case QL_EV_RACE_FINISH:
+		DEBUGNAME("QL_EV_RACE_FINISH");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) ) {
 			CG_RaceResetState();
 			CG_RacePlayCue( CG_RACE_CUE_FINISH );
 		}
 		break;
 
-	case EV_AWARD:
-		DEBUGNAME("EV_AWARD");
+	case QL_EV_AWARD:
+		DEBUGNAME("QL_EV_AWARD");
 		CG_HandleRetailAwardEvent( es );
 		break;
 
-	case EV_INFECTED:
-		DEBUGNAME("EV_INFECTED");
+	case QL_EV_INFECTED:
+		DEBUGNAME("QL_EV_INFECTED");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) && cgs.media.infectedSound ) {
 			CG_AddBufferedSound( cgs.media.infectedSound );
 		}
 		break;
 
-	case EV_NEW_HIGH_SCORE:
-		DEBUGNAME("EV_NEW_HIGH_SCORE");
+	case QL_EV_NEW_HIGH_SCORE:
+		DEBUGNAME("QL_EV_NEW_HIGH_SCORE");
 		if ( CG_IsRetailLocalEventClient( CG_GetRetailEventClientNum( es ) ) && cgs.media.newHighScoreSound ) {
 			CG_AddBufferedSound( cgs.media.newHighScoreSound );
 		}

@@ -200,6 +200,17 @@ void G_UpdateTimeoutConfigStrings( void ) {
 
 /*
 =============
+G_UpdateRoundStartConfigString
+
+Publishes the hidden retail round-start timestamp used by CG_ROUNDTIMER.
+=============
+*/
+static void G_UpdateRoundStartConfigString( void ) {
+	trap_SetConfigstring( CS_ROUND_START_TIME, va( "%i", level.roundStartTime ) );
+}
+
+/*
+=============
 G_UpdateMatchStateConfigString
 
 Builds the configstring payload describing round timers, overtime, and timeout state.
@@ -251,6 +262,7 @@ void G_UpdateMatchStateConfigString( void ) {
 		G_SetMatchStateInt( info, MATCH_STATE_KEY_SHUFFLE_REMAINING, G_AutoShuffleCountdown_GetSecondsRemaining() );
 	}
 
+	G_UpdateRoundStartConfigString();
 	trap_SetConfigstring( CS_MATCH_STATE, info );
 	G_UpdateTimeoutConfigStrings();
 	trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );

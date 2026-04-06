@@ -1150,6 +1150,26 @@ CL_CgameSystemCalls
 ====================
 */
 int CL_CgameSystemCalls( int *args ) {
+	/*
+	case CG_CMD_EXECUTETEXT:
+		Cbuf_ExecuteText( args[1], VMA(2) );
+	case CG_KEY_GETBINDINGBUF:
+		Q_strncpyz( VMA(2), Key_GetBinding( args[1] ), args[3] );
+	case CG_KEY_SETBINDING:
+		Key_SetBinding( args[1], VMA(2) );
+	case CG_KEY_GETOVERSTRIKEMODE:
+		return Key_GetOverstrikeMode();
+	case CG_KEY_SETOVERSTRIKEMODE:
+		Key_SetOverstrikeMode( args[1] );
+	case CG_ADVERTISEMENTBRIDGE_INITCGAME:
+		CL_AdvertisementBridge_InitCGame();
+	case CG_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME:
+		CL_AdvertisementBridge_ShutdownCGame();
+	case CG_ADVERTISEMENTBRIDGE_UPDATELOADINGVIEWPARAMETERS:
+		CL_AdvertisementBridge_UpdateLoadingViewParameters();
+	case CG_ADVERTISEMENTBRIDGE_SETFRAMETIME:
+		CL_AdvertisementBridge_SetFrameTime( args[1] );
+	*/
 	return CL_CgameSystemCallsImpl( args, qtrue );
 }
 
@@ -1192,11 +1212,31 @@ typedef struct {
 	qboolean	loaded;
 } qlCgScaledFont_t;
 
+static void QDECL QL_CG_trap_Key_GetBindingBuf( int keynum, char *buf, int buflen );
+static void QDECL QL_CG_trap_Key_SetBinding( int keynum, const char *binding );
+static qboolean QDECL QL_CG_trap_Key_GetOverstrikeMode( void );
+static void QDECL QL_CG_trap_Key_SetOverstrikeMode( qboolean state );
+static void QDECL QL_CG_trap_Cmd_ExecuteText( int exec_when, const char *text );
+static void QDECL QL_CG_trap_AdvertisementBridge_InitCGame( void );
+static void QDECL QL_CG_trap_AdvertisementBridge_ShutdownCGame( void );
+static void QDECL QL_CG_trap_AdvertisementBridge_UpdateLoadingViewParameters( void );
+static void QDECL QL_CG_trap_AdvertisementBridge_SetFrameTime( int frameTime );
+
 static vec4_t ql_cgame_currentColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 static qlCgScaledFont_t ql_cgame_scaledFonts[QL_CG_SCALED_FONT_COUNT];
 static uint64_t ql_cgame_mutedIdentitySet[MAX_CLIENTS];
 static int ql_cgame_mutedIdentityCount = 0;
-static ql_import_f ql_cgame_imports[CGAME_NATIVE_IMPORT_COUNT];
+static ql_import_f ql_cgame_imports[CGAME_NATIVE_IMPORT_COUNT] = {
+	[CG_KEY_GETBINDINGBUF] = (ql_import_f)QL_CG_trap_Key_GetBindingBuf,
+	[CG_KEY_SETBINDING] = (ql_import_f)QL_CG_trap_Key_SetBinding,
+	[CG_KEY_GETOVERSTRIKEMODE] = (ql_import_f)QL_CG_trap_Key_GetOverstrikeMode,
+	[CG_KEY_SETOVERSTRIKEMODE] = (ql_import_f)QL_CG_trap_Key_SetOverstrikeMode,
+	[CG_CMD_EXECUTETEXT] = (ql_import_f)QL_CG_trap_Cmd_ExecuteText,
+	[CG_ADVERTISEMENTBRIDGE_INITCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_InitCGame,
+	[CG_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_ShutdownCGame,
+	[CG_ADVERTISEMENTBRIDGE_UPDATELOADINGVIEWPARAMETERS] = (ql_import_f)QL_CG_trap_AdvertisementBridge_UpdateLoadingViewParameters,
+	[CG_ADVERTISEMENTBRIDGE_SETFRAMETIME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_SetFrameTime,
+};
 
 /*
 ==============

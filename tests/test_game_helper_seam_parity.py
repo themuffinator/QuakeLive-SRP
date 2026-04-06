@@ -88,10 +88,13 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	assert "G_KickOrBanClient( ent, val, qtrue );" in game_cmds
 
 	assert "void G_UpdateTimeoutConfigStrings( void ) {" in game_match_state
+	assert "static void G_UpdateRoundStartConfigString( void ) {" in game_match_state
+	assert "trap_SetConfigstring( CS_ROUND_START_TIME" in game_match_state
 	assert "trap_SetConfigstring( CS_TIMEOUT_START_TIME" in game_match_state
 	assert "trap_SetConfigstring( CS_TIMEOUT_EXPIRE_TIME" in game_match_state
 	assert "trap_SetConfigstring( CS_TIMEOUT_COUNT_RED" in game_match_state
 	assert "trap_SetConfigstring( CS_TIMEOUT_COUNT_BLUE" in game_match_state
+	assert "G_UpdateRoundStartConfigString();" in game_match_state
 	assert "G_UpdateTimeoutConfigStrings();" in game_match_state
 
 	assert "static void G_CheckTimeoutExpired( void ) {" in game_main

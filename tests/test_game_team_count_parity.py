@@ -13,8 +13,11 @@ def test_team_count_configstrings_are_declared_and_published() -> None:
 	match_state = _read("src/code/game/g_match_state.c")
 	main_c = _read("src/code/game/g_main.c")
 
+	assert "#define CS_ROUND_START_TIME" in bg_public
 	assert "#define CS_TEAM_COUNT_RED" in bg_public
 	assert "#define CS_TEAM_COUNT_BLUE" in bg_public
+	assert "static void G_UpdateRoundStartConfigString( void ) {" in match_state
+	assert 'trap_SetConfigstring( CS_ROUND_START_TIME, va( "%i", level.roundStartTime ) );' in match_state
 	assert "void G_UpdateTeamCountConfigstrings( void ) {" in match_state
 	assert 'trap_SetConfigstring( CS_TEAM_COUNT_RED, va( "%i", counts[TEAM_RED] ) );' in match_state
 	assert 'trap_SetConfigstring( CS_TEAM_COUNT_BLUE, va( "%i", counts[TEAM_BLUE] ) );' in match_state
