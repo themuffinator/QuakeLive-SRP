@@ -22,6 +22,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "g_local.h"
 
+static void G_Frame_BeginRoundActive( void );
+
 typedef struct g_lagHaxHistory_s {
 	struct g_lagHaxHistory_s	*next;
 	struct g_lagHaxHistory_s	*prev;

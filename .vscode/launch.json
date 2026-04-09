@@ -6,7 +6,7 @@
 			"type": "cppvsdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}\\build\\win32\\Debug\\bin\\quakelive_steam.exe",
-			"preLaunchTask": "Build",
+			"preLaunchTask": "Build Debug",
 			"args": [
 				"+set",
 				"developer",
@@ -56,7 +56,7 @@
 			"type": "cppvsdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}\\build\\win32\\Debug\\bin\\quakelive_steam.exe",
-			"preLaunchTask": "Build",
+			"preLaunchTask": "Build Debug",
 			"args": [
 				"+set",
 				"developer",

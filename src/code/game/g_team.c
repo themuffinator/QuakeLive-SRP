@@ -573,7 +573,7 @@ G_LastManStandingWarningsEnabled
 Returns qtrue when the recovered last-man-standing warning path may emit.
 =============
 */
-static qboolean G_LastManStandingWarningsEnabled( void ) {
+qboolean G_LastManStandingWarningsEnabled( void ) {
 	if ( !g_lastManStandingWarning.integer ) {
 		return qfalse;
 	}

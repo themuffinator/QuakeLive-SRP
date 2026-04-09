@@ -1174,7 +1174,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 
 	// Add team bonuses
 	Team_FragBonuses(self, inflictor, attacker);
-	G_RRHandlePlayerDeath( self, attacker );
+	G_RRHandlePlayerDeath( self->client->sess.sessionTeam, self, meansOfDeath );
 	if ( self->client && self->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		if ( g_gametype.integer == GT_CLAN_ARENA ) {
 			G_CANotifyLastAlivePlayer( self->client->sess.sessionTeam );

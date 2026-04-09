@@ -12,7 +12,7 @@
 				"-File",
 				"${workspaceFolder}\\.vscode\\build.ps1",
 				"-Configuration",
-				"Debug",
+				"Release",
 				"-Platform",
 				"x86"
 			],
@@ -24,6 +24,27 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "Build Debug",
+			"type": "process",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\build.ps1",
+				"-Configuration",
+				"Debug",
+				"-Platform",
+				"x86"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": "$msCompile",
+			"group": "build"
 		}
 	]
 }

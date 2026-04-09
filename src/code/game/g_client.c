@@ -1706,13 +1706,13 @@ void ClientUserinfoChanged( int clientNum ) {
 			client->pers.netname, team, model, headModel, country, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses,
 			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader,
-			G_GetClientReadyState( client ), client->sess.privilege,
+			G_ClientIsReady( client ), client->sess.privilege,
 			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	} else {
 		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\country\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\rp\\%d\\p\\%d\\so\\%i\\pq\\%i",
 			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, country, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
-			G_GetClientReadyState( client ), client->sess.privilege,
+			G_ClientIsReady( client ), client->sess.privilege,
 			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	}
 

@@ -1485,6 +1485,7 @@ int G_RRResolveRoundState( void );
 int G_ADResolveRoundState( void );
 int G_CAResolveRoundState( void );
 int G_FreezeResolveRoundState( void );
+qboolean G_LastManStandingWarningsEnabled( void );
 qboolean G_ADHandleDamageScore( gentity_t *attacker, int announce, gentity_t *targ, int *take, int *asave );
 qboolean G_ADCheckExitRules( qboolean announce );
 int AD_RoundStateTransition( qboolean announce );

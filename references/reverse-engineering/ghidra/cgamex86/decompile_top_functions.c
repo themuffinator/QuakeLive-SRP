@@ -15560,28 +15560,28 @@ LAB_1000f1b0:
     if (iVar4 == 0xc) {
       if ((DAT_10a3ff28 & 0x4000000) == 0) {
         if ((DAT_10a3ff1c <= local_38[1]) && (DAT_10a3ff1c <= local_38[2])) goto LAB_1000f434;
-        pcVar6 = "The match will begin";
+        pcVar6 = "The wanking will begin";
         pcVar7 = "when more players join.";
       }
       else {
-        pcVar6 = "The match will begin";
+        pcVar6 = "The wanking will begin";
         if (local_38[2] + local_38[1] < DAT_10a3ff1c) {
           pcVar7 = "when more players join.";
         }
         else {
 LAB_1000f434:
-          pcVar6 = "The match will begin";
+          pcVar6 = "The wanking will begin";
           pcVar7 = "when more players are ready.";
         }
       }
     }
     else if (iVar4 < 3) {
       if ((iVar4 == 1) && (2 < local_38[0])) {
-        pcVar6 = "The match will begin when";
+        pcVar6 = "The wanking will begin when";
         pcVar7 = "fewer players are in the match.";
       }
       else if (local_38[0] < 2) {
-        pcVar6 = "The match will begin";
+        pcVar6 = "The wanking will begin";
         pcVar7 = "when more players join.";
       }
       else {
