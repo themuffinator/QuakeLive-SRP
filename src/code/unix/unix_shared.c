@@ -425,6 +425,35 @@ char *Sys_GetCurrentUser( void )
 	return p->pw_name;
 }
 
+/*
+================
+Sys_ExecutableBaseName
+================
+*/
+char *Sys_ExecutableBaseName( void )
+{
+	static char exeName[MAX_OSPATH];
+	char executablePath[MAX_OSPATH];
+	ssize_t pathLength;
+	char *separator;
+
+	pathLength = readlink( "/proc/self/exe", executablePath, sizeof( executablePath ) - 1 );
+	if ( pathLength <= 0 || pathLength >= sizeof( executablePath ) ) {
+		exeName[0] = '\0';
+		return exeName;
+	}
+
+	executablePath[pathLength] = '\0';
+	separator = strrchr( executablePath, '/' );
+	if ( separator ) {
+		Q_strncpyz( exeName, separator + 1, sizeof( exeName ) );
+	} else {
+		Q_strncpyz( exeName, executablePath, sizeof( exeName ) );
+	}
+
+	return exeName;
+}
+
 #if defined(__linux__)
 // TTimo 
 // sysconf() in libc, POSIX.1 compliant

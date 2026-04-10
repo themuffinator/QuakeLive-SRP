@@ -145,6 +145,38 @@ typedef struct {
 	qboolean authorized;
 } ql_steam_microtxn_authorization_response_t;
 
+typedef enum {
+	k_EAuthSessionResponseOK = 0,
+	k_EAuthSessionResponseUserNotConnectedToSteam = 1,
+	k_EAuthSessionResponseNoLicenseOrExpired = 2,
+	k_EAuthSessionResponseVACBanned = 3,
+	k_EAuthSessionResponseLoggedInElseWhere = 4,
+	k_EAuthSessionResponseVACCheckTimedOut = 5,
+	k_EAuthSessionResponseAuthTicketCanceled = 6,
+	k_EAuthSessionResponseAuthTicketInvalidAlreadyUsed = 7,
+	k_EAuthSessionResponseAuthTicketInvalid = 8,
+	k_EAuthSessionResponsePublisherIssuedBan = 9
+} EAuthSessionResponse;
+
+typedef struct {
+	uint8_t reserved;
+} ql_steam_server_connected_t;
+
+typedef struct {
+	int result;
+	qboolean stillRetrying;
+} ql_steam_server_connect_failure_t;
+
+typedef struct {
+	int result;
+} ql_steam_server_disconnected_t;
+
+typedef struct {
+	CSteamID steamId;
+	CSteamID ownerSteamId;
+	EAuthSessionResponse authSessionResponse;
+} ql_steam_validate_auth_ticket_response_t;
+
 typedef struct {
 	void *context;
 	void (*onRichPresenceJoinRequested)( void *context, const ql_steam_rich_presence_join_requested_t *event );
@@ -172,6 +204,15 @@ typedef struct {
 	void *context;
 	void (*onAuthorizationResponse)( void *context, const ql_steam_microtxn_authorization_response_t *event );
 } ql_steam_micro_callback_bindings_t;
+
+typedef struct {
+	void *context;
+	void (*onServersConnected)( void *context, const ql_steam_server_connected_t *event );
+	void (*onConnectFailure)( void *context, const ql_steam_server_connect_failure_t *event );
+	void (*onServersDisconnected)( void *context, const ql_steam_server_disconnected_t *event );
+	void (*onValidateAuthTicketResponse)( void *context, const ql_steam_validate_auth_ticket_response_t *event );
+	void (*onP2PSessionRequest)( void *context, const ql_steam_p2p_session_request_t *event );
+} ql_steam_server_callback_bindings_t;
 
 #if QL_BUILD_STEAMWORKS
 
@@ -268,6 +309,8 @@ qboolean QL_Steamworks_ServerReadP2PPacket( void *data, uint32_t dataSize, uint3
 
 int QL_Steamworks_ServerGetNextOutgoingPacket( void *data, int dataSize, uint32_t *outIp, uint16_t *outPort );
 
+qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId );
+
 qboolean QL_Steamworks_HexEncode( const uint8_t *data, uint32_t length, char *out, size_t outSize );
 
 qboolean QL_Steamworks_HexDecode( const char *hex, uint8_t *out, size_t outSize, uint32_t *outLength );
@@ -275,6 +318,10 @@ qboolean QL_Steamworks_HexDecode( const char *hex, uint8_t *out, size_t outSize,
 qboolean QL_Steamworks_RequestAuthTicket( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle );
 
 qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle );
+
+qboolean QL_Steamworks_ServerBeginAuthSession( const CSteamID *steamId, const char *ticketHex, ql_auth_response_t *response );
+
+void QL_Steamworks_ServerEndAuthSession( const CSteamID *steamId );
 
 qboolean QL_Steamworks_ValidateTicket( const char *ticketHex, ql_auth_response_t *response );
 
@@ -306,6 +353,18 @@ qboolean QL_Steamworks_SayLobby( uint32_t idLow, uint32_t idHigh, const char *me
 
 qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t idHigh );
 
+qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId );
+
+qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char *name, int *outValue );
+
+qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const char *name, qboolean *outAchieved );
+
+qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char *name, int value );
+
+qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const char *name );
+
+qboolean QL_Steamworks_ServerStoreUserStats( const CSteamID *steamId );
+
 uint32_t QL_Steamworks_GetItemState( uint32_t idLow, uint32_t idHigh );
 
 qboolean QL_Steamworks_SubscribeItem( uint32_t idLow, uint32_t idHigh );
@@ -319,6 +378,10 @@ qboolean QL_Steamworks_LoadAvatarRGBA( uint32_t idLow, uint32_t idHigh, ql_steam
 qboolean QL_Steamworks_RegisterClientCallbacks( const ql_steam_client_callback_bindings_t *bindings );
 
 void QL_Steamworks_UnregisterClientCallbacks( void );
+
+qboolean QL_Steamworks_RegisterServerCallbacks( const ql_steam_server_callback_bindings_t *bindings );
+
+void QL_Steamworks_UnregisterServerCallbacks( void );
 
 qboolean QL_Steamworks_RegisterLobbyCallbacks( const ql_steam_lobby_callback_bindings_t *bindings );
 
@@ -759,6 +822,16 @@ static inline int QL_Steamworks_ServerGetNextOutgoingPacket( void *data, int dat
 
 /*
 =============
+QL_Steamworks_ServerAcceptP2PSession
+=============
+*/
+static inline qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId ) {
+	(void)steamId;
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_HexEncode
 =============
 */
@@ -804,6 +877,27 @@ QL_Steamworks_CancelAuthTicket
 static inline qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle ) {
 	(void)ticketHandle;
 	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerBeginAuthSession
+=============
+*/
+static inline qboolean QL_Steamworks_ServerBeginAuthSession( const CSteamID *steamId, const char *ticketHex, ql_auth_response_t *response ) {
+	(void)steamId;
+	(void)ticketHex;
+	(void)response;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerEndAuthSession
+=============
+*/
+static inline void QL_Steamworks_ServerEndAuthSession( const CSteamID *steamId ) {
+	(void)steamId;
 }
 
 /*
@@ -973,6 +1067,77 @@ static inline qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t 
 
 /*
 =============
+QL_Steamworks_ServerRequestUserStats
+=============
+*/
+static inline qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId ) {
+	(void)steamId;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerGetUserStatInt
+=============
+*/
+static inline qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char *name, int *outValue ) {
+	(void)steamId;
+	(void)name;
+	if ( outValue ) {
+		*outValue = 0;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerGetUserAchievement
+=============
+*/
+static inline qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const char *name, qboolean *outAchieved ) {
+	(void)steamId;
+	(void)name;
+	if ( outAchieved ) {
+		*outAchieved = qfalse;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerSetUserStatInt
+=============
+*/
+static inline qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char *name, int value ) {
+	(void)steamId;
+	(void)name;
+	(void)value;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerSetUserAchievement
+=============
+*/
+static inline qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const char *name ) {
+	(void)steamId;
+	(void)name;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerStoreUserStats
+=============
+*/
+static inline qboolean QL_Steamworks_ServerStoreUserStats( const CSteamID *steamId ) {
+	(void)steamId;
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_GetItemState
 =============
 */
@@ -1053,6 +1218,24 @@ QL_Steamworks_UnregisterClientCallbacks
 =============
 */
 static inline void QL_Steamworks_UnregisterClientCallbacks( void ) {
+}
+
+/*
+=============
+QL_Steamworks_RegisterServerCallbacks
+=============
+*/
+static inline qboolean QL_Steamworks_RegisterServerCallbacks( const ql_steam_server_callback_bindings_t *bindings ) {
+	(void)bindings;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_UnregisterServerCallbacks
+=============
+*/
+static inline void QL_Steamworks_UnregisterServerCallbacks( void ) {
 }
 
 /*

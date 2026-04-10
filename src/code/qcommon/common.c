@@ -39,6 +39,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 #endif
 
+void Zmq_BroadcastRconOutput( const char *message );
+void Zmq_ShutdownRuntime( void );
+extern cvar_t *sv_killserver;
+
 const qlr_fs_imports_t qlr_fs_imports = {
 	FS_FOpenFileByMode,
 	FS_FOpenWebFileRead,
@@ -72,11 +76,11 @@ int demo_protocols[] =
 #define MIN_DEDICATED_COMHUNKMEGS 1
 #define MIN_COMHUNKMEGS 56
 #ifdef MACOS_X
-#define DEF_COMHUNKMEGS "64"
-#define DEF_COMZONEMEGS "24"
+#define DEF_COMHUNKMEGS "128"
+#define DEF_COMZONEMEGS "64"
 #else
-#define DEF_COMHUNKMEGS "56"
-#define DEF_COMZONEMEGS "16"
+#define DEF_COMHUNKMEGS "128"
+#define DEF_COMZONEMEGS "64"
 #endif
 
 int		com_argc;
@@ -137,6 +141,27 @@ char	com_errorMessage[MAXPRINTMSG];
 void Com_WriteConfig_f( void );
 void Com_WriteClientConfig_f( void );
 void CIN_CloseAllVideos();
+
+/*
+================
+Com_ShouldDefaultDedicatedFromExecutable
+
+Matches the retained retail dedicated-server tool basename (`qzeroded.x86`) while
+also recognising the Windows `.exe` adaptation emitted by the local build script.
+================
+*/
+static qboolean Com_ShouldDefaultDedicatedFromExecutable( void ) {
+	const char	*executableName;
+
+	executableName = Sys_ExecutableBaseName();
+	if ( !executableName || !executableName[0] ) {
+		return qfalse;
+	}
+
+	return !Q_stricmp( executableName, "qzeroded" )
+		|| !Q_stricmp( executableName, "qzeroded.exe" )
+		|| !Q_stricmp( executableName, "qzeroded.x86" );
+}
 
 //============================================================================
 
@@ -279,6 +304,7 @@ void QDECL Com_Printf( const char *fmt, ... ) {
 
 	// echo to dedicated console and early console
 	Sys_Print( msg );
+	Zmq_BroadcastRconOutput( msg );
 
 	// logfile
 	if ( com_logfile && com_logfile->integer ) {
@@ -384,6 +410,10 @@ void QDECL Com_Error( int code, const char *fmt, ... ) {
 	va_start (argptr,fmt);
 	vsprintf (com_errorMessage,fmt,argptr);
 	va_end (argptr);
+
+	if ( SV_ShouldErrorExit( code ) ) {
+		code = ERR_FATAL;
+	}
 
 	if ( code != ERR_DISCONNECT && code != ERR_NEED_CD ) {
 		Cvar_Set("com_errorMessage", com_errorMessage);
@@ -2652,6 +2682,10 @@ void Com_Init( char *commandLine ) {
 
         Cvar_BootstrapExpandedDefaults();
 
+	if ( Com_ShouldDefaultDedicatedFromExecutable() ) {
+		Cvar_Get( "dedicated", "2", 0 );
+	}
+
 	// Make early filesystem/bootstrap diagnostics visible in qconsole.log.
 #ifdef _DEBUG
 	com_developer = Cvar_Get( "developer", "1", CVAR_TEMP );
@@ -3067,6 +3101,18 @@ void Com_Frame( void ) {
 	} else {
 		minMsec = 1;
 	}
+
+	if ( com_dedicated->integer ) {
+		if ( !com_sv_running->integer || ( sv_killserver && sv_killserver->integer ) ) {
+			minMsec = 50;
+			SV_CheckIdleServerExit( Sys_Milliseconds() );
+		} else {
+			SV_ClearIdleServerExit();
+		}
+	} else {
+		SV_ClearIdleServerExit();
+	}
+
 	do {
 		com_frameTime = Com_EventLoop();
 		if ( lastTime > com_frameTime ) {
@@ -3192,6 +3238,7 @@ void Com_Shutdown (void) {
 		com_journalFile = 0;
 	}
 
+	Zmq_ShutdownRuntime();
 	QL_Steamworks_Shutdown();
 	SyscallContract_Shutdown();
 

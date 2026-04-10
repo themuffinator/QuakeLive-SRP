@@ -24,6 +24,32 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "server.h"
 
 #if !QL_ENABLE_RANKINGS
+static qboolean	s_rankings_stub_announced = qfalse;
+static int		s_rankings_stub_server_id = -1;
+
+/*
+================
+SV_RankPublishDisabledState
+================
+*/
+static void SV_RankPublishDisabledState( void ) {
+	Cvar_Set( "sv_rankingsActive", "0" );
+}
+
+/*
+================
+SV_RankLogDisabledState
+================
+*/
+static void SV_RankLogDisabledState( void ) {
+	if ( s_rankings_stub_announced ) {
+		return;
+	}
+
+	Com_Printf( "Rankings disabled by build policy (QL_ENABLE_RANKINGS=0); exposing retained compatibility surface only.\n" );
+	s_rankings_stub_announced = qtrue;
+}
+
 /*
 ================
 SV_RankBegin
@@ -31,7 +57,15 @@ SV_RankBegin
 */
 void SV_RankBegin( char *gamekey ) {
 	(void)gamekey;
-	Cvar_Set( "sv_rankingsActive", "0" );
+	SV_RankLogDisabledState();
+
+	if ( sv_enableRankings && sv_enableRankings->integer != 0 ) {
+		Com_Printf( "Rankings requested but build disabled (QL_ENABLE_RANKINGS=0); forcing sv_enableRankings back to 0.\n" );
+		Cvar_Set( "sv_enableRankings", "0" );
+	}
+
+	SV_RankPublishDisabledState();
+	s_rankings_stub_server_id = sv.serverId;
 }
 
 /*
@@ -40,7 +74,7 @@ SV_RankCheckInit
 ================
 */
 qboolean SV_RankCheckInit( void ) {
-	return qfalse;
+	return s_rankings_stub_server_id == sv.serverId ? qtrue : qfalse;
 }
 
 /*

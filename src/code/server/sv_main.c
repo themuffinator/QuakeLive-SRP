@@ -298,12 +298,95 @@ cvar_t	*sv_pure;
 cvar_t	*sv_floodProtect;
 cvar_t	*sv_lanForceRate; // dedicated 1 (LAN) server forces local client rates to 99999 (bug #491)
 cvar_t	*sv_strictAuth;
+cvar_t	*sv_mapPoolFile;
+cvar_t	*sv_includeCurrentMapInVote;
+cvar_t	*sv_gtid;
 cvar_t	*sv_serverType;
+cvar_t	*sv_idleRestart;
+cvar_t	*sv_idleExit;
+cvar_t	*sv_errorExit;
+cvar_t	*sv_quitOnEmpty;
 cvar_t	*sv_quitOnExitLevel;
+cvar_t	*sv_altEntDir;
+cvar_t	*sv_dumpEntities;
+cvar_t	*sv_cylinderScale;
 cvar_t	*sv_warmupReadyPercentage;
 cvar_t	*sv_vac;
 cvar_t	*sv_maskBots;
+cvar_t	*sv_enableRankings;
+cvar_t	*sv_rankingsActive;
+cvar_t	*sv_leagueName;
 cvar_t	*net_fakevacban;
+static int	s_svIdleExitDeadline;
+
+/*
+=============
+SV_ClearIdleServerExit
+
+Clears the retained dedicated idle-exit deadline when the server is active
+again or when the policy is disabled.
+=============
+*/
+void SV_ClearIdleServerExit( void ) {
+	s_svIdleExitDeadline = 0;
+}
+
+/*
+=============
+SV_ShouldErrorExit
+
+Reconstructs the retained sv_errorExit policy that upgrades ERR_DROP and
+ERR_DISCONNECT into a fatal shutdown when requested.
+=============
+*/
+qboolean SV_ShouldErrorExit( errorParm_t code ) {
+	if ( code != ERR_DROP && code != ERR_DISCONNECT ) {
+		return qfalse;
+	}
+
+	if ( !sv_errorExit ) {
+		return qfalse;
+	}
+
+	if ( sv_errorExit->integer == 2 || ( sv_errorExit->integer == 1 && com_sv_running && com_sv_running->integer ) ) {
+		Com_Printf( "sv_errorExit: configured to shut down on ERR_DROP or ERR_DISCONNECT\n" );
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+SV_CheckIdleServerExit
+
+Matches the retained dedicated idle-exit deadline handling used when the host
+is running without an active server.
+=============
+*/
+qboolean SV_CheckIdleServerExit( int currentTime ) {
+	if ( !sv_idleExit || sv_idleExit->integer <= 0 ) {
+		SV_ClearIdleServerExit();
+		return qfalse;
+	}
+
+	if ( s_svIdleExitDeadline == 0 ) {
+		s_svIdleExitDeadline = currentTime + sv_idleExit->integer * 1000;
+		return qfalse;
+	}
+
+	if ( currentTime < s_svIdleExitDeadline - ( sv_idleExit->integer + 1 ) * 1000 || currentTime > s_svIdleExitDeadline + 5000 ) {
+		SV_ClearIdleServerExit();
+		return qfalse;
+	}
+
+	if ( s_svIdleExitDeadline < currentTime ) {
+		Com_Error( ERR_FATAL, "shutting down idle dedicated server after sv_idleExit (%d) seconds", sv_idleExit->integer );
+		return qtrue;
+	}
+
+	return qfalse;
+}
 
 /*
 =============
@@ -1550,6 +1633,8 @@ void SV_Frame( int msec ) {
 	}
 
 	SV_SteamServerNetworkingFrame();
+	Zmq_UpdatePasswords();
+	Zmq_PumpRcon();
 	if ( svs.time < s_botMaskRefreshTime ) {
 		s_botMaskRefreshTime = 0;
 	}

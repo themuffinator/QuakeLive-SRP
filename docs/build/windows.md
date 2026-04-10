@@ -28,6 +28,14 @@ retail font-system evidence and remaining source gaps, see
 | `qagamex86` | `src/code/game/qagamex86.vcxproj` | `build/win32/<Config>/modules/qagamex86/qagamex86.dll` |
 | `cgamex86`  | `src/code/cgame/cgamex86.vcxproj` | `build/win32/<Config>/modules/cgamex86/cgamex86.dll` |
 | `awesomium_process` | `src/code/awesomium_process.vcxproj` | `build/win32/<Config>/bin/awesomium_process.exe` |
+| `qzeroded` | emitted by `.vscode/build.ps1` after `quakelive_steam.vcxproj` completes | `build/win32/<Config>/bin/qzeroded.exe` |
+
+The dedicated server alias intentionally follows the retail Quake Live dedicated
+tool basename `qzeroded`, which is preserved in the shipped Linux dedicated
+binary name `qzeroded.x86`. The repository’s Windows build emits
+`qzeroded.exe` as the matching host-side adaptation so server scripts and
+runtime probes can target the retail-aligned dedicated name even though no
+retail Windows dedicated executable has been recovered in the local corpus.
 
 ## Building from the command line
 
@@ -38,6 +46,11 @@ corresponding pipeline:
 ```powershell
 msbuild src\code\quakelive.sln /t:qagamex86;cgamex86;awesomium_process /p:Configuration=Release /p:Platform=x86 /p:PlatformToolset=v100
 ```
+
+The default VS Code build wrapper also emits `build/win32/<Config>/bin/qzeroded.exe`
+after a successful solution build by copying the reconstructed host binary and
+its matching debug artifacts (`.pdb`, `.map`) to the retail-aligned dedicated
+name.
 
 The original VM builds remain available under the historical target names. For
 example, the following command rebuilds the interpreted modules while leaving

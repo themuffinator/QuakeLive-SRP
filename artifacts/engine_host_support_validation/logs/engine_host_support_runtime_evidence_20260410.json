@@ -1,0 +1,79 @@
+{
+  "artifact_version": 1,
+  "phase": "EH-P6",
+  "parity_estimate": {
+    "before": 89,
+    "after": 92
+  },
+  "runtime_root": "build/win32/Debug/bin/baseq3",
+  "evidence_method": "Focused source-backed Win32 host/support validation; EH-P6 did not require a fresh live engine launch because the remaining closure work was harness portability, evidence publication, and parity-gate wiring, and the later EH-P4 botlib tranche extended the same evidence lane with deterministic internal-helper coverage.",
+  "validation_command": "pytest tests/test_platform_services.py tests/test_steamworks_harness.py tests/test_renderer_win32_host_glue_parity.py tests/test_bot_resource_loading.py tests/test_botlib_internal_parity.py tests/test_win32_clipboard_parity.py tests/test_win32_raw_input_parity.py tests/test_input_translation.py tests/test_engine_host_support_full_parity_gate.py -q --tb=no",
+  "validated_by": [
+    "tests/test_platform_services.py",
+    "tests/test_steamworks_harness.py",
+    "tests/test_renderer_win32_host_glue_parity.py",
+    "tests/test_bot_resource_loading.py",
+    "tests/test_botlib_internal_parity.py",
+    "tests/test_win32_clipboard_parity.py",
+    "tests/test_win32_raw_input_parity.py",
+    "tests/test_input_translation.py",
+    "tests/test_engine_host_support_full_parity_gate.py"
+  ],
+  "clipboard": {
+    "unicode_preferred": true,
+    "ansi_fallback_retained": true,
+    "shared_utf16_helpers_present": true,
+    "consumer_surface_stable": true,
+    "source_owner_files": [
+      "src/code/win32/win_main.c",
+      "src/code/win32/win_clipboard_shared.h"
+    ],
+    "focused_test": "tests/test_win32_clipboard_parity.py"
+  },
+  "raw_input": {
+    "registration_present": true,
+    "wm_input_dispatch_present": true,
+    "device_listing_present": true,
+    "fallback_lanes_retained": true,
+    "source_owner_files": [
+      "src/code/win32/win_input.c",
+      "src/code/win32/win_wndproc.c",
+      "src/code/win32/win_rawinput_shared.h"
+    ],
+    "focused_test": "tests/test_win32_raw_input_parity.py"
+  },
+  "loading_window": {
+    "wrappers_present": true,
+    "startup_order_proved": true,
+    "fast_restart_maximize_preserved": true,
+    "source_owner_files": [
+      "src/code/win32/win_main.c",
+      "src/code/win32/win_syscon.c",
+      "src/code/win32/win_wndproc.c",
+      "src/code/win32/win_glimp.c"
+    ],
+    "focused_test": "tests/test_renderer_win32_host_glue_parity.py"
+  },
+  "input_translation": {
+    "compiler_support_helper": "tests/compiler_support.py",
+    "compiler_agnostic_fixture": true,
+    "shared_library_name_used": true,
+    "find_c_compiler_used": true,
+    "focused_test": "tests/test_input_translation.py"
+  },
+  "platform_and_bot_validation": {
+    "platform_services_surface_tracked": true,
+    "steamworks_harness_tracked": true,
+    "bot_resource_schedule_tracked": true,
+    "botlib_internal_surface_tracked": true,
+    "focused_tests": [
+      "tests/test_platform_services.py",
+      "tests/test_steamworks_harness.py",
+      "tests/test_bot_resource_loading.py",
+      "tests/test_botlib_internal_parity.py"
+    ]
+  },
+  "missing_markers": [],
+  "warnings": [],
+  "summary": "The tracked EH-P6 evidence bundle binds the closed Win32 clipboard, raw-input, loading-window, and input-translation lanes to focused tests and source owners, and the later EH-P4 extension adds deterministic botlib-internal proof while the remaining compatibility-only tranches stay explicitly blocked in the machine-readable parity gate."
+}

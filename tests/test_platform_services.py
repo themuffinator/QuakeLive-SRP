@@ -293,6 +293,7 @@ def _compile_and_run(
     macros: Dict[str, int],
     *,
     include_client_stub: bool = False,
+    extra_env: Dict[str, str] | None = None,
 ) -> str:
     workdir.mkdir(parents=True, exist_ok=True)
     c_path = workdir / "probe.c"
@@ -330,7 +331,18 @@ def _compile_and_run(
     ]
 
     subprocess.run(compile_cmd, cwd=REPO_ROOT, check=True, capture_output=True)
-    result = subprocess.run([str(exe_path)], cwd=REPO_ROOT, check=True, capture_output=True, text=True)
+    run_env = os.environ.copy()
+    if extra_env:
+        run_env.update(extra_env)
+
+    result = subprocess.run(
+        [str(exe_path)],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=run_env,
+    )
     return result.stdout
 
 
@@ -456,6 +468,27 @@ def test_hybrid_fallback_accepts_when_steam_pending(tmp_path) -> None:
     assert details["result"] == str(QL_AUTH_RESULT_ACCEPTED := 1)
     assert details["outcome"] == str(QL_AUTH_OUTCOME_SUCCESS := 0)
     assert "Hybrid fallback accepted credential via open adapter" in details["message"]
+
+
+def test_platform_service_table_respects_runtime_external_disable_env(tmp_path) -> None:
+    workdir = tmp_path / "service_probe_external_disable"
+    output = _compile_and_run(
+        workdir,
+        _SERVICE_TABLE_PROBE,
+        {"QL_BUILD_ONLINE_SERVICES": 1, "QL_BUILD_STEAMWORKS": 1, "QL_BUILD_OPEN_STEAM": 1},
+        extra_env={"QL_DISABLE_EXTERNAL_ECOSYSTEMS": "1"},
+    )
+
+    services = _parse_service_output(output)
+    expected = {
+        "auth": ("Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS", True, False),
+        "matchmaking": ("Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS", True, False),
+        "workshop": ("Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS", True, False),
+        "overlay": ("Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS", True, False),
+        "stats": ("Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS", True, False),
+    }
+
+    assert services == expected
 
 
 def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
@@ -1139,10 +1172,15 @@ def test_first_snapshot_reconstructs_retail_match_start_presence_status() -> Non
 def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
 
+    platform_shutdown_block = _extract_function_block(steamworks, "void QL_Steamworks_Shutdown( void )")
     init_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated )")
     shutdown_block = _extract_function_block(steamworks, "void QL_Steamworks_ServerShutdown( void )")
     is_initialised_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerIsInitialised( void )")
     run_callbacks_block = _extract_function_block(steamworks, "void QL_Steamworks_RunServerCallbacks( void )")
+    register_callbacks_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_RegisterServerCallbacks( const ql_steam_server_callback_bindings_t *bindings )"
+    )
+    unregister_callbacks_block = _extract_function_block(steamworks, "void QL_Steamworks_UnregisterServerCallbacks( void )")
     ugc_block = _extract_function_block(steamworks, "static void *QL_Steamworks_GetUGCInterface( void )")
     dedicated_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerSetDedicated( qboolean dedicated )")
     logon_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerLogOn( const char *account )")
@@ -1161,7 +1199,22 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     key_values_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerSetKeyValuesFromInfoString( const char *infoString )")
     user_data_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerUpdateUserData( const CSteamID *steamId, const char *playerName, uint32_t score )")
     public_ip_block = _extract_function_block(steamworks, "uint32_t QL_Steamworks_ServerGetPublicIP( void )")
+    accept_p2p_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId )")
+    begin_auth_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_ServerBeginAuthSession( const CSteamID *steamId, const char *ticketHex, ql_auth_response_t *response )"
+    )
+    end_auth_block = _extract_function_block(steamworks, "void QL_Steamworks_ServerEndAuthSession( const CSteamID *steamId )")
 
+    assert "#define QL_STEAM_CALLBACK_STEAM_SERVERS_CONNECTED 0x65" in steamworks
+    assert "#define QL_STEAM_CALLBACK_STEAM_SERVER_CONNECT_FAILURE 0x66" in steamworks
+    assert "#define QL_STEAM_CALLBACK_STEAM_SERVERS_DISCONNECTED 0x67" in steamworks
+    assert "#define QL_STEAM_CALLBACK_VALIDATE_AUTH_TICKET_RESPONSE 0x8f" in steamworks
+    assert "#define QL_STEAM_CALLBACK_P2P_SESSION_REQUEST 0x4b2" in steamworks
+    assert "QL_Steamworks_UnregisterServerCallbacks();" in platform_shutdown_block
+    assert "QL_Steamworks_ServerShutdown();" in platform_shutdown_block
+    assert platform_shutdown_block.index("QL_Steamworks_UnregisterServerCallbacks();") < platform_shutdown_block.index(
+        "QL_Steamworks_ServerShutdown();"
+    )
     assert "if ( state.gameServerInitialised ) {" in init_block
     assert "if ( !QL_Steamworks_Init() || !state.SteamGameServer_Init ) {" in init_block
     assert "serverMode = secure ? QL_STEAM_GAMESERVER_MODE_AUTH_SECURE : QL_STEAM_GAMESERVER_MODE_NO_AUTH;" in init_block
@@ -1173,6 +1226,28 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     assert "state.useGameServerUGC = qfalse;" in shutdown_block
     assert "return state.gameServerInitialised;" in is_initialised_block
     assert "!state.gameServerInitialised" in run_callbacks_block
+    assert "if ( callbackState->registered ) {" in register_callbacks_block
+    assert "QL_Steamworks_UnregisterServerCallbacks();" in register_callbacks_block
+    assert (
+        "QL_Steamworks_PrepareCallbackObject( &callbackState->serversConnected, QL_STEAM_CALLBACK_STEAM_SERVERS_CONNECTED"
+        in register_callbacks_block
+    )
+    assert (
+        "QL_Steamworks_PrepareCallbackObject( &callbackState->validateAuthTicketResponse, QL_STEAM_CALLBACK_VALIDATE_AUTH_TICKET_RESPONSE"
+        in register_callbacks_block
+    )
+    assert (
+        "QL_Steamworks_PrepareCallbackObject( &callbackState->p2pSessionRequest, QL_STEAM_CALLBACK_P2P_SESSION_REQUEST"
+        in register_callbacks_block
+    )
+    assert "!QL_Steamworks_RegisterCallbackObject( &callbackState->serversConnected )" in register_callbacks_block
+    assert "!QL_Steamworks_RegisterCallbackObject( &callbackState->validateAuthTicketResponse )" in register_callbacks_block
+    assert "!QL_Steamworks_RegisterCallbackObject( &callbackState->p2pSessionRequest )" in register_callbacks_block
+    assert "callbackState->registered = qtrue;" in register_callbacks_block
+    assert "QL_Steamworks_UnregisterCallbackObject( &callbackState->p2pSessionRequest );" in unregister_callbacks_block
+    assert "QL_Steamworks_UnregisterCallbackObject( &callbackState->validateAuthTicketResponse );" in unregister_callbacks_block
+    assert "QL_Steamworks_UnregisterCallbackObject( &callbackState->serversConnected );" in unregister_callbacks_block
+    assert "memset( callbackState, 0, sizeof( *callbackState ) );" in unregister_callbacks_block
     assert "if ( state.useGameServerUGC && state.gameServerInitialised && state.SteamGameServerUGC ) {" in ugc_block
     assert "return state.SteamGameServerUGC();" in ugc_block
     assert "return state.SteamUGC();" in ugc_block
@@ -1218,6 +1293,12 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     assert "return fn( gameServer, idLow, idHigh, playerName, score ) != 0 ? qtrue : qfalse;" in user_data_block
     assert "vtable[0x90 / 4]" in public_ip_block
     assert "return fn( gameServer );" in public_ip_block
+    assert "vtable[0x0c / 4]" in accept_p2p_block
+    assert "return acceptSession( networking, *steamId ) ? qtrue : qfalse;" in accept_p2p_block
+    assert "QL_Steamworks_HexDecode( ticketHex, ticketData, sizeof( ticketData ), &ticketLength )" in begin_auth_block
+    assert "result = state.BeginAuthSession( gameServer, ticketData, (int)ticketLength, *steamId );" in begin_auth_block
+    assert "QL_Steamworks_MapAuthResult( result, response );" in begin_auth_block
+    assert "state.EndAuthSession( gameServer, *steamId );" in end_auth_block
 
 
 def test_server_frame_reconstructs_retail_steam_server_owner() -> None:
@@ -1528,6 +1609,132 @@ def test_loopback_steam_auth_verify_falls_back_for_local_clients() -> None:
     assert "if ( NET_IsLocalAddress( cl->netchan.remoteAddress ) ) {" in verify_block
     assert "cl->platformAuthSucceeded = qtrue;" in verify_block
     assert "return qtrue;" in verify_block
+    assert "if ( cl->platformAuthPending ) {" in verify_block
+    assert "return qfalse;" in verify_block
+    assert "return cl->platformAuthSucceeded;" in verify_block
+    assert "QL_RequestExternalAuth" not in verify_block
+
+
+def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle() -> None:
+    sv_client = (REPO_ROOT / "src/code/server/sv_client.c").read_text(encoding="utf-8")
+
+    connected_block = _extract_function_block(
+        sv_client, "static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event )"
+    )
+    auth_callback_block = _extract_function_block(
+        sv_client,
+        "static void SV_SteamServerValidateAuthTicketResponseCallback( void *context, const ql_steam_validate_auth_ticket_response_t *event )",
+    )
+    p2p_block = _extract_function_block(
+        sv_client, "static void SV_SteamServerP2PSessionRequestCallback( void *context, const ql_steam_p2p_session_request_t *event )"
+    )
+    init_callbacks_block = _extract_function_block(sv_client, "void SV_SteamServerInitCallbacks( void )")
+    direct_connect_block = _extract_function_block(sv_client, "void SV_DirectConnect( netadr_t from )")
+    drop_block = _extract_function_block(sv_client, "void SV_DropClient( client_t *drop, const char *reason )")
+
+    assert "SV_SteamServerPublishIdentity();" in connected_block
+    assert "SV_SteamServerUpdatePublishedState( qtrue );" in connected_block
+    assert "QL_Steamworks_RegisterServerCallbacks( &bindings )" in init_callbacks_block
+    assert "bindings.onValidateAuthTicketResponse = SV_SteamServerValidateAuthTicketResponseCallback;" in init_callbacks_block
+    assert "response = k_EAuthSessionResponseVACBanned;" in auth_callback_block
+    assert "SV_DropClient( cl, message );" in auth_callback_block
+    assert "QL_Steamworks_ServerAcceptP2PSession( &event->remoteId )" in p2p_block
+    assert "denied = SV_BeginPlatformAuthSession( newcl, &from );" in direct_connect_block
+    assert 'SV_FinalisePlatformAuthState( newcl, qtrue, "accepted" );' not in direct_connect_block
+    assert "net_fakevacban" not in direct_connect_block
+    assert "SV_EndPlatformAuthSession( drop );" in drop_block
+
+
+def test_server_steam_stats_owner_reconstructs_retail_gameserverstats_bridge() -> None:
+    server_h = (REPO_ROOT / "src/code/server/server.h").read_text(encoding="utf-8")
+    sv_client = (REPO_ROOT / "src/code/server/sv_client.c").read_text(encoding="utf-8")
+    sv_game = (REPO_ROOT / "src/code/server/sv_game.c").read_text(encoding="utf-8")
+    steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
+    steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+
+    create_session_block = _extract_function_block(sv_client, "static void SV_SteamStats_CreatePlayerSession( client_t *cl )")
+    remove_session_block = _extract_function_block(sv_client, "static void SV_SteamStats_RemovePlayerSession( client_t *cl )")
+    requery_block = _extract_function_block(sv_client, "static void SV_SteamStats_RequerySessions( void )")
+    add_stat_block = _extract_function_block(sv_client, "void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta )")
+    unlock_block = _extract_function_block(sv_client, "void SV_SteamStats_UnlockAchievement( int clientNum, int achievementId )")
+    has_block = _extract_function_block(sv_client, "qboolean SV_SteamStats_HasAchievement( int clientNum, int achievementId )")
+    should_unlock_block = _extract_function_block(sv_client, "static qboolean SV_SteamStats_ShouldUnlockAchievement( void )")
+    begin_auth_block = _extract_function_block(sv_client, "static const char *SV_BeginPlatformAuthSession( client_t *cl, const netadr_t *adr )")
+    end_auth_block = _extract_function_block(sv_client, "static void SV_EndPlatformAuthSession( client_t *cl )")
+    connected_block = _extract_function_block(
+        sv_client, "static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event )"
+    )
+    request_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId )")
+    get_stat_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char *name, int *outValue )"
+    )
+    get_achievement_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const char *name, qboolean *outAchieved )"
+    )
+    set_stat_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char *name, int value )"
+    )
+    set_achievement_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const char *name )"
+    )
+    store_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerStoreUserStats( const CSteamID *steamId )")
+    add_bridge_block = _extract_function_block(sv_game, "static void SV_ClientAddSteamStat( int clientNum, int statIndex, int delta )")
+    unlock_bridge_block = _extract_function_block(sv_game, "static void SV_ClientUnlockSteamAchievement( int clientNum, int achievementId )")
+    has_bridge_block = _extract_function_block(sv_game, "static qboolean SV_ClientHasSteamAchievement( int clientNum, int achievementId )")
+
+    assert "void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta );" in server_h
+    assert "void SV_SteamStats_UnlockAchievement( int clientNum, int achievementId );" in server_h
+    assert "qboolean SV_SteamStats_HasAchievement( int clientNum, int achievementId );" in server_h
+    assert "qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId );" in steamworks_h
+    assert "qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char *name, int *outValue );" in steamworks_h
+    assert "qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const char *name, qboolean *outAchieved );" in steamworks_h
+    assert "qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char *name, int value );" in steamworks_h
+    assert "qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const char *name );" in steamworks_h
+    assert "qboolean QL_Steamworks_ServerStoreUserStats( const CSteamID *steamId );" in steamworks_h
+    assert "SteamGameServerStats" in steamworks
+    assert "QL_Steamworks_GetGameServerStatsInterface( void )" in steamworks
+    assert "vtable[0x00 / 4]" in request_block
+    assert "vtable[0x08 / 4]" in get_stat_block
+    assert "vtable[0x0c / 4]" in get_achievement_block
+    assert "vtable[0x14 / 4]" in set_stat_block
+    assert "vtable[0x1c / 4]" in set_achievement_block
+    assert "vtable[0x24 / 4]" in store_block
+    assert '"wins"' in sv_client
+    assert '"AW_MIDAIR"' in sv_client
+    assert 'QL_Steamworks_ServerSendP2PPacket( &session->steamId, SV_STEAM_STATS_P2P_HELLO, 5, SV_STEAM_STATS_P2P_SEND_RELIABLE, SV_STEAM_STATS_P2P_CHANNEL )' in create_session_block
+    assert "SV_SteamStats_RequestCurrentValues( session );" in create_session_block
+    assert "SV_SteamStats_FlushPendingValues( session );" in remove_session_block
+    assert "SV_SteamStats_RequestCurrentValues( session );" in requery_block
+    assert 'Cvar_VariableStringBuffer( "g_gameState", gameState, sizeof( gameState ) );' in should_unlock_block
+    assert '!Q_stricmp( gameState, "IN_PROGRESS" )' in should_unlock_block
+    assert 'Cvar_VariableIntegerValue( "g_training" ) != 0' in should_unlock_block
+    assert 'Cvar_VariableIntegerValue( "practiceflags" ) != 0' in should_unlock_block
+    assert "SV_SteamStats_CreatePlayerSession( cl );" in begin_auth_block
+    assert "SV_SteamStats_RemovePlayerSession( cl );" in end_auth_block
+    assert "SV_SteamStats_RequerySessions();" in connected_block
+    assert "session->pendingStatDelta[statIndex] += delta;" in add_stat_block
+    assert "session->statDirty[statIndex] = qtrue;" in add_stat_block
+    assert "SV_SteamStats_ShouldUnlockAchievement()" in unlock_block
+    assert "session->achievementDirty[achievementId] = qtrue;" in unlock_block
+    assert "SV_SteamStats_FlushPendingValues( session );" in unlock_block
+    assert "return session->achievementUnlocked[achievementId] ? qtrue : qfalse;" in has_block
+    assert "SV_SteamStats_AddFieldValue( clientNum, statIndex, delta );" in add_bridge_block
+    assert "SV_SteamStats_UnlockAchievement( clientNum, achievementId );" in unlock_bridge_block
+    assert "return SV_SteamStats_HasAchievement( clientNum, achievementId );" in has_bridge_block
+
+
+def test_qagame_connect_auth_bridge_reconstructs_engine_owned_pending_contract() -> None:
+    g_client = (REPO_ROOT / "src/code/game/g_client.c").read_text(encoding="utf-8")
+    auth_bridge_block = _extract_function_block(
+        g_client, "static char *G_RunPlatformAuthChecks( int clientNum, char *userinfo, qboolean firstTime, qboolean isBot, gclient_t *client )"
+    )
+
+    assert "G_BuildSteamAuthToken( userinfo, token, sizeof( token ) );" in auth_bridge_block
+    assert "QL_InitAuthCredential( &credential );" in auth_bridge_block
+    assert "QL_ParsePlatformToken( token, QL_AUTH_CREDENTIAL_STEAM, &credential )" in auth_bridge_block
+    assert "G_WritePlatformAuthUserinfo( clientNum, userinfo, G_GetAuthResultString( QL_AUTH_RESULT_PENDING )," in auth_bridge_block
+    assert "G_GetAuthOutcomeString( QL_AUTH_OUTCOME_RETRY )" in auth_bridge_block
+    assert "QL_RequestExternalAuth" not in auth_bridge_block
 
 
 def test_ui_and_cgame_native_import_slabs_leave_unrecovered_retail_gaps_null() -> None:
@@ -1651,12 +1858,13 @@ def test_server_spawn_and_shutdown_reconstruct_retail_steam_identity_and_heartbe
     sv_init = (REPO_ROOT / "src/code/server/sv_init.c").read_text(encoding="utf-8")
 
     masters_block = _extract_function_block(sv_init, "static qboolean SV_SteamServerHasConfiguredMasters( void )")
-    publish_block = _extract_function_block(sv_init, "static void SV_SteamServerPublishIdentity( void )")
+    publish_block = _extract_function_block(sv_init, "void SV_SteamServerPublishIdentity( void )")
     spawn_block = _extract_function_block(sv_init, "void SV_SpawnServer( char *server, qboolean killBots )")
     init_block = _extract_function_block(sv_init, "void SV_Init (void)")
     shutdown_block = _extract_function_block(sv_init, "void SV_Shutdown( char *finalmsg )")
 
     assert 'Cvar_Get ("sv_referencedSteamworks", "", CVAR_ROM );' in init_block
+    assert "SV_SteamServerInitCallbacks();" in init_block
     assert "if ( sv_master[i] && sv_master[i]->string[0] ) {" in masters_block
     assert "QL_Steamworks_ServerGetSteamID( &steamIdLow, &steamIdHigh )" in publish_block
     assert "referencedSteamworks = FS_ReferencedSteamworks();" in publish_block
@@ -1667,6 +1875,230 @@ def test_server_spawn_and_shutdown_reconstruct_retail_steam_identity_and_heartbe
     assert "QL_Steamworks_ServerEnableHeartbeats( SV_SteamServerHasConfiguredMasters() );" in spawn_block
     assert "QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );" in spawn_block
     assert "QL_Steamworks_ServerEnableHeartbeats( qfalse );" in shutdown_block
+    assert "QL_Steamworks_ServerShutdown();" in shutdown_block
+    assert shutdown_block.index("QL_Steamworks_ServerEnableHeartbeats( qfalse );") < shutdown_block.index("QL_Steamworks_ServerShutdown();")
+
+
+def test_server_zmq_runtime_reconstructs_retail_publication_and_rcon_owners() -> None:
+    server_h = (REPO_ROOT / "src/code/server/server.h").read_text(encoding="utf-8")
+    sv_init = (REPO_ROOT / "src/code/server/sv_init.c").read_text(encoding="utf-8")
+    sv_main = (REPO_ROOT / "src/code/server/sv_main.c").read_text(encoding="utf-8")
+    sv_game = (REPO_ROOT / "src/code/server/sv_game.c").read_text(encoding="utf-8")
+    sv_zmq = (REPO_ROOT / "src/code/server/sv_zmq.c").read_text(encoding="utf-8")
+    common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+
+    init_block = _extract_function_block(sv_init, "void SV_Init (void)")
+    spawn_block = _extract_function_block(sv_init, "void SV_SpawnServer( char *server, qboolean killBots )")
+    shutdown_block = _extract_function_block(sv_init, "void SV_Shutdown( char *finalmsg )")
+    frame_block = _extract_function_block(sv_main, "void SV_Frame( int msec )")
+    submit_block = _extract_function_block(sv_game, "static void SV_SubmitMatchReport( void *report )")
+    event_block = _extract_function_block(
+        sv_game, "static void SV_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload )"
+    )
+    register_block = _extract_function_block(sv_zmq, "void Zmq_RegisterCvarsAndInitRcon( void )")
+    update_passwords_block = _extract_function_block(sv_zmq, "void Zmq_UpdatePasswords( void )")
+    init_publisher_block = _extract_function_block(sv_zmq, "void Zmq_InitStatsPublisher( void )")
+    shutdown_runtime_block = _extract_function_block(sv_zmq, "void Zmq_ShutdownRuntime( void )")
+    broadcast_block = _extract_function_block(sv_zmq, "void Zmq_BroadcastRconOutput( const char *message )")
+    pump_block = _extract_function_block(sv_zmq, "void Zmq_PumpRcon( void )")
+    printf_block = _extract_function_block(common, "void QDECL Com_Printf( const char *fmt, ... )")
+    com_shutdown_block = _extract_function_block(common, "void Com_Shutdown (void)")
+
+    assert "void Zmq_RegisterCvarsAndInitRcon( void );" in server_h
+    assert "void Zmq_UpdatePasswords( void );" in server_h
+    assert "void Zmq_InitStatsPublisher( void );" in server_h
+    assert "void Zmq_ShutdownStatsPublisher( void );" in server_h
+    assert "void Zmq_ShutdownRuntime( void );" in server_h
+    assert "void Zmq_PumpRcon( void );" in server_h
+    assert "void Zmq_BroadcastRconOutput( const char *message );" in server_h
+    assert "void Zmq_SubmitMatchReport( const void *report );" in server_h
+    assert "void Zmq_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, const void *payload );" in server_h
+
+    assert 'Cvar_Get( "zmq_rcon_enable", "0", CVAR_ARCHIVE );' in register_block
+    assert 'Cvar_Get( "zmq_stats_enable", "0", CVAR_ARCHIVE );' in register_block
+    assert 'Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );' in register_block
+    assert 'Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );' in register_block
+    assert "idZMQ_EnsureRconSocket();" in register_block
+    assert 'Com_Printf( "zmq stats and rcon passwords updated\\n" );' in update_passwords_block
+    assert "idZMQ_EnsureStatsPublisher();" in init_publisher_block
+    assert 'idZMQ_Publish( "MATCH_REPORT", (const char *)report );' in sv_zmq
+    assert 'idZMQ_Publish( eventName && eventName[0] ? eventName : "UNKNOWN_EVENT", (const char *)payload );' in sv_zmq
+    assert 'Com_Printf( "zmq RCON socket: %s\\n", s_zmq.rconEndpoint );' in sv_zmq
+    assert 'Com_Printf( "zmq PUB socket: %s\\n", s_zmq.statsEndpoint );' in sv_zmq
+    assert 'Com_Printf( "zmq RCON client connected: %s\\n", peer->label );' in pump_block
+    assert 'Com_Printf( "zmq RCON command from %s: %s\\n", peer->label, command );' in pump_block
+    assert 'Com_Printf( "zmq RCON client disconnected: %s\\n", peer->label );' in broadcast_block
+    assert 'Com_sprintf( buffer, bufferSize, "{\\"TYPE\\":\\"%s\\",\\"DATA\\":%s}\\n", type, payload );' in sv_zmq
+    assert 'Com_sprintf( buffer, bufferSize, "{\\"TYPE\\":\\"%s\\",\\"DATA\\":null}\\n", type );' in sv_zmq
+    assert 's_zmq.statsTranscript = FS_FOpenFileWrite( QL_ZMQ_STATS_TRANSCRIPT );' in sv_zmq
+    assert "Zmq_RegisterCvarsAndInitRcon();" in init_block
+    assert "Zmq_InitStatsPublisher();" in spawn_block
+    assert spawn_block.index("QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );") < spawn_block.index("Zmq_InitStatsPublisher();")
+    assert "Zmq_ShutdownStatsPublisher();" in shutdown_block
+    assert shutdown_block.index("SV_ShutdownGameProgs();") < shutdown_block.index("Zmq_ShutdownStatsPublisher();")
+    assert "Zmq_UpdatePasswords();" in frame_block
+    assert "Zmq_PumpRcon();" in frame_block
+    assert frame_block.index("SV_SteamServerNetworkingFrame();") < frame_block.index("Zmq_UpdatePasswords();")
+    assert frame_block.index("Zmq_UpdatePasswords();") < frame_block.index("Zmq_PumpRcon();")
+    assert "Zmq_SubmitMatchReport( report );" in submit_block
+    assert "Zmq_ReportPlayerEvent( steamIdLow, steamIdHigh, clientStats, eventName, payload );" in event_block
+    assert "Zmq_BroadcastRconOutput( msg );" in printf_block
+    assert "Zmq_ShutdownRuntime();" in com_shutdown_block
+    assert "idZMQ_ClearRconPeers();" in shutdown_runtime_block
+    assert "idZMQ_UnloadLibrary();" in shutdown_runtime_block
+
+
+def test_server_rankings_policy_lane_stays_explicit_and_per_server() -> None:
+    server_h = (REPO_ROOT / "src/code/server/server.h").read_text(encoding="utf-8")
+    sv_init = (REPO_ROOT / "src/code/server/sv_init.c").read_text(encoding="utf-8")
+    sv_main = (REPO_ROOT / "src/code/server/sv_main.c").read_text(encoding="utf-8")
+    sv_rankings = (REPO_ROOT / "src/code/server/sv_rankings.c").read_text(encoding="utf-8")
+
+    init_block = _extract_function_block(sv_init, "void SV_Init (void)")
+    begin_block = _extract_function_block(sv_rankings, "void SV_RankBegin( char *gamekey )")
+    check_init_block = _extract_function_block(sv_rankings, "qboolean SV_RankCheckInit( void )")
+    publish_disabled_block = _extract_function_block(sv_rankings, "static void SV_RankPublishDisabledState( void )")
+    log_disabled_block = _extract_function_block(sv_rankings, "static void SV_RankLogDisabledState( void )")
+
+    assert "extern\tcvar_t\t*sv_enableRankings;" in server_h
+    assert "extern\tcvar_t\t*sv_rankingsActive;" in server_h
+    assert "extern\tcvar_t\t*sv_leagueName;" in server_h
+    assert "cvar_t\t*sv_enableRankings;" in sv_main
+    assert "cvar_t\t*sv_rankingsActive;" in sv_main
+    assert "cvar_t\t*sv_leagueName;" in sv_main
+    assert 'sv_enableRankings = Cvar_Get ("sv_enableRankings", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );' in init_block
+    assert 'sv_rankingsActive = Cvar_Get ("sv_rankingsActive", "0", CVAR_SERVERINFO );' in init_block
+    assert 'sv_leagueName = Cvar_Get ("sv_leagueName", "", CVAR_ARCHIVE );' in init_block
+
+    assert "static qboolean\ts_rankings_stub_announced = qfalse;" in sv_rankings
+    assert "static int\t\ts_rankings_stub_server_id = -1;" in sv_rankings
+    assert 'Com_Printf( "Rankings disabled by build policy (QL_ENABLE_RANKINGS=0); exposing retained compatibility surface only.\\n" );' in log_disabled_block
+    assert 'Cvar_Set( "sv_rankingsActive", "0" );' in publish_disabled_block
+    assert "SV_RankLogDisabledState();" in begin_block
+    assert "if ( sv_enableRankings && sv_enableRankings->integer != 0 ) {" in begin_block
+    assert 'Com_Printf( "Rankings requested but build disabled (QL_ENABLE_RANKINGS=0); forcing sv_enableRankings back to 0.\\n" );' in begin_block
+    assert 'Cvar_Set( "sv_enableRankings", "0" );' in begin_block
+    assert "SV_RankPublishDisabledState();" in begin_block
+    assert "s_rankings_stub_server_id = sv.serverId;" in begin_block
+    assert "return s_rankings_stub_server_id == sv.serverId ? qtrue : qfalse;" in check_init_block
+
+
+def test_server_control_plane_cvars_restore_retail_runtime_owners() -> None:
+	server_h = (REPO_ROOT / "src/code/server/server.h").read_text(encoding="utf-8")
+	qcommon = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+	sv_init = (REPO_ROOT / "src/code/server/sv_init.c").read_text(encoding="utf-8")
+	sv_main = (REPO_ROOT / "src/code/server/sv_main.c").read_text(encoding="utf-8")
+	common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	sv_game = (REPO_ROOT / "src/code/server/sv_game.c").read_text(encoding="utf-8")
+	cm_trace = (REPO_ROOT / "src/code/qcommon/cm_trace.c").read_text(encoding="utf-8")
+	ui_gameinfo = (REPO_ROOT / "src/code/ui/ui_gameinfo.c").read_text(encoding="utf-8")
+
+	init_block = _extract_function_block(sv_init, "void SV_Init (void)")
+	clear_idle_block = _extract_function_block(sv_main, "void SV_ClearIdleServerExit( void )")
+	should_error_block = _extract_function_block(sv_main, "qboolean SV_ShouldErrorExit( errorParm_t code )")
+	check_idle_block = _extract_function_block(sv_main, "qboolean SV_CheckIdleServerExit( int currentTime )")
+	shutdown_game_block = _extract_function_block(sv_game, "void SV_ShutdownGameProgs( void )")
+	entity_string_block = _extract_function_block(sv_game, "static char *SV_GetGameEntityString( void )")
+	init_game_vm_block = _extract_function_block(sv_game, "static void SV_InitGameVM( qboolean restart )")
+	error_block = _extract_function_block(common, "void QDECL Com_Error( int code, const char *fmt, ... )")
+	frame_block = _extract_function_block(common, "void Com_Frame( void )")
+	cylinder_block = _extract_function_block(
+		cm_trace, "void CM_TraceThroughVerticalCylinder( traceWork_t *tw, vec3_t origin, float radius, float halfheight, vec3_t start, vec3_t end)"
+	)
+
+	assert "extern\tcvar_t\t*sv_mapPoolFile;" in server_h
+	assert "extern\tcvar_t\t*sv_includeCurrentMapInVote;" in server_h
+	assert "extern\tcvar_t\t*sv_gtid;" in server_h
+	assert "extern\tcvar_t\t*sv_idleRestart;" in server_h
+	assert "extern\tcvar_t\t*sv_idleExit;" in server_h
+	assert "extern\tcvar_t\t*sv_errorExit;" in server_h
+	assert "extern\tcvar_t\t*sv_quitOnEmpty;" in server_h
+	assert "extern\tcvar_t\t*sv_altEntDir;" in server_h
+	assert "extern\tcvar_t\t*sv_dumpEntities;" in server_h
+	assert "extern\tcvar_t\t*sv_cylinderScale;" in server_h
+	assert "qboolean SV_ShouldErrorExit( errorParm_t code );" in server_h
+	assert "qboolean SV_CheckIdleServerExit( int currentTime );" in server_h
+	assert "qboolean SV_ShouldErrorExit( errorParm_t code );" in qcommon
+	assert "qboolean SV_CheckIdleServerExit( int currentTime );" in qcommon
+
+	assert 'sv_mapPoolFile = Cvar_Get ("sv_mapPoolFile", "mappool.txt", CVAR_ARCHIVE );' in init_block
+	assert 'sv_includeCurrentMapInVote = Cvar_Get ("sv_includeCurrentMapInVote", "0", CVAR_TEMP );' in init_block
+	assert 'sv_gtid = Cvar_Get ("sv_gtid", "", CVAR_SERVERINFO | CVAR_ROM );' in init_block
+	assert 'sv_idleRestart = Cvar_Get ("sv_idleRestart", "1", 0 );' in init_block
+	assert 'sv_idleExit = Cvar_Get ("sv_idleExit", "120", 0 );' in init_block
+	assert 'sv_errorExit = Cvar_Get ("sv_errorExit", "1", 0 );' in init_block
+	assert 'sv_quitOnEmpty = Cvar_Get ("sv_quitOnEmpty", "0", 0 );' in init_block
+	assert 'sv_altEntDir = Cvar_Get ("sv_altEntDir", "", 0 );' in init_block
+	assert 'sv_dumpEntities = Cvar_Get ("sv_dumpEntities", "0", 0 );' in init_block
+	assert 'sv_cylinderScale = Cvar_Get ("sv_cylinderScale", "1.1f", 0 );' in init_block
+	assert 'static const char *fileCvars[] = { "ui_mapPoolFile", "sv_mapPoolFile", NULL };' in ui_gameinfo
+
+	assert "s_svIdleExitDeadline = 0;" in clear_idle_block
+	assert "if ( code != ERR_DROP && code != ERR_DISCONNECT ) {" in should_error_block
+	assert "if ( !sv_errorExit ) {" in should_error_block
+	assert 'Com_Printf( "sv_errorExit: configured to shut down on ERR_DROP or ERR_DISCONNECT\\n" );' in should_error_block
+	assert "sv_errorExit->integer == 2" in should_error_block
+	assert "( sv_errorExit->integer == 1 && com_sv_running && com_sv_running->integer )" in should_error_block
+	assert "s_svIdleExitDeadline = currentTime + sv_idleExit->integer * 1000;" in check_idle_block
+	assert "SV_ClearIdleServerExit();" in check_idle_block
+	assert 'Com_Error( ERR_FATAL, "shutting down idle dedicated server after sv_idleExit (%d) seconds", sv_idleExit->integer );' in check_idle_block
+
+	assert "if ( SV_ShouldErrorExit( code ) ) {" in error_block
+	assert "code = ERR_FATAL;" in error_block
+	assert "if ( !com_sv_running->integer || ( sv_killserver && sv_killserver->integer ) ) {" in frame_block
+	assert "minMsec = 50;" in frame_block
+	assert "SV_CheckIdleServerExit( Sys_Milliseconds() );" in frame_block
+	assert "SV_ClearIdleServerExit();" in frame_block
+
+	assert "FS_FreeFile( s_svEntityStringOverride );" in shutdown_game_block
+	assert 'Com_sprintf( altEntPath, sizeof( altEntPath ), "%s/%s.ent", sv_altEntDir->string, mapName );' in entity_string_block
+	assert "FS_ReadFile( altEntPath, (void **)&s_svEntityStringOverride )" in entity_string_block
+	assert 'Com_sprintf( dumpPath, sizeof( dumpPath ), "ents/%s.ent", mapName );' in entity_string_block
+	assert 'FS_WriteFile( dumpPath, entityString, (int)strlen( entityString ) );' in entity_string_block
+	assert "sv.entityParsePoint = SV_GetGameEntityString();" in init_game_vm_block
+
+	assert 'radius *= Cvar_Get( "sv_cylinderScale", "1.1f", 0 )->value;' in cylinder_block
+
+
+def test_server_dedicated_build_lane_emits_qzeroded_and_defaults_dedicated_runtime() -> None:
+	qcommon = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+	common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	win_shared = (REPO_ROOT / "src/code/win32/win_shared.c").read_text(encoding="utf-8")
+	unix_shared = (REPO_ROOT / "src/code/unix/unix_shared.c").read_text(encoding="utf-8")
+	null_main = (REPO_ROOT / "src/code/null/null_main.c").read_text(encoding="utf-8")
+	build_script = (REPO_ROOT / ".vscode/build.ps1").read_text(encoding="utf-8")
+	runtime_probe = (REPO_ROOT / "tools/server/run_server_runtime_probe.ps1").read_text(encoding="utf-8")
+	build_windows = (REPO_ROOT / "docs/build/windows.md").read_text(encoding="utf-8")
+	windows_pipeline = (REPO_ROOT / "docs/windows-native-pipeline.md").read_text(encoding="utf-8")
+
+	name_gate_block = _extract_function_block(common, "static qboolean Com_ShouldDefaultDedicatedFromExecutable( void )")
+	init_block = _extract_function_block(common, "void Com_Init( char *commandLine )")
+
+	assert "Sys_ExecutableBaseName( void );" in qcommon
+	assert "char *Sys_ExecutableBaseName( void )" in win_shared
+	assert "char *Sys_ExecutableBaseName( void )" in unix_shared
+	assert "char *Sys_ExecutableBaseName( void )" in null_main
+
+	assert '!Q_stricmp( executableName, "qzeroded" )' in name_gate_block
+	assert '!Q_stricmp( executableName, "qzeroded.exe" )' in name_gate_block
+	assert '!Q_stricmp( executableName, "qzeroded.x86" )' in name_gate_block
+	assert 'Cvar_Get( "dedicated", "2", 0 );' in init_block
+	assert init_block.index("Com_ShouldDefaultDedicatedFromExecutable()") < init_block.index("Com_StartupVariable( NULL );")
+
+	assert "$dedicatedExe = Join-Path $runtimeBinDir 'qzeroded.exe'" in build_script
+	assert "Copy-Item -Path $clientExe -Destination $dedicatedExe -Force" in build_script
+	assert "@{ Source = 'quakelive_steam.pdb'; Destination = 'qzeroded.pdb' }" in build_script
+	assert "@{ Source = 'quakelive_steam.map'; Destination = 'qzeroded.map' }" in build_script
+	assert 'Write-Host "Emitted dedicated server alias: $dedicatedExe"' in build_script
+
+	assert "Get-Process -Name quakelive_steam,qzeroded -ErrorAction SilentlyContinue | Stop-Process -Force" in runtime_probe
+	assert "$dedicatedExe = Join-Path $script:QlHome 'qzeroded.exe'" in runtime_probe
+	assert "$script:Exe = if ( Test-Path -LiteralPath $dedicatedExe ) { $dedicatedExe } else { $launcherExe }" in runtime_probe
+
+	assert "`qzeroded`" in build_windows
+	assert "`qzeroded.x86`" in build_windows
+	assert "`qzeroded.exe`" in build_windows
+	assert "`qzeroded.exe`" in windows_pipeline
 
 
 def test_filesystem_referenced_steamworks_helper_reconstructs_retail_publication_list() -> None:

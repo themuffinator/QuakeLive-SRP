@@ -295,6 +295,32 @@ char *Sys_GetCurrentUser( void )
 	return s_userName;
 }
 
+/*
+================
+Sys_ExecutableBaseName
+================
+*/
+char *Sys_ExecutableBaseName( void )
+{
+	static char exeName[MAX_OSPATH];
+	DWORD exePathLength;
+	char *separator;
+
+	exePathLength = GetModuleFileNameA( NULL, exeName, sizeof( exeName ) );
+	if ( exePathLength == 0 || exePathLength >= sizeof( exeName ) ) {
+		exeName[0] = '\0';
+		return exeName;
+	}
+
+	exeName[exePathLength] = '\0';
+	separator = strrchr( exeName, '\\' );
+	if ( !separator ) {
+		separator = strrchr( exeName, '/' );
+	}
+
+	return separator ? separator + 1 : exeName;
+}
+
 char	*Sys_DefaultHomePath(void) {
 	return NULL;
 }

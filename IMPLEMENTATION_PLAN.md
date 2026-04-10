@@ -8,6 +8,290 @@ The long-term parity target is that this engine should, in theory, be able to re
 
 ## Recently closed
 
+### Task 109: Remaining engine host/support EH-P1 boundary formalisation closure [COMPLETED]
+Priority: High
+Files: `tests/test_engine_host_support_full_parity_gate.py`, `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`, `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/reverse-engineering/engine-host-support-validation-and-runtime-evidence-2026-04-10.md`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 100% -> after 100%** (`EH-P1` complete; strict-retail scope classification formalised)
+
+Completed work:
+
+1. Extended `tests/test_engine_host_support_full_parity_gate.py` so the host/support artifact now publishes explicit `scope_boundary`, `boundary_formalisation`, and `classification_summary` metadata instead of leaving the strict-retail versus compatibility-only split implicit.
+2. Refreshed `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json` so the final machine-readable host/support report now records the audited scope boundary, the compatibility-only gap IDs, and the strict-retail-scored gap IDs alongside the existing tranche results.
+3. Reconciled the dedicated host/support audit, validation note, build/windows-native pipeline notes, and top-level ledgers so `EH-P1` is now recorded as its own completed closure task rather than only as a side effect of `EH-P5` and `EH-P6`.
+
+### Task 108: Remaining engine host/support EH-P5 compatibility-boundary closure [COMPLETED]
+Priority: High
+Files: `tests/test_platform_services.py`, `tests/test_engine_host_support_full_parity_gate.py`, `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`, `docs/platform/authentication.md`, `docs/platform/toolchain-matrix.md`, `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/reverse-engineering/engine-host-support-validation-and-runtime-evidence-2026-04-10.md`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 95% -> after 100%** (`EH-P5` complete; `EH-G03` and `EH-G05` closed)
+
+Completed work:
+
+1. Extended `tests/test_platform_services.py` so the platform-service proof lane now regression-tests the runtime `QL_DISABLE_EXTERNAL_ECOSYSTEMS` policy path in addition to the existing build-matrix and hybrid-fallback coverage.
+2. Reclassified `EH-G03` and `EH-G05` inside `tests/test_engine_host_support_full_parity_gate.py`, so the final host/support artifact now treats the platform-service abstractions plus the Unix/null trees as closed documented compatibility-only exclusions instead of leaving the overall register `blocked`.
+3. Added explicit compatibility-boundary notes to `docs/platform/authentication.md` and `docs/platform/toolchain-matrix.md`, documenting that open/hybrid service backends stay default-disabled or policy-gated and that Unix/null remain outside the strict-retail Windows score.
+4. Refreshed the dedicated host/support audit, validation note, build/windows-native pipeline notes, and top-level ledgers so the current worktree now records `EH-P5` complete, `EH-G03` and `EH-G05` closed, and the strict remaining-engine host/support estimate as **100%**.
+
+### Task 107: Remaining engine host/support EH-P4 botlib internal proof closure [COMPLETED]
+Priority: High
+Files: `tests/botlib_internal_harness.c`, `tests/test_botlib_internal_parity.py`, `tests/test_engine_host_support_full_parity_gate.py`, `artifacts/engine_host_support_validation/logs/engine_host_support_runtime_evidence_20260410.json`, `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`, `.github/workflows/engine-host-support-validation.yml`, `docs/reverse-engineering/botlib-internal-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/reverse-engineering/engine-host-support-validation-and-runtime-evidence-2026-04-10.md`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 92% -> after 95%** (`EH-P4` complete; `EH-G04` closed)
+
+Completed work:
+
+1. Published `docs/reverse-engineering/botlib-internal-parity-audit-and-implementation-plan-2026-04-10.md`, which separates the already-closed `sv_bot.c` bridge from the internal botlib helper tree, anchors representative AAS/goal-state owners back to the committed retail corpus, and explicitly bounds inherited Quake III carries versus Quake Live-specific deltas.
+2. Added `tests/botlib_internal_harness.c` plus `tests/test_botlib_internal_parity.py`, giving the remaining-engine host/support lane deterministic native proof for representative AAS presence bounds, projection math, reachability jump/fall formulas, team travel-flag translation, and goal-state stack or avoid-timer lifecycle behavior.
+3. Refreshed `tests/test_engine_host_support_full_parity_gate.py`, the tracked host/support artifacts, and `.github/workflows/engine-host-support-validation.yml` so `EH-G04` is now machine-readable as closed while the deliberate compatibility-only tranches remain `blocked`.
+4. Reconciled the remaining-engine host/support audit, validation note, top-level ledgers, and Windows/build pipeline notes so the current worktree now records `EH-P4` complete, `EH-G04` closed, and the strict remaining-engine host/support estimate as **95%**.
+
+### Task 106: Remaining engine host/support EH-P6 parity gate and evidence closure [COMPLETED]
+Priority: High
+Files: `tests/test_input_translation.py`, `tests/test_engine_host_support_full_parity_gate.py`, `.github/workflows/engine-host-support-validation.yml`, `artifacts/engine_host_support_validation/logs/engine_host_support_runtime_evidence_20260410.json`, `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`, `docs/reverse-engineering/engine-host-support-validation-and-runtime-evidence-2026-04-10.md`, `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 89% -> after 92%** (`EH-P6` complete; `EH-G06` closed)
+
+Completed work:
+
+1. Added `tests/test_engine_host_support_full_parity_gate.py`, which now writes `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json` as the machine-readable gap-register artifact across `EH-G01`..`EH-G06` while honestly reporting the still-open compatibility and botlib tranches as `blocked`.
+2. Made `tests/test_input_translation.py` compiler-agnostic by reusing `tests/compiler_support.py` for compiler discovery, shared-library naming, and shared-harness compilation instead of hardcoding `gcc`.
+3. Added the tracked evidence bundle at `artifacts/engine_host_support_validation/logs/engine_host_support_runtime_evidence_20260410.json`, which binds the closed Win32 clipboard, raw-input, loading-window, and input-translation lanes to focused tests without requiring a fresh live runtime probe.
+4. Added `.github/workflows/engine-host-support-validation.yml` and the dedicated validation note so the focused host/support regression lane is now CI-visible alongside the other subsystem gates.
+5. Refreshed the remaining-engine host/support audit, the top-level ledgers, and the build/windows-native pipeline notes so the repo now records `EH-P6` complete, `EH-G06` closed, the strict remaining-engine host/support estimate as **92%**, and the next active closure work as `EH-P4`, `EH-P5`, and `EH-P1`.
+
+### Task 105: Remaining engine host/support EH-P3 raw-input host closure [COMPLETED]
+Priority: High
+Files: `src/code/win32/win_input.c`, `src/code/win32/win_wndproc.c`, `src/code/win32/win_rawinput_shared.h`, `src/code/win32/win_local.h`, `tests/win_raw_input_harness.c`, `tests/test_win32_raw_input_parity.py`, `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 83% -> after 89%** (`EH-P3` complete; `EH-G02` closed)
+
+Completed work:
+
+1. Reconstructed the retail-shaped Win32 raw-input lane so `win_input.c` now registers/unregisters raw input, exposes the retained `in_mouseMode`, `in_debugMouse`, `in_nograb`, and `in_raw_useWindowHandle` cvars, drains a bounded raw-sample queue, preserves `ListInputDevices`, and keeps DirectInput / classic Win32 only as fallback lanes.
+2. Wired `win_wndproc.c` to dispatch `WM_INPUT` into `IN_RawInputEvent()` and suppress duplicate legacy button and wheel events while raw input owns the active capture path, while still preserving the released/non-raw legacy message flow for compatibility scenarios.
+3. Added `tests/win_raw_input_harness.c` plus `tests/test_win32_raw_input_parity.py`, giving the remaining-engine host/support lane focused native coverage for raw-input registration semantics, synthetic sample extraction, button/wheel translation, retained source ownership in `win_input.c`, and `WM_INPUT` dispatch in `win_wndproc.c`.
+4. Refreshed the remaining-engine host/support audit and top-level ledgers so the scope now records `EH-P3` complete, `EH-G02` closed, the recommended next step as `EH-P6`, and the strict remaining-engine host/support estimate as **89%**.
+
+### Task 104: Qcommon QC-P6 runtime-evidence and ledger closure [COMPLETED]
+Priority: High
+Files: `tools/qcommon/run_qcommon_runtime_probe.ps1`, `tests/test_qcommon_full_parity_gate.py`, `artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json`, `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`, `.github/workflows/qcommon-validation.yml`, `docs/reverse-engineering/qcommon-validation-and-runtime-evidence-2026-04-10.md`, `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/reverse-engineering/quakelive_steam_mapping_round_108.md`, `docs/reverse-engineering/quakelive_steam_mapping_round_109.md`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 98% -> after 100%** (`QC-P6` complete; `QC-G05` closed)
+
+Completed work:
+
+1. Reconciled the stale `writeClientConfig` owner caveat in mapping rounds `108` and `109`, preserving the historical “unnamed in that round” context while explicitly marking the old missing-owner wording as stale now that `Com_WriteClientConfig_f()` exists in writable source and is guarded by `tests/test_client_config_parity.py`.
+2. Added `tools/qcommon/run_qcommon_runtime_probe.ps1` plus the tracked `artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json` bundle so qcommon now archives retail config bootstrap, the active search-path roots, writable-homepath DLL loading for `ui` / `qagame` / `cgame`, and service-disabled launcher/resource policy markers in one machine-readable runtime artifact.
+3. Refreshed the qcommon parity gate, workflow lane, dedicated validation note, pipeline docs, and top-level ledgers so strict `qcommon` is now tracked at **100%**, `QC-P6` is recorded complete, and no open qcommon gap remains in the audited register.
+
+### Task 103: Remaining engine host/support EH-P2 Win32 Unicode clipboard closure [COMPLETED]
+Priority: High
+Files: `src/code/win32/win_main.c`, `src/code/win32/win_clipboard_shared.h`, `tests/win_clipboard_harness.c`, `tests/test_win32_clipboard_parity.py`, `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 79% -> after 83%** (`EH-P2` complete; `EH-G01` closed)
+
+Completed work:
+
+1. Reconstructed the Win32 clipboard host path so `Sys_GetClipboardData()` now prefers `CF_UNICODETEXT`, converts clipboard UTF-16 text to UTF-8 via retained `WideCharToMultiByte`-backed helpers, trims control characters in one shared helper, and only falls back to `CF_TEXT` when Unicode clipboard data is unavailable.
+2. Preserved the existing caller surface for `Field_Paste`, the UI VM bridge, and the browser clipboard-return path by keeping them routed through `Sys_GetClipboardData()`, which now returns the retail-shaped Unicode-first UTF-8 result instead of the old ANSI-only compatibility path.
+3. Added `tests/win_clipboard_harness.c` plus `tests/test_win32_clipboard_parity.py`, giving the remaining-engine host/support lane focused native coverage for UTF-16 sizing and conversion, control-character trimming, Unicode-first source ownership in `win_main.c`, and preserved consumer routing.
+4. Refreshed the remaining-engine host/support audit and top-level ledgers so the scope now records `EH-P2` complete, `EH-G01` closed, the recommended next step as `EH-P3`, and the strict remaining-engine host/support estimate as **83%**.
+
+### Task 100: Server SV-P7 parity gate and dedicated runtime-evidence closure [COMPLETED]
+Priority: High
+Files: `tests/test_server_full_parity_gate.py`, `tools/server/run_server_runtime_probe.ps1`, `.github/workflows/server-validation.yml`, `artifacts/server_validation/logs/server_runtime_evidence_20260410.json`, `artifacts/server_validation/logs/server_full_parity_gate.json`, `docs/reverse-engineering/server-validation-and-runtime-evidence-2026-04-10.md`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 97% -> after 100%** (`SV-P7` complete; `SV-G06` closed)
+
+Completed work:
+
+1. Added `tests/test_server_full_parity_gate.py`, which now writes `artifacts/server_validation/logs/server_full_parity_gate.json` as the machine-readable status artifact across the full audited server gap register (`SV-G01`..`SV-G06`).
+2. Added `tools/server/run_server_runtime_probe.ps1`, which now runs a low-cost dedicated/headless server pass, captures startup, local `getstatus` metadata publication, local `rcon` control, optional Steam or ZMQ runtime markers, clean shutdown, and archives `artifacts/server_validation/logs/server_runtime_evidence_20260410.json`.
+3. Added `.github/workflows/server-validation.yml` and refreshed the build or Windows-native pipeline notes plus the dedicated server validation note so the server closure lane is now documented and CI-visible alongside the renderer, client, qcommon, and module lanes.
+4. Re-ran the focused validation surface for the completed server register, refreshed the server-ledger docs, and closed the audited server register at `59 passed, 1 skipped` with the strict `server` estimate now recorded as **100%**.
+
+### Task 102: Qcommon QC-P5 fallback VM closure [COMPLETED]
+Priority: High
+Files: `tests/vm_fallback_harness.c`, `tests/test_qcommon_vm_fallback_parity.py`, `tests/test_qcommon_full_parity_gate.py`, `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`, `.github/workflows/qcommon-validation.yml`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `docs/reverse-engineering/qcommon-vm-fallback-ownership-2026-04-10.md`, `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 95% -> after 98%** (`QC-P5` complete; `QC-G03` closed)
+
+Completed work:
+
+1. Published `docs/reverse-engineering/qcommon-vm-fallback-ownership-2026-04-10.md`, which ties the fallback VM owner family back to the committed retail evidence in mapping rounds `63`, `84`, `99`, and `107`, keeps `vm.c` as the active Windows host-selection owner, and records `vm_x86.c` as a bounded compatibility carry instead of an open strict-retail gap.
+2. Added `tests/vm_fallback_harness.c` plus `tests/test_qcommon_vm_fallback_parity.py`, giving qcommon deterministic native proof for native-load failure fallback, `fs_restrict` compiled selection, missing-qvm hard failure, interpreted bytecode and syscall dispatch, restart fallback, and `VM_ArgPtr` or `VM_ExplicitArgPtr` boundary behavior.
+3. Refreshed the qcommon parity gate, workflow lane, Windows/build pipeline notes, and repo ledgers so strict `qcommon` is now tracked at **98%**, `QC-P5` is recorded complete, and the remaining open qcommon work is narrowed to `QC-P6`.
+
+### Task 99: Remaining engine host/support parity audit and closure-plan publication [COMPLETED]
+Priority: High
+Files: `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 79% -> after 79%** (evidence refresh; runtime behavior unchanged)
+
+Completed work:
+
+1. Re-audited the remaining engine-owned host/support surface outside `qcommon`, `server`, `client`, and `renderer` against the committed retail `quakelive_steam.exe` HLIL/Ghidra corpus, the helper-executable `awesomium_process.exe` reference note, the promoted alias ledger, and the current writable source in `src/common/platform`, `src/code/win32`, `src/code/botlib`, `src/code/unix`, and `src/code/null`.
+2. Published a dedicated remaining-engine host/support parity document that separates the already-strong Win32 bootstrap and Steamworks wrapper carries from the still-open narrow Win32 input/text deltas, deliberate compatibility abstractions, botlib internal-confidence work, and Unix/null portability lanes, and records the current strict estimate as **79%**.
+3. Broke the remaining closure work into six execution-ordered phases (`EH-P1`..`EH-P6`) covering strict-retail versus compatibility boundary formalisation, Unicode clipboard recovery, raw-input proof/closure, botlib internal audit, compatibility-lane containment, and a final machine-readable parity gate, then refreshed the top-level ledgers to surface that plan.
+
+### Task 100: Game-module parity audit refresh and gate-surface hardening [COMPLETED]
+Priority: High
+Files: `tests/test_ui_full_parity_gate.py`, `tests/test_game_module_retail_parity_gate.py`, `artifacts/module_validation/logs/retail_module_parity_gate.json`, `artifacts/ui_validation/logs/ui_full_parity_gate.json`, `docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 100% -> after 99.5%** (evidence correction; runtime behavior unchanged)
+
+Completed work:
+
+1. Re-audited the current worktree module layer against the committed retail `cgamex86.dll`, `qagamex86.dll`, and `uix86.dll` corpora plus the current parity tests, and published the authoritative refresh at `docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md`.
+2. Hardened the UI/module parity-gate tests so the current worktree now records the reopened validation-lane gaps deterministically instead of crashing or asserting a stale fully-green state: `artifacts/module_validation/logs/retail_module_parity_gate.json` now fails only `GMR-G01`, and `artifacts/ui_validation/logs/ui_full_parity_gate.json` now fails only `UI-G06`.
+3. Refreshed the top-level audit ledger so the repo now distinguishes the historical `2026-04-09` module-closure milestone from the current-worktree state, where module source behavior remains strong but the absent `module-validation.yml` / `ui-validation.yml` workflow lanes reopen certification debt.
+
+### Task 101: Strict retail game-module combined certification-lane reclosure [COMPLETED]
+Priority: High
+Files: `.github/workflows/module-validation.yml`, `tests/test_game_module_retail_parity_gate.py`, `artifacts/module_validation/logs/retail_module_parity_gate.json`, `docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 99.5% -> after 99.8%** (`GMR-P6` complete; `GMR-G01` closed)
+
+Completed work:
+
+1. Restored `.github/workflows/module-validation.yml` as the combined strict-retail module workflow contract expected by `tests/test_game_module_retail_parity_gate.py`, keeping the tracked module gate, platform-service lane, and archived runtime-probe references visible to CI again.
+2. Re-promoted `tests/test_game_module_retail_parity_gate.py` back to a clean passing state for the current worktree and refreshed `artifacts/module_validation/logs/retail_module_parity_gate.json` so the combined module artifact now reports `overall_status: pass`.
+3. Refreshed the `2026-04-10` module audit plus the top-level ledgers so the current-worktree story now records `GMR-P6` complete, `GMR-G01` closed, and the remaining open module certification debt narrowed to the UI-specific lane.
+
+### Task 102: Strict retail game-module UI certification-lane reclosure [COMPLETED]
+Priority: High
+Files: `.github/workflows/ui-validation.yml`, `artifacts/ui_validation/logs/ui_full_parity_gate.json`, `docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 99.8% -> after 100%** (`GMR-P7` complete; `GMR-G02` closed)
+
+Completed work:
+
+1. Restored `.github/workflows/ui-validation.yml` as the dedicated UI validation workflow expected by `tests/test_ui_full_parity_gate.py`, and made the workflow enforce the gate via `UI_FULL_PARITY_GATE_ENFORCE=1`.
+2. Re-ran the UI parity gate in both artifact-refresh and enforced release-mode forms, plus the workflow-matching platform-service selector and the wider UI/fs/vote regression surface, refreshing `artifacts/ui_validation/logs/ui_full_parity_gate.json` to `overall_status: pass` with `UI-G06` closed.
+3. Updated the dedicated module audit plus the top-level ledgers so `GMR-P7` and the restored UI lane are recorded cleanly, setting up the final `GMR-P8` reconciliation pass.
+
+### Task 104: Strict retail game-module final ledger and runtime-evidence reconciliation [COMPLETED]
+Priority: High
+Files: `tests/test_game_module_retail_parity_gate.py`, `artifacts/module_validation/logs/retail_module_parity_gate.json`, `docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md`, `docs/build-pipeline.md`, `docs/architecture/native-pipeline.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 100% -> after 100%** (`GMR-P8` complete; closure story reconciled, runtime behavior unchanged)
+
+Completed work:
+
+1. Reconciled the current-worktree module audit, the top-level ledgers, and the supporting pipeline notes so they all now describe the same post-`GMR-P6`/`GMR-P7` `100%` strict-retail module closure state.
+2. Tightened `tests/test_game_module_retail_parity_gate.py` so the module gate now validates the current `2026-04-10` audit and the supporting pipeline notes in addition to the historical `2026-04-09` closure note, then refreshed `artifacts/module_validation/logs/retail_module_parity_gate.json`.
+3. Confirmed the archived retail runtime probe remains sufficient and did not need a fresh rerun because the workflow topology and host-side validation contract were unchanged during this final reconciliation pass.
+
+### Task 98: Server SV-P6 control-plane cvar and policy closure [COMPLETED]
+Priority: High
+Files: `src/code/server/server.h`, `src/code/server/sv_init.c`, `src/code/server/sv_main.c`, `src/code/server/sv_game.c`, `src/code/qcommon/qcommon.h`, `src/code/qcommon/common.c`, `src/code/qcommon/cm_trace.c`, `tests/test_platform_services.py`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 93% -> after 97%** (`SV-P6` complete; `SV-G05` closed)
+
+Completed work:
+
+1. Registered the missing retail server-only control-plane cvars in `SV_Init()`: `sv_mapPoolFile`, `sv_includeCurrentMapInVote`, `sv_gtid`, `sv_idleRestart`, `sv_idleExit`, `sv_errorExit`, `sv_quitOnEmpty`, `sv_altEntDir`, `sv_dumpEntities`, and `sv_cylinderScale`.
+2. Reconstructed the retained runtime owners that the committed corpus proves: `sv_errorExit` and `sv_idleExit` now route through server helpers called by `common.c`, `sv_altEntDir` and `sv_dumpEntities` now live at the `qagame` init boundary in `sv_game.c`, and `sv_cylinderScale` now applies inside `CM_TraceThroughVerticalCylinder()`.
+3. Kept the lower-confidence retail cvars (`sv_idleRestart`, `sv_quitOnEmpty`, `sv_includeCurrentMapInVote`, `sv_gtid`) as explicit compatibility/publication surfaces with the mapped defaults and flags instead of inventing unsupported runtime behavior.
+4. Extended `tests/test_platform_services.py` and refreshed the server ledgers so the focused parity suite now reports `55 passed`, the strict `server` estimate is **97%**, and `SV-G05` is tracked as closed.
+
+### Task 97: Qcommon QC-P4 collision leaf ownership closure [COMPLETED]
+Priority: High
+Files: `tests/cm_collision_harness.c`, `tests/test_qcommon_collision_leaf_parity.py`, `tests/test_qcommon_full_parity_gate.py`, `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`, `docs/reverse-engineering/qcommon-collision-leaf-ownership-2026-04-10.md`, `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 92% -> after 95%** (`QC-P4` complete; `QC-G02` closed)
+
+Completed work:
+
+1. Published `docs/reverse-engineering/qcommon-collision-leaf-ownership-2026-04-10.md`, which bounds the retained `cm_patch.c` / `cm_polylib.c` helper family under the already-mapped public `CM_*` ABI and records the honest Win32 host seam where `CG_CM_MARKFRAGMENTS` still dispatches through `re.MarkFragments`.
+2. Added `tests/cm_collision_harness.c` plus `tests/test_qcommon_collision_leaf_parity.py`, giving qcommon deterministic native probes for curved-patch generation, flat patch trace fractions, flat patch overlap checks, representative mark-fragment-style winding clipping, and direct `CM_CheckFacetPlane` behavior.
+3. Refreshed the qcommon parity gate artifact and the repo ledgers so strict `qcommon` is now tracked at **95%**, `QC-P4` is recorded complete, and the remaining open qcommon work is narrowed to `QC-P5` and `QC-P6`.
+
+### Task 96: Server SV-P5 rankings-path compatibility closure [COMPLETED]
+Priority: High
+Files: `src/code/server/server.h`, `src/code/server/sv_init.c`, `src/code/server/sv_main.c`, `src/code/server/sv_rankings.c`, `tests/test_platform_services.py`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 90% -> after 93%** (`SV-P5` complete; `SV-G04` closed as a documented default-disabled divergence)
+
+Completed work:
+
+1. Confirmed the retained rankings implementation is still present in `sv_rankings.c`, but the current repo does not yet have a documented open replacement/backend lane for the `GRank*` service family, so the live rankings runtime remains default-disabled under repo policy.
+2. Replaced the old silent stub story with an explicit compatibility surface by registering `sv_enableRankings`, `sv_rankingsActive`, and `sv_leagueName` in `SV_Init()`, adding the corresponding server globals, and turning the disabled rankings owner into a per-server init contract keyed by `sv.serverId`.
+3. Tightened the disabled owner so it logs the policy gate once, forces `sv_enableRankings` back to `0` when requested, keeps `sv_rankingsActive` pinned to `0`, and prevents qagame from reissuing `trap_RankBegin()` every frame.
+4. Extended `tests/test_platform_services.py` and refreshed the server ledgers so the focused parity suite now reports `54 passed`, the strict `server` estimate is **93%**, and `SV-G04` is tracked as a closed documented divergence instead of an open runtime gap.
+
+### Task 95: Server SV-P4 Steam stat and achievement ownership [COMPLETED]
+Priority: High
+Files: `src/common/platform/platform_steamworks.h`, `src/common/platform/platform_steamworks.c`, `src/code/server/server.h`, `src/code/server/sv_client.c`, `src/code/server/sv_game.c`, `tests/test_platform_services.py`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 86% -> after 90%** (`SV-P4` complete; `SV-G03` closed)
+
+Completed work:
+
+1. Added the retained `SteamGameServerStats` wrapper band in `platform_steamworks.[ch]`, covering request/get/set/store ownership for server-side stat values and achievement bits.
+2. Reconstructed a retained per-client Steam stats session owner in `sv_client.c` that now follows the Steam GameServer auth lifetime: create on auth begin success, remove and flush on auth end/drop, requery on Steam reconnect, and mirror the retail `hello` P2P bootstrap.
+3. Replaced the qagame-facing `SV_ClientAddSteamStat()`, `SV_ClientUnlockSteamAchievement()`, and `SV_ClientHasSteamAchievement()` stubs in `sv_game.c` with forwards into that retained owner, tightened `tests/test_platform_services.py`, and refreshed the server ledgers so the focused parity suite now reports `53 passed` and the strict `server` estimate is **90%**.
+
+### Task 94: Qcommon QC-P3 retail homepath closure [COMPLETED]
+Priority: High
+Files: `src/code/qcommon/files.c`, `tests/fs_searchpath_harness.c`, `tests/test_fs_search_paths.py`, `tests/test_qcommon_full_parity_gate.py`, `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`, `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 90% -> after 92%** (`QC-P3` complete; `QC-G01` closed)
+
+Completed work:
+
+1. Re-checked retail `FS_Startup()` against the committed alias ledger and HLIL corpus, confirming that Win32 homepath selection is Steam-ID-backed in retail rather than driven by a local directory scan.
+2. Replaced the source-owned `FS_DetectSteamHomePath()` heuristic in `src/code/qcommon/files.c` with `FS_ResolveHomePath()`, which now mirrors the retail Win32 `fs_basepath` or `fs_basepath/<steamid>` contract via `QL_Steamworks_GetUserSteamID()` while keeping the non-Windows compatibility path explicit.
+3. Extended the filesystem harness and parity gate so qcommon now has focused regression coverage for the retail-shaped homepath default, Steam-ID suffix, mapped `fs_webpath` fallback reads, and screenshot or homepath fallback routing, then refreshed the qcommon report and top-level ledgers to record `QC-P3` complete and `QC-G01` closed.
+
+### Task 93: Server SV-P3 `idZMQ` runtime and report/event publication [COMPLETED]
+Priority: High
+Files: `src/code/server/server.h`, `src/code/server/sv_game.c`, `src/code/server/sv_init.c`, `src/code/server/sv_main.c`, `src/code/server/sv_zmq.c`, `src/code/qcommon/common.c`, `src/code/quakelive_steam.vcxproj`, `src/code/quakelive_steam.vcxproj.filters`, `src/code/unix/Makefile`, `tests/test_platform_services.py`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 81% -> after 86%** (`SV-P3` complete; `SV-G02` closed, `SV-G03` narrowed)
+
+Completed work:
+
+1. Added the retained server-owned `idZMQ` runtime in `sv_zmq.c`, including the mapped `zmq_*` cvar surface, dynamic `libzmq` loading, retained RCON peer/runtime ownership, typed stats publication helpers, and a local transcript fallback that keeps the publication lane source-backed when live transport is unavailable.
+2. Wired the retail lifecycle seams back into the host by registering the runtime in `SV_Init()`, initializing the stats publisher in `SV_SpawnServer()`, refreshing passwords and pumping RCON in `SV_Frame()`, broadcasting console output from `Com_Printf()`, closing the stats publisher in `SV_Shutdown()`, and tearing the broader runtime down in `Com_Shutdown()`.
+3. Replaced the qagame-facing `SV_SubmitMatchReport()` and `SV_ReportPlayerEvent()` no-op stubs with the retained server-owned publication path, tightened `tests/test_platform_services.py` around the full ZMQ/report seam, and refreshed the server ledgers so the focused parity suite now reports `52 passed` and the strict `server` estimate is **86%**.
+
+### Task 92: Qcommon QC-P2 parity gate and Windows-friendly harness closure [COMPLETED]
+Priority: High
+Files: `tests/compiler_support.py`, `tests/fs_searchpath_harness.c`, `tests/test_cvar_alias_console.py`, `tests/test_fs_search_paths.py`, `tests/test_playerstate_replication.py`, `tests/test_qcommon_full_parity_gate.py`, `.github/workflows/qcommon-validation.yml`, `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 87% -> after 90%** (`QC-P2` complete; `QC-G04` closed)
+
+Completed work:
+
+1. Added the dedicated qcommon parity gate at `tests/test_qcommon_full_parity_gate.py`, committed the machine-readable `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json` artifact, and wired the new `.github/workflows/qcommon-validation.yml` CI lane so qcommon closure state is visible in one report.
+2. Added `tests/compiler_support.py` and converted the qcommon-facing native probes to use it, making the legacy cvar alias console probe, filesystem search-path harness, and playerstate replication transport test fully runnable on the default Windows host.
+3. Refreshed the qcommon audit, the build/pipeline docs, and the top-level ledgers so the repo now records the strict `qcommon` estimate as **90%**, `QC-G04` as closed, and the remaining open execution order as `QC-P3`..`QC-P6`.
+
+### Task 91: Server SV-P2 Steam GameServer callback/auth bundle [COMPLETED]
+Priority: High
+Files: `src/common/platform/platform_steamworks.h`, `src/common/platform/platform_steamworks.c`, `src/code/server/server.h`, `src/code/server/sv_client.c`, `src/code/server/sv_game.c`, `src/code/server/sv_init.c`, `src/code/game/g_client.c`, `tests/test_platform_services.py`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 77% -> after 81%** (`SV-P2` complete; `SV-G01` closed)
+
+Completed work:
+
+1. Reconstructed the retail Steam GameServer callback/auth bundle by adding server-side callback bindings and wrapper owners in `platform_steamworks.[ch]` for connected/connect-failure/disconnected notifications, `ValidateAuthTicketResponse_t`, server-side `P2PSessionRequest_t`, and GameServer-owned accept/begin/end auth-session calls.
+2. Moved Steam auth ownership onto the engine server host: `SV_Init()` now registers the callback bundle, `SV_DirectConnect()` begins auth sessions, `SV_DropClient()` ends them, `SV_VerifyClientSteamAuth()` reports retained pending/success state, and `G_RunPlatformAuthChecks()` now publishes the retail-style pending userinfo contract instead of issuing host-side external auth immediately.
+3. Tightened `tests/test_platform_services.py` and refreshed the server ledgers so the callback/auth lane is proven by the parity suite (`51 passed`), the strict `server` estimate moves to **81%**, and `SV-G01` is recorded as closed.
+
+### Task 90: Qcommon full parity audit and closure-plan publication [COMPLETED]
+Priority: High
+Files: `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 87% -> after 87%** (evidence refresh; runtime behavior unchanged)
+
+Completed work:
+
+1. Re-audited the engine `qcommon` layer against the committed retail `quakelive_steam.exe` HLIL/Ghidra corpus, the promoted alias ledger, the qcommon-heavy mapping rounds, the current writable source under `src/code/qcommon`, and the focused qcommon-facing validation surface.
+2. Published a dedicated qcommon parity document that separates the already-strong common/filesystem/message/native-loader runtime from the remaining lower-level helper-confidence and validation gaps, records the refreshed strict `qcommon` estimate as **87%**, and turns the remaining debt into an explicit gap register (`QC-G01`..`QC-G05`) instead of leaving it spread across client/server/module notes.
+3. Broke the remaining qcommon closure work into six execution-ordered phases (`QC-P1`..`QC-P6`) covering the initial audit publication, a unified qcommon parity gate plus Windows-friendly harnesses, filesystem/homepath exactness, collision-model leaf mapping, fallback QVM-path validation, and final ledger/runtime-evidence reconciliation.
+
+### Task 89: Server SV-P1 Steam GameServer bootstrap and shutdown ownership [COMPLETED]
+Priority: High
+Files: `src/code/server/sv_init.c`, `tests/test_platform_services.py`, `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 74% -> after 77%** (`SV-P1` complete; `SV-G01` narrowed to callback/auth lifetime)
+
+Completed work:
+
+1. Completed the remaining normal-teardown half of the Steam GameServer lifecycle by wiring `QL_Steamworks_ServerShutdown()` into `SV_Shutdown()` after heartbeat disable, complementing the already reconstructed bootstrap owner in `Com_InitSteamGameServer()` and the retained restart owner in `NET_Restart()`.
+2. Tightened `tests/test_platform_services.py` so the parity suite now asserts the explicit server shutdown owner in `SV_Shutdown()` in addition to the existing bootstrap and restart-order checks.
+3. Refreshed the server audit and top-level ledgers so `SV-P1` is recorded as closed, the strict `server` estimate moves to **77%**, and `SV-G01` now refers only to the remaining Steam callback/auth bundle that `SV-P2` will close.
+
+### Task 88: Server full parity audit and closure-plan publication [COMPLETED]
+Priority: High
+Files: `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
+Parity estimate: **before 74% -> after 74%** (evidence refresh; runtime behavior unchanged)
+
+Completed work:
+
+1. Re-audited the engine `server` host against the committed retail `quakelive_steam.exe` HLIL/Ghidra corpus, the promoted alias ledger, the current writable source under `src/code/server`, and the adjacent Steam/platform host seams.
+2. Published a dedicated server parity document that separates the strong retained Quake III server/runtime spine from the still-open Quake Live host additions, records the refreshed strict `server` estimate as **74%**, and turns the remaining debt into an explicit gap register (`SV-G01`..`SV-G06`) instead of leaving it spread across mapping rounds and platform tests.
+3. Broke the remaining server closure work into seven execution-ordered phases (`SV-P1`..`SV-P7`) covering Steam GameServer bootstrap/lifecycle, server callback/auth reconstruction, `idZMQ` runtime plus report publication, Steam stat/achievement hooks, rankings-path closure, remaining server control-plane cvars, and a dedicated server parity gate/runtime-evidence lane.
+
 ### Task 87: Client CL-P6 parity gate and runtime-evidence closure [COMPLETED]
 Priority: High
 Files: `tools/client/run_client_runtime_probe.ps1`, `tests/test_client_full_parity_gate.py`, `.github/workflows/client-validation.yml`, `artifacts/client_validation/logs/client_runtime_evidence_20260410.json`, `artifacts/client_validation/logs/client_full_parity_gate.json`, `docs/build-pipeline.md`, `docs/windows-native-pipeline.md`, `docs/reverse-engineering/client-validation-and-runtime-evidence-2026-04-10.md`, `docs/reverse-engineering/client-full-parity-audit-and-implementation-plan-2026-04-09.md`, `AUDIT.md`, `IMPLEMENTATION_PLAN.md`
@@ -795,6 +1079,20 @@ Completed work:
 
 ## Current highest-priority open work
 
+### Task 24: Server host closure and dedicated validation lane [OPEN]
+Priority: Critical
+Primary areas: `src/code/server/*`, `src/common/platform/platform_steamworks.c`, future dedicated validation tooling
+
+The refreshed 2026-04-10 server audit shows that the broad Quake III-era server spine is not the main blocker anymore. The remaining strict retail gap is concentrated in Quake Live-only host additions layered above that spine.
+
+Open work:
+
+1. Reconstruct the mapped `idZMQ` stats-publisher and remote-RCON runtime plus the report/event publication lane beneath `SV_SubmitMatchReport` and `SV_ReportPlayerEvent`.
+2. Replace the remaining qagame-facing Steam stat/achievement/report stubs in `sv_game.c` with retained runtime owners.
+3. Decide and close the rankings lane, which still exists in source but is not part of the default validated runtime story.
+4. Reconstruct the remaining retail server control-plane CVars and policies (`sv_idleRestart`, `sv_idleExit`, `sv_errorExit`, `sv_quitOnEmpty`, `sv_mapPoolFile`, `sv_includeCurrentMapInVote`, `sv_gtid`, `sv_altEntDir`, `sv_dumpEntities`, `sv_cylinderScale`).
+5. Add a unified server parity gate and a low-cost dedicated runtime-evidence bundle so the layer can close the same way the renderer and client did.
+
 ### Task 21: Native launcher/platform host reconstruction [OPEN]
 Priority: Critical
 Primary areas: `src/code/client/`, `src/code/qcommon/`, platform bridge layers
@@ -1011,6 +1309,6 @@ When code changes can affect startup or runtime stability:
 ## Working priority order
 
 1. Native launcher/platform host reconstruction.
-2. Strict retail game-module validation and residual `cgame` exactness closure.
+2. Residual `cgame` exactness closure.
 3. Ownerdraw/stat payload completion and runtime validation.
 4. Targeted gameplay validation sweeps.

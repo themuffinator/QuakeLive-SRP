@@ -1,10 +1,9 @@
 import ctypes
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+from tests.compiler_support import compile_c_binary, find_c_compiler, shared_library_name
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CODE_DIR = REPO_ROOT / "src" / "code"
@@ -24,6 +23,12 @@ typedef struct qlr_ps_values_s {
 	int		crouchTime;
 	int		crouchSlideTime;
 } qlr_ps_values_t;
+
+#ifdef _WIN32
+#define QLR_TEST_EXPORT __declspec(dllexport)
+#else
+#define QLR_TEST_EXPORT
+#endif
 
 static cvar_t qlr_localShownet;
 cvar_t *cl_shownet = &qlr_localShownet;
@@ -98,7 +103,7 @@ QLR_ReplicateJumpState
 Generates a jump timing delta and captures the replicated fields for verification.
 =============
 */
-void QLR_ReplicateJumpState( qlr_ps_values_t *values ) {
+QLR_TEST_EXPORT void QLR_ReplicateJumpState( qlr_ps_values_t *values ) {
 	playerState_t from;
 	playerState_t server;
 	playerState_t client;
@@ -124,7 +129,7 @@ QLR_ReplicateCrouchSlide
 Generates a crouch slide delta and captures the replicated timers for verification.
 =============
 */
-void QLR_ReplicateCrouchSlide( qlr_ps_values_t *values ) {
+QLR_TEST_EXPORT void QLR_ReplicateCrouchSlide( qlr_ps_values_t *values ) {
 	playerState_t from;
 	playerState_t server;
 	playerState_t client;
@@ -144,9 +149,6 @@ void QLR_ReplicateCrouchSlide( qlr_ps_values_t *values ) {
 }
 """
 
-pytestmark = pytest.mark.skipif(os.name == "nt", reason="MSVC build configuration not supported in tests")
-
-
 class PlayerStateReplication(ctypes.Structure):
 	_fields_ = [
 		("jumpTime", ctypes.c_int),
@@ -159,62 +161,25 @@ class PlayerStateReplication(ctypes.Structure):
 def _build_test_library(tmp_path: Path) -> Path:
 	src_path = tmp_path / "playerstate_replication_test.c"
 	src_path.write_text(C_SOURCE, encoding="utf-8")
+	compiler = find_c_compiler()
 
-	if sys.platform == "darwin":
-		lib_path = tmp_path / "libplayerstate_replication_test.dylib"
-		compile_cmd = [
-			"cc",
-			"-std=c99",
-			"-dynamiclib",
-			"-I",
-			str(CODE_DIR),
-			"-I",
-			str(GAME_DIR),
-			"-I",
-			str(QCOMMON_DIR),
-			"-o",
-			str(lib_path),
-			str(src_path),
-			str(QCOMMON_DIR / "huffman.c"),
-			str(QCOMMON_DIR / "msg.c"),
-			str(GAME_DIR / "q_shared.c"),
-		]
-	elif os.name == "nt":
-		lib_path = tmp_path / "playerstate_replication_test.dll"
-		compile_cmd = [
-			"cl",
-			"/LD",
-			f"/I{CODE_DIR}",
-			f"/I{GAME_DIR}",
-			f"/I{QCOMMON_DIR}",
-			str(src_path),
-			str(QCOMMON_DIR / "huffman.c"),
-			str(QCOMMON_DIR / "msg.c"),
-			str(GAME_DIR / "q_shared.c"),
-			f"/Fe:{lib_path}",
-		]
-	else:
-		lib_path = tmp_path / "libplayerstate_replication_test.so"
-		compile_cmd = [
-			"cc",
-			"-std=c99",
-			"-shared",
-			"-fPIC",
-			"-I",
-			str(CODE_DIR),
-			"-I",
-			str(GAME_DIR),
-			"-I",
-			str(QCOMMON_DIR),
-			"-o",
-			str(lib_path),
-			str(src_path),
-			str(QCOMMON_DIR / "huffman.c"),
-			str(QCOMMON_DIR / "msg.c"),
-			str(GAME_DIR / "q_shared.c"),
-		]
+	if compiler is None:
+		pytest.skip("no supported C compiler is available for the playerstate replication harness")
 
-	subprocess.run(compile_cmd, check=True)
+	lib_path = tmp_path / shared_library_name("playerstate_replication_test")
+	compile_c_binary(
+		compiler,
+		[
+			src_path,
+			QCOMMON_DIR / "huffman.c",
+			QCOMMON_DIR / "msg.c",
+			GAME_DIR / "q_shared.c",
+		],
+		lib_path,
+		include_dirs=[CODE_DIR, GAME_DIR, QCOMMON_DIR],
+		shared=True,
+		workdir=REPO_ROOT,
+	)
 	return lib_path
 
 

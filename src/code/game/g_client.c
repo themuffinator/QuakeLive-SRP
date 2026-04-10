@@ -551,15 +551,12 @@ static void G_BuildSteamAuthToken( const char *userinfo, char *buffer, size_t bu
 =============
 G_RunPlatformAuthChecks
 
-Validates a client auth token against platform services.
+Validates Steam auth token shape and publishes pending auth state.
 =============
 */
 static char *G_RunPlatformAuthChecks( int clientNum, char *userinfo, qboolean firstTime, qboolean isBot, gclient_t *client ) {
 	ql_auth_credential_t	credential;
-	ql_auth_response_t	response;
 	char			token[QL_AUTH_MAX_CREDENTIAL_STORAGE];
-	const char		*resultString;
-	const char		*outcomeString;
 
 	if ( !firstTime || isBot || !userinfo || !client ) {
 		G_WritePlatformAuthUserinfo( clientNum, userinfo, NULL, NULL, NULL );
@@ -583,33 +580,8 @@ static char *G_RunPlatformAuthChecks( int clientNum, char *userinfo, qboolean fi
 		return g_clientAuthDenyMessage;
 	}
 
-	if ( !QL_RequestExternalAuth( &credential, &response ) || response.result != QL_AUTH_RESULT_ACCEPTED ) {
-		const char *message = response.message[0] ? response.message : "Failed to verify Steam auth token";
-
-		Q_strncpyz( g_clientAuthDenyMessage, message, sizeof( g_clientAuthDenyMessage ) );
-
-		resultString = G_GetAuthResultString( response.result );
-		outcomeString = G_GetAuthOutcomeString( response.outcome );
-
-		if ( response.outcome == QL_AUTH_OUTCOME_RETRY ) {
-			G_LogPrintf( "SteamAuthRetry: %i %s\n", clientNum, g_clientAuthDenyMessage );
-		} else {
-			G_LogPrintf( "SteamAuthRejected: %i %s\n", clientNum, g_clientAuthDenyMessage );
-		}
-
-		G_WritePlatformAuthUserinfo( clientNum, userinfo, resultString, outcomeString, g_clientAuthDenyMessage );
-		return g_clientAuthDenyMessage;
-	}
-
-	resultString = G_GetAuthResultString( response.result );
-	outcomeString = G_GetAuthOutcomeString( response.outcome );
-
-	G_WritePlatformAuthUserinfo( clientNum, userinfo, resultString, outcomeString, response.message[0] ? response.message : NULL );
-
-	if ( response.message[0] ) {
-		G_LogPrintf( "SteamAuthAccepted: %i %s\n", clientNum, response.message );
-	}
-
+	G_WritePlatformAuthUserinfo( clientNum, userinfo, G_GetAuthResultString( QL_AUTH_RESULT_PENDING ),
+		G_GetAuthOutcomeString( QL_AUTH_OUTCOME_RETRY ), NULL );
 	return NULL;
 }
 #else

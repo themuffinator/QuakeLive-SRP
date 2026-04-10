@@ -387,7 +387,7 @@ SV_SteamServerPublishIdentity
 Mirrors the retail Steam game-server identity publication path.
 ================
 */
-static void SV_SteamServerPublishIdentity( void ) {
+void SV_SteamServerPublishIdentity( void ) {
 	uint32_t			steamIdLow;
 	uint32_t			steamIdHigh;
 	unsigned long long	steamIdValue;
@@ -612,6 +612,7 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	QL_Steamworks_ServerEnableHeartbeats( SV_SteamServerHasConfiguredMasters() );
 	SV_SteamServerUpdatePublishedState( qtrue );
 	QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );
+	Zmq_InitStatsPublisher();
 
 	// send a heartbeat now so the master will get up to date info
 	SV_Heartbeat_f();
@@ -650,11 +651,24 @@ void SV_Init (void) {
 	sv_minPing = Cvar_Get ("sv_minPing", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_maxPing = Cvar_Get ("sv_maxPing", "0", CVAR_ARCHIVE | CVAR_SERVERINFO );
 	sv_floodProtect = Cvar_Get ("sv_floodProtect", "1", CVAR_ARCHIVE | CVAR_SERVERINFO );
+	sv_mapPoolFile = Cvar_Get ("sv_mapPoolFile", "mappool.txt", CVAR_ARCHIVE );
+	sv_includeCurrentMapInVote = Cvar_Get ("sv_includeCurrentMapInVote", "0", CVAR_TEMP );
+	sv_gtid = Cvar_Get ("sv_gtid", "", CVAR_SERVERINFO | CVAR_ROM );
 	sv_serverType = Cvar_Get ("sv_serverType", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );
+	sv_idleRestart = Cvar_Get ("sv_idleRestart", "1", 0 );
+	sv_idleExit = Cvar_Get ("sv_idleExit", "120", 0 );
+	sv_errorExit = Cvar_Get ("sv_errorExit", "1", 0 );
+	sv_quitOnEmpty = Cvar_Get ("sv_quitOnEmpty", "0", 0 );
 	sv_quitOnExitLevel = Cvar_Get ("sv_quitOnExitLevel", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );
+	sv_altEntDir = Cvar_Get ("sv_altEntDir", "", 0 );
+	sv_dumpEntities = Cvar_Get ("sv_dumpEntities", "0", 0 );
+	sv_cylinderScale = Cvar_Get ("sv_cylinderScale", "1.1f", 0 );
 	sv_warmupReadyPercentage = Cvar_Get ("sv_warmupReadyPercentage", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	sv_vac = Cvar_Get ("sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	sv_maskBots = Cvar_Get ("sv_maskBots", "0", CVAR_ARCHIVE );
+	sv_enableRankings = Cvar_Get ("sv_enableRankings", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );
+	sv_rankingsActive = Cvar_Get ("sv_rankingsActive", "0", CVAR_SERVERINFO );
+	sv_leagueName = Cvar_Get ("sv_leagueName", "", CVAR_ARCHIVE );
 
 	// systeminfo
 	Cvar_Get ("sv_cheats", "1", CVAR_SYSTEMINFO | CVAR_ROM );
@@ -693,6 +707,8 @@ sv_mapChecksum = Cvar_Get ("sv_mapChecksum", "", CVAR_ROM);
 	sv_strictAuth = Cvar_Get ("sv_strictAuth", "1", CVAR_ARCHIVE );
 	Cvar_Get ("sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );
 	net_fakevacban = Cvar_Get ("net_fakevacban", "0", CVAR_TEMP );
+	SV_SteamServerInitCallbacks();
+	Zmq_RegisterCvarsAndInitRcon();
 
 	// initialize bot cvars so they are listed and can be set before loading the botlib
 	SV_BotInitCvars();
@@ -756,6 +772,7 @@ void SV_Shutdown( char *finalmsg ) {
 	SV_RemoveOperatorCommands();
 	SV_MasterShutdown();
 	SV_ShutdownGameProgs();
+	Zmq_ShutdownStatsPublisher();
 
 	// free current level
 	SV_ClearServer();
@@ -769,6 +786,7 @@ void SV_Shutdown( char *finalmsg ) {
 	Cvar_Set( "sv_running", "0" );
 	Cvar_Set("ui_singlePlayerActive", "0");
 	QL_Steamworks_ServerEnableHeartbeats( qfalse );
+	QL_Steamworks_ServerShutdown();
 
 	Com_Printf( "---------------------------\n" );
 

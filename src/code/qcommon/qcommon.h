@@ -923,6 +923,9 @@ void SCR_DebugGraph (float value, int color);	// FIXME: move logging to common?
 //
 void SV_Init( void );
 void SV_Shutdown( char *finalmsg );
+void SV_ClearIdleServerExit( void );
+qboolean SV_ShouldErrorExit( errorParm_t code );
+qboolean SV_CheckIdleServerExit( int currentTime );
 void SV_Frame( int msec );
 void SV_PacketEvent( netadr_t from, msg_t *msg );
 qboolean SV_GameCommand( void );
@@ -996,6 +999,7 @@ void	Sys_UnloadBotLib( void );
 void	*Sys_GetBotLibAPI( void *parms );
 
 char	*Sys_GetCurrentUser( void );
+char	*Sys_ExecutableBaseName( void );
 
 void	QDECL Sys_Error( const char *error, ...);
 void	Sys_Quit (void);

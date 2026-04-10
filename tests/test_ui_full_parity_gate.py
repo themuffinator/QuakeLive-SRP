@@ -299,7 +299,7 @@ def _build_ui_full_parity_gate_report(
 		},
 	)
 
-	workflow_text = _read_text(WORKFLOW_PATH)
+	workflow_text = _read_text(WORKFLOW_PATH) if WORKFLOW_PATH.exists() else ""
 	scripting_guide = _read_text(SCRIPTING_GUIDE_PATH)
 	ui_gate_test = _read_text(REPO_ROOT / "tests" / "test_ui_full_parity_gate.py")
 	gate_wired = "tests/test_ui_full_parity_gate.py" in workflow_text

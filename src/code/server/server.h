@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 // server.h
 
+#include <stdint.h>
 #include "../game/q_shared.h"
 #include "../qcommon/qcommon.h"
 #include "../game/g_public.h"
@@ -150,6 +151,7 @@ typedef struct client_s {
 #if SV_HAS_PLATFORM_AUTH
 	qboolean		platformAuthPending;
 	qboolean		platformAuthSucceeded;
+	qboolean		platformAuthSessionActive;
 	char			platformAuthLabel[32];
 	char			platformAuthToken[QL_AUTH_MAX_CREDENTIAL_STORAGE];
 	char			platformAuthResult[32];
@@ -274,11 +276,24 @@ extern	cvar_t	*sv_strictAuth;
 // 0 - Public, listed on the master and accepts all clients.
 // 1 - Private/unlisted, allows direct connects but is not advertised.
 // 2 - Offline, rejects remote clients (local play or testing only).
+extern	cvar_t	*sv_mapPoolFile;
+extern	cvar_t	*sv_includeCurrentMapInVote;
+extern	cvar_t	*sv_gtid;
 extern	cvar_t	*sv_serverType;
+extern	cvar_t	*sv_idleRestart;
+extern	cvar_t	*sv_idleExit;
+extern	cvar_t	*sv_errorExit;
+extern	cvar_t	*sv_quitOnEmpty;
 extern	cvar_t	*sv_quitOnExitLevel;
+extern	cvar_t	*sv_altEntDir;
+extern	cvar_t	*sv_dumpEntities;
+extern	cvar_t	*sv_cylinderScale;
 extern	cvar_t	*sv_warmupReadyPercentage;
 extern	cvar_t	*sv_vac;
 extern	cvar_t	*sv_maskBots;
+extern	cvar_t	*sv_enableRankings;
+extern	cvar_t	*sv_rankingsActive;
+extern	cvar_t	*sv_leagueName;
 extern	cvar_t	*net_fakevacban;
 
 //===========================================================
@@ -289,6 +304,9 @@ extern	cvar_t	*net_fakevacban;
 void SV_FinalMessage (char *message);
 void QDECL SV_SendServerCommand( client_t *cl, const char *fmt, ...);
 qboolean	SV_CheckWarmupReadiness( qboolean announce );
+void SV_ClearIdleServerExit( void );
+qboolean SV_ShouldErrorExit( errorParm_t code );
+qboolean SV_CheckIdleServerExit( int currentTime );
 qboolean SV_HandleQuitOnExitLevel( const char *context );
 
 
@@ -325,6 +343,16 @@ void SV_DirectConnect( netadr_t from );
 
 void SV_AuthorizeIpPacket( netadr_t from );
 
+void SV_SteamServerInitCallbacks( void );
+void Zmq_RegisterCvarsAndInitRcon( void );
+void Zmq_UpdatePasswords( void );
+void Zmq_InitStatsPublisher( void );
+void Zmq_ShutdownStatsPublisher( void );
+void Zmq_ShutdownRuntime( void );
+void Zmq_PumpRcon( void );
+void Zmq_BroadcastRconOutput( const char *message );
+void Zmq_SubmitMatchReport( const void *report );
+void Zmq_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, const void *payload );
 void SV_ExecuteClientMessage( client_t *cl, msg_t *msg );
 void SV_UserinfoChanged( client_t *cl );
 
@@ -335,7 +363,11 @@ void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK );
 void SV_ClientThink (client_t *cl, usercmd_t *cmd);
 
 void SV_WriteDownloadToClient( client_t *cl , msg_t *msg );
+void SV_SteamServerPublishIdentity( void );
 void SV_SteamServerUpdatePublishedState( qboolean fullUpdate );
+void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta );
+void SV_SteamStats_UnlockAchievement( int clientNum, int achievementId );
+qboolean SV_SteamStats_HasAchievement( int clientNum, int achievementId );
 
 //
 // sv_ccmds.c

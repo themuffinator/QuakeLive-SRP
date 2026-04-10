@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../client/client.h"
 #include "win_local.h"
+#include "win_rawinput_shared.h"
+#include <stdlib.h>
 
 
 typedef struct {
@@ -31,10 +33,20 @@ typedef struct {
 
 	qboolean	mouseActive;
 	qboolean	mouseInitialized;
-  qboolean  mouseStartupDelayed; // delay mouse init to try DI again when we have a window
+	qboolean	mouseStartupDelayed; // delay mouse init to try again when we have a window
 } WinMouseVars_t;
 
 static WinMouseVars_t s_wmv;
+
+#define MAX_RAW_INPUT_SAMPLES 0x1ff
+
+typedef struct {
+	qboolean					registered;
+	int							sampleCount;
+	qlr_win32_raw_mouse_sample_t	samples[MAX_RAW_INPUT_SAMPLES];
+} WinRawInputVars_t;
+
+static WinRawInputVars_t s_wri;
 
 static int	window_center_x, window_center_y;
 
@@ -80,8 +92,12 @@ cvar_t	*in_midiport;
 cvar_t	*in_midichannel;
 cvar_t	*in_mididevice;
 
+cvar_t	*in_debugMouse;
 cvar_t	*in_mouse;
+cvar_t	*in_mouseMode;
 cvar_t  *in_logitechbug;
+cvar_t	*in_nograb;
+cvar_t	*in_raw_useWindowHandle;
 cvar_t	*in_joystick;
 cvar_t	*in_joyBallScale;
 cvar_t	*in_debugJoystick;
@@ -94,6 +110,7 @@ void IN_StartupJoystick (void);
 void IN_JoyMove(void);
 
 static void MidiInfo_f( void );
+static void ListInputDevices_f( void );
 
 /*
 ============================================================
@@ -181,6 +198,255 @@ void IN_Win32Mouse( int *mx, int *my ) {
 
 	*mx = current_pos.x - window_center_x;
 	*my = current_pos.y - window_center_y;
+}
+
+/*
+================
+IN_SetMouseMode
+================
+*/
+static void IN_SetMouseMode( const char *mode ) {
+	if ( !mode ) {
+		mode = "undefined";
+	}
+
+	if ( in_mouseMode ) {
+		Cvar_Set( "in_mouseMode", mode );
+	}
+}
+
+/*
+================
+IN_ClearRawInputSamples
+================
+*/
+static void IN_ClearRawInputSamples( void ) {
+	s_wri.sampleCount = 0;
+}
+
+/*
+================
+IN_RegisterRawInput
+================
+*/
+static qboolean IN_RegisterRawInput( qboolean removeDevice ) {
+	RAWINPUTDEVICE rawInputDevice;
+
+	if ( !removeDevice && !g_wv.hWnd ) {
+		return qfalse;
+	}
+
+	QLR_Win32RawInputBuildRegistration( &rawInputDevice,
+		g_wv.hWnd,
+		in_raw_useWindowHandle && in_raw_useWindowHandle->integer,
+		removeDevice );
+
+	if ( !RegisterRawInputDevices( &rawInputDevice, 1, sizeof( rawInputDevice ) ) ) {
+		return qfalse;
+	}
+
+	s_wri.registered = removeDevice ? qfalse : qtrue;
+	return qtrue;
+}
+
+/*
+================
+IN_InitRawInput
+================
+*/
+static qboolean IN_InitRawInput( void ) {
+	if ( !IN_RegisterRawInput( qfalse ) ) {
+		Com_Printf( "RAW MOUSE INIT FAIL!" );
+		return qfalse;
+	}
+
+	IN_SetMouseMode( "win32(Raw)" );
+	return qtrue;
+}
+
+/*
+================
+IN_ShutdownRawInput
+================
+*/
+static void IN_ShutdownRawInput( void ) {
+	if ( !s_wri.registered ) {
+		IN_ClearRawInputSamples();
+		return;
+	}
+
+	if ( !IN_RegisterRawInput( qtrue ) ) {
+		Com_Printf( "RAW MOUSE SHUTDOWN FAIL!" );
+	}
+
+	IN_ClearRawInputSamples();
+}
+
+/*
+================
+IN_RawInputAppendSample
+================
+*/
+static void IN_RawInputAppendSample( const qlr_win32_raw_mouse_sample_t *sample ) {
+	if ( !sample ) {
+		return;
+	}
+
+	if ( s_wri.sampleCount >= MAX_RAW_INPUT_SAMPLES ) {
+		if ( in_debugMouse && in_debugMouse->integer ) {
+			Com_Printf( "Raw Input buffer overflow!\n" );
+		}
+		return;
+	}
+
+	s_wri.samples[s_wri.sampleCount] = *sample;
+	s_wri.sampleCount++;
+}
+
+/*
+================
+IN_QueueRawInputButtons
+================
+*/
+static void IN_QueueRawInputButtons( const qlr_win32_raw_mouse_sample_t *sample ) {
+	int		down[QLR_WIN32_RAW_INPUT_MAX_EVENTS];
+	int		keys[QLR_WIN32_RAW_INPUT_MAX_EVENTS];
+	int		eventCount;
+	int		i;
+
+	if ( !sample ) {
+		return;
+	}
+
+	eventCount = QLR_Win32RawInputTranslateButtonFlags(
+		sample->buttonFlags,
+		sample->wheelDelta,
+		keys,
+		down,
+		QLR_WIN32_RAW_INPUT_MAX_EVENTS );
+
+	for ( i = 0; i < eventCount; i++ ) {
+		Sys_QueEvent( g_wv.sysMsgTime, SE_KEY, keys[i], down[i], 0, NULL );
+	}
+}
+
+/*
+================
+IN_RawInputIsActive
+================
+*/
+qboolean IN_RawInputIsActive( void ) {
+	if ( !in_mouse ) {
+		return qfalse;
+	}
+
+	return ( in_mouse->integer == 2 && s_wmv.mouseActive && s_wri.registered ) ? qtrue : qfalse;
+}
+
+/*
+================
+IN_RawInputEvent
+================
+*/
+void IN_RawInputEvent( WPARAM wParam, LPARAM lParam ) {
+	BYTE						stackBuffer[0x400];
+	qlr_win32_raw_mouse_sample_t	sample;
+	PRAWINPUT					rawInput;
+	PRAWINPUT					rawInputHeap;
+	UINT						rawInputSize;
+	UINT						sizeResult;
+
+	if ( !s_wmv.mouseInitialized || !in_mouse || in_mouse->integer != 2 || !s_wri.registered ) {
+		return;
+	}
+
+	if ( GET_RAWINPUT_CODE_WPARAM( wParam ) != RIM_INPUT ) {
+		return;
+	}
+
+	rawInput = (PRAWINPUT)stackBuffer;
+	rawInputHeap = NULL;
+	rawInputSize = 0;
+
+	sizeResult = GetRawInputData(
+		(HRAWINPUT)lParam,
+		RID_INPUT,
+		NULL,
+		&rawInputSize,
+		sizeof( RAWINPUTHEADER ) );
+	if ( sizeResult == (UINT)-1 ) {
+		Com_Printf( "GetRawInputData returned an error while getting size: %08x\n", GetLastError() );
+		return;
+	}
+
+	if ( rawInputSize < 1 ) {
+		return;
+	}
+
+	if ( rawInputSize > sizeof( stackBuffer ) ) {
+		rawInputHeap = (PRAWINPUT)malloc( rawInputSize );
+		if ( !rawInputHeap ) {
+			return;
+		}
+		rawInput = rawInputHeap;
+	}
+
+	sizeResult = GetRawInputData(
+		(HRAWINPUT)lParam,
+		RID_INPUT,
+		rawInput,
+		&rawInputSize,
+		sizeof( RAWINPUTHEADER ) );
+	if ( sizeResult == (UINT)-1 ) {
+		Com_Printf( "GetRawInputData returned an error: %08x\n", GetLastError() );
+		if ( rawInputHeap ) {
+			free( rawInputHeap );
+		}
+		return;
+	}
+
+	if ( sizeResult != rawInputSize ) {
+		Com_Printf( "GetRawInputData doesn't return correct size ! (er = %08x)\n", GetLastError() );
+	}
+
+	if ( QLR_Win32RawInputExtractMouseSample( rawInput, &sample ) ) {
+		IN_RawInputAppendSample( &sample );
+	}
+
+	if ( rawInputHeap ) {
+		free( rawInputHeap );
+	}
+}
+
+/*
+================
+IN_RawInputMouse
+================
+*/
+static void IN_RawInputMouse( int *mx, int *my ) {
+	int	i;
+
+	*mx = 0;
+	*my = 0;
+
+	if ( !s_wri.sampleCount ) {
+		if ( s_wmv.mouseActive && ( !in_nograb || !in_nograb->integer ) ) {
+			SetCursorPos( window_center_x, window_center_y );
+		}
+		return;
+	}
+
+	for ( i = 0; i < s_wri.sampleCount; i++ ) {
+		*mx += s_wri.samples[i].dx;
+		*my += s_wri.samples[i].dy;
+		IN_QueueRawInputButtons( &s_wri.samples[i] );
+	}
+
+	IN_ClearRawInputSamples();
+
+	if ( s_wmv.mouseActive && ( !in_nograb || !in_nograb->integer ) ) {
+		SetCursorPos( window_center_x, window_center_y );
+	}
 }
 
 
@@ -373,8 +639,14 @@ void IN_ActivateDIMouse( void ) {
 	hr = IDirectInputDevice_Acquire( g_pMouse );
 	if (FAILED(hr)) {
 		if ( !IN_InitDIMouse() ) {
-			Com_Printf ("Falling back to Win32 mouse support...\n");
-			Cvar_Set( "in_mouse", "-1" );
+			Com_Printf( "Falling back on raw input...\n" );
+			IN_ShutdownDIMouse();
+			Cvar_Set( "in_mouse", "2" );
+			if ( !IN_InitRawInput() ) {
+				Com_Printf( "Falling back to Win32 mouse support...\n" );
+				Cvar_Set( "in_mouse", "-1" );
+				IN_SetMouseMode( "win32" );
+			}
 		}
 	}
 }
@@ -518,7 +790,15 @@ void IN_ActivateMouse( void )
 
 	s_wmv.mouseActive = qtrue;
 
-	if ( in_mouse->integer != -1 ) {
+	if ( in_mouse->integer == 2 && !s_wri.registered ) {
+		if ( !IN_InitRawInput() ) {
+			Com_Printf( "Falling back to Win32 mouse support...\n" );
+			Cvar_Set( "in_mouse", "-1" );
+			IN_SetMouseMode( "win32" );
+		}
+	}
+
+	if ( in_mouse->integer == 1 ) {
 		IN_ActivateDIMouse();
 	}
 	IN_ActivateWin32Mouse();
@@ -542,7 +822,9 @@ void IN_DeactivateMouse( void ) {
 	s_wmv.mouseActive = qfalse;
 
 	IN_DeactivateDIMouse();
+	IN_ShutdownRawInput();
 	IN_DeactivateWin32Mouse();
+	s_wmv.oldButtonState = 0;
 }
 
 
@@ -555,7 +837,10 @@ IN_StartupMouse
 void IN_StartupMouse( void ) 
 {
 	s_wmv.mouseInitialized = qfalse;
-  s_wmv.mouseStartupDelayed = qfalse;
+	s_wmv.mouseStartupDelayed = qfalse;
+	s_wri.registered = qfalse;
+	IN_ClearRawInputSamples();
+	IN_SetMouseMode( "win32" );
 
 	if ( in_mouse->integer == 0 ) {
 		Com_Printf ("Mouse control not active.\n");
@@ -572,19 +857,53 @@ void IN_StartupMouse( void )
 
 	if ( in_mouse->integer == -1 ) {
 		Com_Printf ("Skipping check for DirectInput\n");
-	} else {
-    if (!g_wv.hWnd)
-    {
-      Com_Printf ("No window for DirectInput mouse init, delaying\n");
-      s_wmv.mouseStartupDelayed = qtrue;
-      return;
-    }
-		if ( IN_InitDIMouse() ) {
-	    s_wmv.mouseInitialized = qtrue;
+		s_wmv.mouseInitialized = qtrue;
+		IN_InitWin32Mouse();
+		return;
+	}
+
+	if ( !g_wv.hWnd ) {
+		if ( in_mouse->integer == 1 ) {
+			Com_Printf( "No window for DirectInput mouse init, delaying\n" );
+		} else {
+			Com_Printf( "No window for Raw Input mouse init, delaying\n" );
+		}
+		s_wmv.mouseStartupDelayed = qtrue;
+		return;
+	}
+
+	if ( in_mouse->integer == 2 ) {
+		if ( IN_InitRawInput() ) {
+			s_wmv.mouseInitialized = qtrue;
 			return;
 		}
-		Com_Printf ("Falling back to Win32 mouse support...\n");
+
+		Com_Printf( "Falling back to Win32 mouse support...\n" );
+		Cvar_Set( "in_mouse", "-1" );
+		s_wmv.mouseInitialized = qtrue;
+		IN_InitWin32Mouse();
+		return;
 	}
+
+	if ( in_mouse->integer == 1 ) {
+		if ( IN_InitDIMouse() ) {
+			s_wmv.mouseInitialized = qtrue;
+			return;
+		}
+
+		Com_Printf( "Falling back on raw input...\n" );
+		IN_ShutdownDIMouse();
+		Cvar_Set( "in_mouse", "2" );
+
+		if ( IN_InitRawInput() ) {
+			s_wmv.mouseInitialized = qtrue;
+			return;
+		}
+
+		Com_Printf( "Falling back to Win32 mouse support...\n" );
+		Cvar_Set( "in_mouse", "-1" );
+	}
+
 	s_wmv.mouseInitialized = qtrue;
 	IN_InitWin32Mouse();
 }
@@ -629,7 +948,9 @@ IN_MouseMove
 void IN_MouseMove ( void ) {
 	int		mx, my;
 
-	if ( g_pMouse ) {
+	if ( in_mouse && in_mouse->integer == 2 && s_wri.registered ) {
+		IN_RawInputMouse( &mx, &my );
+	} else if ( g_pMouse ) {
 		IN_DIMouse( &mx, &my );
 	} else {
 		IN_Win32Mouse( &mx, &my );
@@ -672,9 +993,11 @@ IN_Shutdown
 */
 void IN_Shutdown( void ) {
 	IN_DeactivateMouse();
+	IN_ShutdownRawInput();
 	IN_ShutdownDIMouse();
 	IN_ShutdownMIDI();
 	Cmd_RemoveCommand("midiinfo" );
+	Cmd_RemoveCommand("ListInputDevices" );
 }
 
 
@@ -691,10 +1014,15 @@ void IN_Init( void ) {
 	in_mididevice			= Cvar_Get ("in_mididevice",			"0",		CVAR_ARCHIVE);
 
 	Cmd_AddCommand( "midiinfo", MidiInfo_f );
+	Cmd_AddCommand( "ListInputDevices", ListInputDevices_f );
 
 	// mouse variables
-  in_mouse				= Cvar_Get ("in_mouse",					"1",		CVAR_ARCHIVE|CVAR_LATCH);
+	in_mouse				= Cvar_Get ("in_mouse",					"2",		CVAR_ARCHIVE|CVAR_LATCH);
+	in_debugMouse			= Cvar_Get ("in_debugMouse",			"0",		CVAR_TEMP);
+	in_mouseMode			= Cvar_Get ("in_mouseMode",				"undefined",	CVAR_ROM);
 	in_logitechbug  = Cvar_Get ("in_logitechbug", "0", CVAR_ARCHIVE);
+	in_nograb				= Cvar_Get ("in_nograb",				"0",		CVAR_TEMP);
+	in_raw_useWindowHandle	= Cvar_Get ("in_raw_useWindowHandle",	"0",		CVAR_ARCHIVE);
 
 	// joystick variables
 	in_joystick				= Cvar_Get ("in_joystick",				"0",		CVAR_ARCHIVE|CVAR_LATCH);
@@ -763,6 +1091,11 @@ void IN_Frame (void) {
 		return;
 	}
 
+	if ( in_nograb && in_nograb->integer ) {
+		IN_DeactivateMouse();
+		return;
+	}
+
 	IN_ActivateMouse();
 
 	// post events to the system que
@@ -779,6 +1112,7 @@ IN_ClearStates
 void IN_ClearStates (void) 
 {
 	s_wmv.oldButtonState = 0;
+	IN_ClearRawInputSamples();
 }
 
 
@@ -1103,6 +1437,79 @@ static void MidiInfo_f( void )
 
 		Com_Printf( "\n" );
 	}
+}
+
+/*
+================
+ListInputDevices_f
+================
+*/
+static void ListInputDevices_f( void )
+{
+	RAWINPUTDEVICELIST	*deviceList;
+	RID_DEVICE_INFO		deviceInfo;
+	UINT				deviceCount;
+	UINT				infoSize;
+	int					i;
+
+	if ( !in_mouse || in_mouse->integer != 2 )
+	{
+		Com_Printf( "ListInputDevices is only supported for Raw Input (in_mouse 2).\n" );
+		return;
+	}
+
+	deviceCount = 0;
+	if ( GetRawInputDeviceList( NULL, &deviceCount, sizeof( RAWINPUTDEVICELIST ) ) == ( UINT )-1 )
+	{
+		Com_Printf( "Failed to acquire device list size.\n" );
+		return;
+	}
+
+	if ( !deviceCount )
+	{
+		Com_Printf( "Raw Input Mouse Devices: \n" );
+		return;
+	}
+
+	deviceList = ( RAWINPUTDEVICELIST * )malloc( deviceCount * sizeof( RAWINPUTDEVICELIST ) );
+	if ( !deviceList )
+	{
+		Com_Printf( "Failed to allocate memory for the device list.\n" );
+		return;
+	}
+
+	if ( GetRawInputDeviceList( deviceList, &deviceCount, sizeof( RAWINPUTDEVICELIST ) ) == ( UINT )-1 )
+	{
+		Com_Printf( "Failed to acquire device list.\n" );
+		free( deviceList );
+		return;
+	}
+
+	Com_Printf( "Raw Input Mouse Devices: \n" );
+
+	for ( i = 0; i < ( int )deviceCount; i++ )
+	{
+		if ( deviceList[i].dwType != RIM_TYPEMOUSE )
+		{
+			continue;
+		}
+
+		Com_Memset( &deviceInfo, 0, sizeof( deviceInfo ) );
+		deviceInfo.cbSize = sizeof( deviceInfo );
+		infoSize = sizeof( deviceInfo );
+
+		if ( GetRawInputDeviceInfoA( deviceList[i].hDevice, RIDI_DEVICEINFO, &deviceInfo, &infoSize ) == ( UINT )-1 )
+		{
+			continue;
+		}
+
+		Com_Printf( "  Mouse Id: %d, Button count: %d, Sample rate: %d\n",
+			deviceInfo.mouse.dwId,
+			deviceInfo.mouse.dwNumberOfButtons,
+			deviceInfo.mouse.dwSampleRate );
+	}
+
+	free( deviceList );
 }
 
 static void IN_StartupMIDI( void )

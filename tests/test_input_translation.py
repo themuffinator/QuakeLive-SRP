@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import ctypes
-import subprocess
 from pathlib import Path
 
 import pytest
+
+from tests.compiler_support import compile_c_binary, find_c_compiler, shared_library_name
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -22,22 +23,28 @@ class TranslatedKey(ctypes.Structure):
 @pytest.fixture(scope="session")
 def input_translation_lib(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
     build_dir = tmp_path_factory.mktemp("input_translation_build")
-    lib_path = build_dir / "libinput_translation.so"
+    lib_path = build_dir / shared_library_name("input_translation")
+    compiler = find_c_compiler()
 
-    compile_cmd = [
-        "gcc",
-        "-shared",
-        "-fPIC",
-        "-Isrc/code",
-        "-Isrc/code/client",
-        "-Isrc/code/qcommon",
-        "-Isrc/code/game",
-        "-o",
-        str(lib_path),
-        str(REPO_ROOT / "tests" / "input_translation_harness.c"),
-        str(REPO_ROOT / "src" / "code" / "client" / "cl_input_translation.c"),
-    ]
-    subprocess.check_call(compile_cmd, cwd=REPO_ROOT)
+    if compiler is None:
+        pytest.skip("no supported C compiler is available for the input translation harness")
+
+    compile_c_binary(
+        compiler,
+        [
+            REPO_ROOT / "tests" / "input_translation_harness.c",
+            REPO_ROOT / "src" / "code" / "client" / "cl_input_translation.c",
+        ],
+        lib_path,
+        include_dirs=[
+            REPO_ROOT / "src" / "code",
+            REPO_ROOT / "src" / "code" / "client",
+            REPO_ROOT / "src" / "code" / "qcommon",
+            REPO_ROOT / "src" / "code" / "game",
+        ],
+        shared=True,
+        workdir=REPO_ROOT,
+    )
 
     lib = ctypes.CDLL(str(lib_path))
     lib.QLR_TranslateKey.restype = TranslatedKey

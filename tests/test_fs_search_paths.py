@@ -2,61 +2,84 @@
 from __future__ import annotations
 
 import ctypes
-import shutil
-import subprocess
 import zipfile
 from pathlib import Path
 from typing import Iterator, Tuple
 
 import pytest
 
+from tests.compiler_support import compile_c_binary, find_c_compiler, shared_library_name
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(scope="session")
 def fs_harness(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
-    build_dir = tmp_path_factory.mktemp("fs_harness_build")
-    lib_path = build_dir / "libfs_harness.so"
-    compiler = shutil.which("gcc")
+	build_dir = tmp_path_factory.mktemp("fs_harness_build")
+	lib_path = build_dir / shared_library_name("fs_harness")
+	compiler = find_c_compiler()
 
-    if compiler is None:
-        pytest.skip("gcc is not available for the filesystem search-path harness")
+	if compiler is None:
+		pytest.skip("no supported C compiler is available for the filesystem search-path harness")
 
-    compile_cmd = [
-        compiler,
-        "-shared",
-        "-fPIC",
-        "-Isrc/code",
-        "-Isrc/code/qcommon",
-        "-Isrc/code/game",
-        "-Isrc/code/client",
-        "-Isrc/code/server",
-        "-Isrc/code/botlib",
-        str(REPO_ROOT / "tests" / "fs_searchpath_harness.c"),
-        str(REPO_ROOT / "src" / "code" / "qcommon" / "unzip.c"),
-        "-lz",
-        "-o",
-        str(lib_path),
-    ]
-    subprocess.check_call(compile_cmd, cwd=REPO_ROOT)
+	compile_c_binary(
+		compiler,
+		[
+			REPO_ROOT / "tests" / "fs_searchpath_harness.c",
+			REPO_ROOT / "src" / "code" / "qcommon" / "unzip.c",
+		],
+		lib_path,
+		include_dirs=[
+			REPO_ROOT / "src" / "code",
+			REPO_ROOT / "src" / "code" / "qcommon",
+			REPO_ROOT / "src" / "code" / "game",
+			REPO_ROOT / "src" / "code" / "client",
+			REPO_ROOT / "src" / "code" / "server",
+			REPO_ROOT / "src" / "code" / "botlib",
+		],
+		defines=[
+			"QL_BUILD_ONLINE_SERVICES=1",
+			"QL_BUILD_STEAMWORKS=1",
+		],
+		shared=True,
+		workdir=REPO_ROOT,
+	)
 
-    lib = ctypes.CDLL(str(lib_path))
-    lib.QLR_FS_TestInitCvars.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-    lib.QLR_FS_TestShutdown.argtypes = []
-    lib.QLR_FS_TestAddGameDirectory.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-    lib.QLR_FS_TestSetRestrict.argtypes = [ctypes.c_int]
-    lib.QLR_FS_TestSetDebug.argtypes = [ctypes.c_int]
-    lib.QLR_FS_TestLoadedPakNames.argtypes = []
-    lib.QLR_FS_TestLoadedPakNames.restype = ctypes.c_char_p
-    lib.QLR_FS_TestReadFile.argtypes = [
-        ctypes.c_char_p,
-        ctypes.c_int,
-        ctypes.c_char_p,
-        ctypes.c_size_t,
-        ctypes.POINTER(ctypes.c_size_t),
-    ]
-    lib.QLR_FS_TestReadFile.restype = ctypes.c_int
-    return lib
+	lib = ctypes.CDLL(str(lib_path))
+	lib.QLR_FS_TestInitCvars.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+	lib.QLR_FS_TestShutdown.argtypes = []
+	lib.QLR_FS_TestSetSteamUserId.argtypes = [ctypes.c_int, ctypes.c_uint32, ctypes.c_uint32]
+	lib.QLR_FS_TestResolveHomePath.argtypes = [ctypes.c_char_p]
+	lib.QLR_FS_TestResolveHomePath.restype = ctypes.c_char_p
+	lib.QLR_FS_TestSetWebPath.argtypes = [ctypes.c_char_p]
+	lib.QLR_FS_TestSetFallbackMappings.argtypes = [ctypes.c_char_p]
+	lib.QLR_FS_TestRewriteWebPath.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_size_t]
+	lib.QLR_FS_TestRewriteWebPath.restype = ctypes.c_int
+	lib.QLR_FS_TestOpenWebFileRead.argtypes = [
+		ctypes.c_char_p,
+		ctypes.c_char_p,
+		ctypes.c_size_t,
+		ctypes.c_char_p,
+		ctypes.c_size_t,
+	]
+	lib.QLR_FS_TestOpenWebFileRead.restype = ctypes.c_int
+	lib.QLR_FS_TestAddGameDirectory.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+	lib.QLR_FS_TestSetRestrict.argtypes = [ctypes.c_int]
+	lib.QLR_FS_TestSetDebug.argtypes = [ctypes.c_int]
+	lib.QLR_FS_TestLoadedPakNames.argtypes = []
+	lib.QLR_FS_TestLoadedPakNames.restype = ctypes.c_char_p
+	lib.QLR_FS_TestClearCapturedLog.argtypes = []
+	lib.QLR_FS_TestCapturedLog.argtypes = []
+	lib.QLR_FS_TestCapturedLog.restype = ctypes.c_char_p
+	lib.QLR_FS_TestReadFile.argtypes = [
+		ctypes.c_char_p,
+		ctypes.c_int,
+		ctypes.c_char_p,
+		ctypes.c_size_t,
+		ctypes.POINTER(ctypes.c_size_t),
+	]
+	lib.QLR_FS_TestReadFile.restype = ctypes.c_int
+	return lib
 
 
 @pytest.fixture()
@@ -102,6 +125,118 @@ def _read_file(
         filename.encode(), int(unique), buffer, ctypes.sizeof(buffer), ctypes.byref(handle)
     )
     return length, buffer.value.decode(), handle.value
+
+
+def _split_u64(value: int) -> Tuple[int, int]:
+    return value & 0xFFFFFFFF, (value >> 32) & 0xFFFFFFFF
+
+
+def test_homepath_resolution_defaults_to_basepath_without_steam_user(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+) -> None:
+    lib, basepath, _ = fs_environment
+
+    lib.QLR_FS_TestSetSteamUserId(0, 0, 0)
+
+    resolved = lib.QLR_FS_TestResolveHomePath(str(basepath).encode()).decode()
+
+    assert resolved == str(basepath)
+
+
+def test_homepath_resolution_appends_retail_steamid_suffix_when_available(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+) -> None:
+    lib, basepath, _ = fs_environment
+    steam_id = 76561198012345678
+    steam_id_low, steam_id_high = _split_u64(steam_id)
+
+    lib.QLR_FS_TestSetSteamUserId(1, steam_id_low, steam_id_high)
+
+    resolved = lib.QLR_FS_TestResolveHomePath(str(basepath).encode()).decode()
+
+    assert resolved == f"{basepath}/{steam_id}"
+
+
+def test_rewrite_web_path_prefixes_fs_webpath_and_preserves_screenshot_relative_path(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+) -> None:
+    lib, basepath, _ = fs_environment
+    webroot = basepath.parent / "webroot"
+    rewritten = ctypes.create_string_buffer(512)
+
+    lib.QLR_FS_TestSetWebPath(str(webroot).encode())
+
+    assert lib.QLR_FS_TestRewriteWebPath(
+        b"https://cdn.quakelive.com/assets/menu.txt", rewritten, ctypes.sizeof(rewritten)
+    )
+    assert rewritten.value.decode() == f"{webroot}/assets/menu.txt"
+
+    assert lib.QLR_FS_TestRewriteWebPath(
+        b"https://cdn.quakelive.com/screenshots/finals/match.jpg", rewritten, ctypes.sizeof(rewritten)
+    )
+    assert rewritten.value.decode() == "screenshots/finals/match.jpg"
+
+
+def test_web_fallback_reads_mapped_fs_webpath_content_and_reports_resolution(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+) -> None:
+    lib, basepath, _ = fs_environment
+    webroot = basepath.parent / "webroot"
+    resolved = ctypes.create_string_buffer(512)
+    buffer = ctypes.create_string_buffer(256)
+
+    _write_dir(webroot, "web/news/today.json", "web-fallback")
+
+    lib.QLR_FS_TestSetWebPath(str(webroot).encode())
+    lib.QLR_FS_TestSetFallbackMappings(b"https://cdn.quakelive.com/=web")
+    lib.QLR_FS_TestAddGameDirectory(str(basepath).encode(), b"baseq3")
+    lib.QLR_FS_TestClearCapturedLog()
+
+    length = lib.QLR_FS_TestOpenWebFileRead(
+        b"https://cdn.quakelive.com/news/today.json",
+        resolved,
+        ctypes.sizeof(resolved),
+        buffer,
+        ctypes.sizeof(buffer),
+    )
+    captured = lib.QLR_FS_TestCapturedLog().decode()
+
+    assert length == len("web-fallback")
+    assert buffer.value.decode() == "web-fallback"
+    assert resolved.value.decode() == "web/news/today.json"
+    assert "web-fallback: https://cdn.quakelive.com/news/today.json -> web/news/today.json (fs_webpath)" in captured
+
+
+def test_web_fallback_routes_screenshot_requests_through_homepath(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+) -> None:
+    lib, basepath, homepath = fs_environment
+    webroot = basepath.parent / "webroot"
+    resolved = ctypes.create_string_buffer(512)
+    buffer = ctypes.create_string_buffer(256)
+
+    _write_dir(homepath, "screenshots/finals/match.jpg", "home-shot")
+
+    lib.QLR_FS_TestSetWebPath(str(webroot).encode())
+    lib.QLR_FS_TestSetFallbackMappings(
+        b"https://cdn.quakelive.com/=web;quakelive://screenshots/=home:screenshots"
+    )
+    lib.QLR_FS_TestAddGameDirectory(str(basepath).encode(), b"baseq3")
+    lib.QLR_FS_TestClearCapturedLog()
+
+    length = lib.QLR_FS_TestOpenWebFileRead(
+        b"quakelive://screenshots/finals/match.jpg",
+        resolved,
+        ctypes.sizeof(resolved),
+        buffer,
+        ctypes.sizeof(buffer),
+    )
+    captured = lib.QLR_FS_TestCapturedLog().decode()
+
+    assert length == len("home-shot")
+    assert buffer.value.decode() == "home-shot"
+    assert resolved.value.decode() == "screenshots/finals/match.jpg"
+    assert "web-fallback: quakelive://screenshots/finals/match.jpg -> screenshots/finals/match.jpg (fs_homepath)" in captured
 
 
 def test_pk3_precedence_over_directory(fs_environment: Tuple[ctypes.CDLL, Path, Path]) -> None:
@@ -155,7 +290,6 @@ def test_unique_file_reopens_zip_handle(fs_environment: Tuple[ctypes.CDLL, Path,
 
 def test_homepath_overlay_pk3_precedes_base_bundle_and_logs_source(
     fs_environment: Tuple[ctypes.CDLL, Path, Path],
-    capfd: pytest.CaptureFixture[str],
 ) -> None:
     lib, basepath, homepath = fs_environment
 
@@ -169,9 +303,9 @@ def test_homepath_overlay_pk3_precedes_base_bundle_and_logs_source(
     loaded_paks = lib.QLR_FS_TestLoadedPakNames().decode()
     assert loaded_paks.split()[:2] == ["pak_ui_src_retail_overlay", "pak_uiql"]
 
-    capfd.readouterr()
+    lib.QLR_FS_TestClearCapturedLog()
     length, content, _ = _read_file(lib, "ui/hud.txt")
-    captured = capfd.readouterr().out
+    captured = lib.QLR_FS_TestCapturedLog().decode()
 
     assert length == len("overlay-bundle")
     assert content == "overlay-bundle"

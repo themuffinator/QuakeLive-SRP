@@ -1,17 +1,14 @@
-# Toolchain CI Checks
+# Toolchain Validation Checks
 
-[![Harnesses (QVM)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml/badge.svg?branch=main&job=Harnesses%20(QVM))](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml)
-[![Harnesses (DLL)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml/badge.svg?branch=main&job=Harnesses%20(DLL))](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml)
-
-GitHub Actions now keeps the QVM and native DLL toolchain guards inside the `Deterministic Harnesses` matrix. That preserves separate status visibility for the QVM and DLL lanes without maintaining redundant standalone workflows.
+GitHub Actions workflows are intentionally pruned from this repository for now. The QVM and native DLL toolchain guards remain available as local/manual validation steps so contributors can still run the same checks without any hosted triggers.
 
 ## QVM toolchain guard
 
-The `Harnesses (QVM)` job runs on Ubuntu, executes `tools/ci/verify-qvm-toolchain.sh`, rebuilds the clean-room shared objects, and then runs `tests/run_harnesses.py --target qvm`. The prerequisite script still validates `perl`, `make`, `gcc`, the legacy `src/q3asm/` and `src/lcc/` makefiles, and the historical wrapper scripts before the harnesses start.
+The QVM guard runs locally on a Unix-like host, executes `tools/ci/verify-qvm-toolchain.sh`, rebuilds the clean-room shared objects, and then runs `tests/run_harnesses.py --target qvm`. The prerequisite script still validates `perl`, `make`, `gcc`, the legacy `src/q3asm/` and `src/lcc/` makefiles, and the historical wrapper scripts before the harnesses start.
 
 ## Native DLL validation
 
-The `Harnesses (DLL)` job runs on `windows-latest` and keeps the old native guard coverage inside the matrix lane before it executes the shared harness bundle. The lane now:
+The native DLL validation path runs locally on Windows before it executes the shared harness bundle. The lane now:
 
 1. Installs the optional Visual Studio 2010 `v100` component.
 2. Verifies that the `v100` toolset and `dumpbin.exe` are available.

@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../client/client.h"
 #include "../qcommon/qcommon.h"
 #include "win_local.h"
+#include "win_clipboard_shared.h"
 #include "resource.h"
 #include <errno.h>
 #include <float.h>
@@ -466,31 +467,83 @@ qboolean	Sys_CheckCD( void ) {
 	//return Sys_ScanForCD();
 }
 
+/*
+==================
+Sys_CloneClipboardText
+==================
+*/
+static char *Sys_CloneClipboardText( const char *cliptext ) {
+	size_t dataBytes;
+	char *data;
+
+	if ( !cliptext ) {
+		return NULL;
+	}
+
+	dataBytes = strlen( cliptext ) + 1;
+	data = Z_Malloc( dataBytes );
+	memcpy( data, cliptext, dataBytes );
+	QLR_Win32ClipboardTrimText( data );
+
+	return data;
+}
 
 /*
-================
-Sys_GetClipboardData
+==================
+Sys_CloneClipboardUnicodeText
+==================
+*/
+static char *Sys_CloneClipboardUnicodeText( const WCHAR *cliptext ) {
+	int utf8Bytes;
+	char *data;
 
-================
+	utf8Bytes = QLR_Win32ClipboardWideToUtf8ByteCount( cliptext );
+	if ( utf8Bytes <= 0 ) {
+		return NULL;
+	}
+
+	data = Z_Malloc( utf8Bytes );
+	if ( !QLR_Win32ClipboardWideToUtf8( cliptext, data, utf8Bytes ) ) {
+		Z_Free( data );
+		return NULL;
+	}
+
+	QLR_Win32ClipboardTrimText( data );
+	return data;
+}
+
+/*
+==================
+Sys_GetClipboardData
+==================
 */
 char *Sys_GetClipboardData( void ) {
 	char *data = NULL;
-	char *cliptext;
+	HANDLE hClipboardData;
 
-	if ( OpenClipboard( NULL ) != 0 ) {
-		HANDLE hClipboardData;
-
-		if ( ( hClipboardData = GetClipboardData( CF_TEXT ) ) != 0 ) {
-			if ( ( cliptext = GlobalLock( hClipboardData ) ) != 0 ) {
-				data = Z_Malloc( GlobalSize( hClipboardData ) + 1 );
-				Q_strncpyz( data, cliptext, GlobalSize( hClipboardData ) );
-				GlobalUnlock( hClipboardData );
-				
-				strtok( data, "\n\r\b" );
-			}
-		}
-		CloseClipboard();
+	if ( OpenClipboard( NULL ) == 0 ) {
+		return NULL;
 	}
+
+	if ( ( hClipboardData = GetClipboardData( CF_UNICODETEXT ) ) != 0 ) {
+		const WCHAR *cliptext;
+
+		if ( ( cliptext = (const WCHAR *)GlobalLock( hClipboardData ) ) != 0 ) {
+			data = Sys_CloneClipboardUnicodeText( cliptext );
+			GlobalUnlock( hClipboardData );
+		}
+	}
+
+	if ( !data && ( hClipboardData = GetClipboardData( CF_TEXT ) ) != 0 ) {
+		const char *cliptext;
+
+		if ( ( cliptext = (const char *)GlobalLock( hClipboardData ) ) != 0 ) {
+			data = Sys_CloneClipboardText( cliptext );
+			GlobalUnlock( hClipboardData );
+		}
+	}
+
+	CloseClipboard();
 	return data;
 }
 

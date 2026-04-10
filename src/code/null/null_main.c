@@ -78,6 +78,15 @@ char *Sys_GetClipboardData( void ) {
 	return NULL;
 }
 
+/*
+================
+Sys_ExecutableBaseName
+================
+*/
+char *Sys_ExecutableBaseName( void ) {
+	return "";
+}
+
 int		Sys_Milliseconds (void) {
 	return 0;
 }
@@ -112,5 +121,4 @@ void main (int argc, char **argv) {
 		Com_Frame( );
 	}
 }
-
 

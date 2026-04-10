@@ -39,6 +39,6 @@ The harness:
 - Copies `qagamex86.dll`, `cgamex86.dll`, and `uix86.dll` into `artifacts\wow64-smoketest`.
 - Loads `qagamex86.dll`, `cgamex86.dll`, and `uix86.dll`, probing for `dllEntry` and `vmMain`, and logs outcomes to `artifacts\wow64-smoketest\wow64-smoketest.log`.
 
-## CI / manual integration
-- **GitHub Actions / Azure Pipelines:** add a Windows Server 2019 or Windows 7-compatible self-hosted runner that can launch 32-bit PowerShell. Invoke `tools\ci\wow64-smoketest.ps1` as a job step and publish the resulting log as an artifact.
-- **Manual sign-off:** when CI is unavailable, run the harness locally and attach `wow64-smoketest.log` to the test report for WOW64 coverage.
+## Integration
+- **Scripted/manual sign-off:** run the harness locally from a 32-bit PowerShell host and attach `wow64-smoketest.log` to the test report for WOW64 coverage.
+- **Future automation option:** if hosted validation returns later, prefer a Windows self-hosted runner capable of launching 32-bit PowerShell and publishing the resulting log as an artifact.

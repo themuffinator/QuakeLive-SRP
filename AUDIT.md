@@ -178,6 +178,41 @@ Summary:
 - Combined committed retail mapping coverage for the three DLLs remains saturated at **2426 / 2426** normalized anchors, so no open game-module debt remains inside the module layer; the remaining live-map shortfall is explicitly renderer-owned.
 - No confirmed source-owned or host-adjacent game-module behavior gap remains after `GMR-P5`.
 
+## Module parity refresh (2026-04-10)
+
+A current-worktree module audit is now published in
+`docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md`.
+
+Summary:
+
+- Treat the `2026-04-09` combined module report as the historical closure
+  milestone, not the authoritative current-worktree status.
+- Fresh module-source validation remains strong on `2026-04-10`: `cgame` is
+  `170 passed`, `qagame` plus lifecycle is `91 passed, 5 skipped`, `ui` plus
+  fs/vote checks is `58 passed, 2 skipped`, and the shared
+  platform-service/module-gate lane is `57 passed, 1 skipped`.
+- The tracked retail runtime evidence remains sufficient: retail `uix86.dll`,
+  `qagamex86.dll`, and `cgamex86.dll` still load under the reconstructed host,
+  and the remaining live-map shortfall is still explicitly renderer-owned.
+- `GMR-P6` is now complete in the current worktree: the combined
+  `.github/workflows/module-validation.yml` lane is back, and
+  `artifacts/module_validation/logs/retail_module_parity_gate.json` is green
+  again.
+- `GMR-P7` is now complete in the current worktree: the dedicated
+  `.github/workflows/ui-validation.yml` lane is back, it enforces the unified
+  UI gate, and `artifacts/ui_validation/logs/ui_full_parity_gate.json` is green
+  again.
+- `GMR-P8` is now complete in the current worktree: the current module audit,
+  the top-level ledgers, and the supporting pipeline notes now all point at the
+  same closure state again, and the archived retail runtime probe remains
+  sufficient without rerun because the host-side validation contract did not
+  change.
+- The actively referenced module ledgers and supporting pipeline notes now agree
+  on one current-worktree closure state again; no active source-owned or
+  certification-lane game-module gap remains open in the audited surface.
+- The current strict retail module estimate for the current worktree is back at
+  **100%** in the refreshed module report.
+
 ## Renderer audit refresh (2026-04-10)
 
 A focused full-parity audit for the renderer is now published in `docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`.
@@ -221,3 +256,63 @@ Summary:
 - The refreshed strict `client` estimate is now **100%**. This is a behavior-backed uplift from the post-audit **90%** figure because the retail config/bootstrap persistence gap (`CL-G04`), the async Steam callback lifetime gap (`CL-G02`), the workshop bootstrap gap (`CL-G03`), the browser/JS/runtime ownership gap (`CL-G01`), and the final verification gap (`CL-G05`) are now closed.
 - The classic client/runtime story is materially strong: recent mapping rounds now bound the retained input/key path, resend/connect/disconnect lifecycle, server-browser helpers, packet/frame spine, sound core, native `ui`/`cgame` bridge, and live renderer-resource ingestion well enough that the client should no longer be treated as uniformly “low parity”.
 - No open gap remains in the audited client register.
+
+## Server audit refresh (2026-04-10)
+
+A focused full-parity audit for the engine `server` host is now published in `docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md`.
+
+Summary:
+
+- The refreshed strict `server` estimate is now explicitly tracked as **100%**. This is a behavior-backed uplift from the post-audit **74%** figure because the Steam GameServer lifecycle work in `SV-P1`, the callback/auth reconstruction in `SV-P2`, the retained `idZMQ` runtime plus report/event publication work in `SV-P3`, the Steam stat/achievement ownership work in `SV-P4`, the rankings compatibility closure in `SV-P5`, the control-plane closure in `SV-P6`, and the final parity-gate/runtime-evidence closure in `SV-P7` are now source-backed or evidence-backed in the writable host.
+- The classic server/runtime spine is materially stronger than the old top-level audit implied. The retained challenge/connect path, netchan/message execution, snapshot/world ownership, workshop-reference publication, and multiple Quake Live metadata deltas (`sv_vac`, `sv_serverType`, `sv_maskBots`, `sv_warmupReadyPercentage`, `sv_referencedSteamworks`) are already source-backed and strongly bounded by the committed alias/mapping corpus.
+- `SV-P1` through `SV-P7` are now complete. The server now has the retained Steam GameServer lifecycle/auth/stat owners, the retained `idZMQ` runtime/report lane, the policy-bounded rankings compatibility surface, the reconstructed control-plane cvar surface, and the dedicated validation closure lane.
+- The focused validation surface for the completed server register is green on 2026-04-10: `tests/test_platform_services.py`, `tests/test_fake_vacban.py`, and `tests/test_server_full_parity_gate.py` report `59 passed, 1 skipped`, and the dedicated runtime probe now archives `artifacts/server_validation/logs/server_runtime_evidence_20260410.json`.
+- `SV-G01` is now closed: the Steam GameServer bootstrap/logon/shutdown lifecycle, connected/disconnected/failure notifications, `ValidateAuthTicketResponse_t`, server-side `P2PSessionRequest_t`, and engine-owned auth-session lifetime are all source-backed in the writable host.
+- `SV-G02` is now closed: the retained `idZMQ` stats publisher and remote-RCON runtime from mapping rounds `94` through `97` are now source-backed in writable server host code.
+- `SV-G03` is now closed: the qagame-facing Steam stat/achievement trio is source-backed through a retained server-owned session/cache owner in `sv_client.c` and `SteamGameServerStats` wrappers in `platform_steamworks.c`.
+- `SV-G04` is now closed: the retained rankings source body remains policy-disabled until a documented open backend exists, but the default runtime now exposes registered compatibility cvars and a validated per-server disabled-state contract instead of an ambiguous silent stub.
+- `SV-G05` is now closed: the missing retail server-only control-plane cvar surface is registered in `SV_Init()`, the retained `sv_errorExit`/`sv_idleExit` owners now route through `common.c` plus `sv_main.c`, the retained alternate-entity/dump boundary now lives in `sv_game.c`, `sv_cylinderScale` now applies in `cm_trace.c`, and the lower-confidence cvars that the committed corpus only proves as registrations are now explicit compatibility/publication surfaces instead of missing names.
+- `SV-G06` is now closed: the server now has `tests/test_server_full_parity_gate.py`, `artifacts/server_validation/logs/server_full_parity_gate.json`, `tools/server/run_server_runtime_probe.ps1`, `artifacts/server_validation/logs/server_runtime_evidence_20260410.json`, and `.github/workflows/server-validation.yml` as the dedicated verification/runtime-evidence lane.
+- `SV-P7` is now complete.
+- No open gap remains in the audited server register.
+
+## Qcommon audit refresh (2026-04-10)
+
+A focused full-parity audit for the engine `qcommon` layer is now published in `docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md`.
+
+Summary:
+
+- The refreshed strict `qcommon` estimate is now **100%**. This uplift now includes the earlier `QC-P2` validation closure, the `QC-P3` retail-behavior closure on Win32 homepath selection, the `QC-P4` collision-leaf ownership closure, the `QC-P5` fallback VM closure, and the `QC-P6` runtime-evidence/ledger closure.
+- Historical checkpoint before `QC-P6`: The refreshed strict `qcommon` estimate is now **98%**.
+- Historical checkpoint before `QC-P5`: The refreshed strict `qcommon` estimate is now **95%**.
+- Historical checkpoint before `QC-P4`: The refreshed strict `qcommon` estimate is now **92%**.
+- The active qcommon runtime is materially stronger than the top-level audit previously implied. `Com_Init` / `Com_Frame`, retail config persistence, Steam-ID-backed Win32 filesystem startup, workshop-aware mounts, local launcher-resource fallbacks, message and netchan transport, and the structured native DLL loader boundary are all source-backed and strongly bounded by the committed corpus plus focused tests.
+- `QC-P2`, `QC-P3`, `QC-P4`, `QC-P5`, and `QC-P6` are now complete. `QC-G04`, `QC-G01`, `QC-G02`, `QC-G03`, and `QC-G05` are now closed. Qcommon now has a dedicated machine-readable parity gate plus Windows-friendly native harness coverage, `files.c` no longer relies on the heuristic `FS_DetectSteamHomePath()` directory scan, the retained `cm_patch.c` / `cm_polylib.c` leaf band is bounded by an explicit ownership note and focused native probes, the fallback VM owner family is now closed by a dedicated ownership note plus fallback selection/interpreter/restart/pointer-boundary tests, and the final runtime bundle now archives bootstrap config execution, search-path roots, writable-homepath DLL loading, and service-disabled launcher/resource markers.
+- Historical checkpoint before `QC-P4`: `QC-P2` and `QC-P3` are now complete. `QC-G04` and `QC-G01` are now closed.
+- Focused filesystem coverage now directly guards the retail-shaped homepath default, the Steam-ID suffix, mapped `fs_webpath` fallback reads, and screenshot/homepath fallback routing on the default Windows host.
+- Focused collision coverage now directly guards curved patch generation, flat patch traces, flat patch overlap, representative mark-fragment-style winding clipping, and `CM_CheckFacetPlane` behavior through `tests/test_qcommon_collision_leaf_parity.py`.
+- Focused fallback VM coverage now directly guards native-to-qvm fallback, `fs_restrict` compiled selection, interpreted bytecode and syscall dispatch, restart fallback, and native-versus-qvm pointer boundaries through `tests/test_qcommon_vm_fallback_parity.py`.
+- No open gap remains in the audited qcommon register.
+- `QC-P4` is now complete.
+- Historical checkpoint before `QC-P5`: `QC-P4` is now complete.
+- `QC-G02` is now closed.
+- Historical checkpoint before `QC-P5`: `QC-G02` is now closed.
+- `QC-P5` is now complete.
+- `QC-G03` is now closed.
+- `QC-P6` is now complete.
+- `QC-G05` is now closed.
+
+## Remaining engine host/support audit refresh (2026-04-10)
+
+A focused full-parity audit for the remaining engine host/support surface outside `qcommon`, `server`, `client`, and `renderer` is now published in `docs/reverse-engineering/engine-host-support-full-parity-audit-and-implementation-plan-2026-04-10.md`.
+
+Summary:
+
+- The refreshed strict `remaining engine host/support` estimate is now tracked as **100%**. Historical checkpoint before `EH-P4`: **92%**. Historical checkpoint before `EH-P6`: **89%**. Historical checkpoint before `EH-P3`: **83%**. This now includes the dedicated `EH-P4` botlib internal proof closure, the earlier `EH-P6` parity gate/evidence closure, the Win32 raw-input and Unicode clipboard recoveries, and the final `EH-P5` compatibility-boundary classification.
+- The strongest already-closed lanes are the Win32 bootstrap and console wrappers, the reconstructed Unicode clipboard path in `win_main.c`, the reconstructed raw-input host lane in `win_input.c` / `win_wndproc.c`, the broad `platform_steamworks.c` wrapper family, and the executable-owned `awesomium_process.exe` helper surface.
+- `EH-P4` is now complete. `EH-G04` is now closed. The closure is backed by `docs/reverse-engineering/botlib-internal-parity-audit-and-implementation-plan-2026-04-10.md`, `tests/test_botlib_internal_parity.py`, and `tests/botlib_internal_harness.c`, which together bound representative AAS, reachability, and goal-state helpers against the committed retail evidence.
+- `EH-P6` is now complete. `EH-G06` is now closed by `tests/test_engine_host_support_full_parity_gate.py`, `artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`, `artifacts/engine_host_support_validation/logs/engine_host_support_runtime_evidence_20260410.json`, and `.github/workflows/engine-host-support-validation.yml`.
+- `EH-P1` is now complete. The host/support artifact now carries machine-readable scope boundary and classification metadata in addition to the gap register, so the strict-retail versus compatibility-only split is no longer ledger-specific prose.
+- `EH-P5` is now complete. `EH-G03` and `EH-G05` are now closed as documented compatibility-only divergences rather than left as blocked parity debt.
+- `platform_services.c`, the open/hybrid auth backends, and the Unix/null trees are now treated explicitly as compatibility or policy lanes rather than as silent retail closures, and the dedicated host/support gate now reports `overall_status: pass`.
+- No open gap remains in the audited remaining engine host/support register.

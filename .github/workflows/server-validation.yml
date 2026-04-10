@@ -1,0 +1,72 @@
+name: Server Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/server-validation.yml'
+      - 'tests/test_platform_services.py'
+      - 'tests/test_fake_vacban.py'
+      - 'tests/test_server_full_parity_gate.py'
+      - 'tools/server/run_server_runtime_probe.ps1'
+      - 'artifacts/server_validation/**'
+      - 'docs/build-pipeline.md'
+      - 'docs/windows-native-pipeline.md'
+      - 'docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md'
+      - 'docs/reverse-engineering/server-validation-and-runtime-evidence-2026-04-10.md'
+      - 'AUDIT.md'
+      - 'IMPLEMENTATION_PLAN.md'
+      - 'src/code/server/**'
+      - 'src/code/qcommon/common.c'
+      - 'src/common/platform/platform_steamworks.c'
+      - 'src/common/platform/platform_steamworks.h'
+  pull_request:
+    paths:
+      - '.github/workflows/server-validation.yml'
+      - 'tests/test_platform_services.py'
+      - 'tests/test_fake_vacban.py'
+      - 'tests/test_server_full_parity_gate.py'
+      - 'tools/server/run_server_runtime_probe.ps1'
+      - 'artifacts/server_validation/**'
+      - 'docs/build-pipeline.md'
+      - 'docs/windows-native-pipeline.md'
+      - 'docs/reverse-engineering/server-full-parity-audit-and-implementation-plan-2026-04-10.md'
+      - 'docs/reverse-engineering/server-validation-and-runtime-evidence-2026-04-10.md'
+      - 'AUDIT.md'
+      - 'IMPLEMENTATION_PLAN.md'
+      - 'src/code/server/**'
+      - 'src/code/qcommon/common.c'
+      - 'src/common/platform/platform_steamworks.c'
+      - 'src/common/platform/platform_steamworks.h'
+
+jobs:
+  server-validation:
+    runs-on: windows-latest
+    env:
+      SERVER_VALIDATION_ROOT: artifacts/server_validation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run server parity tests
+        run: |
+          pytest tests/test_platform_services.py tests/test_fake_vacban.py tests/test_server_full_parity_gate.py -q
+
+      - name: Upload server artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-validation
+          path: |
+            ${{ env.SERVER_VALIDATION_ROOT }}/**
+          if-no-files-found: warn
+          retention-days: 7

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import subprocess
 import textwrap
+import os
 from pathlib import Path
+
+import pytest
+
+from tests.compiler_support import compile_c_binary, executable_name, find_c_compiler
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -212,25 +217,29 @@ _CVAR_ALIAS_PROBE = textwrap.dedent(
 
 
 def test_legacy_cvar_aliases(tmp_path: Path) -> None:
-    workdir = tmp_path / "legacy_cvars"
-    workdir.mkdir(parents=True, exist_ok=True)
+	workdir = tmp_path / "legacy_cvars"
+	workdir.mkdir(parents=True, exist_ok=True)
+	compiler = find_c_compiler()
 
-    src_path = workdir / "legacy_cvars_test.c"
-    src_path.write_text(_CVAR_ALIAS_PROBE, encoding="utf-8")
-    exe_path = workdir / "legacy_cvars_test"
+	if compiler is None:
+		pytest.skip("no supported C compiler is available for the legacy cvar alias probe")
 
-    compile_cmd = [
-        "gcc",
-        "-std=c99",
-        "-Wall",
-        "-Werror",
-        str(src_path),
-        "-I",
-        str(REPO_ROOT / "src" / "code" / "game"),
-        "-o",
-        str(exe_path),
-    ]
-    subprocess.run(compile_cmd, check=True, cwd=REPO_ROOT)
+	src_path = workdir / "legacy_cvars_test.c"
+	src_path.write_text(_CVAR_ALIAS_PROBE, encoding="utf-8")
+	exe_path = workdir / executable_name("legacy_cvars_test")
 
-    result = subprocess.run([str(exe_path)], check=True, capture_output=True, text=True, cwd=REPO_ROOT)
-    assert "ok" in result.stdout.splitlines()
+	extra_cflags: list[str] = []
+	if os.name != "nt" and not compiler.is_msvc:
+		extra_cflags.extend(["-Wall", "-Werror"])
+
+	compile_c_binary(
+		compiler,
+		[src_path],
+		exe_path,
+		include_dirs=[REPO_ROOT / "src" / "code" / "game"],
+		extra_cflags=extra_cflags,
+		workdir=REPO_ROOT,
+	)
+
+	result = subprocess.run([str(exe_path)], check=True, capture_output=True, text=True, cwd=REPO_ROOT)
+	assert "ok" in result.stdout.splitlines()

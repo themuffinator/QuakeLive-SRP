@@ -500,6 +500,7 @@ $(B)/client/snd_wavelet.o \
 	$(B)/client/sv_game.o \
 	$(B)/client/sv_init.o \
 	$(B)/client/sv_main.o \
+	$(B)/client/sv_zmq.o \
 	$(B)/client/sv_net_chan.o \
 	$(B)/client/sv_snapshot.o \
 	$(B)/client/sv_world.o \
@@ -723,6 +724,7 @@ $(B)/client/sv_ccmds.o : $(SDIR)/sv_ccmds.c; $(DO_CC)
 $(B)/client/sv_game.o : $(SDIR)/sv_game.c; $(DO_CC)        
 $(B)/client/sv_init.o : $(SDIR)/sv_init.c; $(DO_CC)        
 $(B)/client/sv_main.o : $(SDIR)/sv_main.c; $(DO_CC)        
+$(B)/client/sv_zmq.o : $(SDIR)/sv_zmq.c; $(DO_CC)
 $(B)/client/sv_net_chan.o : $(SDIR)/sv_net_chan.c; $(DO_CC)     
 $(B)/client/sv_snapshot.o : $(SDIR)/sv_snapshot.c; $(DO_CC)      
 $(B)/client/sv_world.o : $(SDIR)/sv_world.c; $(DO_CC)         
@@ -890,6 +892,7 @@ Q3DOBJ = \
 	$(B)/ded/sv_game.o \
 	$(B)/ded/sv_init.o \
 	$(B)/ded/sv_main.o \
+	$(B)/ded/sv_zmq.o \
 	$(B)/ded/sv_net_chan.o \
 	$(B)/ded/sv_snapshot.o \
 	$(B)/ded/sv_world.o \
@@ -972,6 +975,7 @@ $(B)/ded/sv_ccmds.o : $(SDIR)/sv_ccmds.c; $(DO_DED_CC)
 $(B)/ded/sv_game.o : $(SDIR)/sv_game.c; $(DO_DED_CC) 
 $(B)/ded/sv_init.o : $(SDIR)/sv_init.c; $(DO_DED_CC) 
 $(B)/ded/sv_main.o : $(SDIR)/sv_main.c; $(DO_DED_CC) 
+$(B)/ded/sv_zmq.o : $(SDIR)/sv_zmq.c; $(DO_DED_CC)
 $(B)/ded/sv_net_chan.o : $(SDIR)/sv_net_chan.c; $(DO_DED_CC) 
 $(B)/ded/sv_snapshot.o : $(SDIR)/sv_snapshot.c; $(DO_DED_CC) 
 $(B)/ded/sv_world.o : $(SDIR)/sv_world.c; $(DO_DED_CC) 
@@ -1551,6 +1555,7 @@ $(B)/q3static/snd_wavelet.o \
 	$(B)/q3static/sv_game.o \
 	$(B)/q3static/sv_init.o \
 	$(B)/q3static/sv_main.o \
+	$(B)/q3static/sv_zmq.o \
 	$(B)/q3static/sv_net_chan.o \
 	$(B)/q3static/sv_snapshot.o \
 	$(B)/q3static/sv_world.o \
@@ -1707,6 +1712,7 @@ $(B)/q3static/sv_ccmds.o : $(SDIR)/sv_ccmds.c; $(DO_CC) -DQ3_STATIC
 $(B)/q3static/sv_game.o : $(SDIR)/sv_game.c; $(DO_CC) -DQ3_STATIC        
 $(B)/q3static/sv_init.o : $(SDIR)/sv_init.c; $(DO_CC) -DQ3_STATIC        
 $(B)/q3static/sv_main.o : $(SDIR)/sv_main.c; $(DO_CC) -DQ3_STATIC        
+$(B)/q3static/sv_zmq.o : $(SDIR)/sv_zmq.c; $(DO_CC) -DQ3_STATIC
 $(B)/q3static/sv_net_chan.o : $(SDIR)/sv_net_chan.c; $(DO_CC) -DQ3_STATIC     
 $(B)/q3static/sv_snapshot.o : $(SDIR)/sv_snapshot.c; $(DO_CC) -DQ3_STATIC      
 $(B)/q3static/sv_world.o : $(SDIR)/sv_world.c; $(DO_CC) -DQ3_STATIC         

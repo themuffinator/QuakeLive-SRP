@@ -2,6 +2,21 @@
 
 This document describes how the client dispatches external authentication requests and how to observe the resulting lifecycle logs.
 
+## Strict-Retail Classification
+
+This authentication surface is a compatibility-only provider lane for the
+remaining engine host/support audit, not a claim that retail Quake Live online
+services have been reconstructed in source. In the strict retail Windows engine-host/support score,
+only the policy boundary and caller ownership are counted here: the
+open-adapter and hybrid labels exist so the repo can expose bounded fallback
+behavior without misreporting those backends as retail code.
+
+`QL_BUILD_ONLINE_SERVICES` defaults to `0`, which keeps Quake Live-only online
+service traffic disabled unless a contributor deliberately opts into a non-default
+compatibility build. Even in opted-in builds, the open/hybrid backends remain a
+documented divergence until a documented open replacement path exists for the
+retail-only service dependency.
+
 ## Request Routing
 
 `QL_RequestExternalAuth` clears the response container and invokes `QL_Auth_ExecuteRequest`, which consults the platform service table to discover the active authentication backend.【F:src/common/auth_credentials.c†L120-L154】【F:src/code/client/ql_auth.c†L200-L273】 The descriptor published by `QL_GetPlatformServices` provides the human-readable provider name (for example, “Steamworks”, “Open Steam Adapter”, or “Hybrid”), and the dispatcher derives the request endpoint from the credential kind:
@@ -10,6 +25,12 @@ This document describes how the client dispatches external authentication reques
 - **Standalone launcher** – `/launcher/auth/verify`
 
 The build definitions `QL_BUILD_ONLINE_SERVICES`, `QL_BUILD_STEAMWORKS`, and `QL_BUILD_OPEN_STEAM` funnel through `platform_config.h`, which exposes the normalised capability flags consumed by `QL_GetPlatformServices`. The table below maps the supported flag permutations to the advertised provider label and dispatch endpoints surfaced by the runtime. Regression probes compile the dispatcher with each flag combination to confirm the descriptors match the configuration, including the default build-disabled policy path.【F:src/common/platform/platform_config.h†L1-L40】【F:src/common/platform/platform_services.c†L16-L89】【F:tests/test_platform_services.py†L11-L154】
+
+When a build does enable those compatibility lanes, `QL_GetPlatformServices`
+can still hard-disable them at runtime through
+`QL_DISABLE_EXTERNAL_ECOSYSTEMS` or `QL_DISABLE_STEAMWORKS`, publishing
+`Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS` instead of silently pretending the
+non-retail providers are part of the strict-retail path.
 
 | Build macro preset | Provider label reported by `QL_GetPlatformServices` | Dispatch endpoints |
 | --- | --- | --- |

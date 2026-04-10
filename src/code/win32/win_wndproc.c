@@ -393,6 +393,11 @@ LONG WINAPI MainWndProc (
 	{
 		if ( uMsg == MSH_MOUSEWHEEL )
 		{
+			if ( IN_RawInputIsActive() )
+			{
+				return DefWindowProc (hWnd, uMsg, wParam, lParam);
+			}
+
 			if ( ( ( int ) wParam ) > 0 )
 			{
 				Sys_QueEvent( g_wv.sysMsgTime, SE_KEY, K_MWHEELUP, qtrue, 0, NULL );
@@ -409,6 +414,10 @@ LONG WINAPI MainWndProc (
 
 	switch (uMsg)
 	{
+	case WM_INPUT:
+		IN_RawInputEvent( wParam, lParam );
+		return DefWindowProc( hWnd, uMsg, wParam, lParam );
+
 	case WM_MOUSEWHEEL:
 		// http://msdn.microsoft.com/library/default.asp?url=/library/en-us/winui/winui/windowsuserinterface/userinput/mouseinput/aboutmouseinput.asp
 		// Windows 98/Me, Windows NT 4.0 and later - uses WM_MOUSEWHEEL
@@ -416,6 +425,11 @@ LONG WINAPI MainWndProc (
 		//   if console is toggled in window mode (KEYCATCH_CONSOLE) then mouse is released and DI doesn't see any mouse wheel
 		if (in_mouse->integer != 1 || (!r_fullscreen->integer && (cls.keyCatchers & KEYCATCH_CONSOLE)))
 		{
+			if ( IN_RawInputIsActive() )
+			{
+				return 0;
+			}
+
 			// 120 increments, might be 240 and multiples if wheel goes too fast
 			// NOTE Logitech: logitech drivers are screwed and send the message twice?
 			//   could add a cvar to interpret the message as successive press/release events
@@ -591,7 +605,10 @@ LONG WINAPI MainWndProc (
 			if (wParam & MK_MBUTTON)
 				temp |= 4;
 
-			IN_MouseEvent (temp);
+			if ( !IN_RawInputIsActive() )
+			{
+				IN_MouseEvent (temp);
+			}
 		}
 		break;
 

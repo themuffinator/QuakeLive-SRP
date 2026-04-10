@@ -1,8 +1,8 @@
 {
-  "artifact_version": 2,
-  "phase": "GMR-P5",
+  "artifact_version": 3,
+  "phase": "GMR-P8",
   "parity_estimate": {
-    "before": 99.7,
+    "before": 100.0,
     "after": 100.0
   },
   "gap_order": [
@@ -49,10 +49,14 @@
         "retail_plan_current_parity_is_100": true,
         "retail_plan_marks_gmr_g05_closed": true,
         "retail_plan_marks_gmr_p5_completed": true,
-        "audit_marks_full_module_closure": true,
+        "current_audit_parity_is_100": true,
+        "current_audit_marks_gmr_p8_completed": true,
+        "audit_marks_gmr_p7_and_gmr_p8_completed": true,
         "implementation_plan_marks_task_31_completed": true,
-        "pipeline_docs_reference_final_gate": true,
+        "implementation_plan_marks_task_104_completed": true,
+        "pipeline_docs_reference_current_closure": true,
         "ui_plan_marks_combined_closure_alignment": true,
+        "historical_suite_counts_preserved": true,
         "current_suite_counts_synced": true
       }
     }

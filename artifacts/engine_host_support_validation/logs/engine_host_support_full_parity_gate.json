@@ -1,0 +1,179 @@
+{
+  "artifact_version": 1,
+  "phase": "EH-P1",
+  "parity_estimate": {
+    "before": 100,
+    "after": 100
+  },
+  "scope_boundary": {
+    "headline_target": "retail Windows engine host/support replacement target outside qcommon/server/client/renderer",
+    "excluded_owner_modules": [
+      "qcommon",
+      "server",
+      "client",
+      "renderer"
+    ],
+    "excluded_module_trees": [
+      "game",
+      "cgame",
+      "ui"
+    ],
+    "compatibility_only_surfaces": [
+      "src/common/platform/platform_services.c",
+      "src/common/platform/backends/platform_backend_open_steam.c",
+      "src/common/platform/backends/platform_backend_steamworks.c",
+      "src/code/unix/*",
+      "src/code/null/*"
+    ],
+    "compatibility_only_gap_ids": [
+      "EH-G03",
+      "EH-G05"
+    ],
+    "strict_retail_scored_gap_ids": [
+      "EH-G01",
+      "EH-G02",
+      "EH-G04",
+      "EH-G06"
+    ]
+  },
+  "gap_order": [
+    "EH-G01",
+    "EH-G02",
+    "EH-G03",
+    "EH-G04",
+    "EH-G05",
+    "EH-G06"
+  ],
+  "tranches": {
+    "EH-G01": {
+      "gap_id": "EH-G01",
+      "status": "pass",
+      "summary": "The Win32 clipboard host path is Unicode-first and retains the ANSI fallback lane.",
+      "classification": "strict-retail",
+      "counts_toward_strict_retail_score": true,
+      "closure_phase": "EH-P2",
+      "details": {
+        "plan_marks_closed": true,
+        "unicode_first_source_present": true,
+        "ansi_fallback_source_present": true,
+        "shared_helpers_present": true,
+        "focused_tests_present": true
+      }
+    },
+    "EH-G02": {
+      "gap_id": "EH-G02",
+      "status": "pass",
+      "summary": "The Win32 raw-input registration, dispatch, and translation lane remains source-backed and test-backed.",
+      "classification": "strict-retail",
+      "counts_toward_strict_retail_score": true,
+      "closure_phase": "EH-P3",
+      "details": {
+        "plan_marks_closed": true,
+        "raw_registration_present": true,
+        "list_input_devices_present": true,
+        "wm_input_dispatch_present": true,
+        "shared_helpers_present": true,
+        "focused_tests_present": true
+      }
+    },
+    "EH-G03": {
+      "gap_id": "EH-G03",
+      "status": "pass",
+      "summary": "Compatibility-only platform-service abstractions are policy-gated, default-disabled, and explicitly excluded from the strict-retail score.",
+      "classification": "compatibility-only",
+      "counts_toward_strict_retail_score": false,
+      "closure_phase": "EH-P5",
+      "details": {
+        "plan_marks_closed": true,
+        "auth_doc_present": true,
+        "default_build_disabled": true,
+        "runtime_disable_env_present": true,
+        "compatibility_provider_labels_present": true,
+        "open_backend_token_heuristics_present": true,
+        "steamworks_backend_token_heuristics_present": true,
+        "focused_tests_present": true,
+        "excluded_from_strict_retail_score": true
+      }
+    },
+    "EH-G04": {
+      "gap_id": "EH-G04",
+      "status": "pass",
+      "summary": "Botlib now has a dedicated retail-backed audit plus deterministic internal proof for representative AAS, reachability, and goal-state helpers.",
+      "classification": "strict-retail",
+      "counts_toward_strict_retail_score": true,
+      "closure_phase": "EH-P4",
+      "details": {
+        "plan_marks_closed": true,
+        "dedicated_audit_present": true,
+        "focused_bot_resource_tests_present": true,
+        "focused_internal_tests_present": true,
+        "harness_export_wrappers_present": true,
+        "interface_exports_present": true,
+        "workflow_runs_internal_tests": true,
+        "botlib_fixme_count": 23
+      }
+    },
+    "EH-G05": {
+      "gap_id": "EH-G05",
+      "status": "pass",
+      "summary": "Unix/null compatibility ports are explicitly bounded as non-retail lanes and excluded from the strict-retail Windows closure score.",
+      "classification": "compatibility-only",
+      "counts_toward_strict_retail_score": false,
+      "closure_phase": "EH-P5",
+      "details": {
+        "plan_marks_closed": true,
+        "toolchain_matrix_present": true,
+        "unix_placeholder_lane_present": true,
+        "null_stub_lane_present": true,
+        "excluded_from_strict_retail_score": true
+      }
+    },
+    "EH-G06": {
+      "gap_id": "EH-G06",
+      "status": "pass",
+      "summary": "The remaining-engine host/support scope now has a dedicated parity gate, tracked evidence bundle, and workflow wiring.",
+      "classification": "validation-governance",
+      "counts_toward_strict_retail_score": true,
+      "closure_phase": "EH-P6",
+      "details": {
+        "plan_marks_closed": true,
+        "compiler_helper_present": true,
+        "input_translation_uses_compiler_helper": true,
+        "runtime_evidence_present": true,
+        "runtime_evidence_sufficient": true,
+        "validation_note_present": true,
+        "workflow_references_gate": true,
+        "workflow_runs_input_translation": true,
+        "build_pipeline_mentions_gate": true,
+        "windows_pipeline_mentions_runtime_artifact": true
+      }
+    }
+  },
+  "boundary_formalisation": {
+    "phase": "EH-P1",
+    "status": "pass",
+    "summary": "Strict-retail versus compatibility-lane boundaries are now formalised in the machine-readable host/support artifact and the linked ledgers.",
+    "compatibility_only_gap_ids": [
+      "EH-G03",
+      "EH-G05"
+    ],
+    "strict_retail_scored_gap_ids": [
+      "EH-G01",
+      "EH-G02",
+      "EH-G04",
+      "EH-G06"
+    ]
+  },
+  "overall_status": "pass",
+  "non_passing_gap_ids": [],
+  "classification_summary": {
+    "strict_retail_count": 3,
+    "compatibility_only_count": 2,
+    "validation_governance_count": 1
+  },
+  "summary": {
+    "passing_count": 6,
+    "blocked_count": 0,
+    "failing_count": 0
+  }
+}

@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 botlib_export_t	*botlib_export;
 static char	sv_gameClientConnectDenied[MAX_STRING_CHARS];
+static char	*s_svEntityStringOverride;
 
 void SV_GameError( const char *string ) {
 	Com_Error( ERR_DROP, "%s", string );
@@ -400,7 +401,7 @@ static qboolean SV_GetClientSteamId( int clientNum, uint32_t *steamIdLow, uint32
 =============
 SV_VerifyClientSteamAuth
 
-Validates the Steam authentication token captured from the client.
+Returns the retained Steam auth state captured by the server host.
 =============
 */
 static qboolean SV_VerifyClientSteamAuth( int clientNum ) {
@@ -418,8 +419,6 @@ static qboolean SV_VerifyClientSteamAuth( int clientNum ) {
 
 	return qfalse;
 	#else
-	ql_auth_credential_t credential;
-	ql_auth_response_t response;
 	client_t *cl;
 
 	if ( clientNum < 0 || clientNum >= sv_maxclients->integer ) {
@@ -436,21 +435,9 @@ static qboolean SV_VerifyClientSteamAuth( int clientNum ) {
 		return qfalse;
 	}
 
-	QL_InitAuthCredential( &credential );
-	Com_Memset( &response, 0, sizeof( response ) );
-
-	if ( !QL_ParsePlatformToken( cl->platformAuthToken, QL_AUTH_CREDENTIAL_STEAM, &credential ) ) {
+	if ( cl->platformAuthPending ) {
 		return qfalse;
 	}
-
-	if ( !QL_RequestExternalAuth( &credential, &response ) ) {
-		return qfalse;
-	}
-
-	cl->platformAuthSucceeded = response.result == QL_AUTH_RESULT_ACCEPTED;
-	Q_strncpyz( cl->platformAuthResult, SV_GetAuthResultString( response.result ), sizeof( cl->platformAuthResult ) );
-	Q_strncpyz( cl->platformAuthOutcome, SV_GetAuthOutcomeString( response.outcome ), sizeof( cl->platformAuthOutcome ) );
-	Q_strncpyz( cl->platformAuthMessage, response.message, sizeof( cl->platformAuthMessage ) );
 
 	return cl->platformAuthSucceeded;
 	#endif
@@ -1321,67 +1308,61 @@ static const ql_import_f ql_game_compat_imports[GAME_LEGACY_IMPORT_COUNT] = {
 =================
 SV_ClientAddSteamStat
 
-Retail qagame calls this raw native import when medal/stat events fire. The
-open backend path is still unrecovered, so keep the slot alive as a no-op.
+Retail qagame calls this raw native import when medal/stat events fire, and the
+engine server now forwards it into the retained Steam stats owner.
 =================
 */
 static void SV_ClientAddSteamStat( int clientNum, int statIndex, int delta ) {
-	(void)clientNum;
-	(void)statIndex;
-	(void)delta;
+	SV_SteamStats_AddFieldValue( clientNum, statIndex, delta );
 }
 
 /*
 =================
 SV_ClientUnlockSteamAchievement
 
-Retail qagame treats this as a fire-and-forget backend hook.
+Retail qagame treats this as a fire-and-forget backend hook, now owned by the
+engine server host.
 =================
 */
 static void SV_ClientUnlockSteamAchievement( int clientNum, int achievementId ) {
-	(void)clientNum;
-	(void)achievementId;
+	SV_SteamStats_UnlockAchievement( clientNum, achievementId );
 }
 
 /*
 =================
 SV_ClientHasSteamAchievement
 
-Retail qagame probes this before firing duplicate achievement unlocks.
+Retail qagame probes this before firing duplicate achievement unlocks through
+the retained engine-owned Steam session cache.
 =================
 */
 static qboolean SV_ClientHasSteamAchievement( int clientNum, int achievementId ) {
-	(void)clientNum;
-	(void)achievementId;
-	return qfalse;
+	return SV_SteamStats_HasAchievement( clientNum, achievementId );
 }
 
 /*
 =================
 SV_SubmitMatchReport
 
-The recovered retail qagame publishes a JSON-like match report through this
-native slot. Keep the ABI stable until the backend contract is reconstructed.
+ Publishes the recovered qagame match-report payload through the retained
+ server-owned `idZMQ` stats publisher path.
 =================
 */
 static void SV_SubmitMatchReport( void *report ) {
-	(void)report;
+	Zmq_SubmitMatchReport( report );
 }
 
 /*
 =================
 SV_ReportPlayerEvent
 
-Observed HLIL calls pass a SteamID pair, the client's retail stats block, an
-event label, and a JSON-like payload object.
+ Observed HLIL calls pass a SteamID pair, the client's retail stats block, an
+ event label, and a JSON-like payload object, all forwarded through the
+ retained server-owned `idZMQ` event publisher path.
 =================
 */
 static void SV_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload ) {
-	(void)steamIdLow;
-	(void)steamIdHigh;
-	(void)clientStats;
-	(void)eventName;
-	(void)payload;
+	Zmq_ReportPlayerEvent( steamIdLow, steamIdHigh, clientStats, eventName, payload );
 }
 
 /*
@@ -1576,12 +1557,60 @@ Called every time a map changes
 ===============
 */
 void SV_ShutdownGameProgs( void ) {
+	if ( s_svEntityStringOverride ) {
+		FS_FreeFile( s_svEntityStringOverride );
+		s_svEntityStringOverride = NULL;
+	}
+
 	if ( !gvm ) {
 		return;
 	}
 	VM_Call( gvm, GAME_SHUTDOWN, qfalse );
 	VM_Free( gvm );
 	gvm = NULL;
+}
+
+/*
+==================
+SV_GetGameEntityString
+
+Loads the retained alternate entity-string override at the qagame boundary and
+emits the retail entity dump when requested.
+==================
+*/
+static char *SV_GetGameEntityString( void ) {
+	char		mapName[MAX_QPATH];
+	char		altEntPath[MAX_QPATH];
+	char		dumpPath[MAX_QPATH];
+	char		*entityString;
+
+	entityString = CM_EntityString();
+
+	if ( s_svEntityStringOverride ) {
+		FS_FreeFile( s_svEntityStringOverride );
+		s_svEntityStringOverride = NULL;
+	}
+
+	if ( !sv_mapname || !sv_mapname->string[0] ) {
+		return entityString;
+	}
+
+	Q_strncpyz( mapName, COM_SkipPath( sv_mapname->string ), sizeof( mapName ) );
+	COM_StripExtension( mapName, mapName );
+
+	if ( sv_altEntDir && sv_altEntDir->string[0] ) {
+		Com_sprintf( altEntPath, sizeof( altEntPath ), "%s/%s.ent", sv_altEntDir->string, mapName );
+		if ( FS_ReadFile( altEntPath, (void **)&s_svEntityStringOverride ) >= 0 && s_svEntityStringOverride ) {
+			entityString = s_svEntityStringOverride;
+		}
+	}
+
+	if ( sv_dumpEntities && sv_dumpEntities->integer > 0 ) {
+		Com_sprintf( dumpPath, sizeof( dumpPath ), "ents/%s.ent", mapName );
+		FS_WriteFile( dumpPath, entityString, (int)strlen( entityString ) );
+	}
+
+	return entityString;
 }
 
 /*
@@ -1595,7 +1624,7 @@ static void SV_InitGameVM( qboolean restart ) {
 	int		i;
 
 	// start the entity parsing at the beginning
-	sv.entityParsePoint = CM_EntityString();
+	sv.entityParsePoint = SV_GetGameEntityString();
 
 	// clear all gentity pointers that might still be set from
 	// a previous level

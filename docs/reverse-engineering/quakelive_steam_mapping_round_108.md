@@ -123,10 +123,12 @@ That is an exact retained `Com_ModifyMsec` match.
 
 ## Open Questions
 
-1. `sub_4CB630` is still intentionally unnamed. The retail command string
-   `"writeClientConfig"` is clear, but I do not yet have a writable owner
-   name in the repo to promote with the same confidence as the stock
-   `Com_WriteConfig_f` path.
+1. `sub_4CB630` stayed intentionally unnamed in this round, but that source
+   owner note is now stale. The writable repo now has
+   `Com_WriteClientConfig_f()` in `src/code/qcommon/common.c`, registered
+   under the exact `"writeClientConfig"` command and guarded by
+   `tests/test_client_config_parity.py`. Treat the old unresolved-owner note
+   as historical round context rather than as an active repo gap.
 2. `sub_4B9430`, `sub_4B9940`, `sub_4B81F0`, `sub_4ECDF0`, `sub_4F1290`,
    `sub_4F2900`, and `sub_4F4640` remain the highest-value unresolved client
    and host leftovers outside this seam.

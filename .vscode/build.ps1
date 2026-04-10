@@ -302,9 +302,6 @@ if ($freeTypeAvailable) {
 
 & $msbuildPath @msbuildArgs
 $buildExitCode = $LASTEXITCODE
-if ($buildExitCode -ne 0) {
-	exit $buildExitCode
-}
 
 if ($enableFreeType -ne 0 -and $freeTypeAvailable) {
 	$freeTypeBinDirCandidates = @()
@@ -341,4 +338,28 @@ if ($enableFreeType -ne 0 -and $freeTypeAvailable) {
 			}
 		}
 	}
+}
+
+$runtimeBinDir = Join-Path $solutionDir "..\..\build\win32\$Configuration\bin"
+$clientExe = Join-Path $runtimeBinDir 'quakelive_steam.exe'
+$dedicatedExe = Join-Path $runtimeBinDir 'qzeroded.exe'
+if (Test-Path $clientExe) {
+	Copy-Item -Path $clientExe -Destination $dedicatedExe -Force
+
+	$symbolAliases = @(
+		@{ Source = 'quakelive_steam.pdb'; Destination = 'qzeroded.pdb' },
+		@{ Source = 'quakelive_steam.map'; Destination = 'qzeroded.map' }
+	)
+	foreach ($alias in $symbolAliases) {
+		$sourcePath = Join-Path $runtimeBinDir $alias.Source
+		if (Test-Path $sourcePath) {
+			Copy-Item -Path $sourcePath -Destination (Join-Path $runtimeBinDir $alias.Destination) -Force
+		}
+	}
+
+	Write-Host "Emitted dedicated server alias: $dedicatedExe"
+}
+
+if ($buildExitCode -ne 0) {
+	exit $buildExitCode
 }

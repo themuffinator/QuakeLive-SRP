@@ -4,30 +4,37 @@ import subprocess
 import textwrap
 from pathlib import Path
 
+import pytest
+
+from tests.compiler_support import compile_c_binary, executable_name, find_c_compiler
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _compile_and_run(source: str, workdir: Path) -> str:
     workdir.mkdir(parents=True, exist_ok=True)
     c_path = workdir / "probe.c"
-    exe_path = workdir / "probe"
+    exe_path = workdir / executable_name("probe")
     c_path.write_text(source, encoding="utf-8")
 
-    compile_cmd = [
-        "gcc",
-        "-std=c99",
-        "-Wall",
-        f"-I{REPO_ROOT}",
-        "-Isrc",
-        "-Isrc/code",
-        "-Isrc/code/game",
-        "-Isrc/code/qcommon",
-        str(c_path),
-        "-o",
-        str(exe_path),
-    ]
+    compiler = find_c_compiler()
+    if compiler is None:
+        pytest.skip("No C compiler is available for fake_vacban probe compilation.")
 
-    subprocess.run(compile_cmd, check=True, cwd=REPO_ROOT)
+    compile_c_binary(
+        compiler,
+        [c_path],
+        exe_path,
+        include_dirs=[
+            REPO_ROOT,
+            REPO_ROOT / "src",
+            REPO_ROOT / "src" / "code",
+            REPO_ROOT / "src" / "code" / "game",
+            REPO_ROOT / "src" / "code" / "qcommon",
+        ],
+        extra_cflags=["-Wall"] if not compiler.is_msvc else ["/W3"],
+        workdir=REPO_ROOT,
+    )
 
     result = subprocess.run(
         [str(exe_path)],
@@ -133,11 +140,12 @@ def test_fake_vacban_telemetry_payload(tmp_path: Path) -> None:
 	return buffer;
 	}
 
-	void Com_sprintf( char *dest, int size, const char *fmt, ... ) {
+	int QDECL Com_sprintf( char *dest, int size, const char *fmt, ... ) {
 	va_list args;
 	va_start( args, fmt );
-	vsnprintf( dest, (size_t)size, fmt, args );
+	int written = vsnprintf( dest, (size_t)size, fmt, args );
 	va_end( args );
+	return written;
 	}
 
 	void Q_strncpyz( char *dest, const char *src, int destsize ) {

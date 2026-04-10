@@ -29,19 +29,32 @@ For a step-by-step walkthrough of the retargeting process (including the relevan
 
 Quake Live's streamlined menu flow now depends on the embedded browser bridge. Transitional builds must bundle the Awesomium runtime (or a compatible replacement) and expose it to the client so the UI VM can advertise the capability. The `ui_browserAwesomium` cvar gates the new `ui_menuFlow` toggle—if the browser layer is absent the VM automatically falls back to legacy menus and server-browser logic for stability.【F:src/code/ui/ui_main.c†L178-L214】【F:src/code/ui/ui_atoms.c†L329-L368】
 
-The dedicated `UI Validation` workflow now also runs a unified parity gate after the bundle build and headless panel validation. That gate is implemented in `tests/test_ui_full_parity_gate.py` and writes `artifacts/ui_validation/logs/ui_full_parity_gate.json`, giving CI one machine-readable pass/fail summary across the current UI gap register (`UI-G01`..`UI-G06`) instead of leaving reviewers to reconcile multiple independent UI logs by hand. The final windowed runtime confirmation evidence for the current parity milestone is tracked separately in `artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json`.
+The dedicated `UI Validation` workflow now also runs a unified parity gate after
+the bundle build and headless panel validation. That gate is implemented in
+`tests/test_ui_full_parity_gate.py`, writes
+`artifacts/ui_validation/logs/ui_full_parity_gate.json`, and the workflow now
+executes it in enforced release mode with `UI_FULL_PARITY_GATE_ENFORCE=1`, so
+CI publishes one authoritative pass/fail summary across the current UI gap
+register (`UI-G01`..`UI-G06`) instead of leaving reviewers to reconcile
+multiple independent UI logs by hand. The final windowed runtime confirmation
+evidence for the current parity milestone is tracked separately in
+`artifacts/ui_validation/logs/ui_runtime_evidence_20260406.json`.
 
 The dedicated `Renderer Validation` workflow now does the equivalent for the renderer stack. It runs the focused renderer tranche tests together with `tests/test_renderer_full_parity_gate.py`, which writes `artifacts/renderer_validation/logs/renderer_full_parity_gate.json` so the current renderer gap register (`RG-G01`..`RG-G09`) is machine-readable instead of living only in prose. The tracked windowed runtime evidence for the final renderer text-closure milestone is `artifacts/renderer_validation/logs/renderer_runtime_evidence_20260410.json`, and contributors can refresh it locally with `tools/renderer/run_renderer_runtime_probe.ps1`.
 
 The dedicated `Module Validation` workflow now does the same for the strict
 retail game-module lane. It runs
+`tests/test_platform_services.py` together with
 `tests/test_game_module_retail_parity_gate.py`, which writes
-`artifacts/module_validation/logs/retail_module_parity_gate.json` as the final
-`GMR-P5` closure artifact across the current combined module gap register
-(`GMR-G01`, `GMR-G02`, `GMR-G05`). The tracked retail runtime evidence used by
-that gate remains the archived `GMR-P1` probe at
-`artifacts/module_validation/logs/retail_module_runtime_evidence_20260409.json`.
-Contributors can refresh that runtime artifact locally with
+`artifacts/module_validation/logs/retail_module_parity_gate.json` as the
+current `GMR-P8` closure artifact across the combined module gap register first
+unified in `GMR-P5` (`GMR-G01`, `GMR-G02`, `GMR-G05`). The tracked retail
+runtime evidence used by that gate remains the archived `GMR-P1` probe at
+`artifacts/module_validation/logs/retail_module_runtime_evidence_20260409.json`;
+because the workflow topology and host-side validation contract were unchanged
+by the final `GMR-P8` ledger reconciliation, that archived runtime artifact
+remains authoritative until the host/runtime seam changes again. Contributors
+can refresh that runtime artifact locally with
 `tools/modules/run_retail_module_runtime_probe.ps1`.
 
 The dedicated `Client Validation` workflow now gives the native client host the
@@ -53,6 +66,62 @@ for that gate is
 `artifacts/client_validation/logs/client_runtime_evidence_20260410.json`, and
 contributors can refresh it locally with
 `tools/client/run_client_runtime_probe.ps1`.
+
+The dedicated `Qcommon Validation` workflow now does the same for the shared
+engine-common layer. It runs the focused qcommon tranche together with
+`tests/test_qcommon_full_parity_gate.py`, which writes
+`artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json` across the
+current qcommon gap register (`QC-G01`..`QC-G05`). The focused tranche now
+includes the collision-leaf probe in
+`tests/test_qcommon_collision_leaf_parity.py` and the fallback-VM harness in
+`tests/test_qcommon_vm_fallback_parity.py`, so the lane covers the remaining
+strict source-confidence seams in addition to the older cvar/filesystem/message
+checks. The tracked qcommon runtime bundle is now
+`artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json`,
+and contributors can refresh it locally with
+`tools/qcommon/run_qcommon_runtime_probe.ps1`.
+
+The dedicated `Server Validation` workflow now gives the engine `server` host
+the same closure lane. It runs `tests/test_platform_services.py`,
+`tests/test_fake_vacban.py`, and `tests/test_server_full_parity_gate.py`, which
+write `artifacts/server_validation/logs/server_full_parity_gate.json` as the
+machine-readable status artifact across the full audited server gap register
+(`SV-G01`..`SV-G06`). The tracked dedicated runtime evidence for that final
+server closure is
+`artifacts/server_validation/logs/server_runtime_evidence_20260410.json`, and
+contributors can refresh it locally with
+`tools/server/run_server_runtime_probe.ps1`.
+
+The dedicated `Engine Host Support Validation` workflow now does the same for
+the remaining engine-owned host/support surface outside `qcommon`, `server`,
+`client`, and `renderer`. It runs
+`tests/test_platform_services.py`,
+`tests/test_steamworks_harness.py`,
+`tests/test_renderer_win32_host_glue_parity.py`,
+`tests/test_bot_resource_loading.py`,
+`tests/test_botlib_internal_parity.py`,
+`tests/test_win32_clipboard_parity.py`,
+`tests/test_win32_raw_input_parity.py`,
+`tests/test_input_translation.py`, and
+`tests/test_engine_host_support_full_parity_gate.py`, which write
+`artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`
+as the machine-readable gap-register artifact across `EH-G01`..`EH-G06`. The
+tracked evidence bundle for that lane is
+`artifacts/engine_host_support_validation/logs/engine_host_support_runtime_evidence_20260410.json`.
+Because this lane was introduced by `EH-P6`, later extended by `EH-P4`, and
+finally classified by `EH-P5` rather than by a fresh runtime owner, that
+bundle is source-backed evidence for the closed Win32 clipboard, raw-input,
+loading-window, input-translation, and botlib-internal proof seams rather than
+a new live probe. The final `EH-P5` gate result treats the platform-service
+compatibility backends and the Unix/null portability trees as documented
+compatibility-only exclusions, so the host/support artifact can report
+`overall_status: pass` without mislabeling those lanes as retail Windows
+reconstructions.
+
+`EH-P1` boundary metadata now rides in that same host/support artifact through
+`scope_boundary` and `classification_summary`, so downstream ledgers can reuse
+the same strict-retail versus compatibility split instead of re-describing it
+in prose each time the host/support note is refreshed.
 
 ## Migration Strategy
 

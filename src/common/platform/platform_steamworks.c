@@ -158,6 +158,25 @@ typedef struct {
 } ql_steam_microtxn_authorization_response_raw_t;
 
 typedef struct {
+	uint8_t reserved;
+} ql_steam_servers_connected_raw_t;
+
+typedef struct {
+	int result;
+	qboolean stillRetrying;
+} ql_steam_server_connect_failure_raw_t;
+
+typedef struct {
+	int result;
+} ql_steam_servers_disconnected_raw_t;
+
+typedef struct {
+	CSteamID steamId;
+	int authSessionResponse;
+	CSteamID ownerSteamId;
+} ql_steam_validate_auth_ticket_response_raw_t;
+
+typedef struct {
 	uint64_t gameId;
 	uint32_t gameIp;
 	uint16_t gamePort;
@@ -223,6 +242,16 @@ typedef struct {
 } ql_steam_micro_callback_state_t;
 
 typedef struct {
+	ql_steam_server_callback_bindings_t bindings;
+	qboolean registered;
+	ql_steam_callback_base_t serversConnected;
+	ql_steam_callback_base_t connectFailure;
+	ql_steam_callback_base_t serversDisconnected;
+	ql_steam_callback_base_t validateAuthTicketResponse;
+	ql_steam_callback_base_t p2pSessionRequest;
+} ql_steam_server_callback_state_t;
+
+typedef struct {
 	void *library;
 	qboolean initialised;
 	QL_SteamAPI_InitFn SteamAPI_Init;
@@ -242,6 +271,7 @@ typedef struct {
 	QL_SteamAPI_InterfaceFn SteamGameServerUGC;
 	QL_SteamAPI_SteamGameServerInitFn SteamGameServer_Init;
 	QL_SteamAPI_SteamGameServerFn SteamGameServer;
+	QL_SteamAPI_InterfaceFn SteamGameServerStats;
 	QL_SteamAPI_SteamGameServerShutdownFn SteamGameServer_Shutdown;
 	QL_SteamAPI_SteamGameServerRunCallbacksFn SteamGameServer_RunCallbacks;
 	QL_SteamAPI_SteamGameServerNetworkingFn SteamGameServerNetworking;
@@ -253,6 +283,7 @@ typedef struct {
 	qboolean gameServerInitialised;
 	qboolean useGameServerUGC;
 	ql_steam_client_callback_state_t clientCallbacks;
+	ql_steam_server_callback_state_t serverCallbacks;
 	ql_steam_lobby_callback_state_t lobbyCallbacks;
 	ql_steam_micro_callback_state_t microCallbacks;
 } ql_steamworks_state_t;
@@ -266,6 +297,10 @@ static ql_steamworks_state_t state;
 #define QL_STEAM_CALLBACK_RICH_PRESENCE_JOIN_REQUESTED 0x151
 #define QL_STEAM_CALLBACK_USER_STATS_RECEIVED 0x44d
 #define QL_STEAM_CALLBACK_PERSONA_STATE_CHANGE 0x130
+#define QL_STEAM_CALLBACK_STEAM_SERVERS_CONNECTED 0x65
+#define QL_STEAM_CALLBACK_STEAM_SERVER_CONNECT_FAILURE 0x66
+#define QL_STEAM_CALLBACK_STEAM_SERVERS_DISCONNECTED 0x67
+#define QL_STEAM_CALLBACK_VALIDATE_AUTH_TICKET_RESPONSE 0x8f
 #define QL_STEAM_CALLBACK_P2P_SESSION_REQUEST 0x4b2
 #define QL_STEAM_CALLBACK_GAME_SERVER_CHANGE_REQUESTED 0x14c
 #define QL_STEAM_CALLBACK_FRIEND_RICH_PRESENCE_UPDATE 0x150
@@ -337,6 +372,8 @@ static const ql_steam_callback_vtable_t ql_steam_callback_vtable = {
 	QL_Steamworks_CallbackRunCallResult,
 	QL_Steamworks_CallbackGetSize
 };
+
+static void QL_Steamworks_MapAuthResult( EBeginAuthSessionResult result, ql_auth_response_t *response );
 
 /*
 =============
@@ -581,6 +618,7 @@ qboolean QL_Steamworks_LoadLibrary( void ) {
 	}
 
 	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServer, "SteamGameServer" );
+	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServerStats, "SteamGameServerStats" );
 	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServerUGC, "SteamGameServerUGC" );
 	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServer_Init, "SteamGameServer_Init" );
 	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServer_Shutdown, "SteamGameServer_Shutdown" );
@@ -642,6 +680,7 @@ void QL_Steamworks_Shutdown( void ) {
 		return;
 	}
 
+	QL_Steamworks_UnregisterServerCallbacks();
 	QL_Steamworks_UnregisterMicroCallbacks();
 	QL_Steamworks_UnregisterLobbyCallbacks();
 	QL_Steamworks_UnregisterClientCallbacks();
@@ -1541,6 +1580,113 @@ static void QL_Steamworks_DispatchMicroAuthorizationResponse( void *context, con
 
 /*
 =============
+QL_Steamworks_DispatchServersConnected
+=============
+*/
+static void QL_Steamworks_DispatchServersConnected( void *context, const void *payload ) {
+	ql_steam_server_callback_state_t *callbackState;
+	ql_steam_server_connected_t event;
+
+	(void)payload;
+
+	callbackState = (ql_steam_server_callback_state_t *)context;
+	if ( !callbackState || !callbackState->bindings.onServersConnected ) {
+		return;
+	}
+
+	memset( &event, 0, sizeof( event ) );
+	callbackState->bindings.onServersConnected( callbackState->bindings.context, &event );
+}
+
+/*
+=============
+QL_Steamworks_DispatchServerConnectFailure
+=============
+*/
+static void QL_Steamworks_DispatchServerConnectFailure( void *context, const void *payload ) {
+	ql_steam_server_callback_state_t *callbackState;
+	const ql_steam_server_connect_failure_raw_t *raw;
+	ql_steam_server_connect_failure_t event;
+
+	callbackState = (ql_steam_server_callback_state_t *)context;
+	if ( !callbackState || !callbackState->bindings.onConnectFailure || !payload ) {
+		return;
+	}
+
+	raw = (const ql_steam_server_connect_failure_raw_t *)payload;
+	memset( &event, 0, sizeof( event ) );
+	event.result = raw->result;
+	event.stillRetrying = raw->stillRetrying ? qtrue : qfalse;
+	callbackState->bindings.onConnectFailure( callbackState->bindings.context, &event );
+}
+
+/*
+=============
+QL_Steamworks_DispatchServersDisconnected
+=============
+*/
+static void QL_Steamworks_DispatchServersDisconnected( void *context, const void *payload ) {
+	ql_steam_server_callback_state_t *callbackState;
+	const ql_steam_servers_disconnected_raw_t *raw;
+	ql_steam_server_disconnected_t event;
+
+	callbackState = (ql_steam_server_callback_state_t *)context;
+	if ( !callbackState || !callbackState->bindings.onServersDisconnected || !payload ) {
+		return;
+	}
+
+	raw = (const ql_steam_servers_disconnected_raw_t *)payload;
+	memset( &event, 0, sizeof( event ) );
+	event.result = raw->result;
+	callbackState->bindings.onServersDisconnected( callbackState->bindings.context, &event );
+}
+
+/*
+=============
+QL_Steamworks_DispatchValidateAuthTicketResponse
+=============
+*/
+static void QL_Steamworks_DispatchValidateAuthTicketResponse( void *context, const void *payload ) {
+	ql_steam_server_callback_state_t *callbackState;
+	const ql_steam_validate_auth_ticket_response_raw_t *raw;
+	ql_steam_validate_auth_ticket_response_t event;
+
+	callbackState = (ql_steam_server_callback_state_t *)context;
+	if ( !callbackState || !callbackState->bindings.onValidateAuthTicketResponse || !payload ) {
+		return;
+	}
+
+	raw = (const ql_steam_validate_auth_ticket_response_raw_t *)payload;
+	memset( &event, 0, sizeof( event ) );
+	event.steamId = raw->steamId;
+	event.ownerSteamId = raw->ownerSteamId;
+	event.authSessionResponse = (EAuthSessionResponse)raw->authSessionResponse;
+	callbackState->bindings.onValidateAuthTicketResponse( callbackState->bindings.context, &event );
+}
+
+/*
+=============
+QL_Steamworks_DispatchServerP2PSessionRequest
+=============
+*/
+static void QL_Steamworks_DispatchServerP2PSessionRequest( void *context, const void *payload ) {
+	ql_steam_server_callback_state_t *callbackState;
+	const ql_steam_p2p_session_request_raw_t *raw;
+	ql_steam_p2p_session_request_t event;
+
+	callbackState = (ql_steam_server_callback_state_t *)context;
+	if ( !callbackState || !callbackState->bindings.onP2PSessionRequest || !payload ) {
+		return;
+	}
+
+	raw = (const ql_steam_p2p_session_request_raw_t *)payload;
+	memset( &event, 0, sizeof( event ) );
+	event.remoteId = raw->remoteId;
+	callbackState->bindings.onP2PSessionRequest( callbackState->bindings.context, &event );
+}
+
+/*
+=============
 QL_Steamworks_RegisterClientCallbacks
 =============
 */
@@ -1601,6 +1747,66 @@ void QL_Steamworks_UnregisterClientCallbacks( void ) {
 	QL_Steamworks_UnregisterCallbackObject( &callbackState->personaStateChange );
 	QL_Steamworks_UnregisterCallbackObject( &callbackState->userStatsReceived );
 	QL_Steamworks_UnregisterCallbackObject( &callbackState->richPresenceJoinRequested );
+	memset( callbackState, 0, sizeof( *callbackState ) );
+}
+
+/*
+=============
+QL_Steamworks_RegisterServerCallbacks
+=============
+*/
+qboolean QL_Steamworks_RegisterServerCallbacks( const ql_steam_server_callback_bindings_t *bindings ) {
+	ql_steam_server_callback_state_t *callbackState;
+
+	if ( !bindings ) {
+		return qfalse;
+	}
+
+	if ( !QL_Steamworks_Init() || !state.SteamAPI_RegisterCallback ) {
+		return qfalse;
+	}
+
+	callbackState = &state.serverCallbacks;
+	if ( callbackState->registered ) {
+		QL_Steamworks_UnregisterServerCallbacks();
+	}
+
+	memset( callbackState, 0, sizeof( *callbackState ) );
+	memcpy( &callbackState->bindings, bindings, sizeof( callbackState->bindings ) );
+
+	QL_Steamworks_PrepareCallbackObject( &callbackState->serversConnected, QL_STEAM_CALLBACK_STEAM_SERVERS_CONNECTED, sizeof( ql_steam_servers_connected_raw_t ), callbackState, QL_Steamworks_DispatchServersConnected, NULL );
+	QL_Steamworks_PrepareCallbackObject( &callbackState->connectFailure, QL_STEAM_CALLBACK_STEAM_SERVER_CONNECT_FAILURE, sizeof( ql_steam_server_connect_failure_raw_t ), callbackState, QL_Steamworks_DispatchServerConnectFailure, NULL );
+	QL_Steamworks_PrepareCallbackObject( &callbackState->serversDisconnected, QL_STEAM_CALLBACK_STEAM_SERVERS_DISCONNECTED, sizeof( ql_steam_servers_disconnected_raw_t ), callbackState, QL_Steamworks_DispatchServersDisconnected, NULL );
+	QL_Steamworks_PrepareCallbackObject( &callbackState->validateAuthTicketResponse, QL_STEAM_CALLBACK_VALIDATE_AUTH_TICKET_RESPONSE, sizeof( ql_steam_validate_auth_ticket_response_raw_t ), callbackState, QL_Steamworks_DispatchValidateAuthTicketResponse, NULL );
+	QL_Steamworks_PrepareCallbackObject( &callbackState->p2pSessionRequest, QL_STEAM_CALLBACK_P2P_SESSION_REQUEST, sizeof( ql_steam_p2p_session_request_raw_t ), callbackState, QL_Steamworks_DispatchServerP2PSessionRequest, NULL );
+
+	if ( !QL_Steamworks_RegisterCallbackObject( &callbackState->serversConnected ) ||
+		!QL_Steamworks_RegisterCallbackObject( &callbackState->connectFailure ) ||
+		!QL_Steamworks_RegisterCallbackObject( &callbackState->serversDisconnected ) ||
+		!QL_Steamworks_RegisterCallbackObject( &callbackState->validateAuthTicketResponse ) ||
+		!QL_Steamworks_RegisterCallbackObject( &callbackState->p2pSessionRequest ) ) {
+		QL_Steamworks_UnregisterServerCallbacks();
+		return qfalse;
+	}
+
+	callbackState->registered = qtrue;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_UnregisterServerCallbacks
+=============
+*/
+void QL_Steamworks_UnregisterServerCallbacks( void ) {
+	ql_steam_server_callback_state_t *callbackState;
+
+	callbackState = &state.serverCallbacks;
+	QL_Steamworks_UnregisterCallbackObject( &callbackState->p2pSessionRequest );
+	QL_Steamworks_UnregisterCallbackObject( &callbackState->validateAuthTicketResponse );
+	QL_Steamworks_UnregisterCallbackObject( &callbackState->serversDisconnected );
+	QL_Steamworks_UnregisterCallbackObject( &callbackState->connectFailure );
+	QL_Steamworks_UnregisterCallbackObject( &callbackState->serversConnected );
 	memset( callbackState, 0, sizeof( *callbackState ) );
 }
 
@@ -2032,6 +2238,256 @@ qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t idHigh ) {
 	}
 
 	return fn( userStats, NULL, idLow, idHigh ) != 0 ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetGameServerStatsInterface
+=============
+*/
+static void *QL_Steamworks_GetGameServerStatsInterface( void ) {
+	if ( !state.initialised || !state.gameServerInitialised || !state.SteamGameServerStats ) {
+		return NULL;
+	}
+
+	return state.SteamGameServerStats();
+}
+
+/*
+=============
+QL_Steamworks_ServerRequestUserStats
+=============
+*/
+qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId ) {
+	void *gameServerStats;
+	void **vtable;
+	typedef uint64_t (__fastcall *QL_SteamGameServerStats_RequestUserStatsFn)( void *self, void *unused, uint32_t idLow, uint32_t idHigh );
+	QL_SteamGameServerStats_RequestUserStatsFn fn;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( !steamId || steamId->value == 0ull ) {
+		return qfalse;
+	}
+
+	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
+	if ( !gameServerStats ) {
+		return qfalse;
+	}
+
+	vtable = QL_Steamworks_GetInterfaceVTable( gameServerStats );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServerStats_RequestUserStatsFn)vtable[0x00 / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	idLow = (uint32_t)( steamId->value & 0xffffffffu );
+	idHigh = (uint32_t)( ( steamId->value >> 32 ) & 0xffffffffu );
+	return fn( gameServerStats, NULL, idLow, idHigh ) != 0 ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerGetUserStatInt
+=============
+*/
+qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char *name, int *outValue ) {
+	void *gameServerStats;
+	void **vtable;
+	typedef qboolean (__fastcall *QL_SteamGameServerStats_GetUserStatIntFn)( void *self, void *unused, uint32_t idLow, uint32_t idHigh, const char *name, int *outValue );
+	QL_SteamGameServerStats_GetUserStatIntFn fn;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( outValue ) {
+		*outValue = 0;
+	}
+
+	if ( !steamId || steamId->value == 0ull || !name || !name[0] || !outValue ) {
+		return qfalse;
+	}
+
+	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
+	if ( !gameServerStats ) {
+		return qfalse;
+	}
+
+	vtable = QL_Steamworks_GetInterfaceVTable( gameServerStats );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServerStats_GetUserStatIntFn)vtable[0x08 / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	idLow = (uint32_t)( steamId->value & 0xffffffffu );
+	idHigh = (uint32_t)( ( steamId->value >> 32 ) & 0xffffffffu );
+	return fn( gameServerStats, NULL, idLow, idHigh, name, outValue ) ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerGetUserAchievement
+=============
+*/
+qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const char *name, qboolean *outAchieved ) {
+	void *gameServerStats;
+	void **vtable;
+	typedef qboolean (__fastcall *QL_SteamGameServerStats_GetUserAchievementFn)( void *self, void *unused, uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved );
+	QL_SteamGameServerStats_GetUserAchievementFn fn;
+	qboolean achieved;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( outAchieved ) {
+		*outAchieved = qfalse;
+	}
+
+	if ( !steamId || steamId->value == 0ull || !name || !name[0] || !outAchieved ) {
+		return qfalse;
+	}
+
+	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
+	if ( !gameServerStats ) {
+		return qfalse;
+	}
+
+	vtable = QL_Steamworks_GetInterfaceVTable( gameServerStats );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServerStats_GetUserAchievementFn)vtable[0x0c / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	idLow = (uint32_t)( steamId->value & 0xffffffffu );
+	idHigh = (uint32_t)( ( steamId->value >> 32 ) & 0xffffffffu );
+	achieved = qfalse;
+	if ( !fn( gameServerStats, NULL, idLow, idHigh, name, &achieved ) ) {
+		return qfalse;
+	}
+
+	*outAchieved = achieved ? qtrue : qfalse;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ServerSetUserStatInt
+=============
+*/
+qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char *name, int value ) {
+	void *gameServerStats;
+	void **vtable;
+	typedef qboolean (__fastcall *QL_SteamGameServerStats_SetUserStatIntFn)( void *self, void *unused, uint32_t idLow, uint32_t idHigh, const char *name, int value );
+	QL_SteamGameServerStats_SetUserStatIntFn fn;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( !steamId || steamId->value == 0ull || !name || !name[0] ) {
+		return qfalse;
+	}
+
+	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
+	if ( !gameServerStats ) {
+		return qfalse;
+	}
+
+	vtable = QL_Steamworks_GetInterfaceVTable( gameServerStats );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServerStats_SetUserStatIntFn)vtable[0x14 / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	idLow = (uint32_t)( steamId->value & 0xffffffffu );
+	idHigh = (uint32_t)( ( steamId->value >> 32 ) & 0xffffffffu );
+	return fn( gameServerStats, NULL, idLow, idHigh, name, value ) ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerSetUserAchievement
+=============
+*/
+qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const char *name ) {
+	void *gameServerStats;
+	void **vtable;
+	typedef qboolean (__fastcall *QL_SteamGameServerStats_SetUserAchievementFn)( void *self, void *unused, uint32_t idLow, uint32_t idHigh, const char *name );
+	QL_SteamGameServerStats_SetUserAchievementFn fn;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( !steamId || steamId->value == 0ull || !name || !name[0] ) {
+		return qfalse;
+	}
+
+	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
+	if ( !gameServerStats ) {
+		return qfalse;
+	}
+
+	vtable = QL_Steamworks_GetInterfaceVTable( gameServerStats );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServerStats_SetUserAchievementFn)vtable[0x1c / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	idLow = (uint32_t)( steamId->value & 0xffffffffu );
+	idHigh = (uint32_t)( ( steamId->value >> 32 ) & 0xffffffffu );
+	return fn( gameServerStats, NULL, idLow, idHigh, name ) ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerStoreUserStats
+=============
+*/
+qboolean QL_Steamworks_ServerStoreUserStats( const CSteamID *steamId ) {
+	void *gameServerStats;
+	void **vtable;
+	typedef qboolean (__fastcall *QL_SteamGameServerStats_StoreUserStatsFn)( void *self, void *unused, uint32_t idLow, uint32_t idHigh );
+	QL_SteamGameServerStats_StoreUserStatsFn fn;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( !steamId || steamId->value == 0ull ) {
+		return qfalse;
+	}
+
+	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
+	if ( !gameServerStats ) {
+		return qfalse;
+	}
+
+	vtable = QL_Steamworks_GetInterfaceVTable( gameServerStats );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServerStats_StoreUserStatsFn)vtable[0x24 / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	idLow = (uint32_t)( steamId->value & 0xffffffffu );
+	idHigh = (uint32_t)( ( steamId->value >> 32 ) & 0xffffffffu );
+	return fn( gameServerStats, NULL, idLow, idHigh ) ? qtrue : qfalse;
 }
 
 /*
@@ -3317,6 +3773,41 @@ int QL_Steamworks_ServerGetNextOutgoingPacket( void *data, int dataSize, uint32_
 
 /*
 =============
+QL_Steamworks_ServerAcceptP2PSession
+
+Accepts an incoming Steam P2P session for the active game server.
+=============
+*/
+qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId ) {
+	void *networking;
+	void **vtable;
+	typedef qboolean (*QL_SteamNetworking_AcceptP2PSessionWithUserFn)( void *self, CSteamID steamId );
+	QL_SteamNetworking_AcceptP2PSessionWithUserFn acceptSession;
+
+	if ( !steamId ) {
+		return qfalse;
+	}
+
+	networking = QL_Steamworks_GetGameServerNetworking();
+	if ( !networking ) {
+		return qfalse;
+	}
+
+	vtable = *(void ***)networking;
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	acceptSession = (QL_SteamNetworking_AcceptP2PSessionWithUserFn)vtable[0x0c / 4];
+	if ( !acceptSession ) {
+		return qfalse;
+	}
+
+	return acceptSession( networking, *steamId ) ? qtrue : qfalse;
+}
+
+/*
+=============
 QL_Steamworks_HexEncode
 
 Converts binary data to a lower-case hexadecimal representation.
@@ -3466,6 +3957,70 @@ qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle ) {
 
 	state.CancelAuthTicket( user, (HAuthTicket)ticketHandle );
 	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ServerBeginAuthSession
+
+Begins a Steam GameServer auth session for one connecting client ticket.
+=============
+*/
+qboolean QL_Steamworks_ServerBeginAuthSession( const CSteamID *steamId, const char *ticketHex, ql_auth_response_t *response ) {
+	void *gameServer;
+	uint8_t ticketData[2048];
+	uint32_t ticketLength;
+	EBeginAuthSessionResult result;
+
+	if ( response ) {
+		memset( response, 0, sizeof( *response ) );
+	}
+
+	if ( !steamId || !ticketHex || !ticketHex[0] ) {
+		return qfalse;
+	}
+
+	gameServer = QL_Steamworks_GetGameServer();
+	if ( !gameServer || !state.BeginAuthSession ) {
+		return qfalse;
+	}
+
+	ticketLength = 0;
+	if ( !QL_Steamworks_HexDecode( ticketHex, ticketData, sizeof( ticketData ), &ticketLength ) || ticketLength == 0 ) {
+		if ( response ) {
+			QL_Backend_SetAuthResponse( response, QL_AUTH_RESULT_DENIED, "Steam ticket invalid" );
+		}
+		return qfalse;
+	}
+
+	result = state.BeginAuthSession( gameServer, ticketData, (int)ticketLength, *steamId );
+	if ( response ) {
+		QL_Steamworks_MapAuthResult( result, response );
+	}
+
+	return result == k_EBeginAuthSessionResultOK ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerEndAuthSession
+
+Ends one Steam GameServer auth session if the server interface is active.
+=============
+*/
+void QL_Steamworks_ServerEndAuthSession( const CSteamID *steamId ) {
+	void *gameServer;
+
+	if ( !steamId ) {
+		return;
+	}
+
+	gameServer = QL_Steamworks_GetGameServer();
+	if ( !gameServer || !state.EndAuthSession ) {
+		return;
+	}
+
+	state.EndAuthSession( gameServer, *steamId );
 }
 
 /*

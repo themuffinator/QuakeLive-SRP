@@ -1,0 +1,105 @@
+{
+  "artifact_version": 1,
+  "phase": "QC-P6",
+  "parity_estimate": {
+    "before": 98,
+    "after": 100
+  },
+  "gap_order": [
+    "QC-G01",
+    "QC-G02",
+    "QC-G03",
+    "QC-G04",
+    "QC-G05"
+  ],
+  "tranches": {
+    "QC-G01": {
+      "gap_id": "QC-G01",
+      "status": "pass",
+      "summary": "Win32 homepath selection now follows the retail Steam-ID-backed `FS_Startup` path.",
+      "details": {
+        "plan_marks_closed": true,
+        "heuristic_helper_present": false,
+        "homepath_helper_present": true,
+        "steam_user_lookup_present": true,
+        "focused_homepath_tests_present": true,
+        "focused_web_fallback_tests_present": true,
+        "implementation_plan_records_qc_p3": true,
+        "audit_records_qc_p3": true
+      }
+    },
+    "QC-G02": {
+      "gap_id": "QC-G02",
+      "status": "pass",
+      "summary": "The low-confidence collision-model leaves are no longer treated as an open parity bucket.",
+      "details": {
+        "plan_marks_closed": true,
+        "ownership_note_present": true,
+        "ownership_note_binds_renderer_mark_fragments_seam": true,
+        "ownership_note_binds_patch_polylib_leaf_band": true,
+        "collision_harness_present": true,
+        "collision_harness_exports_leaf_probes": true,
+        "collision_tests_present": true,
+        "collision_tests_cover_leaf_probes": true,
+        "implementation_plan_records_qc_p4": true,
+        "audit_records_qc_p4": true
+      }
+    },
+    "QC-G03": {
+      "gap_id": "QC-G03",
+      "status": "pass",
+      "summary": "The fallback Windows QVM/JIT lane is no longer an open qcommon gap.",
+      "details": {
+        "plan_marks_closed": true,
+        "ownership_note_present": true,
+        "ownership_note_binds_vm_host_and_carry_split": true,
+        "fallback_harness_present": true,
+        "fallback_harness_exports_runtime_probes": true,
+        "fallback_tests_present": true,
+        "fallback_tests_cover_runtime_and_source_probes": true,
+        "workflow_references_vm_fallback_tests": true,
+        "build_pipeline_mentions_vm_fallback_tests": true,
+        "windows_pipeline_mentions_vm_fallback_tests": true,
+        "implementation_plan_records_qc_p5": true,
+        "audit_records_qc_p5": true
+      }
+    },
+    "QC-G04": {
+      "gap_id": "QC-G04",
+      "status": "pass",
+      "summary": "Qcommon now has a dedicated machine-readable parity gate plus Windows-friendly harness coverage.",
+      "details": {
+        "plan_marks_closed": true,
+        "compiler_helper_present": true,
+        "workflow_references_gate": true,
+        "workflow_references_windows_harnesses": true,
+        "cvar_alias_uses_compiler_helper": true,
+        "fs_search_uses_compiler_helper": true,
+        "playerstate_windows_skip_removed": true,
+        "build_pipeline_mentions_gate": true,
+        "windows_pipeline_mentions_gate": true
+      }
+    },
+    "QC-G05": {
+      "gap_id": "QC-G05",
+      "status": "pass",
+      "summary": "The qcommon ledger now has a dedicated runtime-evidence bundle and reconciled mapping notes.",
+      "details": {
+        "plan_marks_closed": true,
+        "round_108_stale_write_client_config_note": false,
+        "round_109_stale_write_client_config_note": false,
+        "runtime_probe_present": true,
+        "runtime_evidence_present": true,
+        "runtime_evidence_sufficient": true,
+        "validation_note_present": true
+      }
+    }
+  },
+  "overall_status": "pass",
+  "non_passing_gap_ids": [],
+  "summary": {
+    "passing_count": 5,
+    "blocked_count": 0,
+    "failing_count": 0
+  }
+}

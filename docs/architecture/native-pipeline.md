@@ -27,10 +27,14 @@ to the native module ABI slice.
 The final strict-retail module closure state is tracked separately by
 `tests/test_game_module_retail_parity_gate.py`, which writes
 `artifacts/module_validation/logs/retail_module_parity_gate.json` as the
-current `GMR-P5` artifact. That gate consumes the archived runtime probe above
-together with the launcher/resource fallback closure and the synced parity
-ledgers, so the module layer can close without claiming ownership of the
-remaining renderer blocker.
+current `GMR-P8` artifact across the combined module gap register first unified
+in `GMR-P5`. That gate consumes the archived runtime probe above together with
+the launcher/resource fallback closure, the current `2026-04-10` module audit,
+and the synced parity ledgers/pipeline notes, so the module layer can close
+without claiming ownership of the remaining renderer blocker. Because the
+workflow topology and host-side validation contract were unchanged during the
+final `GMR-P8` reconciliation pass, the archived runtime probe remains
+authoritative until that host/runtime seam changes again.
 
 ## Client UI VM (`uivm`)
 | Lifecycle | Location(s) | Current invocation | Proposed native entry (signature) | Notes / blockers |

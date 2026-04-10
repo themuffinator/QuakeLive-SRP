@@ -18,6 +18,9 @@ RETAIL_MODULE_RUNTIME_EVIDENCE_PATH = (
 RETAIL_MODULE_PLAN_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "game-module-parity-audit-and-implementation-plan-2026-04-09.md"
 )
+CURRENT_MODULE_AUDIT_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "game-module-parity-audit-and-implementation-plan-2026-04-10.md"
+)
 IMPLEMENTATION_PLAN_PATH = REPO_ROOT / "IMPLEMENTATION_PLAN.md"
 AUDIT_PATH = REPO_ROOT / "AUDIT.md"
 UI_PLAN_PATH = (
@@ -130,6 +133,7 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 
 def _build_retail_module_parity_gate_report() -> dict[str, Any]:
 	retail_module_plan = _read_text(RETAIL_MODULE_PLAN_PATH)
+	current_module_audit = _read_text(CURRENT_MODULE_AUDIT_PATH)
 	implementation_plan = _read_text(IMPLEMENTATION_PLAN_PATH)
 	audit = _read_text(AUDIT_PATH)
 	ui_plan = _read_text(UI_PLAN_PATH)
@@ -199,34 +203,54 @@ def _build_retail_module_parity_gate_report() -> dict[str, Any]:
 		and "### GMR-G05: Module parity documentation is still scope-collapsed in places [CLOSED 2026-04-09]" in retail_module_plan
 		and "### GMR-P5: Reconcile the parity ledgers and publish final evidence [COMPLETED]" in retail_module_plan
 		and _contains_all(
+			current_module_audit,
+			"- Current strict retail module parity estimate: **`100%`**",
+			"### GMR-P8: Final module-ledger and runtime-evidence reconciliation [COMPLETED]",
+			"All planned current-worktree module closure phases are now complete.",
+		)
+		and _contains_all(
+			current_module_audit,
+			"| `cgame` suite | `170 passed` |",
+			"| `qagame` suite + lifecycle | `91 passed`, `5 skipped` |",
+			"| `ui` suite + fs/vote checks | `58 passed`, `2 skipped` |",
+			"| shared platform-service seam + module gate | `57 passed`, `1 skipped` |",
+		)
+		and _contains_all(
 			audit,
-			"Strict retail module parity is now treated as",
-			"overall for the module layer.",
-			"`GMR-P5` is now closed:",
+			"`GMR-P7` is now complete",
+			"`GMR-P8` is now complete",
+			"supporting pipeline notes now all point at the",
+			"same closure state again",
+			"**100%** in the refreshed module report.",
 		)
 		and "### Task 31: Strict retail game-module parity closure [COMPLETED]" in implementation_plan
-		and "Parity estimate: **before 96.5% -> after 100%**" in implementation_plan
+		and "### Task 104: Strict retail game-module final ledger and runtime-evidence reconciliation [COMPLETED]" in implementation_plan
 		and _contains_all(
 			build_pipeline,
+			"tests/test_platform_services.py",
 			"tests/test_game_module_retail_parity_gate.py",
 			"retail_module_parity_gate.json",
+			"`GMR-P8`",
 			"`GMR-P5`",
 			"closure artifact",
+			"retail_module_runtime_evidence_20260409.json",
 		)
 		and _contains_all(
 			native_pipeline,
 			"tests/test_game_module_retail_parity_gate.py",
 			"retail_module_parity_gate.json",
-			"`GMR-P5` artifact",
+			"`GMR-P8`",
+			"`GMR-P5`",
+			"retail_module_runtime_evidence_20260409.json",
 		)
 		and "combined strict-retail module audit now also treats the audited offline UI launcher/resource slice as closed" in ui_plan
 	)
 
 	report: dict[str, Any] = {
-		"artifact_version": 2,
-		"phase": "GMR-P5",
+		"artifact_version": 3,
+		"phase": "GMR-P8",
 		"parity_estimate": {
-			"before": 99.7,
+			"before": 100.0,
 			"after": 100.0,
 		},
 		"gap_order": list(GAP_ORDER),
@@ -288,31 +312,45 @@ def _build_retail_module_parity_gate_report() -> dict[str, Any]:
 			"retail_plan_current_parity_is_100": "- Current strict retail module parity estimate: **`100%`**" in retail_module_plan,
 			"retail_plan_marks_gmr_g05_closed": "### GMR-G05: Module parity documentation is still scope-collapsed in places [CLOSED 2026-04-09]" in retail_module_plan,
 			"retail_plan_marks_gmr_p5_completed": "### GMR-P5: Reconcile the parity ledgers and publish final evidence [COMPLETED]" in retail_module_plan,
-			"audit_marks_full_module_closure": _contains_all(
+			"current_audit_parity_is_100": "- Current strict retail module parity estimate: **`100%`**" in current_module_audit,
+			"current_audit_marks_gmr_p8_completed": "### GMR-P8: Final module-ledger and runtime-evidence reconciliation [COMPLETED]" in current_module_audit,
+			"audit_marks_gmr_p7_and_gmr_p8_completed": _contains_all(
 				audit,
-				"Strict retail module parity is now treated as",
-				"overall for the module layer.",
-				"`GMR-P5` is now closed:",
+				"`GMR-P7` is now complete",
+				"`GMR-P8` is now complete",
+				"same closure state again",
 			),
 			"implementation_plan_marks_task_31_completed": "### Task 31: Strict retail game-module parity closure [COMPLETED]" in implementation_plan,
-			"pipeline_docs_reference_final_gate": _contains_all(
+			"implementation_plan_marks_task_104_completed": "### Task 104: Strict retail game-module final ledger and runtime-evidence reconciliation [COMPLETED]" in implementation_plan,
+			"pipeline_docs_reference_current_closure": _contains_all(
 				build_pipeline,
+				"tests/test_platform_services.py",
 				"tests/test_game_module_retail_parity_gate.py",
 				"retail_module_parity_gate.json",
+				"`GMR-P8`",
 				"`GMR-P5`",
 				"closure artifact",
+				"retail_module_runtime_evidence_20260409.json",
 			) and _contains_all(
 				native_pipeline,
 				"tests/test_game_module_retail_parity_gate.py",
 				"retail_module_parity_gate.json",
-				"`GMR-P5` artifact",
+				"`GMR-P8`",
+				"`GMR-P5`",
+				"retail_module_runtime_evidence_20260409.json",
 			),
 			"ui_plan_marks_combined_closure_alignment": "combined strict-retail module audit now also treats the audited offline UI launcher/resource slice as closed" in ui_plan,
-			"current_suite_counts_synced": (
+			"historical_suite_counts_preserved": (
 				"| `cgame` suite | `170 passed` |" in retail_module_plan
 				and "| `qagame` suite | `91 passed`, `5 skipped` |" in retail_module_plan
 				and "| `ui` suite + fs/vote checks | `49 passed`, `6 skipped` |" in retail_module_plan
 				and "| shared platform-service seam | `41 passed` |" in retail_module_plan
+			),
+			"current_suite_counts_synced": (
+				"| `cgame` suite | `170 passed` |" in current_module_audit
+				and "| `qagame` suite + lifecycle | `91 passed`, `5 skipped` |" in current_module_audit
+				and "| `ui` suite + fs/vote checks | `58 passed`, `2 skipped` |" in current_module_audit
+				and "| shared platform-service seam + module gate | `57 passed`, `1 skipped` |" in current_module_audit
 			),
 		},
 	)
@@ -360,8 +398,8 @@ def test_retail_module_parity_gate_writes_status_artifact() -> None:
 
 	assert RETAIL_MODULE_PARITY_GATE_PATH.exists()
 	assert _read_json(RETAIL_MODULE_PARITY_GATE_PATH) == report
-	assert report["artifact_version"] == 2
-	assert report["phase"] == "GMR-P5"
+	assert report["artifact_version"] == 3
+	assert report["phase"] == "GMR-P8"
 	assert report["gap_order"] == list(GAP_ORDER)
 	assert set(report["tranches"]) == set(GAP_ORDER)
 	assert report["overall_status"] == "pass"

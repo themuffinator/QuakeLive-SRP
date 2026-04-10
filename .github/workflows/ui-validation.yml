@@ -12,6 +12,8 @@ on:
       - 'tests/test_ui_menu_files.py'
       - 'tests/test_ui_full_parity_gate.py'
       - 'tests/test_platform_services.py'
+      - 'tests/test_fs_search_paths.py'
+      - 'tests/test_vote_ui_throttle.py'
       - 'src/code/ui/**'
       - 'src/code/client/**'
       - 'src/ui/**'
@@ -19,7 +21,16 @@ on:
       - 'tests/run_ui_validation.py'
       - 'tests/expectations/ui/**'
       - 'tools/build_ui_bundle.sh'
+      - 'tools/build_ui_bundle.py'
       - 'tools/packaging/**'
+      - 'docs/build-pipeline.md'
+      - 'docs/ui/scripting-guide.md'
+      - 'docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md'
+      - 'docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md'
+      - 'AUDIT.md'
+      - 'IMPLEMENTATION_PLAN.md'
+      - 'artifacts/ui_bundle/**'
+      - 'artifacts/ui_validation/**'
       - 'assets/quakelive/baseq3/**'
   pull_request:
     paths:
@@ -29,6 +40,8 @@ on:
       - 'tests/test_ui_menu_files.py'
       - 'tests/test_ui_full_parity_gate.py'
       - 'tests/test_platform_services.py'
+      - 'tests/test_fs_search_paths.py'
+      - 'tests/test_vote_ui_throttle.py'
       - 'src/code/ui/**'
       - 'src/code/client/**'
       - 'src/ui/**'
@@ -36,11 +49,20 @@ on:
       - 'tests/run_ui_validation.py'
       - 'tests/expectations/ui/**'
       - 'tools/build_ui_bundle.sh'
+      - 'tools/build_ui_bundle.py'
       - 'tools/packaging/**'
+      - 'docs/build-pipeline.md'
+      - 'docs/ui/scripting-guide.md'
+      - 'docs/reverse-engineering/game-module-parity-audit-and-implementation-plan-2026-04-10.md'
+      - 'docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md'
+      - 'AUDIT.md'
+      - 'IMPLEMENTATION_PLAN.md'
+      - 'artifacts/ui_bundle/**'
+      - 'artifacts/ui_validation/**'
       - 'assets/quakelive/baseq3/**'
 
 jobs:
-  ui-bundle:
+  ui-validation:
     runs-on: ubuntu-latest
     env:
       UI_ARTIFACT_ROOT: artifacts/ui_bundle
@@ -56,10 +78,11 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest
 
-      - name: Run UI parity tests
+      - name: Run focused UI parity tests
         run: |
           pytest tests/test_ui_src_panel_parity.py tests/test_ui_menu_files.py -q
-          pytest tests/test_platform_services.py -k "test_online_service_bridge_only_hard_stubs_when_build_disabled or test_service_disabled_menu_verb_matrix_stays_explicit" -q
+          pytest tests/test_platform_services.py -k "test_online_service_bridge_only_hard_stubs_when_build_disabled or test_service_disabled_menu_verb_matrix_stays_explicit or test_launcher_resource_fallbacks_survive_service_disabled_policy" -q
+          pytest tests/test_fs_search_paths.py tests/test_vote_ui_throttle.py -q
 
       - name: Build UI bundle
         run: tools/build_ui_bundle.sh
@@ -72,7 +95,7 @@ jobs:
           --log-dir "${{ env.UI_VALIDATION_ROOT }}/logs"
 
       - name: Run unified UI parity gate
-        run: pytest tests/test_ui_full_parity_gate.py -q
+        run: UI_FULL_PARITY_GATE_ENFORCE=1 pytest tests/test_ui_full_parity_gate.py -q
 
       - name: Upload UI artefacts
         if: always()

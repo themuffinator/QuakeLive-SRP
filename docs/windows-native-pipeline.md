@@ -10,6 +10,7 @@ Open `src/code/quakelive.sln` inside Visual Studio and load the following projec
 - `cgame/cgamex86.vcxproj` – Produces `build/win32/<Config>/modules/cgamex86/cgamex86.dll` and wires the same export pair via `cgame.def`.
 - `ui/ui.vcxproj` – Produces `build/win32/<Config>/bin/baseq3/uix86.dll` and loads `ui.def` so the UI DLL exports `dllEntry` and `vmMain`.
 - `quakelive_steam.vcxproj` – Produces the native retail-style host executable under `build/win32/<Config>/bin/quakelive_steam.exe`.
+- The default `.vscode/build.ps1` wrapper also emits `build/win32/<Config>/bin/qzeroded.exe` as the dedicated-server host alias. This matches the retained retail dedicated-tool basename `qzeroded` from the Linux `qzeroded.x86` package while keeping the Windows build policy-friendly.
 - `awesomium_process.vcxproj` – Produces the retail-style browser subprocess helper under `build/win32/<Config>/bin/awesomium_process.exe`.
 
 Each project already sets a Win32 dynamic-library configuration with explicit output paths and map/PDB generation so no additional post-build steps are required. Building the solution with the proper toolset will drop the DLLs into the `src/code/<project>/Release*/` directories alongside their `.lib`, `.pdb`, and `.map` files.
@@ -92,6 +93,69 @@ Then run:
 to publish `artifacts/client_validation/logs/client_full_parity_gate.json`,
 which is the machine-readable `CL-P6` closure artifact consumed by the client
 validation workflow.
+
+The shared `qcommon` layer now also has a dedicated Windows-native validation
+lane. Run:
+
+- `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/qcommon/run_qcommon_runtime_probe.ps1`
+
+This writes `artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json`.
+Then run:
+
+- `pytest tests/test_cvar_parity.py tests/test_cvar_alias_console.py tests/test_fs_search_paths.py tests/test_qcommon_collision_leaf_parity.py tests/test_qcommon_vm_fallback_parity.py tests/test_playerstate_replication.py tests/test_client_config_parity.py tests/test_platform_services.py tests/test_cgame_event_transport_parity.py tests/test_qcommon_full_parity_gate.py -q`
+
+to compile and execute the Windows-friendly native harness probes and publish
+`artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`. The
+dedicated CI lane for that artifact is
+`.github/workflows/qcommon-validation.yml`. The tracked runtime bundle plus the
+gate artifact now close the audited qcommon register at `QC-P6`. The added
+fallback harness in `tests/test_qcommon_vm_fallback_parity.py` keeps the
+native-to-qvm selection, compiled fallback, interpreted syscall logging,
+restart fallback, and pointer boundary lanes covered on the default Windows
+host.
+
+The engine `server` host now also has a dedicated Windows-native validation
+lane. Run:
+
+- `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/server/run_server_runtime_probe.ps1`
+
+This writes `artifacts/server_validation/logs/server_runtime_evidence_20260410.json`.
+Then run:
+
+- `pytest tests/test_platform_services.py tests/test_fake_vacban.py tests/test_server_full_parity_gate.py -q`
+
+to publish `artifacts/server_validation/logs/server_full_parity_gate.json`,
+which is the machine-readable `SV-P7` closure artifact for the final audited
+server gap register.
+
+When present, the runtime probe prefers `qzeroded.exe` from
+`build/win32/Debug/bin/` over `quakelive_steam.exe` so the dedicated
+validation lane exercises the retail-aligned dedicated executable name by
+default.
+
+The remaining engine-owned host/support surface outside `qcommon`, `server`,
+`client`, and `renderer` now also has a dedicated Windows-native validation
+lane. Run:
+
+- `pytest tests/test_platform_services.py tests/test_steamworks_harness.py tests/test_renderer_win32_host_glue_parity.py tests/test_bot_resource_loading.py tests/test_botlib_internal_parity.py tests/test_win32_clipboard_parity.py tests/test_win32_raw_input_parity.py tests/test_input_translation.py tests/test_engine_host_support_full_parity_gate.py -q`
+
+to publish
+`artifacts/engine_host_support_validation/logs/engine_host_support_full_parity_gate.json`.
+The tracked evidence bundle for the same lane is
+`artifacts/engine_host_support_validation/logs/engine_host_support_runtime_evidence_20260410.json`.
+That bundle does not come from a separate live probe: `EH-P6` closes the
+Windows-host evidence and governance lane by publishing the focused
+clipboard/raw-input/loading-window/input-translation proof already present in
+source-backed tests, `EH-P4` extends the same validation lane with
+deterministic botlib-internal AAS/reachability/goal-state coverage, and
+`EH-P5` closes the final host/support register by classifying the
+platform-service compatibility backends plus the Unix/null portability trees as
+documented compatibility-only exclusions rather than open strict-retail gaps.
+
+`EH-P1` boundary metadata is now published in the same artifact through
+`scope_boundary` and `classification_summary`, so the Windows-native ledgers
+and validation notes can point at one machine-readable source for the audited
+scope boundary instead of keeping that split only in narrative documentation.
 
 ## Validating against the reference DLLs
 

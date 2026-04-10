@@ -127,9 +127,12 @@ Observed local facts:
 
 ## Open Questions
 
-1. `sub_4CB630` remains intentionally unnamed. The retail command string
-   `"writeClientConfig"` is clear, but the repo still does not have a
-   writable owner name for that Quake Live-only helper.
+1. `sub_4CB630` remains intentionally unnamed in this historical round
+   write-up, but the old repo-owner caveat is now stale. The writable source
+   now carries `Com_WriteClientConfig_f()` in `src/code/qcommon/common.c`,
+   registers it under `"writeClientConfig"`, and guards that owner with
+   `tests/test_client_config_parity.py`. Read the old wording as round-local
+   context, not as a current missing-owner claim.
 2. `sub_4B9430`, `sub_4B9940`, `sub_4B81F0`, `sub_4ECDF0`, `sub_4F1290`,
    `sub_4F2900`, and `sub_4F4640` remain the highest-value unresolved client
    and host leftovers outside this seam.

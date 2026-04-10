@@ -22,148 +22,1309 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // sv_client.c -- server code for dealing with clients
 
 #include "server.h"
+#include "../../common/platform/platform_steamworks.h"
+
+#include <limits.h>
 
 static void SV_CloseDownload( client_t *cl );
 
 #if SV_HAS_PLATFORM_AUTH
+static qboolean sv_steamServerConnected;
+
+#define SV_STEAM_STATS_FIELD_COUNT 88
+#define SV_STEAM_ACHIEVEMENT_COUNT 59
+#define SV_STEAM_STATS_P2P_HELLO "hello"
+#define SV_STEAM_STATS_P2P_SEND_RELIABLE 2
+#define SV_STEAM_STATS_P2P_CHANNEL 16
+
+typedef struct {
+	qboolean active;
+	qboolean backendAvailable;
+	qboolean requestIssued;
+	CSteamID steamId;
+	int statValue[SV_STEAM_STATS_FIELD_COUNT];
+	int pendingStatDelta[SV_STEAM_STATS_FIELD_COUNT];
+	qboolean statLoaded[SV_STEAM_STATS_FIELD_COUNT];
+	qboolean statQueryAttempted[SV_STEAM_STATS_FIELD_COUNT];
+	qboolean statDirty[SV_STEAM_STATS_FIELD_COUNT];
+	qboolean achievementUnlocked[SV_STEAM_ACHIEVEMENT_COUNT];
+	qboolean achievementLoaded[SV_STEAM_ACHIEVEMENT_COUNT];
+	qboolean achievementQueryAttempted[SV_STEAM_ACHIEVEMENT_COUNT];
+	qboolean achievementDirty[SV_STEAM_ACHIEVEMENT_COUNT];
+} sv_steam_stats_session_t;
+
+static sv_steam_stats_session_t sv_steamStatsSessions[MAX_CLIENTS];
+
+static const char *s_svSteamStatNames[SV_STEAM_STATS_FIELD_COUNT] = {
+	"version",
+	"kill_gauntlet",
+	"kill_machinegun",
+	"kill_shotgun",
+	"kill_grenade",
+	"kill_rocket",
+	"kill_lightning",
+	"kill_railgun",
+	"kill_plasma",
+	"kill_bfg",
+	"kill_nailgun",
+	"kill_proxmine",
+	"kill_chaingun",
+	"kill_hmg",
+	"hits_machinegun",
+	"hits_shotgun",
+	"hits_grenade",
+	"hits_rocket",
+	"hits_lightning",
+	"hits_railgun",
+	"hits_plasma",
+	"hits_bfg",
+	"hits_nailgun",
+	"hits_proxmine",
+	"hits_chaingun",
+	"hits_hmg",
+	"shots_machinegun",
+	"shots_shotgun",
+	"shots_grenade",
+	"shots_rocket",
+	"shots_lightning",
+	"shots_railgun",
+	"shots_plasma",
+	"shots_bfg",
+	"shots_nailgun",
+	"shots_proxmine",
+	"shots_chaingun",
+	"shots_hmg",
+	"mod_shotgun",
+	"mod_gauntlet",
+	"mod_machinegun",
+	"mod_grenade",
+	"mod_rocket",
+	"mod_plasma",
+	"mod_railgun",
+	"mod_lightning",
+	"mod_bfg",
+	"mod_water",
+	"mod_slime",
+	"mod_lava",
+	"mod_crush",
+	"mod_telefrag",
+	"mod_laser",
+	"BROKEN1",
+	"mod_nailgun",
+	"mod_chaingun",
+	"mod_proxmine",
+	"mod_kamikaze",
+	"mod_juiced",
+	"mod_suicide",
+	"mod_falling",
+	"mod_grapple",
+	"mod_hmg",
+	"mod_lightning_discharge",
+	"mod_other",
+	"medal_firstfrag",
+	"medal_gauntlet",
+	"medal_excellent",
+	"medal_revenge",
+	"medal_combokill",
+	"medal_midair",
+	"medal_perforated",
+	"medal_rampage",
+	"medal_impressive",
+	"medal_capture",
+	"medal_assist",
+	"medal_defense",
+	"medal_headshot",
+	"medal_quadgod",
+	"medal_perfect",
+	"medal_accuracy",
+	"wins",
+	"losses",
+	"played",
+	"BROKEN2",
+	"mod_hurt",
+	"total_kills",
+	"total_deaths"
+};
+
+static const char *s_svSteamAchievementNames[SV_STEAM_ACHIEVEMENT_COUNT] = {
+	"AW_MIDAIR",
+	"AW_SPEED_KILLS",
+	"AW_TRAINING_1_1",
+	"AW_TRAINING_1_2",
+	"AW_TRAINING_1_3",
+	"AW_TRAINING_2_1",
+	"AW_TRAINING_2_2",
+	"AW_TRAINING_2_3",
+	"AW_TRAINING_3_1",
+	"AW_TRAINING_3_2",
+	"AW_FIRST_FRAG",
+	"AW_TESTING",
+	"AW_BIG_TIME",
+	"AW_PRIZE_FIGHTER",
+	"AW_WICKED",
+	"AW_BANDIT",
+	"AW_CAMPER",
+	"AW_PSYCHIC",
+	"AW_WTF_WAS_THAT",
+	"AW_OVERKILL",
+	"AW_RAPTOR",
+	"AW_PLUS_ONE",
+	"AW_KILLJOY",
+	"AW_HAT_TRICK",
+	"AW_MIRACLE_MAKER",
+	"AW_BRAWLER",
+	"AW_AIR_HAMMER",
+	"AW_AIM_BOT",
+	"AW_SUCKER_PUNCH",
+	"AW_RESOURCE_HOG",
+	"AW_NINJA_CAP",
+	"AW_MISSED_OPPORTUNITY",
+	"AW_SKULL_TRUMPET",
+	"AW_FIGHT_CLUB",
+	"AW_GUARDIAN",
+	"AW_SIDEKICK",
+	"AW_COLOR_GUARD",
+	"AW_2_IN_2",
+	"AW_ASSASSIN",
+	"AW_EVIL_EYE",
+	"AW_VICTORY",
+	"AW_POINT_DENIED",
+	"AW_FIRST_TASTE",
+	"AW_HOOKED",
+	"AW_FEAR_ME",
+	"AW_VADRIGAR",
+	"AW_MVP",
+	"AW_SMACK_DOWN",
+	"AW_HERE_GOES_NOTHING",
+	"AW_LAST_HOPE",
+	"AW_PUNCH_OUT",
+	"AW_NADE_SPAM",
+	"AW_ROCKET_MAN",
+	"AW_PULL",
+	"AW_CLUTCH",
+	"AW_JESSE_JAMES",
+	"AW_FULL_HOUSE",
+	"AW_TRIFECTA",
+	"AW_MAX"
+};
+
+/*
+=================
+SV_ClearPlatformAuthState
+
+Resets all retained server-side Steam auth state for one client slot.
+=================
+*/
 static void SV_ClearPlatformAuthState( client_t *cl ) {
-        if ( !cl ) {
-                return;
-        }
+	if ( !cl ) {
+		return;
+	}
 
-        cl->platformAuthPending = qfalse;
-        cl->platformAuthSucceeded = qfalse;
-        cl->platformAuthLabel[0] = '\0';
-        cl->platformAuthToken[0] = '\0';
-        cl->platformAuthResult[0] = '\0';
-        cl->platformAuthOutcome[0] = '\0';
-        cl->platformAuthMessage[0] = '\0';
-        cl->platformSteamId[0] = '\0';
+	cl->platformAuthPending = qfalse;
+	cl->platformAuthSucceeded = qfalse;
+	cl->platformAuthSessionActive = qfalse;
+	cl->platformAuthLabel[0] = '\0';
+	cl->platformAuthToken[0] = '\0';
+	cl->platformAuthResult[0] = '\0';
+	cl->platformAuthOutcome[0] = '\0';
+	cl->platformAuthMessage[0] = '\0';
+	cl->platformSteamId[0] = '\0';
 }
 
+/*
+=================
+SV_CapturePlatformAuthFromUserinfo
+
+Captures the SteamID and auth ticket fragments supplied by the client.
+=================
+*/
 static void SV_CapturePlatformAuthFromUserinfo( client_t *cl, const char *userinfo ) {
-        const char *steamId;
-        const char *auth;
-        const char *authPart1;
-        const char *authPart2;
-        char combined[QL_AUTH_MAX_CREDENTIAL_STORAGE];
+	const char	*steamId;
+	const char	*auth;
+	const char	*authPart1;
+	const char	*authPart2;
+	char		combined[QL_AUTH_MAX_CREDENTIAL_STORAGE];
 
-        if ( !cl || !userinfo ) {
-                return;
-        }
+	if ( !cl || !userinfo ) {
+		return;
+	}
 
-        SV_ClearPlatformAuthState( cl );
+	SV_ClearPlatformAuthState( cl );
 
-        steamId = Info_ValueForKey( userinfo, "steamid" );
-        auth = Info_ValueForKey( userinfo, "auth" );
-        authPart1 = Info_ValueForKey( userinfo, "author" );
-        authPart2 = Info_ValueForKey( userinfo, "author2" );
+	steamId = Info_ValueForKey( userinfo, "steamid" );
+	auth = Info_ValueForKey( userinfo, "auth" );
+	authPart1 = Info_ValueForKey( userinfo, "author" );
+	authPart2 = Info_ValueForKey( userinfo, "author2" );
 
-        combined[0] = '\0';
+	combined[0] = '\0';
 
-        if ( auth && auth[0] ) {
-                Q_strncpyz( combined, auth, sizeof( combined ) );
-        } else {
-                if ( authPart1 && authPart1[0] ) {
-                        Q_strncpyz( combined, authPart1, sizeof( combined ) );
-                }
+	if ( auth && auth[0] ) {
+		Q_strncpyz( combined, auth, sizeof( combined ) );
+	} else {
+		if ( authPart1 && authPart1[0] ) {
+			Q_strncpyz( combined, authPart1, sizeof( combined ) );
+		}
 
-                if ( authPart2 && authPart2[0] ) {
-                        Q_strcat( combined, sizeof( combined ), authPart2 );
-                }
-        }
+		if ( authPart2 && authPart2[0] ) {
+			Q_strcat( combined, sizeof( combined ), authPart2 );
+		}
+	}
 
-        if ( steamId && steamId[0] ) {
-                Q_strncpyz( cl->platformSteamId, steamId, sizeof( cl->platformSteamId ) );
+	if ( steamId && steamId[0] ) {
+		Q_strncpyz( cl->platformSteamId, steamId, sizeof( cl->platformSteamId ) );
 
-                if ( !cl->platformAuthLabel[0] ) {
-                        Q_strncpyz( cl->platformAuthLabel, "steam", sizeof( cl->platformAuthLabel ) );
-                }
-        }
+		if ( !cl->platformAuthLabel[0] ) {
+			Q_strncpyz( cl->platformAuthLabel, "steam", sizeof( cl->platformAuthLabel ) );
+		}
+	}
 
-        if ( combined[0] ) {
-                Q_strncpyz( cl->platformAuthToken, combined, sizeof( cl->platformAuthToken ) );
-                Q_strncpyz( cl->platformAuthLabel, "steam", sizeof( cl->platformAuthLabel ) );
-                cl->platformAuthPending = qtrue;
-                Q_strncpyz( cl->platformAuthResult, "pending", sizeof( cl->platformAuthResult ) );
-                cl->platformAuthOutcome[0] = '\0';
-        }
+	if ( combined[0] ) {
+		Q_strncpyz( cl->platformAuthToken, combined, sizeof( cl->platformAuthToken ) );
+		Q_strncpyz( cl->platformAuthLabel, "steam", sizeof( cl->platformAuthLabel ) );
+		cl->platformAuthPending = qtrue;
+		Q_strncpyz( cl->platformAuthResult, "pending", sizeof( cl->platformAuthResult ) );
+		cl->platformAuthOutcome[0] = '\0';
+	}
 }
 
+/*
+=================
+SV_FinalisePlatformAuthState
+
+Copies the final userinfo-visible auth fields back into the retained client slot.
+=================
+*/
 static void SV_FinalisePlatformAuthState( client_t *cl, qboolean accepted, const char *detail ) {
-        const char *result;
-        const char *outcome;
-        const char *message;
+	const char	*result;
+	const char	*outcome;
+	const char	*message;
 
-        if ( !cl ) {
-                return;
-        }
+	if ( !cl ) {
+		return;
+	}
 
-        cl->platformAuthPending = qfalse;
-        cl->platformAuthSucceeded = accepted;
+	cl->platformAuthPending = qfalse;
+	cl->platformAuthSucceeded = accepted;
 
-        result = Info_ValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_RESULT );
-        outcome = Info_ValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_OUTCOME );
-        message = Info_ValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_MESSAGE );
+	result = Info_ValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_RESULT );
+	outcome = Info_ValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_OUTCOME );
+	message = Info_ValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_MESSAGE );
 
-        if ( result && result[0] ) {
-                Q_strncpyz( cl->platformAuthResult, result, sizeof( cl->platformAuthResult ) );
-        } else {
-                cl->platformAuthResult[0] = '\0';
-        }
+	if ( result && result[0] ) {
+		Q_strncpyz( cl->platformAuthResult, result, sizeof( cl->platformAuthResult ) );
+	} else {
+		cl->platformAuthResult[0] = '\0';
+	}
 
-        if ( outcome && outcome[0] ) {
-                Q_strncpyz( cl->platformAuthOutcome, outcome, sizeof( cl->platformAuthOutcome ) );
-        } else {
-                cl->platformAuthOutcome[0] = '\0';
-        }
+	if ( outcome && outcome[0] ) {
+		Q_strncpyz( cl->platformAuthOutcome, outcome, sizeof( cl->platformAuthOutcome ) );
+	} else {
+		cl->platformAuthOutcome[0] = '\0';
+	}
 
-        if ( message && message[0] ) {
-                Q_strncpyz( cl->platformAuthMessage, message, sizeof( cl->platformAuthMessage ) );
-        } else if ( detail && detail[0] ) {
-                Q_strncpyz( cl->platformAuthMessage, detail, sizeof( cl->platformAuthMessage ) );
-        } else {
-                cl->platformAuthMessage[0] = '\0';
-        }
+	if ( message && message[0] ) {
+		Q_strncpyz( cl->platformAuthMessage, message, sizeof( cl->platformAuthMessage ) );
+	} else if ( detail && detail[0] ) {
+		Q_strncpyz( cl->platformAuthMessage, detail, sizeof( cl->platformAuthMessage ) );
+	} else {
+		cl->platformAuthMessage[0] = '\0';
+	}
 }
 
+/*
+=================
+SV_LogPlatformAuth
+
+Emits one unified telemetry record for the server-side auth owner.
+=================
+*/
 static void SV_LogPlatformAuth( const netadr_t *adr, const client_t *cl, const char *status, const char *detail ) {
-        char message[QL_AUTH_MAX_RESPONSE_MESSAGE * 2];
-        const char *label;
-        const char *steamId;
-        const char *result;
-        const char *outcome;
+	char		message[QL_AUTH_MAX_RESPONSE_MESSAGE * 2];
+	const char	*label;
+	const char	*steamId;
+	const char	*result;
+	const char	*outcome;
 
-        message[0] = '\0';
+	message[0] = '\0';
 
-        if ( !cl ) {
-                return;
-        }
+	if ( !cl ) {
+		return;
+	}
 
-        label = cl->platformAuthLabel[0] ? cl->platformAuthLabel : NULL;
-        steamId = cl->platformSteamId[0] ? cl->platformSteamId : NULL;
-        result = cl->platformAuthResult[0] ? cl->platformAuthResult : NULL;
-        outcome = cl->platformAuthOutcome[0] ? cl->platformAuthOutcome : NULL;
+	label = cl->platformAuthLabel[0] ? cl->platformAuthLabel : NULL;
+	steamId = cl->platformSteamId[0] ? cl->platformSteamId : NULL;
+	result = cl->platformAuthResult[0] ? cl->platformAuthResult : NULL;
+	outcome = cl->platformAuthOutcome[0] ? cl->platformAuthOutcome : NULL;
 
-        if ( detail && detail[0] ) {
-                Q_strncpyz( message, detail, sizeof( message ) );
-        }
+	if ( detail && detail[0] ) {
+		Q_strncpyz( message, detail, sizeof( message ) );
+	}
 
-        if ( cl->platformAuthMessage[0] ) {
-                if ( !message[0] ) {
-                        Q_strncpyz( message, cl->platformAuthMessage, sizeof( message ) );
-                } else if ( Q_stricmp( message, cl->platformAuthMessage ) ) {
-                        Q_strcat( message, sizeof( message ), " | " );
-                        Q_strcat( message, sizeof( message ), cl->platformAuthMessage );
-                }
-        }
+	if ( cl->platformAuthMessage[0] ) {
+		if ( !message[0] ) {
+			Q_strncpyz( message, cl->platformAuthMessage, sizeof( message ) );
+		} else if ( Q_stricmp( message, cl->platformAuthMessage ) ) {
+			Q_strcat( message, sizeof( message ), " | " );
+			Q_strcat( message, sizeof( message ), cl->platformAuthMessage );
+		}
+	}
 
-        NET_LogAuthTelemetry( NS_SERVER, adr, steamId, label, status, result, outcome, message[0] ? message : NULL );
+	NET_LogAuthTelemetry( NS_SERVER, adr, steamId, label, status, result, outcome, message[0] ? message : NULL );
+}
+
+/*
+=================
+SV_ParsePlatformSteamId
+
+Parses a numeric SteamID string into the compact runtime form.
+=================
+*/
+static qboolean SV_ParsePlatformSteamId( const char *steamIdString, CSteamID *steamId ) {
+	unsigned long long	value;
+	const char		*ch;
+
+	if ( !steamId ) {
+		return qfalse;
+	}
+
+	steamId->value = 0ull;
+
+	if ( !steamIdString || !steamIdString[0] ) {
+		return qfalse;
+	}
+
+	value = 0ull;
+
+	for ( ch = steamIdString; *ch; ch++ ) {
+		if ( *ch < '0' || *ch > '9' ) {
+			return qfalse;
+		}
+
+		if ( value > ( ULLONG_MAX / 10ull ) ) {
+			return qfalse;
+		}
+
+		value *= 10ull;
+
+		if ( value > ( ULLONG_MAX - (unsigned long long)( *ch - '0' ) ) ) {
+			return qfalse;
+		}
+
+		value += (unsigned long long)( *ch - '0' );
+	}
+
+	steamId->value = (uint64_t)value;
+	return qtrue;
+}
+
+/*
+=================
+SV_SetPlatformAuthUserinfo
+
+Writes the current auth telemetry triplet into the client's userinfo.
+=================
+*/
+static void SV_SetPlatformAuthUserinfo( client_t *cl, const char *result, const char *outcome, const char *message ) {
+	if ( !cl ) {
+		return;
+	}
+
+	Info_SetValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_RESULT, result ? result : "" );
+	Info_SetValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_OUTCOME, outcome ? outcome : "" );
+	Info_SetValueForKey( cl->userinfo, QL_AUTH_USERINFO_KEY_MESSAGE, message ? message : "" );
+}
+
+/*
+=================
+SV_FormatPlatformAuthCode
+
+Formats a Steam auth response code for userinfo and telemetry publication.
+=================
+*/
+static void SV_FormatPlatformAuthCode( EAuthSessionResponse response, char *buffer, size_t bufferSize ) {
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	Com_sprintf( buffer, (int)bufferSize, "%d", (int)response );
+}
+
+/*
+=================
+SV_GetPlatformAuthReason
+
+Maps Steam auth callback responses to the retail-facing reason labels.
+=================
+*/
+static const char *SV_GetPlatformAuthReason( EAuthSessionResponse response ) {
+	switch ( response ) {
+		case k_EAuthSessionResponseOK:
+		return "accepted";
+		case k_EAuthSessionResponseUserNotConnectedToSteam:
+		return "User not connected to Steam";
+		case k_EAuthSessionResponseNoLicenseOrExpired:
+		return "No license or expired";
+		case k_EAuthSessionResponseVACBanned:
+		return "VAC ban on record";
+		case k_EAuthSessionResponseLoggedInElseWhere:
+		return "Logged in elsewhere";
+		case k_EAuthSessionResponseVACCheckTimedOut:
+		return "VAC check timed out";
+		case k_EAuthSessionResponseAuthTicketCanceled:
+		return "Issuer canceled auth ticket";
+		case k_EAuthSessionResponseAuthTicketInvalidAlreadyUsed:
+		return "Auth ticket already used";
+		case k_EAuthSessionResponseAuthTicketInvalid:
+		return "Auth ticket invalid";
+		case k_EAuthSessionResponsePublisherIssuedBan:
+		return "Game ban on record";
+		default:
+		return "Unknown Steam auth failure";
+	}
+}
+
+/*
+=================
+SV_IsPlatformAuthAccepted
+
+Matches the retail callback accept list for Steam auth responses.
+=================
+*/
+static qboolean SV_IsPlatformAuthAccepted( EAuthSessionResponse response ) {
+	return ( response == k_EAuthSessionResponseOK || response == k_EAuthSessionResponseAuthTicketCanceled ) ? qtrue : qfalse;
+}
+
+/*
+=================
+SV_BuildPlatformAuthMessage
+
+Builds the outward-facing auth message for one callback response.
+=================
+*/
+static void SV_BuildPlatformAuthMessage( EAuthSessionResponse response, char *buffer, size_t bufferSize ) {
+	const char *reason;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	reason = SV_GetPlatformAuthReason( response );
+
+	if ( SV_IsPlatformAuthAccepted( response ) ) {
+		Q_strncpyz( buffer, reason, bufferSize );
+		return;
+	}
+
+	Com_sprintf( buffer, (int)bufferSize, "Failed to authenticate with Steam: %s", reason );
+}
+
+/*
+=================
+SV_SteamStats_ResetSession
+
+Clears one retained server-owned Steam stats session.
+=================
+*/
+static void SV_SteamStats_ResetSession( sv_steam_stats_session_t *session ) {
+	if ( !session ) {
+		return;
+	}
+
+	Com_Memset( session, 0, sizeof( *session ) );
+}
+
+/*
+=================
+SV_SteamStats_GetFieldName
+
+Returns the mapped retail Steam stat descriptor name for one field index.
+=================
+*/
+static const char *SV_SteamStats_GetFieldName( int statIndex ) {
+	if ( statIndex < 0 || statIndex >= SV_STEAM_STATS_FIELD_COUNT ) {
+		return NULL;
+	}
+
+	return s_svSteamStatNames[statIndex];
+}
+
+/*
+=================
+SV_SteamStats_GetAchievementName
+
+Returns the mapped retail Steam achievement name for one achievement index.
+=================
+*/
+static const char *SV_SteamStats_GetAchievementName( int achievementId ) {
+	if ( achievementId < 0 || achievementId >= SV_STEAM_ACHIEVEMENT_COUNT ) {
+		return NULL;
+	}
+
+	return s_svSteamAchievementNames[achievementId];
+}
+
+/*
+=================
+SV_SteamStats_GetClientSlot
+
+Returns the retained client slot for a stats/achievement request when it is live
+and not a bot-owned surrogate.
+=================
+*/
+static client_t *SV_SteamStats_GetClientSlot( int clientNum ) {
+	client_t *cl;
+	CSteamID steamId;
+
+	if ( clientNum < 0 || clientNum >= sv_maxclients->integer ) {
+		return NULL;
+	}
+
+	cl = &svs.clients[clientNum];
+	if ( cl->state < CS_CONNECTED || cl->state == CS_ZOMBIE || !cl->gentity || !cl->platformSteamId[0] ) {
+		return NULL;
+	}
+
+	if ( SV_ClientIsBot( cl ) || ( cl->gentity->r.svFlags & SVF_BOT ) ) {
+		return NULL;
+	}
+
+	if ( !SV_ParsePlatformSteamId( cl->platformSteamId, &steamId ) || steamId.value == 0ull ) {
+		return NULL;
+	}
+
+	return cl;
+}
+
+/*
+=================
+SV_SteamStats_RequestCurrentValues
+
+Reissues the retail SteamGameServerStats request for one active player session.
+=================
+*/
+static qboolean SV_SteamStats_RequestCurrentValues( sv_steam_stats_session_t *session ) {
+	if ( !session || !session->active || session->steamId.value == 0ull ) {
+		return qfalse;
+	}
+
+	if ( !QL_Steamworks_ServerRequestUserStats( &session->steamId ) ) {
+		return qfalse;
+	}
+
+	session->backendAvailable = qtrue;
+	session->requestIssued = qtrue;
+	return qtrue;
+}
+
+/*
+=================
+SV_SteamStats_LoadFieldValue
+
+Loads one stat value from SteamGameServerStats when the backend is available.
+=================
+*/
+static qboolean SV_SteamStats_LoadFieldValue( sv_steam_stats_session_t *session, int statIndex ) {
+	const char *name;
+	int value;
+
+	if ( !session || !session->active ) {
+		return qfalse;
+	}
+
+	if ( statIndex < 0 || statIndex >= SV_STEAM_STATS_FIELD_COUNT ) {
+		return qfalse;
+	}
+
+	if ( session->statLoaded[statIndex] ) {
+		return qtrue;
+	}
+
+	name = SV_SteamStats_GetFieldName( statIndex );
+	if ( !name ) {
+		return qfalse;
+	}
+
+	if ( !session->requestIssued ) {
+		SV_SteamStats_RequestCurrentValues( session );
+	}
+
+	session->statQueryAttempted[statIndex] = qtrue;
+	value = 0;
+	if ( !QL_Steamworks_ServerGetUserStatInt( &session->steamId, name, &value ) ) {
+		return qfalse;
+	}
+
+	session->backendAvailable = qtrue;
+	session->statLoaded[statIndex] = qtrue;
+	session->statValue[statIndex] = value + session->pendingStatDelta[statIndex];
+	return qtrue;
+}
+
+/*
+=================
+SV_SteamStats_LoadAchievement
+
+Loads one achievement bit from SteamGameServerStats when the backend is available.
+=================
+*/
+static qboolean SV_SteamStats_LoadAchievement( sv_steam_stats_session_t *session, int achievementId ) {
+	const char *name;
+	qboolean achieved;
+
+	if ( !session || !session->active ) {
+		return qfalse;
+	}
+
+	if ( achievementId < 0 || achievementId >= SV_STEAM_ACHIEVEMENT_COUNT ) {
+		return qfalse;
+	}
+
+	if ( session->achievementLoaded[achievementId] ) {
+		return qtrue;
+	}
+
+	name = SV_SteamStats_GetAchievementName( achievementId );
+	if ( !name ) {
+		return qfalse;
+	}
+
+	if ( !session->requestIssued ) {
+		SV_SteamStats_RequestCurrentValues( session );
+	}
+
+	session->achievementQueryAttempted[achievementId] = qtrue;
+	achieved = qfalse;
+	if ( !QL_Steamworks_ServerGetUserAchievement( &session->steamId, name, &achieved ) ) {
+		return qfalse;
+	}
+
+	session->backendAvailable = qtrue;
+	session->achievementLoaded[achievementId] = qtrue;
+	session->achievementUnlocked[achievementId] = ( session->achievementUnlocked[achievementId] || achieved ) ? qtrue : qfalse;
+	return qtrue;
+}
+
+/*
+=================
+SV_SteamStats_FlushPendingValues
+
+Publishes pending stat deltas and achievement unlocks for one active session.
+=================
+*/
+static void SV_SteamStats_FlushPendingValues( sv_steam_stats_session_t *session ) {
+	const char *name;
+	qboolean hasPending;
+	qboolean failed;
+	int i;
+
+	if ( !session || !session->active || session->steamId.value == 0ull ) {
+		return;
+	}
+
+	hasPending = qfalse;
+	failed = qfalse;
+
+	for ( i = 0; i < SV_STEAM_STATS_FIELD_COUNT; i++ ) {
+		if ( !session->statDirty[i] ) {
+			continue;
+		}
+
+		hasPending = qtrue;
+		if ( !session->statLoaded[i] && !SV_SteamStats_LoadFieldValue( session, i ) ) {
+			failed = qtrue;
+			continue;
+		}
+
+		name = SV_SteamStats_GetFieldName( i );
+		if ( !name || !QL_Steamworks_ServerSetUserStatInt( &session->steamId, name, session->statValue[i] ) ) {
+			failed = qtrue;
+			continue;
+		}
+
+		session->backendAvailable = qtrue;
+	}
+
+	for ( i = 0; i < SV_STEAM_ACHIEVEMENT_COUNT; i++ ) {
+		if ( !session->achievementDirty[i] ) {
+			continue;
+		}
+
+		hasPending = qtrue;
+		name = SV_SteamStats_GetAchievementName( i );
+		if ( !name || !QL_Steamworks_ServerSetUserAchievement( &session->steamId, name ) ) {
+			failed = qtrue;
+			continue;
+		}
+
+		session->backendAvailable = qtrue;
+	}
+
+	if ( !hasPending || failed || !QL_Steamworks_ServerStoreUserStats( &session->steamId ) ) {
+		return;
+	}
+
+	session->backendAvailable = qtrue;
+
+	for ( i = 0; i < SV_STEAM_STATS_FIELD_COUNT; i++ ) {
+		if ( !session->statDirty[i] ) {
+			continue;
+		}
+
+		session->statDirty[i] = qfalse;
+		session->pendingStatDelta[i] = 0;
+	}
+
+	for ( i = 0; i < SV_STEAM_ACHIEVEMENT_COUNT; i++ ) {
+		if ( !session->achievementDirty[i] ) {
+			continue;
+		}
+
+		session->achievementDirty[i] = qfalse;
+	}
+}
+
+/*
+=================
+SV_SteamStats_ShouldUnlockAchievement
+
+Applies the recovered retail achievement gate around match state, training, and
+practice flows.
+=================
+*/
+static qboolean SV_SteamStats_ShouldUnlockAchievement( void ) {
+	char gameState[MAX_STRING_CHARS];
+
+	gameState[0] = '\0';
+	Cvar_VariableStringBuffer( "g_gameState", gameState, sizeof( gameState ) );
+
+	if ( !gameState[0] || !Q_stricmp( gameState, "IN_PROGRESS" ) ) {
+		return qtrue;
+	}
+
+	if ( Cvar_VariableIntegerValue( "g_training" ) != 0 ) {
+		return qtrue;
+	}
+
+	if ( Cvar_VariableIntegerValue( "practiceflags" ) != 0 ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=================
+SV_SteamStats_CreatePlayerSession
+
+Creates or refreshes the retained retail-style Steam stats session for one
+authenticated client slot.
+=================
+*/
+static void SV_SteamStats_CreatePlayerSession( client_t *cl ) {
+	sv_steam_stats_session_t *session;
+	CSteamID steamId;
+	int clientNum;
+
+	if ( !cl || cl->state == CS_ZOMBIE || !cl->gentity || !cl->platformSteamId[0] ) {
+		return;
+	}
+
+	if ( SV_ClientIsBot( cl ) || ( cl->gentity->r.svFlags & SVF_BOT ) ) {
+		return;
+	}
+
+	if ( !SV_ParsePlatformSteamId( cl->platformSteamId, &steamId ) || steamId.value == 0ull ) {
+		return;
+	}
+
+	clientNum = (int)( cl - svs.clients );
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	session = &sv_steamStatsSessions[clientNum];
+	if ( session->active && session->steamId.value == steamId.value ) {
+		SV_SteamStats_RequestCurrentValues( session );
+		return;
+	}
+
+	SV_SteamStats_ResetSession( session );
+	session->active = qtrue;
+	session->steamId = steamId;
+	SV_SteamStats_RequestCurrentValues( session );
+	QL_Steamworks_ServerSendP2PPacket( &session->steamId, SV_STEAM_STATS_P2P_HELLO, 5, SV_STEAM_STATS_P2P_SEND_RELIABLE, SV_STEAM_STATS_P2P_CHANNEL );
+}
+
+/*
+=================
+SV_SteamStats_RemovePlayerSession
+
+Flushes and clears the retained Steam stats session for one client slot.
+=================
+*/
+static void SV_SteamStats_RemovePlayerSession( client_t *cl ) {
+	sv_steam_stats_session_t *session;
+	int clientNum;
+
+	if ( !cl ) {
+		return;
+	}
+
+	clientNum = (int)( cl - svs.clients );
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	session = &sv_steamStatsSessions[clientNum];
+	if ( !session->active ) {
+		return;
+	}
+
+	SV_SteamStats_FlushPendingValues( session );
+	SV_SteamStats_ResetSession( session );
+}
+
+/*
+=================
+SV_SteamStats_RequerySessions
+
+Reissues Steam stats requests for active sessions after the GameServer backend
+reconnects.
+=================
+*/
+static void SV_SteamStats_RequerySessions( void ) {
+	sv_steam_stats_session_t *session;
+	int i;
+
+	for ( i = 0; i < sv_maxclients->integer && i < MAX_CLIENTS; i++ ) {
+		session = &sv_steamStatsSessions[i];
+		if ( !session->active ) {
+			continue;
+		}
+
+		session->requestIssued = qfalse;
+		SV_SteamStats_RequestCurrentValues( session );
+	}
+}
+
+/*
+=================
+SV_SteamStats_AddFieldValue
+
+Adds one mapped Steam stat delta for a live, non-bot client slot.
+=================
+*/
+void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta ) {
+	client_t *cl;
+	sv_steam_stats_session_t *session;
+	const char *name;
+
+	if ( delta == 0 ) {
+		return;
+	}
+
+	name = SV_SteamStats_GetFieldName( statIndex );
+	if ( !name ) {
+		return;
+	}
+
+	cl = SV_SteamStats_GetClientSlot( clientNum );
+	if ( !cl ) {
+		return;
+	}
+
+	SV_SteamStats_CreatePlayerSession( cl );
+	session = &sv_steamStatsSessions[clientNum];
+	if ( !session->active ) {
+		return;
+	}
+
+	SV_SteamStats_LoadFieldValue( session, statIndex );
+	session->statValue[statIndex] += delta;
+	session->pendingStatDelta[statIndex] += delta;
+	session->statDirty[statIndex] = qtrue;
+
+	Com_DPrintf( "Steam stat %s += %d -> %d for client %d\n", name, delta, session->statValue[statIndex], clientNum );
+}
+
+/*
+=================
+SV_SteamStats_UnlockAchievement
+
+Unlocks one mapped Steam achievement through the retained server-owned owner.
+=================
+*/
+void SV_SteamStats_UnlockAchievement( int clientNum, int achievementId ) {
+	client_t *cl;
+	sv_steam_stats_session_t *session;
+
+	if ( !SV_SteamStats_GetAchievementName( achievementId ) || !SV_SteamStats_ShouldUnlockAchievement() ) {
+		return;
+	}
+
+	cl = SV_SteamStats_GetClientSlot( clientNum );
+	if ( !cl ) {
+		return;
+	}
+
+	SV_SteamStats_CreatePlayerSession( cl );
+	session = &sv_steamStatsSessions[clientNum];
+	if ( !session->active ) {
+		return;
+	}
+
+	SV_SteamStats_LoadAchievement( session, achievementId );
+	if ( session->achievementUnlocked[achievementId] ) {
+		return;
+	}
+
+	session->achievementUnlocked[achievementId] = qtrue;
+	session->achievementDirty[achievementId] = qtrue;
+	SV_SteamStats_FlushPendingValues( session );
+}
+
+/*
+=================
+SV_SteamStats_HasAchievement
+
+Reports whether the retained session already owns one mapped achievement.
+=================
+*/
+qboolean SV_SteamStats_HasAchievement( int clientNum, int achievementId ) {
+	client_t *cl;
+	sv_steam_stats_session_t *session;
+
+	if ( !SV_SteamStats_GetAchievementName( achievementId ) ) {
+		return qfalse;
+	}
+
+	cl = SV_SteamStats_GetClientSlot( clientNum );
+	if ( !cl ) {
+		return qfalse;
+	}
+
+	SV_SteamStats_CreatePlayerSession( cl );
+	session = &sv_steamStatsSessions[clientNum];
+	if ( !session->active ) {
+		return qfalse;
+	}
+
+	SV_SteamStats_LoadAchievement( session, achievementId );
+	return session->achievementUnlocked[achievementId] ? qtrue : qfalse;
+}
+
+/*
+=================
+SV_FindClientBySteamId
+
+Finds a live client slot that owns one SteamID.
+=================
+*/
+static client_t *SV_FindClientBySteamId( const CSteamID *steamId ) {
+	client_t	*cl;
+	CSteamID	parsedSteamId;
+	int		i;
+
+	if ( !steamId || steamId->value == 0ull ) {
+		return NULL;
+	}
+
+	for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+		if ( cl->state < CS_CONNECTED || cl->state == CS_ZOMBIE || !cl->platformSteamId[0] ) {
+			continue;
+		}
+
+		if ( !SV_ParsePlatformSteamId( cl->platformSteamId, &parsedSteamId ) ) {
+			continue;
+		}
+
+		if ( parsedSteamId.value == steamId->value ) {
+			return cl;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=================
+SV_EndPlatformAuthSession
+
+Closes any active Steam GameServer auth session retained for one client slot.
+=================
+*/
+static void SV_EndPlatformAuthSession( client_t *cl ) {
+	CSteamID steamId;
+
+	if ( !cl || !cl->platformAuthSessionActive ) {
+		return;
+	}
+
+	cl->platformAuthSessionActive = qfalse;
+	SV_SteamStats_RemovePlayerSession( cl );
+
+	if ( !SV_ParsePlatformSteamId( cl->platformSteamId, &steamId ) ) {
+		return;
+	}
+
+	QL_Steamworks_ServerEndAuthSession( &steamId );
+}
+
+/*
+=================
+SV_BeginPlatformAuthSession
+
+Starts one Steam GameServer auth session after qagame has accepted the connection.
+=================
+*/
+static const char *SV_BeginPlatformAuthSession( client_t *cl, const netadr_t *adr ) {
+	ql_auth_response_t	response;
+	CSteamID		steamId;
+	const char		*message;
+
+	if ( !cl || !cl->platformAuthToken[0] || NET_IsLocalAddress( cl->netchan.remoteAddress ) ) {
+		return NULL;
+	}
+
+	if ( !SV_ParsePlatformSteamId( cl->platformSteamId, &steamId ) ) {
+		message = "Failed to verify Steam auth token";
+		SV_SetPlatformAuthUserinfo( cl, "error", "failure", message );
+		SV_FinalisePlatformAuthState( cl, qfalse, message );
+		SV_LogPlatformAuth( adr, cl, "failed", message );
+		return message;
+	}
+
+	Com_Memset( &response, 0, sizeof( response ) );
+
+	if ( !QL_Steamworks_ServerBeginAuthSession( &steamId, cl->platformAuthToken, &response ) ) {
+		message = response.message[0] ? response.message : "Failed to verify Steam auth token";
+		SV_SetPlatformAuthUserinfo( cl,
+			response.result == QL_AUTH_RESULT_ERROR ? "error" : "denied",
+			response.outcome == QL_AUTH_OUTCOME_RETRY ? "retry" : "failure",
+			message );
+		SV_FinalisePlatformAuthState( cl, qfalse, message );
+		SV_LogPlatformAuth( adr, cl, "failed", message );
+		return message;
+	}
+
+	cl->platformAuthSessionActive = qtrue;
+	cl->platformAuthPending = qtrue;
+	cl->platformAuthSucceeded = qfalse;
+	SV_SetPlatformAuthUserinfo( cl, "pending", "retry", "" );
+	Q_strncpyz( cl->platformAuthResult, "pending", sizeof( cl->platformAuthResult ) );
+	Q_strncpyz( cl->platformAuthOutcome, "retry", sizeof( cl->platformAuthOutcome ) );
+	cl->platformAuthMessage[0] = '\0';
+	SV_SteamStats_CreatePlayerSession( cl );
+	SV_LogPlatformAuth( adr, cl, "pending", NULL );
+	return NULL;
+}
+
+/*
+=================
+SV_SteamServerConnectedCallback
+
+Publishes the current server identity once Steam confirms the GameServer session.
+=================
+*/
+static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event ) {
+	(void)context;
+	(void)event;
+
+	sv_steamServerConnected = qtrue;
+	Com_Printf( "Connected to Steam servers\n" );
+	SV_SteamServerPublishIdentity();
+	SV_SteamServerUpdatePublishedState( qtrue );
+	SV_SteamStats_RequerySessions();
+}
+
+/*
+=================
+SV_SteamServerConnectFailureCallback
+
+Tracks retail-style Steam server connect failures in the server owner.
+=================
+*/
+static void SV_SteamServerConnectFailureCallback( void *context, const ql_steam_server_connect_failure_t *event ) {
+	(void)context;
+
+	sv_steamServerConnected = qfalse;
+
+	if ( !event ) {
+		return;
+	}
+
+	Com_Printf( "Steam server connect failure (%d)\n", event->result );
+}
+
+/*
+=================
+SV_SteamServerDisconnectedCallback
+
+Tracks when the Steam GameServer session disconnects from Valve backends.
+=================
+*/
+static void SV_SteamServerDisconnectedCallback( void *context, const ql_steam_server_disconnected_t *event ) {
+	(void)context;
+
+	sv_steamServerConnected = qfalse;
+
+	if ( !event ) {
+		return;
+	}
+
+	Com_Printf( "Disconnected from Steam servers (%d)\n", event->result );
+}
+
+/*
+=================
+SV_SteamServerValidateAuthTicketResponseCallback
+
+Finalises one pending client auth session from the retail ValidateAuthTicketResponse_t path.
+=================
+*/
+static void SV_SteamServerValidateAuthTicketResponseCallback( void *context, const ql_steam_validate_auth_ticket_response_t *event ) {
+	client_t			*cl;
+	EAuthSessionResponse	response;
+	char				result[16];
+	char				outcome[64];
+	char				message[QL_AUTH_MAX_RESPONSE_MESSAGE];
+	qboolean			accepted;
+
+	(void)context;
+
+	if ( !event ) {
+		return;
+	}
+
+	response = event->authSessionResponse;
+	if ( net_fakevacban && net_fakevacban->integer ) {
+		response = k_EAuthSessionResponseVACBanned;
+	}
+
+	cl = SV_FindClientBySteamId( &event->steamId );
+	if ( !cl ) {
+		return;
+	}
+
+	SV_FormatPlatformAuthCode( response, result, sizeof( result ) );
+	Q_strncpyz( outcome, SV_GetPlatformAuthReason( response ), sizeof( outcome ) );
+	SV_BuildPlatformAuthMessage( response, message, sizeof( message ) );
+	SV_SetPlatformAuthUserinfo( cl, result, outcome, message );
+
+	accepted = SV_IsPlatformAuthAccepted( response );
+	SV_FinalisePlatformAuthState( cl, accepted, message );
+	SV_LogPlatformAuth( &cl->netchan.remoteAddress, cl, accepted ? "accepted" : "failed", message );
+
+	if ( accepted ) {
+		return;
+	}
+
+	SV_DropClient( cl, message );
+}
+
+/*
+=================
+SV_SteamServerP2PSessionRequestCallback
+
+Accepts server-side Steam P2P sessions only for live, authenticated clients.
+=================
+*/
+static void SV_SteamServerP2PSessionRequestCallback( void *context, const ql_steam_p2p_session_request_t *event ) {
+	client_t *cl;
+
+	(void)context;
+
+	if ( !event ) {
+		return;
+	}
+
+	cl = SV_FindClientBySteamId( &event->remoteId );
+	if ( !cl || !cl->platformAuthSucceeded ) {
+		Com_Printf( "Ignoring Steam P2P session request from %llu\n", (unsigned long long)event->remoteId.value );
+		return;
+	}
+
+	if ( !QL_Steamworks_ServerAcceptP2PSession( &event->remoteId ) ) {
+		Com_Printf( "Failed to accept Steam P2P session request from %llu\n", (unsigned long long)event->remoteId.value );
+	}
+}
+
+/*
+=================
+SV_SteamServerInitCallbacks
+
+Registers the retail Steam GameServer callback bundle with the retained platform layer.
+=================
+*/
+void SV_SteamServerInitCallbacks( void ) {
+	ql_steam_server_callback_bindings_t bindings;
+
+	Com_Memset( &bindings, 0, sizeof( bindings ) );
+	bindings.onServersConnected = SV_SteamServerConnectedCallback;
+	bindings.onConnectFailure = SV_SteamServerConnectFailureCallback;
+	bindings.onServersDisconnected = SV_SteamServerDisconnectedCallback;
+	bindings.onValidateAuthTicketResponse = SV_SteamServerValidateAuthTicketResponseCallback;
+	bindings.onP2PSessionRequest = SV_SteamServerP2PSessionRequestCallback;
+
+	if ( !QL_Steamworks_RegisterServerCallbacks( &bindings ) ) {
+		Com_DPrintf( "Steam server callbacks unavailable\n" );
+		return;
+	}
+
+	sv_steamServerConnected = qfalse;
 }
 #else
 #define SV_CapturePlatformAuthFromUserinfo(cl, userinfo) ((void)0)
 #define SV_FinalisePlatformAuthState(cl, accepted, detail) ((void)(cl), (void)(accepted), (void)(detail))
 #define SV_LogPlatformAuth(adr, cl, status, detail) ((void)(adr), (void)(cl), (void)(status), (void)(detail))
+
+/*
+=================
+SV_SteamServerInitCallbacks
+
+Build-disabled stub for server auth callback registration.
+=================
+*/
+void SV_SteamServerInitCallbacks( void ) {
+}
+
+/*
+=================
+SV_SteamStats_AddFieldValue
+
+Build-disabled stub for the retained server-owned Steam stat owner.
+=================
+*/
+void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta ) {
+	(void)clientNum;
+	(void)statIndex;
+	(void)delta;
+}
+
+/*
+=================
+SV_SteamStats_UnlockAchievement
+
+Build-disabled stub for the retained server-owned achievement owner.
+=================
+*/
+void SV_SteamStats_UnlockAchievement( int clientNum, int achievementId ) {
+	(void)clientNum;
+	(void)achievementId;
+}
+
+/*
+=================
+SV_SteamStats_HasAchievement
+
+Build-disabled stub for the retained server-owned achievement query.
+=================
+*/
+qboolean SV_SteamStats_HasAchievement( int clientNum, int achievementId ) {
+	(void)clientNum;
+	(void)achievementId;
+	return qfalse;
+}
 #endif
 
 /*
@@ -535,14 +1696,6 @@ void SV_DirectConnect( netadr_t from ) {
 		Info_SetValueForKey( userinfo, "ip", "localhost" );
 	}
 
-	if ( net_fakevacban->integer ) {
-		Com_Printf( "VAC ban on record (net_fakevacban) for %s\n", NET_AdrToString( from ) );
-		NET_LogAuthTelemetry( NS_SERVER, &from, NULL, "vac", SV_FAKEVACBAN_STATUS, SV_FAKEVACBAN_RESULT_CODE,
-			SV_FAKEVACBAN_OUTCOME, SV_FAKEVACBAN_AUTH_MESSAGE );
-		NET_OutOfBandPrint( NS_SERVER, from, "print\nVAC ban on record\n" );
-		return;
-	}
-
 	SV_LogVACStatus( &from, "accepted", "enabled", "VAC is enabled on this server" );
 
 	newcl = &temp;
@@ -671,30 +1824,6 @@ gotnewcl:
 			SV_LogPlatformAuth( &from, newcl, "connect", "token_absent" );
 		}
 	}
-
-	if ( net_fakevacban->integer ) {
-		const char *steamId;
-		const char *label;
-
-		Info_SetValueForKey( newcl->userinfo, QL_AUTH_USERINFO_KEY_RESULT, SV_FAKEVACBAN_RESULT_CODE );
-		Info_SetValueForKey( newcl->userinfo, QL_AUTH_USERINFO_KEY_OUTCOME, SV_FAKEVACBAN_OUTCOME );
-		Info_SetValueForKey( newcl->userinfo, QL_AUTH_USERINFO_KEY_MESSAGE, SV_FAKEVACBAN_AUTH_MESSAGE );
-
-		if ( !newcl->platformAuthLabel[0] ) {
-			Q_strncpyz( newcl->platformAuthLabel, SV_FAKEVACBAN_LABEL, sizeof( newcl->platformAuthLabel ) );
-		}
-
-		SV_FinalisePlatformAuthState( newcl, qfalse, SV_FAKEVACBAN_AUTH_MESSAGE );
-		SV_LogPlatformAuth( &from, newcl, SV_FAKEVACBAN_STATUS, SV_FAKEVACBAN_AUTH_MESSAGE );
-
-		steamId = newcl->platformSteamId[0] ? newcl->platformSteamId : NULL;
-		label = newcl->platformAuthLabel[0] ? newcl->platformAuthLabel : SV_FAKEVACBAN_LABEL;
-
-		Com_Printf( "%s (net_fakevacban) for %s\n", SV_FAKEVACBAN_OUTCOME, NET_AdrToString( from ) );
-		NET_LogAuthTelemetry( NS_SERVER, &from, steamId, label, SV_FAKEVACBAN_STATUS, SV_FAKEVACBAN_RESULT_CODE, SV_FAKEVACBAN_OUTCOME, SV_FAKEVACBAN_AUTH_MESSAGE );
-		NET_OutOfBandPrint( NS_SERVER, from, "print\n" SV_FAKEVACBAN_AUTH_MESSAGE "\n" );
-		return;
-	}
 #endif
 
 	// get the game a chance to reject this connection or modify the userinfo
@@ -711,8 +1840,12 @@ gotnewcl:
 	}
 
 #if SV_HAS_PLATFORM_AUTH
-	SV_FinalisePlatformAuthState( newcl, qtrue, "accepted" );
-	SV_LogPlatformAuth( &from, newcl, "accepted", NULL );
+	denied = SV_BeginPlatformAuthSession( newcl, &from );
+	if ( denied ) {
+		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", denied );
+		Com_DPrintf( "Steam rejected a connection: %s.\n", denied );
+		return;
+	}
 #endif
 
 	SV_UserinfoChanged( newcl );
@@ -803,6 +1936,10 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 	if ( wasBot ) {
 		SV_BotFreeClient( drop - svs.clients );
 	}
+
+#if SV_HAS_PLATFORM_AUTH
+	SV_EndPlatformAuthSession( drop );
+#endif
 
 	// nuke user info
 	SV_SetUserinfo( drop - svs.clients, "" );

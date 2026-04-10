@@ -819,6 +819,8 @@ void CM_TraceThroughVerticalCylinder( traceWork_t *tw, vec3_t origin, float radi
 	float a, b, c, d, sqrtd;
 	vec3_t v1, dir, start2d, end2d, org2d, intersection;
 
+	radius *= Cvar_Get( "sv_cylinderScale", "1.1f", 0 )->value;
+
 	// 2d coordinates
 	VectorSet(start2d, start[0], start[1], 0);
 	VectorSet(end2d, end[0], end[1], 0);

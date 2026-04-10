@@ -1103,7 +1103,6 @@ static int FS_FOpenFileReadForRoot( const char *root, const char *filename, file
 	S_ClearSoundBuffer();
 
 	ospath = FS_BuildOSPath( root, fs_gamedir, filename );
-	ospath[strlen( ospath ) - 1] = '\0';
 
 	if ( fs_debug->integer ) {
 	Com_Printf( "FS_FOpenFileReadForRoot (%s): %s\n", root, ospath );
@@ -3734,64 +3733,51 @@ static qboolean FS_FileExistsOnDisk( const char *path ) {
 }
 
 /*
-================
-FS_IsDigits
-================
+==================
+FS_ResolveHomePath
+
+Retail Quake Live on Win32 does not infer the home path by scanning the
+filesystem. It keeps the default at fs_basepath until Steam exposes an
+active user, then pivots to fs_basepath/<steamid>. Non-Win32 platforms
+retain the traditional Sys_DefaultHomePath fallback.
+==================
 */
-static qboolean FS_IsDigits( const char *value ) {
-	int i;
-
-	if ( !value || !value[0] ) {
-		return qfalse;
-	}
-
-	for ( i = 0 ; value[i] ; i++ ) {
-		if ( value[i] < '0' || value[i] > '9' ) {
-			return qfalse;
-		}
-	}
-
-	return qtrue;
-}
-
-/*
-========================
-FS_DetectSteamHomePath
-========================
-*/
-static const char *FS_DetectSteamHomePath( const char *basePath ) {
+static const char *FS_ResolveHomePath( const char *basePath ) {
+#if defined( _WIN32 )
 	static char steamHome[MAX_OSPATH];
-	char **dirs;
-	int numDirs;
-	int i;
-	char testPath[MAX_OSPATH];
+	uint32_t steamIdLow;
+	uint32_t steamIdHigh;
+	uint64_t steamId;
 
 	if ( !basePath || !basePath[0] ) {
-		return NULL;
+		return "";
 	}
 
-	steamHome[0] = '\0';
-
-	dirs = Sys_ListFiles( basePath, "", NULL, &numDirs, qtrue );
-	if ( !dirs ) {
-		return NULL;
+	if ( !QL_Steamworks_GetUserSteamID( &steamIdLow, &steamIdHigh ) ) {
+		return basePath;
 	}
 
-	for ( i = 0 ; i < numDirs ; i++ ) {
-		if ( !FS_IsDigits( dirs[i] ) ) {
-			continue;
-		}
-
-		Com_sprintf( steamHome, sizeof( steamHome ), "%s\\%s", basePath, dirs[i] );
-		Com_sprintf( testPath, sizeof( testPath ), "%s\\baseq3\\uix86.dll", steamHome );
-		if ( FS_FileExistsOnDisk( testPath ) ) {
-			Sys_FreeFileList( dirs );
-			return steamHome;
-		}
+	steamId = ( (uint64_t)steamIdHigh << 32 ) | steamIdLow;
+	if ( steamId == 0ull ) {
+		return basePath;
 	}
 
-	Sys_FreeFileList( dirs );
-	return NULL;
+	Com_sprintf( steamHome, sizeof( steamHome ), "%s/%llu", basePath, (unsigned long long)steamId );
+	return steamHome;
+#else
+	const char *homePath;
+
+	homePath = Sys_DefaultHomePath();
+	if ( homePath && homePath[0] ) {
+		return homePath;
+	}
+
+	if ( basePath && basePath[0] ) {
+		return basePath;
+	}
+
+	return "";
+#endif
 }
 
 /*
@@ -3841,7 +3827,6 @@ FS_Startup
 */
 static void FS_Startup( const char *gameName ) {
 	const char *homePath;
-	const char *steamHomePath;
 	cvar_t	*fs;
 
 	Com_Printf( "----- FS_Startup -----\n" );
@@ -3852,15 +3837,7 @@ static void FS_Startup( const char *gameName ) {
 	fs_cdpath = Cvar_Get ("fs_cdpath", Sys_DefaultCDPath(), CVAR_INIT );
 	fs_basepath = Cvar_Get ("fs_basepath", Sys_DefaultInstallPath(), CVAR_INIT );
 	fs_basegame = Cvar_Get ("fs_basegame", "", CVAR_INIT );
-	homePath = Sys_DefaultHomePath();
-	if ( !homePath || !homePath[0] ) {
-		steamHomePath = FS_DetectSteamHomePath( fs_basepath->string );
-		if ( steamHomePath && steamHomePath[0] ) {
-			homePath = steamHomePath;
-		} else {
-			homePath = fs_basepath->string;
-		}
-	}
+	homePath = FS_ResolveHomePath( fs_basepath->string );
 	fs_homepath = Cvar_Get ("fs_homepath", homePath, CVAR_INIT );
 	fs_webpath = Cvar_Get ("fs_webpath", "", CVAR_INIT );
 	fs_webMappings = Cvar_Get ("fs_webMappings", fs_defaultFallbackMappings, CVAR_ARCHIVE );

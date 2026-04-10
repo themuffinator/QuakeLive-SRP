@@ -1,16 +1,16 @@
-# Deterministic CI Matrix
+# Deterministic Validation Matrix
 
-The **Deterministic Harnesses** workflow executes the regression harnesses against every gameplay flavour on pull requests, on pushes to `main`, and on manual dispatch when the touched paths intersect the harness inputs. A matrix fans the workflow out across the bytecode, native, and reverse-engineered targets so they execute the same pipeline in parallel.【F:.github/workflows/deterministic-harnesses.yml†L10-L47】
+The hosted GitHub Actions workflows are intentionally pruned at this stage, but the deterministic validation matrix still exists as a local/manual runbook. The same three gameplay flavours remain the expected validation surface: bytecode, native, and reverse-engineered targets.
 
 ## Matrix jobs
 
-- **Harnesses (QVM)** – Runs on `ubuntu-latest`, re-validates the legacy toolchain, reuses the clean-room build helper, and drives the deterministic harness suite against the VM output.【F:.github/workflows/deterministic-harnesses.yml†L16-L47】【F:.github/workflows/deterministic-harnesses.yml†L74-L79】
-- **Harnesses (DLL)** – Runs on `windows-latest`, provisions the Visual Studio 2010 components, verifies the `v100` toolset, validates the retail-aligned Windows native pipeline, and then executes the shared harness runner.【F:.github/workflows/deterministic-harnesses.yml†L22-L93】
-- **Harnesses (Reverse)** – Shares the Linux leg, rebuilds the clean-room modules via `tools/ci/build-cleanroom.sh`, and extends the harness invocation with the reverse build root so the trace harness can diff the clean-room binaries against the expected transcript.【F:.github/workflows/deterministic-harnesses.yml†L28-L47】【F:.github/workflows/deterministic-harnesses.yml†L74-L79】【F:tests/run_harnesses.py†L24-L112】
+- **QVM** – Run on a Unix-like host, re-validate the legacy toolchain, reuse the clean-room build helper, and drive the deterministic harness suite against the VM output.【F:tests/run_harnesses.py†L24-L112】
+- **DLL** – Run on Windows, provision the Visual Studio 2010 components as needed, verify the `v100` toolset, validate the retail-aligned Windows native pipeline, and then execute the shared harness runner.【F:tests/run_harnesses.py†L24-L112】
+- **Reverse** – Run on a Unix-like host, rebuild the clean-room modules via `tools/ci/build-cleanroom.sh`, and extend the harness invocation with the reverse build root so the trace harness can diff the clean-room binaries against the expected transcript.【F:tests/run_harnesses.py†L24-L112】
 
 ## Artefacts
 
-`tests/run_harnesses.py` emits deterministic match timelines, HUD hash captures, weapon timing baselines, and text summaries for every target, while the reverse leg adds normalised trace logs and diffs.【F:tests/run_harnesses.py†L27-L116】 These artefacts land underneath `artifacts/tests/<suite>/<target>/latest/`, and the workflow uploads them even when a harness fails so the evidence is always available.【F:.github/workflows/deterministic-harnesses.yml†L81-L93】 In particular:
+`tests/run_harnesses.py` emits deterministic match timelines, HUD hash captures, weapon timing baselines, and text summaries for every target, while the reverse leg adds normalised trace logs and diffs.【F:tests/run_harnesses.py†L27-L116】 These artefacts land underneath `artifacts/tests/<suite>/<target>/latest/` when run locally. In particular:
 
 - `logs/<target>/latest/*.log` – Harness summaries for the match, client regression, and trace suites.
 - `match_sim/<target>/latest/<slug>/timeline.json` – Deterministic bot timelines for each bundled scenario (`duel`, `overtime`, and `loadouts`).
@@ -19,7 +19,7 @@ The **Deterministic Harnesses** workflow executes the regression harnesses again
 - `weapon_timings/<target>/latest/baseline.json` – Reload/refire and ammo pickup baselines diffed against HLIL tables.
 - `trace/<target>/latest/*` – Reverse-only logs and diffs that compare the clean-room output with the expectation.
 
-Re-run the harness locally with the same entry point used by CI:
+Re-run the harness locally with the shared entry points:
 
 ```bash
 python tests/run_harnesses.py --target qvm
@@ -27,12 +27,6 @@ python tests/run_harnesses.py --target dll
 python tests/run_harnesses.py --target re --reverse-build-root build/re/linux
 ```
 
-## Status badges
+## Status reporting
 
-Embed the workflow badges anywhere documentation surfaces build health (for example, in dashboards or the repository overview):
-
-- ![Harnesses (QVM)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml/badge.svg?branch=main&job=Harnesses%20(QVM))
-- ![Harnesses (DLL)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml/badge.svg?branch=main&job=Harnesses%20(DLL))
-- ![Harnesses (Reverse)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml/badge.svg?branch=main&job=Harnesses%20(Reverse))
-
-Because the badge `job` parameter targets a single matrix leg, the status of each gameplay flavour is visible at a glance.
+Capture local run logs and artefacts alongside the relevant audit or implementation note when a matrix leg is re-run. With hosted workflows disabled, those checked-in artefacts are now the authoritative validation evidence.
