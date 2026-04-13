@@ -5,12 +5,6 @@
 [![Reconstruction Plan](https://img.shields.io/badge/Work%20Queue-Reconstruction%20Plan-2ea44f)](IMPLEMENTATION_PLAN.md)
 [![Getting Started](https://img.shields.io/badge/Docs-Getting%20Started-6f42c1)](docs/onboarding/overview.md)
 
-> **Note:** The parity audit figures shown below reflect a coarse-level review of module
-> boundaries and subsystem registration. They do not imply the reconstruction is finished or
-> production-ready. At a granular level — individual functions, edge-case behaviour, data
-> layout, and runtime correctness — a great deal of testing and fixing remains to be done
-> before the reconstruction can be considered truly complete.
-
 This project reconstructs the full Quake Live source code as faithfully as possible.
 It starts from the public Quake III Arena GPL source release and then rebuilds the
 retail engine and game code piece by piece using retail binaries, committed HLIL and
@@ -37,6 +31,12 @@ way that stays grounded in evidence instead of guesswork.
   or runs.
 
 ## Current status
+
+> **Note:** The parity audit figures shown below reflect a coarse-level review of module
+> boundaries and subsystem registration. They do not imply the reconstruction is finished or
+> production-ready. At a granular level — individual functions, edge-case behaviour, data
+> layout, and runtime correctness — a great deal of testing and fixing remains to be done
+> before the reconstruction can be considered truly complete.
 
 The project is now in the final exactness and validation phase for the current audited
 register. The strict retail-facing module register for `cgame`, `qagame`, and `ui` is
