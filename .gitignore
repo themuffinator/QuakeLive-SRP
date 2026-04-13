@@ -23,6 +23,8 @@ src/ui/assets/
 
 # MSVC intermediate artifacts
 *.obj
+*.lib
+*.exp
 *.sbr
 *.pch
 *.ipch
@@ -35,15 +37,22 @@ src/ui/assets/
 *.tlog
 *.lastbuildstate
 *.log
+*.recipe
 *.tmp
+*.vsidx
 
 # Visual Studio user state
 .vs/
+**/.vs/
 *.suo
 *.user
 *.userosscache
 *.VC.db
 *.VC.VC.opendb
+DocumentLayout.json
+fileList.bin
+UpgradeLog.htm
+*.plg
 
 # Python bytecode
 __pycache__/
@@ -61,4 +70,5 @@ build/ui_bundle/src_ui_retail_overlay/
 .codex/ralph/prompt.current.md
 .codex/ralph/.last-branch
 /src/build/win32/Debug/bin/baseq3
+/src/build/
 /build
