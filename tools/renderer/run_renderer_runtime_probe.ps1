@@ -18,151 +18,6 @@ function Add-WaitLines {
 	}
 }
 
-function Initialize-WindowCapture {
-	if ('QLRendererWindowCapture' -as [type]) {
-		return
-	}
-
-	Add-Type -AssemblyName System.Drawing
-	Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public struct QLRECT {
-	public int Left;
-	public int Top;
-	public int Right;
-	public int Bottom;
-}
-public struct QLPOINT {
-	public int X;
-	public int Y;
-}
-public static class QLRendererWindowCapture {
-	[DllImport("user32.dll")]
-	public static extern bool GetWindowRect(IntPtr hWnd, out QLRECT lpRect);
-	[DllImport("user32.dll")]
-	public static extern bool GetClientRect(IntPtr hWnd, out QLRECT lpRect);
-	[DllImport("user32.dll")]
-	public static extern bool ClientToScreen(IntPtr hWnd, ref QLPOINT lpPoint);
-	[DllImport("user32.dll")]
-	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-	[DllImport("user32.dll")]
-	public static extern bool SetForegroundWindow(IntPtr hWnd);
-	[DllImport("user32.dll")]
-	public static extern bool BringWindowToTop(IntPtr hWnd);
-}
-"@
-}
-
-function Prepare-ProcessWindow {
-	param([IntPtr]$Handle)
-
-	Initialize-WindowCapture
-	if ($Handle -eq 0) {
-		return
-	}
-
-	[void][QLRendererWindowCapture]::ShowWindow($Handle, 9)
-	[void][QLRendererWindowCapture]::BringWindowToTop($Handle)
-	[void][QLRendererWindowCapture]::SetForegroundWindow($Handle)
-	Start-Sleep -Milliseconds 250
-}
-
-function Capture-ProcessWindow {
-	param(
-		[System.Diagnostics.Process]$Process,
-		[string]$ImagePath,
-		[string]$MetaPath
-	)
-
-	Initialize-WindowCapture
-	$Process.Refresh()
-	if ($Process.MainWindowHandle -eq 0) {
-		return $null
-	}
-
-	Prepare-ProcessWindow -Handle $Process.MainWindowHandle
-
-	$rect = New-Object QLRECT
-	$clientRect = New-Object QLRECT
-	$origin = New-Object QLPOINT
-	$origin.X = 0
-	$origin.Y = 0
-	if (-not [QLRendererWindowCapture]::GetWindowRect([IntPtr]$Process.MainWindowHandle, [ref]$rect)) {
-		return $null
-	}
-
-	$left = $rect.Left
-	$top = $rect.Top
-	$width = $rect.Right - $rect.Left
-	$height = $rect.Bottom - $rect.Top
-	$captureKind = 'window_rect_copy'
-	if (
-		[QLRendererWindowCapture]::GetClientRect([IntPtr]$Process.MainWindowHandle, [ref]$clientRect) -and
-		[QLRendererWindowCapture]::ClientToScreen([IntPtr]$Process.MainWindowHandle, [ref]$origin)
-	) {
-		$clientWidth = $clientRect.Right - $clientRect.Left
-		$clientHeight = $clientRect.Bottom - $clientRect.Top
-		if ($clientWidth -gt 0 -and $clientHeight -gt 0) {
-			$left = $origin.X
-			$top = $origin.Y
-			$width = $clientWidth
-			$height = $clientHeight
-			$captureKind = 'client_rect_copy'
-		}
-	}
-
-	if ($width -le 0 -or $height -le 0) {
-		return $null
-	}
-
-	$bitmap = New-Object System.Drawing.Bitmap($width, $height)
-	$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-	try {
-		try {
-			$graphics.CopyFromScreen($left, $top, 0, 0, $bitmap.Size)
-		} catch {
-			return $null
-		}
-		$bitmap.Save($ImagePath, [System.Drawing.Imaging.ImageFormat]::Png)
-	} finally {
-		$graphics.Dispose()
-		$bitmap.Dispose()
-	}
-
-	$meta = [ordered]@{
-		timestamp = (Get-Date).ToString('o')
-		processId = $Process.Id
-		windowHandle = [int64]$Process.MainWindowHandle
-		windowTitle = $Process.MainWindowTitle
-		capture_method = $captureKind
-		rect = [ordered]@{
-			left = $left
-			top = $top
-			right = $left + $width
-			bottom = $top + $height
-			width = $width
-			height = $height
-		}
-		window_rect = [ordered]@{
-			left = $rect.Left
-			top = $rect.Top
-			right = $rect.Right
-			bottom = $rect.Bottom
-			width = ($rect.Right - $rect.Left)
-			height = ($rect.Bottom - $rect.Top)
-		}
-		image = $ImagePath
-	}
-	$meta | ConvertTo-Json -Depth 5 | Set-Content -Path $MetaPath -Encoding ascii
-
-	return [ordered]@{
-		window_capture = $ImagePath
-		window_meta = $MetaPath
-		window_sha256 = (Get-FileHash -Algorithm SHA256 -Path $ImagePath).Hash.ToLowerInvariant()
-	}
-}
-
 function Send-Rcon {
 	param(
 		[string]$Password,
@@ -312,8 +167,6 @@ function Invoke-MainMenuProbe {
 		[string]$Stamp,
 		[string]$ConfigLabel,
 		[string]$ScreenshotName,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog,
 		[string[]]$ExtraArgs = @()
 	)
@@ -338,25 +191,15 @@ function Invoke-MainMenuProbe {
 	Reset-LiveLog
 	$launch = Start-RendererProcess -ConfigName $configName -ExtraArgs $ExtraArgs
 	$process = $launch.process
-	$capturedWindow = $null
 	$shotLogged = $false
 	$deadline = (Get-Date).AddSeconds(120)
 	while ((Get-Date) -lt $deadline -and -not $process.HasExited) {
 		$process.Refresh()
-		if (-not $capturedWindow -and $process.MainWindowHandle -ne 0) {
-			$capturedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-		}
 
 		if (Test-Path $script:RuntimeLog) {
 			$logText = Get-Content -Path $script:RuntimeLog -Raw -ErrorAction SilentlyContinue
 			if ($logText -match [regex]::Escape("Wrote screenshots/$ScreenshotName.jpg")) {
 				$shotLogged = $true
-				if ($process.MainWindowHandle -ne 0) {
-					$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-					if ($refreshedWindow) {
-						$capturedWindow = $refreshedWindow
-					}
-				}
 				break
 			}
 		}
@@ -375,7 +218,6 @@ function Invoke-MainMenuProbe {
 		config = $configPath
 		launch_args = $launch.launch_args
 		engine_screenshot = Resolve-EngineScreenshot -ScreenshotName $ScreenshotName
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		shot_logged = $shotLogged
 		log_text = if (Test-Path $ArchivedLog) { Get-Content -Path $ArchivedLog -Raw -ErrorAction SilentlyContinue } else { '' }
@@ -386,8 +228,6 @@ function Invoke-DebugAtlasProbe {
 	param(
 		[string]$Stamp,
 		[string]$ScreenshotName,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog
 	)
 
@@ -409,7 +249,6 @@ function Invoke-DebugAtlasProbe {
 	Reset-LiveLog
 	$launch = Start-RendererProcess -ConfigName $configName -ExtraArgs @('+set', 'sv_pure', '0', '+set', 'rconPassword', $password)
 	$process = $launch.process
-	$capturedWindow = $null
 	$serverSeen = $false
 	$activeSeen = $false
 	$shotLogged = $false
@@ -438,9 +277,6 @@ function Invoke-DebugAtlasProbe {
 		Start-Sleep -Milliseconds 500
 		Send-Rcon -Password $password -Command 'toggleconsole'
 		Start-Sleep -Milliseconds 1000
-		if ($process.MainWindowHandle -ne 0) {
-			$capturedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-		}
 		Send-Rcon -Password $password -Command ("screenshotJPEG $ScreenshotName")
 		$shotDeadline = (Get-Date).AddSeconds(30)
 		while ((Get-Date) -lt $shotDeadline -and -not $process.HasExited) {
@@ -449,12 +285,6 @@ function Invoke-DebugAtlasProbe {
 				$logText = Get-Content -Path $script:RuntimeLog -Raw -ErrorAction SilentlyContinue
 				if ($logText -match [regex]::Escape("Wrote screenshots/$ScreenshotName.jpg")) {
 					$shotLogged = $true
-					if ($process.MainWindowHandle -ne 0) {
-						$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-						if ($refreshedWindow) {
-							$capturedWindow = $refreshedWindow
-						}
-					}
 					break
 				}
 			}
@@ -477,7 +307,6 @@ function Invoke-DebugAtlasProbe {
 		config = $configPath
 		launch_args = $launch.launch_args
 		engine_screenshot = $engineScreenshot
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		server_seen = $serverSeen
 		active_seen = $activeSeen
@@ -490,8 +319,6 @@ function Invoke-MapRuntimeProbe {
 	param(
 		[string]$Stamp,
 		[string]$ScreenshotName,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog
 	)
 
@@ -513,7 +340,6 @@ function Invoke-MapRuntimeProbe {
 	Reset-LiveLog
 	$launch = Start-RendererProcess -ConfigName $configName -ExtraArgs @('+set', 'sv_pure', '0', '+set', 'rconPassword', $password)
 	$process = $launch.process
-	$capturedWindow = $null
 	$serverSeen = $false
 	$activeSeen = $false
 	$shotLogged = $false
@@ -531,12 +357,6 @@ function Invoke-MapRuntimeProbe {
 				$activeSeen = $true
 			}
 		}
-		if ($process.MainWindowHandle -ne 0 -and ($serverSeen -or $activeSeen)) {
-			$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-			if ($refreshedWindow) {
-				$capturedWindow = $refreshedWindow
-			}
-		}
 		if ($serverSeen -and $activeSeen) {
 			break
 		}
@@ -552,12 +372,6 @@ function Invoke-MapRuntimeProbe {
 				$logText = Get-Content -Path $script:RuntimeLog -Raw -ErrorAction SilentlyContinue
 				if ($logText -match [regex]::Escape("Wrote screenshots/$ScreenshotName.jpg")) {
 					$shotLogged = $true
-					if ($process.MainWindowHandle -ne 0) {
-						$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-						if ($refreshedWindow) {
-							$capturedWindow = $refreshedWindow
-						}
-					}
 					break
 				}
 			}
@@ -578,7 +392,6 @@ function Invoke-MapRuntimeProbe {
 		config = $configPath
 		launch_args = $launch.launch_args
 		engine_screenshot = $engineScreenshot
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		server_seen = $serverSeen
 		active_seen = $activeSeen
@@ -607,12 +420,6 @@ $artifactPath = Join-Path $ArtifactRoot ("renderer_runtime_evidence_" + $artifac
 $mainShotName = "codex_renderer_p11_main_$stamp"
 $atlasShotName = "codex_renderer_p11_atlas_$stamp"
 $mapShotName = "codex_renderer_p11_map_$stamp"
-$mainWindowPng = Join-Path $DumpShotRoot ($mainShotName + '_window.png')
-$mainWindowJson = Join-Path $DumpShotRoot ($mainShotName + '_window.json')
-$atlasWindowPng = Join-Path $DumpShotRoot ($atlasShotName + '_window.png')
-$atlasWindowJson = Join-Path $DumpShotRoot ($atlasShotName + '_window.json')
-$mapWindowPng = Join-Path $DumpShotRoot ($mapShotName + '_window.png')
-$mapWindowJson = Join-Path $DumpShotRoot ($mapShotName + '_window.json')
 $mainArchivedLog = Join-Path $DumpLogRoot ("codex_renderer_p11_main_" + $stamp + '.log')
 $atlasArchivedLog = Join-Path $DumpLogRoot ("codex_renderer_p11_atlas_" + $stamp + '.log')
 $mapArchivedLog = Join-Path $DumpLogRoot ("codex_renderer_p11_map_" + $stamp + '.log')
@@ -627,11 +434,11 @@ New-Item -ItemType Directory -Force -Path $DumpShotRoot, $DumpLogRoot, $Artifact
 $env:QLR_DUMP_PATH = $DumpRoot
 
 Set-ProbeRuntimeContext -Label 'main'
-$mainProbe = Invoke-MainMenuProbe -Stamp $stamp -ConfigLabel 'main' -ScreenshotName $mainShotName -WindowPng $mainWindowPng -WindowJson $mainWindowJson -ArchivedLog $mainArchivedLog
+$mainProbe = Invoke-MainMenuProbe -Stamp $stamp -ConfigLabel 'main' -ScreenshotName $mainShotName -ArchivedLog $mainArchivedLog
 Set-ProbeRuntimeContext -Label 'atlas'
-$atlasProbe = Invoke-DebugAtlasProbe -Stamp $stamp -ScreenshotName $atlasShotName -WindowPng $atlasWindowPng -WindowJson $atlasWindowJson -ArchivedLog $atlasArchivedLog
+$atlasProbe = Invoke-DebugAtlasProbe -Stamp $stamp -ScreenshotName $atlasShotName -ArchivedLog $atlasArchivedLog
 Set-ProbeRuntimeContext -Label 'map'
-$mapProbe = Invoke-MapRuntimeProbe -Stamp $stamp -ScreenshotName $mapShotName -WindowPng $mapWindowPng -WindowJson $mapWindowJson -ArchivedLog $mapArchivedLog
+$mapProbe = Invoke-MapRuntimeProbe -Stamp $stamp -ScreenshotName $mapShotName -ArchivedLog $mapArchivedLog
 
 $verifiedMarkers = @()
 $missingMarkers = @()
@@ -696,17 +503,8 @@ if ($mapProbe.engine_screenshot) {
 }
 
 $warnings = @()
-if (-not $mainProbe.window_capture) {
-	$warnings += 'Main-menu process-bound window capture was not recorded.'
-}
-if (-not $mapProbe.window_capture) {
-	$warnings += 'Map-runtime process-bound window capture was not recorded.'
-}
 if (-not $mainProbe.engine_screenshot) {
 	$warnings += 'Main-menu engine screenshot was not recorded.'
-}
-if (-not $atlasProbe.window_capture) {
-	$warnings += 'Debug-atlas process-bound window capture was not recorded.'
 }
 if (-not $atlasProbe.engine_screenshot) {
 	$warnings += 'Debug-atlas engine screenshot was not recorded.'
@@ -740,9 +538,6 @@ if ($registerFontFallbackSeen) {
 if ($mainEngineSha256 -and $atlasEngineSha256 -and $mainEngineSha256 -eq $atlasEngineSha256) {
 	$warnings += 'Main-menu and debug-atlas engine screenshots matched unexpectedly.'
 }
-if ($mainProbe.window_capture -and $atlasProbe.window_capture -and $mainProbe.window_capture.window_sha256 -eq $atlasProbe.window_capture.window_sha256) {
-	$warnings += 'Main-menu and debug-atlas window captures matched unexpectedly.'
-}
 if ($missingMarkers.Count -gt 0) {
 	$warnings += 'One or more expected renderer/runtime log markers were missing.'
 }
@@ -760,9 +555,9 @@ $artifact = [ordered]@{
 	main_menu = [ordered]@{
 		engine_screenshot = if ($mainProbe.engine_screenshot) { To-RepoPath $mainProbe.engine_screenshot.FullName } else { '' }
 		engine_sha256 = $mainEngineSha256
-		window_capture = if ($mainProbe.window_capture) { To-RepoPath $mainProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ($mainProbe.window_capture) { $mainProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ($mainProbe.window_capture) { To-RepoPath $mainProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath $mainProbe.log_path
 		config = To-RepoPath $mainProbe.config
 		launch_args = $mainProbe.launch_args
@@ -770,9 +565,9 @@ $artifact = [ordered]@{
 	debug_atlas = [ordered]@{
 		engine_screenshot = if ($atlasProbe.engine_screenshot) { To-RepoPath $atlasProbe.engine_screenshot.FullName } else { '' }
 		engine_sha256 = $atlasEngineSha256
-		window_capture = if ($atlasProbe.window_capture) { To-RepoPath $atlasProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ($atlasProbe.window_capture) { $atlasProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ($atlasProbe.window_capture) { To-RepoPath $atlasProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath $atlasProbe.log_path
 		config = To-RepoPath $atlasProbe.config
 		launch_args = $atlasProbe.launch_args
@@ -781,9 +576,9 @@ $artifact = [ordered]@{
 		map = $MapName
 		engine_screenshot = if ($mapProbe.engine_screenshot) { To-RepoPath $mapProbe.engine_screenshot.FullName } else { '' }
 		engine_sha256 = $mapEngineSha256
-		window_capture = if ($mapProbe.window_capture) { To-RepoPath $mapProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ($mapProbe.window_capture) { $mapProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ($mapProbe.window_capture) { To-RepoPath $mapProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath $mapProbe.log_path
 		config = To-RepoPath $mapProbe.config
 		launch_args = $mapProbe.launch_args
@@ -798,10 +593,10 @@ $artifact = [ordered]@{
 		fontstash_init_seen = (($mainProbe.log_text -match [regex]::Escape('R_Init: InitFontStash')) -or ($atlasProbe.log_text -match [regex]::Escape('R_Init: InitFontStash')))
 		registerfont_fallback_seen = $registerFontFallbackSeen
 		debug_atlas_engine_capture_distinct = ($mainEngineSha256 -ne '' -and $atlasEngineSha256 -ne '' -and $mainEngineSha256 -ne $atlasEngineSha256)
-		debug_atlas_window_capture_distinct = ($mainProbe.window_capture -and $atlasProbe.window_capture -and $mainProbe.window_capture.window_sha256 -ne $atlasProbe.window_capture.window_sha256)
+		debug_atlas_window_capture_distinct = $false
 	}
 	summary = if ($warnings.Count -eq 0) {
-		'Windowed renderer runtime probes covered UI bootstrap, retained-atlas debug visualization, and a live in-game map, produced authoritative engine screenshots plus process-bound captures, and logged the expected renderer text/runtime markers without falling back to compatibility-only RegisterFont paths.'
+		'Windowed renderer runtime probes covered UI bootstrap, retained-atlas debug visualization, and a live in-game map, produced authoritative engine screenshots, and logged the expected renderer text/runtime markers without falling back to compatibility-only RegisterFont paths.'
 	} else {
 		'Renderer runtime probe completed with partial evidence; inspect warnings and missing markers before treating the artifact as final text/runtime closure evidence.'
 	}

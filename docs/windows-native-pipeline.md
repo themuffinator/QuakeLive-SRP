@@ -38,15 +38,20 @@ With a Steam install and the Quake Live SteamID homepath detected, this typicall
 
 - `C:\\Program Files (x86)\\Steam\\steamapps\\common\\Quake Live\\<steamid>\\baseq3\\qconsole.log`
 
-The default VS Code `Launch Quake Live` configuration sets the working directory to the Steam Quake Live install root so the native UI can locate `awesomium.dll`, `awesomium_process.exe`, and `web.pak` at runtime.
+The default VS Code `Launch Quake Live` configuration launches through
+`.vscode\\launch.ps1`, which sets the working directory to the Steam Quake Live
+install root so the native UI can locate `awesomium.dll`,
+`awesomium_process.exe`, and `web.pak` at runtime. The launcher also passes
+`+set fs_basepath <Steam Quake Live install root>` explicitly, and it validates
+that `baseq3\\pak00.pk3` exists before the process is started.
 
-The default VS Code `Launch Quake Live` configuration does not override `fs_homepath`. If you prefer keeping logs in the repository, set:
+The same launcher overrides `fs_homepath` to the repo-local runtime tree:
 
-- `+set fs_homepath <repo>\\run`
+- `<repo>\\build\\win32\\Debug\\bin`
 
 This writes the console log to:
 
-- `<repo>\\run\\baseq3\\qconsole.log`
+- `<repo>\\build\\win32\\Debug\\bin\\baseq3\\qconsole.log`
 
 The syscall contract trace (used for validating VM/DLL boundaries) is written alongside it at:
 

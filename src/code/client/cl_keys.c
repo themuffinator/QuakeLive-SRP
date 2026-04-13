@@ -191,6 +191,76 @@ EDIT FIELDS
 
 /*
 ===================
+Field_DrawScaledSmallChar
+==================
+*/
+static void Field_DrawScaledSmallChar( int x, int y, int width, int ch ) {
+	int		row;
+	int		col;
+	float	frow;
+	float	fcol;
+	float	size;
+	int		height;
+
+	ch &= 255;
+	if ( ch == ' ' ) {
+		return;
+	}
+
+	height = width * SMALLCHAR_HEIGHT / SMALLCHAR_WIDTH;
+	if ( height < 1 ) {
+		height = 1;
+	}
+	if ( y < -height ) {
+		return;
+	}
+
+	row = ch >> 4;
+	col = ch & 15;
+	frow = row * 0.0625f;
+	fcol = col * 0.0625f;
+	size = 0.0625f;
+
+	re.DrawStretchPic( x, y, width, height,
+		fcol, frow,
+		fcol + size, frow + size,
+		cls.charSetShader );
+}
+
+/*
+==================
+Field_DrawScaledSmallStringExt
+==================
+*/
+static void Field_DrawScaledSmallStringExt( int x, int y, int width, const char *string, float *setColor, qboolean forceColor ) {
+	vec4_t		color;
+	const char	*s;
+	int			xx;
+
+	s = string;
+	xx = x;
+	re.SetColor( setColor );
+	while ( *s ) {
+		if ( Q_IsColorString( s ) ) {
+			if ( !forceColor ) {
+				Com_Memcpy( color, g_color_table[ColorIndex( *(s + 1) )], sizeof( color ) );
+				color[3] = setColor[3];
+				re.SetColor( color );
+			}
+			s += 2;
+			continue;
+		}
+
+		Field_DrawScaledSmallChar( xx, y, width, *s );
+		xx += width;
+		s++;
+	}
+
+	re.SetColor( NULL );
+}
+
+/*
+===================
 Field_Draw
 
 Handles horizontal scrolling and cursor blinking
@@ -247,6 +317,11 @@ void Field_VariableSizeDraw( field_t *edit, int x, int y, int width, int size, q
 
 		color[0] = color[1] = color[2] = color[3] = 1.0;
 		SCR_DrawSmallStringExt( x, y, str, color, qfalse );
+	} else if ( size < BIGCHAR_WIDTH ) {
+		float	color[4];
+
+		color[0] = color[1] = color[2] = color[3] = 1.0;
+		Field_DrawScaledSmallStringExt( x, y, size, str, color, qfalse );
 	} else {
 		// draw big string with drop shadow
 		SCR_DrawBigString( x, y, str, 1.0 );
@@ -271,6 +346,8 @@ void Field_VariableSizeDraw( field_t *edit, int x, int y, int width, int size, q
 
 	if ( size == SMALLCHAR_WIDTH ) {
 		SCR_DrawSmallChar( x + ( edit->cursor - prestep - i ) * size, y, cursorChar );
+	} else if ( size < BIGCHAR_WIDTH ) {
+		Field_DrawScaledSmallChar( x + ( edit->cursor - prestep - i ) * size, y, size, cursorChar );
 	} else {
 		str[0] = cursorChar;
 		str[1] = 0;
@@ -314,6 +391,105 @@ void Field_Paste( field_t *edit ) {
 }
 
 /*
+==================
+Field_IsUtf8ContinuationByte
+==================
+*/
+static qboolean Field_IsUtf8ContinuationByte( unsigned char ch ) {
+	return ( ch & 0xC0 ) == 0x80;
+}
+
+/*
+==================
+Field_DeletePreviousCharacter
+==================
+*/
+static void Field_DeletePreviousCharacter( field_t *edit ) {
+	int				len;
+	unsigned char	deletedByte;
+
+	len = strlen( edit->buffer );
+	while ( edit->cursor > 0 ) {
+		deletedByte = (unsigned char)edit->buffer[edit->cursor - 1];
+		memmove( edit->buffer + edit->cursor - 1,
+			edit->buffer + edit->cursor,
+			len + 1 - edit->cursor );
+		edit->cursor--;
+		len--;
+
+		if ( edit->cursor < edit->scroll ) {
+			edit->scroll--;
+		}
+
+		if ( !Field_IsUtf8ContinuationByte( deletedByte ) ) {
+			break;
+		}
+	}
+}
+
+/*
+==================
+Field_DeleteCurrentCharacter
+==================
+*/
+static void Field_DeleteCurrentCharacter( field_t *edit ) {
+	int	len;
+
+	len = strlen( edit->buffer );
+	while ( edit->cursor < len ) {
+		memmove( edit->buffer + edit->cursor,
+			edit->buffer + edit->cursor + 1,
+			len - edit->cursor );
+		len--;
+
+		if ( edit->cursor >= len || !Field_IsUtf8ContinuationByte( (unsigned char)edit->buffer[edit->cursor] ) ) {
+			break;
+		}
+	}
+}
+
+/*
+==================
+Field_AdvanceCursor
+==================
+*/
+static void Field_AdvanceCursor( field_t *edit ) {
+	int	len;
+
+	len = strlen( edit->buffer );
+	while ( edit->cursor < len ) {
+		edit->cursor++;
+
+		if ( edit->cursor >= edit->scroll + edit->widthInChars && edit->cursor <= len ) {
+			edit->scroll++;
+		}
+
+		if ( edit->cursor >= len || !Field_IsUtf8ContinuationByte( (unsigned char)edit->buffer[edit->cursor] ) ) {
+			break;
+		}
+	}
+}
+
+/*
+==================
+Field_RetreatCursor
+==================
+*/
+static void Field_RetreatCursor( field_t *edit ) {
+	while ( edit->cursor > 0 ) {
+		edit->cursor--;
+
+		if ( edit->cursor < edit->scroll ) {
+			edit->scroll--;
+		}
+
+		if ( !Field_IsUtf8ContinuationByte( (unsigned char)edit->buffer[edit->cursor] ) ) {
+			break;
+		}
+	}
+}
+
+/*
 =================
 Field_KeyDownEvent
 
@@ -335,35 +511,19 @@ void Field_KeyDownEvent( field_t *edit, int key ) {
 	len = strlen( edit->buffer );
 
 	if ( key == K_DEL || key == K_KP_DEL ) {
-		if ( edit->cursor < len ) {
-			memmove( edit->buffer + edit->cursor, 
-				edit->buffer + edit->cursor + 1, len - edit->cursor );
-		}
+		Field_DeleteCurrentCharacter( edit );
 		return;
 	}
 
 	if ( key == K_RIGHTARROW || key == K_KP_RIGHTARROW ) 
 	{
-		if ( edit->cursor < len ) {
-			edit->cursor++;
-		}
-
-		if ( edit->cursor >= edit->scroll + edit->widthInChars && edit->cursor <= len )
-		{
-			edit->scroll++;
-		}
+		Field_AdvanceCursor( edit );
 		return;
 	}
 
 	if ( key == K_LEFTARROW || key == K_KP_LEFTARROW ) 
 	{
-		if ( edit->cursor > 0 ) {
-			edit->cursor--;
-		}
-		if ( edit->cursor < edit->scroll )
-		{
-			edit->scroll--;
-		}
+		Field_RetreatCursor( edit );
 		return;
 	}
 
@@ -374,6 +534,10 @@ void Field_KeyDownEvent( field_t *edit, int key ) {
 
 	if ( key == K_END || key == K_KP_END || ( tolower(key) == 'e' && keys[K_CTRL].down ) ) {
 		edit->cursor = len;
+		edit->scroll = edit->cursor - edit->widthInChars;
+		if ( edit->scroll < 0 ) {
+			edit->scroll = 0;
+		}
 		return;
 	}
 
@@ -404,15 +568,7 @@ void Field_CharEvent( field_t *edit, int ch ) {
 	len = strlen( edit->buffer );
 
 	if ( ch == 'h' - 'a' + 1 )	{	// ctrl-h is backspace
-		if ( edit->cursor > 0 ) {
-			memmove( edit->buffer + edit->cursor - 1, 
-				edit->buffer + edit->cursor, len + 1 - edit->cursor );
-			edit->cursor--;
-			if ( edit->cursor < edit->scroll )
-			{
-				edit->scroll--;
-			}
-		}
+		Field_DeletePreviousCharacter( edit );
 		return;
 	}
 
@@ -425,6 +581,9 @@ void Field_CharEvent( field_t *edit, int ch ) {
 	if ( ch == 'e' - 'a' + 1 ) {	// ctrl-e is end
 		edit->cursor = len;
 		edit->scroll = edit->cursor - edit->widthInChars;
+		if ( edit->scroll < 0 ) {
+			edit->scroll = 0;
+		}
 		return;
 	}
 
@@ -435,9 +594,26 @@ void Field_CharEvent( field_t *edit, int ch ) {
 		return;
 	}
 
-	if ( key_overstrikeMode ) {	
-		if ( edit->cursor == MAX_EDIT_LINE - 1 )
+	if ( key_overstrikeMode ) {
+		if ( edit->cursor == MAX_EDIT_LINE - 1 ) {
 			return;
+		}
+
+		if ( edit->cursor < len ) {
+			int overwriteEnd = edit->cursor + 1;
+
+			while ( overwriteEnd < len && Field_IsUtf8ContinuationByte( (unsigned char)edit->buffer[overwriteEnd] ) ) {
+				overwriteEnd++;
+			}
+
+			if ( overwriteEnd > edit->cursor + 1 ) {
+				memmove( edit->buffer + edit->cursor + 1,
+					edit->buffer + overwriteEnd,
+					len - overwriteEnd + 1 );
+				len -= overwriteEnd - ( edit->cursor + 1 );
+			}
+		}
+
 		edit->buffer[edit->cursor] = ch;
 		edit->cursor++;
 	} else {	// insert mode
@@ -475,6 +651,38 @@ Console_Key
 Handles history and console scrollback
 ====================
 */
+/*
+==================
+Console_CompleteArgument
+==================
+*/
+static void Console_CompleteArgument( const char *command, void(*callback)( const char *s ) ) {
+	char		listBuf[8192];
+	char		*entry;
+	int			fileCount;
+	const char	*commandName;
+
+	if ( !command || !callback ) {
+		return;
+	}
+
+	commandName = command;
+	if ( commandName[0] == '\\' || commandName[0] == '/' ) {
+		commandName++;
+	}
+
+	if ( Q_stricmp( commandName, "demo" ) ) {
+		return;
+	}
+
+	fileCount = FS_GetFileList( "demos", va( ".dm_%d", PROTOCOL_VERSION ), listBuf, sizeof( listBuf ) );
+	entry = listBuf;
+	while ( fileCount-- > 0 && *entry ) {
+		callback( entry );
+		entry += strlen( entry ) + 1;
+	}
+}
+
 void Console_Key (int key) {
 	// ctrl-L clears screen
 	if ( key == 'l' && keys[K_CTRL].down ) {
@@ -529,7 +737,7 @@ void Console_Key (int key) {
 	// command completion
 
 	if (key == K_TAB) {
-		Field_CompleteCommand(&g_consoleField);
+		Field_CompleteCommand( &g_consoleField, Console_CompleteArgument );
 		return;
 	}
 

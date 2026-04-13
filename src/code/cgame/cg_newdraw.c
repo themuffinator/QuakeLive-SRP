@@ -9560,60 +9560,94 @@ Renders text up to a character limit while honoring inline color codes.
 =============
 */
 static void CG_Text_Paint_Limit(float *maxX, float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit) {
-  int len, count;
-	vec4_t newColor;
-	glyphInfo_t *glyph;
-  if (text) {
-// TTimo: FIXME
-//    const unsigned char *s = text; // bk001206 - unsigned
-    const char *s = text;
-		float max = *maxX;
-		float useScale;
-		fontInfo_t *font = &cgDC.Assets.textFont;
-		if (scale <= cg_smallFont.value) {
-			font = &cgDC.Assets.smallFont;
-		} else if (scale > cg_bigFont.value) {
-			font = &cgDC.Assets.bigFont;
-		}
-		useScale = scale * font->glyphScale;
-		trap_R_SetColor( color );
-    len = strlen(text);					 
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
+	char limitedText[1024];
+	const char *s;
+	const char *limitEnd;
+	const char *drawText;
+	float screenX;
+	float screenY;
+	float screenMaxX;
+	float outMaxX;
+	float xScale;
+	float yScale;
+	float xBias;
+	int fontHandle;
+	int visibleCount;
+
+	(void)adjust;
+
+	if ( maxX == NULL ) {
+		return;
+	}
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	if ( limit <= 0 ) {
+		limitEnd = text + strlen( text );
+	} else {
+		visibleCount = 0;
+		for ( s = text; *s; ) {
 			if ( Q_IsColorString( s ) ) {
-				memcpy( newColor, g_color_table[ColorIndex(*(s+1))], sizeof( newColor ) );
-				newColor[3] = color[3];
-				trap_R_SetColor( newColor );
 				s += 2;
 				continue;
-			} else {
-	      float yadj = useScale * glyph->top;
-				if (CG_Text_Width(s, useScale, 1) + x > max) {
-					*maxX = 0;
-					break;
-				}
-		    CG_Text_PaintChar(x, y - yadj, 
-			                    glyph->imageWidth,
-				                  glyph->imageHeight,
-					                useScale, 
-						              glyph->s,
-							            glyph->t,
-								          glyph->s2,
-									        glyph->t2,
-										      glyph->glyph);
-	      x += (glyph->xSkip * useScale) + adjust;
-				*maxX = x;
-				count++;
-				s++;
-	    }
-		}
-	  trap_R_SetColor( NULL );
-  }
+			}
 
+			if ( visibleCount >= limit ) {
+				break;
+			}
+
+			s++;
+			visibleCount++;
+		}
+		limitEnd = s;
+	}
+
+	if ( *limitEnd == '\0' ) {
+		drawText = text;
+	} else {
+		int copyLength;
+
+		copyLength = (int)( limitEnd - text );
+		if ( copyLength >= (int)sizeof( limitedText ) ) {
+			copyLength = sizeof( limitedText ) - 1;
+		}
+		memcpy( limitedText, text, copyLength );
+		limitedText[copyLength] = '\0';
+		drawText = limitedText;
+	}
+
+	screenX = x;
+	screenY = y;
+	screenMaxX = *maxX;
+	xScale = 1.0f;
+	yScale = 1.0f;
+	xBias = 0.0f;
+
+	CG_AdjustFrom640( &screenX, &screenY, NULL, NULL );
+	CG_AdjustFrom640( &screenMaxX, NULL, NULL, NULL );
+	CG_AdjustFrom640( &xBias, NULL, &xScale, &yScale );
+
+	fontHandle = ( scale <= cg_smallFont.value ) ? FONT_SANS : FONT_DEFAULT;
+
+	trap_R_SetColor( color );
+	trap_QL_DrawScaledText(
+		(int)screenX,
+		(int)screenY,
+		drawText,
+		fontHandle,
+		scale * QL_FONT_HOST_POINT_SIZE * yScale,
+		(int)screenMaxX,
+		&outMaxX,
+		qfalse );
+	trap_R_SetColor( NULL );
+
+	if ( outMaxX > 0.0f && xScale > 0.0f ) {
+		*maxX = ( outMaxX - xBias ) / xScale;
+	} else {
+		*maxX = 0.0f;
+	}
 }
 
 

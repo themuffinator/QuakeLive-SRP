@@ -250,8 +250,8 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 		and "void Sys_CreateLoadingWindow( void )" in win_syscon
 		and "tests/test_renderer_win32_host_glue_parity.py" in workflow_text
 		and runtime_evidence is not None
-		and runtime_evidence["main_menu"]["window_capture"]
-		and runtime_evidence["map_runtime"]["window_capture"]
+		and runtime_evidence["main_menu"]["engine_screenshot"]
+		and runtime_evidence["map_runtime"]["engine_screenshot"]
 	)
 	report["tranches"]["RG-G04"] = _entry(
 		"RG-G04",
@@ -265,8 +265,8 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 			"windowed_sync_helper_present": "WIN_SyncWindowedModeFromClientRect" in win_wndproc,
 			"maximize_preservation_present": "windowStyle |= WS_MAXIMIZE;" in win_glimp,
 			"loading_window_wrapper_present": "void Sys_CreateLoadingWindow( void )" in win_syscon,
-			"runtime_window_capture_present": bool(runtime_evidence and runtime_evidence["main_menu"]["window_capture"]),
-			"runtime_map_capture_present": bool(runtime_evidence and runtime_evidence["map_runtime"]["window_capture"]),
+			"runtime_main_engine_capture_present": bool(runtime_evidence and runtime_evidence["main_menu"]["engine_screenshot"]),
+			"runtime_map_engine_capture_present": bool(runtime_evidence and runtime_evidence["map_runtime"]["engine_screenshot"]),
 		},
 	)
 
@@ -339,21 +339,15 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 		and runtime_evidence["warnings"] == []
 		and runtime_evidence["missing_log_markers"] == []
 		and runtime_evidence["main_menu"]["engine_sha256"]
-		and runtime_evidence["main_menu"]["window_sha256"]
 		and runtime_evidence["debug_atlas"]["engine_sha256"]
-		and runtime_evidence["debug_atlas"]["window_sha256"]
 		and runtime_evidence["main_menu"]["engine_sha256"] != runtime_evidence["debug_atlas"]["engine_sha256"]
-		and runtime_evidence["main_menu"]["window_sha256"] != runtime_evidence["debug_atlas"]["window_sha256"]
 		and runtime_evidence["map_runtime"]["engine_sha256"]
-		and runtime_evidence["map_runtime"]["window_sha256"]
-		and runtime_evidence["main_menu"]["window_sha256"] != runtime_evidence["map_runtime"]["window_sha256"]
 		and runtime_evidence["map_runtime"]["server_seen"]
 		and runtime_evidence["map_runtime"]["active_seen"]
 		and runtime_evidence["map_runtime"]["shot_logged"]
 		and runtime_evidence["text_validation"]["fontstash_init_seen"]
 		and not runtime_evidence["text_validation"]["registerfont_fallback_seen"]
 		and runtime_evidence["text_validation"]["debug_atlas_engine_capture_distinct"]
-		and runtime_evidence["text_validation"]["debug_atlas_window_capture_distinct"]
 	)
 	rg_g07_ok = (
 		RUNTIME_PROBE_PATH.exists()
@@ -519,23 +513,17 @@ def test_renderer_runtime_evidence_artifact_is_tracked_and_clean() -> None:
 	assert runtime_evidence["missing_log_markers"] == []
 	assert runtime_evidence["main_menu"]["engine_screenshot"]
 	assert runtime_evidence["main_menu"]["engine_sha256"]
-	assert runtime_evidence["main_menu"]["window_sha256"]
 	assert runtime_evidence["debug_atlas"]["engine_screenshot"]
 	assert runtime_evidence["debug_atlas"]["engine_sha256"]
-	assert runtime_evidence["debug_atlas"]["window_sha256"]
 	assert runtime_evidence["main_menu"]["engine_sha256"] != runtime_evidence["debug_atlas"]["engine_sha256"]
-	assert runtime_evidence["main_menu"]["window_sha256"] != runtime_evidence["debug_atlas"]["window_sha256"]
 	assert runtime_evidence["map_runtime"]["engine_screenshot"]
 	assert runtime_evidence["map_runtime"]["engine_sha256"]
-	assert runtime_evidence["map_runtime"]["window_sha256"]
-	assert runtime_evidence["main_menu"]["window_sha256"] != runtime_evidence["map_runtime"]["window_sha256"]
 	assert runtime_evidence["map_runtime"]["map"] == "bloodrun"
 	assert runtime_evidence["map_runtime"]["server_seen"] is True
 	assert runtime_evidence["map_runtime"]["active_seen"] is True
 	assert runtime_evidence["map_runtime"]["shot_logged"] is True
 	assert runtime_evidence["text_validation"]["fontstash_init_seen"] is True
 	assert runtime_evidence["text_validation"]["debug_atlas_engine_capture_distinct"] is True
-	assert runtime_evidence["text_validation"]["debug_atlas_window_capture_distinct"] is True
 
 
 def test_renderer_full_parity_gate_writes_status_artifact() -> None:

@@ -45,6 +45,33 @@
 			},
 			"problemMatcher": "$msCompile",
 			"group": "build"
+		},
+		{
+			"label": "Build Debug Awesomium",
+			"type": "process",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\.vscode\\build.ps1",
+				"-Configuration",
+				"Debug",
+				"-Platform",
+				"x86",
+				"-OnlineServices",
+				"1",
+				"-Steamworks",
+				"0",
+				"-OpenSteam",
+				"0"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": "$msCompile",
+			"group": "build"
 		}
 	]
 }

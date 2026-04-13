@@ -986,11 +986,16 @@ typedef struct cvar_s {
 	char		*string;
 	char		*resetString;		// cvar_restart will reset to this value
 	char		*latchedString;		// for CVAR_LATCH vars
+	char		*minString;		// Quake Live bounded-cvar minimum string
+	char		*maxString;		// Quake Live bounded-cvar maximum string
 	int			flags;
 	qboolean	modified;			// set each time the cvar is changed
+	qboolean	validate;			// bounded numeric cvar
 	int			modificationCount;	// incremented each time the cvar is changed
 	float		value;				// atof( string )
 	int			integer;			// atoi( string )
+	float		min;
+	float		max;
 	struct cvar_s *next;
 	struct cvar_s *hashNext;
 } cvar_t;

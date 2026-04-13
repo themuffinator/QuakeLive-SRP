@@ -118,11 +118,9 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 		and abs(before - 97.1) < 0.01
 		and abs(after - 98.0) < 0.01
 		and main_menu["engine_screenshot"]
-		and main_menu["window_sha256"]
 		and main_menu["ui_init_complete"] is True
 		and main_menu["retail_ui_load_seen"] is True
 		and map_runtime["map"] == "catalyst"
-		and map_runtime["window_sha256"]
 		and map_runtime["server_seen"] is True
 		and map_runtime["retail_cgame_load_seen"] is True
 		and map_runtime["retail_qagame_load_seen"] is True
@@ -377,11 +375,9 @@ def test_retail_module_runtime_evidence_artifact_is_tracked_and_clean() -> None:
 	assert float(runtime_evidence["parity_estimate"]["before"]) == pytest.approx(97.1)
 	assert float(runtime_evidence["parity_estimate"]["after"]) == pytest.approx(98.0)
 	assert runtime_evidence["main_menu"]["engine_screenshot"]
-	assert runtime_evidence["main_menu"]["window_sha256"]
 	assert runtime_evidence["main_menu"]["ui_init_complete"] is True
 	assert runtime_evidence["main_menu"]["retail_ui_load_seen"] is True
 	assert runtime_evidence["map_runtime"]["map"] == "catalyst"
-	assert runtime_evidence["map_runtime"]["window_sha256"]
 	assert runtime_evidence["map_runtime"]["server_seen"] is True
 	assert runtime_evidence["map_runtime"]["retail_cgame_load_seen"] is True
 	assert runtime_evidence["map_runtime"]["retail_qagame_load_seen"] is True

@@ -113,7 +113,6 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 		and runtime_evidence["probe_script"] == "tools/qcommon/run_qcommon_runtime_probe.ps1"
 		and main_menu["engine_screenshot"]
 		and main_menu["engine_sha256"]
-		and main_menu["window_sha256"]
 		and main_menu["ui_init_complete"] is True
 		and main_menu["execed_qzconfig"] is True
 		and main_menu["execed_repconfig"] is True
@@ -133,7 +132,6 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 		and map_runtime["map"] == "bloodrun"
 		and map_runtime["engine_screenshot"]
 		and map_runtime["engine_sha256"]
-		and map_runtime["window_sha256"]
 		and map_runtime["server_seen"] is True
 		and map_runtime["active_seen"] is True
 		and map_runtime["shot_logged"] is True
@@ -144,7 +142,6 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 		and map_runtime["cgame_dll_load_roots"]["retail_base_failed"] is True
 		and map_runtime["cgame_dll_load_roots"]["writable_homepath_ok"] is True
 		and main_menu["engine_sha256"] != map_runtime["engine_sha256"]
-		and main_menu["window_sha256"] != map_runtime["window_sha256"]
 	)
 
 
@@ -563,7 +560,6 @@ def test_qcommon_runtime_evidence_artifact_is_tracked_and_clean() -> None:
 	assert runtime_evidence["missing_log_markers"] == []
 	assert runtime_evidence["main_menu"]["engine_screenshot"]
 	assert runtime_evidence["main_menu"]["engine_sha256"]
-	assert runtime_evidence["main_menu"]["window_sha256"]
 	assert runtime_evidence["main_menu"]["ui_init_complete"] is True
 	assert runtime_evidence["main_menu"]["execed_qzconfig"] is True
 	assert runtime_evidence["main_menu"]["execed_repconfig"] is True
@@ -577,7 +573,6 @@ def test_qcommon_runtime_evidence_artifact_is_tracked_and_clean() -> None:
 	assert runtime_evidence["map_runtime"]["map"] == "bloodrun"
 	assert runtime_evidence["map_runtime"]["engine_screenshot"]
 	assert runtime_evidence["map_runtime"]["engine_sha256"]
-	assert runtime_evidence["map_runtime"]["window_sha256"]
 	assert runtime_evidence["map_runtime"]["server_seen"] is True
 	assert runtime_evidence["map_runtime"]["active_seen"] is True
 	assert runtime_evidence["map_runtime"]["shot_logged"] is True

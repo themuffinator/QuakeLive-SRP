@@ -120,6 +120,12 @@ static qboolean GLW_StartDriverAndSetMode( const char *drivername,
 /*
 ==================
 GLW_DescribePixelFormatSafe
+
+Uses the Win32 pixel-format query instead of `wglDescribePixelFormat`. On
+current Windows stacks the WGL export can raise debugger-hostile
+`RoOriginateError( 0x8007007A )` first-chance notifications under `cppvsdbg`
+even when the query succeeds. `DescribePixelFormat` returns the same
+descriptor data without tripping that debugger path.
 ==================
 */
 static int GLW_DescribePixelFormatSafe( HDC hDC, int index, UINT bytes, LPPIXELFORMATDESCRIPTOR pfd )
@@ -128,14 +134,7 @@ static int GLW_DescribePixelFormatSafe( HDC hDC, int index, UINT bytes, LPPIXELF
 
 	__try
 	{
-		if ( qwglDescribePixelFormat )
-		{
-			result = qwglDescribePixelFormat( hDC, index, bytes, pfd );
-		}
-		else
-		{
-			result = DescribePixelFormat( hDC, index, bytes, pfd );
-		}
+		result = DescribePixelFormat( hDC, index, bytes, pfd );
 	}
 	__except( EXCEPTION_EXECUTE_HANDLER )
 	{
@@ -455,9 +454,9 @@ static int GLW_MakeContext( PIXELFORMATDESCRIPTOR *pPFD )
 	if ( !glw_state.pixelFormatSet )
 	{
 		//
-		// choose, set, and describe our desired pixel format.  If we're
-		// using a minidriver then we need to bypass the GDI functions,
-		// otherwise use the GDI functions.
+		// choose, set, and describe our desired pixel format. Description is
+		// always queried through the Win32 helper above to avoid debugger-hostile
+		// first-chance notifications from the WGL export path.
 		//
 		if ( ( pixelformat = GLW_ChoosePFD( glw_state.hDC, pPFD ) ) == 0 )
 		{
@@ -465,9 +464,14 @@ static int GLW_MakeContext( PIXELFORMATDESCRIPTOR *pPFD )
 			return TRY_PFD_FAIL_SOFT;
 		}
 		ri.Printf( PRINT_ALL, "...PIXELFORMAT %d selected\n", pixelformat );
-		if ( qwglDescribePixelFormat && qwglSetPixelFormat )
+		if ( !GLW_DescribePixelFormatSafe( glw_state.hDC, pixelformat, sizeof( *pPFD ), pPFD ) )
 		{
-			qwglDescribePixelFormat( glw_state.hDC, pixelformat, sizeof( *pPFD ), pPFD );
+			ri.Printf( PRINT_ALL, "...DescribePixelFormat failed for selected format\n" );
+			return TRY_PFD_FAIL_SOFT;
+		}
+
+		if ( qwglSetPixelFormat )
+		{
 			if ( qwglSetPixelFormat( glw_state.hDC, pixelformat, pPFD ) == FALSE )
 			{
 				ri.Printf ( PRINT_ALL, "...qwglSetPixelFormat failed\n");
@@ -476,8 +480,6 @@ static int GLW_MakeContext( PIXELFORMATDESCRIPTOR *pPFD )
 		}
 		else
 		{
-			DescribePixelFormat( glw_state.hDC, pixelformat, sizeof( *pPFD ), pPFD );
-
 			if ( SetPixelFormat( glw_state.hDC, pixelformat, pPFD ) == FALSE )
 			{
 				ri.Printf (PRINT_ALL, "...SetPixelFormat failed\n", glw_state.hDC );

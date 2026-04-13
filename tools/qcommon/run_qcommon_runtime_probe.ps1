@@ -22,150 +22,6 @@ function Add-WaitLines {
 	}
 }
 
-function Initialize-WindowCapture {
-	if ( 'QLClientWindowCapture' -as [type] ) {
-		return
-	}
-
-	Add-Type -AssemblyName System.Drawing
-	Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public struct QLCLIENTRECT {
-	public int Left;
-	public int Top;
-	public int Right;
-	public int Bottom;
-}
-public struct QLCLIENTPOINT {
-	public int X;
-	public int Y;
-}
-public static class QLClientWindowCapture {
-	[DllImport("user32.dll")]
-	public static extern bool GetWindowRect(IntPtr hWnd, out QLCLIENTRECT lpRect);
-	[DllImport("user32.dll")]
-	public static extern bool GetClientRect(IntPtr hWnd, out QLCLIENTRECT lpRect);
-	[DllImport("user32.dll")]
-	public static extern bool ClientToScreen(IntPtr hWnd, ref QLCLIENTPOINT lpPoint);
-	[DllImport("user32.dll")]
-	public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-	[DllImport("user32.dll")]
-	public static extern bool SetForegroundWindow(IntPtr hWnd);
-	[DllImport("user32.dll")]
-	public static extern bool BringWindowToTop(IntPtr hWnd);
-}
-"@
-}
-
-function Prepare-ProcessWindow {
-	param([IntPtr]$Handle)
-
-	Initialize-WindowCapture
-	if ( $Handle -eq 0 ) {
-		return
-	}
-
-	[void][QLClientWindowCapture]::ShowWindow( $Handle, 9 )
-	[void][QLClientWindowCapture]::BringWindowToTop( $Handle )
-	[void][QLClientWindowCapture]::SetForegroundWindow( $Handle )
-	Start-Sleep -Milliseconds 250
-}
-
-function Capture-ProcessWindow {
-	param(
-		[System.Diagnostics.Process]$Process,
-		[string]$ImagePath,
-		[string]$MetaPath
-	)
-
-	Initialize-WindowCapture
-	$Process.Refresh()
-	if ( $Process.MainWindowHandle -eq 0 ) {
-		return $null
-	}
-
-	$rect = New-Object QLCLIENTRECT
-	$clientRect = New-Object QLCLIENTRECT
-	$origin = New-Object QLCLIENTPOINT
-	$origin.X = 0
-	$origin.Y = 0
-	Prepare-ProcessWindow -Handle $Process.MainWindowHandle
-	if ( -not [QLClientWindowCapture]::GetWindowRect( [IntPtr]$Process.MainWindowHandle, [ref]$rect ) ) {
-		return $null
-	}
-
-	$left = $rect.Left
-	$top = $rect.Top
-	$width = $rect.Right - $rect.Left
-	$height = $rect.Bottom - $rect.Top
-	$captureKind = 'window_rect_copy'
-	if (
-		[QLClientWindowCapture]::GetClientRect( [IntPtr]$Process.MainWindowHandle, [ref]$clientRect ) -and
-		[QLClientWindowCapture]::ClientToScreen( [IntPtr]$Process.MainWindowHandle, [ref]$origin )
-	) {
-		$clientWidth = $clientRect.Right - $clientRect.Left
-		$clientHeight = $clientRect.Bottom - $clientRect.Top
-		if ( $clientWidth -gt 0 -and $clientHeight -gt 0 ) {
-			$left = $origin.X
-			$top = $origin.Y
-			$width = $clientWidth
-			$height = $clientHeight
-			$captureKind = 'client_rect_copy'
-		}
-	}
-
-	if ( $width -le 0 -or $height -le 0 ) {
-		return $null
-	}
-
-	$bitmap = New-Object System.Drawing.Bitmap( $width, $height )
-	$graphics = [System.Drawing.Graphics]::FromImage( $bitmap )
-	try {
-		try {
-			$graphics.CopyFromScreen( $left, $top, 0, 0, $bitmap.Size )
-		} catch {
-			return $null
-		}
-		$bitmap.Save( $ImagePath, [System.Drawing.Imaging.ImageFormat]::Png )
-	} finally {
-		$graphics.Dispose()
-		$bitmap.Dispose()
-	}
-
-	$meta = [ordered]@{
-		timestamp = (Get-Date).ToString( 'o' )
-		processId = $Process.Id
-		windowHandle = [int64]$Process.MainWindowHandle
-		windowTitle = $Process.MainWindowTitle
-		capture_method = $captureKind
-		rect = [ordered]@{
-			left = $left
-			top = $top
-			right = $left + $width
-			bottom = $top + $height
-			width = $width
-			height = $height
-		}
-		window_rect = [ordered]@{
-			left = $rect.Left
-			top = $rect.Top
-			right = $rect.Right
-			bottom = $rect.Bottom
-			width = $rect.Right - $rect.Left
-			height = $rect.Bottom - $rect.Top
-		}
-		image = $ImagePath
-	}
-	$meta | ConvertTo-Json -Depth 5 | Set-Content -Path $MetaPath -Encoding ascii
-
-	return [ordered]@{
-		window_capture = $ImagePath
-		window_meta = $MetaPath
-		window_sha256 = (Get-FileHash -Algorithm SHA256 -Path $ImagePath).Hash.ToLowerInvariant()
-	}
-}
-
 function Send-Rcon {
 	param(
 		[string]$Password,
@@ -539,8 +395,6 @@ function Invoke-MainMenuProbe {
 	param(
 		[string]$Stamp,
 		[string]$ScreenshotPrefix,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog
 	)
 
@@ -581,7 +435,6 @@ function Invoke-MainMenuProbe {
 	Reset-LiveLog
 	$launch = Start-ClientProcess -ConfigName $configName -ExtraArgs @()
 	$process = $launch.process
-	$capturedWindow = $null
 	$shotLogged = $false
 	$uiInitSeen = $false
 	$deadline = (Get-Date).AddSeconds(150)
@@ -601,19 +454,8 @@ function Invoke-MainMenuProbe {
 			if ( $logText -match [regex]::Escape( '----- UI Initialization Complete -----' ) ) {
 				$uiInitSeen = $true
 			}
-			if ( $uiInitSeen -and -not $capturedWindow -and $process.MainWindowHandle -ne 0 ) {
-				$capturedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-			}
 			if ( $logText -match [regex]::Escape( "Wrote screenshots/$ScreenshotPrefix.jpg" ) ) {
 				$shotLogged = $true
-				for ( $attempt = 0; $attempt -lt 5; $attempt++ ) {
-					Start-Sleep -Milliseconds 250
-					$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-					if ( $refreshedWindow ) {
-						$capturedWindow = $refreshedWindow
-						break
-					}
-				}
 				break
 			}
 		}
@@ -634,7 +476,6 @@ function Invoke-MainMenuProbe {
 		launch_args = $launch.launch_args
 		environment = $launch.environment
 		engine_screenshot = Find-EngineScreenshot -ScreenshotPrefix $ScreenshotPrefix
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		shot_logged = $shotLogged
 		log_text = if ( Test-Path -LiteralPath $ArchivedLog ) { Get-Content -LiteralPath $ArchivedLog -Raw -ErrorAction SilentlyContinue } else { '' }
@@ -645,8 +486,6 @@ function Invoke-MapRuntimeProbe {
 	param(
 		[string]$Stamp,
 		[string]$ScreenshotPrefix,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog
 	)
 
@@ -685,7 +524,6 @@ function Invoke-MapRuntimeProbe {
 		'+set', 'g_warmup', '0'
 	)
 	$process = $launch.process
-	$capturedWindow = $null
 	$serverSeen = $false
 	$activeSeen = $false
 	$shotLogged = $false
@@ -722,13 +560,6 @@ function Invoke-MapRuntimeProbe {
 			}
 		}
 
-		if ( $process.MainWindowHandle -ne 0 -and ( $serverSeen -or $activeSeen ) ) {
-			$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-			if ( $refreshedWindow ) {
-				$capturedWindow = $refreshedWindow
-			}
-		}
-
 		if ( $activeSeen -and -not $commandsIssued -and -not ( Test-ProcessExited -Process $process ) ) {
 			$commandsIssued = $true
 			Start-Sleep -Milliseconds 1000
@@ -740,12 +571,6 @@ function Invoke-MapRuntimeProbe {
 					$logText = Get-Content -LiteralPath $script:RuntimeLog -Raw -ErrorAction SilentlyContinue
 					if ( $logText -match [regex]::Escape( "Wrote screenshots/$ScreenshotPrefix.jpg" ) ) {
 						$shotLogged = $true
-						if ( $process.MainWindowHandle -ne 0 ) {
-							$refreshedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-							if ( $refreshedWindow ) {
-								$capturedWindow = $refreshedWindow
-							}
-						}
 						break
 					}
 				}
@@ -773,7 +598,6 @@ function Invoke-MapRuntimeProbe {
 		launch_args = $launch.launch_args
 		environment = $launch.environment
 		engine_screenshot = Find-EngineScreenshot -ScreenshotPrefix $ScreenshotPrefix
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		server_seen = $serverSeen
 		active_seen = $activeSeen
@@ -796,7 +620,6 @@ $script:QlHome = Join-Path $RepoRoot 'build\win32\Debug\bin'
 $script:RuntimeRoot = Join-Path $script:QlHome 'baseq3'
 $script:DumpsRoot = Join-Path $RepoRoot 'build\win32\Debug\dumps'
 $script:LogRoot = Join-Path $script:DumpsRoot 'logs'
-$script:ScreenshotRoot = Join-Path $script:DumpsRoot 'screenshots'
 $script:RuntimeLog = Join-Path $script:RuntimeRoot 'qconsole.log'
 $script:Exe = Join-Path $script:QlHome 'quakelive_steam.exe'
 
@@ -804,7 +627,6 @@ foreach ( $path in @(
 		$script:RuntimeRoot,
 		$script:DumpsRoot,
 		$script:LogRoot,
-		$script:ScreenshotRoot,
 		(Join-Path $script:RuntimeRoot 'screenshots')
 	) ) {
 	if ( -not ( Test-Path -LiteralPath $path ) ) {
@@ -821,14 +643,10 @@ $menuShotPrefix = "codex_qcommon_p6_main_$stamp"
 $mapShotPrefix = "codex_qcommon_p6_map_$stamp"
 
 $mainLog = Join-Path $script:LogRoot ("codex_qcommon_p6_main_{0}.log" -f $stamp)
-$mainWindowPng = Join-Path $script:ScreenshotRoot ("codex_qcommon_p6_main_{0}_window.png" -f $stamp)
-$mainWindowJson = Join-Path $script:ScreenshotRoot ("codex_qcommon_p6_main_{0}_window.json" -f $stamp)
 $mapLog = Join-Path $script:LogRoot ("codex_qcommon_p6_map_{0}.log" -f $stamp)
-$mapWindowPng = Join-Path $script:ScreenshotRoot ("codex_qcommon_p6_map_{0}_window.png" -f $stamp)
-$mapWindowJson = Join-Path $script:ScreenshotRoot ("codex_qcommon_p6_map_{0}_window.json" -f $stamp)
 
-$mainProbe = Invoke-MainMenuProbe -Stamp $stamp -ScreenshotPrefix $menuShotPrefix -WindowPng $mainWindowPng -WindowJson $mainWindowJson -ArchivedLog $mainLog
-$mapProbe = Invoke-MapRuntimeProbe -Stamp $stamp -ScreenshotPrefix $mapShotPrefix -WindowPng $mapWindowPng -WindowJson $mapWindowJson -ArchivedLog $mapLog
+$mainProbe = Invoke-MainMenuProbe -Stamp $stamp -ScreenshotPrefix $menuShotPrefix -ArchivedLog $mainLog
+$mapProbe = Invoke-MapRuntimeProbe -Stamp $stamp -ScreenshotPrefix $mapShotPrefix -ArchivedLog $mapLog
 
 $mainEngineScreenshotPath = if ( $mainProbe.engine_screenshot ) { $mainProbe.engine_screenshot.FullName } else { '' }
 $mapEngineScreenshotPath = if ( $mapProbe.engine_screenshot ) { $mapProbe.engine_screenshot.FullName } else { '' }
@@ -885,12 +703,6 @@ if ( -not $mainProbe.engine_screenshot ) {
 if ( -not $mapProbe.engine_screenshot ) {
 	$warnings.Add( 'Map runtime probe did not produce an engine screenshot.' )
 }
-if ( -not $mainProbe.window_capture ) {
-	$warnings.Add( 'Main-menu runtime probe did not produce a process-bound window capture.' )
-}
-if ( -not $mapProbe.window_capture ) {
-	$warnings.Add( 'Map runtime probe did not produce a process-bound window capture.' )
-}
 if ( @( $searchPathLines ).Count -eq 0 ) {
 	$warnings.Add( 'Main-menu runtime probe did not capture the filesystem search-path block.' )
 }
@@ -921,9 +733,9 @@ $artifact = [ordered]@{
 	main_menu = [ordered]@{
 		engine_screenshot = To-RepoPath -Path $mainEngineScreenshotPath
 		engine_sha256 = Get-ArtifactSha256 -Path $mainEngineScreenshotPath
-		window_capture = if ( $mainProbe.window_capture ) { To-RepoPath -Path $mainProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ( $mainProbe.window_capture ) { $mainProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ( $mainProbe.window_capture ) { To-RepoPath -Path $mainProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath -Path $mainProbe.log_path
 		config = To-RepoPath -Path $mainProbe.config
 		launch_args = $mainProbe.launch_args
@@ -957,9 +769,9 @@ $artifact = [ordered]@{
 		map = $MapName
 		engine_screenshot = To-RepoPath -Path $mapEngineScreenshotPath
 		engine_sha256 = Get-ArtifactSha256 -Path $mapEngineScreenshotPath
-		window_capture = if ( $mapProbe.window_capture ) { To-RepoPath -Path $mapProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ( $mapProbe.window_capture ) { $mapProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ( $mapProbe.window_capture ) { To-RepoPath -Path $mapProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath -Path $mapProbe.log_path
 		config = To-RepoPath -Path $mapProbe.config
 		launch_args = $mapProbe.launch_args

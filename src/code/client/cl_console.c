@@ -30,6 +30,7 @@ int g_console_field_width = 78;
 #define	NUM_CON_TIMES 4
 
 #define		CON_TEXTSIZE	32768
+#define		CON_NOTIFY_TIME	3000
 typedef struct {
 	qboolean	initialized;
 
@@ -57,12 +58,187 @@ extern	console_t	con;
 
 console_t	con;
 
-cvar_t		*con_conspeed;
-cvar_t		*con_notifytime;
+cvar_t		*con_background;
+cvar_t		*con_height;
+cvar_t		*con_matchlimit;
+cvar_t		*con_noprint;
+cvar_t		*con_opacity;
+cvar_t		*con_scale;
+cvar_t		*con_speed;
+cvar_t		*con_timestamps;
 
 #define	DEFAULT_CONSOLE_WIDTH	78
 
 vec4_t	console_color = {1.0, 1.0, 1.0, 1.0};
+
+/*
+================
+Con_GetScale
+================
+*/
+static float Con_GetScale( void ) {
+	float scale = 0.5f;
+
+	if ( con_scale ) {
+		scale = con_scale->value;
+	}
+
+	if ( scale <= 0.0f ) {
+		scale = 0.5f;
+	}
+
+	return Com_Clamp( 0.5f, 1.0f, scale );
+}
+
+/*
+================
+Con_GetPixelScale
+================
+*/
+static float Con_GetPixelScale( void ) {
+	float pixelScale;
+
+	pixelScale = Con_GetScale();
+	if ( cls.glconfig.vidHeight > 0 ) {
+		pixelScale *= (float)cls.glconfig.vidHeight / (float)SCREEN_HEIGHT;
+	}
+
+	if ( pixelScale <= 0.0f ) {
+		pixelScale = 1.0f;
+	}
+
+	return pixelScale;
+}
+
+/*
+================
+Con_GetScaledSmallCharWidth
+================
+*/
+static int Con_GetScaledSmallCharWidth( void ) {
+	int width;
+
+	width = (int)( SMALLCHAR_WIDTH * Con_GetPixelScale() + 0.5f );
+	if ( width < 1 ) {
+		width = 1;
+	}
+
+	return width;
+}
+
+/*
+================
+Con_GetScaledSmallCharHeight
+================
+*/
+static int Con_GetScaledSmallCharHeight( void ) {
+	int height;
+
+	height = (int)( SMALLCHAR_HEIGHT * Con_GetPixelScale() + 0.5f );
+	if ( height < 1 ) {
+		height = 1;
+	}
+
+	return height;
+}
+
+/*
+================
+Con_DrawScaledSmallChar
+================
+*/
+static void Con_DrawScaledSmallChar( int x, int y, int width, int height, int ch ) {
+	int		row;
+	int		col;
+	float	frow;
+	float	fcol;
+	float	size;
+
+	ch &= 255;
+	if ( ch == ' ' ) {
+		return;
+	}
+
+	if ( y < -height ) {
+		return;
+	}
+
+	row = ch >> 4;
+	col = ch & 15;
+	frow = row * 0.0625f;
+	fcol = col * 0.0625f;
+	size = 0.0625f;
+
+	re.DrawStretchPic( x, y, width, height,
+		fcol, frow,
+		fcol + size, frow + size,
+		cls.charSetShader );
+}
+
+/*
+================
+Con_DrawScaledSmallStringColor
+================
+*/
+static void Con_DrawScaledSmallStringColor( int x, int y, int width, int height, const char *string, const vec4_t color ) {
+	const char	*s;
+	int			xx;
+
+	if ( !string || !string[0] ) {
+		return;
+	}
+
+	re.SetColor( color );
+	s = string;
+	xx = x;
+	while ( *s ) {
+		Con_DrawScaledSmallChar( xx, y, width, height, *s );
+		xx += width;
+		s++;
+	}
+	re.SetColor( NULL );
+}
+
+/*
+================
+Con_DrawConsoleLineText
+================
+*/
+static void Con_DrawConsoleLineText( int x, int y, const short *text, int count ) {
+	int	currentColor;
+	int	charWidth;
+	int	charHeight;
+	int	i;
+
+	if ( !text || count <= 0 ) {
+		return;
+	}
+
+	charWidth = Con_GetScaledSmallCharWidth();
+	charHeight = Con_GetScaledSmallCharHeight();
+	currentColor = 7;
+	re.SetColor( g_color_table[currentColor] );
+
+	for ( i = 0 ; i < count ; i++ ) {
+		int colorIndex;
+		int ch;
+
+		ch = text[i] & 0xff;
+		if ( ch == ' ' ) {
+			continue;
+		}
+
+		colorIndex = ( text[i] >> 8 ) & 7;
+		if ( colorIndex != currentColor ) {
+			currentColor = colorIndex;
+			re.SetColor( g_color_table[currentColor] );
+		}
+
+		Con_DrawScaledSmallChar( x + i * charWidth, y, charWidth, charHeight, ch );
+	}
+
+	re.SetColor( NULL );
+}
 
 /*
 ================
@@ -154,7 +330,7 @@ static int Con_GetTimestampTime( void ) {
 	int timestampTime;
 
 	timestampTime = ( cls.state >= CA_CONNECTED ) ? cl.serverTime : cls.realtime;
-	if ( cgvm && cl_contimestamps && cl_contimestamps->integer == 1 ) {
+	if ( cgvm && con_timestamps && con_timestamps->integer == 1 ) {
 		int physicsTime = VM_Call( cgvm, CG_GET_PHYSICS_TIME );
 
 		if ( physicsTime > 0 ) {
@@ -231,6 +407,11 @@ Con_ToggleConsole_f
 ================
 */
 void Con_ToggleConsole_f (void) {
+	if ( com_allowConsole && !com_allowConsole->integer ) {
+		Com_Printf( "com_allowConsole won't allow toggleconsole command\n" );
+		return;
+	}
+
 	// closing a full screen console restarts the demo loop
 	if ( cls.state == CA_DISCONNECTED && cls.keyCatchers == KEYCATCH_CONSOLE ) {
 		CL_StartDemoLoop();
@@ -378,6 +559,74 @@ void Con_Dump_f (void)
 	FS_FCloseFile( f );
 }
 
+/*
+================
+Con_Find_f
+================
+*/
+void Con_Find_f( void ) {
+	int			lineNum;
+	int			x;
+	int			matches;
+	int			limit;
+	short		*line;
+	const char	*needle;
+	char		buffer[1024];
+
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "usage: find <substring>  ; This is a case sensitive search of the console history.\n" );
+		return;
+	}
+
+	needle = Cmd_Argv( 1 );
+	limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;
+	matches = 0;
+
+	for ( lineNum = con.current - con.totallines + 1 ; lineNum <= con.current ; lineNum++ ) {
+		int copyWidth;
+
+		line = con.text + ( lineNum % con.totallines ) * con.linewidth;
+		copyWidth = con.linewidth;
+		if ( copyWidth >= (int)sizeof( buffer ) ) {
+			copyWidth = sizeof( buffer ) - 1;
+		}
+
+		for ( x = 0 ; x < copyWidth ; x++ ) {
+			buffer[x] = line[x] & 0xff;
+		}
+		buffer[copyWidth] = '\0';
+
+		for ( x = copyWidth - 1 ; x >= 0 ; x-- ) {
+			if ( buffer[x] == ' ' ) {
+				buffer[x] = '\0';
+				continue;
+			}
+			break;
+		}
+
+		if ( !buffer[0] ) {
+			continue;
+		}
+
+		if ( strstr( buffer, needle ) && !strstr( buffer, "\\find" ) && !strstr( buffer, "usage: find " ) ) {
+			matches++;
+			if ( matches <= limit ) {
+				if ( matches == 1 ) {
+					Com_Printf( "\n## MATCH LIST:\n" );
+				}
+				Com_Printf( "\n## %s\n", buffer );
+			}
+		}
+	}
+
+	if ( matches >= limit ) {
+		Com_Printf( "%d matches found. (Displaying the first %d)\n", matches, limit );
+		return;
+	}
+
+	Com_Printf( "%d %s found.\n", matches, matches == 1 ? "match" : "matches" );
+}
+
 						
 /*
 ================
@@ -403,10 +652,12 @@ If the line width has changed, reformat the buffer.
 */
 void Con_CheckResize (void)
 {
+	float	scale;
 	int		i, j, width, oldwidth, oldtotallines, numlines, numchars;
 	MAC_STATIC short	tbuf[CON_TEXTSIZE];
 
-	width = (SCREEN_WIDTH / SMALLCHAR_WIDTH) - 2;
+	scale = Con_GetScale();
+	width = (int)( (float)SCREEN_WIDTH / ( scale * SMALLCHAR_WIDTH ) - 2.0f );
 
 	if (width == con.linewidth)
 		return;
@@ -457,6 +708,11 @@ void Con_CheckResize (void)
 
 	con.current = con.totallines - 1;
 	con.display = con.current;
+	g_console_field_width = con.linewidth;
+	g_consoleField.widthInChars = g_console_field_width;
+	for ( i = 0 ; i < COMMAND_HISTORY ; i++ ) {
+		historyEditLines[i].widthInChars = g_console_field_width;
+	}
 }
 
 
@@ -468,8 +724,14 @@ Con_Init
 void Con_Init (void) {
 	int		i;
 
-	con_notifytime = Cvar_Get ("con_notifytime", "3", 0);
-	con_conspeed = Cvar_Get ("scr_conspeed", "3", 0);
+	con_background = Cvar_GetBounded( "con_background", "0", "0", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	con_height = Cvar_GetBounded( "con_height", "0.5", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	con_matchlimit = Cvar_Get( "con_matchlimit", "16", 0 );
+	con_noprint = Cvar_Get( "con_noprint", "0", 0 );
+	con_opacity = Cvar_GetBounded( "con_opacity", "0.9", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	con_scale = Cvar_GetBounded( "con_scale", "0.5", "0.5", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	con_speed = Cvar_GetBounded( "con_speed", "3", "0.1", "1000", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
+	con_timestamps = Cvar_Get( "con_timestamps", "0", CVAR_PROTECTED | CVAR_CLOUD );
 
 	Field_Clear( &g_consoleField );
 	g_consoleField.widthInChars = g_console_field_width;
@@ -481,10 +743,9 @@ void Con_Init (void) {
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("messagemode", Con_MessageMode_f);
 	Cmd_AddCommand ("messagemode2", Con_MessageMode2_f);
-	Cmd_AddCommand ("messagemode3", Con_MessageMode3_f);
-	Cmd_AddCommand ("messagemode4", Con_MessageMode4_f);
 	Cmd_AddCommand ("clear", Con_Clear_f);
 	Cmd_AddCommand ("condump", Con_Dump_f);
+	Cmd_AddCommand( "find", Con_Find_f );
 }
 
 
@@ -541,7 +802,7 @@ void CL_ConsolePrint( char *txt ) {
 	}
 	
 	// for some demos we don't want to ever show anything on the console
-	if ( cl_noprint && cl_noprint->integer ) {
+	if ( con_noprint && con_noprint->integer ) {
 		return;
 	}
 	
@@ -558,8 +819,8 @@ void CL_ConsolePrint( char *txt ) {
 	color = ColorIndex(COLOR_WHITE);
 
 	timestampMode = 0;
-	if ( cl_contimestamps ) {
-		timestampMode = cl_contimestamps->integer;
+	if ( con_timestamps ) {
+		timestampMode = con_timestamps->integer;
 	}
 
 	if ( timestampMode ) {
@@ -688,20 +949,28 @@ Draw the editline after a ] prompt
 ================
 */
 void Con_DrawInput (void) {
+	int		charHeight;
+	int		charWidth;
 	int		y;
 
 	if ( cls.state != CA_DISCONNECTED && !(cls.keyCatchers & KEYCATCH_CONSOLE ) ) {
 		return;
 	}
 
-	y = con.vislines - ( SMALLCHAR_HEIGHT * 2 );
+	charWidth = Con_GetScaledSmallCharWidth();
+	charHeight = Con_GetScaledSmallCharHeight();
+	y = con.vislines - ( charHeight * 2 );
 
 	re.SetColor( con.color );
 
-	SCR_DrawSmallChar( con.xadjust + 1 * SMALLCHAR_WIDTH, y, ']' );
+	if ( charWidth == SMALLCHAR_WIDTH && charHeight == SMALLCHAR_HEIGHT ) {
+		SCR_DrawSmallChar( con.xadjust + charWidth, y, ']' );
+	} else {
+		Con_DrawScaledSmallChar( con.xadjust + charWidth, y, charWidth, charHeight, ']' );
+	}
 
-	Field_Draw( &g_consoleField, con.xadjust + 2 * SMALLCHAR_WIDTH, y,
-		SCREEN_WIDTH - 3 * SMALLCHAR_WIDTH, qtrue );
+	Field_VariableSizeDraw( &g_consoleField, con.xadjust + 2 * charWidth, y,
+		SCREEN_WIDTH - 3 * charWidth, charWidth, qtrue );
 }
 
 
@@ -714,15 +983,15 @@ Draws the last few lines of output transparently over the game top
 */
 void Con_DrawNotify (void)
 {
-	int		x, v;
+	int		charHeight;
+	int		charWidth;
+	int		v;
 	short	*text;
 	int		i;
 	int		time;
 	int		skip;
-	int		currentColor;
-
-	currentColor = 7;
-	re.SetColor( g_color_table[currentColor] );
+	charWidth = Con_GetScaledSmallCharWidth();
+	charHeight = Con_GetScaledSmallCharHeight();
 
 	v = 0;
 	for (i= con.current-NUM_CON_TIMES+1 ; i<=con.current ; i++)
@@ -733,7 +1002,7 @@ void Con_DrawNotify (void)
 		if (time == 0)
 			continue;
 		time = cls.realtime - time;
-		if (time > con_notifytime->value*1000)
+		if (time > CON_NOTIFY_TIME)
 			continue;
 		text = con.text + (i % con.totallines)*con.linewidth;
 
@@ -741,18 +1010,9 @@ void Con_DrawNotify (void)
 			continue;
 		}
 
-		for (x = 0 ; x < con.linewidth ; x++) {
-			if ( ( text[x] & 0xff ) == ' ' ) {
-				continue;
-			}
-			if ( ( (text[x]>>8)&7 ) != currentColor ) {
-				currentColor = (text[x]>>8)&7;
-				re.SetColor( g_color_table[currentColor] );
-			}
-			SCR_DrawSmallChar( cl_conXOffset->integer + con.xadjust + (x+1)*SMALLCHAR_WIDTH, v, text[x] & 0xff );
-		}
+		Con_DrawConsoleLineText( cl_conXOffset->integer + con.xadjust + charWidth, v, text, con.linewidth );
 
-		v += SMALLCHAR_HEIGHT;
+		v += charHeight;
 	}
 
 	re.SetColor( NULL );
@@ -777,7 +1037,7 @@ void Con_DrawNotify (void)
 			drawWidth = BIGCHAR_WIDTH;
 		}
 
-		SCR_DrawBigString (8, chatFieldY, prompt, 1.0f );
+		SCR_DrawBigString( 8, chatFieldY, prompt, 1.0f );
 		Field_BigDraw( &chatField, skip * BIGCHAR_WIDTH, chatFieldY, drawWidth, qtrue );
 	}
 
@@ -791,13 +1051,14 @@ Draws the console with the solid background
 ================
 */
 void Con_DrawSolidConsole( float frac ) {
+	int				charHeight;
+	int				charWidth;
 	int				i, x, y;
 	int				rows;
 	short			*text;
 	int				row;
 	int				lines;
 //	qhandle_t		conShader;
-	int				currentColor;
 	vec4_t			color;
 
 	lines = cls.glconfig.vidHeight * frac;
@@ -810,14 +1071,22 @@ void Con_DrawSolidConsole( float frac ) {
 	// on wide screens, we will center the text
 	con.xadjust = 0;
 	SCR_AdjustFrom640( &con.xadjust, NULL, NULL, NULL );
+	charWidth = Con_GetScaledSmallCharWidth();
+	charHeight = Con_GetScaledSmallCharHeight();
 
 	// draw the background
 	y = frac * SCREEN_HEIGHT - 2;
 	if ( y < 1 ) {
 		y = 0;
 	}
-	else {
+	else if ( con_background && con_background->integer > 0 && cls.consoleShader ) {
 		SCR_DrawPic( 0, 0, SCREEN_WIDTH, y, cls.consoleShader );
+	} else {
+		color[0] = 0.0f;
+		color[1] = 0.0f;
+		color[2] = 0.0f;
+		color[3] = con_opacity ? Com_Clamp( 0.1f, 1.0f, con_opacity->value ) : 0.9f;
+		SCR_FillRect( 0, 0, SCREEN_WIDTH, y, color );
 	}
 
 	color[0] = 1;
@@ -832,21 +1101,20 @@ void Con_DrawSolidConsole( float frac ) {
 	re.SetColor( g_color_table[ColorIndex(COLOR_RED)] );
 
 	i = strlen( Q3_VERSION );
+	re.SetColor( g_color_table[ColorIndex(COLOR_RED)] );
 
 	for (x=0 ; x<i ; x++) {
-
-		SCR_DrawSmallChar( cls.glconfig.vidWidth - ( i - x ) * SMALLCHAR_WIDTH, 
-
-			(lines-(SMALLCHAR_HEIGHT+SMALLCHAR_HEIGHT/2)), Q3_VERSION[x] );
-
+		Con_DrawScaledSmallChar( cls.glconfig.vidWidth - ( i - x ) * charWidth,
+			lines - ( charHeight + charHeight / 2 ),
+			charWidth, charHeight, Q3_VERSION[x] );
 	}
 
 
 	// draw the text
 	con.vislines = lines;
-	rows = (lines-SMALLCHAR_WIDTH)/SMALLCHAR_WIDTH;		// rows of text to draw
+	rows = ( lines - charHeight ) / charHeight;		// rows of text to draw
 
-	y = lines - (SMALLCHAR_HEIGHT*3);
+	y = lines - ( charHeight * 3 );
 
 	// draw from the bottom up
 	if (con.display != con.current)
@@ -854,8 +1122,8 @@ void Con_DrawSolidConsole( float frac ) {
 	// draw arrows to show the buffer is backscrolled
 		re.SetColor( g_color_table[ColorIndex(COLOR_RED)] );
 		for (x=0 ; x<con.linewidth ; x+=4)
-			SCR_DrawSmallChar( con.xadjust + (x+1)*SMALLCHAR_WIDTH, y, '^' );
-		y -= SMALLCHAR_HEIGHT;
+			Con_DrawScaledSmallChar( con.xadjust + ( x + 1 ) * charWidth, y, charWidth, charHeight, '^' );
+		y -= charHeight;
 		rows--;
 	}
 	
@@ -865,10 +1133,7 @@ void Con_DrawSolidConsole( float frac ) {
 		row--;
 	}
 
-	currentColor = 7;
-	re.SetColor( g_color_table[currentColor] );
-
-	for (i=0 ; i<rows ; i++, y -= SMALLCHAR_HEIGHT, row--)
+	for (i=0 ; i<rows ; i++, y -= charHeight, row--)
 	{
 		if (row < 0)
 			break;
@@ -878,18 +1143,7 @@ void Con_DrawSolidConsole( float frac ) {
 		}
 
 		text = con.text + (row % con.totallines)*con.linewidth;
-
-		for (x=0 ; x<con.linewidth ; x++) {
-			if ( ( text[x] & 0xff ) == ' ' ) {
-				continue;
-			}
-
-			if ( ( (text[x]>>8)&7 ) != currentColor ) {
-				currentColor = (text[x]>>8)&7;
-				re.SetColor( g_color_table[currentColor] );
-			}
-			SCR_DrawSmallChar(  con.xadjust + (x+1)*SMALLCHAR_WIDTH, y, text[x] & 0xff );
-		}
+		Con_DrawConsoleLineText( con.xadjust + charWidth, y, text, con.linewidth );
 	}
 
 	// draw the input prompt, user text, and cursor if desired
@@ -939,21 +1193,21 @@ Scroll it up or down
 void Con_RunConsole (void) {
 	// decide on the destination height of the console
 	if ( cls.keyCatchers & KEYCATCH_CONSOLE )
-		con.finalFrac = 0.5;		// half screen
+		con.finalFrac = con_height ? Com_Clamp( 0.1f, 1.0f, con_height->value ) : 0.5f;
 	else
 		con.finalFrac = 0;				// none visible
 	
 	// scroll towards the destination height
 	if (con.finalFrac < con.displayFrac)
 	{
-		con.displayFrac -= con_conspeed->value*cls.realFrametime*0.001;
+		con.displayFrac -= ( con_speed ? Com_Clamp( 0.1f, 1000.0f, con_speed->value ) : 3.0f ) * cls.realFrametime * 0.001f;
 		if (con.finalFrac > con.displayFrac)
 			con.displayFrac = con.finalFrac;
 
 	}
 	else if (con.finalFrac > con.displayFrac)
 	{
-		con.displayFrac += con_conspeed->value*cls.realFrametime*0.001;
+		con.displayFrac += ( con_speed ? Com_Clamp( 0.1f, 1000.0f, con_speed->value ) : 3.0f ) * cls.realFrametime * 0.001f;
 		if (con.finalFrac < con.displayFrac)
 			con.displayFrac = con.finalFrac;
 	}

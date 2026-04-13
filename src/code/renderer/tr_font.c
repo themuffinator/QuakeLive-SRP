@@ -883,6 +883,8 @@ shader handle.
 =================
 */
 static void R_UploadFontStashAtlas( void ) {
+	byte *seedImage;
+
 	if ( !r_fontStash.image || !r_fontStash.buffer ) {
 		return;
 	}
@@ -891,19 +893,21 @@ static void R_UploadFontStashAtlas( void ) {
 	r_fontStash.image->height = r_fontStash.height;
 	r_fontStash.image->uploadWidth = r_fontStash.width;
 	r_fontStash.image->uploadHeight = r_fontStash.height;
-	r_fontStash.image->internalFormat = GL_ALPHA;
+	r_fontStash.image->internalFormat = GL_RGBA;
 	r_fontStash.image->mipmap = qfalse;
 	r_fontStash.image->allowPicmip = qfalse;
 	r_fontStash.image->wrapClampMode = GL_CLAMP;
 	r_fontStash.texnum = r_fontStash.image->texnum;
 
+	seedImage = R_BuildFontStashSeedImage( r_fontStash.buffer, r_fontStash.width, r_fontStash.height );
 	GL_Bind( r_fontStash.image );
-	qglTexImage2D( GL_TEXTURE_2D, 0, GL_ALPHA, r_fontStash.width, r_fontStash.height, 0, GL_ALPHA, GL_UNSIGNED_BYTE, r_fontStash.buffer );
+	qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, r_fontStash.width, r_fontStash.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, seedImage );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	qglBindTexture( GL_TEXTURE_2D, 0 );
+	Z_Free( seedImage );
 }
 
 /*
@@ -1407,6 +1411,12 @@ static glyphInfo_t *R_GetFontStashGlyph( rFontStashFace_t *face, unsigned char g
 		return NULL;
 	}
 
+	// Prefer the working FreeType compatibility atlases until retained *fontstash
+	// rendering reaches the same output parity.
+	if ( R_EnsureFontStashCompatibilityFont( face ) ) {
+		return &face->compatFont.glyphs[glyphIndex];
+	}
+
 #ifdef BUILD_FREETYPE
 	if ( face->ftFace && r_fontStash.shader ) {
 		if ( !face->hostGlyphLoaded[glyphIndex] ) {
@@ -1419,11 +1429,7 @@ static glyphInfo_t *R_GetFontStashGlyph( rFontStashFace_t *face, unsigned char g
 	}
 #endif
 
-	if ( !R_EnsureFontStashCompatibilityFont( face ) ) {
-		return NULL;
-	}
-
-	return &face->compatFont.glyphs[glyphIndex];
+	return NULL;
 }
 
 /*

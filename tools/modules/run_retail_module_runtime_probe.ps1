@@ -21,90 +21,6 @@ function Add-WaitLines {
 	}
 }
 
-function Initialize-WindowCapture {
-	if ( 'QLModuleWindowCapture' -as [type] ) {
-		return
-	}
-
-	Add-Type -AssemblyName System.Drawing
-	Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public struct QLMODULERECT {
-	public int Left;
-	public int Top;
-	public int Right;
-	public int Bottom;
-}
-public static class QLModuleWindowCapture {
-	[DllImport("user32.dll")]
-	public static extern bool GetWindowRect(IntPtr hWnd, out QLMODULERECT lpRect);
-}
-"@
-}
-
-function Capture-ProcessWindow {
-	param(
-		[System.Diagnostics.Process]$Process,
-		[string]$ImagePath,
-		[string]$MetaPath
-	)
-
-	Initialize-WindowCapture
-	$Process.Refresh()
-	if ( $Process.MainWindowHandle -eq 0 ) {
-		return $null
-	}
-
-	$rect = New-Object QLMODULERECT
-	if ( -not [QLModuleWindowCapture]::GetWindowRect( [IntPtr]$Process.MainWindowHandle, [ref]$rect ) ) {
-		return $null
-	}
-
-	$width = $rect.Right - $rect.Left
-	$height = $rect.Bottom - $rect.Top
-	if ( $width -le 0 -or $height -le 0 ) {
-		return $null
-	}
-
-	$bitmap = New-Object System.Drawing.Bitmap( $width, $height )
-	$graphics = [System.Drawing.Graphics]::FromImage( $bitmap )
-	try {
-		try {
-			$graphics.CopyFromScreen( $rect.Left, $rect.Top, 0, 0, $bitmap.Size )
-		} catch {
-			return $null
-		}
-		$bitmap.Save( $ImagePath, [System.Drawing.Imaging.ImageFormat]::Png )
-	} finally {
-		$graphics.Dispose()
-		$bitmap.Dispose()
-	}
-
-	$meta = [ordered]@{
-		timestamp = (Get-Date).ToString( 'o' )
-		processId = $Process.Id
-		windowHandle = [int64]$Process.MainWindowHandle
-		windowTitle = $Process.MainWindowTitle
-		rect = [ordered]@{
-			left = $rect.Left
-			top = $rect.Top
-			right = $rect.Right
-			bottom = $rect.Bottom
-			width = $width
-			height = $height
-		}
-		image = $ImagePath
-	}
-	$meta | ConvertTo-Json -Depth 5 | Set-Content -Path $MetaPath -Encoding ascii
-
-	return [ordered]@{
-		window_capture = $ImagePath
-		window_meta = $MetaPath
-		window_sha256 = (Get-FileHash -Algorithm SHA256 -Path $ImagePath).Hash.ToLowerInvariant()
-	}
-}
-
 function Send-Rcon {
 	param(
 		[string]$Password,
@@ -457,8 +373,6 @@ function Invoke-MainMenuProbe {
 	param(
 		[string]$Stamp,
 		[string]$ScreenshotName,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog,
 		[string]$ArchivedTrace
 	)
@@ -484,7 +398,6 @@ function Invoke-MainMenuProbe {
 	Reset-LiveLogs
 	$launch = Start-ModuleProcess -ConfigName $configName -ExtraArgs @()
 	$process = $launch.process
-	$capturedWindow = $null
 	$uiInitSeen = $false
 	$shotLogged = $false
 	$deadline = (Get-Date).AddSeconds( 120 )
@@ -497,13 +410,7 @@ function Invoke-MainMenuProbe {
 			}
 			if ( $logText -match [regex]::Escape( "Wrote screenshots/$ScreenshotName.jpg" ) ) {
 				$shotLogged = $true
-				if ( -not $capturedWindow ) {
-					$capturedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
-				}
 				break
-			}
-			if ( $uiInitSeen -and -not $capturedWindow ) {
-				$capturedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
 			}
 		}
 		Start-Sleep -Milliseconds 500
@@ -526,7 +433,6 @@ function Invoke-MainMenuProbe {
 		launch_args = $launch.launch_args
 		argument_line = $launch.argument_line
 		engine_screenshot = Find-EngineScreenshot -ScreenshotName $ScreenshotName
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		trace_path = $ArchivedTrace
 		shot_logged = $shotLogged
@@ -542,8 +448,6 @@ function Invoke-MapRuntimeProbe {
 	param(
 		[string]$Stamp,
 		[string]$ScreenshotName,
-		[string]$WindowPng,
-		[string]$WindowJson,
 		[string]$ArchivedLog,
 		[string]$ArchivedTrace
 	)
@@ -570,7 +474,6 @@ function Invoke-MapRuntimeProbe {
 		'+set', 'rconPassword', $password
 	)
 	$process = $launch.process
-	$capturedWindow = $null
 	$serverSeen = $false
 	$activeSeen = $false
 	$frameReady = $false
@@ -593,10 +496,6 @@ function Invoke-MapRuntimeProbe {
 		$traceStats = Get-VmTraceStats -Path $script:VmTraceLog
 		if ( $traceStats.cgame_call_count -ge 16 -and $traceStats.qagame_call_count -ge 16 ) {
 			$frameReady = $true
-		}
-
-		if ( -not $capturedWindow -and $process.MainWindowHandle -ne 0 -and ( $serverSeen -or $activeSeen ) ) {
-			$capturedWindow = Capture-ProcessWindow -Process $process -ImagePath $WindowPng -MetaPath $WindowJson
 		}
 
 		if ( $serverSeen -and $activeSeen -and $frameReady ) {
@@ -653,7 +552,6 @@ function Invoke-MapRuntimeProbe {
 		launch_args = $launch.launch_args
 		argument_line = $launch.argument_line
 		engine_screenshot = $engineScreenshot
-		window_capture = $capturedWindow
 		log_path = $ArchivedLog
 		trace_path = $ArchivedTrace
 		server_seen = $serverSeen
@@ -700,10 +598,6 @@ $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $artifactPath = Join-Path $ArtifactRoot ( "retail_module_runtime_evidence_" + $artifactDate + '.json' )
 $mainShotName = "codex_retail_module_main_$stamp"
 $mapShotName = "codex_retail_module_map_$stamp"
-$mainWindowPng = Join-Path $DumpShotRoot ( $mainShotName + '_window.png' )
-$mainWindowJson = Join-Path $DumpShotRoot ( $mainShotName + '_window.json' )
-$mapWindowPng = Join-Path $DumpShotRoot ( $mapShotName + '_window.png' )
-$mapWindowJson = Join-Path $DumpShotRoot ( $mapShotName + '_window.json' )
 $mainArchivedLog = Join-Path $DumpLogRoot ( "codex_retail_module_main_" + $stamp + '.log' )
 $mainArchivedTrace = Join-Path $DumpLogRoot ( "codex_retail_module_main_" + $stamp + '_vm_trace.log' )
 $mapArchivedLog = Join-Path $DumpLogRoot ( "codex_retail_module_map_" + $stamp + '.log' )
@@ -726,8 +620,8 @@ foreach ( $requiredPath in @(
 
 New-Item -ItemType Directory -Force -Path $DumpShotRoot, $DumpLogRoot, $ArtifactRoot | Out-Null
 
-$mainProbe = Invoke-MainMenuProbe -Stamp $stamp -ScreenshotName $mainShotName -WindowPng $mainWindowPng -WindowJson $mainWindowJson -ArchivedLog $mainArchivedLog -ArchivedTrace $mainArchivedTrace
-$mapProbe = Invoke-MapRuntimeProbe -Stamp $stamp -ScreenshotName $mapShotName -WindowPng $mapWindowPng -WindowJson $mapWindowJson -ArchivedLog $mapArchivedLog -ArchivedTrace $mapArchivedTrace
+$mainProbe = Invoke-MainMenuProbe -Stamp $stamp -ScreenshotName $mainShotName -ArchivedLog $mainArchivedLog -ArchivedTrace $mainArchivedTrace
+$mapProbe = Invoke-MapRuntimeProbe -Stamp $stamp -ScreenshotName $mapShotName -ArchivedLog $mapArchivedLog -ArchivedTrace $mapArchivedTrace
 $stagedAasAlias = ''
 $stagedAasAliasName = ''
 
@@ -737,11 +631,9 @@ if ( -not $mapProbe.active_seen ) {
 	if ( $stagedAasAlias ) {
 		$retryStamp = $stamp + '_aas'
 		$retryShotName = "codex_retail_module_map_$retryStamp"
-		$retryWindowPng = Join-Path $DumpShotRoot ( $retryShotName + '_window.png' )
-		$retryWindowJson = Join-Path $DumpShotRoot ( $retryShotName + '_window.json' )
 		$retryArchivedLog = Join-Path $DumpLogRoot ( "codex_retail_module_map_" + $retryStamp + '.log' )
 		$retryArchivedTrace = Join-Path $DumpLogRoot ( "codex_retail_module_map_" + $retryStamp + '_vm_trace.log' )
-		$mapProbe = Invoke-MapRuntimeProbe -Stamp $retryStamp -ScreenshotName $retryShotName -WindowPng $retryWindowPng -WindowJson $retryWindowJson -ArchivedLog $retryArchivedLog -ArchivedTrace $retryArchivedTrace
+		$mapProbe = Invoke-MapRuntimeProbe -Stamp $retryStamp -ScreenshotName $retryShotName -ArchivedLog $retryArchivedLog -ArchivedTrace $retryArchivedTrace
 	}
 }
 
@@ -822,12 +714,6 @@ if ( $mapProbe.trace_stats.qagame_call_count -ge 16 ) {
 }
 
 $warnings = @()
-if ( -not $mainProbe.window_capture ) {
-	$warnings += 'Main-menu process-bound window capture was not recorded.'
-}
-if ( -not $mapProbe.window_capture ) {
-	$warnings += 'Map-runtime process-bound window capture was not recorded.'
-}
 if ( -not $mainProbe.engine_screenshot ) {
 	$warnings += 'Main-menu engine screenshot was not recorded.'
 }
@@ -893,9 +779,9 @@ $artifact = [ordered]@{
 	retail_profile_baseq3_root = ( Join-Path $script:RetailProfileRoot 'baseq3' ).Replace( '\', '/' )
 	main_menu = [ordered]@{
 		engine_screenshot = if ( $mainProbe.engine_screenshot ) { To-RepoPath $mainProbe.engine_screenshot.FullName } else { '' }
-		window_capture = if ( $mainProbe.window_capture ) { To-RepoPath $mainProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ( $mainProbe.window_capture ) { $mainProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ( $mainProbe.window_capture ) { To-RepoPath $mainProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath $mainProbe.log_path
 		vm_trace = To-RepoPath $mainProbe.trace_path
 		config = To-RepoPath $mainProbe.config
@@ -913,9 +799,9 @@ $artifact = [ordered]@{
 	map_runtime = [ordered]@{
 		map = $MapName
 		engine_screenshot = if ( $mapProbe.engine_screenshot ) { To-RepoPath $mapProbe.engine_screenshot.FullName } else { '' }
-		window_capture = if ( $mapProbe.window_capture ) { To-RepoPath $mapProbe.window_capture.window_capture } else { '' }
-		window_sha256 = if ( $mapProbe.window_capture ) { $mapProbe.window_capture.window_sha256 } else { '' }
-		window_meta = if ( $mapProbe.window_capture ) { To-RepoPath $mapProbe.window_capture.window_meta } else { '' }
+		window_capture = ''
+		window_sha256 = ''
+		window_meta = ''
 		log = To-RepoPath $mapProbe.log_path
 		vm_trace = To-RepoPath $mapProbe.trace_path
 		config = To-RepoPath $mapProbe.config

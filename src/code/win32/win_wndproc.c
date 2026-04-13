@@ -395,7 +395,7 @@ LONG WINAPI MainWndProc (
 		{
 			if ( IN_RawInputIsActive() )
 			{
-				return DefWindowProc (hWnd, uMsg, wParam, lParam);
+				return DefWindowProcW( hWnd, uMsg, wParam, lParam );
 			}
 
 			if ( ( ( int ) wParam ) > 0 )
@@ -408,7 +408,7 @@ LONG WINAPI MainWndProc (
 				Sys_QueEvent( g_wv.sysMsgTime, SE_KEY, K_MWHEELDOWN, qtrue, 0, NULL );
 				Sys_QueEvent( g_wv.sysMsgTime, SE_KEY, K_MWHEELDOWN, qfalse, 0, NULL );
 			}
-			return DefWindowProc (hWnd, uMsg, wParam, lParam);
+			return DefWindowProcW( hWnd, uMsg, wParam, lParam );
 		}
 	}
 
@@ -416,7 +416,7 @@ LONG WINAPI MainWndProc (
 	{
 	case WM_INPUT:
 		IN_RawInputEvent( wParam, lParam );
-		return DefWindowProc( hWnd, uMsg, wParam, lParam );
+		return DefWindowProcW( hWnd, uMsg, wParam, lParam );
 
 	case WM_MOUSEWHEEL:
 		// http://msdn.microsoft.com/library/default.asp?url=/library/en-us/winui/winui/windowsuserinterface/userinput/mouseinput/aboutmouseinput.asp
@@ -655,6 +655,6 @@ LONG WINAPI MainWndProc (
 		break;
    }
 
-    return DefWindowProc( hWnd, uMsg, wParam, lParam );
+	return DefWindowProcW( hWnd, uMsg, wParam, lParam );
 }
 

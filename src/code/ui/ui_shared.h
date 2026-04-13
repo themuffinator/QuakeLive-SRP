@@ -80,10 +80,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define QL_FONT_NAME_TEXT "fonts/font"
 #define QL_FONT_NAME_SMALL "fonts/smallfont"
 #define QL_FONT_NAME_BIG "fonts/bigfont"
+#define QL_FONT_NAME_MONO "fonts/monofont"
 
 #define QL_FONT_TEXT_POINT_SIZE 24
 #define QL_FONT_SMALL_POINT_SIZE 16
 #define QL_FONT_BIG_POINT_SIZE 48
+#define QL_FONT_MONO_POINT_SIZE 16
+#define QL_FONT_HOST_POINT_SIZE 48.0f
 
 #define ITEM_FONT_INHERIT -1
 

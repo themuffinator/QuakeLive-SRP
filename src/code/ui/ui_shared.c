@@ -51,7 +51,7 @@ typedef struct {
 static const uiLegacyFontAlias_t uiLegacyFontMap[] = {
 	{ "FONT_DEFAULT", QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE },
 	{ "FONT_SANS", QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE },
-	{ "FONT_MONO", QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE },
+	{ "FONT_MONO", QL_FONT_NAME_MONO, QL_FONT_MONO_POINT_SIZE },
 	{ "FONT_SMALL", QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE },
 	{ "FONT_BIG", QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE },
 	{ "0", QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE },
@@ -63,6 +63,7 @@ static const uiLegacyFontAlias_t uiLegacyFontMap[] = {
 	{ "fonts/font0", QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE },
 	{ "fonts/font1", QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE },
 	{ "fonts/font2", QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE },
+	{ "fonts/monofont", QL_FONT_NAME_MONO, QL_FONT_MONO_POINT_SIZE },
 	{ "menu/art/font1", QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE },
 	{ "menu/art/font2", QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE },
 	{ "menu/art/font3", QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE },
@@ -3134,53 +3135,52 @@ qboolean Item_HandleKey(itemDef_t *item, int key, qboolean down) {
 		return qfalse;
 	}
 
-  switch (item->type) {
-    case ITEM_TYPE_BUTTON:
-      return qfalse;
-      break;
-    case ITEM_TYPE_RADIOBUTTON:
-      return qfalse;
-      break;
-    case ITEM_TYPE_CHECKBOX:
-      return qfalse;
-      break;
-    case ITEM_TYPE_EDITFIELD:
-    case ITEM_TYPE_NUMERICFIELD:
-      //return Item_TextField_HandleKey(item, key);
-      return qfalse;
-      break;
-    case ITEM_TYPE_COMBO:
-      return qfalse;
-      break;
-    case ITEM_TYPE_LISTBOX:
-      return Item_ListBox_HandleKey(item, key, down, qfalse);
-      break;
-    case ITEM_TYPE_YESNO:
-      return Item_YesNo_HandleKey(item, key);
-      break;
-    case ITEM_TYPE_MULTI:
-      return Item_Multi_HandleKey(item, key);
-      break;
-    case ITEM_TYPE_OWNERDRAW:
-      return Item_OwnerDraw_HandleKey(item, key);
-      break;
-    case ITEM_TYPE_BIND:
+	switch (item->type) {
+	case ITEM_TYPE_BUTTON:
+		return qfalse;
+		break;
+	case ITEM_TYPE_RADIOBUTTON:
+		return qfalse;
+		break;
+	case ITEM_TYPE_CHECKBOX:
+		return qfalse;
+		break;
+	case ITEM_TYPE_EDITFIELD:
+	case ITEM_TYPE_NUMERICFIELD:
+		return Item_TextField_HandleKey(item, key);
+		break;
+	case ITEM_TYPE_COMBO:
+		return qfalse;
+		break;
+	case ITEM_TYPE_LISTBOX:
+		return Item_ListBox_HandleKey(item, key, down, qfalse);
+		break;
+	case ITEM_TYPE_YESNO:
+		return Item_YesNo_HandleKey(item, key);
+		break;
+	case ITEM_TYPE_MULTI:
+		return Item_Multi_HandleKey(item, key);
+		break;
+	case ITEM_TYPE_OWNERDRAW:
+		return Item_OwnerDraw_HandleKey(item, key);
+		break;
+	case ITEM_TYPE_BIND:
 			return Item_Bind_HandleKey(item, key, down);
-      break;
-    case ITEM_TYPE_SLIDER:
-    case ITEM_TYPE_SLIDER_COLOR:
-      return Item_Slider_HandleKey(item, key, down);
-      break;
-    case ITEM_TYPE_PRESETLIST:
-      return Item_PresetList_HandleKey(item, key);
-      break;
-    //case ITEM_TYPE_IMAGE:
-    //  Item_Image_Paint(item);
-    //  break;
-    default:
-      return qfalse;
-      break;
-  }
+		break;
+	case ITEM_TYPE_SLIDER:
+	case ITEM_TYPE_SLIDER_COLOR:
+		return Item_Slider_HandleKey(item, key, down);
+		break;
+	case ITEM_TYPE_PRESETLIST:
+		return Item_PresetList_HandleKey(item, key);
+		break;
+	//case ITEM_TYPE_IMAGE:
+	//	Item_Image_Paint(item);
+	//	break;
+	default:
+		return qfalse;
+		break;
+	}
 
   //return qfalse;
 }

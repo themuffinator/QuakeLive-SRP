@@ -41,6 +41,69 @@ static	cvar_t*		hashTable[FILE_HASH_SIZE];
 
 cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force);
 
+/*
+================
+Cvar_GetValidatedValueString
+
+Returns the retail bounded-cvar replacement string when a numeric value falls
+outside the registered minimum or maximum range.
+================
+*/
+static const char *Cvar_GetValidatedValueString( const cvar_t *var, const char *value, char *buffer, int bufferSize ) {
+	float numericValue;
+
+	if ( !var || !var->validate || !value ) {
+		return value;
+	}
+
+	numericValue = (float)atof( value );
+	if ( numericValue < var->min ) {
+		if ( var->minString && var->minString[0] ) {
+			return var->minString;
+		}
+
+		Com_sprintf( buffer, bufferSize, "%g", var->min );
+		return buffer;
+	}
+
+	if ( numericValue > var->max ) {
+		if ( var->maxString && var->maxString[0] ) {
+			return var->maxString;
+		}
+
+		Com_sprintf( buffer, bufferSize, "%g", var->max );
+		return buffer;
+	}
+
+	return value;
+}
+
+/*
+================
+Cvar_UpdateValidation
+
+Stores the retail bounded-cvar metadata on an existing cvar slot.
+================
+*/
+static void Cvar_UpdateValidation( cvar_t *var, const char *minValue, const char *maxValue ) {
+	if ( !var ) {
+		return;
+	}
+
+	if ( var->minString ) {
+		Z_Free( var->minString );
+	}
+	if ( var->maxString ) {
+		Z_Free( var->maxString );
+	}
+
+	var->minString = CopyString( minValue );
+	var->maxString = CopyString( maxValue );
+	var->min = (float)atof( minValue );
+	var->max = (float)atof( maxValue );
+	var->validate = qtrue;
+}
+
 void Cvar_BootstrapExpandedDefaults( void ) {
         static qboolean expandedDefaultsInitialised = qfalse;
         static const char *const expandedCvarBootstrap[] = {
@@ -331,11 +394,36 @@ cvar_t *Cvar_Get( const char *var_name, const char *var_value, int flags ) {
 
 /*
 ============
+Cvar_GetBounded
+
+Creates or updates a numeric cvar with retail-style minimum and maximum bounds.
+============
+*/
+cvar_t *Cvar_GetBounded( const char *var_name, const char *var_value, const char *minValue, const char *maxValue, int flags ) {
+	cvar_t	*var;
+
+	if ( !var_name || !var_value || !minValue || !maxValue ) {
+		Com_Error( ERR_FATAL, "Cvar_GetBounded: NULL parameter" );
+	}
+
+	var = Cvar_Get( var_name, var_value, flags );
+	Cvar_UpdateValidation( var, minValue, maxValue );
+
+	if ( var ) {
+		Cvar_Set2( var_name, var->string, qtrue );
+	}
+
+	return var;
+}
+
+/*
+============
 Cvar_Set2
 ============
 */
 cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force ) {
 	cvar_t	*var;
+	char	validatedValue[MAX_CVAR_VALUE_STRING];
 
 	if ( !Cvar_ValidateString( var_name ) ) {
 		Com_Printf("invalid cvar name string: %s\n", var_name );
@@ -366,6 +454,8 @@ cvar_t *Cvar_Set2( const char *var_name, const char *value, qboolean force ) {
 	if (!value ) {
 		value = var->resetString;
 	}
+
+	value = Cvar_GetValidatedValueString( var, value, validatedValue, sizeof( validatedValue ) );
 
 	if (!strcmp(value,var->string)) {
 		return var;
@@ -1026,9 +1116,15 @@ void Cvar_Restart_f( void ) {
 			if ( var->resetString ) {
 				Z_Free( var->resetString );
 			}
+			if ( var->minString ) {
+				Z_Free( var->minString );
+			}
+			if ( var->maxString ) {
+				Z_Free( var->maxString );
+			}
 			// clear the var completely, since we
 			// can't remove the index from the list
-			Com_Memset( var, 0, sizeof( var ) );
+			Com_Memset( var, 0, sizeof( *var ) );
 			continue;
 		}
 

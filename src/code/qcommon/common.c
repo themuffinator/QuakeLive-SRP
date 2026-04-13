@@ -111,6 +111,7 @@ cvar_t	*com_maxfps;
 cvar_t	*com_timedemo;
 cvar_t	*com_sv_running;
 cvar_t	*com_cl_running;
+cvar_t	*com_allowConsole;
 cvar_t	*com_logfile;		// 1 = buffer log, 2 = flush after each print
 cvar_t	*com_showtrace;
 cvar_t	*com_version;
@@ -2776,6 +2777,7 @@ void Com_Init( char *commandLine ) {
 	sv_paused = Cvar_Get ("sv_paused", "0", CVAR_ROM);
 	com_sv_running = Cvar_Get ("sv_running", "0", CVAR_ROM);
 	com_cl_running = Cvar_Get ("cl_running", "0", CVAR_ROM);
+	com_allowConsole = Cvar_Get( "com_allowConsole", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 	com_buildScript = Cvar_Get( "com_buildScript", "0", 0 );
 
 	com_introPlayed = Cvar_Get( "com_introplayed", "0", CVAR_ARCHIVE);
@@ -3651,38 +3653,54 @@ static void PrintMatches( const char *s ) {
 	}
 }
 
-static void keyConcatArgs( void ) {
-	int		i;
-	char	*arg;
+/*
+==================
+Field_AppendCompletionArgument
+==================
+*/
+static void Field_AppendCompletionArgument( field_t *field, const char *arg ) {
+	const char	*cursor;
+	qboolean	needsQuotes;
 
-	for ( i = 1 ; i < Cmd_Argc() ; i++ ) {
-		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );
-		arg = Cmd_Argv( i );
-		while (*arg) {
-			if (*arg == ' ') {
-				Q_strcat( completionField->buffer, sizeof( completionField->buffer ),  "\"");
-				break;
-			}
-			arg++;
-		}
-		Q_strcat( completionField->buffer, sizeof( completionField->buffer ),  Cmd_Argv( i ) );
-		if (*arg == ' ') {
-			Q_strcat( completionField->buffer, sizeof( completionField->buffer ),  "\"");
-		}
-	}
-}
-
-static void ConcatRemaining( const char *src, const char *start ) {
-	char *str;
-
-	str = strstr(src, start);
-	if (!str) {
-		keyConcatArgs();
+	if ( !field || !arg || !arg[0] ) {
 		return;
 	}
 
-	str += strlen(start);
-	Q_strcat( completionField->buffer, sizeof( completionField->buffer ), str);
+	needsQuotes = qfalse;
+	for ( cursor = arg ; *cursor ; cursor++ ) {
+		if ( *cursor == ' ' ) {
+			needsQuotes = qtrue;
+			break;
+		}
+	}
+
+	if ( needsQuotes ) {
+		Q_strcat( field->buffer, sizeof( field->buffer ), "\"" );
+	}
+
+	Q_strcat( field->buffer, sizeof( field->buffer ), arg );
+
+	if ( needsQuotes ) {
+		Q_strcat( field->buffer, sizeof( field->buffer ), "\"" );
+	}
+}
+
+/*
+==================
+Field_AppendCompletionArguments
+==================
+*/
+static void Field_AppendCompletionArguments( int count ) {
+	int		i;
+
+	if ( !completionField ) {
+		return;
+	}
+
+	for ( i = 0 ; i < count ; i++ ) {
+		Field_AppendCompletionArgument( completionField, Cmd_Argv( i ) );
+		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );
+	}
 }
 
 /*
@@ -3694,53 +3712,82 @@ NOTE TTimo this was originally client code only
   moved to common code when writing tty console for *nix dedicated server
 ===============
 */
-void Field_CompleteCommand( field_t *field ) {
-	field_t		temp;
+void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback ) {
+	const char	*command;
+	char		prefix[2];
+	int			argc;
+	int			appendArgs;
 
 	completionField = field;
+	prefix[0] = '\0';
+	prefix[1] = '\0';
 
-	// only look at the first token for completion purposes
 	Cmd_TokenizeString( completionField->buffer );
+	argc = Cmd_Argc();
+	if ( argc <= 0 ) {
+		return;
+	}
 
-	completionString = Cmd_Argv(0);
+	command = Cmd_Argv( 0 );
+	completionString = Cmd_Argv( argc - 1 );
 	if ( completionString[0] == '\\' || completionString[0] == '/' ) {
+		if ( completionString == command ) {
+			prefix[0] = '\\';
+		}
+
 		completionString++;
 	}
+
 	matchCount = 0;
 	shortestMatch[0] = 0;
 
-	if ( strlen( completionString ) == 0 ) {
+	if ( !completionString[0] ) {
 		return;
 	}
 
 	Cmd_CommandCompletion( FindMatches );
 	Cvar_CommandCompletion( FindMatches );
-
-	if ( matchCount == 0 ) {
-		return;	// no matches
+	if ( argc > 1 && callback ) {
+		callback( command, FindMatches );
 	}
 
-	Com_Memcpy(&temp, completionField, sizeof(field_t));
+	if ( argc < 2 && matchCount == 0 ) {
+		return;
+	}
+
+	if ( !prefix[0] && command[0] != '\\' && command[0] != '/' ) {
+		prefix[0] = '\\';
+	}
+
+	completionField->buffer[0] = '\0';
+	if ( prefix[0] ) {
+		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), prefix );
+	}
+
+	appendArgs = argc;
+	if ( matchCount > 0 ) {
+		appendArgs--;
+	}
+
+	Field_AppendCompletionArguments( appendArgs );
+	if ( matchCount > 0 ) {
+		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), shortestMatch );
+	}
+
+	completionField->cursor = strlen( completionField->buffer );
 
 	if ( matchCount == 1 ) {
-		Com_sprintf( completionField->buffer, sizeof( completionField->buffer ), "\\%s", shortestMatch );
-		if ( Cmd_Argc() == 1 ) {
-			Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );
-		} else {
-			ConcatRemaining( temp.buffer, completionString );
-		}
+		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );
 		completionField->cursor = strlen( completionField->buffer );
 		return;
 	}
 
-	// multiple matches, complete to shortest
-	Com_sprintf( completionField->buffer, sizeof( completionField->buffer ), "\\%s", shortestMatch );
-	completionField->cursor = strlen( completionField->buffer );
-	ConcatRemaining( temp.buffer, completionString );
-
-	Com_Printf( "]%s\n", completionField->buffer );
-
-	// run through again, printing matches
-	Cmd_CommandCompletion( PrintMatches );
-	Cvar_CommandCompletion( PrintMatches );
+	if ( matchCount > 0 ) {
+		Com_Printf( "]%s\n", completionField->buffer );
+		Cmd_CommandCompletion( PrintMatches );
+		Cvar_CommandCompletion( PrintMatches );
+		if ( argc > 1 && callback ) {
+			callback( command, PrintMatches );
+		}
+	}
 }

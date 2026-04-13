@@ -1151,38 +1151,274 @@ static fontInfo_t *UI_SelectTextFont(float scale, int fontIndex) {
 
 /*
 =================
+UI_FloatFromBits
+=================
+*/
+static float UI_FloatFromBits( unsigned int value ) {
+	float result;
+
+	*(unsigned int *)&result = value;
+	return result;
+}
+
+/*
+=================
+UI_UnpackFloatBits64
+=================
+*/
+static void UI_UnpackFloatBits64( unsigned long long packed, float *lo, float *hi ) {
+	if ( lo ) {
+		*lo = UI_FloatFromBits( (unsigned int)( packed & 0xffffffffULL ) );
+	}
+	if ( hi ) {
+		*hi = UI_FloatFromBits( (unsigned int)( packed >> 32 ) );
+	}
+}
+
+/*
+=================
+UI_SelectTextFontHandle
+
+Maps the retail per-item font bucket onto the renderer host-text face table.
+=================
+*/
+static int UI_SelectTextFontHandle( float scale, int fontIndex ) {
+	fontInfo_t *font;
+
+	if ( fontIndex != ITEM_FONT_INHERIT ) {
+		switch ( fontIndex ) {
+			case FONT_SANS:
+				return FONT_SANS;
+
+			case FONT_MONO:
+				return FONT_MONO;
+
+			case FONT_DEFAULT:
+			default:
+				return FONT_DEFAULT;
+		}
+	}
+
+	font = UI_SelectTextFont( scale, ITEM_FONT_INHERIT );
+	if ( font == &uiInfo.uiDC.Assets.smallFont ) {
+		return FONT_SANS;
+	}
+
+	return FONT_DEFAULT;
+}
+
+/*
+=================
+UI_GetTextLimitEnd
+
+Returns the byte position after the requested number of visible characters.
+=================
+*/
+static const char *UI_GetTextLimitEnd( const char *text, int limit ) {
+	const char *s;
+	int visibleCount;
+
+	if ( text == NULL ) {
+		return NULL;
+	}
+
+	if ( limit <= 0 ) {
+		return text + strlen( text );
+	}
+
+	visibleCount = 0;
+	for ( s = text; *s; ) {
+		if ( Q_IsColorString( s ) ) {
+			s += 2;
+			continue;
+		}
+
+		if ( visibleCount >= limit ) {
+			break;
+		}
+
+		s++;
+		visibleCount++;
+	}
+
+	return s;
+}
+
+/*
+=================
+UI_CopyTextSpan
+
+Copies a byte span so the host text import can render a limited substring.
+=================
+*/
+static void UI_CopyTextSpan( const char *text, const char *end, char *buffer, int bufferSize ) {
+	int copyLength;
+
+	if ( buffer == NULL || bufferSize <= 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+	if ( text == NULL ) {
+		return;
+	}
+
+	if ( end == NULL || end < text ) {
+		end = text + strlen( text );
+	}
+
+	copyLength = (int)( end - text );
+	if ( copyLength >= bufferSize ) {
+		copyLength = bufferSize - 1;
+	}
+
+	if ( copyLength > 0 ) {
+		memcpy( buffer, text, copyLength );
+	}
+	buffer[copyLength] = '\0';
+}
+
+/*
+=================
+UI_GetCursorTextEnd
+
+Finds the byte position and active color at the requested visible cursor slot.
+=================
+*/
+static const char *UI_GetCursorTextEnd( const char *text, const char *limitEnd, int cursorPos, const vec4_t baseColor, vec4_t cursorColor ) {
+	const char *s;
+	int visibleCount;
+
+	if ( cursorColor ) {
+		memcpy( cursorColor, baseColor, sizeof( vec4_t ) );
+	}
+
+	if ( text == NULL ) {
+		return NULL;
+	}
+
+	if ( limitEnd == NULL ) {
+		limitEnd = text + strlen( text );
+	}
+
+	visibleCount = 0;
+	for ( s = text; s < limitEnd && *s; ) {
+		if ( visibleCount >= cursorPos ) {
+			break;
+		}
+
+		if ( Q_IsColorString( s ) ) {
+			if ( cursorColor ) {
+				memcpy( cursorColor, g_color_table[ColorIndex( *( s + 1 ) )], sizeof( vec4_t ) );
+				cursorColor[3] = baseColor[3];
+			}
+			s += 2;
+			continue;
+		}
+
+		s++;
+		visibleCount++;
+	}
+
+	return s;
+}
+
+/*
+=================
+UI_GetHostTextMetrics
+
+Measures retail host text in screen space and converts the bounds back into
+virtual 640x480 coordinates for UI layout.
+=================
+*/
+static void UI_GetHostTextMetrics( const char *text, float scale, int limit, int fontIndex, int *outWidth, int *outHeight ) {
+	const char *limitEnd;
+	unsigned long long packed;
+	float width;
+	float height;
+
+	if ( outWidth ) {
+		*outWidth = 0;
+	}
+	if ( outHeight ) {
+		*outHeight = 0;
+	}
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	UI_RefreshDisplayContextScale();
+	limitEnd = UI_GetTextLimitEnd( text, limit );
+	packed = trap_QL_MeasureText(
+		text,
+		limitEnd,
+		UI_SelectTextFontHandle( scale, fontIndex ),
+		scale * QL_FONT_HOST_POINT_SIZE * uiInfo.uiDC.yscale,
+		0,
+		NULL );
+	UI_UnpackFloatBits64( packed, &width, &height );
+
+	if ( outWidth && uiInfo.uiDC.xscale > 0.0f ) {
+		*outWidth = (int)( width / uiInfo.uiDC.xscale );
+	}
+	if ( outHeight && uiInfo.uiDC.yscale > 0.0f ) {
+		*outHeight = (int)( height / uiInfo.uiDC.yscale );
+	}
+}
+
+/*
+=================
+UI_DrawHostTextSpan
+
+Projects UI virtual coordinates into screen space and routes through the
+renderer-owned retail host text painter.
+=================
+*/
+static void UI_DrawHostTextSpan( float x, float y, float scale, const vec4_t color, const char *text, int fontIndex, int style, qboolean forceColor ) {
+	float screenX;
+	float screenY;
+	float hostScale;
+	int fontHandle;
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	UI_RefreshDisplayContextScale();
+
+	screenX = x;
+	screenY = y;
+	UI_AdjustFrom640( &screenX, &screenY, NULL, NULL );
+
+	hostScale = scale * QL_FONT_HOST_POINT_SIZE * uiInfo.uiDC.yscale;
+	fontHandle = UI_SelectTextFontHandle( scale, fontIndex );
+
+	if ( style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE ) {
+		int ofs;
+
+		ofs = ( style == ITEM_TEXTSTYLE_SHADOWED ) ? 1 : 2;
+		colorBlack[3] = color[3];
+		trap_R_SetColor( colorBlack );
+		trap_QL_DrawScaledText( (int)screenX + ofs, (int)screenY + ofs, text, fontHandle, hostScale, 0, NULL, qtrue );
+		colorBlack[3] = 1.0f;
+	}
+
+	trap_R_SetColor( color );
+	trap_QL_DrawScaledText( (int)screenX, (int)screenY, text, fontHandle, hostScale, 0, NULL, forceColor );
+	trap_R_SetColor( NULL );
+}
+
+/*
+=================
 Text_WidthExt
 =================
 */
 static int Text_WidthExt(const char *text, float scale, int limit, int fontIndex) {
-	int count, len;
-	float out;
-	glyphInfo_t *glyph;
-	float useScale;
-	const char *s = text;
-	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+	int width;
 
-	useScale = scale * font->glyphScale;
-	out = 0;
-	if (text) {
-		len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			if (Q_IsColorString(s)) {
-				s += 2;
-				continue;
-			}
-
-			glyph = &font->glyphs[(int)*s];
-			out += glyph->xSkip;
-			s++;
-			count++;
-		}
-	}
-	return out * useScale;
+	UI_GetHostTextMetrics( text, scale, limit, fontIndex, &width, NULL );
+	return width;
 }
 
 /*
@@ -1200,36 +1436,10 @@ Text_HeightExt
 =================
 */
 static int Text_HeightExt(const char *text, float scale, int limit, int fontIndex) {
-	int len, count;
-	float max;
-	glyphInfo_t *glyph;
-	float useScale;
-	const char *s = text; // bk001206 - unsigned
-	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+	int height;
 
-	useScale = scale * font->glyphScale;
-	max = 0;
-	if (text) {
-		len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			if (Q_IsColorString(s)) {
-				s += 2;
-				continue;
-			}
-
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-			if (max < glyph->height) {
-				max = glyph->height;
-			}
-			s++;
-			count++;
-		}
-	}
-	return max * useScale;
+	UI_GetHostTextMetrics( text, scale, limit, fontIndex, NULL, &height );
+	return height;
 }
 
 /*
@@ -1255,67 +1465,25 @@ Text_PaintExt
 =================
 */
 static void Text_PaintExt(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style, int fontIndex) {
-	int len, count;
-	vec4_t newColor;
-	glyphInfo_t *glyph;
-	float useScale;
-	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+	char limitedText[1024];
+	const char *drawText;
+	const char *limitEnd;
 
-	useScale = scale * font->glyphScale;
-	if (text) {
-		const char *s = text; // bk001206 - unsigned
-		trap_R_SetColor(color);
-		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-		len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-			if (Q_IsColorString(s)) {
-				memcpy(newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
-				newColor[3] = color[3];
-				trap_R_SetColor(newColor);
-				s += 2;
-				continue;
-			}
+	(void)adjust;
 
-			{
-				float yadj = useScale * glyph->top;
-				if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
-					int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
-					colorBlack[3] = newColor[3];
-					trap_R_SetColor(colorBlack);
-					Text_PaintChar(x + ofs, y - yadj + ofs,
-						glyph->imageWidth,
-						glyph->imageHeight,
-						useScale,
-						glyph->s,
-						glyph->t,
-						glyph->s2,
-						glyph->t2,
-						glyph->glyph);
-					trap_R_SetColor(newColor);
-					colorBlack[3] = 1.0;
-				}
-				Text_PaintChar(x, y - yadj,
-					glyph->imageWidth,
-					glyph->imageHeight,
-					useScale,
-					glyph->s,
-					glyph->t,
-					glyph->s2,
-					glyph->t2,
-					glyph->glyph);
-			}
-
-			x += (glyph->xSkip * useScale) + adjust;
-			s++;
-			count++;
-		}
-		trap_R_SetColor(NULL);
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
 	}
+
+	limitEnd = UI_GetTextLimitEnd( text, limit );
+	if ( *limitEnd == '\0' ) {
+		drawText = text;
+	} else {
+		UI_CopyTextSpan( text, limitEnd, limitedText, sizeof( limitedText ) );
+		drawText = limitedText;
+	}
+
+	UI_DrawHostTextSpan( x, y, scale, color, drawText, fontIndex, style, qfalse );
 }
 
 /*
@@ -1333,93 +1501,68 @@ Text_PaintWithCursorExt
 =================
 */
 static void Text_PaintWithCursorExt(float x, float y, float scale, vec4_t color, const char *text, int cursorPos, char cursor, int limit, int style, int fontIndex) {
-	int len, count;
-	vec4_t newColor;
-	glyphInfo_t *glyph, *glyph2;
-	float yadj;
-	float useScale;
-	fontInfo_t *font = UI_SelectTextFont(scale, fontIndex);
+	char limitedText[1024];
+	char cursorString[2];
+	const char *drawText;
+	const char *limitEnd;
+	const char *cursorEnd;
+	vec4_t cursorColor;
+	float screenX;
+	float screenY;
+	float hostScale;
+	float prefixWidth;
+	float unusedHeight;
+	int fontHandle;
 
-	useScale = scale * font->glyphScale;
-	if (text) {
-		const char *s = text; // bk001206 - unsigned
-		trap_R_SetColor(color);
-		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-		len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		glyph2 = &font->glyphs[(int)cursor]; // bk001206 - possible signed char
-		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-			if (Q_IsColorString(s)) {
-				memcpy(newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
-				newColor[3] = color[3];
-				trap_R_SetColor(newColor);
-				s += 2;
-				continue;
-			}
-
-			yadj = useScale * glyph->top;
-			if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
-				int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
-				colorBlack[3] = newColor[3];
-				trap_R_SetColor(colorBlack);
-				Text_PaintChar(x + ofs, y - yadj + ofs,
-					glyph->imageWidth,
-					glyph->imageHeight,
-					useScale,
-					glyph->s,
-					glyph->t,
-					glyph->s2,
-					glyph->t2,
-					glyph->glyph);
-				colorBlack[3] = 1.0;
-				trap_R_SetColor(newColor);
-			}
-			Text_PaintChar(x, y - yadj,
-				glyph->imageWidth,
-				glyph->imageHeight,
-				useScale,
-				glyph->s,
-				glyph->t,
-				glyph->s2,
-				glyph->t2,
-				glyph->glyph);
-
-			yadj = useScale * glyph2->top;
-			if (count == cursorPos && !((uiInfo.uiDC.realTime / BLINK_DIVISOR) & 1)) {
-				Text_PaintChar(x, y - yadj,
-					glyph2->imageWidth,
-					glyph2->imageHeight,
-					useScale,
-					glyph2->s,
-					glyph2->t,
-					glyph2->s2,
-					glyph2->t2,
-					glyph2->glyph);
-			}
-
-			x += (glyph->xSkip * useScale);
-			s++;
-			count++;
-		}
-		if (cursorPos == len && !((uiInfo.uiDC.realTime / BLINK_DIVISOR) & 1)) {
-			yadj = useScale * glyph2->top;
-			Text_PaintChar(x, y - yadj,
-				glyph2->imageWidth,
-				glyph2->imageHeight,
-				useScale,
-				glyph2->s,
-				glyph2->t,
-				glyph2->s2,
-				glyph2->t2,
-				glyph2->glyph);
-		}
-
-		trap_R_SetColor(NULL);
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
 	}
+
+	limitEnd = UI_GetTextLimitEnd( text, limit );
+	if ( *limitEnd == '\0' ) {
+		drawText = text;
+	} else {
+		UI_CopyTextSpan( text, limitEnd, limitedText, sizeof( limitedText ) );
+		drawText = limitedText;
+	}
+
+	UI_DrawHostTextSpan( x, y, scale, color, drawText, fontIndex, style, qfalse );
+
+	if ( ( ( uiInfo.uiDC.realTime / BLINK_DIVISOR ) & 1 ) != 0 ) {
+		return;
+	}
+
+	cursorEnd = UI_GetCursorTextEnd( text, limitEnd, cursorPos, color, cursorColor );
+	if ( cursorEnd == NULL || cursorEnd > limitEnd ) {
+		return;
+	}
+
+	UI_RefreshDisplayContextScale();
+
+	screenX = x;
+	screenY = y;
+	UI_AdjustFrom640( &screenX, &screenY, NULL, NULL );
+
+	hostScale = scale * QL_FONT_HOST_POINT_SIZE * uiInfo.uiDC.yscale;
+	fontHandle = UI_SelectTextFontHandle( scale, fontIndex );
+	UI_UnpackFloatBits64( trap_QL_MeasureText( text, cursorEnd, fontHandle, hostScale, 0, NULL ), &prefixWidth, &unusedHeight );
+
+	cursorString[0] = cursor;
+	cursorString[1] = '\0';
+
+	if ( style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE ) {
+		int ofs;
+
+		ofs = ( style == ITEM_TEXTSTYLE_SHADOWED ) ? 1 : 2;
+		colorBlack[3] = cursorColor[3];
+		trap_R_SetColor( colorBlack );
+		trap_QL_DrawScaledText( (int)( screenX + prefixWidth ) + ofs, (int)screenY + ofs, cursorString, fontHandle, hostScale, 0, NULL, qtrue );
+		colorBlack[3] = 1.0f;
+	}
+
+	trap_R_SetColor( cursorColor );
+	trap_QL_DrawScaledText( (int)( screenX + prefixWidth ), (int)screenY, cursorString, fontHandle, hostScale, 0, NULL, qtrue );
+	trap_R_SetColor( NULL );
 }
 
 /*
@@ -1433,59 +1576,60 @@ void Text_PaintWithCursor(float x, float y, float scale, vec4_t color, const cha
 
 
 static void Text_Paint_Limit(float *maxX, float x, float y, float scale, vec4_t color, const char* text, float adjust, int limit) {
-  int len, count;
-	vec4_t newColor;
-	glyphInfo_t *glyph;
-  if (text) {
-    const char *s = text; // bk001206 - unsigned
-		float max = *maxX;
-		float useScale;
-		fontInfo_t *font = &uiInfo.uiDC.Assets.textFont;
-		if (scale <= ui_smallFont.value) {
-			font = &uiInfo.uiDC.Assets.smallFont;
-		} else if (scale > ui_bigFont.value) {
-			font = &uiInfo.uiDC.Assets.bigFont;
-		}
-		useScale = scale * font->glyphScale;
-		trap_R_SetColor( color );
-    len = strlen(text);					 
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-			if ( Q_IsColorString( s ) ) {
-				memcpy( newColor, g_color_table[ColorIndex(*(s+1))], sizeof( newColor ) );
-				newColor[3] = color[3];
-				trap_R_SetColor( newColor );
-				s += 2;
-				continue;
-			} else {
-	      float yadj = useScale * glyph->top;
-				if (Text_Width(s, useScale, 1) + x > max) {
-					*maxX = 0;
-					break;
-				}
-		    Text_PaintChar(x, y - yadj, 
-			                 glyph->imageWidth,
-				               glyph->imageHeight,
-				               useScale, 
-						           glyph->s,
-								       glyph->t,
-								       glyph->s2,
-									     glyph->t2,
-										   glyph->glyph);
-	      x += (glyph->xSkip * useScale) + adjust;
-				*maxX = x;
-				count++;
-				s++;
-	    }
-		}
-	  trap_R_SetColor( NULL );
-  }
+	char limitedText[1024];
+	const char *drawText;
+	const char *limitEnd;
+	float screenX;
+	float screenY;
+	float screenMaxX;
+	float outMaxX;
+	int fontHandle;
 
-		}
+	(void)adjust;
+
+	if ( maxX == NULL ) {
+		return;
+	}
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	limitEnd = UI_GetTextLimitEnd( text, limit );
+	if ( *limitEnd == '\0' ) {
+		drawText = text;
+	} else {
+		UI_CopyTextSpan( text, limitEnd, limitedText, sizeof( limitedText ) );
+		drawText = limitedText;
+	}
+
+	UI_RefreshDisplayContextScale();
+
+	screenX = x;
+	screenY = y;
+	screenMaxX = *maxX;
+	UI_AdjustFrom640( &screenX, &screenY, NULL, NULL );
+	UI_AdjustFrom640( &screenMaxX, NULL, NULL, NULL );
+
+	fontHandle = UI_SelectTextFontHandle( scale, ITEM_FONT_INHERIT );
+	trap_R_SetColor( color );
+	trap_QL_DrawScaledText(
+		(int)screenX,
+		(int)screenY,
+		drawText,
+		fontHandle,
+		scale * QL_FONT_HOST_POINT_SIZE * uiInfo.uiDC.yscale,
+		(int)screenMaxX,
+		&outMaxX,
+		qfalse );
+	trap_R_SetColor( NULL );
+
+	if ( outMaxX > 0.0f && uiInfo.uiDC.xscale > 0.0f ) {
+		*maxX = ( outMaxX - uiInfo.uiDC.bias ) / uiInfo.uiDC.xscale;
+	} else {
+		*maxX = 0.0f;
+	}
+}
 
 
 /*

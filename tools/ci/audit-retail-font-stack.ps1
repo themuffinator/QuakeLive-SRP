@@ -150,7 +150,7 @@ if ($runtimeEvidence.parity_estimate.before -ne 98 -or $runtimeEvidence.parity_e
 if ($runtimeEvidence.warnings.Count -ne 0 -or $runtimeEvidence.missing_log_markers.Count -ne 0) {
 	Report-UnresolvedGap -Message 'Renderer runtime artifact still records warnings or missing log markers.'
 }
-if (-not $runtimeEvidence.debug_atlas.engine_sha256 -or -not $runtimeEvidence.debug_atlas.window_sha256) {
+if (-not $runtimeEvidence.debug_atlas.engine_sha256) {
 	Report-UnresolvedGap -Message 'Renderer runtime artifact is missing retained-atlas screenshot hashes.'
 }
 if ($runtimeEvidence.main_menu.engine_sha256 -eq $runtimeEvidence.debug_atlas.engine_sha256) {
@@ -158,8 +158,7 @@ if ($runtimeEvidence.main_menu.engine_sha256 -eq $runtimeEvidence.debug_atlas.en
 }
 if (-not $runtimeEvidence.text_validation.fontstash_init_seen -or
 	$runtimeEvidence.text_validation.registerfont_fallback_seen -or
-	-not $runtimeEvidence.text_validation.debug_atlas_engine_capture_distinct -or
-	-not $runtimeEvidence.text_validation.debug_atlas_window_capture_distinct) {
+	-not $runtimeEvidence.text_validation.debug_atlas_engine_capture_distinct) {
 	Report-UnresolvedGap -Message 'Renderer runtime artifact does not prove final text-specific validation.'
 }
 

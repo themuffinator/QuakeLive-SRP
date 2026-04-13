@@ -445,6 +445,9 @@ cvar_t *Cvar_Get( const char *var_name, const char *value, int flags );
 // that allows variables to be unarchived without needing bitflags
 // if value is "", the value will not override a previously set value.
 
+cvar_t *Cvar_GetBounded( const char *var_name, const char *value, const char *minValue, const char *maxValue, int flags );
+// creates or updates a numeric cvar with retail-style minimum/maximum bounds
+
 void	Cvar_Register( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, int flags );
 // basically a slightly modified Cvar_Get for the interpreted modules
 
@@ -686,7 +689,8 @@ typedef struct {
 } field_t;
 
 void Field_Clear( field_t *edit );
-void Field_CompleteCommand( field_t *edit );
+typedef void (*fieldCompletionCallback_t)( const char *command, void(*callback)( const char *s ) );
+void Field_CompleteCommand( field_t *edit, fieldCompletionCallback_t callback );
 
 /*
 ==============================================================
@@ -761,6 +765,7 @@ extern	cvar_t	*com_speeds;
 extern	cvar_t	*com_timescale;
 extern	cvar_t	*com_sv_running;
 extern	cvar_t	*com_cl_running;
+extern	cvar_t	*com_allowConsole;
 extern	cvar_t	*com_viewlog;			// 0 = hidden, 1 = visible, 2 = minimized
 extern	cvar_t	*com_version;
 extern	cvar_t	*com_blood;

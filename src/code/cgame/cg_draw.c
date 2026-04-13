@@ -269,81 +269,220 @@ static qboolean CG_IsMenuHudActive( void ) {
 	return cg.competitiveHudLoaded;
 }
 
+/*
+=============
+CG_FloatFromBits
+=============
+*/
+static float CG_FloatFromBits( unsigned int value ) {
+	float result;
+
+	*(unsigned int *)&result = value;
+	return result;
+}
+
+/*
+=============
+CG_UnpackFloatBits64
+=============
+*/
+static void CG_UnpackFloatBits64( unsigned long long packed, float *lo, float *hi ) {
+	if ( lo ) {
+		*lo = CG_FloatFromBits( (unsigned int)( packed & 0xffffffffULL ) );
+	}
+	if ( hi ) {
+		*hi = CG_FloatFromBits( (unsigned int)( packed >> 32 ) );
+	}
+}
+
+/*
+=============
+CG_SelectTextFontHandle
+
+Matches the retail cgame text lane by mapping the legacy small-font threshold
+onto the retained renderer host-text faces.
+=============
+*/
+static int CG_SelectTextFontHandle( float scale ) {
+	if ( scale <= cg_smallFont.value ) {
+		return FONT_SANS;
+	}
+
+	return FONT_DEFAULT;
+}
+
+/*
+=============
+CG_GetTextLimitEnd
+
+Returns the byte position after the requested number of visible characters.
+=============
+*/
+static const char *CG_GetTextLimitEnd( const char *text, int limit ) {
+	const char *s;
+	int visibleCount;
+
+	if ( text == NULL ) {
+		return NULL;
+	}
+
+	if ( limit <= 0 ) {
+		return text + strlen( text );
+	}
+
+	visibleCount = 0;
+	for ( s = text; *s; ) {
+		if ( Q_IsColorString( s ) ) {
+			s += 2;
+			continue;
+		}
+
+		if ( visibleCount >= limit ) {
+			break;
+		}
+
+		s++;
+		visibleCount++;
+	}
+
+	return s;
+}
+
+/*
+=============
+CG_CopyTextSpan
+
+Copies a byte span so host text rendering can honor retail visible-character
+limits.
+=============
+*/
+static void CG_CopyTextSpan( const char *text, const char *end, char *buffer, int bufferSize ) {
+	int copyLength;
+
+	if ( buffer == NULL || bufferSize <= 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+	if ( text == NULL ) {
+		return;
+	}
+
+	if ( end == NULL || end < text ) {
+		end = text + strlen( text );
+	}
+
+	copyLength = (int)( end - text );
+	if ( copyLength >= bufferSize ) {
+		copyLength = bufferSize - 1;
+	}
+
+	if ( copyLength > 0 ) {
+		memcpy( buffer, text, copyLength );
+	}
+	buffer[copyLength] = '\0';
+}
+
+/*
+=============
+CG_GetHostTextMetrics
+
+Measures retail host text in screen space, then converts the result back into
+virtual 640-space bounds for caller-side layout.
+=============
+*/
+static void CG_GetHostTextMetrics( const char *text, float scale, int limit, int *outWidth, int *outHeight ) {
+	const char *limitEnd;
+	unsigned long long packed;
+	float width;
+	float height;
+	float xScale;
+	float yScale;
+
+	if ( outWidth ) {
+		*outWidth = 0;
+	}
+	if ( outHeight ) {
+		*outHeight = 0;
+	}
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	xScale = 1.0f;
+	yScale = 1.0f;
+	CG_AdjustFrom640( NULL, NULL, &xScale, &yScale );
+	limitEnd = CG_GetTextLimitEnd( text, limit );
+	packed = trap_QL_MeasureText(
+		text,
+		limitEnd,
+		CG_SelectTextFontHandle( scale ),
+		scale * QL_FONT_HOST_POINT_SIZE * yScale,
+		0,
+		NULL );
+	CG_UnpackFloatBits64( packed, &width, &height );
+
+	if ( outWidth && xScale > 0.0f ) {
+		*outWidth = (int)( width / xScale );
+	}
+	if ( outHeight && yScale > 0.0f ) {
+		*outHeight = (int)( height / yScale );
+	}
+}
+
+/*
+=============
+CG_DrawHostTextSpan
+
+Projects 640-space HUD coordinates into screen space and routes through the
+renderer-owned host text painter that retail cgame uses.
+=============
+*/
+static void CG_DrawHostTextSpan( float x, float y, float scale, const vec4_t color, const char *text, int style, qboolean forceColor ) {
+	float screenX;
+	float screenY;
+	float yScale;
+	int fontHandle;
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
+	}
+
+	screenX = x;
+	screenY = y;
+	yScale = 1.0f;
+	CG_AdjustFrom640( &screenX, &screenY, NULL, &yScale );
+	fontHandle = CG_SelectTextFontHandle( scale );
+
+	if ( style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE ) {
+		int ofs;
+
+		ofs = ( style == ITEM_TEXTSTYLE_SHADOWED ) ? 1 : 2;
+		colorBlack[3] = color[3];
+		trap_R_SetColor( colorBlack );
+		trap_QL_DrawScaledText( (int)screenX + ofs, (int)screenY + ofs, text, fontHandle, scale * QL_FONT_HOST_POINT_SIZE * yScale, 0, NULL, qtrue );
+		colorBlack[3] = 1.0f;
+	}
+
+	trap_R_SetColor( color );
+	trap_QL_DrawScaledText( (int)screenX, (int)screenY, text, fontHandle, scale * QL_FONT_HOST_POINT_SIZE * yScale, 0, NULL, forceColor );
+	trap_R_SetColor( NULL );
+}
+
 
 int CG_Text_Width(const char *text, float scale, int limit) {
-  int count,len;
-	float out;
-	glyphInfo_t *glyph;
-	float useScale;
-// FIXME: see ui_main.c, same problem
-//	const unsigned char *s = text;
-	const char *s = text;
-	fontInfo_t *font = &cgDC.Assets.textFont;
-	if (scale <= cg_smallFont.value) {
-		font = &cgDC.Assets.smallFont;
-	} else if (scale > cg_bigFont.value) {
-		font = &cgDC.Assets.bigFont;
-	}
-	useScale = scale * font->glyphScale;
-  out = 0;
-  if (text) {
-    len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			if ( Q_IsColorString(s) ) {
-				s += 2;
-				continue;
-			} else {
-				glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-				out += glyph->xSkip;
-				s++;
-				count++;
-			}
-    }
-  }
-  return out * useScale;
+	int width;
+
+	CG_GetHostTextMetrics( text, scale, limit, &width, NULL );
+	return width;
 }
 
 int CG_Text_Height(const char *text, float scale, int limit) {
-  int len, count;
-	float max;
-	glyphInfo_t *glyph;
-	float useScale;
-// TTimo: FIXME
-//	const unsigned char *s = text;
-	const char *s = text;
-	fontInfo_t *font = &cgDC.Assets.textFont;
-	if (scale <= cg_smallFont.value) {
-		font = &cgDC.Assets.smallFont;
-	} else if (scale > cg_bigFont.value) {
-		font = &cgDC.Assets.bigFont;
-	}
-	useScale = scale * font->glyphScale;
-  max = 0;
-  if (text) {
-    len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			if ( Q_IsColorString(s) ) {
-				s += 2;
-				continue;
-			} else {
-				glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-	      if (max < glyph->height) {
-		      max = glyph->height;
-			  }
-				s++;
-				count++;
-			}
-    }
-  }
-  return max * useScale;
+	int height;
+
+	CG_GetHostTextMetrics( text, scale, limit, NULL, &height );
+	return height;
 }
 
 /*
@@ -356,12 +495,7 @@ Measures the rendered text bounds through the shared width and height helpers.
 static void CG_Text_GetExtents( const char *text, float scale, int limit, int style, int *outWidth, int *outHeight ) {
 	(void)style;
 
-	if ( outWidth ) {
-		*outWidth = CG_Text_Width( text, scale, limit );
-	}
-	if ( outHeight ) {
-		*outHeight = CG_Text_Height( text, scale, limit );
-	}
+	CG_GetHostTextMetrics( text, scale, limit, outWidth, outHeight );
 }
 
 void CG_Text_PaintChar(float x, float y, float width, float height, float scale, float s, float t, float s2, float t2, qhandle_t hShader) {
@@ -373,73 +507,25 @@ void CG_Text_PaintChar(float x, float y, float width, float height, float scale,
 }
 
 void CG_Text_Paint(float x, float y, float scale, vec4_t color, const char *text, float adjust, int limit, int style) {
-  int len, count;
-	vec4_t newColor;
-	glyphInfo_t *glyph;
-	float useScale;
-	fontInfo_t *font = &cgDC.Assets.textFont;
-	if (scale <= cg_smallFont.value) {
-		font = &cgDC.Assets.smallFont;
-	} else if (scale > cg_bigFont.value) {
-		font = &cgDC.Assets.bigFont;
+	char limitedText[1024];
+	const char *drawText;
+	const char *limitEnd;
+
+	(void)adjust;
+
+	if ( text == NULL || text[0] == '\0' ) {
+		return;
 	}
-	useScale = scale * font->glyphScale;
-  if (text) {
-// TTimo: FIXME
-//		const unsigned char *s = text;
-		const char *s = text;
-		trap_R_SetColor( color );
-		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-    len = strlen(text);
-		if (limit > 0 && len > limit) {
-			len = limit;
-		}
-		count = 0;
-		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s]; // TTimo: FIXME: getting nasty warnings without the cast, hopefully this doesn't break the VM build
-      //int yadj = Assets.textFont.glyphs[text[i]].bottom + Assets.textFont.glyphs[text[i]].top;
-      //float yadj = scale * (Assets.textFont.glyphs[text[i]].imageHeight - Assets.textFont.glyphs[text[i]].height);
-			if ( Q_IsColorString( s ) ) {
-				memcpy( newColor, g_color_table[ColorIndex(*(s+1))], sizeof( newColor ) );
-				newColor[3] = color[3];
-				trap_R_SetColor( newColor );
-				s += 2;
-				continue;
-			} else {
-				float yadj = useScale * glyph->top;
-				if (style == ITEM_TEXTSTYLE_SHADOWED || style == ITEM_TEXTSTYLE_SHADOWEDMORE) {
-					int ofs = style == ITEM_TEXTSTYLE_SHADOWED ? 1 : 2;
-					colorBlack[3] = newColor[3];
-					trap_R_SetColor( colorBlack );
-					CG_Text_PaintChar(x + ofs, y - yadj + ofs, 
-														glyph->imageWidth,
-														glyph->imageHeight,
-														useScale, 
-														glyph->s,
-														glyph->t,
-														glyph->s2,
-														glyph->t2,
-														glyph->glyph);
-					colorBlack[3] = 1.0;
-					trap_R_SetColor( newColor );
-				}
-				CG_Text_PaintChar(x, y - yadj, 
-													glyph->imageWidth,
-													glyph->imageHeight,
-													useScale, 
-													glyph->s,
-													glyph->t,
-													glyph->s2,
-													glyph->t2,
-													glyph->glyph);
-				// CG_DrawPic(x, y - yadj, scale * cgDC.Assets.textFont.glyphs[text[i]].imageWidth, scale * cgDC.Assets.textFont.glyphs[text[i]].imageHeight, cgDC.Assets.textFont.glyphs[text[i]].glyph);
-				x += (glyph->xSkip * useScale) + adjust;
-				s++;
-				count++;
-			}
-    }
-	  trap_R_SetColor( NULL );
-  }
+
+	limitEnd = CG_GetTextLimitEnd( text, limit );
+	if ( *limitEnd == '\0' ) {
+		drawText = text;
+	} else {
+		CG_CopyTextSpan( text, limitEnd, limitedText, sizeof( limitedText ) );
+		drawText = limitedText;
+	}
+
+	CG_DrawHostTextSpan( x, y, scale, color, drawText, style, qfalse );
 }
 
 /*

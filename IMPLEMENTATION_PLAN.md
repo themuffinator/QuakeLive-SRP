@@ -1324,7 +1324,7 @@ When code changes can affect startup or runtime stability:
 1. Build `Debug|x86`.
 2. Run a normal launch pass with logging enabled.
 3. Confirm active startup markers in `build\\win32\\Debug\\bin\\baseq3\\qconsole.log`.
-4. Capture both a process-bound screenshot and an engine screenshot when possible.
+4. Capture an engine screenshot with `screenshot` or `screenshotJPEG`; do not use OS-level print-screen or window-capture workflows.
 5. Run a forced-crash probe to confirm dump generation still works.
 
 ## Working priority order

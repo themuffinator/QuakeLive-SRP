@@ -2,7 +2,13 @@
 param(
 	[string]$Solution,
 	[string]$Configuration = 'Debug',
-	[string]$Platform = 'x86'
+	[string]$Platform = 'x86',
+	[ValidateSet('0', '1')]
+	[string]$OnlineServices = '',
+	[ValidateSet('0', '1')]
+	[string]$Steamworks = '',
+	[ValidateSet('0', '1')]
+	[string]$OpenSteam = ''
 )
 
 $scriptRoot = $PSScriptRoot
@@ -259,6 +265,15 @@ if ($toolset) {
 if ($windowsTargetPlatformVersion) {
 	$msbuildArgs += "/p:WindowsTargetPlatformVersion=$windowsTargetPlatformVersion"
 }
+if ($OnlineServices -ne '') {
+	$msbuildArgs += "/p:QLBuildOnlineServices=$OnlineServices"
+}
+if ($Steamworks -ne '') {
+	$msbuildArgs += "/p:QLBuildSteamworks=$Steamworks"
+}
+if ($OpenSteam -ne '') {
+	$msbuildArgs += "/p:QLBuildOpenSteam=$OpenSteam"
+}
 if ($enableOgg -ne $null) {
 	$msbuildArgs += "/p:QLEnableOgg=$enableOgg"
 }
@@ -290,6 +305,15 @@ if ($toolset) {
 }
 if ($windowsTargetPlatformVersion) {
 	Write-Host "Using Windows SDK: $windowsTargetPlatformVersion"
+}
+if ($OnlineServices -ne '') {
+	Write-Host "QLBuildOnlineServices: $OnlineServices"
+}
+if ($Steamworks -ne '') {
+	Write-Host "QLBuildSteamworks: $Steamworks"
+}
+if ($OpenSteam -ne '') {
+	Write-Host "QLBuildOpenSteam: $OpenSteam"
 }
 Write-Host "QLEnableOgg: $enableOgg (available: $oggAvailable)"
 Write-Host "QLEnablePng: $enablePng (available: $pngAvailable)"

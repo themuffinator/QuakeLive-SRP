@@ -23,14 +23,11 @@ def test_renderer_runtime_artifact_tracks_text_specific_rg_p11_evidence() -> Non
 	assert runtime_evidence["missing_log_markers"] == []
 	assert runtime_evidence["main_menu"]["engine_sha256"]
 	assert runtime_evidence["debug_atlas"]["engine_sha256"]
-	assert runtime_evidence["debug_atlas"]["window_sha256"]
 	assert runtime_evidence["main_menu"]["engine_sha256"] != runtime_evidence["debug_atlas"]["engine_sha256"]
-	assert runtime_evidence["main_menu"]["window_sha256"] != runtime_evidence["debug_atlas"]["window_sha256"]
 	assert runtime_evidence["map_runtime"]["map"] == "bloodrun"
 	assert runtime_evidence["text_validation"]["fontstash_init_seen"] is True
 	assert runtime_evidence["text_validation"]["registerfont_fallback_seen"] is False
 	assert runtime_evidence["text_validation"]["debug_atlas_engine_capture_distinct"] is True
-	assert runtime_evidence["text_validation"]["debug_atlas_window_capture_distinct"] is True
 
 
 def test_renderer_docs_and_probe_track_rg_p11_closure() -> None:

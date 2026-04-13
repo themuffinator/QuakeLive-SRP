@@ -89,31 +89,41 @@ CG_DrawLoadingBackground
 ===================
 */
 static void CG_DrawLoadingBackground( qhandle_t shader ) {
-	float	x;
-	float	y;
-	float	w;
-	float	h;
 	float	u1;
+	float	v1;
 	float	u2;
+	float	v2;
+	float	targetAspect;
+	const float sourceAspect = 16.0f / 9.0f;
 
 	if ( !shader ) {
 		return;
 	}
 
-	x = 0.0f;
-	y = 0.0f;
-	w = cgs.glconfig.vidWidth;
-	h = cgs.glconfig.vidHeight;
 	u1 = 0.0f;
+	v1 = 0.0f;
 	u2 = 1.0f;
+	v2 = 1.0f;
 
-	if ( cgs.glconfig.vidHeight > 0 ) {
-		u1 = 0.5f * ( ( 1920.0f - ( 1080.0f / cgs.glconfig.vidHeight ) * cgs.glconfig.vidWidth ) / 1920.0f );
-		u2 = 1.0f - u1;
+	if ( cgs.glconfig.vidWidth > 0 && cgs.glconfig.vidHeight > 0 ) {
+		targetAspect = (float)cgs.glconfig.vidWidth / (float)cgs.glconfig.vidHeight;
+		if ( targetAspect > sourceAspect ) {
+			float visibleHeight;
+
+			visibleHeight = sourceAspect / targetAspect;
+			v1 = 0.5f * ( 1.0f - visibleHeight );
+			v2 = 1.0f - v1;
+		} else if ( targetAspect < sourceAspect ) {
+			float visibleWidth;
+
+			visibleWidth = targetAspect / sourceAspect;
+			u1 = 0.5f * ( 1.0f - visibleWidth );
+			u2 = 1.0f - u1;
+		}
 	}
 
 	trap_R_SetColor( NULL );
-	trap_R_DrawStretchPic( x, y, w, h, u1, 0, u2, 1, shader );
+	CG_DrawPicST( 0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT, u1, v1, u2, v2, shader );
 }
 
 
@@ -314,14 +324,16 @@ void CG_DrawInformation( void ) {
 	}
 
 	if ( !cg.infoScreenText[0] && cg.snap && ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
-		CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
+		CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 		CG_DrawLoadingBackground( cgs.media.menuSmokeShader );
+		CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
 		CG_DrawLoadingText( SCREEN_WIDTH * 0.5f, LOADING_AWAITING_GAMESTATE_Y, LOADING_STATUS_SCALE,
 			"Awaiting gamestate...", qtrue );
 		CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 		return;
 	}
 
+	CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 	CG_DrawLoadingBackground( levelshot );
 	CG_SetAdjustFrom640Mode( WIDESCREEN_LEFT );
 	CG_FillRect( LOADING_BANNER_X, LOADING_LOGO_Y, LOADING_BANNER_WIDTH, LOADING_BAR_HEIGHT, loadingBannerColor );
