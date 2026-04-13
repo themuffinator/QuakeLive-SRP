@@ -5,8 +5,6 @@
 [![Reconstruction Plan](https://img.shields.io/badge/Work%20Queue-Reconstruction%20Plan-2ea44f)](IMPLEMENTATION_PLAN.md)
 [![Getting Started](https://img.shields.io/badge/Docs-Getting%20Started-6f42c1)](docs/onboarding/overview.md)
 
-[![Deterministic Harnesses](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml/badge.svg?branch=main)](https://github.com/quakelive-reverse/quakelive-reverse/actions/workflows/deterministic-harnesses.yml)
-
 > **Note:** The parity audit figures shown below reflect a coarse-level review of module
 > boundaries and subsystem registration. They do not imply the reconstruction is finished or
 > production-ready. At a granular level — individual functions, edge-case behaviour, data
