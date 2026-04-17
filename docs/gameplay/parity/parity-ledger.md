@@ -21,7 +21,15 @@ This ledger tracks the implementation status of Quake Live gameplay behaviours r
 | Kamikaze LE_10 local entity effect | ✅ Complete | `src/code/cgame/cg_localents.c` | `references/hlil/quakelive/cgamex86.dll/cgamex86.dll_hlil.txt` | Gameplay Systems (@gamedev-lead) |
 | Domination capture volumes & metadata entities | ✅ Complete | `src/code/game/g_trigger.c`, `src/code/game/g_team.c` | `references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt†L39210-L39410` | Modes (@mutator-crew) |
 | Matchmaking skill scaling hooks | ✅ Complete | `src/code/game/g_active.c`, `src/code/game/g_client.c` | `references/hlil/quakelive/qagamex86.dll_split/g_active.md` | Backend Integrations (@services-team) |
-| Bot admission masking & auth bypass | ⚠️ In Progress | `src/code/game/g_client.c`, `src/code/server/sv_bot.c` | `references/hlil/quakelive/qagamex86.dll/sully_interpreted/functions/g_client/ClientConnect.md` | AI/Co-op (S. Nakamura) |
+| Bot admission masking & auth bypass | ✅ Complete | `src/code/game/g_client.c`, `src/code/game/g_main.c`, `src/code/game/g_local.h`, `src/code/server/sv_bot.c`, `src/code/server/sv_game.c` | `references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt`, `references/symbol-maps/qagame.json` | AI/Co-op (S. Nakamura) |
+
+### ClientConnect pipeline audit (2026-04-17)
+
+- Promoted the `ClientConnect` parity lane to ✅ after reconciling the current source with the retail HLIL and symbol-map evidence for `ClientConnect`, `CalculateRanks`, `G_RankClientConnect`, `BroadcastTeamChange`, and `G_StartAutoRecordForClient`.
+- Closed the remaining gaps in the first-time connect path: the Steam auth verify branch now runs on the initial handshake, training maps suppress the late-join side effects, `priv` is always dispatched in the retail first-time lane, and the scoreboard/team-change/auto-record order now matches the recovered control flow.
+- Reconstructed the retail auto-record helpers by parsing the server-visible `cg_autoAction` bitfield, rebuilding the per-client record/screenshot basename helpers, and wiring the live/intermission controller back through `G_UpdateGameStateForLevel`.
+- Removed non-retail connect-time behavior from the audited path: the `ClientMask` diagnostic log, the `AUTOACTION_PLAYER_CONNECT` side effect, and the misplaced `G_SendItemTimerState` call are no longer emitted from `ClientConnect`.
+- Validation: `pytest tests/test_game_helper_seam_parity.py tests/test_platform_services.py tests/test_match_sim_harness.py -q --tb=no` -> `94 passed, 2 skipped`.
 
 ### Weapon balance delta verification (2024-09-22)
 

@@ -917,6 +917,54 @@ def test_ui_menu_font_parser_stores_resolved_font_token() -> None:
     assert "menu->font = String_Alloc( fontPath );" in ui_shared
 
 
+def test_ui_font_cache_ownership_and_registered_font_sizes_match_retail() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_shared_h = (REPO_ROOT / "src/code/ui/ui_shared.h").read_text(encoding="utf-8")
+    bridge_source = (REPO_ROOT / "src/code/ui/ui_quakelive_bridge.c").read_text(encoding="utf-8")
+    main_menu = (REPO_ROOT / "src/ui/main.menu").read_text(encoding="utf-8")
+    hud_menu = (REPO_ROOT / "src/ui/hud.menu").read_text(encoding="utf-8")
+    asset_cache_block = _extract_function_block(ui_main, "void AssetCache() {")
+    asset_parse_block = _extract_function_block(ui_main, "qboolean Asset_Parse(int handle) {")
+
+    for expected in (
+        '#define QL_FONT_NAME_TEXT "fonts/font"',
+        '#define QL_FONT_NAME_SMALL "fonts/smallfont"',
+        '#define QL_FONT_NAME_BIG "fonts/bigfont"',
+        '#define QL_FONT_NAME_MONO "fonts/monofont"',
+        "#define QL_FONT_TEXT_POINT_SIZE 24",
+        "#define QL_FONT_SMALL_POINT_SIZE 16",
+        "#define QL_FONT_BIG_POINT_SIZE 48",
+        "#define QL_FONT_MONO_POINT_SIZE 16",
+    ):
+        assert expected in ui_shared_h
+
+    assert "trap_R_RegisterFont(" not in asset_cache_block
+    assert "trap_R_RegisterFont(fontPath, pointSize, &uiInfo.uiDC.Assets.textFont);" in asset_parse_block
+    assert "trap_R_RegisterFont(fontPath, pointSize, &uiInfo.uiDC.Assets.smallFont);" in asset_parse_block
+    assert "trap_R_RegisterFont(fontPath, pointSize, &uiInfo.uiDC.Assets.bigFont);" in asset_parse_block
+
+    for expected in (
+        'font \\"fonts/font\\" 16',
+        'smallFont \\"fonts/smallfont\\" 12',
+        'bigFont \\"fonts/bigfont\\" 20',
+    ):
+        assert expected in bridge_source
+
+    for expected in (
+        'font "fonts/font" 16',
+        'smallFont "fonts/smallfont" 12',
+        'bigFont "fonts/bigfont" 20',
+    ):
+        assert re.search(expected.replace(" ", r"\s+"), main_menu)
+
+    for expected in (
+        'font "fonts/font" 24',
+        'smallFont "fonts/smallfont" 16',
+        'bigFont "fonts/bigfont" 48',
+    ):
+        assert re.search(expected.replace(" ", r"\s+"), hud_menu)
+
+
 def test_ui_retail_preset_and_precision_runtime_restored() -> None:
     ui_shared_h = (REPO_ROOT / "src/code/ui/ui_shared.h").read_text(encoding="utf-8")
     assert "int precision;" in ui_shared_h

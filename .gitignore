@@ -56,6 +56,7 @@ UpgradeLog.htm
 
 # Python bytecode
 __pycache__/
+.pytest_cache/
 *.pyc
 *.pyo
 

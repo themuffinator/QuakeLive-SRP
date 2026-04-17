@@ -39,6 +39,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MAX_ADMIN_ACCESS_FILE_BYTES	8192
 #define GAME_STATE_BUFFER_LENGTH		16
 #define RANK_EVENT_PAYLOAD_MAX		16384
+#define AUTO_RECORD_BASENAME_MAX	256
+#define AUTO_RECORD_TOKEN_MAX		40
+
+#define AUTO_RECORD_STATE_RECORDING	( 1 << 0 )
+#define AUTO_RECORD_STATE_SCREENSHOT	( 1 << 1 )
 
 level_locals_t	level;
 weaponConfig_t	g_weaponConfig;
@@ -89,6 +94,10 @@ static char	s_rrInfectedSurvivorPingRatePayload[32];
 static char	s_customSettingsPayload[MAX_INFO_STRING];
 static qboolean s_customSettingsDirty = qtrue;
 static uint64_t s_lastCustomSettingsMask = 0;
+static int	s_autoRecordState = 0;
+static char	s_autoRecordBasename[AUTO_RECORD_BASENAME_MAX];
+static int	s_adminAccessEntryCount = 0;
+static adminAccessEntry_t	s_adminAccessList[MAX_ADMIN_ACCESS_ENTRIES];
 static const char *s_duelSpawnGrantScript = "weapon_gauntlet weapon_machinegun ammo_bullets 100";
 static vmCvar_t	g_weaponRespawnLegacy;
 static vmCvar_t	g_damageGauntletLegacy;
@@ -109,6 +118,8 @@ static void G_FinishClientFrames( qlr_game_frame_context_t *ctx );
 static void G_CheckLevelTimers( qlr_game_frame_context_t *ctx, int previousWarmupTime, int previousIntermissionQueued );
 static void G_UpdateTrainingState( void );
 static void G_UpdateGametypeTutorialText( void );
+static void G_InitPublishedCvarState( void );
+static void G_InitLevelCvarMirrors( void );
 static void G_SyncAdminConfig( void );
 static void G_ResetAdminAccessList( void );
 static void G_UpdateGameStateForLevel( void );
@@ -223,6 +234,353 @@ void G_SetGameState( const char *state ) {
 
 	trap_Cvar_Set( "g_gameState", value );
 	Q_strncpyz( s_gameStateBuffer, value, sizeof( s_gameStateBuffer ) );
+}
+
+/*
+=============
+G_ShortGametypeName
+
+Returns the compact retail gametype label used by the auto-record basename
+builder.
+=============
+*/
+static const char *G_ShortGametypeName( int gametype ) {
+	switch ( gametype ) {
+	case GT_FFA:
+		return "FFA";
+	case GT_TOURNAMENT:
+		return "DUEL";
+	case GT_RACE:
+		return "RACE";
+	case GT_TEAM:
+		return "TDM";
+	case GT_CLAN_ARENA:
+		return "CA";
+	case GT_CTF:
+		return "CTF";
+	case GT_1FCTF:
+		return "1F";
+	case GT_OBELISK:
+		return "OB";
+	case GT_HARVESTER:
+		return "HAR";
+	case GT_FREEZE:
+		return "FT";
+	case GT_DOMINATION:
+		return "DOM";
+	case GT_ATTACK_DEFEND:
+		return "AD";
+	case GT_RED_ROVER:
+		return "RR";
+	default:
+		break;
+	}
+
+	return "ERR";
+}
+
+/*
+=============
+G_SanitizeFilenameToken
+
+Matches the retail auto-record sanitizer so match media basenames only keep the
+safe filename subset and collapse empty results to `invalid`.
+=============
+*/
+static char *G_SanitizeFilenameToken( char *dst, const char *src ) {
+	char		*out;
+	int		count;
+	unsigned char	ch;
+
+	if ( !dst ) {
+		return NULL;
+	}
+
+	out = dst;
+	count = 0;
+	ch = ( src && src[0] ) ? (unsigned char)src[0] : 0;
+
+	while ( ch && count < ( AUTO_RECORD_TOKEN_MAX - 1 ) ) {
+		if ( ch == '^' ) {
+			if ( src[1] ) {
+				src++;
+			}
+			src++;
+			ch = (unsigned char)*src;
+			continue;
+		}
+
+		if ( ch > 0x20 && ch < 0x7f ) {
+			switch ( ch ) {
+			case '#':
+			case '$':
+			case '%':
+			case '&':
+			case '(':
+			case ')':
+			case '+':
+			case ',':
+			case '-':
+			case ';':
+			case '=':
+			case '@':
+			case '[':
+			case ']':
+			case '_':
+			case '`':
+			case '{':
+				*out++ = (char)ch;
+				count++;
+				break;
+			default:
+				if ( ( ch >= '0' && ch <= '9' )
+					|| ( ch >= 'A' && ch <= 'Z' )
+					|| ( ch >= 'a' && ch <= 'z' ) ) {
+					*out++ = (char)ch;
+					count++;
+				}
+				break;
+			}
+		}
+
+		src++;
+		ch = (unsigned char)*src;
+	}
+
+	*out = '\0';
+
+	if ( out == dst ) {
+		strncpy( dst, "invalid", AUTO_RECORD_TOKEN_MAX - 1 );
+		dst[AUTO_RECORD_TOKEN_MAX - 1] = '\0';
+	}
+
+	return dst;
+}
+
+/*
+=============
+G_BuildAutoRecordBasename
+
+Reconstructs the retail record/screenshot basename family used by the
+ClientConnect late-join path and the match media controller.
+=============
+*/
+static char *G_BuildAutoRecordBasename( gentity_t *ent ) {
+	char		tokenA[AUTO_RECORD_TOKEN_MAX];
+	char		tokenB[AUTO_RECORD_TOKEN_MAX];
+	char		mapToken[AUTO_RECORD_TOKEN_MAX];
+	char		mapName[MAX_QPATH];
+	qtime_t		now;
+	int		clientNum;
+
+	s_autoRecordBasename[0] = '\0';
+
+	if ( !ent || !ent->client ) {
+		return s_autoRecordBasename;
+	}
+
+	clientNum = ent - g_entities;
+
+	if ( g_gametype.integer == GT_TOURNAMENT ) {
+		int		duelLow;
+		int		duelHigh;
+		const char	*lowName;
+		const char	*highName;
+
+		duelLow = ( level.numConnectedClients > 0 ) ? level.sortedClients[0] : -1;
+		duelHigh = ( level.numConnectedClients > 1 ) ? level.sortedClients[1] : -1;
+
+		lowName = ( duelLow >= 0 && duelLow < level.maxclients )
+			? level.clients[duelLow].pers.netname
+			: ent->client->pers.netname;
+		highName = ( duelHigh >= 0 && duelHigh < level.maxclients )
+			? level.clients[duelHigh].pers.netname
+			: lowName;
+
+		G_SanitizeFilenameToken( tokenA, lowName );
+		G_SanitizeFilenameToken( tokenB, highName );
+
+		if ( clientNum == duelLow ) {
+			Com_sprintf( s_autoRecordBasename, sizeof( s_autoRecordBasename ), "%s(POV)-vs-%s", tokenA, tokenB );
+		} else if ( clientNum == duelHigh ) {
+			Com_sprintf( s_autoRecordBasename, sizeof( s_autoRecordBasename ), "%s(POV)-vs-%s", tokenB, tokenA );
+		} else {
+			Com_sprintf( s_autoRecordBasename, sizeof( s_autoRecordBasename ), "%s-vs-%s", tokenA, tokenB );
+		}
+	} else {
+		const char *teamName;
+
+		teamName = NULL;
+		if ( ent->client->sess.sessionTeam == TEAM_RED ) {
+			teamName = g_redteam.string;
+		} else if ( ent->client->sess.sessionTeam == TEAM_BLUE ) {
+			teamName = g_blueteam.string;
+		}
+
+		if ( teamName && teamName[0] ) {
+			G_SanitizeFilenameToken( tokenA, teamName );
+			Q_strcat( s_autoRecordBasename, sizeof( s_autoRecordBasename ), tokenA );
+			Q_strcat( s_autoRecordBasename, sizeof( s_autoRecordBasename ), "-" );
+		}
+
+		Q_strcat( s_autoRecordBasename, sizeof( s_autoRecordBasename ), G_ShortGametypeName( g_gametype.integer ) );
+
+		if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			G_SanitizeFilenameToken( tokenA, ent->client->pers.netname );
+			Q_strcat( s_autoRecordBasename, sizeof( s_autoRecordBasename ), va( "-%s", tokenA ) );
+		}
+	}
+
+	trap_Cvar_VariableStringBuffer( "mapname", mapName, sizeof( mapName ) );
+	G_SanitizeFilenameToken( mapToken, mapName );
+	Q_strcat( s_autoRecordBasename, sizeof( s_autoRecordBasename ), va( "-%s", mapToken ) );
+
+	trap_RealTime( &now );
+	Q_strcat( s_autoRecordBasename, sizeof( s_autoRecordBasename ),
+		va( "-%d_%02d_%02d-%02d_%02d_%02d",
+			now.tm_year + 1900,
+			now.tm_mon + 1,
+			now.tm_mday,
+			now.tm_hour,
+			now.tm_min,
+			now.tm_sec ) );
+
+	return s_autoRecordBasename;
+}
+
+/*
+=============
+G_StopAutoRecord
+
+Stops the retail-style per-client match demo recording lane for every connected
+client that opted into the shared `cg_autoAction` record bit.
+=============
+*/
+static void G_StopAutoRecord( void ) {
+	int		i;
+
+	if ( !( s_autoRecordState & AUTO_RECORD_STATE_RECORDING ) ) {
+		return;
+	}
+
+	s_autoRecordState &= ~AUTO_RECORD_STATE_RECORDING;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+
+		ent = &g_entities[i];
+		client = ent->client;
+		if ( !client || client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( !( client->pers.recordingPreferences & CLIENT_RECORDING_DEMO_RECORD ) ) {
+			continue;
+		}
+
+		trap_SendServerCommand( i, "stoprecord" );
+	}
+}
+
+/*
+=============
+G_StartAutoRecordForClient
+
+Starts the retail late-join auto-record lane for one client when the current
+match is already recording.
+=============
+*/
+void G_StartAutoRecordForClient( gentity_t *ent ) {
+	int	clientNum;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( !( s_autoRecordState & AUTO_RECORD_STATE_RECORDING ) ) {
+		return;
+	}
+
+	if ( !( ent->client->pers.recordingPreferences & CLIENT_RECORDING_DEMO_RECORD ) ) {
+		return;
+	}
+
+	clientNum = ent - g_entities;
+	trap_SendServerCommand( clientNum, va( "record \"%s\"\n", G_BuildAutoRecordBasename( ent ) ) );
+}
+
+/*
+=============
+G_CheckAutoRecord
+
+Tracks the retail match auto-record controller state across warmup, live play,
+and intermission.
+=============
+*/
+static void G_CheckAutoRecord( void ) {
+	int	i;
+
+	if ( level.warmupTime == -1 ) {
+		G_StopAutoRecord();
+		s_autoRecordState = 0;
+		return;
+	}
+
+	if ( level.warmupTime != 0 ) {
+		return;
+	}
+
+	if ( level.intermissiontime ) {
+		if ( level.time - level.intermissiontime <= 4000 ) {
+			return;
+		}
+		if ( s_autoRecordState & AUTO_RECORD_STATE_SCREENSHOT ) {
+			return;
+		}
+
+		G_StopAutoRecord();
+		s_autoRecordState |= AUTO_RECORD_STATE_SCREENSHOT;
+
+		for ( i = 0; i < level.maxclients; i++ ) {
+			gentity_t	*ent;
+			gclient_t	*client;
+
+			ent = &g_entities[i];
+			client = ent->client;
+			if ( !client || client->pers.connected != CON_CONNECTED ) {
+				continue;
+			}
+			if ( !( client->pers.recordingPreferences & CLIENT_RECORDING_SCREENSHOT ) ) {
+				continue;
+			}
+
+			trap_SendServerCommand( i, va( "screenshot \"%s\"\n", G_BuildAutoRecordBasename( ent ) ) );
+		}
+
+		return;
+	}
+
+	if ( s_autoRecordState & AUTO_RECORD_STATE_RECORDING ) {
+		return;
+	}
+
+	s_autoRecordState |= AUTO_RECORD_STATE_RECORDING;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t	*ent;
+		gclient_t	*client;
+
+		ent = &g_entities[i];
+		client = ent->client;
+		if ( !client || client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( !( client->pers.recordingPreferences & CLIENT_RECORDING_DEMO_RECORD ) ) {
+			continue;
+		}
+
+		trap_SendServerCommand( i, va( "record \"%s\"\n", G_BuildAutoRecordBasename( ent ) ) );
+	}
 }
 
 /*
@@ -1306,47 +1664,46 @@ G_RegisterCvars
 =================
 */
 void G_RegisterCvars( void ) {
-	int                     i;
-	cvarTable_t     *cv;
+	int		i;
+	cvarTable_t	*cv;
 	qboolean remapped = qfalse;
 
-for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
-trap_Cvar_Register( cv->vmCvar, cv->cvarName,
-cv->defaultString, cv->cvarFlags );
+	for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
+		trap_Cvar_Register( cv->vmCvar, cv->cvarName,
+			cv->defaultString, cv->cvarFlags );
 		G_RegisterCvarHelp( cv );
 		if ( cv->vmCvar ) {
-		        cv->modificationCount = cv->vmCvar->modificationCount;
+			cv->modificationCount = cv->vmCvar->modificationCount;
 		}
 
 		if ( cv->customSetting ) {
 			s_customSettingsDirty = qtrue;
 		}
 
-		if (cv->teamShader) {
-		        remapped = qtrue;
+		if ( cv->teamShader ) {
+			remapped = qtrue;
 		}
 	}
 
-LegacyCvar_RegisterAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) );
+	LegacyCvar_RegisterAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) );
 	s_customSettingsDirty = qtrue;
 
-	if (remapped) {
-                	G_RemapTeamShaders();
-        }
+	if ( remapped ) {
+		G_RemapTeamShaders();
+	}
 
-        G_Config_RegisterCvars();
-G_Config_UpdateCvars();
-LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) );
+	G_Config_RegisterCvars();
+	G_Config_UpdateCvars();
+	LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) );
 	G_RegisterPmoveCvars();
 	G_RefreshPmoveSettings();
 
-        // check some things
-        if ( g_gametype.integer < 0 || g_gametype.integer >= GT_MAX_GAME_TYPE ) {
-                G_Printf( "g_gametype %i is out of range, defaulting to 0\n", g_gametype.integer );
-                trap_Cvar_Set( "g_gametype", "0" );
-        }
+	// check some things
+	if ( g_gametype.integer < 0 || g_gametype.integer >= GT_MAX_GAME_TYPE ) {
+		G_Printf( "g_gametype %i is out of range, defaulting to 0\n", g_gametype.integer );
+		trap_Cvar_Set( "g_gametype", "0" );
+	}
 
-	level.warmupModificationCount = g_warmup.modificationCount;
 	s_factoryModCount = g_factory.modificationCount;
 	s_rulesetModCount = g_ruleset.modificationCount;
 	s_itemTimersModCount = g_itemTimers.modificationCount;
@@ -1356,10 +1713,10 @@ LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) 
 	s_forceAtmosphericEffectsModCount = g_forceAtmosphericEffects.modificationCount;
 	s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
 	s_armorTieredModCount = g_armorTiered.modificationCount;
+	s_disableLoadoutModCount = g_disableLoadout.modificationCount;
 	s_forcedAtmosphereModCount = g_forcedAtmosphere.modificationCount;
 	s_roundWarmupDelayModCount = g_roundWarmupDelay.modificationCount;
 	s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
-	G_SyncRulesetCvar();
 	s_worldspawnAtmosphere[0] = '\0';
 	s_lastForcedCosmeticsPayload[0] = '\0';
 	G_UpdateItemTimerConfig( qtrue );
@@ -1372,22 +1729,47 @@ LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) 
 	G_InitAmmoPackConfig();
 	G_InitFlagConfig();
 	G_InitFactoryCvarConfig();
-        G_InitMatchFactoryConfig();
+	G_InitMatchFactoryConfig();
+}
+
+/*
+=============
+G_InitPublishedCvarState
+
+Publishes the retail init-time configstring slab after the effective cvar set
+has been finalized for the new level.
+=============
+*/
+static void G_InitPublishedCvarState( void ) {
+	G_UpdatePlayerCylindersConfigstring( qtrue );
+	G_MatchConfig_UpdateConfigstrings();
+	G_UpdateModeSpecificConfigstrings( qtrue );
+	G_UpdateCustomSettingsConfigstring( qtrue );
+	level.disableLoadoutMapMask = 0;
+	G_UpdateDisableLoadoutConfigstrings();
+	G_UpdateServerSettingsInfoConfigstrings( qtrue );
+	G_UpdateWeaponReloadConfigstring( qtrue );
+	G_UpdatePlayerAppearanceConfigstring( qtrue );
+}
+
+/*
+=============
+G_InitLevelCvarMirrors
+
+Reapplies the source-side level mirrors that are stored outside retail's
+zeroed level blob so the post-memset state matches the active cvar snapshot.
+=============
+*/
+static void G_InitLevelCvarMirrors( void ) {
+	level.warmupModificationCount = g_warmup.modificationCount;
+	G_SyncRulesetCvar();
+	G_SyncAdminConfig();
 	G_SyncMatchFactoryConfigToLevel();
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );
 	level.quadHogOwner = ENTITYNUM_NONE;
 	level.quadHogExpireTime = 0;
 	level.quadHogLastActiveTime = 0;
 	level.quadHogNextPingTime = 0;
-
-	G_SyncAdminConfig();
-	G_RefreshPmoveSettings();
-	G_UpdatePlayerCylindersConfigstring( qtrue );
-	G_UpdateServerSettingsInfoConfigstrings( qtrue );
-	G_UpdateWeaponReloadConfigstring( qtrue );
-	G_UpdatePlayerAppearanceConfigstring( qtrue );
-	G_UpdateModeSpecificConfigstrings( qtrue );
-	G_UpdateCustomSettingsConfigstring( qtrue );
 }
 
 void G_UpdateCvars( void ) {
@@ -1800,8 +2182,8 @@ Clears any cached SteamID privilege pairs for the new level.
 =============
 */
 static void G_ResetAdminAccessList( void ) {
-	level.adminAccessEntryCount = 0;
-	memset( level.adminAccessList, 0, sizeof( level.adminAccessList ) );
+	s_adminAccessEntryCount = 0;
+	memset( s_adminAccessList, 0, sizeof( s_adminAccessList ) );
 }
 
 /*
@@ -1866,24 +2248,24 @@ static void G_InsertAdminAccessEntry( const char *steamId, int tier ) {
 		return;
 	}
 
-	for ( i = 0; i < level.adminAccessEntryCount; i++ ) {
-		if ( !Q_stricmp( level.adminAccessList[i].steamId, steamId ) ) {
-			level.adminAccessList[i].privilegeTier = tier;
-			level.adminAccessList[i].temporary = qfalse;
+	for ( i = 0; i < s_adminAccessEntryCount; i++ ) {
+		if ( !Q_stricmp( s_adminAccessList[i].steamId, steamId ) ) {
+			s_adminAccessList[i].privilegeTier = tier;
+			s_adminAccessList[i].temporary = qfalse;
 			return;
 		}
 	}
 
-	if ( level.adminAccessEntryCount >= MAX_ADMIN_ACCESS_ENTRIES ) {
+	if ( s_adminAccessEntryCount >= MAX_ADMIN_ACCESS_ENTRIES ) {
 		G_Printf( "WARNING: access list full, skipping SteamID %s\n", steamId );
 		return;
 	}
 
-	Q_strncpyz( level.adminAccessList[level.adminAccessEntryCount].steamId, steamId,
-			sizeof( level.adminAccessList[level.adminAccessEntryCount].steamId ) );
-	level.adminAccessList[level.adminAccessEntryCount].privilegeTier = tier;
-	level.adminAccessList[level.adminAccessEntryCount].temporary = qfalse;
-	level.adminAccessEntryCount++;
+	Q_strncpyz( s_adminAccessList[s_adminAccessEntryCount].steamId, steamId,
+		sizeof( s_adminAccessList[s_adminAccessEntryCount].steamId ) );
+	s_adminAccessList[s_adminAccessEntryCount].privilegeTier = tier;
+	s_adminAccessList[s_adminAccessEntryCount].temporary = qfalse;
+	s_adminAccessEntryCount++;
 }
 
 /*
@@ -1965,7 +2347,7 @@ static void G_LoadAdminAccessFile( void ) {
 		G_InsertAdminAccessEntry( steamToken, tier );
 	}
 
-	G_Printf( "loaded %i steam ids into the access list\n", level.adminAccessEntryCount );
+	G_Printf( "loaded %i steam ids into the access list\n", s_adminAccessEntryCount );
 }
 
 /*
@@ -2001,12 +2383,12 @@ static void G_WriteAdminAccessFile( void ) {
 
 	trap_FS_Write( accessHeader, (int)strlen( accessHeader ), handle );
 
-	for ( i = 0; i < level.adminAccessEntryCount; i++ ) {
+	for ( i = 0; i < s_adminAccessEntryCount; i++ ) {
 		const adminAccessEntry_t	*entry;
 		const char			*tierToken;
 		char				line[64];
 
-		entry = &level.adminAccessList[i];
+		entry = &s_adminAccessList[i];
 		if ( entry->temporary ) {
 			continue;
 		}
@@ -2037,9 +2419,9 @@ int G_AdminAccessForSteamID( const char *steamId ) {
 		return 0;
 	}
 
-	for ( i = 0; i < level.adminAccessEntryCount; i++ ) {
-		if ( !Q_stricmp( level.adminAccessList[i].steamId, steamId ) ) {
-			return level.adminAccessList[i].privilegeTier;
+	for ( i = 0; i < s_adminAccessEntryCount; i++ ) {
+		if ( !Q_stricmp( s_adminAccessList[i].steamId, steamId ) ) {
+			return s_adminAccessList[i].privilegeTier;
 		}
 	}
 
@@ -2177,38 +2559,40 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	G_Printf ("gamedate: %s\n", __DATE__);
 
 	srand( randomSeed );
-	{
-		time_t levelStart = time( NULL );
-		char startTimeBuffer[32];
-		Com_sprintf( startTimeBuffer, sizeof( startTimeBuffer ), "%u", (unsigned int)levelStart );
-		trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );
-	}
 	G_PmoveClearConfigstring();
 
-G_RegisterCvars();
-trap_Cvar_Update( &mercylimit );
-trap_Cvar_Update( &g_mercytime );
+	G_RegisterCvars();
+	trap_Cvar_Update( &mercylimit );
+	trap_Cvar_Update( &g_mercytime );
 
-trap_Cvar_Set( "g_training", "0" );
-G_UpdateTrainingState();
+	trap_Cvar_Set( "g_training", "0" );
+	G_UpdateTrainingState();
 
-	G_ProcessIPBans();
-
-	G_InitMemory();
 	G_FactoryRegistry_Init();
-
-// set some level globals
-	memset( &level, 0, sizeof( level ) );
-	G_LoadAdminAccessFile();
-	G_SyncAdminConfig();
 	Factory_ApplyCurrentSelection( qtrue );
+	G_InitPublishedCvarState();
+	G_LoadAdminAccessFile();
+	G_InitMemory();
+
+	// set some level globals
+	memset( &level, 0, sizeof( level ) );
+	G_InitLevelCvarMirrors();
 	if ( g_gametype.integer == GT_RACE ) {
 		G_RaceInitLevel();
 	}
 	G_InitSpawnQueue();
 	G_FreezeSyncCvars();
 	level.time = levelTime;
+	level.previousTime = levelTime;
 	level.startTime = levelTime;
+	level.pendingVoteClientNum = -1;
+	{
+		time_t levelStart = time( NULL );
+		char startTimeBuffer[32];
+
+		Com_sprintf( startTimeBuffer, sizeof( startTimeBuffer ), "%u", (unsigned int)levelStart );
+		trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );
+	}
 	Com_sprintf( level.rankMatchGuid, sizeof( level.rankMatchGuid ), "%08X%08X",
 		(unsigned int)level.startTime, (unsigned int)( randomSeed ^ rand() ) );
 	level.rankMatchStartedSent = qfalse;
@@ -2234,6 +2618,8 @@ G_UpdateTrainingState();
 	level.adRoundWinner = TEAM_FREE;
 	level.adRoundWinnerAlreadyScored = qfalse;
 	G_SetGameState( GAME_STATE_PRE_GAME );
+	s_autoRecordState = 0;
+	s_autoRecordBasename[0] = '\0';
 
 	level.timeoutOwner = -1;
 	level.timeoutTeam = TEAM_FREE;
@@ -2257,6 +2643,8 @@ G_UpdateTrainingState();
         matchFlow_lastConfig = g_matchFactoryConfig;
 
 	level.snd_fry = G_SoundIndex("sound/player/fry.wav");	// FIXME standing in lava / slime
+	G_SoundIndex( "sound/player/gurp1.wav" );
+	G_SoundIndex( "sound/player/gurp2.wav" );
 
 	if ( g_gametype.integer != GT_SINGLE_PLAYER && g_log.string[0] ) {
 		if ( g_logSync.integer ) {
@@ -2311,9 +2699,8 @@ G_UpdateTrainingState();
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
+	FindIntermissionPoint();
 	G_CountSpawnPoints();
-	G_SpawnItemPowerups();
-	G_SpawnQuadHogQuad();
 	G_InitLagHaxHistory();
 	G_UpdateTrainingState();
 	if ( level.trainingMapActive ) {
@@ -2341,11 +2728,10 @@ G_UpdateTrainingState();
 	SaveRegisteredItems();
 
 	G_Printf ("-----------------------------------\n");
+	G_UpdateTimeoutConfigStrings();
 
 	if( g_gametype.integer == GT_SINGLE_PLAYER || trap_Cvar_VariableIntegerValue( "com_build" ) ) {
 		G_ModelIndex( SP_PODIUM_MODEL );
-		G_SoundIndex( "sound/player/gurp1.wav" );
-		G_SoundIndex( "sound/player/gurp2.wav" );
 	}
 
 	if ( trap_Cvar_VariableIntegerValue( "bot_enable" ) ) {
@@ -2354,6 +2740,9 @@ G_UpdateTrainingState();
 		G_InitBots( restart );
 	}
 
+	G_SpawnQuadHogQuad();
+	G_SpawnItemPowerups();
+
 	G_RemapTeamShaders();
 
 	LevelCheckTimers();
@@ -2361,20 +2750,6 @@ G_UpdateTrainingState();
 	G_UpdateTeamCountConfigstrings();
 	G_MatchConfig_UpdateConfigstrings();
 	G_UpdateTournamentQueuePositions();
-
-	{
-		char		mapName[MAX_QPATH];
-		char		detail[MAX_QPATH + 16];
-
-		trap_Cvar_VariableStringBuffer( "mapname", mapName, sizeof( mapName ) );
-		if ( restart ) {
-			Com_sprintf( detail, sizeof( detail ), "%s|restart", mapName );
-		} else {
-			Q_strncpyz( detail, mapName, sizeof( detail ) );
-		}
-		G_AutoAction( AUTOACTION_MATCH_START, NULL, detail );
-	}
-
 }
 
 
@@ -7624,6 +7999,7 @@ static void G_UpdateGameStateForLevel( void ) {
 	}
 
 	G_SetGameState( state );
+	G_CheckAutoRecord();
 }
 
 static void G_CheckLevelTimers( qlr_game_frame_context_t *ctx, int previousWarmupTime, int previousIntermissionQueued ) {

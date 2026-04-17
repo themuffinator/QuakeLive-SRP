@@ -437,6 +437,10 @@ static qboolean SV_VerifyClientSteamAuth( int clientNum ) {
 	}
 
 	if ( cl->platformAuthPending ) {
+		if ( cl->state < CS_CONNECTED ) {
+			return qtrue;
+		}
+
 		return qfalse;
 	}
 

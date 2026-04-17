@@ -1520,6 +1520,8 @@ void ClientUserinfoChanged( int clientNum ) {
 		client->ps.eFlags &= ~EF_AWARD_DENIED;
 	}
 
+	client->pers.recordingPreferences = atoi( Info_ValueForKey( userinfo, "cg_autoAction" ) );
+
 	// set name
 	Q_strncpyz ( oldname, client->pers.netname, sizeof( oldname ) );
 	s = Info_ValueForKey (userinfo, "name");
@@ -1807,6 +1809,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	unsigned int	connectSteamIdHigh;
 	qboolean	connectSteamIdValid;
 	int		connectionPrivilege;
+	qboolean	runFirstTimeConnectSideEffects;
 
 	ent = &g_entities[ clientNum ];
 	if ( isBot ) {
@@ -1869,9 +1872,10 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	}
 	G_ReadSessionData( client, firstTime );
 	client->sess.privilege = connectionPrivilege;
+	runFirstTimeConnectSideEffects = ( firstTime && !level.trainingMapActive ) ? qtrue : qfalse;
 
 #if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
-	if ( !firstTime && !isBot ) {
+	if ( firstTime && !isBot ) {
 		if ( !trap_VerifySteamAuth( clientNum ) ) {
 			Q_strncpyz( g_clientAuthDenyMessage, "Failed to verify Steam auth token", sizeof( g_clientAuthDenyMessage ) );
 			G_LogPrintf( "SteamAuthRejected: %i %s\n", clientNum, g_clientAuthDenyMessage );
@@ -1902,57 +1906,49 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	// get and distribute relevent paramters
 	G_LogPrintf( "ClientConnect: %i\n", clientNum );
-	G_LogPrintf( "ClientMask: %i %s\n", clientNum, ( ent->r.svFlags & SVF_BOT ) ? "bot" : "human" );
 	ClientUserinfoChanged( clientNum );
 	G_RankResetClientStats( client );
 
-	// don't do the "xxx connected" messages if they were caried over from previous level
-	if ( firstTime ) {
+	if ( runFirstTimeConnectSideEffects ) {
+		trap_SendServerCommand( clientNum, va( "priv %i", client->sess.privilege ) );
+
+		// don't do the "xxx connected" messages if they were caried over from previous level
 		if ( level.time > 5000 ) {
 			trap_SendServerCommand( -1, va("print \"%s" S_COLOR_WHITE " connected\n\"", client->pers.netname) );
 		}
-	}
 
-	if ( !isBot ) {
-		const char *steamId = Info_ValueForKey( userinfo, "steamid" );
+		if ( !isBot ) {
+			const char *steamId = Info_ValueForKey( userinfo, "steamid" );
 
-		if ( steamId && steamId[0] ) {
+			if ( steamId && steamId[0] ) {
 #if (QL_PLATFORM_HAS_STEAMWORKS || QL_PLATFORM_HAS_OPEN_STEAM)
-			unsigned long long parsedId;
+				unsigned long long parsedId;
 
-			if ( G_ParseSteamId( steamId, &parsedId ) ) {
-				trap_Printf( va( "%s connected with Steam ID %llu\n", client->pers.netname, parsedId ) );
-			} else {
-				trap_Printf( va( "%s connected with Steam ID %s\n", client->pers.netname, steamId ) );
-			}
+				if ( G_ParseSteamId( steamId, &parsedId ) ) {
+					trap_Printf( va( "%s connected with Steam ID %llu\n", client->pers.netname, parsedId ) );
+				} else {
+					trap_Printf( va( "%s connected with Steam ID %s\n", client->pers.netname, steamId ) );
+				}
 #else
-			trap_Printf( va( "%s connected with Steam ID %s\n", client->pers.netname, steamId ) );
+				trap_Printf( va( "%s connected with Steam ID %s\n", client->pers.netname, steamId ) );
 #endif
+			}
+		}
+
+		G_RankClientConnect( ent );
+
+		if ( g_gametype.integer >= GT_TEAM &&
+			client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			BroadcastTeamChange( client, -1 );
+		}
+
+		if ( !isBot ) {
+			G_StartAutoRecordForClient( ent );
 		}
 	}
 
-	if ( firstTime && client->sess.privilege > PRIV_NONE ) {
-		trap_SendServerCommand( clientNum, va( "priv %i", client->sess.privilege ) );
-	}
-
-	if ( firstTime && g_gametype.integer >= GT_TEAM &&
-		client->sess.sessionTeam != TEAM_SPECTATOR ) {
-		BroadcastTeamChange( client, -1 );
-	}
-
 	// count current clients and rank for scoreboard
-	G_SendItemTimerState( clientNum, g_itemTimers.integer ? 1 : 0, g_itemHeight.integer );
 	CalculateRanks();
-
-	if ( !( ent->r.svFlags & SVF_BOT ) ) {
-		char		autoDetail[MAX_INFO_STRING];
-		const char	*ipInfo;
-
-		ipInfo = Info_ValueForKey( userinfo, "ip" );
-		Q_strncpyz( autoDetail, ipInfo ? ipInfo : "", sizeof( autoDetail ) );
-		G_AutoAction( AUTOACTION_PLAYER_CONNECT, ent, autoDetail );
-	}
-	G_RankClientConnect( ent );
 
 	// for statistics
 //	client->areabits = areabits;

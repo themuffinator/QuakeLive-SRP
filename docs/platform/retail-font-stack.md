@@ -63,10 +63,44 @@ Observed facts from the writable source tree:
 - `src/code/renderer/tr_backend.c` now exposes the retained atlas through the
   debug draw path guarded by `r_debugFontAtlas`.
 
+## Interface font helpers and registered sizes
+
+Observed facts from the committed retail UI and cgame references:
+
+- UI `AssetCache` is an art-only cache; the committed retail reconstruction for
+  `uix86.dll` registers gradient, FX, scrollbar, slider, and crosshair art
+  there, but not fonts.
+- UI `MenuParse_font` normalizes legacy tokens onto the Quake Live baked font
+  buckets, stores the resolved token on the menu, and seeds the shared display
+  context fonts on first use.
+- cgame `CG_AssetCache` is described in the committed symbol map as the shared
+  HUD art cache, while `CG_RegisterHudFonts` remains the explicit HUD font
+  bootstrap helper.
+
+Observed facts from the writable source tree:
+
+- The shared baked font buckets are now defined as:
+  - `fonts/font` at `24`
+  - `fonts/smallfont` at `16`
+  - `fonts/bigfont` at `48`
+  - `fonts/monofont` at `16`
+- UI menu asset globals use two retail size tiers:
+  - gameplay and HUD menus such as `src/ui/hud.menu` register
+    `24 / 16 / 48`
+  - `src/ui/main.menu` and the bridge fallback in
+    `src/code/ui/ui_quakelive_bridge.c` register `16 / 12 / 20`
+- UI font registration now stays in `Asset_Parse` and `MenuParse_font`, while
+  `AssetCache` remains art-only.
+- cgame HUD font registration stays in `CG_RegisterHudFonts`, while
+  `CG_AssetCache` remains art-only.
+
 Inference:
 
 - The source tree now matches the retail face selection and per-face cache
   behavior much more closely for the retained host-text lane itself.
+- The UI and cgame font helpers now also match the retail ownership split more
+  closely: asset caches own shaders, while dedicated font parse/bootstrap
+  helpers own the registered Quake Live font buckets and their point sizes.
 - The renderer font stack now has a coherent source, build, and runtime parity
   story instead of a missing-vendor plus warning-only tail.
 

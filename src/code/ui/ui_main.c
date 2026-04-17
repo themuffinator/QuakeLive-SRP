@@ -1237,12 +1237,6 @@ Registers fonts, shaders, and shared UI textures for the frontend.
 void AssetCache() {
 	int n;
 
-	if ( !uiInfo.uiDC.Assets.fontRegistered ) {
-		trap_R_RegisterFont( QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE, &uiInfo.uiDC.Assets.textFont );
-		trap_R_RegisterFont( QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE, &uiInfo.uiDC.Assets.smallFont );
-		trap_R_RegisterFont( QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE, &uiInfo.uiDC.Assets.bigFont );
-		uiInfo.uiDC.Assets.fontRegistered = qtrue;
-	}
 	//if (Assets.textFont == NULL) {
 	//}
 	//Assets.background = trap_R_RegisterShaderNoMip( ASSET_BACKGROUND );

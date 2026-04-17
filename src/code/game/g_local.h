@@ -82,6 +82,11 @@ typedef enum {
 	AUTOACTION_MAX
 } autoActionEvent_t;
 
+// `cg_autoAction` / `client->pers.recordingPreferences` bit masks.
+#define CLIENT_RECORDING_DEMO_RECORD	( 1 << 0 )
+#define CLIENT_RECORDING_SCREENSHOT		( 1 << 1 )
+#define CLIENT_RECORDING_STATS_UPLOAD	( 1 << 2 )
+
 #define SP_PODIUM_MODEL		"models/mapobjects/podium/podium4.md3"
 
 //============================================================================
@@ -851,6 +856,7 @@ typedef struct {
 	int			teamVoteCount;		// to prevent people from constantly calling votes
 	qboolean	teamInfo;			// send team overlay updates?
 	qboolean	readyUpLatch;		// retail-style persistent ready latch mirrored into EF_READY
+	int			recordingPreferences;	// server-visible cg_autoAction bitfield for match media helpers
 	int		voteDelayTime;
 	int		voteLastSelection;
 	int		voteLastEnableFrame;
@@ -1592,6 +1598,7 @@ void G_SetClientReadyState( gclient_t *client, qboolean ready );
 void G_SyncClientReadyState( gclient_t *client );
 void G_RunGrantScript( gentity_t *ent, const char *script );
 void G_RankResetClientStats( gclient_t *client );
+void G_StartAutoRecordForClient( gentity_t *ent );
 void G_RankClientConnect( gentity_t *ent );
 void G_RankClientDisconnect( gentity_t *ent );
 void G_RankAccumulateWeaponTime( gentity_t *ent );

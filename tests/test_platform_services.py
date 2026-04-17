@@ -1807,6 +1807,7 @@ def test_native_import_dispatch_normalizes_qboolean_contracts() -> None:
 def test_loopback_steam_auth_verify_falls_back_for_local_clients() -> None:
     sv_game = (REPO_ROOT / "src/code/server/sv_game.c").read_text(encoding="utf-8")
     verify_block = _extract_function_block(sv_game, "static qboolean SV_VerifyClientSteamAuth( int clientNum )")
+    platform_auth_section = verify_block.split("#else", 1)[1]
 
     assert "#if !SV_HAS_PLATFORM_AUTH" in verify_block
     assert "cl = &svs.clients[clientNum];" in verify_block
@@ -1818,6 +1819,8 @@ def test_loopback_steam_auth_verify_falls_back_for_local_clients() -> None:
     assert "cl->platformAuthSucceeded = qtrue;" in verify_block
     assert "return qtrue;" in verify_block
     assert "if ( cl->platformAuthPending ) {" in verify_block
+    assert "if ( cl->state < CS_CONNECTED ) {" in verify_block
+    assert platform_auth_section.index("if ( cl->state < CS_CONNECTED ) {") < platform_auth_section.rindex("return qfalse;")
     assert "return qfalse;" in verify_block
     assert "return cl->platformAuthSucceeded;" in verify_block
     assert "QL_RequestExternalAuth" not in verify_block
@@ -1933,10 +1936,13 @@ def test_server_steam_stats_owner_reconstructs_retail_gameserverstats_bridge() -
 
 def test_qagame_connect_auth_bridge_reconstructs_engine_owned_pending_contract() -> None:
     g_client = (REPO_ROOT / "src/code/game/g_client.c").read_text(encoding="utf-8")
+    connect_block = _extract_function_block(g_client, "char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot )")
     auth_bridge_block = _extract_function_block(
         g_client, "static char *G_RunPlatformAuthChecks( int clientNum, char *userinfo, qboolean firstTime, qboolean isBot, gclient_t *client )"
     )
 
+    assert "if ( firstTime && !isBot ) {" in connect_block
+    assert "if ( !firstTime && !isBot ) {" not in connect_block
     assert "G_BuildSteamAuthToken( userinfo, token, sizeof( token ) );" in auth_bridge_block
     assert "QL_InitAuthCredential( &credential );" in auth_bridge_block
     assert "QL_ParsePlatformToken( token, QL_AUTH_CREDENTIAL_STEAM, &credential )" in auth_bridge_block

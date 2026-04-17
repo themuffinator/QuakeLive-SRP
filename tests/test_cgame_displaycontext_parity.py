@@ -2071,6 +2071,7 @@ def test_cgame_init_splits_display_context_bootstrap_before_collision_map() -> N
 	source = CG_MAIN.read_text(encoding="utf-8")
 	display_block = _block_from_marker(source, "static void CG_InitDisplayContext")
 	load_hud_block = _block_from_marker(source, "void CG_LoadHudMenu()")
+	register_fonts_block = _block_from_marker(source, "static void CG_RegisterHudFonts( void )")
 	asset_block = _block_from_marker(source, "void CG_AssetCache()")
 	init_block = _block_from_marker(source, "void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum )")
 
@@ -2103,7 +2104,14 @@ def test_cgame_init_splits_display_context_bootstrap_before_collision_map() -> N
 		assert expected in display_block
 
 	assert "Init_Display(" not in load_hud_block
-	assert "CG_RegisterHudFonts();" in asset_block
+	assert "CG_RegisterHudFonts();" not in asset_block
+	for expected in (
+		"trap_R_RegisterFont( QL_FONT_NAME_TEXT, QL_FONT_TEXT_POINT_SIZE, &cgDC.Assets.textFont );",
+		"trap_R_RegisterFont( QL_FONT_NAME_SMALL, QL_FONT_SMALL_POINT_SIZE, &cgDC.Assets.smallFont );",
+		"trap_R_RegisterFont( QL_FONT_NAME_BIG, QL_FONT_BIG_POINT_SIZE, &cgDC.Assets.bigFont );",
+		"cgDC.Assets.fontRegistered = qtrue;",
+	):
+		assert expected in register_fonts_block
 
 	collision_index = init_block.index('CG_LoadingString( "collision map" );')
 	assert init_block.index("CG_InitDisplayContext();") < collision_index

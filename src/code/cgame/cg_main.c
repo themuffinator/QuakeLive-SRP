@@ -6368,11 +6368,10 @@ void CG_LoadHudMenu() {
 =============
 CG_AssetCache
 
-Registers the shared UI assets used by the client game module.
+Registers the shared UI art cache used by the client game module.
 =============
 */
 void CG_AssetCache() {
-	CG_RegisterHudFonts();
 	//if (Assets.textFont == NULL) {
 	//  trap_R_RegisterFont("fonts/arial.ttf", 72, &Assets.textFont);
 	//}

@@ -57,8 +57,39 @@ def test_team_join_guard_and_connect_broadcast_match_retail_flow() -> None:
 	assert "counts[TEAM_RED] = TeamCount( clientNum, TEAM_RED );" in setteam_block
 	assert "TeamCount( ent->client->ps.clientNum, TEAM_BLUE )" not in setteam_block
 	assert "TeamCount( ent->client->ps.clientNum, TEAM_RED )" not in setteam_block
-	assert "if ( firstTime && g_gametype.integer >= GT_TEAM &&" in connect_block
+	assert "runFirstTimeConnectSideEffects = ( firstTime && !level.trainingMapActive ) ? qtrue : qfalse;" in connect_block
+	assert 'client->pers.recordingPreferences = atoi( Info_ValueForKey( userinfo, "cg_autoAction" ) );' in game_client
+	assert "if ( firstTime && !isBot ) {" in connect_block
+	assert "if ( !firstTime && !isBot ) {" not in connect_block
+	assert 'trap_SendServerCommand( clientNum, va( "priv %i", client->sess.privilege ) );' in connect_block
+	assert "G_StartAutoRecordForClient( ent );" in connect_block
+	assert 'G_LogPrintf( "ClientMask: %i %s\\n", clientNum, ( ent->r.svFlags & SVF_BOT ) ? "bot" : "human" );' not in connect_block
+	assert "G_AutoAction( AUTOACTION_PLAYER_CONNECT, ent, autoDetail );" not in connect_block
+	assert "G_SendItemTimerState( clientNum, g_itemTimers.integer ? 1 : 0, g_itemHeight.integer );" not in connect_block
+	assert connect_block.index("G_RankClientConnect( ent );") < connect_block.index("BroadcastTeamChange( client, -1 );")
+	assert connect_block.index("BroadcastTeamChange( client, -1 );") < connect_block.index("G_StartAutoRecordForClient( ent );")
+	assert connect_block.index("if ( runFirstTimeConnectSideEffects ) {") < connect_block.index("BroadcastTeamChange( client, -1 );")
 	assert "g_teamSpawnAsSpec.integer && g_gametype.integer >= GT_TEAM" not in spawn_block
+
+
+def test_client_connect_autorecord_helpers_match_recovered_retail_boundaries() -> None:
+	game_main = _read("src/code/game/g_main.c")
+	game_local = _read("src/code/game/g_local.h")
+	update_state_block = _block_from_marker(game_main, "static void G_UpdateGameStateForLevel")
+
+	assert "#define AUTO_RECORD_STATE_RECORDING\t( 1 << 0 )" in game_main
+	assert "#define AUTO_RECORD_STATE_SCREENSHOT\t( 1 << 1 )" in game_main
+	assert "static char\ts_autoRecordBasename[AUTO_RECORD_BASENAME_MAX];" in game_main
+	assert "static char *G_SanitizeFilenameToken( char *dst, const char *src ) {" in game_main
+	assert "static char *G_BuildAutoRecordBasename( gentity_t *ent ) {" in game_main
+	assert "static void G_StopAutoRecord( void ) {" in game_main
+	assert "void G_StartAutoRecordForClient( gentity_t *ent ) {" in game_main
+	assert "static void G_CheckAutoRecord( void ) {" in game_main
+	assert 'trap_SendServerCommand( clientNum, va( "record \\"%s\\"\\n", G_BuildAutoRecordBasename( ent ) ) );' in game_main
+	assert 'trap_SendServerCommand( i, va( "screenshot \\"%s\\"\\n", G_BuildAutoRecordBasename( ent ) ) );' in game_main
+	assert "G_CheckAutoRecord();" in update_state_block
+	assert "void G_StartAutoRecordForClient( gentity_t *ent );" in game_local
+	assert "int\t\t\trecordingPreferences;\t// server-visible cg_autoAction bitfield for match media helpers" in game_local
 
 
 def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
@@ -354,6 +385,55 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	assert "Svcmd_GameCrash_f();" in game_svcmds
 	assert "Svcmd_DumpVars_f();" in game_svcmds
 	assert "Svcmd_ReloadAccess_f();" in game_svcmds
+
+
+def test_g_initgame_pipeline_matches_recovered_retail_bootstrap_order() -> None:
+	game_main = _read("src/code/game/g_main.c")
+	init_block = _block_from_marker(game_main, "void G_InitGame")
+	published_block = _block_from_marker(game_main, "static void G_InitPublishedCvarState")
+	level_mirror_block = _block_from_marker(game_main, "static void G_InitLevelCvarMirrors")
+
+	assert "static int\ts_adminAccessEntryCount = 0;" in game_main
+	assert "static adminAccessEntry_t\ts_adminAccessList[MAX_ADMIN_ACCESS_ENTRIES];" in game_main
+	assert "level.adminAccessEntryCount" not in game_main
+	assert "level.adminAccessList" not in game_main
+
+	assert "G_MatchConfig_UpdateConfigstrings();" in published_block
+	assert "G_UpdateDisableLoadoutConfigstrings();" in published_block
+	assert "G_SyncMatchFactoryConfigToLevel();" in level_mirror_block
+	assert "level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );" in level_mirror_block
+
+	for expected in (
+		"Factory_ApplyCurrentSelection( qtrue );",
+		"G_InitPublishedCvarState();",
+		"G_LoadAdminAccessFile();",
+		"G_InitMemory();",
+		"G_InitLevelCvarMirrors();",
+		"level.previousTime = levelTime;",
+		"level.pendingVoteClientNum = -1;",
+		'trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );',
+		"FindIntermissionPoint();",
+		"G_UpdateTimeoutConfigStrings();",
+		"G_SpawnQuadHogQuad();",
+		"G_SpawnItemPowerups();",
+	):
+		assert expected in init_block
+
+	assert "G_ProcessIPBans();" not in init_block
+	assert "G_AutoAction( AUTOACTION_MATCH_START" not in init_block
+
+	assert init_block.index("Factory_ApplyCurrentSelection( qtrue );") < init_block.index("G_InitPublishedCvarState();")
+	assert init_block.index("G_InitPublishedCvarState();") < init_block.index("G_LoadAdminAccessFile();")
+	assert init_block.index("G_LoadAdminAccessFile();") < init_block.index("G_InitMemory();")
+	assert init_block.index("G_InitMemory();") < init_block.index("memset( &level, 0, sizeof( level ) );")
+	assert init_block.index("memset( &level, 0, sizeof( level ) );") < init_block.index("G_InitLevelCvarMirrors();")
+	assert init_block.index("level.pendingVoteClientNum = -1;") < init_block.index('trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );')
+	assert init_block.index('trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );') < init_block.index('level.snd_fry = G_SoundIndex("sound/player/fry.wav");')
+	assert init_block.index("G_SpawnEntitiesFromString();") < init_block.index("FindIntermissionPoint();")
+	assert init_block.index("FindIntermissionPoint();") < init_block.index("G_CountSpawnPoints();")
+	assert init_block.index("G_UpdateTimeoutConfigStrings();") < init_block.index("BotAISetup( restart );")
+	assert init_block.index("BotAISetup( restart );") < init_block.index("G_SpawnQuadHogQuad();")
+	assert init_block.index("G_SpawnQuadHogQuad();") < init_block.index("G_SpawnItemPowerups();")
 
 
 def test_console_tail_and_training_bootstrap_helpers_match_recovered_boundaries() -> None:

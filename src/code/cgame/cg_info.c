@@ -146,21 +146,12 @@ static const char *CG_GetLoadingGametype( void ) {
 CG_DrawLoadingText
 ===================
 */
-static void CG_DrawLoadingText( float x, float y, float scale, const char *text, qboolean center ) {
-	int		width;
-	float	drawX;
-
+static void CG_DrawLoadingText( float x, float y, int fontIndex, float scale, const char *text, int style ) {
 	if ( !text || !text[0] ) {
 		return;
 	}
 
-	drawX = x;
-	if ( center ) {
-		width = CG_Text_Width( text, scale, 0 );
-		drawX -= width * 0.5f;
-	}
-
-	CG_Text_Paint( drawX, y, scale, colorWhite, text, 0, 0, 0 );
+	CG_Text_PaintExt( x, y, scale, colorWhite, text, 0.0f, 0, style, fontIndex );
 }
 
 
@@ -324,11 +315,15 @@ void CG_DrawInformation( void ) {
 	}
 
 	if ( !cg.infoScreenText[0] && cg.snap && ( cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE ) ) {
+		float	statusX;
+
 		CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 		CG_DrawLoadingBackground( cgs.media.menuSmokeShader );
 		CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
-		CG_DrawLoadingText( SCREEN_WIDTH * 0.5f, LOADING_AWAITING_GAMESTATE_Y, LOADING_STATUS_SCALE,
-			"Awaiting gamestate...", qtrue );
+		width = CG_Text_WidthExt( "Awaiting gamestate...", LOADING_STATUS_SCALE, 0, FONT_DEFAULT );
+		statusX = SCREEN_WIDTH * 0.5f - width * 0.5f;
+		CG_DrawLoadingText( statusX, LOADING_AWAITING_GAMESTATE_Y, FONT_DEFAULT, LOADING_STATUS_SCALE,
+			"Awaiting gamestate...", ITEM_TEXTSTYLE_SHADOWEDMORE );
 		CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 		return;
 	}
@@ -346,31 +341,38 @@ void CG_DrawInformation( void ) {
 		LOADING_GAMETYPE_BG_HEIGHT, cgs.media.gameTypeBackground );
 
 	title = CG_ConfigString( CS_MESSAGE );
-	CG_DrawLoadingText( LOADING_TITLE_X, LOADING_TITLE_Y, LOADING_TITLE_SCALE, title, qfalse );
+	CG_DrawLoadingText( LOADING_TITLE_X, LOADING_TITLE_Y, FONT_DEFAULT, LOADING_TITLE_SCALE, title, 0 );
 
 	author = CG_ConfigString( CS_MAP_AUTHOR );
 	authorAlt = CG_ConfigString( CS_MAP_AUTHOR_ALT );
 	if ( author && author[0] ) {
-		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_Y, LOADING_META_SCALE, author, qfalse );
-		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_ALT_Y, LOADING_META_SCALE, authorAlt, qfalse );
+		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_Y, FONT_SANS, LOADING_META_SCALE, author, 0 );
+		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_ALT_Y, FONT_SANS, LOADING_META_SCALE, authorAlt, 0 );
 	}
 
 	CG_SetAdjustFrom640Mode( WIDESCREEN_RIGHT );
 	gametype = CG_GetLoadingGametype();
 	if ( gametype && gametype[0] ) {
-		width = CG_Text_Width( gametype, LOADING_GAMETYPE_SCALE, 0 );
-		CG_DrawLoadingText( LOADING_GAMETYPE_RIGHT_X - width, LOADING_GAMETYPE_Y, LOADING_GAMETYPE_SCALE,
-			gametype, qfalse );
+		width = CG_Text_WidthExt( gametype, LOADING_GAMETYPE_SCALE, 0, FONT_DEFAULT );
+		CG_DrawLoadingText( LOADING_GAMETYPE_RIGHT_X - width, LOADING_GAMETYPE_Y, FONT_DEFAULT, LOADING_GAMETYPE_SCALE,
+			gametype, 0 );
 	}
 
 	CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
 	if ( cg.infoScreenText[0] ) {
+		float	statusX;
+
 		status = va( "Loading %s", cg.infoScreenText );
+		width = CG_Text_WidthExt( status, LOADING_STATUS_SCALE, 0, FONT_SANS );
+		statusX = SCREEN_WIDTH * 0.5f - width * 0.5f;
+		CG_DrawLoadingText( statusX, LOADING_STATUS_Y, FONT_SANS, LOADING_STATUS_SCALE, status,
+			ITEM_TEXTSTYLE_SHADOWEDMORE );
 	} else {
 		status = "Awaiting Snapshot";
+		width = CG_Text_WidthExt( status, LOADING_STATUS_SCALE, 0, FONT_SANS );
+		CG_DrawLoadingText( SCREEN_WIDTH * 0.5f - width * 0.5f, LOADING_STATUS_Y, FONT_SANS, LOADING_STATUS_SCALE, status,
+			ITEM_TEXTSTYLE_SHADOWEDMORE );
 	}
-
-	CG_DrawLoadingText( SCREEN_WIDTH * 0.5f, LOADING_STATUS_Y, LOADING_STATUS_SCALE, status, qtrue );
 	CG_DrawLoadingProgress();
 	CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 }
