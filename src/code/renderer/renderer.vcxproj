@@ -80,8 +80,7 @@
   <PropertyGroup Label="UserMacros">
     <QLEnablePng Condition="'$(QLEnablePng)'=='' and Exists('$(ProjectDir)..\..\libs\libpng\include\png.h')">1</QLEnablePng>
     <QLEnablePng Condition="'$(QLEnablePng)'==''">0</QLEnablePng>
-    <QLEnableFreeType Condition="'$(QLEnableFreeType)'=='' and Exists('$(ProjectDir)..\..\libs\freetype\include\ft2build.h') and (Exists('$(ProjectDir)..\..\libs\freetype\lib\Win32\freetype.lib') or Exists('$(ProjectDir)..\..\libs\freetype\lib\Win32\libfreetype.lib') or Exists('$(ProjectDir)..\..\libs\freetype\lib\freetype.lib') or Exists('$(ProjectDir)..\..\libs\freetype\lib\libfreetype.lib'))">1</QLEnableFreeType>
-    <QLEnableFreeType Condition="'$(QLEnableFreeType)'==''">0</QLEnableFreeType>
+    <QLEnableFreeType Condition="'$(QLEnableFreeType)'==''">1</QLEnableFreeType>
   </PropertyGroup>
   <PropertyGroup Label="PngSdk">
     <PngSdkDir>$(ProjectDir)..\..\libs\libpng</PngSdkDir>
@@ -90,6 +89,7 @@
   </PropertyGroup>
   <PropertyGroup Label="FreeTypeSdk">
     <FreeTypeSdkDir>$(ProjectDir)..\..\libs\freetype</FreeTypeSdkDir>
+    <FreeTypeIncludeDir Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeIncludeDir)'=='' and Exists('$(FreeTypeSdkDir)\include\freetype2\ft2build.h')">$(FreeTypeSdkDir)\include\freetype2</FreeTypeIncludeDir>
     <FreeTypeIncludeDir Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeIncludeDir)'==''">$(FreeTypeSdkDir)\include</FreeTypeIncludeDir>
     <FreeTypeIncludeDir Condition="'$(QLEnableFreeType)'=='0' and '$(FreeTypeIncludeDir)'==''"></FreeTypeIncludeDir>
     <FreeTypeLibDir Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeLibDir)'=='' and Exists('$(FreeTypeSdkDir)\lib\Win32')">$(FreeTypeSdkDir)\lib\Win32</FreeTypeLibDir>
@@ -97,6 +97,7 @@
     <FreeTypeLibDir Condition="'$(QLEnableFreeType)'=='0' and '$(FreeTypeLibDir)'==''"></FreeTypeLibDir>
     <FreeTypeLibFileName Condition="'$(QLEnableFreeType)'!='0' and Exists('$(FreeTypeLibDir)\freetype.lib')">freetype.lib</FreeTypeLibFileName>
     <FreeTypeLibFileName Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeLibFileName)'=='' and Exists('$(FreeTypeLibDir)\libfreetype.lib')">libfreetype.lib</FreeTypeLibFileName>
+    <FreeTypeLibFileName Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeLibFileName)'==''">freetype.lib</FreeTypeLibFileName>
     <FreeTypeLibFileName Condition="'$(QLEnableFreeType)'=='0'"></FreeTypeLibFileName>
     <RendererFreeTypeDefine Condition="'$(QLEnableFreeType)'!='0'">BUILD_FREETYPE</RendererFreeTypeDefine>
     <RendererFreeTypeDefine Condition="'$(QLEnableFreeType)'=='0'"></RendererFreeTypeDefine>

@@ -16,6 +16,14 @@ SND_MIX = REPO_ROOT / "src" / "code" / "client" / "snd_mix.c"
 SND_OGG_DECODE = REPO_ROOT / "src" / "code" / "client" / "snd_ogg_decode.c"
 SND_PUBLIC = REPO_ROOT / "src" / "code" / "client" / "snd_public.h"
 
+# Retail console-command owner evidence for this sound slice comes from
+# `references/analysis/quakelive_symbol_aliases.json` plus the paired HLIL in
+# `references/hlil/quakelive/quakelive_steam.exe/`:
+# `sub_4D9B60` -> `S_SoundInfo_f`
+# `sub_4DAFD0` -> `S_SoundList_f`
+# `sub_4DB710` -> `S_Play_f`
+# `sub_4DB810` -> `S_Music_f`
+
 
 def _extract_function_block(source: str, marker: str) -> str:
 	start = source.rindex(marker)
@@ -32,6 +40,52 @@ def _extract_function_block(source: str, marker: str) -> str:
 				return source[start:index + 1]
 
 	raise AssertionError(f"Unbalanced block for marker: {marker}")
+
+
+def test_sound_console_commands_match_retail_registration_and_output_contracts() -> None:
+	snd_dma = SND_DMA.read_text(encoding="utf-8")
+
+	init_block = _extract_function_block(snd_dma, "void S_Init( void ) {")
+	shutdown_block = _extract_function_block(snd_dma, "void S_Shutdown( void )")
+	info_block = _extract_function_block(snd_dma, "void S_SoundInfo_f(void) {")
+	play_block = _extract_function_block(snd_dma, "void S_Play_f( void ) {")
+	music_block = _extract_function_block(snd_dma, "void S_Music_f( void ) {")
+	list_block = _extract_function_block(snd_dma, "void S_SoundList_f( void ) {")
+
+	assert 'Cmd_AddCommand("play", S_Play_f);' in init_block
+	assert 'Cmd_AddCommand("music", S_Music_f);' in init_block
+	assert 'Cmd_AddCommand("s_list", S_SoundList_f);' in init_block
+	assert 'Cmd_AddCommand("s_info", S_SoundInfo_f);' in init_block
+	assert 'Cmd_AddCommand("s_stop", S_StopAllSounds);' in init_block
+
+	assert 'Cmd_RemoveCommand("play");' in shutdown_block
+	assert 'Cmd_RemoveCommand("music");' in shutdown_block
+	assert 'Cmd_RemoveCommand("s_list");' in shutdown_block
+	assert 'Cmd_RemoveCommand("s_info");' in shutdown_block
+	assert 'Cmd_RemoveCommand("s_stop");' in shutdown_block
+
+	assert 'Com_Printf("----- Sound Info -----\\n" );' in info_block
+	assert 'Com_Printf ("sound system not started\\n");' in info_block
+	assert 'Com_Printf("No background file.\\n" );' in info_block
+	assert 'Com_Printf("----------------------\\n" );' in info_block
+
+	assert "while ( i<Cmd_Argc() ) {" in play_block
+	assert "if ( !Q_strrchr(Cmd_Argv(i), '.') ) {" in play_block
+	assert 'Com_sprintf( name, sizeof(name), "%s.wav", Cmd_Argv(1) );' in play_block
+	assert "h = S_RegisterSound( name, qfalse );" in play_block
+	assert "S_StartLocalSound( h, CHAN_LOCAL_SOUND );" in play_block
+
+	assert "if ( c == 2 ) {" in music_block
+	assert "S_StartBackgroundTrack( Cmd_Argv(1), Cmd_Argv(1) );" in music_block
+	assert "s_backgroundLoop[0] = 0;" in music_block
+	assert 'Com_Printf ("music <musicfile> [loopfile]\\n");' in music_block
+
+	assert 'location = sfx->inMemory ? "MEM" : "PGD";' in list_block
+	assert 'Com_Printf( "%6i [%s] : %s\\n", size, location, sfx->soundName );' in list_block
+	assert 'Com_Printf( "%i sounds loaded\\n", s_numSfx );' in list_block
+	assert "S_DisplayFreeMemory();" in list_block
+	assert 'Total resident: %i\\n' not in list_block
+	assert '%6i[%s] : %s[%s]\\n' not in list_block
 
 
 def test_volume_aware_sound_imports_route_to_engine_helpers() -> None:
@@ -166,6 +220,8 @@ def test_sound_cache_and_shutdown_match_retail_allocator_contracts() -> None:
 	assert "void SND_shutdown( void ) {" in snd_mem
 	assert 'Com_Printf("%d bytes sound buffer memory in use, %d free\\n", totalInUse, inUse);' in snd_mem
 	assert "SND_shutdown();" in shutdown_block
+	assert 'Cmd_RemoveCommand("play");' in shutdown_block
+	assert 'Cmd_RemoveCommand("music");' in shutdown_block
 	assert 'Cmd_RemoveCommand("s_list");' in shutdown_block
 	assert 'Cmd_RemoveCommand("s_info");' in shutdown_block
 	assert 'Cmd_RemoveCommand("s_stop");' in shutdown_block

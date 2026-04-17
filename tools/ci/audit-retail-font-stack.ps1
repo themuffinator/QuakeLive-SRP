@@ -73,6 +73,10 @@ Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'void R
 Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'void R_DoneFontStash\( void \)' -Description 'renderer fontstash shutdown entry point'
 Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'void RE_DrawScaledText\( int x, int y, const char \*text, int fontHandle, float scale, int maxX, float \*outMaxX, qboolean forceColor, const float \*baseColor \)' -Description 'shared renderer host text draw helper'
 Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'void RE_MeasureScaledText\( const char \*text, const char \*end, int fontHandle, float scale, int maxX, float \*outWidth, float \*outHeight, float \*outLeft \)' -Description 'shared renderer host text measure helper'
+Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'R_DecodeFontStashCodepoint' -Description 'retail UTF-8 host-text decode helper'
+Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'R_ParseHostTextColorEscape' -Description 'retail host color-escape helper'
+Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'R_BuildFontStashFaceChain' -Description 'retail retained fallback-face chain helper'
+Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'R_GetFontStashScaleTenths' -Description 'retail size-tenths host glyph key helper'
 Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'sans-windows-fallback' -Description 'renderer Windows fallback face slot'
 Assert-FileContains -RelativePath 'src/code/renderer/tr_font.c' -Pattern 'Retail host DrawScaledText/MeasureText resolve glyphs from the retained' -Description 'retail retained-atlas glyph-priority note'
 Assert-FileContains -RelativePath 'src/code/ui/ui_shared.h' -Pattern '#define QL_FONT_NAME_TEXT "fonts/font"' -Description 'UI retail text-font bucket name'
@@ -106,11 +110,17 @@ Assert-FileContains -RelativePath 'src/code/client/cl_cgame.c' -Pattern 'RE_Draw
 Assert-FileContains -RelativePath 'src/code/client/cl_cgame.c' -Pattern 'RE_MeasureScaledText\( text, end, fontHandle, scale, maxX, &width, &height, outLeft \)' -Description 'cgame native host text measure switchover'
 Assert-FileContains -RelativePath 'src/code/renderer/tr_backend.c' -Pattern 'RB_ShowFontAtlas' -Description 'renderer debug font atlas draw path'
 Assert-FileContains -RelativePath 'src/code/renderer/renderer.vcxproj' -Pattern 'QLEnableFreeType' -Description 'renderer repo-managed FreeType build toggle'
+Assert-FileContains -RelativePath 'src/code/renderer/renderer.vcxproj' -Pattern 'QLEnableFreeType Condition=.*>1</QLEnableFreeType>' -Description 'renderer FreeType defaults enabled for parity builds'
 Assert-FileContains -RelativePath 'src/code/renderer/renderer.vcxproj' -Pattern 'ValidateFreeType' -Description 'renderer repo-managed FreeType validation target'
 Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern 'QLEnableFreeType' -Description 'engine repo-managed FreeType link toggle'
+Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern 'QLEnableFreeType Condition=.*>1</QLEnableFreeType>' -Description 'engine FreeType defaults enabled for parity builds'
 Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern 'ValidateFreeType' -Description 'engine repo-managed FreeType validation target'
+Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern '\$\(FreeTypeDependencies\);\$\(VorbisDependencies\);\$\(PngDependencies\);winmm\.lib;wsock32\.lib;Dbghelp\.lib' -Description 'engine config link lines retain FreeType dependencies'
 Assert-FileContains -RelativePath '.vscode/build.ps1' -Pattern 'QLEnableFreeType' -Description 'Windows build-script FreeType toggle'
+Assert-FileContains -RelativePath '.vscode/build.ps1' -Pattern "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" -Description 'Windows build-script FreeType bootstrap hook'
 Assert-FileContains -RelativePath '.vscode/build.ps1' -Pattern 'build_internal_deps\.ps1' -Description 'Windows internal codec bootstrap hook'
+Assert-FileContains -RelativePath 'src/code/quakelive.internal-deps.targets' -Pattern 'QLBootstrapFreeType' -Description 'MSBuild FreeType bootstrap target'
+Assert-FileContains -RelativePath 'tools/build_internal_deps.ps1' -Pattern 'Ensure-FreeType' -Description 'repo-managed FreeType bootstrap implementation'
 Assert-FileContains -RelativePath 'src/code/unix/Makefile' -Pattern 'QL_ENABLE_FREETYPE \?= 0' -Description 'Unix FreeType toggle'
 Assert-FileContains -RelativePath 'src/code/unix/Makefile' -Pattern 'pkg-config --cflags freetype2' -Description 'Unix FreeType pkg-config include detection'
 Assert-FileContains -RelativePath 'src/code/unix/Makefile' -Pattern 'CLIENT_FREETYPE_CFLAGS := \$\(FREETYPE_CFLAGS\) -DBUILD_FREETYPE' -Description 'Unix FreeType compile define wiring'
@@ -140,8 +150,8 @@ $cgameCompatShimPresent = Select-String -Path (Join-Path $RepoRoot 'src/code/cli
 $trFontSource = Get-Content -Path (Join-Path $RepoRoot 'src/code/renderer/tr_font.c') -Raw
 $uiMainSource = Get-Content -Path (Join-Path $RepoRoot 'src/code/ui/ui_main.c') -Raw
 $cgMainSource = Get-Content -Path (Join-Path $RepoRoot 'src/code/cgame/cg_main.c') -Raw
-$retainedAtlasPriority = $trFontSource.IndexOf('if ( face->ftFace && r_fontStash.shader ) {')
-$compatFontPriority = $trFontSource.IndexOf('if ( R_EnsureFontStashCompatibilityFont( face ) ) {')
+$retainedAtlasPriority = $trFontSource.IndexOf('if ( r_fontStash.shader ) {')
+$compatFontPriority = $trFontSource.IndexOf('codepoint <= GLYPH_END && R_EnsureFontStashCompatibilityFont( face )')
 $uiAssetCacheStart = $uiMainSource.IndexOf('void AssetCache() {')
 $uiAssetParseStart = $uiMainSource.IndexOf('qboolean Asset_Parse(int handle) {')
 $cgRegisterFontsStart = $cgMainSource.IndexOf('static void CG_RegisterHudFonts( void ) {')
@@ -204,6 +214,34 @@ if ($retainedAtlasPriority -lt 0 -or $compatFontPriority -lt 0 -or $retainedAtla
 }
 else {
 	Write-Host 'Verified renderer host text glyph selection prefers the retained *fontstash atlas.'
+}
+
+if ( $trFontSource -match 'for \( s = text; \*s; s\+\+ \)' -or $trFontSource -match 'for \( s = text; \*s && \( !end \|\| s < end \); s\+\+ \)' ) {
+	Report-UnresolvedGap -Message 'Renderer host text draw/measure still iterate raw bytes instead of decoding UTF-8 codepoints first.'
+}
+elseif ( $trFontSource -match 'R_DecodeFontStashCodepoint\( s, end, &codepoint \)' ) {
+	Write-Host 'Verified renderer host text walks UTF-8 codepoints instead of raw bytes.'
+}
+else {
+	Report-UnresolvedGap -Message 'Renderer host text UTF-8 decode helper is not wired into the draw/measure loops.'
+}
+
+if ( $trFontSource -match 'Q_IsColorString\( s \)' ) {
+	Report-UnresolvedGap -Message 'Renderer host text still uses the legacy broad Q_IsColorString parser instead of the retail digit-only caret escape rules.'
+}
+elseif ( $trFontSource -match 'R_ParseHostTextColorEscape\( s, end, &colorIndex, &colorNext \)' ) {
+	Write-Host 'Verified renderer host text uses the retail digit-only color-escape helper.'
+}
+else {
+	Report-UnresolvedGap -Message 'Renderer host text color-escape handling is missing the retail digit-only parser.'
+}
+
+if ( $trFontSource -match 'R_BuildFontStashFaceChain\( face, faceChain, ARRAY_LEN\( faceChain \) \)' -and
+	$trFontSource -match 'R_GetFontStashGlyph\( face, codepoint, scaleTenths, &resolvedGlyph \)' ) {
+	Write-Host 'Verified retained host glyph lookup uses fallback-face probing and codepoint-plus-size cache keys.'
+}
+else {
+	Report-UnresolvedGap -Message 'Renderer host text glyph lookup still lacks retail fallback-face probing or codepoint-plus-size glyph cache selection.'
 }
 
 if ($unexpectedDebugAtlasPaths.Count -gt 0) {

@@ -321,6 +321,16 @@ static	char		cmd_cmd[BIG_INFO_STRING]; // the original command we received (no t
 
 static	cmd_function_t	*cmd_functions;		// possible commands to execute
 
+#define	MAX_CMD_ALIASES	256
+
+typedef struct {
+	char		name[32];
+	char		command[256];
+	qboolean	inuse;
+} cmdAlias_t;
+
+static	cmdAlias_t	cmd_aliases[MAX_CMD_ALIASES];
+
 /*
 ============
 Cmd_Argc
@@ -610,6 +620,152 @@ void	Cmd_CommandCompletion( void(*callback)(const char *s) ) {
 	}
 }
 
+/*
+============
+Cmd_FindAlias
+============
+*/
+static cmdAlias_t *Cmd_FindAlias( const char *name ) {
+	int		i;
+
+	for ( i = 0 ; i < MAX_CMD_ALIASES ; i++ ) {
+		if ( cmd_aliases[i].inuse && !Q_stricmp( name, cmd_aliases[i].name ) ) {
+			return &cmd_aliases[i];
+		}
+	}
+
+	return NULL;
+}
+
+/*
+============
+Cmd_ExecuteAlias
+============
+*/
+static void Cmd_ExecuteAlias( void ) {
+	cmdAlias_t	*alias;
+
+	alias = Cmd_FindAlias( Cmd_Argv( 0 ) );
+	if ( !alias ) {
+		Com_Printf( "^1ALIAS: %s not found^7\n", Cmd_Argv( 0 ) );
+		return;
+	}
+
+	Cbuf_ExecuteText( EXEC_INSERT, va( "%s\n", alias->command ) );
+}
+
+/*
+============
+Cmd_ListAliases_f
+============
+*/
+static void Cmd_ListAliases_f( void ) {
+	int		i;
+
+	Com_Printf( "Alias List:\n" );
+	for ( i = 0 ; i < MAX_CMD_ALIASES ; i++ ) {
+		if ( cmd_aliases[i].inuse ) {
+			Com_Printf( "  %s \"%s\"\n", cmd_aliases[i].name, cmd_aliases[i].command );
+		}
+	}
+}
+
+/*
+============
+Cmd_Alias_f
+============
+*/
+void Cmd_Alias_f( void ) {
+	cmdAlias_t	*alias;
+	int		i;
+
+	if ( Cmd_Argc() < 2 ) {
+		Com_Printf( "Usage: alias \"command\"\n" );
+		Cmd_ListAliases_f();
+		return;
+	}
+
+	if ( Cmd_Argc() >= 3 ) {
+		alias = Cmd_FindAlias( Cmd_Argv( 1 ) );
+		if ( !alias ) {
+			for ( i = 0 ; i < MAX_CMD_ALIASES ; i++ ) {
+				if ( !cmd_aliases[i].inuse ) {
+					alias = &cmd_aliases[i];
+					Q_strncpyz( alias->name, Cmd_Argv( 1 ), sizeof( alias->name ) );
+					alias->inuse = qtrue;
+					break;
+				}
+			}
+		}
+
+		if ( !alias ) {
+			Com_Printf( "^1No free alias slots. Use UnAlias to remove an alias before adding this one.^7\n" );
+			return;
+		}
+
+		Q_strncpyz( alias->command, Cmd_Argv( 2 ), sizeof( alias->command ) );
+		cvar_modifiedFlags |= CVAR_ARCHIVE;
+		return;
+	}
+
+	alias = Cmd_FindAlias( Cmd_Argv( 1 ) );
+	if ( alias ) {
+		Com_Printf( "Alias: %s \"%s\"\n", alias->name, alias->command );
+	}
+}
+
+/*
+============
+Cmd_UnAlias_f
+============
+*/
+void Cmd_UnAlias_f( void ) {
+	cmdAlias_t	*alias;
+
+	if ( Cmd_Argc() < 2 ) {
+		Com_Printf( "Usage: unalias \"command\"\n" );
+		Cmd_ListAliases_f();
+		return;
+	}
+
+	alias = Cmd_FindAlias( Cmd_Argv( 1 ) );
+	if ( alias ) {
+		Com_Memset( alias, 0, sizeof( *alias ) );
+		cvar_modifiedFlags |= CVAR_ARCHIVE;
+	}
+}
+
+/*
+============
+Cmd_UnAliasAll_f
+============
+*/
+void Cmd_UnAliasAll_f( void ) {
+	int		i;
+
+	for ( i = 0 ; i < MAX_CMD_ALIASES ; i++ ) {
+		cmd_aliases[i].inuse = qfalse;
+	}
+
+	cvar_modifiedFlags |= CVAR_ARCHIVE;
+}
+
+/*
+============
+Cmd_WriteAliases
+============
+*/
+void Cmd_WriteAliases( fileHandle_t f ) {
+	int		i;
+
+	FS_Printf( f, "unaliasall\n" );
+	for ( i = 0 ; i < MAX_CMD_ALIASES ; i++ ) {
+		if ( cmd_aliases[i].inuse ) {
+			FS_Printf( f, "alias %s \"%s\"\n", cmd_aliases[i].name, cmd_aliases[i].command );
+		}
+	}
+}
+
 
 /*
 ============
@@ -668,6 +824,11 @@ void	Cmd_ExecuteString( const char *text ) {
 		return;
 	}
 
+	if ( Cmd_FindAlias( cmd_argv[0] ) ) {
+		Cmd_ExecuteAlias();
+		return;
+	}
+
 	// send it as a server command if we are connected
 	// this will usually result in a chat message
 	CL_ForwardCommandToServer ( text );
@@ -706,9 +867,14 @@ Cmd_Init
 ============
 */
 void Cmd_Init (void) {
+	Com_Memset( cmd_aliases, 0, sizeof( cmd_aliases ) );
 	Cmd_AddCommand ("cmdlist",Cmd_List_f);
+	Cmd_AddCommand ("listcmds",Cmd_List_f);
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("vstr",Cmd_Vstr_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
+	Cmd_AddCommand ("alias",Cmd_Alias_f);
+	Cmd_AddCommand ("unalias",Cmd_UnAlias_f);
+	Cmd_AddCommand ("unaliasall",Cmd_UnAliasAll_f);
 }

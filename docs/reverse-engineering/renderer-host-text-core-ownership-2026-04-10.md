@@ -30,6 +30,40 @@ Inference:
 - The repo now has a direct renderer-owned lifetime for the retail host text
   core instead of only compatibility wrappers built on baked `fontInfo_t`.
 
+## 2026-04-17 Audit Refresh
+
+Observed facts from the committed retail host draw/measure lane:
+
+- HLIL `0x00443BE0` and `0x00444360` walk UTF-8 DFA-style decode tables before
+  probing host glyphs.
+- HLIL `0x00443720` keys retained glyphs by decoded codepoint plus rounded
+  size tenths.
+- The same glyph helper probes the requested face first and then walks the
+  three retained fallback-face slots stored on the host text context.
+- Retail host color handling only consumes `^0` through `^7`, and the
+  `forceColor` path still consumes those escapes without repainting the color
+  state.
+
+Observed facts now mirrored in source:
+
+- `src/code/renderer/tr_font.c` now decodes retained host text as UTF-8
+  codepoints instead of indexing raw bytes.
+- Retained `*fontstash` glyphs are now cached by codepoint plus rounded size
+  tenths instead of through a fixed 256-entry byte table.
+- Retained glyph lookup now probes the requested face, then the recovered
+  primary sans, packaged fallback, and Windows fallback slots before using the
+  classic compatibility-font lane.
+- Host draw/measure now consume only `^0`..`^7` color escapes and keep the
+  retail `forceColor` behavior where recognized color escapes are swallowed
+  without recoloring.
+
+Inference:
+
+- The hidden byte-oriented exactness tail inside the earlier `RG-P8` host-core
+  closure is now closed. The retained renderer-owned host-text core matches the
+  retail glyph-ownership split and the retail Unicode/fallback behavior much
+  more closely.
+
 ## Downstream Closure
 
 The `RG-P8` closure only covered the retained host-text core itself. The

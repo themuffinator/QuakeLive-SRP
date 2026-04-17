@@ -25,6 +25,7 @@ def test_renderer_build_lane_uses_repo_managed_dependencies() -> None:
 	assert "#include FT_OUTLINE_H" in tr_font
 
 	assert "QLEnableFreeType" in renderer_vcxproj
+	assert "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in renderer_vcxproj
 	assert "ValidateFreeType" in renderer_vcxproj
 	assert "BUILD_FREETYPE" in renderer_vcxproj
 	assert "quakelive.internal-deps.targets" in renderer_vcxproj
@@ -32,22 +33,27 @@ def test_renderer_build_lane_uses_repo_managed_dependencies() -> None:
 	assert r"C:\vcpkg\installed\x86-windows" not in renderer_vcxproj
 
 	assert "QLEnableFreeType" in engine_vcxproj
+	assert "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in engine_vcxproj
 	assert "ValidateFreeType" in engine_vcxproj
 	assert "FreeTypeDependencies" in engine_vcxproj
+	assert "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)" in engine_vcxproj
 	assert "quakelive.internal-deps.targets" in engine_vcxproj
 	assert "VCPKG_ROOT" not in engine_vcxproj
 	assert r"C:\vcpkg\installed\x86-windows" not in engine_vcxproj
 
 	assert "QLEnableFreeType" in build_script
 	assert "FreeTypeSdkDir" in build_script
+	assert "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" in build_script
 	assert "build_internal_deps.ps1" in build_script
 	assert "VCPKG_ROOT" not in build_script
 	assert r"C:\vcpkg\installed\x86-windows" not in build_script
 
 	assert "QLBootstrapVorbis" in internal_deps_targets
 	assert "QLBootstrapPng" in internal_deps_targets
+	assert "QLBootstrapFreeType" in internal_deps_targets
 	assert "Ensure-Vorbis" in internal_deps_script
 	assert "Ensure-Png" in internal_deps_script
+	assert "Ensure-FreeType" in internal_deps_script
 
 	assert "QL_ENABLE_FREETYPE ?= 0" in unix_makefile
 	assert "pkg-config --cflags freetype2" in unix_makefile

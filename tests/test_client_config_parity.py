@@ -51,7 +51,8 @@ def test_common_config_bootstrap_and_writers_match_retail_client_split() -> None
 	write_to_file_block = _extract_function_block(common, "void Com_WriteConfigToFile( const char *hardwareFilename, const char *replicateFilename, qboolean clientConfigOnly ) {")
 	assert 'Com_OpenRetailConfigFile( hardwareFilename, QL_CONFIG_HARDWARE_HEADER );' in write_to_file_block
 	assert 'Com_OpenRetailConfigFile( replicateFilename, QL_CONFIG_REPLICATE_HEADER );' in write_to_file_block
-	assert 'Key_WriteBindings( hardwareFile );' in write_to_file_block
+	assert 'Key_WriteBindings( bindingsFile );' in write_to_file_block
+	assert 'Cmd_WriteAliases( hardwareFile );' in write_to_file_block
 	assert 'Cvar_WriteQLConfigVariables( hardwareFile, replicateFile, clientConfigOnly );' in write_to_file_block
 
 	write_config_block = _extract_function_block(common, "void Com_WriteConfiguration( void ) {")

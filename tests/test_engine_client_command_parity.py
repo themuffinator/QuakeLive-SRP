@@ -28,11 +28,33 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_460520` -> `stats_clear`
 # `sub_460E60` -> `clientviewprofile` / `clientfriendinvite`
 # `sub_464AA0` -> `connect_lobby`
+# `sub_4B4F60` -> `centerview`
+# `sub_4B4D80` / `sub_4B4D90` -> `+moveup` / `-moveup`
+# `sub_4B4DA0` / `sub_4B4DB0` -> `+movedown` / `-movedown`
+# `sub_4B4DC0` / `sub_4B4DD0` -> `+left` / `-left`
+# `sub_4B4DE0` / `sub_4B4DF0` -> `+right` / `-right`
+# `sub_4B4E00` / `sub_4B4E10` -> `+forward` / `-forward`
+# `sub_4B4E20` / `sub_4B4E30` -> `+back` / `-back`
+# `sub_4B4E40` / `sub_4B4E50` -> `+lookup` / `-lookup`
+# `sub_4B4E60` / `sub_4B4E70` -> `+lookdown` / `-lookdown`
+# `sub_4B4EE0` / `sub_4B4EF0` -> `+strafe` / `-strafe`
+# `sub_4B4E80` -> `+moveleft`
+# `sub_4B4E90` -> `-moveleft`
+# `sub_4B4EA0` / `sub_4B4EB0` -> `+moveright` / `-moveright`
+# `sub_4B4EC0` / `sub_4B4ED0` -> `+speed` / `-speed`
+# `sub_4B4F00` / `sub_4B4F10` -> `+attack` / `-attack`
+# `sub_4B4F20` / `sub_4B4F30` -> `+button2` / `-button2`
+# `sub_4B4F40` / `sub_4B4F50` -> `+button3` / `-button3`
+# `sub_4B4BD0` / `sub_4B6300` -> `+mlook` / `-mlook`
+# `sub_4B4BE0` / `sub_4B4C60` -> retail key down / key up helpers
+# `sub_4B5360` -> retail keyboard movement assembly helper
 # `sub_4B9D10` -> `CL_SetModel_f`
 # `004F3CD0` -> retail browser command registration helper
 # `004F3160` -> `web_showBrowser`
 # `004F31D0` -> `web_changeHash`
 # `004F24D0` -> `web_hideBrowser`
+# `004F2A10` -> `web_clearCache`
+# `004F2A30` -> `web_reload`
 # `004F3CC0` -> `web_showError`
 
 
@@ -160,6 +182,283 @@ def test_client_command_handlers_match_retail_forward_restart_and_info_contracts
 	assert ";" not in userinfo_block
 
 
+def test_client_input_command_registration_matches_retail_navigation_surface() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+
+	init_input_block = _extract_function_block(cl_input, "void CL_InitInput( void ) {")
+	init_block = _extract_function_block(cl_main, "void CL_Init( void ) {")
+
+	command_lines = [
+		'Cmd_AddCommand ("centerview",IN_CenterView);',
+		'Cmd_AddCommand ("+moveup",IN_UpDown);',
+		'Cmd_AddCommand ("-moveup",IN_UpUp);',
+		'Cmd_AddCommand ("+movedown",IN_DownDown);',
+		'Cmd_AddCommand ("-movedown",IN_DownUp);',
+		'Cmd_AddCommand ("+left",IN_LeftDown);',
+		'Cmd_AddCommand ("-left",IN_LeftUp);',
+		'Cmd_AddCommand ("+right",IN_RightDown);',
+		'Cmd_AddCommand ("-right",IN_RightUp);',
+		'Cmd_AddCommand ("+forward",IN_ForwardDown);',
+	]
+	positions = []
+	for command_line in command_lines:
+		assert command_line in init_input_block
+		positions.append(init_input_block.index(command_line))
+
+	assert positions == sorted(positions)
+	assert "CL_InitInput ();" in init_block
+
+
+def test_client_input_navigation_commands_follow_retail_key_state_and_usercmd_path() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	keydown_block = _extract_function_block(cl_input, "void IN_KeyDown( kbutton_t *b ) {")
+	keyup_block = _extract_function_block(cl_input, "void IN_KeyUp( kbutton_t *b ) {")
+	key_state_block = _extract_function_block(cl_input, "float CL_KeyState( kbutton_t *key ) {")
+	moveup_block = _extract_function_block(cl_input, "void IN_UpDown(void) {")
+	moveup_up_block = _extract_function_block(cl_input, "void IN_UpUp(void) {")
+	movedown_block = _extract_function_block(cl_input, "void IN_DownDown(void) {")
+	movedown_up_block = _extract_function_block(cl_input, "void IN_DownUp(void) {")
+	left_block = _extract_function_block(cl_input, "void IN_LeftDown(void) {")
+	left_up_block = _extract_function_block(cl_input, "void IN_LeftUp(void) {")
+	right_block = _extract_function_block(cl_input, "void IN_RightDown(void) {")
+	right_up_block = _extract_function_block(cl_input, "void IN_RightUp(void) {")
+	forward_block = _extract_function_block(cl_input, "void IN_ForwardDown(void) {")
+	center_block = _extract_function_block(cl_input, "void IN_CenterView (void) {")
+	adjust_block = _extract_function_block(cl_input, "void CL_AdjustAngles( void ) {")
+	key_move_block = _extract_function_block(cl_input, "void CL_KeyMove( usercmd_t *cmd ) {")
+	create_cmd_block = _extract_function_block(cl_input, "usercmd_t CL_CreateCmd( void ) {")
+
+	assert 'k = -1;\t\t// typed manually at the console for continuous down' in keydown_block
+	assert 'Com_Printf ("Three keys down for a button!\\n");' in keydown_block
+	assert 'b->downtime = atoi(c);' in keydown_block
+	assert 'b->active = qtrue;' in keydown_block
+	assert 'b->wasPressed = qtrue;' in keydown_block
+
+	assert 'b->down[0] = b->down[1] = 0;' in keyup_block
+	assert 'b->msec += uptime - b->downtime;' in keyup_block
+	assert 'b->msec += frame_msec / 2;' in keyup_block
+
+	assert 'val = (float)msec / frame_msec;' in key_state_block
+	assert 'if ( val > 1 ) {' in key_state_block
+
+	assert 'IN_KeyDown(&in_up);' in moveup_block
+	assert 'IN_KeyUp(&in_up);' in moveup_up_block
+	assert 'IN_KeyDown(&in_down);' in movedown_block
+	assert 'IN_KeyUp(&in_down);' in movedown_up_block
+	assert 'IN_KeyDown(&in_left);' in left_block
+	assert 'IN_KeyUp(&in_left);' in left_up_block
+	assert 'IN_KeyDown(&in_right);' in right_block
+	assert 'IN_KeyUp(&in_right);' in right_up_block
+	assert 'IN_KeyDown(&in_forward);' in forward_block
+
+	assert 'cl.viewangles[PITCH] = -SHORT2ANGLE(cl.snap.ps.delta_angles[PITCH]);' in center_block
+
+	assert 'if ( !in_strafe.active ) {' in adjust_block
+	assert 'cl.viewangles[YAW] -= speed*cl_yawspeed->value*CL_KeyState (&in_right);' in adjust_block
+	assert 'cl.viewangles[YAW] += speed*cl_yawspeed->value*CL_KeyState (&in_left);' in adjust_block
+
+	assert 'if ( in_speed.active ^ cl_run->integer ) {' in key_move_block
+	assert 'cmd->buttons &= ~BUTTON_WALKING;' in key_move_block
+	assert 'cmd->buttons |= BUTTON_WALKING;' in key_move_block
+	assert 'if ( in_strafe.active ) {' in key_move_block
+	assert 'side += movespeed * CL_KeyState (&in_right);' in key_move_block
+	assert 'side -= movespeed * CL_KeyState (&in_left);' in key_move_block
+	assert 'up += movespeed * CL_KeyState (&in_up);' in key_move_block
+	assert 'up -= movespeed * CL_KeyState (&in_down);' in key_move_block
+	assert 'forward += movespeed * CL_KeyState (&in_forward);' in key_move_block
+	assert 'cmd->forwardmove = ClampChar( forward );' in key_move_block
+	assert 'cmd->rightmove = ClampChar( side );' in key_move_block
+	assert 'cmd->upmove = ClampChar( up );' in key_move_block
+
+	assert "CL_AdjustAngles ();" in create_cmd_block
+	assert "CL_KeyMove( &cmd );" in create_cmd_block
+
+
+def test_client_input_command_registration_matches_retail_forward_pitch_strafe_surface() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	init_input_block = _extract_function_block(cl_input, "void CL_InitInput( void ) {")
+
+	command_lines = [
+		'Cmd_AddCommand ("-forward",IN_ForwardUp);',
+		'Cmd_AddCommand ("+back",IN_BackDown);',
+		'Cmd_AddCommand ("-back",IN_BackUp);',
+		'Cmd_AddCommand ("+lookup", IN_LookupDown);',
+		'Cmd_AddCommand ("-lookup", IN_LookupUp);',
+		'Cmd_AddCommand ("+lookdown", IN_LookdownDown);',
+		'Cmd_AddCommand ("-lookdown", IN_LookdownUp);',
+		'Cmd_AddCommand ("+strafe", IN_StrafeDown);',
+		'Cmd_AddCommand ("-strafe", IN_StrafeUp);',
+		'Cmd_AddCommand ("+moveleft", IN_MoveleftDown);',
+	]
+	positions = []
+	for command_line in command_lines:
+		assert command_line in init_input_block
+		positions.append(init_input_block.index(command_line))
+
+	assert positions == sorted(positions)
+	assert positions[0] > init_input_block.index('Cmd_AddCommand ("+forward",IN_ForwardDown);')
+	assert positions[-1] < init_input_block.index('Cmd_AddCommand ("-moveleft", IN_MoveleftUp);')
+
+
+def test_client_input_forward_pitch_strafe_commands_follow_retail_usercmd_path() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	forward_up_block = _extract_function_block(cl_input, "void IN_ForwardUp(void) {")
+	back_block = _extract_function_block(cl_input, "void IN_BackDown(void) {")
+	back_up_block = _extract_function_block(cl_input, "void IN_BackUp(void) {")
+	lookup_block = _extract_function_block(cl_input, "void IN_LookupDown(void) {")
+	lookup_up_block = _extract_function_block(cl_input, "void IN_LookupUp(void) {")
+	lookdown_block = _extract_function_block(cl_input, "void IN_LookdownDown(void) {")
+	lookdown_up_block = _extract_function_block(cl_input, "void IN_LookdownUp(void) {")
+	strafe_block = _extract_function_block(cl_input, "void IN_StrafeDown(void) {")
+	strafe_up_block = _extract_function_block(cl_input, "void IN_StrafeUp(void) {")
+	moveleft_block = _extract_function_block(cl_input, "void IN_MoveleftDown(void) {")
+	adjust_block = _extract_function_block(cl_input, "void CL_AdjustAngles( void ) {")
+	key_move_block = _extract_function_block(cl_input, "void CL_KeyMove( usercmd_t *cmd ) {")
+
+	assert 'IN_KeyUp(&in_forward);' in forward_up_block
+	assert 'IN_KeyDown(&in_back);' in back_block
+	assert 'IN_KeyUp(&in_back);' in back_up_block
+	assert 'IN_KeyDown(&in_lookup);' in lookup_block
+	assert 'IN_KeyUp(&in_lookup);' in lookup_up_block
+	assert 'IN_KeyDown(&in_lookdown);' in lookdown_block
+	assert 'IN_KeyUp(&in_lookdown);' in lookdown_up_block
+	assert 'IN_KeyDown(&in_strafe);' in strafe_block
+	assert 'IN_KeyUp(&in_strafe);' in strafe_up_block
+	assert 'IN_KeyDown(&in_moveleft);' in moveleft_block
+
+	assert 'cl.viewangles[PITCH] -= speed*cl_pitchspeed->value * CL_KeyState (&in_lookup);' in adjust_block
+	assert 'cl.viewangles[PITCH] += speed*cl_pitchspeed->value * CL_KeyState (&in_lookdown);' in adjust_block
+
+	assert 'if ( in_strafe.active ) {' in key_move_block
+	assert 'side += movespeed * CL_KeyState (&in_right);' in key_move_block
+	assert 'side -= movespeed * CL_KeyState (&in_left);' in key_move_block
+	assert 'side -= movespeed * CL_KeyState (&in_moveleft);' in key_move_block
+	assert 'forward -= movespeed * CL_KeyState (&in_back);' in key_move_block
+
+
+def test_client_input_command_registration_matches_retail_movement_button_surface() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	init_input_block = _extract_function_block(cl_input, "void CL_InitInput( void ) {")
+
+	command_lines = [
+		'Cmd_AddCommand ("-moveleft", IN_MoveleftUp);',
+		'Cmd_AddCommand ("+moveright", IN_MoverightDown);',
+		'Cmd_AddCommand ("-moveright", IN_MoverightUp);',
+		'Cmd_AddCommand ("+speed", IN_SpeedDown);',
+		'Cmd_AddCommand ("-speed", IN_SpeedUp);',
+		'Cmd_AddCommand ("+attack", IN_Button0Down);',
+		'Cmd_AddCommand ("-attack", IN_Button0Up);',
+		'Cmd_AddCommand ("+button2", IN_Button2Down);',
+		'Cmd_AddCommand ("-button2", IN_Button2Up);',
+		'Cmd_AddCommand ("+button3", IN_Button3Down);',
+	]
+	positions = []
+	for command_line in command_lines:
+		assert command_line in init_input_block
+		positions.append(init_input_block.index(command_line))
+
+	assert positions == sorted(positions)
+	assert positions[0] > init_input_block.index('Cmd_AddCommand ("+moveleft", IN_MoveleftDown);')
+	assert positions[-1] < init_input_block.index('Cmd_AddCommand ("-button3", IN_Button3Up);')
+
+
+def test_client_input_movement_button_commands_follow_retail_speed_and_button_bit_path() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	moveleft_up_block = _extract_function_block(cl_input, "void IN_MoveleftUp(void) {")
+	moveright_block = _extract_function_block(cl_input, "void IN_MoverightDown(void) {")
+	moveright_up_block = _extract_function_block(cl_input, "void IN_MoverightUp(void) {")
+	speed_block = _extract_function_block(cl_input, "void IN_SpeedDown(void) {")
+	speed_up_block = _extract_function_block(cl_input, "void IN_SpeedUp(void) {")
+	attack_block = _extract_function_block(cl_input, "void IN_Button0Down(void) {")
+	attack_up_block = _extract_function_block(cl_input, "void IN_Button0Up(void) {")
+	button2_block = _extract_function_block(cl_input, "void IN_Button2Down(void) {")
+	button2_up_block = _extract_function_block(cl_input, "void IN_Button2Up(void) {")
+	button3_block = _extract_function_block(cl_input, "void IN_Button3Down(void) {")
+	key_move_block = _extract_function_block(cl_input, "void CL_KeyMove( usercmd_t *cmd ) {")
+	cmd_buttons_block = _extract_function_block(cl_input, "void CL_CmdButtons( usercmd_t *cmd ) {")
+	create_cmd_block = _extract_function_block(cl_input, "usercmd_t CL_CreateCmd( void ) {")
+
+	assert 'IN_KeyUp(&in_moveleft);' in moveleft_up_block
+	assert 'IN_KeyDown(&in_moveright);' in moveright_block
+	assert 'IN_KeyUp(&in_moveright);' in moveright_up_block
+	assert 'IN_KeyDown(&in_speed);' in speed_block
+	assert 'IN_KeyUp(&in_speed);' in speed_up_block
+
+	assert 'IN_KeyDown(&in_buttons[0]);' in attack_block
+	assert 'IN_KeyUp(&in_buttons[0]);' in attack_up_block
+	assert 'IN_KeyDown(&in_buttons[2]);' in button2_block
+	assert 'IN_KeyUp(&in_buttons[2]);' in button2_up_block
+	assert 'IN_KeyDown(&in_buttons[3]);' in button3_block
+
+	assert 'if ( in_speed.active ^ cl_run->integer ) {' in key_move_block
+	assert 'movespeed = 127;' in key_move_block
+	assert 'movespeed = 64;' in key_move_block
+	assert 'side += movespeed * CL_KeyState (&in_moveright);' in key_move_block
+	assert 'side -= movespeed * CL_KeyState (&in_moveleft);' in key_move_block
+
+	assert 'for (i = 0 ; i < 15 ; i++) {' in cmd_buttons_block
+	assert 'cmd->buttons |= 1 << i;' in cmd_buttons_block
+	assert 'in_buttons[i].wasPressed = qfalse;' in cmd_buttons_block
+	assert 'cmd->buttons |= BUTTON_TALK;' in cmd_buttons_block
+	assert 'cmd->buttons |= BUTTON_ANY;' in cmd_buttons_block
+
+	assert "CL_CmdButtons( &cmd );" in create_cmd_block
+
+
+def test_client_input_command_registration_matches_retail_button3_release_and_mlook_surface() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	init_input_block = _extract_function_block(cl_input, "void CL_InitInput( void ) {")
+
+	command_lines = [
+		'Cmd_AddCommand ("-button3", IN_Button3Up);',
+		'Cmd_AddCommand ("+button4", IN_Button4Down);',
+		'Cmd_AddCommand ("-button4", IN_Button4Up);',
+		'Cmd_AddCommand ("+button14", IN_Button14Down);',
+		'Cmd_AddCommand ("-button14", IN_Button14Up);',
+		'Cmd_AddCommand ("+mlook", IN_MLookDown);',
+		'Cmd_AddCommand ("-mlook", IN_MLookUp);',
+	]
+	positions = []
+	for command_line in command_lines:
+		assert command_line in init_input_block
+		positions.append(init_input_block.index(command_line))
+
+	assert positions == sorted(positions)
+	assert positions[0] > init_input_block.index('Cmd_AddCommand ("+button3", IN_Button3Down);')
+	assert positions[-1] < init_input_block.index('cl_nodelta = Cvar_Get ("cl_nodelta", "0", 0);')
+
+
+def test_client_input_button3_release_and_mlook_follow_retail_mouse_and_joystick_path() -> None:
+	cl_input = (REPO_ROOT / "src/code/client/cl_input.c").read_text(encoding="utf-8")
+
+	button3_up_block = _extract_function_block(cl_input, "void IN_Button3Up(void) {")
+	mlook_down_block = _extract_function_block(cl_input, "void IN_MLookDown( void ) {")
+	mlook_up_block = _extract_function_block(cl_input, "void IN_MLookUp( void ) {")
+	mouse_move_block = _extract_function_block(cl_input, "void CL_MouseMove( usercmd_t *cmd ) {")
+	joystick_move_block = _extract_function_block(cl_input, "void CL_JoystickMove( usercmd_t *cmd ) {")
+
+	assert 'IN_KeyUp(&in_buttons[3]);' in button3_up_block
+	assert 'in_mlooking = qtrue;' in mlook_down_block
+	assert 'in_mlooking = qfalse;' in mlook_up_block
+	assert 'if ( !cl_freelook->integer ) {' in mlook_up_block
+	assert 'IN_CenterView ();' in mlook_up_block
+
+	assert 'if ( (in_mlooking || cl_freelook->integer) && !in_strafe.active ) {' in mouse_move_block
+	assert 'cl.viewangles[PITCH] += cl_viewAccel->value * m_pitch->value * my;' in mouse_move_block
+	assert 'cmd->forwardmove = ClampChar( cmd->forwardmove - m_forward->value * my );' in mouse_move_block
+
+	assert 'if ( in_mlooking ) {' in joystick_move_block
+	assert 'cl.viewangles[PITCH] += anglespeed * cl_pitchspeed->value * cl.joystickAxis[AXIS_FORWARD];' in joystick_move_block
+	assert 'cmd->forwardmove = ClampChar( cmd->forwardmove + cl.joystickAxis[AXIS_FORWARD] );' in joystick_move_block
+
+
 def test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration() -> None:
 	tr_public = (REPO_ROOT / "src/code/renderer/tr_public.h").read_text(encoding="utf-8")
 	tr_init = (REPO_ROOT / "src/code/renderer/tr_init.c").read_text(encoding="utf-8")
@@ -280,6 +579,8 @@ def test_client_command_registration_matches_retail_cinematic_network_and_browse
 	assert 'Cmd_AddCommand ("web_changeHash", CL_Web_ChangeHash_f );' in init_block
 	assert 'Cmd_AddCommand ("web_hideBrowser", CL_Web_HideBrowser_f );' in init_block
 	assert 'Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );' in init_block
+	assert 'Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );' in init_block
+	assert 'Cmd_AddCommand ("web_reload", CL_Web_Reload_f );' in init_block
 
 	assert 'Cmd_RemoveCommand ("cinematic");' in shutdown_block
 	assert 'Cmd_RemoveCommand ("localservers");' in shutdown_block
@@ -289,6 +590,8 @@ def test_client_command_registration_matches_retail_cinematic_network_and_browse
 	assert 'Cmd_RemoveCommand ("web_changeHash");' in shutdown_block
 	assert 'Cmd_RemoveCommand ("web_hideBrowser");' in shutdown_block
 	assert 'Cmd_RemoveCommand ("web_showError");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_clearCache");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_reload");' in shutdown_block
 
 	assert 'Cmd_AddCommand ("togglemenu", CL_ToggleMenu_f );' not in init_block
 	assert 'Cmd_AddCommand ("web_browserActive", CL_Web_BrowserActive_f );' not in init_block
@@ -314,6 +617,8 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	change_hash_block = _extract_function_block(cl_cgame, "void CL_Web_ChangeHash_f( void ) {")
 	hide_browser_block = _extract_function_block(cl_cgame, "static void QLWebHost_HideBrowser( void ) {")
 	show_error_block = _extract_function_block(cl_cgame, "void CL_Web_ShowError_f( void ) {")
+	clear_cache_block = _extract_function_block(cl_cgame, "void CL_Web_ClearCache_f( void ) {")
+	reload_block = _extract_function_block(cl_cgame, "void CL_Web_Reload_f( void ) {")
 
 	assert 'if ((s && s[0] == \'1\') || Q_stricmp(arg,"demoend.roq")==0 || Q_stricmp(arg,"end.roq")==0) {' in play_cinematic_block
 	assert "S_StopAllSounds ();" in play_cinematic_block
@@ -366,3 +671,14 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	assert 'Cvar_Set( "com_errorMessage", message );' in show_error_block
 	assert "CL_WebView_PublishGameError( message );" in show_error_block
 	assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" not in show_error_block
+
+	assert 'if ( !cl_webHost.sessionInitialised ) {' in clear_cache_block
+	assert "CL_Web_ClearSessionState();" in clear_cache_block
+	assert 'Com_DPrintf( "web_clearCache\\n" );' not in clear_cache_block
+
+	assert 'if ( !cl_webHost.viewInitialised ) {' in reload_block
+	assert "CL_Web_ClearSessionState();" in reload_block
+	assert "QLWebHost_ReloadView( qtrue );" in reload_block
+	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in reload_block
+	assert "CL_RefreshOnlineServicesBridgeState();" not in reload_block
+	assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" not in reload_block

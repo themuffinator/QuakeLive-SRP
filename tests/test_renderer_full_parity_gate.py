@@ -442,13 +442,17 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 		and "#include <ft2build.h>" in tr_font
 		and "#include FT_FREETYPE_H" in tr_font
 		and "QLEnableFreeType" in renderer_vcxproj
+		and "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in renderer_vcxproj
 		and "ValidateFreeType" in renderer_vcxproj
 		and "..\\ft2\\" not in renderer_vcxproj
 		and "..\\ft2\\" not in renderer_vcxproj_filters
 		and "..\\ft2\\" not in renderer_vcproj
 		and "QLEnableFreeType" in quakelive_steam_vcxproj
+		and "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in quakelive_steam_vcxproj
 		and "ValidateFreeType" in quakelive_steam_vcxproj
+		and "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)" in quakelive_steam_vcxproj
 		and "QLEnableFreeType" in build_script
+		and "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" in build_script
 		and "build_internal_deps.ps1" in build_script
 		and "VCPKG_ROOT" not in renderer_vcxproj
 		and "VCPKG_ROOT" not in quakelive_steam_vcxproj
@@ -475,13 +479,17 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 			"tr_font_uses_external_ft2build": "#include <ft2build.h>" in tr_font,
 			"tr_font_uses_ft_freetype_macro": "#include FT_FREETYPE_H" in tr_font,
 			"renderer_vcxproj_has_freetype_toggle": "QLEnableFreeType" in renderer_vcxproj,
+			"renderer_vcxproj_defaults_freetype_on": "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in renderer_vcxproj,
 			"renderer_vcxproj_has_validate_target": "ValidateFreeType" in renderer_vcxproj,
 			"renderer_vcxproj_references_ft2": "..\\ft2\\" in renderer_vcxproj,
 			"renderer_vcxproj_filters_references_ft2": "..\\ft2\\" in renderer_vcxproj_filters,
 			"renderer_vcproj_references_ft2": "..\\ft2\\" in renderer_vcproj,
 			"engine_vcxproj_has_freetype_toggle": "QLEnableFreeType" in quakelive_steam_vcxproj,
+			"engine_vcxproj_defaults_freetype_on": "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in quakelive_steam_vcxproj,
 			"engine_vcxproj_has_validate_target": "ValidateFreeType" in quakelive_steam_vcxproj,
+			"engine_vcxproj_links_freetype_dependencies": "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)" in quakelive_steam_vcxproj,
 			"build_script_has_freetype_toggle": "QLEnableFreeType" in build_script,
+			"build_script_bootstraps_freetype": "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" in build_script,
 			"build_script_bootstraps_internal_codecs": "build_internal_deps.ps1" in build_script,
 			"renderer_vcxproj_has_vcpkg_probe": "VCPKG_ROOT" in renderer_vcxproj,
 			"engine_vcxproj_has_vcpkg_probe": "VCPKG_ROOT" in quakelive_steam_vcxproj,

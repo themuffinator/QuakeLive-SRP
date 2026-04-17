@@ -128,6 +128,8 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	change_hash_block = _extract_function_block(cl_cgame, "void CL_Web_ChangeHash_f( void ) {")
 	hide_browser_block = _extract_function_block(cl_cgame, "static void QLWebHost_HideBrowser( void ) {")
 	show_error_block = _extract_function_block(cl_cgame, "void CL_Web_ShowError_f( void ) {")
+	clear_cache_block = _extract_function_block(cl_cgame, "void CL_Web_ClearCache_f( void ) {")
+	reload_view_block = _extract_function_block(cl_cgame, "static void QLWebHost_ReloadView( qboolean ignoreCache ) {")
 	reload_block = _extract_function_block(cl_cgame, "void CL_Web_Reload_f( void ) {")
 	frame_block = _extract_function_block(cl_cgame, "void CL_WebHost_Frame( void ) {")
 
@@ -147,7 +149,14 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	assert 'const char *message = ( Cmd_Argc() > 1 ) ? Cmd_Argv( 1 ) : "";' in show_error_block
 	assert "CL_WebView_PublishGameError( message );" in show_error_block
 	assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" not in show_error_block
-	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' in reload_block
+	assert 'if ( !cl_webHost.sessionInitialised ) {' in clear_cache_block
+	assert "CL_Web_ClearSessionState();" in clear_cache_block
+	assert 'cl_webHost.refreshStopped = qfalse;' in reload_view_block
+	assert "(void)ignoreCache;" in reload_view_block
+	assert "CL_WebHost_PrimeLauncherDocument( cl_webHost.currentUrl )" in reload_view_block
+	assert "QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );" in reload_view_block
+	assert "QLWebHost_ReloadView( qtrue );" in reload_block
+	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in reload_block
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' in frame_block
 
 

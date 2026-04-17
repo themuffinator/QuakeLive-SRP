@@ -153,8 +153,10 @@ def test_console_message_modes_and_timestamps_follow_retail_cgame_path() -> None
 	assert "Con_ResetChatField( qtrue );" in mode2_block
 	assert "Con_ResetChatField( qfalse );" in mode3_block
 	assert "Con_ResetChatField( qfalse );" in mode4_block
-	assert 'Cmd_AddCommand ("messagemode3", Con_MessageMode3_f);' in source
-	assert 'Cmd_AddCommand ("messagemode4", Con_MessageMode4_f);' in source
+	assert 'Cmd_AddCommand ("messagemode", Con_MessageMode_f);' in source
+	assert 'Cmd_AddCommand ("messagemode2", Con_MessageMode2_f);' in source
+	assert 'Cmd_AddCommand ("messagemode3", Con_MessageMode3_f);' not in source
+	assert 'Cmd_AddCommand ("messagemode4", Con_MessageMode4_f);' not in source
 	assert "chat_reply = qfalse;" in mode_block
 	assert "chat_reply = qfalse;" in mode2_block
 	assert "chat_reply = qfalse;" in mode3_block

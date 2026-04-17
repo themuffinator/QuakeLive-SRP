@@ -34,6 +34,9 @@ def test_tr_font_pins_inclusive_cached_font_and_atlas_ranges() -> None:
 
 	assert "loadName = R_FindCachedFontDataName( cacheName, legacyCacheName );" in tr_font
 	assert "R_RegisterCachedFontShaders( font );" in tr_font
+	assert "R_GetFontStashScaleTenths( float scale )" in tr_font
+	assert "R_FindFontStashGlyph( rFontStashFace_t *face, unsigned int codepoint, int scaleTenths )" in tr_font
+	assert "R_CacheFontStashGlyph( rFontStashFace_t *face, unsigned int codepoint, int scaleTenths, qboolean uploadAtlas, rFontStashGlyph_t **outGlyph )" in tr_font
 	assert "for ( i = GLYPH_START; i <= GLYPH_END; i++ ) {" in tr_font
 	assert "for ( j = firstGlyph; j <= lastGlyph; j++ ) {" in tr_font
 	assert "R_FlushFontAtlasPage( fontName, pointSize, imageNumber++, font, lastStart, i - 1, out );" in tr_font
@@ -77,4 +80,5 @@ def test_rg_p7_ownership_note_and_renderer_audit_mark_rg_g05_closed() -> None:
 	assert "Strict renderer estimate after `RG-P9` closure: **98%**" in renderer_audit
 	assert "Strict renderer estimate after `RG-P10` closure: **99%**" in renderer_audit
 	assert "Strict renderer estimate after `RG-P11` closure: **100%**" in renderer_audit
+	assert "UTF-8 host text had still been decoded as raw bytes in source." in renderer_audit
 	assert "No confirmed renderer gaps remain after `RG-P11`." in renderer_audit

@@ -11,6 +11,7 @@ from tests.compiler_support import compile_c_binary, find_c_compiler, shared_lib
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WIN_INPUT = REPO_ROOT / "src" / "code" / "win32" / "win_input.c"
+WIN_MAIN = REPO_ROOT / "src" / "code" / "win32" / "win_main.c"
 WIN_WNDPROC = REPO_ROOT / "src" / "code" / "win32" / "win_wndproc.c"
 
 RIDEV_REMOVE = 0x00000001
@@ -22,6 +23,12 @@ RI_MOUSE_BUTTON_4_DOWN = 0x0040
 RI_MOUSE_BUTTON_5_UP = 0x0200
 RI_MOUSE_WHEEL = 0x0400
 WHEEL_DELTA = 120
+
+# Retail command-owner evidence for this console-facing raw-input slice comes
+# from `references/analysis/quakelive_symbol_aliases.json` plus the paired HLIL
+# owner in `references/hlil/quakelive/quakelive_steam.exe/`:
+# `sub_4EAB90` -> `ListInputDevices_f`
+# `sub_4ED3E0` -> `Sys_In_Restart_f`
 
 
 class RawInputDevice(ctypes.Structure):
@@ -240,6 +247,7 @@ def test_raw_input_button_translation_emits_negative_wheel_events(
 def test_win32_raw_input_source_registers_cvars_and_raw_fallback_lane() -> None:
 	source = WIN_INPUT.read_text(encoding="utf-8")
 	init_block = _extract_function_block(source, "void IN_Init( void ) {")
+	shutdown_block = _extract_function_block(source, "void IN_Shutdown( void ) {")
 	startup_block = _extract_function_block(source, "void IN_StartupMouse( void )")
 
 	assert re.search(r'in_mouse\s*=\s*Cvar_Get\s*\(\s*"in_mouse"\s*,\s*"2"', init_block)
@@ -248,6 +256,7 @@ def test_win32_raw_input_source_registers_cvars_and_raw_fallback_lane() -> None:
 	assert 'Cvar_Get ("in_nograb"' in init_block
 	assert 'Cvar_Get ("in_raw_useWindowHandle"' in init_block
 	assert 'Cmd_AddCommand( "ListInputDevices", ListInputDevices_f );' in init_block
+	assert 'Cmd_RemoveCommand("ListInputDevices" );' in shutdown_block
 
 	assert "IN_InitRawInput()" in startup_block
 	assert 'Com_Printf( "Falling back on raw input...\\n" );' in startup_block
@@ -268,3 +277,14 @@ def test_win32_raw_input_source_includes_device_listing_and_wm_input_dispatch() 
 	assert "case WM_INPUT:" in main_wndproc
 	assert "IN_RawInputEvent( wParam, lParam );" in main_wndproc
 	assert "IN_RawInputIsActive()" in main_wndproc
+
+
+def test_win32_input_restart_command_matches_retail_registration_and_handler() -> None:
+	win_main = WIN_MAIN.read_text(encoding="utf-8")
+
+	sys_init_block = _extract_function_block(win_main, "void Sys_Init( void ) {")
+	restart_block = _extract_function_block(win_main, "void Sys_In_Restart_f( void ) {")
+
+	assert 'Cmd_AddCommand ("in_restart", Sys_In_Restart_f);' in sys_init_block
+	assert "IN_Shutdown();" in restart_block
+	assert "IN_Init();" in restart_block

@@ -122,13 +122,16 @@ def test_session_init_and_serializer_follow_recovered_retail_shape() -> None:
 	assert "if ( g_gametype.integer == GT_TOURNAMENT ) {" in init_block
 	assert "sess->spectateOnly = qtrue;" in init_block
 
-	assert '%i %ld %i %i %i %i %i %i %i %i %i %i' in write_block
+	assert '%i %ld %i %i %i %i %i %i %i %i %i %i %i %i' in write_block
+	assert "client->sess.sessionField34" in write_block
+	assert "ignoredSessionTail" in write_block
 	assert "client->sess.skill1" not in write_block
 	assert "client->sess.skill2" not in write_block
 	assert "client->sess.skill3" not in write_block
 
 	assert '%i %ld %i %i %i %i %i %i %i %i %i %i %i %i' in read_block
 	assert read_block.count( "sscanf" ) == 1
+	assert "ignoredSessionTail" in read_block
 	assert "client->sess.skill1 = 0;" in read_block
 	assert "client->sess.skill2 = 0;" in read_block
 	assert "client->sess.skill3 = 0;" in read_block

@@ -106,8 +106,7 @@
     <QLEnableOgg Condition="'$(QLEnableOgg)'==''">1</QLEnableOgg>
     <QLEnablePng Condition="'$(QLEnablePng)'=='' and Exists('$(ProjectDir)..\libs\libpng\include\png.h') and Exists('$(ProjectDir)..\libs\libpng\lib\Win32\libpng16.lib') and Exists('$(ProjectDir)..\libs\libpng\lib\Win32\zlib.lib')">1</QLEnablePng>
     <QLEnablePng Condition="'$(QLEnablePng)'==''">0</QLEnablePng>
-    <QLEnableFreeType Condition="'$(QLEnableFreeType)'=='' and Exists('$(ProjectDir)..\libs\freetype\include\ft2build.h') and (Exists('$(ProjectDir)..\libs\freetype\lib\Win32\freetype.lib') or Exists('$(ProjectDir)..\libs\freetype\lib\Win32\libfreetype.lib') or Exists('$(ProjectDir)..\libs\freetype\lib\freetype.lib') or Exists('$(ProjectDir)..\libs\freetype\lib\libfreetype.lib'))">1</QLEnableFreeType>
-    <QLEnableFreeType Condition="'$(QLEnableFreeType)'==''">0</QLEnableFreeType>
+    <QLEnableFreeType Condition="'$(QLEnableFreeType)'==''">1</QLEnableFreeType>
   </PropertyGroup>
   <PropertyGroup Label="VorbisSdk">
     <VorbisSdkDir>$(ProjectDir)..\libs\vorbis</VorbisSdkDir>
@@ -130,6 +129,7 @@
   </PropertyGroup>
   <PropertyGroup Label="FreeTypeSdk">
     <FreeTypeSdkDir>$(ProjectDir)..\libs\freetype</FreeTypeSdkDir>
+    <FreeTypeIncludeDir Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeIncludeDir)'=='' and Exists('$(FreeTypeSdkDir)\include\freetype2\ft2build.h')">$(FreeTypeSdkDir)\include\freetype2</FreeTypeIncludeDir>
     <FreeTypeIncludeDir Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeIncludeDir)'==''">$(FreeTypeSdkDir)\include</FreeTypeIncludeDir>
     <FreeTypeIncludeDir Condition="'$(QLEnableFreeType)'=='0' and '$(FreeTypeIncludeDir)'==''"></FreeTypeIncludeDir>
     <FreeTypeLibDir Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeLibDir)'=='' and Exists('$(FreeTypeSdkDir)\lib\Win32')">$(FreeTypeSdkDir)\lib\Win32</FreeTypeLibDir>
@@ -137,6 +137,7 @@
     <FreeTypeLibDir Condition="'$(QLEnableFreeType)'=='0' and '$(FreeTypeLibDir)'==''"></FreeTypeLibDir>
     <FreeTypeDependencies Condition="'$(QLEnableFreeType)'!='0' and Exists('$(FreeTypeLibDir)\freetype.lib')">freetype.lib</FreeTypeDependencies>
     <FreeTypeDependencies Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeDependencies)'=='' and Exists('$(FreeTypeLibDir)\libfreetype.lib')">libfreetype.lib</FreeTypeDependencies>
+    <FreeTypeDependencies Condition="'$(QLEnableFreeType)'!='0' and '$(FreeTypeDependencies)'==''">freetype.lib</FreeTypeDependencies>
     <FreeTypeDependencies Condition="'$(QLEnableFreeType)'=='0'"></FreeTypeDependencies>
   </PropertyGroup>
   <PropertyGroup>
@@ -242,7 +243,7 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
@@ -287,7 +288,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -337,7 +338,7 @@ if exist "$(PngSdkDir)\bin\*.dll" xcopy /y /d /i "$(PngSdkDir)\bin\*.dll" "$(Out
       <DebugInformationFormat>OldStyle</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -379,7 +380,7 @@ if exist "$(PngSdkDir)\bin\*.dll" xcopy /y /d /i "$(PngSdkDir)\bin\*.dll" "$(Out
       <SuppressStartupBanner>true</SuppressStartupBanner>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -420,7 +421,7 @@ if exist "$(PngSdkDir)\bin\*.dll" xcopy /y /d /i "$(PngSdkDir)\bin\*.dll" "$(Out
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -464,7 +465,7 @@ if exist "$(PngSdkDir)\bin\*.dll" xcopy /y /d /i "$(PngSdkDir)\bin\*.dll" "$(Out
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -505,7 +506,7 @@ if exist "$(PngSdkDir)\bin\*.dll" xcopy /y /d /i "$(PngSdkDir)\bin\*.dll" "$(Out
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>

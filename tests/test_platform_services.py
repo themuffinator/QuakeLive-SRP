@@ -984,6 +984,10 @@ def test_browser_cache_reload_owner_restores_retail_command_and_cvar_surface() -
         cl_cgame,
         "void CL_Web_ClearCache_f( void ) {",
     )
+    reload_view_block = _extract_function_block(
+        cl_cgame,
+        "static void QLWebHost_ReloadView( qboolean ignoreCache ) {",
+    )
     reload_block = _extract_function_block(
         cl_cgame,
         "void CL_Web_Reload_f( void ) {",
@@ -1000,8 +1004,14 @@ def test_browser_cache_reload_owner_restores_retail_command_and_cvar_surface() -
     assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in cl_main
     assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in cl_main
     assert "CL_ClearSteamResourceCache( qtrue );" in clear_session_block
+    assert "if ( !cl_webHost.sessionInitialised ) {" in clear_cache_block
     assert "CL_Web_ClearSessionState();" in clear_cache_block
+    assert "(void)ignoreCache;" in reload_view_block
+    assert "CL_WebHost_PrimeLauncherDocument( cl_webHost.currentUrl )" in reload_view_block
+    assert "QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );" in reload_view_block
+    assert "if ( !cl_webHost.viewInitialised ) {" in reload_block
     assert "CL_Web_ClearSessionState();" in reload_block
+    assert "QLWebHost_ReloadView( qtrue );" in reload_block
     assert "for ( i = 0; i < MAX_STEAM_RESOURCES; i++ ) {" in clear_resource_block
     assert "CL_SteamResources_ClearSlot( &cl_steamResources[i], clearPersisted );" in clear_resource_block
     assert "cl_steamResourceGeneration++;" in clear_resource_block
@@ -1095,6 +1105,7 @@ def test_client_browser_commands_drive_retained_host_owner_surface() -> None:
     browser_active_block = _extract_function_block(cl_cgame, "void CL_Web_BrowserActive_f( void )")
     hide_browser_block = _extract_function_block(cl_cgame, "void CL_Web_HideBrowser_f( void )")
     show_error_block = _extract_function_block(cl_cgame, "void CL_Web_ShowError_f( void )")
+    reload_view_block = _extract_function_block(cl_cgame, "static void QLWebHost_ReloadView( qboolean ignoreCache ) {")
     reload_block = _extract_function_block(cl_cgame, "void CL_Web_Reload_f( void )")
     stop_refresh_block = _extract_function_block(cl_cgame, "void CL_Web_StopRefresh_f( void )")
 
@@ -1103,8 +1114,9 @@ def test_client_browser_commands_drive_retained_host_owner_surface() -> None:
     assert "QLWebHost_HideBrowser();" in browser_active_block
     assert "QLWebHost_HideBrowser();" in hide_browser_block
     assert "CL_WebView_PublishGameError( message );" in show_error_block
-    assert "cl_webHost.currentUrl[0]" in reload_block
-    assert "QLWebHost_OpenURL( cl_webHost.currentUrl );" in reload_block
+    assert "cl_webHost.currentUrl[0]" in reload_view_block
+    assert "CL_WebHost_PrimeLauncherDocument( cl_webHost.currentUrl )" in reload_view_block
+    assert "QLWebHost_ReloadView( qtrue );" in reload_block
     assert "cl_webHost.refreshStopped = qtrue;" in stop_refresh_block
 
 

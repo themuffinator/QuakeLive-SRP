@@ -3006,6 +3006,7 @@ Com_WriteConfigToFile
 void Com_WriteConfigToFile( const char *hardwareFilename, const char *replicateFilename, qboolean clientConfigOnly ) {
 	fileHandle_t	hardwareFile;
 	fileHandle_t	replicateFile;
+	fileHandle_t	bindingsFile;
 
 	hardwareFile = Com_OpenRetailConfigFile( hardwareFilename, QL_CONFIG_HARDWARE_HEADER );
 	if ( !hardwareFile ) {
@@ -3013,15 +3014,19 @@ void Com_WriteConfigToFile( const char *hardwareFilename, const char *replicateF
 	}
 
 	replicateFile = hardwareFile;
+	bindingsFile = hardwareFile;
 	if ( replicateFilename && replicateFilename[0] ) {
 		replicateFile = Com_OpenRetailConfigFile( replicateFilename, QL_CONFIG_REPLICATE_HEADER );
 		if ( !replicateFile ) {
 			FS_FCloseFile( hardwareFile );
 			return;
 		}
+
+		bindingsFile = replicateFile;
 	}
 
-	Key_WriteBindings( hardwareFile );
+	Key_WriteBindings( bindingsFile );
+	Cmd_WriteAliases( hardwareFile );
 	Cvar_WriteQLConfigVariables( hardwareFile, replicateFile, clientConfigOnly );
 
 	if ( replicateFile && replicateFile != hardwareFile ) {

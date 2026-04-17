@@ -22,6 +22,16 @@ Observed facts from the committed retail launcher HLIL:
     `%WINDIR%\fonts\segoeui.ttf`, or `%WINDIR%\fonts\l_10646.ttf`
 - Retail host `DrawScaledText` / `MeasureText` wrappers index that handle table
   directly, instead of collapsing every call to a single baked `fontInfo_t`.
+- Retail host `DrawScaledText` / `MeasureText` consume UTF-8 text through the
+  retained host lane instead of indexing raw bytes. HLIL `0x00443BE0` and
+  `0x00444360` walk the same DFA-style decode tables before probing glyphs.
+- Retail glyph lookup caches entries by decoded codepoint plus the rounded
+  tenths-sized request and probes the requested face before the retained
+  fallback-face slots. HLIL `0x00443720` shows the current face search, the
+  three retained fallback slots, and the size-tenths key in the same helper.
+- Retail host draw only treats `^0` through `^7` as color escapes. Other caret
+  pairs stay visible in the glyph stream, while `forceColor` still consumes the
+  recognized color escapes without recoloring.
 - UI HLIL `sub_10003d90` / `sub_10003ec0` computes host text scale as
   `(vidHeight / 768) * 96`. Against the source UI/cgame `yscale =
   vidHeight / 480`, that matches a `QL_FONT_HOST_POINT_SIZE` baseline of
@@ -32,11 +42,18 @@ Observed facts from the writable source tree:
 - The classic renderer FreeType path still lives in `src/code/renderer/tr_font.c`.
 - The renderer no longer depends on a missing in-tree `src/code/ft2/` vendor
   drop. The build now uses a repo-managed FreeType replacement lane on Windows
-  and `pkg-config freetype2` on Unix when `BUILD_FREETYPE` is enabled.
+  and `pkg-config freetype2` on Unix when `BUILD_FREETYPE` is enabled. The
+  Win32 build now defaults that lane on, bootstraps FreeType into
+  `src/libs/freetype` from an official upstream cache when needed, and no
+  longer silently compiles the tiny bitmap fallback path on clean checkouts.
 - `src/code/renderer/tr_font.c` now contains a renderer-owned retained host text
   core that creates `*fontstash`, installs `R_fonsErrorCallback`, and retains
   the five recovered host-text faces plus the preferred sans/fallback face
   slots.
+- `src/code/renderer/tr_font.c` now also decodes UTF-8 host text into
+  codepoints, caches retained glyphs by codepoint plus rounded size tenths, and
+  probes the recovered retained fallback-face chain before dropping to the
+  classic baked-font compatibility lane.
 - native `DrawScaledText` / `MeasureText` now route through the shared
   renderer host-text helpers instead of through duplicated client-side glyph
   loops.
@@ -57,6 +74,9 @@ Observed facts from the writable source tree:
 - Those shared helpers now resolve glyphs from the retained `*fontstash` face
   table first and only fall back to the classic `RE_RegisterFont` cache lane
   when the retained atlas path is unavailable for the requested face.
+- Those same helpers now consume UTF-8 codepoints, treat only `^0`..`^7` as
+  host color escapes, and keep the retail `forceColor` behavior where valid
+  color escapes are consumed but do not recolor the active draw state.
 - `src/code/client/cl_ui.c` and `src/code/client/cl_cgame.c` now route native
   `DrawScaledText` / `MeasureText` through the shared renderer host-text
   helpers instead of resolving `fontInfo_t` locally.
@@ -98,6 +118,9 @@ Inference:
 
 - The source tree now matches the retail face selection and per-face cache
   behavior much more closely for the retained host-text lane itself.
+- The hidden exactness tail inside that retained lane is now also closed:
+  host text is no longer byte-oriented, and Unicode fallback probing no longer
+  depends on the caller choosing the fallback face manually.
 - The UI and cgame font helpers now also match the retail ownership split more
   closely: asset caches own shaders, while dedicated font parse/bootstrap
   helpers own the registered Quake Live font buckets and their point sizes.
@@ -117,7 +140,16 @@ Inference:
   - that artifact now proves a windowed UI-bootstrap pass, retained-atlas
     debug rendering, and live `bloodrun` runtime with distinct engine/window
     capture hashes, while rejecting `RE_RegisterFont` fallback-lane logs
-- No confirmed renderer font-stack gap remains after `RG-P11`.
+- The 2026-04-17 full font audit reopened one hidden renderer-host gap
+  inside the earlier `RG-P8` closure:
+  - raw-byte host glyph lookup instead of UTF-8 decode
+  - point-size-only retained glyph caching instead of codepoint-plus-size cache
+  - retained fallback faces that were stored but not automatically probed
+  - over-permissive caret color parsing in the host draw helper
+- That reopened gap is now reclosed in source, tests, and the strict audit
+  script.
+- No confirmed renderer font-stack gap remains after `RG-P11` and the
+  2026-04-17 audit refresh.
 
 ## Verification
 

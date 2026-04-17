@@ -46,6 +46,10 @@ def test_renderer_host_text_core_matches_retail_surface() -> None:
 	assert "r_fontStash.fallbackSansFace = R_GetFontStashFace( R_FONTSTASH_FACE_SANS_FALLBACK );" in tr_font
 	assert "r_fontStash.windowsFallbackFace = R_GetFontStashFace( R_FONTSTASH_FACE_SANS_WINDOWS_FALLBACK );" in tr_font
 	assert "static qboolean R_EnsureFontStashCompatibilityFont( rFontStashFace_t *face ) {" in tr_font
+	assert "static int R_GetFontStashScaleTenths( float scale ) {" in tr_font
+	assert "static const char *R_DecodeFontStashCodepoint( const char *text, const char *end, unsigned int *outCodepoint ) {" in tr_font
+	assert "static qboolean R_ParseHostTextColorEscape( const char *text, const char *end, int *outColorIndex, const char **outNext ) {" in tr_font
+	assert "static int R_BuildFontStashFaceChain( rFontStashFace_t *face, rFontStashFace_t **faces, int maxFaces ) {" in tr_font
 	assert "r_fontStash.errorCallback = R_fonsErrorCallback;" in tr_font
 	assert "void R_InitFontStash( void ) {" in tr_font
 	assert "void R_DoneFontStash( void ) {" in tr_font
@@ -56,12 +60,17 @@ def test_renderer_host_text_core_matches_retail_surface() -> None:
 	assert "R_DoneFontStash();" in tr_init
 
 	r_get_glyph_block = tr_font.split("static glyphInfo_t *R_GetFontStashGlyph", 1)[1]
-	assert "if ( face->ftFace && r_fontStash.shader ) {" in r_get_glyph_block
-	assert "if ( R_EnsureFontStashCompatibilityFont( face ) ) {" in r_get_glyph_block
-	assert r_get_glyph_block.index("if ( face->ftFace && r_fontStash.shader ) {") < r_get_glyph_block.index(
-		"if ( R_EnsureFontStashCompatibilityFont( face ) ) {"
+	assert "if ( r_fontStash.shader ) {" in r_get_glyph_block
+	assert "R_BuildFontStashFaceChain( face, faceChain, ARRAY_LEN( faceChain ) );" in r_get_glyph_block
+	assert "codepoint <= GLYPH_END && R_EnsureFontStashCompatibilityFont( face )" in r_get_glyph_block
+	assert r_get_glyph_block.index("if ( r_fontStash.shader ) {") < r_get_glyph_block.index(
+		"codepoint <= GLYPH_END && R_EnsureFontStashCompatibilityFont( face )"
 	)
+	assert "R_FindFontStashGlyph( candidateFace, codepoint, scaleTenths );" in r_get_glyph_block
+	assert "R_CacheFontStashGlyph( candidateFace, codepoint, scaleTenths, qtrue, &cachedGlyph )" in r_get_glyph_block
 	assert "Retail host DrawScaledText/MeasureText resolve glyphs from the retained" in r_get_glyph_block
+	assert "R_DecodeFontStashCodepoint( s, end, &codepoint )" in tr_font
+	assert "R_ParseHostTextColorEscape( s, end, &colorIndex, &colorNext )" in tr_font
 
 
 def test_renderer_host_text_core_docs_track_rg_p8_completion() -> None:
@@ -70,9 +79,14 @@ def test_renderer_host_text_core_docs_track_rg_p8_completion() -> None:
 	rg_p8_note = _read_text(RG_P8_NOTE_PATH)
 
 	assert "## Retail-Backed Host Text Core Behaviors" in rg_p8_note
+	assert "## 2026-04-17 Audit Refresh" in rg_p8_note
 	assert "## Downstream Closure" in rg_p8_note
 	assert "RG-P8 is now considered complete." in rg_p8_note
 	assert "## RG-P8 - Host text-engine core recovery [COMPLETED]" in renderer_audit
 	assert "Strict renderer estimate after `RG-P8` closure: **97%**" in renderer_audit
+	assert "The 2026-04-17 full font audit reopened one hidden renderer-host exactness tail" in renderer_audit
 	assert "*fontstash" in retail_font_stack
 	assert "renderer-owned retained host text core" in retail_font_stack
+	assert "consume UTF-8 text through the" in retail_font_stack
+	assert "retained host lane instead of indexing raw bytes" in retail_font_stack
+	assert "No confirmed renderer font-stack gap remains after `RG-P11` and the" in retail_font_stack

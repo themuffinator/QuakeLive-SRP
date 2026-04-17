@@ -857,6 +857,72 @@ void Cvar_Reset_f( void ) {
 
 /*
 ============
+Cvar_Clear_f
+============
+*/
+void Cvar_Clear_f( void ) {
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf ("usage: clearcvar <variable>\n");
+		return;
+	}
+
+	Cvar_Set2( Cmd_Argv( 1 ), "", qtrue );
+}
+
+/*
+============
+Cvar_Add_f
+============
+*/
+void Cvar_Add_f( void ) {
+	cvar_t	*var;
+	float	currentValue;
+	float	amount;
+
+	if ( Cmd_Argc() != 3 ) {
+		Com_Printf ("usage: cvarAdd <variable> <amount>\n");
+		return;
+	}
+
+	var = Cvar_FindVar( Cmd_Argv( 1 ) );
+	if ( var ) {
+		currentValue = var->value;
+	} else {
+		currentValue = 0.0f;
+	}
+
+	amount = (float)atof( Cmd_Argv( 2 ) );
+	Cvar_Set2( Cmd_Argv( 1 ), va("%0.3f", currentValue + amount), qfalse );
+}
+
+/*
+============
+Cvar_Mult_f
+============
+*/
+void Cvar_Mult_f( void ) {
+	cvar_t	*var;
+	float	currentValue;
+	float	amount;
+
+	if ( Cmd_Argc() != 3 ) {
+		Com_Printf ("usage: cvarMult <variable> <amount>\n");
+		return;
+	}
+
+	var = Cvar_FindVar( Cmd_Argv( 1 ) );
+	if ( var ) {
+		currentValue = var->value;
+	} else {
+		currentValue = 0.0f;
+	}
+
+	amount = (float)atof( Cmd_Argv( 2 ) );
+	Cvar_Set2( Cmd_Argv( 1 ), va("%0.3f", currentValue * amount), qfalse );
+}
+
+/*
+============
 Cvar_WriteVariables
 
 Appends lines containing "set variable value" for all variables
@@ -1285,6 +1351,10 @@ Cmd_AddCommand ("setu", Cvar_SetU_f);
 Cmd_AddCommand ("seta", Cvar_SetA_f);
 Cmd_AddCommand ("setcloud", Cvar_SetCloud_f);
 Cmd_AddCommand ("reset", Cvar_Reset_f);
+Cmd_AddCommand ("clearcvar", Cvar_Clear_f);
 Cmd_AddCommand ("cvarlist", Cvar_List_f);
+Cmd_AddCommand ("listcvars", Cvar_List_f);
 Cmd_AddCommand ("cvar_restart", Cvar_Restart_f);
+Cmd_AddCommand ("cvarAdd", Cvar_Add_f);
+Cmd_AddCommand ("cvarMult", Cvar_Mult_f);
 }

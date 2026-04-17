@@ -134,7 +134,7 @@ Inference:
 | World, model, surface, and scene runtime | Closed with bounded helper uncertainty | `tr_bsp.c`, `tr_curve.c`, `tr_light.c`, `tr_main.c`, `tr_marks.c`, `tr_mesh.c`, `tr_model.c`, `tr_scene.c`, `tr_shader.c`, `tr_shade*.c`, `tr_sky.c`, `tr_surface.c`, `tr_world.c` | `R_*`, `RE_*`, and `RB_*` alias families; mapping rounds 37 and 100; runtime probe on `bloodrun` | No new retail evidence pushed these files back into the open gap register. The remaining unmapped leaves are bounded helpers beneath already-promoted runtime owners. |
 | Win32 renderer host glue | Closed | `win_wndproc.c`, `win_glimp.c`, `win_syscon.c`, `win_main.c`, `win_local.h` | mapping rounds 98 and 100; runtime capture artifact; parity gates `RG-G04` and `RG-G07` | Resize sync, maximized-window retention, and loading-window ownership remain aligned with the committed retail host. |
 | Classic renderer font lane | Closed | `tr_font.c`, `tr_init.c`, `tr_local.h` | `docs/platform/retail-font-stack.md`; `docs/reverse-engineering/renderer-font-cache-and-atlas-ownership-2026-04-10.md`; parity gate `RG-G05` | The classic FreeType-backed lane is now bounded: retail-backed cache/page/atlas behavior is separated from compatibility-only fallbacks, and deterministic tests pin the resulting proof surface. |
-| Renderer-owned host text core | Closed | `tr_font.c`, `tr_init.c`, `tr_local.h` | HLIL `0x004420A4`, `0x00442313`, `0x00444049`..`0x004442E3`; `docs/platform/retail-font-stack.md`; `docs/reverse-engineering/renderer-host-text-core-ownership-2026-04-10.md` | The retained `*fontstash` atlas, retail-style atlas overflow callback, and five-face host text table now exist in writable renderer source. |
+| Renderer-owned host text core | Closed | `tr_font.c`, `tr_init.c`, `tr_local.h` | HLIL `0x004420A4`, `0x00442313`, `0x00443720`, `0x00443BE0`, `0x00444360`, `0x00444049`..`0x004442E3`; `docs/platform/retail-font-stack.md`; `docs/reverse-engineering/renderer-host-text-core-ownership-2026-04-10.md` | The retained `*fontstash` atlas, retail-style atlas overflow callback, five-face host text table, UTF-8 codepoint decode, and retained fallback-face glyph probing now exist in writable renderer source. |
 | Native UI and cgame host text imports | Closed | `cl_ui.c`, `cl_cgame.c`, `cl_main.c`, `tr_font.c` | HLIL `QLUIImport_DrawScaledText`, `QLUIImport_MeasureText`; mapping rounds 14 and 19; `docs/reverse-engineering/renderer-host-text-import-switchover-and-debug-atlas-2026-04-10.md` | The native `ui` and `cgame` import wrappers now route through the shared renderer-owned host text helpers instead of iterating `fontInfo_t` glyphs locally. |
 | Font build reproducibility and strict text validation | Closed | `renderer.vcxproj`, `renderer.vcxproj.filters`, `renderer.vcproj`, `quakelive_steam.vcxproj`, `.vscode/build.ps1`, `src/code/unix/Makefile`, `tools/ci/audit-retail-font-stack.ps1`, `tools/renderer/run_renderer_runtime_probe.ps1`, `tests/test_renderer_full_parity_gate.py` | repo-managed FreeType replacement lane, strict font audit, and tracked `RG-P11` runtime artifact | The renderer now has a reproducible FreeType build lane and a text-specific strict runtime proof, so `RG-G09` is closed. |
 
@@ -158,7 +158,8 @@ Observed fact:
 Inference:
 
 - No confirmed renderer gap remains downstream of the host text engine, the
-  build lane, or the strict runtime-evidence surface.
+  build lane, or the strict runtime-evidence surface after the 2026-04-17 font
+  audit refresh reclosed the hidden retained-host exactness tail.
 
 ## Refreshed Strict Parity Estimate
 
@@ -177,6 +178,21 @@ classic font lane, that `RG-P8` closed the retained renderer-side host-text
 core half of `RG-G08`, that `RG-P9` closed the active native-import plus
 debug-atlas half, that `RG-P10` closed the build-lane half of `RG-G09`, and
 that `RG-P11` closed the final strict-validation half.
+
+The 2026-04-17 full font audit reopened one hidden renderer-host exactness tail
+inside the earlier `RG-P8` closure and closed it in the same pass:
+
+- UTF-8 host text had still been decoded as raw bytes in source.
+- Retained glyph lookup had still been keyed as a fixed 256-entry atlas instead
+  of decoded codepoint plus rounded size tenths.
+- The recovered fallback faces were retained in state but not automatically
+  probed during host glyph resolution.
+- The host draw helper still consumed non-digit caret sequences and still drew
+  recognized color escapes literally when `forceColor` was set.
+
+The strict percentages above therefore remain unchanged, but the font/text
+closure now has direct source-backed proof for the remaining Unicode and
+fallback behavior that retail exposes.
 
 Confidence:
 
@@ -337,6 +353,11 @@ Completed deliverables:
 1. A committed source lane that owns the `*fontstash` texture lifecycle.
 2. A committed `R_fonsErrorCallback` or equivalent recovered error path.
 3. Retail face-table ownership for `normal`, `sans`, `mono`, `sans-fallback`, and `sans-windows-fallback`.
+4. The 2026-04-17 audit refresh completed the exact retained behavior inside that core:
+   - UTF-8 codepoint decode in host draw/measure
+   - decoded codepoint plus rounded size-tenths glyph caching
+   - automatic retained fallback-face probing
+   - digit-only host color-escape consumption with retail `forceColor` handling
 
 Exit criteria:
 

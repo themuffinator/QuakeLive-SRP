@@ -4,11 +4,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+SV_WORLD = REPO_ROOT / "src" / "code" / "server" / "sv_world.c"
 
 # Retail command-owner evidence for this focused operator slice comes from
 # `references/analysis/quakelive_symbol_aliases.json` plus the paired HLIL
 # owners in `references/hlil/quakelive/quakelive_steam.exe/`:
 # `sub_4DDCE0` -> `SV_Map_f`
+# `sub_4DEEA0` -> `SV_ConSay_f`
 # `sub_4DE050` -> retail `arena` command owner
 # `sub_4DE670` -> `SV_MapRestart_f`
 # `sub_4DEA40` -> `SV_Kick_f`
@@ -16,11 +18,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_4DEF40` -> `SV_Serverinfo_f`
 # `sub_4DEFA0` -> `SV_DumpUser_f`
 # `sub_4DF000` -> `SV_KillServer_f`
+# `sub_4DF010` -> `steam_downloadugc`
+# `sub_4DF070` -> `steam_subscribeugc`
+# `sub_4DF0D0` -> `steam_unsubscribeugc`
 # `sub_4DF130` -> `SV_AddOperatorCommands`
 # `sub_45E8B0` -> `StartRandomMap_f`
 # `sub_45ED90` -> `ReloadArenaDefinitions_f`
 # `sub_45F340` -> `MapPool_Reload_f`
 # `sub_45FB40` -> `Factory_Reload_f`
+# `sub_4E5D20` -> `SV_SectorList_f`
 
 
 def _extract_function_block(text: str, signature: str) -> str:
@@ -74,10 +80,15 @@ def test_operator_command_registration_matches_retail_quakelive_surface() -> Non
 	assert 'Cmd_AddCommand ("arena", SV_Arena_f);' in add_block
 	assert 'Cmd_AddCommand ("devmap", SV_Map_f);' in add_block
 	assert 'Cmd_AddCommand ("killserver", SV_KillServer_f);' in add_block
+	assert 'Cmd_AddCommand ("steam_downloadugc", SV_SteamCmd_DownloadUGC_f);' in add_block
+	assert 'Cmd_AddCommand ("steam_subscribeugc", SV_SteamCmd_SubscribeUGC_f);' in add_block
+	assert 'Cmd_AddCommand ("steam_unsubscribeugc", SV_SteamCmd_UnsubscribeUGC_f);' in add_block
 	assert 'Cmd_AddCommand ("startRandomMap", StartRandomMap_f);' in add_block
 	assert 'Cmd_AddCommand ("reload_mappool", MapPool_Reload_f);' in add_block
 	assert 'Cmd_AddCommand ("reload_arenas", ReloadArenaDefinitions_f);' in add_block
 	assert 'Cmd_AddCommand ("reload_factories", Factory_Reload_f);' in add_block
+	assert "if( com_dedicated->integer ) {" in add_block
+	assert 'Cmd_AddCommand ("say", SV_ConSay_f);' in add_block
 
 	assert 'Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);' not in add_block
 	assert 'Cmd_AddCommand ("banUser", SV_Ban_f);' not in add_block
@@ -89,6 +100,7 @@ def test_operator_command_registration_matches_retail_quakelive_surface() -> Non
 
 def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() -> None:
 	sv_ccmds = (REPO_ROOT / "src/code/server/sv_ccmds.c").read_text(encoding="utf-8")
+	sv_world = SV_WORLD.read_text(encoding="utf-8")
 
 	kick_block = _extract_function_block(sv_ccmds, "static void SV_Kick_f( void ) {")
 	clientkick_block = _extract_function_block(sv_ccmds, "static void SV_KickNum_f( void ) {")
@@ -102,6 +114,11 @@ def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() 
 	reload_pool_block = _extract_function_block(sv_ccmds, "static void MapPool_Reload_f( void ) {")
 	reload_arenas_block = _extract_function_block(sv_ccmds, "static void ReloadArenaDefinitions_f( void ) {")
 	reload_factories_block = _extract_function_block(sv_ccmds, "static void Factory_Reload_f( void ) {")
+	say_block = _extract_function_block(sv_ccmds, "static void SV_ConSay_f( void ) {")
+	download_block = _extract_function_block(sv_ccmds, "static void SV_SteamCmd_DownloadUGC_f( void ) {")
+	subscribe_block = _extract_function_block(sv_ccmds, "static void SV_SteamCmd_SubscribeUGC_f( void ) {")
+	unsubscribe_block = _extract_function_block(sv_ccmds, "static void SV_SteamCmd_UnsubscribeUGC_f( void ) {")
+	sectorlist_block = _extract_function_block(sv_world, "void SV_SectorList_f( void ) {")
 
 	assert 'reason = ( Cmd_Argc() > 2 ) ? Cmd_Argv( 2 ) : NULL;' in kick_block
 	assert 'dropReason = va( "was kicked: %s", reason );' in kick_block
@@ -138,6 +155,28 @@ def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() 
 	assert 'SV_LoadArenas();' in reload_arenas_block
 	assert "SV_FactoryResetRegistry( qtrue );" in reload_factories_block
 	assert "SV_FactoryEnsureRegistryLoaded();" in reload_factories_block
+	assert "s_svFactoryRegistryLoaded = qtrue;" not in reload_factories_block
+
+	assert 'for ( i = 0 ; i < AREA_NODES ; i++ ) {' in sectorlist_block
+	assert 'for ( ent = sec->entities ; ent ; ent = ent->nextEntityInWorldSector ) {' in sectorlist_block
+	assert 'Com_Printf( "sector %i: %i entities\\n", i, c );' in sectorlist_block
+
+	assert 'Com_Printf( "Server is not running.\\n" );' in say_block
+	assert 'Q_strncpyz( text, Cmd_Args(), sizeof( text ) );' in say_block
+	assert 'if ( *p == \'\"\' ) {' in say_block
+	assert 'SV_SendServerCommand( NULL, "chat %d \\"Server: %s\\n\\"", MAX_CLIENTS - 1, p );' in say_block
+
+	assert 'Com_Printf( "Usage: steam_downloadugc <itemid>\\n" );' in download_block
+	assert 'sscanf( Cmd_Argv( 1 ), "%llu", &itemId );' in download_block
+	assert "QL_Steamworks_DownloadItem( itemIdLow, itemIdHigh, qtrue )" in download_block
+
+	assert 'Com_Printf( "Usage: steam_subscribeugc <itemid>\\n" );' in subscribe_block
+	assert 'sscanf( Cmd_Argv( 1 ), "%llu", &itemId );' in subscribe_block
+	assert "QL_Steamworks_SubscribeItem( itemIdLow, itemIdHigh )" in subscribe_block
+
+	assert 'Com_Printf( "Usage: steam_unsubscribeugc <itemid>\\n" );' in unsubscribe_block
+	assert 'sscanf( Cmd_Argv( 1 ), "%llu", &itemId );' in unsubscribe_block
+	assert "QL_Steamworks_UnsubscribeItem( itemIdLow, itemIdHigh )" in unsubscribe_block
 
 
 def test_spawn_restart_and_game_consumers_follow_retail_nextmap_payload_wiring() -> None:

@@ -1852,7 +1852,6 @@ selection until the next map change.
 static void Factory_Reload_f( void ) {
 	SV_FactoryResetRegistry( qtrue );
 	SV_FactoryEnsureRegistryLoaded();
-	s_svFactoryRegistryLoaded = qtrue;
 }
 
 /*
@@ -2717,7 +2716,7 @@ static void SV_Status_f( void ) {
 SV_ConSay_f
 ==================
 */
-static void SV_ConSay_f(void) {
+static void SV_ConSay_f( void ) {
 	char	*p;
 	char	text[1024];
 
@@ -2731,17 +2730,15 @@ static void SV_ConSay_f(void) {
 		return;
 	}
 
-	strcpy (text, "Server: ");
-	p = Cmd_Args();
+	Q_strncpyz( text, Cmd_Args(), sizeof( text ) );
+	p = text;
 
 	if ( *p == '"' ) {
 		p++;
 		p[strlen(p)-1] = 0;
 	}
 
-	strcat(text, p);
-
-	SV_SendServerCommand( NULL, "chat %d \"%s\n\"", MAX_CLIENTS - 1, text );
+	SV_SendServerCommand( NULL, "chat %d \"Server: %s\n\"", MAX_CLIENTS - 1, p );
 }
 
 

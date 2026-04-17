@@ -43,6 +43,8 @@ def test_renderer_debug_font_atlas_path_is_implemented() -> None:
 	assert "RB_ShowFontAtlas();" in tr_backend
 	assert "DrawScaledText` / `MeasureText` now route through the shared" in retail_font_stack
 	assert "`r_debugFontAtlas` now has an in-source draw path" in retail_font_stack
+	assert "codepoints, caches retained glyphs by codepoint plus rounded size tenths" in retail_font_stack
+	assert "probes the recovered retained fallback-face chain before dropping to the" in retail_font_stack
 
 
 def test_renderer_host_text_virtual_point_baseline_matches_retail_wrapper_scale() -> None:

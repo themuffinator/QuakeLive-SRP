@@ -34,9 +34,12 @@ Inference:
    FreeType validation and dependency wiring so the real game build can satisfy
    renderer FreeType symbols.
 4. `.vscode/build.ps1` now stays on repo-managed dependency roots only, and
-   the Windows build path now bootstraps `libogg`, `libvorbis`, `zlib`, and
-   `libpng` from `src/libs/_deps` instead of probing external SDK or Vcpkg
-   installs.
+   the Windows build path now bootstraps `FreeType`, `libogg`, `libvorbis`,
+   `zlib`, and `libpng` from repo-managed caches instead of probing external
+   SDK or Vcpkg installs. FreeType is refreshed from the official upstream tag
+   into `src/libs/_deps/freetype` when the staged `src/libs/freetype` install
+   root is missing, so clean Win32 builds no longer silently compile the
+   renderer without `BUILD_FREETYPE`.
 5. `src/code/unix/Makefile` no longer carries the dead in-tree `ft2` object
    list. It now uses an explicit external `freetype2` `pkg-config` lane and
    defines `BUILD_FREETYPE` only when `QL_ENABLE_FREETYPE=1`.
@@ -52,6 +55,9 @@ Observed facts after the change:
   `..\ft2\*`.
 - The renderer now has one explicit, reviewable repo-managed FreeType
   replacement path instead of a dead vendor-tree assumption.
+- Clean Win32 builds now default FreeType on and bootstrap it before compile
+  or link validation, so the retail TTF lane is the default runtime path
+  instead of the bitmap-glyph fallback lane.
 - The remaining renderer work is no longer build-lane ownership.
 
 RG-P10 is now considered complete.

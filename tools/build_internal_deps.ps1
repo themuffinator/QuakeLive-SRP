@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
 	[string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
-	[ValidateSet('png', 'vorbis')]
+	[ValidateSet('png', 'vorbis', 'freetype')]
 	[string[]]$Dependency,
 	[string]$PlatformToolset = '',
 	[switch]$Force
@@ -27,6 +27,17 @@ function Get-CMakePath {
 	}
 
 	throw 'cmake was not found on PATH. Install CMake to build the repo-managed third-party codec dependencies.'
+}
+
+function Get-GitPath {
+	foreach ($name in @('git.exe', 'git')) {
+		$command = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
+		if ($command) {
+			return $command.Source
+		}
+	}
+
+	throw 'git was not found on PATH. Install Git to bootstrap the repo-managed FreeType source cache.'
 }
 
 function Get-VswherePath {
@@ -117,6 +128,26 @@ function Test-RequiredPaths {
 	return $true
 }
 
+function Assert-PathUnderRoot {
+	param(
+		[string]$Path,
+		[string]$Root,
+		[string]$Description
+	)
+
+	$resolvedPath = [System.IO.Path]::GetFullPath($Path)
+	$resolvedRoot = [System.IO.Path]::GetFullPath($Root)
+	if (-not $resolvedRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
+		$resolvedRoot += [System.IO.Path]::DirectorySeparatorChar
+	}
+
+	if (-not $resolvedPath.StartsWith($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+		throw "$Description path '$resolvedPath' escapes the allowed root '$resolvedRoot'."
+	}
+
+	return $resolvedPath
+}
+
 function Invoke-CMakeConfigureAndInstall {
 	param(
 		[string]$Name,
@@ -174,6 +205,61 @@ function Ensure-DependencySources {
 		if (-not (Test-Path $path)) {
 			throw "Repo-managed source for $Name is missing: $path. Populate src/libs/_deps before building."
 		}
+	}
+}
+
+function Ensure-GitDependencySource {
+	param(
+		[string]$Name,
+		[string]$SourceDir,
+		[string]$RepositoryUrl,
+		[string]$Tag,
+		[string[]]$RequiredPaths
+	)
+
+	if (Test-RequiredPaths -Paths $RequiredPaths) {
+		return
+	}
+
+	$gitPath = Get-GitPath
+	$sourceRoot = Assert-PathUnderRoot -Path $SourceDir -Root $depsRoot -Description "$Name source"
+
+	New-Item -ItemType Directory -Force -Path $depsRoot | Out-Null
+
+	if (Test-Path $sourceRoot) {
+		$gitMetadataDir = Join-Path $sourceRoot '.git'
+		if (Test-Path $gitMetadataDir) {
+			Write-Host "Refreshing $Name sources from $RepositoryUrl ($Tag)"
+			& $gitPath -C $sourceRoot fetch --depth 1 origin tag $Tag
+			if ($LASTEXITCODE -ne 0) {
+				throw "git fetch failed while refreshing $Name sources."
+			}
+
+			& $gitPath -C $sourceRoot checkout --force $Tag
+			if ($LASTEXITCODE -ne 0) {
+				throw "git checkout failed while refreshing $Name sources."
+			}
+		} else {
+			$existingEntries = Get-ChildItem -LiteralPath $sourceRoot -Force -ErrorAction SilentlyContinue | Select-Object -First 1
+			if ($existingEntries) {
+				throw "Repo-managed source cache for $Name is incomplete under '$sourceRoot'. Remove that directory and rerun the bootstrap."
+			}
+
+			$validatedSourceRoot = Assert-PathUnderRoot -Path $sourceRoot -Root $depsRoot -Description "$Name source cache"
+			Remove-Item -LiteralPath $validatedSourceRoot -Recurse -Force
+		}
+	}
+
+	if (-not (Test-Path $sourceRoot)) {
+		Write-Host "Cloning $Name sources from $RepositoryUrl ($Tag)"
+		& $gitPath clone --depth 1 --branch $Tag $RepositoryUrl $sourceRoot
+		if ($LASTEXITCODE -ne 0) {
+			throw "git clone failed while retrieving $Name sources."
+		}
+	}
+
+	if (-not (Test-RequiredPaths -Paths $RequiredPaths)) {
+		throw "Repo-managed source cache for $Name is still incomplete after refresh: $($RequiredPaths -join ', ')"
 	}
 }
 
@@ -309,8 +395,72 @@ function Ensure-Png {
 	}
 }
 
+function Ensure-FreeType {
+	$installRoot = Join-Path $libsRoot 'freetype'
+	$requiredHeaders = @(
+		(Join-Path $installRoot 'include\freetype2\ft2build.h'),
+		(Join-Path $installRoot 'include\freetype2\freetype\config\ftheader.h')
+	)
+	$requiredLibraries = @(
+		(Join-Path $installRoot 'lib\Win32\freetype.lib'),
+		(Join-Path $installRoot 'lib\Win32\libfreetype.lib')
+	)
+	$existingLibrary = $requiredLibraries | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+	if (-not $Force -and (Test-RequiredPaths -Paths $requiredHeaders) -and $existingLibrary) {
+		return
+	}
+
+	$lock = Enter-DependencyLock -LockPath (Join-Path $buildRoot 'freetype.lock')
+	try {
+		$existingLibrary = $requiredLibraries | Where-Object { Test-Path $_ } | Select-Object -First 1
+		if (-not $Force -and (Test-RequiredPaths -Paths $requiredHeaders) -and $existingLibrary) {
+			return
+		}
+
+		$freeTypeSourceDir = Join-Path $depsRoot 'freetype'
+		Ensure-GitDependencySource -Name 'FreeType' `
+			-SourceDir $freeTypeSourceDir `
+			-RepositoryUrl 'https://gitlab.freedesktop.org/freetype/freetype.git' `
+			-Tag 'VER-2-14-3' `
+			-RequiredPaths @(
+				(Join-Path $freeTypeSourceDir 'CMakeLists.txt'),
+				(Join-Path $freeTypeSourceDir 'include\ft2build.h'),
+				(Join-Path $freeTypeSourceDir 'include\freetype\config\ftheader.h')
+			)
+
+		Invoke-CMakeConfigureAndInstall -Name 'FreeType' `
+			-SourceDir $freeTypeSourceDir `
+			-BuildDir (Join-Path $buildRoot 'freetype') `
+			-InstallDir $installRoot `
+			-ExtraConfigureArgs @(
+				'-DBUILD_SHARED_LIBS=OFF',
+				'-DFT_DISABLE_ZLIB=TRUE',
+				'-DFT_DISABLE_BZIP2=TRUE',
+				'-DFT_DISABLE_PNG=TRUE',
+				'-DFT_DISABLE_HARFBUZZ=TRUE',
+				'-DFT_DISABLE_BROTLI=TRUE',
+				'-DCMAKE_INSTALL_BINDIR=bin',
+				'-DCMAKE_INSTALL_LIBDIR=lib/Win32',
+				'-DCMAKE_INSTALL_INCLUDEDIR=include'
+			)
+
+		$existingLibrary = $requiredLibraries | Where-Object { Test-Path $_ } | Select-Object -First 1
+		if (-not (Test-RequiredPaths -Paths $requiredHeaders) -or -not $existingLibrary) {
+			throw 'FreeType bootstrap completed without producing the expected repo-managed headers and import library.'
+		}
+	} finally {
+		if ($lock) {
+			$lock.Dispose()
+		}
+	}
+}
+
 foreach ($name in $Dependency | Select-Object -Unique) {
 	switch ($name) {
+		'freetype' {
+			Ensure-FreeType
+		}
 		'png' {
 			Ensure-Png
 		}

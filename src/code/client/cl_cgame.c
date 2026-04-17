@@ -1338,6 +1338,32 @@ static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
 
 /*
 =============
+QLWebHost_ReloadView
+=============
+*/
+static void QLWebHost_ReloadView( qboolean ignoreCache ) {
+	if ( !cl_webHost.viewInitialised ) {
+		return;
+	}
+
+	cl_webHost.refreshStopped = qfalse;
+	(void)ignoreCache;
+
+	if ( !cl_webHost.currentUrl[0] ) {
+		return;
+	}
+
+	QLLoadHandler_OnBeginLoadingFrame();
+	if ( CL_WebHost_PrimeLauncherDocument( cl_webHost.currentUrl ) ) {
+		QLLoadHandler_OnFinishLoadingFrame();
+		QLLoadHandler_OnDocumentReady();
+	} else {
+		QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );
+	}
+}
+
+/*
+=============
 QLWebHost_HideBrowser
 =============
 */
@@ -3410,8 +3436,11 @@ Keeps the retail browser cache-clear command wired into the retained session-cac
 =============
 */
 void CL_Web_ClearCache_f( void ) {
+	if ( !cl_webHost.sessionInitialised ) {
+		return;
+	}
+
 	CL_Web_ClearSessionState();
-	Com_DPrintf( "web_clearCache\n" );
 }
 
 /*
@@ -3422,22 +3451,12 @@ Keeps the retail browser reload command wired into the host/browser seam.
 =============
 */
 void CL_Web_Reload_f( void ) {
-	CL_Web_ClearSessionState();
-
-#if QL_PLATFORM_HAS_ONLINE_SERVICES
-	CL_RefreshOnlineServicesBridgeState();
-	cl_webHost.refreshStopped = qfalse;
-	if ( CL_OverlayServiceAvailable() && cl_webBrowserVisible ) {
-		if ( cl_webHost.currentUrl[0] ) {
-			QLWebHost_OpenURL( cl_webHost.currentUrl );
-		} else {
-			QLWebHost_NavigateOrOpen( cl_webBrowserHash );
-		}
-		Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );
+	if ( !cl_webHost.viewInitialised ) {
+		return;
 	}
-#endif
 
-	Com_DPrintf( "web_reload\n" );
+	CL_Web_ClearSessionState();
+	QLWebHost_ReloadView( qtrue );
 }
 
 /*

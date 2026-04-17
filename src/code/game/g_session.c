@@ -44,8 +44,10 @@ Called on game shutdown
 void G_WriteClientSessionData( gclient_t *client ) {
 	const char	*s;
 	const char	*var;
+	int		ignoredSessionTail;
 
-	s = va("%i %ld %i %i %i %i %i %i %i %i %i %i",
+	ignoredSessionTail = 0;
+	s = va("%i %ld %i %i %i %i %i %i %i %i %i %i %i %i",
 		client->sess.sessionTeam,
 		(long)client->sess.spectatorTime,
 		client->sess.spectatorState,
@@ -57,7 +59,9 @@ void G_WriteClientSessionData( gclient_t *client ) {
 		client->sess.privilege,
 		client->sess.spectateOnly,
 		client->sess.spectatorQueuePosition,
-		client->sess.muted
+		client->sess.muted,
+		client->sess.sessionField34,
+		ignoredSessionTail
 		);
 
 	var = va( "session%i", client - level.clients );
@@ -205,9 +209,6 @@ void G_WriteSessionData( void ) {
 	int		i;
 
 	trap_Cvar_Set( "session", va("%i", g_gametype.integer) );
-	if ( g_gametype.integer == GT_TOURNAMENT ) {
-		G_UpdateTournamentQueuePositions();
-	}
 
 	for ( i = 0 ; i < level.maxclients ; i++ ) {
 		if ( level.clients[i].pers.connected == CON_CONNECTED ) {

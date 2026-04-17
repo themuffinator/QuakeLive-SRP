@@ -68,9 +68,7 @@ def test_queue_helpers_are_wired_into_init_and_frame_flow() -> None:
 	assert "AddTournamentPlayer();" in main_c
 	assert main_c.index("G_SyncTournamentQueueTeamTasks();") < main_c.index("CheckTournament();")
 	assert main_c.index("AddTournamentPlayer();") < main_c.index("G_SyncTournamentQueueTeamTasks();")
-	assert "if ( g_gametype.integer == GT_TOURNAMENT ) {" in session_c
-	assert "G_UpdateTournamentQueuePositions();" in session_c
-	assert session_c.index('trap_Cvar_Set( "session", va("%i", g_gametype.integer) );') < session_c.index("G_UpdateTournamentQueuePositions();")
+	assert "G_UpdateTournamentQueuePositions();" not in _extract_block(session_c, "void G_WriteSessionData( void ) {")
 
 
 def test_addtournamentplayer_self_gates_and_resets_duel_pregame_state() -> None:

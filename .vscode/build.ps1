@@ -178,7 +178,7 @@ $pngHeader = Join-Path $pngInclude 'png.h'
 $pngSource = 'repo-managed libpng install root'
 
 $FreeTypeSdkDir = Join-Path $repoLibsDir 'freetype'
-$FreeTypeIncludeDir = Join-Path $FreeTypeSdkDir 'include'
+$FreeTypeIncludeDir = ''
 $FreeTypeLibDir = ''
 $FreeTypeLibrary = $null
 $FreeTypeSource = ''
@@ -217,6 +217,22 @@ if ($enablePng -eq 0 -and $pngAvailable) {
 	$enablePng = 1
 }
 
+$enableFreeType = $env:QLEnableFreeType
+$bootstrapFreeType = (-not $enableFreeType) -or ([int]$enableFreeType -ne 0)
+if ($bootstrapFreeType) {
+	Invoke-InternalDependencyBootstrap -DependencyName 'freetype'
+}
+
+foreach ($candidateIncludeDir in @(
+	(Join-Path $FreeTypeSdkDir 'include\freetype2'),
+	(Join-Path $FreeTypeSdkDir 'include')
+)) {
+	if (Test-Path (Join-Path $candidateIncludeDir 'ft2build.h')) {
+		$FreeTypeIncludeDir = $candidateIncludeDir
+		break
+	}
+}
+
 foreach ($candidateLibDir in @(
 	(Join-Path $FreeTypeSdkDir 'lib\Win32'),
 	(Join-Path $FreeTypeSdkDir 'lib')
@@ -224,7 +240,7 @@ foreach ($candidateLibDir in @(
 	$library = $FreeTypeLibraryCandidates |
 		Where-Object { Test-Path (Join-Path $candidateLibDir $_) } |
 		Select-Object -First 1
-	if ($library -and (Test-Path (Join-Path $FreeTypeIncludeDir 'ft2build.h'))) {
+	if ($library -and $FreeTypeIncludeDir -and (Test-Path (Join-Path $FreeTypeIncludeDir 'ft2build.h'))) {
 		$FreeTypeLibDir = $candidateLibDir
 		$FreeTypeLibrary = $library
 		$FreeTypeSource = 'repo-managed FreeType tree'
@@ -232,13 +248,16 @@ foreach ($candidateLibDir in @(
 	}
 }
 
-$enableFreeType = $env:QLEnableFreeType
 $freeTypeHeader = Join-Path $FreeTypeIncludeDir 'ft2build.h'
 $freeTypeAvailable = (Test-Path $freeTypeHeader) -and ($null -ne $FreeTypeLibrary)
 if (-not $enableFreeType) {
 	$enableFreeType = if ($freeTypeAvailable) { 1 } else { 0 }
 } else {
 	$enableFreeType = [int]$enableFreeType
+}
+if ($enableFreeType -eq 0 -and $freeTypeAvailable) {
+	Write-Warning "QLEnableFreeType was forced to 0 but repo-managed FreeType is available. Enabling FreeType to keep retail font rendering enabled."
+	$enableFreeType = 1
 }
 
 $msbuildArgs = @(
