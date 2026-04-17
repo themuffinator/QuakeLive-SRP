@@ -436,8 +436,8 @@ static void CG_GetHostTextMetrics( const char *text, float scale, int limit, int
 		NULL );
 	CG_UnpackFloatBits64( packed, &width, &height );
 
-	if ( outWidth && xScale > 0.0f ) {
-		*outWidth = (int)( width / xScale );
+	if ( outWidth && yScale > 0.0f ) {
+		*outWidth = (int)( width / yScale );
 	}
 	if ( outHeight && yScale > 0.0f ) {
 		*outHeight = (int)( height / yScale );

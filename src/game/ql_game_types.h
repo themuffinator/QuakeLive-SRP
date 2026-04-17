@@ -178,7 +178,7 @@ typedef struct ql_clientSession_source_s {
 	int32_t spectatorQueuePosition;		// 0x28
 	int32_t spectatorQueuePositionDirty;	// 0x2C (skipped by the source serializer)
 	int32_t muted;				// 0x30
-	int32_t sessionField34;			// 0x34
+	int32_t sessionReservedTail;		// 0x34 (retail compatibility-only serializer tail)
 	int32_t skill1;				// 0x38
 	int32_t skill2;				// 0x3C
 	int32_t skill3;				// 0x40
@@ -201,7 +201,7 @@ typedef struct ql_clientSession_s {
 	int32_t spectator_queue_position;	// 0x28 (retail `pq` slot)
 	int32_t spectator_queue_position_dirty;	// 0x2C (live queue-dirty latch, skipped by session serializer)
 	int32_t muted;				// 0x30 (persistent mute latch)
-	int32_t field_34;			// 0x34 (optional session-read tail still open)
+	int32_t reserved_tail;			// 0x34 (serializer-only compatibility tail; no committed qagame consumer yet)
 } ql_clientSession_t;
 
 typedef struct ql_gclient_s {
@@ -708,7 +708,7 @@ QL_STATIC_ASSERT(offsetof(ql_clientSession_t, spectate_only) == 0x24, "clientSes
 QL_STATIC_ASSERT(offsetof(ql_clientSession_t, spectator_queue_position) == 0x28, "clientSession_t.spectator_queue_position offset");
 QL_STATIC_ASSERT(offsetof(ql_clientSession_t, spectator_queue_position_dirty) == 0x2C, "clientSession_t.spectator_queue_position_dirty offset");
 QL_STATIC_ASSERT(offsetof(ql_clientSession_t, muted) == 0x30, "clientSession_t.muted offset");
-QL_STATIC_ASSERT(offsetof(ql_clientSession_t, field_34) == 0x34, "clientSession_t.field_34 offset");
+QL_STATIC_ASSERT(offsetof(ql_clientSession_t, reserved_tail) == 0x34, "clientSession_t.reserved_tail offset");
 QL_STATIC_ASSERT(offsetof(ql_gclient_t, sess) == 0x348, "gclient_t.sess offset");
 QL_STATIC_ASSERT(offsetof(ql_gclient_t, noclip) == 0x380, "gclient_t.noclip offset");
 QL_STATIC_ASSERT(offsetof(ql_gclient_t, last_hurt_client) == 0x3B8, "gclient_t.last_hurt_client offset");

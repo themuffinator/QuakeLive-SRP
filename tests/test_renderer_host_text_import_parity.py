@@ -18,11 +18,14 @@ def test_renderer_host_text_imports_route_through_shared_renderer_core() -> None
 	cl_cgame = _read("src/code/client/cl_cgame.c")
 
 	assert "qboolean R_GetFontStashDebugInfo( image_t **image, int *width, int *height ) {" in tr_font
+	assert "qboolean RE_GetScaledFontMetrics( int fontHandle, float scale, float *outAscent, float *outDescent, float *outLineHeight ) {" in tr_font
 	assert "void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor, const float *baseColor ) {" in tr_font
 	assert "void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outWidth, float *outHeight, float *outLeft ) {" in tr_font
 	assert "qboolean R_GetFontStashDebugInfo( image_t **image, int *width, int *height );" in tr_local
+	assert "qboolean RE_GetScaledFontMetrics( int fontHandle, float scale, float *outAscent, float *outDescent, float *outLineHeight );" in tr_local
 	assert "void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor, const float *baseColor );" in tr_local
 	assert "void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outWidth, float *outHeight, float *outLeft );" in tr_local
+	assert "qboolean RE_GetScaledFontMetrics( int fontHandle, float scale, float *outAscent, float *outDescent, float *outLineHeight );" in client_h
 	assert "void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor, const float *baseColor );" in client_h
 	assert "void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outWidth, float *outHeight, float *outLeft );" in client_h
 	assert "RE_DrawScaledText( x, y, text, fontHandle, scale, maxX, outMaxX," in cl_ui
@@ -56,3 +59,7 @@ def test_renderer_host_text_virtual_point_baseline_matches_retail_wrapper_scale(
 	assert "#define QL_FONT_HOST_POINT_SIZE 48.0f" not in ui_shared_h
 	assert "scale * QL_FONT_HOST_POINT_SIZE * yScale" in cg_draw
 	assert "scale * QL_FONT_HOST_POINT_SIZE * uiInfo.uiDC.yscale" in ui_main
+	assert "*outWidth = (int)( width / yScale );" in cg_draw
+	assert "width / xScale" not in cg_draw
+	assert "*outWidth = (int)( width / uiInfo.uiDC.yscale );" in ui_main
+	assert "width / uiInfo.uiDC.xscale" not in ui_main

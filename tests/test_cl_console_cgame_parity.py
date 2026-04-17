@@ -207,6 +207,8 @@ def test_console_cell_geometry_and_alignment_match_retail_engine_scaling() -> No
 	scale_block = _block_from_marker(source, "static float Con_GetPixelScale")
 	width_block = _block_from_marker(source, "static int Con_GetScaledSmallCharWidth")
 	height_block = _block_from_marker(source, "static int Con_GetScaledSmallCharHeight")
+	host_metrics_block = _block_from_marker(source, "static void Con_GetHostFontMetrics")
+	draw_host_block = _block_from_marker(source, "static void Con_DrawHostText")
 	resize_block = _block_from_marker(source, "void Con_CheckResize (void)")
 	solid_block = _block_from_marker(source, "void Con_DrawSolidConsole( float frac )")
 
@@ -216,6 +218,12 @@ def test_console_cell_geometry_and_alignment_match_retail_engine_scaling() -> No
 	assert "cls.glconfig.vidHeight" not in scale_block
 	assert "CONSOLE_CHAR_WIDTH * Con_GetPixelScale()" in width_block
 	assert "CONSOLE_CHAR_HEIGHT * Con_GetPixelScale()" in height_block
+	assert "Con_GetHostFontMetrics( Con_GetScaledSmallCharWidth(), height, NULL, &lineHeight );" in height_block
+	assert "RE_GetScaledFontMetrics( CONSOLE_HOST_FONT_MONO, scale, &ascent, &descent, &lineHeight )" in host_metrics_block
+	assert "Con_GetHostFontMetrics( charWidth, charHeight, &ascent, NULL );" in draw_host_block
+	assert "baselineY = y + (int)( ascent + 0.5f );" in draw_host_block
+	assert "RE_DrawScaledText( x, baselineY, text, CONSOLE_HOST_FONT_MONO, scale, 0, NULL, forceColor, drawColor );" in draw_host_block
+	assert "y + charHeight" not in draw_host_block
 	assert "width = (int)( (float)cls.glconfig.vidWidth / ( scale * CONSOLE_CHAR_WIDTH ) - 2.0f );" in resize_block
 	assert "con.xadjust = 0;" in solid_block
 	assert "SCR_AdjustFrom640( &con.xadjust, NULL, NULL, NULL );" not in solid_block

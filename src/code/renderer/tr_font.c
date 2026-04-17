@@ -130,15 +130,31 @@ typedef enum {
 } rFontStashFaceId_t;
 
 typedef struct {
+	int	left;
+	int	right;
+	int	top;
+	int	bottom;
+	int	xAdvance;
+} rFontStashHostGlyph_t;
+
+typedef struct {
 	unsigned int	codepoint;
 	short		scaleTenths;
 	short		reserved;
 	glyphInfo_t	glyph;
+	rFontStashHostGlyph_t	hostGlyph;
 } rFontStashGlyph_t;
 
 typedef struct {
-	glyphInfo_t	*glyph;
-	float		scaleFactor;
+	int	ascent;
+	int	descent;
+	int	lineHeight;
+} rFontStashFaceMetrics_t;
+
+typedef struct {
+	glyphInfo_t			*glyph;
+	const rFontStashHostGlyph_t	*hostGlyph;
+	float				scaleFactor;
 } rFontStashResolvedGlyph_t;
 
 typedef struct {
@@ -1570,17 +1586,28 @@ R_CopyFontStashBitmap
 =================
 */
 static void R_CopyFontStashBitmap( const FT_Bitmap *bitmap, int x, int y ) {
+	int copyWidth;
+	int sourcePitch;
 	int row;
 
 	if ( !bitmap || !bitmap->buffer || !r_fontStash.buffer ) {
 		return;
 	}
 
+	copyWidth = bitmap->width;
+	sourcePitch = ( bitmap->pitch < 0 ) ? -bitmap->pitch : bitmap->pitch;
+	if ( copyWidth <= 0 || sourcePitch <= 0 ) {
+		return;
+	}
+	if ( copyWidth > sourcePitch ) {
+		copyWidth = sourcePitch;
+	}
+
 	for ( row = 0; row < bitmap->rows; row++ ) {
 		Com_Memcpy(
 			r_fontStash.buffer + ( ( y + row ) * r_fontStash.width ) + x,
-			bitmap->buffer + ( row * bitmap->pitch ),
-			bitmap->pitch );
+			bitmap->buffer + ( row * sourcePitch ),
+			copyWidth );
 	}
 }
 
@@ -1619,12 +1646,54 @@ static qboolean R_SetFontStashFaceSize( rFontStashFace_t *face, int scaleTenths 
 
 /*
 =================
+R_RoundFontStashMetric
+=================
+*/
+static int R_RoundFontStashMetric( FT_Pos value ) {
+	if ( value >= 0 ) {
+		return (int)( ( value + 32 ) >> 6 );
+	}
+
+	return -(int)( ( ( -value ) + 32 ) >> 6 );
+}
+
+/*
+=================
+R_GetFontStashFaceMetrics
+=================
+*/
+static qboolean R_GetFontStashFaceMetrics( rFontStashFace_t *face, int scaleTenths, rFontStashFaceMetrics_t *outMetrics ) {
+	if ( outMetrics ) {
+		Com_Memset( outMetrics, 0, sizeof( *outMetrics ) );
+	}
+
+	if ( !face || !face->ftFace || !face->ftFace->size || !outMetrics ) {
+		return qfalse;
+	}
+
+	if ( !R_SetFontStashFaceSize( face, scaleTenths ) ) {
+		return qfalse;
+	}
+
+	outMetrics->ascent = R_RoundFontStashMetric( face->ftFace->size->metrics.ascender );
+	outMetrics->descent = R_RoundFontStashMetric( face->ftFace->size->metrics.descender );
+	outMetrics->lineHeight = R_RoundFontStashMetric( face->ftFace->size->metrics.height );
+	if ( outMetrics->lineHeight <= 0 ) {
+		outMetrics->lineHeight = outMetrics->ascent - outMetrics->descent;
+	}
+
+	return qtrue;
+}
+
+/*
+=================
 R_CacheFontStashGlyph
 =================
 */
 static qboolean R_CacheFontStashGlyph( rFontStashFace_t *face, unsigned int codepoint, int scaleTenths, qboolean uploadAtlas, rFontStashGlyph_t **outGlyph ) {
 	rFontStashGlyph_t *cachedGlyph;
 	FT_Bitmap *bitmap;
+	FT_GlyphSlot slot;
 	FT_UInt glyphIndex;
 	glyphInfo_t glyph;
 	int x;
@@ -1660,15 +1729,19 @@ static qboolean R_CacheFontStashGlyph( rFontStashFace_t *face, unsigned int code
 		return qfalse;
 	}
 
+	slot = face->ftFace->glyph;
 	Com_Memset( &glyph, 0, sizeof( glyph ) );
-	bitmap = R_RenderGlyph( face->ftFace->glyph, &glyph );
+	bitmap = R_RenderGlyph( slot, &glyph );
 	if ( !bitmap ) {
 		return qfalse;
 	}
 
-	glyph.xSkip = ( face->ftFace->glyph->metrics.horiAdvance >> 6 ) + 1;
-	glyph.imageWidth = glyph.pitch;
-	glyph.imageHeight = glyph.height;
+	glyph.xSkip = R_RoundFontStashMetric( slot->metrics.horiAdvance );
+	if ( glyph.xSkip < 0 ) {
+		glyph.xSkip = 0;
+	}
+	glyph.imageWidth = bitmap->width;
+	glyph.imageHeight = bitmap->rows;
 
 	x = 0;
 	y = 0;
@@ -1693,6 +1766,11 @@ static qboolean R_CacheFontStashGlyph( rFontStashFace_t *face, unsigned int code
 	cachedGlyph = &face->hostGlyphs[face->hostGlyphCount];
 	Com_Memset( cachedGlyph, 0, sizeof( *cachedGlyph ) );
 	cachedGlyph->glyph = glyph;
+	cachedGlyph->hostGlyph.left = slot->bitmap_left;
+	cachedGlyph->hostGlyph.right = slot->bitmap_left + bitmap->width;
+	cachedGlyph->hostGlyph.top = slot->bitmap_top;
+	cachedGlyph->hostGlyph.bottom = slot->bitmap_top - bitmap->rows;
+	cachedGlyph->hostGlyph.xAdvance = glyph.xSkip;
 
 	if ( glyph.imageWidth > 0 && glyph.imageHeight > 0 ) {
 		R_CopyFontStashBitmap( bitmap, x, y );
@@ -1770,6 +1848,71 @@ static void R_PrebuildFontStashAtlas( void ) {
 
 /*
 =================
+R_GetResolvedGlyphBounds
+=================
+*/
+static void R_GetResolvedGlyphBounds( glyphInfo_t *glyph, const rFontStashResolvedGlyph_t *resolvedGlyph, float *outLeft, float *outRight, float *outTop, float *outBottom, float *outAdvance ) {
+	const rFontStashHostGlyph_t *hostGlyph;
+	float scaleFactor;
+
+	hostGlyph = resolvedGlyph ? resolvedGlyph->hostGlyph : NULL;
+	scaleFactor = resolvedGlyph ? resolvedGlyph->scaleFactor : 1.0f;
+
+	if ( outLeft ) {
+		*outLeft = 0.0f;
+	}
+	if ( outRight ) {
+		*outRight = 0.0f;
+	}
+	if ( outTop ) {
+		*outTop = 0.0f;
+	}
+	if ( outBottom ) {
+		*outBottom = 0.0f;
+	}
+	if ( outAdvance ) {
+		*outAdvance = 0.0f;
+	}
+
+	if ( !glyph ) {
+		return;
+	}
+
+	if ( hostGlyph ) {
+		if ( outLeft ) {
+			*outLeft = hostGlyph->left * scaleFactor;
+		}
+		if ( outRight ) {
+			*outRight = hostGlyph->right * scaleFactor;
+		}
+		if ( outTop ) {
+			*outTop = hostGlyph->top * scaleFactor;
+		}
+		if ( outBottom ) {
+			*outBottom = hostGlyph->bottom * scaleFactor;
+		}
+		if ( outAdvance ) {
+			*outAdvance = hostGlyph->xAdvance * scaleFactor;
+		}
+		return;
+	}
+
+	if ( outRight ) {
+		*outRight = glyph->imageWidth * scaleFactor;
+	}
+	if ( outTop ) {
+		*outTop = glyph->top * scaleFactor;
+	}
+	if ( outBottom ) {
+		*outBottom = glyph->bottom * scaleFactor;
+	}
+	if ( outAdvance ) {
+		*outAdvance = glyph->xSkip * scaleFactor;
+	}
+}
+
+/*
+=================
 R_GetFontStashGlyph
 =================
 */
@@ -1781,6 +1924,7 @@ static glyphInfo_t *R_GetFontStashGlyph( rFontStashFace_t *face, unsigned int co
 	}
 
 	resolvedGlyph->glyph = NULL;
+	resolvedGlyph->hostGlyph = NULL;
 	resolvedGlyph->scaleFactor = 1.0f;
 
 	if ( !face ) {
@@ -1806,6 +1950,7 @@ static glyphInfo_t *R_GetFontStashGlyph( rFontStashFace_t *face, unsigned int co
 			cachedGlyph = R_FindFontStashGlyph( candidateFace, codepoint, scaleTenths );
 			if ( cachedGlyph ) {
 				resolvedGlyph->glyph = &cachedGlyph->glyph;
+				resolvedGlyph->hostGlyph = &cachedGlyph->hostGlyph;
 				return resolvedGlyph->glyph;
 			}
 
@@ -1815,6 +1960,7 @@ static glyphInfo_t *R_GetFontStashGlyph( rFontStashFace_t *face, unsigned int co
 
 			if ( R_CacheFontStashGlyph( candidateFace, codepoint, scaleTenths, qtrue, &cachedGlyph ) ) {
 				resolvedGlyph->glyph = &cachedGlyph->glyph;
+				resolvedGlyph->hostGlyph = &cachedGlyph->hostGlyph;
 				return resolvedGlyph->glyph;
 			}
 		}
@@ -1856,6 +2002,69 @@ qboolean R_GetFontStashDebugInfo( image_t **image, int *width, int *height ) {
 
 /*
 =================
+RE_GetScaledFontMetrics
+=================
+*/
+qboolean RE_GetScaledFontMetrics( int fontHandle, float scale, float *outAscent, float *outDescent, float *outLineHeight ) {
+	rFontStashFace_t *face;
+	int scaleTenths;
+
+	if ( outAscent ) {
+		*outAscent = 0.0f;
+	}
+	if ( outDescent ) {
+		*outDescent = 0.0f;
+	}
+	if ( outLineHeight ) {
+		*outLineHeight = 0.0f;
+	}
+
+	face = R_GetFontStashFaceForHandle( fontHandle );
+	scaleTenths = R_GetFontStashScaleTenths( scale );
+
+#ifdef BUILD_FREETYPE
+	if ( face && face->ftFace ) {
+		rFontStashFaceMetrics_t metrics;
+
+		if ( R_GetFontStashFaceMetrics( face, scaleTenths, &metrics ) ) {
+			if ( outAscent ) {
+				*outAscent = (float)metrics.ascent;
+			}
+			if ( outDescent ) {
+				*outDescent = (float)metrics.descent;
+			}
+			if ( outLineHeight ) {
+				*outLineHeight = (float)metrics.lineHeight;
+			}
+			return qtrue;
+		}
+	}
+#endif
+
+	if ( face && R_EnsureFontStashCompatibilityFont( face ) ) {
+		const glyphInfo_t *compatGlyph;
+		float scaleFactor;
+
+		compatGlyph = &face->compatFont.glyphs['A'];
+		scaleFactor = ( (float)scaleTenths / 10.0f ) / R_FONTSTASH_POINT_SIZE;
+
+		if ( outAscent ) {
+			*outAscent = compatGlyph->top * scaleFactor;
+		}
+		if ( outDescent ) {
+			*outDescent = compatGlyph->bottom * scaleFactor;
+		}
+		if ( outLineHeight ) {
+			*outLineHeight = ( compatGlyph->top - compatGlyph->bottom ) * scaleFactor;
+		}
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=================
 RE_DrawScaledText
 =================
 */
@@ -1864,7 +2073,7 @@ void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float sc
 	const char *s;
 	const char *end;
 	vec4_t currentColor;
-	float drawX;
+	float penX;
 	int scaleTenths;
 	qboolean hasMaxX;
 	float maxXf;
@@ -1888,7 +2097,7 @@ void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float sc
 
 	face = R_GetFontStashFaceForHandle( fontHandle );
 	scaleTenths = R_GetFontStashScaleTenths( scale );
-	drawX = (float)x;
+	penX = (float)x;
 	hasMaxX = ( maxX > 0 );
 	maxXf = (float)maxX;
 	end = text + strlen( text );
@@ -1900,9 +2109,14 @@ void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float sc
 		unsigned int codepoint;
 		const char *next;
 		glyphInfo_t *glyph;
-		float nextX;
-		float drawY;
-		float scaleFactor;
+		float advance;
+		float drawBottom;
+		float drawLeft;
+		float drawRight;
+		float drawTop;
+		float glyphMaxX;
+		float quadHeight;
+		float quadWidth;
 		vec4_t newColor;
 		int colorIndex;
 		const char *colorNext;
@@ -1928,31 +2142,37 @@ void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float sc
 			continue;
 		}
 
-		scaleFactor = resolvedGlyph.scaleFactor;
-		nextX = drawX + glyph->xSkip * scaleFactor;
-		if ( hasMaxX && nextX > maxXf ) {
+		R_GetResolvedGlyphBounds( glyph, &resolvedGlyph, &drawLeft, &drawRight, &drawTop, &drawBottom, &advance );
+		glyphMaxX = penX + advance;
+		if ( penX + drawRight > glyphMaxX ) {
+			glyphMaxX = penX + drawRight;
+		}
+		if ( hasMaxX && glyphMaxX > maxXf ) {
 			if ( outMaxX ) {
 				*outMaxX = 0.0f;
 			}
 			break;
 		}
 
-		drawY = (float)y - ( glyph->top * scaleFactor );
-		RE_StretchPic(
-			drawX,
-			drawY,
-			glyph->imageWidth * scaleFactor,
-			glyph->imageHeight * scaleFactor,
-			glyph->s,
-			glyph->t,
-			glyph->s2,
-			glyph->t2,
-			glyph->glyph );
+		quadWidth = drawRight - drawLeft;
+		quadHeight = drawTop - drawBottom;
+		if ( glyph->imageWidth > 0 && glyph->imageHeight > 0 && quadWidth > 0.0f && quadHeight > 0.0f ) {
+			RE_StretchPic(
+				penX + drawLeft,
+				(float)y - drawTop,
+				quadWidth,
+				quadHeight,
+				glyph->s,
+				glyph->t,
+				glyph->s2,
+				glyph->t2,
+				glyph->glyph );
+		}
 
-		drawX = nextX;
+		penX += advance;
 		s = next;
 		if ( outMaxX ) {
-			*outMaxX = drawX;
+			*outMaxX = glyphMaxX;
 		}
 	}
 
@@ -1967,8 +2187,14 @@ RE_MeasureScaledText
 void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outWidth, float *outHeight, float *outLeft ) {
 	rFontStashFace_t *face;
 	const char *s;
+	qboolean hasBounds;
 	float width;
 	float height;
+	float maxBottom;
+	float maxRight;
+	float minLeft;
+	float minTop;
+	float penX;
 	int scaleTenths;
 	qboolean hasMaxX;
 	float maxXf;
@@ -1991,6 +2217,12 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 	scaleTenths = R_GetFontStashScaleTenths( scale );
 	width = 0.0f;
 	height = 0.0f;
+	penX = 0.0f;
+	hasBounds = qfalse;
+	minLeft = 0.0f;
+	maxRight = 0.0f;
+	minTop = 0.0f;
+	maxBottom = 0.0f;
 	hasMaxX = ( maxX > 0 );
 	maxXf = (float)maxX;
 
@@ -1999,9 +2231,14 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 		unsigned int codepoint;
 		const char *next;
 		glyphInfo_t *glyph;
-		float nextWidth;
-		float glyphHeight;
-		float scaleFactor;
+		float advance;
+		float drawBottom;
+		float drawLeft;
+		float drawRight;
+		float drawTop;
+		float glyphLeft;
+		float glyphMaxX;
+		float glyphRight;
 		int colorIndex;
 		const char *colorNext;
 
@@ -2021,16 +2258,47 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 			continue;
 		}
 
-		scaleFactor = resolvedGlyph.scaleFactor;
-		nextWidth = width + glyph->xSkip * scaleFactor;
-		if ( hasMaxX && nextWidth > maxXf ) {
+		R_GetResolvedGlyphBounds( glyph, &resolvedGlyph, &drawLeft, &drawRight, &drawTop, &drawBottom, &advance );
+		glyphRight = penX + drawRight;
+		glyphMaxX = penX + advance;
+		if ( glyphRight > glyphMaxX ) {
+			glyphMaxX = glyphRight;
+		}
+		if ( hasMaxX && glyphMaxX > maxXf ) {
 			break;
 		}
 
-		width = nextWidth;
-		glyphHeight = glyph->height * scaleFactor;
-		if ( glyphHeight > height ) {
-			height = glyphHeight;
+		glyphLeft = penX + drawLeft;
+		if ( glyph->imageWidth > 0 && glyph->imageHeight > 0 ) {
+			if ( !hasBounds ) {
+				hasBounds = qtrue;
+				minLeft = glyphLeft;
+				maxRight = glyphRight;
+				minTop = -drawTop;
+				maxBottom = -drawBottom;
+			} else {
+				if ( glyphLeft < minLeft ) {
+					minLeft = glyphLeft;
+				}
+				if ( glyphRight > maxRight ) {
+					maxRight = glyphRight;
+				}
+				if ( -drawTop < minTop ) {
+					minTop = -drawTop;
+				}
+				if ( -drawBottom > maxBottom ) {
+					maxBottom = -drawBottom;
+				}
+			}
+		}
+
+		penX += advance;
+		width = penX;
+		if ( maxRight > width ) {
+			width = maxRight;
+		}
+		if ( hasBounds ) {
+			height = maxBottom - minTop;
 		}
 		s = next;
 	}
@@ -2040,6 +2308,9 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 	}
 	if ( outHeight ) {
 		*outHeight = height;
+	}
+	if ( outLeft ) {
+		*outLeft = hasBounds ? minLeft : 0.0f;
 	}
 }
 

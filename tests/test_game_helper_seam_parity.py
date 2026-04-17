@@ -123,7 +123,7 @@ def test_session_init_and_serializer_follow_recovered_retail_shape() -> None:
 	assert "sess->spectateOnly = qtrue;" in init_block
 
 	assert '%i %ld %i %i %i %i %i %i %i %i %i %i %i %i' in write_block
-	assert "client->sess.sessionField34" in write_block
+	assert "client->sess.sessionReservedTail" in write_block
 	assert "ignoredSessionTail" in write_block
 	assert "client->sess.skill1" not in write_block
 	assert "client->sess.skill2" not in write_block

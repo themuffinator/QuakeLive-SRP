@@ -126,6 +126,8 @@ static int Con_GetScaledSmallCharWidth( void ) {
 	return width;
 }
 
+static void Con_GetHostFontMetrics( int charWidth, int fallbackCharHeight, float *outAscent, float *outLineHeight );
+
 /*
 ================
 Con_GetScaledSmallCharHeight
@@ -133,8 +135,15 @@ Con_GetScaledSmallCharHeight
 */
 static int Con_GetScaledSmallCharHeight( void ) {
 	int height;
+	float lineHeight;
 
 	height = (int)( CONSOLE_CHAR_HEIGHT * Con_GetPixelScale() + 0.5f );
+	if ( height < 1 ) {
+		height = 1;
+	}
+
+	Con_GetHostFontMetrics( Con_GetScaledSmallCharWidth(), height, NULL, &lineHeight );
+	height = (int)( lineHeight + 0.5f );
 	if ( height < 1 ) {
 		height = 1;
 	}
@@ -153,11 +162,50 @@ static float Con_GetHostTextScale( int charWidth ) {
 
 /*
 ================
+Con_GetHostFontMetrics
+================
+*/
+static void Con_GetHostFontMetrics( int charWidth, int fallbackCharHeight, float *outAscent, float *outLineHeight ) {
+	float ascent;
+	float descent;
+	float lineHeight;
+	float scale;
+
+	ascent = (float)fallbackCharHeight;
+	descent = 0.0f;
+	lineHeight = (float)fallbackCharHeight;
+	scale = Con_GetHostTextScale( charWidth );
+
+	if ( scale > 0.0f && RE_GetScaledFontMetrics( CONSOLE_HOST_FONT_MONO, scale, &ascent, &descent, &lineHeight ) ) {
+		if ( ascent <= 0.0f ) {
+			ascent = (float)fallbackCharHeight;
+		}
+		if ( lineHeight <= 0.0f ) {
+			lineHeight = ascent - descent;
+		}
+	}
+
+	if ( lineHeight <= 0.0f ) {
+		lineHeight = (float)fallbackCharHeight;
+	}
+
+	if ( outAscent ) {
+		*outAscent = ascent;
+	}
+	if ( outLineHeight ) {
+		*outLineHeight = lineHeight;
+	}
+}
+
+/*
+================
 Con_DrawHostText
 ================
 */
 static void Con_DrawHostText( int x, int y, int charWidth, int charHeight, const char *text, const float *color, qboolean forceColor ) {
+	float ascent;
 	float scale;
+	int baselineY;
 	const float *drawColor;
 
 	if ( !text || !text[0] ) {
@@ -169,8 +217,10 @@ static void Con_DrawHostText( int x, int y, int charWidth, int charHeight, const
 		return;
 	}
 
+	Con_GetHostFontMetrics( charWidth, charHeight, &ascent, NULL );
+	baselineY = y + (int)( ascent + 0.5f );
 	drawColor = color ? color : g_color_table[ColorIndex( COLOR_WHITE )];
-	RE_DrawScaledText( x, y + charHeight, text, CONSOLE_HOST_FONT_MONO, scale, 0, NULL, forceColor, drawColor );
+	RE_DrawScaledText( x, baselineY, text, CONSOLE_HOST_FONT_MONO, scale, 0, NULL, forceColor, drawColor );
 }
 
 /*

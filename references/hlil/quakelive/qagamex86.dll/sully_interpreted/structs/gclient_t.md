@@ -12,7 +12,7 @@ overlays.
 | ------ | ----- | ----- |
 | `0x000` | `player_state_and_linkage[0x250]` | `ClientBegin` clears the leading `0x250` bytes before rebuilding the live player state, preserving the classic `ps`-first rule while still covering Quake Live’s adjacent linkage/state. |
 | `0x250-0x347` | `pers` | Retail `clientPersistant_t` overlay. The evidence-backed members now include `connected`, `localClient`, `initialSpawn`, `predictItemPickup`, `netname`, the short `userinfo_c_string`, `steam_id_low/high`, `maxHealth`, `voteCount`, `complaint_count`, `complaint_client`, `complaint_end_time`, `complaint_damage_received`, `complaint_damage_given`, `ready_latch`, `recording_preferences`, `enterTime`, `team_state_state`, `team_state_runtime`, and the inactivity/flood counters. See `clientPersistant_t.md` for the per-member breakdown. |
-| `0x348-0x37F` | `sess` | Retail `clientSession_t` overlay. The evidence-backed members are `sessionTeam`, `spectatorTime`, `spectatorState`, `spectatorClient`, `selected_spawn_weapon`, `wins`, `losses`, `teamLeader`, `privilege`, `spectate_only`, `spectator_queue_position`, `spectator_queue_position_dirty`, `muted`, and the unresolved serialized tail at `+0x34`. See `clientSession_t.md` for the per-member breakdown. |
+| `0x348-0x37F` | `sess` | Retail `clientSession_t` overlay. The evidence-backed members are `sessionTeam`, `spectatorTime`, `spectatorState`, `spectatorClient`, `selected_spawn_weapon`, `wins`, `losses`, `teamLeader`, `privilege`, `spectate_only`, `spectator_queue_position`, `spectator_queue_position_dirty`, `muted`, and the serializer-only reserved tail at `+0x34`. See `clientSession_t.md` for the per-member breakdown. |
 | `0x380` | `noclip` | Noclip cheat state toggled by the `noclip` command path and consulted by combat/stat code. |
 | `0x3B8` | `last_hurt_client` | Victim-side last-attacker tracker. The combat path stores the attacker client number here. |
 | `0x3BC` | `last_killed_client` | Attacker-side last-kill tracker. The combat path stores the killed client number here. |
@@ -59,8 +59,8 @@ overlays.
 - `pers.cmd_field_18`, `pers.field_50`, `pers.field_6c`,
   `pers.field_a0`, and the trailing `pers.tail_pad` bytes still need cleaner
   promotion work.
-- `sess.field_34` at `gclient + 0x37C` remains unresolved inside the retail
-  session tail.
+- `sess.reserved_tail` at `gclient + 0x37C` is still only evidenced as a
+  serializer-preserved compatibility slot, not a named gameplay state.
 - `0x384-0x3B7`, most of `0x3C0-0x503`, `0x50C-0x513`, `0x51C-0x587`, and the
   remaining `0x59C+` span still hold the broader combat, award, and weapon-stat
   expansions that Quake Live layered on top of the GPL layout.

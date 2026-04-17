@@ -66,6 +66,18 @@ def test_tr_font_pins_representative_compatibility_glyph_metrics() -> None:
 	assert "glyph->imageHeight = R_COMPAT_FONT_CELL_SIZE;" in tr_font
 
 
+def test_tr_font_host_glyph_cache_tracks_retail_metric_rounding_and_bitmap_bounds() -> None:
+	tr_font = _read("src/code/renderer/tr_font.c")
+
+	assert "static int R_RoundFontStashMetric( FT_Pos value ) {" in tr_font
+	assert "glyph.xSkip = R_RoundFontStashMetric( slot->metrics.horiAdvance );" in tr_font
+	assert "glyph.imageWidth = bitmap->width;" in tr_font
+	assert "copyWidth = bitmap->width;" in tr_font
+	assert "cachedGlyph->hostGlyph.left = slot->bitmap_left;" in tr_font
+	assert "cachedGlyph->hostGlyph.right = slot->bitmap_left + bitmap->width;" in tr_font
+	assert "cachedGlyph->hostGlyph.bottom = slot->bitmap_top - bitmap->rows;" in tr_font
+
+
 def test_rg_p7_ownership_note_and_renderer_audit_mark_rg_g05_closed() -> None:
 	ownership_note = _read("docs/reverse-engineering/renderer-font-cache-and-atlas-ownership-2026-04-10.md")
 	renderer_audit = _read("docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md")

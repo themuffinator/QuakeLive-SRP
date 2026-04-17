@@ -725,7 +725,7 @@ typedef struct {
 	int			spectatorQueuePosition;	// retail-style duel "pq" slot
 	qboolean	spectatorQueuePositionDirty;
 	qboolean	muted;
-	int			sessionField34;		// retail serialized field_34 slot at gclient+0x37c; name unresolved
+	int			sessionReservedTail;	// retail serializer-only tail dword at gclient+0x37c; preserved for compatibility
 	int			skill1;
 	int			skill2;
 	int			skill3;

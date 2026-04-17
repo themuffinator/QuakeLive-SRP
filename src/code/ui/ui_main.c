@@ -1538,8 +1538,8 @@ static void UI_GetHostTextMetrics( const char *text, float scale, int limit, int
 		NULL );
 	UI_UnpackFloatBits64( packed, &width, &height );
 
-	if ( outWidth && uiInfo.uiDC.xscale > 0.0f ) {
-		*outWidth = (int)( width / uiInfo.uiDC.xscale );
+	if ( outWidth && uiInfo.uiDC.yscale > 0.0f ) {
+		*outWidth = (int)( width / uiInfo.uiDC.yscale );
 	}
 	if ( outHeight && uiInfo.uiDC.yscale > 0.0f ) {
 		*outHeight = (int)( height / uiInfo.uiDC.yscale );

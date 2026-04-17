@@ -2,7 +2,7 @@
 
 ## Source-canonical layout
 
-The GPL `clientSession_t` is still a compact `0x3C`-byte record. This pass
+The reconstructed source `clientSession_t` is a `0x44`-byte record. This pass
 promotes that source member order directly in `src/game/ql_game_types.h` so the
 retail drift can be described against a stable baseline instead of a stale flat
 guess inside `gclient_t`.
@@ -13,17 +13,19 @@ guess inside `gclient_t`.
 | `0x04` | `spectatorTime` | Queue timestamp used to decide next-in-line spectators. |
 | `0x08` | `spectatorState` | Follow / free / scoreboard spectator mode. |
 | `0x0C` | `spectatorClient` | Follow target client number. |
-| `0x10` | `wins` | Tournament wins. |
-| `0x14` | `losses` | Tournament losses. |
-| `0x18` | `teamLeader` | Team-leader latch. |
-| `0x1C` | `sessionState` | GPL-only session-state slot. |
+| `0x10` | `selectedSpawnWeapon` | Persisted starting-weapon / loadout selection. |
+| `0x14` | `wins` | Tournament wins. |
+| `0x18` | `losses` | Tournament losses. |
+| `0x1C` | `teamLeader` | Team-leader latch. |
 | `0x20` | `privilege` | Admin privilege tier. |
-| `0x24` | `roundState` | GPL round-state slot. |
-| `0x28` | `skill1` | GPL skill / auxiliary slot. |
-| `0x2C` | `_pad1` | Alignment / skipped serializer slot in the GPL tree. |
-| `0x30` | `skill2` | GPL skill / auxiliary slot. |
-| `0x34` | `skill3` | GPL skill / auxiliary slot. |
-| `0x38` | `muted` | Persistent mute latch. |
+| `0x24` | `spectateOnly` | Duel spectator-only latch. |
+| `0x28` | `spectatorQueuePosition` | Duel queue position. |
+| `0x2C` | `spectatorQueuePositionDirty` | Live queue-dirty latch skipped by the serializer. |
+| `0x30` | `muted` | Persistent mute latch. |
+| `0x34` | `sessionReservedTail` | Compatibility-only serializer tail preserved in the reconstructed source. |
+| `0x38` | `skill1` | Auxiliary progression / rating slot. |
+| `0x3C` | `skill2` | Auxiliary progression / rating slot. |
+| `0x40` | `skill3` | Auxiliary progression / rating slot. |
 
 ## Retail Quake Live drift
 
@@ -50,9 +52,9 @@ multiple members.
 - The mute / unmute helpers toggle `0x378`, proving retail moved the persistent
   mute latch into the former tail of the source block.
 
-The net result is a retail overlay with one inserted loadout field, no stable
-standalone `sessionState`, the queue dirty bit occupying the skipped pad slot,
-and an unresolved serialized tail at the former `skill3` position.
+The net result is a retail overlay with one inserted loadout field, the queue
+dirty bit occupying the skipped serializer slot, and a compatibility-only tail
+that remains preserved but behaviorally inert in the committed evidence set.
 
 ## Evidence-backed retail overlay
 
@@ -74,13 +76,15 @@ to `gclient->sess`.
 | `0x28` | `0x370` | `spectator_queue_position` | High | `G_UpdateTournamentQueuePositions` assigns one-based queue positions here and the queue sync helper republishes changes. |
 | `0x2C` | `0x374` | `spectator_queue_position_dirty` | High | Queue update/sync helpers set and clear this live dirty bit, and the retail session serializer skips it. |
 | `0x30` | `0x378` | `muted` | High | The admin mute / unmute helpers flip this slot directly and the session serializer persists it. |
-| `0x34` | `0x37C` | `field_34` | Low | Serialized by the retail session helpers, but no stable behavior name is promoted yet. |
+| `0x34` | `0x37C` | `reserved_tail` | Medium | `sub_10065880`, `sub_10065930`, and the all-clients save loop only serialize or restore this dword. No committed HLIL/Ghidra callsite currently consumes it as gameplay state, so the safest promotion is a reserved compatibility tail rather than a feature name. |
 
 ## Open questions
 
 - `selected_spawn_weapon` is descriptive rather than source-backed. The
   loadout/spawn behavior is clear, but the exact retail naming used by id
   Software is still open.
-- `field_34` remains the last unresolved serialized session tail member.
+- No committed retail evidence currently promotes `reserved_tail` beyond a
+  serializer-only compatibility slot. If new HLIL evidence surfaces, revisit
+  the name before attaching gameplay meaning to it.
 - No committed HLIL evidence still supports a distinct retail `sessionState`
   inside `gclient->sess`; if that concept survives, it has moved elsewhere.

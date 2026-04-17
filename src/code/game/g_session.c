@@ -60,7 +60,7 @@ void G_WriteClientSessionData( gclient_t *client ) {
 		client->sess.spectateOnly,
 		client->sess.spectatorQueuePosition,
 		client->sess.muted,
-		client->sess.sessionField34,
+		client->sess.sessionReservedTail,
 		ignoredSessionTail
 		);
 
@@ -89,7 +89,7 @@ void G_ReadSessionData( gclient_t *client ) {
 	int spectatorQueuePosition;
 	int muted;
 	int selectedSpawnWeapon;
-	int sessionField34;
+	int sessionReservedTail;
 	int ignoredSessionTail;
 	long spectatorTime;
 
@@ -108,7 +108,7 @@ void G_ReadSessionData( gclient_t *client ) {
 	spectateOnly = 0;
 	spectatorQueuePosition = 0;
 	muted = 0;
-	sessionField34 = 0;
+	sessionReservedTail = 0;
 	ignoredSessionTail = 0;
 	sscanf( s, "%i %ld %i %i %i %i %i %i %i %i %i %i %i %i",
 		&sessionTeam,                 // bk010221 - format
@@ -123,7 +123,7 @@ void G_ReadSessionData( gclient_t *client ) {
 		&spectateOnly,
 		&spectatorQueuePosition,
 		&muted,
-		&sessionField34,
+		&sessionReservedTail,
 		&ignoredSessionTail
 		);
 	client->sess.spectatorTime = (int)spectatorTime;
@@ -131,7 +131,7 @@ void G_ReadSessionData( gclient_t *client ) {
 	client->sess.privilege = privilege;
 	client->sess.spectateOnly = spectateOnly;
 	client->sess.spectatorQueuePosition = spectatorQueuePosition;
-	client->sess.sessionField34 = sessionField34;
+	client->sess.sessionReservedTail = sessionReservedTail;
 	client->sess.skill1 = 0;
 	client->sess.skill2 = 0;
 	client->sess.skill3 = 0;
@@ -174,7 +174,7 @@ void G_InitSessionData( gclient_t *client, char *userinfo ) {
 	sess->spectatorQueuePosition = 0;
 	sess->spectatorQueuePositionDirty = qfalse;
 	sess->muted = qfalse;
-	sess->sessionField34 = 0;
+	sess->sessionReservedTail = 0;
 
 	if ( client->pers.localClient ) {
 		sess->privilege = PRIV_ROOT;
