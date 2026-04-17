@@ -107,7 +107,7 @@ lane. Run:
 This writes `artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json`.
 Then run:
 
-- `pytest tests/test_cvar_parity.py tests/test_cvar_alias_console.py tests/test_fs_search_paths.py tests/test_qcommon_collision_leaf_parity.py tests/test_qcommon_vm_fallback_parity.py tests/test_playerstate_replication.py tests/test_client_config_parity.py tests/test_platform_services.py tests/test_cgame_event_transport_parity.py tests/test_qcommon_full_parity_gate.py -q`
+- `pytest tests/test_cvar_parity.py tests/test_cvar_alias_console.py tests/test_fs_search_paths.py tests/test_qcommon_collision_leaf_parity.py tests/test_qcommon_vm_fallback_parity.py tests/test_playerstate_replication.py tests/test_client_config_parity.py tests/test_platform_services.py tests/test_cgame_event_transport_parity.py tests/test_qshared_retail_parity.py tests/test_qcommon_full_parity_gate.py -q`
 
 to compile and execute the Windows-friendly native harness probes and publish
 `artifacts/qcommon_validation/logs/qcommon_full_parity_gate.json`. The
@@ -117,7 +117,9 @@ gate artifact now close the audited qcommon register at `QC-P6`. The added
 fallback harness in `tests/test_qcommon_vm_fallback_parity.py` keeps the
 native-to-qvm selection, compiled fallback, interpreted syscall logging,
 restart fallback, and pointer boundary lanes covered on the default Windows
-host.
+host, while `tests/test_qshared_retail_parity.py` keeps the recovered
+`q_shared.c` / `q_math.c` helper surface tied back to the retail alias and
+mapping corpus.
 
 The engine `server` host now also has a dedicated Windows-native validation
 lane. Run:

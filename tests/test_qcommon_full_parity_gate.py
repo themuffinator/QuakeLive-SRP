@@ -28,6 +28,9 @@ QCOMMON_COLLISION_OWNERSHIP_NOTE_PATH = (
 QCOMMON_VM_FALLBACK_OWNERSHIP_NOTE_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "qcommon-vm-fallback-ownership-2026-04-10.md"
 )
+QSHARED_AUDIT_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "qshared-retail-helper-parity-audit-2026-04-17.md"
+)
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "qcommon-validation.yml"
 BUILD_PIPELINE_PATH = REPO_ROOT / "docs" / "build-pipeline.md"
 WINDOWS_NATIVE_PIPELINE_PATH = REPO_ROOT / "docs" / "windows-native-pipeline.md"
@@ -46,6 +49,7 @@ COMPILER_SUPPORT_PATH = REPO_ROOT / "tests" / "compiler_support.py"
 CVAR_ALIAS_TEST_PATH = REPO_ROOT / "tests" / "test_cvar_alias_console.py"
 FS_SEARCH_TEST_PATH = REPO_ROOT / "tests" / "test_fs_search_paths.py"
 PLAYERSTATE_TEST_PATH = REPO_ROOT / "tests" / "test_playerstate_replication.py"
+QSHARED_TEST_PATH = REPO_ROOT / "tests" / "test_qshared_retail_parity.py"
 CM_COLLISION_HARNESS_PATH = REPO_ROOT / "tests" / "cm_collision_harness.c"
 CM_COLLISION_TEST_PATH = REPO_ROOT / "tests" / "test_qcommon_collision_leaf_parity.py"
 VM_FALLBACK_HARNESS_PATH = REPO_ROOT / "tests" / "vm_fallback_harness.c"
@@ -447,11 +451,14 @@ def _build_qcommon_full_parity_gate_report() -> dict[str, Any]:
 	qc_g04_ok = (
 		qc_g04_closed
 		and COMPILER_SUPPORT_PATH.exists()
+		and QSHARED_TEST_PATH.exists()
+		and QSHARED_AUDIT_PATH.exists()
 		and "def find_c_compiler() -> CCompiler | None:" in compiler_support
 		and "tests/test_qcommon_full_parity_gate.py" in workflow_text
 		and "tests/test_cvar_alias_console.py" in workflow_text
 		and "tests/test_fs_search_paths.py" in workflow_text
 		and "tests/test_playerstate_replication.py" in workflow_text
+		and "tests/test_qshared_retail_parity.py" in workflow_text
 		and "find_c_compiler" in cvar_alias_tests
 		and "find_c_compiler" in fs_search_tests
 		and "shared_library_name" in fs_search_tests
@@ -459,7 +466,9 @@ def _build_qcommon_full_parity_gate_report() -> dict[str, Any]:
 		and "shared_library_name" in playerstate_tests
 		and 'skipif(os.name == "nt"' not in playerstate_tests
 		and "qcommon_full_parity_gate.json" in build_pipeline
+		and "tests/test_qshared_retail_parity.py" in build_pipeline
 		and "qcommon_full_parity_gate.json" in windows_native_pipeline
+		and "tests/test_qshared_retail_parity.py" in windows_native_pipeline
 		and "### Task 92: Qcommon QC-P2 parity gate and Windows-friendly harness closure [COMPLETED]" in implementation_plan
 	)
 	report["tranches"]["QC-G04"] = _entry(
@@ -479,11 +488,16 @@ def _build_qcommon_full_parity_gate_report() -> dict[str, Any]:
 				and "tests/test_fs_search_paths.py" in workflow_text
 				and "tests/test_playerstate_replication.py" in workflow_text
 			),
+			"workflow_references_qshared_test": "tests/test_qshared_retail_parity.py" in workflow_text,
 			"cvar_alias_uses_compiler_helper": "find_c_compiler" in cvar_alias_tests,
 			"fs_search_uses_compiler_helper": "find_c_compiler" in fs_search_tests and "shared_library_name" in fs_search_tests,
 			"playerstate_windows_skip_removed": 'skipif(os.name == "nt"' not in playerstate_tests,
+			"qshared_test_present": QSHARED_TEST_PATH.exists(),
+			"qshared_audit_present": QSHARED_AUDIT_PATH.exists(),
 			"build_pipeline_mentions_gate": "qcommon_full_parity_gate.json" in build_pipeline,
+			"build_pipeline_mentions_qshared_test": "tests/test_qshared_retail_parity.py" in build_pipeline,
 			"windows_pipeline_mentions_gate": "qcommon_full_parity_gate.json" in windows_native_pipeline,
+			"windows_pipeline_mentions_qshared_test": "tests/test_qshared_retail_parity.py" in windows_native_pipeline,
 		},
 	)
 

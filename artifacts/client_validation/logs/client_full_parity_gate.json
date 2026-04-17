@@ -15,10 +15,10 @@
   "tranches": {
     "CL-G01": {
       "gap_id": "CL-G01",
-      "status": "fail",
-      "summary": "Browser-host ownership or tracked fallback/runtime proof is incomplete.",
+      "status": "pass",
+      "summary": "Browser-host ownership, JS bridge publication, and service-disabled fallback behavior stay pinned by source, focused tests, and the tracked runtime bundle.",
       "details": {
-        "runtime_evidence_sufficient": false,
+        "runtime_evidence_sufficient": true,
         "browser_runtime_helpers_present": true,
         "js_bridge_present": true,
         "event_publication_present": true,
@@ -53,26 +53,26 @@
     },
     "CL-G04": {
       "gap_id": "CL-G04",
-      "status": "fail",
-      "summary": "Retail config/bootstrap persistence wiring or proof is incomplete.",
+      "status": "pass",
+      "summary": "Retail config/bootstrap persistence remains reconstructed and proven by both focused tests and the tracked runtime artifact.",
       "details": {
         "retail_config_defines_present": true,
         "write_client_config_present": true,
         "filesystem_restart_bootstrap_present": true,
         "legacy_cdkey_surface_present": true,
-        "runtime_artifact_proves_bootstrap": false
+        "runtime_artifact_proves_bootstrap": true
       }
     },
     "CL-G05": {
       "gap_id": "CL-G05",
-      "status": "fail",
-      "summary": "Dedicated client parity-gate wiring or tracked runtime evidence is incomplete.",
+      "status": "pass",
+      "summary": "The client now has a dedicated parity gate, a tracked runtime-evidence bundle, and repo-level ledger wiring that keeps the client register enforceable.",
       "details": {
         "runtime_probe_present": true,
         "runtime_evidence_present": true,
-        "runtime_evidence_sufficient": false,
+        "runtime_evidence_sufficient": true,
         "validation_note_present": true,
-        "workflow_references_gate": false,
+        "workflow_references_gate": true,
         "build_pipeline_mentions_gate": true,
         "windows_pipeline_mentions_runtime_artifact": true,
         "implementation_plan_marks_cl_p6_completed": true,
@@ -80,15 +80,11 @@
       }
     }
   },
-  "overall_status": "fail",
-  "non_passing_gap_ids": [
-    "CL-G01",
-    "CL-G04",
-    "CL-G05"
-  ],
+  "overall_status": "pass",
+  "non_passing_gap_ids": [],
   "summary": {
-    "passing_count": 2,
+    "passing_count": 5,
     "blocked_count": 0,
-    "failing_count": 3
+    "failing_count": 0
   }
 }

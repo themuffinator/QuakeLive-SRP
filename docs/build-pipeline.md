@@ -74,9 +74,10 @@ engine-common layer. It runs the focused qcommon tranche together with
 current qcommon gap register (`QC-G01`..`QC-G05`). The focused tranche now
 includes the collision-leaf probe in
 `tests/test_qcommon_collision_leaf_parity.py` and the fallback-VM harness in
-`tests/test_qcommon_vm_fallback_parity.py`, so the lane covers the remaining
-strict source-confidence seams in addition to the older cvar/filesystem/message
-checks. The tracked qcommon runtime bundle is now
+`tests/test_qcommon_vm_fallback_parity.py`, plus the recovered shared-helper
+audit in `tests/test_qshared_retail_parity.py`, so the lane covers the
+remaining strict source-confidence seams in addition to the older
+cvar/filesystem/message checks. The tracked qcommon runtime bundle is now
 `artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json`,
 and contributors can refresh it locally with
 `tools/qcommon/run_qcommon_runtime_probe.ps1`.

@@ -22,25 +22,6 @@ function Add-WaitLines {
 	}
 }
 
-function Send-Rcon {
-	param(
-		[string]$Password,
-		[string]$Command
-	)
-
-	$udp = New-Object System.Net.Sockets.UdpClient
-	try {
-		$prefix = [byte[]]( 255, 255, 255, 255 )
-		$payload = [System.Text.Encoding]::ASCII.GetBytes( "rcon $Password $Command" )
-		$buffer = New-Object byte[] ( $prefix.Length + $payload.Length )
-		[Array]::Copy( $prefix, 0, $buffer, 0, $prefix.Length )
-		[Array]::Copy( $payload, 0, $buffer, $prefix.Length, $payload.Length )
-		[void]$udp.Send( $buffer, $buffer.Length, '127.0.0.1', 27960 )
-	} finally {
-		$udp.Close()
-	}
-}
-
 function Resolve-ExistingPath {
 	param([string]$Path)
 
@@ -190,7 +171,18 @@ function Reset-LiveLog {
 	if ( Test-Path -LiteralPath $script:RuntimeLog ) {
 		Remove-Item -LiteralPath $script:RuntimeLog -Force
 	}
-	Sync-RuntimeUiPackages -RuntimeBaseq3Dir $script:RuntimeRoot
+	$syncSucceeded = $false
+	for ( $attempt = 1; $attempt -le 5 -and -not $syncSucceeded; $attempt++ ) {
+		try {
+			$null = Sync-RuntimeUiPackages -RuntimeBaseq3Dir $script:RuntimeRoot
+			$syncSucceeded = $true
+		} catch {
+			if ( $attempt -eq 5 ) {
+				throw
+			}
+			Start-Sleep -Seconds 2
+		}
+	}
 }
 
 function Remove-StaleMatches {
@@ -286,6 +278,7 @@ function Start-ClientProcess {
 		'+set', 'developer', '1',
 		'+set', 'logfile', '2',
 		'+set', 'g_logfile', '1',
+		'+set', 'com_maxfps', '30',
 		'+set', 'com_noErrorInterrupt', '1',
 		'+set', 'com_zoneMegs', '64',
 		'+set', 'com_hunkMegs', '256',
@@ -300,8 +293,6 @@ function Start-ClientProcess {
 		'+set', 'r_windowedWidth', '1280',
 		'+set', 'r_windowedHeight', '720',
 		'+set', 'r_ext_multitexture', '0',
-		'+set', 'ui_browserAwesomium', '0',
-		'+set', 'web_browserActive', '0',
 		'+set', 's_initsound', '0'
 	)
 	if ( $ExtraArgs ) {
@@ -378,9 +369,8 @@ function Invoke-MainMenuProbe {
 		'set developer 1',
 		'set logfile 2',
 		'set g_logfile 1',
+		'set com_maxfps 30',
 		'set r_fullscreen 0',
-		'set ui_browserAwesomium 0',
-		'set web_browserActive 0',
 		'set name "^2CLP6Probe"',
 		'set sensitivity 4'
 	) ) {
@@ -471,26 +461,31 @@ function Invoke-MapRuntimeProbe {
 		'set developer 1',
 		'set logfile 2',
 		'set g_logfile 1',
+		'set com_maxfps 30',
 		'set r_fullscreen 0',
 		'set sv_pure 0',
 		'set g_gametype 1',
 		'set g_doWarmup 0',
 		'set g_warmup 0',
-		("map $MapName")
+		("map $MapName ffa")
 	) ) {
 		$lines.Add( $line )
 	}
-	Add-WaitLines -Lines $lines -Count ($MapWaitFrames * 6)
+	Add-WaitLines -Lines $lines -Count ($MapWaitFrames * 10)
+	$lines.Add( "record $DemoPrefix" )
+	Add-WaitLines -Lines $lines -Count 120
+	$lines.Add( "screenshotJPEG $ScreenshotPrefix" )
+	Add-WaitLines -Lines $lines -Count 120
+	$lines.Add( 'stoprecord' )
+	Add-WaitLines -Lines $lines -Count ($MapWaitFrames * 2)
 	$lines.Add( 'disconnect' )
 	Add-WaitLines -Lines $lines -Count 180
 	$lines.Add( 'quit' )
 	Set-Content -LiteralPath $configPath -Value $lines -Encoding ascii
 
 	Reset-LiveLog
-	$password = 'qlrpass'
 	$launch = Start-ClientProcess -ConfigName $configName -ExtraArgs @(
 		'+set', 'sv_pure', '0',
-		'+set', 'rconPassword', $password,
 		'+set', 'g_gametype', '1',
 		'+set', 'g_doWarmup', '0',
 		'+set', 'g_warmup', '0'
@@ -500,9 +495,8 @@ function Invoke-MapRuntimeProbe {
 	$activeSeen = $false
 	$shotLogged = $false
 	$disconnectSeen = $false
-	$commandsIssued = $false
 	$logText = ''
-	$deadline = (Get-Date).AddSeconds(240)
+	$deadline = (Get-Date).AddSeconds(360)
 
 	while ( (Get-Date) -lt $deadline ) {
 		Start-Sleep -Milliseconds 500
@@ -526,38 +520,6 @@ function Invoke-MapRuntimeProbe {
 			}
 			if ( $logText -match [regex]::Escape( "Wrote screenshots/$ScreenshotPrefix.jpg" ) ) {
 				$shotLogged = $true
-			}
-		}
-
-		if ( $activeSeen -and -not $commandsIssued -and -not $process.HasExited ) {
-			$commandsIssued = $true
-			Start-Sleep -Milliseconds 1000
-			Send-Rcon -Password $password -Command ( "record $DemoPrefix" )
-			Start-Sleep -Milliseconds 1500
-			Send-Rcon -Password $password -Command ( "screenshotJPEG $ScreenshotPrefix" )
-			$shotDeadline = (Get-Date).AddSeconds(30)
-			while ( (Get-Date) -lt $shotDeadline -and -not $process.HasExited ) {
-				Start-Sleep -Milliseconds 500
-				$process.Refresh()
-				if ( Test-Path -LiteralPath $script:RuntimeLog ) {
-					$logText = Get-Content -LiteralPath $script:RuntimeLog -Raw -ErrorAction SilentlyContinue
-					if ( $logText -match [regex]::Escape( "Wrote screenshots/$ScreenshotPrefix.jpg" ) ) {
-						$shotLogged = $true
-						break
-					}
-				}
-			}
-			if ( -not $shotLogged -and ( Find-EngineScreenshot -ScreenshotPrefix $ScreenshotPrefix ) ) {
-				$shotLogged = $true
-			}
-
-			Send-Rcon -Password $password -Command 'stoprecord'
-			$demoDeadline = (Get-Date).AddSeconds(20)
-			while ( (Get-Date) -lt $demoDeadline -and -not $process.HasExited ) {
-				if ( Find-DemoArtifact -DemoPrefix $DemoPrefix ) {
-					break
-				}
-				Start-Sleep -Milliseconds 500
 			}
 		}
 

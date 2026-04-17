@@ -6,6 +6,20 @@ Scope: `CL-P6` / `CL-G05` closure for the native `client` host
 
 This note records the final verification tranche for the client parity audit. The goal is not to reopen earlier source-reconstruction work from `CL-P1` through `CL-P5`; it is to make that recovered client behavior enforceable with one dedicated parity gate and one tracked runtime-evidence bundle.
 
+## 2026-04-17 Revalidation Note
+
+The client closure lane was rerun on 2026-04-17 after the tracked client
+workflow went missing and the older checked-in runtime bundle no longer proved
+the full `CL-P6` contract on the current worktree.
+
+The refreshed pass restored `.github/workflows/client-validation.yml` and
+reran `tools/client/run_client_runtime_probe.ps1` against the default
+build-disabled client configuration. The probe now uses the valid
+`map bloodrun ffa` startup form, retries transient `pak_uiql.pk3` rewrite
+locks, and caps probe pacing at `com_maxfps 30` so the local-map tranche
+reliably reaches `CS_ACTIVE` before issuing the demo/screenshot/disconnect
+sequence.
+
 ## Runtime Evidence Bundle
 
 Tracked artifact:

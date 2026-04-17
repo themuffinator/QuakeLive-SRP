@@ -21,6 +21,7 @@ on:
       - 'tests/test_client_config_parity.py'
       - 'tests/test_platform_services.py'
       - 'tests/test_cgame_event_transport_parity.py'
+      - 'tests/test_qshared_retail_parity.py'
       - 'tests/test_qcommon_full_parity_gate.py'
       - 'tools/qcommon/run_qcommon_runtime_probe.ps1'
       - 'artifacts/qcommon_validation/**'
@@ -30,9 +31,11 @@ on:
       - 'docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md'
       - 'docs/reverse-engineering/qcommon-validation-and-runtime-evidence-2026-04-10.md'
       - 'docs/reverse-engineering/qcommon-vm-fallback-ownership-2026-04-10.md'
+      - 'docs/reverse-engineering/qshared-retail-helper-parity-audit-2026-04-17.md'
       - 'AUDIT.md'
       - 'IMPLEMENTATION_PLAN.md'
       - 'src/code/qcommon/**'
+      - 'src/code/game/q_math.c'
       - 'src/code/game/q_shared.c'
       - 'src/code/game/q_shared.h'
       - 'src/code/game/g_legacy_cvars.h'
@@ -57,6 +60,7 @@ on:
       - 'tests/test_client_config_parity.py'
       - 'tests/test_platform_services.py'
       - 'tests/test_cgame_event_transport_parity.py'
+      - 'tests/test_qshared_retail_parity.py'
       - 'tests/test_qcommon_full_parity_gate.py'
       - 'tools/qcommon/run_qcommon_runtime_probe.ps1'
       - 'artifacts/qcommon_validation/**'
@@ -66,9 +70,11 @@ on:
       - 'docs/reverse-engineering/qcommon-full-parity-audit-and-implementation-plan-2026-04-10.md'
       - 'docs/reverse-engineering/qcommon-validation-and-runtime-evidence-2026-04-10.md'
       - 'docs/reverse-engineering/qcommon-vm-fallback-ownership-2026-04-10.md'
+      - 'docs/reverse-engineering/qshared-retail-helper-parity-audit-2026-04-17.md'
       - 'AUDIT.md'
       - 'IMPLEMENTATION_PLAN.md'
       - 'src/code/qcommon/**'
+      - 'src/code/game/q_math.c'
       - 'src/code/game/q_shared.c'
       - 'src/code/game/q_shared.h'
       - 'src/code/game/g_legacy_cvars.h'
@@ -95,7 +101,7 @@ jobs:
 
       - name: Run qcommon parity tests
         run: |
-          pytest tests/test_cvar_parity.py tests/test_cvar_alias_console.py tests/test_fs_search_paths.py tests/test_qcommon_collision_leaf_parity.py tests/test_qcommon_collision_load_parity.py tests/test_qcommon_vm_fallback_parity.py tests/test_playerstate_replication.py tests/test_client_config_parity.py tests/test_platform_services.py tests/test_cgame_event_transport_parity.py tests/test_qcommon_full_parity_gate.py -q
+          pytest tests/test_cvar_parity.py tests/test_cvar_alias_console.py tests/test_fs_search_paths.py tests/test_qcommon_collision_leaf_parity.py tests/test_qcommon_collision_load_parity.py tests/test_qcommon_vm_fallback_parity.py tests/test_playerstate_replication.py tests/test_client_config_parity.py tests/test_platform_services.py tests/test_cgame_event_transport_parity.py tests/test_qshared_retail_parity.py tests/test_qcommon_full_parity_gate.py -q
 
       - name: Upload qcommon artefacts
         if: always()

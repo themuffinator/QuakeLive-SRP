@@ -176,6 +176,7 @@ extern cvar_t	*s_testsound;
 extern cvar_t	*s_separation;
 extern cvar_t	*s_pvs;
 extern cvar_t	*s_voiceStep;
+extern cvar_t	*s_voiceVolume;
 
 qboolean S_LoadSound( sfx_t *sfx );
 qboolean S_VorbisDecodeMemory( const char *name, const byte *data, int length, wavinfo_t *info, short **outPcm );

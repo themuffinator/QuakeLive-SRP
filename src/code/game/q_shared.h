@@ -176,9 +176,9 @@ float	FloatSwap (const float *f);
 
 static ID_INLINE short BigShort( short l) { return ShortSwap(l); }
 #define LittleShort
-static ID_INLINE int BigLong(int l) { LongSwap(l); }
+static ID_INLINE int BigLong(int l) { return LongSwap(l); }
 #define LittleLong
-static ID_INLINE float BigFloat(const float *l) { FloatSwap(l); }
+static ID_INLINE float BigFloat(const float *l) { return FloatSwap(l); }
 #define LittleFloat
 
 #define	PATH_SEP '\\'
@@ -333,9 +333,9 @@ inline static float LittleFloat (const float *l) { return FloatSwap(l); }
 #if !idppc
 static short BigShort( short l) { return ShortSwap(l); }
 #define LittleShort
-static int BigLong(int l) { LongSwap(l); }
+static int BigLong(int l) { return LongSwap(l); }
 #define LittleLong
-static float BigFloat(const float *l) { FloatSwap(l); }
+static float BigFloat(const float *l) { return FloatSwap(l); }
 #define LittleFloat
 #else
 #define BigShort
@@ -936,7 +936,7 @@ char	* QDECL va(char *format, ...);
 //
 char *Info_ValueForKey( const char *s, const char *key );
 void Info_RemoveKey( char *s, const char *key );
-void Info_RemoveKey_big( char *s, const char *key );
+void Info_RemoveKey_Big( char *s, const char *key );
 void Info_SetValueForKey( char *s, const char *key, const char *value );
 void Info_SetValueForKey_Big( char *s, const char *key, const char *value );
 qboolean Info_Validate( const char *s );

@@ -30,6 +30,7 @@ def test_match_state_team_counts_follow_retail_round_controller_policy() -> None
 
 	assert "static qboolean G_UsesRoundControllerTeamCounts( void ) {" in match_state
 	assert "case GT_CLAN_ARENA:" in match_state
+	assert "case GT_ATTACK_DEFEND:" in match_state
 	assert "case GT_FREEZE:" in match_state
 	assert "case GT_RED_ROVER:" in match_state
 	assert "return ( level.roundState != ROUNDSTATE_INACTIVE ) ? qtrue : qfalse;" in match_state

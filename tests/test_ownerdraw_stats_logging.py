@@ -21,12 +21,12 @@ PLACEMENT_LOG_RE = re.compile(
     r"place=(?P<place>\d+) "
     r"client=(?P<client>-?\d+) "
     r"valid=(?P<valid>\d+) "
-    r"frags=(?P<frags>[0-9,\-]+) "
-    r"hits=(?P<hits>[0-9,\-]+) "
-    r"shots=(?P<shots>[0-9,\-]+) "
-    r"dmg=(?P<dmg>[0-9,\-]+) "
-    r"pickups=(?P<pickups>[0-9,\-]+) "
-    r"pickupAvg=(?P<pickup_avg>[0-9,\-]+) "
+    r"frags=(?P<frags>-?\d+(?:,-?\d+)*) "
+    r"hits=(?P<hits>-?\d+(?:,-?\d+)*) "
+    r"shots=(?P<shots>-?\d+(?:,-?\d+)*) "
+    r"dmg=(?P<dmg>-?\d+(?:,-?\d+)*) "
+    r"pickups=(?P<pickups>-?\d+(?:,-?\d+)*) "
+    r"pickupAvg=(?P<pickup_avg>-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)*) "
     r"pr=(?P<pr>-?\d+) "
     r"tier=(?P<tier>-?\d+)$"
 )
@@ -36,12 +36,16 @@ TEAM_LOG_RE = re.compile(
     r"team=(?P<team>red|blue) "
     r"fields=(?P<fields>\d+) "
     r"valid=(?P<valid>\d+) "
-    r"values=(?P<values>[0-9,\-]+)$"
+    r"values=(?P<values>-?\d+(?:,-?\d+)*)$"
 )
 
 
 def _parse_csv(payload: str) -> list[int]:
     return [int(token) for token in payload.split(",") if token]
+
+
+def _parse_float_csv(payload: str) -> list[float]:
+    return [float(token) for token in payload.split(",") if token]
 
 
 def _normalize_placement_match(match: re.Match[str]) -> dict[str, object]:
@@ -54,7 +58,7 @@ def _normalize_placement_match(match: re.Match[str]) -> dict[str, object]:
         "shots": _parse_csv(match.group("shots")),
         "dmg": _parse_csv(match.group("dmg")),
         "pickups": _parse_csv(match.group("pickups")),
-        "pickupAvg": _parse_csv(match.group("pickup_avg")),
+        "pickupAvg": _parse_float_csv(match.group("pickup_avg")),
         "pr": int(match.group("pr")),
         "tier": int(match.group("tier")),
     }
@@ -119,7 +123,7 @@ def test_ownerdraw_log_regex_parses_payloads() -> None:
         "hits=1,2,3,4,5,6,7,8,9,10,11,12 "
         "shots=2,4,6,8,10,12,14,16,18,20,22,24 "
         "dmg=10,20,30,40,50,60,70,80,90,100,110,120,130 "
-        "pickups=2,4,6,8 pickupAvg=5,10,15,20 pr=2400 tier=6"
+        "pickups=2,4,6,8 pickupAvg=5.00,10.50,15.25,20.00 pr=2400 tier=6"
     )
     team_line = (
         "ownerdraw_stats_team: team=red fields=18 valid=1 "
@@ -134,7 +138,7 @@ def test_ownerdraw_log_regex_parses_payloads() -> None:
     shots = _parse_csv(placement_match.group("shots"))
     damage = _parse_csv(placement_match.group("dmg"))
     pickups = _parse_csv(placement_match.group("pickups"))
-    pickup_avg = _parse_csv(placement_match.group("pickup_avg"))
+    pickup_avg = _parse_float_csv(placement_match.group("pickup_avg"))
 
     assert len(frags) == 13
     assert len(hits) == 12
@@ -142,6 +146,7 @@ def test_ownerdraw_log_regex_parses_payloads() -> None:
     assert len(damage) == 13
     assert len(pickups) == 4
     assert len(pickup_avg) == 4
+    assert pickup_avg == [5.0, 10.5, 15.25, 20.0]
     assert int(placement_match.group("pr")) == 2400
     assert int(placement_match.group("tier")) == 6
 
