@@ -35,7 +35,7 @@ Per tracked file, the campaign should eventually produce:
 - [x] Keep `AUDIT.md` and `IMPLEMENTATION_PLAN.md` in place as gate-facing ledgers.
 - [x] Create `source-file-parity-ledger-2026-04-22.md` as the clean main file-by-file ledger.
 - [x] Create `historical-audit-index-2026-04-22.md` instead of renaming or moving older audit docs that workflows and tests already reference.
-- [x] Seed `15` concrete file-level gap notes for the currently evidenced `RW-G01` and `RW-G02` owners.
+- [x] Seed `16` concrete file-level gap notes for the currently evidenced `RW-G01` and `RW-G02` owners.
 
 ### Phase 1 - Strict-Retail Engine Core
 
@@ -87,19 +87,52 @@ Per tracked file, the campaign should eventually produce:
   focused cgame parity lane (`199 passed`, `1 skipped`), and the shared
   native export helper certification still bound the tree on current
   evidence.
-- [ ] Audit `src/code/ui` function-by-function (`9` tracked files) (read-only source tree).
+- [x] Audit `src/code/ui` function-by-function (`9` tracked files) (read-only source tree).
+  2026-04-22 result: no new file-level gap owners were isolated inside the
+  closed strict-retail UI register; the refreshed UI audit, the focused UI
+  parity lane (`56 passed`, `2 skipped`), and the clean read-only
+  `src/ui` runtime-panel parity proof still bound the tree on current
+  evidence.
 
 ### Phase 3 - Compatibility-Only Host Surface
 
-- [ ] Audit `src/code/unix` and convert tree-level `RW-G02` status into file-specific notes where warranted (`10` tracked files).
-- [ ] Audit `src/code/null` and convert tree-level `RW-G02` status into file-specific notes where warranted (`7` tracked files).
+- [x] Audit `src/code/unix` and convert tree-level `RW-G02` status into file-specific notes where warranted (`10` tracked files).
+  2026-04-22 result: no new file-level gap owners were isolated beyond the
+  existing `RW-G02` notes for `unix_main.c`, `linux_glimp.c`,
+  `linux_snd.c`, and `linux_joystick.c`; the focused non-Windows
+  portability lane (`8 passed`) and the current repo-wide audit still
+  bound the remaining Unix files on current evidence.
+- [x] Audit `src/code/null` and convert tree-level `RW-G02` status into file-specific notes where warranted (`7` tracked files).
+  2026-04-22 result: the null compatibility walk isolated
+  `null_glimp.c` as an additional `RW-G02` owner beside the existing
+  notes for `null_main.c`, `null_client.c`, `null_input.c`, and
+  `null_snddma.c`; the focused non-Windows portability lane
+  (`8 passed`) and the current repo-wide audit still bound `null_net.c`
+  and `mac_net.c` on current evidence.
 
 ### Phase 4 - Secondary Tool, Editor, Compiler, And Legacy Source Trees
 
-- [ ] Audit `src/code/bspc/`, `src/code/jpeg-6/`, and `src/code/splines/` after the primary runtime surface is complete (`106` tracked files).
-- [ ] Audit `src/game/`, `src/q3asm/`, and `src/q3map/` after the primary runtime surface is complete (`40` tracked files).
-- [ ] Audit `src/lcc/` and `src/libs/` after the primary runtime surface is complete (`99` tracked files).
-- [ ] Audit `src/q3radiant/` after the primary runtime surface is complete (`97` tracked files).
+- [x] Audit `src/code/bspc/`, `src/code/jpeg-6/`, and `src/code/splines/` after the primary runtime surface is complete (`106` tracked files).
+  2026-04-22 result: no new file-level gap owners were isolated across the
+  first secondary-source tranche; the refreshed function-count pass now
+  lands on libjpeg macro definitions and splines C++ methods, while the
+  retained BSPC toolchain, bundled `jpeg-6` sources, and legacy splines
+  helpers remain bounded secondary support trees on current evidence.
+- [x] Audit `src/game/`, `src/q3asm/`, and `src/q3map/` after the primary runtime surface is complete (`40` tracked files).
+  2026-04-22 result: no new file-level gap owners were isolated across the
+  second secondary-source tranche; the retained gameplay fixture helpers,
+  `q3asm` bytecode assembler sources, and `q3map` compile/light/vis
+  toolchain remain bounded secondary support trees on current evidence.
+- [x] Audit `src/lcc/` and `src/libs/` after the primary runtime surface is complete (`99` tracked files).
+  2026-04-22 result: no new file-level gap owners were isolated across the
+  third secondary-source tranche; the retained LCC compiler/preprocessor,
+  test fixtures, and tracked support-library sources under `src/libs`
+  remain bounded secondary support trees on current evidence.
+- [x] Audit `src/q3radiant/` after the primary runtime surface is complete (`97` tracked files).
+  2026-04-22 result: no new file-level gap owners were isolated across the
+  final secondary-source tranche; the retained Gtk/MFC-era Radiant editor,
+  plugin bridge, OpenGL host glue, and bundled spline/editor helpers
+  remain bounded secondary support trees on current evidence.
 
 ## Current seeded file-level gap set
 
@@ -115,6 +148,7 @@ Per tracked file, the campaign should eventually produce:
 - `RW-G02`: `src/code/unix/linux_snd.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-linux-snd.md`
 - `RW-G02`: `src/code/unix/linux_joystick.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-linux-joystick.md`
 - `RW-G02`: `src/code/null/null_main.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-main.md`
+- `RW-G02`: `src/code/null/null_glimp.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-glimp.md`
 - `RW-G02`: `src/code/null/null_client.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-client.md`
 - `RW-G02`: `src/code/null/null_input.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-input.md`
 - `RW-G02`: `src/code/null/null_snddma.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-snddma.md`

@@ -18,8 +18,10 @@ README_PATH = GAP_NOTES_ROOT / "README.md"
 
 SOURCE_EXTENSIONS = {".c", ".cc", ".cpp", ".cxx"}
 EXCLUDED_PARTS = {"_deps", "_build"}
+TYPE_SEPARATOR_PATTERN = r"(?:[ \t\*&]+|[ \t]*\r?\n[ \t]*)"
+FUNCTION_NAME_PATTERN = r"(?:[A-Za-z_]\w*::)*(?:~?[A-Za-z_]\w*|operator(?:\[\]|\(\)|[^\s(]+))"
 FUNCTION_PATTERN = re.compile(
-	r"(?ms)^[ \t]*(?!#)(?:[A-Za-z_][\w]*[ \t\*]+)+(?P<name>[A-Za-z_]\w*)[ \t]*\([^;{}]*\)[ \t\r\n]*\{"
+	rf"(?ms)^[ \t]*(?!#)(?:[A-Za-z_]\w*(?:{TYPE_SEPARATOR_PATTERN}[A-Za-z_]\w*)*){TYPE_SEPARATOR_PATTERN}(?P<name>{FUNCTION_NAME_PATTERN})[ \t\r\n]*\([^;{{}}]*\)[ \t\r\n]*\{{"
 )
 NON_FUNCTION_KEYWORDS = {"if", "for", "while", "switch"}
 
@@ -77,6 +79,7 @@ NOTE_FILES = {
 	"src/code/unix/linux_snd.c": "rw-g02-linux-snd.md",
 	"src/code/unix/linux_joystick.c": "rw-g02-linux-joystick.md",
 	"src/code/null/null_main.c": "rw-g02-null-main.md",
+	"src/code/null/null_glimp.c": "rw-g02-null-glimp.md",
 	"src/code/null/null_client.c": "rw-g02-null-client.md",
 	"src/code/null/null_input.c": "rw-g02-null-input.md",
 	"src/code/null/null_snddma.c": "rw-g02-null-snddma.md",
@@ -119,6 +122,50 @@ SECONDARY_SECTIONS = OrderedDict(
 		("src/q3radiant", []),
 	]
 )
+
+PHASE4_GROUP_AUDITS: list[dict[str, object]] = [
+	{
+		"label": "`src/code/bspc/`, `src/code/jpeg-6/`, and `src/code/splines/`",
+		"sections": ("src/code/bspc", "src/code/jpeg-6", "src/code/splines"),
+		"plan_result": [
+			"2026-04-22 result: no new file-level gap owners were isolated across the",
+			"first secondary-source tranche; the refreshed function-count pass now",
+			"lands on libjpeg macro definitions and splines C++ methods, while the",
+			"retained BSPC toolchain, bundled `jpeg-6` sources, and legacy splines",
+			"helpers remain bounded secondary support trees on current evidence.",
+		],
+	},
+	{
+		"label": "`src/game/`, `src/q3asm/`, and `src/q3map/`",
+		"sections": ("src/game", "src/q3asm", "src/q3map"),
+		"plan_result": [
+			"2026-04-22 result: no new file-level gap owners were isolated across the",
+			"second secondary-source tranche; the retained gameplay fixture helpers,",
+			"`q3asm` bytecode assembler sources, and `q3map` compile/light/vis",
+			"toolchain remain bounded secondary support trees on current evidence.",
+		],
+	},
+	{
+		"label": "`src/lcc/` and `src/libs/`",
+		"sections": ("src/lcc", "src/libs"),
+		"plan_result": [
+			"2026-04-22 result: no new file-level gap owners were isolated across the",
+			"third secondary-source tranche; the retained LCC compiler/preprocessor,",
+			"test fixtures, and tracked support-library sources under `src/libs`",
+			"remain bounded secondary support trees on current evidence.",
+		],
+	},
+	{
+		"label": "`src/q3radiant/`",
+		"sections": ("src/q3radiant",),
+		"plan_result": [
+			"2026-04-22 result: no new file-level gap owners were isolated across the",
+			"final secondary-source tranche; the retained Gtk/MFC-era Radiant editor,",
+			"plugin bridge, OpenGL host glue, and bundled spline/editor helpers",
+			"remain bounded secondary support trees on current evidence.",
+		],
+	},
+]
 
 SECTION_AUDITS: dict[str, dict[str, object]] = {
 	"src/common": {
@@ -284,6 +331,160 @@ SECTION_AUDITS: dict[str, dict[str, object]] = {
 			"repo-wide gap note is opened here.",
 		],
 	},
+	"src/code/ui": {
+		"completed": True,
+		"row_state": "Current read-only function walk complete; no file-level parity gap isolated",
+		"plan_result": [
+			"2026-04-22 result: no new file-level gap owners were isolated inside the",
+			"closed strict-retail UI register; the refreshed UI audit, the focused UI",
+			"parity lane (`56 passed`, `2 skipped`), and the clean read-only",
+			"`src/ui` runtime-panel parity proof still bound the tree on current",
+			"evidence.",
+		],
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the read-only `src/code/ui` function",
+			"walk did not isolate any new file-level owners inside the closed",
+			"strict-retail UI register. The refreshed UI audit, the focused UI",
+			"parity lane (`56 passed`, `2 skipped`), the clean read-only `src/ui`",
+			"runtime-panel parity proof, and the bundle/runtime evidence still bound",
+			"this tree on current evidence, so no new repo-wide gap note is opened",
+			"here.",
+		],
+	},
+	"src/code/unix": {
+		"completed": True,
+		"row_state": "Current compatibility function walk complete; no new file-level portability gap isolated",
+		"plan_result": [
+			"2026-04-22 result: no new file-level gap owners were isolated beyond the",
+			"existing `RW-G02` notes for `unix_main.c`, `linux_glimp.c`,",
+			"`linux_snd.c`, and `linux_joystick.c`; the focused non-Windows",
+			"portability lane (`8 passed`) and the current repo-wide audit still",
+			"bound the remaining Unix files on current evidence.",
+		],
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/code/unix` function walk did",
+			"not isolate any new file-level owners beyond the existing `RW-G02`",
+			"notes for `unix_main.c`, `linux_glimp.c`, `linux_snd.c`, and",
+			"`linux_joystick.c`. The focused non-Windows portability lane",
+			"(`8 passed`) and the current repo-wide audit still bound",
+			"`linux_common.c`, `linux_qgl.c`, `linux_signals.c`, `unix_net.c`,",
+			"`unix_shared.c`, and `vm_x86.c` on current evidence.",
+		],
+	},
+	"src/code/null": {
+		"completed": True,
+		"row_state": "Current compatibility function walk complete; no new file-level portability gap isolated",
+		"plan_result": [
+			"2026-04-22 result: the null compatibility walk isolated",
+			"`null_glimp.c` as an additional `RW-G02` owner beside the existing",
+			"notes for `null_main.c`, `null_client.c`, `null_input.c`, and",
+			"`null_snddma.c`; the focused non-Windows portability lane",
+			"(`8 passed`) and the current repo-wide audit still bound `null_net.c`",
+			"and `mac_net.c` on current evidence.",
+		],
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/code/null` function walk",
+			"isolated `null_glimp.c` as an additional `RW-G02` owner beside the",
+			"existing notes for `null_main.c`, `null_client.c`, `null_input.c`,",
+			"and `null_snddma.c`. The focused non-Windows portability lane",
+			"(`8 passed`) and the current repo-wide audit still bound",
+			"`null_net.c` and `mac_net.c` on current evidence, so no further",
+			"file-level owner is opened inside the null tree this round.",
+		],
+	},
+	"src/code/bspc": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/code/bspc` function walk did",
+			"not isolate any new file-level owners. This retained BSP/AAS compiler",
+			"toolchain remains a secondary support surface outside the primary",
+			"runtime replacement target on current evidence.",
+		],
+	},
+	"src/code/jpeg-6": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/code/jpeg-6` function walk",
+			"did not isolate any new file-level owners. The refreshed extractor now",
+			"lands on the macro-style IJG definitions instead of the earlier zero-row",
+			"placeholders, while this bundled JPEG support tree remains a secondary",
+			"support surface on current evidence.",
+		],
+	},
+	"src/code/splines": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/code/splines` function walk",
+			"did not isolate any new file-level owners. The refreshed extractor now",
+			"lands on the retained C++ method definitions, while this legacy spline",
+			"editor/helper tree remains a bounded secondary support surface on",
+			"current evidence.",
+		],
+	},
+	"src/game": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/game` function walk did not",
+			"isolate any new file-level owners. The retained gameplay config helpers",
+			"and standalone fixture/support sources remain a bounded secondary",
+			"support surface on current evidence.",
+		],
+	},
+	"src/q3asm": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/q3asm` function walk did not",
+			"isolate any new file-level owners. This retained bytecode assembler",
+			"toolchain remains a bounded secondary support surface on current",
+			"evidence.",
+		],
+	},
+	"src/q3map": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/q3map` function walk did not",
+			"isolate any new file-level owners. The retained map compile, light,",
+			"and vis toolchain remains a bounded secondary support surface on",
+			"current evidence.",
+		],
+	},
+	"src/lcc": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/lcc` function walk did not",
+			"isolate any new file-level owners. The retained LCC compiler,",
+			"preprocessor, code-generator, and bundled test sources remain a",
+			"bounded secondary support surface on current evidence.",
+		],
+	},
+	"src/libs": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the tracked `src/libs` function walk",
+			"did not isolate any new file-level owners. The retained command-line,",
+			"JPEG, and pak-support helper sources remain a bounded secondary",
+			"support surface on current evidence.",
+		],
+	},
+	"src/q3radiant": {
+		"completed": True,
+		"row_state": "Current secondary function walk complete; no new file-level gap isolated",
+		"ledger_summary": [
+			"Current 2026-04-22 audit result: the `src/q3radiant` function walk did",
+			"not isolate any new file-level owners. The retained Radiant editor",
+			"shell, plugin bridge, OpenGL host glue, and bundled spline/editor",
+			"helper sources remain a bounded secondary support surface on current",
+			"evidence.",
+		],
+	},
 }
 
 
@@ -343,8 +544,14 @@ def subsystem_key(rel_path: str) -> str:
 	return "plan"
 
 
-def owning_primary_section(rel_path: str) -> str | None:
+def owning_audited_section(rel_path: str) -> str | None:
 	for section in PRIMARY_SECTIONS:
+		if rel_path.startswith(section + "/") or rel_path == section:
+			return section
+	for section in COMPATIBILITY_SECTIONS:
+		if rel_path.startswith(section + "/") or rel_path == section:
+			return section
+	for section in SECONDARY_SECTIONS:
 		if rel_path.startswith(section + "/") or rel_path == section:
 			return section
 	return None
@@ -352,8 +559,8 @@ def owning_primary_section(rel_path: str) -> str | None:
 
 def section_audit(rel_path_or_section: str) -> dict[str, object] | None:
 	section = rel_path_or_section
-	if section not in PRIMARY_SECTIONS:
-		section = owning_primary_section(rel_path_or_section) or ""
+	if section not in PRIMARY_SECTIONS and section not in COMPATIBILITY_SECTIONS and section not in SECONDARY_SECTIONS:
+		section = owning_audited_section(rel_path_or_section) or ""
 	if not section:
 		return None
 	return SECTION_AUDITS.get(section)
@@ -367,6 +574,8 @@ def has_current_walk(rel_path: str) -> bool:
 def classify(rel_path: str) -> str:
 	if rel_path in NOTE_FILES:
 		return "gap-note-open"
+	if has_current_walk(rel_path):
+		return "walked-closed"
 	if rel_path.startswith(("src/code/unix/", "src/code/null/")):
 		return "compatibility-open"
 	if rel_path.startswith(
@@ -383,8 +592,6 @@ def classify(rel_path: str) -> str:
 		)
 	):
 		return "queued-secondary"
-	if has_current_walk(rel_path):
-		return "walked-closed"
 	return "baseline-closed"
 
 
@@ -664,7 +871,10 @@ def build_gap_note_configs() -> dict[str, dict[str, object]]:
 			"Close the broader Linux client/runtime portability decision first, then rerun this file function-by-function with the chosen target in mind.",
 			"If Linux client/runtime parity is not a target, keep this file explicitly classified as a compatibility-only host carry.",
 		],
-		default_status=("queued function walk", "Legacy Linux host function inside the still-open portability tree."),
+		default_status=(
+			"bounded compatibility",
+			"Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner.",
+		),
 		overrides={
 			"GLimp_SetGamma": ("open portability owner", "Renderer gamma host path remains inside the still-open Linux client/runtime lane."),
 			"GLimp_Shutdown": ("open portability owner", "Linux GL teardown still belongs to the unresolved portability host surface."),
@@ -735,6 +945,30 @@ def build_gap_note_configs() -> dict[str, dict[str, object]]:
 			"Sys_SetErrorText": ("bounded compatibility", "No-op null-host error-text shim."),
 			"Sys_Init": ("bounded compatibility", "Initialises the null host path but does not close the portability lane."),
 			"main": ("open portability owner", "Top-level null runtime entry remains part of the unresolved compatibility-only host lane."),
+		},
+	)
+
+	add_note(
+		configs,
+		"src/code/null/null_glimp.c",
+		"RW-G02",
+		"Open repo-wide gap; the file is a compatibility-only null renderer host rather than a real graphics runtime.",
+		"The file now carries the corrected renderer-host signatures, but every GL entry point is still empty or returns a compatibility-safe default, so the null runtime still lacks a real graphics host.",
+		[
+			"`GLimp_Init()`, `GLimp_EndFrame()`, and `GLimp_Shutdown()` are empty.",
+			"`QGL_Init()` returns `qtrue` without loading a renderer library or binding real GL entry points.",
+			"The repo-wide audit still states that the null runtime does not implement a real live graphics/audio/input host.",
+		],
+		[
+			"Either keep the null renderer host as an explicit compatibility shim or raise it to a better-defined non-Windows graphics target.",
+			"Do not close the file while the null runtime still lacks a real graphics context, swap path, and GL loader contract.",
+		],
+		default_status=("bounded compatibility", "Null renderer-host compatibility shim."),
+		overrides={
+			"GLimp_EndFrame": ("open portability owner", "No-op swap/end-frame path inside the null compatibility host."),
+			"GLimp_Init": ("open portability owner", "No-op renderer-host initialisation; the null runtime creates no graphics context."),
+			"GLimp_Shutdown": ("open portability owner", "No-op renderer-host teardown inside the null compatibility lane."),
+			"QGL_Init": ("open portability owner", "Returns `qtrue` without loading or validating a real GL backend."),
 		},
 	)
 
@@ -962,12 +1196,17 @@ def write_plan(
 		"",
 	]
 
-	def append_primary_plan_item(section: str, read_only: bool = False) -> None:
+	def append_section_plan_item(section: str, count: int, read_only: bool = False, compatibility: bool = False) -> None:
 		audit = section_audit(section)
 		checked = bool(audit and audit.get("completed"))
 		mark = "x" if checked else " "
-		suffix = " (read-only source tree)." if read_only else "."
-		lines.append(f"- [{mark}] Audit `{section}` function-by-function (`{len(primary_sections[section])}` tracked files){suffix}")
+		if compatibility:
+			lines.append(
+				f"- [{mark}] Audit `{section}` and convert tree-level `RW-G02` status into file-specific notes where warranted (`{count}` tracked files)."
+			)
+		else:
+			suffix = " (read-only source tree)." if read_only else "."
+			lines.append(f"- [{mark}] Audit `{section}` function-by-function (`{count}` tracked files){suffix}")
 		if checked:
 			for note in audit.get("plan_result", []):  # type: ignore[union-attr]
 				lines.append(f"  {note}")
@@ -981,40 +1220,31 @@ def write_plan(
 		"src/code/win32",
 		"src/code/botlib",
 	):
-		append_primary_plan_item(section)
+		append_section_plan_item(section, len(primary_sections[section]))
 
 	lines.extend(["", "### Phase 2 - Module And Gameplay Surface", ""])
 
 	for section in ("src/code/game", "src/code/cgame", "src/code/ui"):
-		append_primary_plan_item(section, read_only=(section == "src/code/ui"))
+		append_section_plan_item(section, len(primary_sections[section]), read_only=(section == "src/code/ui"))
 
 	lines.extend(["", "### Phase 3 - Compatibility-Only Host Surface", ""])
 
 	for section in ("src/code/unix", "src/code/null"):
-		lines.append(
-			f"- [ ] Audit `{section}` and convert tree-level `RW-G02` status into file-specific notes where warranted (`{len(compatibility_sections[section])}` tracked files)."
-		)
+		append_section_plan_item(section, len(compatibility_sections[section]), compatibility=True)
 
 	lines.extend(["", "### Phase 4 - Secondary Tool, Editor, Compiler, And Legacy Source Trees", ""])
 
-	phase4_groups = [
-		(
-			"`src/code/bspc/`, `src/code/jpeg-6/`, and `src/code/splines/`",
-			len(secondary_sections["src/code/bspc"]) + len(secondary_sections["src/code/jpeg-6"]) + len(secondary_sections["src/code/splines"]),
-		),
-		(
-			"`src/game/`, `src/q3asm/`, and `src/q3map/`",
-			len(secondary_sections["src/game"]) + len(secondary_sections["src/q3asm"]) + len(secondary_sections["src/q3map"]),
-		),
-		(
-			"`src/lcc/` and `src/libs/`",
-			len(secondary_sections["src/lcc"]) + len(secondary_sections["src/libs"]),
-		),
-		("`src/q3radiant/`", len(secondary_sections["src/q3radiant"])),
-	]
-
-	for label, count in phase4_groups:
-		lines.append(f"- [ ] Audit {label} after the primary runtime surface is complete (`{count}` tracked files).")
+	for group in PHASE4_GROUP_AUDITS:
+		sections = group["sections"]  # type: ignore[assignment]
+		count = sum(len(secondary_sections[section]) for section in sections)  # type: ignore[index]
+		checked = all(bool(section_audit(section) and section_audit(section).get("completed")) for section in sections)  # type: ignore[union-attr]
+		mark = "x" if checked else " "
+		lines.append(
+			f"- [{mark}] Audit {group['label']} after the primary runtime surface is complete (`{count}` tracked files)."
+		)
+		if checked:
+			for note in group.get("plan_result", []):  # type: ignore[union-attr]
+				lines.append(f"  {note}")
 
 	lines.extend(["", "## Current seeded file-level gap set", ""])
 

@@ -20,46 +20,46 @@ The file is the retained Linux OpenGL/input host implementation, but the repo-wi
 
 | Function | Status | Notes |
 | --- | --- | --- |
-| `Q_stristr` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `XLateKey` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `CreateNullCursor` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `install_grabs` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `uninstall_grabs` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `X11_PendingInput` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `repeated_press` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `HandleEvents` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `KBD_Init` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `KBD_Close` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `IN_ActivateMouse` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `IN_DeactivateMouse` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
+| `Q_stristr` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `XLateKey` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `CreateNullCursor` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `install_grabs` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `uninstall_grabs` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `X11_PendingInput` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `repeated_press` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `HandleEvents` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `KBD_Init` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `KBD_Close` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `IN_ActivateMouse` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `IN_DeactivateMouse` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
 | `GLimp_SetGamma` | `open portability owner` | Renderer gamma host path remains inside the still-open Linux client/runtime lane. |
 | `GLimp_Shutdown` | `open portability owner` | Linux GL teardown still belongs to the unresolved portability host surface. |
-| `GLimp_LogComment` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLW_StartDriverAndSetMode` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLW_SetMode` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLW_InitExtensions` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLW_InitGamma` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLW_LoadOpenGL` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `qXErrorHandler` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
+| `GLimp_LogComment` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLW_StartDriverAndSetMode` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLW_SetMode` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLW_InitExtensions` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLW_InitGamma` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLW_LoadOpenGL` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `qXErrorHandler` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
 | `GLimp_Init` | `open portability owner` | Top-level Linux GL init path remains inside the unresolved portability lane. |
 | `GLimp_EndFrame` | `open portability owner` | Linux swap/end-frame host path is not closed repo-wide. |
-| `GLimp_RenderThreadWrapper` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_SpawnRenderThread` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_RendererSleep` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_FrontEndSleep` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_WakeRenderer` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_RenderThreadWrapper` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_SpawnRenderThread` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_RendererSleep` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_FrontEndSleep` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `GLimp_WakeRenderer` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
-| `IN_Init` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
+| `GLimp_RenderThreadWrapper` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_SpawnRenderThread` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_RendererSleep` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_FrontEndSleep` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_WakeRenderer` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_RenderThreadWrapper` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_SpawnRenderThread` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_RendererSleep` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_FrontEndSleep` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `GLimp_WakeRenderer` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
+| `IN_Init` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
 | `IN_Shutdown` | `open portability owner` | Linux input teardown stays in the open portability lane. |
 | `IN_Frame` | `open portability owner` | Linux input pump remains part of the unresolved non-Windows client path. |
 | `IN_Activate` | `open portability owner` | Linux active/inactive input state remains portability-owned. |
-| `Sys_SendKeyEvents` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
+| `Sys_SendKeyEvents` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
 | `IN_StartupJoystick` | `open portability owner` | Linux joystick startup remains part of the unresolved portability lane. |
-| `IN_JoyMove` | `queued function walk` | Legacy Linux host function inside the still-open portability tree. |
+| `IN_JoyMove` | `bounded compatibility` | Legacy Linux renderer/input host helper inside the still-open portability tree; not currently isolated as a separate repo-wide owner. |
 
 ## Closure target
 

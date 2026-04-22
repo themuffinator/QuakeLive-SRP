@@ -40,6 +40,263 @@ disabled, until a documented open replacement path exists.
 
 ## Recent closure
 
+### Task A7: Run the source-file parity audit campaign and isolate the remaining file-level gaps [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`docs/reverse-engineering/source-file-gap-notes/`,
+`tools/reverse-engineering/generate_source_file_audit.py`, all tracked
+`src/` source trees
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Closed the full source-file parity audit campaign by walking all `567`
+   tracked source entries across the primary runtime, compatibility-only,
+   and secondary support trees in the generated plan order.
+2. Kept inherited subsystem closure as the baseline while isolating concrete
+   file-level ownership only where the current evidence supported it, which
+   left the repo-wide source-file gap register concentrated in the seeded
+   `RW-G01` and `RW-G02` note set instead of reopening already-bounded
+   surfaces.
+3. Extended the source-file audit generator and its regression coverage so
+   completed tranche metadata, compatibility wording, function-count fixes,
+   and Phase 4 secondary-source summaries all survive regeneration on the
+   current worktree.
+4. Regenerated the source-file ledger, source-file audit plan, gap-note
+   index/readme, and historical audit index so the campaign snapshot is now
+   self-consistent and no pending tranche remains in the generated plan.
+5. Returned the top-level queue to the remaining repo-wide workstreams, with
+   the online-service compatibility boundary now back at the head of the
+   active task list.
+
+### Task A7p: Audit `src/q3radiant` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`src/q3radiant/`,
+`tests/test_source_file_audit_generator.py`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the final Phase 4 secondary-source tranche in the source-file
+   campaign by walking all `97` tracked files under `src/q3radiant`
+   against the current generated ledger and the repo-wide parity register.
+2. Confirmed that this tranche does not open any new file-level gap notes:
+   the retained Radiant editor shell, plugin bridge, OpenGL host glue, and
+   bundled spline/editor helper sources remain bounded secondary support
+   trees on current evidence rather than concrete repo-wide gap owners.
+3. Extended the source-file audit generator and its regression coverage so
+   completed metadata for `src/q3radiant` and the checked final Phase 4
+   plan item now survive regeneration too.
+4. Re-ran the refreshed generator suite (`20 passed`) and regenerated the
+   source-file campaign docs so the final Phase 4 tranche is now recorded
+   as complete in the generated outputs.
+5. Closed the currently enumerated secondary-source file-walk queue in the
+   generated source-file audit plan, leaving no remaining pending Phase 4
+   tranche in that campaign snapshot.
+
+### Task A7o: Audit `src/lcc` and `src/libs` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`src/lcc/`,
+`src/libs/`,
+`tests/test_source_file_audit_generator.py`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the third Phase 4 secondary-source tranche in the source-file
+   campaign by walking all `99` tracked files across `src/lcc` and
+   `src/libs` against the current generated ledger and the repo-wide parity
+   register.
+2. Confirmed that this tranche does not open any new file-level gap notes:
+   the retained LCC compiler/preprocessor/code-generator and bundled test
+   sources under `src/lcc`, plus the tracked command-line, JPEG, and pak
+   helper sources under `src/libs`, remain bounded secondary support trees
+   on current evidence rather than concrete repo-wide gap owners.
+3. Extended the source-file audit generator and its regression coverage so
+   completed metadata for `src/lcc`, `src/libs`, and the checked third
+   Phase 4 plan item now survive regeneration too.
+4. Re-ran the refreshed generator suite (`19 passed`) and regenerated the
+   source-file campaign docs so the third Phase 4 tranche is now recorded
+   as complete in the generated outputs.
+5. Advanced the file-walk queue so the remaining Phase 4 target is now the
+   secondary-source tranche covering `src/q3radiant/`.
+
+### Task A7n: Audit `src/game`, `src/q3asm`, and `src/q3map` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`src/game/`,
+`src/q3asm/`,
+`src/q3map/`,
+`tests/test_source_file_audit_generator.py`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the second Phase 4 secondary-source tranche in the source-file
+   campaign by walking all `40` tracked files across `src/game`,
+   `src/q3asm`, and `src/q3map` against the current generated ledger and the
+   repo-wide parity register.
+2. Confirmed that this tranche does not open any new file-level gap notes:
+   the retained gameplay config helpers and standalone fixture/support
+   sources under `src/game`, the `q3asm` bytecode assembler sources, and the
+   `q3map` compile/light/vis toolchain all remain bounded secondary support
+   trees on current evidence rather than concrete repo-wide gap owners.
+3. Extended the source-file audit generator and its regression coverage so
+   completed metadata for `src/game`, `src/q3asm`, `src/q3map`, and the
+   checked second Phase 4 plan item now survive regeneration too.
+4. Re-ran the refreshed generator suite plus focused `src/game` helper
+   coverage (`41 passed` across the source-audit, factory-config,
+   scoreboard-helper, and tournament-queue suites) so this tranche stays
+   recorded as complete on the current worktree.
+5. Regenerated the source-file campaign docs so the second Phase 4 tranche is
+   now recorded as complete in the generated outputs, and the next file-walk
+   target is now the secondary-source tranche covering `src/lcc/` and
+   `src/libs/`.
+
+### Task A7m: Audit `src/code/bspc`, `src/code/jpeg-6`, and `src/code/splines` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`src/code/bspc/`,
+`src/code/jpeg-6/`,
+`src/code/splines/`,
+`tests/test_source_file_audit_generator.py`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the first Phase 4 secondary-source tranche in the source-file
+   campaign by walking all `106` tracked files across `src/code/bspc`,
+   `src/code/jpeg-6`, and `src/code/splines` against the current repo-wide
+   ledger and the generated source-file register.
+2. Corrected the audit generator’s function extractor so the tranche now
+   counts libjpeg macro-style definitions and retained splines C++ method
+   definitions instead of leaving most of `jpeg-6` and parts of the splines
+   tree as misleading zero-function placeholders in the ledger.
+3. Confirmed that this tranche does not open any new file-level gap notes:
+   the retained BSPC compiler/AAS toolchain, bundled `jpeg-6` support
+   sources, and legacy splines helper/editor sources remain bounded
+   secondary trees on current evidence rather than concrete repo-wide gap
+   owners.
+4. Extended the source-file audit generator and its regression coverage so
+   completed secondary-section metadata and the checked first Phase 4 plan
+   item now survive regeneration too; the refreshed generator suite passes
+   on the current worktree (`17 passed`).
+5. Regenerated the source-file campaign docs so the first Phase 4 tranche is
+   now recorded as complete in the generated outputs, and the next file-walk
+   target is now the secondary-source tranche covering `src/game/`,
+   `src/q3asm/`, and `src/q3map/`.
+
+### Task A7l: Audit `src/code/null` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`docs/reverse-engineering/source-file-gap-notes/`,
+`src/code/null/`,
+`docs/reverse-engineering/repo-wide-parity-audit-2026-04-21.md`,
+`tests/test_non_windows_portability.py`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the next compatibility tranche in the source-file campaign by
+   walking all `7` tracked `src/code/null` entries against the current
+   repo-wide parity ledger, the existing `RW-G02` portability notes, and the
+   focused non-Windows portability regression lane.
+2. Isolated `src/code/null/null_glimp.c` as an additional concrete `RW-G02`
+   owner because the null renderer host still consists of no-op
+   `GLimp_*` entry points plus a `QGL_Init()` path that returns success
+   without loading a real GL backend, while `null_main.c`, `null_client.c`,
+   `null_input.c`, and `null_snddma.c` remain the other null-runtime owners
+   already tracked in dedicated notes.
+3. Confirmed that no further null file needs a new file-level gap note in
+   this tranche: `null_net.c` and `mac_net.c` remain bounded loopback helper
+   surfaces on current evidence rather than newly isolated repo-wide
+   blockers, so they are now explicitly recorded as current compatibility
+   function-walk completions.
+4. Extended the source-file audit generator and its regression coverage so a
+   completed null compatibility tranche, the newly isolated `null_glimp.c`
+   note, and the walked-complete helper rows all survive regeneration; the
+   refreshed generator plus non-Windows portability suites now pass
+   together (`20 passed`).
+5. Regenerated the source-file campaign docs so Phase 3 is now fully closed
+   in the generated outputs, and the next file-walk target is now the first
+   Phase 4 secondary-source tranche covering `src/code/bspc/`,
+   `src/code/jpeg-6/`, and `src/code/splines/`.
+
+### Task A7k: Audit `src/code/unix` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`src/code/unix/`,
+`docs/reverse-engineering/repo-wide-parity-audit-2026-04-21.md`,
+`tests/test_non_windows_portability.py`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the next compatibility tranche in the source-file campaign by
+   walking all `10` tracked `src/code/unix` entries against the current
+   repo-wide parity ledger, the existing `RW-G02` portability notes, and the
+   focused non-Windows portability regression lane.
+2. Confirmed that no additional `src/code/unix` file needs a new file-level
+   gap note: the existing `RW-G02` ownership remains concentrated in
+   `unix_main.c`, `linux_glimp.c`, `linux_snd.c`, and `linux_joystick.c`,
+   while `linux_common.c`, `linux_qgl.c`, `linux_signals.c`, `unix_net.c`,
+   `unix_shared.c`, and `vm_x86.c` are now explicitly recorded as current
+   function-walk completions on present evidence.
+3. Extended the source-file audit generator and its regression coverage so a
+   completed compatibility tranche now survives regeneration too, including
+   the checked Phase 3 Unix plan item, the compatibility-specific ledger row
+   wording, and the retained `RW-G02` note ownership inside the still-open
+   portability lane.
+4. Re-ran the generator and the focused portability coverage (`18 passed`
+   across the generator and non-Windows suites) so the Unix tranche now stays
+   recorded as complete in the generated docs, and the next file-walk target
+   is now the compatibility-only `src/code/null` tranche at the head of the
+   remaining queue.
+
+### Task A7j: Audit `src/code/ui` function-by-function and isolate file-level gap ownership [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
+`src/code/ui/`,
+`docs/reverse-engineering/ui-full-parity-audit-and-implementation-plan-2026-04-05.md`,
+`tools/reverse-engineering/generate_source_file_audit.py`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Completed the next source-file campaign tranche by walking all `9`
+   tracked `src/code/ui` entries against the refreshed strict-retail UI
+   audit, the focused UI parity lane, and the current repo-wide gap ledger.
+2. Confirmed that no `src/code/ui` file needs a new file-level gap note:
+   the current UI closure still holds on current evidence, the focused UI
+   suite is green (`56 passed`, `2 skipped`), the clean read-only `src/ui`
+   runtime-panel parity proof still bounds the menu/data payload, and the
+   read-only tree therefore did not require or permit a source correction in
+   this tranche.
+3. Extended the source-file audit generator and its regression coverage so
+   completed read-only tranche metadata now survives regeneration too,
+   including the UI checklist state, the read-only ledger row wording, and
+   the UI tranche summary in the generated audit docs.
+4. Regenerated the source-file campaign docs from the hardened generator so
+   the UI tranche is now recorded as complete beside the earlier runtime
+   walks, and the next file-walk target is now the compatibility-only
+   `src/code/unix` tranche at the head of the remaining queue.
+
 ### Task A7i: Audit `src/code/cgame` function-by-function and isolate file-level gap ownership [COMPLETED]
 Priority: High
 Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
@@ -767,28 +1024,74 @@ Completed work:
    - `pytest tests/test_client_full_parity_gate.py -q --tb=no`
    - `pytest tests/test_platform_services.py tests/test_steamworks_harness.py tests/test_client_config_parity.py tests/test_client_workshop_bootstrap_parity.py tests/test_ui_menu_files.py tests/test_client_full_parity_gate.py -q --tb=no`
 
+### Task A3a: Expose explicit compatibility-only provider/policy labels through auth, workshop, and browser-overlay surfaces [COMPLETED]
+Priority: Critical
+Primary areas: `src/common/platform/`, `src/code/client/`,
+`docs/platform/authentication.md`, `docs/steam_platform_abstraction.md`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Added `QL_DescribePlatformFeaturePolicy(...)` as the shared companion label
+   for platform-service descriptors and threaded that label through the client
+   auth dispatcher so build-disabled, runtime-disabled, and provider-unavailable
+   lanes stay explicit in auth lifecycle logs.
+2. Mirrored the browser/advert overlay descriptor through the ROM cvars
+   `ui_browserAwesomiumProvider` and `ui_browserAwesomiumPolicy`, and routed the
+   blocked browser commands through provider-aware compatibility logging instead
+   of generic “provider unavailable” messages.
+3. Bounded the retained workshop bootstrap to the Steam UGC owner lane,
+   documented provider/policy-aware fallback logging for non-Steam/bootstrap
+   paths, and refreshed the focused platform/workshop regression coverage to
+   keep those compatibility-only labels visible.
+
+### Task A3b: Expose explicit compatibility-only provider/policy labels through server auth and Steam GameServer surfaces [COMPLETED]
+Priority: Critical
+Primary areas: `src/code/server/`, `src/code/qcommon/`,
+`docs/platform/authentication.md`, `docs/steam_platform_abstraction.md`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Mirrored the retained server auth and matchmaking descriptors through the
+   ROM cvars `sv_platformAuthProvider`, `sv_platformAuthPolicy`,
+   `sv_steamServerProvider`, and `sv_steamServerPolicy` so dedicated-server
+   diagnostics expose the active provider/policy pair just as explicitly as the
+   client-side browser, workshop, and auth surfaces.
+2. Bounded the Steam GameServer bootstrap/publication lane with
+   provider/policy-aware fallback and callback logging, including the
+   compatibility-only dedicated-server publication fallback when the retained
+   GameServer owner is unavailable.
+3. Updated server-side auth telemetry so it now appends
+   `provider=<...> policy=<...>` to the message payload while intentionally
+   preserving the legacy `credential=steam` field, then refreshed the focused
+   platform-service regression coverage to keep that compatibility labeling
+   explicit.
+
+### Task A3c: Expose explicit compatibility-only provider/policy labels through client live-resource bridge surfaces [COMPLETED]
+Priority: Critical
+Primary areas: `src/code/client/cl_steam_resources.c`,
+`tests/test_platform_services.py`, `docs/steam_platform_abstraction.md`,
+`docs/reverse-engineering/source-file-gap-notes/rw-g01-client-steam-resources.md`
+Parity estimate: **before 96% -> after 96%**
+
+Completed work:
+
+1. Threaded the overlay service descriptor’s provider/policy labels into the
+   retained live-resource bridge so the `steam://` avatar/resource path has the
+   same explicit compatibility labeling as the browser overlay and workshop
+   seams.
+2. Replaced the generic Steam-resource and launcher-backend diagnostics with
+   provider-aware logs that now spell out when the Steam resource bridge is
+   disabled, when the retained SteamDataSource owner cannot satisfy a request,
+   and when the launcher/web fallback owner is the remaining compatibility
+   path.
+3. Refreshed the focused platform-service regression coverage and the
+   file-level `RW-G01` gap note so the live-resource bridge now documents the
+   bounded compatibility/fallback story it still implements instead of the
+   older generic “backend unavailable” wording.
+
 ## Active tasks
-
-### Task A7: Run the source-file parity audit campaign and isolate the remaining file-level gaps [OPEN]
-Priority: High
-Primary areas: `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
-`docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`,
-`docs/reverse-engineering/source-file-gap-notes/`, all tracked `src/` source
-trees
-Estimated repo-wide lift if closed: **96% -> 96%**
-
-Scope:
-
-1. Work through the `567` tracked source entries in the new ledger in the
-   chunk order defined by the source-file audit plan.
-2. Keep inherited subsystem closure as the starting baseline, but only open a
-   dedicated per-file note when the current function walk isolates a concrete
-   parity gap.
-3. Convert the current repo-wide gap families from tree-level summaries into
-   stable file-level ownership wherever the evidence is concrete, beginning
-   with the seeded `RW-G01` and `RW-G02` notes.
-4. Keep `AUDIT.md` and the repo-wide audit concise summary ledgers rather than
-   turning them into file-by-file dumps.
 
 ### Task A3: Replace or further bound the compatibility-only online-service lanes [OPEN]
 Priority: Critical
@@ -883,11 +1186,9 @@ Completed work:
 
 ## Working priority order
 
-1. Drive the source-file parity audit campaign through the primary runtime
-   surface so the remaining gaps are isolated file-by-file.
-2. Resolve the online-service compatibility boundary and evidence story.
-3. Re-baseline the non-Windows portability lanes.
-4. Refresh archived build/runtime evidence on current toolchains.
+1. Resolve the online-service compatibility boundary and evidence story.
+2. Re-baseline the non-Windows portability lanes.
+3. Refresh archived build/runtime evidence on current toolchains.
 
 ## Reference audits for closed surfaces
 
