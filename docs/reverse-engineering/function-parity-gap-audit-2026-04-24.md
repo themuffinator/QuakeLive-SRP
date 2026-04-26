@@ -66,13 +66,26 @@ Mapping and status corpus:
 - `docs/reverse-engineering/quakelive_steam_mapping_round_126.md`
 - `docs/reverse-engineering/quakelive_steam_mapping_round_127.md`
 - `docs/reverse-engineering/quakelive_steam_mapping_round_128.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_129.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_130.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_131.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_132.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_133.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_134.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_135.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_136.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_137.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_138.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_139.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_140.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_141.md`
 - `docs/mapping-ref/quakelive_steam_mapping_appendix.md`
 
 ## Reference Function Inventory
 
 | Retail reference | Ghidra functions | Imports | Exports | Function-map state | Current source parity gap |
 | --- | ---: | ---: | ---: | --- | --- |
-| `quakelive_steam.exe` | `5473` | `351` | `2` | `1415` alias entries, `1409` address-backed aliases, about `25.745%` address-backed coverage after round 128 | Yes: online services are bounded divergence; host mapping is still partial |
+| `quakelive_steam.exe` | `5473` | `351` | `2` | `1616` alias entries, `1545` strict Ghidra address-backed aliases, about `28.229%` strict Ghidra address-backed coverage after round 141 | Yes: online services are bounded divergence; host mapping is still partial |
 | `qagamex86.dll` | `1027` | `65` | `2` | `1128 / 1128` committed `qagame` map rows are `matched` | No active module function gap |
 | `cgamex86.dll` | `751` | `55` | `2` | `854 / 854` committed `cgame` rows are `matched`, including `103` HLIL-only anchors | No active module function gap |
 | `uix86.dll` | `348` | `50` | `2` | `444 / 444` committed `ui` rows are `matched`, including `96` HLIL-only anchors | No active UI function gap |
@@ -299,9 +312,14 @@ only as retired historical seed entries.
 Current coverage:
 
 - Ghidra baseline: `5473` functions
-- Current alias corpus: `1415` raw aliases
-- Address-backed aliases: `1409`
-- Address-backed coverage: about `25.745%`
+- Current alias corpus: `1616` raw aliases
+- Strict Ghidra address-backed aliases: `1545`
+- Strict Ghidra address-backed coverage: about `28.229%`
+
+The strict address-backed figure above now counts only alias keys whose
+address exists in the committed Ghidra `functions.csv`. Useful HLIL-backed
+aliases that do not appear as separate Ghidra function rows still contribute
+to the raw alias corpus, but not to the strict address-backed subtotal.
 
 High-priority opaque/unfinished areas from the current mapping notes:
 
@@ -318,30 +336,30 @@ High-priority opaque/unfinished areas from the current mapping notes:
 | `0x004F4640` | `sub_4F4640` | High-value unresolved host leftover called out after round 109 |
 
 Largest currently unaliased Ghidra functions by byte size after
-[mapping round 128](./quakelive_steam_mapping_round_128.md):
+[mapping round 141](./quakelive_steam_mapping_round_141.md):
 
 | Rank | Address | Raw symbol | Size |
 | ---: | --- | --- | ---: |
-| 1 | `0x0049FC30` | `FUN_0049fc30` | `659` |
-| 2 | `0x00408EC0` | `FUN_00408ec0` | `659` |
-| 3 | `0x00525370` | `FUN_00525370` | `658` |
-| 4 | `0x00501AD0` | `FUN_00501ad0` | `657` |
-| 5 | `0x0047ED10` | `FUN_0047ed10` | `655` |
-| 6 | `0x004B0CD0` | `FUN_004b0cd0` | `654` |
-| 7 | `0x0047B710` | `FUN_0047b710` | `654` |
-| 8 | `0x004FBB00` | `FUN_004fbb00` | `647` |
-| 9 | `0x00435FF0` | `FUN_00435ff0` | `647` |
-| 10 | `0x0049CD80` | `FUN_0049cd80` | `646` |
-| 11 | `0x0040A8F0` | `FUN_0040a8f0` | `645` |
-| 12 | `0x0040A660` | `FUN_0040a660` | `645` |
-| 13 | `0x0040A3D0` | `FUN_0040a3d0` | `645` |
-| 14 | `0x00409F20` | `FUN_00409f20` | `645` |
-| 15 | `0x00515250` | `FUN_00515250` | `643` |
-| 16 | `0x00474D90` | `FUN_00474d90` | `642` |
-| 17 | `0x004B07C0` | `FUN_004b07c0` | `641` |
-| 18 | `0x004193B0` | `FUN_004193b0` | `641` |
-| 19 | `0x0051D0A0` | `FUN_0051d0a0` | `639` |
-| 20 | `0x0047AE50` | `FUN_0047ae50` | `639` |
+| 1 | `0x00463980` | `FUN_00463980` | `592` |
+| 2 | `0x00435070` | `FUN_00435070` | `566` |
+| 3 | `0x00440AD0` | `FUN_00440ad0` | `560` |
+| 4 | `0x004109D0` | `FUN_004109d0` | `559` |
+| 5 | `0x004C6BD0` | `FUN_004c6bd0` | `558` |
+| 6 | `0x0040B050` | `FUN_0040b050` | `555` |
+| 7 | `0x00419AD0` | `FUN_00419ad0` | `555` |
+| 8 | `0x0040F7E0` | `FUN_0040f7e0` | `549` |
+| 9 | `0x0041CFB0` | `FUN_0041cfb0` | `549` |
+| 10 | `0x0042BA60` | `FUN_0042ba60` | `549` |
+| 11 | `0x004940D0` | `FUN_004940d0` | `547` |
+| 12 | `0x004F4410` | `FUN_004f4410` | `546` |
+| 13 | `0x00475CA0` | `FUN_00475ca0` | `545` |
+| 14 | `0x004999C0` | `FUN_004999c0` | `541` |
+| 15 | `0x00403BB0` | `FUN_00403bb0` | `537` |
+| 16 | `0x00480030` | `FUN_00480030` | `537` |
+| 17 | `0x004C52B0` | `FUN_004c52b0` | `537` |
+| 18 | `0x004FC240` | `FUN_004fc240` | `537` |
+| 19 | `0x00477930` | `FUN_00477930` | `536` |
+| 20 | `0x00466B90` | `FUN_00466b90` | `535` |
 
 Interpretation:
 
@@ -366,8 +384,79 @@ Interpretation:
   CRT/STL/support-library functions. Round 128 classified `11` engine-owned,
   `3` platform-service-owned, and `11` CRT/STL/support-library functions, and
   corrected `sub_41A7C0` from listener event handling to the ZeroMQ TCP accept
-  helper. Each later pass still needs to classify candidates before treating
-  them as source parity debt.
+  helper. Round 129 classified `6` engine-owned, `6`
+  platform-service-owned, and `5` CRT/STL/support-library functions. Round
+  130 classified `2` engine-owned, `2` platform-service-owned, and `9`
+  CRT/STL/support-library functions, and corrected `sub_4770A0` from
+  `jpeg_gen_optimal_table` to `finish_pass_gather`. Round 131 classified `8`
+  engine-owned, `1` platform-service-owned, and `6`
+  CRT/STL/support-library functions, and corrected the refreshed queue
+  computation to normalize alias-key addresses against Ghidra entries before
+  ranking unresolved functions. Round 132 classified `5` engine-owned, `1`
+  platform-service-owned, and `17` CRT/STL/support-library functions, and
+  corrected `sub_501AD0` from `crc32_z` to `crc32_little` while resolving
+  adjacent zlib, libpng, and libvorbis support clusters. Round 133 classified
+  `0` engine-owned, `2` platform-service-owned, and `23`
+  CRT/STL/support-library functions while resolving a contiguous libogg queue
+  block, the libvorbis `vorbis_staticbook_unpack` helper, and exact ZeroMQ TCP
+  address/connecter helpers; it also intentionally left `sub_411F30`
+  unresolved because the printed HLIL demangle conflicts with the observed
+  `tcp_address.cpp` parsing body. Round 134 classified `0` engine-owned, `2`
+  platform-service-owned, and `15` CRT/STL/support-library functions while
+  resolving exact JPEG main/coef-controller helpers, `stbtt_FlattenCurves`,
+  zlib `send_all_trees`, and a coherent libpng read-transform cluster headed
+  by `png_do_expand_palette`; it also left `sub_4F67A0` unresolved pending a
+  stable local CZMQ source-level function-name anchor. Round 135 classified
+  `12` engine-owned, `2` platform-service-owned, and `2`
+  CRT/STL/support-library functions while resolving exact botlib, client,
+  renderer, qcommon, JsonCpp, libpng, and libzmq rows including
+  `AAS_ClipToBBox`, `AAS_CalculateAreaTravelTimes`, `AAS_WriteRouteCache`,
+  `LAN_GetServerInfo`, `Com_Printf`, `FS_SV_FOpenFileRead`,
+  `JsonStyledWriter_isMultineArray`, and `zmq_req_t_xrecv`; it also kept
+  `sub_4615E0`, `sub_463670`, and `sub_463980` intentionally unresolved until
+  their exact STL container-type naming is anchored. Round 136 classified `4`
+  engine-owned, `2` platform-service-owned, and `1`
+  CRT/STL/support-library function while resolving the previously deferred
+  `tcp_address.cpp` lane as `zmq_tcp_address_t_resolve` plus
+  `zmq_tcp_address_mask_t_resolve`, exact botlib/parser rows
+  `BotMovementViewTarget`, `PC_ExpandBuiltinDefine`, and
+  `PS_ReadEscapeCharacter`, the JsonCpp numeric helper
+  `JsonReader_decodeDouble`, and the chat validator
+  `BotCheckValidReplyChatKeySet`; it also reclassified `sub_40B050` and
+  `sub_419AD0` as STL tree-insert support rather than engine debt. Round 137
+  classified `0` engine-owned, `0` platform-service-owned, and `15`
+  CRT/STL/support-library functions while resolving the queue-head shared
+  SteamID STL helpers plus an exact IJG/libjpeg marker-reader cluster headed
+  by `get_dqt`, `get_dri`, `next_marker`, `read_markers`,
+  `read_restart_marker`, `reset_marker_reader`, and `jinit_marker_reader`; it
+  intentionally left `sub_463980` unresolved because the second
+  `SteamDataSource` STL tree still lacks a stable specific owner name. Round
+  138 classified `0` engine-owned, `7` platform-service-owned, and `4`
+  CRT/STL/support-library functions while resolving the ZeroMQ
+  `plain_mechanism` HELLO/WELCOME/INITIATE/READY handshake lane, the libvorbis
+  `res2_class`/`res2_forward`/`res2_inverse` trio, and an STL ostream
+  c-string insertion helper. Round 139 classified `0` engine-owned, `6`
+  platform-service-owned, and `2` CRT/STL/support-library functions while
+  closing a coherent `zmq::socket_base_t` destructor/URI/protocol/pipe/option
+  lane plus the lower-level SteamID insert rebalance helpers
+  `std_tree_insert_steamid_node_rebalance` and
+  `std_tree_insert_steamid_map_node_rebalance`. Round 140 classified `0`
+  engine-owned, `0` platform-service-owned, and `13`
+  CRT/STL/support-library functions while closing the queue-head-adjacent
+  libvorbisfile/libvorbis lifecycle lane around `_fetch_headers`,
+  `vorbis_dsp_clear`, `_make_decode_ready`, `_decode_clear`, `ov_clear`,
+  `_open_seekable2`, `_ov_open1`, `_ov_open2`, `ov_open_callbacks`,
+  `vorbis_block_init`, `vorbis_block_clear`, `vorbis_synthesis_restart`, and
+  `vorbis_synthesis_init`. Round 141 classified `5` engine-owned, `7`
+  platform-service-owned, and `9` CRT/STL/support-library functions while
+  closing the Win32 `NET_Config`/`NET_Init`/`NET_Shutdown`/`NET_Sleep` lane,
+  the CZMQ `zauth.c` request/authentication cluster around
+  `s_zap_request_new` and `s_self_authenticate`, the zlib
+  `deflateInit2_`/`deflateInit_` pair, and a libpng storage-function lane
+  headed by `png_set_IHDR`; it also normalized the audit's address-backed
+  coverage wording to a strict Ghidra `functions.csv` check so HLIL-only alias
+  rows no longer inflate the reported subtotal. Each later pass still needs to
+  classify candidates before treating them as source parity debt.
 - The source gap consequences currently flow through FG-01, not through every
   raw unmapped host function.
 
@@ -407,7 +496,7 @@ native qagame corpus rather than in the legacy sparse `server.json` seed file.
 ## Recommended Next Audit Tasks
 
 1. Continue `quakelive_steam.exe` mapping from the refreshed largest-unaliased
-   queue beginning with `sub_49FC30`, `sub_408EC0`, and `sub_525370`; classify
+   queue beginning with `sub_463980`, `sub_435070`, and `sub_440AD0`; classify
    each as engine-owned, platform-service-owned, CRT/STL, Awesomium, or Steam
    SDK support before opening source debt.
 2. If repo-wide parity is the target, choose whether FG-01 is permanently
