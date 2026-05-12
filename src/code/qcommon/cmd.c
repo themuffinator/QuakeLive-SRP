@@ -99,6 +99,65 @@ void Cbuf_AddText( const char *text ) {
 	cmd_text.cursize += l;
 }
 
+/*
+============
+Cbuf_AddTokenized
+
+Adds command text at the end of the buffer while re-quoting argv(1..n), so
+startup arguments that contain separators survive the later execute pass.
+============
+*/
+void Cbuf_AddTokenized( const char *text ) {
+	int			tokenLength;
+	int			totalLength;
+	char		*dest;
+	const char	*token;
+	qboolean	firstToken;
+
+	if ( !text || !text[0] ) {
+		return;
+	}
+
+	totalLength = 1;
+	firstToken = qtrue;
+	for ( token = text ; *token ; token += tokenLength + 1 ) {
+		tokenLength = strlen( token );
+		totalLength += tokenLength;
+		if ( !firstToken ) {
+			totalLength += 3;
+		}
+		firstToken = qfalse;
+	}
+
+	if ( cmd_text.cursize + totalLength >= cmd_text.maxsize ) {
+		Com_Printf( "Cbuf_AddTokenized: overflow\n" );
+		return;
+	}
+
+	dest = (char *)&cmd_text.data[cmd_text.cursize];
+	firstToken = qtrue;
+	for ( token = text ; *token ; token += tokenLength + 1 ) {
+		tokenLength = strlen( token );
+
+		if ( !firstToken ) {
+			*dest++ = ' ';
+			*dest++ = '"';
+		}
+
+		Com_Memcpy( dest, token, tokenLength );
+		dest += tokenLength;
+
+		if ( !firstToken ) {
+			*dest++ = '"';
+		}
+
+		firstToken = qfalse;
+	}
+
+	*dest++ = '\n';
+	cmd_text.cursize += totalLength;
+}
+
 
 /*
 ============

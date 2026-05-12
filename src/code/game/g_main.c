@@ -1449,7 +1449,7 @@ static void G_ResetDuelWarmupState( qboolean clearReadyFlags );
 void G_InitGame( int levelTime, int randomSeed, int restart );
 void G_RunFrame( int levelTime );
 void G_ShutdownGame( int restart );
-void G_RegisterCvars( void );
+void G_RegisterCvars(void);
 void CheckExitRules( void );
 
 /*
@@ -6934,10 +6934,12 @@ void CheckExitRules( void ) {
 		return;
 	}
 
-	if ( g_timelimit.integer && elapsed >= timeLimitMsec ) {
-		trap_SendServerCommand( -1, "print \"Timelimit hit.\n\"" );
-		LogExit( "Timelimit hit." );
-		return;
+	if ( g_timelimit.integer && !level.warmupTime ) {
+		if ( elapsed >= timeLimitMsec ) {
+			trap_SendServerCommand( -1, "print \"Timelimit hit.\n\"" );
+			LogExit( "Timelimit hit." );
+			return;
+		}
 	}
 
 	if ( ( g_gametype.integer == GT_FFA || g_gametype.integer == GT_TOURNAMENT ||
@@ -8054,16 +8056,16 @@ void CheckTeamVote( int team ) {
 
 
 /*
-================
-G_SuddenDeathThink
-================
-*/
-void G_SuddenDeathThink( void ) {
-	const matchFactoryConfig_t *config = &g_matchFactoryConfig;
+=============
+G_TrackSuddenDeathAnnouncements
 
-	if ( !level.suddenDeathActive ) {
-		return;
-	}
+Publishes the retail sudden-death respawn announcement text while the
+match-side delay controller is active.
+=============
+*/
+static void G_TrackSuddenDeathAnnouncements( void ) {
+	const matchFactoryConfig_t *config = &g_matchFactoryConfig;
+	int delay;
 
 	if ( g_suddenDeathRespawn.integer <= 0 || !config->suddenDeathRespawnsEnabled ) {
 		if ( !level.suddenDeathNoRespawnLogged ) {
@@ -8077,7 +8079,7 @@ void G_SuddenDeathThink( void ) {
 		return;
 	}
 
-	int delay = G_GetSuddenDeathRespawnDelay();
+	delay = G_GetSuddenDeathRespawnDelay();
 	if ( delay < 0 ) {
 		delay = 0;
 	}
@@ -8094,6 +8096,19 @@ void G_SuddenDeathThink( void ) {
 			}
 		}
 	}
+}
+
+/*
+================
+G_SuddenDeathThink
+================
+*/
+void G_SuddenDeathThink( void ) {
+	if ( !level.suddenDeathActive ) {
+		return;
+	}
+
+	G_TrackSuddenDeathAnnouncements();
 }
 
 /*

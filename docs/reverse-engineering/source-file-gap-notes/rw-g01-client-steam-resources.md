@@ -1,6 +1,6 @@
 # `src/code/client/cl_steam_resources.c` Divergence Note
 
-Last updated: 2026-04-22
+Last updated: 2026-04-28
 
 Gap family: `RW-G01`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
@@ -8,11 +8,13 @@ Gap family: `RW-G01`
 
 ## Why this file remains a documented divergence
 
-The client resource bridge reconstructs the menu-facing resource flow, but Steam-backed requests still devolve into stubs or fallback launch-resource paths whenever live services are disabled or unavailable.
+The client resource bridge reconstructs the menu-facing resource flow and now mirrors the retail `AvatarImageLoaded_t` registration owner, but Steam-backed requests still fall back or require synchronous retries because the checked-in bridge does not yet recreate the retail Awesomium delayed-response object path.
 
 ## Observed facts
 
 - `CL_Steam_RegisterShader()` logs `UI: Steam resource request stubbed` when Steam services are disabled by build or runtime policy.
+- `CL_InitSteamResources()` now registers a dedicated avatar-image callback owner when Steam services are available, and `CL_ShutdownSteamResources()` unregisters that owner on teardown.
+- `CL_SteamDataSource_Request()` now distinguishes “avatar not ready yet” from hard failure and records pending SteamIDs until `AvatarImageLoaded_t` arrives.
 - `QLResourceInterceptor_OnRequest()` falls back from SteamDataSource to launcher/web filesystem owners instead of proving a retail-equivalent live resource path.
 - `CL_InitSteamResources()` explicitly reports that the Steam resource bridge is disabled by build/runtime policy when the lane is unavailable.
 
@@ -32,10 +34,18 @@ The client resource bridge reconstructs the menu-facing resource flow, but Steam
 | `CL_SteamResources_IsAvatarURL` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_ParseAvatarSizeToken` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_ParseAvatarURL` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
+| `CL_SteamResources_ClearPendingAvatars` | `helper closed` | Pending-avatar bookkeeping helper for the bounded callback-owned retry lane. |
+| `CL_SteamResources_IsPendingAvatar` | `helper closed` | Pending-avatar bookkeeping helper for the bounded callback-owned retry lane. |
+| `CL_SteamResources_MarkPendingAvatar` | `helper closed` | Pending-avatar bookkeeping helper for the bounded callback-owned retry lane. |
+| `CL_SteamResources_ClearPendingAvatar` | `helper closed` | Pending-avatar bookkeeping helper for the bounded callback-owned retry lane. |
+| `CL_SteamResources_IsPendingAvatarURL` | `helper closed` | Pending-avatar bookkeeping helper for the bounded callback-owned retry lane. |
 | `CL_SteamResources_FindSlot` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_AssignSlot` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_BuildRendererName` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_ClearSlot` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
+| `CL_SteamResources_OnAvatarImageLoaded` | `bounded compatibility` | Mirrors the retail callback owner and clears pending retry state, but still cannot complete the original Awesomium response asynchronously. |
+| `CL_SteamResources_RegisterAvatarCallbacks` | `bounded compatibility` | Mirrors the retail callback registration owner, but only for the bounded synchronous-retry bridge. |
+| `CL_SteamResources_UnregisterAvatarCallbacks` | `helper closed` | Teardown helper for the bounded callback-owned retry lane. |
 | `CL_SteamResources_RequestAvatarRGBA` | `bounded compatibility` | Still depends on the Steam-facing compatibility bridge rather than a repo-wide-closed live path. |
 | `CL_SteamDataSource_ClearResponse` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamDataSource_GuessMimeType` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
@@ -50,5 +60,5 @@ The client resource bridge reconstructs the menu-facing resource flow, but Steam
 
 ## Maintenance expectations
 
-- Keep the fallback and stub logging explicit while Steam-backed menu resources remain an intentional bounded compatibility story.
+- Keep the fallback, pending-retry, and stub logging explicit while Steam-backed menu resources remain an intentional bounded compatibility story.
 - If a real open replacement path is adopted later, refresh the request bridge and note accordingly.

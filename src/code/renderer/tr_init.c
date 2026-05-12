@@ -161,6 +161,7 @@ cvar_t	*r_aspectRatio;
 cvar_t	*r_directedScale;
 cvar_t	*r_debugLight;
 cvar_t	*r_debugFontAtlas;
+cvar_t	*r_debugAds;
 cvar_t	*r_debugSort;
 cvar_t	*r_printShaders;
 cvar_t	*r_saveFontData;
@@ -1381,6 +1382,7 @@ void R_Register( void )
 
 	r_debugLight = ri.Cvar_Get( "r_debuglight", "0", CVAR_TEMP );
 	r_debugFontAtlas = ri.Cvar_Get( "r_debugFontAtlas", "0", CVAR_TEMP );
+	r_debugAds = ri.Cvar_Get( "r_debugAds", "0", CVAR_CHEAT );
 	r_debugSort = ri.Cvar_Get( "r_debugSort", "0", CVAR_CHEAT );
 	r_printShaders = ri.Cvar_Get( "r_printShaders", "0", 0 );
 	r_saveFontData = ri.Cvar_Get( "r_saveFontData", "0", 0 );
@@ -1578,6 +1580,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 
 	if ( tr.registered ) {
 		R_SyncRenderThread();
+		R_ShutdownAdvertisements();
 		R_ShutdownCommandBuffers();
 		R_ShutdownColorCorrection();
 		RB_ShutdownRenderTargets();

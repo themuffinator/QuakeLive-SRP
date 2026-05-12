@@ -150,7 +150,7 @@ def test_engine_cvar_third_server_tranche_matches_retail_contracts() -> None:
 	assert 'sv_maxclients->integer - sv_privateClients->integer' in sv_main
 
 	assert 'sv_maxclients = Cvar_Get ("sv_maxclients", "8", CVAR_SERVERINFO | CVAR_LATCH);' in sv_init
-	assert 'QL_Steamworks_ServerSetMaxPlayerCount( sv_maxclients ? sv_maxclients->integer : 0 );' in sv_main
+	assert 'if ( !QL_Steamworks_ServerSetMaxPlayerCount( sv_maxclients ? sv_maxclients->integer : 0 ) ) {' in sv_main
 	assert 'svs.clients = Z_Malloc (sizeof(client_t) * sv_maxclients->integer );' in sv_init
 
 	assert 'Cvar_Get ("sv_cheats", "1", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
@@ -463,6 +463,7 @@ def test_engine_cvar_ninth_client_misc_tranche_matches_retail_contracts() -> Non
 	assert 'Cvar_Get ("country", "", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );' in cl_main
 	assert 'Cvar_VariableStringBuffer( "country", country, sizeof( country ) );' in cl_main
 	assert 'Cvar_Set( "country", country );' in cl_main
+	assert 'SteamClient_SyncPersonaNameCvar();' in cl_main
 	assert 'CL_Steam_SeedCountryCvar();' in cl_main
 
 	assert 'Cvar_Get ("model", "sarge", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );' in cl_main
@@ -636,7 +637,8 @@ def test_engine_cvar_twelfth_common_misc_tranche_matches_retail_contracts() -> N
 	assert 'Cvar_Set( "nextmap", "cinematic intro.RoQ" );' in common
 
 	assert 'Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in common
-	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in cl_main
+	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' not in cl_main
+	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in cl_cgame
 	assert 'Cmd_AddCommand ("web_browserActive", CL_Web_BrowserActive_f );' not in cl_main
 	assert 'Cvar_Set( "web_browserActive", "1" );' in cl_cgame
 	assert 'Cvar_Set( "web_browserActive", "0" );' in cl_cgame
@@ -773,18 +775,20 @@ def test_engine_cvar_fifteenth_server_state_tranche_matches_retail_contracts() -
 
 	assert 'com_ignorecrash = Cvar_Get( "com_ignorecrash", "0", 0 );' in common
 	assert 'com_crashed = Cvar_Get( "com_crashed", "0", CVAR_TEMP );' in common
-	assert 'com_pid = Cvar_Get( "com_pid", Com_CurrentProcessIdString(), CVAR_ROM );' in common
-	assert 'pidLength = FS_ReadFile( "profile.pid", (void **)&pidBuffer );' in common
+	assert 'com_pid = Cvar_Get( "com_pid", pidString, CVAR_ROM );' in common
+	assert 'pidLength = FS_FOpenFileRead( "profile.pid", &f, qtrue );' in common
+	assert 'Com_Memset( pidBuffer, 0, sizeof( pidBuffer ) );' in common
+	assert 'if ( FS_Read( pidBuffer, sizeof( pidBuffer ) - 1, f ) < 0 ) {' in common
 	assert 'if ( com_ignorecrash && com_ignorecrash->integer ) {' in common
 	assert 'if ( retainedPid > 0 && com_pid && retainedPid != com_pid->integer ) {' in common
 	assert 'Cvar_Set( "com_crashed", "1" );' in common
-	assert 'FS_WriteFile( "profile.pid", value, strlen( value ) );' in common
-	assert 'Com_WriteProfilePidMarker( com_pid ? com_pid->string : Com_CurrentProcessIdString() );' in common
-	assert 'Com_WriteProfilePidMarker( "0" );' in common
+	assert 'pidValue = com_pid ? com_pid->string : pidString;' in common
+	assert 'FS_WriteFile( "profile.pid", pidValue, strlen( pidValue ) );' in common
+	assert 'FS_WriteFile( "profile.pid", "0", 1 );' in common
 
 	assert 'sv_hostname = Cvar_Get ("sv_hostname", "noname", CVAR_SERVERINFO | CVAR_ARCHIVE );' in sv_init
 	assert 'sv_hostname = Cvar_Get ("sv_hostname", defaultHostname, CVAR_SERVERINFO | CVAR_ARCHIVE );' in sv_init
-	assert 'QL_Steamworks_ServerSetServerName( sv_hostname->string );' in sv_main
+	assert 'if ( !QL_Steamworks_ServerSetServerName( sv_hostname->string ) ) {' in sv_main
 	assert 'Info_SetValueForKey( infostring, "hostname", sv_hostname->string );' in sv_main
 	assert 'trap_Cvar_VariableStringBuffer( "sv_hostname", hostname, sizeof( hostname ) );' in g_main
 
@@ -908,6 +912,68 @@ def test_engine_cvar_seventeenth_network_bootstrap_tranche_matches_retail_contra
 	assert 'net_socksPassword = Cvar_Get( "net_socksPassword", "", CVAR_LATCH | CVAR_ARCHIVE );' in win_net
 	assert 'plen = strlen( net_socksPassword->string );' in win_net
 	assert 'memcpy( &buf[3 + ulen], net_socksPassword->string, plen );' in win_net
+
+
+def test_engine_network_event_wait_path_matches_retail_contracts() -> None:
+	win_net = _read_text(WIN_NET)
+
+	assert 'static WSAEVENT\tip_socket_event = (WSAEVENT)INVALID_HANDLE_VALUE;' in win_net
+	assert win_net.count( 'hEventObject = CreateEventA( NULL, qfalse, qfalse, NULL );' ) == 2
+	assert win_net.count( 'ip_socket_event = hEventObject;' ) == 2
+	assert win_net.count( 'WSAEventSelect( ip_socket, hEventObject, FD_READ );' ) == 2
+	assert 'WSACloseEvent( ip_socket_event );' in win_net
+	assert 'ip_socket_event = (WSAEVENT)INVALID_HANDLE_VALUE;' in win_net
+	assert win_net.index( 'WSACloseEvent( ip_socket_event );' ) < win_net.index( 'closesocket( ip_socket );' )
+	assert 'if ( ip_socket_event != (WSAEVENT)INVALID_HANDLE_VALUE ) {' in win_net
+	assert 'WSAWaitForMultipleEvents( 1, &ip_socket_event, qfalse, msec, qtrue );' in win_net
+
+
+def test_engine_network_address_string_parsers_match_retail_contracts() -> None:
+	win_net = _read_text(WIN_NET)
+
+	assert 'qboolean Sys_StringToSockaddr( const char *s, struct sockaddr *sadr ) {' in win_net
+	assert '((struct sockaddr_in *)sadr)->sin_family = AF_INET;' in win_net
+	assert 'if( s[0] >= \'0\' && s[0] <= \'9\' ) {' in win_net
+	assert '*(int *)&((struct sockaddr_in *)sadr)->sin_addr = inet_addr(s);' in win_net
+	assert 'if( ( h = gethostbyname( s ) ) == 0 ) {' in win_net
+	assert '*(int *)&((struct sockaddr_in *)sadr)->sin_addr = *(int *)h->h_addr_list[0];' in win_net
+
+	assert 'qboolean Sys_StringToAdr( const char *s, netadr_t *a ) {' in win_net
+	assert '*(int *)&a->ip = inet_addr(s);' in win_net
+	assert '*(int *)&a->ip = *(int *)h->h_addr_list[0];' in win_net
+	assert 'a->type = NA_IP;' in win_net
+	assert 'a->port = 0;' in win_net
+
+	assert 'if( ( strlen( s ) == 21 ) && ( s[8] == \'.\' ) ) {' not in win_net
+
+
+def test_engine_win32_network_transport_matches_retail_contracts() -> None:
+	win_net = _read_text(WIN_NET)
+
+	assert 'static cvar_t\t*net_noipx;' not in win_net
+	assert 'static SOCKET\tipx_socket;' not in win_net
+
+	assert 'else if( a->type == NA_IPX ) {' not in win_net
+	assert 'else if( a->type == NA_BROADCAST_IPX ) {' not in win_net
+	assert 'else if( s->sa_family == AF_IPX ) {' not in win_net
+
+	assert 'for( protocol = 0 ; protocol < 2 ; protocol++ )' not in win_net
+	assert 'ret = recvfrom( ip_socket, net_message->data, net_message->maxsize, 0, (struct sockaddr *)&from, &fromlen );' in win_net
+	assert 'if( !ip_socket ) {' in win_net
+	assert 'net_socket = ipx_socket;' not in win_net
+	assert 'if( to.type != NA_BROADCAST && to.type != NA_IP ) {' in win_net
+	assert 'if( ( err == WSAEADDRNOTAVAIL ) && to.type == NA_BROADCAST ) {' in win_net
+	assert 'if( adr.type == NA_IPX ) {' not in win_net
+
+	assert 'int NET_IPXSocket( int port ) {' not in win_net
+	assert 'void NET_OpenIPX( void ) {' not in win_net
+
+	assert 'net_noudp = Cvar_Get( "net_noudp", "0", CVAR_LATCH | CVAR_ARCHIVE );' in win_net
+	assert 'net_noipx = Cvar_Get( "net_noipx", "0", CVAR_LATCH | CVAR_ARCHIVE );' not in win_net
+	assert 'if( net_noudp->integer ) {' in win_net
+	assert 'if( net_noudp->integer && net_noipx->integer ) {' not in win_net
+	assert 'if (! net_noudp->integer ) {' in win_net
+	assert 'NET_OpenIPX();' not in win_net
 
 
 def test_engine_cvar_eighteenth_sound_tranche_matches_retail_contracts() -> None:

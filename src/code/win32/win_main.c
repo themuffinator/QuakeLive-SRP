@@ -514,6 +514,42 @@ static char *Sys_CloneClipboardUnicodeText( const WCHAR *cliptext ) {
 
 /*
 ==================
+Sys_SetClipboardData
+==================
+*/
+void Sys_SetClipboardData( const char *text ) {
+	HGLOBAL clipboardData;
+	char *clipboardText;
+	size_t textBytes;
+
+	if ( !text ) {
+		return;
+	}
+
+	if ( OpenClipboard( NULL ) == 0 ) {
+		return;
+	}
+
+	EmptyClipboard();
+
+	textBytes = strlen( text ) + 1;
+	clipboardData = GlobalAlloc( GMEM_MOVEABLE, textBytes );
+	if ( clipboardData != 0 ) {
+		clipboardText = (char *)GlobalLock( clipboardData );
+		if ( clipboardText != 0 ) {
+			memcpy( clipboardText, text, textBytes );
+			GlobalUnlock( clipboardData );
+			SetClipboardData( CF_TEXT, clipboardData );
+		} else {
+			GlobalFree( clipboardData );
+		}
+	}
+
+	CloseClipboard();
+}
+
+/*
+==================
 Sys_GetClipboardData
 ==================
 */

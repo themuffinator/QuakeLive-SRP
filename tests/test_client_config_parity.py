@@ -45,12 +45,11 @@ def test_common_config_bootstrap_and_writers_match_retail_client_split() -> None
 	assert 'cvar_modifiedFlags &= ~( CVAR_ARCHIVE | CVAR_CLOUD );' in init_block
 	assert 'Cmd_AddCommand ("writeClientConfig", Com_WriteClientConfig_f );' in init_block
 
-	open_block = _extract_function_block(common, "static fileHandle_t Com_OpenRetailConfigFile( const char *filename, const char *header ) {")
-	assert 'FS_Printf( f, "%s", header );' in open_block
-
 	write_to_file_block = _extract_function_block(common, "void Com_WriteConfigToFile( const char *hardwareFilename, const char *replicateFilename, qboolean clientConfigOnly ) {")
-	assert 'Com_OpenRetailConfigFile( hardwareFilename, QL_CONFIG_HARDWARE_HEADER );' in write_to_file_block
-	assert 'Com_OpenRetailConfigFile( replicateFilename, QL_CONFIG_REPLICATE_HEADER );' in write_to_file_block
+	assert 'hardwareFile = FS_FOpenFileWrite( hardwareFilename );' in write_to_file_block
+	assert 'FS_Printf( hardwareFile, "%s", QL_CONFIG_HARDWARE_HEADER );' in write_to_file_block
+	assert 'replicateFile = FS_FOpenFileWrite( replicateFilename );' in write_to_file_block
+	assert 'FS_Printf( replicateFile, "%s", QL_CONFIG_REPLICATE_HEADER );' in write_to_file_block
 	assert 'Key_WriteBindings( bindingsFile );' in write_to_file_block
 	assert 'Cmd_WriteAliases( hardwareFile );' in write_to_file_block
 	assert 'Cvar_WriteQLConfigVariables( hardwareFile, replicateFile, clientConfigOnly );' in write_to_file_block
@@ -65,30 +64,42 @@ def test_common_config_bootstrap_and_writers_match_retail_client_split() -> None
 	assert 'Com_Printf( "Usage: writeconfig <filename> [<rep filename>]\\n" );' in write_config_cmd_block
 	assert 'Com_Printf( "Writing hardware cfg %s. Replicated cfg %s\\n", hardwareFilename, replicateFilename );' in write_config_cmd_block
 	assert 'Com_WriteConfigToFile( hardwareFilename, replicateFilename, qfalse );' in write_config_cmd_block
+	assert 'hardwareFile = FS_FOpenFileWrite( hardwareFilename );' in write_config_cmd_block
+	assert 'FS_Printf( hardwareFile, "%s", QL_CONFIG_HARDWARE_HEADER );' in write_config_cmd_block
+	assert 'Key_WriteBindings( hardwareFile );' in write_config_cmd_block
+	assert 'Cmd_WriteAliases( hardwareFile );' in write_config_cmd_block
+	assert 'Cvar_WriteQLConfigVariables( hardwareFile, hardwareFile, qfalse );' in write_config_cmd_block
 
 	write_client_cmd_block = _extract_function_block(common, "void Com_WriteClientConfig_f( void ) {")
 	assert 'Com_Printf( "Usage: writeClientConfig <filename>\\n" );' in write_client_cmd_block
-	assert 'Com_WriteConfigToFile( filename, NULL, qtrue );' in write_client_cmd_block
+	assert 'f = FS_FOpenFileWrite( filename );' in write_client_cmd_block
+	assert 'FS_Printf( f, "%s", QL_CONFIG_HARDWARE_HEADER );' in write_client_cmd_block
+	assert 'Key_WriteBindings( f );' in write_client_cmd_block
+	assert 'Cmd_WriteAliases( f );' in write_client_cmd_block
+	assert 'Cvar_WriteQLConfigVariables( f, f, qtrue );' in write_client_cmd_block
 
 
-def test_common_cdkey_persistence_is_legacy_placeholder_only() -> None:
+def test_common_cdkey_persistence_matches_retail_validation_flow() -> None:
 	common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
 
-	placeholder_block = _extract_function_block(common, "static qboolean Com_IsPlaceholderCDKey( const char *key ) {")
-	assert "if ( key[i] != ' ' ) {" in placeholder_block
+	read_block = _extract_function_block(common, "void Com_ReadCDKey( const char *filename ) {")
+	append_block = _extract_function_block(common, "void Com_AppendCDKey( const char *filename ) {")
 
-	store_block = _extract_function_block(common, "static void Com_SetStoredCDKeyValue( char *buffer, size_t bufferSize, const char *value ) {")
-	assert "buffer[i] = ' ';" in store_block
-	assert 'buffer[CDKEY_LEN] = \'\\0\';' in store_block
+	assert 'Q_strncpyz( cl_cdkey, QL_CDKEY_PLACEHOLDER, sizeof( cl_cdkey ) );' in read_block
+	assert 'Com_sprintf( path, sizeof( path ), "%s/q3key", filename );' in read_block
+	assert 'readLen = FS_Read( key, CDKEY_LEN, f );' in read_block
+	assert 'if ( CL_CDKeyValidate( key, NULL ) ) {' in read_block
+	assert 'Q_strncpyz( cl_cdkey, key, sizeof( cl_cdkey ) );' in read_block
 
-	load_block = _extract_function_block(common, "static void Com_LoadStoredCDKey( const char *filename, char *buffer, size_t bufferSize ) {")
-	assert 'Com_sprintf( path, sizeof( path ), "%s/q3key", filename );' in load_block
-	assert 'readLen = FS_Read( key, CDKEY_LEN, f );' in load_block
-	assert 'if ( Com_IsPlaceholderCDKey( key ) || CL_CDKeyValidate( key, NULL ) ) {' in load_block
+	assert 'Q_strncpyz( cl_cdkey_mod, QL_CDKEY_PLACEHOLDER, sizeof( cl_cdkey_mod ) );' in append_block
+	assert 'Com_sprintf( path, sizeof( path ), "%s/q3key", filename );' in append_block
+	assert 'readLen = FS_Read( key, CDKEY_LEN, f );' in append_block
+	assert 'if ( CL_CDKeyValidate( key, NULL ) ) {' in append_block
+	assert 'Q_strncpyz( cl_cdkey_mod, key, sizeof( cl_cdkey_mod ) );' in append_block
 
 	write_block = _extract_function_block(common, "static void Com_WriteCDKey( const char *filename, const char *ikey ) {")
-	assert 'Com_SetStoredCDKeyValue( key, sizeof( key ), ikey );' in write_block
-	assert 'if ( !Com_IsPlaceholderCDKey( key ) && !CL_CDKeyValidate( key, NULL ) ) {' in write_block
+	assert 'Q_strncpyz( key, ikey, sizeof( key ) );' in write_block
+	assert 'if ( !CL_CDKeyValidate( key, NULL ) ) {' in write_block
 	assert 'FS_Write( key, CDKEY_LEN, f );' in write_block
 	assert 'FS_Printf( f, QL_CDKEY_FILE_NOTE_0 );' in write_block
 	assert 'FS_Printf( f, QL_CDKEY_FILE_NOTE_1 );' in write_block

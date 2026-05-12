@@ -169,6 +169,7 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);
 qboolean	NET_IsLocalAddress (netadr_t adr);
 const char	*NET_AdrToString (netadr_t a);
 qboolean	NET_StringToAdr ( const char *s, netadr_t *a);
+qboolean	NET_GetLocalAddressIP( netadr_t *address );
 qboolean	NET_GetLoopPacket (netsrc_t sock, netadr_t *net_from, msg_t *net_message);
 void		NET_Sleep(int msec);
 
@@ -357,6 +358,9 @@ void Cbuf_Init (void);
 
 void Cbuf_AddText( const char *text );
 // Adds command text at the end of the buffer, does NOT add a final \n
+
+void Cbuf_AddTokenized( const char *text );
+// Adds tokenized command text at the end of the buffer, quoting argv(1..n)
 
 void Cbuf_ExecuteText( int exec_when, const char *text );
 // this can be used in place of either Cbuf_AddText or Cbuf_InsertText
@@ -876,6 +880,7 @@ void CL_InitKeyCommands( void );
 // config files, but the rest of client startup will happen later
 
 void CL_Init( void );
+void SteamClient_Init( void );
 void CL_Disconnect( qboolean showMainMenu );
 void CL_Shutdown( void );
 void CL_Frame( int msec );
@@ -1011,6 +1016,7 @@ char	*Sys_ExecutableBaseName( void );
 void	QDECL Sys_Error( const char *error, ...);
 void	Sys_Quit (void);
 char	*Sys_GetClipboardData( void );	// note that this isn't journaled...
+void	Sys_SetClipboardData( const char *text );
 
 void	Sys_Print( const char *msg );
 

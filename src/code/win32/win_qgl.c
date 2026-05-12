@@ -404,6 +404,14 @@ void ( APIENTRY * qglVertex4s )(GLshort x, GLshort y, GLshort z, GLshort w);
 void ( APIENTRY * qglVertex4sv )(const GLshort *v);
 void ( APIENTRY * qglVertexPointer )(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void ( APIENTRY * qglViewport )(GLint x, GLint y, GLsizei width, GLsizei height);
+void ( APIENTRY * qglGenQueriesARB )( GLsizei n, GLuint *ids );
+void ( APIENTRY * qglDeleteQueriesARB )( GLsizei n, const GLuint *ids );
+GLboolean ( APIENTRY * qglIsQueryARB )( GLuint id );
+void ( APIENTRY * qglBeginQueryARB )( GLenum target, GLuint id );
+void ( APIENTRY * qglEndQueryARB )( GLenum target );
+void ( APIENTRY * qglGetQueryivARB )( GLenum target, GLenum pname, GLint *params );
+void ( APIENTRY * qglGetQueryObjectivARB )( GLuint id, GLenum pname, GLint *params );
+void ( APIENTRY * qglGetQueryObjectuivARB )( GLuint id, GLenum pname, GLuint *params );
 
 
 
@@ -3635,6 +3643,14 @@ qboolean QGL_Init( const char *dllname )
 	qglMultiTexCoord2fARB = 0;
 	qglLockArraysEXT = 0;
 	qglUnlockArraysEXT = 0;
+	qglGenQueriesARB = 0;
+	qglDeleteQueriesARB = 0;
+	qglIsQueryARB = 0;
+	qglBeginQueryARB = 0;
+	qglEndQueryARB = 0;
+	qglGetQueryivARB = 0;
+	qglGetQueryObjectivARB = 0;
+	qglGetQueryObjectuivARB = 0;
 	qwglGetDeviceGammaRamp3DFX = NULL;
 	qwglSetDeviceGammaRamp3DFX = NULL;
 

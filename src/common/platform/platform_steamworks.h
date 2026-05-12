@@ -19,6 +19,12 @@ typedef enum {
 	QL_STEAM_AVATAR_LARGE = 2
 } ql_steam_avatar_size_t;
 
+typedef enum {
+	QL_STEAM_AVATAR_IMAGE_UNAVAILABLE = 0,
+	QL_STEAM_AVATAR_IMAGE_PENDING = 1,
+	QL_STEAM_AVATAR_IMAGE_READY = 2
+} ql_steam_avatar_image_state_t;
+
 typedef uint64_t SteamAPICall_t;
 
 #define QL_STEAM_NAME_LENGTH 128
@@ -37,6 +43,7 @@ typedef struct {
 	char status[QL_STEAM_STATUS_LENGTH];
 	char lanIp[64];
 	qboolean playingQuake;
+	uint32_t appId;
 	uint64_t gameId;
 	uint32_t serverIp;
 	uint16_t serverPort;
@@ -77,6 +84,13 @@ typedef struct {
 	uint32_t appId;
 	ql_steam_friend_summary_t summary;
 } ql_steam_friend_rich_presence_update_t;
+
+typedef struct {
+	CSteamID steamId;
+	int image;
+	int width;
+	int height;
+} ql_steam_avatar_image_loaded_t;
 
 typedef struct {
 	SteamAPICall_t callHandle;
@@ -200,6 +214,11 @@ typedef struct {
 	void (*onFriendRichPresenceUpdate)( void *context, const ql_steam_friend_rich_presence_update_t *event );
 	void (*onUGCQueryCompleted)( void *context, const ql_steam_ugc_query_completed_t *event );
 } ql_steam_client_callback_bindings_t;
+
+typedef struct {
+	void *context;
+	void (*onAvatarImageLoaded)( void *context, const ql_steam_avatar_image_loaded_t *event );
+} ql_steam_avatar_callback_bindings_t;
 
 typedef struct {
 	void *context;
@@ -378,21 +397,51 @@ qboolean QL_Steamworks_GetItemDownloadInfo( uint32_t idLow, uint32_t idHigh, uin
 
 qboolean QL_Steamworks_ActivateOverlayToUser( const char *dialog, uint32_t idLow, uint32_t idHigh );
 
+qboolean QL_Steamworks_ActivateOverlayToWebPage( const char *url );
+
 qboolean QL_Steamworks_SetRichPresence( const char *key, const char *value );
 
 qboolean QL_Steamworks_CreateLobby( int maxMembers );
+
+qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add );
 
 qboolean QL_Steamworks_LeaveLobby( uint32_t idLow, uint32_t idHigh );
 
 qboolean QL_Steamworks_JoinLobby( uint32_t idLow, uint32_t idHigh );
 
+qboolean QL_Steamworks_GetLobbyOwner( uint32_t idLow, uint32_t idHigh, uint32_t *outIdLow, uint32_t *outIdHigh );
+
+int QL_Steamworks_GetLobbyDataCount( uint32_t idLow, uint32_t idHigh );
+
+qboolean QL_Steamworks_SetLobbyData( uint32_t idLow, uint32_t idHigh, const char *key, const char *value );
+
+qboolean QL_Steamworks_GetLobbyDataByIndex( uint32_t idLow, uint32_t idHigh, int index, char *key, size_t keySize, char *value, size_t valueSize );
+
+int QL_Steamworks_GetNumLobbyMembers( uint32_t idLow, uint32_t idHigh );
+
+int QL_Steamworks_GetLobbyMemberLimit( uint32_t idLow, uint32_t idHigh );
+
+qboolean QL_Steamworks_GetLobbyMemberByIndex( uint32_t idLow, uint32_t idHigh, int index, uint32_t *outIdLow, uint32_t *outIdHigh );
+
+qboolean QL_Steamworks_GetFriendPersonaName( uint32_t idLow, uint32_t idHigh, char *buffer, size_t bufferSize );
+
 qboolean QL_Steamworks_SetLobbyServer( uint32_t idLow, uint32_t idHigh, uint32_t serverIp, uint16_t serverPort );
 
 qboolean QL_Steamworks_ShowInviteOverlay( uint32_t idLow, uint32_t idHigh );
 
+qboolean QL_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh );
+
+qboolean QL_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString );
+
 qboolean QL_Steamworks_SayLobby( uint32_t idLow, uint32_t idHigh, const char *message );
 
 qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t idHigh );
+
+qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t idHigh, const char *name, int *outValue );
+
+qboolean QL_Steamworks_GetUserAchievement( uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved, int *outUnlockTime );
+
+const char *QL_Steamworks_GetAchievementDisplayAttribute( const char *name, const char *key );
 
 qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId );
 
@@ -414,7 +463,21 @@ qboolean QL_Steamworks_UnsubscribeItem( uint32_t idLow, uint32_t idHigh );
 
 qboolean QL_Steamworks_DownloadItem( uint32_t idLow, uint32_t idHigh, qboolean highPriority );
 
+qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter );
+
+qboolean QL_Steamworks_GetQueryUGCResult( uint64_t queryHandle, uint32_t index, uint64_t *outPublishedFileId, char *title, size_t titleSize, char *description, size_t descriptionSize );
+
+qboolean QL_Steamworks_GetQueryUGCPreviewURL( uint64_t queryHandle, uint32_t index, char *buffer, size_t bufferSize );
+
+void QL_Steamworks_ReleaseQueryUGCRequest( uint64_t queryHandle );
+
+ql_steam_avatar_image_state_t QL_Steamworks_RequestAvatarImage( uint32_t idLow, uint32_t idHigh, ql_steam_avatar_size_t size, int *outImage );
+
 qboolean QL_Steamworks_LoadAvatarRGBA( uint32_t idLow, uint32_t idHigh, ql_steam_avatar_size_t size, uint8_t **outPixels, uint32_t *outWidth, uint32_t *outHeight );
+
+qboolean QL_Steamworks_RegisterAvatarCallbacks( const ql_steam_avatar_callback_bindings_t *bindings );
+
+void QL_Steamworks_UnregisterAvatarCallbacks( void );
 
 qboolean QL_Steamworks_RegisterClientCallbacks( const ql_steam_client_callback_bindings_t *bindings );
 
@@ -1157,11 +1220,33 @@ static inline qboolean QL_Steamworks_ActivateOverlayToUser( const char *dialog, 
 
 /*
 =============
+QL_Steamworks_ActivateOverlayToWebPage
+=============
+*/
+static inline qboolean QL_Steamworks_ActivateOverlayToWebPage( const char *url ) {
+	(void)url;
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_CreateLobby
 =============
 */
 static inline qboolean QL_Steamworks_CreateLobby( int maxMembers ) {
 	(void)maxMembers;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_SetFavoriteServer
+=============
+*/
+static inline qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add ) {
+	(void)serverIp;
+	(void)serverPort;
+	(void)add;
 	return qfalse;
 }
 
@@ -1184,6 +1269,119 @@ QL_Steamworks_JoinLobby
 static inline qboolean QL_Steamworks_JoinLobby( uint32_t idLow, uint32_t idHigh ) {
 	(void)idLow;
 	(void)idHigh;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetLobbyOwner
+=============
+*/
+static inline qboolean QL_Steamworks_GetLobbyOwner( uint32_t idLow, uint32_t idHigh, uint32_t *outIdLow, uint32_t *outIdHigh ) {
+	(void)idLow;
+	(void)idHigh;
+	if ( outIdLow ) {
+		*outIdLow = 0u;
+	}
+	if ( outIdHigh ) {
+		*outIdHigh = 0u;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetLobbyDataCount
+=============
+*/
+static inline int QL_Steamworks_GetLobbyDataCount( uint32_t idLow, uint32_t idHigh ) {
+	(void)idLow;
+	(void)idHigh;
+	return 0;
+}
+
+/*
+=============
+QL_Steamworks_SetLobbyData
+=============
+*/
+static inline qboolean QL_Steamworks_SetLobbyData( uint32_t idLow, uint32_t idHigh, const char *key, const char *value ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)key;
+	(void)value;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetLobbyDataByIndex
+=============
+*/
+static inline qboolean QL_Steamworks_GetLobbyDataByIndex( uint32_t idLow, uint32_t idHigh, int index, char *key, size_t keySize, char *value, size_t valueSize ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)index;
+	if ( key && keySize > 0 ) {
+		key[0] = '\0';
+	}
+	if ( value && valueSize > 0 ) {
+		value[0] = '\0';
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetNumLobbyMembers
+=============
+*/
+static inline int QL_Steamworks_GetNumLobbyMembers( uint32_t idLow, uint32_t idHigh ) {
+	(void)idLow;
+	(void)idHigh;
+	return 0;
+}
+
+/*
+=============
+QL_Steamworks_GetLobbyMemberLimit
+=============
+*/
+static inline int QL_Steamworks_GetLobbyMemberLimit( uint32_t idLow, uint32_t idHigh ) {
+	(void)idLow;
+	(void)idHigh;
+	return 0;
+}
+
+/*
+=============
+QL_Steamworks_GetLobbyMemberByIndex
+=============
+*/
+static inline qboolean QL_Steamworks_GetLobbyMemberByIndex( uint32_t idLow, uint32_t idHigh, int index, uint32_t *outIdLow, uint32_t *outIdHigh ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)index;
+	if ( outIdLow ) {
+		*outIdLow = 0u;
+	}
+	if ( outIdHigh ) {
+		*outIdHigh = 0u;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetFriendPersonaName
+=============
+*/
+static inline qboolean QL_Steamworks_GetFriendPersonaName( uint32_t idLow, uint32_t idHigh, char *buffer, size_t bufferSize ) {
+	(void)idLow;
+	(void)idHigh;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
 	return qfalse;
 }
 
@@ -1213,6 +1411,31 @@ static inline qboolean QL_Steamworks_ShowInviteOverlay( uint32_t idLow, uint32_t
 
 /*
 =============
+QL_Steamworks_InviteUserToLobby
+=============
+*/
+static inline qboolean QL_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh ) {
+	(void)lobbyIdLow;
+	(void)lobbyIdHigh;
+	(void)userIdLow;
+	(void)userIdHigh;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_InviteUserToGame
+=============
+*/
+static inline qboolean QL_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)connectString;
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_SayLobby
 =============
 */
@@ -1232,6 +1455,50 @@ static inline qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t 
 	(void)idLow;
 	(void)idHigh;
 	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetUserStatInt
+=============
+*/
+static inline qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t idHigh, const char *name, int *outValue ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)name;
+	if ( outValue ) {
+		*outValue = 0;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetUserAchievement
+=============
+*/
+static inline qboolean QL_Steamworks_GetUserAchievement( uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved, int *outUnlockTime ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)name;
+	if ( outAchieved ) {
+		*outAchieved = qfalse;
+	}
+	if ( outUnlockTime ) {
+		*outUnlockTime = 0;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetAchievementDisplayAttribute
+=============
+*/
+static inline const char *QL_Steamworks_GetAchievementDisplayAttribute( const char *name, const char *key ) {
+	(void)name;
+	(void)key;
+	return "";
 }
 
 /*
@@ -1352,6 +1619,74 @@ static inline qboolean QL_Steamworks_DownloadItem( uint32_t idLow, uint32_t idHi
 
 /*
 =============
+QL_Steamworks_RequestAllUGCQuery
+=============
+*/
+static inline qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter ) {
+	(void)filter;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetQueryUGCResult
+=============
+*/
+static inline qboolean QL_Steamworks_GetQueryUGCResult( uint64_t queryHandle, uint32_t index, uint64_t *outPublishedFileId, char *title, size_t titleSize, char *description, size_t descriptionSize ) {
+	(void)queryHandle;
+	(void)index;
+	if ( outPublishedFileId ) {
+		*outPublishedFileId = 0ull;
+	}
+	if ( title && titleSize > 0 ) {
+		title[0] = '\0';
+	}
+	if ( description && descriptionSize > 0 ) {
+		description[0] = '\0';
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetQueryUGCPreviewURL
+=============
+*/
+static inline qboolean QL_Steamworks_GetQueryUGCPreviewURL( uint64_t queryHandle, uint32_t index, char *buffer, size_t bufferSize ) {
+	(void)queryHandle;
+	(void)index;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ReleaseQueryUGCRequest
+=============
+*/
+static inline void QL_Steamworks_ReleaseQueryUGCRequest( uint64_t queryHandle ) {
+	(void)queryHandle;
+}
+
+/*
+=============
+QL_Steamworks_RequestAvatarImage
+=============
+*/
+static inline ql_steam_avatar_image_state_t QL_Steamworks_RequestAvatarImage( uint32_t idLow, uint32_t idHigh, ql_steam_avatar_size_t size, int *outImage ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)size;
+	if ( outImage ) {
+		*outImage = 0;
+	}
+	return QL_STEAM_AVATAR_IMAGE_UNAVAILABLE;
+}
+
+/*
+=============
 QL_Steamworks_LoadAvatarRGBA
 =============
 */
@@ -1369,6 +1704,24 @@ static inline qboolean QL_Steamworks_LoadAvatarRGBA( uint32_t idLow, uint32_t id
 		*outHeight = 0;
 	}
 	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_RegisterAvatarCallbacks
+=============
+*/
+static inline qboolean QL_Steamworks_RegisterAvatarCallbacks( const ql_steam_avatar_callback_bindings_t *bindings ) {
+	(void)bindings;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_UnregisterAvatarCallbacks
+=============
+*/
+static inline void QL_Steamworks_UnregisterAvatarCallbacks( void ) {
 }
 
 /*

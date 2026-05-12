@@ -108,6 +108,8 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         ctypes.c_uint32,
     ]
     lib.QLR_Steamworks_ActivateOverlay.restype = ctypes.c_int
+    lib.QLR_Steamworks_ActivateOverlayToWebPage.argtypes = [ctypes.c_char_p]
+    lib.QLR_Steamworks_ActivateOverlayToWebPage.restype = ctypes.c_int
 
     lib.QLR_Steamworks_SetRichPresence.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     lib.QLR_Steamworks_SetRichPresence.restype = ctypes.c_int
@@ -126,6 +128,12 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
     lib.QLR_Steamworks_ShowInviteOverlay.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
     lib.QLR_Steamworks_ShowInviteOverlay.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_InviteUserToLobby.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint32]
+    lib.QLR_Steamworks_InviteUserToLobby.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_InviteUserToGame.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p]
+    lib.QLR_Steamworks_InviteUserToGame.restype = ctypes.c_int
 
     lib.QLR_Steamworks_SayLobby.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p]
     lib.QLR_Steamworks_SayLobby.restype = ctypes.c_int
@@ -302,6 +310,12 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetOverlaySteamId.argtypes = []
         lib.QLR_SteamworksMock_GetOverlaySteamId.restype = ctypes.c_uint64
 
+        lib.QLR_SteamworksMock_GetOverlayWebCallCount.argtypes = []
+        lib.QLR_SteamworksMock_GetOverlayWebCallCount.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetOverlayWebUrl.argtypes = []
+        lib.QLR_SteamworksMock_GetOverlayWebUrl.restype = ctypes.c_char_p
+
         lib.QLR_SteamworksMock_GetRichPresenceCallCount.argtypes = []
         lib.QLR_SteamworksMock_GetRichPresenceCallCount.restype = ctypes.c_int
 
@@ -443,6 +457,9 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetLobbyInviteCalls.argtypes = []
         lib.QLR_SteamworksMock_GetLobbyInviteCalls.restype = ctypes.c_int
 
+        lib.QLR_SteamworksMock_GetLobbyUserInviteCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetLobbyUserInviteCalls.restype = ctypes.c_int
+
         lib.QLR_SteamworksMock_GetLobbySayCalls.argtypes = []
         lib.QLR_SteamworksMock_GetLobbySayCalls.restype = ctypes.c_int
 
@@ -467,6 +484,12 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetLobbyInviteId.argtypes = []
         lib.QLR_SteamworksMock_GetLobbyInviteId.restype = ctypes.c_uint64
 
+        lib.QLR_SteamworksMock_GetLobbyUserInviteLobbyId.argtypes = []
+        lib.QLR_SteamworksMock_GetLobbyUserInviteLobbyId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetLobbyUserInviteTargetId.argtypes = []
+        lib.QLR_SteamworksMock_GetLobbyUserInviteTargetId.restype = ctypes.c_uint64
+
         lib.QLR_SteamworksMock_GetLobbySetServerIp.argtypes = []
         lib.QLR_SteamworksMock_GetLobbySetServerIp.restype = ctypes.c_uint32
 
@@ -484,6 +507,15 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_GetUserStatsRequestId.argtypes = []
         lib.QLR_SteamworksMock_GetUserStatsRequestId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetGameInviteCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetGameInviteCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetGameInviteTargetId.argtypes = []
+        lib.QLR_SteamworksMock_GetGameInviteTargetId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetGameInviteConnectString.argtypes = []
+        lib.QLR_SteamworksMock_GetGameInviteConnectString.restype = ctypes.c_char_p
 
         lib.QLR_SteamworksMock_GetUGCSubscribeCalls.argtypes = []
         lib.QLR_SteamworksMock_GetUGCSubscribeCalls.restype = ctypes.c_int
@@ -535,6 +567,9 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_QueueRichPresenceJoinRequested.argtypes = [ctypes.c_uint64, ctypes.c_char_p]
         lib.QLR_SteamworksMock_QueueRichPresenceJoinRequested.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueAvatarImageLoaded.argtypes = [ctypes.c_uint64, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueAvatarImageLoaded.restype = ctypes.c_int
 
         lib.QLR_SteamworksMock_QueueLobbyEnter.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
         lib.QLR_SteamworksMock_QueueLobbyEnter.restype = ctypes.c_int
@@ -813,6 +848,28 @@ def test_activate_overlay_routes_dialog_and_identity(steamworks_harness: tuple[c
     assert lib.QLR_SteamworksMock_GetOverlaySteamId() == 0x0123456789ABCDEF
 
 
+def test_activate_overlay_to_web_page_routes_url(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_ActivateOverlayToWebPage(b"https://example.com/ql")
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_ActivateOverlayToWebPage(b"https://example.com/ql")
+    assert lib.QLR_SteamworksMock_GetOverlayWebCallCount() == 1
+    assert lib.QLR_SteamworksMock_GetOverlayWebUrl() == b"https://example.com/ql"
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_ActivateOverlayToWebPage(b"")
+    assert lib.QLR_SteamworksMock_GetOverlayWebCallCount() == 1
+    assert lib.QLR_SteamworksMock_GetOverlayWebUrl() == b""
+
+
 def test_set_rich_presence_uses_mapped_friends_slot(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
     lib, enabled = steamworks_harness
 
@@ -985,6 +1042,8 @@ def test_lobby_helpers_use_mapped_matchmaking_slots(steamworks_harness: tuple[ct
         assert not lib.QLR_Steamworks_JoinLobby(0xAAAAAAAA, 0xBBBBBBBB)
         assert not lib.QLR_Steamworks_SetLobbyServer(0x33333333, 0x44444444, 0x01020304, 27960)
         assert not lib.QLR_Steamworks_ShowInviteOverlay(0xCCCCCCCC, 0xDDDDDDDD)
+        assert not lib.QLR_Steamworks_InviteUserToLobby(0x11111111, 0x22222222, 0x33333333, 0x44444444)
+        assert not lib.QLR_Steamworks_InviteUserToGame(0x55555555, 0x66666666, b"+connect 1.2.3.4:27960")
         assert not lib.QLR_Steamworks_SayLobby(0x11111111, 0x22222222, b"hello lobby")
         assert not lib.QLR_Steamworks_RequestUserStats(0x12345678, 0x9ABCDEF0)
         return
@@ -997,6 +1056,8 @@ def test_lobby_helpers_use_mapped_matchmaking_slots(steamworks_harness: tuple[ct
     assert lib.QLR_Steamworks_JoinLobby(0xAAAAAAAA, 0xBBBBBBBB)
     assert lib.QLR_Steamworks_SetLobbyServer(0x33333333, 0x44444444, 0x01020304, 27960)
     assert lib.QLR_Steamworks_ShowInviteOverlay(0xCCCCCCCC, 0xDDDDDDDD)
+    assert lib.QLR_Steamworks_InviteUserToLobby(0x11111111, 0x22222222, 0x33333333, 0x44444444)
+    assert lib.QLR_Steamworks_InviteUserToGame(0x55555555, 0x66666666, b"+connect 16909060:27960")
     assert lib.QLR_Steamworks_SayLobby(0x11111111, 0x22222222, b"hello lobby")
     assert lib.QLR_Steamworks_RequestUserStats(0x12345678, 0x9ABCDEF0)
 
@@ -1005,8 +1066,10 @@ def test_lobby_helpers_use_mapped_matchmaking_slots(steamworks_harness: tuple[ct
     assert lib.QLR_SteamworksMock_GetLobbyJoinCalls() == 1
     assert lib.QLR_SteamworksMock_GetLobbySetServerCalls() == 1
     assert lib.QLR_SteamworksMock_GetLobbyInviteCalls() == 1
+    assert lib.QLR_SteamworksMock_GetLobbyUserInviteCalls() == 1
     assert lib.QLR_SteamworksMock_GetLobbySayCalls() == 1
     assert lib.QLR_SteamworksMock_GetUserStatsRequestCalls() == 1
+    assert lib.QLR_SteamworksMock_GetGameInviteCalls() == 1
     assert lib.QLR_SteamworksMock_GetLobbyCreateType() == 2
     assert lib.QLR_SteamworksMock_GetLobbyCreateMaxMembers() == 24
     assert lib.QLR_SteamworksMock_GetLobbyLeaveId() == 0x89ABCDEF01234567
@@ -1016,9 +1079,13 @@ def test_lobby_helpers_use_mapped_matchmaking_slots(steamworks_harness: tuple[ct
     assert lib.QLR_SteamworksMock_GetLobbySetServerPort() == 27960
     assert lib.QLR_SteamworksMock_GetLobbySetServerGameServerId() == 0x4444444433333333
     assert lib.QLR_SteamworksMock_GetLobbyInviteId() == 0xDDDDDDDDCCCCCCCC
+    assert lib.QLR_SteamworksMock_GetLobbyUserInviteLobbyId() == 0x2222222211111111
+    assert lib.QLR_SteamworksMock_GetLobbyUserInviteTargetId() == 0x4444444433333333
     assert lib.QLR_SteamworksMock_GetLobbySayId() == 0x2222222211111111
     assert lib.QLR_SteamworksMock_GetLobbySayMessage() == b"hello lobby"
     assert lib.QLR_SteamworksMock_GetUserStatsRequestId() == 0x9ABCDEF012345678
+    assert lib.QLR_SteamworksMock_GetGameInviteTargetId() == 0x6666666655555555
+    assert lib.QLR_SteamworksMock_GetGameInviteConnectString() == b"+connect 16909060:27960"
 
 
 def test_set_lobby_server_requires_local_lobby_ownership(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
@@ -1139,7 +1206,7 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     lib.QLR_SteamworksMock_SetLobbyChatEntryMessage(b"queued lobby chat")
 
     assert lib.QLR_Steamworks_RegisterHarnessCallbacks()
-    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 17
+    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 18
 
     assert lib.QLR_SteamworksMock_QueueRichPresenceJoinRequested(0x0123456789ABCDEF, b"connect 127.0.0.1")
     lib.QLR_Steamworks_RunCallbackPump()
@@ -1149,10 +1216,20 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"connect 127.0.0.1"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
 
-    assert lib.QLR_SteamworksMock_QueueLobbyEnter(0x0FEDCBA987654321, 7, 0, 1)
+    assert lib.QLR_SteamworksMock_QueueAvatarImageLoaded(0x0FEDCBA987654321, 13, 64, 64)
     lib.QLR_Steamworks_RunCallbackPump()
 
     assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 2
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"avatar_image_loaded"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 13
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 64
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 64
+
+    assert lib.QLR_SteamworksMock_QueueLobbyEnter(0x0FEDCBA987654321, 7, 0, 1)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 3
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_enter"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 7
@@ -1161,7 +1238,7 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_QueueMicroAuthorizationResponse(0x54100, 99, 1)
     lib.QLR_Steamworks_RunCallbackPump()
 
-    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 3
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"microtxn"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 99
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
@@ -1170,7 +1247,7 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_QueueItemInstalled(0x54100, 0x89ABCDEF, 0x01234567)
     lib.QLR_Steamworks_RunCallbackPump()
 
-    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 5
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"workshop_installed"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
@@ -1179,14 +1256,14 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_QueueDownloadItemResult(0x54100, 0x89ABCDEF, 0x01234567, 1)
     lib.QLR_Steamworks_RunCallbackPump()
 
-    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 5
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 6
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"workshop_download_result"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
     assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
 
     lib.QLR_Steamworks_UnregisterHarnessCallbacks()
-    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 17
+    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 18
 
 
 def test_ugc_call_result_binding_routes_through_registered_client_bundle(

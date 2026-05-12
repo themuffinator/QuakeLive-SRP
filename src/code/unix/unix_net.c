@@ -465,6 +465,41 @@ void NET_GetLocalAddress( void ) {
 #endif
 
 /*
+=====================
+NET_GetLocalAddressIP
+=====================
+*/
+qboolean NET_GetLocalAddressIP( netadr_t *address ) {
+	int		i;
+
+	if ( !address ) {
+		return qfalse;
+	}
+
+	if ( numIP <= 0 ) {
+		NET_GetLocalAddress();
+	}
+
+	if ( numIP <= 0 ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < numIP; i++ ) {
+		if ( localIP[i][0] || localIP[i][1] || localIP[i][2] || localIP[i][3] ) {
+			Com_Memset( address, 0, sizeof( *address ) );
+			address->type = NA_IP;
+			address->ip[0] = localIP[i][0];
+			address->ip[1] = localIP[i][1];
+			address->ip[2] = localIP[i][2];
+			address->ip[3] = localIP[i][3];
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
 ====================
 NET_OpenIP
 ====================
@@ -613,4 +648,3 @@ void NET_Sleep(int msec)
 	timeout.tv_usec = (msec%1000)*1000;
 	select(ip_socket+1, &fdset, NULL, NULL, &timeout);
 }
-

@@ -40,7 +40,6 @@ int			c_subdivisions;
 int			c_gridVerts;
 
 #define	LUMP_ADVERTISEMENTS_QL	17
-#define	MAX_MAP_ADVERTISEMENTS	30
 
 typedef struct {
 	int		cellId;
@@ -1373,7 +1372,19 @@ static void R_LoadAdvertisements( lump_t *l ) {
 			out[s_worldData.numAdvertisements].points[j][1] = LittleFloat( in->points[j][1] );
 			out[s_worldData.numAdvertisements].points[j][2] = LittleFloat( in->points[j][2] );
 		}
+		out[s_worldData.numAdvertisements].cullState = CULL_OUT;
+		out[s_worldData.numAdvertisements].occlusionQueryIds[0] = 0;
+		out[s_worldData.numAdvertisements].occlusionQueryIds[1] = 0;
+		out[s_worldData.numAdvertisements].queryListIndex = -1;
+		out[s_worldData.numAdvertisements].viewArea = 0;
+		out[s_worldData.numAdvertisements].projectedNormalX = 0.0f;
+		out[s_worldData.numAdvertisements].projectedNormalY = 0.0f;
 		out[s_worldData.numAdvertisements].sourceIndex = i;
+
+		if ( qglGenQueriesARB ) {
+			qglGenQueriesARB( 2, out[s_worldData.numAdvertisements].occlusionQueryIds );
+		}
+
 		s_worldData.numAdvertisements++;
 	}
 }

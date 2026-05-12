@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -19,15 +20,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_4B8C70` -> `CL_Disconnect_f`
 # `sub_4B8300` -> `CL_StopRecord_f`
 # `sub_4B8B30` -> `CL_Setenv_f`
-# `LAB_004BB1A0` -> `CL_ShowIP_f`
+# `sub_4BB1A0` -> retail `showip` jump-stub owner for `CL_ShowIP_f`
 # `sub_4B9070` -> `CL_OpenedPK3List_f`
 # `sub_4B9090` -> `CL_ReferencedPK3List_f`
 # `FUN_004D7980` -> retail no-op `userinfo` reservation owner
-# `sub_4603F0` -> `+voice`
-# `sub_460490` -> `-voice`
-# `sub_460520` -> `stats_clear`
-# `sub_460E60` -> `clientviewprofile` / `clientfriendinvite`
-# `sub_464AA0` -> `connect_lobby`
+# `sub_4603F0` -> `CL_VoiceStartRecording_f`
+# `sub_460490` -> `CL_VoiceStopRecording_f`
+# `sub_460520` -> `CL_Steam_ClearStats_f`
+# `sub_461500` -> `SteamClient_Init`
+# `sub_460E60` -> `CL_Steam_OverlayCommand_f`
+# `sub_464AA0` -> `CL_Steam_ConnectLobby_f`
+# `sub_465840` -> `SteamLobby_Init`
 # `sub_4B4F60` -> `centerview`
 # `sub_4B4D80` / `sub_4B4D90` -> `+moveup` / `-moveup`
 # `sub_4B4DA0` / `sub_4B4DB0` -> `+movedown` / `-movedown`
@@ -49,13 +52,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_4B4BE0` / `sub_4B4C60` -> retail key down / key up helpers
 # `sub_4B5360` -> retail keyboard movement assembly helper
 # `sub_4B9D10` -> `CL_SetModel_f`
-# `004F3CD0` -> retail browser command registration helper
+# `004F3CD0` -> `QLWebHost_RegisterCommands`
 # `004F3160` -> `web_showBrowser`
 # `004F31D0` -> `web_changeHash`
 # `004F24D0` -> `web_hideBrowser`
-# `004F2A10` -> `web_clearCache`
-# `004F2A30` -> `web_reload`
-# `004F3CC0` -> `web_showError`
+# `004F2A10` -> `CL_Web_ClearCache_f`
+# `004F2A30` -> `CL_Web_Reload_f`
+# `004F3CB0` -> `CL_Web_ShowError_f`
 
 
 def _extract_function_block(text: str, signature: str) -> str:
@@ -116,11 +119,16 @@ def test_client_command_registration_matches_retail_cl_init_surface() -> None:
 	assert 'Cmd_AddCommand ("userinfo", CL_Userinfo_f );' in init_block
 
 	assert 'Cmd_RemoveCommand ("userinfo");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("postprocess_restart");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("postprocess_restart");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("clientinfo");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("reconnect");' not in shutdown_block
 
 
 def test_client_command_handlers_match_retail_forward_restart_and_info_contracts() -> None:
 	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+	aliases = json.loads(
+		(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+	)["quakelive_steam"]
 
 	userinfo_guard_block = _extract_function_block(
 		cl_main, "static qboolean CL_CommandContainsUserinfoToken( const char *commandName ) {"
@@ -153,6 +161,7 @@ def test_client_command_handlers_match_retail_forward_restart_and_info_contracts
 
 	assert 'if ( !re.PostProcessRestart ) {' in postprocess_block
 	assert "re.PostProcessRestart();" in postprocess_block
+	assert aliases["sub_4B9060"] == "CL_PostProcessRestart_f"
 
 	assert "S_Shutdown();" in snd_restart_block
 	assert "S_Init();" in snd_restart_block
@@ -177,6 +186,7 @@ def test_client_command_handlers_match_retail_forward_restart_and_info_contracts
 	assert 'Com_Printf( "%s=%s\\n", Cmd_Argv(1), env );' in setenv_block
 	assert 'Com_Printf( "%s undefined\\n", Cmd_Argv(1), env );' in setenv_block
 
+	assert aliases["sub_4BB1A0"] == "CL_ShowIP_f"
 	assert "Sys_ShowIP();" in showip_block
 
 	assert ";" not in userinfo_block
@@ -478,8 +488,18 @@ def test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_reg
 
 def test_client_steam_command_registration_and_identity_wiring_match_retail_surface() -> None:
 	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+	common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+	aliases = json.loads(
+		(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+	)["quakelive_steam"]
 
 	init_block = _extract_function_block(cl_main, "void CL_Init( void ) {")
+	steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
+	steam_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamCallbacks_Init( void ) {")
+	steam_micro_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamMicroCallbacks_Init( void ) {")
+	steam_lobby_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamLobbyCallbacks_Init( void ) {")
+	steam_lobby_init_block = _extract_function_block(cl_main, "static qboolean SteamLobby_Init( void ) {")
 	identity_block = _extract_function_block(
 		cl_main, "static qboolean CL_CopyClientIdentity( int clientNum, cgameClientIdentity_t *identity ) {"
 	)
@@ -494,12 +514,41 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 	assert 'Cmd_AddCommand ("fs_referencedList", CL_ReferencedPK3List_f );' in init_block
 	assert 'Cmd_AddCommand ("model", CL_SetModel_f );' in init_block
 	assert 'Cmd_AddCommand ("userinfo", CL_Userinfo_f );' in init_block
-	assert 'Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );' in init_block
-	assert 'Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );' in init_block
-	assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' in init_block
+	assert 'Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );' not in init_block
+	assert 'Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );' not in init_block
+	assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' not in init_block
 	assert 'Cmd_AddCommand ("clientviewprofile", CL_Steam_OverlayCommand_f );' in init_block
 	assert 'Cmd_AddCommand ("clientfriendinvite", CL_Steam_OverlayCommand_f );' in init_block
-	assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' in init_block
+	assert "QLWebHost_RegisterCommands();" in init_block
+	assert "SteamClient_SyncPersonaNameCvar();" in init_block
+	assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' not in init_block
+	assert init_block.index('Cmd_AddCommand ("clientviewprofile", CL_Steam_OverlayCommand_f );') < init_block.index("QLWebHost_RegisterCommands();")
+	assert init_block.index('Cmd_AddCommand ("clientfriendinvite", CL_Steam_OverlayCommand_f );') < init_block.index("QLWebHost_RegisterCommands();")
+	assert init_block.index("QLWebHost_RegisterCommands();") < init_block.index("SteamClient_SyncPersonaNameCvar();")
+	assert 'Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );' in steam_client_init_block
+	assert 'Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );' in steam_client_init_block
+	assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' in steam_client_init_block
+	assert "SteamCallbacks_Init();" in steam_client_init_block
+	assert "SteamMicroCallbacks_Init();" in steam_client_init_block
+	assert "SteamLobby_Init();" in steam_client_init_block
+	assert "CL_Steam_SetMainMenuRichPresence();" in steam_client_init_block
+	assert "return QL_Steamworks_RegisterClientCallbacks( &clientBindings );" in steam_callbacks_init_block
+	assert "return QL_Steamworks_RegisterMicroCallbacks( &microBindings );" in steam_micro_callbacks_init_block
+	assert "return QL_Steamworks_RegisterLobbyCallbacks( &lobbyBindings );" in steam_lobby_callbacks_init_block
+	assert "callbacksRegistered = SteamLobbyCallbacks_Init();" in steam_lobby_init_block
+	assert 'Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );' in steam_lobby_init_block
+	assert 'Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );' in steam_lobby_init_block
+	assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' in steam_lobby_init_block
+	assert "void SteamClient_Init( void );" in qcommon_h
+	assert common.count( "SteamClient_Init();" ) == 1
+	assert aliases["sub_4603F0"] == "CL_VoiceStartRecording_f"
+	assert aliases["sub_460490"] == "CL_VoiceStopRecording_f"
+	assert aliases["sub_460520"] == "CL_Steam_ClearStats_f"
+	assert aliases["sub_460610"] == "SteamClient_SyncPersonaNameCvar"
+	assert aliases["sub_461500"] == "SteamClient_Init"
+	assert aliases["sub_460E60"] == "CL_Steam_OverlayCommand_f"
+	assert aliases["sub_464AA0"] == "CL_Steam_ConnectLobby_f"
+	assert aliases["sub_465840"] == "SteamLobby_Init"
 
 	assert 'if ( !cgvm || !( cgvm->entryPoint || cgvm->dllExports ) ) {' in identity_block
 	assert 'VM_Call( cgvm, CG_COPY_CLIENT_IDENTITY, clientNum, (int)(intptr_t)identity )' in identity_block
@@ -514,10 +563,11 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 	assert 'dialog = "friendadd";' in overlay_block
 	assert "clientNum = atoi( Cmd_Argv( 1 ) );" in overlay_block
 	assert "if ( !CL_GetClientSteamId( clientNum, &steamIdLow, &steamIdHigh ) ) {" in overlay_block
-	assert "QL_Steamworks_ActivateOverlayToUser( dialog, steamIdLow, steamIdHigh );" in overlay_block
+	assert "if ( !QL_Steamworks_ActivateOverlayToUser( dialog, steamIdLow, steamIdHigh ) ) {" in overlay_block
 
 	assert 'Cvar_Set( "lobby_autoconnect", Cmd_Argv( 1 ) );' in connect_lobby_block
-	assert 'return QL_Steamworks_GetAppID() == 0x54100u ? qtrue : qfalse;' in stats_gate_block
+	assert "if ( QL_Steamworks_GetAppID() != 0x54100u ) {" in stats_gate_block
+	assert "return qtrue;" in stats_gate_block
 
 
 def test_client_steam_command_handlers_match_retail_voice_stats_and_model_contracts() -> None:
@@ -535,7 +585,7 @@ def test_client_steam_command_handlers_match_retail_voice_stats_and_model_contra
 		platform_c, "qboolean QL_Steamworks_SetInGameVoiceSpeaking( uint32_t idLow, uint32_t idHigh, qboolean speaking ) {"
 	)
 
-	assert "QL_Steamworks_ClearStats( qtrue );" in stats_block
+	assert 'if ( !QL_Steamworks_ClearStats( qtrue ) ) {' in stats_block
 	assert "Com_DPrintf" not in stats_block
 
 	assert "QL_Steamworks_GetUserSteamID( &steamIdLow, &steamIdHigh )" in voice_start_block
@@ -565,33 +615,60 @@ def test_client_steam_command_handlers_match_retail_voice_stats_and_model_contra
 
 def test_client_command_registration_matches_retail_cinematic_network_and_browser_surface() -> None:
 	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+	cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+	client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
+	aliases = json.loads(
+		(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+	)["quakelive_steam"]
 
 	init_block = _extract_function_block(cl_main, "void CL_Init( void ) {")
 	shutdown_block = _extract_function_block(cl_main, "void CL_Shutdown( void ) {")
+	register_block = _extract_function_block(cl_cgame, "void QLWebHost_RegisterCommands( void ) {")
 
-	assert 'Cmd_AddCommand ("cinematic", CL_PlayCinematic_f);' in init_block
-	assert 'Cmd_AddCommand ("localservers", CL_LocalServers_f);' in init_block
-	assert 'Cmd_AddCommand ("globalservers", CL_GlobalServers_f);' in init_block
-	assert 'Cmd_AddCommand ("rcon", CL_Rcon_f);' in init_block
-	assert 'Cmd_AddCommand ("ping", CL_Ping_f );' in init_block
-	assert 'Cmd_AddCommand ("serverstatus", CL_ServerStatus_f );' in init_block
-	assert 'Cmd_AddCommand ("web_showBrowser", CL_Web_ShowBrowser_f );' in init_block
-	assert 'Cmd_AddCommand ("web_changeHash", CL_Web_ChangeHash_f );' in init_block
-	assert 'Cmd_AddCommand ("web_hideBrowser", CL_Web_HideBrowser_f );' in init_block
-	assert 'Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );' in init_block
-	assert 'Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );' in init_block
-	assert 'Cmd_AddCommand ("web_reload", CL_Web_Reload_f );' in init_block
+	assert 'Cmd_AddCommand ("cinematic", CL_PlayCinematic_f);' not in init_block
+	assert 'Cmd_AddCommand ("rcon", CL_Rcon_f);' not in init_block
+	assert 'Cmd_AddCommand ("localservers", CL_LocalServers_f);' not in init_block
+	assert 'Cmd_AddCommand ("globalservers", CL_GlobalServers_f);' not in init_block
+	assert 'Cmd_AddCommand ("ping", CL_Ping_f );' not in init_block
+	assert 'Cmd_AddCommand ("serverstatus", CL_ServerStatus_f );' not in init_block
+	assert 'Cmd_AddCommand ("testy"' not in init_block
+	assert 'Cmd_AddCommand ("joinqueue"' not in init_block
+	assert 'Cmd_AddCommand ("leavequeue"' not in init_block
+	assert 'Cmd_AddCommand ("advert_done"' not in init_block
+	assert "QLWebHost_RegisterCommands();" in init_block
+	assert 'Cmd_AddCommand ("web_showBrowser", CL_Web_ShowBrowser_f );' not in init_block
+	assert 'Cmd_AddCommand ("web_changeHash", CL_Web_ChangeHash_f );' not in init_block
+	assert 'Cmd_AddCommand ("web_hideBrowser", CL_Web_HideBrowser_f );' not in init_block
+	assert 'Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );' not in init_block
+	assert 'Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );' not in init_block
+	assert 'Cmd_AddCommand ("web_reload", CL_Web_Reload_f );' not in init_block
+	assert 'Cmd_AddCommand ("web_showBrowser", CL_Web_ShowBrowser_f );' in register_block
+	assert 'Cmd_AddCommand ("web_changeHash", CL_Web_ChangeHash_f );' in register_block
+	assert 'Cmd_AddCommand ("web_hideBrowser", CL_Web_HideBrowser_f );' in register_block
+	assert 'Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );' in register_block
+	assert 'Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );' in register_block
+	assert 'Cmd_AddCommand ("web_reload", CL_Web_Reload_f );' in register_block
+	assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
+	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
+	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in register_block
+	assert aliases["sub_4F3CD0"] == "QLWebHost_RegisterCommands"
 
 	assert 'Cmd_RemoveCommand ("cinematic");' in shutdown_block
 	assert 'Cmd_RemoveCommand ("localservers");' in shutdown_block
 	assert 'Cmd_RemoveCommand ("globalservers");' in shutdown_block
 	assert 'Cmd_RemoveCommand ("ping");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("web_showBrowser");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("web_changeHash");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("web_hideBrowser");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("web_showError");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("web_clearCache");' in shutdown_block
-	assert 'Cmd_RemoveCommand ("web_reload");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("rcon");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("serverstatus");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("testy");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("joinqueue");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("leavequeue");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("advert_done");' in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_showBrowser");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_changeHash");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_hideBrowser");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_showError");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_clearCache");' not in shutdown_block
+	assert 'Cmd_RemoveCommand ("web_reload");' not in shutdown_block
 
 	assert 'Cmd_AddCommand ("togglemenu", CL_ToggleMenu_f );' not in init_block
 	assert 'Cmd_AddCommand ("web_browserActive", CL_Web_BrowserActive_f );' not in init_block
@@ -600,18 +677,24 @@ def test_client_command_registration_matches_retail_cinematic_network_and_browse
 	assert 'Cmd_RemoveCommand ("web_browserActive");' not in shutdown_block
 	assert 'Cmd_RemoveCommand ("web_stopRefresh");' not in shutdown_block
 
+	assert "void\tCL_LocalServers_f( void );" not in client_h
+	assert "void\tCL_GlobalServers_f( void );" not in client_h
+	assert "void\tCL_Ping_f( void );" not in client_h
+	assert "void QLWebHost_RegisterCommands( void );" in client_h
+
 
 def test_client_command_handlers_match_retail_cinematic_network_and_browser_contracts() -> None:
 	cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
 	cl_cin = (REPO_ROOT / "src/code/client/cl_cin.c").read_text(encoding="utf-8")
 	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+	aliases = json.loads(
+		(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+	)["quakelive_steam"]
 
 	play_cinematic_block = _extract_function_block(cl_cin, "void CL_PlayCinematic_f(void) {")
-	rcon_block = _extract_function_block(cl_main, "void CL_Rcon_f( void ) {")
-	localservers_block = _extract_function_block(cl_main, "void CL_LocalServers_f( void ) {")
-	globalservers_block = _extract_function_block(cl_main, "void CL_GlobalServers_f( void ) {")
-	ping_block = _extract_function_block(cl_main, "void CL_Ping_f( void ) {")
-	serverstatus_block = _extract_function_block(cl_main, "void CL_ServerStatus_f(void) {")
+	request_local_block = _extract_function_block(cl_main, "static void CL_RequestLocalServers( void ) {")
+	request_global_block = _extract_function_block(cl_main, "static void CL_RequestGlobalServers( int masterNum, const char *protocol, const char *keywords ) {")
+	request_servers_block = _extract_function_block(cl_main, "qboolean CL_Steam_RequestServers( int requestMode ) {")
 	open_url_block = _extract_function_block(cl_cgame, "static qboolean QLWebHost_OpenURL( const char *url ) {")
 	show_browser_block = _extract_function_block(cl_cgame, "void CL_Web_ShowBrowser_f( void ) {")
 	change_hash_block = _extract_function_block(cl_cgame, "void CL_Web_ChangeHash_f( void ) {")
@@ -624,33 +707,29 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	assert "S_StopAllSounds ();" in play_cinematic_block
 	assert "CL_handle = CIN_PlayCinematic( arg, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bits );" in play_cinematic_block
 
-	assert "Com_Printf (\"You must set 'rconpassword' before\\n\"" in rcon_block
-	assert 'strcat (message, "rcon ");' in rcon_block
-	assert "strcat (message, Cmd_Cmd()+5);" in rcon_block
-	assert 'if (!strlen(rconAddress->string)) {' in rcon_block
-	assert "NET_SendPacket (NS_CLIENT, strlen(message)+1, message, to);" in rcon_block
+	assert 'Com_Printf( "Scanning for servers on the local network...\\n");' in request_local_block
+	assert 'message = "\\377\\377\\377\\377getinfo xxx";' in request_local_block
+	assert "to.type = NA_BROADCAST;" in request_local_block
+	assert "to.type = NA_BROADCAST_IPX;" not in request_local_block
 
-	assert 'Com_Printf( "Scanning for servers on the local network...\\n");' in localservers_block
-	assert 'message = "\\377\\377\\377\\377getinfo xxx";' in localservers_block
-	assert "to.type = NA_BROADCAST;" in localservers_block
-	assert "to.type = NA_BROADCAST_IPX;" in localservers_block
+	assert "cls.masterNum = masterNum;" in request_global_block
+	assert 'Com_sprintf( command, sizeof( command ), "getservers %s", protocol );' in request_global_block
+	assert 'Q_strcat( command, sizeof( command ), " " );' in request_global_block
+	assert 'Q_strcat( command, sizeof( command ), keywords );' in request_global_block
+	assert 'Q_strcat( command, sizeof( command ), " demo" );' in request_global_block
+	assert "NET_OutOfBandPrint( NS_SERVER, to, command );" in request_global_block
 
-	assert 'Com_Printf( "usage: globalservers <master# 0-1> <protocol> [keywords]\\n");' in globalservers_block
-	assert 'cls.masterNum = atoi( Cmd_Argv(1) );' in globalservers_block
-	assert 'sprintf( command, "getservers %s", Cmd_Argv(2) );' in globalservers_block
-	assert 'buffptr += sprintf( buffptr, " demo" );' in globalservers_block
-	assert "NET_OutOfBandPrint( NS_SERVER, to, command );" in globalservers_block
+	assert "CL_RequestLocalServers();" in request_servers_block
+	assert 'CL_RequestGlobalServers( masterNum, debugProtocol, "full empty" );' in request_servers_block
+	assert 'CL_RequestGlobalServers( masterNum, va( "%d", protocol ), "full empty" );' in request_servers_block
+	assert "void CL_Rcon_f( void ) {" not in cl_main
+	assert "void CL_LocalServers_f( void ) {" not in cl_main
+	assert "void CL_GlobalServers_f( void ) {" not in cl_main
+	assert "void CL_Ping_f( void ) {" not in cl_main
+	assert "void CL_ServerStatus_f(void) {" not in cl_main
 
-	assert 'Com_Printf( "usage: ping [server]\\n");' in ping_block
-	assert "pingptr = CL_GetFreePing();" in ping_block
-	assert "CL_SetServerInfoByAddress(pingptr->adr, NULL, 0);" in ping_block
-	assert 'NET_OutOfBandPrint( NS_CLIENT, to, "getinfo xxx" );' in ping_block
-
-	assert 'Com_Printf( "Usage: serverstatus [server]\\n");' in serverstatus_block
-	assert 'server = cls.servername;' in serverstatus_block
-	assert 'NET_OutOfBandPrint( NS_CLIENT, to, "getstatus" );' in serverstatus_block
-	assert "serverStatus->print = qtrue;" in serverstatus_block
-	assert "serverStatus->pending = qtrue;" in serverstatus_block
+	assert 'Cvar_Get ("rconPassword", "", CVAR_TEMP );' not in cl_main
+	assert 'Cvar_Get ("rconAddress", "", 0);' not in cl_main
 
 	assert 'Cvar_Set( "web_browserActive", "1" );' in open_url_block
 
@@ -671,10 +750,12 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	assert 'Cvar_Set( "com_errorMessage", message );' in show_error_block
 	assert "CL_WebView_PublishGameError( message );" in show_error_block
 	assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" not in show_error_block
+	assert aliases["sub_4F3CB0"] == "CL_Web_ShowError_f"
 
 	assert 'if ( !cl_webHost.sessionInitialised ) {' in clear_cache_block
 	assert "CL_Web_ClearSessionState();" in clear_cache_block
 	assert 'Com_DPrintf( "web_clearCache\\n" );' not in clear_cache_block
+	assert aliases["sub_4F2A10"] == "CL_Web_ClearCache_f"
 
 	assert 'if ( !cl_webHost.viewInitialised ) {' in reload_block
 	assert "CL_Web_ClearSessionState();" in reload_block
@@ -682,3 +763,4 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in reload_block
 	assert "CL_RefreshOnlineServicesBridgeState();" not in reload_block
 	assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" not in reload_block
+	assert aliases["sub_4F2A30"] == "CL_Web_Reload_f"

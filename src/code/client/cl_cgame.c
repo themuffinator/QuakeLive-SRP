@@ -22,12 +22,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cl_cgame.c  -- client system interaction with client game
 
 #include "client.h"
+#include "../../common/platform/platform_steamworks.h"
 
 #include "../game/botlib.h"
 #include "../qcommon/vm_local.h"
 #include "../../common/platform/platform_services.h"
 #include "../../common/platform/platform_steamworks.h"
 #include "../../../src-re/include/fs_imports.h"
+#include <ctype.h>
 #include <stdint.h>
 #include <stdlib.h>
 #ifdef _WIN32
@@ -59,8 +61,10 @@ typedef struct {
 
 static clAdvertisementBridgeState_t cl_advertisementBridge;
 
+#define CL_ADVERTISEMENT_DEBUG_LABEL_COUNT 2
+
 #define CL_WEB_FRIEND_FLAGS 4
-#define CL_WEB_MAX_QZ_METHODS 20
+#define CL_WEB_MAX_QZ_METHODS 35
 #define CL_WEB_JSON_BUFFER_SIZE 32768
 #define CL_WEB_LAUNCHER_SCRIPT_LIST_BUFFER 4096
 #define CL_WEB_DEFAULT_URL "asset://ql/index.html"
@@ -71,25 +75,40 @@ static clAdvertisementBridgeState_t cl_advertisementBridge;
 static qboolean CL_OverlayServiceAvailable( void );
 
 typedef enum {
-	CL_WEB_METHOD_IS_PAK_FILE_PRESENT = 1,
-	CL_WEB_METHOD_IS_GAME_RUNNING,
-	CL_WEB_METHOD_SEND_GAME_COMMAND,
-	CL_WEB_METHOD_WRITE_TEXT_FILE,
-	CL_WEB_METHOD_GET_CVAR,
-	CL_WEB_METHOD_SET_CVAR,
-	CL_WEB_METHOD_RESET_CVAR,
-	CL_WEB_METHOD_GET_MAP_LIST,
-	CL_WEB_METHOD_GET_FACTORY_LIST,
-	CL_WEB_METHOD_GET_DEMO_LIST,
-	CL_WEB_METHOD_OPEN_URL,
-	CL_WEB_METHOD_GET_FRIEND_LIST,
-	CL_WEB_METHOD_GET_CONFIG,
-	CL_WEB_METHOD_GET_ALL_UGC,
-	CL_WEB_METHOD_GET_NEXT_KEY_DOWN,
-	CL_WEB_METHOD_SET_FAVORITE_SERVER,
-	CL_WEB_METHOD_FILE_EXISTS,
-	CL_WEB_METHOD_GET_CURSOR_POSITION,
-	CL_WEB_METHOD_GET_CLIPBOARD_TEXT
+	CL_WEB_METHOD_IS_PAK_FILE_PRESENT = 0,
+	CL_WEB_METHOD_IS_GAME_RUNNING = 1,
+	CL_WEB_METHOD_SEND_GAME_COMMAND = 2,
+	CL_WEB_METHOD_WRITE_TEXT_FILE = 3,
+	CL_WEB_METHOD_GET_CVAR = 4,
+	CL_WEB_METHOD_SET_CVAR = 5,
+	CL_WEB_METHOD_RESET_CVAR = 6,
+	CL_WEB_METHOD_GET_MAP_LIST = 7,
+	CL_WEB_METHOD_GET_FACTORY_LIST = 8,
+	CL_WEB_METHOD_GET_DEMO_LIST = 9,
+	CL_WEB_METHOD_OPEN_URL = 10,
+	CL_WEB_METHOD_OPEN_STEAM_OVERLAY_URL = 11,
+	CL_WEB_METHOD_GET_CLIPBOARD_TEXT = 12,
+	CL_WEB_METHOD_SET_CLIPBOARD_TEXT = 13,
+	CL_WEB_METHOD_REQUEST_SERVERS = 14,
+	CL_WEB_METHOD_REQUEST_SERVER_DETAILS = 15,
+	CL_WEB_METHOD_REFRESH_LIST = 16,
+	CL_WEB_METHOD_CREATE_LOBBY = 17,
+	CL_WEB_METHOD_LEAVE_LOBBY = 18,
+	CL_WEB_METHOD_JOIN_LOBBY = 19,
+	CL_WEB_METHOD_SET_LOBBY_SERVER = 20,
+	CL_WEB_METHOD_SHOW_INVITE_OVERLAY = 21,
+	CL_WEB_METHOD_SAY_LOBBY = 22,
+	CL_WEB_METHOD_REQUEST_USER_STATS = 23,
+	CL_WEB_METHOD_GET_FRIEND_LIST = 24,
+	CL_WEB_METHOD_ACTIVATE_GAME_OVERLAY_TO_USER = 25,
+	CL_WEB_METHOD_INVITE = 26,
+	CL_WEB_METHOD_FILE_EXISTS = 27,
+	CL_WEB_METHOD_GET_CONFIG = 28,
+	CL_WEB_METHOD_GET_CURSOR_POSITION = 29,
+	CL_WEB_METHOD_NO_OP = 30,
+	CL_WEB_METHOD_GET_ALL_UGC = 31,
+	CL_WEB_METHOD_GET_NEXT_KEY_DOWN = 32,
+	CL_WEB_METHOD_SET_FAVORITE_SERVER = 33
 } clWebMethodId_t;
 
 typedef struct {
@@ -195,6 +214,7 @@ static qboolean QLWebHost_WaitForBootstrapReady( void );
 static void QLWebHost_InstallRuntimeListeners( void );
 static void QLWebView_WriteSurfacePixels( void );
 static qboolean QLWebView_UploadSurfaceImage( void );
+void CL_Steam_FormatFriendSummaryJson( const ql_steam_friend_summary_t *summary, char *buffer, size_t bufferSize );
 
 static const clWebMethodBinding_t cl_webMethodBindings[CL_WEB_MAX_QZ_METHODS] = {
 	{ "IsPakFilePresent", CL_WEB_METHOD_IS_PAK_FILE_PRESENT, qtrue },
@@ -208,14 +228,29 @@ static const clWebMethodBinding_t cl_webMethodBindings[CL_WEB_MAX_QZ_METHODS] = 
 	{ "GetFactoryList", CL_WEB_METHOD_GET_FACTORY_LIST, qtrue },
 	{ "GetDemoList", CL_WEB_METHOD_GET_DEMO_LIST, qtrue },
 	{ "OpenURL", CL_WEB_METHOD_OPEN_URL, qfalse },
+	{ "OpenSteamOverlayURL", CL_WEB_METHOD_OPEN_STEAM_OVERLAY_URL, qfalse },
+	{ "GetClipboardText", CL_WEB_METHOD_GET_CLIPBOARD_TEXT, qtrue },
+	{ "SetClipboardText", CL_WEB_METHOD_SET_CLIPBOARD_TEXT, qfalse },
+	{ "RequestServers", CL_WEB_METHOD_REQUEST_SERVERS, qfalse },
+	{ "RequestServerDetails", CL_WEB_METHOD_REQUEST_SERVER_DETAILS, qfalse },
+	{ "RefreshList", CL_WEB_METHOD_REFRESH_LIST, qfalse },
+	{ "CreateLobby", CL_WEB_METHOD_CREATE_LOBBY, qfalse },
+	{ "LeaveLobby", CL_WEB_METHOD_LEAVE_LOBBY, qfalse },
+	{ "JoinLobby", CL_WEB_METHOD_JOIN_LOBBY, qfalse },
+	{ "SetLobbyServer", CL_WEB_METHOD_SET_LOBBY_SERVER, qfalse },
+	{ "ShowInviteOverlay", CL_WEB_METHOD_SHOW_INVITE_OVERLAY, qfalse },
+	{ "SayLobby", CL_WEB_METHOD_SAY_LOBBY, qfalse },
+	{ "RequestUserStats", CL_WEB_METHOD_REQUEST_USER_STATS, qfalse },
 	{ "GetFriendList", CL_WEB_METHOD_GET_FRIEND_LIST, qtrue },
+	{ "ActivateGameOverlayToUser", CL_WEB_METHOD_ACTIVATE_GAME_OVERLAY_TO_USER, qfalse },
+	{ "Invite", CL_WEB_METHOD_INVITE, qfalse },
+	{ "FileExists", CL_WEB_METHOD_FILE_EXISTS, qtrue },
 	{ "GetConfig", CL_WEB_METHOD_GET_CONFIG, qtrue },
+	{ "GetCursorPosition", CL_WEB_METHOD_GET_CURSOR_POSITION, qtrue },
+	{ "NoOp", CL_WEB_METHOD_NO_OP, qfalse },
 	{ "GetAllUGC", CL_WEB_METHOD_GET_ALL_UGC, qfalse },
 	{ "GetNextKeyDown", CL_WEB_METHOD_GET_NEXT_KEY_DOWN, qfalse },
 	{ "SetFavoriteServer", CL_WEB_METHOD_SET_FAVORITE_SERVER, qfalse },
-	{ "FileExists", CL_WEB_METHOD_FILE_EXISTS, qtrue },
-	{ "GetCursorPosition", CL_WEB_METHOD_GET_CURSOR_POSITION, qtrue },
-	{ "GetClipboardText", CL_WEB_METHOD_GET_CLIPBOARD_TEXT, qtrue },
 	{ NULL, 0, qfalse }
 };
 
@@ -2724,14 +2759,8 @@ static void CL_WebHost_BuildFriendListJson( char *buffer, size_t bufferSize ) {
 	for ( index = 0; index < friendCount; index++ ) {
 		uint32_t idLow;
 		uint32_t idHigh;
-		uint32_t lobbyLow;
-		uint32_t lobbyHigh;
-		uint32_t gameServerLow;
-		uint32_t gameServerHigh;
 		ql_steam_friend_summary_t summary;
-		char friendId[32];
-		char lobbyId[32];
-		char gameServerId[32];
+		char friendJson[1024];
 		clWebJsonBuilder_t builder;
 
 		if ( !QL_Steamworks_GetFriendByIndex( index, CL_WEB_FRIEND_FLAGS, &idLow, &idHigh ) ) {
@@ -2741,50 +2770,13 @@ static void CL_WebHost_BuildFriendListJson( char *buffer, size_t bufferSize ) {
 			continue;
 		}
 
-		CL_WebHost_FormatSteamId( idLow, idHigh, friendId, sizeof( friendId ) );
-		lobbyLow = (uint32_t)( summary.lobbyId.value & 0xffffffffu );
-		lobbyHigh = (uint32_t)( summary.lobbyId.value >> 32 );
-		gameServerLow = (uint32_t)( summary.gameServerId.value & 0xffffffffu );
-		gameServerHigh = (uint32_t)( summary.gameServerId.value >> 32 );
-		CL_WebHost_FormatSteamId( lobbyLow, lobbyHigh, lobbyId, sizeof( lobbyId ) );
-		CL_WebHost_FormatSteamId( gameServerLow, gameServerHigh, gameServerId, sizeof( gameServerId ) );
+		CL_Steam_FormatFriendSummaryJson( &summary, friendJson, sizeof( friendJson ) );
 
 		builder.buffer = buffer;
 		builder.bufferSize = bufferSize;
 		builder.count = ( buffer[1] != '\0' ) ? 1 : 0;
 		CL_WebHost_BeginJsonItem( &builder );
-		Q_strcat( buffer, bufferSize, "{\"id\":\"" );
-		Q_strcat( buffer, bufferSize, friendId );
-		Q_strcat( buffer, bufferSize, "\",\"name\":\"" );
-		CL_WebHost_AppendJsonEscaped( buffer, bufferSize, summary.name );
-		Q_strcat( buffer, bufferSize, "\",\"state\":" );
-		Q_strcat( buffer, bufferSize, va( "%d", summary.personaState ) );
-		Q_strcat( buffer, bufferSize, ",\"relationship\":" );
-		Q_strcat( buffer, bufferSize, va( "%d", summary.relationship ) );
-		Q_strcat( buffer, bufferSize, ",\"nickname\":\"" );
-		CL_WebHost_AppendJsonEscaped( buffer, bufferSize, summary.nickname );
-		Q_strcat( buffer, bufferSize, "\",\"status\":\"" );
-		CL_WebHost_AppendJsonEscaped( buffer, bufferSize, summary.status );
-		Q_strcat( buffer, bufferSize, "\",\"lanIp\":\"" );
-		CL_WebHost_AppendJsonEscaped( buffer, bufferSize, summary.lanIp );
-		Q_strcat( buffer, bufferSize, "\",\"playingQuake\":" );
-		Q_strcat( buffer, bufferSize, summary.playingQuake ? "1" : "0" );
-		if ( summary.playingQuake || summary.serverIp || summary.serverPort || summary.lobbyId.value != 0ull ) {
-			Q_strcat( buffer, bufferSize, ",\"game\":{\"id\":" );
-			Q_strcat( buffer, bufferSize, va( "%llu", (unsigned long long)summary.gameId ) );
-			Q_strcat( buffer, bufferSize, ",\"serverIp\":" );
-			Q_strcat( buffer, bufferSize, va( "%u", summary.serverIp ) );
-			Q_strcat( buffer, bufferSize, ",\"port\":" );
-			Q_strcat( buffer, bufferSize, va( "%u", summary.serverPort ) );
-			Q_strcat( buffer, bufferSize, ",\"queryPort\":" );
-			Q_strcat( buffer, bufferSize, va( "%u", summary.queryPort ) );
-			Q_strcat( buffer, bufferSize, ",\"lobby\":\"" );
-			Q_strcat( buffer, bufferSize, lobbyId );
-			Q_strcat( buffer, bufferSize, "\",\"gameServer\":\"" );
-			Q_strcat( buffer, bufferSize, gameServerId );
-			Q_strcat( buffer, bufferSize, "\"}" );
-		}
-		Q_strcat( buffer, bufferSize, "}" );
+		Q_strcat( buffer, bufferSize, friendJson );
 	}
 
 	Q_strcat( buffer, bufferSize, "]" );
@@ -2943,81 +2935,6 @@ static void CL_WebHost_BuildConfigJson( char *buffer, size_t bufferSize ) {
 
 /*
 =============
-CL_WebHost_BuildUGCResultsJson
-=============
-*/
-static void CL_WebHost_BuildUGCResultsJson( char *buffer, size_t bufferSize ) {
-	uint32_t subscribedCount;
-	uint32_t copiedCount;
-	uint64_t itemIds[128];
-	uint32_t index;
-
-	if ( !buffer || bufferSize == 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	Q_strcat( buffer, bufferSize, "[" );
-
-	if ( !CL_WebHost_HasSteamIdentity() ) {
-		CL_LogWebHostWorkshopExportLifecycle( "ugc-results", "Steam UGC export unavailable for current compatibility lane" );
-		Q_strcat( buffer, bufferSize, "]" );
-		return;
-	}
-
-	subscribedCount = QL_Steamworks_GetNumSubscribedItems();
-	if ( subscribedCount > ARRAY_LEN( itemIds ) ) {
-		subscribedCount = ARRAY_LEN( itemIds );
-	}
-
-	copiedCount = QL_Steamworks_GetSubscribedItems( itemIds, subscribedCount );
-	for ( index = 0; index < copiedCount; index++ ) {
-		uint32_t idLow;
-		uint32_t idHigh;
-		uint64_t sizeOnDisk;
-		uint32_t timestamp;
-		char installFolder[MAX_OSPATH];
-		char itemId[32];
-		const char *folderLeaf;
-		clWebJsonBuilder_t builder;
-
-		idLow = (uint32_t)( itemIds[index] & 0xffffffffu );
-		idHigh = (uint32_t)( itemIds[index] >> 32 );
-		sizeOnDisk = 0ull;
-		timestamp = 0u;
-		installFolder[0] = '\0';
-		QL_Steamworks_GetItemInstallInfo( idLow, idHigh, &sizeOnDisk, installFolder, sizeof( installFolder ), &timestamp );
-		CL_WebHost_FormatSteamId( idLow, idHigh, itemId, sizeof( itemId ) );
-		folderLeaf = strrchr( installFolder, '\\' );
-		if ( !folderLeaf ) {
-			folderLeaf = strrchr( installFolder, '/' );
-		}
-		if ( folderLeaf ) {
-			folderLeaf++;
-		} else {
-			folderLeaf = installFolder;
-		}
-
-		builder.buffer = buffer;
-		builder.bufferSize = bufferSize;
-		builder.count = ( buffer[1] != '\0' ) ? 1 : 0;
-		CL_WebHost_BeginJsonItem( &builder );
-		Q_strcat( buffer, bufferSize, "{\"title\":\"" );
-		CL_WebHost_AppendJsonEscaped( buffer, bufferSize, folderLeaf && folderLeaf[0] ? folderLeaf : itemId );
-		Q_strcat( buffer, bufferSize, "\",\"description\":\"\",\"id\":\"" );
-		Q_strcat( buffer, bufferSize, itemId );
-		Q_strcat( buffer, bufferSize, "\",\"image\":\"\",\"sizeOnDisk\":" );
-		Q_strcat( buffer, bufferSize, va( "%llu", (unsigned long long)sizeOnDisk ) );
-		Q_strcat( buffer, bufferSize, ",\"timestamp\":" );
-		Q_strcat( buffer, bufferSize, va( "%u", timestamp ) );
-		Q_strcat( buffer, bufferSize, "}" );
-	}
-
-	Q_strcat( buffer, bufferSize, "]" );
-}
-
-/*
-=============
 CL_WebHost_RequestCursorPosition
 =============
 */
@@ -3146,10 +3063,10 @@ static int CL_WebHost_FindFavoriteServerIndex( const netadr_t *address ) {
 
 /*
 =============
-CL_WebHost_SetFavoriteServer
+CL_WebHost_MirrorFavoriteServer
 =============
 */
-static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add ) {
+static qboolean CL_WebHost_MirrorFavoriteServer( uint32_t ip, uint16_t port, qboolean add ) {
 	char addressString[64];
 	netadr_t address;
 	int index;
@@ -3191,6 +3108,23 @@ static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboole
 
 /*
 =============
+CL_WebHost_SetFavoriteServer
+
+Mirrors the retail browser favorite-game owner through Steam matchmaking while
+keeping the local favorites cache in sync until the deeper favorites browser
+backend is reconstructed in source.
+=============
+*/
+static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add ) {
+	if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServer( ip, port, add ) ) {
+		return qfalse;
+	}
+
+	return CL_WebHost_MirrorFavoriteServer( ip, port, add );
+}
+
+/*
+=============
 QLWebView_PublishGameKey
 =============
 */
@@ -3201,6 +3135,64 @@ static void QLWebView_PublishGameKey( int key ) {
 	keyName = Key_KeynumToString( key );
 	Com_sprintf( payload, sizeof( payload ), "{\"id\":%d,\"key\":\"%s\"}", key, keyName ? keyName : "" );
 	CL_WebView_PublishEvent( "game.key", payload );
+}
+
+/*
+=============
+QLJSHandler_CoerceIntegerArgument
+=============
+*/
+static int QLJSHandler_CoerceIntegerArgument( const char *argument ) {
+	char *end;
+	long value;
+
+	if ( !argument ) {
+		return 0;
+	}
+
+	value = strtol( argument, &end, 10 );
+	if ( end == argument ) {
+		return 0;
+	}
+
+	while ( *end && isspace( (unsigned char)*end ) ) {
+		end++;
+	}
+
+	if ( *end ) {
+		return 0;
+	}
+
+	return (int)value;
+}
+
+/*
+=============
+QLJSHandler_CoerceUnsignedIntegerArgument
+=============
+*/
+static uint32_t QLJSHandler_CoerceUnsignedIntegerArgument( const char *argument ) {
+	char *end;
+	unsigned long value;
+
+	if ( !argument ) {
+		return 0u;
+	}
+
+	value = strtoul( argument, &end, 10 );
+	if ( end == argument ) {
+		return 0u;
+	}
+
+	while ( *end && isspace( (unsigned char)*end ) ) {
+		end++;
+	}
+
+	if ( *end ) {
+		return 0u;
+	}
+
+	return (uint32_t)value;
 }
 
 /*
@@ -3253,32 +3245,100 @@ static qboolean QLJSHandler_OnMethodCall( const char *methodName, const char **a
 			}
 			return QLWebHost_NavigateOrOpen( arguments[0] );
 
-		case CL_WEB_METHOD_GET_ALL_UGC:
-			{
-				char ugcJson[CL_WEB_JSON_BUFFER_SIZE];
-				char ugcFailure[512];
-
-				CL_WebHost_BuildUGCResultsJson( ugcJson, sizeof( ugcJson ) );
-				if ( ugcJson[1] != '\0' ) {
-					CL_WebView_PublishEvent( "web.ugc.results", ugcJson );
-				} else {
-					ugcFailure[0] = '\0';
-					Q_strcat( ugcFailure, sizeof( ugcFailure ), "{\"result\":0,\"provider\":\"" );
-					CL_WebHost_AppendJsonEscaped( ugcFailure, sizeof( ugcFailure ), CL_GetWebHostWorkshopProviderLabel() );
-					Q_strcat( ugcFailure, sizeof( ugcFailure ), "\",\"policy\":\"" );
-					CL_WebHost_AppendJsonEscaped( ugcFailure, sizeof( ugcFailure ), CL_GetWebHostWorkshopPolicyLabel() );
-					Q_strcat( ugcFailure, sizeof( ugcFailure ), "\"}" );
-					CL_WebView_PublishEvent( "web.ugc.failed", ugcFailure );
-				}
-				return qtrue;
+		case CL_WEB_METHOD_OPEN_STEAM_OVERLAY_URL:
+			if ( argumentCount < 1 ) {
+				return qfalse;
 			}
+			return CL_Steam_OpenOverlayUrl( arguments[0] );
+
+		case CL_WEB_METHOD_SET_CLIPBOARD_TEXT:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			Sys_SetClipboardData( arguments[0] ? arguments[0] : "" );
+			return qtrue;
+
+		case CL_WEB_METHOD_REQUEST_SERVERS:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			return CL_Steam_RequestServers( QLJSHandler_CoerceIntegerArgument( arguments[0] ) );
+
+		case CL_WEB_METHOD_REQUEST_SERVER_DETAILS:
+			if ( argumentCount < 2 ) {
+				return qfalse;
+			}
+			return CL_Steam_RequestServerDetails(
+				QLJSHandler_CoerceUnsignedIntegerArgument( arguments[0] ),
+				(unsigned short)QLJSHandler_CoerceIntegerArgument( arguments[1] )
+			);
+
+		case CL_WEB_METHOD_REFRESH_LIST:
+			return CL_Steam_RefreshServerList();
+
+		case CL_WEB_METHOD_CREATE_LOBBY:
+			return CL_Steam_CreateLobby();
+
+		case CL_WEB_METHOD_LEAVE_LOBBY:
+			return CL_Steam_LeaveLobby();
+
+		case CL_WEB_METHOD_JOIN_LOBBY:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			return CL_Steam_JoinLobby( arguments[0] );
+
+		case CL_WEB_METHOD_SET_LOBBY_SERVER:
+			if ( argumentCount < 2 ) {
+				return qfalse;
+			}
+			return CL_Steam_SetLobbyServer(
+				QLJSHandler_CoerceUnsignedIntegerArgument( arguments[0] ),
+				(unsigned short)QLJSHandler_CoerceIntegerArgument( arguments[1] )
+			);
+
+		case CL_WEB_METHOD_SHOW_INVITE_OVERLAY:
+			return CL_Steam_ShowInviteOverlay();
+
+		case CL_WEB_METHOD_SAY_LOBBY:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			return CL_Steam_SayLobby( arguments[0] ? arguments[0] : "" );
+
+		case CL_WEB_METHOD_REQUEST_USER_STATS:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			return CL_Steam_RequestUserStats( arguments[0] );
+
+		case CL_WEB_METHOD_ACTIVATE_GAME_OVERLAY_TO_USER:
+			if ( argumentCount < 2 ) {
+				return qfalse;
+			}
+			return CL_Steam_ActivateOverlayToUser( arguments[0], arguments[1] );
+
+		case CL_WEB_METHOD_INVITE:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			return CL_Steam_Invite( arguments[0] );
+
+		case CL_WEB_METHOD_GET_ALL_UGC:
+			if ( argumentCount < 1 ) {
+				return qfalse;
+			}
+			return CL_Steam_RequestAllUGC( QLJSHandler_CoerceIntegerArgument( arguments[0] ) );
 
 		case CL_WEB_METHOD_GET_NEXT_KEY_DOWN:
-			if ( argumentCount <= 0 || !arguments[0] || !arguments[0][0] ) {
+			if ( argumentCount <= 0 ) {
 				cl_webHost.keyCaptureArmed = qtrue;
 			} else {
-				cl_webHost.keyCaptureArmed = atoi( arguments[0] ) != 0 ? qtrue : qfalse;
+				cl_webHost.keyCaptureArmed = QLJSHandler_CoerceIntegerArgument( arguments[0] ) != 0 ? qtrue : qfalse;
 			}
+			return qtrue;
+
+		case CL_WEB_METHOD_NO_OP:
 			return qtrue;
 
 		case CL_WEB_METHOD_SET_FAVORITE_SERVER:
@@ -3286,9 +3346,9 @@ static qboolean QLJSHandler_OnMethodCall( const char *methodName, const char **a
 				return qfalse;
 			}
 			return CL_WebHost_SetFavoriteServer(
-				(uint32_t)strtoul( arguments[0], NULL, 10 ),
-				(uint16_t)atoi( arguments[1] ),
-				atoi( arguments[2] ) != 0 ? qtrue : qfalse
+				QLJSHandler_CoerceUnsignedIntegerArgument( arguments[0] ),
+				(uint16_t)QLJSHandler_CoerceIntegerArgument( arguments[1] ),
+				QLJSHandler_CoerceIntegerArgument( arguments[2] ) != 0 ? qtrue : qfalse
 			);
 
 		default:
@@ -3609,6 +3669,155 @@ void CL_AdvertisementBridge_SetActiveAdvert( int cellId ) {
 
 /*
 =============
+CL_AdvertisementBridge_ClearLabel
+
+Clears one advert-debug label buffer while preserving the size contract the
+renderer-side bridge callbacks expect.
+=============
+*/
+static void CL_AdvertisementBridge_ClearLabel( char *buffer, int bufferSize ) {
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+}
+
+/*
+=============
+CL_AdvertisementBridge_GetCellDisplayState
+
+Reconstructs the retained advert-debug palette split from the active and
+activated cell ids mirrored through the client bridge.
+=============
+*/
+int CL_AdvertisementBridge_GetCellDisplayState( int cellId ) {
+	if ( cellId <= 0 ) {
+		return 0;
+	}
+
+	if ( cellId == cl_advertisementBridge.activatedAdvertCellId ) {
+		return 2;
+	}
+
+	if ( cellId == cl_advertisementBridge.activeAdvertCellId ) {
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+=============
+CL_AdvertisementBridge_GetCellLabel
+
+Formats one retained advert-debug cell label for the renderer overlay.
+=============
+*/
+void CL_AdvertisementBridge_GetCellLabel( int cellId, char *buffer, int bufferSize ) {
+	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
+	if ( !buffer || bufferSize <= 0 || cellId <= 0 ) {
+		return;
+	}
+
+	if ( cellId == cl_advertisementBridge.activatedAdvertCellId ) {
+		Com_sprintf( buffer, bufferSize, "cell %d activated", cellId );
+		return;
+	}
+
+	if ( cellId == cl_advertisementBridge.activeAdvertCellId ) {
+		Com_sprintf( buffer, bufferSize, "cell %d active", cellId );
+		return;
+	}
+
+	Com_sprintf( buffer, bufferSize, "cell %d available", cellId );
+}
+
+/*
+=============
+CL_AdvertisementBridge_GetLabelList1Count
+
+Publishes the retained advert-debug summary count for the first label list.
+=============
+*/
+int CL_AdvertisementBridge_GetLabelList1Count( void ) {
+	return CL_ADVERTISEMENT_DEBUG_LABEL_COUNT;
+}
+
+/*
+=============
+CL_AdvertisementBridge_GetLabelList1Entry
+
+Publishes provider and overlay-availability diagnostics for the first
+renderer-side advert-debug summary list.
+=============
+*/
+void CL_AdvertisementBridge_GetLabelList1Entry( int index, char *buffer, int bufferSize ) {
+	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	switch ( index ) {
+		case 0:
+			Com_sprintf( buffer, bufferSize, "bridge: %s [%s]",
+				CL_GetAdvertisementBridgeProviderLabel(),
+				CL_GetAdvertisementBridgePolicyLabel() );
+			break;
+
+		case 1:
+			Com_sprintf( buffer, bufferSize, "overlay: compiled=%d available=%d browser=%d",
+				cl_advertisementBridge.overlayCompiled ? 1 : 0,
+				cl_advertisementBridge.overlayAvailable ? 1 : 0,
+				cl_webHost.browserActive ? 1 : 0 );
+			break;
+	}
+}
+
+/*
+=============
+CL_AdvertisementBridge_GetLabelList2Count
+
+Publishes the retained advert-debug summary count for the second label list.
+=============
+*/
+int CL_AdvertisementBridge_GetLabelList2Count( void ) {
+	return CL_ADVERTISEMENT_DEBUG_LABEL_COUNT;
+}
+
+/*
+=============
+CL_AdvertisementBridge_GetLabelList2Entry
+
+Publishes frame, view, and active-cell diagnostics for the second renderer-side
+advert-debug summary list.
+=============
+*/
+void CL_AdvertisementBridge_GetLabelList2Entry( int index, char *buffer, int bufferSize ) {
+	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	switch ( index ) {
+		case 0:
+			Com_sprintf( buffer, bufferSize, "state: %s frame=%d view=%dx%d",
+				cl_advertisementBridge.initialised ? "active" : "idle",
+				cl_advertisementBridge.frameTime,
+				cl_advertisementBridge.viewWidth,
+				cl_advertisementBridge.viewHeight );
+			break;
+
+		case 1:
+			Com_sprintf( buffer, bufferSize, "active=%d activated=%d",
+				cl_advertisementBridge.activeAdvertCellId,
+				cl_advertisementBridge.activatedAdvertCellId );
+			break;
+	}
+}
+
+/*
+=============
 CL_Web_ShowBrowser_f
 
 Marks the browser overlay as visible and records an optional hash target.
@@ -3765,6 +3974,25 @@ void CL_Web_Reload_f( void ) {
 
 	CL_Web_ClearSessionState();
 	QLWebHost_ReloadView( qtrue );
+}
+
+/*
+=============
+QLWebHost_RegisterCommands
+
+Restores the retail browser-host command-registration helper used by CL_Init.
+=============
+*/
+void QLWebHost_RegisterCommands( void ) {
+	Cmd_AddCommand ("web_showBrowser", CL_Web_ShowBrowser_f );
+	Cmd_AddCommand ("web_changeHash", CL_Web_ChangeHash_f );
+	Cmd_AddCommand ("web_hideBrowser", CL_Web_HideBrowser_f );
+	Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );
+	Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );
+	Cmd_AddCommand ("web_reload", CL_Web_Reload_f );
+	Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );
+	Cvar_Get ("web_console", "0", CVAR_ARCHIVE );
+	Cvar_Get ("web_browserActive", "0", CVAR_ROM );
 }
 
 /*
@@ -5615,29 +5843,6 @@ void CL_AdjustTimeDelta( void ) {
 
 /*
 ==================
-CL_Steam_SetMatchRichPresence
-
-Mirrors the retail game-start status write once the first active snapshot lands.
-==================
-*/
-static void CL_Steam_SetMatchRichPresence( void ) {
-	if ( !CL_SteamServicesEnabled() ) {
-		CL_LogMatchmakingServiceIgnored( "steam_presence_match", "matchmaking provider unavailable" );
-		return;
-	}
-
-	if ( clc.demoplaying ) {
-		return;
-	}
-
-	if ( !QL_Steamworks_SetRichPresence( "status", "Playing a match" ) ) {
-		CL_LogMatchmakingServiceIgnored( "steam_presence_match", "rich presence update failed" );
-	}
-}
-
-
-/*
-==================
 CL_FirstSnapshot
 ==================
 */
@@ -5653,7 +5858,6 @@ void CL_FirstSnapshot( void ) {
 	cl.oldServerTime = cl.snap.serverTime;
 
 	clc.timeDemoBaseTime = cl.snap.serverTime;
-	CL_Steam_SetMatchRichPresence();
 	CL_WebView_PublishGameStart();
 
 	// if this is the first frame of active play,

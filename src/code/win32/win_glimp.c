@@ -1406,6 +1406,47 @@ static void GLW_InitExtensions( void )
 		ri.Printf( PRINT_ALL, "...GL_EXT_compiled_vertex_array not found\n" );
 	}
 
+	// GL_ARB_occlusion_query
+	qglGenQueriesARB = NULL;
+	qglDeleteQueriesARB = NULL;
+	qglIsQueryARB = NULL;
+	qglBeginQueryARB = NULL;
+	qglEndQueryARB = NULL;
+	qglGetQueryivARB = NULL;
+	qglGetQueryObjectivARB = NULL;
+	qglGetQueryObjectuivARB = NULL;
+	if ( strstr( glConfig.extensions_string, "GL_ARB_occlusion_query" ) )
+	{
+		qglGenQueriesARB = ( PFNGLGENQUERIESARBPROC ) qwglGetProcAddress( "glGenQueriesARB" );
+		qglDeleteQueriesARB = ( PFNGLDELETEQUERIESARBPROC ) qwglGetProcAddress( "glDeleteQueriesARB" );
+		qglIsQueryARB = ( PFNGLISQUERYARBPROC ) qwglGetProcAddress( "glIsQueryARB" );
+		qglBeginQueryARB = ( PFNGLBEGINQUERYARBPROC ) qwglGetProcAddress( "glBeginQueryARB" );
+		qglEndQueryARB = ( PFNGLENDQUERYARBPROC ) qwglGetProcAddress( "glEndQueryARB" );
+		qglGetQueryivARB = ( PFNGLGETQUERYIVARBPROC ) qwglGetProcAddress( "glGetQueryivARB" );
+		qglGetQueryObjectivARB = ( PFNGLGETQUERYOBJECTIVARBPROC ) qwglGetProcAddress( "glGetQueryObjectivARB" );
+		qglGetQueryObjectuivARB = ( PFNGLGETQUERYOBJECTUIVARBPROC ) qwglGetProcAddress( "glGetQueryObjectuivARB" );
+
+		if ( qglGenQueriesARB && qglDeleteQueriesARB && qglIsQueryARB &&
+			qglBeginQueryARB && qglEndQueryARB && qglGetQueryivARB &&
+			qglGetQueryObjectivARB && qglGetQueryObjectuivARB ) {
+			ri.Printf( PRINT_ALL, "...using GL_ARB_occlusion_query\n" );
+		} else {
+			qglGenQueriesARB = NULL;
+			qglDeleteQueriesARB = NULL;
+			qglIsQueryARB = NULL;
+			qglBeginQueryARB = NULL;
+			qglEndQueryARB = NULL;
+			qglGetQueryivARB = NULL;
+			qglGetQueryObjectivARB = NULL;
+			qglGetQueryObjectuivARB = NULL;
+			ri.Printf( PRINT_ALL, "...missing some required functions, ignoring GL_ARB_occlusion_query\n" );
+		}
+	}
+	else
+	{
+		ri.Printf( PRINT_ALL, "...GL_ARB_occlusion_query not found\n" );
+	}
+
 	// WGL_3DFX_gamma_control
 	qwglGetDeviceGammaRamp3DFX = NULL;
 	qwglSetDeviceGammaRamp3DFX = NULL;

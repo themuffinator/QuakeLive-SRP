@@ -410,6 +410,14 @@ void ( APIENTRY * qglClientActiveTextureARB )( GLenum texture );
 
 void ( APIENTRY * qglLockArraysEXT)( int, int);
 void ( APIENTRY * qglUnlockArraysEXT) ( void );
+void ( APIENTRY * qglGenQueriesARB )( GLsizei n, GLuint *ids );
+void ( APIENTRY * qglDeleteQueriesARB )( GLsizei n, const GLuint *ids );
+GLboolean ( APIENTRY * qglIsQueryARB )( GLuint id );
+void ( APIENTRY * qglBeginQueryARB )( GLenum target, GLuint id );
+void ( APIENTRY * qglEndQueryARB )( GLenum target );
+void ( APIENTRY * qglGetQueryivARB )( GLenum target, GLenum pname, GLint *params );
+void ( APIENTRY * qglGetQueryObjectivARB )( GLuint id, GLenum pname, GLint *params );
+void ( APIENTRY * qglGetQueryObjectuivARB )( GLuint id, GLenum pname, GLuint *params );
 
 void ( APIENTRY * qglPointParameterfEXT)( GLenum param, GLfloat value );
 void ( APIENTRY * qglPointParameterfvEXT)( GLenum param, const GLfloat *value );
@@ -3410,6 +3418,14 @@ qboolean QGL_Init( const char *dllname )
 
 	qglLockArraysEXT = 0;
 	qglUnlockArraysEXT = 0;
+	qglGenQueriesARB = 0;
+	qglDeleteQueriesARB = 0;
+	qglIsQueryARB = 0;
+	qglBeginQueryARB = 0;
+	qglEndQueryARB = 0;
+	qglGetQueryivARB = 0;
+	qglGetQueryObjectivARB = 0;
+	qglGetQueryObjectuivARB = 0;
 	qglPointParameterfEXT = 0;
 	qglPointParameterfvEXT = 0;
 	qglColorTableEXT = 0;
@@ -4149,5 +4165,3 @@ void GLimp_LogNewFrame( void )
 {
 	fprintf( glw_state.log_fp, "*** R_BeginFrame ***\n" );
 }
-
-

@@ -170,15 +170,8 @@ static void Com_IdleSleep( int msec ) {
 
 		dueTime.QuadPart = -( (LONGLONG)msec * 10000 );
 		timer = CreateWaitableTimer( NULL, qtrue, NULL );
-		if ( !timer ) {
-			Sleep( msec );
-			return;
-		}
-
-		if ( SetWaitableTimer( timer, &dueTime, 0, NULL, NULL, qfalse ) ) {
-			WaitForSingleObject( timer, INFINITE );
-		}
-
+		SetWaitableTimer( timer, &dueTime, 0, NULL, NULL, qfalse );
+		WaitForSingleObject( timer, INFINITE );
 		CloseHandle( timer );
 	}
 #else
@@ -209,25 +202,6 @@ static qboolean Com_ShouldDefaultDedicatedFromExecutable( void ) {
 
 /*
 ================
-Com_CurrentProcessIdString
-
-Formats the live process id using the retained retail crash-marker contract.
-================
-*/
-static const char *Com_CurrentProcessIdString( void ) {
-	static char	pidString[32];
-
-#ifdef _WIN32
-	Com_sprintf( pidString, sizeof( pidString ), "%lu", (unsigned long)GetCurrentProcessId() );
-#else
-	Com_sprintf( pidString, sizeof( pidString ), "%lu", (unsigned long)getpid() );
-#endif
-
-	return pidString;
-}
-
-/*
-================
 Com_ProfilePidIsCurrentProcess
 
 Returns qfalse when the retained profile.pid marker points at a different live
@@ -235,59 +209,34 @@ process and crash detection has not been suppressed.
 ================
 */
 static qboolean Com_ProfilePidIsCurrentProcess( void ) {
-	char		*pidBuffer;
+	fileHandle_t	f;
+	char		pidBuffer[32];
 	int			pidLength;
-	const char	*ch;
 	int			retainedPid;
 
 	if ( com_ignorecrash && com_ignorecrash->integer ) {
 		return qtrue;
 	}
 
-	pidBuffer = NULL;
-	pidLength = FS_ReadFile( "profile.pid", (void **)&pidBuffer );
-	if ( pidLength < 0 || !pidBuffer ) {
+	pidLength = FS_FOpenFileRead( "profile.pid", &f, qtrue );
+	if ( pidLength < 0 || !f ) {
 		return qtrue;
 	}
 
-	if ( pidLength <= 0 || pidLength >= 31 ) {
-		FS_FreeFile( pidBuffer );
+	Com_Memset( pidBuffer, 0, sizeof( pidBuffer ) );
+	if ( FS_Read( pidBuffer, sizeof( pidBuffer ) - 1, f ) < 0 ) {
+		FS_FCloseFile( f );
 		return qfalse;
 	}
-
-	for ( ch = pidBuffer; *ch; ++ch ) {
-		if ( *ch < '0' || *ch > '9' ) {
-			FS_FreeFile( pidBuffer );
-			return qfalse;
-		}
-	}
+	FS_FCloseFile( f );
 
 	retainedPid = atoi( pidBuffer );
-	FS_FreeFile( pidBuffer );
 
 	if ( retainedPid > 0 && com_pid && retainedPid != com_pid->integer ) {
 		return qfalse;
 	}
 
 	return qtrue;
-}
-
-/*
-================
-Com_WriteProfilePidMarker
-
-Persists the retained retail crash marker into profile.pid.
-================
-*/
-static void Com_WriteProfilePidMarker( const char *pidValue ) {
-	const char	*value;
-
-	if ( !FS_Initialized() ) {
-		return;
-	}
-
-	value = pidValue ? pidValue : "0";
-	FS_WriteFile( "profile.pid", value, strlen( value ) );
 }
 
 //============================================================================
@@ -625,6 +574,44 @@ quake3 set test blah + map test
 #define	MAX_CONSOLE_LINES	32
 int		com_numConsoleLines;
 char	*com_consoleLines[MAX_CONSOLE_LINES];
+static char	*com_consoleLineBuffer;
+
+/*
+==================
+Com_FreeStartupCommandLines
+==================
+*/
+static void Com_FreeStartupCommandLines( void ) {
+	if ( com_consoleLineBuffer ) {
+		free( com_consoleLineBuffer );
+		com_consoleLineBuffer = NULL;
+	}
+
+	Com_Memset( com_consoleLines, 0, sizeof( com_consoleLines ) );
+	com_numConsoleLines = 0;
+}
+
+/*
+==================
+Com_StartupLineArgv
+==================
+*/
+static char *Com_StartupLineArgv( char *line, int arg ) {
+	int		i;
+
+	if ( !line || !line[0] || arg < 0 ) {
+		return "";
+	}
+
+	for ( i = 0 ; i < arg ; i++ ) {
+		line += strlen( line ) + 1;
+		if ( !line[0] ) {
+			return "";
+		}
+	}
+
+	return line;
+}
 
 /*
 ==================
@@ -634,26 +621,81 @@ Break it up into multiple console lines
 ==================
 */
 void Com_ParseCommandLine( char *commandLine ) {
-    int inq = 0;
-    com_consoleLines[0] = commandLine;
-    com_numConsoleLines = 1;
+	int			argc;
+	int			bindCommandIndex;
+	int			effectiveIndex;
+	int			i;
+	int			tokenLength;
+	char		*cursor;
+	const char	*token;
+	qboolean	startLine;
 
-    while ( *commandLine ) {
-        if (*commandLine == '"') {
-            inq = !inq;
-        }
-        // look for a + seperating character
-        // if commandLine came from a file, we might have real line seperators
-        if ( (*commandLine == '+' && !inq) || *commandLine == '\n'  || *commandLine == '\r' ) {
-            if ( com_numConsoleLines == MAX_CONSOLE_LINES ) {
-                return;
-            }
-            com_consoleLines[com_numConsoleLines] = commandLine + 1;
-            com_numConsoleLines++;
-            *commandLine = 0;
-        }
-        commandLine++;
-    }
+	Com_FreeStartupCommandLines();
+
+	if ( !commandLine || !commandLine[0] ) {
+		return;
+	}
+
+	Cmd_TokenizeString( commandLine );
+	argc = Cmd_Argc();
+	if ( argc <= 0 ) {
+		return;
+	}
+
+	tokenLength = 0;
+	for ( i = 0 ; i < argc ; i++ ) {
+		token = Cmd_Argv( i );
+		tokenLength += strlen( token ) + 1;
+	}
+
+	com_consoleLineBuffer = malloc( tokenLength );
+	if ( !com_consoleLineBuffer ) {
+		Com_Error( ERR_FATAL, "Com_ParseCommandLine: unable to allocate startup command storage" );
+		return;
+	}
+
+	cursor = com_consoleLineBuffer;
+	bindCommandIndex = -1;
+
+	for ( i = 0 ; i < argc ; i++ ) {
+		token = Cmd_Argv( i );
+		effectiveIndex = i + 1;
+		startLine = qfalse;
+
+		if ( token[0] == '+' ) {
+			if ( !Q_stricmp( token, "+bind" ) ) {
+				bindCommandIndex = effectiveIndex;
+			}
+
+			if ( bindCommandIndex <= 0 || effectiveIndex - 2 != bindCommandIndex ) {
+				token++;
+				startLine = qtrue;
+			}
+		} else if ( com_numConsoleLines == 0 ) {
+			startLine = qtrue;
+		}
+
+		if ( startLine ) {
+			if ( com_numConsoleLines == MAX_CONSOLE_LINES ) {
+				break;
+			}
+
+			if ( com_numConsoleLines != 0 ) {
+				*cursor++ = '\0';
+			}
+
+			com_consoleLines[com_numConsoleLines] = cursor;
+			com_numConsoleLines++;
+		}
+
+		if ( com_numConsoleLines == 0 ) {
+			continue;
+		}
+
+		tokenLength = strlen( token );
+		Com_Memcpy( cursor, token, tokenLength + 1 );
+		cursor += tokenLength + 1;
+	}
 }
 
 
@@ -668,10 +710,14 @@ skip loading of qzconfig.cfg
 qboolean Com_SafeMode( void ) {
 	int		i;
 
+	if ( com_crashed && com_crashed->integer
+		&& ( !com_ignorecrash || !com_ignorecrash->integer ) ) {
+		return qtrue;
+	}
+
 	for ( i = 0 ; i < com_numConsoleLines ; i++ ) {
-		Cmd_TokenizeString( com_consoleLines[i] );
-		if ( !Q_stricmp( Cmd_Argv(0), "safe" )
-			|| !Q_stricmp( Cmd_Argv(0), "cvar_restart" ) ) {
+		if ( !Q_stricmp( com_consoleLines[i], "safe" )
+			|| !Q_stricmp( com_consoleLines[i], "cvar_restart" ) ) {
 			com_consoleLines[i][0] = 0;
 			return qtrue;
 		}
@@ -697,14 +743,13 @@ void Com_StartupVariable( const char *match ) {
 	cvar_t	*cv;
 
 	for (i=0 ; i < com_numConsoleLines ; i++) {
-		Cmd_TokenizeString( com_consoleLines[i] );
-		if ( strcmp( Cmd_Argv(0), "set" ) ) {
+		if ( strcmp( com_consoleLines[i], "set" ) ) {
 			continue;
 		}
 
-		s = Cmd_Argv(1);
+		s = Com_StartupLineArgv( com_consoleLines[i], 1 );
 		if ( !match || !strcmp( s, match ) ) {
-			Cvar_Set( s, Cmd_Argv(2) );
+			Cvar_Set( s, Com_StartupLineArgv( com_consoleLines[i], 2 ) );
 			cv = Cvar_Get( s, "", 0 );
 			cv->flags |= CVAR_USER_CREATED;
 //			com_consoleLines[i] = 0;
@@ -736,11 +781,10 @@ qboolean Com_AddStartupCommands( void ) {
 		}
 
 		// set commands won't override menu startup
-		if ( Q_stricmpn( com_consoleLines[i], "set", 3 ) ) {
+		if ( Q_stricmp( com_consoleLines[i], "set" ) ) {
 			added = qtrue;
 		}
-		Cbuf_AddText( com_consoleLines[i] );
-		Cbuf_AddText( "\n" );
+		Cbuf_AddTokenized( com_consoleLines[i] );
 	}
 
 	return added;
@@ -2243,23 +2287,6 @@ sysEvent_t	Com_GetRealEvent( void ) {
 
 /*
 =================
-Com_InitPushEvent
-=================
-*/
-// bk001129 - added
-void Com_InitPushEvent( void ) {
-  // clear the static buffer array
-  // this requires SE_NONE to be accepted as a valid but NOP event
-  memset( com_pushedEvents, 0, sizeof(com_pushedEvents) );
-  // reset counters while we are at it
-  // beware: GetEvent might still return an SE_NONE from the buffer
-  com_pushedEventsHead = 0;
-  com_pushedEventsTail = 0;
-}
-
-
-/*
-=================
 Com_PushEvent
 =================
 */
@@ -2308,23 +2335,7 @@ Com_RunAndTimeServerPacket
 =================
 */
 void Com_RunAndTimeServerPacket( netadr_t *evFrom, msg_t *buf ) {
-	int		t1, t2, msec;
-
-	t1 = 0;
-
-	if ( com_speeds->integer ) {
-		t1 = Sys_Milliseconds ();
-	}
-
 	SV_PacketEvent( *evFrom, buf );
-
-	if ( com_speeds->integer ) {
-		t2 = Sys_Milliseconds ();
-		msec = t2 - t1;
-		if ( com_speeds->integer == 3 ) {
-			Com_Printf( "SV_PacketEvent time: %i\n", msec );
-		}
-	}
 }
 
 /*
@@ -2520,81 +2531,14 @@ Com_ReadCDKey
 */
 qboolean CL_CDKeyValidate( const char *key, const char *checksum );
 
-/*
-=================
-Com_IsPlaceholderCDKey
-=================
-*/
-static qboolean Com_IsPlaceholderCDKey( const char *key ) {
-	int	i;
-
-	if ( !key ) {
-		return qfalse;
-	}
-
-	for ( i = 0; i < CDKEY_LEN; i++ ) {
-		if ( !key[i] ) {
-			return qtrue;
-		}
-
-		if ( key[i] != ' ' ) {
-			return qfalse;
-		}
-	}
-
-	return qtrue;
-}
-
-/*
-=================
-Com_SetStoredCDKeyValue
-=================
-*/
-static void Com_SetStoredCDKeyValue( char *buffer, size_t bufferSize, const char *value ) {
-	int	i;
-
-	if ( !buffer || bufferSize == 0 ) {
-		return;
-	}
-
-	for ( i = 0; i < CDKEY_LEN && i + 1 < (int)bufferSize; i++ ) {
-		buffer[i] = ' ';
-	}
-
-	if ( bufferSize > CDKEY_LEN ) {
-		buffer[CDKEY_LEN] = '\0';
-	} else {
-		buffer[bufferSize - 1] = '\0';
-	}
-
-	if ( !value ) {
-		return;
-	}
-
-	for ( i = 0; i < CDKEY_LEN && value[i] && i + 1 < (int)bufferSize; i++ ) {
-		buffer[i] = value[i];
-	}
-
-	if ( bufferSize > CDKEY_LEN ) {
-		buffer[CDKEY_LEN] = '\0';
-	} else {
-		buffer[bufferSize - 1] = '\0';
-	}
-}
-
-/*
-=================
-Com_LoadStoredCDKey
-=================
-*/
-static void Com_LoadStoredCDKey( const char *filename, char *buffer, size_t bufferSize ) {
+void Com_ReadCDKey( const char *filename ) {
 	fileHandle_t	f;
 	char		path[MAX_OSPATH];
 	char		key[CDKEY_LEN + 1];
 	int		fileLen;
 	int		readLen;
 
-	Com_SetStoredCDKeyValue( buffer, bufferSize, QL_CDKEY_PLACEHOLDER );
+	Q_strncpyz( cl_cdkey, QL_CDKEY_PLACEHOLDER, sizeof( cl_cdkey ) );
 
 	if ( !filename || !filename[0] ) {
 		return;
@@ -2620,13 +2564,9 @@ static void Com_LoadStoredCDKey( const char *filename, char *buffer, size_t buff
 
 	key[CDKEY_LEN] = '\0';
 
-	if ( Com_IsPlaceholderCDKey( key ) || CL_CDKeyValidate( key, NULL ) ) {
-		Com_SetStoredCDKeyValue( buffer, bufferSize, key );
+	if ( CL_CDKeyValidate( key, NULL ) ) {
+		Q_strncpyz( cl_cdkey, key, sizeof( cl_cdkey ) );
 	}
-}
-
-void Com_ReadCDKey( const char *filename ) {
-	Com_LoadStoredCDKey( filename, cl_cdkey, sizeof( cl_cdkey ) );
 }
 
 /*
@@ -2635,7 +2575,41 @@ Com_AppendCDKey
 =================
 */
 void Com_AppendCDKey( const char *filename ) {
-	Com_LoadStoredCDKey( filename, cl_cdkey_mod, sizeof( cl_cdkey_mod ) );
+	fileHandle_t	f;
+	char		path[MAX_OSPATH];
+	char		key[CDKEY_LEN + 1];
+	int		fileLen;
+	int		readLen;
+
+	Q_strncpyz( cl_cdkey_mod, QL_CDKEY_PLACEHOLDER, sizeof( cl_cdkey_mod ) );
+
+	if ( !filename || !filename[0] ) {
+		return;
+	}
+
+	Com_sprintf( path, sizeof( path ), "%s/q3key", filename );
+
+	fileLen = FS_SV_FOpenFileRead( path, &f );
+	if ( !f || fileLen <= 0 ) {
+		if ( f ) {
+			FS_FCloseFile( f );
+		}
+		return;
+	}
+
+	Com_Memset( key, 0, sizeof( key ) );
+	readLen = FS_Read( key, CDKEY_LEN, f );
+	FS_FCloseFile( f );
+
+	if ( readLen < CDKEY_LEN ) {
+		return;
+	}
+
+	key[CDKEY_LEN] = '\0';
+
+	if ( CL_CDKeyValidate( key, NULL ) ) {
+		Q_strncpyz( cl_cdkey_mod, key, sizeof( cl_cdkey_mod ) );
+	}
 }
 
 #ifndef DEDICATED // bk001204
@@ -2653,9 +2627,9 @@ static void Com_WriteCDKey( const char *filename, const char *ikey ) {
 		return;
 	}
 
-	Com_SetStoredCDKeyValue( key, sizeof( key ), ikey );
+	Q_strncpyz( key, ikey, sizeof( key ) );
 
-	if ( !Com_IsPlaceholderCDKey( key ) && !CL_CDKeyValidate( key, NULL ) ) {
+	if ( !CL_CDKeyValidate( key, NULL ) ) {
 		return;
 	}
 
@@ -2834,6 +2808,8 @@ Com_Init
 */
 void Com_Init( char *commandLine ) {
 	char	*s;
+	char	pidString[32];
+	const char	*pidValue;
 	const char	*ecosystemDisabled;
 	qboolean	startupCinematicsDisabled;
 
@@ -2843,8 +2819,12 @@ void Com_Init( char *commandLine ) {
 		Sys_Error ("Error during initialization");
 	}
 
-  // bk001129 - do this before anything else decides to push events
-  Com_InitPushEvent();
+	// bk001129 - do this before anything else decides to push events
+	// this requires SE_NONE to be accepted as a valid but NOP event
+	memset( com_pushedEvents, 0, sizeof( com_pushedEvents ) );
+	// beware: GetEvent might still return an SE_NONE from the buffer
+	com_pushedEventsHead = 0;
+	com_pushedEventsTail = 0;
 
 	Com_InitSmallZoneMemory();
 	Cvar_Init ();
@@ -2867,7 +2847,12 @@ void Com_Init( char *commandLine ) {
         Cvar_BootstrapExpandedDefaults();
 	com_ignorecrash = Cvar_Get( "com_ignorecrash", "0", 0 );
 	com_crashed = Cvar_Get( "com_crashed", "0", CVAR_TEMP );
-	com_pid = Cvar_Get( "com_pid", Com_CurrentProcessIdString(), CVAR_ROM );
+#ifdef _WIN32
+	Com_sprintf( pidString, sizeof( pidString ), "%lu", (unsigned long)GetCurrentProcessId() );
+#else
+	Com_sprintf( pidString, sizeof( pidString ), "%lu", (unsigned long)getpid() );
+#endif
+	com_pid = Cvar_Get( "com_pid", pidString, CVAR_ROM );
 
 	if ( Com_ShouldDefaultDedicatedFromExecutable() ) {
 		Cvar_Get( "dedicated", "2", 0 );
@@ -2992,6 +2977,7 @@ void Com_Init( char *commandLine ) {
 
 	com_dedicated->modified = qfalse;
 	if ( !com_dedicated->integer ) {
+		SteamClient_Init();
 		CL_Init();
 		Sys_ShowConsole( com_viewlog->integer, qfalse );
 	}
@@ -3026,31 +3012,16 @@ void Com_Init( char *commandLine ) {
 
 	// make sure single player is off by default
 	Cvar_Set("ui_singlePlayerActive", "0");
-	Com_WriteProfilePidMarker( com_pid ? com_pid->string : Com_CurrentProcessIdString() );
+	if ( FS_Initialized() ) {
+		pidValue = com_pid ? com_pid->string : pidString;
+		FS_WriteFile( "profile.pid", pidValue, strlen( pidValue ) );
+	}
 
 	com_fullyInitialized = qtrue;
 	Com_Printf ("--- Common Initialization Complete ---\n");	
 }
 
 //==================================================================
-
-/*
-=================
-Com_OpenRetailConfigFile
-=================
-*/
-static fileHandle_t Com_OpenRetailConfigFile( const char *filename, const char *header ) {
-	fileHandle_t	f;
-
-	f = FS_FOpenFileWrite( filename );
-	if ( !f ) {
-		Com_Printf ("Couldn't write %s.\n", filename );
-		return 0;
-	}
-
-	FS_Printf( f, "%s", header );
-	return f;
-}
 
 /*
 =================
@@ -3062,20 +3033,24 @@ void Com_WriteConfigToFile( const char *hardwareFilename, const char *replicateF
 	fileHandle_t	replicateFile;
 	fileHandle_t	bindingsFile;
 
-	hardwareFile = Com_OpenRetailConfigFile( hardwareFilename, QL_CONFIG_HARDWARE_HEADER );
+	hardwareFile = FS_FOpenFileWrite( hardwareFilename );
 	if ( !hardwareFile ) {
+		Com_Printf ("Couldn't write %s.\n", hardwareFilename );
 		return;
 	}
 
+	FS_Printf( hardwareFile, "%s", QL_CONFIG_HARDWARE_HEADER );
 	replicateFile = hardwareFile;
 	bindingsFile = hardwareFile;
 	if ( replicateFilename && replicateFilename[0] ) {
-		replicateFile = Com_OpenRetailConfigFile( replicateFilename, QL_CONFIG_REPLICATE_HEADER );
+		replicateFile = FS_FOpenFileWrite( replicateFilename );
 		if ( !replicateFile ) {
+			Com_Printf ("Couldn't write %s.\n", replicateFilename );
 			FS_FCloseFile( hardwareFile );
 			return;
 		}
 
+		FS_Printf( replicateFile, "%s", QL_CONFIG_REPLICATE_HEADER );
 		bindingsFile = replicateFile;
 	}
 
@@ -3137,6 +3112,7 @@ Write the config file to a specific name
 ===============
 */
 void Com_WriteConfig_f( void ) {
+	fileHandle_t	hardwareFile;
 	char	hardwareFilename[MAX_QPATH];
 	char	replicateFilename[MAX_QPATH];
 
@@ -3157,7 +3133,17 @@ void Com_WriteConfig_f( void ) {
 	}
 
 	Com_Printf( "Writing %s.\n", hardwareFilename );
-	Com_WriteConfigToFile( hardwareFilename, NULL, qfalse );
+	hardwareFile = FS_FOpenFileWrite( hardwareFilename );
+	if ( !hardwareFile ) {
+		Com_Printf( "Couldn't write %s.\n", hardwareFilename );
+		return;
+	}
+
+	FS_Printf( hardwareFile, "%s", QL_CONFIG_HARDWARE_HEADER );
+	Key_WriteBindings( hardwareFile );
+	Cmd_WriteAliases( hardwareFile );
+	Cvar_WriteQLConfigVariables( hardwareFile, hardwareFile, qfalse );
+	FS_FCloseFile( hardwareFile );
 }
 
 /*
@@ -3168,6 +3154,7 @@ Writes the retail Quake Live client-config subset to a specific filename.
 ===============
 */
 void Com_WriteClientConfig_f( void ) {
+	fileHandle_t	f;
 	char	filename[MAX_QPATH];
 
 	if ( Cmd_Argc() != 2 ) {
@@ -3178,7 +3165,17 @@ void Com_WriteClientConfig_f( void ) {
 	Q_strncpyz( filename, Cmd_Argv(1), sizeof( filename ) );
 	COM_DefaultExtension( filename, sizeof( filename ), ".cfg" );
 	Com_Printf( "Writing %s.\n", filename );
-	Com_WriteConfigToFile( filename, NULL, qtrue );
+	f = FS_FOpenFileWrite( filename );
+	if ( !f ) {
+		Com_Printf( "Couldn't write %s.\n", filename );
+		return;
+	}
+
+	FS_Printf( f, "%s", QL_CONFIG_HARDWARE_HEADER );
+	Key_WriteBindings( f );
+	Cmd_WriteAliases( f );
+	Cvar_WriteQLConfigVariables( f, f, qtrue );
+	FS_FCloseFile( f );
 }
 
 /*
@@ -3439,10 +3436,13 @@ void Com_Shutdown (void) {
 		com_journalFile = 0;
 	}
 
-	Com_WriteProfilePidMarker( "0" );
+	if ( FS_Initialized() ) {
+		FS_WriteFile( "profile.pid", "0", 1 );
+	}
 	Zmq_ShutdownRuntime();
 	QL_Steamworks_Shutdown();
 	SyscallContract_Shutdown();
+	Com_FreeStartupCommandLines();
 
 }
 

@@ -55,6 +55,16 @@ qboolean Sys_IsLANAddress( netadr_t adr ) {
 }
 
 /*
+=====================
+NET_GetLocalAddressIP
+=====================
+*/
+qboolean NET_GetLocalAddressIP( netadr_t *address ) {
+	(void)address;
+	return qfalse;
+}
+
+/*
 ==================
 Sys_ShowIP
 ==================

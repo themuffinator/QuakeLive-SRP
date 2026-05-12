@@ -25,8 +25,15 @@ typedef struct {
 	qboolean	fromSteamDataSource;
 } clSteamDataSourceResponse_t;
 
+typedef struct {
+	uint32_t	idLow;
+	uint32_t	idHigh;
+} clSteamPendingAvatar_t;
+
 static clSteamResource_t cl_steamResources[MAX_STEAM_RESOURCES];
+static clSteamPendingAvatar_t cl_steamPendingAvatars[MAX_STEAM_RESOURCES];
 static unsigned int cl_steamResourceGeneration = 1;
+static qboolean cl_steamAvatarCallbacksRegistered = qfalse;
 
 qboolean Sys_Steam_RequestURL( const char *url, byte **outBuffer, int *outSize );
 void Sys_Steam_FreeRequestBuffer( byte *buffer );
@@ -290,6 +297,100 @@ static qboolean CL_SteamResources_ParseAvatarURL( const char *url, ql_steam_avat
 
 /*
 =============
+CL_SteamResources_ClearPendingAvatars
+=============
+*/
+static void CL_SteamResources_ClearPendingAvatars( void ) {
+	Com_Memset( cl_steamPendingAvatars, 0, sizeof( cl_steamPendingAvatars ) );
+}
+
+/*
+=============
+CL_SteamResources_IsPendingAvatar
+=============
+*/
+static qboolean CL_SteamResources_IsPendingAvatar( uint32_t idLow, uint32_t idHigh ) {
+	int i;
+
+	for ( i = 0; i < MAX_STEAM_RESOURCES; i++ ) {
+		if ( cl_steamPendingAvatars[i].idLow == idLow && cl_steamPendingAvatars[i].idHigh == idHigh ) {
+			return ( idLow != 0 || idHigh != 0 ) ? qtrue : qfalse;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CL_SteamResources_MarkPendingAvatar
+=============
+*/
+static void CL_SteamResources_MarkPendingAvatar( uint32_t idLow, uint32_t idHigh ) {
+	int i;
+	int freeIndex;
+
+	if ( idLow == 0 && idHigh == 0 ) {
+		return;
+	}
+
+	freeIndex = -1;
+	for ( i = 0; i < MAX_STEAM_RESOURCES; i++ ) {
+		if ( cl_steamPendingAvatars[i].idLow == idLow && cl_steamPendingAvatars[i].idHigh == idHigh ) {
+			return;
+		}
+
+		if ( freeIndex < 0 && cl_steamPendingAvatars[i].idLow == 0 && cl_steamPendingAvatars[i].idHigh == 0 ) {
+			freeIndex = i;
+		}
+	}
+
+	if ( freeIndex < 0 ) {
+		return;
+	}
+
+	cl_steamPendingAvatars[freeIndex].idLow = idLow;
+	cl_steamPendingAvatars[freeIndex].idHigh = idHigh;
+}
+
+/*
+=============
+CL_SteamResources_ClearPendingAvatar
+=============
+*/
+static qboolean CL_SteamResources_ClearPendingAvatar( uint32_t idLow, uint32_t idHigh ) {
+	int i;
+
+	for ( i = 0; i < MAX_STEAM_RESOURCES; i++ ) {
+		if ( cl_steamPendingAvatars[i].idLow == idLow && cl_steamPendingAvatars[i].idHigh == idHigh ) {
+			cl_steamPendingAvatars[i].idLow = 0;
+			cl_steamPendingAvatars[i].idHigh = 0;
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CL_SteamResources_IsPendingAvatarURL
+=============
+*/
+static qboolean CL_SteamResources_IsPendingAvatarURL( const char *url ) {
+	ql_steam_avatar_size_t size;
+	uint32_t idLow;
+	uint32_t idHigh;
+
+	if ( !CL_SteamResources_ParseAvatarURL( url, &size, &idLow, &idHigh ) ) {
+		return qfalse;
+	}
+
+	return CL_SteamResources_IsPendingAvatar( idLow, idHigh );
+}
+
+/*
+=============
 CL_SteamResources_FindSlot
 
 Returns an existing slot for the URL or the first available free slot.
@@ -377,6 +478,69 @@ static void CL_SteamResources_ClearSlot( clSteamResource_t *slot, qboolean clear
 
 /*
 =============
+CL_SteamResources_OnAvatarImageLoaded
+=============
+*/
+static void CL_SteamResources_OnAvatarImageLoaded( void *context, const ql_steam_avatar_image_loaded_t *event ) {
+	unsigned long long steamIdValue;
+
+	(void)context;
+
+	if ( !event ) {
+		return;
+	}
+
+	steamIdValue = event->steamId.value;
+	if ( !CL_SteamResources_ClearPendingAvatar( (uint32_t)steamIdValue, (uint32_t)( steamIdValue >> 32 ) ) ) {
+		return;
+	}
+
+	Com_DPrintf( "Steam avatar image loaded for %llu via %s [%s]; pending avatar request may be retried.\n",
+		(unsigned long long)steamIdValue,
+		CL_GetSteamResourceServiceProviderLabel(),
+		CL_GetSteamResourceServicePolicyLabel() );
+}
+
+/*
+=============
+CL_SteamResources_RegisterAvatarCallbacks
+=============
+*/
+static void CL_SteamResources_RegisterAvatarCallbacks( void ) {
+	ql_steam_avatar_callback_bindings_t bindings;
+
+	if ( cl_steamAvatarCallbacksRegistered || !CL_SteamServicesEnabled() ) {
+		return;
+	}
+
+	Com_Memset( &bindings, 0, sizeof( bindings ) );
+	bindings.onAvatarImageLoaded = CL_SteamResources_OnAvatarImageLoaded;
+	if ( !QL_Steamworks_RegisterAvatarCallbacks( &bindings ) ) {
+		Com_DPrintf( "Steam avatar callback owner unavailable for %s [%s]; keeping synchronous retry path.\n",
+			CL_GetSteamResourceServiceProviderLabel(),
+			CL_GetSteamResourceServicePolicyLabel() );
+		return;
+	}
+
+	cl_steamAvatarCallbacksRegistered = qtrue;
+}
+
+/*
+=============
+CL_SteamResources_UnregisterAvatarCallbacks
+=============
+*/
+static void CL_SteamResources_UnregisterAvatarCallbacks( void ) {
+	if ( !cl_steamAvatarCallbacksRegistered ) {
+		return;
+	}
+
+	QL_Steamworks_UnregisterAvatarCallbacks();
+	cl_steamAvatarCallbacksRegistered = qfalse;
+}
+
+/*
+=============
 CL_SteamResources_RequestAvatarRGBA
 
 Resolves a steam://avatar URL through the Steamworks avatar APIs and returns
@@ -390,6 +554,7 @@ static qboolean CL_SteamResources_RequestAvatarRGBA( const char *url, byte **out
 	uint8_t *rgbaPixels;
 	uint32_t width;
 	uint32_t height;
+	ql_steam_avatar_image_state_t avatarState;
 
 	if ( outPixels ) {
 		*outPixels = NULL;
@@ -402,6 +567,17 @@ static qboolean CL_SteamResources_RequestAvatarRGBA( const char *url, byte **out
 	}
 
 	if ( !CL_SteamResources_ParseAvatarURL( url, &size, &idLow, &idHigh ) ) {
+		return qfalse;
+	}
+
+	avatarState = QL_Steamworks_RequestAvatarImage( idLow, idHigh, size, NULL );
+	if ( avatarState == QL_STEAM_AVATAR_IMAGE_PENDING ) {
+		CL_SteamResources_MarkPendingAvatar( idLow, idHigh );
+		return qfalse;
+	}
+
+	CL_SteamResources_ClearPendingAvatar( idLow, idHigh );
+	if ( avatarState != QL_STEAM_AVATAR_IMAGE_READY ) {
 		return qfalse;
 	}
 
@@ -515,7 +691,11 @@ static qboolean CL_SteamDataSource_Request( const char *url, clSteamDataSourceRe
 		}
 
 		if ( !CL_SteamResources_RequestAvatarRGBA( url, &response->rgbaPixels, &response->width, &response->height ) ) {
-			CL_LogSteamResourceBridgeUnavailable( url, "avatar request could not be satisfied" );
+			if ( CL_SteamResources_IsPendingAvatarURL( url ) ) {
+				CL_LogSteamResourceBridgeUnavailable( url, "avatar request deferred pending AvatarImageLoaded callback" );
+			} else {
+				CL_LogSteamResourceBridgeUnavailable( url, "avatar request could not be satisfied" );
+			}
 			return qfalse;
 		}
 
@@ -603,10 +783,17 @@ qhandle_t CL_Steam_RegisterShader( const char *url ) {
 
 	if ( CL_SteamResources_IsAvatarURL( url ) ) {
 		if ( !CL_SteamResources_RequestAvatarRGBA( url, &rgbaPixels, &width, &height ) ) {
-			Com_Printf( "UI: unable to satisfy avatar resource request for %s via %s [%s]\n",
-				url,
-				CL_GetSteamResourceServiceProviderLabel(),
-				CL_GetSteamResourceServicePolicyLabel() );
+			if ( CL_SteamResources_IsPendingAvatarURL( url ) ) {
+				Com_Printf( "UI: avatar resource request pending for %s via %s [%s]; retry after AvatarImageLoaded callback.\n",
+					url,
+					CL_GetSteamResourceServiceProviderLabel(),
+					CL_GetSteamResourceServicePolicyLabel() );
+			} else {
+				Com_Printf( "UI: unable to satisfy avatar resource request for %s via %s [%s]\n",
+					url,
+					CL_GetSteamResourceServiceProviderLabel(),
+					CL_GetSteamResourceServicePolicyLabel() );
+			}
 			return 0;
 		}
 
@@ -669,6 +856,7 @@ void CL_ClearSteamResourceCache( qboolean clearPersisted ) {
 		CL_SteamResources_ClearSlot( &cl_steamResources[i], clearPersisted );
 	}
 
+	CL_SteamResources_ClearPendingAvatars();
 	cl_steamResourceGeneration++;
 	if ( cl_steamResourceGeneration == 0 ) {
 		cl_steamResourceGeneration = 1;
@@ -684,14 +872,19 @@ Initialises the Steam resource bridge and related configuration.
 */
 void CL_InitSteamResources( void ) {
 	Com_Memset( cl_steamResources, 0, sizeof( cl_steamResources ) );
+	CL_SteamResources_ClearPendingAvatars();
 	cl_steamResourceGeneration = 1;
+	cl_steamAvatarCallbacksRegistered = qfalse;
 	CL_RefreshSteamResourceBridgeCvars();
 
 	if ( !CL_SteamServicesEnabled() ) {
 		Com_Printf( "Steam resource bridge disabled for %s [%s]; keeping launcher/web fallback resource bridge.\n",
 			CL_GetSteamResourceServiceProviderLabel(),
 			CL_GetSteamResourceServicePolicyLabel() );
+		return;
 	}
+
+	CL_SteamResources_RegisterAvatarCallbacks();
 }
 
 /*
@@ -702,6 +895,7 @@ Clears any retained Steam resource bookkeeping.
 =============
 */
 void CL_ShutdownSteamResources( void ) {
+	CL_SteamResources_UnregisterAvatarCallbacks();
 	CL_ClearSteamResourceCache( qfalse );
 }
 

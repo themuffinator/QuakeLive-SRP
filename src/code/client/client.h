@@ -432,6 +432,20 @@ qboolean CL_ShouldFilterConsoleText( const char *text );
 qboolean CL_OnlineServicesEnabled( void );
 qboolean CL_SteamServicesEnabled( void );
 void CL_LogMatchmakingServiceIgnored( const char *commandName, const char *reason );
+qboolean CL_Steam_OpenOverlayUrl( const char *url );
+qboolean CL_Steam_RequestServers( int requestMode );
+qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort );
+qboolean CL_Steam_RefreshServerList( void );
+qboolean CL_Steam_CreateLobby( void );
+qboolean CL_Steam_LeaveLobby( void );
+qboolean CL_Steam_JoinLobby( const char *lobbyId );
+qboolean CL_Steam_SetLobbyServer( unsigned int serverIp, unsigned short serverPort );
+qboolean CL_Steam_ShowInviteOverlay( void );
+qboolean CL_Steam_Invite( const char *steamId );
+qboolean CL_Steam_SayLobby( const char *message );
+qboolean CL_Steam_RequestAllUGC( int filter );
+qboolean CL_Steam_RequestUserStats( const char *steamId );
+qboolean CL_Steam_ActivateOverlayToUser( const char *dialog, const char *steamId );
 void CL_Steam_OnRichPresenceJoinRequested( const char *command );
 void CL_Steam_OnGameServerChangeRequested( const char *server, const char *password );
 qboolean CL_GetWorkshopDownloadInfo( unsigned int itemIdLow, unsigned int itemIdHigh, unsigned long long *outDownloaded, unsigned long long *outTotal );
@@ -451,10 +465,7 @@ void CL_ParseServerMessage( msg_t *msg );
 //====================================================================
 
 void	CL_ServerInfoPacket( netadr_t from, msg_t *msg );
-void	CL_LocalServers_f( void );
-void	CL_GlobalServers_f( void );
 void	CL_FavoriteServers_f( void );
-void	CL_Ping_f( void );
 qboolean CL_UpdateVisiblePings_f( int source );
 
 
@@ -541,6 +552,7 @@ qboolean RE_GetScaledFontMetrics( int fontHandle, float scale, float *outAscent,
 qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage );
 qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipRawImage );
 void CL_RefreshOnlineServicesBridgeState( void );
+void QLWebHost_RegisterCommands( void );
 void CL_WebHost_Init( void );
 void CL_WebHost_Shutdown( void );
 void CL_WebHost_Frame( void );
@@ -566,6 +578,12 @@ void CL_AdvertisementBridge_UpdateLoadingViewParameters( void );
 void CL_AdvertisementBridge_InitUI( void );
 void CL_AdvertisementBridge_ActivateAdvert( int cellId );
 void CL_AdvertisementBridge_SetActiveAdvert( int cellId );
+int CL_AdvertisementBridge_GetCellDisplayState( int cellId );
+void CL_AdvertisementBridge_GetCellLabel( int cellId, char *buffer, int bufferSize );
+int CL_AdvertisementBridge_GetLabelList1Count( void );
+void CL_AdvertisementBridge_GetLabelList1Entry( int index, char *buffer, int bufferSize );
+int CL_AdvertisementBridge_GetLabelList2Count( void );
+void CL_AdvertisementBridge_GetLabelList2Entry( int index, char *buffer, int bufferSize );
 
 //
 // cl_ui.c

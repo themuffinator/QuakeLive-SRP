@@ -188,6 +188,19 @@ typedef void (APIENTRY * PFNGLCLIENTACTIVETEXTUREARBPROC) (GLenum target);
 #define GL_RGB_S3TC							0x83A0
 #define GL_RGB4_S3TC						0x83A1
 
+#ifndef GL_SAMPLES_PASSED_ARB
+#define GL_SAMPLES_PASSED_ARB				0x8914
+#endif
+
+typedef void (APIENTRY * PFNGLGENQUERIESARBPROC) (GLsizei n, GLuint *ids);
+typedef void (APIENTRY * PFNGLDELETEQUERIESARBPROC) (GLsizei n, const GLuint *ids);
+typedef GLboolean (APIENTRY * PFNGLISQUERYARBPROC) (GLuint id);
+typedef void (APIENTRY * PFNGLBEGINQUERYARBPROC) (GLenum target, GLuint id);
+typedef void (APIENTRY * PFNGLENDQUERYARBPROC) (GLenum target);
+typedef void (APIENTRY * PFNGLGETQUERYIVARBPROC) (GLenum target, GLenum pname, GLint *params);
+typedef void (APIENTRY * PFNGLGETQUERYOBJECTIVARBPROC) (GLuint id, GLenum pname, GLint *params);
+typedef void (APIENTRY * PFNGLGETQUERYOBJECTUIVARBPROC) (GLuint id, GLenum pname, GLuint *params);
+
 
 // extensions will be function pointers on all platforms
 
@@ -197,6 +210,14 @@ extern	void ( APIENTRY * qglClientActiveTextureARB )( GLenum texture );
 
 extern	void ( APIENTRY * qglLockArraysEXT) (GLint, GLint);
 extern	void ( APIENTRY * qglUnlockArraysEXT) (void);
+extern	void ( APIENTRY * qglGenQueriesARB )( GLsizei n, GLuint *ids );
+extern	void ( APIENTRY * qglDeleteQueriesARB )( GLsizei n, const GLuint *ids );
+extern	GLboolean ( APIENTRY * qglIsQueryARB )( GLuint id );
+extern	void ( APIENTRY * qglBeginQueryARB )( GLenum target, GLuint id );
+extern	void ( APIENTRY * qglEndQueryARB )( GLenum target );
+extern	void ( APIENTRY * qglGetQueryivARB )( GLenum target, GLenum pname, GLint *params );
+extern	void ( APIENTRY * qglGetQueryObjectivARB )( GLuint id, GLenum pname, GLint *params );
+extern	void ( APIENTRY * qglGetQueryObjectuivARB )( GLuint id, GLenum pname, GLuint *params );
 
 //===========================================================================
 

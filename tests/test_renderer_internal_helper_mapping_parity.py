@@ -77,6 +77,7 @@ def test_renderer_bsp_loader_tracks_quakelive_advertisement_brush_models() -> No
 	tr_bsp = _read("src/code/renderer/tr_bsp.c")
 	tr_local = _read("src/code/renderer/tr_local.h")
 	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_main = _read("src/code/renderer/tr_main.c")
 	tr_world = _read("src/code/renderer/tr_world.c")
 
 	assert "#define\tLUMP_ADVERTISEMENTS_QL\t17" in tr_bsp
@@ -95,12 +96,12 @@ def test_renderer_bsp_loader_tracks_quakelive_advertisement_brush_models() -> No
 	assert "vec3_t\t\tpoints[4];" in tr_local
 	assert "int\t\t\tsourceIndex;" in tr_local
 	assert "void\t\tR_AdvertisementList_f( void );" in tr_local
-	assert "static void R_AddAdvertisementSurfaces( void ) {" in tr_world
+	assert "static int R_AddAdvertisementSurface( qlAdvertisement_t *advertisement ) {" in tr_world
 	assert "void R_AdvertisementList_f( void ) {" in tr_world
 	assert 'ri.Printf( PRINT_ALL, "advertlist: world=%s loaded=%d\\n",' in tr_world
 	assert '"advertlist: [%d] cellId=%d sourceIndex=%d model=*%d surfaces=%d shader=%s center=(%.1f %.1f %.1f) normal=(%.3f %.3f %.3f)\\n"' in tr_world
 	assert '"advertlist:      points=(%.1f %.1f %.1f) (%.1f %.1f %.1f) (%.1f %.1f %.1f) (%.1f %.1f %.1f)\\n"' in tr_world
-	assert "static int R_CullAdvertisementQuad( const qlAdvertisement_t *advertisement ) {" in tr_world
+	assert "static int R_CullAdvertisementQuad( const vec3_t points[4] ) {" in tr_world
 	assert "s_worldData.bmodelHandleBase = tr.numModels;" in tr_bsp
 	assert "s_worldData.numBmodels = count;" in tr_bsp
 	assert "model = R_GetModelByHandle( s_worldData.bmodelHandleBase + modelNum );" in tr_bsp
@@ -111,10 +112,10 @@ def test_renderer_bsp_loader_tracks_quakelive_advertisement_brush_models() -> No
 	assert "tr.currentEntity = &tr.worldEntity;" in tr_world
 	assert "VectorSubtract( tr.refdef.vieworg, advertisement->center, viewDelta );" in tr_world
 	assert "if ( DotProduct( advertisement->normal, viewDelta ) <= 0.0f ) {" in tr_world
-	assert "if ( R_CullAdvertisementQuad( advertisement ) == CULL_OUT ) {" in tr_world
-	assert "R_DlightBmodel( bmodel );" in tr_world
-	assert "R_AddWorldSurface( bmodel->firstSurface, tr.currentEntity->needDlights );" in tr_world
-	assert "R_AddAdvertisementSurfaces();" in tr_world
+	assert "cull = R_CullAdvertisementQuad( advertisement->points );" in tr_world
+	assert "if ( cull == CULL_OUT ) {" in tr_world
+	assert "R_AddDrawSurf( surface->data, surface->shader, surface->fogIndex, qfalse );" in tr_world
+	assert "R_UpdateAdvertisements();" in tr_main
 	assert 'ri.Cmd_AddCommand( "advertlist", R_AdvertisementList_f );' in tr_init
 	assert 'ri.Cmd_RemoveCommand( "advertlist" );' in tr_init
 

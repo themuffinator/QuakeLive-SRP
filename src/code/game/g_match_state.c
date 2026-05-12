@@ -211,6 +211,18 @@ static void G_UpdateRoundStartConfigString( void ) {
 
 /*
 =============
+G_UpdateSuddenDeathStatusConfigString
+
+Publishes the dedicated retail sudden-death status latch alongside the
+broader match-state payload.
+=============
+*/
+static void G_UpdateSuddenDeathStatusConfigString( void ) {
+	trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );
+}
+
+/*
+=============
 G_UpdateMatchStateConfigString
 
 Builds the configstring payload describing round timers, overtime, and timeout state.
@@ -263,6 +275,7 @@ void G_UpdateMatchStateConfigString( void ) {
 	}
 
 	G_UpdateRoundStartConfigString();
+	G_UpdateSuddenDeathStatusConfigString();
 	trap_SetConfigstring( CS_MATCH_STATE, info );
 	G_UpdateTimeoutConfigStrings();
 }

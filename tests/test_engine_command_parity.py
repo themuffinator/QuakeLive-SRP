@@ -20,16 +20,65 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_4B5170` -> `Cmd_UnAlias_f`
 # `sub_4B51C0` -> `Cmd_UnAliasAll_f`
 # `sub_4B6FE0` -> `Key_Bindlist_f`
+# `sub_4C7CB0` -> `Cbuf_Init`
+# `sub_4C7CF0` -> `Cbuf_AddText`
+# `sub_4C7D50` -> `Cbuf_AddTokenized`
+# `sub_4C7E50` -> `Cbuf_InsertText`
+# `sub_4C7ED0` -> `Cmd_Argc`
+# `sub_4C7EE0` -> `Cmd_Argv`
+# `sub_4C7F00` -> `Cmd_ArgvBuffer`
+# `sub_4C7F40` -> `Cmd_Args`
+# `sub_4C7FD0` -> `Cmd_ArgsFrom`
+# `sub_4C8060` -> `Cmd_ArgsBuffer`
+# `sub_4C8080` -> `Cmd_Cmd`
+# `sub_4C8090` -> `Cmd_TokenizeString`
+# `sub_4C82F0` -> `Cmd_CommandCompletion`
+# `sub_4C8320` -> `Cmd_ExecuteString`
 # `sub_4C8430` -> `Cmd_List_f`
 # `sub_4C84B0` -> `Cmd_Wait_f`
+# `sub_4C84E0` -> `Cbuf_Execute`
 # `sub_4C86D0` -> `Cmd_Exec_f`
 # `sub_4C87B0` -> `Cmd_Vstr_f`
 # `sub_4C87F0` -> `Cmd_Echo_f`
+# `sub_4C8890` -> `Cmd_Init`
+# `sub_4C8900` -> `Cbuf_ExecuteText`
+# `sub_4C8970` -> `Com_BeginRedirect`
+# `sub_4C89A0` -> `Com_EndRedirect`
+# `sub_4C89E0` -> `Com_SafeMode`
+# `sub_4C8A70` -> `Com_StartupVariable`
+# `sub_4C8AE0` -> `Com_AddStartupCommands`
+# `sub_4C8B40` -> `Com_StringContains`
+# `sub_4C9160` -> `Com_HashKey`
+# `sub_4C91B0` -> `Com_RealTime`
+# `sub_4C9390` -> `Com_RunAndTimeServerPacket`
 # `sub_4C93D0` -> `Com_Crash_f`
+# `sub_4C93E0` -> `Com_ProfilePidIsCurrentProcess`
+# `sub_4C94A0` -> `Com_Shutdown`
+# `sub_4C9EB0` -> `Com_ParseCommandLine`
 # `sub_4C9E70` -> `Com_Quit_f`
+# `sub_4CA010` -> `Info_Print`
+# `sub_4CA1D0` -> `Z_Free`
+# `sub_4CA2C0` -> `Z_TagMalloc`
+# `sub_4CA3A0` -> `Z_Malloc`
+# `sub_4CA3D0` -> `S_Malloc`
+# `sub_4CA3F0` -> `Z_CheckHeap`
+# `sub_4CA470` -> `CopyString`
 # `sub_4CA4E0` -> `Com_Meminfo_f`
+# `sub_4CA750` -> `Com_TouchMemory`
+# `sub_4CA790` -> `Com_InitSmallZoneMemory`
+# `sub_4CA840` -> `Com_InitZoneMemory`
+# `sub_4CA910` -> `Hunk_Clear`
+# `sub_4CAAA0` -> `Hunk_AllocateTempMemory`
+# `sub_4CAB80` -> `Hunk_FreeTempMemory`
+# `sub_4CAC00` -> `Com_InitJournaling`
+# `sub_4CACE0` -> `Com_GetRealEvent`
+# `sub_4CAE10` -> `Com_PushEvent`
+# `sub_4CAEB0` -> `Com_GetEvent`
+# `sub_4CAF40` -> `Com_Milliseconds`
 # `sub_4CAF90` -> `Com_Error_f`
 # `sub_4CAFC0` -> `Com_Freeze_f`
+# `sub_4CB070` -> `Com_ReadCDKey`
+# `sub_4CB170` -> `Com_AppendCDKey`
 # `sub_4CD4D0` -> `Cvar_Add_f`
 # `sub_4CD560` -> `Cvar_Mult_f`
 # `sub_4CD860` -> `Cvar_Clear_f`
@@ -41,6 +90,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_4D1700` -> `FS_TouchFile_f`
 # `sub_4D5750` -> `MSG_ReportChangeVectors_f`
 # `sub_4DEC60` -> `SV_Status_f`
+# `sub_4ED7E0` -> `Com_IdleSleep`
+# `sub_4CB630` -> `Com_WriteClientConfig_f`
 
 
 def _extract_function_block(text: str, signature: str) -> str:
@@ -96,6 +147,7 @@ def test_console_and_alias_command_families_match_retail_wiring() -> None:
 	toggle_block = _extract_function_block(cl_console, "void Con_ToggleConsole_f (void) {")
 	condump_block = _extract_function_block(cl_console, "void Con_Dump_f (void)")
 	find_block = _extract_function_block(cl_console, "void Con_Find_f( void ) {")
+	find_matches_block = _extract_function_block(cl_console, "static void Con_FindMatchesInHistory( void ) {")
 	alias_block = _extract_function_block(cmd_c, "void Cmd_Alias_f( void ) {")
 	unalias_block = _extract_function_block(cmd_c, "void Cmd_UnAlias_f( void ) {")
 	unaliasall_block = _extract_function_block(cmd_c, "void Cmd_UnAliasAll_f( void ) {")
@@ -113,8 +165,9 @@ def test_console_and_alias_command_families_match_retail_wiring() -> None:
 	assert 'strcat( buffer, "\\n" );' in condump_block
 
 	assert 'Com_Printf( "usage: find <substring>  ; This is a case sensitive search of the console history.\\n" );' in find_block
-	assert 'limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;' in find_block
-	assert 'if ( strstr( buffer, needle ) && !strstr( buffer, "\\\\find" ) && !strstr( buffer, "usage: find " ) ) {' in find_block
+	assert 'Con_FindMatchesInHistory();' in find_block
+	assert 'limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;' in find_matches_block
+	assert 'if ( strstr( buffer, needle ) && !strstr( buffer, "\\\\find" ) && !strstr( buffer, "usage: find " ) ) {' in find_matches_block
 
 	assert 'Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);' in cl_console
 	assert 'Cmd_AddCommand ("messagemode", Con_MessageMode_f);' in cl_console
@@ -168,6 +221,87 @@ def test_qcommon_script_command_surface_matches_retail_registration_order() -> N
 	assert 'Cmd_AddCommand ("crash", Com_Crash_f );' in com_init_block
 	assert 'Cmd_AddCommand ("freeze", Com_Freeze_f);' in com_init_block
 	assert 'Cmd_AddCommand ("quit", Com_Quit_f);' in com_init_block
+	assert 'memset( com_pushedEvents, 0, sizeof( com_pushedEvents ) );' in com_init_block
+	assert 'com_pushedEventsHead = 0;' in com_init_block
+	assert 'com_pushedEventsTail = 0;' in com_init_block
+
+
+def test_qcommon_command_buffer_and_dispatch_helpers_match_retail_contracts() -> None:
+	cmd_c = (REPO_ROOT / "src/code/qcommon/cmd.c").read_text(encoding="utf-8")
+
+	init_buffer_block = _extract_function_block(cmd_c, "void Cbuf_Init (void)")
+	add_text_block = _extract_function_block(cmd_c, "void Cbuf_AddText( const char *text ) {")
+	add_tokenized_block = _extract_function_block(cmd_c, "void Cbuf_AddTokenized( const char *text ) {")
+	insert_text_block = _extract_function_block(cmd_c, "void Cbuf_InsertText( const char *text ) {")
+	argc_block = _extract_function_block(cmd_c, "Cmd_Argc( void ) {")
+	argv_block = _extract_function_block(cmd_c, "Cmd_Argv( int arg ) {")
+	argv_buffer_block = _extract_function_block(cmd_c, "Cmd_ArgvBuffer( int arg, char *buffer, int bufferLength ) {")
+	args_block = _extract_function_block(cmd_c, "Cmd_Args( void ) {")
+	args_from_block = _extract_function_block(cmd_c, "Cmd_ArgsFrom( int arg ) {")
+	args_buffer_block = _extract_function_block(cmd_c, "Cmd_ArgsBuffer( char *buffer, int bufferLength ) {")
+	cmd_cmd_block = _extract_function_block(cmd_c, "char *Cmd_Cmd()")
+	tokenize_block = _extract_function_block(cmd_c, "void Cmd_TokenizeString( const char *text_in ) {")
+	completion_block = _extract_function_block(cmd_c, "Cmd_CommandCompletion( void(*callback)(const char *s) ) {")
+	execute_block = _extract_function_block(cmd_c, "Cmd_ExecuteString( const char *text ) {")
+
+	assert 'cmd_text.data = cmd_text_buf;' in init_buffer_block
+	assert 'cmd_text.maxsize = MAX_CMD_BUFFER;' in init_buffer_block
+	assert 'cmd_text.cursize = 0;' in init_buffer_block
+
+	assert 'l = strlen (text);' in add_text_block
+	assert 'Com_Printf ("Cbuf_AddText: overflow\\n");' in add_text_block
+	assert 'Com_Memcpy(&cmd_text.data[cmd_text.cursize], text, l);' in add_text_block
+	assert 'cmd_text.cursize += l;' in add_text_block
+
+	assert 'for ( token = text ; *token ; token += tokenLength + 1 ) {' in add_tokenized_block
+	assert 'Com_Printf( "Cbuf_AddTokenized: overflow\\n" );' in add_tokenized_block
+	assert 'totalLength += tokenLength;' in add_tokenized_block
+	assert '*dest++ = \' \';' in add_tokenized_block
+	assert '*dest++ = \'"\';' in add_tokenized_block
+	assert '*dest++ = \'\\n\';' in add_tokenized_block
+	assert 'cmd_text.cursize += totalLength;' in add_tokenized_block
+
+	assert 'len = strlen( text ) + 1;' in insert_text_block
+	assert 'Com_Printf( "Cbuf_InsertText overflowed\\n" );' in insert_text_block
+	assert 'for ( i = cmd_text.cursize - 1 ; i >= 0 ; i-- ) {' in insert_text_block
+	assert "cmd_text.data[ len - 1 ] = '\\n';" in insert_text_block
+	assert 'cmd_text.cursize += len;' in insert_text_block
+
+	assert 'return cmd_argc;' in argc_block
+	assert 'if ( (unsigned)arg >= cmd_argc ) {' in argv_block
+	assert 'return "";' in argv_block
+	assert 'Q_strncpyz( buffer, Cmd_Argv( arg ), bufferLength );' in argv_buffer_block
+
+	assert 'cmd_args[0] = 0;' in args_block
+	assert 'for ( i = 1 ; i < cmd_argc ; i++ ) {' in args_block
+	assert 'strcat( cmd_args, cmd_argv[i] );' in args_block
+	assert 'strcat( cmd_args, " " );' in args_block
+
+	assert 'if (arg < 0)' in args_from_block
+	assert 'for ( i = arg ; i < cmd_argc ; i++ ) {' in args_from_block
+	assert 'Q_strncpyz( buffer, Cmd_Args(), bufferLength );' in args_buffer_block
+	assert 'return cmd_cmd;' in cmd_cmd_block
+
+	assert 'cmd_argc = 0;' in tokenize_block
+	assert 'Q_strncpyz( cmd_cmd, text_in, sizeof(cmd_cmd) );' in tokenize_block
+	assert "if ( text[0] == '/' && text[1] == '/' ) {" in tokenize_block
+	assert "if ( text[0] == '/' && text[1] =='*' ) {" in tokenize_block
+	assert 'if ( *text == \'"\' ) {' in tokenize_block
+	assert 'cmd_argv[cmd_argc] = textOut;' in tokenize_block
+
+	assert 'for (cmd=cmd_functions ; cmd ; cmd=cmd->next) {' in completion_block
+	assert 'callback( cmd->name );' in completion_block
+
+	assert 'Cmd_TokenizeString( text );' in execute_block
+	assert 'if ( !Q_stricmp( cmd_argv[0],cmd->name ) ) {' in execute_block
+	assert '*prev = cmd->next;' in execute_block
+	assert 'cmd->next = cmd_functions;' in execute_block
+	assert 'if ( !cmd->function ) {' in execute_block
+	assert 'if ( Cvar_Command() ) {' in execute_block
+	assert 'if ( com_cl_running && com_cl_running->integer && CL_GameCommand() ) {' in execute_block
+	assert 'if ( com_sv_running && com_sv_running->integer && SV_GameCommand() ) {' in execute_block
+	assert 'if ( com_cl_running && com_cl_running->integer && UI_GameCommand() ) {' in execute_block
+	assert 'CL_ForwardCommandToServer ( text );' in execute_block
 
 
 def test_qcommon_script_and_debug_command_handlers_match_retail_contracts() -> None:
@@ -175,10 +309,17 @@ def test_qcommon_script_and_debug_command_handlers_match_retail_contracts() -> N
 	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
 
 	wait_block = _extract_function_block(cmd_c, "void Cmd_Wait_f( void ) {")
+	execute_text_block = _extract_function_block(cmd_c, "void Cbuf_ExecuteText (int exec_when, const char *text)")
+	execute_buffer_block = _extract_function_block(cmd_c, "void Cbuf_Execute (void)")
 	exec_block = _extract_function_block(cmd_c, "void Cmd_Exec_f( void ) {")
 	vstr_block = _extract_function_block(cmd_c, "void Cmd_Vstr_f( void ) {")
 	echo_block = _extract_function_block(cmd_c, "void Cmd_Echo_f (void)")
 	list_block = _extract_function_block(cmd_c, "void Cmd_List_f (void)")
+	idle_sleep_block = _extract_function_block(common_c, "static void Com_IdleSleep( int msec ) {")
+	hash_block = _extract_function_block(common_c, "int Com_HashKey(char *string, int maxlen) {")
+	packet_block = _extract_function_block(common_c, "void Com_RunAndTimeServerPacket( netadr_t *evFrom, msg_t *buf ) {")
+	real_time_block = _extract_function_block(common_c, "int Com_RealTime(qtime_t *qtime) {")
+	milliseconds_block = _extract_function_block(common_c, "int Com_Milliseconds (void) {")
 	meminfo_block = _extract_function_block(common_c, "void Com_Meminfo_f( void ) {")
 	error_block = _extract_function_block(common_c, "static void Com_Error_f (void) {")
 	freeze_block = _extract_function_block(common_c, "static void Com_Freeze_f (void) {")
@@ -187,6 +328,22 @@ def test_qcommon_script_and_debug_command_handlers_match_retail_contracts() -> N
 
 	assert 'cmd_wait = atoi( Cmd_Argv( 1 ) );' in wait_block
 	assert 'cmd_wait = 1;' in wait_block
+
+	assert 'case EXEC_NOW:' in execute_text_block
+	assert 'Cmd_ExecuteString (text);' in execute_text_block
+	assert 'Cbuf_Execute();' in execute_text_block
+	assert 'case EXEC_INSERT:' in execute_text_block
+	assert 'Cbuf_InsertText (text);' in execute_text_block
+	assert 'case EXEC_APPEND:' in execute_text_block
+	assert 'Cbuf_AddText (text);' in execute_text_block
+	assert 'Com_Error (ERR_FATAL, "Cbuf_ExecuteText: bad exec_when");' in execute_text_block
+
+	assert 'while (cmd_text.cursize)' in execute_buffer_block
+	assert 'if ( cmd_wait )\t{' in execute_buffer_block
+	assert 'if ( !(quotes&1) &&  text[i] == \';\')' in execute_buffer_block
+	assert 'if (text[i] == \'\\n\' || text[i] == \'\\r\' )' in execute_buffer_block
+	assert 'memmove (text, text+i, cmd_text.cursize);' in execute_buffer_block
+	assert 'Cmd_ExecuteString (line);' in execute_buffer_block
 
 	assert 'Com_Printf ("exec <filename> : execute a script file\\n");' in exec_block
 	assert 'COM_DefaultExtension( filename, sizeof( filename ), ".cfg" );' in exec_block
@@ -207,6 +364,37 @@ def test_qcommon_script_and_debug_command_handlers_match_retail_contracts() -> N
 	assert 'if (match && !Com_Filter(match, cmd->name, qfalse)) continue;' in list_block
 	assert 'Com_Printf ("%s\\n", cmd->name);' in list_block
 	assert 'Com_Printf ("%i commands\\n", i);' in list_block
+
+	assert 'if ( msec <= 0 ) {' in idle_sleep_block
+	assert 'dueTime.QuadPart = -( (LONGLONG)msec * 10000 );' in idle_sleep_block
+	assert 'timer = CreateWaitableTimer( NULL, qtrue, NULL );' in idle_sleep_block
+	assert 'SetWaitableTimer( timer, &dueTime, 0, NULL, NULL, qfalse );' in idle_sleep_block
+	assert 'WaitForSingleObject( timer, INFINITE );' in idle_sleep_block
+	assert 'CloseHandle( timer );' in idle_sleep_block
+	assert 'usleep( msec * 1000 );' in idle_sleep_block
+	assert 'if ( !timer ) {' not in idle_sleep_block
+	assert 'if ( SetWaitableTimer( timer, &dueTime, 0, NULL, NULL, qfalse ) ) {' not in idle_sleep_block
+
+	assert 'hash = 0;' in hash_block
+	assert "for (i = 0; i < maxlen && string[i] != '\\0'; i++) {" in hash_block
+	assert 'hash += string[i] * (119 + i);' in hash_block
+	assert 'hash = (hash ^ (hash >> 10) ^ (hash >> 20));' in hash_block
+	assert 'return hash;' in hash_block
+
+	assert 'SV_PacketEvent( *evFrom, buf );' in packet_block
+
+	assert 't = time(NULL);' in real_time_block
+	assert 'if (!qtime)' in real_time_block
+	assert 'tms = localtime(&t);' in real_time_block
+	assert 'qtime->tm_sec = tms->tm_sec;' in real_time_block
+	assert 'qtime->tm_isdst = tms->tm_isdst;' in real_time_block
+	assert 'return t;' in real_time_block
+
+	assert 'ev = Com_GetRealEvent();' in milliseconds_block
+	assert 'if ( ev.evType != SE_NONE ) {' in milliseconds_block
+	assert 'Com_PushEvent( &ev );' in milliseconds_block
+	assert '} while ( ev.evType != SE_NONE );' in milliseconds_block
+	assert 'return ev.evTime;' in milliseconds_block
 
 	assert 'Com_Printf( "%8i bytes total hunk\\n", s_hunkTotal );' in meminfo_block
 	assert 'Com_Printf( "%8i bytes total zone\\n", s_zoneTotal );' in meminfo_block
@@ -229,6 +417,225 @@ def test_qcommon_script_and_debug_command_handlers_match_retail_contracts() -> N
 	assert 'Com_Shutdown ();' in quit_block
 	assert 'FS_Shutdown(qtrue);' in quit_block
 	assert 'Sys_Quit ();' in quit_block
+
+
+def test_qcommon_redirect_and_startup_helpers_match_retail_contracts() -> None:
+	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+
+	begin_redirect_block = _extract_function_block(common_c, "void Com_BeginRedirect (char *buffer, int buffersize, void (*flush)( char *) )")
+	end_redirect_block = _extract_function_block(common_c, "void Com_EndRedirect (void)")
+	free_startup_lines_block = _extract_function_block(common_c, "static void Com_FreeStartupCommandLines( void ) {")
+	startup_argv_block = _extract_function_block(common_c, "static char *Com_StartupLineArgv( char *line, int arg ) {")
+	parse_block = _extract_function_block(common_c, "void Com_ParseCommandLine( char *commandLine ) {")
+	profile_pid_block = _extract_function_block(common_c, "static qboolean Com_ProfilePidIsCurrentProcess( void ) {")
+	safe_mode_block = _extract_function_block(common_c, "qboolean Com_SafeMode( void ) {")
+	startup_variable_block = _extract_function_block(common_c, "void Com_StartupVariable( const char *match ) {")
+	startup_commands_block = _extract_function_block(common_c, "qboolean Com_AddStartupCommands( void ) {")
+	shutdown_block = _extract_function_block(common_c, "void Com_Shutdown (void) {")
+	string_contains_block = _extract_function_block(common_c, "char *Com_StringContains(char *str1, char *str2, int casesensitive) {")
+
+	assert 'if (!buffer || !buffersize || !flush)' in begin_redirect_block
+	assert 'rd_buffer = buffer;' in begin_redirect_block
+	assert 'rd_buffersize = buffersize;' in begin_redirect_block
+	assert 'rd_flush = flush;' in begin_redirect_block
+	assert '*rd_buffer = 0;' in begin_redirect_block
+
+	assert 'if ( rd_flush ) {' in end_redirect_block
+	assert 'rd_flush(rd_buffer);' in end_redirect_block
+	assert 'rd_buffer = NULL;' in end_redirect_block
+	assert 'rd_buffersize = 0;' in end_redirect_block
+	assert 'rd_flush = NULL;' in end_redirect_block
+
+	assert 'if ( com_consoleLineBuffer ) {' in free_startup_lines_block
+	assert 'free( com_consoleLineBuffer );' in free_startup_lines_block
+	assert 'Com_Memset( com_consoleLines, 0, sizeof( com_consoleLines ) );' in free_startup_lines_block
+	assert 'com_numConsoleLines = 0;' in free_startup_lines_block
+
+	assert 'if ( !line || !line[0] || arg < 0 ) {' in startup_argv_block
+	assert 'line += strlen( line ) + 1;' in startup_argv_block
+	assert 'if ( !line[0] ) {' in startup_argv_block
+	assert 'return "";' in startup_argv_block
+
+	assert 'Com_FreeStartupCommandLines();' in parse_block
+	assert 'Cmd_TokenizeString( commandLine );' in parse_block
+	assert 'argc = Cmd_Argc();' in parse_block
+	assert 'if ( token[0] == \'+\' ) {' in parse_block
+	assert 'if ( !Q_stricmp( token, "+bind" ) ) {' in parse_block
+	assert 'if ( bindCommandIndex <= 0 || effectiveIndex - 2 != bindCommandIndex ) {' in parse_block
+	assert 'token++;' in parse_block
+	assert 'if ( com_numConsoleLines != 0 ) {' in parse_block
+	assert '*cursor++ = \'\\0\';' in parse_block
+	assert 'com_consoleLines[com_numConsoleLines] = cursor;' in parse_block
+	assert 'Com_Memcpy( cursor, token, tokenLength + 1 );' in parse_block
+
+	assert 'pidLength = FS_FOpenFileRead( "profile.pid", &f, qtrue );' in profile_pid_block
+	assert 'if ( pidLength < 0 || !f ) {' in profile_pid_block
+	assert 'Com_Memset( pidBuffer, 0, sizeof( pidBuffer ) );' in profile_pid_block
+	assert 'if ( FS_Read( pidBuffer, sizeof( pidBuffer ) - 1, f ) < 0 ) {' in profile_pid_block
+	assert 'FS_FCloseFile( f );' in profile_pid_block
+	assert 'retainedPid = atoi( pidBuffer );' in profile_pid_block
+	assert 'if ( retainedPid > 0 && com_pid && retainedPid != com_pid->integer ) {' in profile_pid_block
+
+	assert 'if ( com_crashed && com_crashed->integer' in safe_mode_block
+	assert '&& ( !com_ignorecrash || !com_ignorecrash->integer ) ) {' in safe_mode_block
+	assert 'if ( !Q_stricmp( com_consoleLines[i], "safe" )' in safe_mode_block
+	assert '|| !Q_stricmp( com_consoleLines[i], "cvar_restart" ) ) {' in safe_mode_block
+	assert 'com_consoleLines[i][0] = 0;' in safe_mode_block
+
+	assert 'if ( strcmp( com_consoleLines[i], "set" ) ) {' in startup_variable_block
+	assert 's = Com_StartupLineArgv( com_consoleLines[i], 1 );' in startup_variable_block
+	assert 'Cvar_Set( s, Com_StartupLineArgv( com_consoleLines[i], 2 ) );' in startup_variable_block
+	assert 'cv = Cvar_Get( s, "", 0 );' in startup_variable_block
+	assert 'cv->flags |= CVAR_USER_CREATED;' in startup_variable_block
+
+	assert 'added = qfalse;' in startup_commands_block
+	assert 'if ( Q_stricmp( com_consoleLines[i], "set" ) ) {' in startup_commands_block
+	assert 'added = qtrue;' in startup_commands_block
+	assert 'Cbuf_AddTokenized( com_consoleLines[i] );' in startup_commands_block
+
+	assert 'if (logfile) {' in shutdown_block
+	assert 'FS_FCloseFile (logfile);' in shutdown_block
+	assert 'FS_WriteFile( "profile.pid", "0", 1 );' in shutdown_block
+	assert 'Zmq_ShutdownRuntime();' in shutdown_block
+	assert 'QL_Steamworks_Shutdown();' in shutdown_block
+	assert 'SyscallContract_Shutdown();' in shutdown_block
+	assert 'Com_FreeStartupCommandLines();' in shutdown_block
+
+	assert 'len = strlen(str1) - strlen(str2);' in string_contains_block
+	assert 'if (casesensitive) {' in string_contains_block
+	assert 'if (toupper(str1[j]) != toupper(str2[j])) {' in string_contains_block
+	assert 'return NULL;' in string_contains_block
+
+
+def test_qcommon_memory_allocator_and_hunk_helpers_match_retail_contracts() -> None:
+	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+
+	info_print_block = _extract_function_block(common_c, "void Info_Print( const char *s ) {")
+	free_block = _extract_function_block(common_c, "void Z_Free( void *ptr ) {")
+	tag_malloc_block = _extract_function_block(common_c, "void *Z_TagMalloc( int size, int tag ) {")
+	malloc_block = _extract_function_block(common_c, "void *Z_Malloc( int size ) {")
+	s_malloc_block = _extract_function_block(common_c, "void *S_Malloc( int size ) {")
+	check_heap_block = _extract_function_block(common_c, "void Z_CheckHeap( void ) {")
+	copy_string_block = _extract_function_block(common_c, "char *CopyString( const char *in ) {")
+	init_small_zone_block = _extract_function_block(common_c, "void Com_InitSmallZoneMemory( void ) {")
+	init_zone_block = _extract_function_block(common_c, "void Com_InitZoneMemory( void ) {")
+	hunk_clear_block = _extract_function_block(common_c, "void Hunk_Clear( void ) {")
+	alloc_temp_block = _extract_function_block(common_c, "void *Hunk_AllocateTempMemory( int size ) {")
+	free_temp_block = _extract_function_block(common_c, "void Hunk_FreeTempMemory( void *buf ) {")
+
+	assert "if (*s == '\\\\')" in info_print_block
+	assert "Com_Memset (o, ' ', 20-l);" in info_print_block
+	assert 'Com_Printf ("%s", key);' in info_print_block
+	assert 'Com_Printf ("MISSING VALUE\\n");' in info_print_block
+	assert 'Com_Printf ("%s\\n", value);' in info_print_block
+
+	assert 'block = (memblock_t *) ( (byte *)ptr - sizeof(memblock_t));' in free_block
+	assert 'if (block->id != ZONEID) {' in free_block
+	assert 'if (block->tag == TAG_STATIC) {' in free_block
+	assert 'Com_Memset( ptr, 0xaa, block->size - sizeof( *block ) );' in free_block
+	assert 'zone->rover = block;' in free_block
+	assert 'if ( !other->tag ) {' in free_block
+
+	assert 'if (!tag) {' in tag_malloc_block
+	assert 'Com_Error( ERR_FATAL, "Z_TagMalloc: tried to use a 0 tag" );' in tag_malloc_block
+	assert 'size += sizeof(memblock_t);' in tag_malloc_block
+	assert 'size += 4;' in tag_malloc_block
+	assert 'size = (size + 3) & ~3;' in tag_malloc_block
+	assert 'Com_Error( ERR_FATAL, "Z_Malloc: failed on allocation of %i bytes from the %s zone",' in tag_malloc_block
+	assert '*(int *)((byte *)base + base->size - 4) = ZONEID;' in tag_malloc_block
+
+	assert 'buf = Z_TagMalloc( size, TAG_GENERAL );' in malloc_block
+	assert 'Com_Memset( buf, 0, size );' in malloc_block
+	assert 'return Z_TagMalloc( size, TAG_SMALL );' in s_malloc_block
+
+	assert 'Com_Error( ERR_FATAL, "Z_CheckHeap: block size does not touch the next block\\n" );' in check_heap_block
+	assert 'Com_Error( ERR_FATAL, "Z_CheckHeap: next block doesn\'t have proper back link\\n" );' in check_heap_block
+	assert 'Com_Error( ERR_FATAL, "Z_CheckHeap: two consecutive free blocks\\n" );' in check_heap_block
+
+	assert 'return ((char *)&emptystring) + sizeof(memblock_t);' in copy_string_block
+	assert "return ((char *)&numberstring[in[0]-'0']) + sizeof(memblock_t);" in copy_string_block
+	assert 'out = S_Malloc (strlen(in)+1);' in copy_string_block
+	assert 'strcpy (out, in);' in copy_string_block
+
+	assert 's_smallZoneTotal = 512 * 1024;' in init_small_zone_block
+	assert 'smallzone = calloc( s_smallZoneTotal, 1 );' in init_small_zone_block
+	assert 'Com_Error( ERR_FATAL, "Small zone data failed to allocate %1.1f megs", (float)s_smallZoneTotal / (1024*1024) );' in init_small_zone_block
+	assert 'Z_ClearZone( smallzone, s_smallZoneTotal );' in init_small_zone_block
+
+	assert 'cv = Cvar_Get( "com_zoneMegs", DEF_COMZONEMEGS, CVAR_LATCH | CVAR_ARCHIVE );' in init_zone_block
+	assert 'if ( cv->integer < 20 ) {' in init_zone_block
+	assert 's_zoneTotal = 1024 * 1024 * 16;' in init_zone_block
+	assert 'mainzone = calloc( s_zoneTotal, 1 );' in init_zone_block
+	assert 'Com_Error( ERR_FATAL, "Zone data failed to allocate %i megs", s_zoneTotal / (1024*1024) );' in init_zone_block
+	assert 'Z_ClearZone( mainzone, s_zoneTotal );' in init_zone_block
+
+	assert 'CL_ShutdownCGame();' in hunk_clear_block
+	assert 'CL_ShutdownUI();' in hunk_clear_block
+	assert 'SV_ShutdownGameProgs();' in hunk_clear_block
+	assert 'CIN_CloseAllVideos();' in hunk_clear_block
+	assert 'hunk_permanent = &hunk_low;' in hunk_clear_block
+	assert 'hunk_temp = &hunk_high;' in hunk_clear_block
+	assert 'Com_Printf( "Hunk_Clear: reset the hunk ok\\n" );' in hunk_clear_block
+	assert 'VM_Clear();' in hunk_clear_block
+
+	assert 'if ( s_hunkData == NULL )' in alloc_temp_block
+	assert 'return Z_Malloc(size);' in alloc_temp_block
+	assert 'Hunk_SwapBanks();' in alloc_temp_block
+	assert 'size = ( (size+3)&~3 ) + sizeof( hunkHeader_t );' in alloc_temp_block
+	assert 'Com_Error( ERR_DROP, "Hunk_AllocateTempMemory: failed on %i", size );' in alloc_temp_block
+	assert 'hdr->magic = HUNK_MAGIC;' in alloc_temp_block
+	assert 'hdr->size = size;' in alloc_temp_block
+
+	assert 'if ( s_hunkData == NULL )' in free_temp_block
+	assert 'Z_Free(buf);' in free_temp_block
+	assert 'if ( hdr->magic != HUNK_MAGIC ) {' in free_temp_block
+	assert 'Com_Error( ERR_FATAL, "Hunk_FreeTempMemory: bad magic" );' in free_temp_block
+	assert 'hdr->magic = HUNK_FREE_MAGIC;' in free_temp_block
+	assert 'Com_Printf( "Hunk_FreeTempMemory: not the final block\\n" );' in free_temp_block
+
+
+def test_qcommon_journaling_and_event_helpers_match_retail_contracts() -> None:
+	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+
+	init_journaling_block = _extract_function_block(common_c, "void Com_InitJournaling( void ) {")
+	get_real_event_block = _extract_function_block(common_c, "Com_GetRealEvent( void ) {")
+	push_event_block = _extract_function_block(common_c, "void Com_PushEvent( sysEvent_t *event ) {")
+	get_event_block = _extract_function_block(common_c, "Com_GetEvent( void ) {")
+
+	assert 'Com_StartupVariable( "journal" );' in init_journaling_block
+	assert 'com_journal = Cvar_Get ("journal", "0", CVAR_INIT);' in init_journaling_block
+	assert 'com_journalFile = FS_FOpenFileWrite( "journal.dat" );' in init_journaling_block
+	assert 'com_journalDataFile = FS_FOpenFileWrite( "journaldata.dat" );' in init_journaling_block
+	assert 'FS_FOpenFileRead( "journal.dat", &com_journalFile, qtrue );' in init_journaling_block
+	assert 'FS_FOpenFileRead( "journaldata.dat", &com_journalDataFile, qtrue );' in init_journaling_block
+	assert 'Cvar_Set( "com_journal", "0" );' in init_journaling_block
+	assert 'Com_Printf( "Couldn\'t open journal files\\n" );' in init_journaling_block
+
+	assert 'if ( com_journal->integer == 2 ) {' in get_real_event_block
+	assert 'r = FS_Read( &ev, sizeof(ev), com_journalFile );' in get_real_event_block
+	assert 'Com_Error( ERR_FATAL, "Error reading from journal file" );' in get_real_event_block
+	assert 'if ( ev.evPtrLength ) {' in get_real_event_block
+	assert 'ev.evPtr = Z_Malloc( ev.evPtrLength );' in get_real_event_block
+	assert 'ev = Sys_GetEvent();' in get_real_event_block
+	assert 'if ( com_journal->integer == 1 ) {' in get_real_event_block
+	assert 'r = FS_Write( &ev, sizeof(ev), com_journalFile );' in get_real_event_block
+	assert 'Com_Error( ERR_FATAL, "Error writing to journal file" );' in get_real_event_block
+
+	assert 'static int printedWarning = 0;' in push_event_block
+	assert 'ev = &com_pushedEvents[ com_pushedEventsHead & (MAX_PUSHED_EVENTS-1) ];' in push_event_block
+	assert 'if ( com_pushedEventsHead - com_pushedEventsTail >= MAX_PUSHED_EVENTS ) {' in push_event_block
+	assert 'printedWarning = qtrue;' in push_event_block
+	assert 'Com_Printf( "WARNING: Com_PushEvent overflow\\n" );' in push_event_block
+	assert 'if ( ev->evPtr ) {' in push_event_block
+	assert 'Z_Free( ev->evPtr );' in push_event_block
+	assert 'com_pushedEventsTail++;' in push_event_block
+	assert '*ev = *event;' in push_event_block
+	assert 'com_pushedEventsHead++;' in push_event_block
+
+	assert 'if ( com_pushedEventsHead > com_pushedEventsTail ) {' in get_event_block
+	assert 'com_pushedEventsTail++;' in get_event_block
+	assert 'return com_pushedEvents[ (com_pushedEventsTail-1) & (MAX_PUSHED_EVENTS-1) ];' in get_event_block
+	assert 'return Com_GetRealEvent();' in get_event_block
 
 
 def test_qcommon_cvar_and_changevectors_command_surface_matches_retail_registration_order() -> None:

@@ -181,6 +181,15 @@ void *Sys_GetGameAPI( void *parms ) {
 
 /*
 ==================
+Sys_SetClipboardData
+==================
+*/
+void Sys_SetClipboardData( const char *text ) {
+	(void)text;
+}
+
+/*
+==================
 Sys_GetClipboardData
 ==================
 */

@@ -543,6 +543,7 @@ typedef struct drawSurf_s {
 
 #define	MAX_PATCH_SIZE		32			// max dimensions of a patch mesh in map file
 #define	MAX_GRID_SIZE		65			// max dimensions of a grid mesh in memory
+#define	MAX_MAP_ADVERTISEMENTS	30
 
 // when cgame directly specifies a polygon, it becomes a srfPoly_t
 // as soon as it is called
@@ -694,8 +695,19 @@ typedef struct {
 	vec3_t		center;
 	vec3_t		normal;
 	vec3_t		points[4];
+	int			cullState;
+	GLuint		occlusionQueryIds[2];
+	int			queryListIndex;
+	int			viewArea;
+	float		projectedNormalX;
+	float		projectedNormalY;
 	int			sourceIndex;
 } qlAdvertisement_t;
+
+typedef struct {
+	GLuint		occlusionQueryIds[2];
+	vec3_t		points[4];
+} advertisementQueryEntry_t;
 
 typedef struct {
 	char		name[MAX_QPATH];		// ie: maps/tim_dm2.bsp
@@ -1113,6 +1125,7 @@ extern	cvar_t	*r_debugSurface;
 extern	cvar_t	*r_simpleMipMaps;
 
 extern	cvar_t	*r_showImages;
+extern	cvar_t	*r_debugAds;
 extern	cvar_t	*r_debugSort;
 
 extern	cvar_t	*r_printShaders;
@@ -1388,6 +1401,10 @@ WORLD MAP
 void R_AddBrushModelSurfaces( trRefEntity_t *e );
 void R_AddWorldSurfaces( void );
 qboolean R_inPVS( const vec3_t p1, const vec3_t p2 );
+void R_UpdateAdvertisements( void );
+void R_QueueAdvertisementQueryCmd( void );
+void R_ShutdownAdvertisements( void );
+void R_DebugAdvertisements( void );
 
 
 /*
@@ -1612,11 +1629,18 @@ typedef struct {
 	qboolean jpeg;
 } screenshotCommand_t;
 
+typedef struct {
+	int						commandId;
+	int						numEntries;
+	advertisementQueryEntry_t	entries[MAX_MAP_ADVERTISEMENTS];
+} advertisementQueryCommand_t;
+
 typedef enum {
 	RC_END_OF_LIST,
 	RC_SET_COLOR,
 	RC_STRETCH_PIC,
 	RC_DRAW_SURFS,
+	RC_ADVERTISEMENT_QUERIES,
 	RC_DRAW_BUFFER,
 	RC_SWAP_BUFFERS,
 	RC_SCREENSHOT
@@ -1654,6 +1678,7 @@ extern	volatile qboolean	renderThreadActive;
 
 void *R_GetCommandBuffer( int bytes );
 void RB_ExecuteRenderCommands( const void *data );
+void R_AddAdvertisementQueryCmd( const advertisementQueryEntry_t *entries, int numEntries );
 
 void R_InitCommandBuffers( void );
 void R_ShutdownCommandBuffers( void );

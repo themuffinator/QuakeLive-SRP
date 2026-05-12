@@ -242,6 +242,30 @@ void	R_AddDrawSurfCmd( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 
 /*
 =============
+R_AddAdvertisementQueryCmd
+
+=============
+*/
+void R_AddAdvertisementQueryCmd( const advertisementQueryEntry_t *entries, int numEntries ) {
+	advertisementQueryCommand_t	*cmd;
+
+	if ( numEntries <= 0 ) {
+		return;
+	}
+
+	cmd = R_GetCommandBuffer( sizeof( *cmd ) );
+	if ( !cmd ) {
+		return;
+	}
+
+	cmd->commandId = RC_ADVERTISEMENT_QUERIES;
+	cmd->numEntries = numEntries;
+	Com_Memcpy( cmd->entries, entries, sizeof( cmd->entries ) );
+}
+
+
+/*
+=============
 RE_SetColor
 
 Passing NULL will set the color to white

@@ -921,12 +921,21 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
         "static void CL_RefreshSteamResourceBridgeCvars( void ) {",
     )
     resources_init_block = _extract_function_block(steam_resources, "void CL_InitSteamResources( void ) {")
+    resources_shutdown_block = _extract_function_block(steam_resources, "void CL_ShutdownSteamResources( void ) {")
+    request_avatar_image_block = _extract_function_block(
+        steamworks,
+        "ql_steam_avatar_image_state_t QL_Steamworks_RequestAvatarImage( uint32_t idLow, uint32_t idHigh, ql_steam_avatar_size_t size, int *outImage )",
+    )
     load_avatar_block = _extract_function_block(
         steamworks,
         "qboolean QL_Steamworks_LoadAvatarRGBA( uint32_t idLow, uint32_t idHigh, ql_steam_avatar_size_t size, uint8_t **outPixels, uint32_t *outWidth, uint32_t *outHeight )",
     )
 
     assert "CL_SteamResources_ParseAvatarURL( url, &size, &idLow, &idHigh )" in avatar_block
+    assert "QL_Steamworks_RequestAvatarImage( idLow, idHigh, size, NULL )" in avatar_block
+    assert "avatarState == QL_STEAM_AVATAR_IMAGE_PENDING" in avatar_block
+    assert "CL_SteamResources_MarkPendingAvatar( idLow, idHigh );" in avatar_block
+    assert "CL_SteamResources_ClearPendingAvatar( idLow, idHigh );" in avatar_block
     assert "QL_Steamworks_LoadAvatarRGBA( idLow, idHigh, size, &rgbaPixels, &width, &height )" in avatar_block
     assert "width == 0 || height == 0 || width > INT_MAX || height > INT_MAX" in avatar_block
     assert "*outPixels = rgbaPixels;" in avatar_block
@@ -937,6 +946,13 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
     assert "qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage );" in client_h
     assert "qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage ) {" in cl_main
     assert "image = R_CreateImage( name, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+    assert "if ( image == -1 ) {" in request_avatar_image_block
+    assert "return QL_STEAM_AVATAR_IMAGE_PENDING;" in request_avatar_image_block
+    assert "QL_Steamworks_RequestAvatarImage( idLow, idHigh, size, &image ) != QL_STEAM_AVATAR_IMAGE_READY" in load_avatar_block
+    assert "CL_SteamResources_RegisterAvatarCallbacks();" in resources_init_block
+    assert "CL_SteamResources_UnregisterAvatarCallbacks();" in resources_shutdown_block
+    assert "CL_SteamResources_ClearPendingAvatars();" in resources_init_block
+    assert "CL_SteamResources_ClearPendingAvatars();" in resources_shutdown_block or "CL_SteamResources_ClearPendingAvatars();" in steam_resources
 
     assert "if ( CL_SteamResources_IsAvatarURL( url ) ) {" in shader_block
     assert "CL_SteamResources_RequestAvatarRGBA( url, &rgbaPixels, &width, &height )" in shader_block
@@ -948,9 +964,9 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
     assert 'Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );' in refresh_cvars_block
     assert "CL_RefreshSteamResourceBridgeCvars();" in resources_init_block
 
-    assert "friendsVTable" in load_avatar_block
+    assert "friendsVTable" in request_avatar_image_block
     assert "utilsVTable" in load_avatar_block
-    assert "QL_Steamworks_GetAvatarMethodIndex( size )" in load_avatar_block
+    assert "QL_Steamworks_GetAvatarMethodIndex( size )" in request_avatar_image_block
     assert "utilsVTable[0x14 / 4]" in load_avatar_block
     assert "utilsVTable[0x18 / 4]" in load_avatar_block
 
@@ -959,9 +975,16 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
 
     frame_block = _extract_function_block(cl_main, "void CL_Frame ( int msec ) {")
+    steam_frame_block = _extract_function_block(cl_main, "static void SteamClient_Frame( void )")
     init_block = _extract_function_block(cl_main, "void CL_Init( void ) {")
     shutdown_block = _extract_function_block(cl_main, "void CL_Shutdown( void ) {")
-    callback_init_block = _extract_function_block(cl_main, "static void CL_Steam_InitCallbacks( void ) {")
+    steam_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamCallbacks_Init( void ) {")
+    steam_micro_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamMicroCallbacks_Init( void ) {")
+    steam_lobby_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamLobbyCallbacks_Init( void ) {")
+    steam_lobby_init_block = _extract_function_block(cl_main, "static qboolean SteamLobby_Init( void ) {")
+    workshop_callback_init_block = _extract_function_block(
+        cl_main, "static qboolean CL_Steam_RegisterWorkshopCallbacks( const char *workshopProvider, const char *workshopPolicy ) {"
+    )
     callback_shutdown_block = _extract_function_block(cl_main, "static void CL_Steam_ShutdownCallbacks( void ) {")
     callback_bootstrap_log_block = _extract_function_block(
         cl_main, "static void CL_LogClientCallbackBootstrapFallback( const char *reason ) {"
@@ -969,10 +992,11 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     stats_gate_block = _extract_function_block(cl_main, "static qboolean CL_Steam_ShouldRegisterStatsClear( void ) {")
     stats_clear_block = _extract_function_block(cl_main, "static void CL_Steam_ClearStats_f( void )")
 
-    assert "CL_Steam_Frame();" in frame_block
-    assert frame_block.index("CL_Steam_Frame();") < frame_block.index("CL_CheckForResend();")
+    assert "SteamClient_Frame();" in frame_block
+    assert frame_block.index("SteamClient_Frame();") < frame_block.index("CL_CheckForResend();")
     assert "CL_WebHost_Frame();" in frame_block
     assert frame_block.index("CL_WebHost_Frame();") < frame_block.index("CL_CheckForResend();")
+    assert "CL_Steam_ProcessStatsReportPackets();" in steam_frame_block
 
     assert "static const ql_platform_feature_descriptor *CL_GetMatchmakingServiceDescriptor( void ) {" in cl_main
     assert "static const ql_platform_feature_descriptor *CL_GetStatsServiceDescriptor( void ) {" in cl_main
@@ -980,9 +1004,13 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert "static void CL_LogStatsServiceIgnored( const char *commandName, const char *reason ) {" in cl_main
     assert "static void CL_LogStatsServiceRegistrationSkipped( const char *reason ) {" in cl_main
     assert "static void CL_RefreshPlatformServiceCvars( void ) {" in cl_main
-    assert "cl_statsClearRegistered = qfalse;" in init_block
-    assert "if ( CL_Steam_ShouldRegisterStatsClear() ) {" in init_block
-    assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' in init_block
+    steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
+    assert "cl_statsClearRegistered = qfalse;" not in init_block
+    assert "if ( CL_Steam_ShouldRegisterStatsClear() ) {" not in init_block
+    assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' not in init_block
+    assert "cl_statsClearRegistered = qfalse;" in steam_client_init_block
+    assert "if ( CL_Steam_ShouldRegisterStatsClear() ) {" in steam_client_init_block
+    assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' in steam_client_init_block
     assert 'Cvar_Get ("ui_resourceBridgeProvider", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_resourceBridgePolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_subscriptionBridgeMode", "Unavailable", CVAR_ROM );' in init_block
@@ -1001,20 +1029,25 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert 'Cvar_Get ("cl_statsPolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_socialOverlayProvider", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_socialOverlayPolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
+    steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
     assert "CL_RefreshPlatformServiceCvars();" in init_block
-    assert "CL_Steam_InitCallbacks();" in init_block
+    assert "CL_Steam_InitCallbacks();" not in init_block
+    assert "CL_Steam_InitCallbacks();" not in steam_client_init_block
+    assert "SteamCallbacks_Init();" in steam_client_init_block
+    assert "SteamMicroCallbacks_Init();" in steam_client_init_block
+    assert "SteamLobby_Init();" in steam_client_init_block
     assert "CL_WebHost_Init();" in init_block
 
     assert "CL_Steam_ShutdownCallbacks();" in shutdown_block
-    assert "if ( cl_statsClearRegistered ) {" in shutdown_block
-    assert 'Cmd_RemoveCommand ("stats_clear");' in shutdown_block
+    assert "if ( cl_statsClearRegistered ) {" not in shutdown_block
+    assert 'Cmd_RemoveCommand ("stats_clear");' not in shutdown_block
     assert "CL_WebHost_Shutdown();" in shutdown_block
 
-    assert "QL_Steamworks_RegisterClientCallbacks( &clientBindings )" in callback_init_block
-    assert "QL_Steamworks_RegisterLobbyCallbacks( &lobbyBindings )" in callback_init_block
-    assert "QL_Steamworks_RegisterMicroCallbacks( &microBindings )" in callback_init_block
-    assert "QL_Steamworks_RegisterWorkshopCallbacks( &workshopBindings )" in callback_init_block
-    assert "CL_RefreshPlatformServiceCvars();" in callback_init_block
+    assert "QL_Steamworks_RegisterClientCallbacks( &clientBindings )" in steam_callbacks_init_block
+    assert "QL_Steamworks_RegisterLobbyCallbacks( &lobbyBindings )" in steam_lobby_callbacks_init_block
+    assert "QL_Steamworks_RegisterMicroCallbacks( &microBindings )" in steam_micro_callbacks_init_block
+    assert "QL_Steamworks_RegisterWorkshopCallbacks( &workshopBindings )" in workshop_callback_init_block
+    assert "CL_RefreshPlatformServiceCvars();" in steam_client_init_block
     assert 'Cvar_Set( "cl_onlineServicesMode", QL_GetOnlineServicesModeLabel() );' in cl_main
     assert 'Cvar_Set( "cl_onlineServicesPolicy", QL_GetOnlineServicesPolicyLabel() );' in cl_main
     assert 'Cvar_Set( "cl_identityBootstrapMode", CL_GetIdentityBootstrapModeLabel() );' in cl_main
@@ -1032,14 +1065,15 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert "CL_GetStatsServicePolicyLabel()" in callback_bootstrap_log_block
     assert "CL_GetSocialOverlayServiceProviderLabel()" in callback_bootstrap_log_block
     assert "CL_GetSocialOverlayServicePolicyLabel()" in callback_bootstrap_log_block
-    assert "workshopProvider = CL_GetWorkshopServiceProviderLabel();" in callback_init_block
-    assert "workshopPolicy = CL_GetWorkshopServicePolicyLabel();" in callback_init_block
-    assert callback_init_block.index("CL_RefreshPlatformServiceCvars();") < callback_init_block.index("if ( !CL_SteamServicesEnabled() ) {")
-    assert 'CL_LogClientCallbackBootstrapFallback( "online services disabled; keeping compatibility-only browser event fallback" );' in callback_init_block
-    assert 'CL_LogClientCallbackBootstrapFallback( "callback registration failed; keeping compatibility-only browser event fallback" );' in callback_init_block
-    assert 'Com_sprintf( detail, sizeof( detail ), "callbacks unavailable; keeping polling fallback (%s [%s])",' in callback_init_block
-    assert 'CL_LogWorkshopLifecycle( "callback-bootstrap", detail );' in callback_init_block
-    assert "cl_steamCallbackState.callbackRegistrationActive = qtrue;" in callback_init_block
+    assert "workshopProvider = CL_GetWorkshopServiceProviderLabel();" in steam_client_init_block
+    assert "workshopPolicy = CL_GetWorkshopServicePolicyLabel();" in steam_client_init_block
+    assert steam_client_init_block.index("CL_RefreshPlatformServiceCvars();") < steam_client_init_block.index("if ( !CL_SteamServicesEnabled() ) {")
+    assert 'CL_LogClientCallbackBootstrapFallback( "online services disabled; keeping compatibility-only browser event fallback" );' in steam_client_init_block
+    assert 'CL_LogClientCallbackBootstrapFallback( "callback registration failed; keeping compatibility-only browser event fallback" );' in steam_client_init_block
+    assert 'Com_sprintf( detail, sizeof( detail ), "callbacks unavailable; keeping polling fallback (%s [%s])",' in workshop_callback_init_block
+    assert 'CL_LogWorkshopLifecycle( "callback-bootstrap", detail );' in workshop_callback_init_block
+    assert "cl_steamCallbackState.callbackRegistrationActive = qtrue;" in steam_client_init_block
+    assert "callbacksRegistered = SteamLobbyCallbacks_Init();" in steam_lobby_init_block
 
     assert "QL_Steamworks_UnregisterWorkshopCallbacks();" in callback_shutdown_block
     assert "QL_Steamworks_UnregisterMicroCallbacks();" in callback_shutdown_block
@@ -1062,6 +1096,9 @@ def test_platform_steamworks_reconstructs_retail_callback_bundle_registration_su
     register_client_block = _extract_function_block(
         steamworks, "qboolean QL_Steamworks_RegisterClientCallbacks( const ql_steam_client_callback_bindings_t *bindings ) {"
     )
+    register_avatar_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_RegisterAvatarCallbacks( const ql_steam_avatar_callback_bindings_t *bindings ) {"
+    )
     register_lobby_block = _extract_function_block(
         steamworks, "qboolean QL_Steamworks_RegisterLobbyCallbacks( const ql_steam_lobby_callback_bindings_t *bindings ) {"
     )
@@ -1077,6 +1114,7 @@ def test_platform_steamworks_reconstructs_retail_callback_bundle_registration_su
     assert '#define QL_STEAM_CALLBACK_RICH_PRESENCE_JOIN_REQUESTED 0x151' in steamworks
     assert '#define QL_STEAM_CALLBACK_USER_STATS_RECEIVED 0x44d' in steamworks
     assert '#define QL_STEAM_CALLBACK_FRIEND_RICH_PRESENCE_UPDATE 0x150' in steamworks
+    assert '#define QL_STEAM_CALLBACK_AVATAR_IMAGE_LOADED 0x14e' in steamworks
     assert '#define QL_STEAM_CALLBACK_ITEM_INSTALLED 0xd4d' in steamworks
     assert '#define QL_STEAM_CALLBACK_DOWNLOAD_ITEM_RESULT 0xd4e' in steamworks
     assert '#define QL_STEAM_CALLBACK_LOBBY_CREATED 0x201' in steamworks
@@ -1089,6 +1127,9 @@ def test_platform_steamworks_reconstructs_retail_callback_bundle_registration_su
     assert "QL_Steamworks_PrepareCallbackObject( &callbackState->ugcQueryCompleted" in register_client_block
     assert "QL_Steamworks_RegisterCallbackObject( &callbackState->richPresenceJoinRequested )" in register_client_block
     assert "QL_Steamworks_RegisterCallbackObject( &callbackState->friendRichPresenceUpdate )" in register_client_block
+
+    assert "QL_Steamworks_PrepareCallbackObject( &callbackState->avatarImageLoaded" in register_avatar_block
+    assert "QL_Steamworks_RegisterCallbackObject( &callbackState->avatarImageLoaded )" in register_avatar_block
 
     assert "QL_Steamworks_PrepareCallbackObject( &callbackState->lobbyChatMessage" in register_lobby_block
     assert "QL_Steamworks_PrepareCallbackObject( &callbackState->gameLobbyJoinRequested" in register_lobby_block
@@ -1107,6 +1148,7 @@ def test_platform_steamworks_reconstructs_retail_callback_bundle_registration_su
     assert "QL_Steamworks_UnregisterWorkshopCallbacks();" in shutdown_block
     assert "QL_Steamworks_UnregisterMicroCallbacks();" in shutdown_block
     assert "QL_Steamworks_UnregisterLobbyCallbacks();" in shutdown_block
+    assert "QL_Steamworks_UnregisterAvatarCallbacks();" in shutdown_block
     assert "QL_Steamworks_UnregisterClientCallbacks();" in shutdown_block
 
 
@@ -1219,6 +1261,7 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "CL_SteamResources_BuildRendererName( url, slot, rendererName, sizeof( rendererName ) );" in shader_block
     assert "shader = CL_RegisterShaderFromMemory( rendererName, buffer, bufferLength, qfalse );" in shader_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );' in data_source_block
+    assert 'CL_LogSteamResourceBridgeUnavailable( url, "avatar request deferred pending AvatarImageLoaded callback" );' in data_source_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "avatar request could not be satisfied" );' in data_source_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available" );' in data_source_block
     assert "CL_SteamResources_SanitizeCacheName" not in steam_resources
@@ -1234,6 +1277,7 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "if ( CL_LauncherRequestData( url, (void **)&response->buffer, &response->bufferLength ) ) {" in interceptor_block
     assert 'CL_LogLauncherResourceFallbackUnavailable( url, "no launcher/web resource owner is available" );' in interceptor_block
     assert 'Com_Printf( "Steam resource bridge disabled for %s [%s]; keeping launcher/web fallback resource bridge.\\n",' in steam_resources_init_block
+    assert "CL_SteamResources_RegisterAvatarCallbacks();" in steam_resources_init_block
     assert "QLResourceInterceptor_OnRequest( url, &response )" in url_block
     assert 'CL_LogLauncherResourceFallbackUnavailable( url, "request could not be resolved" );' in url_block
     assert 'CL_LogLauncherResourceFallbackUnavailable( url, "no binary buffer was produced" );' in url_block
@@ -1314,6 +1358,7 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
     assert 'Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );' in refresh_cvars_block
     assert 'Com_Printf( "Steam resource bridge disabled for %s [%s]; keeping launcher/web fallback resource bridge.\\n",' in resources_init_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );' in data_source_block
+    assert "return;" in resources_init_block
     assert "if ( CL_LauncherRequestData( url, (void **)&response->buffer, &response->bufferLength ) ) {" in interceptor_block
     assert "QLResourceInterceptor_OnRequest( url, &response )" in url_block
     assert "Launcher backend disabled by build/runtime policy" not in url_block
@@ -1506,6 +1551,10 @@ def test_browser_cache_reload_owner_restores_retail_command_and_cvar_surface() -
         cl_cgame,
         "void CL_Web_Reload_f( void ) {",
     )
+    register_block = _extract_function_block(
+        cl_cgame,
+        "void QLWebHost_RegisterCommands( void ) {",
+    )
     clear_resource_block = _extract_function_block(
         steam_resources,
         "void CL_ClearSteamResourceCache( qboolean clearPersisted ) {",
@@ -1515,8 +1564,10 @@ def test_browser_cache_reload_owner_restores_retail_command_and_cvar_surface() -
         "static void CL_SteamResources_ClearSlot( clSteamResource_t *slot, qboolean clearPersisted )",
     )
 
-    assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in cl_main
-    assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in cl_main
+    assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' not in cl_main
+    assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' not in cl_main
+    assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
+    assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
     assert "CL_ClearSteamResourceCache( qtrue );" in clear_session_block
     assert "if ( !cl_webHost.sessionInitialised ) {" in clear_cache_block
     assert "CL_Web_ClearSessionState();" in clear_cache_block
@@ -1646,6 +1697,12 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     map_cursor_block = _extract_function_block(cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int viewDimension, int surfaceDimension ) {")
     mapped_mouse_block = _extract_function_block(cl_cgame, "static void QLWebView_InjectMappedMouseMove( int x, int y ) {")
     rebuild_surface_block = _extract_function_block(cl_cgame, "static void QLWebView_RebuildSurfaceImage( void ) {")
+    coerce_integer_block = _extract_function_block(
+        cl_cgame, "static int QLJSHandler_CoerceIntegerArgument( const char *argument ) {"
+    )
+    coerce_unsigned_integer_block = _extract_function_block(
+        cl_cgame, "static uint32_t QLJSHandler_CoerceUnsignedIntegerArgument( const char *argument ) {"
+    )
     method_block = _extract_function_block(
         cl_cgame,
         "static qboolean QLJSHandler_OnMethodCall( const char *methodName, const char **arguments, int argumentCount ) {",
@@ -1666,8 +1723,35 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     public_wheel_event_block = _extract_function_block(cl_cgame, "void CL_WebView_OnMouseWheelEvent( int direction ) {")
     public_key_block = _extract_function_block(cl_cgame, "void CL_WebView_OnKeyEvent( int key, qboolean down ) {")
 
+    assert "CL_WEB_METHOD_OPEN_STEAM_OVERLAY_URL = 11," in cl_cgame
+    assert "CL_WEB_METHOD_SET_CLIPBOARD_TEXT = 13," in cl_cgame
+    assert "CL_WEB_METHOD_REQUEST_SERVERS = 14," in cl_cgame
+    assert "CL_WEB_METHOD_REQUEST_SERVER_DETAILS = 15," in cl_cgame
+    assert "CL_WEB_METHOD_REFRESH_LIST = 16," in cl_cgame
+    assert "CL_WEB_METHOD_CREATE_LOBBY = 17," in cl_cgame
+    assert "CL_WEB_METHOD_ACTIVATE_GAME_OVERLAY_TO_USER = 25," in cl_cgame
+    assert "CL_WEB_METHOD_NO_OP = 30," in cl_cgame
+    assert "CL_WEB_METHOD_SET_FAVORITE_SERVER = 33" in cl_cgame
+    assert '{ "GetClipboardText", CL_WEB_METHOD_GET_CLIPBOARD_TEXT, qtrue }' in cl_cgame
+    assert '{ "OpenSteamOverlayURL", CL_WEB_METHOD_OPEN_STEAM_OVERLAY_URL, qfalse }' in cl_cgame
+    assert '{ "SetClipboardText", CL_WEB_METHOD_SET_CLIPBOARD_TEXT, qfalse }' in cl_cgame
+    assert '{ "RequestServers", CL_WEB_METHOD_REQUEST_SERVERS, qfalse }' in cl_cgame
+    assert '{ "RequestServerDetails", CL_WEB_METHOD_REQUEST_SERVER_DETAILS, qfalse }' in cl_cgame
+    assert '{ "RefreshList", CL_WEB_METHOD_REFRESH_LIST, qfalse }' in cl_cgame
+    assert '{ "CreateLobby", CL_WEB_METHOD_CREATE_LOBBY, qfalse }' in cl_cgame
+    assert '{ "LeaveLobby", CL_WEB_METHOD_LEAVE_LOBBY, qfalse }' in cl_cgame
+    assert '{ "JoinLobby", CL_WEB_METHOD_JOIN_LOBBY, qfalse }' in cl_cgame
+    assert '{ "SetLobbyServer", CL_WEB_METHOD_SET_LOBBY_SERVER, qfalse }' in cl_cgame
+    assert '{ "ShowInviteOverlay", CL_WEB_METHOD_SHOW_INVITE_OVERLAY, qfalse }' in cl_cgame
+    assert '{ "SayLobby", CL_WEB_METHOD_SAY_LOBBY, qfalse }' in cl_cgame
+    assert '{ "RequestUserStats", CL_WEB_METHOD_REQUEST_USER_STATS, qfalse }' in cl_cgame
     assert '{ "GetFriendList", CL_WEB_METHOD_GET_FRIEND_LIST, qtrue }' in cl_cgame
+    assert '{ "ActivateGameOverlayToUser", CL_WEB_METHOD_ACTIVATE_GAME_OVERLAY_TO_USER, qfalse }' in cl_cgame
+    assert '{ "Invite", CL_WEB_METHOD_INVITE, qfalse }' in cl_cgame
+    assert '{ "FileExists", CL_WEB_METHOD_FILE_EXISTS, qtrue }' in cl_cgame
     assert '{ "GetConfig", CL_WEB_METHOD_GET_CONFIG, qtrue }' in cl_cgame
+    assert '{ "GetCursorPosition", CL_WEB_METHOD_GET_CURSOR_POSITION, qtrue }' in cl_cgame
+    assert '{ "NoOp", CL_WEB_METHOD_NO_OP, qfalse }' in cl_cgame
     assert '{ "GetAllUGC", CL_WEB_METHOD_GET_ALL_UGC, qfalse }' in cl_cgame
     assert '{ "GetNextKeyDown", CL_WEB_METHOD_GET_NEXT_KEY_DOWN, qfalse }' in cl_cgame
 
@@ -1683,14 +1767,61 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( cl_webHost.viewHeight );" in rebuild_surface_block
     assert "QLJSHandler_BindQzInstance();" in document_ready_block
     assert 'CL_WebView_PublishEvent( "web.object.ready", NULL );' in document_ready_block
+    assert "value = strtol( argument, &end, 10 );" in coerce_integer_block
+    assert "if ( end == argument ) {" in coerce_integer_block
+    assert "while ( *end && isspace( (unsigned char)*end ) ) {" in coerce_integer_block
+    assert "if ( *end ) {" in coerce_integer_block
+    assert "return (int)value;" in coerce_integer_block
+    assert "value = strtoul( argument, &end, 10 );" in coerce_unsigned_integer_block
+    assert "if ( end == argument ) {" in coerce_unsigned_integer_block
+    assert "while ( *end && isspace( (unsigned char)*end ) ) {" in coerce_unsigned_integer_block
+    assert "if ( *end ) {" in coerce_unsigned_integer_block
+    assert "return (uint32_t)value;" in coerce_unsigned_integer_block
 
+    assert "case CL_WEB_METHOD_OPEN_STEAM_OVERLAY_URL:" in method_block
+    assert "if ( argumentCount < 1 || !arguments[0] || !arguments[0][0] ) {\n\t\t\t\treturn qfalse;\n\t\t\t}\n\t\t\treturn CL_Steam_OpenOverlayUrl( arguments[0] );" not in method_block
+    assert "return CL_Steam_OpenOverlayUrl( arguments[0] );" in method_block
+    assert "case CL_WEB_METHOD_SET_CLIPBOARD_TEXT:" in method_block
+    assert 'Sys_SetClipboardData( arguments[0] ? arguments[0] : "" );' in method_block
+    assert "case CL_WEB_METHOD_REQUEST_SERVERS:" in method_block
+    assert "return CL_Steam_RequestServers( QLJSHandler_CoerceIntegerArgument( arguments[0] ) );" in method_block
+    assert "case CL_WEB_METHOD_REQUEST_SERVER_DETAILS:" in method_block
+    assert "return CL_Steam_RequestServerDetails(" in method_block
+    assert "QLJSHandler_CoerceUnsignedIntegerArgument( arguments[0] )" in method_block
+    assert "(unsigned short)QLJSHandler_CoerceIntegerArgument( arguments[1] )" in method_block
+    assert "case CL_WEB_METHOD_REFRESH_LIST:" in method_block
+    assert "return CL_Steam_RefreshServerList();" in method_block
+    assert "case CL_WEB_METHOD_CREATE_LOBBY:" in method_block
+    assert "return CL_Steam_CreateLobby();" in method_block
+    assert "case CL_WEB_METHOD_LEAVE_LOBBY:" in method_block
+    assert "return CL_Steam_LeaveLobby();" in method_block
+    assert "case CL_WEB_METHOD_JOIN_LOBBY:" in method_block
+    assert "return CL_Steam_JoinLobby( arguments[0] );" in method_block
+    assert "case CL_WEB_METHOD_SET_LOBBY_SERVER:" in method_block
+    assert "return CL_Steam_SetLobbyServer(" in method_block
+    assert "case CL_WEB_METHOD_SHOW_INVITE_OVERLAY:" in method_block
+    assert "return CL_Steam_ShowInviteOverlay();" in method_block
+    assert "case CL_WEB_METHOD_SAY_LOBBY:" in method_block
+    assert 'return CL_Steam_SayLobby( arguments[0] ? arguments[0] : "" );' in method_block
+    assert "case CL_WEB_METHOD_REQUEST_USER_STATS:" in method_block
+    assert "return CL_Steam_RequestUserStats( arguments[0] );" in method_block
+    assert "case CL_WEB_METHOD_ACTIVATE_GAME_OVERLAY_TO_USER:" in method_block
+    assert "return CL_Steam_ActivateOverlayToUser( arguments[0], arguments[1] );" in method_block
+    assert "case CL_WEB_METHOD_INVITE:" in method_block
+    assert "return CL_Steam_Invite( arguments[0] );" in method_block
     assert "case CL_WEB_METHOD_GET_ALL_UGC:" in method_block
-    assert "CL_WebHost_BuildUGCResultsJson( ugcJson, sizeof( ugcJson ) );" in method_block
-    assert 'CL_WebView_PublishEvent( "web.ugc.results", ugcJson );' in method_block
+    assert "if ( argumentCount < 1 ) {" in method_block
+    assert "return CL_Steam_RequestAllUGC( QLJSHandler_CoerceIntegerArgument( arguments[0] ) );" in method_block
     assert "case CL_WEB_METHOD_GET_NEXT_KEY_DOWN:" in method_block
+    assert "if ( argumentCount <= 0 ) {" in method_block
     assert "cl_webHost.keyCaptureArmed = qtrue;" in method_block
+    assert "cl_webHost.keyCaptureArmed = QLJSHandler_CoerceIntegerArgument( arguments[0] ) != 0 ? qtrue : qfalse;" in method_block
+    assert "case CL_WEB_METHOD_NO_OP:" in method_block
+    assert "return qtrue;" in method_block
     assert "case CL_WEB_METHOD_SET_FAVORITE_SERVER:" in method_block
     assert "CL_WebHost_SetFavoriteServer(" in method_block
+    assert "(uint16_t)QLJSHandler_CoerceIntegerArgument( arguments[1] )" in method_block
+    assert "QLJSHandler_CoerceIntegerArgument( arguments[2] ) != 0 ? qtrue : qfalse" in method_block
 
     assert "case CL_WEB_METHOD_GET_FRIEND_LIST:" in return_block
     assert "CL_WebHost_BuildFriendListJson( outValue, outValueSize );" in return_block
@@ -1718,6 +1849,346 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     assert "QLWebView_InjectMouseWheel( direction );" in public_wheel_event_block
     assert "QLWebView_InjectKeyboardEvent( key, down );" in public_key_block
     assert 'CL_WebView_PublishEvent( "game.key", payload );' in cl_cgame
+
+
+def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispatch_surface() -> None:
+    client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+    win_main = (REPO_ROOT / "src/code/win32/win_main.c").read_text(encoding="utf-8")
+    unix_main = (REPO_ROOT / "src/code/unix/unix_main.c").read_text(encoding="utf-8")
+    null_main = (REPO_ROOT / "src/code/null/null_main.c").read_text(encoding="utf-8")
+    platform_steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
+    platform_steamworks_c = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+
+    current_lobby_block = _extract_function_block(
+        cl_main, "static qboolean CL_Steam_GetCurrentLobbyIdentityWords( uint32_t *outIdLow, uint32_t *outIdHigh )"
+    )
+    open_overlay_url_block = _extract_function_block(cl_main, "qboolean CL_Steam_OpenOverlayUrl( const char *url )")
+    create_block = _extract_function_block(cl_main, "qboolean CL_Steam_CreateLobby( void )")
+    leave_block = _extract_function_block(cl_main, "qboolean CL_Steam_LeaveLobby( void )")
+    join_block = _extract_function_block(cl_main, "qboolean CL_Steam_JoinLobby( const char *lobbyId )")
+    set_server_block = _extract_function_block(
+        cl_main, "qboolean CL_Steam_SetLobbyServer( unsigned int serverIp, unsigned short serverPort )"
+    )
+    show_invite_block = _extract_function_block(cl_main, "qboolean CL_Steam_ShowInviteOverlay( void )")
+    invite_connect_block = _extract_function_block(
+        cl_main, "static qboolean CL_Steam_BuildInviteConnectString( char *buffer, size_t bufferSize )"
+    )
+    invite_block = _extract_function_block(cl_main, "qboolean CL_Steam_Invite( const char *steamId )")
+    say_block = _extract_function_block(cl_main, "qboolean CL_Steam_SayLobby( const char *message )")
+    request_ugc_block = _extract_function_block(cl_main, "qboolean CL_Steam_RequestAllUGC( int filter )")
+    request_stats_block = _extract_function_block(cl_main, "qboolean CL_Steam_RequestUserStats( const char *steamId )")
+    activate_overlay_block = _extract_function_block(
+        cl_main, "qboolean CL_Steam_ActivateOverlayToUser( const char *dialog, const char *steamId )"
+    )
+    request_all_ugc_query_block = _extract_function_block(
+        platform_steamworks_c, "qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter )"
+    )
+    query_ugc_result_block = _extract_function_block(
+        platform_steamworks_c,
+        "qboolean QL_Steamworks_GetQueryUGCResult( uint64_t queryHandle, uint32_t index, uint64_t *outPublishedFileId, char *title, size_t titleSize, char *description, size_t descriptionSize )",
+    )
+    query_ugc_preview_block = _extract_function_block(
+        platform_steamworks_c, "qboolean QL_Steamworks_GetQueryUGCPreviewURL( uint64_t queryHandle, uint32_t index, char *buffer, size_t bufferSize )"
+    )
+    release_ugc_query_block = _extract_function_block(
+        platform_steamworks_c, "void QL_Steamworks_ReleaseQueryUGCRequest( uint64_t queryHandle )"
+    )
+    activate_overlay_web_page_block = _extract_function_block(
+        platform_steamworks_c, "qboolean QL_Steamworks_ActivateOverlayToWebPage( const char *url )"
+    )
+    platform_block = _extract_function_block(
+        platform_steamworks_c,
+        "qboolean QL_Steamworks_ActivateOverlayToUser( const char *dialog, uint32_t idLow, uint32_t idHigh )",
+    )
+    invite_user_to_lobby_block = _extract_function_block(
+        platform_steamworks_c,
+        "qboolean QL_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh )",
+    )
+    invite_user_to_game_block = _extract_function_block(
+        platform_steamworks_c,
+        "qboolean QL_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString )",
+    )
+    win_set_clipboard_block = _extract_function_block(win_main, "void Sys_SetClipboardData( const char *text )")
+    unix_write_clipboard_block = _extract_function_block(
+        unix_main, "static qboolean Sys_WriteClipboardCommand( const char *command, const char *text ) {"
+    )
+    unix_set_clipboard_block = _extract_function_block(unix_main, "void Sys_SetClipboardData( const char *text ) {")
+    null_set_clipboard_block = _extract_function_block(null_main, "void Sys_SetClipboardData( const char *text ) {")
+
+    assert "qboolean CL_Steam_OpenOverlayUrl( const char *url );" in client_h
+    assert "qboolean CL_Steam_CreateLobby( void );" in client_h
+    assert "qboolean CL_Steam_LeaveLobby( void );" in client_h
+    assert "qboolean CL_Steam_JoinLobby( const char *lobbyId );" in client_h
+    assert "qboolean CL_Steam_SetLobbyServer( unsigned int serverIp, unsigned short serverPort );" in client_h
+    assert "qboolean CL_Steam_ShowInviteOverlay( void );" in client_h
+    assert "qboolean CL_Steam_Invite( const char *steamId );" in client_h
+    assert "qboolean CL_Steam_SayLobby( const char *message );" in client_h
+    assert "qboolean CL_Steam_RequestAllUGC( int filter );" in client_h
+    assert "qboolean CL_Steam_RequestUserStats( const char *steamId );" in client_h
+    assert "qboolean CL_Steam_ActivateOverlayToUser( const char *dialog, const char *steamId );" in client_h
+    assert "void\tSys_SetClipboardData( const char *text );" in qcommon_h
+    assert "qboolean QL_Steamworks_ActivateOverlayToWebPage( const char *url );" in platform_steamworks_h
+    assert "qboolean QL_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh );" in platform_steamworks_h
+    assert "qboolean QL_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString );" in platform_steamworks_h
+    assert "qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter );" in platform_steamworks_h
+    assert "qboolean QL_Steamworks_GetQueryUGCResult( uint64_t queryHandle, uint32_t index, uint64_t *outPublishedFileId, char *title, size_t titleSize, char *description, size_t descriptionSize );" in platform_steamworks_h
+    assert "qboolean QL_Steamworks_GetQueryUGCPreviewURL( uint64_t queryHandle, uint32_t index, char *buffer, size_t bufferSize );" in platform_steamworks_h
+    assert "void QL_Steamworks_ReleaseQueryUGCRequest( uint64_t queryHandle );" in platform_steamworks_h
+
+    assert "currentLobbyValid" not in cl_main
+    assert "static qboolean CL_Steam_ParseIdentityArgument" not in cl_main
+    assert "cl_steamCallbackState.currentLobbyValid" not in current_lobby_block
+    assert "idLow = (uint32_t)( cl_steamCallbackState.currentLobbyId & 0xffffffffu );" in current_lobby_block
+    assert "idHigh = (uint32_t)( cl_steamCallbackState.currentLobbyId >> 32 );" in current_lobby_block
+    assert "accountType = ( idHigh >> 20 ) & 0xfu;" in current_lobby_block
+    assert "accountInstance = idHigh & 0xfffffu;" in current_lobby_block
+    assert "universe = ( idHigh >> 24 ) & 0xffu;" in current_lobby_block
+    assert "if ( accountType == 0u || accountType >= 0xbu ) {" in current_lobby_block
+    assert "if ( universe == 0u || universe >= 5u ) {" in current_lobby_block
+    assert "if ( accountType == 1u ) {" in current_lobby_block
+    assert "accountInstance > 4u" in current_lobby_block
+    assert "accountInstance != 0u" in current_lobby_block
+    assert "accountType == 3u && idLow == 0u" in current_lobby_block
+    assert 'if ( !url ) {' in open_overlay_url_block
+    assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "missing overlay url" );' in open_overlay_url_block
+    assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "social overlay provider unavailable" );' in open_overlay_url_block
+    assert "QL_Steamworks_ActivateOverlayToWebPage( url )" in open_overlay_url_block
+    assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "overlay page activation failed" );' in open_overlay_url_block
+    assert "maxMembers = cl_steamMaxLobbyClients ? cl_steamMaxLobbyClients->integer : 16;" in create_block
+    assert "if ( maxMembers <= 0 ) {" not in create_block
+    assert "return QL_Steamworks_CreateLobby( maxMembers );" in create_block
+    assert 'CL_LogMatchmakingServiceIgnored( "LeaveLobby", "no active lobby" );' not in leave_block
+    assert "CL_Steam_LeaveCurrentLobby();" in leave_block
+    assert "parsedLobbyId = 0ull;" in join_block
+    assert 'sscanf( lobbyId, "%llu", &parsedLobbyId );' in join_block
+    assert 'CL_LogMatchmakingServiceIgnored( "JoinLobby", "invalid lobby id" );' not in join_block
+    assert "CL_Steam_ParseIdentityArgument( lobbyId, &lobbyIdLow, &lobbyIdHigh )" not in join_block
+    assert "return QL_Steamworks_JoinLobby(" in join_block
+    assert "(uint32_t)( parsedLobbyId & 0xffffffffu )" in join_block
+    assert "(uint32_t)( parsedLobbyId >> 32 )" in join_block
+    assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in set_server_block
+    assert "return QL_Steamworks_SetLobbyServer( lobbyIdLow, lobbyIdHigh, (uint32_t)serverIp, (uint16_t)serverPort );" in set_server_block
+    assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in show_invite_block
+    assert "return QL_Steamworks_ShowInviteOverlay( lobbyIdLow, lobbyIdHigh );" in show_invite_block
+    assert "!com_sv_running->integer" in invite_connect_block
+    assert "NET_AdrToString( serverAddress )" in invite_connect_block
+    assert 'Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH )' in invite_connect_block
+    assert 'Cvar_VariableIntegerValue( "sv_serverType" ) == 1' in invite_connect_block
+    assert "NET_GetLocalAddressIP( &localAddress )" in invite_connect_block
+    assert "QL_Steamworks_ServerGetPublicIP()" in invite_connect_block
+    assert '"+connect %lu:%s"' in invite_connect_block
+    assert "parsedSteamId = 0ull;" in invite_block
+    assert 'sscanf( steamId, "%llu", &parsedSteamId );' in invite_block
+    assert 'CL_LogMatchmakingServiceIgnored( "Invite", "invalid target user id" );' not in invite_block
+    assert "CL_Steam_ParseIdentityArgument( steamId, &steamIdLow, &steamIdHigh )" not in invite_block
+    assert "cls.state != CA_ACTIVE" in invite_block
+    assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in invite_block
+    assert "QL_Steamworks_InviteUserToLobby(" in invite_block
+    assert "(uint32_t)( parsedSteamId & 0xffffffffu )" in invite_block
+    assert "(uint32_t)( parsedSteamId >> 32 )" in invite_block
+    assert "CL_Steam_BuildInviteConnectString( connectString, sizeof( connectString ) )" in invite_block
+    assert "return QL_Steamworks_InviteUserToGame(" in invite_block
+    assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in say_block
+    assert 'CL_LogMatchmakingServiceIgnored( "SayLobby", "missing lobby message" );' not in say_block
+    assert 'lobbyMessage = message ? message : "";' in say_block
+    assert "return QL_Steamworks_SayLobby( lobbyIdLow, lobbyIdHigh, lobbyMessage );" in say_block
+    assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "workshop provider unavailable" );' in request_ugc_block
+    assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "invalid query page" );' not in request_ugc_block
+    assert "return QL_Steamworks_RequestAllUGCQuery( (uint32_t)filter );" in request_ugc_block
+    assert "parsedSteamId = 0ull;" in request_stats_block
+    assert 'sscanf( steamId, "%llu", &parsedSteamId );' in request_stats_block
+    assert 'CL_LogStatsServiceIgnored( "RequestUserStats", "invalid user id" );' not in request_stats_block
+    assert "CL_Steam_ParseIdentityArgument( steamId, &steamIdLow, &steamIdHigh )" not in request_stats_block
+    assert "return QL_Steamworks_RequestUserStats(" in request_stats_block
+    assert "(uint32_t)( parsedSteamId & 0xffffffffu )" in request_stats_block
+    assert "(uint32_t)( parsedSteamId >> 32 )" in request_stats_block
+    assert 'if ( !dialog ) {' in activate_overlay_block
+    assert "parsedSteamId = 0ull;" in activate_overlay_block
+    assert 'sscanf( steamId, "%llu", &parsedSteamId );' in activate_overlay_block
+    assert 'CL_LogSocialOverlayIgnored( "ActivateGameOverlayToUser", "invalid target user id" );' not in activate_overlay_block
+    assert "CL_Steam_ParseIdentityArgument( steamId, &steamIdLow, &steamIdHigh )" not in activate_overlay_block
+    assert "return QL_Steamworks_ActivateOverlayToUser(" in activate_overlay_block
+    assert "(uint32_t)( parsedSteamId & 0xffffffffu )" in activate_overlay_block
+    assert "(uint32_t)( parsedSteamId >> 32 )" in activate_overlay_block
+    assert "queryHandle = createQueryFn( ugc, NULL, 1, 0, appId, appId, filter );" in request_all_ugc_query_block
+    assert "if ( filter < 1u ) {" not in request_all_ugc_query_block
+    assert "callHandle = sendQueryFn( ugc, NULL, queryHandleLow, queryHandleHigh );" in request_all_ugc_query_block
+    assert "!QL_Steamworks_BindUGCQueryCallResult( (SteamAPICall_t)callHandle )" in request_all_ugc_query_block
+    assert "QL_Steamworks_ReleaseQueryUGCRequest( queryHandle );" in request_all_ugc_query_block
+    assert "vtable[0x04 / 4]" in request_all_ugc_query_block
+    assert "vtable[0x0c / 4]" in request_all_ugc_query_block
+    assert "memcpy( outPublishedFileId, details, sizeof( *outPublishedFileId ) );" in query_ugc_result_block
+    assert "QL_Steamworks_CopySteamString( title, titleSize, (const char *)( details + QL_STEAM_UGC_DETAILS_TITLE_OFFSET ) );" in query_ugc_result_block
+    assert "QL_Steamworks_CopySteamString( description, descriptionSize, (const char *)( details + QL_STEAM_UGC_DETAILS_DESCRIPTION_OFFSET ) );" in query_ugc_result_block
+    assert "vtable[0x10 / 4]" in query_ugc_result_block
+    assert "vtable[0x14 / 4]" in query_ugc_preview_block
+    assert "vtable[0x34 / 4]" in release_ugc_query_block
+    assert "typedef void (__fastcall *QL_SteamFriends_ActivateGameOverlayToWebPageFn)( void *self, void *unused, const char *url );" in activate_overlay_web_page_block
+    assert 'if ( !url ) {' in activate_overlay_web_page_block
+    assert "fn = (QL_SteamFriends_ActivateGameOverlayToWebPageFn)vtable[0x78 / 4];" in activate_overlay_web_page_block
+    assert "fn( friends, NULL, url );" in activate_overlay_web_page_block
+    assert 'if ( !dialog ) {' in platform_block
+    assert "vtable[0x40 / 4]" in invite_user_to_lobby_block
+    assert "return fn( matchmaking, NULL, lobbyIdLow, lobbyIdHigh, userIdLow, userIdHigh ) ? qtrue : qfalse;" in invite_user_to_lobby_block
+    assert "vtable[0xc4 / 4]" in invite_user_to_game_block
+    assert "return fn( friends, NULL, idLow, idHigh, connectString ) ? qtrue : qfalse;" in invite_user_to_game_block
+    assert "OpenClipboard( NULL ) == 0" in win_set_clipboard_block
+    assert "EmptyClipboard();" in win_set_clipboard_block
+    assert "GlobalAlloc( GMEM_MOVEABLE, textBytes );" in win_set_clipboard_block
+    assert "memcpy( clipboardText, text, textBytes );" in win_set_clipboard_block
+    assert "SetClipboardData( CF_TEXT, clipboardData );" in win_set_clipboard_block
+    assert 'pipe = popen( command, "w" );' in unix_write_clipboard_block
+    assert "bytesWritten = fwrite( text, 1, textBytes, pipe );" in unix_write_clipboard_block
+    assert "pclose( pipe )" in unix_write_clipboard_block
+    assert 'Sys_WriteClipboardCommand( "wl-copy --trim-newline 2>/dev/null", text )' in unix_set_clipboard_block
+    assert 'Sys_WriteClipboardCommand( "wl-copy 2>/dev/null", text )' in unix_set_clipboard_block
+    assert 'Sys_WriteClipboardCommand( "xclip -selection clipboard 2>/dev/null", text )' in unix_set_clipboard_block
+    assert 'Sys_WriteClipboardCommand( "xsel --clipboard --input 2>/dev/null", text )' in unix_set_clipboard_block
+    assert "(void)text;" in null_set_clipboard_block
+
+
+def test_client_browser_favorite_server_lane_reconstructs_retail_steam_matchmaking_owner() -> None:
+    cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+    platform_steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
+    platform_steamworks_c = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+
+    favorite_block = _extract_function_block(
+        cl_cgame, "static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add )"
+    )
+    mirror_block = _extract_function_block(
+        cl_cgame, "static qboolean CL_WebHost_MirrorFavoriteServer( uint32_t ip, uint16_t port, qboolean add )"
+    )
+    steamworks_block = _extract_function_block(
+        platform_steamworks_c, "qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add )"
+    )
+
+    assert '#include "../../common/platform/platform_steamworks.h"' in cl_cgame
+    assert "qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add );" in platform_steamworks_h
+    assert "if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServer( ip, port, add ) ) {" in favorite_block
+    assert "return CL_WebHost_MirrorFavoriteServer( ip, port, add );" in favorite_block
+    assert "CL_WebHost_BuildFavoriteAddress( ip, port, addressString, sizeof( addressString ) );" in mirror_block
+    assert "LAN_SaveServersToCache();" in mirror_block
+    assert "QL_Steamworks_GetAppID();" in steamworks_block
+    assert "typedef int (__fastcall *QL_SteamMatchmaking_AddFavoriteGameFn)" in steamworks_block
+    assert "typedef qboolean (__fastcall *QL_SteamMatchmaking_RemoveFavoriteGameFn)" in steamworks_block
+    assert "addFavoriteGameFn = (QL_SteamMatchmaking_AddFavoriteGameFn)vtable[0x08 / 4];" in steamworks_block
+    assert "removeFavoriteGameFn = (QL_SteamMatchmaking_RemoveFavoriteGameFn)vtable[0x0c / 4];" in steamworks_block
+    assert "lastPlayedTime = time( NULL );" in steamworks_block
+    assert "serverPort," in steamworks_block
+    assert "QL_STEAM_FAVORITE_FLAG_FAVORITE" in steamworks_block
+
+
+def test_client_browser_server_shims_reconstruct_retail_server_browser_surface() -> None:
+    client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+
+    request_mode_block = _extract_function_block(
+        cl_main, "static int CL_SteamBrowser_RequestModeToSource( int requestMode )"
+    )
+    build_address_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_BuildAddressString( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize )"
+    )
+    format_detail_id_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_FormatDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize )"
+    )
+    request_servers_block = _extract_function_block(cl_main, "qboolean CL_Steam_RequestServers( int requestMode )")
+    request_details_block = _extract_function_block(
+        cl_main, "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort )"
+    )
+    refresh_list_block = _extract_function_block(cl_main, "qboolean CL_Steam_RefreshServerList( void )")
+    browser_frame_block = _extract_function_block(cl_main, "static void CL_SteamBrowser_Frame( void )")
+    publish_server_failed_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_PublishServerFailed( int serverIndex )"
+    )
+    publish_rules_failed_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishRulesFailed( const char *detailId, uint32_t serverIp, uint16_t serverPort )",
+    )
+    publish_players_failed_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishPlayersFailed( const char *detailId, uint32_t serverIp, uint16_t serverPort )",
+    )
+    fail_detail_request_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_FailDetailRequest( void )"
+    )
+    publish_refresh_end_block = _extract_function_block(cl_main, "static void CL_SteamBrowser_PublishRefreshEnd( void )")
+    publish_server_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishServerResponse( const netadr_t *address, uint32_t serverIp, uint16_t serverPort, const char *infoString, int ping )",
+    )
+    server_info_packet_block = _extract_function_block(cl_main, "void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {")
+    server_status_response_block = _extract_function_block(
+        cl_main, "void CL_ServerStatusResponse( netadr_t from, msg_t *msg ) {"
+    )
+
+    assert "qboolean CL_Steam_RequestServers( int requestMode );" in client_h
+    assert "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort );" in client_h
+    assert "qboolean CL_Steam_RefreshServerList( void );" in client_h
+
+    assert "case 0:" in request_mode_block
+    assert "return AS_GLOBAL;" in request_mode_block
+    assert "case 1:" in request_mode_block
+    assert "return AS_LOCAL;" in request_mode_block
+    assert "case 3:" in request_mode_block
+    assert "return AS_FAVORITES;" in request_mode_block
+    assert '"%u.%u.%u.%u:%i"' in build_address_block
+    assert "(int)(short)serverPort" in build_address_block
+    assert '"%u_%i"' in format_detail_id_block
+    assert "(int)(short)serverPort" in format_detail_id_block
+
+    assert "CL_SteamBrowser_RequestModeToSource( requestMode )" in request_servers_block
+    assert "cl_steamBrowserState.requestInitialised = qtrue;" in request_servers_block
+    assert "CL_SteamBrowser_MarkServerVisible( source, -1, qtrue );" in request_servers_block
+    assert "CL_SteamBrowser_ResetPings( source );" in request_servers_block
+    assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' in request_servers_block
+    assert "CL_RequestLocalServers();" in request_servers_block
+    assert 'CL_RequestGlobalServers( masterNum, debugProtocol, "full empty" );' in request_servers_block
+    assert 'CL_RequestGlobalServers( masterNum, va( "%d", protocol ), "full empty" );' in request_servers_block
+    assert 'Cbuf_ExecuteText( EXEC_NOW, "localservers\\n" );' not in request_servers_block
+    assert 'Cbuf_ExecuteText( EXEC_NOW, va( "globalservers %d %s full empty\\n", masterNum, debugProtocol ) );' not in request_servers_block
+    assert 'Cbuf_ExecuteText( EXEC_NOW, va( "globalservers %d %d full empty\\n", masterNum, protocol ) );' not in request_servers_block
+
+    assert "CL_SteamBrowser_BuildAddressString( (uint32_t)serverIp, (uint16_t)serverPort, addressString, sizeof( addressString ) );" in request_details_block
+    assert "CL_SteamBrowser_BeginDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort, &address );" in request_details_block
+    assert "CL_ServerStatus( addressString, NULL, 0 );" in request_details_block
+    assert "CL_ServerStatus( addressString, serverStatus, sizeof( serverStatus ) );" in request_details_block
+
+    assert "if ( !cl_steamBrowserState.requestInitialised ) {" in refresh_list_block
+    assert "return CL_Steam_RequestServers( cl_steamBrowserState.requestMode );" in refresh_list_block
+
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%i.failed", serverIndex );' in publish_server_failed_block
+    assert '\\"id\\":%i' in publish_server_failed_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.rules.%s.failed", detailId ? detailId : "" );' in publish_rules_failed_block
+    assert '\\"id\\":\\"%s\\",\\"ip\\":%u,\\"port\\":%u' in publish_rules_failed_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.players.%s.failed", detailId ? detailId : "" );' in publish_players_failed_block
+    assert '\\"id\\":\\"%s\\",\\"ip\\":%u,\\"port\\":%u' in publish_players_failed_block
+    assert "CL_SteamBrowser_PublishRulesFailed(" in fail_detail_request_block
+    assert "CL_SteamBrowser_PublishPlayersFailed(" in fail_detail_request_block
+    assert "CL_SteamBrowser_ClearDetailRequest();" in fail_detail_request_block
+    assert "switch ( cl_steamBrowserState.requestSource ) {" in publish_refresh_end_block
+    assert "if ( !servers[i].visible || !servers[i].adr.port || servers[i].ping != 0 ) {" in publish_refresh_end_block
+    assert "CL_SteamBrowser_PublishServerFailed( i );" in publish_refresh_end_block
+    assert "CL_SteamBrowser_FailDetailRequest();" in browser_frame_block
+    assert "CL_UpdateVisiblePings_f( cl_steamBrowserState.requestSource )" in browser_frame_block
+    assert "CL_SteamBrowser_PublishRefreshEnd();" in browser_frame_block
+
+    assert 'Com_sprintf( responseId, sizeof( responseId ), "%u_%u", (unsigned int)serverIp, (unsigned int)serverPort );' in publish_server_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%s.response", responseId );' in publish_server_block
+    assert '\\"id\\":\\"%s\\"' in publish_server_block
+    assert 'Info_ValueForKey( infoString, "sv_keywords" )' in publish_server_block
+    assert 'Info_ValueForKey( infoString, "g_needpass" )' in publish_server_block
+    assert 'Info_ValueForKey( infoString, "steamid" )' in publish_server_block
+    assert '\\"lastPlayed\\":0' in publish_server_block
+
+    assert "CL_SteamBrowser_PublishServerResponse(" in server_info_packet_block
+    assert "CL_SteamBrowser_PackAddressIP( &from )" in server_info_packet_block
+
+    assert "publishBrowserDetails = CL_SteamBrowser_DetailMatchesAddress( &from );" in server_status_response_block
+    assert "CL_SteamBrowser_PublishRulesFromInfoString(" in server_status_response_block
+    assert "CL_SteamBrowser_PublishPlayerResponse(" in server_status_response_block
+    assert "CL_SteamBrowser_PublishPlayersEnd( cl_steamBrowserState.detailId );" in server_status_response_block
 
 
 def test_client_web_host_exports_label_online_service_social_and_ugc_boundaries() -> None:
@@ -1756,9 +2227,6 @@ def test_client_web_host_exports_label_online_service_social_and_ugc_boundaries(
     config_block = _extract_function_block(
         cl_cgame, "static void CL_WebHost_BuildConfigJson( char *buffer, size_t bufferSize )"
     )
-    ugc_block = _extract_function_block(
-        cl_cgame, "static void CL_WebHost_BuildUGCResultsJson( char *buffer, size_t bufferSize )"
-    )
     method_block = _extract_function_block(
         cl_cgame,
         "static qboolean QLJSHandler_OnMethodCall( const char *methodName, const char **arguments, int argumentCount ) {",
@@ -1785,10 +2253,10 @@ def test_client_web_host_exports_label_online_service_social_and_ugc_boundaries(
         "friendCount = QL_Steamworks_GetFriendCount( CL_WEB_FRIEND_FLAGS );"
     )
     assert 'CL_LogWebHostMatchmakingExportLifecycle( "friend-list", "Steam social export unavailable for current compatibility lane" );' in friend_block
-    assert ugc_block.index("if ( !CL_WebHost_HasSteamIdentity() ) {") < ugc_block.index(
-        "subscribedCount = QL_Steamworks_GetNumSubscribedItems();"
-    )
-    assert 'CL_LogWebHostWorkshopExportLifecycle( "ugc-results", "Steam UGC export unavailable for current compatibility lane" );' in ugc_block
+    assert "CL_Steam_FormatFriendSummaryJson( &summary, friendJson, sizeof( friendJson ) );" in friend_block
+    assert 'Q_strcat( buffer, bufferSize, friendJson );' in friend_block
+    assert '"queryPort"' not in friend_block
+    assert '"gameServer"' not in friend_block
 
     for field in (
         "onlineServicesMode",
@@ -1809,11 +2277,8 @@ def test_client_web_host_exports_label_online_service_social_and_ugc_boundaries(
     assert "CL_WebHost_AppendJsonEscaped( buffer, bufferSize, onlineServicesMode );" in config_block
     assert "CL_WebHost_AppendJsonEscaped( buffer, bufferSize, workshopPolicy );" in config_block
 
-    assert "char ugcFailure[512];" in method_block
-    assert 'Q_strcat( ugcFailure, sizeof( ugcFailure ), "{\\"result\\":0,\\"provider\\":\\"" );' in method_block
-    assert "CL_WebHost_AppendJsonEscaped( ugcFailure, sizeof( ugcFailure ), CL_GetWebHostWorkshopProviderLabel() );" in method_block
-    assert "CL_WebHost_AppendJsonEscaped( ugcFailure, sizeof( ugcFailure ), CL_GetWebHostWorkshopPolicyLabel() );" in method_block
-    assert 'CL_WebView_PublishEvent( "web.ugc.failed", ugcFailure );' in method_block
+    assert "char ugcFailure[512];" not in method_block
+    assert 'CL_WebView_PublishEvent( "web.ugc.failed", ugcFailure );' not in method_block
     assert 'CL_WebView_PublishEvent( "web.ugc.failed", "{\\"result\\":0}" );' not in method_block
 
 
@@ -1938,8 +2403,8 @@ def test_client_overlay_commands_reconstruct_retail_steam_surface() -> None:
     assert 'CL_LogSocialOverlayIgnored( commandName, "overlay activation failed" );' in overlay_block
     assert 'Cmd_AddCommand ("clientviewprofile", CL_Steam_OverlayCommand_f );' in init_block
     assert 'Cmd_AddCommand ("clientfriendinvite", CL_Steam_OverlayCommand_f );' in init_block
-    assert 'Cmd_RemoveCommand ("clientviewprofile");' in shutdown_block
-    assert 'Cmd_RemoveCommand ("clientfriendinvite");' in shutdown_block
+    assert 'Cmd_RemoveCommand ("clientviewprofile");' not in shutdown_block
+    assert 'Cmd_RemoveCommand ("clientfriendinvite");' not in shutdown_block
     assert "vtable[0x74 / 4]" in platform_block
     assert "QL_Steamworks_CombineIdentityWords( idLow, idHigh )" in platform_block
 
@@ -1982,10 +2447,13 @@ def test_client_voice_commands_reconstruct_retail_binding_surface() -> None:
     assert 'CL_LogVoiceTransportLifecycle( "voice_receive", "voice packet read failed" );' in process_block
     assert 'CL_LogVoiceTransportLifecycle( "voice_receive", "voice decompress failed" );' in process_block
     assert 'CL_LogVoiceTransportLifecycle( "voice_receive", detail );' in process_block
-    assert 'Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );' in init_block
-    assert 'Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );' in init_block
-    assert 'Cmd_RemoveCommand ("+voice");' in shutdown_block
-    assert 'Cmd_RemoveCommand ("-voice");' in shutdown_block
+    steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
+    assert 'Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );' not in init_block
+    assert 'Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );' not in init_block
+    assert 'Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );' in steam_client_init_block
+    assert 'Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );' in steam_client_init_block
+    assert 'Cmd_RemoveCommand ("+voice");' not in shutdown_block
+    assert 'Cmd_RemoveCommand ("-voice");' not in shutdown_block
 
 
 def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
@@ -2006,6 +2474,21 @@ def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     )
     lobby_created_block = _extract_function_block(
         cl_main, "static void CL_Steam_Lobby_OnLobbyCreated( void *context, const ql_steam_lobby_created_t *event )"
+    )
+    lobby_enter_response_message_block = _extract_function_block(
+        cl_main, "static const char *CL_Steam_GetLobbyEnterResponseMessage( int response )"
+    )
+    lobby_data_json_block = _extract_function_block(
+        cl_main, "static void CL_Steam_AppendLobbyDataJson( char *buffer, size_t bufferSize, uint32_t lobbyIdLow, uint32_t lobbyIdHigh )"
+    )
+    set_lobby_block = _extract_function_block(
+        cl_main, "static void CL_Steam_SetCurrentLobby( uint64_t lobbyId )"
+    )
+    clear_lobby_block = _extract_function_block(
+        cl_main, "static void CL_Steam_ClearCurrentLobby( void )"
+    )
+    leave_lobby_block = _extract_function_block(
+        cl_main, "static void CL_Steam_LeaveCurrentLobby( void )"
     )
     lobby_enter_block = _extract_function_block(
         cl_main, "static void CL_Steam_Lobby_OnLobbyEnter( void *context, const ql_steam_lobby_enter_t *event )"
@@ -2051,32 +2534,90 @@ def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_created", detail );' in lobby_created_block
     assert '"error result=%d id=%s"' in lobby_created_block
     assert '"created id=%s result=%d"' in lobby_created_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"code\\":%d,\\"message\\":\\"Unable to create lobby\\"}", event->result );' in lobby_created_block
+    assert 'QL_Steamworks_SetLobbyData( lobbyIdLow, lobbyIdHigh, "hello", "world" );' in lobby_created_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\",\\"status\\":%d}", lobbyId, event->result );' in lobby_created_block
+    assert '"Lobby does not exist"' in lobby_enter_response_message_block
+    assert '"Access denied"' in lobby_enter_response_message_block
+    assert '"Lobby is full"' in lobby_enter_response_message_block
+    assert '"Unexpected error"' in lobby_enter_response_message_block
+    assert '"You are banned from this lobby"' in lobby_enter_response_message_block
+    assert '"Cannot join as a limited user"' in lobby_enter_response_message_block
+    assert '"Locked to a clan you are not in"' in lobby_enter_response_message_block
+    assert '"You are banned from Steam Community"' in lobby_enter_response_message_block
+    assert '"You have been blocked from joining by a member"' in lobby_enter_response_message_block
+    assert '"Cannot join lobby with blocked member"' in lobby_enter_response_message_block
+    assert "lobbyDataCount = QL_Steamworks_GetLobbyDataCount( lobbyIdLow, lobbyIdHigh );" not in lobby_enter_block
+    assert "CL_Steam_AppendLobbyDataJson( payload, sizeof( payload ), lobbyIdLow, lobbyIdHigh );" in lobby_enter_block
+    assert "QL_Steamworks_GetLobbyDataCount( lobbyIdLow, lobbyIdHigh )" in lobby_data_json_block
+    assert "QL_Steamworks_GetLobbyDataByIndex( lobbyIdLow, lobbyIdHigh, i, key, sizeof( key ), value, sizeof( value ) )" in lobby_data_json_block
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"%s\\":\\"%s\\"", escapedKey, escapedValue );' in lobby_data_json_block
+    assert "currentLobbyValid" not in set_lobby_block
+    assert "currentLobbyValid" not in clear_lobby_block
+    assert "QL_Steamworks_LeaveLobby( lobbyIdLow, lobbyIdHigh );" in leave_lobby_block
+    assert "if ( !cl_steamCallbackState.currentLobbyValid ) {" not in leave_lobby_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "lobby.%s.left", lobbyId );' in leave_lobby_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\"}", lobbyId );' in leave_lobby_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_enter", "ignored null callback payload" );' in lobby_enter_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_enter", detail );' in lobby_enter_block
     assert '"enter failed response=%d permissions=%u id=%s"' in lobby_enter_block
     assert '"entered id=%s permissions=%u locked=%d"' in lobby_enter_block
+    assert "responseMessage = CL_Steam_GetLobbyEnterResponseMessage( event->response );" in lobby_enter_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"code\\":%d,\\"id\\":\\"%s\\",\\"message\\":\\"%s\\"}", event->response, lobbyId, escapedMessage );' in lobby_enter_block
+    assert "cl_steamCallbackState.currentLobbyValid" not in lobby_enter_block
+    assert "if ( CL_Steam_GetCurrentLobbyIdentityWords( NULL, NULL ) ) {" in lobby_enter_block
+    assert "CL_Steam_LeaveCurrentLobby();" in lobby_enter_block
+    assert "QL_Steamworks_GetLobbyOwner( lobbyIdLow, lobbyIdHigh, &ownerIdLow, &ownerIdHigh )" in lobby_enter_block
+    assert "QL_Steamworks_GetNumLobbyMembers( lobbyIdLow, lobbyIdHigh )" in lobby_enter_block
+    assert "QL_Steamworks_GetLobbyMemberLimit( lobbyIdLow, lobbyIdHigh )" in lobby_enter_block
+    assert "QL_Steamworks_GetLobbyMemberByIndex( lobbyIdLow, lobbyIdHigh, i, &memberIdLow, &memberIdHigh )" in lobby_enter_block
+    assert "QL_Steamworks_GetFriendPersonaName( memberIdLow, memberIdHigh, memberName, sizeof( memberName ) )" in lobby_enter_block
+    assert '"{\\"id\\":\\"%s\\",\\"is_owner\\":%s,\\"owner\\":\\"%s\\",\\"lobbydata\\":{"' in lobby_enter_block
+    assert '"},\\"num_players\\":%d,\\"max_players\\":%d,\\"players\\":{"' in lobby_enter_block
+    assert '"\\"%s\\":{\\"id\\":\\"%s\\",\\"name\\":\\"%s\\"}"' in lobby_enter_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_chat_update", "ignored null callback payload" );' in lobby_chat_update_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_chat_update", detail );' in lobby_chat_update_block
     assert '"user %s %s in lobby %s (state=%u)"' in lobby_chat_update_block
+    assert "numPlayers = QL_Steamworks_GetNumLobbyMembers( lobbyIdLow, lobbyIdHigh );" in lobby_chat_update_block
+    assert "maxPlayers = QL_Steamworks_GetLobbyMemberLimit( lobbyIdLow, lobbyIdHigh );" in lobby_chat_update_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "lobby.%s.user.joined", lobbyId );' in lobby_chat_update_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "lobby.%s.user.left", lobbyId );' in lobby_chat_update_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\",\\"name\\":\\"%s\\",\\"num_players\\":%d,\\"max_players\\":%d}",' in lobby_chat_update_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_chat_message", "ignored null callback payload" );' in lobby_chat_message_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_chat_message", detail );' in lobby_chat_message_block
     assert '"chat from %s in lobby %s type=%d bytes=%d"' in lobby_chat_message_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\",\\"name\\":\\"%s\\",\\"msg\\":\\"%s\\"}", userId, name, message );' in lobby_chat_message_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_data_update", "ignored null callback payload" );' in lobby_data_update_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_data_update", detail );' in lobby_data_update_block
     assert '"update lobby=%llu member=%llu success=%d"' in lobby_data_update_block
+    assert 'CL_Steam_FormatSteamId( event->lobbyId.value, lobbyId, sizeof( lobbyId ) );' in lobby_data_update_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\"}", lobbyId );' in lobby_data_update_block
+    assert "if ( event->memberId.value == event->lobbyId.value ) {" not in lobby_data_update_block
+    assert "CL_Steam_AppendLobbyDataJson( payload, sizeof( payload ), lobbyIdLow, lobbyIdHigh );" not in lobby_data_update_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_game_created", "ignored null callback payload" );' in lobby_game_created_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_game_created", detail );' in lobby_game_created_block
     assert '"game created lobby=%llu server=%llu ip=%u port=%u"' in lobby_game_created_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"ip\\":%u,\\"port\\":%u,\\"id\\":\\"%llu\\"}",' in lobby_game_created_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_kicked", "ignored null callback payload" );' in lobby_kicked_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_kicked", detail );' in lobby_kicked_block
     assert '"kicked lobby=%llu admin=%llu disconnected=%d"' in lobby_kicked_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%llu\\"}", (unsigned long long)event->lobbyId.value );' in lobby_kicked_block
+    assert "CL_Steam_ClearCurrentLobby();" in lobby_kicked_block
+    assert "if ( cl_steamCallbackState.currentLobbyValid && cl_steamCallbackState.currentLobbyId == event->lobbyId.value ) {" not in lobby_kicked_block
+    assert lobby_kicked_block.index( "CL_Steam_PublishBrowserEvent( eventName, payload );" ) < lobby_kicked_block.index( "CL_Steam_ClearCurrentLobby();" )
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_join_requested", "ignored null callback payload" );' in lobby_join_requested_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_join_requested", detail );' in lobby_join_requested_block
     assert '"join requested lobby=%llu friend=%llu"' in lobby_join_requested_block
-    assert 'Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );' in init_block
-    assert 'Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );' in init_block
-    assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' in init_block
-    assert 'Cmd_RemoveCommand ("connect_lobby");' in shutdown_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%llu\\"}", (unsigned long long)event->lobbyId.value );' in lobby_join_requested_block
+    lobby_init_block = _extract_function_block(cl_main, "static qboolean SteamLobby_Init( void ) {")
+
+    assert 'Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );' not in init_block
+    assert 'Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );' not in init_block
+    assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' not in init_block
+    assert 'Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );' in lobby_init_block
+    assert 'Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );' in lobby_init_block
+    assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' in lobby_init_block
+    assert 'Cmd_RemoveCommand ("connect_lobby");' not in shutdown_block
 
 
 def test_client_rich_presence_join_and_server_change_reconstruct_retail_connect_handoff() -> None:
@@ -2111,6 +2652,12 @@ def test_client_stats_callback_lane_stays_explicit() -> None:
     callback_log_block = _extract_function_block(
         cl_main, "static void CL_LogStatsCallbackLifecycle( const char *stage, const char *reason ) {"
     )
+    stats_json_block = _extract_function_block(
+        cl_main, "static void CL_Steam_AppendUserStatsJson( uint32_t idLow, uint32_t idHigh, int result, char *buffer, size_t bufferSize )"
+    )
+    achievement_json_block = _extract_function_block(
+        cl_main, "static void CL_Steam_AppendUserAchievementsJson( uint32_t idLow, uint32_t idHigh, int result, char *buffer, size_t bufferSize )"
+    )
     callback_block = _extract_function_block(
         cl_main, "static void CL_Steam_Client_OnUserStatsReceived( void *context, const ql_steam_user_stats_received_t *event )"
     )
@@ -2118,16 +2665,54 @@ def test_client_stats_callback_lane_stays_explicit() -> None:
     assert 'Com_DPrintf( "%s callback: %s (%s [%s])\\n",' in callback_log_block
     assert "CL_GetStatsServiceProviderLabel()," in callback_log_block
     assert "CL_GetStatsServicePolicyLabel()" in callback_log_block
+    assert "#define CL_STEAM_BROWSER_EVENT_PAYLOAD_LENGTH 65536" in cl_main
+    assert "#define CL_STEAM_STATS_FIELD_COUNT 88" in cl_main
+    assert "#define CL_STEAM_ACHIEVEMENT_COUNT 59" in cl_main
+    assert 'static const char *s_clSteamStatNames[CL_STEAM_STATS_FIELD_COUNT] = {' in cl_main
+    assert 'static const char *s_clSteamAchievementNames[CL_STEAM_ACHIEVEMENT_COUNT] = {' in cl_main
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"STATS\\":{" );' in stats_json_block
+    assert 'QL_Steamworks_GetUserStatInt( idLow, idHigh, name, &value );' in stats_json_block
+    assert '"%s\\"%s\\":%d"' in stats_json_block
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"ACHIEVEMENTS\\":{" );' in achievement_json_block
+    assert 'QL_Steamworks_GetAchievementDisplayAttribute( name, "name" );' in achievement_json_block
+    assert 'QL_Steamworks_GetAchievementDisplayAttribute( name, "desc" );' in achievement_json_block
+    assert 'QL_Steamworks_GetUserAchievement( idLow, idHigh, name, &unlocked, &unlockTime );' in achievement_json_block
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"ID\\":\\"%s\\","' in achievement_json_block
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"NAME\\":\\"%s\\","' in achievement_json_block
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"DESC\\":\\"%s\\","' in achievement_json_block
+    assert 'CL_Steam_AppendJsonFragment( buffer, bufferSize, "\\"TIME_UNLOCKED\\":%d}", unlockTime );' in achievement_json_block
     assert 'CL_LogStatsCallbackLifecycle( "user_stats_received", "ignored null callback payload" );' in callback_block
     assert 'Com_sprintf( detail, sizeof( detail ), "user stats received for %s game=%u result=%d",' in callback_block
     assert 'CL_LogStatsCallbackLifecycle( "user_stats_received", detail );' in callback_block
     assert 'Com_sprintf( eventName, sizeof( eventName ), "users.stats.%s.received", steamId );' in callback_block
+    assert 'if ( !QL_Steamworks_GetFriendPersonaName( steamIdLow, steamIdHigh, rawName, sizeof( rawName ) ) ) {' in callback_block
+    assert 'Q_strncpyz( rawName, event->name, sizeof( rawName ) );' in callback_block
+    assert 'CL_Steam_AppendJsonFragment( payload, sizeof( payload ), "{\\"ID\\":\\"%s\\",\\"NAME\\":\\"%s\\","' in callback_block
+    assert "CL_Steam_AppendUserStatsJson( steamIdLow, steamIdHigh, event->result, payload, sizeof( payload ) );" in callback_block
+    assert "CL_Steam_AppendUserAchievementsJson( steamIdLow, steamIdHigh, event->result, payload, sizeof( payload ) );" in callback_block
+    assert '"{\\"id\\":\\"%s\\"' not in callback_block
     assert 'CL_Steam_PublishBrowserEvent( eventName, payload );' in callback_block
 
 
 def test_client_social_presence_and_ugc_callback_lanes_stay_explicit() -> None:
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
 
+    format_game_block = _extract_function_block(
+        cl_main, "static void CL_Steam_FormatFriendGameJson( const ql_steam_friend_summary_t *summary, char *buffer, size_t bufferSize )"
+    )
+    format_presence_block = _extract_function_block(
+        cl_main, "static void CL_Steam_FormatFriendPresenceJson( const ql_steam_friend_summary_t *summary, char *buffer, size_t bufferSize )"
+    )
+    format_persona_block = _extract_function_block(
+        cl_main, "static void CL_Steam_FormatPersonaChangeJson( const ql_steam_persona_state_change_t *event, char *buffer, size_t bufferSize )"
+    )
+    format_summary_block = _extract_function_block(
+        cl_main, "void CL_Steam_FormatFriendSummaryJson( const ql_steam_friend_summary_t *summary, char *buffer, size_t bufferSize ) {"
+    )
+    ugc_results_block = _extract_function_block(
+        cl_main, "static void CL_Steam_BuildUGCQueryResultsJson( uint64_t queryHandle, uint32_t numResultsReturned, char *buffer, size_t bufferSize )"
+    )
     persona_block = _extract_function_block(
         cl_main, "static void CL_Steam_Client_OnPersonaStateChange( void *context, const ql_steam_persona_state_change_t *event )"
     )
@@ -2137,19 +2722,49 @@ def test_client_social_presence_and_ugc_callback_lanes_stay_explicit() -> None:
     ugc_block = _extract_function_block(
         cl_main, "static void CL_Steam_Client_OnUGCQueryCompleted( void *context, const ql_steam_ugc_query_completed_t *event )"
     )
+    friend_summary_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_GetFriendSummary( uint32_t idLow, uint32_t idHigh, ql_steam_friend_summary_t *outSummary )"
+    )
 
+    assert 'Q_strncpyz( buffer, "null", bufferSize );' in format_game_block
+    assert '"{\\"lobby\\":\\"%s\\",\\"appid\\":%u,\\"ip\\":%u,\\"port\\":%u,\\"queryport\\":%u}"' in format_game_block
+    assert "summary->appId," in format_game_block
+    assert '"{\\"id\\":\\"%s\\",\\"status\\":\\"%s\\",\\"lanIp\\":\\"%s\\"}"' in format_presence_block
+    assert "CL_Steam_FormatFriendSummaryJson( &event->summary, friendSummary, sizeof( friendSummary ) );" in format_persona_block
+    assert '"{\\"id\\":\\"%s\\",\\"state\\":%u,\\"friend\\":%s}"' in format_persona_block
+    assert '"{\\"id\\":\\"%s\\",\\"name\\":\\"%s\\",\\"state\\":%d,\\"relationship\\":%d,\\"nickname\\":\\"%s\\",\\"status\\":\\"%s\\",\\"lanIp\\":\\"%s\\",\\"playingQuake\\":%d,\\"game\\":%s}"' in format_summary_block
+    assert "CL_Steam_FormatFriendGameJson( summary, game, sizeof( game ) );" in format_summary_block
+    assert '"server"' not in format_summary_block
+    assert "QL_Steamworks_GetQueryUGCResult( queryHandle, i, &publishedFileId, title, sizeof( title ), description, sizeof( description ) )" in ugc_results_block
+    assert "QL_Steamworks_GetQueryUGCPreviewURL( queryHandle, i, image, sizeof( image ) )" in ugc_results_block
+    assert 'CL_Steam_AppendJsonFragment(' in ugc_results_block
+    assert '"%s{\\"title\\":\\"%s\\",\\"description\\":\\"%s\\",\\"id\\":\\"%s\\",\\"image\\":\\"%s\\"}"' in ugc_results_block
+    assert 'outSummary->appId = (uint32_t)( gameInfo.gameId & 0x00ffffffull );' in friend_summary_block
+    assert "if ( currentAppId != 0u && outSummary->appId == currentAppId ) {" in friend_summary_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "persona_state_change", "ignored null callback payload" );' in persona_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "persona_state_change", detail );' in persona_block
     assert '"persona changed for %s flags=%u"' in persona_block
+    assert 'if ( ( event->changeFlags & 1u ) != 0 &&' in persona_block
+    assert "QL_Steamworks_GetUserSteamID( &localIdLow, &localIdHigh )" in persona_block
+    assert "SteamClient_SyncPersonaNameCvar();" in persona_block
     assert 'Com_sprintf( eventName, sizeof( eventName ), "users.persona.%s.change", steamId );' in persona_block
+    assert "CL_Steam_FormatPersonaChangeJson( event, payload, sizeof( payload ) );" in persona_block
+    assert '"changeFlags"' not in persona_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "friend_rich_presence_update", "ignored null callback payload" );' in presence_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "friend_rich_presence_update", detail );' in presence_block
     assert '"rich presence updated for %s app=%u"' in presence_block
     assert 'Com_sprintf( eventName, sizeof( eventName ), "users.presence.%s.change", steamId );' in presence_block
+    assert 'CL_Steam_FormatFriendPresenceJson( &event->summary, summary, sizeof( summary ) );' in presence_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "%s", summary );' in presence_block
+    assert '"appId"' not in presence_block
+    assert '"friend"' not in presence_block
     assert 'CL_LogWorkshopLifecycle( "callback-ugc-query", "ignored null callback payload" );' in ugc_block
     assert 'CL_LogWorkshopLifecycle( "callback-ugc-query", detail );' in ugc_block
     assert '"query completed call=%llu query=%llu result=%d count=%u total=%u cached=%d"' in ugc_block
-    assert 'eventName = ( event->result == 1 ) ? "web.ugc.results" : "web.ugc.failed";' in ugc_block
+    assert "CL_Steam_BuildUGCQueryResultsJson( event->queryHandle, event->numResultsReturned, payload, sizeof( payload ) );" in ugc_block
+    assert 'CL_Steam_PublishBrowserEvent( "web.ugc.results", payload );' in ugc_block
+    assert 'CL_Steam_PublishBrowserEvent( "web.ugc.failed", NULL );' in ugc_block
+    assert "QL_Steamworks_ReleaseQueryUGCRequest( event->queryHandle );" in ugc_block
 
 
 def test_client_workshop_callback_lanes_stay_explicit() -> None:
@@ -2293,7 +2908,9 @@ def test_client_main_menu_presence_seed_reconstructs_retail_bootstrap_status() -
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "matchmaking provider unavailable" );' in presence_block
     assert 'if ( !QL_Steamworks_SetRichPresence( "status", "At the main menu" ) ) {' in presence_block
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "rich presence update failed" );' in presence_block
-    assert "CL_Steam_SetMainMenuRichPresence();" in init_block
+    steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
+    assert "CL_Steam_SetMainMenuRichPresence();" not in init_block
+    assert "CL_Steam_SetMainMenuRichPresence();" in steam_client_init_block
     assert "vtable[0xac / 4]" in platform_block
     assert "return fn( friends, NULL, key, value ) ? qtrue : qfalse;" in platform_block
 
@@ -2305,7 +2922,8 @@ def test_client_identity_bootstrap_and_ui_subscription_lanes_stay_explicit() -> 
     identity_log_block = _extract_function_block(
         cl_main, "static void CL_LogIdentityBootstrapFallback( const char *stage, const char *reason ) {"
     )
-    persona_block = _extract_function_block(cl_main, "static void CL_Steam_SyncPersonaNameCvar( void )")
+    init_block = _extract_function_block(cl_main, "void CL_Init( void )")
+    persona_block = _extract_function_block(cl_main, "static void SteamClient_SyncPersonaNameCvar( void ) {")
     country_block = _extract_function_block(cl_main, "static void CL_Steam_SeedCountryCvar( void )")
     subscribed_block = _extract_function_block(cl_ui, "static int QDECL QL_UI_trap_IsSubscribedApp( int arg1 )")
     subscription_log_block = _extract_function_block(
@@ -2315,6 +2933,10 @@ def test_client_identity_bootstrap_and_ui_subscription_lanes_stay_explicit() -> 
     assert "static const char *CL_GetIdentityBootstrapModeLabel( void ) {" in cl_main
     assert "static const char *CL_GetIdentityBootstrapPolicyLabel( void ) {" in cl_main
     assert 'Com_DPrintf( "%s identity bootstrap: %s (%s [%s])\\n",' in identity_log_block
+    assert "SteamClient_SyncPersonaNameCvar();" in init_block
+    assert "QLWebHost_RegisterCommands();" in init_block
+    assert init_block.index('Cmd_AddCommand ("clientviewprofile", CL_Steam_OverlayCommand_f );') < init_block.index("QLWebHost_RegisterCommands();")
+    assert init_block.index("QLWebHost_RegisterCommands();") < init_block.index("SteamClient_SyncPersonaNameCvar();")
     assert 'CL_LogIdentityBootstrapFallback( "steam_persona_name", "identity bootstrap provider unavailable" );' in persona_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_persona_name", "identity bootstrap initialisation failed" );' in persona_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_persona_name", "persona unavailable; falling back to anon" );' in persona_block
@@ -2332,20 +2954,40 @@ def test_client_identity_bootstrap_and_ui_subscription_lanes_stay_explicit() -> 
     assert "return QL_Steamworks_IsSubscribedApp( (uint32_t)arg1 ) ? 1 : 0;" in subscribed_block
 
 
-def test_first_snapshot_reconstructs_retail_match_start_presence_status() -> None:
+def test_game_start_publisher_reconstructs_retail_match_presence_and_connect_handoff() -> None:
     client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
+    qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
 
-    presence_block = _extract_function_block(cl_cgame, "static void CL_Steam_SetMatchRichPresence( void )")
+    presence_block = _extract_function_block(cl_main, "static void CL_Steam_SetMatchRichPresence( void )")
+    packed_publish_block = _extract_function_block(
+        cl_main, "static void CL_WebView_PublishPackedGameStart( uint32_t packedIp, unsigned int port, qboolean publishLanIp )"
+    )
+    publish_for_address_block = _extract_function_block(
+        cl_main, "static void CL_WebView_PublishGameStartForAddress( const netadr_t *serverAddress )"
+    )
+    publish_start_block = _extract_function_block(cl_main, "void CL_WebView_PublishGameStart( void )")
+    connect_block = _extract_function_block(cl_main, "void CL_Connect_f( void )")
     first_snapshot_block = _extract_function_block(cl_cgame, "void CL_FirstSnapshot( void )")
 
     assert "void CL_LogMatchmakingServiceIgnored( const char *commandName, const char *reason );" in client_h
+    assert "qboolean\tNET_GetLocalAddressIP( netadr_t *address );" in qcommon_h
     assert "CL_SteamServicesEnabled()" in presence_block
     assert "clc.demoplaying" in presence_block
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_match", "matchmaking provider unavailable" );' in presence_block
     assert 'if ( !QL_Steamworks_SetRichPresence( "status", "Playing a match" ) ) {' in presence_block
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_match", "rich presence update failed" );' in presence_block
-    assert "CL_Steam_SetMatchRichPresence();" in first_snapshot_block
+    assert 'Com_sprintf( lanAddress, sizeof( lanAddress ), "%lu:%u", (unsigned long)packedIp, port );' in packed_publish_block
+    assert 'QL_Steamworks_SetRichPresence( "lanIp", lanAddress );' in packed_publish_block
+    assert "CL_Steam_SetMatchRichPresence();" in packed_publish_block
+    assert 'Com_sprintf( payload, sizeof( payload ), "{\\"ip\\":%u,\\"port\\":%u}", packedIp, port );' in packed_publish_block
+    assert "NET_GetLocalAddressIP( &localAddress )" in publish_start_block
+    assert "packedIp = QL_Steamworks_ServerGetPublicIP();" in publish_start_block
+    assert "CL_WebView_PublishGameStartForAddress( &serverAddress );" in publish_start_block
+    assert "CL_WebView_PublishPackedGameStart( CL_WebView_PackAddressIP( serverAddress ), port, qfalse );" in publish_for_address_block
+    assert 'Cvar_Set( "cl_currentServerAddress", server );' in connect_block
+    assert "CL_WebView_PublishGameStartForAddress( &clc.serverAddress );" in connect_block
     assert "CL_WebView_PublishGameStart();" in first_snapshot_block
 
 
@@ -3753,25 +4395,104 @@ def test_workshop_mount_startup_reconstructs_retail_subscribed_item_import_path(
 
 
 def test_lobby_social_wrappers_reconstruct_mapped_matchmaking_slots() -> None:
+    steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
     steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
 
+    friend_name_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_GetFriendPersonaName( uint32_t idLow, uint32_t idHigh, char *buffer, size_t bufferSize )",
+    )
     create_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_CreateLobby( int maxMembers )")
     leave_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_LeaveLobby( uint32_t idLow, uint32_t idHigh )")
     join_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_JoinLobby( uint32_t idLow, uint32_t idHigh )")
+    owner_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_GetLobbyOwner( uint32_t idLow, uint32_t idHigh, uint32_t *outIdLow, uint32_t *outIdHigh )",
+    )
+    data_count_block = _extract_function_block(
+        steamworks,
+        "int QL_Steamworks_GetLobbyDataCount( uint32_t idLow, uint32_t idHigh )",
+    )
+    set_lobby_data_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_SetLobbyData( uint32_t idLow, uint32_t idHigh, const char *key, const char *value )",
+    )
+    data_index_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_GetLobbyDataByIndex( uint32_t idLow, uint32_t idHigh, int index, char *key, size_t keySize, char *value, size_t valueSize )",
+    )
+    member_count_block = _extract_function_block(
+        steamworks,
+        "int QL_Steamworks_GetNumLobbyMembers( uint32_t idLow, uint32_t idHigh )",
+    )
+    member_limit_block = _extract_function_block(
+        steamworks,
+        "int QL_Steamworks_GetLobbyMemberLimit( uint32_t idLow, uint32_t idHigh )",
+    )
+    member_index_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_GetLobbyMemberByIndex( uint32_t idLow, uint32_t idHigh, int index, uint32_t *outIdLow, uint32_t *outIdHigh )",
+    )
     set_server_block = _extract_function_block(
         steamworks,
         "qboolean QL_Steamworks_SetLobbyServer( uint32_t idLow, uint32_t idHigh, uint32_t serverIp, uint16_t serverPort )",
     )
     invite_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ShowInviteOverlay( uint32_t idLow, uint32_t idHigh )")
+    invite_lobby_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh )",
+    )
+    invite_game_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString )",
+    )
     say_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_SayLobby( uint32_t idLow, uint32_t idHigh, const char *message )")
     stats_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t idHigh )")
+    user_stat_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t idHigh, const char *name, int *outValue )",
+    )
+    user_achievement_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_GetUserAchievement( uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved, int *outUnlockTime )",
+    )
+    achievement_attr_block = _extract_function_block(
+        steamworks, 'const char *QL_Steamworks_GetAchievementDisplayAttribute( const char *name, const char *key )'
+    )
 
+    assert "qboolean QL_Steamworks_GetFriendPersonaName( uint32_t idLow, uint32_t idHigh, char *buffer, size_t bufferSize );" in steamworks_h
+    assert "qboolean QL_Steamworks_GetLobbyOwner( uint32_t idLow, uint32_t idHigh, uint32_t *outIdLow, uint32_t *outIdHigh );" in steamworks_h
+    assert "int QL_Steamworks_GetLobbyDataCount( uint32_t idLow, uint32_t idHigh );" in steamworks_h
+    assert "qboolean QL_Steamworks_SetLobbyData( uint32_t idLow, uint32_t idHigh, const char *key, const char *value );" in steamworks_h
+    assert "qboolean QL_Steamworks_GetLobbyDataByIndex( uint32_t idLow, uint32_t idHigh, int index, char *key, size_t keySize, char *value, size_t valueSize );" in steamworks_h
+    assert "int QL_Steamworks_GetNumLobbyMembers( uint32_t idLow, uint32_t idHigh );" in steamworks_h
+    assert "int QL_Steamworks_GetLobbyMemberLimit( uint32_t idLow, uint32_t idHigh );" in steamworks_h
+    assert "qboolean QL_Steamworks_GetLobbyMemberByIndex( uint32_t idLow, uint32_t idHigh, int index, uint32_t *outIdLow, uint32_t *outIdHigh );" in steamworks_h
+    assert "qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t idHigh, const char *name, int *outValue );" in steamworks_h
+    assert "qboolean QL_Steamworks_GetUserAchievement( uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved, int *outUnlockTime );" in steamworks_h
+    assert 'const char *QL_Steamworks_GetAchievementDisplayAttribute( const char *name, const char *key );' in steamworks_h
+    assert "vtable[0x1c / 4]" in friend_name_block
+    assert "QL_Steamworks_CopySteamString( buffer, bufferSize, fn( friends, NULL, QL_Steamworks_CombineIdentityWords( idLow, idHigh ) ) );" in friend_name_block
     assert "vtable[0x34 / 4]" in create_block
     assert "return fn( matchmaking, NULL, 2, maxMembers ) != 0 ? qtrue : qfalse;" in create_block
     assert "vtable[0x3c / 4]" in leave_block
     assert "fn( matchmaking, NULL, idLow, idHigh );" in leave_block
     assert "vtable[0x38 / 4]" in join_block
     assert "return fn( matchmaking, NULL, idLow, idHigh ) != 0 ? qtrue : qfalse;" in join_block
+    assert "vtable[0x8c / 4]" in owner_block
+    assert "fn( matchmaking, NULL, &lobbyOwnerId, idLow, idHigh );" in owner_block
+    assert "vtable[0x54 / 4]" in data_count_block
+    assert "return fn( matchmaking, NULL, idLow, idHigh );" in data_count_block
+    assert "vtable[0x50 / 4]" in set_lobby_data_block
+    assert "return fn( matchmaking, NULL, idLow, idHigh, key, value ) ? qtrue : qfalse;" in set_lobby_data_block
+    assert "vtable[0x58 / 4]" in data_index_block
+    assert "fn( matchmaking, NULL, idLow, idHigh, index, key, (int)keySize, value, (int)valueSize );" in data_index_block
+    assert "vtable[0x44 / 4]" in member_count_block
+    assert "return fn( matchmaking, NULL, idLow, idHigh );" in member_count_block
+    assert "vtable[0x80 / 4]" in member_limit_block
+    assert "return fn( matchmaking, NULL, idLow, idHigh );" in member_limit_block
+    assert "vtable[0x48 / 4]" in member_index_block
+    assert "fn( matchmaking, NULL, &memberId, idLow, idHigh, index );" in member_index_block
     assert "userVTable[0x08 / 4]" in set_server_block
     assert "matchmakingVTable[0x8c / 4]" in set_server_block
     assert "matchmakingVTable[0x74 / 4]" in set_server_block
@@ -3779,10 +4500,23 @@ def test_lobby_social_wrappers_reconstruct_mapped_matchmaking_slots() -> None:
     assert "setLobbyServerFn( matchmaking, NULL, idLow, idHigh, serverIp, serverPort, idLow, idHigh );" in set_server_block
     assert "vtable[0x84 / 4]" in invite_block
     assert "fn( friends, NULL, idLow, idHigh );" in invite_block
+    assert "vtable[0x40 / 4]" in invite_lobby_block
+    assert "return fn( matchmaking, NULL, lobbyIdLow, lobbyIdHigh, userIdLow, userIdHigh ) ? qtrue : qfalse;" in invite_lobby_block
+    assert "vtable[0xc4 / 4]" in invite_game_block
+    assert "return fn( friends, NULL, idLow, idHigh, connectString ) ? qtrue : qfalse;" in invite_game_block
     assert "vtable[0x68 / 4]" in say_block
     assert "messageLength = (int)strlen( message ) + 1;" in say_block
     assert "vtable[0x40 / 4]" in stats_block
     assert "return fn( userStats, NULL, idLow, idHigh ) != 0 ? qtrue : qfalse;" in stats_block
+    assert "vtable[0x48 / 4]" in user_stat_block
+    assert "return fn( userStats, NULL, idLow, idHigh, name, outValue ) ? qtrue : qfalse;" in user_stat_block
+    assert "vtable[0x50 / 4]" in user_achievement_block
+    assert "if ( outUnlockTime ) {" in user_achievement_block
+    assert "*outUnlockTime = unlockTime;" in user_achievement_block
+    assert "*outAchieved = achieved ? qtrue : qfalse;" in user_achievement_block
+    assert "vtable[0x30 / 4]" in achievement_attr_block
+    assert 'value = fn( userStats, NULL, name, key );' in achievement_attr_block
+    assert 'return value ? value : "";' in achievement_attr_block
 
 
 def test_operator_workshop_commands_reconstruct_retail_ugc_surface() -> None:

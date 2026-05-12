@@ -343,7 +343,7 @@ void R_AddBrushModelSurfaces ( trRefEntity_t *ent ) {
 R_CullAdvertisementQuad
 =================
 */
-static int R_CullAdvertisementQuad( const qlAdvertisement_t *advertisement ) {
+static int R_CullAdvertisementQuad( const vec3_t points[4] ) {
 	cplane_t	*frust;
 	float		dist;
 	int			anyBack;
@@ -363,7 +363,7 @@ static int R_CullAdvertisementQuad( const qlAdvertisement_t *advertisement ) {
 		back = 0;
 
 		for ( j = 0 ; j < 4 ; j++ ) {
-			dist = DotProduct( advertisement->points[j], frust->normal ) - frust->dist;
+			dist = DotProduct( points[j], frust->normal ) - frust->dist;
 			if ( dist > 0.0f ) {
 				front = 1;
 				if ( back ) {
@@ -390,14 +390,64 @@ static int R_CullAdvertisementQuad( const qlAdvertisement_t *advertisement ) {
 
 /*
 =================
-R_AddAdvertisementSurfaces
+R_AddAdvertisementSurface
 =================
 */
-static void R_AddAdvertisementSurfaces( void ) {
+static int R_AddAdvertisementSurface( qlAdvertisement_t *advertisement ) {
+	msurface_t	*surface;
+	vec3_t		viewDelta;
+	int			cull;
+
+	if ( !advertisement->bmodel || advertisement->bmodel->numSurfaces <= 0 ) {
+		return CULL_OUT;
+	}
+
+	surface = advertisement->bmodel->firstSurface;
+	if ( surface->viewCount == tr.viewCount ) {
+		return advertisement->cullState;
+	}
+
+	VectorSubtract( tr.refdef.vieworg, advertisement->center, viewDelta );
+	if ( DotProduct( advertisement->normal, viewDelta ) <= 0.0f ) {
+		return CULL_OUT;
+	}
+
+	surface->viewCount = tr.viewCount;
+	cull = R_CullAdvertisementQuad( advertisement->points );
+	if ( cull == CULL_OUT ) {
+		return cull;
+	}
+
+	R_AddDrawSurf( surface->data, surface->shader, surface->fogIndex, qfalse );
+	return cull;
+}
+
+static advertisementQueryEntry_t	r_advertisementQueryEntries[MAX_MAP_ADVERTISEMENTS];
+static int							r_numAdvertisementQueryEntries;
+
+static const vec4_t				r_advertisementDebugPalette[3] = {
+	{ 0.5f, 0.0f, 0.0f, 1.0f },
+	{ 0.5f, 0.5f, 0.0f, 1.0f },
+	{ 0.0f, 0.5f, 0.0f, 1.0f }
+};
+
+#define R_DEBUG_ADVERTISEMENT_TEXT_X		25
+#define R_DEBUG_ADVERTISEMENT_TEXT_Y		256
+#define R_DEBUG_ADVERTISEMENT_TEXT_STEP	16
+#define R_DEBUG_ADVERTISEMENT_TEXT_SCALE	( 16.0f / 48.0f )
+
+/*
+=================
+R_UpdateAdvertisements
+=================
+*/
+void R_UpdateAdvertisements( void ) {
 	qlAdvertisement_t	*advertisement;
-	bmodel_t			*bmodel;
-	vec3_t				viewDelta;
+	advertisementQueryEntry_t	*entry;
+	int					cull;
 	int					i;
+
+	r_numAdvertisementQueryEntries = 0;
 
 	if ( !tr.world || tr.world->numAdvertisements <= 0 ) {
 		return;
@@ -407,23 +457,230 @@ static void R_AddAdvertisementSurfaces( void ) {
 
 	for ( i = 0 ; i < tr.world->numAdvertisements ; i++ ) {
 		advertisement = &tr.world->advertisements[i];
-		bmodel = advertisement->bmodel;
-		if ( !bmodel ) {
+		if ( tr.frameSceneNum == 1 ) {
+			advertisement->cullState = CULL_OUT;
+			advertisement->queryListIndex = -1;
+			advertisement->viewArea = 0;
+			advertisement->projectedNormalX = 0.0f;
+			advertisement->projectedNormalY = 0.0f;
+		}
+
+		if ( !advertisement->bmodel ) {
 			continue;
 		}
 
-		VectorSubtract( tr.refdef.vieworg, advertisement->center, viewDelta );
-		if ( DotProduct( advertisement->normal, viewDelta ) <= 0.0f ) {
+		if ( !R_inPVS( tr.refdef.vieworg, advertisement->center ) ) {
 			continue;
 		}
 
-		if ( R_CullAdvertisementQuad( advertisement ) == CULL_OUT ) {
+		cull = R_AddAdvertisementSurface( advertisement );
+		if ( tr.frameSceneNum != 1 || cull == CULL_OUT ) {
 			continue;
 		}
 
-		R_DlightBmodel( bmodel );
-		R_AddWorldSurface( bmodel->firstSurface, tr.currentEntity->needDlights );
+		advertisement->cullState = cull;
+		advertisement->viewArea = tr.refdef.width * tr.refdef.height;
+		advertisement->projectedNormalX = DotProduct( tr.refdef.viewaxis[1], advertisement->normal );
+		advertisement->projectedNormalY = DotProduct( tr.refdef.viewaxis[2], advertisement->normal );
+
+		if ( !qglBeginQueryARB || !qglEndQueryARB || cull != CULL_IN ||
+			r_numAdvertisementQueryEntries >= MAX_MAP_ADVERTISEMENTS ) {
+			continue;
+		}
+
+		entry = &r_advertisementQueryEntries[r_numAdvertisementQueryEntries];
+		entry->occlusionQueryIds[0] = advertisement->occlusionQueryIds[0];
+		entry->occlusionQueryIds[1] = advertisement->occlusionQueryIds[1];
+		Com_Memcpy( entry->points, advertisement->points, sizeof( entry->points ) );
+
+		advertisement->queryListIndex = r_numAdvertisementQueryEntries;
+		r_numAdvertisementQueryEntries++;
 	}
+}
+
+/*
+=================
+R_QueueAdvertisementQueryCmd
+=================
+*/
+void R_QueueAdvertisementQueryCmd( void ) {
+	if ( r_numAdvertisementQueryEntries <= 0 ) {
+		return;
+	}
+
+	R_AddAdvertisementQueryCmd( r_advertisementQueryEntries, r_numAdvertisementQueryEntries );
+}
+
+/*
+=================
+R_ShutdownAdvertisements
+=================
+*/
+void R_ShutdownAdvertisements( void ) {
+	qlAdvertisement_t	*advertisement;
+	int					i;
+
+	r_numAdvertisementQueryEntries = 0;
+
+	if ( !tr.world || !tr.world->advertisements || tr.world->numAdvertisements <= 0 ) {
+		return;
+	}
+
+	for ( i = 0 ; i < tr.world->numAdvertisements ; i++ ) {
+		advertisement = &tr.world->advertisements[i];
+		if ( qglDeleteQueriesARB && advertisement->occlusionQueryIds[0] != 0 ) {
+			qglDeleteQueriesARB( 2, advertisement->occlusionQueryIds );
+		}
+
+		advertisement->cullState = CULL_OUT;
+		advertisement->occlusionQueryIds[0] = 0;
+		advertisement->occlusionQueryIds[1] = 0;
+		advertisement->queryListIndex = -1;
+		advertisement->viewArea = 0;
+		advertisement->projectedNormalX = 0.0f;
+		advertisement->projectedNormalY = 0.0f;
+	}
+}
+
+/*
+=================
+R_GetAdvertisementDebugColor
+=================
+*/
+static const vec4_t *R_GetAdvertisementDebugColor( int displayState ) {
+	if ( displayState < 0 || displayState >= 3 ) {
+		return &r_advertisementDebugPalette[0];
+	}
+
+	return &r_advertisementDebugPalette[displayState];
+}
+
+/*
+=================
+R_DrawAdvertisementDebugText
+=================
+*/
+static void R_DrawAdvertisementDebugText( int y, const char *text, const vec4_t color ) {
+	if ( !text || !text[0] ) {
+		return;
+	}
+
+	RE_DrawScaledText( R_DEBUG_ADVERTISEMENT_TEXT_X, y, text,
+		0, R_DEBUG_ADVERTISEMENT_TEXT_SCALE, 0, NULL, qtrue, color );
+}
+
+/*
+=================
+R_DrawAdvertisementDebugQuad
+=================
+*/
+static void R_DrawAdvertisementDebugQuad( const vec3_t points[4], const vec4_t color ) {
+	int		i;
+
+	qglColor4f( color[0], color[1], color[2], color[3] );
+	qglBegin( GL_LINE_LOOP );
+	for ( i = 0 ; i < 4 ; i++ ) {
+		qglVertex3fv( points[i] );
+	}
+	qglEnd();
+}
+
+/*
+=================
+R_DrawAdvertisementDebugNormal
+=================
+*/
+static void R_DrawAdvertisementDebugNormal( const qlAdvertisement_t *advertisement ) {
+	vec3_t		endPoint;
+
+	if ( !advertisement ) {
+		return;
+	}
+
+	VectorMA( advertisement->center, 100.0f, advertisement->normal, endPoint );
+
+	qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+	qglBegin( GL_LINES );
+	qglVertex3fv( advertisement->center );
+	qglVertex3fv( endPoint );
+	qglEnd();
+}
+
+/*
+=================
+R_DebugAdvertisements
+=================
+*/
+void R_DebugAdvertisements( void ) {
+	qlAdvertisement_t	*advertisement;
+	const vec4_t		*color;
+	char				buffer[256];
+	int					count;
+	int					displayState;
+	int					i;
+	int					lineY;
+
+	if ( !r_debugAds || !r_debugAds->integer || tr.viewParms.frameSceneNum != 1 ) {
+		return;
+	}
+
+	if ( !tr.world || tr.world->numAdvertisements <= 0 ) {
+		return;
+	}
+
+	R_SyncRenderThread();
+	GL_Bind( tr.whiteImage );
+	GL_Cull( CT_TWO_SIDED );
+
+	lineY = R_DEBUG_ADVERTISEMENT_TEXT_Y;
+
+	for ( i = 0 ; i < tr.world->numAdvertisements ; i++ ) {
+		advertisement = &tr.world->advertisements[i];
+		if ( advertisement->cullState == CULL_OUT ) {
+			continue;
+		}
+
+		displayState = 0;
+		if ( ri.AdvertisementBridge_GetCellDisplayState ) {
+			displayState = ri.AdvertisementBridge_GetCellDisplayState( advertisement->cellId );
+		}
+		color = R_GetAdvertisementDebugColor( displayState );
+
+		buffer[0] = '\0';
+		if ( ri.AdvertisementBridge_GetCellLabel ) {
+			ri.AdvertisementBridge_GetCellLabel( advertisement->cellId, buffer, sizeof( buffer ) );
+		}
+		R_DrawAdvertisementDebugText( lineY, buffer, *color );
+		lineY += R_DEBUG_ADVERTISEMENT_TEXT_STEP;
+
+		GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
+		R_DrawAdvertisementDebugQuad( advertisement->points, *color );
+		GL_State( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA );
+		R_DrawAdvertisementDebugNormal( advertisement );
+	}
+
+	if ( ri.AdvertisementBridge_GetLabelList1Count && ri.AdvertisementBridge_GetLabelList1Entry ) {
+		count = ri.AdvertisementBridge_GetLabelList1Count();
+		for ( i = 0 ; i < count ; i++ ) {
+			buffer[0] = '\0';
+			ri.AdvertisementBridge_GetLabelList1Entry( i, buffer, sizeof( buffer ) );
+			R_DrawAdvertisementDebugText( lineY, buffer, colorWhite );
+			lineY += R_DEBUG_ADVERTISEMENT_TEXT_STEP;
+		}
+	}
+
+	if ( ri.AdvertisementBridge_GetLabelList2Count && ri.AdvertisementBridge_GetLabelList2Entry ) {
+		count = ri.AdvertisementBridge_GetLabelList2Count();
+		for ( i = 0 ; i < count ; i++ ) {
+			buffer[0] = '\0';
+			ri.AdvertisementBridge_GetLabelList2Entry( i, buffer, sizeof( buffer ) );
+			R_DrawAdvertisementDebugText( lineY, buffer, colorWhite );
+			lineY += R_DEBUG_ADVERTISEMENT_TEXT_STEP;
+		}
+	}
+
+	GL_Cull( CT_BACK_SIDED );
+	GL_State( GLS_DEFAULT );
 }
 
 /*
@@ -819,5 +1076,4 @@ void R_AddWorldSurfaces (void) {
 		tr.refdef.num_dlights = 32 ;
 	}
 	R_RecursiveWorldNode( tr.world->nodes, 15, ( 1 << tr.refdef.num_dlights ) - 1 );
-	R_AddAdvertisementSurfaces();
 }

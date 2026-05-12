@@ -162,7 +162,9 @@ def test_cgame_and_match_state_follow_retail_configstring_ownership() -> None:
 	match_state_c = _read("src/code/game/g_match_state.c")
 
 	assert "cgs.matchSuddenDeathActive = cgs.matchOvertimeActive;" in cgame_servercmds
+	assert "static void CG_ParseSuddenDeathStatus( void ) {" in cgame_servercmds
+	assert "info = CG_ConfigString( CS_SUDDENDEATH_STATUS );" in cgame_servercmds
 	assert "static void CG_ParseIntermissionExitStatus( void ) {" in cgame_servercmds
 	assert "info = CG_ConfigString( CS_INTERMISSION_EXIT_STATUS );" in cgame_servercmds
 	assert "cgs.intermissionExitStatusLatched = value ? qtrue : qfalse;" in cgame_servercmds
-	assert "trap_SetConfigstring( CS_SUDDENDEATH_STATUS" not in match_state_c
+	assert 'trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );' in match_state_c

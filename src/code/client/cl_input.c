@@ -447,7 +447,7 @@ void CL_MouseEvent( int dx, int dy, int time ) {
 	} else if ( cls.keyCatchers & KEYCATCH_CGAME ) {
 		CL_UpdateMouseCursorPosition( translatedDx, translatedDy, &cursorX, &cursorY );
 		CL_WebView_OnMouseMove( cursorX, cursorY );
-		VM_Call( cgvm, CG_MOUSE_EVENT, cursorX, cursorY );
+		VM_Call (cgvm, CG_MOUSE_EVENT, cursorX, cursorY);
 	} else {
 		cl.mouseDx[cl.mouseIndex] += dx;
 		cl.mouseDy[cl.mouseIndex] += dy;

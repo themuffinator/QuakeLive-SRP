@@ -157,6 +157,12 @@ typedef struct {
 	void	(*CIN_UploadCinematic)(int handle);
 	int		(*CIN_PlayCinematic)( const char *arg0, int xpos, int ypos, int width, int height, int bits);
 	e_status (*CIN_RunCinematic) (int handle);
+	int		(*AdvertisementBridge_GetCellDisplayState)( int cellId );
+	void	(*AdvertisementBridge_GetCellLabel)( int cellId, char *buffer, int bufferSize );
+	int		(*AdvertisementBridge_GetLabelList1Count)( void );
+	void	(*AdvertisementBridge_GetLabelList1Entry)( int index, char *buffer, int bufferSize );
+	int		(*AdvertisementBridge_GetLabelList2Count)( void );
+	void	(*AdvertisementBridge_GetLabelList2Entry)( int index, char *buffer, int bufferSize );
 
 } refimport_t;
 

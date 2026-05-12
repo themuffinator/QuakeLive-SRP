@@ -6,6 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CL_MAIN_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_main.c"
 CL_UI_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_ui.c"
+NET_CHAN_PATH = REPO_ROOT / "src" / "code" / "qcommon" / "net_chan.c"
 QL_UI_IMPORTS_PATH = REPO_ROOT / "src" / "code" / "client" / "ql_ui_imports.inc"
 NETCODE_AUDIT_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "engine-netcode-parity-audit-2026-04-16.md"
@@ -52,6 +53,72 @@ def test_cl_setserverinfo_matches_recovered_retail_field_set() -> None:
 		'server->punkbuster = atoi(Info_ValueForKey(info, "punkbuster"));',
 	):
 		assert forbidden not in snippet
+
+
+def test_cl_serverinfopacket_nettype_matches_recovered_retail_contract() -> None:
+	cl_main = _read_text(CL_MAIN_PATH)
+	snippet = _snippet_after(
+		cl_main,
+		"void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {",
+		64,
+	)
+
+	assert 'if ( from.type == NA_BROADCAST || from.type == NA_IP ) {' in snippet
+	assert "type = 1;" in snippet
+	assert "type = 0;" in snippet
+	assert 'Info_SetValueForKey( cl_pinglist[i].info, "nettype", va("%d", type) );' in snippet
+
+	for forbidden in (
+		"char*\tstr;",
+		"case NA_IPX:",
+		"case NA_BROADCAST_IPX:",
+		'str = "udp";',
+		'str = "ipx";',
+		'type = 2;',
+	):
+		assert forbidden not in snippet
+
+
+def test_ping_helper_lane_does_not_keep_unrecovered_update_wrapper() -> None:
+	cl_main = _read_text(CL_MAIN_PATH)
+	get_ping_marker = "void CL_GetPing( int n, char *buf, int buflen, int *pingtime )"
+	get_ping_info_marker = "void CL_GetPingInfo( int n, char *buf, int buflen )"
+
+	assert "void CL_UpdateServerInfo( int n )" not in cl_main
+	between = cl_main.split(get_ping_marker, 1)[1].split(get_ping_info_marker, 1)[0]
+	assert "CL_UpdateServerInfo" not in between
+	assert (
+		"CL_SetServerInfoByAddress(cl_pinglist[n].adr, cl_pinglist[n].info, cl_pinglist[n].time);"
+		in between
+	)
+
+
+def test_shared_net_address_helpers_match_retail_type_contracts() -> None:
+	net_chan = _read_text(NET_CHAN_PATH)
+	compare_base = _snippet_after(
+		net_chan,
+		"qboolean\tNET_CompareBaseAdr (netadr_t a, netadr_t b)",
+		18,
+	)
+	compare_adr = _snippet_after(
+		net_chan,
+		"qboolean\tNET_CompareAdr (netadr_t a, netadr_t b)",
+		20,
+	)
+
+	assert "if (a.type == NA_LOOPBACK)" in compare_base
+	assert "if (a.type == NA_IP)" in compare_base
+	assert 'Com_Printf ("NET_CompareBaseAdr: bad address type\\n");' in compare_base
+	assert "if (a.type == NA_LOOPBACK || a.type == NA_BOT)" in compare_adr
+	assert "if (a.type == NA_IP)" in compare_adr
+	assert 'Com_Printf ("NET_CompareAdr: bad address type\\n");' in compare_adr
+
+	for forbidden in (
+		"if (a.type == NA_IPX)",
+		"memcmp(a.ipx, b.ipx, 10)",
+	):
+		assert forbidden not in compare_base
+		assert forbidden not in compare_adr
 
 
 def test_native_lan_cache_import_slots_stay_retail_noops() -> None:

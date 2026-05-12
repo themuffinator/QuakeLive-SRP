@@ -1,6 +1,6 @@
 # Function-Level Parity Gap Audit
 
-Last updated: 2026-04-26
+Last updated: 2026-04-28
 
 ## Purpose
 
@@ -79,13 +79,70 @@ Mapping and status corpus:
 - `docs/reverse-engineering/quakelive_steam_mapping_round_139.md`
 - `docs/reverse-engineering/quakelive_steam_mapping_round_140.md`
 - `docs/reverse-engineering/quakelive_steam_mapping_round_141.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_142.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_143.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_144.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_145.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_146.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_147.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_148.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_149.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_150.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_151.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_152.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_153.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_154.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_155.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_156.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_157.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_158.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_159.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_160.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_161.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_162.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_163.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_164.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_165.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_166.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_167.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_168.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_176.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_177.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_178.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_179.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_180.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_182.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_183.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_184.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_185.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_186.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_187.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_188.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_189.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_190.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_191.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_192.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_193.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_194.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_195.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_196.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_197.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_198.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_199.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_200.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_201.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_202.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_203.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_204.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_205.md`
 - `docs/mapping-ref/quakelive_steam_mapping_appendix.md`
 
 ## Reference Function Inventory
 
 | Retail reference | Ghidra functions | Imports | Exports | Function-map state | Current source parity gap |
 | --- | ---: | ---: | ---: | --- | --- |
-| `quakelive_steam.exe` | `5473` | `351` | `2` | `1616` alias entries, `1545` strict Ghidra address-backed aliases, about `28.229%` strict Ghidra address-backed coverage after round 141 | Yes: online services are bounded divergence; host mapping is still partial |
+| `quakelive_steam.exe` | `5473` | `351` | `2` | `2167` alias entries, `2094` strict Ghidra address-backed aliases, about `38.261%` strict Ghidra address-backed coverage after round 205 | Yes: online services are bounded divergence; host mapping is still partial |
 | `qagamex86.dll` | `1027` | `65` | `2` | `1128 / 1128` committed `qagame` map rows are `matched` | No active module function gap |
 | `cgamex86.dll` | `751` | `55` | `2` | `854 / 854` committed `cgame` rows are `matched`, including `103` HLIL-only anchors | No active module function gap |
 | `uix86.dll` | `348` | `50` | `2` | `444 / 444` committed `ui` rows are `matched`, including `96` HLIL-only anchors | No active UI function gap |
@@ -312,9 +369,9 @@ only as retired historical seed entries.
 Current coverage:
 
 - Ghidra baseline: `5473` functions
-- Current alias corpus: `1616` raw aliases
-- Strict Ghidra address-backed aliases: `1545`
-- Strict Ghidra address-backed coverage: about `28.229%`
+- Current alias corpus: `2149` raw aliases
+- Strict Ghidra address-backed aliases: `2076`
+- Strict Ghidra address-backed coverage: about `37.932%`
 
 The strict address-backed figure above now counts only alias keys whose
 address exists in the committed Ghidra `functions.csv`. Useful HLIL-backed
@@ -336,30 +393,30 @@ High-priority opaque/unfinished areas from the current mapping notes:
 | `0x004F4640` | `sub_4F4640` | High-value unresolved host leftover called out after round 109 |
 
 Largest currently unaliased Ghidra functions by byte size after
-[mapping round 141](./quakelive_steam_mapping_round_141.md):
+[mapping round 205](./quakelive_steam_mapping_round_205.md):
 
 | Rank | Address | Raw symbol | Size |
 | ---: | --- | --- | ---: |
-| 1 | `0x00463980` | `FUN_00463980` | `592` |
-| 2 | `0x00435070` | `FUN_00435070` | `566` |
-| 3 | `0x00440AD0` | `FUN_00440ad0` | `560` |
-| 4 | `0x004109D0` | `FUN_004109d0` | `559` |
-| 5 | `0x004C6BD0` | `FUN_004c6bd0` | `558` |
-| 6 | `0x0040B050` | `FUN_0040b050` | `555` |
-| 7 | `0x00419AD0` | `FUN_00419ad0` | `555` |
-| 8 | `0x0040F7E0` | `FUN_0040f7e0` | `549` |
-| 9 | `0x0041CFB0` | `FUN_0041cfb0` | `549` |
-| 10 | `0x0042BA60` | `FUN_0042ba60` | `549` |
-| 11 | `0x004940D0` | `FUN_004940d0` | `547` |
-| 12 | `0x004F4410` | `FUN_004f4410` | `546` |
-| 13 | `0x00475CA0` | `FUN_00475ca0` | `545` |
-| 14 | `0x004999C0` | `FUN_004999c0` | `541` |
-| 15 | `0x00403BB0` | `FUN_00403bb0` | `537` |
-| 16 | `0x00480030` | `FUN_00480030` | `537` |
-| 17 | `0x004C52B0` | `FUN_004c52b0` | `537` |
-| 18 | `0x004FC240` | `FUN_004fc240` | `537` |
-| 19 | `0x00477930` | `FUN_00477930` | `536` |
-| 20 | `0x00466B90` | `FUN_00466b90` | `535` |
+| 1 | `0x004B3672` | `FUN_004b3672` | `495` |
+| 2 | `0x004241C0` | `FUN_004241c0` | `482` |
+| 3 | `0x00498890` | `FUN_00498890` | `480` |
+| 4 | `0x00480DD0` | `FUN_00480dd0` | `479` |
+| 5 | `0x004C84E0` | `FUN_004c84e0` | `479` |
+| 6 | `0x0050EF80` | `FUN_0050ef80` | `476` |
+| 7 | `0x00412970` | `FUN_00412970` | `472` |
+| 8 | `0x004A21A0` | `FUN_004a21a0` | `470` |
+| 9 | `0x0050BB00` | `FUN_0050bb00` | `469` |
+| 10 | `0x004A0770` | `FUN_004a0770` | `467` |
+| 11 | `0x0042C830` | `FUN_0042c830` | `465` |
+| 12 | `0x0049FED0` | `FUN_0049fed0` | `465` |
+| 13 | `0x0050BB00` | `FUN_0050bb00` | `469` |
+| 14 | `0x004A0770` | `FUN_004a0770` | `467` |
+| 15 | `0x0042C830` | `FUN_0042c830` | `465` |
+| 16 | `0x0049FED0` | `FUN_0049fed0` | `465` |
+| 17 | `0x004092D0` | `FUN_004092d0` | `463` |
+| 18 | `0x004AD9C0` | `FUN_004ad9c0` | `463` |
+| 19 | `0x004EC2A0` | `FUN_004ec2a0` | `462` |
+| 20 | `0x004936D0` | `FUN_004936d0` | `460` |
 
 Interpretation:
 
@@ -455,8 +512,52 @@ Interpretation:
   `deflateInit2_`/`deflateInit_` pair, and a libpng storage-function lane
   headed by `png_set_IHDR`; it also normalized the audit's address-backed
   coverage wording to a strict Ghidra `functions.csv` check so HLIL-only alias
-  rows no longer inflate the reported subtotal. Each later pass still needs to
-  classify candidates before treating them as source parity debt.
+  rows no longer inflate the reported subtotal. Round 142 classified `0`
+  engine-owned, `18` platform-service-owned, and `0`
+  CRT/STL/support-library functions while closing the exact libzmq
+  `pipe.cpp` lifecycle lane headed by `zmq_pipe_t_process_pipe_term_ack`.
+  Round 143 classified `0` engine-owned, `0` platform-service-owned, and
+  `14` CRT/STL/support-library functions while closing the missing SteamID STL
+  helper families around `std_tree_find_or_insert_steamid_value_node`,
+  `std_tree_insert_steamid_map_node`, and the newly anchored second
+  SteamID-to-value tree. Round 144 classified `13` engine-owned functions
+  while closing the qcommon collision helper split around
+  `CM_TraceCapsuleThroughCapsule`, `CM_TraceBoundingBoxThroughCapsule`,
+  `CM_TraceThroughLeaf`, `CM_TestInLeaf`, `CM_TestBoxInBrush`,
+  `CM_ClipHandleToModel`, and `CM_ModelBounds`, plus the adjacent renderer
+  `GL_Bind`, `GL_SelectTexture`, `GL_Cull`, and `GL_TexEnv` wrappers; it also
+  corrected the earlier `sub_4C55D0` alias from
+  `CM_TraceCapsuleThroughCapsule` to the exact position-test owner
+  `CM_TestCapsuleInCapsule`. Round 158 classified `0` engine-owned, `0`
+  platform-service-owned, and `6` CRT/STL/support-library functions while
+  closing the remaining obvious libpng chunk-handler gaps around
+  `png_handle_iCCP`, `png_handle_sPLT`, `png_handle_sCAL`,
+  `png_handle_tIME`, `png_handle_tEXt`, and `png_handle_zTXt`; it
+  intentionally left the adjacent unknown-chunk control helper at
+  `sub_511670` deferred because the retail wording still diverged from the
+  checked-in `png_handle_unknown` body. Round 159 classified `0`
+  engine-owned, `0` platform-service-owned, and `15`
+  CRT/STL/support-library functions while closing the retained
+  `zlib/trees.c` Huffman-management lane around `gen_bitlen`, `scan_tree`,
+  `detect_data_type`, `_tr_init`, `build_tree`, `build_bl_tree`,
+  `_tr_stored_block`, `_tr_align`, and `_tr_flush_block`; it intentionally
+  left the compiler-split stored-block copy helper unnamed because the
+  checked-in `trees.c` keeps that payload copy logic inlined rather than as a
+  standalone helper. Round 162 later closed that earlier libpng deferral with
+  `png_handle_unknown` and the adjacent `pngwutil.c` chunk-write helper lane
+  (`png_save_uint_32`, `png_save_uint_16`, `png_write_sig`,
+  `png_write_chunk_header`, `png_write_chunk_data`, and
+  `png_write_chunk_end`). Round 163 then closed the retained libvorbis
+  `floor1.c` setup-and-fit scaffold around `floor1_pack`, `floor1_unpack`,
+  `floor1_look`, `render_point`, `render_line`, `render_line0`,
+  `accumulate_fit`, `fit_line`, `inspect_error`, and `post_Y`, plus the small
+  `floor1_free_*`, `icomp`, `vorbis_dBquant`, and shared `ov_ilog` helpers.
+  Round 164 then closed the adjacent libpng writer lane around
+  `png_check_keyword`, `png_write_complete_chunk`, `png_write_tEXt`,
+  `png_write_zTXt`, `png_write_pCAL`, `png_write_iCCP`, `png_write_sPLT`,
+  `png_write_IEND`, `png_write_gAMA_fixed`, and `png_write_sRGB`.
+  Each later pass still needs to classify candidates before treating them as
+  source parity debt.
 - The source gap consequences currently flow through FG-01, not through every
   raw unmapped host function.
 
@@ -496,7 +597,7 @@ native qagame corpus rather than in the legacy sparse `server.json` seed file.
 ## Recommended Next Audit Tasks
 
 1. Continue `quakelive_steam.exe` mapping from the refreshed largest-unaliased
-   queue beginning with `sub_463980`, `sub_435070`, and `sub_440AD0`; classify
+   queue beginning with `sub_41AD70`, `sub_4E6730`, and `sub_4B4100`; classify
    each as engine-owned, platform-service-owned, CRT/STL, Awesomium, or Steam
    SDK support before opening source debt.
 2. If repo-wide parity is the target, choose whether FG-01 is permanently

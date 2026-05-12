@@ -70,8 +70,10 @@ def test_awesomium_view_callbacks_reconstruct_tooltip_and_console_contracts() ->
 		cl_cgame, "static void QLViewHandler_OnAddConsoleMessage( const char *source, int line, const char *message ) {"
 	)
 	hide_browser_block = _extract_function_block(cl_cgame, "static void QLWebHost_HideBrowser( void ) {")
+	register_block = _extract_function_block(cl_cgame, "void QLWebHost_RegisterCommands( void ) {")
 
-	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in cl_main
+	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' not in cl_main
+	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
 	assert 'Q_strncpyz( cl_webHost.tooltip, tooltip ? tooltip : "", sizeof( cl_webHost.tooltip ) );' in tooltip_block
 	assert 'Com_sprintf( payload, sizeof( payload ), "{\\"tooltip\\":\\"%s\\"}", escapedTooltip );' in tooltip_block
 	assert 'CL_WebView_PublishEvent( "web.tooltip", payload );' in tooltip_block

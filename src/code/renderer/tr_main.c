@@ -1381,6 +1381,10 @@ void R_GenerateDrawSurfs( void ) {
 
 	R_AddPolygonSurfaces();
 
+	if ( !( tr.refdef.rdflags & ( RDF_NOWORLDMODEL | RDF_HYPERSPACE ) ) ) {
+		R_UpdateAdvertisements();
+	}
+
 	// set the projection matrix with the minimum zfar
 	// now that we have the world bounded
 	// this needs to be done before entities are
@@ -1476,10 +1480,10 @@ void R_RenderView (viewParms_t *parms) {
 	R_GenerateDrawSurfs();
 
 	R_SortDrawSurfs( tr.refdef.drawSurfs + firstDrawSurf, tr.refdef.numDrawSurfs - firstDrawSurf );
+	R_QueueAdvertisementQueryCmd();
 
 	// draw main system development information (surface outlines, etc)
 	R_DebugGraphics();
+	R_DebugAdvertisements();
 }
-
-
 

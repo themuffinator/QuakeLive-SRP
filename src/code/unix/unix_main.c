@@ -1649,6 +1649,38 @@ static char *Sys_ReadClipboardCommand( const char *command ) {
 
 /*
 ==================
+Sys_WriteClipboardCommand
+==================
+*/
+static qboolean Sys_WriteClipboardCommand( const char *command, const char *text ) {
+	FILE	*pipe;
+	size_t	textBytes;
+	size_t	bytesWritten;
+
+	if ( !command || !command[0] || !text ) {
+		return qfalse;
+	}
+
+	pipe = popen( command, "w" );
+	if ( !pipe ) {
+		return qfalse;
+	}
+
+	textBytes = strlen( text );
+	bytesWritten = 0;
+	if ( textBytes > 0 ) {
+		bytesWritten = fwrite( text, 1, textBytes, pipe );
+	}
+
+	if ( pclose( pipe ) != 0 ) {
+		return qfalse;
+	}
+
+	return ( textBytes == 0 || bytesWritten == textBytes ) ? qtrue : qfalse;
+}
+
+/*
+==================
 Sys_GetClipboardData
 ==================
 */
@@ -1689,6 +1721,44 @@ char *Sys_GetClipboardData( void ) {
 	}
 
 	return NULL;
+}
+
+/*
+==================
+Sys_SetClipboardData
+==================
+*/
+void Sys_SetClipboardData( const char *text ) {
+	const char	*display;
+	const char	*waylandDisplay;
+
+	if ( !text ) {
+		return;
+	}
+
+	display = getenv( "DISPLAY" );
+	waylandDisplay = getenv( "WAYLAND_DISPLAY" );
+
+	if ( waylandDisplay && waylandDisplay[0] && Sys_IsExecutableOnPath( "wl-copy" ) ) {
+		if ( Sys_WriteClipboardCommand( "wl-copy --trim-newline 2>/dev/null", text ) ) {
+			return;
+		}
+
+		if ( Sys_WriteClipboardCommand( "wl-copy 2>/dev/null", text ) ) {
+			return;
+		}
+	}
+
+	if ( display && display[0] ) {
+		if ( Sys_IsExecutableOnPath( "xclip" ) &&
+			Sys_WriteClipboardCommand( "xclip -selection clipboard 2>/dev/null", text ) ) {
+			return;
+		}
+
+		if ( Sys_IsExecutableOnPath( "xsel" ) ) {
+			(void)Sys_WriteClipboardCommand( "xsel --clipboard --input 2>/dev/null", text );
+		}
+	}
 }
 
 void  Sys_Print( const char *msg )

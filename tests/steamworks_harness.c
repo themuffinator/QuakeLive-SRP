@@ -103,6 +103,8 @@ typedef struct {
 	char overlay_dialog[32];
 	uint64_t overlay_steam_id;
 	int overlay_calls;
+	char overlay_web_url[256];
+	int overlay_web_calls;
 	char rich_presence_key[32];
 	char rich_presence_value[128];
 	int rich_presence_calls;
@@ -155,21 +157,27 @@ typedef struct {
 	int lobby_leave_calls;
 	int lobby_join_calls;
 	int lobby_invite_calls;
+	int lobby_user_invite_calls;
 	int lobby_say_calls;
 	int lobby_set_server_calls;
 	int user_stats_request_calls;
+	int game_invite_calls;
 	int lobby_create_type;
 	int lobby_create_max_members;
 	uint64_t lobby_leave_id;
 	uint64_t lobby_join_id;
 	uint64_t lobby_invite_id;
+	uint64_t lobby_user_invite_lobby_id;
+	uint64_t lobby_user_invite_target_id;
 	uint64_t lobby_say_id;
 	uint64_t lobby_set_server_id;
 	uint64_t lobby_owner_id;
 	uint64_t lobby_set_server_game_server_id;
+	uint64_t game_invite_target_id;
 	uint32_t lobby_set_server_ip;
 	uint16_t lobby_set_server_port;
 	char lobby_say_message[256];
+	char game_invite_connect_string[256];
 	uint64_t user_stats_request_id;
 	uint64_t create_lobby_result;
 	uint64_t join_lobby_result;
@@ -256,6 +264,8 @@ static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.overlay_dialog = "",
 	.overlay_steam_id = 0,
 	.overlay_calls = 0,
+	.overlay_web_url = "",
+	.overlay_web_calls = 0,
 	.rich_presence_key = "",
 	.rich_presence_value = "",
 	.rich_presence_calls = 0,
@@ -492,6 +502,8 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.overlay_dialog[0] = '\0';
 	qlr_mock_state.overlay_steam_id = 0;
 	qlr_mock_state.overlay_calls = 0;
+	qlr_mock_state.overlay_web_url[0] = '\0';
+	qlr_mock_state.overlay_web_calls = 0;
 	qlr_mock_state.rich_presence_key[0] = '\0';
 	qlr_mock_state.rich_presence_value[0] = '\0';
 	qlr_mock_state.rich_presence_calls = 0;
@@ -544,21 +556,27 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.lobby_leave_calls = 0;
 	qlr_mock_state.lobby_join_calls = 0;
 	qlr_mock_state.lobby_invite_calls = 0;
+	qlr_mock_state.lobby_user_invite_calls = 0;
 	qlr_mock_state.lobby_say_calls = 0;
 	qlr_mock_state.lobby_set_server_calls = 0;
 	qlr_mock_state.user_stats_request_calls = 0;
+	qlr_mock_state.game_invite_calls = 0;
 	qlr_mock_state.lobby_create_type = 0;
 	qlr_mock_state.lobby_create_max_members = 0;
 	qlr_mock_state.lobby_leave_id = 0;
 	qlr_mock_state.lobby_join_id = 0;
 	qlr_mock_state.lobby_invite_id = 0;
+	qlr_mock_state.lobby_user_invite_lobby_id = 0;
+	qlr_mock_state.lobby_user_invite_target_id = 0;
 	qlr_mock_state.lobby_say_id = 0;
 	qlr_mock_state.lobby_set_server_id = 0;
 	qlr_mock_state.lobby_owner_id = qlr_mock_state.steam_id_value;
 	qlr_mock_state.lobby_set_server_game_server_id = 0;
+	qlr_mock_state.game_invite_target_id = 0;
 	qlr_mock_state.lobby_set_server_ip = 0;
 	qlr_mock_state.lobby_set_server_port = 0;
 	qlr_mock_state.lobby_say_message[0] = '\0';
+	qlr_mock_state.game_invite_connect_string[0] = '\0';
 	qlr_mock_state.user_stats_request_id = 0;
 	qlr_mock_state.create_lobby_result = 1;
 	qlr_mock_state.join_lobby_result = 1;
@@ -826,6 +844,24 @@ QLR_SteamworksMock_GetOverlaySteamId
 */
 QLR_EXPORT uint64_t QLR_SteamworksMock_GetOverlaySteamId( void ) {
 	return qlr_mock_state.overlay_steam_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetOverlayWebCallCount
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetOverlayWebCallCount( void ) {
+	return qlr_mock_state.overlay_web_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetOverlayWebUrl
+=============
+*/
+QLR_EXPORT const char *QLR_SteamworksMock_GetOverlayWebUrl( void ) {
+	return qlr_mock_state.overlay_web_url;
 }
 
 /*
@@ -1253,6 +1289,15 @@ QLR_EXPORT int QLR_SteamworksMock_GetLobbyInviteCalls( void ) {
 
 /*
 =============
+QLR_SteamworksMock_GetLobbyUserInviteCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetLobbyUserInviteCalls( void ) {
+	return qlr_mock_state.lobby_user_invite_calls;
+}
+
+/*
+=============
 QLR_SteamworksMock_GetLobbySayCalls
 =============
 */
@@ -1325,6 +1370,24 @@ QLR_EXPORT uint64_t QLR_SteamworksMock_GetLobbyInviteId( void ) {
 
 /*
 =============
+QLR_SteamworksMock_GetLobbyUserInviteLobbyId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetLobbyUserInviteLobbyId( void ) {
+	return qlr_mock_state.lobby_user_invite_lobby_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetLobbyUserInviteTargetId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetLobbyUserInviteTargetId( void ) {
+	return qlr_mock_state.lobby_user_invite_target_id;
+}
+
+/*
+=============
 QLR_SteamworksMock_GetLobbySetServerIp
 =============
 */
@@ -1375,6 +1438,33 @@ QLR_SteamworksMock_GetUserStatsRequestId
 */
 QLR_EXPORT uint64_t QLR_SteamworksMock_GetUserStatsRequestId( void ) {
 	return qlr_mock_state.user_stats_request_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetGameInviteCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetGameInviteCalls( void ) {
+	return qlr_mock_state.game_invite_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetGameInviteTargetId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetGameInviteTargetId( void ) {
+	return qlr_mock_state.game_invite_target_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetGameInviteConnectString
+=============
+*/
+QLR_EXPORT const char *QLR_SteamworksMock_GetGameInviteConnectString( void ) {
+	return qlr_mock_state.game_invite_connect_string;
 }
 
 /*
@@ -2391,6 +2481,19 @@ static void QLR_FASTCALL QLR_SteamFriends_ActivateGameOverlayToUser( void *self,
 
 /*
 =============
+QLR_SteamFriends_ActivateGameOverlayToWebPage
+=============
+*/
+static void QLR_FASTCALL QLR_SteamFriends_ActivateGameOverlayToWebPage( void *self, void *unused, const char *url ) {
+	(void)self;
+	(void)unused;
+
+	Q_strncpyz( qlr_mock_state.overlay_web_url, url ? url : "", sizeof( qlr_mock_state.overlay_web_url ) );
+	qlr_mock_state.overlay_web_calls++;
+}
+
+/*
+=============
 QLR_SteamFriends_SetRichPresence
 =============
 */
@@ -2415,6 +2518,21 @@ static void QLR_FASTCALL QLR_SteamFriends_ActivateGameOverlayInviteDialog( void 
 
 	qlr_mock_state.lobby_invite_calls++;
 	qlr_mock_state.lobby_invite_id = ( (uint64_t)idHigh << 32 ) | idLow;
+}
+
+/*
+=============
+QLR_SteamFriends_InviteUserToGame
+=============
+*/
+static int QLR_FASTCALL QLR_SteamFriends_InviteUserToGame( void *self, void *unused, uint32_t idLow, uint32_t idHigh, const char *connectString ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.game_invite_calls++;
+	qlr_mock_state.game_invite_target_id = ( (uint64_t)idHigh << 32 ) | idLow;
+	Q_strncpyz( qlr_mock_state.game_invite_connect_string, connectString ? connectString : "", sizeof( qlr_mock_state.game_invite_connect_string ) );
+	return 1;
 }
 
 /*
@@ -2563,6 +2681,21 @@ static uint64_t QLR_FASTCALL QLR_SteamMatchmaking_JoinLobby( void *self, void *u
 	qlr_mock_state.lobby_join_calls++;
 	qlr_mock_state.lobby_join_id = ( (uint64_t)idHigh << 32 ) | idLow;
 	return qlr_mock_state.join_lobby_result;
+}
+
+/*
+=============
+QLR_SteamMatchmaking_InviteUserToLobby
+=============
+*/
+static int QLR_FASTCALL QLR_SteamMatchmaking_InviteUserToLobby( void *self, void *unused, uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.lobby_user_invite_calls++;
+	qlr_mock_state.lobby_user_invite_lobby_id = ( (uint64_t)lobbyIdHigh << 32 ) | lobbyIdLow;
+	qlr_mock_state.lobby_user_invite_target_id = ( (uint64_t)userIdHigh << 32 ) | userIdLow;
+	return 1;
 }
 
 /*
@@ -2915,7 +3048,7 @@ QLR_SteamAPI_SteamFriends
 =============
 */
 void *QLR_SteamAPI_SteamFriends( void ) {
-	static void *vtable[0xb4 / 4 + 1];
+	static void *vtable[0xc4 / 4 + 1];
 	static qlr_steamworks_mock_interface_t iface = { vtable };
 
 	vtable[0] = QLR_SteamFriends_GetPersonaName;
@@ -2925,12 +3058,14 @@ void *QLR_SteamAPI_SteamFriends( void ) {
 	vtable[0x20 / 4] = QLR_SteamFriends_GetFriendGamePlayed;
 	vtable[0x2c / 4] = QLR_SteamFriends_GetPlayerNickname;
 	vtable[0x74 / 4] = QLR_SteamFriends_ActivateGameOverlayToUser;
+	vtable[0x78 / 4] = QLR_SteamFriends_ActivateGameOverlayToWebPage;
 	vtable[0x84 / 4] = QLR_SteamFriends_ActivateGameOverlayInviteDialog;
 	vtable[0x88 / 4] = QLR_SteamFriends_GetSmallFriendAvatar;
 	vtable[0x8c / 4] = QLR_SteamFriends_GetMediumFriendAvatar;
 	vtable[0x90 / 4] = QLR_SteamFriends_GetLargeFriendAvatar;
 	vtable[0xac / 4] = QLR_SteamFriends_SetRichPresence;
 	vtable[0xb4 / 4] = QLR_SteamFriends_GetFriendRichPresence;
+	vtable[0xc4 / 4] = QLR_SteamFriends_InviteUserToGame;
 	return &iface;
 }
 
@@ -2975,6 +3110,7 @@ void *QLR_SteamAPI_SteamMatchmaking( void ) {
 	vtable[0x34 / 4] = QLR_SteamMatchmaking_CreateLobby;
 	vtable[0x3c / 4] = QLR_SteamMatchmaking_LeaveLobby;
 	vtable[0x38 / 4] = QLR_SteamMatchmaking_JoinLobby;
+	vtable[0x40 / 4] = QLR_SteamMatchmaking_InviteUserToLobby;
 	vtable[0x68 / 4] = QLR_SteamMatchmaking_SendLobbyChatMsg;
 	vtable[0x6c / 4] = QLR_SteamMatchmaking_GetLobbyChatEntry;
 	vtable[0x74 / 4] = QLR_SteamMatchmaking_SetLobbyGameServer;
@@ -3201,6 +3337,21 @@ static void QLR_SteamworksHarness_OnRichPresenceJoinRequested( void *context, co
 
 /*
 =============
+QLR_SteamworksHarness_OnAvatarImageLoaded
+=============
+*/
+static void QLR_SteamworksHarness_OnAvatarImageLoaded( void *context, const ql_steam_avatar_image_loaded_t *event ) {
+	(void)context;
+
+	if ( !event ) {
+		return;
+	}
+
+	QLR_SteamworksMock_Capture( "avatar_image_loaded", "", event->steamId.value, (uint64_t)event->image, (uint32_t)event->width, event->height );
+}
+
+/*
+=============
 QLR_SteamworksHarness_OnLobbyEnter
 =============
 */
@@ -3318,17 +3469,20 @@ QLR_Steamworks_RegisterHarnessCallbacks
 */
 QLR_EXPORT qboolean QLR_Steamworks_RegisterHarnessCallbacks( void ) {
 	ql_steam_client_callback_bindings_t clientBindings;
+	ql_steam_avatar_callback_bindings_t avatarBindings;
 	ql_steam_lobby_callback_bindings_t lobbyBindings;
 	ql_steam_micro_callback_bindings_t microBindings;
 	ql_steam_workshop_callback_bindings_t workshopBindings;
 
 	memset( &clientBindings, 0, sizeof( clientBindings ) );
+	memset( &avatarBindings, 0, sizeof( avatarBindings ) );
 	memset( &lobbyBindings, 0, sizeof( lobbyBindings ) );
 	memset( &microBindings, 0, sizeof( microBindings ) );
 	memset( &workshopBindings, 0, sizeof( workshopBindings ) );
 
 	clientBindings.onRichPresenceJoinRequested = QLR_SteamworksHarness_OnRichPresenceJoinRequested;
 	clientBindings.onUGCQueryCompleted = QLR_SteamworksHarness_OnUGCQueryCompleted;
+	avatarBindings.onAvatarImageLoaded = QLR_SteamworksHarness_OnAvatarImageLoaded;
 	lobbyBindings.onLobbyEnter = QLR_SteamworksHarness_OnLobbyEnter;
 	microBindings.onAuthorizationResponse = QLR_SteamworksHarness_OnMicroAuthorizationResponse;
 	workshopBindings.onItemInstalled = QLR_SteamworksHarness_OnItemInstalled;
@@ -3337,18 +3491,25 @@ QLR_EXPORT qboolean QLR_Steamworks_RegisterHarnessCallbacks( void ) {
 	if ( !QL_Steamworks_RegisterClientCallbacks( &clientBindings ) ) {
 		return qfalse;
 	}
+	if ( !QL_Steamworks_RegisterAvatarCallbacks( &avatarBindings ) ) {
+		QL_Steamworks_UnregisterClientCallbacks();
+		return qfalse;
+	}
 	if ( !QL_Steamworks_RegisterLobbyCallbacks( &lobbyBindings ) ) {
+		QL_Steamworks_UnregisterAvatarCallbacks();
 		QL_Steamworks_UnregisterClientCallbacks();
 		return qfalse;
 	}
 	if ( !QL_Steamworks_RegisterMicroCallbacks( &microBindings ) ) {
 		QL_Steamworks_UnregisterLobbyCallbacks();
+		QL_Steamworks_UnregisterAvatarCallbacks();
 		QL_Steamworks_UnregisterClientCallbacks();
 		return qfalse;
 	}
 	if ( !QL_Steamworks_RegisterWorkshopCallbacks( &workshopBindings ) ) {
 		QL_Steamworks_UnregisterMicroCallbacks();
 		QL_Steamworks_UnregisterLobbyCallbacks();
+		QL_Steamworks_UnregisterAvatarCallbacks();
 		QL_Steamworks_UnregisterClientCallbacks();
 		return qfalse;
 	}
@@ -3365,6 +3526,7 @@ QLR_EXPORT void QLR_Steamworks_UnregisterHarnessCallbacks( void ) {
 	QL_Steamworks_UnregisterWorkshopCallbacks();
 	QL_Steamworks_UnregisterMicroCallbacks();
 	QL_Steamworks_UnregisterLobbyCallbacks();
+	QL_Steamworks_UnregisterAvatarCallbacks();
 	QL_Steamworks_UnregisterClientCallbacks();
 }
 
@@ -3398,6 +3560,22 @@ QLR_EXPORT qboolean QLR_SteamworksMock_QueueRichPresenceJoinRequested( uint64_t 
 	event.steamIDFriend.value = friendId;
 	Q_strncpyz( event.connect, command ? command : "", sizeof( event.connect ) );
 	return QLR_SteamworksMock_QueueCallback( qfalse, 0x151, 0ull, &event, sizeof( event ), qfalse );
+}
+
+/*
+=============
+QLR_SteamworksMock_QueueAvatarImageLoaded
+=============
+*/
+QLR_EXPORT qboolean QLR_SteamworksMock_QueueAvatarImageLoaded( uint64_t steamId, int image, int width, int height ) {
+	ql_steam_avatar_image_loaded_raw_t event;
+
+	memset( &event, 0, sizeof( event ) );
+	event.steamID.value = steamId;
+	event.image = image;
+	event.wide = width;
+	event.tall = height;
+	return QLR_SteamworksMock_QueueCallback( qfalse, QL_STEAM_CALLBACK_AVATAR_IMAGE_LOADED, 0ull, &event, sizeof( event ), qfalse );
 }
 
 /*
@@ -3710,6 +3888,15 @@ QLR_EXPORT qboolean QLR_Steamworks_ActivateOverlay( const char *dialog, uint32_t
 
 /*
 =============
+QLR_Steamworks_ActivateOverlayToWebPage
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ActivateOverlayToWebPage( const char *url ) {
+	return QL_Steamworks_ActivateOverlayToWebPage( url );
+}
+
+/*
+=============
 QLR_Steamworks_CreateLobby
 =============
 */
@@ -3751,6 +3938,24 @@ QLR_Steamworks_ShowInviteOverlay
 */
 QLR_EXPORT qboolean QLR_Steamworks_ShowInviteOverlay( uint32_t idLow, uint32_t idHigh ) {
 	return QL_Steamworks_ShowInviteOverlay( idLow, idHigh );
+}
+
+/*
+=============
+QLR_Steamworks_InviteUserToLobby
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh ) {
+	return QL_Steamworks_InviteUserToLobby( lobbyIdLow, lobbyIdHigh, userIdLow, userIdHigh );
+}
+
+/*
+=============
+QLR_Steamworks_InviteUserToGame
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString ) {
+	return QL_Steamworks_InviteUserToGame( idLow, idHigh, connectString );
 }
 
 /*
@@ -4143,6 +4348,16 @@ QLR_EXPORT qboolean QLR_Steamworks_ActivateOverlay( const char *dialog, uint32_t
 
 /*
 =============
+QLR_Steamworks_ActivateOverlayToWebPage
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ActivateOverlayToWebPage( const char *url ) {
+	(void)url;
+	return qfalse;
+}
+
+/*
+=============
 QLR_Steamworks_CreateLobby
 =============
 */
@@ -4194,6 +4409,31 @@ QLR_Steamworks_ShowInviteOverlay
 QLR_EXPORT qboolean QLR_Steamworks_ShowInviteOverlay( uint32_t idLow, uint32_t idHigh ) {
 	(void)idLow;
 	(void)idHigh;
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_InviteUserToLobby
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh ) {
+	(void)lobbyIdLow;
+	(void)lobbyIdHigh;
+	(void)userIdLow;
+	(void)userIdHigh;
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_InviteUserToGame
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)connectString;
 	return qfalse;
 }
 

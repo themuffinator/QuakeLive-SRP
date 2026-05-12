@@ -3107,6 +3107,7 @@ static void CG_ParseMatchState( void ) {
 	CG_ParseMatchFactoryConfig( info );
 	CG_ParseTimeoutConfigStrings();
 	CG_ParseTeamCountConfigStrings();
+	CG_ParseSuddenDeathStatus();
 
 	if ( cgs.matchOvertimeActive ) {
 		cg.timelimitWarnings |= 4;
@@ -3114,6 +3115,24 @@ static void CG_ParseMatchState( void ) {
 			trap_S_StartLocalSound( cgs.media.overtimeSound, CHAN_ANNOUNCER );
 		}
 	}
+}
+
+/*
+=============
+CG_ParseSuddenDeathStatus
+
+Parses the dedicated sudden-death status latch published alongside the match
+state payload and falls back to the match-state overtime flag when absent.
+=============
+*/
+static void CG_ParseSuddenDeathStatus( void ) {
+	const char	*info;
+	int		value;
+
+	info = CG_ConfigString( CS_SUDDENDEATH_STATUS );
+	value = ( info && *info ) ? atoi( info ) : ( cgs.matchOvertimeActive ? 1 : 0 );
+
+	cgs.matchSuddenDeathActive = value ? qtrue : qfalse;
 }
 
 /*
@@ -3645,6 +3664,7 @@ void CG_SetConfigValues( void ) {
 	CG_ParseRoundStartTimeConfigString();
 	CG_ParseTimeoutConfigStrings();
 	CG_ParseTeamCountConfigStrings();
+	CG_ParseSuddenDeathStatus();
 	CG_ParseIntermissionExitStatus();
 	CG_ParseReadyUpStatus();
 	CG_ParseWarmupReadyStatus();
@@ -3735,7 +3755,8 @@ static void CG_ConfigStringModified( void ) {
 	} else if ( num == CS_TIMEOUT_START_TIME || num == CS_TIMEOUT_EXPIRE_TIME ||
 		num == CS_TIMEOUT_COUNT_RED || num == CS_TIMEOUT_COUNT_BLUE ) {
 		CG_ParseTimeoutConfigStrings();
-	} else if ( num == CS_INTERMISSION_EXIT_STATUS ) {
+	} else if ( num == CS_INTERMISSION_EXIT_STATUS || num == CS_SUDDENDEATH_STATUS ) {
+		CG_ParseSuddenDeathStatus();
 		CG_ParseIntermissionExitStatus();
 	} else if ( num == CS_READYUP_STATUS ) {
 		CG_ParseReadyUpStatus();

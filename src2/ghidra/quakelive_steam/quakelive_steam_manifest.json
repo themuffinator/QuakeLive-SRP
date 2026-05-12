@@ -1,0 +1,40 @@
+{
+  "binary": "quakelive_steam.exe",
+  "decompile_failed": 0,
+  "decompile_succeeded": 5497,
+  "function_count": 5497,
+  "input_path": "/C:/Program Files (x86)/Steam/steamapps/common/Quake Live/quakelive_steam.exe",
+  "output_root": "E:\\Repositories\\QuakeLive-reverse\\.\\src2\\ghidra\\quakelive_steam",
+  "postprocess": {
+    "ambiguous_signature_name_count": 175,
+    "applicable_symbol_source_counts": {
+      "curated": 13,
+      "mapping_docs": 1
+    },
+    "applied_symbol_token_count": 14,
+    "clang_format_style": "{BasedOnStyle: LLVM, BreakBeforeBraces: Allman, ColumnLimit: 120, IndentWidth: 4, UseTab: Never, AllowShortBlocksOnASingleLine: Never, AllowShortFunctionsOnASingleLine: None, SortIncludes: Never, PointerAlignment: Left}",
+    "main_signature_replacements": 645,
+    "main_symbol_replacements": 919,
+    "prototype_signature_replacements": 678,
+    "prototype_symbol_replacements": 14,
+    "remaining_raw_data_token_count": 2882,
+    "remaining_raw_function_token_count": 2546,
+    "remaining_raw_label_token_count": 1688,
+    "signature_candidate_count": 9005,
+    "source_roots": [
+      "E:\\Repositories\\QuakeLive-reverse\\src\\code",
+      "E:\\Repositories\\QuakeLive-reverse\\src-re"
+    ],
+    "symbol_candidate_count": 3500,
+    "symbol_conflict_count": 6,
+    "symbol_source_counts": {
+      "alias_corpus": 3486,
+      "curated": 13,
+      "mapping_docs": 1
+    },
+    "type_replacements": {
+      "byte": 66
+    }
+  },
+  "prototype_count": 5497
+}

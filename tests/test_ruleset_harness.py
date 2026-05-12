@@ -24,6 +24,6 @@ def test_ruleset_metadata_propagates(tmp_path: Path, ruleset_only):
     assert summary["ruleset"] == "pql"
     assert summary["metadata"].get("ruleset") == "pql"
 
-    timeline_path = tmp_path / "match_sim" / "qvm" / "ruleset_pql" / "timeline.json"
+    timeline_path = tmp_path / "match_sim" / "qvm" / "latest" / "ruleset_pql" / "timeline.json"
     timeline = json.loads(timeline_path.read_text(encoding="utf-8"))
     assert timeline["config"]["metadata"]["ruleset"] == "pql"

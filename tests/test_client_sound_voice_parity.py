@@ -141,27 +141,37 @@ def test_client_steam_voice_frame_reconstructs_retail_transport_path() -> None:
 	start_block = _extract_function_block(cl_main, "static void CL_VoiceStartRecording_f( void )")
 	stop_block = _extract_function_block(cl_main, "static void CL_VoiceStopRecording_f( void )")
 	send_block = _extract_function_block(cl_main, "static void CL_Steam_SendVoicePacket( void )")
+	stats_report_block = _extract_function_block(cl_main, "static void CL_Steam_ProcessStatsReportPackets( void )")
 	process_block = _extract_function_block(cl_main, "static void CL_Steam_ProcessVoicePackets( void )")
 	session_block = _extract_function_block(
 		cl_main,
 		"static void CL_Steam_Client_OnP2PSessionRequest( void *context, const ql_steam_p2p_session_request_t *event )",
 	)
-	frame_block = _extract_function_block(cl_main, "static void CL_Steam_Frame( void )")
+	frame_block = _extract_function_block(cl_main, "static void SteamClient_Frame( void )")
 
+	assert "#define CL_STEAM_STATS_REPORT_CHANNEL 0" in cl_main
 	assert "QL_Steamworks_StartVoiceRecording();" in start_block
-	assert "QL_Steamworks_GetVoiceOptimalSampleRate();" in start_block
+	assert "(int)QL_Steamworks_GetVoiceOptimalSampleRate()" in start_block
 	assert "QL_Steamworks_StopVoiceRecording();" in stop_block
 	assert "CL_GetServerSteamId( &serverIdLow, &serverIdHigh )" in send_block
 	assert "QL_Steamworks_GetCompressedVoice( compressedVoice, sizeof( compressedVoice ), &compressedBytes )" in send_block
-	assert "QL_Steamworks_SendP2PPacket( &serverId, compressedVoice, compressedBytes, 1, CL_STEAM_VOICE_CHANNEL );" in send_block
+	assert "QL_Steamworks_SendP2PPacket( &serverId, compressedVoice, compressedBytes, 1, CL_STEAM_VOICE_CHANNEL )" in send_block
+	assert "while ( QL_Steamworks_IsP2PPacketAvailable( &packetSize, CL_STEAM_STATS_REPORT_CHANNEL ) ) {" in stats_report_block
+	assert "QL_Steamworks_ReadP2PPacket( packetData, packetSize, &bytesRead, &remoteId, CL_STEAM_STATS_REPORT_CHANNEL )" in stats_report_block
+	assert 'CL_Steam_PublishBrowserEvent( "game.stats.report", reportPayload );' in stats_report_block
 	assert "QL_Steamworks_ReadP2PPacket( packetBuffer, packetSize, &bytesRead, &remoteId, CL_STEAM_VOICE_CHANNEL )" in process_block
 	assert "QL_Steamworks_DecompressVoice( packetBuffer + 1, bytesRead - 1, decompressedVoice, sizeof( decompressedVoice ), &voiceBytes, CL_STEAM_VOICE_SAMPLE_RATE )" in process_block
 	assert "CL_IsVoiceSenderMuted( clientNum )" in process_block
 	assert "CL_SetClientSpeakingState( clientNum, qtrue );" in process_block
 	assert "S_AddVoiceSamples( clientNum, (int)( voiceBytes >> 1 ), decompressedVoice );" in process_block
-	assert "QL_Steamworks_AcceptP2PSession( &event->remoteId );" in session_block
+	assert "QL_Steamworks_AcceptP2PSession( &event->remoteId )" in session_block
+	assert "if ( !CL_SteamServicesEnabled() || !QL_Steamworks_Init() ) {" in frame_block
+	assert "QL_Steamworks_RunCallbacks();" in frame_block
 	assert "CL_Steam_SendVoicePacket();" in frame_block
+	assert "CL_Steam_ProcessStatsReportPackets();" in frame_block
 	assert "CL_Steam_ProcessVoicePackets();" in frame_block
+	assert frame_block.index("CL_Steam_SendVoicePacket();") < frame_block.index("CL_Steam_ProcessStatsReportPackets();")
+	assert frame_block.index("CL_Steam_ProcessStatsReportPackets();") < frame_block.index("CL_Steam_ProcessVoicePackets();")
 
 
 def test_platform_steam_voice_wrappers_use_retail_slots() -> None:

@@ -295,10 +295,10 @@ static int Con_PrevUtf8CharStart( const char *text, int index ) {
 
 /*
 ================
-Con_DrawHostField
+Con_DrawHostField_helper
 ================
 */
-static void Con_DrawHostField( field_t *edit, int x, int y, int charWidth, int charHeight, qboolean showCursor ) {
+static void Con_DrawHostField_helper( field_t *edit, int x, int y, int charWidth, int charHeight, qboolean showCursor ) {
 	int		cursor;
 	int		cursorX;
 	int		drawBytes;
@@ -378,6 +378,15 @@ static void Con_DrawHostField( field_t *edit, int x, int y, int charWidth, int c
 	}
 
 	Con_DrawHostText( cursorX, y, charWidth, charHeight, Key_GetOverstrikeMode() ? "_" : "|", g_color_table[ColorIndex( COLOR_WHITE )], qtrue );
+}
+
+/*
+================
+Con_DrawHostField
+================
+*/
+static void Con_DrawHostField( field_t *edit, int x, int y, int charWidth, int charHeight, qboolean showCursor ) {
+	Con_DrawHostField_helper( edit, x, y, charWidth, charHeight, showCursor );
 }
 
 /*
@@ -824,10 +833,10 @@ void Con_Dump_f (void)
 
 /*
 ================
-Con_Find_f
+Con_FindMatchesInHistory
 ================
 */
-void Con_Find_f( void ) {
+static void Con_FindMatchesInHistory( void ) {
 	int			lineNum;
 	int			x;
 	int			matches;
@@ -835,11 +844,6 @@ void Con_Find_f( void ) {
 	short		*line;
 	const char	*needle;
 	char		buffer[1024];
-
-	if ( Cmd_Argc() != 2 ) {
-		Com_Printf( "usage: find <substring>  ; This is a case sensitive search of the console history.\n" );
-		return;
-	}
 
 	needle = Cmd_Argv( 1 );
 	limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;
@@ -888,6 +892,20 @@ void Con_Find_f( void ) {
 	}
 
 	Com_Printf( "%d %s found.\n", matches, matches == 1 ? "match" : "matches" );
+}
+
+/*
+================
+Con_Find_f
+================
+*/
+void Con_Find_f( void ) {
+	if ( Cmd_Argc() != 2 ) {
+		Com_Printf( "usage: find <substring>  ; This is a case sensitive search of the console history.\n" );
+		return;
+	}
+
+	Con_FindMatchesInHistory();
 }
 
 						

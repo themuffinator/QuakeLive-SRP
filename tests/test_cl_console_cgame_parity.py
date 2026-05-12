@@ -181,7 +181,8 @@ def test_console_message_modes_and_timestamps_follow_retail_cgame_path() -> None
 
 def test_console_host_field_draw_matches_retail_utf8_cursor_windowing() -> None:
 	source = CL_CONSOLE.read_text(encoding="utf-8")
-	field_block = _block_from_marker(source, "static void Con_DrawHostField")
+	helper_block = _block_from_marker(source, "static void Con_DrawHostField_helper( field_t *edit, int x, int y, int charWidth, int charHeight, qboolean showCursor ) {")
+	field_block = _block_from_marker(source, "static void Con_DrawHostField( field_t *edit, int x, int y, int charWidth, int charHeight, qboolean showCursor ) {")
 
 	for expected in (
 		"static qboolean Con_IsUtf8ContinuationByte( unsigned char ch ) {",
@@ -198,6 +199,8 @@ def test_console_host_field_draw_matches_retail_utf8_cursor_windowing() -> None:
 	):
 		assert expected in source
 
+	assert "Con_DrawHostField_helper( edit, x, y, charWidth, charHeight, showCursor );" in field_block
+	assert "Con_DrawHostText( cursorX, y, charWidth, charHeight, Key_GetOverstrikeMode() ? \"_\" : \"|\", g_color_table[ColorIndex( COLOR_WHITE )], qtrue );" in helper_block
 	assert "prestep = edit->scroll;" not in field_block
 	assert "drawLen = edit->widthInChars;" not in field_block
 

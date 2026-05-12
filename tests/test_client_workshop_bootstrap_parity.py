@@ -43,7 +43,9 @@ def test_client_workshop_bootstrap_reconstructs_retail_join_and_completion_owner
     fail_block = _extract_function_block(cl_main, "static qboolean CL_Workshop_FailActiveDownload( void ) {")
     downloads_settled_block = _extract_function_block(cl_main, "static qboolean CL_Workshop_DownloadsSettled( void ) {")
     workshop_begin_block = _extract_function_block(cl_main, "static qboolean CL_Workshop_BeginBootstrap( void ) {")
-    callback_init_block = _extract_function_block(cl_main, "static void CL_Steam_InitCallbacks( void ) {")
+    workshop_callback_init_block = _extract_function_block(
+        cl_main, "static qboolean CL_Steam_RegisterWorkshopCallbacks( const char *workshopProvider, const char *workshopPolicy ) {"
+    )
     callback_shutdown_block = _extract_function_block(cl_main, "static void CL_Steam_ShutdownCallbacks( void ) {")
     item_installed_block = _extract_function_block(cl_main, "static void CL_Steam_Workshop_OnItemInstalled( void *context, const ql_steam_item_installed_t *event ) {")
     download_result_block = _extract_function_block(
@@ -72,7 +74,7 @@ def test_client_workshop_bootstrap_reconstructs_retail_join_and_completion_owner
     assert "CL_Workshop_ClearBootstrapState( qtrue );" in init_block
     assert "if ( CL_Workshop_BeginBootstrap() ) {" in init_block
     assert "CL_Workshop_Frame();" in frame_block
-    assert frame_block.index("CL_Steam_Frame();") < frame_block.index("CL_Workshop_Frame();")
+    assert frame_block.index("SteamClient_Frame();") < frame_block.index("CL_Workshop_Frame();")
     assert frame_block.index("CL_Workshop_Frame();") < frame_block.index("CL_CheckForResend();")
     assert 'CL_LogWorkshopLifecycle( "request-download", detail );' in request_download_block
     assert '"Workshop item %llu: in cache."' in request_download_block
@@ -99,11 +101,9 @@ def test_client_workshop_bootstrap_reconstructs_retail_join_and_completion_owner
     assert "FS_ComparePaks( missingfiles, sizeof( missingfiles ), qfalse )" in workshop_frame_block
     assert "CL_DownloadsComplete();" in workshop_frame_block
     assert 'Com_Printf( "WARNING: Missing pk3s referenced by the server:\\n%s\\n"' in workshop_frame_block
-    assert "QL_Steamworks_RegisterWorkshopCallbacks( &workshopBindings )" in callback_init_block
-    assert "workshopProvider = CL_GetWorkshopServiceProviderLabel();" in callback_init_block
-    assert "workshopPolicy = CL_GetWorkshopServicePolicyLabel();" in callback_init_block
-    assert 'CL_LogWorkshopLifecycle( "callback-bootstrap", detail );' in callback_init_block
-    assert '"callbacks unavailable; keeping polling fallback (%s [%s])"' in callback_init_block
+    assert "QL_Steamworks_RegisterWorkshopCallbacks( &workshopBindings )" in workshop_callback_init_block
+    assert 'CL_LogWorkshopLifecycle( "callback-bootstrap", detail );' in workshop_callback_init_block
+    assert '"callbacks unavailable; keeping polling fallback (%s [%s])"' in workshop_callback_init_block
     assert "QL_Steamworks_UnregisterWorkshopCallbacks();" in callback_shutdown_block
     assert 'CL_LogWorkshopLifecycle( "callback-item-installed", detail );' in item_installed_block
     assert 'CL_LogWorkshopLifecycle( "callback-item-installed", "ignored null callback payload" );' in item_installed_block

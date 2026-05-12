@@ -88,9 +88,9 @@ class CVarBootstrapTests(unittest.TestCase):
         self.assertLess(reload_call, knockback_call, "reload refresh must precede knockback refresh")
         self.assertLess(knockback_call, ammo_call, "knockback refresh must precede starting ammo refresh")
 
-    def test_clientspawn_uses_starting_ammo_config(self) -> None:
+    def test_spawn_loadout_uses_starting_ammo_config(self) -> None:
         source = _read_source("src/code/game/g_client.c")
-        body = _extract_function_body(source, "void ClientSpawn(gentity_t *ent)")
+        body = _extract_function_body(source, "static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig )")
         self.assertIn("g_startingAmmoConfig.machinegun", body)
         self.assertIn("g_startingAmmoConfig.gauntlet", body)
         self.assertIn("g_startingAmmoConfig.grapplingHook", body)
