@@ -3239,6 +3239,8 @@ def test_server_published_state_reconstructs_retail_steam_server_owner() -> None
     assert 'Com_DPrintf( "Steam server published state %s for %llu via %s [%s]: %s\\n",' in publish_log_block
     assert "SV_GetSteamServerProviderLabel()" in publish_log_block
     assert "SV_GetSteamServerPolicyLabel()" in publish_log_block
+    assert "if ( !QL_Steamworks_ServerIsInitialised() ) {" in publish_block
+    assert "return;" in publish_block
     assert 'if ( !QL_Steamworks_ServerSetMaxPlayerCount( sv_maxclients ? sv_maxclients->integer : 0 ) ) {' in publish_block
     assert 'SV_LogSteamServerPublishedState( NULL, "max-players", "publish failed" );' in publish_block
     assert 'needPass = Cvar_VariableIntegerValue( "g_needpass" );' in publish_block
@@ -3246,8 +3248,10 @@ def test_server_published_state_reconstructs_retail_steam_server_owner() -> None
     assert 'SV_LogSteamServerPublishedState( NULL, "password-protected", "publish failed" );' in publish_block
     assert 'if ( !QL_Steamworks_ServerSetServerName( sv_hostname->string ) ) {' in publish_block
     assert 'SV_LogSteamServerPublishedState( NULL, "server-name", "publish failed" );' in publish_block
+    assert "sv_hostname->modified = qfalse;" in publish_block
     assert 'if ( !QL_Steamworks_ServerSetMapName( sv_mapname->string ) ) {' in publish_block
     assert 'SV_LogSteamServerPublishedState( NULL, "map-name", "publish failed" );' in publish_block
+    assert "sv_mapname->modified = qfalse;" in publish_block
     assert 'if ( !QL_Steamworks_ServerSetGameDescription( SV_SteamServerGameDescription( sv_gametype->integer ) ) ) {' in publish_block
     assert 'SV_LogSteamServerPublishedState( NULL, "game-description", "publish failed" );' in publish_block
     assert "SV_SteamServerBuildGameTags( gameTags, sizeof( gameTags ) );" in publish_block

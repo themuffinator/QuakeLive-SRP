@@ -80,6 +80,9 @@ typedef int (*ql_zmq_poll_fn)( ql_zmq_pollitem_t *items, int itemCount, long tim
 typedef int (*ql_zmq_errno_fn)( void );
 typedef const char *(*ql_zmq_strerror_fn)( int error );
 
+static qboolean idZMQ_EnsureRconSocket( void );
+static qboolean idZMQ_EnsureStatsPublisher( void );
+
 typedef struct zmqRconPeer_s {
 	int						identityLength;
 	char					identity[QL_ZMQ_MAX_IDENTITY];

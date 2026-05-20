@@ -1330,6 +1330,9 @@ void ClientThink_real( gentity_t *ent ) {
 	// spectators don't do much
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
 		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
+			client->ps.pm_flags |= PMF_NO_MOVE;
+			SpectatorThink( ent, ucmd );
+			client->ps.pm_flags &= ~PMF_NO_MOVE;
 			return;
 		}
 		SpectatorThink( ent, ucmd );

@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/q_shared.h"
 #include "../qcommon/qcommon.h"
 #include "../../common/platform/platform_steamworks.h"
+#include <winsock2.h>
 #include "win_local.h"
 
 static WSADATA	winsockdata;

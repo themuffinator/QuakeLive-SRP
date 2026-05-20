@@ -36,7 +36,7 @@ def test_renderer_build_lane_uses_repo_managed_dependencies() -> None:
 	assert "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in engine_vcxproj
 	assert "ValidateFreeType" in engine_vcxproj
 	assert "FreeTypeDependencies" in engine_vcxproj
-	assert "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)" in engine_vcxproj
+	assert "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;Ws2_32.lib;Dbghelp.lib;%(AdditionalDependencies)" in engine_vcxproj
 	assert "quakelive.internal-deps.targets" in engine_vcxproj
 	assert "VCPKG_ROOT" not in engine_vcxproj
 	assert r"C:\vcpkg\installed\x86-windows" not in engine_vcxproj

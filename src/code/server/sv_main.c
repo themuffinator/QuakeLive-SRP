@@ -956,6 +956,10 @@ void SV_SteamServerUpdatePublishedState( qboolean fullUpdate ) {
 	char			gameTags[MAX_CVAR_VALUE_STRING];
 	char			detail[MAX_STRING_CHARS];
 
+	if ( !QL_Steamworks_ServerIsInitialised() ) {
+		return;
+	}
+
 	if ( fullUpdate || ( sv_maxclients && sv_maxclients->modified ) ) {
 		if ( !QL_Steamworks_ServerSetMaxPlayerCount( sv_maxclients ? sv_maxclients->integer : 0 ) ) {
 			SV_LogSteamServerPublishedState( NULL, "max-players", "publish failed" );
@@ -974,12 +978,14 @@ void SV_SteamServerUpdatePublishedState( qboolean fullUpdate ) {
 		if ( !QL_Steamworks_ServerSetServerName( sv_hostname->string ) ) {
 			SV_LogSteamServerPublishedState( NULL, "server-name", "publish failed" );
 		}
+		sv_hostname->modified = qfalse;
 	}
 
 	if ( fullUpdate || ( sv_mapname && sv_mapname->modified ) ) {
 		if ( !QL_Steamworks_ServerSetMapName( sv_mapname->string ) ) {
 			SV_LogSteamServerPublishedState( NULL, "map-name", "publish failed" );
 		}
+		sv_mapname->modified = qfalse;
 	}
 
 	if ( fullUpdate || ( sv_gametype && sv_gametype->modified ) ) {

@@ -452,7 +452,7 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 		and "QLEnableFreeType" in quakelive_steam_vcxproj
 		and "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in quakelive_steam_vcxproj
 		and "ValidateFreeType" in quakelive_steam_vcxproj
-		and "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)" in quakelive_steam_vcxproj
+		and "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;Ws2_32.lib;Dbghelp.lib;%(AdditionalDependencies)" in quakelive_steam_vcxproj
 		and "QLEnableFreeType" in build_script
 		and "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" in build_script
 		and "build_internal_deps.ps1" in build_script
@@ -489,7 +489,7 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 			"engine_vcxproj_has_freetype_toggle": "QLEnableFreeType" in quakelive_steam_vcxproj,
 			"engine_vcxproj_defaults_freetype_on": "<QLEnableFreeType Condition=\"'$(QLEnableFreeType)'==''\">1</QLEnableFreeType>" in quakelive_steam_vcxproj,
 			"engine_vcxproj_has_validate_target": "ValidateFreeType" in quakelive_steam_vcxproj,
-			"engine_vcxproj_links_freetype_dependencies": "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;wsock32.lib;Dbghelp.lib;%(AdditionalDependencies)" in quakelive_steam_vcxproj,
+			"engine_vcxproj_links_freetype_dependencies": "$(FreeTypeDependencies);$(VorbisDependencies);$(PngDependencies);winmm.lib;Ws2_32.lib;Dbghelp.lib;%(AdditionalDependencies)" in quakelive_steam_vcxproj,
 			"build_script_has_freetype_toggle": "QLEnableFreeType" in build_script,
 			"build_script_bootstraps_freetype": "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" in build_script,
 			"build_script_bootstraps_internal_codecs": "build_internal_deps.ps1" in build_script,

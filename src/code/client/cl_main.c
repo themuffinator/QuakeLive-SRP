@@ -1292,46 +1292,6 @@ static void CL_Workshop_ClearActiveDownload( void ) {
 
 /*
 =============
-CL_Workshop_RequestDownload
-=============
-*/
-static qboolean CL_Workshop_RequestDownload( int itemIndex ) {
-	clSteamWorkshopItem_t	*item;
-	unsigned long long		itemId;
-	char					detail[128];
-
-	if ( itemIndex < 0 || itemIndex >= cl_steamWorkshopDownloadState.itemCount ) {
-		return qfalse;
-	}
-
-	item = &cl_steamWorkshopDownloadState.items[itemIndex];
-	itemId = ( (unsigned long long)item->itemIdHigh << 32 ) | item->itemIdLow;
-	cl_steamWorkshopDownloadState.queueActive = qtrue;
-
-	if ( QL_Steamworks_GetItemState( item->itemIdLow, item->itemIdHigh ) & CL_STEAM_WORKSHOP_ITEM_STATE_INSTALLED ) {
-		Com_sprintf( detail, sizeof( detail ), "Workshop item %llu: in cache.", itemId );
-		CL_LogWorkshopLifecycle( "request-download", detail );
-		CL_Workshop_FinalizeInstalledItem( itemIndex );
-		return qfalse;
-	}
-
-	if ( cl_steamWorkshopDownloadState.activeItemIndex >= 0 ) {
-		Com_sprintf( detail, sizeof( detail ), "Workshop item %llu: queueing download.", itemId );
-		CL_LogWorkshopLifecycle( "request-download", detail );
-		item->queued = qtrue;
-		return qtrue;
-	}
-
-	Com_sprintf( detail, sizeof( detail ), "Workshop item %llu: requesting download.", itemId );
-	CL_LogWorkshopLifecycle( "request-download", detail );
-	QL_Steamworks_DownloadItem( item->itemIdLow, item->itemIdHigh, qtrue );
-	item->downloadRequested = qtrue;
-	CL_Workshop_SetActiveItem( itemIndex );
-	return qtrue;
-}
-
-/*
-=============
 CL_Workshop_AdvanceDownloadQueue
 =============
 */
@@ -1393,6 +1353,46 @@ static qboolean CL_Workshop_FinalizeInstalledItem( int itemIndex ) {
 	}
 
 	return qfalse;
+}
+
+/*
+=============
+CL_Workshop_RequestDownload
+=============
+*/
+static qboolean CL_Workshop_RequestDownload( int itemIndex ) {
+	clSteamWorkshopItem_t	*item;
+	unsigned long long		itemId;
+	char					detail[128];
+
+	if ( itemIndex < 0 || itemIndex >= cl_steamWorkshopDownloadState.itemCount ) {
+		return qfalse;
+	}
+
+	item = &cl_steamWorkshopDownloadState.items[itemIndex];
+	itemId = ( (unsigned long long)item->itemIdHigh << 32 ) | item->itemIdLow;
+	cl_steamWorkshopDownloadState.queueActive = qtrue;
+
+	if ( QL_Steamworks_GetItemState( item->itemIdLow, item->itemIdHigh ) & CL_STEAM_WORKSHOP_ITEM_STATE_INSTALLED ) {
+		Com_sprintf( detail, sizeof( detail ), "Workshop item %llu: in cache.", itemId );
+		CL_LogWorkshopLifecycle( "request-download", detail );
+		CL_Workshop_FinalizeInstalledItem( itemIndex );
+		return qfalse;
+	}
+
+	if ( cl_steamWorkshopDownloadState.activeItemIndex >= 0 ) {
+		Com_sprintf( detail, sizeof( detail ), "Workshop item %llu: queueing download.", itemId );
+		CL_LogWorkshopLifecycle( "request-download", detail );
+		item->queued = qtrue;
+		return qtrue;
+	}
+
+	Com_sprintf( detail, sizeof( detail ), "Workshop item %llu: requesting download.", itemId );
+	CL_LogWorkshopLifecycle( "request-download", detail );
+	QL_Steamworks_DownloadItem( item->itemIdLow, item->itemIdHigh, qtrue );
+	item->downloadRequested = qtrue;
+	CL_Workshop_SetActiveItem( itemIndex );
+	return qtrue;
 }
 
 /*
