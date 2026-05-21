@@ -157,6 +157,23 @@ static void CG_DrawLoadingText( float x, float y, int fontIndex, float scale, co
 
 /*
 ===================
+CG_DrawLoadingTextAtTop
+===================
+*/
+static void CG_DrawLoadingTextAtTop( float x, float y, int fontIndex, float scale, const char *text, int style ) {
+	int	height;
+
+	if ( !text || !text[0] ) {
+		return;
+	}
+
+	height = CG_Text_HeightExt( text, scale, 0, fontIndex );
+	CG_DrawLoadingText( x, y + height, fontIndex, scale, text, style );
+}
+
+
+/*
+===================
 CG_SetLoadingScreenText
 ===================
 */
@@ -341,20 +358,20 @@ void CG_DrawInformation( void ) {
 		LOADING_GAMETYPE_BG_HEIGHT, cgs.media.gameTypeBackground );
 
 	title = CG_ConfigString( CS_MESSAGE );
-	CG_DrawLoadingText( LOADING_TITLE_X, LOADING_TITLE_Y, FONT_DEFAULT, LOADING_TITLE_SCALE, title, 0 );
+	CG_DrawLoadingTextAtTop( LOADING_TITLE_X, LOADING_TITLE_Y, FONT_DEFAULT, LOADING_TITLE_SCALE, title, 0 );
 
 	author = CG_ConfigString( CS_MAP_AUTHOR );
 	authorAlt = CG_ConfigString( CS_MAP_AUTHOR_ALT );
 	if ( author && author[0] ) {
-		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_Y, FONT_SANS, LOADING_META_SCALE, author, 0 );
-		CG_DrawLoadingText( LOADING_TITLE_X, LOADING_AUTHOR_ALT_Y, FONT_SANS, LOADING_META_SCALE, authorAlt, 0 );
+		CG_DrawLoadingTextAtTop( LOADING_TITLE_X, LOADING_AUTHOR_Y, FONT_SANS, LOADING_META_SCALE, author, 0 );
+		CG_DrawLoadingTextAtTop( LOADING_TITLE_X, LOADING_AUTHOR_ALT_Y, FONT_SANS, LOADING_META_SCALE, authorAlt, 0 );
 	}
 
 	CG_SetAdjustFrom640Mode( WIDESCREEN_RIGHT );
 	gametype = CG_GetLoadingGametype();
 	if ( gametype && gametype[0] ) {
 		width = CG_Text_WidthExt( gametype, LOADING_GAMETYPE_SCALE, 0, FONT_DEFAULT );
-		CG_DrawLoadingText( LOADING_GAMETYPE_RIGHT_X - width, LOADING_GAMETYPE_Y, FONT_DEFAULT, LOADING_GAMETYPE_SCALE,
+		CG_DrawLoadingTextAtTop( LOADING_GAMETYPE_RIGHT_X - width, LOADING_GAMETYPE_Y, FONT_DEFAULT, LOADING_GAMETYPE_SCALE,
 			gametype, 0 );
 	}
 

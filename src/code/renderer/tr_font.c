@@ -2204,6 +2204,7 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 	qboolean hasBounds;
 	float width;
 	float height;
+	float metricsAscent;
 	float maxBottom;
 	float maxRight;
 	float minLeft;
@@ -2231,6 +2232,7 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 	scaleTenths = R_GetFontStashScaleTenths( scale );
 	width = 0.0f;
 	height = 0.0f;
+	metricsAscent = 0.0f;
 	penX = 0.0f;
 	hasBounds = qfalse;
 	minLeft = 0.0f;
@@ -2283,38 +2285,30 @@ void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, fl
 		}
 
 		glyphLeft = penX + drawLeft;
-		if ( glyph->imageWidth > 0 && glyph->imageHeight > 0 ) {
-			if ( !hasBounds ) {
-				hasBounds = qtrue;
-				minLeft = glyphLeft;
-				maxRight = glyphRight;
-				minTop = -drawTop;
-				maxBottom = -drawBottom;
-			} else {
-				if ( glyphLeft < minLeft ) {
-					minLeft = glyphLeft;
-				}
-				if ( glyphRight > maxRight ) {
-					maxRight = glyphRight;
-				}
-				if ( -drawTop < minTop ) {
-					minTop = -drawTop;
-				}
-				if ( -drawBottom > maxBottom ) {
-					maxBottom = -drawBottom;
-				}
-			}
+		hasBounds = qtrue;
+		if ( glyphLeft < minLeft ) {
+			minLeft = glyphLeft;
+		}
+		if ( glyphRight > maxRight ) {
+			maxRight = glyphRight;
+		}
+		if ( -drawTop < minTop ) {
+			minTop = -drawTop;
+		}
+		if ( -drawBottom > maxBottom ) {
+			maxBottom = -drawBottom;
 		}
 
 		penX += advance;
-		width = penX;
-		if ( maxRight > width ) {
-			width = maxRight;
-		}
+		width = maxRight - minLeft;
 		if ( hasBounds ) {
 			height = maxBottom - minTop;
 		}
 		s = next;
+	}
+
+	if ( RE_GetScaledFontMetrics( fontHandle, scale, &metricsAscent, NULL, NULL ) ) {
+		height = metricsAscent;
 	}
 
 	if ( outWidth ) {

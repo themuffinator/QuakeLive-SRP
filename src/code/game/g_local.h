@@ -1367,6 +1367,7 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace);
 
 void ClearRegisteredItems( void );
 void RegisterItem( gitem_t *item );
+qboolean G_ItemRegistered( const gitem_t *item );
 void SaveRegisteredItems( void );
 
 //

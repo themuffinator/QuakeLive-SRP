@@ -119,7 +119,7 @@ Assert-FileContains -RelativePath 'src/code/renderer/renderer.vcxproj' -Pattern 
 Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern 'QLEnableFreeType' -Description 'engine repo-managed FreeType link toggle'
 Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern 'QLEnableFreeType Condition=.*>1</QLEnableFreeType>' -Description 'engine FreeType defaults enabled for parity builds'
 Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern 'ValidateFreeType' -Description 'engine repo-managed FreeType validation target'
-Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern '\$\(FreeTypeDependencies\);\$\(VorbisDependencies\);\$\(PngDependencies\);winmm\.lib;wsock32\.lib;Dbghelp\.lib' -Description 'engine config link lines retain FreeType dependencies'
+Assert-FileContains -RelativePath 'src/code/quakelive_steam.vcxproj' -Pattern '\$\(FreeTypeDependencies\);\$\(VorbisDependencies\);\$\(PngDependencies\);winmm\.lib;(wsock32|ws2_32)\.lib;Dbghelp\.lib' -Description 'engine config link lines retain FreeType dependencies'
 Assert-FileContains -RelativePath '.vscode/build.ps1' -Pattern 'QLEnableFreeType' -Description 'Windows build-script FreeType toggle'
 Assert-FileContains -RelativePath '.vscode/build.ps1' -Pattern "Invoke-InternalDependencyBootstrap -DependencyName 'freetype'" -Description 'Windows build-script FreeType bootstrap hook'
 Assert-FileContains -RelativePath '.vscode/build.ps1' -Pattern 'build_internal_deps\.ps1' -Description 'Windows internal codec bootstrap hook'
@@ -161,8 +161,8 @@ $compatFontPriority = $trFontSource.IndexOf('codepoint <= GLYPH_END && R_EnsureF
 $uiAssetCacheStart = $uiMainSource.IndexOf('void AssetCache() {')
 $uiAssetParseStart = $uiMainSource.IndexOf('qboolean Asset_Parse(int handle) {')
 $cgRegisterFontsStart = $cgMainSource.IndexOf('static void CG_RegisterHudFonts( void ) {')
-$cgLoadHudMenuStart = $cgMainSource.IndexOf('void CG_LoadHudMenu() {')
-$cgAssetCacheStart = $cgMainSource.IndexOf('void CG_AssetCache() {')
+$cgLoadHudMenuStart = $cgMainSource.IndexOf('void CG_LoadHudMenu( void ) {')
+$cgAssetCacheStart = $cgMainSource.IndexOf('void CG_AssetCache( void ) {')
 $cgInitStart = $cgMainSource.IndexOf('void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {')
 
 if ( $uiAssetCacheStart -ge 0 -and $uiAssetParseStart -gt $uiAssetCacheStart ) {

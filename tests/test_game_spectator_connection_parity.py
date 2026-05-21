@@ -36,6 +36,21 @@ def test_scoreboard_spectators_consume_usercmd_time_without_moving() -> None:
 	assert scoreboard_block.index("client->ps.pm_flags &= ~PMF_NO_MOVE;") < scoreboard_block.index("return;")
 
 
+def test_client_spawn_seeds_scoreboard_spectator_state_before_first_snapshot() -> None:
+	body = _function_body(G_CLIENT_PATH, "ClientSpawn")
+
+	assert "client->ps.persistant[PERS_TEAM] = client->sess.sessionTeam;" in body
+	assert "client->ps.pm_type = PM_SPECTATOR;" in body
+	assert "client->ps.pm_flags |= PMF_SCOREBOARD;" in body
+	assert "client->ps.pm_flags &= ~PMF_SCOREBOARD;" in body
+	assert "ent->takedamage = qfalse;" in body
+	assert "ent->r.contents = 0;" in body
+	assert "ent->clipmask = 0;" in body
+	assert body.index("client->ps.persistant[PERS_TEAM] = client->sess.sessionTeam;") < body.index("client->ps.pm_type = PM_SPECTATOR;")
+	assert body.index("client->ps.pm_type = PM_SPECTATOR;") < body.index("G_FreezeInitClient( ent );")
+	assert body.index("ent->r.contents = CONTENTS_BODY;") < body.index("ent->r.contents = 0;")
+
+
 def test_scoreboard_spectator_userinfo_preserves_player_netname() -> None:
 	body = _function_body(G_CLIENT_PATH, "ClientUserinfoChanged")
 	start = body.index("// set name")

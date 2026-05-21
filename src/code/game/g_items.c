@@ -2707,6 +2707,28 @@ void RegisterItem( gitem_t *item ) {
 	itemRegistered[ item - bg_itemlist ] = qtrue;
 }
 
+/*
+===============
+G_ItemRegistered
+
+Returns whether the item has already been marked for level precache.
+===============
+*/
+qboolean G_ItemRegistered( const gitem_t *item ) {
+	int	itemIndex;
+
+	if ( !item ) {
+		return qfalse;
+	}
+
+	itemIndex = (int)( item - bg_itemlist );
+	if ( itemIndex < 0 || itemIndex >= bg_numItems || itemIndex >= MAX_ITEMS ) {
+		return qfalse;
+	}
+
+	return itemRegistered[itemIndex];
+}
+
 
 /*
 ===============

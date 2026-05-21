@@ -2215,6 +2215,78 @@ static weapon_t G_SelectConfiguredSpawnWeapon( gclient_t *client, unsigned int s
 
 /*
 =============
+G_ShouldGrantWarmupLevelWeapons
+
+Matches the retail warmup path that gives players the level's registered
+weapon set outside training, practice, and loadout factories.
+=============
+*/
+static qboolean G_ShouldGrantWarmupLevelWeapons( void ) {
+	return ( level.warmupTime != 0
+		&& !g_training.integer
+		&& !( practiceflags.integer & 1 )
+		&& !g_loadout.integer ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_WarmupLevelWeaponAllowed
+
+Mirrors the retail warmup exceptions for baseline-registered Machinegun and
+Grappling Hook entries.
+=============
+*/
+static qboolean G_WarmupLevelWeaponAllowed( weapon_t weapon, unsigned int startingWeaponsMask ) {
+	int	weaponTag;
+
+	if ( weapon != WP_MACHINEGUN && weapon != WP_GRAPPLING_HOOK ) {
+		return qtrue;
+	}
+
+	weaponTag = BG_ItemTagForWeapon( weapon );
+	if ( weaponTag <= WP_NONE || weaponTag >= WP_NUM_WEAPONS ) {
+		return qfalse;
+	}
+
+	return ( startingWeaponsMask & ( 1u << ( weaponTag - 1 ) ) ) ? qtrue : qfalse;
+}
+
+/*
+=============
+G_WarmupLevelWeaponAmmo
+
+Returns the retail weapon-table ammo amount used when warmup grants a
+registered level weapon.
+=============
+*/
+static int G_WarmupLevelWeaponAmmo( weapon_t weapon ) {
+	switch ( weapon ) {
+	case WP_GAUNTLET:
+	case WP_GRAPPLING_HOOK:
+		return -1;
+	case WP_MACHINEGUN:
+	case WP_LIGHTNING:
+	case WP_PLASMAGUN:
+	case WP_HEAVY_MACHINEGUN:
+		return 150;
+	case WP_CHAINGUN:
+		return 200;
+	case WP_PROX_LAUNCHER:
+		return 5;
+	case WP_SHOTGUN:
+	case WP_GRENADE_LAUNCHER:
+	case WP_ROCKET_LAUNCHER:
+	case WP_RAILGUN:
+	case WP_BFG:
+	case WP_NAILGUN:
+		return 25;
+	default:
+		return 0;
+	}
+}
+
+/*
+=============
 G_ApplySpawnHealth
 
 Applies the retail spawn-health clamp and mirrors the value into both entity
@@ -2249,10 +2321,12 @@ Rebuilds the retail-style spawn loadout from the active factory and spawn cvars.
 */
 static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {
 	gclient_t		*client;
+	gitem_t			*weaponItem;
 	unsigned int	startingMask;
 	weapon_t		weapon;
 	weapon_t		spawnWeapon;
 	int			startingAmmoTable[WP_NUM_WEAPONS] = { 0 };
+	qboolean		warmupLevelWeaponsGranted[WP_NUM_WEAPONS] = { qfalse };
 
 	if ( !ent || !ent->client || !factoryConfig ) {
 		return WP_MACHINEGUN;
@@ -2280,21 +2354,36 @@ static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_
 	startingAmmoTable[WP_CHAINGUN] = g_startingAmmoConfig.chaingun;
 	startingAmmoTable[WP_HEAVY_MACHINEGUN] = g_startingAmmoConfig.heavyMachinegun;
 
-	if ( g_startingWeapons.integer > 0 ) {
-		startingMask = g_startingWeapons.integer;
-	}
-	else {
-		startingMask = factoryConfig->startingWeaponsStatMask;
-	}
+	startingMask = factoryConfig->startingWeaponsStatMask;
 
 	if ( startingMask == 0 ) {
 		startingMask = ( 1u << WP_MACHINEGUN ) | ( 1u << WP_GAUNTLET );
 	}
 
+	if ( G_ShouldGrantWarmupLevelWeapons() ) {
+		for ( weapon = WP_MACHINEGUN; weapon < WP_NUM_WEAPONS; ++weapon ) {
+			weaponItem = BG_FindItemForWeapon( weapon );
+			if ( G_ItemRegistered( weaponItem )
+				&& G_WarmupLevelWeaponAllowed( weapon, factoryConfig->startingWeaponsMask ) ) {
+				startingMask |= 1u << weapon;
+				warmupLevelWeaponsGranted[weapon] = qtrue;
+			}
+		}
+	}
+
 	client->ps.stats[STAT_WEAPONS] = startingMask;
 	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; ++weapon ) {
 		if ( startingMask & ( 1u << weapon ) ) {
-			G_SeedConfiguredSpawnAmmo( &client->ps, weapon, startingAmmoTable[weapon] );
+			weaponItem = BG_FindItemForWeapon( weapon );
+			if ( weaponItem ) {
+				RegisterItem( weaponItem );
+			}
+			if ( warmupLevelWeaponsGranted[weapon] ) {
+				G_SeedConfiguredSpawnAmmo( &client->ps, weapon, G_WarmupLevelWeaponAmmo( weapon ) );
+			}
+			else {
+				G_SeedConfiguredSpawnAmmo( &client->ps, weapon, startingAmmoTable[weapon] );
+			}
 		}
 	}
 
@@ -2500,6 +2589,14 @@ void ClientSpawn(gentity_t *ent) {
 	// increment the spawncount so the client will detect the respawn
 	client->ps.persistant[PERS_SPAWN_COUNT]++;
 	client->ps.persistant[PERS_TEAM] = client->sess.sessionTeam;
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		client->ps.pm_type = PM_SPECTATOR;
+		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
+			client->ps.pm_flags |= PMF_SCOREBOARD;
+		} else {
+			client->ps.pm_flags &= ~PMF_SCOREBOARD;
+		}
+	}
 	G_FreezeInitClient( ent );
 
 	// set spawn protection time
@@ -2560,6 +2657,11 @@ void ClientSpawn(gentity_t *ent) {
 	ent->classname = "player";
 	ent->r.contents = CONTENTS_BODY;
 	ent->clipmask = MASK_PLAYERSOLID;
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		ent->takedamage = qfalse;
+		ent->r.contents = 0;
+		ent->clipmask = 0;
+	}
 	ent->die = player_die;
 	ent->waterlevel = 0;
 	ent->watertype = 0;

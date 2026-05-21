@@ -2682,8 +2682,8 @@ void R_SetColorMappings( void ) {
 
 	// setup the overbright lighting
 	tr.overbrightBits = r_overBrightBits->integer;
-	if ( !glConfig.deviceSupportsGamma ) {
-		tr.overbrightBits = 0;		// need hardware gamma for overbright
+	if ( !tr.colorCorrectActive && !glConfig.deviceSupportsGamma ) {
+		tr.overbrightBits = 0;		// need hardware gamma or color-correct shader ownership for overbright
 	}
 
 	// never overbright in windowed mode
@@ -2748,7 +2748,7 @@ void R_SetColorMappings( void ) {
 		s_intensitytable[i] = j;
 	}
 
-	if ( glConfig.deviceSupportsGamma )
+	if ( !tr.colorCorrectActive && glConfig.deviceSupportsGamma )
 	{
 		GLimp_SetGamma( s_gammatable, s_gammatable, s_gammatable );
 	}

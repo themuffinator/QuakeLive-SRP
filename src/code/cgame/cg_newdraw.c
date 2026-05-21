@@ -6784,30 +6784,38 @@ static void CG_DrawFollowPlayerNameEx(rectDef_t *rect, float scale, vec4_t color
 =============
 CG_DrawTeamColorized
 
-Fills the supplied rect with the team color, tinting the provided shader if available.
+Fills the supplied rect with the retail team color, tinting the provided shader
+if available and preserving the menu item alpha.
 =============
 */
-static void CG_DrawTeamColorized(rectDef_t *rect, qhandle_t shader) {
+static void CG_DrawTeamColorized( rectDef_t *rect, vec4_t itemColor, qhandle_t shader ) {
 	vec4_t color;
 	float x;
 	float y;
 	float w;
 	float h;
+	int team;
 	
-	CG_GetTeamColor(&color);
-	if (shader) {
-	x = rect->x;
-	y = rect->y;
-	w = rect->w;
-	h = rect->h;
-	CG_AdjustFrom640(&x, &y, &w, &h);
-	trap_R_SetColor(color);
-	trap_R_DrawStretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
-	trap_R_SetColor(NULL);
-	return;
+	team = TEAM_FREE;
+	if ( cg.snap ) {
+		team = cg.snap->ps.persistant[PERS_TEAM];
+	}
+	Vector4Copy( CG_TeamColor( team ), color );
+	color[3] = itemColor[3];
+
+	if ( shader ) {
+		x = rect->x;
+		y = rect->y;
+		w = rect->w;
+		h = rect->h;
+		CG_AdjustFrom640( &x, &y, &w, &h );
+		trap_R_SetColor( color );
+		trap_R_DrawStretchPic( x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader );
+		trap_R_SetColor( NULL );
+		return;
 	}
 	
-	CG_FillRect(rect->x, rect->y, rect->w, rect->h, color);
+	CG_FillRect( rect->x, rect->y, rect->w, rect->h, color );
 }
 
 /*
@@ -10952,7 +10960,7 @@ rect.y = y;
 		if ( !teamShader && cg.competitiveHudLoaded ) {
 			teamShader = cgs.media.scoreboxSpecShader;
 		}
-		CG_DrawTeamColorized(&rect, teamShader);
+		CG_DrawTeamColorized( &rect, color, teamShader );
 		break;
 	}
 	case CG_FOLLOW_PLAYER_NAME:
@@ -12048,25 +12056,6 @@ static void CG_DrawBrowserWidget( void *widget ) {
 
 /*
 =============
-CG_NormalizeBrowserFullscreenBackgroundRect
-
-Normalizes retail browser fullscreen backgroundSize coordinates into the cgame
-640x480 menu space before the active widescreen draw mode is applied.
-=============
-*/
-static void CG_NormalizeBrowserFullscreenBackgroundRect( rectDef_t *rect ) {
-	if ( rect == NULL ) {
-		return;
-	}
-
-	rect->x *= (float)SCREEN_WIDTH / 1920.0f;
-	rect->y *= (float)SCREEN_HEIGHT / 1080.0f;
-	rect->w *= (float)SCREEN_WIDTH / 1920.0f;
-	rect->h *= (float)SCREEN_HEIGHT / 1080.0f;
-}
-
-/*
-=============
 CG_ResolveBrowserMenuWidescreenMode
 
 Mirrors the shared menu widescreen resolver for cgame-owned direct overlay
@@ -12083,6 +12072,38 @@ static int CG_ResolveBrowserMenuWidescreenMode( const menuDef_t *menu ) {
 	}
 
 	return menu->widescreen;
+}
+
+/*
+=============
+CG_DrawBrowserFullscreenBackground
+
+Draws cgame-owned fullscreen overlay backgrounds through the retail
+backgroundSize source-aspect crop path.
+=============
+*/
+static void CG_DrawBrowserFullscreenBackground( const menuDef_t *menu ) {
+	float	sourceWidth;
+	float	sourceHeight;
+	float	screenWidth;
+	float	screenHeight;
+	float	s0;
+
+	if ( menu == NULL ) {
+		return;
+	}
+
+	sourceWidth = menu->backgroundRect.w;
+	if ( sourceWidth > 0.0f ) {
+		sourceHeight = menu->backgroundRect.h;
+		screenWidth = (float)cgDC.glconfig.vidWidth;
+		screenHeight = (float)cgDC.glconfig.vidHeight;
+		s0 = ( ( sourceWidth - screenWidth * ( sourceHeight / screenHeight ) ) / sourceWidth ) * 0.5f;
+		cgDC.drawStretchPic( 0.0f, 0.0f, screenWidth, screenHeight, s0, 0.0f, 1.0f - s0, 1.0f, menu->window.background );
+		return;
+	}
+
+	cgDC.drawHandlePic( 0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background );
 }
 
 /*
@@ -12121,19 +12142,7 @@ void CG_DrawBrowserOverlayTree( void *overlay, qboolean forcePaint ) {
 	}
 
 	if ( menu->fullScreen ) {
-		rectDef_t	backgroundRect;
-
-		backgroundRect.x = 0;
-		backgroundRect.y = 0;
-		backgroundRect.w = SCREEN_WIDTH;
-		backgroundRect.h = SCREEN_HEIGHT;
-
-		if ( menu->backgroundSizeSet ) {
-			backgroundRect = menu->backgroundRect;
-			CG_NormalizeBrowserFullscreenBackgroundRect( &backgroundRect );
-		}
-
-		cgDC.drawHandlePic( backgroundRect.x, backgroundRect.y, backgroundRect.w, backgroundRect.h, menu->window.background );
+		CG_DrawBrowserFullscreenBackground( menu );
 	}
 
 	CG_DrawBrowserWidgetFrame( &menu->window, menu->fadeAmount, menu->fadeClamp, menu->fadeCycle );
@@ -12848,67 +12857,9 @@ static void CG_BrowserDisplayHandleKey( int key, qboolean down, int x, int y ) {
 
 /*
 =============
-CG_RoundScreenCursorCoord
-
-Matches the retail cgame cursor-coordinate rounding used after projecting host
-screen-space mouse coordinates back into HUD virtual space.
-=============
-*/
-static int CG_RoundScreenCursorCoord( float value ) {
-	if ( value < 0.0f ) {
-		return (int)( value - 0.5f );
-	}
-
-	return (int)( value + 0.5f );
-}
-
-/*
-=============
-CG_ConvertScreenCursorXToVirtual
-
-Projects a host screen-space X coordinate into the retail cgame cursor space,
-including the centered 4:3 widescreen bias path used by cgamex86.
-=============
-*/
-static int CG_ConvertScreenCursorXToVirtual( int x ) {
-	float	virtualX;
-
-	if ( cgs.screenXBias > 0.0f && cgs.screenYScale > 0.0f ) {
-		virtualX = ( (float)x - cgs.screenXBias ) / cgs.screenYScale;
-		return CG_RoundScreenCursorCoord( virtualX );
-	}
-
-	if ( cgs.glconfig.vidWidth <= 0 ) {
-		return 0;
-	}
-
-	virtualX = (float)x * ( (float)SCREEN_WIDTH / (float)cgs.glconfig.vidWidth );
-	return CG_RoundScreenCursorCoord( virtualX );
-}
-
-/*
-=============
-CG_ConvertScreenCursorYToVirtual
-
-Projects a host screen-space Y coordinate into the retail cgame cursor space.
-=============
-*/
-static int CG_ConvertScreenCursorYToVirtual( int y ) {
-	float	virtualY;
-
-	if ( cgs.glconfig.vidHeight <= 0 ) {
-		return 0;
-	}
-
-	virtualY = (float)y * ( (float)SCREEN_HEIGHT / (float)cgs.glconfig.vidHeight );
-	return CG_RoundScreenCursorCoord( virtualY );
-}
-
-/*
-=============
 CG_MouseEvent
 
-Routes mouse movement through the HUD when spectator overlays are active.
+Routes captured mouse deltas through the HUD when spectator overlays are active.
 =============
 */
 void CG_MouseEvent( int x, int y ) {
@@ -12927,8 +12878,20 @@ void CG_MouseEvent( int x, int y ) {
 		return;
 	}
 
-	cgs.cursorX = CG_ConvertScreenCursorXToVirtual( x );
-	cgs.cursorY = CG_ConvertScreenCursorYToVirtual( y );
+	cgs.cursorX += x;
+	cgs.cursorY += y;
+
+	if ( cgs.cursorX < 0 ) {
+		cgs.cursorX = 0;
+	} else if ( cgs.cursorX > SCREEN_WIDTH ) {
+		cgs.cursorX = SCREEN_WIDTH;
+	}
+
+	if ( cgs.cursorY < 0 ) {
+		cgs.cursorY = 0;
+	} else if ( cgs.cursorY > SCREEN_HEIGHT ) {
+		cgs.cursorY = SCREEN_HEIGHT;
+	}
 
 	cgDC.cursorx = cgs.cursorX;
 	cgDC.cursory = cgs.cursorY;

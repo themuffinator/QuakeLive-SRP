@@ -119,24 +119,29 @@ static int GLW_GetModeAspectRatioPreset( int width, int height )
 {
 	float aspectRatio;
 
-	aspectRatio = (float)width / (float)height;
-
-	if ( aspectRatio == 1.77777779f )
-	{
-		return 1;
-	}
-
-	if ( aspectRatio == 1.60000002f )
-	{
-		return 2;
-	}
-
-	if ( aspectRatio == 1.33333337f )
+	if ( height <= 0 )
 	{
 		return 0;
 	}
 
-	return 3;
+	aspectRatio = (float)width / (float)height;
+
+	if ( aspectRatio >= 1.77777779f )
+	{
+		return 1;
+	}
+
+	if ( aspectRatio >= 1.60000002f )
+	{
+		return 2;
+	}
+
+	if ( aspectRatio < 1.33333337f )
+	{
+		return 3;
+	}
+
+	return 0;
 }
 
 /*
@@ -875,7 +880,7 @@ static qboolean GLW_ChangeWindowMode( void )
 
 	ri.Cvar_Set( "r_aspectRatio", va( "%d", GLW_GetModeAspectRatioPreset( width, height ) ) );
 
-	if ( !r_fullscreen->integer && GetClientRect( g_wv.hWnd, &rect ) )
+	if ( !r_fullscreen->integer && g_wv.isMaximized && GetClientRect( g_wv.hWnd, &rect ) )
 	{
 		if ( width > rect.right || height > rect.bottom )
 		{

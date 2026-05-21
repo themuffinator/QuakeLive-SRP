@@ -22,6 +22,8 @@ def test_windowed_resize_restart_helper_matches_retail_message_flow() -> None:
 	assert "case WM_SYSCOMMAND:" in win_wndproc
 	assert "s_pendingWindowedModeSync = qtrue;" in win_wndproc
 	assert "g_wv.isMaximized = (qboolean)( wParam == SIZE_MAXIMIZED );" in win_wndproc
+	assert "wParam == SC_RESTORE || wParam == SC_MAXIMIZE || wParam == 0xF122" in win_wndproc
+	assert "wParam & 0xFFF0" not in win_wndproc
 
 
 def test_shared_loading_window_wrappers_and_startup_order_are_present() -> None:
@@ -52,15 +54,24 @@ def test_fast_restart_preserves_windowed_maximize_state() -> None:
 	assert "AdjustWindowRect( &rect, windowStyle, FALSE );" in win_glimp
 
 
+def test_windowed_size_cvars_can_expand_existing_windows() -> None:
+	win_glimp = WIN_GLIMP.read_text()
+
+	assert "if ( !r_fullscreen->integer && g_wv.isMaximized && GetClientRect( g_wv.hWnd, &rect ) )" in win_glimp
+	assert "if ( !r_fullscreen->integer && GetClientRect( g_wv.hWnd, &rect ) )" not in win_glimp
+	assert "width = rect.right;" in win_glimp
+	assert "height = rect.bottom;" in win_glimp
+
+
 def test_mode_switches_publish_retail_aspect_ratio_presets() -> None:
 	win_glimp = WIN_GLIMP.read_text()
 
 	assert "static int GLW_GetModeAspectRatioPreset( int width, int height )" in win_glimp
 	assert "aspectRatio = (float)width / (float)height;" in win_glimp
-	assert "if ( aspectRatio == 1.77777779f )" in win_glimp
-	assert "if ( aspectRatio == 1.60000002f )" in win_glimp
-	assert "if ( aspectRatio == 1.33333337f )" in win_glimp
-	assert "return 3;" in win_glimp
+	assert "if ( aspectRatio >= 1.77777779f )" in win_glimp
+	assert "if ( aspectRatio >= 1.60000002f )" in win_glimp
+	assert "if ( aspectRatio < 1.33333337f )" in win_glimp
+	assert "return 0;" in win_glimp
 	assert 'ri.Cvar_Set( "r_aspectRatio", "0" );' not in win_glimp
 	assert 'ri.Cvar_Set( "r_aspectRatio", va( "%d", GLW_GetModeAspectRatioPreset( width, height ) ) );' in win_glimp
 	assert 'ri.Cvar_Set( "r_aspectRatio", va( "%d", GLW_GetModeAspectRatioPreset( glConfig.vidWidth, glConfig.vidHeight ) ) );' in win_glimp

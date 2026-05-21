@@ -2371,7 +2371,7 @@ static void CG_DrawWeaponSelectStrip( void ) {
 	if ( cg_weapons[ cg.weaponSelect ].item ) {
 		name = cg_weapons[ cg.weaponSelect ].item->pickup_name;
 		if ( name ) {
-			w = CG_DrawStrlen( name ) * BIGCHAR_WIDTH;
+			w = CG_Text_Width( name, 0.25f, 0 );
 			x = ( SCREEN_WIDTH - w ) / 2;
 			CG_DrawBigStringColor(x, y - 22, name, color);
 		}
@@ -2487,6 +2487,25 @@ static void CG_GetLegacyWeaponBarLayout( int count, float *x, float *y, float *s
 
 /*
 ==========================
+CG_GetLegacyWeaponBarWidescreenMode
+
+Maps the retail legacy weapon-bar variants onto their virtual-screen anchors.
+==========================
+*/
+static int CG_GetLegacyWeaponBarWidescreenMode( void ) {
+	switch ( cg_weaponBar.integer ) {
+	case 2:
+		return WIDESCREEN_RIGHT;
+	case 3:
+		return WIDESCREEN_CENTER;
+	case 1:
+	default:
+		return WIDESCREEN_LEFT;
+	}
+}
+
+/*
+==========================
 CG_GetLegacyWeaponBarAmmoColor
 
 Applies the retail empty-ammo and subtle low-ammo text tinting used by the
@@ -2585,13 +2604,12 @@ static void CG_DrawLegacyWeaponSelect( void ) {
 	}
 
 	CG_GetLegacyWeaponBarLayout( count, &x, &y, &stepX, &stepY, &ammoX, &selectX, &infiniteAmmoX );
+	CG_SetAdjustFrom640Mode( CG_GetLegacyWeaponBarWidescreenMode() );
 
 	for ( weapon = WP_MACHINEGUN; weapon < WP_NUM_WEAPONS; weapon++ ) {
 		if ( !CG_ShouldDrawLegacyWeaponBarEntry( weapon, ownedBits ) ) {
 			continue;
 		}
-
-		CG_DrawPic( x, y, 16.0f, 16.0f, cg_weapons[weapon].weaponIcon );
 
 		if ( weapon == cg.weaponSelect ) {
 			qhandle_t	selectionShader;
@@ -2603,6 +2621,8 @@ static void CG_DrawLegacyWeaponSelect( void ) {
 			CG_DrawPic( x + selectX, y - 2.0f, 52.0f, 20.0f, selectionShader );
 		}
 
+		CG_DrawPic( x, y, 16.0f, 16.0f, cg_weapons[weapon].weaponIcon );
+
 		if ( ownedBits & ( 1 << weapon ) ) {
 			CG_DrawLegacyWeaponBarAmmo( x, y, ammoX, infiniteAmmoX, weapon );
 		}
@@ -2610,6 +2630,8 @@ static void CG_DrawLegacyWeaponSelect( void ) {
 		x += stepX;
 		y += stepY;
 	}
+
+	CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 }
 
 /*

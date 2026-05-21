@@ -2433,12 +2433,17 @@ CL_WebFactory_ParseDefinition
 =============
 */
 static qboolean CL_WebFactory_ParseDefinition( clWebFactoryParseState_t *state, clWebFactoryDefinition_t *definition ) {
+	qboolean sawTitle;
+	qboolean sawCvars;
+
 	if ( !state || !definition ) {
 		return qfalse;
 	}
 
 	Com_Memset( definition, 0, sizeof( *definition ) );
 	Q_strncpyz( definition->settingsJson, "{}", sizeof( definition->settingsJson ) );
+	sawTitle = qfalse;
+	sawCvars = qfalse;
 
 	if ( !CL_WebFactory_ParseExpectedChar( state, '{' ) ) {
 		return qfalse;
@@ -2464,29 +2469,61 @@ static qboolean CL_WebFactory_ParseDefinition( clWebFactoryParseState_t *state, 
 		}
 
 		if ( !Q_stricmp( key, "id" ) ) {
-			if ( !CL_WebFactory_ParseValueString( state, definition->id, sizeof( definition->id ) ) ) {
+			CL_WebFactory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				CL_WebFactory_ReportParseError( state, "factory missing id string" );
+				return qfalse;
+			}
+			if ( !CL_WebFactory_ParseJsonString( state, definition->id, sizeof( definition->id ) ) ) {
 				return qfalse;
 			}
 		} else if ( !Q_stricmp( key, "title" ) ) {
-			if ( !CL_WebFactory_ParseValueString( state, definition->title, sizeof( definition->title ) ) ) {
+			CL_WebFactory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				CL_WebFactory_ReportParseError( state, "factory missing title string" );
 				return qfalse;
 			}
+			if ( !CL_WebFactory_ParseJsonString( state, definition->title, sizeof( definition->title ) ) ) {
+				return qfalse;
+			}
+			sawTitle = qtrue;
 		} else if ( !Q_stricmp( key, "author" ) ) {
-			if ( !CL_WebFactory_ParseValueString( state, definition->author, sizeof( definition->author ) ) ) {
+			CL_WebFactory_SkipWhitespace( state );
+			if ( state->cursor == '"' ) {
+				if ( !CL_WebFactory_ParseJsonString( state, definition->author, sizeof( definition->author ) ) ) {
+					return qfalse;
+				}
+			} else if ( !CL_WebFactory_SkipValue( state ) ) {
 				return qfalse;
 			}
 		} else if ( !Q_stricmp( key, "description" ) ) {
-			if ( !CL_WebFactory_ParseValueString( state, definition->description, sizeof( definition->description ) ) ) {
+			CL_WebFactory_SkipWhitespace( state );
+			if ( state->cursor == '"' ) {
+				if ( !CL_WebFactory_ParseJsonString( state, definition->description, sizeof( definition->description ) ) ) {
+					return qfalse;
+				}
+			} else if ( !CL_WebFactory_SkipValue( state ) ) {
 				return qfalse;
 			}
 		} else if ( !Q_stricmp( key, "basegt" ) ) {
-			if ( !CL_WebFactory_ParseValueString( state, definition->basegt, sizeof( definition->basegt ) ) ) {
+			CL_WebFactory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				CL_WebFactory_ReportParseError( state, "factory missing basegt string" );
+				return qfalse;
+			}
+			if ( !CL_WebFactory_ParseJsonString( state, definition->basegt, sizeof( definition->basegt ) ) ) {
 				return qfalse;
 			}
 		} else if ( !Q_stricmp( key, "cvars" ) ) {
+			CL_WebFactory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '{' ) {
+				CL_WebFactory_ReportParseError( state, "factory missing cvars object" );
+				return qfalse;
+			}
 			if ( !CL_WebFactory_ParseSettingsObject( state, definition->settingsJson, sizeof( definition->settingsJson ) ) ) {
 				return qfalse;
 			}
+			sawCvars = qtrue;
 		} else {
 			if ( !CL_WebFactory_SkipValue( state ) ) {
 				return qfalse;
@@ -2515,13 +2552,9 @@ static qboolean CL_WebFactory_ParseDefinition( clWebFactoryParseState_t *state, 
 		return qfalse;
 	}
 
-	if ( !definition->id[0] || !definition->basegt[0] ) {
-		CL_WebFactory_ReportParseError( state, "factory missing id or basegt" );
+	if ( !definition->id[0] || !definition->basegt[0] || !sawTitle || !sawCvars ) {
+		CL_WebFactory_ReportParseError( state, "factory missing required fields" );
 		return qfalse;
-	}
-
-	if ( !definition->title[0] ) {
-		Q_strncpyz( definition->title, definition->id, sizeof( definition->title ) );
 	}
 
 	return qtrue;

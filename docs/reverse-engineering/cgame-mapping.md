@@ -1254,7 +1254,7 @@ analogue line up cleanly enough to support a stable mapping.
 
 - This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and tightens the already-mapped `0x1000BE10 -> CG_CenterPrint` / `0x1000BEB0 -> CG_DrawCenterString` source seam.
 - The committed HLIL shows the centerprint setter storing the third argument as a float scale at the live centerprint slot and adding `10` pixels to the supplied y anchor only when `cgs.gametype == GT_RACE`. The source already consumed `centerPrintScale` in the renderer, but the setter now mirrors the Race-only y-bias as well.
-- The draw-time HLIL also preserves the source-era 50-character line copy and height-plus-six baseline advance, but passes text style `0` into the retail text painter. `CG_DrawCenterString` now keeps that plain style instead of adding the heavier reconstructed shadow.
+- The draw-time Ghidra body preserves the source-era 50-character line copy, height-plus-six baseline advance, and direct use of the stored float scale, but passes text style `6` (`ITEM_TEXTSTYLE_SHADOWEDMORE`) into the retail text painter. `CG_DrawCenterString` now keeps that shadowed retail style and no longer clamps non-positive scales through a source-side `0.5` fallback.
 - The cgame layout notes and symbol-map comments now name the `0x230B8` field as `centerPrintScale` rather than the older source-era `centerPrintCharWidth` description, matching the reconstructed source and the retail draw-time consumer.
 
 ### Retail Vote Banner Text Lane Sweep
@@ -1280,6 +1280,12 @@ analogue line up cleanly enough to support a stable mapping.
 - This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and tightens the adjacent `CG_Draw2D` order around the classic lagometer, disconnect, input, speed, and vote widgets.
 - Retail HLIL splits `0x1000B000 -> CG_DrawLagometer` from `0x1000AEF0 -> CG_DrawDisconnect`: the lagometer graph is gated by `cg_lagometer`, local-server state, and `cg.renderingThirdPerson`, while the disconnect warning is called separately from the dispatcher only outside third-person rendering.
 - Source now mirrors that split. `CG_DrawLagometer` no longer owns the disconnect warning, `CG_Draw2D` calls `CG_DrawDisconnect` after lagometer under the third-person gate, and the single global vote lane now follows the input-command and speedometer widgets before the upper-right stack.
+
+### Retail Join Game / Lagometer Continuation Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and corrects the `CG_Draw2D` join-game capture branch that had hidden the network-status corridor.
+- Ghidra for `0x10010D90 -> CG_Draw2D` calls the recovered `0x1000E9C0 -> CG_DrawJoinGameMenu` helper, then continues into the same non-intermission block that sets widescreen mode `3` for `CG_DrawLagometer`, mode `2` for `CG_DrawDisconnect` and `CG_DrawInputCmds`, and mode `0` before `CG_DrawSpeedometer`.
+- Source now follows that order: the join-game branch no longer returns before `CG_DrawNetworkStatus`, the cursor remains on the final draw pass, and the speedometer draw runs after restoring `WIDESCREEN_STRETCH`.
 
 ### Retail Timeout Resume Countdown Sweep
 

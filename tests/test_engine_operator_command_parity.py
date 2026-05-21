@@ -228,3 +228,59 @@ def test_spawn_restart_and_game_consumers_follow_retail_nextmap_payload_wiring()
 	assert 'value = Info_ValueForKey( nextmaps, key );' in exit_block
 	assert 'Q_strncpyz( mapName, Info_ValueForKey( nextmaps, key ), sizeof( mapName ) );' in nextmap_vote_block
 	assert 'Q_strncpyz( voteLabel, Info_ValueForKey( nextmaps, key ), sizeof( voteLabel ) );' in nextmap_vote_block
+
+
+def test_host_factory_parser_enforces_retail_required_definition_keys() -> None:
+	sv_ccmds = (REPO_ROOT / "src/code/server/sv_ccmds.c").read_text(encoding="utf-8")
+
+	parse_block = _extract_function_block(sv_ccmds, "static svFactoryDefinition_t *SV_FactoryParseDefinition( svFactoryParseState_t *state, const char *sourceFile ) {")
+	register_block = _extract_function_block(sv_ccmds, "static qboolean SV_FactoryRegisterDefinition( svFactoryDefinition_t *definition ) {")
+
+	assert "qboolean sawCvars;" in parse_block
+	assert "sawCvars = qfalse;" in parse_block
+	assert "sawCvars = qtrue;" in sv_ccmds
+	assert "#define SV_FACTORY_MAX_TAGS               8" in sv_ccmds
+	assert "char *author;" in sv_ccmds
+	assert "char *description;" in sv_ccmds
+	assert "char *tags[SV_FACTORY_MAX_TAGS];" in sv_ccmds
+	assert "int tagCount;" in sv_ccmds
+	assert "int elementCount;" in sv_ccmds
+	assert 'Q_stricmp( key, "author" )' in sv_ccmds
+	assert 'Q_stricmp( key, "description" )' in sv_ccmds
+	assert 'Q_stricmp( key, "tags" )' in sv_ccmds
+	assert "SV_FactoryParseTags( state, tags, &tagCount )" in sv_ccmds
+	assert "definition->author = author;" in sv_ccmds
+	assert "definition->description = description;" in sv_ccmds
+	assert "definition->tagCount = tagCount;" in sv_ccmds
+	assert "elementCount < SV_FACTORY_MAX_TAGS && parsedCount < SV_FACTORY_MAX_TAGS" in sv_ccmds
+	assert "Z_Free( id );\n\t\t\t\tid = NULL;" in sv_ccmds
+	assert "Z_Free( title );\n\t\t\t\ttitle = NULL;" in sv_ccmds
+	assert "Z_Free( basegt );\n\t\t\t\tbasegt = NULL;" in sv_ccmds
+	assert "Z_Free( definition->author );" in sv_ccmds
+	assert "Z_Free( definition->description );" in sv_ccmds
+	assert "copy->author = SV_FactoryCopyString( source->author );" in sv_ccmds
+	assert "copy->description = SV_FactoryCopyString( source->description );" in sv_ccmds
+	assert "copy->tags[i] = SV_FactoryCopyString( source->tags[i] );" in sv_ccmds
+	assert '^1A specified factory is missing required key \\"id\\", or is not a string.\\n^7' in sv_ccmds
+	assert '^1Factory with id %s is missing key \\"basegt\\", or is not a string.\\n^7' in sv_ccmds
+	assert '^1Factory with id %s is missing key \\"title\\", or is not a string.\\n^7' in sv_ccmds
+	assert '^1Factory with id %s is missing key \\"cvars\\", or is not an object.\\n^7' in sv_ccmds
+	assert '^1Factory with id %s specifies an invalid basegt.\\n^7' in sv_ccmds
+	assert '^1A specified factory is not an object. All factories must be JSON objects.\\n^7' in sv_ccmds
+	assert "if ( state.cursor < state.end && *state.cursor == ']' ) {" in sv_ccmds
+	assert '^1Factory with id %s already exists.\\n^7' in register_block
+
+
+def test_host_map_pool_random_selection_uses_retail_entropy_mix() -> None:
+	sv_ccmds = (REPO_ROOT / "src/code/server/sv_ccmds.c").read_text(encoding="utf-8")
+
+	random_block = _extract_function_block(sv_ccmds, "static int SV_MapPoolRandomIndex( int count ) {")
+	select_block = _extract_function_block(sv_ccmds, "static const svMapPoolEntry_t *SV_MapPoolSelectRandomEntry( void ) {")
+	nextmaps_block = _extract_function_block(sv_ccmds, "static void SV_MapPoolBuildNextMapsCvar( void ) {")
+
+	assert "mixed = ( rand() << 16 ) ^ rand() ^ Com_Milliseconds();" in random_block
+	assert "if ( mixed < 0 ) {" in random_block
+	assert "mixed = -mixed;" in random_block
+	assert "index = mixed % count;" in random_block
+	assert "index = SV_MapPoolRandomIndex( s_svMapPoolCount );" in select_block
+	assert "index = SV_MapPoolRandomIndex( s_svMapPoolCount );" in nextmaps_block

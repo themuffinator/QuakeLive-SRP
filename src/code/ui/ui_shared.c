@@ -926,26 +926,37 @@ static void UI_ApplyWidescreenRect(rectDef_t *rect, int widescreen) {
 	}
 }
 
-#define UI_FULLSCREEN_BACKGROUND_WIDTH	1920.0f
-#define UI_FULLSCREEN_BACKGROUND_HEIGHT	1080.0f
-
 /*
 ==================
-UI_NormalizeFullscreenBackgroundRect
+UI_DrawFullscreenBackground
 
-Normalizes retail backgroundSize authoring coordinates into the shared
-640x480 menu space before the active widescreen transform is applied.
+Draws retail fullscreen menu backgrounds.  A positive backgroundSize width
+selects the source-aspect crop path; otherwise retail falls back to the legacy
+640x480 handle draw.
 ==================
 */
-static void UI_NormalizeFullscreenBackgroundRect(rectDef_t *rect) {
-	if (!rect) {
+static void UI_DrawFullscreenBackground(const menuDef_t *menu) {
+	float sourceWidth;
+	float sourceHeight;
+	float screenWidth;
+	float screenHeight;
+	float s0;
+
+	if (!menu || !DC) {
 		return;
 	}
 
-	rect->x *= (float)SCREEN_WIDTH / UI_FULLSCREEN_BACKGROUND_WIDTH;
-	rect->y *= (float)SCREEN_HEIGHT / UI_FULLSCREEN_BACKGROUND_HEIGHT;
-	rect->w *= (float)SCREEN_WIDTH / UI_FULLSCREEN_BACKGROUND_WIDTH;
-	rect->h *= (float)SCREEN_HEIGHT / UI_FULLSCREEN_BACKGROUND_HEIGHT;
+	sourceWidth = menu->backgroundRect.w;
+	if (sourceWidth > 0.0f) {
+		sourceHeight = menu->backgroundRect.h;
+		screenWidth = (float)DC->glconfig.vidWidth;
+		screenHeight = (float)DC->glconfig.vidHeight;
+		s0 = ((sourceWidth - screenWidth * (sourceHeight / screenHeight)) / sourceWidth) * 0.5f;
+		DC->drawStretchPic(0.0f, 0.0f, screenWidth, screenHeight, s0, 0.0f, 1.0f - s0, 1.0f, menu->window.background);
+		return;
+	}
+
+	DC->drawHandlePic(0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background);
 }
 
 void Item_SetScreenCoords(itemDef_t *item, float x, float y) {
@@ -5318,22 +5329,9 @@ void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 
 	// draw the background if necessary
 	if (menu->fullScreen) {
-		rectDef_t backgroundRect;
-
-		backgroundRect.x = 0;
-		backgroundRect.y = 0;
-		backgroundRect.w = SCREEN_WIDTH;
-		backgroundRect.h = SCREEN_HEIGHT;
-
-		if (menu->backgroundSizeSet) {
-			backgroundRect = menu->backgroundRect;
-			UI_NormalizeFullscreenBackgroundRect(&backgroundRect);
-		}
-		UI_ApplyWidescreenRect(&backgroundRect, menu->widescreen);
-
 		// implies a background shader
 		// FIXME: make sure we have a default shader if fullscreen is set with no background
-		DC->drawHandlePic( backgroundRect.x, backgroundRect.y, backgroundRect.w, backgroundRect.h, menu->window.background );
+		UI_DrawFullscreenBackground(menu);
 	} else if (menu->window.background) {
 		// this allows a background shader without being full screen
 		//UI_DrawHandlePic(menu->window.rect.x, menu->window.rect.y, menu->window.rect.w, menu->window.rect.h, menu->backgroundShader);

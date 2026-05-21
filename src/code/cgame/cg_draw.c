@@ -434,8 +434,8 @@ static void CG_GetHostTextMetrics( const char *text, float scale, int limit, int
 		NULL );
 	CG_UnpackFloatBits64( packed, &width, &height );
 
-	if ( outWidth && yScale > 0.0f ) {
-		*outWidth = (int)( width / yScale );
+	if ( outWidth && xScale > 0.0f ) {
+		*outWidth = (int)( width / xScale );
 	}
 	if ( outHeight && yScale > 0.0f ) {
 		*outHeight = (int)( height / yScale );
@@ -3759,6 +3759,26 @@ static void CG_DrawLagometer( void ) {
 	}
 }
 
+/*
+==============
+CG_DrawNetworkStatus
+
+Draws the retail lagometer/disconnect pair with the dispatcher-owned
+widescreen anchors.
+==============
+*/
+static void CG_DrawNetworkStatus( void ) {
+	CG_SetAdjustFrom640Mode( WIDESCREEN_RIGHT );
+	CG_DrawLagometer();
+
+	CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
+	if ( !cg.renderingThirdPerson ) {
+		CG_DrawDisconnect();
+	}
+
+	CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
+}
+
 
 
 /*
@@ -3828,9 +3848,6 @@ static void CG_DrawCenterString( void ) {
 
 	start = cg.centerPrint;
 	scale = cg.centerPrintScale;
-	if ( scale <= 0.0f ) {
-		scale = 0.5f;
-	}
 
 	y = cg.centerPrintY - (int)( (float)( cg.centerPrintLines * BIGCHAR_HEIGHT ) * scale );
 
@@ -3848,7 +3865,7 @@ static void CG_DrawCenterString( void ) {
 		w = CG_Text_Width( linebuffer, scale, 0 );
 		h = CG_Text_Height( linebuffer, scale, 0 );
 		x = (SCREEN_WIDTH - w) / 2;
-		CG_Text_Paint( x, y + h, scale, color, linebuffer, 0, 0, 0 );
+		CG_Text_Paint( x, y + h, scale, color, linebuffer, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );
 		y += h + 6;
 		while ( *start && ( *start != '\n' ) ) {
 			start++;
@@ -6179,13 +6196,8 @@ static void CG_Draw2D( void ) {
 	spectator = ( qboolean )( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
 	canShowStatus = ( qboolean )( !cg.showScores && cg.snap->ps.stats[STAT_HEALTH] > 0 );
 	menuScoreboardHandled = qfalse;
-	joinGameCaptureActive = (qboolean)( CG_IsJoinGameMenuCaptureActive() && !cg.scoreBoardShowing );
+	joinGameCaptureActive = CG_IsJoinGameMenuCaptureActive();
 	cg_spectatorItemPickupBaseY = 0.0f;
-
-	if ( menuHudActive && cg_drawStatus.integer && ( spectator || canShowStatus ) ) {
-		CG_DrawBrowserOverlays();
-		CG_DrawTimedMenus();
-	}
 
 	if ( !cg.demoPlayback || freezeDemo == 0 ) {
 		CG_DrawQueuedWorldMarkers();
@@ -6193,7 +6205,18 @@ static void CG_Draw2D( void ) {
 
 	if ( joinGameCaptureActive ) {
 		CG_DrawJoinGameMenu();
-	} else if ( spectator ) {
+		if ( CG_IsJoinGameMenuCaptureActive() ) {
+			CG_DrawBrowserCursor();
+			return;
+		}
+	}
+
+	if ( menuHudActive && cg_drawStatus.integer && ( spectator || canShowStatus ) ) {
+		CG_DrawBrowserOverlays();
+		CG_DrawTimedMenus();
+	}
+
+	if ( spectator ) {
 		if ( !menuHudActive ) {
 			CG_DrawSpectator();
 		}
@@ -6231,14 +6254,13 @@ static void CG_Draw2D( void ) {
 		menuScoreboardHandled = qtrue;
 	}
 
-	CG_DrawLagometer();
-	if ( !cg.renderingThirdPerson ) {
-		CG_DrawDisconnect();
-	}
+	CG_DrawNetworkStatus();
 
 	if (!cg_paused.integer) {
 		if ( !menuHudActive ) {
+			CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );
 			CG_DrawInputCmds();
+			CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );
 			CG_DrawSpeedometer();
 		}
 

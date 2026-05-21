@@ -195,6 +195,23 @@ def test_factory_loader_accepts_both_plural_and_singular_supplement_extensions()
 	assert 'count = FS_GetFileList( "scripts", ".factory", fileList, sizeof( fileList ) );' in server_c
 
 
+def test_factory_vm_parser_enforces_retail_definition_schema() -> None:
+	factory_c = _read("src/code/game/g_factory.c")
+
+	assert 'qboolean sawTitle = qfalse;' in factory_c
+	assert 'qboolean sawBasegt = qfalse;' in factory_c
+	assert 'qboolean sawCvars = qfalse;' in factory_c
+	assert '^1A specified factory is missing required key \\"id\\", or is not a string.\\n^7' in factory_c
+	assert '^1Factory with id %s is missing key \\"basegt\\", or is not a string.\\n^7' in factory_c
+	assert '^1Factory with id %s is missing key \\"title\\", or is not a string.\\n^7' in factory_c
+	assert '^1Factory with id %s is missing key \\"cvars\\", or is not an object.\\n^7' in factory_c
+	assert '^1Factory with id %s specifies an invalid basegt.\\n^7' in factory_c
+	assert '^1Factory with id %s already exists.\\n^7' in factory_c
+	assert '^1A specified factory is not an object. All factories must be JSON objects.\\n^7' in factory_c
+	assert "offset = cursor - state->start;" in factory_c
+	assert factory_c.count("state->cursor--;") >= 2
+
+
 def test_ruleset_sync_stops_seeding_factory_and_registers_weapon_spawn_alias() -> None:
 	main_c = _read("src/code/game/g_main.c")
 

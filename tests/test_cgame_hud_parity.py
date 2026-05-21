@@ -228,6 +228,7 @@ def test_disconnect_warning_uses_retail_net_icon_callsite() -> None:
 	register_block = _block_from_marker(main_source, "static void CG_RegisterGraphics( void )")
 	disconnect_block = _block_from_marker(draw_source, "static void CG_DrawDisconnect")
 	lagometer_block = _block_from_marker(draw_source, "static void CG_DrawLagometer")
+	network_block = _block_from_marker(draw_source, "static void CG_DrawNetworkStatus")
 	draw2d_block = _block_from_marker(draw_source, "static void CG_Draw2D( void )")
 
 	assert 'cgs.media.connectionShader = trap_R_RegisterShader( "disconnected" );' in register_block
@@ -236,9 +237,16 @@ def test_disconnect_warning_uses_retail_net_icon_callsite() -> None:
 	assert "cgs.media.connectionShader" not in disconnect_block
 	assert "cgs.localServer || cg.renderingThirdPerson" in lagometer_block
 	assert "CG_DrawDisconnect();" not in lagometer_block
-	assert "CG_DrawLagometer();" in draw2d_block
-	assert "if ( !cg.renderingThirdPerson ) {" in draw2d_block
-	assert draw2d_block.index("CG_DrawLagometer();") < draw2d_block.index("CG_DrawDisconnect();")
+	assert "CG_SetAdjustFrom640Mode( WIDESCREEN_RIGHT );" in network_block
+	assert "CG_DrawLagometer();" in network_block
+	assert "CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );" in network_block
+	assert "if ( !cg.renderingThirdPerson ) {" in network_block
+	assert "CG_DrawDisconnect();" in network_block
+	assert "CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );" in network_block
+	assert network_block.index("CG_SetAdjustFrom640Mode( WIDESCREEN_RIGHT );") < network_block.index("CG_DrawLagometer();")
+	assert network_block.index("CG_DrawLagometer();") < network_block.index("CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );")
+	assert network_block.index("CG_SetAdjustFrom640Mode( WIDESCREEN_CENTER );") < network_block.index("CG_DrawDisconnect();")
+	assert "CG_DrawNetworkStatus();" in draw2d_block
 
 
 def test_global_vote_banner_uses_retail_keys_format_and_text_lane() -> None:
@@ -273,7 +281,7 @@ def test_global_vote_banner_uses_retail_keys_format_and_text_lane() -> None:
 	assert 's = va( "VOTE(%is):%s Yes(%s):%i No(%s):%i", sec, cgs.voteString, yesKey, cgs.voteYes, noKey, cgs.voteNo );' in vote_block
 	assert 'CG_Text_PaintNoAdjust( 4.0f, 300.0f, 0.22f, voteColor, s, 0, 0 );' in vote_block
 	assert 'CG_Text_PaintNoAdjust( 8.0f, 312.0f, 0.22f, colorWhite, "or press ESC then click Vote", 0, 0 );' in vote_block
-	assert draw2d_block.index("CG_DrawLagometer();") < draw2d_block.index("CG_DrawDisconnect();")
+	assert draw2d_block.index("CG_DrawNetworkStatus();") < draw2d_block.index("CG_DrawSpeedometer();")
 	assert draw2d_block.index("CG_DrawSpeedometer();") < draw2d_block.index("CG_DrawVote();")
 	assert draw2d_block.index("CG_DrawVote();") < draw2d_block.index("CG_DrawUpperRight();")
 	assert "cgs.gametype >= GT_TEAM && cg_drawTeamOverlay.integer == 2" in draw2d_block
@@ -376,10 +384,10 @@ def test_centerprint_uses_retail_scale_and_race_y_bias() -> None:
 	assert "cg.centerPrintLines = 1;" in center_block
 	assert "if (*s == '\\n')" in center_block
 	assert "scale = cg.centerPrintScale;" in draw_block
-	assert "scale = 0.5f;" in draw_block
+	assert "scale <= 0.0f" not in draw_block
+	assert "scale = 0.5f;" not in draw_block
 	assert "cg.centerPrintY - (int)( (float)( cg.centerPrintLines * BIGCHAR_HEIGHT ) * scale );" in draw_block
-	assert "CG_Text_Paint( x, y + h, scale, color, linebuffer, 0, 0, 0 );" in draw_block
-	assert "ITEM_TEXTSTYLE_SHADOWEDMORE" not in draw_block
+	assert "CG_Text_Paint( x, y + h, scale, color, linebuffer, 0, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );" in draw_block
 
 
 def test_team_info_overlay_restores_fixed_retail_row_renderer() -> None:
@@ -424,6 +432,23 @@ def test_draw2d_calls_fixed_team_info_overlay_after_follow_and_warmup() -> None:
 	assert "( ( cgs.matchTimeoutExpireTime - cg.time ) + 1000 ) / 1000" not in pause_block
 	assert 'text = va( "Match resuming in ^5%d^7 seconds", remaining );' in pause_block
 	assert "CG_Text_PaintNoAdjust( 320 - w / 2, 128.0f, 0.5f, colorWhite, text, 0, ITEM_TEXTSTYLE_SHADOWEDMORE );" in pause_block
+
+
+def test_join_game_menu_capture_suppresses_menu_hud_and_late_hud_draws() -> None:
+	source = CG_DRAW.read_text(encoding="utf-8")
+	draw2d_block = _block_from_marker(source, "static void CG_Draw2D( void )")
+	join_capture_block = draw2d_block[
+		draw2d_block.index("if ( joinGameCaptureActive ) {"):
+		draw2d_block.index("if ( menuHudActive && cg_drawStatus.integer")
+	]
+
+	assert "joinGameCaptureActive = CG_IsJoinGameMenuCaptureActive();" in draw2d_block
+	assert "CG_DrawJoinGameMenu();" in join_capture_block
+	assert "if ( CG_IsJoinGameMenuCaptureActive() ) {" in join_capture_block
+	assert "CG_DrawBrowserCursor();" in join_capture_block
+	assert "return;" in join_capture_block
+	assert draw2d_block.index("CG_DrawJoinGameMenu();") < draw2d_block.index("CG_DrawBrowserOverlays();")
+	assert draw2d_block.index("CG_DrawJoinGameMenu();") < draw2d_block.index("CG_DrawNetworkStatus();")
 
 
 def test_lower_right_hud_restores_powerup_popup_and_team_overlay_branch() -> None:

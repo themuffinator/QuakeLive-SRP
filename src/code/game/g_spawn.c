@@ -1442,7 +1442,9 @@ qboolean G_RequestClientSpawn( gentity_t *ent, qboolean warmupSpawn, qboolean in
 	}
 
 	queuedCount = 0;
-	if ( warmupSpawn ) {
+	if ( initialSpawn ) {
+		delayMs = 0;
+	} else if ( warmupSpawn ) {
 		delayMs = g_matchFactoryConfig.factoryWarmupSpawnDelayMilliseconds;
 		if ( delayMs > 0 && g_maxDeferredSpawns.integer > 0 ) {
 			queuedCount = G_CountQueuedSpawns();

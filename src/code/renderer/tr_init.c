@@ -106,6 +106,7 @@ cvar_t	*r_bloomSaturation;
 cvar_t	*r_bloomSceneIntensity;
 cvar_t	*r_bloomSceneSaturation;
 cvar_t	*r_colorCorrectActive;
+cvar_t	*web_browserActive;
 
 static void R_InitColorCorrection( void );
 static void R_ShutdownColorCorrection( void );
@@ -134,6 +135,7 @@ cvar_t	*r_offsetFactor;
 cvar_t	*r_offsetUnits;
 cvar_t	*r_gamma;
 cvar_t	*r_contrast;
+cvar_t	*r_floatingPointFBOs;
 cvar_t	*r_intensity;
 cvar_t	*r_lockpvs;
 cvar_t	*r_noportals;
@@ -564,10 +566,6 @@ qboolean R_GetModeInfo( int *width, int *height, float *windowAspect, int mode, 
 			*height = r_windowedHeight->integer;
 		}
 
-		if ( *width <= 0 || *height <= 0 ) {
-			return qfalse;
-		}
-
 		*windowAspect = (float)*width / (float)*height;
 		return qtrue;
 	}
@@ -593,11 +591,6 @@ static void R_ValidateModeCvars( void )
 		ri.Cvar_Set( "r_mode", "3" );
 	}
 
-	if ( r_windowedMode && !R_IsValidMode( r_windowedMode->integer ) ) {
-		ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedMode %d, resetting to 12\n", r_windowedMode->integer );
-		ri.Cvar_Set( "r_windowedMode", "12" );
-	}
-
 	if ( r_customwidth && r_customwidth->integer <= 0 ) {
 		ri.Printf( PRINT_WARNING, "WARNING: invalid r_customwidth %d, resetting to 1600\n", r_customwidth->integer );
 		ri.Cvar_Set( "r_customwidth", "1600" );
@@ -606,16 +599,6 @@ static void R_ValidateModeCvars( void )
 	if ( r_customheight && r_customheight->integer <= 0 ) {
 		ri.Printf( PRINT_WARNING, "WARNING: invalid r_customheight %d, resetting to 1024\n", r_customheight->integer );
 		ri.Cvar_Set( "r_customheight", "1024" );
-	}
-
-	if ( r_windowedWidth && r_windowedWidth->integer <= 0 ) {
-		ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedWidth %d, resetting to 1600\n", r_windowedWidth->integer );
-		ri.Cvar_Set( "r_windowedWidth", "1600" );
-	}
-
-	if ( r_windowedHeight && r_windowedHeight->integer <= 0 ) {
-		ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedHeight %d, resetting to 1024\n", r_windowedHeight->integer );
-		ri.Cvar_Set( "r_windowedHeight", "1024" );
 	}
 }
 
@@ -1254,7 +1237,10 @@ R_PostProcessRestart
 */
 static void R_PostProcessRestart( void ) {
 	R_UpdatePostProcessCvars();
-	tr.postProcessNeedsReset = qtrue;
+	R_SyncRenderThread();
+	RB_ShutdownRenderTargets();
+	RB_InitRenderTargets();
+	R_SetColorMappings();
 }
 
 /*
@@ -1315,6 +1301,7 @@ void R_Register( void )
 	r_postProcessActive = ri.Cvar_Get( "r_postProcessActive", "0", CVAR_TEMP | CVAR_ROM );
 	r_bloomActive = ri.Cvar_Get( "r_bloomActive", "0", CVAR_TEMP | CVAR_ROM | CVAR_CLOUD );
 	r_colorCorrectActive = ri.Cvar_Get( "r_colorCorrectActive", "0", CVAR_TEMP | CVAR_ROM );
+	web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );
 	// HLIL: bloom tuning cvars are registered with the retail defaults even though the shader path only consumes the bright/combine subset.
 	r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );
 	r_bloomIntensity = ri.Cvar_GetBounded( "r_bloomIntensity", "0.5", "0.0", "10.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
@@ -1374,6 +1361,7 @@ void R_Register( void )
 	r_lodCurveError = ri.Cvar_Get( "r_lodCurveError", "250", CVAR_CHEAT );
 	r_lodbias = ri.Cvar_Get( "r_lodBias", "-2", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
 	r_flares = ri.Cvar_Get ("r_flares", "0", CVAR_ARCHIVE );
+	r_floatingPointFBOs = ri.Cvar_Get( "r_floatingPointFBOs", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_znear = ri.Cvar_Get( "r_znear", "1", CVAR_CHEAT );
 	r_ignoreGLErrors = ri.Cvar_Get( "r_ignoreGLErrors", "1", CVAR_ARCHIVE );
 	r_fastsky = ri.Cvar_Get( "r_fastsky", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );

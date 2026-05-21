@@ -1179,9 +1179,13 @@ def test_engine_cvar_twentyfirst_renderer_mode_tranche_matches_retail_contracts(
 	assert 'r_fullscreen = Cvar_Get ("r_fullscreen", "1", CVAR_ARCHIVE | CVAR_LATCH );' in win_wndproc
 
 	assert 'r_windowedMode = ri.Cvar_Get( "r_windowedMode", "12", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_CLOUD );' in tr_init
+	assert 'r_windowedWidth = ri.Cvar_Get( "r_windowedWidth", "1600", CVAR_ARCHIVE | CVAR_LATCH );' in tr_init
+	assert 'r_windowedHeight = ri.Cvar_Get( "r_windowedHeight", "1024", CVAR_ARCHIVE | CVAR_LATCH );' in tr_init
 	assert 'return r_windowedMode->integer;' in tr_init
-	assert 'ri.Printf( PRINT_WARNING, "WARNING: invalid r_windowedMode %d, resetting to 12\\n", r_windowedMode->integer );' in tr_init
-	assert 'ri.Cvar_Set( "r_windowedMode", "12" );' in tr_init
+	assert 'WARNING: invalid r_windowedMode' not in tr_init
+	assert 'WARNING: invalid r_windowedWidth' not in tr_init
+	assert 'WARNING: invalid r_windowedHeight' not in tr_init
+	assert 'if ( *width <= 0 || *height <= 0 ) {' not in tr_init
 	assert 'Cvar_SetValue( "r_windowedMode", -1 );' in win_wndproc
 
 	assert 'r_customwidth = ri.Cvar_Get( "r_customwidth", "1600", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );' in tr_init
@@ -1295,10 +1299,13 @@ def test_engine_cvar_twentythird_renderer_runtime_tuning_tranche_matches_retail_
 	assert 'r_gamma = ri.Cvar_Get( "r_gamma", "1.2", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'r_gamma = ri.Cvar_Get( "r_gamma", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'ri.Cvar_Set( "r_gamma", "0.5" );' in tr_image
+	assert 'web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in tr_init
+	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {' in tr_backend
 	assert 'gammaRecip = 1.0f / r_gamma->value;' in tr_backend
 
 	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
-	assert 'contrast = r_contrast ? r_contrast->value : 1.0f;' in tr_backend
+	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {' in tr_backend
+	assert 'contrast = r_contrast->value;' in tr_backend
 
 	assert 'r_railWidth = ri.Cvar_Get( "r_railWidth", "16", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'int\t\tspanWidth = r_railWidth->integer;' in tr_surface
@@ -1330,7 +1337,10 @@ def test_engine_cvar_twentyfourth_renderer_lighting_quality_tranche_matches_reta
 
 	assert 'r_overBrightBits = ri.Cvar_Get ("r_overBrightBits", "1", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );' in tr_init
 	assert 'tr.overbrightBits = r_overBrightBits->integer;' in tr_image
-	assert 'overbright = 2.0f * r_overBrightBits->value;' in tr_backend
+	assert 'if ( !tr.colorCorrectActive && !glConfig.deviceSupportsGamma ) {' in tr_image
+	assert 'if ( !tr.colorCorrectActive && glConfig.deviceSupportsGamma )' in tr_image
+	assert 'overbright = 2.0f * r_overBrightBits->integer;' in tr_backend
+	assert 'if ( overbright <= 1.0f ) {' in tr_backend
 
 	assert 'r_mapOverBrightBits = ri.Cvar_Get ("r_mapOverBrightBits", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );' in tr_init
 	assert 'shift = r_mapOverBrightBits->integer - tr.overbrightBits;' in tr_bsp
@@ -1602,6 +1612,8 @@ def test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_
 
 	assert 'r_colorCorrectActive = ri.Cvar_Get( "r_colorCorrectActive", "0", CVAR_TEMP | CVAR_ROM );' in tr_init
 	assert 'ri.Cvar_Set( "r_colorCorrectActive", backEnd.colorCorrectActive ? "1" : "0" );' in tr_backend
+	assert 'r_floatingPointFBOs = ri.Cvar_Get( "r_floatingPointFBOs", "0", CVAR_ARCHIVE | CVAR_LATCH );' in tr_init
+	assert 'if ( r_floatingPointFBOs && r_floatingPointFBOs->integer ) {' in tr_backend
 
 	assert 'r_ext_compressed_textures = ri.Cvar_Get( "r_ext_compressed_textures", "0", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );' in tr_init
 	assert 'if ( r_ext_compressed_textures->integer )' in win_glimp

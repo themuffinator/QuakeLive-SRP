@@ -1028,6 +1028,25 @@ static void CG_Item( centity_t *cent ) {
 //============================================================================
 
 /*
+=============
+CG_ApplyGrenadeEntityColor
+
+Applies the cached grenade weapon color to the model entity color lane used by
+retail rgbGen entity grenade shaders.
+=============
+*/
+static void CG_ApplyGrenadeEntityColor( refEntity_t *ent ) {
+	if ( !ent ) {
+		return;
+	}
+
+	ent->shaderRGBA[0] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[0] ) * 255.0f );
+	ent->shaderRGBA[1] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[1] ) * 255.0f );
+	ent->shaderRGBA[2] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[2] ) * 255.0f );
+	ent->shaderRGBA[3] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[3] ) * 255.0f );
+}
+
+/*
 ===============
 CG_Missile
 ===============
@@ -1107,6 +1126,10 @@ static void CG_Missile( centity_t *cent ) {
 		if (s1->generic1 == TEAM_BLUE) {
 			ent.hModel = cgs.media.blueProxMine;
 		}
+	}
+
+	if ( cent->currentState.weapon == WP_GRENADE_LAUNCHER ) {
+		CG_ApplyGrenadeEntityColor( &ent );
 	}
 
 	// convert direction of travel into axis

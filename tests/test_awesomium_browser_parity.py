@@ -461,6 +461,11 @@ def test_awesomium_factory_list_reconstructs_retail_factory_catalog() -> None:
 	assert 'if ( !Q_stricmp( key, "description" ) ) {' in parse_definition_block
 	assert 'if ( !Q_stricmp( key, "basegt" ) ) {' in parse_definition_block
 	assert 'if ( !Q_stricmp( key, "cvars" ) ) {' in parse_definition_block
+	assert "qboolean sawTitle;" in parse_definition_block
+	assert "qboolean sawCvars;" in parse_definition_block
+	assert "sawTitle = qtrue;" in parse_definition_block
+	assert "sawCvars = qtrue;" in parse_definition_block
+	assert 'Q_strncpyz( definition->title, definition->id, sizeof( definition->title ) );' not in parse_definition_block
 	assert 'Q_strlwr( loweredKey );' in parse_settings_block
 	assert 'if ( *state->cursor == \',\' ) {' in parse_settings_block
 	assert 'if ( state->cursor < state->end && *state->cursor == \'}\' ) {' in parse_settings_block

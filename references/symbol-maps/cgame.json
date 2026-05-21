@@ -1859,7 +1859,7 @@
       "signature": "static void CG_DrawCenterString(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Centerprint renderer that fades from `cg.centerPrintTime`, splits the buffered text on newlines, centers each line from `cg.centerPrintY`, and draws the result using `cg.centerPrintScale` / `cg.centerPrintLines` and the retail plain text style exactly like src/code/cgame/cg_draw.c::CG_DrawCenterString."
+      "comment": "Centerprint renderer that fades from `cg.centerPrintTime`, splits the buffered text on newlines, centers each line from `cg.centerPrintY`, and draws the result using `cg.centerPrintScale` / `cg.centerPrintLines` and the retail `ITEM_TEXTSTYLE_SHADOWEDMORE` style exactly like src/code/cgame/cg_draw.c::CG_DrawCenterString."
     },
     {
       "address": "0x1000D940",

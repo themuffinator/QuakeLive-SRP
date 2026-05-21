@@ -954,7 +954,7 @@ typedef struct {
 
 	float					identityLight;		// 1.0 / ( 1 << overbrightBits )
 	int						identityLightByte;	// identityLight * 255
-	int						overbrightBits;		// r_overbrightBits->integer, but set to 0 if no hw gamma
+	int						overbrightBits;		// r_overbrightBits->integer, but set to 0 without hw gamma or color correction
 
 	orientationr_t			or;					// for current entity
 
@@ -1066,6 +1066,7 @@ extern cvar_t	*r_mode;				// video mode
 extern cvar_t	*r_fullscreen;
 extern cvar_t	*r_gamma;
 extern cvar_t	*r_contrast;
+extern cvar_t	*r_floatingPointFBOs;
 extern cvar_t	*r_displayRefresh;		// optional display refresh option
 extern cvar_t	*r_ignorehwgamma;		// overrides hardware gamma capabilities
 
@@ -1151,6 +1152,7 @@ extern	cvar_t	*r_bloomSaturation;
 extern	cvar_t	*r_bloomSceneIntensity;
 extern	cvar_t	*r_bloomSceneSaturation;
 extern	cvar_t	*r_colorCorrectActive;
+extern	cvar_t	*web_browserActive;
 extern	cvar_t	*r_drawSkyFloor;
 extern	cvar_t	*r_noFastRestart;
 extern	cvar_t	*r_skipLargeBatches;

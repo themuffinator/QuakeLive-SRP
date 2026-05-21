@@ -50,6 +50,10 @@ static float	s_flipMatrix[16] = {
 #define GL_RGBA8 0x8058
 #endif
 
+#ifndef GL_RGBA16
+#define GL_RGBA16 0x805B
+#endif
+
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
 #endif
@@ -757,7 +761,7 @@ static const GLcharARB *s_colorCorrectFragmentShaderSource =
 	"{\n"
 	"	vec3 color = texture2DRect(backBufferTex, gl_TexCoord[0].st).rgb;\n"
 	"	color = pow(max(color, vec3(0.0)), vec3(p_gammaRecip));\n"
-	"	color *= (1.0 + p_overbright);\n"
+	"	color *= p_overbright;\n"
 	"	color = ((color - 0.5) * max(p_contrast, 0.0)) + 0.5;\n"
 	"	gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);\n"
 	"}\n";
@@ -766,7 +770,7 @@ static ppState_t s_postProcess;
 
 static qboolean RBPP_LoadProcs( void );
 static void RBPP_DestroyRenderTarget( ppRenderTarget_t *target );
-static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter, qboolean withDepth );
+static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter );
 static void RBPP_BindRenderTarget( ppRenderTarget_t *target );
 static void RBPP_Set2DState( int width, int height );
 static void RBPP_BindRectangleTexture( int unit, GLuint texture );
@@ -907,12 +911,14 @@ static void RBPP_DestroyRenderTarget( ppRenderTarget_t *target ) {
 =============
 RBPP_CreateRenderTarget
 
-Allocate one retail-style rectangle-texture render target and optional depth-stencil attachment.
+Allocate one retail-style rectangle-texture render target with depth-stencil storage.
 =============
 */
-static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter, qboolean withDepth ) {
+static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter ) {
 	GLenum status;
 	GLenum errorCode;
+	GLint internalFormat;
+	GLenum pixelType;
 
 	if ( !target || width <= 0 || height <= 0 || !RBPP_LoadProcs() ) {
 		return qfalse;
@@ -926,14 +932,22 @@ static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, in
 	target->width = width;
 	target->height = height;
 
+	internalFormat = GL_RGBA8;
+	pixelType = GL_UNSIGNED_BYTE;
+	if ( r_floatingPointFBOs && r_floatingPointFBOs->integer ) {
+		internalFormat = GL_RGBA16;
+		pixelType = GL_FLOAT;
+	}
+
 	s_postProcess.procs.qglGenFramebuffersEXTFunc( 1, &target->framebuffer );
+	s_postProcess.procs.qglGenRenderbuffersEXTFunc( 1, &target->depthBuffer );
 	qglGenTextures( 1, &target->texture );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, target->texture );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, linearFilter ? GL_LINEAR : GL_NEAREST );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, linearFilter ? GL_LINEAR : GL_NEAREST );
-	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, internalFormat, width, height, 0, GL_RGBA, pixelType, NULL );
 
 	errorCode = qglGetError();
 	if ( errorCode != GL_NO_ERROR ) {
@@ -943,14 +957,10 @@ static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, in
 
 	s_postProcess.procs.qglBindFramebufferEXTFunc( GL_FRAMEBUFFER_EXT, target->framebuffer );
 	s_postProcess.procs.qglFramebufferTexture2DEXTFunc( GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_RECTANGLE_ARB, target->texture, 0 );
-
-	if ( withDepth ) {
-		s_postProcess.procs.qglGenRenderbuffersEXTFunc( 1, &target->depthBuffer );
-		s_postProcess.procs.qglBindRenderbufferEXTFunc( GL_RENDERBUFFER_EXT, target->depthBuffer );
-		s_postProcess.procs.qglRenderbufferStorageEXTFunc( GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, width, height );
-		s_postProcess.procs.qglFramebufferRenderbufferEXTFunc( GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, target->depthBuffer );
-		s_postProcess.procs.qglFramebufferRenderbufferEXTFunc( GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, target->depthBuffer );
-	}
+	s_postProcess.procs.qglBindRenderbufferEXTFunc( GL_RENDERBUFFER_EXT, target->depthBuffer );
+	s_postProcess.procs.qglRenderbufferStorageEXTFunc( GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, width, height );
+	s_postProcess.procs.qglFramebufferRenderbufferEXTFunc( GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, target->depthBuffer );
+	s_postProcess.procs.qglFramebufferRenderbufferEXTFunc( GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, target->depthBuffer );
 
 	status = s_postProcess.procs.qglCheckFramebufferStatusEXTFunc( GL_FRAMEBUFFER_EXT );
 	s_postProcess.procs.qglBindFramebufferEXTFunc( GL_FRAMEBUFFER_EXT, 0 );
@@ -958,6 +968,12 @@ static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, in
 
 	if ( status != GL_FRAMEBUFFER_COMPLETE_EXT ) {
 		ri.Printf( PRINT_WARNING, "Post Process Failure - unable to create FBO : %d (%x)\n", status, status );
+		RBPP_DestroyRenderTarget( target );
+		return qfalse;
+	}
+
+	errorCode = qglGetError();
+	if ( errorCode != GL_NO_ERROR ) {
 		RBPP_DestroyRenderTarget( target );
 		return qfalse;
 	}
@@ -991,14 +1007,29 @@ Set the 2D state block used by the shader-backed rectangle-texture passes.
 =============
 */
 static void RBPP_Set2DState( int width, int height ) {
-	qglDisable( GL_DEPTH_TEST );
-	qglDisable( GL_CULL_FACE );
-	qglDisable( GL_SCISSOR_TEST );
-	qglDisable( GL_BLEND );
+	backEnd.projection2D = qtrue;
+
 	qglViewport( 0, 0, width, height );
-	RB_SetGL2D();
+	qglScissor( 0, 0, width, height );
+	qglMatrixMode( GL_PROJECTION );
+	qglLoadIdentity();
+	qglOrtho( 0, width, height, 0, 0, 1 );
+	qglMatrixMode( GL_MODELVIEW );
+	qglLoadIdentity();
+
+	GL_State( GLS_DEPTHTEST_DISABLE |
+		GLS_SRCBLEND_SRC_ALPHA |
+		GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA );
+
+	qglDisable( GL_CULL_FACE );
+	qglDisable( GL_CLIP_PLANE0 );
+	qglDisable( GL_SCISSOR_TEST );
+
 	qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
 	qglTexEnvi( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE );
+
+	backEnd.refdef.time = ri.Milliseconds();
+	backEnd.refdef.floatTime = backEnd.refdef.time * 0.001f;
 }
 
 
@@ -1505,19 +1536,19 @@ static qboolean RBPP_InitBloomResources( void ) {
 		quarterHeight = 1;
 	}
 
-	if ( !RBPP_CreateRenderTarget( &s_postProcess.bloomDownsampleTarget, halfWidth, halfHeight, qtrue, qfalse ) ||
-		!RBPP_CreateRenderTarget( &s_postProcess.bloomBrightTarget, halfWidth, halfHeight, qtrue, qfalse ) ||
-		!RBPP_CreateRenderTarget( &s_postProcess.bloomBlurVerticalTarget, halfWidth, halfHeight, qtrue, qfalse ) ||
-		!RBPP_CreateRenderTarget( &s_postProcess.bloomBlurHorizontalTarget, halfWidth, halfHeight, qtrue, qfalse ) ) {
+	if ( !RBPP_CreateRenderTarget( &s_postProcess.bloomDownsampleTarget, halfWidth, halfHeight, qtrue ) ||
+		!RBPP_CreateRenderTarget( &s_postProcess.bloomBrightTarget, halfWidth, halfHeight, qtrue ) ||
+		!RBPP_CreateRenderTarget( &s_postProcess.bloomBlurVerticalTarget, halfWidth, halfHeight, qtrue ) ||
+		!RBPP_CreateRenderTarget( &s_postProcess.bloomBlurHorizontalTarget, halfWidth, halfHeight, qtrue ) ) {
 		ri.Printf( PRINT_WARNING, "Bloom Failure - unable to create FBO. Bloom effect disabled\n" );
 		RBPP_ShutdownBloomResources();
 		return qfalse;
 	}
 
 	if ( bloomMode == 2 &&
-		( !RBPP_CreateRenderTarget( &s_postProcess.bloomQuarterDownsampleTarget, quarterWidth, quarterHeight, qtrue, qfalse ) ||
-		!RBPP_CreateRenderTarget( &s_postProcess.bloomQuarterVerticalTarget, quarterWidth, quarterHeight, qtrue, qfalse ) ||
-		!RBPP_CreateRenderTarget( &s_postProcess.bloomQuarterHorizontalTarget, quarterWidth, quarterHeight, qtrue, qfalse ) ) ) {
+		( !RBPP_CreateRenderTarget( &s_postProcess.bloomQuarterDownsampleTarget, quarterWidth, quarterHeight, qtrue ) ||
+		!RBPP_CreateRenderTarget( &s_postProcess.bloomQuarterVerticalTarget, quarterWidth, quarterHeight, qtrue ) ||
+		!RBPP_CreateRenderTarget( &s_postProcess.bloomQuarterHorizontalTarget, quarterWidth, quarterHeight, qtrue ) ) ) {
 		ri.Printf( PRINT_WARNING, "Bloom Failure - unable to create FBO. Bloom effect disabled\n" );
 		RBPP_ShutdownBloomResources();
 		return qfalse;
@@ -1652,7 +1683,7 @@ static void RBPP_RebuildState( void ) {
 		return;
 	}
 
-	if ( !RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, glConfig.vidWidth, glConfig.vidHeight, qfalse, qtrue ) ) {
+	if ( !RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, glConfig.vidWidth, glConfig.vidHeight, qfalse ) ) {
 		RBPP_MirrorState();
 		return;
 	}
@@ -1928,19 +1959,22 @@ static void RBPP_ApplyColorCorrectPass( void ) {
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, 0 );
 
 	gammaRecip = 1.0f;
-	if ( !glConfig.deviceSupportsGamma && r_gamma && r_gamma->value > 0.0f ) {
+	if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {
 		gammaRecip = 1.0f / r_gamma->value;
 	}
 
-	overbright = 0.0f;
+	overbright = 1.0f;
 	if ( r_overBrightBits ) {
-		overbright = 2.0f * r_overBrightBits->value;
-		if ( overbright > 1.0f ) {
+		overbright = 2.0f * r_overBrightBits->integer;
+		if ( overbright <= 1.0f ) {
 			overbright = 1.0f;
 		}
 	}
 
-	contrast = r_contrast ? r_contrast->value : 1.0f;
+	contrast = 1.0f;
+	if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {
+		contrast = r_contrast->value;
+	}
 
 	RBPP_Set2DState( glConfig.vidWidth, glConfig.vidHeight );
 	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.colorCorrectProgram.programObject );

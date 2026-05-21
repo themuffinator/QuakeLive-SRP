@@ -370,6 +370,9 @@ static void Con_DrawHostField_helper( field_t *edit, int x, int y, int charWidth
 	prefixWidth = 0.0f;
 	if ( prefixBytes > 0 ) {
 		RE_MeasureScaledText( drawText, drawText + prefixBytes, CONSOLE_HOST_FONT_MONO, Con_GetHostTextScale( charWidth ), 0, &prefixWidth, NULL, NULL );
+		if ( drawText[prefixBytes - 1] == ' ' ) {
+			prefixWidth += charWidth;
+		}
 	}
 
 	cursorX = x + (int)( prefixWidth + 0.5f );

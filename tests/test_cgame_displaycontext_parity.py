@@ -212,6 +212,9 @@ def test_cgame_weapon_helper_split_restores_retail_view_weapon_and_selection_sea
 	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
 	rail_block = _block_from_marker(weapons_source, "static void CG_SpawnRailTrail")
 	powerup_block = _block_from_marker(weapons_source, "static void CG_AddWeaponWithPowerups")
+	weapon_strip_block = _block_from_marker(weapons_source, "static void CG_DrawWeaponSelectStrip")
+	legacy_mode_block = _block_from_marker(weapons_source, "static int CG_GetLegacyWeaponBarWidescreenMode")
+	legacy_draw_block = _block_from_marker(weapons_source, "static void CG_DrawLegacyWeaponSelect")
 	cycle_block = _block_from_marker(weapons_source, "static void CG_CycleWeaponSelection")
 	highest_block = _block_from_marker(weapons_source, "static void CG_SelectHighestWeapon")
 	next_block = _block_from_marker(weapons_source, "void CG_NextWeapon_f( void )")
@@ -242,6 +245,18 @@ def test_cgame_weapon_helper_split_restores_retail_view_weapon_and_selection_sea
 	):
 		assert expected in weapons_source or expected in powerup_block
 
+	assert "w = CG_Text_Width( name, 0.25f, 0 );" in weapon_strip_block
+	assert "CG_DrawStrlen( name ) * BIGCHAR_WIDTH" not in weapon_strip_block
+	assert "case 2:" in legacy_mode_block
+	assert "return WIDESCREEN_RIGHT;" in legacy_mode_block
+	assert "case 3:" in legacy_mode_block
+	assert "return WIDESCREEN_CENTER;" in legacy_mode_block
+	assert "return WIDESCREEN_LEFT;" in legacy_mode_block
+	assert "CG_SetAdjustFrom640Mode( CG_GetLegacyWeaponBarWidescreenMode() );" in legacy_draw_block
+	assert "CG_SetAdjustFrom640Mode( WIDESCREEN_STRETCH );" in legacy_draw_block
+	assert legacy_draw_block.index("CG_DrawPic( x + selectX, y - 2.0f, 52.0f, 20.0f, selectionShader );") < legacy_draw_block.index("CG_DrawPic( x, y, 16.0f, 16.0f, cg_weapons[weapon].weaponIcon );")
+	assert legacy_draw_block.index("CG_DrawPic( x, y, 16.0f, 16.0f, cg_weapons[weapon].weaponIcon );") < legacy_draw_block.index("CG_DrawLegacyWeaponBarAmmo( x, y, ammoX, infiniteAmmoX, weapon );")
+
 	for expected in (
 		"if ( !cg.snap ) {",
 		"if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {",
@@ -268,6 +283,39 @@ def test_cgame_weapon_helper_split_restores_retail_view_weapon_and_selection_sea
 	assert "CG_CycleWeaponSelection( qtrue );" in next_block
 	assert "CG_CycleWeaponSelection( qfalse );" in prev_block
 	assert "CG_SelectHighestWeapon();" in out_of_ammo_block
+
+
+def test_grenade_missile_model_uses_weapon_color_entity_lane() -> None:
+	ents_source = CG_ENTS.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	unpack_block = _block_from_marker(main_source, "static void CG_UnpackWeaponBarColor")
+	parse_block = _block_from_marker(main_source, "static qboolean CG_ParseWeaponBarColor")
+	color_block = _block_from_marker(ents_source, "static void CG_ApplyGrenadeEntityColor")
+	missile_block = _block_from_marker(ents_source, "static void CG_Missile")
+
+	for expected in (
+		"color[0] = (float)( ( packedColor >> 24 ) & 0xff ) / 255.0f;",
+		"color[1] = (float)( ( packedColor >> 16 ) & 0xff ) / 255.0f;",
+		"color[2] = (float)( ( packedColor >> 8 ) & 0xff ) / 255.0f;",
+		"color[3] = (float)( packedColor & 0xff ) / 255.0f;",
+	):
+		assert expected in unpack_block
+
+	assert "packedColor = (unsigned int)strtoul( hex, &endPtr, 0 );" in parse_block
+	assert "CG_UnpackWeaponBarColor( packedColor, color );" in parse_block
+
+	for expected in (
+		"ent->shaderRGBA[0] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[0] ) * 255.0f );",
+		"ent->shaderRGBA[1] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[1] ) * 255.0f );",
+		"ent->shaderRGBA[2] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[2] ) * 255.0f );",
+		"ent->shaderRGBA[3] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[3] ) * 255.0f );",
+	):
+		assert expected in color_block
+
+	assert "if ( cent->currentState.weapon == WP_GRENADE_LAUNCHER ) {" in missile_block
+	assert "CG_ApplyGrenadeEntityColor( &ent );" in missile_block
+	assert missile_block.index("ent.renderfx = weapon->missileRenderfx | RF_NOSHADOW;") < missile_block.index("CG_ApplyGrenadeEntityColor( &ent );")
+	assert missile_block.index("CG_ApplyGrenadeEntityColor( &ent );") < missile_block.index("VectorNormalize2( s1->pos.trDelta, ent.axis[0] )")
 
 
 def test_cgame_mark_axis_helper_restores_retail_impact_mark_math_split() -> None:
@@ -1162,6 +1210,7 @@ def test_cgame_classic_player_status_ownerdraws_follow_retail_leaf_split() -> No
 	head_block = _block_from_marker(source, "static void CG_DrawPlayerHead")
 	item_block = _block_from_marker(source, "static void CG_DrawPlayerItem")
 	tiered_block = _block_from_marker(source, "static void CG_DrawArmorTieredColorized")
+	team_colorized_block = _block_from_marker(source, "static void CG_DrawTeamColorized")
 
 	assert (
 		"return Com_Clamp( 0.0f, (float)maximum, (float)value ) / (float)maximum;"
@@ -1265,6 +1314,14 @@ def test_cgame_classic_player_status_ownerdraws_follow_retail_leaf_split() -> No
 		"CG_FillRect( rect->x, rect->y, rect->w, rect->h, color );",
 	):
 		assert expected in tiered_block
+
+	for expected in (
+		"Vector4Copy( CG_TeamColor( team ), color );",
+		"color[3] = itemColor[3];",
+		"trap_R_SetColor( color );",
+	):
+		assert expected in team_colorized_block
+	assert "CG_DrawTeamColorized( &rect, color, teamShader );" in source
 
 	for expected in (
 		"case CG_PLAYER_ARMOR_BAR_100:",
@@ -2443,8 +2500,13 @@ def test_cgame_browser_overlay_focus_wrappers_restore_retail_direct_owner_slice(
 	mouse_leave_block = _block_from_marker(newdraw_source, "static void CG_BrowserMouseLeave")
 	prev_cursor_block = _block_from_marker(newdraw_source, "static void *CG_SetPrevBrowserCursorItem")
 	next_cursor_block = _block_from_marker(newdraw_source, "static void *CG_SetNextBrowserCursorItem")
+	clamp_join_block = _block_from_marker(screen_source, "static void CG_ClampJoinGameMenuCursor")
+	enable_join_block = _block_from_marker(screen_source, "static void CG_EnableJoinGameMenuCursor")
+	disable_join_block = _block_from_marker(screen_source, "static void CG_DisableJoinGameMenuCursor")
 	open_join_block = _block_from_marker(screen_source, "static menuDef_t *CG_OpenJoinGameMenu")
 	close_join_block = _block_from_marker(screen_source, "void CG_CloseJoinGameMenu")
+	reset_join_block = _block_from_marker(screen_source, "void CG_ResetJoinGameMenuCaptureState")
+	should_draw_join_block = _block_from_marker(screen_source, "static qboolean CG_ShouldDrawJoinGameMenu")
 
 	for expected in (
 		"void *CG_FindBrowserOverlayByName( const char *name );",
@@ -2530,12 +2592,50 @@ def test_cgame_browser_overlay_focus_wrappers_restore_retail_direct_owner_slice(
 	for expected in (
 		'menu = CG_FindBrowserOverlayByName( "joingame_menu" );',
 		'menu = CG_OpenBrowserOverlayByName( "joingame_menu" );',
+		"wasVisible = (qboolean)( ( menu->window.flags & WINDOW_VISIBLE ) != 0 );",
+		"if ( !wasVisible ) {",
+		"CG_EnableJoinGameMenuCursor();",
+		"if ( !cg_joinGameMenuCursorActive || catcher != KEYCATCH_CGAME ) {",
 	):
 		assert expected in open_join_block
 
+	for expected in (
+		"cgs.cursorX = 0;",
+		"cgs.cursorX = SCREEN_WIDTH;",
+		"cgs.cursorY = 0;",
+		"cgs.cursorY = SCREEN_HEIGHT;",
+	):
+		assert expected in clamp_join_block
+
+	for expected in (
+		"trap_Key_SetCatcher( KEYCATCH_CGAME );",
+		"CG_ClampJoinGameMenuCursor();",
+		"cgDC.cursorx = cgs.cursorX;",
+		"cgDC.cursory = cgs.cursorY;",
+		"cgs.activeCursor = cgs.media.cursor ? cgs.media.cursor : cgs.media.selectCursor;",
+		"cg_joinGameMenuCursorActive = qtrue;",
+	):
+		assert expected in enable_join_block
+
+	for expected in (
+		"if ( !cg_joinGameMenuCursorActive ) {",
+		"cg_joinGameMenuCursorActive = qfalse;",
+		"cgs.capturedItem = NULL;",
+		"cgs.activeCursor = 0;",
+		"trap_Key_SetCatcher( catcher & ~KEYCATCH_CGAME );",
+	):
+		assert expected in disable_join_block
+
+	assert "CG_DisableJoinGameMenuCursor();" in reset_join_block
+	assert "cg_joinGameMenuCursorActive = qfalse;" in reset_join_block
+	assert "cg.scoreBoardShowing" not in should_draw_join_block
+	assert "cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR" in should_draw_join_block
 	assert 'CG_CloseBrowserOverlayByName( "joingame_menu" );' in close_join_block
+	assert "CG_DisableJoinGameMenuCursor();" in close_join_block
 	assert 'Menus_OpenByName( "joingame_menu" );' not in open_join_block
 	assert 'Menus_CloseByName( "joingame_menu" );' not in close_join_block
+	assert "trap_Key_SetCatcher( catcher | KEYCATCH_CGAME );" not in open_join_block
+	assert "CG_CenterJoinGameMenuCursor" not in screen_source
 
 
 def test_cgame_browser_runtime_state_and_simple_script_wrappers_restore_retail_owner_slice() -> None:
@@ -2620,6 +2720,7 @@ def test_cgame_browser_runtime_surface_restores_overlay_draw_and_capture_owners(
 	alloc_block = _block_from_marker(newdraw_source, "static void CG_AllocBrowserWidgetState")
 	frame_block = _block_from_marker(newdraw_source, "static void CG_DrawBrowserWidgetFrame")
 	widget_block = _block_from_marker(newdraw_source, "static void CG_DrawBrowserWidget")
+	fullscreen_background_block = _block_from_marker(newdraw_source, "static void CG_DrawBrowserFullscreenBackground")
 	overlay_tree_block = _block_from_marker(newdraw_source, "void CG_DrawBrowserOverlayTree")
 	overlays_block = _block_from_marker(newdraw_source, "void CG_DrawBrowserOverlays")
 	oob_block = _block_from_marker(newdraw_source, "static void CG_BrowserHandleOOBClick")
@@ -2643,15 +2744,26 @@ def test_cgame_browser_runtime_surface_restores_overlay_draw_and_capture_owners(
 	assert "CG_AllocBrowserWidgetState( item );" in widget_block
 	assert "Item_Paint( item );" in widget_block
 	assert "switch ( item->type ) {" not in widget_block
-	assert "static void CG_NormalizeBrowserFullscreenBackgroundRect( rectDef_t *rect ) {" in newdraw_source
 	assert "static int CG_ResolveBrowserMenuWidescreenMode( const menuDef_t *menu ) {" in newdraw_source
+	assert "static void CG_DrawBrowserFullscreenBackground( const menuDef_t *menu ) {" in newdraw_source
 	assert "Menus_HandleOOBClick( (menuDef_t *)overlay, key, down );" in oob_block
+
+	for expected in (
+		"sourceWidth = menu->backgroundRect.w;",
+		"if ( sourceWidth > 0.0f ) {",
+		"screenWidth = (float)cgDC.glconfig.vidWidth;",
+		"screenHeight = (float)cgDC.glconfig.vidHeight;",
+		"s0 = ( ( sourceWidth - screenWidth * ( sourceHeight / screenHeight ) ) / sourceWidth ) * 0.5f;",
+		"cgDC.drawStretchPic( 0.0f, 0.0f, screenWidth, screenHeight, s0, 0.0f, 1.0f - s0, 1.0f, menu->window.background );",
+		"cgDC.drawHandlePic( 0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background );",
+	):
+		assert expected in fullscreen_background_block
 
 	for expected in (
 		"if ( ( menu->window.ownerDrawFlags || menu->window.ownerDrawFlags2 ) && cgDC.ownerDrawVisible &&",
 		"!cgDC.ownerDrawVisible( menu->window.ownerDrawFlags, menu->window.ownerDrawFlags2 ) ) {",
 		"CG_UpdateBrowserPresetLists( menu );",
-		"CG_NormalizeBrowserFullscreenBackgroundRect( &backgroundRect );",
+		"CG_DrawBrowserFullscreenBackground( menu );",
 		"CG_DrawBrowserWidgetFrame( &menu->window, menu->fadeAmount, menu->fadeClamp, menu->fadeCycle );",
 		"CG_DrawBrowserWidget( menu->items[i] );",
 		"cgDC.setAdjustFrom640Mode( CG_ResolveBrowserMenuWidescreenMode( menu ) );",
@@ -4859,7 +4971,7 @@ def test_ui_shared_widescreen_rect_flow_retargets_centered_ui_scale() -> None:
 	source = UI_SHARED.read_text(encoding="utf-8")
 	apply_block = _block_from_marker(source, "static void UI_ApplyWidescreenRect(rectDef_t *rect, int widescreen)")
 	menu_update_block = _block_from_marker(source, "void Menu_UpdatePosition(menuDef_t *menu)")
-	normalize_block = _block_from_marker(source, "static void UI_NormalizeFullscreenBackgroundRect(rectDef_t *rect)")
+	background_block = _block_from_marker(source, "static void UI_DrawFullscreenBackground(const menuDef_t *menu)")
 	paint_block = _block_from_marker(source, "void Menu_Paint(menuDef_t *menu, qboolean forcePaint)")
 	parse_block = _block_from_marker(source, "qboolean MenuParse_widescreen( itemDef_t *item, int handle )")
 
@@ -4876,18 +4988,17 @@ def test_ui_shared_widescreen_rect_flow_retargets_centered_ui_scale() -> None:
 		assert expected in apply_block
 
 	for expected in (
-		"#define UI_FULLSCREEN_BACKGROUND_WIDTH\t1920.0f",
-		"#define UI_FULLSCREEN_BACKGROUND_HEIGHT\t1080.0f",
-		"rect->x *= (float)SCREEN_WIDTH / UI_FULLSCREEN_BACKGROUND_WIDTH;",
-		"rect->y *= (float)SCREEN_HEIGHT / UI_FULLSCREEN_BACKGROUND_HEIGHT;",
-		"rect->w *= (float)SCREEN_WIDTH / UI_FULLSCREEN_BACKGROUND_WIDTH;",
-		"rect->h *= (float)SCREEN_HEIGHT / UI_FULLSCREEN_BACKGROUND_HEIGHT;",
+		"sourceWidth = menu->backgroundRect.w;",
+		"if (sourceWidth > 0.0f) {",
+		"screenWidth = (float)DC->glconfig.vidWidth;",
+		"screenHeight = (float)DC->glconfig.vidHeight;",
+		"s0 = ((sourceWidth - screenWidth * (sourceHeight / screenHeight)) / sourceWidth) * 0.5f;",
+		"DC->drawStretchPic(0.0f, 0.0f, screenWidth, screenHeight, s0, 0.0f, 1.0f - s0, 1.0f, menu->window.background);",
+		"DC->drawHandlePic(0.0f, 0.0f, SCREEN_WIDTH, SCREEN_HEIGHT, menu->window.background);",
 	):
-		assert expected in source
-		assert expected in normalize_block or expected.startswith("#define")
+		assert expected in background_block
 
-	assert "UI_NormalizeFullscreenBackgroundRect(&backgroundRect);" in paint_block
-	assert "UI_ApplyWidescreenRect(&backgroundRect, menu->widescreen);" in paint_block
+	assert "UI_DrawFullscreenBackground(menu);" in paint_block
 	assert "UI_ApplyWidescreenRect(&rect, UI_ResolveMenuWidescreenMode(menu));" in menu_update_block
 	assert "menu->widescreenSet = qtrue;" in parse_block
 

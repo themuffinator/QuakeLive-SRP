@@ -155,14 +155,51 @@ def test_session_init_and_serializer_follow_recovered_retail_shape() -> None:
 
 def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	game_client = _read("src/code/game/g_client.c")
+	game_items = _read("src/code/game/g_items.c")
 	game_team = _read("src/code/game/g_team.c")
 	game_local = _read("src/code/game/g_local.h")
+	loadout_block = _block_from_marker(game_client, "static weapon_t G_FinalizeSpawnLoadout")
+	warmup_gate_block = _block_from_marker(game_client, "static qboolean G_ShouldGrantWarmupLevelWeapons")
+	warmup_allowed_block = _block_from_marker(game_client, "static qboolean G_WarmupLevelWeaponAllowed")
+	warmup_ammo_block = _block_from_marker(game_client, "static int G_WarmupLevelWeaponAmmo")
 
 	assert "static weapon_t G_SelectConfiguredSpawnWeapon( gclient_t *client, unsigned int startingMask ) {" in game_client
 	assert "static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {" in game_client
 	assert "client->sess.selectedSpawnWeapon = (int)spawnWeapon;" in game_client
 	assert "if ( client->rrInfectionState == RR_STATE_INFECTED ) {" in game_client
 	assert "spawnWeapon = G_FinalizeSpawnLoadout( ent, factoryConfig );" in game_client
+	assert "static qboolean G_ShouldGrantWarmupLevelWeapons( void ) {" in game_client
+	assert "level.warmupTime != 0" in warmup_gate_block
+	assert "!g_training.integer" in warmup_gate_block
+	assert "!( practiceflags.integer & 1 )" in warmup_gate_block
+	assert "!g_loadout.integer" in warmup_gate_block
+	assert "static qboolean G_WarmupLevelWeaponAllowed( weapon_t weapon, unsigned int startingWeaponsMask ) {" in game_client
+	assert "weapon != WP_MACHINEGUN && weapon != WP_GRAPPLING_HOOK" in warmup_allowed_block
+	assert "weaponTag = BG_ItemTagForWeapon( weapon );" in warmup_allowed_block
+	assert "startingWeaponsMask & ( 1u << ( weaponTag - 1 ) )" in warmup_allowed_block
+	assert "static int G_WarmupLevelWeaponAmmo( weapon_t weapon ) {" in game_client
+	assert "case WP_MACHINEGUN:" in warmup_ammo_block
+	assert "case WP_HEAVY_MACHINEGUN:" in warmup_ammo_block
+	assert "return 150;" in warmup_ammo_block
+	assert "gitem_t" in loadout_block
+	assert "*weaponItem;" in loadout_block
+	assert "qboolean\t\twarmupLevelWeaponsGranted[WP_NUM_WEAPONS] = { qfalse };" in loadout_block
+	assert "startingMask = factoryConfig->startingWeaponsStatMask;" in loadout_block
+	assert "startingMask = g_startingWeapons.integer;" not in loadout_block
+	assert "if ( G_ShouldGrantWarmupLevelWeapons() ) {" in loadout_block
+	assert "for ( weapon = WP_MACHINEGUN; weapon < WP_NUM_WEAPONS; ++weapon ) {" in loadout_block
+	assert "G_ItemRegistered( weaponItem )" in loadout_block
+	assert "G_WarmupLevelWeaponAllowed( weapon, factoryConfig->startingWeaponsMask )" in loadout_block
+	assert "startingMask |= 1u << weapon;" in loadout_block
+	assert "warmupLevelWeaponsGranted[weapon] = qtrue;" in loadout_block
+	assert loadout_block.index("startingMask |= 1u << weapon;") < loadout_block.index("client->ps.stats[STAT_WEAPONS] = startingMask;")
+	assert "weaponItem = BG_FindItemForWeapon( weapon );" in loadout_block
+	assert "RegisterItem( weaponItem );" in loadout_block
+	assert loadout_block.index("RegisterItem( weaponItem );") < loadout_block.index("G_SeedConfiguredSpawnAmmo( &client->ps, weapon, startingAmmoTable[weapon] );")
+	assert "G_SeedConfiguredSpawnAmmo( &client->ps, weapon, G_WarmupLevelWeaponAmmo( weapon ) );" in loadout_block
+	assert "qboolean G_ItemRegistered( const gitem_t *item );" in game_local
+	assert "qboolean G_ItemRegistered( const gitem_t *item ) {" in game_items
+	assert "return itemRegistered[itemIndex];" in game_items
 	assert "static void G_RRFinalizeSpawnLoadout( gentity_t *ent ) {" in game_client
 	assert "client->ps.stats[STAT_WEAPONS] = 1u << WP_GAUNTLET;" in game_client
 	assert "client->pers.maxHealth = client->ps.stats[STAT_MAX_HEALTH] + g_rrInfectedZombieHealthBonus.integer;" in game_client
@@ -330,6 +367,16 @@ def test_client_spawn_queue_runs_on_client_frame_and_disconnect_cleanup() -> Non
 	assert "ent->nextthink = 0;" in cancel_block
 	assert "G_ClearQueuedSpawnState( clientNum );" in cancel_block
 	assert "G_UpdateSpawnQueueFlag();" in cancel_block
+
+
+def test_initial_client_spawn_bypasses_respawn_queue() -> None:
+	game_spawn = _read("src/code/game/g_spawn.c")
+	request_block = _block_from_marker(game_spawn, "qboolean G_RequestClientSpawn")
+
+	assert "if ( initialSpawn ) {" in request_block
+	assert "delayMs = 0;" in request_block
+	assert request_block.index("if ( initialSpawn ) {") < request_block.index("} else if ( warmupSpawn ) {")
+	assert request_block.index("if ( initialSpawn ) {") < request_block.index("level.clientSpawnQueued[clientNum] = qtrue;")
 
 
 def test_last_alive_alert_helpers_match_recovered_retail_boundaries() -> None:

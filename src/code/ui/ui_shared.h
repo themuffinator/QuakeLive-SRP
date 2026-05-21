@@ -331,7 +331,7 @@ typedef struct {
   qboolean fullScreen;							// covers entire screen 
 	int widescreen;
 	qboolean widescreenSet;
-	Rectangle backgroundRect;					// retail full-screen background paint rect
+	Rectangle backgroundRect;					// retail full-screen backgroundSize source bounds
 	qboolean backgroundSizeSet;				// backgroundRect came from backgroundSize
   int itemCount;										// number of items;
   int fontIndex;										// 

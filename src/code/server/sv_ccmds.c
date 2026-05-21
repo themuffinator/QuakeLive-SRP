@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define SV_FACTORY_MAX_JSON_STRING        4096
 #define SV_FACTORY_FILE_LIST_BUFFER       4096
+#define SV_FACTORY_MAX_TAGS               8
 
 #define SV_MAX_MAP_GAMETYPE_ALIASES       3
 #define SV_MAP_POOL_FILE_BYTES            0x8000
@@ -46,7 +47,11 @@ typedef struct svFactoryOverride_s {
 typedef struct svFactoryDefinition_s {
 	char *id;
 	char *title;
+	char *author;
+	char *description;
 	gametype_t baseGametype;
+	char *tags[SV_FACTORY_MAX_TAGS];
+	int tagCount;
 	char *sourceFile;
 	svFactoryOverride_t *overrides;
 	int overrideCount;
@@ -127,6 +132,8 @@ Releases a parsed factory definition that is not retained by the registry.
 =============
 */
 static void SV_FactoryFreeDefinition( svFactoryDefinition_t *definition ) {
+	int i;
+
 	if ( !definition ) {
 		return;
 	}
@@ -136,6 +143,17 @@ static void SV_FactoryFreeDefinition( svFactoryDefinition_t *definition ) {
 	}
 	if ( definition->title ) {
 		Z_Free( definition->title );
+	}
+	if ( definition->author ) {
+		Z_Free( definition->author );
+	}
+	if ( definition->description ) {
+		Z_Free( definition->description );
+	}
+	for ( i = 0; i < definition->tagCount && i < SV_FACTORY_MAX_TAGS; i++ ) {
+		if ( definition->tags[i] ) {
+			Z_Free( definition->tags[i] );
+		}
 	}
 	if ( definition->sourceFile ) {
 		Z_Free( definition->sourceFile );
@@ -537,6 +555,83 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 														return qfalse;
 													}
 
+/*
+=============
+SV_FactoryParseTags
+
+Parses the optional retail "tags" array, preserving strings from the first
+eight elements.
+=============
+*/
+static qboolean SV_FactoryParseTags( svFactoryParseState_t *state, char *tags[], int *tagCount ) {
+	int parsedCount;
+	int elementCount;
+	char *tag;
+
+	if ( !tags || !tagCount || !SV_FactoryParseExpectedChar( state, '[' ) ) {
+		return qfalse;
+	}
+
+	*tagCount = 0;
+	parsedCount = 0;
+	elementCount = 0;
+
+	SV_FactorySkipWhitespace( state );
+	if ( state->cursor < state->end && *state->cursor == ']' ) {
+		state->cursor++;
+		return qtrue;
+	}
+
+	while ( state->cursor < state->end ) {
+		SV_FactorySkipWhitespace( state );
+		if ( state->cursor >= state->end ) {
+			break;
+		}
+
+		if ( *state->cursor == '"' ) {
+			tag = SV_FactoryParseJsonString( state );
+
+			if ( !tag ) {
+				return qfalse;
+			}
+			if ( elementCount < SV_FACTORY_MAX_TAGS && parsedCount < SV_FACTORY_MAX_TAGS ) {
+				tags[parsedCount] = tag;
+				parsedCount++;
+				*tagCount = parsedCount;
+			} else {
+				Z_Free( tag );
+			}
+		} else if ( !SV_FactorySkipValue( state ) ) {
+			return qfalse;
+		}
+		elementCount++;
+
+		SV_FactorySkipWhitespace( state );
+		if ( state->cursor >= state->end ) {
+			break;
+		}
+		if ( *state->cursor == ']' ) {
+			state->cursor++;
+			*tagCount = parsedCount;
+			return qtrue;
+		}
+		if ( *state->cursor != ',' ) {
+			SV_FactoryReportParseError( state, "expected ',' or ']'" );
+			return qfalse;
+		}
+		state->cursor++;
+		SV_FactorySkipWhitespace( state );
+		if ( state->cursor < state->end && *state->cursor == ']' ) {
+			state->cursor++;
+			*tagCount = parsedCount;
+			return qtrue;
+		}
+	}
+
+	SV_FactoryReportParseError( state, "unterminated tags array" );
+	return qfalse;
+}
+
 													/*
 													=============
 													SV_FactoryMapBaseGametype
@@ -588,132 +683,247 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 													Parses a single factory definition object.
 													=============
 													*/
-													static svFactoryDefinition_t *SV_FactoryParseDefinition( svFactoryParseState_t *state, const char *sourceFile ) {
-														svFactoryDefinition_t *definition;
-														char *id;
-														char *title;
-														char *basegt;
+static svFactoryDefinition_t *SV_FactoryParseDefinition( svFactoryParseState_t *state, const char *sourceFile ) {
+	svFactoryDefinition_t *definition;
+	char *id;
+	char *title;
+	char *author;
+	char *description;
+	char *basegt;
+	char *tags[SV_FACTORY_MAX_TAGS];
+	int tagCount;
+	int i;
+	qboolean sawCvars;
 
-														if ( !SV_FactoryParseExpectedChar( state, '{' ) ) {
-															return NULL;
-														}
+	if ( !SV_FactoryParseExpectedChar( state, '{' ) ) {
+		return NULL;
+	}
 
-														definition = ( svFactoryDefinition_t * )Z_Malloc( sizeof( svFactoryDefinition_t ) );
-														if ( !definition ) {
-															return NULL;
-														}
+	definition = ( svFactoryDefinition_t * )Z_Malloc( sizeof( svFactoryDefinition_t ) );
+	if ( !definition ) {
+		return NULL;
+	}
 
-														definition->sourceFile = sourceFile ? SV_FactoryCopyString( sourceFile ) : NULL;
-														definition->id = NULL;
-														definition->title = NULL;
-														definition->baseGametype = GT_FFA;
-														definition->overrides = NULL;
-														definition->overrideCount = 0;
-														definition->next = NULL;
+	Com_Memset( definition, 0, sizeof( *definition ) );
+	definition->sourceFile = sourceFile ? SV_FactoryCopyString( sourceFile ) : NULL;
+	definition->baseGametype = GT_FFA;
 
-														id = NULL;
-														title = NULL;
-														basegt = NULL;
+	id = NULL;
+	title = NULL;
+	author = NULL;
+	description = NULL;
+	basegt = NULL;
+	Com_Memset( tags, 0, sizeof( tags ) );
+	tagCount = 0;
+	sawCvars = qfalse;
 
-														while ( state && state->cursor < state->end ) {
-															char *key;
+	while ( state && state->cursor < state->end ) {
+		char *key;
 
-															SV_FactorySkipWhitespace( state );
-															if ( state->cursor >= state->end ) {
-																SV_FactoryReportParseError( state, "unterminated factory object" );
-																goto fail;
-															}
-															if ( *state->cursor == '}' ) {
-																state->cursor++;
-																break;
-															}
+		SV_FactorySkipWhitespace( state );
+		if ( state->cursor >= state->end ) {
+			SV_FactoryReportParseError( state, "unterminated factory object" );
+			goto fail;
+		}
+		if ( *state->cursor == '}' ) {
+			state->cursor++;
+			break;
+		}
 
-															key = SV_FactoryParseJsonString( state );
-															if ( !key ) {
-																goto fail;
-															}
-															if ( !SV_FactoryParseExpectedChar( state, ':' ) ) {
-																Z_Free( key );
-																goto fail;
-															}
+		key = SV_FactoryParseJsonString( state );
+		if ( !key ) {
+			goto fail;
+		}
+		if ( !SV_FactoryParseExpectedChar( state, ':' ) ) {
+			Z_Free( key );
+			goto fail;
+		}
 
-															if ( !Q_stricmp( key, "id" ) ) {
-																if ( id ) {
-																	Z_Free( id );
-																}
-																id = SV_FactoryParseJsonString( state );
-															} else if ( !Q_stricmp( key, "title" ) ) {
-																if ( title ) {
-																	Z_Free( title );
-																}
-																title = SV_FactoryParseJsonString( state );
-															} else if ( !Q_stricmp( key, "basegt" ) ) {
-																if ( basegt ) {
-																	Z_Free( basegt );
-																}
-																basegt = SV_FactoryParseJsonString( state );
-															} else if ( !Q_stricmp( key, "cvars" ) ) {
-																if ( !SV_FactoryParseCvarOverrides( state, definition ) ) {
-																	Z_Free( key );
-																	goto fail;
-																}
-															} else {
-																if ( !SV_FactorySkipValue( state ) ) {
-																	Z_Free( key );
-																	goto fail;
-																}
-															}
+		if ( !Q_stricmp( key, "id" ) ) {
+			if ( id ) {
+				Z_Free( id );
+				id = NULL;
+			}
+			SV_FactorySkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				Com_Printf( "^1A specified factory is missing required key \"id\", or is not a string.\n^7" );
+				Z_Free( key );
+				goto fail;
+			}
+			id = SV_FactoryParseJsonString( state );
+		} else if ( !Q_stricmp( key, "title" ) ) {
+			if ( title ) {
+				Z_Free( title );
+				title = NULL;
+			}
+			SV_FactorySkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				Com_Printf( "^1Factory with id %s is missing key \"title\", or is not a string.\n^7", id ? id : "" );
+				Z_Free( key );
+				goto fail;
+			}
+			title = SV_FactoryParseJsonString( state );
+		} else if ( !Q_stricmp( key, "author" ) ) {
+			if ( author ) {
+				Z_Free( author );
+				author = NULL;
+			}
+			SV_FactorySkipWhitespace( state );
+			if ( state->cursor < state->end && *state->cursor == '"' ) {
+				author = SV_FactoryParseJsonString( state );
+				if ( !author ) {
+					Z_Free( key );
+					goto fail;
+				}
+			} else if ( !SV_FactorySkipValue( state ) ) {
+				Z_Free( key );
+				goto fail;
+			}
+		} else if ( !Q_stricmp( key, "description" ) ) {
+			if ( description ) {
+				Z_Free( description );
+				description = NULL;
+			}
+			SV_FactorySkipWhitespace( state );
+			if ( state->cursor < state->end && *state->cursor == '"' ) {
+				description = SV_FactoryParseJsonString( state );
+				if ( !description ) {
+					Z_Free( key );
+					goto fail;
+				}
+			} else if ( !SV_FactorySkipValue( state ) ) {
+				Z_Free( key );
+				goto fail;
+			}
+		} else if ( !Q_stricmp( key, "basegt" ) ) {
+			if ( basegt ) {
+				Z_Free( basegt );
+				basegt = NULL;
+			}
+			SV_FactorySkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				Com_Printf( "^1Factory with id %s is missing key \"basegt\", or is not a string.\n^7", id ? id : "" );
+				Z_Free( key );
+				goto fail;
+			}
+			basegt = SV_FactoryParseJsonString( state );
+		} else if ( !Q_stricmp( key, "tags" ) ) {
+			SV_FactorySkipWhitespace( state );
+			for ( i = 0; i < tagCount && i < SV_FACTORY_MAX_TAGS; i++ ) {
+				if ( tags[i] ) {
+					Z_Free( tags[i] );
+					tags[i] = NULL;
+				}
+			}
+			tagCount = 0;
+			if ( state->cursor < state->end && *state->cursor == '[' ) {
+				if ( !SV_FactoryParseTags( state, tags, &tagCount ) ) {
+					Z_Free( key );
+					goto fail;
+				}
+			} else if ( !SV_FactorySkipValue( state ) ) {
+				Z_Free( key );
+				goto fail;
+			}
+		} else if ( !Q_stricmp( key, "cvars" ) ) {
+			SV_FactorySkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '{' ) {
+				Com_Printf( "^1Factory with id %s is missing key \"cvars\", or is not an object.\n^7", id ? id : "" );
+				Z_Free( key );
+				goto fail;
+			}
+			if ( !SV_FactoryParseCvarOverrides( state, definition ) ) {
+				Z_Free( key );
+				goto fail;
+			}
+			sawCvars = qtrue;
+		} else {
+			if ( !SV_FactorySkipValue( state ) ) {
+				Z_Free( key );
+				goto fail;
+			}
+		}
 
-															Z_Free( key );
+		Z_Free( key );
 
-															SV_FactorySkipWhitespace( state );
-															if ( state->cursor >= state->end ) {
-																SV_FactoryReportParseError( state, "unterminated factory object" );
-																goto fail;
-															}
-															if ( *state->cursor == '}' ) {
-																state->cursor++;
-																break;
-															}
-															if ( *state->cursor != ',' ) {
-																SV_FactoryReportParseError( state, "expected ',' or '}'" );
-																goto fail;
-															}
-															state->cursor++;
-															SV_FactorySkipWhitespace( state );
-															if ( state->cursor < state->end && *state->cursor == '}' ) {
-																state->cursor++;
-																break;
-															}
-														}
+		SV_FactorySkipWhitespace( state );
+		if ( state->cursor >= state->end ) {
+			SV_FactoryReportParseError( state, "unterminated factory object" );
+			goto fail;
+		}
+		if ( *state->cursor == '}' ) {
+			state->cursor++;
+			break;
+		}
+		if ( *state->cursor != ',' ) {
+			SV_FactoryReportParseError( state, "expected ',' or '}'" );
+			goto fail;
+		}
+		state->cursor++;
+		SV_FactorySkipWhitespace( state );
+		if ( state->cursor < state->end && *state->cursor == '}' ) {
+			state->cursor++;
+			break;
+		}
+	}
 
-														if ( !id ) {
-															SV_FactoryReportParseError( state, "factory missing id" );
-															goto fail;
-														}
-														if ( !basegt || !SV_FactoryMapBaseGametype( basegt, &definition->baseGametype ) ) {
-															SV_FactoryReportParseError( state, va( "factory %s missing valid basegt", id ) );
-															goto fail;
-														}
+	if ( !id || !id[0] ) {
+		Com_Printf( "^1A specified factory is missing required key \"id\", or is not a string.\n^7" );
+		goto fail;
+	}
+	if ( !basegt ) {
+		Com_Printf( "^1Factory with id %s is missing key \"basegt\", or is not a string.\n^7", id );
+		goto fail;
+	}
+	if ( !title ) {
+		Com_Printf( "^1Factory with id %s is missing key \"title\", or is not a string.\n^7", id );
+		goto fail;
+	}
+	if ( !sawCvars ) {
+		Com_Printf( "^1Factory with id %s is missing key \"cvars\", or is not an object.\n^7", id );
+		goto fail;
+	}
+	if ( !SV_FactoryMapBaseGametype( basegt, &definition->baseGametype ) ) {
+		Com_Printf( "^1Factory with id %s specifies an invalid basegt.\n^7", id );
+		goto fail;
+	}
 
-														definition->id = id;
-														definition->title = title;
-														Z_Free( basegt );
-														return definition;
+	definition->id = id;
+	definition->title = title;
+	definition->author = author;
+	definition->description = description;
+	definition->tagCount = tagCount;
+	for ( i = 0; i < tagCount && i < SV_FACTORY_MAX_TAGS; i++ ) {
+		definition->tags[i] = tags[i];
+		tags[i] = NULL;
+	}
+	Z_Free( basegt );
+	return definition;
 
-														fail:
-														if ( id ) {
-															Z_Free( id );
-														}
-														if ( title ) {
-															Z_Free( title );
-														}
-														if ( basegt ) {
-															Z_Free( basegt );
-														}
-														SV_FactoryFreeDefinition( definition );
-														return NULL;
-													}
+fail:
+	if ( id ) {
+		Z_Free( id );
+	}
+	if ( title ) {
+		Z_Free( title );
+	}
+	if ( author ) {
+		Z_Free( author );
+	}
+	if ( description ) {
+		Z_Free( description );
+	}
+	for ( i = 0; i < tagCount && i < SV_FACTORY_MAX_TAGS; i++ ) {
+		if ( tags[i] ) {
+			Z_Free( tags[i] );
+		}
+	}
+	if ( basegt ) {
+		Z_Free( basegt );
+	}
+	SV_FactoryFreeDefinition( definition );
+	return NULL;
+}
 
 													/*
 													=============
@@ -731,10 +941,7 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 
 														for ( iter = s_svFactoryList; iter; iter = iter->next ) {
 															if ( !Q_stricmp( iter->id, definition->id ) ) {
-																Com_Printf( "factories: duplicate id %s from %s ignored (already provided by %s)\n",
-																definition->id,
-																definition->sourceFile ? definition->sourceFile : "<unknown>",
-																iter->sourceFile ? iter->sourceFile : "<unknown>" );
+																Com_Printf( "^1Factory with id %s already exists.\n^7", definition->id );
 																SV_FactoryFreeDefinition( definition );
 																return qfalse;
 															}
@@ -797,9 +1004,25 @@ static char *SV_FactoryParseJsonString( svFactoryParseState_t *state ) {
 															return 0;
 														}
 
+														SV_FactorySkipWhitespace( &state );
+														if ( state.cursor < state.end && *state.cursor == ']' ) {
+															state.cursor++;
+															return 0;
+														}
+
 														count = 0;
 														while ( state.cursor < state.end ) {
-															svFactoryDefinition_t *definition = SV_FactoryParseDefinition( &state, filename );
+															SV_FactorySkipWhitespace( &state );
+															if ( state.cursor >= state.end ) {
+																SV_FactoryReportParseError( &state, "unterminated factory array" );
+																return count;
+															}
+															if ( *state.cursor != '{' ) {
+																Com_Printf( "^1A specified factory is not an object. All factories must be JSON objects.\n^7" );
+																return count;
+															}
+
+															definition = SV_FactoryParseDefinition( &state, filename );
 															if ( !definition ) {
 																break;
 															}
@@ -971,6 +1194,7 @@ registry rebuild.
 */
 static svFactoryDefinition_t *SV_FactoryCloneDefinition( const svFactoryDefinition_t *source ) {
 	svFactoryDefinition_t *copy;
+	int i;
 
 	if ( !source ) {
 		return NULL;
@@ -984,7 +1208,16 @@ static svFactoryDefinition_t *SV_FactoryCloneDefinition( const svFactoryDefiniti
 	Com_Memset( copy, 0, sizeof( *copy ) );
 	copy->id = SV_FactoryCopyString( source->id );
 	copy->title = SV_FactoryCopyString( source->title );
+	copy->author = SV_FactoryCopyString( source->author );
+	copy->description = SV_FactoryCopyString( source->description );
 	copy->baseGametype = source->baseGametype;
+	copy->tagCount = source->tagCount;
+	if ( copy->tagCount > SV_FACTORY_MAX_TAGS ) {
+		copy->tagCount = SV_FACTORY_MAX_TAGS;
+	}
+	for ( i = 0; i < copy->tagCount; i++ ) {
+		copy->tags[i] = SV_FactoryCopyString( source->tags[i] );
+	}
 	copy->sourceFile = SV_FactoryCopyString( source->sourceFile );
 	copy->overrideCount = source->overrideCount;
 	copy->overrides = SV_FactoryCloneOverrides( source->overrides );
@@ -1687,6 +1920,34 @@ static qboolean SV_MapPoolLoadFromFile( const char *path ) {
 
 /*
 =============
+SV_MapPoolRandomIndex
+
+Returns the retail map-pool random slot using two rand() samples mixed with
+Com_Milliseconds().
+=============
+*/
+static int SV_MapPoolRandomIndex( int count ) {
+	int mixed;
+	int index;
+
+	if ( count <= 0 ) {
+		return 0;
+	}
+
+	mixed = ( rand() << 16 ) ^ rand() ^ Com_Milliseconds();
+	if ( mixed < 0 ) {
+		mixed = -mixed;
+	}
+	index = mixed % count;
+	if ( index < 0 ) {
+		index = 0;
+	}
+
+	return index;
+}
+
+/*
+=============
 SV_MapPoolSelectRandomEntry
 
 Returns a retail-style random entry from the loaded map pool, falling back to
@@ -1708,10 +1969,7 @@ static const svMapPoolEntry_t *SV_MapPoolSelectRandomEntry( void ) {
 		return &fallbackEntry;
 	}
 
-	index = ( rand() ^ Com_Milliseconds() ) % s_svMapPoolCount;
-	if ( index < 0 ) {
-		index = 0;
-	}
+	index = SV_MapPoolRandomIndex( s_svMapPoolCount );
 
 	return &s_svMapPool[index];
 }
@@ -1772,10 +2030,7 @@ static void SV_MapPoolBuildNextMapsCvar( void ) {
 		while ( slot < 3 ) {
 			const svMapPoolEntry_t *entry;
 
-			index = ( rand() ^ Com_Milliseconds() ) % s_svMapPoolCount;
-			if ( index < 0 ) {
-				index = 0;
-			}
+			index = SV_MapPoolRandomIndex( s_svMapPoolCount );
 			if ( used[index] ) {
 				continue;
 			}

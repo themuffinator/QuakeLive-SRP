@@ -34,7 +34,12 @@ def test_color_correct_is_shader_backed_and_surfaces_retail_controls() -> None:
 	assert '"p_overbright"' in tr_backend
 	assert '"p_contrast"' in tr_backend
 	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
-	assert "contrast = r_contrast ? r_contrast->value : 1.0f;" in tr_backend
+	assert 'web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in tr_init
+	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in tr_backend
+	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in tr_backend
+	assert "\t\tcontrast = r_contrast->value;" in tr_backend
+	assert "overbright = 2.0f * r_overBrightBits->integer;" in tr_backend
+	assert "color *= p_overbright;" in tr_backend
 
 
 def test_bloom_controls_and_active_mirrors_are_backend_validated() -> None:
@@ -64,9 +69,93 @@ def test_bloom_controls_and_active_mirrors_are_backend_validated() -> None:
 	assert 'passes = ( r_bloomPasses && r_bloomPasses->integer > 0 ) ? r_bloomPasses->integer : 1;' not in tr_backend
 	assert "RBPP_BindRenderTarget( &s_postProcess.bloomDownsampleTarget );" in tr_backend
 	assert "RBPP_BindRenderTarget( &s_postProcess.bloomQuarterDownsampleTarget );" in tr_backend
+	assert "qglOrtho( 0, width, height, 0, 0, 1 );" in tr_backend
+	assert "RB_SetGL2D();" not in _extract_function_block(tr_backend, "static void RBPP_Set2DState( int width, int height ) {")
 	assert "if ( backEnd.colorCorrectActive ) {" in tr_backend
 	assert "\t\tRBPP_ApplyColorCorrectPass();" in tr_backend
 	assert "approximate Quake Live" not in tr_backend
+
+
+def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> None:
+	tr_image = _read("src/code/renderer/tr_image.c")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+
+	color_mapping_block = _extract_function_block(tr_image, "void R_SetColorMappings( void ) {")
+	color_correct_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+	restart_block = _extract_function_block(tr_init, "static void R_PostProcessRestart( void ) {")
+
+	assert "if ( !tr.colorCorrectActive && !glConfig.deviceSupportsGamma ) {" in color_mapping_block
+	assert "if ( !tr.colorCorrectActive && glConfig.deviceSupportsGamma )" in color_mapping_block
+	assert "GLimp_SetGamma( s_gammatable, s_gammatable, s_gammatable );" in color_mapping_block
+	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in color_correct_block
+	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in color_correct_block
+	assert "R_SyncRenderThread();" in restart_block
+	assert "RB_ShutdownRenderTargets();" in restart_block
+	assert "RB_InitRenderTargets();" in restart_block
+	assert "R_SetColorMappings();" in restart_block
+
+
+def test_win32_hardware_gamma_ramp_matches_retail_contract() -> None:
+	win_gamma = _read("src/code/win32/win_gamma.c")
+	win_glimp = _read("src/code/win32/win_glimp.c")
+
+	check_block = _extract_function_block(win_gamma, "void WG_CheckHardwareGamma( void )\n{")
+	set_block = _extract_function_block(win_gamma, "void GLimp_SetGamma( unsigned char red[256], unsigned char green[256], unsigned char blue[256] ) {")
+	restore_block = _extract_function_block(win_gamma, "void WG_RestoreGamma( void )\n{")
+	extensions_block = _extract_function_block(win_glimp, "static void GLW_InitExtensions( void )")
+	shutdown_block = _extract_function_block(win_glimp, "void GLimp_Shutdown( void )\n{")
+
+	assert "glConfig.deviceSupportsGamma = qfalse;" in check_block
+	assert "qwglGetDeviceGammaRamp3DFX( hDC, s_oldHardwareGamma );" in check_block
+	assert "if ( glConfig.driverType == GLDRV_STANDALONE )" in check_block
+	assert "if ( !r_ignorehwgamma->integer )" in check_block
+	assert "GetDeviceGammaRamp( hDC, s_oldHardwareGamma );" in check_block
+	assert "HIBYTE( s_oldHardwareGamma[0][255] ) <= HIBYTE( s_oldHardwareGamma[0][0] )" in check_block
+	assert 'ri.Printf( PRINT_WARNING, "WARNING: suspicious gamma tables, using linear ramp for restoration\\n" );' in check_block
+	assert "for ( g = 0; g < 255; g++ )" in check_block
+
+	assert "if ( !glConfig.deviceSupportsGamma || r_ignorehwgamma->integer || !glw_state.hDC ) {" in set_block
+	assert "table[0][i] = ( ( ( unsigned short ) red[i] ) << 8 ) | red[i];" in set_block
+	assert 'Com_DPrintf( "performing W2K gamma clamp.\\n" );' in set_block
+	assert 'Com_DPrintf( "skipping W2K gamma clamp.\\n" );' in set_block
+	assert "if ( table[j][i] < table[j][i-1] ) {" in set_block
+	assert "qwglSetDeviceGammaRamp3DFX( glw_state.hDC, table );" in set_block
+	assert "SetDeviceGammaRamp( glw_state.hDC, table );" in set_block
+
+	assert "qwglSetDeviceGammaRamp3DFX( glw_state.hDC, s_oldHardwareGamma );" in restore_block
+	assert "SetDeviceGammaRamp( hDC, s_oldHardwareGamma );" in restore_block
+	assert 'if ( !r_ignorehwgamma->integer && r_ext_gamma_control->integer )' in extensions_block
+	assert shutdown_block.index("WG_RestoreGamma();") < shutdown_block.index("qwglMakeCurrent( NULL, NULL )")
+
+
+def _extract_function_block(source: str, signature: str) -> str:
+	start = source.index(signature)
+	depth = 0
+	for offset, char in enumerate(source[start:]):
+		if char == "{":
+			depth += 1
+		elif char == "}":
+			depth -= 1
+			if depth == 0:
+				return source[start : start + offset + 1]
+	raise AssertionError(f"could not extract function block for {signature}")
+
+
+def test_post_process_render_targets_match_retail_fbo_format_lane() -> None:
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
+
+	assert 'r_floatingPointFBOs = ri.Cvar_Get( "r_floatingPointFBOs", "0", CVAR_ARCHIVE | CVAR_LATCH );' in tr_init
+	assert "extern cvar_t\t*r_floatingPointFBOs;" in tr_local
+	assert "internalFormat = GL_RGBA8;" in tr_backend
+	assert "pixelType = GL_UNSIGNED_BYTE;" in tr_backend
+	assert "if ( r_floatingPointFBOs && r_floatingPointFBOs->integer ) {" in tr_backend
+	assert "\t\tinternalFormat = GL_RGBA16;" in tr_backend
+	assert "\t\tpixelType = GL_FLOAT;" in tr_backend
+	assert "qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, internalFormat, width, height, 0, GL_RGBA, pixelType, NULL );" in tr_backend
+	assert "s_postProcess.procs.qglFramebufferRenderbufferEXTFunc( GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, target->depthBuffer );" in tr_backend
 
 
 def test_live_post_process_tuning_cvars_consume_retail_modified_flags() -> None:

@@ -80,8 +80,8 @@ static void Factory_ReportParseError( const factoryParseState_t *state, const ch
 		message = "unknown parse error";
 	}
 
-	if ( state && state->cursor ) {
-		offset = cursor - state->filename;
+	if ( state && state->cursor && state->start ) {
+		offset = cursor - state->start;
 	}
 
 	G_Printf( "factories: parse error in %s at line %i: %s (cursor=%td)\n", filename, line, message, offset );
@@ -351,9 +351,11 @@ static qboolean Factory_SkipValue( factoryParseState_t *state ) {
 				} else if ( ch == '}' ) {
 					depth--;
 				} else if ( ch == '"' ) {
+					state->cursor--;
 					if ( !Factory_SkipJsonString( state ) ) {
 						return qfalse;
 					}
+					continue;
 				}
 				if ( ch == '\n' ) {
 					state->line++;
@@ -374,9 +376,11 @@ static qboolean Factory_SkipValue( factoryParseState_t *state ) {
 				} else if ( ch == ']' ) {
 					depth--;
 				} else if ( ch == '"' ) {
+					state->cursor--;
 					if ( !Factory_SkipJsonString( state ) ) {
 						return qfalse;
 					}
+					continue;
 				}
 				if ( ch == '\n' ) {
 					state->line++;
@@ -554,6 +558,9 @@ Parses a single factory definition object.
 static factoryDefinition_t *Factory_ParseDefinition( factoryParseState_t *state, const char *sourceFile ) {
 	factoryDefinition_t *definition;
 	char    *basegt = NULL;
+	qboolean sawTitle = qfalse;
+	qboolean sawBasegt = qfalse;
+	qboolean sawCvars = qfalse;
 
 	if ( !Factory_ParseExpectedChar( state, '{' ) ) {
 		return NULL;
@@ -585,17 +592,60 @@ static factoryDefinition_t *Factory_ParseDefinition( factoryParseState_t *state,
 		}
 
 		if ( !Q_stricmp( key, "id" ) ) {
+			Factory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				G_Printf( "^1A specified factory is missing required key \"id\", or is not a string.\n^7" );
+				return NULL;
+			}
 			definition->id = Factory_ParseJsonString( state );
+			if ( !definition->id ) {
+				return NULL;
+			}
 		} else if ( !Q_stricmp( key, "title" ) ) {
+			Factory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				G_Printf( "^1Factory with id %s is missing key \"title\", or is not a string.\n^7",
+					definition->id ? definition->id : "" );
+				return NULL;
+			}
 			definition->title = Factory_ParseJsonString( state );
+			if ( !definition->title ) {
+				return NULL;
+			}
+			sawTitle = qtrue;
 		} else if ( !Q_stricmp( key, "description" ) ) {
-			definition->description = Factory_ParseJsonString( state );
+			Factory_SkipWhitespace( state );
+			if ( state->cursor < state->end && *state->cursor == '"' ) {
+				definition->description = Factory_ParseJsonString( state );
+				if ( !definition->description ) {
+					return NULL;
+				}
+			} else if ( !Factory_SkipValue( state ) ) {
+				return NULL;
+			}
 		} else if ( !Q_stricmp( key, "basegt" ) ) {
+			Factory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '"' ) {
+				G_Printf( "^1Factory with id %s is missing key \"basegt\", or is not a string.\n^7",
+					definition->id ? definition->id : "" );
+				return NULL;
+			}
 			basegt = Factory_ParseJsonString( state );
+			if ( !basegt ) {
+				return NULL;
+			}
+			sawBasegt = qtrue;
 		} else if ( !Q_stricmp( key, "cvars" ) ) {
+			Factory_SkipWhitespace( state );
+			if ( state->cursor >= state->end || *state->cursor != '{' ) {
+				G_Printf( "^1Factory with id %s is missing key \"cvars\", or is not an object.\n^7",
+					definition->id ? definition->id : "" );
+				return NULL;
+			}
 			if ( !Factory_ParseCvarOverrides( state, definition ) ) {
 				return NULL;
 			}
+			sawCvars = qtrue;
 		} else {
 			if ( !Factory_SkipValue( state ) ) {
 				return NULL;
@@ -628,12 +678,23 @@ static factoryDefinition_t *Factory_ParseDefinition( factoryParseState_t *state,
 	}
 
 	if ( !definition->id || !definition->id[0] ) {
-		Factory_ReportParseError( state, "factory missing id" );
+		G_Printf( "^1A specified factory is missing required key \"id\", or is not a string.\n^7" );
 		return NULL;
 	}
 
-	if ( !definition->title ) {
-		definition->title = "";
+	if ( !sawBasegt || !basegt ) {
+		G_Printf( "^1Factory with id %s is missing key \"basegt\", or is not a string.\n^7", definition->id );
+		return NULL;
+	}
+
+	if ( !sawTitle || !definition->title ) {
+		G_Printf( "^1Factory with id %s is missing key \"title\", or is not a string.\n^7", definition->id );
+		return NULL;
+	}
+
+	if ( !sawCvars ) {
+		G_Printf( "^1Factory with id %s is missing key \"cvars\", or is not an object.\n^7", definition->id );
+		return NULL;
 	}
 
 	if ( !definition->description ) {
@@ -641,7 +702,7 @@ static factoryDefinition_t *Factory_ParseDefinition( factoryParseState_t *state,
 	}
 
 	if ( !basegt || !Factory_MapBaseGametype( basegt, &definition->baseGametype ) ) {
-		Factory_ReportParseError( state, va( "factory %s missing valid basegt", definition->id ) );
+		G_Printf( "^1Factory with id %s specifies an invalid basegt.\n^7", definition->id );
 		return NULL;
 	}
 
@@ -710,6 +771,16 @@ static int Factory_ParseFactoriesBuffer( const char *filename, const char *buffe
 	}
 
 	while ( state.cursor < state.end ) {
+		Factory_SkipWhitespace( &state );
+		if ( state.cursor >= state.end ) {
+			Factory_ReportParseError( &state, "unterminated factory array" );
+			return parsed;
+		}
+		if ( *state.cursor != '{' ) {
+			G_Printf( "^1A specified factory is not an object. All factories must be JSON objects.\n^7" );
+			return parsed;
+		}
+
 		definition = Factory_ParseDefinition( &state, filename );
 
 		if ( !definition ) {
@@ -834,10 +905,7 @@ static qboolean Factory_RegisterDefinition( factoryDefinition_t *definition ) {
 
 	existing = Factory_FindById( definition->id );
 	if ( existing ) {
-		G_Printf( "factories: duplicate id %s from %s ignored (already provided by %s)\n",
-			definition->id,
-			definition->sourceFile ? definition->sourceFile : "<unknown>",
-			existing->sourceFile ? existing->sourceFile : "<unknown>" );
+		G_Printf( "^1Factory with id %s already exists.\n^7", definition->id );
 		return qfalse;
 	}
 

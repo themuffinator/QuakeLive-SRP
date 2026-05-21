@@ -24,7 +24,72 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
+extern displayContextDef_t cgDC;
+
 static qboolean		cg_joinGameMenuCaptureActive;
+static qboolean		cg_joinGameMenuCursorActive;
+
+/*
+================
+CG_ClampJoinGameMenuCursor
+
+Keeps the cgame-owned join menu cursor inside the retail 640x480 menu space.
+================
+*/
+static void CG_ClampJoinGameMenuCursor( void ) {
+	if ( cgs.cursorX < 0 ) {
+		cgs.cursorX = 0;
+	} else if ( cgs.cursorX > SCREEN_WIDTH ) {
+		cgs.cursorX = SCREEN_WIDTH;
+	}
+
+	if ( cgs.cursorY < 0 ) {
+		cgs.cursorY = 0;
+	} else if ( cgs.cursorY > SCREEN_HEIGHT ) {
+		cgs.cursorY = SCREEN_HEIGHT;
+	}
+}
+
+/*
+================
+CG_EnableJoinGameMenuCursor
+
+Acquires cgame key capture for the spectator join menu and mirrors the live
+cursor into the shared display context.
+================
+*/
+static void CG_EnableJoinGameMenuCursor( void ) {
+	trap_Key_SetCatcher( KEYCATCH_CGAME );
+	CG_ClampJoinGameMenuCursor();
+	cgDC.cursorx = cgs.cursorX;
+	cgDC.cursory = cgs.cursorY;
+	cgs.activeCursor = cgs.media.cursor ? cgs.media.cursor : cgs.media.selectCursor;
+	cg_joinGameMenuCursorActive = qtrue;
+}
+
+/*
+================
+CG_DisableJoinGameMenuCursor
+
+Releases the cgame-owned cursor capture acquired by the spectator join menu.
+================
+*/
+static void CG_DisableJoinGameMenuCursor( void ) {
+	int		catcher;
+
+	if ( !cg_joinGameMenuCursorActive ) {
+		return;
+	}
+
+	cg_joinGameMenuCursorActive = qfalse;
+	cgs.capturedItem = NULL;
+	cgs.activeCursor = 0;
+
+	catcher = trap_Key_GetCatcher();
+	if ( catcher & KEYCATCH_CGAME ) {
+		trap_Key_SetCatcher( catcher & ~KEYCATCH_CGAME );
+	}
+}
 
 /*
 ================
@@ -36,18 +101,23 @@ Ensures the shared retail `joingame_menu` root is visible and interactive.
 static menuDef_t *CG_OpenJoinGameMenu( void ) {
 	menuDef_t	*menu;
 	int		catcher;
+	qboolean	wasVisible;
 
 	menu = CG_FindBrowserOverlayByName( "joingame_menu" );
 	if ( !menu ) {
 		return NULL;
 	}
 
-	if ( !( menu->window.flags & WINDOW_VISIBLE ) ) {
-		catcher = trap_Key_GetCatcher();
-		if ( !( catcher & KEYCATCH_CGAME ) ) {
-			trap_Key_SetCatcher( catcher | KEYCATCH_CGAME );
-		}
+	wasVisible = (qboolean)( ( menu->window.flags & WINDOW_VISIBLE ) != 0 );
+
+	if ( !wasVisible ) {
+		CG_EnableJoinGameMenuCursor();
 		menu = CG_OpenBrowserOverlayByName( "joingame_menu" );
+	} else {
+		catcher = trap_Key_GetCatcher();
+		if ( !cg_joinGameMenuCursorActive || catcher != KEYCATCH_CGAME ) {
+			CG_EnableJoinGameMenuCursor();
+		}
 	}
 
 	return menu;
@@ -212,7 +282,9 @@ Re-arms the retail spectator join-game capture latch during cgame resets.
 ================
 */
 void CG_ResetJoinGameMenuCaptureState( void ) {
+	CG_DisableJoinGameMenuCursor();
 	cg_joinGameMenuCaptureActive = qtrue;
+	cg_joinGameMenuCursorActive = qfalse;
 }
 
 /*
@@ -243,10 +315,6 @@ static qboolean CG_ShouldDrawJoinGameMenu( void ) {
 		return qfalse;
 	}
 
-	if ( cg.scoreBoardShowing ) {
-		return qfalse;
-	}
-
 	return ( qboolean )( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
 }
 
@@ -259,18 +327,10 @@ latch.
 ================
 */
 void CG_CloseJoinGameMenu( void ) {
-	int		catcher;
-
 	CG_CloseBrowserOverlayByName( "joingame_menu" );
 
 	CG_ClearJoinGameMenuCaptureState();
-	cgs.capturedItem = NULL;
-	cgs.activeCursor = 0;
-
-	catcher = trap_Key_GetCatcher();
-	if ( catcher & KEYCATCH_CGAME ) {
-		trap_Key_SetCatcher( catcher & ~KEYCATCH_CGAME );
-	}
+	CG_DisableJoinGameMenuCursor();
 }
 
 /*

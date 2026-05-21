@@ -59,7 +59,18 @@ def test_renderer_host_text_virtual_point_baseline_matches_retail_wrapper_scale(
 	assert "#define QL_FONT_HOST_POINT_SIZE 48.0f" not in ui_shared_h
 	assert "scale * QL_FONT_HOST_POINT_SIZE * yScale" in cg_draw
 	assert "scale * QL_FONT_HOST_POINT_SIZE * uiInfo.uiDC.yscale" in ui_main
-	assert "*outWidth = (int)( width / yScale );" in cg_draw
-	assert "width / xScale" not in cg_draw
-	assert "*outWidth = (int)( width / uiInfo.uiDC.yscale );" in ui_main
-	assert "width / uiInfo.uiDC.xscale" not in ui_main
+	assert "*outWidth = (int)( width / xScale );" in cg_draw
+	assert "width / yScale" not in cg_draw
+	assert "*outWidth = (int)( width / uiInfo.uiDC.xscale );" in ui_main
+	assert "width / uiInfo.uiDC.yscale" not in ui_main
+
+
+def test_renderer_measure_scaled_text_uses_retail_bounds_and_ascent() -> None:
+	tr_font = _read("src/code/renderer/tr_font.c")
+	measure_block = tr_font.split("void RE_MeasureScaledText", 1)[1].split("/*\n=================\nRE_RegisterFontFallback", 1)[0]
+
+	assert "width = maxRight - minLeft;" in measure_block
+	assert "RE_GetScaledFontMetrics( fontHandle, scale, &metricsAscent, NULL, NULL )" in measure_block
+	assert "height = metricsAscent;" in measure_block
+	assert "width = penX;" not in measure_block
+	assert "height = maxBottom - minTop;" in measure_block

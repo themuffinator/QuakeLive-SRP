@@ -629,17 +629,13 @@ LONG WINAPI MainWndProc (
 
 	case WM_SYSCOMMAND:
 		{
-			WPARAM command;
-
-			command = ( wParam & 0xFFF0 );
-
-			if ( command == SC_SCREENSAVE )
+			if ( wParam == SC_SCREENSAVE )
 				return 0;
 
-			if ( command == SC_KEYMENU && ( lParam & 0xffff0000 ) <= 0 )
+			if ( wParam == SC_KEYMENU && ( lParam & 0xffff0000 ) <= 0 )
 				return 0;
 
-			if ( command == SC_RESTORE || command == SC_MAXIMIZE ) {
+			if ( wParam == SC_RESTORE || wParam == SC_MAXIMIZE || wParam == 0xF122 ) {
 				s_pendingWindowedModeSync = qtrue;
 			}
 		}

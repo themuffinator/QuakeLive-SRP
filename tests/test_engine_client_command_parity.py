@@ -530,7 +530,10 @@ def test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_reg
 	assert "#define\tREF_API_VERSION\t\t9" in tr_public
 	assert tr_public.index('(*SetColor)') < tr_public.index('(*PostProcessRestart)')
 	assert "R_UpdatePostProcessCvars();" in restart_block
-	assert "tr.postProcessNeedsReset = qtrue;" in restart_block
+	assert "R_SyncRenderThread();" in restart_block
+	assert "RB_ShutdownRenderTargets();" in restart_block
+	assert "RB_InitRenderTargets();" in restart_block
+	assert "R_SetColorMappings();" in restart_block
 	assert api_block.index("re.SetColor = RE_SetColor;") < api_block.index("re.PostProcessRestart = R_PostProcessRestart;")
 	assert "re.PostProcessRestart = R_PostProcessRestart;" in api_block
 	assert 'ri.Cmd_AddCommand( "postprocess_restart", R_PostProcessRestart' not in register_block

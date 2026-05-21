@@ -726,7 +726,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_gun_y, "cg_gunY", "0", CVAR_CHEAT },
 	{ &cg_gun_z, "cg_gunZ", "0", CVAR_CHEAT },
 	{ &cg_gun_frame, "cg_gun_frame", "0", CVAR_CHEAT },
-	{ &cg_hudFiles, "cg_hudFiles", "ui/hud3.txt", CVAR_ARCHIVE},
+	{ &cg_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_ARCHIVE},
 	{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ARCHIVE },
 	{ &cg_itemTimers, "cg_itemTimers", "1", CVAR_ARCHIVE },
 	{ &cg_kickScale, "cg_kickScale", "1", CVAR_ARCHIVE },
@@ -1280,13 +1280,29 @@ static int CG_ParseHexNibble( const char ch ) {
 
 /*
 =============
+CG_UnpackWeaponBarColor
+
+Converts the retail packed RRGGBBAA cvar integer into normalized color lanes.
+=============
+*/
+static void CG_UnpackWeaponBarColor( unsigned int packedColor, vec4_t color ) {
+	color[0] = (float)( ( packedColor >> 24 ) & 0xff ) / 255.0f;
+	color[1] = (float)( ( packedColor >> 16 ) & 0xff ) / 255.0f;
+	color[2] = (float)( ( packedColor >> 8 ) & 0xff ) / 255.0f;
+	color[3] = (float)( packedColor & 0xff ) / 255.0f;
+}
+
+/*
+=============
 CG_ParseWeaponBarColor
 
-Parses a RRGGBBAA hex string into a normalized vec4_t.
+Parses the retail packed RRGGBBAA cvar value into a normalized vec4_t.
 =============
 */
 static qboolean CG_ParseWeaponBarColor( const char *hex, vec4_t color ) {
+	char		*endPtr;
 	const char	*value;
+	unsigned int	packedColor;
 	int		i;
 	int		high;
 	int		low;
@@ -1301,9 +1317,16 @@ static qboolean CG_ParseWeaponBarColor( const char *hex, vec4_t color ) {
 	}
 
 	if ( Q_strlen( value ) != 8 ) {
-		return qfalse;
+		packedColor = (unsigned int)strtoul( hex, &endPtr, 0 );
+		if ( endPtr == hex || *endPtr != '\0' ) {
+			return qfalse;
+		}
+
+		CG_UnpackWeaponBarColor( packedColor, color );
+		return qtrue;
 	}
 
+	packedColor = 0;
 	for ( i = 0; i < 4; i++ ) {
 		high = CG_ParseHexNibble( value[i * 2] );
 		low = CG_ParseHexNibble( value[i * 2 + 1] );
@@ -1312,9 +1335,10 @@ static qboolean CG_ParseWeaponBarColor( const char *hex, vec4_t color ) {
 			return qfalse;
 		}
 
-		color[i] = ( (float)( ( high << 4 ) | low ) ) / 255.0f;
+		packedColor = ( packedColor << 8 ) | (unsigned int)( ( high << 4 ) | low );
 	}
 
+	CG_UnpackWeaponBarColor( packedColor, color );
 	return qtrue;
 }
 
