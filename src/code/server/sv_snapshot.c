@@ -277,6 +277,30 @@ static void SV_AddEntToSnapshot( svEntity_t *svEnt, sharedEntity_t *gEnt, snapsh
 
 /*
 ===============
+SV_GameForcesSnapshotEntity
+
+Mirrors the retail qagame visibility exports that can include entities before
+the normal area and PVS pass.
+===============
+*/
+static qboolean SV_GameForcesSnapshotEntity( int viewerClientNum, int entityNum ) {
+	if ( !gvm ) {
+		return qfalse;
+	}
+
+	if ( entityNum >= 0 && entityNum < MAX_CLIENTS ) {
+		return VM_Call( gvm, GAME_CAN_CLIENT_SEE_CLIENT, viewerClientNum, entityNum ) ? qtrue : qfalse;
+	}
+
+	if ( VM_Call( gvm, GAME_FREEZE_CAN_SEE_THAW_PROGRESS_EVENT, viewerClientNum, entityNum ) ) {
+		return qtrue;
+	}
+
+	return VM_Call( gvm, GAME_IS_OBJECTIVE_ENTITY, entityNum ) ? qtrue : qfalse;
+}
+
+/*
+===============
 SV_AddEntitiesVisibleFromPoint
 ===============
 */
@@ -357,6 +381,11 @@ static void SV_AddEntitiesVisibleFromPoint( vec3_t origin, clientSnapshot_t *fra
 
 		// broadcast entities are always sent
 		if ( ent->r.svFlags & SVF_BROADCAST ) {
+			SV_AddEntToSnapshot( svEnt, ent, eNums );
+			continue;
+		}
+
+		if ( SV_GameForcesSnapshotEntity( frame->ps.clientNum, e ) ) {
 			SV_AddEntToSnapshot( svEnt, ent, eNums );
 			continue;
 		}
@@ -679,4 +708,3 @@ void SV_SendClientMessages( void ) {
 		SV_SendClientSnapshot( c );
 	}
 }
-

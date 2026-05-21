@@ -621,10 +621,11 @@ static qboolean CG_WorldCoordToScreenCoord( const vec3_t world, float *x, float 
 	float	ndcY;
 	float	pixelX;
 	float	pixelY;
-	float	widthScale;
-	float	heightScale;
+	float	xBias;
+	float	xScale;
+	float	yScale;
 	float	forward;
-	float	right;
+	float	left;
 	float	up;
 
 	if ( cgs.glconfig.vidWidth <= 0 || cgs.glconfig.vidHeight <= 0 || cg.refdef.width <= 0 || cg.refdef.height <= 0 ) {
@@ -632,7 +633,7 @@ static qboolean CG_WorldCoordToScreenCoord( const vec3_t world, float *x, float 
 	}
 
 	VectorSubtract( world, cg.refdef.vieworg, transformed );
-	right = DotProduct( transformed, cg.refdef.viewaxis[1] );
+	left = DotProduct( transformed, cg.refdef.viewaxis[1] );
 	up = DotProduct( transformed, cg.refdef.viewaxis[2] );
 	forward = DotProduct( transformed, cg.refdef.viewaxis[0] );
 	if ( forward <= 0.001f ) {
@@ -645,7 +646,7 @@ static qboolean CG_WorldCoordToScreenCoord( const vec3_t world, float *x, float 
 		return qfalse;
 	}
 
-	ndcX = right / ( forward * tanHalfFovX );
+	ndcX = -left / ( forward * tanHalfFovX );
 	ndcY = up / ( forward * tanHalfFovY );
 	pixelX = cg.refdef.x + ( 1.0f + ndcX ) * cg.refdef.width * 0.5f;
 	pixelY = cg.refdef.y + ( 1.0f - ndcY ) * cg.refdef.height * 0.5f;
@@ -653,13 +654,19 @@ static qboolean CG_WorldCoordToScreenCoord( const vec3_t world, float *x, float 
 		return qfalse;
 	}
 
-	widthScale = (float)SCREEN_WIDTH / (float)cgs.glconfig.vidWidth;
-	heightScale = (float)SCREEN_HEIGHT / (float)cgs.glconfig.vidHeight;
+	xBias = 0.0f;
+	xScale = 1.0f;
+	yScale = 1.0f;
+	CG_AdjustFrom640( &xBias, NULL, &xScale, &yScale );
+	if ( xScale <= 0.0f || yScale <= 0.0f ) {
+		return qfalse;
+	}
+
 	if ( x ) {
-		*x = pixelX * widthScale;
+		*x = ( pixelX - xBias ) / xScale;
 	}
 	if ( y ) {
-		*y = pixelY * heightScale;
+		*y = pixelY / yScale;
 	}
 	return qtrue;
 }

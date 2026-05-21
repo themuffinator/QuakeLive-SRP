@@ -2619,6 +2619,44 @@ static qboolean G_IsOverloadObjectiveEntity( const gentity_t *ent ) {
 
 /*
 ==============
+G_IsQuadHogObjectiveEntity
+==============
+*/
+static qboolean G_IsQuadHogObjectiveEntity( const gentity_t *ent ) {
+	if ( !ent || !ent->item ) {
+		return qfalse;
+	}
+
+	if ( g_gametype.integer != GT_FFA || !level.quadHogEnabled ) {
+		return qfalse;
+	}
+
+	if ( ent->item->giType == IT_POWERUP && ent->item->giTag == PW_QUAD ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+==============
+G_IsItemTimerObjectiveEntity
+==============
+*/
+static qboolean G_IsItemTimerObjectiveEntity( const gentity_t *ent ) {
+	if ( g_itemTimers.integer == 0 ) {
+		return qfalse;
+	}
+
+	if ( !ent || !ent->item ) {
+		return qfalse;
+	}
+
+	return ( ent->item->quantity != 0 ) ? qtrue : qfalse;
+}
+
+/*
+==============
 G_RedRoverClientVisibilityEnabled
 ==============
 */
@@ -2815,9 +2853,18 @@ qboolean G_IsObjectiveEntity( int entNum ) {
 	}
 
 	switch ( g_gametype.integer ) {
+	case GT_FFA:
+		if ( level.quadHogEnabled ) {
+			return G_IsQuadHogObjectiveEntity( ent );
+		}
+		break;
+
 	case GT_CTF:
 	case GT_ATTACK_DEFEND:
-		return G_IsObjectiveFlagItemEntity( ent, qfalse );
+		if ( G_IsObjectiveFlagItemEntity( ent, qfalse ) ) {
+			return qtrue;
+		}
+		break;
 
 	case GT_1FCTF:
 		if ( G_IsObjectiveFlagItemEntity( ent, qtrue ) ) {
@@ -2828,16 +2875,19 @@ qboolean G_IsObjectiveEntity( int entNum ) {
 			return qtrue;
 		}
 
-		return qfalse;
+		break;
 
 	case GT_OBELISK:
-		return G_IsOverloadObjectiveEntity( ent );
+		if ( G_IsOverloadObjectiveEntity( ent ) ) {
+			return qtrue;
+		}
+		break;
 
 	default:
 		break;
 	}
 
-	return qfalse;
+	return G_IsItemTimerObjectiveEntity( ent );
 }
 
 /*

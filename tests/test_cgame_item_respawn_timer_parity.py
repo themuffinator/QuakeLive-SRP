@@ -127,6 +127,34 @@ def test_cg_item_calls_respawn_timer_before_skip_items_and_uses_time2_fallback()
 	assert item_block.index("CG_DrawItemRespawnTimer(") < item_block.index('trap_Cvar_VariableStringBuffer( "cg_skipItems"')
 
 
+def test_cg_item_queues_poi_markers_from_raw_item_origin_before_render_offsets() -> None:
+	source = CG_ENTS.read_text(encoding="utf-8")
+	item_block = _block_from_marker(source, "static void CG_Item")
+
+	for expected in (
+		"VectorCopy( cent->lerpOrigin, itemPOIOrigin );",
+		"if ( !( es->eFlags & EF_NODRAW ) || item->giType == IT_POWERUP ) {",
+		"CG_UpdatePOIObjectiveCache( item, itemPOIOrigin );",
+		"CG_QueueItemPOIMarker( cent, item, itemPOIOrigin );",
+	):
+		assert expected in item_block
+
+	assert item_block.index('trap_Cvar_VariableStringBuffer( "cg_skipItems"') < item_block.index(
+		"VectorCopy( cent->lerpOrigin, itemPOIOrigin );"
+	)
+	assert item_block.index("CG_QueueItemPOIMarker( cent, item, itemPOIOrigin );") < item_block.index(
+		"if ( es->eFlags & EF_NODRAW ) {"
+	)
+	assert item_block.index("CG_QueueItemPOIMarker( cent, item, itemPOIOrigin );") < item_block.index(
+		"if ( cg_simpleItems.integer && item->giType != IT_TEAM ) {"
+	)
+	assert item_block.index("CG_QueueItemPOIMarker( cent, item, itemPOIOrigin );") < item_block.index(
+		"cent->lerpOrigin[2] += 4 + cos"
+	)
+	assert "CG_QueueItemPOIMarker( cent, item, ent.origin );" not in item_block
+	assert "CG_QueueItemPOIMarker( cent, item, cent->lerpOrigin );" not in item_block
+
+
 def test_cgame_draw_lane_keeps_world_marker_owners_and_closes_appendix_gap() -> None:
 	draw_source = CG_DRAW.read_text(encoding="utf-8")
 	plan = CG_BG_PLAN.read_text(encoding="utf-8")

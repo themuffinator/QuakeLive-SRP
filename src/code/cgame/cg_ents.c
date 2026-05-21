@@ -833,6 +833,7 @@ static void CG_Item( centity_t *cent ) {
 	int				respawnRemaining;
 	weaponInfo_t	*wi;
 	char			skipItems[32];
+	vec3_t			itemPOIOrigin;
 
 	es = &cent->currentState;
 	if ( es->modelindex >= bg_numItems ) {
@@ -861,10 +862,14 @@ static void CG_Item( centity_t *cent ) {
 	if ( skipItems[0] == '1' ) {
 		return;
 	}
+
+	VectorCopy( cent->lerpOrigin, itemPOIOrigin );
+	if ( !( es->eFlags & EF_NODRAW ) || item->giType == IT_POWERUP ) {
+		CG_UpdatePOIObjectiveCache( item, itemPOIOrigin );
+		CG_QueueItemPOIMarker( cent, item, itemPOIOrigin );
+	}
+
 	if ( es->eFlags & EF_NODRAW ) {
-		if ( item->giType == IT_POWERUP ) {
-			CG_QueueItemPOIMarker( cent, item, cent->lerpOrigin );
-		}
 		return;
 	}
 
@@ -886,8 +891,6 @@ static void CG_Item( centity_t *cent ) {
 		ent.shaderRGBA[2] = 255;
 		ent.shaderRGBA[3] = 255;
 		trap_R_AddRefEntityToScene(&ent);
-		CG_UpdatePOIObjectiveCache( item, ent.origin );
-		CG_QueueItemPOIMarker( cent, item, ent.origin );
 		return;
 	}
 
@@ -972,8 +975,6 @@ static void CG_Item( centity_t *cent ) {
 
 	// add to refresh list
 	trap_R_AddRefEntityToScene(&ent);
-	CG_UpdatePOIObjectiveCache( item, ent.origin );
-	CG_QueueItemPOIMarker( cent, item, ent.origin );
 
 	if ( item->giType == IT_WEAPON && wi->barrelModel ) {
 		refEntity_t	barrel;

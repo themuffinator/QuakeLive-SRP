@@ -96,13 +96,41 @@ def test_objective_classifier_covers_retail_flag_and_obelisk_paths() -> None:
 	assert "qboolean G_IsObjectiveEntity( int entNum );" in local_h
 	assert "static qboolean G_IsObjectiveFlagItemEntity( const gentity_t *ent, qboolean allowNeutralFlag ) {" in team_c
 	assert "static qboolean G_IsOverloadObjectiveEntity( const gentity_t *ent ) {" in team_c
+	assert "static qboolean G_IsQuadHogObjectiveEntity( const gentity_t *ent ) {" in team_c
+	assert "static qboolean G_IsItemTimerObjectiveEntity( const gentity_t *ent ) {" in team_c
 	assert "qboolean G_IsObjectiveEntity( int entNum ) {" in team_c
+	assert "case GT_FFA:" in team_c
 	assert "case GT_CTF:" in team_c
 	assert "case GT_ATTACK_DEFEND:" in team_c
 	assert "case GT_1FCTF:" in team_c
 	assert "case GT_OBELISK:" in team_c
+	assert "if ( level.quadHogEnabled ) {" in team_c
+	assert "ent->item->giType == IT_POWERUP && ent->item->giTag == PW_QUAD" in team_c
+	assert "if ( g_itemTimers.integer == 0 ) {" in team_c
+	assert "return ( ent->item->quantity != 0 ) ? qtrue : qfalse;" in team_c
 	assert "if ( ent->client && ent->target_ent && G_IsObjectiveFlagItemEntity( ent->target_ent, qtrue ) ) {" in team_c
-	assert 'return G_IsOverloadObjectiveEntity( ent );' in team_c
+	assert "if ( G_IsOverloadObjectiveEntity( ent ) ) {" in team_c
+	assert "return G_IsItemTimerObjectiveEntity( ent );" in team_c
+
+
+def test_server_snapshot_uses_retail_visibility_exports_before_pvs() -> None:
+	snapshot_c = _read("src/code/server/sv_snapshot.c")
+	helper_block = _extract_block(snapshot_c, "static qboolean SV_GameForcesSnapshotEntity")
+	visible_block = _extract_block(snapshot_c, "static void SV_AddEntitiesVisibleFromPoint")
+
+	for expected in (
+		"VM_Call( gvm, GAME_CAN_CLIENT_SEE_CLIENT, viewerClientNum, entityNum )",
+		"VM_Call( gvm, GAME_FREEZE_CAN_SEE_THAW_PROGRESS_EVENT, viewerClientNum, entityNum )",
+		"VM_Call( gvm, GAME_IS_OBJECTIVE_ENTITY, entityNum )",
+	):
+		assert expected in helper_block
+
+	assert visible_block.index("if ( ent->r.svFlags & SVF_BROADCAST ) {") < visible_block.index(
+		"SV_GameForcesSnapshotEntity( frame->ps.clientNum, e )"
+	)
+	assert visible_block.index("SV_GameForcesSnapshotEntity( frame->ps.clientNum, e )") < visible_block.index(
+		"if ( !CM_AreasConnected( clientarea, svEnt->areanum ) ) {"
+	)
 
 
 def test_freeze_visibility_helper_matches_retail_export_boundary() -> None:

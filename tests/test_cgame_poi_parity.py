@@ -52,3 +52,27 @@ def test_poi_marker_width_clamp_matches_retail_hidden_cvar_defaults() -> None:
 		"return maxWidth + ( minWidth - maxWidth ) * frac;",
 	):
 		assert expected in poi_block
+
+
+def test_world_marker_projection_uses_left_axis_sign_and_active_widescreen_inverse() -> None:
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	projection_block = _block_from_marker(draw_source, "static qboolean CG_WorldCoordToScreenCoord")
+
+	for expected in (
+		"left = DotProduct( transformed, cg.refdef.viewaxis[1] );",
+		"ndcX = -left / ( forward * tanHalfFovX );",
+		"pixelX = cg.refdef.x + ( 1.0f + ndcX ) * cg.refdef.width * 0.5f;",
+		"pixelY = cg.refdef.y + ( 1.0f - ndcY ) * cg.refdef.height * 0.5f;",
+		"CG_AdjustFrom640( &xBias, NULL, &xScale, &yScale );",
+		"*x = ( pixelX - xBias ) / xScale;",
+		"*y = pixelY / yScale;",
+	):
+		assert expected in projection_block
+
+	for unexpected in (
+		"right = DotProduct( transformed, cg.refdef.viewaxis[1] );",
+		"ndcX = right / ( forward * tanHalfFovX );",
+		"widthScale = (float)SCREEN_WIDTH / (float)cgs.glconfig.vidWidth;",
+		"heightScale = (float)SCREEN_HEIGHT / (float)cgs.glconfig.vidHeight;",
+	):
+		assert unexpected not in projection_block
