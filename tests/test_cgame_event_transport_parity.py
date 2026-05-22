@@ -321,3 +321,46 @@ def test_freeze_temp_entity_band_uses_explicit_retail_ordinals() -> None:
 	assert 'CG_ThawPlayer( position );' in cg_event_source
 	assert 'case EV_THAW_TICK:' in cg_event_source
 	assert 'trap_S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.thawTickSound );' in cg_event_source
+
+
+def test_cgame_powerup_pickups_queue_retail_announcer_voice() -> None:
+	source = CG_EVENT.read_text(encoding="utf-8")
+	resolver_block = _block_from_marker(source, "static sfxHandle_t CG_ItemPickupAnnouncerSound")
+	local_pickup_block = _block_from_marker(source, "case EV_ITEM_PICKUP:")
+	global_pickup_block = _block_from_marker(source, "case EV_GLOBAL_ITEM_PICKUP:")
+
+	for expected in (
+		"case IT_POWERUP:",
+		"case PW_QUAD:",
+		"return cgs.media.quadDamagePowerupSound;",
+		"case PW_BATTLESUIT:",
+		"return cgs.media.battleSuitPowerupSound;",
+		"case PW_HASTE:",
+		"return cgs.media.hastePowerupSound;",
+		"case PW_INVIS:",
+		"return cgs.media.invisibilityPowerupSound;",
+		"case PW_REGEN:",
+		"return cgs.media.regenerationPowerupSound;",
+		"case IT_PERSISTANT_POWERUP:",
+		"case PW_SCOUT:",
+		"return cgs.media.scoutPowerupSound;",
+		"case PW_GUARD:",
+		"return cgs.media.guardPowerupSound;",
+		"case PW_DOUBLER:",
+		"return cgs.media.damagePowerupSound;",
+		"case PW_AMMOREGEN:",
+		"return cgs.media.armorRegenPowerupSound;",
+	):
+		assert expected in resolver_block
+
+	assert "CG_AddBufferedSound( sfx );" in source
+	assert "trap_S_RegisterSound( item->pickup_sound, qfalse )" in local_pickup_block
+	assert "CG_AddItemPickupAnnouncerSound( item );" in local_pickup_block
+	assert "cgs.media.scoutSound" not in local_pickup_block
+	assert "cgs.media.guardSound" not in local_pickup_block
+	assert "cgs.media.doublerSound" not in local_pickup_block
+	assert "cgs.media.ammoregenSound" not in local_pickup_block
+
+	assert "trap_S_RegisterSound( item->pickup_sound, qfalse )" in global_pickup_block
+	assert "if ( ( cgs.customSettingsMask & CUSTOM_SETTING_QUAD_HOG ) == 0 ) {" in global_pickup_block
+	assert "CG_AddItemPickupAnnouncerSound( item );" in global_pickup_block

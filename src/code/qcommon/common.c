@@ -3854,56 +3854,6 @@ static void PrintMatches( const char *s ) {
 }
 
 /*
-==================
-Field_AppendCompletionArgument
-==================
-*/
-static void Field_AppendCompletionArgument( field_t *field, const char *arg ) {
-	const char	*cursor;
-	qboolean	needsQuotes;
-
-	if ( !field || !arg || !arg[0] ) {
-		return;
-	}
-
-	needsQuotes = qfalse;
-	for ( cursor = arg ; *cursor ; cursor++ ) {
-		if ( *cursor == ' ' ) {
-			needsQuotes = qtrue;
-			break;
-		}
-	}
-
-	if ( needsQuotes ) {
-		Q_strcat( field->buffer, sizeof( field->buffer ), "\"" );
-	}
-
-	Q_strcat( field->buffer, sizeof( field->buffer ), arg );
-
-	if ( needsQuotes ) {
-		Q_strcat( field->buffer, sizeof( field->buffer ), "\"" );
-	}
-}
-
-/*
-==================
-Field_AppendCompletionArguments
-==================
-*/
-static void Field_AppendCompletionArguments( int count ) {
-	int		i;
-
-	if ( !completionField ) {
-		return;
-	}
-
-	for ( i = 0 ; i < count ; i++ ) {
-		Field_AppendCompletionArgument( completionField, Cmd_Argv( i ) );
-		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );
-	}
-}
-
-/*
 ===============
 Field_CompleteCommand
 
@@ -3917,6 +3867,7 @@ void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback )
 	char		prefix[2];
 	int			argc;
 	int			appendArgs;
+	int			i;
 
 	completionField = field;
 	prefix[0] = '\0';
@@ -3969,7 +3920,10 @@ void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback )
 		appendArgs--;
 	}
 
-	Field_AppendCompletionArguments( appendArgs );
+	for ( i = 0 ; i < appendArgs ; i++ ) {
+		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), Cmd_Argv( i ) );
+		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );
+	}
 	if ( matchCount > 0 ) {
 		Q_strcat( completionField->buffer, sizeof( completionField->buffer ), shortestMatch );
 	}

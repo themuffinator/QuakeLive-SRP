@@ -92,6 +92,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # `sub_4DEC60` -> `SV_Status_f`
 # `sub_4ED7E0` -> `Com_IdleSleep`
 # `sub_4CB630` -> `Com_WriteClientConfig_f`
+# `sub_4B6A60` -> `Console_CompleteArgument`
+# `sub_4C9700` -> `FindMatches`
+# `sub_4CB900` -> `PrintMatches`
+# `sub_4CB950` -> `Field_CompleteCommand`
 
 
 def _extract_function_block(text: str, signature: str) -> str:
@@ -140,6 +144,40 @@ def test_bind_family_commands_match_retail_handler_and_registration_shape() -> N
 	assert 'Cmd_AddCommand ("bindlist",Key_Bindlist_f);' in init_block
 
 
+def test_console_autocomplete_matches_retail_argument_sources_and_field_rebuild() -> None:
+	cl_keys = (REPO_ROOT / "src/code/client/cl_keys.c").read_text(encoding="utf-8")
+	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	vm_c = (REPO_ROOT / "src/code/qcommon/vm.c").read_text(encoding="utf-8")
+
+	argument_block = _extract_function_block(cl_keys, "static void Console_CompleteArgument( const char *command, void(*callback)( const char *s ) ) {")
+	field_block = _extract_function_block(common_c, "void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback ) {")
+	native_call_block = _extract_function_block(vm_c, "static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {")
+
+	assert '#include "../qcommon/vm_local.h"' in cl_keys
+	assert "if ( uivm && uivm->dllExports ) {" in argument_block
+	assert "VM_Call( uivm, UI_FOR_EACH_ARENA_NAME, (int)(intptr_t)callback );" in argument_block
+	assert "case UI_FOR_EACH_ARENA_NAME:" in native_call_block
+	assert "((void (QDECL *)( uiArenaNameCallback_t ))exportFunc)( (uiArenaNameCallback_t)(intptr_t)args[0] );" in native_call_block
+
+	assert 'if ( Q_stricmp( command, "demo" ) && Q_stricmp( command, "\\\\demo" ) ) {' in argument_block
+	assert 'FS_ListFiles( "demos", ".dm_73", &fileCount );' in argument_block
+	assert "for ( i = 0 ; i < fileCount ; i++ ) {" in argument_block
+	assert "callback( files[i] );" in argument_block
+	assert "FS_FreeFileList( files );" in argument_block
+	assert "FS_GetFileList" not in argument_block
+	assert "PROTOCOL_VERSION" not in argument_block
+	assert "commandName" not in argument_block
+	assert "commandName++" not in argument_block
+
+	assert "Cmd_CommandCompletion( FindMatches );" in field_block
+	assert "Cvar_CommandCompletion( FindMatches );" in field_block
+	assert "callback( command, FindMatches );" in field_block
+	assert "Q_strcat( completionField->buffer, sizeof( completionField->buffer ), Cmd_Argv( i ) );" in field_block
+	assert 'Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );' in field_block
+	assert "Field_AppendCompletionArgument" not in common_c
+	assert "needsQuotes" not in common_c
+
+
 def test_console_and_alias_command_families_match_retail_wiring() -> None:
 	cl_console = (REPO_ROOT / "src/code/client/cl_console.c").read_text(encoding="utf-8")
 	cmd_c = (REPO_ROOT / "src/code/qcommon/cmd.c").read_text(encoding="utf-8")
@@ -166,7 +204,8 @@ def test_console_and_alias_command_families_match_retail_wiring() -> None:
 
 	assert 'Com_Printf( "usage: find <substring>  ; This is a case sensitive search of the console history.\\n" );' in find_block
 	assert 'Con_FindMatchesInHistory();' in find_block
-	assert 'limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;' in find_matches_block
+	assert 'limit = con_matchlimit ? con_matchlimit->integer : 16;' in find_matches_block
+	assert 'if ( matches > 0 && matches >= limit ) {' in find_matches_block
 	assert 'if ( strstr( buffer, needle ) && !strstr( buffer, "\\\\find" ) && !strstr( buffer, "usage: find " ) ) {' in find_matches_block
 
 	assert 'Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);' in cl_console

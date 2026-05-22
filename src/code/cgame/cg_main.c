@@ -576,6 +576,7 @@ static const char *CG_RetailAnnouncerFolderForProfile( cgAnnouncerProfile_t prof
 static sfxHandle_t CG_RegisterConfiguredAnnouncerClip( const char *sample );
 static sfxHandle_t CG_RegisterRetailAnnouncerClip( cgAnnouncerProfile_t profile, const char *sample );
 static sfxHandle_t CG_RegisterAnnouncerClip( const char *folder, const char *sample );
+static void CG_RegisterPowerupAnnouncerSounds( void );
 static void CG_RegisterAnnouncerVoiceSet( cgAnnouncerProfile_t profile, const char *folder );
 static sfxHandle_t CG_RegisterRaceCueSound( const char *name );
 static void CG_SetActiveAnnouncerProfile( cgAnnouncerProfile_t profile );
@@ -2619,6 +2620,30 @@ static sfxHandle_t CG_RegisterConfiguredAnnouncerClip( const char *sample ) {
 
 /*
 ============
+CG_RegisterPowerupAnnouncerSounds
+
+Registers the active retail announcer voice clips used by powerup pickups.
+============
+*/
+static void CG_RegisterPowerupAnnouncerSounds( void ) {
+#define CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE(field, sample) \
+	cgs.media.field = CG_RegisterConfiguredAnnouncerClip( sample )
+
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( battleSuitPowerupSound, "battlesuit.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( hastePowerupSound, "haste.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( invisibilityPowerupSound, "invisibility.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( quadDamagePowerupSound, "quad_damage.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( regenerationPowerupSound, "regeneration.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( armorRegenPowerupSound, "armor_regen.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( damagePowerupSound, "damage.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( guardPowerupSound, "guard.ogg" );
+	CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( scoutPowerupSound, "scout.ogg" );
+
+#undef CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE
+}
+
+/*
+============
 CG_RegisterAnnouncerClip
 
 Registers an announcer clip, falling back to the default voice set when needed.
@@ -2799,6 +2824,7 @@ static void CG_UpdateAnnouncerProfileFromCvar( qboolean force ) {
 	}
 
 	CG_SetActiveAnnouncerProfile( profile );
+	CG_RegisterPowerupAnnouncerSounds();
 }
 
 /*

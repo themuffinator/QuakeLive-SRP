@@ -324,11 +324,6 @@ qboolean G_TryExecuteVoteString( const char *voteString ) {
 		return qtrue;
 	}
 
-	if ( !Q_stricmp( command, "randommap" ) ) {
-		trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
-		return qtrue;
-	}
-
 	if ( !Q_stricmp( command, "loadouts" ) ) {
 		if ( !args[0] ) {
 			return qfalse;
@@ -363,7 +358,7 @@ qboolean G_TryExecuteVoteString( const char *voteString ) {
 			return qtrue;
 		}
 
-		trap_SendServerCommand( -1, "print \"^3Valid ammo options are:    ^5GLOBAL    ^5WEAP^7\\n\"" );
+		trap_SendServerCommand( -1, "print \"^3Valid loadout options are:    ^5GLOBAL    ^5WEAP^7\\n\"" );
 		return qtrue;
 	}
 

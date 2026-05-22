@@ -37,6 +37,28 @@ def _read_text(path: Path) -> str:
 	return path.read_text(encoding="utf-8", errors="ignore")
 
 
+def test_console_cvar_surface_matches_retail_hlil() -> None:
+	cl_console = _read_text(CL_CONSOLE)
+
+	registered = [
+		line.strip()
+		for line in cl_console.splitlines()
+		if "Cvar_Get" in line and '"con_' in line
+	]
+
+	assert registered == [
+		'con_background = Cvar_GetBounded( "con_background", "0", "0", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'con_height = Cvar_GetBounded( "con_height", "0.5", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'con_matchlimit = Cvar_Get( "con_matchlimit", "16", 0 );',
+		'con_noprint = Cvar_Get( "con_noprint", "0", 0 );',
+		'con_opacity = Cvar_GetBounded( "con_opacity", "0.9", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'con_scale = Cvar_GetBounded( "con_scale", "0.5", "0.5", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'con_speed = Cvar_GetBounded( "con_speed", "3", "0.1", "1000", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'con_timestamps = Cvar_Get( "con_timestamps", "0", CVAR_PROTECTED | CVAR_CLOUD );',
+	]
+	assert "con_notifytime" not in cl_console
+
+
 def test_engine_cvar_registrations_match_targeted_retail_contracts() -> None:
 	win_glimp = _read_text(WIN_GLIMP)
 	win_input = _read_text(WIN_INPUT)
@@ -314,7 +336,7 @@ def test_engine_cvar_sixth_client_tranche_matches_retail_contracts() -> None:
 	assert 'else if ( con_background && con_background->integer > 0 && cls.consoleShader ) {' in cl_console
 
 	assert 'con_matchlimit = Cvar_Get( "con_matchlimit", "16", 0 );' in cl_console
-	assert 'limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;' in cl_console
+	assert 'limit = con_matchlimit ? con_matchlimit->integer : 16;' in cl_console
 
 	assert 'con_noprint = Cvar_Get( "con_noprint", "0", 0 );' in cl_console
 	assert 'if ( con_noprint && con_noprint->integer ) {' in cl_console

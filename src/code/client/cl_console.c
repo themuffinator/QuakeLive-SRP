@@ -588,7 +588,7 @@ Returns the retail console timestamp source, preferring cgame physics time.
 static int Con_GetTimestampTime( void ) {
 	int timestampTime;
 
-	timestampTime = ( cls.state >= CA_CONNECTED ) ? cl.serverTime : cls.realtime;
+	timestampTime = cl.serverTime;
 	if ( cgvm && con_timestamps && con_timestamps->integer == 1 ) {
 		int physicsTime = VM_Call( cgvm, CG_GET_PHYSICS_TIME );
 
@@ -849,7 +849,7 @@ static void Con_FindMatchesInHistory( void ) {
 	char		buffer[1024];
 
 	needle = Cmd_Argv( 1 );
-	limit = ( con_matchlimit && con_matchlimit->integer > 0 ) ? con_matchlimit->integer : 16;
+	limit = con_matchlimit ? con_matchlimit->integer : 16;
 	matches = 0;
 
 	for ( lineNum = con.current - con.totallines + 1 ; lineNum <= con.current ; lineNum++ ) {
@@ -889,7 +889,7 @@ static void Con_FindMatchesInHistory( void ) {
 		}
 	}
 
-	if ( matches >= limit ) {
+	if ( matches > 0 && matches >= limit ) {
 		Com_Printf( "%d matches found. (Displaying the first %d)\n", matches, limit );
 		return;
 	}
@@ -1075,8 +1075,9 @@ void CL_ConsolePrint( char *txt ) {
 	qboolean skipnotify = qfalse;		// NERVE - SMF
 	int prev;							// NERVE - SMF
 	char	timestamp[32];
-	qboolean	timestampPrinted = qfalse;
 	int		timestampMode;
+	int		timestampLength;
+	int		timestampIndex;
 
 	// TTimo - prefix for text that shows up in console but not in notify
 	// backported from RTCW
@@ -1107,55 +1108,21 @@ void CL_ConsolePrint( char *txt ) {
 		timestampMode = con_timestamps->integer;
 	}
 
-	if ( timestampMode ) {
+	if ( timestampMode && con.x == 0 ) {
 		Con_FormatTimestamp( timestamp, sizeof( timestamp ) );
+		timestampLength = strlen( timestamp );
+
+		for ( timestampIndex = 0; timestampIndex < timestampLength; timestampIndex++ ) {
+			con.text[( con.current % con.totallines ) * con.linewidth + con.x] = ( color << 8 ) | timestamp[timestampIndex];
+			con.x++;
+			if ( con.x >= con.linewidth ) {
+				Con_Linefeed( skipnotify );
+				con.x = 0;
+			}
+		}
 	}
 
 	while ( (c = *txt) != 0 ) {
-		if ( !timestampPrinted && timestampMode && con.x == 0 ) {
-			// Print timestamp at start of line
-			int ts_len = strlen(timestamp);
-			int i;
-			timestampPrinted = qtrue;
-
-			for ( i = 0; i < ts_len; i++ ) {
-				if ( Q_IsColorString( &timestamp[i] ) ) {
-					color = ColorIndex( timestamp[i+1] );
-					i++;
-					continue;
-				}
-				con.text[(con.current % con.totallines)*con.linewidth+con.x] = (color << 8) | timestamp[i];
-				con.x++;
-				if (con.x >= con.linewidth) {
-					Con_Linefeed(skipnotify);
-					con.x = 0;
-					// If we wrap inside the timestamp, we do NOT want to print the timestamp again immediately
-					// because we are technically still on the same "logical" line or at least we are in the middle of a print.
-					// However, if we wrap, we are on a new line.
-					// But usually timestamps are short. If they wrap, it's weird.
-					// But if they wrap, the next char will trigger this block again if we reset timestampPrinted.
-					// If we don't reset it, we continue printing the rest of timestamp.
-					// But if we wrap, we are at x=0.
-					// If we set timestampPrinted = qtrue, the check !timestampPrinted fails, so we won't recurse.
-					// But if we wrap during normal text, we set x=0.
-					// Then for next char, check !timestampPrinted.
-					// We need to ensure that when we wrap due to normal text, we DO print timestamp on next line if desired?
-					// Usually console wrapping implies continuation of same line. Timestamps usually only on new messages (start of print).
-					// CL_ConsolePrint handles a string. If the string contains \n, we reset.
-					// If the string is long and wraps, it is a continuation. We should NOT print timestamp again.
-					// So if we wrap here, we don't change timestampPrinted.
-					// Wait, if we wrap inside timestamp, we are still printing timestamp.
-					// The issue in previous code was: `timestampPrinted = qfalse;` inside the loop.
-					// If I remove that line, then `timestampPrinted` remains true until `\n`.
-					// This means wrapped lines (continuations) will NOT have timestamps.
-					// This is standard behavior (timestamp only at start of message).
-				}
-			}
-		}
-
-		if ( c == '\n' ) {
-			timestampPrinted = qfalse; // reset for next line
-		}
 
 		if ( Q_IsColorString( txt ) ) {
 			color = ColorIndex( *(txt+1) );

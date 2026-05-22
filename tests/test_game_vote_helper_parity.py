@@ -64,7 +64,7 @@ def test_checkvote_uses_retail_vote_helpers_and_timeout_string() -> None:
 	assert "qboolean G_TryExecuteVoteString( const char *voteString ) {" in vote_c
 	assert '!Q_stricmp( command, "cointoss" )' in vote_c
 	assert '!Q_stricmp( command, "random" )' in vote_c
-	assert '!Q_stricmp( command, "randommap" )' in vote_c
+	assert '!Q_stricmp( command, "randommap" )' not in vote_c
 	assert '!Q_stricmp( command, "loadouts" )' in vote_c
 	assert '!Q_stricmp( command, "ammo" )' in vote_c
 	assert '!Q_stricmp( command, "shuffle" ) || !Q_stricmp( command, "shuffle_teams" )' in vote_c
@@ -76,4 +76,4 @@ def test_checkvote_uses_retail_vote_helpers_and_timeout_string() -> None:
 	assert 'trap_SendServerCommand( -1, "print \\"       ^2callvote random 2 ^7mimics flipping a coin\\\\n\\"" );' in vote_c
 	assert 'trap_SendServerCommand( -1, va( "print \\"^3Random number is: ^5%d^7\\\\n\\"", ( rand() % upperLimit ) + 1 ) );' in vote_c
 	assert 'trap_SendServerCommand( -1, "print \\"^3Valid loadout options are:    ^5ON    ^5OFF^7\\\\n\\"" );' in vote_c
-	assert 'trap_SendServerCommand( -1, "print \\"^3Valid ammo options are:    ^5GLOBAL    ^5WEAP^7\\\\n\\"" );' in vote_c
+	assert 'trap_SendServerCommand( -1, "print \\"^3Valid loadout options are:    ^5GLOBAL    ^5WEAP^7\\\\n\\"" );' in vote_c

@@ -1379,6 +1379,15 @@ typedef struct {
 	qhandle_t	medalFirstFrag;
 
 	// sounds
+	sfxHandle_t	battleSuitPowerupSound;
+	sfxHandle_t	hastePowerupSound;
+	sfxHandle_t	invisibilityPowerupSound;
+	sfxHandle_t	quadDamagePowerupSound;
+	sfxHandle_t	regenerationPowerupSound;
+	sfxHandle_t	armorRegenPowerupSound;
+	sfxHandle_t	damagePowerupSound;
+	sfxHandle_t	guardPowerupSound;
+	sfxHandle_t	scoutPowerupSound;
 	sfxHandle_t	quadSound;
 	sfxHandle_t	tracerSound;
 	sfxHandle_t	selectSound;

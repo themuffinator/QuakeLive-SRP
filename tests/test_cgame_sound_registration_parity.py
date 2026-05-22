@@ -79,6 +79,7 @@ def test_cgame_register_sounds_restores_retail_weapon_and_item_effect_ogg_paths(
 def test_cgame_register_sounds_restores_retail_teamplay_announcer_and_direct_sound_slice() -> None:
 	source = CG_MAIN.read_text( encoding = "utf-8" )
 	helper_block = _block_from_marker( source, "static sfxHandle_t CG_RegisterConfiguredAnnouncerClip" )
+	powerup_voice_block = _block_from_marker( source, "static void CG_RegisterPowerupAnnouncerSounds" )
 
 	for expected in (
 		'path = CG_BuildAnnouncerSoundPath( sample );',
@@ -124,6 +125,23 @@ def test_cgame_register_sounds_restores_retail_teamplay_announcer_and_direct_sou
 		'cgs.media.neutralFlagReturnedSound = trap_S_RegisterSound( "sound/teamplay/flagreturn_opponent.ogg", qtrue );',
 	):
 		assert expected in source
+
+	for expected in (
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( battleSuitPowerupSound, "battlesuit.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( hastePowerupSound, "haste.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( invisibilityPowerupSound, "invisibility.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( quadDamagePowerupSound, "quad_damage.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( regenerationPowerupSound, "regeneration.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( armorRegenPowerupSound, "armor_regen.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( damagePowerupSound, "damage.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( guardPowerupSound, "guard.ogg" );',
+		'CG_REGISTER_POWERUP_ANNOUNCER_SAMPLE( scoutPowerupSound, "scout.ogg" );',
+	):
+		assert expected in powerup_voice_block
+
+	assert "CG_RegisterPowerupAnnouncerSounds();" in _block_from_marker(
+		source, "static void CG_UpdateAnnouncerProfileFromCvar"
+	)
 
 	for legacy in (
 		'"sound/feedback/prepare_team.wav"',

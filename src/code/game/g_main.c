@@ -41,6 +41,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define RANK_EVENT_PAYLOAD_MAX		16384
 #define AUTO_RECORD_BASENAME_MAX	256
 #define AUTO_RECORD_TOKEN_MAX		40
+#define VF_NO_ENDVOTE			0x0800
 
 #define AUTO_RECORD_STATE_RECORDING	( 1 << 0 )
 #define AUTO_RECORD_STATE_SCREENSHOT	( 1 << 1 )
@@ -3871,7 +3872,7 @@ void ExitLevel (void) {
 	selectedMap[0] = '\0';
 	selectedCfg[0] = '\0';
 
-	if ( !g_singlePlayer.integer ) {
+	if ( !g_singlePlayer.integer && !( g_voteFlags.integer & VF_NO_ENDVOTE ) ) {
 		trap_Cvar_VariableStringBuffer( "nextmaps", nextmaps, sizeof( nextmaps ) );
 		if ( nextmaps[0] ) {
 			char	key[16];

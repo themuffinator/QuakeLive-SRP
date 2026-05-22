@@ -159,6 +159,8 @@ def test_nextmap_vote_pipeline_matches_retail_intermission_vote_flow() -> None:
 	exit_block = _block_from_marker(main_c, "void ExitLevel (void)")
 
 	assert "qboolean G_HandleNextMapVote( gentity_t *ent ) {" in cmds_c
+	assert "#define VF_NO_ENDVOTE\t\t\t0x0800" in cmds_c
+	assert "if ( g_voteFlags.integer & VF_NO_ENDVOTE ) {" in cmds_c
 	assert "if ( level.time - level.voteTime >= 20000 ) {" in cmds_c
 	assert 'trap_SendServerCommand( ent-g_entities, "print \\"Voting time has expired.\\n\\"" );' in cmds_c
 	assert 'trap_SendServerCommand( ent-g_entities, "print \\"You may only vote once every 2 seconds.\\n\\"" );' in cmds_c
@@ -171,6 +173,8 @@ def test_nextmap_vote_pipeline_matches_retail_intermission_vote_flow() -> None:
 	assert "return;" in vote_block
 
 	assert "static int G_SelectNextMapVoteSlot( void ) {" in main_c
+	assert "#define VF_NO_ENDVOTE\t\t\t0x0800" in main_c
+	assert "if ( !g_singlePlayer.integer && !( g_voteFlags.integer & VF_NO_ENDVOTE ) ) {" in exit_block
 	assert 'trap_Cvar_VariableStringBuffer( "nextmaps", nextmaps, sizeof( nextmaps ) );' in exit_block
 	assert "selectedSlot = G_SelectNextMapVoteSlot();" in exit_block
 	assert 'trap_Cvar_Set( "nextmap", va( "map %s %s", selectedMap, selectedCfg ) );' in exit_block

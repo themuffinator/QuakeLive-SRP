@@ -1665,6 +1665,72 @@ static void CG_ItemPickup( int itemNum ) {
 
 }
 
+/*
+================
+CG_ItemPickupAnnouncerSound
+
+Resolves the retail announcer voice clip for powerup pickup events.
+================
+*/
+static sfxHandle_t CG_ItemPickupAnnouncerSound( const gitem_t *item ) {
+	if ( !item ) {
+		return 0;
+	}
+
+	switch ( item->giType ) {
+	case IT_POWERUP:
+		switch ( item->giTag ) {
+		case PW_QUAD:
+			return cgs.media.quadDamagePowerupSound;
+		case PW_BATTLESUIT:
+			return cgs.media.battleSuitPowerupSound;
+		case PW_HASTE:
+			return cgs.media.hastePowerupSound;
+		case PW_INVIS:
+			return cgs.media.invisibilityPowerupSound;
+		case PW_REGEN:
+			return cgs.media.regenerationPowerupSound;
+		default:
+			break;
+		}
+		break;
+	case IT_PERSISTANT_POWERUP:
+		switch ( item->giTag ) {
+		case PW_SCOUT:
+			return cgs.media.scoutPowerupSound;
+		case PW_GUARD:
+			return cgs.media.guardPowerupSound;
+		case PW_DOUBLER:
+			return cgs.media.damagePowerupSound;
+		case PW_AMMOREGEN:
+			return cgs.media.armorRegenPowerupSound;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+/*
+================
+CG_AddItemPickupAnnouncerSound
+
+Queues the retail announcer voice clip for a powerup pickup, if one applies.
+================
+*/
+static void CG_AddItemPickupAnnouncerSound( const gitem_t *item ) {
+	sfxHandle_t	sfx;
+
+	sfx = CG_ItemPickupAnnouncerSound( item );
+	if ( sfx ) {
+		CG_AddBufferedSound( sfx );
+	}
+}
+
 
 /*
 ================
@@ -2003,23 +2069,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			// will be played at prediction time
 			if ( item->giType == IT_POWERUP || item->giType == IT_TEAM) {
 				trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.n_healthSound );
-			} else if (item->giType == IT_PERSISTANT_POWERUP) {
-				switch (item->giTag ) {
-					case PW_SCOUT:
-						trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.scoutSound );
-					break;
-					case PW_GUARD:
-						trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.guardSound );
-					break;
-					case PW_DOUBLER:
-						trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.doublerSound );
-					break;
-					case PW_AMMOREGEN:
-						trap_S_StartSound (NULL, es->number, CHAN_AUTO,	cgs.media.ammoregenSound );
-					break;
-				}
-			} else {
+			} else if ( item->pickup_sound ) {
 				trap_S_StartSound (NULL, es->number, CHAN_AUTO,	trap_S_RegisterSound( item->pickup_sound, qfalse ) );
+			}
+
+			if ( item->giType == IT_PERSISTANT_POWERUP ) {
+				CG_AddItemPickupAnnouncerSound( item );
 			}
 
 			// show icon and name on status bar
@@ -2044,6 +2099,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			// powerup pickups are global
 			if( item->pickup_sound ) {
 				trap_S_StartSound (NULL, cg.snap->ps.clientNum, CHAN_AUTO, trap_S_RegisterSound( item->pickup_sound, qfalse ) );
+			}
+
+			if ( ( cgs.customSettingsMask & CUSTOM_SETTING_QUAD_HOG ) == 0 ) {
+				CG_AddItemPickupAnnouncerSound( item );
 			}
 
 			// show icon and name on status bar

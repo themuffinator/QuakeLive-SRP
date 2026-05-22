@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 #include "client.h"
 #include "cl_input_translation.h"
+#include "../qcommon/vm_local.h"
 
 /*
 
@@ -658,30 +659,30 @@ Console_CompleteArgument
 ==================
 */
 static void Console_CompleteArgument( const char *command, void(*callback)( const char *s ) ) {
-	char		listBuf[8192];
-	char		*entry;
+	char		**files;
 	int			fileCount;
-	const char	*commandName;
+	int			i;
 
 	if ( !command || !callback ) {
 		return;
 	}
 
-	commandName = command;
-	if ( commandName[0] == '\\' || commandName[0] == '/' ) {
-		commandName++;
+	if ( uivm && uivm->dllExports ) {
+		VM_Call( uivm, UI_FOR_EACH_ARENA_NAME, (int)(intptr_t)callback );
 	}
 
-	if ( Q_stricmp( commandName, "demo" ) ) {
+	if ( Q_stricmp( command, "demo" ) && Q_stricmp( command, "\\demo" ) ) {
 		return;
 	}
 
-	fileCount = FS_GetFileList( "demos", va( ".dm_%d", PROTOCOL_VERSION ), listBuf, sizeof( listBuf ) );
-	entry = listBuf;
-	while ( fileCount-- > 0 && *entry ) {
-		callback( entry );
-		entry += strlen( entry ) + 1;
+	files = FS_ListFiles( "demos", ".dm_73", &fileCount );
+	if ( !files ) {
+		return;
 	}
+	for ( i = 0 ; i < fileCount ; i++ ) {
+		callback( files[i] );
+	}
+	FS_FreeFileList( files );
 }
 
 void Console_Key (int key) {

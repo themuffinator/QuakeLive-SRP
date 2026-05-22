@@ -172,10 +172,14 @@ def test_console_message_modes_and_timestamps_follow_retail_cgame_path() -> None
 	assert "if ( !chat_reply ) {" in message_block
 	assert "CL_AddReliableCommand( buffer );" in message_block
 
+	assert "timestampTime = cl.serverTime;" in time_block
+	assert "cls.realtime" not in time_block
 	assert "VM_Call( cgvm, CG_GET_PHYSICS_TIME )" in time_block
 	assert "con_timestamps->integer == 1" in time_block
 	assert 'Com_sprintf( buffer, bufferSize, "[%d:%02d.%03d] ", minutes, seconds, millis );' in format_block
+	assert "if ( timestampMode && con.x == 0 ) {" in print_block
 	assert "Con_FormatTimestamp( timestamp, sizeof( timestamp ) );" in print_block
+	assert "timestampPrinted" not in print_block
 	assert '"^7[%i] "' not in source
 
 
