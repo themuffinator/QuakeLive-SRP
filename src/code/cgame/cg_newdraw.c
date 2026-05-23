@@ -9383,11 +9383,7 @@ Resolves which team owns the leading placement slot for team HUD layouts.
 =============
 */
 static team_t CG_GetLeadingHudTeam( void ) {
-	if ( cgs.gametype < GT_TEAM ) {
-		return TEAM_FREE;
-	}
-
-	if ( cgs.scores2 != SCORE_NOT_PRESENT && cgs.scores1 < cgs.scores2 ) {
+	if ( cgs.scores1 != SCORE_NOT_PRESENT && cgs.scores2 != SCORE_NOT_PRESENT && cgs.scores1 < cgs.scores2 ) {
 		return TEAM_BLUE;
 	}
 
@@ -9403,17 +9399,11 @@ placement slot on the non-team HUD.
 =============
 */
 static qboolean CG_ShowPlayerIsFirstPlace( void ) {
-	const score_t	*leader;
-	const score_t	*score;
+	clientInfo_t	*ci;
 	int		clientNum;
 	int		rank;
 
-	if ( !cg.snap || cgs.gametype >= GT_TEAM ) {
-		return qfalse;
-	}
-
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
-		!( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+	if ( !cg.snap ) {
 		return qfalse;
 	}
 
@@ -9422,18 +9412,298 @@ static qboolean CG_ShowPlayerIsFirstPlace( void ) {
 		return qfalse;
 	}
 
-	leader = CG_GetActiveScoreByIndex( 0 );
-	score = CG_GetScoreForClientNum( clientNum );
-	if ( leader && score ) {
-		return ( leader->score == score->score ) ? qtrue : qfalse;
-	}
-
-	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+	if ( cgs.gametype >= GT_TEAM && cgs.gametype != GT_RED_ROVER ) {
+		ci = &cgs.clientinfo[clientNum];
+		if ( ci->team == TEAM_RED ) {
+			return ( cgs.scores1 >= cgs.scores2 ) ? qtrue : qfalse;
+		}
+		if ( ci->team == TEAM_BLUE ) {
+			return ( cgs.scores2 > cgs.scores1 ) ? qtrue : qfalse;
+		}
 		return qfalse;
 	}
 
-	rank = cg.snap->ps.persistant[PERS_RANK] & ~RANK_TIED_FLAG;
+	rank = cg.snap->ps.persistant[PERS_RANK];
+	if ( rank & RANK_TIED_FLAG ) {
+		return qfalse;
+	}
+
 	return ( rank == 0 ) ? qtrue : qfalse;
+}
+
+/*
+=============
+CG_OwnerDrawPrimaryFlagVisible
+
+Evaluates the primary retail ownerdraw visibility flag word.
+=============
+*/
+static qboolean CG_OwnerDrawPrimaryFlagVisible( int flags ) {
+	team_t	playerTeam;
+
+	if ( flags & CG_SHOW_TEAMINFO ) {
+		return ( cg_currentSelectedPlayer.integer == numSortedTeamPlayers ) ? qtrue : qfalse;
+	}
+
+	if ( flags & CG_SHOW_NOTEAMINFO ) {
+		return ( cg_currentSelectedPlayer.integer != numSortedTeamPlayers ) ? qtrue : qfalse;
+	}
+
+	if ( flags & CG_SHOW_OTHERTEAMHASFLAG ) {
+		return CG_OtherTeamHasFlag();
+	}
+
+	if ( flags & CG_SHOW_YOURTEAMHASENEMYFLAG ) {
+		return CG_YourTeamHasFlag();
+	}
+
+	if ( flags & ( CG_SHOW_BLUE_TEAM_HAS_REDFLAG | CG_SHOW_RED_TEAM_HAS_BLUEFLAG ) ) {
+		if ( ( flags & CG_SHOW_BLUE_TEAM_HAS_REDFLAG ) && CG_ShowBlueTeamHasRedFlag() ) {
+			return qtrue;
+		}
+		if ( ( flags & CG_SHOW_RED_TEAM_HAS_BLUEFLAG ) && CG_ShowRedTeamHasBlueFlag() ) {
+			return qtrue;
+		}
+	}
+
+	if ( ( flags & CG_SHOW_PLAYERS_REMAINING ) && CG_ShowPlayersRemaining() ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_DUEL ) && cgs.gametype == GT_TOURNAMENT ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_CLAN_ARENA ) && cgs.gametype == GT_CLAN_ARENA ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_CTF ) && cgs.gametype == GT_CTF ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_ONEFLAG ) && cgs.gametype == GT_1FCTF ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_OBELISK ) && cgs.gametype == GT_OBELISK ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_HARVESTER ) && cgs.gametype == GT_HARVESTER ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_DOMINATION ) && cgs.gametype == GT_DOMINATION ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_ANYNONTEAMGAME ) && cgs.gametype < GT_TEAM ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_ANYTEAMGAME ) && cgs.gametype >= GT_TEAM ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_HEALTHCRITICAL ) && cg.snap->ps.stats[STAT_HEALTH] < 25 ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_NOT_WARMUP ) && cg.warmup >= 0 ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_PLAYER_HAS_FLAG ) &&
+		( cg.snap->ps.powerups[PW_REDFLAG] || cg.snap->ps.powerups[PW_BLUEFLAG] ||
+			cg.snap->ps.powerups[PW_NEUTRALFLAG] ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_WARMUP ) && cg.warmup < 0 ) {
+		return qtrue;
+	}
+
+	if ( flags & ( CG_SHOW_IF_BLUE_IS_FIRST_PLACE | CG_SHOW_IF_RED_IS_FIRST_PLACE ) ) {
+		team_t leadingTeam = CG_GetLeadingHudTeam();
+
+		if ( ( flags & CG_SHOW_IF_BLUE_IS_FIRST_PLACE ) && leadingTeam == TEAM_BLUE ) {
+			return qtrue;
+		}
+		if ( ( flags & CG_SHOW_IF_RED_IS_FIRST_PLACE ) && leadingTeam == TEAM_RED ) {
+			return qtrue;
+		}
+	}
+
+	if ( ( flags & CG_SHOW_INTERMISSION ) && cg.snap->ps.pm_type == PM_INTERMISSION ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_NOTINTERMISSION ) && cg.snap->ps.pm_type != PM_INTERMISSION ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_MSG_PRESENT ) && CG_HasHudPlayerMessage() ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_NOTICE_PRESENT ) && CG_HasHudNoticeMessage() ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_CHAT_VISIBLE ) && ( cg.chatHistoryVisible || cg.scoreBoardShowing ) ) {
+		return qtrue;
+	}
+
+	if ( flags & ( CG_SHOW_IF_PLYR_IS_FIRST_PLACE | CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE ) ) {
+		qboolean isFirstPlace = CG_ShowPlayerIsFirstPlace();
+
+		if ( ( flags & CG_SHOW_IF_PLYR_IS_FIRST_PLACE ) && isFirstPlace ) {
+			return qtrue;
+		}
+		if ( ( flags & CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE ) && !isFirstPlace ) {
+			return qtrue;
+		}
+	}
+
+	playerTeam = TEAM_FREE;
+	if ( cg.snap ) {
+		playerTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+	}
+
+	if ( ( flags & CG_SHOW_IF_PLYR_IS_ON_RED ) && playerTeam == TEAM_RED ) {
+		return qtrue;
+	}
+
+	if ( ( flags & CG_SHOW_IF_PLYR_IS_ON_BLUE ) && playerTeam == TEAM_BLUE ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CG_OwnerDrawSecondaryFlagVisible
+
+Evaluates Quake Live's retail secondary ownerdraw visibility flag word.
+=============
+*/
+static qboolean CG_OwnerDrawSecondaryFlagVisible( int flags2 ) {
+	team_t	playerTeam;
+	qboolean	spectator;
+	qboolean	loadoutsEnabled;
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR1 ) && CG_SpectatorPlayerSlotActive( 0 ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR2 ) && CG_SpectatorPlayerSlotActive( 1 ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_G_FIRED ) && CG_PlacementWeaponFired( WP_GAUNTLET ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_MG_FIRED ) && CG_PlacementWeaponFired( WP_MACHINEGUN ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_SG_FIRED ) && CG_PlacementWeaponFired( WP_SHOTGUN ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_GL_FIRED ) && CG_PlacementWeaponFired( WP_GRENADE_LAUNCHER ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_RL_FIRED ) && CG_PlacementWeaponFired( WP_ROCKET_LAUNCHER ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_LG_FIRED ) && CG_PlacementWeaponFired( WP_LIGHTNING ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_RG_FIRED ) && CG_PlacementWeaponFired( WP_RAILGUN ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PG_FIRED ) && CG_PlacementWeaponFired( WP_PLASMAGUN ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_BFG_FIRED ) && CG_PlacementWeaponFired( WP_BFG ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_CG_FIRED ) && CG_PlacementWeaponFired( WP_CHAINGUN ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_NG_FIRED ) && CG_PlacementWeaponFired( WP_NAILGUN ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PL_FIRED ) && CG_PlacementWeaponFired( WP_PROX_LAUNCHER ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_HMG_FIRED ) && CG_PlacementWeaponFired( WP_HEAVY_MACHINEGUN ) ) {
+		return qtrue;
+	}
+
+	loadoutsEnabled = CG_LoadoutsEnabled();
+	if ( ( flags2 & CG_SHOW_IF_LOADOUT_ENABLED ) && loadoutsEnabled ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_LOADOUT_DISABLED ) && !loadoutsEnabled ) {
+		return qtrue;
+	}
+
+	playerTeam = TEAM_FREE;
+	spectator = qfalse;
+	if ( cg.snap ) {
+		playerTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+		spectator = ( playerTeam == TEAM_SPECTATOR ) || ( cg.snap->ps.pm_type == PM_SPECTATOR ) ||
+			( cg.snap->ps.pm_flags & PMF_FOLLOW );
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED ) && playerTeam == TEAM_RED ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE ) && playerTeam == TEAM_BLUE ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED_OR_SPEC ) && ( playerTeam == TEAM_RED || spectator ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE_OR_SPEC ) && ( playerTeam == TEAM_BLUE || spectator ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED_NO_SPEC ) && playerTeam == TEAM_RED && !spectator ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE_NO_SPEC ) && playerTeam == TEAM_BLUE && !spectator ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_1ST_PLYR_FOLLOWED ) && CG_SpectatorSlotFollowed( 0 ) ) {
+		return qtrue;
+	}
+
+	if ( ( flags2 & CG_SHOW_IF_2ND_PLYR_FOLLOWED ) && CG_SpectatorSlotFollowed( 1 ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 /*
@@ -9444,426 +9714,25 @@ Evaluates the ownerdraw visibility bitmasks for HUD and menu scripts.
 =============
 */
 qboolean CG_OwnerDrawVisible(int flags, int flags2) {
-	qboolean vis = qtrue;
-
-	while ( flags ) {
-		if ( flags & CG_SHOW_TEAMINFO ) {
-			if ( cg_currentSelectedPlayer.integer != numSortedTeamPlayers ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_TEAMINFO;
-		}
-
-		if ( flags & CG_SHOW_NOTEAMINFO ) {
-			if ( cg_currentSelectedPlayer.integer == numSortedTeamPlayers ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_NOTEAMINFO;
-		}
-
-		if ( flags & CG_SHOW_OTHERTEAMHASFLAG ) {
-			if ( !CG_OtherTeamHasFlag() ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_OTHERTEAMHASFLAG;
-		}
-
-		if ( flags & CG_SHOW_YOURTEAMHASENEMYFLAG ) {
-			if ( !CG_YourTeamHasFlag() ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_YOURTEAMHASENEMYFLAG;
-		}
-
-		if (flags & (CG_SHOW_BLUE_TEAM_HAS_REDFLAG | CG_SHOW_RED_TEAM_HAS_BLUEFLAG)) {
-			qboolean showFlagCarrier = qfalse;
-
-			if (flags & CG_SHOW_BLUE_TEAM_HAS_REDFLAG && CG_ShowBlueTeamHasRedFlag()) {
-				showFlagCarrier = qtrue;
-			} else if (flags & CG_SHOW_RED_TEAM_HAS_BLUEFLAG && CG_ShowRedTeamHasBlueFlag()) {
-				showFlagCarrier = qtrue;
-			}
-
-			if ( !showFlagCarrier ) {
-				vis = qfalse;
-			}
-			flags &= ~( CG_SHOW_BLUE_TEAM_HAS_REDFLAG | CG_SHOW_RED_TEAM_HAS_BLUEFLAG );
-		}
-
-		if ( flags & CG_SHOW_DOMINATION ) {
-			if ( cgs.gametype != GT_DOMINATION ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_DOMINATION;
-		}
-
-		if ( flags & CG_SHOW_IF_NOTICE_PRESENT ) {
-			if ( !CG_HasHudNoticeMessage() ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_IF_NOTICE_PRESENT;
-		}
-
-		if ( flags & CG_SHOW_IF_MSG_PRESENT ) {
-			if ( !CG_HasHudPlayerMessage() ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_IF_MSG_PRESENT;
-		}
-
-		if (flags & (CG_SHOW_IF_RED_IS_FIRST_PLACE | CG_SHOW_IF_BLUE_IS_FIRST_PLACE)) {
-			team_t leadingTeam = CG_GetLeadingHudTeam();
-			qboolean showLeadingTeam = qfalse;
-
-			if ( flags & CG_SHOW_IF_RED_IS_FIRST_PLACE && leadingTeam == TEAM_RED ) {
-				showLeadingTeam = qtrue;
-			}
-
-			if ( flags & CG_SHOW_IF_BLUE_IS_FIRST_PLACE && leadingTeam == TEAM_BLUE ) {
-				showLeadingTeam = qtrue;
-			}
-
-			if ( !showLeadingTeam ) {
-				vis = qfalse;
-			}
-			flags &= ~( CG_SHOW_IF_RED_IS_FIRST_PLACE | CG_SHOW_IF_BLUE_IS_FIRST_PLACE );
-		}
-
-		if (flags & (CG_SHOW_IF_PLYR_IS_FIRST_PLACE | CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE)) {
-			qboolean isFirstPlace = CG_ShowPlayerIsFirstPlace();
-			qboolean showPlayerRank = qfalse;
-
-			if ( flags & CG_SHOW_IF_PLYR_IS_FIRST_PLACE && isFirstPlace ) {
-				showPlayerRank = qtrue;
-			}
-
-			if ( flags & CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE && !isFirstPlace ) {
-				showPlayerRank = qtrue;
-			}
-
-			if ( !showPlayerRank ) {
-				vis = qfalse;
-			}
-			flags &= ~( CG_SHOW_IF_PLYR_IS_FIRST_PLACE | CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE );
-		}
-
-		if ( flags & CG_SHOW_ANYTEAMGAME ) {
-			if ( cgs.gametype < GT_TEAM ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_ANYTEAMGAME;
-		}
-
-		if ( flags & CG_SHOW_ANYNONTEAMGAME ) {
-			if ( cgs.gametype >= GT_TEAM ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_ANYNONTEAMGAME;
-		}
-
-		if ( flags & CG_SHOW_HARVESTER ) {
-			if ( cgs.gametype != GT_HARVESTER ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_HARVESTER;
-		}
-
-		if ( flags & CG_SHOW_ONEFLAG ) {
-			if ( cgs.gametype != GT_1FCTF ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_ONEFLAG;
-		}
-
-		if ( flags & CG_SHOW_DUEL ) {
-			if ( cgs.gametype != GT_TOURNAMENT ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_DUEL;
-		}
-
-		if ( flags & CG_SHOW_CLAN_ARENA ) {
-			if ( cgs.gametype != GT_CLAN_ARENA ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_CLAN_ARENA;
-		}
-
-		if ( flags & CG_SHOW_CTF ) {
-			if ( cgs.gametype != GT_CTF ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_CTF;
-		}
-
-		if ( flags & CG_SHOW_OBELISK ) {
-			if ( cgs.gametype != GT_OBELISK ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_OBELISK;
-		}
-
-		if ( flags & CG_SHOW_HEALTHCRITICAL ) {
-			if ( cg.snap->ps.stats[STAT_HEALTH] >= 25 ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_HEALTHCRITICAL;
-		}
-
-		if ( flags & CG_SHOW_IF_PLAYER_HAS_FLAG ) {
-			if ( !cg.snap->ps.powerups[PW_REDFLAG] && !cg.snap->ps.powerups[PW_BLUEFLAG] &&
-				!cg.snap->ps.powerups[PW_NEUTRALFLAG] ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_IF_PLAYER_HAS_FLAG;
-		}
-
-		if ( flags & CG_SHOW_PLAYERS_REMAINING ) {
-			if ( !CG_ShowPlayersRemaining() ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_PLAYERS_REMAINING;
-		}
-
-		if (flags & (CG_SHOW_IF_WARMUP | CG_SHOW_IF_NOT_WARMUP)) {
-			qboolean warmupVisible = qfalse;
-			qboolean inWarmup = ( cgs.matchRoundState == ROUNDSTATE_WARMUP || cg.warmup > 0 ) ? qtrue : qfalse;
-
-			if ( ( flags & CG_SHOW_IF_WARMUP ) && inWarmup ) {
-				warmupVisible = qtrue;
-			}
-
-			if ( ( flags & CG_SHOW_IF_NOT_WARMUP ) && !inWarmup ) {
-				warmupVisible = qtrue;
-			}
-
-			if ( !warmupVisible ) {
-				vis = qfalse;
-			}
-			flags &= ~( CG_SHOW_IF_WARMUP | CG_SHOW_IF_NOT_WARMUP );
-		}
-
-		if ( flags & CG_SHOW_IF_CHAT_VISIBLE ) {
-			if ( !cg.chatHistoryVisible && !cg.scoreBoardShowing ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_IF_CHAT_VISIBLE;
-		}
-
-		if ( flags & CG_SHOW_INTERMISSION ) {
-			if ( cg.snap->ps.pm_type != PM_INTERMISSION && cg.snap->ps.pm_type != PM_SPINTERMISSION ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_INTERMISSION;
-		}
-
-		if ( flags & CG_SHOW_NOTINTERMISSION ) {
-			if ( cg.snap->ps.pm_type == PM_INTERMISSION || cg.snap->ps.pm_type == PM_SPINTERMISSION ) {
-				vis = qfalse;
-			}
-			flags &= ~CG_SHOW_NOTINTERMISSION;
-		}
-
-		if ( flags ) {
-			vis = qfalse;
-			flags = 0;
-		}
+	if ( flags && CG_OwnerDrawPrimaryFlagVisible( flags ) ) {
+		return qtrue;
 	}
 
-	while ( flags2 ) {
-		if ( flags2 & CG_SHOW_IF_PLYR1 ) {
-			if ( !CG_SpectatorPlayerSlotActive( 0 ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_PLYR1;
-		}
-
-		if ( flags2 & CG_SHOW_IF_PLYR2 ) {
-			if ( !CG_SpectatorPlayerSlotActive( 1 ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_PLYR2;
-		}
-
-		if ( flags2 & CG_SHOW_IF_G_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_GAUNTLET ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_G_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_MG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_MACHINEGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_MG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_SG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_SHOTGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_SG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_GL_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_GRENADE_LAUNCHER ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_GL_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_RL_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_ROCKET_LAUNCHER ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_RL_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_LG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_LIGHTNING ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_LG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_RG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_RAILGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_RG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_PG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_PLASMAGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_PG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_BFG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_BFG ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_BFG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_CG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_CHAINGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_CG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_NG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_NAILGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_NG_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_PL_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_PROX_LAUNCHER ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_PL_FIRED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_HMG_FIRED ) {
-			if ( !CG_PlacementWeaponFired( WP_HEAVY_MACHINEGUN ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_HMG_FIRED;
-		}
-
-		if (flags2 & (CG_SHOW_IF_LOADOUT_ENABLED | CG_SHOW_IF_LOADOUT_DISABLED)) {
-			qboolean loadoutsEnabled = CG_LoadoutsEnabled();
-			qboolean showLoadoutState = qfalse;
-
-			if ( ( flags2 & CG_SHOW_IF_LOADOUT_ENABLED ) && loadoutsEnabled ) {
-				showLoadoutState = qtrue;
-			}
-
-			if ( ( flags2 & CG_SHOW_IF_LOADOUT_DISABLED ) && !loadoutsEnabled ) {
-				showLoadoutState = qtrue;
-			}
-
-			if ( !showLoadoutState ) {
-				vis = qfalse;
-			}
-			flags2 &= ~( CG_SHOW_IF_LOADOUT_ENABLED | CG_SHOW_IF_LOADOUT_DISABLED );
-		}
-
-		if (flags2 & (CG_SHOW_IF_PLYR_IS_ON_RED | CG_SHOW_IF_PLYR_IS_ON_BLUE |
-			CG_SHOW_IF_PLYR_IS_ON_RED_OR_SPEC | CG_SHOW_IF_PLYR_IS_ON_BLUE_OR_SPEC |
-			CG_SHOW_IF_PLYR_IS_ON_RED_NO_SPEC | CG_SHOW_IF_PLYR_IS_ON_BLUE_NO_SPEC)) {
-			team_t playerTeam = TEAM_FREE;
-			qboolean spectator = qfalse;
-			qboolean showPlayerTeam = qfalse;
-
-			if (cg.snap) {
-				playerTeam = (team_t)cg.snap->ps.persistant[PERS_TEAM];
-				spectator = (playerTeam == TEAM_SPECTATOR) || (cg.snap->ps.pm_type == PM_SPECTATOR) ||
-					(cg.snap->ps.pm_flags & PMF_FOLLOW);
-			}
-
-			if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED && playerTeam == TEAM_RED ) {
-				showPlayerTeam = qtrue;
-			}
-
-			if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE && playerTeam == TEAM_BLUE ) {
-				showPlayerTeam = qtrue;
-			}
-
-			if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED_OR_SPEC && ( playerTeam == TEAM_RED || spectator ) ) {
-				showPlayerTeam = qtrue;
-			}
-
-			if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE_OR_SPEC && ( playerTeam == TEAM_BLUE || spectator ) ) {
-				showPlayerTeam = qtrue;
-			}
-
-			if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED_NO_SPEC && playerTeam == TEAM_RED && !spectator ) {
-				showPlayerTeam = qtrue;
-			}
-
-			if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE_NO_SPEC && playerTeam == TEAM_BLUE && !spectator ) {
-				showPlayerTeam = qtrue;
-			}
-
-			if ( !showPlayerTeam ) {
-				vis = qfalse;
-			}
-			flags2 &= ~( CG_SHOW_IF_PLYR_IS_ON_RED | CG_SHOW_IF_PLYR_IS_ON_BLUE |
-				CG_SHOW_IF_PLYR_IS_ON_RED_OR_SPEC | CG_SHOW_IF_PLYR_IS_ON_BLUE_OR_SPEC |
-				CG_SHOW_IF_PLYR_IS_ON_RED_NO_SPEC | CG_SHOW_IF_PLYR_IS_ON_BLUE_NO_SPEC );
-		}
-
-		if ( flags2 & CG_SHOW_IF_1ST_PLYR_FOLLOWED ) {
-			if ( !CG_SpectatorSlotFollowed( 0 ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_1ST_PLYR_FOLLOWED;
-		}
-
-		if ( flags2 & CG_SHOW_IF_2ND_PLYR_FOLLOWED ) {
-			if ( !CG_SpectatorSlotFollowed( 1 ) ) {
-				vis = qfalse;
-			}
-			flags2 &= ~CG_SHOW_IF_2ND_PLYR_FOLLOWED;
-		}
-
-		if ( flags2 ) {
-			vis = qfalse;
-			flags2 = 0;
-		}
+	if ( flags2 && CG_OwnerDrawSecondaryFlagVisible( flags2 ) ) {
+		return qtrue;
 	}
 
-	return vis;
+	return qfalse;
 }
 
 
+/*
+=============
+CG_DrawPlayerHasFlag
 
+Draws the flag currently carried by the local predicted player state.
+=============
+*/
 static void CG_DrawPlayerHasFlag(rectDef_t *rect, qboolean force2D) {
 	int		flagTeam;
 	float	inset;

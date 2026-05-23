@@ -6753,6 +6753,152 @@ def test_native_import_table_keeps_new_cgame_bridge_callbacks() -> None:
 	assert "RE_RegisterFont" not in measure_block
 
 
+def test_cgame_primary_ownerdraw_first_half_flags_are_defined_and_wired() -> None:
+	menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+	ui_shared_source = UI_SHARED.read_text(encoding="utf-8")
+	ui_shared_header = UI_SHARED_H.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	primary_block = _block_from_marker(newdraw_source, "static qboolean CG_OwnerDrawPrimaryFlagVisible")
+	visible_block = _block_from_marker(newdraw_source, "qboolean CG_OwnerDrawVisible")
+	first_half_flags = {
+		"CG_SHOW_BLUE_TEAM_HAS_REDFLAG": "0x00000001",
+		"CG_SHOW_RED_TEAM_HAS_BLUEFLAG": "0x00000002",
+		"CG_SHOW_DUEL": "0x00000004",
+		"CG_SHOW_CLAN_ARENA": "0x00000008",
+		"CG_SHOW_CTF": "0x00000010",
+		"CG_SHOW_ONEFLAG": "0x00000020",
+		"CG_SHOW_OBELISK": "0x00000040",
+		"CG_SHOW_HARVESTER": "0x00000080",
+		"CG_SHOW_DOMINATION": "0x00000100",
+		"CG_SHOW_ANYNONTEAMGAME": "0x00000200",
+		"CG_SHOW_ANYTEAMGAME": "0x00000400",
+		"CG_SHOW_HEALTHCRITICAL": "0x00000800",
+		"CG_SHOW_IF_NOT_WARMUP": "0x00001000",
+		"CG_SHOW_IF_PLAYER_HAS_FLAG": "0x00002000",
+		"CG_SHOW_IF_WARMUP": "0x00004000",
+		"CG_SHOW_IF_BLUE_IS_FIRST_PLACE": "0x00008000",
+	}
+
+	for name, value in first_half_flags.items():
+		assert re.search(rf"#define\s+{name}\s+{value}\b", menudef_source)
+		assert name in primary_block
+
+	for expected in (
+		"int ownerDrawFlags;",
+		"int ownerDrawFlags2;",
+		"qboolean (*ownerDrawVisible) (int flags, int flags2);",
+	):
+		assert expected in ui_shared_header
+
+	for expected in (
+		"item->window.ownerDrawFlags |= i;",
+		"menu->window.ownerDrawFlags |= i;",
+		"DC->ownerDrawVisible(item->window.ownerDrawFlags, item->window.ownerDrawFlags2)",
+		"!DC->ownerDrawVisible(menu->window.ownerDrawFlags, menu->window.ownerDrawFlags2)) {",
+	):
+		assert expected in ui_shared_source
+
+	assert "cgDC.ownerDrawVisible = &CG_OwnerDrawVisible;" in main_source
+	assert "CG_OwnerDrawPrimaryFlagVisible( flags )" in visible_block
+
+
+def test_cgame_primary_ownerdraw_second_half_flags_are_defined_and_wired() -> None:
+	menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	primary_block = _block_from_marker(newdraw_source, "static qboolean CG_OwnerDrawPrimaryFlagVisible")
+	player_first_block = _block_from_marker(newdraw_source, "static qboolean CG_ShowPlayerIsFirstPlace")
+	leading_team_block = _block_from_marker(newdraw_source, "static team_t CG_GetLeadingHudTeam")
+	players_remaining_block = _block_from_marker(newdraw_source, "static qboolean CG_ShowPlayersRemaining")
+	ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw")
+	second_half_flags = {
+		"CG_SHOW_TEAMINFO": "0x00010000",
+		"CG_SHOW_NOTEAMINFO": "0x00020000",
+		"CG_SHOW_OTHERTEAMHASFLAG": "0x00040000",
+		"CG_SHOW_YOURTEAMHASENEMYFLAG": "0x00080000",
+		"CG_SHOW_INTERMISSION": "0x00100000",
+		"CG_SHOW_NOTINTERMISSION": "0x00200000",
+		"CG_SHOW_IF_MSG_PRESENT": "0x00400000",
+		"CG_SHOW_IF_NOTICE_PRESENT": "0x00800000",
+		"CG_SHOW_IF_CHAT_VISIBLE": "0x01000000",
+		"CG_SHOW_IF_PLYR_IS_FIRST_PLACE": "0x02000000",
+		"CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE": "0x04000000",
+		"CG_SHOW_IF_RED_IS_FIRST_PLACE": "0x08000000",
+		"CG_SHOW_2DONLY": "0x10000000",
+		"CG_SHOW_IF_PLYR_IS_ON_RED": "0x20000000",
+		"CG_SHOW_IF_PLYR_IS_ON_BLUE": "0x40000000",
+		"CG_SHOW_PLAYERS_REMAINING": "0x80000000",
+	}
+
+	for name, value in second_half_flags.items():
+		assert re.search(rf"#define\s+{name}\s+{value}\b", menudef_source)
+
+	for expected in (
+		"if ( flags & CG_SHOW_TEAMINFO ) {",
+		"cg_currentSelectedPlayer.integer == numSortedTeamPlayers",
+		"if ( flags & CG_SHOW_NOTEAMINFO ) {",
+		"cg_currentSelectedPlayer.integer != numSortedTeamPlayers",
+		"if ( flags & CG_SHOW_OTHERTEAMHASFLAG ) {",
+		"return CG_OtherTeamHasFlag();",
+		"if ( flags & CG_SHOW_YOURTEAMHASENEMYFLAG ) {",
+		"return CG_YourTeamHasFlag();",
+		"if ( ( flags & CG_SHOW_INTERMISSION ) && cg.snap->ps.pm_type == PM_INTERMISSION ) {",
+		"if ( ( flags & CG_SHOW_NOTINTERMISSION ) && cg.snap->ps.pm_type != PM_INTERMISSION ) {",
+		"if ( ( flags & CG_SHOW_IF_MSG_PRESENT ) && CG_HasHudPlayerMessage() ) {",
+		"if ( ( flags & CG_SHOW_IF_NOTICE_PRESENT ) && CG_HasHudNoticeMessage() ) {",
+		"if ( ( flags & CG_SHOW_IF_CHAT_VISIBLE ) && ( cg.chatHistoryVisible || cg.scoreBoardShowing ) ) {",
+		"if ( flags & ( CG_SHOW_IF_PLYR_IS_FIRST_PLACE | CG_SHOW_IF_PLYR_IS_NOT_FIRST_PLACE ) ) {",
+		"if ( ( flags & CG_SHOW_IF_RED_IS_FIRST_PLACE ) && leadingTeam == TEAM_RED ) {",
+		"if ( ( flags & CG_SHOW_IF_PLYR_IS_ON_RED ) && playerTeam == TEAM_RED ) {",
+		"if ( ( flags & CG_SHOW_IF_PLYR_IS_ON_BLUE ) && playerTeam == TEAM_BLUE ) {",
+		"if ( ( flags & CG_SHOW_PLAYERS_REMAINING ) && CG_ShowPlayersRemaining() ) {",
+	):
+		assert expected in primary_block
+
+	assert "PM_SPINTERMISSION" not in primary_block
+	assert "CG_SHOW_2DONLY" not in primary_block
+
+	for expected in (
+		"CG_DrawPlayerArmorIcon( &rect, ownerDrawFlags & CG_SHOW_2DONLY );",
+		"CG_DrawPlayerAmmoIcon( &rect, ownerDrawFlags & CG_SHOW_2DONLY );",
+		"CG_DrawPlayerHead( &rect, ownerDrawFlags & CG_SHOW_2DONLY );",
+		"CG_DrawPlayerItem( &rect, scale, ownerDrawFlags & CG_SHOW_2DONLY );",
+	):
+		assert expected in ownerdraw_block
+
+	for expected in (
+		"cgs.scores1 != SCORE_NOT_PRESENT && cgs.scores2 != SCORE_NOT_PRESENT && cgs.scores1 < cgs.scores2",
+		"return TEAM_BLUE;",
+		"return TEAM_RED;",
+	):
+		assert expected in leading_team_block
+
+	for expected in (
+		"clientNum = cg.snap->ps.clientNum;",
+		"if ( cgs.gametype >= GT_TEAM && cgs.gametype != GT_RED_ROVER ) {",
+		"ci = &cgs.clientinfo[clientNum];",
+		"if ( ci->team == TEAM_RED ) {",
+		"return ( cgs.scores1 >= cgs.scores2 ) ? qtrue : qfalse;",
+		"if ( ci->team == TEAM_BLUE ) {",
+		"return ( cgs.scores2 > cgs.scores1 ) ? qtrue : qfalse;",
+		"rank = cg.snap->ps.persistant[PERS_RANK];",
+		"if ( rank & RANK_TIED_FLAG ) {",
+		"return ( rank == 0 ) ? qtrue : qfalse;",
+	):
+		assert expected in player_first_block
+
+	assert "CG_GetActiveScoreByIndex( 0 )" not in player_first_block
+	assert "CG_GetScoreForClientNum( clientNum )" not in player_first_block
+
+	for expected in (
+		"case GT_CLAN_ARENA:",
+		"case GT_FREEZE:",
+		"case GT_ATTACK_DEFEND:",
+		"case GT_RED_ROVER:",
+	):
+		assert expected in players_remaining_block
+
+
 def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None:
 	source = CG_NEWDRAW.read_text(encoding="utf-8")
 	race_block = _block_from_marker(source, "static void CG_DrawRaceStatusAndTimes")
@@ -6765,7 +6911,13 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 	notice_block = _block_from_marker(source, "static qboolean CG_HasHudNoticeMessage")
 	message_block = _block_from_marker(source, "static qboolean CG_HasHudPlayerMessage")
 	weapon_fired_block = _block_from_marker(source, "static qboolean CG_PlacementWeaponFired")
-	visible_block = _block_from_marker(source, "qboolean CG_OwnerDrawVisible")
+	visible_block = "\n".join(
+		(
+			_block_from_marker(source, "static qboolean CG_OwnerDrawPrimaryFlagVisible"),
+			_block_from_marker(source, "static qboolean CG_OwnerDrawSecondaryFlagVisible"),
+			_block_from_marker(source, "qboolean CG_OwnerDrawVisible"),
+		)
+	)
 
 	for expected in (
 		"if ( ownerDraw == CG_RACE_STATUS ) {",
@@ -6846,26 +6998,35 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 		assert expected in weapon_fired_block
 
 	for expected in (
-		"qboolean vis = qtrue;",
-		"while ( flags ) {",
-		"if (flags & (CG_SHOW_BLUE_TEAM_HAS_REDFLAG | CG_SHOW_RED_TEAM_HAS_BLUEFLAG)) {",
-		"if (flags & CG_SHOW_BLUE_TEAM_HAS_REDFLAG && CG_ShowBlueTeamHasRedFlag()) {",
-		"} else if (flags & CG_SHOW_RED_TEAM_HAS_BLUEFLAG && CG_ShowRedTeamHasBlueFlag()) {",
-		"if ( flags & CG_SHOW_ANYTEAMGAME ) {",
-		"if (flags & (CG_SHOW_IF_WARMUP | CG_SHOW_IF_NOT_WARMUP)) {",
-		"if ( ( flags & CG_SHOW_IF_WARMUP ) && inWarmup ) {",
-		"if ( ( flags & CG_SHOW_IF_NOT_WARMUP ) && !inWarmup ) {",
-		"if ( flags & CG_SHOW_IF_CHAT_VISIBLE ) {",
-		"if ( !cg.chatHistoryVisible && !cg.scoreBoardShowing ) {",
-		"if ( flags & CG_SHOW_INTERMISSION ) {",
-		"if ( flags & CG_SHOW_NOTINTERMISSION ) {",
-		"while ( flags2 ) {",
-		"if (flags2 & (CG_SHOW_IF_LOADOUT_ENABLED | CG_SHOW_IF_LOADOUT_DISABLED)) {",
-		"if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED && playerTeam == TEAM_RED ) {",
-		"if ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE && playerTeam == TEAM_BLUE ) {",
+		"static qboolean CG_OwnerDrawPrimaryFlagVisible( int flags ) {",
+		"if ( flags & ( CG_SHOW_BLUE_TEAM_HAS_REDFLAG | CG_SHOW_RED_TEAM_HAS_BLUEFLAG ) ) {",
+		"if ( ( flags & CG_SHOW_BLUE_TEAM_HAS_REDFLAG ) && CG_ShowBlueTeamHasRedFlag() ) {",
+		"if ( ( flags & CG_SHOW_RED_TEAM_HAS_BLUEFLAG ) && CG_ShowRedTeamHasBlueFlag() ) {",
+		"if ( ( flags & CG_SHOW_DUEL ) && cgs.gametype == GT_TOURNAMENT ) {",
+		"if ( ( flags & CG_SHOW_CLAN_ARENA ) && cgs.gametype == GT_CLAN_ARENA ) {",
+		"if ( ( flags & CG_SHOW_CTF ) && cgs.gametype == GT_CTF ) {",
+		"if ( ( flags & CG_SHOW_ONEFLAG ) && cgs.gametype == GT_1FCTF ) {",
+		"if ( ( flags & CG_SHOW_OBELISK ) && cgs.gametype == GT_OBELISK ) {",
+		"if ( ( flags & CG_SHOW_HARVESTER ) && cgs.gametype == GT_HARVESTER ) {",
+		"if ( ( flags & CG_SHOW_DOMINATION ) && cgs.gametype == GT_DOMINATION ) {",
+		"if ( ( flags & CG_SHOW_ANYNONTEAMGAME ) && cgs.gametype < GT_TEAM ) {",
+		"if ( ( flags & CG_SHOW_ANYTEAMGAME ) && cgs.gametype >= GT_TEAM ) {",
+		"if ( ( flags & CG_SHOW_HEALTHCRITICAL ) && cg.snap->ps.stats[STAT_HEALTH] < 25 ) {",
+		"if ( ( flags & CG_SHOW_IF_NOT_WARMUP ) && cg.warmup >= 0 ) {",
+		"if ( ( flags & CG_SHOW_IF_PLAYER_HAS_FLAG ) &&",
+		"if ( ( flags & CG_SHOW_IF_WARMUP ) && cg.warmup < 0 ) {",
+		"if ( ( flags & CG_SHOW_IF_CHAT_VISIBLE ) && ( cg.chatHistoryVisible || cg.scoreBoardShowing ) ) {",
+		"if ( ( flags & CG_SHOW_INTERMISSION ) &&",
+		"if ( ( flags & CG_SHOW_NOTINTERMISSION ) &&",
+		"static qboolean CG_OwnerDrawSecondaryFlagVisible( int flags2 ) {",
+		"if ( ( flags2 & CG_SHOW_IF_LOADOUT_ENABLED ) && loadoutsEnabled ) {",
+		"if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED ) && playerTeam == TEAM_RED ) {",
+		"if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE ) && playerTeam == TEAM_BLUE ) {",
 		"CG_PlacementWeaponFired( WP_GAUNTLET )",
 		"CG_PlacementWeaponFired( WP_MACHINEGUN )",
 		"CG_PlacementWeaponFired( WP_HEAVY_MACHINEGUN )",
+		"if ( flags && CG_OwnerDrawPrimaryFlagVisible( flags ) ) {",
+		"if ( flags2 && CG_OwnerDrawSecondaryFlagVisible( flags2 ) ) {",
 	):
 		assert expected in visible_block
 
@@ -6897,7 +7058,13 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 
 def test_cgame_loaded_browser_menu_visibility_flags_are_backed_by_cgame() -> None:
 	source = CG_NEWDRAW.read_text(encoding="utf-8")
-	visible_block = _block_from_marker(source, "qboolean CG_OwnerDrawVisible")
+	visible_block = "\n".join(
+		(
+			_block_from_marker(source, "static qboolean CG_OwnerDrawPrimaryFlagVisible"),
+			_block_from_marker(source, "static qboolean CG_OwnerDrawSecondaryFlagVisible"),
+			_block_from_marker(source, "qboolean CG_OwnerDrawVisible"),
+		)
+	)
 	menu_files = (
 		"intro.menu",
 		"ingamescoreteam.menu",

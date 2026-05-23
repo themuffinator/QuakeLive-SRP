@@ -636,7 +636,13 @@ def test_default_hud_item_keywords_are_backed_by_item_parsers() -> None:
 def test_default_hud_ownerdraws_and_visibility_flags_are_backed_by_cgame() -> None:
 	hud_source = HUD_MENU.read_text(encoding="utf-8")
 	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
-	visible_block = _block_from_marker(newdraw_source, "qboolean CG_OwnerDrawVisible")
+	visible_block = "\n".join(
+		(
+			_block_from_marker(newdraw_source, "static qboolean CG_OwnerDrawPrimaryFlagVisible"),
+			_block_from_marker(newdraw_source, "static qboolean CG_OwnerDrawSecondaryFlagVisible"),
+			_block_from_marker(newdraw_source, "qboolean CG_OwnerDrawVisible"),
+		)
+	)
 
 	missing_ownerdraws = sorted(
 		name for name in _menu_ownerdraw_tokens(hud_source) if f"case {name}:" not in newdraw_source
