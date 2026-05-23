@@ -1243,7 +1243,7 @@ typedef struct playerState_s {
 
 	int			generic1;
 	int			loopSound;
-	int			jumppad_ent;	// cached jumppad entity preserving launch prediction
+	int			jumppad_ent;	// cached jump-pad entity for event suppression
 
 	// pmove timing state tracked by the server and replicated for client prediction
 	int			jumpTime;

@@ -51,29 +51,31 @@ The focus here is the newer clan, country, map-rotation, and ruleset state:
   - `uiInfo.countryCount` at `0x01F700`
   - `uiInfo.countryList[256]` at `0x01F704`
 
-## `uiClanInfo_t`
+## Historical `uiClanInfo_t` Candidate
 
-Current x86 size: `0x0C4`
+Prior reconstructed candidate x86 size: `0x0C4`
 
-This is one cached clan-row record used by the Quake Live clan feeder and the
-lazy emblem-image path.
+Earlier reconstruction passes modeled a possible clan-row cache with this
+shape. The current source no longer carries this struct or a clan-roster
+feeder path because the committed retail `uix86.dll` feeder dispatchers do not
+branch on `FEEDER_CLANS`, and no committed retail menu, host bridge, or browser
+event contract consumes a clan-roster surface.
 
 | Offset | Member | Type | Role |
 | --- | --- | --- | --- |
 | `0x00` | `id` | `char[MAX_QPATH]` | Persistent clan identifier. The current stub loader seeds `"pending"` here. |
-| `0x40` | `name` | `char[MAX_NAME_LENGTH]` | User-facing clan name. `FEEDER_CLANS` returns it as the default text column, and selection writes it back to `ui_clanName`. |
-| `0x60` | `tag` | `char[MAX_NAME_LENGTH]` | Short clan tag shown in feeder column `1`. The current stub loader seeds `"--"`. |
-| `0x80` | `emblemPath` | `char[MAX_QPATH]` | Optional emblem shader path. `UI_FeederItemImage` lazily registers this path when it is non-empty. |
-| `0x0C0` | `emblemShader` | `qhandle_t` | Cached emblem image handle. The reset path seeds `-1`; the image feeder preserves that sentinel when no emblem exists. |
+| `0x40` | `name` | `char[MAX_NAME_LENGTH]` | User-facing clan name in the earlier scaffold. Retail evidence now says no active `FEEDER_CLANS` text branch writes it to `ui_clanName`. |
+| `0x60` | `tag` | `char[MAX_NAME_LENGTH]` | Short clan tag that the earlier scaffold exposed as column `1`. |
+| `0x80` | `emblemPath` | `char[MAX_QPATH]` | Optional emblem shader path from the earlier scaffold; no active retail image branch is now bounded for it. |
+| `0x0C0` | `emblemShader` | `qhandle_t` | Cached emblem image handle from the earlier scaffold. |
 
-Current reconstructed owner flow:
+Current source status:
 
-- `UI_ResetClanList` zeroes every row, resets the top-level clan counters, and
-  clears the `ui_clanIndex` / `ui_clanName` CVars.
-- `UI_LoadClanRoster` currently repopulates a one-entry placeholder roster with
-  `"pending"`, `"No clans available"`, and `"--"`, then marks the list loaded.
-- `UI_FeederCount`, `UI_FeederItemText`, `UI_FeederItemImage`, and
-  `UI_FeederSelection` are the active consumers.
+- `UI_ResetClanList`, `UI_LoadClanRoster`, `ui_clanIndex`, `ui_clanName`, and
+  the placeholder `"No clans available"` row are absent.
+- `FEEDER_CLANS` remains defined in `src/ui/menudef.h` for shared menu-script
+  identity, but it is intentionally absent from `UI_FeederCount`,
+  `UI_FeederItemText`, `UI_FeederItemImage`, and `UI_FeederSelection`.
 
 Negative evidence:
 

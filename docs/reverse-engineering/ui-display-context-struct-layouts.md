@@ -151,7 +151,7 @@ menu runtime.
 | `0x0078` | `feederCount` | `int (*)(float)` | List-feeder count query used by listboxes and scripted menus. |
 | `0x007C` | `feederItemText` | `const char *(*)(float,int,int,qhandle_t *)` | List-feeder text query used by listbox row paint. |
 | `0x0080` | `feederItemImage` | `qhandle_t (*)(float,int)` | List-feeder image query used by listbox row paint. |
-| `0x0084` | `feederSelection` | `void (*)(float,int)` | List-feeder selection callback used by listbox interaction and menu activation. |
+| `0x0084` | `feederSelection` | `void (*)(float,int,const char *)` | List-feeder selection callback used by listbox interaction and menu activation; retail model-list rows receive the item cvar when one is attached. |
 | `0x0088` | `keynumToStringBuf` | `void (*)(int, char *, int)` | Key-name formatter used by controls/binding menus. |
 | `0x008C` | `getBindingBuf` | `void (*)(int, char *, int)` | Binding lookup hook used by controls menus. |
 | `0x0090` | `setBinding` | `void (*)(int, const char *)` | Binding write hook used by controls menus. |

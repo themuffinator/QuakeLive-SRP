@@ -136,7 +136,10 @@ def test_tiered_armor_metadata_matches_retail():
 	}
 	assert "int\t\t\tarmorTier;" in Q_SHARED.read_text()
 	assert "{ PSF(armorTier), 2 }" not in MSG_C.read_text()
-	assert "CG_GetArmorTierColor( cg.snap->ps.stats[STAT_ARMOR], color );" in (
+	bg_public = BG_PUBLIC.read_text()
+	assert "STAT_ARMOR_TIER = 14" in bg_public
+	assert "STAT_KEY_MASK" in bg_public
+	assert "CG_GetArmorTierColorForTier( cg.snap->ps.stats[STAT_ARMOR_TIER], color );" in (
 		REPO_ROOT / "src" / "code" / "cgame" / "cg_newdraw.c"
 	).read_text()
 

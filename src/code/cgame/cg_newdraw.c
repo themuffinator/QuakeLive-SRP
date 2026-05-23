@@ -264,11 +264,11 @@ static void CG_DrawMatchEndCondition( rectDef_t *rect, float scale, vec4_t color
 static void CG_DrawMatchStatus( rectDef_t *rect, float scale, vec4_t color, int textStyle, int align );
 static void CG_DrawRoundLabel( rectDef_t *rect, float scale, vec4_t color, int textStyle, int align );
 static void CG_DrawLocalTime(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle);
-static void CG_DrawVoteGametype(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot);
-static void CG_DrawVoteName(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot);
-static void CG_DrawVoteMapSlot(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot);
-static void CG_DrawVoteCount(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot);
-static void CG_DrawVoteTimer(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle);
+static void CG_DrawVoteGametype(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot);
+static void CG_DrawVoteName(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot);
+static void CG_DrawVoteMapSlot(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot);
+static void CG_DrawVoteCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot, int align);
+static void CG_DrawVoteTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align);
 static void CG_DrawScoreboxFollowBackground(rectDef_t *rect, qhandle_t shader, vec4_t color);
 static void CG_DrawScoreboxSpecBackground(rectDef_t *rect, qhandle_t shader, vec4_t color);
 static void CG_DrawRoundBackground(rectDef_t *rect, qhandle_t shader, vec4_t color);
@@ -1323,7 +1323,7 @@ Returns the score entry for the requested client.
 static const score_t *CG_GetScoreForClientNum( int clientNum ) {
 	int i;
 
-	if ( clientNum < 0 || clientNum >= cgs.maxclients ) {
+	if ( clientNum < 0 || clientNum >= cgs.maxclients || clientNum >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -1454,7 +1454,7 @@ static const clientInfo_t *CG_SpectatorClientInfo( int slot ) {
 		clientNum = cg.spectatorSecondaryClient;
 	}
 
-	if ( clientNum < 0 || clientNum >= cgs.maxclients ) {
+	if ( clientNum < 0 || clientNum >= cgs.maxclients || clientNum >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -1481,7 +1481,7 @@ static const score_t *CG_SpectatorClientScore( int slot ) {
 		clientNum = cg.spectatorSecondaryClient;
 	}
 
-	if ( clientNum < 0 || clientNum >= cgs.maxclients ) {
+	if ( clientNum < 0 || clientNum >= cgs.maxclients || clientNum >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -1757,33 +1757,57 @@ void CG_UpdateSpectatorTracking( void ) {
 
 /*
 =============
+CG_ArmorTierForArmor
+
+Returns the inferred armor tier used by source-side spectator summaries.
+=============
+*/
+static int CG_ArmorTierForArmor( int armor ) {
+	if ( armor >= 150 ) {
+		return 2;
+	}
+	if ( armor >= 100 ) {
+		return 1;
+	}
+	if ( armor > 0 ) {
+		return 0;
+	}
+	return -1;
+}
+
+/*
+=============
+CG_GetArmorTierColorForTier
+
+Returns the retail armor-tier tint for the replicated tier value.
+=============
+*/
+static void CG_GetArmorTierColorForTier( int tier, vec4_t color ) {
+	switch ( tier ) {
+	case 2:
+		Vector4Set( color, 1.0f, 0.0f, 0.0f, 1.0f );
+		break;
+	case 1:
+		Vector4Set( color, 1.0f, 1.0f, 0.0f, 1.0f );
+		break;
+	case 0:
+		Vector4Set( color, 0.0f, 1.0f, 0.0f, 1.0f );
+		break;
+	default:
+		Vector4Set( color, 0.4f, 0.4f, 0.4f, 0.6f );
+		break;
+	}
+}
+
+/*
+=============
 CG_GetArmorTierColor
 
 Returns the armor color tier for HUD bars.
 =============
 */
 static void CG_GetArmorTierColor( int armor, vec4_t color ) {
-	if ( armor >= 150 ) {
-		color[0] = 0.9f;
-		color[1] = 0.15f;
-		color[2] = 0.15f;
-		color[3] = 1.0f;
-	} else if ( armor >= 100 ) {
-		color[0] = 0.95f;
-		color[1] = 0.75f;
-		color[2] = 0.2f;
-		color[3] = 1.0f;
-	} else if ( armor > 0 ) {
-		color[0] = 0.2f;
-		color[1] = 0.8f;
-		color[2] = 0.2f;
-		color[3] = 1.0f;
-	} else {
-		color[0] = 0.4f;
-		color[1] = 0.4f;
-		color[2] = 0.4f;
-		color[3] = 0.6f;
-	}
+	CG_GetArmorTierColorForTier( CG_ArmorTierForArmor( armor ), color );
 }
 
 /*
@@ -2080,11 +2104,7 @@ Resolves the team whose cached round count should be displayed.
 static team_t CG_GetRoundPlayerCountTeam( qboolean friendly ) {
 	team_t	team;
 
-	if ( !cg.snap ) {
-		return TEAM_FREE;
-	}
-
-	team = (team_t)cg.snap->ps.persistant[PERS_TEAM];
+	team = (team_t)cg.predictedPlayerState.persistant[PERS_TEAM];
 	if ( !friendly ) {
 		if ( team == TEAM_RED ) {
 			team = TEAM_BLUE;
@@ -2112,6 +2132,10 @@ static void CG_DrawPlayerCount( rectDef_t *rect, float scale, vec4_t color, int 
 	team_t	team;
 	int		count;
 	int		width;
+
+	if ( !rect ) {
+		return;
+	}
 
 	team = CG_GetRoundPlayerCountTeam( friendly );
 	count = ( team == TEAM_RED || team == TEAM_BLUE ) ? cgs.matchTeamCount[team] : 0;
@@ -2159,7 +2183,7 @@ static void CG_DrawSpeedometer(rectDef_t *rect, float scale, vec4_t color, int t
 	float speed;
 	int width;
 
-	if (!CG_ShouldDrawSpeedometer()) {
+	if ( !rect || !CG_ShouldDrawSpeedometer() ) {
 		return;
 	}
 
@@ -2252,7 +2276,7 @@ static void CG_DrawSpectatorPlayerName( rectDef_t *rect, float scale, vec4_t col
 	float w;
 	float h;
 
-	if ( !ci ) {
+	if ( !rect || !ci ) {
 		return;
 	}
 
@@ -2287,7 +2311,7 @@ static void CG_DrawSpectatorPlayerScore( rectDef_t *rect, float scale, vec4_t co
 	const score_t *score = CG_SpectatorClientScore( slot );
 	char buffer[32];
 
-	if ( !score ) {
+	if ( !rect || !score ) {
 		return;
 	}
 
@@ -2313,7 +2337,7 @@ static void CG_DrawSpectatorHealthArmor( rectDef_t *rect, float scale, vec4_t co
 	int health;
 	int armor;
 
-	if ( !ci ) {
+	if ( !rect || !ci ) {
 		return;
 	}
 
@@ -2380,7 +2404,7 @@ static void CG_DrawSpectatorProfileImage(rectDef_t *rect, int slot) {
 	qhandle_t shader;
 	vec4_t modulate;
 
-	if ( !cg_drawProfileImages.integer ) {
+	if ( !rect || !cg_drawProfileImages.integer ) {
 		return;
 	}
 
@@ -2560,6 +2584,10 @@ static void CG_DrawSpectatorComparison( rectDef_t *rect, float scale, vec4_t col
 	int slot;
 	char buffer[32];
 
+	if ( !rect ) {
+		return;
+	}
+
 	slot = CG_GetSpectatorOwnerDrawSlot( ownerDraw );
 	if ( slot < 0 ) {
 		return;
@@ -2632,7 +2660,7 @@ score_t *CG_GetSelectedScore( void ) {
 		return NULL;
 	}
 
-	if ( cg.selectedScore < 0 || cg.selectedScore >= cg.numScores ) {
+	if ( cg.selectedScore < 0 || cg.selectedScore >= cg.numScores || cg.selectedScore >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -2654,7 +2682,7 @@ static clientInfo_t *CG_GetSelectedClientInfo( void ) {
 		return NULL;
 	}
 
-	if ( score->client < 0 || score->client >= cgs.maxclients ) {
+	if ( score->client < 0 || score->client >= cgs.maxclients || score->client >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -2731,7 +2759,7 @@ static int CG_CountPlayersForTeam( team_t team ) {
 =============
 CG_CountActivePlayers
 
-Returns the number of scoreboard entries that are not spectators.
+Returns the number of valid clientinfo entries available for player counts.
 =============
 */
 static int CG_CountActivePlayers( void ) {
@@ -2739,8 +2767,8 @@ static int CG_CountActivePlayers( void ) {
 	int		i;
 
 	count = 0;
-	for ( i = 0; i < cg.numScores; i++ ) {
-		if ( cg.scores[i].team != TEAM_SPECTATOR ) {
+	for ( i = 0; i < cgs.maxclients && i < MAX_CLIENTS; i++ ) {
+		if ( cgs.clientinfo[i].infoValid ) {
 			count++;
 		}
 	}
@@ -2820,7 +2848,7 @@ static void CG_DrawMapName(rectDef_t *rect, float scale, vec4_t color, int textS
 	char		nameBuffer[MAX_QPATH];
 
 	CG_BuildCleanMapName( nameBuffer, sizeof( nameBuffer ) );
-	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, nameBuffer, 0, 0, textStyle);
+	CG_Text_Paint(rect->x, rect->y, scale, color, nameBuffer, 0, 0, textStyle);
 }
 
 /*
@@ -2893,8 +2921,9 @@ CG_DrawPlayerCounts
 Renders the retail-style active-player summary for intro and scoreboard overlays.
 =============
 */
-static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align) {
 	char	buffer[32];
+	float	x;
 	int		active;
 	int		playerLimit;
 
@@ -2905,7 +2934,9 @@ static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int 
 	}
 
 	Com_sprintf( buffer, sizeof( buffer ), "%i/%i Players", active, playerLimit );
-	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+	x = rect->x;
+	CG_AlignTextX( &x, buffer, scale, align );
+	CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -3422,7 +3453,7 @@ void CG_RegisterGameTypeIcons( void ) {
 	cgGameTypeIconShaders[GT_CLAN_ARENA] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ca.tga" );
 	cgGameTypeIconShaders[GT_CTF] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ctf.tga" );
 	cgGameTypeIconShaders[GT_1FCTF] = trap_R_RegisterShaderNoMip( "ui/assets/hud/1f.tga" );
-	cgGameTypeIconShaders[GT_OBELISK] = trap_R_RegisterShaderNoMip( "ui/assets/hud/dom.tga" );
+	cgGameTypeIconShaders[GT_OBELISK] = cgGameTypeIconShaders[GT_FFA];
 	cgGameTypeIconShaders[GT_HARVESTER] = trap_R_RegisterShaderNoMip( "ui/assets/hud/har.tga" );
 	cgGameTypeIconShaders[GT_FREEZE] = trap_R_RegisterShaderNoMip( "ui/assets/hud/ft.tga" );
 	cgGameTypeIconShaders[GT_DOMINATION] = trap_R_RegisterShaderNoMip( "ui/assets/hud/dom.tga" );
@@ -3924,6 +3955,10 @@ static void CG_DrawMatchWinner( rectDef_t *rect, float text_x, float text_y, flo
 	float		x;
 	float		y;
 
+	if ( !rect ) {
+		return;
+	}
+
 	winnerText = CG_GetMatchWinnerText();
 	if ( !winnerText || !winnerText[0] ) {
 		return;
@@ -3944,6 +3979,10 @@ static void CG_DrawEndGameScore( rectDef_t *rect, float text_x, float text_y, fl
 	const char	*scoreText;
 	float		x;
 	float		y;
+
+	if ( !rect ) {
+		return;
+	}
 
 	scoreText = CG_GetEndGameScoreText();
 	if ( !scoreText || !scoreText[0] ) {
@@ -4084,17 +4123,14 @@ CG_DrawVoteGametype
 Renders the gametype label text for the specified vote slot.
 =============
 */
-static void CG_DrawVoteGametype(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot) {
+static void CG_DrawVoteGametype(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot) {
 	char	buffer[MAX_CVAR_VALUE_STRING];
-	float	x;
-	float	y;
 
 	CG_GetVoteSlotString( slot, "Gametype", buffer, sizeof( buffer ) );
 	if ( !buffer[0] ) {
 		return;
 	}
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	CG_Text_Paint( rect->x, rect->y - 8.0f, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -4104,10 +4140,8 @@ CG_DrawVoteName
 Shows the prettified map name for the selected vote slot.
 =============
 */
-static void CG_DrawVoteName(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot) {
+static void CG_DrawVoteName(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot) {
 	char	buffer[MAX_CVAR_VALUE_STRING];
-	float	x;
-	float	y;
 
 	CG_GetVoteSlotString( slot, "Name", buffer, sizeof( buffer ) );
 	if ( !buffer[0] ) {
@@ -4116,8 +4150,7 @@ static void CG_DrawVoteName(rectDef_t *rect, float text_x, float text_y, float s
 			return;
 		}
 	}
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -4127,17 +4160,14 @@ CG_DrawVoteMapSlot
 Outputs the raw map name string for the vote slot widget.
 =============
 */
-static void CG_DrawVoteMapSlot(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot) {
+static void CG_DrawVoteMapSlot(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot) {
 	char	buffer[MAX_CVAR_VALUE_STRING];
-	float	x;
-	float	y;
 
 	CG_GetVoteSlotString( slot, "Map", buffer, sizeof( buffer ) );
 	if ( !buffer[0] ) {
 		return;
 	}
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -4147,19 +4177,19 @@ CG_DrawVoteCount
 Paints the running vote count for the requested slot.
 =============
 */
-static void CG_DrawVoteCount(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle, int slot) {
+static void CG_DrawVoteCount(rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot, int align) {
 	char	buffer[MAX_CVAR_VALUE_STRING];
 	char	countText[MAX_CVAR_VALUE_STRING];
 	float	x;
-	float	y;
 
 	CG_GetVoteSlotString( slot, "Count", countText, sizeof( countText ) );
 	if ( !countText[0] ) {
 		return;
 	}
 	Com_sprintf( buffer, sizeof( buffer ), "Votes: %s", countText );
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	x = rect->x;
+	CG_AlignTextX( &x, buffer, scale, align );
+	CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -4169,11 +4199,10 @@ CG_DrawVoteTimer
 Displays the time remaining until the current vote closes.
 =============
 */
-static void CG_DrawVoteTimer(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle) {
+static void CG_DrawVoteTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align) {
 	int		remaining;
 	char	buffer[32];
 	float	x;
-	float	y;
 
 	remaining = ( cgs.voteTime - cg.time + 20000 ) / 1000;
 	if ( remaining < 1 ) {
@@ -4183,8 +4212,9 @@ static void CG_DrawVoteTimer(rectDef_t *rect, float text_x, float text_y, float 
 	} else {
 		Com_sprintf( buffer, sizeof( buffer ), "Voting ends in %i seconds.", remaining );
 	}
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
+	x = rect->x;
+	CG_AlignTextX( &x, buffer, scale, align );
+	CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -4197,6 +4227,10 @@ Fills the provided rectangle using the selected player's team color.
 static void CG_DrawSelectedPlayerTeamColor(rectDef_t *rect) {
 	clientInfo_t	*ci;
 	vec4_t			fill;
+
+	if ( !rect ) {
+		return;
+	}
 
 	ci = CG_GetSelectedClientInfo();
 	if ( !ci ) {
@@ -4228,6 +4262,10 @@ Displays the accuracy statistic for the selected scoreboard entry.
 static void CG_DrawSelectedPlayerAccuracy(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
 	score_t		*score;
 	char		buffer[16];
+
+	if ( !rect ) {
+		return;
+	}
 
 	score = CG_GetSelectedScore();
 	if ( !score ) {
@@ -4579,13 +4617,17 @@ static void CG_DrawSelectedPlayerBestWeapon(rectDef_t *rect, float scale, vec4_t
 	int					clientNum;
 	int					weapon;
 
+	if ( !rect ) {
+		return;
+	}
+
 	score = CG_GetSelectedScore();
-	if ( !score ) {
+	if ( !rect || !score ) {
 		return;
 	}
 
 	clientNum = score->client;
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+	if ( clientNum < 0 || clientNum >= cgs.maxclients || clientNum >= MAX_CLIENTS ) {
 		return;
 	}
 
@@ -5355,7 +5397,8 @@ static qboolean CG_BuildTeamTimeHeldText( int ownerDraw, char *buffer, size_t bu
 		return qfalse;
 	}
 	if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {
-		return qfalse;
+		Q_strncpyz( buffer, "-", bufferSize );
+		return qtrue;
 	}
 
 	Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );
@@ -5402,7 +5445,7 @@ static const clientInfo_t *CG_GetPlacementClientInfo( const score_t *score ) {
 		return NULL;
 	}
 
-	if ( score->client < 0 || score->client >= cgs.maxclients ) {
+	if ( score->client < 0 || score->client >= cgs.maxclients || score->client >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -5549,7 +5592,7 @@ static const cgScoreStats_t *CG_GetPlacementScoreStats( const score_t *score ) {
 		return NULL;
 	}
 
-	if ( score->client < 0 || score->client >= MAX_CLIENTS ) {
+	if ( score->client < 0 || score->client >= cgs.maxclients || score->client >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
@@ -5570,11 +5613,15 @@ Builds per-weapon first/second placement ownerdraw text from parsed scorestats p
 static qboolean CG_BuildPlacementWeaponMetricText( int ownerDraw, const score_t *score, char *buffer, size_t bufferSize ) {
 	const cgScoreStats_t	*stats;
 	weapon_t		weapon;
-	int			shots;
-	int			hits;
+	int			normalized;
 
 	if ( !score || !buffer || bufferSize <= 0 ) {
 		return qfalse;
+	}
+
+	normalized = ownerDraw;
+	if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {
+		normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );
 	}
 
 	weapon = CG_GetPlacementMetricWeapon( ownerDraw );
@@ -5588,34 +5635,28 @@ static qboolean CG_BuildPlacementWeaponMetricText( int ownerDraw, const score_t 
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_FRAGS_G && ownerDraw <= CG_1ST_PLYR_FRAGS_HMG ) {
+	if ( normalized >= CG_1ST_PLYR_FRAGS_G && normalized <= CG_1ST_PLYR_FRAGS_HMG ) {
 		Com_sprintf( buffer, bufferSize, "%i", stats->weaponFrags[weapon] );
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_HITS_MG && ownerDraw <= CG_1ST_PLYR_HITS_HMG ) {
+	if ( normalized >= CG_1ST_PLYR_HITS_MG && normalized <= CG_1ST_PLYR_HITS_HMG ) {
 		Com_sprintf( buffer, bufferSize, "%i", stats->weaponHits[weapon] );
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_SHOTS_MG && ownerDraw <= CG_1ST_PLYR_SHOTS_HMG ) {
+	if ( normalized >= CG_1ST_PLYR_SHOTS_MG && normalized <= CG_1ST_PLYR_SHOTS_HMG ) {
 		Com_sprintf( buffer, bufferSize, "%i", stats->weaponShots[weapon] );
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_DMG_G && ownerDraw <= CG_1ST_PLYR_DMG_HMG ) {
+	if ( normalized >= CG_1ST_PLYR_DMG_G && normalized <= CG_1ST_PLYR_DMG_HMG ) {
 		Com_sprintf( buffer, bufferSize, "%i", stats->weaponDamage[weapon] );
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_ACC_MG && ownerDraw <= CG_1ST_PLYR_ACC_HMG ) {
-		shots = stats->weaponShots[weapon];
-		hits = stats->weaponHits[weapon];
-		if ( shots > 0 ) {
-			Com_sprintf( buffer, bufferSize, "%i%%", ( hits * 100 ) / shots );
-		} else {
-			Q_strncpyz( buffer, "0%", bufferSize );
-		}
+	if ( normalized >= CG_1ST_PLYR_ACC_MG && normalized <= CG_1ST_PLYR_ACC_HMG ) {
+		Com_sprintf( buffer, bufferSize, "%i%%", stats->weaponAccuracy[weapon] );
 		return qtrue;
 	}
 
@@ -5632,12 +5673,16 @@ Builds placement pickup-count and average-interval ownerdraw text from scorestat
 static qboolean CG_BuildPlacementPickupMetricText( int ownerDraw, const score_t *score, char *buffer, size_t bufferSize ) {
 	const cgScoreStats_t	*stats;
 	int			index;
+	int			normalized;
 
 	if ( !score || !buffer || bufferSize <= 0 ) {
 		return qfalse;
 	}
 
-	if ( ownerDraw < CG_1ST_PLYR_PICKUPS || ownerDraw > CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {
+	normalized = ownerDraw;
+	CG_ResolvePlacementMetricOwnerDraw( ownerDraw, NULL, &normalized );
+
+	if ( normalized < CG_1ST_PLYR_PICKUPS || normalized > CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {
 		return qfalse;
 	}
 
@@ -5647,7 +5692,7 @@ static qboolean CG_BuildPlacementPickupMetricText( int ownerDraw, const score_t 
 		return qtrue;
 	}
 
-	if ( ownerDraw == CG_1ST_PLYR_PICKUPS ) {
+	if ( normalized == CG_1ST_PLYR_PICKUPS ) {
 		int total;
 
 		total = 0;
@@ -5658,16 +5703,16 @@ static qboolean CG_BuildPlacementPickupMetricText( int ownerDraw, const score_t 
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_PICKUPS_RA && ownerDraw <= CG_1ST_PLYR_PICKUPS_MH ) {
-		index = ownerDraw - CG_1ST_PLYR_PICKUPS_RA;
+	if ( normalized >= CG_1ST_PLYR_PICKUPS_RA && normalized <= CG_1ST_PLYR_PICKUPS_MH ) {
+		index = normalized - CG_1ST_PLYR_PICKUPS_RA;
 		Com_sprintf( buffer, bufferSize, "%i", stats->pickupCounts[index] );
 		return qtrue;
 	}
 
-	if ( ownerDraw >= CG_1ST_PLYR_AVG_PICKUP_TIME_RA && ownerDraw <= CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {
-		index = ownerDraw - CG_1ST_PLYR_AVG_PICKUP_TIME_RA;
+	if ( normalized >= CG_1ST_PLYR_AVG_PICKUP_TIME_RA && normalized <= CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {
+		index = normalized - CG_1ST_PLYR_AVG_PICKUP_TIME_RA;
 		if ( stats->pickupCounts[index] <= 0 ) {
-			Q_strncpyz( buffer, "-", bufferSize );
+			buffer[0] = '\0';
 		} else {
 			Com_sprintf( buffer, bufferSize, "%3.2f", stats->pickupAvgSeconds[index] );
 		}
@@ -5822,13 +5867,17 @@ Builds a text payload for first/second place metric ownerdraws.
 =============
 */
 static qboolean CG_BuildPlacementMetricText( int ownerDraw, const score_t *score, const clientInfo_t *ci, char *buffer, size_t bufferSize ) {
+	int normalized;
+
 	if ( !score || !ci || !buffer || bufferSize <= 0 ) {
 		return qfalse;
 	}
 
 	buffer[0] = '\0';
+	normalized = ownerDraw;
+	CG_ResolvePlacementMetricOwnerDraw( ownerDraw, NULL, &normalized );
 
-	switch ( ownerDraw ) {
+	switch ( normalized ) {
 	case CG_1ST_PLYR_SCORE:
 	case CG_1ST_PLYR_AVATAR:
 	case CG_1ST_PLYR_HEALTH_ARMOR:
@@ -5868,11 +5917,11 @@ static qboolean CG_BuildPlacementMetricText( int ownerDraw, const score_t *score
 		break;
 	}
 
-	if ( CG_BuildPlacementWeaponMetricText( ownerDraw, score, buffer, bufferSize ) ) {
+	if ( CG_BuildPlacementWeaponMetricText( normalized, score, buffer, bufferSize ) ) {
 		return qtrue;
 	}
 
-	if ( CG_BuildPlacementPickupMetricText( ownerDraw, score, buffer, bufferSize ) ) {
+	if ( CG_BuildPlacementPickupMetricText( normalized, score, buffer, bufferSize ) ) {
 		return qtrue;
 	}
 
@@ -5894,7 +5943,7 @@ static qboolean CG_DrawPlacementMetricTextOwnerDraw( rectDef_t *rect, float scal
 	int			normalized;
 	int			slot;
 
-	if ( !CG_ResolvePlacementMetricOwnerDraw( ownerDraw, &slot, &normalized ) ) {
+	if ( !rect || !CG_ResolvePlacementMetricOwnerDraw( ownerDraw, &slot, &normalized ) ) {
 		return qfalse;
 	}
 
@@ -5923,6 +5972,10 @@ static qboolean CG_DrawPlacementFragsOwnerDraw( rectDef_t *rect, float scale, ve
 	const score_t *score;
 	char buffer[32];
 
+	if ( !rect ) {
+		return qfalse;
+	}
+
 	score = CG_GetPlacementScore( slot );
 	if ( !score ) {
 		return qfalse;
@@ -5943,6 +5996,10 @@ Draws the tracked death count for a placement scorebox slot.
 static qboolean CG_DrawPlacementDeathsOwnerDraw( rectDef_t *rect, float scale, vec4_t color, int textStyle, int slot ) {
 	const score_t *score;
 	char buffer[32];
+
+	if ( !rect ) {
+		return qfalse;
+	}
 
 	score = CG_GetPlacementScore( slot );
 	if ( !score ) {
@@ -5965,6 +6022,10 @@ static qboolean CG_DrawPlacementDamageOwnerDraw( rectDef_t *rect, float scale, v
 	const score_t *score;
 	char buffer[32];
 
+	if ( !rect ) {
+		return qfalse;
+	}
+
 	score = CG_GetPlacementScore( slot );
 	if ( !score ) {
 		return qfalse;
@@ -5986,6 +6047,10 @@ static qboolean CG_DrawPlacementWinsOwnerDraw( rectDef_t *rect, float scale, vec
 	const score_t *score;
 	const clientInfo_t *ci;
 	char buffer[32];
+
+	if ( !rect ) {
+		return qfalse;
+	}
 
 	score = CG_GetPlacementScore( slot );
 	ci = CG_GetPlacementClientInfo( score );
@@ -6011,7 +6076,7 @@ static void CG_DrawPlacementPingOwnerDraw( rectDef_t *rect, float scale, vec4_t 
 	vec4_t		drawColor;
 	int		slot;
 
-	if ( !CG_ResolvePlacementMetricOwnerDraw( ownerDraw, &slot, NULL ) ) {
+	if ( !rect || !CG_ResolvePlacementMetricOwnerDraw( ownerDraw, &slot, NULL ) ) {
 		return;
 	}
 
@@ -6218,7 +6283,7 @@ static qboolean CG_DrawPlacementMetricOwnerDraw( rectDef_t *rect, float scale, v
 	int			normalized;
 	int			slot;
 
-	if ( !CG_IsRetailPlacementMetricOwnerDraw( ownerDraw ) ) {
+	if ( !rect || !CG_IsRetailPlacementMetricOwnerDraw( ownerDraw ) ) {
 		return qfalse;
 	}
 
@@ -6313,72 +6378,32 @@ static qboolean CG_DrawPlacementMetricOwnerDraw( rectDef_t *rect, float scale, v
 	return CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );
 }
 
+static qboolean CG_IsAwardOwnerDraw( int ownerDraw );
+
 /*
 =============
-CG_AwardMetricValue
+CG_AwardConfigStringIndex
 
-Calculates a sortable metric value for endgame award ownerdraws.
+Maps a retail award-player ownerdraw to its recovered winner configstring slot.
 =============
 */
-static int CG_AwardMetricValue( int ownerDraw, const score_t *score ) {
-	if ( !score ) {
-		return -1;
-	}
-
+static int CG_AwardConfigStringIndex( int ownerDraw ) {
 	switch ( ownerDraw ) {
-	case CG_MOST_DAMAGEDEALT_PLYR:
-		return score->damage;
-	case CG_MOST_ACCURATE_PLYR:
-		return score->accuracy;
 	case CG_MOST_VALUABLE_OFFENSIVE_PLYR:
-		return score->captures * 100 + score->assistCount * 10 + score->score;
+		return CS_AWARD_MOST_VALUABLE_OFFENSIVE;
 	case CG_MOST_VALUABLE_DEFENSIVE_PLYR:
-		return score->defendCount * 100 + score->score;
+		return CS_AWARD_MOST_VALUABLE_DEFENSIVE;
 	case CG_MOST_VALUABLE_PLYR:
-		return score->score;
+		return CS_AWARD_MOST_VALUABLE;
 	case CG_BEST_ITEMCONTROL_PLYR:
-		return score->captures * 4 + score->defendCount * 2 + score->assistCount;
+		return CS_AWARD_BEST_ITEMCONTROL;
+	case CG_MOST_ACCURATE_PLYR:
+		return CS_AWARD_MOST_ACCURATE;
+	case CG_MOST_DAMAGEDEALT_PLYR:
+		return CS_AWARD_MOST_DAMAGEDEALT;
 	default:
 		return -1;
 	}
-}
-
-/*
-=============
-CG_FindAwardScore
-
-Finds the best active scoreboard row for a given award ownerdraw.
-=============
-*/
-static const score_t *CG_FindAwardScore( int ownerDraw ) {
-	const score_t	*best;
-	int		bestMetric;
-	int		i;
-
-	best = NULL;
-	bestMetric = -1;
-
-	for ( i = 0; i < cg.numScores; i++ ) {
-		const score_t	*score;
-		int		metric;
-
-		score = &cg.scores[i];
-		if ( !CG_IsActiveScoreEntry( score ) ) {
-			continue;
-		}
-
-		metric = CG_AwardMetricValue( ownerDraw, score );
-		if ( metric < 0 ) {
-			continue;
-		}
-
-		if ( !best || metric > bestMetric || ( metric == bestMetric && score->score > best->score ) ) {
-			best = score;
-			bestMetric = metric;
-		}
-	}
-
-	return best;
 }
 
 /*
@@ -6388,17 +6413,21 @@ CG_GetAwardClientNum
 Returns the current client winner for a retail endgame award slot.
 =============
 */
-static qboolean CG_IsAwardOwnerDraw( int ownerDraw );
-
 static int CG_GetAwardClientNum( int ownerDraw ) {
-	const score_t	*score;
+	const char	*configString;
+	int		configStringIndex;
 
-	score = CG_FindAwardScore( ownerDraw );
-	if ( !score ) {
+	configStringIndex = CG_AwardConfigStringIndex( ownerDraw );
+	if ( configStringIndex < 0 ) {
 		return -1;
 	}
 
-	return score->client;
+	configString = CG_ConfigString( configStringIndex );
+	if ( !configString || !configString[0] ) {
+		return -1;
+	}
+
+	return atoi( configString );
 }
 
 /*
@@ -6443,17 +6472,7 @@ Returns qtrue when the ownerdraw maps to an endgame award string.
 =============
 */
 static qboolean CG_IsAwardOwnerDraw( int ownerDraw ) {
-	switch ( ownerDraw ) {
-	case CG_MOST_DAMAGEDEALT_PLYR:
-	case CG_MOST_ACCURATE_PLYR:
-	case CG_MOST_VALUABLE_OFFENSIVE_PLYR:
-	case CG_MOST_VALUABLE_DEFENSIVE_PLYR:
-	case CG_MOST_VALUABLE_PLYR:
-	case CG_BEST_ITEMCONTROL_PLYR:
-		return qtrue;
-	default:
-		return qfalse;
-	}
+	return CG_AwardConfigStringIndex( ownerDraw ) >= 0;
 }
 
 /*
@@ -6632,7 +6651,7 @@ static void CG_DrawNewChatArea(rectDef_t *rect, float scale, vec4_t color, int t
 	float y;
 	int i;
 
-	if (cg_teamChatTime.integer <= 0) {
+	if ( !rect || cg_teamChatTime.integer <= 0 ) {
 		return;
 	}
 
@@ -6684,56 +6703,71 @@ Fills the supplied rectangle using the player's health color, optionally tinting
 =============
 */
 static void CG_DrawHealthColorized(rectDef_t *rect, qhandle_t shader) {
-const clientInfo_t *ci;
-vec4_t color;
-vec4_t modulate;
-float x;
-float y;
-float w;
-float h;
-int slot;
-int health;
-int armor;
+	const clientInfo_t	*ci;
+	vec4_t			color;
+	vec4_t			modulate;
+	float			x;
+	float			y;
+	float			w;
+	float			h;
+	int			slot;
+	int			health;
+	int			armor;
 
-if (cg.snap && (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
-slot = (rect->x + rect->w * 0.5f < 320.0f) ? 0 : 1;
-ci = CG_SpectatorClientInfo(slot);
-} else {
-slot = -1;
-ci = NULL;
+	if ( !rect || !cg.snap ) {
+		return;
+	}
+
+	if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {
+		slot = ( rect->x + rect->w * 0.5f < 320.0f ) ? 0 : 1;
+		ci = CG_SpectatorClientInfo( slot );
+	} else {
+		slot = -1;
+		ci = NULL;
+	}
+
+	if ( !ci ) {
+		health = cg.snap->ps.stats[STAT_HEALTH];
+		armor = cg.snap->ps.stats[STAT_ARMOR];
+	} else {
+		health = ci->health;
+		armor = ci->armor;
+	}
+
+	CG_GetColorForHealth( health, armor, color );
+	color[3] = 0.5f;
+
+	if ( shader ) {
+		Vector4Copy( color, modulate );
+		x = rect->x;
+		y = rect->y;
+		w = rect->w;
+		h = rect->h;
+		CG_AdjustFrom640( &x, &y, &w, &h );
+		trap_R_SetColor( modulate );
+		trap_R_DrawStretchPic( x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader );
+		trap_R_SetColor( NULL );
+		return;
+	}
+
+	CG_FillRect( rect->x, rect->y, rect->w, rect->h, color );
 }
 
-if (!ci) {
-health = cg.snap->ps.stats[STAT_HEALTH];
-armor = cg.snap->ps.stats[STAT_ARMOR];
-} else {
-health = ci->health;
-armor = ci->armor;
-}
+/*
+=============
+CG_DrawArmorTieredColorized
 
-CG_GetColorForHealth(health, armor, color);
-color[3] = 0.5f;
-
-if (shader) {
-Vector4Copy(color, modulate);
-x = rect->x;
-y = rect->y;
-w = rect->w;
-h = rect->h;
-CG_AdjustFrom640(&x, &y, &w, &h);
-trap_R_SetColor(modulate);
-trap_R_DrawStretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
-trap_R_SetColor(NULL);
-return;
-}
-
-CG_FillRect(rect->x, rect->y, rect->w, rect->h, color);
-}
-
+Draws the retail armor-tier color swatch from the replicated tier stat.
+=============
+*/
 static void CG_DrawArmorTieredColorized( rectDef_t *rect ) {
 	vec4_t color;
 
-	CG_GetArmorTierColor( cg.snap->ps.stats[STAT_ARMOR], color );
+	if ( !rect || !cg.snap ) {
+		return;
+	}
+
+	CG_GetArmorTierColorForTier( cg.snap->ps.stats[STAT_ARMOR_TIER], color );
 	color[3] = 0.5f;
 	CG_FillRect( rect->x, rect->y, rect->w, rect->h, color );
 }
@@ -6753,7 +6787,7 @@ static void CG_DrawFollowPlayerNameEx(rectDef_t *rect, float scale, vec4_t color
 	float x;
 	float width;
 
-	if (!ci) {
+	if ( !rect || !ci ) {
 		return;
 	}
 
@@ -6796,6 +6830,10 @@ static void CG_DrawTeamColorized( rectDef_t *rect, vec4_t itemColor, qhandle_t s
 	float h;
 	int team;
 	
+	if ( !rect ) {
+		return;
+	}
+
 	team = TEAM_FREE;
 	if ( cg.snap ) {
 		team = cg.snap->ps.persistant[PERS_TEAM];
@@ -7306,6 +7344,13 @@ void CG_SelectPrevPlayer() {
 }
 
 
+/*
+=============
+CG_DrawPlayerArmorIcon
+
+Draws the local armor pickup icon as either a flat HUD icon or spinning model.
+=============
+*/
 static void CG_DrawPlayerArmorIcon( rectDef_t *rect, qboolean draw2D ) {
 	centity_t	*cent;
 	playerState_t	*ps;
@@ -7333,68 +7378,18 @@ static void CG_DrawPlayerArmorIcon( rectDef_t *rect, qboolean draw2D ) {
 
 }
 
-static void CG_DrawPlayerArmorValue(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle) {
-	char	num[16];
-  int value;
-	centity_t	*cent;
-	playerState_t	*ps;
-
-  cent = &cg_entities[cg.snap->ps.clientNum];
-	ps = &cg.snap->ps;
-
-	value = ps->stats[STAT_ARMOR];
-  
-
-	if (shader) {
-    trap_R_SetColor( color );
-		CG_DrawPic(rect->x, rect->y, rect->w, rect->h, shader);
-	  trap_R_SetColor( NULL );
-	} else {
-		Com_sprintf (num, sizeof(num), "%i", value);
-		value = CG_Text_Width(num, scale, 0);
-	  CG_Text_Paint(rect->x + (rect->w - value) / 2, rect->y + rect->h, scale, color, num, 0, 0, textStyle);
-	}
-}
-
-
-static void CG_DrawPlayerAmmoIcon( rectDef_t *rect, qboolean draw2D ) {
-	centity_t	*cent;
-	playerState_t	*ps;
-	vec3_t		angles;
-	vec3_t		origin;
-
-	cent = &cg_entities[cg.snap->ps.clientNum];
-	ps = &cg.snap->ps;
-
-	if ( draw2D || (!cg_draw3dIcons.integer && cg_drawIcons.integer) ) { // bk001206 - parentheses
-	  qhandle_t	icon;
-    icon = cg_weapons[ cg.predictedPlayerState.weapon ].ammoIcon;
-		if ( icon ) {
-		  CG_DrawPic( rect->x, rect->y, rect->w, rect->h, icon );
-		}
-  } else if (cg_draw3dIcons.integer) {
-  	if ( cent->currentState.weapon && cg_weapons[ cent->currentState.weapon ].ammoModel ) {
-	    VectorClear( angles );
-	  	origin[0] = 70;
-  		origin[1] = 0;
-  		origin[2] = 0;
-  		angles[YAW] = 90 + 20 * sin( cg.time / 1000.0 );
-  		CG_Draw3DModel( rect->x, rect->y, rect->w, rect->h, cg_weapons[ cent->currentState.weapon ].ammoModel, 0, origin, angles );
-  	}
-  }
-}
-
 /*
 =============
-CG_DrawPlayerAmmoValue
+CG_DrawPlayerArmorValue
 
-Draws the local ammo count or the retail infinite-ammo fallback icon.
+Draws the local armor count or caller-supplied armor value shader.
 =============
 */
-static void CG_DrawPlayerAmmoValue(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle) {
+static void CG_DrawPlayerArmorValue( rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle, int align ) {
 	char	num[16];
-	int	value;
-	int	width;
+	float	x;
+	float	y;
+	int		value;
 	centity_t	*cent;
 	playerState_t	*ps;
 
@@ -7405,15 +7400,107 @@ static void CG_DrawPlayerAmmoValue(rectDef_t *rect, float scale, vec4_t color, q
 	cent = &cg_entities[cg.snap->ps.clientNum];
 	ps = &cg.snap->ps;
 
-	if ( cent->currentState.weapon <= WP_NONE || cent->currentState.weapon >= WP_NUM_WEAPONS ) {
+	value = ps->stats[STAT_ARMOR];
+
+	if ( shader ) {
+		trap_R_SetColor( color );
+		CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );
+		trap_R_SetColor( NULL );
+	} else {
+		Com_sprintf( num, sizeof( num ), "%i", value );
+		x = rect->x;
+		y = rect->y + CG_Text_Height( num, scale, 0 );
+		CG_AlignTextX( &x, num, scale, align );
+		CG_Text_Paint( x, y, scale, color, num, 0, 0, textStyle );
+	}
+}
+/*
+=============
+CG_DrawPlayerAmmoIcon
+
+Draws the retail current-weapon ammo icon in 2D or rotating 3D form.
+=============
+*/
+static void CG_DrawPlayerAmmoIcon( rectDef_t *rect, qboolean draw2D ) {
+	centity_t	*cent;
+	vec3_t		angles;
+	vec3_t		origin;
+	int		weapon;
+
+	if ( !rect || !cg.snap ) {
 		return;
 	}
 
-	value = ps->ammo[cent->currentState.weapon];
+	cent = &cg_entities[cg.snap->ps.clientNum];
+
+	if ( draw2D || (!cg_draw3dIcons.integer && cg_drawIcons.integer) ) { // bk001206 - parentheses
+		qhandle_t	icon;
+
+		weapon = cg.predictedPlayerState.weapon;
+		if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+			return;
+		}
+
+		icon = cg_weapons[ weapon ].ammoIcon;
+		if ( icon ) {
+			CG_DrawPic( rect->x, rect->y, rect->w, rect->h, icon );
+		}
+	} else if (cg_draw3dIcons.integer) {
+		weapon = cent->currentState.weapon;
+		if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS && cg_weapons[ weapon ].ammoModel ) {
+			VectorClear( angles );
+			origin[0] = 70;
+			origin[1] = 0;
+			origin[2] = 0;
+			angles[YAW] = 90 + 20 * sin( cg.time / 1000.0 );
+			CG_Draw3DModel( rect->x, rect->y, rect->w, rect->h, cg_weapons[ weapon ].ammoModel, 0, origin, angles );
+		}
+	}
+}
+
+/*
+=============
+CG_DrawPlayerAmmoValue
+
+Draws the local ammo count or the retail infinite-ammo fallback icon.
+=============
+*/
+static void CG_DrawPlayerAmmoValue(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle, int align) {
+	char	num[16];
+	int	value;
+	int	weapon;
+	float	x;
+	float	y;
+	float	iconX;
+	float	iconSize;
+	centity_t	*cent;
+	playerState_t	*ps;
+
+	if ( !rect || !cg.snap ) {
+		return;
+	}
+
+	cent = &cg_entities[cg.snap->ps.clientNum];
+	ps = &cg.snap->ps;
+	weapon = cent->currentState.weapon;
+
+	if ( weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+		return;
+	}
+
+	value = ps->ammo[weapon];
 	if ( value == -1 ) {
-		if ( !shader && cgs.media.infiniteAmmoShader ) {
+		if ( cgs.media.infiniteAmmoShader ) {
+			iconSize = ( rect->h > 0.0f ) ? rect->h : rect->w;
+			iconX = rect->x;
+			if ( align == ITEM_ALIGN_CENTER ) {
+				iconX -= iconSize * 0.5f;
+			} else if ( align == ITEM_ALIGN_RIGHT ) {
+				iconX -= iconSize;
+			}
+
 			trap_R_SetColor( color );
-			CG_DrawPic( rect->x, rect->y, rect->w, rect->h, cgs.media.infiniteAmmoShader );
+			CG_DrawPic( iconX, rect->y, iconSize, iconSize, cgs.media.infiniteAmmoShader );
 			trap_R_SetColor( NULL );
 		}
 		return;
@@ -7426,14 +7513,23 @@ static void CG_DrawPlayerAmmoValue(rectDef_t *rect, float scale, vec4_t color, q
 			trap_R_SetColor( NULL );
 		} else {
 			Com_sprintf( num, sizeof( num ), "%i", value );
-			width = CG_Text_Width( num, scale, 0 );
-			CG_Text_Paint( rect->x + ( rect->w - width ) / 2, rect->y + rect->h, scale, color, num, 0, 0, textStyle );
+			x = rect->x;
+			y = rect->y + CG_Text_Height( num, scale, 0 );
+			CG_AlignTextX( &x, num, scale, align );
+			CG_Text_Paint( x, y, scale, color, num, 0, 0, textStyle );
 		}
 	}
 }
 
 
 
+/*
+=============
+CG_DrawPlayerHead
+
+Draws the local player's animated HUD head.
+=============
+*/
 static void CG_DrawPlayerHead(rectDef_t *rect, qboolean draw2D) {
 	vec3_t		angles;
 	float		size, stretch;
@@ -7640,18 +7736,53 @@ static void CG_DrawSelectedPlayerWeapon( rectDef_t *rect ) {
   }
 }
 
+/*
+=============
+CG_DrawPlayerScore
+
+Draws the local player score at the retail ownerdraw origin.
+=============
+*/
 static void CG_DrawPlayerScore( rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
-  char num[16];
-  int value = cg.snap->ps.persistant[PERS_SCORE];
+	char	num[16];
+	int	value;
+	qboolean raceScore;
+
+	if ( !rect || !cg.snap ) {
+		return;
+	}
+
+	raceScore = qfalse;
+	value = cg.snap->ps.persistant[PERS_SCORE];
+	if ( cgs.gametype == GT_RACE ) {
+		int clientNum = cg.snap->ps.clientNum;
+
+		if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+			return;
+		}
+
+		value = cgs.clientinfo[clientNum].score;
+		raceScore = qtrue;
+	}
 
 	if (shader) {
 		trap_R_SetColor( color );
 		CG_DrawPic(rect->x, rect->y, rect->w, rect->h, shader);
 		trap_R_SetColor( NULL );
 	} else {
-		Com_sprintf (num, sizeof(num), "%i", value);
-		value = CG_Text_Width(num, scale, 0);
-	  CG_Text_Paint(rect->x + (rect->w - value) / 2, rect->y + rect->h, scale, color, num, 0, 0, textStyle);
+		if ( value == SCORE_NOT_PRESENT ) {
+			return;
+		}
+		if ( raceScore ) {
+			if ( value == 0x7fffffff || value < 0 ) {
+				Q_strncpyz( num, "-", sizeof( num ) );
+			} else {
+				Q_strncpyz( num, CG_FormatSignedWholeSeconds( value ), sizeof( num ) );
+			}
+		} else {
+			Com_sprintf (num, sizeof(num), "%i", value);
+		}
+		CG_Text_Paint( rect->x, rect->y, scale, color, num, 0, 0, textStyle );
 	}
 }
 
@@ -7719,48 +7850,21 @@ static const cgKeyIconDef_t cgKeyIconDefs[] = {
 
 /*
 =============
-CG_KeyOwnerClientNum
-
-Resolves which client should drive key ownerdraw state.
-=============
-*/
-static int CG_KeyOwnerClientNum( void ) {
-	if ( !cg.snap ) {
-		return -1;
-	}
-
-	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) &&
-		cg.spectatorFollowClient >= 0 &&
-		cg.spectatorFollowClient < cgs.maxclients ) {
-		return cg.spectatorFollowClient;
-	}
-
-	if ( cg.snap->ps.clientNum < 0 || cg.snap->ps.clientNum >= cgs.maxclients ) {
-		return -1;
-	}
-
-	return cg.snap->ps.clientNum;
-}
-
-/*
-=============
 CG_DrawPlayerHasKey
 
-Draws carried key icons for the local/followed player in key-enabled maps.
+Draws carried key icons from the retail replicated key-mask stat.
 =============
 */
 static void CG_DrawPlayerHasKey( rectDef_t *rect ) {
-	int		clientNum;
 	int		mask;
 	float	x;
 	int		i;
 
-	clientNum = CG_KeyOwnerClientNum();
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+	if ( !rect || !cg.snap ) {
 		return;
 	}
 
-	mask = cg.clientKeyMask[clientNum];
+	mask = cg.snap->ps.stats[STAT_KEY_MASK];
 	if ( mask <= 0 ) {
 		return;
 	}
@@ -7885,10 +7989,23 @@ static void CG_DrawSelectedPlayerHead( rectDef_t *rect, qboolean draw2D, qboolea
 	}
 }
 
-static void CG_DrawPlayerHealth(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
+/*
+=============
+CG_DrawPlayerHealth
+
+Draws the local health count or caller-supplied health shader.
+=============
+*/
+static void CG_DrawPlayerHealth(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle, int align ) {
 	playerState_t	*ps;
-  int value;
+	int	value;
 	char	num[16];
+	float	x;
+	float	y;
+
+	if ( !rect || !cg.snap ) {
+		return;
+	}
 
 	ps = &cg.snap->ps;
 
@@ -7900,8 +8017,10 @@ static void CG_DrawPlayerHealth(rectDef_t *rect, float scale, vec4_t color, qhan
 		trap_R_SetColor( NULL );
 	} else {
 		Com_sprintf (num, sizeof(num), "%i", value);
-	  value = CG_Text_Width(num, scale, 0);
-	  CG_Text_Paint(rect->x + (rect->w - value) / 2, rect->y + rect->h, scale, color, num, 0, 0, textStyle);
+		x = rect->x;
+		y = rect->y + CG_Text_Height( num, scale, 0 );
+		CG_AlignTextX( &x, num, scale, align );
+		CG_Text_Paint( x, y, scale, color, num, 0, 0, textStyle );
 	}
 }
 
@@ -8173,19 +8292,28 @@ static void CG_DrawRedFlagHead(rectDef_t *rect) {
   }
 }
 
+/*
+=============
+CG_HarvesterSkulls
+
+Draws the retail Harvester carried-skull count and cube icon.
+=============
+*/
 static void CG_HarvesterSkulls(rectDef_t *rect, float scale, vec4_t color, qboolean force2D, int textStyle ) {
 	char num[16];
 	vec3_t origin, angles;
 	qhandle_t handle;
-	int value = cg.snap->ps.generic1;
+	int value;
+
+	if ( !rect || !cg.snap ) {
+		return;
+	}
 
 	if (cgs.gametype != GT_HARVESTER) {
 		return;
 	}
 
-	if( value > 99 ) {
-		value = 99;
-	}
+	value = cg.snap->ps.generic1 & 0x3f;
 
 	Com_sprintf (num, sizeof(num), "%i", value);
 	value = CG_Text_Width(num, scale, 0);
@@ -8806,23 +8934,44 @@ static void CG_DrawTeamBaseStatus( rectDef_t *rect, float scale, vec4_t color, i
 }
 
 
+/*
+=============
+CG_DrawCTFPowerUp
+
+Draws the local persistent powerup item icon.
+=============
+*/
 static void CG_DrawCTFPowerUp(rectDef_t *rect) {
 	int		value;
 
-	if (cgs.gametype < GT_CTF) {
+	if ( !rect || !cg.snap ) {
 		return;
 	}
+
 	value = cg.snap->ps.stats[STAT_PERSISTANT_POWERUP];
-	if ( value ) {
-		CG_RegisterItemVisuals( value );
+	if ( value <= 0 || value >= bg_numItems ) {
+		return;
+	}
+
+	CG_RegisterItemVisuals( value );
+	if ( cg_items[ value ].icon ) {
 		CG_DrawPic( rect->x, rect->y, rect->w, rect->h, cg_items[ value ].icon );
 	}
 }
 
+/*
+=============
+CG_DrawTeamColor
 
+Draws the retail team-color ownerdraw background.
+=============
+*/
+static void CG_DrawTeamColor( rectDef_t *rect, vec4_t color ) {
+	if ( !rect || !cg.snap ) {
+		return;
+	}
 
-static void CG_DrawTeamColor(rectDef_t *rect, vec4_t color) {
-	CG_DrawTeamBackground(rect->x, rect->y, rect->w, rect->h, color[3], cg.snap->ps.persistant[PERS_TEAM]);
+	CG_DrawTeamBackground( rect->x, rect->y, rect->w, rect->h, color[3], cg.snap->ps.persistant[PERS_TEAM] );
 }
 
 /*
@@ -8832,11 +8981,11 @@ CG_DrawPowerupSpriteStack
 Renders a stacked list of active powerups, mirroring the retail sprite stack.
 =============
 */
-static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special, float scale, vec4_t color, const playerState_t *ps) {
+static void CG_DrawPowerupSpriteStack( rectDef_t *rect, int align, float special, float scale, vec4_t color, const playerState_t *ps ) {
 	char num[16];
 	int			sorted[MAX_POWERUPS];
 	int			sortedTime[MAX_POWERUPS];
-	int			i, j, k;
+	int			i, j;
 	int			active;
 	int			t;
 	gitem_t	*item;
@@ -8851,7 +9000,7 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 	float		textOffsetX;
 	float		textScale;
 
-	if (!ps || ps->stats[STAT_HEALTH] <= 0) {
+	if ( !rect || !ps || ps->stats[STAT_HEALTH] <= 0 ) {
 		return;
 	}
 
@@ -8864,24 +9013,23 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 	stackScale = 1.0f;
 
 	active = 0;
-	for (i = 0; i < MAX_POWERUPS; i++) {
-		if (!ps->powerups[i]) {
+	for ( i = 1; i < MAX_POWERUPS; i++ ) {
+		if ( i == PW_NEUTRALFLAG || i == PW_NUM_POWERUPS ) {
+			continue;
+		}
+
+		if ( !ps->powerups[i] || ps->powerups[i] == 0x7fffffff ) {
 			continue;
 		}
 
 		t = ps->powerups[i] - cg.time;
-		if (t <= 0 || t >= 999000) {
+		if ( t <= 0 || t >= 999000 ) {
 			continue;
 		}
 
-		for (j = 0; j < active; j++) {
-			if (sortedTime[j] >= t) {
-				for (k = active - 1; k >= j; k--) {
-					sorted[k + 1] = sorted[k];
-					sortedTime[k + 1] = sortedTime[k];
-				}
-				break;
-			}
+		for ( j = active; j > 0 && t < sortedTime[j - 1]; j-- ) {
+			sorted[j] = sorted[j - 1];
+			sortedTime[j] = sortedTime[j - 1];
 		}
 
 		sorted[j] = i;
@@ -8929,7 +9077,7 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 		}
 
 		CG_DrawPic(r2.x, r2.y, iconWidth, iconHeight, trap_R_RegisterShader(item->icon));
-		Com_sprintf(num, sizeof(num), "%i", sortedTime[i] / 1000);
+		Com_sprintf(num, sizeof(num), "%i", sortedTime[i] / 1000 + 1);
 		CG_Text_Paint(r2.x + textOffsetX, r2.y + iconHeight, textScale, color, num, 0, 0, 0);
 		*inc += iconOffset;
 	}
@@ -8937,16 +9085,23 @@ static void CG_DrawPowerupSpriteStack(rectDef_t *rect, int align, float special,
 	trap_R_SetColor(NULL);
 }
 
-static void CG_DrawAreaPowerUp(rectDef_t *rect, int align, float special, float scale, vec4_t color) {
-	if (!cg_drawSprites.integer) {
+/*
+=============
+CG_DrawAreaPowerUp
+
+Draws the local area powerup stack when sprite self-display allows it.
+=============
+*/
+static void CG_DrawAreaPowerUp( rectDef_t *rect, int align, float special, float scale, vec4_t color ) {
+	if ( !rect || !cg.snap || !cg_drawSprites.integer ) {
 		return;
 	}
 
-	if (!CG_ShouldDrawSpriteSelf() && cg.snap && !(cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.clientNum == cg.clientNum) {
+	if ( !CG_ShouldDrawSpriteSelf() && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.snap->ps.clientNum == cg.clientNum ) {
 		return;
 	}
 
-	CG_DrawPowerupSpriteStack(rect, align, special, scale, color, &cg.snap->ps);
+	CG_DrawPowerupSpriteStack( rect, align, special, scale, color, &cg.snap->ps );
 }
 
 /*
@@ -9765,28 +9920,113 @@ static void CG_DrawAreaChat(rectDef_t *rect, float scale, vec4_t color, qhandle_
   CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, teamChat2, 0, 0, 0);
 }
 
-const char *CG_GetKillerText() {
+/*
+=============
+CG_GetKillerText
+
+Builds the retail obituary text for the cached killer name.
+=============
+*/
+const char *CG_GetKillerText( void ) {
 	const char *s = "";
 	if ( cg.killerName[0] ) {
-		s = va("Fragged by %s", cg.killerName );
+		s = va( "Fragged by %s", cg.killerName );
 	}
 	return s;
 }
 
+/*
+=============
+CG_DrawKiller
 
-static void CG_DrawKiller(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
-	// fragged by ... line
-	if ( cg.killerName[0] ) {
-		int x = rect->x + rect->w / 2;
-	  CG_Text_Paint(x - CG_Text_Width(CG_GetKillerText(), scale, 0) / 2, rect->y + rect->h, scale, color, CG_GetKillerText(), 0, 0, textStyle);
+Draws the centered retail obituary line.
+=============
+*/
+static void CG_DrawKiller( rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
+	const char	*text;
+	float		x;
+
+	(void)shader;
+
+	if ( !rect || !cg.killerName[0] ) {
+		return;
 	}
-	
+
+	text = CG_GetKillerText();
+	x = rect->x + rect->w * 0.5f - CG_Text_Width( text, scale, 0 ) * 0.5f;
+	CG_Text_Paint( x, rect->y + rect->h, scale, color, text, 0, 0, textStyle );
 }
 
+/*
+=============
+CG_GetRaceCapFragLimitValue
 
-static void CG_DrawCapFragLimit(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle) {
-	int limit = CG_HasObjectiveCountStat( cgs.gametype ) ? cgs.capturelimit : cgs.fraglimit;
-	CG_Text_Paint(rect->x, rect->y, scale, color, va("%2i", limit),0, 0, textStyle); 
+Builds the Race remaining-checkpoint value used by the retail cap/frag limit ownerdraw.
+=============
+*/
+static int CG_GetRaceCapFragLimitValue( void ) {
+	cgRaceClientProgress_t	*progress;
+	int						clientNum;
+	int						remaining;
+
+	if ( cgs.racePointCount <= 0 ) {
+		return 0;
+	}
+
+	clientNum = CG_RaceResolveClientNum();
+	progress = CG_RaceProgressForClient( clientNum );
+	if ( !progress || !progress->initialized || progress->currentCheckpoint < 0 ) {
+		return cgs.racePointCount;
+	}
+
+	remaining = cgs.racePointCount - ( progress->currentCheckpoint + 1 );
+	if ( remaining < 0 ) {
+		remaining = 0;
+	}
+
+	return remaining;
+}
+
+/*
+=============
+CG_DrawCapFragLimit
+
+Renders the retail numeric limit bucket for the active gametype.
+=============
+*/
+static void CG_DrawCapFragLimit( rectDef_t *rect, float scale, vec4_t color, int textStyle, int align ) {
+	char	buffer[16];
+	float	x;
+	int		limit;
+
+	switch ( cgs.gametype ) {
+	case GT_RACE:
+		limit = CG_GetRaceCapFragLimitValue();
+		break;
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_OBELISK:
+	case GT_HARVESTER:
+		limit = cgs.capturelimit;
+		break;
+	case GT_CLAN_ARENA:
+	case GT_FREEZE:
+	case GT_RED_ROVER:
+		limit = cgs.roundlimit;
+		break;
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+		limit = cgs.scorelimit;
+		break;
+	default:
+		limit = cgs.fraglimit;
+		break;
+	}
+
+	Com_sprintf( buffer, sizeof( buffer ), "%2i", limit );
+	x = rect->x;
+	CG_AlignTextX( &x, buffer, scale, align );
+	CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -10404,10 +10644,14 @@ CG_DrawMedal
 Draws the retail scoreboard medal ownerdraw leaf.
 =============
 */
-void CG_DrawMedal(int ownerDraw, rectDef_t *rect, float scale, vec4_t color, qhandle_t shader) {
+void CG_DrawMedal( int ownerDraw, rectDef_t *rect, float scale, vec4_t color, qhandle_t shader ) {
 	score_t		*score;
 	float		value;
 	const char	*text;
+
+	if ( !rect || cg.selectedScore < 0 || cg.selectedScore >= cg.numScores || cg.selectedScore >= MAX_CLIENTS ) {
+		return;
+	}
 
 	score = &cg.scores[cg.selectedScore];
 	value = 0;
@@ -10576,7 +10820,7 @@ rect.y = y;
 		CG_DrawMatchStatus( &rect, scale, color, textStyle, align );
 		break;
 	case CG_CAPFRAGLIMIT:
-		CG_DrawCapFragLimit(&rect, scale, color, shader, textStyle);
+		CG_DrawCapFragLimit( &rect, scale, color, textStyle, align );
 		break;
 	case CG_LEVELTIMER:
 		CG_DrawLevelTimer(&rect, scale, color, textStyle);
@@ -10604,28 +10848,28 @@ rect.y = y;
 		CG_DrawLocalTime(&rect, text_x, text_y, scale, color, textStyle);
 		break;
 	case CG_PLAYER_COUNTS:
-		CG_DrawPlayerCounts(&rect, scale, color, textStyle);
+		CG_DrawPlayerCounts(&rect, scale, color, textStyle, align);
 		break;
 	case CG_MAP_NAME:
 		CG_DrawMapName(&rect, scale, color, textStyle);
 		break;
 	case CG_VOTEGAMETYPE1:
-		CG_DrawVoteGametype(&rect, text_x, text_y, scale, color, textStyle, 1);
+		CG_DrawVoteGametype(&rect, scale, color, textStyle, 1);
 		break;
 	case CG_VOTEGAMETYPE2:
-		CG_DrawVoteGametype(&rect, text_x, text_y, scale, color, textStyle, 2);
+		CG_DrawVoteGametype(&rect, scale, color, textStyle, 2);
 		break;
 	case CG_VOTEGAMETYPE3:
-		CG_DrawVoteGametype(&rect, text_x, text_y, scale, color, textStyle, 3);
+		CG_DrawVoteGametype(&rect, scale, color, textStyle, 3);
 		break;
 	case CG_VOTEMAP1:
-		CG_DrawVoteMapSlot(&rect, text_x, text_y, scale, color, textStyle, 1);
+		CG_DrawVoteMapSlot(&rect, scale, color, textStyle, 1);
 		break;
 	case CG_VOTEMAP2:
-		CG_DrawVoteMapSlot(&rect, text_x, text_y, scale, color, textStyle, 2);
+		CG_DrawVoteMapSlot(&rect, scale, color, textStyle, 2);
 		break;
 	case CG_VOTEMAP3:
-		CG_DrawVoteMapSlot(&rect, text_x, text_y, scale, color, textStyle, 3);
+		CG_DrawVoteMapSlot(&rect, scale, color, textStyle, 3);
 		break;
 	case CG_VOTESHOT1:
 		CG_DrawVoteShot(&rect, 1);
@@ -10637,25 +10881,25 @@ rect.y = y;
 		CG_DrawVoteShot(&rect, 3);
 		break;
 	case CG_VOTENAME1:
-		CG_DrawVoteName(&rect, text_x, text_y, scale, color, textStyle, 1);
+		CG_DrawVoteName(&rect, scale, color, textStyle, 1);
 		break;
 	case CG_VOTENAME2:
-		CG_DrawVoteName(&rect, text_x, text_y, scale, color, textStyle, 2);
+		CG_DrawVoteName(&rect, scale, color, textStyle, 2);
 		break;
 	case CG_VOTENAME3:
-		CG_DrawVoteName(&rect, text_x, text_y, scale, color, textStyle, 3);
+		CG_DrawVoteName(&rect, scale, color, textStyle, 3);
 		break;
 	case CG_VOTECOUNT1:
-		CG_DrawVoteCount(&rect, text_x, text_y, scale, color, textStyle, 1);
+		CG_DrawVoteCount(&rect, scale, color, textStyle, 1, align);
 		break;
 	case CG_VOTECOUNT2:
-		CG_DrawVoteCount(&rect, text_x, text_y, scale, color, textStyle, 2);
+		CG_DrawVoteCount(&rect, scale, color, textStyle, 2, align);
 		break;
 	case CG_VOTECOUNT3:
-		CG_DrawVoteCount(&rect, text_x, text_y, scale, color, textStyle, 3);
+		CG_DrawVoteCount(&rect, scale, color, textStyle, 3, align);
 		break;
 	case CG_VOTETIMER:
-		CG_DrawVoteTimer(&rect, text_x, text_y, scale, color, textStyle);
+		CG_DrawVoteTimer(&rect, scale, color, textStyle, align);
 		break;
 
 	case CG_PLAYER_ARMOR_ICON:
@@ -10665,7 +10909,7 @@ rect.y = y;
 		CG_DrawPlayerArmorIcon( &rect, qtrue );
 		break;
 	case CG_PLAYER_ARMOR_VALUE:
-		CG_DrawPlayerArmorValue( &rect, scale, color, shader, textStyle );
+		CG_DrawPlayerArmorValue( &rect, scale, color, shader, textStyle, align );
 		break;
 	case CG_PLAYER_ARMOR_BAR_100:
 		CG_DrawPlayerArmorBar100( &rect, shader );
@@ -10680,7 +10924,7 @@ rect.y = y;
 		CG_DrawPlayerAmmoIcon( &rect, qtrue );
 		break;
 	case CG_PLAYER_AMMO_VALUE:
-		CG_DrawPlayerAmmoValue( &rect, scale, color, shader, textStyle );
+		CG_DrawPlayerAmmoValue( &rect, scale, color, shader, textStyle, align );
 		break;
 	case CG_SELECTEDPLAYER_HEAD:
 	case CG_SELECTEDPLAYER_NAME:
@@ -10707,7 +10951,7 @@ rect.y = y;
 		CG_DrawScoreValue( &rect, scale, color, shader, textStyle, ownerDraw );
 		break;
 	case CG_PLAYER_HEALTH:
-		CG_DrawPlayerHealth( &rect, scale, color, shader, textStyle );
+		CG_DrawPlayerHealth( &rect, scale, color, shader, textStyle, align );
 		break;
 	case CG_PLAYER_HEALTH_BAR_100:
 		CG_DrawPlayerHealthBar100( &rect, shader );
@@ -10906,6 +11150,10 @@ rect.y = y;
 	case CG_1ST_PLYR_SCORE:
 		CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 0);
 		break;
+	case CG_1ST_PLYR_TIME:
+	case CG_1ST_PLYR_TIMEOUT_COUNT:
+		/* Retail maps raw ownerdraws 0x6d and 0x73 to the common no-op return target. */
+		return;
 	case CG_1ST_PLYR_HEALTH_ARMOR:
 		CG_DrawSpectatorComparison( &rect, scale, color, textStyle, ownerDraw );
 		break;
@@ -10922,15 +11170,22 @@ rect.y = y;
 		CG_DrawSpectatorPlayerName(&rect, scale, color, textStyle, 1, nameShader);
 		break;
 	}
-		case CG_2ND_PLYR_SCORE:
-				CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 1);
-				break;
-		case CG_2ND_PLYR_HEALTH_ARMOR:
-				CG_DrawSpectatorComparison( &rect, scale, color, textStyle, ownerDraw );
-				break;
-		case CG_2ND_PLYR_AVATAR:
-				CG_DrawPlacementAvatarOwnerDraw( &rect, 1 );
-				break;
+	case CG_2ND_PLYR_SCORE:
+		CG_DrawSpectatorPlayerScore(&rect, scale, color, textStyle, 1);
+		break;
+	case CG_2ND_PLYR_TIMEOUT_COUNT:
+		/* Retail has no raw ownerdraw 0xcd helper route. */
+		return;
+	case CG_2ND_PLYR_PR:
+	case CG_2ND_PLYR_TIER:
+		/* Retail has no raw ownerdraw 0x119-0x11a helper route. */
+		return;
+	case CG_2ND_PLYR_HEALTH_ARMOR:
+		CG_DrawSpectatorComparison( &rect, scale, color, textStyle, ownerDraw );
+		break;
+	case CG_2ND_PLYR_AVATAR:
+		CG_DrawPlacementAvatarOwnerDraw( &rect, 1 );
+		break;
 		case CG_SCOREBOX_FOLLOW_BACKGROUND:
 		case CG_SCOREBOX_SPEC_BACKGROUND:
 				/* Retail maps raw ownerdraws 0x164-0x165 to the common no-op return target. */

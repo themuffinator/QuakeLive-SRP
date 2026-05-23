@@ -137,13 +137,17 @@ static int uitogamecode[] = {4,6,2,3,1,5,7};
 static void UI_StartServerRefresh(qboolean full);
 void UI_StopServerRefresh( void );
 static void UI_DoServerRefresh( void );
-static void UI_FeederSelection(float feederID, int index);
+static void UI_FeederSelection(float feederID, int index, const char *cvar);
 static void UI_BuildServerDisplayList(qboolean force);
 static void UI_BuildServerStatus(qboolean force);
 static void UI_BuildFindPlayerList(qboolean force);
 static int QDECL UI_ServersQsortCompare( const void *arg1, const void *arg2 );
 static int UI_MapCountByGameType(qboolean singlePlayer);
 static int UI_HeadCountByTeam( void );
+static int UI_CountPlayerModelEntries( qboolean skipAliasSkins );
+static int UI_PlayerModelIndexForFeederRow( int row, qboolean skipAliasSkins );
+static const char *UI_PlayerModelFeederName( int index );
+static qhandle_t UI_PlayerModelFeederIcon( int index );
 static void UI_GetTeamColor(vec4_t *color);
 static void UI_ParseGameInfo(const char *teamFile);
 static void UI_ParseTeamInfo(const char *teamFile);
@@ -453,13 +457,11 @@ static void UI_SyncForceModelCvars( qboolean team ) {
 UI_UpdateForceModelSettings
 
 Synchronizes the retail Quake Live force-model menu state and refreshes the
-head feeder after a visible preset change.
+bright-model state after a visible preset change.
 =============
 */
 static void UI_UpdateForceModelSettings(qboolean team) {
 	UI_SyncForceModelCvars( team );
-	UI_FeederSelection(FEEDER_HEADS, 0);
-	Menu_SetFeederSelection(NULL, FEEDER_HEADS, 0, NULL);
 }
 
 /*
@@ -4886,7 +4888,7 @@ static qboolean UI_ClanName_HandleKey(int flags, float *special, int key) {
 		}
   	trap_Cvar_Set( "ui_teamName", uiInfo.teamList[i].teamName);
 	UI_HeadCountByTeam();
-	UI_FeederSelection(FEEDER_HEADS, 0);
+	UI_FeederSelection(FEEDER_HEADS, 0, NULL);
 	updateModel = qtrue;
     return qtrue;
   }
@@ -6055,7 +6057,7 @@ static void UI_RunMenuScript(char **args) {
 				UI_StartServerRefresh(qtrue);
 			}
 			UI_BuildServerDisplayList(qtrue);
-			UI_FeederSelection(FEEDER_SERVERS, 0);
+			UI_FeederSelection(FEEDER_SERVERS, 0, NULL);
 		} else if (Q_stricmp(name, "ServerStatus") == 0) {
 			trap_LAN_GetServerAddressString(ui_netSource.integer, uiInfo.serverStatus.displayServers[uiInfo.serverStatus.currentServer], uiInfo.serverStatusAddress, sizeof(uiInfo.serverStatusAddress));
 			UI_BuildServerStatus(qtrue);
@@ -6243,7 +6245,7 @@ static void UI_RunMenuScript(char **args) {
 				trap_Cmd_ExecuteText(EXEC_APPEND, va("callvote map %s %s\n", mapName, gametypeToken));
 			}
 		} else if (Q_stricmp(name, "updateCallvoteMapPreview") == 0) {
-			UI_FeederSelection(FEEDER_CVMAPS, ui_mapIndex.integer);
+			UI_FeederSelection(FEEDER_CVMAPS, ui_mapIndex.integer, NULL);
 		} else if (Q_stricmp(name, "voteKick") == 0) {
 			if (uiInfo.playerIndex >= 0 && uiInfo.playerIndex < uiInfo.playerCount) {
 				const char *kickName;
@@ -6993,7 +6995,7 @@ static void UI_BuildFindPlayerList(qboolean force) {
 		}
 		uiInfo.nextFindPlayerRefresh = 0;
 		// show the server status info for the selected server
-		UI_FeederSelection(FEEDER_FINDPLAYER, uiInfo.currentFoundPlayerServer);
+		UI_FeederSelection(FEEDER_FINDPLAYER, uiInfo.currentFoundPlayerServer, NULL);
 	}
 		}
 
@@ -7043,11 +7045,11 @@ Returns the number of entries available for each UI feeder.
 */
 static int UI_FeederCount(float feederID) {
 	if (feederID == FEEDER_HEADS) {
-		return UI_HeadCountByTeam();
+		return UI_CountPlayerModelEntries( qfalse );
 	}
 
 	if (feederID == FEEDER_Q3HEADS) {
-		return uiInfo.q3HeadCount;
+		return UI_CountPlayerModelEntries( qtrue );
 	}
 
 	if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
@@ -7485,12 +7487,11 @@ static const char *UI_FeederItemText(float feederID, int index, int column, qhan
         static int lastColumn = -1;
         static int lastTime = 0;
         *handle = -1;
-        if (feederID == FEEDER_HEADS) {
+        if (feederID == FEEDER_HEADS || feederID == FEEDER_Q3HEADS) {
                 int actual;
-                return UI_SelectedHead(index, &actual);
-        } else if (feederID == FEEDER_Q3HEADS) {
-                if (index >= 0 && index < uiInfo.q3HeadCount) {
-                        return uiInfo.q3HeadNames[index];
+                actual = UI_PlayerModelIndexForFeederRow( index, feederID == FEEDER_Q3HEADS );
+                if ( actual >= 0 ) {
+                        return UI_PlayerModelFeederName( actual );
                 }
         } else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
                 int actual;
@@ -7505,7 +7506,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column, qhan
                         return "";
                 }
                 if (index >= 0 && index < uiInfo.serverStatus.numDisplayServers) {
-                        int ping, game, punkbuster;
+                        int ping, game;
                         if (lastColumn != column || lastTime > uiInfo.uiDC.realTime + 5000) {
                                 trap_LAN_GetServerInfo(ui_netSource.integer, uiInfo.serverStatus.displayServers[index], info, MAX_STRING_CHARS);
                                 lastColumn = column;
@@ -7548,13 +7549,6 @@ static const char *UI_FeederItemText(float feederID, int index, int column, qhan
                                                 return "...";
                                         } else {
                                                 return Info_ValueForKey(info, "ping");
-                                        }
-                                case SORT_PUNKBUSTER:
-                                        punkbuster = atoi(Info_ValueForKey(info, "punkbuster"));
-                                        if ( punkbuster ) {
-                                                return "Yes";
-                                        } else {
-                                                return "No";
                                         }
                         }
                 }
@@ -7602,20 +7596,12 @@ if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
 	}
 
 	static qhandle_t UI_FeederItemImage(float feederID, int index) {
-	if (feederID == FEEDER_HEADS) {
-	int actual;
-	UI_SelectedHead(index, &actual);
-	index = actual;
-	if (index >= 0 && index < uiInfo.characterCount) {
-		if (uiInfo.characterList[index].headImage == -1) {
-			uiInfo.characterList[index].headImage = trap_R_RegisterShaderNoMip(uiInfo.characterList[index].imageName);
+	if (feederID == FEEDER_HEADS || feederID == FEEDER_Q3HEADS) {
+		int actual;
+		actual = UI_PlayerModelIndexForFeederRow( index, feederID == FEEDER_Q3HEADS );
+		if ( actual >= 0 ) {
+			return UI_PlayerModelFeederIcon( actual );
 		}
-		return uiInfo.characterList[index].headImage;
-	}
-	} else if (feederID == FEEDER_Q3HEADS) {
-	if (index >= 0 && index < uiInfo.q3HeadCount) {
-	return uiInfo.q3HeadIcons[index];
-	}
 	} else if (feederID == FEEDER_ALLMAPS || feederID == FEEDER_MAPS) {
 		int actual;
 		UI_SelectedMap(index, &actual);
@@ -7649,21 +7635,21 @@ if (uiInfo.modList[index].modDescr && *uiInfo.modList[index].modDescr) {
 	Handles selection side effects when a feeder item is chosen.
 	=============
 	*/
-	static void UI_FeederSelection(float feederID, int index) {
+	static void UI_FeederSelection(float feederID, int index, const char *cvar) {
 	static char info[MAX_STRING_CHARS];
-	  if (feederID == FEEDER_HEADS) {
-	int actual;
-	UI_SelectedHead(index, &actual);
-	index = actual;
-	    if (index >= 0 && index < uiInfo.characterCount) {
-		trap_Cvar_Set( "team_model", va("%s", uiInfo.characterList[index].base));
-		trap_Cvar_Set( "team_headmodel", va("*%s", uiInfo.characterList[index].name)); 
-		updateModel = qtrue;
-	    }
-	  } else if (feederID == FEEDER_Q3HEADS) {
-	    if (index >= 0 && index < uiInfo.q3HeadCount) {
-	      trap_Cvar_Set( "model", uiInfo.q3HeadNames[index]);
-	      trap_Cvar_Set( "headmodel", uiInfo.q3HeadNames[index]);
+	  if (feederID == FEEDER_HEADS || feederID == FEEDER_Q3HEADS) {
+		int actual;
+		const char *modelName;
+
+		actual = UI_PlayerModelIndexForFeederRow( index, feederID == FEEDER_Q3HEADS );
+		if ( actual >= 0 ) {
+			modelName = UI_PlayerModelFeederName( actual );
+			if ( cvar && cvar[0] ) {
+				trap_Cvar_Set( cvar, modelName );
+			} else {
+				trap_Cvar_Set( "model", modelName );
+				trap_Cvar_Set( "headmodel", modelName );
+			}
 			updateModel = qtrue;
 		}
 	} else if (feederID == FEEDER_MAPS || feederID == FEEDER_ALLMAPS) {
@@ -8352,6 +8338,71 @@ static int UI_CountPlayerModelEntries( qboolean skipAliasSkins ) {
 	}
 
 	return count;
+}
+
+/*
+=================
+UI_PlayerModelIndexForFeederRow
+=================
+*/
+static int UI_PlayerModelIndexForFeederRow( int row, qboolean skipAliasSkins ) {
+	int i;
+	int count;
+
+	if ( row < 0 ) {
+		return -1;
+	}
+
+	count = 0;
+	for ( i = 0; i < ui_playerModelEntryCount; i++ ) {
+		if ( skipAliasSkins && UI_PlayerModelSkinIsAlias( ui_playerModelEntries[i].skinName ) ) {
+			continue;
+		}
+
+		if ( !UI_PlayerModelEntryHasSkin( i ) ) {
+			continue;
+		}
+
+		if ( count == row ) {
+			return i;
+		}
+		count++;
+	}
+
+	return -1;
+}
+
+/*
+=================
+UI_PlayerModelFeederName
+=================
+*/
+static const char *UI_PlayerModelFeederName( int index ) {
+	uiPlayerModelEntry_t *entry;
+
+	if ( index < 0 || index >= ui_playerModelEntryCount ) {
+		return "";
+	}
+
+	entry = &ui_playerModelEntries[index];
+	if ( Q_stricmp( entry->skinName, "default" ) == 0 ) {
+		return entry->modelName;
+	}
+
+	return va( "%s/%s", entry->modelName, entry->skinName );
+}
+
+/*
+=================
+UI_PlayerModelFeederIcon
+=================
+*/
+static qhandle_t UI_PlayerModelFeederIcon( int index ) {
+	if ( index < 0 || index >= ui_playerModelEntryCount ) {
+		return 0;
+	}
+
+	return ui_playerModelEntries[index].iconShader;
 }
 
 

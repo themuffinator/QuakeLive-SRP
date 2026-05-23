@@ -100,15 +100,15 @@ bounded browser publish surface.
 | --- | --- | --- | --- |
 | `0x011EE4` | `characterCount` | `int` | Number of active head/character entries in `characterList[]`. |
 | `0x011EE8` | `botIndex` | `int` | Current bot/character feeder selection used by addbot and player-setup menu actions. |
-| `0x011EEC` | `characterList` | `characterInfo[MAX_HEADS]` | Cached bot/head metadata used by the head feeder, addbot flow, and model-preview ownerdraws. |
+| `0x011EEC` | `characterList` | `characterInfo[MAX_HEADS]` | Cached legacy bot/head metadata used by addbot and team setup flows; retail `FEEDER_HEADS` / `FEEDER_Q3HEADS` are backed by the validated player-model catalog instead. |
 | `0x0124EC` | `aliasCount` | `int` | Number of alias entries in `aliasList[]`. |
 | `0x0124F0` | `aliasList` | `aliasInfo[MAX_ALIASES]` | Alias-to-AI lookup table used by bot and team-setup flows. |
 | `0x0127F0` | `teamCount` | `int` | Number of team definitions in `teamList[]`. |
 | `0x0127F4` | `teamList` | `teamInfo[MAX_TEAMS]` | Team metadata and icon/cinematic cache used by team-selection ownerdraws and setup flows. |
-| `0x0132F4` | `clanCount` | `int` | Number of live clan entries in `clanList[]`. Quake Live-specific addition. |
-| `0x0132F8` | `clanList` | `uiClanInfo_t[MAX_CLANS]` | Clan roster cache with id/name/tag/emblem metadata. The current runtime code still exposes feeder paths for it, but no committed source or retail menu tree currently consumes those clan UI surfaces, and the bounded host `qz_instance` bridge likewise exposes no clan-roster RPC. The similarly named `UI_CLANNAME` / `UI_CLANLOGO` ownerdraws are older `teamList[]`-backed team-branding carry-overs, not consumers of this cache. |
-| `0x01F6F8` | `currentClan` | `int` | Selected clan index, or `-1` when no valid selection exists. |
-| `0x01F6FC` | `clanListLoaded` | `qboolean` | Guard indicating whether the clan cache has been populated. |
+| `0x0132F4` | `clanCount` | `int` | Historical candidate count for live clan entries in `clanList[]`; no current source field or active retail feeder branch is bounded for this band. |
+| `0x0132F8` | `clanList` | `uiClanInfo_t[MAX_CLANS]` | Historical clan roster cache candidate with id/name/tag/emblem metadata. The current source no longer carries this band or exposes feeder paths for it: committed retail `uix86.dll` dispatch falls through for `FEEDER_CLANS`, no committed source or retail menu tree consumes clan UI surfaces, and the bounded host `qz_instance` bridge exposes no clan-roster RPC. The similarly named `UI_CLANNAME` / `UI_CLANLOGO` ownerdraws are older `teamList[]`-backed team-branding carry-overs, not consumers of this cache. |
+| `0x01F6F8` | `currentClan` | `int` | Historical candidate selected clan index; absent from the current source after the clan-feeder scaffold was removed. |
+| `0x01F6FC` | `clanListLoaded` | `qboolean` | Historical candidate clan-cache guard; absent from the current source after the clan-feeder scaffold was removed. |
 | `0x01F700` | `countryCount` | `int` | Number of parsed country-code entries in `countryList[]`. Quake Live-specific addition. |
 | `0x01F704` | `countryList` | `const char *[256]` | Country-code feeder table loaded from `ui/country.txt`. |
 

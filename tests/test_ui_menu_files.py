@@ -20,6 +20,16 @@ def _extract_define(text: str, name: str) -> str:
     return match.group(1)
 
 
+def _extract_numeric_defines(text: str, prefix: str) -> dict[str, int]:
+    return {
+        match.group(1): int(match.group(2), 0)
+        for match in re.finditer(
+            rf"#define\s+({re.escape(prefix)}[A-Z0-9_]+)\s+(0x[0-9a-fA-F]+|\d+)",
+            text,
+        )
+    }
+
+
 def _extract_vcxproj_group(text: str, condition: str) -> str:
     pattern = (
         r"<ItemDefinitionGroup Condition=\""
@@ -1774,7 +1784,7 @@ def test_ui_retail_callvote_map_feeder_uses_active_map_slab() -> None:
         ui_main, "static void UI_RunMenuScript(char **args) {"
     )
     assert 'Q_stricmp(name, "updateCallvoteMapPreview") == 0' in run_menu_script_block
-    assert "UI_FeederSelection(FEEDER_CVMAPS, ui_mapIndex.integer);" in run_menu_script_block
+    assert "UI_FeederSelection(FEEDER_CVMAPS, ui_mapIndex.integer, NULL);" in run_menu_script_block
     assert "UI_HandleCallvoteMapPreviewScript" not in ui_main
     assert "applyCallvotePreset" not in run_menu_script_block
 
@@ -1793,7 +1803,7 @@ def test_ui_retail_callvote_map_feeder_uses_active_map_slab() -> None:
     assert "uiInfo.mapList[actual].levelShot" in feeder_image_block
 
     feeder_selection_block = _extract_function_block(
-        ui_main, "static void UI_FeederSelection(float feederID, int index) {"
+        ui_main, "static void UI_FeederSelection(float feederID, int index, const char *cvar) {"
     )
     assert "UI_SelectCallvoteMap(index);" in feeder_selection_block
     assert "FEEDER_MAP_ROTATIONS" not in feeder_selection_block
@@ -1802,6 +1812,196 @@ def test_ui_retail_callvote_map_feeder_uses_active_map_slab() -> None:
     assert "UI_GetCallvoteRotationIndexFromDisplayRow" not in ui_main
     assert "UI_GetCallvoteDisplayRowForRotation" not in ui_main
     assert "UI_GetCallvoteRotationEntryForDisplay" not in ui_main
+
+
+def test_ui_retail_feeder_matrix_matches_menu_consumers_and_callback_ownership() -> None:
+    menudef = (REPO_ROOT / "src/ui/menudef.h").read_text(encoding="utf-8")
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    ui_shared_h = (REPO_ROOT / "src/code/ui/ui_shared.h").read_text(encoding="utf-8")
+    ui_bridge = (REPO_ROOT / "src/code/ui/ui_quakelive_bridge.c").read_text(encoding="utf-8")
+    defines = _extract_numeric_defines(menudef, "FEEDER_")
+
+    expected_ids = {
+        "FEEDER_HEADS": 0x00,
+        "FEEDER_MAPS": 0x01,
+        "FEEDER_SERVERS": 0x02,
+        "FEEDER_CLANS": 0x03,
+        "FEEDER_ALLMAPS": 0x04,
+        "FEEDER_REDTEAM_LIST": 0x05,
+        "FEEDER_BLUETEAM_LIST": 0x06,
+        "FEEDER_PLAYER_LIST": 0x07,
+        "FEEDER_TEAM_LIST": 0x08,
+        "FEEDER_MODS": 0x09,
+        "FEEDER_DEMOS": 0x0A,
+        "FEEDER_SCOREBOARD": 0x0B,
+        "FEEDER_Q3HEADS": 0x0C,
+        "FEEDER_SERVERSTATUS": 0x0D,
+        "FEEDER_FINDPLAYER": 0x0E,
+        "FEEDER_CINEMATICS": 0x0F,
+        "FEEDER_ENDSCOREBOARD": 0x10,
+        "FEEDER_REDTEAM_STATS": 0x11,
+        "FEEDER_BLUETEAM_STATS": 0x12,
+        "FEEDER_CVMAPS": 0x13,
+    }
+    assert {name: defines[name] for name in expected_ids} == expected_ids
+
+    menu_feeders: set[str] = set()
+    for menu_path in (REPO_ROOT / "src/ui").glob("*.menu"):
+        menu_feeders.update(
+            re.findall(r"\bfeeder\s+(FEEDER_[A-Z0-9_]+)\b", menu_path.read_text(encoding="utf-8"))
+        )
+
+    ui_menu_feeders = {
+        "FEEDER_ALLMAPS",
+        "FEEDER_CVMAPS",
+        "FEEDER_DEMOS",
+        "FEEDER_HEADS",
+        "FEEDER_PLAYER_LIST",
+        "FEEDER_Q3HEADS",
+    }
+    cgame_menu_feeders = {
+        "FEEDER_BLUETEAM_LIST",
+        "FEEDER_BLUETEAM_STATS",
+        "FEEDER_REDTEAM_LIST",
+        "FEEDER_REDTEAM_STATS",
+        "FEEDER_SCOREBOARD",
+    }
+    assert menu_feeders == ui_menu_feeders | cgame_menu_feeders
+    assert "FEEDER_CLANS" not in menu_feeders
+    assert "FEEDER_COUNTRIES" not in menu_feeders
+
+    bridge_feeders = set(re.findall(r"\bfeeder\s+(FEEDER_[A-Z0-9_]+)\b", ui_bridge))
+    assert bridge_feeders == {"FEEDER_SERVERS", "FEEDER_SERVERSTATUS"}
+
+    feeder_count_block = _extract_function_block(ui_main, "static int UI_FeederCount(float feederID) {")
+    feeder_text_block = _extract_function_block(
+        ui_main, "static const char *UI_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {"
+    )
+    feeder_image_block = _extract_function_block(
+        ui_main, "static qhandle_t UI_FeederItemImage(float feederID, int index) {"
+    )
+    feeder_selection_block = _extract_function_block(
+        ui_main, "static void UI_FeederSelection(float feederID, int index, const char *cvar) {"
+    )
+
+    ui_count_and_text_feeders = {
+        "FEEDER_ALLMAPS",
+        "FEEDER_CINEMATICS",
+        "FEEDER_CVMAPS",
+        "FEEDER_DEMOS",
+        "FEEDER_FINDPLAYER",
+        "FEEDER_HEADS",
+        "FEEDER_MAPS",
+        "FEEDER_MODS",
+        "FEEDER_PLAYER_LIST",
+        "FEEDER_Q3HEADS",
+        "FEEDER_SERVERS",
+        "FEEDER_SERVERSTATUS",
+        "FEEDER_TEAM_LIST",
+    }
+    for feeder in ui_count_and_text_feeders:
+        assert feeder in feeder_count_block
+        assert feeder in feeder_text_block
+
+    for feeder in (
+        "FEEDER_ALLMAPS",
+        "FEEDER_CVMAPS",
+        "FEEDER_HEADS",
+        "FEEDER_MAPS",
+        "FEEDER_Q3HEADS",
+    ):
+        assert feeder in feeder_image_block
+
+    for feeder in ui_count_and_text_feeders:
+        assert feeder in feeder_selection_block
+
+    assert "UI_CountPlayerModelEntries( qfalse )" in feeder_count_block
+    assert "UI_CountPlayerModelEntries( qtrue )" in feeder_count_block
+    assert "UI_PlayerModelIndexForFeederRow( index, feederID == FEEDER_Q3HEADS )" in feeder_text_block
+    assert "UI_PlayerModelIndexForFeederRow( index, feederID == FEEDER_Q3HEADS )" in feeder_image_block
+    assert "UI_PlayerModelIndexForFeederRow( index, feederID == FEEDER_Q3HEADS )" in feeder_selection_block
+    assert 'trap_Cvar_Set( cvar, modelName );' in feeder_selection_block
+    assert 'trap_Cvar_Set( "model", modelName );' in feeder_selection_block
+    assert 'trap_Cvar_Set( "headmodel", modelName );' in feeder_selection_block
+    assert '"team_model"' not in feeder_selection_block
+    assert '"team_headmodel"' not in feeder_selection_block
+    assert "SORT_PUNKBUSTER" not in feeder_text_block
+    assert "void (*feederSelection)(float feederID, int index, const char *cvar);" in ui_shared_h
+    assert "DC->feederSelection(item->special, item->cursorPos, item->cvar);" in ui_shared
+    assert "DC->feederSelection(menu->items[i]->special, menu->items[i]->cursorPos, menu->items[i]->cvar);" in ui_shared
+
+    cgame_owned_feeders = {
+        "FEEDER_BLUETEAM_LIST",
+        "FEEDER_BLUETEAM_STATS",
+        "FEEDER_ENDSCOREBOARD",
+        "FEEDER_REDTEAM_LIST",
+        "FEEDER_REDTEAM_STATS",
+        "FEEDER_SCOREBOARD",
+    }
+    for feeder in cgame_owned_feeders | {"FEEDER_CLANS"}:
+        assert feeder not in feeder_count_block
+        assert feeder not in feeder_text_block
+        assert feeder not in feeder_image_block
+        assert feeder not in feeder_selection_block
+
+
+def test_ui_retail_feeder_leaf_callbacks_match_remaining_ui_owned_ids() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    feeder_count_block = _extract_function_block(ui_main, "static int UI_FeederCount(float feederID) {")
+    feeder_text_block = _extract_function_block(
+        ui_main, "static const char *UI_FeederItemText(float feederID, int index, int column, qhandle_t *handle) {"
+    )
+    feeder_selection_block = _extract_function_block(
+        ui_main, "static void UI_FeederSelection(float feederID, int index, const char *cvar) {"
+    )
+
+    for expected in (
+        "return uiInfo.serverStatus.numDisplayServers;",
+        "return uiInfo.serverStatusInfo.numLines;",
+        "return uiInfo.numFoundPlayerServers;",
+        "return uiInfo.playerCount;",
+        "return uiInfo.myTeamCount;",
+        "return uiInfo.modCount;",
+        "return uiInfo.movieCount;",
+        "return uiInfo.demoCount;",
+        "uiInfo.playerRefresh = uiInfo.uiDC.realTime + 3000;",
+        "UI_BuildPlayerList();",
+    ):
+        assert expected in feeder_count_block
+
+    for expected in (
+        "SORT_HOST",
+        "SORT_MAP",
+        "SORT_CLIENTS",
+        "SORT_GAME",
+        "SORT_PING",
+        'return "...";',
+        "column >= 0 && column < 4",
+        "return uiInfo.foundPlayerServerNames[index];",
+        "return uiInfo.playerNames[index];",
+        "return uiInfo.teamNames[index];",
+        "uiInfo.modList[index].modDescr",
+        "return uiInfo.movieList[index];",
+        "return uiInfo.demoList[index];",
+    ):
+        assert expected in feeder_text_block
+
+    for expected in (
+        "trap_LAN_GetServerInfo(ui_netSource.integer, uiInfo.serverStatus.displayServers[index], info, MAX_STRING_CHARS);",
+        "uiInfo.serverStatus.currentServerPreview = trap_R_RegisterShaderNoMip",
+        "uiInfo.currentFoundPlayerServer = index;",
+        "Q_strncpyz(uiInfo.serverStatusAddress, uiInfo.foundPlayerServerAddresses[uiInfo.currentFoundPlayerServer], sizeof(uiInfo.serverStatusAddress));",
+        "Menu_SetFeederSelection(NULL, FEEDER_SERVERSTATUS, 0, NULL);",
+        "UI_BuildServerStatus(qtrue);",
+        "uiInfo.playerIndex = index;",
+        "uiInfo.teamIndex = index;",
+        "uiInfo.modIndex = index;",
+        "uiInfo.movieIndex = index;",
+        "uiInfo.previewMovie = -1;",
+        "uiInfo.demoIndex = index;",
+    ):
+        assert expected in feeder_selection_block
 
 
 def test_ui_retail_clan_feeder_scaffolding_is_removed() -> None:
@@ -1827,7 +2027,7 @@ def test_ui_retail_clan_feeder_scaffolding_is_removed() -> None:
         ui_main, "static qhandle_t UI_FeederItemImage(float feederID, int index) {"
     )
     feeder_selection_block = _extract_function_block(
-        ui_main, "static void UI_FeederSelection(float feederID, int index) {"
+        ui_main, "static void UI_FeederSelection(float feederID, int index, const char *cvar) {"
     )
 
     assert "FEEDER_CLANS" not in feeder_count_block

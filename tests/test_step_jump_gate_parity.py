@@ -37,7 +37,7 @@ def test_step_jump_gate_uses_retail_jump_release_rules() -> None:
 
 	assert "static qboolean PM_CanStepJump( void ) {" in source
 	assert "PMF_RESPAWNED" in body
-	assert "PM_IsJumpPadLaunchActive()" in probe_body
+	assert "PM_IsJumpPadLaunchActive()" not in probe_body
 	assert "PM_ShouldRequireStepJumpRelease( settings )" in body
 	assert "PMF_JUMP_HELD" in body
 	assert "pm->ps->pm_flags & PMF_REQUIRE_JUMP_RELEASE" in release_body
@@ -46,6 +46,7 @@ def test_step_jump_gate_uses_retail_jump_release_rules() -> None:
 	assert "pm_bunnyhop" not in release_body
 	assert "releaseRequired = PM_ShouldRequireStepJumpRelease( settings );" in body
 	assert "if ( releaseRequired && ( pm->ps->pm_flags & PMF_RESPAWNED ) ) {" in body
+	assert "PM_IsJumpPadLaunchActive()" not in source
 
 
 def test_cgame_symbol_map_uses_the_unified_step_jump_names() -> None:
@@ -145,11 +146,10 @@ def test_step_slide_move_rechecks_the_general_step_jump_gate_before_takeoff() ->
 	source = BG_SLIDEMOVE_PATH.read_text(encoding="utf-8")
 
 	assert source.count("PM_CanStepJump()") >= 2
-	assert "jumpPadLaunchActive = PM_IsJumpPadLaunchActive();" in source
-	assert "if ( jumpPadLaunchActive && start_v[2] > 0.0f ) {" in source
 	assert "if ( canStepJump && PM_CanStepJump() ) {" in source
 	assert "else if ( canCrouchStepJump && PM_CanCrouchStepJump() && PM_CanPerformCrouchStepJump() ) {" in source
 	assert source.index("canStepJump = PM_CanStepJump();") < source.index("if ( canStepJump && PM_CanStepJump() ) {")
+	assert "PM_IsJumpPadLaunchActive()" not in source
 
 
 def test_step_slide_move_routes_crouch_step_branch_through_clearance_probe_before_shared_takeoff() -> None:

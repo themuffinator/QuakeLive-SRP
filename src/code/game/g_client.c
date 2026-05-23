@@ -2485,6 +2485,7 @@ void ClientSpawn(gentity_t *ent) {
 	index = ent - g_entities;
 	client = ent->client;
 	ent->keyMask = 0;
+	client->ps.stats[STAT_KEY_MASK] = 0;
 	if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
 		G_BroadcastClientKeyMask( ent->s.number );
 	}
@@ -2845,6 +2846,7 @@ void ClientDisconnect( int clientNum ) {
 	ent->client->pers.holyShitCount = 0;
 	ent->client->pers.teamJoinStartTime = 0;
 	ent->keyMask = 0;
+	ent->client->ps.stats[STAT_KEY_MASK] = 0;
 	G_BroadcastClientKeyMask( clientNum );
 
 	trap_SetConfigstring( CS_PLAYERS + clientNum, "");

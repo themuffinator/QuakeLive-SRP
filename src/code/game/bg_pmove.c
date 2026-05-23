@@ -211,44 +211,6 @@ const pmove_settings_t *PM_GetDefaultSettings( void ) {
 
 /*
 =============
-PM_IsJumpPadLaunchActive
-
-Returns whether the current playerstate is carrying the cached jump-pad style
-launch latch that should not be replaced by player jump input or air steps.
-=============
-*/
-qboolean PM_IsJumpPadLaunchActive( void ) {
-	if ( !pm || !pm->ps ) {
-		return qfalse;
-	}
-
-	if ( pm->ps->pm_type != PM_NORMAL ) {
-		return qfalse;
-	}
-
-	return ( pm->ps->jumppad_ent != 0 ) ? qtrue : qfalse;
-}
-
-/*
-=============
-PM_SuppressJumpPadLaunchInput
-
-Clears jump input while a jump-pad style launch is being preserved so later
-movement slices cannot reinterpret the launch as a player jump.
-=============
-*/
-static void PM_SuppressJumpPadLaunchInput( void ) {
-	if ( !PM_IsJumpPadLaunchActive() ) {
-		return;
-	}
-
-	if ( pm->cmd.upmove >= 10 ) {
-		pm->cmd.upmove = 0;
-	}
-}
-
-/*
-=============
 PM_LoadMoveSettings
 
 Synchronises extended Quake Live movement settings with legacy globals.
@@ -1155,11 +1117,6 @@ static qboolean PM_PrepareJumpTakeoff( qboolean allowAirDoubleJump ) {
 
 	settings = PM_GetActiveSettings();
 	releaseRequired = PM_ShouldRequireJumpRelease( settings );
-
-	if ( PM_IsJumpPadLaunchActive() ) {
-		PM_SuppressJumpPadLaunchInput();
-		return qfalse;
-	}
 
 	if ( releaseRequired && ( pm->ps->pm_flags & PMF_RESPAWNED ) ) {
 		return qfalse;		// don't allow jump until all buttons are up
@@ -2880,8 +2837,6 @@ PmoveSingle
 
 ================
 */
-void trap_SnapVector( float *v );
-
 void PmoveSingle (pmove_t *pmove) {
 	const pmove_settings_t	*settings;
 
@@ -2989,7 +2944,6 @@ void PmoveSingle (pmove_t *pmove) {
 	pm->ps->forwardmove = pm->cmd.forwardmove;
 	pm->ps->rightmove = pm->cmd.rightmove;
 	pm->ps->upmove = pm->cmd.upmove;
-	PM_SuppressJumpPadLaunchInput();
 
 	AngleVectors (pm->ps->viewangles, pml.forward, pml.right, pml.up);
 
@@ -3100,9 +3054,6 @@ void PmoveSingle (pmove_t *pmove) {
 
 	// entering / leaving water splashes
 	PM_WaterEvents();
-
-	// snap some parts of playerstate to save network bandwidth
-	trap_SnapVector( pm->ps->velocity );
 }
 
 
@@ -3157,7 +3108,7 @@ void Pmove (pmove_t *pmove) {
 			pmove->stepUpTime = pmove->cmd.serverTime;
 		}
 
-		if ( !PM_IsJumpPadLaunchActive() && ( pmove->ps->pm_flags & PMF_JUMP_HELD ) && originalUpmove >= 10 ) {
+		if ( ( pmove->ps->pm_flags & PMF_JUMP_HELD ) && originalUpmove >= 10 ) {
 			pmove->cmd.upmove = 20;
 		}
 	}

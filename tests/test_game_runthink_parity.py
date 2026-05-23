@@ -29,7 +29,7 @@ def test_trigger_push_uses_runframe_aim_refresh() -> None:
 	assert "self->think = AimAtTarget;" in trigger_c
 
 
-def test_target_push_marks_launch_latch_for_next_pmove() -> None:
+def test_target_push_marks_jump_pad_event_cache_for_current_pmove() -> None:
 	trigger_c = _read("src/code/game/g_trigger.c")
 	start = trigger_c.index("static void Use_target_push")
 	end = trigger_c.index("/*QUAKED target_push", start)

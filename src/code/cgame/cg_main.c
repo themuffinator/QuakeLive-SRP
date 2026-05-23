@@ -5862,10 +5862,12 @@ Maintains the selected scoreboard row and mirrors the retail team-list cursor
 selection into the cached live/end scoreboard menus.
 =============
 */
-static void CG_FeederSelection( float feederID, int index ) {
+static void CG_FeederSelection( float feederID, int index, const char *cvar ) {
 	int		selectedIndex;
 	int		selectedScoreIndex;
 	team_t	team;
+
+	(void)cvar;
 
 	if ( index == -1 ) {
 		return;

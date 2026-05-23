@@ -1260,6 +1260,9 @@ static int Pickup_Key( gentity_t *ent, gentity_t *other ) {
 	}
 
 	other->keyMask |= keyBit;
+	if ( other->client ) {
+		other->client->ps.stats[STAT_KEY_MASK] = other->keyMask;
+	}
 	G_BroadcastClientKeyMask( other->s.number );
 
 	if ( other->client ) {
@@ -2453,6 +2456,9 @@ gentity_t *Drop_Item( gentity_t *ent, gitem_t *item, float angle ) {
 	dropped = LaunchItem( item, ent->s.pos.trBase, velocity );
 	if ( dropped && ent && item->giType == IT_KEY ) {
 		ent->keyMask &= ~item->giTag;
+		if ( ent->client ) {
+			ent->client->ps.stats[STAT_KEY_MASK] = ent->keyMask;
+		}
 		if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
 			G_BroadcastClientKeyMask( ent->s.number );
 		}
@@ -2490,6 +2496,9 @@ void G_DropClientKeys( gentity_t *ent ) {
 	}
 
 	ent->keyMask = 0;
+	if ( ent->client ) {
+		ent->client->ps.stats[STAT_KEY_MASK] = 0;
+	}
 	if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
 		G_BroadcastClientKeyMask( ent->s.number );
 	}

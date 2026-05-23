@@ -1918,6 +1918,21 @@ static void CG_ParseScoreStats( void ) {
 			}
 		}
 
+		for ( j = 0; j < CG_SCORESTAT_ACCURACY_WEAPON_COUNT; j++ ) {
+			int hits;
+			int shots;
+			weapon_t weapon;
+
+			weapon = cgScoreStatAccuracyWeapons[j];
+			if ( clientNum < 0 || clientNum >= MAX_CLIENTS || weapon <= WP_NONE || weapon >= WP_NUM_WEAPONS ) {
+				continue;
+			}
+
+			hits = cg.scoreStats[clientNum].weaponHits[weapon];
+			shots = cg.scoreStats[clientNum].weaponShots[weapon];
+			cg.scoreStats[clientNum].weaponAccuracy[weapon] = ( shots > 0 ) ? ( hits * 100 ) / shots : 0;
+		}
+
 		for ( j = 0; j < CG_SCORESTAT_DMG_WEAPON_COUNT && arg < argc; j++ ) {
 			int value;
 			weapon_t weapon;
@@ -2394,11 +2409,17 @@ static void CG_ParseDuelScores( void ) {
 
 			weaponArg = baseArg + CG_RETAIL_DUEL_CORE_FIELDS;
 			for ( weaponIndex = 0; weaponIndex < ARRAY_LEN( cg_retailWeaponReloadOrder ); weaponIndex++ ) {
+				int hits;
+				int shots;
+
 				weapon = cg_retailWeaponReloadOrder[weaponIndex];
 				cg.scoreStats[clientNum].weaponFrags[weapon] = atoi( CG_Argv( weaponArg ) );
 				cg.scoreStats[clientNum].weaponDamage[weapon] = atoi( CG_Argv( weaponArg + 1 ) );
 				cg.scoreStats[clientNum].weaponShots[weapon] = atoi( CG_Argv( weaponArg + 3 ) );
 				cg.scoreStats[clientNum].weaponHits[weapon] = atoi( CG_Argv( weaponArg + 4 ) );
+				hits = cg.scoreStats[clientNum].weaponHits[weapon];
+				shots = cg.scoreStats[clientNum].weaponShots[weapon];
+				cg.scoreStats[clientNum].weaponAccuracy[weapon] = ( shots > 0 ) ? ( hits * 100 ) / shots : 0;
 				weaponArg += CG_RETAIL_DUEL_WEAPON_FIELDS;
 			}
 			cg.scoreStats[clientNum].valid = qtrue;

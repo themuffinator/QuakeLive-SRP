@@ -794,7 +794,6 @@ def test_pmove_single_keeps_the_retail_dispatch_order() -> None:
 		"PM_TorsoAnimation();",
 		"PM_Footsteps();",
 		"PM_WaterEvents();",
-		"trap_SnapVector( pm->ps->velocity );",
 	]
 	position = -1
 	initial_water_level = body.index("PM_SetWaterLevel();")
@@ -832,11 +831,13 @@ def test_pmove_single_keeps_the_retail_dispatch_order() -> None:
 	assert body.index("} else if (pm->ps->pm_flags & PMF_TIME_WATERJUMP)") < body.index("} else if ( pm->waterlevel > 1 )")
 	assert body.index("} else if ( pm->waterlevel > 1 )") < body.index("} else if ( pml.ladder )")
 	assert body.index("} else if ( pml.ladder )") < body.index("} else if ( pml.walking )")
+	assert "trap_SnapVector" not in body
 
 	for marker in post_move_markers:
 		next_position = body.index(marker, position + 1)
 		assert next_position > position
 		position = next_position
+	assert body.rfind("PM_WaterEvents();") == position
 
 
 def test_spawn_owns_retail_movement_profile_flags() -> None:
@@ -876,7 +877,7 @@ def test_pmove_replays_long_frames_through_the_retail_chunk_loop() -> None:
 	assert "if ( pml.stepUp > 0.0f ) {" in body
 	assert "pmove->stepUp += pml.stepUp;" in body
 	assert "pmove->stepUpTime = pmove->cmd.serverTime;" in body
-	assert "if ( !PM_IsJumpPadLaunchActive() && ( pmove->ps->pm_flags & PMF_JUMP_HELD ) && originalUpmove >= 10 ) {" in body
+	assert "if ( ( pmove->ps->pm_flags & PMF_JUMP_HELD ) && originalUpmove >= 10 ) {" in body
 	assert "pmove->cmd.upmove = 20;" in body
 
 

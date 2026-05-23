@@ -237,10 +237,6 @@ static qboolean PM_CanProbeStepJump( const pmove_settings_t *settings ) {
 		return qfalse;
 	}
 
-	if ( PM_IsJumpPadLaunchActive() ) {
-		return qfalse;
-	}
-
 	if ( !settings->stepJump ) {
 		return qfalse;
 	}
@@ -425,19 +421,13 @@ static void PM_StepSlideMoveWithStepHeight( qboolean gravity, float stepHeight )
 	vec3_t		jumpProbeStart, jumpProbeEnd;
 	vec3_t		projectedEnd;
 	float		stepSize;
-	qboolean	jumpPadLaunchActive;
 
 	pml.stepUp = 0.0f;
 	VectorCopy (pm->ps->origin, start_o);
 	VectorCopy (pm->ps->velocity, start_v);
-	jumpPadLaunchActive = PM_IsJumpPadLaunchActive();
 
 	if ( PM_SlideMove( gravity ) == 0 ) {
 		return;		// we got exactly where we wanted to go first try	
-	}
-
-	if ( jumpPadLaunchActive && start_v[2] > 0.0f ) {
-		return;
 	}
 
 	if ( pm_airsteps <= 0 ) {

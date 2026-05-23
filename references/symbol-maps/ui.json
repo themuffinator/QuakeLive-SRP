@@ -1363,7 +1363,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Returns the active row count for the committed retail UI feeder set: heads, maps, servers, clans, player/team lists, mods, demos, cinematics, and the callvote-map filter. The committed `uix86.dll` body stops short of the scoreboard/team feeder family, which is already mapped on the cgame `cgDC` side; the actual clan-feeder branch exists in the dispatcher, but no committed retail menu item or bounded host `qz_instance` / `EnginePublish` browser contract currently consumes it. The similarly named `UI_CLANNAME` / `UI_CLANLOGO` ownerdraws are older `teamList[]` branding carry-overs rather than clan-feeder consumers."
+      "comment": "Returns the active row count for the committed retail UI feeder set: player-model heads, maps, servers, player/team lists, mods, demos, cinematics, server-status/find-player rows, and the callvote-map filter. FEEDER_HEADS counts all validated player-model skins while FEEDER_Q3HEADS uses the same catalog with the retail alias-skin skip list. The committed `uix86.dll` body stops short of both the scoreboard/team feeder family, which is mapped on the cgame `cgDC` side, and `FEEDER_CLANS`, whose id remains defined but falls through in the retail count dispatcher. No committed retail menu item or bounded host `qz_instance` / `EnginePublish` browser contract currently consumes a clan-roster feeder. The similarly named `UI_CLANNAME` / `UI_CLANLOGO` ownerdraws are older `teamList[]` branding carry-overs rather than clan-feeder consumers."
     },
     {
       "address": "0x1000E600",
@@ -1383,7 +1383,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Resolves feeder row images such as character heads, map levelshots, callvote maps, and clan emblems. The actual clan-feeder emblem branch remains compatibility-heavy because no committed retail menu item currently consumes the clan UI surfaces and the bounded host `qz_instance` / `EnginePublish` browser contract exposes neither a clan-roster RPC nor a clan event family. This is separate from the misleading `UI_CLANLOGO` ownerdraw label, which is an older `teamList[]` branding path."
+      "comment": "Resolves feeder row images such as player-model icons, map levelshots, and callvote maps. The committed retail image dispatcher has no active `FEEDER_CLANS` emblem path in the current corpus; no committed retail menu item consumes clan UI surfaces and the bounded host `qz_instance` / `EnginePublish` browser contract exposes neither a clan-roster RPC nor a clan event family. This is separate from the misleading `UI_CLANLOGO` ownerdraw label, which is an older `teamList[]` branding path."
     },
     {
       "address": "0x1000EA80",
@@ -1393,7 +1393,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Returns feeder row text for the committed retail UI feeder set: heads, maps, server browser columns, mods, movies, demos, clans, and the older player/team list families. The committed `uix86.dll` dispatcher does not currently expose scoreboard or match-summary feeder branches; those scoreboard/team callbacks are already anchored in cgame, and the actual clan-feeder text branch currently lacks both a committed retail menu consumer and a bounded host/browser contract with clan RPCs or clan events. The misleading `UI_CLANNAME` ownerdraw label is instead an older `teamList[]` branding path."
+      "comment": "Returns feeder row text for the committed retail UI feeder set: player-model names, maps, server browser columns, mods, movies, demos, server-status/find-player rows, and the older player/team list families. The committed `uix86.dll` dispatcher does not currently expose scoreboard, match-summary, or `FEEDER_CLANS` text branches; scoreboard/team callbacks are anchored in cgame, and no bounded host/browser contract with clan RPCs or clan events has been found. The misleading `UI_CLANNAME` ownerdraw label is instead an older `teamList[]` branding path."
     },
     {
       "address": "0x1000EBA0",
@@ -1405,7 +1405,7 @@
         "ui_currentNetMap"
       ],
       "relocation_refs": [],
-      "comment": "Applies feeder selection side effects such as model cvar writes, cinematic refresh, server-status selection, and the FEEDER_CVMAPS branch that rebuilds the visible callvote set through `UI_CVMapCountByGameType`, resolves the chosen row through `UI_SelectedMap`, and then refreshes `ui_currentNetMap` for the retail voteMap preview path. The paired submit leg later reuses that preview state plus `UI_GetCallvoteGametypeToken(ui_cvGameType)`."
+      "comment": "Applies feeder selection side effects such as model/headmodel cvar writes, item-cvar model writes when the shared listbox supplies a cvar, cinematic refresh, server-status selection, and the FEEDER_CVMAPS branch that rebuilds the visible callvote set through `UI_CVMapCountByGameType`, resolves the chosen row through `UI_SelectedMap`, and then refreshes `ui_currentNetMap` for the retail voteMap preview path. The paired submit leg later reuses that preview state plus `UI_GetCallvoteGametypeToken(ui_cvGameType)`."
     },
     {
       "address": "0x1000F140",

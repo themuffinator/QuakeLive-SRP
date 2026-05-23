@@ -508,8 +508,14 @@ def test_starting_weapons_uses_retail_icon_preview_path() -> None:
 def test_gametype_icons_use_retail_tga_registration_path() -> None:
     newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
     main_source = CG_MAIN.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
     register_block = _block_from_marker(newdraw_source, "void CG_RegisterGameTypeIcons")
     icon_block = _block_from_marker(newdraw_source, "static qhandle_t CG_GameTypeIconShader")
+    retail_icon_block = _text_between(
+        hlil_source,
+        "10034840    int32_t __fastcall sub_10034840",
+        "10034900",
+    )
 
     assert "static qhandle_t cgGameTypeIconShaders[GT_MAX_GAME_TYPE];" in newdraw_source
     assert 'memset( cgGameTypeIconShaders, 0, sizeof( cgGameTypeIconShaders ) );' in register_block
@@ -530,14 +536,295 @@ def test_gametype_icons_use_retail_tga_registration_path() -> None:
     ):
         assert expected in register_block
 
+    for expected in (
+        "else if (eax_2 != 0xb)",
+        "if (eax_2 != 0xc)",
+        "eax = data_10a5f328",
+    ):
+        assert expected in retail_icon_block
+
+    assert "cgGameTypeIconShaders[GT_OBELISK] = cgGameTypeIconShaders[GT_FFA];" in register_block
+
     for stale in (
         ".png",
         '"ui/assets/hud/flag.png"',
+        'cgGameTypeIconShaders[GT_OBELISK] = trap_R_RegisterShaderNoMip( "ui/assets/hud/dom.tga" );',
     ):
         assert stale not in newdraw_source
 
     assert "return cgGameTypeIconShaders[gametype];" in icon_block
     assert "CG_RegisterGameTypeIcons();" in main_source
+
+
+def test_first_twenty_limit_count_map_and_vote_draws_match_retail_origins() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    capfrag_block = _block_from_marker(source, "static void CG_DrawCapFragLimit")
+    race_limit_block = _block_from_marker(source, "static int CG_GetRaceCapFragLimitValue")
+    count_block = _block_from_marker(source, "static int CG_CountActivePlayers")
+    player_counts_block = _block_from_marker(source, "static void CG_DrawPlayerCounts")
+    map_name_block = _block_from_marker(source, "static void CG_DrawMapName")
+    vote_gametype_block = _block_from_marker(source, "static void CG_DrawVoteGametype")
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    retail_capfrag = _text_between(
+        hlil_source,
+        "10032260    void sub_10032260",
+        "100323d0",
+    )
+    retail_player_counts = _text_between(
+        hlil_source,
+        "10032f30    void sub_10032f30",
+        "10033040",
+    )
+    retail_map_name = _text_between(
+        hlil_source,
+        "100343d0    int32_t sub_100343d0",
+        "10034420",
+    )
+    retail_vote_gametype = _text_between(
+        hlil_source,
+        '100356f0    void* __convention("regparm") sub_100356f0',
+        "10035790",
+    )
+
+    for expected in (
+        "data_10a3ff38",
+        "data_10a3ff48",
+        "data_10a3ff54",
+        "data_10a3ff34",
+        "atoi(data_10a38f38 + 0x10a39420) - data_10abaad4",
+        "if (arg5 == 1)",
+        "else if (arg5 == 2)",
+        "var_8 = fconvert.s(fconvert.t(arg1[1]))",
+    ):
+        assert expected in retail_capfrag
+
+    for expected in (
+        "case GT_RACE:",
+        "limit = CG_GetRaceCapFragLimitValue();",
+        "case GT_CTF:",
+        "case GT_1FCTF:",
+        "case GT_OBELISK:",
+        "case GT_HARVESTER:",
+        "limit = cgs.capturelimit;",
+        "case GT_CLAN_ARENA:",
+        "case GT_FREEZE:",
+        "case GT_RED_ROVER:",
+        "limit = cgs.roundlimit;",
+        "case GT_DOMINATION:",
+        "case GT_ATTACK_DEFEND:",
+        "limit = cgs.scorelimit;",
+        "limit = cgs.fraglimit;",
+        'Com_sprintf( buffer, sizeof( buffer ), "%2i", limit );',
+        "CG_AlignTextX( &x, buffer, scale, align );",
+        "CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );",
+    ):
+        assert expected in capfrag_block
+
+    assert "remaining = cgs.racePointCount - ( progress->currentCheckpoint + 1 );" in race_limit_block
+    assert "CG_HasObjectiveCountStat" not in capfrag_block
+    assert "qhandle_t shader" not in capfrag_block
+    assert "rect->y + rect->h" not in capfrag_block
+    assert "CG_DrawCapFragLimit( &rect, scale, color, textStyle, align );" in ownerdraw_block
+
+    for expected in (
+        "if (*eax_1 != 0)",
+        'eax_2, ecx = sub_100575e0("%d/%d Players")',
+        "if (arg6 == 1)",
+        "else if (arg6 == 2)",
+        "fconvert.t(*(ebp + 4))",
+    ):
+        assert expected in retail_player_counts
+
+    assert "for ( i = 0; i < cgs.maxclients && i < MAX_CLIENTS; i++ )" in count_block
+    assert "cgs.clientinfo[i].infoValid" in count_block
+    assert "cg.numScores" not in count_block
+    assert "TEAM_SPECTATOR" not in count_block
+    assert "CG_AlignTextX( &x, buffer, scale, align );" in player_counts_block
+    assert "CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );" in player_counts_block
+    assert "rect->y + rect->h" not in player_counts_block
+    assert "CG_DrawPlayerCounts(&rect, scale, color, textStyle, align);" in ownerdraw_block
+
+    assert "fconvert.s(fconvert.t(arg1[1]))" in retail_map_name
+    assert "CG_Text_Paint(rect->x, rect->y, scale, color, nameBuffer, 0, 0, textStyle);" in map_name_block
+    assert "rect->y + rect->h" not in map_name_block
+
+    assert "if (arg1 == 0x13 || arg1 == 0x14 || arg1 == 0x15)" in retail_vote_gametype
+    assert "arg2[1]) - fconvert.t(8.0)" in retail_vote_gametype
+    assert 'CG_GetVoteSlotString( slot, "Gametype", buffer, sizeof( buffer ) );' in vote_gametype_block
+    assert "CG_Text_Paint( rect->x, rect->y - 8.0f, scale, color, buffer, 0, 0, textStyle );" in vote_gametype_block
+    assert "CG_GetTextPosition" not in vote_gametype_block
+    assert "case CG_VOTEGAMETYPE1:" in ownerdraw_block
+    assert "CG_DrawVoteGametype(&rect, scale, color, textStyle, 1);" in ownerdraw_block
+    assert "case CG_VOTEGAMETYPE2:" in ownerdraw_block
+    assert "CG_DrawVoteGametype(&rect, scale, color, textStyle, 2);" in ownerdraw_block
+
+
+def test_second_twenty_vote_and_local_player_ownerdraws_match_retail_wiring() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    vote_gametype_block = _block_from_marker(source, "static void CG_DrawVoteGametype")
+    vote_map_block = _block_from_marker(source, "static void CG_DrawVoteMapSlot")
+    vote_name_block = _block_from_marker(source, "static void CG_DrawVoteName")
+    vote_shot_block = _block_from_marker(source, "static void CG_DrawVoteShot")
+    vote_count_block = _block_from_marker(source, "static void CG_DrawVoteCount")
+    vote_timer_block = _block_from_marker(source, "static void CG_DrawVoteTimer")
+    spectator_block = _block_from_marker(source, "static void CG_DrawSpectatorMessages")
+    armor_icon_block = _block_from_marker(source, "static void CG_DrawPlayerArmorIcon")
+    armor_value_block = _block_from_marker(source, "static void CG_DrawPlayerArmorValue")
+    player_head_block = _block_from_marker(source, "static void CG_DrawPlayerHead")
+    player_model_block = _block_from_marker(source, "static void CG_DrawPlayerModel")
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    retail_vote_map = _text_between(
+        hlil_source,
+        '100355d0    void* __convention("regparm") sub_100355d0',
+        "10035660",
+    )
+    retail_vote_name = _text_between(
+        hlil_source,
+        '10035660    void* __convention("regparm") sub_10035660',
+        "100356f0",
+    )
+    retail_vote_shot = _text_between(
+        hlil_source,
+        "10035790    int32_t __convention",
+        "10035820",
+    )
+    retail_vote_count = _text_between(
+        hlil_source,
+        "10035820    void __convention",
+        "10035920",
+    )
+    retail_vote_timer = _text_between(
+        hlil_source,
+        "10035920    void sub_10035920",
+        "10035a10",
+    )
+    retail_armor_value = _text_between(
+        hlil_source,
+        "1002e500    void __convention",
+        "1002e660",
+    )
+    retail_armor_icon = _text_between(
+        hlil_source,
+        "1002e3f0    void __convention",
+        "1002e500",
+    )
+    retail_player_head = _text_between(
+        hlil_source,
+        "1002f950    int80_t sub_1002f950",
+        "1002fc70",
+    )
+    retail_player_model = _text_between(
+        hlil_source,
+        "10034980    int32_t __convention",
+        "10034a00",
+    )
+    retail_spectator = _text_between(
+        hlil_source,
+        "10034d70    int32_t __fastcall sub_10034d70",
+        "100350c0",
+    )
+
+    assert "if (arg1 == 0x13 || arg1 == 0x14 || arg1 == 0x15)" in hlil_source
+    assert "CG_DrawVoteGametype(&rect, scale, color, textStyle, 3);" in ownerdraw_block
+    assert "CG_GetTextPosition" not in vote_gametype_block
+
+    for expected in (
+        "if (arg1 == 0x16 || arg1 == 0x17 || arg1 == 0x18)",
+        "fconvert.s(fconvert.t(*arg2))",
+        "fconvert.s(fconvert.t(arg2[1]))",
+    ):
+        assert expected in retail_vote_map
+    assert 'CG_GetVoteSlotString( slot, "Map", buffer, sizeof( buffer ) );' in vote_map_block
+    assert "CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );" in vote_map_block
+    assert "CG_GetTextPosition" not in vote_map_block
+
+    assert "if (arg1 == 0x1c || arg1 == 0x1d || arg1 == 0x1e)" in retail_vote_name
+    assert 'CG_GetVoteSlotString( slot, "Name", buffer, sizeof( buffer ) );' in vote_name_block
+    assert "CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );" in vote_name_block
+    assert "CG_GetTextPosition" not in vote_name_block
+
+    for expected in (
+        "if (arg1 == 0x19 || arg1 == 0x1a || arg1 == 0x1b)",
+        'eax_2 = "default"',
+        'sub_100575e0("levelshots/preview/%s")',
+    ):
+        assert expected in retail_vote_shot
+    assert 'Q_strncpyz( previewToken, "default", sizeof( previewToken ) );' in vote_shot_block
+    assert 'Com_sprintf( path, sizeof( path ), "levelshots/preview/%s", previewToken );' in vote_shot_block
+
+    for expected in (
+        "if (arg3 == 0x1f || arg3 == 0x20 || arg3 == 0x21)",
+        'eax_1, ecx_5 = sub_100575e0("Votes: %s")',
+        "if (arg9 == 1)",
+        "else if (arg9 == 2)",
+        "fconvert.s(fconvert.t(arg4[1]))",
+    ):
+        assert expected in retail_vote_count
+    assert 'Com_sprintf( buffer, sizeof( buffer ), "Votes: %s", countText );' in vote_count_block
+    assert "CG_AlignTextX( &x, buffer, scale, align );" in vote_count_block
+    assert "CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );" in vote_count_block
+    assert "CG_GetTextPosition" not in vote_count_block
+
+    for expected in (
+        "data_10a3ffc4 - data_10a9c1ec + 0x4e20",
+        '"Voting has ended."',
+        '"Voting ends in %i second."',
+        '"Voting ends in %i seconds."',
+        "if (eax_5 == 1)",
+        "else if (eax_5 == 2)",
+    ):
+        assert expected in retail_vote_timer
+    assert "remaining = ( cgs.voteTime - cg.time + 20000 ) / 1000;" in vote_timer_block
+    assert "CG_AlignTextX( &x, buffer, scale, align );" in vote_timer_block
+    assert "CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );" in vote_timer_block
+    assert "CG_GetTextPosition" not in vote_timer_block
+
+    for expected in (
+        "case CG_VOTEMAP1:",
+        "CG_DrawVoteMapSlot(&rect, scale, color, textStyle, 1);",
+        "case CG_VOTESHOT1:",
+        "CG_DrawVoteShot(&rect, 1);",
+        "case CG_VOTENAME1:",
+        "CG_DrawVoteName(&rect, scale, color, textStyle, 1);",
+        "case CG_VOTECOUNT1:",
+        "CG_DrawVoteCount(&rect, scale, color, textStyle, 1, align);",
+        "case CG_VOTETIMER:",
+        "CG_DrawVoteTimer(&rect, scale, color, textStyle, align);",
+    ):
+        assert expected in ownerdraw_block
+
+    assert "Round In Progress" in retail_spectator
+    assert "SPECTATOR MODE" in spectator_block
+    assert "CG_DrawSpectatorMessages(&rect, scale, color, textStyle);" in ownerdraw_block
+
+    assert "data_10a5f418" in retail_armor_icon
+    assert "data_10a5f414" in retail_armor_icon
+    assert "CG_DrawPlayerArmorIcon( &rect, ownerDrawFlags & CG_SHOW_2DONLY );" in ownerdraw_block
+    assert "CG_DrawPlayerArmorIcon( &rect, qtrue );" in ownerdraw_block
+    assert "cgs.media.armorIcon" in armor_icon_block
+    assert "cgs.media.armorModel" in armor_icon_block
+
+    for expected in (
+        "if (arg1 != 0)",
+        "if (arg8 == 1)",
+        "else if (arg8 == 2)",
+        "fconvert.t(ebx[1]) + float.t(var_4)",
+    ):
+        assert expected in retail_armor_value
+    assert "value = ps->stats[STAT_ARMOR];" in armor_value_block
+    assert "CG_AlignTextX( &x, num, scale, align );" in armor_value_block
+    assert "y = rect->y + CG_Text_Height( num, scale, 0 );" in armor_value_block
+    assert "CG_DrawPlayerArmorValue( &rect, scale, color, shader, textStyle, align );" in ownerdraw_block
+
+    assert "CG_DrawHead( x, rect->y, rect->w, rect->h, cg.snap->ps.clientNum, angles );" in player_head_block
+    assert "return sub_10009490" in retail_player_head
+    assert "CG_DrawPlayerHead( &rect, ownerDrawFlags & CG_SHOW_2DONLY );" in ownerdraw_block
+
+    assert "VectorSet( previewAngles, 5.0f, 210.0f, 0.0f );" in player_model_block
+    assert "0x43520000" in retail_player_model
+    assert "CG_DrawPlayerModel( &rect );" in ownerdraw_block
 
 
 def test_team_pickup_ownerdraws_use_team_scorestats_payload() -> None:

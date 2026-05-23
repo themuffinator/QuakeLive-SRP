@@ -139,7 +139,16 @@ static void QLR_TestTrace( trace_t *trace, const vec3_t start, const vec3_t mins
 			break;
 		case 4:
 			trace->fraction = 0.5f;
-			VectorCopy( end, trace->endpos );
+			trace->endpos[0] = start[0] + ( end[0] - start[0] ) * trace->fraction;
+			trace->endpos[1] = start[1] + ( end[1] - start[1] ) * trace->fraction;
+			trace->endpos[2] = start[2] + ( end[2] - start[2] ) * trace->fraction;
+			VectorSet( trace->plane.normal, 0.0f, 0.0f, 1.0f );
+			break;
+		case 5:
+			trace->fraction = 0.5f;
+			trace->endpos[0] = start[0] + ( end[0] - start[0] ) * trace->fraction;
+			trace->endpos[1] = start[1] + ( end[1] - start[1] ) * trace->fraction;
+			trace->endpos[2] = start[2] + ( end[2] - start[2] ) * trace->fraction;
 			VectorSet( trace->plane.normal, 0.0f, 0.0f, 1.0f );
 			break;
 		default:
@@ -826,9 +835,9 @@ QLR_EXPORT int QLR_RunHeldJumpGate( int autoHop, int bunnyHop, int pmFlags, int 
 
 /*
 =============
-QLR_RunJumpPadLaunchJumpProbe
+QLR_RunJumpPadCacheJumpProbe
 
-Runs normal and double-jump gates while a jump-pad launch latch is active.
+Runs normal and double-jump gates while the jump-pad event cache is populated.
 =============
 */
 QLR_EXPORT int QLR_RunJumpPadLaunchJumpProbe( float *velocityZ, int *upmove ) {
@@ -869,9 +878,9 @@ QLR_EXPORT int QLR_RunJumpPadLaunchJumpProbe( float *velocityZ, int *upmove ) {
 
 /*
 =============
-QLR_RunJumpPadLaunchGroundedJumpProbe
+QLR_RunJumpPadCacheGroundedJumpProbe
 
-Runs the jump gate while a non-vertical jump-pad launch latch is active.
+Runs the jump gate while a non-vertical jump-pad event cache is populated.
 =============
 */
 QLR_EXPORT int QLR_RunJumpPadLaunchGroundedJumpProbe( float *velocityZ, int *upmove ) {
@@ -909,9 +918,9 @@ QLR_EXPORT int QLR_RunJumpPadLaunchGroundedJumpProbe( float *velocityZ, int *upm
 
 /*
 =============
-QLR_RunJumpPadLaunchAirStep
+QLR_RunJumpPadCacheAirStep
 
-Runs an upward air-step collision while a jump-pad launch latch is active.
+Runs an upward air-step collision while a jump-pad event cache is populated.
 =============
 */
 QLR_EXPORT int QLR_RunJumpPadLaunchAirStep( float *originZ, float *stepUp, float *velocityZ ) {
@@ -950,10 +959,9 @@ QLR_EXPORT int QLR_RunJumpPadLaunchAirStep( float *originZ, float *stepUp, float
 
 /*
 =============
-QLR_RunJumpPadLaunchGroundPlaneStep
+QLR_RunJumpPadCacheGroundPlaneStep
 
-Runs the generic step-up retry while a ground-plane latch is still present
-during an upward jump-pad launch.
+Runs the generic step-up retry while a jump-pad event cache is populated.
 =============
 */
 QLR_EXPORT int QLR_RunJumpPadLaunchGroundPlaneStep( float *originZ, float *stepUp, float *velocityZ ) {
@@ -994,10 +1002,132 @@ QLR_EXPORT int QLR_RunJumpPadLaunchGroundPlaneStep( float *originZ, float *stepU
 
 /*
 =============
-QLR_RunJumpPadLaunchPmoveHeldJump
+QLR_RunJumpPadCacheStepJump
 
-Runs the full Pmove loop with held jump already latched when a jump-pad launch
-velocity enters the frame.
+Runs an intentional step-jump or crouch-stepjump ledge takeoff while the
+jump-pad event cache is populated.
+=============
+*/
+QLR_EXPORT int QLR_RunJumpPadLaunchStepJump( int crouchStep, float *originZ, float *stepUp, float *velocityZ, int *jumpTime ) {
+	static pmove_t localPM;
+	static playerState_t localPS;
+	static pmove_settings_t localSettings;
+	pmove_t *previousPM;
+
+	QLR_ResetMoveState( &localPM, &localPS, &localSettings );
+	previousPM = pm;
+	pm = &localPM;
+
+	qlr_trace_mode = QLR_TRACE_MODE_LEDGE_STEP;
+	pm_airsteps = 1;
+	pm_stepHeight = 22.0f;
+	localSettings.chainJump = 2;
+	localSettings.crouchStepJump = qtrue;
+	localSettings.jumpTimeDeltaMin = 0.0f;
+	localSettings.jumpVelocity = 275.0f;
+	localSettings.jumpVelocityMax = 700.0f;
+	localSettings.stepJump = qtrue;
+	localSettings.stepJumpVelocity = 48.0f;
+	localPS.jumppad_ent = 7;
+	localPS.jumppad_frame = localPS.pmove_framecount;
+	localPS.velocity[0] = 100.0f;
+	localPS.velocity[2] = 400.0f;
+	localPM.cmd.forwardmove = 127;
+	if ( crouchStep ) {
+		localPS.pm_flags |= PMF_DUCKED;
+		localPM.cmd.upmove = 0;
+	} else {
+		localPM.cmd.upmove = 20;
+	}
+
+	PM_StepSlideMove( qfalse );
+
+	if ( originZ ) {
+		*originZ = localPS.origin[2];
+	}
+	if ( stepUp ) {
+		*stepUp = pml.stepUp;
+	}
+	if ( velocityZ ) {
+		*velocityZ = localPS.velocity[2];
+	}
+	if ( jumpTime ) {
+		*jumpTime = localPS.jumpTime;
+	}
+
+	pm = previousPM;
+	return qlr_trace_call_count;
+}
+
+/*
+=============
+QLR_RunJumpPadCacheWalkStepJump
+
+Runs the walking move path where the normal jump gate probes before the ledge
+step-jump seam while the jump-pad event cache is populated.
+=============
+*/
+QLR_EXPORT int QLR_RunJumpPadLaunchWalkStepJump( float *originZ, float *stepUp, float *velocityZ, int *upmove, int *jumpTime ) {
+	static pmove_t localPM;
+	static playerState_t localPS;
+	static pmove_settings_t localSettings;
+	pmove_t *previousPM;
+
+	QLR_ResetMoveState( &localPM, &localPS, &localSettings );
+	previousPM = pm;
+	pm = &localPM;
+
+	qlr_trace_mode = QLR_TRACE_MODE_LEDGE_STEP;
+	localSettings.airSteps = 1;
+	localSettings.chainJump = 2;
+	localSettings.crouchStepJump = qtrue;
+	localSettings.jumpTimeDeltaMin = 0.0f;
+	localSettings.jumpVelocity = 275.0f;
+	localSettings.jumpVelocityMax = 700.0f;
+	localSettings.stepHeight = 22.0f;
+	localSettings.stepJump = qtrue;
+	localSettings.stepJumpVelocity = 48.0f;
+	localPS.groundEntityNum = ENTITYNUM_WORLD;
+	localPS.jumppad_ent = 7;
+	localPS.jumppad_frame = localPS.pmove_framecount;
+	localPS.velocity[0] = 100.0f;
+	localPS.velocity[2] = 400.0f;
+	localPM.cmd.forwardmove = 127;
+	localPM.cmd.upmove = 20;
+	pml.groundPlane = qtrue;
+	pml.walking = qtrue;
+	pml.frametime = 0.0f;
+	VectorSet( pml.groundTrace.plane.normal, 0.0f, 0.0f, 1.0f );
+	PM_LoadMoveTuningConstants();
+
+	PM_WalkMove();
+
+	if ( originZ ) {
+		*originZ = localPS.origin[2];
+	}
+	if ( stepUp ) {
+		*stepUp = pml.stepUp;
+	}
+	if ( velocityZ ) {
+		*velocityZ = localPS.velocity[2];
+	}
+	if ( upmove ) {
+		*upmove = localPM.cmd.upmove;
+	}
+	if ( jumpTime ) {
+		*jumpTime = localPS.jumpTime;
+	}
+
+	pm = previousPM;
+	return qlr_trace_call_count;
+}
+
+/*
+=============
+QLR_RunJumpPadCachePmoveHeldJump
+
+Runs the full Pmove loop with held jump already latched while the jump-pad
+event cache is populated.
 =============
 */
 QLR_EXPORT int QLR_RunJumpPadLaunchPmoveHeldJump( float *velocityZ, int *upmove, int *pmFlags ) {
@@ -1010,7 +1140,7 @@ QLR_EXPORT int QLR_RunJumpPadLaunchPmoveHeldJump( float *velocityZ, int *upmove,
 	localPS.commandTime = 900;
 	localPS.jumppad_ent = 7;
 	localPS.jumppad_frame = localPS.pmove_framecount;
-	localPS.pm_flags = PMF_JUMP_HELD;
+	localPS.pm_flags = PMF_JUMP_HELD | PMF_DOUBLE_JUMP;
 	localPS.velocity[2] = 800.0f;
 	localPM.cmd.serverTime = 1000;
 	localPM.cmd.upmove = 20;
@@ -2231,6 +2361,22 @@ def pmove_fixture_harness(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CD
 		ctypes.POINTER(ctypes.c_float),
 	]
 	library.QLR_RunJumpPadLaunchGroundPlaneStep.restype = ctypes.c_int
+	library.QLR_RunJumpPadLaunchStepJump.argtypes = [
+		ctypes.c_int,
+		ctypes.POINTER(ctypes.c_float),
+		ctypes.POINTER(ctypes.c_float),
+		ctypes.POINTER(ctypes.c_float),
+		ctypes.POINTER(ctypes.c_int),
+	]
+	library.QLR_RunJumpPadLaunchStepJump.restype = ctypes.c_int
+	library.QLR_RunJumpPadLaunchWalkStepJump.argtypes = [
+		ctypes.POINTER(ctypes.c_float),
+		ctypes.POINTER(ctypes.c_float),
+		ctypes.POINTER(ctypes.c_float),
+		ctypes.POINTER(ctypes.c_int),
+		ctypes.POINTER(ctypes.c_int),
+	]
+	library.QLR_RunJumpPadLaunchWalkStepJump.restype = ctypes.c_int
 	library.QLR_RunJumpPadLaunchPmoveHeldJump.argtypes = [
 		ctypes.POINTER(ctypes.c_float),
 		ctypes.POINTER(ctypes.c_int),
@@ -2735,7 +2881,7 @@ def test_recovered_jump_release_flag_overrides_autohop_profile(pmove_fixture_har
 	assert pmove_fixture_harness.QLR_RunHeldJumpGate(1, 0, pmf_require_jump_release, 1) == 0
 
 
-def test_jumppad_launch_latch_blocks_jump_gates_from_replacing_push_velocity(
+def test_jumppad_cache_does_not_block_retail_jump_gates(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	velocity_z = ctypes.c_float(0.0)
@@ -2746,12 +2892,12 @@ def test_jumppad_launch_latch_blocks_jump_gates_from_replacing_push_velocity(
 		ctypes.byref(upmove),
 	)
 
-	assert results == 0
-	assert velocity_z.value == pytest.approx(800.0, rel=1e-6)
+	assert results == 1
+	assert velocity_z.value == pytest.approx(275.0, rel=1e-6)
 	assert upmove.value == 0
 
 
-def test_jumppad_launch_latch_blocks_grounded_jump_from_replacing_push_velocity(
+def test_jumppad_cache_does_not_block_grounded_jump_gate(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	velocity_z = ctypes.c_float(0.0)
@@ -2762,12 +2908,12 @@ def test_jumppad_launch_latch_blocks_grounded_jump_from_replacing_push_velocity(
 		ctypes.byref(upmove),
 	)
 
-	assert accepted == 0
-	assert velocity_z.value == pytest.approx(0.0, abs=1e-6)
-	assert upmove.value == 0
+	assert accepted == 1
+	assert velocity_z.value == pytest.approx(275.0, rel=1e-6)
+	assert upmove.value == 20
 
 
-def test_jumppad_launch_latch_blocks_air_step_ledge_grab(
+def test_jumppad_cache_does_not_block_air_step_ledge_retry(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	origin_z = ctypes.c_float(0.0)
@@ -2780,12 +2926,13 @@ def test_jumppad_launch_latch_blocks_air_step_ledge_grab(
 		ctypes.byref(velocity_z),
 	)
 
-	assert trace_calls == 1
-	assert origin_z.value == pytest.approx(0.0, rel=1e-6)
-	assert step_up.value == pytest.approx(0.0, rel=1e-6)
+	assert trace_calls == 4
+	assert origin_z.value == pytest.approx(40.0, rel=1e-6)
+	assert step_up.value == pytest.approx(40.0, rel=1e-6)
+	assert velocity_z.value == pytest.approx(400.0, rel=1e-6)
 
 
-def test_jumppad_launch_latch_blocks_generic_ground_plane_step_retry(
+def test_jumppad_cache_does_not_block_generic_ground_plane_step_retry(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	origin_z = ctypes.c_float(0.0)
@@ -2798,12 +2945,84 @@ def test_jumppad_launch_latch_blocks_generic_ground_plane_step_retry(
 		ctypes.byref(velocity_z),
 	)
 
-	assert trace_calls == 2
-	assert step_up.value == pytest.approx(0.0, rel=1e-6)
-	assert velocity_z.value > 0.0
+	assert trace_calls == 5
+	assert origin_z.value > 0.0
+	assert step_up.value > 0.0
+	assert velocity_z.value >= 0.0
 
 
-def test_jumppad_launch_pmove_suppresses_held_jump_across_split_slices(
+def test_jumppad_cache_still_allows_explicit_step_jump(
+	pmove_fixture_harness: ctypes.CDLL,
+) -> None:
+	origin_z = ctypes.c_float(0.0)
+	step_up = ctypes.c_float(0.0)
+	velocity_z = ctypes.c_float(0.0)
+	jump_time = ctypes.c_int(0)
+
+	trace_calls = pmove_fixture_harness.QLR_RunJumpPadLaunchStepJump(
+		0,
+		ctypes.byref(origin_z),
+		ctypes.byref(step_up),
+		ctypes.byref(velocity_z),
+		ctypes.byref(jump_time),
+	)
+
+	assert trace_calls == 6
+	assert origin_z.value > 0.0
+	assert step_up.value > 0.0
+	assert velocity_z.value == pytest.approx(275.0, rel=1e-6)
+	assert jump_time.value == 1000
+
+
+def test_jumppad_cache_walk_jump_uses_retail_jump_gate_before_stepjump(
+	pmove_fixture_harness: ctypes.CDLL,
+) -> None:
+	origin_z = ctypes.c_float(0.0)
+	step_up = ctypes.c_float(0.0)
+	velocity_z = ctypes.c_float(0.0)
+	upmove = ctypes.c_int(0)
+	jump_time = ctypes.c_int(0)
+
+	trace_calls = pmove_fixture_harness.QLR_RunJumpPadLaunchWalkStepJump(
+		ctypes.byref(origin_z),
+		ctypes.byref(step_up),
+		ctypes.byref(velocity_z),
+		ctypes.byref(upmove),
+		ctypes.byref(jump_time),
+	)
+
+	assert trace_calls >= 5
+	assert upmove.value == 0
+	assert origin_z.value > 0.0
+	assert step_up.value > 0.0
+	assert velocity_z.value >= 0.0
+	assert jump_time.value == 1000
+
+
+def test_jumppad_cache_still_allows_crouch_stepjump_fallback(
+	pmove_fixture_harness: ctypes.CDLL,
+) -> None:
+	origin_z = ctypes.c_float(0.0)
+	step_up = ctypes.c_float(0.0)
+	velocity_z = ctypes.c_float(0.0)
+	jump_time = ctypes.c_int(0)
+
+	trace_calls = pmove_fixture_harness.QLR_RunJumpPadLaunchStepJump(
+		1,
+		ctypes.byref(origin_z),
+		ctypes.byref(step_up),
+		ctypes.byref(velocity_z),
+		ctypes.byref(jump_time),
+	)
+
+	assert trace_calls == 7
+	assert origin_z.value > 0.0
+	assert step_up.value > 0.0
+	assert velocity_z.value == pytest.approx(275.0, rel=1e-6)
+	assert jump_time.value == 1000
+
+
+def test_jumppad_cache_pmove_preserves_held_jump_without_double_jump(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	pmf_jump_held = 2
@@ -2818,8 +3037,8 @@ def test_jumppad_launch_pmove_suppresses_held_jump_across_split_slices(
 	)
 
 	assert double_jumped == 0
-	assert upmove.value == 0
-	assert not (pm_flags.value & pmf_jump_held)
+	assert upmove.value == 20
+	assert pm_flags.value & pmf_jump_held
 	assert velocity_z.value > 700.0
 
 

@@ -362,7 +362,9 @@ typedef enum {
 	STAT_CHAINGUN_SPINUP,			// retail chaingun spin accumulator, clamped to 0..1000
 	STAT_PLAYER_ITEM_TIME_MAX = 10,	// retail progress-backed holdable maximum at playerState +0xe8
 	STAT_PLAYER_ITEM_TIME,			// retail progress-backed holdable current value at playerState +0xec
-	STAT_PLAYER_ITEM_RECHARGE		// retail progress-backed holdable recharge rate at playerState +0xf0
+	STAT_PLAYER_ITEM_RECHARGE,		// retail progress-backed holdable recharge rate at playerState +0xf0
+	STAT_ARMOR_TIER = 14,			// retail armor tier replicated for HUD colorization
+	STAT_KEY_MASK					// retail carried-key bitmask replicated for HUD icons
 } statIndex_t;
 
 
@@ -1003,7 +1005,6 @@ void	BG_EvaluateTrajectoryDelta( const trajectory_t *tr, int atTime, vec3_t resu
 void	BG_AddPredictableEventToPlayerstate( int newEvent, int eventParm, playerState_t *ps );
 
 void	BG_TouchJumpPad( playerState_t *ps, entityState_t *jumppad );
-qboolean BG_ShouldClearJumpPadLaunch( const playerState_t *ps );
 
 void	BG_PlayerStateToEntityState( playerState_t *ps, entityState_t *s, qboolean snap );
 

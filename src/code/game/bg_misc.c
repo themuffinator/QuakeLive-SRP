@@ -387,6 +387,28 @@ int BG_GetHealthUpperBound( const playerState_t *ps, int pickupQuantity ) {
 
 /*
 =============
+BG_SetArmorTier
+
+Updates the source cache and the retail replicated armor-tier stat together.
+=============
+*/
+static void BG_SetArmorTier( playerState_t *ps, int armorTier ) {
+	if ( !ps ) {
+		return;
+	}
+
+	if ( armorTier < 0 ) {
+		armorTier = 0;
+	} else if ( armorTier > 2 ) {
+		armorTier = 2;
+	}
+
+	ps->armorTier = armorTier;
+	ps->stats[STAT_ARMOR_TIER] = armorTier;
+}
+
+/*
+=============
 BG_UpdateArmorTierFromCurrentArmor
 
 Rebuilds the replicated retail armor tier from the current armor amount.
@@ -395,17 +417,17 @@ Rebuilds the replicated retail armor tier from the current armor amount.
 void BG_UpdateArmorTierFromCurrentArmor( playerState_t *ps, qboolean armorTiered ) {
 	if ( !ps || !armorTiered || ps->stats[STAT_ARMOR] <= 0 ) {
 		if ( ps ) {
-			ps->armorTier = 0;
+			BG_SetArmorTier( ps, 0 );
 		}
 		return;
 	}
 
 	if ( ps->stats[STAT_ARMOR] < 100 ) {
-		ps->armorTier = 0;
+		BG_SetArmorTier( ps, 0 );
 	} else if ( ps->stats[STAT_ARMOR] < 150 ) {
-		ps->armorTier = 1;
+		BG_SetArmorTier( ps, 1 );
 	} else {
-		ps->armorTier = 2;
+		BG_SetArmorTier( ps, 2 );
 	}
 }
 
@@ -422,7 +444,7 @@ void BG_ClearArmorTierIfEmpty( playerState_t *ps, qboolean armorTiered ) {
 	}
 
 	if ( !armorTiered || ps->stats[STAT_ARMOR] < 1 ) {
-		ps->armorTier = 0;
+		BG_SetArmorTier( ps, 0 );
 	}
 }
 
@@ -467,6 +489,7 @@ void BG_ApplyArmorPickup( playerState_t *ps, const gitem_t *item, qboolean armor
 	}
 
 	if ( !armorTiered ) {
+		BG_SetArmorTier( ps, 0 );
 		ps->stats[STAT_ARMOR] += item->quantity;
 		upperBound = BG_GetArmorUpperBound( ps );
 		if ( upperBound > 0 && ps->stats[STAT_ARMOR] > upperBound ) {
@@ -481,25 +504,25 @@ void BG_ApplyArmorPickup( playerState_t *ps, const gitem_t *item, qboolean armor
 		if ( ps->stats[STAT_ARMOR] > 200 ) {
 			ps->stats[STAT_ARMOR] = 200;
 		}
-		ps->armorTier = 2;
+		BG_SetArmorTier( ps, 2 );
 		break;
 	case 2:
 		ps->stats[STAT_ARMOR] += 100;
 		if ( ps->stats[STAT_ARMOR] > 150 ) {
 			ps->stats[STAT_ARMOR] = 150;
 		}
-		ps->armorTier = 1;
+		BG_SetArmorTier( ps, 1 );
 		break;
 	case 3:
 		ps->stats[STAT_ARMOR] += 50;
 		if ( ps->stats[STAT_ARMOR] > 100 ) {
 			ps->stats[STAT_ARMOR] = 100;
 		}
-		ps->armorTier = 0;
+		BG_SetArmorTier( ps, 0 );
 		break;
 	default:
 		if ( ps->stats[STAT_ARMOR] < 1 ) {
-			ps->armorTier = 0;
+			BG_SetArmorTier( ps, 0 );
 		}
 		ps->stats[STAT_ARMOR] += 2;
 		break;
@@ -2395,34 +2418,6 @@ void BG_TouchJumpPad( playerState_t *ps, entityState_t *jumppad ) {
 	ps->jumppad_frame = ps->pmove_framecount;
 	// give the player the velocity from the jumppad
 	VectorCopy( jumppad->origin2, ps->velocity );
-}
-
-/*
-========================
-BG_ShouldClearJumpPadLaunch
-
-Returns whether the cached jump-pad launch marker has outlived the current
-upward launch arc and can be cleared.
-========================
-*/
-qboolean BG_ShouldClearJumpPadLaunch( const playerState_t *ps ) {
-	if ( !ps ) {
-		return qfalse;
-	}
-
-	if ( ps->jumppad_ent == 0 ) {
-		return qfalse;
-	}
-
-	if ( ps->jumppad_frame == ps->pmove_framecount ) {
-		return qfalse;
-	}
-
-	if ( ps->velocity[2] > 0.0f ) {
-		return qfalse;
-	}
-
-	return qtrue;
 }
 
 /*

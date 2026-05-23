@@ -2473,7 +2473,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 						listPtr->startPos = listPtr->cursorPos - viewmax + 1;
 					}
 					item->cursorPos = listPtr->cursorPos;
-					DC->feederSelection(item->special, item->cursorPos);
+					DC->feederSelection(item->special, item->cursorPos, item->cvar);
 				}
 				else {
 					listPtr->startPos--;
@@ -2496,7 +2496,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 						listPtr->startPos = listPtr->cursorPos - viewmax + 1;
 					}
 					item->cursorPos = listPtr->cursorPos;
-					DC->feederSelection(item->special, item->cursorPos);
+					DC->feederSelection(item->special, item->cursorPos, item->cvar);
 				}
 				else {
 					listPtr->startPos++;
@@ -2522,7 +2522,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 						listPtr->startPos = listPtr->cursorPos - viewmax + 1;
 					}
 					item->cursorPos = listPtr->cursorPos;
-					DC->feederSelection(item->special, item->cursorPos);
+					DC->feederSelection(item->special, item->cursorPos, item->cvar);
 				}
 				else {
 					listPtr->startPos--;
@@ -2545,7 +2545,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 						listPtr->startPos = listPtr->cursorPos - viewmax + 1;
 					}
 					item->cursorPos = listPtr->cursorPos;
-					DC->feederSelection(item->special, item->cursorPos);
+					DC->feederSelection(item->special, item->cursorPos, item->cvar);
 				}
 				else {
 					listPtr->startPos++;
@@ -2590,7 +2590,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 				lastListBoxClickTime = DC->realTime + DOUBLE_CLICK_DELAY;
 				if (item->cursorPos != listPtr->cursorPos) {
 					item->cursorPos = listPtr->cursorPos;
-					DC->feederSelection(item->special, item->cursorPos);
+					DC->feederSelection(item->special, item->cursorPos, item->cvar);
 				}
 			}
 			return qtrue;
@@ -2619,7 +2619,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 					listPtr->startPos = listPtr->cursorPos - viewmax + 1;
 				}
 				item->cursorPos = listPtr->cursorPos;
-				DC->feederSelection(item->special, item->cursorPos);
+				DC->feederSelection(item->special, item->cursorPos, item->cvar);
 			}
 			else {
 				listPtr->startPos -= viewmax;
@@ -2643,7 +2643,7 @@ qboolean Item_ListBox_HandleKey(itemDef_t *item, int key, qboolean down, qboolea
 					listPtr->startPos = listPtr->cursorPos - viewmax + 1;
 				}
 				item->cursorPos = listPtr->cursorPos;
-				DC->feederSelection(item->special, item->cursorPos);
+				DC->feederSelection(item->special, item->cursorPos, item->cvar);
 			}
 			else {
 				listPtr->startPos += viewmax;
@@ -5131,7 +5131,7 @@ void Menu_SetFeederSelection(menuDef_t *menu, int feeder, int index, const char 
 					listPtr->startPos = 0;
 				}
 				menu->items[i]->cursorPos = index;
-				DC->feederSelection(menu->items[i]->special, menu->items[i]->cursorPos);
+				DC->feederSelection(menu->items[i]->special, menu->items[i]->cursorPos, menu->items[i]->cvar);
 				return;
 			}
 		}

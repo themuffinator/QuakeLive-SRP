@@ -55,15 +55,16 @@ and map producers are now directly retail-backed.
 
 Current x86 size: `0x18`
 
-This is a single bot/head catalog row used by the addbot flow, the player model
-preview, and the team-filtered head feeder.
+This is a legacy bot/head catalog row used by the addbot flow, team setup, and
+older character preview paths. Retail `FEEDER_HEADS` / `FEEDER_Q3HEADS` now use
+the validated player-model catalog instead of this Team Arena character list.
 
 | Offset | Member | Type | Role |
 | --- | --- | --- | --- |
 | `0x00` | `name` | `const char *` | Canonical character/bot display name. Used by the addbot flow, bot feeder text, and player preview selection. |
 | `0x04` | `imageName` | `const char *` | Head-icon shader path. `Character_Parse` seeds this as `models/players/heads/<name>/icon_default.tga`. |
 | `0x08` | `headImage` | `qhandle_t` | Lazily-registered head icon handle. `-1` means not yet registered. |
-| `0x0C` | `base` | `const char *` | Backing model base used for team skin checks and `team_model` / `team_headmodel` setup. `Character_Parse` maps `"female"` to `"Janet"`, `"male"` to `"James"`, or keeps the explicit token. |
+| `0x0C` | `base` | `const char *` | Backing model base used for legacy team skin checks. `Character_Parse` maps `"female"` to `"Janet"`, `"male"` to `"James"`, or keeps the explicit token. |
 | `0x10` | `active` | `qboolean` | Team-filter visibility latch. `UI_HeadCountByTeam` recomputes this when filtering the head list for the selected team. |
 | `0x14` | `reference` | `int` | Team-availability bitmask. `UI_HeadCountByTeam` sets one bit per team that has skins for this character base. |
 

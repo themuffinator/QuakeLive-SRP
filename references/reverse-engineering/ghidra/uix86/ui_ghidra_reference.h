@@ -450,15 +450,15 @@ char *	va( const char *format, ... );
 #define QLR_UI_ADDR_UI_BUILDFINDPLAYERLIST                       0x1000DEB0u
 /* UI_BuildServerStatus: Refreshes the selected server's status table, resetting outstanding requests on forced rebuilds and retrying until data arrives. */
 #define QLR_UI_ADDR_UI_BUILDSERVERSTATUS                         0x1000E3B0u
-/* UI_FeederCount: Returns the active row count for the committed retail UI feeder set: heads, maps, servers, clans, player/team lists, mods, demos, cinematics, and the callvote-map filter. */
+/* UI_FeederCount: Returns the active row count for the committed retail UI feeder set, with FEEDER_HEADS/FEEDER_Q3HEADS backed by the validated player-model catalog. */
 #define QLR_UI_ADDR_UI_FEEDERCOUNT                               0x1000E470u
 /* UI_SelectedMap: Converts a visible feeder row into the backing active map index and returns that map's display name. */
 #define QLR_UI_ADDR_UI_SELECTEDMAP                               0x1000E600u
-/* UI_FeederItemImage: Resolves feeder row images such as character heads, map levelshots, callvote maps, and clan emblems. */
+/* UI_FeederItemImage: Resolves feeder row images such as player-model icons, map levelshots, and callvote maps. */
 #define QLR_UI_ADDR_UI_FEEDERITEMIMAGE                           0x1000E640u
-/* UI_FeederItemText: Returns feeder row text for the committed retail UI feeder set: heads, maps, server browser columns, mods, movies, demos, clans, and the older player/team list families. */
+/* UI_FeederItemText: Returns feeder row text for the committed retail UI feeder set: player-model names, maps, server browser columns, mods, movies, demos, server-status/find-player rows, and the older player/team list families. */
 #define QLR_UI_ADDR_UI_FEEDERITEMTEXT                            0x1000EA80u
-/* UI_FeederSelection: Applies feeder selection side effects such as model cvar writes, cinematic refresh, server-status selection, and the FEEDER_CVMAPS branch that rebuilds the visible callvote set through `UI_CVMapCountByGameType`, resolves the chosen row through `UI_SelectedMap`, and then refreshes `ui_currentNetMap` for the retail voteMap preview path. */
+/* UI_FeederSelection: Applies feeder selection side effects such as model/headmodel writes, item-cvar model writes, cinematic refresh, server-status selection, and the FEEDER_CVMAPS branch that rebuilds the visible callvote set through `UI_CVMapCountByGameType`, resolves the chosen row through `UI_SelectedMap`, and then refreshes `ui_currentNetMap` for the retail voteMap preview path. */
 #define QLR_UI_ADDR_UI_FEEDERSELECTION                           0x1000EBA0u
 /* Character_Parse: Parses one characters block from teaminfo into the retail model and skin table and builds each head icon path. */
 #define QLR_UI_ADDR_CHARACTER_PARSE                              0x1000F140u

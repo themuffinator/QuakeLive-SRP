@@ -241,6 +241,28 @@ def test_armor_pickup_helper_matches_retail_tiered_leaf_boundary() -> None:
 	assert "return ( armor <= 66 ) ? qtrue : qfalse;" in body
 
 
+def test_armor_tier_helpers_mirror_retail_replicated_stat() -> None:
+	set_body = _function_body(
+		r"static void BG_SetArmorTier\( playerState_t \*ps, int armorTier \)\s*\{(?P<body>.*?)^\}",
+	)
+	update_body = _function_body(
+		r"void BG_UpdateArmorTierFromCurrentArmor\( playerState_t \*ps, qboolean armorTiered \)\s*\{(?P<body>.*?)^\}",
+	)
+	apply_body = _function_body(
+		r"void BG_ApplyArmorPickup\( playerState_t \*ps, const gitem_t \*item, qboolean armorTiered \)\s*\{(?P<body>.*?)^\}",
+	)
+
+	assert "ps->armorTier = armorTier;" in set_body
+	assert "ps->stats[STAT_ARMOR_TIER] = armorTier;" in set_body
+	for expected in (
+		"BG_SetArmorTier( ps, 0 );",
+		"BG_SetArmorTier( ps, 1 );",
+		"BG_SetArmorTier( ps, 2 );",
+	):
+		assert expected in update_body
+		assert expected in apply_body
+
+
 def test_health_pickup_helper_restores_retail_leaf_boundary() -> None:
 	body = _function_body(
 		r"static qboolean BG_CanGrabHealthItem\( int gametype, int currentTime, const entityState_t \*ent, const playerState_t \*ps, const gitem_t \*item, qboolean dropped \)\s*\{(?P<body>.*?)^\}",

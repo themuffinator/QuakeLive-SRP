@@ -944,8 +944,8 @@ The menu `.menu` feeders enumerated in `src/ui/menudef.h` map directly to the
 `UI_FeederSelection` HLIL mapping referenced in `docs/gameplay/parity/parity-ledger.md`
 aligned with the GPL sources while we add new feeders.
 
-- `FEEDER_HEADS` / `FEEDER_Q3HEADS` → `characterList[]`, `q3HeadNames[]`, the
-avatar banks exposed on the player setup menus.
+- `FEEDER_HEADS` / `FEEDER_Q3HEADS` → the validated player-model catalog used by
+the player and force-model setup menus; the Q3 path skips retail alias skins.
 - `FEEDER_MAPS` and `FEEDER_ALLMAPS` draw directly from `mapList[]`.
 - `FEEDER_CVMAPS` projects the callvote-visible subset of `mapRotations[]`
 through `mapList[]` so the vote-preview path can reuse cached level metadata,

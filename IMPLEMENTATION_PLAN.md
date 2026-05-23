@@ -39,6 +39,45 @@ disabled, until a documented open replacement path exists.
   `docs/ui_deltas.md`, and `docs/ui_followup_issues.md` are historical
   snapshots, not current gap ledgers.
 
+## Active work
+
+### Task A33: Audit retail UI feeder parity and wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `src/code/cgame/cg_main.c`,
+`src/ui/*.menu` (read-only evidence), `references/hlil/quakelive/uix86.all/`,
+`references/symbol-maps/ui.json`, `tests/test_ui_menu_files.py`,
+`tests/test_cgame_displaycontext_parity.py`
+Parity estimate: **before 86% -> after 100%** for scoped feeder ownership and
+callback wiring after the retail matrix, player-model feeder repair, and
+cgame scoreboard-family verification. Repo-wide remains **98%** pending the
+active portability/runtime-evidence gaps.
+
+Feeder queue:
+
+- [x] Establish ownership buckets for the 0x00-0x13 Quake Live feeder ids:
+  UI-owned listboxes, cgame-owned scoreboard/team listboxes, and dormant
+  `FEEDER_CLANS`.
+- [x] Verify UI-owned callbacks for `FEEDER_HEADS`, `FEEDER_MAPS`,
+  `FEEDER_SERVERS`, `FEEDER_ALLMAPS`, `FEEDER_PLAYER_LIST`,
+  `FEEDER_TEAM_LIST`, `FEEDER_MODS`, `FEEDER_DEMOS`, `FEEDER_Q3HEADS`,
+  `FEEDER_SERVERSTATUS`, `FEEDER_FINDPLAYER`, `FEEDER_CINEMATICS`, and
+  `FEEDER_CVMAPS`.
+- [x] Verify cgame-owned callbacks for `FEEDER_REDTEAM_LIST`,
+  `FEEDER_BLUETEAM_LIST`, `FEEDER_SCOREBOARD`, `FEEDER_ENDSCOREBOARD`,
+  `FEEDER_REDTEAM_STATS`, and `FEEDER_BLUETEAM_STATS`.
+- [x] Keep `FEEDER_CLANS` as a defined-but-dormant retail id unless new
+  committed evidence shows an active menu, host, or browser contract.
+- [x] Run focused feeder parity tests and patch any concrete mismatch surfaced
+  by the matrix.
+- [x] Repair `FEEDER_HEADS` / `FEEDER_Q3HEADS` to use the validated retail
+  player-model catalog, pass listbox item cvars through `feederSelection`, and
+  drop the non-retail PunkBuster server-browser text column from the UI feeder.
+- [x] Verification:
+  `python -m pytest tests/test_ui_menu_files.py::test_ui_retail_feeder_matrix_matches_menu_consumers_and_callback_ownership tests/test_ui_menu_files.py::test_ui_retail_feeder_leaf_callbacks_match_remaining_ui_owned_ids tests/test_ui_menu_files.py::test_ui_retail_callvote_map_feeder_uses_active_map_slab tests/test_ui_menu_files.py::test_ui_retail_clan_feeder_scaffolding_is_removed tests/test_cgame_displaycontext_parity.py::test_cgame_scoreboard_feeder_matrix_owns_all_retail_scoreboard_feeders tests/test_cgame_displaycontext_parity.py::test_cgame_scoreboard_selection_callbacks_restore_cached_team_list_menu_seam`
+- [x] Verification: Debug Win32 `ui.vcxproj` and `cgamex86.vcxproj` builds
+  succeeded; `ui.vcxproj` still reports three pre-existing C4090 warnings in
+  `UI_RunOrdersScript` / `UI_RunVoiceOrdersScript`.
+
 ## Recent closure
 
 ### Task A32: Remove source-only Flight refuel-rate cvar [COMPLETED]

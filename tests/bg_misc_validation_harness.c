@@ -439,22 +439,27 @@ QLR_EXPORT int QLR_TouchJumpPadVelocityZ( int pmType, int flightPowerup, int pre
 
 /*
 =============
-QLR_ShouldClearJumpPadLaunch
+QLR_TouchJumpPadOverwritesVelocity
 
-Returns the shared jump-pad launch clear decision for a synthetic playerstate.
+Returns the resulting vertical velocity when a jump-pad touch follows an
+already populated vertical velocity.
 =============
 */
-QLR_EXPORT int QLR_ShouldClearJumpPadLaunch( int currentFrame, int jumpPadFrame, float velocityZ, int jumpPadEnt ) {
+QLR_EXPORT int QLR_TouchJumpPadOverwritesVelocity( void ) {
 	playerState_t	ps;
+	entityState_t	jumppad;
 
 	QLR_ResetPlayerState( &ps );
-	ps.pm_type = PM_NORMAL;
-	ps.pmove_framecount = currentFrame;
-	ps.jumppad_frame = jumpPadFrame;
-	ps.jumppad_ent = jumpPadEnt;
-	ps.velocity[2] = velocityZ;
+	memset( &jumppad, 0, sizeof( jumppad ) );
 
-	return BG_ShouldClearJumpPadLaunch( &ps ) ? 1 : 0;
+	ps.pm_type = PM_NORMAL;
+	ps.velocity[2] = 275.0f;
+	jumppad.number = 7;
+	jumppad.origin2[2] = 800.0f;
+
+	BG_TouchJumpPad( &ps, &jumppad );
+
+	return (int)ps.velocity[2];
 }
 
 /*

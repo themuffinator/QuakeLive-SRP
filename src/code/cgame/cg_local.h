@@ -513,6 +513,7 @@ typedef struct {
 	int			weaponHits[WP_NUM_WEAPONS];
 	int			weaponShots[WP_NUM_WEAPONS];
 	int			weaponDamage[WP_NUM_WEAPONS];
+	int			weaponAccuracy[WP_NUM_WEAPONS];
 	int			pickupCounts[CG_SCORESTAT_PICKUP_COUNT];
 	float			pickupAvgSeconds[CG_SCORESTAT_PICKUP_COUNT];
 	int			progressionPr;

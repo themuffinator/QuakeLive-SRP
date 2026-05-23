@@ -428,7 +428,7 @@ typedef struct {
 	int (*feederCount)(float feederID);
 	const char *(*feederItemText)(float feederID, int index, int column, qhandle_t *handle);
 	qhandle_t (*feederItemImage)(float feederID, int index);
-	void (*feederSelection)(float feederID, int index);
+	void (*feederSelection)(float feederID, int index, const char *cvar);
 	void (*keynumToStringBuf)( int keynum, char *buf, int buflen );
 	void (*getBindingBuf)( int keynum, char *buf, int buflen );
 	void (*setBinding)( int keynum, const char *binding );

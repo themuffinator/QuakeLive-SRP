@@ -1195,6 +1195,9 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		G_TossFlag( self, PW_REDFLAG, FLAG_DROP_CONTEXT_FORCED_RETURN, attacker, meansOfDeath, NULL );
 		G_TossFlag( self, PW_BLUEFLAG, FLAG_DROP_CONTEXT_FORCED_RETURN, attacker, meansOfDeath, NULL );
 		self->keyMask = 0;
+		if ( self->client ) {
+			self->client->ps.stats[STAT_KEY_MASK] = 0;
+		}
 	}
 	TossClientPersistantPowerups( self );
 	if( g_gametype.integer == GT_HARVESTER ) {
