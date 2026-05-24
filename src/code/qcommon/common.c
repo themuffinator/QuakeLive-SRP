@@ -62,8 +62,1361 @@ const qlr_fs_imports_t qlr_fs_imports = {
 	FS_ReferencedPakPureChecksums
 };
 
+#if QL_PLATFORM_HAS_STEAM_SERVICES
+#define NET_PROFILE_SUPPORTS_PLATFORM_AUTH qtrue
+#else
+#define NET_PROFILE_SUPPORTS_PLATFORM_AUTH qfalse
+#endif
+
+#if QL_PLATFORM_HAS_ONLINE_SERVICES
+#define NET_PROFILE_SUPPORTS_WORKSHOP_CONTENT qtrue
+#else
+#define NET_PROFILE_SUPPORTS_WORKSHOP_CONTENT qfalse
+#endif
+
+static const netprofile_desc_t s_netProtocolProfile = {
+	NETPROFILE_QL_RETAIL,
+	"ql-retail-steam",
+	"getchallenge",
+	"challengeResponse",
+	"connect",
+	"connectResponse",
+	"getinfo",
+	"infoResponse",
+	"getstatus",
+	"statusResponse",
+	"disconnect",
+	"print",
+	"echo",
+	"rcon",
+	"getservers",
+	"getserversResponse",
+	"getmotd",
+	"motd",
+	"getKeyAuthorize",
+	"keyAuthorize",
+	"getIpAuthorize",
+	"ipAuthorize",
+	"heartbeat",
+	"QuakeArena-1",
+	"download",
+	"nextdl",
+	"stopdl",
+	"donedl",
+	"cp",
+	"Yf",
+	"vdr",
+	"userinfo",
+	"disconnect",
+	"protocol",
+	"qport",
+	"challenge",
+	"challenge",
+	"motd",
+	"renderer",
+	"version",
+	"hostname",
+	"mapname",
+	"clients",
+	"botPlayers",
+	"vac",
+	"serverType",
+	"sv_maxclients",
+	"gametype",
+	"pure",
+	"minPing",
+	"maxPing",
+	"ping",
+	"minping",
+	"maxping",
+	"game",
+	"nettype",
+	"addr",
+	"punkbuster",
+	"sv_keywords",
+	"ip",
+	"password",
+	"name",
+	"rate",
+	"handicap",
+	"snaps",
+	"sv_serverid",
+	"sv_cheats",
+	"sv_paks",
+	"sv_pakNames",
+	"sv_referencedPaks",
+	"sv_referencedPakNames",
+	"fs_game",
+	"sv_pure",
+	QL_RETAIL_PROTOCOL_VERSION,
+	QL_RETAIL_PROTOCOL_VERSION,
+	qtrue,
+	qtrue,
+	qtrue,
+	qtrue,
+	qtrue,
+	qfalse,
+	NET_PROFILE_SUPPORTS_PLATFORM_AUTH,
+	qfalse,
+	NET_PROFILE_SUPPORTS_WORKSHOP_CONTENT
+};
+
+/*
+=================
+NET_GetProtocolProfile
+
+Returns the active network protocol profile.
+=================
+*/
+const netprofile_desc_t *NET_GetProtocolProfile( void ) {
+	return &s_netProtocolProfile;
+}
+
+/*
+=================
+NET_ProtocolName
+
+Returns the short name of the active network protocol profile.
+=================
+*/
+const char *NET_ProtocolName( void ) {
+	return NET_GetProtocolProfile()->name;
+}
+
+/*
+=================
+NET_GetChallengeRequestCommand
+
+Returns the out-of-band challenge request token for the active profile.
+=================
+*/
+const char *NET_GetChallengeRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getChallengeCommand;
+}
+
+/*
+=================
+NET_GetChallengeResponseCommand
+
+Returns the out-of-band challenge response token for the active profile.
+=================
+*/
+const char *NET_GetChallengeResponseCommand( void ) {
+	return NET_GetProtocolProfile()->challengeResponseCommand;
+}
+
+/*
+=================
+NET_GetConnectRequestCommand
+
+Returns the out-of-band connect request token for the active profile.
+=================
+*/
+const char *NET_GetConnectRequestCommand( void ) {
+	return NET_GetProtocolProfile()->connectCommand;
+}
+
+/*
+=================
+NET_GetConnectResponseCommand
+
+Returns the out-of-band connect response token for the active profile.
+=================
+*/
+const char *NET_GetConnectResponseCommand( void ) {
+	return NET_GetProtocolProfile()->connectResponseCommand;
+}
+
+/*
+=================
+NET_GetInfoRequestCommand
+
+Returns the out-of-band server-info request token for the active profile.
+=================
+*/
+const char *NET_GetInfoRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getInfoCommand;
+}
+
+/*
+=================
+NET_GetInfoResponseCommand
+
+Returns the out-of-band server-info response token for the active profile.
+=================
+*/
+const char *NET_GetInfoResponseCommand( void ) {
+	return NET_GetProtocolProfile()->infoResponseCommand;
+}
+
+/*
+=================
+NET_GetStatusRequestCommand
+
+Returns the out-of-band server-status request token for the active profile.
+=================
+*/
+const char *NET_GetStatusRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getStatusCommand;
+}
+
+/*
+=================
+NET_GetStatusResponseCommand
+
+Returns the out-of-band server-status response token for the active profile.
+=================
+*/
+const char *NET_GetStatusResponseCommand( void ) {
+	return NET_GetProtocolProfile()->statusResponseCommand;
+}
+
+/*
+=================
+NET_GetDisconnectCommand
+
+Returns the out-of-band disconnect token for the active profile.
+=================
+*/
+const char *NET_GetDisconnectCommand( void ) {
+	return NET_GetProtocolProfile()->disconnectCommand;
+}
+
+/*
+=================
+NET_GetPrintCommand
+
+Returns the out-of-band print token for the active profile.
+=================
+*/
+const char *NET_GetPrintCommand( void ) {
+	return NET_GetProtocolProfile()->printCommand;
+}
+
+/*
+=================
+NET_GetEchoCommand
+
+Returns the out-of-band echo token for the active profile.
+=================
+*/
+const char *NET_GetEchoCommand( void ) {
+	return NET_GetProtocolProfile()->echoCommand;
+}
+
+/*
+=================
+NET_GetRconCommand
+
+Returns the out-of-band remote-console token for the active profile.
+=================
+*/
+const char *NET_GetRconCommand( void ) {
+	return NET_GetProtocolProfile()->rconCommand;
+}
+
+/*
+=================
+NET_GetServersRequestCommand
+
+Returns the master-server list request token for the active profile.
+=================
+*/
+const char *NET_GetServersRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getServersCommand;
+}
+
+/*
+=================
+NET_GetServersResponseCommand
+
+Returns the master-server list response token for the active profile.
+=================
+*/
+const char *NET_GetServersResponseCommand( void ) {
+	return NET_GetProtocolProfile()->serversResponseCommand;
+}
+
+/*
+=================
+NET_GetMotdRequestCommand
+
+Returns the update-server MOTD request token for the active profile.
+=================
+*/
+const char *NET_GetMotdRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getMotdCommand;
+}
+
+/*
+=================
+NET_GetMotdResponseCommand
+
+Returns the update-server MOTD response token for the active profile.
+=================
+*/
+const char *NET_GetMotdResponseCommand( void ) {
+	return NET_GetProtocolProfile()->motdResponseCommand;
+}
+
+/*
+=================
+NET_GetKeyAuthorizeRequestCommand
+
+Returns the legacy key-authorize request token for the active profile.
+=================
+*/
+const char *NET_GetKeyAuthorizeRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getKeyAuthorizeCommand;
+}
+
+/*
+=================
+NET_GetKeyAuthorizeResponseCommand
+
+Returns the legacy key-authorize response token for the active profile.
+=================
+*/
+const char *NET_GetKeyAuthorizeResponseCommand( void ) {
+	return NET_GetProtocolProfile()->keyAuthorizeResponseCommand;
+}
+
+/*
+=================
+NET_GetIpAuthorizeRequestCommand
+
+Returns the legacy IP-authorize request token for the active profile.
+=================
+*/
+const char *NET_GetIpAuthorizeRequestCommand( void ) {
+	return NET_GetProtocolProfile()->getIpAuthorizeCommand;
+}
+
+/*
+=================
+NET_GetIpAuthorizeResponseCommand
+
+Returns the legacy IP-authorize response token for the active profile.
+=================
+*/
+const char *NET_GetIpAuthorizeResponseCommand( void ) {
+	return NET_GetProtocolProfile()->ipAuthorizeResponseCommand;
+}
+
+/*
+=================
+NET_GetHeartbeatCommand
+
+Returns the legacy master-server heartbeat token for the active profile.
+=================
+*/
+const char *NET_GetHeartbeatCommand( void ) {
+	return NET_GetProtocolProfile()->heartbeatCommand;
+}
+
+/*
+=================
+NET_GetHeartbeatGameName
+
+Returns the legacy master-server heartbeat game marker for the active profile.
+=================
+*/
+const char *NET_GetHeartbeatGameName( void ) {
+	return NET_GetProtocolProfile()->heartbeatGameName;
+}
+
+/*
+=================
+NET_GetDownloadRequestCommand
+
+Returns the reliable download request command for the active profile.
+=================
+*/
+const char *NET_GetDownloadRequestCommand( void ) {
+	return NET_GetProtocolProfile()->downloadCommand;
+}
+
+/*
+=================
+NET_GetDownloadNextCommand
+
+Returns the reliable download block acknowledgement command for the active profile.
+=================
+*/
+const char *NET_GetDownloadNextCommand( void ) {
+	return NET_GetProtocolProfile()->nextDownloadCommand;
+}
+
+/*
+=================
+NET_GetDownloadStopCommand
+
+Returns the reliable download abort command for the active profile.
+=================
+*/
+const char *NET_GetDownloadStopCommand( void ) {
+	return NET_GetProtocolProfile()->stopDownloadCommand;
+}
+
+/*
+=================
+NET_GetDownloadDoneCommand
+
+Returns the reliable download completion command for the active profile.
+=================
+*/
+const char *NET_GetDownloadDoneCommand( void ) {
+	return NET_GetProtocolProfile()->doneDownloadCommand;
+}
+
+/*
+=================
+NET_GetPureChecksumsCommand
+
+Returns the reliable pure checksum command for the active profile.
+=================
+*/
+const char *NET_GetPureChecksumsCommand( void ) {
+	return NET_GetProtocolProfile()->pureChecksumsCommand;
+}
+
+/*
+=================
+NET_GetEncodedPureChecksumsCommand
+
+Returns the encoded client-side pure checksum command seed for the active profile.
+=================
+*/
+const char *NET_GetEncodedPureChecksumsCommand( void ) {
+	return NET_GetProtocolProfile()->encodedPureChecksumsCommand;
+}
+
+/*
+=================
+NET_GetPureResetCommand
+
+Returns the reliable pure reset command for the active profile.
+=================
+*/
+const char *NET_GetPureResetCommand( void ) {
+	return NET_GetProtocolProfile()->pureResetCommand;
+}
+
+/*
+=================
+NET_GetUserinfoCommand
+
+Returns the reliable userinfo update command for the active profile.
+=================
+*/
+const char *NET_GetUserinfoCommand( void ) {
+	return NET_GetProtocolProfile()->userinfoCommand;
+}
+
+/*
+=================
+NET_GetReliableDisconnectCommand
+
+Returns the reliable disconnect command for the active profile.
+=================
+*/
+const char *NET_GetReliableDisconnectCommand( void ) {
+	return NET_GetProtocolProfile()->reliableDisconnectCommand;
+}
+
+/*
+=================
+NET_GetProtocolInfoKey
+
+Returns the info-string protocol key for the active profile.
+=================
+*/
+const char *NET_GetProtocolInfoKey( void ) {
+	return NET_GetProtocolProfile()->protocolInfoKey;
+}
+
+/*
+=================
+NET_GetQportInfoKey
+
+Returns the connect userinfo qport key for the active profile.
+=================
+*/
+const char *NET_GetQportInfoKey( void ) {
+	return NET_GetProtocolProfile()->qportInfoKey;
+}
+
+/*
+=================
+NET_GetChallengeInfoKey
+
+Returns the info-string challenge key for the active profile.
+=================
+*/
+const char *NET_GetChallengeInfoKey( void ) {
+	return NET_GetProtocolProfile()->challengeInfoKey;
+}
+
+/*
+=================
+NET_GetMotdChallengeInfoKey
+
+Returns the update-server MOTD challenge key for the active profile.
+=================
+*/
+const char *NET_GetMotdChallengeInfoKey( void ) {
+	return NET_GetProtocolProfile()->motdChallengeInfoKey;
+}
+
+/*
+=================
+NET_GetMotdInfoKey
+
+Returns the update-server MOTD text key for the active profile.
+=================
+*/
+const char *NET_GetMotdInfoKey( void ) {
+	return NET_GetProtocolProfile()->motdInfoKey;
+}
+
+/*
+=================
+NET_GetMotdRendererInfoKey
+
+Returns the update-server MOTD renderer detail key for the active profile.
+=================
+*/
+const char *NET_GetMotdRendererInfoKey( void ) {
+	return NET_GetProtocolProfile()->motdRendererInfoKey;
+}
+
+/*
+=================
+NET_GetMotdVersionInfoKey
+
+Returns the update-server MOTD client-version detail key for the active profile.
+=================
+*/
+const char *NET_GetMotdVersionInfoKey( void ) {
+	return NET_GetProtocolProfile()->motdVersionInfoKey;
+}
+
+/*
+=================
+NET_GetHostnameInfoKey
+
+Returns the browser server hostname info key for the active profile.
+=================
+*/
+const char *NET_GetHostnameInfoKey( void ) {
+	return NET_GetProtocolProfile()->hostnameInfoKey;
+}
+
+/*
+=================
+NET_GetMapnameInfoKey
+
+Returns the browser server map name info key for the active profile.
+=================
+*/
+const char *NET_GetMapnameInfoKey( void ) {
+	return NET_GetProtocolProfile()->mapnameInfoKey;
+}
+
+/*
+=================
+NET_GetClientsInfoKey
+
+Returns the browser visible-client count info key for the active profile.
+=================
+*/
+const char *NET_GetClientsInfoKey( void ) {
+	return NET_GetProtocolProfile()->clientsInfoKey;
+}
+
+/*
+=================
+NET_GetBotPlayersInfoKey
+
+Returns the browser bot-player count info key for the active profile.
+=================
+*/
+const char *NET_GetBotPlayersInfoKey( void ) {
+	return NET_GetProtocolProfile()->botPlayersInfoKey;
+}
+
+/*
+=================
+NET_GetVACInfoKey
+
+Returns the browser VAC state info key for the active profile.
+=================
+*/
+const char *NET_GetVACInfoKey( void ) {
+	return NET_GetProtocolProfile()->vacInfoKey;
+}
+
+/*
+=================
+NET_GetServerTypeInfoKey
+
+Returns the browser server-type info key for the active profile.
+=================
+*/
+const char *NET_GetServerTypeInfoKey( void ) {
+	return NET_GetProtocolProfile()->serverTypeInfoKey;
+}
+
+/*
+=================
+NET_GetMaxClientsInfoKey
+
+Returns the browser max-clients info key for the active profile.
+=================
+*/
+const char *NET_GetMaxClientsInfoKey( void ) {
+	return NET_GetProtocolProfile()->maxClientsInfoKey;
+}
+
+/*
+=================
+NET_GetGametypeInfoKey
+
+Returns the browser gametype info key for the active profile.
+=================
+*/
+const char *NET_GetGametypeInfoKey( void ) {
+	return NET_GetProtocolProfile()->gametypeInfoKey;
+}
+
+/*
+=================
+NET_GetPureInfoKey
+
+Returns the browser pure-server info key for the active profile.
+=================
+*/
+const char *NET_GetPureInfoKey( void ) {
+	return NET_GetProtocolProfile()->pureInfoKey;
+}
+
+/*
+=================
+NET_GetMinPingInfoKey
+
+Returns the browser minimum-ping info key for the active profile.
+=================
+*/
+const char *NET_GetMinPingInfoKey( void ) {
+	return NET_GetProtocolProfile()->minPingInfoKey;
+}
+
+/*
+=================
+NET_GetMaxPingInfoKey
+
+Returns the browser maximum-ping info key for the active profile.
+=================
+*/
+const char *NET_GetMaxPingInfoKey( void ) {
+	return NET_GetProtocolProfile()->maxPingInfoKey;
+}
+
+/*
+=================
+NET_GetPingInfoKey
+
+Returns the LAN UI ping info key for the active profile.
+=================
+*/
+const char *NET_GetPingInfoKey( void ) {
+	return NET_GetProtocolProfile()->pingInfoKey;
+}
+
+/*
+=================
+NET_GetLegacyMinPingInfoKey
+
+Returns the LAN UI minimum-ping info key for the active profile.
+=================
+*/
+const char *NET_GetLegacyMinPingInfoKey( void ) {
+	return NET_GetProtocolProfile()->legacyMinPingInfoKey;
+}
+
+/*
+=================
+NET_GetLegacyMaxPingInfoKey
+
+Returns the LAN UI maximum-ping info key for the active profile.
+=================
+*/
+const char *NET_GetLegacyMaxPingInfoKey( void ) {
+	return NET_GetProtocolProfile()->legacyMaxPingInfoKey;
+}
+
+/*
+=================
+NET_GetGameInfoKey
+
+Returns the browser game-directory info key for the active profile.
+=================
+*/
+const char *NET_GetGameInfoKey( void ) {
+	return NET_GetProtocolProfile()->gameInfoKey;
+}
+
+/*
+=================
+NET_GetNetTypeInfoKey
+
+Returns the browser network-type info key for the active profile.
+=================
+*/
+const char *NET_GetNetTypeInfoKey( void ) {
+	return NET_GetProtocolProfile()->netTypeInfoKey;
+}
+
+/*
+=================
+NET_GetAddressInfoKey
+
+Returns the LAN UI server address info key for the active profile.
+=================
+*/
+const char *NET_GetAddressInfoKey( void ) {
+	return NET_GetProtocolProfile()->addressInfoKey;
+}
+
+/*
+=================
+NET_GetPunkbusterInfoKey
+
+Returns the LAN UI punkbuster info key for the active profile.
+=================
+*/
+const char *NET_GetPunkbusterInfoKey( void ) {
+	return NET_GetProtocolProfile()->punkbusterInfoKey;
+}
+
+/*
+=================
+NET_GetKeywordsInfoKey
+
+Returns the browser keyword info key for the active profile.
+=================
+*/
+const char *NET_GetKeywordsInfoKey( void ) {
+	return NET_GetProtocolProfile()->keywordsInfoKey;
+}
+
+/*
+=================
+NET_GetClientIpInfoKey
+
+Returns the server-maintained client IP userinfo key for the active profile.
+=================
+*/
+const char *NET_GetClientIpInfoKey( void ) {
+	return NET_GetProtocolProfile()->clientIpInfoKey;
+}
+
+/*
+=================
+NET_GetPasswordInfoKey
+
+Returns the private-slot password userinfo key for the active profile.
+=================
+*/
+const char *NET_GetPasswordInfoKey( void ) {
+	return NET_GetProtocolProfile()->passwordInfoKey;
+}
+
+/*
+=================
+NET_GetNameInfoKey
+
+Returns the client name userinfo key for the active profile.
+=================
+*/
+const char *NET_GetNameInfoKey( void ) {
+	return NET_GetProtocolProfile()->nameInfoKey;
+}
+
+/*
+=================
+NET_GetRateInfoKey
+
+Returns the client rate userinfo key for the active profile.
+=================
+*/
+const char *NET_GetRateInfoKey( void ) {
+	return NET_GetProtocolProfile()->rateInfoKey;
+}
+
+/*
+=================
+NET_GetHandicapInfoKey
+
+Returns the client handicap userinfo key for the active profile.
+=================
+*/
+const char *NET_GetHandicapInfoKey( void ) {
+	return NET_GetProtocolProfile()->handicapInfoKey;
+}
+
+/*
+=================
+NET_GetSnapsInfoKey
+
+Returns the client snaps userinfo key for the active profile.
+=================
+*/
+const char *NET_GetSnapsInfoKey( void ) {
+	return NET_GetProtocolProfile()->snapsInfoKey;
+}
+
+/*
+=================
+NET_GetServerIdInfoKey
+
+Returns the systeminfo server-id key for the active profile.
+=================
+*/
+const char *NET_GetServerIdInfoKey( void ) {
+	return NET_GetProtocolProfile()->serverIdInfoKey;
+}
+
+/*
+=================
+NET_GetCheatsInfoKey
+
+Returns the systeminfo cheats key for the active profile.
+=================
+*/
+const char *NET_GetCheatsInfoKey( void ) {
+	return NET_GetProtocolProfile()->cheatsInfoKey;
+}
+
+/*
+=================
+NET_GetPaksInfoKey
+
+Returns the systeminfo loaded-pak checksum key for the active profile.
+=================
+*/
+const char *NET_GetPaksInfoKey( void ) {
+	return NET_GetProtocolProfile()->paksInfoKey;
+}
+
+/*
+=================
+NET_GetPakNamesInfoKey
+
+Returns the systeminfo loaded-pak names key for the active profile.
+=================
+*/
+const char *NET_GetPakNamesInfoKey( void ) {
+	return NET_GetProtocolProfile()->pakNamesInfoKey;
+}
+
+/*
+=================
+NET_GetReferencedPaksInfoKey
+
+Returns the systeminfo referenced-pak checksum key for the active profile.
+=================
+*/
+const char *NET_GetReferencedPaksInfoKey( void ) {
+	return NET_GetProtocolProfile()->referencedPaksInfoKey;
+}
+
+/*
+=================
+NET_GetReferencedPakNamesInfoKey
+
+Returns the systeminfo referenced-pak names key for the active profile.
+=================
+*/
+const char *NET_GetReferencedPakNamesInfoKey( void ) {
+	return NET_GetProtocolProfile()->referencedPakNamesInfoKey;
+}
+
+/*
+=================
+NET_GetFsGameInfoKey
+
+Returns the systeminfo game-directory key for the active profile.
+=================
+*/
+const char *NET_GetFsGameInfoKey( void ) {
+	return NET_GetProtocolProfile()->fsGameInfoKey;
+}
+
+/*
+=================
+NET_GetSystemPureInfoKey
+
+Returns the systeminfo pure-server key for the active profile.
+=================
+*/
+const char *NET_GetSystemPureInfoKey( void ) {
+	return NET_GetProtocolProfile()->systemPureInfoKey;
+}
+
+/*
+=================
+NET_ProtocolVersion
+
+Returns the connect/server-browser protocol number for the active profile.
+=================
+*/
+int NET_ProtocolVersion( void ) {
+	return NET_GetProtocolProfile()->connectProtocol;
+}
+
+/*
+=================
+NET_DemoProtocol
+
+Returns the demo extension protocol number for the active profile.
+=================
+*/
+int NET_DemoProtocol( void ) {
+	return NET_GetProtocolProfile()->demoProtocol;
+}
+
+/*
+=================
+NET_ProtocolSupports
+
+Returns whether the active profile accepts one connect/server-browser protocol.
+=================
+*/
+qboolean NET_ProtocolSupports( int protocol ) {
+	return ( protocol == NET_GetProtocolProfile()->connectProtocol ) ? qtrue : qfalse;
+}
+
+/*
+=================
+NET_CommandMatchesProfileToken
+
+Returns whether one command matches a protocol-profile out-of-band token.
+=================
+*/
+static qboolean NET_CommandMatchesProfileToken( const char *command, const char *profileCommand ) {
+	if ( !command || !profileCommand ) {
+		return qfalse;
+	}
+
+	return !Q_stricmp( command, profileCommand ) ? qtrue : qfalse;
+}
+
+/*
+=================
+NET_CommandStartsWithProfileToken
+
+Returns whether one command starts with a protocol-profile token.
+=================
+*/
+static qboolean NET_CommandStartsWithProfileToken( const char *command, const char *profileCommand ) {
+	int	commandLength;
+
+	if ( !command || !profileCommand ) {
+		return qfalse;
+	}
+
+	commandLength = strlen( profileCommand );
+	if ( !commandLength ) {
+		return qfalse;
+	}
+
+	return !Q_strncmp( command, profileCommand, commandLength ) ? qtrue : qfalse;
+}
+
+/*
+=================
+NET_IsGetChallengeRequest
+
+Returns whether one token is the active profile's challenge request.
+=================
+*/
+qboolean NET_IsGetChallengeRequest( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetChallengeRequestCommand() );
+}
+
+/*
+=================
+NET_IsChallengeResponse
+
+Returns whether one token is the active profile's challenge response.
+=================
+*/
+qboolean NET_IsChallengeResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetChallengeResponseCommand() );
+}
+
+/*
+=================
+NET_IsConnectRequest
+
+Returns whether one token is the active profile's connect request.
+=================
+*/
+qboolean NET_IsConnectRequest( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetConnectRequestCommand() );
+}
+
+/*
+=================
+NET_IsConnectResponse
+
+Returns whether one token is the active profile's connect response.
+=================
+*/
+qboolean NET_IsConnectResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetConnectResponseCommand() );
+}
+
+/*
+=================
+NET_IsGetInfoRequest
+
+Returns whether one token is the active profile's server-info request.
+=================
+*/
+qboolean NET_IsGetInfoRequest( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetInfoRequestCommand() );
+}
+
+/*
+=================
+NET_IsInfoResponse
+
+Returns whether one token is the active profile's server-info response.
+=================
+*/
+qboolean NET_IsInfoResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetInfoResponseCommand() );
+}
+
+/*
+=================
+NET_IsGetStatusRequest
+
+Returns whether one token is the active profile's server-status request.
+=================
+*/
+qboolean NET_IsGetStatusRequest( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetStatusRequestCommand() );
+}
+
+/*
+=================
+NET_IsStatusResponse
+
+Returns whether one token is the active profile's server-status response.
+=================
+*/
+qboolean NET_IsStatusResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetStatusResponseCommand() );
+}
+
+/*
+=================
+NET_IsDisconnectCommand
+
+Returns whether one token is the active profile's out-of-band disconnect.
+=================
+*/
+qboolean NET_IsDisconnectCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetDisconnectCommand() );
+}
+
+/*
+=================
+NET_IsPrintCommand
+
+Returns whether one token is the active profile's out-of-band print command.
+=================
+*/
+qboolean NET_IsPrintCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetPrintCommand() );
+}
+
+/*
+=================
+NET_IsEchoCommand
+
+Returns whether one token is the active profile's out-of-band echo command.
+=================
+*/
+qboolean NET_IsEchoCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetEchoCommand() );
+}
+
+/*
+=================
+NET_IsRconCommand
+
+Returns whether one token is the active profile's out-of-band remote-console command.
+=================
+*/
+qboolean NET_IsRconCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetRconCommand() );
+}
+
+/*
+=================
+NET_IsGetServersRequest
+
+Returns whether one token is the active profile's master-server list request.
+=================
+*/
+qboolean NET_IsGetServersRequest( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetServersRequestCommand() );
+}
+
+/*
+=================
+NET_IsServersResponse
+
+Returns whether one token starts with the active profile's master-server response command.
+=================
+*/
+qboolean NET_IsServersResponse( const char *command ) {
+	return NET_CommandStartsWithProfileToken( command, NET_GetServersResponseCommand() );
+}
+
+/*
+=================
+NET_IsMotdResponse
+
+Returns whether one token is the active profile's update-server MOTD response.
+=================
+*/
+qboolean NET_IsMotdResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetMotdResponseCommand() );
+}
+
+/*
+=================
+NET_IsKeyAuthorizeResponse
+
+Returns whether one token is the active profile's legacy key-authorize response.
+=================
+*/
+qboolean NET_IsKeyAuthorizeResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetKeyAuthorizeResponseCommand() );
+}
+
+/*
+=================
+NET_IsIpAuthorizeResponse
+
+Returns whether one token is the active profile's legacy IP-authorize response.
+=================
+*/
+qboolean NET_IsIpAuthorizeResponse( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetIpAuthorizeResponseCommand() );
+}
+
+/*
+=================
+NET_IsDownloadRequestCommand
+
+Returns whether one token is the active profile's download request command.
+=================
+*/
+qboolean NET_IsDownloadRequestCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetDownloadRequestCommand() );
+}
+
+/*
+=================
+NET_IsDownloadNextCommand
+
+Returns whether one token is the active profile's download acknowledgement command.
+=================
+*/
+qboolean NET_IsDownloadNextCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetDownloadNextCommand() );
+}
+
+/*
+=================
+NET_IsDownloadStopCommand
+
+Returns whether one token is the active profile's download abort command.
+=================
+*/
+qboolean NET_IsDownloadStopCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetDownloadStopCommand() );
+}
+
+/*
+=================
+NET_IsDownloadDoneCommand
+
+Returns whether one token is the active profile's download completion command.
+=================
+*/
+qboolean NET_IsDownloadDoneCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetDownloadDoneCommand() );
+}
+
+/*
+=================
+NET_IsPureChecksumsCommand
+
+Returns whether one token is the active profile's pure checksum command.
+=================
+*/
+qboolean NET_IsPureChecksumsCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetPureChecksumsCommand() );
+}
+
+/*
+=================
+NET_IsPureResetCommand
+
+Returns whether one token is the active profile's pure reset command.
+=================
+*/
+qboolean NET_IsPureResetCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetPureResetCommand() );
+}
+
+/*
+=================
+NET_IsUserinfoCommand
+
+Returns whether one token is the active profile's userinfo update command.
+=================
+*/
+qboolean NET_IsUserinfoCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetUserinfoCommand() );
+}
+
+/*
+=================
+NET_IsReliableDisconnectCommand
+
+Returns whether one token is the active profile's reliable disconnect command.
+=================
+*/
+qboolean NET_IsReliableDisconnectCommand( const char *command ) {
+	return NET_CommandMatchesProfileToken( command, NET_GetReliableDisconnectCommand() );
+}
+
+/*
+=================
+NET_IsConnectRequestPacket
+
+Returns whether an out-of-band packet starts with the active connect token.
+=================
+*/
+qboolean NET_IsConnectRequestPacket( const msg_t *msg ) {
+	const char	*command;
+	const char	*payload;
+	int			commandLength;
+	char		delimiter;
+
+	if ( !msg || !msg->data || msg->cursize < 4 ) {
+		return qfalse;
+	}
+
+	command = NET_GetConnectRequestCommand();
+	if ( !command || !command[0] ) {
+		return qfalse;
+	}
+
+	commandLength = strlen( command );
+	if ( msg->cursize < 4 + commandLength ) {
+		return qfalse;
+	}
+
+	payload = (const char *)msg->data + 4;
+	if ( Q_strncmp( payload, command, commandLength ) ) {
+		return qfalse;
+	}
+
+	if ( msg->cursize == 4 + commandLength ) {
+		return qtrue;
+	}
+
+	delimiter = payload[commandLength];
+	return ( delimiter == '\0' || delimiter == ' ' || delimiter == '"' || delimiter == '\n' || delimiter == '\r' ) ? qtrue : qfalse;
+}
+
+/*
+=================
+NET_ProtocolUsesClientQport
+
+Returns whether the active profile includes qport in client-to-server packets.
+=================
+*/
+qboolean NET_ProtocolUsesClientQport( void ) {
+	return NET_GetProtocolProfile()->usesClientQport;
+}
+
+/*
+=================
+NET_ProtocolUsesNetchanClientQport
+
+Returns whether sequenced client packets carry the qport header.
+=================
+*/
+qboolean NET_ProtocolUsesNetchanClientQport( void ) {
+	return NET_GetProtocolProfile()->usesNetchanClientQport;
+}
+
+/*
+=================
+NET_ProtocolUsesReliableXorCodec
+
+Returns whether reliable command payloads use the challenge XOR codec.
+=================
+*/
+qboolean NET_ProtocolUsesReliableXorCodec( void ) {
+	return NET_GetProtocolProfile()->usesReliableXorCodec;
+}
+
+/*
+=================
+NET_ProtocolUsesLegacyAuthorize
+
+Returns whether the active profile uses the Quake III authorize-server lane.
+=================
+*/
+qboolean NET_ProtocolUsesLegacyAuthorize( void ) {
+	return NET_GetProtocolProfile()->usesLegacyQ3Authorize;
+}
+
+/*
+=================
+NET_ProtocolUsesCompressedConnect
+
+Returns whether the active profile compresses the out-of-band connect payload.
+=================
+*/
+qboolean NET_ProtocolUsesCompressedConnect( void ) {
+	return NET_GetProtocolProfile()->usesCompressedConnect;
+}
+
+/*
+=================
+NET_ProtocolSupportsPlatformAuth
+
+Returns whether the active profile carries Steam-era platform auth.
+=================
+*/
+qboolean NET_ProtocolSupportsPlatformAuth( void ) {
+	return NET_GetProtocolProfile()->supportsPlatformAuth;
+}
+
 int demo_protocols[] =
-{ 91, 0 };
+{ QL_RETAIL_PROTOCOL_VERSION, 0 };
 
 #define QL_CONFIG_HARDWARE_FILE "qzconfig.cfg"
 #define QL_CONFIG_REPLICATE_FILE "repconfig.cfg"
@@ -2756,6 +4109,37 @@ static uint32_t Com_SteamPackGameServerIP( const char *addressString ) {
 		( (uint32_t)address.ip[2] << 8 ) |
 		(uint32_t)address.ip[3];
 }
+
+/*
+=================
+Com_GetSteamGameServerVersionSourceLabel
+
+Returns the observational source label for the Steam GameServer version string.
+=================
+*/
+static const char *Com_GetSteamGameServerVersionSourceLabel( const cvar_t *steamServerVersion ) {
+	if ( !steamServerVersion || !steamServerVersion->string || !steamServerVersion->string[0] ) {
+		return "retail observed default";
+	}
+
+	if ( !Q_stricmp( steamServerVersion->string, QL_STEAM_GAMESERVER_DEFAULT_VERSION ) ) {
+		return "retail observed default";
+	}
+
+	return "sv_steamServerVersion override";
+}
+
+/*
+=================
+Com_GetSteamGameServerVersionOwnerGapLabel
+
+Returns the unresolved retail owner label for the retained default Steam
+GameServer init version string.
+=================
+*/
+static const char *Com_GetSteamGameServerVersionOwnerGapLabel( void ) {
+	return "unpromoted retail default version owner";
+}
 #endif
 
 /*
@@ -2772,18 +4156,27 @@ void Com_InitSteamGameServer( void ) {
 	char		netIp[MAX_CVAR_VALUE_STRING];
 	char		steamAccount[MAX_CVAR_VALUE_STRING];
 	cvar_t		*netPort;
+	cvar_t		*steamServerVersion;
 	cvar_t		*steamVac;
+	const char	*versionString;
 	qboolean	dedicated;
 	uint32_t	steamIp;
 
 	dedicated = ( com_dedicated && com_dedicated->integer > 0 ) ? qtrue : qfalse;
 	Cvar_Get( "sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );
+	steamServerVersion = Cvar_Get( "sv_steamServerVersion", QL_STEAM_GAMESERVER_DEFAULT_VERSION, CVAR_ARCHIVE );
 	steamVac = Cvar_Get( "sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	Cvar_VariableStringBuffer( "net_ip", netIp, sizeof( netIp ) );
 	netPort = Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH );
 	steamIp = Com_SteamPackGameServerIP( netIp );
+	versionString = ( steamServerVersion && steamServerVersion->string && steamServerVersion->string[0] ) ? steamServerVersion->string : QL_STEAM_GAMESERVER_DEFAULT_VERSION;
+	Com_DPrintf( "Steam GameServer bootstrap version %s (%s; retailDefaultOwner=%s) via %s [%s]\n",
+		versionString,
+		Com_GetSteamGameServerVersionSourceLabel( steamServerVersion ),
+		Com_GetSteamGameServerVersionOwnerGapLabel(),
+		Com_GetSteamGameServerProviderLabel(), Com_GetSteamGameServerPolicyLabel() );
 
-	if ( !QL_Steamworks_ServerInit( steamIp, (uint16_t)netPort->integer, steamVac && steamVac->integer ? qtrue : qfalse, dedicated ) ) {
+	if ( !QL_Steamworks_ServerInitWithVersion( steamIp, (uint16_t)netPort->integer, steamVac && steamVac->integer ? qtrue : qfalse, dedicated, versionString ) ) {
 		Com_Printf( "Steam GameServer bootstrap unavailable for %s [%s]; keeping compatibility-only dedicated-server publication fallback.\n",
 			Com_GetSteamGameServerProviderLabel(), Com_GetSteamGameServerPolicyLabel() );
 		return;

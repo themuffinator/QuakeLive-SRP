@@ -2770,8 +2770,9 @@ static ID_INLINE void trap_QL_AdvertisementBridge_UpdateViewParameters( void ) {
 }
 static ID_INLINE void trap_QL_AdvertisementBridge_ClearDelay( void ) {
 }
-static ID_INLINE void trap_QL_TaggedCvarStringBuffer( const char *varName, char *buffer ) {
-	trap_Cvar_VariableStringBuffer( varName, buffer, BIG_INFO_STRING );
+static ID_INLINE void trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString ) {
+	(void)messageType;
+	(void)infoString;
 }
 static ID_INLINE void trap_QL_R_MirrorPoint( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out ) {
 	(void)surface;
@@ -2840,7 +2841,7 @@ void		trap_AdvertisementBridge_UpdateLoadingViewParameters( void );
 void		trap_AdvertisementBridge_SetFrameTime( int frameTime );
 void		trap_QL_AdvertisementBridge_UpdateViewParameters( void );
 void		trap_QL_AdvertisementBridge_ClearDelay( void );
-void		trap_QL_TaggedCvarStringBuffer( const char *varName, char *buffer );
+void		trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString );
 void		trap_QL_R_MirrorPoint( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out );
 void		trap_QL_R_MirrorVector( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out );
 void		trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor );

@@ -366,6 +366,10 @@ Route raw mouse events into browser, UI, cgame, or gameplay handlers
 void CL_MouseEvent( int dx, int dy, int time ) {
 	(void)time;
 
+	if ( !CL_AdvertisementBridge_IsDelayElapsed() ) {
+		return;
+	}
+
 	if ( Cvar_VariableIntegerValue( "cg_ignoreMouseInput" ) ) {
 		return;
 	}

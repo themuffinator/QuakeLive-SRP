@@ -14,6 +14,9 @@ typedef enum {
 #define QL_AUTH_MAX_CREDENTIAL_LENGTH 128
 #define QL_AUTH_MAX_RESPONSE_MESSAGE 128
 #define QL_AUTH_MAX_CREDENTIAL_STORAGE (QL_AUTH_MAX_CREDENTIAL_LENGTH + 32)
+#define QL_STEAM_AUTH_TICKET_MAX_LENGTH 0x200
+#define QL_STEAM_AUTH_TICKET_HEX_LENGTH (QL_STEAM_AUTH_TICKET_MAX_LENGTH * 2 + 1)
+#define QL_STEAM_CHALLENGE_TOKEN_MIN_LENGTH 0x0a
 
 // Userinfo keys shared between the server and game for propagating
 // authentication telemetry.

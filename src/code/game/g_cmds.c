@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "g_local.h"
 #include "g_match_config.h"
+#include "../../game/match_state_keys.h"
 
 #include "../../ui/menudef.h"			// for the voice chats
 
@@ -5448,10 +5449,11 @@ vote starts from an empty tally table.
 */
 void G_ClearNextMapVoteState( void ) {
 	int		clientNum;
+	int		slot;
 
-	level.nextMapVoteCounts[0] = 0;
-	level.nextMapVoteCounts[1] = 0;
-	level.nextMapVoteCounts[2] = 0;
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
+		level.nextMapVoteCounts[slot] = 0;
+	}
 
 	if ( !level.clients ) {
 		return;
@@ -5477,9 +5479,9 @@ void G_UpdateNextMapVoteTallies( void ) {
 	int		clientNum;
 	int		slot;
 
-	level.nextMapVoteCounts[0] = 0;
-	level.nextMapVoteCounts[1] = 0;
-	level.nextMapVoteCounts[2] = 0;
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
+		level.nextMapVoteCounts[slot] = 0;
+	}
 
 	if ( level.clients ) {
 		for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
@@ -5490,7 +5492,7 @@ void G_UpdateNextMapVoteTallies( void ) {
 			}
 
 			selection = level.clients[clientNum].pers.voteLastSelection;
-			if ( selection < 1 || selection > 3 ) {
+			if ( selection < 1 || selection > ROTATION_VOTE_SLOT_COUNT ) {
 				continue;
 			}
 
@@ -5499,11 +5501,11 @@ void G_UpdateNextMapVoteTallies( void ) {
 	}
 
 	voteCounts[0] = '\0';
-	for ( slot = 0; slot < 3; slot++ ) {
-		char	key[16];
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
+		char	key[ROTATION_VOTE_KEY_BUFFER_SIZE];
 		char	value[16];
 
-		Com_sprintf( key, sizeof( key ), "%i", slot );
+		Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_COUNT_FORMAT, slot );
 		Com_sprintf( value, sizeof( value ), "%i", level.nextMapVoteCounts[slot] );
 		Info_SetValueForKey( voteCounts, key, value );
 	}
@@ -5522,7 +5524,7 @@ lane instead of the normal yes/no vote path.
 qboolean G_HandleNextMapVote( gentity_t *ent ) {
 	char		nextmaps[MAX_STRING_CHARS];
 	char		msg[64];
-	char		key[16];
+	char		key[ROTATION_VOTE_KEY_BUFFER_SIZE];
 	char		mapName[MAX_QPATH];
 	char		voteLabel[MAX_STRING_CHARS];
 	int			voteSelection;
@@ -5562,11 +5564,11 @@ qboolean G_HandleNextMapVote( gentity_t *ent ) {
 		return qtrue;
 	}
 
-	if ( voteSelection < 1 || voteSelection > 3 ) {
+	if ( voteSelection < 1 || voteSelection > ROTATION_VOTE_SLOT_COUNT ) {
 		return qtrue;
 	}
 
-	Com_sprintf( key, sizeof( key ), "map_%i", voteSelection - 1 );
+	Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_MAP_FORMAT, voteSelection - 1 );
 	Q_strncpyz( mapName, Info_ValueForKey( nextmaps, key ), sizeof( mapName ) );
 	if ( !mapName[0] || !Q_stricmp( mapName, "default" ) ) {
 		return qtrue;
@@ -5579,7 +5581,7 @@ qboolean G_HandleNextMapVote( gentity_t *ent ) {
 	G_UpdateNextMapVoteTallies();
 	trap_SendServerCommand( ent-g_entities, "disable_vote_ui" );
 
-	Com_sprintf( key, sizeof( key ), "title_%i", voteSelection - 1 );
+	Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_TITLE_FORMAT, voteSelection - 1 );
 	Q_strncpyz( voteLabel, Info_ValueForKey( nextmaps, key ), sizeof( voteLabel ) );
 	if ( !voteLabel[0] ) {
 		Q_strncpyz( voteLabel, mapName, sizeof( voteLabel ) );
@@ -5942,14 +5944,14 @@ void Cmd_Stats_f( gentity_t *ent ) {
 	int totalShots = 0, totalHits = 0;
 	gclient_t *client = ent->client;
 	char *weaponNames[] = {
-		"Gauntlet", "Machinegun", "HMG", "Shotgun", "Grenade", "Rocket",
+		"Gauntlet", "Machinegun", "Shotgun", "Grenade", "Rocket",
 		"Lightning", "Railgun", "Plasma", "BFG", "Grapple", "Nailgun",
-		"Prox Mine", "Chaingun"
+		"Prox Mine", "Chaingun", "HMG"
 	};
 	int weaponIndices[] = {
-		WP_GAUNTLET, WP_MACHINEGUN, WP_HEAVY_MACHINEGUN, WP_SHOTGUN, WP_GRENADE_LAUNCHER, WP_ROCKET_LAUNCHER,
-		WP_LIGHTNING, WP_RAILGUN, WP_PLASMAGUN, WP_BFG, WP_GRAPPLING_HOOK, WP_NAILGUN,
-		WP_PROX_LAUNCHER, WP_CHAINGUN
+		WP_GAUNTLET, WP_MACHINEGUN, WP_SHOTGUN, WP_GRENADE_LAUNCHER, WP_ROCKET_LAUNCHER,
+		WP_LIGHTNING, WP_RAILGUN, WP_PLASMAGUN, WP_BFG, WP_GRAPPLING_HOOK,
+		WP_NAILGUN, WP_PROX_LAUNCHER, WP_CHAINGUN, WP_HEAVY_MACHINEGUN
 	};
 
 	if ( !client ) {

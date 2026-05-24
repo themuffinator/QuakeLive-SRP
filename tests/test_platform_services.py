@@ -127,6 +127,8 @@ qboolean QL_Steamworks_Init( void ) {
     int main(void) {
         printf("mode=%s\\n", QL_GetOnlineServicesModeLabel());
         printf("policy=%s\\n", QL_GetOnlineServicesPolicyLabel());
+        printf("scope=%s\\n", QL_GetOnlineServicesParityScopeLabel());
+        printf("reason=%s\\n", QL_GetOnlineServicesParityReasonLabel());
         return 0;
     }
     """
@@ -194,6 +196,54 @@ QL_Steamworks_CancelAuthTicket
 qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle ) {
 (void)ticketHandle;
 return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_GetAuthTicketApiLabel
+=============
+*/
+const char *QL_Steamworks_GetAuthTicketApiLabel( void ) {
+return "retail GetAuthSessionTicket";
+}
+
+/*
+=============
+QL_Steamworks_GetAuthTicketModernGapLabel
+=============
+*/
+const char *QL_Steamworks_GetAuthTicketModernGapLabel( void ) {
+return "missing GetAuthTicketForWebApi adapter";
+}
+
+/*
+=============
+QL_Steamworks_GetUserSteamID
+=============
+*/
+qboolean QL_Steamworks_GetUserSteamID( uint32_t *outIdLow, uint32_t *outIdHigh ) {
+if ( outIdLow ) {
+*outIdLow = 0x89abcdefu;
+}
+if ( outIdHigh ) {
+*outIdHigh = 0x01234567u;
+}
+return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_HexDecode
+=============
+*/
+qboolean QL_Steamworks_HexDecode( const char *hex, uint8_t *out, size_t outSize, uint32_t *outLength ) {
+(void)hex;
+(void)out;
+(void)outSize;
+if ( outLength ) {
+*outLength = 0u;
+}
+return qfalse;
 }
 
 /*
@@ -595,7 +645,7 @@ def test_legacy_q3_online_service_endpoints_are_policy_gated_by_default() -> Non
     request_global = _extract_function_block(
         cl_main, "static void CL_RequestGlobalServers( int masterNum, const char *protocol, const char *keywords ) {"
     )
-    get_challenge = _extract_function_block(sv_client, "void SV_GetChallenge( netadr_t from ) {")
+    get_challenge = _extract_function_block(sv_client, "void SV_GetChallenge( netadr_t from, msg_t *msg ) {")
     authorize_packet = _extract_function_block(sv_client, "void SV_AuthorizeIpPacket( netadr_t from ) {")
     ban_user = _extract_function_block(sv_ccmds, "static void SV_Ban_f( void ) {")
     ban_client = _extract_function_block(sv_ccmds, "static void SV_BanNum_f( void ) {")
@@ -751,6 +801,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Build-disabled default (QL_BUILD_ONLINE_SERVICES=0)",
                 "policy": "compatibility-disabled (QL_BUILD_ONLINE_SERVICES=0)",
+                "scope": "permanent-bounded-divergence",
+                "reason": "default builds keep Quake Live online services disabled until a documented open replacement exists",
             },
             None,
         ),
@@ -759,6 +811,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Build-disabled default (QL_BUILD_ONLINE_SERVICES=0)",
                 "policy": "compatibility-disabled (QL_BUILD_ONLINE_SERVICES=0)",
+                "scope": "permanent-bounded-divergence",
+                "reason": "default builds keep Quake Live online services disabled until a documented open replacement exists",
             },
             None,
         ),
@@ -767,6 +821,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Steamworks compatibility lane",
                 "policy": "compatibility-opt-in heuristic steamworks",
+                "scope": "opt-in-steamworks-compatibility",
+                "reason": "opt-in online-service providers remain bounded compatibility until validated against an open replacement",
             },
             None,
         ),
@@ -775,6 +831,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Steamworks compatibility lane",
                 "policy": "compatibility-opt-in heuristic steamworks (provider unavailable)",
+                "scope": "opt-in-steamworks-compatibility",
+                "reason": "opt-in online-service providers remain bounded compatibility until validated against an open replacement",
             },
             None,
         ),
@@ -783,6 +841,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Open-adapter compatibility lane",
                 "policy": "compatibility-opt-in heuristic open-adapter",
+                "scope": "opt-in-open-adapter-compatibility",
+                "reason": "opt-in online-service providers remain bounded compatibility until validated against an open replacement",
             },
             None,
         ),
@@ -791,6 +851,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Hybrid compatibility lane",
                 "policy": "compatibility-opt-in heuristic hybrid",
+                "scope": "opt-in-hybrid-compatibility",
+                "reason": "opt-in online-service providers remain bounded compatibility until validated against an open replacement",
             },
             None,
         ),
@@ -799,6 +861,8 @@ def test_online_services_mode_labels_track_build_flags_and_runtime_policy(tmp_pa
             {
                 "mode": "Externally-disabled compatibility lane",
                 "policy": "compatibility-disabled (QL_DISABLE_EXTERNAL_ECOSYSTEMS)",
+                "scope": "runtime-disabled-bounded-divergence",
+                "reason": "runtime policy disables the opted-in online-service compatibility lane",
             },
             {"QL_DISABLE_EXTERNAL_ECOSYSTEMS": "1"},
         ),
@@ -827,16 +891,27 @@ def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     assert 'Cvar_Set( "ui_browserAwesomium", "0" );' in refresh_block
     assert 'Cvar_Set( "ui_browserAwesomiumProvider", overlayProvider );' in refresh_block
     assert 'Cvar_Set( "ui_browserAwesomiumPolicy", overlayPolicy );' in refresh_block
+    assert 'Cvar_Set( "ui_browserAwesomiumParityScope", parityScope );' in refresh_block
+    assert 'Cvar_Set( "ui_browserAwesomiumParityReason", parityReason );' in refresh_block
     assert 'Cvar_Set( "ui_advertisementBridgeProvider", advertProvider );' in refresh_block
     assert 'Cvar_Set( "ui_advertisementBridgePolicy", advertPolicy );' in refresh_block
+    assert 'Cvar_Set( "ui_advertisementBridgeParityScope", parityScope );' in refresh_block
+    assert 'Cvar_Set( "ui_advertisementBridgeParityReason", parityReason );' in refresh_block
     assert "CL_GetOverlayServiceDescriptor()" in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomium", overlayAvailable ? "1" : "0" );' in refresh_block
+    assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in refresh_block
+    assert 'Cvar_Set( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in refresh_block
     assert "CL_GetOverlayServiceProviderLabel()" in refresh_block
     assert "CL_GetOverlayServicePolicyLabel()" in refresh_block
+    assert "QL_GetOnlineServicesParityScopeLabel()" in refresh_block
+    assert "QL_GetOnlineServicesParityReasonLabel()" in refresh_block
     assert 'Cvar_Get ("ui_browserAwesomiumProvider", "Unavailable", CVAR_ROM );' in cl_main
     assert 'Cvar_Get ("ui_browserAwesomiumPolicy", "compatibility-unavailable", CVAR_ROM );' in cl_main
+    assert 'Cvar_Get ("ui_browserAwesomiumParityScope", "unclassified", CVAR_ROM );' in cl_main
+    assert 'Cvar_Get ("ui_browserAwesomiumParityReason", "unclassified", CVAR_ROM );' in cl_main
     assert 'Cvar_Get ("ui_advertisementBridgeProvider", "Unavailable", CVAR_ROM );' in cl_main
     assert 'Cvar_Get ("ui_advertisementBridgePolicy", "compatibility-unavailable", CVAR_ROM );' in cl_main
+    assert 'Cvar_Get ("ui_advertisementBridgeParityScope", "unclassified", CVAR_ROM );' in cl_main
+    assert 'Cvar_Get ("ui_advertisementBridgeParityReason", "unclassified", CVAR_ROM );' in cl_main
 
     assert '#include "../../common/platform/platform_config.h"' in ui_main
     assert "#define UI_BROWSER_AWESOMIUM_DEFAULT \"0\"" in ui_main
@@ -848,8 +923,7 @@ def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     assert "CL_OnlineServicesEnabled()" not in show_browser_block
 
     advert_init_block = _extract_function_block(cl_cgame, "static void CL_AdvertisementBridge_InitCGame( void )")
-    assert "cl_advertisementBridge.initialised = qtrue;" in advert_init_block
-    assert "CL_RefreshOnlineServicesBridgeState();" in advert_init_block
+    assert "cl_webBridge.vtbl->initCGame( &cl_webBridge );" in advert_init_block
 
     import82_block = _extract_function_block(cl_ui, "static void QDECL QL_UI_trap_InitAdvertisementBridge( void )")
     assert "CL_AdvertisementBridge_InitUI();" in import82_block
@@ -868,7 +942,7 @@ def test_service_disabled_menu_verb_matrix_stays_explicit() -> None:
     show_browser_block = _extract_function_block(cl_cgame, "void CL_Web_ShowBrowser_f( void )")
     change_hash_block = _extract_function_block(cl_cgame, "void CL_Web_ChangeHash_f( void )")
     browser_active_block = _extract_function_block(cl_cgame, "void CL_Web_BrowserActive_f( void )")
-    stop_refresh_block = _extract_function_block(cl_cgame, "void CL_Web_StopRefresh_f( void )")
+    stop_refresh_block = _extract_function_block(cl_cgame, "void CL_Web_StopRefresh_f( void ) {")
     deferred_exec_block = _extract_function_block(
         ui_main, "qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText ) {"
     )
@@ -1014,6 +1088,10 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
     assert '".tga"' not in steam_resources
     assert 'Cvar_Set( "ui_resourceBridgeProvider", CL_GetSteamResourceServiceProviderLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeResponseThreadMappings", va( "%i", CL_CountSteamResponseThreadRetailMappings() ) );' in refresh_cvars_block
     assert "CL_RefreshSteamResourceBridgeCvars();" in resources_init_block
 
     assert "friendsVTable" in request_avatar_image_block
@@ -1065,10 +1143,16 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert 'Cmd_AddCommand ("stats_clear", CL_Steam_ClearStats_f );' in steam_client_init_block
     assert 'Cvar_Get ("ui_resourceBridgeProvider", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_resourceBridgePolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_resourceBridgeParityScope", "unclassified", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_resourceBridgeParityReason", "unclassified", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_subscriptionBridgeMode", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_subscriptionBridgePolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_subscriptionBridgeParityScope", "unclassified", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_subscriptionBridgeParityReason", "unclassified", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_onlineServicesMode", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_onlineServicesPolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("cl_onlineServicesParityScope", "unclassified", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("cl_onlineServicesParityReason", "unclassified", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_identityBootstrapMode", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_identityBootstrapPolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("cl_voiceServiceMode", "Unavailable", CVAR_ROM );' in init_block
@@ -1102,6 +1186,8 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert "CL_RefreshPlatformServiceCvars();" in steam_client_init_block
     assert 'Cvar_Set( "cl_onlineServicesMode", QL_GetOnlineServicesModeLabel() );' in cl_main
     assert 'Cvar_Set( "cl_onlineServicesPolicy", QL_GetOnlineServicesPolicyLabel() );' in cl_main
+    assert 'Cvar_Set( "cl_onlineServicesParityScope", QL_GetOnlineServicesParityScopeLabel() );' in cl_main
+    assert 'Cvar_Set( "cl_onlineServicesParityReason", QL_GetOnlineServicesParityReasonLabel() );' in cl_main
     assert 'Cvar_Set( "cl_identityBootstrapMode", CL_GetIdentityBootstrapModeLabel() );' in cl_main
     assert 'Cvar_Set( "cl_identityBootstrapPolicy", CL_GetIdentityBootstrapPolicyLabel() );' in cl_main
     assert 'Cvar_Set( "cl_voiceServiceMode", CL_GetVoiceServiceModeLabel() );' in cl_main
@@ -1110,6 +1196,8 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert 'Cvar_Set( "cl_workshopPolicy", CL_GetWorkshopServicePolicyLabel() );' in cl_main
     assert 'Cvar_Set( "ui_subscriptionBridgeMode", QL_GetOnlineServicesModeLabel() );' in cl_main
     assert 'Cvar_Set( "ui_subscriptionBridgePolicy", QL_GetOnlineServicesPolicyLabel() );' in cl_main
+    assert 'Cvar_Set( "ui_subscriptionBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );' in cl_main
+    assert 'Cvar_Set( "ui_subscriptionBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );' in cl_main
     assert 'Com_DPrintf( "client callback bootstrap: %s (matchmaking=%s [%s], stats=%s [%s], overlay=%s [%s])\\n",' in callback_bootstrap_log_block
     assert "CL_GetMatchmakingServiceProviderLabel()" in callback_bootstrap_log_block
     assert "CL_GetMatchmakingServicePolicyLabel()" in callback_bootstrap_log_block
@@ -1251,6 +1339,22 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
         steam_resources,
         "static qboolean CL_SteamDataSource_Request( const char *url, clSteamDataSourceResponse_t *response ) {",
     )
+    filter_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_OnFilterNavigation( const char *url ) {",
+    )
+    parse_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_ParseURL( const char *url, clResourceInterceptorUrl_t *parsed ) {",
+    )
+    mapped_request_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_BuildMappedRequest( const clResourceInterceptorUrl_t *parsed, char *mappedUrl, size_t mappedUrlSize ) {",
+    )
+    retail_host_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_RequestRetailHost( const char *url, clSteamDataSourceResponse_t *response ) {",
+    )
     interceptor_block = _extract_function_block(
         steam_resources,
         "static qboolean QLResourceInterceptor_OnRequest( const char *url, clSteamDataSourceResponse_t *response ) {",
@@ -1303,10 +1407,29 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "static const ql_platform_feature_descriptor *CL_GetSteamResourceServiceDescriptor( void ) {" in steam_resources
     assert "static const char *CL_GetSteamResourceServiceProviderLabel( void ) {" in steam_resources
     assert "static const char *CL_GetSteamResourceServicePolicyLabel( void ) {" in steam_resources
+    assert "static const char *CL_GetSteamDataSourceSubsetLabel( void ) {" in steam_resources
+    assert "static const char *CL_GetSteamDataSourceNativeGapLabel( void ) {" in steam_resources
+    assert "static const clSteamDataSourceRetailMapping_t cl_steamDataSourceRetailMappings[] = {" in steam_resources
+    assert '{ "SteamDataSource", "OnRequest", 0x00532B80u, 0x04u, 0x004640C0u, "CL_SteamDataSource_Request", CL_STEAM_DATA_SOURCE_SCOPE_COMPATIBILITY_OWNER },' in steam_resources
+    assert '{ "CCallback<class SteamDataSource, struct AvatarImageLoaded_t, 0>", "callback target", 0x00532B68u, 0x10u, 0x00464290u, "CL_SteamResources_OnAvatarImageLoaded", CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK },' in steam_resources
+    assert "static int CL_CountSteamDataSourceRetailMappings( void ) {" in steam_resources
+    assert "static const clSteamResponseThreadRetailMapping_t cl_steamResponseThreadRetailMappings[] = {" in steam_resources
+    assert '{ "ResponseThread", "run", CL_STEAM_RESPONSE_THREAD_RETAIL_VTABLE, 0x04u, 0x00463440u, CL_STEAM_RESPONSE_THREAD_MIME_TYPE, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_ASYNC_BOUNDARY },' in steam_resources
+    assert '{ "Awesomium::DataSource", "SendResponse import", 0u, 0u, 0x0052C6B0u, CL_STEAM_RESPONSE_THREAD_MIME_TYPE, "QLResourceInterceptor_OnRequest", CL_STEAM_RESPONSE_THREAD_SCOPE_SEND_RESPONSE },' in steam_resources
+    assert "static int CL_CountSteamResponseThreadRetailMappings( void ) {" in steam_resources
     assert "static void CL_LogSteamResourceBridgeUnavailable( const char *url, const char *reason ) {" in steam_resources
     assert "static void CL_LogLauncherResourceFallbackUnavailable( const char *url, const char *reason ) {" in steam_resources
     assert "static void CL_LogSteamResourceRequestStubbed( const char *url ) {" in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_HOST "ql"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH "/screenshot"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX "https://cdn.quakelive.com/"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX "quakelive://screenshots/"' in steam_resources
+    assert "char\thost[64];" in steam_resources
+    assert "char\tpath[MAX_QPATH];" in steam_resources
+    assert "char\tfilename[MAX_QPATH];" in steam_resources
     assert "return &services->overlay;" in steam_resources
+    assert 'return "avatar-only SteamDataSource";' in steam_resources
+    assert 'return "missing non-avatar SteamDataSource owner";' in steam_resources
     assert "static void CL_SteamResources_BuildRendererName( const char *url, const clSteamResource_t *slot, char *rendererName, size_t rendererNameSize ) {" in steam_resources
     assert "if ( !CL_SteamResources_IsURIResource( url ) ) {" in shader_block
     assert "CL_LogSteamResourceRequestStubbed( url );" in shader_block
@@ -1315,7 +1438,19 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );' in data_source_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "avatar request deferred pending AvatarImageLoaded callback" );' in data_source_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "avatar request could not be satisfied" );' in data_source_block
-    assert 'CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available" );' in data_source_block
+    assert 'CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available; trying launcher/web fallback" );' in data_source_block
+    assert "(void)url;" in filter_block
+    assert "return qfalse;" in filter_block
+    assert 'scheme = strstr( url, "://" );' in parse_block
+    assert "Q_strncpyz( parsed->filename, filename, sizeof( parsed->filename ) );" in parse_block
+    assert "QLResourceInterceptor_IsRetailHost( parsed )" in mapped_request_block
+    assert "QLResourceInterceptor_IsScreenshotPath( parsed->path )" in mapped_request_block
+    assert "QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX" in mapped_request_block
+    assert "QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX" in mapped_request_block
+    assert "QLResourceInterceptor_ParseURL( url, &parsed )" in retail_host_block
+    assert "QLResourceInterceptor_BuildMappedRequest( &parsed, mappedUrl, sizeof( mappedUrl ) )" in retail_host_block
+    assert "CL_LauncherRequestData( mappedUrl, (void **)&response->buffer, &response->bufferLength )" in retail_host_block
+    assert "CL_SteamDataSource_GuessMimeType( mappedUrl )" in retail_host_block
     assert "CL_SteamResources_SanitizeCacheName" not in steam_resources
     assert "CL_SteamResources_RegisterCachedShader" not in steam_resources
     assert "CL_SteamResources_WriteCacheFile" not in steam_resources
@@ -1325,8 +1460,12 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipRawImage );" in client_h
     assert "qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipRawImage ) {" in cl_main
     assert "image = R_LoadImageFromMemory( name, buffer, bufferLength, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+    assert "if ( QLResourceInterceptor_OnFilterNavigation( url ) ) {" in interceptor_block
     assert "if ( CL_SteamDataSource_Request( url, response ) ) {" in interceptor_block
+    assert "if ( QLResourceInterceptor_RequestRetailHost( url, response ) ) {" in interceptor_block
     assert "if ( CL_LauncherRequestData( url, (void **)&response->buffer, &response->bufferLength ) ) {" in interceptor_block
+    assert interceptor_block.index("QLResourceInterceptor_OnFilterNavigation( url )") < interceptor_block.index("CL_SteamDataSource_Request( url, response )")
+    assert interceptor_block.index("QLResourceInterceptor_RequestRetailHost( url, response )") < interceptor_block.index("CL_LauncherRequestData( url, (void **)&response->buffer, &response->bufferLength )")
     assert 'CL_LogLauncherResourceFallbackUnavailable( url, "no launcher/web resource owner is available" );' in interceptor_block
     assert 'Com_Printf( "Steam resource bridge disabled for %s [%s]; keeping launcher/web fallback resource bridge.\\n",' in steam_resources_init_block
     assert "CL_SteamResources_RegisterAvatarCallbacks();" in steam_resources_init_block
@@ -1370,6 +1509,18 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
         steam_resources,
         "static qboolean CL_SteamDataSource_Request( const char *url, clSteamDataSourceResponse_t *response ) {",
     )
+    filter_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_OnFilterNavigation( const char *url ) {",
+    )
+    mapped_request_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_BuildMappedRequest( const clResourceInterceptorUrl_t *parsed, char *mappedUrl, size_t mappedUrlSize ) {",
+    )
+    retail_host_block = _extract_function_block(
+        steam_resources,
+        "static qboolean QLResourceInterceptor_RequestRetailHost( const char *url, clSteamDataSourceResponse_t *response ) {",
+    )
     resources_init_block = _extract_function_block(steam_resources, "void CL_InitSteamResources( void ) {")
     refresh_cvars_block = _extract_function_block(
         steam_resources,
@@ -1404,13 +1555,28 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
     assert "Steam backend disabled by build/runtime policy" not in steam_resources
     assert "Steam backend unavailable for %s" not in steam_resources
     assert "Steam resource bridge disabled by build/runtime policy" not in steam_resources
-    assert 'Com_Printf( "Steam resource bridge unavailable for %s via %s [%s]; %s\\n"' in steam_resources
+    assert 'Com_Printf( "Steam resource bridge unavailable for %s via %s [%s] (%s; gap=%s); %s\\n"' in steam_resources
+    assert "CL_GetSteamDataSourceSubsetLabel()" in steam_resources
+    assert "CL_GetSteamDataSourceNativeGapLabel()" in steam_resources
     assert 'Com_Printf( "Launcher/web fallback unavailable for %s via %s [%s]; %s\\n"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_HOST "ql"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH "/screenshot"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX "https://cdn.quakelive.com/"' in steam_resources
+    assert '#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX "quakelive://screenshots/"' in steam_resources
     assert 'Cvar_Set( "ui_resourceBridgeProvider", CL_GetSteamResourceServiceProviderLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );' in refresh_cvars_block
     assert 'Com_Printf( "Steam resource bridge disabled for %s [%s]; keeping launcher/web fallback resource bridge.\\n",' in resources_init_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );' in data_source_block
+    assert "(void)url;" in filter_block
+    assert "return qfalse;" in filter_block
+    assert "QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX" in mapped_request_block
+    assert "QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX" in mapped_request_block
+    assert "CL_LauncherRequestData( mappedUrl, (void **)&response->buffer, &response->bufferLength )" in retail_host_block
     assert "return;" in resources_init_block
+    assert "if ( QLResourceInterceptor_OnFilterNavigation( url ) ) {" in interceptor_block
+    assert "if ( QLResourceInterceptor_RequestRetailHost( url, response ) ) {" in interceptor_block
     assert "if ( CL_LauncherRequestData( url, (void **)&response->buffer, &response->bufferLength ) ) {" in interceptor_block
     assert "QLResourceInterceptor_OnRequest( url, &response )" in url_block
     assert "Launcher backend disabled by build/runtime policy" not in url_block
@@ -1445,6 +1611,14 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
         steamworks,
         "qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle ) {",
     )
+    api_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetAuthTicketApiLabel( void )",
+    )
+    modern_gap_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetAuthTicketModernGapLabel( void )",
+    )
     request_ticket_block = _extract_function_block(
         ql_auth,
         "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize ) {",
@@ -1463,6 +1637,10 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     )
 
     assert "qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle );" in steamworks_header
+    assert "const char *QL_Steamworks_GetAuthTicketApiLabel( void );" in steamworks_header
+    assert "const char *QL_Steamworks_GetAuthTicketModernGapLabel( void );" in steamworks_header
+    assert 'return "retail GetAuthSessionTicket";' in api_label_block
+    assert 'return "missing GetAuthTicketForWebApi adapter";' in modern_gap_label_block
     assert "if ( ticketHandle == 0 || !state.initialised || !state.SteamUser || !state.CancelAuthTicket ) {" in cancel_platform_block
     assert "state.CancelAuthTicket( user, (HAuthTicket)ticketHandle );" in cancel_platform_block
     assert "static uint32_t cl_clientAuthSteamTicketHandle = 0;" in ql_auth
@@ -1473,6 +1651,86 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     assert "QL_Steamworks_CancelAuthTicket( cl_clientAuthSteamTicketHandle );" in cancel_client_block
     assert "cl_clientAuthSteamTicketHandle = 0;" in cancel_client_block
     assert "QL_ClientAuth_CancelSteamTicket();" in disconnect_block
+
+
+def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
+    steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+    steamworks_header = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
+    ql_auth = (REPO_ROOT / "src/code/client/ql_auth.c").read_text(encoding="utf-8")
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    steam_resources = (REPO_ROOT / "src/code/client/cl_steam_resources.c").read_text(encoding="utf-8")
+
+    auth_api_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetAuthTicketApiLabel( void )",
+    )
+    auth_modern_gap_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetAuthTicketModernGapLabel( void )",
+    )
+    p2p_transport_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetP2PTransportLabel( void )",
+    )
+    p2p_modern_gap_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetP2PModernGapLabel( void )",
+    )
+    ugc_filter_label_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetAllUGCFilterContractLabel( void )",
+    )
+    ugc_filter_semantic_gap_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetAllUGCFilterSemanticGapLabel( void )",
+    )
+    missing_browser_owner_block = _extract_function_block(
+        cl_main,
+        "static const char *CL_SteamBrowser_MissingNativeOwnerLabel( void )",
+    )
+    browser_native_adapter_gap_block = _extract_function_block(
+        cl_main,
+        "static const char *CL_SteamBrowser_NativeAdapterGapLabel( void )",
+    )
+    steam_data_source_label_block = _extract_function_block(
+        steam_resources,
+        "static const char *CL_GetSteamDataSourceSubsetLabel( void )",
+    )
+    steam_data_source_gap_block = _extract_function_block(
+        steam_resources,
+        "static const char *CL_GetSteamDataSourceNativeGapLabel( void )",
+    )
+
+    for source_text in (steamworks, steamworks_header):
+        assert "SteamAPI_ISteamUser_GetAuthTicketForWebApi" not in source_text
+        assert "QL_SteamAPI_GetAuthTicketForWebApiFn" not in source_text
+        assert "GetAuthTicketForWebApi( " not in source_text
+        assert "SteamAPI_SteamNetworkingSockets" not in source_text
+        assert "SteamAPI_ISteamNetworkingSockets" not in source_text
+        assert "SteamAPI_SteamNetworkingMessages" not in source_text
+        assert "SteamAPI_ISteamNetworkingMessages" not in source_text
+        assert "SteamAPI_SteamMatchmakingServers" not in source_text
+        assert "SteamAPI_ISteamMatchmakingServers" not in source_text
+
+    assert 'return "retail GetAuthSessionTicket";' in auth_api_label_block
+    assert 'return "missing GetAuthTicketForWebApi adapter";' in auth_modern_gap_label_block
+    assert 'return "legacy ISteamNetworking";' in p2p_transport_label_block
+    assert 'return "missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter";' in p2p_modern_gap_label_block
+    assert 'return "raw GetAllUGC integer filter";' in ugc_filter_label_block
+    assert 'return "unpromoted GetAllUGC filter semantic";' in ugc_filter_semantic_gap_block
+    assert 'return "ISteamMatchmakingServers";' in missing_browser_owner_block
+    assert 'return "missing ISteamMatchmakingServers adapter";' in browser_native_adapter_gap_block
+    assert 'return "avatar-only SteamDataSource";' in steam_data_source_label_block
+    assert 'return "missing non-avatar SteamDataSource owner";' in steam_data_source_gap_block
+    assert "QL_Steamworks_GetAuthTicketApiLabel()" in ql_auth
+    assert "QL_Steamworks_GetAuthTicketModernGapLabel()" in ql_auth
+    assert "QL_Steamworks_GetP2PTransportLabel()" in cl_main
+    assert "QL_Steamworks_GetP2PModernGapLabel()" in cl_main
+    assert "QL_Steamworks_GetAllUGCFilterSemanticGapLabel()" in cl_main
+    assert "CL_SteamBrowser_MissingNativeOwnerLabel()" in cl_main
+    assert "CL_SteamBrowser_NativeAdapterGapLabel()" in cl_main
+    assert "CL_GetSteamDataSourceSubsetLabel()" in steam_resources
+    assert "CL_GetSteamDataSourceNativeGapLabel()" in steam_resources
 
 
 def test_client_auth_logs_include_provider_and_policy_labels() -> None:
@@ -1514,7 +1772,9 @@ def test_client_auth_logs_include_provider_and_policy_labels() -> None:
     assert '"Auth init failed: %s [%s]"' in execute_block
     assert '"No auth backend: %s [%s]"' in execute_block
     assert 'transport.logPrefix = "dispatcher";' not in execute_block
-    assert '[auth] %s [%s] payload summary: ticket=%s (len=%zu)\\n' in execute_block
+    assert '[auth] %s [%s] payload summary: ticket=%s (len=%zu, api=%s, modern=%s)\\n' in execute_block
+    assert "QL_Steamworks_GetAuthTicketApiLabel()" in execute_block
+    assert "QL_Steamworks_GetAuthTicketModernGapLabel()" in execute_block
 
 
 def test_policy_blocked_auth_requests_surface_online_services_mode_and_policy(tmp_path) -> None:
@@ -1706,9 +1966,10 @@ def test_client_browser_host_core_reconstructs_retained_runtime_owner() -> None:
     assert "sourceCount = FS_GetFileList( path, extension, sourceList, sizeof( sourceList ) );" in webpak_list_block
     assert "nFiles = FS_AddFileToList( name + temp, list, nFiles );" in pak_list_block
 
-    assert 'Cvar_Set( "ui_browserAwesomium", overlayAvailable ? "1" : "0" );' in bridge_block
-    assert 'Cvar_Set( "ui_browserAwesomiumProvider", overlayProvider );' in bridge_block
-    assert 'Cvar_Set( "ui_browserAwesomiumPolicy", overlayPolicy );' in bridge_block
+    assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in bridge_block
+    assert 'Cvar_Set( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in bridge_block
+    assert 'Cvar_Set( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );' in bridge_block
+    assert 'Cvar_Set( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );' in bridge_block
     assert "CL_WebHost_ResetRuntime( qtrue );" in bridge_block
 
     assert "CL_RefreshOnlineServicesBridgeState();" in frame_block
@@ -1733,7 +1994,7 @@ def test_client_browser_commands_drive_retained_host_owner_surface() -> None:
     show_error_block = _extract_function_block(cl_cgame, "void CL_Web_ShowError_f( void )")
     reload_view_block = _extract_function_block(cl_cgame, "static void QLWebHost_ReloadView( qboolean ignoreCache ) {")
     reload_block = _extract_function_block(cl_cgame, "void CL_Web_Reload_f( void )")
-    stop_refresh_block = _extract_function_block(cl_cgame, "void CL_Web_StopRefresh_f( void )")
+    stop_refresh_block = _extract_function_block(cl_cgame, "void CL_Web_StopRefresh_f( void ) {")
 
     assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" in show_browser_block
     assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" in change_hash_block
@@ -1776,6 +2037,9 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     wheel_block = _extract_function_block(cl_cgame, "static void QLWebView_InjectMouseWheel( int direction ) {")
     key_block = _extract_function_block(cl_cgame, "static void QLWebView_InjectKeyboardEvent( int key, qboolean down ) {")
     activation_block = _extract_function_block(cl_cgame, "static void QLWebView_InjectActivationKeyboardEvent( void ) {")
+    activation_fields_block = _extract_function_block(
+        cl_cgame, "static void QLWebView_InjectKeyboardEventFields( const qlWebKeyboardEventFields_t *event, qboolean down ) {"
+    )
     app_activate_block = _extract_function_block(cl_cgame, "void CL_WebHost_NotifyAppActivation( qboolean active ) {")
     public_mouse_block = _extract_function_block(cl_cgame, "void CL_WebView_OnMouseMove( int x, int y ) {")
     public_mouse_button_block = _extract_function_block(cl_cgame, "void CL_WebView_OnMouseButtonEvent( int key, qboolean down ) {")
@@ -1822,8 +2086,10 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     assert "for ( result = 1; result < value; result <<= 1 ) {" in next_power_block
     assert "targetDimension = surfaceDimension > 0 ? surfaceDimension : viewDimension;" in map_cursor_block
     assert "cl_webHost.cursorX = cursorX;" in mapped_mouse_block
-    assert "cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( cl_webHost.viewWidth );" in rebuild_surface_block
-    assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( cl_webHost.viewHeight );" in rebuild_surface_block
+    assert "contentWidth = cl_webHost.viewWidth;" in rebuild_surface_block
+    assert "contentHeight = cl_webHost.viewHeight;" in rebuild_surface_block
+    assert "cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( contentWidth );" in rebuild_surface_block
+    assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( contentHeight );" in rebuild_surface_block
     assert "QLJSHandler_BindQzInstance();" in document_ready_block
     assert 'CL_WebView_PublishEvent( "web.object.ready", NULL );' in document_ready_block
     assert "value = strtol( argument, &end, 10 );" in coerce_integer_block
@@ -1900,7 +2166,17 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     assert "if ( direction == 0 ) {" in wheel_block
     assert "QLWebView_PublishGameKey( key );" in key_block
     assert "cl_webHost.keyCaptureArmed = qfalse;" in key_block
-    assert "QLWebView_InjectKeyboardEvent( 0x11, qtrue );" in activation_block
+    assert "unsigned int\teventType;" in cl_cgame
+    assert "unsigned int\tvirtualKeyCode;" in cl_cgame
+    assert "long\t\t\tnativeKeyCode;" in cl_cgame
+    assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE 0u" in cl_cgame
+    assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY 0x11u" in cl_cgame
+    assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY 0x1d0001L" in cl_cgame
+    assert "QLWebView_InjectKeyboardEvent( (int)event->virtualKeyCode, down );" in activation_fields_block
+    assert "QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE," in activation_block
+    assert "QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY," in activation_block
+    assert "QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY" in activation_block
+    assert "QLWebView_InjectKeyboardEventFields( &activationEvent, qtrue );" in activation_block
     assert "QLWebView_InjectActivationKeyboardEvent();" in app_activate_block
     assert "QLWebView_InjectMouseMove( x, y );" in public_mouse_block
     assert "QLWebView_InjectMouseDown( key );" in public_mouse_button_block
@@ -1943,6 +2219,12 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     )
     request_all_ugc_query_block = _extract_function_block(
         platform_steamworks_c, "qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter )"
+    )
+    ugc_filter_label_block = _extract_function_block(
+        platform_steamworks_c, "const char *QL_Steamworks_GetAllUGCFilterContractLabel( void )"
+    )
+    ugc_filter_semantic_gap_block = _extract_function_block(
+        platform_steamworks_c, "const char *QL_Steamworks_GetAllUGCFilterSemanticGapLabel( void )"
     )
     query_ugc_result_block = _extract_function_block(
         platform_steamworks_c,
@@ -1991,6 +2273,8 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "qboolean QL_Steamworks_ActivateOverlayToWebPage( const char *url );" in platform_steamworks_h
     assert "qboolean QL_Steamworks_InviteUserToLobby( uint32_t lobbyIdLow, uint32_t lobbyIdHigh, uint32_t userIdLow, uint32_t userIdHigh );" in platform_steamworks_h
     assert "qboolean QL_Steamworks_InviteUserToGame( uint32_t idLow, uint32_t idHigh, const char *connectString );" in platform_steamworks_h
+    assert "const char *QL_Steamworks_GetAllUGCFilterContractLabel( void );" in platform_steamworks_h
+    assert "const char *QL_Steamworks_GetAllUGCFilterSemanticGapLabel( void );" in platform_steamworks_h
     assert "qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter );" in platform_steamworks_h
     assert "qboolean QL_Steamworks_GetQueryUGCResult( uint64_t queryHandle, uint32_t index, uint64_t *outPublishedFileId, char *title, size_t titleSize, char *description, size_t descriptionSize );" in platform_steamworks_h
     assert "qboolean QL_Steamworks_GetQueryUGCPreviewURL( uint64_t queryHandle, uint32_t index, char *buffer, size_t bufferSize );" in platform_steamworks_h
@@ -2055,6 +2339,9 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "return QL_Steamworks_SayLobby( lobbyIdLow, lobbyIdHigh, lobbyMessage );" in say_block
     assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "workshop provider unavailable" );' in request_ugc_block
     assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "invalid query page" );' not in request_ugc_block
+    assert '"forwarding %s value %d (semantic=%s)"' in request_ugc_block
+    assert "QL_Steamworks_GetAllUGCFilterContractLabel()" in request_ugc_block
+    assert "QL_Steamworks_GetAllUGCFilterSemanticGapLabel()" in request_ugc_block
     assert "return QL_Steamworks_RequestAllUGCQuery( (uint32_t)filter );" in request_ugc_block
     assert "parsedSteamId = 0ull;" in request_stats_block
     assert 'sscanf( steamId, "%llu", &parsedSteamId );' in request_stats_block
@@ -2071,6 +2358,8 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "return QL_Steamworks_ActivateOverlayToUser(" in activate_overlay_block
     assert "(uint32_t)( parsedSteamId & 0xffffffffu )" in activate_overlay_block
     assert "(uint32_t)( parsedSteamId >> 32 )" in activate_overlay_block
+    assert 'return "raw GetAllUGC integer filter";' in ugc_filter_label_block
+    assert 'return "unpromoted GetAllUGC filter semantic";' in ugc_filter_semantic_gap_block
     assert "queryHandle = createQueryFn( ugc, NULL, 1, 0, appId, appId, filter );" in request_all_ugc_query_block
     assert "if ( filter < 1u ) {" not in request_all_ugc_query_block
     assert "callHandle = sendQueryFn( ugc, NULL, queryHandleLow, queryHandleHigh );" in request_all_ugc_query_block
@@ -2146,6 +2435,30 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     request_mode_block = _extract_function_block(
         cl_main, "static int CL_SteamBrowser_RequestModeToSource( int requestMode )"
     )
+    request_mode_label_block = _extract_function_block(
+        cl_main, "static const char *CL_SteamBrowser_RequestModeLabel( int requestMode )"
+    )
+    source_label_block = _extract_function_block(
+        cl_main, "static const char *CL_SteamBrowser_SourceLabel( int source )"
+    )
+    compatibility_owner_block = _extract_function_block(
+        cl_main, "static const char *CL_SteamBrowser_CompatibilityOwnerLabel( void )"
+    )
+    missing_owner_block = _extract_function_block(
+        cl_main, "static const char *CL_SteamBrowser_MissingNativeOwnerLabel( void )"
+    )
+    native_adapter_gap_block = _extract_function_block(
+        cl_main, "static const char *CL_SteamBrowser_NativeAdapterGapLabel( void )"
+    )
+    compatibility_source_block = _extract_function_block(
+        cl_main, "static qboolean CL_SteamBrowser_RequestModeUsesCompatibilitySource( int requestMode )"
+    )
+    compatibility_reason_block = _extract_function_block(
+        cl_main, "static const char *CL_SteamBrowser_CompatibilityReasonLabel( int requestMode )"
+    )
+    publish_compatibility_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_PublishCompatibilitySource( int requestMode, int source )"
+    )
     build_address_block = _extract_function_block(
         cl_main, "static void CL_SteamBrowser_BuildAddressString( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize )"
     )
@@ -2190,8 +2503,42 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "return AS_GLOBAL;" in request_mode_block
     assert "case 1:" in request_mode_block
     assert "return AS_LOCAL;" in request_mode_block
+    assert "case 2:" in request_mode_block
+    assert "return AS_GLOBAL;" in request_mode_block
     assert "case 3:" in request_mode_block
     assert "return AS_FAVORITES;" in request_mode_block
+    assert "case 4:" in request_mode_block
+    assert "return AS_FAVORITES;" in request_mode_block
+    assert 'return "friends";' in request_mode_label_block
+    assert 'return "history";' in request_mode_label_block
+    assert 'return "global";' in source_label_block
+    assert 'return "favorites";' in source_label_block
+    assert 'return "source-browser compatibility";' in compatibility_owner_block
+    assert 'return "ISteamMatchmakingServers";' in missing_owner_block
+    assert 'return "missing ISteamMatchmakingServers adapter";' in native_adapter_gap_block
+    assert "case 2:" in compatibility_source_block
+    assert "case 4:" in compatibility_source_block
+    assert "return qtrue;" in compatibility_source_block
+    assert "CL_SteamBrowser_RequestModeUsesCompatibilitySource( requestMode )" in publish_compatibility_block
+    assert 'return "friends mapped to global source";' in compatibility_reason_block
+    assert 'return "history mapped to favorites source";' in compatibility_reason_block
+    assert 'return "native-compatible source";' in compatibility_reason_block
+    assert 'Com_DPrintf(' in publish_compatibility_block
+    assert "adapter %s" in publish_compatibility_block
+    assert "reason %s" in publish_compatibility_block
+    assert 'CL_GetMatchmakingServiceProviderLabel()' in publish_compatibility_block
+    assert 'CL_GetMatchmakingServicePolicyLabel()' in publish_compatibility_block
+    assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.compatibility", payload );' in publish_compatibility_block
+    assert '\\"modeLabel\\":\\"%s\\"' in publish_compatibility_block
+    assert '\\"source\\":\\"%s\\"' in publish_compatibility_block
+    assert '\\"owner\\":\\"%s\\"' in publish_compatibility_block
+    assert '\\"missingNativeOwner\\":\\"%s\\"' in publish_compatibility_block
+    assert '\\"nativeAdapterGap\\":\\"%s\\"' in publish_compatibility_block
+    assert '\\"reason\\":\\"%s\\"' in publish_compatibility_block
+    assert "CL_SteamBrowser_CompatibilityOwnerLabel()" in publish_compatibility_block
+    assert "CL_SteamBrowser_MissingNativeOwnerLabel()" in publish_compatibility_block
+    assert "CL_SteamBrowser_NativeAdapterGapLabel()" in publish_compatibility_block
+    assert "CL_SteamBrowser_CompatibilityReasonLabel( requestMode )" in publish_compatibility_block
     assert '"%u.%u.%u.%u:%i"' in build_address_block
     assert "(int)(short)serverPort" in build_address_block
     assert '"%u_%i"' in format_detail_id_block
@@ -2202,6 +2549,7 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "CL_SteamBrowser_MarkServerVisible( source, -1, qtrue );" in request_servers_block
     assert "CL_SteamBrowser_ResetPings( source );" in request_servers_block
     assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' in request_servers_block
+    assert "CL_SteamBrowser_PublishCompatibilitySource( requestMode, source );" in request_servers_block
     assert "CL_RequestLocalServers();" in request_servers_block
     assert 'CL_RequestGlobalServers( masterNum, debugProtocol, "full empty" );' in request_servers_block
     assert 'CL_RequestGlobalServers( masterNum, va( "%d", protocol ), "full empty" );' in request_servers_block
@@ -2398,6 +2746,15 @@ def test_advert_bridge_callbacks_track_retail_ui_and_cgame_state_paths() -> None
     activate_block = _extract_function_block(cl_cgame, "void CL_AdvertisementBridge_ActivateAdvert( int cellId )")
     set_active_block = _extract_function_block(cl_cgame, "void CL_AdvertisementBridge_SetActiveAdvert( int cellId )")
     shutdown_block = _extract_function_block(cl_cgame, "static void CL_AdvertisementBridge_ShutdownCGame( void )")
+    bridge_activate_block = _extract_function_block(
+        cl_cgame, "static void QLWebBridge_ActivateAdvert( ql_web_bridge_t *bridge, int cellId ) {"
+    )
+    bridge_set_active_block = _extract_function_block(
+        cl_cgame, "static int QLWebBridge_SetActiveAdvert( ql_web_bridge_t *bridge, int cellId ) {"
+    )
+    bridge_shutdown_block = _extract_function_block(
+        cl_cgame, "static int QLWebBridge_ShutdownCGame( ql_web_bridge_t *bridge ) {"
+    )
     ui_import82_block = _extract_function_block(cl_ui, "static void QDECL QL_UI_trap_InitAdvertisementBridge( void )")
     ui_import84_block = _extract_function_block(cl_ui, "static void QDECL QL_UI_trap_ActivateAdvert( int cellId )")
     cg_import_block = _extract_function_block(cl_cgame, "static void QDECL QL_CG_trap_SetActiveAdvert( int cellId )")
@@ -2405,17 +2762,18 @@ def test_advert_bridge_callbacks_track_retail_ui_and_cgame_state_paths() -> None
     assert "static const char *CL_GetAdvertisementBridgeProviderLabel( void ) {" in cl_cgame
     assert "static const char *CL_GetAdvertisementBridgePolicyLabel( void ) {" in cl_cgame
     assert 'Com_DPrintf( "Advert bridge %s: cell=%d active=%d activated=%d via %s [%s]\\n",' in advert_log_block
-    assert "cl_advertisementBridge.activatedAdvertCellId = cellId;" in activate_block
-    assert "cl_advertisementBridge.activeAdvertCellId = cellId;" in set_active_block
-    assert "if ( cellId == 0 ) {" in set_active_block
-    assert "cl_advertisementBridge.activatedAdvertCellId = 0;" in set_active_block
-    assert "cl_advertisementBridge.activeAdvertCellId = 0;" in shutdown_block
-    assert "cl_advertisementBridge.activatedAdvertCellId = 0;" in shutdown_block
-    assert "CL_RefreshOnlineServicesBridgeState();" in init_ui_block
-    assert 'CL_LogAdvertisementBridgeLifecycle( "init-ui", 0 );' in init_ui_block
-    assert 'CL_LogAdvertisementBridgeLifecycle( "activate", cellId );' in activate_block
-    assert 'CL_LogAdvertisementBridgeLifecycle( "set-active", cellId );' in set_active_block
-    assert 'CL_LogAdvertisementBridgeLifecycle( "shutdown-cgame", 0 );' in shutdown_block
+    assert "cl_webBridge.vtbl->initUI( &cl_webBridge );" in init_ui_block
+    assert "cl_webBridge.vtbl->activateAdvert( &cl_webBridge, cellId );" in activate_block
+    assert "cl_webBridge.vtbl->setActiveAdvert( &cl_webBridge, cellId );" in set_active_block
+    assert "bridge->advertisement->activatedAdvertCellId = cellId;" in bridge_activate_block
+    assert "advertisement->activeAdvertCellId = cellId;" in bridge_set_active_block
+    assert "if ( cellId == 0 ) {" in bridge_set_active_block
+    assert "advertisement->activatedAdvertCellId = 0;" in bridge_set_active_block
+    assert "bridge->advertisement->activeAdvertCellId = 0;" in bridge_shutdown_block
+    assert "bridge->advertisement->activatedAdvertCellId = 0;" in bridge_shutdown_block
+    assert 'CL_LogAdvertisementBridgeLifecycle( "activate", cellId );' in bridge_activate_block
+    assert 'CL_LogAdvertisementBridgeLifecycle( "set-active", cellId );' in bridge_set_active_block
+    assert 'CL_LogAdvertisementBridgeLifecycle( "shutdown-cgame", 0 );' in bridge_shutdown_block
     assert "CL_AdvertisementBridge_InitUI();" in ui_import82_block
     assert "CL_AdvertisementBridge_ActivateAdvert( cellId );" in ui_import84_block
     assert "CL_AdvertisementBridge_SetActiveAdvert( cellId );" in cg_import_block
@@ -2425,11 +2783,19 @@ def test_advert_default_shader_fallback_uses_steam_resource_cache() -> None:
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
     cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
 
-    ui_block = _extract_function_block(cl_ui, "static qhandle_t QL_UI_RegisterDefaultAdvertCellShader( const char *defaultContent )")
-    cg_block = _extract_function_block(cl_cgame, "static qhandle_t QL_CG_RegisterDefaultAdvertCellShader( const char *defaultContent )")
+    fallback_block = _extract_function_block(
+        cl_cgame, "static qhandle_t QLWebBridge_RegisterDefaultAdvertCellShader( const char *defaultContent )"
+    )
+    ui_setup_block = _extract_function_block(
+        cl_ui, "static qhandle_t QDECL QL_UI_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId )"
+    )
+    cg_setup_block = _extract_function_block(
+        cl_cgame, "static qhandle_t QDECL QL_CG_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId )"
+    )
 
-    assert "return CL_Steam_RegisterShader( defaultContent );" in ui_block
-    assert "return CL_Steam_RegisterShader( defaultContent );" in cg_block
+    assert "return CL_Steam_RegisterShader( defaultContent );" in fallback_block
+    assert "return CL_AdvertisementBridge_SetupUIAdvertCellShader( defaultContent, rect, cellId );" in ui_setup_block
+    assert "return CL_AdvertisementBridge_SetupAdvertCellShader( defaultContent, rect, cellId );" in cg_setup_block
 
 
 def test_client_overlay_commands_reconstruct_retail_steam_surface() -> None:
@@ -2491,7 +2857,9 @@ def test_client_voice_commands_reconstruct_retail_binding_surface() -> None:
     assert "static const char *CL_GetVoiceServiceModeLabel( void ) {" in cl_main
     assert "static const char *CL_GetVoiceServicePolicyLabel( void ) {" in cl_main
     assert 'Com_DPrintf( "%s voice fallback: %s (%s [%s])\\n",' in voice_log_block
-    assert 'Com_DPrintf( "%s voice transport: %s (%s [%s])\\n",' in voice_transport_log_block
+    assert 'Com_DPrintf( "%s voice transport [%s; modern=%s]: %s (%s [%s])\\n",' in voice_transport_log_block
+    assert "QL_Steamworks_GetP2PTransportLabel()" in voice_transport_log_block
+    assert "QL_Steamworks_GetP2PModernGapLabel()" in voice_transport_log_block
     assert "if ( !cgvm || cls.state != CA_ACTIVE || !cl.snap.valid ) {" in state_block
     assert "VM_Call( cgvm, CG_SET_CLIENT_SPEAKING_STATE, cl.snap.ps.clientNum, speaking ? 1 : 0 );" in state_block
     assert "if ( cl_voiceRecordingActive ) {" in start_block
@@ -2585,10 +2953,16 @@ def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     assert 'CL_LogMatchmakingServiceIgnored( "connect_lobby", "matchmaking provider unavailable" );' in connect_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", "ignored null callback payload" );' in p2p_callback_block
     assert "CL_Steam_FormatSteamId( event->remoteId.value, remoteId, sizeof( remoteId ) );" in p2p_callback_block
+    assert "CL_GetServerSteamId( &serverIdLow, &serverIdHigh ) || !( serverIdLow | serverIdHigh )" in p2p_callback_block
+    assert 'Com_sprintf( detail, sizeof( detail ), "ignored %s; missing tracked peer", remoteId );' in p2p_callback_block
+    assert "trackedSteamId = ( (uint64_t)serverIdHigh << 32 ) | serverIdLow;" in p2p_callback_block
+    assert "if ( event->remoteId.value != trackedSteamId ) {" in p2p_callback_block
+    assert "CL_Steam_FormatSteamId( trackedSteamId, trackedId, sizeof( trackedId ) );" in p2p_callback_block
+    assert 'Com_sprintf( detail, sizeof( detail ), "ignored %s; expected tracked peer %s", remoteId, trackedId );' in p2p_callback_block
     assert 'if ( !QL_Steamworks_AcceptP2PSession( &event->remoteId ) ) {' in p2p_callback_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", detail );' in p2p_callback_block
-    assert '"accept failed for %s"' in p2p_callback_block
-    assert '"accepted %s"' in p2p_callback_block
+    assert '"accept failed for tracked peer %s"' in p2p_callback_block
+    assert '"accepted tracked peer %s"' in p2p_callback_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "server_change_requested", "ignored null callback payload" );' in server_change_callback_block
     assert "CL_Steam_OnGameServerChangeRequested( event->server, event->password );" in server_change_callback_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_created", "ignored null callback payload" );' in lobby_created_block
@@ -2841,7 +3215,9 @@ def test_client_workshop_callback_lanes_stay_explicit() -> None:
     assert 'CL_LogWorkshopLifecycle( "callback-item-installed", detail );' in item_installed_block
     assert 'CL_LogWorkshopLifecycle( "callback-item-installed", "ignored null callback payload" );' in item_installed_block
     assert 'CL_LogWorkshopLifecycle( "callback-item-installed", "ignored installed callback without active download state" );' in item_installed_block
-    assert '"OnDownloadItemResult skip, invalid app id %d"' in item_installed_block
+    assert "appId = QL_Steamworks_GetAppID();" in item_installed_block
+    assert "if ( appId != 0u && event->appId != appId ) {" in item_installed_block
+    assert '"OnItemInstalled skip, invalid app id %d"' in item_installed_block
     assert '"ignored installed callback for untracked item %llu"' in item_installed_block
     assert '"installed item %llu request=%d"' in item_installed_block
     assert "CL_Workshop_FinalizeInstalledItem( itemIndex );" in item_installed_block
@@ -2849,6 +3225,8 @@ def test_client_workshop_callback_lanes_stay_explicit() -> None:
     assert 'CL_LogWorkshopLifecycle( "callback-download-result", "ignored null callback payload" );' in download_result_block
     assert 'CL_LogWorkshopLifecycle( "callback-download-result", "ignored download callback without active download state" );' in download_result_block
     assert 'CL_LogWorkshopLifecycle( "callback-download-result", "ignored download callback without active item index" );' in download_result_block
+    assert "appId = QL_Steamworks_GetAppID();" in download_result_block
+    assert "if ( appId != 0u && event->appId != appId ) {" in download_result_block
     assert '"OnDownloadItemResult skip, invalid app id %d"' in download_result_block
     assert '"OnDownloadItemResult skip, not the active download %llu"' in download_result_block
     assert '"Download item %llu failed with EResult code %i"' in download_result_block
@@ -3054,8 +3432,13 @@ def test_game_start_publisher_reconstructs_retail_match_presence_and_connect_han
 
 def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+    steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
 
     platform_shutdown_block = _extract_function_block(steamworks, "void QL_Steamworks_Shutdown( void )")
+    init_with_version_block = _extract_function_block(
+        steamworks,
+        "qboolean QL_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version )",
+    )
     init_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated )")
     shutdown_block = _extract_function_block(steamworks, "void QL_Steamworks_ServerShutdown( void )")
     is_initialised_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerIsInitialised( void )")
@@ -3111,17 +3494,25 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     assert "#define QL_STEAM_CALLBACK_STEAM_SERVERS_DISCONNECTED 0x67" in steamworks
     assert "#define QL_STEAM_CALLBACK_VALIDATE_AUTH_TICKET_RESPONSE 0x8f" in steamworks
     assert "#define QL_STEAM_CALLBACK_P2P_SESSION_REQUEST 0x4b2" in steamworks
+    assert '#define QL_STEAM_GAMESERVER_DEFAULT_VERSION "1069"' in steamworks_h
+    assert "qboolean QL_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version );" in steamworks_h
+    assert "const char *QL_Steamworks_GetP2PTransportLabel( void );" in steamworks_h
+    assert "const char *QL_Steamworks_GetP2PModernGapLabel( void );" in steamworks_h
+    assert 'return "legacy ISteamNetworking";' in steamworks
+    assert 'return "missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter";' in steamworks
     assert "QL_Steamworks_UnregisterServerCallbacks();" in platform_shutdown_block
     assert "QL_Steamworks_ServerShutdown();" in platform_shutdown_block
     assert platform_shutdown_block.index("QL_Steamworks_UnregisterServerCallbacks();") < platform_shutdown_block.index(
         "QL_Steamworks_ServerShutdown();"
     )
-    assert "if ( state.gameServerInitialised ) {" in init_block
-    assert "if ( !QL_Steamworks_Init() || !state.SteamGameServer_Init ) {" in init_block
-    assert "serverMode = secure ? QL_STEAM_GAMESERVER_MODE_AUTH_SECURE : QL_STEAM_GAMESERVER_MODE_NO_AUTH;" in init_block
-    assert "state.SteamGameServer_Init( ip, 0, gamePort, 0xffffu, serverMode, QL_STEAM_GAMESERVER_VERSION )" in init_block
-    assert "state.gameServerInitialised = qtrue;" in init_block
-    assert "state.useGameServerUGC = dedicated ? qtrue : qfalse;" in init_block
+    assert "if ( state.gameServerInitialised ) {" in init_with_version_block
+    assert "if ( !QL_Steamworks_Init() || !state.SteamGameServer_Init ) {" in init_with_version_block
+    assert "serverMode = secure ? QL_STEAM_GAMESERVER_MODE_AUTH_SECURE : QL_STEAM_GAMESERVER_MODE_NO_AUTH;" in init_with_version_block
+    assert "versionString = ( version && version[0] ) ? version : QL_STEAM_GAMESERVER_DEFAULT_VERSION;" in init_with_version_block
+    assert "state.SteamGameServer_Init( ip, 0, gamePort, 0xffffu, serverMode, versionString )" in init_with_version_block
+    assert "state.gameServerInitialised = qtrue;" in init_with_version_block
+    assert "state.useGameServerUGC = dedicated ? qtrue : qfalse;" in init_with_version_block
+    assert "return QL_Steamworks_ServerInitWithVersion( ip, gamePort, secure, dedicated, QL_STEAM_GAMESERVER_DEFAULT_VERSION );" in init_block
     assert "if ( state.gameServerInitialised && state.SteamGameServer_Shutdown ) {" in shutdown_block
     assert "state.gameServerInitialised = qfalse;" in shutdown_block
     assert "state.useGameServerUGC = qfalse;" in shutdown_block
@@ -3231,7 +3622,9 @@ def test_server_frame_reconstructs_retail_steam_server_owner() -> None:
     helper_block = _extract_function_block(sv_main, "static void SV_SteamServerNetworkingFrame( void )")
     frame_block = _extract_function_block(sv_main, "void SV_Frame( int msec )")
 
-    assert 'Com_DPrintf( "Steam server networking %s for %llu via %s [%s]: %s\\n",' in networking_log_block
+    assert 'Com_DPrintf( "Steam server networking %s [%s; modern=%s] for %llu via %s [%s]: %s\\n",' in networking_log_block
+    assert "QL_Steamworks_GetP2PTransportLabel()" in networking_log_block
+    assert "QL_Steamworks_GetP2PModernGapLabel()" in networking_log_block
     assert "SV_GetSteamServerProviderLabel()" in networking_log_block
     assert "SV_GetSteamServerPolicyLabel()" in networking_log_block
     assert 'if ( !QL_Steamworks_ServerSendP2PPacket( &steamId, keepAlive, (uint32_t)sizeof( keepAlive ), 2, 16 ) ) {' in keepalive_block
@@ -3342,6 +3735,8 @@ def test_server_init_reconstructs_retail_hostname_and_bootstrap_metadata() -> No
 
 	hostname_block = _extract_function_block(sv_init, "static void SV_SteamServerInitDefaultHostname( void )")
 	pack_ip_block = _extract_function_block(common, "static uint32_t Com_SteamPackGameServerIP( const char *addressString )")
+	version_source_block = _extract_function_block(common, "static const char *Com_GetSteamGameServerVersionSourceLabel( const cvar_t *steamServerVersion )")
+	version_owner_gap_block = _extract_function_block(common, "static const char *Com_GetSteamGameServerVersionOwnerGapLabel( void )")
 	bootstrap_block = _extract_function_block(common, "void Com_InitSteamGameServer( void )")
 	common_init_block = _extract_function_block(common, "void Com_Init( char *commandLine )")
 	common_shutdown_block = _extract_function_block(common, "void Com_Shutdown (void)")
@@ -3357,11 +3752,20 @@ def test_server_init_reconstructs_retail_hostname_and_bootstrap_metadata() -> No
 	assert 'sv_hostname = Cvar_Get ("sv_hostname", defaultHostname, CVAR_SERVERINFO | CVAR_ARCHIVE );' in hostname_block
 	assert 'if ( !addressString || !addressString[0] || !Q_stricmp( addressString, "localhost" ) ) {' in pack_ip_block
 	assert "if ( !NET_StringToAdr( addressString, &address ) || address.type != NA_IP ) {" in pack_ip_block
+	assert 'return "retail observed default";' in version_source_block
+	assert "QL_STEAM_GAMESERVER_DEFAULT_VERSION" in version_source_block
+	assert 'return "sv_steamServerVersion override";' in version_source_block
+	assert 'return "unpromoted retail default version owner";' in version_owner_gap_block
 	assert "dedicated = ( com_dedicated && com_dedicated->integer > 0 ) ? qtrue : qfalse;" in bootstrap_block
 	assert 'Cvar_Get( "sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );' in bootstrap_block
+	assert 'steamServerVersion = Cvar_Get( "sv_steamServerVersion", QL_STEAM_GAMESERVER_DEFAULT_VERSION, CVAR_ARCHIVE );' in bootstrap_block
 	assert 'steamVac = Cvar_Get( "sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );' in bootstrap_block
 	assert 'netPort = Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH );' in bootstrap_block
-	assert "if ( !QL_Steamworks_ServerInit( steamIp, (uint16_t)netPort->integer, steamVac && steamVac->integer ? qtrue : qfalse, dedicated ) ) {" in bootstrap_block
+	assert "versionString = ( steamServerVersion && steamServerVersion->string && steamServerVersion->string[0] ) ? steamServerVersion->string : QL_STEAM_GAMESERVER_DEFAULT_VERSION;" in bootstrap_block
+	assert 'Com_DPrintf( "Steam GameServer bootstrap version %s (%s; retailDefaultOwner=%s) via %s [%s]\\n",' in bootstrap_block
+	assert "Com_GetSteamGameServerVersionSourceLabel( steamServerVersion )" in bootstrap_block
+	assert "Com_GetSteamGameServerVersionOwnerGapLabel()" in bootstrap_block
+	assert "if ( !QL_Steamworks_ServerInitWithVersion( steamIp, (uint16_t)netPort->integer, steamVac && steamVac->integer ? qtrue : qfalse, dedicated, versionString ) ) {" in bootstrap_block
 	assert 'Com_Printf( "Steam GameServer bootstrap unavailable for %s [%s]; keeping compatibility-only dedicated-server publication fallback.\\n",' in bootstrap_block
 	assert "QL_Steamworks_ServerSetDedicated( dedicated );" in bootstrap_block
 	assert 'Cvar_VariableStringBuffer( "sv_setSteamAccount", steamAccount, sizeof( steamAccount ) );' in bootstrap_block
@@ -3627,6 +4031,61 @@ def test_loopback_steam_auth_verify_falls_back_for_local_clients() -> None:
     assert "QL_RequestExternalAuth" not in verify_block
 
 
+def test_server_auth_lifecycle_trace_documents_pending_to_callback_contract() -> None:
+    sv_client = (REPO_ROOT / "src/code/server/sv_client.c").read_text(encoding="utf-8")
+    sv_game = (REPO_ROOT / "src/code/server/sv_game.c").read_text(encoding="utf-8")
+    trace_script = REPO_ROOT / "tools/integration/auth_flow_trace.py"
+
+    begin_auth_block = _extract_function_block(
+        sv_client, "static const char *SV_BeginPlatformAuthSession( client_t *cl, const netadr_t *adr )"
+    )
+    direct_connect_block = _extract_function_block(sv_client, "void SV_DirectConnect( netadr_t from )")
+    auth_callback_block = _extract_function_block(
+        sv_client,
+        "static void SV_SteamServerValidateAuthTicketResponseCallback( void *context, const ql_steam_validate_auth_ticket_response_t *event )",
+    )
+    verify_block = _extract_function_block(sv_game, "static qboolean SV_VerifyClientSteamAuth( int clientNum )")
+
+    assert "cl->platformAuthSessionActive = qtrue;" in begin_auth_block
+    assert "cl->platformAuthPending = qtrue;" in begin_auth_block
+    assert "cl->platformAuthSucceeded = qfalse;" in begin_auth_block
+    assert 'SV_SetPlatformAuthUserinfo( cl, "pending", "retry", "" );' in begin_auth_block
+    assert "SV_SteamStats_CreatePlayerSession( cl );" in begin_auth_block
+    assert "SV_FinalisePlatformAuthState( cl, qtrue" not in begin_auth_block
+
+    assert direct_connect_block.index("denied = SV_BeginPlatformAuthSession( newcl, &from );") < direct_connect_block.index(
+        "newcl->state = CS_CONNECTED;"
+    )
+    assert verify_block.index("if ( cl->platformAuthPending ) {") < verify_block.index("return cl->platformAuthSucceeded;")
+    assert "if ( cl->state < CS_CONNECTED ) {" in verify_block
+    assert "return qfalse;" in verify_block
+
+    assert "SV_FinalisePlatformAuthState( cl, accepted, message );" in auth_callback_block
+    assert 'SV_LogPlatformAuth( &cl->netchan.remoteAddress, cl, accepted ? "accepted" : "failed", message );' in auth_callback_block
+    assert "if ( accepted ) {" in auth_callback_block
+    assert "SV_DropClient( cl, message );" in auth_callback_block
+    assert auth_callback_block.index("if ( accepted ) {") < auth_callback_block.index("SV_DropClient( cl, message );")
+
+    trace_output = subprocess.run(
+        [os.sys.executable, str(trace_script)],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    assert "== Server Auth Callback Lifecycle ==" in trace_output
+    assert "[server-auth] begin-state: pending=1 succeeded=0 session=1 stats=created" in trace_output
+    assert "[server-auth] qagame pre-connect verify: pending before CS_CONNECTED -> allow" in trace_output
+    assert "[server-auth] qagame post-connect verify: pending after CS_CONNECTED -> deny until callback" in trace_output
+    assert "[server-auth] callback: ValidateAuthTicketResponse=OK ownership=self-owned -> accepted success" in trace_output
+    assert "[server-auth] callback: ValidateAuthTicketResponse=OK ownership=owner-mismatch -> accepted success" in trace_output
+    assert "[server-auth] final: pending=0 succeeded=1 session=1 drop=0" in trace_output
+    assert "[server-auth] callback: ValidateAuthTicketResponse=VACBanned ownership=self-owned -> denied failure" in trace_output
+    assert "[server-auth] final: pending=0 succeeded=0 session=1 drop=1" in trace_output
+    assert "[server-auth] callback: ValidateAuthTicketResponse=UserNotConnectedToSteam ignored missing client" in trace_output
+
+
 def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle() -> None:
     sv_client = (REPO_ROOT / "src/code/server/sv_client.c").read_text(encoding="utf-8")
     stub_section = sv_client.split("#else", 1)[1]
@@ -3645,6 +4104,9 @@ def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle(
     )
     bootstrap_log_block = _extract_function_block(
         sv_client, "static void SV_LogSteamServerCallbackBootstrapLifecycle( const char *stage, const char *detail ) {"
+    )
+    ownership_label_block = _extract_function_block(
+        sv_client, "static const char *SV_GetSteamAuthOwnershipLabel( const ql_steam_validate_auth_ticket_response_t *event )"
     )
     connected_block = _extract_function_block(
         sv_client, "static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event )"
@@ -3684,6 +4146,11 @@ def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle(
     assert "SV_GetSteamServerPolicyLabel()" in bootstrap_log_block
     assert "SV_BuildPlatformAuthCompatibilityDetail( detailMessage[0] ? detailMessage : NULL, message, sizeof( message ) );" in log_auth_block
     assert "NET_LogAuthTelemetry( NS_SERVER, adr, steamId, label, status, result, outcome, message[0] ? message : NULL );" in log_auth_block
+    assert "event->ownerSteamId.value == 0ull" in ownership_label_block
+    assert 'return "owner-unset";' in ownership_label_block
+    assert "event->ownerSteamId.value == event->steamId.value" in ownership_label_block
+    assert 'return "self-owned";' in ownership_label_block
+    assert 'return "owner-mismatch";' in ownership_label_block
     assert 'SV_LogSteamServerCallbackLifecycle( "connected", "published identity and state refresh" );' in connected_block
     assert "SV_SteamServerPublishIdentity();" in connected_block
     assert "SV_SteamServerUpdatePublishedState( qtrue );" in connected_block
@@ -3696,7 +4163,12 @@ def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle(
     assert 'SV_LogSteamServerCallbackLifecycle( "validate_auth_ticket_response", "ignored null callback payload" );' in auth_callback_block
     assert 'Com_sprintf( detail, sizeof( detail ), "ignored auth response for missing client %llu",' in auth_callback_block
     assert 'SV_LogSteamServerCallbackLifecycle( "validate_auth_ticket_response", detail );' in auth_callback_block
-    assert 'Com_Printf( "Steam P2P session request %s for %llu via %s [%s]: %s\\n",' in p2p_log_block
+    assert 'Com_sprintf( detail, sizeof( detail ), "auth response steam=%llu owner=%llu ownership=%s code=%d",' in auth_callback_block
+    assert "(unsigned long long)event->ownerSteamId.value" in auth_callback_block
+    assert "SV_GetSteamAuthOwnershipLabel( event )" in auth_callback_block
+    assert 'Com_Printf( "Steam P2P session request %s [%s; modern=%s] for %llu via %s [%s]: %s\\n",' in p2p_log_block
+    assert "QL_Steamworks_GetP2PTransportLabel()" in p2p_log_block
+    assert "QL_Steamworks_GetP2PModernGapLabel()" in p2p_log_block
     assert "SV_GetSteamServerProviderLabel()" in p2p_log_block
     assert "SV_GetSteamServerPolicyLabel()" in p2p_log_block
     assert "QL_Steamworks_RegisterServerCallbacks( &bindings )" in init_callbacks_block

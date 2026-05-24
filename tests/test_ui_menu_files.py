@@ -803,7 +803,6 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
     )
 
     for expected in (
-        "static qhandle_t QL_UI_RegisterDefaultAdvertCellShader( const char *defaultContent ) {",
         "static qhandle_t QDECL QL_UI_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {",
         "static qhandle_t QDECL QL_UI_trap_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {",
         "static void QDECL QL_UI_trap_InitAdvertisementBridge( void ) {",
@@ -843,6 +842,9 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
         "ql_ui_imports[UI_QL_IMPORT_GET_ITEM_DOWNLOAD_INFO] = (ql_import_f)QL_UI_trap_GetItemDownloadInfo;",
     ):
         assert expected in cl_ui
+
+    assert "return CL_AdvertisementBridge_SetupUIAdvertCellShader( defaultContent, rect, cellId );" in cl_ui
+    assert "return CL_AdvertisementBridge_RefreshUIAdvertCellShader( defaultContent, rect, cellId );" in cl_ui
 
     for expected in (
         "static void QDECL QL_UI_trap_R_RegisterFont( const char *fontName, int pointSize, fontInfo_t *font ) {",
@@ -1456,9 +1458,9 @@ def test_ui_retail_server_settings_ownerdraw_restored() -> None:
 
     g_main = (REPO_ROOT / "src/code/game/g_main.c").read_text(encoding="utf-8")
     assert "static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast ) {" in g_main
-    assert 'Info_SetValueForKey( payloadA, "armor_tiered", va( "%i", g_armorTiered.integer ) );' in g_main
-    assert 'Info_SetValueForKey( payloadB, "g_quadDamageFactor", va( "%i", g_quadDamageFactor.integer ) );' in g_main
-    assert 'Info_SetValueForKey( payloadB, "g_gravity", va( "%i", g_gravity.integer ) );' in g_main
+    assert 'Info_SetValueForKey( payloadA, SERVER_SETTINGS_KEY_ARMOR_TIERED, va( "%i", g_armorTiered.integer ) );' in g_main
+    assert 'Info_SetValueForKey( payloadB, SERVER_SETTINGS_KEY_QUAD_DAMAGE_FACTOR, va( "%i", g_quadDamageFactor.integer ) );' in g_main
+    assert 'Info_SetValueForKey( payloadB, SERVER_SETTINGS_KEY_GRAVITY, va( "%i", g_gravity.integer ) );' in g_main
     assert "trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_A, payloadA );" in g_main
     assert "trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_B, payloadB );" in g_main
     compute_mask_block = _extract_function_block(
@@ -1536,12 +1538,12 @@ def test_game_retail_player_appearance_configstring_restored() -> None:
     assert "static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast ) {" in g_main
 
     for expected in (
-        'Info_SetValueForKey( payload, "g_playermodelOverride", g_playermodelOverride.string );',
-        'Info_SetValueForKey( payload, "g_playerheadmodelOverride", g_playerheadmodelOverride.string );',
-        'Info_SetValueForKey( payload, "g_allowCustomHeadmodels", va( "%i", g_allowCustomHeadmodels.integer ) );',
-        'Info_SetValueForKey( payload, "g_playerheadScale", va( "%g", g_playerheadScale.value ) );',
-        'Info_SetValueForKey( payload, "g_playerheadScaleOffset", va( "%g", g_playerheadScaleOffset.value ) );',
-        'Info_SetValueForKey( payload, "g_playerModelScale", va( "%g", g_playerModelScale.value ) );',
+        'Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERMODEL_OVERRIDE, g_playermodelOverride.string );',
+        'Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERHEADMODEL_OVERRIDE, g_playerheadmodelOverride.string );',
+        'Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_ALLOW_CUSTOM_HEADMODELS, va( "%i", g_allowCustomHeadmodels.integer ) );',
+        'Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE, va( "%g", g_playerheadScale.value ) );',
+        'Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE_OFFSET, va( "%g", g_playerheadScaleOffset.value ) );',
+        'Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERMODEL_SCALE, va( "%g", g_playerModelScale.value ) );',
         "trap_SetConfigstring( CS_PLAYER_APPEARANCE, payload );",
         "G_UpdatePlayerAppearanceConfigstring( qtrue );",
         "G_UpdatePlayerAppearanceConfigstring( qfalse );",

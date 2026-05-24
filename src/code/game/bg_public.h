@@ -459,10 +459,9 @@ typedef enum {
 typedef enum {
 	WP_NONE,
 
-       WP_GAUNTLET,
-       WP_MACHINEGUN,
-       WP_HEAVY_MACHINEGUN,
-       WP_SHOTGUN,
+	WP_GAUNTLET,
+	WP_MACHINEGUN,
+	WP_SHOTGUN,
 	WP_GRENADE_LAUNCHER,
 	WP_ROCKET_LAUNCHER,
 	WP_LIGHTNING,
@@ -473,8 +472,9 @@ typedef enum {
 	WP_NAILGUN,
 	WP_PROX_LAUNCHER,
 	WP_CHAINGUN,
+	WP_HEAVY_MACHINEGUN,
 
-       WP_NUM_WEAPONS
+	WP_NUM_WEAPONS
 } weapon_t;
 
 // Retail bg_itemlist weapon/ammo rows keep the classic Quake III ordering and

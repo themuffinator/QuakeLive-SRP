@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *****************************************************************************/
 
 #include "g_local.h"
+#include "../game/match_state_keys.h"
 #include "botlib.h"
 #include "be_aas.h"
 #include "be_ea.h"
@@ -75,9 +76,9 @@ int BotNumActivePlayers(void) {
 	for (i = 0; i < cachedMaxClients && i < MAX_CLIENTS; i++) {
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
+		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME))) continue;
 		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) continue;
+		if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) continue;
 		//
 		num++;
 	}
@@ -102,9 +103,9 @@ int BotIsFirstInRankings(bot_state_t *bs) {
 	for (i = 0; i < cachedMaxClients && i < MAX_CLIENTS; i++) {
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
+		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME))) continue;
 		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) continue;
+		if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) continue;
 		//
 		BotAI_GetClientState(i, &ps);
 		if (score < ps.persistant[PERS_SCORE]) return qfalse;
@@ -130,9 +131,9 @@ int BotIsLastInRankings(bot_state_t *bs) {
 	for (i = 0; i < cachedMaxClients && i < MAX_CLIENTS; i++) {
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
+		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME))) continue;
 		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) continue;
+		if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) continue;
 		//
 		BotAI_GetClientState(i, &ps);
 		if (score > ps.persistant[PERS_SCORE]) return qfalse;
@@ -160,9 +161,9 @@ char *BotFirstClientInRankings(void) {
 	for (i = 0; i < cachedMaxClients && i < MAX_CLIENTS; i++) {
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
+		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME))) continue;
 		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) continue;
+		if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) continue;
 		//
 		BotAI_GetClientState(i, &ps);
 		if (ps.persistant[PERS_SCORE] > bestscore) {
@@ -194,9 +195,9 @@ char *BotLastClientInRankings(void) {
 	for (i = 0; i < cachedMaxClients && i < MAX_CLIENTS; i++) {
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
+		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME))) continue;
 		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) continue;
+		if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) continue;
 		//
 		BotAI_GetClientState(i, &ps);
 		if (ps.persistant[PERS_SCORE] < worstscore) {
@@ -230,9 +231,9 @@ char *BotRandomOpponentName(bot_state_t *bs) {
 		//
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		//if no config string or no name
-		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, "n"))) continue;
+		if (!strlen(buf) || !strlen(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME))) continue;
 		//skip spectators
-		if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) continue;
+		if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) continue;
 		//skip team mates
 		if (BotSameTeam(bs, i)) continue;
 		//
@@ -263,7 +264,7 @@ char *BotMapTitle(void) {
 
 	trap_GetServerinfo(info, sizeof(info));
 
-	strncpy(mapname, Info_ValueForKey( info, "mapname" ), sizeof(mapname)-1);
+	strncpy(mapname, Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ), sizeof(mapname)-1);
 	mapname[sizeof(mapname)-1] = '\0';
 
 	return mapname;

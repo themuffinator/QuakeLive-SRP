@@ -105,7 +105,7 @@ def test_weapon_and_holdable_tag_bridges_preserve_retail_item_numbering() -> Non
 	source = BG_MISC.read_text(encoding="utf-8")
 	public = BG_PUBLIC.read_text(encoding="utf-8")
 
-	assert re.search(r"WP_HEAVY_MACHINEGUN,\s*WP_SHOTGUN,", public)
+	assert re.search(r"WP_CHAINGUN,\s*WP_HEAVY_MACHINEGUN,\s*WP_NUM_WEAPONS", public)
 	assert re.search(r"ITEMTAG_WEAPON_CHAINGUN\s+13\s*#define ITEMTAG_WEAPON_HEAVY_MACHINEGUN\s+14", public)
 	assert re.search(r"ITEMTAG_HOLDABLE_PORTAL\s+4\s*#define ITEMTAG_HOLDABLE_INVULNERABILITY\s+6", public)
 	assert "ITEMTAG_WEAPON_HEAVY_MACHINEGUN," in source

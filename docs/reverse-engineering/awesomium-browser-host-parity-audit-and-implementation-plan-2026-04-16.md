@@ -355,6 +355,9 @@ Closure in this pass:
   activation changes into the retained browser host from `VID_AppActivate()`.
 - Tightened the focused parity tests so the Win32 activation owner and the
   synthetic modifier-key injection helper are now machine-validated.
+- 2026-05-24 exactness follow-up: the retained activation helper now preserves
+  the retail `WebKeyboardEvent(0, 0x11, 0x1d0001)` constructor tuple in source
+  and tests, closing the older "key code only" assertion gap.
 
 Status: Closed on 2026-04-16.
 
@@ -512,6 +515,11 @@ Interpretation:
   After this pass, however, the remaining retail-owned bootstrap and
   bitmap-surface semantics are explicit in writable source, so the third-party
   backend choice is no longer an open engine-owned parity gap.
+- 2026-05-24 ABI follow-up: the Win32 backend adapter now carries
+  `cl_aweRetailAbiEquivalence[]`, which ties the recovered retail
+  `WebCore`/`WebView` vtable slots to the repo's bounded C-export adapter or
+  source-owned keyboard-event path. This documents the compatibility boundary
+  without claiming byte-for-byte Awesomium C++ ABI identity.
 
 Status: Closed on 2026-04-17.
 
@@ -575,6 +583,9 @@ Rationale:
 10. No explicit engine-owned browser-host gap remains in writable source after
     this pass; the retained backend choice is now a documented policy/runtime
     substitution rather than an open parity defect.
+11. The 2026-05-24 backend ABI follow-up makes that runtime substitution
+    source-visible with a slot-to-export equivalence table in
+    `cl_awesomium_win32.cpp`.
 
 ## Recommended Next Steps
 

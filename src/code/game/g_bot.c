@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // g_bot.c
 
 #include "g_local.h"
+#include "../game/match_state_keys.h"
 
 
 static int		g_numBots;
@@ -183,7 +184,7 @@ static void G_LoadArenas( void ) {
 	trap_Printf( va( "%i arenas parsed\n", g_numArenas ) );
 	
 	for( n = 0; n < g_numArenas; n++ ) {
-		Info_SetValueForKey( g_arenaInfos[n], "num", va( "%i", n ) );
+		Info_SetValueForKey( g_arenaInfos[n], ARENA_INFO_KEY_NUM, va( "%i", n ) );
 	}
 }
 
@@ -197,7 +198,7 @@ const char *G_GetArenaInfoByMap( const char *map ) {
 	int			n;
 
 	for( n = 0; n < g_numArenas; n++ ) {
-		if( Q_stricmp( Info_ValueForKey( g_arenaInfos[n], "map" ), map ) == 0 ) {
+		if( Q_stricmp( Info_ValueForKey( g_arenaInfos[n], ARENA_INFO_KEY_MAP ), map ) == 0 ) {
 			return g_arenaInfos[n];
 		}
 	}
@@ -289,7 +290,7 @@ qboolean G_MapSupportsGametype( const char *map, gametype_t gametype ) {
 		return qtrue;
 	}
 
-	types = Info_ValueForKey( info, "type" );
+	types = Info_ValueForKey( info, ARENA_INFO_KEY_TYPE );
 	if ( !types || !*types ) {
 		return qtrue;
 	}
@@ -1098,13 +1099,13 @@ void G_InitBots( qboolean restart ) {
 
 	if( g_gametype.integer == GT_SINGLE_PLAYER ) {
 		trap_GetServerinfo( serverinfo, sizeof(serverinfo) );
-		Q_strncpyz( map, Info_ValueForKey( serverinfo, "mapname" ), sizeof(map) );
+		Q_strncpyz( map, Info_ValueForKey( serverinfo, SERVERINFO_KEY_MAPNAME ), sizeof(map) );
 		arenainfo = G_GetArenaInfoByMap( map );
 		if ( !arenainfo ) {
 			return;
 		}
 
-		strValue = Info_ValueForKey( arenainfo, "fraglimit" );
+		strValue = Info_ValueForKey( arenainfo, ARENA_INFO_KEY_FRAGLIMIT );
 		fragLimit = atoi( strValue );
 		if ( fragLimit ) {
 			trap_Cvar_Set( "fraglimit", strValue );
@@ -1113,7 +1114,7 @@ void G_InitBots( qboolean restart ) {
 			trap_Cvar_Set( "fraglimit", "0" );
 		}
 
-		strValue = Info_ValueForKey( arenainfo, "timelimit" );
+		strValue = Info_ValueForKey( arenainfo, ARENA_INFO_KEY_TIMELIMIT );
 		timeLimit = atoi( strValue );
 		if ( timeLimit ) {
 			trap_Cvar_Set( "timelimit", strValue );
@@ -1127,13 +1128,13 @@ void G_InitBots( qboolean restart ) {
 			trap_Cvar_Set( "timelimit", "0" );
 		}
 
-		strValue = Info_ValueForKey( arenainfo, "special" );
+		strValue = Info_ValueForKey( arenainfo, ARENA_INFO_KEY_SPECIAL );
 		if( !restart ) {
 			if( Q_stricmp( strValue, "training" ) == 0 ) {
 				G_AddTrainerBot();
 			}
 			else {
-				G_SpawnBots( Info_ValueForKey( arenainfo, "bots" ), BOT_BEGIN_DELAY_BASE );
+				G_SpawnBots( Info_ValueForKey( arenainfo, ARENA_INFO_KEY_BOTS ), BOT_BEGIN_DELAY_BASE );
 			}
 		}
 	}

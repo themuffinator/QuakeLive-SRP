@@ -33,6 +33,7 @@ typedef uint64_t SteamAPICall_t;
 #define QL_STEAM_SERVER_LENGTH 128
 #define QL_STEAM_PASSWORD_LENGTH 128
 #define QL_STEAM_LOBBY_MESSAGE_LENGTH 256
+#define QL_STEAM_GAMESERVER_DEFAULT_VERSION "1069"
 
 typedef struct {
 	CSteamID steamId;
@@ -283,6 +284,8 @@ void QL_Steamworks_RunCallbacks( void );
 
 void QL_Steamworks_RunServerCallbacks( void );
 
+qboolean QL_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version );
+
 qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated );
 
 void QL_Steamworks_ServerShutdown( void );
@@ -341,6 +344,10 @@ qboolean QL_Steamworks_GetFriendByIndex( int index, int flags, uint32_t *outIdLo
 
 qboolean QL_Steamworks_GetFriendSummary( uint32_t idLow, uint32_t idHigh, ql_steam_friend_summary_t *outSummary );
 
+const char *QL_Steamworks_GetP2PTransportLabel( void );
+
+const char *QL_Steamworks_GetP2PModernGapLabel( void );
+
 qboolean QL_Steamworks_SendP2PPacket( const CSteamID *steamId, const void *data, uint32_t length, int sendType, int channel );
 
 qboolean QL_Steamworks_IsP2PPacketAvailable( uint32_t *outSize, int channel );
@@ -372,6 +379,10 @@ qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId );
 qboolean QL_Steamworks_HexEncode( const uint8_t *data, uint32_t length, char *out, size_t outSize );
 
 qboolean QL_Steamworks_HexDecode( const char *hex, uint8_t *out, size_t outSize, uint32_t *outLength );
+
+const char *QL_Steamworks_GetAuthTicketApiLabel( void );
+
+const char *QL_Steamworks_GetAuthTicketModernGapLabel( void );
 
 qboolean QL_Steamworks_RequestAuthTicket( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle );
 
@@ -462,6 +473,10 @@ qboolean QL_Steamworks_SubscribeItem( uint32_t idLow, uint32_t idHigh );
 qboolean QL_Steamworks_UnsubscribeItem( uint32_t idLow, uint32_t idHigh );
 
 qboolean QL_Steamworks_DownloadItem( uint32_t idLow, uint32_t idHigh, qboolean highPriority );
+
+const char *QL_Steamworks_GetAllUGCFilterContractLabel( void );
+
+const char *QL_Steamworks_GetAllUGCFilterSemanticGapLabel( void );
 
 qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter );
 
@@ -561,15 +576,25 @@ static inline void QL_Steamworks_RunServerCallbacks( void ) {
 
 /*
 =============
-QL_Steamworks_ServerInit
+QL_Steamworks_ServerInitWithVersion
 =============
 */
-static inline qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated ) {
+static inline qboolean QL_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version ) {
 	(void)ip;
 	(void)gamePort;
 	(void)secure;
 	(void)dedicated;
+	(void)version;
 	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerInit
+=============
+*/
+static inline qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated ) {
+	return QL_Steamworks_ServerInitWithVersion( ip, gamePort, secure, dedicated, QL_STEAM_GAMESERVER_DEFAULT_VERSION );
 }
 
 /*
@@ -890,6 +915,24 @@ static inline qboolean QL_Steamworks_SetRichPresence( const char *key, const cha
 
 /*
 =============
+QL_Steamworks_GetP2PTransportLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetP2PTransportLabel( void ) {
+	return "unavailable";
+}
+
+/*
+=============
+QL_Steamworks_GetP2PModernGapLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetP2PModernGapLabel( void ) {
+	return "unavailable";
+}
+
+/*
+=============
 QL_Steamworks_SendP2PPacket
 =============
 */
@@ -1077,6 +1120,24 @@ static inline qboolean QL_Steamworks_HexDecode( const char *hex, uint8_t *out, s
 	(void)outSize;
 	(void)outLength;
 	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetAuthTicketApiLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetAuthTicketApiLabel( void ) {
+	return "unavailable";
+}
+
+/*
+=============
+QL_Steamworks_GetAuthTicketModernGapLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetAuthTicketModernGapLabel( void ) {
+	return "unavailable";
 }
 
 /*
@@ -1615,6 +1676,24 @@ static inline qboolean QL_Steamworks_DownloadItem( uint32_t idLow, uint32_t idHi
 	(void)idHigh;
 	(void)highPriority;
 	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetAllUGCFilterContractLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetAllUGCFilterContractLabel( void ) {
+	return "unavailable";
+}
+
+/*
+=============
+QL_Steamworks_GetAllUGCFilterSemanticGapLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetAllUGCFilterSemanticGapLabel( void ) {
+	return "unavailable";
 }
 
 /*

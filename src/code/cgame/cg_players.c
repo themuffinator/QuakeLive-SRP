@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 // cg_players.c -- handle the media and animation for player entities
 #include "cg_local.h"
+#include "../../game/match_state_keys.h"
 
 char	*cg_customSoundNames[MAX_CUSTOM_SOUNDS] = {
 	"*death1.wav",
@@ -1718,64 +1719,64 @@ void CG_NewClientInfo( int clientNum ) {
 	memset( &newInfo, 0, sizeof( newInfo ) );
 
 	// isolate the player's name
-	v = Info_ValueForKey(configstring, "n");
+	v = Info_ValueForKey(configstring, PLAYER_INFO_KEY_NAME);
 	Q_strncpyz( newInfo.name, v, sizeof( newInfo.name ) );
 	CG_UpdateClientIdentity( configstring, &newInfo );
 
 	// colors
-	v = Info_ValueForKey( configstring, "c1" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_COLOR1 );
 	CG_ColorFromString( v, newInfo.color1 );
 
-	v = Info_ValueForKey( configstring, "c2" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_COLOR2 );
 	CG_ColorFromString( v, newInfo.color2 );
 
 	// bot skill
-	v = Info_ValueForKey( configstring, "skill" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SKILL );
 	newInfo.botSkill = atoi( v );
 
 	// handicap
-	v = Info_ValueForKey( configstring, "hc" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_HANDICAP );
 	newInfo.handicap = atoi( v );
 
 	// wins
-	v = Info_ValueForKey( configstring, "w" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_WINS );
 	newInfo.wins = atoi( v );
 
 	// losses
-	v = Info_ValueForKey( configstring, "l" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_LOSSES );
 	newInfo.losses = atoi( v );
 
 	// team
-	v = Info_ValueForKey( configstring, "t" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_TEAM );
 	newInfo.team = atoi( v );
 
 	// team task
-	v = Info_ValueForKey( configstring, "tt" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_TEAMTASK );
 	newInfo.teamTask = atoi(v);
 
 	// team leader
-	v = Info_ValueForKey( configstring, "tl" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_TEAMLEADER );
 	newInfo.teamLeader = atoi(v);
 
 	// pure spectator / duel queue metadata
-	v = Info_ValueForKey( configstring, "so" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SPECTATE_ONLY );
 	newInfo.spectateOnly = atoi( v );
 
-	v = Info_ValueForKey( configstring, "pq" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SPECTATOR_QUEUE );
 	newInfo.spectatorQueuePosition = atoi( v );
 
-	v = Info_ValueForKey( configstring, "g_redteam" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_REDTEAM );
 	Q_strncpyz(newInfo.redTeam, v, MAX_TEAMNAME);
 
-	v = Info_ValueForKey( configstring, "g_blueteam" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_BLUETEAM );
 	Q_strncpyz(newInfo.blueTeam, v, MAX_TEAMNAME);
 
-	v = Info_ValueForKey( configstring, "country" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY );
 	Q_strncpyz( newInfo.country, v, sizeof( newInfo.country ) );
 	newInfo.countryFlagShader = CG_RegisterCountryFlag( newInfo.country );
 
 	// model
-	v = Info_ValueForKey( configstring, "model" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_MODEL );
 	if ( cg_forceModel.integer && !cgs.playermodelOverride[0] ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches
@@ -1797,7 +1798,7 @@ void CG_NewClientInfo( int clientNum ) {
 	CG_NormalizeClientSkinName( &newInfo );
 
 	// head model
-	v = Info_ValueForKey( configstring, "hmodel" );
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_HEADMODEL );
 	if ( cg_forceModel.integer && !cgs.playerheadmodelOverride[0] ) {
 		// forcemodel makes everyone use a single model
 		// to prevent load hitches

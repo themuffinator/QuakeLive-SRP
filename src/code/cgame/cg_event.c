@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_event.c -- handle entity events at snapshot or playerstate transitions
 
 #include "cg_local.h"
+#include "../../game/match_state_keys.h"
 
 // for the voice chats
 #include "../../ui/menudef.h"
@@ -1157,7 +1158,7 @@ static void CG_SetObituaryName( char *buffer, int bufferSize, const char *player
 		return;
 	}
 
-	Q_strncpyz( buffer, Info_ValueForKey( playerInfo, "n" ), bufferSize );
+	Q_strncpyz( buffer, Info_ValueForKey( playerInfo, PLAYER_INFO_KEY_NAME ), bufferSize );
 	Q_strcat( buffer, bufferSize, S_COLOR_WHITE );
 	CG_SanitizeObituaryText( buffer );
 }
@@ -2635,7 +2636,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 
 	case QL_EV_LIGHTNING_DISCHARGE:
-		DEBUGNAME("QL_EV_LIGHTNING_DISCHARGE");
+		DEBUGNAME("EV_LIGHTNING_DISCHARGE");
 		CG_LightningDischargeEffect( cent->lerpOrigin, es->eventParm );
 		break;
 

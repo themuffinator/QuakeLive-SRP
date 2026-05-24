@@ -130,8 +130,9 @@ That is an exact retained `Com_ModifyMsec` match.
    `tests/test_client_config_parity.py`. Treat the old unresolved-owner note
    as historical round context rather than as an active repo gap.
 2. `sub_4B9430`, `sub_4B9940`, `sub_4B81F0`, `sub_4ECDF0`, `sub_4F1290`,
-   `sub_4F2900`, and `sub_4F4640` remain the highest-value unresolved client
-   and host leftovers outside this seam.
+   and `sub_4F4640` remain the highest-value unresolved client and host
+   leftovers outside this seam. Historical note: `sub_4F2900` was later
+   promoted in round 285 as `QLWebView_InjectActivationKeyboardEvent`.
 
 ## Verification
 

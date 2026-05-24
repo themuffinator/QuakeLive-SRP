@@ -166,15 +166,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #define WEAPONINDEX_GAUNTLET                    1
 #define WEAPONINDEX_MACHINEGUN                  2
-#define WEAPONINDEX_HEAVY_MACHINEGUN            3
-#define WEAPONINDEX_SHOTGUN                             4
-#define WEAPONINDEX_GRENADE_LAUNCHER            5
-#define WEAPONINDEX_ROCKET_LAUNCHER             6
-#define WEAPONINDEX_LIGHTNING                   7
-#define WEAPONINDEX_RAILGUN                             8
-#define WEAPONINDEX_PLASMAGUN                   9
-#define WEAPONINDEX_BFG                                10
-#define WEAPONINDEX_GRAPPLING_HOOK              11
-#define WEAPONINDEX_NAILGUN                            12
-#define WEAPONINDEX_PROXLAUNCHER               13
-#define WEAPONINDEX_CHAINGUN                   14
+#define WEAPONINDEX_SHOTGUN                     3
+#define WEAPONINDEX_GRENADE_LAUNCHER            4
+#define WEAPONINDEX_ROCKET_LAUNCHER             5
+#define WEAPONINDEX_LIGHTNING                   6
+#define WEAPONINDEX_RAILGUN                     7
+#define WEAPONINDEX_PLASMAGUN                   8
+#define WEAPONINDEX_BFG                         9
+#define WEAPONINDEX_GRAPPLING_HOOK              10
+#define WEAPONINDEX_NAILGUN                     11
+#define WEAPONINDEX_PROXLAUNCHER                12
+#define WEAPONINDEX_CHAINGUN                    13
+#define WEAPONINDEX_HEAVY_MACHINEGUN            14

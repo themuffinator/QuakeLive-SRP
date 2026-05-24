@@ -235,6 +235,138 @@ static void SV_ClearPlatformAuthState( client_t *cl ) {
 
 /*
 =================
+SV_ClearChallengePlatformAuth
+
+Clears the Steam auth data retained by one challenge entry.
+=================
+*/
+static void SV_ClearChallengePlatformAuth( challenge_t *challenge ) {
+	if ( !challenge ) {
+		return;
+	}
+
+	challenge->platformSteamIdLow = 0u;
+	challenge->platformSteamIdHigh = 0u;
+	challenge->platformAuthTicketLength = 0;
+	Com_Memset( challenge->platformAuthTicket, 0, sizeof( challenge->platformAuthTicket ) );
+}
+
+/*
+=================
+SV_ReadSteamChallengeWord
+
+Reads one little-endian SteamID word from the retail getchallenge payload.
+=================
+*/
+static uint32_t SV_ReadSteamChallengeWord( const byte *buffer ) {
+	return (uint32_t)buffer[0]
+		| ( (uint32_t)buffer[1] << 8 )
+		| ( (uint32_t)buffer[2] << 16 )
+		| ( (uint32_t)buffer[3] << 24 );
+}
+
+/*
+=================
+SV_FormatPlatformSteamIdWords
+
+Formats two retail SteamID words as the decimal userinfo identity.
+=================
+*/
+static void SV_FormatPlatformSteamIdWords( uint32_t steamIdLow, uint32_t steamIdHigh, char *buffer, size_t bufferSize ) {
+	unsigned long long steamId;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	steamId = ( (unsigned long long)steamIdHigh << 32 ) | steamIdLow;
+	Com_sprintf( buffer, (int)bufferSize, "%llu", steamId );
+}
+
+/*
+=================
+SV_ParseSteamChallengeAuth
+
+Parses the SteamID and auth ticket appended to the retail getchallenge packet.
+=================
+*/
+static qboolean SV_ParseSteamChallengeAuth( challenge_t *challenge, const msg_t *msg, const char **rejectMessage ) {
+	const byte	*data;
+	const char	*command;
+	int			steamIdOffset;
+	int			ticketOffset;
+	int			ticketLength;
+
+	if ( rejectMessage ) {
+		*rejectMessage = "No Steam auth token.";
+	}
+
+	if ( !challenge || !msg || !msg->data ) {
+		return qfalse;
+	}
+
+	SV_ClearChallengePlatformAuth( challenge );
+
+	command = NET_GetChallengeRequestCommand();
+	steamIdOffset = 4 + (int)strlen( command ) + 1;
+	ticketOffset = steamIdOffset + 8;
+	ticketLength = msg->cursize - ticketOffset;
+
+	if ( ticketLength <= QL_STEAM_CHALLENGE_TOKEN_MIN_LENGTH ) {
+		if ( rejectMessage ) {
+			*rejectMessage = "No Steam auth token.";
+		}
+		return qfalse;
+	}
+
+	if ( ticketLength > QL_STEAM_AUTH_TICKET_MAX_LENGTH ) {
+		if ( rejectMessage ) {
+			*rejectMessage = "Auth token too large.";
+		}
+		return qfalse;
+	}
+
+	data = msg->data;
+	challenge->platformSteamIdLow = SV_ReadSteamChallengeWord( data + steamIdOffset );
+	challenge->platformSteamIdHigh = SV_ReadSteamChallengeWord( data + steamIdOffset + 4 );
+	challenge->platformAuthTicketLength = ticketLength;
+	Com_Memcpy( challenge->platformAuthTicket, data + ticketOffset, ticketLength );
+
+	return qtrue;
+}
+
+/*
+=================
+SV_CapturePlatformAuthFromChallenge
+
+Moves the retained challenge SteamID and ticket into the accepted client slot.
+=================
+*/
+static qboolean SV_CapturePlatformAuthFromChallenge( client_t *cl, const challenge_t *challenge ) {
+	if ( !cl || !challenge || challenge->platformAuthTicketLength <= 0 ) {
+		return qfalse;
+	}
+
+	SV_ClearPlatformAuthState( cl );
+
+	if ( !QL_Steamworks_HexEncode( challenge->platformAuthTicket,
+		(uint32_t)challenge->platformAuthTicketLength,
+		cl->platformAuthToken, sizeof( cl->platformAuthToken ) ) ) {
+		return qfalse;
+	}
+
+	SV_FormatPlatformSteamIdWords( challenge->platformSteamIdLow, challenge->platformSteamIdHigh,
+		cl->platformSteamId, sizeof( cl->platformSteamId ) );
+	Q_strncpyz( cl->platformAuthLabel, "steam", sizeof( cl->platformAuthLabel ) );
+	cl->platformAuthPending = qtrue;
+	Q_strncpyz( cl->platformAuthResult, "pending", sizeof( cl->platformAuthResult ) );
+	cl->platformAuthOutcome[0] = '\0';
+	cl->platformAuthMessage[0] = '\0';
+	return qtrue;
+}
+
+/*
+=================
 SV_CapturePlatformAuthFromUserinfo
 
 Captures the SteamID and auth ticket fragments supplied by the client.
@@ -1476,6 +1608,26 @@ static void SV_LogSteamServerCallbackBootstrapLifecycle( const char *stage, cons
 
 /*
 =================
+SV_GetSteamAuthOwnershipLabel
+
+Returns an observational ownership label for one validation callback without
+changing the retained retail auth policy.
+=================
+*/
+static const char *SV_GetSteamAuthOwnershipLabel( const ql_steam_validate_auth_ticket_response_t *event ) {
+	if ( !event || event->ownerSteamId.value == 0ull ) {
+		return "owner-unset";
+	}
+
+	if ( event->ownerSteamId.value == event->steamId.value ) {
+		return "self-owned";
+	}
+
+	return "owner-mismatch";
+}
+
+/*
+=================
 SV_SteamServerConnectedCallback
 
 Publishes the current server identity once Steam confirms the GameServer session.
@@ -1551,7 +1703,7 @@ static void SV_SteamServerValidateAuthTicketResponseCallback( void *context, con
 	char				result[16];
 	char				outcome[64];
 	char				message[QL_AUTH_MAX_RESPONSE_MESSAGE];
-	char				detail[96];
+	char				detail[128];
 	qboolean			accepted;
 
 	(void)context;
@@ -1577,6 +1729,12 @@ static void SV_SteamServerValidateAuthTicketResponseCallback( void *context, con
 	SV_FormatPlatformAuthCode( response, result, sizeof( result ) );
 	Q_strncpyz( outcome, SV_GetPlatformAuthReason( response ), sizeof( outcome ) );
 	SV_BuildPlatformAuthMessage( response, message, sizeof( message ) );
+	Com_sprintf( detail, sizeof( detail ), "auth response steam=%llu owner=%llu ownership=%s code=%d",
+		(unsigned long long)event->steamId.value,
+		(unsigned long long)event->ownerSteamId.value,
+		SV_GetSteamAuthOwnershipLabel( event ),
+		response );
+	SV_LogSteamServerCallbackLifecycle( "validate_auth_ticket_response", detail );
 	SV_SetPlatformAuthUserinfo( cl, result, outcome, message );
 
 	accepted = SV_IsPlatformAuthAccepted( response );
@@ -1602,8 +1760,10 @@ static void SV_LogSteamServerP2PSessionRequest( const CSteamID *steamId, const c
 	unsigned long long remoteId;
 
 	remoteId = steamId ? (unsigned long long)steamId->value : 0ull;
-	Com_Printf( "Steam P2P session request %s for %llu via %s [%s]: %s\n",
+	Com_Printf( "Steam P2P session request %s [%s; modern=%s] for %llu via %s [%s]: %s\n",
 		state ? state : "update",
+		QL_Steamworks_GetP2PTransportLabel(),
+		QL_Steamworks_GetP2PModernGapLabel(),
 		remoteId,
 		SV_GetSteamServerProviderLabel(), SV_GetSteamServerPolicyLabel(),
 		reason ? reason : "no detail" );
@@ -1840,7 +2000,7 @@ When an authorizeip is returned, a challenge response will be
 sent to that ip.
 =================
 */
-void SV_GetChallenge( netadr_t from ) {
+void SV_GetChallenge( netadr_t from, msg_t *msg ) {
 	int		i;
 	int		oldest;
 	int		oldestTime;
@@ -1856,7 +2016,7 @@ void SV_GetChallenge( netadr_t from ) {
 
 		message = "VAC is disabled on this server";
 		SV_LogVACStatus( &from, "rejected", "disabled", message );
-		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", message );
+		NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n", NET_GetPrintCommand(), message );
 		return;
 	}
 
@@ -1884,22 +2044,49 @@ void SV_GetChallenge( netadr_t from ) {
 		challenge->firstTime = svs.time;
 		challenge->time = svs.time;
 		challenge->connected = qfalse;
+#if SV_HAS_PLATFORM_AUTH
+		SV_ClearChallengePlatformAuth( challenge );
+#endif
 		i = oldest;
 	}
 
 	// if they are on a lan address, send the challengeResponse immediately
 	if ( Sys_IsLANAddress( from ) ) {
 		challenge->pingTime = svs.time;
-		NET_OutOfBandPrint( NS_SERVER, from, "challengeResponse %i", challenge->challenge );
+		NET_OutOfBandPrint( NS_SERVER, from, "%s %i", NET_GetChallengeResponseCommand(), challenge->challenge );
 		return;
 	}
+
+#if SV_HAS_PLATFORM_AUTH
+	if ( NET_ProtocolSupportsPlatformAuth() ) {
+		const char	*rejectMessage;
+
+		if ( !SV_ParseSteamChallengeAuth( challenge, msg, &rejectMessage ) ) {
+			NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n", NET_GetPrintCommand(),
+				rejectMessage ? rejectMessage : "No Steam auth token." );
+			return;
+		}
+
+		challenge->pingTime = svs.time;
+		NET_OutOfBandPrint( NS_SERVER, from, "%s %i", NET_GetChallengeResponseCommand(), challenge->challenge );
+		return;
+	}
+#endif
 
 #if !( QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES )
 	Com_DPrintf( "legacy getIpAuthorize bypassed for %s: Quake III authorize server disabled by online-services policy\n", NET_AdrToString( from ) );
 	challenge->pingTime = svs.time;
-	NET_OutOfBandPrint( NS_SERVER, from, "challengeResponse %i", challenge->challenge );
+	NET_OutOfBandPrint( NS_SERVER, from, "%s %i", NET_GetChallengeResponseCommand(), challenge->challenge );
 	return;
 #else
+	if ( !NET_ProtocolUsesLegacyAuthorize() ) {
+		Com_DPrintf( "legacy getIpAuthorize bypassed for %s: protocol profile %s does not use the Quake III authorize lane\n",
+			NET_AdrToString( from ), NET_ProtocolName() );
+		challenge->pingTime = svs.time;
+		NET_OutOfBandPrint( NS_SERVER, from, "%s %i", NET_GetChallengeResponseCommand(), challenge->challenge );
+		return;
+	}
+
 	// look up the authorize server's IP
 	if ( !svs.authorizeAddress.ip[0] && svs.authorizeAddress.type != NA_BAD ) {
 		Com_Printf( "Resolving %s\n", AUTHORIZE_SERVER_NAME );
@@ -1922,7 +2109,7 @@ void SV_GetChallenge( netadr_t from ) {
 
 		challenge->pingTime = svs.time;
 		NET_OutOfBandPrint( NS_SERVER, challenge->adr, 
-			"challengeResponse %i", challenge->challenge );
+			"%s %i", NET_GetChallengeResponseCommand(), challenge->challenge );
 		return;
 	}
 
@@ -1931,7 +2118,7 @@ void SV_GetChallenge( netadr_t from ) {
 		cvar_t	*fs;
 		char	game[1024];
 
-		Com_DPrintf( "sending getIpAuthorize for %s\n", NET_AdrToString( from ));
+		Com_DPrintf( "sending %s for %s\n", NET_GetIpAuthorizeRequestCommand(), NET_AdrToString( from ));
 		
 		strcpy(game, BASEGAME);
 		fs = Cvar_Get ("fs_game", "", CVAR_INIT|CVAR_SYSTEMINFO );
@@ -1940,9 +2127,9 @@ void SV_GetChallenge( netadr_t from ) {
 		}
 		
 		// the 0 is for backwards compatibility with obsolete sv_allowanonymous flags
-		// getIpAuthorize <challenge> <IP> <game> 0 <auth-flag>
+		// legacy authorize: <challenge> <IP> <game> 0 <auth-flag>
 		NET_OutOfBandPrint( NS_SERVER, svs.authorizeAddress,
-			"getIpAuthorize %i %i.%i.%i.%i %s 0 %s",  svs.challenges[i].challenge,
+			"%s %i %i.%i.%i.%i %s 0 %s", NET_GetIpAuthorizeRequestCommand(), svs.challenges[i].challenge,
 			from.ip[0], from.ip[1], from.ip[2], from.ip[3], game, sv_strictAuth->string );
 	}
 #endif
@@ -1994,39 +2181,39 @@ void SV_AuthorizeIpPacket( netadr_t from ) {
 		if ( Cvar_VariableValue( "fs_restrict" ) ) {
 			// a demo client connecting to a demo server
 			NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, 
-				"challengeResponse %i", svs.challenges[i].challenge );
+				"%s %i", NET_GetChallengeResponseCommand(), svs.challenges[i].challenge );
 			return;
 		}
 		// they are a demo client trying to connect to a real server
-		NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "print\nServer is not a demo server\n" );
+		NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "%s\nServer is not a demo server\n", NET_GetPrintCommand() );
 		// clear the challenge record so it won't timeout and let them through
 		Com_Memset( &svs.challenges[i], 0, sizeof( svs.challenges[i] ) );
 		return;
 	}
 	if ( !Q_stricmp( s, "accept" ) ) {
 		NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, 
-			"challengeResponse %i", svs.challenges[i].challenge );
+			"%s %i", NET_GetChallengeResponseCommand(), svs.challenges[i].challenge );
 		return;
 	}
-        if ( !Q_stricmp( s, "unknown" ) ) {
-                if ( !r ) {
-                        NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "print\nAwaiting credential authorization\n" );
-                } else {
-                        sprintf(ret, "print\n%s\n", r);
-                        NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, ret );
-                }
+	if ( !Q_stricmp( s, "unknown" ) ) {
+		if ( !r ) {
+			NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "%s\nAwaiting credential authorization\n", NET_GetPrintCommand() );
+		} else {
+			Com_sprintf( ret, sizeof( ret ), "%s\n%s\n", NET_GetPrintCommand(), r );
+			NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "%s", ret );
+		}
 		// clear the challenge record so it won't timeout and let them through
 		Com_Memset( &svs.challenges[i], 0, sizeof( svs.challenges[i] ) );
 		return;
 	}
 
 	// authorization failed
-        if ( !r ) {
-                NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "print\nSomeone is using this credential\n" );
-        } else {
-                sprintf(ret, "print\n%s\n", r);
-                NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, ret );
-        }
+	if ( !r ) {
+		NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "%s\nSomeone is using this credential\n", NET_GetPrintCommand() );
+	} else {
+		Com_sprintf( ret, sizeof( ret ), "%s\n%s\n", NET_GetPrintCommand(), r );
+		NET_OutOfBandPrint( NS_SERVER, svs.challenges[i].adr, "%s", ret );
+	}
 
 	// clear the challenge record so it won't timeout and let them through
 	Com_Memset( &svs.challenges[i], 0, sizeof( svs.challenges[i] ) );
@@ -2059,28 +2246,33 @@ void SV_DirectConnect( netadr_t from ) {
 	int			startIndex;
 	const char	*denied;
 	int			count;
+	int			challengeIndex;
 	char		 serverTypeError[MAX_STRING_CHARS];
 
 	Com_DPrintf ("SVC_DirectConnect ()\n");
 
 	Q_strncpyz( userinfo, Cmd_Argv(1), sizeof(userinfo) );
 
-	version = atoi( Info_ValueForKey( userinfo, "protocol" ) );
-	if ( version != PROTOCOL_VERSION ) {
-		NET_OutOfBandPrint( NS_SERVER, from, "print\nServer uses protocol version %i.\n", PROTOCOL_VERSION );
+	version = atoi( Info_ValueForKey( userinfo, NET_GetProtocolInfoKey() ) );
+	if ( !NET_ProtocolSupports( version ) ) {
+		NET_OutOfBandPrint( NS_SERVER, from, "%s\nServer uses protocol version %i.\n", NET_GetPrintCommand(), NET_ProtocolVersion() );
 		Com_DPrintf ("    rejected connect from version %i\n", version);
 		return;
 	}
 
-	challenge = atoi( Info_ValueForKey( userinfo, "challenge" ) );
-	qport = atoi( Info_ValueForKey( userinfo, "qport" ) );
+	challenge = atoi( Info_ValueForKey( userinfo, NET_GetChallengeInfoKey() ) );
+	if ( NET_ProtocolUsesClientQport() ) {
+		qport = atoi( Info_ValueForKey( userinfo, NET_GetQportInfoKey() ) );
+	} else {
+		qport = 0;
+	}
 
 	if ( !sv_vac || !sv_vac->integer ) {
 		const char *message;
 
 		message = "VAC is disabled on this server";
 		SV_LogVACStatus( &from, "rejected", "disabled", message );
-		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", message );
+		NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n", NET_GetPrintCommand(), message );
 		return;
 	}
 
@@ -2090,7 +2282,7 @@ void SV_DirectConnect( netadr_t from ) {
 		const char *errorMessage;
 
 		errorMessage = serverTypeError[0] ? serverTypeError : "Server is not accepting connections";
-		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", errorMessage );
+		NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n", NET_GetPrintCommand(), errorMessage );
 		return;
 	}
 
@@ -2112,6 +2304,7 @@ void SV_DirectConnect( netadr_t from ) {
 	}
 
 	// see if the challenge is valid (LAN clients don't need to challenge)
+	challengeIndex = -1;
 	if ( !NET_IsLocalAddress (from) ) {
 		int		ping;
 
@@ -2123,11 +2316,12 @@ void SV_DirectConnect( netadr_t from ) {
 			}
 		}
 		if (i == MAX_CHALLENGES) {
-			NET_OutOfBandPrint( NS_SERVER, from, "print\nNo or bad challenge for address.\n" );
+			NET_OutOfBandPrint( NS_SERVER, from, "%s\nNo or bad challenge for address.\n", NET_GetPrintCommand() );
 			return;
 		}
+		challengeIndex = i;
 		// force the IP key/value pair so the game can filter based on ip
-		Info_SetValueForKey( userinfo, "ip", NET_AdrToString( from ) );
+		Info_SetValueForKey( userinfo, NET_GetClientIpInfoKey(), NET_AdrToString( from ) );
 
 		ping = svs.time - svs.challenges[i].pingTime;
 		Com_Printf( "Client %i connecting with %i challenge ping\n", i, ping );
@@ -2137,7 +2331,7 @@ void SV_DirectConnect( netadr_t from ) {
 		if ( !Sys_IsLANAddress( from ) ) {
 			if ( sv_minPing->value && ping < sv_minPing->value ) {
 				// don't let them keep trying until they get a big delay
-				NET_OutOfBandPrint( NS_SERVER, from, "print\nServer is for high pings only\n" );
+				NET_OutOfBandPrint( NS_SERVER, from, "%s\nServer is for high pings only\n", NET_GetPrintCommand() );
 				Com_DPrintf ("Client %i rejected on a too low ping\n", i);
 				// reset the address otherwise their ping will keep increasing
 				// with each connect message and they'd eventually be able to connect
@@ -2145,14 +2339,14 @@ void SV_DirectConnect( netadr_t from ) {
 				return;
 			}
 			if ( sv_maxPing->value && ping > sv_maxPing->value ) {
-				NET_OutOfBandPrint( NS_SERVER, from, "print\nServer is for low pings only\n" );
+				NET_OutOfBandPrint( NS_SERVER, from, "%s\nServer is for low pings only\n", NET_GetPrintCommand() );
 				Com_DPrintf ("Client %i rejected on a too high ping\n", i);
 				return;
 			}
 		}
 	} else {
-		// force the "ip" info key to "localhost"
-		Info_SetValueForKey( userinfo, "ip", "localhost" );
+		// force the client IP info key to "localhost"
+		Info_SetValueForKey( userinfo, NET_GetClientIpInfoKey(), "localhost" );
 	}
 
 	SV_LogVACStatus( &from, "accepted", "enabled", "VAC is enabled on this server" );
@@ -2192,7 +2386,7 @@ void SV_DirectConnect( netadr_t from ) {
 	// servers so we can play without having to kick people.
 
 	// check for privateClient password
-	password = Info_ValueForKey( userinfo, "password" );
+	password = Info_ValueForKey( userinfo, NET_GetPasswordInfoKey() );
 	if ( !strcmp( password, sv_privatePassword->string ) ) {
 		startIndex = 0;
 	} else {
@@ -2239,7 +2433,7 @@ void SV_DirectConnect( netadr_t from ) {
 			}
 		}
 		else {
-			NET_OutOfBandPrint( NS_SERVER, from, "print\nServer is full.\n" );
+			NET_OutOfBandPrint( NS_SERVER, from, "%s\nServer is full.\n", NET_GetPrintCommand() );
 			Com_DPrintf ("Rejected a connection.\n");
 			return;
 		}
@@ -2274,7 +2468,21 @@ gotnewcl:
 #if SV_HAS_PLATFORM_AUTH
 	{
 		char tokenSummary[64];
-		SV_CapturePlatformAuthFromUserinfo( newcl, userinfo );
+		qboolean capturedFromChallenge;
+
+		capturedFromChallenge = ( challengeIndex >= 0 )
+			? SV_CapturePlatformAuthFromChallenge( newcl, &svs.challenges[challengeIndex] )
+			: qfalse;
+
+		if ( !capturedFromChallenge ) {
+			SV_CapturePlatformAuthFromUserinfo( newcl, userinfo );
+		}
+
+		if ( newcl->platformSteamId[0] ) {
+			Info_SetValueForKey( userinfo, "steam", newcl->platformSteamId );
+			Info_SetValueForKey( userinfo, "steamid", newcl->platformSteamId );
+			Q_strncpyz( newcl->userinfo, userinfo, sizeof( newcl->userinfo ) );
+		}
 
 		if ( newcl->platformAuthPending && newcl->platformAuthToken[0] ) {
 			Com_sprintf( tokenSummary, sizeof( tokenSummary ), "token_len=%i", (int)strlen( newcl->platformAuthToken ) );
@@ -2293,7 +2501,7 @@ gotnewcl:
 		SV_LogPlatformAuth( &from, newcl, "denied", denied );
 #endif
 
-		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", denied );
+		NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n", NET_GetPrintCommand(), denied );
 		Com_DPrintf ("Game rejected a connection: %s.\n", denied);
 		return;
 	}
@@ -2301,7 +2509,7 @@ gotnewcl:
 #if SV_HAS_PLATFORM_AUTH
 	denied = SV_BeginPlatformAuthSession( newcl, &from );
 	if ( denied ) {
-		NET_OutOfBandPrint( NS_SERVER, from, "print\n%s\n", denied );
+		NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n", NET_GetPrintCommand(), denied );
 		return;
 	}
 #endif
@@ -2309,7 +2517,7 @@ gotnewcl:
 	SV_UserinfoChanged( newcl );
 
 	// send the connect packet to the client
-	NET_OutOfBandPrint( NS_SERVER, from, "connectResponse" );
+	NET_OutOfBandPrint( NS_SERVER, from, "%s", NET_GetConnectResponseCommand() );
 
 	Com_DPrintf( "Going from CS_FREE to CS_CONNECTED for %s\n", newcl->name );
 
@@ -2389,7 +2597,7 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 	VM_Call( gvm, GAME_CLIENT_DISCONNECT, drop - svs.clients );
 
 	// add the disconnect command
-	SV_SendServerCommand( drop, "disconnect \"%s\"", reason);
+	SV_SendServerCommand( drop, "%s \"%s\"", NET_GetReliableDisconnectCommand(), reason);
 
 	if ( wasBot ) {
 		SV_BotFreeClient( drop - svs.clients );
@@ -2994,7 +3202,7 @@ void SV_UserinfoChanged( client_t *cl ) {
 	int		i;
 
 	// name for C code
-	Q_strncpyz( cl->name, Info_ValueForKey (cl->userinfo, "name"), sizeof(cl->name) );
+	Q_strncpyz( cl->name, Info_ValueForKey (cl->userinfo, NET_GetNameInfoKey()), sizeof(cl->name) );
 
 	// rate command
 
@@ -3003,7 +3211,7 @@ void SV_UserinfoChanged( client_t *cl ) {
 	if ( Sys_IsLANAddress( cl->netchan.remoteAddress ) && com_dedicated->integer != 2 && sv_lanForceRate->integer == 1) {
 		cl->rate = 99999;	// lans should not rate limit
 	} else {
-		val = Info_ValueForKey (cl->userinfo, "rate");
+		val = Info_ValueForKey (cl->userinfo, NET_GetRateInfoKey());
 		if (strlen(val)) {
 			i = atoi(val);
 			cl->rate = i;
@@ -3016,16 +3224,16 @@ void SV_UserinfoChanged( client_t *cl ) {
 			cl->rate = 3000;
 		}
 	}
-	val = Info_ValueForKey (cl->userinfo, "handicap");
+	val = Info_ValueForKey (cl->userinfo, NET_GetHandicapInfoKey());
 	if (strlen(val)) {
 		i = atoi(val);
 		if (i<=0 || i>100 || strlen(val) > 4) {
-			Info_SetValueForKey( cl->userinfo, "handicap", "100" );
+			Info_SetValueForKey( cl->userinfo, NET_GetHandicapInfoKey(), "100" );
 		}
 	}
 
 	// snaps command
-	val = Info_ValueForKey (cl->userinfo, "snaps");
+	val = Info_ValueForKey (cl->userinfo, NET_GetSnapsInfoKey());
 	if (strlen(val)) {
 		i = atoi(val);
 		if ( i < 1 ) {
@@ -3042,15 +3250,15 @@ void SV_UserinfoChanged( client_t *cl ) {
 	// maintain the IP information
 	// this is set in SV_DirectConnect (directly on the server, not transmitted), may be lost when client updates it's userinfo
 	// the banning code relies on this being consistently present
-	val = Info_ValueForKey (cl->userinfo, "ip");
+	val = Info_ValueForKey (cl->userinfo, NET_GetClientIpInfoKey());
 	if (!val[0])
 	{
 		//Com_DPrintf("Maintain IP in userinfo for '%s'\n", cl->name);
 		if ( !NET_IsLocalAddress(cl->netchan.remoteAddress) )
-			Info_SetValueForKey( cl->userinfo, "ip", NET_AdrToString( cl->netchan.remoteAddress ) );
+			Info_SetValueForKey( cl->userinfo, NET_GetClientIpInfoKey(), NET_AdrToString( cl->netchan.remoteAddress ) );
 		else
-			// force the "ip" info key to "localhost" for local clients
-			Info_SetValueForKey( cl->userinfo, "ip", "localhost" );
+			// force the client IP info key to "localhost" for local clients
+			Info_SetValueForKey( cl->userinfo, NET_GetClientIpInfoKey(), "localhost" );
 	}
 }
 
@@ -3069,21 +3277,22 @@ static void SV_UpdateUserinfo_f( client_t *cl ) {
 }
 
 typedef struct {
-	char	*name;
-	void	(*func)( client_t *cl );
+	const char	*name;
+	const char	*(*profileName)( void );
+	void		(*func)( client_t *cl );
 } ucmd_t;
 
 static ucmd_t ucmds[] = {
-	{"userinfo", SV_UpdateUserinfo_f},
-	{"disconnect", SV_Disconnect_f},
-	{"cp", SV_VerifyPaks_f},
-	{"vdr", SV_ResetPureClient_f},
-	{"download", SV_BeginDownload_f},
-	{"nextdl", SV_NextDownload_f},
-	{"stopdl", SV_StopDownload_f},
-	{"donedl", SV_DoneDownload_f},
+	{NULL, NET_GetUserinfoCommand, SV_UpdateUserinfo_f},
+	{NULL, NET_GetReliableDisconnectCommand, SV_Disconnect_f},
+	{NULL, NET_GetPureChecksumsCommand, SV_VerifyPaks_f},
+	{NULL, NET_GetPureResetCommand, SV_ResetPureClient_f},
+	{NULL, NET_GetDownloadRequestCommand, SV_BeginDownload_f},
+	{NULL, NET_GetDownloadNextCommand, SV_NextDownload_f},
+	{NULL, NET_GetDownloadStopCommand, SV_StopDownload_f},
+	{NULL, NET_GetDownloadDoneCommand, SV_DoneDownload_f},
 
-	{NULL, NULL}
+	{NULL, NULL, NULL}
 };
 
 /*
@@ -3095,13 +3304,15 @@ Also called by bot code
 */
 void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK ) {
 	ucmd_t	*u;
+	const char *commandName;
 	qboolean bProcessed = qfalse;
 	
 	Cmd_TokenizeString( s );
 
 	// see if it is a server level command
-	for (u=ucmds ; u->name ; u++) {
-		if (!strcmp (Cmd_Argv(0), u->name) ) {
+	for (u=ucmds ; u->name || u->profileName ; u++) {
+		commandName = u->name ? u->name : u->profileName();
+		if ( commandName && !strcmp( Cmd_Argv(0), commandName ) ) {
 			u->func( cl );
 			bProcessed = qtrue;
 			break;
@@ -3110,7 +3321,7 @@ void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK ) {
 
 	if (clientOK) {
 		// pass unknown strings to the game
-		if (!u->name && sv.state == SS_GAME) {
+		if ( !bProcessed && sv.state == SS_GAME ) {
 			VM_Call( gvm, GAME_CLIENT_COMMAND, cl - svs.clients );
 		}
 	}
@@ -3362,7 +3573,7 @@ void SV_ExecuteClientMessage( client_t *cl, msg_t *msg ) {
 	// don't drop as long as previous command was a nextdl, after a dl is done, downloadName is set back to ""
 	// but we still need to read the next message to move to next download or send gamestate
 	// I don't like this hack though, it must have been working fine at some point, suspecting the fix is somewhere else
-	if ( serverId != sv.serverId && !*cl->downloadName && !strstr(cl->lastClientCommandString, "nextdl") ) {
+	if ( serverId != sv.serverId && !*cl->downloadName && !strstr(cl->lastClientCommandString, NET_GetDownloadNextCommand()) ) {
 		if ( serverId >= sv.restartedServerId && serverId < sv.serverId ) { // TTimo - use a comparison here to catch multiple map_restart
 			// they just haven't caught the map_restart yet
 			Com_DPrintf("%s : ignoring pre map_restart / outdated client message\n", cl->name);

@@ -53,6 +53,13 @@ Two practical takeaways from this seam:
 - the host owns direct browser input injection for mouse movement and keyboard
   events; that behavior is not hidden inside the generic publisher suite
 
+2026-05-24 backend ABI follow-up: the Win32 source adapter now carries
+`cl_aweRetailAbiEquivalence[]`, which records the retail `WebView` slots
+covered by this round (`+0x9c`, `+0xd0`, and `+0xe0`) and the corresponding
+bounded C-export or source-owned keyboard substitution. The table is a
+compatibility-adapter note, not a claim that the source recreates the retail
+C++ vtable ABI byte-for-byte.
+
 ## ZMQ Host Seam
 
 The block at `0x004F3D70` through `0x004F43A0` was still absent from the alias
@@ -117,9 +124,10 @@ I validated the alias artifact directly:
 1. `sub_4F2590` still looks like a thin `WebCore::Update()` wrapper called once
    per rendered client frame, but the current evidence is still only a single
    vtable jump plus callsite context, so I left it unnamed.
-2. `sub_4F2900` injects one fixed browser keyboard event (`0x11`,
-   `0x1d0001`), which looks like a synthetic modifier-key path, but the exact
-   semantic needs one more input trace.
+2. Historical note, closed later: `sub_4F2900` injects one fixed browser
+   keyboard event (`0`, `0x11`, `0x1d0001`). Round 285 promoted it as
+   `QLWebView_InjectActivationKeyboardEvent`, and the 2026-05-24 source
+   follow-up now preserves those constructor fields explicitly.
 3. `sub_4F3DD0` and `sub_4F3DF0` clearly tear down `zmq\\id_zmq.cpp` lifetime
    owners, but the exact split between socket lifetime and actor/context
    lifetime still needs one more pass.

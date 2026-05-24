@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cl_cgame.c  -- client system interaction with client game
 
 #include "client.h"
+#include "../../game/match_state_keys.h"
 #include "../../common/platform/platform_steamworks.h"
 
 #include "../game/botlib.h"
@@ -30,6 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../common/platform/platform_steamworks.h"
 #include "../../../src-re/include/fs_imports.h"
 #include <ctype.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #ifdef _WIN32
@@ -57,6 +59,7 @@ typedef struct {
 	int			viewHeight;
 	int			activeAdvertCellId;
 	int			activatedAdvertCellId;
+	int			delayDeadline;
 } clAdvertisementBridgeState_t;
 
 static clAdvertisementBridgeState_t cl_advertisementBridge;
@@ -118,6 +121,16 @@ typedef struct {
 } clWebMethodBinding_t;
 
 typedef struct {
+	const char		*listenerName;
+	const char		*retailCallback;
+	unsigned int	vtableAddress;
+	unsigned int	slotOffset;
+	unsigned int	retailAddress;
+	const char		*sourceCallback;
+	const char		*scope;
+} clWebListenerCallbackMapping_t;
+
+typedef struct {
 	qboolean	coreInitialised;
 	qboolean	sessionInitialised;
 	qboolean	viewInitialised;
@@ -151,6 +164,7 @@ typedef struct {
 	int			cursorY;
 	int			frameSequence;
 	int			bootstrapAttemptCount;
+	int			listenerCallbackMappingCount;
 	int			surfaceUploadWidth;
 	int			surfaceUploadHeight;
 	uint32_t	appId;
@@ -203,10 +217,181 @@ typedef struct {
 
 static clWebHostState_t cl_webHost;
 
+typedef struct {
+	unsigned int	eventType;
+	unsigned int	virtualKeyCode;
+	long			nativeKeyCode;
+} qlWebKeyboardEventFields_t;
+
+#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE 0u
+#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY 0x11u
+#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY 0x1d0001L
+
+typedef enum {
+	QL_WEB_BRIDGE_SLOT_SET_ACTIVE_ADVERT = 0x08,
+	QL_WEB_BRIDGE_SLOT_SET_APP_ACTIVATION = 0x0c,
+	QL_WEB_BRIDGE_SLOT_SET_FRAME_TIME = 0x10,
+	QL_WEB_BRIDGE_SLOT_UPDATE_VIEW_PARAMETERS = 0x14,
+	QL_WEB_BRIDGE_SLOT_SET_VISIBILITY_TRACE_CALLBACK = 0x18,
+	QL_WEB_BRIDGE_SLOT_RESERVED_1FC0 = 0x1c,
+	QL_WEB_BRIDGE_SLOT_SET_MAP_PATH = 0x20,
+	QL_WEB_BRIDGE_SLOT_INIT_CGAME = 0x24,
+	QL_WEB_BRIDGE_SLOT_SHUTDOWN_CGAME = 0x28,
+	QL_WEB_BRIDGE_SLOT_SET_CLIENT_STATE_FLAGS = 0x2c,
+	QL_WEB_BRIDGE_SLOT_GET_CELL_DISPLAY_STATE = 0x38,
+	QL_WEB_BRIDGE_SLOT_GET_CELL_LABEL = 0x3c,
+	QL_WEB_BRIDGE_SLOT_INIT_UI = 0x44,
+	QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST2_COUNT = 0x48,
+	QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST1_COUNT = 0x4c,
+	QL_WEB_BRIDGE_SLOT_SETUP_ADVERT_CELL_SHADER = 0x50,
+	QL_WEB_BRIDGE_SLOT_SETUP_UI_ADVERT_CELL_SHADER = 0x54,
+	QL_WEB_BRIDGE_SLOT_REFRESH_ADVERT_CELL_SHADER = 0x58,
+	QL_WEB_BRIDGE_SLOT_REFRESH_UI_ADVERT_CELL_SHADER = 0x5c,
+	QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST2_ENTRY = 0x60,
+	QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST1_ENTRY = 0x64,
+	QL_WEB_BRIDGE_SLOT_ACTIVATE_ADVERT = 0x68
+} qlWebBridgeSlotOffset_t;
+
+#define QL_WEB_BRIDGE_RETAIL_OBJECT_ADDRESS 0x012D2670u
+
+typedef struct ql_web_bridge_s ql_web_bridge_t;
+
+typedef struct {
+	void		*reservedDestructor;
+	void		*reservedDelete;
+	int			( *setActiveAdvert )( ql_web_bridge_t *bridge, int cellId );
+	void		( *setAppActivation )( ql_web_bridge_t *bridge, int active );
+	int			( *setFrameTime )( ql_web_bridge_t *bridge, int frameTime );
+	int			( *updateViewParameters )( ql_web_bridge_t *bridge, int x, int y, int width, int height, float fovX, float fovY, float zFar, int time, int flags );
+	void		( *setVisibilityTraceCallback )( ql_web_bridge_t *bridge, void *callback );
+	int			( *reserved1FC0 )( ql_web_bridge_t *bridge, int value );
+	int			( *setMapPath )( ql_web_bridge_t *bridge, const char *mapPath );
+	int			( *initCGame )( ql_web_bridge_t *bridge );
+	int			( *shutdownCGame )( ql_web_bridge_t *bridge );
+	int			( *setClientStateFlags )( ql_web_bridge_t *bridge, int flags );
+	void		*reserved30;
+	void		*reserved34;
+	int			( *getCellDisplayState )( ql_web_bridge_t *bridge, int cellId );
+	int			( *getCellLabel )( ql_web_bridge_t *bridge, int cellId, char *buffer, int bufferSize );
+	void		( *reserved21C0 )( ql_web_bridge_t *bridge );
+	void		( *initUI )( ql_web_bridge_t *bridge );
+	int			( *getLabelList2Count )( ql_web_bridge_t *bridge );
+	int			( *getLabelList1Count )( ql_web_bridge_t *bridge );
+	qhandle_t	( *setupAdvertCellShader )( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+	qhandle_t	( *setupUIAdvertCellShader )( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+	qhandle_t	( *refreshAdvertCellShader )( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+	qhandle_t	( *refreshUIAdvertCellShader )( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+	int			( *getLabelList2Entry )( ql_web_bridge_t *bridge, int index, char *buffer, int bufferSize );
+	int			( *getLabelList1Entry )( ql_web_bridge_t *bridge, int index, char *buffer, int bufferSize );
+	void		( *activateAdvert )( ql_web_bridge_t *bridge, int cellId );
+} ql_web_bridge_vtbl_t;
+
+struct ql_web_bridge_s {
+	const ql_web_bridge_vtbl_t	*vtbl;
+	clAdvertisementBridgeState_t	*advertisement;
+	clWebHostState_t				*webHost;
+	void						*visibilityTraceCallback;
+	int							clientStateFlags;
+	char						mapPath[MAX_QPATH];
+};
+
+#if defined( _M_IX86 ) || defined( __i386__ )
+#define QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( field, offset ) \
+	typedef char ql_web_bridge_vtbl_##field##_offset[( offsetof( ql_web_bridge_vtbl_t, field ) == ( offset ) ) ? 1 : -1]
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setActiveAdvert, QL_WEB_BRIDGE_SLOT_SET_ACTIVE_ADVERT );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setAppActivation, QL_WEB_BRIDGE_SLOT_SET_APP_ACTIVATION );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setFrameTime, QL_WEB_BRIDGE_SLOT_SET_FRAME_TIME );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( updateViewParameters, QL_WEB_BRIDGE_SLOT_UPDATE_VIEW_PARAMETERS );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setVisibilityTraceCallback, QL_WEB_BRIDGE_SLOT_SET_VISIBILITY_TRACE_CALLBACK );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( reserved1FC0, QL_WEB_BRIDGE_SLOT_RESERVED_1FC0 );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setMapPath, QL_WEB_BRIDGE_SLOT_SET_MAP_PATH );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( initCGame, QL_WEB_BRIDGE_SLOT_INIT_CGAME );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( shutdownCGame, QL_WEB_BRIDGE_SLOT_SHUTDOWN_CGAME );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setClientStateFlags, QL_WEB_BRIDGE_SLOT_SET_CLIENT_STATE_FLAGS );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( getCellDisplayState, QL_WEB_BRIDGE_SLOT_GET_CELL_DISPLAY_STATE );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( getCellLabel, QL_WEB_BRIDGE_SLOT_GET_CELL_LABEL );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( initUI, QL_WEB_BRIDGE_SLOT_INIT_UI );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( getLabelList2Count, QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST2_COUNT );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( getLabelList1Count, QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST1_COUNT );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setupAdvertCellShader, QL_WEB_BRIDGE_SLOT_SETUP_ADVERT_CELL_SHADER );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setupUIAdvertCellShader, QL_WEB_BRIDGE_SLOT_SETUP_UI_ADVERT_CELL_SHADER );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( refreshAdvertCellShader, QL_WEB_BRIDGE_SLOT_REFRESH_ADVERT_CELL_SHADER );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( refreshUIAdvertCellShader, QL_WEB_BRIDGE_SLOT_REFRESH_UI_ADVERT_CELL_SHADER );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( getLabelList2Entry, QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST2_ENTRY );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( getLabelList1Entry, QL_WEB_BRIDGE_SLOT_GET_LABEL_LIST1_ENTRY );
+QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( activateAdvert, QL_WEB_BRIDGE_SLOT_ACTIVATE_ADVERT );
+#undef QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET
+#endif
+
+static int QLWebBridge_SetActiveAdvert( ql_web_bridge_t *bridge, int cellId );
+static void QLWebBridge_SetAppActivation( ql_web_bridge_t *bridge, int active );
+static int QLWebBridge_SetFrameTime( ql_web_bridge_t *bridge, int frameTime );
+static int QLWebBridge_UpdateViewParameters( ql_web_bridge_t *bridge, int x, int y, int width, int height, float fovX, float fovY, float zFar, int time, int flags );
+static void QLWebBridge_SetVisibilityTraceCallback( ql_web_bridge_t *bridge, void *callback );
+static int QLWebBridge_Reserved1FC0( ql_web_bridge_t *bridge, int value );
+static int QLWebBridge_SetMapPath( ql_web_bridge_t *bridge, const char *mapPath );
+static int QLWebBridge_InitCGame( ql_web_bridge_t *bridge );
+static int QLWebBridge_ShutdownCGame( ql_web_bridge_t *bridge );
+static int QLWebBridge_SetClientStateFlags( ql_web_bridge_t *bridge, int flags );
+static int QLWebBridge_GetCellDisplayState( ql_web_bridge_t *bridge, int cellId );
+static int QLWebBridge_GetCellLabel( ql_web_bridge_t *bridge, int cellId, char *buffer, int bufferSize );
+static void QLWebBridge_Reserved21C0( ql_web_bridge_t *bridge );
+static void QLWebBridge_InitUI( ql_web_bridge_t *bridge );
+static int QLWebBridge_GetLabelList2Count( ql_web_bridge_t *bridge );
+static int QLWebBridge_GetLabelList1Count( ql_web_bridge_t *bridge );
+static qhandle_t QLWebBridge_SetupAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+static qhandle_t QLWebBridge_SetupUIAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+static qhandle_t QLWebBridge_RefreshAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+static qhandle_t QLWebBridge_RefreshUIAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId );
+static int QLWebBridge_GetLabelList2Entry( ql_web_bridge_t *bridge, int index, char *buffer, int bufferSize );
+static int QLWebBridge_GetLabelList1Entry( ql_web_bridge_t *bridge, int index, char *buffer, int bufferSize );
+static void QLWebBridge_ActivateAdvert( ql_web_bridge_t *bridge, int cellId );
+
+static const ql_web_bridge_vtbl_t cl_webBridgeVtbl = {
+	NULL,
+	NULL,
+	QLWebBridge_SetActiveAdvert,
+	QLWebBridge_SetAppActivation,
+	QLWebBridge_SetFrameTime,
+	QLWebBridge_UpdateViewParameters,
+	QLWebBridge_SetVisibilityTraceCallback,
+	QLWebBridge_Reserved1FC0,
+	QLWebBridge_SetMapPath,
+	QLWebBridge_InitCGame,
+	QLWebBridge_ShutdownCGame,
+	QLWebBridge_SetClientStateFlags,
+	NULL,
+	NULL,
+	QLWebBridge_GetCellDisplayState,
+	QLWebBridge_GetCellLabel,
+	QLWebBridge_Reserved21C0,
+	QLWebBridge_InitUI,
+	QLWebBridge_GetLabelList2Count,
+	QLWebBridge_GetLabelList1Count,
+	QLWebBridge_SetupAdvertCellShader,
+	QLWebBridge_SetupUIAdvertCellShader,
+	QLWebBridge_RefreshAdvertCellShader,
+	QLWebBridge_RefreshUIAdvertCellShader,
+	QLWebBridge_GetLabelList2Entry,
+	QLWebBridge_GetLabelList1Entry,
+	QLWebBridge_ActivateAdvert
+};
+
+static ql_web_bridge_t cl_webBridge = {
+	&cl_webBridgeVtbl,
+	&cl_advertisementBridge,
+	&cl_webHost,
+	NULL,
+	0,
+	""
+};
+
 static void CL_Web_ClearSessionState( void );
 static void CL_WebHost_ClearSurfaceImage( void );
 static void CL_WebHost_ClearCursorOverride( void );
 static void CL_WebHost_ResolveSessionPath( char *buffer, size_t bufferSize );
+static qboolean QLDialogHandler_OnShowFileChooser( void );
+static int QLWebHost_CountRecoveredListenerMappings( void );
 static void QLWebView_PublishGameKey( int key );
 static void *QLViewHandler_OnChangeCursor( int cursorType );
 static void QLViewHandler_OnChangeTooltip( const char *tooltip );
@@ -257,6 +442,48 @@ static const clWebMethodBinding_t cl_webMethodBindings[CL_WEB_MAX_QZ_METHODS] = 
 	{ "SetFavoriteServer", CL_WEB_METHOD_SET_FAVORITE_SERVER, qfalse },
 	{ NULL, 0, qfalse }
 };
+
+#define CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK "source callback"
+#define CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK "retail no-engine callback"
+#define CL_WEB_LISTENER_SCOPE_BUILTIN_FORWARD "Awesomium built-in forward"
+#define CL_WEB_LISTENER_SCOPE_COMPATIBILITY_OWNER "bounded compatibility owner"
+#define CL_WEB_LISTENER_SCOPE_DESTRUCTOR "retail destructor-owned"
+
+static const clWebListenerCallbackMapping_t cl_webListenerCallbackMappings[] = {
+	{ "QLResourceInterceptor", "OnRequest", 0x00547F94u, 0x00u, 0x00434620u, "QLResourceInterceptor_OnRequest", CL_WEB_LISTENER_SCOPE_COMPATIBILITY_OWNER },
+	{ "QLResourceInterceptor", "OnFilterNavigation", 0x00547F94u, 0x04u, 0x00434600u, "QLResourceInterceptor_OnFilterNavigation", CL_WEB_LISTENER_SCOPE_COMPATIBILITY_OWNER },
+	{ "QLResourceInterceptor", "base/no-engine slot", 0x00547F94u, 0x08u, 0x004317C0u, "QLResourceInterceptor_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLResourceInterceptor", "destroy", 0x00547F94u, 0x0Cu, 0x004F2A80u, "QLResourceInterceptor_Destroy", CL_WEB_LISTENER_SCOPE_DESTRUCTOR },
+	{ "QLDialogHandler", "base/no-engine slot 0", 0x00547FA8u, 0x00u, 0x00431660u, "QLDialogHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLDialogHandler", "base/no-engine slot 1", 0x00547FA8u, 0x04u, 0x00431660u, "QLDialogHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLDialogHandler", "OnShowFileChooser", 0x00547FA8u, 0x08u, 0x00431640u, "QLDialogHandler_OnShowFileChooser", CL_WEB_LISTENER_SCOPE_BUILTIN_FORWARD },
+	{ "QLDialogHandler", "base/no-engine slot 3", 0x00547FA8u, 0x0Cu, 0x00431660u, "QLDialogHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLDialogHandler", "destroy", 0x00547FA8u, 0x10u, 0x004F2AB0u, "QLDialogHandler_Destroy", CL_WEB_LISTENER_SCOPE_DESTRUCTOR },
+	{ "QLViewHandler", "base/no-engine slot 0", 0x00547FC0u, 0x00u, 0x00431660u, "QLViewHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLViewHandler", "base/no-engine slot 1", 0x00547FC0u, 0x04u, 0x00431660u, "QLViewHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLViewHandler", "OnChangeTooltip", 0x00547FC0u, 0x08u, 0x00434450u, "QLViewHandler_OnChangeTooltip", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLViewHandler", "base/no-engine slot 3", 0x00547FC0u, 0x0Cu, 0x00431660u, "QLViewHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLViewHandler", "OnChangeCursor", 0x00547FC0u, 0x10u, 0x00431670u, "QLViewHandler_OnChangeCursor", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLViewHandler", "base/no-engine slot 5", 0x00547FC0u, 0x14u, 0x00431660u, "QLViewHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLViewHandler", "OnAddConsoleMessage", 0x00547FC0u, 0x18u, 0x00434520u, "QLViewHandler_OnAddConsoleMessage", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLViewHandler", "base/no-engine slot 7", 0x00547FC0u, 0x1Cu, 0x004317B0u, "QLViewHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },
+	{ "QLViewHandler", "destroy", 0x00547FC0u, 0x20u, 0x004F2AE0u, "QLViewHandler_Destroy", CL_WEB_LISTENER_SCOPE_DESTRUCTOR },
+	{ "QLLoadHandler", "OnBeginLoadingFrame", 0x00547FE8u, 0x00u, 0x004317D0u, "QLLoadHandler_OnBeginLoadingFrame", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLLoadHandler", "OnFailLoadingFrame", 0x00547FE8u, 0x04u, 0x00434AE0u, "QLLoadHandler_OnFailLoadingFrame", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLLoadHandler", "OnFinishLoadingFrame", 0x00547FE8u, 0x08u, 0x004317E0u, "QLLoadHandler_OnFinishLoadingFrame", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLLoadHandler", "OnDocumentReady", 0x00547FE8u, 0x0Cu, 0x004317F0u, "QLLoadHandler_OnDocumentReady", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLLoadHandler", "destroy", 0x00547FE8u, 0x10u, 0x004F2B10u, "QLLoadHandler_Destroy", CL_WEB_LISTENER_SCOPE_DESTRUCTOR },
+	{ "QLJSHandler", "OnMethodCall", 0x00548010u, 0x00u, 0x00431E50u, "QLJSHandler_OnMethodCall", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLJSHandler", "OnMethodCallWithReturnValue", 0x00548010u, 0x04u, 0x004328B0u, "QLJSHandler_OnMethodCallWithReturnValue", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },
+	{ "QLJSHandler", "destroy", 0x00548010u, 0x08u, 0x004F23B0u, "QLJSHandler_Destroy", CL_WEB_LISTENER_SCOPE_DESTRUCTOR },
+	{ NULL, NULL, 0u, 0u, 0u, NULL, NULL }
+};
+
+#undef CL_WEB_LISTENER_SCOPE_DESTRUCTOR
+#undef CL_WEB_LISTENER_SCOPE_COMPATIBILITY_OWNER
+#undef CL_WEB_LISTENER_SCOPE_BUILTIN_FORWARD
+#undef CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK
+#undef CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK
 
 /*
 =============
@@ -744,6 +971,37 @@ static void CL_WebHost_ResolveSessionPath( char *buffer, size_t bufferSize ) {
 
 /*
 =============
+QLDialogHandler_OnShowFileChooser
+
+Retail forwards this dialog callback into the active Awesomium WebView rather
+than building an engine-side file chooser.
+=============
+*/
+static qboolean QLDialogHandler_OnShowFileChooser( void ) {
+	return cl_webHost.liveAwesomium ? qtrue : qfalse;
+}
+
+/*
+=============
+QLWebHost_CountRecoveredListenerMappings
+=============
+*/
+static int QLWebHost_CountRecoveredListenerMappings( void ) {
+	int count;
+	int i;
+
+	count = 0;
+	for ( i = 0; cl_webListenerCallbackMappings[i].listenerName; i++ ) {
+		if ( cl_webListenerCallbackMappings[i].retailAddress != 0u ) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+=============
 QLJSHandler_LookupMethodBinding
 =============
 */
@@ -828,6 +1086,7 @@ QLWebHost_InstallRuntimeListeners
 =============
 */
 static void QLWebHost_InstallRuntimeListeners( void ) {
+	cl_webHost.listenerCallbackMappingCount = QLWebHost_CountRecoveredListenerMappings();
 	cl_webHost.dialogHandlerInstalled = qtrue;
 	cl_webHost.viewHandlerInstalled = qtrue;
 	cl_webHost.loadHandlerInstalled = qtrue;
@@ -1491,6 +1750,23 @@ static void QLWebView_InjectKeyboardEvent( int key, qboolean down ) {
 
 /*
 =============
+QLWebView_InjectKeyboardEventFields
+
+Models the Awesomium::WebKeyboardEvent constructor fields before forwarding
+into the retained source keyboard path. Retail injects the constructed event
+through the live WebView keyboard slot at +0xe0.
+=============
+*/
+static void QLWebView_InjectKeyboardEventFields( const qlWebKeyboardEventFields_t *event, qboolean down ) {
+	if ( !event ) {
+		return;
+	}
+
+	QLWebView_InjectKeyboardEvent( (int)event->virtualKeyCode, down );
+}
+
+/*
+=============
 QLWebView_InjectActivationKeyboardEvent
 
 Mirrors the retail synthetic modifier-key injection used when the native
@@ -1498,13 +1774,19 @@ window regains focus while a retained browser view exists.
 =============
 */
 static void QLWebView_InjectActivationKeyboardEvent( void ) {
+	static const qlWebKeyboardEventFields_t activationEvent = {
+		QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE,
+		QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY,
+		QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY
+	};
+
 	if ( !cl_webHost.viewInitialised ) {
 		return;
 	}
 
 	cl_webHost.focused = qtrue;
 	if ( cl_webHost.browserVisible || cl_webHost.browserActive ) {
-		QLWebView_InjectKeyboardEvent( 0x11, qtrue );
+		QLWebView_InjectKeyboardEventFields( &activationEvent, qtrue );
 	}
 }
 
@@ -1525,6 +1807,7 @@ static qboolean QLWebHost_EnsureRuntime( void ) {
 	}
 
 	(void)QLViewHandler_OnAddConsoleMessage;
+	(void)QLDialogHandler_OnShowFileChooser;
 
 	if ( !cl_webHost.coreInitialised ) {
 #if defined( _WIN32 )
@@ -2050,13 +2333,13 @@ static void CL_WebHost_ParseArenaInfosToJson( char *data, char *buffer, size_t b
 			const char	*typeList;
 			unsigned int	typeBits;
 
-			mapName = Info_ValueForKey( info, "map" );
+			mapName = Info_ValueForKey( info, ARENA_INFO_KEY_MAP );
 			if ( !mapName[0] || *entryCount >= CL_WEB_MAX_MAPS || CL_WebHost_StringListContains( seenMaps, *entryCount, mapName ) ) {
 				continue;
 			}
 
-			longName = Info_ValueForKey( info, "longname" );
-			typeList = Info_ValueForKey( info, "type" );
+			longName = Info_ValueForKey( info, ARENA_INFO_KEY_LONGNAME );
+			typeList = Info_ValueForKey( info, ARENA_INFO_KEY_TYPE );
 			typeBits = CL_WebHost_ResolveMapTypeBits( typeList );
 			Q_strncpyz( seenMaps[*entryCount], mapName, MAX_QPATH );
 			CL_WebHost_AppendMapDescriptorJson( mapName, longName, typeBits, buffer, bufferSize, entryCount );
@@ -2925,8 +3208,8 @@ static void CL_WebHost_BuildDemoListJson( char *buffer, size_t bufferSize ) {
 
 	buffer[0] = '\0';
 	Q_strcat( buffer, bufferSize, "[" );
-	Com_sprintf( demoExt, sizeof( demoExt ), "dm_%d", PROTOCOL_VERSION );
-	Com_sprintf( fullDemoExt, sizeof( fullDemoExt ), ".dm_%d", PROTOCOL_VERSION );
+	Com_sprintf( demoExt, sizeof( demoExt ), "dm_%d", NET_DemoProtocol() );
+	Com_sprintf( fullDemoExt, sizeof( fullDemoExt ), ".dm_%d", NET_DemoProtocol() );
 	count = FS_GetFileList( "demos", demoExt, fileList, sizeof( fileList ) );
 	cursor = fileList;
 	for ( ; count > 0 && *cursor; count-- ) {
@@ -3872,6 +4155,8 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	const char *overlayPolicy = CL_GetOverlayServicePolicyLabel();
 	const char *advertProvider = CL_GetAdvertisementBridgeProviderLabel();
 	const char *advertPolicy = CL_GetAdvertisementBridgePolicyLabel();
+	const char *parityScope = QL_GetOnlineServicesParityScopeLabel();
+	const char *parityReason = QL_GetOnlineServicesParityReasonLabel();
 	qboolean awesomiumAllowed = CL_AwesomiumRuntimeAllowed();
 
 #if !QL_PLATFORM_HAS_ONLINE_SERVICES
@@ -3882,8 +4167,12 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	Cvar_Set( "ui_browserAwesomium", "0" );
 	Cvar_Set( "ui_browserAwesomiumProvider", overlayProvider );
 	Cvar_Set( "ui_browserAwesomiumPolicy", overlayPolicy );
+	Cvar_Set( "ui_browserAwesomiumParityScope", parityScope );
+	Cvar_Set( "ui_browserAwesomiumParityReason", parityReason );
 	Cvar_Set( "ui_advertisementBridgeProvider", advertProvider );
 	Cvar_Set( "ui_advertisementBridgePolicy", advertPolicy );
+	Cvar_Set( "ui_advertisementBridgeParityScope", parityScope );
+	Cvar_Set( "ui_advertisementBridgeParityReason", parityReason );
 	CL_WebHost_ResetRuntime( qtrue );
 	CL_ResetBrowserOverlayState();
 #else
@@ -3899,13 +4188,44 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	Cvar_Set( "ui_browserAwesomium", browserAvailable ? "1" : "0" );
 	Cvar_Set( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );
 	Cvar_Set( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );
+	Cvar_Set( "ui_browserAwesomiumParityScope", parityScope );
+	Cvar_Set( "ui_browserAwesomiumParityReason", parityReason );
 	Cvar_Set( "ui_advertisementBridgeProvider", advertProvider );
 	Cvar_Set( "ui_advertisementBridgePolicy", advertPolicy );
+	Cvar_Set( "ui_advertisementBridgeParityScope", parityScope );
+	Cvar_Set( "ui_advertisementBridgeParityReason", parityReason );
 	if ( !browserAvailable ) {
 		CL_WebHost_ResetRuntime( qtrue );
 		CL_ResetBrowserOverlayState();
 	}
 #endif
+}
+
+/*
+=============
+CL_AdvertisementBridge_ClearDelay
+
+Mirrors retail sub_4F2310 by clearing the local advert delay deadline.
+=============
+*/
+void CL_AdvertisementBridge_ClearDelay( void ) {
+	cl_advertisementBridge.delayDeadline = 0;
+}
+
+/*
+=============
+CL_AdvertisementBridge_IsDelayElapsed
+
+Mirrors retail sub_4F22E0: the advert delay gate is open when no deadline is
+armed, or once the current host time has passed the stored deadline.
+=============
+*/
+qboolean CL_AdvertisementBridge_IsDelayElapsed( void ) {
+	if ( cl_advertisementBridge.delayDeadline == 0 ) {
+		return qtrue;
+	}
+
+	return cls.realtime > cl_advertisementBridge.delayDeadline ? qtrue : qfalse;
 }
 
 /*
@@ -3916,8 +4236,7 @@ Mirrors the retail UI advertisement-bridge init hook.
 =============
 */
 void CL_AdvertisementBridge_InitUI( void ) {
-	CL_RefreshOnlineServicesBridgeState();
-	CL_LogAdvertisementBridgeLifecycle( "init-ui", 0 );
+	cl_webBridge.vtbl->initUI( &cl_webBridge );
 }
 
 /*
@@ -3928,9 +4247,7 @@ Mirrors the retail UI-side advert activation bridge path.
 =============
 */
 void CL_AdvertisementBridge_ActivateAdvert( int cellId ) {
-	cl_advertisementBridge.activatedAdvertCellId = cellId;
-	CL_RefreshOnlineServicesBridgeState();
-	CL_LogAdvertisementBridgeLifecycle( "activate", cellId );
+	cl_webBridge.vtbl->activateAdvert( &cl_webBridge, cellId );
 }
 
 /*
@@ -3941,13 +4258,7 @@ Mirrors the retail cgame-side active advert selection/reset helper.
 =============
 */
 void CL_AdvertisementBridge_SetActiveAdvert( int cellId ) {
-	cl_advertisementBridge.activeAdvertCellId = cellId;
-	if ( cellId == 0 ) {
-		cl_advertisementBridge.activatedAdvertCellId = 0;
-	}
-
-	CL_RefreshOnlineServicesBridgeState();
-	CL_LogAdvertisementBridgeLifecycle( "set-active", cellId );
+	cl_webBridge.vtbl->setActiveAdvert( &cl_webBridge, cellId );
 }
 
 /*
@@ -3968,6 +4279,461 @@ static void CL_AdvertisementBridge_ClearLabel( char *buffer, int bufferSize ) {
 
 /*
 =============
+QLWebBridge_SetActiveAdvert
+
+Slot +0x08 in the retail data_12d2670 bridge: cgame active advert selection.
+=============
+*/
+static int QLWebBridge_SetActiveAdvert( ql_web_bridge_t *bridge, int cellId ) {
+	clAdvertisementBridgeState_t *advertisement;
+
+	if ( !bridge || !bridge->advertisement ) {
+		return -1;
+	}
+
+	advertisement = bridge->advertisement;
+	advertisement->activeAdvertCellId = cellId;
+	if ( cellId == 0 ) {
+		advertisement->activatedAdvertCellId = 0;
+	}
+
+	CL_RefreshOnlineServicesBridgeState();
+	CL_LogAdvertisementBridgeLifecycle( "set-active", cellId );
+	return cellId;
+}
+
+/*
+=============
+QLWebBridge_SetAppActivation
+
+Slot +0x0c in the retail data_12d2670 bridge: Win32 app activation mirror.
+=============
+*/
+static void QLWebBridge_SetAppActivation( ql_web_bridge_t *bridge, int active ) {
+	if ( !bridge ) {
+		return;
+	}
+
+	CL_WebHost_NotifyAppActivation( active ? qtrue : qfalse );
+}
+
+/*
+=============
+QLWebBridge_SetFrameTime
+
+Slot +0x10 in the retail data_12d2670 bridge: advert frame-time update.
+=============
+*/
+static int QLWebBridge_SetFrameTime( ql_web_bridge_t *bridge, int frameTime ) {
+	if ( !bridge || !bridge->advertisement || !bridge->advertisement->initialised ) {
+		return -1;
+	}
+
+	bridge->advertisement->frameTime = frameTime;
+	CL_RefreshOnlineServicesBridgeState();
+	return frameTime;
+}
+
+/*
+=============
+QLWebBridge_UpdateViewParameters
+
+Slot +0x14 in the retail data_12d2670 bridge: renderer view/projection sync.
+=============
+*/
+static int QLWebBridge_UpdateViewParameters( ql_web_bridge_t *bridge, int x, int y, int width, int height, float fovX, float fovY, float zFar, int time, int flags ) {
+	(void)x;
+	(void)y;
+	(void)fovX;
+	(void)fovY;
+	(void)zFar;
+
+	if ( !bridge || !bridge->advertisement ) {
+		return -1;
+	}
+
+	if ( width > 0 ) {
+		bridge->advertisement->viewWidth = width;
+	}
+	if ( height > 0 ) {
+		bridge->advertisement->viewHeight = height;
+	}
+	if ( time > 0 ) {
+		bridge->advertisement->frameTime = time;
+	}
+	bridge->clientStateFlags = flags;
+
+	CL_RefreshOnlineServicesBridgeState();
+	return 0;
+}
+
+/*
+=============
+QLWebBridge_SetVisibilityTraceCallback
+
+Slot +0x18 in the retail data_12d2670 bridge: advert visibility trace hook.
+=============
+*/
+static void QLWebBridge_SetVisibilityTraceCallback( ql_web_bridge_t *bridge, void *callback ) {
+	if ( !bridge ) {
+		return;
+	}
+
+	bridge->visibilityTraceCallback = callback;
+}
+
+/*
+=============
+QLWebBridge_Reserved1FC0
+
+Slot +0x1c in the retail data_12d2670 bridge; behavior is still opaque.
+=============
+*/
+static int QLWebBridge_Reserved1FC0( ql_web_bridge_t *bridge, int value ) {
+	(void)bridge;
+	return value;
+}
+
+/*
+=============
+QLWebBridge_SetMapPath
+
+Slot +0x20 in the retail data_12d2670 bridge: cgame map BSP path setter.
+=============
+*/
+static int QLWebBridge_SetMapPath( ql_web_bridge_t *bridge, const char *mapPath ) {
+	if ( !bridge ) {
+		return -1;
+	}
+
+	Q_strncpyz( bridge->mapPath, mapPath ? mapPath : "", sizeof( bridge->mapPath ) );
+	CL_RefreshOnlineServicesBridgeState();
+	return 0;
+}
+
+/*
+=============
+QLWebBridge_InitCGame
+
+Slot +0x24 in the retail data_12d2670 bridge: native cgame advert init.
+=============
+*/
+static int QLWebBridge_InitCGame( ql_web_bridge_t *bridge ) {
+	if ( !bridge || !bridge->advertisement ) {
+		return -1;
+	}
+
+	bridge->advertisement->initialised = qtrue;
+	bridge->advertisement->frameTime = 0;
+	bridge->advertisement->activeAdvertCellId = 0;
+	bridge->advertisement->delayDeadline = 0;
+	CL_RefreshOnlineServicesBridgeState();
+	return 0;
+}
+
+/*
+=============
+QLWebBridge_ShutdownCGame
+
+Slot +0x28 in the retail data_12d2670 bridge: native cgame advert shutdown.
+=============
+*/
+static int QLWebBridge_ShutdownCGame( ql_web_bridge_t *bridge ) {
+	if ( !bridge || !bridge->advertisement ) {
+		return -1;
+	}
+
+	bridge->advertisement->initialised = qfalse;
+	bridge->advertisement->frameTime = 0;
+	bridge->advertisement->activeAdvertCellId = 0;
+	bridge->advertisement->activatedAdvertCellId = 0;
+	bridge->advertisement->delayDeadline = 0;
+	CL_RefreshOnlineServicesBridgeState();
+	CL_LogAdvertisementBridgeLifecycle( "shutdown-cgame", 0 );
+	return 0;
+}
+
+/*
+=============
+QLWebBridge_SetClientStateFlags
+
+Slot +0x2c in the retail data_12d2670 bridge: per-frame client flag sync.
+=============
+*/
+static int QLWebBridge_SetClientStateFlags( ql_web_bridge_t *bridge, int flags ) {
+	if ( !bridge ) {
+		return flags;
+	}
+
+	bridge->clientStateFlags = flags;
+	return flags;
+}
+
+/*
+=============
+QLWebBridge_GetCellDisplayState
+
+Slot +0x38 in the retail data_12d2670 bridge: advert debug cell palette.
+=============
+*/
+static int QLWebBridge_GetCellDisplayState( ql_web_bridge_t *bridge, int cellId ) {
+	const clAdvertisementBridgeState_t *advertisement;
+
+	if ( !bridge || !bridge->advertisement || cellId <= 0 ) {
+		return 0;
+	}
+
+	advertisement = bridge->advertisement;
+	if ( cellId == advertisement->activatedAdvertCellId ) {
+		return 2;
+	}
+
+	if ( cellId == advertisement->activeAdvertCellId ) {
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+=============
+QLWebBridge_GetCellLabel
+
+Slot +0x3c in the retail data_12d2670 bridge: advert debug cell label.
+=============
+*/
+static int QLWebBridge_GetCellLabel( ql_web_bridge_t *bridge, int cellId, char *buffer, int bufferSize ) {
+	const clAdvertisementBridgeState_t *advertisement;
+
+	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
+	if ( !bridge || !bridge->advertisement || !buffer || bufferSize <= 0 || cellId <= 0 ) {
+		return -1;
+	}
+
+	advertisement = bridge->advertisement;
+	if ( cellId == advertisement->activatedAdvertCellId ) {
+		Com_sprintf( buffer, bufferSize, "cell %d activated", cellId );
+		return 0;
+	}
+
+	if ( cellId == advertisement->activeAdvertCellId ) {
+		Com_sprintf( buffer, bufferSize, "cell %d active", cellId );
+		return 0;
+	}
+
+	Com_sprintf( buffer, bufferSize, "cell %d available", cellId );
+	return 0;
+}
+
+/*
+=============
+QLWebBridge_Reserved21C0
+
+Slot +0x40 in the retail data_12d2670 bridge; behavior is still opaque.
+=============
+*/
+static void QLWebBridge_Reserved21C0( ql_web_bridge_t *bridge ) {
+	(void)bridge;
+}
+
+/*
+=============
+QLWebBridge_InitUI
+
+Slot +0x44 in the retail data_12d2670 bridge: UI advert bridge init.
+=============
+*/
+static void QLWebBridge_InitUI( ql_web_bridge_t *bridge ) {
+	(void)bridge;
+	CL_RefreshOnlineServicesBridgeState();
+	CL_LogAdvertisementBridgeLifecycle( "init-ui", 0 );
+}
+
+/*
+=============
+QLWebBridge_GetLabelList2Count
+
+Slot +0x48 in the retail data_12d2670 bridge: second debug label count.
+=============
+*/
+static int QLWebBridge_GetLabelList2Count( ql_web_bridge_t *bridge ) {
+	(void)bridge;
+	return CL_ADVERTISEMENT_DEBUG_LABEL_COUNT;
+}
+
+/*
+=============
+QLWebBridge_GetLabelList1Count
+
+Slot +0x4c in the retail data_12d2670 bridge: first debug label count.
+=============
+*/
+static int QLWebBridge_GetLabelList1Count( ql_web_bridge_t *bridge ) {
+	(void)bridge;
+	return CL_ADVERTISEMENT_DEBUG_LABEL_COUNT;
+}
+
+/*
+=============
+QLWebBridge_RegisterDefaultAdvertCellShader
+
+Shared fallback for the four shader-supplying bridge slots.
+=============
+*/
+static qhandle_t QLWebBridge_RegisterDefaultAdvertCellShader( const char *defaultContent ) {
+	if ( !defaultContent || !defaultContent[0] ) {
+		return 0;
+	}
+
+	return CL_Steam_RegisterShader( defaultContent );
+}
+
+/*
+=============
+QLWebBridge_SetupAdvertCellShader
+
+Slot +0x50 in the retail data_12d2670 bridge: cgame advert shader setup.
+=============
+*/
+static qhandle_t QLWebBridge_SetupAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId ) {
+	(void)bridge;
+	(void)rect;
+	(void)cellId;
+	return QLWebBridge_RegisterDefaultAdvertCellShader( defaultContent );
+}
+
+/*
+=============
+QLWebBridge_SetupUIAdvertCellShader
+
+Slot +0x54 in the retail data_12d2670 bridge: UI advert shader setup.
+=============
+*/
+static qhandle_t QLWebBridge_SetupUIAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId ) {
+	(void)bridge;
+	(void)rect;
+	(void)cellId;
+	return QLWebBridge_RegisterDefaultAdvertCellShader( defaultContent );
+}
+
+/*
+=============
+QLWebBridge_RefreshAdvertCellShader
+
+Slot +0x58 in the retail data_12d2670 bridge: cgame advert shader refresh.
+=============
+*/
+static qhandle_t QLWebBridge_RefreshAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId ) {
+	(void)bridge;
+	(void)rect;
+	(void)cellId;
+	return QLWebBridge_RegisterDefaultAdvertCellShader( defaultContent );
+}
+
+/*
+=============
+QLWebBridge_RefreshUIAdvertCellShader
+
+Slot +0x5c in the retail data_12d2670 bridge: UI advert shader refresh.
+=============
+*/
+static qhandle_t QLWebBridge_RefreshUIAdvertCellShader( ql_web_bridge_t *bridge, const char *defaultContent, const void *rect, int cellId ) {
+	(void)bridge;
+	(void)rect;
+	(void)cellId;
+	return QLWebBridge_RegisterDefaultAdvertCellShader( defaultContent );
+}
+
+/*
+=============
+QLWebBridge_GetLabelList2Entry
+
+Slot +0x60 in the retail data_12d2670 bridge: second debug label text.
+=============
+*/
+static int QLWebBridge_GetLabelList2Entry( ql_web_bridge_t *bridge, int index, char *buffer, int bufferSize ) {
+	const clAdvertisementBridgeState_t *advertisement;
+
+	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
+	if ( !bridge || !bridge->advertisement || !buffer || bufferSize <= 0 ) {
+		return -1;
+	}
+
+	advertisement = bridge->advertisement;
+	switch ( index ) {
+		case 0:
+			Com_sprintf( buffer, bufferSize, "state: %s frame=%d view=%dx%d",
+				advertisement->initialised ? "active" : "idle",
+				advertisement->frameTime,
+				advertisement->viewWidth,
+				advertisement->viewHeight );
+			return 0;
+
+		case 1:
+			Com_sprintf( buffer, bufferSize, "active=%d activated=%d",
+				advertisement->activeAdvertCellId,
+				advertisement->activatedAdvertCellId );
+			return 0;
+	}
+
+	return -1;
+}
+
+/*
+=============
+QLWebBridge_GetLabelList1Entry
+
+Slot +0x64 in the retail data_12d2670 bridge: first debug label text.
+=============
+*/
+static int QLWebBridge_GetLabelList1Entry( ql_web_bridge_t *bridge, int index, char *buffer, int bufferSize ) {
+	const clAdvertisementBridgeState_t *advertisement;
+	const clWebHostState_t *webHost;
+
+	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
+	if ( !bridge || !bridge->advertisement || !bridge->webHost || !buffer || bufferSize <= 0 ) {
+		return -1;
+	}
+
+	advertisement = bridge->advertisement;
+	webHost = bridge->webHost;
+	switch ( index ) {
+		case 0:
+			Com_sprintf( buffer, bufferSize, "bridge: %s [%s]",
+				CL_GetAdvertisementBridgeProviderLabel(),
+				CL_GetAdvertisementBridgePolicyLabel() );
+			return 0;
+
+		case 1:
+			Com_sprintf( buffer, bufferSize, "overlay: compiled=%d available=%d browser=%d",
+				advertisement->overlayCompiled ? 1 : 0,
+				advertisement->overlayAvailable ? 1 : 0,
+				webHost->browserActive ? 1 : 0 );
+			return 0;
+	}
+
+	return -1;
+}
+
+/*
+=============
+QLWebBridge_ActivateAdvert
+
+Slot +0x68 in the retail data_12d2670 bridge: UI-side advert activation.
+=============
+*/
+static void QLWebBridge_ActivateAdvert( ql_web_bridge_t *bridge, int cellId ) {
+	if ( !bridge || !bridge->advertisement ) {
+		return;
+	}
+
+	bridge->advertisement->activatedAdvertCellId = cellId;
+	CL_RefreshOnlineServicesBridgeState();
+	CL_LogAdvertisementBridgeLifecycle( "activate", cellId );
+}
+
+/*
+=============
 CL_AdvertisementBridge_GetCellDisplayState
 
 Reconstructs the retained advert-debug palette split from the active and
@@ -3975,19 +4741,7 @@ activated cell ids mirrored through the client bridge.
 =============
 */
 int CL_AdvertisementBridge_GetCellDisplayState( int cellId ) {
-	if ( cellId <= 0 ) {
-		return 0;
-	}
-
-	if ( cellId == cl_advertisementBridge.activatedAdvertCellId ) {
-		return 2;
-	}
-
-	if ( cellId == cl_advertisementBridge.activeAdvertCellId ) {
-		return 1;
-	}
-
-	return 0;
+	return cl_webBridge.vtbl->getCellDisplayState( &cl_webBridge, cellId );
 }
 
 /*
@@ -3998,22 +4752,7 @@ Formats one retained advert-debug cell label for the renderer overlay.
 =============
 */
 void CL_AdvertisementBridge_GetCellLabel( int cellId, char *buffer, int bufferSize ) {
-	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
-	if ( !buffer || bufferSize <= 0 || cellId <= 0 ) {
-		return;
-	}
-
-	if ( cellId == cl_advertisementBridge.activatedAdvertCellId ) {
-		Com_sprintf( buffer, bufferSize, "cell %d activated", cellId );
-		return;
-	}
-
-	if ( cellId == cl_advertisementBridge.activeAdvertCellId ) {
-		Com_sprintf( buffer, bufferSize, "cell %d active", cellId );
-		return;
-	}
-
-	Com_sprintf( buffer, bufferSize, "cell %d available", cellId );
+	(void)cl_webBridge.vtbl->getCellLabel( &cl_webBridge, cellId, buffer, bufferSize );
 }
 
 /*
@@ -4024,7 +4763,7 @@ Publishes the retained advert-debug summary count for the first label list.
 =============
 */
 int CL_AdvertisementBridge_GetLabelList1Count( void ) {
-	return CL_ADVERTISEMENT_DEBUG_LABEL_COUNT;
+	return cl_webBridge.vtbl->getLabelList1Count( &cl_webBridge );
 }
 
 /*
@@ -4036,25 +4775,7 @@ renderer-side advert-debug summary list.
 =============
 */
 void CL_AdvertisementBridge_GetLabelList1Entry( int index, char *buffer, int bufferSize ) {
-	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	switch ( index ) {
-		case 0:
-			Com_sprintf( buffer, bufferSize, "bridge: %s [%s]",
-				CL_GetAdvertisementBridgeProviderLabel(),
-				CL_GetAdvertisementBridgePolicyLabel() );
-			break;
-
-		case 1:
-			Com_sprintf( buffer, bufferSize, "overlay: compiled=%d available=%d browser=%d",
-				cl_advertisementBridge.overlayCompiled ? 1 : 0,
-				cl_advertisementBridge.overlayAvailable ? 1 : 0,
-				cl_webHost.browserActive ? 1 : 0 );
-			break;
-	}
+	(void)cl_webBridge.vtbl->getLabelList1Entry( &cl_webBridge, index, buffer, bufferSize );
 }
 
 /*
@@ -4065,7 +4786,7 @@ Publishes the retained advert-debug summary count for the second label list.
 =============
 */
 int CL_AdvertisementBridge_GetLabelList2Count( void ) {
-	return CL_ADVERTISEMENT_DEBUG_LABEL_COUNT;
+	return cl_webBridge.vtbl->getLabelList2Count( &cl_webBridge );
 }
 
 /*
@@ -4077,26 +4798,51 @@ advert-debug summary list.
 =============
 */
 void CL_AdvertisementBridge_GetLabelList2Entry( int index, char *buffer, int bufferSize ) {
-	CL_AdvertisementBridge_ClearLabel( buffer, bufferSize );
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
+	(void)cl_webBridge.vtbl->getLabelList2Entry( &cl_webBridge, index, buffer, bufferSize );
+}
 
-	switch ( index ) {
-		case 0:
-			Com_sprintf( buffer, bufferSize, "state: %s frame=%d view=%dx%d",
-				cl_advertisementBridge.initialised ? "active" : "idle",
-				cl_advertisementBridge.frameTime,
-				cl_advertisementBridge.viewWidth,
-				cl_advertisementBridge.viewHeight );
-			break;
+/*
+=============
+CL_AdvertisementBridge_SetupUIAdvertCellShader
 
-		case 1:
-			Com_sprintf( buffer, bufferSize, "active=%d activated=%d",
-				cl_advertisementBridge.activeAdvertCellId,
-				cl_advertisementBridge.activatedAdvertCellId );
-			break;
-	}
+Routes UI advert-cell setup through the recovered bridge slot +0x54.
+=============
+*/
+qhandle_t CL_AdvertisementBridge_SetupUIAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
+	return cl_webBridge.vtbl->setupUIAdvertCellShader( &cl_webBridge, defaultContent, rect, cellId );
+}
+
+/*
+=============
+CL_AdvertisementBridge_RefreshUIAdvertCellShader
+
+Routes UI advert-cell refresh through the recovered bridge slot +0x5c.
+=============
+*/
+qhandle_t CL_AdvertisementBridge_RefreshUIAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
+	return cl_webBridge.vtbl->refreshUIAdvertCellShader( &cl_webBridge, defaultContent, rect, cellId );
+}
+
+/*
+=============
+CL_AdvertisementBridge_SetupAdvertCellShader
+
+Routes cgame advert-cell setup through the recovered bridge slot +0x50.
+=============
+*/
+qhandle_t CL_AdvertisementBridge_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
+	return cl_webBridge.vtbl->setupAdvertCellShader( &cl_webBridge, defaultContent, rect, cellId );
+}
+
+/*
+=============
+CL_AdvertisementBridge_RefreshAdvertCellShader
+
+Routes cgame advert-cell refresh through the recovered bridge slot +0x58.
+=============
+*/
+qhandle_t CL_AdvertisementBridge_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
+	return cl_webBridge.vtbl->refreshAdvertCellShader( &cl_webBridge, defaultContent, rect, cellId );
 }
 
 /*
@@ -4660,10 +5406,7 @@ Bridges the retail cgame advert lifecycle into the host when available.
 ====================
 */
 static void CL_AdvertisementBridge_InitCGame( void ) {
-	cl_advertisementBridge.initialised = qtrue;
-	cl_advertisementBridge.frameTime = 0;
-	cl_advertisementBridge.activeAdvertCellId = 0;
-	CL_RefreshOnlineServicesBridgeState();
+	(void)cl_webBridge.vtbl->initCGame( &cl_webBridge );
 }
 
 /*
@@ -4674,12 +5417,7 @@ Tears down the retail cgame advert lifecycle bridge when a host exists.
 ====================
 */
 static void CL_AdvertisementBridge_ShutdownCGame( void ) {
-	cl_advertisementBridge.initialised = qfalse;
-	cl_advertisementBridge.frameTime = 0;
-	cl_advertisementBridge.activeAdvertCellId = 0;
-	cl_advertisementBridge.activatedAdvertCellId = 0;
-	CL_RefreshOnlineServicesBridgeState();
-	CL_LogAdvertisementBridgeLifecycle( "shutdown-cgame", 0 );
+	(void)cl_webBridge.vtbl->shutdownCGame( &cl_webBridge );
 }
 
 /*
@@ -4694,7 +5432,17 @@ void CL_AdvertisementBridge_RefreshLoadingViewParameters( void ) {
 		return;
 	}
 
-	CL_RefreshOnlineServicesBridgeState();
+	(void)cl_webBridge.vtbl->updateViewParameters(
+		&cl_webBridge,
+		0,
+		0,
+		cls.glconfig.vidWidth,
+		cls.glconfig.vidHeight,
+		0.0f,
+		0.0f,
+		0.0f,
+		cl_advertisementBridge.frameTime,
+		cl_webBridge.clientStateFlags );
 }
 
 /*
@@ -4721,12 +5469,7 @@ Mirrors the retail frame-time update used by the loading-screen bridge tail.
 ====================
 */
 static void CL_AdvertisementBridge_SetFrameTime( int frameTime ) {
-	if ( !cl_advertisementBridge.initialised ) {
-		return;
-	}
-
-	cl_advertisementBridge.frameTime = frameTime;
-	CL_RefreshOnlineServicesBridgeState();
+	(void)cl_webBridge.vtbl->setFrameTime( &cl_webBridge, frameTime );
 }
 
 /*
@@ -5553,19 +6296,6 @@ static unsigned long long QL_CG_PackFloatBits64( float lo, float hi ) {
 
 /*
 ==============
-QL_CG_RegisterDefaultAdvertCellShader
-==============
-*/
-static qhandle_t QL_CG_RegisterDefaultAdvertCellShader( const char *defaultContent ) {
-	if ( !defaultContent || !defaultContent[0] ) {
-		return 0;
-	}
-
-	return CL_Steam_RegisterShader( defaultContent );
-}
-
-/*
-==============
 QL_CG_CombineIdentityWords
 ==============
 */
@@ -5676,9 +6406,7 @@ QL_CG_trap_SetupAdvertCellShader
 ==============
 */
 static qhandle_t QDECL QL_CG_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
-	(void)rect;
-	(void)cellId;
-	return QL_CG_RegisterDefaultAdvertCellShader( defaultContent );
+	return CL_AdvertisementBridge_SetupAdvertCellShader( defaultContent, rect, cellId );
 }
 
 /*
@@ -5687,9 +6415,7 @@ QL_CG_trap_RefreshAdvertCellShader
 ==============
 */
 static qhandle_t QDECL QL_CG_trap_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
-	(void)rect;
-	(void)cellId;
-	return QL_CG_RegisterDefaultAdvertCellShader( defaultContent );
+	return CL_AdvertisementBridge_RefreshAdvertCellShader( defaultContent, rect, cellId );
 }
 
 /*
@@ -5719,8 +6445,7 @@ QL_CG_trap_AdvertisementBridge_SetMapPath
 ==============
 */
 static void QDECL QL_CG_trap_AdvertisementBridge_SetMapPath( const char *mapPath ) {
-	(void)mapPath;
-	CL_RefreshOnlineServicesBridgeState();
+	(void)cl_webBridge.vtbl->setMapPath( &cl_webBridge, mapPath );
 }
 
 /*
@@ -5729,7 +6454,17 @@ QL_CG_trap_AdvertisementBridge_UpdateViewParameters
 ==============
 */
 static void QDECL QL_CG_trap_AdvertisementBridge_UpdateViewParameters( void ) {
-	CL_RefreshOnlineServicesBridgeState();
+	(void)cl_webBridge.vtbl->updateViewParameters(
+		&cl_webBridge,
+		0,
+		0,
+		cls.glconfig.vidWidth,
+		cls.glconfig.vidHeight,
+		0.0f,
+		0.0f,
+		0.0f,
+		cl_advertisementBridge.frameTime,
+		cl_webBridge.clientStateFlags );
 }
 
 /*
@@ -5738,6 +6473,7 @@ QL_CG_trap_AdvertisementBridge_ClearDelay
 ==============
 */
 static void QDECL QL_CG_trap_AdvertisementBridge_ClearDelay( void ) {
+	CL_AdvertisementBridge_ClearDelay();
 }
 
 /*
@@ -5763,15 +6499,11 @@ static void QDECL QL_CG_trap_R_SetColor_QL( const float *rgba ) {
 
 /*
 ==============
-QL_CG_trap_TaggedCvarStringBuffer
+QL_CG_trap_PublishTaggedInfoString
 ==============
 */
-static void QDECL QL_CG_trap_TaggedCvarStringBuffer( const char *varName, char *buffer ) {
-	if ( !buffer ) {
-		return;
-	}
-
-	Cvar_VariableStringBuffer( varName, buffer, BIG_INFO_STRING );
+static void QDECL QL_CG_trap_PublishTaggedInfoString( const char *messageType, const char *infoString ) {
+	CL_WebView_PublishTaggedInfoString( messageType, infoString );
 }
 
 /*
@@ -5993,7 +6725,7 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_PC_FREE_SOURCE] = (ql_import_f)QL_CG_trap_PC_FreeSource;
 	ql_cgame_imports[CG_QL_IMPORT_PC_READ_TOKEN] = (ql_import_f)QL_CG_trap_PC_ReadToken;
 	ql_cgame_imports[CG_QL_IMPORT_PC_SOURCE_FILE_AND_LINE] = (ql_import_f)QL_CG_trap_PC_SourceFileAndLine;
-	ql_cgame_imports[CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER] = (ql_import_f)QL_CG_trap_TaggedCvarStringBuffer;
+	ql_cgame_imports[CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING] = (ql_import_f)QL_CG_trap_PublishTaggedInfoString;
 	ql_cgame_imports[CG_QL_IMPORT_R_MIRROR_POINT] = (ql_import_f)QL_CG_trap_R_MirrorPoint;
 	ql_cgame_imports[CG_QL_IMPORT_R_MIRROR_VECTOR] = (ql_import_f)QL_CG_trap_R_MirrorVector;
 	ql_cgame_imports[CG_QL_IMPORT_DRAW_SCALED_TEXT] = (ql_import_f)QL_CG_trap_DrawScaledText;

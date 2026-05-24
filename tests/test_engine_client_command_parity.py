@@ -192,7 +192,9 @@ def test_client_command_handlers_match_retail_forward_restart_and_info_contracts
 	showip_block = _extract_function_block(cl_main, "void CL_ShowIP_f(void) {")
 	userinfo_block = _extract_function_block(cl_main, "static void CL_Userinfo_f( void ) {")
 
-	assert 'if ( !Q_stricmpn( cursor, "userinfo", 8 ) ) {' in userinfo_guard_block
+	assert "userinfoCommand = NET_GetUserinfoCommand();" in userinfo_guard_block
+	assert "userinfoCommandLength = strlen( userinfoCommand );" in userinfo_guard_block
+	assert "Q_stricmpn( cursor, userinfoCommand, userinfoCommandLength )" in userinfo_guard_block
 	assert 'Com_Printf ("Not connected to a server.\\n");' in forward_block
 	assert 'if ( Cmd_Argc() > 1 && !CL_CommandContainsUserinfoToken( Cmd_Argv( 1 ) ) ) {' in forward_block
 	assert "CL_AddReliableCommand( Cmd_Args() );" in forward_block
@@ -795,12 +797,12 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	assert "CL_handle = CIN_PlayCinematic( arg, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, bits );" in play_cinematic_block
 
 	assert 'Com_Printf( "Scanning for servers on the local network...\\n");' in request_local_block
-	assert 'message = "\\377\\377\\377\\377getinfo xxx";' in request_local_block
+	assert 'Com_sprintf( message, sizeof( message ), "\\377\\377\\377\\377%s xxx", NET_GetInfoRequestCommand() );' in request_local_block
 	assert "to.type = NA_BROADCAST;" in request_local_block
 	assert "to.type = NA_BROADCAST_IPX;" not in request_local_block
 
 	assert "cls.masterNum = masterNum;" in request_global_block
-	assert 'Com_sprintf( command, sizeof( command ), "getservers %s", protocol );' in request_global_block
+	assert 'Com_sprintf( command, sizeof( command ), "%s %s", NET_GetServersRequestCommand(), protocol );' in request_global_block
 	assert 'Q_strcat( command, sizeof( command ), " " );' in request_global_block
 	assert 'Q_strcat( command, sizeof( command ), keywords );' in request_global_block
 	assert 'Q_strcat( command, sizeof( command ), " demo" );' in request_global_block
@@ -880,7 +882,11 @@ def test_client_cgame_native_bridge_mapping_round_275_promotes_hlil_backed_symbo
 		REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
 	).read_text(encoding="utf-8")
 	cg_public = (REPO_ROOT / "src/code/cgame/cg_public.h").read_text(encoding="utf-8")
+	cg_local = (REPO_ROOT / "src/code/cgame/cg_local.h").read_text(encoding="utf-8")
+	cg_syscalls = (REPO_ROOT / "src/code/cgame/cg_syscalls.c").read_text(encoding="utf-8")
 	cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+	client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
 	mapping_round = (
 		REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_275.md"
 	).read_text(encoding="utf-8")
@@ -945,14 +951,44 @@ def test_client_cgame_native_bridge_mapping_round_275_promotes_hlil_backed_symbo
 		assert expected in cgame_hlil
 
 	for expected in (
-		"CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER = 116,",
+		"CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING = 116,",
 		"CG_QL_IMPORT_R_MIRROR_POINT = 120,",
 		"CG_QL_IMPORT_R_MIRROR_VECTOR = 121,",
-		"ql_cgame_imports[CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER] = (ql_import_f)QL_CG_trap_TaggedCvarStringBuffer;",
+		"ql_cgame_imports[CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING] = (ql_import_f)QL_CG_trap_PublishTaggedInfoString;",
 		"ql_cgame_imports[CG_QL_IMPORT_R_MIRROR_POINT] = (ql_import_f)QL_CG_trap_R_MirrorPoint;",
 		"ql_cgame_imports[CG_QL_IMPORT_R_MIRROR_VECTOR] = (ql_import_f)QL_CG_trap_R_MirrorVector;",
 	):
 		assert expected in cg_public or expected in cl_cgame
+
+	for expected in (
+		"void CL_WebView_InvokeCommNotice( const char *message );",
+		"void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString );",
+	):
+		assert expected in client_h
+
+	for expected in (
+		"void trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString )",
+		"CG_GetNativeImportFunction( CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING )",
+		'((void (QDECL *)( const char *, const char * ))import)( messageType, infoString );',
+	):
+		assert expected in cg_syscalls
+
+	for expected in (
+		"static ID_INLINE void trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString )",
+		"(void)messageType;",
+		"(void)infoString;",
+	):
+		assert expected in cg_local
+
+	for expected in (
+		"void CL_WebView_InvokeCommNotice( const char *message )",
+		'CL_WebView_PublishEvent( "web.commNotice", message ? message : "" );',
+		"void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString )",
+		'CL_WebView_AppendTaggedInfoPair( payload, sizeof( payload ), "MSG_TYPE", messageType ? messageType : "", &first );',
+		"Info_NextPair( &cursor, key, value );",
+		"CL_WebView_InvokeCommNotice( payload );",
+	):
+		assert expected in cl_main
 
 	for expected in (
 		"# Quake Live Steam Host Mapping Round 275",
@@ -1580,6 +1616,9 @@ def test_client_cinematic_and_browser_mapping_round_285_promotes_hlil_backed_sym
 	activation_block = _extract_function_block(
 		cl_cgame, "static void QLWebView_InjectActivationKeyboardEvent( void ) {"
 	)
+	activation_fields_block = _extract_function_block(
+		cl_cgame, "static void QLWebView_InjectKeyboardEventFields( const qlWebKeyboardEventFields_t *event, qboolean down ) {"
+	)
 	notify_activation_block = _extract_function_block(
 		cl_cgame, "void CL_WebHost_NotifyAppActivation( qboolean active ) {"
 	)
@@ -1587,7 +1626,11 @@ def test_client_cinematic_and_browser_mapping_round_285_promotes_hlil_backed_sym
 	assert "ri.CIN_UploadCinematic = CIN_UploadCinematic;" in init_ref_block
 	assert "ri.CIN_PlayCinematic = CIN_PlayCinematic;" in init_ref_block
 	assert "ri.CIN_RunCinematic = CIN_RunCinematic;" in init_ref_block
-	assert "QLWebView_InjectKeyboardEvent( 0x11, qtrue );" in activation_block
+	assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE 0u" in cl_cgame
+	assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY 0x11u" in cl_cgame
+	assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY 0x1d0001L" in cl_cgame
+	assert "QLWebView_InjectKeyboardEvent( (int)event->virtualKeyCode, down );" in activation_fields_block
+	assert "QLWebView_InjectKeyboardEventFields( &activationEvent, qtrue );" in activation_block
 	assert "QLWebView_InjectActivationKeyboardEvent();" in notify_activation_block
 	assert "Added retained `QLWebView_InjectActivationKeyboardEvent()`" in browser_note
 

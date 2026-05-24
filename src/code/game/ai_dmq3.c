@@ -32,6 +32,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
 #include "g_local.h"
+#include "../game/match_state_keys.h"
 #include "botlib.h"
 #include "be_aas.h"
 #include "be_ea.h"
@@ -147,8 +148,8 @@ int BotTeam(bot_state_t *bs) {
 	}
 	trap_GetConfigstring(CS_PLAYERS+bs->client, info, sizeof(info));
 	//
-	if (atoi(Info_ValueForKey(info, "t")) == TEAM_RED) return TEAM_RED;
-	else if (atoi(Info_ValueForKey(info, "t")) == TEAM_BLUE) return TEAM_BLUE;
+	if (atoi(Info_ValueForKey(info, PLAYER_INFO_KEY_TEAM)) == TEAM_RED) return TEAM_RED;
+	else if (atoi(Info_ValueForKey(info, PLAYER_INFO_KEY_TEAM)) == TEAM_BLUE) return TEAM_BLUE;
 	return TEAM_FREE;
 }
 
@@ -1400,7 +1401,7 @@ char *ClientName(int client, char *name, int size) {
 		return "[client out of range]";
 	}
 	trap_GetConfigstring(CS_PLAYERS+client, buf, sizeof(buf));
-	strncpy(name, Info_ValueForKey(buf, "n"), size-1);
+	strncpy(name, Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME), size-1);
 	name[size-1] = '\0';
 	Q_CleanStr( name );
 	return name;
@@ -1419,7 +1420,7 @@ char *ClientSkin(int client, char *skin, int size) {
 		return "[client out of range]";
 	}
 	trap_GetConfigstring(CS_PLAYERS+client, buf, sizeof(buf));
-	strncpy(skin, Info_ValueForKey(buf, "model"), size-1);
+	strncpy(skin, Info_ValueForKey(buf, PLAYER_INFO_KEY_MODEL), size-1);
 	skin[size-1] = '\0';
 	return skin;
 }
@@ -1439,7 +1440,7 @@ int ClientFromName(char *name) {
 	for (i = 0; i < cachedMaxClients && i < MAX_CLIENTS; i++) {
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		Q_CleanStr( buf );
-		if (!Q_stricmp(Info_ValueForKey(buf, "n"), name)) return i;
+		if (!Q_stricmp(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME), name)) return i;
 	}
 	return -1;
 }
@@ -1461,7 +1462,7 @@ int ClientOnSameTeamFromName(bot_state_t *bs, char *name) {
 			continue;
 		trap_GetConfigstring(CS_PLAYERS+i, buf, sizeof(buf));
 		Q_CleanStr( buf );
-		if (!Q_stricmp(Info_ValueForKey(buf, "n"), name)) return i;
+		if (!Q_stricmp(Info_ValueForKey(buf, PLAYER_INFO_KEY_NAME), name)) return i;
 	}
 	return -1;
 }
@@ -2097,7 +2098,7 @@ qboolean BotIsObserver(bot_state_t *bs) {
 	char buf[MAX_INFO_STRING];
 	if (bs->cur_ps.pm_type == PM_SPECTATOR) return qtrue;
 	trap_GetConfigstring(CS_PLAYERS+bs->client, buf, sizeof(buf));
-	if (atoi(Info_ValueForKey(buf, "t")) == TEAM_SPECTATOR) return qtrue;
+	if (atoi(Info_ValueForKey(buf, PLAYER_INFO_KEY_TEAM)) == TEAM_SPECTATOR) return qtrue;
 	return qfalse;
 }
 
@@ -2787,7 +2788,7 @@ int BotSameTeam(bot_state_t *bs, int entnum) {
 		trap_GetConfigstring(CS_PLAYERS+bs->client, info1, sizeof(info1));
 		trap_GetConfigstring(CS_PLAYERS+entnum, info2, sizeof(info2));
 		//
-		if (atoi(Info_ValueForKey(info1, "t")) == atoi(Info_ValueForKey(info2, "t"))) return qtrue;
+		if (atoi(Info_ValueForKey(info1, PLAYER_INFO_KEY_TEAM)) == atoi(Info_ValueForKey(info2, PLAYER_INFO_KEY_TEAM))) return qtrue;
 	}
 	return qfalse;
 }
@@ -3682,7 +3683,7 @@ void BotMapScripts(bot_state_t *bs) {
 
 	trap_GetServerinfo(info, sizeof(info));
 
-	strncpy(mapname, Info_ValueForKey( info, "mapname" ), sizeof(mapname)-1);
+	strncpy(mapname, Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ), sizeof(mapname)-1);
 	mapname[sizeof(mapname)-1] = '\0';
 
 	if (!Q_stricmp(mapname, "q3tourney6")) {

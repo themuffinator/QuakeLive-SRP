@@ -395,6 +395,9 @@ static int G_ClampModDamage( int damage, int mod, gentity_t *attacker ) {
 	case MOD_HMG:
 		configuredDamage = g_weaponConfig.heavyMachinegunDamage;
 		break;
+	case MOD_CHAINGUN:
+		configuredDamage = g_weaponConfig.chaingunDamage;
+		break;
 	case MOD_SHOTGUN:
 		configuredDamage = g_weaponConfig.shotgunDamage;
 		break;
@@ -433,8 +436,12 @@ static int G_ClampModDamage( int damage, int mod, gentity_t *attacker ) {
 	case MOD_GRAPPLE:
 		configuredDamage = g_weaponConfig.grappleDamage;
 		break;
+	case MOD_NAIL:
+		configuredDamage = g_weaponConfig.nailgunDamage;
+		break;
 	case MOD_PROXIMITY_MINE:
-		configuredDamage = g_weaponConfig.proximityLauncherDamage;
+		configuredDamage = ( g_weaponConfig.proximityLauncherDamage > g_weaponConfig.proximityLauncherSplashDamage ) ?
+			g_weaponConfig.proximityLauncherDamage : g_weaponConfig.proximityLauncherSplashDamage;
 		break;
 	default:
 		break;

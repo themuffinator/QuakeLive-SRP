@@ -35,7 +35,7 @@ Per tracked file, the campaign should eventually produce:
 - [x] Keep `AUDIT.md` and `IMPLEMENTATION_PLAN.md` in place as gate-facing ledgers.
 - [x] Create `source-file-parity-ledger-2026-04-22.md` as the clean main file-by-file ledger.
 - [x] Create `historical-audit-index-2026-04-22.md` instead of renaming or moving older audit docs that workflows and tests already reference.
-- [x] Seed `16` concrete per-file notes for the currently evidenced `RW-G01` documented divergences and `RW-G02` gap owners.
+- [x] Seed `16` concrete per-file notes for the currently evidenced `RW-G01`/`RW-G02` documented divergences and open gap owners.
 
 ### Phase 1 - Strict-Retail Engine Core
 
@@ -109,8 +109,9 @@ Per tracked file, the campaign should eventually produce:
 - [x] Audit `src/code/null` and convert tree-level `RW-G02` status into file-specific notes where warranted (`7` tracked files).
   2026-04-22 result: the null compatibility walk isolated
   `null_glimp.c` as an additional `RW-G02` owner beside the existing
-  notes for `null_main.c`, `null_client.c`, `null_input.c`, and
-  `null_snddma.c`; the focused non-Windows portability lane
+  open notes for `null_main.c`, `null_input.c`, and `null_snddma.c`;
+  `null_client.c` was closed on 2026-05-24 as an explicit
+  compatibility-only browser/advert lane. The focused non-Windows portability lane
   (`8 passed`) and the current repo-wide audit still bound `null_net.c`
   and `mac_net.c` on current evidence.
 
@@ -147,6 +148,7 @@ Per tracked file, the campaign should eventually produce:
 - `RW-G01`: `src/code/client/ql_auth.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g01-client-auth.md`
 - `RW-G01`: `src/code/client/cl_steam_resources.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g01-client-steam-resources.md`
 - `RW-G01`: `src/code/server/sv_rankings.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g01-server-rankings.md`
+- `RW-G02`: `src/code/null/null_client.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-client.md`
 
 ## Current seeded active file-level gap set
 
@@ -156,7 +158,6 @@ Per tracked file, the campaign should eventually produce:
 - `RW-G02`: `src/code/unix/linux_joystick.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-linux-joystick.md`
 - `RW-G02`: `src/code/null/null_main.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-main.md`
 - `RW-G02`: `src/code/null/null_glimp.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-glimp.md`
-- `RW-G02`: `src/code/null/null_client.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-client.md`
 - `RW-G02`: `src/code/null/null_input.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-input.md`
 - `RW-G02`: `src/code/null/null_snddma.c` -> `docs/reverse-engineering/source-file-gap-notes/rw-g02-null-snddma.md`
 

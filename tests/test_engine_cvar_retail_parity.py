@@ -107,7 +107,7 @@ def test_engine_cvar_registrations_match_targeted_retail_contracts() -> None:
 
 	assert 'sv_serverType = Cvar_Get ("sv_serverType", "0", CVAR_ARCHIVE );' in sv_init
 	assert 'serverType = sv_serverType ? sv_serverType->integer : 0;' in sv_main
-	assert 'Info_SetValueForKey( infostring, "serverType", va("%i", sv_serverType->integer) );' in sv_main
+	assert 'Info_SetValueForKey( infostring, NET_GetServerTypeInfoKey(), va("%i", sv_serverType->integer) );' in sv_main
 	assert 'serverType = sv_serverType ? sv_serverType->integer : 0;' in sv_client
 
 
@@ -171,14 +171,14 @@ def test_engine_cvar_third_server_tranche_matches_retail_contracts() -> None:
 	sv_ccmds = _read_text(SV_CCMDS)
 	cl_parse = _read_text(CL_PARSE)
 
-	assert 'Cvar_Get ("protocol", va("%i", PROTOCOL_VERSION), CVAR_SERVERINFO | CVAR_ROM);' in sv_init
-	assert 'version = atoi( Info_ValueForKey( userinfo, "protocol" ) );' in sv_client
-	assert 'NET_OutOfBandPrint( NS_SERVER, from, "print\\nServer uses protocol version %i.\\n", PROTOCOL_VERSION );' in sv_client
-	assert 'Info_SetValueForKey( infostring, "protocol", va("%i", PROTOCOL_VERSION) );' in sv_main
+	assert 'Cvar_Get ("protocol", va("%i", NET_ProtocolVersion()), CVAR_SERVERINFO | CVAR_ROM);' in sv_init
+	assert 'version = atoi( Info_ValueForKey( userinfo, NET_GetProtocolInfoKey() ) );' in sv_client
+	assert 'NET_OutOfBandPrint( NS_SERVER, from, "%s\\nServer uses protocol version %i.\\n", NET_GetPrintCommand(), NET_ProtocolVersion() );' in sv_client
+	assert 'Info_SetValueForKey( infostring, NET_GetProtocolInfoKey(), va("%i", NET_ProtocolVersion()) );' in sv_main
 
 	assert 'sv_mapname = Cvar_Get ("mapname", "nomap", CVAR_SERVERINFO | CVAR_ROM);' in sv_init
 	assert 'Cvar_Set( "mapname", server );' in sv_init
-	assert 'Info_SetValueForKey( infostring, "mapname", sv_mapname->string );' in sv_main
+	assert 'Info_SetValueForKey( infostring, NET_GetMapnameInfoKey(), sv_mapname->string );' in sv_main
 
 	assert 'sv_privateClients = Cvar_Get ("sv_privateClients", "0", CVAR_SERVERINFO);' in sv_init
 	assert 'startIndex = sv_privateClients->integer;' in sv_client
@@ -195,15 +195,15 @@ def test_engine_cvar_third_server_tranche_matches_retail_contracts() -> None:
 	assert 'sv_serverid = Cvar_Get ("sv_serverid", "0", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_serverid", va("%i", sv.serverId ) );' in sv_init
 	assert 'Cvar_Set( "sv_serverid", va("%i", sv.serverId ) );' in sv_ccmds
-	assert 'cl.serverId = atoi( Info_ValueForKey( systemInfo, "sv_serverid" ) );' in cl_parse
+	assert 'cl.serverId = atoi( Info_ValueForKey( systemInfo, NET_GetServerIdInfoKey() ) );' in cl_parse
 
 	assert 'sv_pure = Cvar_Get ("sv_pure", "1", CVAR_SYSTEMINFO | CVAR_INIT );' in sv_init
 	assert 'if ( sv_pure->integer ) {' in sv_init
 	assert 'if ( sv_pure->integer != 0 ) {' in sv_client
-	assert 'cl_connectedToPureServer = Cvar_VariableValue( "sv_pure" );' in cl_parse
+	assert 'cl_connectedToPureServer = Cvar_VariableValue( NET_GetSystemPureInfoKey() );' in cl_parse
 
 	assert 'sv_privatePassword = Cvar_Get ("sv_privatePassword", "", CVAR_TEMP );' in sv_init
-	assert 'password = Info_ValueForKey( userinfo, "password" );' in sv_client
+	assert 'password = Info_ValueForKey( userinfo, NET_GetPasswordInfoKey() );' in sv_client
 	assert 'if ( !strcmp( password, sv_privatePassword->string ) ) {' in sv_client
 
 	assert 'sv_fps = Cvar_Get ("sv_fps", "40", CVAR_ROM );' in sv_init
@@ -283,23 +283,23 @@ def test_engine_cvar_fifth_server_tranche_matches_retail_contracts() -> None:
 	assert 'Cvar_Get ("sv_paks", "", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_paks", p );' in sv_init
 	assert 'Cvar_Set( "sv_paks", "" );' in sv_init
-	assert 's = Info_ValueForKey( systemInfo, "sv_paks" );' in cl_parse
+	assert 's = Info_ValueForKey( systemInfo, NET_GetPaksInfoKey() );' in cl_parse
 	assert 'FS_PureServerSetLoadedPaks( s, t );' in cl_parse
 
 	assert 'Cvar_Get ("sv_pakNames", "", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_pakNames", p );' in sv_init
 	assert 'Cvar_Set( "sv_pakNames", "" );' in sv_init
-	assert 't = Info_ValueForKey( systemInfo, "sv_pakNames" );' in cl_parse
+	assert 't = Info_ValueForKey( systemInfo, NET_GetPakNamesInfoKey() );' in cl_parse
 	assert 'void FS_PureServerSetLoadedPaks( const char *pakSums, const char *pakNames ) {' in files
 
 	assert 'Cvar_Get ("sv_referencedPaks", "", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_referencedPaks", p );' in sv_init
-	assert 's = Info_ValueForKey( systemInfo, "sv_referencedPaks" );' in cl_parse
+	assert 's = Info_ValueForKey( systemInfo, NET_GetReferencedPaksInfoKey() );' in cl_parse
 	assert 'FS_PureServerSetReferencedPaks( s, t );' in cl_parse
 
 	assert 'Cvar_Get ("sv_referencedPakNames", "", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_referencedPakNames", p );' in sv_init
-	assert 't = Info_ValueForKey( systemInfo, "sv_referencedPakNames" );' in cl_parse
+	assert 't = Info_ValueForKey( systemInfo, NET_GetReferencedPakNamesInfoKey() );' in cl_parse
 	assert 'void FS_PureServerSetReferencedPaks( const char *pakSums, const char *pakNames ) {' in files
 
 	assert 'Cvar_Get ("sv_referencedSteamworks", "", CVAR_ROM );' in sv_init
@@ -560,8 +560,8 @@ def test_engine_cvar_tenth_client_userinfo_tranche_matches_retail_contracts() ->
 
 	assert 'Cvar_Get ("handicap", "100", CVAR_USERINFO | CVAR_TEMP );' in cl_main
 	assert 'health = atoi( Info_ValueForKey( userinfo, "handicap" ) );' in g_client
-	assert 'val = Info_ValueForKey (cl->userinfo, "handicap");' in sv_client
-	assert 'Info_SetValueForKey( cl->userinfo, "handicap", "100" );' in sv_client
+	assert 'val = Info_ValueForKey (cl->userinfo, NET_GetHandicapInfoKey());' in sv_client
+	assert 'Info_SetValueForKey( cl->userinfo, NET_GetHandicapInfoKey(), "100" );' in sv_client
 
 	assert 'Cvar_Get ("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );' in cl_main
 	assert 'Cvar_Set( "headmodel", arg );' in cl_main
@@ -571,7 +571,7 @@ def test_engine_cvar_tenth_client_userinfo_tranche_matches_retail_contracts() ->
 	assert 'Cvar_Get ("password", "", CVAR_USERINFO | CVAR_TEMP);' in cl_main
 	assert 'Cvar_Set( "password", password );' in cl_main
 	assert 'value = Info_ValueForKey (userinfo, "password");' in g_client
-	assert 'password = Info_ValueForKey( userinfo, "password" );' in sv_client
+	assert 'password = Info_ValueForKey( userinfo, NET_GetPasswordInfoKey() );' in sv_client
 	assert 'if ( !Q_stricmp( var->name, "cl_cdkey" ) || !Q_stricmp( var->name, "password" ) ) {' in cvar
 
 	assert 'Cvar_Get ("sex", "male", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );' in cl_main
@@ -704,7 +704,7 @@ def test_engine_cvar_twelfth_common_misc_tranche_matches_retail_contracts() -> N
 	assert 'if( g_gametype.integer == GT_SINGLE_PLAYER || trap_Cvar_VariableIntegerValue( "com_build" ) ) {' in g_main
 
 	assert 'com_version = Cvar_Get ("version", s, CVAR_ROM | CVAR_SERVERINFO );' in common
-	assert 'Info_SetValueForKey( info, "version", com_version->string );' in cl_main
+	assert 'Info_SetValueForKey( info, NET_GetMotdVersionInfoKey(), com_version->string );' in cl_main
 	assert 'trap_Cvar_VariableStringBuffer( "version", str, sizeof(str) );' in g_rankings
 
 
@@ -805,16 +805,16 @@ def test_engine_cvar_fourteenth_core_timing_tranche_matches_retail_contracts() -
 
 	assert 'Cvar_Get ("dmflags", "0", CVAR_SERVERINFO);' in sv_init
 	assert '{ &g_dmflags, "dmflags", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue  },' in g_main
-	assert 'cgs.dmflags = atoi( Info_ValueForKey( info, "dmflags" ) );' in cg_servercmds
+	assert "cgs.dmflags = atoi( Info_ValueForKey( info, SERVERINFO_KEY_DMFLAGS ) );" in cg_servercmds
 
 	assert 'Cvar_Get ("fraglimit", "20", CVAR_SERVERINFO);' in sv_init
 	assert '{ &g_fraglimit, "fraglimit", "20", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },' in g_main
-	assert 'cgs.fraglimit = atoi( Info_ValueForKey( info, "fraglimit" ) );' in cg_servercmds
+	assert "cgs.fraglimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_FRAGLIMIT ) );" in cg_servercmds
 	assert 'if ( level.teamScores[TEAM_RED] >= g_fraglimit.integer ) {' in g_main
 
 	assert 'Cvar_Get ("timelimit", "0", CVAR_SERVERINFO);' in sv_init
 	assert '{ &g_timelimit, "timelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },' in g_main
-	assert 'cgs.timelimit = atoi( Info_ValueForKey( info, "timelimit" ) );' in cg_servercmds
+	assert "cgs.timelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_TIMELIMIT ) );" in cg_servercmds
 	assert 'if ( g_timelimit.integer && !level.warmupTime ) {' in g_main
 
 	assert 'sv_gametype = Cvar_Get ("g_gametype", "0", CVAR_SERVERINFO | CVAR_LATCH );' in sv_init
@@ -849,7 +849,7 @@ def test_engine_cvar_fifteenth_server_state_tranche_matches_retail_contracts() -
 	assert 'sv_hostname = Cvar_Get ("sv_hostname", "noname", CVAR_SERVERINFO | CVAR_ARCHIVE );' in sv_init
 	assert 'sv_hostname = Cvar_Get ("sv_hostname", defaultHostname, CVAR_SERVERINFO | CVAR_ARCHIVE );' in sv_init
 	assert 'if ( !QL_Steamworks_ServerSetServerName( sv_hostname->string ) ) {' in sv_main
-	assert 'Info_SetValueForKey( infostring, "hostname", sv_hostname->string );' in sv_main
+	assert 'Info_SetValueForKey( infostring, NET_GetHostnameInfoKey(), sv_hostname->string );' in sv_main
 	assert 'trap_Cvar_VariableStringBuffer( "sv_hostname", hostname, sizeof( hostname ) );' in g_main
 
 	assert 'extern\tcvar_t\t*sv_masterAdvertise;' in server_h
@@ -934,9 +934,12 @@ def test_engine_cvar_seventeenth_network_bootstrap_tranche_matches_retail_contra
 	sv_zmq = _read_text(REPO_ROOT / "src" / "code" / "server" / "sv_zmq.c")
 
 	assert 'qport = Cvar_Get ("net_qport", va("%i", port), CVAR_INIT );' in net_chan
+	assert 'if ( chan->sock == NS_CLIENT && NET_ProtocolUsesNetchanClientQport() ) {' in net_chan
+	assert 'if ( chan->sock == NS_SERVER && NET_ProtocolUsesNetchanClientQport() ) {' in net_chan
 	assert 'MSG_WriteShort( &send, qport->integer );' in net_chan
 	assert 'port = Cvar_VariableValue ("net_qport");' in cl_main
-	assert 'Info_SetValueForKey( info, "qport", va("%i", port ) );' in cl_main
+	assert 'if ( NET_ProtocolUsesClientQport() ) {' in cl_main
+	assert 'Info_SetValueForKey( info, NET_GetQportInfoKey(), va("%i", port ) );' in cl_main
 	assert 'Netchan_Setup (NS_CLIENT, &clc.netchan, from, Cvar_VariableValue( "net_qport" ) );' in cl_main
 
 	assert 'ip = Cvar_Get( "net_ip", "localhost", CVAR_LATCH );' in win_net
@@ -1779,7 +1782,7 @@ def test_engine_cvar_thirtyfirst_platform_vm_steam_tranche_matches_retail_contra
 	assert 'sv_vac = Cvar_Get ("sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );' in sv_init
 	assert 'if ( !QL_Steamworks_ServerInit( steamIp, (uint16_t)netPort->integer, steamVac && steamVac->integer ? qtrue : qfalse, dedicated ) ) {' in common
 	assert 'if ( !sv_vac || !sv_vac->integer ) {' in sv_client
-	assert 'Info_SetValueForKey( infostring, "vac", va("%i", sv_vac->integer) );' in sv_main
+	assert 'Info_SetValueForKey( infostring, NET_GetVACInfoKey(), va("%i", sv_vac->integer) );' in sv_main
 
 	assert 'Cvar_Set( "arch", "winnt" );' in win_main
 	assert 'Cvar_Set( "arch", "win98" );' in win_main

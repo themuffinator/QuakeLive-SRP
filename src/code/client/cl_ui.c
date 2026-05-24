@@ -317,18 +317,18 @@ static void LAN_GetServerInfo( int source, int n, char *buf, int buflen ) {
 	}
 	if (server && buf) {
 		buf[0] = '\0';
-		Info_SetValueForKey( info, "hostname", server->hostName);
-		Info_SetValueForKey( info, "mapname", server->mapName);
-		Info_SetValueForKey( info, "clients", va("%i",server->clients));
-		Info_SetValueForKey( info, "sv_maxclients", va("%i",server->maxClients));
-		Info_SetValueForKey( info, "ping", va("%i",server->ping));
-		Info_SetValueForKey( info, "minping", va("%i",server->minPing));
-		Info_SetValueForKey( info, "maxping", va("%i",server->maxPing));
-		Info_SetValueForKey( info, "game", server->game);
-		Info_SetValueForKey( info, "gametype", va("%i",server->gameType));
-		Info_SetValueForKey( info, "nettype", va("%i",server->netType));
-		Info_SetValueForKey( info, "addr", NET_AdrToString(server->adr));
-		Info_SetValueForKey( info, "punkbuster", va("%i", server->punkbuster));
+		Info_SetValueForKey( info, NET_GetHostnameInfoKey(), server->hostName);
+		Info_SetValueForKey( info, NET_GetMapnameInfoKey(), server->mapName);
+		Info_SetValueForKey( info, NET_GetClientsInfoKey(), va("%i",server->clients));
+		Info_SetValueForKey( info, NET_GetMaxClientsInfoKey(), va("%i",server->maxClients));
+		Info_SetValueForKey( info, NET_GetPingInfoKey(), va("%i",server->ping));
+		Info_SetValueForKey( info, NET_GetLegacyMinPingInfoKey(), va("%i",server->minPing));
+		Info_SetValueForKey( info, NET_GetLegacyMaxPingInfoKey(), va("%i",server->maxPing));
+		Info_SetValueForKey( info, NET_GetGameInfoKey(), server->game);
+		Info_SetValueForKey( info, NET_GetGametypeInfoKey(), va("%i",server->gameType));
+		Info_SetValueForKey( info, NET_GetNetTypeInfoKey(), va("%i",server->netType));
+		Info_SetValueForKey( info, NET_GetAddressInfoKey(), NET_AdrToString(server->adr));
+		Info_SetValueForKey( info, NET_GetPunkbusterInfoKey(), va("%i", server->punkbuster));
 		Q_strncpyz(buf, info, buflen);
 	} else {
 		if (buf) {
@@ -1420,28 +1420,12 @@ static void QDECL QL_UI_trap_R_SetColor_QL( const float *rgba ) {
 }
 /*
 ==============
-QL_UI_RegisterDefaultAdvertCellShader
-==============
-*/
-static qhandle_t QL_UI_RegisterDefaultAdvertCellShader( const char *defaultContent ) {
-	if ( !defaultContent || !defaultContent[0] ) {
-		return 0;
-	}
-
-	return CL_Steam_RegisterShader( defaultContent );
-}
-
-/*
-==============
 QL_UI_trap_SetupAdvertCellShader
 ==============
 */
 static qhandle_t QDECL QL_UI_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
 	// uix86.dll HLIL: import[80] (offset 0x140) prepares an advert cell shader and falls back to default content.
-	(void)rect;
-	(void)cellId;
-
-	return QL_UI_RegisterDefaultAdvertCellShader( defaultContent );
+	return CL_AdvertisementBridge_SetupUIAdvertCellShader( defaultContent, rect, cellId );
 }
 
 /*
@@ -1451,10 +1435,7 @@ QL_UI_trap_RefreshAdvertCellShader
 */
 static qhandle_t QDECL QL_UI_trap_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {
 	// uix86.dll HLIL: import[81] (offset 0x144) refreshes an advert cell shader and falls back to default content.
-	(void)rect;
-	(void)cellId;
-
-	return QL_UI_RegisterDefaultAdvertCellShader( defaultContent );
+	return CL_AdvertisementBridge_RefreshUIAdvertCellShader( defaultContent, rect, cellId );
 }
 
 /*

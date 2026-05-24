@@ -139,10 +139,10 @@ def test_game_limit_uses_retail_limit_strings() -> None:
     assert "FUN_10033800(&local_18,param_13,param_14,param_16,param_10);" in retail_ownerdraw_block
 
     for expected in (
-        'cgs.fraglimit = atoi( Info_ValueForKey( info, "fraglimit" ) );',
-        'cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );',
-        'cgs.scorelimit = atoi( Info_ValueForKey( info, "g_scorelimit" ) );',
-        'cgs.roundlimit = atoi( Info_ValueForKey( info, "roundlimit" ) );',
+		"cgs.fraglimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_FRAGLIMIT ) );",
+		"cgs.capturelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_CAPTURELIMIT ) );",
+		"cgs.scorelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT ) );",
+		"cgs.roundlimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT ) );",
     ):
         assert expected in parse_serverinfo_block
 

@@ -181,6 +181,58 @@ const char *QL_GetOnlineServicesPolicyLabel( void ) {
 #endif
 }
 
+/*
+=============
+QL_GetOnlineServicesParityScopeLabel
+
+Returns the explicit source-parity classification for the current online
+service lane.
+=============
+*/
+const char *QL_GetOnlineServicesParityScopeLabel( void ) {
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	return "permanent-bounded-divergence";
+#else
+	const char *policyLabel = QL_GetOnlineServicesPolicyLabel();
+
+	if ( strstr( policyLabel ? policyLabel : "", "compatibility-disabled" ) != NULL ) {
+		return "runtime-disabled-bounded-divergence";
+	}
+
+#if QL_PLATFORM_BUILD_HYBRID
+	return "opt-in-hybrid-compatibility";
+#elif QL_PLATFORM_HAS_STEAMWORKS
+	return "opt-in-steamworks-compatibility";
+#elif QL_PLATFORM_HAS_OPEN_STEAM
+	return "opt-in-open-adapter-compatibility";
+#else
+	return "compatibility-unavailable";
+#endif
+#endif
+}
+
+/*
+=============
+QL_GetOnlineServicesParityReasonLabel
+
+Returns a stable human-readable reason explaining why the current online
+service lane is or is not a default retail-equivalent source-parity target.
+=============
+*/
+const char *QL_GetOnlineServicesParityReasonLabel( void ) {
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	return "default builds keep Quake Live online services disabled until a documented open replacement exists";
+#else
+	const char *policyLabel = QL_GetOnlineServicesPolicyLabel();
+
+	if ( strstr( policyLabel ? policyLabel : "", "compatibility-disabled" ) != NULL ) {
+		return "runtime policy disables the opted-in online-service compatibility lane";
+	}
+
+	return "opt-in online-service providers remain bounded compatibility until validated against an open replacement";
+#endif
+}
+
 #if QL_PLATFORM_HAS_STEAMWORKS
 /*
 =============

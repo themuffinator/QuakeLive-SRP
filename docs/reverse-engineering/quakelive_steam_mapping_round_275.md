@@ -52,8 +52,9 @@
   - native cgame calls import offsets `0x1E0` and `0x1E4` for the mirror point
     and mirror vector helpers.
 - `src/code/cgame/cg_public.h` matches the relevant offset math:
-  - slot `116` is the tagged-info-string lane currently retained under the
-    compatibility name `CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER`.
+  - slot `116` is the tagged-info-string lane now named
+    `CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING` after the round 286 source
+    reconstruction pass.
   - slots `120` and `121` are `CG_QL_IMPORT_R_MIRROR_POINT` and
     `CG_QL_IMPORT_R_MIRROR_VECTOR`.
 
@@ -77,16 +78,14 @@ Updated `references/analysis/quakelive_symbol_aliases.json`:
 
 ## Source Notes
 
-- No runtime source behavior was changed in this round.
-- The source-side slot 116 naming still uses
-  `CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER` and
-  `QL_CG_trap_TaggedCvarStringBuffer` for compatibility. Retail HLIL shows
-  the host function publishes a tagged info string to the browser comm-notice
-  path rather than reading a cvar string into a caller buffer. Because current
-  source cgame does not call this helper, this pass records the corrected
-  symbol ownership without changing the fallback browser shim behavior.
+- This round originally promoted the slot 116 ownership without changing source
+  behavior. Round 286 completed the source reconstruction: slot `116` now uses
+  `CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING` and
+  `QL_CG_trap_PublishTaggedInfoString`, and the host publisher serializes
+  `MSG_TYPE` plus `Info_NextPair` key/value pairs before forwarding the payload
+  to the one-argument comm-notice lane.
 - The already-reconstructed mirror-point and mirror-vector source wiring in
-  `src/code/client/cl_cgame.c` is now backed by direct retail offset evidence.
+  `src/code/client/cl_cgame.c` is backed by direct retail offset evidence.
 
 ## Still Open
 

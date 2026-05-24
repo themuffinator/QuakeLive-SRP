@@ -658,7 +658,7 @@ def test_console_tail_and_training_bootstrap_helpers_match_recovered_boundaries(
 	assert addbot_block.index("if ( level.trainingMapActive )") < addbot_block.index("trap_Argv( 1, name, sizeof( name ) );")
 	assert 'if( Q_stricmp( strValue, "training" ) == 0 ) {' in init_bots
 	assert "G_AddTrainerBot();" in init_bots
-	assert 'G_SpawnBots( Info_ValueForKey( arenainfo, "bots" ), BOT_BEGIN_DELAY_BASE );' in init_bots
+	assert "G_SpawnBots( Info_ValueForKey( arenainfo, ARENA_INFO_KEY_BOTS ), BOT_BEGIN_DELAY_BASE );" in init_bots
 	assert "basedelay += 10000;" not in game_bot
 
 

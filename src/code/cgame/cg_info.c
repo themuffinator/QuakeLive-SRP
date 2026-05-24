@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_info.c -- display information while data is being loading
 
 #include "cg_local.h"
+#include "../../game/match_state_keys.h"
 
 #define MAX_LOADING_PLAYER_ICONS	16
 #define MAX_LOADING_ITEM_ICONS		26
@@ -271,7 +272,7 @@ void CG_LoadingClient( int clientNum ) {
 	info = CG_ConfigString( CS_PLAYERS + clientNum );
 
 	if ( loadingPlayerIconCount < MAX_LOADING_PLAYER_ICONS ) {
-		Q_strncpyz( model, Info_ValueForKey( info, "model" ), sizeof( model ) );
+		Q_strncpyz( model, Info_ValueForKey( info, PLAYER_INFO_KEY_MODEL ), sizeof( model ) );
 		slash = Q_strrchr( model, '/' );
 		if ( slash ) {
 			*slash++ = '\0';
@@ -296,7 +297,7 @@ void CG_LoadingClient( int clientNum ) {
 		}
 	}
 
-	Q_strncpyz( personality, Info_ValueForKey( info, "n" ), sizeof(personality) );
+	Q_strncpyz( personality, Info_ValueForKey( info, PLAYER_INFO_KEY_NAME ), sizeof(personality) );
 	Q_CleanStr( personality );
 
 	CG_SetLoadingScreenText( personality );
@@ -322,7 +323,7 @@ void CG_DrawInformation( void ) {
 	int			width;
 
 	info = CG_ConfigString( CS_SERVERINFO );
-	mapname = info ? Info_ValueForKey( info, "mapname" ) : "";
+	mapname = info ? Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) : "";
 	levelshot = 0;
 	if ( mapname && mapname[0] ) {
 		levelshot = trap_R_RegisterShaderNoMip( va( "levelshots/%s.tga", mapname ) );

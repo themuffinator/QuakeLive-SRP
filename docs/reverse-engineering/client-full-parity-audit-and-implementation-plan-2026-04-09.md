@@ -63,6 +63,15 @@ Current ledger note:
   `CL_AdjustServerTimeDelta`, `CL_FirstSnapshot`, the mirror import wrappers,
   and the tagged serverinfo-to-browser comm-notice lane are now address-backed
   in the alias ledger and guarded by a focused parity test.
+- A `2026-05-24` Awesomium follow-up source-reconstructed that tagged
+  comm-notice lane: native cgame slot `116` is now
+  `CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING`, forwarding `MSG_TYPE` plus
+  `Info_NextPair` data into the one-argument `OnCommNotice` payload path.
+- A later `2026-05-24` Awesomium follow-up made the listener/vtable install
+  seam source-visible: `cl_cgame.c` now records the retail
+  `QLDialogHandler`, `QLViewHandler`, `QLLoadHandler`, `QLJSHandler`, and
+  `QLResourceInterceptor` callback table instead of only carrying installed
+  booleans.
 - A second focused `2026-05-20` input/console mapping round promoted the retail
   `Con_Init`/`CL_InitInput` helper surface, `IN_KeyDown`/`IN_KeyUp`/
   `CL_KeyState`, movement thunks, joystick/mouse filter helpers,
@@ -232,7 +241,7 @@ Recent closure:
 2. `CL-P2` is now complete. `platform_steamworks.c` and `cl_main.c` now retain the retail-style client/lobby/micro Steam callback bundles, `CL_Frame` owns the normal client-side callback pump, and the callback payloads now flow through an explicit client/browser event owner instead of being limited to auth-time helper calls.
 3. `CL-P3` is now complete. `sv_init.c`, `files.c`, `platform_steamworks.c`, `cl_main.c`, and `cl_ui.c` now reconstruct the retail workshop-aware join/bootstrap lane: the server publishes the referenced workshop-item list instead of echoing the server SteamID, filesystem startup/restart remount subscribed workshop install roots with retained per-pack workshop item IDs, `CL_InitDownloads` stages required workshop items through retained client state, `CL_Frame` owns the workshop completion/restart helper, and the UI workshop progress import now consults retained client workshop state first before falling back to `QL_Steamworks_GetItemDownloadInfo`, the retained wrapper over the retail `SteamUGC_GetItemDownloadInfo` low/high-word slot keyed by the parsed `cl_downloadItem` words, instead of legacy byte counters.
 4. `CL-P4` is now complete. `cl_cgame.c` and `cl_main.c` now own a retained browser-host runtime behind the online-services policy gate, including deterministic init/frame/shutdown lifetime, retained session or view state, and command owners for `web_showBrowser`, `web_changeHash`, `web_hideBrowser`, `web_showError`, `web_clearCache`, `web_reload`, and `web_stopRefresh`.
-5. `CL-P5` is now complete. `cl_cgame.c`, `cl_main.c`, `cl_keys.c`, `cvar.c`, and `cl_steam_resources.c` now reconstruct the `qz_instance` binding surface, `EnginePublish` event-publication lane, `game.*` and config or bind publication seams, the retained `SteamDataSource` avatar/resource path, and the `QLResourceInterceptor` / `Sys_Steam_RequestURL` fallback owner.
+5. `CL-P5` is now complete. `cl_cgame.c`, `cl_main.c`, `cl_keys.c`, `cvar.c`, and `cl_steam_resources.c` now reconstruct the `qz_instance` binding surface, `EnginePublish` event-publication lane, `game.*` and config or bind publication seams, the retained `SteamDataSource` avatar/resource path, and the `QLResourceInterceptor` / `Sys_Steam_RequestURL` fallback owner, including the recovered `ql` host and `/screenshot` branch.
 
 ## Refreshed `client` Parity Estimate
 
@@ -250,7 +259,7 @@ This is a behavior-backed uplift driven by the `CL-G04`, `CL-G02`, `CL-G03`, and
 Rationale:
 
 1. The retained Quake III-era client runtime inside `cl_main.c`, `cl_parse.c`, `cl_keys.c`, `cl_ui.c`, `cl_cgame.c`, `snd_dma.c`, `snd_mem.c`, and `snd_mix.c` is now in strong shape. That keeps the client well above the broad launcher/platform baseline described in top-level audits.
-2. The retained browser-host core, `QLJSHandler` / `qz_instance` surface, `EnginePublish` publication path, `SteamDataSource`, and `QLResourceInterceptor` are now explicit in writable source behind the repo policy gate. That closes the largest Quake Live-only runtime hole in the client host.
+2. The retained browser-host core, `QLJSHandler` / `qz_instance` surface, `EnginePublish` publication path, `SteamDataSource`, and `QLResourceInterceptor` are now explicit in writable source behind the repo policy gate. The resource-interceptor branch now carries the retail false-returning filter, `ql` host, `/screenshot`, and normal web-root split before the generic fallback, and the listener/vtable callback table records the recovered dialog/view/load/JS wiring. That closes the largest Quake Live-only runtime hole in the client host.
 3. The final verification lane is now closed too: the client now has a dedicated parity gate, a tracked runtime-evidence bundle, and repo-level CI/docs wiring that keeps the recovered host behavior machine-visible.
 4. The classic timing/input lane has less residual source-only drift after the `CL_SetCGameTime` and `CL_MouseMove` rereads: both patches are tied directly to HLIL/Ghidra cvar tables and control-flow evidence rather than compatibility guesses.
 
@@ -310,7 +319,8 @@ Assessment: high parity
 - Strongest current lanes:
   - retained browser-host session or view lifetime behind policy gates
   - `web_*` command ownership, `qz_instance` method binding, and outbound `EnginePublish` publication
-  - `SteamDataSource` avatar/resource handling plus retained `QLResourceInterceptor` fallback ownership
+  - source-visible dialog/view/load/JS listener callback mapping with retail vtable addresses and slot offsets
+  - `SteamDataSource` avatar/resource handling plus retained `QLResourceInterceptor` host/filter ownership
   - `web.pak` mount/read path
   - mapped `fs_webpath` / screenshot fallback
   - renderer-owned in-memory URI-resource registration
@@ -351,8 +361,9 @@ Observed current-source facts after `CL-P4` and `CL-P5`:
 
 1. `cl_cgame.c` now owns retained browser-host runtime state plus `QLWebHost_EnsureRuntime`, `QLWebHost_OpenURL`, `QLWebHost_NavigateOrOpen`, `QLWebHost_HideBrowser`, `QLWebCore_Update`, and `CL_WebHost_Init` / `CL_WebHost_Frame` / `CL_WebHost_Shutdown` behind `QL_PLATFORM_HAS_ONLINE_SERVICES`.
 2. `web_showBrowser`, `web_changeHash`, `web_browserActive`, `web_hideBrowser`, `web_showError`, `web_clearCache`, `web_reload`, and `web_stopRefresh` now drive a retained session or view lifetime instead of only toggling fallback state.
-3. `QLJSHandler_BindQzInstance`, `QLJSHandler_OnMethodCall`, and `QLJSHandler_OnMethodCallWithReturnValue` now reconstruct the `qz_instance` method table, bootstrap properties, JSON-returning query surface, and outbound `CL_WebView_PublishEvent` / `EnginePublish` lane expected by the launcher/menu flow.
-4. `cl_steam_resources.c` now owns `SteamDataSource` avatar/resource handling plus the retained `QLResourceInterceptor_OnRequest` / `Sys_Steam_RequestURL` fallback owner, and URI resources now register through renderer memory-image helpers instead of cache-file compatibility only.
+3. `cl_webListenerCallbackMappings[]` now makes the retail listener/vtable install seam source-visible for `QLDialogHandler`, `QLViewHandler`, `QLLoadHandler`, `QLJSHandler`, and `QLResourceInterceptor`, including the `QLDialogHandler_OnShowFileChooser` pass-through at `0x00431640` and bounded no-engine/destructor slots.
+4. `QLJSHandler_BindQzInstance`, `QLJSHandler_OnMethodCall`, and `QLJSHandler_OnMethodCallWithReturnValue` now reconstruct the `qz_instance` method table, bootstrap properties, JSON-returning query surface, and outbound `CL_WebView_PublishEvent` / `EnginePublish` lane expected by the launcher/menu flow.
+5. `cl_steam_resources.c` now owns `SteamDataSource` avatar/resource handling plus the retained `QLResourceInterceptor_OnFilterNavigation`, `QLResourceInterceptor_OnRequest`, and `Sys_Steam_RequestURL` fallback owner. The source models the retail `ql` host and `/screenshot` special case before the generic launcher fallback, and URI resources now register through renderer memory-image helpers instead of cache-file compatibility only.
 
 ### Residual note
 

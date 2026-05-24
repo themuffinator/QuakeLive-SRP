@@ -420,8 +420,10 @@ lane hits a compatibility-only send or receive failure.
 =============
 */
 static void CL_LogVoiceTransportLifecycle( const char *stage, const char *reason ) {
-	Com_DPrintf( "%s voice transport: %s (%s [%s])\n",
+	Com_DPrintf( "%s voice transport [%s; modern=%s]: %s (%s [%s])\n",
 		stage ? stage : "voice_transport",
+		QL_Steamworks_GetP2PTransportLabel(),
+		QL_Steamworks_GetP2PModernGapLabel(),
 		reason ? reason : "voice transport unavailable",
 		CL_GetVoiceServiceModeLabel(),
 		CL_GetVoiceServicePolicyLabel() );
@@ -545,13 +547,15 @@ static void CL_LogClientCallbackBootstrapFallback( const char *reason ) {
 =============
 CL_RefreshPlatformServiceCvars
 
-Mirrors the retained client platform-service provider/policy labels through ROM
-cvars for diagnostics and bounded compatibility reporting.
+Mirrors the retained client platform-service provider, policy, and parity-scope
+labels through ROM cvars for diagnostics and bounded compatibility reporting.
 =============
 */
 static void CL_RefreshPlatformServiceCvars( void ) {
 	Cvar_Set( "cl_onlineServicesMode", QL_GetOnlineServicesModeLabel() );
 	Cvar_Set( "cl_onlineServicesPolicy", QL_GetOnlineServicesPolicyLabel() );
+	Cvar_Set( "cl_onlineServicesParityScope", QL_GetOnlineServicesParityScopeLabel() );
+	Cvar_Set( "cl_onlineServicesParityReason", QL_GetOnlineServicesParityReasonLabel() );
 	Cvar_Set( "cl_identityBootstrapMode", CL_GetIdentityBootstrapModeLabel() );
 	Cvar_Set( "cl_identityBootstrapPolicy", CL_GetIdentityBootstrapPolicyLabel() );
 	Cvar_Set( "cl_voiceServiceMode", CL_GetVoiceServiceModeLabel() );
@@ -566,6 +570,8 @@ static void CL_RefreshPlatformServiceCvars( void ) {
 	Cvar_Set( "cl_socialOverlayPolicy", CL_GetSocialOverlayServicePolicyLabel() );
 	Cvar_Set( "ui_subscriptionBridgeMode", QL_GetOnlineServicesModeLabel() );
 	Cvar_Set( "ui_subscriptionBridgePolicy", QL_GetOnlineServicesPolicyLabel() );
+	Cvar_Set( "ui_subscriptionBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );
+	Cvar_Set( "ui_subscriptionBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );
 }
 
 /*
@@ -2305,20 +2311,67 @@ static void CL_Steam_PublishBrowserEvent( const char *name, const char *payload 
 
 /*
 =============
-CL_WebView_InvokeCommNotice
-
-Routes the retained communication-notice callback through the browser event lane.
+CL_WebView_AppendTaggedInfoPair
 =============
 */
-void CL_WebView_InvokeCommNotice( const char *channel, const char *message ) {
-	char escapedChannel[256];
-	char escapedMessage[1024];
-	char payload[CL_STEAM_BROWSER_EVENT_PAYLOAD_LENGTH];
+static void CL_WebView_AppendTaggedInfoPair( char *payload, size_t payloadSize, const char *key, const char *value, qboolean *first ) {
+	char escapedKey[MAX_INFO_KEY * 2];
+	char escapedValue[MAX_INFO_VALUE * 2];
 
-	CL_Steam_JsonEscape( channel ? channel : "", escapedChannel, sizeof( escapedChannel ) );
-	CL_Steam_JsonEscape( message ? message : "", escapedMessage, sizeof( escapedMessage ) );
-	Com_sprintf( payload, sizeof( payload ), "{\"channel\":\"%s\",\"message\":\"%s\"}", escapedChannel, escapedMessage );
-	CL_WebView_PublishEvent( "web.commNotice", payload );
+	if ( !payload || payloadSize == 0 || !key || !key[0] || !first ) {
+		return;
+	}
+
+	CL_Steam_JsonEscape( key, escapedKey, sizeof( escapedKey ) );
+	CL_Steam_JsonEscape( value ? value : "", escapedValue, sizeof( escapedValue ) );
+	CL_Steam_AppendJsonFragment( payload, payloadSize, "%s\"%s\":\"%s\"", *first ? "" : ",", escapedKey, escapedValue );
+	*first = qfalse;
+}
+
+/*
+=============
+CL_WebView_InvokeCommNotice
+
+Routes the retained communication-notice payload through the browser event lane.
+=============
+*/
+void CL_WebView_InvokeCommNotice( const char *message ) {
+	CL_WebView_PublishEvent( "web.commNotice", message ? message : "" );
+}
+
+/*
+=============
+CL_WebView_PublishTaggedInfoString
+
+Reconstructs the retail tagged info-string publisher used by native cgame
+serverinfo refreshes before forwarding the serialized object to OnCommNotice.
+=============
+*/
+void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString ) {
+	char key[MAX_INFO_KEY];
+	char value[MAX_INFO_VALUE];
+	char payload[CL_STEAM_BROWSER_EVENT_PAYLOAD_LENGTH];
+	const char *cursor;
+	qboolean first;
+
+	payload[0] = '\0';
+	first = qtrue;
+	cursor = infoString ? infoString : "";
+
+	CL_Steam_AppendJsonFragment( payload, sizeof( payload ), "{" );
+	CL_WebView_AppendTaggedInfoPair( payload, sizeof( payload ), "MSG_TYPE", messageType ? messageType : "", &first );
+
+	while ( *cursor ) {
+		Info_NextPair( &cursor, key, value );
+		if ( !key[0] ) {
+			continue;
+		}
+
+		CL_WebView_AppendTaggedInfoPair( payload, sizeof( payload ), key, value, &first );
+	}
+
+	CL_Steam_AppendJsonFragment( payload, sizeof( payload ), "}" );
+	CL_WebView_InvokeCommNotice( payload );
 }
 
 /*
@@ -2678,6 +2731,163 @@ static int CL_SteamBrowser_RequestModeToSource( int requestMode ) {
 		default:
 			return AS_GLOBAL;
 	}
+}
+
+/*
+=============
+CL_SteamBrowser_RequestModeLabel
+
+Returns a stable label for the retained browser request mode integer.
+=============
+*/
+static const char *CL_SteamBrowser_RequestModeLabel( int requestMode ) {
+	switch ( requestMode ) {
+		case 0:
+			return "internet";
+		case 1:
+			return "lan";
+		case 2:
+			return "friends";
+		case 3:
+			return "favorites";
+		case 4:
+			return "history";
+		default:
+			return "unknown";
+	}
+}
+
+/*
+=============
+CL_SteamBrowser_SourceLabel
+
+Returns a stable label for the source-owned browser list backing one request.
+=============
+*/
+static const char *CL_SteamBrowser_SourceLabel( int source ) {
+	switch ( source ) {
+		case AS_LOCAL:
+			return "lan";
+		case AS_MPLAYER:
+			return "mplayer";
+		case AS_GLOBAL:
+			return "global";
+		case AS_FAVORITES:
+			return "favorites";
+		default:
+			return "unknown";
+	}
+}
+
+/*
+=============
+CL_SteamBrowser_CompatibilityOwnerLabel
+
+Returns the current source-backed owner for non-native Steam browser modes.
+=============
+*/
+static const char *CL_SteamBrowser_CompatibilityOwnerLabel( void ) {
+	return "source-browser compatibility";
+}
+
+/*
+=============
+CL_SteamBrowser_MissingNativeOwnerLabel
+
+Returns the native Steamworks owner that is not reconstructed for fallback modes.
+=============
+*/
+static const char *CL_SteamBrowser_MissingNativeOwnerLabel( void ) {
+	return "ISteamMatchmakingServers";
+}
+
+/*
+=============
+CL_SteamBrowser_NativeAdapterGapLabel
+
+Returns the native Steam server-browser adapter that is intentionally not
+reconstructed for fallback modes.
+=============
+*/
+static const char *CL_SteamBrowser_NativeAdapterGapLabel( void ) {
+	return "missing ISteamMatchmakingServers adapter";
+}
+
+/*
+=============
+CL_SteamBrowser_RequestModeUsesCompatibilitySource
+
+Identifies retained browser modes that are currently mapped onto a nearest
+source-owned list instead of a native Steam matchmaking-servers owner.
+=============
+*/
+static qboolean CL_SteamBrowser_RequestModeUsesCompatibilitySource( int requestMode ) {
+	switch ( requestMode ) {
+		case 2:
+		case 4:
+			return qtrue;
+		default:
+			return qfalse;
+	}
+}
+
+/*
+=============
+CL_SteamBrowser_CompatibilityReasonLabel
+
+Returns why one retained Steam browser mode is serviced by a source-backed
+compatibility list instead of a native Steam matchmaking-servers owner.
+=============
+*/
+static const char *CL_SteamBrowser_CompatibilityReasonLabel( int requestMode ) {
+	switch ( requestMode ) {
+		case 2:
+			return "friends mapped to global source";
+		case 4:
+			return "history mapped to favorites source";
+		default:
+			return "native-compatible source";
+	}
+}
+
+/*
+=============
+CL_SteamBrowser_PublishCompatibilitySource
+
+Publishes an explicit browser/telemetry marker when a retained Steam browser
+mode is serviced by the compatibility list mapping.
+=============
+*/
+static void CL_SteamBrowser_PublishCompatibilitySource( int requestMode, int source ) {
+	char payload[CL_STEAM_BROWSER_EVENT_PAYLOAD_LENGTH];
+
+	if ( !CL_SteamBrowser_RequestModeUsesCompatibilitySource( requestMode ) ) {
+		return;
+	}
+
+	Com_DPrintf(
+		"Steam browser request mode %d (%s) uses %s source %s; missing %s; adapter %s; reason %s (%s [%s])\n",
+		requestMode,
+		CL_SteamBrowser_RequestModeLabel( requestMode ),
+		CL_SteamBrowser_CompatibilityOwnerLabel(),
+		CL_SteamBrowser_SourceLabel( source ),
+		CL_SteamBrowser_MissingNativeOwnerLabel(),
+		CL_SteamBrowser_NativeAdapterGapLabel(),
+		CL_SteamBrowser_CompatibilityReasonLabel( requestMode ),
+		CL_GetMatchmakingServiceProviderLabel(),
+		CL_GetMatchmakingServicePolicyLabel() );
+	Com_sprintf(
+		payload,
+		sizeof( payload ),
+		"{\"mode\":%d,\"modeLabel\":\"%s\",\"source\":\"%s\",\"owner\":\"%s\",\"missingNativeOwner\":\"%s\",\"nativeAdapterGap\":\"%s\",\"reason\":\"%s\",\"policy\":\"compatibility\"}",
+		requestMode,
+		CL_SteamBrowser_RequestModeLabel( requestMode ),
+		CL_SteamBrowser_SourceLabel( source ),
+		CL_SteamBrowser_CompatibilityOwnerLabel(),
+		CL_SteamBrowser_MissingNativeOwnerLabel(),
+		CL_SteamBrowser_NativeAdapterGapLabel(),
+		CL_SteamBrowser_CompatibilityReasonLabel( requestMode ) );
+	CL_Steam_PublishBrowserEvent( "servers.refresh.compatibility", payload );
 }
 
 /*
@@ -3273,6 +3483,7 @@ qboolean CL_Steam_RequestServers( int requestMode ) {
 	CL_SteamBrowser_MarkServerVisible( source, -1, qtrue );
 	CL_SteamBrowser_ResetPings( source );
 	CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );
+	CL_SteamBrowser_PublishCompatibilitySource( requestMode, source );
 
 	if ( source == AS_LOCAL ) {
 		CL_RequestLocalServers();
@@ -3719,10 +3930,18 @@ CL_Steam_RequestAllUGC
 =============
 */
 qboolean CL_Steam_RequestAllUGC( int filter ) {
+	char detail[128];
+
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogWorkshopLifecycle( "request-ugc-query", "workshop provider unavailable" );
 		return qfalse;
 	}
+
+	Com_sprintf( detail, sizeof( detail ), "forwarding %s value %d (semantic=%s)",
+		QL_Steamworks_GetAllUGCFilterContractLabel(),
+		filter,
+		QL_Steamworks_GetAllUGCFilterSemanticGapLabel() );
+	CL_LogWorkshopLifecycle( "request-ugc-query", detail );
 
 	return QL_Steamworks_RequestAllUGCQuery( (uint32_t)filter );
 }
@@ -4055,8 +4274,12 @@ CL_Steam_Client_OnP2PSessionRequest
 =============
 */
 static void CL_Steam_Client_OnP2PSessionRequest( void *context, const ql_steam_p2p_session_request_t *event ) {
-	char detail[96];
+	char detail[128];
 	char remoteId[32];
+	char trackedId[32];
+	uint32_t serverIdLow;
+	uint32_t serverIdHigh;
+	uint64_t trackedSteamId;
 
 	(void)context;
 
@@ -4066,13 +4289,27 @@ static void CL_Steam_Client_OnP2PSessionRequest( void *context, const ql_steam_p
 	}
 
 	CL_Steam_FormatSteamId( event->remoteId.value, remoteId, sizeof( remoteId ) );
-	if ( !QL_Steamworks_AcceptP2PSession( &event->remoteId ) ) {
-		Com_sprintf( detail, sizeof( detail ), "accept failed for %s", remoteId );
+	if ( !CL_GetServerSteamId( &serverIdLow, &serverIdHigh ) || !( serverIdLow | serverIdHigh ) ) {
+		Com_sprintf( detail, sizeof( detail ), "ignored %s; missing tracked peer", remoteId );
 		CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", detail );
 		return;
 	}
 
-	Com_sprintf( detail, sizeof( detail ), "accepted %s", remoteId );
+	trackedSteamId = ( (uint64_t)serverIdHigh << 32 ) | serverIdLow;
+	if ( event->remoteId.value != trackedSteamId ) {
+		CL_Steam_FormatSteamId( trackedSteamId, trackedId, sizeof( trackedId ) );
+		Com_sprintf( detail, sizeof( detail ), "ignored %s; expected tracked peer %s", remoteId, trackedId );
+		CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", detail );
+		return;
+	}
+
+	if ( !QL_Steamworks_AcceptP2PSession( &event->remoteId ) ) {
+		Com_sprintf( detail, sizeof( detail ), "accept failed for tracked peer %s", remoteId );
+		CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", detail );
+		return;
+	}
+
+	Com_sprintf( detail, sizeof( detail ), "accepted tracked peer %s", remoteId );
 	CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", detail );
 }
 
@@ -4563,7 +4800,7 @@ static void CL_Steam_Workshop_OnItemInstalled( void *context, const ql_steam_ite
 
 	appId = QL_Steamworks_GetAppID();
 	if ( appId != 0u && event->appId != appId ) {
-		Com_sprintf( detail, sizeof( detail ), "OnDownloadItemResult skip, invalid app id %d", (int)event->appId );
+		Com_sprintf( detail, sizeof( detail ), "OnItemInstalled skip, invalid app id %d", (int)event->appId );
 		CL_LogWorkshopLifecycle( "callback-item-installed", detail );
 		return;
 	}
@@ -5194,14 +5431,14 @@ void CL_Record_f( void ) {
 	if ( Cmd_Argc() == 2 ) {
 		s = Cmd_Argv(1);
 		Q_strncpyz( demoName, s, sizeof( demoName ) );
-		Com_sprintf (name, sizeof(name), "demos/%s.dm_%d", demoName, PROTOCOL_VERSION );
+		Com_sprintf (name, sizeof(name), "demos/%s.dm_%d", demoName, NET_DemoProtocol() );
 	} else {
 		int		number;
 
 		// scan for a free demo name
 		for ( number = 0 ; number <= 9999 ; number++ ) {
 			CL_DemoFilename( number, demoName );
-			Com_sprintf (name, sizeof(name), "demos/%s.dm_%d", demoName, PROTOCOL_VERSION );
+			Com_sprintf (name, sizeof(name), "demos/%s.dm_%d", demoName, NET_DemoProtocol() );
 
 			len = FS_ReadFile( name, NULL );
 			if ( len <= 0 ) {
@@ -5645,6 +5882,7 @@ void CL_Disconnect( qboolean showMainMenu ) {
 	}
 
 	QL_ClientAuth_CancelSteamTicket();
+	CL_AdvertisementBridge_ClearDelay();
 	if ( publishGameEnd ) {
 		CL_WebView_PublishGameEnd();
 	}
@@ -5671,7 +5909,7 @@ void CL_Disconnect( qboolean showMainMenu ) {
 	// send a disconnect message to the server
 	// send it a few times in case one is dropped
 	if ( cls.state >= CA_CONNECTED ) {
-		CL_AddReliableCommand( "disconnect" );
+		CL_AddReliableCommand( NET_GetReliableDisconnectCommand() );
 		CL_WritePacket();
 		CL_WritePacket();
 		CL_WritePacket();
@@ -5761,14 +5999,14 @@ void CL_RequestMotd( void ) {
   // only srand I could catch before here is tr_noise.c l:26 srand(1001)
   // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=382
   // NOTE: the Com_Milliseconds xoring only affects the lower 16-bit word,
-  //   but I decided it was enough randomization
+	//   but I decided it was enough randomization
 	Com_sprintf( cls.updateChallenge, sizeof( cls.updateChallenge ), "%i", ((rand() << 16) ^ rand()) ^ Com_Milliseconds());
 
-	Info_SetValueForKey( info, "challenge", cls.updateChallenge );
-	Info_SetValueForKey( info, "renderer", cls.glconfig.renderer_string );
-	Info_SetValueForKey( info, "version", com_version->string );
+	Info_SetValueForKey( info, NET_GetMotdChallengeInfoKey(), cls.updateChallenge );
+	Info_SetValueForKey( info, NET_GetMotdRendererInfoKey(), cls.glconfig.renderer_string );
+	Info_SetValueForKey( info, NET_GetMotdVersionInfoKey(), com_version->string );
 
-	NET_OutOfBandPrint( NS_CLIENT, cls.updateServer, "getmotd \"%s\"\n", info );
+	NET_OutOfBandPrint( NS_CLIENT, cls.updateServer, "%s \"%s\"\n", NET_GetMotdRequestCommand(), info );
 #endif
 }
 
@@ -5818,6 +6056,12 @@ void CL_RequestAuthorization( void ) {
 	char	authorizePayload[64];
 	ql_auth_credential_t	credential;
 
+	if ( !NET_ProtocolUsesLegacyAuthorize() ) {
+		Com_DPrintf( "legacy authorize request ignored: protocol profile %s does not use the Quake III authorize lane\n",
+			NET_ProtocolName() );
+		return;
+	}
+
 	authorizePayload[0] = '\0';
 
 	if ( !cls.authorizeServer.port ) {
@@ -5842,8 +6086,94 @@ void CL_RequestAuthorization( void ) {
 	}
 
 	NET_OutOfBandPrint(NS_CLIENT, cls.authorizeServer,
-		va("getKeyAuthorize %i %s", Cvar_VariableIntegerValue( "cl_anonymous" ), authorizePayload) );
+		va("%s %i %s", NET_GetKeyAuthorizeRequestCommand(), Cvar_VariableIntegerValue( "cl_anonymous" ), authorizePayload) );
 #endif
+}
+
+/*
+=================
+CL_WriteSteamChallengeWord
+
+Writes one little-endian SteamID word into the retail getchallenge payload.
+=================
+*/
+static void CL_WriteSteamChallengeWord( byte *buffer, uint32_t value ) {
+	buffer[0] = (byte)( value & 0xffu );
+	buffer[1] = (byte)( ( value >> 8 ) & 0xffu );
+	buffer[2] = (byte)( ( value >> 16 ) & 0xffu );
+	buffer[3] = (byte)( ( value >> 24 ) & 0xffu );
+}
+
+/*
+=================
+CL_BuildSteamChallengeRequest
+
+Builds the retail Steam getchallenge payload after the out-of-band marker.
+=================
+*/
+static qboolean CL_BuildSteamChallengeRequest( byte *data, int dataSize, int *dataLength ) {
+	byte		ticket[QL_STEAM_AUTH_TICKET_MAX_LENGTH];
+	int			ticketLength;
+	int			commandLength;
+	int			payloadLength;
+	uint32_t	steamIdLow;
+	uint32_t	steamIdHigh;
+	const char	*command;
+
+	if ( dataLength ) {
+		*dataLength = 0;
+	}
+
+	if ( !data || dataSize <= 0 || !dataLength ) {
+		return qfalse;
+	}
+
+	if ( !NET_ProtocolSupportsPlatformAuth() ) {
+		return qfalse;
+	}
+
+	if ( !QL_ClientAuth_RequestSteamChallengeTicket( ticket, sizeof( ticket ), &ticketLength, &steamIdLow, &steamIdHigh ) ) {
+		return qfalse;
+	}
+
+	command = NET_GetChallengeRequestCommand();
+	commandLength = strlen( command );
+	payloadLength = commandLength + 1 + 8 + ticketLength;
+	if ( ticketLength <= 0 || payloadLength > dataSize ) {
+		return qfalse;
+	}
+
+	Com_Memcpy( data, command, commandLength );
+	data[commandLength] = ' ';
+	CL_WriteSteamChallengeWord( data + commandLength + 1, steamIdLow );
+	CL_WriteSteamChallengeWord( data + commandLength + 5, steamIdHigh );
+	Com_Memcpy( data + commandLength + 9, ticket, ticketLength );
+
+	*dataLength = payloadLength;
+	return qtrue;
+}
+
+/*
+=================
+CL_SendChallengeRequest
+
+Sends either the retail Steam-auth challenge payload or the offline fallback.
+=================
+*/
+static void CL_SendChallengeRequest( void ) {
+	byte	data[MAX_MSGLEN];
+	int		dataLength;
+
+	if ( CL_BuildSteamChallengeRequest( data, sizeof( data ), &dataLength ) ) {
+		NET_OutOfBandRaw( NS_CLIENT, clc.serverAddress, data, dataLength );
+		return;
+	}
+
+	if ( NET_ProtocolSupportsPlatformAuth() && !Sys_IsLANAddress( clc.serverAddress ) ) {
+		Com_DPrintf( "Steam challenge auth unavailable; falling back to bare %s\n", NET_GetChallengeRequestCommand() );
+	}
+
+	NET_OutOfBandPrint( NS_CLIENT, clc.serverAddress, "%s", NET_GetChallengeRequestCommand() );
 }
 
 /*
@@ -5862,14 +6192,22 @@ Retail cmd forwarding refuses to relay userinfo through the generic client comma
 ==================
 */
 static qboolean CL_CommandContainsUserinfoToken( const char *commandName ) {
+	const char	*userinfoCommand;
 	const char	*cursor;
+	int			userinfoCommandLength;
 
 	if ( !commandName || !commandName[0] ) {
 		return qfalse;
 	}
 
+	userinfoCommand = NET_GetUserinfoCommand();
+	if ( !userinfoCommand || !userinfoCommand[0] ) {
+		return qfalse;
+	}
+
+	userinfoCommandLength = strlen( userinfoCommand );
 	for ( cursor = commandName; *cursor; cursor++ ) {
-		if ( !Q_stricmpn( cursor, "userinfo", 8 ) ) {
+		if ( !Q_stricmpn( cursor, userinfoCommand, userinfoCommandLength ) ) {
 			return qtrue;
 		}
 	}
@@ -6038,8 +6376,10 @@ CL_SendPureChecksums
 */
 void CL_SendPureChecksums( void ) {
 	const char *pChecksums;
+	const char *pureCommand;
 	char cMsg[MAX_INFO_VALUE];
 	int binChecksum;
+	int pureCommandLength;
 	int i;
 
 	// if we are pure we need to send back a command with our referenced pk3 checksums
@@ -6048,12 +6388,12 @@ void CL_SendPureChecksums( void ) {
 		Com_Error( ERR_FATAL, "CL_SendPureChecksums: no pak file for binaries" );
 	}
 
-	// "cp"
-	// "Yf"
-	Com_sprintf(cMsg, sizeof(cMsg), "Yf ");
+	pureCommand = NET_GetEncodedPureChecksumsCommand();
+	pureCommandLength = strlen( pureCommand );
+	Com_sprintf(cMsg, sizeof(cMsg), "%s ", pureCommand);
 	Q_strcat(cMsg, sizeof(cMsg), va("%d %d ", cl.serverId, binChecksum) );
 	Q_strcat(cMsg, sizeof(cMsg), pChecksums);
-	for (i = 0; i < 2; i++) {
+	for (i = 0; i < pureCommandLength; i++) {
 		cMsg[i] += 10;
 	}
 	CL_AddReliableCommand( cMsg );
@@ -6065,7 +6405,7 @@ CL_ResetPureClientAtServer
 =================
 */
 void CL_ResetPureClientAtServer( void ) {
-	CL_AddReliableCommand( va("vdr") );
+	CL_AddReliableCommand( NET_GetPureResetCommand() );
 }
 
 /*
@@ -6266,7 +6606,7 @@ void CL_DownloadsComplete( void ) {
 		FS_Restart(clc.checksumFeed); // We possibly downloaded a pak, restart the file system to load it
 
 		// inform the server so we get new gamestate info
-		CL_AddReliableCommand( "donedl" );
+		CL_AddReliableCommand( NET_GetDownloadDoneCommand() );
 
 		// by sending the donedl command we request a new gamestate
 		// so we don't want to load stuff yet
@@ -6368,7 +6708,7 @@ void CL_BeginDownload( const char *localName, const char *remoteName ) {
 	clc.downloadBlock = 0; // Starting new file
 	clc.downloadCount = 0;
 
-	CL_AddReliableCommand( va("download %s", remoteName) );
+	CL_AddReliableCommand( va("%s %s", NET_GetDownloadRequestCommand(), remoteName) );
 }
 
 /*
@@ -6471,9 +6811,10 @@ Resend a connect message if the last one has timed out
 =================
 */
 void CL_CheckForResend( void ) {
-	int		port, i;
+	int		port;
+	int		dataLength;
 	char	info[MAX_INFO_STRING];
-	char	data[MAX_INFO_STRING];
+	char	data[MAX_MSGLEN];
 
 	// don't send anything if playing back a demo
 	if ( clc.demoplaying ) {
@@ -6496,10 +6837,10 @@ void CL_CheckForResend( void ) {
 	switch ( cls.state ) {
 	case CA_CONNECTING:
 		// requesting a challenge
-		if ( !Sys_IsLANAddress( clc.serverAddress ) ) {
+		if ( NET_ProtocolUsesLegacyAuthorize() && !Sys_IsLANAddress( clc.serverAddress ) ) {
 			CL_RequestAuthorization();
 		}
-		NET_OutOfBandPrint(NS_CLIENT, clc.serverAddress, "getchallenge");
+		CL_SendChallengeRequest();
 		break;
 		
 	case CA_CHALLENGING:
@@ -6507,23 +6848,23 @@ void CL_CheckForResend( void ) {
 		port = Cvar_VariableValue ("net_qport");
 
 		Q_strncpyz( info, Cvar_InfoString( CVAR_USERINFO ), sizeof( info ) );
-		Info_SetValueForKey( info, "protocol", va("%i", PROTOCOL_VERSION ) );
-		Info_SetValueForKey( info, "qport", va("%i", port ) );
-		Info_SetValueForKey( info, "challenge", va("%i", clc.challenge ) );
-		
-		strcpy(data, "connect ");
-    // TTimo adding " " around the userinfo string to avoid truncated userinfo on the server
-    //   (Com_TokenizeString tokenizes around spaces)
-    data[8] = '"';
-
-		for(i=0;i<strlen(info);i++) {
-			data[9+i] = info[i];	// + (clc.challenge)&0x3;
+		Info_SetValueForKey( info, NET_GetProtocolInfoKey(), va("%i", NET_ProtocolVersion() ) );
+		if ( NET_ProtocolUsesClientQport() ) {
+			Info_SetValueForKey( info, NET_GetQportInfoKey(), va("%i", port ) );
 		}
-    data[9+i] = '"';
-		data[10+i] = 0;
+		Info_SetValueForKey( info, NET_GetChallengeInfoKey(), va("%i", clc.challenge ) );
+		
+		// TTimo adding " " around the userinfo string to avoid truncated userinfo on the server
+		//   (Com_TokenizeString tokenizes around spaces)
+		Com_sprintf( data, sizeof( data ), "%s \"%s\"", NET_GetConnectRequestCommand(), info );
+		dataLength = strlen( data );
 
-    // NOTE TTimo don't forget to set the right data length!
-		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, &data[0], i+10 );
+		// NOTE TTimo don't forget to set the right data length!
+		if ( NET_ProtocolUsesCompressedConnect() ) {
+			NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *)data, dataLength );
+		} else {
+			NET_OutOfBandPrint( NS_CLIENT, clc.serverAddress, "%s", data );
+		}
 		// the most current userinfo has been sent, so watch for any
 		// newer changes to userinfo variables
 		cvar_modifiedFlags &= ~CVAR_USERINFO;
@@ -6585,12 +6926,12 @@ void CL_MotdPacket( netadr_t from ) {
 	info = Cmd_Argv(1);
 
 	// check challenge
-	challenge = Info_ValueForKey( info, "challenge" );
+	challenge = Info_ValueForKey( info, NET_GetMotdChallengeInfoKey() );
 	if ( strcmp( challenge, cls.updateChallenge ) ) {
 		return;
 	}
 
-	challenge = Info_ValueForKey( info, "motd" );
+	challenge = Info_ValueForKey( info, NET_GetMotdInfoKey() );
 
 	Q_strncpyz( cls.updateInfoString, info, sizeof( cls.updateInfoString ) );
 	Cvar_Set( "cl_motdString", challenge );
@@ -6764,7 +7105,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 	Com_DPrintf ("CL packet %s: %s\n", NET_AdrToString(from), c);
 
 	// challenge from the server we are connecting to
-	if ( !Q_stricmp(c, "challengeResponse") ) {
+	if ( NET_IsChallengeResponse( c ) ) {
 		if ( cls.state != CA_CONNECTING ) {
 			Com_Printf( "Unwanted challenge response received.  Ignored.\n" );
 		} else {
@@ -6783,7 +7124,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 	}
 
 	// server connection
-	if ( !Q_stricmp(c, "connectResponse") ) {
+	if ( NET_IsConnectResponse( c ) ) {
 		if ( cls.state >= CA_CONNECTED ) {
 			Com_Printf ("Dup connect received.  Ignored.\n");
 			return;
@@ -6805,44 +7146,44 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 	}
 
 	// server responding to an info broadcast
-	if ( !Q_stricmp(c, "infoResponse") ) {
+	if ( NET_IsInfoResponse( c ) ) {
 		CL_ServerInfoPacket( from, msg );
 		return;
 	}
 
 	// server responding to a get playerlist
-	if ( !Q_stricmp(c, "statusResponse") ) {
+	if ( NET_IsStatusResponse( c ) ) {
 		CL_ServerStatusResponse( from, msg );
 		return;
 	}
 
 	// a disconnect message from the server, which will happen if the server
 	// dropped the connection but it is still getting packets from us
-	if (!Q_stricmp(c, "disconnect")) {
+	if ( NET_IsDisconnectCommand( c ) ) {
 		CL_DisconnectPacket( from );
 		return;
 	}
 
 	// echo request from server
-	if ( !Q_stricmp(c, "echo") ) {
+	if ( NET_IsEchoCommand( c ) ) {
 		NET_OutOfBandPrint( NS_CLIENT, from, "%s", Cmd_Argv(1) );
 		return;
 	}
 
 	// cd check
-	if ( !Q_stricmp(c, "keyAuthorize") ) {
+	if ( NET_IsKeyAuthorizeResponse( c ) ) {
 		// we don't use these now, so dump them on the floor
 		return;
 	}
 
 	// global MOTD from id
-	if ( !Q_stricmp(c, "motd") ) {
+	if ( NET_IsMotdResponse( c ) ) {
 		CL_MotdPacket( from );
 		return;
 	}
 	
 	// echo request from server
-	if ( !Q_stricmp(c, "print") ) {
+	if ( NET_IsPrintCommand( c ) ) {
 		s = MSG_ReadString( msg );
 		if ( CL_ShouldFilterConsoleText( s ) ) {
 			return;
@@ -6853,7 +7194,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 	}
 	
 	// echo request from server
-	if ( !Q_strncmp(c, "getserversResponse", 18) ) {
+	if ( NET_IsServersResponse( c ) ) {
 		CL_ServersResponsePacket( from, msg );
 		return;
 	}
@@ -6966,7 +7307,7 @@ void CL_CheckUserinfo( void ) {
 	// send a reliable userinfo update if needed
 	if ( cvar_modifiedFlags & CVAR_USERINFO ) {
 		cvar_modifiedFlags &= ~CVAR_USERINFO;
-		CL_AddReliableCommand( va("userinfo \"%s\"", Cvar_InfoString( CVAR_USERINFO ) ) );
+		CL_AddReliableCommand( va("%s \"%s\"", NET_GetUserinfoCommand(), Cvar_InfoString( CVAR_USERINFO ) ) );
 	}
 
 }
@@ -7373,14 +7714,24 @@ void CL_Init( void ) {
 	cl_allowConsoleChat = Cvar_Get ("cl_allowConsoleChat", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 	Cvar_Get ("ui_browserAwesomiumProvider", "Unavailable", CVAR_ROM );
 	Cvar_Get ("ui_browserAwesomiumPolicy", "compatibility-unavailable", CVAR_ROM );
+	Cvar_Get ("ui_browserAwesomiumParityScope", "unclassified", CVAR_ROM );
+	Cvar_Get ("ui_browserAwesomiumParityReason", "unclassified", CVAR_ROM );
 	Cvar_Get ("ui_advertisementBridgeProvider", "Unavailable", CVAR_ROM );
 	Cvar_Get ("ui_advertisementBridgePolicy", "compatibility-unavailable", CVAR_ROM );
+	Cvar_Get ("ui_advertisementBridgeParityScope", "unclassified", CVAR_ROM );
+	Cvar_Get ("ui_advertisementBridgeParityReason", "unclassified", CVAR_ROM );
 	Cvar_Get ("ui_resourceBridgeProvider", "Unavailable", CVAR_ROM );
 	Cvar_Get ("ui_resourceBridgePolicy", "compatibility-unavailable", CVAR_ROM );
+	Cvar_Get ("ui_resourceBridgeParityScope", "unclassified", CVAR_ROM );
+	Cvar_Get ("ui_resourceBridgeParityReason", "unclassified", CVAR_ROM );
 	Cvar_Get ("ui_subscriptionBridgeMode", "Unavailable", CVAR_ROM );
 	Cvar_Get ("ui_subscriptionBridgePolicy", "compatibility-unavailable", CVAR_ROM );
+	Cvar_Get ("ui_subscriptionBridgeParityScope", "unclassified", CVAR_ROM );
+	Cvar_Get ("ui_subscriptionBridgeParityReason", "unclassified", CVAR_ROM );
 	Cvar_Get ("cl_onlineServicesMode", "Unavailable", CVAR_ROM );
 	Cvar_Get ("cl_onlineServicesPolicy", "compatibility-unavailable", CVAR_ROM );
+	Cvar_Get ("cl_onlineServicesParityScope", "unclassified", CVAR_ROM );
+	Cvar_Get ("cl_onlineServicesParityReason", "unclassified", CVAR_ROM );
 	Cvar_Get ("cl_identityBootstrapMode", "Unavailable", CVAR_ROM );
 	Cvar_Get ("cl_identityBootstrapPolicy", "compatibility-unavailable", CVAR_ROM );
 	Cvar_Get ("cl_voiceServiceMode", "Unavailable", CVAR_ROM );
@@ -7586,13 +7937,13 @@ void CL_Shutdown( void ) {
 static void CL_SetServerInfo(serverInfo_t *server, const char *info, int ping) {
 	if (server) {
 		if (info) {
-			server->clients = atoi(Info_ValueForKey(info, "clients"));
-			Q_strncpyz(server->hostName,Info_ValueForKey(info, "hostname"), MAX_NAME_LENGTH);
-			Q_strncpyz(server->mapName, Info_ValueForKey(info, "mapname"), MAX_NAME_LENGTH);
-			server->maxClients = atoi(Info_ValueForKey(info, "sv_maxclients"));
-			Q_strncpyz(server->game,Info_ValueForKey(info, "game"), MAX_NAME_LENGTH);
-			server->gameType = atoi(Info_ValueForKey(info, "gametype"));
-			server->netType = atoi(Info_ValueForKey(info, "nettype"));
+			server->clients = atoi(Info_ValueForKey(info, NET_GetClientsInfoKey()));
+			Q_strncpyz(server->hostName,Info_ValueForKey(info, NET_GetHostnameInfoKey()), MAX_NAME_LENGTH);
+			Q_strncpyz(server->mapName, Info_ValueForKey(info, NET_GetMapnameInfoKey()), MAX_NAME_LENGTH);
+			server->maxClients = atoi(Info_ValueForKey(info, NET_GetMaxClientsInfoKey()));
+			Q_strncpyz(server->game,Info_ValueForKey(info, NET_GetGameInfoKey()), MAX_NAME_LENGTH);
+			server->gameType = atoi(Info_ValueForKey(info, NET_GetGametypeInfoKey()));
+			server->netType = atoi(Info_ValueForKey(info, NET_GetNetTypeInfoKey()));
 		}
 		server->ping = ping;
 	}
@@ -7641,8 +7992,8 @@ void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {
 	infoString = MSG_ReadString( msg );
 
 	// if this isn't the correct protocol version, ignore it
-	prot = atoi( Info_ValueForKey( infoString, "protocol" ) );
-	if ( prot != PROTOCOL_VERSION ) {
+	prot = atoi( Info_ValueForKey( infoString, NET_GetProtocolInfoKey() ) );
+	if ( !NET_ProtocolSupports( prot ) ) {
 		Com_DPrintf( "Different protocol info packet: %s\n", infoString );
 		return;
 	}
@@ -7665,7 +8016,7 @@ void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {
 			else {
 				type = 0;
 			}
-			Info_SetValueForKey( cl_pinglist[i].info, "nettype", va("%d", type) );
+			Info_SetValueForKey( cl_pinglist[i].info, NET_GetNetTypeInfoKey(), va("%d", type) );
 			CL_SetServerInfoByAddress(from, infoString, cl_pinglist[i].time);
 			if ( cl_steamBrowserState.refreshActive && cl_steamBrowserState.requestSource == cls.pingUpdateSource ) {
 				CL_SteamBrowser_PublishServerResponse(
@@ -7806,7 +8157,7 @@ int CL_ServerStatus( char *serverAddress, char *serverStatusString, int maxLen )
 			serverStatus->retrieved = qfalse;
 			serverStatus->time = 0;
 			serverStatus->startTime = Com_Milliseconds();
-			NET_OutOfBandPrint( NS_CLIENT, to, "getstatus" );
+			NET_OutOfBandPrint( NS_CLIENT, to, "%s", NET_GetStatusRequestCommand() );
 			return qfalse;
 		}
 	}
@@ -7818,7 +8169,7 @@ int CL_ServerStatus( char *serverAddress, char *serverStatusString, int maxLen )
 		serverStatus->retrieved = qfalse;
 		serverStatus->startTime = Com_Milliseconds();
 		serverStatus->time = 0;
-		NET_OutOfBandPrint( NS_CLIENT, to, "getstatus" );
+		NET_OutOfBandPrint( NS_CLIENT, to, "%s", NET_GetStatusRequestCommand() );
 		return qfalse;
 	}
 	return qfalse;
@@ -7956,7 +8307,7 @@ CL_RequestLocalServers
 ==================
 */
 static void CL_RequestLocalServers( void ) {
-	char		*message;
+	char		message[MAX_MSGLEN];
 	int			i, j;
 	netadr_t	to;
 
@@ -7976,7 +8327,7 @@ static void CL_RequestLocalServers( void ) {
 	// The 'xxx' in the message is a challenge that will be echoed back
 	// by the server.  We don't care about that here, but master servers
 	// can use that to prevent spoofed server responses from invalid ip
-	message = "\377\377\377\377getinfo xxx";
+	Com_sprintf( message, sizeof( message ), "\377\377\377\377%s xxx", NET_GetInfoRequestCommand() );
 
 	// send each message twice in case one is dropped
 	for ( i = 0 ; i < 2 ; i++ ) {
@@ -8026,7 +8377,7 @@ static void CL_RequestGlobalServers( int masterNum, const char *protocol, const 
 	to.type = NA_IP;
 	to.port = BigShort(PORT_MASTER);
 
-	Com_sprintf( command, sizeof( command ), "getservers %s", protocol );
+	Com_sprintf( command, sizeof( command ), "%s %s", NET_GetServersRequestCommand(), protocol );
 
 	if ( keywords && keywords[0] ) {
 		Q_strcat( command, sizeof( command ), " " );
@@ -8296,7 +8647,7 @@ qboolean CL_UpdateVisiblePings_f(int source) {
 						memcpy(&cl_pinglist[j].adr, &server[i].adr, sizeof(netadr_t));
 						cl_pinglist[j].start = cls.realtime;
 						cl_pinglist[j].time = 0;
-						NET_OutOfBandPrint( NS_CLIENT, cl_pinglist[j].adr, "getinfo xxx" );
+						NET_OutOfBandPrint( NS_CLIENT, cl_pinglist[j].adr, "%s xxx", NET_GetInfoRequestCommand() );
 						slots++;
 					}
 				}

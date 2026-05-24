@@ -134,8 +134,10 @@ Observed local facts:
    `tests/test_client_config_parity.py`. Read the old wording as round-local
    context, not as a current missing-owner claim.
 2. `sub_4B9430`, `sub_4B9940`, `sub_4B81F0`, `sub_4ECDF0`, `sub_4F1290`,
-   `sub_4F2900`, and `sub_4F4640` remain the highest-value unresolved client
-   and host leftovers outside this seam.
+   and `sub_4F4640` remain the highest-value unresolved client and host
+   leftovers outside this seam. Historical note: `sub_4F2900` was promoted in
+   round 285 as `QLWebView_InjectActivationKeyboardEvent` and later gained
+   source-visible fixed keyboard-event fields.
 
 ## Verification
 

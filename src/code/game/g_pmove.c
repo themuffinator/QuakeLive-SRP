@@ -536,6 +536,10 @@ void G_PmoveResetFactoryManagedCvars( void ) {
 	trap_Cvar_Set( "g_midAirMinHeight", "96" );
 	trap_Cvar_Set( "g_nailbounce", "1" );
 	trap_Cvar_Set( "g_nailbouncepercentage", "65" );
+	trap_Cvar_Set( "g_nailcount", "10" );
+	trap_Cvar_Set( "g_nailgravity", "0" );
+	trap_Cvar_Set( "g_nailspeed", "1000" );
+	trap_Cvar_Set( "g_nailspread", "400" );
 	trap_Cvar_Set( "g_quadDamageFactor", "3" );
 	trap_Cvar_Set( "g_guidedRocket", "0" );
 	trap_Cvar_Set( "g_quadHog", "0" );

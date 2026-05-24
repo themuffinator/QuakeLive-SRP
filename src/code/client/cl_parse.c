@@ -336,25 +336,25 @@ void CL_SystemInfoChanged( void ) {
 	// when the serverId changes, any further messages we send to the server will use this new serverId
 	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=475
 	// in some cases, outdated cp commands might get sent with this news serverId
-	cl.serverId = atoi( Info_ValueForKey( systemInfo, "sv_serverid" ) );
+	cl.serverId = atoi( Info_ValueForKey( systemInfo, NET_GetServerIdInfoKey() ) );
 
 	// don't set any vars when playing a demo
 	if ( clc.demoplaying ) {
 		return;
 	}
 
-	s = Info_ValueForKey( systemInfo, "sv_cheats" );
+	s = Info_ValueForKey( systemInfo, NET_GetCheatsInfoKey() );
 	if ( atoi(s) == 0 ) {
 		Cvar_SetCheatState();
 	}
 
 	// check pure server string
-	s = Info_ValueForKey( systemInfo, "sv_paks" );
-	t = Info_ValueForKey( systemInfo, "sv_pakNames" );
+	s = Info_ValueForKey( systemInfo, NET_GetPaksInfoKey() );
+	t = Info_ValueForKey( systemInfo, NET_GetPakNamesInfoKey() );
 	FS_PureServerSetLoadedPaks( s, t );
 
-	s = Info_ValueForKey( systemInfo, "sv_referencedPaks" );
-	t = Info_ValueForKey( systemInfo, "sv_referencedPakNames" );
+	s = Info_ValueForKey( systemInfo, NET_GetReferencedPaksInfoKey() );
+	t = Info_ValueForKey( systemInfo, NET_GetReferencedPakNamesInfoKey() );
 	FS_PureServerSetReferencedPaks( s, t );
 
 	gameSet = qfalse;
@@ -366,17 +366,17 @@ void CL_SystemInfoChanged( void ) {
 			break;
 		}
 		// ehw!
-		if ( !Q_stricmp( key, "fs_game" ) ) {
+		if ( !Q_stricmp( key, NET_GetFsGameInfoKey() ) ) {
 			gameSet = qtrue;
 		}
 
 		Cvar_Set( key, value );
 	}
 	// if game folder should not be set and it is set at the client side
-	if ( !gameSet && *Cvar_VariableString("fs_game") ) {
-		Cvar_Set( "fs_game", "" );
+	if ( !gameSet && *Cvar_VariableString( NET_GetFsGameInfoKey() ) ) {
+		Cvar_Set( NET_GetFsGameInfoKey(), "" );
 	}
-	cl_connectedToPureServer = Cvar_VariableValue( "sv_pure" );
+	cl_connectedToPureServer = Cvar_VariableValue( NET_GetSystemPureInfoKey() );
 }
 
 /*
@@ -506,7 +506,7 @@ void CL_ParseDownload ( msg_t *msg ) {
 	{
 		if (!*clc.downloadTempName) {
 			Com_Printf("Server sending download, but no download was requested\n");
-			CL_AddReliableCommand( "stopdl" );
+			CL_AddReliableCommand( NET_GetDownloadStopCommand() );
 			return;
 		}
 
@@ -514,7 +514,7 @@ void CL_ParseDownload ( msg_t *msg ) {
 
 		if (!clc.download) {
 			Com_Printf( "Could not create %s\n", clc.downloadTempName );
-			CL_AddReliableCommand( "stopdl" );
+			CL_AddReliableCommand( NET_GetDownloadStopCommand() );
 			CL_NextDownload();
 			return;
 		}
@@ -523,7 +523,7 @@ void CL_ParseDownload ( msg_t *msg ) {
 	if (size)
 		FS_Write( data, size, clc.download );
 
-	CL_AddReliableCommand( va("nextdl %d", clc.downloadBlock) );
+	CL_AddReliableCommand( va("%s %d", NET_GetDownloadNextCommand(), clc.downloadBlock) );
 	clc.downloadBlock++;
 
 	clc.downloadCount += size;
@@ -651,5 +651,3 @@ void CL_ParseServerMessage( msg_t *msg ) {
 		}
 	}
 }
-
-

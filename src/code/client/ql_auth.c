@@ -298,6 +298,67 @@ static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credenti
 
 /*
 =============
+QL_ClientAuth_RequestSteamChallengeTicket
+
+Fetches the raw Steam auth ticket and SteamID words used by the retail
+getchallenge packet.
+=============
+*/
+qboolean QL_ClientAuth_RequestSteamChallengeTicket( byte *ticketBuffer, int ticketBufferSize, int *ticketLength, uint32_t *steamIdLow, uint32_t *steamIdHigh ) {
+	char		hexTicket[QL_STEAM_AUTH_TICKET_HEX_LENGTH];
+	int			hexLength;
+	uint32_t	rawLength;
+	uint32_t	ticketHandle;
+
+	if ( ticketLength ) {
+		*ticketLength = 0;
+	}
+	if ( steamIdLow ) {
+		*steamIdLow = 0u;
+	}
+	if ( steamIdHigh ) {
+		*steamIdHigh = 0u;
+	}
+
+	if ( !ticketBuffer || ticketBufferSize <= 0 || !ticketLength || !steamIdLow || !steamIdHigh ) {
+		return qfalse;
+	}
+
+	if ( ticketBufferSize > QL_STEAM_AUTH_TICKET_MAX_LENGTH ) {
+		ticketBufferSize = QL_STEAM_AUTH_TICKET_MAX_LENGTH;
+	}
+
+	if ( !CL_SteamServicesEnabled() ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_RunCallbacks();
+
+	if ( !QL_Steamworks_GetUserSteamID( steamIdLow, steamIdHigh ) || !( *steamIdLow | *steamIdHigh ) ) {
+		return qfalse;
+	}
+
+	hexLength = 0;
+	ticketHandle = 0;
+	if ( !QL_Steamworks_RequestAuthTicket( hexTicket, sizeof( hexTicket ), &hexLength, &ticketHandle ) ) {
+		return qfalse;
+	}
+
+	rawLength = 0u;
+	if ( !QL_Steamworks_HexDecode( hexTicket, ticketBuffer, (size_t)ticketBufferSize, &rawLength ) || rawLength == 0u ) {
+		QL_Steamworks_CancelAuthTicket( ticketHandle );
+		return qfalse;
+	}
+
+	QL_ClientAuth_SetSteamTicketHandle( ticketHandle );
+	QL_Steamworks_RunCallbacks();
+
+	*ticketLength = (int)rawLength;
+	return qtrue;
+}
+
+/*
+=============
 QL_ClientAuth_CancelSteamTicket
 
 Cancels the retained Steam auth ticket during disconnect/error cleanup.
@@ -526,8 +587,10 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 
 	switch ( activeCredential->kind ) {
 		case QL_AUTH_CREDENTIAL_STEAM:
-		Com_Printf( "[auth] %s [%s] payload summary: ticket=%s (len=%zu)\n",
-		transport.logPrefix, transport.policyLabel, steamHex[0] ? steamHex : preview, activeCredential->length );
+		Com_Printf( "[auth] %s [%s] payload summary: ticket=%s (len=%zu, api=%s, modern=%s)\n",
+		transport.logPrefix, transport.policyLabel, steamHex[0] ? steamHex : preview, activeCredential->length,
+		QL_Steamworks_GetAuthTicketApiLabel(),
+		QL_Steamworks_GetAuthTicketModernGapLabel() );
 		break;
 		case QL_AUTH_CREDENTIAL_STANDALONE_TOKEN:
 		Com_Printf( "[auth] %s [%s] payload summary: token=%s (len=%zu)\n",

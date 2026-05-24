@@ -197,7 +197,7 @@ void Netchan_TransmitNextFragment( netchan_t *chan ) {
 	MSG_WriteLong( &send, chan->outgoingSequence | FRAGMENT_BIT );
 
 	// send the qport if we are a client
-	if ( chan->sock == NS_CLIENT ) {
+	if ( chan->sock == NS_CLIENT && NET_ProtocolUsesNetchanClientQport() ) {
 		MSG_WriteShort( &send, qport->integer );
 	}
 
@@ -271,7 +271,7 @@ void Netchan_Transmit( netchan_t *chan, int length, const byte *data ) {
 	chan->outgoingSequence++;
 
 	// send the qport if we are a client
-	if ( chan->sock == NS_CLIENT ) {
+	if ( chan->sock == NS_CLIENT && NET_ProtocolUsesNetchanClientQport() ) {
 		MSG_WriteShort( &send, qport->integer );
 	}
 
@@ -323,8 +323,10 @@ qboolean Netchan_Process( netchan_t *chan, msg_t *msg ) {
 	}
 
 	// read the qport if we are a server
-	if ( chan->sock == NS_SERVER ) {
+	if ( chan->sock == NS_SERVER && NET_ProtocolUsesNetchanClientQport() ) {
 		qport = MSG_ReadShort( msg );
+	} else {
+		qport = 0;
 	}
 
 	// read the fragment information
@@ -650,7 +652,31 @@ void QDECL NET_OutOfBandPrint( netsrc_t sock, netadr_t adr, const char *format, 
 
 /*
 ===============
-NET_OutOfBandPrint
+NET_OutOfBandRaw
+
+Sends a binary out-of-band datagram without Huffman compression.
+================
+*/
+void NET_OutOfBandRaw( netsrc_t sock, netadr_t adr, const byte *data, int len ) {
+	byte	string[MAX_MSGLEN];
+
+	if ( !data || len < 0 || len > (int)sizeof( string ) - 4 ) {
+		return;
+	}
+
+	string[0] = 0xff;
+	string[1] = 0xff;
+	string[2] = 0xff;
+	string[3] = 0xff;
+
+	Com_Memcpy( string + 4, data, len );
+
+	NET_SendPacket( sock, len + 4, string, adr );
+}
+
+/*
+===============
+NET_OutOfBandData
 
 Sends a data message in an out-of-band datagram (only used for "connect")
 ================

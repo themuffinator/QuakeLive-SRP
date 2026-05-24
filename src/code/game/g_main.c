@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_config.h"
 #include "g_match_config.h"
 #include "g_legacy_cvars.h"
+#include "../game/match_state_keys.h"
 #include "generated/ql_gametype_strings.h"
 #include <limits.h>
 #include <stdint.h>
@@ -183,13 +184,13 @@ void G_UpdateForcedCosmeticsConfigstring( qboolean forceBroadcast ) {
 
 	info[0] = '\0';
 
-	Info_SetValueForKey( info, "sb", g_forceSmallScoreboardMessage.integer ? "1" : "0" );
-	Info_SetValueForKey( info, "hud", g_forceSendConfigstring.integer ? "1" : "0" );
-	Info_SetValueForKey( info, "dmg", g_forceDmgThroughSurface.integer ? "1" : "0" );
+	Info_SetValueForKey( info, FORCED_COSMETICS_KEY_SMALL_SCOREBOARD, g_forceSmallScoreboardMessage.integer ? "1" : "0" );
+	Info_SetValueForKey( info, FORCED_COSMETICS_KEY_HUD, g_forceSendConfigstring.integer ? "1" : "0" );
+	Info_SetValueForKey( info, FORCED_COSMETICS_KEY_DAMAGE, g_forceDmgThroughSurface.integer ? "1" : "0" );
 
 	atmosphere = G_SelectForcedAtmosphere();
 	if ( atmosphere && atmosphere[0] ) {
-		Info_SetValueForKey( info, "atm", atmosphere );
+		Info_SetValueForKey( info, FORCED_COSMETICS_KEY_ATMOSPHERE, atmosphere );
 	}
 
 	shouldBroadcast = forceBroadcast;
@@ -778,6 +779,8 @@ vmCvar_t	g_splashDamage_rl;
 vmCvar_t	g_splashRadius_rl;
 vmCvar_t	g_damage_pg;
 vmCvar_t	g_damage_pl;
+vmCvar_t	g_splashDamage_pl;
+vmCvar_t	g_splashRadius_pl;
 vmCvar_t	g_splashDamage_pg;
 vmCvar_t	g_splashRadius_pg;
 vmCvar_t	g_damage_lg;
@@ -813,6 +816,10 @@ vmCvar_t	g_ironsights_mg;
 vmCvar_t	g_midAirMinHeight;
 vmCvar_t	g_nailbounce;
 vmCvar_t	g_nailbouncepercentage;
+vmCvar_t	g_nailcount;
+vmCvar_t	g_nailgravity;
+vmCvar_t	g_nailspeed;
+vmCvar_t	g_nailspread;
 vmCvar_t	g_guidedRocket;
 vmCvar_t	g_rocketsplashOffset;
 vmCvar_t	g_quadDamageFactor;
@@ -1099,6 +1106,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_splashRadius_rl, "g_splashRadius_rl", "120", 0, 0, qtrue },
 	{ &g_damage_pg, "g_damage_pg", "20", 0, 0, qtrue },
 	{ &g_damage_pl, "g_damage_pl", "0", 0, 0, qtrue, qfalse, "Direct-hit damage applied by the proximity mine launcher before the mine arms." },
+	{ &g_splashDamage_pl, "g_splashDamage_pl", "100", 0, 0, qtrue, qfalse, "Splash damage applied when a proximity mine detonates." },
+	{ &g_splashRadius_pl, "g_splashRadius_pl", "150", 0, 0, qtrue, qfalse, "Splash radius applied when a proximity mine detonates." },
 	{ &g_splashDamage_pg, "g_splashDamage_pg", "15", 0, 0, qtrue },
 	{ &g_splashRadius_pg, "g_splashRadius_pg", "20", 0, 0, qtrue },
 	{ &g_damage_lg, "g_damage_lg", "6", 0, 0, qtrue },
@@ -1106,7 +1115,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_damage_bfg, "g_damage_bfg", "100", 0, 0, qtrue },
 	{ &g_splashDamage_bfg, "g_splashDamage_bfg", "100", 0, 0, qtrue },
 	{ &g_splashRadius_bfg, "g_splashRadius_bfg", "120", 0, 0, qtrue },
-	{ &g_damage_sg_falloff, "g_damage_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fractional shotgun damage multiplier applied once a target exceeds g_range_sg_falloff; 0 preserves the legacy drop-off curve." },
+	{ &g_damage_sg_falloff, "g_damage_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Shotgun pellet damage subtracted for each g_range_sg_falloff interval beyond the first; 0 preserves constant damage." },
 	{ &g_range_sg_falloff, "g_range_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before shotgun damage begins to fall off; 0 keeps the compiled default distance." },
 	{ &g_damage_lg_falloff, "g_damage_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Damage subtracted from lightning gun hits for each retail falloff interval beyond g_range_lg_falloff; 0 keeps constant damage." },
 	{ &g_range_lg_falloff, "g_range_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before retail lightning falloff starts, with each additional interval removing another g_damage_lg_falloff step." },
@@ -1127,8 +1136,12 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", 0, 0, qtrue, qfalse, "Extra railgun damage applied to headshots whenever headshot mutators run; 0 keeps the classic behaviour." },
 	{ &g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Machinegun ironsight spread/recoil scale pulled from the HLIL weapon tables." },
 	{ &g_midAirMinHeight, "g_midAirMinHeight", "96", CVAR_ARCHIVE, 0, qfalse, qfalse, "Minimum height in units that a target must reach before mid-air medals and splash bonuses register." },
-	{ &g_nailbounce, "g_nailbounce", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggle Quake Live's bouncing nailgun projectiles; set to 0 for classic straight shots." },
-	{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", CVAR_ARCHIVE, 0, qfalse, qfalse, "Chance (0-100) for a nailgun bolt to bounce while g_nailbounce is active." },
+	{ &g_nailbounce, "g_nailbounce", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum number of ricochets allowed for each bouncing Nailgun bolt." },
+	{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", CVAR_ARCHIVE, 0, qfalse, qfalse, "Chance (0-100) for a Nailgun bolt to receive the ricochet flag." },
+	{ &g_nailcount, "g_nailcount", "10", CVAR_ARCHIVE, 0, qfalse, qfalse, "Number of Nailgun bolts fired per shot." },
+	{ &g_nailgravity, "g_nailgravity", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggle gravity trajectories for Nailgun bolts when non-zero." },
+	{ &g_nailspeed, "g_nailspeed", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Randomized Nailgun bolt velocity span in ups." },
+	{ &g_nailspread, "g_nailspread", "400", CVAR_ARCHIVE, 0, qfalse, qfalse, "Spread applied to Nailgun bolt direction sampling." },
 	{ &g_powerupRespawn, "g_powerupRespawn", "120", CVAR_ARCHIVE, 0, qfalse, qfalse, "Seconds before powerups respawn after being collected; 0 uses each entity's scripted timing." },
 	{ &g_guidedRocket, "g_guidedRocket", "0", 0, 0, qtrue, qfalse, "Enable Quake Live style guided rockets when non-zero." },
 	{ &g_rocketsplashOffset, "g_rocketsplashOffset", "0", 0, 0, qtrue, qfalse, "Offset in ups applied along the impact normal before evaluating rocket splash damage; 0 retains classic explosions." },
@@ -1306,7 +1319,8 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.heavyMachinegunDamage = G_ReadWeaponCvar( &g_damage_hmg, 8, "g_damage_hmg" );
 	g_weaponConfig.chaingunDamage = G_ReadWeaponCvar( &g_damage_cg, 8, "g_damage_cg" );
 	g_weaponConfig.shotgunDamage = G_ReadWeaponCvar( &g_damage_sg, 5, "g_damage_sg" );
-	g_weaponConfig.shotgunFalloffScale = G_ReadWeaponFloatCvarNonNegative( &g_damage_sg_falloff, 0.0f, "g_damage_sg_falloff" );
+	g_weaponConfig.shotgunOuterDamage = G_ReadWeaponCvar( &g_damage_sg_outer, 5, "g_damage_sg_outer" );
+	g_weaponConfig.shotgunFalloffDamage = G_ReadWeaponCvarNonNegative( &g_damage_sg_falloff, 0, "g_damage_sg_falloff" );
 	g_weaponConfig.shotgunFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_sg_falloff, 0, "g_range_sg_falloff" );
 	g_weaponConfig.grenadeDamage = G_ReadWeaponCvar( &g_damage_gl, 100, "g_damage_gl" );
 	g_weaponConfig.grenadeSplashDamage = G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashDamage_gl" );
@@ -1343,12 +1357,20 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.railgunHeadshotDamage = G_ReadWeaponCvarNonNegative( &g_headShotDamage_rg, 0, "g_headShotDamage_rg" );
 	g_weaponConfig.machinegunIronsightsScale = G_ReadWeaponFloatCvarNonNegative( &g_ironsights_mg, 1.0f, "g_ironsights_mg" );
 	g_weaponConfig.midAirMinimumHeight = G_ReadWeaponCvarNonNegative( &g_midAirMinHeight, 96, "g_midAirMinHeight" );
-	g_weaponConfig.nailgunBounceEnabled = G_ReadWeaponBoolCvar( &g_nailbounce, qtrue, "g_nailbounce" );
+	g_weaponConfig.nailgunCount = G_ReadWeaponCvarNonNegative( &g_nailcount, 10, "g_nailcount" );
+	g_weaponConfig.nailgunDamage = G_ReadWeaponCvar( &g_damage_ng, 12, "g_damage_ng" );
+	g_weaponConfig.nailgunSpeed = G_ReadWeaponCvarAtLeast( &g_nailspeed, 1000, "g_nailspeed", 1 );
+	g_weaponConfig.nailgunSpread = G_ReadWeaponCvarNonNegative( &g_nailspread, 400, "g_nailspread" );
+	g_weaponConfig.nailgunBounceCount = G_ReadWeaponCvarNonNegative( &g_nailbounce, 1, "g_nailbounce" );
+	g_weaponConfig.nailgunBounceEnabled = ( g_weaponConfig.nailgunBounceCount > 0 ) ? qtrue : qfalse;
 	g_weaponConfig.nailgunBouncePercentage = G_ReadWeaponCvarNonNegative( &g_nailbouncepercentage, 65, "g_nailbouncepercentage" );
 	if ( g_weaponConfig.nailgunBouncePercentage > 100 ) {
 		g_weaponConfig.nailgunBouncePercentage = 100;
 	}
+	g_weaponConfig.nailgunGravityEnabled = G_ReadWeaponBoolCvar( &g_nailgravity, qfalse, "g_nailgravity" );
 	g_weaponConfig.proximityLauncherDamage = G_ReadWeaponCvarNonNegative( &g_damage_pl, 0, "g_damage_pl" );
+	g_weaponConfig.proximityLauncherSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pl, 100, "g_splashDamage_pl" );
+	g_weaponConfig.proximityLauncherSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pl, 150, "g_splashRadius_pl" );
 	g_weaponConfig.quadDamageMultiplier = G_ReadWeaponFloatCvarNonNegative( &g_quadDamageFactor, 3.0f, "g_quadDamageFactor" );
 	g_weaponConfig.guidedRocketEnabled = G_ReadWeaponBoolCvar( &g_guidedRocket, qfalse, "g_guidedRocket" );
 	g_weaponConfig.quadHogEnabled = G_ReadWeaponBoolCvar( &g_quadHog, qfalse, "g_quadHog" );
@@ -1948,9 +1970,9 @@ static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast ) {
 	payloadA[0] = '\0';
 	payloadB[0] = '\0';
 
-	Info_SetValueForKey( payloadA, "armor_tiered", va( "%i", g_armorTiered.integer ) );
-	Info_SetValueForKey( payloadB, "g_quadDamageFactor", va( "%i", g_quadDamageFactor.integer ) );
-	Info_SetValueForKey( payloadB, "g_gravity", va( "%i", g_gravity.integer ) );
+	Info_SetValueForKey( payloadA, SERVER_SETTINGS_KEY_ARMOR_TIERED, va( "%i", g_armorTiered.integer ) );
+	Info_SetValueForKey( payloadB, SERVER_SETTINGS_KEY_QUAD_DAMAGE_FACTOR, va( "%i", g_quadDamageFactor.integer ) );
+	Info_SetValueForKey( payloadB, SERVER_SETTINGS_KEY_GRAVITY, va( "%i", g_gravity.integer ) );
 
 	if ( forceBroadcast || Q_stricmp( payloadA, s_serverSettingsInfoPayloadA ) != 0 ) {
 		trap_SetConfigstring( CS_SERVER_SETTINGS_INFO_A, payloadA );
@@ -1976,12 +1998,12 @@ static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast ) {
 
 	payload[0] = '\0';
 
-	Info_SetValueForKey( payload, "g_playermodelOverride", g_playermodelOverride.string );
-	Info_SetValueForKey( payload, "g_playerheadmodelOverride", g_playerheadmodelOverride.string );
-	Info_SetValueForKey( payload, "g_allowCustomHeadmodels", va( "%i", g_allowCustomHeadmodels.integer ) );
-	Info_SetValueForKey( payload, "g_playerheadScale", va( "%g", g_playerheadScale.value ) );
-	Info_SetValueForKey( payload, "g_playerheadScaleOffset", va( "%g", g_playerheadScaleOffset.value ) );
-	Info_SetValueForKey( payload, "g_playerModelScale", va( "%g", g_playerModelScale.value ) );
+	Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERMODEL_OVERRIDE, g_playermodelOverride.string );
+	Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERHEADMODEL_OVERRIDE, g_playerheadmodelOverride.string );
+	Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_ALLOW_CUSTOM_HEADMODELS, va( "%i", g_allowCustomHeadmodels.integer ) );
+	Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE, va( "%g", g_playerheadScale.value ) );
+	Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE_OFFSET, va( "%g", g_playerheadScaleOffset.value ) );
+	Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERMODEL_SCALE, va( "%g", g_playerModelScale.value ) );
 
 	if ( forceBroadcast || Q_stricmp( payload, s_playerAppearancePayload ) != 0 ) {
 		trap_SetConfigstring( CS_PLAYER_APPEARANCE, payload );
@@ -3661,11 +3683,11 @@ static void G_PublishNextMapVoteCounts( void ) {
 	int		slot;
 
 	counts[0] = '\0';
-	for ( slot = 0; slot < 3; slot++ ) {
-		char	key[16];
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
+		char	key[ROTATION_VOTE_KEY_BUFFER_SIZE];
 		char	value[16];
 
-		Com_sprintf( key, sizeof( key ), "%i", slot );
+		Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_COUNT_FORMAT, slot );
 		Com_sprintf( value, sizeof( value ), "%i", level.nextMapVoteCounts[slot] );
 		Info_SetValueForKey( counts, key, value );
 	}
@@ -3696,23 +3718,23 @@ static void G_PublishRotationPreviewConfigstrings( void ) {
 
 	titles[0] = '\0';
 
-	for ( slot = 0; slot < 3; slot++ ) {
-		char	key[16];
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
+		char	key[ROTATION_VOTE_KEY_BUFFER_SIZE];
 		const char	*value;
 
-		Com_sprintf( key, sizeof( key ), "map_%i", slot );
+		Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_MAP_FORMAT, slot );
 		value = Info_ValueForKey( nextmaps, key );
 		if ( value[0] ) {
 			Info_SetValueForKey( titles, key, value );
 		}
 
-		Com_sprintf( key, sizeof( key ), "title_%i", slot );
+		Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_TITLE_FORMAT, slot );
 		value = Info_ValueForKey( nextmaps, key );
 		if ( value[0] ) {
 			Info_SetValueForKey( titles, key, value );
 		}
 
-		Com_sprintf( key, sizeof( key ), "gt_%i", slot );
+		Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot );
 		value = Info_ValueForKey( nextmaps, key );
 		if ( value[0] ) {
 			Info_SetValueForKey( titles, key, value );
@@ -3736,9 +3758,9 @@ with random tie-breaking across equally voted arenas.
 static int G_SelectNextMapVoteSlot( void ) {
 	char		nextmaps[MAX_STRING_CHARS];
 	char	mapName[MAX_QPATH];
-	char	key[16];
+	char	key[ROTATION_VOTE_KEY_BUFFER_SIZE];
 	int		maxVotes;
-	int		tiedSlots[3];
+	int		tiedSlots[ROTATION_VOTE_SLOT_COUNT];
 	int		tiedSlotCount;
 	int		slot;
 
@@ -3746,10 +3768,10 @@ static int G_SelectNextMapVoteSlot( void ) {
 	tiedSlotCount = 0;
 	trap_Cvar_VariableStringBuffer( "nextmaps", nextmaps, sizeof( nextmaps ) );
 
-	for ( slot = 0; slot < 3; slot++ ) {
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
 		const char	*value;
 
-		Com_sprintf( key, sizeof( key ), "map_%i", slot );
+		Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_MAP_FORMAT, slot );
 		value = Info_ValueForKey( nextmaps, key );
 		Q_strncpyz( mapName, value ? value : "", sizeof( mapName ) );
 		if ( !mapName[0] ) {
@@ -3852,7 +3874,7 @@ void ExitLevel (void) {
 	char		selectedCfg[MAX_QPATH];
 
 	trap_GetServerinfo( serverinfo, sizeof( serverinfo ) );
-	Q_strncpyz( mapName, Info_ValueForKey( serverinfo, "mapname" ), sizeof( mapName ) );
+	Q_strncpyz( mapName, Info_ValueForKey( serverinfo, SERVERINFO_KEY_MAPNAME ), sizeof( mapName ) );
 
 	if ( trap_Cvar_VariableIntegerValue( "sv_killserver" ) ) {
 		trap_SendConsoleCommand( EXEC_APPEND, "killserver\n" );
@@ -3879,15 +3901,15 @@ void ExitLevel (void) {
 	if ( !g_singlePlayer.integer && !( g_voteFlags.integer & VF_NO_ENDVOTE ) ) {
 		trap_Cvar_VariableStringBuffer( "nextmaps", nextmaps, sizeof( nextmaps ) );
 		if ( nextmaps[0] ) {
-			char	key[16];
+			char	key[ROTATION_VOTE_KEY_BUFFER_SIZE];
 			const char	*value;
 
 			selectedSlot = G_SelectNextMapVoteSlot();
 			if ( selectedSlot >= 0 ) {
-				Com_sprintf( key, sizeof( key ), "map_%i", selectedSlot );
+				Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_MAP_FORMAT, selectedSlot );
 				value = Info_ValueForKey( nextmaps, key );
 				Q_strncpyz( selectedMap, value ? value : "", sizeof( selectedMap ) );
-				Com_sprintf( key, sizeof( key ), "cfg_%i", selectedSlot );
+				Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_CONFIG_FORMAT, selectedSlot );
 				value = Info_ValueForKey( nextmaps, key );
 				Q_strncpyz( selectedCfg, value ? value : "", sizeof( selectedCfg ) );
 			}
@@ -7127,11 +7149,11 @@ static void G_PublishWarmupReadyConfigstring( int readyCount, int eligibleCount,
 
 	info[0] = '\0';
 	Com_sprintf( value, sizeof( value ), "%i", percent );
-	Info_SetValueForKey( info, "pct", value );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT, value );
 	Com_sprintf( value, sizeof( value ), "%i", readyCount );
-	Info_SetValueForKey( info, "ready", value );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_COUNT, value );
 	Com_sprintf( value, sizeof( value ), "%i", eligibleCount );
-	Info_SetValueForKey( info, "eligible", value );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_ELIGIBLE, value );
 	trap_SetConfigstring( CS_WARMUP_READY, info );
 
 	for ( i = 0; i < level.maxclients; i++ ) {

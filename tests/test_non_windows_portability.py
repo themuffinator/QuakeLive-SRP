@@ -541,8 +541,11 @@ def test_null_runtime_shims_track_current_qcommon_contracts() -> None:
 	assert "(void)dllname;" in null_glimp
 
 	assert "void CL_RefreshOnlineServicesBridgeState( void ) {" in null_client
+	assert '#define CL_NULL_BROWSER_PARITY_SCOPE_LABEL "strict-retail-excluded"' in null_client
 	assert 'Cvar_Set( "ui_browserAwesomium", "0" );' in null_client
+	assert 'Cvar_Set( "ui_browserAwesomiumParityScope", CL_NULL_BROWSER_PARITY_SCOPE_LABEL );' in null_client
 	assert 'Cvar_Set( "web_browserActive", "0" );' in null_client
+	assert 'Cvar_Set( "ui_advertisementBridgeParityScope", CL_NULL_BROWSER_PARITY_SCOPE_LABEL );' in null_client
 	assert "void *CL_WebHost_GetCursorHandle( void ) {" in null_client
 	assert "void CL_WebHost_NotifyAppActivation( qboolean active ) {" in null_client
 	assert "void CL_WebView_OnMouseMove( int x, int y ) {" in null_client

@@ -762,9 +762,10 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 
 	if ( g_weaponReloadConfig.shotgun != DEFAULT_WEAPON_RELOAD_SG ||
 		 g_weaponConfig.shotgunDamage != 5 ||
-		 g_damage_sg_outer.integer != 5 ||
+		 g_weaponConfig.shotgunOuterDamage != 5 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.shotgun, DEFAULT_KNOCKBACK_SG ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.shotgunFalloffScale, 0.0f ) ) {
+		 g_weaponConfig.shotgunFalloffDamage != 0 ||
+		 g_weaponConfig.shotgunFalloffRange != 0 ) {
 		mask |= CUSTOM_SETTING_SHOTGUN;
 	}
 
@@ -784,7 +785,7 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 		 g_weaponConfig.rocketSpeed != 900 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.rocketLauncher, DEFAULT_KNOCKBACK_RL ) ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.rocketLauncherSelf, DEFAULT_KNOCKBACK_RL_SELF ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 0.0f ) ) {
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 1.0f ) ) {
 		mask |= CUSTOM_SETTING_ROCKET_LAUNCHER;
 	}
 
@@ -808,7 +809,7 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 		 g_weaponConfig.plasmaSpeed != 2000 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagun, DEFAULT_KNOCKBACK_PG ) ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagunSelf, DEFAULT_KNOCKBACK_PG_SELF ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 0.0f ) ) {
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 1.0f ) ) {
 		mask |= CUSTOM_SETTING_PLASMAGUN;
 	}
 
@@ -818,7 +819,7 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 		 g_weaponConfig.bfgSplashRadius != 120 ||
 		 g_weaponConfig.bfgSpeed != 2000 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.bfg, DEFAULT_KNOCKBACK_BFG ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 0.0f ) ) {
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 1.0f ) ) {
 		mask |= CUSTOM_SETTING_BFG;
 	}
 
@@ -832,14 +833,21 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 	}
 
 	if ( g_weaponReloadConfig.nailgun != DEFAULT_WEAPON_RELOAD_NG ||
-		 g_damage_ng.integer != 12 ||
+		 g_weaponConfig.nailgunCount != 10 ||
+		 g_weaponConfig.nailgunDamage != 12 ||
+		 g_weaponConfig.nailgunSpeed != 1000 ||
+		 g_weaponConfig.nailgunSpread != 400 ||
+		 g_weaponConfig.nailgunBounceCount != 1 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.nailgun, DEFAULT_KNOCKBACK_NG ) ||
-		 g_nailbounce.integer != 1 ||
-		 g_nailbouncepercentage.integer != 65 ) {
+		 g_weaponConfig.nailgunBouncePercentage != 65 ||
+		 g_weaponConfig.nailgunGravityEnabled ) {
 		mask |= CUSTOM_SETTING_NAILGUN;
 	}
 
 	if ( g_weaponReloadConfig.proximityLauncher != DEFAULT_WEAPON_RELOAD_PROX ||
+		 g_weaponConfig.proximityLauncherDamage != 0 ||
+		 g_weaponConfig.proximityLauncherSplashDamage != 100 ||
+		 g_weaponConfig.proximityLauncherSplashRadius != 150 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.proximityLauncher, DEFAULT_KNOCKBACK_PL ) ||
 		 g_proxMineTimeout.integer != DEFAULT_PROX_MINE_TIMEOUT ) {
 		mask |= CUSTOM_SETTING_PROX_LAUNCHER;

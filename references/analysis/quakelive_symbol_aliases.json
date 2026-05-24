@@ -3582,6 +3582,7 @@
     "sub_4F1530": "VID_AppActivate",
     "sub_4F15C0": "MapKey",
     "sub_4F1EF0": "AdvertisementBridge_SetActiveAdvert",
+    "sub_4F1F10": "AdvertisementBridge_SetAppActivation",
     "sub_4F1F30": "AdvertisementBridge_SetClientStateFlags",
     "sub_4F1F50": "AdvertisementBridge_SetFrameTime",
     "sub_4F1F70": "AdvertisementBridge_UpdateViewParameters",

@@ -50,8 +50,8 @@ That is the avatar PNG encoder used by the response thread.
 
 Observed facts:
 
-1. The RTTI-backed `ResponseThread::vftable{for idSysThread}` points its run
-   slot directly at this helper.
+1. The RTTI-backed `ResponseThread::vftable{for idSysThread}` at
+   `0x00532B44` points its run slot directly at this helper.
 2. The helper calls `SteamUtils()` to fetch avatar dimensions and RGBA pixels
    for the stored image handle.
 3. It encodes those pixels through `sub_463180`, sends the final payload via

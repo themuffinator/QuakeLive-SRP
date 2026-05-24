@@ -971,7 +971,8 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 			WP_BFG,
 			WP_NAILGUN,
 			WP_PROX_LAUNCHER,
-			WP_CHAINGUN
+			WP_CHAINGUN,
+			WP_HEAVY_MACHINEGUN
 		};
 		int weapCount = ARRAY_LEN( weapList );
 		//
@@ -980,6 +981,7 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 
 			switch ( w ) {
 				case WP_MACHINEGUN: max = 50; inc = 4; t = 1000; break;
+				case WP_HEAVY_MACHINEGUN: max = 50; inc = 4; t = 1000; break;
 				case WP_SHOTGUN: max = 10; inc = 1; t = 1500; break;
 				case WP_GRENADE_LAUNCHER: max = 10; inc = 1; t = 2000; break;
 				case WP_ROCKET_LAUNCHER: max = 10; inc = 1; t = 1750; break;

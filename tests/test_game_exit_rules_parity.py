@@ -209,8 +209,8 @@ def test_nextmap_vote_slot_selector_preserves_retail_tie_and_empty_slot_rules() 
 	assert "maxVotes = -1;" in selector_block
 	assert "tiedSlotCount = 0;" in selector_block
 	assert 'trap_Cvar_VariableStringBuffer( "nextmaps", nextmaps, sizeof( nextmaps ) );' in selector_block
-	assert "for ( slot = 0; slot < 3; slot++ ) {" in selector_block
-	assert 'Com_sprintf( key, sizeof( key ), "map_%i", slot );' in selector_block
+	assert "for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {" in selector_block
+	assert "Com_sprintf( key, sizeof( key ), ROTATION_VOTE_KEY_MAP_FORMAT, slot );" in selector_block
 	assert 'Q_strncpyz( mapName, value ? value : "", sizeof( mapName ) );' in selector_block
 	assert "if ( !mapName[0] ) {" in selector_block
 	assert "continue;" in selector_block

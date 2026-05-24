@@ -164,6 +164,10 @@ def test_client_steam_voice_frame_reconstructs_retail_transport_path() -> None:
 	assert "CL_IsVoiceSenderMuted( clientNum )" in process_block
 	assert "CL_SetClientSpeakingState( clientNum, qtrue );" in process_block
 	assert "S_AddVoiceSamples( clientNum, (int)( voiceBytes >> 1 ), decompressedVoice );" in process_block
+	assert "QL_Steamworks_GetP2PTransportLabel()" in cl_main
+	assert "CL_GetServerSteamId( &serverIdLow, &serverIdHigh ) || !( serverIdLow | serverIdHigh )" in session_block
+	assert "trackedSteamId = ( (uint64_t)serverIdHigh << 32 ) | serverIdLow;" in session_block
+	assert "if ( event->remoteId.value != trackedSteamId ) {" in session_block
 	assert "QL_Steamworks_AcceptP2PSession( &event->remoteId )" in session_block
 	assert "if ( !CL_SteamServicesEnabled() || !QL_Steamworks_Init() ) {" in frame_block
 	assert "QL_Steamworks_RunCallbacks();" in frame_block
@@ -194,6 +198,7 @@ def test_platform_steam_voice_wrappers_use_retail_slots() -> None:
 		steamworks,
 		"qboolean QL_Steamworks_AcceptP2PSession( const CSteamID *steamId )",
 	)
+	transport_label_block = _extract_function_block(steamworks, "const char *QL_Steamworks_GetP2PTransportLabel( void )")
 	start_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_StartVoiceRecording( void )")
 	stop_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_StopVoiceRecording( void )")
 	get_block = _extract_function_block(
@@ -211,6 +216,7 @@ def test_platform_steam_voice_wrappers_use_retail_slots() -> None:
 	assert "vtable[1]" in available_block
 	assert "vtable[2]" in read_block
 	assert "vtable[0x0c / 4]" in accept_block
+	assert 'return "legacy ISteamNetworking";' in transport_label_block
 	assert "vtable[0x1c / 4]" in start_block
 	assert "vtable[0x20 / 4]" in stop_block
 	assert "vtable[0x28 / 4]" in get_block

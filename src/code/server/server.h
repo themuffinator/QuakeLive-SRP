@@ -153,7 +153,7 @@ typedef struct client_s {
 	qboolean		platformAuthSucceeded;
 	qboolean		platformAuthSessionActive;
 	char			platformAuthLabel[32];
-	char			platformAuthToken[QL_AUTH_MAX_CREDENTIAL_STORAGE];
+	char			platformAuthToken[QL_STEAM_AUTH_TICKET_HEX_LENGTH];
 	char			platformAuthResult[32];
 	char			platformAuthOutcome[32];
 	char			platformAuthMessage[QL_AUTH_MAX_RESPONSE_MESSAGE];
@@ -212,6 +212,12 @@ typedef struct {
 	int			pingTime;			// time the challenge response was sent to client
 	int			firstTime;			// time the adr was first used, for authorize timeout checks
 	qboolean	connected;
+#if SV_HAS_PLATFORM_AUTH
+	uint32_t	platformSteamIdLow;
+	uint32_t	platformSteamIdHigh;
+	int			platformAuthTicketLength;
+	byte		platformAuthTicket[QL_STEAM_AUTH_TICKET_MAX_LENGTH];
+#endif
 } challenge_t;
 
 
@@ -341,7 +347,7 @@ void SV_SpawnServer( char *server, qboolean killBots );
 //
 // sv_client.c
 //
-void SV_GetChallenge( netadr_t from );
+void SV_GetChallenge( netadr_t from, msg_t *msg );
 
 void SV_DirectConnect( netadr_t from );
 

@@ -123,6 +123,71 @@ class Sample:
         return f"[auth] {self.provider} [{self.policy}] result -> outcome={outcome}, message=\"{message}\""
 
 
+class ServerAuthSample:
+    def __init__(
+        self,
+        title: str,
+        begin_response: str,
+        callback_response: str,
+        client_present: bool = True,
+        ownership: str = "self-owned",
+    ) -> None:
+        self.title = title
+        self.begin_response = begin_response
+        self.callback_response = callback_response
+        self.client_present = client_present
+        self.ownership = ownership
+
+    def lines(self) -> list[str]:
+        lines = [
+            "[server-auth] connect: captured steam auth token and SteamID",
+            f"[server-auth] begin: BeginAuthSession={self.begin_response}",
+        ]
+
+        if self.begin_response != "OK":
+            lines.extend(
+                [
+                    "[server-auth] begin-final: pending=0 succeeded=0 session=0 drop=0",
+                    "[server-auth] callback: skipped because no Steam GameServer auth session was retained",
+                ]
+            )
+            return lines
+
+        lines.extend(
+            [
+                "[server-auth] begin-state: pending=1 succeeded=0 session=1 stats=created",
+                "[server-auth] qagame pre-connect verify: pending before CS_CONNECTED -> allow",
+                "[server-auth] qagame post-connect verify: pending after CS_CONNECTED -> deny until callback",
+            ]
+        )
+
+        if not self.client_present:
+            lines.extend(
+                [
+                    f"[server-auth] callback: ValidateAuthTicketResponse={self.callback_response} ignored missing client",
+                    "[server-auth] final: pending=1 succeeded=0 session=1 drop=0",
+                ]
+            )
+            return lines
+
+        if self.callback_response == "OK":
+            lines.extend(
+                [
+                    f"[server-auth] callback: ValidateAuthTicketResponse=OK ownership={self.ownership} -> accepted success",
+                    "[server-auth] final: pending=0 succeeded=1 session=1 drop=0",
+                ]
+            )
+            return lines
+
+        lines.extend(
+            [
+                f"[server-auth] callback: ValidateAuthTicketResponse={self.callback_response} ownership={self.ownership} -> denied failure",
+                "[server-auth] final: pending=0 succeeded=0 session=1 drop=1",
+            ]
+        )
+        return lines
+
+
 def main() -> None:
     banner = textwrap.dedent(
         """
@@ -146,6 +211,24 @@ def main() -> None:
         print()
         print(f"-- Scenario {index}: {sample.title} --")
         for line in itertools.chain(sample.dispatch_logs(), [sample.format_result()]):
+            print(line)
+
+    print()
+    print("== Server Auth Callback Lifecycle ==")
+    print("BeginAuthSession keeps the client pending until ValidateAuthTicketResponse_t resolves it.")
+
+    server_samples = [
+        ServerAuthSample("Accepted validation callback", "OK", "OK"),
+        ServerAuthSample("Accepted owner mismatch observation", "OK", "OK", ownership="owner-mismatch"),
+        ServerAuthSample("VAC ban validation callback", "OK", "VACBanned"),
+        ServerAuthSample("Missing client validation callback", "OK", "UserNotConnectedToSteam", client_present=False),
+        ServerAuthSample("Immediate begin failure", "InvalidTicket", "OK"),
+    ]
+
+    for index, sample in enumerate(server_samples, start=1):
+        print()
+        print(f"-- Server Scenario {index}: {sample.title} --")
+        for line in sample.lines():
             print(line)
 
 

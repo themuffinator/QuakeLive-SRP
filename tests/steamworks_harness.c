@@ -197,6 +197,19 @@ typedef struct {
 	int ugc_download_calls;
 	uint64_t ugc_last_item_id;
 	int ugc_last_high_priority;
+	int ugc_create_query_calls;
+	int ugc_send_query_calls;
+	int ugc_release_query_calls;
+	int ugc_last_query_type;
+	int ugc_last_matching_type;
+	uint32_t ugc_last_creator_app_id;
+	uint32_t ugc_last_consumer_app_id;
+	uint32_t ugc_last_filter;
+	uint64_t ugc_query_handle_result;
+	uint64_t ugc_query_call_result;
+	uint64_t ugc_last_query_handle;
+	uint64_t ugc_last_sent_query_handle;
+	uint64_t ugc_last_released_query_handle;
 	int steam_game_server_ugc_subscribe_calls;
 	int steam_game_server_ugc_unsubscribe_calls;
 	int steam_game_server_ugc_download_calls;
@@ -352,6 +365,19 @@ static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.ugc_download_calls = 0,
 	.ugc_last_item_id = 0,
 	.ugc_last_high_priority = 0,
+	.ugc_create_query_calls = 0,
+	.ugc_send_query_calls = 0,
+	.ugc_release_query_calls = 0,
+	.ugc_last_query_type = 0,
+	.ugc_last_matching_type = 0,
+	.ugc_last_creator_app_id = 0,
+	.ugc_last_consumer_app_id = 0,
+	.ugc_last_filter = 0,
+	.ugc_query_handle_result = 0x1122334455667788ULL,
+	.ugc_query_call_result = 0xAABBCCDDEEFF0011ULL,
+	.ugc_last_query_handle = 0,
+	.ugc_last_sent_query_handle = 0,
+	.ugc_last_released_query_handle = 0,
 	.steam_game_server_ugc_subscribe_calls = 0,
 	.steam_game_server_ugc_unsubscribe_calls = 0,
 	.steam_game_server_ugc_download_calls = 0,
@@ -596,6 +622,19 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.ugc_download_calls = 0;
 	qlr_mock_state.ugc_last_item_id = 0;
 	qlr_mock_state.ugc_last_high_priority = 0;
+	qlr_mock_state.ugc_create_query_calls = 0;
+	qlr_mock_state.ugc_send_query_calls = 0;
+	qlr_mock_state.ugc_release_query_calls = 0;
+	qlr_mock_state.ugc_last_query_type = 0;
+	qlr_mock_state.ugc_last_matching_type = 0;
+	qlr_mock_state.ugc_last_creator_app_id = 0u;
+	qlr_mock_state.ugc_last_consumer_app_id = 0u;
+	qlr_mock_state.ugc_last_filter = 0u;
+	qlr_mock_state.ugc_query_handle_result = 0x1122334455667788ULL;
+	qlr_mock_state.ugc_query_call_result = 0xAABBCCDDEEFF0011ULL;
+	qlr_mock_state.ugc_last_query_handle = 0ull;
+	qlr_mock_state.ugc_last_sent_query_handle = 0ull;
+	qlr_mock_state.ugc_last_released_query_handle = 0ull;
 	qlr_mock_state.steam_game_server_ugc_subscribe_calls = 0;
 	qlr_mock_state.steam_game_server_ugc_unsubscribe_calls = 0;
 	qlr_mock_state.steam_game_server_ugc_download_calls = 0;
@@ -1559,6 +1598,105 @@ QLR_EXPORT int QLR_SteamworksMock_GetUGCLastHighPriority( void ) {
 
 /*
 =============
+QLR_SteamworksMock_GetUGCCreateQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCCreateQueryCalls( void ) {
+	return qlr_mock_state.ugc_create_query_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCSendQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCSendQueryCalls( void ) {
+	return qlr_mock_state.ugc_send_query_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCReleaseQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCReleaseQueryCalls( void ) {
+	return qlr_mock_state.ugc_release_query_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastQueryType
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCLastQueryType( void ) {
+	return qlr_mock_state.ugc_last_query_type;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastMatchingType
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCLastMatchingType( void ) {
+	return qlr_mock_state.ugc_last_matching_type;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastCreatorAppId
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetUGCLastCreatorAppId( void ) {
+	return qlr_mock_state.ugc_last_creator_app_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastConsumerAppId
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetUGCLastConsumerAppId( void ) {
+	return qlr_mock_state.ugc_last_consumer_app_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastFilter
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetUGCLastFilter( void ) {
+	return qlr_mock_state.ugc_last_filter;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastQueryHandle
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetUGCLastQueryHandle( void ) {
+	return qlr_mock_state.ugc_last_query_handle;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastSentQueryHandle
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetUGCLastSentQueryHandle( void ) {
+	return qlr_mock_state.ugc_last_sent_query_handle;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastReleasedQueryHandle
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetUGCLastReleasedQueryHandle( void ) {
+	return qlr_mock_state.ugc_last_released_query_handle;
+}
+
+/*
+=============
 Com_DPrintf
 =============
 */
@@ -2001,10 +2139,12 @@ void QLR_SteamAPI_UnregisterCallResult( void *object, SteamAPICall_t callHandle 
 
 /*
 =============
-QLR_SteamAPI_RunCallbacks
+QLR_SteamworksMock_DispatchPendingCallbacks
+
+Delivers queued callback payloads through the registered Steam callback objects.
 =============
 */
-void QLR_SteamAPI_RunCallbacks( void ) {
+static void QLR_SteamworksMock_DispatchPendingCallbacks( void ) {
 	int pendingIndex;
 
 	for ( pendingIndex = 0; pendingIndex < qlr_mock_state.pending_callback_count; ++pendingIndex ) {
@@ -2050,6 +2190,15 @@ void QLR_SteamAPI_RunCallbacks( void ) {
 
 /*
 =============
+QLR_SteamAPI_RunCallbacks
+=============
+*/
+void QLR_SteamAPI_RunCallbacks( void ) {
+	QLR_SteamworksMock_DispatchPendingCallbacks();
+}
+
+/*
+=============
 QLR_SteamAPI_SteamGameServerInit
 =============
 */
@@ -2080,6 +2229,7 @@ QLR_SteamAPI_SteamGameServerRunCallbacks
 */
 void QLR_SteamAPI_SteamGameServerRunCallbacks( void ) {
 	qlr_mock_state.steam_game_server_callback_calls++;
+	QLR_SteamworksMock_DispatchPendingCallbacks();
 }
 
 /*
@@ -2811,6 +2961,53 @@ static uint64_t QLR_SteamworksMock_CombineItemWords( uint32_t idLow, uint32_t id
 
 /*
 =============
+QLR_SteamUGC_CreateQueryAllUGCRequest
+=============
+*/
+static uint64_t QLR_FASTCALL QLR_SteamUGC_CreateQueryAllUGCRequest( void *self, void *unused, int queryType, int matchingType, uint32_t creatorAppId, uint32_t consumerAppId, uint32_t filter ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.ugc_create_query_calls++;
+	qlr_mock_state.ugc_last_query_type = queryType;
+	qlr_mock_state.ugc_last_matching_type = matchingType;
+	qlr_mock_state.ugc_last_creator_app_id = creatorAppId;
+	qlr_mock_state.ugc_last_consumer_app_id = consumerAppId;
+	qlr_mock_state.ugc_last_filter = filter;
+	qlr_mock_state.ugc_last_query_handle = qlr_mock_state.ugc_query_handle_result;
+	return qlr_mock_state.ugc_query_handle_result;
+}
+
+/*
+=============
+QLR_SteamUGC_SendQueryUGCRequest
+=============
+*/
+static uint64_t QLR_FASTCALL QLR_SteamUGC_SendQueryUGCRequest( void *self, void *unused, uint32_t queryLow, uint32_t queryHigh ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.ugc_send_query_calls++;
+	qlr_mock_state.ugc_last_sent_query_handle = ( (uint64_t)queryHigh << 32 ) | queryLow;
+	return qlr_mock_state.ugc_query_call_result;
+}
+
+/*
+=============
+QLR_SteamUGC_ReleaseQueryUGCRequest
+=============
+*/
+static qboolean QLR_FASTCALL QLR_SteamUGC_ReleaseQueryUGCRequest( void *self, void *unused, uint32_t queryLow, uint32_t queryHigh ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.ugc_release_query_calls++;
+	qlr_mock_state.ugc_last_released_query_handle = ( (uint64_t)queryHigh << 32 ) | queryLow;
+	return qtrue;
+}
+
+/*
+=============
 QLR_SteamUGC_SubscribeItem
 =============
 */
@@ -3166,6 +3363,9 @@ void *QLR_SteamAPI_SteamUGC( void ) {
 	static void *vtable[0xdc / 4 + 1];
 	static qlr_steamworks_mock_interface_t iface = { vtable };
 
+	vtable[0x04 / 4] = QLR_SteamUGC_CreateQueryAllUGCRequest;
+	vtable[0x0c / 4] = QLR_SteamUGC_SendQueryUGCRequest;
+	vtable[0x34 / 4] = QLR_SteamUGC_ReleaseQueryUGCRequest;
 	vtable[0xc0 / 4] = QLR_SteamUGC_SubscribeItem;
 	vtable[0xc4 / 4] = QLR_SteamUGC_UnsubscribeItem;
 	vtable[0xc8 / 4] = QLR_SteamUGC_GetNumSubscribedItems;
@@ -3433,6 +3633,21 @@ static void QLR_SteamworksHarness_OnDownloadItemResult( void *context, const ql_
 
 /*
 =============
+QLR_SteamworksHarness_OnValidateAuthTicketResponse
+=============
+*/
+static void QLR_SteamworksHarness_OnValidateAuthTicketResponse( void *context, const ql_steam_validate_auth_ticket_response_t *event ) {
+	(void)context;
+
+	if ( !event ) {
+		return;
+	}
+
+	QLR_SteamworksMock_Capture( "server_validate_auth", "", event->steamId.value, event->ownerSteamId.value, 0u, (int)event->authSessionResponse );
+}
+
+/*
+=============
 QLR_SteamworksMock_QueueCallback
 =============
 */
@@ -3532,6 +3747,29 @@ QLR_EXPORT void QLR_Steamworks_UnregisterHarnessCallbacks( void ) {
 
 /*
 =============
+QLR_Steamworks_RegisterServerHarnessCallbacks
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RegisterServerHarnessCallbacks( void ) {
+	ql_steam_server_callback_bindings_t serverBindings;
+
+	memset( &serverBindings, 0, sizeof( serverBindings ) );
+	serverBindings.onValidateAuthTicketResponse = QLR_SteamworksHarness_OnValidateAuthTicketResponse;
+
+	return QL_Steamworks_RegisterServerCallbacks( &serverBindings );
+}
+
+/*
+=============
+QLR_Steamworks_UnregisterServerHarnessCallbacks
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_UnregisterServerHarnessCallbacks( void ) {
+	QL_Steamworks_UnregisterServerCallbacks();
+}
+
+/*
+=============
 QLR_Steamworks_BindUGCQueryCallResult
 =============
 */
@@ -3541,11 +3779,29 @@ QLR_EXPORT qboolean QLR_Steamworks_BindUGCQueryCallResult( uint64_t callHandle )
 
 /*
 =============
+QLR_Steamworks_RequestAllUGCQuery
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RequestAllUGCQuery( uint32_t filter ) {
+	return QL_Steamworks_RequestAllUGCQuery( filter );
+}
+
+/*
+=============
 QLR_Steamworks_RunCallbackPump
 =============
 */
 QLR_EXPORT void QLR_Steamworks_RunCallbackPump( void ) {
 	QL_Steamworks_RunCallbacks();
+}
+
+/*
+=============
+QLR_Steamworks_RunServerCallbackPump
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_RunServerCallbackPump( void ) {
+	QL_Steamworks_RunServerCallbacks();
 }
 
 /*
@@ -3655,6 +3911,21 @@ QLR_EXPORT qboolean QLR_SteamworksMock_QueueUGCQueryCompleted( uint64_t callHand
 	event.totalMatchingResults = totalMatchingResults;
 	event.cachedData = cachedData ? qtrue : qfalse;
 	return QLR_SteamworksMock_QueueCallback( qtrue, 0xd49, (SteamAPICall_t)callHandle, &event, sizeof( event ), qfalse );
+}
+
+/*
+=============
+QLR_SteamworksMock_QueueValidateAuthTicketResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_SteamworksMock_QueueValidateAuthTicketResponse( uint64_t steamId, uint64_t ownerSteamId, int authSessionResponse ) {
+	ql_steam_validate_auth_ticket_response_raw_t event;
+
+	memset( &event, 0, sizeof( event ) );
+	event.steamId.value = steamId;
+	event.ownerSteamId.value = ownerSteamId;
+	event.authSessionResponse = authSessionResponse;
+	return QLR_SteamworksMock_QueueCallback( qfalse, QL_STEAM_CALLBACK_VALIDATE_AUTH_TICKET_RESPONSE, 0ull, &event, sizeof( event ), qfalse );
 }
 
 /*
@@ -4037,6 +4308,15 @@ QLR_Steamworks_Init
 */
 QLR_EXPORT qboolean QLR_Steamworks_Init( void ) {
 	return QL_Steamworks_Init();
+}
+
+/*
+=============
+QLR_Steamworks_ServerInitWithVersion
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version ) {
+	return QL_Steamworks_ServerInitWithVersion( ip, gamePort, secure, dedicated, version );
 }
 
 /*
@@ -4536,10 +4816,133 @@ QLR_EXPORT qboolean QLR_Steamworks_DownloadItem( uint32_t idLow, uint32_t idHigh
 
 /*
 =============
+QLR_Steamworks_RequestAllUGCQuery
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RequestAllUGCQuery( uint32_t filter ) {
+	(void)filter;
+	return qfalse;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCCreateQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCCreateQueryCalls( void ) {
+	return 0;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCSendQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCSendQueryCalls( void ) {
+	return 0;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCReleaseQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCReleaseQueryCalls( void ) {
+	return 0;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastQueryType
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCLastQueryType( void ) {
+	return 0;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastMatchingType
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetUGCLastMatchingType( void ) {
+	return 0;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastCreatorAppId
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetUGCLastCreatorAppId( void ) {
+	return 0u;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastConsumerAppId
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetUGCLastConsumerAppId( void ) {
+	return 0u;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastFilter
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetUGCLastFilter( void ) {
+	return 0u;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastQueryHandle
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetUGCLastQueryHandle( void ) {
+	return 0ull;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastSentQueryHandle
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetUGCLastSentQueryHandle( void ) {
+	return 0ull;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetUGCLastReleasedQueryHandle
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetUGCLastReleasedQueryHandle( void ) {
+	return 0ull;
+}
+
+/*
+=============
 QLR_Steamworks_Init
 =============
 */
 QLR_EXPORT qboolean QLR_Steamworks_Init( void ) {
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ServerInitWithVersion
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version ) {
+	(void)ip;
+	(void)gamePort;
+	(void)secure;
+	(void)dedicated;
+	(void)version;
 	return qfalse;
 }
 

@@ -336,7 +336,6 @@ static ql_steamworks_state_t state;
 #define QL_STEAM_UGC_DETAILS_TITLE_OFFSET 0x18
 #define QL_STEAM_UGC_DETAILS_DESCRIPTION_OFFSET 0x99
 
-#define QL_STEAM_GAMESERVER_VERSION "1069"
 #define QL_STEAM_GAMESERVER_MODE_NO_AUTH 2
 #define QL_STEAM_GAMESERVER_MODE_AUTH_SECURE 3
 
@@ -3682,6 +3681,29 @@ qboolean QL_Steamworks_DownloadItem( uint32_t idLow, uint32_t idHigh, qboolean h
 
 /*
 =============
+QL_Steamworks_GetAllUGCFilterContractLabel
+
+Returns the retained GetAllUGC integer handoff contract for diagnostics.
+=============
+*/
+const char *QL_Steamworks_GetAllUGCFilterContractLabel( void ) {
+	return "raw GetAllUGC integer filter";
+}
+
+/*
+=============
+QL_Steamworks_GetAllUGCFilterSemanticGapLabel
+
+Returns the intentionally unpromoted semantic owner for the retained GetAllUGC
+integer filter.
+=============
+*/
+const char *QL_Steamworks_GetAllUGCFilterSemanticGapLabel( void ) {
+	return "unpromoted GetAllUGC filter semantic";
+}
+
+/*
+=============
 QL_Steamworks_RequestAllUGCQuery
 
 Issues the retained all-UGC query used by the browser GetAllUGC surface and
@@ -4132,14 +4154,17 @@ void QL_Steamworks_RunServerCallbacks( void ) {
 
 /*
 =============
-QL_Steamworks_ServerInit
+QL_Steamworks_ServerInitWithVersion
 
 Reconstructs the retail Steam game-server init gate and remembers which UGC
-owner should back workshop calls for the active server path.
+owner should back workshop calls for the active server path. The caller may
+override the advertised Steam version string while the retail build string
+remains the default.
 =============
 */
-qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated ) {
+qboolean QL_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version ) {
 	int serverMode;
+	const char *versionString;
 
 	if ( gamePort == 0 ) {
 		return qfalse;
@@ -4155,13 +4180,26 @@ qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secu
 	}
 
 	serverMode = secure ? QL_STEAM_GAMESERVER_MODE_AUTH_SECURE : QL_STEAM_GAMESERVER_MODE_NO_AUTH;
-	if ( !state.SteamGameServer_Init( ip, 0, gamePort, 0xffffu, serverMode, QL_STEAM_GAMESERVER_VERSION ) ) {
+	versionString = ( version && version[0] ) ? version : QL_STEAM_GAMESERVER_DEFAULT_VERSION;
+	if ( !state.SteamGameServer_Init( ip, 0, gamePort, 0xffffu, serverMode, versionString ) ) {
 		return qfalse;
 	}
 
 	state.gameServerInitialised = qtrue;
 	state.useGameServerUGC = dedicated ? qtrue : qfalse;
 	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ServerInit
+
+Initializes the Steam game-server path with the retained retail default
+version string.
+=============
+*/
+qboolean QL_Steamworks_ServerInit( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated ) {
+	return QL_Steamworks_ServerInitWithVersion( ip, gamePort, secure, dedicated, QL_STEAM_GAMESERVER_DEFAULT_VERSION );
 }
 
 /*
@@ -4924,6 +4962,28 @@ qboolean QL_Steamworks_ReadP2PPacket( void *data, uint32_t dataSize, uint32_t *o
 
 /*
 =============
+QL_Steamworks_GetP2PTransportLabel
+
+Returns the retained Steam P2P transport owner for diagnostics.
+=============
+*/
+const char *QL_Steamworks_GetP2PTransportLabel( void ) {
+	return "legacy ISteamNetworking";
+}
+
+/*
+=============
+QL_Steamworks_GetP2PModernGapLabel
+
+Returns the modern P2P adapter that is intentionally not reconstructed.
+=============
+*/
+const char *QL_Steamworks_GetP2PModernGapLabel( void ) {
+	return "missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter";
+}
+
+/*
+=============
 QL_Steamworks_AcceptP2PSession
 
 Accepts an incoming client-side Steam P2P session.
@@ -5369,6 +5429,28 @@ qboolean QL_Steamworks_HexDecode( const char *hex, uint8_t *out, size_t outSize,
 	}
 
 	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_GetAuthTicketApiLabel
+
+Returns the retained Steam auth-ticket API owner for diagnostics.
+=============
+*/
+const char *QL_Steamworks_GetAuthTicketApiLabel( void ) {
+	return "retail GetAuthSessionTicket";
+}
+
+/*
+=============
+QL_Steamworks_GetAuthTicketModernGapLabel
+
+Returns the modern auth-ticket adapter that is intentionally not reconstructed.
+=============
+*/
+const char *QL_Steamworks_GetAuthTicketModernGapLabel( void ) {
+	return "missing GetAuthTicketForWebApi adapter";
 }
 
 /*

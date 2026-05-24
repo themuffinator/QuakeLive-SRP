@@ -8,6 +8,10 @@
 
 #define MAX_STEAM_RESOURCES 64
 #define STEAM_URL_PREFIX "steam://"
+#define QL_RESOURCE_INTERCEPTOR_HOST "ql"
+#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH "/screenshot"
+#define QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX "https://cdn.quakelive.com/"
+#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX "quakelive://screenshots/"
 
 typedef struct {
 	char		url[MAX_QPATH];
@@ -29,6 +33,82 @@ typedef struct {
 	uint32_t	idLow;
 	uint32_t	idHigh;
 } clSteamPendingAvatar_t;
+
+typedef struct {
+	char	host[64];
+	char	path[MAX_QPATH];
+	char	filename[MAX_QPATH];
+} clResourceInterceptorUrl_t;
+
+typedef struct {
+	const char	*retailOwner;
+	const char	*retailMember;
+	unsigned int	retailVtableAddress;
+	unsigned int	retailOffset;
+	unsigned int	retailAddress;
+	const char	*sourceOwner;
+	const char	*scope;
+} clSteamDataSourceRetailMapping_t;
+
+typedef struct {
+	const char	*retailOwner;
+	const char	*retailMember;
+	unsigned int	retailVtableAddress;
+	unsigned int	retailOffset;
+	unsigned int	retailAddress;
+	const char	*retailLiteral;
+	const char	*sourceOwner;
+	const char	*scope;
+} clSteamResponseThreadRetailMapping_t;
+
+#define CL_STEAM_DATA_SOURCE_SCOPE_COMPATIBILITY_OWNER "bounded compatibility owner"
+#define CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK "avatar callback bridge"
+#define CL_STEAM_DATA_SOURCE_SCOPE_ASYNC_BOUNDARY "bounded async response owner"
+#define CL_STEAM_DATA_SOURCE_SCOPE_LIFECYCLE_BOUNDARY "retail lifecycle boundary"
+#define CL_STEAM_DATA_SOURCE_SCOPE_DESTRUCTOR "retail destructor-owned"
+
+static const clSteamDataSourceRetailMapping_t cl_steamDataSourceRetailMappings[] = {
+	{ "SteamDataSource", "destroy", 0x00532B80u, 0x00u, 0x00464510u, "CL_ShutdownSteamResources", CL_STEAM_DATA_SOURCE_SCOPE_DESTRUCTOR },
+	{ "SteamDataSource", "OnRequest", 0x00532B80u, 0x04u, 0x004640C0u, "CL_SteamDataSource_Request", CL_STEAM_DATA_SOURCE_SCOPE_COMPATIBILITY_OWNER },
+	{ "SteamDataSource", "StartResponseThread", 0u, 0u, 0x00463550u, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_DATA_SOURCE_SCOPE_ASYNC_BOUNDARY },
+	{ "SteamDataSource", "Init", 0u, 0u, 0x00464300u, "CL_InitSteamResources", CL_STEAM_DATA_SOURCE_SCOPE_LIFECYCLE_BOUNDARY },
+	{ "SteamDataSource", "Shutdown", 0u, 0u, 0x00464440u, "CL_ShutdownSteamResources", CL_STEAM_DATA_SOURCE_SCOPE_LIFECYCLE_BOUNDARY },
+	{ "CCallback<class SteamDataSource, struct AvatarImageLoaded_t, 0>", "callback target", 0x00532B68u, 0x10u, 0x00464290u, "CL_SteamResources_OnAvatarImageLoaded", CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK },
+	{ "CCallback<class SteamDataSource, struct AvatarImageLoaded_t, 0>", "callback id", 0x00532B68u, 0x14Eu, 0x00464300u, "CL_SteamResources_RegisterAvatarCallbacks", CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK },
+	{ NULL, NULL, 0u, 0u, 0u, NULL, NULL }
+};
+
+#undef CL_STEAM_DATA_SOURCE_SCOPE_DESTRUCTOR
+#undef CL_STEAM_DATA_SOURCE_SCOPE_LIFECYCLE_BOUNDARY
+#undef CL_STEAM_DATA_SOURCE_SCOPE_ASYNC_BOUNDARY
+#undef CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK
+#undef CL_STEAM_DATA_SOURCE_SCOPE_COMPATIBILITY_OWNER
+
+#define CL_STEAM_RESPONSE_THREAD_RETAIL_VTABLE 0x00532B44u
+#define CL_STEAM_RESPONSE_THREAD_MIME_TYPE "image/png"
+#define CL_STEAM_RESPONSE_THREAD_THREAD_NAME "request_%i"
+#define CL_STEAM_RESPONSE_THREAD_PNG_VERSION "1.2.24"
+#define CL_STEAM_RESPONSE_THREAD_WRITE_ERROR "Write Error"
+#define CL_STEAM_RESPONSE_THREAD_STACK_RESERVE "0x100000"
+#define CL_STEAM_RESPONSE_THREAD_SCOPE_ASYNC_BOUNDARY "bounded async response owner"
+#define CL_STEAM_RESPONSE_THREAD_SCOPE_PNG_HELPER "retail PNG helper"
+#define CL_STEAM_RESPONSE_THREAD_SCOPE_SEND_RESPONSE "Awesomium SendResponse boundary"
+#define CL_STEAM_RESPONSE_THREAD_SCOPE_THREAD_START "retail thread-start contract"
+
+static const clSteamResponseThreadRetailMapping_t cl_steamResponseThreadRetailMappings[] = {
+	{ "ResponseThread", "run", CL_STEAM_RESPONSE_THREAD_RETAIL_VTABLE, 0x04u, 0x00463440u, CL_STEAM_RESPONSE_THREAD_MIME_TYPE, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_ASYNC_BOUNDARY },
+	{ "ResponseThread", "PNGWriteCallback", 0u, 0u, 0x00463110u, CL_STEAM_RESPONSE_THREAD_WRITE_ERROR, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_PNG_HELPER },
+	{ "ResponseThread", "EncodeAvatarPNG", 0u, 0u, 0x00463180u, CL_STEAM_RESPONSE_THREAD_PNG_VERSION, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_PNG_HELPER },
+	{ "Awesomium::DataSource", "SendResponse import", 0u, 0u, 0x0052C6B0u, CL_STEAM_RESPONSE_THREAD_MIME_TYPE, "QLResourceInterceptor_OnRequest", CL_STEAM_RESPONSE_THREAD_SCOPE_SEND_RESPONSE },
+	{ "SteamDataSource", "StartResponseThread", 0u, 0u, 0x00463550u, CL_STEAM_RESPONSE_THREAD_THREAD_NAME, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_THREAD_START },
+	{ "SteamDataSource", "ResponseThread stack reserve", 0u, 0x100000u, 0x00463550u, CL_STEAM_RESPONSE_THREAD_STACK_RESERVE, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_THREAD_START },
+	{ NULL, NULL, 0u, 0u, 0u, NULL, NULL, NULL }
+};
+
+#undef CL_STEAM_RESPONSE_THREAD_SCOPE_THREAD_START
+#undef CL_STEAM_RESPONSE_THREAD_SCOPE_SEND_RESPONSE
+#undef CL_STEAM_RESPONSE_THREAD_SCOPE_PNG_HELPER
+#undef CL_STEAM_RESPONSE_THREAD_SCOPE_ASYNC_BOUNDARY
 
 static clSteamResource_t cl_steamResources[MAX_STEAM_RESOURCES];
 static clSteamPendingAvatar_t cl_steamPendingAvatars[MAX_STEAM_RESOURCES];
@@ -87,6 +167,73 @@ static const char *CL_GetSteamResourceServicePolicyLabel( void ) {
 
 /*
 =============
+CL_GetSteamDataSourceSubsetLabel
+
+Returns the currently reconstructed SteamDataSource ownership scope.
+=============
+*/
+static const char *CL_GetSteamDataSourceSubsetLabel( void ) {
+	return "avatar-only SteamDataSource";
+}
+
+/*
+=============
+CL_GetSteamDataSourceNativeGapLabel
+
+Returns the broader SteamDataSource owner that is intentionally not
+reconstructed by the current avatar-only subset.
+=============
+*/
+static const char *CL_GetSteamDataSourceNativeGapLabel( void ) {
+	return "missing non-avatar SteamDataSource owner";
+}
+
+/*
+=============
+CL_CountSteamDataSourceRetailMappings
+
+Returns the number of recovered retail SteamDataSource and callback wiring
+anchors retained by the bounded browser resource bridge.
+=============
+*/
+static int CL_CountSteamDataSourceRetailMappings( void ) {
+	int count;
+	int i;
+
+	count = 0;
+	for ( i = 0; cl_steamDataSourceRetailMappings[i].retailOwner; i++ ) {
+		if ( cl_steamDataSourceRetailMappings[i].retailAddress != 0u ) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+=============
+CL_CountSteamResponseThreadRetailMappings
+
+Returns the number of recovered retail ResponseThread anchors retained as a
+bounded async response contract for the SteamDataSource avatar lane.
+=============
+*/
+static int CL_CountSteamResponseThreadRetailMappings( void ) {
+	int count;
+	int i;
+
+	count = 0;
+	for ( i = 0; cl_steamResponseThreadRetailMappings[i].retailOwner; i++ ) {
+		if ( cl_steamResponseThreadRetailMappings[i].retailAddress != 0u ) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
+/*
+=============
 CL_LogSteamResourceBridgeUnavailable
 
 Publishes provider-aware diagnostics whenever the retained Steam resource
@@ -94,10 +241,12 @@ bridge cannot satisfy a request.
 =============
 */
 static void CL_LogSteamResourceBridgeUnavailable( const char *url, const char *reason ) {
-	Com_Printf( "Steam resource bridge unavailable for %s via %s [%s]; %s\n",
+	Com_Printf( "Steam resource bridge unavailable for %s via %s [%s] (%s; gap=%s); %s\n",
 		url ? url : "<null>",
 		CL_GetSteamResourceServiceProviderLabel(),
 		CL_GetSteamResourceServicePolicyLabel(),
+		CL_GetSteamDataSourceSubsetLabel(),
+		CL_GetSteamDataSourceNativeGapLabel(),
 		reason ? reason : "request could not be satisfied" );
 }
 
@@ -136,13 +285,17 @@ static void CL_LogSteamResourceRequestStubbed( const char *url ) {
 =============
 CL_RefreshSteamResourceBridgeCvars
 
-Mirrors the retained live-resource bridge provider/policy labels through ROM
-cvars for diagnostics and bounded compatibility reporting.
+Mirrors the retained live-resource bridge provider, policy, and parity-scope
+labels through ROM cvars for diagnostics and bounded compatibility reporting.
 =============
 */
 static void CL_RefreshSteamResourceBridgeCvars( void ) {
 	Cvar_Set( "ui_resourceBridgeProvider", CL_GetSteamResourceServiceProviderLabel() );
 	Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );
+	Cvar_Set( "ui_resourceBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );
+	Cvar_Set( "ui_resourceBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );
+	Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );
+	Cvar_Set( "ui_resourceBridgeResponseThreadMappings", va( "%i", CL_CountSteamResponseThreadRetailMappings() ) );
 }
 
 /*
@@ -669,6 +822,185 @@ static const char *CL_SteamDataSource_GuessMimeType( const char *url ) {
 
 /*
 =============
+QLResourceInterceptor_OnFilterNavigation
+
+Mirrors retail sub_434600: the resource interceptor never blocks navigation.
+=============
+*/
+static qboolean QLResourceInterceptor_OnFilterNavigation( const char *url ) {
+	(void)url;
+	return qfalse;
+}
+
+/*
+=============
+QLResourceInterceptor_ParseURL
+=============
+*/
+static qboolean QLResourceInterceptor_ParseURL( const char *url, clResourceInterceptorUrl_t *parsed ) {
+	const char *scheme;
+	const char *hostStart;
+	const char *hostEnd;
+	const char *pathStart;
+	const char *pathEnd;
+	const char *filename;
+	size_t hostLength;
+	size_t pathLength;
+
+	if ( !url || !parsed ) {
+		return qfalse;
+	}
+
+	Com_Memset( parsed, 0, sizeof( *parsed ) );
+
+	scheme = strstr( url, "://" );
+	if ( !scheme ) {
+		return qfalse;
+	}
+
+	hostStart = scheme + 3;
+	if ( !hostStart[0] ) {
+		return qfalse;
+	}
+
+	hostEnd = hostStart;
+	while ( *hostEnd && *hostEnd != '/' && *hostEnd != '\\' && *hostEnd != '?' && *hostEnd != '#' ) {
+		++hostEnd;
+	}
+
+	hostLength = (size_t)( hostEnd - hostStart );
+	if ( hostLength == 0 || hostLength >= sizeof( parsed->host ) ) {
+		return qfalse;
+	}
+
+	memcpy( parsed->host, hostStart, hostLength );
+	parsed->host[hostLength] = '\0';
+
+	pathStart = hostEnd;
+	if ( *pathStart != '/' && *pathStart != '\\' ) {
+		Q_strncpyz( parsed->path, "/", sizeof( parsed->path ) );
+		parsed->filename[0] = '\0';
+		return qtrue;
+	}
+
+	pathEnd = pathStart;
+	while ( *pathEnd && *pathEnd != '?' && *pathEnd != '#' ) {
+		++pathEnd;
+	}
+
+	pathLength = (size_t)( pathEnd - pathStart );
+	if ( pathLength == 0 || pathLength >= sizeof( parsed->path ) ) {
+		return qfalse;
+	}
+
+	memcpy( parsed->path, pathStart, pathLength );
+	parsed->path[pathLength] = '\0';
+
+	for ( filename = parsed->path + strlen( parsed->path ); filename > parsed->path; --filename ) {
+		if ( filename[-1] == '/' || filename[-1] == '\\' ) {
+			break;
+		}
+	}
+
+	Q_strncpyz( parsed->filename, filename, sizeof( parsed->filename ) );
+	return qtrue;
+}
+
+/*
+=============
+QLResourceInterceptor_IsRetailHost
+=============
+*/
+static qboolean QLResourceInterceptor_IsRetailHost( const clResourceInterceptorUrl_t *parsed ) {
+	return ( parsed && !Q_stricmp( parsed->host, QL_RESOURCE_INTERCEPTOR_HOST ) ) ? qtrue : qfalse;
+}
+
+/*
+=============
+QLResourceInterceptor_IsScreenshotPath
+=============
+*/
+static qboolean QLResourceInterceptor_IsScreenshotPath( const char *path ) {
+	size_t prefixLength;
+
+	if ( !path ) {
+		return qfalse;
+	}
+
+	prefixLength = strlen( QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH );
+	if ( Q_strnicmp( path, QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH, prefixLength ) != 0 ) {
+		return qfalse;
+	}
+
+	return ( path[prefixLength] == '\0' || path[prefixLength] == '/' || path[prefixLength] == '\\' ) ? qtrue : qfalse;
+}
+
+/*
+=============
+QLResourceInterceptor_BuildMappedRequest
+=============
+*/
+static qboolean QLResourceInterceptor_BuildMappedRequest( const clResourceInterceptorUrl_t *parsed, char *mappedUrl, size_t mappedUrlSize ) {
+	const char *path;
+
+	if ( !parsed || !mappedUrl || mappedUrlSize == 0 || !QLResourceInterceptor_IsRetailHost( parsed ) ) {
+		return qfalse;
+	}
+
+	mappedUrl[0] = '\0';
+	if ( QLResourceInterceptor_IsScreenshotPath( parsed->path ) ) {
+		if ( !parsed->filename[0] ) {
+			return qfalse;
+		}
+
+		Com_sprintf( mappedUrl, mappedUrlSize, "%s%s", QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX, parsed->filename );
+		return qtrue;
+	}
+
+	path = parsed->path;
+	while ( *path == '/' || *path == '\\' ) {
+		++path;
+	}
+
+	if ( !path[0] ) {
+		return qfalse;
+	}
+
+	Com_sprintf( mappedUrl, mappedUrlSize, "%s%s", QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX, path );
+	return qtrue;
+}
+
+/*
+=============
+QLResourceInterceptor_RequestRetailHost
+
+Projects retail host `ql` requests onto the repository's mapped launcher
+fallback roots while keeping the broader compatibility fallback intact.
+=============
+*/
+static qboolean QLResourceInterceptor_RequestRetailHost( const char *url, clSteamDataSourceResponse_t *response ) {
+	clResourceInterceptorUrl_t parsed;
+	char mappedUrl[MAX_QPATH * 2];
+
+	if ( !url || !response ) {
+		return qfalse;
+	}
+
+	if ( !QLResourceInterceptor_ParseURL( url, &parsed ) || !QLResourceInterceptor_BuildMappedRequest( &parsed, mappedUrl, sizeof( mappedUrl ) ) ) {
+		return qfalse;
+	}
+
+	CL_SteamDataSource_ClearResponse( response );
+	if ( !CL_LauncherRequestData( mappedUrl, (void **)&response->buffer, &response->bufferLength ) ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( response->mimeType, CL_SteamDataSource_GuessMimeType( mappedUrl ), sizeof( response->mimeType ) );
+	return qtrue;
+}
+
+/*
+=============
 CL_SteamDataSource_Request
 
 Reconstructs the retail SteamDataSource owner by servicing `steam://` resource
@@ -708,7 +1040,7 @@ static qboolean CL_SteamDataSource_Request( const char *url, clSteamDataSourceRe
 		return qfalse;
 	}
 
-	CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available" );
+	CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available; trying launcher/web fallback" );
 	return qfalse;
 }
 
@@ -717,8 +1049,9 @@ static qboolean CL_SteamDataSource_Request( const char *url, clSteamDataSourceRe
 QLResourceInterceptor_OnRequest
 
 Reconstructs the retained browser-resource interceptor by routing `steam://`
-requests through SteamDataSource and every other URI through the launcher/web
-filesystem fallback owner.
+requests through SteamDataSource, projecting retail `ql` host resources onto
+the launcher/web filesystem roots, and retaining the broader compatibility
+fallback owner for other URI requests.
 =============
 */
 static qboolean QLResourceInterceptor_OnRequest( const char *url, clSteamDataSourceResponse_t *response ) {
@@ -726,7 +1059,15 @@ static qboolean QLResourceInterceptor_OnRequest( const char *url, clSteamDataSou
 		return qfalse;
 	}
 
+	if ( QLResourceInterceptor_OnFilterNavigation( url ) ) {
+		return qfalse;
+	}
+
 	if ( CL_SteamDataSource_Request( url, response ) ) {
+		return qtrue;
+	}
+
+	if ( QLResourceInterceptor_RequestRetailHost( url, response ) ) {
 		return qtrue;
 	}
 

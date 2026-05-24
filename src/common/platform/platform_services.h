@@ -21,5 +21,7 @@ const ql_platform_service_table *QL_GetPlatformServices( void );
 const char *QL_DescribePlatformFeaturePolicy( const ql_platform_feature_descriptor *descriptor );
 const char *QL_GetOnlineServicesModeLabel( void );
 const char *QL_GetOnlineServicesPolicyLabel( void );
+const char *QL_GetOnlineServicesParityScopeLabel( void );
+const char *QL_GetOnlineServicesParityReasonLabel( void );
 
 #endif // PLATFORM_SERVICES_H

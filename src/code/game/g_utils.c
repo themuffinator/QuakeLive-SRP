@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // g_utils.c -- misc utility functions for game module
 
 #include "g_local.h"
+#include "../game/match_state_keys.h"
 
 typedef struct {
   char oldShader[MAX_QPATH];
@@ -143,7 +144,7 @@ char *G_CleanClientNameFromClientNum( int clientNum, char *dest ) {
 	}
 
 	trap_GetConfigstring( CS_PLAYERS + clientNum, configstring, sizeof( configstring ) );
-	name = Info_ValueForKey( configstring, "n" );
+	name = Info_ValueForKey( configstring, PLAYER_INFO_KEY_NAME );
 	Q_strncpyz( dest, name ? name : "", 40 );
 	Q_CleanStr( dest );
 	return dest;

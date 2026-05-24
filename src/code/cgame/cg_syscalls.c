@@ -558,17 +558,17 @@ void trap_QL_AdvertisementBridge_ClearDelay( void ) {
 
 /*
 =================
-trap_QL_TaggedCvarStringBuffer
+trap_QL_PublishTaggedInfoString
 =================
 */
-void trap_QL_TaggedCvarStringBuffer( const char *varName, char *buffer ) {
-	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER );
+void trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING );
 
 	if ( !import ) {
 		return;
 	}
 
-	((void (QDECL *)( const char *, char * ))import)( varName, buffer );
+	((void (QDECL *)( const char *, const char * ))import)( messageType, infoString );
 }
 
 /*

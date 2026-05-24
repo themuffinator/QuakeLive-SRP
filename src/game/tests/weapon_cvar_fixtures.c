@@ -142,19 +142,29 @@ static gentity_t *GT_PrepareClientEntity(int index, int health) {
 =============
 GT_ProxDamageConfigFeedsWeaponCache
 
-Verifies that g_damage_pl and g_quadDamageFactor flow through G_InitWeaponConfig into the cached weaponConfig block.
+Verifies that prox direct, splash, and quad damage cvars flow through G_InitWeaponConfig into the cached weaponConfig block.
 =============
 */
 static qboolean GT_ProxDamageConfigFeedsWeaponCache(void) {
 	memset(&g_weaponConfig, 0, sizeof(g_weaponConfig));
 
 	GT_SetVmCvarInt(&g_damage_pl, 42);
+	GT_SetVmCvarInt(&g_splashDamage_pl, 91);
+	GT_SetVmCvarInt(&g_splashRadius_pl, 123);
 	GT_SetVmCvarFloat(&g_quadDamageFactor, 4.25f);
 
 	G_InitWeaponConfig();
 
 	if (g_weaponConfig.proximityLauncherDamage != 42) {
 		return GT_Failf("expected prox direct damage 42, received %d", g_weaponConfig.proximityLauncherDamage);
+	}
+
+	if (g_weaponConfig.proximityLauncherSplashDamage != 91) {
+		return GT_Failf("expected prox splash damage 91, received %d", g_weaponConfig.proximityLauncherSplashDamage);
+	}
+
+	if (g_weaponConfig.proximityLauncherSplashRadius != 123) {
+		return GT_Failf("expected prox splash radius 123, received %d", g_weaponConfig.proximityLauncherSplashRadius);
 	}
 
 	if (Q_fabs(g_weaponConfig.quadDamageMultiplier - 4.25f) > 0.01f) {

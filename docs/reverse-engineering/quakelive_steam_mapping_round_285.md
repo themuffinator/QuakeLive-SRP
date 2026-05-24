@@ -11,8 +11,10 @@ setup, reset, shutdown, screen wrappers, and renderer upload wiring, plus the
 small Awesomium activation-key helper used by the retained client browser host.
 
 Round 284 is already occupied by renderer patch-grid helper mapping in this
-worktree, so this client continuation uses round 285. No source behavior
-changed.
+worktree, so this client continuation uses round 285. The original round was a
+mapping-only pass; a 2026-05-24 follow-up made the activation helper's fixed
+keyboard-event constructor fields source-visible without changing the retained
+activation behavior.
 
 ## Evidence Used
 
@@ -62,6 +64,14 @@ at `+0xE0` when `data_12d3050` is live. That is the native host half of
 `QLWebView_InjectActivationKeyboardEvent`, which the source already routes from
 `CL_WebHost_NotifyAppActivation`.
 
+2026-05-24 source follow-up: `cl_cgame.c` now carries those constructor
+arguments as `qlWebKeyboardEventFields_t`, with
+`QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE`,
+`QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY`, and
+`QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY` preserving the exact
+`WebKeyboardEvent(0, 0x11, 0x1d0001)` tuple before the retained activation path
+forwards the virtual key.
+
 Nearby functions at `0x004F2320`, `0x004F2330`, `0x004F2380`, and
 `0x004F3E30..0x004F3EC0` remain intentionally unpromoted in this round. Their
 HLIL bodies look like C++ library random-state and tree-iterator support rather
@@ -108,10 +118,14 @@ than client-owned browser source.
 `tests/test_engine_client_command_parity.py` now checks the round 285 alias
 set, validates the Ghidra function rows, anchors the key HLIL snippets, verifies
 the `CL_InitRef` upload-slot assignment, and cross-checks the source owners in
-`cl_cin.c`, `cl_cgame.c`, and the existing browser parity note.
+`cl_cin.c`, `cl_cgame.c`, and the existing browser parity note. The focused
+Awesomium browser parity test also asserts the activation helper's exact
+`WebKeyboardEvent` constructor tuple instead of only checking the `0x11` key.
 
 ## Parity Estimate
 
 - Client cinematic helper symbol coverage: before 58%, after 96%.
-- Client browser activation-helper symbol coverage: before 93%, after 96%.
-- Retail behavior parity: unchanged by this mapping-only round.
+- Client browser activation-helper symbol/source exactness: before 96%, after
+  100%.
+- Retail behavior parity: unchanged; the follow-up made already-recovered
+  constants explicit and testable.

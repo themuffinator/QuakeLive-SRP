@@ -2756,7 +2756,7 @@ static void CG_SetGameInfoCvars( void ) {
 	info = CG_ConfigString( CS_SERVERINFO );
 	gameInfo = cg_retailBlankGameInfoLines;
 
-	trainingValue = Info_ValueForKey( info, "g_training" );
+	trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );
 	if ( trainingValue[0] && atoi( trainingValue ) ) {
 		gameInfo = cg_retailTrainingGameInfoLines;
 	} else if ( cgs.gametype >= 0 && cgs.gametype < GT_MAX_GAME_TYPE ) {
@@ -2809,7 +2809,7 @@ static void CG_ParseFactoryTitleServerinfo( const char *info ) {
 	int		length;
 
 	cgs.factoryTitle[0] = '\0';
-	value = info ? Info_ValueForKey( info, "g_factoryTitle" ) : "";
+	value = info ? Info_ValueForKey( info, SERVERINFO_KEY_FACTORY_TITLE ) : "";
 	if ( !value ) {
 		return;
 	}
@@ -2855,19 +2855,19 @@ void CG_ParseServerinfo( void ) {
 	int		voteFlags;
 
 	info = CG_ConfigString( CS_SERVERINFO );
-	gametypeValue = Info_ValueForKey( info, "g_gametype" );
+	gametypeValue = Info_ValueForKey( info, SERVERINFO_KEY_GAMETYPE );
 	cgs.gametype = atoi( gametypeValue );
 	trap_Cvar_Set( "cg_gametype", gametypeValue );
 	trap_Cvar_Set("g_gametype", va("%i", cgs.gametype));
-	cgs.dmflags = atoi( Info_ValueForKey( info, "dmflags" ) );
-	cgs.teamflags = atoi( Info_ValueForKey( info, "teamflags" ) );
-	cgs.fraglimit = atoi( Info_ValueForKey( info, "fraglimit" ) );
-	cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );
-	cgs.scorelimit = atoi( Info_ValueForKey( info, "g_scorelimit" ) );
-	cgs.timelimit = atoi( Info_ValueForKey( info, "timelimit" ) );
-	cgs.roundlimit = atoi( Info_ValueForKey( info, "roundlimit" ) );
+	cgs.dmflags = atoi( Info_ValueForKey( info, SERVERINFO_KEY_DMFLAGS ) );
+	cgs.teamflags = atoi( Info_ValueForKey( info, SERVERINFO_KEY_TEAMFLAGS ) );
+	cgs.fraglimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_FRAGLIMIT ) );
+	cgs.capturelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_CAPTURELIMIT ) );
+	cgs.scorelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT ) );
+	cgs.timelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_TIMELIMIT ) );
+	cgs.roundlimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT ) );
 	CG_SetGameInfoCvars();
-	voteFlagsValue = Info_ValueForKey( info, "g_voteFlags" );
+	voteFlagsValue = Info_ValueForKey( info, SERVERINFO_KEY_VOTEFLAGS );
 	cgs.voteFlags = atoi( voteFlagsValue );
 	mapVotingDisabled = ( cgs.voteFlags & ( CG_VOTEFLAG_NO_MAP | CG_VOTEFLAG_NO_NEXTMAP ) ) ? qtrue : qfalse;
 	trap_Cvar_Set( "ui_mapVotingDisabled", mapVotingDisabled ? "1" : "0" );
@@ -2889,7 +2889,7 @@ void CG_ParseServerinfo( void ) {
 		endMapVotingDisabled = ( ( cgs.voteFlags & CG_VOTEFLAG_NO_ENDVOTE ) != 0 ) || overtimeActive;
 		trap_Cvar_Set( "ui_endMapVotingDisabled", endMapVotingDisabled ? "1" : "0" );
 	}
-	cgs.maxclients = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
+	cgs.maxclients = atoi( Info_ValueForKey( info, SERVERINFO_KEY_MAXCLIENTS ) );
 
 	{
 		const char	*playerCountTeamSizeValue;
@@ -2899,16 +2899,16 @@ void CG_ParseServerinfo( void ) {
 		 * transport. qagame now mirrors the internal `g_teamSizeMin` state through
 		 * that alias so live admin and vote changes stay visible to cgame.
 		 */
-		playerCountTeamSizeValue = Info_ValueForKey( info, "teamsize" );
+		playerCountTeamSizeValue = Info_ValueForKey( info, SERVERINFO_KEY_TEAMSIZE );
 		cgs.playerCountTeamSize = playerCountTeamSizeValue[0] ? atoi( playerCountTeamSizeValue ) : 0;
 		if ( cgs.playerCountTeamSize < 0 ) {
 			cgs.playerCountTeamSize = 0;
 		}
 	}
   
-	serverLoadout = Info_ValueForKey( info, "loadout" );
+	serverLoadout = Info_ValueForKey( info, SERVERINFO_KEY_LOADOUT );
 	if ( !serverLoadout || !serverLoadout[0] ) {
-		serverLoadout = Info_ValueForKey( info, "g_loadout" );
+		serverLoadout = Info_ValueForKey( info, SERVERINFO_KEY_LEGACY_LOADOUT );
 	}
 	if ( !serverLoadout ) {
 		serverLoadout = "";
@@ -2917,12 +2917,12 @@ void CG_ParseServerinfo( void ) {
 	trap_Cvar_Set( "cg_loadout", cgs.loadout );
 	CG_ParseFactoryTitleServerinfo( info );
 
-	mapname = CG_NormalizeMapFilename( Info_ValueForKey( info, "mapname" ) );
+	mapname = CG_NormalizeMapFilename( Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) );
 	Com_sprintf( cgs.mapname, sizeof( cgs.mapname ), "maps/%s.bsp", mapname );
-	CG_SetTeamNameCvar( "g_redteam", Info_ValueForKey( info, "g_redTeam" ), DEFAULT_REDTEAM_NAME, cgs.redTeam, sizeof( cgs.redTeam ) );
-	CG_SetTeamNameCvar( "g_blueteam", Info_ValueForKey( info, "g_blueTeam" ), DEFAULT_BLUETEAM_NAME, cgs.blueTeam, sizeof( cgs.blueTeam ) );
+	CG_SetTeamNameCvar( "g_redteam", Info_ValueForKey( info, SERVERINFO_KEY_RED_TEAM ), DEFAULT_REDTEAM_NAME, cgs.redTeam, sizeof( cgs.redTeam ) );
+	CG_SetTeamNameCvar( "g_blueteam", Info_ValueForKey( info, SERVERINFO_KEY_BLUE_TEAM ), DEFAULT_BLUETEAM_NAME, cgs.blueTeam, sizeof( cgs.blueTeam ) );
 
-	voteFlagsString = Info_ValueForKey( info, "g_voteFlags" );
+	voteFlagsString = Info_ValueForKey( info, SERVERINFO_KEY_VOTEFLAGS );
 	voteFlags = atoi( voteFlagsString );
 	if ( voteFlags & VF_NO_GAMETYPE ) {
 		trap_Cvar_Set( "ui_gameTypeVotingDisabled", "1" );
@@ -3016,7 +3016,7 @@ static void CG_ParseArmorTieredConfigString( void ) {
 	const char	*value;
 
 	info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_A );
-	value = ( info && info[0] ) ? Info_ValueForKey( info, "armor_tiered" ) : "";
+	value = ( info && info[0] ) ? Info_ValueForKey( info, SERVER_SETTINGS_KEY_ARMOR_TIERED ) : "";
 	if ( !value[0] ) {
 		value = "0";
 	}
@@ -3068,32 +3068,32 @@ static void CG_ParsePlayerAppearanceConfigString( void ) {
 
 	info = CG_ConfigString( CS_PLAYER_APPEARANCE );
 	if ( info && info[0] ) {
-		value = Info_ValueForKey( info, "g_playermodelOverride" );
+		value = Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERMODEL_OVERRIDE );
 		if ( value && value[0] ) {
 			Q_strncpyz( cgs.playermodelOverride, value, sizeof( cgs.playermodelOverride ) );
 		}
 
-		value = Info_ValueForKey( info, "g_playerheadmodelOverride" );
+		value = Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERHEADMODEL_OVERRIDE );
 		if ( value && value[0] ) {
 			Q_strncpyz( cgs.playerheadmodelOverride, value, sizeof( cgs.playerheadmodelOverride ) );
 		}
 
-		value = Info_ValueForKey( info, "g_allowCustomHeadmodels" );
+		value = Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_ALLOW_CUSTOM_HEADMODELS );
 		if ( value && value[0] ) {
 			cgs.allowCustomHeadmodels = (qboolean)( atoi( value ) != 0 );
 		}
 
-		value = Info_ValueForKey( info, "g_playerheadScale" );
+		value = Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE );
 		if ( value && value[0] ) {
 			cgs.playerHeadScale = (float)atof( value );
 		}
 
-		value = Info_ValueForKey( info, "g_playerheadScaleOffset" );
+		value = Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE_OFFSET );
 		if ( value && value[0] ) {
 			cgs.playerHeadScaleOffset = (float)atof( value );
 		}
 
-		value = Info_ValueForKey( info, "g_playerModelScale" );
+		value = Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERMODEL_SCALE );
 		if ( value && value[0] ) {
 			cgs.playerModelScale = (float)atof( value );
 		}
@@ -3487,7 +3487,7 @@ static void CG_ParseWarmupReadyStatus( void ) {
 		return;
 	}
 
-	value = atoi( Info_ValueForKey( info, "pct" ) );
+	value = atoi( Info_ValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT ) );
 	if ( value < 0 ) {
 		value = 0;
 	} else if ( value > 100 ) {
@@ -3495,13 +3495,13 @@ static void CG_ParseWarmupReadyStatus( void ) {
 	}
 	cgs.matchWarmupReadyPercent = value;
 
-	value = atoi( Info_ValueForKey( info, "ready" ) );
+	value = atoi( Info_ValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_COUNT ) );
 	if ( value < 0 ) {
 		value = 0;
 	}
 	cgs.matchWarmupReadyCount = value;
 
-	value = atoi( Info_ValueForKey( info, "eligible" ) );
+	value = atoi( Info_ValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_ELIGIBLE ) );
 	if ( value < 0 ) {
 		value = 0;
 	}
@@ -3628,22 +3628,22 @@ static void CG_ParseForcedCosmetics( void ) {
 
 	info = CG_ConfigString( CS_FORCED_COSMETICS );
 	if ( info && *info ) {
-		value = Info_ValueForKey( info, "sb" );
+		value = Info_ValueForKey( info, FORCED_COSMETICS_KEY_SMALL_SCOREBOARD );
 		if ( value && *value ) {
 			forceScoreboard = atoi( value ) ? qtrue : qfalse;
 		}
 
-		value = Info_ValueForKey( info, "hud" );
+		value = Info_ValueForKey( info, FORCED_COSMETICS_KEY_HUD );
 		if ( value && *value ) {
 			forceHud = atoi( value ) ? qtrue : qfalse;
 		}
 
-		value = Info_ValueForKey( info, "dmg" );
+		value = Info_ValueForKey( info, FORCED_COSMETICS_KEY_DAMAGE );
 		if ( value && *value ) {
 			forceDamage = atoi( value ) ? qtrue : qfalse;
 		}
 
-		value = Info_ValueForKey( info, "atm" );
+		value = Info_ValueForKey( info, FORCED_COSMETICS_KEY_ATMOSPHERE );
 		if ( value ) {
 			CG_RequestForcedAtmosphere( value );
 		}
@@ -3789,10 +3789,10 @@ static void CG_ParseServerSettingsInfoConfigStrings( void ) {
 	const char	*value;
 
 	info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_B );
-	value = ( info && info[0] ) ? Info_ValueForKey( info, "g_quadDamageFactor" ) : "";
+	value = ( info && info[0] ) ? Info_ValueForKey( info, SERVER_SETTINGS_KEY_QUAD_DAMAGE_FACTOR ) : "";
 	cgs.serverSettingsQuadFactor = value[0] ? atoi( value ) : 3;
 
-	value = ( info && info[0] ) ? Info_ValueForKey( info, "g_gravity" ) : "";
+	value = ( info && info[0] ) ? Info_ValueForKey( info, SERVER_SETTINGS_KEY_GRAVITY ) : "";
 	cgs.serverSettingsGravity = value[0] ? atoi( value ) : 800;
 }
 
@@ -3856,7 +3856,7 @@ Formats and updates one of the retail endgame-vote UI helper cvars.
 static void CG_SetRotationVoteSlotCvar( int slot, const char *suffix, const char *value ) {
 	char	key[MAX_CVAR_VALUE_STRING];
 
-	if ( !suffix || !suffix[0] || slot < 0 || slot >= 3 ) {
+	if ( !suffix || !suffix[0] || slot < 0 || slot >= ROTATION_VOTE_SLOT_COUNT ) {
 		return;
 	}
 
@@ -3880,8 +3880,8 @@ static void CG_ParseRotationVoteConfigStrings( void ) {
 	rotationTitles = CG_ConfigString( CS_ROTATION_TITLES );
 	rotationCounts = CG_ConfigString( CS_ROTATION_CONFIGS );
 
-	for ( slot = 0; slot < 3; slot++ ) {
-		char	infoKey[16];
+	for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {
+		char	infoKey[ROTATION_VOTE_KEY_BUFFER_SIZE];
 		char	mapName[MAX_QPATH];
 		char	voteName[MAX_CVAR_VALUE_STRING];
 		char	voteGametype[MAX_CVAR_VALUE_STRING];
@@ -3889,22 +3889,22 @@ static void CG_ParseRotationVoteConfigStrings( void ) {
 		char	voteShot[MAX_QPATH];
 		const char	*value;
 
-		Com_sprintf( infoKey, sizeof( infoKey ), "map_%i", slot );
+		Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_MAP_FORMAT, slot );
 		value = Info_ValueForKey( rotationTitles, infoKey );
 		Q_strncpyz( mapName, value ? value : "", sizeof( mapName ) );
 
-		Com_sprintf( infoKey, sizeof( infoKey ), "title_%i", slot );
+		Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_TITLE_FORMAT, slot );
 		value = Info_ValueForKey( rotationTitles, infoKey );
 		Q_strncpyz( voteName, value ? value : "", sizeof( voteName ) );
 		if ( !voteName[0] ) {
 			Q_strncpyz( voteName, mapName, sizeof( voteName ) );
 		}
 
-		Com_sprintf( infoKey, sizeof( infoKey ), "gt_%i", slot );
+		Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot );
 		value = Info_ValueForKey( rotationTitles, infoKey );
 		Q_strncpyz( voteGametype, value ? value : "", sizeof( voteGametype ) );
 
-		Com_sprintf( infoKey, sizeof( infoKey ), "%i", slot );
+		Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_COUNT_FORMAT, slot );
 		value = Info_ValueForKey( rotationCounts, infoKey );
 		if ( value && value[0] ) {
 			Q_strncpyz( voteCount, value, sizeof( voteCount ) );

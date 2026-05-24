@@ -4,12 +4,25 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+CL_AWESOMIUM_WIN32_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_awesomium_win32.cpp"
 CL_CGAME_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
+CL_STEAM_RESOURCES_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_steam_resources.c"
+CG_PUBLIC_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_public.h"
+CG_SYSCALLS_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_syscalls.c"
 CL_INPUT_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_input.c"
 CL_KEYS_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_keys.c"
 CL_MAIN_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_main.c"
 CLIENT_H_PATH = REPO_ROOT / "src" / "code" / "client" / "client.h"
+NULL_CLIENT_PATH = REPO_ROOT / "src" / "code" / "null" / "null_client.c"
 WIN_WNDPROC_PATH = REPO_ROOT / "src" / "code" / "win32" / "win_wndproc.c"
+AWESOMIUM_PLAN_PATH = REPO_ROOT / "docs" / "plans" / "awesomium-parity-plan.md"
+AWESOMIUM_BROWSER_HOST_VERIFY_PATH = REPO_ROOT / "tools" / "ci" / "verify-awesomium-browser-host-parity.ps1"
+FUNCTION_PARITY_GAP_AUDIT_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "function-parity-gap-audit-2026-04-24.md"
+)
+NULL_CLIENT_GAP_NOTE_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "source-file-gap-notes" / "rw-g02-null-client.md"
+)
 
 
 def _read_text(path: Path) -> str:
@@ -169,6 +182,7 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_surface() -> None:
 	cl_cgame = _read_text(CL_CGAME_PATH)
 	cl_input = _read_text(CL_INPUT_PATH)
+	cl_main = _read_text(CL_MAIN_PATH)
 	client_h = _read_text(CLIENT_H_PATH)
 
 	next_power_block = _extract_function_block(
@@ -191,9 +205,17 @@ def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_su
 	)
 	on_mouse_block = _extract_function_block(cl_cgame, "void CL_WebView_OnMouseMove( int x, int y ) {")
 	on_key_block = _extract_function_block(cl_cgame, "void CL_WebView_OnKeyEvent( int key, qboolean down ) {")
+	delay_block = _extract_function_block(cl_cgame, "qboolean CL_AdvertisementBridge_IsDelayElapsed( void ) {")
+	clear_delay_block = _extract_function_block(cl_cgame, "void CL_AdvertisementBridge_ClearDelay( void ) {")
+	cg_clear_delay_block = _extract_function_block(
+		cl_cgame, "static void QDECL QL_CG_trap_AdvertisementBridge_ClearDelay( void ) {"
+	)
 	mouse_event_block = _extract_function_block(cl_input, "void CL_MouseEvent( int dx, int dy, int time ) {")
+	disconnect_block = _extract_function_block(cl_main, "void CL_Disconnect( qboolean showMainMenu ) {")
 
 	assert "void CL_WebView_OnMouseMove( int x, int y );" in client_h
+	assert "qboolean CL_AdvertisementBridge_IsDelayElapsed( void );" in client_h
+	assert "void CL_AdvertisementBridge_ClearDelay( void );" in client_h
 	assert "#define KEYCATCH_RETAIL_MOUSEPASS\t0x0010" in client_h
 	assert "#define KEYCATCH_BROWSER\t\t\t0x0020" in client_h
 	assert "if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {" in inject_mouse_block
@@ -211,6 +233,15 @@ def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_su
 	assert "QLWebView_InjectMouseMove( x, y );" in on_mouse_block
 	assert "QLWebView_InjectKeyboardEvent( key, down );" in on_key_block
 	assert "if ( cl_webHost.cursorPositionValid && cl_webHost.viewInitialised && ( cl_webHost.browserVisible || cl_webHost.browserActive ) ) {" in request_cursor_block
+	assert "int\t\t\tdelayDeadline;" in cl_cgame
+	assert "cl_advertisementBridge.delayDeadline = 0;" in clear_delay_block
+	assert "if ( cl_advertisementBridge.delayDeadline == 0 ) {" in delay_block
+	assert "return cls.realtime > cl_advertisementBridge.delayDeadline ? qtrue : qfalse;" in delay_block
+	assert "CL_AdvertisementBridge_ClearDelay();" in cg_clear_delay_block
+	assert "if ( !CL_AdvertisementBridge_IsDelayElapsed() ) {" in mouse_event_block
+	assert mouse_event_block.index("CL_AdvertisementBridge_IsDelayElapsed()") < mouse_event_block.index("Cvar_VariableIntegerValue")
+	assert "CL_AdvertisementBridge_ClearDelay();" in disconnect_block
+	assert disconnect_block.index("QL_ClientAuth_CancelSteamTicket();") < disconnect_block.index("CL_AdvertisementBridge_ClearDelay();")
 	assert "if ( cls.keyCatchers & KEYCATCH_BROWSER ) {" in mouse_event_block
 	assert "CL_WebView_OnMouseMove( dx, dy );" in mouse_event_block
 	assert "CL_WebView_OnMouseMove( cursorX, cursorY );" not in mouse_event_block
@@ -224,6 +255,9 @@ def test_awesomium_activation_path_reconstructs_retail_modifier_injection_on_app
 	inject_activation_block = _extract_function_block(
 		cl_cgame, "static void QLWebView_InjectActivationKeyboardEvent( void ) {"
 	)
+	inject_fields_block = _extract_function_block(
+		cl_cgame, "static void QLWebView_InjectKeyboardEventFields( const qlWebKeyboardEventFields_t *event, qboolean down ) {"
+	)
 	notify_block = _extract_function_block(
 		cl_cgame, "void CL_WebHost_NotifyAppActivation( qboolean active ) {"
 	)
@@ -232,14 +266,533 @@ def test_awesomium_activation_path_reconstructs_retail_modifier_injection_on_app
 	)
 
 	assert "void CL_WebHost_NotifyAppActivation( qboolean active );" in client_h
+	assert "unsigned int\teventType;" in cl_cgame
+	assert "unsigned int\tvirtualKeyCode;" in cl_cgame
+	assert "long\t\t\tnativeKeyCode;" in cl_cgame
+	assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE 0u" in cl_cgame
+	assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY 0x11u" in cl_cgame
+	assert "#define QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY 0x1d0001L" in cl_cgame
+	assert "QLWebView_InjectKeyboardEvent( (int)event->virtualKeyCode, down );" in inject_fields_block
 	assert "if ( !cl_webHost.viewInitialised ) {" in inject_activation_block
-	assert "QLWebView_InjectKeyboardEvent( 0x11, qtrue );" in inject_activation_block
+	assert "QL_WEB_KEYBOARD_EVENT_ACTIVATION_TYPE," in inject_activation_block
+	assert "QL_WEB_KEYBOARD_EVENT_ACTIVATION_VIRTUAL_KEY," in inject_activation_block
+	assert "QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY" in inject_activation_block
+	assert "QLWebView_InjectKeyboardEventFields( &activationEvent, qtrue );" in inject_activation_block
 	assert "if ( !active ) {" in notify_block
 	assert "cl_webHost.focused = qfalse;" in notify_block
 	assert "QLWebView_InjectActivationKeyboardEvent();" in notify_block
 	assert "SetFocus( g_wv.hWnd );" in activate_block
 	assert "CL_WebHost_NotifyAppActivation( qtrue );" in activate_block
 	assert "CL_WebHost_NotifyAppActivation( qfalse );" in activate_block
+
+
+def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() -> None:
+	cl_awesomium = _read_text(CL_AWESOMIUM_WIN32_PATH)
+
+	load_block = _extract_function_block(
+		cl_awesomium, "static qboolean CL_Awesomium_LoadImports( void ) {"
+	)
+	count_bootstrap_block = _extract_function_block(
+		cl_awesomium, "static int CL_Awesomium_CountBootstrapRetailMappings( void ) {"
+	)
+	prepare_config_block = _extract_function_block(
+		cl_awesomium,
+		"static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char *playerName, unsigned int appId, unsigned int steamIdLow, unsigned int steamIdHigh ) {",
+	)
+	create_session_block = _extract_function_block(
+		cl_awesomium, "static qboolean CL_Awesomium_CreateSession( const char *runtimePath ) {"
+	)
+	startup_block = _extract_function_block(
+		cl_awesomium,
+		'extern "C" qboolean CL_Awesomium_Startup( const char *runtimePath, const char *basePath, const char *playerName, unsigned int appId, unsigned int steamIdLow, unsigned int steamIdHigh, int width, int height ) {',
+	)
+	open_url_block = _extract_function_block(
+		cl_awesomium, 'extern "C" qboolean CL_Awesomium_OpenURL( const char *url ) {'
+	)
+	update_block = _extract_function_block(
+		cl_awesomium, 'extern "C" void CL_Awesomium_Update( void ) {'
+	)
+	resize_block = _extract_function_block(
+		cl_awesomium, 'extern "C" qboolean CL_Awesomium_Resize( int width, int height ) {'
+	)
+	mouse_move_block = _extract_function_block(
+		cl_awesomium, 'extern "C" void CL_Awesomium_InjectMouseMove( int x, int y ) {'
+	)
+	mouse_down_block = _extract_function_block(
+		cl_awesomium, 'extern "C" void CL_Awesomium_InjectMouseDown( int button ) {'
+	)
+	mouse_up_block = _extract_function_block(
+		cl_awesomium, 'extern "C" void CL_Awesomium_InjectMouseUp( int button ) {'
+	)
+	wheel_block = _extract_function_block(
+		cl_awesomium, 'extern "C" void CL_Awesomium_InjectMouseWheel( int direction ) {'
+	)
+	shutdown_block = _extract_function_block(
+		cl_awesomium, 'extern "C" void CL_Awesomium_Shutdown( void ) {'
+	)
+
+	for expected in (
+		'#define CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT "bounded C-export substitution"',
+		'#define CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD "source-owned keyboard event path"',
+		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT "bounded C-export bootstrap substitution"',
+		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME "retail object lifetime mapped to adapter handle"',
+		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL "retail literal retained in source adapter"',
+		"clAwesomiumRetailAbiEquivalence_t",
+		"clAwesomiumBootstrapRetailMapping_t",
+		"retailOwnerAddress;",
+		"retailAnchor;",
+		"retailAddress;",
+		"retailVtableSlot;",
+		"retailMethod;",
+		"adapterOwner;",
+		"adapterBinding;",
+		"substitutionKind;",
+		"static const clAwesomiumRetailAbiEquivalence_t cl_aweRetailAbiEquivalence[] = {",
+		"static const clAwesomiumBootstrapRetailMapping_t cl_aweBootstrapRetailMappings[] = {",
+		"rather than claiming literal ABI identity",
+		"view, URL, focus, and shutdown chain",
+		"bootstrapMappingCount;",
+	):
+		assert expected in cl_awesomium
+
+	for expected in (
+		'{ 0x004F2590u, 0x18u, "WebCore::Update", "CL_Awesomium_Update", "_Awe_WebCore_Update@4", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F25C0u, 0x9cu, "WebView::Resize", "CL_Awesomium_Resize", "_Awe_WebView_Resize@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F2750u, 0xd0u, "WebView::InjectMouseMove", "CL_Awesomium_InjectMouseMove", "_Awe_WebView_InjectMouseMove@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F27C0u, 0xd4u, "WebView::InjectMouseDown", "CL_Awesomium_InjectMouseDown", "_Awe_WebView_InjectMouseDown@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F2820u, 0xd8u, "WebView::InjectMouseUp", "CL_Awesomium_InjectMouseUp", "_Awe_WebView_InjectMouseUp@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F2870u, 0xdcu, "WebView::InjectMouseWheel", "CL_Awesomium_InjectMouseWheel", "_Awe_WebView_InjectMouseWheel@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "QLWebView_InjectKeyboardEvent", "cl_cgame.c field model", CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD },',
+	):
+		assert expected in cl_awesomium
+
+	for expected in (
+		'{ 0x004F2D30u, 0x0052C6A4u, "WebConfig::WebConfig", "CL_Awesomium_PrepareConfig", "_Awe_new_WebConfig@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x0052C6A0u, "WebCore::Initialize", "CL_Awesomium_Startup", "_Awe_WebCore_Initialize@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x0052C698u, "WebPreferences::WebPreferences", "CL_Awesomium_PreparePreferences", "_Awe_new_WebPreferences@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x00000000u, "WebCore::CreateWebSession slot 0x00", "CL_Awesomium_CreateSession", "_Awe_WebCore_CreateWebSession@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x00000018u, "WebSession bootstrap slot 0x18", "CL_Awesomium_CreateSession", "session initialisation boundary", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },',
+		'{ 0x004F2D30u, 0x0052C694u, "DataPakSource::DataPakSource", "CL_Awesomium_CreateSession", "_Awe_new_DataPakSource@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x00548068u, "QL data-source name", "CL_Awesomium_CreateSession", "\\"QL\\"", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },',
+		'{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },',
+		'{ 0x004F2D30u, 0x00000010u, "WebSession::AddDataSource slot 0x10", "CL_Awesomium_CreateSession", "_Awe_WebSession_AddDataSource@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x00000004u, "WebCore::CreateWebView slot 0x04", "CL_Awesomium_Startup", "_Awe_WebCore_CreateWebView_0@20", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x00000064u, "WebView::LoadURL slot 0x64", "CL_Awesomium_OpenURL", "_Awe_WebView_LoadURL@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000ACu, "WebView::Focus slot 0xAC", "CL_Awesomium_OpenURL", "_Awe_WebView_Focus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000C4u, "WebView::surface slot 0xC4", "CL_Awesomium_Surface", "_Awe_WebView_surface@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2A60u, 0x00000000u, "WebView::Destroy slot 0x00", "CL_Awesomium_Shutdown", "_Awe_WebView_Destroy@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2A60u, 0x0052C684u, "WebCore::Shutdown", "CL_Awesomium_Shutdown", "_Awe_WebCore_Shutdown@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+	):
+		assert expected in cl_awesomium
+
+	for expected in (
+		'CL_AWE_IMPORT( newWebConfig, "_Awe_new_WebConfig@0" );',
+		'CL_AWE_IMPORT( newWebPreferences, "_Awe_new_WebPreferences@0" );',
+		'CL_AWE_IMPORT( webCoreInitialize, "_Awe_WebCore_Initialize@4" );',
+		'CL_AWE_IMPORT( webCoreShutdown, "_Awe_WebCore_Shutdown@0" );',
+		'CL_AWE_IMPORT( webCoreCreateWebSession, "_Awe_WebCore_CreateWebSession@12" );',
+		'CL_AWE_IMPORT( webCoreCreateWebView, "_Awe_WebCore_CreateWebView_0@20" );',
+		'CL_AWE_IMPORT( webConfigChildProcessPathSet, "_Awe_WebConfig_child_process_path_set@8" );',
+		'CL_AWE_IMPORT( webConfigPackagePathSet, "_Awe_WebConfig_package_path_set@8" );',
+		'CL_AWE_IMPORT( newDataPakSource, "_Awe_new_DataPakSource@4" );',
+		'CL_AWE_IMPORT( webSessionAddDataSource, "_Awe_WebSession_AddDataSource@12" );',
+		'CL_AWE_IMPORT( webViewDestroy, "_Awe_WebView_Destroy@4" );',
+		'CL_AWE_IMPORT( webViewLoadURL, "_Awe_WebView_LoadURL@8" );',
+		'CL_AWE_IMPORT( webViewFocus, "_Awe_WebView_Focus@4" );',
+		'CL_AWE_IMPORT( webViewSurface, "_Awe_WebView_surface@4" );',
+		'CL_AWE_IMPORT( webCoreUpdate, "_Awe_WebCore_Update@4" );',
+		'CL_AWE_IMPORT( webViewResize, "_Awe_WebView_Resize@12" );',
+		'CL_AWE_IMPORT( webViewInjectMouseMove, "_Awe_WebView_InjectMouseMove@12" );',
+		'CL_AWE_IMPORT( webViewInjectMouseDown, "_Awe_WebView_InjectMouseDown@8" );',
+		'CL_AWE_IMPORT( webViewInjectMouseUp, "_Awe_WebView_InjectMouseUp@8" );',
+		'CL_AWE_IMPORT( webViewInjectMouseWheel, "_Awe_WebView_InjectMouseWheel@12" );',
+	):
+		assert expected in load_block
+
+	assert "for ( i = 0; cl_aweBootstrapRetailMappings[i].retailMember; i++ ) {" in count_bootstrap_block
+	assert "cl_aweBootstrapRetailMappings[i].retailOwnerAddress != 0u" in count_bootstrap_block
+	assert "cl_awesomium.bootstrapMappingCount = CL_Awesomium_CountBootstrapRetailMappings();" in load_block
+
+	for expected in (
+		"char childProcessPath[MAX_PATH];",
+		"char logPath[MAX_PATH];",
+		"char packagePath[MAX_PATH];",
+		"char userScript[4096];",
+		'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), runtimePath, "awesomium_process.exe" );',
+		'CL_Awesomium_AppendPath( logPath, sizeof( logPath ), runtimePath, "awesomium.log" );',
+		'CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), runtimePath, "web.pak" );',
+		"CL_Awesomium_BuildUserScript( userScript, sizeof( userScript ), playerName, appId, steamIdLow, steamIdHigh );",
+		'!CL_Awesomium_SetConfigString( cl_awe.webConfigAssetProtocolSet, cl_awesomium.webConfig, "asset" )',
+		"!CL_Awesomium_SetConfigString( cl_awe.webConfigChildProcessPathSet, cl_awesomium.webConfig, childProcessPath )",
+		"!CL_Awesomium_SetConfigString( cl_awe.webConfigLogPathSet, cl_awesomium.webConfig, logPath )",
+		"!CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packagePath )",
+		"!CL_Awesomium_SetConfigString( cl_awe.webConfigUserScriptSet, cl_awesomium.webConfig, userScript )",
+	):
+		assert expected in prepare_config_block
+	assert "(void)runtimePath;" not in prepare_config_block
+	assert "(void)playerName;" not in prepare_config_block
+
+	assert 'cl_awesomium.webSession = cl_awe.webCoreCreateWebSession( cl_awesomium.webCore, dataPath, cl_awesomium.webPreferences );' in create_session_block
+	assert 'pakName = CL_Awesomium_AllocWideString( "web.pak" );' in create_session_block
+	assert "cl_awesomium.dataPakSource = cl_awe.newDataPakSource( pakName );" in create_session_block
+	assert 'sourceName = CL_Awesomium_AllocWideString( "QL" );' in create_session_block
+	assert "cl_awe.webSessionAddDataSource( cl_awesomium.webSession, sourceName, cl_awesomium.dataPakSource );" in create_session_block
+	assert "cl_awesomium.webCore = cl_awe.webCoreInitialize( cl_awesomium.webConfig );" in startup_block
+	assert "cl_awesomium.webView = cl_awe.webCoreCreateWebView( cl_awesomium.webCore, width, height, cl_awesomium.webSession, 0 );" in startup_block
+	assert "cl_awe.webViewFocus( cl_awesomium.webView );" in startup_block
+	assert 'url = "asset://ql/index.html";' in open_url_block
+	assert "cl_awe.webViewLoadURL( cl_awesomium.webView, webURL );" in open_url_block
+	assert "cl_awe.webViewFocus( cl_awesomium.webView );" in open_url_block
+	assert "cl_awe.webCoreUpdate( cl_awesomium.webCore );" in update_block
+	assert "cl_awe.webViewResize( cl_awesomium.webView, width, height );" in resize_block
+	assert "cl_awe.webViewInjectMouseMove( cl_awesomium.webView, x, y );" in mouse_move_block
+	assert "cl_awe.webViewInjectMouseDown( cl_awesomium.webView, button );" in mouse_down_block
+	assert "cl_awe.webViewInjectMouseUp( cl_awesomium.webView, button );" in mouse_up_block
+	assert "cl_awe.webViewInjectMouseWheel( cl_awesomium.webView, 0, direction * 30 );" in wheel_block
+	assert "cl_awe.webViewDestroy( cl_awesomium.webView );" in shutdown_block
+	assert "cl_awe.webCoreShutdown();" in shutdown_block
+
+
+def test_awesomium_null_host_browser_lane_is_explicit_compatibility_scope() -> None:
+	null_client = _read_text(NULL_CLIENT_PATH)
+	awesomium_plan = _read_text(AWESOMIUM_PLAN_PATH)
+	function_gap_audit = _read_text(FUNCTION_PARITY_GAP_AUDIT_PATH)
+	null_gap_note = _read_text(NULL_CLIENT_GAP_NOTE_PATH)
+
+	refresh_block = _extract_function_block(
+		null_client, "static void CL_NullRefreshBrowserCvars( void ) {"
+	)
+	live_view_block = _extract_function_block(null_client, "qboolean CL_WebHost_HasLiveView( void ) {")
+	bound_window_block = _extract_function_block(
+		null_client, "qboolean CL_WebHost_HasBoundWindowObject( void ) {"
+	)
+	cursor_block = _extract_function_block(null_client, "void *CL_WebHost_GetCursorHandle( void ) {")
+	publish_block = _extract_function_block(
+		null_client, "void CL_WebView_PublishEvent( const char *name, const char *payload ) {"
+	)
+	mouse_block = _extract_function_block(null_client, "void CL_WebView_OnMouseMove( int x, int y ) {")
+	advert_init_block = _extract_function_block(null_client, "void CL_AdvertisementBridge_InitUI( void ) {")
+
+	for expected in (
+		'#define CL_NULL_BROWSER_PROVIDER_LABEL "Null host compatibility shim"',
+		'#define CL_NULL_BROWSER_POLICY_LABEL "compatibility-only null host"',
+		'#define CL_NULL_BROWSER_PARITY_SCOPE_LABEL "strict-retail-excluded"',
+		'#define CL_NULL_BROWSER_PARITY_REASON_LABEL "retail Windows Awesomium host is outside the null-client portability lane"',
+	):
+		assert expected in null_client
+
+	for expected in (
+		'Cvar_Set( "ui_browserAwesomium", "0" );',
+		'Cvar_Set( "ui_browserAwesomiumProvider", CL_NULL_BROWSER_PROVIDER_LABEL );',
+		'Cvar_Set( "ui_browserAwesomiumPolicy", CL_NULL_BROWSER_POLICY_LABEL );',
+		'Cvar_Set( "ui_browserAwesomiumParityScope", CL_NULL_BROWSER_PARITY_SCOPE_LABEL );',
+		'Cvar_Set( "ui_browserAwesomiumParityReason", CL_NULL_BROWSER_PARITY_REASON_LABEL );',
+		'Cvar_Set( "web_browserActive", "0" );',
+		'Cvar_Set( "ui_advertisementBridgeProvider", CL_NULL_BROWSER_PROVIDER_LABEL );',
+		'Cvar_Set( "ui_advertisementBridgePolicy", CL_NULL_BROWSER_POLICY_LABEL );',
+		'Cvar_Set( "ui_advertisementBridgeParityScope", CL_NULL_BROWSER_PARITY_SCOPE_LABEL );',
+		'Cvar_Set( "ui_advertisementBridgeParityReason", CL_NULL_BROWSER_PARITY_REASON_LABEL );',
+	):
+		assert expected in refresh_block
+
+	assert "return qfalse;" in live_view_block
+	assert "return qfalse;" in bound_window_block
+	assert "return NULL;" in cursor_block
+	assert "(void)name;" in publish_block
+	assert "(void)payload;" in publish_block
+	assert "(void)x;" in mouse_block
+	assert "(void)y;" in mouse_block
+	assert "CL_NullResetAdvertisementBridgeState();" in advert_init_block
+	assert "CL_RefreshOnlineServicesBridgeState();" in advert_init_block
+
+	assert "| Closed 2026-05-24 | Repo-wide non-Windows and null-host lanes keep the browser host stubbed or compatibility-only |" in awesomium_plan
+	assert "null host publishes its strict-retail exclusion through provider, policy, parity-scope, and parity-reason cvars" in awesomium_plan
+	assert "Current classification: Closed as explicit compatibility-only null browser/advert lane" in null_gap_note
+	assert "strict-retail-excluded" in null_gap_note
+	assert "`src/code/null/null_client.c`" in function_gap_audit
+	assert "Null browser/advert lane now publishes the strict-retail exclusion through source-visible cvars" in function_gap_audit
+
+
+def test_awesomium_browser_host_verifier_covers_closed_gap_anchors() -> None:
+	verifier = _read_text(AWESOMIUM_BROWSER_HOST_VERIFY_PATH)
+
+	for expected in (
+		"QL_WEB_BRIDGE_RETAIL_OBJECT_ADDRESS 0x012D2670u",
+		'QL_RESOURCE_INTERCEPTOR_HOST "ql"',
+		"QLResourceInterceptor_OnFilterNavigation",
+		"QLResourceInterceptor_RequestRetailHost",
+		"cl_steamDataSourceRetailMappings",
+		"cl_steamResponseThreadRetailMappings",
+		"0x00532B80u",
+		"0x00532B68u",
+		"0x00532B44u",
+		"0x004640C0u",
+		"0x00464290u",
+		"0x00463440u",
+		"image/png",
+		"request_%i",
+		"ui_resourceBridgeSteamDataSourceMappings",
+		"ui_resourceBridgeResponseThreadMappings",
+		"QLDialogHandler_OnShowFileChooser",
+		"cl_webListenerCallbackMappings",
+		"0x00547FA8u",
+		"0x00431640u",
+		"CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING = 116",
+		"QL_CG_trap_PublishTaggedInfoString",
+		"CL_WebView_PublishTaggedInfoString",
+		"Info_NextPair( &cursor, key, value );",
+		"QL_WEB_KEYBOARD_EVENT_ACTIVATION_NATIVE_KEY 0x1d0001L",
+		"CL_AdvertisementBridge_IsDelayElapsed",
+		"cl_aweRetailAbiEquivalence",
+		"cl_aweBootstrapRetailMappings",
+		"0x0052C6A4u",
+		"0x0052C6A0u",
+		"0x00548068u",
+		"_Awe_WebCore_CreateWebSession@12",
+		"_Awe_WebSession_AddDataSource@12",
+		"_Awe_WebConfig_child_process_path_set@8",
+		"CL_Awesomium_CountBootstrapRetailMappings",
+		"CL_Awesomium_BuildUserScript",
+		"_Awe_WebCore_Update@4",
+		"_Awe_WebView_InjectMouseMove@12",
+		'"sub_4F2900": "QLWebView_InjectActivationKeyboardEvent"',
+		'"sub_4F2A60": "QLWebHost_Shutdown"',
+		'"sub_4F2D30": "QLWebHost_OpenURL"',
+		'"sub_434600": "QLResourceInterceptor_OnFilterNavigation"',
+		'"sub_434620": "QLResourceInterceptor_OnRequest"',
+		'"sub_4640C0": "SteamDataSource_OnRequest"',
+		'"sub_464290": "SteamDataSource_OnAvatarImageLoaded"',
+		'"sub_464300": "SteamDataSource_Init"',
+		'"sub_464440": "SteamDataSource_Shutdown"',
+		'"sub_464510": "SteamDataSource_Destroy"',
+		'"sub_463110": "ResponseThread_PNGWriteCallback"',
+		'"sub_463180": "ResponseThread_EncodeAvatarPNG"',
+		'"sub_463440": "ResponseThread_Run"',
+		'"sub_463550": "SteamDataSource_StartResponseThread"',
+		'"sub_431640": "QLDialogHandler_OnShowFileChooser"',
+		"WebKeyboardEvent\\(0, 0x11, 0x1d0001\\)",
+		"QLResourceInterceptor_OnFilterNavigation.+QLResourceInterceptor_OnRequest.+/screenshot",
+		"QLDialogHandler.+OnShowFileChooser.+0x00431640",
+		"SteamDataSource::vftable.+0x00532B80",
+		"SteamDataSource.+OnRequest.+0x004640C0",
+		"ResponseThread::vftable.+0x00532B44",
+		"ResponseThread::vftable.+0x00532B44.+image/png.+request_%i",
+		"WebCore::Initialize.+WebSession::AddDataSource.+WebView::LoadURL.+WebCore::Shutdown",
+	):
+		assert expected in verifier
+
+	assert "Awesomium browser host source, alias, mapping, and adapter parity anchors are present." in verifier
+
+
+def test_awesomium_resource_interceptor_reconstructs_retail_ql_host_filter_lane() -> None:
+	steam_resources = _read_text(CL_STEAM_RESOURCES_PATH)
+
+	filter_block = _extract_function_block(
+		steam_resources, "static qboolean QLResourceInterceptor_OnFilterNavigation( const char *url ) {"
+	)
+	parse_block = _extract_function_block(
+		steam_resources, "static qboolean QLResourceInterceptor_ParseURL( const char *url, clResourceInterceptorUrl_t *parsed ) {"
+	)
+	map_block = _extract_function_block(
+		steam_resources,
+		"static qboolean QLResourceInterceptor_BuildMappedRequest( const clResourceInterceptorUrl_t *parsed, char *mappedUrl, size_t mappedUrlSize ) {",
+	)
+	retail_host_block = _extract_function_block(
+		steam_resources,
+		"static qboolean QLResourceInterceptor_RequestRetailHost( const char *url, clSteamDataSourceResponse_t *response ) {",
+	)
+	interceptor_block = _extract_function_block(
+		steam_resources,
+		"static qboolean QLResourceInterceptor_OnRequest( const char *url, clSteamDataSourceResponse_t *response ) {",
+	)
+
+	for expected in (
+		'#define QL_RESOURCE_INTERCEPTOR_HOST "ql"',
+		'#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH "/screenshot"',
+		'#define QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX "https://cdn.quakelive.com/"',
+		'#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX "quakelive://screenshots/"',
+		"clResourceInterceptorUrl_t",
+		"char\thost[64];",
+		"char\tpath[MAX_QPATH];",
+		"char\tfilename[MAX_QPATH];",
+	):
+		assert expected in steam_resources
+
+	assert "(void)url;" in filter_block
+	assert "return qfalse;" in filter_block
+	assert 'scheme = strstr( url, "://" );' in parse_block
+	assert "while ( *hostEnd && *hostEnd != '/' && *hostEnd != '\\\\' && *hostEnd != '?' && *hostEnd != '#' ) {" in parse_block
+	assert "while ( *pathEnd && *pathEnd != '?' && *pathEnd != '#' ) {" in parse_block
+	assert "Q_strncpyz( parsed->filename, filename, sizeof( parsed->filename ) );" in parse_block
+	assert "QLResourceInterceptor_IsRetailHost( parsed )" in map_block
+	assert "QLResourceInterceptor_IsScreenshotPath( parsed->path )" in map_block
+	assert "QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX" in map_block
+	assert "QL_RESOURCE_INTERCEPTOR_WEB_FALLBACK_PREFIX" in map_block
+	assert "QLResourceInterceptor_ParseURL( url, &parsed )" in retail_host_block
+	assert "QLResourceInterceptor_BuildMappedRequest( &parsed, mappedUrl, sizeof( mappedUrl ) )" in retail_host_block
+	assert "CL_LauncherRequestData( mappedUrl, (void **)&response->buffer, &response->bufferLength )" in retail_host_block
+	assert "CL_SteamDataSource_GuessMimeType( mappedUrl )" in retail_host_block
+	assert "QLResourceInterceptor_OnFilterNavigation( url )" in interceptor_block
+	assert "CL_SteamDataSource_Request( url, response )" in interceptor_block
+	assert "QLResourceInterceptor_RequestRetailHost( url, response )" in interceptor_block
+	assert interceptor_block.index("QLResourceInterceptor_OnFilterNavigation( url )") < interceptor_block.index(
+		"CL_SteamDataSource_Request( url, response )"
+	)
+	assert interceptor_block.index("QLResourceInterceptor_RequestRetailHost( url, response )") < interceptor_block.index(
+		"CL_LauncherRequestData( url, (void **)&response->buffer, &response->bufferLength )"
+	)
+
+
+def test_awesomium_steam_data_source_retail_wiring_is_source_visible() -> None:
+	steam_resources = _read_text(CL_STEAM_RESOURCES_PATH)
+
+	count_block = _extract_function_block(
+		steam_resources, "static int CL_CountSteamDataSourceRetailMappings( void ) {"
+	)
+	refresh_block = _extract_function_block(
+		steam_resources, "static void CL_RefreshSteamResourceBridgeCvars( void ) {"
+	)
+
+	for expected in (
+		"clSteamDataSourceRetailMapping_t",
+		"retailOwner;",
+		"retailMember;",
+		"retailVtableAddress;",
+		"retailOffset;",
+		"retailAddress;",
+		"sourceOwner;",
+		"static const clSteamDataSourceRetailMapping_t cl_steamDataSourceRetailMappings[] = {",
+		'{ "SteamDataSource", "destroy", 0x00532B80u, 0x00u, 0x00464510u, "CL_ShutdownSteamResources", CL_STEAM_DATA_SOURCE_SCOPE_DESTRUCTOR },',
+		'{ "SteamDataSource", "OnRequest", 0x00532B80u, 0x04u, 0x004640C0u, "CL_SteamDataSource_Request", CL_STEAM_DATA_SOURCE_SCOPE_COMPATIBILITY_OWNER },',
+		'{ "SteamDataSource", "StartResponseThread", 0u, 0u, 0x00463550u, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_DATA_SOURCE_SCOPE_ASYNC_BOUNDARY },',
+		'{ "SteamDataSource", "Init", 0u, 0u, 0x00464300u, "CL_InitSteamResources", CL_STEAM_DATA_SOURCE_SCOPE_LIFECYCLE_BOUNDARY },',
+		'{ "SteamDataSource", "Shutdown", 0u, 0u, 0x00464440u, "CL_ShutdownSteamResources", CL_STEAM_DATA_SOURCE_SCOPE_LIFECYCLE_BOUNDARY },',
+		'{ "CCallback<class SteamDataSource, struct AvatarImageLoaded_t, 0>", "callback target", 0x00532B68u, 0x10u, 0x00464290u, "CL_SteamResources_OnAvatarImageLoaded", CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK },',
+		'{ "CCallback<class SteamDataSource, struct AvatarImageLoaded_t, 0>", "callback id", 0x00532B68u, 0x14Eu, 0x00464300u, "CL_SteamResources_RegisterAvatarCallbacks", CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK },',
+	):
+		assert expected in steam_resources
+
+	assert "for ( i = 0; cl_steamDataSourceRetailMappings[i].retailOwner; i++ ) {" in count_block
+	assert "cl_steamDataSourceRetailMappings[i].retailAddress != 0u" in count_block
+	assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );' in refresh_block
+
+
+def test_awesomium_response_thread_async_wiring_is_source_visible() -> None:
+	steam_resources = _read_text(CL_STEAM_RESOURCES_PATH)
+
+	count_block = _extract_function_block(
+		steam_resources, "static int CL_CountSteamResponseThreadRetailMappings( void ) {"
+	)
+	refresh_block = _extract_function_block(
+		steam_resources, "static void CL_RefreshSteamResourceBridgeCvars( void ) {"
+	)
+
+	for expected in (
+		"clSteamResponseThreadRetailMapping_t",
+		"retailLiteral;",
+		"#define CL_STEAM_RESPONSE_THREAD_RETAIL_VTABLE 0x00532B44u",
+		'#define CL_STEAM_RESPONSE_THREAD_MIME_TYPE "image/png"',
+		'#define CL_STEAM_RESPONSE_THREAD_THREAD_NAME "request_%i"',
+		'#define CL_STEAM_RESPONSE_THREAD_PNG_VERSION "1.2.24"',
+		'#define CL_STEAM_RESPONSE_THREAD_WRITE_ERROR "Write Error"',
+		'#define CL_STEAM_RESPONSE_THREAD_STACK_RESERVE "0x100000"',
+		"static const clSteamResponseThreadRetailMapping_t cl_steamResponseThreadRetailMappings[] = {",
+		'{ "ResponseThread", "run", CL_STEAM_RESPONSE_THREAD_RETAIL_VTABLE, 0x04u, 0x00463440u, CL_STEAM_RESPONSE_THREAD_MIME_TYPE, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_ASYNC_BOUNDARY },',
+		'{ "ResponseThread", "PNGWriteCallback", 0u, 0u, 0x00463110u, CL_STEAM_RESPONSE_THREAD_WRITE_ERROR, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_PNG_HELPER },',
+		'{ "ResponseThread", "EncodeAvatarPNG", 0u, 0u, 0x00463180u, CL_STEAM_RESPONSE_THREAD_PNG_VERSION, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_PNG_HELPER },',
+		'{ "Awesomium::DataSource", "SendResponse import", 0u, 0u, 0x0052C6B0u, CL_STEAM_RESPONSE_THREAD_MIME_TYPE, "QLResourceInterceptor_OnRequest", CL_STEAM_RESPONSE_THREAD_SCOPE_SEND_RESPONSE },',
+		'{ "SteamDataSource", "StartResponseThread", 0u, 0u, 0x00463550u, CL_STEAM_RESPONSE_THREAD_THREAD_NAME, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_THREAD_START },',
+		'{ "SteamDataSource", "ResponseThread stack reserve", 0u, 0x100000u, 0x00463550u, CL_STEAM_RESPONSE_THREAD_STACK_RESERVE, "CL_SteamResources_RequestAvatarRGBA", CL_STEAM_RESPONSE_THREAD_SCOPE_THREAD_START },',
+	):
+		assert expected in steam_resources
+
+	assert "for ( i = 0; cl_steamResponseThreadRetailMappings[i].retailOwner; i++ ) {" in count_block
+	assert "cl_steamResponseThreadRetailMappings[i].retailAddress != 0u" in count_block
+	assert 'Cvar_Set( "ui_resourceBridgeResponseThreadMappings", va( "%i", CL_CountSteamResponseThreadRetailMappings() ) );' in refresh_block
+
+
+def test_awesomium_listener_vtable_wiring_is_source_visible() -> None:
+	cl_cgame = _read_text(CL_CGAME_PATH)
+
+	dialog_block = _extract_function_block(cl_cgame, "static qboolean QLDialogHandler_OnShowFileChooser( void ) {")
+	count_block = _extract_function_block(cl_cgame, "static int QLWebHost_CountRecoveredListenerMappings( void ) {")
+	install_block = _extract_function_block(cl_cgame, "static void QLWebHost_InstallRuntimeListeners( void ) {")
+	runtime_block = _extract_function_block(cl_cgame, "static qboolean QLWebHost_EnsureRuntime( void ) {")
+
+	for expected in (
+		"clWebListenerCallbackMapping_t",
+		"listenerName;",
+		"retailCallback;",
+		"vtableAddress;",
+		"slotOffset;",
+		"retailAddress;",
+		"sourceCallback;",
+		"static const clWebListenerCallbackMapping_t cl_webListenerCallbackMappings[] = {",
+		'{ "QLResourceInterceptor", "OnRequest", 0x00547F94u, 0x00u, 0x00434620u, "QLResourceInterceptor_OnRequest", CL_WEB_LISTENER_SCOPE_COMPATIBILITY_OWNER },',
+		'{ "QLResourceInterceptor", "OnFilterNavigation", 0x00547F94u, 0x04u, 0x00434600u, "QLResourceInterceptor_OnFilterNavigation", CL_WEB_LISTENER_SCOPE_COMPATIBILITY_OWNER },',
+		'{ "QLDialogHandler", "OnShowFileChooser", 0x00547FA8u, 0x08u, 0x00431640u, "QLDialogHandler_OnShowFileChooser", CL_WEB_LISTENER_SCOPE_BUILTIN_FORWARD },',
+		'{ "QLViewHandler", "OnChangeTooltip", 0x00547FC0u, 0x08u, 0x00434450u, "QLViewHandler_OnChangeTooltip", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLViewHandler", "OnChangeCursor", 0x00547FC0u, 0x10u, 0x00431670u, "QLViewHandler_OnChangeCursor", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLViewHandler", "OnAddConsoleMessage", 0x00547FC0u, 0x18u, 0x00434520u, "QLViewHandler_OnAddConsoleMessage", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLLoadHandler", "OnBeginLoadingFrame", 0x00547FE8u, 0x00u, 0x004317D0u, "QLLoadHandler_OnBeginLoadingFrame", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLLoadHandler", "OnFailLoadingFrame", 0x00547FE8u, 0x04u, 0x00434AE0u, "QLLoadHandler_OnFailLoadingFrame", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLLoadHandler", "OnFinishLoadingFrame", 0x00547FE8u, 0x08u, 0x004317E0u, "QLLoadHandler_OnFinishLoadingFrame", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLLoadHandler", "OnDocumentReady", 0x00547FE8u, 0x0Cu, 0x004317F0u, "QLLoadHandler_OnDocumentReady", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLJSHandler", "OnMethodCall", 0x00548010u, 0x00u, 0x00431E50u, "QLJSHandler_OnMethodCall", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLJSHandler", "OnMethodCallWithReturnValue", 0x00548010u, 0x04u, 0x004328B0u, "QLJSHandler_OnMethodCallWithReturnValue", CL_WEB_LISTENER_SCOPE_SOURCE_CALLBACK },',
+		'{ "QLJSHandler", "destroy", 0x00548010u, 0x08u, 0x004F23B0u, "QLJSHandler_Destroy", CL_WEB_LISTENER_SCOPE_DESTRUCTOR },',
+		'{ "QLDialogHandler", "base/no-engine slot 0", 0x00547FA8u, 0x00u, 0x00431660u, "QLDialogHandler_NoEngineCallback", CL_WEB_LISTENER_SCOPE_NO_ENGINE_CALLBACK },',
+	):
+		assert expected in cl_cgame
+
+	assert "int\t\t\tlistenerCallbackMappingCount;" in cl_cgame
+	assert "return cl_webHost.liveAwesomium ? qtrue : qfalse;" in dialog_block
+	assert "for ( i = 0; cl_webListenerCallbackMappings[i].listenerName; i++ ) {" in count_block
+	assert "cl_webListenerCallbackMappings[i].retailAddress != 0u" in count_block
+	assert "cl_webHost.listenerCallbackMappingCount = QLWebHost_CountRecoveredListenerMappings();" in install_block
+	assert "cl_webHost.dialogHandlerInstalled = qtrue;" in install_block
+	assert "cl_webHost.viewHandlerInstalled = qtrue;" in install_block
+	assert "cl_webHost.loadHandlerInstalled = qtrue;" in install_block
+	assert "(void)QLDialogHandler_OnShowFileChooser;" in runtime_block
+
+
+def test_awesomium_tagged_info_string_comm_notice_wiring_matches_retail_slot() -> None:
+	cg_public = _read_text(CG_PUBLIC_PATH)
+	cg_syscalls = _read_text(CG_SYSCALLS_PATH)
+	cl_cgame = _read_text(CL_CGAME_PATH)
+	cl_main = _read_text(CL_MAIN_PATH)
+	client_h = _read_text(CLIENT_H_PATH)
+	null_client = _read_text(NULL_CLIENT_PATH)
+
+	invoke_block = _extract_function_block(cl_main, "void CL_WebView_InvokeCommNotice( const char *message ) {")
+	publish_block = _extract_function_block(
+		cl_main, "void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString ) {"
+	)
+	cgame_trap_block = _extract_function_block(
+		cl_cgame, "static void QDECL QL_CG_trap_PublishTaggedInfoString( const char *messageType, const char *infoString ) {"
+	)
+	syscall_block = _extract_function_block(
+		cg_syscalls, "void trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString ) {"
+	)
+	null_publish_block = _extract_function_block(
+		null_client, "void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString ) {"
+	)
+
+	assert "CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING = 116," in cg_public
+	assert "CG_QL_IMPORT_TAGGED_CVAR_STRING_BUFFER" not in cg_public
+	assert "void CL_WebView_InvokeCommNotice( const char *message );" in client_h
+	assert "void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString );" in client_h
+	assert 'CL_WebView_PublishEvent( "web.commNotice", message ? message : "" );' in invoke_block
+	assert 'CL_WebView_AppendTaggedInfoPair( payload, sizeof( payload ), "MSG_TYPE", messageType ? messageType : "", &first );' in publish_block
+	assert "Info_NextPair( &cursor, key, value );" in publish_block
+	assert "CL_WebView_InvokeCommNotice( payload );" in publish_block
+	assert "CL_WebView_PublishTaggedInfoString( messageType, infoString );" in cgame_trap_block
+	assert "CG_GetNativeImportFunction( CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING )" in syscall_block
+	assert '((void (QDECL *)( const char *, const char * ))import)( messageType, infoString );' in syscall_block
+	assert "(void)messageType;" in null_publish_block
+	assert "(void)infoString;" in null_publish_block
+	assert "TaggedCvarStringBuffer" not in cl_cgame
+	assert "TaggedCvarStringBuffer" not in cg_syscalls
 
 
 def test_awesomium_mouse_button_and_wheel_helpers_reconstruct_retail_pointer_injection_surface() -> None:
@@ -330,6 +883,76 @@ def test_awesomium_document_ready_stages_launcher_script_bundle_before_ready_eve
 	assert "nFiles = FS_AddFileToList( name + temp, list, nFiles );" in pak_list_block
 
 
+def test_awesomium_advert_bridge_models_retail_data_12d2670_slot_layout() -> None:
+	cl_cgame = _read_text(CL_CGAME_PATH)
+	client_h = _read_text(CLIENT_H_PATH)
+	cl_ui = _read_text(REPO_ROOT / "src/code/client/cl_ui.c")
+
+	init_ui_block = _extract_function_block(cl_cgame, "void CL_AdvertisementBridge_InitUI( void ) {")
+	activate_block = _extract_function_block(cl_cgame, "void CL_AdvertisementBridge_ActivateAdvert( int cellId ) {")
+	set_active_block = _extract_function_block(cl_cgame, "void CL_AdvertisementBridge_SetActiveAdvert( int cellId ) {")
+	bridge_set_active_block = _extract_function_block(
+		cl_cgame, "static int QLWebBridge_SetActiveAdvert( ql_web_bridge_t *bridge, int cellId ) {"
+	)
+	bridge_shader_block = _extract_function_block(
+		cl_cgame, "static qhandle_t QLWebBridge_RegisterDefaultAdvertCellShader( const char *defaultContent ) {"
+	)
+	ui_setup_block = _extract_function_block(
+		cl_ui, "static qhandle_t QDECL QL_UI_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {"
+	)
+	cg_setup_block = _extract_function_block(
+		cl_cgame, "static qhandle_t QDECL QL_CG_trap_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId ) {"
+	)
+	map_path_block = _extract_function_block(
+		cl_cgame, "static void QDECL QL_CG_trap_AdvertisementBridge_SetMapPath( const char *mapPath ) {"
+	)
+
+	for expected in (
+		"#define QL_WEB_BRIDGE_RETAIL_OBJECT_ADDRESS 0x012D2670u",
+		"typedef struct ql_web_bridge_s ql_web_bridge_t;",
+		"const ql_web_bridge_vtbl_t\t*vtbl;",
+		"clAdvertisementBridgeState_t\t*advertisement;",
+		"QL_WEB_BRIDGE_SLOT_SET_ACTIVE_ADVERT = 0x08",
+		"QL_WEB_BRIDGE_SLOT_SET_APP_ACTIVATION = 0x0c",
+		"QL_WEB_BRIDGE_SLOT_UPDATE_VIEW_PARAMETERS = 0x14",
+		"QL_WEB_BRIDGE_SLOT_SET_VISIBILITY_TRACE_CALLBACK = 0x18",
+		"QL_WEB_BRIDGE_SLOT_SET_MAP_PATH = 0x20",
+		"QL_WEB_BRIDGE_SLOT_INIT_CGAME = 0x24",
+		"QL_WEB_BRIDGE_SLOT_SHUTDOWN_CGAME = 0x28",
+		"QL_WEB_BRIDGE_SLOT_GET_CELL_DISPLAY_STATE = 0x38",
+		"QL_WEB_BRIDGE_SLOT_GET_CELL_LABEL = 0x3c",
+		"QL_WEB_BRIDGE_SLOT_SETUP_ADVERT_CELL_SHADER = 0x50",
+		"QL_WEB_BRIDGE_SLOT_SETUP_UI_ADVERT_CELL_SHADER = 0x54",
+		"QL_WEB_BRIDGE_SLOT_REFRESH_ADVERT_CELL_SHADER = 0x58",
+		"QL_WEB_BRIDGE_SLOT_REFRESH_UI_ADVERT_CELL_SHADER = 0x5c",
+		"QL_WEB_BRIDGE_SLOT_ACTIVATE_ADVERT = 0x68",
+		"QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setActiveAdvert, QL_WEB_BRIDGE_SLOT_SET_ACTIVE_ADVERT );",
+		"QL_WEB_BRIDGE_ASSERT_VTBL_OFFSET( setupUIAdvertCellShader, QL_WEB_BRIDGE_SLOT_SETUP_UI_ADVERT_CELL_SHADER );",
+		"static const ql_web_bridge_vtbl_t cl_webBridgeVtbl = {",
+		"static ql_web_bridge_t cl_webBridge = {",
+	):
+		assert expected in cl_cgame
+	assert "clWebHostState_t" in cl_cgame and "*webHost;" in cl_cgame
+
+	for expected in (
+		"qhandle_t CL_AdvertisementBridge_SetupUIAdvertCellShader( const char *defaultContent, const void *rect, int cellId );",
+		"qhandle_t CL_AdvertisementBridge_RefreshUIAdvertCellShader( const char *defaultContent, const void *rect, int cellId );",
+		"qhandle_t CL_AdvertisementBridge_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId );",
+		"qhandle_t CL_AdvertisementBridge_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId );",
+	):
+		assert expected in client_h
+
+	assert "cl_webBridge.vtbl->initUI( &cl_webBridge );" in init_ui_block
+	assert "cl_webBridge.vtbl->activateAdvert( &cl_webBridge, cellId );" in activate_block
+	assert "cl_webBridge.vtbl->setActiveAdvert( &cl_webBridge, cellId );" in set_active_block
+	assert "advertisement->activeAdvertCellId = cellId;" in bridge_set_active_block
+	assert "advertisement->activatedAdvertCellId = 0;" in bridge_set_active_block
+	assert "return CL_Steam_RegisterShader( defaultContent );" in bridge_shader_block
+	assert "return CL_AdvertisementBridge_SetupUIAdvertCellShader( defaultContent, rect, cellId );" in ui_setup_block
+	assert "return CL_AdvertisementBridge_SetupAdvertCellShader( defaultContent, rect, cellId );" in cg_setup_block
+	assert "cl_webBridge.vtbl->setMapPath( &cl_webBridge, mapPath );" in map_path_block
+
+
 def test_awesomium_surface_rebuild_and_mouse_mapping_reconstruct_browser_surface_space() -> None:
 	cl_cgame = _read_text(CL_CGAME_PATH)
 
@@ -343,8 +966,10 @@ def test_awesomium_surface_rebuild_and_mouse_mapping_reconstruct_browser_surface
 		cl_cgame, "static void QLWebView_InjectMouseMove( int x, int y ) {"
 	)
 
-	assert "cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( cl_webHost.viewWidth );" in rebuild_surface_block
-	assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( cl_webHost.viewHeight );" in rebuild_surface_block
+	assert "contentWidth = cl_webHost.viewWidth;" in rebuild_surface_block
+	assert "contentHeight = cl_webHost.viewHeight;" in rebuild_surface_block
+	assert "cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( contentWidth );" in rebuild_surface_block
+	assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( contentHeight );" in rebuild_surface_block
 	assert "cl_webHost.surfaceDirty = qtrue;" in rebuild_surface_block
 	assert "QLWebView_UploadSurfaceImage();" in rebuild_surface_block
 	assert "targetDimension = surfaceDimension > 0 ? surfaceDimension : viewDimension;" in map_cursor_block
@@ -429,9 +1054,9 @@ def test_awesomium_map_list_reconstructs_retail_arena_catalog() -> None:
 	assert 'CL_WebHost_AppendArenasFromFile( "scripts/arenas.txt", buffer, bufferSize, seenMaps, &entryCount );' in build_block
 	assert 'numdirs = FS_GetFileList( "scripts", ".arena", dirlist, sizeof( dirlist ) );' in build_block
 	assert 'Com_sprintf( filename, sizeof( filename ), "scripts/%s", dirptr );' in build_block
-	assert 'mapName = Info_ValueForKey( info, "map" );' in parse_block
-	assert 'longName = Info_ValueForKey( info, "longname" );' in parse_block
-	assert 'typeList = Info_ValueForKey( info, "type" );' in parse_block
+	assert "mapName = Info_ValueForKey( info, ARENA_INFO_KEY_MAP );" in parse_block
+	assert "longName = Info_ValueForKey( info, ARENA_INFO_KEY_LONGNAME );" in parse_block
+	assert "typeList = Info_ValueForKey( info, ARENA_INFO_KEY_TYPE );" in parse_block
 	assert 'CL_WebHost_AppendMapDescriptorJson( mapName, longName, typeBits, buffer, bufferSize, entryCount );' in parse_block
 	assert 'CL_WebHost_TypeStringHasToken( typeList, "duel" )' in type_bits_block
 	assert 'CL_WebHost_TypeStringHasToken( typeList, "race" )' in type_bits_block

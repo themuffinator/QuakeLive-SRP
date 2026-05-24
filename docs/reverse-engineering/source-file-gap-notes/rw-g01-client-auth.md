@@ -1,10 +1,10 @@
 # `src/code/client/ql_auth.c` Divergence Note
 
-Last updated: 2026-04-22
+Last updated: 2026-05-24
 
 Gap family: `RW-G01`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
-- Current classification: Documented repo-wide divergence; this dispatcher intentionally routes into bounded compatibility backends.
+- Current classification: Permanent bounded divergence for default builds; this dispatcher intentionally routes into bounded compatibility backends unless a documented open replacement path is adopted.
 
 ## Why this file remains a documented divergence
 
@@ -15,6 +15,7 @@ The client auth owner cleanly reconstructs the dispatcher and ticket lifetime, b
 - Steam auth requests are blocked entirely when `CL_SteamServicesEnabled()` is false.
 - Standalone launcher auth is blocked when `CL_OnlineServicesEnabled()` is false.
 - Hybrid dispatch explicitly falls back to the open adapter whenever the Steamworks lane does not accept the credential.
+- The surrounding platform-service cvar surface now publishes the same permanent bounded divergence through `cl_onlineServicesParityScope` and `cl_onlineServicesParityReason`.
 
 ## Function-by-function status
 
@@ -41,5 +42,5 @@ The client auth owner cleanly reconstructs the dispatcher and ticket lifetime, b
 
 ## Maintenance expectations
 
-- Keep the dispatcher aligned with the bounded provider set while this lane remains a documented divergence.
+- Keep the dispatcher aligned with the bounded provider set while this lane remains a permanent bounded divergence.
 - If the providers beneath it change, refresh `platform_services.c`, the backend files, and the runtime evidence/docs together so the auth story stays consistent end-to-end.

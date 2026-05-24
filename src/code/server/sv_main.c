@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "server.h"
+#include "../../game/match_state_keys.h"
 #include "../../common/platform/platform_steamworks.h"
 #include <limits.h>
 #include <stdlib.h>
@@ -59,8 +60,10 @@ static void SV_LogSteamServerNetworkingLifecycle( const CSteamID *steamId, const
 	unsigned long long remoteId;
 
 	remoteId = steamId ? (unsigned long long)steamId->value : 0ull;
-	Com_DPrintf( "Steam server networking %s for %llu via %s [%s]: %s\n",
+	Com_DPrintf( "Steam server networking %s [%s; modern=%s] for %llu via %s [%s]: %s\n",
 		stage ? stage : "update",
+		QL_Steamworks_GetP2PTransportLabel(),
+		QL_Steamworks_GetP2PModernGapLabel(),
 		remoteId,
 		SV_GetSteamServerProviderLabel(), SV_GetSteamServerPolicyLabel(),
 		detail ? detail : "no detail" );
@@ -636,7 +639,6 @@ but not on every player enter or exit.
 ================
 */
 #define HEARTBEAT_MSEC	300*1000
-#define HEARTBEAT_GAME	"QuakeArena-1"
 void SV_MasterHeartbeat( void ) {
 #if QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES
 	static netadr_t	adr[MAX_MASTER_SERVERS];
@@ -696,7 +698,7 @@ void SV_MasterHeartbeat( void ) {
 		Com_Printf ("Sending heartbeat to %s (players: %i, botPlayers: %i, serverType: %i)\n", sv_master[i]->string, visibleClients, reportedBots, serverType );
 		// this command should be changed if the server info / status format
 		// ever incompatably changes
-		NET_OutOfBandPrint( NS_SERVER, adr[i], "heartbeat %s\n", HEARTBEAT_GAME );
+		NET_OutOfBandPrint( NS_SERVER, adr[i], "%s %s\n", NET_GetHeartbeatCommand(), NET_GetHeartbeatGameName() );
 
 		SV_LogMasterVACHeartbeat( &adr[i], sv_master[i]->string );
 	}
@@ -1161,21 +1163,21 @@ void SVC_Status( netadr_t from ) {
 
 	// echo back the parameter to status. so master servers can use it as a challenge
 	// to prevent timed spoofed reply packets that add ghost servers
-	Info_SetValueForKey( infostring, "challenge", Cmd_Argv(1) );
+	Info_SetValueForKey( infostring, NET_GetChallengeInfoKey(), Cmd_Argv(1) );
 
 	SV_ComputeDisplayedCounts( &visibleClients, &botCount );
-	Info_SetValueForKey( infostring, "clients", va("%i", visibleClients) );
-	Info_SetValueForKey( infostring, "botPlayers", va("%i", botCount) );
-	Info_SetValueForKey( infostring, "vac", va("%i", sv_vac->integer) );
-	Info_SetValueForKey( infostring, "serverType", va("%i", sv_serverType->integer) );
+	Info_SetValueForKey( infostring, NET_GetClientsInfoKey(), va("%i", visibleClients) );
+	Info_SetValueForKey( infostring, NET_GetBotPlayersInfoKey(), va("%i", botCount) );
+	Info_SetValueForKey( infostring, NET_GetVACInfoKey(), va("%i", sv_vac->integer) );
+	Info_SetValueForKey( infostring, NET_GetServerTypeInfoKey(), va("%i", sv_serverType->integer) );
 
 	// add "demo" to the sv_keywords if restricted
 	if ( Cvar_VariableValue( "fs_restrict" ) ) {
 		char	keywords[MAX_INFO_STRING];
 
 		Com_sprintf( keywords, sizeof( keywords ), "demo %s",
-			Info_ValueForKey( infostring, "sv_keywords" ) );
-		Info_SetValueForKey( infostring, "sv_keywords", keywords );
+			Info_ValueForKey( infostring, NET_GetKeywordsInfoKey() ) );
+		Info_SetValueForKey( infostring, NET_GetKeywordsInfoKey(), keywords );
 	}
 
 	status[0] = 0;
@@ -1199,7 +1201,7 @@ void SVC_Status( netadr_t from ) {
 		}
 	}
 
-	NET_OutOfBandPrint( NS_SERVER, from, "statusResponse\n%s\n%s", infostring, status );
+	NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s\n%s", NET_GetStatusResponseCommand(), infostring, status );
 }
 
 
@@ -1228,32 +1230,32 @@ void SVC_Info( netadr_t from ) {
 
 	// echo back the parameter to status. so servers can use it as a challenge
 	// to prevent timed spoofed reply packets that add ghost servers
-	Info_SetValueForKey( infostring, "challenge", Cmd_Argv(1) );
+	Info_SetValueForKey( infostring, NET_GetChallengeInfoKey(), Cmd_Argv(1) );
 
-	Info_SetValueForKey( infostring, "protocol", va("%i", PROTOCOL_VERSION) );
-	Info_SetValueForKey( infostring, "hostname", sv_hostname->string );
-	Info_SetValueForKey( infostring, "mapname", sv_mapname->string );
-	Info_SetValueForKey( infostring, "clients", va("%i", count) );
-	Info_SetValueForKey( infostring, "botPlayers", va("%i", botCount) );
-	Info_SetValueForKey( infostring, "vac", va("%i", sv_vac->integer) );
-	Info_SetValueForKey( infostring, "serverType", va("%i", sv_serverType->integer) );
-	Info_SetValueForKey( infostring, "sv_maxclients",
+	Info_SetValueForKey( infostring, NET_GetProtocolInfoKey(), va("%i", NET_ProtocolVersion()) );
+	Info_SetValueForKey( infostring, NET_GetHostnameInfoKey(), sv_hostname->string );
+	Info_SetValueForKey( infostring, NET_GetMapnameInfoKey(), sv_mapname->string );
+	Info_SetValueForKey( infostring, NET_GetClientsInfoKey(), va("%i", count) );
+	Info_SetValueForKey( infostring, NET_GetBotPlayersInfoKey(), va("%i", botCount) );
+	Info_SetValueForKey( infostring, NET_GetVACInfoKey(), va("%i", sv_vac->integer) );
+	Info_SetValueForKey( infostring, NET_GetServerTypeInfoKey(), va("%i", sv_serverType->integer) );
+	Info_SetValueForKey( infostring, NET_GetMaxClientsInfoKey(),
 		va("%i", sv_maxclients->integer - sv_privateClients->integer ) );
-	Info_SetValueForKey( infostring, "gametype", va("%i", sv_gametype->integer ) );
-	Info_SetValueForKey( infostring, "pure", va("%i", sv_pure->integer ) );
+	Info_SetValueForKey( infostring, NET_GetGametypeInfoKey(), va("%i", sv_gametype->integer ) );
+	Info_SetValueForKey( infostring, NET_GetPureInfoKey(), va("%i", sv_pure->integer ) );
 
 	if ( sv_minPing->integer ) {
-		Info_SetValueForKey( infostring, "minPing", va("%i", sv_minPing->integer) );
+		Info_SetValueForKey( infostring, NET_GetMinPingInfoKey(), va("%i", sv_minPing->integer) );
 	}
 	if ( sv_maxPing->integer ) {
-		Info_SetValueForKey( infostring, "maxPing", va("%i", sv_maxPing->integer) );
+		Info_SetValueForKey( infostring, NET_GetMaxPingInfoKey(), va("%i", sv_maxPing->integer) );
 	}
 	gamedir = Cvar_VariableString( "fs_game" );
 	if ( *gamedir ) {
-		Info_SetValueForKey( infostring, "game", gamedir );
+		Info_SetValueForKey( infostring, NET_GetGameInfoKey(), gamedir );
 	}
 
-	NET_OutOfBandPrint( NS_SERVER, from, "infoResponse\n%s", infostring );
+	NET_OutOfBandPrint( NS_SERVER, from, "%s\n%s", NET_GetInfoResponseCommand(), infostring );
 }
 
 
@@ -1264,7 +1266,7 @@ SVC_FlushRedirect
 ================
 */
 void SV_FlushRedirect( char *outputbuf ) {
-	NET_OutOfBandPrint( NS_SERVER, svs.redirectAddress, "print\n%s", outputbuf );
+	NET_OutOfBandPrint( NS_SERVER, svs.redirectAddress, "%s\n%s", NET_GetPrintCommand(), outputbuf );
 }
 
 /*
@@ -1353,7 +1355,7 @@ void SV_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 	MSG_BeginReadingOOB( msg );
 	MSG_ReadLong( msg );		// skip the -1 marker
 
-	if (!Q_strncmp("connect", &msg->data[4], 7)) {
+	if ( NET_ProtocolUsesCompressedConnect() && NET_IsConnectRequestPacket( msg ) ) {
 		Huff_Decompress(msg, 12);
 	}
 
@@ -1363,19 +1365,19 @@ void SV_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 	c = Cmd_Argv(0);
 	Com_DPrintf ("SV packet %s : %s\n", NET_AdrToString(from), c);
 
-	if (!Q_stricmp(c, "getstatus")) {
+	if ( NET_IsGetStatusRequest( c ) ) {
 		SVC_Status( from  );
-  } else if (!Q_stricmp(c, "getinfo")) {
+  } else if ( NET_IsGetInfoRequest( c ) ) {
 		SVC_Info( from );
-	} else if (!Q_stricmp(c, "getchallenge")) {
-		SV_GetChallenge( from );
-	} else if (!Q_stricmp(c, "connect")) {
+	} else if ( NET_IsGetChallengeRequest( c ) ) {
+		SV_GetChallenge( from, msg );
+	} else if ( NET_IsConnectRequest( c ) ) {
 		SV_DirectConnect( from );
-	} else if (!Q_stricmp(c, "ipAuthorize")) {
+	} else if ( NET_IsIpAuthorizeResponse( c ) ) {
 		SV_AuthorizeIpPacket( from );
-	} else if (!Q_stricmp(c, "rcon")) {
+	} else if ( NET_IsRconCommand( c ) ) {
 		SVC_RemoteCommand( from, msg );
-	} else if (!Q_stricmp(c, "disconnect")) {
+	} else if ( NET_IsDisconnectCommand( c ) ) {
 		// if a client starts up a local server, we may see some spurious
 		// server disconnect messages when their new server sees our final
 		// sequenced messages to the old client
@@ -1466,9 +1468,9 @@ qboolean SV_CheckWarmupReadiness( qboolean announce ) {
 	}
 
 	info[0] = '\0';
-	Info_SetValueForKey( info, "pct", va( "%i", sv_warmupReadyPercentage->integer ) );
-	Info_SetValueForKey( info, "ready", va( "%i", ready ) );
-	Info_SetValueForKey( info, "eligible", va( "%i", eligible ) );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT, va( "%i", sv_warmupReadyPercentage->integer ) );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_COUNT, va( "%i", ready ) );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_ELIGIBLE, va( "%i", eligible ) );
 	SV_SetConfigstring( CS_WARMUP_READY, info );
 
 	if ( sv_warmupReadyPercentage->integer <= 0 ) {
@@ -1547,7 +1549,7 @@ void SV_PacketEvent( netadr_t from, msg_t *msg ) {
 	
 	// if we received a sequenced packet from an address we don't recognize,
 	// send an out of band disconnect packet to it
-	NET_OutOfBandPrint( NS_SERVER, from, "disconnect" );
+	NET_OutOfBandPrint( NS_SERVER, from, "%s", NET_GetDisconnectCommand() );
 }
 
 

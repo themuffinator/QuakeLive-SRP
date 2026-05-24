@@ -201,8 +201,9 @@ Observed local facts:
    committed function symbol in the reference corpus, so I left the
    `QLUIImport_InitAdvertisementBridge` slot unmapped for now.
 3. `sub_4B9430`, `sub_4B9940`, `sub_4B81F0`, `sub_4ECDF0`, `sub_4F1290`,
-   `sub_4F2900`, and `sub_4F4640` remain the highest-value unresolved leftovers
-   across the recent client and host passes.
+   and `sub_4F4640` remain the highest-value unresolved leftovers across the
+   recent client and host passes. Historical note: `sub_4F2900` was later
+   promoted in round 285 as `QLWebView_InjectActivationKeyboardEvent`.
 
 ## Verification
 

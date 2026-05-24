@@ -144,8 +144,11 @@ Observed facts:
   sound/device activation/voice shims plus the newer input bootstrap-cvar and
   no-device key-pump surface instead of the older stale
   `Com_Init( argc, argv )`, `NET_StringToAdr`, `FILE *`, and missing
-  web-host/audio/input compatibility contracts, but the null runtime still
-  does not implement a real live graphics/audio/input host.
+  web-host/audio/input compatibility contracts. As of 2026-05-24,
+  `null_client.c` also publishes the browser/advert null lane as
+  `strict-retail-excluded` through provider, policy, parity-scope, and
+  parity-reason cvars, but the null runtime still does not implement a real
+  live graphics/audio/input host.
 - The Linux sound host now has a bounded silent DMA sink via `snddevice null`
   (also accepting `none` and `silent`) for headless/client smoke work, and the
   OSS `/dev/dsp` path now has explicit shutdown cleanup for its descriptor and
@@ -291,7 +294,9 @@ It tracks `567` source entries, keeps the existing subsystem audits as
 inherited baselines, and only opens dedicated per-file notes when the current
 evidence isolates a concrete parity gap. That campaign does not add a new
 repo-wide gap family; it keeps `RW-G01` as documented per-file divergence
-notes and turns `RW-G02` into the remaining active file-ownership queue.
+notes, treats the now-bounded `null_client.c` browser/advert lane as a
+documented `RW-G02` compatibility note, and keeps the remaining `RW-G02`
+files in the active file-ownership queue.
 
 ## Recommended next steps
 

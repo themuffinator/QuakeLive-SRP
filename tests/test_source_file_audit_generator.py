@@ -139,6 +139,8 @@ def test_completed_null_surface_classifies_non_note_members_and_new_gap_owner() 
 	)
 	assert module.classify("src/code/null/null_glimp.c") == "gap-note-open"
 	assert module.classify("src/code/null/null_main.c") == "gap-note-open"
+	assert module.classify("src/code/null/null_client.c") == "documented-divergence"
+	assert module.ledger_state("src/code/null/null_client.c") == "RW-G02 documented divergence note"
 
 
 def test_completed_secondary_surfaces_classify_as_walked_closed() -> None:
@@ -226,6 +228,8 @@ def test_write_plan_marks_completed_unix_and_null_tranches(tmp_path: Path) -> No
 	) in content
 	assert "null compatibility walk isolated" in content
 	assert "`null_glimp.c` as an additional `RW-G02` owner" in content
+	assert "`null_client.c` was closed on 2026-05-24 as an explicit" in content
+	assert "compatibility-only browser/advert lane" in content
 
 
 def test_write_plan_marks_completed_all_phase4_tranches(tmp_path: Path) -> None:
@@ -414,6 +418,7 @@ def test_write_ledger_marks_completed_null_section(tmp_path: Path) -> None:
 
 	assert "Current 2026-04-22 audit result: the `src/code/null` function walk" in content
 	assert "isolated `null_glimp.c` as an additional `RW-G02` owner" in content
+	assert "`null_client.c` is now a documented compatibility" in content
 	assert (
 		"| `src/code/null/null_net.c` | `5` | Current compatibility function walk complete; no new file-level portability gap isolated | "
 		"[repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + current 2026-04-22 source walk | - |"

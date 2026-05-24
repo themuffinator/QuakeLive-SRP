@@ -21,6 +21,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "server.h"
+#include "../../game/match_state_keys.h"
 #include "../../common/platform/platform_steamworks.h"
 
 #define SV_FACTORY_MAX_JSON_STRING        4096
@@ -1580,7 +1581,7 @@ SV_GetArenaInfoByMap
 
 	SV_EnsureArenaRegistryLoaded();
 	for ( index = 0; index < s_svNumArenaInfos; index++ ) {
-		if ( !Q_stricmp( Info_ValueForKey( s_svArenaInfos[index], "map" ), map ) ) {
+		if ( !Q_stricmp( Info_ValueForKey( s_svArenaInfos[index], ARENA_INFO_KEY_MAP ), map ) ) {
 			return s_svArenaInfos[index];
 		}
 														}
@@ -1672,7 +1673,7 @@ static qboolean SV_MapSupportsGametype( const char *mapName, gametype_t gametype
 															return qtrue;
 														}
 
-														types = Info_ValueForKey( info, "type" );
+	types = Info_ValueForKey( info, ARENA_INFO_KEY_TYPE );
 														if ( !types || !*types ) {
 															return qtrue;
 														}
@@ -1712,7 +1713,7 @@ static void SV_GetArenaDisplayTitle( const char *mapName, char *buffer, int buff
 
 	arenaInfo = SV_GetArenaInfoByMap( mapName );
 	if ( arenaInfo ) {
-		longName = Info_ValueForKey( arenaInfo, "longname" );
+		longName = Info_ValueForKey( arenaInfo, ARENA_INFO_KEY_LONGNAME );
 		if ( longName && *longName ) {
 			Q_strncpyz( buffer, longName, bufferSize );
 			return;
@@ -2015,10 +2016,10 @@ static void SV_MapPoolBuildNextMapsCvar( void ) {
 		Q_strncpyz( currentMap, Cvar_VariableString( "mapname" ), sizeof( currentMap ) );
 		if ( currentMap[0] ) {
 			SV_GetArenaDisplayTitle( currentMap, currentTitle, sizeof( currentTitle ) );
-			Info_SetValueForKey( nextmaps, va( "map_%i", slot ), currentMap );
-			Info_SetValueForKey( nextmaps, va( "title_%i", slot ), currentTitle );
-			Info_SetValueForKey( nextmaps, va( "cfg_%i", slot ), s_svCurrentFactory->id ? s_svCurrentFactory->id : "" );
-			Info_SetValueForKey( nextmaps, va( "gt_%i", slot ), s_svCurrentFactory->title ? s_svCurrentFactory->title : "" );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_MAP_FORMAT, slot ), currentMap );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_TITLE_FORMAT, slot ), currentTitle );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_CONFIG_FORMAT, slot ), s_svCurrentFactory->id ? s_svCurrentFactory->id : "" );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot ), s_svCurrentFactory->title ? s_svCurrentFactory->title : "" );
 			slot++;
 		}
 	}
@@ -2027,7 +2028,7 @@ static void SV_MapPoolBuildNextMapsCvar( void ) {
 		qboolean used[SV_MAX_MAP_POOL_ENTRIES];
 
 		Com_Memset( used, 0, sizeof( used ) );
-		while ( slot < 3 ) {
+		while ( slot < ROTATION_VOTE_SLOT_COUNT ) {
 			const svMapPoolEntry_t *entry;
 
 			index = SV_MapPoolRandomIndex( s_svMapPoolCount );
@@ -2037,20 +2038,20 @@ static void SV_MapPoolBuildNextMapsCvar( void ) {
 
 			used[index] = qtrue;
 			entry = &s_svMapPool[index];
-			Info_SetValueForKey( nextmaps, va( "map_%i", slot ), entry->mapName );
-			Info_SetValueForKey( nextmaps, va( "title_%i", slot ), entry->mapTitle );
-			Info_SetValueForKey( nextmaps, va( "cfg_%i", slot ), entry->factoryId );
-			Info_SetValueForKey( nextmaps, va( "gt_%i", slot ), entry->factoryTitle );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_MAP_FORMAT, slot ), entry->mapName );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_TITLE_FORMAT, slot ), entry->mapTitle );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_CONFIG_FORMAT, slot ), entry->factoryId );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot ), entry->factoryTitle );
 			slot++;
 		}
 	} else {
-		for ( index = 0; index < s_svMapPoolCount && slot < 3; index++ ) {
+		for ( index = 0; index < s_svMapPoolCount && slot < ROTATION_VOTE_SLOT_COUNT; index++ ) {
 			const svMapPoolEntry_t *entry = &s_svMapPool[index];
 
-			Info_SetValueForKey( nextmaps, va( "map_%i", slot ), entry->mapName );
-			Info_SetValueForKey( nextmaps, va( "title_%i", slot ), entry->mapTitle );
-			Info_SetValueForKey( nextmaps, va( "cfg_%i", slot ), entry->factoryId );
-			Info_SetValueForKey( nextmaps, va( "gt_%i", slot ), entry->factoryTitle );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_MAP_FORMAT, slot ), entry->mapName );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_TITLE_FORMAT, slot ), entry->mapTitle );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_CONFIG_FORMAT, slot ), entry->factoryId );
+			Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot ), entry->factoryTitle );
 			slot++;
 		}
 	}

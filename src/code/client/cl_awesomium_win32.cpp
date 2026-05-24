@@ -79,6 +79,7 @@ typedef struct {
 	void	*webView;
 	void	*dataPakSource;
 	HMODULE	module;
+	int		bootstrapMappingCount;
 	qboolean importsResolved;
 	qboolean started;
 	qboolean urlLoaded;
@@ -130,10 +131,105 @@ typedef struct {
 	awe_bitmap_set_bool_fn			bitmapSetIsDirty;
 } clAwesomiumImports_t;
 
+#define CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT "bounded C-export substitution"
+#define CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD "source-owned keyboard event path"
+#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT "bounded C-export bootstrap substitution"
+#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME "retail object lifetime mapped to adapter handle"
+#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL "retail literal retained in source adapter"
+
+typedef struct {
+	unsigned int	retailAddress;
+	unsigned int	retailVtableSlot;
+	const char		*retailMethod;
+	const char		*adapterOwner;
+	const char		*adapterBinding;
+	const char		*substitutionKind;
+} clAwesomiumRetailAbiEquivalence_t;
+
+typedef struct {
+	unsigned int	retailOwnerAddress;
+	unsigned int	retailAnchor;
+	const char		*retailMember;
+	const char		*adapterOwner;
+	const char		*adapterBinding;
+	const char		*substitutionKind;
+} clAwesomiumBootstrapRetailMapping_t;
+
+/*
+=============
+Awesomium retail ABI equivalence table
+
+Retail `quakelive_steam.exe` calls Awesomium through retained C++ object
+pointers and vtable slots. This backend intentionally keeps the online-services
+path as a dynamically resolved C-export adapter, so each row below records the
+source-visible substitution boundary rather than claiming literal ABI identity.
+=============
+*/
+static const clAwesomiumRetailAbiEquivalence_t cl_aweRetailAbiEquivalence[] = {
+	{ 0x004F2590u, 0x18u, "WebCore::Update", "CL_Awesomium_Update", "_Awe_WebCore_Update@4", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
+	{ 0x004F25C0u, 0x9cu, "WebView::Resize", "CL_Awesomium_Resize", "_Awe_WebView_Resize@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
+	{ 0x004F2750u, 0xd0u, "WebView::InjectMouseMove", "CL_Awesomium_InjectMouseMove", "_Awe_WebView_InjectMouseMove@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
+	{ 0x004F27C0u, 0xd4u, "WebView::InjectMouseDown", "CL_Awesomium_InjectMouseDown", "_Awe_WebView_InjectMouseDown@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
+	{ 0x004F2820u, 0xd8u, "WebView::InjectMouseUp", "CL_Awesomium_InjectMouseUp", "_Awe_WebView_InjectMouseUp@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
+	{ 0x004F2870u, 0xdcu, "WebView::InjectMouseWheel", "CL_Awesomium_InjectMouseWheel", "_Awe_WebView_InjectMouseWheel@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
+	{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "QLWebView_InjectKeyboardEvent", "cl_cgame.c field model", CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD },
+};
+
+/*
+=============
+Awesomium retail bootstrap mapping table
+
+Retail `QLWebHost_OpenURL` constructs the Awesomium core, session, data-source,
+view, URL, focus, and shutdown chain directly through C++ constructors and
+vtable slots. This backend keeps those seams source-visible while routing them
+through the bounded dynamic C-export adapter.
+=============
+*/
+static const clAwesomiumBootstrapRetailMapping_t cl_aweBootstrapRetailMappings[] = {
+	{ 0x004F2D30u, 0x0052C6A4u, "WebConfig::WebConfig", "CL_Awesomium_PrepareConfig", "_Awe_new_WebConfig@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x0052C6A0u, "WebCore::Initialize", "CL_Awesomium_Startup", "_Awe_WebCore_Initialize@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x0052C698u, "WebPreferences::WebPreferences", "CL_Awesomium_PreparePreferences", "_Awe_new_WebPreferences@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x00000000u, "WebCore::CreateWebSession slot 0x00", "CL_Awesomium_CreateSession", "_Awe_WebCore_CreateWebSession@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x00000018u, "WebSession bootstrap slot 0x18", "CL_Awesomium_CreateSession", "session initialisation boundary", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },
+	{ 0x004F2D30u, 0x0052C694u, "DataPakSource::DataPakSource", "CL_Awesomium_CreateSession", "_Awe_new_DataPakSource@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x00548068u, "QL data-source name", "CL_Awesomium_CreateSession", "\"QL\"", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },
+	{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },
+	{ 0x004F2D30u, 0x00000010u, "WebSession::AddDataSource slot 0x10", "CL_Awesomium_CreateSession", "_Awe_WebSession_AddDataSource@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x00000004u, "WebCore::CreateWebView slot 0x04", "CL_Awesomium_Startup", "_Awe_WebCore_CreateWebView_0@20", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x00000064u, "WebView::LoadURL slot 0x64", "CL_Awesomium_OpenURL", "_Awe_WebView_LoadURL@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x000000ACu, "WebView::Focus slot 0xAC", "CL_Awesomium_OpenURL", "_Awe_WebView_Focus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x000000C4u, "WebView::surface slot 0xC4", "CL_Awesomium_Surface", "_Awe_WebView_surface@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2A60u, 0x00000000u, "WebView::Destroy slot 0x00", "CL_Awesomium_Shutdown", "_Awe_WebView_Destroy@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2A60u, 0x0052C684u, "WebCore::Shutdown", "CL_Awesomium_Shutdown", "_Awe_WebCore_Shutdown@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0u, 0u, NULL, NULL, NULL, NULL },
+};
+
 static clAwesomiumState_t cl_awesomium;
 static clAwesomiumImports_t cl_awe;
 
 extern "C" void CL_Awesomium_Shutdown( void );
+
+/*
+=============
+CL_Awesomium_CountBootstrapRetailMappings
+
+Returns the number of recovered bootstrap anchors retained as source-visible
+documentation for the Win32 Awesomium adapter.
+=============
+*/
+static int CL_Awesomium_CountBootstrapRetailMappings( void ) {
+	int i;
+	int count;
+
+	count = 0;
+	for ( i = 0; cl_aweBootstrapRetailMappings[i].retailMember; i++ ) {
+		if ( cl_aweBootstrapRetailMappings[i].retailOwnerAddress != 0u || cl_aweBootstrapRetailMappings[i].retailAnchor != 0u ) {
+			count++;
+		}
+	}
+
+	return count;
+}
 
 /*
 =============
@@ -236,6 +332,7 @@ static qboolean CL_Awesomium_LoadImports( void ) {
 
 #undef CL_AWE_IMPORT
 
+	cl_awesomium.bootstrapMappingCount = CL_Awesomium_CountBootstrapRetailMappings();
 	cl_awesomium.importsResolved = qtrue;
 	CL_Awesomium_SetError( "" );
 	return qtrue;
@@ -412,15 +509,27 @@ CL_Awesomium_PrepareConfig
 =============
 */
 static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char *playerName, unsigned int appId, unsigned int steamIdLow, unsigned int steamIdHigh ) {
-	(void)runtimePath;
-	(void)playerName;
-	(void)appId;
-	(void)steamIdLow;
-	(void)steamIdHigh;
+	char childProcessPath[MAX_PATH];
+	char logPath[MAX_PATH];
+	char packagePath[MAX_PATH];
+	char userScript[4096];
 
 	cl_awesomium.webConfig = cl_awe.newWebConfig();
 	if ( !cl_awesomium.webConfig ) {
 		CL_Awesomium_SetError( "could not allocate Awesomium WebConfig" );
+		return qfalse;
+	}
+
+	CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), runtimePath, "awesomium_process.exe" );
+	CL_Awesomium_AppendPath( logPath, sizeof( logPath ), runtimePath, "awesomium.log" );
+	CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), runtimePath, "web.pak" );
+	CL_Awesomium_BuildUserScript( userScript, sizeof( userScript ), playerName, appId, steamIdLow, steamIdHigh );
+
+	if ( !CL_Awesomium_SetConfigString( cl_awe.webConfigAssetProtocolSet, cl_awesomium.webConfig, "asset" )
+		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigChildProcessPathSet, cl_awesomium.webConfig, childProcessPath )
+		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigLogPathSet, cl_awesomium.webConfig, logPath )
+		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packagePath )
+		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigUserScriptSet, cl_awesomium.webConfig, userScript ) ) {
 		return qfalse;
 	}
 

@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 #include "g_local.h"
 
+#include "../game/match_state_keys.h"
 #include "../../common/auth_credentials.h"
 #include "../../common/platform/platform_config.h"
 
@@ -1647,14 +1648,30 @@ void ClientUserinfoChanged( int clientNum ) {
 	// send over a subset of the userinfo keys so other clients can
 	// print scoreboards, display models, and play custom sounds
 	if ( ent->r.svFlags & SVF_BOT ) {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\country\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\skill\\%s\\tt\\%d\\tl\\%d\\rp\\%d\\p\\%d\\so\\%i\\pq\\%i",
+		s = va(PLAYER_INFO_KEY_NAME "\\%s\\" PLAYER_INFO_KEY_TEAM "\\%i\\"
+			PLAYER_INFO_KEY_MODEL "\\%s\\" PLAYER_INFO_KEY_HEADMODEL "\\%s\\"
+			PLAYER_INFO_KEY_COUNTRY "\\%s\\" PLAYER_INFO_KEY_COLOR1 "\\%s\\"
+			PLAYER_INFO_KEY_COLOR2 "\\%s\\" PLAYER_INFO_KEY_HANDICAP "\\%i\\"
+			PLAYER_INFO_KEY_WINS "\\%i\\" PLAYER_INFO_KEY_LOSSES "\\%i\\"
+			PLAYER_INFO_KEY_SKILL "\\%s\\" PLAYER_INFO_KEY_TEAMTASK "\\%d\\"
+			PLAYER_INFO_KEY_TEAMLEADER "\\%d\\" PLAYER_INFO_KEY_READY "\\%d\\"
+			PLAYER_INFO_KEY_PRIVILEGE "\\%d\\" PLAYER_INFO_KEY_SPECTATE_ONLY "\\%i\\"
+			PLAYER_INFO_KEY_SPECTATOR_QUEUE "\\%i",
 			client->pers.netname, team, model, headModel, country, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses,
 			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader,
 			G_ClientIsReady( client ), client->sess.privilege,
 			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
 	} else {
-		s = va("n\\%s\\t\\%i\\model\\%s\\hmodel\\%s\\g_redteam\\%s\\g_blueteam\\%s\\country\\%s\\c1\\%s\\c2\\%s\\hc\\%i\\w\\%i\\l\\%i\\tt\\%d\\tl\\%d\\rp\\%d\\p\\%d\\so\\%i\\pq\\%i",
+		s = va(PLAYER_INFO_KEY_NAME "\\%s\\" PLAYER_INFO_KEY_TEAM "\\%i\\"
+			PLAYER_INFO_KEY_MODEL "\\%s\\" PLAYER_INFO_KEY_HEADMODEL "\\%s\\"
+			PLAYER_INFO_KEY_REDTEAM "\\%s\\" PLAYER_INFO_KEY_BLUETEAM "\\%s\\"
+			PLAYER_INFO_KEY_COUNTRY "\\%s\\" PLAYER_INFO_KEY_COLOR1 "\\%s\\"
+			PLAYER_INFO_KEY_COLOR2 "\\%s\\" PLAYER_INFO_KEY_HANDICAP "\\%i\\"
+			PLAYER_INFO_KEY_WINS "\\%i\\" PLAYER_INFO_KEY_LOSSES "\\%i\\"
+			PLAYER_INFO_KEY_TEAMTASK "\\%d\\" PLAYER_INFO_KEY_TEAMLEADER "\\%d\\"
+			PLAYER_INFO_KEY_READY "\\%d\\" PLAYER_INFO_KEY_PRIVILEGE "\\%d\\"
+			PLAYER_INFO_KEY_SPECTATE_ONLY "\\%i\\" PLAYER_INFO_KEY_SPECTATOR_QUEUE "\\%i",
 			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, country, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
 			G_ClientIsReady( client ), client->sess.privilege,

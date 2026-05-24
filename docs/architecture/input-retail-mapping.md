@@ -16,8 +16,9 @@ as character payloads and gated behind `K_CHAR_FLAG` to mirror the retail menu
 stack, which expects already-shifted characters when handling WM_CHAR events.
 
 Mouse movement splits into two retail paths. The event dispatcher recovered as
-`sub_4B54E0` first gates on `cg_ignoreMouseInput`, then checks the recovered
-browser keycatcher bit (`0x20`), `KEYCATCH_UI`, and `KEYCATCH_CGAME` before
+`sub_4B54E0` first gates on `AdvertisementBridge_IsDelayElapsed`, then checks
+`cg_ignoreMouseInput`, the recovered browser keycatcher bit (`0x20`),
+`KEYCATCH_UI`, and `KEYCATCH_CGAME` before
 falling through to gameplay accumulation when no catcher is active except the
 retail `0x10` pass-through bit. `CL_MouseEvent` passes the queued payloads
 directly to those browser/UI/cgame routes; the previous client-side retained

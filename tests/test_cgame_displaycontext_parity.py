@@ -622,8 +622,8 @@ def test_cgame_attack_defend_round_scoreboard_owner_matches_retail_warmup_panel(
 	warmup_block = _block_from_marker(draw_source, "static void CG_DrawWarmupStatusText( int gametype )")
 
 	for expected in (
-		'value = Info_ValueForKey( info, "g_scorelimit" );',
-		'value = Info_ValueForKey( info, "roundlimit" );',
+		"value = Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT );",
+		"value = Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT );",
 		"if ( cgs.matchRoundTurn != 0 ) {",
 		'return "Red Wins! Good Game";',
 		'return "Last Chance";',
@@ -2272,10 +2272,10 @@ def test_cgame_country_flag_cache_restores_retail_player_configstring_transport(
 		assert expected in register_block
 
 	assert init_block.index("CG_ParseServerinfo();") < init_block.index("CG_CacheCountryFlags();") < init_block.index("CG_InitDisplayContext();")
-	assert 'Info_ValueForKey( configstring, "country" );' in new_client_block
+	assert "Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY );" in new_client_block
 	assert "newInfo.countryFlagShader = CG_RegisterCountryFlag( newInfo.country );" in new_client_block
 	assert 'Info_ValueForKey( userinfo, "country" )' in g_client
-	assert g_client.count(r"\\country\\%s") >= 2
+	assert g_client.count("PLAYER_INFO_KEY_COUNTRY") >= 2
 
 
 def test_cgame_live_placement_and_follow_ownerdraws_follow_retail_helper_split() -> None:
@@ -3295,7 +3295,7 @@ def test_cgame_intro_panel_and_player_count_widgets_restore_retail_detail_and_ca
 	assert '&g_teamSizeMin, "g_teamSizeMin", &g_teamSizeLegacy, "teamsize", "0", CVAR_SERVERINFO | CVAR_NORESTART' in game_source
 
 	for expected in (
-		'playerCountTeamSizeValue = Info_ValueForKey( info, "teamsize" );',
+		"playerCountTeamSizeValue = Info_ValueForKey( info, SERVERINFO_KEY_TEAMSIZE );",
 		"cgs.playerCountTeamSize = playerCountTeamSizeValue[0] ? atoi( playerCountTeamSizeValue ) : 0;",
 		"if ( cgs.playerCountTeamSize < 0 ) {",
 	):
@@ -3547,9 +3547,9 @@ def test_cgame_spectator_cache_restores_retail_queue_metadata_and_cached_strip()
 		assert expected in local_source
 
 	for expected in (
-		'v = Info_ValueForKey( configstring, "so" );',
+		"v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SPECTATE_ONLY );",
 		"newInfo.spectateOnly = atoi( v );",
-		'v = Info_ValueForKey( configstring, "pq" );',
+		"v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SPECTATOR_QUEUE );",
 		"newInfo.spectatorQueuePosition = atoi( v );",
 	):
 		assert expected in parse_block
@@ -4867,7 +4867,7 @@ def test_cgame_serverinfo_restores_retail_map_alias_normalizer() -> None:
 	):
 		assert expected in normalize_block
 
-	assert 'mapname = CG_NormalizeMapFilename( Info_ValueForKey( info, "mapname" ) );' in parse_block
+	assert "mapname = CG_NormalizeMapFilename( Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) );" in parse_block
 	assert 'Com_sprintf( cgs.mapname, sizeof( cgs.mapname ), "maps/%s.bsp", mapname );' in parse_block
 
 
@@ -5287,7 +5287,7 @@ def test_cgame_gameinfo_cvars_restore_retail_training_and_gametype_text() -> Non
 
 	for expected in (
 		'info = CG_ConfigString( CS_SERVERINFO );',
-		'trainingValue = Info_ValueForKey( info, "g_training" );',
+		"trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );",
 		"gameInfo = cg_retailBlankGameInfoLines;",
 		"gameInfo = cg_retailTrainingGameInfoLines;",
 		"gameInfo = cg_retailGameInfoLines[cgs.gametype];",
@@ -5301,13 +5301,13 @@ def test_cgame_gameinfo_cvars_restore_retail_training_and_gametype_text() -> Non
 		assert expected in game_info_block
 
 	assert "CG_SetGameInfoCvars();" in parse_block
-	assert 'cgs.scorelimit = atoi( Info_ValueForKey( info, "g_scorelimit" ) );' in parse_block
-	assert 'cgs.roundlimit = atoi( Info_ValueForKey( info, "roundlimit" ) );' in parse_block
-	assert parse_block.index('cgs.scorelimit = atoi( Info_ValueForKey( info, "g_scorelimit" ) );') > parse_block.index('cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );')
-	assert parse_block.index('cgs.roundlimit = atoi( Info_ValueForKey( info, "roundlimit" ) );') > parse_block.index('cgs.timelimit = atoi( Info_ValueForKey( info, "timelimit" ) );')
-	assert parse_block.index("CG_SetGameInfoCvars();") > parse_block.index('cgs.timelimit = atoi( Info_ValueForKey( info, "timelimit" ) );')
-	assert parse_block.index("CG_SetGameInfoCvars();") > parse_block.index('cgs.roundlimit = atoi( Info_ValueForKey( info, "roundlimit" ) );')
-	assert parse_block.index("CG_SetGameInfoCvars();") < parse_block.index('voteFlagsValue = Info_ValueForKey( info, "g_voteFlags" );')
+	assert "cgs.scorelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT ) );" in parse_block
+	assert "cgs.roundlimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT ) );" in parse_block
+	assert parse_block.index("cgs.scorelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT ) );") > parse_block.index("cgs.capturelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_CAPTURELIMIT ) );")
+	assert parse_block.index("cgs.roundlimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT ) );") > parse_block.index("cgs.timelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_TIMELIMIT ) );")
+	assert parse_block.index("CG_SetGameInfoCvars();") > parse_block.index("cgs.timelimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_TIMELIMIT ) );")
+	assert parse_block.index("CG_SetGameInfoCvars();") > parse_block.index("cgs.roundlimit = atoi( Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT ) );")
+	assert parse_block.index("CG_SetGameInfoCvars();") < parse_block.index("voteFlagsValue = Info_ValueForKey( info, SERVERINFO_KEY_VOTEFLAGS );")
 
 
 def test_display_context_uses_named_cvar_string_and_native_chat_helpers() -> None:
@@ -6417,7 +6417,7 @@ def test_cgame_server_settings_panel_reconstruction_uses_retail_custom_setting_c
 
 	for expected in (
 		'info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_A );',
-		'Info_ValueForKey( info, "armor_tiered" )',
+		"Info_ValueForKey( info, SERVER_SETTINGS_KEY_ARMOR_TIERED )",
 		'value = "0";',
 		"cgs.serverSettingsArmorTiered = (qboolean)( atoi( value ) != 0 );",
 		"cg.armorTieredEnabled = cgs.serverSettingsArmorTiered;",
@@ -6431,8 +6431,8 @@ def test_cgame_server_settings_panel_reconstruction_uses_retail_custom_setting_c
 
 	for expected in (
 		'info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_B );',
-		'Info_ValueForKey( info, "g_quadDamageFactor" )',
-		'Info_ValueForKey( info, "g_gravity" )',
+		"Info_ValueForKey( info, SERVER_SETTINGS_KEY_QUAD_DAMAGE_FACTOR )",
+		"Info_ValueForKey( info, SERVER_SETTINGS_KEY_GRAVITY )",
 		"cgs.serverSettingsQuadFactor = value[0] ? atoi( value ) : 3;",
 		"cgs.serverSettingsGravity = value[0] ? atoi( value ) : 800;",
 	):
@@ -6480,7 +6480,7 @@ def test_cgame_armor_tiered_configstring_retains_direct_retail_parser_boundary()
 	parse_serverinfo_block = _block_from_marker(servercmds_source, "void CG_ParseServerinfo")
 
 	assert 'info = CG_ConfigString( CS_SERVER_SETTINGS_INFO_A );' in parse_block
-	assert 'Info_ValueForKey( info, "armor_tiered" )' in parse_block
+	assert "Info_ValueForKey( info, SERVER_SETTINGS_KEY_ARMOR_TIERED )" in parse_block
 	assert 'trap_Cvar_Set( "cg_armorTiered", value );' in parse_block
 	assert "trap_Cvar_Update( &cg_armorTiered );" in parse_block
 
@@ -6488,7 +6488,7 @@ def test_cgame_armor_tiered_configstring_retains_direct_retail_parser_boundary()
 	assert "num == CS_SERVER_SETTINGS_INFO_A" in configstring_modified_block
 	assert "CG_ParseArmorTieredConfigString();" in configstring_modified_block
 
-	assert 'Info_ValueForKey( info, "armor_tiered" )' not in parse_serverinfo_block
+	assert "Info_ValueForKey( info, SERVER_SETTINGS_KEY_ARMOR_TIERED )" not in parse_serverinfo_block
 	assert 'trap_Cvar_Set( "cg_armorTiered", value );' not in parse_serverinfo_block
 
 
@@ -6540,7 +6540,7 @@ def test_cgame_factory_title_reconstruction_uses_serverinfo_and_factory_flags_sp
 	parse_factory_block = _block_from_marker(servercmds_source, "static void CG_ParseFactoryMetadata")
 	configstring_modified_block = _block_from_marker(servercmds_source, "static void CG_ConfigStringModified")
 
-	assert 'Info_ValueForKey( info, "g_factoryTitle" )' in parse_title_block
+	assert "Info_ValueForKey( info, SERVERINFO_KEY_FACTORY_TITLE )" in parse_title_block
 	assert 'Com_sprintf( cgs.factoryTitle, sizeof( cgs.factoryTitle ), "%.*s", length, value + start );' in parse_title_block
 	assert "CG_ParseFactoryTitleServerinfo( info );" in parse_serverinfo_block
 
@@ -6571,12 +6571,12 @@ def test_cgame_player_appearance_configstring_reconstruction_uses_retail_parser_
 
 	for expected in (
 		"info = CG_ConfigString( CS_PLAYER_APPEARANCE );",
-		'Info_ValueForKey( info, "g_playermodelOverride" )',
-		'Info_ValueForKey( info, "g_playerheadmodelOverride" )',
-		'Info_ValueForKey( info, "g_allowCustomHeadmodels" )',
-		'Info_ValueForKey( info, "g_playerheadScale" )',
-		'Info_ValueForKey( info, "g_playerheadScaleOffset" )',
-		'Info_ValueForKey( info, "g_playerModelScale" )',
+		"Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERMODEL_OVERRIDE )",
+		"Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERHEADMODEL_OVERRIDE )",
+		"Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_ALLOW_CUSTOM_HEADMODELS )",
+		"Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE )",
+		"Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERHEAD_SCALE_OFFSET )",
+		"Info_ValueForKey( info, PLAYER_APPEARANCE_KEY_PLAYERMODEL_SCALE )",
 		"CG_ResetPlayerAppearanceState();",
 		"cgs.allowCustomHeadmodels = (qboolean)( atoi( value ) != 0 );",
 		"cgs.playerHeadScale = (float)atof( value );",
@@ -6588,8 +6588,8 @@ def test_cgame_player_appearance_configstring_reconstruction_uses_retail_parser_
 
 	for unexpected in (
 		"fallbackInfo = CG_ConfigString( CS_SERVERINFO );",
-		'Info_ValueForKey( fallbackInfo, "g_playermodelOverride" )',
-		'Info_ValueForKey( fallbackInfo, "g_playerheadmodelOverride" )',
+		"Info_ValueForKey( fallbackInfo, PLAYER_APPEARANCE_KEY_PLAYERMODEL_OVERRIDE )",
+		"Info_ValueForKey( fallbackInfo, PLAYER_APPEARANCE_KEY_PLAYERHEADMODEL_OVERRIDE )",
 	):
 		assert unexpected not in parse_block
 
@@ -7079,6 +7079,11 @@ def test_cgame_rotation_vote_payload_populates_endgamevote_ownerdraw_cvars() -> 
 	assert 'CG_SetRotationVoteSlotCvar( slot, "Gametype", voteGametype );' in parse_block
 	assert 'CG_SetRotationVoteSlotCvar( slot, "Count", voteCount );' in parse_block
 	assert 'CG_SetRotationVoteSlotCvar( slot, "Shot", voteShot );' in parse_block
+	assert "for ( slot = 0; slot < ROTATION_VOTE_SLOT_COUNT; slot++ ) {" in parse_block
+	assert "Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_MAP_FORMAT, slot );" in parse_block
+	assert "Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_TITLE_FORMAT, slot );" in parse_block
+	assert "Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot );" in parse_block
+	assert "Com_sprintf( infoKey, sizeof( infoKey ), ROTATION_VOTE_KEY_COUNT_FORMAT, slot );" in parse_block
 	assert "Q_strncpyz( voteShot, mapName, sizeof( voteShot ) );" in parse_block
 	assert '"levelshots/%s"' not in parse_block
 	assert "CG_ParseRotationVoteConfigStrings();" in set_config_values_block

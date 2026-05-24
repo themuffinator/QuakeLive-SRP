@@ -1,14 +1,14 @@
 # `src/common/platform/platform_config.h` Divergence Note
 
-Last updated: 2026-04-22
+Last updated: 2026-05-24
 
 Gap family: `RW-G01`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
-- Current classification: Documented repo-wide divergence; strict-retail Windows closure intentionally excludes this default-disabled compatibility-only build lane.
+- Current classification: Permanent bounded divergence for default builds; strict-retail Windows closure intentionally excludes this default-disabled compatibility-only build lane unless a documented open replacement path is adopted.
 
 ## Why this file remains a documented divergence
 
-This header defaults `QL_BUILD_ONLINE_SERVICES` to `0` and forces both provider macros off in the default build, which keeps the checked-in online-service story explicitly bounded instead of over-claiming retail-equivalent behavior.
+This header defaults `QL_BUILD_ONLINE_SERVICES` to `0` and forces both provider macros off in the default build. That now stands as the permanent default-build policy boundary for the retired Quake Live online-service lane rather than an open request to make default builds contact retail-era services.
 
 ## Observed facts
 
@@ -31,5 +31,5 @@ This header defaults `QL_BUILD_ONLINE_SERVICES` to `0` and forces both provider 
 
 ## Maintenance expectations
 
-- Keep the default-disabled policy documented as an intentional divergence unless a real open service path becomes a target.
+- Keep the default-disabled policy documented as a permanent bounded divergence unless a real open service path becomes a target.
 - When the policy changes, the surrounding service table, auth dispatch, and runtime evidence need to be refreshed together so this header does not drift from the rest of the lane.

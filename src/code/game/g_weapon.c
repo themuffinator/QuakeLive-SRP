@@ -51,18 +51,10 @@ static float G_GetMachinegunIronsightScale( void ) {
 =============
 G_PlayerUsesMachinegunTightSpread
 
-Retail applies g_ironsights_mg when the firing machinegun player is ducked.
+Retail applies g_ironsights_mg from the machinegun FireWeapon case when ducked.
 =============
 */
 static qboolean G_PlayerUsesMachinegunTightSpread( const gentity_t *ent ) {
-	if ( !ent || !ent->client ) {
-		return qfalse;
-	}
-
-	if ( ent->s.weapon != WP_MACHINEGUN ) {
-		return qfalse;
-	}
-
 	return ( ent->client->ps.pm_flags & PMF_DUCKED ) ? qtrue : qfalse;
 }
 
@@ -224,33 +216,37 @@ static void G_ApplyRailJump( gentity_t *ent ) {
 =============
 G_GetShotgunPelletOffsets
 
-Builds the deterministic 20-pellet Quake Live shotgun pattern.
+Builds the deterministic 20-pellet Quake Live shotgun pattern and returns
+the retail pellet damage ring.
 =============
 */
-static void G_GetShotgunPelletOffsets( int pelletIndex, float *r, float *u ) {
+static int G_GetShotgunPelletOffsets( int pelletIndex, float *r, float *u ) {
 	float	angle;
 	float	radius;
+	int		pelletType;
 
 	if ( !r || !u ) {
-		return;
+		return 0;
 	}
 
 	if ( pelletIndex < 6 ) {
-		angle = pelletIndex * 60.0f;
+		angle = ( pelletIndex - 20 ) * 60.0f;
 		radius = 4000.0f;
+		pelletType = 1;
 	} else if ( pelletIndex < 12 ) {
-		angle = ( pelletIndex - 6 ) * 60.0f + 30.0f;
+		angle = pelletIndex * 60.0f + 30.0f;
 		radius = 8000.0f;
+		pelletType = 2;
 	} else {
-		angle = ( pelletIndex - 12 ) * 45.0f;
+		angle = pelletIndex * 45.0f;
 		radius = 12000.0f;
+		pelletType = 3;
 	}
 
 	*r = radius * cos( DEG2RAD( angle ) );
 	*u = radius * sin( DEG2RAD( angle ) );
+	return pelletType;
 }
-
-#define NUM_NAILSHOTS 15
 
 /*
 ================
@@ -282,15 +278,32 @@ GAUNTLET
 =============
 Weapon_Gauntlet
 
-Mirrors the retail gauntlet fire event emission.
+Consumes the retail gauntlet target latch and applies the melee hit.
 =============
 */
 void Weapon_Gauntlet( gentity_t *ent ) {
-	if ( !ent || !ent->client ) {
+	gentity_t	*tent;
+	gentity_t	*traceEnt;
+	vec3_t		hitDir;
+	int			damage;
+
+	traceEnt = ent->enemy;
+	if ( !traceEnt ) {
 		return;
 	}
 
-	G_AddEvent( ent, EV_FIRE_WEAPON, 0 );
+	VectorSubtract( ent->s.pos.trBase, traceEnt->s.pos.trBase, hitDir );
+
+	if ( traceEnt->takedamage && traceEnt->client ) {
+		tent = G_TempEntity( traceEnt->s.pos.trBase, EV_MISSILE_HIT );
+		tent->s.otherEntityNum = traceEnt->s.number;
+		tent->s.eventParm = DirToByte( hitDir );
+		tent->s.weapon = ent->s.weapon;
+	}
+
+	damage = g_weaponConfig.gauntletDamage * s_quadFactor;
+	G_Damage( traceEnt, ent, ent, forward, hitDir,
+		damage, 0, MOD_GAUNTLET );
 }
 
 
@@ -304,14 +317,8 @@ Executes the retail 43-unit gauntlet melee trace.
 qboolean CheckGauntletAttack( gentity_t *ent ) {
 	trace_t		tr;
 	vec3_t		end;
-	gentity_t		*tent;
 	gentity_t		*traceEnt;
-	int				damage;
 	float	reach;
-
-	if ( !ent || !ent->client ) {
-		return qfalse;
-	}
 
 	// set aiming directions
 	AngleVectors( ent->client->ps.viewangles, forward, right, up );
@@ -328,29 +335,12 @@ qboolean CheckGauntletAttack( gentity_t *ent ) {
 
 	traceEnt = &g_entities[ tr.entityNum ];
 
-	// send blood impact
-	if ( traceEnt->takedamage && traceEnt->client ) {
-		tent = G_TempEntity( tr.endpos, EV_MISSILE_HIT );
-		tent->s.otherEntityNum = traceEnt->s.number;
-		tent->s.eventParm = DirToByte( tr.plane.normal );
-		tent->s.weapon = ent->s.weapon;
-	}
-
-	if ( !traceEnt->takedamage) {
+	if ( !traceEnt->takedamage ) {
+		ent->enemy = NULL;
 		return qfalse;
 	}
 
-	if ( ent->client->ps.powerups[PW_QUAD] ) {
-		G_AddEvent( ent, EV_POWERUP_QUAD, 0 );
-		s_quadFactor = g_weaponConfig.quadDamageMultiplier;
-	} else {
-		s_quadFactor = 1;
-	}
-
-	damage = g_weaponConfig.gauntletDamage * s_quadFactor;
-	G_Damage( traceEnt, ent, ent, forward, tr.endpos,
-		damage, 0, MOD_GAUNTLET );
-
+	ent->enemy = traceEnt;
 	return qtrue;
 }
 
@@ -395,7 +385,7 @@ void SnapVectorTowards( vec3_t v, vec3_t to ) {
 =============
 Bullet_Fire
 
-Fires a generic hitscan bullet, applying ironsight spread scaling when needed.
+Fires a generic hitscan bullet with the supplied spread and damage values.
 =============
 */
 void Bullet_Fire( gentity_t *ent, float spread, int damage, meansOfDeath_t mod ) {
@@ -407,21 +397,12 @@ void Bullet_Fire( gentity_t *ent, float spread, int damage, meansOfDeath_t mod )
 	gentity_t	*tent;
 	gentity_t	*traceEnt;
 	int			i, passent;
-	qboolean		ironsightKick;
-	float		ironsightScale;
-
-	ironsightKick = ( mod == MOD_MACHINEGUN ) && G_PlayerUsesMachinegunTightSpread( ent );
-	ironsightScale = ironsightKick ? G_GetMachinegunIronsightScale() : 1.0f;
 
 	damage *= s_quadFactor;
 
 	r = random() * M_PI * 2.0f;
 	u = sin( r ) * crandom() * spread * 16;
 	r = cos( r ) * crandom() * spread * 16;
-	if ( ironsightKick ) {
-		u *= ironsightScale;
-		r *= ironsightScale;
-	}
 
 	VectorMA( muzzle, 8192 * 16, forward, end );
 	VectorMA( end, r, right, end );
@@ -515,8 +496,60 @@ SHOTGUN
 // DEFAULT_SHOTGUN_SPREAD and DEFAULT_SHOTGUN_COUNT	are in bg_public.h, because
 // client predicts same spreads
 #define	DEFAULT_SHOTGUN_DAMAGE	(g_weaponConfig.shotgunDamage)
+#define	DEFAULT_SHOTGUN_OUTER_DAMAGE	(g_weaponConfig.shotgunOuterDamage)
 
-qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent ) {
+/*
+=============
+G_GetShotgunPelletDamage
+
+Returns the retail ring damage for a pellet, including quad and distance falloff.
+=============
+*/
+static int G_GetShotgunPelletDamage( int pelletType, vec3_t impactPoint ) {
+	vec3_t	distanceVector;
+	float	distance;
+	int		damage;
+	int		distancePastFalloff;
+	int		falloffDamage;
+	int		falloffRange;
+
+	if ( pelletType == 1 ) {
+		damage = DEFAULT_SHOTGUN_DAMAGE;
+	} else {
+		damage = DEFAULT_SHOTGUN_OUTER_DAMAGE;
+	}
+
+	damage = G_RoundFloatToInt( (float)damage * s_quadFactor );
+
+	falloffDamage = g_weaponConfig.shotgunFalloffDamage;
+	falloffRange = g_weaponConfig.shotgunFalloffRange;
+	if ( falloffDamage <= 0 || falloffRange <= 0 ) {
+		return damage;
+	}
+
+	VectorSubtract( impactPoint, muzzle, distanceVector );
+	distance = VectorLength( distanceVector );
+	distancePastFalloff = G_RoundFloatToInt( distance - falloffRange );
+	while ( distancePastFalloff > 0 ) {
+		damage -= falloffDamage;
+		distancePastFalloff -= falloffRange;
+	}
+
+	if ( damage < 1 ) {
+		return 1;
+	}
+
+	return damage;
+}
+
+/*
+=============
+ShotgunPellet
+
+Traces one retail shotgun pellet and applies the ring-specific damage path.
+=============
+*/
+qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent, int pelletType ) {
 	trace_t		tr;
 	int			damage, i, passent;
 	gentity_t	*traceEnt;
@@ -536,7 +569,7 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent ) {
 		}
 
 		if ( traceEnt->takedamage) {
-			damage = DEFAULT_SHOTGUN_DAMAGE * s_quadFactor;
+			damage = G_GetShotgunPelletDamage( pelletType, tr.endpos );
 			if ( traceEnt->client && traceEnt->client->invulnerabilityTime > level.time ) {
 				if (G_InvulnerabilityEffect( traceEnt, forward, tr.endpos, impactpoint, bouncedir )) {
 					G_BounceProjectile( tr_start, impactpoint, bouncedir, tr_end );
@@ -563,9 +596,16 @@ qboolean ShotgunPellet( vec3_t start, vec3_t end, gentity_t *ent ) {
 	return qfalse;
 }
 
-// this should match CG_ShotgunPattern
+/*
+=============
+ShotgunPattern
+
+Replays the deterministic retail server-side shotgun pellet ring.
+=============
+*/
 void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent ) {
 	int			i;
+	int			pelletType;
 	float		r, u;
 	vec3_t		end;
 	vec3_t		shotForward, shotRight, shotUp;
@@ -581,12 +621,12 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent ) {
 
 	// generate the "random" spread pattern
 	for ( i = 0 ; i < DEFAULT_SHOTGUN_COUNT ; i++ ) {
-		G_GetShotgunPelletOffsets( i, &r, &u );
+		pelletType = G_GetShotgunPelletOffsets( i, &r, &u );
 
 		VectorMA( origin, 8192 * 16, shotForward, end);
 		VectorMA (end, r, shotRight, end);
 		VectorMA (end, u, shotUp, end);
-		if( ShotgunPellet( origin, end, ent ) && !hitClient ) {
+		if( ShotgunPellet( origin, end, ent, pelletType ) && !hitClient ) {
 			hitClient = qtrue;
 			ent->client->accuracy_hits++;
 			ent->client->pers.accuracy_hits[WP_SHOTGUN]++;
@@ -594,7 +634,13 @@ void ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, gentity_t *ent ) {
 	}
 }
 
+/*
+=============
+weapon_supershotgun_fire
 
+Emits the retail shotgun event and delegates to the authoritative pellet trace.
+=============
+*/
 void weapon_supershotgun_fire (gentity_t *ent) {
 	gentity_t		*tent;
 
@@ -1024,9 +1070,8 @@ void Weapon_LightningFire( gentity_t *ent ) {
 				}
 
 				VectorCopy( muzzle, dischargePoint );
-				tent = G_TempEntity( dischargePoint, EV_LIGHTNINGBOLT );
-				VectorCopy( muzzle, tent->s.origin2 );
-				SnapVector( tent->s.origin2 );
+				tent = G_TempEntity( dischargePoint, EV_LIGHTNING_DISCHARGE );
+				tent->s.eventParm = dischargeAmmo;
 
 				if ( Weapon_LightningDischargeDamage( dischargePoint, ent, dischargeDamage, dischargeRadius ) ) {
 					ent->client->accuracy_hits++;
@@ -1108,7 +1153,7 @@ void Weapon_Nailgun_Fire (gentity_t *ent) {
 	gentity_t	*m;
 	int			count;
 
-	for( count = 0; count < NUM_NAILSHOTS; count++ ) {
+	for( count = 0; count < g_weaponConfig.nailgunCount; count++ ) {
 		m = fire_nail (ent, muzzle, forward, right, up );
 		m->damage *= s_quadFactor;
 		m->splashDamage *= s_quadFactor;
@@ -1224,6 +1269,7 @@ FireWeapon
 */
 void FireWeapon( gentity_t *ent ) {
 	qboolean	lagHaxActive;
+	float		spread;
 
 	if ( ent->client->ps.powerups[PW_QUAD] ) {
 		s_quadFactor = g_weaponConfig.quadDamageMultiplier;
@@ -1237,8 +1283,8 @@ void FireWeapon( gentity_t *ent ) {
 			ent->client->accuracy_shots += DEFAULT_SHOTGUN_COUNT;
 			ent->client->pers.accuracy_shots[WP_SHOTGUN] += DEFAULT_SHOTGUN_COUNT;
 		} else if( ent->s.weapon == WP_NAILGUN ) {
-			ent->client->accuracy_shots += NUM_NAILSHOTS;
-			ent->client->pers.accuracy_shots[WP_NAILGUN] += NUM_NAILSHOTS;
+			ent->client->accuracy_shots += g_weaponConfig.nailgunCount;
+			ent->client->pers.accuracy_shots[WP_NAILGUN] += g_weaponConfig.nailgunCount;
 		} else {
 			ent->client->accuracy_shots++;
 			ent->client->pers.accuracy_shots[ent->s.weapon]++;
@@ -1271,7 +1317,11 @@ void FireWeapon( gentity_t *ent ) {
 		weapon_supershotgun_fire( ent );
 		break;
 	case WP_MACHINEGUN:
-		Bullet_Fire( ent, MACHINEGUN_SPREAD, MACHINEGUN_DAMAGE, MOD_MACHINEGUN );
+		spread = MACHINEGUN_SPREAD;
+		if ( G_PlayerUsesMachinegunTightSpread( ent ) ) {
+			spread = (float)G_RoundFloatToInt( spread * G_GetMachinegunIronsightScale() );
+		}
+		Bullet_Fire( ent, spread, MACHINEGUN_DAMAGE, MOD_MACHINEGUN );
 		break;
 	case WP_HEAVY_MACHINEGUN:
 		Bullet_Fire( ent, HEAVY_MACHINEGUN_SPREAD, HEAVY_MACHINEGUN_DAMAGE, MOD_HMG );

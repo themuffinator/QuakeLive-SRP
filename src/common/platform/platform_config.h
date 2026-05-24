@@ -2,6 +2,11 @@
 #define PLATFORM_CONFIG_H
 
 #ifndef QL_BUILD_ONLINE_SERVICES
+/*
+ * Quake Live's retired online services stay disabled in default builds by
+ * repository policy. The platform-service layer exposes this as a permanent
+ * bounded divergence unless a documented open replacement path is added.
+ */
 #define QL_BUILD_ONLINE_SERVICES 0
 #endif
 

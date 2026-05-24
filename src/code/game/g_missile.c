@@ -28,7 +28,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	GUIDED_ROCKET_SPEED	20.0f
 #define	MISSILE_ACCELERATION_DEFAULT_TIME	MISSILE_PRESTEP_TIME
 #define	NAILGUN_LIFETIME	4500
-#define	NAILGUN_MAX_BOUNCES	4
 // Retail reuses the shared ready bit as a missile-only nail ricochet latch.
 #define	EF_NAIL_BOUNCE	EF_READY
 
@@ -640,7 +639,9 @@ Returns qtrue if the collision was converted into a bounce.
 =============
 */
 static qboolean G_HandleNailgunBounce( gentity_t *ent, trace_t *trace ) {
-	if ( !( ent->s.eFlags & EF_NAIL_BOUNCE ) || ent->count >= NAILGUN_MAX_BOUNCES ) {
+	if ( !( ent->s.eFlags & EF_NAIL_BOUNCE ) ||
+		 g_weaponConfig.nailgunBounceCount <= 0 ||
+		 ent->count >= g_weaponConfig.nailgunBounceCount ) {
 		return qfalse;
 	}
 
@@ -794,6 +795,8 @@ gentity_t *fire_grenade (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->think = G_ExplodeMissile;
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	VectorSet( bolt->r.mins, -0.01f, -0.01f, -0.01f );
+	VectorSet( bolt->r.maxs, 0.01f, 0.01f, 0.01f );
 	bolt->s.weapon = WP_GRENADE_LAUNCHER;
 	bolt->s.eFlags = EF_BOUNCE_HALF;
 	bolt->r.ownerNum = self->s.number;
@@ -883,6 +886,8 @@ gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir) {
 	bolt->think = G_ExplodeMissile;
 	bolt->s.eType = ET_MISSILE;
 	bolt->r.svFlags = SVF_USE_CURRENT_ORIGIN;
+	VectorSet( bolt->r.mins, -0.01f, -0.01f, -0.01f );
+	VectorSet( bolt->r.maxs, 0.01f, 0.01f, 0.01f );
 	bolt->s.weapon = WP_ROCKET_LAUNCHER;
 	bolt->r.ownerNum = self->s.number;
 	bolt->parent = self;
@@ -975,8 +980,6 @@ Creates and fires a nail projectile, optionally enabling ricochet behavior based
 	the configured bounce chance.
 =============
 */
-#define NAILGUN_SPREAD	500
-
 gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t right, vec3_t up ) {
 	gentity_t		*bolt;
 	vec3_t		 dir;
@@ -994,12 +997,12 @@ gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t righ
 	bolt->s.eFlags = 0;
 	bolt->r.ownerNum = self->s.number;
 	bolt->parent = self;
-	bolt->damage = 20;
+	bolt->damage = g_weaponConfig.nailgunDamage;
 	bolt->methodOfDeath = MOD_NAIL;
 	bolt->clipmask = MASK_SHOT;
 	bolt->target_ent = NULL;
 
-	bolt->s.pos.trType = TR_LINEAR;
+	bolt->s.pos.trType = g_weaponConfig.nailgunGravityEnabled ? TR_GRAVITY : TR_LINEAR;
 	bolt->s.pos.trTime = level.time;
 	VectorCopy( start, bolt->s.pos.trBase );
 
@@ -1017,15 +1020,15 @@ gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t righ
 	bolt->count = 0;
 
 	r = random() * M_PI * 2.0f;
-	u = sin(r) * crandom() * NAILGUN_SPREAD * 16;
-	r = cos(r) * crandom() * NAILGUN_SPREAD * 16;
+	u = sin(r) * crandom() * g_weaponConfig.nailgunSpread * 16;
+	r = cos(r) * crandom() * g_weaponConfig.nailgunSpread * 16;
 	VectorMA( start, 8192 * 16, forward, end);
 	VectorMA (end, r, right, end);
 	VectorMA (end, u, up, end);
 	VectorSubtract( end, start, dir );
 	VectorNormalize( dir );
 
-	scale = 555 + random() * 1800;
+	scale = 555 + random() * g_weaponConfig.nailgunSpeed;
 	VectorScale( dir, scale, bolt->s.pos.trDelta );
 	SnapVector( bolt->s.pos.trDelta );
 
@@ -1056,8 +1059,8 @@ gentity_t *fire_prox( gentity_t *self, vec3_t start, vec3_t dir ) {
 	bolt->r.ownerNum = self->s.number;
 	bolt->parent = self;
 	bolt->damage = g_weaponConfig.proximityLauncherDamage;
-	bolt->splashDamage = 100;
-	bolt->splashRadius = 150;
+	bolt->splashDamage = g_weaponConfig.proximityLauncherSplashDamage;
+	bolt->splashRadius = g_weaponConfig.proximityLauncherSplashRadius;
 	bolt->methodOfDeath = MOD_PROXIMITY_MINE;
 	bolt->splashMethodOfDeath = MOD_PROXIMITY_MINE;
 	bolt->clipmask = MASK_SHOT;

@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 // client.h -- primary header for client
 
+#include <stdint.h>
+
 #include "../game/q_shared.h"
 #include "../qcommon/qcommon.h"
 #include "../renderer/tr_public.h"
@@ -572,7 +574,8 @@ void *CL_WebHost_GetCursorHandle( void );
 void CL_WebHost_HideBrowser( void );
 void CL_WebHost_NotifyAppActivation( qboolean active );
 void CL_WebView_PublishEvent( const char *name, const char *payload );
-void CL_WebView_InvokeCommNotice( const char *channel, const char *message );
+void CL_WebView_InvokeCommNotice( const char *message );
+void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString );
 void CL_WebView_PublishGameError( const char *message );
 void CL_WebView_PublishGameEnd( void );
 void CL_WebView_PublishCvarChange( const char *name, const char *value, qboolean replicate );
@@ -600,6 +603,8 @@ void CL_Awesomium_Stop( void );
 void CL_Awesomium_Reload( qboolean ignoreCache );
 void CL_Awesomium_Shutdown( void );
 const char *CL_Awesomium_LastError( void );
+qboolean CL_AdvertisementBridge_IsDelayElapsed( void );
+void CL_AdvertisementBridge_ClearDelay( void );
 void CL_AdvertisementBridge_RefreshLoadingViewParameters( void );
 void CL_AdvertisementBridge_UpdateLoadingViewParameters( void );
 void CL_AdvertisementBridge_InitUI( void );
@@ -611,6 +616,10 @@ int CL_AdvertisementBridge_GetLabelList1Count( void );
 void CL_AdvertisementBridge_GetLabelList1Entry( int index, char *buffer, int bufferSize );
 int CL_AdvertisementBridge_GetLabelList2Count( void );
 void CL_AdvertisementBridge_GetLabelList2Entry( int index, char *buffer, int bufferSize );
+qhandle_t CL_AdvertisementBridge_SetupUIAdvertCellShader( const char *defaultContent, const void *rect, int cellId );
+qhandle_t CL_AdvertisementBridge_RefreshUIAdvertCellShader( const char *defaultContent, const void *rect, int cellId );
+qhandle_t CL_AdvertisementBridge_SetupAdvertCellShader( const char *defaultContent, const void *rect, int cellId );
+qhandle_t CL_AdvertisementBridge_RefreshAdvertCellShader( const char *defaultContent, const void *rect, int cellId );
 
 //
 // cl_ui.c
@@ -627,6 +636,7 @@ void CL_InitSteamResources( void );
 void CL_ShutdownSteamResources( void );
 void CL_ClearSteamResourceCache( qboolean clearPersisted );
 void QL_ClientAuth_CancelSteamTicket( void );
+qboolean QL_ClientAuth_RequestSteamChallengeTicket( byte *ticketBuffer, int ticketBufferSize, int *ticketLength, uint32_t *steamIdLow, uint32_t *steamIdHigh );
 int CL_MenuReadScreenshot( const char *requestedName, byte *buffer, int bufferSize );
 
 

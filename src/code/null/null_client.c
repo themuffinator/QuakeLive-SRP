@@ -22,6 +22,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../client/client.h"
 
+#define CL_NULL_BROWSER_PROVIDER_LABEL "Null host compatibility shim"
+#define CL_NULL_BROWSER_POLICY_LABEL "compatibility-only null host"
+#define CL_NULL_BROWSER_PARITY_SCOPE_LABEL "strict-retail-excluded"
+#define CL_NULL_BROWSER_PARITY_REASON_LABEL "retail Windows Awesomium host is outside the null-client portability lane"
+
 typedef struct {
 	int		activeAdvertCellId;
 	int		activatedAdvertCellId;
@@ -46,7 +51,15 @@ CL_NullRefreshBrowserCvars
 */
 static void CL_NullRefreshBrowserCvars( void ) {
 	Cvar_Set( "ui_browserAwesomium", "0" );
+	Cvar_Set( "ui_browserAwesomiumProvider", CL_NULL_BROWSER_PROVIDER_LABEL );
+	Cvar_Set( "ui_browserAwesomiumPolicy", CL_NULL_BROWSER_POLICY_LABEL );
+	Cvar_Set( "ui_browserAwesomiumParityScope", CL_NULL_BROWSER_PARITY_SCOPE_LABEL );
+	Cvar_Set( "ui_browserAwesomiumParityReason", CL_NULL_BROWSER_PARITY_REASON_LABEL );
 	Cvar_Set( "web_browserActive", "0" );
+	Cvar_Set( "ui_advertisementBridgeProvider", CL_NULL_BROWSER_PROVIDER_LABEL );
+	Cvar_Set( "ui_advertisementBridgePolicy", CL_NULL_BROWSER_POLICY_LABEL );
+	Cvar_Set( "ui_advertisementBridgeParityScope", CL_NULL_BROWSER_PARITY_SCOPE_LABEL );
+	Cvar_Set( "ui_advertisementBridgeParityReason", CL_NULL_BROWSER_PARITY_REASON_LABEL );
 }
 
 /*
@@ -261,9 +274,18 @@ void CL_WebView_PublishEvent( const char *name, const char *payload ) {
 CL_WebView_InvokeCommNotice
 ================
 */
-void CL_WebView_InvokeCommNotice( const char *channel, const char *message ) {
-	(void)channel;
+void CL_WebView_InvokeCommNotice( const char *message ) {
 	(void)message;
+}
+
+/*
+================
+CL_WebView_PublishTaggedInfoString
+================
+*/
+void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString ) {
+	(void)messageType;
+	(void)infoString;
 }
 
 /*

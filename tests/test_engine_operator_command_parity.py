@@ -216,9 +216,9 @@ def test_spawn_restart_and_game_consumers_follow_retail_nextmap_payload_wiring()
 	assert 'SV_MapPoolLoadFromFile( sv_mapPoolFile ? sv_mapPoolFile->string : "mappool.txt" );' in init_data_block
 	assert "SV_MapPoolUpdateNextMap();" in update_rotation_block
 	assert "SV_MapPoolBuildNextMapsCvar();" in update_rotation_block
-	assert 'Info_SetValueForKey( nextmaps, va( "map_%i", slot ), entry->mapName );' in build_nextmaps_block
-	assert 'Info_SetValueForKey( nextmaps, va( "cfg_%i", slot ), entry->factoryId );' in build_nextmaps_block
-	assert 'Info_SetValueForKey( nextmaps, va( "gt_%i", slot ), entry->factoryTitle );' in build_nextmaps_block
+	assert 'Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_MAP_FORMAT, slot ), entry->mapName );' in build_nextmaps_block
+	assert 'Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_CONFIG_FORMAT, slot ), entry->factoryId );' in build_nextmaps_block
+	assert 'Info_SetValueForKey( nextmaps, va( ROTATION_VOTE_KEY_GAMETYPE_FORMAT, slot ), entry->factoryTitle );' in build_nextmaps_block
 	assert 'Cvar_Set( "nextmaps", nextmaps );' in build_nextmaps_block
 
 	assert "SV_UpdateMapPoolRotationCvars();" in spawn_block

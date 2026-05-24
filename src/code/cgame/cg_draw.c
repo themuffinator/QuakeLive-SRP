@@ -24,6 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // active (after loading) gameplay
 
 #include "cg_local.h"
+#include "../../game/match_state_keys.h"
 
 #include "../ui/ui_shared.h"
 
@@ -2036,7 +2037,7 @@ static float CG_DrawAttacker( float y ) {
 	CG_DrawHead( 604.0f, y, size, size, clientNum, angles );
 
 	info = CG_ConfigString( CS_PLAYERS + clientNum );
-	name = Info_ValueForKey(  info, "n" );
+	name = Info_ValueForKey(  info, PLAYER_INFO_KEY_NAME );
 	w = CG_Text_WidthExt( name, 0.18f, 0, FONT_SANS );
 	textY = y + size + 10.0f;
 	CG_Text_PaintExt( 640.0f - ( 10.0f + w ), textY, 0.18f, colorWhite, name, 0.0f, 0, ITEM_TEXTSTYLE_NORMAL, FONT_SANS );
@@ -5135,10 +5136,10 @@ static const char *CG_ADRoundScoreboardStatusText( void ) {
 	scorelimit = 0;
 	roundlimit = 0;
 	if ( info && info[0] ) {
-		value = Info_ValueForKey( info, "g_scorelimit" );
+		value = Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT );
 		scorelimit = value[0] ? atoi( value ) : 0;
 
-		value = Info_ValueForKey( info, "roundlimit" );
+		value = Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT );
 		roundlimit = value[0] ? atoi( value ) : 0;
 	}
 
@@ -5977,7 +5978,7 @@ static qboolean CG_IsTrainingTutorialSession( void ) {
 
 	info = CG_ConfigString( CS_SERVERINFO );
 	if ( info && info[0] ) {
-		trainingValue = Info_ValueForKey( info, "g_training" );
+		trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );
 		if ( trainingValue && trainingValue[0] && atoi( trainingValue ) ) {
 			return qtrue;
 		}

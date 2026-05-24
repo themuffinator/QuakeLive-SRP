@@ -38,6 +38,12 @@ update owner.
 | --- | --- | --- | --- |
 | `sub_4F2590` (`0x004F2590`) | `QLWebCore_Update` | Observed | Per-frame browser-core update wrapper; operates on the retained `Awesomium::WebCore` pointer in `data_12d304c` and executes its update slot once per rendered client frame. |
 
+2026-05-24 backend ABI follow-up: `cl_awesomium_win32.cpp` now records this
+retail `WebCore::Update` slot (`+0x18`) in `cl_aweRetailAbiEquivalence[]` and
+maps it to the adapter's bounded `_Awe_WebCore_Update@4` import. This closes
+the source-visible backend-substitution row while preserving the distinction
+between functional C-export compatibility and literal C++ ABI identity.
+
 ## `idZMQ` Wrapper Split
 
 Round 94 named the ZMQ startup methods before the `idZMQ` RTTI anchor was used.
@@ -98,8 +104,9 @@ Two practical takeaways from this split:
 
 ## Open Questions
 
-1. `sub_4F2900` remains the only small browser-input helper in this block that
-   still needs one more pass before promotion.
+1. Historical note, closed later: `sub_4F2900` was promoted in round 285 as
+   `QLWebView_InjectActivationKeyboardEvent`, and the 2026-05-24 source
+   follow-up preserves its exact `WebKeyboardEvent(0, 0x11, 0x1d0001)` fields.
 2. The `idZMQ` peer-table helpers at `sub_4F4910`, `sub_4F49C0`, `sub_4F4E80`,
    and `sub_4F4FE0` are structurally bounded now, but they are still mostly
    ownership/tree machinery rather than user-facing subsystem behaviors.

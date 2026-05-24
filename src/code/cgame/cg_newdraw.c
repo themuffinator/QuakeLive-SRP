@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
 #include "cg_local.h"
+#include "../../game/match_state_keys.h"
 #include "../ui/ui_shared.h"
 
 extern displayContextDef_t cgDC;
@@ -214,7 +215,7 @@ static int CG_GetRoundTimeLimitSeconds( void ) {
 		return 0;
 	}
 
-	value = Info_ValueForKey( info, "roundtimelimit" );
+	value = Info_ValueForKey( info, SERVERINFO_KEY_ROUNDTIMELIMIT );
 	if ( !value || !*value ) {
 		return 0;
 	}
@@ -2889,7 +2890,7 @@ static void CG_BuildCleanMapName( char *buffer, size_t bufferSize ) {
 
 	buffer[0] = '\0';
 	serverInfo = CG_ConfigString( CS_SERVERINFO );
-	configName = serverInfo ? Info_ValueForKey( serverInfo, "mapname" ) : NULL;
+	configName = serverInfo ? Info_ValueForKey( serverInfo, SERVERINFO_KEY_MAPNAME ) : NULL;
 	if ( configName && *configName ) {
 		CG_CleanMapName( configName, buffer, bufferSize );
 		return;

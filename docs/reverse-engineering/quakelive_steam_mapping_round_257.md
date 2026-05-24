@@ -27,9 +27,9 @@ Observed corpus facts:
 1. The Ghidra function table exposes the dispatcher row as
    `FUN_004b54e0,004b54e0,141,0,unknown`.
 2. The HLIL body starts with `sub_4F22E0()`, already promoted in round 29 as
-   `AdvertisementBridge_IsDelayElapsed`. The current source still does not have
-   the advertisement-delay state modeled in the input dispatcher, so this gate
-   remains documented rather than guessed.
+   `AdvertisementBridge_IsDelayElapsed`. The current source now models the
+   advertisement-delay deadline through `CL_AdvertisementBridge_IsDelayElapsed()`
+   and calls it before the dispatcher checks `cg_ignoreMouseInput`.
 3. The dispatcher then checks the engine-registered `cg_ignoreMouseInput` cvar
    pointer at `data_1627c54 + 0x30` and exits when it is non-zero.
 4. The `CL_Init` cvar table registers `cg_ignoreMouseInput` with default `0`
@@ -71,6 +71,8 @@ Implemented source changes:
    `QLWebCore_Update` arms `KEYCATCH_BROWSER` while the retained browser host is
    active, while `QLWebHost_HideBrowser` and `CL_WebHost_ResetRuntime` clear it.
 4. `CL_MouseEvent` now follows the observed retail routing order:
+   - exit while `CL_AdvertisementBridge_IsDelayElapsed()` reports that the
+     advertisement delay deadline is still active
    - ignore events while `cg_ignoreMouseInput` is set
    - forward raw event payloads to `CL_WebView_OnMouseMove` when browser capture
      is active
@@ -85,12 +87,12 @@ Implemented source changes:
    translation and CPI helper samples, but `CL_MouseEvent` no longer uses that
    helper as a UI/cgame dispatch step.
 
-## Open Questions
+## Follow-up Status And Open Questions
 
-1. `sub_4F22E0` is still only represented in the source through the existing
-   advertisement bridge compatibility surface. The input dispatcher does not yet
-   model that delay gate directly because the writable source does not expose
-   the same deadline global.
+1. Closed on 2026-05-24: `sub_4F22E0` is now represented directly in source through
+   `CL_AdvertisementBridge_IsDelayElapsed()`, backed by the local
+   advertisement bridge `delayDeadline` field and the existing cgame
+   `AdvertisementBridge_ClearDelay` import.
 2. `sub_4EAB80` is a one-return helper over `data_12cfc70` in the full HLIL
    corpus. Its surrounding ownership remains unclear, so this round did not add
    a speculative local gate.

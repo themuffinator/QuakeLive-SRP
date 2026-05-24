@@ -38,8 +38,6 @@ static const cgLightningStyleDef_t cg_lightningStyleDefs[CG_MAX_LIGHTNING_STYLES
 	{ "lightningBolt5", 3 }
 };
 
-static int		cg_lightningImpactFrameTime;
-static int		cg_lightningImpactCount;
 static int		cg_weaponTogglePrevious;
 static int		cg_weaponToggleFallback;
 static qboolean	CG_GetStoredPredictedBeam( weapon_t weapon, vec3_t start, vec3_t end, qboolean *hitWorld );
@@ -1153,6 +1151,7 @@ void CG_RegisterWeapon( int weaponNum ) {
 		weaponInfo->flashSound[1] = trap_S_RegisterSound( "sound/weapons/hmg/machgf2b.ogg", qfalse );
 		weaponInfo->flashSound[2] = trap_S_RegisterSound( "sound/weapons/hmg/machgf3b.ogg", qfalse );
 		weaponInfo->flashSound[3] = trap_S_RegisterSound( "sound/weapons/hmg/machgf4b.ogg", qfalse );
+		weaponInfo->ejectBrassFunc = CG_MachineGunEjectBrass;
 		cgs.media.bulletExplosionShader = trap_R_RegisterShader( "bulletExplosion" );
 		break;
 
@@ -1474,64 +1473,50 @@ static void CG_SubmitLightningBeams( const refEntity_t *beamTemplate, int segmen
 
 /*
 =============
-CG_CanDrawLightningImpact
-
-Checks whether the lightning impact effect can be emitted this frame.
-=============
-*/
-static qboolean CG_CanDrawLightningImpact( void ) {
-	int		cap;
-
-	if ( cg_lightningImpact.integer == 0 ) {
-		return qfalse;
-	}
-
-	cap = cg_lightningImpactCap.integer;
-	if ( cap <= 0 ) {
-		return qfalse;
-	}
-
-	if ( cg.time != cg_lightningImpactFrameTime ) {
-		cg_lightningImpactFrameTime = cg.time;
-		cg_lightningImpactCount = 0;
-	}
-
-	if ( cg_lightningImpactCount >= cap ) {
-		return qfalse;
-	}
-
-	cg_lightningImpactCount++;
-	return qtrue;
-}
-
-
-/*
-=============
 CG_DrawLightningImpact
 
-Spawns the lightning impact model when the beam hits a surface.
+Spawns the retail lightning impact model and scales very close impacts.
 =============
 */
-static void CG_DrawLightningImpact( const vec3_t endPos, const vec3_t dir ) {
-	refEntity_t	beam;
+static void CG_DrawLightningImpact( const vec3_t startPos, const vec3_t endPos, const vec3_t dir ) {
+	refEntity_t	impact;
 	vec3_t	angles;
 	vec3_t	origin;
+	float	distance;
+	float	scale;
+	int		cap;
 
-	if ( !CG_CanDrawLightningImpact() || !cgs.media.lightningExplosionModel ) {
+	if ( cg_lightningImpact.integer == 0 || !cgs.media.lightningExplosionModel ) {
 		return;
 	}
 
-	memset( &beam, 0, sizeof( beam ) );
-	beam.hModel = cgs.media.lightningExplosionModel;
+	memset( &impact, 0, sizeof( impact ) );
+	impact.hModel = cgs.media.lightningExplosionModel;
 
 	VectorMA( endPos, -16, dir, origin );
-	VectorCopy( origin, beam.origin );
+	VectorCopy( origin, impact.origin );
 
 	angles[0] = rand() % 360;
 	angles[1] = rand() % 360;
 	angles[2] = rand() % 360;
-	AnglesToAxis( angles, beam.axis );
-	trap_R_AddRefEntityToScene( &beam );
+	AnglesToAxis( angles, impact.axis );
+
+	cap = cg_lightningImpactCap.integer;
+	if ( cap != 0 ) {
+		distance = Distance( endPos, startPos );
+		if ( distance < (float)cap ) {
+			scale = distance / (float)cap;
+			if ( scale < 0.125f ) {
+				scale = 0.125f;
+			}
+			VectorScale( impact.axis[0], scale, impact.axis[0] );
+			VectorScale( impact.axis[1], scale, impact.axis[1] );
+			VectorScale( impact.axis[2], scale, impact.axis[2] );
+			impact.nonNormalizedAxes = qtrue;
+		}
+	}
+
+	trap_R_AddRefEntityToScene( &impact );
 }
 
 /*
@@ -1625,7 +1610,7 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 		// different than the muzzle origin
 		VectorCopy( origin, beam.origin );
 		VectorCopy( trace.endpos, impactPoint );
-		addImpact = ( trace.fraction < 1.0f );
+		addImpact = ( trace.fraction < 1.0f && !( trace.surfaceFlags & SURF_NOIMPACT ) );
 	}
 
 	beam.reType = RT_LIGHTNING;
@@ -1634,24 +1619,12 @@ static void CG_LightningBolt( centity_t *cent, vec3_t origin ) {
 
 	// add the impact flare if it hit something
 	if ( addImpact ) {
-		vec3_t angles;
 		vec3_t dir;
 
 		VectorSubtract( beam.oldorigin, beam.origin, dir );
 		VectorNormalize( dir );
 
-		memset( &beam, 0, sizeof( beam ) );
-		beam.hModel = cgs.media.lightningExplosionModel;
-
-		VectorMA( impactPoint, -16, dir, beam.origin );
-
-		// make a random orientation
-		angles[0] = rand() % 360;
-		angles[1] = rand() % 360;
-		angles[2] = rand() % 360;
-		AnglesToAxis( angles, beam.axis );
-		trap_R_AddRefEntityToScene( &beam );
-		CG_DrawLightningImpact( impactPoint, dir );
+		CG_DrawLightningImpact( beam.origin, impactPoint, dir );
 	}
 
 }
@@ -1861,7 +1834,7 @@ qboolean CG_BuildPredictedBeamForPlayerState( const playerState_t *ps, int clien
 
 	CG_Trace( &trace, traceStart, vec3_origin, vec3_origin, finish, clientNum, MASK_SHOT );
 	VectorCopy( trace.endpos, end );
-	localHit = ( trace.fraction < 1.0f );
+	localHit = ( trace.fraction < 1.0f && !( trace.surfaceFlags & SURF_NOIMPACT ) );
 	if ( hitWorld ) {
 		*hitWorld = localHit;
 	}
@@ -3317,6 +3290,9 @@ hit splashes
 static void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int otherEntNum ) {
 	int			i;
 	float		r, u;
+	float		angle;
+	float		radius;
+	float		spreadJitter;
 	vec3_t		end;
 	vec3_t		forward, right, up;
 
@@ -3328,24 +3304,25 @@ static void CG_ShotgunPattern( vec3_t origin, vec3_t origin2, int seed, int othe
 
 	// generate the "random" spread pattern
 	for ( i = 0 ; i < DEFAULT_SHOTGUN_COUNT ; i++ ) {
-		if ( cg_trueShotgun.integer ) {
-			if ( i < 6 ) {
-				float angle = i * 60.0f;
-				r = 4000.0f * cos( DEG2RAD( angle ) );
-				u = 4000.0f * sin( DEG2RAD( angle ) );
-			} else if ( i < 12 ) {
-				float angle = ( i - 6 ) * 60.0f + 30.0f;
-				r = 8000.0f * cos( DEG2RAD( angle ) );
-				u = 8000.0f * sin( DEG2RAD( angle ) );
-			} else {
-				float angle = ( i - 12 ) * 45.0f;
-				r = 12000.0f * cos( DEG2RAD( angle ) );
-				u = 12000.0f * sin( DEG2RAD( angle ) );
-			}
+		if ( i < 6 ) {
+			angle = ( i - 20 ) * 60.0f;
+			radius = 4000.0f;
+			spreadJitter = 0.4f;
+		} else if ( i < 12 ) {
+			angle = i * 60.0f + 30.0f;
+			radius = 8000.0f;
+			spreadJitter = 0.3f;
 		} else {
-			r = Q_crandom( &seed ) * DEFAULT_SHOTGUN_SPREAD * 16;
-			u = Q_crandom( &seed ) * DEFAULT_SHOTGUN_SPREAD * 16;
+			angle = i * 45.0f;
+			radius = 12000.0f;
+			spreadJitter = 0.2f;
 		}
+		if ( cg_trueShotgun.integer ) {
+			spreadJitter = 0.0f;
+		}
+
+		r = ( cos( DEG2RAD( angle ) ) + Q_crandom( &seed ) * spreadJitter ) * radius;
+		u = ( sin( DEG2RAD( angle ) ) + Q_crandom( &seed ) * spreadJitter ) * radius;
 
 		VectorMA( origin, 8192 * 16, forward, end);
 		VectorMA (end, r, right, end);

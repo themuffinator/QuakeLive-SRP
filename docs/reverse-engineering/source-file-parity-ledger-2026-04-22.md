@@ -1,6 +1,6 @@
 # Source-File Parity Ledger
 
-Last updated: 2026-05-20
+Last updated: 2026-05-24
 
 ## Purpose
 
@@ -28,8 +28,8 @@ The ledger does not replace the current gate-facing ledgers. `AUDIT.md`, `IMPLEM
 
 - `walked-closed`: `551` files
 - `baseline-closed`: `0` files
-- `documented-divergence`: `7` files
-- `gap-note-open`: `9` files
+- `documented-divergence`: `8` files
+- `gap-note-open`: `8` files
 - `compatibility-open`: `0` files
 - `queued-secondary`: `0` files
 
@@ -44,6 +44,7 @@ The ledger does not replace the current gate-facing ledgers. `AUDIT.md`, `IMPLEM
 | `src/code/client/ql_auth.c` | `RW-G01` | [note](source-file-gap-notes/rw-g01-client-auth.md) |
 | `src/code/client/cl_steam_resources.c` | `RW-G01` | [note](source-file-gap-notes/rw-g01-client-steam-resources.md) |
 | `src/code/server/sv_rankings.c` | `RW-G01` | [note](source-file-gap-notes/rw-g01-server-rankings.md) |
+| `src/code/null/null_client.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-null-client.md) |
 
 ## Active file-level gap notes
 
@@ -55,7 +56,6 @@ The ledger does not replace the current gate-facing ledgers. `AUDIT.md`, `IMPLEM
 | `src/code/unix/linux_joystick.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-linux-joystick.md) |
 | `src/code/null/null_main.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-null-main.md) |
 | `src/code/null/null_glimp.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-null-glimp.md) |
-| `src/code/null/null_client.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-null-client.md) |
 | `src/code/null/null_input.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-null-input.md) |
 | `src/code/null/null_snddma.c` | `RW-G02` | [note](source-file-gap-notes/rw-g02-null-snddma.md) |
 
@@ -413,8 +413,9 @@ notes for `unix_main.c`, `linux_glimp.c`, `linux_snd.c`, and
 
 Current 2026-04-22 audit result: the `src/code/null` function walk
 isolated `null_glimp.c` as an additional `RW-G02` owner beside the
-existing notes for `null_main.c`, `null_client.c`, `null_input.c`,
-and `null_snddma.c`. The focused non-Windows portability lane
+existing open notes for `null_main.c`, `null_input.c`, and
+`null_snddma.c`. `null_client.c` is now a documented compatibility
+divergence for the explicit no-browser/no-advert null lane. The focused non-Windows portability lane
 (`18 passed`) and the current repo-wide audit still bound
 `null_net.c` and `mac_net.c` on current evidence, so no further
 file-level owner is opened inside the null tree this round.
@@ -422,7 +423,7 @@ file-level owner is opened inside the null tree this round.
 | File | Functions | Current parity state | Primary evidence | Gap note |
 | --- | ---: | --- | --- | --- |
 | `src/code/null/mac_net.c` | `5` | Current compatibility function walk complete; no new file-level portability gap isolated | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + current 2026-04-22 source walk | - |
-| `src/code/null/null_client.c` | `50` | RW-G02 file-level note open | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g02-null-client.md) | [note](source-file-gap-notes/rw-g02-null-client.md) |
+| `src/code/null/null_client.c` | `50` | RW-G02 documented compatibility note closed for browser/advert null lane | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g02-null-client.md) | [note](source-file-gap-notes/rw-g02-null-client.md) |
 | `src/code/null/null_glimp.c` | `7` | RW-G02 file-level note open | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g02-null-glimp.md) | [note](source-file-gap-notes/rw-g02-null-glimp.md) |
 | `src/code/null/null_input.c` | `6` | RW-G02 file-level note open | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g02-null-input.md) | [note](source-file-gap-notes/rw-g02-null-input.md) |
 | `src/code/null/null_main.c` | `28` | RW-G02 file-level note open | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g02-null-main.md) | [note](source-file-gap-notes/rw-g02-null-main.md) |
