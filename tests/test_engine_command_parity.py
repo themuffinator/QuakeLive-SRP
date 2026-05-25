@@ -147,10 +147,13 @@ def test_bind_family_commands_match_retail_handler_and_registration_shape() -> N
 def test_console_autocomplete_matches_retail_argument_sources_and_field_rebuild() -> None:
 	cl_keys = (REPO_ROOT / "src/code/client/cl_keys.c").read_text(encoding="utf-8")
 	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	cvar_c = (REPO_ROOT / "src/code/qcommon/cvar.c").read_text(encoding="utf-8")
+	qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
 	vm_c = (REPO_ROOT / "src/code/qcommon/vm.c").read_text(encoding="utf-8")
 
 	argument_block = _extract_function_block(cl_keys, "static void Console_CompleteArgument( const char *command, void(*callback)( const char *s ) ) {")
 	field_block = _extract_function_block(common_c, "void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback ) {")
+	cvar_completion_block = _extract_function_block(cvar_c, "void\tCvar_CommandCompletion( void(*callback)(const char *s), qboolean includeValues ) {")
 	native_call_block = _extract_function_block(vm_c, "static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {")
 
 	assert '#include "../qcommon/vm_local.h"' in cl_keys
@@ -170,10 +173,14 @@ def test_console_autocomplete_matches_retail_argument_sources_and_field_rebuild(
 	assert "commandName++" not in argument_block
 
 	assert "Cmd_CommandCompletion( FindMatches );" in field_block
-	assert "Cvar_CommandCompletion( FindMatches );" in field_block
+	assert "Cvar_CommandCompletion( FindMatches, qfalse );" in field_block
 	assert "callback( command, FindMatches );" in field_block
 	assert "Q_strcat( completionField->buffer, sizeof( completionField->buffer ), Cmd_Argv( i ) );" in field_block
 	assert 'Q_strcat( completionField->buffer, sizeof( completionField->buffer ), " " );' in field_block
+	assert "Cvar_CommandCompletion( PrintMatches, matchCount > 1 ? qtrue : qfalse );" in field_block
+	assert "void\tCvar_CommandCompletion( void(*callback)(const char *s), qboolean includeValues );" in qcommon_h
+	assert 'callback( va( "%s = \\"%s\\"", cvar->name, cvar->string ) );' in cvar_completion_block
+	assert "callback( cvar->name );" in cvar_completion_block
 	assert "Field_AppendCompletionArgument" not in common_c
 	assert "needsQuotes" not in common_c
 

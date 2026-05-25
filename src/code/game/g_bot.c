@@ -491,6 +491,44 @@ int G_CountBotPlayers( int team ) {
 
 /*
 ===============
+G_ConsumeBotSpawnList
+
+Consumes one queued g_botSpawnList entry, matching retail's one-bot-per-check drain.
+===============
+*/
+static qboolean G_ConsumeBotSpawnList( void ) {
+	char	botList[MAX_CVAR_VALUE_STRING];
+	char	remainder[MAX_CVAR_VALUE_STRING];
+	char	*cursor;
+	char	*bot;
+	float	skill;
+
+	trap_Cvar_Update( &g_botSpawnList );
+	if ( !g_botSpawnList.string[0] || G_CountHumanPlayers( -1 ) <= 0 ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( botList, g_botSpawnList.string, sizeof( botList ) );
+	cursor = botList;
+	bot = COM_Parse( &cursor );
+	if ( !bot[0] ) {
+		trap_Cvar_Set( "g_botSpawnList", "" );
+		return qtrue;
+	}
+
+	while ( *cursor && (unsigned char)*cursor <= ' ' ) {
+		cursor++;
+	}
+	Q_strncpyz( remainder, cursor, sizeof( remainder ) );
+
+	skill = trap_Cvar_VariableValue( "g_spSkill" );
+	trap_SendConsoleCommand( EXEC_INSERT, va( "addbot %s %f %s %i\n", bot, skill, "", 0 ) );
+	trap_Cvar_Set( "g_botSpawnList", remainder );
+	return qtrue;
+}
+
+/*
+===============
 G_CheckMinimumPlayers
 ===============
 */
@@ -500,14 +538,15 @@ void G_CheckMinimumPlayers( void ) {
 	static int checkminimumplayers_time;
 
 	if (level.intermissiontime) return;
-	//only check once each 10 seconds
-	if (checkminimumplayers_time > level.time - 10000) {
+	// only check once each second
+	if (checkminimumplayers_time > level.time - 1000) {
 		return;
 	}
 	checkminimumplayers_time = level.time;
 	trap_Cvar_Update(&bot_minplayers);
 	minplayers = bot_minplayers.integer;
 	if (minplayers <= 0) return;
+	if (G_ConsumeBotSpawnList()) return;
 
 	if (g_gametype.integer >= GT_TEAM) {
 		if (minplayers >= g_maxclients.integer / 2) {
@@ -859,7 +898,7 @@ void Svcmd_AddBot_f( void ) {
 	// go ahead and load the bot's media immediately
 	if ( level.time - level.startTime > 1000 &&
 		trap_Cvar_VariableIntegerValue( "cl_running" ) ) {
-		trap_SendServerCommand( -1, "loaddefered\n" );	// FIXME: spelled wrong, but not changing for demo
+		trap_SendServerCommand( -1, "loaddeferred\n" );
 	}
 }
 

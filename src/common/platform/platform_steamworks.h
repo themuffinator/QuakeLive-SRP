@@ -26,6 +26,32 @@ typedef enum {
 } ql_steam_avatar_image_state_t;
 
 typedef uint64_t SteamAPICall_t;
+typedef void *ql_steam_server_list_request_t;
+typedef int ql_steam_server_query_t;
+
+typedef enum {
+	QL_STEAM_SERVER_BROWSER_INTERNET = 0,
+	QL_STEAM_SERVER_BROWSER_LAN = 1,
+	QL_STEAM_SERVER_BROWSER_FRIENDS = 2,
+	QL_STEAM_SERVER_BROWSER_FAVORITES = 3,
+	QL_STEAM_SERVER_BROWSER_HISTORY = 4
+} ql_steam_server_browser_request_mode_t;
+
+typedef enum {
+	QL_STEAM_SERVER_BROWSER_DETAIL_RULES = 0,
+	QL_STEAM_SERVER_BROWSER_DETAIL_PLAYERS = 1
+} ql_steam_server_browser_detail_channel_t;
+
+typedef enum {
+	QL_STEAM_SERVER_BROWSER_DETAIL_RESPONSE = 0,
+	QL_STEAM_SERVER_BROWSER_DETAIL_FAILED = 1,
+	QL_STEAM_SERVER_BROWSER_DETAIL_END = 2
+} ql_steam_server_browser_detail_phase_t;
+
+typedef struct {
+	qboolean refreshActive;
+	ql_steam_server_list_request_t request;
+} ql_steam_server_browser_owner_t;
 
 #define QL_STEAM_NAME_LENGTH 128
 #define QL_STEAM_STATUS_LENGTH 256
@@ -34,6 +60,118 @@ typedef uint64_t SteamAPICall_t;
 #define QL_STEAM_PASSWORD_LENGTH 128
 #define QL_STEAM_LOBBY_MESSAGE_LENGTH 256
 #define QL_STEAM_GAMESERVER_DEFAULT_VERSION "1069"
+#define QL_STEAM_SERVER_BROWSER_GAME_DIR_LENGTH 32
+#define QL_STEAM_SERVER_BROWSER_MAP_LENGTH 32
+#define QL_STEAM_SERVER_BROWSER_GAME_DESCRIPTION_LENGTH 64
+#define QL_STEAM_SERVER_BROWSER_NAME_LENGTH 64
+#define QL_STEAM_SERVER_BROWSER_DISPLAY_NAME_LENGTH 64
+#define QL_STEAM_SERVER_BROWSER_TAGS_LENGTH 128
+#define QL_STEAM_SERVER_BROWSER_ID_LENGTH 32
+#define QL_STEAM_SERVER_BROWSER_STEAM_ID_LENGTH 32
+#define QL_STEAM_SERVER_BROWSER_EVENT_NAME_LENGTH 64
+#define QL_STEAM_SERVER_BROWSER_RULE_LENGTH 256
+#define QL_STEAM_SERVER_BROWSER_RULE_VALUE_LENGTH 256
+#define QL_STEAM_SERVER_BROWSER_PLAYER_NAME_LENGTH 64
+#define QL_STEAM_SERVER_BROWSER_DETAIL_COMPLETION_TARGET 3
+#define QL_STEAM_SERVER_BROWSER_DETAIL_RULES_RESPONSE_OFFSET 0
+#define QL_STEAM_SERVER_BROWSER_DETAIL_PLAYERS_RESPONSE_OFFSET 4
+#define QL_STEAM_SERVER_BROWSER_DETAIL_PING_RESPONSE_OFFSET 8
+
+typedef struct {
+	uint32_t serverIp;
+	uint16_t serverPort;
+	uint16_t queryPort;
+	int ping;
+	char gameDir[QL_STEAM_SERVER_BROWSER_GAME_DIR_LENGTH];
+	char map[QL_STEAM_SERVER_BROWSER_MAP_LENGTH];
+	char gameDescription[QL_STEAM_SERVER_BROWSER_GAME_DESCRIPTION_LENGTH];
+	uint32_t appId;
+	int numPlayers;
+	int maxPlayers;
+	int botPlayers;
+	qboolean passwordProtected;
+	qboolean vacSecured;
+	uint32_t lastPlayed;
+	int serverVersion;
+	char name[QL_STEAM_SERVER_BROWSER_NAME_LENGTH];
+	char displayName[QL_STEAM_SERVER_BROWSER_DISPLAY_NAME_LENGTH];
+	char tags[QL_STEAM_SERVER_BROWSER_TAGS_LENGTH];
+	CSteamID steamId;
+} ql_steam_server_item_t;
+
+typedef struct {
+	char id[QL_STEAM_SERVER_BROWSER_ID_LENGTH];
+	char name[QL_STEAM_SERVER_BROWSER_DISPLAY_NAME_LENGTH];
+	int numPlayers;
+	int maxPlayers;
+	int ping;
+	char map[QL_STEAM_SERVER_BROWSER_MAP_LENGTH];
+	int botPlayers;
+	qboolean passwordProtected;
+	qboolean vacSecured;
+	uint32_t serverIp;
+	uint16_t serverPort;
+	char steamId[QL_STEAM_SERVER_BROWSER_STEAM_ID_LENGTH];
+	char tags[QL_STEAM_SERVER_BROWSER_TAGS_LENGTH];
+	char gametype[QL_STEAM_SERVER_BROWSER_GAME_DESCRIPTION_LENGTH];
+	uint32_t lastPlayed;
+} ql_steam_server_browser_response_t;
+
+typedef struct {
+	int id;
+	char eventName[QL_STEAM_SERVER_BROWSER_EVENT_NAME_LENGTH];
+} ql_steam_server_browser_failure_t;
+
+typedef struct {
+	char eventName[QL_STEAM_SERVER_BROWSER_EVENT_NAME_LENGTH];
+} ql_steam_server_browser_refresh_complete_t;
+
+typedef struct {
+	uint32_t serverIp;
+	uint16_t serverPort;
+	char id[QL_STEAM_SERVER_BROWSER_ID_LENGTH];
+} ql_steam_server_browser_detail_identity_t;
+
+typedef struct {
+	ql_steam_server_browser_detail_identity_t identity;
+	char eventName[QL_STEAM_SERVER_BROWSER_EVENT_NAME_LENGTH];
+} ql_steam_server_browser_detail_event_t;
+
+typedef struct {
+	ql_steam_server_browser_detail_identity_t identity;
+	char eventName[QL_STEAM_SERVER_BROWSER_EVENT_NAME_LENGTH];
+	char rule[QL_STEAM_SERVER_BROWSER_RULE_LENGTH];
+	char value[QL_STEAM_SERVER_BROWSER_RULE_VALUE_LENGTH];
+} ql_steam_server_browser_rule_response_t;
+
+typedef struct {
+	ql_steam_server_browser_detail_identity_t identity;
+	char eventName[QL_STEAM_SERVER_BROWSER_EVENT_NAME_LENGTH];
+	char name[QL_STEAM_SERVER_BROWSER_PLAYER_NAME_LENGTH];
+	int score;
+	int time;
+} ql_steam_server_browser_player_response_t;
+
+typedef struct {
+	ql_steam_server_browser_detail_identity_t identity;
+	int completedCallbacks;
+	qboolean releaseReady;
+} ql_steam_server_browser_detail_lifecycle_t;
+
+typedef struct {
+	void *rulesResponse;
+	void *playersResponse;
+	void *pingResponse;
+} ql_steam_server_browser_detail_response_views_t;
+
+typedef struct {
+	ql_steam_server_browser_detail_lifecycle_t lifecycle;
+	void *detailObjectBase;
+	ql_steam_server_query_t pingQuery;
+	ql_steam_server_query_t playersQuery;
+	ql_steam_server_query_t rulesQuery;
+	qboolean queriesActive;
+} ql_steam_server_browser_detail_request_t;
 
 typedef struct {
 	CSteamID steamId;
@@ -453,6 +591,74 @@ qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t idHigh, const ch
 qboolean QL_Steamworks_GetUserAchievement( uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved, int *outUnlockTime );
 
 const char *QL_Steamworks_GetAchievementDisplayAttribute( const char *name, const char *key );
+
+qboolean QL_Steamworks_HasServerBrowserInterface( void );
+
+const char *QL_Steamworks_GetServerBrowserAdapterLabel( void );
+
+const char *QL_Steamworks_GetServerBrowserIntegrationGapLabel( void );
+
+const char *QL_Steamworks_GetServerBrowserRequestModeLabel( ql_steam_server_browser_request_mode_t requestMode );
+
+qboolean QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( ql_steam_server_browser_request_mode_t requestMode );
+
+void QL_Steamworks_InitServerBrowserOwner( ql_steam_server_browser_owner_t *owner );
+
+qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject );
+
+qboolean QL_Steamworks_RefreshServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner );
+
+qboolean QL_Steamworks_CompleteServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner );
+
+ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql_steam_server_browser_request_mode_t requestMode, void *responseObject );
+
+const void *QL_Steamworks_GetServerListDetails( ql_steam_server_list_request_t request, int index );
+
+qboolean QL_Steamworks_ReadServerListDetails( ql_steam_server_list_request_t request, int index, ql_steam_server_item_t *outServer );
+
+void QL_Steamworks_FormatServerBrowserResponseId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize );
+
+qboolean QL_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t *server, ql_steam_server_browser_response_t *outResponse );
+
+qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t request, int index, ql_steam_server_browser_response_t *outResponse );
+
+void QL_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize );
+
+qboolean QL_Steamworks_BuildServerBrowserFailure( int serverIndex, ql_steam_server_browser_failure_t *outFailure );
+
+qboolean QL_Steamworks_BuildServerBrowserRefreshComplete( ql_steam_server_browser_refresh_complete_t *outRefresh );
+
+void QL_Steamworks_FormatServerBrowserDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize );
+
+qboolean QL_Steamworks_BuildServerBrowserDetailIdentity( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_identity_t *outIdentity );
+
+qboolean QL_Steamworks_FormatServerBrowserDetailEventName( ql_steam_server_browser_detail_channel_t channel, ql_steam_server_browser_detail_phase_t phase, const char *detailId, char *buffer, size_t bufferSize );
+
+qboolean QL_Steamworks_BuildServerBrowserDetailEvent( const ql_steam_server_browser_detail_identity_t *identity, ql_steam_server_browser_detail_channel_t channel, ql_steam_server_browser_detail_phase_t phase, ql_steam_server_browser_detail_event_t *outEvent );
+
+qboolean QL_Steamworks_BuildServerBrowserRuleResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *rule, const char *value, ql_steam_server_browser_rule_response_t *outResponse );
+
+qboolean QL_Steamworks_BuildServerBrowserPlayerResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *name, int score, int time, ql_steam_server_browser_player_response_t *outResponse );
+
+qboolean QL_Steamworks_InitServerBrowserDetailLifecycle( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_lifecycle_t *outLifecycle );
+
+qboolean QL_Steamworks_CompleteServerBrowserDetailCallback( ql_steam_server_browser_detail_lifecycle_t *lifecycle, qboolean *outReleaseReady );
+
+qboolean QL_Steamworks_BuildServerBrowserDetailResponseViews( void *detailObjectBase, ql_steam_server_browser_detail_response_views_t *outViews );
+
+void QL_Steamworks_InitServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request );
+
+qboolean QL_Steamworks_BeginServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request, uint32_t serverIp, uint16_t serverPort, void *detailObjectBase );
+
+qboolean QL_Steamworks_CompleteServerBrowserDetailRequestCallback( ql_steam_server_browser_detail_request_t *request, qboolean *outReleaseReady );
+
+void QL_Steamworks_ReleaseServerListRequest( ql_steam_server_list_request_t request );
+
+void QL_Steamworks_RefreshServerListRequest( ql_steam_server_list_request_t request );
+
+qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, void *pingResponse, void *playersResponse, void *rulesResponse, ql_steam_server_query_t *outPingQuery, ql_steam_server_query_t *outPlayersQuery, ql_steam_server_query_t *outRulesQuery );
+
+void QL_Steamworks_CancelServerQuery( ql_steam_server_query_t query );
 
 qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId );
 
@@ -1560,6 +1766,445 @@ static inline const char *QL_Steamworks_GetAchievementDisplayAttribute( const ch
 	(void)name;
 	(void)key;
 	return "";
+}
+
+/*
+=============
+QL_Steamworks_HasServerBrowserInterface
+=============
+*/
+static inline qboolean QL_Steamworks_HasServerBrowserInterface( void ) {
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserAdapterLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetServerBrowserAdapterLabel( void ) {
+	return "unavailable";
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserIntegrationGapLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetServerBrowserIntegrationGapLabel( void ) {
+	return "unavailable";
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserRequestModeLabel
+=============
+*/
+static inline const char *QL_Steamworks_GetServerBrowserRequestModeLabel( ql_steam_server_browser_request_mode_t requestMode ) {
+	switch ( requestMode ) {
+		case QL_STEAM_SERVER_BROWSER_LAN:
+			return "lan";
+		case QL_STEAM_SERVER_BROWSER_FRIENDS:
+			return "friends";
+		case QL_STEAM_SERVER_BROWSER_FAVORITES:
+			return "favorites";
+		case QL_STEAM_SERVER_BROWSER_HISTORY:
+			return "history";
+		case QL_STEAM_SERVER_BROWSER_INTERNET:
+		default:
+			return "internet";
+	}
+}
+
+/*
+=============
+QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter
+=============
+*/
+static inline qboolean QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( ql_steam_server_browser_request_mode_t requestMode ) {
+	return requestMode == QL_STEAM_SERVER_BROWSER_LAN ? qfalse : qtrue;
+}
+
+/*
+=============
+QL_Steamworks_InitServerBrowserOwner
+=============
+*/
+static inline void QL_Steamworks_InitServerBrowserOwner( ql_steam_server_browser_owner_t *owner ) {
+	if ( owner ) {
+		memset( owner, 0, sizeof( *owner ) );
+	}
+}
+
+/*
+=============
+QL_Steamworks_BeginServerBrowserOwnerRequest
+=============
+*/
+static inline qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject ) {
+	(void)requestMode;
+	(void)responseObject;
+	if ( owner ) {
+		owner->refreshActive = qfalse;
+		owner->request = NULL;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_RefreshServerBrowserOwnerRequest
+=============
+*/
+static inline qboolean QL_Steamworks_RefreshServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	(void)owner;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_CompleteServerBrowserOwnerRequest
+=============
+*/
+static inline qboolean QL_Steamworks_CompleteServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	if ( owner ) {
+		owner->refreshActive = qfalse;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_RequestServerList
+=============
+*/
+static inline ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql_steam_server_browser_request_mode_t requestMode, void *responseObject ) {
+	(void)requestMode;
+	(void)responseObject;
+	return NULL;
+}
+
+/*
+=============
+QL_Steamworks_GetServerListDetails
+=============
+*/
+static inline const void *QL_Steamworks_GetServerListDetails( ql_steam_server_list_request_t request, int index ) {
+	(void)request;
+	(void)index;
+	return NULL;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerListDetails
+=============
+*/
+static inline qboolean QL_Steamworks_ReadServerListDetails( ql_steam_server_list_request_t request, int index, ql_steam_server_item_t *outServer ) {
+	(void)request;
+	(void)index;
+	if ( outServer ) {
+		memset( outServer, 0, sizeof( *outServer ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserResponseId
+=============
+*/
+static inline void QL_Steamworks_FormatServerBrowserResponseId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	(void)serverIp;
+	(void)serverPort;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserResponse
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t *server, ql_steam_server_browser_response_t *outResponse ) {
+	(void)server;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerBrowserResponse
+=============
+*/
+static inline qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t request, int index, ql_steam_server_browser_response_t *outResponse ) {
+	(void)request;
+	(void)index;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserFailureEventName
+=============
+*/
+static inline void QL_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize ) {
+	(void)serverIndex;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserFailure
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserFailure( int serverIndex, ql_steam_server_browser_failure_t *outFailure ) {
+	(void)serverIndex;
+	if ( outFailure ) {
+		memset( outFailure, 0, sizeof( *outFailure ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserRefreshComplete
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserRefreshComplete( ql_steam_server_browser_refresh_complete_t *outRefresh ) {
+	if ( outRefresh ) {
+		memset( outRefresh, 0, sizeof( *outRefresh ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserDetailId
+=============
+*/
+static inline void QL_Steamworks_FormatServerBrowserDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	(void)serverIp;
+	(void)serverPort;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserDetailIdentity
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserDetailIdentity( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_identity_t *outIdentity ) {
+	(void)serverIp;
+	(void)serverPort;
+	if ( outIdentity ) {
+		memset( outIdentity, 0, sizeof( *outIdentity ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserDetailEventName
+=============
+*/
+static inline qboolean QL_Steamworks_FormatServerBrowserDetailEventName( ql_steam_server_browser_detail_channel_t channel, ql_steam_server_browser_detail_phase_t phase, const char *detailId, char *buffer, size_t bufferSize ) {
+	(void)channel;
+	(void)phase;
+	(void)detailId;
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserDetailEvent
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserDetailEvent( const ql_steam_server_browser_detail_identity_t *identity, ql_steam_server_browser_detail_channel_t channel, ql_steam_server_browser_detail_phase_t phase, ql_steam_server_browser_detail_event_t *outEvent ) {
+	(void)identity;
+	(void)channel;
+	(void)phase;
+	if ( outEvent ) {
+		memset( outEvent, 0, sizeof( *outEvent ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserRuleResponse
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserRuleResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *rule, const char *value, ql_steam_server_browser_rule_response_t *outResponse ) {
+	(void)identity;
+	(void)rule;
+	(void)value;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserPlayerResponse
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserPlayerResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *name, int score, int time, ql_steam_server_browser_player_response_t *outResponse ) {
+	(void)identity;
+	(void)name;
+	(void)score;
+	(void)time;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_InitServerBrowserDetailLifecycle
+=============
+*/
+static inline qboolean QL_Steamworks_InitServerBrowserDetailLifecycle( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_lifecycle_t *outLifecycle ) {
+	(void)serverIp;
+	(void)serverPort;
+	if ( outLifecycle ) {
+		memset( outLifecycle, 0, sizeof( *outLifecycle ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_CompleteServerBrowserDetailCallback
+=============
+*/
+static inline qboolean QL_Steamworks_CompleteServerBrowserDetailCallback( ql_steam_server_browser_detail_lifecycle_t *lifecycle, qboolean *outReleaseReady ) {
+	if ( lifecycle ) {
+		memset( lifecycle, 0, sizeof( *lifecycle ) );
+	}
+	if ( outReleaseReady ) {
+		*outReleaseReady = qfalse;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserDetailResponseViews
+=============
+*/
+static inline qboolean QL_Steamworks_BuildServerBrowserDetailResponseViews( void *detailObjectBase, ql_steam_server_browser_detail_response_views_t *outViews ) {
+	(void)detailObjectBase;
+	if ( outViews ) {
+		memset( outViews, 0, sizeof( *outViews ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_InitServerBrowserDetailRequest
+=============
+*/
+static inline void QL_Steamworks_InitServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request ) {
+	if ( request ) {
+		memset( request, 0, sizeof( *request ) );
+	}
+}
+
+/*
+=============
+QL_Steamworks_BeginServerBrowserDetailRequest
+=============
+*/
+static inline qboolean QL_Steamworks_BeginServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request, uint32_t serverIp, uint16_t serverPort, void *detailObjectBase ) {
+	(void)serverIp;
+	(void)serverPort;
+	(void)detailObjectBase;
+	if ( request ) {
+		memset( request, 0, sizeof( *request ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_CompleteServerBrowserDetailRequestCallback
+=============
+*/
+static inline qboolean QL_Steamworks_CompleteServerBrowserDetailRequestCallback( ql_steam_server_browser_detail_request_t *request, qboolean *outReleaseReady ) {
+	if ( request ) {
+		memset( request, 0, sizeof( *request ) );
+	}
+	if ( outReleaseReady ) {
+		*outReleaseReady = qfalse;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ReleaseServerListRequest
+=============
+*/
+static inline void QL_Steamworks_ReleaseServerListRequest( ql_steam_server_list_request_t request ) {
+	(void)request;
+}
+
+/*
+=============
+QL_Steamworks_RefreshServerListRequest
+=============
+*/
+static inline void QL_Steamworks_RefreshServerListRequest( ql_steam_server_list_request_t request ) {
+	(void)request;
+}
+
+/*
+=============
+QL_Steamworks_RequestServerDetails
+=============
+*/
+static inline qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, void *pingResponse, void *playersResponse, void *rulesResponse, ql_steam_server_query_t *outPingQuery, ql_steam_server_query_t *outPlayersQuery, ql_steam_server_query_t *outRulesQuery ) {
+	(void)serverIp;
+	(void)serverPort;
+	(void)pingResponse;
+	(void)playersResponse;
+	(void)rulesResponse;
+	if ( outPingQuery ) {
+		*outPingQuery = 0;
+	}
+	if ( outPlayersQuery ) {
+		*outPlayersQuery = 0;
+	}
+	if ( outRulesQuery ) {
+		*outRulesQuery = 0;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_CancelServerQuery
+=============
+*/
+static inline void QL_Steamworks_CancelServerQuery( ql_steam_server_query_t query ) {
+	(void)query;
 }
 
 /*

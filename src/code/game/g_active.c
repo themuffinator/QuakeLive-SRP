@@ -722,11 +722,16 @@ Returns qfalse if the client is dropped
 =================
 */
 qboolean ClientInactivityTimer( gclient_t *client ) {
+	int	clientNum;
+	int	warningSeconds;
+
 	if ( level.trainingMapActive ) {
 		client->inactivityTime = level.time + 60 * 1000;
 		client->inactivityWarning = qfalse;
 		return qtrue;
 	}
+
+	clientNum = client - level.clients;
 
 	if ( ! g_inactivity.integer ) {
 		// give everyone some time, so if the operator sets g_inactivity during
@@ -741,12 +746,21 @@ qboolean ClientInactivityTimer( gclient_t *client ) {
 		client->inactivityWarning = qfalse;
 	} else if ( !client->pers.localClient ) {
 		if ( level.time > client->inactivityTime ) {
-			trap_DropClient( client - level.clients, "Dropped due to inactivity" );
+			if ( !g_dropInactive.integer ) {
+				SetTeam( &g_entities[clientNum], "spectator" );
+				return qfalse;
+			}
+			trap_DropClient( clientNum, "Dropped due to inactivity" );
 			return qfalse;
 		}
-		if ( level.time > client->inactivityTime - 10000 && !client->inactivityWarning ) {
+		warningSeconds = g_inactivityWarning.integer;
+		if ( warningSeconds > 0 &&
+				level.time > client->inactivityTime - warningSeconds * 1000 &&
+				!client->inactivityWarning ) {
 			client->inactivityWarning = qtrue;
-			trap_SendServerCommand( client - level.clients, "cp \"Ten seconds until inactivity drop!\n\"" );
+			trap_SendServerCommand( clientNum,
+				va( "cp \"%i second%s until dropped for inactivity!\n\"",
+					warningSeconds, ( warningSeconds == 1 ) ? "" : "s" ) );
 		}
 	}
 	return qtrue;
@@ -1799,6 +1813,28 @@ static qboolean G_CAFZCheckExitRules( qboolean announce );
 
 /*
 =============
+G_SetDropCmdsAttackLockout
+
+Mirrors the retail g_dropCmds attack-suppression bit used by round transitions.
+=============
+*/
+static void G_SetDropCmdsAttackLockout( qboolean lockout ) {
+	int		dropCmds;
+
+	trap_Cvar_Update( &g_dropCmds );
+	dropCmds = g_dropCmds.integer;
+	if ( lockout ) {
+		dropCmds |= PMF_ATTACK_LOCKOUT;
+	} else {
+		dropCmds &= ~PMF_ATTACK_LOCKOUT;
+	}
+
+	trap_Cvar_Set( "g_dropCmds", va( "%i", dropCmds ) );
+	trap_Cvar_Update( &g_dropCmds );
+}
+
+/*
+=============
 G_SetClientAttackLockout
 
 Mirrors the retail round-controller attack suppression bit into playerstate.
@@ -1829,6 +1865,8 @@ Applies the retail attack lockout to every connected non-spectator client.
 */
 void G_SetAllActiveClientAttackLockout( qboolean lockout ) {
 	int		clientNum;
+
+	G_SetDropCmdsAttackLockout( lockout );
 
 	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
 		gentity_t	*ent;

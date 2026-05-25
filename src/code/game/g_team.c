@@ -601,7 +601,7 @@ static const char *G_LastManStandingMessage( void ) {
 		return g_lastManStandingMessage.string;
 	}
 
-	return "You are the only one left";
+	return "You are the last standing";
 }
 
 /*
@@ -1464,7 +1464,8 @@ Monitors the team counts and schedules automatic shuffles when imbalance persist
 void Team_UpdateAutoShuffleState( void ) {
 	teamBalanceInfo_t info;
 	qboolean shouldShuffle;
-	int delay;
+	int delayMilliseconds;
+	int announceSeconds;
 
 	if ( !Team_HasTeamGameActive() ) {
 		if ( s_teamAutoShuffleArmed || G_AutoShuffleCountdown_IsActive() ) {
@@ -1500,21 +1501,22 @@ void Team_UpdateAutoShuffleState( void ) {
 		return;
 	}
 
-	delay = g_shuffleTimedelay.integer;
-	if ( delay < 0 ) {
-		delay = 0;
+	delayMilliseconds = g_shuffleTimedelay.integer;
+	if ( delayMilliseconds < 0 ) {
+		delayMilliseconds = 0;
 	}
 
-	if ( delay <= 0 ) {
+	if ( delayMilliseconds <= 0 ) {
 		Team_PerformAutomaticShuffle();
 		return;
 	}
 
-	G_AutoShuffleCountdown_Arm( delay * 1000 );
+	G_AutoShuffleCountdown_Arm( delayMilliseconds );
 	s_teamAutoShuffleArmed = qtrue;
 	Team_ClampWarmupToShuffleCountdown();
-	G_LogPrintf( "match: auto-shuffle armed (%i seconds)\n", delay );
-	trap_SendServerCommand( -1, va( "print \"Auto-shuffle will execute in %i seconds.\\n\"", delay ) );
+	announceSeconds = ( delayMilliseconds + 999 ) / 1000;
+	G_LogPrintf( "match: auto-shuffle armed (%i seconds)\n", announceSeconds );
+	trap_SendServerCommand( -1, va( "print \"Auto-shuffle will execute in %i seconds.\\n\"", announceSeconds ) );
 	G_UpdateMatchStateConfigString();
 }
 
@@ -3028,21 +3030,23 @@ Computes the outgoing velocity for a dropped flag based on the configured tuning
 =============
 */
 static void G_BuildFlagDropVelocity( gentity_t *carrier, vec3_t velocity ) {
-	float forwardSpeed;
-	float verticalSpeed;
-	vec3_t forward;
+	float	forwardSpeed;
+	vec3_t	forward;
 
 	VectorClear( velocity );
 	if ( !carrier || !carrier->client ) {
 		return;
 	}
 
-	forwardSpeed = ( g_flagConfig.throwFlagForwardMult > 0 ) ? g_flagConfig.throwFlagForwardMult : 150.0f;
-	verticalSpeed = ( g_flagConfig.throwFlagVelocity > 0 ) ? g_flagConfig.throwFlagVelocity : 200.0f;
-
 	AngleVectors( carrier->client->ps.viewangles, forward, NULL, NULL );
-	VectorScale( forward, forwardSpeed, velocity );
-	velocity[2] += verticalSpeed + crandom() * 50.0f;
+	if ( g_flagConfig.flagPhysics > 0 ) {
+		VectorScale( forward, g_flagConfig.throwFlagVelocity, velocity );
+		VectorMA( velocity, g_flagConfig.throwFlagForwardMult, carrier->client->ps.velocity, velocity );
+	} else {
+		forwardSpeed = 150.0f;
+		VectorScale( forward, forwardSpeed, velocity );
+	}
+	velocity[2] += 200.0f + crandom() * 50.0f;
 }
 
 /*

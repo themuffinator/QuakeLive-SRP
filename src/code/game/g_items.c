@@ -43,6 +43,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	RESPAWN_AMMO		40
 #define	RESPAWN_HOLDABLE	60
 #define	RESPAWN_MEGAHEALTH	35//120
+#define	SPAWN_DELAY_RANDOM_DEFAULT_SECONDS 15
+#define	MAX_FLIGHT_FUEL_RETAIL 32001
 static const keyItemDef_t g_keyItemDefs[] = {
 	{ KEY_FLAG_SILVER, "item_key_silver" },
 	{ KEY_FLAG_GOLD, "item_key_gold" },
@@ -55,6 +57,8 @@ static const powerup_t g_spawnItemPowerupTags[] = {
 	PW_INVULNERABILITY
 };
 static gentity_t *g_spawnItemPowerupSpots[4];
+static int g_spawnDelayKeySeconds;
+static int g_spawnDelayPowerupSeconds;
 
 /*
 ===============
@@ -69,6 +73,42 @@ const keyItemDef_t *G_KeyItemDefs( int *count ) {
 	}
 
 	return g_keyItemDefs;
+}
+
+/*
+===============
+G_ComputeRetailSpawnDelay
+
+Resolves Quake Live's per-level randomized key/powerup spawn delay.
+===============
+*/
+static int G_ComputeRetailSpawnDelay( int baseDelaySeconds, int randomDelaySeconds ) {
+	float	delay;
+
+	delay = 0.0f;
+	if ( baseDelaySeconds > 0 ) {
+		delay = (float)baseDelaySeconds;
+	}
+	if ( randomDelaySeconds > 0 ) {
+		delay += random() * (float)randomDelaySeconds;
+	}
+
+	return (int)( delay + 0.5f );
+}
+
+/*
+===============
+G_InitItemSpawnDelays
+
+Latches the retail randomized key and map-powerup initial spawn delays once
+per level so all matching entities share the same schedule.
+===============
+*/
+void G_InitItemSpawnDelays( void ) {
+	g_spawnDelayKeySeconds = G_ComputeRetailSpawnDelay( g_spawnDelay_key.integer,
+		SPAWN_DELAY_RANDOM_DEFAULT_SECONDS );
+	g_spawnDelayPowerupSeconds = G_ComputeRetailSpawnDelay( g_spawnDelay_powerup.integer,
+		SPAWN_DELAY_RANDOM_DEFAULT_SECONDS );
 }
 
 /*
@@ -1051,6 +1091,45 @@ static void G_ApplyItemBounceSettings( gentity_t *dropped, gitem_t *item ) {
 	}
 }
 
+/*
+=============
+G_ClampFlightFuel
+
+Clamps Flight fuel to the retail player-item stat ceiling.
+=============
+*/
+static int G_ClampFlightFuel( int fuel ) {
+	if ( fuel < 0 ) {
+		return 0;
+	}
+	if ( fuel > MAX_FLIGHT_FUEL_RETAIL ) {
+		return MAX_FLIGHT_FUEL_RETAIL;
+	}
+
+	return fuel;
+}
+
+/*
+=============
+G_ApplyFlightPowerupFuel
+
+Seeds the progress-backed Flight stats used by shared pmove and cgame HUD code.
+=============
+*/
+static void G_ApplyFlightPowerupFuel( gclient_t *client ) {
+	int	fuel;
+
+	if ( !client ) {
+		return;
+	}
+
+	fuel = G_ClampFlightFuel( g_maxFlightFuel.integer );
+	client->ps.stats[STAT_PLAYER_ITEM_THRUST] = g_flightThrust.integer;
+	client->ps.stats[STAT_PLAYER_ITEM_TIME_MAX] = fuel;
+	client->ps.stats[STAT_PLAYER_ITEM_TIME] = fuel;
+	client->ps.stats[STAT_PLAYER_ITEM_RECHARGE] = g_flightRefuelRate.integer;
+}
+
 
 //======================================================================
 
@@ -1073,6 +1152,9 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 	}
 
 	other->client->ps.powerups[ent->item->giTag] += quantity * 1000;
+	if ( ent->item->giTag == PW_FLIGHT ) {
+		G_ApplyFlightPowerupFuel( other->client );
+	}
 
 	{
 		teamScoreStatIndex_t holdStatIndex;
@@ -2588,18 +2670,29 @@ void FinishSpawningItem( gentity_t *ent ) {
 
 	// powerups don't spawn in for a while
 	if ( ent->item->giType == IT_POWERUP ) {
-		float	respawn;
+		int	respawn;
 
-		respawn = 45 + crandom() * 15;
+		respawn = g_spawnDelayPowerupSeconds;
+		if ( respawn <= 0 ) {
+			trap_LinkEntity (ent);
+			return;
+		}
 		ent->s.eFlags |= EF_NODRAW;
 		ent->r.contents = 0;
 		ent->nextthink = level.time + respawn * 1000;
 		ent->think = RespawnItem;
 		G_SetPowerupPOITime( ent, ent->nextthink );
-		G_SetItemRespawnTimerState( ent, ent->nextthink, (int)( respawn * 1000.0f ) );
+		G_SetItemRespawnTimerState( ent, ent->nextthink, respawn * 1000 );
 		return;
 	}
 
+	if ( ent->item->giType == IT_KEY && g_spawnDelayKeySeconds > 0 ) {
+		ent->s.eFlags |= EF_NODRAW;
+		ent->r.contents = 0;
+		ent->nextthink = level.time + g_spawnDelayKeySeconds * 1000;
+		ent->think = RespawnItem;
+		return;
+	}
 
 	trap_LinkEntity (ent);
 }

@@ -58,7 +58,6 @@ cvar_t	*r_fastsky;
 cvar_t	*r_fastSkyColor;
 cvar_t	*r_drawSun;
 cvar_t	*r_dynamiclight;
-cvar_t	*r_dlightBacks;
 
 cvar_t	*r_lodbias;
 cvar_t	*r_lodscale;
@@ -152,7 +151,6 @@ cvar_t	*r_fullscreen;
 
 cvar_t	*r_customwidth;
 cvar_t	*r_customheight;
-cvar_t	*r_customaspect;
 
 cvar_t	*r_overBrightBits;
 cvar_t	*r_mapOverBrightBits;
@@ -169,7 +167,9 @@ cvar_t	*r_directedScale;
 cvar_t	*r_debugLight;
 cvar_t	*r_debugFontAtlas;
 cvar_t	*r_debugAds;
+cvar_t	*r_debugShaderIndex;
 cvar_t	*r_debugSort;
+cvar_t	*r_debugSortExcept;
 cvar_t	*r_printShaders;
 cvar_t	*r_saveFontData;
 cvar_t	*r_forceMergeEntities;
@@ -752,7 +752,6 @@ const void *RB_TakeScreenshotCmd( const void *data ) {
 	const screenshotCommand_t	*cmd;
 	
 	cmd = (const screenshotCommand_t *)data;
-	
 	if (cmd->jpeg)
 		RB_TakeScreenshotJPEG( cmd->x, cmd->y, cmd->width, cmd->height, cmd->fileName);
 	else
@@ -783,6 +782,56 @@ void R_TakeScreenshot( int x, int y, int width, int height, char *name, qboolean
 	Q_strncpyz( fileName, name, sizeof(fileName) );
 	cmd->fileName = fileName;
 	cmd->jpeg = jpeg;
+}
+
+/*
+==================
+R_DeferWebScreenshotCommand
+==================
+*/
+static qboolean R_DeferWebScreenshotCommand( const char *commandName, const char *checkname ) {
+	cvar_t *uiBrowserAwesomium;
+	cvar_t *uiBrowserAwesomiumPending;
+	cvar_t *webBrowserActive;
+	char command[MAX_STRING_CHARS];
+	int deferredFrames;
+
+	uiBrowserAwesomium = ri.Cvar_Get( "ui_browserAwesomium", "0", 0 );
+	uiBrowserAwesomiumPending = ri.Cvar_Get( "ui_browserAwesomiumPending", "1", 0 );
+	webBrowserActive = ri.Cvar_Get( "web_browserActive", "0", 0 );
+	if ( ( !webBrowserActive || !webBrowserActive->integer )
+		&& ( !uiBrowserAwesomium || !uiBrowserAwesomium->integer )
+		&& ( !uiBrowserAwesomiumPending || !uiBrowserAwesomiumPending->integer ) ) {
+		return qfalse;
+	}
+
+	deferredFrames = 300;
+	Com_sprintf( command, sizeof( command ), "wait %d\n%s \"%s\"\nwait %d\n%s \"%s\"\n", deferredFrames, commandName, checkname, deferredFrames, commandName, checkname );
+	ri.Cmd_ExecuteText( EXEC_INSERT, command );
+	return qtrue;
+}
+
+/*
+==================
+R_DeferScreenshotUntilFrame
+==================
+*/
+static qboolean R_DeferScreenshotUntilFrame( const char *commandName ) {
+	char command[MAX_STRING_CHARS];
+	int targetFrame;
+
+	if ( ri.Cmd_Argc() != 3 ) {
+		return qfalse;
+	}
+
+	targetFrame = atoi( ri.Cmd_Argv( 1 ) );
+	if ( tr.frameCount >= targetFrame ) {
+		return qfalse;
+	}
+
+	Com_sprintf( command, sizeof( command ), "wait\n%s %d \"%s\"\n", commandName, targetFrame, ri.Cmd_Argv( 2 ) );
+	ri.Cmd_ExecuteText( EXEC_INSERT, command );
+	return qtrue;
 }
 
 /* 
@@ -958,12 +1007,43 @@ void R_ScreenShot_f (void) {
 		lastNumber++;
 	}
 
-	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname, qfalse );
+	if ( !R_DeferWebScreenshotCommand( "screenshotNow", checkname ) ) {
+		R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname, qfalse );
+	}
 
 	if ( !silent ) {
 		ri.Printf (PRINT_ALL, "Wrote %s\n", checkname);
 	}
-} 
+}
+
+/*
+==================
+R_ScreenShotNow_f
+==================
+*/
+void R_ScreenShotNow_f( void ) {
+	if ( ri.Cmd_Argc() != 2 ) {
+		return;
+	}
+
+	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, ri.Cmd_Argv( 1 ), qfalse );
+}
+
+/*
+==================
+R_ScreenShotAfterFrame_f
+==================
+*/
+void R_ScreenShotAfterFrame_f( void ) {
+	if ( R_DeferScreenshotUntilFrame( "screenshotAfterFrame" ) ) {
+		return;
+	}
+	if ( ri.Cmd_Argc() != 3 ) {
+		return;
+	}
+
+	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, ri.Cmd_Argv( 2 ), qfalse );
+}
 
 void R_ScreenShotJPEG_f (void) {
 	char		checkname[MAX_OSPATH];
@@ -1011,7 +1091,9 @@ void R_ScreenShotJPEG_f (void) {
 		lastNumber++;
 	}
 
-	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname, qtrue );
+	if ( !R_DeferWebScreenshotCommand( "screenshotJPEGNow", checkname ) ) {
+		R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname, qtrue );
+	}
 
 	if ( !silent ) {
 		ri.Printf (PRINT_ALL, "Wrote %s\n", checkname);
@@ -1182,6 +1264,35 @@ static void R_ClampPostProcessCvars( void ) {
 	if ( r_enableColorCorrect ) {
 		AssertCvarRange( r_enableColorCorrect, 0, 1, qtrue );
 	}
+}
+
+/*
+==================
+R_ScreenShotJPEGNow_f
+==================
+*/
+void R_ScreenShotJPEGNow_f( void ) {
+	if ( ri.Cmd_Argc() != 2 ) {
+		return;
+	}
+
+	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, ri.Cmd_Argv( 1 ), qtrue );
+}
+
+/*
+==================
+R_ScreenShotJPEGAfterFrame_f
+==================
+*/
+void R_ScreenShotJPEGAfterFrame_f( void ) {
+	if ( R_DeferScreenshotUntilFrame( "screenshotJPEGAfterFrame" ) ) {
+		return;
+	}
+	if ( ri.Cmd_Argc() != 3 ) {
+		return;
+	}
+
+	R_TakeScreenshot( 0, 0, glConfig.vidWidth, glConfig.vidHeight, ri.Cmd_Argv( 2 ), qtrue );
 }
 
 /*
@@ -1362,7 +1473,6 @@ void R_Register( void )
 	r_windowedHeight = ri.Cvar_Get( "r_windowedHeight", "1024", CVAR_ARCHIVE | CVAR_LATCH );
 	r_customwidth = ri.Cvar_Get( "r_customWidth", "1600", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );
 	r_customheight = ri.Cvar_Get( "r_customHeight", "1024", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );
-	r_customaspect = ri.Cvar_Get( "r_customaspect", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_aspectRatio = ri.Cvar_Get( "r_aspectRatio", "0", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );
 	R_ValidateModeCvars();
 	r_simpleMipMaps = ri.Cvar_Get( "r_simpleMipMaps", "1", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );
@@ -1399,7 +1509,6 @@ void R_Register( void )
 	r_drawSun = ri.Cvar_Get( "r_drawSun", "0", CVAR_ARCHIVE );
 	r_dynamiclight = ri.Cvar_Get( "r_dynamicLight", "1", CVAR_ARCHIVE | CVAR_CLOUD );
 	r_teleporterFlash = ri.Cvar_Get( "r_teleporterFlash", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
-	r_dlightBacks = ri.Cvar_Get( "r_dlightBacks", "1", CVAR_ARCHIVE );
 	r_finish = ri.Cvar_Get ("r_finish", "0", CVAR_ARCHIVE);
 	r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR", CVAR_ARCHIVE | CVAR_CLOUD );
 	r_swapInterval = ri.Cvar_Get( "r_swapInterval", "0", CVAR_ARCHIVE | CVAR_CLOUD );
@@ -1424,7 +1533,9 @@ void R_Register( void )
 	r_debugLight = ri.Cvar_Get( "r_debuglight", "0", CVAR_TEMP );
 	r_debugFontAtlas = ri.Cvar_Get( "r_debugFontAtlas", "0", CVAR_TEMP );
 	r_debugAds = ri.Cvar_Get( "r_debugAds", "0", CVAR_TEMP );
+	r_debugShaderIndex = ri.Cvar_Get( "r_debugShaderIndex", "0", CVAR_CHEAT );
 	r_debugSort = ri.Cvar_Get( "r_debugSort", "0", CVAR_CHEAT );
+	r_debugSortExcept = ri.Cvar_Get( "r_debugSortExcept", "0", CVAR_CHEAT );
 	r_printShaders = ri.Cvar_Get( "r_printShaders", "0", 0 );
 	r_saveFontData = ri.Cvar_Get( "r_saveFontData", "0", 0 );
 	r_forceMergeEntities = ri.Cvar_Get( "r_forceMergeEntities", "0", CVAR_CHEAT );
@@ -1480,7 +1591,11 @@ void R_Register( void )
 	ri.Cmd_AddCommand( "advertlist", R_AdvertisementList_f );
 	ri.Cmd_AddCommand( "modelist", R_ModeList_f );
 	ri.Cmd_AddCommand( "screenshot", R_ScreenShot_f );
+	ri.Cmd_AddCommand( "screenshotAfterFrame", R_ScreenShotAfterFrame_f );
+	ri.Cmd_AddCommand( "screenshotNow", R_ScreenShotNow_f );
 	ri.Cmd_AddCommand( "screenshotJPEG", R_ScreenShotJPEG_f );
+	ri.Cmd_AddCommand( "screenshotJPEGAfterFrame", R_ScreenShotJPEGAfterFrame_f );
+	ri.Cmd_AddCommand( "screenshotJPEGNow", R_ScreenShotJPEGNow_f );
 	ri.Cmd_AddCommand( "gfxinfo", GfxInfo_f );
 }
 
@@ -1610,7 +1725,11 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	ri.Cmd_RemoveCommand ("modellist");
 	ri.Cmd_RemoveCommand( "advertlist" );
 	ri.Cmd_RemoveCommand ("screenshotJPEG");
+	ri.Cmd_RemoveCommand ("screenshotJPEGAfterFrame");
+	ri.Cmd_RemoveCommand ("screenshotJPEGNow");
 	ri.Cmd_RemoveCommand ("screenshot");
+	ri.Cmd_RemoveCommand ("screenshotAfterFrame");
+	ri.Cmd_RemoveCommand ("screenshotNow");
 	ri.Cmd_RemoveCommand ("imagelist");
 	ri.Cmd_RemoveCommand ("shaderlist");
 	ri.Cmd_RemoveCommand ("skinlist");

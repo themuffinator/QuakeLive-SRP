@@ -189,6 +189,178 @@ def test_spawn_and_sudden_death_cvars_keep_retail_behavioral_wiring() -> None:
 	assert 'trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );' in match_state_c
 
 
+def test_factory_item_respawn_cvar_table_matches_retail_defaults_and_flags() -> None:
+	g_main = _read("src/code/game/g_main.c")
+	config_c = _read("src/game/g_config.c")
+	q_shared = _read("src/code/game/q_shared.h")
+	qagame_hlil = _read(
+		"references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+	)
+	qagame_strings = _read(
+		"references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+	)
+
+	assert "#define\tCVAR_LATCH" in q_shared
+	assert "#define CVAR_GAMERULE\t0x100000" in q_shared
+	assert "#define CONFIG_CVAR_FLAG_RETAIL_40000 0x00040000" in config_c
+	for expected in (
+		"#define DEFAULT_AMMO_PACK_TOGGLE           0",
+		"#define DEFAULT_AMMO_PACK_HACK             0",
+		"#define DEFAULT_AMMO_RESPAWN_SECONDS       40",
+		"#define DEFAULT_POWERUP_RESPAWN_SECONDS    120",
+		"#define DEFAULT_SPAWN_ITEM_POWERUP                  1",
+		"#define DEFAULT_SPAWN_ITEM_HOLDABLE                 1",
+		"#define DEFAULT_SPAWN_ITEM_WEAPONS                  1",
+		"#define DEFAULT_SPAWN_ITEM_HEALTH                   1",
+		"#define DEFAULT_SPAWN_ITEM_ARMOR                    1",
+		"#define DEFAULT_SPAWN_ITEM_AMMO                     1",
+	):
+		assert expected in config_c
+	for expected in (
+		'{ &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_LATCH | CVAR_GAMERULE,',
+		'{ &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_LATCH | CVAR_GAMERULE,',
+		'{ &g_ammoRespawn,          "g_ammoRespawn",          STRINGIZE( DEFAULT_AMMO_RESPAWN_SECONDS ), CVAR_GAMERULE,',
+		'{ &g_spawnItemPowerup,     "g_spawnItemPowerup",     STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+		'{ &g_spawnItemHoldable,    "g_spawnItemHoldable",    STRINGIZE( DEFAULT_SPAWN_ITEM_HOLDABLE ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+		'{ &g_spawnItemWeapons,     "g_spawnItemWeapons",     STRINGIZE( DEFAULT_SPAWN_ITEM_WEAPONS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+		'{ &g_spawnItemHealth,      "g_spawnItemHealth",      STRINGIZE( DEFAULT_SPAWN_ITEM_HEALTH ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+		'{ &g_spawnItemArmor,       "g_spawnItemArmor",       STRINGIZE( DEFAULT_SPAWN_ITEM_ARMOR ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+		'{ &g_spawnItemAmmo,        "g_spawnItemAmmo",        STRINGIZE( DEFAULT_SPAWN_ITEM_AMMO ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+	):
+		assert expected in config_c
+	assert '{ &g_powerupRespawn, "g_powerupRespawn", "120", CVAR_GAMERULE, 0, qfalse' in g_main
+
+	ammo_pack_block = qagame_hlil[
+		qagame_hlil.index('1008dbf4  char const (* data_1008dbf4)[0xb] = data_10087434 {"g_ammoPack"}') :
+		qagame_hlil.index("1008dc04  void* data_1008dc04", qagame_hlil.index("1008dbf4"))
+	]
+	ammo_pack_hack_block = qagame_hlil[
+		qagame_hlil.index('1008dc0c  char const (* data_1008dc0c)[0xf] = data_10087424 {"g_ammoPackHack"}') :
+		qagame_hlil.index("1008dc1c  void* data_1008dc1c", qagame_hlil.index("1008dc0c"))
+	]
+	ammo_respawn_block = qagame_hlil[
+		qagame_hlil.index('1008dc24  char const (* data_1008dc24)[0xe] = data_10087414 {"g_ammoRespawn"}') :
+		qagame_hlil.index("1008dc34  void* data_1008dc34", qagame_hlil.index("1008dc24"))
+	]
+	powerup_respawn_block = qagame_hlil[
+		qagame_hlil.index('1008eb84  char const (* data_1008eb84)[0x11] = data_100867d0 {"g_powerupRespawn"}') :
+		qagame_hlil.index("1008eb98  void* data_1008eb98", qagame_hlil.index("1008eb84"))
+	]
+	spawn_item_block = qagame_hlil[
+		qagame_hlil.index('1008f0ac  char const (* data_1008f0ac)[0x10] = data_10086300 {"g_spawnItemAmmo"}') :
+		qagame_hlil.index("1008f134  void* data_1008f134", qagame_hlil.index("1008f0ac"))
+	]
+
+	assert "data_1007d0a8" in ammo_pack_block
+	assert "20 00 10 00" in ammo_pack_block
+	assert "data_1007d0a8" in ammo_pack_hack_block
+	assert "20 00 10 00" in ammo_pack_hack_block
+	assert "0x10087410" in ammo_respawn_block
+	assert "00 00 10 00" in ammo_respawn_block
+	assert "0x100869c8" in powerup_respawn_block
+	assert "00 00 10 00" in powerup_respawn_block
+	for expected in (
+		'{"g_spawnItemAmmo"}',
+		'{"g_spawnItemArmor"}',
+		'{"g_spawnItemHealth"}',
+		'{"g_spawnItemHoldable"}',
+		'{"g_spawnItemPowerup"}',
+		'{"g_spawnItemWeapons"}',
+	):
+		assert expected in spawn_item_block
+	assert spawn_item_block.count("data_1007d1d8") == 6
+	assert spawn_item_block.count("00 00 14 00") == 6
+
+	for expected in (
+		"1007d0a8  data_1007d0a8:",
+		"1007d0a8                          30 00 00 00",
+		"1007d1d8  data_1007d1d8:",
+		"1007d1d8                                                                          31 00 00 00",
+		"100869c8",
+		"31 32 30 00",
+		"1008740d",
+		"34 30 00",
+		'1008629c  char const data_1008629c[0x13] = "g_spawnItemWeapons", 0',
+		'100862b0  char const data_100862b0[0x13] = "g_spawnItemPowerup", 0',
+		'100862c4  char const data_100862c4[0x14] = "g_spawnItemHoldable", 0',
+		'100862d8  char const data_100862d8[0x12] = "g_spawnItemHealth", 0',
+		'100862ec  char const data_100862ec[0x11] = "g_spawnItemArmor", 0',
+		'10086300  char const data_10086300[0x10] = "g_spawnItemAmmo", 0',
+		'100867d0  char const data_100867d0[0x11] = "g_powerupRespawn", 0',
+		'10087414  char const data_10087414[0xe] = "g_ammoRespawn", 0',
+		'10087424  char const data_10087424[0xf] = "g_ammoPackHack", 0',
+		'10087434  char const data_10087434[0xb] = "g_ammoPack", 0',
+	):
+		assert expected in qagame_strings
+
+
+def test_factory_item_respawn_cvars_keep_retail_behavioral_wiring() -> None:
+	config_c = _read("src/game/g_config.c")
+	items_c = _read("src/code/game/g_items.c")
+	vote_c = _read("src/code/game/g_vote.c")
+
+	load_block = _function_body(config_c, "static factoryCvarConfig_t G_LoadFactoryCvarConfig( void )")
+	for expected in (
+		'config.ammoPackEnabled = G_ReadFactoryBoolCvar( &g_ammoPack, DEFAULT_AMMO_PACK_TOGGLE, "g_ammoPack" );',
+		'config.ammoPackHackEnabled = G_ReadFactoryBoolCvar( &g_ammoPackHack, DEFAULT_AMMO_PACK_HACK, "g_ammoPackHack" );',
+		'config.ammoRespawnSeconds = G_ReadFactoryIntCvar( &g_ammoRespawn, DEFAULT_AMMO_RESPAWN_SECONDS, "g_ammoRespawn" );',
+		"config.ammoRespawnSeconds = DEFAULT_AMMO_RESPAWN_SECONDS;",
+		'config.powerupRespawnSeconds = G_ReadFactoryNonNegativeCvar( &g_powerupRespawn, DEFAULT_POWERUP_RESPAWN_SECONDS, "g_powerupRespawn" );',
+		'config.spawnItemPowerup = G_ReadFactoryBoolCvar( &g_spawnItemPowerup, DEFAULT_SPAWN_ITEM_POWERUP ? qtrue : qfalse, "g_spawnItemPowerup" );',
+		'config.spawnItemHoldable = G_ReadFactoryBoolCvar( &g_spawnItemHoldable, DEFAULT_SPAWN_ITEM_HOLDABLE ? qtrue : qfalse, "g_spawnItemHoldable" );',
+		'config.spawnItemWeapons = G_ReadFactoryBoolCvar( &g_spawnItemWeapons, DEFAULT_SPAWN_ITEM_WEAPONS ? qtrue : qfalse, "g_spawnItemWeapons" );',
+		'config.spawnItemHealth = G_ReadFactoryBoolCvar( &g_spawnItemHealth, DEFAULT_SPAWN_ITEM_HEALTH ? qtrue : qfalse, "g_spawnItemHealth" );',
+		'config.spawnItemArmor = G_ReadFactoryBoolCvar( &g_spawnItemArmor, DEFAULT_SPAWN_ITEM_ARMOR ? qtrue : qfalse, "g_spawnItemArmor" );',
+		'config.spawnItemAmmo = G_ReadFactoryBoolCvar( &g_spawnItemAmmo, DEFAULT_SPAWN_ITEM_AMMO ? qtrue : qfalse, "g_spawnItemAmmo" );',
+	):
+		assert expected in load_block
+
+	item_gate = _function_body(items_c, "static qboolean G_ItemFactorySpawnAllowed( const gitem_t *item )")
+	for expected in (
+		"case IT_WEAPON:",
+		"return g_factoryCvarConfig.spawnItemWeapons ? qtrue : qfalse;",
+		"case IT_POWERUP:",
+		"return g_factoryCvarConfig.spawnItemPowerup ? qtrue : qfalse;",
+		"case IT_HOLDABLE:",
+		"return g_factoryCvarConfig.spawnItemHoldable ? qtrue : qfalse;",
+		"case IT_HEALTH:",
+		"return g_factoryCvarConfig.spawnItemHealth ? qtrue : qfalse;",
+		"case IT_ARMOR:",
+		"return g_factoryCvarConfig.spawnItemArmor ? qtrue : qfalse;",
+		"case IT_AMMO:",
+		"if ( !g_factoryCvarConfig.spawnItemAmmo ) {",
+		"if ( item->giTag == WP_NUM_WEAPONS ) {",
+		"return ( g_factoryCvarConfig.ammoPackEnabled || g_factoryCvarConfig.ammoPackHackEnabled ) ? qtrue : qfalse;",
+		"return ( g_factoryCvarConfig.ammoPackEnabled || g_factoryCvarConfig.ammoPackHackEnabled ) ? qfalse : qtrue;",
+	):
+		assert expected in item_gate
+
+	for signature, expected in (
+		(
+			"static qboolean G_FactoryAmmoPacksEnabled( void )",
+			"return ( g_factoryCvarConfig.ammoPackEnabled || g_factoryCvarConfig.ammoPackHackEnabled ) ? qtrue : qfalse;",
+		),
+		(
+			"static int G_GetConfiguredAmmoRespawnSeconds( void )",
+			"respawn = RESPAWN_AMMO;",
+		),
+		(
+			"static int G_ApplyPowerupRespawnOverride( const gentity_t *ent, int respawnSeconds )",
+			"return factorySeconds;",
+		),
+	):
+		assert expected in _function_body(items_c, signature)
+
+	pickup_ammo_start = items_c.index("int Pickup_Ammo (gentity_t *ent, gentity_t *other)")
+	pickup_ammo_end = items_c.index("//======================================================================", pickup_ammo_start)
+	assert "respawn = G_GetConfiguredAmmoRespawnSeconds();" in items_c[pickup_ammo_start:pickup_ammo_end]
+	assert "respawn = G_ApplyPowerupRespawnOverride( ent, respawn );" in items_c
+	assert "if ( !G_ItemFactorySpawnAllowed( ent->item ) ) {" in items_c
+	assert "if ( !G_ItemFactorySpawnAllowed( item ) ) {" in items_c
+	assert 'trap_Cvar_Set( "g_ammoPack", "1" );' in vote_c
+	assert 'trap_Cvar_Set( "g_ammoPack", "0" );' in vote_c
+
+
 def test_factory_regen_uses_retail_delay_and_tick_helpers() -> None:
 	active_c = _read("src/code/game/g_active.c")
 
@@ -314,12 +486,12 @@ def test_factory_item_spawn_defaults_match_retail_registration() -> None:
 def test_factory_item_spawn_cvars_are_vm_owned_startup_settings() -> None:
 	config_c = _read("src/game/g_config.c")
 
-	assert '{ &g_spawnItemPowerup,     "g_spawnItemPowerup",     STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ), CVAR_SERVERINFO | CVAR_INIT,' in config_c
-	assert '{ &g_spawnItemHoldable,    "g_spawnItemHoldable",    STRINGIZE( DEFAULT_SPAWN_ITEM_HOLDABLE ), CVAR_SERVERINFO | CVAR_INIT,' in config_c
-	assert '{ &g_spawnItemWeapons,     "g_spawnItemWeapons",     STRINGIZE( DEFAULT_SPAWN_ITEM_WEAPONS ), CVAR_SERVERINFO | CVAR_INIT,' in config_c
-	assert '{ &g_spawnItemHealth,      "g_spawnItemHealth",      STRINGIZE( DEFAULT_SPAWN_ITEM_HEALTH ), CVAR_SERVERINFO | CVAR_INIT,' in config_c
-	assert '{ &g_spawnItemArmor,       "g_spawnItemArmor",       STRINGIZE( DEFAULT_SPAWN_ITEM_ARMOR ), CVAR_SERVERINFO | CVAR_INIT,' in config_c
-	assert '{ &g_spawnItemAmmo,        "g_spawnItemAmmo",        STRINGIZE( DEFAULT_SPAWN_ITEM_AMMO ), CVAR_SERVERINFO | CVAR_INIT,' in config_c
+	assert '{ &g_spawnItemPowerup,     "g_spawnItemPowerup",     STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,' in config_c
+	assert '{ &g_spawnItemHoldable,    "g_spawnItemHoldable",    STRINGIZE( DEFAULT_SPAWN_ITEM_HOLDABLE ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,' in config_c
+	assert '{ &g_spawnItemWeapons,     "g_spawnItemWeapons",     STRINGIZE( DEFAULT_SPAWN_ITEM_WEAPONS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,' in config_c
+	assert '{ &g_spawnItemHealth,      "g_spawnItemHealth",      STRINGIZE( DEFAULT_SPAWN_ITEM_HEALTH ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,' in config_c
+	assert '{ &g_spawnItemArmor,       "g_spawnItemArmor",       STRINGIZE( DEFAULT_SPAWN_ITEM_ARMOR ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,' in config_c
+	assert '{ &g_spawnItemAmmo,        "g_spawnItemAmmo",        STRINGIZE( DEFAULT_SPAWN_ITEM_AMMO ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,' in config_c
 
 
 def test_factory_apply_resets_factory_managed_cvars_before_overrides() -> None:
@@ -345,7 +517,7 @@ def test_factory_apply_resets_factory_managed_cvars_before_overrides() -> None:
 	assert 'trap_Cvar_Set( "g_instaGib", "0" );' in pmove_c
 	assert 'trap_Cvar_Set( "g_velocity_gh", "1800" );' in pmove_c
 	assert 'trap_Cvar_Set( "g_ironsights_mg", "1.0" );' in pmove_c
-	assert 'trap_Cvar_Set( "g_quadHogPingRate", "0" );' in pmove_c
+	assert 'trap_Cvar_Set( "g_quadHogPingRate", "1500" );' in pmove_c
 	assert "g_pmove_force_update = qtrue;" in pmove_c
 	assert factory_c.count("G_Config_ResetFactoryManagedCvars();") == 2
 	assert factory_c.count("G_PmoveResetFactoryManagedCvars();") == 2
@@ -416,19 +588,19 @@ def test_factory_pmove_reset_tracks_every_nonlocal_pmove_input_surface() -> None
 	assert "if ( g_instaGib.integer != 0 ) {" in pmove_c
 	assert "g_pmoveSettings.velocityGh = G_PmoveClampRetailMinPositive( g_pmove_velocityGh_cvar.value );" in pmove_c
 	assert "grappleSpeed = ( float )g_weaponConfig.grappleSpeed;" not in pmove_c
-	assert '{ &g_velocity_gh, "g_velocity_gh", "1800", 0, 0, qtrue, qfalse,' in g_main
+	assert '{ &g_velocity_gh, "g_velocity_gh", "1800", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,' in g_main
 	assert 'g_weaponConfig.grappleSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_gh, 1800, "g_velocity_gh", 1 );' in g_main
 	assert "g_weaponConfig.grappleSpeed != 1800" in config_c
 	assert "machinegunIronsightsScale = g_weaponConfig.machinegunIronsightsScale;" in pmove_c
 	assert "g_pmoveSettings.guidedRocketEnabled = ( g_weaponConfig.guidedRocketEnabled != 0 );" in pmove_c
-	assert "g_pmoveSettings.quadHogPingRateSeconds = g_weaponConfig.quadHogPingRateSeconds;" in pmove_c
+	assert "g_pmoveSettings.quadHogPingRateMilliseconds = g_weaponConfig.quadHogPingRateMilliseconds;" in pmove_c
 	assert 'trap_Cvar_Set( "g_velocity_gh", "1800" );' in pmove_c
 	assert 'trap_Cvar_Set( "g_gauntletSpeedFactor", "1.0" );' in pmove_c
 	assert 'trap_Cvar_Set( "g_guidedRocket", "0" );' in pmove_c
-	assert 'trap_Cvar_Set( "g_quadHogTime", "0" );' in pmove_c
+	assert 'trap_Cvar_Set( "g_quadHogTime", "60" );' in pmove_c
 
 
-def test_retail_flight_cvars_are_registered_but_not_movement_or_pickup_inputs() -> None:
+def test_retail_flight_cvars_seed_progress_backed_fuel_stats() -> None:
 	bg_public = _read("src/code/game/bg_public.h")
 	bg_pmove = _read("src/code/game/bg_pmove.c")
 	g_items = _read("src/code/game/g_items.c")
@@ -436,24 +608,44 @@ def test_retail_flight_cvars_are_registered_but_not_movement_or_pickup_inputs() 
 	local_h = _read("src/code/game/g_local.h")
 	pmove_c = _read("src/code/game/g_pmove.c")
 
-	assert '{ &g_flightThrust, "g_flightThrust", "1200", CVAR_ARCHIVE | CVAR_NORESTART' in g_main
-	assert '{ &g_flightRefuelRate, "g_flightRefuelRate", "0", CVAR_ARCHIVE | CVAR_NORESTART' in g_main
+	assert '{ &g_flightThrust, "g_flightThrust", "1200", CVAR_GAMERULE' in g_main
+	assert '{ &g_flightRefuelRate, "g_flightRefuelRate", "0", CVAR_GAMERULE' in g_main
+	assert '{ &g_maxFlightFuel, "g_maxFlightFuel", "16000", CVAR_GAMERULE' in g_main
 	assert "extern vmCvar_t g_flightRefuelRate;" in local_h
-	assert "G_GetFlightRefuelMilliseconds" not in g_items
-	assert "flightThrust" not in bg_public
+	assert "extern vmCvar_t g_maxFlightFuel;" in local_h
+	assert "STAT_PLAYER_ITEM_THRUST" in bg_public
 	assert "flightThrust" not in pmove_c
 	assert "g_flightThrust" not in pmove_c
 	assert "g_flightRefuelRate" not in pmove_c
 	fly_start = bg_pmove.index("static void PM_FlyMove( void )")
 	fly_end = bg_pmove.index("static void PM_AirMove", fly_start)
-	assert "flightThrust" not in bg_pmove[fly_start:fly_end]
-	assert "g_flightRefuelRate" not in bg_pmove[fly_start:fly_end]
+	fly_body = bg_pmove[fly_start:fly_end]
+	assert "pm->ps->stats[STAT_PLAYER_ITEM_THRUST] > 0" in fly_body
+	assert "wishspeed = (float)pm->ps->stats[STAT_PLAYER_ITEM_THRUST];" in fly_body
+	assert "pm->ps->stats[STAT_PLAYER_ITEM_TIME] -= pml.msec;" in fly_body
 	pickup_start = g_items.index("int Pickup_Powerup( gentity_t *ent, gentity_t *other )")
 	pickup_end = g_items.index("return RESPAWN_POWERUP;", pickup_start)
 	pickup_body = g_items[pickup_start:pickup_end]
-	assert "ent->item->giTag == PW_FLIGHT" not in pickup_body
-	assert "g_flightRefuelRate" not in pickup_body
+	assert "ent->item->giTag == PW_FLIGHT" in pickup_body
+	assert "G_ApplyFlightPowerupFuel( other->client );" in pickup_body
 	assert "other->client->ps.powerups[ent->item->giTag] += quantity * 1000;" in pickup_body
+	flight_body = _function_body(g_items, "static void G_ApplyFlightPowerupFuel( gclient_t *client )")
+	assert "fuel = G_ClampFlightFuel( g_maxFlightFuel.integer );" in flight_body
+	assert "client->ps.stats[STAT_PLAYER_ITEM_THRUST] = g_flightThrust.integer;" in flight_body
+	assert "client->ps.stats[STAT_PLAYER_ITEM_TIME_MAX] = fuel;" in flight_body
+	assert "client->ps.stats[STAT_PLAYER_ITEM_TIME] = fuel;" in flight_body
+	assert "client->ps.stats[STAT_PLAYER_ITEM_RECHARGE] = g_flightRefuelRate.integer;" in flight_body
+	assert "MAX_FLIGHT_FUEL_RETAIL 32001" in g_items
+
+
+def test_factory_regen_cvars_use_retail_gamerule_flags() -> None:
+	config_c = _read("src/game/g_config.c")
+
+	assert '{ &g_regenHealth,          "g_regenHealth",          STRINGIZE( DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE' in config_c
+	assert '{ &g_regenHealthRate,      "g_regenHealthRate",      STRINGIZE( DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS ), CVAR_GAMERULE' in config_c
+	assert '{ &g_regenArmor,           "g_regenArmor",           STRINGIZE( DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE' in config_c
+	assert '{ &g_regenArmorRate,       "g_regenArmorRate",       STRINGIZE( DEFAULT_REGEN_ARMOR_RATE_MILLISECONDS ), CVAR_GAMERULE' in config_c
+	assert '{ &g_regenArmorAfterHealth, "g_regenArmorAfterHealth", STRINGIZE( DEFAULT_REGEN_ARMOR_AFTER_HEALTH ), CVAR_GAMERULE' in config_c
 
 
 def test_factory_runes_are_gated_separately_from_map_powerups() -> None:

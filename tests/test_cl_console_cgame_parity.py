@@ -167,6 +167,9 @@ def test_console_message_modes_and_timestamps_follow_retail_cgame_path() -> None
 	assert "VM_Call( cgvm, CG_CHAT_DOWN );" in mode3_block
 	assert "VM_Call( cgvm, CG_CHAT_DOWN );" in mode4_block
 	assert message_block.count( "VM_Call( cgvm, CG_CHAT_UP );" ) == 2
+	enter_block = message_block[message_block.index("if ( key == K_ENTER || key == K_KP_ENTER )") :]
+	assert enter_block.index("VM_Call( cgvm, CG_CHAT_UP );") < enter_block.index("cls.keyCatchers &= ~KEYCATCH_MESSAGE;")
+	assert enter_block.index("cls.keyCatchers &= ~KEYCATCH_MESSAGE;") < enter_block.index("Field_Clear( &chatField );")
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "reply \\"%s\\"\\n", chatField.buffer );' in message_block
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "tell %i \\"%s\\"\\n", chat_playerNum, chatField.buffer );' in message_block
 	assert "Cbuf_ExecuteText( EXEC_APPEND, buffer );" in message_block

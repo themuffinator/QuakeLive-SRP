@@ -211,6 +211,36 @@ typedef struct {
 	CSteamID gameServerId;
 } ql_steam_friend_game_info_t;
 
+typedef struct {
+	char key[256];
+	char value[256];
+} ql_steam_matchmaking_key_value_pair_t;
+
+typedef struct {
+	uint16_t connectionPort;
+	uint16_t queryPort;
+	uint32_t ip;
+	int32_t ping;
+	uint8_t hadSuccessfulResponse;
+	uint8_t doNotRefresh;
+	char gameDir[QL_STEAM_SERVER_BROWSER_GAME_DIR_LENGTH];
+	char map[QL_STEAM_SERVER_BROWSER_MAP_LENGTH];
+	char gameDescription[QL_STEAM_SERVER_BROWSER_GAME_DESCRIPTION_LENGTH];
+	uint8_t appIdPadding[2];
+	uint32_t appId;
+	int32_t players;
+	int32_t maxPlayers;
+	int32_t botPlayers;
+	uint8_t password;
+	uint8_t secure;
+	uint8_t lastPlayedPadding[2];
+	uint32_t lastPlayed;
+	int32_t serverVersion;
+	char serverName[QL_STEAM_SERVER_BROWSER_NAME_LENGTH];
+	char gameTags[QL_STEAM_SERVER_BROWSER_TAGS_LENGTH];
+	CSteamID steamId;
+} ql_steam_gameserveritem_raw_t;
+
 typedef struct ql_steam_callback_base_s ql_steam_callback_base_t;
 
 typedef void (QL_STEAMWORKS_THISCALL *ql_steam_callback_run_fn)( ql_steam_callback_base_t *self, void *payload );
@@ -306,6 +336,7 @@ typedef struct {
 	QL_SteamAPI_InterfaceFn SteamUtils;
 	QL_SteamAPI_InterfaceFn SteamUserStats;
 	QL_SteamAPI_InterfaceFn SteamMatchmaking;
+	QL_SteamAPI_InterfaceFn SteamMatchmakingServers;
 	QL_SteamAPI_InterfaceFn SteamApps;
 	QL_SteamAPI_InterfaceFn SteamUGC;
 	QL_SteamAPI_InterfaceFn SteamGameServerUGC;
@@ -441,6 +472,130 @@ static void QL_Steamworks_CopySteamString( char *buffer, size_t bufferSize, cons
 	}
 
 	Q_strncpyz( buffer, value, bufferSize );
+}
+
+/*
+=============
+QL_Steamworks_FormatServerListFallbackName
+
+Builds the retail fallback name used for unnamed server-browser rows.
+=============
+*/
+static void QL_Steamworks_FormatServerListFallbackName( char *buffer, size_t bufferSize, const ql_steam_gameserveritem_raw_t *raw ) {
+	int safeSize;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	buffer[0] = '\0';
+	if ( !raw ) {
+		return;
+	}
+
+	safeSize = ( bufferSize > (size_t)INT_MAX ) ? INT_MAX : (int)bufferSize;
+	Com_sprintf(
+		buffer,
+		safeSize,
+		"%u.%u.%u.%u:%i",
+		(unsigned int)( ( raw->ip >> 24 ) & 0xffu ),
+		(unsigned int)( ( raw->ip >> 16 ) & 0xffu ),
+		(unsigned int)( ( raw->ip >> 8 ) & 0xffu ),
+		(unsigned int)( raw->ip & 0xffu ),
+		(int)raw->connectionPort
+	);
+}
+
+/*
+=============
+QL_Steamworks_CopyServerListDisplayName
+
+Copies the row name or reconstructs retail's address fallback when it is empty.
+=============
+*/
+static void QL_Steamworks_CopyServerListDisplayName( ql_steam_server_item_t *outServer, const ql_steam_gameserveritem_raw_t *raw ) {
+	if ( !outServer || !raw ) {
+		return;
+	}
+
+	if ( raw->serverName[0] ) {
+		QL_Steamworks_CopySteamString( outServer->displayName, sizeof( outServer->displayName ), raw->serverName );
+		return;
+	}
+
+	QL_Steamworks_FormatServerListFallbackName( outServer->displayName, sizeof( outServer->displayName ), raw );
+}
+
+/*
+=============
+QL_Steamworks_CopyServerListDetails
+
+Projects the retained gameserveritem_t-style row into the public wrapper type.
+=============
+*/
+static void QL_Steamworks_CopyServerListDetails( ql_steam_server_item_t *outServer, const ql_steam_gameserveritem_raw_t *raw ) {
+	if ( !outServer ) {
+		return;
+	}
+
+	memset( outServer, 0, sizeof( *outServer ) );
+	if ( !raw ) {
+		return;
+	}
+
+	outServer->serverIp = raw->ip;
+	outServer->serverPort = raw->connectionPort;
+	outServer->queryPort = raw->queryPort;
+	outServer->ping = raw->ping;
+	outServer->appId = raw->appId;
+	outServer->numPlayers = raw->players;
+	outServer->maxPlayers = raw->maxPlayers;
+	outServer->botPlayers = raw->botPlayers;
+	outServer->passwordProtected = raw->password ? qtrue : qfalse;
+	outServer->vacSecured = raw->secure ? qtrue : qfalse;
+	outServer->lastPlayed = raw->lastPlayed;
+	outServer->serverVersion = raw->serverVersion;
+	outServer->steamId = raw->steamId;
+	QL_Steamworks_CopySteamString( outServer->gameDir, sizeof( outServer->gameDir ), raw->gameDir );
+	QL_Steamworks_CopySteamString( outServer->map, sizeof( outServer->map ), raw->map );
+	QL_Steamworks_CopySteamString( outServer->gameDescription, sizeof( outServer->gameDescription ), raw->gameDescription );
+	QL_Steamworks_CopySteamString( outServer->name, sizeof( outServer->name ), raw->serverName );
+	QL_Steamworks_CopyServerListDisplayName( outServer, raw );
+	QL_Steamworks_CopySteamString( outServer->tags, sizeof( outServer->tags ), raw->gameTags );
+}
+
+/*
+=============
+QL_Steamworks_CopyServerBrowserResponse
+
+Projects one typed server row into the retained browser response payload shape.
+=============
+*/
+static void QL_Steamworks_CopyServerBrowserResponse( ql_steam_server_browser_response_t *outResponse, const ql_steam_server_item_t *server ) {
+	if ( !outResponse ) {
+		return;
+	}
+
+	memset( outResponse, 0, sizeof( *outResponse ) );
+	if ( !server ) {
+		return;
+	}
+
+	QL_Steamworks_FormatServerBrowserResponseId( server->serverIp, server->serverPort, outResponse->id, sizeof( outResponse->id ) );
+	QL_Steamworks_CopySteamString( outResponse->name, sizeof( outResponse->name ), server->displayName );
+	outResponse->numPlayers = server->numPlayers;
+	outResponse->maxPlayers = server->maxPlayers;
+	outResponse->ping = server->ping;
+	QL_Steamworks_CopySteamString( outResponse->map, sizeof( outResponse->map ), server->map );
+	outResponse->botPlayers = server->botPlayers;
+	outResponse->passwordProtected = server->passwordProtected;
+	outResponse->vacSecured = server->vacSecured;
+	outResponse->serverIp = server->serverIp;
+	outResponse->serverPort = server->serverPort;
+	Com_sprintf( outResponse->steamId, sizeof( outResponse->steamId ), "%llu", (unsigned long long)server->steamId.value );
+	QL_Steamworks_CopySteamString( outResponse->tags, sizeof( outResponse->tags ), server->tags );
+	QL_Steamworks_CopySteamString( outResponse->gametype, sizeof( outResponse->gametype ), server->gameDescription );
+	outResponse->lastPlayed = server->lastPlayed;
 }
 
 /*
@@ -630,6 +785,8 @@ qboolean QL_Steamworks_LoadLibrary( void ) {
 		QL_Steamworks_UnloadLibrary();
 		return qfalse;
 	}
+
+	QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamMatchmakingServers, "SteamMatchmakingServers" );
 
 	if ( !QL_Steamworks_LoadSymbol( (void **)&state.SteamApps, "SteamAPI_SteamApps" ) ) {
 		QL_Steamworks_UnloadLibrary();
@@ -955,6 +1112,19 @@ static void *QL_Steamworks_GetMatchmakingInterface( void ) {
 	}
 
 	return state.SteamMatchmaking();
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserInterface
+=============
+*/
+static void *QL_Steamworks_GetServerBrowserInterface( void ) {
+	if ( !QL_Steamworks_Init() || !state.SteamMatchmakingServers ) {
+		return NULL;
+	}
+
+	return state.SteamMatchmakingServers();
 }
 
 /*
@@ -2411,6 +2581,916 @@ qboolean QL_Steamworks_ActivateOverlayToWebPage( const char *url ) {
 
 	fn( friends, NULL, url );
 	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_HasServerBrowserInterface
+=============
+*/
+qboolean QL_Steamworks_HasServerBrowserInterface( void ) {
+	return QL_Steamworks_GetServerBrowserInterface() != NULL ? qtrue : qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserAdapterLabel
+=============
+*/
+const char *QL_Steamworks_GetServerBrowserAdapterLabel( void ) {
+	return "ISteamMatchmakingServers";
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserIntegrationGapLabel
+=============
+*/
+const char *QL_Steamworks_GetServerBrowserIntegrationGapLabel( void ) {
+	return "native wrapper reconstructed; client fallback not yet wired";
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserRequestModeLabel
+=============
+*/
+const char *QL_Steamworks_GetServerBrowserRequestModeLabel( ql_steam_server_browser_request_mode_t requestMode ) {
+	switch ( requestMode ) {
+		case QL_STEAM_SERVER_BROWSER_LAN:
+			return "lan";
+		case QL_STEAM_SERVER_BROWSER_FRIENDS:
+			return "friends";
+		case QL_STEAM_SERVER_BROWSER_FAVORITES:
+			return "favorites";
+		case QL_STEAM_SERVER_BROWSER_HISTORY:
+			return "history";
+		case QL_STEAM_SERVER_BROWSER_INTERNET:
+		default:
+			return "internet";
+	}
+}
+
+/*
+=============
+QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter
+
+Matches the retained JSBrowser_RequestServers filter contract.
+=============
+*/
+qboolean QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( ql_steam_server_browser_request_mode_t requestMode ) {
+	return requestMode == QL_STEAM_SERVER_BROWSER_LAN ? qfalse : qtrue;
+}
+
+/*
+=============
+QL_Steamworks_InitServerBrowserOwner
+
+Initialises the retained JSBrowser request owner state.
+=============
+*/
+void QL_Steamworks_InitServerBrowserOwner( ql_steam_server_browser_owner_t *owner ) {
+	if ( owner ) {
+		memset( owner, 0, sizeof( *owner ) );
+	}
+}
+
+/*
+=============
+QL_Steamworks_BeginServerBrowserOwnerRequest
+
+Starts one native server-browser owner request when the retained owner is idle.
+=============
+*/
+qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject ) {
+	if ( !owner || !responseObject ) {
+		return qfalse;
+	}
+	if ( owner->refreshActive ) {
+		return qfalse;
+	}
+	if ( owner->request ) {
+		QL_Steamworks_ReleaseServerListRequest( owner->request );
+		owner->request = NULL;
+	}
+
+	owner->refreshActive = qtrue;
+	owner->request = QL_Steamworks_RequestServerList( requestMode, responseObject );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_RefreshServerBrowserOwnerRequest
+
+Refreshes the retained JSBrowser request handle when one is live.
+=============
+*/
+qboolean QL_Steamworks_RefreshServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	if ( !owner || !owner->request ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_RefreshServerListRequest( owner->request );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_CompleteServerBrowserOwnerRequest
+
+Marks the retained JSBrowser owner idle after the refresh-complete callback.
+=============
+*/
+qboolean QL_Steamworks_CompleteServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	if ( !owner ) {
+		return qfalse;
+	}
+
+	owner->refreshActive = qfalse;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_PrepareServerBrowserGamedirFilter
+
+Builds the retail browser filter pair used by JSBrowser_RequestServers.
+=============
+*/
+static void QL_Steamworks_PrepareServerBrowserGamedirFilter( ql_steam_matchmaking_key_value_pair_t *filter, ql_steam_matchmaking_key_value_pair_t **filterPtr ) {
+	if ( !filter || !filterPtr ) {
+		return;
+	}
+
+	memset( filter, 0, sizeof( *filter ) );
+	Q_strncpyz( filter->key, "gamedir", sizeof( filter->key ) );
+	Q_strncpyz( filter->value, "baseq3", sizeof( filter->value ) );
+	*filterPtr = filter;
+}
+
+/*
+=============
+QL_Steamworks_RequestServerList
+
+Issues the retained JSBrowser SteamMatchmakingServers list request.
+=============
+*/
+ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql_steam_server_browser_request_mode_t requestMode, void *responseObject ) {
+	void *serverBrowser;
+	void **vtable;
+	uint32_t appId;
+	ql_steam_matchmaking_key_value_pair_t filter;
+	ql_steam_matchmaking_key_value_pair_t *filterPtr;
+	typedef ql_steam_server_list_request_t (__fastcall *QL_SteamMatchmakingServers_RequestFilteredListFn)( void *self, void *unused, uint32_t appId, ql_steam_matchmaking_key_value_pair_t **filters, uint32_t filterCount, void *responseObject );
+	typedef ql_steam_server_list_request_t (__fastcall *QL_SteamMatchmakingServers_RequestLANListFn)( void *self, void *unused, uint32_t appId, void *responseObject );
+	QL_SteamMatchmakingServers_RequestFilteredListFn filteredFn;
+	QL_SteamMatchmakingServers_RequestLANListFn lanFn;
+
+	if ( !responseObject ) {
+		return NULL;
+	}
+
+	serverBrowser = QL_Steamworks_GetServerBrowserInterface();
+	vtable = QL_Steamworks_GetInterfaceVTable( serverBrowser );
+	if ( !vtable ) {
+		return NULL;
+	}
+
+	appId = QL_Steamworks_GetAppID();
+	if ( appId == 0u ) {
+		return NULL;
+	}
+
+	filterPtr = NULL;
+	if ( QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( requestMode ) ) {
+		QL_Steamworks_PrepareServerBrowserGamedirFilter( &filter, &filterPtr );
+	}
+
+	switch ( requestMode ) {
+		case QL_STEAM_SERVER_BROWSER_LAN:
+			lanFn = (QL_SteamMatchmakingServers_RequestLANListFn)vtable[0x04 / 4];
+			if ( !lanFn ) {
+				return NULL;
+			}
+			return lanFn( serverBrowser, NULL, appId, responseObject );
+		case QL_STEAM_SERVER_BROWSER_FRIENDS:
+			filteredFn = (QL_SteamMatchmakingServers_RequestFilteredListFn)vtable[0x08 / 4];
+			break;
+		case QL_STEAM_SERVER_BROWSER_FAVORITES:
+			filteredFn = (QL_SteamMatchmakingServers_RequestFilteredListFn)vtable[0x0c / 4];
+			break;
+		case QL_STEAM_SERVER_BROWSER_HISTORY:
+			filteredFn = (QL_SteamMatchmakingServers_RequestFilteredListFn)vtable[0x10 / 4];
+			break;
+		case QL_STEAM_SERVER_BROWSER_INTERNET:
+		default:
+			filteredFn = (QL_SteamMatchmakingServers_RequestFilteredListFn)vtable[0x00 / 4];
+			break;
+	}
+
+	if ( !filteredFn || !filterPtr ) {
+		return NULL;
+	}
+
+	return filteredFn( serverBrowser, NULL, appId, &filterPtr, 1u, responseObject );
+}
+
+/*
+=============
+QL_Steamworks_GetServerListDetails
+
+Returns the Steam server-list row pointer for one browser response index.
+=============
+*/
+const void *QL_Steamworks_GetServerListDetails( ql_steam_server_list_request_t request, int index ) {
+	void *serverBrowser;
+	void **vtable;
+	typedef const void *(__fastcall *QL_SteamMatchmakingServers_GetServerDetailsFn)( void *self, void *unused, ql_steam_server_list_request_t request, int index );
+	QL_SteamMatchmakingServers_GetServerDetailsFn fn;
+
+	if ( !request || index < 0 ) {
+		return NULL;
+	}
+
+	serverBrowser = QL_Steamworks_GetServerBrowserInterface();
+	vtable = QL_Steamworks_GetInterfaceVTable( serverBrowser );
+	if ( !vtable ) {
+		return NULL;
+	}
+
+	fn = (QL_SteamMatchmakingServers_GetServerDetailsFn)vtable[0x1c / 4];
+	if ( !fn ) {
+		return NULL;
+	}
+
+	return fn( serverBrowser, NULL, request, index );
+}
+
+/*
+=============
+QL_Steamworks_ReadServerListDetails
+
+Reads and validates one retained Steam server-browser row.
+=============
+*/
+qboolean QL_Steamworks_ReadServerListDetails( ql_steam_server_list_request_t request, int index, ql_steam_server_item_t *outServer ) {
+	const ql_steam_gameserveritem_raw_t *raw;
+	uint32_t appId;
+
+	if ( outServer ) {
+		memset( outServer, 0, sizeof( *outServer ) );
+	}
+	if ( !outServer ) {
+		return qfalse;
+	}
+
+	raw = (const ql_steam_gameserveritem_raw_t *)QL_Steamworks_GetServerListDetails( request, index );
+	if ( !raw ) {
+		return qfalse;
+	}
+
+	appId = QL_Steamworks_GetAppID();
+	if ( appId == 0u || raw->appId != appId ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_CopyServerListDetails( outServer, raw );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserResponseId
+
+Builds the retained JSBrowser_OnServerResponded id/event suffix.
+=============
+*/
+void QL_Steamworks_FormatServerBrowserResponseId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	Com_sprintf( buffer, bufferSize, "%u_%u", (unsigned int)serverIp, (unsigned int)serverPort );
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserResponse
+
+Builds the retained browser-facing server response projection.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t *server, ql_steam_server_browser_response_t *outResponse ) {
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	if ( !server || !outResponse ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_CopyServerBrowserResponse( outResponse, server );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerBrowserResponse
+
+Reads a row and projects it into the retained JSBrowser response shape.
+=============
+*/
+qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t request, int index, ql_steam_server_browser_response_t *outResponse ) {
+	ql_steam_server_item_t server;
+
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	if ( !outResponse ) {
+		return qfalse;
+	}
+	if ( !QL_Steamworks_ReadServerListDetails( request, index, &server ) ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_CopyServerBrowserResponse( outResponse, &server );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserFailureEventName
+
+Builds the retained JSBrowser_OnServerFailedToRespond event name.
+=============
+*/
+void QL_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize ) {
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	Com_sprintf( buffer, bufferSize, "servers.details.%i.failed", serverIndex );
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserFailure
+
+Builds the retained browser-facing failed-row projection.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserFailure( int serverIndex, ql_steam_server_browser_failure_t *outFailure ) {
+	if ( outFailure ) {
+		memset( outFailure, 0, sizeof( *outFailure ) );
+	}
+	if ( !outFailure ) {
+		return qfalse;
+	}
+
+	outFailure->id = serverIndex;
+	QL_Steamworks_FormatServerBrowserFailureEventName( serverIndex, outFailure->eventName, sizeof( outFailure->eventName ) );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserRefreshComplete
+
+Builds the retained browser-facing refresh-complete projection.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserRefreshComplete( ql_steam_server_browser_refresh_complete_t *outRefresh ) {
+	if ( outRefresh ) {
+		memset( outRefresh, 0, sizeof( *outRefresh ) );
+	}
+	if ( !outRefresh ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( outRefresh->eventName, "servers.refresh.end", sizeof( outRefresh->eventName ) );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserDetailChannelLabel
+
+Returns the retained JSBrowserDetails event-family label.
+=============
+*/
+static const char *QL_Steamworks_GetServerBrowserDetailChannelLabel( ql_steam_server_browser_detail_channel_t channel ) {
+	switch ( channel ) {
+	case QL_STEAM_SERVER_BROWSER_DETAIL_RULES:
+		return "rules";
+	case QL_STEAM_SERVER_BROWSER_DETAIL_PLAYERS:
+		return "players";
+	default:
+		return NULL;
+	}
+}
+
+/*
+=============
+QL_Steamworks_GetServerBrowserDetailPhaseLabel
+
+Returns the retained JSBrowserDetails event-phase label.
+=============
+*/
+static const char *QL_Steamworks_GetServerBrowserDetailPhaseLabel( ql_steam_server_browser_detail_phase_t phase ) {
+	switch ( phase ) {
+	case QL_STEAM_SERVER_BROWSER_DETAIL_RESPONSE:
+		return "response";
+	case QL_STEAM_SERVER_BROWSER_DETAIL_FAILED:
+		return "failed";
+	case QL_STEAM_SERVER_BROWSER_DETAIL_END:
+		return "end";
+	default:
+		return NULL;
+	}
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserDetailId
+
+Builds the retained JSBrowserDetails "%u_%i" server identity suffix.
+=============
+*/
+void QL_Steamworks_FormatServerBrowserDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	int signedPort;
+
+	if ( !buffer || bufferSize == 0 ) {
+		return;
+	}
+
+	signedPort = ( serverPort & 0x8000u ) ? (int)serverPort - 0x10000 : (int)serverPort;
+	Com_sprintf( buffer, bufferSize, "%u_%i", (unsigned int)serverIp, signedPort );
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserDetailIdentity
+
+Builds the retained JSBrowserDetails server identity record.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserDetailIdentity( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_identity_t *outIdentity ) {
+	if ( outIdentity ) {
+		memset( outIdentity, 0, sizeof( *outIdentity ) );
+	}
+	if ( serverIp == 0u || serverPort == 0 || !outIdentity ) {
+		return qfalse;
+	}
+
+	outIdentity->serverIp = serverIp;
+	outIdentity->serverPort = serverPort;
+	QL_Steamworks_FormatServerBrowserDetailId( serverIp, serverPort, outIdentity->id, sizeof( outIdentity->id ) );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_FormatServerBrowserDetailEventName
+
+Builds a retained JSBrowserDetails rules/players response, failed, or end event name.
+=============
+*/
+qboolean QL_Steamworks_FormatServerBrowserDetailEventName( ql_steam_server_browser_detail_channel_t channel, ql_steam_server_browser_detail_phase_t phase, const char *detailId, char *buffer, size_t bufferSize ) {
+	const char *channelLabel;
+	const char *phaseLabel;
+
+	if ( buffer && bufferSize > 0 ) {
+		buffer[0] = '\0';
+	}
+	if ( !buffer || bufferSize == 0 ) {
+		return qfalse;
+	}
+
+	channelLabel = QL_Steamworks_GetServerBrowserDetailChannelLabel( channel );
+	phaseLabel = QL_Steamworks_GetServerBrowserDetailPhaseLabel( phase );
+	if ( !channelLabel || !phaseLabel ) {
+		return qfalse;
+	}
+
+	Com_sprintf( buffer, bufferSize, "servers.%s.%s.%s", channelLabel, detailId ? detailId : "", phaseLabel );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserDetailEvent
+
+Builds the retained JSBrowserDetails event identity projection.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserDetailEvent( const ql_steam_server_browser_detail_identity_t *identity, ql_steam_server_browser_detail_channel_t channel, ql_steam_server_browser_detail_phase_t phase, ql_steam_server_browser_detail_event_t *outEvent ) {
+	ql_steam_server_browser_detail_event_t event;
+
+	if ( outEvent ) {
+		memset( outEvent, 0, sizeof( *outEvent ) );
+	}
+	if ( !identity || !identity->id[0] || !outEvent ) {
+		return qfalse;
+	}
+
+	memset( &event, 0, sizeof( event ) );
+	event.identity = *identity;
+	if ( !QL_Steamworks_FormatServerBrowserDetailEventName( channel, phase, identity->id, event.eventName, sizeof( event.eventName ) ) ) {
+		return qfalse;
+	}
+
+	*outEvent = event;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserRuleResponse
+
+Builds the retained JSBrowserDetails rules response payload projection.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserRuleResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *rule, const char *value, ql_steam_server_browser_rule_response_t *outResponse ) {
+	ql_steam_server_browser_detail_event_t event;
+
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	if ( !outResponse ) {
+		return qfalse;
+	}
+	if ( !QL_Steamworks_BuildServerBrowserDetailEvent( identity, QL_STEAM_SERVER_BROWSER_DETAIL_RULES, QL_STEAM_SERVER_BROWSER_DETAIL_RESPONSE, &event ) ) {
+		return qfalse;
+	}
+
+	outResponse->identity = event.identity;
+	Q_strncpyz( outResponse->eventName, event.eventName, sizeof( outResponse->eventName ) );
+	Q_strncpyz( outResponse->rule, rule ? rule : "", sizeof( outResponse->rule ) );
+	Q_strncpyz( outResponse->value, value ? value : "", sizeof( outResponse->value ) );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserPlayerResponse
+
+Builds the retained JSBrowserDetails player response payload projection.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserPlayerResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *name, int score, int time, ql_steam_server_browser_player_response_t *outResponse ) {
+	ql_steam_server_browser_detail_event_t event;
+
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	if ( !outResponse ) {
+		return qfalse;
+	}
+	if ( !QL_Steamworks_BuildServerBrowserDetailEvent( identity, QL_STEAM_SERVER_BROWSER_DETAIL_PLAYERS, QL_STEAM_SERVER_BROWSER_DETAIL_RESPONSE, &event ) ) {
+		return qfalse;
+	}
+
+	outResponse->identity = event.identity;
+	Q_strncpyz( outResponse->eventName, event.eventName, sizeof( outResponse->eventName ) );
+	Q_strncpyz( outResponse->name, name ? name : "", sizeof( outResponse->name ) );
+	outResponse->score = score;
+	outResponse->time = time;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_InitServerBrowserDetailLifecycle
+
+Initialises the retained JSBrowserDetails shared completion counter.
+=============
+*/
+qboolean QL_Steamworks_InitServerBrowserDetailLifecycle( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_lifecycle_t *outLifecycle ) {
+	ql_steam_server_browser_detail_identity_t identity;
+
+	if ( outLifecycle ) {
+		memset( outLifecycle, 0, sizeof( *outLifecycle ) );
+	}
+	if ( !outLifecycle ) {
+		return qfalse;
+	}
+	if ( !QL_Steamworks_BuildServerBrowserDetailIdentity( serverIp, serverPort, &identity ) ) {
+		return qfalse;
+	}
+
+	outLifecycle->identity = identity;
+	outLifecycle->completedCallbacks = 0;
+	outLifecycle->releaseReady = qfalse;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_CompleteServerBrowserDetailCallback
+
+Advances the retained JSBrowserDetails shared completion counter.
+=============
+*/
+qboolean QL_Steamworks_CompleteServerBrowserDetailCallback( ql_steam_server_browser_detail_lifecycle_t *lifecycle, qboolean *outReleaseReady ) {
+	if ( outReleaseReady ) {
+		*outReleaseReady = qfalse;
+	}
+	if ( !lifecycle || !lifecycle->identity.id[0] ) {
+		return qfalse;
+	}
+	if ( lifecycle->releaseReady ) {
+		if ( outReleaseReady ) {
+			*outReleaseReady = qtrue;
+		}
+		return qfalse;
+	}
+
+	lifecycle->completedCallbacks++;
+	if ( lifecycle->completedCallbacks >= QL_STEAM_SERVER_BROWSER_DETAIL_COMPLETION_TARGET ) {
+		lifecycle->completedCallbacks = QL_STEAM_SERVER_BROWSER_DETAIL_COMPLETION_TARGET;
+		lifecycle->releaseReady = qtrue;
+	}
+
+	if ( outReleaseReady ) {
+		*outReleaseReady = lifecycle->releaseReady;
+	}
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_BuildServerBrowserDetailResponseViews
+
+Builds the retained JSBrowserDetails callback views from the base object.
+=============
+*/
+qboolean QL_Steamworks_BuildServerBrowserDetailResponseViews( void *detailObjectBase, ql_steam_server_browser_detail_response_views_t *outViews ) {
+	unsigned char *base;
+
+	if ( outViews ) {
+		memset( outViews, 0, sizeof( *outViews ) );
+	}
+	if ( !detailObjectBase || !outViews ) {
+		return qfalse;
+	}
+
+	base = (unsigned char *)detailObjectBase;
+	outViews->rulesResponse = base + QL_STEAM_SERVER_BROWSER_DETAIL_RULES_RESPONSE_OFFSET;
+	outViews->playersResponse = base + QL_STEAM_SERVER_BROWSER_DETAIL_PLAYERS_RESPONSE_OFFSET;
+	outViews->pingResponse = base + QL_STEAM_SERVER_BROWSER_DETAIL_PING_RESPONSE_OFFSET;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_InitServerBrowserDetailRequest
+
+Initialises the native wrapper state for one JSBrowserDetails request.
+=============
+*/
+void QL_Steamworks_InitServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request ) {
+	if ( request ) {
+		memset( request, 0, sizeof( *request ) );
+	}
+}
+
+/*
+=============
+QL_Steamworks_BeginServerBrowserDetailRequest
+
+Starts the retained JSBrowserDetails ping, rules, and players request bundle.
+=============
+*/
+qboolean QL_Steamworks_BeginServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request, uint32_t serverIp, uint16_t serverPort, void *detailObjectBase ) {
+	ql_steam_server_browser_detail_lifecycle_t lifecycle;
+	ql_steam_server_browser_detail_response_views_t views;
+	ql_steam_server_query_t pingQuery;
+	ql_steam_server_query_t playersQuery;
+	ql_steam_server_query_t rulesQuery;
+
+	if ( !request ) {
+		return qfalse;
+	}
+	if ( request->queriesActive ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_InitServerBrowserDetailRequest( request );
+
+	if ( !QL_Steamworks_InitServerBrowserDetailLifecycle( serverIp, serverPort, &lifecycle ) ) {
+		return qfalse;
+	}
+	if ( !QL_Steamworks_BuildServerBrowserDetailResponseViews( detailObjectBase, &views ) ) {
+		return qfalse;
+	}
+	if ( !QL_Steamworks_RequestServerDetails( serverIp, serverPort, views.pingResponse, views.playersResponse, views.rulesResponse, &pingQuery, &playersQuery, &rulesQuery ) ) {
+		QL_Steamworks_InitServerBrowserDetailRequest( request );
+		return qfalse;
+	}
+
+	request->lifecycle = lifecycle;
+	request->detailObjectBase = detailObjectBase;
+	request->pingQuery = pingQuery;
+	request->playersQuery = playersQuery;
+	request->rulesQuery = rulesQuery;
+	request->queriesActive = qtrue;
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_CompleteServerBrowserDetailRequestCallback
+
+Advances one terminal callback and retires the request bundle on release.
+=============
+*/
+qboolean QL_Steamworks_CompleteServerBrowserDetailRequestCallback( ql_steam_server_browser_detail_request_t *request, qboolean *outReleaseReady ) {
+	qboolean releaseReady;
+	qboolean completed;
+
+	if ( outReleaseReady ) {
+		*outReleaseReady = qfalse;
+	}
+	if ( !request ) {
+		return qfalse;
+	}
+
+	releaseReady = qfalse;
+	completed = QL_Steamworks_CompleteServerBrowserDetailCallback( &request->lifecycle, &releaseReady );
+	if ( !completed ) {
+		if ( outReleaseReady ) {
+			*outReleaseReady = releaseReady;
+		}
+		return qfalse;
+	}
+
+	if ( releaseReady ) {
+		request->detailObjectBase = NULL;
+		request->pingQuery = 0;
+		request->playersQuery = 0;
+		request->rulesQuery = 0;
+		request->queriesActive = qfalse;
+	}
+
+	if ( outReleaseReady ) {
+		*outReleaseReady = releaseReady;
+	}
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ReleaseServerListRequest
+
+Releases one retained Steam server-list request handle.
+=============
+*/
+void QL_Steamworks_ReleaseServerListRequest( ql_steam_server_list_request_t request ) {
+	void *serverBrowser;
+	void **vtable;
+	typedef void (__fastcall *QL_SteamMatchmakingServers_RequestHandleFn)( void *self, void *unused, ql_steam_server_list_request_t request );
+	QL_SteamMatchmakingServers_RequestHandleFn fn;
+
+	if ( !request ) {
+		return;
+	}
+
+	serverBrowser = QL_Steamworks_GetServerBrowserInterface();
+	vtable = QL_Steamworks_GetInterfaceVTable( serverBrowser );
+	if ( !vtable ) {
+		return;
+	}
+
+	fn = (QL_SteamMatchmakingServers_RequestHandleFn)vtable[0x18 / 4];
+	if ( !fn ) {
+		return;
+	}
+
+	fn( serverBrowser, NULL, request );
+}
+
+/*
+=============
+QL_Steamworks_RefreshServerListRequest
+
+Refreshes one retained Steam server-list request handle.
+=============
+*/
+void QL_Steamworks_RefreshServerListRequest( ql_steam_server_list_request_t request ) {
+	void *serverBrowser;
+	void **vtable;
+	typedef void (__fastcall *QL_SteamMatchmakingServers_RequestHandleFn)( void *self, void *unused, ql_steam_server_list_request_t request );
+	QL_SteamMatchmakingServers_RequestHandleFn fn;
+
+	if ( !request ) {
+		return;
+	}
+
+	serverBrowser = QL_Steamworks_GetServerBrowserInterface();
+	vtable = QL_Steamworks_GetInterfaceVTable( serverBrowser );
+	if ( !vtable ) {
+		return;
+	}
+
+	fn = (QL_SteamMatchmakingServers_RequestHandleFn)vtable[0x24 / 4];
+	if ( !fn ) {
+		return;
+	}
+
+	fn( serverBrowser, NULL, request );
+}
+
+/*
+=============
+QL_Steamworks_RequestServerDetails
+
+Starts the retained JSBrowserDetails ping, player, and rule detail probes.
+=============
+*/
+qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, void *pingResponse, void *playersResponse, void *rulesResponse, ql_steam_server_query_t *outPingQuery, ql_steam_server_query_t *outPlayersQuery, ql_steam_server_query_t *outRulesQuery ) {
+	void *serverBrowser;
+	void **vtable;
+	typedef ql_steam_server_query_t (__fastcall *QL_SteamMatchmakingServers_RequestDetailFn)( void *self, void *unused, uint32_t serverIp, uint16_t serverPort, void *responseObject );
+	QL_SteamMatchmakingServers_RequestDetailFn pingFn;
+	QL_SteamMatchmakingServers_RequestDetailFn playersFn;
+	QL_SteamMatchmakingServers_RequestDetailFn rulesFn;
+	ql_steam_server_query_t pingQuery;
+	ql_steam_server_query_t playersQuery;
+	ql_steam_server_query_t rulesQuery;
+
+	if ( outPingQuery ) {
+		*outPingQuery = 0;
+	}
+	if ( outPlayersQuery ) {
+		*outPlayersQuery = 0;
+	}
+	if ( outRulesQuery ) {
+		*outRulesQuery = 0;
+	}
+
+	if ( serverIp == 0u || serverPort == 0 || !pingResponse || !playersResponse || !rulesResponse ) {
+		return qfalse;
+	}
+
+	serverBrowser = QL_Steamworks_GetServerBrowserInterface();
+	vtable = QL_Steamworks_GetInterfaceVTable( serverBrowser );
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	pingFn = (QL_SteamMatchmakingServers_RequestDetailFn)vtable[0x34 / 4];
+	playersFn = (QL_SteamMatchmakingServers_RequestDetailFn)vtable[0x38 / 4];
+	rulesFn = (QL_SteamMatchmakingServers_RequestDetailFn)vtable[0x3c / 4];
+	if ( !pingFn || !playersFn || !rulesFn ) {
+		return qfalse;
+	}
+
+	pingQuery = pingFn( serverBrowser, NULL, serverIp, serverPort, pingResponse );
+	rulesQuery = rulesFn( serverBrowser, NULL, serverIp, serverPort, rulesResponse );
+	playersQuery = playersFn( serverBrowser, NULL, serverIp, serverPort, playersResponse );
+
+	if ( outPingQuery ) {
+		*outPingQuery = pingQuery;
+	}
+	if ( outPlayersQuery ) {
+		*outPlayersQuery = playersQuery;
+	}
+	if ( outRulesQuery ) {
+		*outRulesQuery = rulesQuery;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_CancelServerQuery
+
+Cancels one Steam server-details query handle.
+=============
+*/
+void QL_Steamworks_CancelServerQuery( ql_steam_server_query_t query ) {
+	void *serverBrowser;
+	void **vtable;
+	typedef void (__fastcall *QL_SteamMatchmakingServers_CancelServerQueryFn)( void *self, void *unused, ql_steam_server_query_t query );
+	QL_SteamMatchmakingServers_CancelServerQueryFn fn;
+
+	if ( query <= 0 ) {
+		return;
+	}
+
+	serverBrowser = QL_Steamworks_GetServerBrowserInterface();
+	vtable = QL_Steamworks_GetInterfaceVTable( serverBrowser );
+	if ( !vtable ) {
+		return;
+	}
+
+	fn = (QL_SteamMatchmakingServers_CancelServerQueryFn)vtable[0x40 / 4];
+	if ( !fn ) {
+		return;
+	}
+
+	fn( serverBrowser, NULL, query );
 }
 
 /*

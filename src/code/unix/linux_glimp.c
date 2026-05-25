@@ -116,7 +116,6 @@ cvar_t   *in_joystickDebug = NULL;
 cvar_t   *joy_threshold    = NULL;
 
 cvar_t  *r_allowSoftwareGL;   // don't abort out if the pixelformat claims software
-cvar_t  *r_previousglDriver;
 
 qboolean vidmode_ext = qfalse;
 static int vidmode_MajorVersion = 0, vidmode_MinorVersion = 0; // major and minor of XF86VidExtensions
@@ -1426,17 +1425,7 @@ void GLimp_Init( void )
 
   r_allowSoftwareGL = ri.Cvar_Get( "r_allowSoftwareGL", "0", CVAR_LATCH );
 
-  r_previousglDriver = ri.Cvar_Get( "r_previousglDriver", "", CVAR_ROM );
-
   InitSig();
-
-  // Hack here so that if the UI 
-  if ( *r_previousglDriver->string )
-  {
-    // The UI changed it on us, hack it back
-    // This means the renderer can't be changed on the fly
-    ri.Cvar_Set( "r_glDriver", r_previousglDriver->string );
-  }
   
   // set up our custom error handler for X failures
   XSetErrorHandler(&qXErrorHandler);
@@ -1486,9 +1475,6 @@ void GLimp_Init( void )
       ri.Error( ERR_FATAL, "GLimp_Init() - could not load OpenGL subsystem\n" );
 
   }
-
-  // Save it in case the UI stomps it
-  ri.Cvar_Set( "r_previousglDriver", r_glDriver->string );
 
   // This values force the UI to disable driver selection
   glConfig.driverType = GLDRV_ICD;

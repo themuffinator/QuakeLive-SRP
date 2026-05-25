@@ -13,8 +13,6 @@ flags="$flags +set r_depthbits 16"
 flags="$flags +set r_colorbits 16"
 flags="$flags +set stencilbits 8"
 
-flags="$flags +set r_appleTransformHint 1"
-
 echo flags=$flags
 
 function demo {
@@ -23,4 +21,3 @@ function demo {
 }
 
 demo foo
-

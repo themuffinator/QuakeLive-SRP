@@ -66,10 +66,17 @@ def test_queue_teamtask_sync_clears_dequeued_spectators() -> None:
 
 def test_clientuserinfochanged_publishes_queue_surface() -> None:
 	client_c = _read("src/code/game/g_client.c")
+	keys_h = _read("src/game/match_state_keys.h")
 
 	assert "G_UpdateTournamentQueuePositions();" in client_c
-	assert "\\\\rp\\\\%d\\\\p\\\\%d\\\\so\\\\%i\\\\pq\\\\%i" in client_c
-	assert "\\\\so\\\\%i\\\\pq\\\\%i" in client_c
+	assert 'PLAYER_INFO_KEY_READY "\\\\%d\\\\"' in client_c
+	assert 'PLAYER_INFO_KEY_PRIVILEGE "\\\\%d\\\\"' in client_c
+	assert 'PLAYER_INFO_KEY_SPECTATE_ONLY "\\\\%i\\\\"' in client_c
+	assert 'PLAYER_INFO_KEY_SPECTATOR_QUEUE "\\\\%i"' in client_c
+	assert '#define PLAYER_INFO_KEY_READY "rp"' in keys_h
+	assert '#define PLAYER_INFO_KEY_PRIVILEGE "p"' in keys_h
+	assert '#define PLAYER_INFO_KEY_SPECTATE_ONLY "so"' in keys_h
+	assert '#define PLAYER_INFO_KEY_SPECTATOR_QUEUE "pq"' in keys_h
 
 
 def test_queue_helpers_are_wired_into_init_and_frame_flow() -> None:

@@ -389,6 +389,34 @@ void CG_RaceResetState( void ) {
 
 /*
 =============
+CG_RaceBeepSoundForCvar
+
+Maps cg_raceBeep's 1-8 selector onto the retail impact/bell cue bank.
+=============
+*/
+static sfxHandle_t CG_RaceBeepSoundForCvar( void ) {
+	switch ( cg_raceBeep.integer ) {
+	case 2:
+		return cgs.media.killBeepSound2;
+	case 3:
+		return cgs.media.killBeepSound3;
+	case 4:
+		return cgs.media.killBeepSound4;
+	case 5:
+		return cgs.media.killBeepSound5;
+	case 6:
+		return cgs.media.killBeepSound6;
+	case 7:
+		return cgs.media.killBeepSound7;
+	case 8:
+		return cgs.media.killBeepSound8;
+	default:
+		return cgs.media.killBeepSound1;
+	}
+}
+
+/*
+=============
 CG_RacePlayCue
 
 Plays a race HUD cue when enabled.
@@ -397,16 +425,13 @@ Plays a race HUD cue when enabled.
 void CG_RacePlayCue( cgRaceCue_t cue ) {
 	sfxHandle_t sfx = 0;
 
-	if ( !cg_raceBeep.integer ) {
-		return;
-	}
-
 	switch ( cue ) {
 	case CG_RACE_CUE_START:
-		sfx = cgs.media.raceStartBeep;
-		break;
 	case CG_RACE_CUE_CHECKPOINT:
-		sfx = cgs.media.raceCheckpointBeep;
+		if ( cg_raceBeep.integer <= 0 ) {
+			return;
+		}
+		sfx = CG_RaceBeepSoundForCvar();
 		break;
 	case CG_RACE_CUE_FINISH:
 		sfx = cgs.media.raceFinishBeep;
@@ -653,7 +678,7 @@ Determines if checkpoint notifications should be emitted for a client.
 =============
 */
 static qboolean CG_RaceShouldPlayCheckpointFeedback( int clientNum ) {
-	if ( cg_raceBeep.integer == 0 || !cg.snap ) {
+	if ( !cg.snap ) {
 		return qfalse;
 	}
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
@@ -676,7 +701,7 @@ static qboolean CG_RaceShouldPlayCheckpointFeedback( int clientNum ) {
 =============
 CG_RacePlayCheckpointFeedback
 
-Emits the checkpoint centerprint and audio cue when enabled.
+Emits the checkpoint centerprint; CG_RacePlayCue handles the audio cue.
 =============
 */
 static void CG_RacePlayCheckpointFeedback( const cgRaceClientProgress_t *progress ) {
@@ -706,7 +731,6 @@ static void CG_RacePlayCheckpointFeedback( const cgRaceClientProgress_t *progres
 	}
 
 	CG_CenterPrint( va( "Checkpoint\n%s", statusText ), SCREEN_HEIGHT * 0.30f, 0.3f );
-	trap_S_StartLocalSound( cgs.media.selectSound, CHAN_LOCAL_SOUND );
 }
 
 /*
@@ -2408,6 +2432,10 @@ static void CG_DrawSpectatorHealthArmor( rectDef_t *rect, float scale, vec4_t co
 		return;
 	}
 
+	if ( !cg_specDuelHealthArmor.integer ) {
+		return;
+	}
+
 	(void)color;
 
 	health = ci->health;
@@ -2421,6 +2449,14 @@ static void CG_DrawSpectatorHealthArmor( rectDef_t *rect, float scale, vec4_t co
 
 	CG_GetColorForHealth( health, armor, healthColor );
 	CG_GetArmorTierColor( armor, armorColor );
+	if ( !cg_specDuelHealthColor.integer ) {
+		healthColor[0] = 1.0f;
+		healthColor[1] = 1.0f;
+		healthColor[2] = 1.0f;
+		armorColor[0] = 1.0f;
+		armorColor[1] = 1.0f;
+		armorColor[2] = 1.0f;
+	}
 
 	healthColor[3] = 0.85f;
 	armorColor[3] = 0.7f;
@@ -2665,6 +2701,10 @@ static void CG_DrawSpectatorComparison( rectDef_t *rect, float scale, vec4_t col
 		return;
 	}
 
+	if ( !cg_specDuelHealthArmor.integer ) {
+		return;
+	}
+
 	otherSlot = ( slot == 0 ) ? 1 : 0;
 	other = CG_SpectatorClientInfo( otherSlot );
 
@@ -2679,6 +2719,14 @@ static void CG_DrawSpectatorComparison( rectDef_t *rect, float scale, vec4_t col
 
 	CG_GetColorForHealth( health, armor, healthColor );
 	CG_GetArmorTierColor( armor, armorColor );
+	if ( !cg_specDuelHealthColor.integer ) {
+		healthColor[0] = 1.0f;
+		healthColor[1] = 1.0f;
+		healthColor[2] = 1.0f;
+		armorColor[0] = 1.0f;
+		armorColor[1] = 1.0f;
+		armorColor[2] = 1.0f;
+	}
 
 	healthColor[3] = 0.85f;
 	armorColor[3] = 0.7f;

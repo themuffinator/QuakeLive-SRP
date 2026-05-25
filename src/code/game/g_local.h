@@ -168,7 +168,7 @@ typedef struct weaponConfig_s {
 	int		quadHogEnabled;
 	int		quadHogIdleSeconds;
 	int		quadHogTimeSeconds;
-	int		quadHogPingRateSeconds;
+	int		quadHogPingRateMilliseconds;
 } weaponConfig_t;
 
 extern weaponConfig_t g_weaponConfig;
@@ -189,7 +189,7 @@ typedef struct flagConfig_s {
 	float		flagBounce;
 	int		flagPhysics;
 	int		throwFlagVelocity;
-	int		throwFlagForwardMult;
+	float		throwFlagForwardMult;
 	qboolean	tackleFlag;
 	qboolean	returnOnSuicide;
 	int		droppedFlagBonus;
@@ -319,6 +319,13 @@ extern vmCvar_t g_autoAction;
 extern vmCvar_t g_floodprot_maxcount;
 extern vmCvar_t g_floodprot_decay;
 extern vmCvar_t g_floodprot_penalty;
+extern vmCvar_t g_droppedPowerupsDecay;
+extern vmCvar_t g_dropPowerups;
+extern vmCvar_t g_dropSkulls;
+extern vmCvar_t g_dropCmds;
+extern vmCvar_t g_dmgThroughSurfaceAngularThreshold;
+extern vmCvar_t g_dmgThroughSurfaceDampening;
+extern vmCvar_t g_dmgThroughSurfaceDistance;
 extern	vmCvar_t	g_startingHealth;
 extern	vmCvar_t	g_startingArmor;
 extern	vmCvar_t	g_startingWeapons;
@@ -329,6 +336,12 @@ extern vmCvar_t roundlimit;
 extern vmCvar_t roundtimelimit;
 extern vmCvar_t g_log;
 extern vmCvar_t g_logSync;
+extern vmCvar_t g_bestStartingWeapons;
+extern vmCvar_t g_debugFlags;
+extern vmCvar_t g_debugInactivity;
+extern vmCvar_t g_debugThawTime;
+extern vmCvar_t g_debugVampiricDamage;
+extern vmCvar_t g_enableDebugTrace;
 extern vmCvar_t g_listEntity;
 extern vmCvar_t g_rrRoundScoreBonus;
 extern vmCvar_t g_rrDeathScorePenalty;
@@ -405,7 +418,11 @@ extern vmCvar_t g_loadout;
 extern vmCvar_t g_runes;
 extern vmCvar_t g_flightThrust;
 extern vmCvar_t g_flightRefuelRate;
+extern vmCvar_t g_maxFlightFuel;
 extern vmCvar_t g_battleSuitDampen;
+extern vmCvar_t g_kamiAttenuate;
+extern vmCvar_t g_kamiMinRatio;
+extern vmCvar_t g_bestStartingWeapons;
 extern vmCvar_t g_dropDamagedHealth;
 extern vmCvar_t g_regenHealth;
 extern vmCvar_t g_regenHealthRate;
@@ -418,6 +435,10 @@ extern vmCvar_t g_spawnItemWeapons;
 extern vmCvar_t g_spawnItemHealth;
 extern vmCvar_t g_spawnItemArmor;
 extern vmCvar_t g_spawnItemAmmo;
+extern vmCvar_t g_spawnArmor;
+extern vmCvar_t g_spawnArmorDmgScale;
+extern vmCvar_t g_spawnDelay_key;
+extern vmCvar_t g_spawnDelay_powerup;
 extern vmCvar_t g_knockback_gh;
 extern vmCvar_t g_knockback_ng;
 extern vmCvar_t g_knockback_pl;
@@ -487,6 +508,8 @@ typedef struct weaponReloadConfig_s {
 extern weaponReloadConfig_t g_weaponReloadConfig;
 void G_InitWeaponReloadConfig( void );
 void G_UpdateWeaponReloadConfig( void );
+
+#define DEFAULT_MAX_KNOCKBACK	120.0f
 
 typedef struct knockbackConfig_s {
         float           gauntlet;
@@ -955,11 +978,12 @@ struct gclient_s {
 	int			lastkilled_client;	// last client that this client killed
 	int			lasthurt_client;	// last client that damaged this client
 	int			lasthurt_mod;		// type of damage the client did
+	int			revengeKillStreaks[MAX_CLIENTS];	// per-opponent retail revenge counters
 
 	// timers
 	int			respawnTime;		// can respawn when time > this, force after g_forcerespwan
 	int			inactivityTime;		// kick players when time > this
-	qboolean	inactivityWarning;	// qtrue if the five seoond warning has been given
+	qboolean	inactivityWarning;	// qtrue if the inactivity warning has been given
 	int			rewardTime;			// clear the EF_AWARD_IMPRESSIVE, etc when time > this
 
 	int			airOutTime;
@@ -1124,6 +1148,7 @@ typedef struct {
 	int			rankLastTeamScorer;
 
 	int			teamScores[TEAM_NUM_TEAMS];
+	qboolean	teamLocks[TEAM_NUM_TEAMS];
 	int			lastTeamLocationTime;		// last time of client team location update
 	int			deathmatchSpawnPointCount;
 	int			redSpawnPointCount;
@@ -1265,6 +1290,9 @@ qboolean	G_SpawnVector( const char *key, const char *defaultString, float *out )
 void	G_InitSpawnQueue( void );
 void	G_SyncMatchFactoryConfigToLevel( void );
 int		G_AdminAccessForSteamID( const char *steamId );
+void	G_SetAdminAccessForSteamID( const char *steamId, int tier, qboolean temporary );
+void	G_RemoveAdminAccessForSteamID( const char *steamId );
+void	G_PrintAccessListPage( gentity_t *ent, unsigned int page );
 void	G_ReloadAdminAccess( void );
 qboolean	G_FreezeGametypeEnabled( void );
 void	G_FreezeSyncCvars( void );
@@ -1372,6 +1400,7 @@ gentity_t *LaunchItem( gitem_t *item, vec3_t origin, vec3_t velocity );
 void SetRespawn (gentity_t *ent, float delay);
 void G_SpawnItem (gentity_t *ent, gitem_t *item);
 void FinishSpawningItem( gentity_t *ent );
+void G_InitItemSpawnDelays( void );
 void G_SpawnItemPowerups( void );
 void G_SpawnQuadHogQuad( void );
 void G_EnsureQuadHogQuad( void );
@@ -1508,11 +1537,12 @@ void InitClientResp (gclient_t *client);
 void InitBodyQue (void);
 void ClientSpawn( gentity_t *ent );
 void player_die (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+void G_ClearClientRevengeState( int clientNum );
 void AddScore( gentity_t *ent, const vec3_t origin, int score );
 void CalculateRanks( void );
 void G_RRInitClient( gentity_t *ent );
 void G_RRProcessClient( gentity_t *ent );
-void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, int meansOfDeath );
+void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath );
 void G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int damage );
 void G_RRHandleCompletedRound( void );
 void G_RRInitRoundController( void );
@@ -1783,6 +1813,7 @@ extern	vmCvar_t	g_domEnableContention;
 extern	vmCvar_t	g_domNeutralFlag;
 extern	vmCvar_t	g_domScoreRate;
 extern	vmCvar_t	g_friendlyFire;
+extern	vmCvar_t	g_friendlyFireDampen;
 extern	vmCvar_t	g_password;
 extern	vmCvar_t	g_needpass;
 extern	vmCvar_t	g_customSettings;
@@ -1814,15 +1845,21 @@ extern	vmCvar_t	g_knockback_cripple;
 extern	vmCvar_t	g_quadfactor;
 extern	vmCvar_t	g_forcerespawn;
 extern	vmCvar_t	g_inactivity;
+extern	vmCvar_t	g_inactivityWarning;
 extern	vmCvar_t	g_debugMove;
 extern	vmCvar_t	g_debugAlloc;
 extern	vmCvar_t	g_debugDamage;
+extern	vmCvar_t	g_debugFlags;
+extern	vmCvar_t	g_debugInactivity;
+extern	vmCvar_t	g_debugThawTime;
+extern	vmCvar_t	g_debugVampiricDamage;
 extern	vmCvar_t	g_weaponRespawn;
 extern	vmCvar_t	g_weaponTeamRespawn;
 extern	vmCvar_t	g_synchronousClients;
 extern	vmCvar_t	g_motd;
 extern	vmCvar_t	g_warmup;
 extern	vmCvar_t	g_doWarmup;
+extern	vmCvar_t	g_dropCmds;
 extern	vmCvar_t	g_warmupReadyDelay;
 extern	vmCvar_t	g_warmupReadyDelayAction;
 extern	vmCvar_t	g_timeoutLen;
@@ -1869,11 +1906,15 @@ extern	vmCvar_t	g_forceSmallScoreboardMessage;
 extern	vmCvar_t	g_forceSendConfigstring;
 extern	vmCvar_t	g_forceAtmosphericEffects;
 extern	vmCvar_t	g_forceDmgThroughSurface;
+extern	vmCvar_t	g_dmgThroughSurfaceAngularThreshold;
+extern	vmCvar_t	g_dmgThroughSurfaceDampening;
+extern	vmCvar_t	g_dmgThroughSurfaceDistance;
 extern	vmCvar_t	g_grantItemOnSpawn;
 extern	vmCvar_t	g_maxDeferredSpawns;
 extern	vmCvar_t	g_playermodelOverride;
 extern	vmCvar_t	g_playerheadmodelOverride;
 extern	vmCvar_t	g_training;
+extern	vmCvar_t	g_skipTrainingEnable;
 extern	vmCvar_t	g_lagHaxHistory;
 extern	vmCvar_t	g_lagHaxMs;
 extern	vmCvar_t	g_obeliskHealth;
@@ -1887,6 +1928,7 @@ extern	vmCvar_t	pmove_fixed;
 extern	vmCvar_t	pmove_msec;
 extern	vmCvar_t	g_rankings;
 extern	vmCvar_t	g_enableDust;
+extern	vmCvar_t	g_enableDebugTrace;
 extern	vmCvar_t	g_enableBreath;
 extern	vmCvar_t	g_singlePlayer;
 extern	vmCvar_t	g_proxMineTimeout;
@@ -1916,6 +1958,15 @@ extern	vmCvar_t	g_damage_rg;
 extern	vmCvar_t	g_damage_bfg;
 extern	vmCvar_t	g_splashDamage_bfg;
 extern	vmCvar_t	g_splashRadius_bfg;
+extern	vmCvar_t	g_flightThrust;
+extern	vmCvar_t	g_flightRefuelRate;
+extern	vmCvar_t	g_maxFlightFuel;
+extern	vmCvar_t	g_kamiAttenuate;
+extern	vmCvar_t	g_kamiMinRatio;
+extern	vmCvar_t	g_spawnArmor;
+extern	vmCvar_t	g_spawnArmorDmgScale;
+extern	vmCvar_t	g_spawnDelay_key;
+extern	vmCvar_t	g_spawnDelay_powerup;
 
 extern	vmCvar_t	g_startingAmmo_bfg;
 extern	vmCvar_t	g_startingAmmo_cg;

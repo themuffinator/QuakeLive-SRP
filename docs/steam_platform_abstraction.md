@@ -14,6 +14,105 @@ Symbols imported by the stock launcher (`quakelive_steam.exe`) were extracted wi
 
 These imports mirror the interfaces the original launcher expected from `steam_api.dll`, and inform which subsystems must be abstracted to remain functional without the proprietary runtime.
 
+2026-05-25 reconstruction note: the low-level `SteamMatchmakingServers` import
+now has a bounded native wrapper in `platform_steamworks.[ch]`. The wrapper
+covers the retail `JSBrowser_RequestServers` and `JSBrowserDetails` vtable
+slots for list requests, request refresh/release, server-row lookup, and
+ping/rules/player detail probes. The higher-level client browser still keeps
+the current source-browser compatibility lane for friends/history until that
+owner is deliberately rewired. See
+[`quakelive_steam_mapping_round_297.md`](reverse-engineering/quakelive_steam_mapping_round_297.md)
+for the evidence table and parity estimate.
+
+2026-05-25 follow-up: the retained `GetServerDetails` row is now projected
+through a typed `ql_steam_server_item_t` wrapper after validating the row AppID
+against `SteamUtils()->GetAppID()`. This closes the opaque-pointer portion of
+the native server-browser wrapper while leaving client browser publishing and
+empty-name display fallback as deliberate follow-up work. See
+[`quakelive_steam_mapping_round_298.md`](reverse-engineering/quakelive_steam_mapping_round_298.md).
+
+2026-05-25 display-name follow-up: the native row projection now carries a
+separate display name that mirrors retail's empty-name fallback at `sub_461f10`.
+Rows with an empty Steam server name produce a bounded `ip:port` display string,
+while the raw row name remains available separately. See
+[`quakelive_steam_mapping_round_299.md`](reverse-engineering/quakelive_steam_mapping_round_299.md).
+
+2026-05-25 query-lifecycle follow-up: the low-level server-details wrapper now
+also exposes `QL_Steamworks_CancelServerQuery` for the SDK-adjacent
+`ISteamMatchmakingServers` slot at `0x40`. The current retail HLIL evidence
+shows callback completion counters rather than an observed cancel call, so the
+wrapper is available for a future native browser owner but is not wired into
+product behavior yet. See
+[`quakelive_steam_mapping_round_300.md`](reverse-engineering/quakelive_steam_mapping_round_300.md).
+
+2026-05-25 client-integration follow-up: the client browser compatibility
+telemetry now describes the remaining gap as an `ISteamMatchmakingServers`
+wrapper that is not client-wired instead of a totally missing adapter. The
+event payload key stays `nativeAdapterGap`, but its value now reflects that
+rounds 297-300 reconstructed the low-level wrapper while `CL_SteamBrowser_*`
+still uses the source-browser compatibility owner. See
+[`quakelive_steam_mapping_round_301.md`](reverse-engineering/quakelive_steam_mapping_round_301.md).
+
+2026-05-25 request-mode follow-up: the native wrapper now names the retained
+`JSBrowser_RequestServers` mode and filter contract. Internet, friends,
+favorites, history, and invalid/default modes use the `gamedir=baseq3` filter;
+LAN is the only unfiltered request. See
+[`quakelive_steam_mapping_round_302.md`](reverse-engineering/quakelive_steam_mapping_round_302.md).
+
+2026-05-25 owner-lifecycle follow-up: the native server-browser wrapper now
+has a retained `JSBrowser`-shaped owner state for active refreshes and request
+handles. It pins release-before-replace, refresh-through-live-handle, and
+refresh-complete clearing of the active flag while leaving client event
+publication on the compatibility path. See
+[`quakelive_steam_mapping_round_303.md`](reverse-engineering/quakelive_steam_mapping_round_303.md).
+
+2026-05-25 response-projection follow-up: the native wrapper now exposes the
+retained `JSBrowser_OnServerResponded` payload shape as
+`ql_steam_server_browser_response_t`. It formats the response id, display name,
+decimal SteamID text, gametype string, tags, and lastPlayed fields from the
+typed row while keeping event publication out of the client for now. See
+[`quakelive_steam_mapping_round_304.md`](reverse-engineering/quakelive_steam_mapping_round_304.md).
+
+2026-05-25 failure/refresh follow-up: the native wrapper now also exposes the
+retained `JSBrowser` failure and refresh-complete event identities:
+`servers.details.%i.failed` and `servers.refresh.end`. The projections are
+available for a future native client browser owner while current event
+publication remains on the compatibility path. See
+[`quakelive_steam_mapping_round_305.md`](reverse-engineering/quakelive_steam_mapping_round_305.md).
+
+2026-05-25 detail-identity follow-up: the native wrapper now also exposes the
+retained `JSBrowserDetails` detail identity/event contract. It formats detail
+ids with the retail `%u_%i` signed-port suffix and projects the six
+rules/player event families:
+`servers.rules.%s.{response,failed,end}` and
+`servers.players.%s.{response,failed,end}`. Later rounds promote the
+rules/player payload bodies and detail-object completion counter. See
+[`quakelive_steam_mapping_round_306.md`](reverse-engineering/quakelive_steam_mapping_round_306.md).
+
+2026-05-25 detail-payload follow-up: the native wrapper now also exposes
+successful `JSBrowserDetails` response payload projections for rules and
+players. Rules responses carry `id`, `ip`, `port`, `rule`, and `value`;
+players responses carry `id`, `ip`, `port`, `name`, `score`, and `time`.
+Client callback ownership remains deliberate follow-up work. See
+[`quakelive_steam_mapping_round_307.md`](reverse-engineering/quakelive_steam_mapping_round_307.md).
+
+2026-05-25 detail-lifecycle follow-up: the native wrapper now also exposes the
+retained `JSBrowserDetails` shared completion counter. Ping, rules, and
+players terminal callbacks normalize their different callback-view offsets
+back to the same base-object counter and report release readiness on the third
+terminal callback. The actual client-owned callback adapter/allocation remains
+deliberate follow-up work. See
+[`quakelive_steam_mapping_round_309.md`](reverse-engineering/quakelive_steam_mapping_round_309.md).
+
+2026-05-25 detail-request follow-up: the native wrapper now also exposes the
+retained `JSBrowserDetails` response-view bundle used to start detail probes.
+It maps the base object to rules, `base + 4` to players, and `base + 8` to
+ping, then starts `PingServer -> ServerRules -> PlayerDetails` through the
+existing wrapper while keeping returned query handles in wrapper-side state
+rather than claiming them as retail object fields. The actual client-owned
+callback allocation/publication path remains deliberate follow-up work. See
+[`quakelive_steam_mapping_round_310.md`](reverse-engineering/quakelive_steam_mapping_round_310.md).
+
 ## Alternative Services and Data Contracts
 
 For each feature class, the table below recommends an open substitute (or adapter layer) and documents the payload formats exchanged with the Quake Live launcher when Steamworks is not present.
@@ -33,7 +132,7 @@ Each adapter is intentionally transport-agnostic—REST payloads can be served l
 Quake Live-only online services are now an explicit divergence from the parity-first reconstruction goal and stay build-disabled by default. Three compile definitions govern whether any service provider is allowed to exist:
 
 - `QL_BUILD_ONLINE_SERVICES=0` – default; disables advert fetching, Awesomium/web menu fetching, Steamworks, and open-Steam adapters, forcing the client onto offline fallbacks and stubs.
-- `QL_BUILD_STEAMWORKS=1` – when the master flag is also enabled, links against the proprietary Steamworks runtime and enables the Steam-authored feature stubs.
+- `QL_BUILD_STEAMWORKS=1` – when the master flag is also enabled, compiles the proprietary Steamworks compatibility lane and loads the Steamworks runtime dynamically.
 - `QL_BUILD_OPEN_STEAM=1` – when the master flag is also enabled, substitutes the open adapters. When both provider flags are present the build operates in *hybrid* mode, preferring Steamworks but transparently falling back to the open implementations.
 - `QL_ENABLE_LEGACY_Q3_SERVICES=1` – optional compatibility switch for the inherited Quake III update/master/authorize UDP endpoints. It is forced back to `0` whenever `QL_BUILD_ONLINE_SERVICES=0`, and default builds do not resolve the retired `*.quake3arena.com` hosts.
 
@@ -45,6 +144,17 @@ Define the macros through your build system to toggle the desired providers:
 
 - **MSBuild / Visual Studio** – the project defines user macros `QLBuildOnlineServices`, `QLBuildSteamworks`, and `QLBuildOpenSteam`, all defaulting to `0`. Override them on the command line (for example, `msbuild src\\code\\quakelive_steam.vcxproj /p:Configuration=Release /p:QLBuildOnlineServices=1 /p:QLBuildSteamworks=1 /p:QLBuildOpenSteam=0`) to control which backend files compile; each `ClCompile` entry forwards the values into `QL_BUILD_*` preprocessor definitions and skips translation units that are disabled.【F:src/code/quakelive_steam.vcxproj†L101-L706】
 - **GNU Make (Unix)** – pass the make variables `QL_BUILD_ONLINE_SERVICES=<0|1>`, `QL_BUILD_STEAMWORKS=<0|1>`, and `QL_BUILD_OPEN_STEAM=<0|1>` when invoking `make`. The shared makefile forwards the toggles to every compile command, forces the provider flags off when the master flag is `0`, and only adds the relevant backend objects to the link step, so both the dynamic and static client builds stay in sync.【F:src/code/unix/Makefile†L1-L1708】
+
+For MSBuild Steamworks builds, keep Valve's SDK outside the repository and
+point the project at it with `/p:SteamworksSdkDir=C:\path\to\sdk` or the
+`STEAMWORKS_SDK_DIR` environment variable. When `QLBuildOnlineServices=1` and
+`QLBuildSteamworks=1`, the project validates the optional SDK path, exposes
+`public\steam\steam_api.h` through the include path, and copies the Win32
+`redistributable_bin\steam_api.dll` beside the built executable. The wrapper
+still uses dynamic loading, so `steam_api.lib` is intentionally not linked; set
+`/p:QLRequireSteamworksSdk=1` if a build should fail when the external SDK is
+not configured. Do not commit the SDK headers, libs, or DLLs into this GPL
+reconstruction repository.
 
 When the flags change, the service table automatically advertises the active providers and `QL_Auth_ExecuteRequest` logs both the provider name and the companion policy label reported by the table (for example, “Steamworks [compatibility-only]”, “Build-disabled (QL_BUILD_ONLINE_SERVICES=0) [compatibility-disabled (QL_BUILD_ONLINE_SERVICES=0)]”, or “Disabled by QL_DISABLE_EXTERNAL_ECOSYSTEMS [compatibility-disabled (QL_DISABLE_EXTERNAL_ECOSYSTEMS)]”).【F:src/common/platform/platform_services.c†L16-L110】【F:src/code/client/ql_auth.c†L200-L273】
 

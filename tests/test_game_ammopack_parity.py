@@ -134,8 +134,8 @@ def test_ammo_pack_factory_gate_switches_global_and_weapon_ammo_families() -> No
 		return ( g_factoryCvarConfig.ammoPackEnabled || g_factoryCvarConfig.ammoPackHackEnabled ) ? qfalse : qtrue;""" in ammo_case
 
 	for expected in (
-		'{ &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_ARCHIVE',
-		'{ &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_ARCHIVE',
+		'{ &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_LATCH | CVAR_GAMERULE',
+		'{ &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_LATCH | CVAR_GAMERULE',
 		"config.ammoPackEnabled = G_ReadFactoryBoolCvar( &g_ammoPack, DEFAULT_AMMO_PACK_TOGGLE, \"g_ammoPack\" );",
 		"config.ammoPackHackEnabled = G_ReadFactoryBoolCvar( &g_ammoPackHack, DEFAULT_AMMO_PACK_HACK, \"g_ammoPackHack\" );",
 	):

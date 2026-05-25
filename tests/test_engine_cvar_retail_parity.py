@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -61,6 +62,15 @@ QL_STEAM_HLIL_PART02 = (
 	/ "quakelive_steam.exe_hlil_split"
 	/ "quakelive_steam.exe_hlil_part02.txt"
 )
+QL_STEAM_HLIL_PART05 = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "quakelive_steam.exe"
+	/ "quakelive_steam.exe_hlil_split"
+	/ "quakelive_steam.exe_hlil_part05.txt"
+)
 QL_STEAM_HLIL_PART06 = (
 	REPO_ROOT
 	/ "references"
@@ -101,26 +111,127 @@ def _read_text(path: Path) -> str:
 	return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def test_console_cvar_surface_matches_retail_hlil() -> None:
-	cl_console = _read_text(CL_CONSOLE)
+RETAIL_CON_CVAR_REGISTRATIONS = (
+	(
+		"con_background",
+		'con_background = Cvar_GetBounded( "con_background", "0", "0", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'004b4a68      sub_4cdd30(x87_r0, x87_r1, x87_r2, "con_background", U"0", U"0", U"1", 0x81800)',
+	),
+	(
+		"con_height",
+		'con_height = Cvar_GetBounded( "con_height", "0.5", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'004b4a7e      sub_4cdd30(x87_r3, x87_r4, x87_r5, "con_height", "0.5", "0.1", U"1", 0x81800)',
+	),
+	(
+		"con_matchlimit",
+		'con_matchlimit = Cvar_Get( "con_matchlimit", "16", 0 );',
+		'004b4a94  data_165d624 = sub_4ce0d0(x87_r6, "con_matchlimit", "16", 0)',
+	),
+	(
+		"con_noprint",
+		'con_noprint = Cvar_Get( "con_noprint", "0", 0 );',
+		'004b4aba  data_165d618 = sub_4ce0d0(x87_r0, "con_noprint", U"0", 0)',
+	),
+	(
+		"con_opacity",
+		'con_opacity = Cvar_GetBounded( "con_opacity", "0.9", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'004b4add      sub_4cdd30(x87_r2, x87_r3, x87_r4, "con_opacity", "0.9", "0.1", U"1", 0x81800)',
+	),
+	(
+		"con_scale",
+		'con_scale = Cvar_GetBounded( "con_scale", "0.5", "0.5", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'004b4b00      sub_4cdd30(x87_r5, x87_r6, x87_r7, "con_scale", "0.5", "0.5", U"1", 0x81800)',
+	),
+	(
+		"con_speed",
+		'con_speed = Cvar_GetBounded( "con_speed", "3", "0.1", "1000", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
+		'004b4b19      sub_4cdd30(x87_r0, x87_r1, x87_r2, "con_speed", U"3", "0.1", "1000", 0x81800)',
+	),
+	(
+		"con_timestamps",
+		'con_timestamps = Cvar_Get( "con_timestamps", "0", CVAR_PROTECTED | CVAR_CLOUD );',
+		'004b4b2b  data_16dd688 = sub_4ce0d0(x87_r3, "con_timestamps", U"0", 0x80800)',
+	),
+)
 
-	registered = [
+
+RETAIL_CON_CVAR_WIRING = {
+	"con_background": (
+		"else if ( con_background && con_background->integer > 0 ) {",
+		"SCR_DrawPic( 0, 0, SCREEN_WIDTH, y, cls.consoleShader );",
+	),
+	"con_height": (
+		"con.finalFrac = con_height ? Com_Clamp( 0.1f, 1.0f, con_height->value ) : 0.5f;",
+	),
+	"con_matchlimit": (
+		"limit = con_matchlimit ? con_matchlimit->integer : 16;",
+	),
+	"con_noprint": (
+		"if ( con_noprint && con_noprint->integer ) {",
+	),
+	"con_opacity": (
+		"color[3] = con_opacity ? con_opacity->value : 0.9f;",
+	),
+	"con_scale": (
+		"scale = con_scale->value;",
+		"return Com_Clamp( 0.5f, 1.0f, scale );",
+		"pixelScale = Con_GetScale() * Con_GetScreenScale();",
+	),
+	"con_speed": (
+		"con.displayFrac -= ( con_speed ? Com_Clamp( 0.1f, 1000.0f, con_speed->value ) : 3.0f ) * cls.realFrametime * 0.001f;",
+		"con.displayFrac += ( con_speed ? Com_Clamp( 0.1f, 1000.0f, con_speed->value ) : 3.0f ) * cls.realFrametime * 0.001f;",
+	),
+	"con_timestamps": (
+		"timestampMode = con_timestamps->integer;",
+		"if ( cgvm && con_timestamps && con_timestamps->integer == 1 ) {",
+		"Con_FormatTimestamp( timestamp, sizeof( timestamp ) );",
+	),
+}
+
+
+def _registered_console_con_cvars(source: str) -> list[str]:
+	return [
 		line.strip()
-		for line in cl_console.splitlines()
+		for line in source.splitlines()
 		if "Cvar_Get" in line and '"con_' in line
 	]
 
-	assert registered == [
-		'con_background = Cvar_GetBounded( "con_background", "0", "0", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
-		'con_height = Cvar_GetBounded( "con_height", "0.5", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
-		'con_matchlimit = Cvar_Get( "con_matchlimit", "16", 0 );',
-		'con_noprint = Cvar_Get( "con_noprint", "0", 0 );',
-		'con_opacity = Cvar_GetBounded( "con_opacity", "0.9", "0.1", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
-		'con_scale = Cvar_GetBounded( "con_scale", "0.5", "0.5", "1", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
-		'con_speed = Cvar_GetBounded( "con_speed", "3", "0.1", "1000", CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );',
-		'con_timestamps = Cvar_Get( "con_timestamps", "0", CVAR_PROTECTED | CVAR_CLOUD );',
-	]
+
+def test_console_cvar_surface_matches_retail_hlil() -> None:
+	cl_console = _read_text(CL_CONSOLE)
+	hlil_registration = _read_text(QL_STEAM_HLIL_PART04)
+	hlil_strings = _read_text(QL_STEAM_HLIL_PART06)
+
+	registered = _registered_console_con_cvars(cl_console)
+	hlil_con_names = sorted(
+		{
+			name
+			for match in re.findall(r'"(con_[A-Za-z0-9_]+)"|U"(con_[A-Za-z0-9_]+)"', hlil_registration + hlil_strings)
+			for name in match
+			if name
+		}
+	)
+
+	assert hlil_con_names == [name for name, _, _ in RETAIL_CON_CVAR_REGISTRATIONS]
+	assert registered == [registration for _, registration, _ in RETAIL_CON_CVAR_REGISTRATIONS]
+	for _, _, evidence in RETAIL_CON_CVAR_REGISTRATIONS:
+		assert evidence in hlil_registration
 	assert "con_notifytime" not in cl_console
+	assert "con_notifytime" not in hlil_registration
+	assert "scr_conspeed" not in "\n".join(registered)
+
+
+def test_console_cvar_functional_wiring_matches_retail_hlil_surface() -> None:
+	cl_console = _read_text(CL_CONSOLE)
+
+	for cvar_name, snippets in RETAIL_CON_CVAR_WIRING.items():
+		for snippet in snippets:
+			assert snippet in cl_console, cvar_name
+
+	assert cl_console.count( "color[3] = con_opacity ? con_opacity->value : 0.9f;" ) >= 2
+	assert "CON_NOTIFY_TIME\t3000" in cl_console
+	assert 'Cvar_Get( "con_notifytime"' not in cl_console
+	assert 'Cvar_Get( "scr_conspeed"' not in cl_console
 
 
 def test_engine_cvar_registrations_match_targeted_retail_contracts() -> None:
@@ -599,12 +710,12 @@ def test_engine_cvar_tenth_client_userinfo_tranche_matches_retail_contracts() ->
 	assert 'Cvar_Get ("cl_anonymous", "0", CVAR_INIT|CVAR_SYSTEMINFO );' not in cl_main
 
 	assert 'Cvar_Get ("cg_autoAction", "", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );' in cl_main
-	assert '{ &cg_autoAction, "cg_autoAction", "0", CVAR_ARCHIVE | CVAR_LATCH },' in cg_main
+	assert '{ &cg_autoAction, "cg_autoAction", "3", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "3" },' in cg_main
 	assert 'cg.autoActionFlags = cg_autoAction.integer;' in cg_main
 	assert 'flags = cg.autoActionFlags;' in cg_main
 
 	assert 'Cvar_Get ("cg_autoHop", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );' in cl_main
-	assert '{ &cg_autoHop, "cg_autoHop", "1", CVAR_ARCHIVE | CVAR_LATCH },' in cg_main
+	assert '{ &cg_autoHop, "cg_autoHop", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD, "0", "1" },' in cg_main
 	assert 'cg.autoHopEnabled = (qboolean)( cg_autoHop.integer != 0 );' in cg_main
 	assert 'cg.predictedPlayerState.pm_flags &= ~PMF_REQUIRE_JUMP_RELEASE;' in cg_predict
 	assert 'cg.predictedPlayerState.pm_flags |= PMF_REQUIRE_JUMP_RELEASE;' in cg_predict
@@ -613,7 +724,7 @@ def test_engine_cvar_tenth_client_userinfo_tranche_matches_retail_contracts() ->
 	assert 'client->ps.pm_flags &= ~PMF_REQUIRE_JUMP_RELEASE;' in g_client
 
 	assert 'Cvar_Get ("cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );' in cl_main
-	assert '{ &cg_predictItems, "cg_predictItems", "1", CVAR_ARCHIVE },' in cg_main
+	assert '{ &cg_predictItems, "cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },' in cg_main
 	assert 'if ( !cg_predictItems.integer ) {' in cg_predict
 	assert 's = Info_ValueForKey( userinfo, "cg_predictItems" );' in g_client
 
@@ -645,6 +756,22 @@ def test_engine_cvar_tenth_client_userinfo_tranche_matches_retail_contracts() ->
 	assert 'Cvar_Get ("teamtask", "0", CVAR_USERINFO | CVAR_PROTECTED );' in cl_main
 	assert 'teamTask = atoi(Info_ValueForKey(userinfo, "teamtask"));' in g_client
 	assert 'trap_SendClientCommand( va( "teamtask %d\\n", cgs.acceptTask ) );' in cg_consolecmds
+
+
+def test_engine_cvar_early_cgame_preinit_tranche_matches_retail_contracts() -> None:
+	cl_main = _read_text(CL_MAIN)
+	cg_main = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c")
+	cg_event = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_event.c")
+	cg_predict = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_predict.c")
+
+	assert 'Cvar_GetBounded( "cg_autoswitch", "0", "0", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );' in cl_main
+	assert 'Cvar_Get ("cg_autoswitch", "1", CVAR_ARCHIVE);' not in cl_main
+	assert '{ &cg_autoswitch, "cg_autoswitch", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },' in cg_main
+	assert "if ( cg_autoswitch.integer && weapon != WP_MACHINEGUN ) {" in cg_event
+
+	assert '{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },' in cg_main
+	assert "cg.autoProjectileNudgeEnabled = (qboolean)( cg_autoProjectileNudge.integer != 0 );" in cg_main
+	assert "if ( cg.autoProjectileNudgeEnabled && cg.snap ) {" in cg_predict
 
 
 def test_engine_cvar_eleventh_common_tranche_matches_retail_contracts() -> None:
@@ -770,6 +897,257 @@ def test_engine_cvar_twelfth_common_misc_tranche_matches_retail_contracts() -> N
 	assert 'com_version = Cvar_Get ("version", s, CVAR_ROM | CVAR_SERVERINFO );' in common
 	assert 'Info_SetValueForKey( info, NET_GetMotdVersionInfoKey(), com_version->string );' in cl_main
 	assert 'trap_Cvar_VariableStringBuffer( "version", str, sizeof(str) );' in g_rankings
+
+
+def test_selected_com_cvars_match_retail_defaults_flags_and_wiring() -> None:
+	common = _read_text(COMMON)
+	qcommon_h = _read_text(REPO_ROOT / "src" / "code" / "qcommon" / "qcommon.h")
+	cvar = _read_text(QCOMMON_CVAR)
+	files = _read_text(FILES)
+	cl_console = _read_text(CL_CONSOLE)
+	cl_keys = _read_text(CL_KEYS)
+	cl_main = _read_text(CL_MAIN)
+	ui_main = _read_text(UI_MAIN)
+	cg_main = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c")
+	cg_effects = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_effects.c")
+	cg_weapons = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_weapons.c")
+	g_main = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_main.c")
+	g_combat = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_combat.c")
+	sv_init = _read_text(SV_INIT)
+	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
+	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
+	ui_hlil = _read_text(QL_UI_HLIL_PART01)
+
+	assert 'sub_4cdd30(x87_r0, x87_r1, x87_r2, "com_maxfps", "125", "30", "250", 0x81001)' in retail_hlil
+	assert 'com_maxfps = Cvar_GetBounded( "com_maxfps", "125", "30", "250", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD );' in common
+	assert 'if ( !com_dedicated->integer && com_maxfps->integer > 0 && !com_timedemo->integer ) {' in common
+	assert 'minMsec = 1000 / com_maxfps->integer;' in common
+
+	assert 'com_blood' not in retail_hlil
+	assert 'com_blood' not in retail_ghidra
+	assert 'com_blood' not in common
+	assert 'com_blood' not in qcommon_h
+	assert '{ &cg_blood, "cg_blood", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },' in cg_main
+	assert '{ &g_blood, "com_blood", "1", 0, 0, qfalse },' in g_main
+	assert 'if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {' in cg_effects
+	assert 'if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {' in cg_weapons
+	assert 'if ( (self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP) && g_blood.integer) || meansOfDeath == MOD_SUICIDE) {' in g_combat
+
+	assert 'data_145c9fc = sub_4ce0d0(x87_r5, "com_showtrace", U"0", 0x200)' in retail_hlil
+	assert 'com_showtrace = Cvar_Get ("com_showtrace", "0", CVAR_CHEAT);' in common
+	assert 'if ( com_showtrace->integer ) {' in common
+	assert 'Com_Printf ("%4i traces  (%ib %ip) %4i points\\n", c_traces,' in common
+
+	assert 'data_145c9f8 = sub_4ce0d0(x87_r7, "com_dropsim", U"0", 0x200)' in retail_hlil
+	assert 'com_dropsim = Cvar_Get ("com_dropsim", "0", CVAR_CHEAT);' in common
+	assert 'if ( com_dropsim->value > 0 ) {' in common
+	assert 'if ( Q_random( &seed ) < com_dropsim->value ) {' in common
+
+	assert 'data_145c9e0 = sub_4ce0d0(x87_r3, "com_speeds", U"0", 0)' in retail_hlil
+	assert 'com_speeds = Cvar_Get ("com_speeds", "0", 0);' in common
+	assert 'if ( com_speeds->integer ) {' in common
+	assert 'Com_Printf ("frame:%i all:%3i sv:%3i ev:%3i cl:%3i gm:%3i rf:%3i bk:%3i\\n",' in common
+
+	assert 'data_145b940 = sub_4ce0d0(x87_r7, "com_cameraMode", U"0", 0x200)' in retail_hlil
+	assert 'com_cameraMode = Cvar_Get ("com_cameraMode", "0", CVAR_CHEAT);' in common
+	assert '{ &cg_cameraMode, "comCameraMode", "0", CVAR_CHEAT},' not in cg_main
+	assert '{ &cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},' in cg_main
+	assert '} else if (com_cameraMode->integer) {' in common
+	assert 'if (Cvar_VariableValue ("com_cameraMode") == 0) {' in cl_keys
+
+	assert 'data_145b948 = sub_4ce0d0(x87_r1, "com_build", U"0", 0)' in retail_hlil
+	assert 'com_buildScript = Cvar_Get( "com_build", "0", 0 );' in common
+	assert 'if ( com_buildScript && com_buildScript->integer ) {' in common
+	assert 'if ( com_buildScript && com_buildScript->integer ) {' in files
+	assert 'if ( com_buildScript && com_buildScript->integer ) {' in cl_main
+	assert 'if ( com_buildScript && com_buildScript->integer ) {' in sv_init
+	assert '{ &cg_buildScript, "com_build", "0", 0 },' in cg_main
+	assert 'if( g_gametype.integer == GT_SINGLE_PLAYER || trap_Cvar_VariableIntegerValue( "com_build" ) ) {' in g_main
+
+	assert 'data_145ca54 = sub_4ce0d0(x87_r3, "com_introplayed", U"0", 1)' in retail_hlil
+	assert 'com_introPlayed = Cvar_Get( "com_introplayed", "0", CVAR_ARCHIVE);' in common
+	assert 'if( !com_introPlayed->integer ) {' in common
+	assert 'Cvar_Set( com_introPlayed->name, "1" );' in common
+	assert 'trap_Cvar_Set("com_introPlayed", "1" );' in ui_main
+	assert 'var_4c8_11 = "com_introPlayed"' in ui_hlil
+	assert 'letter = tolower(fname[i]);' in cvar
+	assert 'if (!Q_stricmp(var_name, var->name)) {' in cvar
+
+	assert 'data_145b944 = sub_4ce0d0(x87_r5, "com_idleSleep", U"1", 0x80001)' in retail_hlil
+	assert 'com_idleSleep = Cvar_Get( "com_idleSleep", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in common
+	assert 'Cvar_VariableIntegerValue( "web_browserActive" ) == 1 || ( com_idleSleep && com_idleSleep->integer == 1 )' in common
+	assert 'Com_IdleSleep( minMsec - msec );' in common
+
+	assert 'void** eax_37 = sub_4ce0d0(x87_r1, "com_allowConsole", U"1", 0x80801)' in retail_hlil
+	assert 'com_allowConsole = Cvar_Get( "com_allowConsole", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );' in common
+	assert 'if ( com_allowConsole && !com_allowConsole->integer ) {' in cl_console
+	assert "Com_Printf( \"com_allowConsole won't allow toggleconsole command\\n\" );" in cl_console
+
+
+def test_selected_com_cvars_second_batch_match_retail_defaults_flags_and_wiring() -> None:
+	common = _read_text(COMMON)
+	cvar = _read_text(QCOMMON_CVAR)
+	snd_mem = _read_text(REPO_ROOT / "src" / "code" / "client" / "snd_mem.c")
+	cl_cin = _read_text(CL_CIN)
+	cl_main = _read_text(CL_MAIN)
+	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
+	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
+
+	assert 'int32_t esi = sub_4ce0d0(x87_r0, "com_zoneMegs", "64", 0x21)[0xc]' in retail_hlil
+	assert '#define DEF_COMZONEMEGS "64"' in common
+	assert 'Com_StartupVariable( "com_zoneMegs" );' in common
+	assert 'cv = Cvar_Get( "com_zoneMegs", DEF_COMZONEMEGS, CVAR_LATCH | CVAR_ARCHIVE );' in common
+	assert 'if ( cv->integer < 20 ) {' in common
+	assert 's_zoneTotal = 1024 * 1024 * 16;' in common
+	assert 's_zoneTotal = cv->integer * 1024 * 1024;' in common
+
+	assert 'void** eax = sub_4ce0d0(x87_r0, "com_hunkMegs", "128", 0x21)' in retail_hlil
+	assert '#define DEF_COMHUNKMEGS "128"' in common
+	assert '#define MIN_COMHUNKMEGS 128' in common
+	assert '#define MIN_DEDICATED_COMHUNKMEGS 1' in common
+	assert 'Com_StartupVariable( "com_hunkMegs" );' in common
+	assert 'cv = Cvar_Get( "com_hunkMegs", DEF_COMHUNKMEGS, CVAR_LATCH | CVAR_ARCHIVE );' in common
+	assert 'nMinAlloc = MIN_DEDICATED_COMHUNKMEGS;' in common
+	assert 'nMinAlloc = MIN_COMHUNKMEGS;' in common
+	assert 's_hunkTotal = cv->integer * 1024 * 1024;' in common
+
+	assert 'int32_t esi_2 = sub_4ce0d0(x87_r0, "com_soundMegs", "16", 0x21)[0xc] * 0x202000' in retail_hlil
+	assert '#define DEF_COMSOUNDMEGS "16"' in snd_mem
+	assert 'cv = Cvar_Get( "com_soundMegs", DEF_COMSOUNDMEGS, CVAR_LATCH | CVAR_ARCHIVE );' in snd_mem
+	assert 'scs = (cv->integer*1024);' in snd_mem
+	assert 'scs = (cv->integer*1536);' not in snd_mem
+	assert 'buffer = malloc(scs*sizeof(sndBuffer) );' in snd_mem
+	assert 'freelist = p + scs - 1;' in snd_mem
+
+	assert 'FUN_004c8a70("com_ignorecrash");' in retail_ghidra
+	assert 'data_1205e40 = sub_4ce0d0(x87_r0, "com_ignorecrash", U"0", 0)' in retail_hlil
+	assert 'Com_StartupVariable( "com_ignorecrash" );' in common
+	assert 'com_ignorecrash = Cvar_Get( "com_ignorecrash", "0", 0 );' in common
+	assert 'if ( com_ignorecrash && com_ignorecrash->integer ) {' in common
+	assert '&& ( !com_ignorecrash || !com_ignorecrash->integer ) ) {' in common
+
+	assert 'data_1205e44 = sub_4ce0d0(x87_r2, "com_crashed", U"0", 0x100)' in retail_hlil
+	assert 'com_crashed = Cvar_Get( "com_crashed", "0", CVAR_TEMP );' in common
+	assert 'Cvar_Set( "com_crashed", "1" );' in common
+	assert 'if ( com_crashed && com_crashed->integer' in common
+
+	assert 'data_1205e3c = sub_4ce0d0(x87_r4, "com_pid", sub_4d9220(&data_52d9b4), 0x40)' in retail_hlil
+	assert 'Com_sprintf( pidString, sizeof( pidString ), "%lu", (unsigned long)GetCurrentProcessId() );' in common
+	assert 'Com_sprintf( pidString, sizeof( pidString ), "%lu", (unsigned long)getpid() );' in common
+	assert 'com_pid = Cvar_Get( "com_pid", pidString, CVAR_ROM );' in common
+	assert 'if ( retainedPid > 0 && com_pid && retainedPid != com_pid->integer ) {' in common
+	assert 'FS_WriteFile( "profile.pid", pidValue, strlen( pidValue ) );' in common
+
+	assert 'data_1459924 = sub_4ce0d0(x87_r3, "developer", U"0", 0x100)' in retail_hlil
+	assert 'com_developer = Cvar_Get( "developer", "0", CVAR_TEMP );' in common
+	assert 'com_developer = Cvar_Get ("developer", "0", CVAR_TEMP );' in common
+	assert 'Com_StartupVariable( "developer" );' in common
+	assert 'if ( !com_developer || !com_developer->integer ) {' in common
+	assert 'Cmd_AddCommand ("error", Com_Error_f);' in common
+
+	assert 'data_145b958 = sub_4ce0d0(x87_r5, "logfile", U"0", 0x100)' in retail_hlil
+	assert 'com_logfile = Cvar_Get( "logfile", "0", CVAR_TEMP );' in common
+	assert 'com_logfile = Cvar_Get ("logfile", "0", CVAR_TEMP );' in common
+	assert 'if ( com_logfile && com_logfile->integer ) {' in common
+	assert 'if ( com_logfile->integer > 1 ) {' in common
+	assert 'logfile = FS_FOpenFileWrite( "qconsole.log" );' in common
+
+	assert 'data_1205e34 = sub_4ce0d0(x87_r7, "appendlogfile", U"0", 0x100)' in retail_hlil
+	assert common.count('com_appendlogfile = Cvar_Get( "appendlogfile", "0", CVAR_TEMP );') == 2
+	assert 'if ( com_appendlogfile && com_appendlogfile->integer ) {' in common
+	assert 'logfile = FS_FOpenFileAppend( "qconsole.log" );' in common
+
+	assert 'data_145b960 = sub_4ce0d0(x87_r1, "timescale", U"1", 0x208)' in retail_hlil
+	assert 'com_timescale = Cvar_Get ("timescale", "1", CVAR_CHEAT | CVAR_SYSTEMINFO );' in common
+	assert '} else if ( com_timescale->value ) {' in common
+	assert 'msec *= com_timescale->value;' in common
+	assert 'if ( msec < 1 && com_timescale->value) {' in common
+	assert 'CL_ScaledMilliseconds()*com_timescale->value' in cl_cin
+	assert 'msec = (1000 / cl_avidemo->integer) * com_timescale->value;' in cl_main
+	assert 'if ( (var->flags & CVAR_CHEAT) && !cvar_cheats->integer )' in cvar
+
+
+def test_selected_com_cvars_startup_alias_batch_match_retail_defaults_flags_and_wiring() -> None:
+	common = _read_text(COMMON)
+	cvar = _read_text(QCOMMON_CVAR)
+	cl_cgame = _read_text(REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c")
+	cl_main = _read_text(CL_MAIN)
+	cl_console = _read_text(CL_CONSOLE)
+	ui_main = _read_text(UI_MAIN)
+	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
+	retail_strings = _read_text(QL_STEAM_HLIL_PART06)
+	ui_hlil = _read_text(QL_UI_HLIL_PART01)
+	com_error_body = common[
+		common.index("void QDECL Com_Error")
+		:common.index("Com_Quit_f")
+	]
+	com_error_publish_block = com_error_body[
+		com_error_body.index("va_start (argptr,fmt);")
+		:com_error_body.index("if ( code == ERR_SERVERDISCONNECT ) {")
+	]
+
+	assert 'sub_4cd250("com_errorMessage", &data_145b9e0)' in retail_hlil
+	assert 'sub_4cd250("com_errorMessage", &data_54f9da)' in retail_hlil
+	assert 'sub_4cd250("com_errorMessage", &data_54f9da)' in _read_text(QL_STEAM_HLIL_PART05)
+	assert '(*(data_106b40a8 + 0x24))("com_errorMessage", &var_104, 0x100)' in ui_hlil
+	assert 'Cvar_Set("com_errorMessage", com_errorMessage);' in common
+	assert 'if ( code != ERR_DISCONNECT && code != ERR_NEED_CD ) {' not in com_error_publish_block
+	assert 'if ( code == ERR_DISCONNECT ) {' in common
+	assert 'Cvar_Set("com_errorMessage", "");' in common
+	assert 'Cvar_Set( "com_errorMessage", "" );' in common
+	assert 'Cvar_Set( "com_errorMessage", message );' in cl_cgame
+	assert 'Cvar_Set( "com_errorMessage", "" );' in cl_main
+	assert 'trap_Cvar_VariableStringBuffer("com_errorMessage", buf, sizeof(buf));' in ui_main
+	assert 'trap_Cvar_Set("com_errorMessage", "");' in ui_main
+	assert 'Cvar_Get( "com_errorMessage"' not in common
+	assert 'return Cvar_Get (var_name, value, 0);' in cvar
+
+	assert 'sub_4cd250("com_errormessage", &data_54f9da)' in retail_hlil
+	assert 'char const data_540cf0[0x11] = "com_errormessage", 0' in retail_strings
+	assert 'Cvar_Set( "com_errorMessage", "" );' in common
+	assert 'letter = tolower(fname[i]);' in cvar
+	assert 'if (!Q_stricmp(var_name, var->name)) {' in cvar
+
+	assert 'sub_4cd250("com_ignoreCrash", U"1")' in retail_hlil
+	assert 'char const data_540ce0[0x10] = "com_ignoreCrash", 0' in retail_strings
+	assert 'if ( !FS_FileExists( QL_CONFIG_HARDWARE_FILE ) ) {' in common
+	assert 'Cvar_Set( "com_ignoreCrash", "1" );' in common
+
+	assert 'sub_4c8a70("com_ignorecrash")' in retail_hlil
+	assert 'data_1205e40 = sub_4ce0d0(x87_r0, "com_ignorecrash", U"0", 0)' in retail_hlil
+	assert 'Com_StartupVariable( "com_ignorecrash" );' in common
+	assert 'com_ignorecrash = Cvar_Get( "com_ignorecrash", "0", 0 );' in common
+	assert 'if ( com_crashed && com_crashed->integer' in common
+	assert '&& ( !com_ignorecrash || !com_ignorecrash->integer ) ) {' in common
+
+	assert 'sub_4c8a70("journal")' in retail_hlil
+	assert 'void** eax = sub_4ce0d0(x87_r0, "journal", U"0", 0x10)' in retail_hlil
+	assert 'sub_4cd250("com_journal", U"0")' in retail_hlil
+	assert 'Com_StartupVariable( "journal" );' in common
+	assert 'com_journal = Cvar_Get ("journal", "0", CVAR_INIT);' in common
+	assert 'Cvar_Set( "com_journal", "0" );' in common
+
+	assert 'data_1205e44 = sub_4ce0d0(x87_r2, "com_crashed", U"0", 0x100)' in retail_hlil
+	assert 'com_crashed = Cvar_Get( "com_crashed", "0", CVAR_TEMP );' in common
+	assert 'Cvar_Set( "com_crashed", "1" );' in common
+	assert 'if ( com_crashed && com_crashed->integer' in common
+
+	assert 'data_1205e3c = sub_4ce0d0(x87_r4, "com_pid", sub_4d9220(&data_52d9b4), 0x40)' in retail_hlil
+	assert 'com_pid = Cvar_Get( "com_pid", pidString, CVAR_ROM );' in common
+	assert 'Com_ProfilePidIsCurrentProcess' in common
+	assert 'FS_WriteFile( "profile.pid", pidValue, strlen( pidValue ) );' in common
+
+	assert 'var_4c8_11 = "com_introPlayed"' in ui_hlil
+	assert 'trap_Cvar_Set("com_introPlayed", "1" );' in ui_main
+	assert 'data_145ca54 = sub_4ce0d0(x87_r3, "com_introplayed", U"0", 1)' in retail_hlil
+	assert 'com_introPlayed = Cvar_Get( "com_introplayed", "0", CVAR_ARCHIVE);' in common
+	assert 'if( !com_introPlayed->integer ) {' in common
+	assert 'Cvar_Set( com_introPlayed->name, "1" );' in common
+
+	assert 'void** eax_37 = sub_4ce0d0(x87_r1, "com_allowConsole", U"1", 0x80801)' in retail_hlil
+	assert 'com_allowConsole = Cvar_Get( "com_allowConsole", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );' in common
+	assert 'if ( com_allowConsole && !com_allowConsole->integer ) {' in cl_console
+	assert "Com_Printf( \"com_allowConsole won't allow toggleconsole command\\n\" );" in cl_console
 
 
 def test_engine_cvar_thirteenth_filesystem_tranche_matches_retail_contracts() -> None:
@@ -1295,6 +1673,12 @@ def test_engine_cvar_thirtyninth_client_service_disclosure_tranche_matches_guard
 		("cl_voiceServicePolicy", "compatibility-unavailable", "CL_GetVoiceServicePolicyLabel()"),
 		("cl_workshopProvider", "Unavailable", "CL_GetWorkshopServiceProviderLabel()"),
 		("cl_workshopPolicy", "compatibility-unavailable", "CL_GetWorkshopServicePolicyLabel()"),
+		("cl_matchmakingProvider", "Unavailable", "CL_GetMatchmakingServiceProviderLabel()"),
+		("cl_matchmakingPolicy", "compatibility-unavailable", "CL_GetMatchmakingServicePolicyLabel()"),
+		("cl_statsProvider", "Unavailable", "CL_GetStatsServiceProviderLabel()"),
+		("cl_statsPolicy", "compatibility-unavailable", "CL_GetStatsServicePolicyLabel()"),
+		("cl_socialOverlayProvider", "Unavailable", "CL_GetSocialOverlayServiceProviderLabel()"),
+		("cl_socialOverlayPolicy", "compatibility-unavailable", "CL_GetSocialOverlayServicePolicyLabel()"),
 	]
 
 	for name, default, provider in service_cvars:
@@ -1316,6 +1700,61 @@ def test_engine_cvar_thirtyninth_client_service_disclosure_tranche_matches_guard
 	assert 'static const char *CL_GetWorkshopServiceProviderLabel( void ) {' in cl_main
 	assert 'return QL_DescribePlatformFeaturePolicy( CL_GetWorkshopServiceDescriptor() );' in cl_main
 	assert 'Workshop %s via %s [%s]: %s\\n' in cl_main
+	assert 'static const ql_platform_feature_descriptor *CL_GetMatchmakingServiceDescriptor( void ) {' in cl_main
+	assert 'static const char *CL_GetMatchmakingServiceProviderLabel( void ) {' in cl_main
+	assert 'return QL_DescribePlatformFeaturePolicy( CL_GetMatchmakingServiceDescriptor() );' in cl_main
+	assert 'static const ql_platform_feature_descriptor *CL_GetStatsServiceDescriptor( void ) {' in cl_main
+	assert 'static const char *CL_GetStatsServiceProviderLabel( void ) {' in cl_main
+	assert 'return QL_DescribePlatformFeaturePolicy( CL_GetStatsServiceDescriptor() );' in cl_main
+	assert 'static const ql_platform_feature_descriptor *CL_GetSocialOverlayServiceDescriptor( void ) {' in cl_main
+	assert 'static const char *CL_GetSocialOverlayServiceProviderLabel( void ) {' in cl_main
+	assert 'return QL_DescribePlatformFeaturePolicy( CL_GetSocialOverlayServiceDescriptor() );' in cl_main
+
+
+def test_engine_cvar_fortieth_client_remaining_cl_surface_matches_resolved_retail_contracts() -> None:
+	cl_main = _read_text(CL_MAIN)
+	client_h = _read_text(REPO_ROOT / "src" / "code" / "client" / "client.h")
+	cl_console = _read_text(CL_CONSOLE)
+	mac_controller = _read_text(REPO_ROOT / "src" / "code" / "macosx" / "Q3Controller.m")
+	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
+	retail_strings = _read_text(QL_STEAM_HLIL_PART06)
+	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
+
+	removed_source_only_cvars = [
+		"cl_allowDownload",
+		"cl_contimestamps",
+		"cl_conXOffset",
+		"cl_guid",
+		"cl_noprint",
+		"cl_punkbuster",
+		"cl_showBanner",
+	]
+	checked_sources = [cl_main, client_h, cl_console, mac_controller]
+
+	for name in removed_source_only_cvars:
+		for source in checked_sources:
+			assert name not in source
+		assert f'"{name}"' not in retail_hlil
+		assert f'"{name}"' not in retail_strings
+		assert f'"{name}"' not in retail_ghidra
+
+	assert 'Con_DrawConsoleLineText( con.xadjust + charWidth, v, text, con.linewidth );' in cl_console
+	assert 'Con_DrawConsoleLineText( cl_conXOffset->integer' not in cl_console
+	assert 'if ( FS_ComparePaks( clc.downloadList, sizeof( clc.downloadList ) , qtrue ) ) {' in cl_main
+	assert 'WARNING: You are missing some files referenced by the server' not in cl_main
+
+	assert 'Cvar_Set( "cl_currentServerAddress", server );' in cl_main
+	assert 'CL_WebView_PublishGameStartForAddress( &clc.serverAddress );' in cl_main
+	assert 'Cvar_Get( "cl_currentServerAddress"' not in cl_main
+	assert 'Cvar_Get ("cl_currentServerAddress"' not in cl_main
+	assert 'sub_4cd250("cl_currentServerAddress", eax_2)' in retail_hlil
+	assert 'char const data_53e44c[0x18] = "cl_currentServerAddress", 0' in retail_strings
+
+	retail_cl_init_block = retail_hlil[
+		retail_hlil.index("004bc690    int32_t __fastcall sub_4bc690")
+		:retail_hlil.index('004bccff  sub_4c81d0("record", sub_4b8430)')
+	]
+	assert '"cl_currentServerAddress"' not in retail_cl_init_block
 
 
 def test_engine_cvar_fifteenth_server_state_tranche_matches_retail_contracts() -> None:
@@ -2543,7 +2982,7 @@ def test_engine_cvar_twentysixth_renderer_visibility_debug_tranche_matches_retai
 	assert 'DAT_01740e88 = (*DAT_01740d40)("r_showTris",&DAT_0054ffe0,0x200);' in retail_ghidra
 	assert 'r_showtris = ri.Cvar_Get ("r_showTris", "0", CVAR_CHEAT);' in tr_init
 	assert 'r_showtris = ri.Cvar_Get ("r_showtris", "0", CVAR_CHEAT);' not in tr_init
-	assert 'if ( r_showtris->integer ) {' in tr_shade
+	assert 'if ( r_showtris->integer || ( r_debugShaderIndex->integer' in tr_shade
 	assert 'DrawTris (input);' in tr_shade
 
 	assert 'DAT_01740f64 = (*DAT_01740d40)("r_showSky",&DAT_0054ffe0,0x200);' in retail_ghidra
@@ -2627,6 +3066,9 @@ def test_engine_cvar_twentyeighth_renderer_diagnostics_tranche_matches_retail_co
 	tr_surface = _read_text(REPO_ROOT / "src" / "code" / "renderer" / "tr_surface.c")
 	tr_font = _read_text(REPO_ROOT / "src" / "code" / "renderer" / "tr_font.c")
 	cm_patch = _read_text(REPO_ROOT / "src" / "code" / "qcommon" / "cm_patch.c")
+	linux_glimp = _read_text(REPO_ROOT / "src" / "code" / "unix" / "linux_glimp.c")
+	macosx_glimp = _read_text(REPO_ROOT / "src" / "code" / "macosx" / "macosx_glimp.m")
+	macosx_display = _read_text(REPO_ROOT / "src" / "code" / "macosx" / "macosx_display.m")
 	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
 
 	assert 'r_directedScale = ri.Cvar_Get( "r_directedScale", "1", CVAR_CHEAT );' in tr_init
@@ -2640,9 +3082,25 @@ def test_engine_cvar_twentyeighth_renderer_diagnostics_tranche_matches_retail_co
 	assert 'if ( r_debugFontAtlas->integer ) {' in tr_backend
 	assert 'RB_ShowFontAtlas();' in tr_backend
 
+	assert 'DAT_01740e48 = (*DAT_01740d40)("r_debugShaderIndex",&DAT_0054ffe0,0x200);' in retail_ghidra
+	assert 'r_debugShaderIndex = ri.Cvar_Get( "r_debugShaderIndex", "0", CVAR_CHEAT );' in tr_init
+	assert 'r_debugShaderIndex->integer == tess.shader->index' in tr_shade
+
 	assert 'DAT_01740f48 = (*DAT_01740d40)("r_debugSort",&DAT_0054ffe0,0x200);' in retail_ghidra
 	assert 'r_debugSort = ri.Cvar_Get( "r_debugSort", "0", CVAR_CHEAT );' in tr_init
-	assert 'if ( r_debugSort->integer && r_debugSort->integer < tess.shader->sort ) {' in tr_shade
+	assert 'if ( r_debugSort->integer && r_debugSort->integer < tess.shader->sort' in tr_shade
+
+	assert 'DAT_01740ea0 = (*DAT_01740d40)("r_debugSortExcept",&DAT_0054ffe0,0x200);' in retail_ghidra
+	assert 'r_debugSortExcept = ri.Cvar_Get( "r_debugSortExcept", "0", CVAR_CHEAT );' in tr_init
+	assert '&& (float)r_debugSortExcept->integer != tess.shader->sort ) {' in tr_shade
+
+	assert 'r_customaspect = ri.Cvar_Get( "r_customaspect"' not in tr_init
+	assert 'r_dlightBacks = ri.Cvar_Get( "r_dlightBacks"' not in tr_init
+	assert 'r_previousglDriver' not in linux_glimp
+	assert 'r_enablerender' not in macosx_glimp
+	assert 'r_appleTransformHint' not in macosx_glimp
+	assert 'r_minDisplayRefresh' not in macosx_display
+	assert 'r_maxDisplayRefresh' not in macosx_display
 
 	assert 'DAT_01743c00 = (*DAT_01740d40)("r_debugSurface",&DAT_0054ffe0,0x200);' in retail_ghidra
 	assert 'r_debugSurface = ri.Cvar_Get ("r_debugSurface", "0", CVAR_CHEAT);' in tr_init

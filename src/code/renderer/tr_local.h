@@ -1054,7 +1054,6 @@ extern cvar_t	*r_fastsky;				// controls whether sky should be cleared or drawn
 extern cvar_t	*r_fastSkyColor;			// packed RGB clear color for fast sky
 extern cvar_t	*r_drawSun;				// controls drawing of sun quad
 extern cvar_t	*r_dynamiclight;		// dynamic lights enabled/disabled
-extern cvar_t	*r_dlightBacks;			// dlight non-facing surfaces for continuity
 
 extern	cvar_t	*r_norefresh;			// bypasses the ref rendering
 extern	cvar_t	*r_drawentities;		// disable/enable entity rendering
@@ -1136,7 +1135,9 @@ extern	cvar_t	*r_simpleMipMaps;
 
 extern	cvar_t	*r_showImages;
 extern	cvar_t	*r_debugAds;
+extern	cvar_t	*r_debugShaderIndex;
 extern	cvar_t	*r_debugSort;
+extern	cvar_t	*r_debugSortExcept;
 
 extern	cvar_t	*r_printShaders;
 extern	cvar_t	*r_saveFontData;
@@ -1290,6 +1291,10 @@ void	R_SkinList_f( void );
 // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=516
 const void *RB_TakeScreenshotCmd( const void *data );
 void	R_ScreenShot_f( void );
+void	R_ScreenShotAfterFrame_f( void );
+void	R_ScreenShotNow_f( void );
+void	R_ScreenShotJPEGAfterFrame_f( void );
+void	R_ScreenShotJPEGNow_f( void );
 
 void	R_InitFogTable( void );
 float	R_FogFactor( float s, float t );

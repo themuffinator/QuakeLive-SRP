@@ -1635,12 +1635,14 @@ void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean fo
 	vec3_t			origin, angles;
 	vec3_t			mins, maxs;
 	qhandle_t		handle;
+	qboolean		useFlagStyle3;
 
 	if ( !force2D && cg_draw3dIcons.integer ) {
+		useFlagStyle3 = (qboolean)( cg_flagStyle.integer == 2 );
 
 		VectorClear( angles );
 
-		cm = cgs.media.redFlagModel;
+		cm = ( useFlagStyle3 && cgs.media.redFlagModel3 ) ? cgs.media.redFlagModel3 : cgs.media.redFlagModel;
 
 		// offset the origin y and z to center the flag
 		trap_R_ModelBounds( cm, mins, maxs );
@@ -1656,11 +1658,11 @@ void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean fo
 		angles[YAW] = 60 * sin( cg.time / 2000.0 );;
 
 		if( team == TEAM_RED ) {
-			handle = cgs.media.redFlagModel;
+			handle = ( useFlagStyle3 && cgs.media.redFlagModel3 ) ? cgs.media.redFlagModel3 : cgs.media.redFlagModel;
 		} else if( team == TEAM_BLUE ) {
-			handle = cgs.media.blueFlagModel;
+			handle = ( useFlagStyle3 && cgs.media.blueFlagModel3 ) ? cgs.media.blueFlagModel3 : cgs.media.blueFlagModel;
 		} else if( team == TEAM_FREE ) {
-			handle = cgs.media.neutralFlagModel;
+			handle = ( useFlagStyle3 && cgs.media.neutralFlagModel3 ) ? cgs.media.neutralFlagModel3 : cgs.media.neutralFlagModel;
 		} else {
 			return;
 		}
@@ -3440,6 +3442,10 @@ static qboolean CG_ShouldDrawTeamInfo( void ) {
 		return qfalse;
 	}
 
+	if ( cg_specTeamVitals.integer <= 0 ) {
+		return qfalse;
+	}
+
 	if ( cg_drawTeamOverlay.integer <= 0 || cgs.gametype < GT_TEAM ) {
 		return qfalse;
 	}
@@ -3480,9 +3486,15 @@ static void CG_DrawTeamInfoRow( const clientInfo_t *ci, team_t team, float y ) {
 	float		textAvailable;
 	float		locationX;
 	float		nameX;
+	float		barWidth;
 
 	if ( !ci || !ci->infoValid ) {
 		return;
+	}
+
+	barWidth = cg_specTeamVitalsWidth.value;
+	if ( barWidth <= 0.0f ) {
+		barWidth = 64.0f;
 	}
 
 	panelLeft = ( team == TEAM_RED ) ? 5.0f : 320.0f;
@@ -3500,17 +3512,25 @@ static void CG_DrawTeamInfoRow( const clientInfo_t *ci, team_t team, float y ) {
 	healthColor[3] = 1.0f;
 	CG_GetTeamInfoArmorColor( ci->armor, armorColor );
 	armorColor[3] = 1.0f;
+	if ( !cg_specTeamVitalsHealthColor.integer ) {
+		healthColor[0] = 1.0f;
+		healthColor[1] = 1.0f;
+		healthColor[2] = 1.0f;
+		armorColor[0] = 1.0f;
+		armorColor[1] = 1.0f;
+		armorColor[2] = 1.0f;
+	}
 
 	if ( team == TEAM_RED ) {
 		iconX = panelLeft;
 		taskX = iconX + 18.0f;
 		barX = taskX + 18.0f;
-		textStartX = barX + 70.0f;
+		textStartX = barX + barWidth + 6.0f;
 		textRight = panelRight;
 	} else {
 		iconX = panelRight - 16.0f;
 		taskX = iconX - 18.0f;
-		barX = taskX - 66.0f;
+		barX = taskX - barWidth - 2.0f;
 		textStartX = panelLeft;
 		textRight = barX - 4.0f;
 	}
@@ -3539,10 +3559,10 @@ static void CG_DrawTeamInfoRow( const clientInfo_t *ci, team_t team, float y ) {
 		}
 	}
 
-	CG_FillRect( barX, y + 3.0f, 64.0f, 6.0f, backColor );
-	CG_FillRect( barX, y + 11.0f, 64.0f, 6.0f, backColor );
-	CG_DrawTeamInfoBar( barX, y + 3.0f, 64.0f, 6.0f, CG_TeamInfoBarFraction( ci->health ), cgs.media.healthBar200, healthColor );
-	CG_DrawTeamInfoBar( barX, y + 11.0f, 64.0f, 6.0f, CG_TeamInfoBarFraction( ci->armor ), cgs.media.armorBar200, armorColor );
+	CG_FillRect( barX, y + 3.0f, barWidth, 6.0f, backColor );
+	CG_FillRect( barX, y + 11.0f, barWidth, 6.0f, backColor );
+	CG_DrawTeamInfoBar( barX, y + 3.0f, barWidth, 6.0f, CG_TeamInfoBarFraction( ci->health ), cgs.media.healthBar200, healthColor );
+	CG_DrawTeamInfoBar( barX, y + 11.0f, barWidth, 6.0f, CG_TeamInfoBarFraction( ci->armor ), cgs.media.armorBar200, armorColor );
 
 	carryIcon = CG_TeamInfoCarryIcon( ci );
 	if ( carryIcon ) {
@@ -3578,6 +3598,9 @@ static void CG_DrawTeamInfo( void ) {
 	}
 
 	memset( teamY, 0, sizeof( teamY ) );
+	for ( i = 0; i < TEAM_NUM_TEAMS; i++ ) {
+		teamY[i] = cg_specTeamVitalsY.value;
+	}
 
 	if ( numSortedTeamPlayers > 0 ) {
 		for ( i = 0; i < numSortedTeamPlayers; i++ ) {

@@ -684,7 +684,7 @@ char	*Cvar_VariableString( const char *var_name );
 void	Cvar_VariableStringBuffer( const char *var_name, char *buffer, int bufsize );
 // returns an empty string if not defined
 
-void	Cvar_CommandCompletion( void(*callback)(const char *s) );
+void	Cvar_CommandCompletion( void(*callback)(const char *s), qboolean includeValues );
 // callback with each valid string
 
 void 	Cvar_Reset( const char *var_name );
@@ -982,7 +982,6 @@ extern	cvar_t	*com_cl_running;
 extern	cvar_t	*com_allowConsole;
 extern	cvar_t	*com_viewlog;			// 0 = hidden, 1 = visible, 2 = minimized
 extern	cvar_t	*com_version;
-extern	cvar_t	*com_blood;
 extern	cvar_t	*com_buildScript;		// retail com_build gate for release pak/build flows
 extern	cvar_t	*com_journal;
 extern	cvar_t	*com_cameraMode;

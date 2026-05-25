@@ -1372,6 +1372,9 @@ KamikazeRadiusDamage
 */
 static void KamikazeRadiusDamage( vec3_t origin, gentity_t *attacker, float damage, float radius ) {
 	float		dist;
+	float		points;
+	float		attenuate;
+	float		minRatio;
 	gentity_t	*ent;
 	int			entityList[MAX_GENTITIES];
 	int			numListedEntities;
@@ -1382,6 +1385,16 @@ static void KamikazeRadiusDamage( vec3_t origin, gentity_t *attacker, float dama
 
 	if ( radius < 1 ) {
 		radius = 1;
+	}
+	attenuate = g_kamiAttenuate.value;
+	if ( attenuate <= 0.0f ) {
+		attenuate = radius;
+	}
+	minRatio = g_kamiMinRatio.value;
+	if ( minRatio < 0.0f ) {
+		minRatio = 0.0f;
+	} else if ( minRatio > 1.0f ) {
+		minRatio = 1.0f;
 	}
 
 	for ( i = 0 ; i < 3 ; i++ ) {
@@ -1418,13 +1431,20 @@ static void KamikazeRadiusDamage( vec3_t origin, gentity_t *attacker, float dama
 		if ( dist >= radius ) {
 			continue;
 		}
+		points = damage * ( 1.0f - dist / attenuate );
+		if ( points < damage * minRatio ) {
+			points = damage * minRatio;
+		}
+		if ( points < 0.0f ) {
+			points = 0.0f;
+		}
 
 //		if( CanDamage (ent, origin) ) {
 			VectorSubtract (ent->r.currentOrigin, origin, dir);
 			// push the center of mass higher than the origin so players
 			// get knocked into the air more
 			dir[2] += 24;
-			G_Damage( ent, NULL, attacker, dir, origin, damage, DAMAGE_RADIUS|DAMAGE_NO_TEAM_PROTECTION, MOD_KAMIKAZE );
+			G_Damage( ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS|DAMAGE_NO_TEAM_PROTECTION, MOD_KAMIKAZE );
 			ent->kamikazeTime = level.time + 3000;
 //		}
 	}

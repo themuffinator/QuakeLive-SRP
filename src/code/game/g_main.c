@@ -43,6 +43,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define AUTO_RECORD_BASENAME_MAX	256
 #define AUTO_RECORD_TOKEN_MAX		40
 #define VF_NO_ENDVOTE			0x0800
+#define GAME_CVAR_FLAG_RETAIL_10000	0x00010000
+#define GAME_CVAR_FLAG_RETAIL_40000	0x00040000
 
 #define AUTO_RECORD_STATE_RECORDING	( 1 << 0 )
 #define AUTO_RECORD_STATE_SCREENSHOT	( 1 << 1 )
@@ -81,6 +83,7 @@ static int	s_disableLoadoutModCount = 0;
 static int	s_forcedAtmosphereModCount = -1;
 static int	s_factoryModCount = 0;
 static int	s_rulesetModCount = 0;
+static int	s_inactivityModCount = 0;
 static int	s_roundWarmupDelayModCount = 0;
 static int	s_teamSizeMinModCount = 0;
 static char	s_worldspawnAtmosphere[MAX_QPATH];
@@ -132,9 +135,10 @@ static void G_SyncRulesetCvar( void );
 static void G_SyncAllClientArmorTiers( void );
 static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut );
 static const char *G_AdminAccessTierToken( int tier );
-static void G_InsertAdminAccessEntry( const char *steamId, int tier );
+static const char *G_AdminAccessTierLabel( int tier );
 static void G_LoadAdminAccessFile( void );
 static void G_WriteAdminAccessFile( void );
+static void G_PrintAccessListLine( gentity_t *ent, const char *line );
 static void G_UpdatePlayerCylindersConfigstring( qboolean forceBroadcast );
 static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast );
 static void G_UpdateWeaponReloadConfigstring( qboolean forceBroadcast );
@@ -655,6 +659,7 @@ vmCvar_t	g_domEnableContention;
 vmCvar_t	g_domNeutralFlag;
 vmCvar_t	g_domScoreRate;
 vmCvar_t	g_friendlyFire;
+vmCvar_t	g_friendlyFireDampen;
 vmCvar_t	g_password;
 vmCvar_t	g_needpass;
 vmCvar_t	g_gameState;
@@ -670,16 +675,22 @@ vmCvar_t	g_knockback;
 vmCvar_t	g_quadfactor;
 vmCvar_t	g_forcerespawn;
 vmCvar_t	g_inactivity;
+vmCvar_t	g_inactivityWarning;
 vmCvar_t	g_spawnProtect;
 vmCvar_t	g_debugMove;
 vmCvar_t	g_debugDamage;
 vmCvar_t	g_debugAlloc;
+vmCvar_t	g_debugFlags;
+vmCvar_t	g_debugInactivity;
+vmCvar_t	g_debugThawTime;
+vmCvar_t	g_debugVampiricDamage;
 vmCvar_t	g_weaponRespawn;
 vmCvar_t	g_weaponTeamRespawn;
 vmCvar_t	g_motd;
 vmCvar_t	g_synchronousClients;
 vmCvar_t	g_warmup;
 vmCvar_t	g_doWarmup;
+vmCvar_t	g_dropCmds;
 vmCvar_t	g_warmupReadyDelay;
 vmCvar_t	g_warmupReadyDelayAction;
 vmCvar_t	g_restarted;
@@ -712,6 +723,9 @@ vmCvar_t	g_forceSmallScoreboardMessage;
 vmCvar_t	g_forceSendConfigstring;
 vmCvar_t	g_forceAtmosphericEffects;
 vmCvar_t	g_forceDmgThroughSurface;
+vmCvar_t	g_dmgThroughSurfaceAngularThreshold;
+vmCvar_t	g_dmgThroughSurfaceDampening;
+vmCvar_t	g_dmgThroughSurfaceDistance;
 vmCvar_t	g_grantItemOnSpawn;
 vmCvar_t	g_disableLoadout;
 vmCvar_t	g_maxDeferredSpawns;
@@ -732,10 +746,14 @@ vmCvar_t	g_autoAction;
 vmCvar_t	g_floodprot_maxcount;
 vmCvar_t	g_floodprot_decay;
 vmCvar_t	g_floodprot_penalty;
+vmCvar_t	g_droppedPowerupsDecay;
+vmCvar_t	g_dropPowerups;
+vmCvar_t	g_dropSkulls;
 vmCvar_t	g_kickBadUserinfo;
 vmCvar_t	g_playermodelOverride;
 vmCvar_t	g_playerheadmodelOverride;
 vmCvar_t	g_training;
+vmCvar_t	g_skipTrainingEnable;
 vmCvar_t	g_lagHaxHistory;
 vmCvar_t	g_lagHaxMs;
 vmCvar_t	g_botsFile;
@@ -803,7 +821,11 @@ vmCvar_t	g_damagePlums;
 vmCvar_t	g_powerupRespawn;
 vmCvar_t	g_flightThrust;
 vmCvar_t	g_flightRefuelRate;
+vmCvar_t	g_maxFlightFuel;
 vmCvar_t	g_battleSuitDampen;
+vmCvar_t	g_kamiAttenuate;
+vmCvar_t	g_kamiMinRatio;
+vmCvar_t	g_bestStartingWeapons;
 vmCvar_t	g_dropDamagedHealth;
 vmCvar_t	g_velocity_gl;
 vmCvar_t	g_velocity_rl;
@@ -858,6 +880,7 @@ vmCvar_t	g_cubeTimeout;
 vmCvar_t	g_redteam;
 vmCvar_t	g_blueteam;
 vmCvar_t	g_singlePlayer;
+vmCvar_t	g_enableDebugTrace;
 vmCvar_t	g_enableDust;
 vmCvar_t	g_enableBreath;
 vmCvar_t	g_proxMineTimeout;
@@ -890,6 +913,10 @@ vmCvar_t	g_returnFlagOnSuicide;
 vmCvar_t	g_droppedFlagBonus;
 vmCvar_t	g_flagDroppedTimeout;
 vmCvar_t	g_neutralFlagPingTime;
+vmCvar_t	g_spawnArmor;
+vmCvar_t	g_spawnArmorDmgScale;
+vmCvar_t	g_spawnDelay_key;
+vmCvar_t	g_spawnDelay_powerup;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		gameCvarTable[] = {
@@ -915,72 +942,73 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_dmflags, "dmflags", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qtrue  },
 	{ &g_fraglimit, "fraglimit", "20", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },
 { &g_timelimit, "timelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },
-{ &mercylimit, "mercylimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Score differential that triggers the mercy rule once the grace window expires; 0 disables mercy checks." },
-{ &g_mercytime, "g_mercytime", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minutes after match start before the server evaluates mercylimit." },
+	{ &mercylimit, "mercylimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Score differential that triggers the mercy rule once the grace window expires; 0 disables mercy checks." },
+	{ &g_mercytime, "g_mercytime", "0", CVAR_NORESTART | CVAR_GAMERULE, 0, qfalse, qfalse, "Minutes after match start before the server evaluates mercylimit." },
 	{ &g_capturelimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue },
 	{ &g_scorelimit, "g_scorelimit", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Team score threshold that ends Attack & Defend matches when positive." },
-	{ &g_domCapTime, "g_domCapTime", "5", CVAR_ARCHIVE, 0, qfalse, qfalse, "Seconds required to capture a Domination point with a single attacker." },
-	{ &g_domTeammateCapScale, "g_domTeammateCapScale", "0.5", CVAR_ARCHIVE, 0, qfalse, qfalse, "Additional capture speed gained per extra teammate assisting." },
-	{ &g_domDistressThreshold, "g_domDistressThreshold", "75", CVAR_ARCHIVE, 0, qfalse, qfalse, "Percent progress when defenders receive a distress warning." },
-	{ &g_domEnableContention, "g_domEnableContention", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow Domination progress to continue when both teams contest a point." },
-	{ &g_domNeutralFlag, "g_domNeutralFlag", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Require Domination points to be neutralized before capture completes when non-zero." },
-	{ &g_domScoreRate, "g_domScoreRate", "5", CVAR_ARCHIVE, 0, qfalse, qfalse, "Seconds between Domination score ticks per owned point." },
+	{ &g_domCapTime, "g_domCapTime", "5", CVAR_GAMERULE, 0, qfalse, qfalse, "Seconds required to capture a Domination point with a single attacker." },
+	{ &g_domTeammateCapScale, "g_domTeammateCapScale", "0.5", CVAR_GAMERULE, 0, qfalse, qfalse, "Additional capture speed gained per extra teammate assisting." },
+	{ &g_domDistressThreshold, "g_domDistressThreshold", "75", CVAR_GAMERULE, 0, qfalse, qfalse, "Percent progress when defenders receive a distress warning." },
+	{ &g_domEnableContention, "g_domEnableContention", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Allow Domination progress to continue when both teams contest a point." },
+	{ &g_domNeutralFlag, "g_domNeutralFlag", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Require Domination points to be neutralized before capture completes when non-zero." },
+	{ &g_domScoreRate, "g_domScoreRate", "5", CVAR_GAMERULE, 0, qfalse, qfalse, "Seconds between Domination score ticks per owned point." },
 	{ &roundlimit, "roundlimit", "10", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Maximum number of rounds to play before the match ends." },
 	{ &roundtimelimit, "roundtimelimit", "180", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART, 0, qtrue, qfalse, "Seconds allowed per active round before it times out." },
-	{ &g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds of warmup that separate freeze-style rounds." },
-	{ &g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Print remaining living player counts when freeze rounds end." },
-	{ &g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Print aggregate team health when freeze rounds finish." },
-	{ &g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Award thaw credit to the winning team before the next round when non-zero." },
-	{ &g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Allow thaw traces to pass through solid world geometry when enabled." },
-	{ &g_freezeThawTime, "g_freezeThawTime", "2000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds teammates must remain nearby before a frozen player thaws." },
-	{ &g_freezeThawTick, "g_freezeThawTick", "250", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds added to thaw progress each time an ally stays in range." },
-	{ &g_freezeThawRadius, "g_freezeThawRadius", "96", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Radius in units required for thaw assistance to register." },
-	{ &g_freezeRoundDelay, "g_freezeRoundDelay", "4000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds between a freeze round ending and the next warmup." },
-	{ &g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Respawn players with the factory loadout each time a freeze round restarts." },
-	{ &g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Restore players to full health whenever a freeze round resets or they thaw." },
-	{ &g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Restore armor to the factory amount on round reset or thaw." },
-	{ &g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Strip carried powerups whenever a freeze round begins anew." },
-	{ &g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "5000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds of post-thaw spawn protection applied to players." },
-	{ &g_freezeEnvironmentalRespawnDelay, "g_freezeEnvironmentalRespawnDelay", "120000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds frozen players wait before auto-respawning when killed by the environment." },
-	{ &g_freezeAutoThawTime, "g_freezeAutoThawTime", "45000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds after which frozen players automatically thaw even without help." },
+	{ &g_roundWarmupDelay, "g_roundWarmupDelay", "10000", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds of warmup that separate freeze-style rounds." },
+	{ &g_roundDrawLivingCount, "g_roundDrawLivingCount", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Print remaining living player counts when freeze rounds end." },
+	{ &g_roundDrawHealthCount, "g_roundDrawHealthCount", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Print aggregate team health when freeze rounds finish." },
+	{ &g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Award thaw credit to the winning team before the next round when non-zero." },
+	{ &g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Allow thaw traces to pass through solid world geometry when enabled." },
+	{ &g_freezeThawTime, "g_freezeThawTime", "2000", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds teammates must remain nearby before a frozen player thaws." },
+	{ &g_freezeThawTick, "g_freezeThawTick", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds added to thaw progress each time an ally stays in range." },
+	{ &g_freezeThawRadius, "g_freezeThawRadius", "96", CVAR_GAMERULE, 0, qfalse, qfalse, "Radius in units required for thaw assistance to register." },
+	{ &g_freezeRoundDelay, "g_freezeRoundDelay", "4000", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Delay in milliseconds between a freeze round ending and the next warmup." },
+	{ &g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Respawn players with the factory loadout each time a freeze round restarts." },
+	{ &g_freezeResetHealthOnRound, "g_freezeResetHealthOnRound", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Restore players to full health whenever a freeze round resets or they thaw." },
+	{ &g_freezeResetArmorOnRound, "g_freezeResetArmorOnRound", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Restore armor to the factory amount on round reset or thaw." },
+	{ &g_freezeRemovePowerupsOnRound, "g_freezeRemovePowerupsOnRound", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Strip carried powerups whenever a freeze round begins anew." },
+	{ &g_freezeProtectedSpawnTime, "g_freezeProtectedSpawnTime", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds of post-thaw spawn protection applied to players." },
+	{ &g_freezeEnvironmentalRespawnDelay, "g_freezeEnvironmentalRespawnDelay", "5000", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds frozen players wait before auto-respawning when killed by the environment." },
+	{ &g_freezeAutoThawTime, "g_freezeAutoThawTime", "120000", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds after which frozen players automatically thaw even without help." },
 	{ &g_spawnProtect, "g_spawnProtect", "500", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds of invulnerability granted to newly spawned players." },
 	{ &g_rrRoundScoreBonus, "g_rrRoundScoreBonus", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover round-completion score bonus mirrored from qagamex86." },
-	{ &g_rrDeathScorePenalty, "g_rrDeathScorePenalty", "-1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover cvar mirrored from qagamex86 for the infection death/conversion score path." },
-	{ &g_rrInfectedZombieFragBonus, "g_rrInfectedZombieFragBonus", "2", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover cvar mirrored from qagamex86 for infected frag/conversion scoring." },
-	{ &g_rrInfectedZombieHealthBonus, "g_rrInfectedZombieHealthBonus", "50", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover cvar mirrored from qagamex86 for infected spawn health." },
-	{ &g_rrInfectedZombieSpeed, "g_rrInfectedZombieSpeed", "1.15", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Speed multiplier applied to infected players." },
-	{ &g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover survivor-bonus mode selector mirrored from qagamex86." },
-	{ &g_rrInfectedSurvivorScoreBonus, "g_rrInfectedSurvivorScoreBonus", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover survivor-bonus amount mirrored from qagamex86." },
-	{ &g_rrInfectedSurvivorScoreRate, "g_rrInfectedSurvivorScoreRate", "30", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Red Rover survivor-bonus interval mirrored from qagamex86." },
-	{ &g_rrInfectedSurvivorMinSpeed, "g_rrInfectedSurvivorMinSpeed", "500", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minimum planar speed survivors must maintain before receiving penalty pings." },
-	{ &g_rrInfectedSurvivorPingRate, "g_rrInfectedSurvivorPingRate", "2000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds between survivor warning pings when moving too slowly." },
-	{ &g_rrInfectedSpreadWarningTime, "g_rrInfectedSpreadWarningTime", "10", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds before forced infection that survivors begin receiving warning cues." },
-	{ &g_rrInfectedSpreadTime, "g_rrInfectedSpreadTime", "40", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds a survivor can avoid infection before the virus automatically spreads." },
-	{ &g_rrInfected, "g_rrInfected", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable the infection ruleset inside Red Rover." },
-	{ &g_rrDamageScoreBonus, "g_rrDamageScoreBonus", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Multiplier applied to survivor damage when using damage-based scoring." },
-	{ &g_rrAllowNegativeScores, "g_rrAllowNegativeScores", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Allow Red Rover scoring adjustments to drive a player's score below zero." },
-	{ &g_lastManStandingWarning, "g_lastManStandingWarning", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable the retail last-man-standing centerprint in team round modes." },
-	{ &g_lastManStandingMessage, "g_lastManStandingMessage", "You are the only one left", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Centerprint sent to the lone remaining teammate when last-man-standing warnings are enabled." },
+	{ &g_rrDeathScorePenalty, "g_rrDeathScorePenalty", "-1", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Red Rover death score delta applied through the round death handler." },
+	{ &g_rrInfectedZombieFragBonus, "g_rrInfectedZombieFragBonus", "2", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Red Rover infected frag bonus applied when a zombie kills a survivor." },
+	{ &g_rrInfectedZombieHealthBonus, "g_rrInfectedZombieHealthBonus", "50", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Red Rover cvar mirrored from qagamex86 for infected spawn health." },
+	{ &g_rrInfectedZombieSpeed, "g_rrInfectedZombieSpeed", "1.15", CVAR_GAMERULE, 0, qfalse, qfalse, "Speed multiplier applied to infected players." },
+	{ &g_rrInfectedSurvivorScoreMethod, "g_rrInfectedSurvivorScoreMethod", "2", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Red Rover survivor-bonus mode selector mirrored from qagamex86." },
+	{ &g_rrInfectedSurvivorScoreBonus, "g_rrInfectedSurvivorScoreBonus", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Red Rover survivor-bonus amount mirrored from qagamex86." },
+	{ &g_rrInfectedSurvivorScoreRate, "g_rrInfectedSurvivorScoreRate", "30", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Red Rover survivor-bonus interval mirrored from qagamex86." },
+	{ &g_rrInfectedSurvivorMinSpeed, "g_rrInfectedSurvivorMinSpeed", "500.0f", CVAR_GAMERULE, 0, qfalse, qfalse, "Minimum planar speed survivors must maintain before receiving penalty pings." },
+	{ &g_rrInfectedSurvivorPingRate, "g_rrInfectedSurvivorPingRate", "2000", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds between survivor warning pings when moving too slowly." },
+	{ &g_rrInfectedSpreadWarningTime, "g_rrInfectedSpreadWarningTime", "10", CVAR_GAMERULE, 0, qfalse, qfalse, "Seconds before forced infection that survivors begin receiving warning cues." },
+	{ &g_rrInfectedSpreadTime, "g_rrInfectedSpreadTime", "40", CVAR_GAMERULE, 0, qfalse, qfalse, "Seconds a survivor can avoid infection before the virus automatically spreads." },
+	{ &g_rrInfected, "g_rrInfected", "0", CVAR_LATCH | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Enable the infection ruleset inside Red Rover." },
+	{ &g_rrDamageScoreBonus, "g_rrDamageScoreBonus", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Multiplier applied to survivor damage when using damage-based scoring." },
+	{ &g_rrAllowNegativeScores, "g_rrAllowNegativeScores", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Allow Red Rover scoring adjustments to drive a player's score below zero." },
+	{ &g_lastManStandingWarning, "g_lastManStandingWarning", "1", 0, 0, qfalse, qfalse, "Enable the retail last-man-standing centerprint in team round modes." },
+	{ &g_lastManStandingMessage, "g_lastManStandingMessage", "You are the last standing", 0, 0, qfalse, qfalse, "Centerprint sent to the lone remaining teammate when last-man-standing warnings are enabled." },
 	{ &practiceflags, "practiceflags", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Bitmask consumed by practice factories to enable Quake Live's training assists (RJ, SJ, etc.)." },
 
 	{ &g_synchronousClients, "g_synchronousClients", "0", CVAR_SYSTEMINFO, 0, qfalse  },
 
-	{ &g_friendlyFire, "g_friendlyFire", "0", CVAR_ARCHIVE, 0, qtrue  },
+	{ &g_friendlyFire, "g_friendlyFire", "0", CVAR_GAMERULE, 0, qtrue  },
+	{ &g_friendlyFireDampen, "g_friendlyFireDampen", "1.00", CVAR_GAMERULE, 0, qfalse, qfalse, "Damage scale applied to same-team hits when friendly fire remains enabled." },
 
-        { &g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE, 0, qfalse, qfalse },
-        { &g_teamForceBalance, "g_teamForceBalance", "1", CVAR_ARCHIVE  },
-		{ &g_teamSpawnAsSpec, "g_teamSpawnAsSpec", "0", 0, 0, qfalse, qfalse, "Block live-team joins until administrators clear the lock; spectator and free joins remain allowed." },
-        { &g_teamSpecFreeCam, "g_teamSpecFreeCam", "0", 0, 0, qfalse, qfalse, "Allow spectators to use free-flying cameras when non-zero; otherwise they stay in follow or scoreboard views." },
-        { &g_teamSpecSayEnable, "g_teamSpecSayEnable", "1", 0, 0, qfalse, qfalse, "Permit spectators to chat while observing when enabled." },
+	{ &g_teamAutoJoin, "g_teamAutoJoin", "0", CVAR_ARCHIVE, 0, qfalse, qfalse },
+	{ &g_teamForceBalance, "g_teamForceBalance", "1", CVAR_ARCHIVE | CVAR_SERVERINFO  },
+	{ &g_teamSpawnAsSpec, "g_teamSpawnAsSpec", "0", 0, 0, qfalse, qfalse, "Block live-team joins until administrators clear the lock; spectator and free joins remain allowed." },
+	{ &g_teamSpecFreeCam, "g_teamSpecFreeCam", "0", 0, 0, qfalse, qfalse, "Allow spectators to use free-flying cameras when non-zero; otherwise they stay in follow or scoreboard views." },
+	{ &g_teamSpecSayEnable, "g_teamSpecSayEnable", "1", 0, 0, qfalse, qfalse, "Permit spectators to chat while observing when enabled." },
 
-        { &g_teamSizeMin, "g_teamSizeMin", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minimum players per team required before warmup countdowns start in team modes." },
-        { &g_teamForcePresent, "g_teamForcePresent", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Force both teams to satisfy g_teamSizeMin before starting live play." },
-        { &g_shuffleTimedelay, "g_shuffle_timedelay", "30", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds to delay before an automatic shuffle executes once armed." },
-        { &g_shuffleMinPlayers, "g_shuffle_minplayers", "4", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Minimum total players required before shuffle logic is considered." },
-        { &g_shuffleAutomatic, "g_shuffle_automatic", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable Quake Live style automatic team shuffles during warmup." },
-        { &g_shuffleAutomaticMinPlayers, "g_shuffle_automatic_minplayers", "6", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Player threshold that must be met before auto-shuffle countdowns can arm." },
+	{ &g_teamSizeMin, "g_teamSizeMin", "1", CVAR_SERVERINFO, 0, qfalse, qfalse, "Minimum players per team required before warmup countdowns start in team modes." },
+	{ &g_teamForcePresent, "g_teamForcePresent", "1", 0, 0, qfalse, qfalse, "Force both teams to satisfy g_teamSizeMin before starting live play." },
+	{ &g_shuffleTimedelay, "g_shuffle_timedelay", "5000", 0, 0, qfalse, qfalse, "Milliseconds to delay before an automatic shuffle executes once armed." },
+	{ &g_shuffleMinPlayers, "g_shuffle_minplayers", "3", 0, 0, qfalse, qfalse, "Minimum total players required before shuffle logic is considered." },
+	{ &g_shuffleAutomatic, "g_shuffle_automatic", "0", 0, 0, qfalse, qfalse, "Enable Quake Live style automatic team shuffles during warmup." },
+	{ &g_shuffleAutomaticMinPlayers, "g_shuffle_automatic_minplayers", "6", 0, 0, qfalse, qfalse, "Player threshold that must be met before auto-shuffle countdowns can arm." },
 
-	{ &g_log, "g_log", "games.log", CVAR_ARCHIVE, 0, qfalse  },
+	{ &g_log, "g_log", "", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_logSync, "g_logSync", "0", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_accessFile, "g_accessFile", "access.txt", 0, 0, qfalse, qfalse, "Relative path to the access permission file evaluated for admin commands." },
 
@@ -988,73 +1016,95 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_banIPs, "g_banIPs", "", CVAR_ARCHIVE, 0, qfalse  },
 	{ &g_filterBan, "g_filterBan", "1", CVAR_ARCHIVE, 0, qfalse  },
-	{ &g_instaGib, "g_instaGib", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse },
+	{ &g_instaGib, "g_instaGib", "0", CVAR_SERVERINFO | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse },
 	{ &g_itemTimers, "g_itemTimers", "1", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Force server-controlled item timers to display for all clients when non-zero." },
 	{ &g_itemHeight, "g_itemHeight", "35", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Vertical offset in units applied to enforced item timer indicators." },
 	{ &g_forceSmallScoreboardMessage, "g_forceSmallScoreboardMessage", "0", 0, 0, qfalse, qfalse, "Prefer the compact scoreboard centerprint even with small player counts." },
 	{ &g_forceSendConfigstring, "g_forceSendConfigstring", "0", 0, 0, qfalse, qfalse, "Resend all configstrings to clients on map load when enabled to debug sync issues." },
 	{ &g_forceAtmosphericEffects, "g_forceAtmosphericEffects", "", CVAR_GAMERULE, 0, qfalse, qfalse, "Enable atmospheric map effects such as snow or rain regardless of client preference." },
 	{ &g_forceDmgThroughSurface, "g_forceDmgThroughSurface", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Allow splash damage to pass through non-solid surfaces for testing when set." },
+	{ &g_dmgThroughSurfaceAngularThreshold, "g_dmgThroughSurfaceAngularThreshold", "0.5f", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail angle threshold used when choosing damage-through-surface impact events." },
+	{ &g_dmgThroughSurfaceDampening, "g_dmgThroughSurfaceDampening", "0.5f", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail radius scale for splash damage through surfaces." },
+	{ &g_dmgThroughSurfaceDistance, "g_dmgThroughSurfaceDistance", "-33.1f", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail probe distance for damage-through-surface impact validation." },
 	{ &g_specItemTimers, "g_specItemTimers", "1", 0, 0, qfalse },
-        { &g_grantItemOnSpawn, "g_grantItemOnSpawn", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Whitespace or comma separated list of `give` tokens handed to every spawn, mirroring Quake Live's server-only spawn grants." },
-        { &g_disableLoadout, "g_disableLoadout", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Additional loadout restrictions expressed as a whitespace or comma separated list of weapon tokens (g, mg, sg, gl, rl, lg, rg, pg, bfg, gh, ng, pl, cg, hmg) or a numeric bitmask." },
-	{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional model path used to override every player's model selection server-wide." },
-	{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },
-	{ &g_allowCustomHeadmodels, "g_allowCustomHeadmodels", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow clients to request independent headmodel strings; disabling forces heads to track the enforced player model." },
-	{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggles the Quake Live player-cylinder collision volumes so forced cosmetics line up with the server's hitboxes." },
-	{ &g_playerheadScale, "g_playerheadScale", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Primary multiplier applied to forced head models for visibility parity." },
-	{ &g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Secondary head-model scalar layered on top of g_playerheadScale so admins can fine-tune the enforced size." },
-	{ &g_playerModelScale, "g_playerModelScale", "1.1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Applies a global scale multiplier to server-enforced player models." },
-	{ &g_autoAction, "g_autoAction", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Comma or semicolon separated list of event:command pairs executed automatically (match_start, match_end, player_connect, player_disconnect)." },
-	{ &g_floodprot_maxcount, "g_floodprot_maxcount", "8", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum chat or command bursts allowed before flood protection engages; 0 disables the limiter." },
-	{ &g_floodprot_decay, "g_floodprot_decay", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds required before a flood point decays back off the counter." },
+	{ &g_grantItemOnSpawn, "g_grantItemOnSpawn", "", CVAR_GAMERULE, 0, qfalse, qfalse, "Whitespace or comma separated list of `give` tokens handed to every spawn, mirroring Quake Live's server-only spawn grants." },
+	{ &g_disableLoadout, "g_disableLoadout", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Additional loadout restrictions expressed as a whitespace or comma separated list of weapon tokens (g, mg, sg, gl, rl, lg, rg, pg, bfg, gh, ng, pl, cg, hmg) or a numeric bitmask." },
+	{ &g_playermodelOverride, "g_playermodelOverride", "", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Optional model path used to override every player's model selection server-wide." },
+	{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },
+	{ &g_allowCustomHeadmodels, "g_allowCustomHeadmodels", "0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Allow clients to request independent headmodel strings; disabling forces heads to track the enforced player model." },
+	{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Toggles the Quake Live player-cylinder collision volumes so forced cosmetics line up with the server's hitboxes." },
+	{ &g_playerheadScale, "g_playerheadScale", "1.0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Primary multiplier applied to forced head models for visibility parity." },
+	{ &g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Secondary head-model scalar layered on top of g_playerheadScale so admins can fine-tune the enforced size." },
+	{ &g_playerModelScale, "g_playerModelScale", "1.1", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Applies a global scale multiplier to server-enforced player models." },
+	{ &g_autoAction, "g_autoAction", "0", 0, 0, qfalse, qfalse, "Comma or semicolon separated list of event:command pairs executed automatically (match_start, match_end, player_connect, player_disconnect)." },
+	{ &g_skipTrainingEnable, "g_skipTrainingEnable", "0", CVAR_SYSTEMINFO | CVAR_ROM, 0, qfalse, qfalse, "Retail read-only training skip latch reset by the training command path." },
+	{ &g_floodprot_maxcount, "g_floodprot_maxcount", "10", 0, 0, qfalse, qfalse, "Maximum chat or command bursts allowed before flood protection engages; 0 disables the limiter." },
+	{ &g_floodprot_decay, "g_floodprot_decay", "1000", 0, 0, qfalse, qfalse, "Milliseconds required before a flood point decays back off the counter." },
 	{ &g_floodprot_penalty, "g_floodprot_penalty", "4000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Legacy compatibility knob retained for configs; retail flood protection drops clients on overflow instead of muting commands." },
 	{ &g_startingHealth, "g_startingHealth", "100", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Health awarded to players when they spawn." },
 	{ &g_startingArmor, "g_startingArmor", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Armor awarded to players when they spawn." },
 	{ &g_armorTiered, "g_armorTiered", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable retail Quake Live tiered armor behaviour for pickups, regen, and the dedicated HUD settings transport." },
 	{ &g_startingWeapons, "g_startingWeapons", "3", CVAR_GAMERULE, 0, qfalse, qfalse, "Bitmask of weapons awarded to players when they spawn." },
-	{ &g_flightThrust, "g_flightThrust", "1200", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Flight thrust cvar retained for factory/cvar parity." },
-	{ &g_flightRefuelRate, "g_flightRefuelRate", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail Flight refuel-rate cvar retained for factory/cvar parity without source-side pickup scaling." },
+	{ &g_flightThrust, "g_flightThrust", "1200", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Flight thrust stat seeded when the Flight powerup is picked up." },
+	{ &g_flightRefuelRate, "g_flightRefuelRate", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Flight refuel-rate stat seeded when the Flight powerup is picked up." },
+	{ &g_maxFlightFuel, "g_maxFlightFuel", "16000", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail maximum Flight fuel seeded into the progress-backed player item stats." },
+	{ &g_kamiAttenuate, "g_kamiAttenuate", "2048", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Kamikaze attenuation distance used for radial damage falloff." },
+	{ &g_kamiMinRatio, "g_kamiMinRatio", "0.1", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail minimum Kamikaze damage ratio after attenuation." },
 	{ &g_battleSuitDampen, "g_battleSuitDampen", "0.25", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail damage multiplier applied to non-falling damage while Battlesuit is active." },
-	{ &g_dropDamagedHealth, "g_dropDamagedHealth", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "When disabled, health items dropped by players ignore their damaged counts and always heal for their base amount." },
-	{ &g_kickBadUserinfo, "g_kickBadUserinfo", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Drop clients submitting malformed userinfo when non-zero; 0 only warns and repairs the data." },
+	{ &g_bestStartingWeapons, "g_bestStartingWeapons", "gh bfg rl lg rg hmg cg sg pg mg ng gl g pl", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail best-starting-weapon preference list retained for factory and cvar parity." },
+	{ &g_dropDamagedHealth, "g_dropDamagedHealth", "0", CVAR_TEMP | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "When enabled, health items dropped by players preserve their damaged counts instead of always healing for their base amount." },
+	{ &g_droppedPowerupsDecay, "g_droppedPowerupsDecay", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Quake Live dropped-powerup decay cvar retained for factory and cvar parity." },
+	{ &g_dropPowerups, "g_dropPowerups", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Quake Live death-drop powerup cvar retained for factory and cvar parity." },
+	{ &g_dropSkulls, "g_dropSkulls", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail Quake Live Harvester skull-drop cvar retained for factory and cvar parity." },
+	{ &g_kickBadUserinfo, "g_kickBadUserinfo", "1", 0, 0, qfalse, qfalse, "Drop clients submitting malformed userinfo when non-zero; 0 only warns and repairs the data." },
 	{ &g_botsFile, "g_botsFile", "", CVAR_INIT | CVAR_ROM, 0, qfalse, qfalse, "Override bot definition list with a custom script when specified." },
 	{ &g_botSpawnList, "g_botSpawnList", "", 0, 0, qfalse, qfalse, "Space-separated bot names automatically spawned on map start when set." },
-	{ &g_adTouchScoreBonus, "g_adTouchScoreBonus", "1", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend touch bonus added to the scoring totals whenever an attacker grabs the flag." },
-	{ &g_adElimScoreBonus, "g_adElimScoreBonus", "2", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend elimination bonus granted to teams and players for each enemy frag." },
-	{ &g_adCaptureScoreBonus, "g_adCaptureScoreBonus", "3", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Attack & Defend capture bonus layered on top of the base team point whenever the flag is secured." },
-	{ &g_flagBounce, "g_flagBounce", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Bounce scale applied to dropped flags; the legacy behavior keeps this at zero." },
-	{ &g_flagPhysics, "g_flagPhysics", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Selects optional flag physics modes; zero preserves the classic handling." },
-	{ &g_throwFlagVelocity, "g_throwFlagVelocity", "200", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Vertical velocity applied when tossing a flag, matching the legacy 200 ups default." },
-	{ &g_throwFlagForwardMult, "g_throwFlagForwardMult", "150", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Forward speed multiplier for flag tosses; 150 mirrors the hardcoded Quake III value." },
-	{ &g_tackleFlag, "g_tackleFlag", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable experimental tackle mechanics that jostle flags from carriers when non-zero." },
-	{ &g_returnFlagOnSuicide, "g_returnFlagOnSuicide", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Return a carried flag immediately when its owner suicides, matching the classic logic." },
-	{ &g_droppedFlagBonus, "g_droppedFlagBonus", "10", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Score bonus granted to players that recover a dropped friendly flag." },
+	{ &g_adTouchScoreBonus, "g_adTouchScoreBonus", "1", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Attack & Defend touch bonus added to the scoring totals whenever an attacker grabs the flag." },
+	{ &g_adElimScoreBonus, "g_adElimScoreBonus", "2", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Attack & Defend elimination bonus granted to teams and players for each enemy frag." },
+	{ &g_adCaptureScoreBonus, "g_adCaptureScoreBonus", "3", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Attack & Defend capture bonus layered on top of the base team point whenever the flag is secured." },
+	{ &g_flagBounce, "g_flagBounce", "0.25", CVAR_GAMERULE, 0, qfalse, qfalse, "Bounce scale applied to dropped flags when retail flag physics are enabled." },
+	{ &g_flagPhysics, "g_flagPhysics", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Selects optional flag physics modes; zero preserves the classic handling." },
+	{ &g_throwFlagVelocity, "g_throwFlagVelocity", "0", 0, 0, qfalse, qfalse, "Forward launch velocity applied when retail flag physics are enabled." },
+	{ &g_throwFlagForwardMult, "g_throwFlagForwardMult", "2.5", 0, 0, qfalse, qfalse, "Multiplier applied to carrier velocity when tossing flags with retail physics." },
+	{ &g_tackleFlag, "g_tackleFlag", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Enable experimental tackle mechanics that jostle flags from carriers when non-zero." },
+	{ &g_returnFlagOnSuicide, "g_returnFlagOnSuicide", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Return a carried flag immediately when its owner suicides when enabled." },
+	{ &g_droppedFlagBonus, "g_droppedFlagBonus", "1", CVAR_TEMP, 0, qfalse, qfalse, "Bonus granted to players that force or recover an enemy-dropped flag." },
 	{ &g_flagDroppedTimeout, "g_flagDroppedTimeout", "30000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds a dropped flag can remain in play before automatically returning to base." },
-	{ &g_neutralFlagPingTime, "g_neutralFlagPingTime", "5000", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Milliseconds between neutral flag ping notifications while it sits on the ground; set to 0 to disable." },
+	{ &g_neutralFlagPingTime, "g_neutralFlagPingRate", "2400", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds between neutral flag ping notifications while it sits on the ground; set to 0 to disable." },
+	{ &g_spawnArmor, "g_spawnArmor", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail spawn-armor timer stored in the player powerup timer array." },
+	{ &g_spawnArmorDmgScale, "g_spawnArmorDmgScale", "0.5", CVAR_GAMERULE, 0, qfalse, qfalse, "Damage multiplier applied while the retail spawn armor timer is active." },
+	{ &g_spawnDelay_key, "g_spawnDelay_key", "30", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Base seconds before map key items spawn in." },
+	{ &g_spawnDelay_powerup, "g_spawnDelay_powerup", "45", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Base seconds before map powerups spawn in." },
 
 	{ &g_needpass, "g_needpass", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse },
 
-	{ &g_allTalk, "g_allTalk", "0", CVAR_SERVERINFO | CVAR_ARCHIVE, 0, qfalse, qfalse, "Allow players, spectators, and opposing teams to share chat when enabled." },
+	{ &g_allTalk, "g_allTalk", "0", 0, 0, qfalse, qfalse, "Allow players, spectators, and opposing teams to share chat when enabled." },
 
 	{ &g_dedicated, "dedicated", "0", 0, 0, qfalse  },
 
-	{ &g_speed, "g_speed", "320", 0, 0, qtrue  },
-	{ &g_gravity, "g_gravity", "800", 0, 0, qtrue  },
-	{ &g_knockback, "g_knockback", "1000", 0, 0, qtrue  },	{ &g_max_knockback, "g_max_knockback", "200", 0, 0, qfalse, qfalse, "Upper clamp applied to computed knockback force." },	{ &g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue  },
-	{ &g_weaponRespawn, "g_weaponRespawn", "5", 0, 0, qtrue  },
+	{ &g_speed, "g_speed", "320", CVAR_GAMERULE, 0, qtrue  },
+	{ &g_gravity, "g_gravity", "800", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qtrue  },
+	{ &g_knockback, "g_knockback", "1000", CVAR_GAMERULE, 0, qtrue  },
+	{ &g_max_knockback, "g_max_knockback", "120", CVAR_GAMERULE, 0, qfalse, qfalse, "Upper clamp applied to computed knockback force." },
+	{ &g_quadfactor, "g_quadfactor", "3", 0, 0, qtrue  },
+	{ &g_weaponRespawn, "g_weaponRespawn", "5", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qtrue  },
 	{ &g_weaponTeamRespawn, "g_weaponTeamRespawn", "30", 0, 0, qtrue },
 	{ &g_forcerespawn, "g_forcerespawn", "20", 0, 0, qtrue },
 	{ &g_inactivity, "g_inactivity", "0", 0, 0, qtrue },
+	{ &g_inactivityWarning, "g_inactivityWarning", "10", 0, 0, qtrue, qfalse, "Seconds before an inactivity timeout that the warning centerprint is sent." },
 	{ &g_dropInactive, "g_dropInactive", "1", 0, 0, qfalse, qfalse, "Automatically remove clients marked inactive when enabled." },
 	{ &g_debugMove, "g_debugMove", "0", 0, 0, qfalse },
 	{ &g_debugDamage, "g_debugDamage", "0", 0, 0, qfalse },
 	{ &g_debugAlloc, "g_debugAlloc", "0", 0, 0, qfalse },
+	{ &g_debugFlags, "g_debugFlags", "0", 0, 0, qfalse, qfalse, "Retail debug flag bitmask retained for qagame cvar-table parity." },
+	{ &g_debugInactivity, "g_debugInactivity", "0", 0, 0, qfalse, qfalse, "Retail inactivity debug toggle retained for qagame cvar-table parity." },
+	{ &g_debugThawTime, "g_debugThawTime", "0", 0, 0, qfalse, qfalse, "Retail thaw-time debug toggle retained for qagame cvar-table parity." },
+	{ &g_debugVampiricDamage, "g_debugVampiricDamage", "0", 0, 0, qfalse, qfalse, "Retail vampiric-damage debug toggle retained for qagame cvar-table parity." },
 	{ &g_motd, "g_motd", "", 0, 0, qfalse },
 	{ &g_blood, "com_blood", "1", 0, 0, qfalse },
 
-	{ &g_podiumDist, "g_podiumDist", "80", 0, 0, qfalse },
-	{ &g_podiumDrop, "g_podiumDrop", "70", 0, 0, qfalse },
+	{ &g_podiumDist, "g_podiumDist", "80", CVAR_GAMERULE, 0, qfalse },
+	{ &g_podiumDrop, "g_podiumDrop", "70", CVAR_GAMERULE, 0, qfalse },
 
 	{ &g_allowSpecVote, "g_allowSpecVote", "0", 0, 0, qfalse },
 	{ &g_allowVote, "g_allowVote", "1", CVAR_ARCHIVE, 0, qfalse },
@@ -1066,108 +1116,110 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_voteFlags, "g_voteFlags", "0", CVAR_ARCHIVE | CVAR_SERVERINFO, 0, qfalse },
 	{ &g_voteDelay, "g_voteDelay", "0", 0, 0, qfalse },
 	{ &g_voteLimit, "g_voteLimit", "0", 0, 0, qfalse },
-	{ &g_warmup, "g_warmup", "20", CVAR_ARCHIVE, 0, qtrue  },
-	{ &g_doWarmup, "g_doWarmup", "1", 0, 0, qtrue  },
-	{ &g_warmupReadyDelay, "g_warmupReadyDelay", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Seconds to wait in duel after exactly one player readies before applying g_warmupReadyDelayAction; 0 disables the retail delay controller." },
-	{ &g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Retail duel ready-delay action: 1 moves the unready duelist to spectate-only, 2 forces both duelists ready." },
+	{ &g_warmup, "g_warmup", "10", CVAR_ARCHIVE, 0, qtrue  },
+	{ &g_doWarmup, "g_doWarmup", "1", CVAR_ARCHIVE, 0, qtrue  },
+	{ &g_dropCmds, "g_dropCmds", "7", CVAR_GAMERULE, 0, qfalse, qfalse, "Retail command-drop bitmask updated alongside round attack lockout state." },
+	{ &g_warmupReadyDelay, "g_warmupReadyDelay", "0", 0, 0, qfalse, qfalse, "Seconds to wait in duel after exactly one player readies before applying g_warmupReadyDelayAction; 0 disables the retail delay controller." },
+	{ &g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", 0, 0, qfalse, qfalse, "Retail duel ready-delay action: 1 moves the unready duelist to spectate-only, 2 forces both duelists ready." },
 	{ &g_training, "g_training", "0", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Marks training sessions and disables competitive match flow when set." },
-	{ &g_lagHaxHistory, "g_lagHaxHistory", "4", 0, 0, qfalse, qfalse, "Hidden Quake Live rewind history depth used by the retail lag compensation seam." },
-	{ &g_lagHaxMs, "g_lagHaxMs", "80", 0, 0, qfalse, qfalse, "Hidden Quake Live rewind window in milliseconds for the retail lag compensation seam." },
+	{ &g_lagHaxHistory, "g_lagHaxHistory", "4", CVAR_LATCH, 0, qfalse, qfalse, "Hidden Quake Live rewind history depth used by the retail lag compensation seam." },
+	{ &g_lagHaxMs, "g_lagHaxMs", "80", CVAR_LATCH, 0, qfalse, qfalse, "Hidden Quake Live rewind window in milliseconds for the retail lag compensation seam." },
 	{ &g_forcedAtmosphere, "g_forcedAtmosphere", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional atmosphere effect applied when a map lacks an atmosphere worldspawn key." },
 	{ &g_listEntity, "g_listEntity", "0", 0, 0, qfalse },
-	{ &g_overtime, "g_overtime", "120", CVAR_SERVERINFO | CVAR_NORESTART, 0, qfalse, qfalse, "Overtime period length in seconds once regulation ends tied; 0 keeps sudden death active until the tie is broken." },
+	{ &g_enableDebugTrace, "g_enableDebugTrace", "0", 0, 0, qfalse, qfalse, "Retail debug trace toggle retained for qagame cvar-table parity." },
+	{ &g_overtime, "g_overtime", "120", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Overtime period length in seconds once regulation ends tied; 0 keeps sudden death active until the tie is broken." },
 	{ &g_suddenDeathRespawn, "g_suddenDeathRespawn", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Allow ammo to continue respawning during sudden death when set to 1." },
-	{ &g_timeoutLen, "g_timeoutLen", "60", CVAR_NORESTART, 0, qfalse, qfalse, "Timeout duration in seconds for each team pause." },
-	{ &g_timeoutCount, "g_timeoutCount", "3", CVAR_SERVERINFO | CVAR_NORESTART, 0, qfalse, qfalse, "Number of timeouts each team may call per match." },
+	{ &g_timeoutLen, "g_timeoutLen", "60", CVAR_GAMERULE, 0, qfalse, qfalse, "Timeout duration in seconds for each team pause." },
+	{ &g_timeoutCount, "g_timeoutCount", "0", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Number of timeouts each team may call per match." },
 	{ &g_pauseAudio, "g_pauseAudio", "0", 0, 0, qfalse, qfalse, "Audio behavior during pauses." },
-{ &g_factoryTitle, "g_factoryTitle", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Short factory title pushed via serverinfo for display on connected clients." },
-{ &g_factory, "g_factory", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Identifier of the active factory loaded from scripts/factories*, defaulting to the current gametype's retail factory when unset or invalid." },
+	{ &g_factoryTitle, "g_factoryTitle", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Short factory title pushed via serverinfo for display on connected clients." },
+	{ &g_factory, "g_factory", "", CVAR_SERVERINFO | CVAR_ROM, 0, qfalse, qfalse, "Identifier of the active factory loaded from scripts/factories*, defaulting to the current gametype's retail factory when unset or invalid." },
 	{ &g_factoryRespawnDelay, "g_factoryRespawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds before a defeated player respawns when factories schedule queues." },
 	{ &g_factoryWarmupSpawnDelay, "g_factoryWarmupSpawnDelay", "0", CVAR_NORESTART, 0, qfalse, qfalse, "Delay in milliseconds applied to warmup spawns when factories request staggered starts." },
 	{ &g_factoryAllowItemDrops, "g_factoryAllowItemDrops", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether item drop logic fires for weapons and powerups spawned from players." },
 	{ &g_factoryAllowItemBounce, "g_factoryAllowItemBounce", "1", CVAR_NORESTART, 0, qfalse, qfalse, "Controls whether dropped items bounce before coming to rest when factories disable the behaviour." },
 	{ &g_maxDeferredSpawns, "g_maxDeferredSpawns", "4", 0, 0, qfalse, qfalse, "Maximum simultaneous delayed spawns the queue may hold before new respawns execute immediately." },
-	{ &g_vampiricDamage, "g_vampiricDamage", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Fraction of dealt health damage returned to the attacker as healing." },
+	{ &g_vampiricDamage, "g_vampiricDamage", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Fraction of dealt health damage returned to the attacker as healing." },
 	{ &g_suddenDeathRespawnStart, "g_suddenDeathRespawnStart", "3", CVAR_GAMERULE, 0, qfalse, qfalse, "Initial sudden-death respawn delay in seconds when respawns are enabled." },
 	{ &g_suddenDeathRespawnTick, "g_suddenDeathRespawnTick", "60", CVAR_GAMERULE, 0, qfalse, qfalse, "Interval in seconds after which sudden-death respawn delays are increased." },
 	{ &g_suddenDeathRespawnMax, "g_suddenDeathRespawnMax", "10", CVAR_GAMERULE, 0, qfalse, qfalse, "Maximum sudden-death respawn delay in seconds." },
 	{ &g_suddenDeathRespawnIncrement, "g_suddenDeathRespawnIncrement", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Seconds added to the sudden-death respawn delay at each tick." },
 	{ &g_suddenDeathRespawnPrint, "g_suddenDeathRespawnPrint", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Print announcements when sudden-death respawn delays change." },
-	{ &g_damage_cg, "g_damage_cg", "8", 0, 0, qtrue, qfalse, "Chaingun bullet damage per hit; 8 mirrors the Quake Live HLIL defaults." },
-	{ &g_damage_g, "g_damage_g", "50", 0, 0, qtrue },
-	{ &g_damage_gh, "g_damage_gh", "10", 0, 0, qtrue, qfalse, "Grappling Hook projectile impact damage; 10 matches the retail DLL export." },
-	{ &g_damage_mg, "g_damage_mg", "5", 0, 0, qtrue },
+	{ &g_damage_cg, "g_damage_cg", "8", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Chaingun bullet damage per hit; 8 mirrors the Quake Live HLIL defaults." },
+	{ &g_damage_g, "g_damage_g", "50", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_gh, "g_damage_gh", "10", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Grappling Hook projectile impact damage; 10 matches the retail DLL export." },
+	{ &g_damage_mg, "g_damage_mg", "5", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
 	{ &g_damage_mg_team, "g_damage_mg_team", "5", 0, 0, qtrue },
-	{ &g_damage_ng, "g_damage_ng", "12", 0, 0, qtrue, qfalse, "Nailgun projectile damage per bolt; 12 reproduces the HLIL tables." },
-	{ &g_damage_hmg, "g_damage_hmg", "8", 0, 0, qtrue },
-	{ &g_damage_sg, "g_damage_sg", "5", 0, 0, qtrue },
-	{ &g_damage_sg_outer, "g_damage_sg_outer", "5", 0, 0, qtrue, qfalse, "Shotgun outer-ring pellet damage when Quake Live's dual spread is active." },
-	{ &g_damage_gl, "g_damage_gl", "100", 0, 0, qtrue },
-	{ &g_splashDamage_gl, "g_splashDamage_gl", "100", 0, 0, qtrue },
-	{ &g_splashRadius_gl, "g_splashRadius_gl", "150", 0, 0, qtrue },
-	{ &g_damage_rl, "g_damage_rl", "100", 0, 0, qtrue },
-	{ &g_splashDamage_rl, "g_splashDamage_rl", "100", 0, 0, qtrue },
-	{ &g_splashRadius_rl, "g_splashRadius_rl", "120", 0, 0, qtrue },
-	{ &g_damage_pg, "g_damage_pg", "20", 0, 0, qtrue },
-	{ &g_damage_pl, "g_damage_pl", "0", 0, 0, qtrue, qfalse, "Direct-hit damage applied by the proximity mine launcher before the mine arms." },
-	{ &g_splashDamage_pl, "g_splashDamage_pl", "100", 0, 0, qtrue, qfalse, "Splash damage applied when a proximity mine detonates." },
-	{ &g_splashRadius_pl, "g_splashRadius_pl", "150", 0, 0, qtrue, qfalse, "Splash radius applied when a proximity mine detonates." },
-	{ &g_splashDamage_pg, "g_splashDamage_pg", "15", 0, 0, qtrue },
-	{ &g_splashRadius_pg, "g_splashRadius_pg", "20", 0, 0, qtrue },
-	{ &g_damage_lg, "g_damage_lg", "6", 0, 0, qtrue },
-	{ &g_damage_rg, "g_damage_rg", "80", 0, 0, qtrue },
-	{ &g_damage_bfg, "g_damage_bfg", "100", 0, 0, qtrue },
-	{ &g_splashDamage_bfg, "g_splashDamage_bfg", "100", 0, 0, qtrue },
-	{ &g_splashRadius_bfg, "g_splashRadius_bfg", "120", 0, 0, qtrue },
-	{ &g_damage_sg_falloff, "g_damage_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Shotgun pellet damage subtracted for each g_range_sg_falloff interval beyond the first; 0 preserves constant damage." },
-	{ &g_range_sg_falloff, "g_range_sg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before shotgun damage begins to fall off; 0 keeps the compiled default distance." },
-	{ &g_damage_lg_falloff, "g_damage_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Damage subtracted from lightning gun hits for each retail falloff interval beyond g_range_lg_falloff; 0 keeps constant damage." },
-	{ &g_range_lg_falloff, "g_range_lg_falloff", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Distance in units before retail lightning falloff starts, with each additional interval removing another g_damage_lg_falloff step." },
-	{ &g_accelFactor_rl, "g_accelFactor_rl", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Scale applied to rocket acceleration tests when factories enable projectile acceleration; 1 keeps stock speeds." },
-	{ &g_accelRate_rl, "g_accelRate_rl", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds between rocket acceleration steps when g_accelFactor_rl is active; 0 reuses the baked timing." },
-	{ &g_accelFactor_pg, "g_accelFactor_pg", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Scale applied to plasmagun bolt acceleration when Quake Live factories request faster bolts; 1 keeps stock speeds." },
-	{ &g_accelRate_pg, "g_accelRate_pg", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds between plasmagun acceleration steps while the associated factor is non-zero." },
-	{ &g_accelFactor_bfg, "g_accelFactor_bfg", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Scale applied to BFG projectile acceleration; 1 leaves classic trajectories untouched." },
-	{ &g_accelRate_bfg, "g_accelRate_bfg", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Milliseconds between BFG acceleration updates whenever acceleration is enabled." },
-	{ &g_velocity_gl, "g_velocity_gl", "700", 0, 0, qtrue, qfalse, "Grenade Launcher projectile speed in ups; mirrors the compiled 700 default and feeds both server and client prediction." },
-	{ &g_velocity_rl, "g_velocity_rl", "900", 0, 0, qtrue, qfalse, "Rocket Launcher projectile speed in ups, defaulting to the baked-in 900 ups behaviour." },
-	{ &g_velocity_pg, "g_velocity_pg", "2000", 0, 0, qtrue, qfalse, "Plasmagun bolt speed in ups; aligns with the legacy 2000 ups firing velocity." },
-	{ &g_velocity_bfg, "g_velocity_bfg", "2000", 0, 0, qtrue, qfalse, "BFG projectile speed in ups pulled from the retail DLL defaults." },
-	{ &g_velocity_gh, "g_velocity_gh", "1800", 0, 0, qtrue, qfalse, "Grappling Hook projectile speed in ups; 1800 preserves the retail projectile behaviour." },
-	{ &g_lightningDischarge, "g_lightningDischarge", "0", 0, 0, qtrue, qfalse, "When enabled, lightning gun shots discharge and damage the shooter when fired in hazardous volumes." },
-	{ &g_railJump, "g_railJump", "0", 0, 0, qtrue, qfalse, "Strength of the retail rail jump push applied when a rail shot hits solid geometry within 120 units." },
-	{ &g_gauntletSpeedFactor, "g_gauntletSpeedFactor", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Gauntlet swing speed multiplier requested by Quake Live factories; 1.0 retains stock timing." },
-	{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", 0, 0, qtrue, qfalse, "Extra railgun damage applied to headshots whenever headshot mutators run; 0 keeps the classic behaviour." },
-	{ &g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Machinegun ironsight spread/recoil scale pulled from the HLIL weapon tables." },
-	{ &g_midAirMinHeight, "g_midAirMinHeight", "96", CVAR_ARCHIVE, 0, qfalse, qfalse, "Minimum height in units that a target must reach before mid-air medals and splash bonuses register." },
-	{ &g_nailbounce, "g_nailbounce", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Maximum number of ricochets allowed for each bouncing Nailgun bolt." },
-	{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", CVAR_ARCHIVE, 0, qfalse, qfalse, "Chance (0-100) for a Nailgun bolt to receive the ricochet flag." },
-	{ &g_nailcount, "g_nailcount", "10", CVAR_ARCHIVE, 0, qfalse, qfalse, "Number of Nailgun bolts fired per shot." },
+	{ &g_damage_ng, "g_damage_ng", "12", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Nailgun projectile damage per bolt; 12 reproduces the HLIL tables." },
+	{ &g_damage_hmg, "g_damage_hmg", "8", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_sg, "g_damage_sg", "5", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_sg_outer, "g_damage_sg_outer", "5", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Shotgun outer-ring pellet damage when Quake Live's dual spread is active." },
+	{ &g_damage_gl, "g_damage_gl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashDamage_gl, "g_splashdamage_gl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashRadius_gl, "g_splashradius_gl", "150", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_rl, "g_damage_rl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashDamage_rl, "g_splashdamage_rl", "84", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashRadius_rl, "g_splashradius_rl", "120", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_pg, "g_damage_pg", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_pl, "g_damage_pl", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Direct-hit damage applied by the proximity mine launcher before the mine arms." },
+	{ &g_splashDamage_pl, "g_splashdamage_pl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Splash damage applied when a proximity mine detonates." },
+	{ &g_splashRadius_pl, "g_splashradius_pl", "150", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Splash radius applied when a proximity mine detonates." },
+	{ &g_splashDamage_pg, "g_splashdamage_pg", "15", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashRadius_pg, "g_splashradius_pg", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_lg, "g_damage_lg", "6", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_rg, "g_damage_rg", "80", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_bfg, "g_damage_bfg", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashDamage_bfg, "g_splashdamage_bfg", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_splashRadius_bfg, "g_splashradius_bfg", "80", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },
+	{ &g_damage_sg_falloff, "g_damage_sg_falloff", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Shotgun pellet damage subtracted for each g_range_sg_falloff interval beyond the first; 0 preserves constant damage." },
+	{ &g_range_sg_falloff, "g_range_sg_falloff", "768", CVAR_GAMERULE, 0, qfalse, qfalse, "Distance in units before shotgun damage begins to fall off." },
+	{ &g_damage_lg_falloff, "g_damage_lg_falloff", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Damage subtracted from lightning gun hits for each retail falloff interval beyond g_range_lg_falloff; 0 keeps constant damage." },
+	{ &g_range_lg_falloff, "g_range_lg_falloff", "768", CVAR_GAMERULE, 0, qfalse, qfalse, "Distance in units before retail lightning falloff starts, with each additional interval removing another g_damage_lg_falloff step." },
+	{ &g_accelFactor_rl, "g_accelFactor_rl", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Scale applied to rocket acceleration tests when factories enable projectile acceleration; 1 keeps stock speeds." },
+	{ &g_accelRate_rl, "g_accelRate_rl", "16", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds between rocket acceleration steps when g_accelFactor_rl is active." },
+	{ &g_accelFactor_pg, "g_accelFactor_pg", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Scale applied to plasmagun bolt acceleration when Quake Live factories request faster bolts; 1 keeps stock speeds." },
+	{ &g_accelRate_pg, "g_accelRate_pg", "16", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds between plasmagun acceleration steps while the associated factor is non-zero." },
+	{ &g_accelFactor_bfg, "g_accelFactor_bfg", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Scale applied to BFG projectile acceleration; 1 leaves classic trajectories untouched." },
+	{ &g_accelRate_bfg, "g_accelRate_bfg", "16", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds between BFG acceleration updates whenever acceleration is enabled." },
+	{ &g_velocity_gl, "g_velocity_gl", "700", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Grenade Launcher projectile speed in ups; mirrors the compiled 700 default and feeds both server and client prediction." },
+	{ &g_velocity_rl, "g_velocity_rl", "1000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Rocket Launcher projectile speed in ups, defaulting to the retail 1000 ups behaviour." },
+	{ &g_velocity_pg, "g_velocity_pg", "2000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Plasmagun bolt speed in ups; aligns with the legacy 2000 ups firing velocity." },
+	{ &g_velocity_bfg, "g_velocity_bfg", "1800", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "BFG projectile speed in ups pulled from the retail DLL defaults." },
+	{ &g_velocity_gh, "g_velocity_gh", "1800", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Grappling Hook projectile speed in ups; 1800 preserves the retail projectile behaviour." },
+	{ &g_lightningDischarge, "g_lightningDischarge", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "When enabled, lightning gun shots discharge and damage the shooter when fired in hazardous volumes." },
+	{ &g_railJump, "g_railJump", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Strength of the retail rail jump push applied when a rail shot hits solid geometry within 120 units." },
+	{ &g_gauntletSpeedFactor, "g_gauntletSpeedFactor", "1.0", CVAR_GAMERULE, 0, qfalse, qfalse, "Gauntlet swing speed multiplier requested by Quake Live factories; 1.0 retains stock timing." },
+	{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Extra railgun damage applied to headshots whenever headshot mutators run; 0 keeps the classic behaviour." },
+	{ &g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_TEMP | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Machinegun ironsight spread/recoil scale pulled from the HLIL weapon tables." },
+	{ &g_midAirMinHeight, "g_midAirMinHeight", "96", CVAR_GAMERULE, 0, qfalse, qfalse, "Minimum height in units that a target must reach before mid-air medals and splash bonuses register." },
+	{ &g_nailbounce, "g_nailbounce", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Maximum number of ricochets allowed for each bouncing Nailgun bolt." },
+	{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Chance (0-100) for a Nailgun bolt to receive the ricochet flag." },
+	{ &g_nailcount, "g_nailcount", "10", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Number of Nailgun bolts fired per shot." },
 	{ &g_nailgravity, "g_nailgravity", "0", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggle gravity trajectories for Nailgun bolts when non-zero." },
-	{ &g_nailspeed, "g_nailspeed", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse, "Randomized Nailgun bolt velocity span in ups." },
-	{ &g_nailspread, "g_nailspread", "400", CVAR_ARCHIVE, 0, qfalse, qfalse, "Spread applied to Nailgun bolt direction sampling." },
-	{ &g_powerupRespawn, "g_powerupRespawn", "120", CVAR_ARCHIVE, 0, qfalse, qfalse, "Seconds before powerups respawn after being collected; 0 uses each entity's scripted timing." },
-	{ &g_guidedRocket, "g_guidedRocket", "0", 0, 0, qtrue, qfalse, "Enable Quake Live style guided rockets when non-zero." },
-	{ &g_rocketsplashOffset, "g_rocketsplashOffset", "0", 0, 0, qtrue, qfalse, "Offset in ups applied along the impact normal before evaluating rocket splash damage; 0 retains classic explosions." },
-	{ &g_damagePlums, "g_damagePlums", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggle per-player damage plums emitted by the server when scoring events occur." },
-	{ &g_quadDamageFactor, "g_quadDamageFactor", "3", CVAR_ARCHIVE, 0, qfalse, qfalse, "Damage multiplier applied while Quad Damage is active; 3 mirrors the Quake Live DLL." },
-	{ &g_quadHog, "g_quadHog", "0", 0, 0, qtrue, qfalse, "Toggle Quad Hog survival mode that forces the carrier to fight the arena when enabled." },
-	{ &g_quadHogIdle, "g_quadHogIdle", "0", 0, 0, qtrue, qfalse, "Seconds of inactivity allowed for the Quad Hog carrier before the powerup is revoked; 0 disables the idle check." },
-	{ &g_quadHogTime, "g_quadHogTime", "0", 0, 0, qtrue, qfalse, "Maximum time in seconds a player may hold Quad during Quad Hog events before it auto-expires; 0 removes the cap." },
-	{ &g_quadHogPingRate, "g_quadHogPingRate", "0", 0, 0, qtrue, qfalse, "Seconds between Quad Hog reminder pings while the timer is active; 0 silences the announcements." },
-	{ &g_obeliskHealth, "g_obeliskHealth", "2500", 0, 0, qfalse },
-	{ &g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", 0, 0, qfalse },
-	{ &g_obeliskRegenAmount, "g_obeliskRegenAmount", "15", 0, 0, qfalse },
-	{ &g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_SERVERINFO, 0, qfalse },
+	{ &g_nailspeed, "g_nailspeed", "1000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Randomized Nailgun bolt velocity span in ups." },
+	{ &g_nailspread, "g_nailspread", "400", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Spread applied to Nailgun bolt direction sampling." },
+	{ &g_powerupRespawn, "g_powerupRespawn", "120", CVAR_GAMERULE, 0, qfalse, qfalse, "Seconds before powerups respawn after being collected; 0 uses each entity's scripted timing." },
+	{ &g_guidedRocket, "g_guidedRocket", "0", CVAR_GAMERULE, 0, qtrue, qfalse, "Enable Quake Live style guided rockets when non-zero." },
+	{ &g_rocketsplashOffset, "g_rocketsplashOffset", "-10.0", CVAR_GAMERULE, 0, qtrue, qfalse, "Offset in ups applied along the impact normal before evaluating rocket splash damage." },
+	{ &g_damagePlums, "g_damagePlums", "2", CVAR_GAMERULE, 0, qfalse, qfalse, "Toggle per-player damage plums emitted by the server when scoring events occur." },
+	{ &g_quadDamageFactor, "g_quadDamageFactor", "3", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Damage multiplier applied while Quad Damage is active; 3 mirrors the Quake Live DLL." },
+	{ &g_quadHog, "g_quadHog", "0", CVAR_LATCH | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse, "Toggle Quad Hog survival mode that forces the carrier to fight the arena when enabled." },
+	{ &g_quadHogIdle, "g_quadHogIdle", "20", CVAR_GAMERULE, 0, qtrue, qfalse, "Seconds of inactivity allowed for the Quad Hog carrier before the powerup is revoked." },
+	{ &g_quadHogTime, "g_quadHogTime", "60", CVAR_GAMERULE, 0, qtrue, qfalse, "Maximum time in seconds a player may hold Quad during Quad Hog events before it auto-expires." },
+	{ &g_quadHogPingRate, "g_quadHogPingRate", "1500", CVAR_GAMERULE, 0, qtrue, qfalse, "Milliseconds between Quad Hog reminder pings while the timer is active." },
+	{ &g_obeliskHealth, "g_obeliskHealth", "2500", CVAR_GAMERULE, 0, qfalse },
+	{ &g_obeliskRegenPeriod, "g_obeliskRegenPeriod", "1", CVAR_GAMERULE, 0, qfalse },
+	{ &g_obeliskRegenAmount, "g_obeliskRegenAmount", "15", CVAR_GAMERULE, 0, qfalse },
+	{ &g_obeliskRespawnDelay, "g_obeliskRespawnDelay", "10", CVAR_GAMERULE, 0, qfalse },
 
-	{ &g_cubeTimeout, "g_cubeTimeout", "30", 0, 0, qfalse },
+	{ &g_cubeTimeout, "g_cubeTimeout", "30", CVAR_GAMERULE, 0, qfalse },
 	{ &g_redteam, "g_redteam", "Stroggs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_USERINFO , 0, qtrue, qtrue },
 	{ &g_blueteam, "g_blueteam", "Pagans", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_USERINFO , 0, qtrue, qtrue  },
 	{ &g_singlePlayer, "ui_singlePlayerActive", "", 0, 0, qfalse, qfalse  },
 
-	{ &g_enableDust, "g_enableDust", "0", CVAR_SERVERINFO, 0, qtrue, qfalse },
+	{ &g_enableDust, "g_enableDust", "0", 0, 0, qtrue, qfalse },
 	{ &g_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO, 0, qtrue, qfalse },
-	{ &g_proxMineTimeout, "g_proxMineTimeout", "20000", 0, 0, qfalse },
+	{ &g_proxMineTimeout, "g_proxMineTimeout", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse },
 	{ &pmove_fixed, "pmove_fixed", "0", CVAR_SYSTEMINFO, 0, qfalse},
 	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO, 0, qfalse},
 
@@ -1325,35 +1377,35 @@ void G_InitWeaponConfig( void ) {
 	g_weaponConfig.shotgunDamage = G_ReadWeaponCvar( &g_damage_sg, 5, "g_damage_sg" );
 	g_weaponConfig.shotgunOuterDamage = G_ReadWeaponCvar( &g_damage_sg_outer, 5, "g_damage_sg_outer" );
 	g_weaponConfig.shotgunFalloffDamage = G_ReadWeaponCvarNonNegative( &g_damage_sg_falloff, 0, "g_damage_sg_falloff" );
-	g_weaponConfig.shotgunFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_sg_falloff, 0, "g_range_sg_falloff" );
+	g_weaponConfig.shotgunFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_sg_falloff, 768, "g_range_sg_falloff" );
 	g_weaponConfig.grenadeDamage = G_ReadWeaponCvar( &g_damage_gl, 100, "g_damage_gl" );
-	g_weaponConfig.grenadeSplashDamage = G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashDamage_gl" );
-	g_weaponConfig.grenadeSplashRadius = G_ReadWeaponCvar( &g_splashRadius_gl, 150, "g_splashRadius_gl" );
+	g_weaponConfig.grenadeSplashDamage = G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashdamage_gl" );
+	g_weaponConfig.grenadeSplashRadius = G_ReadWeaponCvar( &g_splashRadius_gl, 150, "g_splashradius_gl" );
 	g_weaponConfig.grenadeSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_gl, 700, "g_velocity_gl", 1 );
 	g_weaponConfig.rocketDamage = G_ReadWeaponCvar( &g_damage_rl, 100, "g_damage_rl" );
-	g_weaponConfig.rocketSplashDamage = G_ReadWeaponCvar( &g_splashDamage_rl, 100, "g_splashDamage_rl" );
-	g_weaponConfig.rocketSplashRadius = G_ReadWeaponCvar( &g_splashRadius_rl, 120, "g_splashRadius_rl" );
-	g_weaponConfig.rocketSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_rl, 900, "g_velocity_rl", 1 );
+	g_weaponConfig.rocketSplashDamage = G_ReadWeaponCvar( &g_splashDamage_rl, 84, "g_splashdamage_rl" );
+	g_weaponConfig.rocketSplashRadius = G_ReadWeaponCvar( &g_splashRadius_rl, 120, "g_splashradius_rl" );
+	g_weaponConfig.rocketSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_rl, 1000, "g_velocity_rl", 1 );
 	g_weaponConfig.rocketAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_rl, 1.0f, "g_accelFactor_rl" );
-	g_weaponConfig.rocketAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_rl, 0, "g_accelRate_rl" );
-	g_weaponConfig.rocketSplashOffset = G_ReadWeaponCvarRaw( &g_rocketsplashOffset, 0, "g_rocketsplashOffset" );
+	g_weaponConfig.rocketAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_rl, 16, "g_accelRate_rl" );
+	g_weaponConfig.rocketSplashOffset = G_ReadWeaponCvarRaw( &g_rocketsplashOffset, -10, "g_rocketsplashOffset" );
 	g_weaponConfig.plasmaDamage = G_ReadWeaponCvar( &g_damage_pg, 20, "g_damage_pg" );
-	g_weaponConfig.plasmaSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pg, 15, "g_splashDamage_pg" );
-	g_weaponConfig.plasmaSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pg, 20, "g_splashRadius_pg" );
+	g_weaponConfig.plasmaSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pg, 15, "g_splashdamage_pg" );
+	g_weaponConfig.plasmaSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pg, 20, "g_splashradius_pg" );
 	g_weaponConfig.plasmaSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_pg, 2000, "g_velocity_pg", 1 );
 	g_weaponConfig.plasmaAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_pg, 1.0f, "g_accelFactor_pg" );
-	g_weaponConfig.plasmaAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 0, "g_accelRate_pg" );
+	g_weaponConfig.plasmaAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 16, "g_accelRate_pg" );
 	g_weaponConfig.lightningDamage = G_ReadWeaponCvar( &g_damage_lg, 6, "g_damage_lg" );
 	g_weaponConfig.lightningFalloffDamage = G_ReadWeaponCvarNonNegative( &g_damage_lg_falloff, 0, "g_damage_lg_falloff" );
-	g_weaponConfig.lightningFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_lg_falloff, 0, "g_range_lg_falloff" );
+	g_weaponConfig.lightningFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_lg_falloff, 768, "g_range_lg_falloff" );
 	g_weaponConfig.railJumpStrength = G_ReadWeaponCvarNonNegative( &g_railJump, 0, "g_railJump" );
 	g_weaponConfig.railgunDamage = G_ReadWeaponCvar( &g_damage_rg, 80, "g_damage_rg" );
 	g_weaponConfig.bfgDamage = G_ReadWeaponCvar( &g_damage_bfg, 100, "g_damage_bfg" );
-	g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100, "g_splashDamage_bfg" );
-	g_weaponConfig.bfgSplashRadius = G_ReadWeaponCvar( &g_splashRadius_bfg, 120, "g_splashRadius_bfg" );
-	g_weaponConfig.bfgSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_bfg, 2000, "g_velocity_bfg", 1 );
+	g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100, "g_splashdamage_bfg" );
+	g_weaponConfig.bfgSplashRadius = G_ReadWeaponCvar( &g_splashRadius_bfg, 80, "g_splashradius_bfg" );
+	g_weaponConfig.bfgSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_bfg, 1800, "g_velocity_bfg", 1 );
 	g_weaponConfig.bfgAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_bfg, 1.0f, "g_accelFactor_bfg" );
-	g_weaponConfig.bfgAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 0, "g_accelRate_bfg" );
+	g_weaponConfig.bfgAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 16, "g_accelRate_bfg" );
 	g_weaponConfig.grappleDamage = G_ReadWeaponCvar( &g_damage_gh, 10, "g_damage_gh" );
 	g_weaponConfig.grappleSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_gh, 1800, "g_velocity_gh", 1 );
 	g_weaponConfig.gauntletSpeedFactor = G_ReadWeaponFloatCvarNonNegative( &g_gauntletSpeedFactor, 1.0f, "g_gauntletSpeedFactor" );
@@ -1373,22 +1425,22 @@ void G_InitWeaponConfig( void ) {
 	}
 	g_weaponConfig.nailgunGravityEnabled = G_ReadWeaponBoolCvar( &g_nailgravity, qfalse, "g_nailgravity" );
 	g_weaponConfig.proximityLauncherDamage = G_ReadWeaponCvarNonNegative( &g_damage_pl, 0, "g_damage_pl" );
-	g_weaponConfig.proximityLauncherSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pl, 100, "g_splashDamage_pl" );
-	g_weaponConfig.proximityLauncherSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pl, 150, "g_splashRadius_pl" );
+	g_weaponConfig.proximityLauncherSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pl, 100, "g_splashdamage_pl" );
+	g_weaponConfig.proximityLauncherSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pl, 150, "g_splashradius_pl" );
 	g_weaponConfig.quadDamageMultiplier = G_ReadWeaponFloatCvarNonNegative( &g_quadDamageFactor, 3.0f, "g_quadDamageFactor" );
 	g_weaponConfig.guidedRocketEnabled = G_ReadWeaponBoolCvar( &g_guidedRocket, qfalse, "g_guidedRocket" );
 	g_weaponConfig.quadHogEnabled = G_ReadWeaponBoolCvar( &g_quadHog, qfalse, "g_quadHog" );
-	g_weaponConfig.quadHogIdleSeconds = G_ReadWeaponCvarRaw( &g_quadHogIdle, 0, "g_quadHogIdle" );
+	g_weaponConfig.quadHogIdleSeconds = G_ReadWeaponCvarRaw( &g_quadHogIdle, 20, "g_quadHogIdle" );
 	if ( g_weaponConfig.quadHogIdleSeconds < 0 ) {
 		g_weaponConfig.quadHogIdleSeconds = 0;
 	}
-	g_weaponConfig.quadHogTimeSeconds = G_ReadWeaponCvarRaw( &g_quadHogTime, 0, "g_quadHogTime" );
+	g_weaponConfig.quadHogTimeSeconds = G_ReadWeaponCvarRaw( &g_quadHogTime, 60, "g_quadHogTime" );
 	if ( g_weaponConfig.quadHogTimeSeconds < 0 ) {
 		g_weaponConfig.quadHogTimeSeconds = 0;
 	}
-	g_weaponConfig.quadHogPingRateSeconds = G_ReadWeaponCvarRaw( &g_quadHogPingRate, 0, "g_quadHogPingRate" );
-	if ( g_weaponConfig.quadHogPingRateSeconds < 0 ) {
-		g_weaponConfig.quadHogPingRateSeconds = 0;
+	g_weaponConfig.quadHogPingRateMilliseconds = G_ReadWeaponCvarRaw( &g_quadHogPingRate, 1500, "g_quadHogPingRate" );
+	if ( g_weaponConfig.quadHogPingRateMilliseconds < 0 ) {
+		g_weaponConfig.quadHogPingRateMilliseconds = 0;
 	}
 }
 
@@ -1427,7 +1479,7 @@ void G_UpdateFlagConfig( void ) {
 
 	g_flagConfig.flagPhysics = ( g_flagPhysics.integer < 0 ) ? 0 : g_flagPhysics.integer;
 	g_flagConfig.throwFlagVelocity = ( g_throwFlagVelocity.integer < 0 ) ? 0 : g_throwFlagVelocity.integer;
-	g_flagConfig.throwFlagForwardMult = ( g_throwFlagForwardMult.integer < 0 ) ? 0 : g_throwFlagForwardMult.integer;
+	g_flagConfig.throwFlagForwardMult = ( g_throwFlagForwardMult.value < 0.0f ) ? 0.0f : g_throwFlagForwardMult.value;
 	g_flagConfig.tackleFlag = ( g_tackleFlag.integer != 0 ) ? qtrue : qfalse;
 	g_flagConfig.returnOnSuicide = ( g_returnFlagOnSuicide.integer != 0 ) ? qtrue : qfalse;
 	g_flagConfig.droppedFlagBonus = ( g_droppedFlagBonus.integer < 0 ) ? 0 : g_droppedFlagBonus.integer;
@@ -1705,6 +1757,27 @@ static void G_UpdateCustomSettingsMaskForCvar( const cvarTable_t *cv ) {
 }
 
 /*
+=============
+G_ResetClientInactivityWarnings
+
+Clears the per-client inactivity-warning latch after the inactivity timer cvar changes.
+=============
+*/
+static void G_ResetClientInactivityWarnings( void ) {
+	int	i;
+
+	if ( !level.clients ) {
+		return;
+	}
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		if ( level.clients[i].pers.connected == CON_CONNECTED ) {
+			level.clients[i].inactivityWarning = qfalse;
+		}
+	}
+}
+
+/*
 =================
 G_RegisterCvars
 =================
@@ -1750,6 +1823,7 @@ void G_RegisterCvars( void ) {
 
 	s_factoryModCount = g_factory.modificationCount;
 	s_rulesetModCount = g_ruleset.modificationCount;
+	s_inactivityModCount = g_inactivity.modificationCount;
 	s_itemTimersModCount = g_itemTimers.modificationCount;
 	s_itemHeightModCount = g_itemHeight.modificationCount;
 	s_forceSmallScoreboardMessageModCount = g_forceSmallScoreboardMessage.modificationCount;
@@ -1864,6 +1938,11 @@ void G_UpdateCvars( void ) {
 	if ( g_armorTiered.modificationCount != s_armorTieredModCount ) {
 		s_armorTieredModCount = g_armorTiered.modificationCount;
 		G_SyncAllClientArmorTiers();
+	}
+
+	if ( g_inactivity.modificationCount != s_inactivityModCount ) {
+		s_inactivityModCount = g_inactivity.modificationCount;
+		G_ResetClientInactivityWarnings();
 	}
 
 	if ( g_factory.modificationCount != s_factoryModCount ) {
@@ -2133,7 +2212,7 @@ static uint64_t G_ComputeCustomSettingsMask( void ) {
 	if ( g_quadHog.integer != 0 ) {
 		mask |= CUSTOM_SETTING_QUAD_HOG;
 	}
-	if ( g_dropDamagedHealth.integer != 1 ) {
+	if ( g_dropDamagedHealth.integer != 0 ) {
 		mask |= CUSTOM_SETTING_DROP_HEALTH;
 	}
 	if ( g_vampiricDamage.value != 0.0f ) {
@@ -2250,6 +2329,26 @@ static const char *G_AdminAccessTierToken( int tier ) {
 
 /*
 =============
+G_AdminAccessTierLabel
+
+Returns the fixed-width retail access-list label for a cached tier.
+=============
+*/
+static const char *G_AdminAccessTierLabel( int tier ) {
+	switch ( tier ) {
+	case -1:
+		return "BAN   ";
+	case PRIV_MOD:
+		return "MOD   ";
+	case PRIV_ADMIN:
+		return "ADMIN ";
+	default:
+		return "      ";
+	}
+}
+
+/*
+=============
 G_ParseAdminAccessTier
 
 Validates the privilege tier token pulled from the access file.
@@ -2278,12 +2377,12 @@ static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut ) {
 
 /*
 =============
-G_InsertAdminAccessEntry
+G_SetAdminAccessForSteamID
 
 Adds or updates a cached privilege entry for a SteamID.
 =============
 */
-static void G_InsertAdminAccessEntry( const char *steamId, int tier ) {
+void G_SetAdminAccessForSteamID( const char *steamId, int tier, qboolean temporary ) {
 	int		i;
 
 	if ( !steamId || !steamId[0] ) {
@@ -2293,7 +2392,7 @@ static void G_InsertAdminAccessEntry( const char *steamId, int tier ) {
 	for ( i = 0; i < s_adminAccessEntryCount; i++ ) {
 		if ( !Q_stricmp( s_adminAccessList[i].steamId, steamId ) ) {
 			s_adminAccessList[i].privilegeTier = tier;
-			s_adminAccessList[i].temporary = qfalse;
+			s_adminAccessList[i].temporary = temporary;
 			return;
 		}
 	}
@@ -2306,8 +2405,102 @@ static void G_InsertAdminAccessEntry( const char *steamId, int tier ) {
 	Q_strncpyz( s_adminAccessList[s_adminAccessEntryCount].steamId, steamId,
 		sizeof( s_adminAccessList[s_adminAccessEntryCount].steamId ) );
 	s_adminAccessList[s_adminAccessEntryCount].privilegeTier = tier;
-	s_adminAccessList[s_adminAccessEntryCount].temporary = qfalse;
+	s_adminAccessList[s_adminAccessEntryCount].temporary = temporary;
 	s_adminAccessEntryCount++;
+}
+
+/*
+=============
+G_RemoveAdminAccessForSteamID
+
+Erases a cached SteamID privilege entry if present.
+=============
+*/
+void G_RemoveAdminAccessForSteamID( const char *steamId ) {
+	int	i;
+
+	if ( !steamId || !steamId[0] ) {
+		return;
+	}
+
+	for ( i = 0; i < s_adminAccessEntryCount; i++ ) {
+		if ( !Q_stricmp( s_adminAccessList[i].steamId, steamId ) ) {
+			if ( i + 1 < s_adminAccessEntryCount ) {
+				memmove( &s_adminAccessList[i], &s_adminAccessList[i + 1],
+					(size_t)( s_adminAccessEntryCount - i - 1 ) * sizeof( s_adminAccessList[0] ) );
+			}
+			s_adminAccessEntryCount--;
+			memset( &s_adminAccessList[s_adminAccessEntryCount], 0,
+				sizeof( s_adminAccessList[s_adminAccessEntryCount] ) );
+			return;
+		}
+	}
+}
+
+/*
+=============
+G_PrintAccessListLine
+
+Prints one access-list line to a client or to the dedicated server console.
+=============
+*/
+static void G_PrintAccessListLine( gentity_t *ent, const char *line ) {
+	if ( ent && ent->client ) {
+		trap_SendServerCommand( ent - g_entities, va( "print \"%s\"", line ) );
+		return;
+	}
+
+	G_Printf( "%s", line );
+}
+
+/*
+=============
+G_PrintAccessListPage
+
+Prints one retail-style page of the cached SteamID privilege list.
+=============
+*/
+void G_PrintAccessListPage( gentity_t *ent, unsigned int page ) {
+	enum { ACCESS_LIST_PAGE_SIZE = 20 };
+	unsigned int	totalPages;
+	unsigned int	start;
+	unsigned int	end;
+	unsigned int	i;
+	char		line[MAX_STRING_CHARS];
+
+	if ( s_adminAccessEntryCount <= 0 ) {
+		totalPages = 1;
+	} else {
+		totalPages = (unsigned int)( ( s_adminAccessEntryCount + ACCESS_LIST_PAGE_SIZE - 1 ) / ACCESS_LIST_PAGE_SIZE );
+	}
+
+	if ( page >= totalPages ) {
+		page = totalPages - 1;
+	}
+
+	Com_sprintf( line, sizeof( line ), "Access List: Page %i of %i\n", page + 1, totalPages );
+	G_PrintAccessListLine( ent, line );
+	G_PrintAccessListLine( ent, "=============================\n" );
+
+	start = page * ACCESS_LIST_PAGE_SIZE;
+	end = start + ACCESS_LIST_PAGE_SIZE;
+	if ( end > (unsigned int)s_adminAccessEntryCount ) {
+		end = (unsigned int)s_adminAccessEntryCount;
+	}
+
+	for ( i = start; i < end; i++ ) {
+		const adminAccessEntry_t	*entry;
+		unsigned long long		steamIdValue;
+
+		entry = &s_adminAccessList[i];
+		steamIdValue = 0;
+		sscanf( entry->steamId, "%llu", &steamIdValue );
+		Com_sprintf( line, sizeof( line ), "%llu %s %s\n",
+			steamIdValue,
+			G_AdminAccessTierLabel( entry->privilegeTier ),
+			entry->temporary ? "TEMP" : "PERM" );
+		G_PrintAccessListLine( ent, line );
+	}
 }
 
 /*
@@ -2386,7 +2579,7 @@ static void G_LoadAdminAccessFile( void ) {
 		}
 
 		Com_sprintf( steamToken, sizeof( steamToken ), "%llu", steamIdValue );
-		G_InsertAdminAccessEntry( steamToken, tier );
+		G_SetAdminAccessForSteamID( steamToken, tier, qfalse );
 	}
 
 	G_Printf( "loaded %i steam ids into the access list\n", s_adminAccessEntryCount );
@@ -2754,6 +2947,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	InitBodyQue();
 
 	ClearRegisteredItems();
+	G_InitItemSpawnDelays();
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString();
@@ -8607,8 +8801,8 @@ void G_QuadHogOnPickup( gentity_t *player ) {
 	} else {
 		level.quadHogExpireTime = 0;
 	}
-	if ( g_weaponConfig.quadHogPingRateSeconds > 0 ) {
-		level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateSeconds * 1000;
+	if ( g_weaponConfig.quadHogPingRateMilliseconds > 0 ) {
+		level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateMilliseconds;
 	} else {
 		level.quadHogNextPingTime = 0;
 	}
@@ -8678,9 +8872,9 @@ void G_QuadHogFrame( void ) {
 		}
 	}
 
-	if ( g_weaponConfig.quadHogPingRateSeconds > 0 ) {
+	if ( g_weaponConfig.quadHogPingRateMilliseconds > 0 ) {
 		if ( level.quadHogNextPingTime == 0 ) {
-			level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateSeconds * 1000;
+			level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateMilliseconds;
 		} else if ( level.time >= level.quadHogNextPingTime ) {
 			int	remainingMs = 0;
 
@@ -8692,7 +8886,7 @@ void G_QuadHogFrame( void ) {
 			}
 
 			trap_SendServerCommand( owner->s.number, va( "print \"Quad Hog: %d seconds remaining\\n\"", remainingMs / 1000 ) );
-			level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateSeconds * 1000;
+			level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateMilliseconds;
 		}
 	}
 }

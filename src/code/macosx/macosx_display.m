@@ -35,7 +35,6 @@ NSDictionary *Sys_GetMatchingDisplayMode(qboolean allowStretchedModes)
     NSDictionary *mode;
     unsigned int modeIndex, modeCount, bestModeIndex;
     int verbose;
-    cvar_t *cMinFreq, *cMaxFreq;
     int minFreq, maxFreq;
     unsigned int colorDepth;
     
@@ -45,16 +44,8 @@ NSDictionary *Sys_GetMatchingDisplayMode(qboolean allowStretchedModes)
     if (colorDepth < 16 || !r_fullscreen->integer)
         colorDepth = [[glw_state.desktopMode objectForKey: (id)kCGDisplayBitsPerPixel] intValue];
 
-    cMinFreq = ri.Cvar_Get("r_minDisplayRefresh", "0", CVAR_ARCHIVE);
-    cMaxFreq = ri.Cvar_Get("r_maxDisplayRefresh", "0", CVAR_ARCHIVE);
-
-    if (cMinFreq && cMaxFreq && cMinFreq->integer && cMaxFreq->integer &&
-        cMinFreq->integer > cMaxFreq->integer) {
-        ri.Error(ERR_FATAL, "r_minDisplayRefresh must be less than or equal to r_maxDisplayRefresh");
-    }
-
-    minFreq = cMinFreq ? cMinFreq->integer : 0;
-    maxFreq = cMaxFreq ? cMaxFreq->integer : 0;
+    minFreq = 0;
+    maxFreq = 0;
     
     displayModes = (NSArray *)CGDisplayAvailableModes(glw_state.display);
     if (!displayModes) {
@@ -368,6 +359,5 @@ void Sys_UnfadeScreen(CGDirectDisplayID display, glwgamma_t *table)
     
     Com_Printf("Unable to find display to unfade it\n");
 }
-
 
 

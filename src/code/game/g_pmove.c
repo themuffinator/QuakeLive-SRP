@@ -162,7 +162,7 @@ static qboolean G_PmoveSerializeSettings( const pmove_settings_t *settings, char
 		settings->quadHogEnabled,
 		settings->quadHogIdleSeconds,
 		settings->quadHogTimeSeconds,
-		settings->quadHogPingRateSeconds
+		settings->quadHogPingRateMilliseconds
 	) ) {
 		return qfalse;
 	}
@@ -393,7 +393,7 @@ static void G_PmoveCacheSettings( void ) {
 	g_pmoveSettings.quadHogEnabled = g_weaponConfig.quadHogEnabled;
 	g_pmoveSettings.quadHogIdleSeconds = g_weaponConfig.quadHogIdleSeconds;
 	g_pmoveSettings.quadHogTimeSeconds = g_weaponConfig.quadHogTimeSeconds;
-	g_pmoveSettings.quadHogPingRateSeconds = g_weaponConfig.quadHogPingRateSeconds;
+	g_pmoveSettings.quadHogPingRateMilliseconds = g_weaponConfig.quadHogPingRateMilliseconds;
 
 	{
 		weapon_t	weapon;
@@ -543,9 +543,9 @@ void G_PmoveResetFactoryManagedCvars( void ) {
 	trap_Cvar_Set( "g_quadDamageFactor", "3" );
 	trap_Cvar_Set( "g_guidedRocket", "0" );
 	trap_Cvar_Set( "g_quadHog", "0" );
-	trap_Cvar_Set( "g_quadHogIdle", "0" );
-	trap_Cvar_Set( "g_quadHogTime", "0" );
-	trap_Cvar_Set( "g_quadHogPingRate", "0" );
+	trap_Cvar_Set( "g_quadHogIdle", "20" );
+	trap_Cvar_Set( "g_quadHogTime", "60" );
+	trap_Cvar_Set( "g_quadHogPingRate", "1500" );
 
 	g_pmove_force_update = qtrue;
 }

@@ -40,6 +40,777 @@ def test_team_balance_helper_is_split_out_for_setteam_and_readyup() -> None:
 	assert "if ( !Team_CountsBalanced( nextRedCount, nextBlueCount ) ) {" in game_cmds
 
 
+def test_setteam_recovered_executor_boundary_matches_retail_wiring() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	game_combat = _read("src/code/game/g_combat.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	revenge_block = _block_from_marker(game_combat, "void G_ClearClientRevengeState")
+	apply_block = _block_from_marker(game_cmds, "static void G_ApplyTeamChange")
+	setteam_block = _block_from_marker(game_cmds, "void SetTeam")
+	cmd_team_block = _block_from_marker(game_cmds, "void Cmd_Team_f")
+
+	assert '"address": "0x10040440"' in qagame_map
+	assert '"normalized_name": "G_ApplyTeamChange"' in qagame_map
+	assert '"address": "0x100406D0"' in qagame_map
+	assert '"normalized_name": "SetTeam"' in qagame_map
+	assert '"address": "0x10040D90"' in qagame_map
+	assert '"normalized_name": "Cmd_Team_f"' in qagame_map
+
+	assert "static void G_ApplyTeamChange( gentity_t *ent, team_t team, spectatorState_t specState, int specClient ) {" in game_cmds
+	assert "void G_ClearClientRevengeState( int clientNum ) {" in game_combat
+	assert "for ( i = 0; i < level.numConnectedClients; i++ ) {" in revenge_block
+	assert "otherClientNum = level.sortedClients[i];" in revenge_block
+	assert "other->revengeKillStreaks[clientNum] = 0;" in revenge_block
+	assert "G_ApplyTeamChange( ent, (team_t)team, specState, specClient );" in setteam_block
+	assert "CalculateRanks();" in setteam_block
+	assert setteam_block.index("G_ApplyTeamChange( ent, (team_t)team, specState, specClient );") < setteam_block.index("CalculateRanks();")
+	assert 'if ( !s ) {' in setteam_block
+	assert 's = "";' in setteam_block
+	assert "if ( level.numPlayingClients < 1 ) {" in setteam_block
+	assert "specClient = FOLLOW_ACTIVE1;" in setteam_block
+	assert "if ( level.numPlayingClients < 2 ) {" in setteam_block
+	assert "specClient = FOLLOW_ACTIVE2;" in setteam_block
+	assert "} else if ( g_gametype.integer == GT_RED_ROVER ) {" in setteam_block
+	assert setteam_block.index("} else if ( g_gametype.integer == GT_RED_ROVER ) {") < setteam_block.index("} else if ( g_gametype.integer >= GT_TEAM ) {")
+
+	assert "clientNum = ent - g_entities;" in apply_block
+	assert "oldTeam = client->sess.sessionTeam;" in apply_block
+	assert "if ( client->ps.stats[STAT_HEALTH] <= 0 ) {" in apply_block
+	assert "CopyToBodyQue( ent );" in apply_block
+	assert "client->pers.teamState.state = TEAM_BEGIN;" in apply_block
+	assert "G_RankSendPlayerStats( ent, qtrue );" in apply_block
+	assert "G_RankResetClientStats( client );" in apply_block
+	assert "player_die( ent, ent, ent, 100000, MOD_SUICIDE );" in apply_block
+	assert "client->sess.spectatorTime = (int)time( NULL );" in apply_block
+	assert "client->sess.sessionTeam = team;" in apply_block
+	assert "client->sess.spectatorState = specState;" in apply_block
+	assert "client->sess.spectatorClient = specClient;" in apply_block
+	assert "G_SyncSpectatorItemStatesForClient( clientNum );" in apply_block
+	assert "TeamLeader( team );" in apply_block
+	assert "SetLeader( team, clientNum );" in apply_block
+	assert "CheckTeamLeader( oldTeam );" in apply_block
+	assert "if ( g_gametype.integer != GT_RED_ROVER || team == TEAM_SPECTATOR ) {" in apply_block
+	assert "BroadcastTeamChange( client, oldTeam );" in apply_block
+	assert "G_ClearClientRevengeState( clientNum );" in apply_block
+	assert "ClientUserinfoChanged( clientNum );" in apply_block
+	assert "ClientBegin( clientNum );" in apply_block
+	assert "G_RankSendPlayerSwitchTeam( ent, oldTeam, team );" in apply_block
+	assert apply_block.index("G_ClearClientRevengeState( clientNum );") < apply_block.index("ClientUserinfoChanged( clientNum );")
+	assert apply_block.index("ClientUserinfoChanged( clientNum );") < apply_block.index("ClientBegin( clientNum );")
+	assert apply_block.index("ClientBegin( clientNum );") < apply_block.index("G_RankSendPlayerSwitchTeam( ent, oldTeam, team );")
+
+	assert "if ( trap_Argc() < 2 ) {" in cmd_team_block
+	assert "s = ConcatArgs( 1 );" in cmd_team_block
+	assert "trap_Argv( 1, s" not in cmd_team_block
+
+
+def test_revenge_counter_matrix_matches_retail_death_respawn_and_team_change_wiring() -> None:
+	game_local = _read("src/code/game/g_local.h")
+	game_client = _read("src/code/game/g_client.c")
+	game_combat = _read("src/code/game/g_combat.c")
+	qagame_overlay = _read("src/game/ql_game_types.h")
+	spawn_block = _block_from_marker(game_client, "void ClientSpawn")
+	disconnect_block = _block_from_marker(game_client, "void ClientDisconnect")
+	death_block = _block_from_marker(game_combat, "void player_die")
+
+	assert "int32_t revenge_kill_streaks[64];" in qagame_overlay
+	assert "offsetof(ql_gclient_t, revenge_kill_streaks) == 0x3E4" in qagame_overlay
+	assert "int\t\t\trevengeKillStreaks[MAX_CLIENTS];" in game_local
+	assert "int\t\tsavedRevengeKillStreaks[MAX_CLIENTS];" in spawn_block
+	assert "memcpy( savedRevengeKillStreaks, client->revengeKillStreaks, sizeof( savedRevengeKillStreaks ) );" in spawn_block
+	assert "memcpy( client->revengeKillStreaks, savedRevengeKillStreaks, sizeof( client->revengeKillStreaks ) );" in spawn_block
+	assert "attackerClientNum = attacker->s.number;" in death_block
+	assert "victimClientNum = self->s.number;" in death_block
+	assert "attacker->client->revengeKillStreaks[victimClientNum]++;" in death_block
+	assert "if ( self->client->revengeKillStreaks[attackerClientNum] > 2 ) {" in death_block
+	assert "attacker->client->ps.persistant[PERS_PLAYEREVENTS] ^= PLAYEREVENT_REVENGE;" in death_block
+	assert 'G_RankSendPlayerMedal( attacker, "REVENGE" );' in death_block
+	assert "self->client->revengeKillStreaks[attackerClientNum] = 0;" in death_block
+	assert "void G_ClearClientRevengeState( int clientNum );" in game_local
+	assert "G_ClearClientRevengeState( clientNum );" in disconnect_block
+	assert disconnect_block.index("StopFollowing( &g_entities[i] );") < disconnect_block.index("G_ClearClientRevengeState( clientNum );")
+
+
+def test_game_say_reconstructs_retail_chat_tokens_and_message_limits() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
+	formatter_block = _block_from_marker(game_cmds, "static void G_ExpandChatTokens")
+	say_block = _block_from_marker(game_cmds, "void G_Say")
+	bot_say_block = _block_from_marker(game_cmds, "static void Cmd_BotSay_f")
+	client_command_block = _block_from_marker(game_cmds, "void ClientCommand")
+
+	assert '"G_Say: truncate at %d characters\\n"' in say_block
+	assert "strlen( chatText ) > MAX_SAY_TEXT" in say_block
+	assert "G_ExpandChatTokens( ent, chatText, text, sizeof( text ) );" in say_block
+	assert "originalMode = mode;" in say_block
+	assert "( originalMode == SAY_TEAM || originalMode == SAY_TELL ) && ent->client" in say_block
+	assert say_block.index("originalMode = mode;") < say_block.index("if ( g_gametype.integer < GT_TEAM && mode == SAY_TEAM )")
+	assert "Q_strncpyz( text, chatText, sizeof( text ) );" in say_block
+
+	for expected in (
+		"case '#':",
+		"case 'a':",
+		"case 'h':",
+		"case 'w':",
+		"ent->client->ps.stats[STAT_ARMOR]",
+		"ent->client->ps.stats[STAT_HEALTH] < 1 ? 0 : ent->client->ps.stats[STAT_HEALTH]",
+		"weapon == WP_GAUNTLET",
+		'Com_sprintf( tokenText, sizeof( tokenText ), "%s [%d]", BG_WeaponName( (weapon_t)weapon ), ent->client->ps.ammo[weapon] );',
+	):
+		assert expected in formatter_block
+
+	assert '"Chat token output buffer overflow...\\n"' in game_cmds
+	assert '"normalized_name": "G_ExpandChatTokens"' in qagame_map
+	assert "Chat token output buffer overflo" in qagame_hlil
+	assert '"G_Say: truncate at %d characters' in qagame_hlil
+	assert '"normalized_name": "Cmd_BotSay_f"' in qagame_map
+	assert 'sub_10070a40("botSay"' in qagame_hlil
+	assert "sub_10041cc0" in qagame_hlil
+
+	assert "if ( !( ent->r.svFlags & SVF_BOT ) ) {" in bot_say_block
+	assert "trap_Argv( 1, arg, sizeof( arg ) );" in bot_say_block
+	assert "targetNum = atoi( arg );" in bot_say_block
+	assert "trap_Argv( 2, arg, sizeof( arg ) );" in bot_say_block
+	assert "holdSeconds = atoi( arg );" in bot_say_block
+	assert "if ( holdSeconds < 0 ) {" in bot_say_block
+	assert "p = ConcatArgs( 3 );" in bot_say_block
+	assert 'G_LogPrintf( "botSay: %s for %i seconds to client %i\\n", ent->client->pers.netname, holdSeconds, targetNum );' in bot_say_block
+	assert 'trap_SendServerCommand( targetNum, va( "bchat \\"%s%c%c%s\\" %i", name, Q_COLOR_ESCAPE, COLOR_GREEN, p, holdSeconds ) );' in bot_say_block
+	assert 'if (Q_stricmp (cmd, "botSay") == 0) {' in client_command_block
+	assert "Cmd_BotSay_f( ent );" in client_command_block
+	assert client_command_block.index('if (Q_stricmp (cmd, "tell") == 0)') < client_command_block.index('if (Q_stricmp (cmd, "botSay") == 0)')
+	assert client_command_block.index('if (Q_stricmp (cmd, "botSay") == 0)') < client_command_block.index('if (Q_stricmp (cmd, "vsay") == 0)')
+
+
+def test_game_chat_voice_client_command_tranche_matches_retail_ladder() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
+	client_command_block = _block_from_marker(game_cmds, "void ClientCommand")
+	say_block = _block_from_marker(game_cmds, "static void Cmd_Say_f")
+	tell_block = _block_from_marker(game_cmds, "static void Cmd_Tell_f")
+	bot_say_block = _block_from_marker(game_cmds, "static void Cmd_BotSay_f")
+	voice_block = _block_from_marker(game_cmds, "static void Cmd_Voice_f")
+	voice_tell_block = _block_from_marker(game_cmds, "static void Cmd_VoiceTell_f")
+	voice_to_block = _block_from_marker(game_cmds, "static void G_VoiceTo")
+	voice_public_block = _block_from_marker(game_cmds, "void G_Voice")
+	voice_taunt_block = _block_from_marker(game_cmds, "static void Cmd_VoiceTaunt_f")
+
+	for normalized_name in (
+		"Cmd_Say_f",
+		"Cmd_Tell_f",
+		"Cmd_BotSay_f",
+		"Cmd_Voice_f",
+		"Cmd_VoiceTell_f",
+		"Cmd_VoiceTaunt_f",
+		"ClientCommand",
+	):
+		assert f'"normalized_name": "{normalized_name}"' in qagame_map
+
+	for hlil_signal in (
+		'sub_10070a40("say"',
+		'sub_10070a40("say_team"',
+		'sub_10070a40("tell"',
+		'sub_10070a40("botSay"',
+		'sub_10070a40("vsay"',
+		'sub_10070a40("vsay_team"',
+		'sub_10070a40("vtell"',
+		'sub_10070a40("vosay"',
+		'sub_10070a40("vosay_team"',
+		'sub_10070a40("votell"',
+		"sub_10041b60",
+		"sub_10041b90",
+		"sub_10041cc0",
+		"sub_10041e40",
+		"sub_10041e60",
+		"vtell: %s to %s: %s",
+	):
+		assert hlil_signal in qagame_hlil
+	assert 'sub_10070a40("complaint"' not in qagame_hlil
+
+	dispatch_pairs = (
+		('if (Q_stricmp (cmd, "say") == 0)', "Cmd_Say_f (ent, SAY_ALL, qfalse);"),
+		('if (Q_stricmp (cmd, "say_team") == 0)', "Cmd_Say_f (ent, SAY_TEAM, qfalse);"),
+		('if (Q_stricmp (cmd, "tell") == 0)', "Cmd_Tell_f ( ent );"),
+		('if (Q_stricmp (cmd, "botSay") == 0)', "Cmd_BotSay_f( ent );"),
+		('if (Q_stricmp (cmd, "vsay") == 0)', "Cmd_Voice_f (ent, SAY_ALL, qfalse, qfalse);"),
+		('if (Q_stricmp (cmd, "vsay_team") == 0)', "Cmd_Voice_f (ent, SAY_TEAM, qfalse, qfalse);"),
+		('if (Q_stricmp (cmd, "vtell") == 0)', "Cmd_VoiceTell_f ( ent, qfalse );"),
+		('if (Q_stricmp (cmd, "vosay") == 0)', "Cmd_Voice_f (ent, SAY_ALL, qfalse, qtrue);"),
+		('if (Q_stricmp (cmd, "vosay_team") == 0)', "Cmd_Voice_f (ent, SAY_TEAM, qfalse, qtrue);"),
+		('if (Q_stricmp (cmd, "votell") == 0)', "Cmd_VoiceTell_f ( ent, qtrue );"),
+	)
+	for dispatch, handler in dispatch_pairs:
+		assert dispatch in client_command_block
+		assert handler in client_command_block
+		assert client_command_block.index(dispatch) < client_command_block.index(handler)
+	for current, following in zip(dispatch_pairs, dispatch_pairs[1:]):
+		assert client_command_block.index(current[0]) < client_command_block.index(following[0])
+	assert client_command_block.index('if (Q_stricmp (cmd, "vtaunt") == 0)') < client_command_block.index('if (Q_stricmp (cmd, "complaint") == 0)')
+
+	assert "p = ConcatArgs( 1 );" in say_block
+	assert 'G_FloodLimited( ent, ( mode == SAY_TEAM ) ? "using team chat" : "chatting", qtrue )' in say_block
+	assert "G_Say( ent, NULL, mode, p );" in say_block
+	assert "targetNum = atoi( arg );" in tell_block
+	assert 'G_FloodLimited( ent, "sending tells", qtrue )' in tell_block
+	assert 'G_LogPrintf( "tell: %s to %s: %s\\n", ent->client->pers.netname, target->client->pers.netname, p );' in tell_block
+	assert "G_Say( ent, target, SAY_TELL, p );" in tell_block
+	assert "if ( ent != target && !(ent->r.svFlags & SVF_BOT)) {" in tell_block
+	assert "if ( !( ent->r.svFlags & SVF_BOT ) ) {" in bot_say_block
+	assert 'trap_SendServerCommand( targetNum, va( "bchat \\"%s%c%c%s\\" %i", name, Q_COLOR_ESCAPE, COLOR_GREEN, p, holdSeconds ) );' in bot_say_block
+
+	assert 'cmd = "vtchat";' in voice_to_block
+	assert 'cmd = "vtell";' in voice_to_block
+	assert 'cmd = "vchat";' in voice_to_block
+	assert 'trap_SendServerCommand( other-g_entities, va("%s %d %d %d %s", cmd, voiceonly, ent->s.number, color, id));' in voice_to_block
+	assert 'trap_SendServerCommand( ent-g_entities, "print \\"You are muted.\\n\\"" );' in voice_public_block
+	assert 'G_Printf( "voice: %s %s\\n", ent->client->pers.netname, id);' in voice_public_block
+	assert 'action = voiceonly ? "using team voice commands" : "using team voice chat";' in voice_block
+	assert 'action = voiceonly ? "using voice commands" : "using voice chat";' in voice_block
+	assert "G_Voice( ent, NULL, mode, p, voiceonly );" in voice_block
+	assert 'G_FloodLimited( ent, voiceonly ? "sending private voice commands" : "sending private voice chats", qtrue )' in voice_tell_block
+	assert 'G_LogPrintf( "vtell: %s to %s: %s\\n", ent->client->pers.netname, target->client->pers.netname, id );' in voice_tell_block
+	assert "G_Voice( ent, target, SAY_TELL, id, voiceonly );" in voice_tell_block
+	assert "G_FloodLimited( ent, \"sending voice taunts\", qtrue )" in voice_taunt_block
+
+
+def test_game_score_vote_cheat_client_command_tranche_matches_retail_ladder() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
+	qagame_strings = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	client_command_block = _block_from_marker(game_cmds, "void ClientCommand")
+	score_block = _block_from_marker(game_cmds, "void Cmd_Score_f")
+	acc_block = _block_from_marker(game_cmds, "void Cmd_Acc_f")
+	pstats_block = _block_from_marker(game_cmds, "void Cmd_PStats_f")
+	readyup_block = _block_from_marker(game_cmds, "void Cmd_ReadyUp_f")
+	vote_block = _block_from_marker(game_cmds, "void Cmd_Vote_f")
+	nextmap_vote_block = _block_from_marker(game_cmds, "qboolean G_HandleNextMapVote")
+	give_block = _block_from_marker(game_cmds, "void Cmd_Give_f")
+	god_block = _block_from_marker(game_cmds, "void Cmd_God_f")
+	notarget_block = _block_from_marker(game_cmds, "void Cmd_Notarget_f")
+	noclip_block = _block_from_marker(game_cmds, "void Cmd_Noclip_f")
+	kill_block = _block_from_marker(game_cmds, "void Cmd_Kill_f")
+
+	for normalized_name in (
+		"Cmd_Score_f",
+		"Cmd_Acc_f",
+		"Cmd_Pstats_f",
+		"Cmd_ReadyUp_f",
+		"Cmd_Vote_f",
+		"Cmd_Give_f",
+		"Cmd_God_f",
+		"Cmd_Notarget_f",
+		"Cmd_Noclip_f",
+		"Cmd_Kill_f",
+		"ClientCommand",
+	):
+		assert f'"normalized_name": "{normalized_name}"' in qagame_map
+
+	for hlil_signal in (
+		'sub_10070a40("score"',
+		'sub_10070a40("acc"',
+		'sub_10070a40("pstats"',
+		'data_10084f0c[0x8] = "readyup"',
+		'data_10084f14[0x9] = "ragequit"',
+		'sub_10070a40("vote"',
+		'sub_10070a40("give"',
+		'sub_10070a40("god"',
+		'data_10084f34[0x9] = "notarget"',
+		'data_10084f40[0x7] = "noclip"',
+		'sub_10070a40("kill"',
+		"acc %s",
+		"pstats %s",
+		"Vote cast.",
+		"Kill is not enabled on this server.",
+		"godmode ON",
+		"notarget ON",
+		"noclip ON",
+	):
+		assert hlil_signal in qagame_hlil or hlil_signal in qagame_strings
+
+	dispatch_pairs = (
+		('if (Q_stricmp (cmd, "score") == 0)', "Cmd_Score_f (ent);"),
+		('else if (Q_stricmp (cmd, "acc") == 0)', "Cmd_Acc_f (ent);"),
+		('else if (Q_stricmp (cmd, "pstats") == 0)', "Cmd_PStats_f (ent);"),
+		('else if (Q_stricmp (cmd, "readyup") == 0)', "Cmd_ReadyUp_f (ent);"),
+		('else if (Q_stricmp (cmd, "vote") == 0)', "Cmd_Vote_f (ent);"),
+		('if (Q_stricmp (cmd, "give") == 0)', "Cmd_Give_f (ent);"),
+		('else if (Q_stricmp (cmd, "god") == 0)', "Cmd_God_f (ent);"),
+		('else if (Q_stricmp (cmd, "notarget") == 0)', "Cmd_Notarget_f (ent);"),
+		('else if (Q_stricmp (cmd, "noclip") == 0)', "Cmd_Noclip_f (ent);"),
+		('else if (Q_stricmp (cmd, "kill") == 0)', "Cmd_Kill_f (ent);"),
+	)
+	for dispatch, handler in dispatch_pairs:
+		assert dispatch in client_command_block
+		assert handler in client_command_block
+		assert client_command_block.index(dispatch) < client_command_block.index(handler)
+	for current, following in zip(dispatch_pairs, dispatch_pairs[1:]):
+		assert client_command_block.index(current[0]) < client_command_block.index(following[0])
+
+	intermission_gate = '// ignore all other commands when at intermission'
+	assert client_command_block.index('else if (Q_stricmp (cmd, "vote") == 0)') < client_command_block.index(intermission_gate)
+	assert client_command_block.index(intermission_gate) < client_command_block.index('if (Q_stricmp (cmd, "give") == 0)')
+	assert client_command_block.index('else if (Q_stricmp (cmd, "ready") == 0)') > client_command_block.index('else if (Q_stricmp (cmd, "vote") == 0)')
+	assert 'Q_stricmp (cmd, "ragequit")' not in client_command_block
+
+	assert "G_RaceSendScoreboard( ent );" in score_block
+	assert "DeathmatchScoreboardMessage( ent );" in score_block
+	assert "G_SendRetailAccuracyCommand( ent );" in acc_block
+	assert "G_SendRetailPStatsCommand( ent );" in pstats_block
+	assert "G_ResetTrainingSession( ent );" in readyup_block
+	assert "G_SetClientReadyState( ent->client, ready );" in readyup_block
+	assert "G_WarmupReadyToStart();" in readyup_block
+	assert "if ( level.intermissiontime ) {" in vote_block
+	assert "G_HandleNextMapVote( ent );" in vote_block
+	assert 'trap_SendServerCommand( ent-g_entities, "print \\"No vote in progress.\\n\\"" );' in vote_block
+	assert 'trap_SendServerCommand( ent-g_entities, "print \\"Vote cast.\\n\\"" );' in vote_block
+	assert "G_UpdateVoteCounts();" in vote_block
+	assert "G_UpdateNextMapVoteTallies();" in nextmap_vote_block
+	assert 'trap_SendServerCommand( ent-g_entities, "disable_vote_ui" );' in nextmap_vote_block
+	assert "if ( !CheatsOk( ent ) ) {" in give_block
+	assert 'G_GiveItemByName( ent, "health" );' in give_block
+	assert 'G_GiveItemByName( ent, "weapons" );' in give_block
+	assert 'G_GiveItemByName( ent, "ammo" );' in give_block
+	assert 'G_GiveItemByName( ent, "armor" );' in give_block
+	assert "ent->flags ^= FL_GODMODE;" in god_block
+	assert 'msg = "godmode ON\\n";' in god_block
+	assert "ent->flags ^= FL_NOTARGET;" in notarget_block
+	assert 'msg = "notarget ON\\n";' in notarget_block
+	assert "ent->client->noclip = !ent->client->noclip;" in noclip_block
+	assert 'msg = "noclip ON\\n";' in noclip_block
+	assert "cooldown = g_allowKill.integer;" in kill_block
+	assert 'trap_SendServerCommand( ent-g_entities, "print \\"Kill is not enabled on this server.\\n\\"" );' in kill_block
+	assert "player_die( ent, ent, ent, 100000, MOD_SUICIDE );" in kill_block
+
+
+def test_game_direct_mute_commands_follow_retail_chat_status_contract() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	mute_block = _block_from_marker(game_cmds, "void Cmd_Mute_f")
+	unmute_block = _block_from_marker(game_cmds, "void Cmd_Unmute_f")
+
+	assert '"normalized_name": "Cmd_Mute_f"' in qagame_map
+	assert '"normalized_name": "Cmd_Unmute_f"' in qagame_map
+	assert "sub_100627c0" in qagame_hlil
+	assert "sub_10062890" in qagame_hlil
+	assert "%s has been muted" in qagame_hlil
+	assert "%s has been unmuted" in qagame_hlil
+
+	assert "target = G_AdminResolvePlayerIdArg( ent );" in mute_block
+	assert "if ( G_AdminRejectSameOrHigherTarget( ent, target, NULL ) ) {" in mute_block
+	assert "target->client->sess.muted = qtrue;" in mute_block
+	assert "G_CleanClientNameFromClientNum( clientNum, targetName );" in mute_block
+	assert 'trap_SendServerCommand( -1, va("print \\"%s has been muted\\n\\"", targetName) );' in mute_block
+	assert 'trap_SendServerCommand( ent-g_entities, va("print \\"%s muted.\\n\\"", target->client->pers.netname) );' not in mute_block
+	assert 'trap_SendServerCommand( target-g_entities, "print \\"You have been muted.\\n\\"" );' not in mute_block
+
+	assert "target = G_AdminResolvePlayerIdArg( ent );" in unmute_block
+	assert "G_AdminRejectSameOrHigherTarget" not in unmute_block
+	assert "target->client->sess.muted = qfalse;" in unmute_block
+	assert "G_CleanClientNameFromClientNum( clientNum, targetName );" in unmute_block
+	assert 'trap_SendServerCommand( -1, va("print \\"%s has been unmuted\\n\\"", targetName) );' in unmute_block
+	assert 'trap_SendServerCommand( ent-g_entities, va("print \\"%s unmuted.\\n\\"", target->client->pers.netname) );' not in unmute_block
+	assert 'trap_SendServerCommand( target-g_entities, "print \\"You have been unmuted.\\n\\"" );' not in unmute_block
+
+
+def test_game_direct_command_table_reconstructs_retail_client_command_tranche() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	game_local = _read("src/code/game/g_local.h")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	players_block = _block_from_marker(game_cmds, "void Cmd_Players_f")
+	op_say_block = _block_from_marker(game_cmds, "static void Cmd_OpSay_f")
+	dispatch_block = _block_from_marker(game_cmds, "static qboolean G_DispatchDirectCommand")
+	help_block = _block_from_marker(game_cmds, "static void G_PrintDirectCommandHelp")
+	allready_block = _block_from_marker(game_cmds, "void Cmd_AllReady_f")
+	lock_block = _block_from_marker(game_cmds, "void Cmd_Lock_f")
+	unlock_block = _block_from_marker(game_cmds, "void Cmd_Unlock_f")
+	putteam_block = _block_from_marker(game_cmds, "void Cmd_PutTeam_f")
+	client_command_block = _block_from_marker(game_cmds, "void ClientCommand")
+
+	for normalized_name in (
+		"Cmd_Players_f",
+		"G_ValidateDirectCommandState",
+		"G_AdminResolvePlayerIdArg",
+		"G_AdminParseTeamArg",
+		"Cmd_AllReady_f",
+		"G_TeamJoinAllowed",
+		"Cmd_Lock_f",
+		"Cmd_Unlock_f",
+		"Cmd_PutTeam_f",
+		"Cmd_OpSay_f",
+		"G_PrintDirectCommandHelp",
+		"G_DispatchDirectCommand",
+	):
+		assert f'"normalized_name": "{normalized_name}"' in qagame_map
+
+	assert "data_10080750:" in qagame_hlil
+	assert 'data_10088950 {"players"}' in qagame_hlil
+	assert 'data_10088910 {"timeout"}' in qagame_hlil
+	assert 'data_100885e0 {"opsay"}' in qagame_hlil
+	assert "1008076c" in qagame_hlil
+	assert "10080780" in qagame_hlil
+	assert "10080794" in qagame_hlil
+	assert "100807a8" in qagame_hlil
+	assert "100807bc" in qagame_hlil
+	assert "100807d0" in qagame_hlil
+	assert "100807e4" in qagame_hlil
+	assert "100807f8" in qagame_hlil
+	assert "1008080c" in qagame_hlil
+	assert "10080898" in qagame_hlil
+	assert "sub_10060ee0" in qagame_hlil
+	assert "sub_10061090" in qagame_hlil
+	assert "sub_100611d0" in qagame_hlil
+	assert "sub_10061350" in qagame_hlil
+	assert "sub_10061800" in qagame_hlil
+	assert "sub_10061940" in qagame_hlil
+	assert "sub_10061a40" in qagame_hlil
+	assert "sub_10061b40" in qagame_hlil
+	assert "sub_10062bf0" in qagame_hlil
+	assert "sub_10062e20" in qagame_hlil
+	assert "100808a4" in qagame_hlil
+	assert 'print "%2d %llu %c %s' in qagame_hlil
+	assert "Missing PlayerID (use \\\\players for a list)" in qagame_hlil
+	assert "Invalid TeamName (use R/B/S)" in qagame_hlil
+	assert "Allready may not be used until two players are in the match." in qagame_hlil
+	assert "The %s team is now %slocked" in qagame_hlil
+	assert "A maximum of two players are allowed in the match." in qagame_hlil
+	assert '<@%s^7> %s' in qagame_hlil
+	assert "You do not have the privileges required to use this command" in qagame_hlil
+
+	assert "uint64_t\t\tsteamId;" in players_block
+	assert 'G_DirectCommandPrivilegeChar( cl->sess.privilege );' in players_block
+	assert 'va( "print \\"%2d %llu %c %s\\n\\"",' in players_block
+	assert "if ( trap_Argc() < 2 ) {" in op_say_block
+	assert "message = ConcatArgs( 1 );" in op_say_block
+	assert "speakerName = G_CleanClientNameFromClientNum( ent - g_entities, cleanName );" in op_say_block
+	assert 'speakerName = "server";' in op_say_block
+	assert 'trap_SendServerCommand( -1, va("print \\"<@%s^7> %s\\n\\"", speakerName, message) );' in op_say_block
+
+	assert "static const directCommand_t s_directCommands[] = {" in game_cmds
+	for expected_entry in (
+		'{ "players", Cmd_Players_f, PRIV_NONE, 0,',
+		'{ "timeout", Cmd_Timeout_f, PRIV_NONE, 0,',
+		'{ "timein", Cmd_Timein_f, PRIV_NONE, 0,',
+		'{ "allready", Cmd_AllReady_f, PRIV_MOD, 0,',
+		'{ "pause", Cmd_Pause_f, PRIV_MOD, 0,',
+		'{ "unpause", Cmd_Timein_f, PRIV_MOD, 0,',
+		'{ "lock", Cmd_Lock_f, PRIV_MOD, 0,',
+		'{ "unlock", Cmd_Unlock_f, PRIV_MOD, 0,',
+		'{ "putteam", Cmd_PutTeam_f, PRIV_MOD, 0,',
+		'{ "opsay", Cmd_OpSay_f, PRIV_MOD, 0,',
+	):
+		assert expected_entry in game_cmds
+	assert "qboolean\tteamLocks[TEAM_NUM_TEAMS];" in game_local
+	assert 'G_DirectCommandPrint( ent, "print \\"Missing PlayerID (use \\\\players for a list)\\n\\"" );' in game_cmds
+	assert 'G_DirectCommandPrint( ent, "print \\"Invalid TeamName (use R/B/S)\\n\\"" );' in game_cmds
+	assert "G_SetTeamLock( TEAM_RED, qtrue );" in lock_block
+	assert "G_SetTeamLock( TEAM_BLUE, qtrue );" in lock_block
+	assert "G_SetTeamLock( team, qtrue );" in lock_block
+	assert "G_SetTeamLock( TEAM_RED, qfalse );" in unlock_block
+	assert "G_SetTeamLock( TEAM_BLUE, qfalse );" in unlock_block
+	assert "G_SetTeamLock( team, qfalse );" in unlock_block
+	assert "target = G_AdminResolvePlayerIdArg( ent );" in putteam_block
+	assert "team = G_AdminParseTeamArg( 2, ent, TEAM_NUM_TEAMS );" in putteam_block
+	assert 'G_DirectCommandPrint( ent, "print \\"Allready may not be used until two players are in the match.\\n\\"" );' in allready_block
+	assert "G_SetClientReadyState( &level.clients[i], qtrue );" in allready_block
+	assert "directCommand->flags == DIRECTCMD_HELP_HIDDEN" in help_block
+	assert "privilege = G_DirectCommandCallerPrivilege( ent );" in dispatch_block
+	assert "for ( directCommand = s_directCommands; directCommand->name; directCommand++ ) {" in dispatch_block
+	assert "if ( privilege < directCommand->requiredPrivilege ) {" in dispatch_block
+	assert 'G_DirectCommandPrint( ent, "print \\"You do not have the privileges required to use this command\\n\\"" );' in dispatch_block
+	assert "directCommand->handler( ent );" in dispatch_block
+	assert "if ( G_DispatchDirectCommand( cmd, ent ) ) {" in client_command_block
+	assert client_command_block.index("trap_Argv( 0, cmd, sizeof( cmd ) );") < client_command_block.index("if ( G_DispatchDirectCommand( cmd, ent ) )")
+	assert client_command_block.index("if ( G_DispatchDirectCommand( cmd, ent ) )") < client_command_block.index('if (Q_stricmp (cmd, "say") == 0)')
+
+
+def test_game_direct_admin_access_command_tranche_matches_retail_table() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	game_main = _read("src/code/game/g_main.c")
+	game_local = _read("src/code/game/g_local.h")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	qagame_access_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
+	promote_block = _block_from_marker(game_cmds, "static void G_AdminPromoteTarget")
+	demote_block = _block_from_marker(game_cmds, "static void Cmd_Demote_f")
+	kick_ban_block = _block_from_marker(game_cmds, "static int G_KickOrBanClientWithMode")
+	ban_block = _block_from_marker(game_cmds, "void Cmd_Ban_f")
+	tempban_block = _block_from_marker(game_cmds, "static void Cmd_TempBan_f")
+	unban_block = _block_from_marker(game_cmds, "static void Cmd_Unban_f")
+	listaccess_block = _block_from_marker(game_cmds, "static void Cmd_ListAccess_f")
+	abort_block = _block_from_marker(game_cmds, "static void Cmd_Abort_f")
+	access_print_block = _block_from_marker(game_main, "void G_PrintAccessListPage")
+
+	for normalized_name in (
+		"Cmd_Abort_f",
+		"Cmd_AddAdmin_f",
+		"Cmd_AddMod_f",
+		"Cmd_Demote_f",
+		"Cmd_Mute_f",
+		"Cmd_Unmute_f",
+		"G_KickOrBanClient",
+		"Cmd_Unban_f",
+		"Cmd_ListAccess_f",
+		"G_PrintAccessListPage",
+	):
+		assert f'"normalized_name": "{normalized_name}"' in qagame_map
+
+	for offset in (
+		"10080818",
+		"1008082c",
+		"10080840",
+		"10080854",
+		"10080868",
+		"1008087c",
+		"100808a4",
+		"100808b8",
+		"100808cc",
+		"100808e0",
+	):
+		assert offset in qagame_hlil
+
+	for raw_name in (
+		"sub_100627c0",
+		"sub_10062890",
+		"sub_10062940",
+		"sub_10062ad0",
+		"sub_10062c60",
+		"sub_10062470",
+		"sub_10062560",
+		"sub_10062650",
+		"sub_10061550",
+	):
+		assert raw_name in qagame_hlil
+
+	assert "Access List: Page %i of %i" in qagame_access_hlil
+	assert "TEMP" in qagame_access_hlil
+	assert "PERM" in qagame_access_hlil
+	assert "%llu %s %s" in qagame_access_hlil
+	assert "Can not kick admins." in qagame_hlil
+	assert "was kicked" in qagame_hlil
+	assert "Can not demote someone at or above your level." in qagame_hlil
+	assert "%s has become an administrator" in qagame_hlil
+	assert "%s has become a moderator" in qagame_hlil
+	assert "%s has had their privileges removed" in qagame_hlil
+	assert "%llu has been unbanned" in qagame_hlil
+	assert "Match is currently paused. You must unpause before aborting the match." in qagame_hlil
+	assert "map_restart 3" in qagame_hlil
+
+	for expected_entry in (
+		'{ "mute", Cmd_Mute_f, PRIV_MOD, 0,',
+		'{ "unmute", Cmd_Unmute_f, PRIV_MOD, 0,',
+		'{ "tempban", Cmd_TempBan_f, PRIV_MOD, 0,',
+		'{ "ban", Cmd_Ban_f, PRIV_MOD, 0,',
+		'{ "listaccess", Cmd_ListAccess_f, PRIV_MOD, 0,',
+		'{ "unban", Cmd_Unban_f, PRIV_MOD, 0,',
+		'{ "addadmin", Cmd_AddAdmin_f, PRIV_ADMIN, 0,',
+		'{ "addmod", Cmd_AddMod_f, PRIV_ADMIN, 0,',
+		'{ "demote", Cmd_Demote_f, PRIV_ADMIN, 0,',
+		'{ "abort", Cmd_Abort_f, PRIV_MOD, 0,',
+	):
+		assert expected_entry in game_cmds
+
+	assert "void\tG_SetAdminAccessForSteamID( const char *steamId, int tier, qboolean temporary );" in game_local
+	assert "void\tG_RemoveAdminAccessForSteamID( const char *steamId );" in game_local
+	assert "void\tG_PrintAccessListPage( gentity_t *ent, unsigned int page );" in game_local
+	assert "void G_SetAdminAccessForSteamID( const char *steamId, int tier, qboolean temporary ) {" in game_main
+	assert "void G_RemoveAdminAccessForSteamID( const char *steamId ) {" in game_main
+	assert "static const char *G_AdminAccessTierLabel( int tier ) {" in game_main
+	assert 'return "ADMIN ";' in game_main
+	assert 'return "MOD   ";' in game_main
+	assert 'return "BAN   ";' in game_main
+
+	assert "enum { ACCESS_LIST_PAGE_SIZE = 20 };" in access_print_block
+	assert 'Com_sprintf( line, sizeof( line ), "Access List: Page %i of %i\\n", page + 1, totalPages );' in access_print_block
+	assert 'G_PrintAccessListLine( ent, "=============================\\n" );' in access_print_block
+	assert 'entry->temporary ? "TEMP" : "PERM"' in access_print_block
+	assert 'sscanf( entry->steamId, "%llu", &steamIdValue );' in access_print_block
+	assert 'Com_sprintf( line, sizeof( line ), "%llu %s %s\\n",' in access_print_block
+
+	assert "G_SetAdminAccessForSteamID( steamId, privilege, qfalse );" in promote_block
+	assert 'trap_SendServerCommand( clientNum, va( "priv %i", target->client->sess.privilege ) );' in promote_block
+	assert 'G_AdminPromoteTarget( ent, PRIV_ADMIN, "print \\"%s has become an administrator\\n\\"" );' in game_cmds
+	assert 'G_AdminPromoteTarget( ent, PRIV_MOD, "print \\"%s has become a moderator\\n\\"" );' in game_cmds
+	assert 'G_AdminRejectSameOrHigherTarget( ent, target,\n\t\t\t"print \\"Can not demote someone at or above your level.\\n\\"" )' in demote_block
+	assert "G_RemoveAdminAccessForSteamID( steamId );" in demote_block
+	assert 'trap_SendServerCommand( -1, va( "print \\"%s has had their privileges removed\\n\\"", targetName ) );' in demote_block
+	assert 'trap_SendServerCommand( clientNum, va( "priv %i", target->client->sess.privilege ) );' in demote_block
+
+	assert "G_KickOrBanClientWithMode( ent, targetToken, banTarget, qfalse );" in game_cmds
+	assert "G_KickOrBanClientWithMode( ent, arg, qtrue, qtrue );" in tempban_block
+	assert "G_KickOrBanClient( ent, arg, qtrue );" in ban_block
+	assert "trap_Argv( 0, command, sizeof( command ) );" in kick_ban_block
+	assert '!Q_stricmp( command, "tempban" )' in kick_ban_block
+	assert '!Q_stricmp( command, "ban" )' in kick_ban_block
+	assert "target = G_AdminResolvePlayerIdArg( ent );" in kick_ban_block
+	assert "target->client->sess.privilege > PRIV_NONE" in kick_ban_block
+	assert 'G_DirectCommandPrint( ent, "print \\"Can not kick admins.\\n\\"" );' in kick_ban_block
+	assert "G_SetAdminAccessForSteamID( steamId, -1, temporary );" in kick_ban_block
+	assert 'trap_DropClient( clientNum, "was kicked" );' in kick_ban_block
+	assert "addip" not in kick_ban_block
+
+	assert "page = atoi( arg ) - 1;" in listaccess_block
+	assert "G_PrintAccessListPage( ent, (unsigned int)page );" in listaccess_block
+	assert 'sscanf( arg, "%llu", &steamIdValue );' in unban_block
+	assert "G_RemoveAdminAccessForSteamID( steamId );" in unban_block
+	assert 'G_DirectCommandPrint( ent, va( "print \\"%llu has been unbanned\\n\\"", steamIdValue ) );' in unban_block
+	assert 'G_DirectCommandPrint( ent,\n\t\t\t"print \\"Match is currently paused. You must unpause before aborting the match.\\n\\"" );' in abort_block
+	assert 'trap_SendServerCommand( -1, va( "pcp \\"%s has aborted the match\\\\n\\"", callerName ) );' in abort_block
+	assert 'trap_SendServerCommand( -1, "pcp \\"The server has aborted the match\\\\n\\"" );' in abort_block
+	assert "G_ResetTimeoutState();" in abort_block
+	assert "G_SetGameState( GAME_STATE_PRE_GAME );" in abort_block
+	assert "G_UpdateMatchStateConfigString();" in abort_block
+	assert 'trap_SendConsoleCommand( EXEC_APPEND, "map_restart 3\\n" );' in abort_block
+
+
+def test_game_direct_score_time_command_tail_matches_retail_table() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	addscore_block = _block_from_marker(game_cmds, "static void Cmd_AddScore_f")
+	addteamscore_block = _block_from_marker(game_cmds, "static void Cmd_AddTeamScore_f")
+	setmatchtime_block = _block_from_marker(game_cmds, "static void Cmd_SetMatchTime_f")
+	format_time_block = _block_from_marker(game_cmds, "static void G_FormatDirectMatchTime")
+	dispatch_block = _block_from_marker(game_cmds, "static qboolean G_DispatchDirectCommand")
+
+	for normalized_name in (
+		"Cmd_AddScore_f",
+		"Cmd_AddTeamScore_f",
+		"Cmd_SetMatchTime_f",
+	):
+		assert f'"normalized_name": "{normalized_name}"' in qagame_map
+
+	for offset in (
+		"100808f4",
+		"10080908",
+		"1008091c",
+		"10080930",
+	):
+		assert offset in qagame_hlil
+
+	for raw_name in (
+		"sub_10061670",
+		"sub_10061730",
+		"sub_10062ce0",
+	):
+		assert raw_name in qagame_hlil
+
+	assert "Player score adjusted." in qagame_hlil
+	assert "Team score adjusted." in qagame_hlil
+	assert "%s has had their score %screased by %i." in qagame_hlil
+	assert "Match time has been set to %s." in qagame_hlil
+	assert 'data_100883f4[0x5] = "rcon"' in qagame_hlil
+
+	for expected_entry in (
+		'{ "addscore", Cmd_AddScore_f, PRIV_MOD, 0,',
+		'{ "addteamscore", Cmd_AddTeamScore_f, PRIV_MOD, 0,',
+		'{ "setmatchtime", Cmd_SetMatchTime_f, PRIV_MOD, 0,',
+		'{ "rcon", NULL, PRIV_ADMIN, 0,',
+	):
+		assert expected_entry in game_cmds
+
+	assert "if ( !directCommand->handler ) {" in dispatch_block
+	assert "return qfalse;" in dispatch_block
+	assert "target = G_AdminResolvePlayerIdArg( ent );" in addscore_block
+	assert "score = atoi( arg );" in addscore_block
+	assert "AddScore( target, target->r.currentOrigin, score );" in addscore_block
+	assert 'trap_SendServerCommand( -1, "pcp \\"Player score adjusted.\\n\\"" );' in addscore_block
+	assert 'va( "print \\"%s has had their score %screased by %i.\\n\\"",' in addscore_block
+	assert "team = G_AdminParseTeamArg( 1, ent, TEAM_NUM_TEAMS );" in addteamscore_block
+	assert "score = atoi( arg );" in addteamscore_block
+	assert "AddTeamScore( vec3_origin, team, score );" in addteamscore_block
+	assert 'trap_SendServerCommand( -1, "pcp \\"Team score adjusted.\\n\\"" );' in addteamscore_block
+	assert 'va( "print \\"%s has had their score %screased by %i.\\n\\"",' in addteamscore_block
+	assert 'Com_sprintf( buffer, bufferSize, "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );' in format_time_block
+	assert "level.startTime = level.time - seconds * 1000;" in setmatchtime_block
+	assert 'trap_SetConfigstring( CS_LEVEL_START_TIME, va( "%i", level.startTime ) );' in setmatchtime_block
+	assert "G_FormatDirectMatchTime( seconds, timeBuffer, sizeof( timeBuffer ) );" in setmatchtime_block
+	assert 'va( "pcp \\"Match time has been set to %s.\\n\\"", timeBuffer )' in setmatchtime_block
+
+
+def test_qagame_server_command_wiring_tranche_matches_retail_evidence() -> None:
+	game_cmds = _read("src/code/game/g_cmds.c")
+	game_svcmds = _read("src/code/game/g_svcmds.c")
+	game_bot = _read("src/code/game/g_bot.c")
+	game_mem = _read("src/code/game/g_mem.c")
+	qagame_map = _read("references/symbol-maps/qagame.json")
+	qagame_bot_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	console_block = _block_from_marker(game_svcmds, "qboolean\tConsoleCommand")
+	addbot_block = _block_from_marker(game_bot, "void Svcmd_AddBot_f")
+	game_crash_block = _block_from_marker(game_svcmds, "static void Svcmd_GameCrash_f")
+	reload_access_block = _block_from_marker(game_svcmds, "static void Svcmd_ReloadAccess_f")
+	game_mem_block = _block_from_marker(game_mem, "void Svcmd_GameMem_f")
+
+	for normalized_name in (
+		"Cmd_AddScore_f",
+		"Cmd_AddTeamScore_f",
+		"Cmd_SetMatchTime_f",
+		"Svcmd_EntityList_f",
+		"Svcmd_ForceTeam_f",
+		"Svcmd_AddBot_f",
+		"Svcmd_BotList_f",
+		"Svcmd_ReloadAccess_f",
+		"ConsoleCommand",
+	):
+		assert f'"normalized_name": "{normalized_name}"' in qagame_map
+
+	for expected_entry in (
+		'{ "addscore", Cmd_AddScore_f, PRIV_MOD, 0,',
+		'{ "addteamscore", Cmd_AddTeamScore_f, PRIV_MOD, 0,',
+		'{ "setmatchtime", Cmd_SetMatchTime_f, PRIV_MOD, 0,',
+	):
+		assert expected_entry in game_cmds
+
+	for expected_dispatch in (
+		('if ( Q_stricmp (cmd, "entitylist") == 0 ) {', "Svcmd_EntityList_f();"),
+		('if ( Q_stricmp (cmd, "forceteam") == 0 ) {', "Svcmd_ForceTeam_f();"),
+		('if (Q_stricmp (cmd, "game_memory") == 0) {', "Svcmd_GameMem_f();"),
+		('if (Q_stricmp (cmd, "addbot") == 0) {', "Svcmd_AddBot_f();"),
+		('if (Q_stricmp (cmd, "botlist") == 0) {', "Svcmd_BotList_f();"),
+		('if ( Q_stricmp (cmd, "game_crash") == 0 ) {', "Svcmd_GameCrash_f();"),
+		('if ( Q_stricmp (cmd, "reload_access") == 0 ) {', "Svcmd_ReloadAccess_f();"),
+	):
+		assert expected_dispatch[0] in console_block
+		assert expected_dispatch[1] in console_block
+		assert console_block.index(expected_dispatch[0]) < console_block.index(expected_dispatch[1])
+
+	for hlil_signal in (
+		'data_100884b4 {"addscore"}',
+		'data_1008846c {"addteamscore"}',
+		'data_10088420 {"setmatchtime"}',
+		'sub_10070a40("entitylist"',
+		'sub_10070a40("forceteam"',
+		'sub_10070a40("game_memory"',
+		'sub_10070a40("addbot"',
+		'sub_10070a40("botlist"',
+		'sub_10070a40("game_crash"',
+		'sub_10070a40("reload_access"',
+		'Game memory status: %i out of %i',
+		"*nullptr = 0x12345678",
+	):
+		assert hlil_signal in qagame_hlil
+
+	assert "10037910" in qagame_bot_hlil
+	assert '"loaddeferred\\n"' in qagame_bot_hlil
+	assert "void\tSvcmd_EntityList_f" in game_svcmds
+	assert "void\tSvcmd_ForceTeam_f" in game_svcmds
+	assert "void Svcmd_AddBot_f( void ) {" in game_bot
+	assert "void Svcmd_BotList_f( void ) {" in game_bot
+	assert "static void Svcmd_GameCrash_f( void ) {" in game_svcmds
+	assert "static void Svcmd_ReloadAccess_f( void ) {" in game_svcmds
+	assert 'trap_SendServerCommand( -1, "loaddeferred\\n" );' in addbot_block
+	assert "loaddefered" not in addbot_block
+	assert 'G_Printf( "Game memory status: %i out of %i bytes allocated\\n", allocPoint, POOLSIZE );' in game_mem_block
+	assert 'trap_Cvar_VariableIntegerValue( "developer" ) < 1' in game_crash_block
+	assert "*(volatile int *)0 = 0x12345678;" in game_crash_block
+	assert "G_ReloadAdminAccess();" in reload_access_block
+
+
 def test_team_join_guard_and_connect_broadcast_match_retail_flow() -> None:
 	game_cmds = _read("src/code/game/g_cmds.c")
 	game_client = _read("src/code/game/g_client.c")
@@ -51,7 +822,10 @@ def test_team_join_guard_and_connect_broadcast_match_retail_flow() -> None:
 	session_block = _block_from_marker(game_session, "void G_InitSessionData")
 
 	assert "static qboolean G_TeamJoinAllowed( team_t team, gentity_t *ent ) {" in game_cmds
-	assert "if ( team == TEAM_SPECTATOR || team == TEAM_FREE || !g_teamSpawnAsSpec.integer ) {" in join_block
+	assert "if ( team == TEAM_SPECTATOR || team == TEAM_FREE ) {" in join_block
+	assert "if ( team < TEAM_FREE || team >= TEAM_NUM_TEAMS ) {" in join_block
+	assert "if ( !level.teamLocks[team] && !g_teamSpawnAsSpec.integer ) {" in join_block
+	assert "teamName = TeamName( team );" in join_block
 	assert 'G_Printf( "The %s team is locked!\\n", teamName );' in join_block
 	assert 'va( "print \\"The %s team is locked!\\\\n\\"", teamName )' in join_block
 	assert "if ( !G_TeamJoinAllowed( (team_t)team, ent ) ) {" in setteam_block
@@ -362,10 +1136,10 @@ def test_red_rover_helpers_match_recovered_retail_boundaries() -> None:
 	assert "ClientSpawn( ent );" in reset_block
 	assert "void G_RRInitRoundController( void );" in game_local
 	assert "void G_RRHandleCompletedRound( void );" in game_local
-	assert "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, int meansOfDeath );" in game_local
+	assert "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath );" in game_local
 	assert "void G_RRHandleCompletedRound( void ) {" in game_client
-	assert "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, int meansOfDeath ) {" in game_client
-	assert "G_RRHandlePlayerDeath( client->sess.sessionTeam, self, meansOfDeath );" in game_client
+	assert "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath ) {" in game_client
+	assert "G_RRHandlePlayerDeath( client->sess.sessionTeam, self, attacker, meansOfDeath );" in game_client
 	assert "G_FreezeRunFrame();" in game_client
 	assert "G_CountConnectedClientsByTeam( counts );" in game_client
 	assert "if ( G_RRCheckRoundCompletion( counts ) ) {" in game_client
@@ -442,7 +1216,7 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	assert "static qboolean G_BeginTimein( gentity_t *ent ) {" in game_cmds
 	assert "void Cmd_Pause_f( gentity_t *ent ) {" in game_cmds
 	assert "static int G_KickOrBanClient( gentity_t *ent, char *targetToken, qboolean banTarget ) {" in game_cmds
-	assert 'trap_SendServerCommand( ent-g_entities, "print \\"Can not kick admins.\\n\\"" );' in game_cmds
+	assert 'G_DirectCommandPrint( ent, "print \\"Can not kick admins.\\n\\"" );' in game_cmds
 	assert "G_KickOrBanClient( ent, arg, qfalse );" in game_cmds
 	assert "G_KickOrBanClient( ent, arg, qtrue );" in game_cmds
 	assert "G_KickOrBanClient( ent, val, qfalse );" in game_cmds
@@ -654,6 +1428,8 @@ def test_console_tail_and_training_bootstrap_helpers_match_recovered_boundaries(
 	assert 'trap_SendServerCommand( -1, "loaddeferred\\n" );' in game_bot
 	assert 'if ( level.trainingMapActive ) {' in addbot_block
 	assert 'trap_Printf( "Addbot not allowed during training.\\n" );' in addbot_block
+	assert 'trap_SendServerCommand( -1, "loaddeferred\\n" );' in addbot_block
+	assert "loaddefered" not in addbot_block
 	assert addbot_block.index('trap_Cvar_VariableIntegerValue( "bot_enable" )') < addbot_block.index("if ( level.trainingMapActive )")
 	assert addbot_block.index("if ( level.trainingMapActive )") < addbot_block.index("trap_Argv( 1, name, sizeof( name ) );")
 	assert 'if( Q_stricmp( strValue, "training" ) == 0 ) {' in init_bots

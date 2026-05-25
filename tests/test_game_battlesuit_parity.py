@@ -30,7 +30,7 @@ def test_battlesuit_damage_multiplier_matches_retail_ql() -> None:
 	game_combat = _read("src/code/game/g_combat.c")
 	scale_block = _block_from_marker(game_combat, "static float G_BattleSuitDamageScale")
 	battlesuit_start = game_combat.index("// battlesuit dampens damage in retail QL")
-	battlesuit_end = game_combat.index("// add to the attacker's hit counter", battlesuit_start)
+	battlesuit_end = game_combat.index("// add to the attacker's damage counter for retail hit-beep selection", battlesuit_start)
 	battlesuit_block = game_combat[battlesuit_start:battlesuit_end]
 
 	assert '{ &g_battleSuitDampen, "g_battleSuitDampen", "0.25",' in game_main

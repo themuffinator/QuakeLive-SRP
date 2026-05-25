@@ -129,9 +129,9 @@ static const pmove_settings_t	pm_defaultSettings = {
 	.quadDamageMultiplier = 3.0f,
 	.guidedRocketEnabled = qfalse,
 	.quadHogEnabled = 0,
-	.quadHogIdleSeconds = 0,
-	.quadHogTimeSeconds = 0,
-	.quadHogPingRateSeconds = 0,
+	.quadHogIdleSeconds = 20,
+	.quadHogTimeSeconds = 60,
+	.quadHogPingRateMilliseconds = 1500,
 	.weaponReloadOverrides = {
 	[WP_NONE] = 0,
 	},
@@ -1484,8 +1484,23 @@ static void PM_FlyMove( void ) {
 	PM_Friction ();
 
 	if ( PM_BuildWishMove3D( wishdir, &wishspeed ) ) {
-		VectorScale( wishdir, wishspeed, wishvel );
+		if ( pm->ps->stats[STAT_PLAYER_ITEM_TIME] <= 0 ) {
+			pm->ps->pm_flags &= ~PMF_USE_ITEM_HELD;
+			VectorClear( wishvel );
+			wishspeed = 0.0f;
+		} else {
+			pm->ps->pm_flags |= PMF_USE_ITEM_HELD;
+			pm->ps->stats[STAT_PLAYER_ITEM_TIME] -= pml.msec;
+			if ( pm->ps->stats[STAT_PLAYER_ITEM_TIME] < 0 ) {
+				pm->ps->stats[STAT_PLAYER_ITEM_TIME] = 0;
+			}
+			if ( pm->ps->stats[STAT_PLAYER_ITEM_THRUST] > 0 ) {
+				wishspeed = (float)pm->ps->stats[STAT_PLAYER_ITEM_THRUST];
+			}
+			VectorScale( wishdir, wishspeed, wishvel );
+		}
 	} else {
+		pm->ps->pm_flags &= ~PMF_USE_ITEM_HELD;
 		VectorClear( wishvel );
 	}
 

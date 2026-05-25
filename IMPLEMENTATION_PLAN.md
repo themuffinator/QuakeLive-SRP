@@ -41,6 +41,1292 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A86: Reconstruct retail qagame score, vote, and cheat command ladder [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-score-vote-cheat-command-reconstruction-2026-05-25.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 72% -> after 93%** for the scoped ten-command
+score/stat/ready/vote/cheat `ClientCommand` surface (`score`, `acc`,
+`pstats`, `readyup`, `vote`, `give`, `god`, `notarget`, `noclip`, and `kill`)
+plus the adjacent `ragequit` boundary and next-map vote wiring. The repo-wide
+parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked the qagame HLIL `ClientCommand` ladder at `sub_10045DEC`, the
+   command strings around `data_10084EF8` through `data_10084F40`, and helper
+   strings for accuracy payloads, vote handling, cheat toggles, and kill
+   rejection.
+2. Revalidated symbol-map ownership for `Cmd_Score_f`, `Cmd_Acc_f`,
+   `Cmd_Pstats_f`, `Cmd_ReadyUp_f`, `Cmd_Vote_f`, `Cmd_Give_f`, `Cmd_God_f`,
+   `Cmd_Notarget_f`, `Cmd_Noclip_f`, `Cmd_Kill_f`, and `ClientCommand`.
+3. Reordered `ClientCommand` so `acc`, `pstats`, `readyup`, and `vote` sit in
+   the recovered retail pre-intermission cluster after `score`.
+4. Moved source-local compatibility branches (`ready`, `notready`, `unready`,
+   `players`, `teams`, and `cvar`) after the retail `vote` branch.
+5. Removed the later post-intermission `vote` branch, making
+   `G_HandleNextMapVote` reachable during intermission through `Cmd_Vote_f`.
+6. Added a focused parity sentinel tying the ten command names to source
+   dispatch order, helper bodies, HLIL command strings, and recovered
+   vote/cheat/self-kill messages.
+
+Open boundary:
+
+- Retail `ragequit` is visible between `readyup` and `vote`, but its target is
+  a one-argument native import at `data_104B13AC + 0x300`. This pass leaves it
+  documented rather than reconstructing behavior before the import owner is
+  cross-validated.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short -k
+  "score_vote_cheat_client_command_tranche"` passed:
+  `1 passed, 29 deselected`.
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short`
+  passed: `30 passed`.
+- `python -m pytest
+  tests/test_game_exit_rules_parity.py::test_nextmap_vote_pipeline_matches_retail_intermission_vote_flow
+  tests/test_vote_ui_throttle.py::test_vote_ui_throttle_transitions -q
+  --tb=short` passed/skipped: `1 passed, 1 skipped`.
+
+### Task A85: Reconstruct retail qagame chat and voice command ladder [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-chat-voice-command-reconstruction-2026-05-25.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 78% -> after 95%** for the scoped ten-command
+chat/voice `ClientCommand` surface (`say`, `say_team`, `tell`, `botSay`,
+`vsay`, `vsay_team`, `vtell`, `vosay`, `vosay_team`, and `votell`) plus the
+adjacent `vtaunt` boundary and voice/tell transport helpers. The repo-wide
+parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked the qagame HLIL `ClientCommand` ladder at `sub_10045DEC`, the
+   command strings at `data_10084EAC` through `data_10084EF0`, and the helper
+   bodies around `sub_10041B60`, `sub_10041B90`, `sub_10041CC0`,
+   `sub_10041E40`, `sub_10041E60`, and `sub_10041F50`.
+2. Revalidated symbol-map ownership for `Cmd_Say_f`, `Cmd_Tell_f`,
+   `Cmd_BotSay_f`, `Cmd_Voice_f`, `Cmd_VoiceTell_f`, `Cmd_VoiceTaunt_f`, and
+   `ClientCommand`.
+3. Reordered `ClientCommand` so the retail chat/voice cluster flows directly
+   from `botSay` into `vsay`; the source-local `complaint` hook remains
+   supported, but now sits after the adjacent `vtaunt` retail boundary.
+4. Added a focused parity sentinel tying the ten command names to source
+   dispatch order, handler calls, HLIL strings, voice transport commands,
+   private tell echo behavior, bot chat payloads, and voice flood labels.
+5. Added a dedicated reconstruction note and refreshed the qagame mapping
+   ledger with this source-reconstruction pass.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short -k
+  "chat_voice_client_command_tranche or game_say_reconstructs"` passed:
+  `2 passed, 27 deselected`.
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short`
+  passed: `29 passed`.
+
+### Task A84: Reconstruct retail qagame server-command wiring tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`, `src/code/game/g_svcmds.c`,
+`src/code/game/g_bot.c`, `src/code/game/g_mem.c`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-server-command-wiring-reconstruction-2026-05-25.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 82% -> after 94%** for the scoped ten-command
+qagame server-command surface (`addscore`, `addteamscore`, `setmatchtime`,
+`entitylist`, `forceteam`, `game_memory`, `addbot`, `botlist`, `game_crash`,
+and `reload_access`) plus the related direct-table, console-dispatch, bot
+media-refresh, and helper wiring. The repo-wide parity estimate remains
+**98%**.
+
+Completed work:
+
+1. Rechecked the owning `qagamex86.dll` corpus metadata/import/export/function
+   evidence, the qagame symbol map, the `data_10080750` direct command table,
+   `ConsoleCommand` at `sub_10066B90`, and `Svcmd_AddBot_f` at `sub_10037910`.
+2. Revalidated the retail direct command table tail rows for `addscore`,
+   `addteamscore`, and `setmatchtime` against the recovered command strings,
+   handlers, privilege floors, and observable score/time messages.
+3. Revalidated server-console dispatch for `entitylist`, `forceteam`,
+   `game_memory`, `addbot`, `botlist`, `game_crash`, and `reload_access`
+   against source helpers and HLIL command-token comparisons.
+4. Corrected `Svcmd_AddBot_f` so its local-client media refresh sends
+   `loaddeferred\n`, matching retail Quake Live and the existing
+   `G_AddTrainerBot` path.
+5. Added a focused parity sentinel tying the ten command names to source
+   dispatch, helper bodies, symbol-map identities, HLIL strings, and the
+   corrected addbot server-command spelling.
+6. Added a dedicated reconstruction note and refreshed the qagame mapping
+   ledger with this source-reconstruction pass.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short -k
+  "server_command_wiring or console_tail or direct_score_time"` passed:
+  `3 passed, 25 deselected`.
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short`
+  passed: `28 passed`.
+
+### Task A83: Reconstruct retail qagame direct command table tail [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-direct-command-table-tail-reconstruction-2026-05-25.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 18% -> after 91%** for the scoped remaining
+direct-command table tail (`addscore`, `addteamscore`, `setmatchtime`, and the
+help-visible null-handler `rcon` row). The repo-wide parity estimate remains
+**98%**.
+
+Completed work:
+
+1. Rechecked the `data_10080750` tail rows at `0x100808F4`, `0x10080908`,
+   `0x1008091C`, and `0x10080930`, plus the `sub_10061670`,
+   `sub_10061730`, `sub_10062CE0`, and `sub_10070B40` HLIL bodies.
+2. Added direct table rows for `addscore`, `addteamscore`, `setmatchtime`, and
+   help-visible `rcon`.
+3. Updated direct dispatch so matched rows with null handlers fall through
+   instead of being invoked, matching the recovered `rcon` row.
+4. Added score adjustment handlers for player and team score deltas with the
+   recovered `Player score adjusted.`, `Team score adjusted.`, and
+   increase/decrease print strings.
+5. Added `setmatchtime` handling that rewrites `CS_LEVEL_START_TIME` from
+   `level.time`, formats whole seconds as `%i:%i%i`, and broadcasts the
+   recovered match-time confirmation.
+6. Added a reconstruction note, qagame mapping rows, and parity sentinels for
+   the remaining table offsets, strings, and source wiring.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short -k
+  "direct_score_time or direct_admin_access or direct_command_table"` passed:
+  `3 passed, 24 deselected`.
+
+### Task A82: Reconstruct retail qagame direct admin command tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`, `src/code/game/g_main.c`,
+`src/code/game/g_local.h`, `tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-direct-admin-command-reconstruction-2026-05-25.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 34% -> after 87%** for the scoped ten-command
+direct admin/access command surface (`mute`, `unmute`, `tempban`, `ban`,
+`listaccess`, `unban`, `addadmin`, `addmod`, `demote`, and `abort`) plus the
+related access-list page printer, access-entry mutation helpers, kick/drop
+helper, and `opsay` privilege-floor correction. The repo-wide parity estimate
+remains **98%**; later direct table rows such as `addscore`, `addteamscore`,
+and `setmatchtime` are closed by Task A83.
+
+Completed work:
+
+1. Rechecked the qagame HLIL direct command table at `data_10080750`, the
+   symbol map rows for `0x10061550`, `0x10062470` through `0x10062C60`, and the
+   access-list page helper at `0x100327D0`.
+2. Extended the direct command table with the ten selected retail rows and
+   corrected `opsay` from admin to moderator privilege based on the adjacent
+   table-entry byte layout.
+3. Reworked `mute` and `unmute` around the shared PlayerID resolver and
+   recovered broadcast strings, including the same-or-higher target guard for
+   `mute`.
+4. Added source-side access-list mutation helpers and `G_PrintAccessListPage`
+   with the recovered 20-entry page size, separator, tier labels, and
+   `TEMP`/`PERM` mode column.
+5. Rebuilt `tempban` and `ban` through the retail-style shared helper: direct
+   rows use PlayerID lookup, refuse privileged targets, write temporary or
+   permanent ban entries, and drop clients with `was kicked`.
+6. Added `addadmin`, `addmod`, `demote`, `unban`, `listaccess`, and `abort`
+   handlers, including the recovered promotion/demotion broadcasts, `priv %i`
+   refreshes, unban confirmation, timeout-active abort rejection, `PRE_GAME`
+   reset, and `map_restart 3`.
+7. Added a dedicated reconstruction note, expanded qagame mapping rows, and
+   added helper seam parity tests covering the selected table offsets, exact
+   HLIL strings, access-list format, and source wiring.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short -k
+  "direct_admin_access or direct_mute or direct_command_table or timeout_race"`
+  passed: `4 passed, 22 deselected`.
+- `python -m pytest tests/test_game_helper_seam_parity.py -q --tb=short`
+  passed: `26 passed`.
+
+### Task A81: Restore retail parity for access, A&D bonus, flood, drop-health, knockback, and vampiric `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/game/g_config.c`,
+`src/code/game/g_combat.c`, `src/code/game/g_items.c`,
+`src/code/game/g_team.c`, `src/code/game/g_active.c`,
+`src/code/game/g_cmds.c`, `src/code/game/g_svcmds.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`docs/attack_defend_bonuses.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 69% -> after 100%** for the scoped ten-CVar
+registration/default/flag/wiring surface. This batch explicitly skipped the
+vote/complaint rows and the A78-A80 rows already closed in this local run,
+while also avoiding rows called out as inspected by session
+`019e6082-1189-74e3-8bdc-423ce9f7ef4d`.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_accessFile`, `g_adTouchScoreBonus`, `g_adElimScoreBonus`,
+   `g_adCaptureScoreBonus`, `g_floodprot_maxcount`,
+   `g_floodprot_decay`, `g_dropDamagedHealth`, `g_max_knockback`,
+   `g_returnFlagOnSuicide`, and `g_vampiricDamage`.
+2. Corrected the Attack & Defend bonus rows from source-local archive flags
+   to retail `CVAR_SERVERINFO | CVAR_GAMERULE` while preserving the recovered
+   `1`, `2`, and `3` defaults and score/announcement wiring.
+3. Corrected flood protection to retail runtime-only rows, including the
+   `g_floodprot_maxcount=10` default shared by active-client decay, command
+   flood gating, and `floodstatus`.
+4. Corrected `g_dropDamagedHealth` to retail default `0` with
+   `CVAR_TEMP | 0x00040000 | CVAR_GAMERULE`, and aligned the custom-settings
+   digest so the `DROP DAMAGED HEALTH` bit only appears when the cvar is
+   enabled.
+5. Corrected `g_max_knockback` to retail default `120` and `CVAR_GAMERULE`
+   across both the legacy game cvar table and the config helper table, then
+   moved the invalid-value fallback used by knockback config/damage code to
+   the same value.
+6. Corrected `g_returnFlagOnSuicide` to retail default `0` and
+   `CVAR_GAMERULE`, while preserving the cached flag config wiring.
+7. Corrected `g_vampiricDamage` to retail
+   `0x00040000 | CVAR_GAMERULE` and revalidated the combat reward,
+   custom-settings, and Steam tag hooks.
+8. Documented the tranche in gameplay CVar notes and refreshed the A&D bonus
+   tuning note so it no longer describes the retail gamerule rows as archived.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed after the tranche update.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_bot_resource_loading.py tests/test_spawn_spec_cvars.py -q
+  --tb=short` passed for adjacent knockback/access/spawn documentation
+  sentinels.
+
+### Task A80: Restore retail parity for Freeze reset, last-man, and Red Rover zombie `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_active.c`,
+`src/code/game/g_freeze.c`, `src/code/game/g_team.c`,
+`src/code/game/g_client.c`, `tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_freeze_cvars.py`, `tests/test_game_helper_seam_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 57% -> after 100%** for the scoped ten-CVar
+Freeze reset, last-man-standing, and Red Rover zombie spawn-trait
+registration/default/wiring surface. This batch explicitly excluded the
+`g_*` cvars already closed by session `019e6082-1189-74e3-8bdc-423ce9f7ef4d`
+and the local A55-A79 ledger.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_freezeThawWinningTeam`, `g_freezeThawThroughSurface`,
+   `g_freezeResetWeaponsOnRound`, `g_freezeResetHealthOnRound`,
+   `g_freezeResetArmorOnRound`, `g_freezeRemovePowerupsOnRound`,
+   `g_lastManStandingWarning`, `g_lastManStandingMessage`,
+   `g_rrInfectedZombieHealthBonus`, and `g_rrInfectedZombieSpeed`.
+2. Corrected the six Freeze reset/thaw rows to retail `CVAR_GAMERULE`
+   surfaces, including the retail `g_freezeThawWinningTeam=1` default.
+3. Corrected the last-man rows to zero flags and corrected
+   `g_lastManStandingMessage` and its empty-cvar fallback to the retail
+   `You are the last standing` payload.
+4. Corrected the Red Rover infected zombie health and speed rows to retail
+   `CVAR_GAMERULE` surfaces while preserving the recovered `50` and `1.15`
+   defaults.
+5. Revalidated functionality through Freeze config caching, thaw-through-wall
+   line-of-sight gates, winner thaw release, reset weapon/health/armor/powerup
+   handling, CA/FZ/A&D/RR last-alive notification, Red Rover infected spawn
+   health finalization, and infected speed scaling.
+6. Added HLIL-backed parity sentinels and updated gameplay cvar notes for the
+   audited controls.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `24 passed`.
+- `python -m pytest tests/test_freeze_cvars.py
+  tests/test_game_helper_seam_parity.py::test_client_spawn_uses_recovered_loadout_and_rr_helpers
+  tests/test_game_helper_seam_parity.py::test_red_rover_helpers_match_recovered_retail_boundaries
+  tests/test_game_round_controller_helper_parity.py::test_red_rover_controller_readback_helpers_match_retail_mapping_surface
+  -q --tb=short` passed: `7 passed`.
+- `python -m pytest
+  tests/test_cgame_event_transport_parity.py::test_last_alive_shared_helper_emits_retail_last_standing_sound
+  -q --tb=short` passed: `1 passed`.
+
+### Task A79: Reconstruct retail qagame direct client-command tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`, `src/code/game/g_local.h`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-client-command-reconstruction-2026-05-25.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 42% -> after 89%** for the scoped ten-command
+direct client-command surface (`players`, `timeout`, `timein`, `allready`,
+`pause`, `unpause`, `lock`, `unlock`, `putteam`, and `opsay`) plus the related
+`?` help-table wiring. The repo-wide parity estimate remains **98%** while
+other command-table rows and compatibility-only surfaces remain separate
+focused tasks.
+
+Completed work:
+
+1. Rechecked the `qagamex86.dll` metadata/import/export corpus, the symbol map,
+   and the HLIL direct command table at `data_10080750`.
+2. Replaced the single-entry direct `opsay` dispatcher with a shared retail-like
+   direct command table, privilege floor checks, and help filtering.
+3. Rebuilt `/players` around the retail `%2d %llu %c %s` row format, cached
+   SteamID64 values, and the recovered `" MA*"` privilege marker map.
+4. Added the shared direct-command state gate, PlayerID parser, and team-token
+   parser with the exact recovered rejection strings.
+5. Added the per-team lock latch used by `lock`, `unlock`, and
+   `G_TeamJoinAllowed` while preserving `g_teamSpawnAsSpec` as a compatibility
+   guard.
+6. Reworked `allready`, `putteam`, `lock`, `unlock`, timeout, pause, timein,
+   and opsay wiring so the selected tranche follows the recovered table and
+   helper boundaries.
+7. Added a dedicated reconstruction note and expanded the helper seam parity
+   tests for the selected table rows, helper names, HLIL strings, and source
+   wiring.
+
+Verification:
+
+- `python -m pytest
+  tests/test_game_helper_seam_parity.py::test_game_direct_command_table_reconstructs_retail_client_command_tranche
+  tests/test_game_helper_seam_parity.py::test_team_join_guard_and_connect_broadcast_match_retail_flow
+  tests/test_game_helper_seam_parity.py::test_timeout_race_and_direct_command_helpers_match_recovered_boundaries
+  -q --tb=short` passed: `3 passed`.
+
+### Task A78: Restore retail parity for Red Rover infection `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_client.c`,
+`src/code/game/g_active.c`, `src/code/game/g_cmds.c`,
+`src/code/game/g_team.c`, `tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_round_controller_helper_parity.py`,
+`tests/test_game_helper_seam_parity.py`,
+`tests/test_cgame_event_transport_parity.py`, `docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 46% -> after 100%** for the scoped ten-CVar Red
+Rover infection registration/default/wiring surface. Defaults were mostly
+present but one literal default differed and all selected rows had legacy
+archive/norestart flag surfaces instead of retail gamerule/latch surfaces. The
+repo-wide parity estimate remains **98%** while remaining `g_*` rows continue
+to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_rrAllowNegativeScores`, `g_rrDamageScoreBonus`, `g_rrInfected`,
+   `g_rrInfectedSpreadTime`, `g_rrInfectedSpreadWarningTime`,
+   `g_rrInfectedSurvivorMinSpeed`, `g_rrInfectedSurvivorPingRate`,
+   `g_rrInfectedSurvivorScoreBonus`,
+   `g_rrInfectedSurvivorScoreMethod`, and
+   `g_rrInfectedSurvivorScoreRate`.
+2. Corrected the nine infection scoring/spread/survivor rows to
+   `CVAR_GAMERULE` and corrected `g_rrInfected` to the retail
+   `CVAR_LATCH | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE` surface.
+3. Corrected `g_rrInfectedSurvivorMinSpeed` to the retail literal default
+   `500.0f`.
+4. Revalidated functional wiring through negative-score clamping,
+   damage-based survivor scoring, survival bonus cadence, infection spread and
+   warning timers, survivor slow-movement pings, ping-rate configstrings,
+   custom-settings export, infected autojoin routing, infection seeding, round
+   completion, death conversion, and last-alive notification paths.
+5. Added HLIL-backed parity sentinels and updated gameplay cvar notes for the
+   audited Red Rover infection controls.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `22 passed`.
+- `python -m pytest
+  tests/test_game_round_controller_helper_parity.py::test_red_rover_controller_readback_helpers_match_retail_mapping_surface
+  tests/test_game_round_controller_helper_parity.py::test_red_rover_autojoin_helper_routes_team_selection
+  tests/test_game_helper_seam_parity.py::test_client_spawn_uses_recovered_loadout_and_rr_helpers
+  tests/test_game_helper_seam_parity.py::test_client_begin_and_respawn_dispatch_freeze_and_rr_like_retail
+  tests/test_game_helper_seam_parity.py::test_red_rover_helpers_match_recovered_retail_boundaries
+  tests/test_cgame_event_transport_parity.py::test_qagame_infected_event_uses_retail_recipient_slot
+  tests/test_cgame_event_transport_parity.py::test_red_rover_survival_bonus_emits_retail_global_team_sound
+  -q --tb=short` passed: `7 passed`.
+
+### Task A77: Restore retail parity for round and Freeze timing `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_active.c`,
+`src/code/game/g_client.c`, `src/code/game/g_freeze.c`,
+`src/code/game/g_combat.c`, `tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_freeze_cvars.py`, `tests/test_game_round_controller_helper_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 58% -> after 100%** for the scoped ten-CVar
+round draw, Freeze warmup, thaw, protection, environmental respawn, and
+auto-thaw registration/default/wiring surface. The repo-wide parity estimate
+remains **98%** while remaining `g_*` rows continue to be audited in focused
+batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_roundWarmupDelay`, `g_roundDrawLivingCount`,
+   `g_roundDrawHealthCount`, `g_freezeThawTime`, `g_freezeThawTick`,
+   `g_freezeThawRadius`, `g_freezeRoundDelay`,
+   `g_freezeProtectedSpawnTime`, `g_freezeEnvironmentalRespawnDelay`, and
+   `g_freezeAutoThawTime`.
+2. Corrected registration flags: draw gates and most Freeze timing rows now
+   carry `CVAR_GAMERULE`, while `g_roundWarmupDelay` and
+   `g_freezeRoundDelay` now match the retail
+   `CVAR_SERVERINFO | CVAR_GAMERULE` surface.
+3. Corrected recovered retail defaults: `g_freezeThawTick` is now `1`,
+   `g_freezeProtectedSpawnTime` is now `0`,
+   `g_freezeEnvironmentalRespawnDelay` is now `5000`, and
+   `g_freezeAutoThawTime` is now `120000`.
+4. Revalidated functionality through CA/FZ draw resolution, end-round living
+   and health prints, warmup-delay rescheduling, Freeze config caching, thaw
+   radius and tick accumulation, post-round delay, post-thaw protection,
+   environmental respawn release, and auto-thaw deadlines.
+5. Added HLIL-backed parity sentinels and updated gameplay cvar notes for the
+   audited round and Freeze timing controls.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `20 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_freeze_cvars.py tests/test_game_round_controller_helper_parity.py
+  tests/test_game_runframe_parity.py -q --tb=short` passed: `34 passed`.
+- A broader adjacent sweep that also included
+  `tests/test_game_exit_rules_parity.py` still exposes the unrelated existing
+  `ExitLevel` mapname sentinel mismatch outside this tranche; the touched
+  round/Freeze timing surface is covered by the passing focused and adjacent
+  suites above.
+
+### Task A76: Restore retail parity for player-appearance, lag rewind, and instagib `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_active.c`,
+`src/code/game/g_client.c`, `src/code/game/g_pmove.c`,
+`src/code/game/g_weapon.c`, `tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_cgame_displaycontext_parity.py`, `docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 72% -> after 100%** for the scoped ten-CVar
+player-appearance, lag rewind, and instagib registration/default/wiring
+surface. The repo-wide parity estimate remains **98%** while remaining `g_*`
+rows continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_allowCustomHeadmodels`, `g_playerCylinders`,
+   `g_playerheadmodelOverride`, `g_playerheadScale`,
+   `g_playerheadScaleOffset`, `g_playermodelOverride`,
+   `g_playerModelScale`, `g_lagHaxHistory`, `g_lagHaxMs`, and
+   `g_instaGib`.
+2. Added the recovered `0x00010000` game cvar flag alias and corrected the
+   seven player-appearance rows so they match retail: six
+   `0x00010000 | CVAR_GAMERULE` rows and the dedicated
+   `g_playerCylinders` `CVAR_GAMERULE` row.
+3. Corrected `g_lagHaxHistory` and `g_lagHaxMs` to retail `CVAR_LATCH`
+   rows while preserving the recovered `4` and `80` defaults.
+4. Corrected `g_instaGib` to the retail
+   `CVAR_SERVERINFO | 0x00040000 | CVAR_GAMERULE` registration surface.
+5. Revalidated functional wiring through player-cylinder and
+   player-appearance configstrings, forced model/head userinfo rewrites,
+   admin config caching, lag rewind allocation/store/shift/restore, weapon
+   hitscan rewind bracketing, pmove instagib no-player-clip caching, factory
+   reset, custom-settings, and rank payload export.
+6. Added HLIL-backed parity sentinels and updated gameplay cvar notes for the
+   audited player-appearance, lag rewind, and instagib controls.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `18 passed`.
+- `python -m pytest
+  tests/test_cgame_displaycontext_parity.py::test_game_cvar_transport_redundancy_stays_off_serverinfo_slabs
+  tests/test_cgame_displaycontext_parity.py::test_cgame_player_cylinders_configstring_retains_direct_retail_parser_boundary
+  tests/test_cgame_displaycontext_parity.py::test_cgame_player_appearance_configstring_reconstruction_uses_retail_parser_and_head_gate
+  -q --tb=short` passed: `3 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_cgame_displaycontext_parity.py::test_game_cvar_transport_redundancy_stays_off_serverinfo_slabs
+  tests/test_cgame_displaycontext_parity.py::test_cgame_player_cylinders_configstring_retains_direct_retail_parser_boundary
+  tests/test_cgame_displaycontext_parity.py::test_cgame_player_appearance_configstring_reconstruction_uses_retail_parser_and_head_gate
+  tests/test_engine_netcode_parity.py tests/test_pmove_selected_cvar_parity.py
+  tests/test_game_factory_regen_parity.py -q --tb=short` passed:
+  `74 passed`.
+- A broader `python -m pytest tests/test_engine_cvar_retail_parity.py -q
+  --tb=short` sweep still exposes an unrelated existing Steamworks sentinel
+  mismatch in `src/code/qcommon/common.c`; the touched `g_*` tranche is covered
+  by the passing focused and adjacent suites above.
+
+### Task A75: Restore retail parity for flag-physics and forced-override `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_local.h`,
+`src/code/game/g_combat.c`, `src/code/game/g_team.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 54% -> after 100%** for the scoped ten-CVar
+flag-physics, friendly-fire dampening, and forced-override registration/wiring
+surface. The repo-wide parity estimate remains **98%** while remaining `g_*`
+rows continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_flagBounce`, `g_flagPhysics`, `g_throwFlagVelocity`,
+   `g_throwFlagForwardMult`, `g_tackleFlag`, `g_droppedFlagBonus`,
+   `g_neutralFlagPingRate`, `g_friendlyFireDampen`,
+   `g_forceDmgThroughSurface`, and `g_forceAtmosphericEffects`.
+2. Corrected the flag cvar rows to retail defaults and flags, including
+   `g_flagBounce` default `0.25`/`CVAR_GAMERULE`,
+   `g_throwFlagForwardMult` default `2.5` with no flags,
+   `g_droppedFlagBonus` default `1`/`CVAR_TEMP`, and the retail
+   `g_neutralFlagPingRate` registration name/default/flag surface.
+3. Added the missing `g_friendlyFireDampen` row and wired it into same-team
+   damage when `g_friendlyFire` allows friendly hits.
+4. Updated the flag config cache so the throw forward multiplier is stored as
+   a float and both item drops and carried-flag tosses preserve classic
+   behavior unless `g_flagPhysics` enables the retail physics path.
+5. Revalidated forced override wiring for atmosphere and damage-through-surface
+   configstring publication.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `16 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_game_callvote_option_parity.py tests/test_game_item_runframe_parity.py
+  tests/test_game_target_parity.py tests/test_game_runframe_parity.py
+  tests/test_game_native_export_helper_parity.py
+  tests/test_game_visibility_queue_parity.py tests/test_engine_netcode_parity.py
+  -q --tb=short` passed: `68 passed`.
+- `git diff --check -- ...` reported no whitespace errors; Git only warned
+  that touched text files will be normalized from LF to CRLF the next time Git
+  writes them.
+
+### Task A74: Restore retail parity for Domination and auto-shuffle `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_team.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 38% -> after 100%** for the scoped ten-CVar
+Domination and auto-shuffle registration/wiring surface. The repo-wide parity
+estimate remains **98%** while remaining `g_*` rows continue to be audited in
+focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_domCapTime`, `g_domTeammateCapScale`, `g_domDistressThreshold`,
+   `g_domEnableContention`, `g_domNeutralFlag`, `g_domScoreRate`,
+   `g_shuffle_timedelay`, `g_shuffle_minplayers`,
+   `g_shuffle_automatic`, and `g_shuffle_automatic_minplayers`.
+2. Corrected the six Domination rows from legacy archived controls to retail
+   `CVAR_GAMERULE` rows while preserving the recovered defaults.
+3. Corrected the four auto-shuffle rows to retail zero-flag rows, including
+   `g_shuffle_timedelay` default `5000`, `g_shuffle_minplayers` default `3`,
+   `g_shuffle_automatic` default `0`, and
+   `g_shuffle_automatic_minplayers` default `6`.
+4. Corrected `Team_UpdateAutoShuffleState` so `g_shuffle_timedelay` is treated
+   as milliseconds and passed directly into `G_AutoShuffleCountdown_Arm`,
+   while log/UI announcements round the millisecond value up to seconds.
+5. Revalidated functional wiring through Domination capture/scoring cadence,
+   teammate capture scaling, distress threshold, contention/neutralization
+   rules, capture-time configstring publication, auto-shuffle threshold
+   resolution, automatic shuffle gating, and countdown arming.
+6. Added HLIL-backed parity sentinels and updated gameplay cvar notes for the
+   audited Domination and auto-shuffle controls.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `14 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_auto_shuffle_countdown.py tests/test_clanarena_shuffle.py
+  tests/test_match_state_configstring.py tests/test_game_runframe_parity.py
+  tests/test_cgame_domination_count_parity.py
+  tests/test_game_callvote_option_parity.py
+  tests/test_game_module_retail_parity_gate.py -q --tb=short` passed:
+  `37 passed, 6 skipped`.
+- `python -m pytest
+  tests/test_game_helper_seam_parity.py::test_team_balance_helper_is_split_out_for_setteam_and_readyup
+  tests/test_game_helper_seam_parity.py::test_input_spawn_and_host_map_paths_keep_retail_factory_gates
+  tests/test_game_helper_seam_parity.py::test_custom_settings_cvar_helper_matches_recovered_boundary
+  -q --tb=short` passed: `3 passed`.
+- A broader adjacent sweep that included all of
+  `tests/test_game_helper_seam_parity.py` still exposes an unrelated existing
+  `G_Say` token sentinel mismatch outside this tranche.
+
+### Task A73: Restore retail parity for match-flow/warmup/timeout `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_client.c`,
+`src/code/game/g_combat.c`, `src/code/game/g_gametype_lifecycle.inc`,
+`src/code/game/g_mem.c`, `src/code/game/g_spawn.c`,
+`src/code/game/g_team.c`, `src/game/g_match_config.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 55% -> after 100%** for the scoped ten-CVar
+match-state, friendly-fire, debug-allocation, spawn-grant, warmup, ready-delay,
+and timeout registration/wiring surface. The repo-wide parity estimate remains
+**98%** while remaining `g_*` rows continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_gameState`, `g_friendlyFire`, `g_debugAlloc`,
+   `g_grantItemOnSpawn`, `g_doWarmup`, `g_warmup`,
+   `g_warmupReadyDelay`, `g_warmupReadyDelayAction`,
+   `g_timeoutCount`, and `g_timeoutLen`.
+2. Corrected `g_friendlyFire` and `g_grantItemOnSpawn` to retail
+   `CVAR_GAMERULE` rows.
+3. Corrected warmup/ready-delay rows: `g_warmup` now defaults to retail `10`,
+   `g_doWarmup` now carries `CVAR_ARCHIVE`, and both ready-delay controls are
+   zero-flag rows.
+4. Corrected timeout rows: `g_timeoutLen` now carries `CVAR_GAMERULE`, and
+   `g_timeoutCount` now defaults to `0` with
+   `CVAR_SERVERINFO | CVAR_GAMERULE`.
+5. Revalidated behavior/wiring through game-state publication, friendly-fire
+   damage gates, debug allocation prints, spawn grant scripts, warmup
+   countdowns, duel ready-delay actions, match-config timeout loading, timeout
+   pool refills, and match-state configstring publication.
+6. Added HLIL-backed parity sentinels and documented the audited match-flow,
+   warmup, timeout, and spawn-grant controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `12 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_game_duel_ready_delay_parity.py tests/test_gametype_lifecycle.py
+  tests/test_match_state_configstring.py tests/test_match_sim_harness.py
+  tests/test_game_helper_seam_parity.py tests/test_game_callvote_option_parity.py
+  tests/test_spawn_spec_cvars.py tests/test_game_module_retail_parity_gate.py
+  -q --tb=short` passed: `81 passed, 8 skipped`.
+
+### Task A72: Restore retail parity for server access/factory match `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_utils.c`,
+`src/code/game/g_factory.c`, `src/code/game/g_svcmds.c`,
+`src/code/game/g_client.c`, `src/game/g_match_config.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 64% -> after 100%** for the scoped ten-CVar
+server access, ban/filter, factory selection, overtime/mercy, automatic
+action, and malformed-userinfo registration and wiring surface. The repo-wide
+parity estimate remains **98%** while remaining `g_*` rows continue to be
+audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_password`, `g_needpass`, `g_banIPs`, `g_filterBan`, `g_factory`,
+   `g_factoryTitle`, `g_overtime`, `g_mercytime`, `g_autoAction`, and
+   `g_kickBadUserinfo`.
+2. Corrected registration surfaces: `g_factory` is now the retail
+   `CVAR_SERVERINFO | CVAR_ROM` row, `g_overtime` is
+   `CVAR_SERVERINFO | CVAR_GAMERULE`, `g_mercytime` is
+   `CVAR_NORESTART | CVAR_GAMERULE`, `g_autoAction` defaults to `0` with
+   zero flags, and `g_kickBadUserinfo` now carries zero flags.
+3. Preserved the already-matching retail rows for password/needpass,
+   ban/filter, and factory title while tightening indentation around the
+   audited rows.
+4. Revalidated runtime wiring through password-to-needpass mirroring, IP ban
+   and filter decisions, factory selection/title application, match overtime
+   config loading, mercy-rule timing, malformed-userinfo kick/fallback
+   handling, and `g_autoAction` parsing.
+5. Added HLIL-backed parity sentinels and documented the audited server
+   access/factory/match-flow controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `10 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_helper_seam_parity.py
+  tests/test_game_attack_defend_parity.py
+  tests/test_game_round_controller_helper_parity.py
+  tests/test_engine_netcode_parity.py
+  tests/test_game_module_retail_parity_gate.py -q --tb=short` passed:
+  `81 passed, 1 skipped`.
+- `python -m pytest tests/test_match_state_configstring.py
+  tests/test_match_sim_harness.py -q --tb=short` passed:
+  `19 passed, 7 skipped`.
+- A broader adjacent sweep that also included
+  `tests/test_game_exit_rules_parity.py` still exposes an unrelated existing
+  `ExitLevel` sentinel mismatch: the source reads `SERVERINFO_KEY_MAPNAME`
+  while the test expects the literal `"mapname"` string.
+
+### Task A71: Restore retail parity for Team Arena environment `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/cgame/cg_main.c`,
+`src/code/game/g_arenas.c`, `src/code/game/g_team.c`,
+`src/code/game/g_combat.c`, `src/code/game/g_spawn.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`,
+`references/hlil/quakelive/cgamex86.dll/cgamex86.dll_hlil_split/`
+Parity estimate: **before 46% -> after 100%** for the scoped ten-CVar
+Team Arena environment, podium, Obelisk/Cube, MOTD, and dust registration
+surface. The repo-wide parity estimate remains **98%** while remaining
+`g_*` rows continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_allTalk`, `g_motd`, `g_podiumDist`, `g_podiumDrop`,
+   `g_obeliskHealth`, `g_obeliskRegenAmount`, `g_obeliskRegenPeriod`,
+   `g_obeliskRespawnDelay`, `g_cubeTimeout`, and `g_enableDust`.
+2. Corrected qagame registration flags: `g_allTalk`, `g_motd`, and
+   `g_enableDust` are plain zero-flag rows; podium, Obelisk, and Cube timing
+   rows now carry `CVAR_GAMERULE` instead of legacy zero/serverinfo/archive
+   surfaces.
+3. Corrected the cgame mirror for `g_obeliskRespawnDelay` to the retail
+   zero-flag row while preserving cgame's retail `CVAR_SERVERINFO` mirror for
+   `g_enableDust`.
+4. Revalidated behavior/wiring through all-talk chat gating, MOTD publication,
+   podium placement, Obelisk health/regen/respawn timing, Harvester cube
+   timeout, worldspawn dust key handling, and cgame dust/effect consumers.
+5. Added focused HLIL-backed parity sentinels and documented the audited Team
+   Arena environment controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `8 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_weapon_parity.py
+  tests/test_game_battlesuit_parity.py tests/test_engine_netcode_parity.py
+  tests/test_game_module_retail_parity_gate.py -q --tb=short` passed:
+  `85 passed, 1 skipped`.
+- `python -m pytest tests/test_cgame_hud_parity.py
+  tests/test_engine_netcode_parity.py -q --tb=short` passed:
+  `47 passed`.
+- Broader dirty-tree sweeps that included unrelated cgame display/impact and
+  Steam platform cvar tests still expose pre-existing failures outside this
+  tranche; the touched CVar surfaces above are covered by the passing focused
+  and adjacent suites.
+- `git diff --check -- ...` reported no whitespace errors; Git only warned
+  that touched text files will be normalized from LF to CRLF the next time Git
+  writes them.
+
+### Task A70: Restore retail parity for classic gameplay/admin `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_active.c`,
+`src/code/game/g_local.h`, `tests/test_game_active_pmove_wiring_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 74% -> after 100%** for the scoped ten-CVar
+classic gameplay/admin registration and inactivity-wiring surface. The
+repo-wide parity estimate remains **98%** while remaining `g_*` rows continue
+to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows, defaults, and registration flags for
+   `g_speed`, `g_gravity`, `g_weaponRespawn`, `g_inactivity`,
+   `g_inactivityWarning`, `g_dropInactive`, `g_debugMove`, `g_debugDamage`,
+   `g_teamAutoJoin`, and `g_teamForceBalance`.
+2. Corrected registration flags for `g_speed`, `g_gravity`,
+   `g_weaponRespawn`, and `g_teamForceBalance` so the source rows match the
+   retail serverinfo/archive/gamerule bits recovered from HLIL.
+3. Restored the retail `g_inactivityWarning` row with default `10`, exported
+   the cvar to game code, and replaced the hardcoded ten-second warning path
+   with the retail cvar-driven threshold and pluralized centerprint text.
+4. Wired `g_dropInactive` into `ClientInactivityTimer`: timed-out inactive
+   clients are moved to spectator when the cvar is disabled, and are dropped
+   only when it is enabled, matching the retail branch.
+5. Added the retail-style inactivity warning reset latch for `g_inactivity`
+   changes, and revalidated existing wiring for debug movement/damage,
+   team autojoin/force-balance, speed, gravity, and weapon-respawn behavior.
+6. Added focused HLIL-backed parity sentinels and documented the audited
+   classic gameplay/admin controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q
+  --tb=short` passed: `6 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py
+  tests/test_game_helper_seam_parity.py tests/test_game_factory_regen_parity.py
+  tests/test_game_weapon_parity.py tests/test_cvar_alias_console.py
+  tests/test_engine_netcode_parity.py tests/test_game_module_retail_parity_gate.py
+  -q --tb=short` passed: `103 passed, 1 skipped`.
+- `git diff --check -- ...` reported no whitespace errors; Git only warned
+  that touched text files will be normalized from LF to CRLF the next time Git
+  writes them.
+
+### Task A69: Restore retail parity for second weapon-special `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_missile.c`,
+`src/code/game/g_pmove.c`, `src/code/game/bg_pmove.c`,
+`src/code/game/bg_public.h`, `src/code/game/g_local.h`,
+`src/code/cgame/cg_servercmds.c`, `src/game/g_config.c`,
+`tests/test_game_weapon_parity.py`, `tests/test_game_factory_regen_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 59% -> after 100%** for the scoped ten-CVar
+weapon-special, Quad Hog, and prox-mine registration/wiring surface. The
+repo-wide parity estimate remains **98%** while remaining `g_*` rows continue
+to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_midAirMinHeight`, `g_nailspeed`, `g_nailspread`, `g_damagePlums`,
+   `g_quadDamageFactor`, `g_quadHog`, `g_quadHogIdle`,
+   `g_quadHogPingRate`, `g_quadHogTime`, and `g_proxMineTimeout`.
+2. Corrected registration defaults and flags: midair height, damage plums,
+   Quad Damage, Quad Hog timers, and prox mine timeout now match the retail
+   table; Nailgun speed/spread and prox mine timeout now carry the recovered
+   `0x00040000 | CVAR_GAMERULE` flag combination; Quad Hog now carries
+   `CVAR_LATCH | 0x00040000 | CVAR_GAMERULE`.
+3. Revalidated functional wiring through `G_InitWeaponConfig`,
+   `G_IsMidAirEligibleTarget`, Nailgun projectile spread/speed sampling,
+   Quad Damage scaling, server-settings publication, Quad Hog pickup/frame
+   timers, pmove cache/compact payload mirroring, custom-settings masks, and
+   proximity mine activation.
+4. Corrected retail units: Quad Hog ping rate is milliseconds (`1500`) and is
+   no longer multiplied by `1000`, while Quad Hog time/idle and prox mine
+   timeout remain seconds-based and are converted at the timer boundary.
+5. Added focused HLIL-backed parity sentinels and documented the audited
+   controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `33 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `82 passed, 1 skipped`.
+- `python -m pytest tests/test_pmove_helper_parity.py -q --tb=short` passed:
+  `38 passed`.
+- `git diff --check -- ...` reported no whitespace errors; Git only warned
+  that touched text files will be normalized from LF to CRLF the next time Git
+  writes them.
+
+### Task A68: Restore retail parity for first weapon-special `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_missile.c`,
+`src/code/game/g_weapon.c`, `src/code/game/g_pmove.c`,
+`tests/test_game_weapon_parity.py`, `tests/test_game_factory_regen_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 64% -> after 100%** for the scoped ten-CVar
+weapon-special registration and wiring surface. The repo-wide parity estimate
+remains **98%** while remaining weapon-special and item/powerup cvar rows
+continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_velocity_gh`, `g_guidedRocket`, `g_lightningDischarge`,
+   `g_railJump`, `g_gauntletSpeedFactor`, `g_headShotDamage_rg`,
+   `g_ironsights_mg`, `g_nailbounce`, `g_nailbouncepercentage`, and
+   `g_nailcount`.
+2. Corrected registration flags: grapple velocity, lightning discharge, rail
+   jump, rail headshot damage, and the three audited Nailgun rows now use
+   `0x00040000 | CVAR_GAMERULE`; guided rockets and gauntlet speed factor now
+   use `CVAR_GAMERULE`; machinegun ironsights now use retail
+   `CVAR_TEMP | 0x00040000 | CVAR_GAMERULE`.
+3. Revalidated functional wiring through `G_InitWeaponConfig`,
+   `G_SynchronizeGrappleConfig`, guided rocket think arming,
+   `G_ApplyRailJump`, lightning discharge activation,
+   `G_PmoveCacheSettings`, Nailgun count/bounce spawn paths, custom-settings
+   mask participation, `G_UpdateCvars`, and factory config refreshes.
+4. Added focused HLIL-backed parity sentinels and documented the audited
+   weapon-special controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `31 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `80 passed, 1 skipped`.
+
+### Task A67: Restore retail parity for velocity/acceleration `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_missile.c`,
+`src/game/g_config.c`, `tests/test_game_weapon_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 66% -> after 100%** for the scoped ten-CVar
+projectile velocity/acceleration registration and wiring surface. The
+repo-wide parity estimate remains **98%** while remaining weapon-special
+cvar rows continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_accelFactor_bfg`, `g_accelFactor_pg`, `g_accelFactor_rl`,
+   `g_accelRate_bfg`, `g_accelRate_pg`, `g_accelRate_rl`,
+   `g_velocity_bfg`, `g_velocity_gl`, `g_velocity_pg`, and
+   `g_velocity_rl`.
+2. Corrected retail defaults and flags: acceleration factors now use default
+   `1` plus `0x00040000 | CVAR_GAMERULE`; acceleration rates now use default
+   `16` plus `CVAR_GAMERULE`; audited velocity rows now use the retail
+   `1800`, `700`, `2000`, and `1000` defaults plus
+   `0x00040000 | CVAR_GAMERULE`.
+3. Revalidated functional wiring through `G_InitWeaponConfig`,
+   `G_SynchronizeRocketConfig`, the rocket/plasma/BFG acceleration think
+   callbacks, `G_GetMissileAccelerationThinkTime`, grenade/plasma/rocket/BFG
+   projectile constructors, custom-settings mask participation,
+   `G_UpdateCvars`, and factory config refreshes.
+4. Added focused HLIL-backed parity sentinels and documented the audited
+   projectile velocity/acceleration controls for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `29 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `78 passed, 1 skipped`.
+
+### Task A66: Restore retail parity for splash radius/falloff `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_weapon.c`,
+`src/code/game/g_missile.c`, `src/game/g_config.c`,
+`tests/test_game_weapon_parity.py`, `docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 68% -> after 100%** for the scoped ten-CVar
+splash/radius/falloff registration and wiring surface. The repo-wide parity
+estimate remains **98%** while adjacent velocity, acceleration, and remaining
+weapon-special cvar rows continue to be audited in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_splashdamage_bfg`, `g_splashdamage_pl`, `g_splashradius_bfg`,
+   `g_splashradius_gl`, `g_splashradius_pg`, `g_splashradius_pl`,
+   `g_splashradius_rl`, `g_range_lg_falloff`, `g_range_sg_falloff`, and
+   `g_rocketsplashOffset`.
+2. Corrected registration names and flags: BFG/prox splash damage and all
+   audited splash radius rows now use retail lowercase names and
+   `0x00040000 | CVAR_GAMERULE`; falloff ranges and rocket splash offset now
+   use `CVAR_GAMERULE`.
+3. Corrected retail defaults: BFG splash radius is `80`, both falloff ranges
+   are `768`, and `g_rocketsplashOffset` is `-10.0`.
+4. Revalidated functional wiring through `G_InitWeaponConfig`, shotgun and
+   lightning falloff helpers, grenade/plasma/rocket/BFG/prox missile spawn
+   paths, rocket splash-origin offset handling, custom-settings mask
+   participation, `G_UpdateCvars`, and factory config refreshes.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `27 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `76 passed, 1 skipped`.
+
+### Task A65: Restore retail parity for second weapon damage `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_weapon.c`,
+`src/code/game/g_missile.c`, `src/code/game/g_combat.c`,
+`src/game/g_config.c`, `tests/test_game_weapon_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 70% -> after 100%** for the scoped ten-CVar
+weapon damage/splash registration and wiring surface. The repo-wide parity
+estimate remains **98%** while the remaining splash radius, BFG splash, and
+weapon range/velocity cvar rows continue to be walked in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_damage_pg`, `g_damage_pl`, `g_damage_rg`, `g_damage_rl`,
+   `g_damage_sg`, `g_damage_sg_falloff`, `g_damage_sg_outer`,
+   `g_splashdamage_gl`, `g_splashdamage_pg`, and `g_splashdamage_rl`.
+2. Corrected the seven remaining direct/shotgun damage rows to use the
+   recovered `0x00040000 | CVAR_GAMERULE` pair via
+   `GAME_CVAR_FLAG_RETAIL_40000`.
+3. Corrected the audited splash damage registrations to retail lowercase cvar
+   names (`g_splashdamage_*`) and retail flags, and changed rocket splash
+   damage from the legacy `100` default to Quake Live's `84` default across
+   registration, cache fallback, and custom-settings comparisons.
+4. Revalidated functional wiring through `G_InitWeaponConfig`,
+   `G_ClampModDamage`, shotgun/rail weapon paths, grenade/plasma/rocket/prox
+   missile spawn paths, custom-settings mask participation, `G_UpdateCvars`,
+   and factory config refreshes.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `25 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `74 passed, 1 skipped`.
+
+### Task A64: Restore retail parity for first ten weapon damage `g_*` CVars [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/code/game/g_weapon.c`,
+`src/code/game/g_missile.c`, `src/code/game/g_combat.c`,
+`src/game/g_config.c`, `tests/test_game_weapon_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 72% -> after 100%** for the scoped ten-CVar
+weapon damage registration and wiring surface. The repo-wide parity estimate
+remains **98%** while the remaining weapon damage/splash/range cvar rows are
+still being walked in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_damage_bfg`, `g_damage_cg`, `g_damage_g`, `g_damage_gh`,
+   `g_damage_hmg`, `g_damage_gl`, `g_damage_lg`,
+   `g_damage_lg_falloff`, `g_damage_mg`, and `g_damage_ng`.
+2. Confirmed the retail default strings (`100`, `8`, `50`, `10`, `6`, `5`,
+   `12`, and `0`) and corrected the ten registration flags to the recovered
+   `0x00040000 | CVAR_GAMERULE` pair via `GAME_CVAR_FLAG_RETAIL_40000`.
+3. Revalidated functional wiring through `G_InitWeaponConfig`,
+   `G_ClampModDamage`, weapon and missile fire paths, custom-settings mask
+   participation where retail exposes it, `G_UpdateCvars`, and factory config
+   refreshes.
+4. Added focused parity sentinels against the HLIL registration rows/default
+   strings and documented the audited damage tranche for server operators.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `23 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `72 passed, 1 skipped`.
+
+### Task A63: Restore retail parity for second knockback `g_*` CVar tranche [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_main.c`, `src/game/g_config.c`,
+`src/code/game/g_combat.c`, `tests/test_game_weapon_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 70% -> after 100%** for the scoped ten-CVar
+knockback base/scalar surface. The repo-wide parity estimate remains **98%**
+while adjacent weapon cvar families continue to be walked in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_knockback`, `g_knockback_bfg`, `g_knockback_gh`,
+   `g_knockback_ng`, `g_knockback_pl`, `g_knockback_cg`,
+   `g_knockback_hmg`, `g_knockback_z`, `g_knockback_z_self`, and
+   `g_knockback_cripple`.
+2. Corrected default spellings for the remaining weapon-specific scalars,
+   vertical boosters, and cripple scalar to match retail byte strings:
+   `1`, `-5`, `24`, and `0` instead of source-only float-suffixed forms.
+3. Corrected flags: global `g_knockback`, `g_knockback_z`,
+   `g_knockback_z_self`, and `g_knockback_cripple` now use
+   `CVAR_GAMERULE`; BFG, grapple, nailgun, proximity launcher, chaingun, and
+   heavy machinegun rows now use `CONFIG_CVAR_FLAG_RETAIL_40000 |
+   CVAR_GAMERULE`.
+4. Revalidated wiring through `G_InitKnockbackConfig`,
+   `G_KnockbackScaleForMOD`, `G_KnockbackVerticalBoost`,
+   `G_ApplyKnockbackCripple`, and the final `g_knockback.value` scaling in
+   `G_Damage`.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `21 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py
+  tests/test_pmove_selected_cvar_parity.py -q --tb=short` passed:
+  `70 passed, 1 skipped`.
+- `git diff --check -- src/code/game/g_main.c src/game/g_config.c
+  tests/test_game_weapon_parity.py docs/gameplay/cvars.md
+  IMPLEMENTATION_PLAN.md` passed with only the repository's existing CRLF
+  normalization warnings.
+
+### Task A62: Restore retail parity for first ten weapon knockback `g_*` CVars [COMPLETED]
+Priority: High
+Primary areas: `src/game/g_config.c`, `src/code/game/g_combat.c`,
+`tests/test_game_weapon_parity.py`, `tests/test_game_factory_regen_parity.py`,
+`docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 68% -> after 100%** for the scoped ten-CVar
+weapon knockback registration and combat wiring surface. The repo-wide parity
+estimate remains **98%** while adjacent weapon cvar families continue to be
+walked in focused batches.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL rows and string/default storage for
+   `g_knockback_g`, `g_knockback_mg`, `g_knockback_sg`,
+   `g_knockback_gl`, `g_knockback_rl`, `g_knockback_rl_self`,
+   `g_knockback_lg`, `g_knockback_rg`, `g_knockback_pg`, and
+   `g_knockback_pg_self`.
+2. Corrected the registration default spellings to match retail byte strings:
+   `1`, `1.10`, `0.90`, `1.75`, `0.85`, and `1.30` instead of
+   source-only float-suffixed forms.
+3. Corrected the ten registration flags from plain `0` to the recovered
+   retail `0x00040000 | CVAR_GAMERULE` pair, and generalized the local helper
+   to `CONFIG_CVAR_FLAG_RETAIL_40000` because the same bit also appears on
+   non-spawn-item retail cvars.
+4. Revalidated functional wiring through `G_InitKnockbackConfig`,
+   `G_UpdateKnockbackConfig`, factory refreshes, `G_UpdateCvars`, and
+   `G_KnockbackScaleForMOD` into `G_Damage`.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short` passed:
+  `19 passed`.
+- `python -m pytest tests/test_game_factory_regen_parity.py
+  tests/test_game_ammopack_parity.py -q --tb=short` passed: `29 passed`.
+
+### Task A61: Restore retail parity for factory item-spawn and respawn `g_*` CVars [COMPLETED]
+Priority: High
+Primary areas: `src/game/g_config.c`, `src/code/game/g_main.c`,
+`src/code/game/g_items.c`, `src/code/game/g_vote.c`,
+`tests/test_game_factory_regen_parity.py`,
+`tests/test_game_ammopack_parity.py`, `docs/gameplay/cvars.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 72% -> after 100%** for the scoped ten-CVar
+factory item-spawn/respawn surface. The repo-wide parity estimate remains
+**98%** because this closes table-flag/default mismatches inside an already
+mostly wired gameplay seam.
+
+Completed work:
+
+1. Rechecked retail qagame HLIL registration rows and string/default storage
+   for `g_ammoPack`, `g_ammoPackHack`, `g_ammoRespawn`,
+   `g_powerupRespawn`, `g_spawnItemPowerup`, `g_spawnItemHoldable`,
+   `g_spawnItemWeapons`, `g_spawnItemHealth`, `g_spawnItemArmor`, and
+   `g_spawnItemAmmo`.
+2. Corrected the local registration flags: ammo-pack toggles now use
+   `CVAR_LATCH | CVAR_GAMERULE`, ammo/powerup respawn timers use
+   `CVAR_GAMERULE`, and the six `g_spawnItem*` cvars use the recovered
+   `0x00040000 | CVAR_GAMERULE` retail bit pair via
+   `CONFIG_CVAR_FLAG_RETAIL_40000`.
+3. Revalidated functional wiring through the factory cvar cache, item spawn
+   gating, global-versus-weapon ammo family switching, ammo/powerup respawn
+   timing, and loadout ammo vote toggles.
+4. Added focused parity sentinels against the HLIL table rows/default strings
+   and updated the stale ammo-pack parity expectation that still pinned the
+   pre-fix archive flags.
+
+Verification:
+
+- `python -m pytest tests/test_game_factory_regen_parity.py -q --tb=short`
+  passed: `25 passed`.
+- `python -m pytest tests/test_game_factory_regen_parity.py
+  tests/test_game_ammopack_parity.py tests/test_bg_misc_validation_fixtures.py
+  tests/test_bg_misc_helper_parity.py tests/test_bg_itemlist_indexes.py
+  tests/test_bg_itemlist_retail_metadata.py tests/test_game_weapon_parity.py
+  tests/test_cvar_console_write_parity.py
+  tests/test_game_module_retail_parity_gate.py -q --tb=short` passed:
+  `101 passed, 1 skipped`.
+- `git diff --check -- src/code/game/g_main.c src/game/g_config.c
+  tests/test_game_factory_regen_parity.py tests/test_game_ammopack_parity.py
+  docs/gameplay/cvars.md IMPLEMENTATION_PLAN.md` passed with only the
+  repository's existing CRLF normalization warnings.
+
+### Task A60: Resolve remaining source-visible `cl_*` cvar surfaces [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/client/cl_main.c`, `src/code/client/client.h`,
+`src/code/client/cl_console.c`, `src/code/macosx/Q3Controller.m`,
+`tests/test_engine_cvar_retail_parity.py`, `docs/client_cvars.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt`,
+`references/reverse-engineering/ghidra/quakelive_steam/decompile_top_functions.c`
+Parity estimate: **before 99% -> after 100%** for the remaining
+source-visible `cl_*` cvar/name inventory. Repo-wide remains **98%** pending
+the active compatibility-only and runtime-evidence gaps.
+
+Completed work:
+
+1. Rechecked the remaining source-visible names against the recovered retail
+   `CL_Init` cvar slab, string table, dynamic connect path, and companion
+   Ghidra corpus.
+2. Kept `cl_currentServerAddress` as the retail dynamic-only connect cvar:
+   `CL_Connect_f` sets it from the requested server string, and neither retail
+   nor source registers it in `CL_Init`.
+3. Folded `cl_matchmakingProvider`, `cl_matchmakingPolicy`,
+   `cl_statsProvider`, `cl_statsPolicy`, `cl_socialOverlayProvider`, and
+   `cl_socialOverlayPolicy` into the guarded service-disclosure contract:
+   `CVAR_ROM` defaults, refresh through `CL_RefreshPlatformServiceCvars`, and
+   explicit absence from the retail client cvar slab.
+4. Removed the non-retail Quake III/PunkBuster/platform carryovers
+   `cl_allowDownload`, `cl_contimestamps`, `cl_conXOffset`, `cl_guid`,
+   `cl_noprint`, `cl_punkbuster`, and `cl_showBanner` from the checked source
+   surface; console notify drawing now uses the recovered base x-adjust, and
+   the legacy pak-compare fallback no longer exposes a client disable cvar.
+5. Added focused regression coverage and refreshed `docs/client_cvars.md` with
+   the final inventory classification.
+6. Verification:
+   `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtyninth_client_service_disclosure_tranche_matches_guarded_retail_divergence_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortieth_client_remaining_cl_surface_matches_resolved_retail_contracts -q --tb=short`
+   -> `2 passed`;
+   focused client `cl_*` parity sweep through the thirty-fourth to fortieth
+   tranches -> `7 passed`;
+   `python -m pytest tests/test_client_full_parity_gate.py -q --tb=short`
+   -> `2 passed, 1 skipped`;
+   `python -m pytest tests/test_cgame_console_surface_parity.py::test_voice_menu_timer_uses_retail_separate_latch -q --tb=short`
+   -> `1 passed`;
+   source/tracking inventory reports `REMAINING=0`;
+   `git diff --check` on touched files passed with CRLF warnings only.
+
+### Task A59: Re-audit retail `con_*` cvar parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_console.c`,
+`tests/test_engine_cvar_retail_parity.py`,
+`tests/test_cl_console_cgame_parity.py`,
+`tests/test_engine_command_parity.py`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt`
+Parity estimate: **before 100% -> after 100%** for the scoped retail
+`con_*` console cvar surface. No production source patch was required because
+the checked-in registrations and consumers already matched the recovered
+retail evidence.
+
+Completed work:
+
+1. Rechecked the engine-owned retail evidence for console cvars against
+   `metadata.txt`, `imports.txt`, `exports.txt`, `functions.csv`,
+   `analysis_symbols.txt`, and the Binary Ninja HLIL rows around `004b4a30`.
+2. Confirmed the exhaustive Quake Live retail `con_*` set contains eight cvars,
+   not ten: `con_background`, `con_height`, `con_matchlimit`, `con_noprint`,
+   `con_opacity`, `con_scale`, `con_speed`, and `con_timestamps`.
+3. Rejected the tempting Quake III carryovers as non-retail for Quake Live:
+   `con_notifytime` is absent from the Quake Live HLIL, and `scr_conspeed` is
+   replaced by the retail `con_speed` bounded cvar.
+4. Added a focused regression guard that now proves the exact retail names,
+   defaults, flags, bounded ranges, HLIL registration rows, and source wiring
+   for every retail `con_*` cvar, including background selection, console
+   height, find-match limit, print suppression, opacity, scale, scroll speed,
+   and timestamp/cgame physics-time routing.
+5. Verification:
+   `python -m pytest tests/test_engine_cvar_retail_parity.py::test_console_cvar_surface_matches_retail_hlil tests/test_engine_cvar_retail_parity.py::test_console_cvar_functional_wiring_matches_retail_hlil_surface tests/test_engine_cvar_retail_parity.py::test_engine_cvar_second_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_sixth_client_tranche_matches_retail_contracts -q --tb=short`
+   -> `4 passed`;
+   `python -m pytest tests/test_cl_console_cgame_parity.py tests/test_engine_command_parity.py::test_console_and_alias_command_families_match_retail_wiring -q --tb=short`
+   -> `10 passed`. A broader full-file sweep of
+   `tests/test_engine_cvar_retail_parity.py` currently reports `49 passed, 3
+   failed` in unrelated renderer/Steam cvar tranches.
+
 ### Task A58: Re-audit client/server usercmd movement transport [COMPLETED]
 Priority: High
 Primary areas: `src/code/client/cl_input.c`,

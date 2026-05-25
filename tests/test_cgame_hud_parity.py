@@ -451,7 +451,7 @@ def test_global_vote_banner_uses_retail_keys_format_and_text_lane() -> None:
 	assert "TEAMVOTE(" not in source
 	assert "vmCvar_t\tcg_complaintWarning;" in main_source
 	assert "extern\tvmCvar_t\t\tcg_complaintWarning;" in local_header
-	assert '{ &cg_complaintWarning, "cg_complaintWarning", "1", CVAR_ARCHIVE },' in main_source
+	assert '{ &cg_complaintWarning, "cg_complaintWarning", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },' in main_source
 	assert "static vec4_t\tvoteColor = { 1.0f, 1.0f, 0.0f, 1.0f };" in vote_block
 	assert 'CG_GetBindKeyName( "vote yes", yesKey, sizeof( yesKey ) );' in vote_block
 	assert 'CG_GetBindKeyName( "vote no", noKey, sizeof( noKey ) );' in vote_block

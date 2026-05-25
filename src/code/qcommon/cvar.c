@@ -397,11 +397,15 @@ void Cvar_VariableStringBuffer( const char *var_name, char *buffer, int bufsize 
 Cvar_CommandCompletion
 ============
 */
-void	Cvar_CommandCompletion( void(*callback)(const char *s) ) {
+void	Cvar_CommandCompletion( void(*callback)(const char *s), qboolean includeValues ) {
 	cvar_t		*cvar;
 	
 	for ( cvar = cvar_vars ; cvar ; cvar = cvar->next ) {
-		callback( cvar->name );
+		if ( includeValues ) {
+			callback( va( "%s = \"%s\"", cvar->name, cvar->string ) );
+		} else {
+			callback( cvar->name );
+		}
 	}
 }
 

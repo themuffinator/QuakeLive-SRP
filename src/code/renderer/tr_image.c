@@ -809,6 +809,7 @@ image_t *R_CreateImageWithTarget( const char *name, const byte *pic, int width, 
 	qglTexParameterf( glTarget, GL_TEXTURE_WRAP_T, glWrapClampMode );
 
 	qglBindTexture( glTarget, 0 );
+	glState.currenttextures[glState.currenttmu] = 0;
 
 	if ( image->TMU == 1 ) {
 		GL_SelectTexture( 0 );
@@ -2301,6 +2302,7 @@ image_t *R_UpdateImage( const char *name, const byte *pic, int width, int height
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glWrapClampMode );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glWrapClampMode );
 	qglBindTexture( GL_TEXTURE_2D, 0 );
+	glState.currenttextures[glState.currenttmu] = 0;
 
 	if ( image->TMU == 1 ) {
 		GL_SelectTexture( 0 );

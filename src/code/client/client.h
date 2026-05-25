@@ -324,7 +324,6 @@ extern	refexport_t		re;		// interface to refresh .dll
 extern	cvar_t	*cl_nodelta;
 extern	cvar_t	*cl_debugMove;
 extern	cvar_t	*cl_allowConsoleChat;
-extern	cvar_t	*cl_noprint;
 extern	cvar_t	*cl_timegraph;
 extern	cvar_t	*cl_maxpackets;
 extern	cvar_t	*cl_packetdup;
@@ -366,14 +365,9 @@ extern	cvar_t	*cl_timedemo;
 extern	cvar_t	*cl_activeAction;
 extern	cvar_t	*cl_platform;
 
-extern	cvar_t	*cl_allowDownload;
-extern	cvar_t	*cl_conXOffset;
 extern	cvar_t	*cl_inGameVideo;
 
 extern	cvar_t	*cl_autoTimeNudge;
-extern	cvar_t	*cl_contimestamps;
-extern	cvar_t	*cl_guid;
-extern	cvar_t	*cl_punkbuster;
 
 //=================================================
 
@@ -569,6 +563,7 @@ void CL_WebHost_Frame( void );
 void CL_WebHost_BootstrapAwesomiumMenu( void );
 qboolean CL_WebHost_HasLiveView( void );
 qboolean CL_WebHost_HasBoundWindowObject( void );
+qboolean CL_WebHost_HasDrawableSurface( void );
 void CL_WebHost_DrawBrowserSurface( void );
 void *CL_WebHost_GetCursorHandle( void );
 void CL_WebHost_HideBrowser( void );
@@ -594,12 +589,19 @@ qboolean CL_Awesomium_Resize( int width, int height );
 int CL_Awesomium_SurfaceWidth( void );
 int CL_Awesomium_SurfaceHeight( void );
 qboolean CL_Awesomium_SurfaceDirty( void );
+qboolean CL_Awesomium_IsLoading( void );
+qboolean CL_Awesomium_IsCrashed( void );
+int CL_Awesomium_LastErrorCode( void );
 qboolean CL_Awesomium_ExecuteJavascript( const char *script, const char *frame );
+qboolean CL_Awesomium_SetZoom( int zoomPercent );
+void CL_Awesomium_PauseRendering( void );
+void CL_Awesomium_Unfocus( void );
 qboolean CL_Awesomium_CopySurface( byte *destination, int width, int height, int rowSpan );
 void CL_Awesomium_InjectMouseMove( int x, int y );
 void CL_Awesomium_InjectMouseDown( int button );
 void CL_Awesomium_InjectMouseUp( int button );
 void CL_Awesomium_InjectMouseWheel( int direction );
+void CL_Awesomium_InjectKeyboardEvent( unsigned int eventType, unsigned int virtualKeyCode, long nativeKeyCode );
 void CL_Awesomium_Stop( void );
 void CL_Awesomium_Reload( qboolean ignoreCache );
 void CL_Awesomium_Shutdown( void );

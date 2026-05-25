@@ -2997,6 +2997,7 @@
     "sub_4CBC90": "Com_EventLoop",
     "sub_4CBFD0": "Com_Init",
     "sub_4CC6C0": "Com_Frame",
+    "sub_4CCDF0": "Cvar_CommandCompletion",
     "sub_4CCE90": "Cvar_Set2",
     "sub_4CDD30": "Cvar_GetBounded",
     "sub_4C9860": "Com_Printf",

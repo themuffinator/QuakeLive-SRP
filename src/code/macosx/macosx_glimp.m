@@ -34,8 +34,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #import <mach/mach_error.h>
 
 cvar_t	*r_allowSoftwareGL;		// don't abort out if the pixelformat claims software
-cvar_t  *r_enablerender;                // Enable actual rendering
-cvar_t  *r_appleTransformHint;          // Enable Apple transform hint
+static qboolean glimp_enableRender = qtrue;
 
 static void GLW_InitExtensions( void );
 static qboolean CreateGameWindow( qboolean isSecondTry );
@@ -117,7 +116,7 @@ qboolean GLimp_SetMode( qboolean isSecondTry )
     }
 
     // draw something to show that GL is alive	
-    if (r_enablerender->integer) {
+    if (glimp_enableRender) {
         qglClearColor( 0.5, 0.5, 0.7, 0 );
         qglClear( GL_COLOR_BUFFER_BIT );
         GLimp_EndFrame();
@@ -438,7 +437,7 @@ Don't return unless OpenGL has been properly initialized
 
 static void GLImp_Toggle_Renderer_f(void)
 {
-    ri.Cvar_Set("r_enablerender", r_enablerender->integer ? "0" : "1");
+    glimp_enableRender = !glimp_enableRender;
 }
 
 #ifdef OMNI_TIMER
@@ -477,7 +476,6 @@ void GLimp_Init( void )
     }
     
     r_allowSoftwareGL = ri.Cvar_Get( "r_allowSoftwareGL", "0", CVAR_LATCH );
-    r_enablerender = ri.Cvar_Get("r_enablerender", "1", 0 );
 
     if (Sys_QueryVideoMemory() == 0 && !r_allowSoftwareGL->integer) {
         ri.Error( ERR_FATAL, "Could not initialize OpenGL.  There does not appear to be an OpenGL-supported video card in your system.\n" );
@@ -521,7 +519,7 @@ void GLimp_Init( void )
     GLW_InitExtensions();
     
 #ifndef USE_CGLMACROS
-    if (!r_enablerender->integer)
+    if (!glimp_enableRender)
         OSX_GLContextClearCurrent();
 #endif
 }
@@ -560,8 +558,8 @@ void GLimp_EndFrame (void)
     }
     
     // Enable turning off GL at any point for performance testing
-    if (OSX_GLContextIsCurrent() != r_enablerender->integer) {
-        if (r_enablerender->integer) {
+    if (OSX_GLContextIsCurrent() != glimp_enableRender) {
+        if (glimp_enableRender) {
             Com_Printf("--- Enabling Renderer ---\n");
             OSX_GLContextSetCurrent();
         } else {
@@ -910,14 +908,9 @@ static void GLW_InitExtensions( void )
 
 #ifdef GL_APPLE_transform_hint
         if ( strstr( glConfig.extensions_string, "GL_APPLE_transform_hint" )  ) {
-            r_appleTransformHint = ri.Cvar_Get("r_appleTransformHint", "1", CVAR_ARCHIVE );
-            if (r_appleTransformHint->value) {
-                ri.Printf( PRINT_ALL, "...using GL_APPLE_transform_hint\n");
-                qglHint(GL_TRANSFORM_HINT_APPLE, GL_FASTEST);
-                CheckErrors();
-            } else {
-                ri.Printf( PRINT_ALL, "...ignoring using GL_APPLE_transform_hint\n");
-            }
+            ri.Printf( PRINT_ALL, "...using GL_APPLE_transform_hint\n");
+            qglHint(GL_TRANSFORM_HINT_APPLE, GL_FASTEST);
+            CheckErrors();
         } else {
             ri.Printf( PRINT_ALL, "...GL_APPLE_transform_hint not found\n" );
         }
@@ -1112,4 +1105,3 @@ qboolean Sys_Unhide()
     Sys_IsHidden = qfalse;
     return qtrue;
 }
-

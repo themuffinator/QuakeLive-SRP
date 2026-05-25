@@ -597,7 +597,6 @@ cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
 cvar_t	*cl_allowConsoleChat;
 
-cvar_t	*cl_noprint;
 cvar_t	*cl_motd;
 
 cvar_t	*cl_timeout;
@@ -645,14 +644,9 @@ cvar_t	*cl_platform;
 
 cvar_t	*cl_motdString;
 
-cvar_t	*cl_allowDownload;
-cvar_t	*cl_conXOffset;
 cvar_t	*cl_inGameVideo;
 
 cvar_t	*cl_autoTimeNudge;
-cvar_t	*cl_contimestamps;
-cvar_t	*cl_guid;
-cvar_t	*cl_punkbuster;
 
 cvar_t	*cl_serverStatusResendTime;
 cvar_t	*cl_trn;
@@ -2806,12 +2800,12 @@ static const char *CL_SteamBrowser_MissingNativeOwnerLabel( void ) {
 =============
 CL_SteamBrowser_NativeAdapterGapLabel
 
-Returns the native Steam server-browser adapter that is intentionally not
-reconstructed for fallback modes.
+Returns the native Steam server-browser integration still absent from the
+source-backed compatibility browser modes.
 =============
 */
 static const char *CL_SteamBrowser_NativeAdapterGapLabel( void ) {
-	return "missing ISteamMatchmakingServers adapter";
+	return "ISteamMatchmakingServers wrapper not client-wired";
 }
 
 /*
@@ -3463,8 +3457,8 @@ static void CL_SteamBrowser_Frame( void ) {
 CL_Steam_RequestServers
 
 Reconstructs the retained browser RequestServers surface on top of the source
-LAN/global/favorites browser while the Steam server-browser backend remains
-unreconstructed in `src/`.
+LAN/global/favorites browser while the native Steam server-browser wrapper
+remains outside the client-owned request pipeline.
 =============
 */
 qboolean CL_Steam_RequestServers( int requestMode ) {
@@ -6768,27 +6762,12 @@ and determine if we need to download them
 =================
 */
 void CL_InitDownloads(void) {
-	char missingfiles[1024];
-
 	CL_Workshop_ClearBootstrapState( qtrue );
 	if ( CL_Workshop_BeginBootstrap() ) {
 		return;
 	}
 
-	if ( !cl_allowDownload->integer )
-	{
-		// autodownload is disabled on the client
-		// but it's possible that some referenced files on the server are missing
-		if (FS_ComparePaks( missingfiles, sizeof( missingfiles ), qfalse ) )
-		{      
-			// NOTE TTimo I would rather have that printed as a modal message box
-			//   but at this point while joining the game we don't know wether we will successfully join or not
-			Com_Printf( "\nWARNING: You are missing some files referenced by the server:\n%s"
-					"You might not be able to join the game\n"
-					"Go to the setting menu to turn on autodownload, or get the file elsewhere\n\n", missingfiles );
-		}
-	}
-	else if ( FS_ComparePaks( clc.downloadList, sizeof( clc.downloadList ) , qtrue ) ) {
+	if ( FS_ComparePaks( clc.downloadList, sizeof( clc.downloadList ) , qtrue ) ) {
 
 		Com_Printf("Need paks: %s\n", clc.downloadList );
 
@@ -7712,7 +7691,6 @@ void CL_Init( void ) {
 	//
 	// register our variables
 	//
-	cl_noprint = Cvar_Get( "cl_noprint", "0", 0 );
 	cl_motd = Cvar_Get ("cl_motd", "1", 0);
 
 	cl_timeout = Cvar_Get ("cl_timeout", "40", 0);
@@ -7785,16 +7763,13 @@ void CL_Init( void ) {
 	cl_mouseSensCap = Cvar_Get ("cl_mouseSensCap", "0", CVAR_ARCHIVE | CVAR_CLOUD );
 	cl_freelook = Cvar_Get( "cl_freelook", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 
-	cl_allowDownload = Cvar_Get ("cl_allowDownload", "1", CVAR_ARCHIVE );
-
-	cl_conXOffset = Cvar_Get ("cl_conXOffset", "0", 0);
 	cl_inGameVideo = Cvar_Get ("r_inGameVideo", "1", CVAR_ARCHIVE);
 
 	cl_serverStatusResendTime = Cvar_Get ("cl_serverStatusResendTime", "750", 0);
 
 	// init autoswitch so the ui will have it correctly even
 	// if the cgame hasn't been started
-	Cvar_Get ("cg_autoswitch", "1", CVAR_ARCHIVE);
+	Cvar_GetBounded( "cg_autoswitch", "0", "0", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
 
 	m_pitch = Cvar_Get ("m_pitch", "0.022", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 	m_yaw = Cvar_Get ("m_yaw", "0.022", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
@@ -7807,9 +7782,6 @@ void CL_Init( void ) {
 	cl_platform = Cvar_Get ("cl_platform", "1", CVAR_ROM );
 
 	cl_autoTimeNudge = Cvar_GetBounded( "cl_autoTimeNudge", "0", "0", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED );
-	cl_contimestamps = Cvar_Get ("cl_contimestamps", "0", CVAR_ARCHIVE );
-	cl_guid = Cvar_Get ("cl_guid", "", CVAR_USERINFO | CVAR_ROM );
-	cl_punkbuster = Cvar_Get ("cl_punkbuster", "1", CVAR_ARCHIVE | CVAR_USERINFO );
 
 	Cvar_Get( "cl_maxPing", "800", CVAR_ARCHIVE );
 	Cvar_Get( "cl_downloadName", "", CVAR_TEMP );

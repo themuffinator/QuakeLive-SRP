@@ -1373,7 +1373,8 @@ void RB_EndSurface( void ) {
 	}
 
 	// for debugging of sort order issues, stop rendering after a given sort value
-	if ( r_debugSort->integer && r_debugSort->integer < tess.shader->sort ) {
+	if ( r_debugSort->integer && r_debugSort->integer < tess.shader->sort
+		&& (float)r_debugSortExcept->integer != tess.shader->sort ) {
 		return;
 	}
 
@@ -1393,7 +1394,8 @@ void RB_EndSurface( void ) {
 	//
 	// draw debugging stuff
 	//
-	if ( r_showtris->integer ) {
+	if ( r_showtris->integer || ( r_debugShaderIndex->integer
+		&& r_debugShaderIndex->integer == tess.shader->index ) ) {
 		DrawTris (input);
 	}
 	if ( r_shownormals->integer ) {

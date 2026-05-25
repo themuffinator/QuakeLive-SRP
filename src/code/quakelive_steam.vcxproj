@@ -103,10 +103,20 @@
     <QLBuildOnlineServices Condition="'$(QLBuildOnlineServices)'==''">0</QLBuildOnlineServices>
     <QLBuildSteamworks Condition="'$(QLBuildSteamworks)'==''">0</QLBuildSteamworks>
     <QLBuildOpenSteam Condition="'$(QLBuildOpenSteam)'==''">0</QLBuildOpenSteam>
+    <QLRequireSteamworksSdk Condition="'$(QLRequireSteamworksSdk)'==''">0</QLRequireSteamworksSdk>
     <QLEnableOgg Condition="'$(QLEnableOgg)'==''">1</QLEnableOgg>
     <QLEnablePng Condition="'$(QLEnablePng)'=='' and Exists('$(ProjectDir)..\libs\libpng\include\png.h') and Exists('$(ProjectDir)..\libs\libpng\lib\Win32\libpng16.lib') and Exists('$(ProjectDir)..\libs\libpng\lib\Win32\zlib.lib')">1</QLEnablePng>
     <QLEnablePng Condition="'$(QLEnablePng)'==''">0</QLEnablePng>
     <QLEnableFreeType Condition="'$(QLEnableFreeType)'==''">1</QLEnableFreeType>
+  </PropertyGroup>
+  <PropertyGroup Label="SteamworksSdk">
+    <SteamworksSdkDir Condition="'$(SteamworksSdkDir)'=='' and '$(STEAMWORKS_SDK_DIR)'!=''">$(STEAMWORKS_SDK_DIR)</SteamworksSdkDir>
+    <SteamworksIncludeDir Condition="'$(SteamworksSdkDir)'!=''">$(SteamworksSdkDir)\public</SteamworksIncludeDir>
+    <SteamworksIncludeDir Condition="'$(SteamworksSdkDir)'==''"></SteamworksIncludeDir>
+    <SteamworksRedistDir Condition="'$(SteamworksSdkDir)'!=''">$(SteamworksSdkDir)\redistributable_bin</SteamworksRedistDir>
+    <SteamworksRedistDir Condition="'$(SteamworksSdkDir)'==''"></SteamworksRedistDir>
+    <SteamworksRedistDll Condition="'$(SteamworksRedistDir)'!=''">$(SteamworksRedistDir)\steam_api.dll</SteamworksRedistDll>
+    <SteamworksRedistDll Condition="'$(SteamworksRedistDir)'==''"></SteamworksRedistDll>
   </PropertyGroup>
   <PropertyGroup Label="VorbisSdk">
     <VorbisSdkDir>$(ProjectDir)..\libs\vorbis</VorbisSdkDir>
@@ -189,7 +199,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(VorbisIncludeDir);$(PngIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SteamworksIncludeDir);$(VorbisIncludeDir);$(PngIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>QL_BUILD_ONLINE_SERVICES=$(QLBuildOnlineServices);QL_ENABLE_OGG=$(QLEnableOgg);QL_ENABLE_PNG=$(QLEnablePng);QL_AUTH_HAS_CLIENT_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -204,6 +214,14 @@
     </Link>
   </ItemDefinitionGroup>
 
+  <Target Name="ValidateSteamworksSdk" BeforeTargets="ClCompile" Condition="'$(QLBuildOnlineServices)'!='0' and '$(QLBuildSteamworks)'!='0'">
+    <Error Condition="'$(QLRequireSteamworksSdk)'!='0' and '$(SteamworksSdkDir)'==''" Text="Steamworks support is enabled and QLRequireSteamworksSdk=1, but no external SDK path was provided. Set SteamworksSdkDir or STEAMWORKS_SDK_DIR to a local Steamworks SDK checkout; do not commit the proprietary SDK into this repository." />
+    <Warning Condition="'$(QLRequireSteamworksSdk)'=='0' and '$(SteamworksSdkDir)'==''" Text="Steamworks support is enabled without SteamworksSdkDir/STEAMWORKS_SDK_DIR. The build will compile the dynamic wrapper, but steam_api.dll must be supplied beside the executable or on PATH at runtime." />
+    <Error Condition="'$(SteamworksSdkDir)'!='' and !Exists('$(SteamworksSdkDir)')" Text="SteamworksSdkDir '$(SteamworksSdkDir)' was not found. Set it to a local Steamworks SDK checkout or build with QLBuildSteamworks=0." />
+    <Error Condition="'$(SteamworksSdkDir)'!='' and !Exists('$(SteamworksIncludeDir)\steam\steam_api.h')" Text="Steamworks headers were not found at '$(SteamworksIncludeDir)\steam\steam_api.h'. Set SteamworksSdkDir to the SDK root that contains public\steam\steam_api.h." />
+    <Error Condition="'$(SteamworksSdkDir)'!='' and !Exists('$(SteamworksRedistDll)')" Text="The Win32 Steamworks redistributable was not found at '$(SteamworksRedistDll)'. Set SteamworksSdkDir to a SDK root that contains redistributable_bin\steam_api.dll." />
+    <Message Condition="'$(SteamworksSdkDir)'!=''" Text="Steamworks support enabled with external SDK (headers: $(SteamworksIncludeDir), runtime: $(SteamworksRedistDll)). The SDK remains external and is not vendored." Importance="High" />
+  </Target>
   <Target Name="ValidateVorbis" BeforeTargets="ClCompile" Condition="'$(QLEnableOgg)'=='1'">
     <Error Condition="!Exists('$(VorbisIncludeDir)')" Text="Repo-managed Vorbis include path '$(VorbisIncludeDir)' was not found. Bootstrap the internal codec dependencies or set QLEnableOgg=0 for dedicated-only builds." />
     <Error Condition="!Exists('$(VorbisIncludeDir)\\vorbis\\vorbisfile.h')" Text="Repo-managed Vorbis headers are missing under $(VorbisIncludeDir). Bootstrap the internal codec dependencies or set QLEnableOgg=0." />
@@ -224,6 +242,9 @@
     <Error Condition="!Exists('$(FreeTypeLibDir)')" Text="Repo-managed FreeType library path '$(FreeTypeLibDir)' was not found. Provide an in-repo FreeType tree or set QLEnableFreeType=0." />
     <Error Condition="'$(FreeTypeDependencies)'==''" Text="FreeType support enabled but neither freetype.lib nor libfreetype.lib was found in $(FreeTypeLibDir). Provide an in-repo FreeType build or set QLEnableFreeType=0." />
     <Message Text="FreeType support enabled from repo-managed libs (include: $(FreeTypeIncludeDir), lib: $(FreeTypeLibDir)\\$(FreeTypeDependencies))" Importance="High" />
+  </Target>
+  <Target Name="CopySteamworksRedistributable" AfterTargets="Build" Condition="'$(QLBuildOnlineServices)'!='0' and '$(QLBuildSteamworks)'!='0' and '$(SteamworksRedistDll)'!='' and Exists('$(SteamworksRedistDll)')">
+    <Copy SourceFiles="$(SteamworksRedistDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release TA|Win32'">
     <ClCompile>

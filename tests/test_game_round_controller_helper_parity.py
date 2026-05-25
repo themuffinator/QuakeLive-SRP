@@ -97,7 +97,9 @@ def test_red_rover_autojoin_helper_routes_team_selection() -> None:
 	assert "G_RRResolveRoundState();" in cmds_c
 	assert "if ( clientNum == level.rrSelectedInfectedClientNum" in cmds_c
 	assert "|| clientNum == level.rrCarryoverInfectedClientNum ) {" in cmds_c
+	assert "} else if ( g_gametype.integer == GT_RED_ROVER ) {" in cmds_c
 	assert "team = G_RRResolveAutoJoinTeam( clientNum );" in cmds_c
+	assert cmds_c.index("} else if ( g_gametype.integer == GT_RED_ROVER ) {") < cmds_c.index("} else if ( g_gametype.integer >= GT_TEAM ) {")
 
 
 def test_spawn_filter_exemption_helper_matches_retail_mapping_notes() -> None:

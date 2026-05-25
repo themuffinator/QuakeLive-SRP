@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#include <ctype.h>
+#include <time.h>
 #include "g_match_config.h"
 #include "../../game/match_state_keys.h"
 
@@ -2640,37 +2642,139 @@ void Cmd_NotReady_f( gentity_t *ent ) {
 
 /*
 ==================
+G_DirectCommandPrint
+
+Routes a preformatted retail direct-command server command to a client or the
+server console.
+==================
+*/
+static void G_DirectCommandPrint( gentity_t *ent, const char *command ) {
+	if ( ent && ent->client ) {
+		trap_SendServerCommand( ent - g_entities, command );
+		return;
+	}
+
+	G_Printf( "%s", command );
+}
+
+/*
+==================
+G_DirectCommandCallerPrivilege
+
+Resolves the caller privilege used by the retail direct-command table.
+==================
+*/
+static int G_DirectCommandCallerPrivilege( gentity_t *ent ) {
+	if ( ent && ent->client ) {
+		return ent->client->sess.privilege;
+	}
+
+	return PRIV_ROOT;
+}
+
+/*
+==================
+G_DirectCommandPrivilegeChar
+
+Returns the retail player-list privilege marker from the recovered " MA*" map.
+==================
+*/
+static char G_DirectCommandPrivilegeChar( int privilege ) {
+	static const char s_privilegeChars[] = " MA*";
+
+	if ( privilege < PRIV_NONE ) {
+		privilege = PRIV_NONE;
+	} else if ( privilege > PRIV_ROOT ) {
+		privilege = PRIV_ROOT;
+	}
+
+	return s_privilegeChars[privilege];
+}
+
+/*
+==================
+G_ClientSteamId64
+
+Combines the cached Steam ID words for retail /players output.
+==================
+*/
+static uint64_t G_ClientSteamId64( const gclient_t *client ) {
+	if ( !client || !client->pers.steamIdValid ) {
+		return 0;
+	}
+
+	return ( (uint64_t)client->pers.steamIdHigh << 32 ) | (uint64_t)client->pers.steamIdLow;
+}
+
+/*
+==================
+G_ClientSteamIdString
+
+Returns the SteamID64 string used by retail access-list mutation commands.
+==================
+*/
+static qboolean G_ClientSteamIdString( int clientNum, char *buffer, size_t bufferSize ) {
+	gclient_t	*client;
+	uint64_t	steamId;
+	char		userinfo[MAX_INFO_STRING];
+	const char	*steamIdString;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return qfalse;
+	}
+	buffer[0] = '\0';
+
+	if ( clientNum < 0 || clientNum >= level.maxclients ) {
+		return qfalse;
+	}
+
+	client = &level.clients[clientNum];
+	if ( client->pers.steamIdValid ) {
+		steamId = G_ClientSteamId64( client );
+		Com_sprintf( buffer, bufferSize, "%llu", (unsigned long long)steamId );
+		return qtrue;
+	}
+
+	trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
+	steamIdString = Info_ValueForKey( userinfo, "steamid" );
+	if ( !steamIdString || !steamIdString[0] ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( buffer, steamIdString, bufferSize );
+	return qtrue;
+}
+
+/*
+==================
 Cmd_Players_f
 ==================
 */
 void Cmd_Players_f( gentity_t *ent ) {
-	int		i;
-	gclient_t	*cl;
-	int		score;
-	int		ping;
-	char	*s;
-	char	cleanName[MAX_NETNAME];
+	int			i;
+	gclient_t		*cl;
+	uint64_t		steamId;
+	char			cleanName[MAX_NETNAME];
+	char			privilegeMarker;
 
-	trap_SendServerCommand( ent-g_entities, "print \"  ID Score Ping Name            \n\"" );
-	trap_SendServerCommand( ent-g_entities, "print \"------------------------------\n\"" );
-
-	for ( i=0 ; i < level.maxclients ; i++ ) {
+	for ( i = 0; i < level.maxclients; i++ ) {
 		cl = &level.clients[i];
 		if ( cl->pers.connected != CON_CONNECTED ) {
 			continue;
 		}
 
-		score = cl->ps.persistant[PERS_SCORE];
-		ping = cl->ps.ping < 999 ? cl->ps.ping : 999;
+		steamId = G_ClientSteamId64( cl );
+		privilegeMarker = G_DirectCommandPrivilegeChar( cl->sess.privilege );
+		G_CleanClientNameFromClientNum( i, cleanName );
 
-		// QL style output
-		s = cl->pers.netname;
-		// sanitize name for display if needed
-		Q_strncpyz( cleanName, s, sizeof(cleanName) );
-		Q_CleanStr( cleanName );
-
-		trap_SendServerCommand( ent-g_entities, va("print \"  %2i %5i %4i %s\n\"",
-			i, score, ping, cleanName) );
+		if ( ent && ent->client ) {
+			trap_SendServerCommand( ent - g_entities,
+				va( "print \"%2d %llu %c %s\n\"",
+					i, (unsigned long long)steamId, privilegeMarker, cleanName ) );
+		} else {
+			G_Printf( "%2d %llu %c %s\n",
+				i, (unsigned long long)steamId, privilegeMarker, cleanName );
+		}
 	}
 }
 
@@ -3671,18 +3775,26 @@ void BroadcastTeamChange( gclient_t *client, int oldTeam )
 =================
 G_TeamJoinAllowed
 
-Rejects locked live-team join requests while preserving the retail
-"The %s team is locked!" feedback path.
+Rejects live-team join requests blocked by the recovered retail per-team
+lock latch or the legacy compatibility cvar.
 =================
 */
 static qboolean G_TeamJoinAllowed( team_t team, gentity_t *ent ) {
 	const char	*teamName;
 
-	if ( team == TEAM_SPECTATOR || team == TEAM_FREE || !g_teamSpawnAsSpec.integer ) {
+	if ( team == TEAM_SPECTATOR || team == TEAM_FREE ) {
 		return qtrue;
 	}
 
-	teamName = ( team == TEAM_RED ) ? "Red" : "Blue";
+	if ( team < TEAM_FREE || team >= TEAM_NUM_TEAMS ) {
+		return qtrue;
+	}
+
+	if ( !level.teamLocks[team] && !g_teamSpawnAsSpec.integer ) {
+		return qtrue;
+	}
+
+	teamName = TeamName( team );
 	if ( !ent || !ent->client ) {
 		G_Printf( "The %s team is locked!\n", teamName );
 	} else {
@@ -3691,6 +3803,103 @@ static qboolean G_TeamJoinAllowed( team_t team, gentity_t *ent ) {
 	}
 
 	return qfalse;
+}
+
+/*
+=================
+G_ApplyTeamChange
+
+Applies the retail inner SetTeam executor after the requested team and
+spectator state have been resolved.
+=================
+*/
+static void G_ApplyTeamChange( gentity_t *ent, team_t team, spectatorState_t specState, int specClient ) {
+	gclient_t	*client;
+	int			clientNum;
+	team_t		oldTeam;
+	int			teamLeader;
+
+	client = ent->client;
+	clientNum = ent - g_entities;
+	oldTeam = client->sess.sessionTeam;
+
+	// if the player was dead leave the body
+	if ( client->ps.stats[STAT_HEALTH] <= 0 ) {
+		CopyToBodyQue( ent );
+	}
+
+	// he starts at 'base'
+	client->pers.teamState.state = TEAM_BEGIN;
+	G_SetClientReadyState( client, qfalse );
+	if ( oldTeam != TEAM_SPECTATOR ) {
+		if ( g_gametype.integer != GT_RED_ROVER || team == TEAM_SPECTATOR ) {
+			G_RankSendPlayerStats( ent, qtrue );
+			G_RankResetClientStats( client );
+		}
+
+		// Kill him (makes sure he loses flags, etc)
+		ent->flags &= ~FL_GODMODE;
+		client->ps.stats[STAT_HEALTH] = ent->health = 0;
+		player_die( ent, ent, ent, 100000, MOD_SUICIDE );
+	} else if ( g_gametype.integer != GT_RED_ROVER || team == TEAM_SPECTATOR ) {
+		G_RankResetClientStats( client );
+	}
+
+	if ( team == TEAM_SPECTATOR ) {
+		if ( client->sess.spectatorQueuePosition == 0 ) {
+			client->sess.spectatorTime = (int)time( NULL );
+		}
+	} else {
+		client->sess.spectatorQueuePosition = 0;
+		client->sess.spectatorQueuePositionDirty = qfalse;
+		client->sess.spectatorTime = 0;
+	}
+
+	client->sess.sessionTeam = team;
+	client->sess.spectatorState = specState;
+	client->sess.spectatorClient = specClient;
+	client->pers.teamJoinStartTime = ( team == TEAM_SPECTATOR ) ? 0 : level.time;
+
+	if ( team == TEAM_SPECTATOR ) {
+		G_SyncSpectatorItemStatesForClient( clientNum );
+	}
+
+	client->lastKillCommandTime = 0;
+	client->killCommandCooldownExpires = 0;
+	client->friendlyFireComplaints = 0;
+	client->friendlyFireComplaintEndTime = 0;
+	client->teammateDamageGiven = 0;
+	client->teammateDamageThisLife = 0;
+	client->teamDamageEventsGiven = 0;
+	client->teamDamageEventsReceived = 0;
+
+	client->sess.teamLeader = qfalse;
+	if ( team == TEAM_RED || team == TEAM_BLUE ) {
+		teamLeader = TeamLeader( team );
+		// if there is no team leader or the team leader is a bot and this client is not a bot
+		if ( teamLeader == -1 || ( !(g_entities[clientNum].r.svFlags & SVF_BOT) && (g_entities[teamLeader].r.svFlags & SVF_BOT) ) ) {
+			SetLeader( team, clientNum );
+		}
+	}
+	// make sure there is a team leader on the team the player came from
+	if ( oldTeam == TEAM_RED || oldTeam == TEAM_BLUE ) {
+		CheckTeamLeader( oldTeam );
+	}
+
+	if ( g_gametype.integer != GT_RED_ROVER || team == TEAM_SPECTATOR ) {
+		BroadcastTeamChange( client, oldTeam );
+	}
+
+	G_ClearClientRevengeState( clientNum );
+
+	// get and distribute relevent paramters
+	ClientUserinfoChanged( clientNum );
+
+	ClientBegin( clientNum );
+
+	if ( oldTeam != team ) {
+		G_RankSendPlayerSwitchTeam( ent, oldTeam, team );
+	}
 }
 
 /*
@@ -3704,7 +3913,6 @@ void SetTeam( gentity_t *ent, char *s ) {
 	int					clientNum;
 	spectatorState_t	specState;
 	int					specClient;
-	int					teamLeader;
 	qboolean			requestedSpectator;
 	qboolean			wasSpectateOnly;
 	qboolean			sendQueueMessage;
@@ -3718,6 +3926,9 @@ void SetTeam( gentity_t *ent, char *s ) {
 	sendQueueMessage = qfalse;
 	sendSpectateOnlyMessage = qfalse;
 	wasSpectateOnly = client->sess.spectateOnly;
+	if ( !s ) {
+		s = "";
+	}
 
 	clientNum = client - level.clients;
 	specClient = 0;
@@ -3728,18 +3939,34 @@ void SetTeam( gentity_t *ent, char *s ) {
 		requestedSpectator = qtrue;
 	} else if ( !Q_stricmp( s, "follow1" ) ) {
 		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FOLLOW;
-		specClient = -1;
+		if ( level.numPlayingClients < 1 ) {
+			specState = SPECTATOR_FREE;
+		} else {
+			specState = SPECTATOR_FOLLOW;
+			specClient = FOLLOW_ACTIVE1;
+		}
 		requestedSpectator = qtrue;
 	} else if ( !Q_stricmp( s, "follow2" ) ) {
 		team = TEAM_SPECTATOR;
-		specState = SPECTATOR_FOLLOW;
-		specClient = -2;
+		if ( level.numPlayingClients < 2 ) {
+			if ( level.numPlayingClients == 1 ) {
+				specState = SPECTATOR_FOLLOW;
+				specClient = FOLLOW_ACTIVE1;
+			} else {
+				specState = SPECTATOR_FREE;
+			}
+		} else {
+			specState = SPECTATOR_FOLLOW;
+			specClient = FOLLOW_ACTIVE2;
+		}
 		requestedSpectator = qtrue;
 	} else if ( !Q_stricmp( s, "spectator" ) || !Q_stricmp( s, "s" ) ) {
 		team = TEAM_SPECTATOR;
 		specState = SPECTATOR_FREE;
 		requestedSpectator = qtrue;
+	} else if ( g_gametype.integer == GT_RED_ROVER ) {
+		specState = SPECTATOR_NOT;
+		team = G_RRResolveAutoJoinTeam( clientNum );
 	} else if ( g_gametype.integer >= GT_TEAM ) {
 		// if running a team game, assign player to one of the teams
 		specState = SPECTATOR_NOT;
@@ -3828,61 +4055,6 @@ void SetTeam( gentity_t *ent, char *s ) {
 	//
 	// execute the team change
 	//
-
-	// if the player was dead leave the body
-	if ( client->ps.stats[STAT_HEALTH] <= 0 ) {
-		CopyToBodyQue(ent);
-	}
-
-	// he starts at 'base'
-	client->pers.teamState.state = TEAM_BEGIN;
-	G_SetClientReadyState( client, qfalse );
-	if ( oldTeam != TEAM_SPECTATOR ) {
-		G_RankSendPlayerStats( ent, qtrue );
-
-		// Kill him (makes sure he loses flags, etc)
-		ent->flags &= ~FL_GODMODE;
-		ent->client->ps.stats[STAT_HEALTH] = ent->health = 0;
-		player_die (ent, ent, ent, 100000, MOD_SUICIDE);
-
-	}
-	// they go to the end of the line for tournements
-	if ( team == TEAM_SPECTATOR ) {
-		client->sess.spectatorTime = level.time;
-	}
-
-	client->sess.sessionTeam = team;
-	client->sess.spectatorState = specState;
-	client->sess.spectatorClient = specClient;
-	client->pers.teamJoinStartTime = ( team == TEAM_SPECTATOR ) ? 0 : level.time;
-	if ( oldTeam != team ) {
-		G_RankSendPlayerSwitchTeam( ent, oldTeam, team );
-	}
-
-	client->lastKillCommandTime = 0;
-	client->killCommandCooldownExpires = 0;
-	client->friendlyFireComplaints = 0;
-	client->friendlyFireComplaintEndTime = 0;
-	client->teammateDamageGiven = 0;
-	client->teammateDamageThisLife = 0;
-	client->teamDamageEventsGiven = 0;
-	client->teamDamageEventsReceived = 0;
-
-	client->sess.teamLeader = qfalse;
-	if ( team == TEAM_RED || team == TEAM_BLUE ) {
-		teamLeader = TeamLeader( team );
-		// if there is no team leader or the team leader is a bot and this client is not a bot
-		if ( teamLeader == -1 || ( !(g_entities[clientNum].r.svFlags & SVF_BOT) && (g_entities[teamLeader].r.svFlags & SVF_BOT) ) ) {
-			SetLeader( team, clientNum );
-		}
-	}
-	// make sure there is a team leader on the team the player came from
-	if ( oldTeam == TEAM_RED || oldTeam == TEAM_BLUE ) {
-		CheckTeamLeader( oldTeam );
-	}
-
-	BroadcastTeamChange( client, oldTeam );
-
 	if ( sendQueueMessage ) {
 		trap_SendServerCommand( ent - g_entities, "cp \"You are in the queue to play\n\"" );
 	}
@@ -3890,10 +4062,8 @@ void SetTeam( gentity_t *ent, char *s ) {
 		trap_SendServerCommand( ent - g_entities, "cp \"You are set to spectate only\n\"" );
 	}
 
-	// get and distribute relevent paramters
-	ClientUserinfoChanged( clientNum );
-
-	ClientBegin( clientNum );
+	G_ApplyTeamChange( ent, (team_t)team, specState, specClient );
+	CalculateRanks();
 }
 
 /*
@@ -3951,9 +4121,9 @@ Cmd_Team_f
 */
 void Cmd_Team_f( gentity_t *ent ) {
 	int			oldTeam;
-	char		s[MAX_TOKEN_CHARS];
+	char		*s;
 
-	if ( trap_Argc() != 2 ) {
+	if ( trap_Argc() < 2 ) {
 		oldTeam = ent->client->sess.sessionTeam;
 		switch ( oldTeam ) {
 		case TEAM_BLUE:
@@ -3983,7 +4153,7 @@ void Cmd_Team_f( gentity_t *ent ) {
 		ent->client->sess.losses++;
 	}
 
-	trap_Argv( 1, s, sizeof( s ) );
+	s = ConcatArgs( 1 );
 
 	SetTeam( ent, s );
 
@@ -4235,6 +4405,142 @@ static void G_SayTo( gentity_t *ent, gentity_t *other, int mode, int color, cons
 
 /*
 =============
+G_AppendChatTokenString
+
+Appends expanded chat-token text into the bounded retail say buffer.
+=============
+*/
+static qboolean G_AppendChatTokenString( char *buffer, int bufferSize, int *cursor, const char *text ) {
+	int length;
+	int available;
+
+	if ( !buffer || bufferSize <= 0 || !cursor || !text ) {
+		return qfalse;
+	}
+
+	length = strlen( text );
+	available = bufferSize - *cursor;
+	if ( available <= 1 ) {
+		G_Printf( "Chat token output buffer overflow...\n" );
+		return qfalse;
+	}
+
+	if ( length >= available ) {
+		Q_strncpyz( buffer + *cursor, text, available );
+		*cursor = bufferSize - 1;
+		G_Printf( "Chat token output buffer overflow...\n" );
+		return qfalse;
+	}
+
+	memcpy( buffer + *cursor, text, length );
+	*cursor += length;
+	buffer[*cursor] = '\0';
+	return qtrue;
+}
+
+/*
+=============
+G_AppendChatTokenChar
+
+Appends one literal character into the bounded retail say buffer.
+=============
+*/
+static qboolean G_AppendChatTokenChar( char *buffer, int bufferSize, int *cursor, char ch ) {
+	char text[2];
+
+	text[0] = ch;
+	text[1] = '\0';
+	return G_AppendChatTokenString( buffer, bufferSize, cursor, text );
+}
+
+/*
+=============
+G_ExpandChatTokens
+
+Expands Quake Live team/tell chat tokens such as #a, #h, #w, and ##.
+=============
+*/
+static void G_ExpandChatTokens( gentity_t *ent, const char *message, char *buffer, int bufferSize ) {
+	const char	*cursor;
+	int		outputCursor;
+	int		weapon;
+	char		tokenText[MAX_SAY_TEXT];
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+	buffer[0] = '\0';
+
+	if ( !message ) {
+		message = "";
+	}
+
+	if ( !ent || !ent->client || ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		Q_strncpyz( buffer, message, bufferSize );
+		return;
+	}
+
+	cursor = message;
+	outputCursor = 0;
+	while ( *cursor ) {
+		if ( *cursor != '#' ) {
+			if ( !G_AppendChatTokenChar( buffer, bufferSize, &outputCursor, *cursor ) ) {
+				return;
+			}
+			cursor++;
+			continue;
+		}
+
+		cursor++;
+		if ( !*cursor ) {
+			break;
+		}
+
+		switch ( *cursor ) {
+		case '#':
+			if ( !G_AppendChatTokenChar( buffer, bufferSize, &outputCursor, '#' ) ) {
+				return;
+			}
+			break;
+		case 'a':
+			Com_sprintf( tokenText, sizeof( tokenText ), "%d", ent->client->ps.stats[STAT_ARMOR] );
+			if ( !G_AppendChatTokenString( buffer, bufferSize, &outputCursor, tokenText ) ) {
+				return;
+			}
+			break;
+		case 'h':
+			Com_sprintf( tokenText, sizeof( tokenText ), "%d", ent->client->ps.stats[STAT_HEALTH] < 1 ? 0 : ent->client->ps.stats[STAT_HEALTH] );
+			if ( !G_AppendChatTokenString( buffer, bufferSize, &outputCursor, tokenText ) ) {
+				return;
+			}
+			break;
+		case 'w':
+			weapon = ent->client->ps.weapon;
+			if ( weapon == WP_GAUNTLET ) {
+				Com_sprintf( tokenText, sizeof( tokenText ), "%s", BG_WeaponName( (weapon_t)weapon ) );
+			} else if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) {
+				Com_sprintf( tokenText, sizeof( tokenText ), "%s [%d]", BG_WeaponName( (weapon_t)weapon ), ent->client->ps.ammo[weapon] );
+			} else {
+				Com_sprintf( tokenText, sizeof( tokenText ), "%s", BG_WeaponName( WP_NONE ) );
+			}
+			if ( !G_AppendChatTokenString( buffer, bufferSize, &outputCursor, tokenText ) ) {
+				return;
+			}
+			break;
+		default:
+			if ( !G_AppendChatTokenChar( buffer, bufferSize, &outputCursor, *cursor ) ) {
+				return;
+			}
+			break;
+		}
+		cursor++;
+	}
+
+	buffer[outputCursor] = '\0';
+}
+
+/*
+=============
 G_Say
 
 Routes chat text according to chat mode and talk permissions.
@@ -4244,6 +4550,7 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 	int			j;
 	gentity_t	*other;
 	int			color;
+	int			originalMode;
 	char		name[64];
 	// don't let text be too long for malicious reasons
 	char		text[MAX_SAY_TEXT];
@@ -4254,8 +4561,18 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 		return;
 	}
 
+	originalMode = mode;
 	if ( g_gametype.integer < GT_TEAM && mode == SAY_TEAM ) {
 		mode = SAY_ALL;
+	}
+
+	if ( strlen( chatText ) > MAX_SAY_TEXT ) {
+		G_Printf( "G_Say: truncate at %d characters\n", MAX_SAY_TEXT );
+	}
+	if ( ( originalMode == SAY_TEAM || originalMode == SAY_TELL ) && ent->client ) {
+		G_ExpandChatTokens( ent, chatText, text, sizeof( text ) );
+	} else {
+		Q_strncpyz( text, chatText, sizeof( text ) );
 	}
 
 	switch ( mode ) {
@@ -4268,10 +4585,10 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 	case SAY_TEAM:
 		G_LogPrintf( "sayteam: %s: %s\n", ent->client->pers.netname, chatText );
 		if (Team_GetLocationMsg(ent, location, sizeof(location)))
-			Com_sprintf (name, sizeof(name), EC"(%s%c%c"EC") (%s)"EC": ", 
+			Com_sprintf (name, sizeof(name), EC"(%s%c%c"EC") (%s)"EC": ",
 				ent->client->pers.netname, Q_COLOR_ESCAPE, COLOR_WHITE, location);
 		else
-			Com_sprintf (name, sizeof(name), EC"(%s%c%c"EC")"EC": ", 
+			Com_sprintf (name, sizeof(name), EC"(%s%c%c"EC")"EC": ",
 				ent->client->pers.netname, Q_COLOR_ESCAPE, COLOR_WHITE );
 		color = COLOR_CYAN;
 		break;
@@ -4285,8 +4602,6 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 		color = COLOR_MAGENTA;
 		break;
 	}
-
-	Q_strncpyz( text, chatText, sizeof(text) );
 
 	if ( target ) {
 		G_SayTo( ent, target, mode, color, name, text );
@@ -4373,6 +4688,49 @@ static void Cmd_Tell_f( gentity_t *ent ) {
 	if ( ent != target && !(ent->r.svFlags & SVF_BOT)) {
 		G_Say( ent, ent, SAY_TELL, p );
 	}
+}
+
+/*
+==================
+Cmd_BotSay_f
+==================
+*/
+static void Cmd_BotSay_f( gentity_t *ent ) {
+	int			targetNum;
+	int			holdSeconds;
+	gentity_t	*target;
+	char		*p;
+	char		arg[MAX_TOKEN_CHARS];
+	char		name[64];
+
+	if ( trap_Argc () < 3 ) {
+		return;
+	}
+	if ( !( ent->r.svFlags & SVF_BOT ) ) {
+		return;
+	}
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+	targetNum = atoi( arg );
+	if ( targetNum < 0 || targetNum >= level.maxclients ) {
+		return;
+	}
+
+	target = &g_entities[targetNum];
+	if ( !target || !target->inuse || !target->client ) {
+		return;
+	}
+
+	trap_Argv( 2, arg, sizeof( arg ) );
+	holdSeconds = atoi( arg );
+	if ( holdSeconds < 0 ) {
+		return;
+	}
+
+	p = ConcatArgs( 3 );
+	Com_sprintf( name, sizeof( name ), "%s%c%c", ent->client->pers.netname, Q_COLOR_ESCAPE, COLOR_WHITE );
+	G_LogPrintf( "botSay: %s for %i seconds to client %i\n", ent->client->pers.netname, holdSeconds, targetNum );
+	trap_SendServerCommand( targetNum, va( "bchat \"%s%c%c%s\" %i", name, Q_COLOR_ESCAPE, COLOR_GREEN, p, holdSeconds ) );
 }
 
 
@@ -5993,11 +6351,64 @@ void Cmd_Stats_f( gentity_t *ent ) {
 		client->pers.damageGiven, client->pers.damageReceived) );
 }
 
+#define DIRECTCMD_ALLOW_WARMUP			1
+#define DIRECTCMD_ALLOW_ACTIVE_MATCH	2
+#define DIRECTCMD_ALLOW_INTERMISSION	4
+
+/*
+=============
+G_ValidateDirectCommandState
+
+Applies the retail direct-command match-state gate before mutating commands.
+=============
+*/
+static qboolean G_ValidateDirectCommandState( gentity_t *ent, int allowMask ) {
+	if ( level.intermissiontime && !( allowMask & DIRECTCMD_ALLOW_INTERMISSION ) ) {
+		G_DirectCommandPrint( ent, "print \"This command can not be used during intermission\n\"" );
+		return qfalse;
+	}
+
+	if ( level.warmupTime != 0 ) {
+		if ( G_IsRoundCountdownActive() && !( allowMask & DIRECTCMD_ALLOW_ACTIVE_MATCH ) ) {
+			G_DirectCommandPrint( ent, "print \"This command can not be used during a round countdown\n\"" );
+			return qfalse;
+		}
+
+		if ( !( allowMask & DIRECTCMD_ALLOW_WARMUP ) ) {
+			G_DirectCommandPrint( ent, "print \"This command can not be used during warmup\n\"" );
+			return qfalse;
+		}
+
+		return qtrue;
+	}
+
+	if ( G_IsRoundCountdownActive() && !( allowMask & DIRECTCMD_ALLOW_ACTIVE_MATCH ) ) {
+		G_DirectCommandPrint( ent, "print \"This command can not be used during a round countdown\n\"" );
+		return qfalse;
+	}
+
+	if ( !( allowMask & DIRECTCMD_ALLOW_ACTIVE_MATCH ) ) {
+		G_DirectCommandPrint( ent, "print \"This command can not be used while a match is in progress\n\"" );
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+G_ClientCanControlTimeouts
+
+Checks player-side timeout ownership prerequisites while leaving console
+direct-command use to G_StartTimeout.
+=============
+*/
 static qboolean G_ClientCanControlTimeouts( gentity_t *ent, team_t *teamOut ) {
 	team_t team;
 
-	if ( !ent->client ) {
-		return qfalse;
+	if ( !ent || !ent->client ) {
+		*teamOut = TEAM_FREE;
+		return qtrue;
 	}
 
 	if ( level.trainingMapActive ) {
@@ -6054,6 +6465,10 @@ Starts a timed timeout or indefinite pause and publishes the updated timeout sta
 static qboolean G_StartTimeout( gentity_t *ent, int durationSeconds ) {
 	team_t	team;
 
+	if ( !G_ValidateDirectCommandState( ent, DIRECTCMD_ALLOW_ACTIVE_MATCH ) ) {
+		return qfalse;
+	}
+
 	if ( level.timeoutActive ) {
 		return qfalse;
 	}
@@ -6082,10 +6497,10 @@ static qboolean G_StartTimeout( gentity_t *ent, int durationSeconds ) {
 
 	if ( durationSeconds > 0 ) {
 		trap_SendServerCommand( -1,
-			va( "print \"%s has called timeout (%ds)\\n\"", G_TimeoutCallerName( ent ), durationSeconds ) );
+			va( "pcp \"%s has called timeout (%ds)\\n\"", G_TimeoutCallerName( ent ), durationSeconds ) );
 	} else {
 		trap_SendServerCommand( -1,
-			va( "print \"%s has paused the match\\n\"", G_TimeoutCallerName( ent ) ) );
+			va( "pcp \"%s has paused the match\\n\"", G_TimeoutCallerName( ent ) ) );
 	}
 
 	G_UpdateMatchStateConfigString();
@@ -6104,25 +6519,42 @@ static qboolean G_BeginTimein( gentity_t *ent ) {
 		return qfalse;
 	}
 
-	if ( ent && ent->client && level.timeoutOwner != ent->client->ps.clientNum ) {
-		trap_SendServerCommand( ent-g_entities, "print \"You did not call the current timeout\n\"" );
+	if ( ent && ent->client && level.timeoutOwner != ent->client->ps.clientNum
+		&& ent->client->sess.privilege < PRIV_MOD ) {
+		G_DirectCommandPrint( ent, "print \"You did not call the current timeout\n\"" );
 		return qfalse;
 	}
 
 	level.timeoutExpireTime = level.time + 5000;
-	trap_SendServerCommand( -1,
-		va( "print \"%s has called timein\\n\"", G_TimeoutCallerName( ent ) ) );
+	if ( !ent || !ent->client ) {
+		trap_SendServerCommand( -1, "pcp \"The server has called timein\n\"" );
+	} else {
+		trap_SendServerCommand( -1,
+			va( "pcp \"%s has called timein\\n\"", G_TimeoutCallerName( ent ) ) );
+	}
 	G_UpdateMatchStateConfigString();
 	return qtrue;
 }
 
+/*
+=============
+Cmd_Timeout_f
+
+Consumes the caller's timeout pool and starts a timed retail timeout.
+=============
+*/
 void Cmd_Timeout_f( gentity_t *ent ) {
 	team_t team;
 	int remaining;
 	int timeoutLength;
 
 	if ( level.timeoutActive ) {
-		trap_SendServerCommand( ent-g_entities, "print \"A timeout is already active.\\n\"" );
+		G_DirectCommandPrint( ent, "print \"A timeout is already active.\\n\"" );
+		return;
+	}
+
+	if ( !ent || !ent->client ) {
+		G_StartTimeout( NULL, g_matchFactoryConfig.timeoutLengthSeconds );
 		return;
 	}
 
@@ -6132,16 +6564,16 @@ void Cmd_Timeout_f( gentity_t *ent ) {
 
 	timeoutLength = g_matchFactoryConfig.timeoutLengthSeconds;
 	if ( timeoutLength <= 0 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Timeouts are not enabled on this server.\n\"" );
+		G_DirectCommandPrint( ent, "print \"Timeouts are not enabled on this server.\n\"" );
 		return;
 	}
 
 	remaining = level.timeoutRemaining[team];
 	if ( remaining <= 0 ) {
 		if ( g_gametype.integer >= GT_TEAM ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Your team has no timeouts left to call\n\"" );
+			G_DirectCommandPrint( ent, "print \"Your team has no timeouts left to call\n\"" );
 		} else {
-			trap_SendServerCommand( ent-g_entities, "print \"You have no timeouts left to call\n\"" );
+			G_DirectCommandPrint( ent, "print \"You have no timeouts left to call\n\"" );
 		}
 		return;
 	}
@@ -6166,6 +6598,16 @@ Starts an indefinite pause without consuming the timeout pool, or lets a player 
 void Cmd_Pause_f( gentity_t *ent ) {
 	team_t team;
 
+	if ( !ent || !ent->client ) {
+		if ( !level.timeoutActive ) {
+			G_StartTimeout( NULL, 0 );
+			return;
+		}
+
+		G_DirectCommandPrint( ent, "print \"A timeout is already active.\n\"" );
+		return;
+	}
+
 	if ( !G_ClientCanControlTimeouts( ent, &team ) ) {
 		return;
 	}
@@ -6180,22 +6622,29 @@ void Cmd_Pause_f( gentity_t *ent ) {
 		if ( g_gametype.integer >= GT_TEAM && team >= TEAM_RED && team < TEAM_NUM_TEAMS ) {
 			level.timeoutTeam = team;
 		}
-		trap_SendServerCommand( ent-g_entities, "print \"You have taken ownership of the current timeout\n\"" );
+		G_DirectCommandPrint( ent, "print \"You have taken ownership of the current timeout\n\"" );
 		G_UpdateMatchStateConfigString();
 		return;
 	}
 
-	trap_SendServerCommand( ent-g_entities, "print \"A timeout is already active.\n\"" );
+	G_DirectCommandPrint( ent, "print \"A timeout is already active.\n\"" );
 }
 
+/*
+=============
+Cmd_Timein_f
+
+Arms the retail timein countdown for the active timeout.
+=============
+*/
 void Cmd_Timein_f( gentity_t *ent ) {
 	if ( level.trainingMapActive ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Training matches do not support timeouts.\n\"" );
+		G_DirectCommandPrint( ent, "print \"Training matches do not support timeouts.\n\"" );
 		return;
 	}
 
 	if ( !level.timeoutActive ) {
-		trap_SendServerCommand( ent-g_entities, "print \"No timeout in progress.\\n\"" );
+		G_DirectCommandPrint( ent, "print \"No timeout in progress.\\n\"" );
 		return;
 	}
 
@@ -6407,43 +6856,32 @@ void Cmd_Whois_f( gentity_t *ent ) {
 		target->client->pers.netname, clientNum, ip, steamid ) );
 }
 
+static gentity_t *G_AdminResolvePlayerIdArg( gentity_t *ent );
+static qboolean G_AdminRejectSameOrHigherTarget( gentity_t *ent, gentity_t *target, const char *message );
+
 /*
 ==================
 Cmd_Mute_f
 ==================
 */
 void Cmd_Mute_f( gentity_t *ent ) {
-	char arg[MAX_TOKEN_CHARS];
-	int clientNum;
-	gentity_t *target;
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	int priv;
+	gentity_t	*target;
+	int			clientNum;
+	char		targetName[MAX_NETNAME + 4];
 
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_MOD ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
+	target = G_AdminResolvePlayerIdArg( ent );
+	if ( !target || !target->client ) {
 		return;
 	}
 
-	if ( trap_Argc() < 2 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"usage: mute <client>\n\"" );
+	if ( G_AdminRejectSameOrHigherTarget( ent, target, NULL ) ) {
 		return;
 	}
 
-	trap_Argv( 1, arg, sizeof( arg ) );
-	clientNum = ClientNumberFromString( ent, arg );
-	if ( clientNum < 0 ) return;
-
-	target = &g_entities[clientNum];
+	clientNum = target - g_entities;
 	target->client->sess.muted = qtrue;
-	trap_SendServerCommand( ent-g_entities, va("print \"%s muted.\n\"", target->client->pers.netname) );
-	trap_SendServerCommand( target-g_entities, "print \"You have been muted.\n\"" );
+	G_CleanClientNameFromClientNum( clientNum, targetName );
+	trap_SendServerCommand( -1, va("print \"%s has been muted\n\"", targetName) );
 }
 
 /*
@@ -6452,37 +6890,362 @@ Cmd_Unmute_f
 ==================
 */
 void Cmd_Unmute_f( gentity_t *ent ) {
-	char arg[MAX_TOKEN_CHARS];
-	int clientNum;
-	gentity_t *target;
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	int priv;
+	gentity_t	*target;
+	int			clientNum;
+	char		targetName[MAX_NETNAME + 4];
 
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_MOD ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
+	target = G_AdminResolvePlayerIdArg( ent );
+	if ( !target || !target->client ) {
 		return;
 	}
 
-	if ( trap_Argc() < 2 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"usage: unmute <client>\n\"" );
-		return;
+	clientNum = target - g_entities;
+	target->client->sess.muted = qfalse;
+	G_CleanClientNameFromClientNum( clientNum, targetName );
+	trap_SendServerCommand( -1, va("print \"%s has been unmuted\n\"", targetName) );
+}
+
+/*
+==================
+G_AdminResolvePlayerIdArg
+
+Resolves argv 1 as the numeric PlayerID used by the retail /players list.
+==================
+*/
+static gentity_t *G_AdminResolvePlayerIdArg( gentity_t *ent ) {
+	char	arg[MAX_TOKEN_CHARS];
+	char	*cursor;
+	int		clientNum;
+
+	if ( trap_Argc() <= 1 ) {
+		G_DirectCommandPrint( ent, "print \"Missing PlayerID (use \\players for a list)\n\"" );
+		return NULL;
 	}
 
 	trap_Argv( 1, arg, sizeof( arg ) );
-	clientNum = ClientNumberFromString( ent, arg );
-	if ( clientNum < 0 ) return;
+	if ( !arg[0] ) {
+		G_DirectCommandPrint( ent, "print \"Invalid PlayerID (use \\players for a list)\n\"" );
+		return NULL;
+	}
 
-	target = &g_entities[clientNum];
-	target->client->sess.muted = qfalse;
-	trap_SendServerCommand( ent-g_entities, va("print \"%s unmuted.\n\"", target->client->pers.netname) );
-	trap_SendServerCommand( target-g_entities, "print \"You have been unmuted.\n\"" );
+	for ( cursor = arg; *cursor; cursor++ ) {
+		if ( !isdigit( (unsigned char)*cursor ) ) {
+			G_DirectCommandPrint( ent, "print \"Invalid PlayerID (use \\players for a list)\n\"" );
+			return NULL;
+		}
+	}
+
+	clientNum = atoi( arg );
+	if ( clientNum < 0 || clientNum >= level.maxclients
+		|| level.clients[clientNum].pers.connected != CON_CONNECTED ) {
+		G_DirectCommandPrint( ent, "print \"Invalid PlayerID (use \\players for a list)\n\"" );
+		return NULL;
+	}
+
+	return &g_entities[clientNum];
+}
+
+/*
+==================
+G_AdminRejectSameOrHigherTarget
+
+Applies the retail same-or-higher target guard used by destructive moderator
+commands when the caller is an in-game client.
+==================
+*/
+static qboolean G_AdminRejectSameOrHigherTarget( gentity_t *ent, gentity_t *target, const char *message ) {
+	if ( !ent || !ent->client || !target || !target->client ) {
+		return qfalse;
+	}
+
+	if ( target->client->sess.privilege < G_DirectCommandCallerPrivilege( ent ) ) {
+		return qfalse;
+	}
+
+	if ( message ) {
+		G_DirectCommandPrint( ent, message );
+	}
+
+	return qtrue;
+}
+
+/*
+==================
+G_AdminParseTeamArg
+
+Parses the retail direct-command team token at the requested argv index.
+==================
+*/
+static int G_AdminParseTeamArg( int argvIndex, gentity_t *ent, int maxTeamExclusive ) {
+	char	arg[MAX_TOKEN_CHARS];
+	int		team;
+	int		token;
+
+	if ( trap_Argc() <= argvIndex ) {
+		G_DirectCommandPrint( ent, "print \"Missing TeamName\n\"" );
+		return TEAM_NUM_TEAMS;
+	}
+
+	trap_Argv( argvIndex, arg, sizeof( arg ) );
+	token = tolower( (unsigned char)arg[0] );
+	team = TEAM_NUM_TEAMS;
+
+	if ( token == 's' ) {
+		team = TEAM_SPECTATOR;
+	} else if ( token == 'r' ) {
+		if ( g_gametype.integer < GT_TEAM ) {
+			G_DirectCommandPrint( ent, "print \"Invalid TeamName (use F/S)\n\"" );
+			return TEAM_NUM_TEAMS;
+		}
+		team = TEAM_RED;
+	} else if ( token == 'b' ) {
+		if ( g_gametype.integer < GT_TEAM ) {
+			G_DirectCommandPrint( ent, "print \"Invalid TeamName (use F/S)\n\"" );
+			return TEAM_NUM_TEAMS;
+		}
+		team = TEAM_BLUE;
+	} else if ( token == 'f' ) {
+		if ( g_gametype.integer >= GT_TEAM ) {
+			G_DirectCommandPrint( ent, "print \"Invalid TeamName (use R/B/S)\n\"" );
+			return TEAM_NUM_TEAMS;
+		}
+		team = TEAM_FREE;
+	} else if ( g_gametype.integer < GT_TEAM ) {
+		G_DirectCommandPrint( ent, "print \"Invalid TeamName (use F/S)\n\"" );
+		return TEAM_NUM_TEAMS;
+	} else {
+		G_DirectCommandPrint( ent, "print \"Invalid TeamName (use R/B/S)\n\"" );
+		return TEAM_NUM_TEAMS;
+	}
+
+	if ( team >= maxTeamExclusive ) {
+		G_DirectCommandPrint( ent,
+			va( "print \"Team %c is not valid for this command\n\"", toupper( (unsigned char)arg[0] ) ) );
+		return TEAM_NUM_TEAMS;
+	}
+
+	return team;
+}
+
+/*
+==================
+G_TeamCommandString
+
+Returns the SetTeam token corresponding to a parsed retail team id.
+==================
+*/
+static const char *G_TeamCommandString( int team ) {
+	switch ( team ) {
+	case TEAM_FREE:
+		return "free";
+	case TEAM_RED:
+		return "red";
+	case TEAM_BLUE:
+		return "blue";
+	case TEAM_SPECTATOR:
+		return "spectator";
+	default:
+		return "spectator";
+	}
+}
+
+/*
+==================
+G_DirectCommandCallerName
+
+Returns the display name used when a direct command reports server or player
+ownership to another client.
+==================
+*/
+static const char *G_DirectCommandCallerName( gentity_t *ent, char *buffer, size_t bufferSize ) {
+	if ( ent && ent->client ) {
+		G_CleanClientNameFromClientNum( ent - g_entities, buffer );
+		return buffer;
+	}
+
+	Q_strncpyz( buffer, "The server", bufferSize );
+	return buffer;
+}
+
+/*
+==================
+G_BroadcastTeamLockChange
+
+Publishes the recovered retail lock/unlock status line.
+==================
+*/
+static void G_BroadcastTeamLockChange( int team, qboolean locked ) {
+	trap_SendServerCommand( -1,
+		va( "print \"The %s team is now %slocked\n\"",
+			TeamName( team ), locked ? "" : "un" ) );
+}
+
+/*
+==================
+G_SetTeamLock
+
+Updates a single team lock latch and broadcasts only when the latch changes.
+==================
+*/
+static void G_SetTeamLock( int team, qboolean locked ) {
+	if ( team < TEAM_FREE || team >= TEAM_NUM_TEAMS ) {
+		return;
+	}
+
+	if ( level.teamLocks[team] == locked ) {
+		return;
+	}
+
+	level.teamLocks[team] = locked;
+	G_BroadcastTeamLockChange( team, locked );
+}
+
+/*
+==================
+Cmd_OpSay_f
+==================
+*/
+static void Cmd_OpSay_f( gentity_t *ent ) {
+	char	*message;
+	const char *speakerName;
+	char	cleanName[MAX_NETNAME + 4];
+
+	if ( trap_Argc() < 2 ) {
+		return;
+	}
+
+	message = ConcatArgs( 1 );
+	if ( ent && ent->client ) {
+		speakerName = G_CleanClientNameFromClientNum( ent - g_entities, cleanName );
+	} else {
+		speakerName = "server";
+	}
+
+	trap_SendServerCommand( -1, va("print \"<@%s^7> %s\n\"", speakerName, message) );
+}
+
+typedef void (*directCommandHandler_t)( gentity_t *ent );
+
+typedef struct directCommand_s {
+	const char				*name;
+	directCommandHandler_t	handler;
+	int						requiredPrivilege;
+	int						flags;
+	const char				*description;
+} directCommand_t;
+
+#define DIRECTCMD_HELP_HIDDEN	3
+
+static void Cmd_DirectCommandHelp_f( gentity_t *ent );
+static void Cmd_TempBan_f( gentity_t *ent );
+static void Cmd_ListAccess_f( gentity_t *ent );
+static void Cmd_Unban_f( gentity_t *ent );
+static void Cmd_AddAdmin_f( gentity_t *ent );
+static void Cmd_AddMod_f( gentity_t *ent );
+static void Cmd_Demote_f( gentity_t *ent );
+static void Cmd_Abort_f( gentity_t *ent );
+static void Cmd_AddScore_f( gentity_t *ent );
+static void Cmd_AddTeamScore_f( gentity_t *ent );
+static void Cmd_SetMatchTime_f( gentity_t *ent );
+
+static const directCommand_t s_directCommands[] = {
+	{ "?", Cmd_DirectCommandHelp_f, PRIV_NONE, 0, "" },
+	{ "players", Cmd_Players_f, PRIV_NONE, 0, "^3 show currently connected players and their status" },
+	{ "timeout", Cmd_Timeout_f, PRIV_NONE, 0, "^3 call a time out, temporarily pausing the match" },
+	{ "timein", Cmd_Timein_f, PRIV_NONE, 0, "^3 call a time in, unpausing the match" },
+	{ "allready", Cmd_AllReady_f, PRIV_MOD, 0, "^3 force all players to 'ready' up" },
+	{ "pause", Cmd_Pause_f, PRIV_MOD, 0, "^3 pause the current match indefinitely" },
+	{ "unpause", Cmd_Timein_f, PRIV_MOD, 0, "^3 unpause the current match" },
+	{ "lock", Cmd_Lock_f, PRIV_MOD, 0, " [team]^3 stops players from joining the specified team" },
+	{ "unlock", Cmd_Unlock_f, PRIV_MOD, 0, " [team]^3 allows players to join the specified team" },
+	{ "putteam", Cmd_PutTeam_f, PRIV_MOD, 0, " <playerid> <team>^3 move a player to the specified team" },
+	{ "mute", Cmd_Mute_f, PRIV_MOD, 0, " <playerid>^3 temporarily mutes a player" },
+	{ "unmute", Cmd_Unmute_f, PRIV_MOD, 0, " <playerid>^3 restores a muted player" },
+	{ "tempban", Cmd_TempBan_f, PRIV_MOD, 0, " <playerid>^3 temporarily kicks and bans a player" },
+	{ "ban", Cmd_Ban_f, PRIV_MOD, 0, " <playerid>^3 permenantly bans a player" },
+	{ "listaccess", Cmd_ListAccess_f, PRIV_MOD, 0, " <page>^3 lists the accounts with access" },
+	{ "unban", Cmd_Unban_f, PRIV_MOD, 0, " <account>^3 removes a player from the ban list" },
+	{ "opsay", Cmd_OpSay_f, PRIV_MOD, 0, " <message> ^3send a message to everyone as an operator" },
+	{ "addadmin", Cmd_AddAdmin_f, PRIV_ADMIN, 0, " <playerid>^3 give a player admin access" },
+	{ "addmod", Cmd_AddMod_f, PRIV_ADMIN, 0, " <playerid>^3 give a player moderator access" },
+	{ "demote", Cmd_Demote_f, PRIV_ADMIN, 0, " <playerid>^3 remove a player's access" },
+	{ "abort", Cmd_Abort_f, PRIV_MOD, 0, "^3 abandon the current game and return to warmup" },
+	{ "addscore", Cmd_AddScore_f, PRIV_MOD, 0, " <playerid> <score>^3 add points to a player's score" },
+	{ "addteamscore", Cmd_AddTeamScore_f, PRIV_MOD, 0, " <team> <score>^3 add points to a team's score, use (R/B)" },
+	{ "setmatchtime", Cmd_SetMatchTime_f, PRIV_MOD, 0, " <time> ^3set match time in seconds" },
+	{ "rcon", NULL, PRIV_ADMIN, 0, " <command> ^3run command on server" },
+	{ NULL, NULL, 0, 0, NULL }
+};
+
+/*
+==================
+G_PrintDirectCommandHelp
+
+Prints the retail direct-command help rows visible to the caller privilege.
+==================
+*/
+static void G_PrintDirectCommandHelp( gentity_t *ent ) {
+	const directCommand_t	*directCommand;
+	int						privilege;
+
+	privilege = G_DirectCommandCallerPrivilege( ent );
+	for ( directCommand = s_directCommands; directCommand->name; directCommand++ ) {
+		if ( directCommand->flags == DIRECTCMD_HELP_HIDDEN ) {
+			continue;
+		}
+		if ( privilege < directCommand->requiredPrivilege ) {
+			continue;
+		}
+
+		G_DirectCommandPrint( ent,
+			va( "print \"%s%s\n\"", directCommand->name, directCommand->description ) );
+	}
+}
+
+/*
+==================
+Cmd_DirectCommandHelp_f
+
+Direct table entry for the retail `?` help command.
+==================
+*/
+static void Cmd_DirectCommandHelp_f( gentity_t *ent ) {
+	G_PrintDirectCommandHelp( ent );
+}
+
+/*
+==================
+G_DispatchDirectCommand
+==================
+*/
+static qboolean G_DispatchDirectCommand( const char *cmd, gentity_t *ent ) {
+	const directCommand_t	*directCommand;
+	int						privilege;
+
+	if ( !cmd || !cmd[0] ) {
+		return qfalse;
+	}
+
+	privilege = G_DirectCommandCallerPrivilege( ent );
+	for ( directCommand = s_directCommands; directCommand->name; directCommand++ ) {
+		if ( Q_stricmp( cmd, directCommand->name ) ) {
+			continue;
+		}
+
+		if ( privilege < directCommand->requiredPrivilege ) {
+			G_DirectCommandPrint( ent, "print \"You do not have the privileges required to use this command\n\"" );
+			return qtrue;
+		}
+
+		if ( !directCommand->handler ) {
+			return qfalse;
+		}
+
+		directCommand->handler( ent );
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 /*
@@ -6491,23 +7254,20 @@ Cmd_Lock_f
 ==================
 */
 void Cmd_Lock_f( gentity_t *ent ) {
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	int priv;
+	int team;
 
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_MOD ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
+	if ( trap_Argc() < 2 ) {
+		G_SetTeamLock( TEAM_RED, qtrue );
+		G_SetTeamLock( TEAM_BLUE, qtrue );
 		return;
 	}
 
-	trap_Cvar_Set( "g_teamSpawnAsSpec", "1" );
-	trap_SendServerCommand( -1, "print \"Teams locked by admin.\n\"" );
+	team = G_AdminParseTeamArg( 1, ent, TEAM_NUM_TEAMS );
+	if ( team == TEAM_NUM_TEAMS ) {
+		return;
+	}
+
+	G_SetTeamLock( team, qtrue );
 }
 
 /*
@@ -6516,23 +7276,20 @@ Cmd_Unlock_f
 ==================
 */
 void Cmd_Unlock_f( gentity_t *ent ) {
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	int priv;
+	int team;
 
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_MOD ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
+	if ( trap_Argc() < 2 ) {
+		G_SetTeamLock( TEAM_RED, qfalse );
+		G_SetTeamLock( TEAM_BLUE, qfalse );
 		return;
 	}
 
-	trap_Cvar_Set( "g_teamSpawnAsSpec", "0" );
-	trap_SendServerCommand( -1, "print \"Teams unlocked by admin.\n\"" );
+	team = G_AdminParseTeamArg( 1, ent, TEAM_NUM_TEAMS );
+	if ( team == TEAM_NUM_TEAMS ) {
+		return;
+	}
+
+	G_SetTeamLock( team, qfalse );
 }
 
 /*
@@ -6541,36 +7298,54 @@ Cmd_PutTeam_f
 ==================
 */
 void Cmd_PutTeam_f( gentity_t *ent ) {
-	char arg1[MAX_TOKEN_CHARS];
-	char arg2[MAX_TOKEN_CHARS];
-	int clientNum;
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	int priv;
+	gentity_t	*target;
+	gclient_t	*client;
+	int			team;
+	int			clientNum;
+	char		targetName[MAX_NETNAME + 4];
+	char		callerName[MAX_NETNAME + 16];
+	const char	*teamToken;
 
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_MOD ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
+	target = G_AdminResolvePlayerIdArg( ent );
+	if ( !target || !target->client ) {
 		return;
 	}
 
-	if ( trap_Argc() < 3 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"usage: putteam <client> <team>\n\"" );
+	team = G_AdminParseTeamArg( 2, ent, TEAM_NUM_TEAMS );
+	if ( team == TEAM_NUM_TEAMS ) {
 		return;
 	}
 
-	trap_Argv( 1, arg1, sizeof( arg1 ) );
-	trap_Argv( 2, arg2, sizeof( arg2 ) );
+	client = target->client;
+	clientNum = target - g_entities;
+	if ( g_gametype.integer == GT_TOURNAMENT && team == TEAM_FREE
+		&& client->sess.sessionTeam != TEAM_FREE && level.numPlayingClients >= 2 ) {
+		if ( G_IsRoundCountdownActive() ) {
+			G_DirectCommandPrint( ent, "print \"The match cannot begin until only two players are in the match.\n\"" );
+		} else {
+			G_DirectCommandPrint( ent, "print \"A maximum of two players are allowed in the match.\n\"" );
+		}
+		return;
+	}
 
-	clientNum = ClientNumberFromString( ent, arg1 );
-	if ( clientNum < 0 ) return;
+	if ( client->sess.sessionTeam == team ) {
+		G_CleanClientNameFromClientNum( clientNum, targetName );
+		G_DirectCommandPrint( ent,
+			va( "print \"%s is already on the %s team\n\"", targetName, TeamName( team ) ) );
+		return;
+	}
 
-	SetTeam( &g_entities[clientNum], arg2 );
+	G_DirectCommandCallerName( ent, callerName, sizeof( callerName ) );
+	if ( !ent || !ent->client ) {
+		trap_SendServerCommand( clientNum,
+			va( "print \"The server has moved you to the %s team\n\"", TeamName( team ) ) );
+	} else {
+		trap_SendServerCommand( clientNum,
+			va( "print \"%s has moved you to the %s team\n\"", callerName, TeamName( team ) ) );
+	}
+
+	teamToken = G_TeamCommandString( team );
+	SetTeam( target, (char *)teamToken );
 }
 
 /*
@@ -6579,35 +7354,310 @@ Cmd_AllReady_f
 ==================
 */
 void Cmd_AllReady_f( gentity_t *ent ) {
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	const char *blockedMessage;
-	int priv;
 	int i;
 
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_MOD ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
+	if ( !G_ValidateDirectCommandState( ent, DIRECTCMD_ALLOW_WARMUP ) ) {
 		return;
 	}
 
-	blockedMessage = G_GetReadyUpBlockedMessage();
-	if ( blockedMessage ) {
-		trap_SendServerCommand( ent-g_entities, blockedMessage );
+	if ( g_gametype.integer == GT_TOURNAMENT && level.numPlayingClients != 2 ) {
+		G_DirectCommandPrint( ent, "print \"Allready may not be used until two players are in the match.\n\"" );
 		return;
 	}
 
 	for ( i = 0; i < level.maxclients; i++ ) {
-		if ( level.clients[i].pers.connected == CON_CONNECTED && level.clients[i].sess.sessionTeam != TEAM_SPECTATOR ) {
+		if ( level.clients[i].pers.connected == CON_CONNECTED ) {
 			G_SetClientReadyState( &level.clients[i], qtrue );
 		}
 	}
-	trap_SendServerCommand( -1, "print \"All players set to ready by admin.\n\"" );
+	G_WarmupReadyToStart();
+}
+
+/*
+==================
+G_AdminPromoteTarget
+
+Promotes the requested PlayerID to a cached retail access tier.
+==================
+*/
+static void G_AdminPromoteTarget( gentity_t *ent, int privilege, const char *broadcastCommand ) {
+	gentity_t	*target;
+	int			clientNum;
+	char		steamId[MAX_ADMIN_STEAMID_LENGTH];
+	char		targetName[MAX_NETNAME + 4];
+
+	target = G_AdminResolvePlayerIdArg( ent );
+	if ( !target || !target->client ) {
+		return;
+	}
+
+	if ( target->client->sess.privilege >= privilege ) {
+		return;
+	}
+
+	clientNum = target - g_entities;
+	target->client->sess.privilege = privilege;
+	if ( G_ClientSteamIdString( clientNum, steamId, sizeof( steamId ) ) ) {
+		G_SetAdminAccessForSteamID( steamId, privilege, qfalse );
+	}
+
+	G_CleanClientNameFromClientNum( clientNum, targetName );
+	trap_SendServerCommand( -1, va( broadcastCommand, targetName ) );
+	trap_SendServerCommand( clientNum, va( "priv %i", target->client->sess.privilege ) );
+}
+
+/*
+==================
+Cmd_AddAdmin_f
+==================
+*/
+static void Cmd_AddAdmin_f( gentity_t *ent ) {
+	G_AdminPromoteTarget( ent, PRIV_ADMIN, "print \"%s has become an administrator\n\"" );
+}
+
+/*
+==================
+Cmd_AddMod_f
+==================
+*/
+static void Cmd_AddMod_f( gentity_t *ent ) {
+	G_AdminPromoteTarget( ent, PRIV_MOD, "print \"%s has become a moderator\n\"" );
+}
+
+/*
+==================
+Cmd_Demote_f
+==================
+*/
+static void Cmd_Demote_f( gentity_t *ent ) {
+	gentity_t	*target;
+	int			clientNum;
+	char		steamId[MAX_ADMIN_STEAMID_LENGTH];
+	char		targetName[MAX_NETNAME + 4];
+
+	target = G_AdminResolvePlayerIdArg( ent );
+	if ( !target || !target->client ) {
+		return;
+	}
+
+	if ( target->client->sess.privilege <= PRIV_NONE ) {
+		return;
+	}
+
+	if ( G_AdminRejectSameOrHigherTarget( ent, target,
+			"print \"Can not demote someone at or above your level.\n\"" ) ) {
+		return;
+	}
+
+	clientNum = target - g_entities;
+	target->client->sess.privilege = PRIV_NONE;
+	if ( G_ClientSteamIdString( clientNum, steamId, sizeof( steamId ) ) ) {
+		G_RemoveAdminAccessForSteamID( steamId );
+	}
+
+	G_CleanClientNameFromClientNum( clientNum, targetName );
+	trap_SendServerCommand( -1, va( "print \"%s has had their privileges removed\n\"", targetName ) );
+	trap_SendServerCommand( clientNum, va( "priv %i", target->client->sess.privilege ) );
+}
+
+/*
+==================
+Cmd_ListAccess_f
+==================
+*/
+static void Cmd_ListAccess_f( gentity_t *ent ) {
+	char	arg[MAX_TOKEN_CHARS];
+	int		page;
+
+	page = 0;
+	if ( trap_Argc() > 1 ) {
+		trap_Argv( 1, arg, sizeof( arg ) );
+		page = atoi( arg ) - 1;
+		if ( page < 0 ) {
+			page = 0;
+		}
+	}
+
+	G_PrintAccessListPage( ent, (unsigned int)page );
+}
+
+/*
+==================
+Cmd_Unban_f
+==================
+*/
+static void Cmd_Unban_f( gentity_t *ent ) {
+	char				arg[MAX_TOKEN_CHARS];
+	char				steamId[MAX_ADMIN_STEAMID_LENGTH];
+	unsigned long long	steamIdValue;
+
+	if ( trap_Argc() < 2 ) {
+		return;
+	}
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+	steamIdValue = 0;
+	sscanf( arg, "%llu", &steamIdValue );
+	Com_sprintf( steamId, sizeof( steamId ), "%llu", steamIdValue );
+	G_RemoveAdminAccessForSteamID( steamId );
+	G_DirectCommandPrint( ent, va( "print \"%llu has been unbanned\n\"", steamIdValue ) );
+}
+
+/*
+==================
+Cmd_Abort_f
+==================
+*/
+static void Cmd_Abort_f( gentity_t *ent ) {
+	char	callerName[MAX_NETNAME + 16];
+
+	if ( !G_ValidateDirectCommandState( ent, DIRECTCMD_ALLOW_ACTIVE_MATCH ) ) {
+		return;
+	}
+
+	if ( level.timeoutActive ) {
+		G_DirectCommandPrint( ent,
+			"print \"Match is currently paused. You must unpause before aborting the match.\n\"" );
+		return;
+	}
+
+	if ( ent && ent->client ) {
+		G_DirectCommandCallerName( ent, callerName, sizeof( callerName ) );
+		trap_SendServerCommand( -1, va( "pcp \"%s has aborted the match\\n\"", callerName ) );
+	} else {
+		trap_SendServerCommand( -1, "pcp \"The server has aborted the match\\n\"" );
+	}
+
+	G_ResetTimeoutState();
+	level.warmupTime = -1;
+	trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+	G_SetGameState( GAME_STATE_PRE_GAME );
+	G_UpdateMatchStateConfigString();
+	trap_SendConsoleCommand( EXEC_APPEND, "map_restart 3\n" );
+}
+
+/*
+==================
+G_DirectScoreChangeWord
+
+Returns the retail score-adjustment word fragment used by addscore commands.
+==================
+*/
+static const char *G_DirectScoreChangeWord( int score ) {
+	return ( score > 0 ) ? "in" : "de";
+}
+
+/*
+==================
+Cmd_AddScore_f
+==================
+*/
+static void Cmd_AddScore_f( gentity_t *ent ) {
+	gentity_t	*target;
+	char		arg[MAX_TOKEN_CHARS];
+	int			score;
+	int			clientNum;
+	char		targetName[MAX_NETNAME + 4];
+
+	target = G_AdminResolvePlayerIdArg( ent );
+	if ( !target || !target->client ) {
+		return;
+	}
+
+	if ( trap_Argc() < 3 ) {
+		return;
+	}
+
+	trap_Argv( 2, arg, sizeof( arg ) );
+	score = atoi( arg );
+	if ( score == 0 ) {
+		return;
+	}
+
+	AddScore( target, target->r.currentOrigin, score );
+	trap_SendServerCommand( -1, "pcp \"Player score adjusted.\n\"" );
+	clientNum = target - g_entities;
+	G_CleanClientNameFromClientNum( clientNum, targetName );
+	trap_SendServerCommand( -1,
+		va( "print \"%s has had their score %screased by %i.\n\"",
+			targetName, G_DirectScoreChangeWord( score ), abs( score ) ) );
+}
+
+/*
+==================
+Cmd_AddTeamScore_f
+==================
+*/
+static void Cmd_AddTeamScore_f( gentity_t *ent ) {
+	char	arg[MAX_TOKEN_CHARS];
+	int		team;
+	int		score;
+
+	team = G_AdminParseTeamArg( 1, ent, TEAM_NUM_TEAMS );
+	if ( team == TEAM_NUM_TEAMS ) {
+		return;
+	}
+
+	if ( trap_Argc() < 3 ) {
+		return;
+	}
+
+	trap_Argv( 2, arg, sizeof( arg ) );
+	score = atoi( arg );
+	if ( score == 0 ) {
+		return;
+	}
+
+	AddTeamScore( vec3_origin, team, score );
+	trap_SendServerCommand( -1, "pcp \"Team score adjusted.\n\"" );
+	trap_SendServerCommand( -1,
+		va( "print \"%s has had their score %screased by %i.\n\"",
+			TeamName( team ), G_DirectScoreChangeWord( score ), abs( score ) ) );
+}
+
+/*
+==================
+G_FormatDirectMatchTime
+
+Formats a whole-second match time using the retail minute and two-digit second
+display helper.
+==================
+*/
+static void G_FormatDirectMatchTime( int seconds, char *buffer, size_t bufferSize ) {
+	if ( seconds < 0 ) {
+		seconds = 0;
+	}
+
+	Com_sprintf( buffer, bufferSize, "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );
+}
+
+/*
+==================
+Cmd_SetMatchTime_f
+==================
+*/
+static void Cmd_SetMatchTime_f( gentity_t *ent ) {
+	char	arg[MAX_TOKEN_CHARS];
+	char	timeBuffer[32];
+	int		seconds;
+
+	(void)ent;
+
+	if ( trap_Argc() < 2 ) {
+		return;
+	}
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+	seconds = atoi( arg );
+	if ( seconds < 0 ) {
+		return;
+	}
+
+	level.startTime = level.time - seconds * 1000;
+	trap_SetConfigstring( CS_LEVEL_START_TIME, va( "%i", level.startTime ) );
+	G_FormatDirectMatchTime( seconds, timeBuffer, sizeof( timeBuffer ) );
+	trap_SendServerCommand( -1,
+		va( "pcp \"Match time has been set to %s.\n\"", timeBuffer ) );
 }
 
 /*
@@ -6801,43 +7851,62 @@ void Cmd_Clan_f( gentity_t *ent ) {
 
 /*
 ==================
+G_KickOrBanClientWithMode
+
+Kicks a target and optionally adds a temporary or permanent access-tree ban.
+==================
+*/
+static int G_KickOrBanClientWithMode( gentity_t *ent, char *targetToken, qboolean banTarget, qboolean temporary ) {
+	int			clientNum;
+	gentity_t	*target;
+	char		steamId[MAX_ADMIN_STEAMID_LENGTH];
+	char		command[MAX_TOKEN_CHARS];
+
+	if ( banTarget ) {
+		trap_Argv( 0, command, sizeof( command ) );
+		if ( !Q_stricmp( command, "tempban" ) ) {
+			temporary = qtrue;
+			targetToken = NULL;
+		} else if ( !Q_stricmp( command, "ban" ) ) {
+			temporary = qfalse;
+			targetToken = NULL;
+		}
+	}
+
+	if ( targetToken && targetToken[0] ) {
+		clientNum = ClientNumberFromString( ent, targetToken );
+		if ( clientNum < 0 ) {
+			return -1;
+		}
+		target = &g_entities[clientNum];
+	} else {
+		target = G_AdminResolvePlayerIdArg( ent );
+		if ( !target || !target->client ) {
+			return -1;
+		}
+		clientNum = target - g_entities;
+	}
+
+	if ( target->client && target->client->sess.privilege > PRIV_NONE ) {
+		G_DirectCommandPrint( ent, "print \"Can not kick admins.\n\"" );
+		return -1;
+	}
+
+	if ( banTarget && G_ClientSteamIdString( clientNum, steamId, sizeof( steamId ) ) ) {
+		G_SetAdminAccessForSteamID( steamId, -1, temporary );
+	}
+
+	trap_DropClient( clientNum, "was kicked" );
+	return clientNum;
+}
+
+/*
+==================
 G_KickOrBanClient
 ==================
 */
 static int G_KickOrBanClient( gentity_t *ent, char *targetToken, qboolean banTarget ) {
-	int		clientNum;
-	gentity_t	*target;
-
-	if ( !targetToken || !targetToken[0] ) {
-		return -1;
-	}
-
-	clientNum = ClientNumberFromString( ent, targetToken );
-	if ( clientNum < 0 ) {
-		return -1;
-	}
-
-	target = &g_entities[clientNum];
-	if ( target->client && target->client->sess.privilege >= PRIV_ADMIN ) {
-		if ( ent && ent->client ) {
-			trap_SendServerCommand( ent-g_entities, "print \"Can not kick admins.\n\"" );
-		}
-		return -1;
-	}
-
-	if ( banTarget ) {
-		char	targetUserinfo[MAX_INFO_STRING];
-		char	*ip;
-
-		trap_GetUserinfo( clientNum, targetUserinfo, sizeof( targetUserinfo ) );
-		ip = Info_ValueForKey( targetUserinfo, "ip" );
-		if ( ip && ip[0] ) {
-			trap_SendConsoleCommand( EXEC_APPEND, va( "addip %s\n", ip ) );
-		}
-	}
-
-	trap_SendConsoleCommand( EXEC_APPEND, va( "clientkick %d\n", clientNum ) );
-	return clientNum;
+	return G_KickOrBanClientWithMode( ent, targetToken, banTarget, qfalse );
 }
 
 /*
@@ -6873,30 +7942,23 @@ void Cmd_Kick_f( gentity_t *ent ) {
 
 /*
 ==================
+Cmd_TempBan_f
+==================
+*/
+static void Cmd_TempBan_f( gentity_t *ent ) {
+	char arg[MAX_TOKEN_CHARS];
+
+	trap_Argv( 1, arg, sizeof( arg ) );
+	G_KickOrBanClientWithMode( ent, arg, qtrue, qtrue );
+}
+
+/*
+==================
 Cmd_Ban_f
 ==================
 */
 void Cmd_Ban_f( gentity_t *ent ) {
 	char arg[MAX_TOKEN_CHARS];
-	char userinfo[MAX_INFO_STRING];
-	const char *steamId;
-	int priv;
-
-	if ( !ent || !ent->client ) return;
-
-	trap_GetUserinfo( ent->s.number, userinfo, sizeof(userinfo) );
-	steamId = Info_ValueForKey( userinfo, "steamid" );
-	priv = G_AdminAccessForSteamID( steamId );
-
-	if ( priv < PRIV_ADMIN ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Insufficient privileges.\n\"" );
-		return;
-	}
-
-	if ( trap_Argc() < 2 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"usage: ban <player>\n\"" );
-		return;
-	}
 
 	trap_Argv( 1, arg, sizeof( arg ) );
 	G_KickOrBanClient( ent, arg, qtrue );
@@ -7246,22 +8308,42 @@ void Cmd_Admin_f( gentity_t *ent ) {
 	}
 
 	if ( !Q_stricmp( arg, "lock" ) ) {
+		int team;
+
 		if ( priv < PRIV_MOD ) {
 			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
 			return;
 		}
-		trap_Cvar_Set( "g_teamSpawnAsSpec", "1" );
-		trap_SendServerCommand( -1, "print \"Teams locked by admin.\n\"" );
+		if ( trap_Argc() < 3 ) {
+			G_SetTeamLock( TEAM_RED, qtrue );
+			G_SetTeamLock( TEAM_BLUE, qtrue );
+			return;
+		}
+
+		team = G_AdminParseTeamArg( 2, ent, TEAM_NUM_TEAMS );
+		if ( team != TEAM_NUM_TEAMS ) {
+			G_SetTeamLock( team, qtrue );
+		}
 		return;
 	}
 
 	if ( !Q_stricmp( arg, "unlock" ) ) {
+		int team;
+
 		if ( priv < PRIV_MOD ) {
 			trap_SendServerCommand( ent - g_entities, "print \"Insufficient privileges.\n\"" );
 			return;
 		}
-		trap_Cvar_Set( "g_teamSpawnAsSpec", "0" );
-		trap_SendServerCommand( -1, "print \"Teams unlocked by admin.\n\"" );
+		if ( trap_Argc() < 3 ) {
+			G_SetTeamLock( TEAM_RED, qfalse );
+			G_SetTeamLock( TEAM_BLUE, qfalse );
+			return;
+		}
+
+		team = G_AdminParseTeamArg( 2, ent, TEAM_NUM_TEAMS );
+		if ( team != TEAM_NUM_TEAMS ) {
+			G_SetTeamLock( team, qfalse );
+		}
 		return;
 	}
 
@@ -7326,6 +8408,10 @@ void ClientCommand( int clientNum ) {
 
 	trap_Argv( 0, cmd, sizeof( cmd ) );
 
+	if ( G_DispatchDirectCommand( cmd, ent ) ) {
+		return;
+	}
+
 	if (Q_stricmp (cmd, "say") == 0) {
 		Cmd_Say_f (ent, SAY_ALL, qfalse);
 		return;
@@ -7338,8 +8424,8 @@ void ClientCommand( int clientNum ) {
 		Cmd_Tell_f ( ent );
 		return;
 	}
-	if (Q_stricmp (cmd, "complaint") == 0) {
-		Cmd_Complaint_f( ent );
+	if (Q_stricmp (cmd, "botSay") == 0) {
+		Cmd_BotSay_f( ent );
 		return;
 	}
 	if (Q_stricmp (cmd, "vsay") == 0) {
@@ -7370,16 +8456,32 @@ void ClientCommand( int clientNum ) {
 		Cmd_VoiceTaunt_f ( ent );
 		return;
 	}
+	if (Q_stricmp (cmd, "complaint") == 0) {
+		Cmd_Complaint_f( ent );
+		return;
+	}
 	if (Q_stricmp (cmd, "score") == 0) {
 		Cmd_Score_f (ent);
 		return;
 	}
-	else if (Q_stricmp (cmd, "ready") == 0) {
-		Cmd_Ready_f (ent);
+	else if (Q_stricmp (cmd, "acc") == 0) {
+		Cmd_Acc_f (ent);
+		return;
+	}
+	else if (Q_stricmp (cmd, "pstats") == 0) {
+		Cmd_PStats_f (ent);
 		return;
 	}
 	else if (Q_stricmp (cmd, "readyup") == 0) {
 		Cmd_ReadyUp_f (ent);
+		return;
+	}
+	else if (Q_stricmp (cmd, "vote") == 0) {
+		Cmd_Vote_f (ent);
+		return;
+	}
+	else if (Q_stricmp (cmd, "ready") == 0) {
+		Cmd_Ready_f (ent);
 		return;
 	}
 	else if (Q_stricmp (cmd, "notready") == 0 || Q_stricmp (cmd, "unready") == 0 ) {
@@ -7392,14 +8494,6 @@ void ClientCommand( int clientNum ) {
 	}
 	else if (Q_stricmp (cmd, "teams") == 0) {
 		Cmd_Teams_f (ent);
-		return;
-	}
-	else if (Q_stricmp (cmd, "acc") == 0) {
-		Cmd_Acc_f (ent);
-		return;
-	}
-	else if (Q_stricmp (cmd, "pstats") == 0) {
-		Cmd_PStats_f (ent);
 		return;
 	}
 	else if (Q_stricmp (cmd, "cvar") == 0) {
@@ -7443,8 +8537,6 @@ void ClientCommand( int clientNum ) {
 		Cmd_Where_f (ent);
 	else if (Q_stricmp (cmd, "callvote") == 0)
 		Cmd_CallVote_f (ent);
-	else if (Q_stricmp (cmd, "vote") == 0)
-		Cmd_Vote_f (ent);
 	else if (Q_stricmp (cmd, "callteamvote") == 0)
 		Cmd_CallTeamVote_f (ent);
 	else if (Q_stricmp (cmd, "teamvote") == 0)

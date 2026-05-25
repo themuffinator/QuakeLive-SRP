@@ -378,6 +378,8 @@ This will be called twice if rendering in stereo mode
 */
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	qboolean uiFullscreen;
+	qboolean browserPendingSurface;
+	qboolean browserDrawableSurface;
 
 	re.BeginFrame( stereoFrame );
 
@@ -399,6 +401,21 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	// if the menu is going to cover the entire screen, we
 	// don't need to render anything under it
 	uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN ) ? qtrue : qfalse;
+	browserDrawableSurface = qfalse;
+	browserPendingSurface = qfalse;
+	if ( ( cls.keyCatchers & KEYCATCH_BROWSER ) || Cvar_VariableIntegerValue( "web_browserActive" ) ) {
+		browserDrawableSurface = CL_WebHost_HasDrawableSurface();
+		browserPendingSurface = browserDrawableSurface ? qfalse : qtrue;
+	}
+
+	if ( uiFullscreen && browserPendingSurface ) {
+		uiFullscreen = qfalse;
+	}
+	if ( uiFullscreen
+		&& !( cls.keyCatchers & KEYCATCH_UI )
+		&& !( ( cls.keyCatchers & KEYCATCH_BROWSER ) && CL_WebHost_HasDrawableSurface() ) ) {
+		uiFullscreen = qfalse;
+	}
 
 	if ( !uiFullscreen ) {
 		switch( cls.state ) {
@@ -440,7 +457,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	}
 
 	// the menu draws next
-	if ( cls.keyCatchers & KEYCATCH_UI && uivm ) {
+	if ( cls.keyCatchers & KEYCATCH_UI && uivm && !browserDrawableSurface ) {
 		VM_Call( uivm, UI_REFRESH, cls.realtime );
 	}
 

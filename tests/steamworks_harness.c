@@ -69,6 +69,31 @@ typedef struct {
 } qlr_pending_callback_t;
 
 typedef struct {
+	uint16_t connectionPort;
+	uint16_t queryPort;
+	uint32_t ip;
+	int32_t ping;
+	uint8_t hadSuccessfulResponse;
+	uint8_t doNotRefresh;
+	char gameDir[QL_STEAM_SERVER_BROWSER_GAME_DIR_LENGTH];
+	char map[QL_STEAM_SERVER_BROWSER_MAP_LENGTH];
+	char gameDescription[QL_STEAM_SERVER_BROWSER_GAME_DESCRIPTION_LENGTH];
+	uint8_t appIdPadding[2];
+	uint32_t appId;
+	int32_t players;
+	int32_t maxPlayers;
+	int32_t botPlayers;
+	uint8_t password;
+	uint8_t secure;
+	uint8_t lastPlayedPadding[2];
+	uint32_t lastPlayed;
+	int32_t serverVersion;
+	char serverName[QL_STEAM_SERVER_BROWSER_NAME_LENGTH];
+	char gameTags[QL_STEAM_SERVER_BROWSER_TAGS_LENGTH];
+	CSteamID steamId;
+} qlr_steam_gameserveritem_raw_t;
+
+typedef struct {
 	qboolean library_available;
 	qboolean init_result;
 	qboolean user_available;
@@ -183,6 +208,41 @@ typedef struct {
 	uint64_t join_lobby_result;
 	int say_lobby_result;
 	uint64_t request_user_stats_result;
+	int server_browser_internet_calls;
+	int server_browser_lan_calls;
+	int server_browser_friends_calls;
+	int server_browser_favorites_calls;
+	int server_browser_history_calls;
+	int server_browser_release_calls;
+	int server_browser_refresh_calls;
+	int server_browser_get_details_calls;
+	int server_browser_ping_calls;
+	int server_browser_players_calls;
+	int server_browser_rules_calls;
+	int server_browser_cancel_query_calls;
+	int server_browser_detail_order;
+	int server_browser_ping_order;
+	int server_browser_players_order;
+	int server_browser_rules_order;
+	uint32_t server_browser_last_app_id;
+	uint32_t server_browser_last_filter_count;
+	char server_browser_last_filter_key[256];
+	char server_browser_last_filter_value[256];
+	uintptr_t server_browser_last_response;
+	uintptr_t server_browser_last_request;
+	int server_browser_last_index;
+	uint32_t server_browser_last_ip;
+	uint16_t server_browser_last_port;
+	uintptr_t server_browser_last_ping_response;
+	uintptr_t server_browser_last_players_response;
+	uintptr_t server_browser_last_rules_response;
+	int server_browser_last_cancel_query;
+	uintptr_t server_browser_request_result;
+	uintptr_t server_browser_details_result;
+	qlr_steam_gameserveritem_raw_t server_browser_details;
+	int server_browser_ping_query_result;
+	int server_browser_players_query_result;
+	int server_browser_rules_query_result;
 	uint32_t ugc_item_state;
 	uint64_t ugc_downloaded;
 	uint64_t ugc_total;
@@ -236,6 +296,11 @@ typedef struct {
 typedef struct {
 	void **vtable;
 } qlr_steamworks_mock_interface_t;
+
+typedef struct {
+	char key[256];
+	char value[256];
+} qlr_matchmaking_key_value_pair_t;
 
 static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.library_available = qtrue,
@@ -351,6 +416,64 @@ static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.join_lobby_result = 1,
 	.say_lobby_result = 1,
 	.request_user_stats_result = 1,
+	.server_browser_internet_calls = 0,
+	.server_browser_lan_calls = 0,
+	.server_browser_friends_calls = 0,
+	.server_browser_favorites_calls = 0,
+	.server_browser_history_calls = 0,
+	.server_browser_release_calls = 0,
+	.server_browser_refresh_calls = 0,
+	.server_browser_get_details_calls = 0,
+	.server_browser_ping_calls = 0,
+	.server_browser_players_calls = 0,
+	.server_browser_rules_calls = 0,
+	.server_browser_cancel_query_calls = 0,
+	.server_browser_detail_order = 0,
+	.server_browser_ping_order = 0,
+	.server_browser_players_order = 0,
+	.server_browser_rules_order = 0,
+	.server_browser_last_app_id = 0u,
+	.server_browser_last_filter_count = 0u,
+	.server_browser_last_filter_key = "",
+	.server_browser_last_filter_value = "",
+	.server_browser_last_response = 0,
+	.server_browser_last_request = 0,
+	.server_browser_last_index = 0,
+	.server_browser_last_ip = 0u,
+	.server_browser_last_port = 0u,
+	.server_browser_last_ping_response = 0,
+	.server_browser_last_players_response = 0,
+	.server_browser_last_rules_response = 0,
+	.server_browser_last_cancel_query = 0,
+	.server_browser_request_result = 0x13572468u,
+	.server_browser_details_result = 0,
+	.server_browser_details = {
+		.connectionPort = 27960,
+		.queryPort = 27961,
+		.ip = 0x01020304u,
+		.ping = 42,
+		.hadSuccessfulResponse = 1,
+		.doNotRefresh = 0,
+		.gameDir = "baseq3",
+		.map = "campgrounds",
+		.gameDescription = "Clan Arena",
+		.appIdPadding = { 0, 0 },
+		.appId = 0x54100u,
+		.players = 7,
+		.maxPlayers = 16,
+		.botPlayers = 2,
+		.password = 1,
+		.secure = 1,
+		.lastPlayedPadding = { 0, 0 },
+		.lastPlayed = 123456789u,
+		.serverVersion = 1069,
+		.serverName = "QLR Test Server",
+		.gameTags = "duel,instagib",
+		.steamId = { .value = 0x0123456789ABCDEFULL }
+	},
+	.server_browser_ping_query_result = 11,
+	.server_browser_players_query_result = 12,
+	.server_browser_rules_query_result = 13,
 	.ugc_item_state = 0,
 	.ugc_downloaded = 0,
 	.ugc_total = 0,
@@ -423,6 +546,8 @@ void *QLR_SteamAPI_SteamUserStats( void );
 
 void *QLR_SteamAPI_SteamMatchmaking( void );
 
+void *QLR_SteamAPI_SteamMatchmakingServers( void );
+
 void *QLR_SteamAPI_SteamUGC( void );
 
 void *QLR_SteamAPI_SteamGameServerUGC( void );
@@ -448,6 +573,8 @@ void QLR_SteamAPI_CancelAuthTicket( void *user, HAuthTicket handle );
 void QLR_SteamAPI_EndAuthSession( void *user, CSteamID steamId );
 
 CSteamID QLR_SteamAPI_GetSteamID( void *user );
+
+void Q_strncpyz( char *dest, const char *src, int destsize );
 
 /*
 =============
@@ -479,6 +606,37 @@ static void QLR_SteamworksMock_ClearCallbackState( void ) {
 	qlr_mock_state.pending_callback_count = 0;
 	memset( qlr_mock_state.registrations, 0, sizeof( qlr_mock_state.registrations ) );
 	memset( qlr_mock_state.pending_callbacks, 0, sizeof( qlr_mock_state.pending_callbacks ) );
+}
+
+/*
+=============
+QLR_SteamworksMock_ResetServerBrowserDetails
+
+Restore the retained server-list row exposed by GetServerDetails.
+=============
+*/
+static void QLR_SteamworksMock_ResetServerBrowserDetails( void ) {
+	memset( &qlr_mock_state.server_browser_details, 0, sizeof( qlr_mock_state.server_browser_details ) );
+	qlr_mock_state.server_browser_details.connectionPort = 27960;
+	qlr_mock_state.server_browser_details.queryPort = 27961;
+	qlr_mock_state.server_browser_details.ip = 0x01020304u;
+	qlr_mock_state.server_browser_details.ping = 42;
+	qlr_mock_state.server_browser_details.hadSuccessfulResponse = 1;
+	qlr_mock_state.server_browser_details.doNotRefresh = 0;
+	Q_strncpyz( qlr_mock_state.server_browser_details.gameDir, "baseq3", sizeof( qlr_mock_state.server_browser_details.gameDir ) );
+	Q_strncpyz( qlr_mock_state.server_browser_details.map, "campgrounds", sizeof( qlr_mock_state.server_browser_details.map ) );
+	Q_strncpyz( qlr_mock_state.server_browser_details.gameDescription, "Clan Arena", sizeof( qlr_mock_state.server_browser_details.gameDescription ) );
+	qlr_mock_state.server_browser_details.appId = 0x54100u;
+	qlr_mock_state.server_browser_details.players = 7;
+	qlr_mock_state.server_browser_details.maxPlayers = 16;
+	qlr_mock_state.server_browser_details.botPlayers = 2;
+	qlr_mock_state.server_browser_details.password = 1;
+	qlr_mock_state.server_browser_details.secure = 1;
+	qlr_mock_state.server_browser_details.lastPlayed = 123456789u;
+	qlr_mock_state.server_browser_details.serverVersion = 1069;
+	Q_strncpyz( qlr_mock_state.server_browser_details.serverName, "QLR Test Server", sizeof( qlr_mock_state.server_browser_details.serverName ) );
+	Q_strncpyz( qlr_mock_state.server_browser_details.gameTags, "duel,instagib", sizeof( qlr_mock_state.server_browser_details.gameTags ) );
+	qlr_mock_state.server_browser_details.steamId.value = 0x0123456789ABCDEFULL;
 }
 
 /*
@@ -608,6 +766,41 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.join_lobby_result = 1;
 	qlr_mock_state.say_lobby_result = 1;
 	qlr_mock_state.request_user_stats_result = 1;
+	qlr_mock_state.server_browser_internet_calls = 0;
+	qlr_mock_state.server_browser_lan_calls = 0;
+	qlr_mock_state.server_browser_friends_calls = 0;
+	qlr_mock_state.server_browser_favorites_calls = 0;
+	qlr_mock_state.server_browser_history_calls = 0;
+	qlr_mock_state.server_browser_release_calls = 0;
+	qlr_mock_state.server_browser_refresh_calls = 0;
+	qlr_mock_state.server_browser_get_details_calls = 0;
+	qlr_mock_state.server_browser_ping_calls = 0;
+	qlr_mock_state.server_browser_players_calls = 0;
+	qlr_mock_state.server_browser_rules_calls = 0;
+	qlr_mock_state.server_browser_cancel_query_calls = 0;
+	qlr_mock_state.server_browser_detail_order = 0;
+	qlr_mock_state.server_browser_ping_order = 0;
+	qlr_mock_state.server_browser_players_order = 0;
+	qlr_mock_state.server_browser_rules_order = 0;
+	qlr_mock_state.server_browser_last_app_id = 0u;
+	qlr_mock_state.server_browser_last_filter_count = 0u;
+	qlr_mock_state.server_browser_last_filter_key[0] = '\0';
+	qlr_mock_state.server_browser_last_filter_value[0] = '\0';
+	qlr_mock_state.server_browser_last_response = 0;
+	qlr_mock_state.server_browser_last_request = 0;
+	qlr_mock_state.server_browser_last_index = 0;
+	qlr_mock_state.server_browser_last_ip = 0u;
+	qlr_mock_state.server_browser_last_port = 0u;
+	qlr_mock_state.server_browser_last_ping_response = 0;
+	qlr_mock_state.server_browser_last_players_response = 0;
+	qlr_mock_state.server_browser_last_rules_response = 0;
+	qlr_mock_state.server_browser_last_cancel_query = 0;
+	qlr_mock_state.server_browser_request_result = 0x13572468u;
+	qlr_mock_state.server_browser_details_result = 0;
+	QLR_SteamworksMock_ResetServerBrowserDetails();
+	qlr_mock_state.server_browser_ping_query_result = 11;
+	qlr_mock_state.server_browser_players_query_result = 12;
+	qlr_mock_state.server_browser_rules_query_result = 13;
 	qlr_mock_state.ugc_item_state = 0;
 	qlr_mock_state.ugc_downloaded = 0;
 	qlr_mock_state.ugc_total = 0;
@@ -731,6 +924,15 @@ QLR_SteamworksMock_SetAppId
 */
 QLR_EXPORT void QLR_SteamworksMock_SetAppId( uint32_t appId ) {
 	qlr_mock_state.app_id = appId;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetServerBrowserServerName
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetServerBrowserServerName( const char *name ) {
+	Q_strncpyz( qlr_mock_state.server_browser_details.serverName, name ? name : "", sizeof( qlr_mock_state.server_browser_details.serverName ) );
 }
 
 /*
@@ -1508,6 +1710,258 @@ QLR_EXPORT const char *QLR_SteamworksMock_GetGameInviteConnectString( void ) {
 
 /*
 =============
+QLR_SteamworksMock_GetServerBrowserInternetCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserInternetCalls( void ) {
+	return qlr_mock_state.server_browser_internet_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLanCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserLanCalls( void ) {
+	return qlr_mock_state.server_browser_lan_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserFriendsCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserFriendsCalls( void ) {
+	return qlr_mock_state.server_browser_friends_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserFavoritesCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserFavoritesCalls( void ) {
+	return qlr_mock_state.server_browser_favorites_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserHistoryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserHistoryCalls( void ) {
+	return qlr_mock_state.server_browser_history_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserReleaseCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserReleaseCalls( void ) {
+	return qlr_mock_state.server_browser_release_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserRefreshCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserRefreshCalls( void ) {
+	return qlr_mock_state.server_browser_refresh_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserGetDetailsCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserGetDetailsCalls( void ) {
+	return qlr_mock_state.server_browser_get_details_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserPingCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserPingCalls( void ) {
+	return qlr_mock_state.server_browser_ping_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserPlayersCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserPlayersCalls( void ) {
+	return qlr_mock_state.server_browser_players_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserRulesCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserRulesCalls( void ) {
+	return qlr_mock_state.server_browser_rules_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserCancelQueryCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserCancelQueryCalls( void ) {
+	return qlr_mock_state.server_browser_cancel_query_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserPingOrder
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserPingOrder( void ) {
+	return qlr_mock_state.server_browser_ping_order;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserPlayersOrder
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserPlayersOrder( void ) {
+	return qlr_mock_state.server_browser_players_order;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserRulesOrder
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserRulesOrder( void ) {
+	return qlr_mock_state.server_browser_rules_order;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastAppId
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetServerBrowserLastAppId( void ) {
+	return qlr_mock_state.server_browser_last_app_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastFilterCount
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetServerBrowserLastFilterCount( void ) {
+	return qlr_mock_state.server_browser_last_filter_count;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastFilterKey
+=============
+*/
+QLR_EXPORT const char *QLR_SteamworksMock_GetServerBrowserLastFilterKey( void ) {
+	return qlr_mock_state.server_browser_last_filter_key;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastFilterValue
+=============
+*/
+QLR_EXPORT const char *QLR_SteamworksMock_GetServerBrowserLastFilterValue( void ) {
+	return qlr_mock_state.server_browser_last_filter_value;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastResponse
+=============
+*/
+QLR_EXPORT uintptr_t QLR_SteamworksMock_GetServerBrowserLastResponse( void ) {
+	return qlr_mock_state.server_browser_last_response;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastRequest
+=============
+*/
+QLR_EXPORT uintptr_t QLR_SteamworksMock_GetServerBrowserLastRequest( void ) {
+	return qlr_mock_state.server_browser_last_request;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastIndex
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserLastIndex( void ) {
+	return qlr_mock_state.server_browser_last_index;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastIp
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetServerBrowserLastIp( void ) {
+	return qlr_mock_state.server_browser_last_ip;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastPort
+=============
+*/
+QLR_EXPORT uint16_t QLR_SteamworksMock_GetServerBrowserLastPort( void ) {
+	return qlr_mock_state.server_browser_last_port;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastPingResponse
+=============
+*/
+QLR_EXPORT uintptr_t QLR_SteamworksMock_GetServerBrowserLastPingResponse( void ) {
+	return qlr_mock_state.server_browser_last_ping_response;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastPlayersResponse
+=============
+*/
+QLR_EXPORT uintptr_t QLR_SteamworksMock_GetServerBrowserLastPlayersResponse( void ) {
+	return qlr_mock_state.server_browser_last_players_response;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastRulesResponse
+=============
+*/
+QLR_EXPORT uintptr_t QLR_SteamworksMock_GetServerBrowserLastRulesResponse( void ) {
+	return qlr_mock_state.server_browser_last_rules_response;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerBrowserLastCancelQuery
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerBrowserLastCancelQuery( void ) {
+	return qlr_mock_state.server_browser_last_cancel_query;
+}
+
+/*
+=============
 QLR_SteamworksMock_GetUGCSubscribeCalls
 =============
 */
@@ -1969,6 +2423,10 @@ void *dlsym( void *handle, const char *symbol ) {
 
 	if ( strcmp( symbol, "SteamAPI_SteamMatchmaking" ) == 0 ) {
 		return QLR_SteamAPI_SteamMatchmaking;
+	}
+
+	if ( strcmp( symbol, "SteamMatchmakingServers" ) == 0 ) {
+		return QLR_SteamAPI_SteamMatchmakingServers;
 	}
 
 	if ( strcmp( symbol, "SteamAPI_SteamUGC" ) == 0 ) {
@@ -2929,6 +3387,202 @@ static int QLR_FASTCALL QLR_SteamMatchmaking_GetLobbyChatEntry( void *self, void
 
 /*
 =============
+QLR_SteamMatchmakingServers_CaptureListRequest
+=============
+*/
+static void QLR_SteamMatchmakingServers_CaptureListRequest( uint32_t appId, qlr_matchmaking_key_value_pair_t **filters, uint32_t filterCount, void *responseObject ) {
+	qlr_mock_state.server_browser_last_app_id = appId;
+	qlr_mock_state.server_browser_last_filter_count = filterCount;
+	qlr_mock_state.server_browser_last_response = (uintptr_t)responseObject;
+	qlr_mock_state.server_browser_last_filter_key[0] = '\0';
+	qlr_mock_state.server_browser_last_filter_value[0] = '\0';
+
+	if ( filters && filterCount > 0u && filters[0] ) {
+		Q_strncpyz( qlr_mock_state.server_browser_last_filter_key, filters[0]->key, sizeof( qlr_mock_state.server_browser_last_filter_key ) );
+		Q_strncpyz( qlr_mock_state.server_browser_last_filter_value, filters[0]->value, sizeof( qlr_mock_state.server_browser_last_filter_value ) );
+	}
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_RequestInternetServerList
+=============
+*/
+static void *QLR_FASTCALL QLR_SteamMatchmakingServers_RequestInternetServerList( void *self, void *unused, uint32_t appId, qlr_matchmaking_key_value_pair_t **filters, uint32_t filterCount, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_internet_calls++;
+	QLR_SteamMatchmakingServers_CaptureListRequest( appId, filters, filterCount, responseObject );
+	return (void *)qlr_mock_state.server_browser_request_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_RequestLANServerList
+=============
+*/
+static void *QLR_FASTCALL QLR_SteamMatchmakingServers_RequestLANServerList( void *self, void *unused, uint32_t appId, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_lan_calls++;
+	QLR_SteamMatchmakingServers_CaptureListRequest( appId, NULL, 0u, responseObject );
+	return (void *)qlr_mock_state.server_browser_request_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_RequestFriendsServerList
+=============
+*/
+static void *QLR_FASTCALL QLR_SteamMatchmakingServers_RequestFriendsServerList( void *self, void *unused, uint32_t appId, qlr_matchmaking_key_value_pair_t **filters, uint32_t filterCount, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_friends_calls++;
+	QLR_SteamMatchmakingServers_CaptureListRequest( appId, filters, filterCount, responseObject );
+	return (void *)qlr_mock_state.server_browser_request_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_RequestFavoritesServerList
+=============
+*/
+static void *QLR_FASTCALL QLR_SteamMatchmakingServers_RequestFavoritesServerList( void *self, void *unused, uint32_t appId, qlr_matchmaking_key_value_pair_t **filters, uint32_t filterCount, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_favorites_calls++;
+	QLR_SteamMatchmakingServers_CaptureListRequest( appId, filters, filterCount, responseObject );
+	return (void *)qlr_mock_state.server_browser_request_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_RequestHistoryServerList
+=============
+*/
+static void *QLR_FASTCALL QLR_SteamMatchmakingServers_RequestHistoryServerList( void *self, void *unused, uint32_t appId, qlr_matchmaking_key_value_pair_t **filters, uint32_t filterCount, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_history_calls++;
+	QLR_SteamMatchmakingServers_CaptureListRequest( appId, filters, filterCount, responseObject );
+	return (void *)qlr_mock_state.server_browser_request_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_ReleaseRequest
+=============
+*/
+static void QLR_FASTCALL QLR_SteamMatchmakingServers_ReleaseRequest( void *self, void *unused, void *request ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_release_calls++;
+	qlr_mock_state.server_browser_last_request = (uintptr_t)request;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_GetServerDetails
+=============
+*/
+static const void *QLR_FASTCALL QLR_SteamMatchmakingServers_GetServerDetails( void *self, void *unused, void *request, int index ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_get_details_calls++;
+	qlr_mock_state.server_browser_last_request = (uintptr_t)request;
+	qlr_mock_state.server_browser_last_index = index;
+	if ( qlr_mock_state.server_browser_details_result != 0 ) {
+		return (const void *)qlr_mock_state.server_browser_details_result;
+	}
+	return &qlr_mock_state.server_browser_details;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_RefreshQuery
+=============
+*/
+static void QLR_FASTCALL QLR_SteamMatchmakingServers_RefreshQuery( void *self, void *unused, void *request ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_refresh_calls++;
+	qlr_mock_state.server_browser_last_request = (uintptr_t)request;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_PingServer
+=============
+*/
+static int QLR_FASTCALL QLR_SteamMatchmakingServers_PingServer( void *self, void *unused, uint32_t serverIp, uint16_t serverPort, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_ping_calls++;
+	qlr_mock_state.server_browser_ping_order = ++qlr_mock_state.server_browser_detail_order;
+	qlr_mock_state.server_browser_last_ip = serverIp;
+	qlr_mock_state.server_browser_last_port = serverPort;
+	qlr_mock_state.server_browser_last_ping_response = (uintptr_t)responseObject;
+	return qlr_mock_state.server_browser_ping_query_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_PlayerDetails
+=============
+*/
+static int QLR_FASTCALL QLR_SteamMatchmakingServers_PlayerDetails( void *self, void *unused, uint32_t serverIp, uint16_t serverPort, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_players_calls++;
+	qlr_mock_state.server_browser_players_order = ++qlr_mock_state.server_browser_detail_order;
+	qlr_mock_state.server_browser_last_ip = serverIp;
+	qlr_mock_state.server_browser_last_port = serverPort;
+	qlr_mock_state.server_browser_last_players_response = (uintptr_t)responseObject;
+	return qlr_mock_state.server_browser_players_query_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_ServerRules
+=============
+*/
+static int QLR_FASTCALL QLR_SteamMatchmakingServers_ServerRules( void *self, void *unused, uint32_t serverIp, uint16_t serverPort, void *responseObject ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_rules_calls++;
+	qlr_mock_state.server_browser_rules_order = ++qlr_mock_state.server_browser_detail_order;
+	qlr_mock_state.server_browser_last_ip = serverIp;
+	qlr_mock_state.server_browser_last_port = serverPort;
+	qlr_mock_state.server_browser_last_rules_response = (uintptr_t)responseObject;
+	return qlr_mock_state.server_browser_rules_query_result;
+}
+
+/*
+=============
+QLR_SteamMatchmakingServers_CancelServerQuery
+=============
+*/
+static void QLR_FASTCALL QLR_SteamMatchmakingServers_CancelServerQuery( void *self, void *unused, int query ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.server_browser_cancel_query_calls++;
+	qlr_mock_state.server_browser_last_cancel_query = query;
+}
+
+/*
+=============
 QLR_SteamUserStats_RequestUserStats
 =============
 */
@@ -3317,6 +3971,30 @@ void *QLR_SteamAPI_SteamMatchmaking( void ) {
 
 /*
 =============
+QLR_SteamAPI_SteamMatchmakingServers
+=============
+*/
+void *QLR_SteamAPI_SteamMatchmakingServers( void ) {
+	static void *vtable[0x40 / 4 + 1];
+	static qlr_steamworks_mock_interface_t iface = { vtable };
+
+	vtable[0x00 / 4] = QLR_SteamMatchmakingServers_RequestInternetServerList;
+	vtable[0x04 / 4] = QLR_SteamMatchmakingServers_RequestLANServerList;
+	vtable[0x08 / 4] = QLR_SteamMatchmakingServers_RequestFriendsServerList;
+	vtable[0x0c / 4] = QLR_SteamMatchmakingServers_RequestFavoritesServerList;
+	vtable[0x10 / 4] = QLR_SteamMatchmakingServers_RequestHistoryServerList;
+	vtable[0x18 / 4] = QLR_SteamMatchmakingServers_ReleaseRequest;
+	vtable[0x1c / 4] = QLR_SteamMatchmakingServers_GetServerDetails;
+	vtable[0x24 / 4] = QLR_SteamMatchmakingServers_RefreshQuery;
+	vtable[0x34 / 4] = QLR_SteamMatchmakingServers_PingServer;
+	vtable[0x38 / 4] = QLR_SteamMatchmakingServers_PlayerDetails;
+	vtable[0x3c / 4] = QLR_SteamMatchmakingServers_ServerRules;
+	vtable[0x40 / 4] = QLR_SteamMatchmakingServers_CancelServerQuery;
+	return &iface;
+}
+
+/*
+=============
 QLR_SteamAPI_SteamGameServer
 =============
 */
@@ -3490,6 +4168,7 @@ QLR_EXPORT void QLR_SteamworksMock_PrimeState( void ) {
 	state.SteamUtils = QLR_SteamAPI_SteamUtils;
 	state.SteamUserStats = QLR_SteamAPI_SteamUserStats;
 	state.SteamMatchmaking = QLR_SteamAPI_SteamMatchmaking;
+	state.SteamMatchmakingServers = QLR_SteamAPI_SteamMatchmakingServers;
 	state.SteamUGC = QLR_SteamAPI_SteamUGC;
 	state.SteamGameServerUGC = QLR_SteamAPI_SteamGameServerUGC;
 	state.SteamGameServer_Init = QLR_SteamAPI_SteamGameServerInit;
@@ -4168,6 +4847,322 @@ QLR_EXPORT qboolean QLR_Steamworks_ActivateOverlayToWebPage( const char *url ) {
 
 /*
 =============
+QLR_Steamworks_HasServerBrowserInterface
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_HasServerBrowserInterface( void ) {
+	return QL_Steamworks_HasServerBrowserInterface();
+}
+
+/*
+=============
+QLR_Steamworks_GetServerBrowserRequestModeLabel
+=============
+*/
+QLR_EXPORT const char *QLR_Steamworks_GetServerBrowserRequestModeLabel( int requestMode ) {
+	return QL_Steamworks_GetServerBrowserRequestModeLabel( (ql_steam_server_browser_request_mode_t)requestMode );
+}
+
+/*
+=============
+QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( int requestMode ) {
+	return QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( (ql_steam_server_browser_request_mode_t)requestMode );
+}
+
+/*
+=============
+QLR_Steamworks_InitServerBrowserOwner
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_InitServerBrowserOwner( ql_steam_server_browser_owner_t *owner ) {
+	QL_Steamworks_InitServerBrowserOwner( owner );
+}
+
+/*
+=============
+QLR_Steamworks_BeginServerBrowserOwnerRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, int requestMode, uintptr_t responseObject ) {
+	return QL_Steamworks_BeginServerBrowserOwnerRequest( owner, (ql_steam_server_browser_request_mode_t)requestMode, (void *)responseObject );
+}
+
+/*
+=============
+QLR_Steamworks_RefreshServerBrowserOwnerRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RefreshServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	return QL_Steamworks_RefreshServerBrowserOwnerRequest( owner );
+}
+
+/*
+=============
+QLR_Steamworks_CompleteServerBrowserOwnerRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_CompleteServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	return QL_Steamworks_CompleteServerBrowserOwnerRequest( owner );
+}
+
+/*
+=============
+QLR_Steamworks_RequestServerList
+=============
+*/
+QLR_EXPORT uintptr_t QLR_Steamworks_RequestServerList( int requestMode, uintptr_t responseObject ) {
+	return (uintptr_t)QL_Steamworks_RequestServerList( (ql_steam_server_browser_request_mode_t)requestMode, (void *)responseObject );
+}
+
+/*
+=============
+QLR_Steamworks_GetServerListDetails
+=============
+*/
+QLR_EXPORT uintptr_t QLR_Steamworks_GetServerListDetails( uintptr_t request, int index ) {
+	return (uintptr_t)QL_Steamworks_GetServerListDetails( (ql_steam_server_list_request_t)request, index );
+}
+
+/*
+=============
+QLR_Steamworks_ReadServerListDetails
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadServerListDetails( uintptr_t request, int index, ql_steam_server_item_t *outServer ) {
+	return QL_Steamworks_ReadServerListDetails( (ql_steam_server_list_request_t)request, index, outServer );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserResponseId
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_FormatServerBrowserResponseId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	QL_Steamworks_FormatServerBrowserResponseId( serverIp, serverPort, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t *server, ql_steam_server_browser_response_t *outResponse ) {
+	return QL_Steamworks_BuildServerBrowserResponse( server, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_ReadServerBrowserResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadServerBrowserResponse( uintptr_t request, int index, ql_steam_server_browser_response_t *outResponse ) {
+	return QL_Steamworks_ReadServerBrowserResponse( (ql_steam_server_list_request_t)request, index, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserFailureEventName
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize ) {
+	QL_Steamworks_FormatServerBrowserFailureEventName( serverIndex, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserFailure
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserFailure( int serverIndex, ql_steam_server_browser_failure_t *outFailure ) {
+	return QL_Steamworks_BuildServerBrowserFailure( serverIndex, outFailure );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserRefreshComplete
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserRefreshComplete( ql_steam_server_browser_refresh_complete_t *outRefresh ) {
+	return QL_Steamworks_BuildServerBrowserRefreshComplete( outRefresh );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserDetailId
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_FormatServerBrowserDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	QL_Steamworks_FormatServerBrowserDetailId( serverIp, serverPort, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserDetailIdentity
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserDetailIdentity( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_identity_t *outIdentity ) {
+	return QL_Steamworks_BuildServerBrowserDetailIdentity( serverIp, serverPort, outIdentity );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserDetailEventName
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_FormatServerBrowserDetailEventName( int channel, int phase, const char *detailId, char *buffer, size_t bufferSize ) {
+	return QL_Steamworks_FormatServerBrowserDetailEventName( (ql_steam_server_browser_detail_channel_t)channel, (ql_steam_server_browser_detail_phase_t)phase, detailId, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserDetailEvent
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserDetailEvent( const ql_steam_server_browser_detail_identity_t *identity, int channel, int phase, ql_steam_server_browser_detail_event_t *outEvent ) {
+	return QL_Steamworks_BuildServerBrowserDetailEvent( identity, (ql_steam_server_browser_detail_channel_t)channel, (ql_steam_server_browser_detail_phase_t)phase, outEvent );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserRuleResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserRuleResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *rule, const char *value, ql_steam_server_browser_rule_response_t *outResponse ) {
+	return QL_Steamworks_BuildServerBrowserRuleResponse( identity, rule, value, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserPlayerResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserPlayerResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *name, int score, int time, ql_steam_server_browser_player_response_t *outResponse ) {
+	return QL_Steamworks_BuildServerBrowserPlayerResponse( identity, name, score, time, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_InitServerBrowserDetailLifecycle
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_InitServerBrowserDetailLifecycle( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_lifecycle_t *outLifecycle ) {
+	return QL_Steamworks_InitServerBrowserDetailLifecycle( serverIp, serverPort, outLifecycle );
+}
+
+/*
+=============
+QLR_Steamworks_CompleteServerBrowserDetailCallback
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_CompleteServerBrowserDetailCallback( ql_steam_server_browser_detail_lifecycle_t *lifecycle, qboolean *outReleaseReady ) {
+	return QL_Steamworks_CompleteServerBrowserDetailCallback( lifecycle, outReleaseReady );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserDetailResponseViews
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserDetailResponseViews( uintptr_t detailObjectBase, ql_steam_server_browser_detail_response_views_t *outViews ) {
+	return QL_Steamworks_BuildServerBrowserDetailResponseViews( (void *)detailObjectBase, outViews );
+}
+
+/*
+=============
+QLR_Steamworks_InitServerBrowserDetailRequest
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_InitServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request ) {
+	QL_Steamworks_InitServerBrowserDetailRequest( request );
+}
+
+/*
+=============
+QLR_Steamworks_BeginServerBrowserDetailRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BeginServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request, uint32_t serverIp, uint16_t serverPort, uintptr_t detailObjectBase ) {
+	return QL_Steamworks_BeginServerBrowserDetailRequest( request, serverIp, serverPort, (void *)detailObjectBase );
+}
+
+/*
+=============
+QLR_Steamworks_CompleteServerBrowserDetailRequestCallback
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_CompleteServerBrowserDetailRequestCallback( ql_steam_server_browser_detail_request_t *request, qboolean *outReleaseReady ) {
+	return QL_Steamworks_CompleteServerBrowserDetailRequestCallback( request, outReleaseReady );
+}
+
+/*
+=============
+QLR_Steamworks_ReleaseServerListRequest
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_ReleaseServerListRequest( uintptr_t request ) {
+	QL_Steamworks_ReleaseServerListRequest( (ql_steam_server_list_request_t)request );
+}
+
+/*
+=============
+QLR_Steamworks_RefreshServerListRequest
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_RefreshServerListRequest( uintptr_t request ) {
+	QL_Steamworks_RefreshServerListRequest( (ql_steam_server_list_request_t)request );
+}
+
+/*
+=============
+QLR_Steamworks_RequestServerDetails
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, uintptr_t pingResponse, uintptr_t playersResponse, uintptr_t rulesResponse, int *outPingQuery, int *outPlayersQuery, int *outRulesQuery ) {
+	ql_steam_server_query_t pingQuery;
+	ql_steam_server_query_t playersQuery;
+	ql_steam_server_query_t rulesQuery;
+	qboolean result;
+
+	pingQuery = 0;
+	playersQuery = 0;
+	rulesQuery = 0;
+	result = QL_Steamworks_RequestServerDetails(
+		serverIp,
+		serverPort,
+		(void *)pingResponse,
+		(void *)playersResponse,
+		(void *)rulesResponse,
+		&pingQuery,
+		&playersQuery,
+		&rulesQuery
+	);
+	if ( outPingQuery ) {
+		*outPingQuery = pingQuery;
+	}
+	if ( outPlayersQuery ) {
+		*outPlayersQuery = playersQuery;
+	}
+	if ( outRulesQuery ) {
+		*outRulesQuery = rulesQuery;
+	}
+
+	return result;
+}
+
+/*
+=============
+QLR_Steamworks_CancelServerQuery
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_CancelServerQuery( int query ) {
+	QL_Steamworks_CancelServerQuery( (ql_steam_server_query_t)query );
+}
+
+/*
+=============
 QLR_Steamworks_CreateLobby
 =============
 */
@@ -4634,6 +5629,308 @@ QLR_Steamworks_ActivateOverlayToWebPage
 QLR_EXPORT qboolean QLR_Steamworks_ActivateOverlayToWebPage( const char *url ) {
 	(void)url;
 	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_HasServerBrowserInterface
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_HasServerBrowserInterface( void ) {
+	return QL_Steamworks_HasServerBrowserInterface();
+}
+
+/*
+=============
+QLR_Steamworks_GetServerBrowserRequestModeLabel
+=============
+*/
+QLR_EXPORT const char *QLR_Steamworks_GetServerBrowserRequestModeLabel( int requestMode ) {
+	return QL_Steamworks_GetServerBrowserRequestModeLabel( (ql_steam_server_browser_request_mode_t)requestMode );
+}
+
+/*
+=============
+QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( int requestMode ) {
+	return QL_Steamworks_ServerBrowserRequestModeUsesGamedirFilter( (ql_steam_server_browser_request_mode_t)requestMode );
+}
+
+/*
+=============
+QLR_Steamworks_InitServerBrowserOwner
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_InitServerBrowserOwner( ql_steam_server_browser_owner_t *owner ) {
+	QL_Steamworks_InitServerBrowserOwner( owner );
+}
+
+/*
+=============
+QLR_Steamworks_BeginServerBrowserOwnerRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, int requestMode, uintptr_t responseObject ) {
+	return QL_Steamworks_BeginServerBrowserOwnerRequest( owner, (ql_steam_server_browser_request_mode_t)requestMode, (void *)responseObject );
+}
+
+/*
+=============
+QLR_Steamworks_RefreshServerBrowserOwnerRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RefreshServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	return QL_Steamworks_RefreshServerBrowserOwnerRequest( owner );
+}
+
+/*
+=============
+QLR_Steamworks_CompleteServerBrowserOwnerRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_CompleteServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner ) {
+	return QL_Steamworks_CompleteServerBrowserOwnerRequest( owner );
+}
+
+/*
+=============
+QLR_Steamworks_RequestServerList
+=============
+*/
+QLR_EXPORT uintptr_t QLR_Steamworks_RequestServerList( int requestMode, uintptr_t responseObject ) {
+	return (uintptr_t)QL_Steamworks_RequestServerList( (ql_steam_server_browser_request_mode_t)requestMode, (void *)responseObject );
+}
+
+/*
+=============
+QLR_Steamworks_GetServerListDetails
+=============
+*/
+QLR_EXPORT uintptr_t QLR_Steamworks_GetServerListDetails( uintptr_t request, int index ) {
+	return (uintptr_t)QL_Steamworks_GetServerListDetails( (ql_steam_server_list_request_t)request, index );
+}
+
+/*
+=============
+QLR_Steamworks_ReadServerListDetails
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadServerListDetails( uintptr_t request, int index, ql_steam_server_item_t *outServer ) {
+	return QL_Steamworks_ReadServerListDetails( (ql_steam_server_list_request_t)request, index, outServer );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserResponseId
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_FormatServerBrowserResponseId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	QL_Steamworks_FormatServerBrowserResponseId( serverIp, serverPort, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t *server, ql_steam_server_browser_response_t *outResponse ) {
+	return QL_Steamworks_BuildServerBrowserResponse( server, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_ReadServerBrowserResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadServerBrowserResponse( uintptr_t request, int index, ql_steam_server_browser_response_t *outResponse ) {
+	return QL_Steamworks_ReadServerBrowserResponse( (ql_steam_server_list_request_t)request, index, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserFailureEventName
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize ) {
+	QL_Steamworks_FormatServerBrowserFailureEventName( serverIndex, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserFailure
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserFailure( int serverIndex, ql_steam_server_browser_failure_t *outFailure ) {
+	return QL_Steamworks_BuildServerBrowserFailure( serverIndex, outFailure );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserRefreshComplete
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserRefreshComplete( ql_steam_server_browser_refresh_complete_t *outRefresh ) {
+	return QL_Steamworks_BuildServerBrowserRefreshComplete( outRefresh );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserDetailId
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_FormatServerBrowserDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize ) {
+	QL_Steamworks_FormatServerBrowserDetailId( serverIp, serverPort, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserDetailIdentity
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserDetailIdentity( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_identity_t *outIdentity ) {
+	return QL_Steamworks_BuildServerBrowserDetailIdentity( serverIp, serverPort, outIdentity );
+}
+
+/*
+=============
+QLR_Steamworks_FormatServerBrowserDetailEventName
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_FormatServerBrowserDetailEventName( int channel, int phase, const char *detailId, char *buffer, size_t bufferSize ) {
+	return QL_Steamworks_FormatServerBrowserDetailEventName( (ql_steam_server_browser_detail_channel_t)channel, (ql_steam_server_browser_detail_phase_t)phase, detailId, buffer, bufferSize );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserDetailEvent
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserDetailEvent( const ql_steam_server_browser_detail_identity_t *identity, int channel, int phase, ql_steam_server_browser_detail_event_t *outEvent ) {
+	return QL_Steamworks_BuildServerBrowserDetailEvent( identity, (ql_steam_server_browser_detail_channel_t)channel, (ql_steam_server_browser_detail_phase_t)phase, outEvent );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserRuleResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserRuleResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *rule, const char *value, ql_steam_server_browser_rule_response_t *outResponse ) {
+	return QL_Steamworks_BuildServerBrowserRuleResponse( identity, rule, value, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserPlayerResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserPlayerResponse( const ql_steam_server_browser_detail_identity_t *identity, const char *name, int score, int time, ql_steam_server_browser_player_response_t *outResponse ) {
+	return QL_Steamworks_BuildServerBrowserPlayerResponse( identity, name, score, time, outResponse );
+}
+
+/*
+=============
+QLR_Steamworks_InitServerBrowserDetailLifecycle
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_InitServerBrowserDetailLifecycle( uint32_t serverIp, uint16_t serverPort, ql_steam_server_browser_detail_lifecycle_t *outLifecycle ) {
+	return QL_Steamworks_InitServerBrowserDetailLifecycle( serverIp, serverPort, outLifecycle );
+}
+
+/*
+=============
+QLR_Steamworks_CompleteServerBrowserDetailCallback
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_CompleteServerBrowserDetailCallback( ql_steam_server_browser_detail_lifecycle_t *lifecycle, qboolean *outReleaseReady ) {
+	return QL_Steamworks_CompleteServerBrowserDetailCallback( lifecycle, outReleaseReady );
+}
+
+/*
+=============
+QLR_Steamworks_BuildServerBrowserDetailResponseViews
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BuildServerBrowserDetailResponseViews( uintptr_t detailObjectBase, ql_steam_server_browser_detail_response_views_t *outViews ) {
+	return QL_Steamworks_BuildServerBrowserDetailResponseViews( (void *)detailObjectBase, outViews );
+}
+
+/*
+=============
+QLR_Steamworks_InitServerBrowserDetailRequest
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_InitServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request ) {
+	QL_Steamworks_InitServerBrowserDetailRequest( request );
+}
+
+/*
+=============
+QLR_Steamworks_BeginServerBrowserDetailRequest
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_BeginServerBrowserDetailRequest( ql_steam_server_browser_detail_request_t *request, uint32_t serverIp, uint16_t serverPort, uintptr_t detailObjectBase ) {
+	return QL_Steamworks_BeginServerBrowserDetailRequest( request, serverIp, serverPort, (void *)detailObjectBase );
+}
+
+/*
+=============
+QLR_Steamworks_CompleteServerBrowserDetailRequestCallback
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_CompleteServerBrowserDetailRequestCallback( ql_steam_server_browser_detail_request_t *request, qboolean *outReleaseReady ) {
+	return QL_Steamworks_CompleteServerBrowserDetailRequestCallback( request, outReleaseReady );
+}
+
+/*
+=============
+QLR_Steamworks_ReleaseServerListRequest
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_ReleaseServerListRequest( uintptr_t request ) {
+	QL_Steamworks_ReleaseServerListRequest( (ql_steam_server_list_request_t)request );
+}
+
+/*
+=============
+QLR_Steamworks_RefreshServerListRequest
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_RefreshServerListRequest( uintptr_t request ) {
+	QL_Steamworks_RefreshServerListRequest( (ql_steam_server_list_request_t)request );
+}
+
+/*
+=============
+QLR_Steamworks_RequestServerDetails
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, uintptr_t pingResponse, uintptr_t playersResponse, uintptr_t rulesResponse, int *outPingQuery, int *outPlayersQuery, int *outRulesQuery ) {
+	(void)serverIp;
+	(void)serverPort;
+	(void)pingResponse;
+	(void)playersResponse;
+	(void)rulesResponse;
+	if ( outPingQuery ) {
+		*outPingQuery = 0;
+	}
+	if ( outPlayersQuery ) {
+		*outPlayersQuery = 0;
+	}
+	if ( outRulesQuery ) {
+		*outRulesQuery = 0;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_CancelServerQuery
+=============
+*/
+QLR_EXPORT void QLR_Steamworks_CancelServerQuery( int query ) {
+	QL_Steamworks_CancelServerQuery( (ql_steam_server_query_t)query );
 }
 
 /*

@@ -9,6 +9,7 @@ CG_EVENT = REPO_ROOT / "src" / "code" / "cgame" / "cg_event.c"
 CG_ENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_ents.c"
 CG_MAIN = REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c"
 CG_PARTICLES = REPO_ROOT / "src" / "code" / "cgame" / "cg_particles.c"
+CG_PLAYERS = REPO_ROOT / "src" / "code" / "cgame" / "cg_players.c"
 CG_PREDICT = REPO_ROOT / "src" / "code" / "cgame" / "cg_predict.c"
 CG_WEAPONS = REPO_ROOT / "src" / "code" / "cgame" / "cg_weapons.c"
 CG_LOCAL = REPO_ROOT / "src" / "code" / "cgame" / "cg_local.h"
@@ -112,6 +113,102 @@ def test_cgame_impact_effects_are_backed_by_committed_retail_evidence() -> None:
 	assert "FUN_100561f0,100561f0,506,0,unknown" in functions
 
 
+def test_cgame_smoke_shadow_debug_and_model_scale_cvars_match_retail_table_and_wiring() -> None:
+	main_source = _read(CG_MAIN)
+	local_source = _read(CG_LOCAL)
+	players_source = _read(CG_PLAYERS)
+	predict_source = _read(CG_PREDICT)
+	weapons_source = _read(CG_WEAPONS)
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+
+	for expected in (
+		'{ &cg_scalePlayerModelsToBB, "cg_scalePlayerModelsToBB", "1", CVAR_CHEAT },',
+		'{ &cg_shadows, "cg_shadows", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_showmiss, "cg_showmiss", "0", 0 },',
+		'{ &cg_smoke_SG, "cg_smoke_SG", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_smokeRadius_dust, "cg_smokeRadius_dust", "24", ' + retail_flags + ', "0", "32" },',
+		'{ &cg_smokeRadius_flight, "cg_smokeRadius_flight", "8", ' + retail_flags + ', "0", "16" },',
+		'{ &cg_smokeRadius_GL, "cg_smokeRadius_GL", "64", ' + retail_flags + ', "0", "64" },',
+		'{ &cg_smokeRadius_haste, "cg_smokeRadius_haste", "8", ' + retail_flags + ', "0", "16" },',
+		'{ &cg_smokeRadius_NG, "cg_smokeRadius_NG", "16", ' + retail_flags + ', "0", "16" },',
+		'{ &cg_smokeRadius_RL, "cg_smokeRadius_RL", "32", ' + retail_flags + ', "0", "32" },',
+	):
+		assert expected in main_source
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_scalePlayerModelsToBB;",
+		"extern\tvmCvar_t\t\tcg_smoke_SG;",
+		"extern\tvmCvar_t\t\tcg_smokeRadius_dust;",
+		"extern\tvmCvar_t\t\tcg_smokeRadius_flight;",
+		"extern\tvmCvar_t\t\tcg_smokeRadius_GL;",
+		"extern\tvmCvar_t\t\tcg_smokeRadius_haste;",
+		"extern\tvmCvar_t\t\tcg_smokeRadius_NG;",
+		"extern\tvmCvar_t\t\tcg_smokeRadius_RL;",
+	):
+		assert expected in local_source
+
+	player_scale = _block_from_marker(players_source, "static float CG_PlayerModelBoundingBoxScale")
+	apply_scale = _block_from_marker(players_source, "static void CG_ApplyPlayerModelBoundingBoxScale")
+	player_block = _block_from_marker(players_source, "void CG_Player( centity_t *cent )")
+	player_shadow = _block_from_marker(players_source, "static qboolean CG_PlayerShadow")
+	player_splash = _block_from_marker(players_source, "static void CG_PlayerSplash")
+	powerups_block = _block_from_marker(players_source, "static void CG_PlayerPowerups")
+	flight_trail = _block_from_marker(players_source, "static void CG_FlightTrail")
+	haste_trail = _block_from_marker(players_source, "static void CG_HasteTrail")
+	dust_trail = _block_from_marker(players_source, "static void CG_DustTrail")
+	rocket_trail = _block_from_marker(weapons_source, "static void CG_RocketTrail")
+	nail_trail = _block_from_marker(weapons_source, "static void CG_NailTrail")
+	shotgun_fire = _block_from_marker(weapons_source, "void CG_ShotgunFire")
+
+	for expected in (
+		"!cg_scalePlayerModelsToBB.integer",
+		"ci->headOffset[0] <= 1.0f",
+		"return ci->headOffset[0];",
+	):
+		assert expected in player_scale
+	for expected in (
+		"legs->nonNormalizedAxes = qtrue;",
+		"legs->origin[2] += 24.0f * ( scale - 1.0f );",
+		"VectorScale( legs->axis[0], scale, legs->axis[0] );",
+		"VectorScale( legs->axis[1], scale, legs->axis[1] );",
+		"VectorScale( legs->axis[2], scale, legs->axis[2] );",
+	):
+		assert expected in apply_scale
+	assert player_block.index("playerModelScale = CG_PlayerModelBoundingBoxScale( ci );") < player_block.index(
+		"CG_ApplyPlayerModelBoundingBoxScale( &legs, playerModelScale );"
+	)
+	assert player_block.index("CG_ApplyPlayerModelBoundingBoxScale( &legs, playerModelScale );") < player_block.index(
+		'CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");'
+	)
+
+	for expected in (
+		"if ( cg_shadows.integer == 0 ) {",
+		"if ( cg_shadows.integer != 1 ) {",
+	):
+		assert expected in player_shadow
+	assert "if ( !cg_shadows.integer ) {" in player_splash
+	assert "if ( cg_shadows.integer == 3 && shadow ) {" in player_block
+	assert "cg_showmiss.integer" in predict_source
+
+	for expected in (
+		"radius = cg_smokeRadius_flight.value;",
+		"if ( radius <= 0.0f ) {",
+		"origin[2] -= 16.0f;",
+		"origin[2] += 24.0f;",
+		"CG_SmokePuff( origin, vec3_origin,",
+		"1000,",
+		"cgs.media.smokePuffShader );",
+	):
+		assert expected in flight_trail
+	assert "CG_FlightTrail( cent );" in powerups_block
+	assert "radius = cg_smokeRadius_haste.value;" in haste_trail
+	assert "radius = cg_smokeRadius_dust.value;" in dust_trail
+	assert "radius = cg_smokeRadius_GL.value;" in rocket_trail
+	assert "radius = cg_smokeRadius_RL.value;" in rocket_trail
+	assert "radius = cg_smokeRadius_NG.value;" in nail_trail
+	assert "if ( cg_smoke_SG.integer && cgs.glconfig.hardwareType != GLHW_RAGEPRO ) {" in shotgun_fire
+
+
 def test_cgame_event_dispatch_keeps_retail_impact_effect_wiring() -> None:
 	event_block = _block_from_marker(_read(CG_EVENT), "void CG_EntityEvent( centity_t *cent, vec3_t position )")
 
@@ -175,17 +272,20 @@ def test_cgame_damage_through_impact_sparks_match_retail_surfacepuff_path() -> N
 		"if ( trace.fraction < 1.0f && !trace.startsolid ) {",
 		"CG_ImpactMark( cgs.media.burnMarkShader, trace.endpos, trace.plane.normal,",
 		"qfalse, 64.0f, qfalse );",
-		"if ( cgs.media.surfacePuffShader ) {",
+		"if ( cg_impactSparks.integer && cg_impactSparksLifetime.integer > 0 && cgs.media.surfacePuffShader ) {",
+		"sparkLifetime = cg_impactSparksLifetime.integer;",
+		"sparkSize = cg_impactSparksSize.value;",
+		"sparkVelocity = cg_impactSparksVelocity.value;",
 		"for ( i = 0; i < 10; i++ ) {",
-		"speed = 250.0f + ( ( random() - 0.5f ) * 300.0f );",
-		"VectorScale( trace.plane.normal, speed, velocity );",
-		"400.0f - ( speed / 500.0f ) * 200.0f,",
+		"velocity[2] = sparkVelocity + ( random() - 0.5f ) * 16.0f;",
+		"sparkSize,",
+		"sparkLifetime,",
 		"cgs.media.surfacePuffShader );",
 		"CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_DEFAULT );",
 	):
 		assert expected in dmgthrough
 
-	assert dmgthrough.index("if ( cgs.media.surfacePuffShader ) {") < dmgthrough.index(
+	assert dmgthrough.index("if ( cg_impactSparks.integer && cg_impactSparksLifetime.integer > 0 && cgs.media.surfacePuffShader ) {") < dmgthrough.index(
 		"CG_MissileHitWall( weapon, 0, origin, dir, IMPACTSOUND_DEFAULT );"
 	)
 
@@ -359,11 +459,14 @@ def test_cgame_normal_impact_switch_and_media_registration_stay_wired() -> None:
 	grenade_register = _case_block(register_weapon, "case WP_GRENADE_LAUNCHER:")
 	for expected in (
 		"step = 50;",
+		"radius = cg_smokeRadius_GL.value;",
+		"radius = cg_smokeRadius_RL.value;",
 		"BG_EvaluateTrajectory( &es->pos, cg.time, origin );",
 		"if ( es->pos.trType == TR_STATIONARY ) {",
 		"CG_BubbleTrail( lastPos, origin, 8 );",
+		"if ( radius <= 0.0f ) {",
 		"CG_SmokePuff( lastPos, up,",
-		"wi->trailRadius,",
+		"radius,",
 		"wi->wiTrailTime,",
 		"cgs.media.smokePuffShader );",
 		"smoke->leType = LE_SCALE_FADE;",
@@ -381,11 +484,13 @@ def test_cgame_normal_impact_switch_and_media_registration_stay_wired() -> None:
 		assert expected in nail_eject
 	for expected in (
 		"step = 50;",
+		"radius = cg_smokeRadius_NG.value;",
 		"BG_EvaluateTrajectory( &es->pos, cg.time, origin );",
 		"if ( es->pos.trType == TR_STATIONARY ) {",
 		"CG_BubbleTrail( lastPos, origin, 8 );",
+		"if ( radius <= 0.0f ) {",
 		"CG_SmokePuff( lastPos, up,",
-		"wi->trailRadius,",
+		"radius,",
 		"wi->wiTrailTime,",
 		"cgs.media.nailPuffShader );",
 		"smoke->leType = LE_SCALE_FADE;",
@@ -589,12 +694,14 @@ def test_cgame_nailgun_projectile_trail_impact_and_media_wiring_match_retail() -
 	for expected in (
 		"step = 50;",
 		"t = step * ( (startTime + step) / step );",
+		"radius = cg_smokeRadius_NG.value;",
 		"BG_EvaluateTrajectory( &es->pos, cg.time, origin );",
 		"contents = CG_PointContents( origin, -1 );",
 		"if ( es->pos.trType == TR_STATIONARY ) {",
 		"CG_BubbleTrail( lastPos, origin, 8 );",
+		"if ( radius <= 0.0f ) {",
 		"CG_SmokePuff( lastPos, up,",
-		"wi->trailRadius,",
+		"radius,",
 		"wi->wiTrailTime,",
 		"cgs.media.nailPuffShader );",
 		"smoke->leType = LE_SCALE_FADE;",
@@ -829,7 +936,7 @@ def test_cgame_rail_trail_prediction_and_event_wiring_match_retail() -> None:
 		'cgs.media.sfx_railg = trap_S_RegisterSound( "sound/weapons/railgun/railgf1a.ogg", qfalse );',
 		'{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "1", 0 },',
 		'{ &cg_railStyle, "cg_railStyle", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "1", "2" },',
-		'{ &cg_railTrailTime, "cg_railTrailTime", "2000", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2000" },',
+		'{ &cg_railTrailTime, "cg_railTrailTime", "400", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2000" },',
 		"cg.predictLocalRailshots = (qboolean)( cg_predictLocalRailshots.integer != 0 );",
 	):
 		assert expected in main

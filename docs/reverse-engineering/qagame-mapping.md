@@ -9,6 +9,57 @@ Observed facts come from exports, `functions.csv`, native dispatch-table slots,
 log strings, and call flow. Inferred names are only promoted when the retail
 behavior and source analogue align cleanly.
 
+## Latest Source Reconstruction Pass
+
+- Scope: qagame score/stat/ready/vote/cheat `ClientCommand` ladder across ten
+  command surfaces: `score`, `acc`, `pstats`, `readyup`, `vote`, `give`,
+  `god`, `notarget`, `noclip`, and `kill`.
+- Coverage delta: `+0` curated symbol-map entries; the selected helper names
+  were already mapped, but the source dispatch order still diverged from the
+  retail pre-intermission cluster.
+- Source delta: moved `acc`, `pstats`, `readyup`, and `vote` into the
+  HLIL-backed pre-intermission cluster, and removed the later post-intermission
+  `vote` branch so `G_HandleNextMapVote` is reachable during intermission.
+- Evidence note: the command-token chain is anchored at `sub_10045DEC` in
+  part01 HLIL. The adjacent retail `ragequit` compare is visible between
+  `readyup` and `vote`, but its one-argument native import target remains an
+  open boundary for a later import-owner pass.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-score-vote-cheat-command-reconstruction-2026-05-25.md`.
+
+## Previous Source Reconstruction Pass
+
+- Scope: qagame chat and voice client-command ladder across ten command
+  surfaces: `say`, `say_team`, `tell`, `botSay`, `vsay`, `vsay_team`,
+  `vtell`, `vosay`, `vosay_team`, and `votell`, with `vtaunt` rechecked as the
+  adjacent retail boundary.
+- Coverage delta: `+0` curated symbol-map entries; the relevant command
+  helpers were already mapped, but their source dispatch order was not pinned
+  as a retail cluster.
+- Source delta: moved the source-local `complaint` branch after `vtaunt` so it
+  no longer interrupts the retail `botSay` -> `vsay` chat/voice ladder.
+- Evidence note: the command-token chain is anchored at `sub_10045DEC` in
+  part01 HLIL. Helper bodies map through `sub_10041B60`, `sub_10041B90`,
+  `sub_10041CC0`, `sub_10041E40`, `sub_10041E60`, and `sub_10041F50`.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-chat-voice-command-reconstruction-2026-05-25.md`.
+
+## Earlier Source Reconstruction Pass
+
+- Scope: qagame server-command wiring across ten command surfaces:
+  `addscore`, `addteamscore`, `setmatchtime`, `entitylist`, `forceteam`,
+  `game_memory`, `addbot`, `botlist`, `game_crash`, and `reload_access`.
+- Coverage delta: `+0` curated symbol-map entries; the relevant helpers were
+  already mapped or deliberately inlined in the retail dispatcher.
+- Source delta: corrected the gameplay-time `Svcmd_AddBot_f` media refresh to
+  send the retail `loaddeferred\n` server command, matching `sub_10037910` and
+  the training-bot path.
+- Evidence note: direct rows come from `data_10080750` in part02 HLIL, while
+  console wiring is anchored at `sub_10066B90`. The addbot refresh string is
+  visible in both `sub_10037910` and `data_1008242C`.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-server-command-wiring-reconstruction-2026-05-25.md`.
+
 ## Latest Coverage Update
 
 - Reference totals: `1027` functions in `functions.csv` and `180` unique decompiled entries in `decompile_top_functions.c`.
@@ -862,6 +913,7 @@ utility helpers outside that widened control surface.
 | Retail address | Recovered name | Closest source analogue | Evidence summary | Confidence |
 | --- | --- | --- | --- | --- |
 | `0x10023400` | `BotAIStartFrame` | `ai_main.c::BotAIStartFrame` | Native dispatch-table slot plus the `memorydump` / `bot_memorydump` bot-debug cvars and the per-bot frame/routing update loop match the source bot frame driver. | High |
+| `0x100327D0` | `G_PrintAccessListPage` | `g_main.c::G_PrintAccessListPage` | Access-list page printer anchored by `Access List: Page %i of %i`, the `=============================` separator, 20-entry pages, `%llu %s %s` rows, and the `TEMP` / `PERM` mode labels. | High |
 | `0x10033800` | `P_DamageFeedback` | `g_active.c::P_DamageFeedback` | Aggregates `damage_blood` and `damage_armor`, emits EV_PAIN and damage yaw/pitch, and clears the damage totals exactly like the client damage-feedback path. | High |
 | `0x10033950` | `P_WorldEffects` | `g_active.c::P_WorldEffects` | Anchored by `sound/player/gurp1.wav` / `sound/player/gurp2.wav` plus the drowning, battlesuit, lava, and slime control flow. | High |
 | `0x10033B20` | `G_SetClientSound` | `g_active.c::G_SetClientSound` | Selects the proxmine ticking loop sound or the lava/slime fry loop on the outgoing playerstate, matching the source helper. | High |
@@ -922,6 +974,7 @@ utility helpers outside that widened control surface.
 | `0x1003EDA0` | `G_BuildFreezeScoreboardMessage` | Retail-only Freeze scoreboard helper | Emits the `scores_ft` payload with the Freeze-specific per-client stat block. | High |
 | `0x1003F260` | `G_BuildRedRoverScoreboardMessage` | Retail-only Red Rover scoreboard helper | Emits the `scores_rr` payload with the Red Rover per-client stat block. | High |
 | `0x100400F0` | `Cmd_TeamTask_f` | `g_cmds.c::Cmd_TeamTask_f` | Exact `Argc == 2` / `teamtask` userinfo rewrite flow from the stock command handler, ending in `ClientUserinfoChanged`. | High |
+| `0x10040440` | `G_ApplyTeamChange` | `g_cmds.c::G_ApplyTeamChange` | Recovered inner `SetTeam` executor that handles death/body-queue teardown, session mutation, spectator item sync, leadership repair, per-opponent revenge counter cleanup, userinfo publication, `ClientBegin`, and the rank switch-team event. | High |
 | `0x100406D0` | `SetTeam` | `g_cmds.c::SetTeam` | Outer team-change parser that handles `follow1`, `follow2`, spectator/team requests, duel-only spectate enforcement, and then forwards into the deeper retail execution helper. | High |
 | `0x100423A0` | `Cmd_CallVote_f` | `g_cmds.c::Cmd_CallVote_f` | Retail callvote gate/order, token validation, map/nextmap, kick/clientkick, numeric limit votes, command help, and the handoff into `G_StartPublicVote`. | High |
 | `0x10044270` | `Cmd_Vote_f` | `g_cmds.c::Cmd_Vote_f` | Uses the `No vote in progress`, `Vote cast`, and `disable_vote_ui` strings in the source-equivalent vote-cast flow. | High |
@@ -991,7 +1044,34 @@ utility helpers outside that widened control surface.
 | `0x10059370` | `G_RunThink` | `g_main.c::G_RunThink` | Preserves the classic `nextthink` / `ent->think` gate and `NULL ent->think` error while also servicing a neighboring retail callback slot ahead of the think dispatch. | High |
 | `0x100593E0` | `G_UpdateTeamCountConfigstrings` | `g_match_state.c::G_UpdateTeamCountConfigstrings` | Periodically refreshes the auxiliary team-count configstrings at `0x297` and `0x298` on the retail last-publish `> 250 ms` cadence, using raw team rosters in ordinary team states and the active-player counter during round-controller states. | High |
 | `0x100594D0` | `G_RunFrame` | `g_main.c::G_RunFrame` | Main frame loop advancing time, stepping entities, and running exit/team/vote helpers. | High |
-| `0x10061800` | `Cmd_AllReady_f` | `g_cmds.c::Cmd_AllReady_f` | HLIL-visible admin helper for the `allready` command table entry; it validates access, enforces the duel two-player restriction, and sets every connected client's retail ready latch. | High |
+| `0x10060EE0` | `Cmd_Players_f` | `g_cmds.c::Cmd_Players_f` | Direct command-table `players` entry; walks connected clients and emits `%2d %llu %c %s` rows with the recovered `" MA*"` privilege marker. | High |
+| `0x10061090` | `G_ValidateDirectCommandState` | `g_cmds.c::G_ValidateDirectCommandState` | Shared direct-command state gate for warmup, active match, round countdown, and intermission rejection strings. | High |
+| `0x100611D0` | `G_AdminResolvePlayerIdArg` | `g_cmds.c::G_AdminResolvePlayerIdArg` | Shared direct admin PlayerID resolver; requires numeric argv 1 and emits the recovered missing/invalid `/players` diagnostics. | High |
+| `0x10061350` | `G_AdminParseTeamArg` | `g_cmds.c::G_AdminParseTeamArg` | Shared direct admin team parser; accepts retail single-letter team tokens and owns the recovered TeamName diagnostics. | High |
+| `0x10061550` | `Cmd_Abort_f` | `g_cmds.c::Cmd_Abort_f` | Direct command-table `abort` entry; blocks while a timeout is active, broadcasts the recovered abort `pcp` line, resets the match state to `PRE_GAME`, refreshes match-state publication, and queues `map_restart 3`. | High |
+| `0x10061670` | `Cmd_AddScore_f` | `g_cmds.c::Cmd_AddScore_f` | Direct command-table `addscore` entry; resolves a PlayerID, parses argv 2 as a score delta, calls `AddScore`, announces `Player score adjusted.`, and reports whether the player's score increased or decreased. | High |
+| `0x10061730` | `Cmd_AddTeamScore_f` | `g_cmds.c::Cmd_AddTeamScore_f` | Direct command-table `addteamscore` entry; parses a team token and score delta, calls `AddTeamScore`, announces `Team score adjusted.`, and reports the team score increase/decrease. | High |
+| `0x10061800` | `Cmd_AllReady_f` | `g_cmds.c::Cmd_AllReady_f` | HLIL-visible admin helper for the `allready` command table entry; it validates state, enforces the duel two-player restriction, and sets every connected client's retail ready latch. | High |
+| `0x100618B0` | `G_TeamJoinAllowed` | `g_cmds.c::G_TeamJoinAllowed` | Team join guard reached from `SetTeam`; permits free/spectator joins and rejects live-team joins when the per-team retail lock latch is set. | High |
+| `0x10061940` | `Cmd_Lock_f` | `g_cmds.c::Cmd_Lock_f` | Direct command-table `lock` entry; optionally parses a team token, sets one lock or both live-team locks, and broadcasts `The %s team is now locked`. | High |
+| `0x10061A40` | `Cmd_Unlock_f` | `g_cmds.c::Cmd_Unlock_f` | Direct command-table `unlock` entry; mirrors `Cmd_Lock_f` by clearing one lock or both live-team locks and broadcasting the recovered unlocked string. | High |
+| `0x10061B40` | `Cmd_PutTeam_f` | `g_cmds.c::Cmd_PutTeam_f` | Direct command-table `putteam` entry; resolves a PlayerID, parses a team token, preserves duel restrictions, notifies the target, and forwards to `SetTeam`. | High |
+| `0x10061DB0` | `G_StartTimeout` | `g_cmds.c::G_StartTimeout` | Shared timeout starter; records owner/start/expire state, refreshes timeout configstrings, and emits the recovered `pcp` timeout/pause strings. | High |
+| `0x10062130` | `Cmd_Pause_f` | `g_cmds.c::Cmd_Pause_f` | Direct command-table `pause` entry; starts an indefinite pause or lets a player take ownership of a server-owned pause. | High |
+| `0x100621C0` | `Cmd_Timeout_f` | `g_cmds.c::Cmd_Timeout_f` | Direct command-table `timeout` entry; checks the timeout pool for player callers and starts a timed timeout through `G_StartTimeout`. | High |
+| `0x10062330` | `Cmd_Timein_f` | `g_cmds.c::Cmd_Timein_f` | Direct command-table `timein` / `unpause` entry; verifies ownership or moderator privilege and arms the five-second resume countdown. | High |
+| `0x10062470` | `Cmd_AddAdmin_f` | `g_cmds.c::Cmd_AddAdmin_f` | Direct command-table `addadmin` entry; resolves a PlayerID, promotes the target to admin, mirrors the SteamID into the access list, broadcasts `%s has become an administrator`, and sends `priv %i`. | High |
+| `0x10062560` | `Cmd_AddMod_f` | `g_cmds.c::Cmd_AddMod_f` | Direct command-table `addmod` entry; mirrors the admin promotion path for moderator tier and broadcasts `%s has become a moderator`. | High |
+| `0x10062650` | `Cmd_Demote_f` | `g_cmds.c::Cmd_Demote_f` | Direct command-table `demote` entry; rejects same-or-higher targets, clears live privilege, removes the SteamID access entry, broadcasts `%s has had their privileges removed`, and sends `priv %i`. | High |
+| `0x100627C0` | `Cmd_Mute_f` | `g_cmds.c::Cmd_Mute_f` | Direct command-table `mute` entry; resolves a numeric PlayerID, rejects same-or-higher targets, sets the muted session flag, and broadcasts `%s has been muted`. | High |
+| `0x10062890` | `Cmd_Unmute_f` | `g_cmds.c::Cmd_Unmute_f` | Direct command-table `unmute` entry; resolves the same PlayerID target, clears the muted session flag, and broadcasts `%s has been unmuted`. | High |
+| `0x10062940` | `G_KickOrBanClient` | `g_cmds.c::G_KickOrBanClient` | Shared `tempban` / `ban` drop helper; rejects privileged targets with `Can not kick admins.`, writes a temporary or permanent `-1` access-list entry, and drops the target with `was kicked`. | High |
+| `0x10062AD0` | `Cmd_Unban_f` | `g_cmds.c::Cmd_Unban_f` | Direct command-table `unban` entry; parses argv 1 as a SteamID, removes the access-list entry, and prints `%llu has been unbanned`. | High |
+| `0x10062BF0` | `Cmd_OpSay_f` | `g_cmds.c::Cmd_OpSay_f` | Direct moderator broadcast chat entry; concatenates argv 1+ and sends the recovered `<@%s^7> %s` print to all clients. | High |
+| `0x10062C60` | `Cmd_ListAccess_f` | `g_cmds.c::Cmd_ListAccess_f` | Direct command-table `listaccess` entry; parses an optional one-based page argument and forwards the zero-based index to `G_PrintAccessListPage`. | High |
+| `0x10062CE0` | `Cmd_SetMatchTime_f` | `g_cmds.c::Cmd_SetMatchTime_f` | Direct command-table `setmatchtime` entry; parses whole seconds, rewrites `CS_LEVEL_START_TIME` from the current level time, and broadcasts `Match time has been set to %s.` with the retail minute/second formatter. | High |
+| `0x10062D60` | `G_PrintDirectCommandHelp` | `g_cmds.c::G_PrintDirectCommandHelp` | Help walker reached from the `?` table entry; filters rows by privilege and visibility flags before printing command descriptions. | High |
+| `0x10062E20` | `G_DispatchDirectCommand` | `g_cmds.c::G_DispatchDirectCommand` | Direct command dispatcher for `data_10080750`; scans the table, enforces privilege floors, calls non-null handlers, lets the help-visible null-handler `rcon` row fall through, and emits the recovered insufficient-privileges diagnostic. | High |
 | `0x10064280` | `G_RRResolveRoundState` | Retail-only Red Rover controller helper | Freeze-style pending-transition resolver that advances deferred `RR_RoundStateTransition` work and returns the current Red Rover round state. | High |
 | `0x10064380` | `G_RRFinalizeSpawnLoadout` | Retail-only Red Rover spawn helper | Reached from `ClientSpawn` before the generic loadout finalizer; survivors fall through to `G_FinalizeSpawnLoadout`, while infected clients are forced onto the zombie role loadout by seeding the reduced weapon mask, selected weapon, and health/maxHealth directly. | High |
 | `0x100643E0` | `G_RRHandleDamageScore` | Retail-only Red Rover infection damage helper / `g_client.c::G_RRHandleDamageScore` analogue | Called from the main damage path after armor resolution; it applies the shared self/team damage suppression policy, clamps survivor-vs-infected damage during the active infection state, accumulates threshold credit on the attacker, and pays out score increments through `CalculateRanks`. | High |
@@ -1097,9 +1177,9 @@ utility helpers outside that widened control surface.
 - `G_GetClientScore` at `0x100530F0` is a synthetic recovery name for a stable retail helper boundary. The body is just a validated getter for `gclient->ps.persistant[PERS_SCORE]`, and the GPL-derived tree does not preserve it as a standalone named function.
 - The native export table tail beyond the public `GAME_*` slots now appears fully settled. `G_CanClientSeeClient`, `G_AreEnemyClients`, `G_ShouldSuppressVoiceToClient`, `G_IsObjectiveEntity`, `G_FreezeCanSeeThawProgressEvent`, `G_GetClientScore`, `G_IsClientAdmin`, `G_ClientsOnSameTeam`, `G_ClientNumsOnSameTeam`, `OnSameTeam`, and `G_IsClientSpectator` all have stable HLIL bodies plus host-side consumers.
 - `Freeze_RoundStateTransition` at `0x1004C1B0` and `RR_RoundStateTransition` at `0x100649F0` are retail-only controller names recovered directly from preserved invalid-state diagnostics. The current source now preserves standalone Freeze and Red Rover controller shells plus the paired public read helpers, and Red Rover now mirrors the recovered six-state internal controller lane (`0..5`) with the same pending-transition timing split between warmup, seeding, active, complete, and exit.
-- `SetTeam` at `0x100406D0` is source-faithful on its outer boundary, but retail splits the actual session/team mutation and respawn execution into the deeper helper at `0x10040440` instead of keeping the entire flow inside one GPL-shaped function.
+- `SetTeam` at `0x100406D0` is source-faithful on its outer boundary, and the current source now preserves the retail split by forwarding the actual session/team mutation and respawn execution into `G_ApplyTeamChange` at `0x10040440`. The parser also mirrors the recovered null/auto fallthrough, `follow1`/`follow2` active-player downgrades, Red Rover's pre-balance autojoin branch, and the retail `level.sortedClients` revenge-counter cleanup before userinfo publication.
 - `TeamCount` at `0x100680C0` is source-faithful on its outer boundary, but the committed decomp still drops the register-passed `ignoreClientNum` argument even though HLIL preserves the comparison against the skipped client slot.
-- `Team_CountsBalanced` at `0x10068100` is a descriptive retail-only helper name. The underlying logic is the extracted `g_teamForceBalance` spread check, which the GPL-derived tree keeps inline inside `SetTeam` instead of exposing as a stable callable boundary.
+- `Team_CountsBalanced` at `0x10068100` is a descriptive retail-only helper name. The current source preserves the extracted `g_teamForceBalance` spread check as a shared callable boundary used by both `SetTeam` and ready-up gating.
 - `G_UpdateTeamCountConfigstrings` at `0x100593E0` is now preserved through `g_match_state.c` and called from the recovered `g_main.c` init/frame wiring. The helper publishes configstrings `0x297` and `0x298`, uses the HLIL-observed last-publish gate (`level.time <= last` or `level.time - last > 250`), and switches between raw `TeamCount`-style rosters and `PM_NORMAL` active counts for round-controller states.
 - `G_CountActivePlayersByTeam`, `G_TotalLivingHealthByTeam`, and `G_CountConnectedClientsByTeam` are descriptive retail-only helper names. The current GPL-derived tree keeps the same counting logic inside larger Freeze, Red Rover, and match-state routines instead of preserving these standalone helpers.
 - `G_RRCheckRoundCompletion` at `0x10064670` is a descriptive retail-only helper name. The current source now preserves the caller-supplied counts interface, the roundtimelimit gate before tied-state completion, the carryover infected-slot latch, and the delayed post-round exit-vs-restart split consumed by the Red Rover controller.

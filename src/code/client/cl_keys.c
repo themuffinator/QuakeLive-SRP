@@ -651,13 +651,6 @@ CONSOLE LINE EDITING
 */
 
 /*
-====================
-Console_Key
-
-Handles history and console scrollback
-====================
-*/
-/*
 ==================
 Console_CompleteArgument
 ==================
@@ -689,6 +682,13 @@ static void Console_CompleteArgument( const char *command, void(*callback)( cons
 	FS_FreeFileList( files );
 }
 
+/*
+====================
+Console_Key
+
+Handles history and console scrollback
+====================
+*/
 void Console_Key (int key) {
 	// ctrl-L clears screen
 	if ( key == 'l' && keys[K_CTRL].down ) {
@@ -862,11 +862,11 @@ void Message_Key( int key ) {
 				CL_AddReliableCommand( buffer );
 			}
 		}
-		cls.keyCatchers &= ~KEYCATCH_MESSAGE;
-		Field_Clear( &chatField );
 		if ( cgvm ) {
 			VM_Call( cgvm, CG_CHAT_UP );
 		}
+		cls.keyCatchers &= ~KEYCATCH_MESSAGE;
+		Field_Clear( &chatField );
 		return;
 	}
 

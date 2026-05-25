@@ -318,6 +318,7 @@ qboolean G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, genti
 		if ( attacker == self || OnSameTeam( self, attacker ) ) {
 			AddScore( attacker, self->r.currentOrigin, -1 );
 		} else {
+			attacker->client->ps.persistant[PERS_KILL_COUNT]++;
 			AddScore( attacker, self->r.currentOrigin, 1 );
 			G_ADAwardBonus( attacker, self->r.currentOrigin, g_adElimScoreBonus.integer, S_COLOR_YELLOW "Elimination bonus" );
 
@@ -344,7 +345,7 @@ qboolean G_FreezeHandlePlayerDeath( gentity_t *self, gentity_t *inflictor, genti
 	}
 
 	Team_FragBonuses( self, inflictor, attacker );
-	G_RRHandlePlayerDeath( client->sess.sessionTeam, self, meansOfDeath );
+	G_RRHandlePlayerDeath( client->sess.sessionTeam, self, attacker, meansOfDeath );
 
 	if ( meansOfDeath == MOD_SUICIDE ) {
 		if ( client->ps.powerups[PW_NEUTRALFLAG] ) {
@@ -2442,6 +2443,32 @@ static weapon_t G_InitClientSpawnState( gentity_t *ent, gentity_t *spawnPoint, c
 }
 
 /*
+==============
+G_ApplySpawnArmor
+
+Arms Quake Live's spawn armor timer in the player powerup array.
+==============
+*/
+static void G_ApplySpawnArmor( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	client->ps.powerups[PW_NONE] = 0;
+	if ( g_spawnArmor.integer == 0 ) {
+		return;
+	}
+	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return;
+	}
+	if ( g_gametype.integer == GT_CLAN_ARENA ) {
+		return;
+	}
+
+	client->ps.powerups[PW_NONE] = level.time - ( level.time % 1000 ) + g_spawnArmor.integer;
+}
+
+/*
 ===========
 ClientSpawn
 
@@ -2479,6 +2506,7 @@ void ClientSpawn(gentity_t *ent) {
 	int		savedTeamDamageEventsGiven;
 	int		savedTeamDamageEventsReceived;
 	int		savedEnvironmentalDeaths;
+	int		savedRevengeKillStreaks[MAX_CLIENTS];
 //	char	*savedAreaBits;
 	int		accuracy_hits, accuracy_shots;
 	int		eventSequence;
@@ -2558,6 +2586,7 @@ void ClientSpawn(gentity_t *ent) {
 	savedTeamDamageEventsGiven = client->teamDamageEventsGiven;
 	savedTeamDamageEventsReceived = client->teamDamageEventsReceived;
 	savedEnvironmentalDeaths = client->environmentalDeaths;
+	memcpy( savedRevengeKillStreaks, client->revengeKillStreaks, sizeof( savedRevengeKillStreaks ) );
 //	savedAreaBits = client->areabits;
 	accuracy_hits = client->accuracy_hits;
 	accuracy_shots = client->accuracy_shots;
@@ -2587,6 +2616,7 @@ void ClientSpawn(gentity_t *ent) {
 	client->teamDamageEventsGiven = savedTeamDamageEventsGiven;
 	client->teamDamageEventsReceived = savedTeamDamageEventsReceived;
 	client->environmentalDeaths = savedEnvironmentalDeaths;
+	memcpy( client->revengeKillStreaks, savedRevengeKillStreaks, sizeof( client->revengeKillStreaks ) );
 
 	for ( i = 0 ; i < MAX_PERSISTANT ; i++ ) {
 		client->ps.persistant[i] = persistant[i];
@@ -2636,6 +2666,7 @@ void ClientSpawn(gentity_t *ent) {
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 	client->ps.eFlags = flags;
 	G_SyncClientReadyState( client );
+	G_ApplySpawnArmor( client );
 
 	// Retail arms the split factory regen latches on spawn so the
 	// normal post-damage delay path also governs post-spawn regeneration.
@@ -2797,6 +2828,7 @@ void ClientDisconnect( int clientNum ) {
 			StopFollowing( &g_entities[i] );
 		}
 	}
+	G_ClearClientRevengeState( clientNum );
 
 	// send effect if they were completely connected
 	if ( ent->client->pers.connected == CON_CONNECTED 
@@ -3532,7 +3564,7 @@ Injects the retail Red Rover death-path conversion flow using the victim's
 pre-mutation team.
 =============
 */
-void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, int meansOfDeath ) {
+void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath ) {
 	int		counts[TEAM_NUM_TEAMS];
 	team_t	otherTeam;
 	qboolean	roundComplete;
@@ -3550,6 +3582,12 @@ void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, int meansOfDeath 
 
 	if ( oldTeam != TEAM_RED && oldTeam != TEAM_BLUE ) {
 		return;
+	}
+
+	G_RRApplyScoreDelta( victim, g_rrDeathScorePenalty.integer );
+	if ( g_rrInfected.integer && oldTeam == TEAM_BLUE && attacker && attacker->client
+		&& attacker != victim && attacker->client->rrInfectionState == RR_STATE_INFECTED ) {
+		G_RRApplyScoreDelta( attacker, g_rrInfectedZombieFragBonus.integer );
 	}
 
 	if ( !g_rrInfected.integer || oldTeam == TEAM_BLUE ) {

@@ -53,6 +53,135 @@ class AuthResponse(ctypes.Structure):
     ]
 
 
+class SteamServerItem(ctypes.Structure):
+    _fields_ = [
+        ("serverIp", ctypes.c_uint32),
+        ("serverPort", ctypes.c_uint16),
+        ("queryPort", ctypes.c_uint16),
+        ("ping", ctypes.c_int),
+        ("gameDir", ctypes.c_char * 32),
+        ("map", ctypes.c_char * 32),
+        ("gameDescription", ctypes.c_char * 64),
+        ("appId", ctypes.c_uint32),
+        ("numPlayers", ctypes.c_int),
+        ("maxPlayers", ctypes.c_int),
+        ("botPlayers", ctypes.c_int),
+        ("passwordProtected", ctypes.c_int),
+        ("vacSecured", ctypes.c_int),
+        ("lastPlayed", ctypes.c_uint32),
+        ("serverVersion", ctypes.c_int),
+        ("name", ctypes.c_char * 64),
+        ("displayName", ctypes.c_char * 64),
+        ("tags", ctypes.c_char * 128),
+        ("steamId", ctypes.c_uint64),
+    ]
+
+
+class SteamServerBrowserResponse(ctypes.Structure):
+    _fields_ = [
+        ("id", ctypes.c_char * 32),
+        ("name", ctypes.c_char * 64),
+        ("numPlayers", ctypes.c_int),
+        ("maxPlayers", ctypes.c_int),
+        ("ping", ctypes.c_int),
+        ("map", ctypes.c_char * 32),
+        ("botPlayers", ctypes.c_int),
+        ("passwordProtected", ctypes.c_int),
+        ("vacSecured", ctypes.c_int),
+        ("serverIp", ctypes.c_uint32),
+        ("serverPort", ctypes.c_uint16),
+        ("steamId", ctypes.c_char * 32),
+        ("tags", ctypes.c_char * 128),
+        ("gametype", ctypes.c_char * 64),
+        ("lastPlayed", ctypes.c_uint32),
+    ]
+
+
+class SteamServerBrowserFailure(ctypes.Structure):
+    _fields_ = [
+        ("id", ctypes.c_int),
+        ("eventName", ctypes.c_char * 64),
+    ]
+
+
+class SteamServerBrowserRefreshComplete(ctypes.Structure):
+    _fields_ = [
+        ("eventName", ctypes.c_char * 64),
+    ]
+
+
+class SteamServerBrowserDetailIdentity(ctypes.Structure):
+    _fields_ = [
+        ("serverIp", ctypes.c_uint32),
+        ("serverPort", ctypes.c_uint16),
+        ("id", ctypes.c_char * 32),
+    ]
+
+
+class SteamServerBrowserDetailEvent(ctypes.Structure):
+    _fields_ = [
+        ("identity", SteamServerBrowserDetailIdentity),
+        ("eventName", ctypes.c_char * 64),
+    ]
+
+
+class SteamServerBrowserRuleResponse(ctypes.Structure):
+    _fields_ = [
+        ("identity", SteamServerBrowserDetailIdentity),
+        ("eventName", ctypes.c_char * 64),
+        ("rule", ctypes.c_char * 256),
+        ("value", ctypes.c_char * 256),
+    ]
+
+
+class SteamServerBrowserPlayerResponse(ctypes.Structure):
+    _fields_ = [
+        ("identity", SteamServerBrowserDetailIdentity),
+        ("eventName", ctypes.c_char * 64),
+        ("name", ctypes.c_char * 64),
+        ("score", ctypes.c_int),
+        ("time", ctypes.c_int),
+    ]
+
+
+class SteamServerBrowserDetailLifecycle(ctypes.Structure):
+    _fields_ = [
+        ("identity", SteamServerBrowserDetailIdentity),
+        ("completedCallbacks", ctypes.c_int),
+        ("releaseReady", ctypes.c_int),
+    ]
+
+
+class SteamServerBrowserDetailResponseViews(ctypes.Structure):
+    _fields_ = [
+        ("rulesResponse", ctypes.c_void_p),
+        ("playersResponse", ctypes.c_void_p),
+        ("pingResponse", ctypes.c_void_p),
+    ]
+
+
+class SteamServerBrowserDetailRequest(ctypes.Structure):
+    _fields_ = [
+        ("lifecycle", SteamServerBrowserDetailLifecycle),
+        ("detailObjectBase", ctypes.c_void_p),
+        ("pingQuery", ctypes.c_int),
+        ("playersQuery", ctypes.c_int),
+        ("rulesQuery", ctypes.c_int),
+        ("queriesActive", ctypes.c_int),
+    ]
+
+
+class SteamServerBrowserOwner(ctypes.Structure):
+    _fields_ = [
+        ("refreshActive", ctypes.c_int),
+        ("request", ctypes.c_size_t),
+    ]
+
+
+def _c_string(value: bytes) -> bytes:
+    return bytes(value).split(b"\0", 1)[0]
+
+
 @pytest.fixture(scope="session", params=[False, True], ids=["steamworks_disabled", "steamworks_enabled"])
 def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory) -> tuple[ctypes.CDLL, bool]:
     enabled = bool(request.param)
@@ -117,6 +246,156 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
     lib.QLR_Steamworks_ActivateOverlay.restype = ctypes.c_int
     lib.QLR_Steamworks_ActivateOverlayToWebPage.argtypes = [ctypes.c_char_p]
     lib.QLR_Steamworks_ActivateOverlayToWebPage.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_HasServerBrowserInterface.argtypes = []
+    lib.QLR_Steamworks_HasServerBrowserInterface.restype = ctypes.c_int
+    lib.QLR_Steamworks_GetServerBrowserRequestModeLabel.argtypes = [ctypes.c_int]
+    lib.QLR_Steamworks_GetServerBrowserRequestModeLabel.restype = ctypes.c_char_p
+    lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter.argtypes = [ctypes.c_int]
+    lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter.restype = ctypes.c_int
+    lib.QLR_Steamworks_InitServerBrowserOwner.argtypes = [ctypes.POINTER(SteamServerBrowserOwner)]
+    lib.QLR_Steamworks_InitServerBrowserOwner.restype = None
+    lib.QLR_Steamworks_BeginServerBrowserOwnerRequest.argtypes = [
+        ctypes.POINTER(SteamServerBrowserOwner),
+        ctypes.c_int,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_BeginServerBrowserOwnerRequest.restype = ctypes.c_int
+    lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest.argtypes = [ctypes.POINTER(SteamServerBrowserOwner)]
+    lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest.restype = ctypes.c_int
+    lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest.argtypes = [ctypes.POINTER(SteamServerBrowserOwner)]
+    lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest.restype = ctypes.c_int
+    lib.QLR_Steamworks_RequestServerList.argtypes = [ctypes.c_int, ctypes.c_size_t]
+    lib.QLR_Steamworks_RequestServerList.restype = ctypes.c_size_t
+    lib.QLR_Steamworks_GetServerListDetails.argtypes = [ctypes.c_size_t, ctypes.c_int]
+    lib.QLR_Steamworks_GetServerListDetails.restype = ctypes.c_size_t
+    lib.QLR_Steamworks_ReadServerListDetails.argtypes = [ctypes.c_size_t, ctypes.c_int, ctypes.POINTER(SteamServerItem)]
+    lib.QLR_Steamworks_ReadServerListDetails.restype = ctypes.c_int
+    lib.QLR_Steamworks_FormatServerBrowserResponseId.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_FormatServerBrowserResponseId.restype = None
+    lib.QLR_Steamworks_BuildServerBrowserResponse.argtypes = [
+        ctypes.POINTER(SteamServerItem),
+        ctypes.POINTER(SteamServerBrowserResponse),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserResponse.restype = ctypes.c_int
+    lib.QLR_Steamworks_ReadServerBrowserResponse.argtypes = [
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.POINTER(SteamServerBrowserResponse),
+    ]
+    lib.QLR_Steamworks_ReadServerBrowserResponse.restype = ctypes.c_int
+    lib.QLR_Steamworks_FormatServerBrowserFailureEventName.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_FormatServerBrowserFailureEventName.restype = None
+    lib.QLR_Steamworks_BuildServerBrowserFailure.argtypes = [
+        ctypes.c_int,
+        ctypes.POINTER(SteamServerBrowserFailure),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserFailure.restype = ctypes.c_int
+    lib.QLR_Steamworks_BuildServerBrowserRefreshComplete.argtypes = [
+        ctypes.POINTER(SteamServerBrowserRefreshComplete),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserRefreshComplete.restype = ctypes.c_int
+    lib.QLR_Steamworks_FormatServerBrowserDetailId.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_FormatServerBrowserDetailId.restype = None
+    lib.QLR_Steamworks_BuildServerBrowserDetailIdentity.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.POINTER(SteamServerBrowserDetailIdentity),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserDetailIdentity.restype = ctypes.c_int
+    lib.QLR_Steamworks_FormatServerBrowserDetailEventName.argtypes = [
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_FormatServerBrowserDetailEventName.restype = ctypes.c_int
+    lib.QLR_Steamworks_BuildServerBrowserDetailEvent.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailIdentity),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.POINTER(SteamServerBrowserDetailEvent),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserDetailEvent.restype = ctypes.c_int
+    lib.QLR_Steamworks_BuildServerBrowserRuleResponse.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailIdentity),
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.POINTER(SteamServerBrowserRuleResponse),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserRuleResponse.restype = ctypes.c_int
+    lib.QLR_Steamworks_BuildServerBrowserPlayerResponse.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailIdentity),
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.POINTER(SteamServerBrowserPlayerResponse),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserPlayerResponse.restype = ctypes.c_int
+    lib.QLR_Steamworks_InitServerBrowserDetailLifecycle.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.POINTER(SteamServerBrowserDetailLifecycle),
+    ]
+    lib.QLR_Steamworks_InitServerBrowserDetailLifecycle.restype = ctypes.c_int
+    lib.QLR_Steamworks_CompleteServerBrowserDetailCallback.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailLifecycle),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_CompleteServerBrowserDetailCallback.restype = ctypes.c_int
+    lib.QLR_Steamworks_BuildServerBrowserDetailResponseViews.argtypes = [
+        ctypes.c_size_t,
+        ctypes.POINTER(SteamServerBrowserDetailResponseViews),
+    ]
+    lib.QLR_Steamworks_BuildServerBrowserDetailResponseViews.restype = ctypes.c_int
+    lib.QLR_Steamworks_InitServerBrowserDetailRequest.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailRequest)
+    ]
+    lib.QLR_Steamworks_InitServerBrowserDetailRequest.restype = None
+    lib.QLR_Steamworks_BeginServerBrowserDetailRequest.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailRequest),
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_BeginServerBrowserDetailRequest.restype = ctypes.c_int
+    lib.QLR_Steamworks_CompleteServerBrowserDetailRequestCallback.argtypes = [
+        ctypes.POINTER(SteamServerBrowserDetailRequest),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_CompleteServerBrowserDetailRequestCallback.restype = ctypes.c_int
+    lib.QLR_Steamworks_ReleaseServerListRequest.argtypes = [ctypes.c_size_t]
+    lib.QLR_Steamworks_ReleaseServerListRequest.restype = None
+    lib.QLR_Steamworks_RefreshServerListRequest.argtypes = [ctypes.c_size_t]
+    lib.QLR_Steamworks_RefreshServerListRequest.restype = None
+    lib.QLR_Steamworks_RequestServerDetails.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.c_size_t,
+        ctypes.c_size_t,
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_RequestServerDetails.restype = ctypes.c_int
+    lib.QLR_Steamworks_CancelServerQuery.argtypes = [ctypes.c_int]
+    lib.QLR_Steamworks_CancelServerQuery.restype = None
 
     lib.QLR_Steamworks_SetRichPresence.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     lib.QLR_Steamworks_SetRichPresence.restype = ctypes.c_int
@@ -533,6 +812,55 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetGameInviteConnectString.argtypes = []
         lib.QLR_SteamworksMock_GetGameInviteConnectString.restype = ctypes.c_char_p
 
+        for name in [
+            "QLR_SteamworksMock_GetServerBrowserInternetCalls",
+            "QLR_SteamworksMock_GetServerBrowserLanCalls",
+            "QLR_SteamworksMock_GetServerBrowserFriendsCalls",
+            "QLR_SteamworksMock_GetServerBrowserFavoritesCalls",
+            "QLR_SteamworksMock_GetServerBrowserHistoryCalls",
+            "QLR_SteamworksMock_GetServerBrowserReleaseCalls",
+            "QLR_SteamworksMock_GetServerBrowserRefreshCalls",
+            "QLR_SteamworksMock_GetServerBrowserGetDetailsCalls",
+            "QLR_SteamworksMock_GetServerBrowserPingCalls",
+            "QLR_SteamworksMock_GetServerBrowserPlayersCalls",
+            "QLR_SteamworksMock_GetServerBrowserRulesCalls",
+            "QLR_SteamworksMock_GetServerBrowserCancelQueryCalls",
+            "QLR_SteamworksMock_GetServerBrowserPingOrder",
+            "QLR_SteamworksMock_GetServerBrowserPlayersOrder",
+            "QLR_SteamworksMock_GetServerBrowserRulesOrder",
+            "QLR_SteamworksMock_GetServerBrowserLastIndex",
+            "QLR_SteamworksMock_GetServerBrowserLastCancelQuery",
+        ]:
+            getattr(lib, name).argtypes = []
+            getattr(lib, name).restype = ctypes.c_int
+
+        for name in [
+            "QLR_SteamworksMock_GetServerBrowserLastAppId",
+            "QLR_SteamworksMock_GetServerBrowserLastFilterCount",
+            "QLR_SteamworksMock_GetServerBrowserLastIp",
+        ]:
+            getattr(lib, name).argtypes = []
+            getattr(lib, name).restype = ctypes.c_uint32
+
+        lib.QLR_SteamworksMock_GetServerBrowserLastPort.argtypes = []
+        lib.QLR_SteamworksMock_GetServerBrowserLastPort.restype = ctypes.c_uint16
+
+        for name in [
+            "QLR_SteamworksMock_GetServerBrowserLastResponse",
+            "QLR_SteamworksMock_GetServerBrowserLastRequest",
+            "QLR_SteamworksMock_GetServerBrowserLastPingResponse",
+            "QLR_SteamworksMock_GetServerBrowserLastPlayersResponse",
+            "QLR_SteamworksMock_GetServerBrowserLastRulesResponse",
+        ]:
+            getattr(lib, name).argtypes = []
+            getattr(lib, name).restype = ctypes.c_size_t
+
+        lib.QLR_SteamworksMock_GetServerBrowserLastFilterKey.argtypes = []
+        lib.QLR_SteamworksMock_GetServerBrowserLastFilterKey.restype = ctypes.c_char_p
+
+        lib.QLR_SteamworksMock_GetServerBrowserLastFilterValue.argtypes = []
+        lib.QLR_SteamworksMock_GetServerBrowserLastFilterValue.restype = ctypes.c_char_p
+
         lib.QLR_SteamworksMock_GetUGCSubscribeCalls.argtypes = []
         lib.QLR_SteamworksMock_GetUGCSubscribeCalls.restype = ctypes.c_int
 
@@ -601,6 +929,9 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_SetAppId.argtypes = [ctypes.c_uint32]
         lib.QLR_SteamworksMock_SetAppId.restype = None
+
+        lib.QLR_SteamworksMock_SetServerBrowserServerName.argtypes = [ctypes.c_char_p]
+        lib.QLR_SteamworksMock_SetServerBrowserServerName.restype = None
 
         lib.QLR_SteamworksMock_SetLobbyChatEntryMessage.argtypes = [ctypes.c_char_p]
         lib.QLR_SteamworksMock_SetLobbyChatEntryMessage.restype = None
@@ -1012,6 +1343,692 @@ def test_activate_overlay_to_web_page_routes_url(steamworks_harness: tuple[ctype
     assert lib.QLR_Steamworks_ActivateOverlayToWebPage(b"")
     assert lib.QLR_SteamworksMock_GetOverlayWebCallCount() == 1
     assert lib.QLR_SteamworksMock_GetOverlayWebUrl() == b""
+
+
+def test_server_browser_helpers_use_mapped_matchmaking_servers_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        ping_query = ctypes.c_int(99)
+        players_query = ctypes.c_int(99)
+        rules_query = ctypes.c_int(99)
+
+        assert not lib.QLR_Steamworks_HasServerBrowserInterface()
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(0) == b"internet"
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(1) == b"lan"
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(2) == b"friends"
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(3) == b"favorites"
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(4) == b"history"
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(99) == b"internet"
+        assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(0)
+        assert not lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(1)
+        assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(2)
+        assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(3)
+        assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(4)
+        assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(99)
+        assert lib.QLR_Steamworks_RequestServerList(0, 0xABCDEF) == 0
+        assert lib.QLR_Steamworks_GetServerListDetails(0x12345678, 1) == 0
+        server = SteamServerItem()
+        server.appId = 0x54100
+        assert not lib.QLR_Steamworks_ReadServerListDetails(0x12345678, 1, ctypes.byref(server))
+        assert server.appId == 0
+        lib.QLR_Steamworks_RefreshServerListRequest(0x12345678)
+        lib.QLR_Steamworks_ReleaseServerListRequest(0x12345678)
+        assert not lib.QLR_Steamworks_RequestServerDetails(
+            0x01020304,
+            27960,
+            0xAAA0,
+            0xBBB0,
+            0xCCC0,
+            ctypes.byref(ping_query),
+            ctypes.byref(players_query),
+            ctypes.byref(rules_query),
+        )
+        assert ping_query.value == 0
+        assert players_query.value == 0
+        assert rules_query.value == 0
+        lib.QLR_Steamworks_CancelServerQuery(11)
+        return
+
+    mode_cases = [
+        (0, "QLR_SteamworksMock_GetServerBrowserInternetCalls", b"gamedir", b"baseq3", 1),
+        (1, "QLR_SteamworksMock_GetServerBrowserLanCalls", b"", b"", 0),
+        (2, "QLR_SteamworksMock_GetServerBrowserFriendsCalls", b"gamedir", b"baseq3", 1),
+        (3, "QLR_SteamworksMock_GetServerBrowserFavoritesCalls", b"gamedir", b"baseq3", 1),
+        (4, "QLR_SteamworksMock_GetServerBrowserHistoryCalls", b"gamedir", b"baseq3", 1),
+        (99, "QLR_SteamworksMock_GetServerBrowserInternetCalls", b"gamedir", b"baseq3", 1),
+    ]
+    mode_labels = {
+        0: b"internet",
+        1: b"lan",
+        2: b"friends",
+        3: b"favorites",
+        4: b"history",
+        99: b"internet",
+    }
+
+    for mode, call_getter, expected_key, expected_value, expected_filter_count in mode_cases:
+        response = 0xABC000 + mode
+
+        lib.QLR_SteamworksMock_Reset()
+        lib.QLR_SteamworksMock_PrimeState()
+
+        assert lib.QLR_Steamworks_HasServerBrowserInterface()
+        assert lib.QLR_Steamworks_GetServerBrowserRequestModeLabel(mode) == mode_labels[mode]
+        assert bool(lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(mode)) == (expected_filter_count == 1)
+        assert lib.QLR_Steamworks_RequestServerList(mode, response) == 0x13572468
+        assert getattr(lib, call_getter)() == 1
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastAppId() == 0x54100
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == response
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterCount() == expected_filter_count
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterKey() == expected_key
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterValue() == expected_value
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    request = lib.QLR_Steamworks_RequestServerList(2, 0xABCDEF)
+    assert request == 0x13572468
+    assert lib.QLR_Steamworks_GetServerListDetails(request, 7) != 0
+    assert lib.QLR_SteamworksMock_GetServerBrowserGetDetailsCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRequest() == request
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastIndex() == 7
+
+    lib.QLR_Steamworks_RefreshServerListRequest(request)
+    assert lib.QLR_SteamworksMock_GetServerBrowserRefreshCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRequest() == request
+
+    lib.QLR_Steamworks_ReleaseServerListRequest(request)
+    assert lib.QLR_SteamworksMock_GetServerBrowserReleaseCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRequest() == request
+
+    ping_query = ctypes.c_int()
+    players_query = ctypes.c_int()
+    rules_query = ctypes.c_int()
+    assert lib.QLR_Steamworks_RequestServerDetails(
+        0x01020304,
+        27960,
+        0xAAA0,
+        0xBBB0,
+        0xCCC0,
+        ctypes.byref(ping_query),
+        ctypes.byref(players_query),
+        ctypes.byref(rules_query),
+    )
+    assert ping_query.value == 11
+    assert players_query.value == 12
+    assert rules_query.value == 13
+    assert lib.QLR_SteamworksMock_GetServerBrowserPingCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserRulesCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserPlayersCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserPingOrder() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserRulesOrder() == 2
+    assert lib.QLR_SteamworksMock_GetServerBrowserPlayersOrder() == 3
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastIp() == 0x01020304
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastPort() == 27960
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastPingResponse() == 0xAAA0
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastPlayersResponse() == 0xBBB0
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRulesResponse() == 0xCCC0
+    lib.QLR_Steamworks_CancelServerQuery(0)
+    assert lib.QLR_SteamworksMock_GetServerBrowserCancelQueryCalls() == 0
+    lib.QLR_Steamworks_CancelServerQuery(ping_query.value)
+    assert lib.QLR_SteamworksMock_GetServerBrowserCancelQueryCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastCancelQuery() == 11
+    lib.QLR_Steamworks_CancelServerQuery(players_query.value)
+    assert lib.QLR_SteamworksMock_GetServerBrowserCancelQueryCalls() == 2
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastCancelQuery() == 12
+    lib.QLR_Steamworks_CancelServerQuery(rules_query.value)
+    assert lib.QLR_SteamworksMock_GetServerBrowserCancelQueryCalls() == 3
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastCancelQuery() == 13
+
+
+def test_server_browser_owner_reconstructs_retail_refresh_lifecycle(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    owner = SteamServerBrowserOwner()
+
+    owner.refreshActive = 1
+    owner.request = 0x12345678
+    lib.QLR_Steamworks_InitServerBrowserOwner(ctypes.byref(owner))
+    assert owner.refreshActive == 0
+    assert owner.request == 0
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_BeginServerBrowserOwnerRequest(ctypes.byref(owner), 0, 0xABCDEF)
+        assert owner.refreshActive == 0
+        assert owner.request == 0
+        assert not lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest(ctypes.byref(owner))
+        assert not lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest(ctypes.byref(owner))
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_BeginServerBrowserOwnerRequest(ctypes.byref(owner), 0, 0xABCDEF)
+    assert owner.refreshActive == 1
+    assert owner.request == 0x13572468
+    assert lib.QLR_SteamworksMock_GetServerBrowserInternetCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == 0xABCDEF
+
+    assert not lib.QLR_Steamworks_BeginServerBrowserOwnerRequest(ctypes.byref(owner), 1, 0x123456)
+    assert owner.refreshActive == 1
+    assert owner.request == 0x13572468
+    assert lib.QLR_SteamworksMock_GetServerBrowserLanCalls() == 0
+    assert lib.QLR_SteamworksMock_GetServerBrowserReleaseCalls() == 0
+
+    assert lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest(ctypes.byref(owner))
+    assert lib.QLR_SteamworksMock_GetServerBrowserRefreshCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRequest() == 0x13572468
+
+    assert lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest(ctypes.byref(owner))
+    assert owner.refreshActive == 0
+    assert owner.request == 0x13572468
+
+    assert lib.QLR_Steamworks_BeginServerBrowserOwnerRequest(ctypes.byref(owner), 1, 0x123456)
+    assert owner.refreshActive == 1
+    assert owner.request == 0x13572468
+    assert lib.QLR_SteamworksMock_GetServerBrowserReleaseCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLanCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == 0x123456
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterCount() == 0
+
+
+def test_server_browser_detail_reader_projects_retail_gameserveritem_row(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    server = SteamServerItem()
+
+    if not enabled:
+        server.appId = 0x54100
+        assert not lib.QLR_Steamworks_ReadServerListDetails(0x12345678, 3, ctypes.byref(server))
+        assert server.appId == 0
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    request = lib.QLR_Steamworks_RequestServerList(0, 0xABCDEF)
+    assert request == 0x13572468
+    assert lib.QLR_Steamworks_ReadServerListDetails(request, 5, ctypes.byref(server))
+    assert lib.QLR_SteamworksMock_GetServerBrowserGetDetailsCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRequest() == request
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastIndex() == 5
+    assert server.serverIp == 0x01020304
+    assert server.serverPort == 27960
+    assert server.queryPort == 27961
+    assert server.ping == 42
+    assert _c_string(server.gameDir) == b"baseq3"
+    assert _c_string(server.map) == b"campgrounds"
+    assert _c_string(server.gameDescription) == b"Clan Arena"
+    assert server.appId == 0x54100
+    assert server.numPlayers == 7
+    assert server.maxPlayers == 16
+    assert server.botPlayers == 2
+    assert server.passwordProtected
+    assert server.vacSecured
+    assert server.lastPlayed == 123456789
+    assert server.serverVersion == 1069
+    assert _c_string(server.name) == b"QLR Test Server"
+    assert _c_string(server.displayName) == b"QLR Test Server"
+    assert _c_string(server.tags) == b"duel,instagib"
+    assert server.steamId == 0x0123456789ABCDEF
+
+    lib.QLR_SteamworksMock_SetAppId(0x123456)
+    cleared = SteamServerItem()
+    cleared.appId = 0x54100
+    assert not lib.QLR_Steamworks_ReadServerListDetails(request, 5, ctypes.byref(cleared))
+    assert cleared.appId == 0
+    assert _c_string(cleared.name) == b""
+    assert _c_string(cleared.displayName) == b""
+
+
+def test_server_browser_detail_reader_uses_retail_empty_name_fallback(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetServerBrowserServerName(b"")
+
+    request = lib.QLR_Steamworks_RequestServerList(0, 0xABCDEF)
+    server = SteamServerItem()
+    assert lib.QLR_Steamworks_ReadServerListDetails(request, 5, ctypes.byref(server))
+    assert _c_string(server.name) == b""
+    assert _c_string(server.displayName) == b"1.2.3.4:27960"
+
+
+def test_server_browser_response_projection_matches_retail_jsbrowser_payload_shape(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    response = SteamServerBrowserResponse()
+
+    if not enabled:
+        response.numPlayers = 99
+        assert not lib.QLR_Steamworks_ReadServerBrowserResponse(0x12345678, 3, ctypes.byref(response))
+        assert response.numPlayers == 0
+        assert _c_string(response.id) == b""
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    response_id = ctypes.create_string_buffer(32)
+    lib.QLR_Steamworks_FormatServerBrowserResponseId(0x01020304, 27960, response_id, len(response_id))
+    assert response_id.value == b"16909060_27960"
+
+    request = lib.QLR_Steamworks_RequestServerList(0, 0xABCDEF)
+    server = SteamServerItem()
+    assert lib.QLR_Steamworks_ReadServerListDetails(request, 5, ctypes.byref(server))
+
+    built = SteamServerBrowserResponse()
+    assert lib.QLR_Steamworks_BuildServerBrowserResponse(ctypes.byref(server), ctypes.byref(built))
+    assert _c_string(built.id) == b"16909060_27960"
+    assert _c_string(built.name) == b"QLR Test Server"
+    assert built.numPlayers == 7
+    assert built.maxPlayers == 16
+    assert built.ping == 42
+    assert _c_string(built.map) == b"campgrounds"
+    assert built.botPlayers == 2
+    assert built.passwordProtected
+    assert built.vacSecured
+    assert built.serverIp == 0x01020304
+    assert built.serverPort == 27960
+    assert _c_string(built.steamId) == str(0x0123456789ABCDEF).encode()
+    assert _c_string(built.tags) == b"duel,instagib"
+    assert _c_string(built.gametype) == b"Clan Arena"
+    assert built.lastPlayed == 123456789
+
+    response = SteamServerBrowserResponse()
+    assert lib.QLR_Steamworks_ReadServerBrowserResponse(request, 5, ctypes.byref(response))
+    assert _c_string(response.id) == b"16909060_27960"
+    assert _c_string(response.name) == b"QLR Test Server"
+    assert _c_string(response.steamId) == str(0x0123456789ABCDEF).encode()
+    assert _c_string(response.gametype) == b"Clan Arena"
+
+    lib.QLR_SteamworksMock_SetServerBrowserServerName(b"")
+    unnamed = SteamServerBrowserResponse()
+    assert lib.QLR_Steamworks_ReadServerBrowserResponse(request, 5, ctypes.byref(unnamed))
+    assert _c_string(unnamed.id) == b"16909060_27960"
+    assert _c_string(unnamed.name) == b"1.2.3.4:27960"
+
+    lib.QLR_SteamworksMock_SetAppId(0x123456)
+    cleared = SteamServerBrowserResponse()
+    cleared.numPlayers = 99
+    assert not lib.QLR_Steamworks_ReadServerBrowserResponse(request, 5, ctypes.byref(cleared))
+    assert cleared.numPlayers == 0
+    assert _c_string(cleared.id) == b""
+    assert _c_string(cleared.name) == b""
+
+
+def test_server_browser_failure_and_refresh_projections_match_retail_callbacks(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    failure = SteamServerBrowserFailure()
+    refresh = SteamServerBrowserRefreshComplete()
+
+    if not enabled:
+        failure.id = 77
+        refresh.eventName = b"stale"
+        assert not lib.QLR_Steamworks_BuildServerBrowserFailure(7, ctypes.byref(failure))
+        assert failure.id == 0
+        assert _c_string(failure.eventName) == b""
+        assert not lib.QLR_Steamworks_BuildServerBrowserRefreshComplete(ctypes.byref(refresh))
+        assert _c_string(refresh.eventName) == b""
+        return
+
+    event_name = ctypes.create_string_buffer(64)
+    lib.QLR_Steamworks_FormatServerBrowserFailureEventName(7, event_name, len(event_name))
+    assert event_name.value == b"servers.details.7.failed"
+
+    assert lib.QLR_Steamworks_BuildServerBrowserFailure(7, ctypes.byref(failure))
+    assert failure.id == 7
+    assert _c_string(failure.eventName) == b"servers.details.7.failed"
+
+    assert lib.QLR_Steamworks_BuildServerBrowserFailure(-1, ctypes.byref(failure))
+    assert failure.id == -1
+    assert _c_string(failure.eventName) == b"servers.details.-1.failed"
+
+    assert lib.QLR_Steamworks_BuildServerBrowserRefreshComplete(ctypes.byref(refresh))
+    assert _c_string(refresh.eventName) == b"servers.refresh.end"
+
+    owner = SteamServerBrowserOwner()
+    lib.QLR_Steamworks_InitServerBrowserOwner(ctypes.byref(owner))
+    owner.refreshActive = 1
+    assert lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest(ctypes.byref(owner))
+    assert owner.refreshActive == 0
+
+
+def test_server_browser_detail_identity_and_events_match_retail_jsbrowserdetails_contract(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    identity = SteamServerBrowserDetailIdentity()
+    event = SteamServerBrowserDetailEvent()
+
+    if not enabled:
+        identity.serverIp = 0x01020304
+        event.eventName = b"stale"
+        assert not lib.QLR_Steamworks_BuildServerBrowserDetailIdentity(0x01020304, 27960, ctypes.byref(identity))
+        assert identity.serverIp == 0
+        assert identity.serverPort == 0
+        assert _c_string(identity.id) == b""
+        assert not lib.QLR_Steamworks_BuildServerBrowserDetailEvent(ctypes.byref(identity), 0, 0, ctypes.byref(event))
+        assert event.identity.serverIp == 0
+        assert _c_string(event.eventName) == b""
+        return
+
+    detail_id = ctypes.create_string_buffer(32)
+    lib.QLR_Steamworks_FormatServerBrowserDetailId(0x01020304, 27960, detail_id, len(detail_id))
+    assert detail_id.value == b"16909060_27960"
+
+    signed_port_id = ctypes.create_string_buffer(32)
+    lib.QLR_Steamworks_FormatServerBrowserDetailId(0x01020304, 0xCFC7, signed_port_id, len(signed_port_id))
+    assert signed_port_id.value == b"16909060_-12345"
+
+    assert lib.QLR_Steamworks_BuildServerBrowserDetailIdentity(0x01020304, 27960, ctypes.byref(identity))
+    assert identity.serverIp == 0x01020304
+    assert identity.serverPort == 27960
+    assert _c_string(identity.id) == b"16909060_27960"
+
+    invalid_identity = SteamServerBrowserDetailIdentity()
+    invalid_identity.serverIp = 99
+    assert not lib.QLR_Steamworks_BuildServerBrowserDetailIdentity(0, 27960, ctypes.byref(invalid_identity))
+    assert invalid_identity.serverIp == 0
+    assert _c_string(invalid_identity.id) == b""
+
+    expectations = [
+        (0, 0, b"servers.rules.16909060_27960.response"),
+        (0, 1, b"servers.rules.16909060_27960.failed"),
+        (0, 2, b"servers.rules.16909060_27960.end"),
+        (1, 0, b"servers.players.16909060_27960.response"),
+        (1, 1, b"servers.players.16909060_27960.failed"),
+        (1, 2, b"servers.players.16909060_27960.end"),
+    ]
+    for channel, phase, expected in expectations:
+        event_name = ctypes.create_string_buffer(64)
+        assert lib.QLR_Steamworks_FormatServerBrowserDetailEventName(channel, phase, identity.id, event_name, len(event_name))
+        assert event_name.value == expected
+
+        event = SteamServerBrowserDetailEvent()
+        assert lib.QLR_Steamworks_BuildServerBrowserDetailEvent(ctypes.byref(identity), channel, phase, ctypes.byref(event))
+        assert event.identity.serverIp == 0x01020304
+        assert event.identity.serverPort == 27960
+        assert _c_string(event.identity.id) == b"16909060_27960"
+        assert _c_string(event.eventName) == expected
+
+    invalid_name = ctypes.create_string_buffer(64)
+    assert not lib.QLR_Steamworks_FormatServerBrowserDetailEventName(99, 0, identity.id, invalid_name, len(invalid_name))
+    assert invalid_name.value == b""
+
+    assert not lib.QLR_Steamworks_BuildServerBrowserDetailEvent(ctypes.byref(identity), 0, 99, ctypes.byref(event))
+    assert event.identity.serverIp == 0
+    assert _c_string(event.eventName) == b""
+
+
+def test_server_browser_detail_response_payloads_match_retail_jsbrowserdetails_contract(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    identity = SteamServerBrowserDetailIdentity()
+    rule_response = SteamServerBrowserRuleResponse()
+    player_response = SteamServerBrowserPlayerResponse()
+
+    if not enabled:
+        rule_response.identity.serverIp = 0x01020304
+        rule_response.rule = b"stale"
+        player_response.score = 99
+        assert not lib.QLR_Steamworks_BuildServerBrowserRuleResponse(
+            ctypes.byref(identity),
+            b"sv_hostname",
+            b"QLR Test Server",
+            ctypes.byref(rule_response),
+        )
+        assert rule_response.identity.serverIp == 0
+        assert _c_string(rule_response.eventName) == b""
+        assert _c_string(rule_response.rule) == b""
+        assert not lib.QLR_Steamworks_BuildServerBrowserPlayerResponse(
+            ctypes.byref(identity),
+            b"player",
+            15,
+            120,
+            ctypes.byref(player_response),
+        )
+        assert player_response.score == 0
+        assert player_response.time == 0
+        assert _c_string(player_response.name) == b""
+        return
+
+    assert lib.QLR_Steamworks_BuildServerBrowserDetailIdentity(0x01020304, 27960, ctypes.byref(identity))
+
+    assert lib.QLR_Steamworks_BuildServerBrowserRuleResponse(
+        ctypes.byref(identity),
+        b"sv_hostname",
+        b"QLR Test Server",
+        ctypes.byref(rule_response),
+    )
+    assert rule_response.identity.serverIp == 0x01020304
+    assert rule_response.identity.serverPort == 27960
+    assert _c_string(rule_response.identity.id) == b"16909060_27960"
+    assert _c_string(rule_response.eventName) == b"servers.rules.16909060_27960.response"
+    assert _c_string(rule_response.rule) == b"sv_hostname"
+    assert _c_string(rule_response.value) == b"QLR Test Server"
+
+    assert lib.QLR_Steamworks_BuildServerBrowserRuleResponse(
+        ctypes.byref(identity),
+        None,
+        None,
+        ctypes.byref(rule_response),
+    )
+    assert _c_string(rule_response.rule) == b""
+    assert _c_string(rule_response.value) == b""
+
+    assert lib.QLR_Steamworks_BuildServerBrowserPlayerResponse(
+        ctypes.byref(identity),
+        b"xaero",
+        15,
+        120,
+        ctypes.byref(player_response),
+    )
+    assert player_response.identity.serverIp == 0x01020304
+    assert player_response.identity.serverPort == 27960
+    assert _c_string(player_response.identity.id) == b"16909060_27960"
+    assert _c_string(player_response.eventName) == b"servers.players.16909060_27960.response"
+    assert _c_string(player_response.name) == b"xaero"
+    assert player_response.score == 15
+    assert player_response.time == 120
+
+    assert lib.QLR_Steamworks_BuildServerBrowserPlayerResponse(
+        ctypes.byref(identity),
+        None,
+        -1,
+        0,
+        ctypes.byref(player_response),
+    )
+    assert _c_string(player_response.name) == b""
+    assert player_response.score == -1
+    assert player_response.time == 0
+
+    invalid_identity = SteamServerBrowserDetailIdentity()
+    assert not lib.QLR_Steamworks_BuildServerBrowserRuleResponse(
+        ctypes.byref(invalid_identity),
+        b"sv_hostname",
+        b"QLR Test Server",
+        ctypes.byref(rule_response),
+    )
+    assert rule_response.identity.serverIp == 0
+    assert _c_string(rule_response.eventName) == b""
+    assert _c_string(rule_response.rule) == b""
+    assert not lib.QLR_Steamworks_BuildServerBrowserPlayerResponse(
+        ctypes.byref(invalid_identity),
+        b"xaero",
+        15,
+        120,
+        ctypes.byref(player_response),
+    )
+    assert player_response.score == 0
+    assert player_response.time == 0
+
+
+def test_server_browser_detail_lifecycle_reconstructs_retail_three_callback_release_counter(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    lifecycle = SteamServerBrowserDetailLifecycle()
+    release_ready = ctypes.c_int(7)
+
+    if not enabled:
+        lifecycle.identity.serverIp = 0x01020304
+        lifecycle.completedCallbacks = 2
+        lifecycle.releaseReady = 1
+        assert not lib.QLR_Steamworks_InitServerBrowserDetailLifecycle(0x01020304, 27960, ctypes.byref(lifecycle))
+        assert lifecycle.identity.serverIp == 0
+        assert lifecycle.completedCallbacks == 0
+        assert lifecycle.releaseReady == 0
+
+        lifecycle.completedCallbacks = 2
+        lifecycle.releaseReady = 1
+        assert not lib.QLR_Steamworks_CompleteServerBrowserDetailCallback(ctypes.byref(lifecycle), ctypes.byref(release_ready))
+        assert lifecycle.completedCallbacks == 0
+        assert lifecycle.releaseReady == 0
+        assert release_ready.value == 0
+        return
+
+    assert lib.QLR_Steamworks_InitServerBrowserDetailLifecycle(0x01020304, 27960, ctypes.byref(lifecycle))
+    assert lifecycle.identity.serverIp == 0x01020304
+    assert lifecycle.identity.serverPort == 27960
+    assert _c_string(lifecycle.identity.id) == b"16909060_27960"
+    assert lifecycle.completedCallbacks == 0
+    assert lifecycle.releaseReady == 0
+
+    for expected_count in (1, 2):
+        release_ready.value = 7
+        assert lib.QLR_Steamworks_CompleteServerBrowserDetailCallback(ctypes.byref(lifecycle), ctypes.byref(release_ready))
+        assert lifecycle.completedCallbacks == expected_count
+        assert lifecycle.releaseReady == 0
+        assert release_ready.value == 0
+
+    release_ready.value = 0
+    assert lib.QLR_Steamworks_CompleteServerBrowserDetailCallback(ctypes.byref(lifecycle), ctypes.byref(release_ready))
+    assert lifecycle.completedCallbacks == 3
+    assert lifecycle.releaseReady == 1
+    assert release_ready.value == 1
+
+    release_ready.value = 0
+    assert not lib.QLR_Steamworks_CompleteServerBrowserDetailCallback(ctypes.byref(lifecycle), ctypes.byref(release_ready))
+    assert lifecycle.completedCallbacks == 3
+    assert lifecycle.releaseReady == 1
+    assert release_ready.value == 1
+
+    invalid_lifecycle = SteamServerBrowserDetailLifecycle()
+    invalid_lifecycle.completedCallbacks = 99
+    assert not lib.QLR_Steamworks_InitServerBrowserDetailLifecycle(0, 27960, ctypes.byref(invalid_lifecycle))
+    assert invalid_lifecycle.completedCallbacks == 0
+    assert invalid_lifecycle.releaseReady == 0
+
+    blank_lifecycle = SteamServerBrowserDetailLifecycle()
+    release_ready.value = 1
+    assert not lib.QLR_Steamworks_CompleteServerBrowserDetailCallback(ctypes.byref(blank_lifecycle), ctypes.byref(release_ready))
+    assert release_ready.value == 0
+
+
+def test_server_browser_detail_request_owner_reconstructs_retail_response_views_and_release(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    detail_base = 0x1000
+    views = SteamServerBrowserDetailResponseViews()
+    request = SteamServerBrowserDetailRequest()
+    release_ready = ctypes.c_int(7)
+
+    if not enabled:
+        views.rulesResponse = 0xAAA0
+        assert not lib.QLR_Steamworks_BuildServerBrowserDetailResponseViews(detail_base, ctypes.byref(views))
+        assert not views.rulesResponse
+        assert not views.playersResponse
+        assert not views.pingResponse
+
+        request.detailObjectBase = detail_base
+        request.pingQuery = 11
+        request.playersQuery = 12
+        request.rulesQuery = 13
+        request.queriesActive = 1
+        lib.QLR_Steamworks_InitServerBrowserDetailRequest(ctypes.byref(request))
+        assert not request.detailObjectBase
+        assert request.pingQuery == 0
+        assert request.playersQuery == 0
+        assert request.rulesQuery == 0
+        assert request.queriesActive == 0
+
+        request.detailObjectBase = detail_base
+        request.queriesActive = 1
+        assert not lib.QLR_Steamworks_BeginServerBrowserDetailRequest(ctypes.byref(request), 0x01020304, 27960, detail_base)
+        assert not request.detailObjectBase
+        assert request.queriesActive == 0
+
+        request.detailObjectBase = detail_base
+        request.queriesActive = 1
+        release_ready.value = 1
+        assert not lib.QLR_Steamworks_CompleteServerBrowserDetailRequestCallback(ctypes.byref(request), ctypes.byref(release_ready))
+        assert not request.detailObjectBase
+        assert request.queriesActive == 0
+        assert release_ready.value == 0
+        return
+
+    assert lib.QLR_Steamworks_BuildServerBrowserDetailResponseViews(detail_base, ctypes.byref(views))
+    assert views.rulesResponse == detail_base
+    assert views.playersResponse == detail_base + 4
+    assert views.pingResponse == detail_base + 8
+
+    assert not lib.QLR_Steamworks_BuildServerBrowserDetailResponseViews(0, ctypes.byref(views))
+    assert not views.rulesResponse
+    assert not views.playersResponse
+    assert not views.pingResponse
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_BeginServerBrowserDetailRequest(ctypes.byref(request), 0x01020304, 27960, detail_base)
+    assert request.detailObjectBase == detail_base
+    assert request.queriesActive == 1
+    assert request.pingQuery == 11
+    assert request.playersQuery == 12
+    assert request.rulesQuery == 13
+    assert request.lifecycle.identity.serverIp == 0x01020304
+    assert request.lifecycle.identity.serverPort == 27960
+    assert _c_string(request.lifecycle.identity.id) == b"16909060_27960"
+    assert lib.QLR_SteamworksMock_GetServerBrowserPingCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserRulesCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserPlayersCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserPingOrder() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserRulesOrder() == 2
+    assert lib.QLR_SteamworksMock_GetServerBrowserPlayersOrder() == 3
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastRulesResponse() == detail_base
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastPlayersResponse() == detail_base + 4
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastPingResponse() == detail_base + 8
+
+    assert not lib.QLR_Steamworks_BeginServerBrowserDetailRequest(ctypes.byref(request), 0x01020305, 27961, 0x2000)
+    assert request.detailObjectBase == detail_base
+    assert request.queriesActive == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserPingCalls() == 1
+
+    for expected_count in (1, 2):
+        release_ready.value = 7
+        assert lib.QLR_Steamworks_CompleteServerBrowserDetailRequestCallback(ctypes.byref(request), ctypes.byref(release_ready))
+        assert request.lifecycle.completedCallbacks == expected_count
+        assert request.queriesActive == 1
+        assert request.pingQuery == 11
+        assert release_ready.value == 0
+
+    release_ready.value = 0
+    assert lib.QLR_Steamworks_CompleteServerBrowserDetailRequestCallback(ctypes.byref(request), ctypes.byref(release_ready))
+    assert request.lifecycle.completedCallbacks == 3
+    assert request.lifecycle.releaseReady == 1
+    assert request.queriesActive == 0
+    assert not request.detailObjectBase
+    assert request.pingQuery == 0
+    assert request.playersQuery == 0
+    assert request.rulesQuery == 0
+    assert release_ready.value == 1
+
+    release_ready.value = 0
+    assert not lib.QLR_Steamworks_CompleteServerBrowserDetailRequestCallback(ctypes.byref(request), ctypes.byref(release_ready))
+    assert release_ready.value == 1
+
+    invalid_request = SteamServerBrowserDetailRequest()
+    invalid_request.pingQuery = 99
+    assert not lib.QLR_Steamworks_BeginServerBrowserDetailRequest(ctypes.byref(invalid_request), 0, 27960, detail_base)
+    assert invalid_request.pingQuery == 0
+    assert invalid_request.queriesActive == 0
 
 
 def test_set_rich_presence_uses_mapped_friends_slot(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:

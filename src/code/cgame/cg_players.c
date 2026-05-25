@@ -2292,6 +2292,50 @@ static void CG_PlayerAngles( centity_t *cent, vec3_t legs[3], vec3_t torso[3], v
 
 /*
 ===============
+CG_FlightTrail
+===============
+*/
+static void CG_FlightTrail( centity_t *cent ) {
+	localEntity_t	*smoke;
+	vec3_t			origin;
+	float			radius;
+
+	if ( cent->trailTime > cg.time ) {
+		return;
+	}
+
+	cent->trailTime += 100;
+	if ( cent->trailTime < cg.time ) {
+		cent->trailTime = cg.time;
+	}
+
+	radius = cg_smokeRadius_flight.value;
+	if ( radius <= 0.0f ) {
+		return;
+	}
+
+	VectorCopy( cent->lerpOrigin, origin );
+	if ( cent->currentState.number == cg.snap->ps.clientNum && !cg.renderingThirdPerson ) {
+		origin[2] -= 16.0f;
+	} else {
+		origin[2] += 24.0f;
+	}
+
+	smoke = CG_SmokePuff( origin, vec3_origin,
+				  radius,
+				  1, 1, 1, 1,
+				  1000,
+				  cg.time,
+				  0,
+				  0,
+				  cgs.media.smokePuffShader );
+
+	// use the optimized local entity add
+	smoke->leType = LE_SCALE_FADE;
+}
+
+/*
+===============
 CG_HasteTrail
 ===============
 */
@@ -2299,6 +2343,7 @@ static void CG_HasteTrail( centity_t *cent ) {
 	localEntity_t	*smoke;
 	vec3_t			origin;
 	int				anim;
+	float			radius;
 
 	if ( cent->trailTime > cg.time ) {
 		return;
@@ -2313,11 +2358,16 @@ static void CG_HasteTrail( centity_t *cent ) {
 		cent->trailTime = cg.time;
 	}
 
+	radius = cg_smokeRadius_haste.value;
+	if ( radius <= 0.0f ) {
+		return;
+	}
+
 	VectorCopy( cent->lerpOrigin, origin );
 	origin[2] -= 16;
 
 	smoke = CG_SmokePuff( origin, vec3_origin, 
-				  8, 
+				  radius,
 				  1, 1, 1, 1,
 				  500, 
 				  cg.time,
@@ -2375,6 +2425,7 @@ static void CG_DustTrail( centity_t *cent ) {
 	localEntity_t	*dust;
 	vec3_t end, vel;
 	trace_t tr;
+	float radius;
 
 	if (!cg_enableDust.integer)
 		return;
@@ -2400,12 +2451,17 @@ static void CG_DustTrail( centity_t *cent ) {
 	if ( !(tr.surfaceFlags & SURF_DUST) )
 		return;
 
+	radius = cg_smokeRadius_dust.value;
+	if ( radius <= 0.0f ) {
+		return;
+	}
+
 	VectorCopy( cent->currentState.pos.trBase, end );
 	end[2] -= 16;
 
 	VectorSet(vel, 0, 0, -30);
 	dust = CG_SmokePuff( end, vel,
-				  24,
+				  radius,
 				  .8f, .8f, 0.7f, 0.33f,
 				  500,
 				  cg.time,
@@ -2646,12 +2702,16 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 	// flight plays a looped sound
 	if ( powerups & ( 1 << PW_FLIGHT ) ) {
 		trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin, cgs.media.flightSound );
+		CG_FlightTrail( cent );
 	}
 
 	ci = &cgs.clientinfo[ cent->currentState.clientNum ];
 	// redflag
 	if ( powerups & ( 1 << PW_REDFLAG ) ) {
-		if (ci->newAnims) {
+		if ( cg_flagStyle.integer == 2 && cgs.media.redFlagModel3 ) {
+			CG_TrailItem( cent, cgs.media.redFlagModel3 );
+		}
+		else if (ci->newAnims) {
 			CG_PlayerFlag( cent, cgs.media.redFlagFlapSkin, torso );
 		}
 		else {
@@ -2662,7 +2722,10 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 
 	// blueflag
 	if ( powerups & ( 1 << PW_BLUEFLAG ) ) {
-		if (ci->newAnims){
+		if ( cg_flagStyle.integer == 2 && cgs.media.blueFlagModel3 ) {
+			CG_TrailItem( cent, cgs.media.blueFlagModel3 );
+		}
+		else if (ci->newAnims){
 			CG_PlayerFlag( cent, cgs.media.blueFlagFlapSkin, torso );
 		}
 		else {
@@ -2673,7 +2736,10 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 
 	// neutralflag
 	if ( powerups & ( 1 << PW_NEUTRALFLAG ) ) {
-		if (ci->newAnims) {
+		if ( cg_flagStyle.integer == 2 && cgs.media.neutralFlagModel3 ) {
+			CG_TrailItem( cent, cgs.media.neutralFlagModel3 );
+		}
+		else if (ci->newAnims) {
 			CG_PlayerFlag( cent, cgs.media.neutralFlagFlapSkin, torso );
 		}
 		else {
@@ -3365,6 +3431,42 @@ static void CG_ApplyPlayerHeadWorldTransform( refEntity_t *head ) {
 }
 
 /*
+=============
+CG_PlayerModelBoundingBoxScale
+
+Resolves the retail player-model scale clamp used to fit oversized models
+back into the Quake Live player bounding box.
+=============
+*/
+static float CG_PlayerModelBoundingBoxScale( const clientInfo_t *ci ) {
+	if ( !ci || !cg_scalePlayerModelsToBB.integer || ci->headOffset[0] <= 1.0f ) {
+		return 0.0f;
+	}
+
+	return ci->headOffset[0];
+}
+
+/*
+=============
+CG_ApplyPlayerModelBoundingBoxScale
+
+Applies the retail non-normalized axis scale and origin lift before torso and
+head tags are resolved from the legs entity.
+=============
+*/
+static void CG_ApplyPlayerModelBoundingBoxScale( refEntity_t *legs, float scale ) {
+	if ( !legs || scale <= 0.0f ) {
+		return;
+	}
+
+	legs->nonNormalizedAxes = qtrue;
+	legs->origin[2] += 24.0f * ( scale - 1.0f );
+	VectorScale( legs->axis[0], scale, legs->axis[0] );
+	VectorScale( legs->axis[1], scale, legs->axis[1] );
+	VectorScale( legs->axis[2], scale, legs->axis[2] );
+}
+
+/*
 ===============
 CG_Player
 ===============
@@ -3382,6 +3484,7 @@ void CG_Player( centity_t *cent ) {
 	refEntity_t		powerup;
 	int				t;
 	float			c;
+	float			playerModelScale;
 	float			angle;
 	vec3_t			dir, angles;
 
@@ -3433,6 +3536,7 @@ void CG_Player( centity_t *cent ) {
 
 	// add a water splash if partially in and out of water
 	CG_PlayerSplash( cent );
+	playerModelScale = CG_PlayerModelBoundingBoxScale( ci );
 
 	if ( cg_shadows.integer == 3 && shadow ) {
 		renderfx |= RF_SHADOW_PLANE;
@@ -3448,6 +3552,7 @@ void CG_Player( centity_t *cent ) {
 	legs.customSkin = ci->legsSkin;
 
 	VectorCopy( cent->lerpOrigin, legs.origin );
+	CG_ApplyPlayerModelBoundingBoxScale( &legs, playerModelScale );
 
 	VectorCopy( cent->lerpOrigin, legs.lightingOrigin );
 	legs.shadowPlane = shadowPlane;

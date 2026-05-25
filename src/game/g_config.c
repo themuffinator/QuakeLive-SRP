@@ -8,6 +8,7 @@
 #define ARRAY_LEN( x ) ( sizeof( x ) / sizeof( (x)[0] ) )
 #endif
 
+#define CONFIG_CVAR_FLAG_RETAIL_40000 0x00040000
 #define CONFIG_CVAR_FLAG_FACTORY_MANAGED 0x00100000
 
 #define DEFAULT_STARTING_AMMO_BFG           10
@@ -41,25 +42,25 @@
 #define DEFAULT_WEAPON_RELOAD_RL            800
 #define DEFAULT_WEAPON_RELOAD_SG            1000
 
-#define DEFAULT_KNOCKBACK_BFG               1.0f
-#define DEFAULT_KNOCKBACK_CG                1.0f
-#define DEFAULT_KNOCKBACK_G                 1.0f
-#define DEFAULT_KNOCKBACK_GH                -5.0f
-#define DEFAULT_KNOCKBACK_GL                1.10f
-#define DEFAULT_KNOCKBACK_HMG               1.0f
-#define DEFAULT_KNOCKBACK_LG                1.75f
-#define DEFAULT_KNOCKBACK_MG                1.0f
-#define DEFAULT_KNOCKBACK_NG                1.0f
-#define DEFAULT_KNOCKBACK_PG                1.10f
-#define DEFAULT_KNOCKBACK_PG_SELF           1.30f
-#define DEFAULT_KNOCKBACK_PL                1.0f
-#define DEFAULT_KNOCKBACK_RG                0.85f
-#define DEFAULT_KNOCKBACK_RL                0.90f
-#define DEFAULT_KNOCKBACK_RL_SELF           1.10f
-#define DEFAULT_KNOCKBACK_SG                1.0f
-#define DEFAULT_KNOCKBACK_VERTICAL          24.0f
-#define DEFAULT_KNOCKBACK_VERTICAL_SELF     24.0f
-#define DEFAULT_KNOCKBACK_CRIPPLE           0.0f
+#define DEFAULT_KNOCKBACK_BFG               1
+#define DEFAULT_KNOCKBACK_CG                1
+#define DEFAULT_KNOCKBACK_G                 1
+#define DEFAULT_KNOCKBACK_GH                -5
+#define DEFAULT_KNOCKBACK_GL                1.10
+#define DEFAULT_KNOCKBACK_HMG               1
+#define DEFAULT_KNOCKBACK_LG                1.75
+#define DEFAULT_KNOCKBACK_MG                1
+#define DEFAULT_KNOCKBACK_NG                1
+#define DEFAULT_KNOCKBACK_PG                1.10
+#define DEFAULT_KNOCKBACK_PG_SELF           1.30
+#define DEFAULT_KNOCKBACK_PL                1
+#define DEFAULT_KNOCKBACK_RG                0.85
+#define DEFAULT_KNOCKBACK_RL                0.90
+#define DEFAULT_KNOCKBACK_RL_SELF           1.10
+#define DEFAULT_KNOCKBACK_SG                1
+#define DEFAULT_KNOCKBACK_VERTICAL          24
+#define DEFAULT_KNOCKBACK_VERTICAL_SELF     24
+#define DEFAULT_KNOCKBACK_CRIPPLE           0
 
 #define DEFAULT_AMMOPACK_BFG                15
 #define DEFAULT_AMMOPACK_CG                 100
@@ -87,7 +88,7 @@
 #define DEFAULT_STARTING_HEALTH_BONUS      25
 #define DEFAULT_STARTING_ARMOR             0
 #define DEFAULT_MACHINEGUN_IRONSIGHTS_SCALE 1.0f
-#define DEFAULT_PROX_MINE_TIMEOUT         20000
+#define DEFAULT_PROX_MINE_TIMEOUT         20
 
 #define DEFAULT_RESPAWN_DELAY_MIN_MILLISECONDS      2100
 #define DEFAULT_RESPAWN_DELAY_MAX_MILLISECONDS      2400
@@ -232,24 +233,24 @@ static configCvarTable_t s_configCvarTable[] = {
 	{ &g_loadout,              "g_loadout",              STRINGIZE( DEFAULT_FACTORY_LOADOUT ), CVAR_SERVERINFO | CVAR_GAMERULE, "Advertise whether the active factory grants Quake Live loadouts." },
 	{ &g_runes,                "g_runes",                STRINGIZE( DEFAULT_FACTORY_RUNES ), 0, "Enable the retail random persistent powerup spawn lane for rune factories." },
 	{ &g_infiniteAmmo,         "g_infiniteAmmo",         STRINGIZE( DEFAULT_INFINITE_AMMO ), CVAR_GAMERULE, "When non-zero, spawn loadouts grant infinite ammunition mirroring Quake Live practice factories." },
-        { &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_ARCHIVE, "Enable Quake Live ammo pack sizing so pickups follow factory scripts instead of compiled defaults." },
-        { &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_ARCHIVE, "Legacy Quake Live ammo pack override used by classic map factories." },
-	{ &g_ammoRespawn,          "g_ammoRespawn",          STRINGIZE( DEFAULT_AMMO_RESPAWN_SECONDS ), CVAR_ARCHIVE, "Seconds before ammo entities respawn; Quake Live factories reduce this for faster loops." },
+	{ &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_LATCH | CVAR_GAMERULE, "Enable Quake Live ammo pack sizing so pickups follow factory scripts instead of compiled defaults." },
+	{ &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_LATCH | CVAR_GAMERULE, "Legacy Quake Live ammo pack override used by classic map factories." },
+	{ &g_ammoRespawn,          "g_ammoRespawn",          STRINGIZE( DEFAULT_AMMO_RESPAWN_SECONDS ), CVAR_GAMERULE, "Seconds before ammo entities respawn; Quake Live factories reduce this for faster loops." },
 	{ &g_suddenDeathRespawn,   "g_suddenDeathRespawn",   STRINGIZE( DEFAULT_SUDDEN_DEATH_RESPAWN ), CVAR_GAMERULE, "Allow ammo to continue respawning during sudden death when set to 1." },
 	{ &g_startingHealthBonus,  "g_startingHealthBonus",  STRINGIZE( DEFAULT_STARTING_HEALTH_BONUS ), CVAR_GAMERULE, "Extra health layered on top of the base value during spawns." },
 	{ &g_respawn_delay_min,    "g_respawn_delay_min",    STRINGIZE( DEFAULT_RESPAWN_DELAY_MIN_MILLISECONDS ), CONFIG_CVAR_FLAG_FACTORY_MANAGED, "Minimum delay in milliseconds before a dead player may respawn." },
 	{ &g_respawn_delay_max,    "g_respawn_delay_max",    STRINGIZE( DEFAULT_RESPAWN_DELAY_MAX_MILLISECONDS ), CONFIG_CVAR_FLAG_FACTORY_MANAGED, "Post-minimum grace window in milliseconds before dead players auto-respawn." },
-	{ &g_regenHealth,          "g_regenHealth",          STRINGIZE( DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds after taking damage before factory health regeneration begins." },
-	{ &g_regenHealthRate,      "g_regenHealthRate",      STRINGIZE( DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds per health point while factory health regeneration is active; Quake Live Domination factories use 133." },
-	{ &g_regenArmor,           "g_regenArmor",           STRINGIZE( DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds after taking damage before factory armor regeneration begins." },
-	{ &g_regenArmorRate,       "g_regenArmorRate",       STRINGIZE( DEFAULT_REGEN_ARMOR_RATE_MILLISECONDS ), CVAR_ARCHIVE, "Milliseconds per armor point while factory armor regeneration is active." },
-	{ &g_regenArmorAfterHealth, "g_regenArmorAfterHealth", STRINGIZE( DEFAULT_REGEN_ARMOR_AFTER_HEALTH ), CVAR_ARCHIVE, "When non-zero, armor regeneration waits for the health pool to refill before ticking." },
-	{ &g_spawnItemPowerup,     "g_spawnItemPowerup",     STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ), CVAR_SERVERINFO | CVAR_INIT, "Allow map-placed powerups to spawn when factories do not rely solely on loadouts." },
-	{ &g_spawnItemHoldable,    "g_spawnItemHoldable",    STRINGIZE( DEFAULT_SPAWN_ITEM_HOLDABLE ), CVAR_SERVERINFO | CVAR_INIT, "Enable holdable item spawns in loadout modes when set to 1." },
-	{ &g_spawnItemWeapons,     "g_spawnItemWeapons",     STRINGIZE( DEFAULT_SPAWN_ITEM_WEAPONS ), CVAR_SERVERINFO | CVAR_INIT, "Permit world weapons to spawn alongside loadouts in modes such as Domination when non-zero." },
-	{ &g_spawnItemHealth,      "g_spawnItemHealth",      STRINGIZE( DEFAULT_SPAWN_ITEM_HEALTH ), CVAR_SERVERINFO | CVAR_INIT, "Toggle map health item spawns while factories prefer regen-driven play." },
-	{ &g_spawnItemArmor,       "g_spawnItemArmor",       STRINGIZE( DEFAULT_SPAWN_ITEM_ARMOR ), CVAR_SERVERINFO | CVAR_INIT, "Enable map armor pickups when factory loadouts no longer want to suppress them." },
-	{ &g_spawnItemAmmo,        "g_spawnItemAmmo",        STRINGIZE( DEFAULT_SPAWN_ITEM_AMMO ), CVAR_SERVERINFO | CVAR_INIT, "Allow the active ammo pickup family to spawn when factories expose either global ammo packs or weapon-specific ammo." },
+	{ &g_regenHealth,          "g_regenHealth",          STRINGIZE( DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Milliseconds after taking damage before factory health regeneration begins." },
+	{ &g_regenHealthRate,      "g_regenHealthRate",      STRINGIZE( DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS ), CVAR_GAMERULE, "Milliseconds per health point while factory health regeneration is active; Quake Live Domination factories use 133." },
+	{ &g_regenArmor,           "g_regenArmor",           STRINGIZE( DEFAULT_REGEN_ARMOR_DELAY_MILLISECONDS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Milliseconds after taking damage before factory armor regeneration begins." },
+	{ &g_regenArmorRate,       "g_regenArmorRate",       STRINGIZE( DEFAULT_REGEN_ARMOR_RATE_MILLISECONDS ), CVAR_GAMERULE, "Milliseconds per armor point while factory armor regeneration is active." },
+	{ &g_regenArmorAfterHealth, "g_regenArmorAfterHealth", STRINGIZE( DEFAULT_REGEN_ARMOR_AFTER_HEALTH ), CVAR_GAMERULE, "When non-zero, armor regeneration waits for the health pool to refill before ticking." },
+	{ &g_spawnItemPowerup,     "g_spawnItemPowerup",     STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Allow map-placed powerups to spawn when factories do not rely solely on loadouts." },
+	{ &g_spawnItemHoldable,    "g_spawnItemHoldable",    STRINGIZE( DEFAULT_SPAWN_ITEM_HOLDABLE ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Enable holdable item spawns in loadout modes when set to 1." },
+	{ &g_spawnItemWeapons,     "g_spawnItemWeapons",     STRINGIZE( DEFAULT_SPAWN_ITEM_WEAPONS ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Permit world weapons to spawn alongside loadouts in modes such as Domination when non-zero." },
+	{ &g_spawnItemHealth,      "g_spawnItemHealth",      STRINGIZE( DEFAULT_SPAWN_ITEM_HEALTH ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Toggle map health item spawns while factories prefer regen-driven play." },
+	{ &g_spawnItemArmor,       "g_spawnItemArmor",       STRINGIZE( DEFAULT_SPAWN_ITEM_ARMOR ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Enable map armor pickups when factory loadouts no longer want to suppress them." },
+	{ &g_spawnItemAmmo,        "g_spawnItemAmmo",        STRINGIZE( DEFAULT_SPAWN_ITEM_AMMO ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Allow the active ammo pickup family to spawn when factories expose either global ammo packs or weapon-specific ammo." },
 
 	{ &g_ammoPack_bfg,         "g_ammoPack_bfg",         STRINGIZE( DEFAULT_AMMOPACK_BFG ), CVAR_ARCHIVE, "Cells granted when picking up a BFG ammo pack, matching Quake Live's default drop." },
         { &g_ammoPack_cg,          "g_ammoPack_cg",          STRINGIZE( DEFAULT_AMMOPACK_CG ), CVAR_ARCHIVE, "Chaingun bullets restored per ammo belt pickup." },
@@ -279,26 +280,26 @@ static configCvarTable_t s_configCvarTable[] = {
         { &g_startingAmmo_rl,      "g_startingAmmo_rl",      STRINGIZE( DEFAULT_STARTING_AMMO_RL ), CVAR_ARCHIVE, "Rockets handed out whenever spawn loadouts include the Rocket Launcher." },
         { &g_startingAmmo_sg,      "g_startingAmmo_sg",      STRINGIZE( DEFAULT_STARTING_AMMO_SG ), CVAR_ARCHIVE, "Shotgun shells distributed when the Shotgun is in the spawn weapon set." },
 
-        { &g_knockback_g,          "g_knockback_g",          STRINGIZE( DEFAULT_KNOCKBACK_G ), 0, "Gauntlet knockback scalar applied when striking other players." },
-        { &g_knockback_mg,         "g_knockback_mg",         STRINGIZE( DEFAULT_KNOCKBACK_MG ), 0, "Machinegun knockback scalar applied to outgoing hits." },
-        { &g_knockback_sg,         "g_knockback_sg",         STRINGIZE( DEFAULT_KNOCKBACK_SG ), 0, "Shotgun knockback scalar for pellets that land on opponents." },
-        { &g_knockback_gl,         "g_knockback_gl",         STRINGIZE( DEFAULT_KNOCKBACK_GL ), 0, "Grenade Launcher knockback scalar applied to direct and splash damage." },
-        { &g_knockback_rl,         "g_knockback_rl",         STRINGIZE( DEFAULT_KNOCKBACK_RL ), 0, "Rocket Launcher knockback scalar for enemies struck by rockets." },
-        { &g_knockback_rl_self,    "g_knockback_rl_self",    STRINGIZE( DEFAULT_KNOCKBACK_RL_SELF ), 0, "Self-inflicted rocket knockback scalar used for rocket jumps." },
-        { &g_knockback_lg,         "g_knockback_lg",         STRINGIZE( DEFAULT_KNOCKBACK_LG ), 0, "Lightning Gun knockback scalar." },
-        { &g_knockback_rg,         "g_knockback_rg",         STRINGIZE( DEFAULT_KNOCKBACK_RG ), 0, "Railgun knockback scalar." },
-        { &g_knockback_pg,         "g_knockback_pg",         STRINGIZE( DEFAULT_KNOCKBACK_PG ), 0, "Plasmagun knockback scalar for opponents." },
-        { &g_knockback_pg_self,    "g_knockback_pg_self",    STRINGIZE( DEFAULT_KNOCKBACK_PG_SELF ), 0, "Self-inflicted plasmagun knockback scalar." },
-        { &g_knockback_bfg,        "g_knockback_bfg",        STRINGIZE( DEFAULT_KNOCKBACK_BFG ), 0, "BFG knockback scalar." },
-        { &g_knockback_gh,         "g_knockback_gh",         STRINGIZE( DEFAULT_KNOCKBACK_GH ), 0, "Grappling Hook knockback scalar." },
-        { &g_knockback_ng,         "g_knockback_ng",         STRINGIZE( DEFAULT_KNOCKBACK_NG ), 0, "Nailgun knockback scalar." },
-        { &g_knockback_pl,         "g_knockback_pl",         STRINGIZE( DEFAULT_KNOCKBACK_PL ), 0, "Proximity Launcher knockback scalar." },
-        { &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), 0, "Chaingun knockback scalar." },
-        { &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), 0, "Heavy Machinegun knockback scalar." },
-        { &g_knockback_z,          "g_knockback_z",          STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL ), 0, "Vertical knockback boost added after weapon scaling." },
-        { &g_knockback_z_self,     "g_knockback_z_self",     STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL_SELF ), 0, "Vertical knockback boost when you knock yourself back." },
-        { &g_max_knockback,        "g_max_knockback",        "200", 0, "Upper clamp applied to computed knockback force." },
-        { &g_knockback_cripple,    "g_knockback_cripple",    STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), 0, "Additional knockback scalar consumed by cripple modifiers." },
+	{ &g_knockback_g,          "g_knockback_g",          STRINGIZE( DEFAULT_KNOCKBACK_G ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Gauntlet knockback scalar applied when striking other players." },
+	{ &g_knockback_mg,         "g_knockback_mg",         STRINGIZE( DEFAULT_KNOCKBACK_MG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Machinegun knockback scalar applied to outgoing hits." },
+	{ &g_knockback_sg,         "g_knockback_sg",         STRINGIZE( DEFAULT_KNOCKBACK_SG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Shotgun knockback scalar for pellets that land on opponents." },
+	{ &g_knockback_gl,         "g_knockback_gl",         STRINGIZE( DEFAULT_KNOCKBACK_GL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Grenade Launcher knockback scalar applied to direct and splash damage." },
+	{ &g_knockback_rl,         "g_knockback_rl",         STRINGIZE( DEFAULT_KNOCKBACK_RL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Rocket Launcher knockback scalar for enemies struck by rockets." },
+	{ &g_knockback_rl_self,    "g_knockback_rl_self",    STRINGIZE( DEFAULT_KNOCKBACK_RL_SELF ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Self-inflicted rocket knockback scalar used for rocket jumps." },
+	{ &g_knockback_lg,         "g_knockback_lg",         STRINGIZE( DEFAULT_KNOCKBACK_LG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Lightning Gun knockback scalar." },
+	{ &g_knockback_rg,         "g_knockback_rg",         STRINGIZE( DEFAULT_KNOCKBACK_RG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Railgun knockback scalar." },
+	{ &g_knockback_pg,         "g_knockback_pg",         STRINGIZE( DEFAULT_KNOCKBACK_PG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Plasmagun knockback scalar for opponents." },
+	{ &g_knockback_pg_self,    "g_knockback_pg_self",    STRINGIZE( DEFAULT_KNOCKBACK_PG_SELF ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Self-inflicted plasmagun knockback scalar." },
+	{ &g_knockback_bfg,        "g_knockback_bfg",        STRINGIZE( DEFAULT_KNOCKBACK_BFG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "BFG knockback scalar." },
+	{ &g_knockback_gh,         "g_knockback_gh",         STRINGIZE( DEFAULT_KNOCKBACK_GH ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Grappling Hook knockback scalar." },
+	{ &g_knockback_ng,         "g_knockback_ng",         STRINGIZE( DEFAULT_KNOCKBACK_NG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Nailgun knockback scalar." },
+	{ &g_knockback_pl,         "g_knockback_pl",         STRINGIZE( DEFAULT_KNOCKBACK_PL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Proximity Launcher knockback scalar." },
+	{ &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Chaingun knockback scalar." },
+	{ &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Heavy Machinegun knockback scalar." },
+	{ &g_knockback_z,          "g_knockback_z",          STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL ), CVAR_GAMERULE, "Vertical knockback boost added after weapon scaling." },
+	{ &g_knockback_z_self,     "g_knockback_z_self",     STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL_SELF ), CVAR_GAMERULE, "Vertical knockback boost when you knock yourself back." },
+        { &g_max_knockback,        "g_max_knockback",        "120", CVAR_GAMERULE, "Upper clamp applied to computed knockback force." },
+	{ &g_knockback_cripple,    "g_knockback_cripple",    STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), CVAR_GAMERULE, "Additional knockback scalar consumed by cripple modifiers." },
 };
 
 static void G_Config_RegisterCvarHelp( const configCvarTable_t *cv ) {
@@ -765,7 +766,7 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 		 g_weaponConfig.shotgunOuterDamage != 5 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.shotgun, DEFAULT_KNOCKBACK_SG ) ||
 		 g_weaponConfig.shotgunFalloffDamage != 0 ||
-		 g_weaponConfig.shotgunFalloffRange != 0 ) {
+		 g_weaponConfig.shotgunFalloffRange != 768 ) {
 		mask |= CUSTOM_SETTING_SHOTGUN;
 	}
 
@@ -780,19 +781,22 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 
 	if ( g_weaponReloadConfig.rocketLauncher != DEFAULT_WEAPON_RELOAD_RL ||
 		 g_weaponConfig.rocketDamage != 100 ||
-		 g_weaponConfig.rocketSplashDamage != 100 ||
+		 g_weaponConfig.rocketSplashDamage != 84 ||
 		 g_weaponConfig.rocketSplashRadius != 120 ||
-		 g_weaponConfig.rocketSpeed != 900 ||
+		 g_weaponConfig.rocketSpeed != 1000 ||
+		 g_weaponConfig.rocketSplashOffset != -10 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.rocketLauncher, DEFAULT_KNOCKBACK_RL ) ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.rocketLauncherSelf, DEFAULT_KNOCKBACK_RL_SELF ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 1.0f ) ) {
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 1.0f ) ||
+		 g_weaponConfig.rocketAccelerationRate != 16 ) {
 		mask |= CUSTOM_SETTING_ROCKET_LAUNCHER;
 	}
 
 	if ( g_weaponReloadConfig.lightningGun != DEFAULT_WEAPON_RELOAD_LG ||
 		 g_weaponConfig.lightningDamage != 6 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.lightningGun, DEFAULT_KNOCKBACK_LG ) ||
-		 g_weaponConfig.lightningFalloffDamage != 0 ) {
+		 g_weaponConfig.lightningFalloffDamage != 0 ||
+		 g_weaponConfig.lightningFalloffRange != 768 ) {
 		mask |= CUSTOM_SETTING_LIGHTNING_GUN;
 	}
 
@@ -809,17 +813,19 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 		 g_weaponConfig.plasmaSpeed != 2000 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagun, DEFAULT_KNOCKBACK_PG ) ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagunSelf, DEFAULT_KNOCKBACK_PG_SELF ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 1.0f ) ) {
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 1.0f ) ||
+		 g_weaponConfig.plasmaAccelerationRate != 16 ) {
 		mask |= CUSTOM_SETTING_PLASMAGUN;
 	}
 
 	if ( g_weaponReloadConfig.bfg != DEFAULT_WEAPON_RELOAD_BFG ||
 		 g_weaponConfig.bfgDamage != 100 ||
 		 g_weaponConfig.bfgSplashDamage != 100 ||
-		 g_weaponConfig.bfgSplashRadius != 120 ||
-		 g_weaponConfig.bfgSpeed != 2000 ||
+		 g_weaponConfig.bfgSplashRadius != 80 ||
+		 g_weaponConfig.bfgSpeed != 1800 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.bfg, DEFAULT_KNOCKBACK_BFG ) ||
-		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 1.0f ) ) {
+		 G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 1.0f ) ||
+		 g_weaponConfig.bfgAccelerationRate != 16 ) {
 		mask |= CUSTOM_SETTING_BFG;
 	}
 
@@ -950,10 +956,10 @@ void G_InitKnockbackConfig( void ) {
         g_knockbackConfig.verticalSelf = G_ReadKnockbackCvar( &g_knockback_z_self, DEFAULT_KNOCKBACK_VERTICAL_SELF, "g_knockback_z_self" );
 
         {
-                float maxKnockback = G_ReadKnockbackCvar( &g_max_knockback, 200.0f, "g_max_knockback" );
+                float maxKnockback = G_ReadKnockbackCvar( &g_max_knockback, DEFAULT_MAX_KNOCKBACK, "g_max_knockback" );
 
                 if ( maxKnockback <= 0.0f ) {
-                        maxKnockback = 200.0f;
+                        maxKnockback = DEFAULT_MAX_KNOCKBACK;
                 }
 
                 g_knockbackConfig.maxKnockback = maxKnockback;

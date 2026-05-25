@@ -327,6 +327,21 @@ static qboolean CG_ShouldSuppressPredictedRailEvent( const entityState_t *es ) {
 
 /*
 ===================
+CG_PlayBuzzerSound
+
+Plays the retail match-end buzzer when the user-facing toggle is enabled.
+===================
+*/
+static void CG_PlayBuzzerSound( void ) {
+	if ( !cg_buzzerSound.integer || !cgs.media.buzzerSound ) {
+		return;
+	}
+
+	trap_S_StartLocalSound( cgs.media.buzzerSound, CHAN_LOCAL_SOUND );
+}
+
+/*
+===================
 CG_PlaceString
 
 Also called by scoreboard drawing
@@ -773,6 +788,9 @@ static void CG_PlayDominationPointAnnouncement( const entityState_t *es ) {
 
 	localTeam = cgs.clientinfo[cg.clientNum].team;
 	if ( localTeam != TEAM_RED && localTeam != TEAM_BLUE ) {
+		return;
+	}
+	if ( !cg_announcerLeadsVO.integer ) {
 		return;
 	}
 
@@ -2487,7 +2505,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					break;
 				case GTS_REDTEAM_WINS:
 					CG_ClearBufferedAnnouncements();
-					trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
+					CG_PlayBuzzerSound();
 					if ( cgs.clientinfo[cg.clientNum].team == TEAM_RED ) {
 						trap_S_StartBackgroundTrack( "music/win", "" );
 					} else if ( cgs.clientinfo[cg.clientNum].team == TEAM_BLUE ) {
@@ -2497,7 +2515,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					break;
 				case GTS_BLUETEAM_WINS:
 					CG_ClearBufferedAnnouncements();
-					trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
+					CG_PlayBuzzerSound();
 					if ( cgs.clientinfo[cg.clientNum].team == TEAM_BLUE ) {
 						trap_S_StartBackgroundTrack( "music/win", "" );
 					} else if ( cgs.clientinfo[cg.clientNum].team == TEAM_RED ) {
@@ -2516,7 +2534,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					CG_AddBufferedSound( cgs.media.roundDrawSound );
 					break;
 				case GTS_LAST_STANDING:
-					if ( CG_GetGlobalTeamSoundTeam( es ) == cgs.clientinfo[cg.clientNum].team ) {
+					if ( cg_announcerLastStandingVO.integer &&
+							CG_GetGlobalTeamSoundTeam( es ) == cgs.clientinfo[cg.clientNum].team ) {
 						CG_AddBufferedSound( cgs.media.lastStandingSound );
 					}
 					break;
@@ -2619,7 +2638,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case QL_EV_GAMEOVER:
 		DEBUGNAME("QL_EV_GAMEOVER");
 		CG_ClearBufferedAnnouncements();
-		trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );
+		CG_PlayBuzzerSound();
 		if ( CG_IsLocalPlayerWinner() ) {
 			if ( cgs.media.winnerSound ) {
 				CG_AddBufferedSound( cgs.media.winnerSound );

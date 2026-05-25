@@ -241,6 +241,7 @@ static void CG_UpdateClientInfoContext( void ) {
 	cg_clientInfoContextFollow = following;
 	cg_clientInfoContextClientNum = clientNum;
 	cg_clientInfoContextTeam = team;
+	cg_playerTeam.integer = team;
 }
 
 /*

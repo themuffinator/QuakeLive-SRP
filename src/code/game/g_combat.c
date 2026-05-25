@@ -1045,6 +1045,34 @@ static void G_AnnouncePowerupCarrierKill( gentity_t *attacker, gentity_t *targ )
 
 /*
 ==================
+G_ClearClientRevengeState
+
+Clears the requested client's per-opponent revenge column across the connected
+client list.
+==================
+*/
+void G_ClearClientRevengeState( int clientNum ) {
+	int			i;
+	int			otherClientNum;
+	gclient_t	*other;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return;
+	}
+
+	for ( i = 0; i < level.numConnectedClients; i++ ) {
+		otherClientNum = level.sortedClients[i];
+		if ( otherClientNum < 0 || otherClientNum >= MAX_CLIENTS ) {
+			continue;
+		}
+
+		other = &level.clients[otherClientNum];
+		other->revengeKillStreaks[clientNum] = 0;
+	}
+}
+
+/*
+==================
 player_die
 ==================
 */
@@ -1053,6 +1081,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	int			anim;
 	int			contents;
 	int			killer;
+	int			attackerClientNum;
+	int			victimClientNum;
 	int			i;
 	char		*killerName, *obit;
 
@@ -1147,9 +1177,21 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			AddScore( attacker, self->r.currentOrigin, -1 );
 		} else {
 			attacker->client->killCount++;
+			attacker->client->ps.persistant[PERS_KILL_COUNT]++;
 			attacker->client->currentKillStreak++;
 			if ( attacker->client->currentKillStreak > attacker->client->pers.maxKillStreak ) {
 				attacker->client->pers.maxKillStreak = attacker->client->currentKillStreak;
+			}
+			attackerClientNum = attacker->s.number;
+			victimClientNum = self->s.number;
+			if ( attackerClientNum >= 0 && attackerClientNum < MAX_CLIENTS
+				&& victimClientNum >= 0 && victimClientNum < MAX_CLIENTS ) {
+				attacker->client->revengeKillStreaks[victimClientNum]++;
+				if ( self->client->revengeKillStreaks[attackerClientNum] > 2 ) {
+					attacker->client->ps.persistant[PERS_PLAYEREVENTS] ^= PLAYEREVENT_REVENGE;
+					G_RankSendPlayerMedal( attacker, "REVENGE" );
+				}
+				self->client->revengeKillStreaks[attackerClientNum] = 0;
 			}
 			AddScore( attacker, self->r.currentOrigin, 1 );
 			G_ADAwardBonus( attacker, self->r.currentOrigin, g_adElimScoreBonus.integer, S_COLOR_YELLOW "Elimination bonus" );
@@ -1199,7 +1241,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 
 	// Add team bonuses
 	Team_FragBonuses(self, inflictor, attacker);
-	G_RRHandlePlayerDeath( self->client->sess.sessionTeam, self, meansOfDeath );
+	G_RRHandlePlayerDeath( self->client->sess.sessionTeam, self, attacker, meansOfDeath );
 	if ( self->client && self->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		if ( g_gametype.integer == GT_CLAN_ARENA ) {
 			G_CANotifyLastAlivePlayer( self->client->sess.sessionTeam );
@@ -1634,6 +1676,9 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	int			take;
 	int			save;
 	int			asave;
+	int			hitDamage;
+	int			targetArmor;
+	int			targetHealth;
 	float		knockbackValue;
 	int			knockbackInt;
 	int			max;
@@ -1646,6 +1691,9 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	float		verticalBoostApplied = 0.0f;
 	float		powerupScale;
 
+	hitDamage = 0;
+	targetArmor = 0;
+	targetHealth = 0;
 	powerupScale = 1.0f;
 	if (!targ->takedamage) {
 		return;
@@ -1734,6 +1782,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 	}
 
+	if ( client ) {
+		targetArmor = client->ps.stats[STAT_ARMOR];
+		targetHealth = targ->health;
+	}
+
 	damage = G_ClampModDamage( damage, mod, attacker );
 
 	if ( mod == MOD_RAILGUN && G_IsRailgunHeadshot( targ, point ) ) {
@@ -1744,6 +1797,15 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	powerupScale = G_CalcPowerupDamageScale( attacker );
 	if ( powerupScale != 1.0f ) {
 		damage = (int)( ( (float)damage * powerupScale ) + 0.5f );
+	}
+	if ( client && client->ps.powerups[PW_NONE] ) {
+		float	spawnArmorScale;
+
+		spawnArmorScale = g_spawnArmorDmgScale.value;
+		if ( spawnArmorScale < 0.0f ) {
+			spawnArmorScale = 0.0f;
+		}
+		damage = (int)( (float)damage * spawnArmorScale );
 	}
 
 	if ( !dir ) {
@@ -1761,7 +1823,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		float maxKnockback = g_knockbackConfig.maxKnockback;
 
 		if ( maxKnockback <= 0.0f ) {
-			maxKnockback = 200.0f;
+			maxKnockback = DEFAULT_MAX_KNOCKBACK;
 		}
 
 		knockbackPreClamp = knockbackValue;
@@ -1850,6 +1912,18 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 				}
 				return;
 			}
+			if ( g_friendlyFireDampen.value != 1.0f ) {
+				float	friendlyFireScale;
+
+				friendlyFireScale = g_friendlyFireDampen.value;
+				if ( friendlyFireScale <= 0.0f ) {
+					return;
+				}
+				damage = (int)( (float)damage * friendlyFireScale + 0.5f );
+				if ( damage <= 0 ) {
+					return;
+				}
+			}
 		}
 		if (mod == MOD_PROXIMITY_MINE) {
 			if (inflictor && inflictor->parent && OnSameTeam(targ, inflictor->parent)) {
@@ -1874,18 +1948,6 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 	}
 
-	// add to the attacker's hit counter (if the target isn't a general entity like a prox mine)
-	if ( attacker->client && targ != attacker && targ->health > 0
-			&& targ->s.eType != ET_MISSILE
-			&& targ->s.eType != ET_GENERAL) {
-		if ( OnSameTeam( targ, attacker ) ) {
-			attacker->client->ps.persistant[PERS_HITS]--;
-		} else {
-			attacker->client->ps.persistant[PERS_HITS]++;
-		}
-		attacker->client->ps.persistant[PERS_ATTACKEE_ARMOR] = (targ->health<<8)|(client->ps.stats[STAT_ARMOR]);
-	}
-
 	// always give half damage if hurting self
 	// calculated after knockback, so rocket jumping works
 	if ( targ == attacker) {
@@ -1906,6 +1968,21 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 	if ( take > 0 ) {
 		G_RRHandleDamageScore( attacker, targ, take );
+	}
+
+	// add to the attacker's damage counter for retail hit-beep selection
+	if ( attacker->client && client && attacker != targ && targ->health > 0
+			&& targ->s.eType != ET_MISSILE
+			&& targ->s.eType != ET_GENERAL) {
+		hitDamage = take + asave;
+		if ( hitDamage > 0 ) {
+			if ( OnSameTeam( targ, attacker ) ) {
+				attacker->client->ps.persistant[PERS_HITS] -= hitDamage;
+			} else {
+				attacker->client->ps.persistant[PERS_HITS] += hitDamage;
+			}
+			attacker->client->ps.persistant[PERS_ATTACKEE_ARMOR] = ( targetHealth << 8 ) | targetArmor;
+		}
 	}
 
 	if ( attacker->client && client && attacker != targ && OnSameTeam( targ, attacker ) ) {
@@ -2057,6 +2134,32 @@ qboolean CanDamage (gentity_t *targ, vec3_t origin) {
 
 /*
 ============
+G_CanSplashDamageThroughSurface
+
+Applies Quake Live's forced damage-through-surface radius gate for rocket
+splash when direct CanDamage traces are blocked.
+============
+*/
+static qboolean G_CanSplashDamageThroughSurface( int mod, float dist, float radius ) {
+	float	throughRadius;
+
+	if ( !g_forceDmgThroughSurface.integer ) {
+		return qfalse;
+	}
+	if ( mod != MOD_ROCKET_SPLASH ) {
+		return qfalse;
+	}
+	if ( g_dmgThroughSurfaceDampening.value <= 0.0f ) {
+		return qfalse;
+	}
+
+	throughRadius = radius * g_dmgThroughSurfaceDampening.value;
+	return ( dist <= throughRadius ) ? qtrue : qfalse;
+}
+
+
+/*
+============
 G_RadiusDamage
 ============
 */
@@ -2112,7 +2215,7 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *attacker, float damage, floa
 
 		points = damage * ( 1.0 - dist / radius );
 
-		if( CanDamage (ent, origin) ) {
+		if( CanDamage (ent, origin) || G_CanSplashDamageThroughSurface( mod, dist, radius ) ) {
 			if( LogAccuracyHit( ent, attacker ) ) {
 				hitClient = qtrue;
 			}

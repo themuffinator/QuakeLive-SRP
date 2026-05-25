@@ -123,34 +123,29 @@ extern void CL_Quit_f(void);
     static BOOL hasShownBanner = NO;
 
     if (!hasShownBanner) {
-        cvar_t *showBanner;
-
         hasShownBanner = YES;
-        showBanner = Cvar_Get("cl_showBanner", "1", 0);
-        if (showBanner->integer != 0) {
-            NSPanel *splashPanel;
-            NSImage *bannerImage;
-            NSRect bannerRect;
-            NSImageView *bannerImageView;
-            
-            bannerImage = [[NSImage alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForImageResource:@"banner.jpg"]];
-            bannerRect = NSMakeRect(0.0, 0.0, [bannerImage size].width, [bannerImage size].height);
-            
-            splashPanel = [[NSPanel alloc] initWithContentRect:bannerRect styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:NO];
-            
-            bannerImageView = [[NSImageView alloc] initWithFrame:bannerRect];
-            [bannerImageView setImage:bannerImage];
-            [splashPanel setContentView:bannerImageView];
-            [bannerImageView release];
-            
-            [splashPanel center];
-            [splashPanel setHasShadow:YES];
-            [splashPanel orderFront: nil];
-            [NSThread sleepUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.5]];
-            [splashPanel close];
-            
-            [bannerImage release];
-        }
+        NSPanel *splashPanel;
+        NSImage *bannerImage;
+        NSRect bannerRect;
+        NSImageView *bannerImageView;
+
+        bannerImage = [[NSImage alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForImageResource:@"banner.jpg"]];
+        bannerRect = NSMakeRect(0.0, 0.0, [bannerImage size].width, [bannerImage size].height);
+
+        splashPanel = [[NSPanel alloc] initWithContentRect:bannerRect styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:NO];
+
+        bannerImageView = [[NSImageView alloc] initWithFrame:bannerRect];
+        [bannerImageView setImage:bannerImage];
+        [splashPanel setContentView:bannerImageView];
+        [bannerImageView release];
+
+        [splashPanel center];
+        [splashPanel setHasShadow:YES];
+        [splashPanel orderFront: nil];
+        [NSThread sleepUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.5]];
+        [splashPanel close];
+
+        [bannerImage release];
     }
 }
 

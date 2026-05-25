@@ -59,6 +59,15 @@ retail `CL_Init` evidence plus their source-visible owners: `cl_allowConsoleChat
   the bounded online-services divergence: their defaults stay disabled or
   unclassified, their refresh owner publishes the active compatibility labels,
   and no matching registration appears in the recovered retail client cvar slab.
+- A seventh 2026-05-25 pass resolved the remaining source-visible `cl_*`
+  names. `cl_currentServerAddress` is retail but dynamic-only: the client sets
+  it from `CL_Connect_f`, and neither retail nor source registers it in
+  `CL_Init`. The matchmaking, stats, and social-overlay provider/policy cvars
+  join the guarded service-disclosure set as non-retail ROM diagnostics. The
+  Quake III/PunkBuster/platform carryovers `cl_allowDownload`,
+  `cl_contimestamps`, `cl_conXOffset`, `cl_guid`, `cl_noprint`,
+  `cl_punkbuster`, and `cl_showBanner` were removed from the checked source
+  surface because no matching Quake Live HLIL/Ghidra evidence exists.
 
 - Networking and input
   - `cl_maxpackets` defaults to 125 and is marked cheat-protected, while `cl_timeout` is tightened to 40s and `cl_timeNudge` is clamped server-side to the HLIL [-20, 0] window.

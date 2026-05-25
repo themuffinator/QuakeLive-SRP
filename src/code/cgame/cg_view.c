@@ -949,6 +949,7 @@ static int CG_CalcFov( void ) {
 	float	baseFovX = 90.0f;
 	int		inwater;
 	qboolean zoomScaling;
+	qboolean useSpectatorFov;
 
 	if ( cg.predictedPlayerState.pm_type == PM_INTERMISSION ) {
 		// if in intermission, use a fixed value
@@ -960,6 +961,13 @@ static int CG_CalcFov( void ) {
 			fov_x = 90;
 		} else {
 			fov_x = cg_fov.value;
+			useSpectatorFov = (qboolean)( cg_specFov.integer &&
+				cg.predictedPlayerState.fov > 0 &&
+				( cg.predictedPlayerState.pm_type == PM_SPECTATOR ||
+					( cg.predictedPlayerState.pm_flags & PMF_FOLLOW ) ) );
+			if ( useSpectatorFov ) {
+				fov_x = cg.predictedPlayerState.fov;
+			}
 			if ( fov_x < 1 ) {
 				fov_x = 1;
 			} else if ( fov_x > 130 ) {

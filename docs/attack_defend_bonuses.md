@@ -20,7 +20,7 @@ Each bonus updates both the individual scoreboard entry and the Attack & Defend 
 
 ## Tuning workflow
 
-1. Set the three cvars in your server config (or via `seta` at runtime) before the match loads. All of them are archived and published through serverinfo.
+1. Set the three cvars in your server config or at runtime before the match loads. All three are published through serverinfo and protected as gamerule values, matching the retail qagame rows.
 2. Verify the new values with `\cvarlist adScore` or `\cg_scoreboard 1` while the game is running; the centerprint confirms the bonus amount applied.
 3. Restart the map if you change the multipliers mid-match so both the server and connected clients stay in sync with the scoreboard math.
 

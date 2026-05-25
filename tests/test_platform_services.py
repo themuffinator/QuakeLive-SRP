@@ -756,6 +756,24 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
         assert services == expected
 
 
+def test_msbuild_steamworks_sdk_dependency_stays_external_and_optional() -> None:
+    vcxproj = (REPO_ROOT / "src/code/quakelive_steam.vcxproj").read_text(encoding="utf-8")
+
+    assert "<QLBuildSteamworks Condition=\"'$(QLBuildSteamworks)'==''\">0</QLBuildSteamworks>" in vcxproj
+    assert "<QLRequireSteamworksSdk Condition=\"'$(QLRequireSteamworksSdk)'==''\">0</QLRequireSteamworksSdk>" in vcxproj
+    assert "<SteamworksSdkDir Condition=\"'$(SteamworksSdkDir)'=='' and '$(STEAMWORKS_SDK_DIR)'!=''\">$(STEAMWORKS_SDK_DIR)</SteamworksSdkDir>" in vcxproj
+    assert "<SteamworksIncludeDir Condition=\"'$(SteamworksSdkDir)'!=''\">$(SteamworksSdkDir)\\public</SteamworksIncludeDir>" in vcxproj
+    assert "<SteamworksRedistDll Condition=\"'$(SteamworksRedistDir)'!=''\">$(SteamworksRedistDir)\\steam_api.dll</SteamworksRedistDll>" in vcxproj
+    assert "<AdditionalIncludeDirectories>$(SteamworksIncludeDir);$(VorbisIncludeDir);$(PngIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>" in vcxproj
+    assert "<Target Name=\"ValidateSteamworksSdk\" BeforeTargets=\"ClCompile\" Condition=\"'$(QLBuildOnlineServices)'!='0' and '$(QLBuildSteamworks)'!='0'\">" in vcxproj
+    assert "do not commit the proprietary SDK into this repository" in vcxproj
+    assert "public\\steam\\steam_api.h" in vcxproj
+    assert "redistributable_bin\\steam_api.dll" in vcxproj
+    assert "<Target Name=\"CopySteamworksRedistributable\" AfterTargets=\"Build\" Condition=\"'$(QLBuildOnlineServices)'!='0' and '$(QLBuildSteamworks)'!='0' and '$(SteamworksRedistDll)'!='' and Exists('$(SteamworksRedistDll)')\">" in vcxproj
+    assert '<Copy SourceFiles="$(SteamworksRedistDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />' in vcxproj
+    assert "steam_api.lib" not in vcxproj
+
+
 def test_hybrid_fallback_accepts_when_steam_pending(tmp_path) -> None:
     workdir = tmp_path / "hybrid_fallback"
     output = _compile_and_run(
@@ -1723,7 +1741,7 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
     assert 'return "raw GetAllUGC integer filter";' in ugc_filter_label_block
     assert 'return "unpromoted GetAllUGC filter semantic";' in ugc_filter_semantic_gap_block
     assert 'return "ISteamMatchmakingServers";' in missing_browser_owner_block
-    assert 'return "missing ISteamMatchmakingServers adapter";' in browser_native_adapter_gap_block
+    assert 'return "ISteamMatchmakingServers wrapper not client-wired";' in browser_native_adapter_gap_block
     assert 'return "avatar-only SteamDataSource";' in steam_data_source_label_block
     assert 'return "missing non-avatar SteamDataSource owner";' in steam_data_source_gap_block
     assert "QL_Steamworks_GetAuthTicketApiLabel()" in ql_auth
@@ -2519,7 +2537,7 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert 'return "favorites";' in source_label_block
     assert 'return "source-browser compatibility";' in compatibility_owner_block
     assert 'return "ISteamMatchmakingServers";' in missing_owner_block
-    assert 'return "missing ISteamMatchmakingServers adapter";' in native_adapter_gap_block
+    assert 'return "ISteamMatchmakingServers wrapper not client-wired";' in native_adapter_gap_block
     assert "case 2:" in compatibility_source_block
     assert "case 4:" in compatibility_source_block
     assert "return qtrue;" in compatibility_source_block

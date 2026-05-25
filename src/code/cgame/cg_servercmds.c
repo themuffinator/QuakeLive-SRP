@@ -882,7 +882,7 @@ static qboolean CG_ParsePmoveCompactSettingsPayload( const char *payload, pmove_
 		PMOVE_COMPACT_INT( quadHogTimeSeconds );
 	}
 	if ( CG_HasPmoveCompactToken( &cursor ) ) {
-		PMOVE_COMPACT_INT( quadHogPingRateSeconds );
+		PMOVE_COMPACT_INT( quadHogPingRateMilliseconds );
 	}
 
 #undef PMOVE_COMPACT_FLOAT
@@ -1024,7 +1024,7 @@ static qboolean CG_ParsePmoveJsonSettingsPayload( const char *payload, pmove_set
 		PMOVE_INT_FIELD( quadHogEnabled )
 		PMOVE_INT_FIELD( quadHogIdleSeconds )
 		PMOVE_INT_FIELD( quadHogTimeSeconds )
-		PMOVE_INT_FIELD( quadHogPingRateSeconds )
+		PMOVE_INT_FIELD( quadHogPingRateMilliseconds )
 
 #undef PMOVE_BOOL_FIELD
 #undef PMOVE_INT_FIELD
@@ -2709,29 +2709,52 @@ static void CG_SetTeamNameCvar( const char *cvarName, const char *serverValue, c
 
 /*
 ==================
-CG_ParseDisableLoadoutConfigString
+CG_ParseUnsignedConfigMask
 
-Mirrors the retail loadout-disable configstring onto the per-weapon ROM cvars.
+Parses a numeric configstring mask, treating missing and malformed values as zero.
 ==================
 */
-static void CG_ParseDisableLoadoutConfigString( const char *configstring ) {
+static unsigned long CG_ParseUnsignedConfigMask( const char *configstring ) {
+	char		*end;
+	unsigned long	mask;
+
+	if ( !configstring || !configstring[0] ) {
+		return 0ul;
+	}
+
+	mask = strtoul( configstring, &end, 0 );
+	if ( end == configstring ) {
+		return 0ul;
+	}
+
+	return mask;
+}
+
+/*
+==================
+CG_ParseDisableLoadoutConfigString
+
+Mirrors the retail loadout-disable configstrings onto the per-weapon ROM cvars.
+==================
+*/
+static void CG_ParseDisableLoadoutConfigString( void ) {
 	const cgDisableLoadoutToken_t	*entry;
 	unsigned long			flags;
-	char				*end;
+	unsigned long			mapMask;
+	unsigned long			shiftedMask;
 	char				cvarName[MAX_CVAR_VALUE_STRING];
 	char				currentValue[MAX_CVAR_VALUE_STRING];
 	const char			*resolvedValue;
+	qboolean			disabled;
 
-	flags = 0ul;
-	if ( configstring && configstring[0] ) {
-		flags = strtoul( configstring, &end, 0 );
-		if ( end == configstring ) {
-			flags = 0ul;
-		}
-	}
+	flags = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_FLAGS ) );
+	mapMask = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_MASK ) );
 
 	for ( entry = cg_retailDisableLoadoutTokens; entry->token; ++entry ) {
-		resolvedValue = ( flags & entry->mask ) ? "1" : "0";
+		shiftedMask = entry->mask << 1;
+		disabled = (qboolean)( !cg_loadout.integer || ( flags & entry->mask ) ||
+			( flags & shiftedMask ) || ( mapMask & entry->mask ) );
+		resolvedValue = disabled ? "1" : "0";
 		Com_sprintf( cvarName, sizeof( cvarName ), "cg_disableLoadout_%s", entry->token );
 		trap_Cvar_VariableStringBuffer( cvarName, currentValue, sizeof( currentValue ) );
 		if ( Q_stricmp( currentValue, resolvedValue ) ) {
@@ -2915,6 +2938,8 @@ void CG_ParseServerinfo( void ) {
 	}
 	Q_strncpyz( cgs.loadout, serverLoadout, sizeof( cgs.loadout ) );
 	trap_Cvar_Set( "cg_loadout", cgs.loadout );
+	trap_Cvar_Update( &cg_loadout );
+	CG_ParseDisableLoadoutConfigString();
 	CG_ParseFactoryTitleServerinfo( info );
 
 	mapname = CG_NormalizeMapFilename( Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) );
@@ -3945,7 +3970,7 @@ void CG_SetConfigValues( void ) {
 	CG_ParseRotationVoteConfigStrings();
 	CG_SetTeamNameFromConfigString( TEAM_RED, CG_ConfigString( CS_RED_TEAM_NAME ) );
 	CG_SetTeamNameFromConfigString( TEAM_BLUE, CG_ConfigString( CS_BLUE_TEAM_NAME ) );
-	CG_ParseDisableLoadoutConfigString( CG_ConfigString( CS_LOADOUT_FLAGS ) );
+	CG_ParseDisableLoadoutConfigString();
 	CG_ParseEnableBreathConfigString( CG_ConfigString( CS_ENABLE_BREATH ) );
 	if( cgs.gametype == GT_CTF || cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_OBELISK ) {
 		s = CG_ConfigString( CS_FLAGSTATUS );
@@ -4073,8 +4098,8 @@ static void CG_ConfigStringModified( void ) {
 		CG_SetTeamNameFromConfigString( TEAM_BLUE, str );
 	} else if ( num == CS_LEVEL_START_TIME ) {
 		cgs.levelStartTime = atoi( str );
-	} else if ( num == CS_LOADOUT_FLAGS ) {
-		CG_ParseDisableLoadoutConfigString( str );
+	} else if ( num == CS_LOADOUT_FLAGS || num == CS_LOADOUT_MASK ) {
+		CG_ParseDisableLoadoutConfigString();
 	} else if ( num == CS_ENABLE_BREATH ) {
 		CG_ParseEnableBreathConfigString( str );
 	} else if ( num == CS_PLAYER_CYLINDERS ) {

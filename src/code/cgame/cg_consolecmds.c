@@ -93,27 +93,21 @@ binding intercept path.
 =============
 */
 void CG_ScoresDown_f( void ) {
-
-		CG_BuildSpectatorString();
+	CG_BuildSpectatorString();
 	if ( cg.scoresRequestTime + 2000 < cg.time ) {
-		// the scores are more than two seconds out of data,
-		// so request new ones
 		cg.scoresRequestTime = cg.time;
 		trap_SendClientCommand( "score" );
-
-		// leave the current scores up if they were already
-		// displayed, but if this is the first hit, clear them out
-		if ( !cg.showScores ) {
-			cg.showScores = qtrue;
-			cg.numScores = 0;
-		}
-	} else {
-		// show the cached contents even if they just pressed if it
-		// is within two seconds
-		cg.showScores = qtrue;
 	}
+	cg.showScores = qtrue;
 }
 
+/*
+=============
+CG_ScoresUp_f
+
+Retail `-scores` handler that drops the scoreboard latch.
+=============
+*/
 static void CG_ScoresUp_f( void ) {
 	if ( cg.showScores ) {
 		cg.showScores = qfalse;
@@ -314,21 +308,27 @@ static void CG_VoiceTellAttacker_f( void ) {
 	trap_SendClientCommand( command );
 }
 
+/*
+=============
+CG_NextTeamMember_f
+
+Mirrors the retail selected-player command wrapper for team-order targets.
+=============
+*/
 static void CG_NextTeamMember_f( void ) {
-  if (cg.snap && (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
-    CG_SpectatorFollowCycle(1);
-  } else {
-    CG_SelectNextPlayer();
-  }
+	CG_SelectNextPlayer();
 }
 
 
+/*
+=============
+CG_PrevTeamMember_f
+
+Mirrors the retail selected-player command wrapper for team-order targets.
+=============
+*/
 static void CG_PrevTeamMember_f( void ) {
-  if (cg.snap && (cg.snap->ps.pm_flags & PMF_FOLLOW)) {
-    CG_SpectatorFollowCycle(-1);
-  } else {
-    CG_SelectPrevPlayer();
-  }
+	CG_SelectPrevPlayer();
 }
 
 /*
@@ -532,8 +532,8 @@ static qboolean CG_IsRetailReadyUpIntermissionBypassActive( void ) {
 =============
 CG_ReadyUp_f
 
-Mirrors the retail local readyup wrapper by requiring an active warmup window
-and only bypassing the spectator gate during intermission.
+Mirrors the retail local readyup wrapper by requiring the warmup latch and only
+bypassing the spectator gate during intermission.
 =============
 */
 static void CG_ReadyUp_f( void ) {
@@ -543,7 +543,7 @@ static void CG_ReadyUp_f( void ) {
 	ps = cg.snap ? &cg.snap->ps : NULL;
 	allowIntermissionBypass = CG_IsRetailReadyUpIntermissionBypassActive();
 
-	if ( cg.warmup == 0 && cgs.matchReadyUpDeadline <= 0 && !allowIntermissionBypass ) {
+	if ( cg.warmup == 0 && !allowIntermissionBypass ) {
 		return;
 	}
 
@@ -804,27 +804,12 @@ static void CG_Print_f( void ) {
 
 /*
 =============
-CG_IsSpectatorInput
+CG_NextOrder_f
 
-Returns qtrue when the local client is spectating or following another player.
+Cycles the pending retail team-order selector.
 =============
 */
-static qboolean CG_IsSpectatorInput( void ) {
-	if ( !cg.snap ) {
-		return qfalse;
-	}
-	return ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) || cg.snap->ps.pm_type == PM_SPECTATOR ||
-			cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR );
-}
-
-// ASS U ME's enumeration order as far as task specific orders, OFFENSE is zero, CAMP is last
-// ASS U ME's enumeration order as far as task specific orders, OFFENSE is zero, CAMP is last
-//
 static void CG_NextOrder_f( void ) {
-	if ( CG_IsSpectatorInput() ) {
-		cgs.orderPending = qfalse;
-		return;
-	}
 	clientInfo_t *ci = cgs.clientinfo + cg.snap->ps.clientNum;
 	if (ci) {
 		if (!ci->teamLeader && sortedTeamPlayers[cg_currentSelectedPlayer.integer] != cg.snap->ps.clientNum) {
@@ -853,12 +838,14 @@ static void CG_NextOrder_f( void ) {
 	cgs.orderTime = cg.time + 3000;
 }
 
+/*
+=============
+CG_ConfirmOrder_f
 
-
-static void CG_ConfirmOrder_f (void ) {
-	if ( CG_IsSpectatorInput() ) {
-		return;
-	}
+Sends the retail positive order acknowledgement and applies pending task state.
+=============
+*/
+static void CG_ConfirmOrder_f( void ) {
 	trap_SendConsoleCommand( va( "cmd vtell %d %s\n", cgs.acceptLeader, VOICECHAT_YES ) );
 	trap_SendConsoleCommand("+button5; wait; -button5");
 	if (cg.time < cgs.acceptOrderTime) {
@@ -867,10 +854,14 @@ static void CG_ConfirmOrder_f (void ) {
 	}
 }
 
-static void CG_DenyOrder_f (void ) {
-	if ( CG_IsSpectatorInput() ) {
-		return;
-	}
+/*
+=============
+CG_DenyOrder_f
+
+Sends the retail negative order acknowledgement and clears pending task state.
+=============
+*/
+static void CG_DenyOrder_f( void ) {
 	trap_SendConsoleCommand( va( "cmd vtell %d %s\n", cgs.acceptLeader, VOICECHAT_NO ) );
 	trap_SendConsoleCommand("+button6; wait; -button6");
 	if (cg.time < cgs.acceptOrderTime) {
@@ -878,7 +869,14 @@ static void CG_DenyOrder_f (void ) {
 	}
 }
 
-static void CG_TaskOffense_f (void ) {
+/*
+=============
+CG_TaskOffense_f
+
+Sends the retail offense/order voice line and teamtask update.
+=============
+*/
+static void CG_TaskOffense_f( void ) {
 	if (cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF) {
 		trap_SendConsoleCommand(va("cmd vsay_team %s\n", VOICECHAT_ONGETFLAG));
 	} else {
@@ -887,12 +885,26 @@ static void CG_TaskOffense_f (void ) {
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_OFFENSE));
 }
 
-static void CG_TaskDefense_f (void ) {
+/*
+=============
+CG_TaskDefense_f
+
+Sends the retail defense/order voice line and teamtask update.
+=============
+*/
+static void CG_TaskDefense_f( void ) {
 	trap_SendConsoleCommand(va("cmd vsay_team %s\n", VOICECHAT_ONDEFENSE));
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_DEFENSE));
 }
 
-static void CG_TaskPatrol_f (void ) {
+/*
+=============
+CG_TaskPatrol_f
+
+Sends the retail patrol/order voice line and teamtask update.
+=============
+*/
+static void CG_TaskPatrol_f( void ) {
 	trap_SendConsoleCommand(va("cmd vsay_team %s\n", VOICECHAT_ONPATROL));
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_PATROL));
 }
@@ -902,7 +914,14 @@ static void CG_TaskCamp_f (void ) {
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_CAMP));
 }
 
-static void CG_TaskFollow_f (void ) {
+/*
+=============
+CG_TaskFollow_f
+
+Sends the retail follow/order voice line and teamtask update.
+=============
+*/
+static void CG_TaskFollow_f( void ) {
 	trap_SendConsoleCommand(va("cmd vsay_team %s\n", VOICECHAT_ONFOLLOW));
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_FOLLOW));
 }
@@ -912,36 +931,92 @@ static void CG_TaskRetrieve_f (void ) {
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_RETRIEVE));
 }
 
-static void CG_TaskEscort_f (void ) {
+/*
+=============
+CG_TaskEscort_f
+
+Sends the retail escort/order voice line and teamtask update.
+=============
+*/
+static void CG_TaskEscort_f( void ) {
 	trap_SendConsoleCommand(va("cmd vsay_team %s\n", VOICECHAT_ONFOLLOWCARRIER));
 	trap_SendClientCommand(va("teamtask %d\n", TEAMTASK_ESCORT));
 }
 
-static void CG_TaskOwnFlag_f (void ) {
+/*
+=============
+CG_TaskOwnFlag_f
+
+Sends the retail own-flag team voice line.
+=============
+*/
+static void CG_TaskOwnFlag_f( void ) {
 	trap_SendConsoleCommand(va("cmd vsay_team %s\n", VOICECHAT_IHAVEFLAG));
 }
 
-static void CG_TauntKillInsult_f (void ) {
+/*
+=============
+CG_TauntKillInsult_f
+
+Sends the retail kill-insult voice taunt.
+=============
+*/
+static void CG_TauntKillInsult_f( void ) {
 	trap_SendConsoleCommand("cmd vsay kill_insult\n");
 }
 
-static void CG_TauntPraise_f (void ) {
+/*
+=============
+CG_TauntPraise_f
+
+Sends the retail praise voice taunt.
+=============
+*/
+static void CG_TauntPraise_f( void ) {
 	trap_SendConsoleCommand("cmd vsay praise\n");
 }
 
-static void CG_TauntTaunt_f (void ) {
+/*
+=============
+CG_TauntTaunt_f
+
+Sends the retail animation taunt command.
+=============
+*/
+static void CG_TauntTaunt_f( void ) {
 	trap_SendConsoleCommand("cmd vtaunt\n");
 }
 
-static void CG_TauntDeathInsult_f (void ) {
+/*
+=============
+CG_TauntDeathInsult_f
+
+Sends the retail death-insult voice taunt.
+=============
+*/
+static void CG_TauntDeathInsult_f( void ) {
 	trap_SendConsoleCommand("cmd vsay death_insult\n");
 }
 
-static void CG_TauntGauntlet_f (void ) {
+/*
+=============
+CG_TauntGauntlet_f
+
+Sends the retail gauntlet-kill voice taunt.
+=============
+*/
+static void CG_TauntGauntlet_f( void ) {
 	trap_SendConsoleCommand("cmd vsay kill_gauntlet\n");
 }
 
-static void CG_TaskSuicide_f (void ) {
+/*
+=============
+CG_TaskSuicide_f
+
+Tells the current crosshair teammate to suicide.
+=============
+*/
+static void CG_TaskSuicide_f( void ) {
 	int		clientNum;
 	char	command[128];
 

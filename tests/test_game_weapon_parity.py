@@ -22,6 +22,1228 @@ def _function_body(source: str, signature: str) -> str:
     return match.group("body")
 
 
+def test_first_ten_knockback_cvar_table_matches_retail_defaults_and_flags() -> None:
+    config_c = _read("src/game/g_config.c")
+    q_shared_h = _read("src/code/game/q_shared.h")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    assert "#define CVAR_GAMERULE\t0x100000" in q_shared_h
+    assert "#define CONFIG_CVAR_FLAG_RETAIL_40000 0x00040000" in config_c
+    for expected in (
+        "#define DEFAULT_KNOCKBACK_G                 1",
+        "#define DEFAULT_KNOCKBACK_MG                1",
+        "#define DEFAULT_KNOCKBACK_SG                1",
+        "#define DEFAULT_KNOCKBACK_GL                1.10",
+        "#define DEFAULT_KNOCKBACK_RL                0.90",
+        "#define DEFAULT_KNOCKBACK_RL_SELF           1.10",
+        "#define DEFAULT_KNOCKBACK_LG                1.75",
+        "#define DEFAULT_KNOCKBACK_RG                0.85",
+        "#define DEFAULT_KNOCKBACK_PG                1.10",
+        "#define DEFAULT_KNOCKBACK_PG_SELF           1.30",
+    ):
+        assert expected in config_c
+
+    for expected in (
+        '{ &g_knockback_g,          "g_knockback_g",          STRINGIZE( DEFAULT_KNOCKBACK_G ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_mg,         "g_knockback_mg",         STRINGIZE( DEFAULT_KNOCKBACK_MG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_sg,         "g_knockback_sg",         STRINGIZE( DEFAULT_KNOCKBACK_SG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_gl,         "g_knockback_gl",         STRINGIZE( DEFAULT_KNOCKBACK_GL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_rl,         "g_knockback_rl",         STRINGIZE( DEFAULT_KNOCKBACK_RL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_rl_self,    "g_knockback_rl_self",    STRINGIZE( DEFAULT_KNOCKBACK_RL_SELF ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_lg,         "g_knockback_lg",         STRINGIZE( DEFAULT_KNOCKBACK_LG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_rg,         "g_knockback_rg",         STRINGIZE( DEFAULT_KNOCKBACK_RG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_pg,         "g_knockback_pg",         STRINGIZE( DEFAULT_KNOCKBACK_PG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_pg_self,    "g_knockback_pg_self",    STRINGIZE( DEFAULT_KNOCKBACK_PG_SELF ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+    ):
+        assert expected in config_c
+
+    retail_rows = {
+        'g_knockback_g': ('1008e674  char const (* data_1008e674)[0xe] = data_10086ba8 {"g_knockback_g"}', "data_1007d1d8"),
+        'g_knockback_mg': ('1008e6ec  char const (* data_1008e6ec)[0xf] = data_10086b44 {"g_knockback_mg"}', "data_1007d1d8"),
+        'g_knockback_sg': ('1008e7ac  char const (* data_1008e7ac)[0xf] = data_10086acc {"g_knockback_sg"}', "data_1007d1d8"),
+        'g_knockback_gl': ('1008e6a4  char const (* data_1008e6a4)[0xf] = data_10086b84 {"g_knockback_gl"}', 'data_10086b7c {"1.10"}'),
+        'g_knockback_rl': ('1008e77c  char const (* data_1008e77c)[0xf] = data_10086ae4 {"g_knockback_rl"}', 'data_10086adc {"0.90"}'),
+        'g_knockback_rl_self': ('1008e794  char const (* data_1008e794)[0x14] = data_10085334 {"g_knockback_rl_self"}', 'data_10086b7c {"1.10"}'),
+        'g_knockback_lg': ('1008e6d4  char const (* data_1008e6d4)[0xf] = data_10086b5c {"g_knockback_lg"}', 'data_10086b54 {"1.75"}'),
+        'g_knockback_rg': ('1008e764  char const (* data_1008e764)[0xf] = data_10086afc {"g_knockback_rg"}', 'data_10086af4 {"0.85"}'),
+        'g_knockback_pg': ('1008e71c  char const (* data_1008e71c)[0xf] = data_10086b24 {"g_knockback_pg"}', 'data_10086b7c {"1.10"}'),
+        'g_knockback_pg_self': ('1008e734  char const (* data_1008e734)[0x14] = data_10085348 {"g_knockback_pg_self"}', 'data_10086b1c {"1.30"}'),
+    }
+    for marker, default_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert "00 00 14 00" in row_block
+
+    for expected in (
+        "1007d1d8  data_1007d1d8:",
+        "1007d1d8                                                                          31 00 00 00",
+        '10085334  char const data_10085334[0x14] = "g_knockback_rl_self", 0',
+        '10085348  char const data_10085348[0x14] = "g_knockback_pg_self", 0',
+        '10086acc  char const data_10086acc[0xf] = "g_knockback_sg", 0',
+        '10086adc  char const data_10086adc[0x5] = "0.90", 0',
+        '10086ae4  char const data_10086ae4[0xf] = "g_knockback_rl", 0',
+        '10086af4  char const data_10086af4[0x5] = "0.85", 0',
+        '10086afc  char const data_10086afc[0xf] = "g_knockback_rg", 0',
+        '10086b1c  char const data_10086b1c[0x5] = "1.30", 0',
+        '10086b24  char const data_10086b24[0xf] = "g_knockback_pg", 0',
+        '10086b44  char const data_10086b44[0xf] = "g_knockback_mg", 0',
+        '10086b54  char const data_10086b54[0x5] = "1.75", 0',
+        '10086b5c  char const data_10086b5c[0xf] = "g_knockback_lg", 0',
+        '10086b7c  char const data_10086b7c[0x5] = "1.10", 0',
+        '10086b84  char const data_10086b84[0xf] = "g_knockback_gl", 0',
+        '10086ba8  char const data_10086ba8[0xe] = "g_knockback_g", 0',
+    ):
+        assert expected in qagame_strings
+
+
+def test_first_ten_knockback_cvars_keep_retail_combat_wiring() -> None:
+    config_c = _read("src/game/g_config.c")
+    combat_c = _read("src/code/game/g_combat.c")
+    main_c = _read("src/code/game/g_main.c")
+    factory_c = _read("src/code/game/g_factory.c")
+
+    init_body = _function_body(config_c, "void G_InitKnockbackConfig( void )")
+    for expected in (
+        'g_knockbackConfig.gauntlet = G_ReadKnockbackCvar( &g_knockback_g, DEFAULT_KNOCKBACK_G, "g_knockback_g" );',
+        'g_knockbackConfig.machinegun = G_ReadKnockbackCvar( &g_knockback_mg, DEFAULT_KNOCKBACK_MG, "g_knockback_mg" );',
+        'g_knockbackConfig.shotgun = G_ReadKnockbackCvar( &g_knockback_sg, DEFAULT_KNOCKBACK_SG, "g_knockback_sg" );',
+        'g_knockbackConfig.grenadeLauncher = G_ReadKnockbackCvar( &g_knockback_gl, DEFAULT_KNOCKBACK_GL, "g_knockback_gl" );',
+        'g_knockbackConfig.rocketLauncher = G_ReadKnockbackCvar( &g_knockback_rl, DEFAULT_KNOCKBACK_RL, "g_knockback_rl" );',
+        'g_knockbackConfig.rocketLauncherSelf = G_ReadKnockbackCvar( &g_knockback_rl_self, DEFAULT_KNOCKBACK_RL_SELF, "g_knockback_rl_self" );',
+        'g_knockbackConfig.lightningGun = G_ReadKnockbackCvar( &g_knockback_lg, DEFAULT_KNOCKBACK_LG, "g_knockback_lg" );',
+        'g_knockbackConfig.railgun = G_ReadKnockbackCvar( &g_knockback_rg, DEFAULT_KNOCKBACK_RG, "g_knockback_rg" );',
+        'g_knockbackConfig.plasmagun = G_ReadKnockbackCvar( &g_knockback_pg, DEFAULT_KNOCKBACK_PG, "g_knockback_pg" );',
+        'g_knockbackConfig.plasmagunSelf = G_ReadKnockbackCvar( &g_knockback_pg_self, DEFAULT_KNOCKBACK_PG_SELF, "g_knockback_pg_self" );',
+    ):
+        assert expected in init_body
+
+    scale_body = _function_body(combat_c, "static float G_KnockbackScaleForMOD( int mod, qboolean selfInflicted )")
+    for expected in (
+        "case MOD_GAUNTLET:",
+        "return g_knockbackConfig.gauntlet;",
+        "case MOD_MACHINEGUN:",
+        "return g_knockbackConfig.machinegun;",
+        "case MOD_SHOTGUN:",
+        "return g_knockbackConfig.shotgun;",
+        "case MOD_GRENADE:",
+        "return g_knockbackConfig.grenadeLauncher;",
+        "case MOD_ROCKET:",
+        "return selfInflicted ? g_knockbackConfig.rocketLauncherSelf : g_knockbackConfig.rocketLauncher;",
+        "case MOD_PLASMA:",
+        "return selfInflicted ? g_knockbackConfig.plasmagunSelf : g_knockbackConfig.plasmagun;",
+        "case MOD_LIGHTNING:",
+        "return g_knockbackConfig.lightningGun;",
+        "case MOD_RAILGUN:",
+        "return g_knockbackConfig.railgun;",
+    ):
+        assert expected in scale_body
+
+    assert "knockbackScale = G_KnockbackScaleForMOD( mod, selfInflicted );" in combat_c
+    assert "knockbackValue *= knockbackScale;" in combat_c
+    assert "G_Config_UpdateCvars();" in _function_body(main_c, "void G_UpdateCvars( void )")
+    assert "G_UpdateKnockbackConfig();" in _function_body(main_c, "void G_UpdateCvars( void )")
+    assert "G_UpdateKnockbackConfig();" in _function_body(factory_c, "static void Factory_RefreshMatchConfig( void )")
+
+
+def test_second_ten_knockback_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    config_c = _read("src/game/g_config.c")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    assert '{ &g_knockback, "g_knockback", "1000", CVAR_GAMERULE, 0, qtrue' in main_c
+    for expected in (
+        "#define DEFAULT_KNOCKBACK_BFG               1",
+        "#define DEFAULT_KNOCKBACK_CG                1",
+        "#define DEFAULT_KNOCKBACK_GH                -5",
+        "#define DEFAULT_KNOCKBACK_HMG               1",
+        "#define DEFAULT_KNOCKBACK_NG                1",
+        "#define DEFAULT_KNOCKBACK_PL                1",
+        "#define DEFAULT_KNOCKBACK_VERTICAL          24",
+        "#define DEFAULT_KNOCKBACK_VERTICAL_SELF     24",
+        "#define DEFAULT_KNOCKBACK_CRIPPLE           0",
+    ):
+        assert expected in config_c
+
+    for expected in (
+        '{ &g_knockback_bfg,        "g_knockback_bfg",        STRINGIZE( DEFAULT_KNOCKBACK_BFG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_gh,         "g_knockback_gh",         STRINGIZE( DEFAULT_KNOCKBACK_GH ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_ng,         "g_knockback_ng",         STRINGIZE( DEFAULT_KNOCKBACK_NG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_pl,         "g_knockback_pl",         STRINGIZE( DEFAULT_KNOCKBACK_PL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE,',
+        '{ &g_knockback_z,          "g_knockback_z",          STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL ), CVAR_GAMERULE,',
+        '{ &g_knockback_z_self,     "g_knockback_z_self",     STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL_SELF ), CVAR_GAMERULE,',
+        '{ &g_knockback_cripple,    "g_knockback_cripple",    STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), CVAR_GAMERULE,',
+    ):
+        assert expected in config_c
+
+    retail_rows = {
+        "g_knockback": ('1008e614  char const (* data_1008e614)[0xc] = data_10086bd8 {"g_knockback"}', 'data_1008747c {"1000"}', "00 00 10 00"),
+        "g_knockback_bfg": ('1008e62c  char const (* data_1008e62c)[0x10] = data_10086bc8 {"g_knockback_bfg"}', "data_1007d1d8", "00 00 14 00"),
+        "g_knockback_gh": ('1008e68c  char const (* data_1008e68c)[0xf] = data_10086b98 {"g_knockback_gh"}', "0x10086b94", "00 00 14 00"),
+        "g_knockback_ng": ('1008e704  char const (* data_1008e704)[0xf] = data_10086b34 {"g_knockback_ng"}', "data_1007d1d8", "00 00 14 00"),
+        "g_knockback_pl": ('1008e74c  char const (* data_1008e74c)[0xf] = data_10086b0c {"g_knockback_pl"}', "data_1007d1d8", "00 00 14 00"),
+        "g_knockback_cg": ('1008e644  char const (* data_1008e644)[0xf] = data_10086bb8 {"g_knockback_cg"}', "data_1007d1d8", "00 00 14 00"),
+        "g_knockback_hmg": ('1008e6bc  char const (* data_1008e6bc)[0x10] = data_10086b6c {"g_knockback_hmg"}', "data_1007d1d8", "00 00 14 00"),
+        "g_knockback_z": ('1008e7c4  char const (* data_1008e7c4)[0xe] = data_10086abc {"g_knockback_z"}', "0x10086ab8", "00 00 10 00"),
+        "g_knockback_z_self": ('1008e7dc  char const (* data_1008e7dc)[0x13] = data_10086aa4 {"g_knockback_z_self"}', "0x10086ab8", "00 00 10 00"),
+        "g_knockback_cripple": ('1008e65c  char const (* data_1008e65c)[0x14] = data_1008535c {"g_knockback_cripple"}', "data_1007d0a8", "00 00 10 00"),
+    }
+    for marker, default_marker, flags_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert flags_marker in row_block
+
+    for expected in (
+        "1007d0a8  data_1007d0a8:",
+        "1007d0a8                          30 00 00 00",
+        "1007d1d8  data_1007d1d8:",
+        "1007d1d8                                                                          31 00 00 00",
+        '1008535c  char const data_1008535c[0x14] = "g_knockback_cripple", 0',
+        '10086aa4  char const data_10086aa4[0x13] = "g_knockback_z_self", 0',
+        "10086ab7                                                                       00 32 34 00 00",
+        '10086abc  char const data_10086abc[0xe] = "g_knockback_z", 0',
+        '10086b0c  char const data_10086b0c[0xf] = "g_knockback_pl", 0',
+        '10086b34  char const data_10086b34[0xf] = "g_knockback_ng", 0',
+        '10086b6c  char const data_10086b6c[0x10] = "g_knockback_hmg", 0',
+        "10086b93                                                           00 2d 35 00 00",
+        '10086b98  char const data_10086b98[0xf] = "g_knockback_gh", 0',
+        '10086bb8  char const data_10086bb8[0xf] = "g_knockback_cg", 0',
+        '10086bc8  char const data_10086bc8[0x10] = "g_knockback_bfg", 0',
+        '10086bd8  char const data_10086bd8[0xc] = "g_knockback", 0',
+        '1008747c  char const data_1008747c[0x5] = "1000", 0',
+    ):
+        assert expected in qagame_strings
+
+
+def test_second_ten_knockback_cvars_keep_retail_combat_wiring() -> None:
+    config_c = _read("src/game/g_config.c")
+    combat_c = _read("src/code/game/g_combat.c")
+
+    init_body = _function_body(config_c, "void G_InitKnockbackConfig( void )")
+    for expected in (
+        'g_knockbackConfig.bfg = G_ReadKnockbackCvar( &g_knockback_bfg, DEFAULT_KNOCKBACK_BFG, "g_knockback_bfg" );',
+        'g_knockbackConfig.grapplingHook = G_ReadKnockbackCvar( &g_knockback_gh, DEFAULT_KNOCKBACK_GH, "g_knockback_gh" );',
+        'g_knockbackConfig.nailgun = G_ReadKnockbackCvar( &g_knockback_ng, DEFAULT_KNOCKBACK_NG, "g_knockback_ng" );',
+        'g_knockbackConfig.proximityLauncher = G_ReadKnockbackCvar( &g_knockback_pl, DEFAULT_KNOCKBACK_PL, "g_knockback_pl" );',
+        'g_knockbackConfig.chaingun = G_ReadKnockbackCvar( &g_knockback_cg, DEFAULT_KNOCKBACK_CG, "g_knockback_cg" );',
+        'g_knockbackConfig.heavyMachinegun = G_ReadKnockbackCvar( &g_knockback_hmg, DEFAULT_KNOCKBACK_HMG, "g_knockback_hmg" );',
+        'g_knockbackConfig.vertical = G_ReadKnockbackCvar( &g_knockback_z, DEFAULT_KNOCKBACK_VERTICAL, "g_knockback_z" );',
+        'g_knockbackConfig.verticalSelf = G_ReadKnockbackCvar( &g_knockback_z_self, DEFAULT_KNOCKBACK_VERTICAL_SELF, "g_knockback_z_self" );',
+        'g_knockbackConfig.cripple = G_ReadKnockbackCvar( &g_knockback_cripple, DEFAULT_KNOCKBACK_CRIPPLE, "g_knockback_cripple" );',
+    ):
+        assert expected in init_body
+
+    scale_body = _function_body(combat_c, "static float G_KnockbackScaleForMOD( int mod, qboolean selfInflicted )")
+    for expected in (
+        "case MOD_HMG:",
+        "return g_knockbackConfig.heavyMachinegun;",
+        "case MOD_BFG:",
+        "case MOD_BFG_SPLASH:",
+        "return g_knockbackConfig.bfg;",
+        "case MOD_GRAPPLE:",
+        "return g_knockbackConfig.grapplingHook;",
+        "case MOD_NAIL:",
+        "return g_knockbackConfig.nailgun;",
+        "case MOD_CHAINGUN:",
+        "return g_knockbackConfig.chaingun;",
+        "case MOD_PROXIMITY_MINE:",
+        "return g_knockbackConfig.proximityLauncher;",
+    ):
+        assert expected in scale_body
+
+    vertical_body = _function_body(combat_c, "static float G_KnockbackVerticalBoost( qboolean selfInflicted )")
+    cripple_body = _function_body(combat_c, "static float G_ApplyKnockbackCripple( gentity_t *targ, float knockbackValue, int dflags, float *outPenalty )")
+
+    assert "return selfInflicted ? g_knockbackConfig.verticalSelf : g_knockbackConfig.vertical;" in vertical_body
+    assert "if ( g_knockbackConfig.cripple <= 0.0f || !targ || !targ->client ) {" in cripple_body
+    assert "scale -= g_knockbackConfig.cripple;" in cripple_body
+    assert "scale -= g_knockbackConfig.cripple * deficitFraction;" in cripple_body
+    assert "knockbackValue = G_ApplyKnockbackCripple( targ, knockbackValue, dflags, &cripplePenalty );" in combat_c
+    assert "float verticalBoost = G_KnockbackVerticalBoost( selfInflicted );" in combat_c
+    assert "VectorScale (dir, g_knockback.value * knockbackValue / mass, kvel);" in combat_c
+
+
+def test_first_ten_damage_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    q_shared_h = _read("src/code/game/q_shared.h")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    assert "#define CVAR_GAMERULE\t0x100000" in q_shared_h
+    assert "#define GAME_CVAR_FLAG_RETAIL_40000\t0x00040000" in main_c
+    for expected in (
+        '{ &g_damage_bfg, "g_damage_bfg", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_cg, "g_damage_cg", "8", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_damage_g, "g_damage_g", "50", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_gh, "g_damage_gh", "10", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_damage_hmg, "g_damage_hmg", "8", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_gl, "g_damage_gl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_lg, "g_damage_lg", "6", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_lg_falloff, "g_damage_lg_falloff", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_damage_mg, "g_damage_mg", "5", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_ng, "g_damage_ng", "12", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+    ):
+        assert expected in main_c
+
+    retail_rows = {
+        "g_damage_bfg": ('1008dd44  char const (* data_1008dd44)[0xd] = data_10087308 {"g_damage_bfg"}', "data_1007e154"),
+        "g_damage_cg": ('1008dd5c  char const (* data_1008dd5c)[0xc] = data_100872fc {"g_damage_cg"}', "data_1007e004"),
+        "g_damage_g": ('1008dd74  char const (* data_1008dd74)[0xb] = data_100872f0 {"g_damage_g"}', "data_1007e1fc"),
+        "g_damage_gh": ('1008dd8c  char const (* data_1008dd8c)[0xc] = data_100872e4 {"g_damage_gh"}', "data_1007e194"),
+        "g_damage_hmg": ('1008dda4  char const (* data_1008dda4)[0xd] = data_100872d4 {"g_damage_hmg"}', "data_1007e004"),
+        "g_damage_gl": ('1008ddbc  char const (* data_1008ddbc)[0xc] = data_100872c8 {"g_damage_gl"}', "data_1007e154"),
+        "g_damage_lg": ('1008ddd4  char const (* data_1008ddd4)[0xc] = data_100872bc {"g_damage_lg"}', "0x100872b8"),
+        "g_damage_lg_falloff": ('1008ddec  char const (* data_1008ddec)[0x14] = data_100872a4 {"g_damage_lg_falloff"}', "data_1007d0a8"),
+        "g_damage_mg": ('1008de04  char const (* data_1008de04)[0xc] = data_10087298 {"g_damage_mg"}', "0x10087340"),
+        "g_damage_ng": ('1008de1c  char const (* data_1008de1c)[0xc] = data_1008728c {"g_damage_ng"}', "0x10087288"),
+    }
+    for marker, default_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert "00 00 14 00" in row_block
+
+    for expected in (
+        "1007d0a8  data_1007d0a8:",
+        "1007d0a8                          30 00 00 00",
+        "1007e004  data_1007e004:",
+        "1007e004              38 00 00 00",
+        "1007e154  data_1007e154:",
+        "1007e154                                                              31 30 30 00",
+        "1007e194  data_1007e194:",
+        "1007e194                                                              31 30 00 00",
+        "1007e1fc  data_1007e1fc:",
+        "1007e1fc                                                                                      35 30 00 00",
+        "10087288                          31 32 00 00",
+        '1008728c  char const data_1008728c[0xc] = "g_damage_ng", 0',
+        '10087298  char const data_10087298[0xc] = "g_damage_mg", 0',
+        '100872a4  char const data_100872a4[0x14] = "g_damage_lg_falloff", 0',
+        "100872b8                                                                          36 00 00 00",
+        '100872bc  char const data_100872bc[0xc] = "g_damage_lg", 0',
+        '100872c8  char const data_100872c8[0xc] = "g_damage_gl", 0',
+        '100872d4  char const data_100872d4[0xd] = "g_damage_hmg", 0',
+        '100872e4  char const data_100872e4[0xc] = "g_damage_gh", 0',
+        '100872f0  char const data_100872f0[0xb] = "g_damage_g", 0',
+        '100872fc  char const data_100872fc[0xc] = "g_damage_cg", 0',
+        '10087308  char const data_10087308[0xd] = "g_damage_bfg", 0',
+        "10087340  35 00 00 00",
+    ):
+        assert expected in qagame_strings
+
+
+def test_first_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    weapon_c = _read("src/code/game/g_weapon.c")
+    missile_c = _read("src/code/game/g_missile.c")
+    combat_c = _read("src/code/game/g_combat.c")
+    config_c = _read("src/game/g_config.c")
+    factory_c = _read("src/code/game/g_factory.c")
+
+    init_body = _function_body(main_c, "void G_InitWeaponConfig( void )")
+    for expected in (
+        'g_weaponConfig.gauntletDamage = G_ReadWeaponCvar( &g_damage_g, 50, "g_damage_g" );',
+        'g_weaponConfig.machinegunDamage = G_ReadWeaponCvar( &g_damage_mg, 5, "g_damage_mg" );',
+        'g_weaponConfig.heavyMachinegunDamage = G_ReadWeaponCvar( &g_damage_hmg, 8, "g_damage_hmg" );',
+        'g_weaponConfig.chaingunDamage = G_ReadWeaponCvar( &g_damage_cg, 8, "g_damage_cg" );',
+        'g_weaponConfig.grenadeDamage = G_ReadWeaponCvar( &g_damage_gl, 100, "g_damage_gl" );',
+        'g_weaponConfig.lightningDamage = G_ReadWeaponCvar( &g_damage_lg, 6, "g_damage_lg" );',
+        'g_weaponConfig.lightningFalloffDamage = G_ReadWeaponCvarNonNegative( &g_damage_lg_falloff, 0, "g_damage_lg_falloff" );',
+        'g_weaponConfig.bfgDamage = G_ReadWeaponCvar( &g_damage_bfg, 100, "g_damage_bfg" );',
+        'g_weaponConfig.grappleDamage = G_ReadWeaponCvar( &g_damage_gh, 10, "g_damage_gh" );',
+        'g_weaponConfig.nailgunDamage = G_ReadWeaponCvar( &g_damage_ng, 12, "g_damage_ng" );',
+    ):
+        assert expected in init_body
+
+    clamp_body = _function_body(combat_c, "static int G_ClampModDamage( int damage, int mod, gentity_t *attacker )")
+    for expected in (
+        "case MOD_GAUNTLET:",
+        "configuredDamage = g_weaponConfig.gauntletDamage;",
+        "case MOD_MACHINEGUN:",
+        "configuredDamage = ( g_gametype.integer != GT_TEAM ) ? g_weaponConfig.machinegunDamage : g_weaponConfig.machinegunTeamDamage;",
+        "case MOD_HMG:",
+        "configuredDamage = g_weaponConfig.heavyMachinegunDamage;",
+        "case MOD_CHAINGUN:",
+        "configuredDamage = g_weaponConfig.chaingunDamage;",
+        "case MOD_GRENADE:",
+        "configuredDamage = g_weaponConfig.grenadeDamage;",
+        "case MOD_LIGHTNING:",
+        "case MOD_LIGHTNING_DISCHARGE:",
+        "configuredDamage = g_weaponConfig.lightningDamage;",
+        "case MOD_BFG:",
+        "configuredDamage = g_weaponConfig.bfgDamage;",
+        "case MOD_GRAPPLE:",
+        "configuredDamage = g_weaponConfig.grappleDamage;",
+        "case MOD_NAIL:",
+        "configuredDamage = g_weaponConfig.nailgunDamage;",
+    ):
+        assert expected in clamp_body
+
+    for expected in (
+        "damage = g_weaponConfig.gauntletDamage * s_quadFactor;",
+        "#define\tMACHINEGUN_DAMAGE\t(g_weaponConfig.machinegunDamage)",
+        "#define\tHEAVY_MACHINEGUN_DAMAGE\t(g_weaponConfig.heavyMachinegunDamage)",
+        "#define\tCHAINGUN_DAMAGE\t\t(g_weaponConfig.chaingunDamage)",
+        "baseDamage = g_weaponConfig.lightningDamage;",
+        "falloffDamage = g_weaponConfig.lightningFalloffDamage;",
+        "damage = g_weaponConfig.lightningDamage;",
+        "dischargeDamage = dischargeAmmo * g_weaponConfig.lightningDamage;",
+        "m->damage *= s_quadFactor;",
+        "hook->damage *= s_quadFactor;",
+    ):
+        assert expected in weapon_c
+
+    for expected in (
+        "bolt->damage = g_weaponConfig.grenadeDamage;",
+        "bolt->damage = g_weaponConfig.bfgDamage;",
+        "hook->damage = g_weaponConfig.grappleDamage;",
+        "bolt->damage = g_weaponConfig.nailgunDamage;",
+    ):
+        assert expected in missile_c
+
+    custom_mask_body = _function_body(config_c, "uint64_t G_ComputeConfigCustomSettingsMask( void )")
+    for expected in (
+        "g_weaponConfig.gauntletDamage != 50",
+        "g_weaponConfig.machinegunDamage != 5",
+        "g_weaponConfig.grenadeDamage != 100",
+        "g_weaponConfig.lightningDamage != 6",
+        "g_weaponConfig.lightningFalloffDamage != 0",
+        "g_weaponConfig.bfgDamage != 100",
+        "g_weaponConfig.grappleDamage != 10",
+        "g_weaponConfig.nailgunDamage != 12",
+        "g_weaponConfig.chaingunDamage != 8",
+    ):
+        assert expected in custom_mask_body
+
+    assert "G_UpdateWeaponConfig();" in _function_body(main_c, "void G_UpdateCvars( void )")
+    assert "G_UpdateWeaponConfig();" in _function_body(factory_c, "static void Factory_RefreshMatchConfig( void )")
+    assert "damage = G_ClampModDamage( damage, mod, attacker );" in combat_c
+
+
+def test_second_ten_damage_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    for expected in (
+        '{ &g_damage_pg, "g_damage_pg", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_pl, "g_damage_pl", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_damage_rg, "g_damage_rg", "80", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_rl, "g_damage_rl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_sg, "g_damage_sg", "5", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_damage_sg_falloff, "g_damage_sg_falloff", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_damage_sg_outer, "g_damage_sg_outer", "5", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_splashDamage_gl, "g_splashdamage_gl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_splashDamage_pg, "g_splashdamage_pg", "15", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_splashDamage_rl, "g_splashdamage_rl", "84", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+    ):
+        assert expected in main_c
+
+    retail_rows = {
+        "g_damage_pg": ('1008de34  char const (* data_1008de34)[0xc] = data_1008727c {"g_damage_pg"}', "data_1007e1ac"),
+        "g_damage_pl": ('1008de4c  char const (* data_1008de4c)[0xc] = data_10087270 {"g_damage_pl"}', "data_1007d0a8"),
+        "g_damage_rg": ('1008de64  char const (* data_1008de64)[0xc] = data_10087264 {"g_damage_rg"}', "0x10087260"),
+        "g_damage_rl": ('1008de7c  char const (* data_1008de7c)[0xc] = data_10087254 {"g_damage_rl"}', "data_1007e154"),
+        "g_damage_sg": ('1008de94  char const (* data_1008de94)[0xc] = data_10087248 {"g_damage_sg"}', "0x10087340"),
+        "g_damage_sg_falloff": ('1008deac  char const (* data_1008deac)[0x14] = data_10087234 {"g_damage_sg_falloff"}', "data_1007d0a8"),
+        "g_damage_sg_outer": ('1008dec4  char const (* data_1008dec4)[0x12] = data_10087220 {"g_damage_sg_outer"}', "0x10087340"),
+        "g_splashdamage_gl": ('1008f1b4  char const (* data_1008f1b4)[0x12] = data_10086228 {"g_splashdamage_gl"}', "data_1007e154"),
+        "g_splashdamage_pg": ('1008f1cc  char const (* data_1008f1cc)[0x12] = data_10086214 {"g_splashdamage_pg"}', "data_1007e1d8"),
+        "g_splashdamage_rl": ('1008f1fc  char const (* data_1008f1fc)[0x12] = data_100861ec {"g_splashdamage_rl"}', "0x100861e8"),
+    }
+    for marker, default_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert "00 00 14 00" in row_block
+
+    for expected in (
+        "1007d0a8                          30 00 00 00",
+        "1007e154                                                              31 30 30 00",
+        "1007e1ac                                      32 30 00 00",
+        "1007e1d8                                                                          31 35 00 00",
+        "100861e5                 00 00 00 38 34 00 00",
+        '100861ec  char const data_100861ec[0x12] = "g_splashdamage_rl", 0',
+        '10086214  char const data_10086214[0x12] = "g_splashdamage_pg", 0',
+        '10086228  char const data_10086228[0x12] = "g_splashdamage_gl", 0',
+        '10087220  char const data_10087220[0x12] = "g_damage_sg_outer", 0',
+        '10087234  char const data_10087234[0x14] = "g_damage_sg_falloff", 0',
+        '10087248  char const data_10087248[0xc] = "g_damage_sg", 0',
+        '10087254  char const data_10087254[0xc] = "g_damage_rl", 0',
+        "10087260  38 30 00 00",
+        '10087264  char const data_10087264[0xc] = "g_damage_rg", 0',
+        '10087270  char const data_10087270[0xc] = "g_damage_pl", 0',
+        '1008727c  char const data_1008727c[0xc] = "g_damage_pg", 0',
+        "10087340  35 00 00 00",
+    ):
+        assert expected in qagame_strings
+
+
+def test_second_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    weapon_c = _read("src/code/game/g_weapon.c")
+    missile_c = _read("src/code/game/g_missile.c")
+    combat_c = _read("src/code/game/g_combat.c")
+    config_c = _read("src/game/g_config.c")
+    factory_c = _read("src/code/game/g_factory.c")
+
+    init_body = _function_body(main_c, "void G_InitWeaponConfig( void )")
+    for expected in (
+        'g_weaponConfig.shotgunDamage = G_ReadWeaponCvar( &g_damage_sg, 5, "g_damage_sg" );',
+        'g_weaponConfig.shotgunOuterDamage = G_ReadWeaponCvar( &g_damage_sg_outer, 5, "g_damage_sg_outer" );',
+        'g_weaponConfig.shotgunFalloffDamage = G_ReadWeaponCvarNonNegative( &g_damage_sg_falloff, 0, "g_damage_sg_falloff" );',
+        'g_weaponConfig.grenadeSplashDamage = G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashdamage_gl" );',
+        'g_weaponConfig.rocketDamage = G_ReadWeaponCvar( &g_damage_rl, 100, "g_damage_rl" );',
+        'g_weaponConfig.rocketSplashDamage = G_ReadWeaponCvar( &g_splashDamage_rl, 84, "g_splashdamage_rl" );',
+        'g_weaponConfig.plasmaDamage = G_ReadWeaponCvar( &g_damage_pg, 20, "g_damage_pg" );',
+        'g_weaponConfig.plasmaSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pg, 15, "g_splashdamage_pg" );',
+        'g_weaponConfig.railgunDamage = G_ReadWeaponCvar( &g_damage_rg, 80, "g_damage_rg" );',
+        'g_weaponConfig.proximityLauncherDamage = G_ReadWeaponCvarNonNegative( &g_damage_pl, 0, "g_damage_pl" );',
+    ):
+        assert expected in init_body
+
+    clamp_body = _function_body(combat_c, "static int G_ClampModDamage( int damage, int mod, gentity_t *attacker )")
+    for expected in (
+        "case MOD_SHOTGUN:",
+        "configuredDamage = g_weaponConfig.shotgunDamage;",
+        "case MOD_GRENADE_SPLASH:",
+        "configuredDamage = g_weaponConfig.grenadeSplashDamage;",
+        "case MOD_ROCKET:",
+        "configuredDamage = g_weaponConfig.rocketDamage;",
+        "case MOD_ROCKET_SPLASH:",
+        "configuredDamage = g_weaponConfig.rocketSplashDamage;",
+        "case MOD_PLASMA:",
+        "configuredDamage = g_weaponConfig.plasmaDamage;",
+        "case MOD_PLASMA_SPLASH:",
+        "configuredDamage = g_weaponConfig.plasmaSplashDamage;",
+        "case MOD_RAILGUN:",
+        "configuredDamage = g_weaponConfig.railgunDamage;",
+        "case MOD_PROXIMITY_MINE:",
+        "g_weaponConfig.proximityLauncherDamage > g_weaponConfig.proximityLauncherSplashDamage",
+    ):
+        assert expected in clamp_body
+
+    for expected in (
+        "#define\tDEFAULT_SHOTGUN_DAMAGE\t(g_weaponConfig.shotgunDamage)",
+        "#define\tDEFAULT_SHOTGUN_OUTER_DAMAGE\t(g_weaponConfig.shotgunOuterDamage)",
+        "falloffDamage = g_weaponConfig.shotgunFalloffDamage;",
+        "damage = g_weaponConfig.railgunDamage * s_quadFactor;",
+    ):
+        assert expected in weapon_c
+
+    for expected in (
+        "bolt->damage = g_weaponConfig.plasmaDamage;",
+        "bolt->splashDamage = g_weaponConfig.plasmaSplashDamage;",
+        "bolt->damage = g_weaponConfig.grenadeDamage;",
+        "bolt->splashDamage = g_weaponConfig.grenadeSplashDamage;",
+        "bolt->damage = g_weaponConfig.rocketDamage;",
+        "bolt->splashDamage = g_weaponConfig.rocketSplashDamage;",
+        "bolt->damage = g_weaponConfig.proximityLauncherDamage;",
+    ):
+        assert expected in missile_c
+
+    custom_mask_body = _function_body(config_c, "uint64_t G_ComputeConfigCustomSettingsMask( void )")
+    for expected in (
+        "g_weaponConfig.shotgunDamage != 5",
+        "g_weaponConfig.shotgunOuterDamage != 5",
+        "g_weaponConfig.shotgunFalloffDamage != 0",
+        "g_weaponConfig.grenadeSplashDamage != 100",
+        "g_weaponConfig.rocketDamage != 100",
+        "g_weaponConfig.rocketSplashDamage != 84",
+        "g_weaponConfig.plasmaDamage != 20",
+        "g_weaponConfig.plasmaSplashDamage != 15",
+        "g_weaponConfig.railgunDamage != 80",
+        "g_weaponConfig.proximityLauncherDamage != 0",
+    ):
+        assert expected in custom_mask_body
+
+    assert "G_UpdateWeaponConfig();" in _function_body(main_c, "void G_UpdateCvars( void )")
+    assert "G_UpdateWeaponConfig();" in _function_body(factory_c, "static void Factory_RefreshMatchConfig( void )")
+    assert "damage = G_ClampModDamage( damage, mod, attacker );" in combat_c
+
+
+def test_third_ten_damage_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    for expected in (
+        '{ &g_splashDamage_bfg, "g_splashdamage_bfg", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_splashDamage_pl, "g_splashdamage_pl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_splashRadius_bfg, "g_splashradius_bfg", "80", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_splashRadius_gl, "g_splashradius_gl", "150", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_splashRadius_pg, "g_splashradius_pg", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_splashRadius_pl, "g_splashradius_pl", "150", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_splashRadius_rl, "g_splashradius_rl", "120", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue }',
+        '{ &g_range_lg_falloff, "g_range_lg_falloff", "768", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_range_sg_falloff, "g_range_sg_falloff", "768", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_rocketsplashOffset, "g_rocketsplashOffset", "-10.0", CVAR_GAMERULE, 0, qtrue, qfalse,',
+    ):
+        assert expected in main_c
+
+    retail_rows = {
+        "g_splashdamage_bfg": ('1008f19c  char const (* data_1008f19c)[0x13] = data_1008623c {"g_splashdamage_bfg"}', "data_1007e154", "00 00 14 00"),
+        "g_splashdamage_pl": ('1008f1e4  char const (* data_1008f1e4)[0x12] = data_10086200 {"g_splashdamage_pl"}', "data_1007e154", "00 00 14 00"),
+        "g_splashradius_bfg": ('1008f22c  char const (* data_1008f22c)[0x13] = data_100861b4 {"g_splashradius_bfg"}', "0x10087260", "00 00 14 00"),
+        "g_splashradius_gl": ('1008f244  char const (* data_1008f244)[0x12] = data_100861a0 {"g_splashradius_gl"}', "0x10086414", "00 00 14 00"),
+        "g_splashradius_pg": ('1008f25c  char const (* data_1008f25c)[0x12] = data_1008618c {"g_splashradius_pg"}', "data_1007e1ac", "00 00 14 00"),
+        "g_splashradius_pl": ('1008f274  char const (* data_1008f274)[0x12] = data_10086178 {"g_splashradius_pl"}', "0x10086414", "00 00 14 00"),
+        "g_splashradius_rl": ('1008f28c  char const (* data_1008f28c)[0x12] = data_10086164 {"g_splashradius_rl"}', "0x100869c8", "00 00 14 00"),
+        "g_range_lg_falloff": ('1008ec5c  char const (* data_1008ec5c)[0x13] = data_1008672c {"g_range_lg_falloff"}', "0x10086728", "00 00 10 00"),
+        "g_range_sg_falloff": ('1008ec74  char const (* data_1008ec74)[0x13] = data_10086714 {"g_range_sg_falloff"}', "0x10086728", "00 00 10 00"),
+        "g_rocketsplashOffset": ('1008ed64  char const (* data_1008ed64)[0x15] = data_10086648 {"g_rocketsplashOffset"}', 'data_10086640 {"-10.0"}', "00 00 10 00"),
+    }
+    for marker, default_marker, flags_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert flags_marker in row_block
+
+    for expected in (
+        "1007e154                                                              31 30 30 00",
+        "1007e1ac                                      32 30 00 00",
+        "10086164  char const data_10086164[0x12] = \"g_splashradius_rl\", 0",
+        "10086178  char const data_10086178[0x12] = \"g_splashradius_pl\", 0",
+        "1008618c  char const data_1008618c[0x12] = \"g_splashradius_pg\", 0",
+        "100861a0  char const data_100861a0[0x12] = \"g_splashradius_gl\", 0",
+        "100861b4  char const data_100861b4[0x13] = \"g_splashradius_bfg\", 0",
+        "10086200  char const data_10086200[0x12] = \"g_splashdamage_pl\", 0",
+        "1008623c  char const data_1008623c[0x13] = \"g_splashdamage_bfg\", 0",
+        '10086640  char const data_10086640[0x6] = "-10.0", 0',
+        '10086648  char const data_10086648[0x15] = "g_rocketsplashOffset", 0',
+        "10086727                       00 37 36 38 00",
+        '10086714  char const data_10086714[0x13] = "g_range_sg_falloff", 0',
+        '1008672c  char const data_1008672c[0x13] = "g_range_lg_falloff", 0',
+        "100869c8                          31 32 30 00",
+        "10087260  38 30 00 00",
+    ):
+        assert expected in qagame_strings
+
+
+def test_third_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    weapon_c = _read("src/code/game/g_weapon.c")
+    missile_c = _read("src/code/game/g_missile.c")
+    config_c = _read("src/game/g_config.c")
+    factory_c = _read("src/code/game/g_factory.c")
+
+    init_body = _function_body(main_c, "void G_InitWeaponConfig( void )")
+    for expected in (
+        'g_weaponConfig.shotgunFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_sg_falloff, 768, "g_range_sg_falloff" );',
+        'g_weaponConfig.grenadeSplashRadius = G_ReadWeaponCvar( &g_splashRadius_gl, 150, "g_splashradius_gl" );',
+        'g_weaponConfig.rocketSplashRadius = G_ReadWeaponCvar( &g_splashRadius_rl, 120, "g_splashradius_rl" );',
+        'g_weaponConfig.rocketSplashOffset = G_ReadWeaponCvarRaw( &g_rocketsplashOffset, -10, "g_rocketsplashOffset" );',
+        'g_weaponConfig.plasmaSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pg, 20, "g_splashradius_pg" );',
+        'g_weaponConfig.lightningFalloffRange = G_ReadWeaponCvarNonNegative( &g_range_lg_falloff, 768, "g_range_lg_falloff" );',
+        'g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100, "g_splashdamage_bfg" );',
+        'g_weaponConfig.bfgSplashRadius = G_ReadWeaponCvar( &g_splashRadius_bfg, 80, "g_splashradius_bfg" );',
+        'g_weaponConfig.proximityLauncherSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pl, 100, "g_splashdamage_pl" );',
+        'g_weaponConfig.proximityLauncherSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pl, 150, "g_splashradius_pl" );',
+    ):
+        assert expected in init_body
+
+    for expected in (
+        "falloffRange = g_weaponConfig.shotgunFalloffRange;",
+        "falloffRange = g_weaponConfig.lightningFalloffRange;",
+    ):
+        assert expected in weapon_c
+
+    for expected in (
+        "bolt->splashDamage = g_weaponConfig.proximityLauncherSplashDamage;",
+        "bolt->splashDamage = g_weaponConfig.bfgSplashDamage;",
+        "bolt->splashRadius = g_weaponConfig.grenadeSplashRadius;",
+        "bolt->splashRadius = g_weaponConfig.rocketSplashRadius;",
+        "bolt->splashRadius = g_weaponConfig.plasmaSplashRadius;",
+        "bolt->splashRadius = g_weaponConfig.bfgSplashRadius;",
+        "bolt->splashRadius = g_weaponConfig.proximityLauncherSplashRadius;",
+        "if ( ent->s.weapon == WP_ROCKET_LAUNCHER && g_weaponConfig.rocketSplashOffset != 0 ) {",
+        "splashOffset = ( float )g_weaponConfig.rocketSplashOffset;",
+    ):
+        assert expected in missile_c
+
+    custom_mask_body = _function_body(config_c, "uint64_t G_ComputeConfigCustomSettingsMask( void )")
+    for expected in (
+        "g_weaponConfig.shotgunFalloffRange != 768",
+        "g_weaponConfig.grenadeSplashRadius != 150",
+        "g_weaponConfig.rocketSplashRadius != 120",
+        "g_weaponConfig.rocketSplashOffset != -10",
+        "g_weaponConfig.lightningFalloffRange != 768",
+        "g_weaponConfig.plasmaSplashRadius != 20",
+        "g_weaponConfig.bfgSplashDamage != 100",
+        "g_weaponConfig.bfgSplashRadius != 80",
+        "g_weaponConfig.proximityLauncherSplashDamage != 100",
+        "g_weaponConfig.proximityLauncherSplashRadius != 150",
+    ):
+        assert expected in custom_mask_body
+
+    assert "G_UpdateWeaponConfig();" in _function_body(main_c, "void G_UpdateCvars( void )")
+    assert "G_UpdateWeaponConfig();" in _function_body(factory_c, "static void Factory_RefreshMatchConfig( void )")
+
+
+def test_first_ten_velocity_acceleration_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    for expected in (
+        '{ &g_accelFactor_bfg, "g_accelFactor_bfg", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelFactor_pg, "g_accelFactor_pg", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelFactor_rl, "g_accelFactor_rl", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelRate_bfg, "g_accelRate_bfg", "16", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelRate_pg, "g_accelRate_pg", "16", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelRate_rl, "g_accelRate_rl", "16", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_velocity_bfg, "g_velocity_bfg", "1800", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_velocity_gl, "g_velocity_gl", "700", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_velocity_pg, "g_velocity_pg", "2000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_velocity_rl, "g_velocity_rl", "1000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+    ):
+        assert expected in main_c
+
+    retail_rows = {
+        "g_accelFactor_bfg": ('1008da5c  char const (* data_1008da5c)[0x12] = data_10087574 {"g_accelFactor_bfg"}', "data_1007d1d8", "00 00 14 00"),
+        "g_accelFactor_pg": ('1008da74  char const (* data_1008da74)[0x11] = data_10087560 {"g_accelFactor_pg"}', "data_1007d1d8", "00 00 14 00"),
+        "g_accelFactor_rl": ('1008da8c  char const (* data_1008da8c)[0x11] = data_1008754c {"g_accelFactor_rl"}', "data_1007d1d8", "00 00 14 00"),
+        "g_accelRate_bfg": ('1008daa4  char const (* data_1008daa4)[0x10] = data_1008753c {"g_accelRate_bfg"}', "0x10087538", "00 00 10 00"),
+        "g_accelRate_pg": ('1008dabc  char const (* data_1008dabc)[0xf] = data_10087528 {"g_accelRate_pg"}', "0x10087538", "00 00 10 00"),
+        "g_accelRate_rl": ('1008dad4  char const (* data_1008dad4)[0xf] = data_10087518 {"g_accelRate_rl"}', "0x10087538", "00 00 10 00"),
+        "g_velocity_bfg": ('1008f67c  char const (* data_1008f67c)[0xf] = data_10085e3c {"g_velocity_bfg"}', 'data_10085e34 {"1800"}', "00 00 14 00"),
+        "g_velocity_gl": ('1008f6ac  char const (* data_1008f6ac)[0xe] = data_10085e14 {"g_velocity_gl"}', "0x10085e10", "00 00 14 00"),
+        "g_velocity_pg": ('1008f6c4  char const (* data_1008f6c4)[0xe] = data_10085e00 {"g_velocity_pg"}', 'data_10086d78 {"2000"}', "00 00 14 00"),
+        "g_velocity_rl": ('1008f6dc  char const (* data_1008f6dc)[0xe] = data_10085df0 {"g_velocity_rl"}', 'data_1008747c {"1000"}', "00 00 14 00"),
+    }
+    for marker, default_marker, flags_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert flags_marker in row_block
+
+    for expected in (
+        "1007d1d8                                                                          31 00 00 00",
+        "10085df0  char const data_10085df0[0xe] = \"g_velocity_rl\", 0",
+        "10085e00  char const data_10085e00[0xe] = \"g_velocity_pg\", 0",
+        "10085e0e                                            00 00 37 30 30 00",
+        "10085e14  char const data_10085e14[0xe] = \"g_velocity_gl\", 0",
+        '10085e34  char const data_10085e34[0x5] = "1800", 0',
+        "10085e3c  char const data_10085e3c[0xf] = \"g_velocity_bfg\", 0",
+        '10086d78  char const data_10086d78[0x5] = "2000", 0',
+        '1008747c  char const data_1008747c[0x5] = "1000", 0',
+        "10087518  char const data_10087518[0xf] = \"g_accelRate_rl\", 0",
+        "10087528  char const data_10087528[0xf] = \"g_accelRate_pg\", 0",
+        "10087537                                                                       00 31 36 00 00",
+        "1008753c  char const data_1008753c[0x10] = \"g_accelRate_bfg\", 0",
+        "1008754c  char const data_1008754c[0x11] = \"g_accelFactor_rl\", 0",
+        "10087560  char const data_10087560[0x11] = \"g_accelFactor_pg\", 0",
+        "10087574  char const data_10087574[0x12] = \"g_accelFactor_bfg\", 0",
+    ):
+        assert expected in qagame_strings
+
+
+def test_first_ten_velocity_acceleration_cvars_keep_retail_weapon_wiring() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    missile_c = _read("src/code/game/g_missile.c")
+    config_c = _read("src/game/g_config.c")
+    factory_c = _read("src/code/game/g_factory.c")
+
+    init_body = _function_body(main_c, "void G_InitWeaponConfig( void )")
+    sync_rocket_body = _function_body(missile_c, "static void G_SynchronizeRocketConfig( gentity_t *bolt, vec3_t dir )")
+    for expected in (
+        'g_weaponConfig.grenadeSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_gl, 700, "g_velocity_gl", 1 );',
+        'g_weaponConfig.rocketSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_rl, 1000, "g_velocity_rl", 1 );',
+        'g_weaponConfig.rocketAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_rl, 1.0f, "g_accelFactor_rl" );',
+        'g_weaponConfig.rocketAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_rl, 16, "g_accelRate_rl" );',
+        'g_weaponConfig.plasmaSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_pg, 2000, "g_velocity_pg", 1 );',
+        'g_weaponConfig.plasmaAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_pg, 1.0f, "g_accelFactor_pg" );',
+        'g_weaponConfig.plasmaAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 16, "g_accelRate_pg" );',
+        'g_weaponConfig.bfgSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_bfg, 1800, "g_velocity_bfg", 1 );',
+        'g_weaponConfig.bfgAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_bfg, 1.0f, "g_accelFactor_bfg" );',
+        'g_weaponConfig.bfgAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 16, "g_accelRate_bfg" );',
+    ):
+        assert expected in init_body
+
+    for expected in (
+        "bolt->speed = ( float )g_weaponConfig.grenadeSpeed;",
+        "bolt->speed = ( float )g_weaponConfig.plasmaSpeed;",
+        "bolt->speed = ( float )g_weaponConfig.bfgSpeed;",
+        "VectorScale( ent->s.pos.trDelta, g_weaponConfig.rocketAccelerationFactor, ent->s.pos.trDelta );",
+        "VectorScale( ent->s.pos.trDelta, g_weaponConfig.plasmaAccelerationFactor, ent->s.pos.trDelta );",
+        "VectorScale( ent->s.pos.trDelta, g_weaponConfig.bfgAccelerationFactor, ent->s.pos.trDelta );",
+        "ent->nextthink = level.time + G_GetMissileAccelerationThinkTime( g_weaponConfig.rocketAccelerationRate );",
+        "ent->nextthink = level.time + G_GetMissileAccelerationThinkTime( g_weaponConfig.plasmaAccelerationRate );",
+        "ent->nextthink = level.time + G_GetMissileAccelerationThinkTime( g_weaponConfig.bfgAccelerationRate );",
+    ):
+        assert expected in missile_c
+
+    for expected in (
+        "speed = ( float )g_weaponConfig.rocketSpeed;",
+        "bolt->speed = speed;",
+        "VectorScale( dir, speed, bolt->s.pos.trDelta );",
+    ):
+        assert expected in sync_rocket_body
+
+    custom_mask_body = _function_body(config_c, "uint64_t G_ComputeConfigCustomSettingsMask( void )")
+    for expected in (
+        "g_weaponConfig.grenadeSpeed != 700",
+        "g_weaponConfig.rocketSpeed != 1000",
+        "G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 1.0f )",
+        "g_weaponConfig.rocketAccelerationRate != 16",
+        "g_weaponConfig.plasmaSpeed != 2000",
+        "G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 1.0f )",
+        "g_weaponConfig.plasmaAccelerationRate != 16",
+        "g_weaponConfig.bfgSpeed != 1800",
+        "G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 1.0f )",
+        "g_weaponConfig.bfgAccelerationRate != 16",
+    ):
+        assert expected in custom_mask_body
+
+    assert "G_UpdateWeaponConfig();" in _function_body(main_c, "void G_UpdateCvars( void )")
+    assert "G_UpdateWeaponConfig();" in _function_body(factory_c, "static void Factory_RefreshMatchConfig( void )")
+
+
+def test_first_ten_weapon_special_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    q_shared_h = _read("src/code/game/q_shared.h")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    assert "CVAR_TEMP\t\t\t256" in q_shared_h
+    for expected in (
+        '{ &g_velocity_gh, "g_velocity_gh", "1800", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_guidedRocket, "g_guidedRocket", "0", CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_lightningDischarge, "g_lightningDischarge", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_railJump, "g_railJump", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_gauntletSpeedFactor, "g_gauntletSpeedFactor", "1.0", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_ironsights_mg, "g_ironsights_mg", "1.0", CVAR_TEMP | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailbounce, "g_nailbounce", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailcount, "g_nailcount", "10", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+    ):
+        assert expected in main_c
+
+    retail_rows = {
+        "g_velocity_gh": ('1008f694  char const (* data_1008f694)[0xe] = data_10085e24 {"g_velocity_gh"}', 'data_10085e34 {"1800"}', "00 00 14 00"),
+        "g_guidedRocket": ('1008e4f4  char const (* data_1008e4f4)[0xf] = data_10086cac {"g_guidedRocket"}', "data_1007d0a8", "00 00 10 00"),
+        "g_lightningDischarge": ('1008e86c  char const (* data_1008e86c)[0x15] = data_100869fc {"g_lightningDischarge"}', "data_1007d0a8", "00 00 14 00"),
+        "g_railJump": ('1008ec44  char const (* data_1008ec44)[0xb] = data_10086740 {"g_railJump"}', "data_1007d0a8", "00 00 14 00"),
+        "g_gauntletSpeedFactor": ('1008e4ac  char const (* data_1008e4ac)[0x16] = data_10086ce4 {"g_gauntletSpeedFactor"}', "0x10086ce0", "00 00 10 00"),
+        "g_headShotDamage_rg": ('1008e50c  char const (* data_1008e50c)[0x14] = data_10086c98 {"g_headShotDamage_rg"}', "data_1007d0a8", "00 00 14 00"),
+        "g_ironsights_mg": ('1008e584  char const (* data_1008e584)[0x10] = data_10086c48 {"g_ironsights_mg"}', "0x10086ce0", "00 01 14 00"),
+        "g_nailbounce": ('1008e98c  char const (* data_1008e98c)[0xd] = data_10086958 {"g_nailbounce"}', "data_1007d1d8", "00 00 14 00"),
+        "g_nailbouncepercentage": ('1008e9a4  char const (* data_1008e9a4)[0x17] = data_10086940 {"g_nailbouncepercentage"}', "0x1008693c", "00 00 14 00"),
+        "g_nailcount": ('1008e9bc  char const (* data_1008e9bc)[0xc] = data_10086930 {"g_nailcount"}', "data_1007e194", "00 00 14 00"),
+    }
+    for marker, default_marker, flags_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert flags_marker in row_block
+
+    for expected in (
+        "1007d0a8                          30 00 00 00",
+        "1007d1d8                                                                          31 00 00 00",
+        "1007e194                                                              31 30 00 00",
+        '10085e24  char const data_10085e24[0xe] = "g_velocity_gh", 0',
+        '10085e34  char const data_10085e34[0x5] = "1800", 0',
+        '10086740  char const data_10086740[0xb] = "g_railJump", 0',
+        '10086930  char const data_10086930[0xc] = "g_nailcount", 0',
+        "1008693c                                                                                      36 35 00 00",
+        '10086940  char const data_10086940[0x17] = "g_nailbouncepercentage", 0',
+        '10086958  char const data_10086958[0xd] = "g_nailbounce", 0',
+        '100869fc  char const data_100869fc[0x15] = "g_lightningDischarge", 0',
+        '10086c48  char const data_10086c48[0x10] = "g_ironsights_mg", 0',
+        '10086c98  char const data_10086c98[0x14] = "g_headShotDamage_rg", 0',
+        '10086cac  char const data_10086cac[0xf] = "g_guidedRocket", 0',
+        "10086ce0  31 2e 30 00",
+        '10086ce4  char const data_10086ce4[0x16] = "g_gauntletSpeedFactor", 0',
+    ):
+        assert expected in qagame_strings
+
+
+def test_first_ten_weapon_special_cvars_keep_retail_weapon_wiring() -> None:
+    bg_public_h = _read("src/code/game/bg_public.h")
+    g_config_c = _read("src/game/g_config.c")
+    g_local_h = _read("src/code/game/g_local.h")
+    g_main_c = _read("src/code/game/g_main.c")
+    g_missile_c = _read("src/code/game/g_missile.c")
+    g_pmove_c = _read("src/code/game/g_pmove.c")
+    g_weapon_c = _read("src/code/game/g_weapon.c")
+
+    init_body = _function_body(g_main_c, "void G_InitWeaponConfig( void )")
+    config_mask_body = _function_body(g_config_c, "uint64_t G_ComputeConfigCustomSettingsMask( void )")
+    custom_mask_body = _function_body(g_main_c, "static uint64_t G_ComputeCustomSettingsMask( void )")
+    sync_grapple_body = _function_body(g_missile_c, "static void G_SynchronizeGrappleConfig( gentity_t *hook, vec3_t dir )")
+    fire_rocket_body = _function_body(g_missile_c, "gentity_t *fire_rocket (gentity_t *self, vec3_t start, vec3_t dir)")
+    guided_rocket_body = _function_body(g_missile_c, "static void G_RunGuidedRocketThink( gentity_t *ent )")
+    fire_nail_body = _function_body(g_missile_c, "gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t right, vec3_t up )")
+    nail_bounce_body = _function_body(g_missile_c, "static qboolean G_HandleNailgunBounce( gentity_t *ent, trace_t *trace )")
+    cache_pmove_body = _function_body(g_pmove_c, "static void G_PmoveCacheSettings( void )")
+    rail_jump_body = _function_body(g_weapon_c, "static void G_ApplyRailJump( gentity_t *ent )")
+    lightning_discharge_body = _function_body(g_weapon_c, "static qboolean Weapon_LightningDischargeActive( void )")
+    nailgun_body = _function_body(g_weapon_c, "void Weapon_Nailgun_Fire (gentity_t *ent)")
+    fireweapon_body = _function_body(g_weapon_c, "void FireWeapon( gentity_t *ent )")
+
+    for expected in (
+        "grappleSpeed;",
+        "gauntletSpeedFactor;",
+        "lightningDischargeFlags;",
+        "railgunHeadshotDamage;",
+        "machinegunIronsightsScale;",
+        "nailgunCount;",
+        "nailgunBounceCount;",
+        "nailgunBounceEnabled;",
+        "nailgunBouncePercentage;",
+        "guidedRocketEnabled;",
+        "extern vmCvar_t g_velocity_gh;",
+        "extern vmCvar_t g_guidedRocket;",
+        "extern vmCvar_t g_lightningDischarge;",
+        "extern vmCvar_t g_railJump;",
+        "extern vmCvar_t g_gauntletSpeedFactor;",
+        "extern vmCvar_t g_headShotDamage_rg;",
+        "extern vmCvar_t g_ironsights_mg;",
+        "extern vmCvar_t g_nailbounce;",
+        "extern vmCvar_t g_nailbouncepercentage;",
+        "extern vmCvar_t g_nailcount;",
+    ):
+        assert expected in g_local_h
+
+    for expected in (
+        '#define CUSTOM_SETTING_GRAPPLING_HOOK\t0x00000200u',
+        '#define CUSTOM_SETTING_HEADSHOTS\t\t0x00800000u',
+        '#define CUSTOM_SETTING_RAIL_JUMPING\t\t0x01000000u',
+        '#define CUSTOM_SETTING_LIGHTNING_DISCHARGE\t0x08000000u',
+        'g_weaponConfig.grappleSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_gh, 1800, "g_velocity_gh", 1 );',
+        'g_weaponConfig.gauntletSpeedFactor = G_ReadWeaponFloatCvarNonNegative( &g_gauntletSpeedFactor, 1.0f, "g_gauntletSpeedFactor" );',
+        'g_weaponConfig.lightningDischargeFlags = G_ReadWeaponCvarNonNegative( &g_lightningDischarge, 0, "g_lightningDischarge" );',
+        'g_weaponConfig.railJumpStrength = G_ReadWeaponCvarNonNegative( &g_railJump, 0, "g_railJump" );',
+        'g_weaponConfig.railgunHeadshotDamage = G_ReadWeaponCvarNonNegative( &g_headShotDamage_rg, 0, "g_headShotDamage_rg" );',
+        'g_weaponConfig.machinegunIronsightsScale = G_ReadWeaponFloatCvarNonNegative( &g_ironsights_mg, 1.0f, "g_ironsights_mg" );',
+        'g_weaponConfig.nailgunCount = G_ReadWeaponCvarNonNegative( &g_nailcount, 10, "g_nailcount" );',
+        'g_weaponConfig.nailgunBounceCount = G_ReadWeaponCvarNonNegative( &g_nailbounce, 1, "g_nailbounce" );',
+        'g_weaponConfig.nailgunBouncePercentage = G_ReadWeaponCvarNonNegative( &g_nailbouncepercentage, 65, "g_nailbouncepercentage" );',
+        'g_weaponConfig.guidedRocketEnabled = G_ReadWeaponBoolCvar( &g_guidedRocket, qfalse, "g_guidedRocket" );',
+    ):
+        assert expected in bg_public_h or expected in init_body
+
+    for expected in (
+        "g_weaponConfig.grappleSpeed != 1800",
+        "G_ConfigFloatDiffersFromDefault( g_weaponConfig.machinegunIronsightsScale, DEFAULT_MACHINEGUN_IRONSIGHTS_SCALE )",
+        "g_weaponConfig.nailgunCount != 10",
+        "g_weaponConfig.nailgunBounceCount != 1",
+        "g_weaponConfig.nailgunBouncePercentage != 65",
+    ):
+        assert expected in config_mask_body
+
+    for expected in (
+        "if ( g_headShotDamage_rg.integer != 0 ) {",
+        "mask |= CUSTOM_SETTING_HEADSHOTS;",
+        "if ( g_railJump.integer != 0 ) {",
+        "mask |= CUSTOM_SETTING_RAIL_JUMPING;",
+        "if ( g_lightningDischarge.integer != 0 ) {",
+        "mask |= CUSTOM_SETTING_LIGHTNING_DISCHARGE;",
+    ):
+        assert expected in custom_mask_body
+
+    for expected in (
+        "speed = ( float )g_weaponConfig.grappleSpeed;",
+        "hook->speed = speed;",
+        "VectorScale( dir, speed, hook->s.pos.trDelta );",
+    ):
+        assert expected in sync_grapple_body
+
+    for expected in (
+        "if ( g_weaponConfig.guidedRocketEnabled ) {",
+        "bolt->nextthink = level.time + GUIDED_ROCKET_INITIAL_THINK_TIME;",
+        "bolt->think = G_RunGuidedRocketThink;",
+        "AngleVectors( owner->client->ps.viewangles, forward, NULL, NULL );",
+        "VectorScale( forward, GUIDED_ROCKET_SPEED, ent->s.pos.trDelta );",
+    ):
+        assert expected in fire_rocket_body or expected in guided_rocket_body
+
+    for expected in (
+        "machinegunIronsightsScale = g_weaponConfig.machinegunIronsightsScale;",
+        "g_pmoveSettings.machinegunIronsightsScale = machinegunIronsightsScale;",
+        "gauntletSpeedFactor = g_weaponConfig.gauntletSpeedFactor;",
+        "g_pmoveSettings.gauntletSpeedFactor = gauntletSpeedFactor;",
+        "g_pmoveSettings.nailgunBounceEnabled = ( g_weaponConfig.nailgunBounceEnabled != 0 );",
+        "g_pmoveSettings.nailgunBouncePercentage = g_weaponConfig.nailgunBouncePercentage;",
+        "g_pmoveSettings.guidedRocketEnabled = ( g_weaponConfig.guidedRocketEnabled != 0 );",
+    ):
+        assert expected in cache_pmove_body
+
+    for expected in (
+        "railJumpStrength = g_weaponConfig.railJumpStrength;",
+        "if ( railJumpStrength <= 0 ) {",
+        "trap_Trace( &trace, muzzle, NULL, NULL, end, ent->s.number, CONTENTS_SOLID );",
+        "ent->client->ps.velocity[2] += 20.0f;",
+        "return ( g_weaponConfig.lightningDischargeFlags > 0 );",
+        "for( count = 0; count < g_weaponConfig.nailgunCount; count++ ) {",
+        "ent->client->accuracy_shots += g_weaponConfig.nailgunCount;",
+        "ent->client->pers.accuracy_shots[WP_NAILGUN] += g_weaponConfig.nailgunCount;",
+    ):
+        assert expected in rail_jump_body or expected in lightning_discharge_body or expected in nailgun_body or expected in fireweapon_body
+
+    for expected in (
+        "g_weaponConfig.nailgunBounceCount <= 0 ||",
+        "ent->count >= g_weaponConfig.nailgunBounceCount ) {",
+        "if ( g_weaponConfig.nailgunBounceEnabled ) {",
+        "if ( bounceRoll > 100 - g_weaponConfig.nailgunBouncePercentage ) {",
+        "bolt->s.eFlags = canBounce ? EF_NAIL_BOUNCE : 0;",
+    ):
+        assert expected in nail_bounce_body or expected in fire_nail_body
+
+    for expected in (
+        'trap_Cvar_Set( "g_velocity_gh", "1800" );',
+        'trap_Cvar_Set( "g_gauntletSpeedFactor", "1.0" );',
+        'trap_Cvar_Set( "g_ironsights_mg", "1.0" );',
+        'trap_Cvar_Set( "g_nailbounce", "1" );',
+        'trap_Cvar_Set( "g_nailbouncepercentage", "65" );',
+        'trap_Cvar_Set( "g_nailcount", "10" );',
+        'trap_Cvar_Set( "g_guidedRocket", "0" );',
+    ):
+        assert expected in g_pmove_c
+
+
+def test_second_ten_weapon_special_cvar_table_matches_retail_defaults_and_flags() -> None:
+    main_c = _read("src/code/game/g_main.c")
+    q_shared_h = _read("src/code/game/q_shared.h")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part03.txt"
+    )
+    qagame_strings = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    assert "#define\tCVAR_SERVERINFO\t\t4" in q_shared_h
+    assert "#define\tCVAR_LATCH\t\t\t32" in q_shared_h
+    assert "#define CVAR_GAMERULE\t0x100000" in q_shared_h
+    for expected in (
+        '{ &g_midAirMinHeight, "g_midAirMinHeight", "96", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailspeed, "g_nailspeed", "1000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailspread, "g_nailspread", "400", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_damagePlums, "g_damagePlums", "2", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_quadDamageFactor, "g_quadDamageFactor", "3", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_quadHog, "g_quadHog", "0", CVAR_LATCH | GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_quadHogIdle, "g_quadHogIdle", "20", CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_quadHogPingRate, "g_quadHogPingRate", "1500", CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_quadHogTime, "g_quadHogTime", "60", CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_proxMineTimeout, "g_proxMineTimeout", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse },',
+    ):
+        assert expected in main_c
+
+    retail_rows = {
+        "g_midAirMinHeight": ('1008e95c  char const (* data_1008e95c)[0x12] = data_10086970 {"g_midAirMinHeight"}', "0x10086da8", "00 00 10 00"),
+        "g_nailspeed": ('1008e9d4  char const (* data_1008e9d4)[0xc] = data_10086924 {"g_nailspeed"}', 'data_1008747c {"1000"}', "00 00 14 00"),
+        "g_nailspread": ('1008e9ec  char const (* data_1008e9ec)[0xd] = data_10086914 {"g_nailspread"}', "0x10087358", "00 00 14 00"),
+        "g_damagePlums": ('1008dedc  char const (* data_1008dedc)[0xe] = data_10087210 {"g_damagePlums"}', "data_1007d53c", "00 00 10 00"),
+        "g_quadDamageFactor": ('1008ebcc  char const (* data_1008ebcc)[0x13] = data_10086798 {"g_quadDamageFactor"}', "0x100874e0", "04 00 10 00"),
+        "g_quadHog": ('1008ebe4  char const (* data_1008ebe4)[0xa] = data_1008678c {"g_quadHog"}', "data_1007d0a8", "20 00 14 00"),
+        "g_quadHogIdle": ('1008ebfc  char const (* data_1008ebfc)[0xe] = data_1008677c {"g_quadHogIdle"}', "data_1007e1ac", "00 00 10 00"),
+        "g_quadHogPingRate": ('1008ec14  char const (* data_1008ec14)[0x12] = data_10086768 {"g_quadHogPingRate"}', 'data_10086760 {"1500"}', "00 00 10 00"),
+        "g_quadHogTime": ('1008ec2c  char const (* data_1008ec2c)[0xe] = data_10086750 {"g_quadHogTime"}', "0x1008674c", "00 00 10 00"),
+        "g_proxMineTimeout": ('1008ebb4  char const (* data_1008ebb4)[0x12] = data_100867ac {"g_proxMineTimeout"}', "data_1007e1ac", "00 00 14 00"),
+    }
+    for marker, default_marker, flags_marker in retail_rows.values():
+        row_block = qagame_hlil[qagame_hlil.index(marker) : qagame_hlil.index(marker) + 260]
+        assert default_marker in row_block
+        assert flags_marker in row_block
+
+    for expected in (
+        '10086750  char const data_10086750[0xe] = "g_quadHogTime", 0',
+        '10086760  char const data_10086760[0x5] = "1500", 0',
+        '10086768  char const data_10086768[0x12] = "g_quadHogPingRate", 0',
+        '1008677c  char const data_1008677c[0xe] = "g_quadHogIdle", 0',
+        '1008678c  char const data_1008678c[0xa] = "g_quadHog", 0',
+        '10086798  char const data_10086798[0x13] = "g_quadDamageFactor", 0',
+        '100867ac  char const data_100867ac[0x12] = "g_proxMineTimeout", 0',
+        '10086914  char const data_10086914[0xd] = "g_nailspread", 0',
+        '10086924  char const data_10086924[0xc] = "g_nailspeed", 0',
+        '10086970  char const data_10086970[0x12] = "g_midAirMinHeight", 0',
+        '10087210  char const data_10087210[0xe] = "g_damagePlums", 0',
+        '1008747c  char const data_1008747c[0x5] = "1000", 0',
+    ):
+        assert expected in qagame_strings
+
+    for marker, default_bytes in (
+        ("1007d53c  data_1007d53c:", "32 00 00 00"),
+        ("1007e1ac  data_1007e1ac:", "32 30 00 00"),
+        ("1008674b", "36 30 00 00"),
+        ("10086da5", "39 36 00 00"),
+        ("10087355", "34 30 30 00"),
+        ("100874e0", "33 00 00 00"),
+    ):
+        default_block = qagame_strings[qagame_strings.index(marker) : qagame_strings.index(marker) + 180]
+        assert default_bytes in default_block
+
+
+def test_second_ten_weapon_special_cvars_keep_retail_weapon_wiring() -> None:
+    bg_pmove_c = _read("src/code/game/bg_pmove.c")
+    bg_public_h = _read("src/code/game/bg_public.h")
+    cg_servercmds_c = _read("src/code/cgame/cg_servercmds.c")
+    g_combat_c = _read("src/code/game/g_combat.c")
+    g_config_c = _read("src/game/g_config.c")
+    g_local_h = _read("src/code/game/g_local.h")
+    g_main_c = _read("src/code/game/g_main.c")
+    g_missile_c = _read("src/code/game/g_missile.c")
+    g_pmove_c = _read("src/code/game/g_pmove.c")
+    g_weapon_c = _read("src/code/game/g_weapon.c")
+    qagame_hlil_part02 = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    init_body = _function_body(g_main_c, "void G_InitWeaponConfig( void )")
+    cache_pmove_body = _function_body(g_pmove_c, "static void G_PmoveCacheSettings( void )")
+    custom_mask_body = _function_body(g_main_c, "static uint64_t G_ComputeCustomSettingsMask( void )")
+    config_mask_body = _function_body(g_config_c, "uint64_t G_ComputeConfigCustomSettingsMask( void )")
+    midair_body = _function_body(g_missile_c, "qboolean G_IsMidAirEligibleTarget( gentity_t *target )")
+    fire_nail_body = _function_body(g_missile_c, "gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t right, vec3_t up )")
+    prox_activate_body = _function_body(g_missile_c, "static void ProximityMine_Activate( gentity_t *ent )")
+    fireweapon_body = _function_body(g_weapon_c, "void FireWeapon( gentity_t *ent )")
+    powerup_scale_body = _function_body(g_combat_c, "static float G_CalcPowerupDamageScale( gentity_t *attacker )")
+    server_settings_body = _function_body(g_main_c, "static void G_UpdateServerSettingsInfoConfigstrings( qboolean forceBroadcast )")
+    quad_pickup_body = _function_body(g_main_c, "void G_QuadHogOnPickup( gentity_t *player )")
+    quad_frame_body = _function_body(g_main_c, "void G_QuadHogFrame( void )")
+
+    for expected in (
+        "midAirMinimumHeight;",
+        "nailgunSpeed;",
+        "nailgunSpread;",
+        "quadDamageMultiplier;",
+        "quadHogEnabled;",
+        "quadHogIdleSeconds;",
+        "quadHogTimeSeconds;",
+        "quadHogPingRateMilliseconds;",
+        "extern vmCvar_t g_midAirMinHeight;",
+        "extern vmCvar_t g_nailspeed;",
+        "extern vmCvar_t g_nailspread;",
+        "extern vmCvar_t g_damagePlums;",
+        "extern vmCvar_t g_quadDamageFactor;",
+        "extern vmCvar_t g_quadHog;",
+        "extern vmCvar_t g_quadHogIdle;",
+        "extern vmCvar_t g_quadHogTime;",
+        "extern vmCvar_t g_quadHogPingRate;",
+        "extern\tvmCvar_t\tg_proxMineTimeout;",
+    ):
+        assert expected in g_local_h
+
+    for source in (bg_public_h, cg_servercmds_c, g_local_h, g_main_c, g_pmove_c):
+        assert "quadHogPingRateSeconds" not in source
+
+    for expected in (
+        "midAirMinimumHeight;",
+        "quadDamageMultiplier;",
+        "quadHogEnabled;",
+        "quadHogIdleSeconds;",
+        "quadHogTimeSeconds;",
+        "quadHogPingRateMilliseconds;",
+        ".midAirMinimumHeight = 96,",
+        ".quadDamageMultiplier = 3.0f,",
+        ".quadHogIdleSeconds = 20,",
+        ".quadHogTimeSeconds = 60,",
+        ".quadHogPingRateMilliseconds = 1500,",
+        "PMOVE_COMPACT_INT( quadHogPingRateMilliseconds );",
+        "PMOVE_INT_FIELD( quadHogPingRateMilliseconds )",
+    ):
+        assert expected in bg_public_h or expected in bg_pmove_c or expected in cg_servercmds_c
+
+    for expected in (
+        'g_weaponConfig.midAirMinimumHeight = G_ReadWeaponCvarNonNegative( &g_midAirMinHeight, 96, "g_midAirMinHeight" );',
+        'g_weaponConfig.nailgunSpeed = G_ReadWeaponCvarAtLeast( &g_nailspeed, 1000, "g_nailspeed", 1 );',
+        'g_weaponConfig.nailgunSpread = G_ReadWeaponCvarNonNegative( &g_nailspread, 400, "g_nailspread" );',
+        'g_weaponConfig.quadDamageMultiplier = G_ReadWeaponFloatCvarNonNegative( &g_quadDamageFactor, 3.0f, "g_quadDamageFactor" );',
+        'g_weaponConfig.quadHogEnabled = G_ReadWeaponBoolCvar( &g_quadHog, qfalse, "g_quadHog" );',
+        'g_weaponConfig.quadHogIdleSeconds = G_ReadWeaponCvarRaw( &g_quadHogIdle, 20, "g_quadHogIdle" );',
+        'g_weaponConfig.quadHogTimeSeconds = G_ReadWeaponCvarRaw( &g_quadHogTime, 60, "g_quadHogTime" );',
+        'g_weaponConfig.quadHogPingRateMilliseconds = G_ReadWeaponCvarRaw( &g_quadHogPingRate, 1500, "g_quadHogPingRate" );',
+    ):
+        assert expected in init_body
+
+    for expected in (
+        "return heightAboveGround >= ( float )g_weaponConfig.midAirMinimumHeight;",
+        "u = sin(r) * crandom() * g_weaponConfig.nailgunSpread * 16;",
+        "r = cos(r) * crandom() * g_weaponConfig.nailgunSpread * 16;",
+        "scale = 555 + random() * g_weaponConfig.nailgunSpeed;",
+        "s_quadFactor = g_weaponConfig.quadDamageMultiplier;",
+        "scale *= g_weaponConfig.quadDamageMultiplier;",
+        "ent->nextthink = level.time + g_proxMineTimeout.integer * 1000;",
+    ):
+        assert expected in midair_body or expected in fire_nail_body or expected in fireweapon_body or expected in powerup_scale_body or expected in prox_activate_body
+
+    for expected in (
+        "g_pmoveSettings.midAirMinimumHeight = g_weaponConfig.midAirMinimumHeight;",
+        "g_pmoveSettings.quadDamageMultiplier = ( g_weaponConfig.quadDamageMultiplier > 0.0f ) ? g_weaponConfig.quadDamageMultiplier : ( defaults ? defaults->quadDamageMultiplier : 1.0f );",
+        "g_pmoveSettings.quadHogEnabled = g_weaponConfig.quadHogEnabled;",
+        "g_pmoveSettings.quadHogIdleSeconds = g_weaponConfig.quadHogIdleSeconds;",
+        "g_pmoveSettings.quadHogTimeSeconds = g_weaponConfig.quadHogTimeSeconds;",
+        "g_pmoveSettings.quadHogPingRateMilliseconds = g_weaponConfig.quadHogPingRateMilliseconds;",
+    ):
+        assert expected in cache_pmove_body
+
+    for expected in (
+        "level.quadHogExpireTime = level.time + g_weaponConfig.quadHogTimeSeconds * 1000;",
+        "level.quadHogNextPingTime = level.time + g_weaponConfig.quadHogPingRateMilliseconds;",
+        "int\tidleLimit = g_weaponConfig.quadHogIdleSeconds * 1000;",
+        "trap_SendServerCommand( owner->s.number, va( \"print \\\"Quad Hog: %d seconds remaining\\\\n\\\"\", remainingMs / 1000 ) );",
+        "if ( g_quadHog.integer != 0 ) {",
+        "mask |= CUSTOM_SETTING_QUAD_HOG;",
+    ):
+        assert expected in quad_pickup_body or expected in quad_frame_body or expected in custom_mask_body
+
+    for expected in (
+        "g_weaponConfig.nailgunSpeed != 1000",
+        "g_weaponConfig.nailgunSpread != 400",
+        "#define DEFAULT_PROX_MINE_TIMEOUT         20",
+        "g_proxMineTimeout.integer != DEFAULT_PROX_MINE_TIMEOUT",
+    ):
+        assert expected in g_config_c or expected in config_mask_body
+
+    for expected in (
+        'Info_SetValueForKey( payloadB, SERVER_SETTINGS_KEY_QUAD_DAMAGE_FACTOR, va( "%i", g_quadDamageFactor.integer ) );',
+        'trap_Cvar_Set( "g_midAirMinHeight", "96" );',
+        'trap_Cvar_Set( "g_nailspeed", "1000" );',
+        'trap_Cvar_Set( "g_nailspread", "400" );',
+        'trap_Cvar_Set( "g_quadDamageFactor", "3" );',
+        'trap_Cvar_Set( "g_quadHogIdle", "20" );',
+        'trap_Cvar_Set( "g_quadHogTime", "60" );',
+        'trap_Cvar_Set( "g_quadHogPingRate", "1500" );',
+    ):
+        assert expected in server_settings_body or expected in g_pmove_c
+
+    for expected in (
+        "1005b8a0    int32_t sub_1005b8a0(void* arg1)",
+        "1005b8c2  *(arg1 + 0x2f4) = data_105a4bac * 0x3e8 + data_105dce5c",
+        "1004e09c      edi = data_105a44ec",
+        "1004f24e                                  *(eax_15 + 0xc4) = data_104b196c",
+    ):
+        assert expected in qagame_hlil_part02
+
+    assert "g_damagePlums.integer" not in g_combat_c
+
+
 def test_server_weapon_parity_hooks_match_retail_ql() -> None:
     bg_public_h = _read("src/code/game/bg_public.h")
     g_local_h = _read("src/code/game/g_local.h")
@@ -644,7 +1866,7 @@ def test_hmg_full_server_and_cgame_wiring_matches_retail() -> None:
     ):
         assert expected in g_local_h
     for expected in (
-        '{ &g_damage_hmg, "g_damage_hmg", "8", 0, 0, qtrue },',
+        '{ &g_damage_hmg, "g_damage_hmg", "8", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
         'g_weaponConfig.heavyMachinegunDamage = G_ReadWeaponCvar( &g_damage_hmg, 8, "g_damage_hmg" );',
         "g_pmoveSettings.weaponReloadTimes[WP_HEAVY_MACHINEGUN]",
         "case WP_HEAVY_MACHINEGUN:",
@@ -656,12 +1878,12 @@ def test_hmg_full_server_and_cgame_wiring_matches_retail() -> None:
     for expected in (
         "#define DEFAULT_STARTING_AMMO_HMG           50",
         "#define DEFAULT_WEAPON_RELOAD_HMG           75",
-        "#define DEFAULT_KNOCKBACK_HMG               1.0f",
+        "#define DEFAULT_KNOCKBACK_HMG               1",
         "#define DEFAULT_AMMOPACK_HMG                50",
         '{ &weapon_reload_hmg,      "weapon_reload_hmg",      "0", 0, "Heavy Machinegun refire delay override in milliseconds." }',
         '{ &g_ammoPack_hmg,         "g_ammoPack_hmg",         STRINGIZE( DEFAULT_AMMOPACK_HMG ), CVAR_ARCHIVE, "Heavy Machinegun bullets added from heavy ammo packs." }',
         '{ &g_startingAmmo_hmg,     "g_startingAmmo_hmg",     STRINGIZE( DEFAULT_STARTING_AMMO_HMG ), CVAR_ARCHIVE, "Heavy Machinegun bullets issued alongside spawn loadouts that include the weapon." }',
-        '{ &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), 0, "Heavy Machinegun knockback scalar." }',
+        '{ &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Heavy Machinegun knockback scalar." }',
         'trap_Cvar_Set( "weapon_reload_hmg", "0" );',
         'g_weaponReloadConfig.heavyMachinegun = G_ReadWeaponReloadCvar( &weapon_reload_hmg, DEFAULT_WEAPON_RELOAD_HMG, "weapon_reload_hmg" );',
         'G_AssignAmmoPackEntry( WP_HEAVY_MACHINEGUN, &g_ammoPack_hmg, DEFAULT_AMMOPACK_HMG, "g_ammoPack_hmg" );',
@@ -863,18 +2085,18 @@ def test_chaingun_full_server_and_cgame_wiring_matches_retail() -> None:
         assert expected in g_local_h
 
     for expected in (
-        '{ &g_damage_cg, "g_damage_cg", "8", 0, 0, qtrue, qfalse,',
+        '{ &g_damage_cg, "g_damage_cg", "8", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
         'g_weaponConfig.chaingunDamage = G_ReadWeaponCvar( &g_damage_cg, 8, "g_damage_cg" );',
     ):
         assert expected in g_main_c
 
     for expected in (
         "#define DEFAULT_WEAPON_RELOAD_CG            50",
-        "#define DEFAULT_KNOCKBACK_CG                1.0f",
+        "#define DEFAULT_KNOCKBACK_CG                1",
         '{ &weapon_reload_cg,       "weapon_reload_cg",       "0", 0, "Chaingun refire delay override in milliseconds." }',
         '{ &g_ammoPack_cg,          "g_ammoPack_cg",          STRINGIZE( DEFAULT_AMMOPACK_CG ), CVAR_ARCHIVE, "Chaingun bullets restored per ammo belt pickup." }',
         '{ &g_startingAmmo_cg,      "g_startingAmmo_cg",      STRINGIZE( DEFAULT_STARTING_AMMO_CG ), CVAR_ARCHIVE, "Chaingun bullets provided on spawn when the weapon is part of the configured loadout." }',
-        '{ &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), 0, "Chaingun knockback scalar." }',
+        '{ &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Chaingun knockback scalar." }',
         'trap_Cvar_Set( "weapon_reload_cg", "0" );',
         'g_weaponReloadConfig.chaingun = G_ReadWeaponReloadCvar( &weapon_reload_cg, DEFAULT_WEAPON_RELOAD_CG, "weapon_reload_cg" );',
         "G_AssignAmmoPackEntry( WP_CHAINGUN, &g_ammoPack_cg, DEFAULT_AMMOPACK_CG, \"g_ammoPack_cg\" );",
@@ -1049,9 +2271,9 @@ def test_railgun_server_fire_path_matches_retail_trace_event_and_config_wiring()
     assert '#define CUSTOM_SETTING_RAIL_JUMPING\t\t0x01000000u' in bg_public_h
 
     for expected in (
-        '{ &g_damage_rg, "g_damage_rg", "80", 0, 0, qtrue },',
-        '{ &g_railJump, "g_railJump", "0", 0, 0, qtrue, qfalse,',
-        '{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", 0, 0, qtrue, qfalse,',
+        '{ &g_damage_rg, "g_damage_rg", "80", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_railJump, "g_railJump", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_headShotDamage_rg, "g_headShotDamage_rg", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
         'g_weaponConfig.railJumpStrength = G_ReadWeaponCvarNonNegative( &g_railJump, 0, "g_railJump" );',
         'g_weaponConfig.railgunDamage = G_ReadWeaponCvar( &g_damage_rg, 80, "g_damage_rg" );',
         'g_weaponConfig.railgunHeadshotDamage = G_ReadWeaponCvarNonNegative( &g_headShotDamage_rg, 0, "g_headShotDamage_rg" );',
@@ -1186,18 +2408,18 @@ def test_plasmagun_server_projectile_config_and_custom_mask_match_retail() -> No
         assert expected in g_local_h
 
     for expected in (
-        '{ &g_damage_pg, "g_damage_pg", "20", 0, 0, qtrue },',
-        '{ &g_splashDamage_pg, "g_splashDamage_pg", "15", 0, 0, qtrue },',
-        '{ &g_splashRadius_pg, "g_splashRadius_pg", "20", 0, 0, qtrue },',
-        '{ &g_accelFactor_pg, "g_accelFactor_pg", "1", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_accelRate_pg, "g_accelRate_pg", "0", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_velocity_pg, "g_velocity_pg", "2000", 0, 0, qtrue, qfalse,',
+        '{ &g_damage_pg, "g_damage_pg", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_splashDamage_pg, "g_splashdamage_pg", "15", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_splashRadius_pg, "g_splashradius_pg", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_accelFactor_pg, "g_accelFactor_pg", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelRate_pg, "g_accelRate_pg", "16", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_velocity_pg, "g_velocity_pg", "2000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
         'g_weaponConfig.plasmaDamage = G_ReadWeaponCvar( &g_damage_pg, 20, "g_damage_pg" );',
-        'g_weaponConfig.plasmaSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pg, 15, "g_splashDamage_pg" );',
-        'g_weaponConfig.plasmaSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pg, 20, "g_splashRadius_pg" );',
+        'g_weaponConfig.plasmaSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pg, 15, "g_splashdamage_pg" );',
+        'g_weaponConfig.plasmaSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pg, 20, "g_splashradius_pg" );',
         'g_weaponConfig.plasmaSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_pg, 2000, "g_velocity_pg", 1 );',
         'g_weaponConfig.plasmaAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_pg, 1.0f, "g_accelFactor_pg" );',
-        'g_weaponConfig.plasmaAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 0, "g_accelRate_pg" );',
+        'g_weaponConfig.plasmaAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 16, "g_accelRate_pg" );',
     ):
         assert expected in g_main_c
 
@@ -1210,6 +2432,7 @@ def test_plasmagun_server_projectile_config_and_custom_mask_match_retail() -> No
         "G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagun, DEFAULT_KNOCKBACK_PG )",
         "G_ConfigFloatDiffersFromDefault( g_knockbackConfig.plasmagunSelf, DEFAULT_KNOCKBACK_PG_SELF )",
         "G_ConfigFloatDiffersFromDefault( g_weaponConfig.plasmaAccelerationFactor, 1.0f )",
+        "g_weaponConfig.plasmaAccelerationRate != 16",
         "mask |= CUSTOM_SETTING_PLASMAGUN;",
     ):
         assert expected in g_config_c
@@ -1308,18 +2531,18 @@ def test_bfg_server_projectile_config_and_custom_mask_match_retail() -> None:
         assert expected in g_local_h
 
     for expected in (
-        '{ &g_damage_bfg, "g_damage_bfg", "100", 0, 0, qtrue },',
-        '{ &g_splashDamage_bfg, "g_splashDamage_bfg", "100", 0, 0, qtrue },',
-        '{ &g_splashRadius_bfg, "g_splashRadius_bfg", "120", 0, 0, qtrue },',
-        '{ &g_accelFactor_bfg, "g_accelFactor_bfg", "1", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_accelRate_bfg, "g_accelRate_bfg", "0", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_velocity_bfg, "g_velocity_bfg", "2000", 0, 0, qtrue, qfalse,',
+        '{ &g_damage_bfg, "g_damage_bfg", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_splashDamage_bfg, "g_splashdamage_bfg", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_splashRadius_bfg, "g_splashradius_bfg", "80", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue },',
+        '{ &g_accelFactor_bfg, "g_accelFactor_bfg", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_accelRate_bfg, "g_accelRate_bfg", "16", CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_velocity_bfg, "g_velocity_bfg", "1800", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
         'g_weaponConfig.bfgDamage = G_ReadWeaponCvar( &g_damage_bfg, 100, "g_damage_bfg" );',
-        'g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100, "g_splashDamage_bfg" );',
-        'g_weaponConfig.bfgSplashRadius = G_ReadWeaponCvar( &g_splashRadius_bfg, 120, "g_splashRadius_bfg" );',
-        'g_weaponConfig.bfgSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_bfg, 2000, "g_velocity_bfg", 1 );',
+        'g_weaponConfig.bfgSplashDamage = G_ReadWeaponCvar( &g_splashDamage_bfg, 100, "g_splashdamage_bfg" );',
+        'g_weaponConfig.bfgSplashRadius = G_ReadWeaponCvar( &g_splashRadius_bfg, 80, "g_splashradius_bfg" );',
+        'g_weaponConfig.bfgSpeed = G_ReadWeaponCvarAtLeast( &g_velocity_bfg, 1800, "g_velocity_bfg", 1 );',
         'g_weaponConfig.bfgAccelerationFactor = G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_bfg, 1.0f, "g_accelFactor_bfg" );',
-        'g_weaponConfig.bfgAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 0, "g_accelRate_bfg" );',
+        'g_weaponConfig.bfgAccelerationRate = G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 16, "g_accelRate_bfg" );',
     ):
         assert expected in g_main_c
 
@@ -1327,10 +2550,11 @@ def test_bfg_server_projectile_config_and_custom_mask_match_retail() -> None:
         "g_weaponReloadConfig.bfg != DEFAULT_WEAPON_RELOAD_BFG",
         "g_weaponConfig.bfgDamage != 100",
         "g_weaponConfig.bfgSplashDamage != 100",
-        "g_weaponConfig.bfgSplashRadius != 120",
-        "g_weaponConfig.bfgSpeed != 2000",
+        "g_weaponConfig.bfgSplashRadius != 80",
+        "g_weaponConfig.bfgSpeed != 1800",
         "G_ConfigFloatDiffersFromDefault( g_knockbackConfig.bfg, DEFAULT_KNOCKBACK_BFG )",
         "G_ConfigFloatDiffersFromDefault( g_weaponConfig.bfgAccelerationFactor, 1.0f )",
+        "g_weaponConfig.bfgAccelerationRate != 16",
         "mask |= CUSTOM_SETTING_BFG;",
     ):
         assert expected in g_config_c
@@ -1444,13 +2668,13 @@ def test_nailgun_server_projectile_damage_bounce_and_custom_mask_match_retail() 
         assert expected in g_local_h
 
     for expected in (
-        '{ &g_damage_ng, "g_damage_ng", "12", 0, 0, qtrue, qfalse,',
-        '{ &g_nailbounce, "g_nailbounce", "1", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_nailcount, "g_nailcount", "10", CVAR_ARCHIVE, 0, qfalse, qfalse,',
+        '{ &g_damage_ng, "g_damage_ng", "12", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_nailbounce, "g_nailbounce", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailcount, "g_nailcount", "10", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
         '{ &g_nailgravity, "g_nailgravity", "0", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_nailspeed, "g_nailspeed", "1000", CVAR_ARCHIVE, 0, qfalse, qfalse,',
-        '{ &g_nailspread, "g_nailspread", "400", CVAR_ARCHIVE, 0, qfalse, qfalse,',
+        '{ &g_nailspeed, "g_nailspeed", "1000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
+        '{ &g_nailspread, "g_nailspread", "400", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
         'g_weaponConfig.nailgunCount = G_ReadWeaponCvarNonNegative( &g_nailcount, 10, "g_nailcount" );',
         'g_weaponConfig.nailgunDamage = G_ReadWeaponCvar( &g_damage_ng, 12, "g_damage_ng" );',
         'g_weaponConfig.nailgunSpeed = G_ReadWeaponCvarAtLeast( &g_nailspeed, 1000, "g_nailspeed", 1 );',
@@ -1649,13 +2873,13 @@ def test_prox_launcher_full_server_and_cgame_wiring_matches_retail() -> None:
         assert expected in g_local_h
 
     for expected in (
-        '{ &g_damage_pl, "g_damage_pl", "0", 0, 0, qtrue, qfalse,',
-        '{ &g_splashDamage_pl, "g_splashDamage_pl", "100", 0, 0, qtrue, qfalse,',
-        '{ &g_splashRadius_pl, "g_splashRadius_pl", "150", 0, 0, qtrue, qfalse,',
-        '{ &g_proxMineTimeout, "g_proxMineTimeout", "20000", 0, 0, qfalse },',
+        '{ &g_damage_pl, "g_damage_pl", "0", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_splashDamage_pl, "g_splashdamage_pl", "100", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_splashRadius_pl, "g_splashradius_pl", "150", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
+        '{ &g_proxMineTimeout, "g_proxMineTimeout", "20", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse },',
         'g_weaponConfig.proximityLauncherDamage = G_ReadWeaponCvarNonNegative( &g_damage_pl, 0, "g_damage_pl" );',
-        'g_weaponConfig.proximityLauncherSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pl, 100, "g_splashDamage_pl" );',
-        'g_weaponConfig.proximityLauncherSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pl, 150, "g_splashRadius_pl" );',
+        'g_weaponConfig.proximityLauncherSplashDamage = G_ReadWeaponCvar( &g_splashDamage_pl, 100, "g_splashdamage_pl" );',
+        'g_weaponConfig.proximityLauncherSplashRadius = G_ReadWeaponCvar( &g_splashRadius_pl, 150, "g_splashradius_pl" );',
     ):
         assert expected in g_main_c
 
@@ -1730,7 +2954,7 @@ def test_prox_launcher_full_server_and_cgame_wiring_matches_retail() -> None:
 
     for expected in (
         "ent->think = ProximityMine_Explode;",
-        "ent->nextthink = level.time + g_proxMineTimeout.integer;",
+        "ent->nextthink = level.time + g_proxMineTimeout.integer * 1000;",
         "ent->takedamage = qtrue;",
         "ent->health = 1;",
         "ent->die = ProximityMine_Die;",
@@ -1933,8 +3157,8 @@ def test_missile_pipeline_matches_retail_callback_schedule() -> None:
     assert "G_UpdateMissileAcceleration( ent );" not in run_missile_body
     assert 'g_velocity_gl", "700"' in g_main_c
     assert 'G_ReadWeaponCvar( &g_damage_gl, 100, "g_damage_gl" );' in g_main_c
-    assert 'G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashDamage_gl" );' in g_main_c
-    assert 'G_ReadWeaponCvar( &g_splashRadius_gl, 150, "g_splashRadius_gl" );' in g_main_c
+    assert 'G_ReadWeaponCvar( &g_splashDamage_gl, 100, "g_splashdamage_gl" );' in g_main_c
+    assert 'G_ReadWeaponCvar( &g_splashRadius_gl, 150, "g_splashradius_gl" );' in g_main_c
     assert 'G_ReadWeaponCvarAtLeast( &g_velocity_gl, 700, "g_velocity_gl", 1 );' in g_main_c
     assert 'case WP_GRENADE_LAUNCHER:' in fireweapon_body
     assert 'weapon_grenadelauncher_fire( ent );' in fireweapon_body
@@ -1964,12 +3188,12 @@ def test_missile_pipeline_matches_retail_callback_schedule() -> None:
     assert "bolt->s.pos.trTime = level.time - MISSILE_PRESTEP_TIME;" in fire_grenade_body
     assert "VectorScale( dir, ( float )g_weaponConfig.grenadeSpeed, bolt->s.pos.trDelta );" in fire_grenade_body
     assert "SnapVector( bolt->s.pos.trDelta );" in fire_grenade_body
-    assert 'g_velocity_rl", "900"' in g_main_c
+    assert 'g_velocity_rl", "1000"' in g_main_c
     assert 'G_ReadWeaponCvar( &g_damage_rl, 100, "g_damage_rl" );' in g_main_c
-    assert 'G_ReadWeaponCvar( &g_splashDamage_rl, 100, "g_splashDamage_rl" );' in g_main_c
-    assert 'G_ReadWeaponCvar( &g_splashRadius_rl, 120, "g_splashRadius_rl" );' in g_main_c
-    assert 'G_ReadWeaponCvarAtLeast( &g_velocity_rl, 900, "g_velocity_rl", 1 );' in g_main_c
-    assert 'G_ReadWeaponCvarRaw( &g_rocketsplashOffset, 0, "g_rocketsplashOffset" );' in g_main_c
+    assert 'G_ReadWeaponCvar( &g_splashDamage_rl, 84, "g_splashdamage_rl" );' in g_main_c
+    assert 'G_ReadWeaponCvar( &g_splashRadius_rl, 120, "g_splashradius_rl" );' in g_main_c
+    assert 'G_ReadWeaponCvarAtLeast( &g_velocity_rl, 1000, "g_velocity_rl", 1 );' in g_main_c
+    assert 'G_ReadWeaponCvarRaw( &g_rocketsplashOffset, -10, "g_rocketsplashOffset" );' in g_main_c
     assert 'G_ReadWeaponBoolCvar( &g_guidedRocket, qfalse, "g_guidedRocket" );' in g_main_c
     assert "G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 1.0f )" in g_config_c
     assert "G_ConfigFloatDiffersFromDefault( g_weaponConfig.rocketAccelerationFactor, 0.0f )" not in g_config_c
@@ -2008,6 +3232,9 @@ def test_missile_pipeline_matches_retail_callback_schedule() -> None:
     assert 'G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_rl, 1.0f, "g_accelFactor_rl" );' in g_main_c
     assert 'G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_pg, 1.0f, "g_accelFactor_pg" );' in g_main_c
     assert 'G_ReadWeaponFloatCvarNonNegative( &g_accelFactor_bfg, 1.0f, "g_accelFactor_bfg" );' in g_main_c
+    assert 'G_ReadWeaponCvarNonNegative( &g_accelRate_rl, 16, "g_accelRate_rl" );' in g_main_c
+    assert 'G_ReadWeaponCvarNonNegative( &g_accelRate_pg, 16, "g_accelRate_pg" );' in g_main_c
+    assert 'G_ReadWeaponCvarNonNegative( &g_accelRate_bfg, 16, "g_accelRate_bfg" );' in g_main_c
 
     assert "bolt->nextthink = level.time + NAILGUN_LIFETIME;" in fire_nail_body
     assert "bolt->s.eFlags = canBounce ? EF_NAIL_BOUNCE : 0;" in fire_nail_body

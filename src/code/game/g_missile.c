@@ -30,6 +30,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	NAILGUN_LIFETIME	4500
 // Retail reuses the shared ready bit as a missile-only nail ricochet latch.
 #define	EF_NAIL_BOUNCE	EF_READY
+#ifndef SURF_DMGTHROUGH
+#define	SURF_DMGTHROUGH	0x200000
+#endif
 
 
 /*
@@ -214,7 +217,7 @@ static void ProximityMine_Activate( gentity_t *ent ) {
 	float		r;
 
 	ent->think = ProximityMine_Explode;
-	ent->nextthink = level.time + g_proxMineTimeout.integer;
+	ent->nextthink = level.time + g_proxMineTimeout.integer * 1000;
 
 	ent->takedamage = qtrue;
 	ent->health = 1;
@@ -305,6 +308,39 @@ static void ProximityMine_Player( gentity_t *mine, gentity_t *player ) {
 	else {
 		mine->nextthink = level.time + 10 * 1000;
 	}
+}
+
+/*
+================
+G_ShouldEmitDamageThroughSurfaceImpact
+
+Validates the retail rocket damage-through-surface impact cue.
+================
+*/
+static qboolean G_ShouldEmitDamageThroughSurfaceImpact( const gentity_t *ent, const trace_t *trace ) {
+	vec3_t	probe;
+	trace_t	probeTrace;
+
+	if ( !ent || !trace ) {
+		return qfalse;
+	}
+	if ( ent->s.weapon != WP_ROCKET_LAUNCHER ) {
+		return qfalse;
+	}
+	if ( !g_forceDmgThroughSurface.integer && !( trace->surfaceFlags & SURF_DMGTHROUGH ) ) {
+		return qfalse;
+	}
+	if ( -trace->plane.normal[2] < g_dmgThroughSurfaceAngularThreshold.value ) {
+		return qfalse;
+	}
+
+	VectorMA( trace->endpos, g_dmgThroughSurfaceDistance.value, trace->plane.normal, probe );
+	trap_Trace( &probeTrace, probe, vec3_origin, vec3_origin, trace->endpos, ENTITYNUM_NONE, MASK_SOLID );
+	if ( probeTrace.fraction >= 1.0f || probeTrace.startsolid || probeTrace.allsolid ) {
+		return qfalse;
+	}
+
+	return qtrue;
 }
 
 /*
@@ -461,6 +497,8 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		ent->s.otherEntityNum = other->s.number;
 	} else if( trace->surfaceFlags & SURF_METALSTEPS ) {
 		G_AddEvent( ent, EV_MISSILE_MISS_METAL, DirToByte( trace->plane.normal ) );
+	} else if ( G_ShouldEmitDamageThroughSurfaceImpact( ent, trace ) ) {
+		G_AddEvent( ent, EV_MISSILE_MISS_DMGTHROUGH, DirToByte( trace->plane.normal ) );
 	} else {
 		G_AddEvent( ent, EV_MISSILE_MISS, DirToByte( trace->plane.normal ) );
 	}

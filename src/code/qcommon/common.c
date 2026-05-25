@@ -1430,7 +1430,7 @@ int demo_protocols[] =
 #define MAX_NUM_ARGVS	50
 
 #define MIN_DEDICATED_COMHUNKMEGS 1
-#define MIN_COMHUNKMEGS 56
+#define MIN_COMHUNKMEGS 128
 #ifdef MACOS_X
 #define DEF_COMHUNKMEGS "128"
 #define DEF_COMZONEMEGS "64"
@@ -1472,7 +1472,6 @@ cvar_t	*com_logfile;		// 1 = buffer log, 2 = flush after each print
 cvar_t	*com_appendlogfile;
 cvar_t	*com_showtrace;
 cvar_t	*com_version;
-cvar_t	*com_blood;
 cvar_t	*com_buildScript;	// retail com_build gate for automated data building scripts
 cvar_t	*com_introPlayed;
 cvar_t	*com_idleSleep;
@@ -1848,9 +1847,7 @@ void QDECL Com_Error( int code, const char *fmt, ... ) {
 		code = ERR_FATAL;
 	}
 
-	if ( code != ERR_DISCONNECT && code != ERR_NEED_CD ) {
-		Cvar_Set("com_errorMessage", com_errorMessage);
-	}
+	Cvar_Set("com_errorMessage", com_errorMessage);
 
 	if ( code == ERR_SERVERDISCONNECT ) {
 		CL_Disconnect( qtrue );
@@ -1862,6 +1859,9 @@ void QDECL Com_Error( int code, const char *fmt, ... ) {
 		SV_Shutdown (va("Server crashed: %s\n",  com_errorMessage));
 		CL_Disconnect( qtrue );
 		CL_FlushMemory( );
+		if ( code == ERR_DISCONNECT ) {
+			Cvar_Set("com_errorMessage", "");
+		}
 		com_errorEntered = qfalse;
 		longjmp (abortframe, -1);
 	} else if ( code == ERR_NEED_CD ) {
@@ -4235,9 +4235,10 @@ void Com_Init( char *commandLine ) {
 	Com_StartupVariable( "com_zoneMegs" );
 	Com_StartupVariable( "com_hunkMegs" );
 	Com_InitZoneMemory();
-        Cmd_Init ();
+	Cmd_Init ();
 
-        Cvar_BootstrapExpandedDefaults();
+	Cvar_BootstrapExpandedDefaults();
+	Com_StartupVariable( "com_ignorecrash" );
 	com_ignorecrash = Cvar_Get( "com_ignorecrash", "0", 0 );
 	com_crashed = Cvar_Get( "com_crashed", "0", CVAR_TEMP );
 #ifdef _WIN32
@@ -4281,6 +4282,11 @@ void Com_Init( char *commandLine ) {
 	Com_InitJournaling();
 
 	Cbuf_AddText ("exec default.cfg\n");
+	Cvar_Set( "com_errorMessage", "" );
+
+	if ( !FS_FileExists( QL_CONFIG_HARDWARE_FILE ) ) {
+		Cvar_Set( "com_ignoreCrash", "1" );
+	}
 
 	// skip the qzconfig.cfg bootstrap if "safe" is on the command line
 	if ( !Com_SafeMode() ) {
@@ -4318,7 +4324,6 @@ void Com_Init( char *commandLine ) {
 	// init commands and vars
 	//
 	com_maxfps = Cvar_GetBounded( "com_maxfps", "125", "30", "250", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD );
-	com_blood = Cvar_Get ("com_blood", "1", CVAR_ARCHIVE);
 
 	com_developer = Cvar_Get ("developer", "0", CVAR_TEMP );
 	com_logfile = Cvar_Get ("logfile", "0", CVAR_TEMP );
@@ -5294,7 +5299,7 @@ void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback )
 	}
 
 	Cmd_CommandCompletion( FindMatches );
-	Cvar_CommandCompletion( FindMatches );
+	Cvar_CommandCompletion( FindMatches, qfalse );
 	if ( argc > 1 && callback ) {
 		callback( command, FindMatches );
 	}
@@ -5336,7 +5341,7 @@ void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback )
 	if ( matchCount > 0 ) {
 		Com_Printf( "]%s\n", completionField->buffer );
 		Cmd_CommandCompletion( PrintMatches );
-		Cvar_CommandCompletion( PrintMatches );
+		Cvar_CommandCompletion( PrintMatches, matchCount > 1 ? qtrue : qfalse );
 		if ( argc > 1 && callback ) {
 			callback( command, PrintMatches );
 		}

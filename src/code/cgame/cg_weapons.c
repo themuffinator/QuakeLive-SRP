@@ -737,6 +737,7 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	entityState_t	*es;
 	vec3_t	up;
 	localEntity_t	*smoke;
+	float	radius;
 
 	up[0] = 0;
 	up[1] = 0;
@@ -745,6 +746,14 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	step = 50;
 
 	es = &ent->currentState;
+	if ( es->weapon == WP_GRENADE_LAUNCHER || es->weapon == WP_PROX_LAUNCHER ) {
+		radius = cg_smokeRadius_GL.value;
+	} else if ( es->weapon == WP_ROCKET_LAUNCHER ) {
+		radius = cg_smokeRadius_RL.value;
+	} else {
+		radius = wi->trailRadius;
+	}
+
 	startTime = ent->trailTime;
 	t = step * ( (startTime + step) / step );
 
@@ -771,9 +780,12 @@ static void CG_RocketTrail( centity_t *ent, const weaponInfo_t *wi ) {
 
 	for ( ; t <= ent->trailTime ; t += step ) {
 		BG_EvaluateTrajectory( &es->pos, t, lastPos );
+		if ( radius <= 0.0f ) {
+			continue;
+		}
 
 		smoke = CG_SmokePuff( lastPos, up, 
-					  wi->trailRadius, 
+					  radius,
 					  1, 1, 1, 0.33f,
 					  wi->wiTrailTime, 
 					  t,
@@ -800,6 +812,7 @@ static void CG_NailTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	entityState_t	*es;
 	vec3_t	up;
 	localEntity_t	*smoke;
+	float	radius;
 
 	up[0] = 0;
 	up[1] = 0;
@@ -808,6 +821,7 @@ static void CG_NailTrail( centity_t *ent, const weaponInfo_t *wi ) {
 	step = 50;
 
 	es = &ent->currentState;
+	radius = cg_smokeRadius_NG.value;
 	startTime = ent->trailTime;
 	t = step * ( (startTime + step) / step );
 
@@ -834,9 +848,12 @@ static void CG_NailTrail( centity_t *ent, const weaponInfo_t *wi ) {
 
 	for ( ; t <= ent->trailTime ; t += step ) {
 		BG_EvaluateTrajectory( &es->pos, t, lastPos );
+		if ( radius <= 0.0f ) {
+			continue;
+		}
 
 		smoke = CG_SmokePuff( lastPos, up, 
-					  wi->trailRadius, 
+					  radius,
 					  1, 1, 1, 0.33f,
 					  wi->wiTrailTime, 
 					  t,
@@ -2997,7 +3014,9 @@ void CG_MissileHitWallDmgThrough( vec3_t origin, vec3_t dir, int weapon ) {
 	vec3_t		puffOrigin;
 	vec3_t		velocity;
 	float		probeDistance;
-	float		speed;
+	float		sparkSize;
+	float		sparkVelocity;
+	int		sparkLifetime;
 	int		i;
 
 	probeDistance = CG_GetDamageThroughProbeDistance();
@@ -3010,20 +3029,21 @@ void CG_MissileHitWallDmgThrough( vec3_t origin, vec3_t dir, int weapon ) {
 				random() * 360.0f, 1.0f, 1.0f, 1.0f, 1.0f, qfalse, 64.0f, qfalse );
 		}
 
-		if ( cgs.media.surfacePuffShader ) {
+		if ( cg_impactSparks.integer && cg_impactSparksLifetime.integer > 0 && cgs.media.surfacePuffShader ) {
+			sparkLifetime = cg_impactSparksLifetime.integer;
+			sparkSize = cg_impactSparksSize.value;
+			sparkVelocity = cg_impactSparksVelocity.value;
 			VectorAdd( trace.endpos, trace.plane.normal, puffOrigin );
 
 			for ( i = 0; i < 10; i++ ) {
-				speed = 250.0f + ( ( random() - 0.5f ) * 300.0f );
-				VectorScale( trace.plane.normal, speed, velocity );
-				velocity[0] += 50.0f - ( ( random() - 0.5f ) * 100.0f );
-				velocity[1] += 50.0f - ( ( random() - 0.5f ) * 100.0f );
-				velocity[2] += 50.0f - ( ( random() - 0.5f ) * 100.0f );
+				velocity[0] = ( random() - 0.5f ) * 64.0f;
+				velocity[1] = ( random() - 0.5f ) * 64.0f;
+				velocity[2] = sparkVelocity + ( random() - 0.5f ) * 16.0f;
 
 				CG_SmokePuff( puffOrigin, velocity,
-					24.0f,
+					sparkSize,
 					0.8f, 0.8f, 0.7f, 1.0f,
-					400.0f - ( speed / 500.0f ) * 200.0f,
+					sparkLifetime,
 					cg.time,
 					0,
 					0,
@@ -3161,7 +3181,7 @@ void CG_ShotgunFire( entityState_t *es ) {
 	VectorNormalize( v );
 	VectorScale( v, 32, v );
 	VectorAdd( es->pos.trBase, v, v );
-	if ( cgs.glconfig.hardwareType != GLHW_RAGEPRO ) {
+	if ( cg_smoke_SG.integer && cgs.glconfig.hardwareType != GLHW_RAGEPRO ) {
 		// ragepro can't alpha fade, so don't even bother with smoke
 		vec3_t			up;
 

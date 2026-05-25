@@ -927,6 +927,10 @@ static void CG_Item( centity_t *cent ) {
 	float			scale;
 	int				respawnDuration;
 	int				respawnRemaining;
+	int				itemFx;
+	qboolean		itemBounces;
+	qboolean		itemRotates;
+	qboolean		itemScales;
 	weaponInfo_t	*wi;
 	char			skipItems[32];
 	vec3_t			itemPOIOrigin;
@@ -990,19 +994,33 @@ static void CG_Item( centity_t *cent ) {
 		return;
 	}
 
+	itemFx = cg_itemFx.integer;
+	itemBounces = (qboolean)( ( itemFx & 1 ) != 0 );
+	itemRotates = (qboolean)( ( itemFx & 2 ) != 0 );
+	itemScales = (qboolean)( ( itemFx & 4 ) != 0 );
+
 	// items bob up and down continuously
-	scale = 0.005 + cent->currentState.number * 0.00001;
-	cent->lerpOrigin[2] += 4 + cos( ( cg.time + 1000 ) *  scale ) * 4;
+	if ( itemBounces ) {
+		scale = 0.005 + cent->currentState.number * 0.00001;
+		cent->lerpOrigin[2] += 4 + cos( ( cg.time + 1000 ) *  scale ) * 4;
+	} else {
+		cent->lerpOrigin[2] += 4;
+	}
 
 	memset (&ent, 0, sizeof(ent));
 
 	// autorotate at one of two speeds
-	if ( item->giType == IT_HEALTH ) {
-		VectorCopy( cg.autoAnglesFast, cent->lerpAngles );
-		AxisCopy( cg.autoAxisFast, ent.axis );
+	if ( itemRotates ) {
+		if ( item->giType == IT_HEALTH ) {
+			VectorCopy( cg.autoAnglesFast, cent->lerpAngles );
+			AxisCopy( cg.autoAxisFast, ent.axis );
+		} else {
+			VectorCopy( cg.autoAngles, cent->lerpAngles );
+			AxisCopy( cg.autoAxis, ent.axis );
+		}
 	} else {
-		VectorCopy( cg.autoAngles, cent->lerpAngles );
-		AxisCopy( cg.autoAxis, ent.axis );
+		VectorClear( cent->lerpAngles );
+		AnglesToAxis( cent->lerpAngles, ent.axis );
 	}
 
 	wi = NULL;
@@ -1036,14 +1054,13 @@ static void CG_Item( centity_t *cent ) {
 
 	// if just respawned, slowly scale up
 	msec = cg.time - cent->miscTime;
-	if ( msec >= 0 && msec < ITEM_SCALEUP_TIME ) {
+	frac = 1.0;
+	if ( itemScales && msec >= 0 && msec < ITEM_SCALEUP_TIME ) {
 		frac = (float)msec / ITEM_SCALEUP_TIME;
 		VectorScale( ent.axis[0], frac, ent.axis[0] );
 		VectorScale( ent.axis[1], frac, ent.axis[1] );
 		VectorScale( ent.axis[2], frac, ent.axis[2] );
 		ent.nonNormalizedAxes = qtrue;
-	} else {
-		frac = 1.0;
 	}
 
 	// items without glow textures need to keep a minimum light value

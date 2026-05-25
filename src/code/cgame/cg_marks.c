@@ -248,11 +248,13 @@ void CG_AddMarks( void ) {
 	markPoly_t	*mp, *next;
 	int			t;
 	int			fade;
+	int			markTime;
 
 	if ( !cg_addMarks.integer || !cg.time ) {
 		return;
 	}
 
+	markTime = cg_impactMarkTime.integer;
 	mp = cg_activeMarkPolys.nextMark;
 	for ( ; mp != &cg_activeMarkPolys ; mp = next ) {
 		// grab next now, so if the local entity is freed we
@@ -260,7 +262,7 @@ void CG_AddMarks( void ) {
 		next = mp->nextMark;
 
 		// see if it is time to completely remove it
-		if ( cg.time > mp->time + MARK_TOTAL_TIME ) {
+		if ( markTime <= 0 || cg.time > mp->time + markTime ) {
 			CG_FreeMarkPoly( mp );
 			continue;
 		}
@@ -284,7 +286,7 @@ void CG_AddMarks( void ) {
 		}
 
 		// fade all marks out with time
-		t = mp->time + MARK_TOTAL_TIME - cg.time;
+		t = mp->time + markTime - cg.time;
 		if ( t < MARK_FADE_TIME ) {
 			fade = 255 * t / MARK_FADE_TIME;
 			if ( mp->alphaFade ) {

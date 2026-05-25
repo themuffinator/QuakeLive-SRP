@@ -879,7 +879,7 @@ void G_AutoAction( autoActionEvent_t event, const gentity_t *subject, const char
 		return;
 	}
 
-	if ( !g_autoAction.string[0] ) {
+	if ( !g_autoAction.string[0] || !Q_stricmp( g_autoAction.string, "0" ) ) {
 		return;
 	}
 

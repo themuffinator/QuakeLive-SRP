@@ -354,7 +354,7 @@ static void CG_SelectRespawnWeapon( void ) {
 	char		*token;
 	weapon_t	weapon;
 
-	trap_Cvar_VariableStringBuffer( "cg_weaponPrimary", buffer, sizeof( buffer ) );
+	trap_Cvar_VariableStringBuffer( "cg_preferredStartingWeapons", buffer, sizeof( buffer ) );
 	cursor = buffer;
 
 	for ( ;; ) {
@@ -538,11 +538,78 @@ static void CG_RecordCrosshairHitFeedback( const playerState_t *ps, const player
 
 /*
 ==================
+CG_HitSoundForDamage
+==================
+*/
+static sfxHandle_t CG_HitSoundForDamage( int damage ) {
+	int	bucket;
+
+	if ( cg_hitBeep.integer <= 0 ) {
+		return 0;
+	}
+
+	if ( cg_hitBeep.integer == 1 ) {
+		return cgs.media.hitSound0;
+	}
+
+	if ( damage < 1 ) {
+		damage = 1;
+	}
+
+	bucket = ( damage - 1 ) / 25;
+	if ( bucket > 3 ) {
+		bucket = 3;
+	}
+
+	if ( cg_hitBeep.integer == 3 ) {
+		bucket = 3 - bucket;
+	}
+
+	switch ( bucket ) {
+	case 0:
+		return cgs.media.hitSound0;
+	case 1:
+		return cgs.media.hitSound1;
+	case 2:
+		return cgs.media.hitSound2;
+	default:
+		return cgs.media.hitSound3;
+	}
+}
+
+/*
+==================
+CG_KillBeepSoundForCvar
+==================
+*/
+static sfxHandle_t CG_KillBeepSoundForCvar( void ) {
+	switch ( cg_killBeep.integer ) {
+	case 2:
+		return cgs.media.killBeepSound2;
+	case 3:
+		return cgs.media.killBeepSound3;
+	case 4:
+		return cgs.media.killBeepSound4;
+	case 5:
+		return cgs.media.killBeepSound5;
+	case 6:
+		return cgs.media.killBeepSound6;
+	case 7:
+		return cgs.media.killBeepSound7;
+	case 8:
+		return cgs.media.killBeepSound8;
+	default:
+		return cgs.media.killBeepSound1;
+	}
+}
+
+/*
+==================
 CG_CheckLocalSounds
 ==================
 */
 void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
-	int			highScore, health, armor, reward;
+	int			highScore, hitDelta, reward;
 	sfxHandle_t sfx;
 	qboolean		rewardVOEnabled;
 
@@ -552,17 +619,21 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 	}
 
 	// hit changes
-	if ( ps->persistant[PERS_HITS] > ops->persistant[PERS_HITS] ) {
-		armor  = ps->persistant[PERS_ATTACKEE_ARMOR] & 0xff;
-		health = ps->persistant[PERS_ATTACKEE_ARMOR] >> 8;
-		if (armor > 50 ) {
-			trap_S_StartLocalSound( cgs.media.hitSoundHighArmor, CHAN_LOCAL_SOUND );
-		} else if (armor || health > 100) {
-			trap_S_StartLocalSound( cgs.media.hitSoundLowArmor, CHAN_LOCAL_SOUND );
+	hitDelta = ps->persistant[PERS_HITS] - ops->persistant[PERS_HITS];
+	if ( hitDelta > 0 ) {
+		if ( cg_killBeep.integer > 0
+			&& ps->persistant[PERS_KILL_COUNT] > ops->persistant[PERS_KILL_COUNT] ) {
+			sfx = CG_KillBeepSoundForCvar();
+			if ( sfx ) {
+				trap_QL_S_StartLocalSoundVolume( sfx, CHAN_LOCAL_SOUND, s_killBeepVolume.value );
+			}
 		} else {
-			trap_S_StartLocalSound( cgs.media.hitSound, CHAN_LOCAL_SOUND );
+			sfx = CG_HitSoundForDamage( hitDelta );
+			if ( sfx ) {
+				trap_S_StartLocalSound( sfx, CHAN_LOCAL_SOUND );
+			}
 		}
-	} else if ( ps->persistant[PERS_HITS] < ops->persistant[PERS_HITS] ) {
+	} else if ( hitDelta < 0 ) {
 		trap_S_StartLocalSound( cgs.media.hitTeamSound, CHAN_LOCAL_SOUND );
 	}
 
@@ -714,11 +785,11 @@ void CG_CheckLocalSounds( playerState_t *ps, playerState_t *ops ) {
 			// never play lead changes during warmup
 			if ( ps->persistant[PERS_RANK] != ops->persistant[PERS_RANK] ) {
 				if ( cgs.gametype < GT_TEAM) {
-					if (  ps->persistant[PERS_RANK] == 0 ) {
+					if (  ps->persistant[PERS_RANK] == 0 && cg_announcerLeadsVO.integer ) {
 						CG_AddBufferedSound(cgs.media.takenLeadSound);
-					} else if ( ps->persistant[PERS_RANK] == RANK_TIED_FLAG ) {
+					} else if ( ps->persistant[PERS_RANK] == RANK_TIED_FLAG && cg_announcerTiesVO.integer ) {
 						CG_AddBufferedSound(cgs.media.tiedLeadSound);
-					} else if ( ( ops->persistant[PERS_RANK] & ~RANK_TIED_FLAG ) == 0 ) {
+					} else if ( ( ops->persistant[PERS_RANK] & ~RANK_TIED_FLAG ) == 0 && cg_announcerLeadsVO.integer ) {
 						CG_AddBufferedSound(cgs.media.lostLeadSound);
 					}
 				}

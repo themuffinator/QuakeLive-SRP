@@ -60,16 +60,24 @@ typedef void (__stdcall *awe_webview_destroy_fn)( void *view );
 typedef void (__stdcall *awe_webview_load_url_fn)( void *view, void *url );
 typedef void (__stdcall *awe_webview_resize_fn)( void *view, int width, int height );
 typedef void (__stdcall *awe_webview_focus_fn)( void *view );
+typedef void (__stdcall *awe_webview_unfocus_fn)( void *view );
 typedef void (__stdcall *awe_webview_resume_rendering_fn)( void *view );
+typedef void (__stdcall *awe_webview_pause_rendering_fn)( void *view );
 typedef void (__stdcall *awe_webview_reload_fn)( void *view, bool ignoreCache );
 typedef void (__stdcall *awe_webview_stop_fn)( void *view );
 typedef void (__stdcall *awe_webview_execute_javascript_fn)( void *view, const unsigned short *script, const unsigned short *frame );
+typedef void (__stdcall *awe_webview_set_transparent_fn)( void *view, bool transparent );
+typedef void (__stdcall *awe_webview_set_zoom_fn)( void *view, int zoomPercent );
 typedef void (__stdcall *awe_webview_mouse_move_fn)( void *view, int x, int y );
 typedef void (__stdcall *awe_webview_mouse_button_fn)( void *view, int button );
 typedef void (__stdcall *awe_webview_mouse_wheel_fn)( void *view, int x, int y );
+typedef void (__stdcall *awe_webview_keyboard_event_fn)( void *view, unsigned int eventType, unsigned int virtualKeyCode, long nativeKeyCode );
 typedef void *(__stdcall *awe_webview_surface_fn)( void *view );
+typedef bool (__stdcall *awe_webview_query_bool_fn)( void *view );
+typedef int (__stdcall *awe_webview_query_int_fn)( void *view );
 typedef void (__stdcall *awe_bitmap_copy_to_fn)( void *surface, byte *destination, int rowSpan, int depth, bool convertToRGBA, bool flipY );
 typedef int (__stdcall *awe_bitmap_dimension_fn)( void *surface );
+typedef const byte *(__stdcall *awe_bitmap_buffer_fn)( void *surface );
 typedef bool (__stdcall *awe_bitmap_bool_fn)( void *surface );
 typedef void (__stdcall *awe_bitmap_set_bool_fn)( void *surface, bool value );
 
@@ -83,14 +91,19 @@ typedef void (__stdcall *awe_bitmap_set_bool_fn)( void *surface, bool value );
 #define CL_AWE_WEBVIEW_LOAD_URL_SLOT 0x64
 #define CL_AWE_WEBVIEW_EXECUTE_JAVASCRIPT_SLOT 0x124
 #define CL_AWE_WEBVIEW_RESIZE_SLOT 0x9c
+#define CL_AWE_WEBVIEW_SET_TRANSPARENT_SLOT 0xa0
+#define CL_AWE_WEBVIEW_PAUSE_RENDERING_SLOT 0xa8
 #define CL_AWE_WEBVIEW_RESUME_RENDERING_SLOT 0xac
 #define CL_AWE_WEBVIEW_FOCUS_SLOT 0xb0
+#define CL_AWE_WEBVIEW_UNFOCUS_SLOT 0xb4
+#define CL_AWE_WEBVIEW_SET_ZOOM_SLOT 0xc4
 #define CL_AWE_WEBVIEW_RELOAD_SLOT 0x78
 #define CL_AWE_WEBVIEW_STOP_SLOT 0x74
 #define CL_AWE_WEBVIEW_MOUSE_MOVE_SLOT 0xd0
 #define CL_AWE_WEBVIEW_MOUSE_DOWN_SLOT 0xd4
 #define CL_AWE_WEBVIEW_MOUSE_UP_SLOT 0xd8
 #define CL_AWE_WEBVIEW_MOUSE_WHEEL_SLOT 0xdc
+#define CL_AWE_WEBVIEW_KEYBOARD_EVENT_SLOT 0xe0
 #define CL_AWE_WEBVIEW_SURFACE_SLOT 0x84
 #define CL_AWE_BITMAP_PIXELS_OFFSET 0x04
 #define CL_AWE_BITMAP_WIDTH_OFFSET 0x08
@@ -104,6 +117,7 @@ typedef void *(__cdecl *awe_retail_webcore_initialize_fn)( const void *config );
 typedef void (__cdecl *awe_retail_webstring_create_utf8_fn)( void *outString, const char *value, unsigned int length );
 typedef void (__thiscall *awe_retail_weburl_ctor_fn)( void *object, const void *url );
 typedef void (__thiscall *awe_retail_datapak_ctor_fn)( void *object, const void *pakPath );
+typedef void (__thiscall *awe_retail_keyboard_event_ctor_fn)( void *object, unsigned int eventType, unsigned int virtualKeyCode, long nativeKeyCode );
 typedef void (__thiscall *awe_retail_bitmap_copy_to_fn)( const void *surface, byte *destination, int rowSpan, int depth, bool convertToRGBA, bool flipY );
 
 typedef void *(__thiscall *awe_webcore_create_session_method_fn)( void *core, const void *dataPath, void *preferences );
@@ -116,9 +130,11 @@ typedef void (__thiscall *awe_webview_load_url_method_fn)( void *view, void *url
 typedef void (__thiscall *awe_webview_execute_javascript_method_fn)( void *view, const void *script, const void *frame );
 typedef void (__thiscall *awe_webview_resize_method_fn)( void *view, int width, int height );
 typedef void (__thiscall *awe_webview_bool_method_fn)( void *view, bool value );
+typedef void (__thiscall *awe_webview_int_method_fn)( void *view, int value );
 typedef void (__thiscall *awe_webview_mouse_move_method_fn)( void *view, int x, int y );
 typedef void (__thiscall *awe_webview_mouse_button_method_fn)( void *view, int button );
 typedef void (__thiscall *awe_webview_mouse_wheel_method_fn)( void *view, int x, int y );
+typedef void (__thiscall *awe_webview_keyboard_event_method_fn)( void *view, const void *event );
 typedef void *(__thiscall *awe_webview_surface_method_fn)( void *view );
 
 typedef struct {
@@ -135,6 +151,7 @@ typedef struct {
 	awe_retail_datapak_ctor_fn			dataPakSourceCtor;
 	awe_retail_dtor_fn					dataPakSourceDtor;
 	awe_retail_bitmap_copy_to_fn			bitmapCopyTo;
+	awe_retail_keyboard_event_ctor_fn	keyboardEventCtor;
 	qboolean							active;
 } clAwesomiumRetailImports_t;
 
@@ -150,6 +167,8 @@ typedef struct {
 	qboolean importsResolved;
 	qboolean started;
 	qboolean urlLoaded;
+	int		startupScriptInjectionFrames;
+	char	startupScript[8192];
 	char	lastError[256];
 } clAwesomiumState_t;
 
@@ -184,19 +203,29 @@ typedef struct {
 	awe_webview_destroy_fn			webViewDestroy;
 	awe_webview_load_url_fn			webViewLoadURL;
 	awe_webview_execute_javascript_fn	webViewExecuteJavascript;
+	awe_webview_set_transparent_fn	webViewSetTransparent;
+	awe_webview_set_zoom_fn			webViewSetZoom;
 	awe_webview_resize_fn			webViewResize;
 	awe_webview_focus_fn				webViewFocus;
+	awe_webview_unfocus_fn			webViewUnfocus;
 	awe_webview_resume_rendering_fn	webViewResumeRendering;
+	awe_webview_pause_rendering_fn	webViewPauseRendering;
 	awe_webview_reload_fn			webViewReload;
 	awe_webview_stop_fn				webViewStop;
 	awe_webview_mouse_move_fn		webViewInjectMouseMove;
 	awe_webview_mouse_button_fn		webViewInjectMouseDown;
 	awe_webview_mouse_button_fn		webViewInjectMouseUp;
 	awe_webview_mouse_wheel_fn		webViewInjectMouseWheel;
+	awe_webview_keyboard_event_fn	webViewInjectKeyboardEvent;
 	awe_webview_surface_fn			webViewSurface;
+	awe_webview_query_bool_fn		webViewIsLoading;
+	awe_webview_query_bool_fn		webViewIsCrashed;
+	awe_webview_query_int_fn			webViewLastError;
 	awe_bitmap_copy_to_fn			bitmapCopyTo;
 	awe_bitmap_dimension_fn			bitmapWidth;
 	awe_bitmap_dimension_fn			bitmapHeight;
+	awe_bitmap_dimension_fn			bitmapRowSpan;
+	awe_bitmap_buffer_fn			bitmapBuffer;
 	awe_bitmap_bool_fn				bitmapIsDirty;
 	awe_bitmap_set_bool_fn			bitmapSetIsDirty;
 } clAwesomiumImports_t;
@@ -242,7 +271,7 @@ static const clAwesomiumRetailAbiEquivalence_t cl_aweRetailAbiEquivalence[] = {
 	{ 0x004F27C0u, 0xd4u, "WebView::InjectMouseDown", "CL_Awesomium_InjectMouseDown", "_Awe_WebView_InjectMouseDown@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
 	{ 0x004F2820u, 0xd8u, "WebView::InjectMouseUp", "CL_Awesomium_InjectMouseUp", "_Awe_WebView_InjectMouseUp@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
 	{ 0x004F2870u, 0xdcu, "WebView::InjectMouseWheel", "CL_Awesomium_InjectMouseWheel", "_Awe_WebView_InjectMouseWheel@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
-	{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "QLWebView_InjectKeyboardEvent", "cl_cgame.c field model", CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD },
+	{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_WebView_InjectKeyboardEvent@16", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },
 };
 
 /*
@@ -266,9 +295,15 @@ static const clAwesomiumBootstrapRetailMapping_t cl_aweBootstrapRetailMappings[]
 	{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },
 	{ 0x004F2D30u, 0x00000010u, "WebSession::AddDataSource slot 0x10", "CL_Awesomium_CreateSession", "_Awe_WebSession_AddDataSource@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x00000004u, "WebCore::CreateWebView slot 0x04", "CL_Awesomium_Startup", "_Awe_WebCore_CreateWebView_0@20", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x000000A0u, "WebView::set_transparent slot 0xA0", "CL_Awesomium_Startup", "_Awe_WebView_set_transparent@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x00000064u, "WebView::LoadURL slot 0x64", "CL_Awesomium_OpenURL", "_Awe_WebView_LoadURL@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F24D0u, 0x000000A8u, "WebView::PauseRendering slot 0xA8", "CL_Awesomium_PauseRendering", "_Awe_WebView_PauseRendering@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x000000ACu, "WebView::ResumeRendering slot 0xAC", "CL_Awesomium_OpenURL", "_Awe_WebView_ResumeRendering@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x000000B0u, "WebView::Focus slot 0xB0", "CL_Awesomium_OpenURL", "_Awe_WebView_Focus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F24D0u, 0x000000B4u, "WebView::Unfocus slot 0xB4", "CL_Awesomium_Unfocus", "_Awe_WebView_Unfocus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x000000C4u, "WebView::SetZoom slot 0xC4", "CL_Awesomium_SetZoom", "_Awe_WebView_SetZoom@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x00000124u, "WebView::ExecuteJavascript slot 0x124", "CL_Awesomium_ExecuteJavascript", "_Awe_WebView_ExecuteJavascript@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2D30u, 0x0000012Cu, "WebView::set_js_method_handler slot 0x12C", "CL_Awesomium_BuildStartupScript", "qz_instance startup bridge", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },
 	{ 0x004F2D30u, 0x00000084u, "WebView::surface slot 0x84", "CL_Awesomium_Surface", "_Awe_WebView_surface@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2A60u, 0x00000000u, "WebView::Destroy slot 0x00", "CL_Awesomium_Shutdown", "_Awe_WebView_Destroy@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2A60u, 0x0052C684u, "WebCore::Shutdown", "CL_Awesomium_Shutdown", "_Awe_WebCore_Shutdown@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
@@ -288,6 +323,7 @@ static qboolean CL_Awesomium_CreateSession( const char *runtimePath, const char 
 
 extern "C" void CL_Awesomium_Shutdown( void );
 extern "C" void Com_Printf( const char *fmt, ... );
+extern "C" qboolean CL_Awesomium_ExecuteJavascript( const char *script, const char *frame );
 
 /*
 =============
@@ -749,6 +785,20 @@ static void __stdcall CL_Awesomium_RetailWebViewFocus( void *view ) {
 
 /*
 =============
+CL_Awesomium_RetailWebViewUnfocus
+=============
+*/
+static void __stdcall CL_Awesomium_RetailWebViewUnfocus( void *view ) {
+	awe_webview_void_method_fn unfocus;
+
+	unfocus = reinterpret_cast<awe_webview_void_method_fn>( CL_Awesomium_VTableMethod( view, CL_AWE_WEBVIEW_UNFOCUS_SLOT ) );
+	if ( unfocus ) {
+		unfocus( view );
+	}
+}
+
+/*
+=============
 CL_Awesomium_RetailWebViewResumeRendering
 =============
 */
@@ -758,6 +808,20 @@ static void __stdcall CL_Awesomium_RetailWebViewResumeRendering( void *view ) {
 	resumeRendering = reinterpret_cast<awe_webview_void_method_fn>( CL_Awesomium_VTableMethod( view, CL_AWE_WEBVIEW_RESUME_RENDERING_SLOT ) );
 	if ( resumeRendering ) {
 		resumeRendering( view );
+	}
+}
+
+/*
+=============
+CL_Awesomium_RetailWebViewPauseRendering
+=============
+*/
+static void __stdcall CL_Awesomium_RetailWebViewPauseRendering( void *view ) {
+	awe_webview_void_method_fn pauseRendering;
+
+	pauseRendering = reinterpret_cast<awe_webview_void_method_fn>( CL_Awesomium_VTableMethod( view, CL_AWE_WEBVIEW_PAUSE_RENDERING_SLOT ) );
+	if ( pauseRendering ) {
+		pauseRendering( view );
 	}
 }
 
@@ -803,6 +867,35 @@ static void __stdcall CL_Awesomium_RetailWebViewExecuteJavascript( void *view, c
 	CL_Awesomium_DestroyWebString( frameString );
 	CL_Awesomium_DestroyWebString( scriptString );
 }
+
+/*
+=============
+CL_Awesomium_RetailWebViewSetTransparent
+=============
+*/
+static void __stdcall CL_Awesomium_RetailWebViewSetTransparent( void *view, bool transparent ) {
+	awe_webview_bool_method_fn setTransparent;
+
+	setTransparent = reinterpret_cast<awe_webview_bool_method_fn>( CL_Awesomium_VTableMethod( view, CL_AWE_WEBVIEW_SET_TRANSPARENT_SLOT ) );
+	if ( setTransparent ) {
+		setTransparent( view, transparent );
+	}
+}
+
+/*
+=============
+CL_Awesomium_RetailWebViewSetZoom
+=============
+*/
+static void __stdcall CL_Awesomium_RetailWebViewSetZoom( void *view, int zoomPercent ) {
+	awe_webview_int_method_fn setZoom;
+
+	setZoom = reinterpret_cast<awe_webview_int_method_fn>( CL_Awesomium_VTableMethod( view, CL_AWE_WEBVIEW_SET_ZOOM_SLOT ) );
+	if ( setZoom ) {
+		setZoom( view, zoomPercent );
+	}
+}
+
 /*
 =============
 CL_Awesomium_RetailWebViewStop
@@ -875,6 +968,29 @@ static void __stdcall CL_Awesomium_RetailWebViewInjectMouseWheel( void *view, in
 
 /*
 =============
+CL_Awesomium_RetailWebViewInjectKeyboardEvent
+=============
+*/
+static void __stdcall CL_Awesomium_RetailWebViewInjectKeyboardEvent( void *view, unsigned int eventType, unsigned int virtualKeyCode, long nativeKeyCode ) {
+	byte eventStorage[CL_AWE_OBJECT_STORAGE_BYTES];
+	awe_webview_keyboard_event_method_fn injectKeyboardEvent;
+
+	if ( !cl_aweRetail.keyboardEventCtor ) {
+		return;
+	}
+
+	injectKeyboardEvent = reinterpret_cast<awe_webview_keyboard_event_method_fn>( CL_Awesomium_VTableMethod( view, CL_AWE_WEBVIEW_KEYBOARD_EVENT_SLOT ) );
+	if ( !injectKeyboardEvent ) {
+		return;
+	}
+
+	memset( eventStorage, 0, sizeof( eventStorage ) );
+	cl_aweRetail.keyboardEventCtor( eventStorage, eventType, virtualKeyCode, nativeKeyCode );
+	injectKeyboardEvent( view, eventStorage );
+}
+
+/*
+=============
 CL_Awesomium_RetailWebViewSurface
 =============
 */
@@ -925,7 +1041,7 @@ static qboolean __stdcall CL_Awesomium_RetailBitmapSurfaceIsDirty( void *surface
 		return qfalse;
 	}
 
-	return qtrue;
+	return *reinterpret_cast<unsigned char *>( reinterpret_cast<byte *>( surface ) + CL_AWE_BITMAP_DIRTY_OFFSET ) ? qtrue : qfalse;
 }
 
 /*
@@ -1028,6 +1144,7 @@ static qboolean CL_Awesomium_LoadRetailImports( void ) {
 	CL_AWESOMIUM_RETAIL_IMPORT( webURLDtor, awe_retail_dtor_fn, "??1WebURL@Awesomium@@QAE@XZ" );
 	CL_AWESOMIUM_RETAIL_IMPORT( dataPakSourceCtor, awe_retail_datapak_ctor_fn, "??0DataPakSource@Awesomium@@QAE@ABVWebString@1@@Z" );
 	CL_AWESOMIUM_RETAIL_IMPORT( dataPakSourceDtor, awe_retail_dtor_fn, "??1DataPakSource@Awesomium@@UAE@XZ" );
+	CL_AWESOMIUM_RETAIL_IMPORT( keyboardEventCtor, awe_retail_keyboard_event_ctor_fn, "??0WebKeyboardEvent@Awesomium@@QAE@IIJ@Z" );
 	proc = GetProcAddress( cl_awesomium.module, "?CopyTo@BitmapSurface@Awesomium@@QBEXPAEHH_N1@Z" );
 	cl_aweRetail.bitmapCopyTo = reinterpret_cast<awe_retail_bitmap_copy_to_fn>( proc );
 
@@ -1106,14 +1223,27 @@ static FARPROC CL_Awesomium_RetailAdapterForImport( const char *name ) {
 	}
 	if ( strstr( name, "WebView_ExecuteJavascript" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewExecuteJavascript );
-	}	if ( strstr( name, "WebView_Resize" ) ) {
+	}
+	if ( strstr( name, "WebView_set_transparent" ) || strstr( name, "WebView_SetTransparent" ) ) {
+		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewSetTransparent );
+	}
+	if ( strstr( name, "WebView_SetZoom" ) || strstr( name, "WebView_set_zoom" ) ) {
+		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewSetZoom );
+	}
+	if ( strstr( name, "WebView_Resize" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewResize );
 	}
 	if ( strstr( name, "WebView_Focus" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewFocus );
 	}
+	if ( strstr( name, "WebView_Unfocus" ) ) {
+		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewUnfocus );
+	}
 	if ( strstr( name, "WebView_ResumeRendering" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewResumeRendering );
+	}
+	if ( strstr( name, "WebView_PauseRendering" ) ) {
+		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewPauseRendering );
 	}
 	if ( strstr( name, "WebView_Reload" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewReload );
@@ -1132,6 +1262,9 @@ static FARPROC CL_Awesomium_RetailAdapterForImport( const char *name ) {
 	}
 	if ( strstr( name, "WebView_InjectMouseWheel" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewInjectMouseWheel );
+	}
+	if ( strstr( name, "WebView_InjectKeyboardEvent" ) ) {
+		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewInjectKeyboardEvent );
 	}
 	if ( strstr( name, "WebView_surface" ) || strstr( name, "WebView_Surface" ) ) {
 		return reinterpret_cast<FARPROC>( CL_Awesomium_RetailWebViewSurface );
@@ -1281,21 +1414,31 @@ static qboolean CL_Awesomium_LoadImports( const char *runtimePath, const char *b
 	CL_AWE_IMPORT( webViewDestroy, "_Awe_WebView_Destroy@4" );
 	CL_AWE_IMPORT( webViewLoadURL, "_Awe_WebView_LoadURL@8" );
 	CL_AWE_IMPORT( webViewExecuteJavascript, "_Awe_WebView_ExecuteJavascript@12" );
+	CL_AWE_IMPORT( webViewSetTransparent, "_Awe_WebView_set_transparent@8" );
+	CL_AWE_IMPORT( webViewSetZoom, "_Awe_WebView_SetZoom@8" );
 	CL_AWE_IMPORT( webViewResize, "_Awe_WebView_Resize@12" );
 	CL_AWE_IMPORT( webViewFocus, "_Awe_WebView_Focus@4" );
+	CL_AWE_IMPORT( webViewUnfocus, "_Awe_WebView_Unfocus@4" );
 	CL_AWE_IMPORT( webViewResumeRendering, "_Awe_WebView_ResumeRendering@4" );
+	CL_AWE_IMPORT( webViewPauseRendering, "_Awe_WebView_PauseRendering@4" );
 	CL_AWE_IMPORT( webViewReload, "_Awe_WebView_Reload@8" );
 	CL_AWE_IMPORT( webViewStop, "_Awe_WebView_Stop@4" );
 	CL_AWE_IMPORT( webViewInjectMouseMove, "_Awe_WebView_InjectMouseMove@12" );
 	CL_AWE_IMPORT( webViewInjectMouseDown, "_Awe_WebView_InjectMouseDown@8" );
 	CL_AWE_IMPORT( webViewInjectMouseUp, "_Awe_WebView_InjectMouseUp@8" );
 	CL_AWE_IMPORT( webViewInjectMouseWheel, "_Awe_WebView_InjectMouseWheel@12" );
+	CL_AWE_IMPORT( webViewInjectKeyboardEvent, "_Awe_WebView_InjectKeyboardEvent@16" );
 	CL_AWE_IMPORT( webViewSurface, "_Awe_WebView_surface@4" );
 	CL_AWE_IMPORT( bitmapCopyTo, "_Awe_BitmapSurface_CopyTo@24" );
 	CL_AWE_IMPORT( bitmapWidth, "_Awe_BitmapSurface_width@4" );
 	CL_AWE_IMPORT( bitmapHeight, "_Awe_BitmapSurface_height@4" );
 	CL_AWE_IMPORT( bitmapIsDirty, "_Awe_BitmapSurface_is_dirty@4" );
 	CL_AWE_IMPORT( bitmapSetIsDirty, "_Awe_BitmapSurface_set_is_dirty@8" );
+	cl_awe.bitmapRowSpan = reinterpret_cast<awe_bitmap_dimension_fn>( GetProcAddress( cl_awesomium.module, "_Awe_BitmapSurface_row_span@4" ) );
+	cl_awe.bitmapBuffer = reinterpret_cast<awe_bitmap_buffer_fn>( GetProcAddress( cl_awesomium.module, "_Awe_BitmapSurface_buffer@4" ) );
+	cl_awe.webViewIsLoading = reinterpret_cast<awe_webview_query_bool_fn>( GetProcAddress( cl_awesomium.module, "_Awe_WebView_IsLoading@4" ) );
+	cl_awe.webViewIsCrashed = reinterpret_cast<awe_webview_query_bool_fn>( GetProcAddress( cl_awesomium.module, "_Awe_WebView_IsCrashed@4" ) );
+	cl_awe.webViewLastError = reinterpret_cast<awe_webview_query_int_fn>( GetProcAddress( cl_awesomium.module, "_Awe_WebView_last_error@4" ) );
 
 #undef CL_AWE_IMPORT
 
@@ -1460,7 +1603,9 @@ static void CL_Awesomium_BuildUserScript( char *buffer, size_t bufferSize, const
 	}
 	steamId[sizeof( steamId ) - 1] = '\0';
 
-	_snprintf(
+	int written;
+
+	written = _snprintf(
 		buffer,
 		bufferSize,
 		"(function(){if(window.__qlr_qz_instance_ready){return;}window.__qlr_qz_instance_ready=true;"
@@ -1493,13 +1638,28 @@ static void CL_Awesomium_BuildUserScript( char *buffer, size_t bufferSize, const
 		"var t=setInterval(function(){var app=document.getElementById('app');if(app&&app.childNodes&&app.childNodes.length){"
 		"if(d.parentNode){d.parentNode.removeChild(d);}clearInterval(t);}},250);};"
 		"if(document.body){show();}else{document.addEventListener('DOMContentLoaded',show,false);}}catch(e){}};loading();"
+		"var ret=function(v){return function(){return v;};};var bind=function(n,f){if(typeof qz[n]==='undefined'){qz[n]=f;}};"
+		"var fm='IsPakFilePresent IsGameRunning FileExists'.split(' ');for(var i=0;i<fm.length;i++){bind(fm[i],ret(false));}"
+		"var nm='WriteTextFile OpenURL OpenSteamOverlayURL SetClipboardText RequestServers RequestServerDetails RefreshList CreateLobby LeaveLobby JoinLobby SetLobbyServer ShowInviteOverlay SayLobby RequestUserStats ActivateGameOverlayToUser Invite NoOp GetAllUGC GetNextKeyDown SetFavoriteServer'.split(' ');for(i=0;i<nm.length;i++){bind(nm[i],noop);}"
+		"var em='GetDemoList GetFriendList'.split(' ');for(i=0;i<em.length;i++){bind(em[i],empty);}"
+		"bind('GetCvar',function(n){return config.cvars[n]||'';});bind('SetCvar',function(n,v){config.cvars[n]=String(v||'');});bind('ResetCvar',function(n){delete config.cvars[n];});"
+		"bind('GetMapList',function(){return maps;});bind('GetFactoryList',function(){return factories;});bind('GetClipboardText',ret(''));bind('GetConfig',function(){return config;});bind('GetCursorPosition',function(){return {x:0,y:0};});"
+		"if(!window.FakeClient){window.FakeClient={};}if(!window.FakeClient.qz_instance){window.FakeClient.qz_instance={};}"
 		"window.qz_instance=qz;window.main_hook_v2=function(){var f=window.FakeClient&&window.FakeClient.qz_instance;"
-		"if(!f){return;}for(var k in qz){if(typeof f[k]==='undefined'){f[k]=qz[k];}}};})();",
+		"if(!f){return;}for(var k in qz){if(typeof f[k]==='undefined'){f[k]=qz[k];}}};window.main_hook_v2();"
+		"if(document.addEventListener){document.addEventListener('DOMContentLoaded',window.main_hook_v2,false);}"
+		"window.__qlr_browser_helpers_ready=true;try{var qlrReadyEvent=document.createEvent('Event');"
+		"qlrReadyEvent.initEvent('qz_instance.ready',false,false);document.dispatchEvent(qlrReadyEvent);}catch(qlrReadyError){}"
+		"var qlrBridgeTries=0;var qlrBridgeTimer=setInterval(function(){window.main_hook_v2();"
+		"if(++qlrBridgeTries>=40){clearInterval(qlrBridgeTimer);}},250);window.__qlr_qz_instance_script_complete=true;})();",
 		appId,
 		steamId,
 		escapedName
 	);
 	buffer[bufferSize - 1] = '\0';
+	if ( written < 0 || (size_t)written >= bufferSize ) {
+		Com_Printf( "Awesomium startup script truncated before injection\n" );
+	}
 }
 
 /*
@@ -1512,7 +1672,6 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 	char logPath[MAX_PATH];
 	char packagePath[MAX_PATH];
 	char packageRoot[MAX_PATH];
-	char userScript[8192];
 	const char *sessionPath;
 	const char *assetsPath;
 
@@ -1539,7 +1698,7 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 	if ( !CL_Awesomium_FileExists( childProcessPath ) && sessionPath && sessionPath[0] ) {
 		CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), sessionPath, "awesomium_process.exe" );
 	}
-	CL_Awesomium_BuildUserScript( userScript, sizeof( userScript ), playerName, appId, steamIdLow, steamIdHigh );
+	CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh );
 	if ( !CL_Awesomium_FileExists( childProcessPath ) ) {
 		CL_Awesomium_SetError( "awesomium_process.exe was not found in runtimePath or basePath" );
 		return qfalse;
@@ -1555,7 +1714,7 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigLogPathSet, cl_awesomium.webConfig, logPath )
 		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packageRoot )
 		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigUserAgentSet, cl_awesomium.webConfig, "Mozilla/5.0 (Windows NT 10.0; Win32; x86) QuakeLiveReverse/1.0" )
-		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigUserScriptSet, cl_awesomium.webConfig, userScript ) ) {
+		|| !CL_Awesomium_SetConfigString( cl_awe.webConfigUserScriptSet, cl_awesomium.webConfig, cl_awesomium.startupScript ) ) {
 		return qfalse;
 	}
 
@@ -1623,7 +1782,7 @@ static qboolean CL_Awesomium_CreateSession( const char *runtimePath, const char 
 		return qfalse;
 	}
 
-	pakName = CL_Awesomium_AllocWideString( CL_Awesomium_FileExists( "web.pak" ) ? "web.pak" : pakPath );
+	pakName = CL_Awesomium_AllocWideString( pakPath );
 	if ( !pakName ) {
 		CL_Awesomium_SetError( "could not convert web.pak path for Awesomium" );
 		return qfalse;
@@ -1710,6 +1869,7 @@ extern "C" qboolean CL_Awesomium_Startup( const char *runtimePath, const char *b
 		return qfalse;
 	}
 
+	cl_awe.webViewSetTransparent( cl_awesomium.webView, true );
 	cl_awe.webViewResumeRendering( cl_awesomium.webView );
 	cl_awe.webViewFocus( cl_awesomium.webView );
 	Com_Printf( "Awesomium startup phase: live WebView ready\n" );
@@ -1750,10 +1910,12 @@ extern "C" qboolean CL_Awesomium_OpenURL( const char *url ) {
 	}
 
 	cl_awe.webViewLoadURL( cl_awesomium.webView, webURL );
+	cl_awe.webViewSetZoom( cl_awesomium.webView, 100 );
 	cl_awe.webViewResumeRendering( cl_awesomium.webView );
 	cl_awe.webViewFocus( cl_awesomium.webView );
 	cl_awe.deleteWebURL( webURL );
 	cl_awesomium.urlLoaded = qtrue;
+	cl_awesomium.startupScriptInjectionFrames = 240;
 	return qtrue;
 }
 
@@ -1784,6 +1946,47 @@ extern "C" qboolean CL_Awesomium_ExecuteJavascript( const char *script, const ch
 	delete[] (wchar_t *)wideScript;
 	return qtrue;
 }
+
+/*
+=============
+CL_Awesomium_SetZoom
+=============
+*/
+extern "C" qboolean CL_Awesomium_SetZoom( int zoomPercent ) {
+	if ( !cl_awesomium.started || !cl_awesomium.webView || !cl_awe.webViewSetZoom ) {
+		return qfalse;
+	}
+
+	if ( zoomPercent <= 0 ) {
+		zoomPercent = 100;
+	}
+
+	cl_awe.webViewSetZoom( cl_awesomium.webView, zoomPercent );
+	return qtrue;
+}
+
+/*
+=============
+CL_Awesomium_PauseRendering
+=============
+*/
+extern "C" void CL_Awesomium_PauseRendering( void ) {
+	if ( cl_awesomium.started && cl_awesomium.webView && cl_awe.webViewPauseRendering ) {
+		cl_awe.webViewPauseRendering( cl_awesomium.webView );
+	}
+}
+
+/*
+=============
+CL_Awesomium_Unfocus
+=============
+*/
+extern "C" void CL_Awesomium_Unfocus( void ) {
+	if ( cl_awesomium.started && cl_awesomium.webView && cl_awe.webViewUnfocus ) {
+		cl_awe.webViewUnfocus( cl_awesomium.webView );
+	}
+}
+
 /*
 =============
 CL_Awesomium_Update
@@ -1792,6 +1995,12 @@ CL_Awesomium_Update
 extern "C" void CL_Awesomium_Update( void ) {
 	if ( cl_awesomium.started && cl_awesomium.webCore ) {
 		cl_awe.webCoreUpdate( cl_awesomium.webCore );
+		if ( cl_awesomium.startupScriptInjectionFrames > 0 && cl_awesomium.webView && cl_awesomium.startupScript[0] ) {
+			if ( ( cl_awesomium.startupScriptInjectionFrames % 10 ) == 0 ) {
+				CL_Awesomium_ExecuteJavascript( cl_awesomium.startupScript, "" );
+			}
+			cl_awesomium.startupScriptInjectionFrames--;
+		}
 	}
 }
 
@@ -1841,12 +2050,55 @@ extern "C" qboolean CL_Awesomium_SurfaceDirty( void ) {
 
 /*
 =============
+CL_Awesomium_IsLoading
+=============
+*/
+extern "C" qboolean CL_Awesomium_IsLoading( void ) {
+	if ( cl_awesomium.started && cl_awesomium.webView && cl_awe.webViewIsLoading && cl_awe.webViewIsLoading( cl_awesomium.webView ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_IsCrashed
+=============
+*/
+extern "C" qboolean CL_Awesomium_IsCrashed( void ) {
+	if ( cl_awesomium.started && cl_awesomium.webView && cl_awe.webViewIsCrashed && cl_awe.webViewIsCrashed( cl_awesomium.webView ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_LastErrorCode
+=============
+*/
+extern "C" int CL_Awesomium_LastErrorCode( void ) {
+	if ( cl_awesomium.started && cl_awesomium.webView && cl_awe.webViewLastError ) {
+		return cl_awe.webViewLastError( cl_awesomium.webView );
+	}
+
+	return 0;
+}
+
+/*
+=============
 CL_Awesomium_CopySurface
 =============
 */
 extern "C" qboolean CL_Awesomium_CopySurface( byte *destination, int width, int height, int rowSpan ) {
 	void *surface;
+	const byte *source;
+	int sourceRowSpan;
+	int copyBytes;
 	int byteCount;
+	int y;
 
 	if ( !destination || width <= 0 || height <= 0 || rowSpan <= 0 ) {
 		return qfalse;
@@ -1862,9 +2114,44 @@ extern "C" qboolean CL_Awesomium_CopySurface( byte *destination, int width, int 
 		memset( destination, 0, byteCount );
 	}
 
-	cl_awe.bitmapCopyTo( surface, destination, rowSpan, 4, true, false );
-	cl_awe.bitmapSetIsDirty( surface, false );
-	return qtrue;
+	if ( cl_awe.bitmapCopyTo ) {
+		cl_awe.bitmapCopyTo( surface, destination, rowSpan, 4, true, false );
+		cl_awe.bitmapSetIsDirty( surface, false );
+		return qtrue;
+	}
+
+	source = cl_awe.bitmapBuffer ? cl_awe.bitmapBuffer( surface ) : NULL;
+	sourceRowSpan = cl_awe.bitmapRowSpan ? cl_awe.bitmapRowSpan( surface ) : 0;
+	if ( source && sourceRowSpan > 0 ) {
+		int copyPixels;
+
+		copyPixels = width;
+		if ( copyPixels > rowSpan / 4 ) {
+			copyPixels = rowSpan / 4;
+		}
+		if ( copyPixels > sourceRowSpan / 4 ) {
+			copyPixels = sourceRowSpan / 4;
+		}
+		copyBytes = copyPixels * 4;
+		for ( y = 0; y < height; y++ ) {
+			const byte *src;
+			byte *dst;
+			int x;
+
+			src = source + y * sourceRowSpan;
+			dst = destination + y * rowSpan;
+			for ( x = 0; x < copyBytes; x += 4 ) {
+				dst[x + 0] = src[x + 2];
+				dst[x + 1] = src[x + 1];
+				dst[x + 2] = src[x + 0];
+				dst[x + 3] = src[x + 3];
+			}
+		}
+		cl_awe.bitmapSetIsDirty( surface, false );
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 /*
@@ -1908,6 +2195,17 @@ CL_Awesomium_InjectMouseWheel
 extern "C" void CL_Awesomium_InjectMouseWheel( int direction ) {
 	if ( cl_awesomium.started && cl_awesomium.webView ) {
 		cl_awe.webViewInjectMouseWheel( cl_awesomium.webView, 0, direction * 30 );
+	}
+}
+
+/*
+=============
+CL_Awesomium_InjectKeyboardEvent
+=============
+*/
+extern "C" void CL_Awesomium_InjectKeyboardEvent( unsigned int eventType, unsigned int virtualKeyCode, long nativeKeyCode ) {
+	if ( cl_awesomium.started && cl_awesomium.webView && cl_awe.webViewInjectKeyboardEvent ) {
+		cl_awe.webViewInjectKeyboardEvent( cl_awesomium.webView, eventType, virtualKeyCode, nativeKeyCode );
 	}
 }
 
@@ -2016,6 +2314,33 @@ extern "C" qboolean CL_Awesomium_ExecuteJavascript( const char *script, const ch
 	(void)frame;
 	return qfalse;
 }
+
+/*
+=============
+CL_Awesomium_SetZoom
+=============
+*/
+extern "C" qboolean CL_Awesomium_SetZoom( int zoomPercent ) {
+	(void)zoomPercent;
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_PauseRendering
+=============
+*/
+extern "C" void CL_Awesomium_PauseRendering( void ) {
+}
+
+/*
+=============
+CL_Awesomium_Unfocus
+=============
+*/
+extern "C" void CL_Awesomium_Unfocus( void ) {
+}
+
 /*
 =============
 CL_Awesomium_Update
@@ -2060,6 +2385,33 @@ CL_Awesomium_SurfaceDirty
 */
 extern "C" qboolean CL_Awesomium_SurfaceDirty( void ) {
 	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_IsLoading
+=============
+*/
+extern "C" qboolean CL_Awesomium_IsLoading( void ) {
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_IsCrashed
+=============
+*/
+extern "C" qboolean CL_Awesomium_IsCrashed( void ) {
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_LastErrorCode
+=============
+*/
+extern "C" int CL_Awesomium_LastErrorCode( void ) {
+	return 0;
 }
 
 /*
@@ -2110,6 +2462,17 @@ CL_Awesomium_InjectMouseWheel
 */
 extern "C" void CL_Awesomium_InjectMouseWheel( int direction ) {
 	(void)direction;
+}
+
+/*
+=============
+CL_Awesomium_InjectKeyboardEvent
+=============
+*/
+extern "C" void CL_Awesomium_InjectKeyboardEvent( unsigned int eventType, unsigned int virtualKeyCode, long nativeKeyCode ) {
+	(void)eventType;
+	(void)virtualKeyCode;
+	(void)nativeKeyCode;
 }
 
 /*

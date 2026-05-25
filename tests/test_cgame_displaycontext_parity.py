@@ -18,18 +18,22 @@ CG_ENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_ents.c"
 CG_DRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_draw.c"
 CG_NEWDRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_newdraw.c"
 CG_PREDICT = REPO_ROOT / "src" / "code" / "cgame" / "cg_predict.c"
+CG_CONSOLECMDS = REPO_ROOT / "src" / "code" / "cgame" / "cg_consolecmds.c"
 CG_VIEW = REPO_ROOT / "src" / "code" / "cgame" / "cg_view.c"
 CG_WEAPONS = REPO_ROOT / "src" / "code" / "cgame" / "cg_weapons.c"
 CG_MARKS = REPO_ROOT / "src" / "code" / "cgame" / "cg_marks.c"
+CG_PLAYERSTATE = REPO_ROOT / "src" / "code" / "cgame" / "cg_playerstate.c"
 CG_LOCAL = REPO_ROOT / "src" / "code" / "cgame" / "cg_local.h"
 CG_LOCALENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_localents.c"
 CG_PUBLIC = REPO_ROOT / "src" / "code" / "cgame" / "cg_public.h"
 CG_SCREEN = REPO_ROOT / "src" / "code" / "cgame" / "cg_screen.c"
 CG_SYSCALLS = REPO_ROOT / "src" / "code" / "cgame" / "cg_syscalls.c"
 BG_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "bg_public.h"
+BG_MISC = REPO_ROOT / "src" / "code" / "game" / "bg_misc.c"
 CG_BG_PLAN = REPO_ROOT / "docs" / "reverse-engineering" / "cgame-bg-parity-implementation-plan.md"
 CL_CGAME = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
 G_CLIENT = REPO_ROOT / "src" / "code" / "game" / "g_client.c"
+G_COMBAT = REPO_ROOT / "src" / "code" / "game" / "g_combat.c"
 G_ITEMS = REPO_ROOT / "src" / "code" / "game" / "g_items.c"
 G_MAIN = REPO_ROOT / "src" / "code" / "game" / "g_main.c"
 QL_CGAME_IMPORTS = REPO_ROOT / "src" / "code" / "client" / "ql_cgame_imports.inc"
@@ -62,6 +66,14 @@ CGAME_HLIL = (
 	/ "quakelive"
 	/ "cgamex86.dll"
 	/ "cgamex86.dll_hlil.txt"
+)
+UI_HLIL = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "uix86.all"
+	/ "uix86.dll_hlil.txt"
 )
 
 
@@ -3664,10 +3676,22 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 	assert "const char\t*maximumString;" in table_decl
 	assert "static int  cvarTableSize = sizeof( cvarTable ) / sizeof( cvarTable[0] );" in source
 	for expected in (
-		'{ &cg_autoAction, "cg_autoAction", "0", CVAR_ARCHIVE | CVAR_LATCH },',
-		'{ &cg_autoHop, "cg_autoHop", "1", CVAR_ARCHIVE | CVAR_LATCH },',
+		'{ &cg_armorTiered, "cg_armorTiered", "0", CVAR_ROM },',
+		'{ &cg_addMarks, "cg_marks", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_allowTaunt, "cg_allowTaunt", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },',
+		'{ &cg_announcer, "cg_announcer", "1", ' + retail_flags + ', "1", "3" },',
+		'{ &cg_announcerRewardsVO, "cg_announcerRewardsVO", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_autoAction, "cg_autoAction", "3", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "3" },',
+		'{ &cg_autoHop, "cg_autoHop", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD, "0", "1" },',
 		'{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_bob, "cg_bob", "0.25", ' + retail_flags + ', "0.0", "1.0" },',
+		'{ &cg_buzzerSound, "cg_buzzerSound", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_cameraOrbit, "cg_cameraOrbit", "0", CVAR_CHEAT},',
+		'{ &cg_cameraOrbitDelay, "cg_cameraOrbitDelay", "50", CVAR_CHEAT},',
+		'{ &cg_cameraSmartMode, "cg_cameraSmartMode", "0", CVAR_CHEAT},',
+		'{ &cg_cameraThirdPersonSmartMode, "cg_cameraThirdPersonSmartMode", "1", CVAR_CHEAT},',
+		'{ &cg_centertime, "cg_centertime", "3", CVAR_CHEAT },',
 		'{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "1", 0 },',
 		'{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_CHEAT },',
 		'{ &cg_crosshairBrightness, "cg_crosshairBrightness", "1.0", ' + retail_flags + ', "0.0", "1.0" },',
@@ -3680,10 +3704,31 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 		'{ &cg_crosshairSize, "cg_crosshairSize", "32", ' + retail_flags + ', "0", "320" },',
 		'{ &cg_crosshairX, "cg_crosshairX", "0", ' + retail_flags + ', "-320", "320" },',
 		'{ &cg_crosshairY, "cg_crosshairY", "0", ' + retail_flags + ', "-240", "240" },',
+		'{ &cg_chatbeep, "cg_chatbeep", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_chatHistoryLength, "cg_chatHistoryLength", "6", ' + retail_flags + ', "0", "24" },',
+		'{ &cg_complaintWarning, "cg_complaintWarning", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_currentSelectedPlayer, "cg_currentSelectedPlayer", "0", 0 },',
+		'{ &cg_currentSelectedPlayerName, "cg_currentSelectedPlayerName", "", 0 },',
 		'{ &cg_damagePlum, "cg_damagePlum", "g mg sg gl rl lg rg pg bfg gh cg ng pl hmg", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_damagePlumColorStyle, "cg_damagePlumColorStyle", "1", ' + retail_flags + ', "1", "3" },',
+		'{ &cg_debugAnim, "cg_debuganim", "0", CVAR_CHEAT },',
+		'{ &cg_debugEvents, "cg_debugevents", "0", CVAR_CHEAT },',
 		'{ &cg_deadBodyColor, "cg_deadBodyColor", "0x101010FF", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_disableLoadout_g, "cg_disableLoadout_g", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_bfg, "cg_disableLoadout_bfg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_pl, "cg_disableLoadout_pl", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM },',
 		'{ &cg_deferPlayers, "cg_deferPlayers", "0", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_draw2D, "cg_draw2D", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_draw3dIcons, "cg_draw3dIcons", "1", ' + retail_flags + ', "0", "1" },',
@@ -3715,13 +3760,29 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 		'{ &cg_filter_angles, "cg_filter_angles", "0", 0 },',
 		'{ &cg_followKiller, "cg_followKiller", "0", CVAR_VM_CREATED, "0", "1" },',
 		'{ &cg_followPowerup, "cg_followPowerup", "0", CVAR_VM_CREATED, "0", "2" },',
+		'{ &cg_forceBlueTeamModel, "cg_forceBlueTeamModel", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceDrawCrosshair, "cg_forceDrawCrosshair", "0", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_forceEnemyModel, "cg_forceEnemyModel", "", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", ' + retail_protected_cloud_flags + ' },',
-		'{ &cg_forceDrawCrosshair, "cg_forceDrawCrosshair", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_forceRedTeamModel, "cg_forceRedTeamModel", "", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_forceTeamModel, "cg_forceTeamModel", "", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_fov, "cg_fov", "100", ' + retail_flags + ', "10", "130" },',
+		'{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },',
+		'{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },',
+		'{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },',
+		'{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },',
+		'{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },',
+		'{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },',
+		'{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },',
+		'{ &cg_gun_x, "cg_gunX", "0", ' + retail_flags + ', "-10", "10" },',
+		'{ &cg_gun_y, "cg_gunY", "0", ' + retail_flags + ', "-10", "20" },',
+		'{ &cg_gun_z, "cg_gunZ", "0", ' + retail_flags + ', "-8", "0" },',
 		'{ &cg_flagPOIs, "cg_flagPOIs", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_PROTECTED | CVAR_CLOUD },',
+		'{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ROM },',
 		'{ &cg_itemTimers, "cg_itemTimers", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_kickScale, "cg_kickScale", "0.25", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_lagometer, "cg_lagometer", "0", ' + retail_flags + ', "0", "2" },',
@@ -3731,6 +3792,9 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 		'{ &cg_poiMinWidth, "cg_poiMinWidth", "16.0", ' + retail_flags + ', "2.0", "16.0" },',
 		'{ &cg_poiMaxWidth, "cg_poiMaxWidth", "32.0", ' + retail_flags + ', "16.0", "32.0" },',
 		'{ &cg_powerupPOIs, "cg_powerupPOIs", "2", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_playVoiceChats, "cg_playVoiceChats", "0", CVAR_CHEAT },',
+		'{ &cg_predictItems, "cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },',
+		'{ &cg_showVoiceText, "cg_showVoiceText", "0", CVAR_CHEAT },',
 		'{ &cg_simpleItems, "cg_simpleItems", "0", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_simpleItemsBob, "cg_simpleItemsBob", "2", ' + retail_flags + ', "0", "2" },',
 		'{ &cg_simpleItemsHeightOffset, "cg_simpleItemsHeightOffset", "8", ' + retail_flags + ', "0", "18" },',
@@ -3817,6 +3881,1283 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 	assert '{"cg_forceDrawCrosshair"}' in retail_force_cvar_table
 
 
+def test_cgame_early_audio_effect_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	marks_source = CG_MARKS.read_text(encoding="utf-8")
+	players_source = CG_PLAYERS.read_text(encoding="utf-8")
+	playerstate_source = CG_PLAYERSTATE.read_text(encoding="utf-8")
+	predict_source = CG_PREDICT.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	effects_source = CG_EFFECTS.read_text(encoding="utf-8")
+	bg_misc_source = BG_MISC.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_cvar_table = _text_between(hlil_source, "10076a00  void* data_10076a00", "10076be0  void* data_10076be0")
+	register_block = _block_from_marker(main_source, "void CG_RegisterCvars")
+	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
+	automation_block = _block_from_marker(main_source, "static void CG_UpdateAutomationSettings")
+	announcer_path_block = _block_from_marker(main_source, "static const char *CG_BuildAnnouncerSoundPath")
+	announcer_update_block = _block_from_marker(main_source, "static void CG_UpdateAnnouncerProfileFromCvar")
+	item_pickup_block = _block_from_marker(event_source, "static void CG_ItemPickup")
+	run_lerp_block = _block_from_marker(players_source, "static void CG_RunLerpFrame")
+	push_reward_block = _block_from_marker(playerstate_source, "void pushReward")
+	local_sounds_block = _block_from_marker(playerstate_source, "void CG_CheckLocalSounds")
+	parse_armor_block = _block_from_marker(servercmds_source, "static void CG_ParseArmorTieredConfigString")
+	impact_mark_block = _block_from_marker(marks_source, "void CG_ImpactMark")
+	add_marks_block = _block_from_marker(marks_source, "void CG_AddMarks")
+	machinegun_brass_block = _block_from_marker(weapons_source, "static void CG_MachineGunEjectBrass")
+	shotgun_brass_block = _block_from_marker(weapons_source, "static void CG_ShotgunEjectBrass")
+	fire_weapon_block = _block_from_marker(weapons_source, "void CG_FireWeapon")
+	bubble_block = _block_from_marker(effects_source, "void CG_BubbleTrail")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+
+	for expected in (
+		'{ &cg_armorTiered, "cg_armorTiered", "0", CVAR_ROM },',
+		'{ &cg_addMarks, "cg_marks", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_allowTaunt, "cg_allowTaunt", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },',
+		'{ &cg_announcer, "cg_announcer", "1", ' + retail_flags + ', "1", "3" },',
+		'{ &cg_announcerRewardsVO, "cg_announcerRewardsVO", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_autoswitch, "cg_autoswitch", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_autoProjectileNudge, "cg_autoProjectileNudge", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_brassTime, "cg_brassTime", "2500", ' + retail_flags + ', "0", "10000" },',
+		'{ &cg_bubbleTrail, "cg_bubbleTrail", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_buzzerSound, "cg_buzzerSound", "1", ' + retail_flags + ', "0", "1" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_armorTiered"}',
+		'{"cg_marks"}',
+		'{"cg_allowTaunt"}',
+		'{"cg_animspeed"}',
+		'{"cg_announcer"}',
+		'{"cg_announcerRewardsVO"}',
+		'{"cg_autoswitch"}',
+		'{"cg_autoProjectileNudge"}',
+		'{"cg_brassTime"}',
+		'{"cg_bubbleTrail"}',
+		'{"cg_buzzerSound"}',
+	):
+		assert expected in retail_cvar_table
+	assert "40 00 00 00" in retail_cvar_table
+	assert "01 18 08 00" in retail_cvar_table
+
+	assert "cg.armorTieredEnabled = (qboolean)( cg_armorTiered.integer != 0 );" in register_block
+	assert "cg.armorTieredEnabled = (qboolean)( cg_armorTiered.integer != 0 );" in update_block
+	assert 'trap_Cvar_Set( "cg_armorTiered", value );' in parse_armor_block
+	assert "trap_Cvar_Update( &cg_armorTiered );" in parse_armor_block
+	assert "return cg_armorTiered.integer ? qtrue : qfalse;" in bg_misc_source
+
+	assert "if ( !temporary && ( !cg_addMarks.integer || !cg.time ) ) {" in impact_mark_block
+	assert "if ( !cg_addMarks.integer || !cg.time ) {" in add_marks_block
+	assert "if ( !cg_allowTaunt.integer ) {" in event_source
+	assert "if ( cg_animSpeed.integer == 0 ) {" in run_lerp_block
+
+	assert "switch ( cg_announcer.integer ) {" in announcer_path_block
+	assert 'trap_Cvar_Set( "cg_announcer", "1" );' in announcer_path_block
+	assert "CG_RegisterPowerupAnnouncerSounds();" in announcer_update_block
+	assert "if ( cgs.announcerProfile == ANNOUNCER_PROFILE_DISABLED || !cg_announcerRewardsVO.integer ) {" in push_reward_block
+	assert "rewardVOEnabled = (qboolean)( cg_announcerRewardsVO.integer && cgs.announcerProfile != ANNOUNCER_PROFILE_DISABLED );" in local_sounds_block
+
+	assert "if ( cg_autoswitch.integer && weapon != WP_MACHINEGUN ) {" in item_pickup_block
+	assert "cg.autoProjectileNudgeEnabled = (qboolean)( cg_autoProjectileNudge.integer != 0 );" in automation_block
+	assert "cg.projectileNudgeActive = (qboolean)( cg.autoProjectileNudgeEnabled || ( clampedNudge > 0.0f ) );" in automation_block
+	assert "if ( cg.autoProjectileNudgeEnabled && cg.snap ) {" in predict_source
+	assert "if ( cg_brassTime.integer <= 0 ) {" in machinegun_brass_block
+	assert "le->endTime = le->startTime + cg_brassTime.integer + ( cg_brassTime.integer / 4 ) * random();" in machinegun_brass_block
+	assert "le->endTime = le->startTime + cg_brassTime.integer*3 + cg_brassTime.integer * random();" in shotgun_brass_block
+	assert "if ( weap->ejectBrassFunc && cg_brassTime.integer > 0 ) {" in fire_weapon_block
+	assert "if ( !cg_bubbleTrail.integer ) {" in bubble_block
+	assert 'cgs.media.buzzerSound = trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse );' in main_source
+	assert "static void CG_PlayBuzzerSound( void ) {" in event_source
+	assert "if ( !cg_buzzerSound.integer || !cgs.media.buzzerSound ) {" in event_source
+	assert "trap_S_StartLocalSound( cgs.media.buzzerSound, CHAN_LOCAL_SOUND );" in event_source
+	assert event_source.count("CG_PlayBuzzerSound();") == 3
+
+
+def test_cgame_remaining_retail_cvars_match_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	effects_source = CG_EFFECTS.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	players_source = CG_PLAYERS.read_text(encoding="utf-8")
+	playerstate_source = CG_PLAYERSTATE.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_cvar_table = _text_between(
+		hlil_source,
+		"10076a00  void* data_10076a00",
+		"10078488  void* data_10078488",
+	)
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	retail_rows = (
+		'{ &cg_announcerLastStandingVO, "cg_announcerLastStandingVO", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_announcerLeadsVO, "cg_announcerLeadsVO", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_announcerTiesVO, "cg_announcerTiesVO", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_blood, "cg_blood", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_blueTeamName, "cg_blueTeamName", "", 0 },',
+		'{ &cg_debugFlags, "cg_debugFlags", "0", CVAR_CHEAT },',
+		'{ &cg_flagStyle, "cg_flagStyle", "1", ' + retail_flags + ', "1", "2" },',
+		'{ &cg_redTeamName, "cg_redTeamName", "", 0 },',
+		'{ &cg_specDuelHealthArmor, "cg_specDuelHealthArmor", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_specDuelHealthColor, "cg_specDuelHealthColor", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_specFov, "cg_specFov", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_specTeamVitals, "cg_specTeamVitals", "1", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_specTeamVitalsWidth, "cg_specTeamVitalsWidth", "100", ' + retail_flags + ', "60", "120" },',
+		'{ &cg_specTeamVitalsY, "cg_specTeamVitalsY", "85", ' + retail_flags + ', "0", "480" },',
+	)
+	retail_names = (
+		"cg_announcerLastStandingVO",
+		"cg_announcerLeadsVO",
+		"cg_announcerTiesVO",
+		"cg_blood",
+		"cg_blueTeamName",
+		"cg_debugFlags",
+		"cg_flagStyle",
+		"cg_redTeamName",
+		"cg_specDuelHealthArmor",
+		"cg_specDuelHealthColor",
+		"cg_specFov",
+		"cg_specTeamVitals",
+		"cg_specTeamVitalsHealthColor",
+		"cg_specTeamVitalsWidth",
+		"cg_specTeamVitalsY",
+	)
+	register_graphics_block = _block_from_marker(main_source, "static void CG_RegisterGraphics")
+	load_client_block = _block_from_marker(players_source, "static void CG_LoadClientInfo")
+	player_powerups_block = _block_from_marker(players_source, "static void CG_PlayerPowerups")
+	flag_model_block = _block_from_marker(draw_source, "void CG_DrawFlagModel")
+	team_info_gate_block = _block_from_marker(draw_source, "static qboolean CG_ShouldDrawTeamInfo")
+	team_info_row_block = _block_from_marker(draw_source, "static void CG_DrawTeamInfoRow")
+	team_info_block = _block_from_marker(draw_source, "static void CG_DrawTeamInfo")
+	domination_block = _block_from_marker(event_source, "static void CG_PlayDominationPointAnnouncement")
+	entity_event_block = _block_from_marker(event_source, "void CG_EntityEvent")
+	local_sounds_block = _block_from_marker(playerstate_source, "void CG_CheckLocalSounds")
+	spectator_health_block = _block_from_marker(newdraw_source, "static void CG_DrawSpectatorHealthArmor")
+	spectator_comparison_block = _block_from_marker(newdraw_source, "static void CG_DrawSpectatorComparison")
+	fov_block = _block_from_marker(view_source, "static int CG_CalcFov")
+
+	for expected in retail_rows:
+		assert expected in cvar_table
+	for name in retail_names:
+		assert f'{{"{name}"}}' in retail_cvar_table
+		assert f"extern\tvmCvar_t\t\t{name};" in local_source
+
+	assert '"com_blood"' not in cvar_table
+	assert '"g_blueteam"' not in cvar_table
+	assert '"g_redteam"' not in cvar_table
+	for runtime_source in (
+		draw_source,
+		effects_source,
+		event_source,
+		newdraw_source,
+		players_source,
+		playerstate_source,
+		view_source,
+		weapons_source,
+	):
+		assert '"cg_debugFlags"' not in runtime_source
+
+	assert "if ( !cg_announcerLeadsVO.integer ) {" in domination_block
+	assert "cg_announcerLastStandingVO.integer &&" in entity_event_block
+	assert "ps->persistant[PERS_RANK] == 0 && cg_announcerLeadsVO.integer" in local_sounds_block
+	assert "ps->persistant[PERS_RANK] == RANK_TIED_FLAG && cg_announcerTiesVO.integer" in local_sounds_block
+	assert "( ops->persistant[PERS_RANK] & ~RANK_TIED_FLAG ) == 0 && cg_announcerLeadsVO.integer" in local_sounds_block
+
+	assert "if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {" in effects_source
+	assert "if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {" in weapons_source
+	assert "Q_strncpyz(teamname, cg_blueTeamName.string, sizeof(teamname) );" in load_client_block
+	assert "Q_strncpyz(teamname, cg_redTeamName.string, sizeof(teamname) );" in load_client_block
+
+	assert 'cgs.media.redFlagModel3 = trap_R_RegisterModel( "models/flag3/r_flag3.md3" );' in register_graphics_block
+	assert 'cgs.media.blueFlagModel3 = trap_R_RegisterModel( "models/flag3/b_flag3.md3" );' in register_graphics_block
+	assert 'cgs.media.neutralFlagModel3 = trap_R_RegisterModel( "models/flag3/n_flag3.md3" );' in register_graphics_block
+	for expected in (
+		"qhandle_t\tredFlagModel3;",
+		"qhandle_t\tblueFlagModel3;",
+		"qhandle_t\tneutralFlagModel3;",
+	):
+		assert expected in local_source
+	assert "useFlagStyle3 = (qboolean)( cg_flagStyle.integer == 2 );" in flag_model_block
+	assert "( useFlagStyle3 && cgs.media.redFlagModel3 ) ? cgs.media.redFlagModel3 : cgs.media.redFlagModel" in flag_model_block
+	assert "cg_flagStyle.integer == 2 && cgs.media.redFlagModel3" in player_powerups_block
+	assert "cg_flagStyle.integer == 2 && cgs.media.blueFlagModel3" in player_powerups_block
+	assert "cg_flagStyle.integer == 2 && cgs.media.neutralFlagModel3" in player_powerups_block
+
+	assert "if ( cg_specTeamVitals.integer <= 0 ) {" in team_info_gate_block
+	assert "barWidth = cg_specTeamVitalsWidth.value;" in team_info_row_block
+	assert "if ( !cg_specTeamVitalsHealthColor.integer ) {" in team_info_row_block
+	assert "teamY[i] = cg_specTeamVitalsY.value;" in team_info_block
+	assert "if ( !cg_specDuelHealthArmor.integer ) {" in spectator_health_block
+	assert "if ( !cg_specDuelHealthColor.integer ) {" in spectator_health_block
+	assert "if ( !cg_specDuelHealthArmor.integer ) {" in spectator_comparison_block
+	assert "if ( !cg_specDuelHealthColor.integer ) {" in spectator_comparison_block
+	assert "useSpectatorFov = (qboolean)( cg_specFov.integer &&" in fov_block
+	assert "cg.predictedPlayerState.fov > 0 &&" in fov_block
+	assert "fov_x = cg.predictedPlayerState.fov;" in fov_block
+
+
+def test_cgame_camera_selection_debug_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	consolecmds_source = CG_CONSOLECMDS.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	players_source = CG_PLAYERS.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	camera_retail_table = _text_between(hlil_source, "10076bf8  void* data_10076bf8", "10076c70  void* data_10076c70")
+	selection_debug_retail_table = _text_between(hlil_source, "10076da8  void* data_10076da8", "10076e68  void* data_10076e68")
+
+	for expected in (
+		'{ &cg_cameraOrbit, "cg_cameraOrbit", "0", CVAR_CHEAT},',
+		'{ &cg_cameraOrbitDelay, "cg_cameraOrbitDelay", "50", CVAR_CHEAT},',
+		'{ &cg_cameraSmartMode, "cg_cameraSmartMode", "0", CVAR_CHEAT},',
+		'{ &cg_cameraThirdPersonSmartMode, "cg_cameraThirdPersonSmartMode", "1", CVAR_CHEAT},',
+		'{ &cg_centertime, "cg_centertime", "3", CVAR_CHEAT },',
+		'{ &cg_currentSelectedPlayer, "cg_currentSelectedPlayer", "0", 0 },',
+		'{ &cg_currentSelectedPlayerName, "cg_currentSelectedPlayerName", "", 0 },',
+		'{ &cg_debugAnim, "cg_debuganim", "0", CVAR_CHEAT },',
+		'{ &cg_debugEvents, "cg_debugevents", "0", CVAR_CHEAT },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_cameraOrbit"}',
+		'{"cg_cameraOrbitDelay"}',
+		'{"cg_cameraSmartMode"}',
+		'{"cg_cameraThirdPersonSmartMode"}',
+		'{"cg_centertime"}',
+	):
+		assert expected in camera_retail_table
+	assert camera_retail_table.count("00 02 00 00") == 5
+
+	for expected in (
+		'{"cg_currentSelectedPlayer"}',
+		'{"cg_currentSelectedPlayerName"}',
+		'{"cg_debuganim"}',
+		'{"cg_debugevents"}',
+	):
+		assert expected in selection_debug_retail_table
+	assert selection_debug_retail_table.count("00 00 00 00") >= 2
+	assert selection_debug_retail_table.count("00 02 00 00") >= 2
+
+	for expected in (
+		'trap_Cvar_Set("cg_cameraOrbit", "2");',
+		'trap_Cvar_Set("cg_cameraOrbitDelay", "35");',
+		"if (cg_cameraOrbit.value != 0) {",
+		'trap_Cvar_Set ("cg_cameraOrbit", "0");',
+		'trap_Cvar_Set("cg_cameraOrbit", "5");',
+	):
+		assert expected in consolecmds_source
+	for expected in (
+		"if (cg_cameraOrbit.integer) {",
+		"cg.nextOrbitTime = cg.time + cg_cameraOrbitDelay.integer;",
+		"cg_thirdPersonAngle.value += cg_cameraOrbit.value;",
+		"( cg_thirdPerson.integer == 0 || cg_cameraThirdPersonSmartMode.integer == 0 ) &&",
+		"cg_cameraSmartMode.integer == 0 &&",
+	):
+		assert expected in view_source
+	assert "color = CG_FadeColor( cg.centerPrintTime, 1000 * cg_centertime.value );" in draw_source
+
+	for expected in (
+		"if (cg_currentSelectedPlayer.integer == numSortedTeamPlayers) {",
+		"sortedTeamPlayers[cg_currentSelectedPlayer.integer]",
+		'trap_Cvar_Set("cg_selectedPlayerName", ci->name);',
+		'trap_Cvar_Set("cg_selectedPlayer", va("%d", sortedTeamPlayers[cg_currentSelectedPlayer.integer]));',
+		"cg_currentSelectedPlayer.integer = 0;",
+		"cg_currentSelectedPlayer.integer++;",
+		"cg_currentSelectedPlayer.integer--;",
+	):
+		assert expected in newdraw_source
+	assert main_source.count("cg_currentSelectedPlayerName") == 3
+	assert local_source.count("cg_currentSelectedPlayerName") == 1
+	for source in (consolecmds_source, draw_source, event_source, newdraw_source, players_source, view_source):
+		assert "cg_currentSelectedPlayerName" not in source
+
+	for expected in (
+		"if ( cg_debugAnim.integer ) {",
+		'CG_Printf( "Anim: %i\\n", newAnimation );',
+		'CG_Printf( "Clamp lf->frameTime\\n");',
+	):
+		assert expected in players_source
+	assert '#define\tDEBUGNAME(x) if(cg_debugEvents.integer){CG_Printf(x"\\n");}' in event_source
+	assert "if ( cg_debugEvents.integer ) {" in event_source
+
+
+def test_cgame_thirdperson_timescale_tracer_and_track_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	consolecmds_source = CG_CONSOLECMDS.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(
+		hlil_source,
+		"10078050  void* data_10078050",
+		"10078158  void* data_10078158",
+	)
+	retail_string_block = _text_between(
+		hlil_source,
+		"1006ac48  char const data_1006ac48",
+		"1006ac74  char const data_1006ac74",
+	)
+	third_person_special_block = _block_from_marker(view_source, "static void CG_OffsetThirdPersonViewSpecial")
+	third_person_block = _block_from_marker(view_source, "static void CG_OffsetThirdPersonView")
+	calc_view_values_block = _block_from_marker(view_source, "static int CG_CalcViewValues")
+	draw_frame_block = _block_from_marker(view_source, "void CG_DrawActiveFrame")
+	tracer_block = _block_from_marker(weapons_source, "void CG_Tracer")
+	bullet_block = _block_from_marker(weapons_source, "void CG_Bullet")
+	track_set_block = _block_from_marker(newdraw_source, "static void CG_SetTrackPlayerCvarValue")
+	track_update_block = _block_from_marker(newdraw_source, "void CG_UpdateSpectatorTracking")
+
+	for expected in (
+		'{ &cg_thirdPerson, "cg_thirdPerson", "0", CVAR_CHEAT },',
+		'{ &cg_thirdPersonAngle, "cg_thirdPersonAngle", "0", CVAR_CHEAT },',
+		'{ &cg_thirdPersonPitch, "cg_thirdPersonPitch", "-1", CVAR_CHEAT },',
+		'{ &cg_thirdPersonRange, "cg_thirdPersonRange", "80", CVAR_CHEAT },',
+		'{ &cg_timescaleFadeEnd, "cg_timescaleFadeEnd", "1", 0},',
+		'{ &cg_timescaleFadeSpeed, "cg_timescaleFadeSpeed", "0", 0},',
+		'{ &cg_tracerChance, "cg_tracerchance", "0.4", CVAR_CHEAT },',
+		'{ &cg_tracerLength, "cg_tracerlength", "100", CVAR_CHEAT },',
+		'{ &cg_tracerWidth, "cg_tracerwidth", "1", CVAR_CHEAT },',
+		'{ &cg_trackPlayer, "cg_trackPlayer", "-1", CVAR_CHEAT },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_thirdPerson"}',
+		'{"cg_thirdPersonAngle"}',
+		'{"cg_thirdPersonPitch"}',
+		'{"cg_thirdPersonRange"}',
+		'{"cg_timescaleFadeEnd"}',
+		'{"cg_timescaleFadeSpeed"}',
+		'{"cg_tracerchance"}',
+		'{"cg_tracerlength"}',
+		'{"cg_tracerwidth"}',
+		'{"cg_trackPlayer"}',
+	):
+		assert expected in retail_table
+	assert "10078088  void* data_10078088 = 0x1006ac70" in retail_table
+	assert "100780a0  void* data_100780a0 = 0x1006ac6c" in retail_table
+	assert "10078148  void* data_10078148 = 0x1006ac70" in retail_table
+	assert retail_table.count("00 02 00 00") >= 8
+	assert retail_table.count("00 00 00 00") >= 2
+	assert "38 30 00 00 2d 31 00" in retail_string_block
+
+	assert 'trap_Cvar_Set("cg_thirdPerson", "1");' in consolecmds_source
+	assert 'trap_Cvar_Set("cg_thirdPerson", "0");' in consolecmds_source
+	assert 'trap_Cvar_Set("cg_thirdPerson", "0");' in servercmds_source
+	assert "if ( cg_thirdPerson.integer == 2 ) {" in third_person_block
+	assert "if ( cg_thirdPersonAngle.value != 0.0f ) {" in third_person_special_block
+	assert "if ( cg_thirdPersonPitch.value != -1.0f ) {" in third_person_special_block
+	assert "VectorMA( cg.refdef.vieworg, -cg_thirdPersonRange.value, forward, cg.refdef.vieworg );" in third_person_special_block
+	assert "forwardScale = cos( cg_thirdPersonAngle.value / 180 * M_PI );" in third_person_block
+	assert "VectorMA( view, -cg_thirdPersonRange.value * forwardScale, forward, view );" in third_person_block
+	assert "cg_thirdPersonAngle.value += cg_cameraOrbit.value;" in calc_view_values_block
+	assert "cg.renderingThirdPerson = (qboolean)( ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )" in draw_frame_block
+	assert "|| ( cg_thirdPerson.integer && ( cg.demoPlayback || cg_singlePlayerActive.integer ) )" in draw_frame_block
+	assert "cg_thirdPerson.integer == 0" in weapons_source
+
+	assert "if (cg_timescale.value != cg_timescaleFadeEnd.value) {" in draw_frame_block
+	assert "cg_timescale.value += cg_timescaleFadeSpeed.value * ((float)cg.frametime) / 1000;" in draw_frame_block
+	assert "cg_timescale.value -= cg_timescaleFadeSpeed.value * ((float)cg.frametime) / 1000;" in draw_frame_block
+	assert 'trap_Cvar_Set("timescale", va("%f", cg_timescale.value));' in draw_frame_block
+
+	assert "end = begin + cg_tracerLength.value;" in tracer_block
+	assert "VectorMA( finish, cg_tracerWidth.value, right, verts[0].xyz );" in tracer_block
+	assert "VectorMA( start, cg_tracerWidth.value, right, verts[3].xyz );" in tracer_block
+	assert "if ( sourceEntityNum >= 0 && cg_tracerChance.value > 0 ) {" in bullet_block
+	assert "if ( random() < cg_tracerChance.value ) {" in bullet_block
+	assert "CG_Tracer( start, end );" in bullet_block
+
+	assert 'trap_Cvar_Set( "cg_trackPlayer", "-1" );' in track_set_block
+	assert 'trap_Cvar_Set( "cg_trackPlayer", va( "%d", clientNum ) );' in track_set_block
+	assert "cg_trackPlayer.integer = clientNum;" in track_set_block
+	assert "target = cg_trackPlayer.integer;" in track_update_block
+	assert "CG_SetTrackPlayerCvarValue( target );" in track_update_block
+
+
+def test_cgame_disable_loadout_cvars_match_retail_table_and_configstring_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	bg_public_source = BG_PUBLIC.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_loadout_table = _text_between(hlil_source, "10076e98  void* data_10076e98", "10076fe8  void* data_10076fe8")
+	retail_update_block = _text_between(hlil_source, "1004a0ca          if (eax_1 == 0x2c9)", "1004a19d")
+	parse_mask_block = _block_from_marker(servercmds_source, "static unsigned long CG_ParseUnsignedConfigMask")
+	disable_block = _block_from_marker(servercmds_source, "static void CG_ParseDisableLoadoutConfigString")
+	set_config_values_block = _block_from_marker(servercmds_source, "void CG_SetConfigValues")
+	parse_serverinfo_block = _block_from_marker(servercmds_source, "void CG_ParseServerinfo")
+	configstring_modified_block = _block_from_marker(servercmds_source, "static void CG_ConfigStringModified")
+
+	for expected in (
+		'{ &cg_disableLoadout_g, "cg_disableLoadout_g", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_gl, "cg_disableLoadout_gl", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_rl, "cg_disableLoadout_rl", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_lg, "cg_disableLoadout_lg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_rg, "cg_disableLoadout_rg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_pg, "cg_disableLoadout_pg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_bfg, "cg_disableLoadout_bfg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_ng, "cg_disableLoadout_ng", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_pl, "cg_disableLoadout_pl", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ROM },',
+		'{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_disableLoadout_g"}',
+		'{"cg_disableLoadout_mg"}',
+		'{"cg_disableLoadout_sg"}',
+		'{"cg_disableLoadout_gl"}',
+		'{"cg_disableLoadout_rl"}',
+		'{"cg_disableLoadout_lg"}',
+		'{"cg_disableLoadout_rg"}',
+		'{"cg_disableLoadout_pg"}',
+		'{"cg_disableLoadout_bfg"}',
+		'{"cg_disableLoadout_gh"}',
+		'{"cg_disableLoadout_ng"}',
+		'{"cg_disableLoadout_pl"}',
+		'{"cg_disableLoadout_cg"}',
+		'{"cg_disableLoadout_hmg"}',
+	):
+		assert expected in retail_loadout_table
+	assert retail_loadout_table.count("40 00 00 00") >= 14
+
+	for expected in (
+		"#define CG_DISABLE_LOADOUT_G\t\t( 1u << 0 )",
+		"#define CG_DISABLE_LOADOUT_MG\t\t( 1u << 1 )",
+		"#define CG_DISABLE_LOADOUT_SG\t\t( 1u << 2 )",
+		"#define CG_DISABLE_LOADOUT_GL\t\t( 1u << 3 )",
+		"#define CG_DISABLE_LOADOUT_RL\t\t( 1u << 4 )",
+		"#define CG_DISABLE_LOADOUT_LG\t\t( 1u << 5 )",
+		"#define CG_DISABLE_LOADOUT_RG\t\t( 1u << 6 )",
+		"#define CG_DISABLE_LOADOUT_PG\t\t( 1u << 7 )",
+		"#define CG_DISABLE_LOADOUT_BFG\t\t( 1u << 8 )",
+		"#define CG_DISABLE_LOADOUT_GH\t\t( 1u << 9 )",
+		"#define CG_DISABLE_LOADOUT_NG\t\t( 1u << 10 )",
+		"#define CG_DISABLE_LOADOUT_PL\t\t( 1u << 11 )",
+		"#define CG_DISABLE_LOADOUT_CG\t\t( 1u << 12 )",
+		"#define CG_DISABLE_LOADOUT_HMG\t\t( 1u << 13 )",
+		'{ "g", CG_DISABLE_LOADOUT_G }',
+		'{ "mg", CG_DISABLE_LOADOUT_MG }',
+		'{ "sg", CG_DISABLE_LOADOUT_SG }',
+		'{ "gl", CG_DISABLE_LOADOUT_GL }',
+		'{ "rl", CG_DISABLE_LOADOUT_RL }',
+		'{ "lg", CG_DISABLE_LOADOUT_LG }',
+		'{ "rg", CG_DISABLE_LOADOUT_RG }',
+		'{ "pg", CG_DISABLE_LOADOUT_PG }',
+		'{ "bfg", CG_DISABLE_LOADOUT_BFG }',
+		'{ "gh", CG_DISABLE_LOADOUT_GH }',
+		'{ "ng", CG_DISABLE_LOADOUT_NG }',
+		'{ "pl", CG_DISABLE_LOADOUT_PL }',
+		'{ "cg", CG_DISABLE_LOADOUT_CG }',
+		'{ "hmg", CG_DISABLE_LOADOUT_HMG }',
+	):
+		assert expected in servercmds_source
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_disableLoadout_g;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_mg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_sg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_gl;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_rl;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_lg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_rg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_pg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_bfg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_gh;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_ng;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_pl;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_cg;",
+		"extern\tvmCvar_t\t\tcg_disableLoadout_hmg;",
+	):
+		assert expected in local_source
+
+	assert "#define CS_LOADOUT_FLAGS\t\t0x2C7" in bg_public_source
+	assert "#define CS_LOADOUT_MASK\t\t0x2C9" in bg_public_source
+	for expected in (
+		"if (eax_1 == 0x2c9)",
+		"if (eax_1 == 0x2c7)",
+		"data_10a249cc == 0",
+		"data_10a3ff2c & ebx_7",
+		"data_10a601dc & ror.d(ebx_7, 1)",
+		'"cg_disableLoadout_%s"',
+		"&data_10068c04",
+		"&data_1006841c",
+	):
+		assert expected in retail_update_block
+
+	for expected in (
+		"if ( !configstring || !configstring[0] ) {",
+		"mask = strtoul( configstring, &end, 0 );",
+		"if ( end == configstring ) {",
+	):
+		assert expected in parse_mask_block
+	for expected in (
+		"flags = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_FLAGS ) );",
+		"mapMask = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_MASK ) );",
+		"for ( entry = cg_retailDisableLoadoutTokens; entry->token; ++entry ) {",
+		"shiftedMask = entry->mask << 1;",
+		"disabled = (qboolean)( !cg_loadout.integer || ( flags & entry->mask ) ||",
+		"( flags & shiftedMask ) || ( mapMask & entry->mask ) );",
+		'Com_sprintf( cvarName, sizeof( cvarName ), "cg_disableLoadout_%s", entry->token );',
+		"trap_Cvar_VariableStringBuffer( cvarName, currentValue, sizeof( currentValue ) );",
+		"trap_Cvar_Set( cvarName, resolvedValue );",
+	):
+		assert expected in disable_block
+	assert "CG_ParseDisableLoadoutConfigString();" in set_config_values_block
+	assert parse_serverinfo_block.index('trap_Cvar_Set( "cg_loadout", cgs.loadout );') < parse_serverinfo_block.index("trap_Cvar_Update( &cg_loadout );")
+	assert parse_serverinfo_block.index("trap_Cvar_Update( &cg_loadout );") < parse_serverinfo_block.index("CG_ParseDisableLoadoutConfigString();")
+	assert "} else if ( num == CS_LOADOUT_FLAGS || num == CS_LOADOUT_MASK ) {" in configstring_modified_block
+	assert "CG_ParseDisableLoadoutConfigString();" in configstring_modified_block
+
+
+def test_cgame_sprite_crosshair_and_footstep_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_sprite_table = _text_between(hlil_source, "10077258  void* data_10077258", "100772a0  void* data_100772a0")
+	retail_enemy_crosshair_table = _text_between(hlil_source, "10077360  void* data_10077360", "10077390  void* data_10077390")
+	retail_footsteps_table = _text_between(hlil_source, "10077450  void* data_10077450", "10077468  void* data_10077468")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	retail_cloud_flags = "CVAR_VM_CREATED | CVAR_CLOUD"
+	spectator_messages_block = _block_from_marker(newdraw_source, "static void CG_DrawSpectatorMessages")
+	sprite_self_block = _block_from_marker(draw_source, "qboolean CG_ShouldDrawSpriteSelf")
+	area_powerup_block = _block_from_marker(newdraw_source, "static void CG_DrawAreaPowerUp")
+	crosshair_name_block = _block_from_marker(draw_source, "static qboolean CG_ShouldRenderCrosshairName")
+	entity_event_block = _block_from_marker(event_source, "void CG_EntityEvent")
+
+	for expected in (
+		'{ &cg_drawSpecMessages, "cg_drawSpecMessages", "1", ' + retail_cloud_flags + ', "0", "1" },',
+		'{ &cg_drawSprites, "cg_drawSprites", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_drawSpriteSelf, "cg_drawSpriteSelf", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_footsteps, "cg_footsteps", "1", CVAR_CHEAT },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_drawSpecMessages"}',
+		'{"cg_drawSprites"}',
+		'{"cg_drawSpriteSelf"}',
+	):
+		assert expected in retail_sprite_table
+	assert "00 10 08 00" in retail_sprite_table
+	assert retail_sprite_table.count("01 18 08 00") >= 2
+
+	for expected in (
+		'{"cg_enemyCrosshairNames"}',
+		'{"cg_enemyCrosshairNamesOpacity"}',
+		'{"0.75"}',
+	):
+		assert expected in retail_enemy_crosshair_table
+	assert retail_enemy_crosshair_table.count("01 18 08 00") >= 2
+
+	assert '{"cg_footsteps"}' in retail_footsteps_table
+	assert "00 02 00 00" in retail_footsteps_table
+
+	assert "if (!cg_drawSpecMessages.integer) {" in spectator_messages_block
+	assert spectator_messages_block.count("if (!cg_drawSpecMessages.integer) {") == 2
+	assert "return ( qboolean )( cg_drawSpriteSelf.integer != 0 );" in sprite_self_block
+	assert "if ( !rect || !cg.snap || !cg_drawSprites.integer ) {" in area_powerup_block
+	assert "if ( !CG_ShouldDrawSpriteSelf() && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.snap->ps.clientNum == cg.clientNum ) {" in area_powerup_block
+	assert "if ( !cg_enemyCrosshairNames.integer ) {" in crosshair_name_block
+	assert "alpha *= cg_enemyCrosshairNamesOpacity.value;" in crosshair_name_block
+	for expected in (
+		"case EV_FOOTSTEP:",
+		"case EV_FOOTSTEP_METAL:",
+		"case EV_FOOTSTEP_SNOW:",
+		"case EV_FOOTSTEP_WOOD:",
+		"case EV_FOOTSPLASH:",
+		"case EV_FOOTWADE:",
+		"case EV_SWIM:",
+	):
+		assert expected in entity_event_block
+	assert len(re.findall(r"if \(\s*cg_footsteps\.integer\s*\)", entity_event_block)) >= 7
+
+
+def test_cgame_force_model_and_fov_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	players_source = CG_PLAYERS.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	ui_source = UI_MAIN.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	ui_hlil_source = UI_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_force_table = _text_between(hlil_source, "10077468  void* data_10077468", "10077558  void* data_10077558")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	retail_protected_cloud_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD"
+	register_block = _block_from_marker(main_source, "void CG_RegisterCvars")
+	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
+	model_override_block = _block_from_marker(players_source, "static void CG_ApplyClientModelOverrides")
+	color_override_block = _block_from_marker(players_source, "static void CG_ApplyClientColorOverrides")
+	weapon_override_block = _block_from_marker(weapons_source, "static qboolean CG_ShouldOverrideWeaponColor")
+	resolve_weapon_color_block = _block_from_marker(weapons_source, "static qboolean CG_ResolveClientWeaponColor")
+	trace_block = _block_from_marker(view_source, "static float CG_CalcSmartCameraTraceRange")
+	fov_block = _block_from_marker(view_source, "static int CG_CalcFov")
+	weapon_fov_block = _block_from_marker(weapons_source, "static float CG_GetViewWeaponFovOffset")
+	team_preview_block = _block_from_marker(ui_source, "static void UI_DrawTeamPlayerModel")
+	enemy_preview_block = _block_from_marker(ui_source, "static void UI_DrawEnemyPlayerModel")
+	red_preview_block = _block_from_marker(ui_source, "static void UI_DrawRedTeamModel")
+	blue_preview_block = _block_from_marker(ui_source, "static void UI_DrawBlueTeamModel")
+	retail_red_preview_block = _text_between(ui_hlil_source, "10005ff0", "100062a0")
+	retail_blue_preview_block = _text_between(ui_hlil_source, "100062a0", "10006550")
+
+	for expected in (
+		'{ &cg_forceBlueTeamModel, "cg_forceBlueTeamModel", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceDrawCrosshair, "cg_forceDrawCrosshair", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_forceEnemyModel, "cg_forceEnemyModel", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_forceRedTeamModel, "cg_forceRedTeamModel", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceTeamModel, "cg_forceTeamModel", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_fov, "cg_fov", "100", ' + retail_flags + ', "10", "130" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_forceBlueTeamModel"}',
+		'{"cg_forceDrawCrosshair"}',
+		'{"cg_forceEnemyModel"}',
+		'{"cg_forceEnemySkin"}',
+		'{"cg_forceEnemyWeaponColor"}',
+		'{"cg_forceRedTeamModel"}',
+		'{"cg_forceTeamModel"}',
+		'{"cg_forceTeamSkin"}',
+		'{"cg_forceTeamWeaponColor"}',
+		'{"cg_fov"}',
+	):
+		assert expected in retail_force_table
+	assert retail_force_table.count("01 08 08 00") >= 6
+	assert retail_force_table.count("01 18 08 00") >= 4
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_forceBlueTeamModel;",
+		"extern\tvmCvar_t\t\tcg_forceDrawCrosshair;",
+		"extern\tvmCvar_t\t\tcg_forceEnemyModel;",
+		"extern\tvmCvar_t\t\tcg_forceEnemySkin;",
+		"extern\tvmCvar_t\t\tcg_forceEnemyWeaponColor;",
+		"extern\tvmCvar_t\t\tcg_forceRedTeamModel;",
+		"extern\tvmCvar_t\t\tcg_forceTeamModel;",
+		"extern\tvmCvar_t\t\tcg_forceTeamSkin;",
+		"extern\tvmCvar_t\t\tcg_forceTeamWeaponColor;",
+		"extern\tvmCvar_t\t\tcg_fov;",
+	):
+		assert expected in local_source
+
+	for expected in (
+		"forceTeamModelModificationCount = cg_forceTeamModel.modificationCount;",
+		"forceTeamSkinModificationCount = cg_forceTeamSkin.modificationCount;",
+		"forceEnemyModelModificationCount = cg_forceEnemyModel.modificationCount;",
+		"forceEnemySkinModificationCount = cg_forceEnemySkin.modificationCount;",
+		"forceTeamWeaponColorModificationCount = cg_forceTeamWeaponColor.modificationCount;",
+		"forceEnemyWeaponColorModificationCount = cg_forceEnemyWeaponColor.modificationCount;",
+	):
+		assert expected in register_block
+		assert expected in update_block
+
+	assert "( cg_forceTeamModel.string[0] ? cg_forceTeamModel.string : cg_teamModel.string ) :" in model_override_block
+	assert "( cg_forceEnemyModel.string[0] ? cg_forceEnemyModel.string : cg_enemyModel.string );" in model_override_block
+	assert "skinValue = useTeam ? cg_forceTeamSkin.string : cg_forceEnemySkin.string;" in model_override_block
+	assert "if ( ( useTeam && cg_forceTeamWeaponColor.integer ) || ( !useTeam && cg_forceEnemyWeaponColor.integer ) ) {" in color_override_block
+	assert "return (qboolean)cg_forceEnemyWeaponColor.integer;" in weapon_override_block
+	assert "return (qboolean)cg_forceTeamWeaponColor.integer;" in weapon_override_block
+	assert "CG_ShouldOverrideWeaponColor( ci )" in resolve_weapon_color_block
+
+	assert "x = 640.0f / tan( cg_fov.value / 360.0f * M_PI );" in trace_block
+	assert "fov_x = cg_fov.value;" in fov_block
+	assert "if ( fov_x < 1 ) {" in fov_block
+	assert "} else if ( fov_x > 130 ) {" in fov_block
+	assert "if ( cg_fov.integer > 90 ) {" in weapon_fov_block
+
+	assert '"cg_forceTeamModel", "cg_forceTeamSkin", "sarge",' in team_preview_block
+	assert '"cg_forceEnemyModel", "cg_forceEnemySkin", "sarge",' in enemy_preview_block
+	assert '"cg_forceRedTeamModel", NULL, NULL,' in red_preview_block
+	assert '"cg_forceBlueTeamModel", NULL, NULL,' in blue_preview_block
+	assert '"cg_forceRedTeamModel"' in retail_red_preview_block
+	assert '"cg_forceBlueTeamModel"' in retail_blue_preview_block
+
+
+def test_cgame_gameinfo_gametype_and_gun_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(hlil_source, "10077558  void* data_10077558", "10077648  void* data_10077648")
+	retail_gameinfo_block = _text_between(hlil_source, "100295c0    int32_t sub_100295c0", "10029770")
+	retail_serverinfo_block = _text_between(hlil_source, "10048910    int32_t __stdcall sub_10048910", "100489c0")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	game_info_block = _block_from_marker(servercmds_source, "static void CG_SetGameInfoCvars")
+	parse_block = _block_from_marker(servercmds_source, "void CG_ParseServerinfo( void )")
+	rail_start_block = _block_from_marker(weapons_source, "static void CG_AdjustRailTrailStart")
+	view_weapon_block = _block_from_marker(weapons_source, "void CG_AddViewWeapon")
+	test_model_block = _block_from_marker(view_source, "static void CG_AddTestModel")
+
+	for expected in (
+		'{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },',
+		'{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },',
+		'{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },',
+		'{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },',
+		'{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },',
+		'{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },',
+		'{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },',
+		'{ &cg_gun_x, "cg_gunX", "0", ' + retail_flags + ', "-10", "10" },',
+		'{ &cg_gun_y, "cg_gunY", "0", ' + retail_flags + ', "-10", "20" },',
+		'{ &cg_gun_z, "cg_gunZ", "0", ' + retail_flags + ', "-8", "0" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_gameInfo1"}',
+		'{"cg_gameInfo2"}',
+		'{"cg_gameInfo3"}',
+		'{"cg_gameInfo4"}',
+		'{"cg_gameInfo5"}',
+		'{"cg_gameInfo6"}',
+		'{"cg_gametype"}',
+		'{"cg_gunX"}',
+		'{"cg_gunY"}',
+		'{"cg_gunZ"}',
+	):
+		assert expected in retail_table
+	assert retail_table.count("40 00 00 00") >= 7
+	assert retail_table.count("01 18 08 00") >= 3
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_gameInfo1;",
+		"extern\tvmCvar_t\t\tcg_gameInfo2;",
+		"extern\tvmCvar_t\t\tcg_gameInfo3;",
+		"extern\tvmCvar_t\t\tcg_gameInfo4;",
+		"extern\tvmCvar_t\t\tcg_gameInfo5;",
+		"extern\tvmCvar_t\t\tcg_gameInfo6;",
+		"extern\tvmCvar_t\t\tcg_gametype;",
+		"extern\tvmCvar_t\t\tcg_gun_x;",
+		"extern\tvmCvar_t\t\tcg_gun_y;",
+		"extern\tvmCvar_t\t\tcg_gun_z;",
+	):
+		assert expected in local_source
+
+	for expected in (
+		'"cg_gameInfo1", "Welcome to QUAKE LIVE training"',
+		'"cg_gameInfo2", "A trainer named',
+		'"cg_gameInfo5", &data_100669b8',
+		'"cg_gameInfo6", "Click',
+		'"cg_gameInfo1", eax_6',
+		'"cg_gameInfo6", eax_21',
+	):
+		assert expected in retail_gameinfo_block
+	assert '"serverinfo"' in retail_serverinfo_block
+	assert '"cg_gametype"' in retail_serverinfo_block
+	assert "sub_100295c0()" in retail_serverinfo_block
+
+	for expected in (
+		'info = CG_ConfigString( CS_SERVERINFO );',
+		'gametypeValue = Info_ValueForKey( info, SERVERINFO_KEY_GAMETYPE );',
+		"cgs.gametype = atoi( gametypeValue );",
+		'trap_Cvar_Set( "cg_gametype", gametypeValue );',
+		"CG_SetGameInfoCvars();",
+	):
+		assert expected in parse_block
+	assert parse_block.index('trap_Cvar_Set( "cg_gametype", gametypeValue );') > parse_block.index("cgs.gametype = atoi( gametypeValue );")
+	assert parse_block.index("CG_SetGameInfoCvars();") > parse_block.index('trap_Cvar_Set( "cg_gametype", gametypeValue );')
+
+	for expected in (
+		"gameInfo = cg_retailBlankGameInfoLines;",
+		"trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );",
+		"gameInfo = cg_retailTrainingGameInfoLines;",
+		"gameInfo = cg_retailGameInfoLines[cgs.gametype];",
+		'trap_Cvar_Set( "cg_gameInfo1", gameInfo[0] );',
+		'trap_Cvar_Set( "cg_gameInfo2", gameInfo[1] );',
+		'trap_Cvar_Set( "cg_gameInfo3", gameInfo[2] );',
+		'trap_Cvar_Set( "cg_gameInfo4", gameInfo[3] );',
+		'trap_Cvar_Set( "cg_gameInfo5", gameInfo[4] );',
+		'trap_Cvar_Set( "cg_gameInfo6", gameInfo[5] );',
+	):
+		assert expected in game_info_block
+
+	for expected in (
+		"VectorMA( start, cg_gun_x.value + 5.0f, cg.refdef.viewaxis[0], start );",
+		"VectorMA( start, cg_gun_y.value * 0.75f, cg.refdef.viewaxis[1], start );",
+		"VectorMA( start, cg_gun_z.value + fovOffset - 5.0f, cg.refdef.viewaxis[2], start );",
+	):
+		assert expected in rail_start_block
+	for expected in (
+		"VectorMA( hand.origin, cg_gun_x.value, cg.refdef.viewaxis[0], hand.origin );",
+		"VectorMA( hand.origin, cg_gun_y.value, cg.refdef.viewaxis[1], hand.origin );",
+		"VectorMA( hand.origin, (cg_gun_z.value+fovOffset), cg.refdef.viewaxis[2], hand.origin );",
+	):
+		assert expected in view_weapon_block
+	for expected in (
+		"cg.testModelEntity.origin[i] += cg.refdef.viewaxis[0][i] * cg_gun_x.value;",
+		"cg.testModelEntity.origin[i] += cg.refdef.viewaxis[1][i] * cg_gun_y.value;",
+		"cg.testModelEntity.origin[i] += cg.refdef.viewaxis[2][i] * cg_gun_z.value;",
+	):
+		assert expected in test_model_block
+
+
+def test_cgame_hit_hud_impact_item_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	playerstate_source = CG_PLAYERSTATE.read_text(encoding="utf-8")
+	marks_source = CG_MARKS.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	ents_source = CG_ENTS.read_text(encoding="utf-8")
+	g_combat_source = G_COMBAT.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(hlil_source, "10077648  void* data_10077648", "10077738  void* data_10077738")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	local_sounds_block = _block_from_marker(playerstate_source, "void CG_CheckLocalSounds")
+	hit_sound_block = _block_from_marker(playerstate_source, "static sfxHandle_t CG_HitSoundForDamage")
+	add_marks_block = _block_from_marker(marks_source, "void CG_AddMarks")
+	dmgthrough_block = _block_from_marker(weapons_source, "void CG_MissileHitWallDmgThrough")
+	item_block = _block_from_marker(ents_source, "static void CG_Item( centity_t *cent )")
+	hud_load_block = _block_from_marker(main_source, "void CG_LoadHudMenu( void )")
+	g_damage_block = _block_from_marker(g_combat_source, "void G_Damage")
+
+	for expected in (
+		'{ &cg_hitBeep, "cg_hitBeep", "2", ' + retail_flags + ', "0", "3" },',
+		'{ &cg_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_PROTECTED | CVAR_CLOUD },',
+		'{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ROM },',
+		'{ &cg_impactMarkTime, "cg_impactMarkTime", "10000", ' + retail_flags + ', "0", "10000" },',
+		'{ &cg_impactSparks, "cg_impactSparks", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_impactSparksLifetime, "cg_impactSparksLifetime", "250", ' + retail_flags + ', "0", "1000" },',
+		'{ &cg_impactSparksSize, "cg_impactSparksSize", "8", ' + retail_flags + ', "2", "16" },',
+		'{ &cg_impactSparksVelocity, "cg_impactSparksVelocity", "128", ' + retail_flags + ', "-128", "128" },',
+		'{ &cg_itemFx, "cg_itemFx", "7", ' + retail_flags + ', "0", "7" },',
+		'{ &cg_itemTimers, "cg_itemTimers", "1", ' + retail_flags + ', "0", "1" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_hitBeep"}',
+		'{"cg_hudFiles"}',
+		'{"cg_ignoreMouseInput"}',
+		'{"cg_impactMarkTime"}',
+		'{"cg_impactSparks"}',
+		'{"cg_impactSparksLifetime"}',
+		'{"cg_impactSparksSize"}',
+		'{"cg_impactSparksVelocity"}',
+		'{"cg_itemFx"}',
+		'{"cg_itemTimers"}',
+	):
+		assert expected in retail_table
+	assert retail_table.count("01 18 08 00") == 8
+	assert "00 08 08 00" in retail_table
+	assert "40 00 00 00" in retail_table
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_hitBeep;",
+		"extern\tvmCvar_t\t\tcg_hudFiles;",
+		"extern\tvmCvar_t\t\tcg_ignoreMouseInput;",
+		"extern\tvmCvar_t\t\tcg_impactMarkTime;",
+		"extern\tvmCvar_t\t\tcg_impactSparks;",
+		"extern\tvmCvar_t\t\tcg_impactSparksLifetime;",
+		"extern\tvmCvar_t\t\tcg_impactSparksSize;",
+		"extern\tvmCvar_t\t\tcg_impactSparksVelocity;",
+		"extern\tvmCvar_t\t\tcg_itemFx;",
+		"extern\tvmCvar_t\t\tcg_itemTimers;",
+	):
+		assert expected in local_source
+
+	for expected in (
+		'cgs.media.hitSound0 = trap_S_RegisterSound( "sound/feedback/hit0.ogg", qfalse );',
+		'cgs.media.hitSound1 = trap_S_RegisterSound( "sound/feedback/hit1.ogg", qfalse );',
+		'cgs.media.hitSound2 = trap_S_RegisterSound( "sound/feedback/hit2.ogg", qfalse );',
+		'cgs.media.hitSound3 = trap_S_RegisterSound( "sound/feedback/hit3.ogg", qfalse );',
+	):
+		assert expected in main_source
+
+	for expected in (
+		"if ( cg_hitBeep.integer <= 0 ) {",
+		"if ( cg_hitBeep.integer == 1 ) {",
+		"bucket = ( damage - 1 ) / 25;",
+		"if ( cg_hitBeep.integer == 3 ) {",
+		"bucket = 3 - bucket;",
+		"return cgs.media.hitSound3;",
+	):
+		assert expected in hit_sound_block
+	assert "hitDelta = ps->persistant[PERS_HITS] - ops->persistant[PERS_HITS];" in local_sounds_block
+	assert "sfx = CG_HitSoundForDamage( hitDelta );" in local_sounds_block
+	assert "trap_S_StartLocalSound( sfx, CHAN_LOCAL_SOUND );" in local_sounds_block
+	assert "trap_S_StartLocalSound( cgs.media.hitTeamSound, CHAN_LOCAL_SOUND );" in local_sounds_block
+
+	for expected in (
+		"hitDamage = take + asave;",
+		"attacker->client->ps.persistant[PERS_HITS] -= hitDamage;",
+		"attacker->client->ps.persistant[PERS_HITS] += hitDamage;",
+		"attacker->client->ps.persistant[PERS_ATTACKEE_ARMOR] = ( targetHealth << 8 ) | targetArmor;",
+	):
+		assert expected in g_damage_block
+
+	assert 'trap_Cvar_VariableStringBuffer( "cg_hudFiles", buff, sizeof( buff ) );' in hud_load_block
+
+	for expected in (
+		"markTime = cg_impactMarkTime.integer;",
+		"if ( markTime <= 0 || cg.time > mp->time + markTime ) {",
+		"t = mp->time + markTime - cg.time;",
+	):
+		assert expected in add_marks_block
+
+	for expected in (
+		"if ( cg_impactSparks.integer && cg_impactSparksLifetime.integer > 0 && cgs.media.surfacePuffShader ) {",
+		"sparkLifetime = cg_impactSparksLifetime.integer;",
+		"sparkSize = cg_impactSparksSize.value;",
+		"sparkVelocity = cg_impactSparksVelocity.value;",
+		"velocity[2] = sparkVelocity + ( random() - 0.5f ) * 16.0f;",
+		"CG_SmokePuff( puffOrigin, velocity,",
+		"sparkLifetime,",
+	):
+		assert expected in dmgthrough_block
+
+	for expected in (
+		"itemFx = cg_itemFx.integer;",
+		"itemBounces = (qboolean)( ( itemFx & 1 ) != 0 );",
+		"itemRotates = (qboolean)( ( itemFx & 2 ) != 0 );",
+		"itemScales = (qboolean)( ( itemFx & 4 ) != 0 );",
+		"if ( itemBounces ) {",
+		"if ( itemRotates ) {",
+		"if ( itemScales && msec >= 0 && msec < ITEM_SCALEUP_TIME ) {",
+	):
+		assert expected in item_block
+
+
+def test_cgame_kick_kill_lagometer_lastmsg_lightning_loadout_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	playerstate_source = CG_PLAYERSTATE.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	effects_source = CG_EFFECTS.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	bg_public_source = BG_PUBLIC.read_text(encoding="utf-8")
+	g_client_source = G_CLIENT.read_text(encoding="utf-8")
+	g_combat_source = G_COMBAT.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(hlil_source, "10077738  void* data_10077738", "10077828  void* data_10077828")
+	retail_sound_cvar = _text_between(hlil_source, "100784b8  void* data_100784b8", "100784d0  void* data_100784d0")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	register_block = _block_from_marker(main_source, "void CG_RegisterCvars")
+	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
+	write_lastmsg_block = _block_from_marker(main_source, "static void CG_WriteLastMessageCvar")
+	replay_lastmsg_block = _block_from_marker(main_source, "static void CG_ReplayLastMessageFromCvar")
+	local_sounds_block = _block_from_marker(playerstate_source, "void CG_CheckLocalSounds")
+	kill_beep_block = _block_from_marker(playerstate_source, "static sfxHandle_t CG_KillBeepSoundForCvar")
+	level_timer_draw_block = _block_from_marker(draw_source, "static float CG_DrawTimer")
+	level_timer_ownerdraw_block = _block_from_marker(newdraw_source, "static qboolean CG_BuildLevelTimerMilliseconds")
+	lagometer_block = _block_from_marker(draw_source, "static void CG_DrawLagometer")
+	lightning_style_block = _block_from_marker(effects_source, "void CG_LightningBoltBeam")
+	lightning_index_block = _block_from_marker(weapons_source, "static int CG_LightningActiveStyleIndex")
+	lightning_impact_block = _block_from_marker(weapons_source, "static void CG_DrawLightningImpact")
+	loadout_block = _block_from_marker(newdraw_source, "static qboolean CG_LoadoutsEnabled")
+	serverinfo_block = _block_from_marker(servercmds_source, "void CG_ParseServerinfo")
+	disable_loadout_block = _block_from_marker(servercmds_source, "static void CG_ParseDisableLoadoutConfigString")
+	player_die_block = _block_from_marker(g_combat_source, "void player_die")
+	freeze_death_block = _block_from_marker(g_client_source, "qboolean G_FreezeHandlePlayerDeath")
+
+	for expected in (
+		'{ &cg_kickScale, "cg_kickScale", "0.25", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_killBeep, "cg_killBeep", "7", ' + retail_flags + ', "0", "8" },',
+		'{ &cg_lagometer, "cg_lagometer", "0", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_lastmsg, "cg_lastmsg", "", 0 },',
+		'{ &cg_latchedHookOffset, "cg_latchedHookOffset", "1.0", CVAR_ROM },',
+		'{ &cg_levelTimerDirection, "cg_levelTimerDirection", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_lightningImpact, "cg_lightningImpact", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_lightningImpactCap, "cg_lightningImpactCap", "192", ' + retail_flags + ', "0", "768" },',
+		'{ &cg_lightningStyle, "cg_lightningStyle", "1", ' + retail_flags + ', "1", "5" },',
+		'{ &cg_loadout, "cg_loadout", "0", CVAR_ROM },',
+		'{ &s_killBeepVolume, "s_killBeepVolume", "1", ' + retail_flags + ', "0", "4" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_kickScale"}',
+		'{"cg_killBeep"}',
+		'{"cg_lagometer"}',
+		'{"cg_lastmsg"}',
+		'{"cg_latchedHookOffset"}',
+		'{"cg_levelTimerDirection"}',
+		'{"cg_lightningImpact"}',
+		'{"cg_lightningImpactCap"}',
+		'{"cg_lightningStyle"}',
+		'{"cg_loadout"}',
+		'void* data_10077758 = 0x1006b92c',
+		'void* data_10077788 = data_100669b8',
+		'void* data_100777a0 = 0x1006bf44',
+		'void* data_100777e8 = 0x1006b400',
+		'void* data_100777f0 = 0x1006b3fc',
+	):
+		assert expected in retail_table
+	assert retail_table.count("01 18 08 00") == 7
+	assert retail_table.count("40 00 00 00") == 2
+	assert "00 00 00 00" in retail_table
+
+	for expected in (
+		'{"s_killBeepVolume"}',
+		"void* data_100784c0 = data_10068c04",
+		"void* data_100784c4 = data_1006841c",
+		"void* data_100784c8 = data_1006ae1c",
+		"01 18 08 00",
+	):
+		assert expected in retail_sound_cvar
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_kickScale;",
+		"extern\tvmCvar_t\t\tcg_killBeep;",
+		"extern\tvmCvar_t\t\tcg_lagometer;",
+		"extern\tvmCvar_t\t\tcg_lastmsg;",
+		"extern\tvmCvar_t\t\tcg_latchedHookOffset;",
+		"extern\tvmCvar_t\t\tcg_levelTimerDirection;",
+		"extern\tvmCvar_t\t\tcg_lightningImpact;",
+		"extern\tvmCvar_t\t\tcg_lightningImpactCap;",
+		"extern\tvmCvar_t\t\tcg_lightningStyle;",
+		"extern\tvmCvar_t\t\tcg_loadout;",
+		"extern\tvmCvar_t\t\ts_killBeepVolume;",
+	):
+		assert expected in local_source
+
+	for expected in (
+		'cgs.media.killBeepSound1 = trap_S_RegisterSound( "sound/feedback/impact1.ogg", qfalse );',
+		'cgs.media.killBeepSound2 = trap_S_RegisterSound( "sound/feedback/impact2.ogg", qfalse );',
+		'cgs.media.killBeepSound3 = trap_S_RegisterSound( "sound/feedback/impact3.ogg", qfalse );',
+		'cgs.media.killBeepSound4 = trap_S_RegisterSound( "sound/feedback/impact4.ogg", qfalse );',
+		'cgs.media.killBeepSound5 = trap_S_RegisterSound( "sound/feedback/impact5.ogg", qfalse );',
+		'cgs.media.killBeepSound6 = trap_S_RegisterSound( "sound/feedback/impact6.ogg", qfalse );',
+		'cgs.media.killBeepSound7 = trap_S_RegisterSound( "sound/world/bell_01.ogg", qfalse );',
+		'cgs.media.killBeepSound8 = trap_S_RegisterSound( "sound/misc/chaching.ogg", qfalse );',
+	):
+		assert expected in main_source
+
+	for expected in (
+		"case 2:",
+		"return cgs.media.killBeepSound2;",
+		"case 8:",
+		"return cgs.media.killBeepSound8;",
+		"return cgs.media.killBeepSound1;",
+	):
+		assert expected in kill_beep_block
+
+	assert "hitDelta = ps->persistant[PERS_HITS] - ops->persistant[PERS_HITS];" in local_sounds_block
+	assert "cg_killBeep.integer > 0" in local_sounds_block
+	assert "ps->persistant[PERS_KILL_COUNT] > ops->persistant[PERS_KILL_COUNT]" in local_sounds_block
+	assert "sfx = CG_KillBeepSoundForCvar();" in local_sounds_block
+	assert "trap_QL_S_StartLocalSoundVolume( sfx, CHAN_LOCAL_SOUND, s_killBeepVolume.value );" in local_sounds_block
+	assert local_sounds_block.index("sfx = CG_KillBeepSoundForCvar();") < local_sounds_block.index(
+		"sfx = CG_HitSoundForDamage( hitDelta );"
+	)
+
+	assert "PERS_CAPTURES," in bg_public_source
+	assert "PERS_KILL_COUNT" in bg_public_source
+	assert bg_public_source.index("PERS_CAPTURES,") < bg_public_source.index("PERS_KILL_COUNT")
+	assert "attacker->client->ps.persistant[PERS_KILL_COUNT]++;" in player_die_block
+	assert player_die_block.index("attacker->client->killCount++;") < player_die_block.index(
+		"attacker->client->ps.persistant[PERS_KILL_COUNT]++;"
+	)
+	assert "attacker->client->ps.persistant[PERS_KILL_COUNT]++;" in freeze_death_block
+
+	assert "cg.kickScale = cg_kickScale.value;" in register_block
+	assert "cg.kickScale = cg_kickScale.value;" in update_block
+	assert "if ( !cg_lagometer.integer || cgs.localServer || cg.renderingThirdPerson ) {" in lagometer_block
+	assert 'trap_Cvar_Set( "cg_lastmsg", buffer );' in write_lastmsg_block
+	assert "trap_Cvar_Update( &cg_lastmsg );" in write_lastmsg_block
+	assert 'trap_Cvar_VariableStringBuffer( "cg_lastmsg", storedValue, sizeof( storedValue ) );' in replay_lastmsg_block
+	assert main_source.count("cg_latchedHookOffset") == 3
+	assert local_source.count("cg_latchedHookOffset") == 1
+	assert "countDown = ( qboolean )( cgs.timelimit > 0 && cg_levelTimerDirection.integer == 1 );" in level_timer_draw_block
+	assert "else if ( cg_levelTimerDirection.integer != 1 ) {" in level_timer_ownerdraw_block
+	assert "styleIndex = cg_lightningStyle.integer - 1;" in lightning_style_block
+	assert "style = cg_lightningStyle.integer;" in lightning_index_block
+	assert "if ( cg_lightningImpact.integer == 0 || !cgs.media.lightningExplosionModel ) {" in lightning_impact_block
+	assert "cap = cg_lightningImpactCap.integer;" in lightning_impact_block
+	assert 'trap_Cvar_Set( "cg_loadout", cgs.loadout );' in serverinfo_block
+	assert "trap_Cvar_Update( &cg_loadout );" in serverinfo_block
+	assert "CG_ParseDisableLoadoutConfigString();" in serverinfo_block
+	assert "disabled = (qboolean)( !cg_loadout.integer || ( flags & entry->mask ) ||" in disable_loadout_block
+	assert "return ( cg_loadout.integer != 0 ) ? qtrue : qfalse;" in loadout_block
+
+
+def test_cgame_low_ammo_prediction_obituary_and_plasma_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	playerstate_source = CG_PLAYERSTATE.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	players_source = CG_PLAYERS.read_text(encoding="utf-8")
+	predict_source = CG_PREDICT.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(hlil_source, "10077828  void* data_10077828", "10077948  void* data_10077948")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	retail_no_cloud_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED"
+	cloud_flags = "CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD"
+	register_block = _block_from_marker(main_source, "void CG_RegisterCvars")
+	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
+	low_ammo_update_block = _block_from_marker(main_source, "static void CG_UpdateLowAmmoWarningPercentile")
+	check_ammo_block = _block_from_marker(playerstate_source, "void CG_CheckAmmo")
+	select_respawn_block = _block_from_marker(playerstate_source, "static void CG_SelectRespawnWeapon")
+	respawn_block = _block_from_marker(playerstate_source, "void CG_Respawn")
+	ammo_warning_block = _block_from_marker(draw_source, "static void CG_DrawAmmoWarning")
+	overhead_block = _block_from_marker(draw_source, "static void CG_DrawCrosshairNames")
+	lagometer_block = _block_from_marker(draw_source, "static void CG_DrawLagometer")
+	suppress_rail_block = _block_from_marker(event_source, "static qboolean CG_ShouldSuppressPredictedRailEvent")
+	obituary_limit_block = _block_from_marker(event_source, "static int CG_ObituaryFeedLimit")
+	player_anim_block = _block_from_marker(players_source, "static void CG_PlayerAnimation")
+	predict_block = _block_from_marker(predict_source, "void CG_PredictPlayerState")
+	plasma_block = _block_from_marker(weapons_source, "static void CG_PlasmaTrail")
+	add_player_weapon_block = _block_from_marker(weapons_source, "void CG_AddPlayerWeapon")
+	weapon_bar_ammo_block = _block_from_marker(weapons_source, "static void CG_GetLegacyWeaponBarAmmoColor")
+
+	for expected in (
+		'{ &cg_lowAmmoWarningPercentile, "cg_lowAmmoWarningPercentile", "0.20", ' + retail_flags + ', "0.01", "1.00" },',
+		'{ &cg_lowAmmoWarningSound, "cg_lowAmmoWarningSound", "1", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_lowAmmoWeaponBarWarning, "cg_lowAmmoWeaponBarWarning", "2", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_muzzleFlash, "cg_muzzleFlash", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_noPlayerAnims, "cg_noplayeranims", "0", CVAR_CHEAT },',
+		'{ &cg_nopredict, "cg_nopredict", "0", CVAR_PROTECTED | CVAR_VM_CREATED, "0", "1" },',
+		'{ &cg_obituaryRowSize, "cg_obituaryRowSize", "5", ' + retail_no_cloud_flags + ', "0", "5" },',
+		'{ &cg_overheadNamesWidth, "cg_overheadNamesWidth", "75", ' + retail_flags + ', "50", "100" },',
+		'{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", ' + cloud_flags + ' },',
+		'{ &cg_plasmaStyle, "cg_plasmaStyle", "1", ' + retail_flags + ', "1", "2" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_lowAmmoWarningPercentile"}',
+		'{"cg_lowAmmoWarningSound"}',
+		'{"cg_lowAmmoWeaponBarWarning"}',
+		'{"cg_muzzleFlash"}',
+		'{"cg_noplayeranims"}',
+		'{"cg_nopredict"}',
+		'{"cg_obituaryRowSize"}',
+		'{"cg_overheadNamesWidth"}',
+		'{"cg_preferredStartingWeapons"}',
+		'{"cg_plasmaStyle"}',
+		"1007789c",
+		"00 02 00 00",
+		"100778b4",
+		"00 18 00 00",
+		"100778e4",
+		"01 18 00 00",
+		"1007792c",
+		"01 08 08 00",
+	):
+		assert expected in retail_table
+	assert retail_table.count("01 18 08 00") == 6
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_lowAmmoWarningPercentile;",
+		"extern\tvmCvar_t\t\tcg_lowAmmoWarningSound;",
+		"extern\tvmCvar_t\t\tcg_lowAmmoWeaponBarWarning;",
+		"extern\tvmCvar_t\t\tcg_muzzleFlash;",
+		"extern\tvmCvar_t\t\tcg_noPlayerAnims;",
+		"extern\tvmCvar_t\t\tcg_nopredict;",
+		"extern\tvmCvar_t\t\tcg_obituaryRowSize;",
+		"extern\tvmCvar_t\t\tcg_overheadNamesWidth;",
+		"extern\tvmCvar_t\t\tcg_preferredStartingWeapons;",
+		"extern\tvmCvar_t\t\tcg_plasmaStyle;",
+	):
+		assert expected in local_source
+
+	assert "CG_UpdateLowAmmoWarningPercentile();" in register_block
+	assert "if ( lowAmmoWarningPercentileModCount != cg_lowAmmoWarningPercentile.modificationCount ) {" in update_block
+	assert "CG_UpdateLowAmmoWarningPercentile();" in update_block
+	assert "cg.lowAmmoWarningPercentile = clamped;" in low_ammo_update_block
+	assert "threshold = (int)( BG_GetWeaponMaxAmmo( weapon ) * cg.lowAmmoWarningPercentile );" in check_ammo_block
+	assert "switch ( cg_lowAmmoWarningSound.integer ) {" in check_ammo_block
+	assert "warningSound = cgs.media.lowAmmoSound;" in check_ammo_block
+	assert "warningSound = cgs.media.noAmmoSound;" in check_ammo_block
+	assert "if ( !cg.lowAmmoWarning ) {" in ammo_warning_block
+	assert "if ( cg.lowAmmoWarning == 2 ) {" in ammo_warning_block
+	assert "if ( ammo == 0 && cg_lowAmmoWeaponBarWarning.integer != 0 ) {" in weapon_bar_ammo_block
+	assert "if ( ammo <= 0 || cg_lowAmmoWeaponBarWarning.integer < 2 ) {" in weapon_bar_ammo_block
+	assert "threshold = (int)( BG_GetWeaponMaxAmmo( (weapon_t)weapon ) * cg.lowAmmoWarningPercentile );" in weapon_bar_ammo_block
+
+	assert "if ( ps && ( !cg_muzzleFlash.integer || !cg_drawGun.integer ) ) {" in add_player_weapon_block
+	assert "if ( cg_noPlayerAnims.integer ) {" in player_anim_block
+	assert "if ( cg_nopredict.integer || cg_synchronousClients.integer ) {" in predict_block
+	assert "if ( cg.demoPlayback || cg_nopredict.integer || cg_synchronousClients.integer ) {" in suppress_rail_block
+	assert "if ( cg_nopredict.integer || cg_synchronousClients.integer ) {" in lagometer_block
+	assert "limit = cg_obituaryRowSize.integer;" in obituary_limit_block
+	assert "if ( limit < 1 ) {" in obituary_limit_block
+	assert "if ( limit > MAX_OBITUARIES ) {" in obituary_limit_block
+	assert "if ( cg_overheadNamesWidth.value > 0.0f && w > cg_overheadNamesWidth.value ) {" in overhead_block
+	assert "float clampedScale = cg_overheadNamesWidth.value / w;" in overhead_block
+	assert 'trap_Cvar_VariableStringBuffer( "cg_preferredStartingWeapons", buffer, sizeof( buffer ) );' in select_respawn_block
+	assert "weapon = CG_RespawnWeaponFromToken( token );" in select_respawn_block
+	assert "CG_SetWeaponSelect( weapon );" in select_respawn_block
+	assert "CG_SetWeaponSelect( cg.snap->ps.weapon );" in select_respawn_block
+	assert 'trap_Cvar_Set( "cg_weaponPrimary", va( "%i", cg.weaponPrimary ) );' in respawn_block
+	assert respawn_block.index('trap_Cvar_Set( "cg_weaponPrimary"') < respawn_block.index("CG_SelectRespawnWeapon();")
+	assert "if ( cg_plasmaStyle.integer != 2 ) {" in plasma_block
+	assert "le->leType = LE_MOVE_SCALE_FADE;" in plasma_block
+	assert "re->customShader = cgs.media.railRingsShader;" in plasma_block
+
+
 def test_cgame_damage_body_icon_and_view_cvars_match_retail_wiring() -> None:
 	main_source = CG_MAIN.read_text(encoding="utf-8")
 	draw_source = CG_DRAW.read_text(encoding="utf-8")
@@ -3887,6 +5228,189 @@ def test_cgame_damage_body_icon_and_view_cvars_match_retail_wiring() -> None:
 	assert "cg_drawDeadFriendTime" not in draw_source
 	assert "cg_drawDeadFriendTime" not in players_source
 	assert "cg_drawDeadFriendTime" not in view_source
+
+
+def test_cgame_chat_automation_input_cvars_match_retail_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	predict_source = CG_PREDICT.read_text(encoding="utf-8")
+	g_client_source = G_CLIENT.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	auto_update_block = _block_from_marker(main_source, "static void CG_UpdateAutomationSettings")
+	auto_intermission_block = _block_from_marker(main_source, "void CG_HandleAutoActionsIntermission")
+	auto_queued_block = _block_from_marker(main_source, "void CG_RunQueuedAutoActions")
+	hud_load_block = _block_from_marker(main_source, "void CG_LoadHudMenu( void )")
+	chat_history_block = _block_from_marker(main_source, "int CG_GetChatHistoryLength")
+	push_print_block = _block_from_marker(main_source, "void CG_PushPrintString")
+	voice_indicator_block = _block_from_marker(main_source, "qboolean CG_ShouldDisplayVoiceIndicator")
+	set_mouse_block = _block_from_marker(draw_source, "static void CG_SetIgnoreMouseInput")
+	timeout_mouse_block = _block_from_marker(draw_source, "static void CG_UpdateTimeoutMouseInput")
+	vote_block = _block_from_marker(draw_source, "static void CG_DrawVote")
+	parse_chat_block = _block_from_marker(servercmds_source, "static void CG_ParseChat")
+	play_voice_block = _block_from_marker(servercmds_source, "void CG_PlayVoiceChat")
+	touch_item_block = _block_from_marker(predict_source, "static void CG_TouchItem")
+
+	for expected in (
+		'{ &cg_autoAction, "cg_autoAction", "3", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "3" },',
+		'{ &cg_autoHop, "cg_autoHop", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD, "0", "1" },',
+		'{ &cg_chatbeep, "cg_chatbeep", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_chatHistoryLength, "cg_chatHistoryLength", "6", ' + retail_flags + ', "0", "24" },',
+		'{ &cg_complaintWarning, "cg_complaintWarning", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_PROTECTED | CVAR_CLOUD },',
+		'{ &cg_ignoreMouseInput, "cg_ignoreMouseInput", "0", CVAR_ROM },',
+		'{ &cg_playVoiceChats, "cg_playVoiceChats", "0", CVAR_CHEAT },',
+		'{ &cg_predictItems, "cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },',
+		'{ &cg_showVoiceText, "cg_showVoiceText", "0", CVAR_CHEAT },',
+	):
+		assert expected in cvar_table
+
+	assert "cg.autoHopEnabled = (qboolean)( cg_autoHop.integer != 0 );" in auto_update_block
+	assert "cg.autoActionFlags = cg_autoAction.integer;" in auto_update_block
+	assert "flags = cg.autoActionFlags;" in auto_intermission_block
+	assert "if ( flags & CG_AUTOACTION_DEMO_RECORD ) {" in auto_intermission_block
+	assert "if ( flags & CG_AUTOACTION_SCREENSHOT ) {" in auto_intermission_block
+	assert "if ( flags & CG_AUTOACTION_STATS_UPLOAD ) {" in auto_intermission_block
+	assert 'trap_SendConsoleCommand( "screenshotJPEG scoreboard\\n" );' in auto_queued_block
+	assert 'trap_SendConsoleCommand( "pstats\\n" );' in auto_queued_block
+	assert "cg.predictedPlayerState.pm_flags &= ~PMF_REQUIRE_JUMP_RELEASE;" in predict_source
+	assert "cg.predictedPlayerState.pm_flags |= PMF_REQUIRE_JUMP_RELEASE;" in predict_source
+	assert 's = Info_ValueForKey( userinfo, "cg_autoHop" );' in g_client_source
+	assert 'client->pers.recordingPreferences = atoi( Info_ValueForKey( userinfo, "cg_autoAction" ) );' in g_client_source
+
+	assert 'trap_Cvar_VariableStringBuffer( "cg_hudFiles", buff, sizeof( buff ) );' in hud_load_block
+	assert "cg.hudMenusLoaded = CG_HudScriptHasMenuLoads( hudSet );" in hud_load_block
+	assert "cg.competitiveHudLoaded = CG_HudScriptHasCompetitiveMenus( hudSet );" in hud_load_block
+	assert 'trap_Cvar_Set( "cg_ignoreMouseInput", ignoreMouseInput ? "1" : "0" );' in set_mouse_block
+	assert "if ( CG_GetMatchTimeoutStartTime() != 0 ) {" in timeout_mouse_block
+	assert "CG_SetIgnoreMouseInput( (qboolean)!menuHudActive );" in timeout_mouse_block
+
+	assert "historyLength = cg_chatHistoryLength.integer;" in chat_history_block
+	assert "historyLength = cg_teamChatHeight.integer;" in chat_history_block
+	assert "if ( historyLength > TEAMCHAT_HEIGHT ) {" in chat_history_block
+	assert "chatHeight = CG_GetChatHistoryLength();" in push_print_block
+	assert "if ( cg_chatbeep.integer && cgs.media.talkSound ) {" in parse_chat_block
+	assert "trap_S_StartLocalSound( cgs.media.talkSound, CHAN_LOCAL_SOUND );" in parse_chat_block
+	assert "cg_complaintWarning.integer && cg.complaintClient >= 0" in vote_block
+	assert "cg_complaintWarning.integer > 0 && cg.complaintClient < 0" in vote_block
+	assert "if ( cg_playVoiceChats.integer ) {" in play_voice_block
+	assert "if ( !vchat->voiceOnly && cg_showVoiceText.integer ) {" in play_voice_block
+	assert "if ( !cg_playVoiceChats.integer && !cg_showVoiceText.integer ) {" in voice_indicator_block
+
+	assert "if ( !cg_predictItems.integer ) {" in touch_item_block
+	assert 's = Info_ValueForKey( userinfo, "cg_predictItems" );' in g_client_source
+	assert "client->pers.predictItemPickup = qfalse;" in g_client_source
+	assert "client->pers.predictItemPickup = qtrue;" in g_client_source
+
+
+def test_cgame_player_prediction_race_rail_and_score_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	predict_source = CG_PREDICT.read_text(encoding="utf-8")
+	effects_source = CG_EFFECTS.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	g_client_source = G_CLIENT.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(hlil_source, "10077948  void* data_10077948", "10077b10  void* data_10077b10")
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	race_beep_block = _block_from_marker(newdraw_source, "static sfxHandle_t CG_RaceBeepSoundForCvar")
+	race_cue_block = _block_from_marker(newdraw_source, "void CG_RacePlayCue")
+	checkpoint_gate_block = _block_from_marker(newdraw_source, "static qboolean CG_RaceShouldPlayCheckpointFeedback")
+	checkpoint_feedback_block = _block_from_marker(newdraw_source, "static void CG_RacePlayCheckpointFeedback")
+	automation_block = _block_from_marker(main_source, "static void CG_UpdateAutomationSettings")
+	client_context_block = _block_from_marker(predict_source, "static void CG_UpdateClientInfoContext")
+	touch_item_block = _block_from_marker(predict_source, "static void CG_TouchItem")
+	score_plum_block = _block_from_marker(effects_source, "void CG_ScorePlum")
+	rail_ring_block = _block_from_marker(weapons_source, "static void CG_SpawnRailRing")
+	rail_trail_block = _block_from_marker(weapons_source, "void CG_RailTrail")
+	missile_hit_block = _block_from_marker(weapons_source, "void CG_MissileHitWall( int weapon")
+
+	for expected in (
+		'{ &cg_playerLean, "cg_playerLean", "1", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },',
+		'{ &cg_playerTeam, "cg_playerTeam", "", CVAR_ROM },',
+		'{ &cg_predictItems, "cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },',
+		'{ &cg_predictLocalRailshots, "cg_predictLocalRailshots", "1", 0 },',
+		'{ &cg_projectileNudge, "cg_projectileNudge", "0", CVAR_CHEAT },',
+		'{ &cg_raceBeep, "cg_raceBeep", "7", ' + retail_flags + ', "0", "8" },',
+		'{ &cg_railStyle, "cg_railStyle", "1", ' + retail_flags + ', "1", "2" },',
+		'{ &cg_railTrailTime, "cg_railTrailTime", "400", ' + retail_flags + ', "0", "2000" },',
+		'{ &cg_rocketStyle, "cg_rocketStyle", "1", ' + retail_flags + ', "1", "2" },',
+		'{ &cg_scorePlum, "cg_scorePlums", "0", ' + retail_flags + ', "0", "1" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		"extern\tvmCvar_t\t\tcg_playerLean;",
+		"extern\tvmCvar_t\t\tcg_playerTeam;",
+		"extern\tvmCvar_t\t\tcg_predictItems;",
+		"extern\tvmCvar_t\t\tcg_predictLocalRailshots;",
+		"extern\tvmCvar_t\t\tcg_projectileNudge;",
+		"extern\tvmCvar_t\t\tcg_raceBeep;",
+		"extern\tvmCvar_t\t\tcg_railStyle;",
+		"extern\tvmCvar_t\t\tcg_railTrailTime;",
+		"extern\tvmCvar_t\t\tcg_rocketStyle;",
+		"extern\tvmCvar_t\t\tcg_scorePlum;",
+	):
+		assert expected in local_source
+
+	for expected in (
+		'char const (* data_1007794c)[0xe] = data_1006b2bc {"cg_playerLean"}',
+		"01 10 08 00",
+		'char const (* data_10077964)[0xe] = data_1006b2ac {"cg_playerTeam"}',
+		"40 00 00 00",
+		'char const (* data_100779f4)[0x10] = data_1006b238 {"cg_predictItems"}',
+		"03 08 08 00",
+		'char const (* data_10077a0c)[0x19] = data_1006b21c {"cg_predictLocalRailshots"}',
+		'char const (* data_10077a24)[0x13] = data_1006b208 {"cg_projectileNudge"}',
+		'char const (* data_10077a3c)[0xc] = data_1006b1fc {"cg_raceBeep"}',
+		"void* data_10077a40 = 0x1006b92c",
+		'char const (* data_10077a54)[0xd] = data_1006b1ec {"cg_railStyle"}',
+		'char const (* data_10077a6c)[0x11] = data_1006b1d8 {"cg_railTrailTime"}',
+		"void* data_10077a70 = 0x1006b1d4",
+		'char const (* data_10077acc)[0xf] = data_1006b188 {"cg_rocketStyle"}',
+		'char const (* data_10077afc)[0xe] = data_1006b15c {"cg_scorePlums"}',
+	):
+		assert expected in retail_table
+
+	for expected in (
+		"return cgs.media.killBeepSound2;",
+		"return cgs.media.killBeepSound8;",
+		"return cgs.media.killBeepSound1;",
+	):
+		assert expected in race_beep_block
+	for expected in (
+		"case CG_RACE_CUE_START:",
+		"case CG_RACE_CUE_CHECKPOINT:",
+		"if ( cg_raceBeep.integer <= 0 ) {",
+		"sfx = CG_RaceBeepSoundForCvar();",
+		"case CG_RACE_CUE_FINISH:",
+		"sfx = cgs.media.raceFinishBeep;",
+	):
+		assert expected in race_cue_block
+	assert "raceStartBeep" not in race_cue_block
+	assert "raceCheckpointBeep" not in race_cue_block
+	assert 'cgs.media.raceFinishBeep = trap_S_RegisterSound( "sound/world/klaxon1.ogg", qfalse );' in main_source
+	assert "cg_raceBeep.integer" not in checkpoint_gate_block
+	assert "trap_S_StartLocalSound( cgs.media.selectSound, CHAN_LOCAL_SOUND );" not in checkpoint_feedback_block
+
+	assert "cg_playerTeam.integer = team;" in client_context_block
+	assert "if ( !cg_predictItems.integer ) {" in touch_item_block
+	assert 's = Info_ValueForKey( userinfo, "cg_predictItems" );' in g_client_source
+	assert "cg.projectileNudgeActive = (qboolean)( cg.autoProjectileNudgeEnabled || ( clampedNudge > 0.0f ) );" in automation_block
+	assert "cg.predictLocalRailshots = (qboolean)( cg_predictLocalRailshots.integer != 0 );" in automation_block
+	assert "if (client != cg.predictedPlayerState.clientNum || cg_scorePlum.integer == 0) {" in score_plum_block
+	assert "le->endTime = cg.time + cg_railTrailTime.value;" in rail_ring_block
+	assert "if ( cg_railStyle.integer != 2 ) {" in rail_trail_block
+	assert "if ( cg_rocketStyle.integer == 2 ) {" in missile_hit_block
 
 
 def test_cgame_draw_status_pregame_and_race_cvars_match_retail_wiring() -> None:
@@ -4162,7 +5686,7 @@ def test_cgame_weapon_settings_match_retail_cvar_table_and_style_wiring() -> Non
 		'{ &cg_muzzleFlash, "cg_muzzleFlash", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_plasmaStyle, "cg_plasmaStyle", "1", ' + retail_flags + ', "1", "2" },',
 		'{ &cg_railStyle, "cg_railStyle", "1", ' + retail_flags + ', "1", "2" },',
-		'{ &cg_railTrailTime, "cg_railTrailTime", "2000", ' + retail_flags + ', "0", "2000" },',
+		'{ &cg_railTrailTime, "cg_railTrailTime", "400", ' + retail_flags + ', "0", "2000" },',
 		'{ &cg_rocketStyle, "cg_rocketStyle", "1", ' + retail_flags + ', "1", "2" },',
 		'{ &cg_switchOnEmpty, "cg_switchOnEmpty", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_switchToEmpty, "cg_switchToEmpty", "1", ' + retail_flags + ', "0", "1" },',
@@ -4208,6 +5732,151 @@ def test_cgame_weapon_settings_match_retail_cvar_table_and_style_wiring() -> Non
 	assert "cg_oldPlasma" not in plasma_block
 	assert "if ( cg_rocketStyle.integer == 2 ) {" in missile_hit_block
 	assert "cg_oldRocket" not in missile_hit_block
+
+
+def test_cgame_weapon_bar_config_primary_and_zoom_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	consolecmds_source = CG_CONSOLECMDS.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	ents_source = CG_ENTS.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	playerstate_source = CG_PLAYERSTATE.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_weapon_table = _text_between(
+		hlil_source,
+		"10078248  void* data_10078248",
+		"10078410  void* data_10078410",
+	)
+	retail_zoom_table = _text_between(
+		hlil_source,
+		"10078440  void* data_10078440",
+		"10078488  void* data_10078488",
+	)
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	cloud_flags = "CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD"
+	weapon_config_names = (
+		"cg_weaponConfig",
+		"cg_weaponConfig_g",
+		"cg_weaponConfig_mg",
+		"cg_weaponConfig_sg",
+		"cg_weaponConfig_gl",
+		"cg_weaponConfig_rl",
+		"cg_weaponConfig_lg",
+		"cg_weaponConfig_rg",
+		"cg_weaponConfig_pg",
+		"cg_weaponConfig_bfg",
+		"cg_weaponConfig_gh",
+		"cg_weaponConfig_ng",
+		"cg_weaponConfig_pl",
+		"cg_weaponConfig_cg",
+		"cg_weaponConfig_hmg",
+	)
+	grenade_color_block = _block_from_marker(main_source, "static void CG_UpdateWeaponBarGrenadeColor")
+	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
+	respawn_block = _block_from_marker(playerstate_source, "void CG_Respawn( void )")
+	draw_frame_block = _block_from_marker(view_source, "void CG_DrawActiveFrame")
+	fov_block = _block_from_marker(view_source, "static int CG_CalcFov")
+	zoom_down_block = _block_from_marker(view_source, "void CG_ZoomDown_f")
+	zoom_up_block = _block_from_marker(view_source, "void CG_ZoomUp_f")
+	weapon_command_block = _block_from_marker(weapons_source, "void CG_Weapon_f")
+	weapon_layout_block = _block_from_marker(weapons_source, "static void CG_GetLegacyWeaponBarLayout")
+	weapon_widescreen_block = _block_from_marker(weapons_source, "static int CG_GetLegacyWeaponBarWidescreenMode")
+	weapon_select_block = _block_from_marker(weapons_source, "static void CG_DrawMenuHudWeaponSelect")
+
+	for expected in (
+		'{ &cg_weaponBar, "cg_weaponBar", "1", ' + retail_flags + ', "0", "4" },',
+		'{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, ' + cloud_flags + ' },',
+		'{ &cg_weaponPrimary, "cg_weaponPrimary", "", CVAR_ROM },',
+		'{ &cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP },',
+		'{ &cg_zoomScaling, "cg_zoomScaling", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_zoomSensitivity, "cg_zoomSensitivity", "1", ' + retail_flags + ', "0", "10" },',
+		'{ &cg_zoomToggle, "cg_zoomToggle", "0", ' + retail_flags + ', "0", "1" },',
+	):
+		assert expected in cvar_table
+
+	for config_name in weapon_config_names:
+		assert f'{{ &{config_name}, "{config_name}", "", {cloud_flags} }},' in cvar_table
+
+	for expected in (
+		'{"cg_weaponBar"}',
+		'{"cg_weaponColor_grenade"}',
+		'{"cg_weaponPrimary"}',
+		'{"cg_weaponPrimaryQueued"}',
+	):
+		assert expected in retail_weapon_table
+	for config_name in weapon_config_names:
+		assert f'{{"{config_name}"}}' in retail_weapon_table
+	for expected in (
+		'{"cg_zoomScaling"}',
+		'{"cg_zoomSensitivity"}',
+		'{"cg_zoomToggle"}',
+	):
+		assert expected in retail_zoom_table
+	assert "1007825c" in retail_weapon_table and "01 18 08 00" in retail_weapon_table
+	assert retail_weapon_table.count("01 08 08 00") >= 16
+	assert "100783f4" in retail_weapon_table and "40 00 00 00" in retail_weapon_table
+	assert "1007840c" in retail_weapon_table and "00 01 00 00" in retail_weapon_table
+	assert retail_zoom_table.count("01 18 08 00") >= 3
+
+	for expected in (
+		"case 2:",
+		"return WIDESCREEN_RIGHT;",
+		"case 3:",
+		"return WIDESCREEN_CENTER;",
+		"case 1:",
+		"return WIDESCREEN_LEFT;",
+	):
+		assert expected in weapon_layout_block or expected in weapon_widescreen_block
+	assert "if ( !cg.snap || cg.weaponSelectTime <= 0 || cg_weaponBar.integer == 0 ) {" in weapon_select_block
+	assert "if ( cg_weaponBar.integer == 4 ) {" in weapon_select_block
+	assert "CG_DrawWeaponSelectStrip();" in weapon_select_block
+	assert "CG_DrawLegacyWeaponSelect();" in weapon_select_block
+	assert "if ( cg_weaponBar.integer == 2 ) {" in weapons_source
+
+	assert "if ( !CG_ParseWeaponBarColor( cg_weaponColor_grenade.string, parsedColor ) ) {" in grenade_color_block
+	assert "Vector4Copy( parsedColor, cg.weaponBarGrenadeColor );" in grenade_color_block
+	assert "weaponColorGrenadeModCount = cg_weaponColor_grenade.modificationCount;" in grenade_color_block
+	assert "if ( weaponColorGrenadeModCount != cg_weaponColor_grenade.modificationCount ) {" in update_block
+	assert "CG_UpdateWeaponBarGrenadeColor();" in update_block
+	assert "cg.weaponBarGrenadeColor[0]" in ents_source
+	assert "cg.weaponBarGrenadeColor[3]" in ents_source
+
+	for config_name in weapon_config_names:
+		quoted_config_name = f'"{config_name}"'
+		assert quoted_config_name in retail_weapon_table
+		for runtime_source in (
+			consolecmds_source,
+			draw_source,
+			ents_source,
+			event_source,
+			newdraw_source,
+			playerstate_source,
+			view_source,
+			weapons_source,
+		):
+			assert quoted_config_name not in runtime_source
+		assert f"extern\tvmCvar_t\t\t{config_name};" in local_source
+
+	assert 'trap_Cvar_Set( "cg_weaponPrimary", va( "%i", cg.weaponPrimary ) );' in respawn_block
+	assert "CG_SelectRespawnWeapon();" in respawn_block
+	assert "primaryWeapon = cg_weaponPrimary.integer;" in weapon_command_block
+	assert "cg.weaponPrimary = CG_StartingWeaponIndexFromToken( cg_weaponPrimaryQueued.string );" in draw_frame_block
+	assert "trap_SetUserCmdValue( cg.weaponSelect, cg.weaponPrimary, cg.zoomSensitivity, cg.userCmdFov );" in draw_frame_block
+	assert "zoomScaling = (qboolean)( cg_zoomScaling.integer != 0 );" in fov_block
+	assert "cg.zoomSensitivity = CG_CalcZoomSensitivityScale( cg.refdef.fov_y, baseFovX ) * cg_zoomSensitivity.value;" in fov_block
+	assert "cg.zoomSensitivity = cg.refdef.fov_y / 75.0;" in fov_block
+	assert "cg.zoomToggle = (qboolean)( cg_zoomToggle.integer != 0 );" in update_block
+	assert "if ( cg.zoomToggle ) {" in zoom_down_block
+	assert "CG_SetZoomState( cg.zoomed ? qfalse : qtrue );" in zoom_down_block
+	assert "if ( cg.zoomToggle ) {" in zoom_up_block
 
 
 def test_load_hud_menu_uses_menu_load_presence_for_runtime_hud_gate() -> None:
@@ -6515,6 +8184,112 @@ def test_cgame_view_keeps_retail_fov_order_for_horplus_and_zoom_trace() -> None:
 	assert "fovX = CG_CalcAspectAdjustedFovFromVertical( fovY );" in trace_block
 
 
+def test_cgame_true_useitem_view_vignette_voice_water_and_zoom_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	consolecmds_source = CG_CONSOLECMDS.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_table = _text_between(
+		hlil_source,
+		"10078170  void* data_10078170",
+		"10078248  void* data_10078248",
+	)
+	retail_zoom_table = _text_between(
+		hlil_source,
+		"10078410  void* data_10078410",
+		"10078440  void* data_10078440",
+	)
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	register_graphics_block = _block_from_marker(main_source, "static void CG_RegisterGraphics")
+	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
+	voice_block = _block_from_marker(main_source, "qboolean CG_ShouldDisplayVoiceIndicator")
+	vrect_block = _block_from_marker(view_source, "static void CG_CalcVrect")
+	fov_block = _block_from_marker(view_source, "static int CG_CalcFov")
+	draw_active_block = _block_from_marker(draw_source, "void CG_DrawActive")
+	vignette_block = _block_from_marker(draw_source, "static void CG_DrawScreenVignette")
+	scale_block = _block_from_marker(event_source, "static float CG_UseItemCenterPrintScale")
+	use_item_block = _block_from_marker(event_source, "static void CG_UseItem")
+	shotgun_block = _block_from_marker(weapons_source, "static void CG_ShotgunPattern")
+
+	for expected in (
+		'{ &cg_trueLightning, "cg_trueLightning", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_trueShotgun, "cg_trueShotgun", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_useItemMessage, "cg_useItemMessage", "1", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_useItemWarning, "cg_useItemWarning", "1", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_viewsize, "cg_viewsize", "100", ' + retail_flags + ', "30", "100" },',
+		'{ &cg_vignette, "cg_vignette", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", ' + retail_flags + ', "0", "2" },',
+		'{ &cg_waterWarp, "cg_waterWarp", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_zoomFov, "cg_zoomfov", "30", ' + retail_flags + ', "10", "130" },',
+		'{ &cg_zoomOutOnDeath, "cg_zoomOutOnDeath", "1", ' + retail_flags + ', "0", "1" },',
+	):
+		assert expected in cvar_table
+
+	for expected in (
+		'{"cg_trueLightning"}',
+		'{"cg_trueShotgun"}',
+		'{"cg_useItemMessage"}',
+		'{"cg_useItemWarning"}',
+		'{"cg_viewsize"}',
+		'{"cg_vignette"}',
+		'{"cg_voiceChatIndicator"}',
+		'{"cg_waterWarp"}',
+	):
+		assert expected in retail_table
+	for expected in (
+		'{"cg_zoomfov"}',
+		'{"cg_zoomOutOnDeath"}',
+	):
+		assert expected in retail_zoom_table
+	assert retail_table.count("01 18 08 00") >= 8
+	assert retail_zoom_table.count("01 18 08 00") >= 2
+	assert "100781dc  void* data_100781dc = data_1006ab94" in retail_table
+	assert "1007841c  void* data_1007841c = 0x1006b5d4" in retail_zoom_table
+	assert "10078420  void* data_10078420 = 0x1006b5d0" in retail_zoom_table
+
+	assert "cg_trueLightning.value != 0" in weapons_source
+	assert "angle[i] = cg.refdefViewAngles[i] + a * ( 1.0 - cg_trueLightning.value );" in weapons_source
+	assert "if ( cg_trueShotgun.integer ) {" in shotgun_block
+	assert "spreadJitter = 0.0f;" in shotgun_block
+	assert "if ( mode == 2 ) {" in scale_block
+	assert "return 0.25f;" in scale_block
+	assert "if ( cg_useItemWarning.integer ) {" in use_item_block
+	assert "CG_UseItemCenterPrintScale( cg_useItemWarning.integer )" in use_item_block
+	assert "} else if ( cg_useItemMessage.integer ) {" in use_item_block
+	assert "CG_UseItemCenterPrintScale( cg_useItemMessage.integer )" in use_item_block
+	assert 'trap_Cvar_Set("cg_viewsize", va("%i",(int)(cg_viewsize.integer+10)));' in consolecmds_source
+	assert 'trap_Cvar_Set("cg_viewsize", va("%i",(int)(cg_viewsize.integer-10)));' in consolecmds_source
+	assert "if (cg_viewsize.integer < 30) {" in vrect_block
+	assert 'trap_Cvar_Set ("cg_viewsize","30");' in vrect_block
+	assert "cg.refdef.width = cgs.glconfig.vidWidth*size/100;" in vrect_block
+	assert "vignetteModificationCount = cg_vignette.modificationCount;" in update_block
+	assert "cg.vignetteEnabled = (qboolean)( cg_vignette.integer != 0 );" in update_block
+	assert 'cgs.media.vignetteShader = trap_R_RegisterShader( "gfx/misc/vignette" );' in register_graphics_block
+	assert "if ( !cg.vignetteEnabled ) {" in vignette_block
+	assert 'cgs.media.vignetteShader = trap_R_RegisterShader( "gfx/misc/vignette" );' in vignette_block
+	assert "CG_DrawPic( 0.0f, 0.0f, 640.0f, 480.0f, cgs.media.vignetteShader );" in vignette_block
+	assert "CG_DrawScreenVignette();" in draw_active_block
+	assert "voiceChatIndicatorModificationCount = cg_voiceChatIndicator.modificationCount;" in update_block
+	assert "cg.voiceChatIndicatorEnabled = (qboolean)( cg_voiceChatIndicator.integer != 0 );" in update_block
+	assert "if ( !cg.voiceChatIndicatorEnabled ) {" in voice_block
+	assert "if ( !CG_ShouldDisplayVoiceIndicator() ) {" in main_source
+	assert "if ( voice && !CG_ShouldDisplayVoiceIndicator() ) {" in newdraw_source
+	assert "if ( cg_waterWarp.integer ) {" in fov_block
+	assert "fov_x += v;" in fov_block
+	assert "zoomFov = cg_zoomFov.value;" in fov_block
+	assert "if ( zoomFov < 1 ) {" in fov_block
+	assert "( ( pmType == PM_DEAD || pmType == PM_FREEZE ) && cg.zoomOutOnDeath )" in draw_active_block
+	assert "cg.zoomOutOnDeath = (qboolean)( cg_zoomOutOnDeath.integer != 0 );" in update_block
+
+
 def test_cgame_use_item_and_voice_indicator_cvars_keep_retail_runtime_wiring() -> None:
 	event_source = CG_EVENT.read_text(encoding="utf-8")
 	main_source = CG_MAIN.read_text(encoding="utf-8")
@@ -6558,8 +8333,73 @@ def test_cgame_team_chat_cvars_keep_retail_runtime_wiring() -> None:
 	assert "lineColor[3] *= 1.0f - (float)elapsed / (float)cg_teamChatTime.integer;" in new_chat_block
 
 
+def test_cgame_spectator_stats_switch_and_teamchat_cvars_match_retail_table_and_wiring() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	draw_source = CG_DRAW.read_text(encoding="utf-8")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
+	players_source = CG_PLAYERS.read_text(encoding="utf-8")
+	weapons_source = CG_WEAPONS.read_text(encoding="utf-8")
+	event_source = CG_EVENT.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	cvar_table = main_source[
+		main_source.index("static cvarTable_t cvarTable[]"):
+		main_source.index("static int  cvarTableSize")
+	]
+	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
+	spectator_block = _block_from_marker(view_source, "static void CG_UpdateSpectatorCvar")
+	draw_frame_block = _block_from_marker(view_source, "void CG_DrawActiveFrame")
+	draw_active_block = _block_from_marker(draw_source, "void CG_DrawActive")
+	player_angles_block = _block_from_marker(players_source, "static void CG_PlayerAngles")
+	weapon_selectable_block = _block_from_marker(weapons_source, "static qboolean CG_WeaponSelectable")
+	weapon_command_block = _block_from_marker(weapons_source, "void CG_Weapon_f")
+	out_of_ammo_block = _block_from_marker(weapons_source, "void CG_OutOfAmmoChange")
+	entity_event_block = _block_from_marker(event_source, "void CG_EntityEvent")
+	team_chat_block = _block_from_marker(servercmds_source, "static void CG_AddToTeamChat")
+	voice_chat_block = _block_from_marker(servercmds_source, "void CG_VoiceChatLocal")
+	parse_chat_block = _block_from_marker(servercmds_source, "static void CG_ParseChat")
+	chat_history_block = _block_from_marker(main_source, "int CG_GetChatHistoryLength")
+	push_print_block = _block_from_marker(main_source, "void CG_PushPrintString")
+	new_chat_block = _block_from_marker(newdraw_source, "static void CG_DrawNewChatArea")
+
+	for expected in (
+		'{ &cg_spectating, "cg_spectating", "0", CVAR_ROM },',
+		'{ &cg_stats, "cg_stats", "0", CVAR_CHEAT },',
+		'{ &cg_stereoSeparation, "cg_stereoSeparation", "0.4", CVAR_ARCHIVE  },',
+		'{ &cg_swingSpeed, "cg_swingSpeed", "0.3", CVAR_CHEAT },',
+		'{ &cg_switchOnEmpty, "cg_switchOnEmpty", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_switchToEmpty, "cg_switchToEmpty", "1", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_teamChatBeep, "cg_teamChatBeep", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_teamChatHeight, "cg_teamChatHeight", "0", ' + retail_flags + ', "0", "8" },',
+		'{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", ' + retail_flags + ', "0", "1" },',
+		'{ &cg_teamChatTime, "cg_teamChatTime", "3000", ' + retail_flags + ', "0", "5000" },',
+	):
+		assert expected in cvar_table
+
+	assert 'trap_Cvar_Set( "cg_spectating", desired ? "1" : "0" );' in spectator_block
+	assert "trap_Cvar_Update( &cg_spectating );" in spectator_block
+	assert "if ( cg_stats.integer ) {" in draw_frame_block
+	assert "separation = -cg_stereoSeparation.value / 2;" in draw_active_block
+	assert "separation = cg_stereoSeparation.value / 2;" in draw_active_block
+	assert "CG_SwingAngles( torsoAngles[YAW], 25, 90, cg_swingSpeed.value" in player_angles_block
+	assert "CG_SwingAngles( legsAngles[YAW], 40, 90, cg_swingSpeed.value" in player_angles_block
+	assert "return ( cg_switchToEmpty.integer != 0 );" in weapon_selectable_block
+	assert "if ( !CG_WeaponSelectable( num ) && !cg_switchToEmpty.integer ) {" in weapon_command_block
+	assert "if ( !cg_switchOnEmpty.integer ) {" in out_of_ammo_block
+	assert "es->number == cg.snap->ps.clientNum && cg_switchOnEmpty.integer" in entity_event_block
+	assert "if ( cg_teamChatBeep.integer && cgs.media.talkSound ) {" in team_chat_block
+	assert "if ( mode == SAY_TEAM || !cg_teamChatsOnly.integer ) {" in voice_chat_block
+	assert "if ( cg_teamChatsOnly.integer ) {" in parse_chat_block
+	assert "historyLength = cg_teamChatHeight.integer;" in chat_history_block
+	assert "if ( historyLength > TEAMCHAT_HEIGHT ) {" in chat_history_block
+	assert "if ( chatHeight <= 0 || cg_teamChatTime.integer <= 0 ) {" in push_print_block
+	assert "if ( !rect || cg_teamChatTime.integer <= 0 ) {" in new_chat_block
+	assert "lineColor[3] *= 1.0f - (float)elapsed / (float)cg_teamChatTime.integer;" in new_chat_block
+
+
 def test_cgame_event_reconstruction_keeps_retail_overtime_gameover_and_race_handlers() -> None:
 	event_source = CG_EVENT.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
 	view_source = CG_VIEW.read_text(encoding="utf-8")
 	local_source = CG_LOCAL.read_text(encoding="utf-8")
 	winner_block = _block_from_marker(event_source, "static qboolean CG_IsLocalPlayerWinner")
@@ -6603,7 +8443,7 @@ def test_cgame_event_reconstruction_keeps_retail_overtime_gameover_and_race_hand
 		"CG_AddBufferedSound( cgs.media.overtimeSound );",
 		"case QL_EV_GAMEOVER:",
 		"CG_ClearBufferedAnnouncements();",
-		'trap_S_StartLocalSound( trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse ), CHAN_LOCAL_SOUND );',
+		"CG_PlayBuzzerSound();",
 		'trap_S_StartBackgroundTrack( "music/win", "" );',
 		'trap_S_StartBackgroundTrack( "music/loss", "" );',
 		"case QL_EV_LIGHTNING_DISCHARGE:",
@@ -6620,6 +8460,7 @@ def test_cgame_event_reconstruction_keeps_retail_overtime_gameover_and_race_hand
 		"CG_RacePlayCue( CG_RACE_CUE_FINISH );",
 	):
 		assert expected in event_block
+	assert 'cgs.media.buzzerSound = trap_S_RegisterSound( "sound/world/buzzer.ogg", qfalse );' in main_source
 
 
 def test_cgame_event_reconstruction_keeps_retail_award_and_local_reward_handlers() -> None:
@@ -6964,17 +8805,28 @@ def test_game_cvar_transport_redundancy_stays_off_serverinfo_slabs() -> None:
 	game_source = G_MAIN.read_text(encoding="utf-8")
 
 	for expected in (
-		'{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional model path used to override every player\'s model selection server-wide." },',
-		'{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_ARCHIVE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },',
-		'{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_ARCHIVE, 0, qfalse, qfalse, "Toggles the Quake Live player-cylinder collision volumes so forced cosmetics line up with the server\'s hitboxes." },',
+		'{ &g_playermodelOverride, "g_playermodelOverride", "", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Optional model path used to override every player\'s model selection server-wide." },',
+		'{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Optional head model override applied to all players for consistent visuals." },',
+		'{ &g_allowCustomHeadmodels, "g_allowCustomHeadmodels", "0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Allow clients to request independent headmodel strings; disabling forces heads to track the enforced player model." },',
+		'{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Toggles the Quake Live player-cylinder collision volumes so forced cosmetics line up with the server\'s hitboxes." },',
+		'{ &g_playerheadScale, "g_playerheadScale", "1.0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Primary multiplier applied to forced head models for visibility parity." },',
+		'{ &g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Secondary head-model scalar layered on top of g_playerheadScale so admins can fine-tune the enforced size." },',
+		'{ &g_playerModelScale, "g_playerModelScale", "1.1", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Applies a global scale multiplier to server-enforced player models." },',
 		'{ &g_armorTiered, "g_armorTiered", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable retail Quake Live tiered armor behaviour for pickups, regen, and the dedicated HUD settings transport." },',
 	):
 		assert expected in game_source
 
 	for unexpected in (
 		'{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE,',
+		'{ &g_playermodelOverride, "g_playermodelOverride", "", CVAR_ARCHIVE,',
 		'{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_SERVERINFO | CVAR_ARCHIVE,',
+		'{ &g_playerheadmodelOverride, "g_playerheadmodelOverride", "", CVAR_ARCHIVE,',
+		'{ &g_allowCustomHeadmodels, "g_allowCustomHeadmodels", "0", CVAR_ARCHIVE,',
 		'{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_SERVERINFO | CVAR_ARCHIVE,',
+		'{ &g_playerCylinders, "g_playerCylinders", "1", CVAR_ARCHIVE,',
+		'{ &g_playerheadScale, "g_playerheadScale", "1.0", CVAR_ARCHIVE,',
+		'{ &g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", CVAR_ARCHIVE,',
+		'{ &g_playerModelScale, "g_playerModelScale", "1.1", CVAR_ARCHIVE,',
 		'{ &g_armorTiered, "g_armorTiered", "0", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART,',
 	):
 		assert unexpected not in game_source
@@ -7216,7 +9068,7 @@ def test_cgame_respawn_weapon_select_restores_retail_primary_preference_seam() -
 		assert expected in token_block
 
 	for expected in (
-		'trap_Cvar_VariableStringBuffer( "cg_weaponPrimary", buffer, sizeof( buffer ) );',
+		'trap_Cvar_VariableStringBuffer( "cg_preferredStartingWeapons", buffer, sizeof( buffer ) );',
 		"token = COM_ParseExt( &cursor, qtrue );",
 		"weapon = CG_RespawnWeaponFromToken( token );",
 		"cg.snap->ps.stats[STAT_WEAPONS] & ( 1 << weapon )",

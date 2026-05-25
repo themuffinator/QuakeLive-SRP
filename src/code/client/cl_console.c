@@ -1306,7 +1306,7 @@ void Con_DrawNotify (void)
 			continue;
 		}
 
-		Con_DrawConsoleLineText( cl_conXOffset->integer + con.xadjust + charWidth, v, text, con.linewidth );
+		Con_DrawConsoleLineText( con.xadjust + charWidth, v, text, con.linewidth );
 
 		v += charHeight;
 	}
