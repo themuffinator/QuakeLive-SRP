@@ -42,11 +42,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
 typedef enum {
-	IMAGETYPE_MEMORY_UNKNOWN,
 	IMAGETYPE_MEMORY_JPG,
 	IMAGETYPE_MEMORY_BMP,
 	IMAGETYPE_MEMORY_TGA,
-	IMAGETYPE_MEMORY_PNG
+	IMAGETYPE_MEMORY_PNG,
+	IMAGETYPE_MEMORY_UNKNOWN
 } imageMemoryType_t;
 
 static void LoadBMPFromBuffer( const char *name, const byte *buffer, int bufferLength, byte **pic, int *width, int *height );
@@ -215,7 +215,7 @@ void R_ImageList_f( void ) {
 			ri.Printf( PRINT_ALL, "RGBA8" );
 			break;
 		case GL_RGB8:
-			ri.Printf( PRINT_ALL, "RGB8" );
+			ri.Printf( PRINT_ALL, "RGB8 " );
 			break;
 		case GL_RGB4_S3TC:
 			ri.Printf( PRINT_ALL, "S3TC " );
@@ -318,6 +318,10 @@ lighting range
 */
 void R_LightScaleTexture (unsigned *in, int inwidth, int inheight, qboolean only_gamma )
 {
+	if ( tr.colorCorrectActive ) {
+		return;
+	}
+
 	if ( only_gamma )
 	{
 		if ( !glConfig.deviceSupportsGamma )
@@ -514,6 +518,21 @@ byte	mipBlendColors[16][4] = {
 	{0,0,255,128},
 };
 
+/*
+=====================
+R_ForcedImageSamples
+
+Returns the retail per-image upload sample override.
+=====================
+*/
+static int R_ForcedImageSamples( const char *name ) {
+	if ( name && !strcmp( name, "browser" ) ) {
+		return 4;
+	}
+
+	return 0;
+}
+
 
 /*
 ===============
@@ -528,6 +547,7 @@ static void Upload32( unsigned *data,
 						  qboolean picmip, 
 							qboolean lightMap,
 						  int glTarget,
+						  int forcedSamples,
 						  int *format, 
 						  int *pUploadWidth, int *pUploadHeight )
 {
@@ -543,21 +563,26 @@ static void Upload32( unsigned *data,
 	//
 	// convert to exact power of 2 sizes
 	//
-	for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
-		;
-	for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
-		;
-	if ( r_roundImagesDown->integer && scaled_width > width )
-		scaled_width >>= 1;
-	if ( r_roundImagesDown->integer && scaled_height > height )
-		scaled_height >>= 1;
+	if ( glTarget != GL_TEXTURE_RECTANGLE_ARB ) {
+		for (scaled_width = 1 ; scaled_width < width ; scaled_width<<=1)
+			;
+		for (scaled_height = 1 ; scaled_height < height ; scaled_height<<=1)
+			;
+		if ( r_roundImagesDown->integer && scaled_width > width )
+			scaled_width >>= 1;
+		if ( r_roundImagesDown->integer && scaled_height > height )
+			scaled_height >>= 1;
 
-	if ( scaled_width != width || scaled_height != height ) {
-		resampledBuffer = ri.Hunk_AllocateTempMemory( scaled_width * scaled_height * 4 );
-		ResampleTexture (data, width, height, resampledBuffer, scaled_width, scaled_height);
-		data = resampledBuffer;
-		width = scaled_width;
-		height = scaled_height;
+		if ( scaled_width != width || scaled_height != height ) {
+			resampledBuffer = ri.Hunk_AllocateTempMemory( scaled_width * scaled_height * 4 );
+			ResampleTexture (data, width, height, resampledBuffer, scaled_width, scaled_height);
+			data = resampledBuffer;
+			width = scaled_width;
+			height = scaled_height;
+		}
+	} else {
+		scaled_width = width;
+		scaled_height = height;
 	}
 
 	//
@@ -620,6 +645,9 @@ static void Upload32( unsigned *data,
 			}
 		}
 		// select proper internal format
+		if ( forcedSamples > 0 ) {
+			samples = forcedSamples;
+		}
 		if ( samples == 3 )
 		{
 			if ( glConfig.textureCompression == TC_S3TC )
@@ -753,6 +781,7 @@ image_t *R_CreateImageWithTarget( const char *name, const byte *pic, int width, 
 					   qboolean mipmap, qboolean allowPicmip, int glWrapClampMode, int glTarget ) {
 	image_t		*image;
 	qboolean	isLightmap = qfalse;
+	int			forcedSamples;
 	long		hash;
 
 	if ( glTarget == 0 ) {
@@ -771,7 +800,11 @@ image_t *R_CreateImageWithTarget( const char *name, const byte *pic, int width, 
 	}
 
 	image = tr.images[tr.numImages] = ri.Hunk_Alloc( sizeof( image_t ), h_low );
-	image->texnum = 1024 + tr.numImages;
+	if ( qglGenTextures ) {
+		qglGenTextures( 1, &image->texnum );
+	} else {
+		image->texnum = 1024 + tr.numImages;
+	}
 	tr.numImages++;
 
 	image->mipmap = mipmap;
@@ -794,13 +827,15 @@ image_t *R_CreateImageWithTarget( const char *name, const byte *pic, int width, 
 		GL_SelectTexture( image->TMU );
 	}
 
-	GL_Bind(image);
+	GL_BindToTarget( image, glTarget );
 
+	forcedSamples = R_ForcedImageSamples( name );
 	Upload32( (unsigned *)pic, image->width, image->height, 
 								image->mipmap,
 								allowPicmip,
 								isLightmap,
 								glTarget,
+								forcedSamples,
 								&image->internalFormat,
 								&image->uploadWidth,
 								&image->uploadHeight );
@@ -888,8 +923,6 @@ static void LoadPNGFromBuffer( const char *name, const byte *buffer, int bufferL
 	int					bitDepth;
 	int					colorType;
 	qboolean			addAlpha;
-	int					intent;
-	double				gammaValue;
 	pngMemoryBuffer_t	pngMem;
 	png_size_t		rowBytes;
 	size_t				dataSize;
@@ -954,14 +987,6 @@ static void LoadPNGFromBuffer( const char *name, const byte *buffer, int bufferL
 	}
 	if ( png_get_valid( png_ptr, info_ptr, PNG_INFO_tRNS ) ) {
 		addAlpha = qfalse;
-	}
-
-	if ( png_get_sRGB( png_ptr, info_ptr, &intent ) ) {
-		png_set_sRGB_gAMA_and_cHRM( png_ptr, info_ptr, intent );
-	} else if ( png_get_gAMA( png_ptr, info_ptr, &gammaValue ) ) {
-		png_set_gamma( png_ptr, 2.2, gammaValue );
-	} else {
-		png_set_gamma( png_ptr, 2.2, 0.45455 );
 	}
 
 	if ( addAlpha ) {
@@ -2265,6 +2290,7 @@ Refreshes an existing dynamic image without changing its shader handle.
 */
 image_t *R_UpdateImage( const char *name, const byte *pic, int width, int height, qboolean mipmap, qboolean allowPicmip, int glWrapClampMode ) {
 	image_t	*image;
+	int		forcedSamples;
 
 	if ( !name || !pic || width <= 0 || height <= 0 ) {
 		return NULL;
@@ -2290,11 +2316,13 @@ image_t *R_UpdateImage( const char *name, const byte *pic, int width, int height
 	}
 
 	GL_Bind( image );
+	forcedSamples = R_ForcedImageSamples( name );
 	Upload32( (unsigned *)pic, image->width, image->height,
 		image->mipmap,
 		allowPicmip,
 		qfalse,
 		GL_TEXTURE_2D,
+		forcedSamples,
 		&image->internalFormat,
 		&image->uploadWidth,
 		&image->uploadHeight );
@@ -2317,54 +2345,28 @@ R_DetectImageTypeFromMemory
 ==========================
 */
 int R_DetectImageTypeFromMemory( const byte *buffer, int bufferLength ) {
-	static const byte pngSignature[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n' };
-	const byte *buf_p;
-	TargaHeader targaHeader;
-
 	if ( !buffer || bufferLength < 2 ) {
 		return IMAGETYPE_MEMORY_UNKNOWN;
 	}
 
-	if ( bufferLength >= 3 && buffer[0] == 0xFF && buffer[1] == 0xD8 && buffer[2] == 0xFF ) {
-		return IMAGETYPE_MEMORY_JPG;
+	if ( bufferLength >= 4 && buffer[1] == 'P' && buffer[2] == 'N' && buffer[3] == 'G' ) {
+		return IMAGETYPE_MEMORY_PNG;
 	}
 
 	if ( buffer[0] == 'B' && buffer[1] == 'M' ) {
 		return IMAGETYPE_MEMORY_BMP;
 	}
 
-	if ( bufferLength >= 8 && !memcmp( buffer, pngSignature, sizeof( pngSignature ) ) ) {
-		return IMAGETYPE_MEMORY_PNG;
+	if ( bufferLength >= 10 && buffer[6] == 'J' && buffer[7] == 'F' && buffer[8] == 'I' && buffer[9] == 'F' ) {
+		return IMAGETYPE_MEMORY_JPG;
 	}
 
-	if ( bufferLength < 18 ) {
+	if ( bufferLength < 17 ) {
 		return IMAGETYPE_MEMORY_UNKNOWN;
 	}
 
-	buf_p = buffer;
-	targaHeader.id_length = *buf_p++;
-	targaHeader.colormap_type = *buf_p++;
-	targaHeader.image_type = *buf_p++;
-	targaHeader.colormap_index = LittleShort( *(short *)buf_p );
-	buf_p += 2;
-	targaHeader.colormap_length = LittleShort( *(short *)buf_p );
-	buf_p += 2;
-	targaHeader.colormap_size = *buf_p++;
-	targaHeader.x_origin = LittleShort( *(short *)buf_p );
-	buf_p += 2;
-	targaHeader.y_origin = LittleShort( *(short *)buf_p );
-	buf_p += 2;
-	targaHeader.width = LittleShort( *(short *)buf_p );
-	buf_p += 2;
-	targaHeader.height = LittleShort( *(short *)buf_p );
-	buf_p += 2;
-	targaHeader.pixel_size = *buf_p++;
-	targaHeader.attributes = *buf_p++;
-
-	if ( targaHeader.colormap_type == 0 &&
-		( targaHeader.image_type == 2 || targaHeader.image_type == 3 || targaHeader.image_type == 10 ) &&
-		( ( targaHeader.image_type == 3 && targaHeader.pixel_size == 8 ) || targaHeader.pixel_size == 24 || targaHeader.pixel_size == 32 ) &&
-		targaHeader.width > 0 && targaHeader.height > 0 ) {
+	if ( buffer[1] == 0 &&
+		( buffer[2] == 3 || ( ( buffer[2] == 2 || buffer[2] == 10 ) && ( buffer[16] == 24 || buffer[16] == 32 ) ) ) ) {
 		return IMAGETYPE_MEMORY_TGA;
 	}
 
@@ -2376,7 +2378,7 @@ int R_DetectImageTypeFromMemory( const byte *buffer, int bufferLength ) {
 R_LoadImageFromMemory
 ====================
 */
-image_t *R_LoadImageFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipmap, qboolean allowPicmip, int glWrapClampMode ) {
+image_t *R_LoadImageFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipmap, qboolean allowPicmip ) {
 	image_t	*image;
 	byte	*pic;
 	int		width;
@@ -2386,7 +2388,7 @@ image_t *R_LoadImageFromMemory( const char *name, const byte *buffer, int buffer
 		return NULL;
 	}
 
-	image = R_FindLoadedImage( name, mipmap, allowPicmip, glWrapClampMode );
+	image = R_FindLoadedImage( name, mipmap, allowPicmip, GL_CLAMP );
 	if ( image ) {
 		return image;
 	}
@@ -2417,7 +2419,7 @@ image_t *R_LoadImageFromMemory( const char *name, const byte *buffer, int buffer
 		return NULL;
 	}
 
-	image = R_CreateImageWithTarget( name, pic, width, height, mipmap, allowPicmip, glWrapClampMode, GL_TEXTURE_2D );
+	image = R_CreateImageWithTarget( name, pic, width, height, mipmap, allowPicmip, GL_CLAMP, GL_TEXTURE_2D );
 	ri.Free( pic );
 	return image;
 }
@@ -2443,21 +2445,21 @@ void R_LoadImage( const char *name, byte **pic, int *width, int *height ) {
 	}
 
 	if ( !Q_stricmp( name+len-4, ".tga" ) ) {
-		LoadTGA( name, pic, width, height );		// try tga first
-		if ( !*pic ) {				//
-			char altname[MAX_QPATH];			// try png / jpg in place of tga
+		char altname[MAX_QPATH];			// try jpg / png in place of tga
 
-			Q_strncpyz( altname, name, sizeof( altname ) );
-			len = strlen( altname );
+		Q_strncpyz( altname, name, sizeof( altname ) );
+		len = strlen( altname );
+		altname[len-3] = 'j';
+		altname[len-2] = 'p';
+		altname[len-1] = 'g';
+		LoadJPG( altname, pic, width, height );
+		if ( !*pic ) {
 			altname[len-3] = 'p';
 			altname[len-2] = 'n';
 			altname[len-1] = 'g';
 			LoadPNG( altname, pic, width, height );
 			if ( !*pic ) {
-				altname[len-3] = 'j';
-				altname[len-2] = 'p';
-				altname[len-1] = 'g';
-				LoadJPG( altname, pic, width, height );
+				LoadTGA( name, pic, width, height );
 			}
 		}
 		if ( !*pic ) {

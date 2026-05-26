@@ -1211,6 +1211,7 @@ void R_RotateForEntity( const trRefEntity_t *ent, const viewParms_t *viewParms, 
 ** GL wrapper/helper functions
 */
 void	GL_Bind( image_t *image );
+void	GL_BindToTarget( image_t *image, int glTarget );
 void	GL_SetDefaultState (void);
 void	GL_SelectTexture( int unit );
 void	GL_TextureMode( const char *string );
@@ -1254,6 +1255,10 @@ void	GL_Cull( int cullType );
 
 #define GLS_DEFAULT			GLS_DEPTHMASK_TRUE
 
+#ifndef GL_TEXTURE_RECTANGLE_ARB
+#define GL_TEXTURE_RECTANGLE_ARB 0x84F5
+#endif
+
 void	RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int client, qboolean dirty);
 void	RE_UploadCinematic (int w, int h, int cols, int rows, const byte *data, int client, qboolean dirty);
 
@@ -1278,7 +1283,7 @@ image_t		*R_CreateImage( const char *name, const byte *pic, int width, int heigh
 					, qboolean allowPicmip, int wrapClampMode );
 int			R_DetectImageTypeFromMemory( const byte *buffer, int bufferLength );
 image_t		*R_LoadImageFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipmap
-					, qboolean allowPicmip, int glWrapClampMode );
+					, qboolean allowPicmip );
 int			R_GetMode( void );
 int			R_GetModeAspectRatioPreset( int width, int height );
 qboolean	R_GetModeInfo( int *width, int *height, int *aspectRatio, int mode, qboolean fullscreen );

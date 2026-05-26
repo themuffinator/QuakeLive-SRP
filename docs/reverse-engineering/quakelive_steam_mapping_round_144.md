@@ -24,6 +24,9 @@ leaf-test, and capsule-vs-capsule split that feeds `CM_Trace`, while the small
 renderer tranche closes the exact `GL_*` state wrappers immediately adjacent to
 the already-mapped `GL_State` and `RB_BeginDrawingView`.
 
+Retrospective note, 2026-05-26: round 313 promoted the generalized binder
+underneath `sub_4357B0` as `sub_435730 -> GL_BindToTarget`.
+
 This round also corrects a prior naming mistake: `sub_4C55D0` is the
 position-test helper `CM_TestCapsuleInCapsule`, while the true sweep variant is
 the previously unresolved `sub_4C6BD0 -> CM_TraceCapsuleThroughCapsule`.
@@ -78,7 +81,7 @@ the previously unresolved `sub_4C6BD0 -> CM_TraceCapsuleThroughCapsule`.
   `CM_TraceCapsuleThroughCapsule`.
 - `sub_4357B0`, `sub_4357D0`, `sub_435880`, and `sub_4358F0` are exact
   renderer matches from `tr_backend.c`. `sub_4357B0` is the `GL_TEXTURE_2D`
-  wrapper over the generalized binder below it, while the latter three are
+  wrapper over `sub_435730` / `GL_BindToTarget`, while the latter three are
   anchored by the literal `GL_SelectTexture: unit = %i` and
   `GL_TexEnv: invalid env '%d' passed` strings plus the canonical TMU/cull/env
   state transitions from the source.

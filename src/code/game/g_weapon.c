@@ -877,6 +877,32 @@ void Weapon_HookFree (gentity_t *ent)
 	G_FreeEntity( ent );
 }
 
+/*
+=============
+Weapon_UpdateHookGrapplePoint
+
+Applies the retail latched hook offset from the owner's view origin.
+=============
+*/
+void Weapon_UpdateHookGrapplePoint( gentity_t *ent ) {
+	vec3_t	viewOrigin;
+	vec3_t	offsetDir;
+
+	if ( !ent || !ent->parent || !ent->parent->client ) {
+		return;
+	}
+
+	VectorCopy( ent->parent->client->ps.origin, viewOrigin );
+	viewOrigin[2] += ent->parent->client->ps.viewheight;
+	VectorSubtract( ent->r.currentOrigin, viewOrigin, offsetDir );
+	if ( VectorNormalize( offsetDir ) != 0.0f && g_latchedHookOffset.value != 0.0f ) {
+		VectorMA( ent->r.currentOrigin, g_latchedHookOffset.value, offsetDir,
+			ent->parent->client->ps.grapplePoint );
+	} else {
+		VectorCopy( ent->r.currentOrigin, ent->parent->client->ps.grapplePoint );
+	}
+}
+
 void Weapon_HookThink (gentity_t *ent)
 {
 	if (ent->enemy) {
@@ -891,7 +917,7 @@ void Weapon_HookThink (gentity_t *ent)
 		G_SetOrigin( ent, v );
 	}
 
-	VectorCopy( ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);
+	Weapon_UpdateHookGrapplePoint( ent );
 }
 
 /*

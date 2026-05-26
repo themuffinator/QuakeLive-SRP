@@ -1814,7 +1814,7 @@ gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_
 
 			spots[count++] = point->spawnTargets[j];
 			if ( count >= ARRAY_LEN( spots ) ) {
-				return G_SelectRankedSpawnPoint( spots, count, origin, angles );
+				return G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );
 			}
 		}
 	}
@@ -1823,7 +1823,7 @@ gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_
 		return NULL;
 	}
 
-	return G_SelectRankedSpawnPoint( spots, count, origin, angles );
+	return G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );
 }
 
 /*
@@ -4282,7 +4282,7 @@ gentity_t *SelectCTFSpawnPoint ( team_t team, int teamstate, vec3_t origin, vec3
 		}
 	}
 
-	spot = G_SelectRankedSpawnPoint( spots, count, origin, angles );
+	spot = G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );
 
 	if (!spot) {
 		return SelectSpawnPoint( vec3_origin, origin, angles );

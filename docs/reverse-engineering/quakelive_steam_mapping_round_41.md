@@ -69,12 +69,14 @@ That is the exact general texture resampler `ResampleTexture`.
 
 Observed local facts:
 
-1. The helper splits on the same `only_gamma` flag used by the source.
-2. In the `only_gamma` path it only does work when hardware gamma is unavailable and remaps RGB through `s_gammatable`.
-3. In the full light-scale path it walks `width * height` pixels and applies:
+1. The helper first checks the shader color-correction predicate and returns
+   without upload-time RGB scaling when that pass is active.
+2. The helper splits on the same `only_gamma` flag used by the source.
+3. In the `only_gamma` path it only does work when hardware gamma is unavailable and remaps RGB through `s_gammatable`.
+4. In the full light-scale path it walks `width * height` pixels and applies:
    - `s_intensitytable` only when hardware gamma is available
    - `s_gammatable[s_intensitytable[x]]` when hardware gamma is unavailable
-4. It leaves alpha untouched in all paths.
+5. It leaves alpha untouched in all paths.
 
 That closes `sub_444D00` as the exact light scaling helper `R_LightScaleTexture`.
 

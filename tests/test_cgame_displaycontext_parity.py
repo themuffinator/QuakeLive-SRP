@@ -3677,6 +3677,7 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 	assert "static int  cvarTableSize = sizeof( cvarTable ) / sizeof( cvarTable[0] );" in source
 	for expected in (
 		'{ &cg_armorTiered, "cg_armorTiered", "0", CVAR_ROM },',
+		'{ &g_training, "g_training", "0", 0 },',
 		'{ &cg_addMarks, "cg_marks", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_allowTaunt, "cg_allowTaunt", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },',
@@ -3729,7 +3730,7 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 		'{ &cg_disableLoadout_pl, "cg_disableLoadout_pl", "0", CVAR_ROM },',
 		'{ &cg_disableLoadout_cg, "cg_disableLoadout_cg", "0", CVAR_ROM },',
 		'{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM },',
-		'{ &cg_deferPlayers, "cg_deferPlayers", "0", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_deferPlayers, "cg_deferPlayers", "1", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_draw2D, "cg_draw2D", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_draw3dIcons, "cg_draw3dIcons", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_drawAmmoWarning, "cg_drawAmmoWarning", "2", ' + retail_flags + ', "0", "2" },',
@@ -3770,12 +3771,12 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 		'{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_fov, "cg_fov", "100", ' + retail_flags + ', "10", "130" },',
-		'{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },',
-		'{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },',
-		'{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },',
-		'{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },',
-		'{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },',
-		'{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },',
+		'{ &cg_gameInfo1, "cg_gameInfo1", "0", CVAR_ROM },',
+		'{ &cg_gameInfo2, "cg_gameInfo2", "0", CVAR_ROM },',
+		'{ &cg_gameInfo3, "cg_gameInfo3", "0", CVAR_ROM },',
+		'{ &cg_gameInfo4, "cg_gameInfo4", "0", CVAR_ROM },',
+		'{ &cg_gameInfo5, "cg_gameInfo5", "0", CVAR_ROM },',
+		'{ &cg_gameInfo6, "cg_gameInfo6", "0", CVAR_ROM },',
 		'{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },',
 		'{ &cg_gun_x, "cg_gunX", "0", ' + retail_flags + ', "-10", "10" },',
 		'{ &cg_gun_y, "cg_gunY", "0", ' + retail_flags + ', "-10", "20" },',
@@ -3918,6 +3919,7 @@ def test_cgame_early_audio_effect_cvars_match_retail_table_and_wiring() -> None:
 
 	for expected in (
 		'{ &cg_armorTiered, "cg_armorTiered", "0", CVAR_ROM },',
+		'{ &g_training, "g_training", "0", 0 },',
 		'{ &cg_addMarks, "cg_marks", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_allowTaunt, "cg_allowTaunt", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },',
@@ -4603,8 +4605,9 @@ def test_cgame_force_model_and_fov_cvars_match_retail_table_and_wiring() -> None
 		assert expected in register_block
 		assert expected in update_block
 
-	assert "( cg_forceTeamModel.string[0] ? cg_forceTeamModel.string : cg_teamModel.string ) :" in model_override_block
-	assert "( cg_forceEnemyModel.string[0] ? cg_forceEnemyModel.string : cg_enemyModel.string );" in model_override_block
+	assert "modelValue = useTeam ? cg_forceTeamModel.string : cg_forceEnemyModel.string;" in model_override_block
+	assert "cg_teamModel" not in model_override_block
+	assert "cg_enemyModel" not in model_override_block
 	assert "skinValue = useTeam ? cg_forceTeamSkin.string : cg_forceEnemySkin.string;" in model_override_block
 	assert "if ( ( useTeam && cg_forceTeamWeaponColor.integer ) || ( !useTeam && cg_forceEnemyWeaponColor.integer ) ) {" in color_override_block
 	assert "return (qboolean)cg_forceEnemyWeaponColor.integer;" in weapon_override_block
@@ -4647,12 +4650,12 @@ def test_cgame_gameinfo_gametype_and_gun_cvars_match_retail_table_and_wiring() -
 	test_model_block = _block_from_marker(view_source, "static void CG_AddTestModel")
 
 	for expected in (
-		'{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },',
-		'{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },',
-		'{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },',
-		'{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },',
-		'{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },',
-		'{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },',
+		'{ &cg_gameInfo1, "cg_gameInfo1", "0", CVAR_ROM },',
+		'{ &cg_gameInfo2, "cg_gameInfo2", "0", CVAR_ROM },',
+		'{ &cg_gameInfo3, "cg_gameInfo3", "0", CVAR_ROM },',
+		'{ &cg_gameInfo4, "cg_gameInfo4", "0", CVAR_ROM },',
+		'{ &cg_gameInfo5, "cg_gameInfo5", "0", CVAR_ROM },',
+		'{ &cg_gameInfo6, "cg_gameInfo6", "0", CVAR_ROM },',
 		'{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },',
 		'{ &cg_gun_x, "cg_gunX", "0", ' + retail_flags + ', "-10", "10" },',
 		'{ &cg_gun_y, "cg_gunY", "0", ' + retail_flags + ', "-10", "20" },',
@@ -4716,7 +4719,8 @@ def test_cgame_gameinfo_gametype_and_gun_cvars_match_retail_table_and_wiring() -
 
 	for expected in (
 		"gameInfo = cg_retailBlankGameInfoLines;",
-		"trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );",
+		"trap_Cvar_Update( &g_training );",
+		"if ( g_training.integer ) {",
 		"gameInfo = cg_retailTrainingGameInfoLines;",
 		"gameInfo = cg_retailGameInfoLines[cgs.gametype];",
 		'trap_Cvar_Set( "cg_gameInfo1", gameInfo[0] );',
@@ -5054,7 +5058,7 @@ def test_cgame_low_ammo_prediction_obituary_and_plasma_cvars_match_retail_table_
 	retail_table = _text_between(hlil_source, "10077828  void* data_10077828", "10077948  void* data_10077948")
 	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
 	retail_no_cloud_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED"
-	cloud_flags = "CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD"
+	protected_cloud_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD"
 	register_block = _block_from_marker(main_source, "void CG_RegisterCvars")
 	update_block = _block_from_marker(main_source, "void CG_UpdateCvars")
 	low_ammo_update_block = _block_from_marker(main_source, "static void CG_UpdateLowAmmoWarningPercentile")
@@ -5081,7 +5085,7 @@ def test_cgame_low_ammo_prediction_obituary_and_plasma_cvars_match_retail_table_
 		'{ &cg_nopredict, "cg_nopredict", "0", CVAR_PROTECTED | CVAR_VM_CREATED, "0", "1" },',
 		'{ &cg_obituaryRowSize, "cg_obituaryRowSize", "5", ' + retail_no_cloud_flags + ', "0", "5" },',
 		'{ &cg_overheadNamesWidth, "cg_overheadNamesWidth", "75", ' + retail_flags + ', "50", "100" },',
-		'{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", ' + cloud_flags + ' },',
+		'{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", ' + protected_cloud_flags + ' },',
 		'{ &cg_plasmaStyle, "cg_plasmaStyle", "1", ' + retail_flags + ', "1", "2" },',
 	):
 		assert expected in cvar_table
@@ -5189,7 +5193,7 @@ def test_cgame_damage_body_icon_and_view_cvars_match_retail_wiring() -> None:
 		'{ &cg_damagePlumColorStyle, "cg_damagePlumColorStyle", "1", ' + retail_flags + ', "1", "3" },',
 		'{ &cg_deadBodyColor, "cg_deadBodyColor", "0x101010FF", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_deadBodyDarken, "cg_deadBodyDarken", "1", ' + retail_flags + ', "0", "1" },',
-		'{ &cg_deferPlayers, "cg_deferPlayers", "0", ' + retail_protected_cloud_flags + ' },',
+		'{ &cg_deferPlayers, "cg_deferPlayers", "1", ' + retail_protected_cloud_flags + ' },',
 		'{ &cg_draw2D, "cg_draw2D", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_draw3dIcons, "cg_draw3dIcons", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_drawDeadFriendTime, "cg_drawDeadFriendTime", "3000.0", ' + retail_flags + ', "0.0", "5000.0" },',
@@ -5212,7 +5216,7 @@ def test_cgame_damage_body_icon_and_view_cvars_match_retail_wiring() -> None:
 	assert "refreshDeadBodyPalette = qtrue;" in update_block
 	assert "if ( !cg.deadBodyDarken ) {" in dead_tint_block
 	assert "CG_SetScaledShaderRGBA( re->shaderRGBA, cg.deadBodyColor, colorScale );" in apply_dead_body_block
-	assert "forceDefer || (cg_deferPlayers.integer && !cg_buildScript.integer && !cg.loading )" in client_info_block
+	assert 'forceDefer || (cg_deferPlayers.integer && !trap_Cvar_VariableValue( "com_build" ) && !cg.loading )' in client_info_block
 	assert "if ( cg_draw2D.integer == 0 || cg_paused.integer ) {" in draw2d_block
 	assert "if ( !cg_draw3dIcons.integer || !cg_drawIcons.integer ) {" in model_block
 	assert "if ( cg_draw3dIcons.integer ) {" in head_block
@@ -5490,7 +5494,8 @@ def test_cgame_enemy_override_error_decay_and_fov_cvars_match_retail_wiring() ->
 		assert expected in register_block
 		assert expected in update_block
 
-	assert "( cg_forceEnemyModel.string[0] ? cg_forceEnemyModel.string : cg_enemyModel.string );" in model_override_block
+	assert "modelValue = useTeam ? cg_forceTeamModel.string : cg_forceEnemyModel.string;" in model_override_block
+	assert "cg_enemyModel" not in model_override_block
 	assert "skinValue = useTeam ? cg_forceTeamSkin.string : cg_forceEnemySkin.string;" in model_override_block
 	assert "value = useTeam ? cg_teamHeadColor.string : cg_enemyHeadColor.string;" in color_override_block
 	assert "value = useTeam ? cg_teamUpperColor.string : cg_enemyUpperColor.string;" in color_override_block
@@ -5555,9 +5560,11 @@ def test_cgame_team_override_and_poi_cvars_match_retail_wiring() -> None:
 		assert expected in register_block
 		assert expected in update_block
 
-	assert "( cg_forceTeamModel.string[0] ? cg_forceTeamModel.string : cg_teamModel.string ) :" in model_override_block
+	assert "modelValue = useTeam ? cg_forceTeamModel.string : cg_forceEnemyModel.string;" in model_override_block
+	assert "cg_teamModel" not in model_override_block
 	assert "skinValue = useTeam ? cg_forceTeamSkin.string : cg_forceEnemySkin.string;" in model_override_block
-	assert "const char *colorStr = useTeam ? cg_teamColors.string : cg_enemyColors.string;" in color_override_block
+	assert "cg_teamColors" not in color_override_block
+	assert "cg_enemyColors" not in color_override_block
 	assert "value = useTeam ? cg_teamHeadColor.string : cg_enemyHeadColor.string;" in color_override_block
 	assert "value = useTeam ? cg_teamUpperColor.string : cg_enemyUpperColor.string;" in color_override_block
 	assert "value = useTeam ? cg_teamLowerColor.string : cg_enemyLowerColor.string;" in color_override_block
@@ -5626,10 +5633,10 @@ def test_cgame_bob_message_timer_and_poi_cvars_match_retail_wiring() -> None:
 		"bobScale = cg.bobScale;",
 		"angles[PITCH] += ratio * cg.v_dmg_pitch * kickScale;",
 		"angles[ROLL] += ratio * cg.v_dmg_roll * kickScale;",
-		"angles[PITCH] += delta * cg_runpitch.value * bobScale;",
-		"angles[ROLL] -= delta * cg_runroll.value * bobScale;",
-		"delta = cg.bobfracsin * cg_bobpitch.value * speed * bobScale;",
-		"bob = cg.bobfracsin * cg.xyspeed * cg_bobup.value * bobScale;",
+		"angles[PITCH] += delta * CG_RUNPITCH * bobScale;",
+		"angles[ROLL] -= delta * CG_RUNROLL * bobScale;",
+		"delta = cg.bobfracsin * CG_BOBPITCH * speed * bobScale;",
+		"bob = cg.bobfracsin * cg.xyspeed * CG_BOBUP * bobScale;",
 	):
 		assert expected in view_block
 
@@ -5664,7 +5671,7 @@ def test_cgame_weapon_settings_match_retail_cvar_table_and_style_wiring() -> Non
 	plasma_block = _block_from_marker(weapons_source, "static void CG_PlasmaTrail")
 	missile_hit_block = _block_from_marker(weapons_source, "void CG_MissileHitWall( int weapon")
 	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
-	cloud_flags = "CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD"
+	protected_cloud_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD"
 
 	for expected in (
 		'{ &cg_autoswitch, "cg_autoswitch", "0", ' + retail_flags + ', "0", "1" },',
@@ -5693,22 +5700,22 @@ def test_cgame_weapon_settings_match_retail_cvar_table_and_style_wiring() -> Non
 		'{ &cg_trueLightning, "cg_trueLightning", "1", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_trueShotgun, "cg_trueShotgun", "0", ' + retail_flags + ', "0", "1" },',
 		'{ &cg_weaponBar, "cg_weaponBar", "1", ' + retail_flags + ', "0", "4" },',
-		'{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig, "cg_weaponConfig", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_g, "cg_weaponConfig_g", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_mg, "cg_weaponConfig_mg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_sg, "cg_weaponConfig_sg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_gl, "cg_weaponConfig_gl", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_rl, "cg_weaponConfig_rl", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_lg, "cg_weaponConfig_lg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_rg, "cg_weaponConfig_rg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_pg, "cg_weaponConfig_pg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_bfg, "cg_weaponConfig_bfg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_ng, "cg_weaponConfig_ng", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_pl, "cg_weaponConfig_pl", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_cg, "cg_weaponConfig_cg", "", ' + cloud_flags + ' },',
-		'{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", ' + cloud_flags + ' },',
+		'{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig, "cg_weaponConfig", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_g, "cg_weaponConfig_g", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_mg, "cg_weaponConfig_mg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_sg, "cg_weaponConfig_sg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_gl, "cg_weaponConfig_gl", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_rl, "cg_weaponConfig_rl", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_lg, "cg_weaponConfig_lg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_rg, "cg_weaponConfig_rg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_pg, "cg_weaponConfig_pg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_bfg, "cg_weaponConfig_bfg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_ng, "cg_weaponConfig_ng", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_pl, "cg_weaponConfig_pl", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_cg, "cg_weaponConfig_cg", "", ' + protected_cloud_flags + ' },',
+		'{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", ' + protected_cloud_flags + ' },',
 	):
 		assert expected in cvar_table
 
@@ -5761,7 +5768,7 @@ def test_cgame_weapon_bar_config_primary_and_zoom_cvars_match_retail_table_and_w
 		"10078488  void* data_10078488",
 	)
 	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
-	cloud_flags = "CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD"
+	protected_cloud_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD"
 	weapon_config_names = (
 		"cg_weaponConfig",
 		"cg_weaponConfig_g",
@@ -5793,7 +5800,7 @@ def test_cgame_weapon_bar_config_primary_and_zoom_cvars_match_retail_table_and_w
 
 	for expected in (
 		'{ &cg_weaponBar, "cg_weaponBar", "1", ' + retail_flags + ', "0", "4" },',
-		'{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, ' + cloud_flags + ' },',
+		'{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, ' + protected_cloud_flags + ' },',
 		'{ &cg_weaponPrimary, "cg_weaponPrimary", "", CVAR_ROM },',
 		'{ &cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP },',
 		'{ &cg_zoomScaling, "cg_zoomScaling", "1", ' + retail_flags + ', "0", "1" },',
@@ -5803,7 +5810,7 @@ def test_cgame_weapon_bar_config_primary_and_zoom_cvars_match_retail_table_and_w
 		assert expected in cvar_table
 
 	for config_name in weapon_config_names:
-		assert f'{{ &{config_name}, "{config_name}", "", {cloud_flags} }},' in cvar_table
+		assert f'{{ &{config_name}, "{config_name}", "", {protected_cloud_flags} }},' in cvar_table
 
 	for expected in (
 		'{"cg_weaponBar"}',
@@ -7346,8 +7353,8 @@ def test_cgame_gameinfo_cvars_restore_retail_training_and_gametype_text() -> Non
 		assert expected in source
 
 	for expected in (
-		'info = CG_ConfigString( CS_SERVERINFO );',
-		"trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );",
+		"trap_Cvar_Update( &g_training );",
+		"if ( g_training.integer ) {",
 		"gameInfo = cg_retailBlankGameInfoLines;",
 		"gameInfo = cg_retailTrainingGameInfoLines;",
 		"gameInfo = cg_retailGameInfoLines[cgs.gametype];",
@@ -8790,8 +8797,8 @@ def test_cgame_player_cylinders_configstring_retains_direct_retail_parser_bounda
 	assert "info = CG_ConfigString( CS_PLAYER_CYLINDERS );" in parse_block
 	assert 'value = ( info && info[0] ) ? va( "%i", atoi( info ) ) : "0";' in parse_block
 	assert "cgs.playerCylindersEnabled = (qboolean)( atoi( value ) != 0 );" in parse_block
-	assert 'trap_Cvar_Set( "cg_playerCylinders", value );' in parse_block
-	assert "trap_Cvar_Update( &cg_playerCylinders );" in parse_block
+	assert 'trap_Cvar_Set( "cg_playerCylinders", value );' not in parse_block
+	assert "trap_Cvar_Update( &cg_playerCylinders );" not in parse_block
 
 	assert "CG_ParsePlayerCylindersConfigString();" in set_config_values_block
 	assert "num == CS_PLAYER_CYLINDERS" in configstring_modified_block
@@ -8812,7 +8819,7 @@ def test_game_cvar_transport_redundancy_stays_off_serverinfo_slabs() -> None:
 		'{ &g_playerheadScale, "g_playerheadScale", "1.0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Primary multiplier applied to forced head models for visibility parity." },',
 		'{ &g_playerheadScaleOffset, "g_playerheadScaleOffset", "1.0", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Secondary head-model scalar layered on top of g_playerheadScale so admins can fine-tune the enforced size." },',
 		'{ &g_playerModelScale, "g_playerModelScale", "1.1", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Applies a global scale multiplier to server-enforced player models." },',
-		'{ &g_armorTiered, "g_armorTiered", "0", CVAR_ARCHIVE | CVAR_NORESTART, 0, qfalse, qfalse, "Enable retail Quake Live tiered armor behaviour for pickups, regen, and the dedicated HUD settings transport." },',
+		'{ &g_armorTiered, "armor_tiered", "0", GAME_CVAR_FLAG_RETAIL_20000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Enable retail Quake Live tiered armor behaviour for pickups, regen, and the dedicated HUD settings transport." },',
 	):
 		assert expected in game_source
 

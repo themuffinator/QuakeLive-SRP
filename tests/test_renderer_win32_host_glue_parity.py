@@ -98,6 +98,8 @@ def test_mode_switches_publish_retail_aspect_ratio_presets() -> None:
 def test_pfd_auto_select_restores_retail_icd_and_wgl_owner_split() -> None:
 	win_glimp = WIN_GLIMP.read_text()
 
+	assert 'ri.Cvar_Set( "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR" );' in win_glimp
+	assert 'ri.Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );' not in win_glimp
 	assert 'ri.Printf( PRINT_ALL, "...GLW_AutoSelectPFD( %d, %d, %d )\\n", ( int ) pPFD->cColorBits, ( int ) pPFD->cDepthBits, ( int ) pPFD->cStencilBits );' in win_glimp
 	assert "useQWGL = (qboolean)( glConfig.driverType > GLDRV_ICD );" in win_glimp
 	assert "autoPFD = GLW_ChoosePixelFormatSafe( hDC, pPFD, qtrue );" in win_glimp

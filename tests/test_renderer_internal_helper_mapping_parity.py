@@ -72,15 +72,20 @@ def test_renderer_audit_and_repo_summaries_mark_rg_p5_complete() -> None:
 
 
 def test_representative_rg_g06_helper_seams_remain_present_in_source() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
 	tr_backend = _read("src/code/renderer/tr_backend.c")
 	tr_bsp = _read("src/code/renderer/tr_bsp.c")
 	tr_curve = _read("src/code/renderer/tr_curve.c")
 	tr_flares = _read("src/code/renderer/tr_flares.c")
 	win_glimp = _read("src/code/win32/win_glimp.c")
 
+	assert aliases["sub_435730"] == "GL_BindToTarget"
+	assert aliases["sub_4357B0"] == "GL_Bind"
 	assert "void RB_ExecuteRenderCommands( const void *data ) {" in tr_backend
 	assert "static void RBPP_RebuildState( void ) {" in tr_backend
+	assert "void GL_BindToTarget( image_t *image, int glTarget ) {" in tr_backend
 	assert "void GL_Bind( image_t *image ) {" in tr_backend
+	assert "GL_BindToTarget( image, GL_TEXTURE_2D );" in tr_backend
 	assert "static\tvoid R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {" in tr_bsp
 	assert "int R_StitchPatches( int grid1num, int grid2num ) {" in tr_bsp
 	assert "static void LerpDrawVert( drawVert_t *a, drawVert_t *b, drawVert_t *out ) {" in tr_curve
@@ -89,6 +94,68 @@ def test_representative_rg_g06_helper_seams_remain_present_in_source() -> None:
 	assert "void RB_TestFlare( flare_t *f ) {" in tr_flares
 	assert "static void GLW_StartOpenGL( void )" in win_glimp
 	assert "void GLimp_Init( void )" in win_glimp
+
+
+def test_renderer_mapping_round_314_keeps_image_hash_and_listing_parity() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt")
+	hlil_part04 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt")
+	functions_csv = _read("references/reverse-engineering/ghidra/quakelive_steam/functions.csv").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_314.md")
+	tr_image = _read("src/code/renderer/tr_image.c")
+	tr_shader = _read("src/code/renderer/tr_shader.c")
+
+	expected_aliases = {
+		"sub_444940": "R_ImageList_f",
+		"sub_446D00": "R_FindImageFile",
+		"sub_4474C0": "R_CreateBuiltinImages",
+		"sub_4475D0": "R_SetColorMappings",
+		"sub_447800": "R_DeleteTextures",
+		"sub_4D8990": "generateHashValue",
+	}
+
+	for symbol, alias in expected_aliases.items():
+		assert aliases[symbol] == alias
+		assert symbol.replace("sub_", "fun_00").lower() in functions_csv
+		assert f"| `{symbol}` | `{alias}` | High |" in mapping_round
+
+	for expected in (
+		"00444940    int32_t sub_444940()",
+		'var_1c_2 = "RGB8 "',
+		"00446d35  char* esi = *((sub_4d8990(arg1, 0x400) << 2) + &data_586840)",
+		"004474c0    int32_t sub_4474c0()",
+		"004475d0    int32_t sub_4475d0",
+		"00447800    int32_t sub_447800()",
+	):
+		assert expected in hlil_part02
+
+	for expected in (
+		"004d8990    int32_t sub_4d8990(char* arg1, int32_t arg2)",
+		"return (arg2 - 1) & ebx",
+	):
+		assert expected in hlil_part04
+
+	assert 'ri.Printf( PRINT_ALL, "RGB8 " );' in tr_image
+	assert "static long generateHashValue( const char *fname, const int size ) {" in tr_shader
+	assert "`R_ImageList_f` now prints the retail `RGB8 ` diagnostic label." in mapping_round
+
+
+def test_renderer_mapping_round_315_restores_color_correct_upload_gamma_gate() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt")
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_315.md")
+	tr_image = _read("src/code/renderer/tr_image.c")
+
+	light_scale_block = _block_from_marker(tr_image, "void R_LightScaleTexture")
+
+	assert aliases["sub_43CCE0"] == "RBPP_ColorCorrectEnabled"
+	assert aliases["sub_444D00"] == "R_LightScaleTexture"
+	assert "00444d03  void* eax = sub_43cce0()" in hlil_part02
+	assert "00444d0a  if (eax == 0)" in hlil_part02
+	assert "00444e14  return eax" in hlil_part02
+	assert "if ( tr.colorCorrectActive ) {\n\t\treturn;\n\t}" in light_scale_block
+	assert light_scale_block.index("if ( tr.colorCorrectActive )") < light_scale_block.index("if ( only_gamma )")
+	assert "`R_LightScaleTexture` now exits before upload-time gamma/intensity scaling when shader color correction is active." in mapping_round
 
 
 def test_renderer_advertisement_debug_labels_use_host_text() -> None:

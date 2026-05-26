@@ -35,7 +35,7 @@ def test_ad_round_scoreboard_owner_restores_retail_grid_and_banner_strings() -> 
 	warmup_block = _block_from_marker(source, "static void CG_DrawWarmupStatusText")
 
 	for expected in (
-		'value = Info_ValueForKey( info, "g_scorelimit" );',
+		"value = Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT );",
 		'value = Info_ValueForKey( info, "roundlimit" );',
 		'return "Red Wins! Good Game";',
 		'return "Last Chance";',

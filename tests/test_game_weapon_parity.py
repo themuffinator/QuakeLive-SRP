@@ -350,6 +350,7 @@ def test_first_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
     weapon_c = _read("src/code/game/g_weapon.c")
     missile_c = _read("src/code/game/g_missile.c")
     combat_c = _read("src/code/game/g_combat.c")
+    g_local_h = _read("src/code/game/g_local.h")
     config_c = _read("src/game/g_config.c")
     factory_c = _read("src/code/game/g_factory.c")
 
@@ -373,7 +374,7 @@ def test_first_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
         "case MOD_GAUNTLET:",
         "configuredDamage = g_weaponConfig.gauntletDamage;",
         "case MOD_MACHINEGUN:",
-        "configuredDamage = ( g_gametype.integer != GT_TEAM ) ? g_weaponConfig.machinegunDamage : g_weaponConfig.machinegunTeamDamage;",
+        "configuredDamage = g_weaponConfig.machinegunDamage;",
         "case MOD_HMG:",
         "configuredDamage = g_weaponConfig.heavyMachinegunDamage;",
         "case MOD_CHAINGUN:",
@@ -391,6 +392,8 @@ def test_first_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
         "configuredDamage = g_weaponConfig.nailgunDamage;",
     ):
         assert expected in clamp_body
+    assert "machinegunTeamDamage" not in g_local_h
+    assert "g_damage_mg_team" not in main_c
 
     for expected in (
         "damage = g_weaponConfig.gauntletDamage * s_quadFactor;",
@@ -675,6 +678,8 @@ def test_third_ten_damage_cvars_keep_retail_weapon_wiring() -> None:
         "bolt->splashRadius = g_weaponConfig.plasmaSplashRadius;",
         "bolt->splashRadius = g_weaponConfig.bfgSplashRadius;",
         "bolt->splashRadius = g_weaponConfig.proximityLauncherSplashRadius;",
+        "if ( haveNormal && g_splashdamageOffset.value != 0.0f ) {",
+        "VectorMA( splashOrigin, g_splashdamageOffset.value, normal, splashOrigin );",
         "if ( ent->s.weapon == WP_ROCKET_LAUNCHER && g_weaponConfig.rocketSplashOffset != 0 ) {",
         "splashOffset = ( float )g_weaponConfig.rocketSplashOffset;",
     ):
@@ -1416,6 +1421,7 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     fireweapon_body = _function_body(g_weapon_c, "void FireWeapon( gentity_t *ent )")
     grapple_fire_body = _function_body(g_weapon_c, "void Weapon_GrapplingHook_Fire (gentity_t *ent)")
     hook_free_body = _function_body(g_weapon_c, "void Weapon_HookFree (gentity_t *ent)")
+    update_hook_body = _function_body(g_weapon_c, "void Weapon_UpdateHookGrapplePoint( gentity_t *ent )")
     hook_think_body = _function_body(g_weapon_c, "void Weapon_HookThink (gentity_t *ent)")
     missile_impact_body = _function_body(g_missile_c, "void G_MissileImpact( gentity_t *ent, trace_t *trace )")
     sync_grapple_body = _function_body(g_missile_c, "static void G_SynchronizeGrappleConfig( gentity_t *hook, vec3_t dir )")
@@ -1565,7 +1571,11 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     assert "v[0] = ent->enemy->r.currentOrigin[0] + (ent->enemy->r.mins[0] + ent->enemy->r.maxs[0]) * 0.5;" in hook_think_body
     assert "SnapVectorTowards( v, oldorigin );" in hook_think_body
     assert "G_SetOrigin( ent, v );" in hook_think_body
-    assert "VectorCopy( ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);" in hook_think_body
+    assert "viewOrigin[2] += ent->parent->client->ps.viewheight;" in update_hook_body
+    assert "VectorSubtract( ent->r.currentOrigin, viewOrigin, offsetDir );" in update_hook_body
+    assert "g_latchedHookOffset.value" in update_hook_body
+    assert "VectorMA( ent->r.currentOrigin, g_latchedHookOffset.value, offsetDir," in update_hook_body
+    assert "Weapon_UpdateHookGrapplePoint( ent );" in hook_think_body
     assert "client->ps.weapon == WP_GRAPPLING_HOOK" in g_active_c
     assert "Weapon_HookFree(client->hook);" in g_active_c
 
@@ -1598,7 +1608,7 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     assert "ent->think = Weapon_HookThink;" in missile_impact_body
     assert "ent->nextthink = level.time + FRAMETIME;" in missile_impact_body
     assert "ent->parent->client->ps.pm_flags |= PMF_GRAPPLE_PULL;" in missile_impact_body
-    assert "VectorCopy( ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);" in missile_impact_body
+    assert "Weapon_UpdateHookGrapplePoint( ent );" in missile_impact_body
     assert "ent->s.pos.trType = TR_STATIONARY;" in set_origin_body
     assert "VectorClear( ent->s.pos.trDelta );" in set_origin_body
 
@@ -1624,7 +1634,7 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     assert "ent->s.eType == ET_MISSILE && ent->s.weapon != WP_GRAPPLING_HOOK" in ai_main_c
 
     assert '{ &cg_disableLoadout_gh, "cg_disableLoadout_gh", "0", CVAR_ROM }' in cg_main_c
-    assert '{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD }' in cg_main_c
+    assert '{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD }' in cg_main_c
     assert '{ "gh", WP_GRAPPLING_HOOK, 10 }' in cg_main_c
     assert '{ "gh", WP_GRAPPLING_HOOK }' in cg_newdraw_c
     assert "{ CUSTOM_SETTING_GRAPPLING_HOOK, WP_GRAPPLING_HOOK }" in cg_newdraw_c
@@ -1881,16 +1891,16 @@ def test_hmg_full_server_and_cgame_wiring_matches_retail() -> None:
         "#define DEFAULT_KNOCKBACK_HMG               1",
         "#define DEFAULT_AMMOPACK_HMG                50",
         '{ &weapon_reload_hmg,      "weapon_reload_hmg",      "0", 0, "Heavy Machinegun refire delay override in milliseconds." }',
-        '{ &g_ammoPack_hmg,         "g_ammoPack_hmg",         STRINGIZE( DEFAULT_AMMOPACK_HMG ), CVAR_ARCHIVE, "Heavy Machinegun bullets added from heavy ammo packs." }',
-        '{ &g_startingAmmo_hmg,     "g_startingAmmo_hmg",     STRINGIZE( DEFAULT_STARTING_AMMO_HMG ), CVAR_ARCHIVE, "Heavy Machinegun bullets issued alongside spawn loadouts that include the weapon." }',
+        '{ &g_startingAmmo_hmg,     "g_startingAmmo_hmg",     STRINGIZE( DEFAULT_STARTING_AMMO_HMG ), CVAR_GAMERULE, "Heavy Machinegun bullets issued alongside spawn loadouts that include the weapon." }',
         '{ &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Heavy Machinegun knockback scalar." }',
         'trap_Cvar_Set( "weapon_reload_hmg", "0" );',
         'g_weaponReloadConfig.heavyMachinegun = G_ReadWeaponReloadCvar( &weapon_reload_hmg, DEFAULT_WEAPON_RELOAD_HMG, "weapon_reload_hmg" );',
-        'G_AssignAmmoPackEntry( WP_HEAVY_MACHINEGUN, &g_ammoPack_hmg, DEFAULT_AMMOPACK_HMG, "g_ammoPack_hmg" );',
+        'G_AssignAmmoPackEntry( WP_HEAVY_MACHINEGUN, DEFAULT_AMMOPACK_HMG );',
         'g_startingAmmoConfig.heavyMachinegun = G_ReadStartingAmmoCvar( &g_startingAmmo_hmg, DEFAULT_STARTING_AMMO_HMG, "g_startingAmmo_hmg" );',
         'g_knockbackConfig.heavyMachinegun = G_ReadKnockbackCvar( &g_knockback_hmg, DEFAULT_KNOCKBACK_HMG, "g_knockback_hmg" );',
     ):
         assert expected in g_config_c
+    assert '"g_ammoPack_hmg"' not in g_config_c
 
     assert "#define\tHEAVY_MACHINEGUN_SPREAD\t350" in g_weapon_c
     assert "#define\tHEAVY_MACHINEGUN_DAMAGE\t(g_weaponConfig.heavyMachinegunDamage)" in g_weapon_c
@@ -1933,7 +1943,7 @@ def test_hmg_full_server_and_cgame_wiring_matches_retail() -> None:
         'vmCvar_t\tcg_weaponConfig_hmg;',
         '{ &cg_damagePlum, "cg_damagePlum", "g mg sg gl rl lg rg pg bfg gh cg ng pl hmg", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD }',
         '{ &cg_disableLoadout_hmg, "cg_disableLoadout_hmg", "0", CVAR_ROM }',
-        '{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD }',
+        '{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD }',
         '{ "hmg", WP_HEAVY_MACHINEGUN, 14 }',
     ):
         assert expected in cg_main_c
@@ -2094,12 +2104,11 @@ def test_chaingun_full_server_and_cgame_wiring_matches_retail() -> None:
         "#define DEFAULT_WEAPON_RELOAD_CG            50",
         "#define DEFAULT_KNOCKBACK_CG                1",
         '{ &weapon_reload_cg,       "weapon_reload_cg",       "0", 0, "Chaingun refire delay override in milliseconds." }',
-        '{ &g_ammoPack_cg,          "g_ammoPack_cg",          STRINGIZE( DEFAULT_AMMOPACK_CG ), CVAR_ARCHIVE, "Chaingun bullets restored per ammo belt pickup." }',
-        '{ &g_startingAmmo_cg,      "g_startingAmmo_cg",      STRINGIZE( DEFAULT_STARTING_AMMO_CG ), CVAR_ARCHIVE, "Chaingun bullets provided on spawn when the weapon is part of the configured loadout." }',
+        '{ &g_startingAmmo_cg,      "g_startingAmmo_cg",      STRINGIZE( DEFAULT_STARTING_AMMO_CG ), CVAR_GAMERULE, "Chaingun bullets provided on spawn when the weapon is part of the configured loadout." }',
         '{ &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Chaingun knockback scalar." }',
         'trap_Cvar_Set( "weapon_reload_cg", "0" );',
         'g_weaponReloadConfig.chaingun = G_ReadWeaponReloadCvar( &weapon_reload_cg, DEFAULT_WEAPON_RELOAD_CG, "weapon_reload_cg" );',
-        "G_AssignAmmoPackEntry( WP_CHAINGUN, &g_ammoPack_cg, DEFAULT_AMMOPACK_CG, \"g_ammoPack_cg\" );",
+        "G_AssignAmmoPackEntry( WP_CHAINGUN, DEFAULT_AMMOPACK_CG );",
         "g_weaponReloadConfig.chaingun != DEFAULT_WEAPON_RELOAD_CG",
         "g_weaponConfig.chaingunDamage != 8",
         "G_ConfigFloatDiffersFromDefault( g_knockbackConfig.chaingun, DEFAULT_KNOCKBACK_CG )",
@@ -2108,6 +2117,7 @@ def test_chaingun_full_server_and_cgame_wiring_matches_retail() -> None:
         'g_knockbackConfig.chaingun = G_ReadKnockbackCvar( &g_knockback_cg, DEFAULT_KNOCKBACK_CG, "g_knockback_cg" );',
     ):
         assert expected in g_config_c
+    assert '"g_ammoPack_cg"' not in g_config_c
 
     for expected in (
         "case WP_CHAINGUN:",
@@ -2656,23 +2666,22 @@ def test_nailgun_server_projectile_damage_bounce_and_custom_mask_match_retail() 
         "nailgunBounceCount;",
         "nailgunBounceEnabled;",
         "nailgunBouncePercentage;",
-        "nailgunGravityEnabled;",
         "extern vmCvar_t g_nailbounce;",
         "extern vmCvar_t g_nailbouncepercentage;",
         "extern vmCvar_t g_nailcount;",
-        "extern vmCvar_t g_nailgravity;",
         "extern vmCvar_t g_nailspeed;",
         "extern vmCvar_t g_nailspread;",
         "extern\tvmCvar_t\tg_damage_ng;",
     ):
         assert expected in g_local_h
+    assert "nailgunGravityEnabled" not in g_local_h
+    assert "g_nailgravity" not in g_local_h
 
     for expected in (
         '{ &g_damage_ng, "g_damage_ng", "12", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qtrue, qfalse,',
         '{ &g_nailbounce, "g_nailbounce", "1", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
         '{ &g_nailbouncepercentage, "g_nailbouncepercentage", "65", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
         '{ &g_nailcount, "g_nailcount", "10", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
-        '{ &g_nailgravity, "g_nailgravity", "0", CVAR_ARCHIVE, 0, qfalse, qfalse,',
         '{ &g_nailspeed, "g_nailspeed", "1000", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
         '{ &g_nailspread, "g_nailspread", "400", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, 0, qfalse, qfalse,',
         'g_weaponConfig.nailgunCount = G_ReadWeaponCvarNonNegative( &g_nailcount, 10, "g_nailcount" );',
@@ -2684,9 +2693,9 @@ def test_nailgun_server_projectile_damage_bounce_and_custom_mask_match_retail() 
         'g_weaponConfig.nailgunBouncePercentage = G_ReadWeaponCvarNonNegative( &g_nailbouncepercentage, 65, "g_nailbouncepercentage" );',
         "if ( g_weaponConfig.nailgunBouncePercentage > 100 ) {",
         "g_weaponConfig.nailgunBouncePercentage = 100;",
-        'g_weaponConfig.nailgunGravityEnabled = G_ReadWeaponBoolCvar( &g_nailgravity, qfalse, "g_nailgravity" );',
     ):
         assert expected in g_main_c
+    assert '"g_nailgravity"' not in g_main_c
 
     for expected in (
         "g_weaponReloadConfig.nailgun != DEFAULT_WEAPON_RELOAD_NG",
@@ -2697,7 +2706,6 @@ def test_nailgun_server_projectile_damage_bounce_and_custom_mask_match_retail() 
         "g_weaponConfig.nailgunBounceCount != 1",
         "G_ConfigFloatDiffersFromDefault( g_knockbackConfig.nailgun, DEFAULT_KNOCKBACK_NG )",
         "g_weaponConfig.nailgunBouncePercentage != 65",
-        "g_weaponConfig.nailgunGravityEnabled",
         "mask |= CUSTOM_SETTING_NAILGUN;",
     ):
         assert expected in g_config_c
@@ -2709,11 +2717,11 @@ def test_nailgun_server_projectile_damage_bounce_and_custom_mask_match_retail() 
         'trap_Cvar_Set( "g_nailbounce", "1" );',
         'trap_Cvar_Set( "g_nailbouncepercentage", "65" );',
         'trap_Cvar_Set( "g_nailcount", "10" );',
-        'trap_Cvar_Set( "g_nailgravity", "0" );',
         'trap_Cvar_Set( "g_nailspeed", "1000" );',
         'trap_Cvar_Set( "g_nailspread", "400" );',
     ):
         assert expected in g_pmove_c
+    assert '"g_nailgravity"' not in g_pmove_c
 
     assert "#define NUM_NAILSHOTS" not in g_weapon_c
     assert "case WP_NAILGUN:" in fireweapon_body
@@ -2751,7 +2759,7 @@ def test_nailgun_server_projectile_damage_bounce_and_custom_mask_match_retail() 
         "bolt->methodOfDeath = MOD_NAIL;",
         "bolt->clipmask = MASK_SHOT;",
         "bolt->target_ent = NULL;",
-        "bolt->s.pos.trType = g_weaponConfig.nailgunGravityEnabled ? TR_GRAVITY : TR_LINEAR;",
+        "bolt->s.pos.trType = TR_LINEAR;",
         "bolt->s.pos.trTime = level.time;",
         "VectorCopy( start, bolt->s.pos.trBase );",
         "if ( g_weaponConfig.nailgunBounceEnabled ) {",

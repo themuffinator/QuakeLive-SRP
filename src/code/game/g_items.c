@@ -43,7 +43,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	RESPAWN_AMMO		40
 #define	RESPAWN_HOLDABLE	60
 #define	RESPAWN_MEGAHEALTH	35//120
-#define	SPAWN_DELAY_RANDOM_DEFAULT_SECONDS 15
 #define	MAX_FLIGHT_FUEL_RETAIL 32001
 static const keyItemDef_t g_keyItemDefs[] = {
 	{ KEY_FLAG_SILVER, "item_key_silver" },
@@ -106,9 +105,9 @@ per level so all matching entities share the same schedule.
 */
 void G_InitItemSpawnDelays( void ) {
 	g_spawnDelayKeySeconds = G_ComputeRetailSpawnDelay( g_spawnDelay_key.integer,
-		SPAWN_DELAY_RANDOM_DEFAULT_SECONDS );
+		g_spawnDelayRandom_key.integer );
 	g_spawnDelayPowerupSeconds = G_ComputeRetailSpawnDelay( g_spawnDelay_powerup.integer,
-		SPAWN_DELAY_RANDOM_DEFAULT_SECONDS );
+		g_spawnDelayRandom_powerup.integer );
 }
 
 /*
@@ -1612,11 +1611,6 @@ int Pickup_Weapon (gentity_t *ent, gentity_t *other) {
 
 	if ( weapon == WP_GRAPPLING_HOOK ) {
 		other->client->ps.ammo[weapon] = -1; // unlimited ammo
-	}
-
-	// team deathmatch has slow weapon respawns
-	if ( g_gametype.integer == GT_TEAM ) {
-		return g_weaponTeamRespawn.integer;
 	}
 
 	return g_weaponRespawn.integer;

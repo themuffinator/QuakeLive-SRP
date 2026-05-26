@@ -41,14 +41,9 @@ static menuDef_t *cgScoreboardSelectionMenus[2];
 #define CG_AUTOACTION_STATS_DELAY		1500
 #define CG_SPECTATOR_SLOT_TRACK_HOLD		3000
 
-int forceModelModificationCount = -1;
 int forceTeamModelModificationCount = -1;
-int teamModelModificationCount = -1;
-int teamColorsModificationCount = -1;
 int forceTeamSkinModificationCount = -1;
 int forceEnemyModelModificationCount = -1;
-int enemyModelModificationCount = -1;
-int enemyColorsModificationCount = -1;
 int forceEnemySkinModificationCount = -1;
 int forceTeamWeaponColorModificationCount = -1;
 int forceEnemyWeaponColorModificationCount = -1;
@@ -287,9 +282,9 @@ static int		lowAmmoWarningPercentileModCount = -1;
 static int		announcerModificationCount = -1;
 
 vmCvar_t	cg_armorTiered;
+vmCvar_t	g_training;
 vmCvar_t	cg_addMarks;
 vmCvar_t	cg_allowTaunt;
-vmCvar_t	cg_noTaunt;
 vmCvar_t	cg_animSpeed;
 vmCvar_t	cg_announcer;
 vmCvar_t	cg_announcerLastStandingVO;
@@ -304,15 +299,9 @@ vmCvar_t	cg_bigFont;
 vmCvar_t	cg_blood;
 vmCvar_t	cg_blueTeamName;
 vmCvar_t	cg_bob;
-vmCvar_t	cg_bobup;
-vmCvar_t	cg_bobpitch;
-vmCvar_t	cg_bobroll;
-vmCvar_t	cg_runpitch;
-vmCvar_t	cg_runroll;
 vmCvar_t	cg_brassTime;
 vmCvar_t	cg_bubbleTrail;
 vmCvar_t	cg_buzzerSound;
-vmCvar_t	cg_buildScript;
 vmCvar_t	cg_cameraMode;
 vmCvar_t	cg_cameraOrbit;
 vmCvar_t	cg_cameraOrbitDelay;
@@ -343,8 +332,6 @@ vmCvar_t	cg_deadBodyDarken;
 vmCvar_t	cg_debugAnim;
 vmCvar_t	cg_debugEvents;
 vmCvar_t	cg_debugFlags;
-vmCvar_t	cg_debugPosition;
-vmCvar_t	cg_debugOwnerdrawStats;
 vmCvar_t	cg_deferPlayers;
 vmCvar_t	cg_disableLoadout_g;
 vmCvar_t	cg_disableLoadout_mg;
@@ -386,7 +373,6 @@ vmCvar_t	cg_drawCheckpointRemaining;
 vmCvar_t	cg_drawRewards;
 vmCvar_t	cg_drawRewardsRowSize;
 vmCvar_t	cg_drawSnapshot;
-vmCvar_t	cg_drawTimer;
 vmCvar_t	cg_drawSpecMessages;
 vmCvar_t	cg_drawSprites;
 vmCvar_t	cg_drawSpriteSelf;
@@ -402,7 +388,6 @@ vmCvar_t	cg_enableDust;
 vmCvar_t	cg_enableBreath;
 vmCvar_t	cg_enemyCrosshairNames;
 vmCvar_t	cg_enemyCrosshairNamesOpacity;
-vmCvar_t	cg_enemyColors;
 vmCvar_t	cg_enemyHeadColor;
 vmCvar_t	cg_enemyLowerColor;
 vmCvar_t	cg_enemyUpperColor;
@@ -414,14 +399,11 @@ vmCvar_t	cg_followPowerup;
 vmCvar_t	cg_footsteps;
 vmCvar_t	cg_forceBlueTeamModel;
 vmCvar_t	cg_forceDrawCrosshair;
-vmCvar_t	cg_forceModel;
 vmCvar_t	cg_forceEnemyModel;
-vmCvar_t	cg_enemyModel;
 vmCvar_t	cg_forceEnemySkin;
 vmCvar_t	cg_forceEnemyWeaponColor;
 vmCvar_t	cg_forceRedTeamModel;
 vmCvar_t	cg_forceTeamModel;
-vmCvar_t	cg_teamModel;
 vmCvar_t	cg_forceTeamSkin;
 vmCvar_t	cg_forceTeamWeaponColor;
 vmCvar_t	cg_fov;
@@ -470,8 +452,6 @@ vmCvar_t	cg_preferredStartingWeapons;
 vmCvar_t	cg_plasmaStyle;
 vmCvar_t	cg_playerLean;
 vmCvar_t	cg_playerTeam;
-vmCvar_t	cg_playerCylinders;
-vmCvar_t	cg_smoothClients;
 vmCvar_t	pmove_fixed;
 vmCvar_t	pmove_msec;
 //vmCvar_t	cg_pmove_fixed;
@@ -532,13 +512,11 @@ vmCvar_t	cg_teamChatBeep;
 vmCvar_t	cg_teamChatHeight;
 vmCvar_t	cg_teamChatsOnly;
 vmCvar_t	cg_teamChatTime;
-vmCvar_t	cg_teamColors;
 vmCvar_t	cg_teamHeadColor;
 vmCvar_t	cg_teamLowerColor;
 vmCvar_t	cg_teamUpperColor;
 vmCvar_t	cg_teammateCrosshairNames;
 vmCvar_t	cg_teammateCrosshairNamesOpacity;
-vmCvar_t	cg_drawFriend;
 vmCvar_t	cg_teammateNames;
 vmCvar_t	cg_teammatePOIs;
 vmCvar_t	cg_teammatePOIsMaxWidth;
@@ -590,6 +568,7 @@ vmCvar_t	cg_zoomOutOnDeath;
 vmCvar_t	cg_zoomScaling;
 vmCvar_t	cg_zoomSensitivity;
 vmCvar_t	cg_zoomToggle;
+vmCvar_t	cg_maxfps;
 vmCvar_t	s_killBeepVolume;
 
 typedef struct {
@@ -621,9 +600,9 @@ static void CG_ReplayLastMessageFromCvar( void );
 
 static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_armorTiered, "cg_armorTiered", "0", CVAR_ROM },
+	{ &g_training, "g_training", "0", 0 },
 	{ &cg_addMarks, "cg_marks", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_allowTaunt, "cg_allowTaunt", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
-	{ &cg_noTaunt, "cg_noTaunt", "0", CVAR_ARCHIVE},
 	{ &cg_animSpeed, "cg_animspeed", "1", CVAR_CHEAT },
 	{ &cg_announcer, "cg_announcer", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "1", "3" },
 	{ &cg_announcerLastStandingVO, "cg_announcerLastStandingVO", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
@@ -638,15 +617,9 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_blood, "cg_blood", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_blueTeamName, "cg_blueTeamName", "", 0 },
 	{ &cg_bob, "cg_bob", "0.25", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0.0", "1.0" },
-	{ &cg_bobup , "cg_bobup", "0.005", CVAR_CHEAT },
-	{ &cg_bobpitch, "cg_bobpitch", "0.002", CVAR_ARCHIVE },
-	{ &cg_bobroll, "cg_bobroll", "0.002", CVAR_ARCHIVE },
-	{ &cg_runpitch, "cg_runpitch", "0.002", CVAR_ARCHIVE},
-	{ &cg_runroll, "cg_runroll", "0.005", CVAR_ARCHIVE },
 	{ &cg_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "10000" },
 	{ &cg_bubbleTrail, "cg_bubbleTrail", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_buzzerSound, "cg_buzzerSound", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
-	{ &cg_buildScript, "com_build", "0", 0 },	// force loading of all possible data amd error on failures
 	{ &cg_cameraMode, "com_cameraMode", "0", CVAR_CHEAT},
 	{ &cg_cameraOrbit, "cg_cameraOrbit", "0", CVAR_CHEAT},
 	{ &cg_cameraOrbitDelay, "cg_cameraOrbitDelay", "50", CVAR_CHEAT},
@@ -677,9 +650,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_debugAnim, "cg_debuganim", "0", CVAR_CHEAT },
 	{ &cg_debugEvents, "cg_debugevents", "0", CVAR_CHEAT },
 	{ &cg_debugFlags, "cg_debugFlags", "0", CVAR_CHEAT },
-	{ &cg_debugPosition, "cg_debugposition", "0", CVAR_CHEAT },
-	{ &cg_debugOwnerdrawStats, "cg_debugOwnerdrawStats", "0", CVAR_ARCHIVE },
-	{ &cg_deferPlayers, "cg_deferPlayers", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_deferPlayers, "cg_deferPlayers", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_disableLoadout_g, "cg_disableLoadout_g", "0", CVAR_ROM },
 	{ &cg_disableLoadout_mg, "cg_disableLoadout_mg", "0", CVAR_ROM },
 	{ &cg_disableLoadout_sg, "cg_disableLoadout_sg", "0", CVAR_ROM },
@@ -720,12 +691,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_drawRewards, "cg_drawRewards", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_drawRewardsRowSize, "cg_drawRewardsRowSize", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "1", "9" },
 	{ &cg_drawSnapshot, "cg_drawSnapshot", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2" },
-	{ &cg_drawTimer, "cg_drawTimer", "0", CVAR_ARCHIVE  },
 	{ &cg_drawSpecMessages, "cg_drawSpecMessages", "1", CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_drawSprites, "cg_drawSprites", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_drawSpriteSelf, "cg_drawSpriteSelf", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_drawStatus, "cg_drawStatus", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
-	{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "3" },
+	{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2" },
 	{ &cg_drawTeamOverlayOpacity, "cg_drawTeamOverlayOpacity", "0.75", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_drawTeamOverlaySize, "cg_drawTeamOverlaySize", "0.16", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0.12", "0.22" },
 	{ &cg_drawTeamOverlayX, "cg_drawTeamOverlayX", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "-640", "640" },
@@ -736,7 +706,6 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_enableBreath, "g_enableBreath", "0", CVAR_SERVERINFO},
 	{ &cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
-	{ &cg_enemyColors, "cg_enemyColors", "", CVAR_ARCHIVE },
 	{ &cg_enemyHeadColor, "cg_enemyHeadColor", "0x2a8000FF", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_enemyLowerColor, "cg_enemyLowerColor", "0x2a8000FF", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_enemyUpperColor, "cg_enemyUpperColor", "0x2a8000FF", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
@@ -748,23 +717,20 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_footsteps, "cg_footsteps", "1", CVAR_CHEAT },
 	{ &cg_forceBlueTeamModel, "cg_forceBlueTeamModel", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_forceDrawCrosshair, "cg_forceDrawCrosshair", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
-	{ &cg_forceModel, "cg_forceModel", "0", CVAR_ARCHIVE  },
 	{ &cg_forceEnemyModel, "cg_forceEnemyModel", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
-	{ &cg_enemyModel, "cg_enemyModel", "", CVAR_ARCHIVE },
 	{ &cg_forceEnemySkin, "cg_forceEnemySkin", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_forceEnemyWeaponColor, "cg_forceEnemyWeaponColor", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_forceRedTeamModel, "cg_forceRedTeamModel", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_forceTeamModel, "cg_forceTeamModel", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
-	{ &cg_teamModel, "cg_teamModel", "", CVAR_ARCHIVE },
 	{ &cg_forceTeamSkin, "cg_forceTeamSkin", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_forceTeamWeaponColor, "cg_forceTeamWeaponColor", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_fov, "cg_fov", "100", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "10", "130" },
-	{ &cg_gameInfo1, "cg_gameInfo1", "", CVAR_ROM },
-	{ &cg_gameInfo2, "cg_gameInfo2", "", CVAR_ROM },
-	{ &cg_gameInfo3, "cg_gameInfo3", "", CVAR_ROM },
-	{ &cg_gameInfo4, "cg_gameInfo4", "", CVAR_ROM },
-	{ &cg_gameInfo5, "cg_gameInfo5", "", CVAR_ROM },
-	{ &cg_gameInfo6, "cg_gameInfo6", "", CVAR_ROM },
+	{ &cg_gameInfo1, "cg_gameInfo1", "0", CVAR_ROM },
+	{ &cg_gameInfo2, "cg_gameInfo2", "0", CVAR_ROM },
+	{ &cg_gameInfo3, "cg_gameInfo3", "0", CVAR_ROM },
+	{ &cg_gameInfo4, "cg_gameInfo4", "0", CVAR_ROM },
+	{ &cg_gameInfo5, "cg_gameInfo5", "0", CVAR_ROM },
+	{ &cg_gameInfo6, "cg_gameInfo6", "0", CVAR_ROM },
 	{ &cg_gametype, "cg_gametype", "0", CVAR_ROM },
 	{ &cg_gun_x, "cg_gunX", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "-10", "10" },
 	{ &cg_gun_y, "cg_gunY", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "-10", "20" },
@@ -800,12 +766,10 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_obituaryRowSize, "cg_obituaryRowSize", "5", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED, "0", "5" },
 	{ &cg_overheadNamesWidth, "cg_overheadNamesWidth", "75", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "50", "100" },
 	{ &cg_paused, "cl_paused", "0", CVAR_ROM },
-	{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
+	{ &cg_preferredStartingWeapons, "cg_preferredStartingWeapons", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_plasmaStyle, "cg_plasmaStyle", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "1", "2" },
 	{ &cg_playerLean, "cg_playerLean", "1", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_playerTeam, "cg_playerTeam", "", CVAR_ROM },
-	{ &cg_playerCylinders, "cg_playerCylinders", "0", CVAR_ROM },
-	{ &cg_smoothClients, "cg_smoothClients", "0", CVAR_USERINFO | CVAR_ARCHIVE},
 	{ &pmove_fixed, "pmove_fixed", "0", 0},
 	{ &pmove_msec, "pmove_msec", "8", 0},
 	{ &cg_predictItems, "cg_predictItems", "1", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
@@ -850,7 +814,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_specItemTimersSize, "cg_specItemTimersSize", "0.24", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0.12", "0.35" },
 	{ &cg_specItemTimersX, "cg_specItemTimersX", "10", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "640" },
 	{ &cg_specItemTimersY, "cg_specItemTimersY", "200", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "480" },
-	{ &cg_specNames, "cg_specNames", "1", CVAR_ARCHIVE },
+	{ &cg_specNames, "cg_specNames", "2", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2" },
 	{ &cg_specTeamVitals, "cg_specTeamVitals", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2" },
 	{ &cg_specTeamVitalsHealthColor, "cg_specTeamVitalsHealthColor", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_specTeamVitalsWidth, "cg_specTeamVitalsWidth", "100", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "60", "120" },
@@ -865,13 +829,11 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_teamChatHeight, "cg_teamChatHeight", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "8" },
 	{ &cg_teamChatsOnly, "cg_teamChatsOnly", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_teamChatTime, "cg_teamChatTime", "3000", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "5000" },
-	{ &cg_teamColors, "cg_teamColors", "", CVAR_ARCHIVE },
 	{ &cg_teamHeadColor, "cg_teamHeadColor", "0x808080FF", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_teamLowerColor, "cg_teamLowerColor", "0x808080FF", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_teamUpperColor, "cg_teamUpperColor", "0x808080FF", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
-	{ &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
+	{ &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_teammateCrosshairNamesOpacity, "cg_teammateCrosshairNamesOpacity", "0.75", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
-	{ &cg_drawFriend, "cg_drawFriend", "1", CVAR_ARCHIVE },
 	{ &cg_teammateNames, "cg_teammateNames", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2" },
 	{ &cg_teammatePOIs, "cg_teammatePOIs", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_teammatePOIsMaxWidth, "cg_teammatePOIsMaxWidth", "24.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "16.0", "32.0" },
@@ -900,22 +862,22 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_voiceChatIndicator, "cg_voiceChatIndicator", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "2" },
 	{ &cg_waterWarp, "cg_waterWarp", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_weaponBar, "cg_weaponBar", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "4" },
-	{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig, "cg_weaponConfig", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_g, "cg_weaponConfig_g", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_mg, "cg_weaponConfig_mg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_sg, "cg_weaponConfig_sg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_gl, "cg_weaponConfig_gl", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_rl, "cg_weaponConfig_rl", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_lg, "cg_weaponConfig_lg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_rg, "cg_weaponConfig_rg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_pg, "cg_weaponConfig_pg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_bfg, "cg_weaponConfig_bfg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_ng, "cg_weaponConfig_ng", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_pl, "cg_weaponConfig_pl", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_cg, "cg_weaponConfig_cg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
-	{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD },
+	{ &cg_weaponColor_grenade, "cg_weaponColor_grenade", DEFAULT_WEAPON_BAR_GRENADE_COLOR, CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig, "cg_weaponConfig", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_g, "cg_weaponConfig_g", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_mg, "cg_weaponConfig_mg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_sg, "cg_weaponConfig_sg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_gl, "cg_weaponConfig_gl", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_rl, "cg_weaponConfig_rl", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_lg, "cg_weaponConfig_lg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_rg, "cg_weaponConfig_rg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_pg, "cg_weaponConfig_pg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_bfg, "cg_weaponConfig_bfg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_ng, "cg_weaponConfig_ng", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_pl, "cg_weaponConfig_pl", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_cg, "cg_weaponConfig_cg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
+	{ &cg_weaponConfig_hmg, "cg_weaponConfig_hmg", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD },
 	{ &cg_weaponPrimary, "cg_weaponPrimary", "", CVAR_ROM },
 	{ &cg_weaponPrimaryQueued, "cg_weaponPrimaryQueued", "", CVAR_TEMP },
 	{ &cg_zoomFov, "cg_zoomfov", "30", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "10", "130" },
@@ -923,6 +885,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_zoomScaling, "cg_zoomScaling", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_zoomSensitivity, "cg_zoomSensitivity", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "10" },
 	{ &cg_zoomToggle, "cg_zoomToggle", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
+	{ &cg_maxfps, "com_maxfps", "125", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "30", "250" },
 	{ &s_killBeepVolume, "s_killBeepVolume", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "4" },
 	//	{ &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
 };
@@ -1414,7 +1377,6 @@ void CG_RegisterCvars( void ) {
 	trap_Cvar_VariableStringBuffer( "sv_running", var, sizeof( var ) );
 	cgs.localServer = atoi( var );
 
-	forceModelModificationCount = cg_forceModel.modificationCount;
 	forceTeamModelModificationCount = cg_forceTeamModel.modificationCount;
 	forceTeamSkinModificationCount = cg_forceTeamSkin.modificationCount;
 	forceEnemyModelModificationCount = cg_forceEnemyModel.modificationCount;
@@ -1679,26 +1641,6 @@ static const vec4_t cg_crosshairPalette[QL_CROSSHAIR_COLOR_COUNT] = {
 
 /*
 =============
-CG_ColorCharToIndex
-
-Converts a character to an index into the color palette.
-=============
-*/
-int CG_ColorCharToIndex( char ch ) {
-	if ( ch >= '0' && ch <= '9' ) {
-		return ch - '0';
-	}
-	if ( ch >= 'a' && ch <= 'z' ) {
-		return 10 + ( ch - 'a' );
-	}
-	if ( ch >= 'A' && ch <= 'Z' ) {
-		return 10 + ( ch - 'A' );
-	}
-	return -1;
-}
-
-/*
-=============
 CG_GetColorForIndex
 
 Populates a color vector using a zero-based retail palette index.
@@ -1834,36 +1776,16 @@ void CG_UpdateCvars( void ) {
 	refreshClients = qfalse;
 	refreshDeadBodyPalette = qfalse;
 
-	if ( forceModelModificationCount != cg_forceModel.modificationCount ) {
-		forceModelModificationCount = cg_forceModel.modificationCount;
-		refreshClients = qtrue;
-	}
 	if ( forceTeamModelModificationCount != cg_forceTeamModel.modificationCount ) {
 		forceTeamModelModificationCount = cg_forceTeamModel.modificationCount;
-		refreshClients = qtrue;
-	}
-	if ( teamModelModificationCount != cg_teamModel.modificationCount ) {
-		teamModelModificationCount = cg_teamModel.modificationCount;
-		refreshClients = qtrue;
-	}
-	if ( teamColorsModificationCount != cg_teamColors.modificationCount ) {
-		teamColorsModificationCount = cg_teamColors.modificationCount;
 		refreshClients = qtrue;
 	}
 	if ( forceTeamSkinModificationCount != cg_forceTeamSkin.modificationCount ) {
 		forceTeamSkinModificationCount = cg_forceTeamSkin.modificationCount;
 		refreshClients = qtrue;
 	}
-	if ( enemyModelModificationCount != cg_enemyModel.modificationCount ) {
-		enemyModelModificationCount = cg_enemyModel.modificationCount;
-		refreshClients = qtrue;
-	}
 	if ( forceEnemyModelModificationCount != cg_forceEnemyModel.modificationCount ) {
 		forceEnemyModelModificationCount = cg_forceEnemyModel.modificationCount;
-		refreshClients = qtrue;
-	}
-	if ( enemyColorsModificationCount != cg_enemyColors.modificationCount ) {
-		enemyColorsModificationCount = cg_enemyColors.modificationCount;
 		refreshClients = qtrue;
 	}
 	if ( forceEnemySkinModificationCount != cg_forceEnemySkin.modificationCount ) {
@@ -2802,7 +2724,7 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.raceFinishBeep = trap_S_RegisterSound( "sound/world/klaxon1.ogg", qfalse );
 	cgs.media.countPrepareTeamSound = 0;
 
-	if ( cgs.gametype >= GT_TEAM || cg_buildScript.integer ) {
+	if ( cgs.gametype >= GT_TEAM || trap_Cvar_VariableValue( "com_build" ) ) {
 
 		CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( countPrepareTeamSound, "prepare_your_team.ogg" );
 		cgs.media.captureAwardSound = trap_S_RegisterSound( "sound/teamplay/flagcapture_yourteam.ogg", qtrue );
@@ -2831,35 +2753,35 @@ static void CG_RegisterSounds( void ) {
 		cgs.media.takenYourTeamSound = trap_S_RegisterSound( "sound/teamplay/flagtaken_yourteam.ogg", qtrue );
 		cgs.media.takenOpponentSound = trap_S_RegisterSound( "sound/teamplay/flagtaken_opponent.ogg", qtrue );
 
-		if ( cgs.gametype == GT_CTF || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_CTF || trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( redFlagReturnedSound, "red_flag_returned.ogg" );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( blueFlagReturnedSound, "blue_flag_returned.ogg" );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( enemyTookYourFlagSound, "the_enemy_has_flag.ogg" );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( yourTeamTookEnemyFlagSound, "your_team_has_flag.ogg" );
 		}
 
-		if ( cgs.gametype == GT_1FCTF || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_1FCTF || trap_Cvar_VariableValue( "com_build" ) ) {
 			// FIXME: get a replacement for this sound ?
 			cgs.media.neutralFlagReturnedSound = trap_S_RegisterSound( "sound/teamplay/flagreturn_opponent.ogg", qtrue );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( yourTeamTookTheFlagSound, "attack_the_flag.ogg" );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( enemyTookTheFlagSound, "defend_the_flag.ogg" );
 		}
 
-		if ( cgs.gametype == GT_ATTACK_DEFEND || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_ATTACK_DEFEND || trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( attackTheFlagSound, "attack_the_flag.ogg" );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( defendTheFlagSound, "defend_the_flag.ogg" );
 		}
 
-		if ( cgs.gametype == GT_1FCTF || cgs.gametype == GT_CTF || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_1FCTF || cgs.gametype == GT_CTF || trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( youHaveFlagSound, "you_have_flag.ogg" );
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( holyShitSound, "holy_shit.ogg" );
 		}
 
-		if ( cgs.gametype == GT_OBELISK || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_OBELISK || trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( yourBaseIsUnderAttackSound, "base_attack.ogg" );
 		}
 
-		if ( cgs.gametype == GT_DOMINATION || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_DOMINATION || trap_Cvar_VariableValue( "com_build" ) ) {
 			static const char	*capturedSamples[QL_DOMINATION_ANNOUNCER_POINTS] = {
 				"a_captured",
 				"b_captured",
@@ -2978,7 +2900,7 @@ static void CG_RegisterSounds( void ) {
 	CG_REGISTER_RETAIL_REWARD_SAMPLE( revengeSound2, "revenge2", "revenge" );
 	CG_REGISTER_RETAIL_REWARD_SAMPLE( revengeSound3, "revenge3", "revenge" );
 	CG_REGISTER_RETAIL_REWARD_SAMPLE( perforatedSound, "perforated", "perforated" );
-	if ( cgs.gametype == GT_RED_ROVER || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_RED_ROVER || trap_Cvar_VariableValue( "com_build" ) ) {
 		CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( biteSound, "bite.ogg" );
 		cgs.media.kamikazeRespawnSound = trap_S_RegisterSound( "sound/items/kamikazerespawn.wav", qfalse );
 	}
@@ -3037,7 +2959,7 @@ static void CG_RegisterSounds( void ) {
 	strcpy( items, CG_ConfigString( CS_ITEMS ) );
 
 	for ( i = 1 ; i < bg_numItems ; i++ ) {
-//		if ( items[ i ] == '1' || cg_buildScript.integer ) {
+//		if ( items[ i ] == '1' || trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_RegisterItemSounds( i );
 //		}
 	}
@@ -3131,7 +3053,7 @@ powerup icon bank, while preserving build-script asset discovery.
 =================
 */
 static qboolean CG_ShouldRegisterPOIPowerupShaders( void ) {
-	if ( cg_buildScript.integer ) {
+	if ( trap_Cvar_VariableValue( "com_build" ) ) {
 		return qtrue;
 	}
 
@@ -3155,7 +3077,7 @@ exposed through cgs.media.
 =================
 */
 static qboolean CG_ShouldRegisterFlagStatusShaders( void ) {
-	if ( cg_buildScript.integer ) {
+	if ( trap_Cvar_VariableValue( "com_build" ) ) {
 		return qtrue;
 	}
 
@@ -3237,7 +3159,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.scoreboardTime = trap_R_RegisterShaderNoMip( "menu/tab/time.tga" );
 	cgs.media.scoreboxSpecShader = trap_R_RegisterShaderNoMip( "ui/assets/score/scorebox_spec.tga" );
 	cgs.media.scoreboxFollowShader = trap_R_RegisterShaderNoMip( "ui/assets/score/scorebox_follow.tga" );
-	if ( cgs.gametype == GT_TOURNAMENT || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_TOURNAMENT || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.scoreFirstPlayerReadyShader = trap_R_RegisterShaderNoMip( "ui/assets/score/1st_plyr_ready.tga" );
 		cgs.media.scoreFirstPlayerNotReadyShader = trap_R_RegisterShaderNoMip( "ui/assets/score/1st_plyr_notready.tga" );
 		cgs.media.scoreSecondPlayerReadyShader = trap_R_RegisterShaderNoMip( "ui/assets/score/2nd_plyr_ready.tga" );
@@ -3251,7 +3173,7 @@ static void CG_RegisterGraphics( void ) {
 	}
 	cgs.media.scoreArrowGreenShader = trap_R_RegisterShader( "ui/assets/score/arrowg.tga" );
 	cgs.media.scoreArrowRedShader = trap_R_RegisterShader( "ui/assets/score/arrowr.tga" );
-	if ( cgs.gametype >= GT_TEAM || cg_buildScript.integer ) {
+	if ( cgs.gametype >= GT_TEAM || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.scoreCAArrowRedShader = trap_R_RegisterShader( "ui/assets/score/ca_arrow_red.tga" );
 		cgs.media.scoreCAArrowBlueShader = trap_R_RegisterShader( "ui/assets/score/ca_arrow_blue.tga" );
 	}
@@ -3346,10 +3268,10 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.poiFlagStolenBlueShader = trap_R_RegisterShader( "gfx/2d/flag_status/blue_flag_stolen.tga" );
 		cgs.media.poiFlagTrackPointerShader = trap_R_RegisterShader( "gfx/2d/flag_status/track_pointer.tga" );
 	}
-	if ( cgs.gametype == GT_FFA || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_FFA || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.poiQuadHogShader = trap_R_RegisterShader( "gfx/2d/quad_hog/quadhog" );
 	}
-	if ( cgs.gametype == GT_RED_ROVER || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_RED_ROVER || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.poiInfectedShader = trap_R_RegisterShader( "gfx/2d/infected/bite" );
 	}
 	cgs.media.poiUnavailableShader = trap_R_RegisterShader( "gfx/2d/unavailable" );
@@ -3371,17 +3293,17 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.itemTimerSlice24Shader = trap_R_RegisterShader( "gfx/2d/timer/slice24" );
 	cgs.media.itemTimerSlice24CurrentShader = trap_R_RegisterShader( "gfx/2d/timer/slice24_current" );
 
-	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.redCubeModel = trap_R_RegisterModel( "models/powerups/orb/r_orb.md3" );
 		cgs.media.blueCubeModel = trap_R_RegisterModel( "models/powerups/orb/b_orb.md3" );
 		cgs.media.redCubeIcon = trap_R_RegisterShader( "icons/skull_red" );
 		cgs.media.blueCubeIcon = trap_R_RegisterShader( "icons/skull_blue" );
-		if ( cgs.gametype == GT_HARVESTER || cg_buildScript.integer ) {
+		if ( cgs.gametype == GT_HARVESTER || trap_Cvar_VariableValue( "com_build" ) ) {
 			cgs.media.poiHarvesterCaptureShader = trap_R_RegisterShader( "gfx/2d/har/poi_capture" );
 		}
 	}
 
-	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.redFlagModel = trap_R_RegisterModel( "models/flags/r_flag.md3" );
 		cgs.media.blueFlagModel = trap_R_RegisterModel( "models/flags/b_flag.md3" );
 		cgs.media.redFlagModel3 = trap_R_RegisterModel( "models/flag3/r_flag3.md3" );
@@ -3404,7 +3326,7 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.neutralFlagBaseModel = trap_R_RegisterModel( "models/mapobjects/flagbase/ntrl_base.md3" );
 	}
 
-	if ( cgs.gametype == GT_1FCTF || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_1FCTF || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.neutralFlagModel = trap_R_RegisterModel( "models/flags/n_flag.md3" );
 		cgs.media.neutralFlagModel3 = trap_R_RegisterModel( "models/flag3/n_flag3.md3" );
 		cgs.media.flagShader[0] = trap_R_RegisterShaderNoMip( "icons/iconf_neutral1" );
@@ -3413,21 +3335,21 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.flagShader[3] = trap_R_RegisterShaderNoMip( "icons/iconf_neutral3" );
 	}
 
-	if ( cgs.gametype == GT_OBELISK || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_OBELISK || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.overloadBaseModel = trap_R_RegisterModel( "models/powerups/overload_base.md3" );
 		cgs.media.overloadTargetModel = trap_R_RegisterModel( "models/powerups/overload_target.md3" );
 		cgs.media.overloadLightsModel = trap_R_RegisterModel( "models/powerups/overload_lights.md3" );
 		cgs.media.overloadEnergyModel = trap_R_RegisterModel( "models/powerups/overload_energy.md3" );
 	}
 
-	if ( cgs.gametype == GT_HARVESTER || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_HARVESTER || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.harvesterModel = trap_R_RegisterModel( "models/powerups/harvester/harvester.md3" );
 		cgs.media.harvesterRedSkin = trap_R_RegisterSkin( "models/powerups/harvester/red.skin" );
 		cgs.media.harvesterBlueSkin = trap_R_RegisterSkin( "models/powerups/harvester/blue.skin" );
 		cgs.media.harvesterNeutralModel = trap_R_RegisterModel( "models/powerups/obelisk/obelisk.md3" );
 	}
 
-	if ( cgs.gametype == GT_DOMINATION || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_DOMINATION || trap_Cvar_VariableValue( "com_build" ) ) {
 		static const char *const domCapNames[DOM_POINT_STATE_COUNT] = {
 			"gfx/2d/dom_point/dom_cap_a",
 			"gfx/2d/dom_point/dom_cap_b",
@@ -3473,7 +3395,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.redKamikazeShader = trap_R_RegisterShader( "models/weaphits/kamikred" );
 	cgs.media.dustPuffShader = trap_R_RegisterShader("hasteSmokePuff" );
 
-	if ( cgs.gametype >= GT_TEAM || cg_buildScript.integer ) {
+	if ( cgs.gametype >= GT_TEAM || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.friendShader = trap_R_RegisterShader( "sprites/friend" );
 		cgs.media.friendHitShader = trap_R_RegisterShader( "sprites/friend_hit" );
 		cgs.media.friendDeadShader = trap_R_RegisterShader( "sprites/friend_dead" );
@@ -3483,7 +3405,7 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.blueKamikazeShader = trap_R_RegisterShader( "models/weaphits/kamikblu" );
 	}
 
-	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_ATTACK_DEFEND || cg_buildScript.integer ) {
+	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_ATTACK_DEFEND || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.flagCarrierShader = trap_R_RegisterShader( "sprites/flagcarrier" );
 		cgs.media.flagCarrierHitShader = trap_R_RegisterShader( "sprites/flagcarrier_hit" );
 		cgs.media.poiNeutralFlagCarrierShader = trap_R_RegisterShader( "sprites/neutralflagcarrier" );
@@ -3579,7 +3501,7 @@ static void CG_RegisterGraphics( void ) {
 	strcpy( items, CG_ConfigString( CS_ITEMS) );
 
 	for ( i = 1 ; i < bg_numItems ; i++ ) {
-		if ( items[ i ] == '1' || cg_buildScript.integer ) {
+		if ( items[ i ] == '1' || trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_LoadingItem( i );
 			CG_RegisterItemVisuals( i );
 		}

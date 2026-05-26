@@ -204,9 +204,9 @@ def test_game_cosmetic_timer_loadout_cvars_keep_retail_behavioral_wiring() -> No
 		"g_forceSendConfigstring.modificationCount != s_forceSendConfigstringModCount",
 		"g_forceAtmosphericEffects.modificationCount != s_forceAtmosphericEffectsModCount",
 		"g_forceDmgThroughSurface.modificationCount != s_forceDmgThroughSurfaceModCount",
-		"g_forcedAtmosphere.modificationCount != s_forcedAtmosphereModCount",
 	):
 		assert expected in g_main
+	assert "g_forcedAtmosphere" not in g_main
 
 	for expected in (
 		"static void G_UpdateItemTimerConfig( qboolean forceBroadcast ) {",

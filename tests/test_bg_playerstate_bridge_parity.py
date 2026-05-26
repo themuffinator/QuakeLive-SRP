@@ -8,6 +8,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BG_MISC = REPO_ROOT / "src" / "code" / "game" / "bg_misc.c"
 BG_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "bg_public.h"
 G_ACTIVE = REPO_ROOT / "src" / "code" / "game" / "g_active.c"
+CG_ENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_ents.c"
+CG_LOCAL = REPO_ROOT / "src" / "code" / "cgame" / "cg_local.h"
+CG_MAIN = REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c"
 G_LOCAL = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
 G_MAIN = REPO_ROOT / "src" / "code" / "game" / "g_main.c"
 
@@ -59,3 +62,12 @@ def test_qagame_call_sites_route_directly_through_bg_playerstate_bridge() -> Non
 def test_qagame_no_longer_registers_the_source_only_smooth_clients_cvar() -> None:
 	assert "g_smoothClients" not in G_LOCAL.read_text(encoding="utf-8")
 	assert "g_smoothClients" not in G_MAIN.read_text(encoding="utf-8")
+
+
+def test_cgame_no_longer_registers_the_source_only_smooth_clients_cvar() -> None:
+	ents_source = CG_ENTS.read_text(encoding="utf-8")
+
+	assert "cg_smoothClients" not in CG_LOCAL.read_text(encoding="utf-8")
+	assert "cg_smoothClients" not in CG_MAIN.read_text(encoding="utf-8")
+	assert "cg_smoothClients" not in ents_source
+	assert "cent->currentState.pos.trType = TR_INTERPOLATE;" not in ents_source

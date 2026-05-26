@@ -1481,9 +1481,6 @@ cvar_t	*com_pid;
 cvar_t	*cl_paused;
 cvar_t	*sv_paused;
 cvar_t	*com_cameraMode;
-#if defined(_WIN32) && defined(_DEBUG)
-cvar_t	*com_noErrorInterrupt;
-#endif
 
 // com_speeds times
 int		time_game;
@@ -1803,16 +1800,6 @@ void QDECL Com_Error( int code, const char *fmt, ... ) {
 	static int	lastErrorTime;
 	static int	errorCount;
 	int			currentTime;
-
-#if defined(_WIN32) && defined(_DEBUG)
-	if ( code != ERR_DISCONNECT && code != ERR_NEED_CD ) {
-		if (!com_noErrorInterrupt->integer) {
-			__asm {
-				int 0x03
-			}
-		}
-	}
-#endif
 
 	// when we are running automated scripts, make sure we
 	// know if anything failed
@@ -3523,7 +3510,6 @@ void Hunk_Trash( void ) {
 	return;
 #endif
 
-	Cvar_Set("com_jp", "1");
 	Hunk_SwapBanks();
 
 	if ( hunk_permanent == &hunk_low ) {
@@ -4264,10 +4250,6 @@ void Com_Init( char *commandLine ) {
 	Com_StartupVariable( "developer" );
 	Com_StartupVariable( "logfile" );
 	Com_StartupVariable( "appendlogfile" );
-
-#if defined(_WIN32) && defined(_DEBUG)
-	com_noErrorInterrupt = Cvar_Get( "com_noErrorInterrupt", "1", 0 );
-#endif
 
 	// done early so bind command exists
 	CL_InitKeyCommands();

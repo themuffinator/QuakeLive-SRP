@@ -797,7 +797,7 @@ static qboolean R_DeferWebScreenshotCommand( const char *commandName, const char
 	int deferredFrames;
 
 	uiBrowserAwesomium = ri.Cvar_Get( "ui_browserAwesomium", "0", 0 );
-	uiBrowserAwesomiumPending = ri.Cvar_Get( "ui_browserAwesomiumPending", "1", 0 );
+	uiBrowserAwesomiumPending = ri.Cvar_Get( "ui_browserAwesomiumPending", "0", 0 );
 	webBrowserActive = ri.Cvar_Get( "web_browserActive", "0", 0 );
 	if ( ( !webBrowserActive || !webBrowserActive->integer )
 		&& ( !uiBrowserAwesomium || !uiBrowserAwesomium->integer )
@@ -1445,7 +1445,7 @@ void R_Register( void )
 	r_colorCorrectActive = ri.Cvar_Get( "r_colorCorrectActive", "0", CVAR_TEMP | CVAR_ROM );
 	web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );
 	// HLIL: bloom tuning cvars are registered with the retail defaults even though the shader path only consumes the bright/combine subset.
-	r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );
+	r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );
 	r_bloomIntensity = ri.Cvar_GetBounded( "r_bloomIntensity", "0.5", "0.0", "10.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
 	r_bloomBrightThreshold = ri.Cvar_GetBounded( "r_bloomBrightThreshold", "0.25", "0.0", "1.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
 	r_bloomBlurScale = ri.Cvar_GetBounded( "r_bloomBlurScale", "0.0", "1.0", "2.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );
@@ -1513,7 +1513,7 @@ void R_Register( void )
 	r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR", CVAR_ARCHIVE | CVAR_CLOUD );
 	r_swapInterval = ri.Cvar_Get( "r_swapInterval", "0", CVAR_ARCHIVE | CVAR_CLOUD );
 	r_gamma = ri.Cvar_Get( "r_gamma", "1", CVAR_ARCHIVE | CVAR_CLOUD );
-	r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );
+	r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );
 	r_facePlaneCull = ri.Cvar_Get ("r_facePlaneCull", "1", CVAR_ARCHIVE );
 
 	r_railWidth = ri.Cvar_Get( "r_railWidth", "16", CVAR_ARCHIVE | CVAR_CLOUD );

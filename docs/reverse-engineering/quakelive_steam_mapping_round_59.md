@@ -56,7 +56,7 @@ Observed facts:
 The next host band transitions cleanly into retained Quake III sound-system
 ownership:
 
-- `sub_4D8990 -> S_HashSFXName`
+- `sub_4D8990 -> generateHashValue`
 - `sub_4D9B60 -> S_SoundInfo_f`
 - `sub_4D9C50 -> S_ChannelSetup`
 - `sub_4D9CA0 -> S_Shutdown`
@@ -80,8 +80,11 @@ ownership:
 Observed facts:
 
 1. `sub_4D8990` closes one of the previous ambiguous leftovers as the retained
-   `S_HashSFXName` helper: `tolower`, stop-at-dot handling, backslash-to-slash
-   normalization, and the final `(hash & (size - 1))` mask are all present.
+   shared `generateHashValue` helper: `tolower`, stop-at-dot handling,
+   backslash-to-slash normalization, the caller-supplied hash-size argument,
+   and the final `(hash & (size - 1))` mask are all present. Round 314
+   corrected the earlier sound-only label after revalidating the image and
+   shader callers.
 2. `sub_4D9D00` is the retained `S_FindName` path, including the exact
    `S_FindName: NULL`, `S_FindName: empty name`, and
    `S_FindName: out of sfx_t` fatal diagnostics plus the hash-chain walk.
@@ -151,7 +154,8 @@ This round promotes `32` retained aliases:
 - `q_shared.c`: `va`, `Info_ValueForKey`, `Info_NextPair`, `Info_RemoveKey`,
   `Info_RemoveKey_Big`, `Info_SetValueForKey`, `Info_SetValueForKey_Big`,
   `COM_DefaultExtension`, `COM_Parse`
-- `snd_dma.c`: `S_HashSFXName`, `S_SoundInfo_f`, `S_ChannelSetup`,
+- shared hash helper: `generateHashValue`
+- `snd_dma.c`: `S_SoundInfo_f`, `S_ChannelSetup`,
   `S_Shutdown`, `S_FindName`, `S_memoryLoad`, `S_SpatializeOrigin`,
   `S_AddLoopSounds`, `S_RawSamples`, `S_ScanChannelStarts`, `S_SoundList_f`,
   `S_FreeOldestSound`, `S_BeginRegistration`, `S_GetSoundtime`, `S_Update_`,

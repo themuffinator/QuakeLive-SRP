@@ -43,7 +43,7 @@ def test_color_correct_is_shader_backed_and_surfaces_retail_controls() -> None:
 	assert '"p_gammaRecip"' in tr_backend
 	assert '"p_overbright"' in tr_backend
 	assert '"p_contrast"' in tr_backend
-	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
+	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in tr_init
 	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in tr_backend
 	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in tr_backend
@@ -60,7 +60,8 @@ def test_bloom_controls_and_active_mirrors_are_backend_validated() -> None:
 
 	assert 'cvar_t\t*(*Cvar_GetBounded)( const char *name, const char *value, const char *minValue, const char *maxValue, int flags );' in tr_public
 	assert "ri.Cvar_GetBounded = Cvar_GetBounded;" in cl_main
-	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
+	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
+	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' not in tr_init
 	assert "AssertCvarRange( r_enableBloom, 0, 2, qtrue );" in tr_init
 	assert "static int RBPP_GetBloomMode( void ) {" in tr_backend
 	assert "bloomMode = RBPP_GetBloomMode();" in tr_backend
@@ -92,12 +93,15 @@ def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> No
 	tr_init = _read("src/code/renderer/tr_init.c")
 
 	color_mapping_block = _extract_function_block(tr_image, "void R_SetColorMappings( void ) {")
+	light_scale_block = _extract_function_block(tr_image, "void R_LightScaleTexture (unsigned *in, int inwidth, int inheight, qboolean only_gamma )")
 	color_correct_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
 	restart_block = _extract_function_block(tr_init, "static void R_PostProcessRestart( void ) {")
 
 	assert "if ( !tr.colorCorrectActive && !glConfig.deviceSupportsGamma ) {" in color_mapping_block
 	assert "if ( !tr.colorCorrectActive && glConfig.deviceSupportsGamma )" in color_mapping_block
 	assert "GLimp_SetGamma( s_gammatable, s_gammatable, s_gammatable );" in color_mapping_block
+	assert "if ( tr.colorCorrectActive ) {\n\t\treturn;\n\t}" in light_scale_block
+	assert light_scale_block.index("if ( tr.colorCorrectActive )") < light_scale_block.index("if ( only_gamma )")
 	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in color_correct_block
 	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in color_correct_block
 	assert "R_SyncRenderThread();" in restart_block

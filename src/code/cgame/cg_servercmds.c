@@ -1351,186 +1351,6 @@ static const weapon_t cgCAStatWeapons[CG_CASTAT_WEAPON_COUNT] = {
 
 /*
 =================
-CG_DebugAppendIntCsv
-
-Builds a comma-separated integer list used by ownerdraw debug logging.
-=================
-*/
-static void CG_DebugAppendIntCsv( char *buffer, int bufferSize, const int *values, int count ) {
-	int	i;
-	char	entry[24];
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	if ( !values || count <= 0 ) {
-		return;
-	}
-
-	for ( i = 0; i < count; i++ ) {
-		Com_sprintf( entry, sizeof( entry ), "%s%i", ( i > 0 ) ? "," : "", values[i] );
-		Q_strcat( buffer, bufferSize, entry );
-	}
-}
-
-/*
-=================
-CG_DebugAppendFloatCsv
-
-Builds a comma-separated float list used by ownerdraw debug logging.
-=================
-*/
-static void CG_DebugAppendFloatCsv( char *buffer, int bufferSize, const float *values, int count ) {
-	int	i;
-	char	entry[24];
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	if ( !values || count <= 0 ) {
-		return;
-	}
-
-	for ( i = 0; i < count; i++ ) {
-		Com_sprintf( entry, sizeof( entry ), "%s%3.2f", ( i > 0 ) ? "," : "", values[i] );
-		Q_strcat( buffer, bufferSize, entry );
-	}
-}
-
-/*
-=================
-CG_DebugDumpPlacementOwnerdrawScoreStats
-
-Dumps parsed first/second placement ownerdraw inputs for validation harnesses.
-=================
-*/
-static void CG_DebugDumpPlacementOwnerdrawScoreStats( void ) {
-	int		placementIndex;
-
-	if ( !cg_debugOwnerdrawStats.integer ) {
-		return;
-	}
-
-	if ( cg.numScores <= 0 ) {
-		CG_Printf( "ownerdraw_stats: placement rows unavailable (numScores=0)\n" );
-		return;
-	}
-
-	for ( placementIndex = 0; placementIndex < cg.numScores && placementIndex < CG_SCORESTAT_PLACEMENT_SLOTS; placementIndex++ ) {
-		const score_t		*score;
-		int			clientNum;
-		const cgScoreStats_t	*stats;
-		int			fragValues[CG_SCORESTAT_FRAG_WEAPON_COUNT];
-		int			hitValues[CG_SCORESTAT_ACCURACY_WEAPON_COUNT];
-		int			shotValues[CG_SCORESTAT_ACCURACY_WEAPON_COUNT];
-		int			damageValues[CG_SCORESTAT_DMG_WEAPON_COUNT];
-		int			pickupValues[CG_SCORESTAT_PICKUP_COUNT];
-		float			pickupAvgValues[CG_SCORESTAT_PICKUP_COUNT];
-		char			fragCsv[256];
-		char			hitCsv[256];
-		char			shotCsv[256];
-		char			damageCsv[256];
-		char			pickupCsv[96];
-		char			pickupAvgCsv[96];
-		int			i;
-
-		score = &cg.scores[placementIndex];
-		clientNum = score->client;
-		if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-			CG_Printf( "ownerdraw_stats: place=%i invalid client index=%i\n", placementIndex + 1, clientNum );
-			continue;
-		}
-
-		stats = &cg.scoreStats[clientNum];
-		if ( !stats->valid ) {
-			CG_Printf( "ownerdraw_stats: place=%i client=%i valid=0\n", placementIndex + 1, clientNum );
-			continue;
-		}
-
-		for ( i = 0; i < CG_SCORESTAT_FRAG_WEAPON_COUNT; i++ ) {
-			int weapon = cgScoreStatFragWeapons[i];
-			fragValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponFrags[weapon] : 0;
-		}
-		for ( i = 0; i < CG_SCORESTAT_ACCURACY_WEAPON_COUNT; i++ ) {
-			int weapon = cgScoreStatAccuracyWeapons[i];
-			hitValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponHits[weapon] : 0;
-			shotValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponShots[weapon] : 0;
-		}
-		for ( i = 0; i < CG_SCORESTAT_DMG_WEAPON_COUNT; i++ ) {
-			int weapon = cgScoreStatFragWeapons[i];
-			damageValues[i] = ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS ) ? stats->weaponDamage[weapon] : 0;
-		}
-		for ( i = 0; i < CG_SCORESTAT_PICKUP_COUNT; i++ ) {
-			pickupValues[i] = stats->pickupCounts[i];
-			pickupAvgValues[i] = stats->pickupAvgSeconds[i];
-		}
-
-		CG_DebugAppendIntCsv( fragCsv, sizeof( fragCsv ), fragValues, CG_SCORESTAT_FRAG_WEAPON_COUNT );
-		CG_DebugAppendIntCsv( hitCsv, sizeof( hitCsv ), hitValues, CG_SCORESTAT_ACCURACY_WEAPON_COUNT );
-		CG_DebugAppendIntCsv( shotCsv, sizeof( shotCsv ), shotValues, CG_SCORESTAT_ACCURACY_WEAPON_COUNT );
-		CG_DebugAppendIntCsv( damageCsv, sizeof( damageCsv ), damageValues, CG_SCORESTAT_DMG_WEAPON_COUNT );
-		CG_DebugAppendIntCsv( pickupCsv, sizeof( pickupCsv ), pickupValues, CG_SCORESTAT_PICKUP_COUNT );
-		CG_DebugAppendFloatCsv( pickupAvgCsv, sizeof( pickupAvgCsv ), pickupAvgValues, CG_SCORESTAT_PICKUP_COUNT );
-
-		CG_Printf(
-			"ownerdraw_stats: place=%i client=%i valid=%i frags=%s hits=%s shots=%s dmg=%s pickups=%s pickupAvg=%s pr=%i tier=%i\n",
-			placementIndex + 1,
-			clientNum,
-			stats->valid ? 1 : 0,
-			fragCsv,
-			hitCsv,
-			shotCsv,
-			damageCsv,
-			pickupCsv,
-			pickupAvgCsv,
-			stats->progressionPr,
-			stats->progressionTier );
-	}
-}
-
-/*
-=================
-CG_DebugDumpTeamOwnerdrawScoreStats
-
-Dumps parsed red/blue team pickup and time-held ownerdraw inputs.
-=================
-*/
-static void CG_DebugDumpTeamOwnerdrawScoreStats( int fieldCount ) {
-	int		teamIndex;
-
-	if ( !cg_debugOwnerdrawStats.integer ) {
-		return;
-	}
-
-	if ( fieldCount <= 0 || fieldCount > CG_TEAMSTAT_COUNT ) {
-		fieldCount = CG_TEAMSTAT_COUNT;
-	}
-
-	for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {
-		int	values[CG_TEAMSTAT_COUNT];
-		int	i;
-		char	csv[512];
-
-		for ( i = 0; i < fieldCount; i++ ) {
-			values[i] = cg.teamScoreStats.values[teamIndex][i];
-		}
-
-		CG_DebugAppendIntCsv( csv, sizeof( csv ), values, fieldCount );
-		CG_Printf(
-			"ownerdraw_stats_team: team=%s fields=%i valid=%i values=%s\n",
-			( teamIndex == 0 ) ? "red" : "blue",
-			fieldCount,
-			cg.teamScoreStats.valid ? 1 : 0,
-			csv );
-	}
-}
-
-/*
-=================
 CG_ClearScoreStatsCache
 
 Clears cached per-weapon placement stats until a fresh scorestats command arrives.
@@ -1833,7 +1653,6 @@ static void CG_ParseRetailTeamScoreHeader( int headerStartArg, const cgTeamStatI
 
 	cg.teamScoreStats.fieldCount = maxField + 1;
 	cg.teamScoreStats.valid = qtrue;
-	CG_DebugDumpTeamOwnerdrawScoreStats( cg.teamScoreStats.fieldCount );
 }
 
 /*
@@ -1873,13 +1692,6 @@ static void CG_ParseScoreStats( void ) {
 			break;
 		}
 		if ( ( argc - arg ) < CG_SCORESTAT_FIELDS_PER_CLIENT ) {
-			if ( cg_debugOwnerdrawStats.integer ) {
-				CG_Printf(
-					"ownerdraw_stats: truncated scorestats payload at index=%i remaining=%i expected=%i\n",
-					i,
-					argc - arg,
-					CG_SCORESTAT_FIELDS_PER_CLIENT );
-			}
 			break;
 		}
 
@@ -1997,7 +1809,6 @@ static void CG_ParseScoreStats( void ) {
 		}
 	}
 
-	CG_DebugDumpPlacementOwnerdrawScoreStats();
 }
 
 /*
@@ -2045,7 +1856,6 @@ static void CG_ParseTeamScoreStats( void ) {
 
 	cg.teamScoreStats.fieldCount = fieldCount;
 	cg.teamScoreStats.valid = qtrue;
-	CG_DebugDumpTeamOwnerdrawScoreStats( fieldCount );
 }
 
 /*
@@ -2772,15 +2582,12 @@ serverinfo state.
 =================
 */
 static void CG_SetGameInfoCvars( void ) {
-	const char		*info;
-	const char		*trainingValue;
 	const char *const	*gameInfo;
 
-	info = CG_ConfigString( CS_SERVERINFO );
 	gameInfo = cg_retailBlankGameInfoLines;
 
-	trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );
-	if ( trainingValue[0] && atoi( trainingValue ) ) {
+	trap_Cvar_Update( &g_training );
+	if ( g_training.integer ) {
 		gameInfo = cg_retailTrainingGameInfoLines;
 	} else if ( cgs.gametype >= 0 && cgs.gametype < GT_MAX_GAME_TYPE ) {
 		gameInfo = cg_retailGameInfoLines[cgs.gametype];
@@ -3013,7 +2820,7 @@ static void CG_ParseWarmup( void ) {
 CG_ParsePlayerCylindersConfigString
 
 Restores the retail dedicated player-cylinder configstring parser and mirrors
-the shared collision-shape gate through cg_playerCylinders.
+the shared collision-shape gate through cgs.playerCylindersEnabled.
 =============
 */
 static void CG_ParsePlayerCylindersConfigString( void ) {
@@ -3024,8 +2831,6 @@ static void CG_ParsePlayerCylindersConfigString( void ) {
 	value = ( info && info[0] ) ? va( "%i", atoi( info ) ) : "0";
 
 	cgs.playerCylindersEnabled = (qboolean)( atoi( value ) != 0 );
-	trap_Cvar_Set( "cg_playerCylinders", value );
-	trap_Cvar_Update( &cg_playerCylinders );
 }
 
 /*
@@ -4359,7 +4164,7 @@ int CG_ParseVoiceChats( const char *filename, voiceChatList_t *voiceChatList, in
 	sfxHandle_t sound;
 
 	compress = qtrue;
-	if (cg_buildScript.integer) {
+	if ( trap_Cvar_VariableValue( "com_build" ) ) {
 		compress = qfalse;
 	}
 
@@ -4765,14 +4570,6 @@ void CG_VoiceChat( int mode ) {
 	clientNum = atoi(CG_Argv(2));
 	color = atoi(CG_Argv(3));
 	cmd = CG_Argv(4);
-
-	if (cg_noTaunt.integer != 0) {
-		if (!strcmp(cmd, VOICECHAT_KILLINSULT)  || !strcmp(cmd, VOICECHAT_TAUNT) || \
-			!strcmp(cmd, VOICECHAT_DEATHINSULT) || !strcmp(cmd, VOICECHAT_KILLGAUNTLET) || \
-			!strcmp(cmd, VOICECHAT_PRAISE)) {
-			return;
-		}
-	}
 
 	CG_VoiceChatLocal( mode, voiceOnly, clientNum, color, cmd );
 }

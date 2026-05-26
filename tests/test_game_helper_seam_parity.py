@@ -1009,7 +1009,9 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "spawnPoint = G_SelectClientSpawnPoint( ent, spawn_origin, spawn_angles );" in game_client
 	assert "gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {" in game_team
 	assert "spawnPoint = Team_SelectDominationSpawnPoint( ent, origin, angles );" in game_client
-	assert "return G_SelectRankedSpawnPoint( spots, count, origin, angles );" in game_team
+	assert "return G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );" in game_team
+	assert "spot = G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );" in game_team
+	assert "gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles );" in game_local
 	assert "gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles );" in game_local
 	assert "gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles );" in game_local
 
@@ -1158,7 +1160,7 @@ def test_client_spawn_queue_runs_on_client_frame_and_disconnect_cleanup() -> Non
 	cancel_block = _block_from_marker(game_spawn, "void G_CancelQueuedClientSpawn")
 
 	assert "G_RunThink( ent );" in run_client_block
-	assert run_client_block.index("G_RunThink( ent );") < run_client_block.index("if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {")
+	assert run_client_block.index("G_RunThink( ent );") < run_client_block.index("if ( !(ent->r.svFlags & SVF_BOT) ) {")
 	assert "if ( !ent->inuse || !ent->client ) {" in run_client_block
 	assert "void\tG_CancelQueuedClientSpawn( int clientNum );" in game_local
 	assert "G_CancelQueuedClientSpawn( clientNum );" in disconnect_block
@@ -1436,6 +1438,41 @@ def test_console_tail_and_training_bootstrap_helpers_match_recovered_boundaries(
 	assert "G_AddTrainerBot();" in init_bots
 	assert "G_SpawnBots( Info_ValueForKey( arenainfo, ARENA_INFO_KEY_BOTS ), BOT_BEGIN_DELAY_BASE );" in init_bots
 	assert "basedelay += 10000;" not in game_bot
+
+
+def test_shutdown_game_routes_engine_error_message_through_retail_log_exit_path() -> None:
+	game_main = _read("src/code/game/g_main.c")
+	retail_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
+	shutdown_block = _block_from_marker(game_main, "void G_ShutdownGame")
+
+	assert '(*(data_104b13ac + 0x34))("com_errorMessage", &var_404, 0x400)' in retail_hlil
+	assert "if (var_404 == 0)" in retail_hlil
+	assert '__builtin_strncpy(dest: &var_404, src: "Shutdown", n: 9)' in retail_hlil
+	assert "if (data_105dce5c != 0)" in retail_hlil
+	assert "sub_10057510(x87_r0, 1, arg1, &var_404)" in retail_hlil
+	assert "sub_10065af0()" in retail_hlil
+	assert "sub_10032a10()" in retail_hlil
+
+	for expected in (
+		"char\texitReason[MAX_STRING_CHARS];",
+		'trap_Cvar_VariableStringBuffer( "com_errorMessage", exitReason, sizeof( exitReason ) );',
+		"if ( !exitReason[0] ) {",
+		'Q_strncpyz( exitReason, "Shutdown", sizeof( exitReason ) );',
+		"if ( level.time ) {",
+		"LogExit( exitReason );",
+		"G_WriteSessionData();",
+		"G_WriteAdminAccessFile();",
+		"level.logFile = 0;",
+	):
+		assert expected in shutdown_block
+
+	assert shutdown_block.index('trap_Cvar_VariableStringBuffer( "com_errorMessage", exitReason, sizeof( exitReason ) );') < shutdown_block.index("if ( !exitReason[0] ) {")
+	assert shutdown_block.index("if ( !exitReason[0] ) {") < shutdown_block.index("if ( level.time ) {")
+	assert shutdown_block.index("if ( level.time ) {") < shutdown_block.index("LogExit( exitReason );")
+	assert shutdown_block.index("LogExit( exitReason );") < shutdown_block.index("G_WriteSessionData();")
+	assert shutdown_block.index("G_WriteSessionData();") < shutdown_block.index("G_WriteAdminAccessFile();")
+	assert shutdown_block.index("G_WriteAdminAccessFile();") < shutdown_block.index("if ( level.logFile ) {")
+	assert shutdown_block.index("level.logFile = 0;") < shutdown_block.index('trap_Cvar_VariableIntegerValue( "bot_enable" )')
 
 
 def test_bot_training_state_tail_is_wired_to_bot_frame() -> None:

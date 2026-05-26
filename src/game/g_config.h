@@ -14,19 +14,6 @@ extern vmCvar_t g_startingHealthBonus;
 extern vmCvar_t g_startingArmor;
 extern vmCvar_t g_armorTiered;
 
-extern vmCvar_t g_ammoPack_bfg;
-extern vmCvar_t g_ammoPack_cg;
-extern vmCvar_t g_ammoPack_gl;
-extern vmCvar_t g_ammoPack_hmg;
-extern vmCvar_t g_ammoPack_lg;
-extern vmCvar_t g_ammoPack_mg;
-extern vmCvar_t g_ammoPack_ng;
-extern vmCvar_t g_ammoPack_pg;
-extern vmCvar_t g_ammoPack_pl;
-extern vmCvar_t g_ammoPack_rg;
-extern vmCvar_t g_ammoPack_rl;
-extern vmCvar_t g_ammoPack_sg;
-
 extern vmCvar_t g_startingAmmo_bfg;
 extern vmCvar_t g_startingAmmo_cg;
 extern vmCvar_t g_startingAmmo_g;
@@ -51,11 +38,6 @@ extern vmCvar_t g_suddenDeathRespawnTick;
 extern vmCvar_t g_suddenDeathRespawnMax;
 extern vmCvar_t g_suddenDeathRespawnIncrement;
 extern vmCvar_t g_suddenDeathRespawnPrint;
-extern vmCvar_t g_factoryRespawnDelay;
-extern vmCvar_t g_factoryWarmupSpawnDelay;
-extern vmCvar_t g_factoryAllowItemDrops;
-extern vmCvar_t g_factoryAllowItemBounce;
-
 typedef struct matchFactoryConfig_s {
 	int		timeoutLengthSeconds;
 	int		timeoutCountPerTeam;

@@ -149,7 +149,7 @@ def test_teammate_poi_overlay_uses_retail_projection_and_status_markers() -> Non
 		'cgs.media.poiFlagTrackPointerShader = trap_R_RegisterShader( "gfx/2d/flag_status/track_pointer.tga" );',
 	):
 		assert registration in register_block
-	assert "if ( cgs.gametype == GT_FFA || cg_buildScript.integer )" in register_block
+	assert 'if ( cgs.gametype == GT_FFA || trap_Cvar_VariableValue( "com_build" ) )' in register_block
 	assert 'cgs.media.poiQuadHogShader = trap_R_RegisterShader( "gfx/2d/quad_hog/quadhog" );' in register_block
 	assert "cg_teammatePOIsMinWidth.value * SMALLCHAR_WIDTH" in draw_block
 	assert "cg_teammatePOIsMaxWidth.value * SMALLCHAR_WIDTH" in label_block
@@ -236,7 +236,7 @@ def test_crosshair_team_health_default_matches_retail_mode_cvar() -> None:
 	assert '{ &cg_drawCrosshairTeamHealthSize, "cg_drawCrosshairTeamHealthSize", "0.12", ' + retail_flags + ', "0.10", "0.26" },' in source
 	assert '{ &cg_enemyCrosshairNames, "cg_enemyCrosshairNames", "1", ' + retail_flags + ', "0", "1" },' in source
 	assert '{ &cg_enemyCrosshairNamesOpacity, "cg_enemyCrosshairNamesOpacity", "0.75", ' + retail_flags + ', "0", "1" },' in source
-	assert '{ &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "1", ' + retail_flags + ', "0", "1" },' in source
+	assert '{ &cg_teammateCrosshairNames, "cg_teammateCrosshairNames", "0", ' + retail_flags + ', "0", "1" },' in source
 	assert '{ &cg_teammateCrosshairNamesOpacity, "cg_teammateCrosshairNamesOpacity", "0.75", ' + retail_flags + ', "0", "1" },' in source
 	assert '{ &cg_teammateNames, "cg_teammateNames", "1", ' + retail_flags + ', "0", "2" },' in source
 	assert '{ &cg_forceDrawCrosshair, "cg_forceDrawCrosshair", "0", ' + retail_flags + ', "0", "1" },' in source
@@ -335,11 +335,10 @@ def test_screen_damage_and_vignette_use_registered_retail_media_handles() -> Non
 	assert "cgs.media.viewDamageBlendShader = trap_R_RegisterShader( \"viewDamageBlend\" );" in damage_shader_block
 	assert "return cgs.media.viewDamageBlendShader;" in damage_shader_block
 	assert "static qhandle_t\tcg_screenDamageBlendShader;" not in screen_source
-	assert "vec4_t vignetteColor = { 1.0f, 1.0f, 1.0f, 0.35f };" in vignette_block
 	assert "cgs.media.vignetteShader = trap_R_RegisterShader( \"gfx/misc/vignette\" );" in vignette_block
-	assert "trap_R_SetColor( vignetteColor );" in vignette_block
 	assert "CG_DrawPic( 0.0f, 0.0f, 640.0f, 480.0f, cgs.media.vignetteShader );" in vignette_block
-	assert "trap_R_SetColor( NULL );" in vignette_block
+	assert "vec4_t vignetteColor" not in vignette_block
+	assert "trap_R_SetColor(" not in vignette_block
 	assert "static qhandle_t\tvignetteShader;" not in vignette_block
 
 
@@ -808,7 +807,7 @@ def test_team_overlay_uses_retail_cvars_and_scaled_host_text_lane() -> None:
 	assert f'{{ &cg_drawAttacker, "cg_drawAttacker", "1", {retail_flags}, "0", "1" }}' in main_source
 	assert f'{{ &cg_drawFPS, "cg_drawFPS", "0", {retail_flags}, "0", "1" }}' in main_source
 	assert f'{{ &cg_drawSnapshot, "cg_drawSnapshot", "0", {retail_flags}, "0", "2" }}' in main_source
-	assert f'{{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "1", {retail_flags}, "0", "3" }}' in main_source
+	assert f'{{ &cg_drawTeamOverlay, "cg_drawTeamOverlay", "1", {retail_flags}, "0", "2" }}' in main_source
 	assert f'{{ &cg_drawTeamOverlayOpacity, "cg_drawTeamOverlayOpacity", "0.75", {retail_flags}, "0", "1" }}' in main_source
 	assert f'{{ &cg_drawTeamOverlaySize, "cg_drawTeamOverlaySize", "0.16", {retail_flags}, "0.12", "0.22" }}' in main_source
 	assert f'{{ &cg_drawTeamOverlayX, "cg_drawTeamOverlayX", "0", {retail_flags}, "-640", "640" }}' in main_source

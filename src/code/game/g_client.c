@@ -680,16 +680,19 @@ qboolean SpotWouldTelefrag( gentity_t *spot ) {
 
 /*
 ================
-G_SelectRankedSpawnPoint
+G_SelectRankedSpawnPointForTeam
 
-Ranks candidate spawns against live players and returns a random pick from the best half.
+Ranks candidate spawns against live players and applies the retail enemy-team
+distance weighting used by team spawns.
 ================
 */
-gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {
+gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles ) {
 	gentity_t	*rankedSpots[MAX_RANKED_SPAWN_POINTS];
 	float		rankedDistances[MAX_RANKED_SPAWN_POINTS];
 	gentity_t	*spot;
 	float		bestDistance;
+	float		selectionRatio;
+	float		candidateCount;
 	int		rankedCount;
 	int		i, j;
 	int		selectionCount;
@@ -731,7 +734,27 @@ gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t o
 			}
 
 			VectorSubtract( spot->s.origin, other->client->ps.origin, delta );
-			dist = VectorLength( delta );
+			if ( delta[0] < 0.0f ) {
+				delta[0] = -delta[0];
+			}
+			if ( delta[1] < 0.0f ) {
+				delta[1] = -delta[1];
+			}
+			if ( delta[2] < 0.0f ) {
+				delta[2] = -delta[2];
+			}
+			dist = delta[0];
+			if ( delta[1] > dist ) {
+				dist = delta[1];
+			}
+			if ( delta[2] > dist ) {
+				dist = delta[2];
+			}
+			if ( g_enemyTeamRespawnRatio.value != 0.0f
+				&& ( enemyTeam == TEAM_RED || enemyTeam == TEAM_BLUE )
+				&& other->client->sess.sessionTeam == enemyTeam ) {
+				dist *= g_enemyTeamRespawnRatio.value;
+			}
 			if ( dist < bestDistance ) {
 				bestDistance = dist;
 			}
@@ -779,15 +802,50 @@ gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t o
 		return NULL;
 	}
 
-	selectionCount = rankedCount / 2;
-	if ( selectionCount <= 0 ) {
-		selectionCount = 1;
+	selectionRatio = g_spawnRandomRatio.value;
+	if ( selectionRatio < 0.1f ) {
+		selectionRatio = 0.1f;
+	} else if ( selectionRatio > 1.0f ) {
+		selectionRatio = 1.0f;
+	}
+
+	candidateCount = (float)rankedCount * selectionRatio;
+	selectionCount = (int)candidateCount;
+	if ( (float)selectionCount < candidateCount ) {
+		selectionCount++;
+	}
+	if ( selectionCount < 3 ) {
+		selectionCount = 3;
+	}
+	if ( selectionCount > rankedCount ) {
+		selectionCount = rankedCount;
+	}
+
+	if ( g_spawnMinDistance.integer > 0 ) {
+		while ( selectionCount > 0
+			&& rankedDistances[selectionCount - 1] < (float)g_spawnMinDistance.integer ) {
+			selectionCount--;
+		}
+		if ( selectionCount <= 0 ) {
+			selectionCount = 1;
+		}
 	}
 
 	selection = rand() % selectionCount;
 	spot = rankedSpots[selection];
 	G_CopySpawnPointSelection( spot, origin, angles );
 	return spot;
+}
+
+/*
+================
+G_SelectRankedSpawnPoint
+
+Ranks neutral candidate spawns against live players.
+================
+*/
+gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {
+	return G_SelectRankedSpawnPointForTeam( spots, spotCount, TEAM_FREE, origin, angles );
 }
 
 /*
@@ -2636,12 +2694,7 @@ void ClientSpawn(gentity_t *ent) {
 	}
 	G_FreezeInitClient( ent );
 
-	// set spawn protection time
-	if ( g_spawnProtect.integer > 0 && client->sess.sessionTeam != TEAM_SPECTATOR ) {
-		client->invulnerabilityTime = level.time + g_spawnProtect.integer;
-	} else {
-		client->invulnerabilityTime = 0;
-	}
+	client->invulnerabilityTime = 0;
 	client->holdableInvulnerabilityTime = 0;
 
 	client->airOutTime = level.time + 12000;

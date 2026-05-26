@@ -162,27 +162,32 @@ def test_ownerdraw_log_regex_parses_payloads() -> None:
 def test_ownerdraw_debug_cvar_and_markers_are_registered() -> None:
     servercmds = CG_SERVERCMDS.read_text(encoding="utf-8")
     main = CG_MAIN.read_text(encoding="utf-8")
+    local = CG_LOCAL.read_text(encoding="utf-8")
 
-    assert "cg_debugOwnerdrawStats" in main
-    assert '"cg_debugOwnerdrawStats"' in main
-    assert "ownerdraw_stats: place=" in servercmds
-    assert "ownerdraw_stats_team: team=" in servercmds
+    assert "cg_debugOwnerdrawStats" not in main
+    assert "cg_debugOwnerdrawStats" not in local
+    assert "cg_debugOwnerdrawStats" not in servercmds
+    assert '"cg_debugOwnerdrawStats"' not in main
+    assert "ownerdraw_stats:" not in servercmds
+    assert "ownerdraw_stats_team:" not in servercmds
+    assert "CG_DebugDumpPlacementOwnerdrawScoreStats" not in servercmds
+    assert "CG_DebugDumpTeamOwnerdrawScoreStats" not in servercmds
 
 
-def test_ownerdraw_dumps_run_after_scorestats_updates() -> None:
+def test_scorestats_updates_remain_direct_without_ownerdraw_debug_dumps() -> None:
     source = CG_SERVERCMDS.read_text(encoding="utf-8")
 
     assert "CG_SCORESTAT_FIELDS_PER_CLIENT" in source
     score_valid = source.index("cg.scoreStats[clientNum].valid = qtrue;")
-    score_dump = source.index("CG_DebugDumpPlacementOwnerdrawScoreStats();")
     team_valid = source.index("cg.teamScoreStats.valid = qtrue;")
-    team_dump = source.index("CG_DebugDumpTeamOwnerdrawScoreStats( fieldCount );")
     score_guard = source.index("( argc - arg ) < CG_SCORESTAT_FIELDS_PER_CLIENT")
     score_parse = source.index("clientNum = atoi( CG_Argv( arg++ ) );")
 
-    assert score_valid < score_dump
-    assert team_valid < team_dump
     assert score_guard < score_parse
+    assert "CG_DebugDumpPlacementOwnerdrawScoreStats" not in source
+    assert "CG_DebugDumpTeamOwnerdrawScoreStats" not in source
+    assert "cg.scoreStats[clientNum].valid = qtrue;" in source
+    assert "cg.teamScoreStats.valid = qtrue;" in source
 
 
 def test_duel_scorestats_use_retail_weapon_entry_order() -> None:

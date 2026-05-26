@@ -71,7 +71,7 @@ def test_score_arrow_media_keeps_retail_ready_and_ca_arrow_assets_registered() -
 	graphics_block = _block_from_marker(source, "static void CG_RegisterGraphics")
 
 	for expected in (
-		'if ( cgs.gametype == GT_TOURNAMENT || cg_buildScript.integer ) {',
+		'if ( cgs.gametype == GT_TOURNAMENT || trap_Cvar_VariableValue( "com_build" ) ) {',
 		'cgs.media.scoreFirstPlayerReadyShader = trap_R_RegisterShaderNoMip( "ui/assets/score/1st_plyr_ready.tga" );',
 		'cgs.media.scoreFirstPlayerNotReadyShader = trap_R_RegisterShaderNoMip( "ui/assets/score/1st_plyr_notready.tga" );',
 		'cgs.media.scoreSecondPlayerReadyShader = trap_R_RegisterShaderNoMip( "ui/assets/score/2nd_plyr_ready.tga" );',
@@ -84,7 +84,7 @@ def test_score_arrow_media_keeps_retail_ready_and_ca_arrow_assets_registered() -
 		'cgs.media.scoreSecondPlayerTrailsShader = trap_R_RegisterShaderNoMip( "ui/assets/score/2nd_plyr_trails.tga" );',
 		'cgs.media.scoreArrowGreenShader = trap_R_RegisterShader( "ui/assets/score/arrowg.tga" );',
 		'cgs.media.scoreArrowRedShader = trap_R_RegisterShader( "ui/assets/score/arrowr.tga" );',
-		'if ( cgs.gametype >= GT_TEAM || cg_buildScript.integer ) {',
+		'if ( cgs.gametype >= GT_TEAM || trap_Cvar_VariableValue( "com_build" ) ) {',
 		'cgs.media.scoreCAArrowRedShader = trap_R_RegisterShader( "ui/assets/score/ca_arrow_red.tga" );',
 		'cgs.media.scoreCAArrowBlueShader = trap_R_RegisterShader( "ui/assets/score/ca_arrow_blue.tga" );',
 	):

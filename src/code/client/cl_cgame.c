@@ -5411,7 +5411,7 @@ Awesomium host owns the browser keycatcher.
 void CL_WebHost_DrawBrowserSurface( void ) {
 	float s1;
 	float t1;
-	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible ) {
+	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {
 		return;
 	}
 
@@ -5439,6 +5439,7 @@ void CL_WebHost_DrawBrowserSurface( void ) {
 
 	re.SetColor( NULL );
 	re.DrawStretchPic( 0, 0, cls.glconfig.vidWidth, cls.glconfig.vidHeight, 0, 0, s1, t1, cl_webHost.surfaceShader );
+	re.SetColor( NULL );
 	cl_webHost.surfacePresented = qtrue;
 }
 
@@ -5496,7 +5497,7 @@ qboolean CL_WebHost_HasDrawableSurface( void ) {
 		return qfalse;
 	}
 
-	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive || !cl_webHost.surfacePresented ) {
+	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {
 		return qfalse;
 	}
 

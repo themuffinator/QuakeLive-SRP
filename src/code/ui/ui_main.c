@@ -4037,7 +4037,7 @@ static void UI_DrawServerSettings( rectDef_t *rect, float scale, vec4_t color, i
 	}
 
 	if ( ( gametype == GT_DOMINATION || gametype == GT_ATTACK_DEFEND ) &&
-		UI_GetServerSettingInt( serverInfo, "g_scorelimit", &value ) ) {
+		UI_GetServerSettingInt( serverInfo, "scorelimit", &value ) ) {
 		Com_sprintf( text, sizeof( text ), "Score Limit: %i", value );
 		UI_DrawServerSettingsEntry( &x, &y, &rowCount, scale, color, textStyle, text );
 	}
@@ -5655,97 +5655,18 @@ static void UI_Update(const char *name) {
 		}
  	} else if (Q_stricmp(name, "ui_GetName") == 0) {
 		trap_Cvar_Set( "ui_Name", UI_Cvar_VariableString("name"));
- 	} else if (Q_stricmp(name, "r_colorbits") == 0) {
+ 	} else if (Q_stricmp(name, "r_colorBits") == 0) {
 		switch (val) {
 			case 0:
-				trap_Cvar_SetValue( "r_depthbits", 0 );
-				trap_Cvar_SetValue( "r_stencilbits", 0 );
+				trap_Cvar_SetValue( "r_depthBits", 0 );
+				trap_Cvar_SetValue( "r_stencilBits", 0 );
 			break;
 			case 16:
-				trap_Cvar_SetValue( "r_depthbits", 16 );
-				trap_Cvar_SetValue( "r_stencilbits", 0 );
+				trap_Cvar_SetValue( "r_depthBits", 16 );
+				trap_Cvar_SetValue( "r_stencilBits", 0 );
 			break;
 			case 32:
-				trap_Cvar_SetValue( "r_depthbits", 24 );
-			break;
-		}
-	} else if (Q_stricmp(name, "r_lodbias") == 0) {
-		switch (val) {
-			case 0:
-				trap_Cvar_SetValue( "r_subdivisions", 4 );
-			break;
-			case 1:
-				trap_Cvar_SetValue( "r_subdivisions", 12 );
-			break;
-			case 2:
-				trap_Cvar_SetValue( "r_subdivisions", 20 );
-			break;
-		}
-	} else if (Q_stricmp(name, "ui_glCustom") == 0) {
-		switch (val) {
-			case 0:	// high quality
-				trap_Cvar_SetValue( "r_fullScreen", 1 );
-				trap_Cvar_SetValue( "r_subdivisions", 4 );
-				trap_Cvar_SetValue( "r_vertexlight", 0 );
-				trap_Cvar_SetValue( "r_lodbias", 0 );
-				trap_Cvar_SetValue( "r_colorbits", 32 );
-				trap_Cvar_SetValue( "r_depthbits", 24 );
-				trap_Cvar_SetValue( "r_picmip", 0 );
-				trap_Cvar_SetValue( "r_mode", 4 );
-				trap_Cvar_SetValue( "r_texturebits", 32 );
-				trap_Cvar_SetValue( "r_fastSky", 0 );
-				trap_Cvar_SetValue( "r_inGameVideo", 1 );
-				trap_Cvar_SetValue( "cg_shadows", 1 );
-				trap_Cvar_SetValue( "cg_brassTime", 2500 );
-				trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );
-			break;
-			case 1: // normal 
-				trap_Cvar_SetValue( "r_fullScreen", 1 );
-				trap_Cvar_SetValue( "r_subdivisions", 12 );
-				trap_Cvar_SetValue( "r_vertexlight", 0 );
-				trap_Cvar_SetValue( "r_lodbias", 0 );
-				trap_Cvar_SetValue( "r_colorbits", 0 );
-				trap_Cvar_SetValue( "r_depthbits", 24 );
-				trap_Cvar_SetValue( "r_picmip", 1 );
-				trap_Cvar_SetValue( "r_mode", 3 );
-				trap_Cvar_SetValue( "r_texturebits", 0 );
-				trap_Cvar_SetValue( "r_fastSky", 0 );
-				trap_Cvar_SetValue( "r_inGameVideo", 1 );
-				trap_Cvar_SetValue( "cg_brassTime", 2500 );
-				trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );
-				trap_Cvar_SetValue( "cg_shadows", 0 );
-			break;
-			case 2: // fast
-				trap_Cvar_SetValue( "r_fullScreen", 1 );
-				trap_Cvar_SetValue( "r_subdivisions", 8 );
-				trap_Cvar_SetValue( "r_vertexlight", 0 );
-				trap_Cvar_SetValue( "r_lodbias", 1 );
-				trap_Cvar_SetValue( "r_colorbits", 0 );
-				trap_Cvar_SetValue( "r_depthbits", 0 );
-				trap_Cvar_SetValue( "r_picmip", 1 );
-				trap_Cvar_SetValue( "r_mode", 3 );
-				trap_Cvar_SetValue( "r_texturebits", 0 );
-				trap_Cvar_SetValue( "cg_shadows", 0 );
-				trap_Cvar_SetValue( "r_fastSky", 1 );
-				trap_Cvar_SetValue( "r_inGameVideo", 0 );
-				trap_Cvar_SetValue( "cg_brassTime", 0 );
-				trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_NEAREST" );
-			break;
-			case 3: // fastest
-				trap_Cvar_SetValue( "r_fullScreen", 1 );
-				trap_Cvar_SetValue( "r_subdivisions", 20 );
-				trap_Cvar_SetValue( "r_vertexlight", 1 );
-				trap_Cvar_SetValue( "r_lodbias", 2 );
-				trap_Cvar_SetValue( "r_colorbits", 16 );
-				trap_Cvar_SetValue( "r_depthbits", 16 );
-				trap_Cvar_SetValue( "r_mode", 3 );
-				trap_Cvar_SetValue( "r_picmip", 2 );
-				trap_Cvar_SetValue( "r_texturebits", 16 );
-				trap_Cvar_SetValue( "cg_shadows", 0 );
-				trap_Cvar_SetValue( "cg_brassTime", 0 );
-				trap_Cvar_SetValue( "r_fastSky", 1 );
-				trap_Cvar_SetValue( "r_inGameVideo", 0 );
-				trap_Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_NEAREST" );
+				trap_Cvar_SetValue( "r_depthBits", 24 );
 			break;
 		}
 	} else if (Q_stricmp(name, "ui_mousePitch") == 0) {

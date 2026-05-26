@@ -668,11 +668,10 @@ def test_serverinfo_configstring_uses_shared_key_contract() -> None:
 		'#define SERVERINFO_KEY_TEAMFLAGS "teamflags"',
 		'#define SERVERINFO_KEY_FRAGLIMIT "fraglimit"',
 		'#define SERVERINFO_KEY_CAPTURELIMIT "capturelimit"',
-		'#define SERVERINFO_KEY_SCORELIMIT "g_scorelimit"',
+		'#define SERVERINFO_KEY_SCORELIMIT "scorelimit"',
 		'#define SERVERINFO_KEY_TIMELIMIT "timelimit"',
 		'#define SERVERINFO_KEY_ROUNDLIMIT "roundlimit"',
 		'#define SERVERINFO_KEY_ROUNDTIMELIMIT "roundtimelimit"',
-		'#define SERVERINFO_KEY_TRAINING "g_training"',
 		'#define SERVERINFO_KEY_VOTEFLAGS "g_voteFlags"',
 		'#define SERVERINFO_KEY_MAXCLIENTS "sv_maxclients"',
 		'#define SERVERINFO_KEY_TEAMSIZE "teamsize"',
@@ -705,7 +704,8 @@ def test_serverinfo_configstring_uses_shared_key_contract() -> None:
 		90,
 	)
 
-	assert "trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );" in game_info_snippet
+	assert "trap_Cvar_Update( &g_training );" in game_info_snippet
+	assert "if ( g_training.integer ) {" in game_info_snippet
 	assert "value = info ? Info_ValueForKey( info, SERVERINFO_KEY_FACTORY_TITLE ) : \"\";" in factory_title_snippet
 
 	for expected in (
@@ -730,7 +730,7 @@ def test_serverinfo_configstring_uses_shared_key_contract() -> None:
 		assert expected in parse_snippet
 
 	for helper_source, expectations in (
-		(cg_draw, ("Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT )", "Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT )", "Info_ValueForKey( info, SERVERINFO_KEY_TRAINING )")),
+		(cg_draw, ("Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT )", "Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT )", "trap_Cvar_Update( &g_training );")),
 		(cg_newdraw, ("Info_ValueForKey( info, SERVERINFO_KEY_ROUNDTIMELIMIT )", "Info_ValueForKey( serverInfo, SERVERINFO_KEY_MAPNAME )")),
 		(cg_info, ("Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME )",)),
 		(ai_chat, ("Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME )",)),

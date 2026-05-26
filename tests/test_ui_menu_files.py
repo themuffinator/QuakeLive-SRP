@@ -1517,7 +1517,7 @@ def test_ui_retail_server_settings_ownerdraw_restored() -> None:
     assert 'UI_GetServerSettingInt( serverInfo, "mercylimit", &value )' in ui_main
     assert 'UI_GetServerSettingInt( serverInfo, "capturelimit", &value )' in ui_main
     assert 'UI_GetServerSettingInt( serverInfo, "roundlimit", &value )' in ui_main
-    assert 'UI_GetServerSettingInt( serverInfo, "g_scorelimit", &value )' in ui_main
+    assert 'UI_GetServerSettingInt( serverInfo, "scorelimit", &value )' in ui_main
     assert '"Tiered Armor"' in ui_main
     assert '"Weapon Switching"' in ui_main
     assert '"Physics"' in ui_main

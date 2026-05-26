@@ -156,19 +156,6 @@ vmCvar_t        g_spawnItemHealth;
 vmCvar_t        g_spawnItemArmor;
 vmCvar_t        g_spawnItemAmmo;
 
-vmCvar_t        g_ammoPack_bfg;
-vmCvar_t        g_ammoPack_cg;
-vmCvar_t        g_ammoPack_gl;
-vmCvar_t        g_ammoPack_hmg;
-vmCvar_t        g_ammoPack_lg;
-vmCvar_t        g_ammoPack_mg;
-vmCvar_t        g_ammoPack_ng;
-vmCvar_t        g_ammoPack_pg;
-vmCvar_t        g_ammoPack_pl;
-vmCvar_t        g_ammoPack_rg;
-vmCvar_t        g_ammoPack_rl;
-vmCvar_t        g_ammoPack_sg;
-
 vmCvar_t        g_startingAmmo_bfg;
 vmCvar_t        g_startingAmmo_cg;
 vmCvar_t        g_startingAmmo_g;
@@ -231,7 +218,7 @@ static configCvarTable_t s_configCvarTable[] = {
         { &weapon_reload_hmg,      "weapon_reload_hmg",      "0", 0, "Heavy Machinegun refire delay override in milliseconds." },
 
 	{ &g_loadout,              "g_loadout",              STRINGIZE( DEFAULT_FACTORY_LOADOUT ), CVAR_SERVERINFO | CVAR_GAMERULE, "Advertise whether the active factory grants Quake Live loadouts." },
-	{ &g_runes,                "g_runes",                STRINGIZE( DEFAULT_FACTORY_RUNES ), 0, "Enable the retail random persistent powerup spawn lane for rune factories." },
+	{ &g_runes,                "g_runes",                STRINGIZE( DEFAULT_FACTORY_RUNES ), CVAR_LATCH | CVAR_GAMERULE, "Enable the retail random persistent powerup spawn lane for rune factories." },
 	{ &g_infiniteAmmo,         "g_infiniteAmmo",         STRINGIZE( DEFAULT_INFINITE_AMMO ), CVAR_GAMERULE, "When non-zero, spawn loadouts grant infinite ammunition mirroring Quake Live practice factories." },
 	{ &g_ammoPack,             "g_ammoPack",             STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ), CVAR_LATCH | CVAR_GAMERULE, "Enable Quake Live ammo pack sizing so pickups follow factory scripts instead of compiled defaults." },
 	{ &g_ammoPackHack,         "g_ammoPackHack",         STRINGIZE( DEFAULT_AMMO_PACK_HACK ), CVAR_LATCH | CVAR_GAMERULE, "Legacy Quake Live ammo pack override used by classic map factories." },
@@ -252,33 +239,20 @@ static configCvarTable_t s_configCvarTable[] = {
 	{ &g_spawnItemArmor,       "g_spawnItemArmor",       STRINGIZE( DEFAULT_SPAWN_ITEM_ARMOR ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Enable map armor pickups when factory loadouts no longer want to suppress them." },
 	{ &g_spawnItemAmmo,        "g_spawnItemAmmo",        STRINGIZE( DEFAULT_SPAWN_ITEM_AMMO ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Allow the active ammo pickup family to spawn when factories expose either global ammo packs or weapon-specific ammo." },
 
-	{ &g_ammoPack_bfg,         "g_ammoPack_bfg",         STRINGIZE( DEFAULT_AMMOPACK_BFG ), CVAR_ARCHIVE, "Cells granted when picking up a BFG ammo pack, matching Quake Live's default drop." },
-        { &g_ammoPack_cg,          "g_ammoPack_cg",          STRINGIZE( DEFAULT_AMMOPACK_CG ), CVAR_ARCHIVE, "Chaingun bullets restored per ammo belt pickup." },
-        { &g_ammoPack_gl,          "g_ammoPack_gl",          STRINGIZE( DEFAULT_AMMOPACK_GL ), CVAR_ARCHIVE, "Grenade Launcher rounds provided by grenade ammo packs." },
-        { &g_ammoPack_hmg,         "g_ammoPack_hmg",         STRINGIZE( DEFAULT_AMMOPACK_HMG ), CVAR_ARCHIVE, "Heavy Machinegun bullets added from heavy ammo packs." },
-        { &g_ammoPack_lg,          "g_ammoPack_lg",          STRINGIZE( DEFAULT_AMMOPACK_LG ), CVAR_ARCHIVE, "Lightning Gun cells awarded from lightning ammo pickups." },
-        { &g_ammoPack_mg,          "g_ammoPack_mg",          STRINGIZE( DEFAULT_AMMOPACK_MG ), CVAR_ARCHIVE, "Machinegun bullets restored by standard bullet boxes." },
-        { &g_ammoPack_ng,          "g_ammoPack_ng",          STRINGIZE( DEFAULT_AMMOPACK_NG ), CVAR_ARCHIVE, "Nailgun spikes issued from nail ammo packs." },
-        { &g_ammoPack_pg,          "g_ammoPack_pg",          STRINGIZE( DEFAULT_AMMOPACK_PG ), CVAR_ARCHIVE, "Plasmagun cells delivered with plasma ammo pickups." },
-        { &g_ammoPack_pl,          "g_ammoPack_pl",          STRINGIZE( DEFAULT_AMMOPACK_PL ), CVAR_ARCHIVE, "Proximity Launcher mines granted from proximity ammo packs." },
-        { &g_ammoPack_rg,          "g_ammoPack_rg",          STRINGIZE( DEFAULT_AMMOPACK_RG ), CVAR_ARCHIVE, "Railgun slugs provided whenever a rail ammo pack is collected." },
-        { &g_ammoPack_rl,          "g_ammoPack_rl",          STRINGIZE( DEFAULT_AMMOPACK_RL ), CVAR_ARCHIVE, "Rockets granted per rocket ammo box pickup." },
-        { &g_ammoPack_sg,          "g_ammoPack_sg",          STRINGIZE( DEFAULT_AMMOPACK_SG ), CVAR_ARCHIVE, "Shotgun shells restored with shell ammo packs." },
-
-        { &g_startingAmmo_bfg,     "g_startingAmmo_bfg",     STRINGIZE( DEFAULT_STARTING_AMMO_BFG ), CVAR_ARCHIVE, "Cells granted for the BFG whenever spawn loadouts (g_startingWeapons, factories, scripts) include it." },
-        { &g_startingAmmo_cg,      "g_startingAmmo_cg",      STRINGIZE( DEFAULT_STARTING_AMMO_CG ), CVAR_ARCHIVE, "Chaingun bullets provided on spawn when the weapon is part of the configured loadout." },
-        { &g_startingAmmo_g,       "g_startingAmmo_g",       STRINGIZE( DEFAULT_STARTING_AMMO_G ), CVAR_ARCHIVE, "Gauntlet swings granted on spawn; -1 mirrors Quake Live's infinite melee behaviour." },
-        { &g_startingAmmo_gh,      "g_startingAmmo_gh",      STRINGIZE( DEFAULT_STARTING_AMMO_GH ), CVAR_ARCHIVE, "Grappling Hook ammo applied to players when scripts or factories grant the hook; -1 keeps it unlimited." },
-        { &g_startingAmmo_gl,      "g_startingAmmo_gl",      STRINGIZE( DEFAULT_STARTING_AMMO_GL ), CVAR_ARCHIVE, "Grenade Launcher rounds distributed at spawn when the launcher is granted via loadouts." },
-        { &g_startingAmmo_hmg,     "g_startingAmmo_hmg",     STRINGIZE( DEFAULT_STARTING_AMMO_HMG ), CVAR_ARCHIVE, "Heavy Machinegun bullets issued alongside spawn loadouts that include the weapon." },
-        { &g_startingAmmo_lg,      "g_startingAmmo_lg",      STRINGIZE( DEFAULT_STARTING_AMMO_LG ), CVAR_ARCHIVE, "Lightning Gun cells assigned when loadouts or scripts give the Lightning Gun on spawn." },
-        { &g_startingAmmo_mg,      "g_startingAmmo_mg",      STRINGIZE( DEFAULT_STARTING_AMMO_MG ), CVAR_ARCHIVE, "Machinegun bullets supplied on spawn for any loadout that awards the Machinegun." },
-        { &g_startingAmmo_ng,      "g_startingAmmo_ng",      STRINGIZE( DEFAULT_STARTING_AMMO_NG ), CVAR_ARCHIVE, "Nailgun spikes given to players when factories or scripts seed the Nailgun." },
-        { &g_startingAmmo_pg,      "g_startingAmmo_pg",      STRINGIZE( DEFAULT_STARTING_AMMO_PG ), CVAR_ARCHIVE, "Plasmagun cells granted at spawn when the Plasmagun is included in the starting set." },
-        { &g_startingAmmo_pl,      "g_startingAmmo_pl",      STRINGIZE( DEFAULT_STARTING_AMMO_PL ), CVAR_ARCHIVE, "Proximity Launcher mines provided to players when loadouts grant the launcher." },
-        { &g_startingAmmo_rg,      "g_startingAmmo_rg",      STRINGIZE( DEFAULT_STARTING_AMMO_RG ), CVAR_ARCHIVE, "Railgun slugs applied on spawn when the Railgun is part of the configured loadout." },
-        { &g_startingAmmo_rl,      "g_startingAmmo_rl",      STRINGIZE( DEFAULT_STARTING_AMMO_RL ), CVAR_ARCHIVE, "Rockets handed out whenever spawn loadouts include the Rocket Launcher." },
-        { &g_startingAmmo_sg,      "g_startingAmmo_sg",      STRINGIZE( DEFAULT_STARTING_AMMO_SG ), CVAR_ARCHIVE, "Shotgun shells distributed when the Shotgun is in the spawn weapon set." },
+        { &g_startingAmmo_bfg,     "g_startingAmmo_bfg",     STRINGIZE( DEFAULT_STARTING_AMMO_BFG ), CVAR_GAMERULE, "Cells granted for the BFG whenever spawn loadouts (g_startingWeapons, factories, scripts) include it." },
+        { &g_startingAmmo_cg,      "g_startingAmmo_cg",      STRINGIZE( DEFAULT_STARTING_AMMO_CG ), CVAR_GAMERULE, "Chaingun bullets provided on spawn when the weapon is part of the configured loadout." },
+        { &g_startingAmmo_g,       "g_startingAmmo_g",       STRINGIZE( DEFAULT_STARTING_AMMO_G ), CVAR_GAMERULE, "Gauntlet swings granted on spawn; -1 mirrors Quake Live's infinite melee behaviour." },
+        { &g_startingAmmo_gh,      "g_startingAmmo_gh",      STRINGIZE( DEFAULT_STARTING_AMMO_GH ), CVAR_GAMERULE, "Grappling Hook ammo applied to players when scripts or factories grant the hook; -1 keeps it unlimited." },
+        { &g_startingAmmo_gl,      "g_startingAmmo_gl",      STRINGIZE( DEFAULT_STARTING_AMMO_GL ), CVAR_GAMERULE, "Grenade Launcher rounds distributed at spawn when the launcher is granted via loadouts." },
+        { &g_startingAmmo_hmg,     "g_startingAmmo_hmg",     STRINGIZE( DEFAULT_STARTING_AMMO_HMG ), CVAR_GAMERULE, "Heavy Machinegun bullets issued alongside spawn loadouts that include the weapon." },
+        { &g_startingAmmo_lg,      "g_startingAmmo_lg",      STRINGIZE( DEFAULT_STARTING_AMMO_LG ), CVAR_GAMERULE, "Lightning Gun cells assigned when loadouts or scripts give the Lightning Gun on spawn." },
+        { &g_startingAmmo_mg,      "g_startingAmmo_mg",      STRINGIZE( DEFAULT_STARTING_AMMO_MG ), CVAR_GAMERULE, "Machinegun bullets supplied on spawn for any loadout that awards the Machinegun." },
+        { &g_startingAmmo_ng,      "g_startingAmmo_ng",      STRINGIZE( DEFAULT_STARTING_AMMO_NG ), CVAR_GAMERULE, "Nailgun spikes given to players when factories or scripts seed the Nailgun." },
+        { &g_startingAmmo_pg,      "g_startingAmmo_pg",      STRINGIZE( DEFAULT_STARTING_AMMO_PG ), CVAR_GAMERULE, "Plasmagun cells granted at spawn when the Plasmagun is included in the starting set." },
+        { &g_startingAmmo_pl,      "g_startingAmmo_pl",      STRINGIZE( DEFAULT_STARTING_AMMO_PL ), CVAR_GAMERULE, "Proximity Launcher mines provided to players when loadouts grant the launcher." },
+        { &g_startingAmmo_rg,      "g_startingAmmo_rg",      STRINGIZE( DEFAULT_STARTING_AMMO_RG ), CVAR_GAMERULE, "Railgun slugs applied on spawn when the Railgun is part of the configured loadout." },
+        { &g_startingAmmo_rl,      "g_startingAmmo_rl",      STRINGIZE( DEFAULT_STARTING_AMMO_RL ), CVAR_GAMERULE, "Rockets handed out whenever spawn loadouts include the Rocket Launcher." },
+        { &g_startingAmmo_sg,      "g_startingAmmo_sg",      STRINGIZE( DEFAULT_STARTING_AMMO_SG ), CVAR_GAMERULE, "Shotgun shells distributed when the Shotgun is in the spawn weapon set." },
 
 	{ &g_knockback_g,          "g_knockback_g",          STRINGIZE( DEFAULT_KNOCKBACK_G ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Gauntlet knockback scalar applied when striking other players." },
 	{ &g_knockback_mg,         "g_knockback_mg",         STRINGIZE( DEFAULT_KNOCKBACK_MG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Machinegun knockback scalar applied to outgoing hits." },
@@ -302,17 +276,6 @@ static configCvarTable_t s_configCvarTable[] = {
 	{ &g_knockback_cripple,    "g_knockback_cripple",    STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), CVAR_GAMERULE, "Additional knockback scalar consumed by cripple modifiers." },
 };
 
-static void G_Config_RegisterCvarHelp( const configCvarTable_t *cv ) {
-        char helpName[MAX_CVAR_VALUE_STRING];
-
-        if ( !cv || !cv->helpString || !cv->helpString[0] || !cv->cvarName || !cv->cvarName[0] ) {
-                return;
-        }
-
-        Com_sprintf( helpName, sizeof( helpName ), "helptext_%s", cv->cvarName );
-        trap_Cvar_Register( NULL, helpName, cv->helpString, CVAR_ROM );
-}
-
 void G_Config_RegisterCvars( void ) {
         size_t i;
 
@@ -320,7 +283,6 @@ void G_Config_RegisterCvars( void ) {
                 const configCvarTable_t *cv = &s_configCvarTable[i];
 
                 trap_Cvar_Register( cv->vmCvar, cv->cvarName, cv->defaultString, cv->cvarFlags );
-                G_Config_RegisterCvarHelp( cv );
         }
 
         G_Config_UpdateCvars();
@@ -427,32 +389,20 @@ void G_UpdateWeaponReloadConfig( void ) {
 	G_RefreshPmoveSettings();
 }
 
-static int G_ReadAmmoPackCvar( const vmCvar_t *cvar, int fallback, const char *cvarName ) {
-        int value;
+/*
+=============
+G_AssignAmmoPackEntry
 
-        if ( !cvar ) {
-                G_Config_ReportMissingCvar( cvarName );
-                return fallback;
-        }
-
-        value = cvar->integer;
-
-        if ( value <= 0 ) {
-                return fallback;
-        }
-
-        return value;
-}
-
-static void G_AssignAmmoPackEntry( weapon_t weapon, const vmCvar_t *cvar, int fallback, const char *cvarName ) {
-        int pickup = G_ReadAmmoPackCvar( cvar, fallback, cvarName );
-
-        g_ammoPackConfig.weaponPickup[weapon] = pickup;
-        if ( pickup > 0 ) {
-                g_ammoPackConfig.weaponMax[weapon] = pickup * 4;
-        } else {
-                g_ammoPackConfig.weaponMax[weapon] = 0;
-        }
+Stores a retail ammo-pack pickup amount in the cached weapon table.
+=============
+*/
+static void G_AssignAmmoPackEntry( weapon_t weapon, int pickup ) {
+	g_ammoPackConfig.weaponPickup[weapon] = pickup;
+	if ( pickup > 0 ) {
+		g_ammoPackConfig.weaponMax[weapon] = pickup * 4;
+	} else {
+		g_ammoPackConfig.weaponMax[weapon] = 0;
+	}
 }
 
 void G_InitAmmoPackConfig( void ) {
@@ -463,20 +413,20 @@ void G_InitAmmoPackConfig( void ) {
                 g_ammoPackConfig.weaponMax[weapon] = 0;
         }
 
-        G_AssignAmmoPackEntry( WP_MACHINEGUN, &g_ammoPack_mg, DEFAULT_AMMOPACK_MG, "g_ammoPack_mg" );
-        G_AssignAmmoPackEntry( WP_SHOTGUN, &g_ammoPack_sg, DEFAULT_AMMOPACK_SG, "g_ammoPack_sg" );
-        G_AssignAmmoPackEntry( WP_GRENADE_LAUNCHER, &g_ammoPack_gl, DEFAULT_AMMOPACK_GL, "g_ammoPack_gl" );
-        G_AssignAmmoPackEntry( WP_ROCKET_LAUNCHER, &g_ammoPack_rl, DEFAULT_AMMOPACK_RL, "g_ammoPack_rl" );
-        G_AssignAmmoPackEntry( WP_LIGHTNING, &g_ammoPack_lg, DEFAULT_AMMOPACK_LG, "g_ammoPack_lg" );
-        G_AssignAmmoPackEntry( WP_RAILGUN, &g_ammoPack_rg, DEFAULT_AMMOPACK_RG, "g_ammoPack_rg" );
-        G_AssignAmmoPackEntry( WP_PLASMAGUN, &g_ammoPack_pg, DEFAULT_AMMOPACK_PG, "g_ammoPack_pg" );
-        G_AssignAmmoPackEntry( WP_BFG, &g_ammoPack_bfg, DEFAULT_AMMOPACK_BFG, "g_ammoPack_bfg" );
+	G_AssignAmmoPackEntry( WP_MACHINEGUN, DEFAULT_AMMOPACK_MG );
+	G_AssignAmmoPackEntry( WP_SHOTGUN, DEFAULT_AMMOPACK_SG );
+	G_AssignAmmoPackEntry( WP_GRENADE_LAUNCHER, DEFAULT_AMMOPACK_GL );
+	G_AssignAmmoPackEntry( WP_ROCKET_LAUNCHER, DEFAULT_AMMOPACK_RL );
+	G_AssignAmmoPackEntry( WP_LIGHTNING, DEFAULT_AMMOPACK_LG );
+	G_AssignAmmoPackEntry( WP_RAILGUN, DEFAULT_AMMOPACK_RG );
+	G_AssignAmmoPackEntry( WP_PLASMAGUN, DEFAULT_AMMOPACK_PG );
+	G_AssignAmmoPackEntry( WP_BFG, DEFAULT_AMMOPACK_BFG );
 
-        G_AssignAmmoPackEntry( WP_HEAVY_MACHINEGUN, &g_ammoPack_hmg, DEFAULT_AMMOPACK_HMG, "g_ammoPack_hmg" );
+	G_AssignAmmoPackEntry( WP_HEAVY_MACHINEGUN, DEFAULT_AMMOPACK_HMG );
 #ifdef MISSIONPACK
-        G_AssignAmmoPackEntry( WP_NAILGUN, &g_ammoPack_ng, DEFAULT_AMMOPACK_NG, "g_ammoPack_ng" );
-        G_AssignAmmoPackEntry( WP_PROX_LAUNCHER, &g_ammoPack_pl, DEFAULT_AMMOPACK_PL, "g_ammoPack_pl" );
-        G_AssignAmmoPackEntry( WP_CHAINGUN, &g_ammoPack_cg, DEFAULT_AMMOPACK_CG, "g_ammoPack_cg" );
+	G_AssignAmmoPackEntry( WP_NAILGUN, DEFAULT_AMMOPACK_NG );
+	G_AssignAmmoPackEntry( WP_PROX_LAUNCHER, DEFAULT_AMMOPACK_PL );
+	G_AssignAmmoPackEntry( WP_CHAINGUN, DEFAULT_AMMOPACK_CG );
 #endif
 }
 
@@ -845,8 +795,7 @@ uint64_t G_ComputeConfigCustomSettingsMask( void ) {
 		 g_weaponConfig.nailgunSpread != 400 ||
 		 g_weaponConfig.nailgunBounceCount != 1 ||
 		 G_ConfigFloatDiffersFromDefault( g_knockbackConfig.nailgun, DEFAULT_KNOCKBACK_NG ) ||
-		 g_weaponConfig.nailgunBouncePercentage != 65 ||
-		 g_weaponConfig.nailgunGravityEnabled ) {
+		 g_weaponConfig.nailgunBouncePercentage != 65 ) {
 		mask |= CUSTOM_SETTING_NAILGUN;
 	}
 

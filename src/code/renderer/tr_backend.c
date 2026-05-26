@@ -2078,9 +2078,9 @@ static void RBPP_Submit( void ) {
 }
 
 /*
-** GL_Bind
+** GL_BindToTarget
 */
-void GL_Bind( image_t *image ) {
+void GL_BindToTarget( image_t *image, int glTarget ) {
 	int texnum;
 
 	if ( !image ) {
@@ -2097,8 +2097,15 @@ void GL_Bind( image_t *image ) {
 	if ( glState.currenttextures[glState.currenttmu] != texnum ) {
 		image->frameUsed = tr.frameCount;
 		glState.currenttextures[glState.currenttmu] = texnum;
-		qglBindTexture (GL_TEXTURE_2D, texnum);
+		qglBindTexture( glTarget, texnum );
 	}
+}
+
+/*
+** GL_Bind
+*/
+void GL_Bind( image_t *image ) {
+	GL_BindToTarget( image, GL_TEXTURE_2D );
 }
 
 /*

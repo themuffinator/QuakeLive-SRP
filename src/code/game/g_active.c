@@ -1279,8 +1279,6 @@ ClientThink
 This will be called once for each client frame, which will
 usually be a couple times for each server frame on fast clients.
 
-If "g_synchronousClients 1" is set, this will be called exactly
-once for each server frame, which makes for smooth demo recording.
 ==============
 */
 void ClientThink_real( gentity_t *ent ) {
@@ -1576,7 +1574,7 @@ void ClientThink( int clientNum ) {
 	// phone jack if they don't get any for a while
 	ent->client->lastCmdTime = level.time;
 
-	if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {
+	if ( !(ent->r.svFlags & SVF_BOT) ) {
 		ClientThink_real( ent );
 	}
 }
@@ -1588,7 +1586,7 @@ void G_RunClient( gentity_t *ent ) {
 		return;
 	}
 
-	if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {
+	if ( !(ent->r.svFlags & SVF_BOT) ) {
 		return;
 	}
 
@@ -1754,7 +1752,7 @@ void ClientEndFrame( gentity_t *ent ) {
 
 	// save network bandwidth
 #if 0
-	if ( !g_synchronousClients->integer && ent->client->ps.pm_type == PM_NORMAL ) {
+	if ( ent->client->ps.pm_type == PM_NORMAL ) {
 		// FIXME: this must change eventually for non-sync demo recording
 		VectorClear( ent->client->ps.viewangles );
 	}

@@ -109,8 +109,8 @@ FT_Library ftLibrary = NULL;
 #define R_FONTSTASH_TEXTURE_NAME "*fontstash"
 #define R_FONTSTASH_INITIAL_WIDTH 512
 #define R_FONTSTASH_INITIAL_HEIGHT 512
-#define R_FONTSTASH_MAX_WIDTH 2048
-#define R_FONTSTASH_MAX_HEIGHT 1024
+#define R_FONTSTASH_MAX_WIDTH 4096
+#define R_FONTSTASH_MAX_HEIGHT 4096
 #define R_FONTSTASH_ERROR_ATLAS_FULL 1
 #define R_FONTSTASH_FACE_NAME_MAX 32
 #define R_FONTSTASH_POINT_SIZE 48
@@ -1372,6 +1372,8 @@ maximum size is reached.
 static void R_fonsErrorCallback( rFontStashState_t *fontStash, int error, int val ) {
 	int width;
 	int height;
+	int maxWidth;
+	int maxHeight;
 
 	ri.Printf( PRINT_ALL, "R_fonsErrorCallback: error %d val %d\n", error, val );
 
@@ -1381,13 +1383,24 @@ static void R_fonsErrorCallback( rFontStashState_t *fontStash, int error, int va
 
 	width = fontStash->width * 2;
 	height = fontStash->height * 2;
+	maxWidth = R_FONTSTASH_MAX_WIDTH;
+	maxHeight = R_FONTSTASH_MAX_HEIGHT;
 
-	if ( width > R_FONTSTASH_MAX_WIDTH ) {
-		width = R_FONTSTASH_MAX_WIDTH;
+	if ( glConfig.maxTextureSize > 0 ) {
+		if ( maxWidth > glConfig.maxTextureSize ) {
+			maxWidth = glConfig.maxTextureSize;
+		}
+		if ( maxHeight > glConfig.maxTextureSize ) {
+			maxHeight = glConfig.maxTextureSize;
+		}
 	}
 
-	if ( height > R_FONTSTASH_MAX_HEIGHT ) {
-		height = R_FONTSTASH_MAX_HEIGHT;
+	if ( width > maxWidth ) {
+		width = maxWidth;
+	}
+
+	if ( height > maxHeight ) {
+		height = maxHeight;
 	}
 
 	if ( width != fontStash->width || height != fontStash->height ) {

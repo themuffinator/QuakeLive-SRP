@@ -677,7 +677,7 @@ typedef struct image_s image_t;
 void RE_RegisterFont( const char *fontName, int pointSize, fontInfo_t *font );
 image_t *R_CreateImage( const char *name, const byte *pic, int width, int height, qboolean mipmap, qboolean allowPicmip, int glWrapClampMode );
 image_t *R_UpdateImage( const char *name, const byte *pic, int width, int height, qboolean mipmap, qboolean allowPicmip, int glWrapClampMode );
-image_t *R_LoadImageFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipmap, qboolean allowPicmip, int glWrapClampMode );
+image_t *R_LoadImageFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipmap, qboolean allowPicmip );
 qhandle_t RE_RegisterShaderFromImage( const char *name, int lightmapIndex, image_t *image, qboolean mipRawImage );
 
 ping_t	cl_pinglist[MAX_PINGREQUESTS];
@@ -7574,7 +7574,7 @@ qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int
 		return 0;
 	}
 
-	image = R_LoadImageFromMemory( name, buffer, bufferLength, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );
+	image = R_LoadImageFromMemory( name, buffer, bufferLength, mipRawImage, mipRawImage );
 	if ( !image ) {
 		return 0;
 	}

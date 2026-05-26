@@ -2928,9 +2928,7 @@ void Cmd_Cvar_f( gentity_t *ent ) {
 		 Q_stricmp( arg, "g_gravity" ) &&
 		 Q_stricmp( arg, "g_speed" ) &&
 		 Q_stricmp( arg, "g_knockback" ) &&
-		 Q_stricmp( arg, "g_quadfactor" ) &&
-		 Q_stricmp( arg, "g_weaponRespawn" ) &&
-		 Q_stricmp( arg, "g_forcerespawn" ) ) {
+		 Q_stricmp( arg, "g_weaponRespawn" ) ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Cvar is not public.\n\"" );
 		return;
 	}
@@ -4012,12 +4010,9 @@ void SetTeam( gentity_t *ent, char *s ) {
 		specState = SPECTATOR_SCOREBOARD;
 	}
 
-	// override decision if limiting the players
+	// force extra tournament players to spectator slots
 	if ( (g_gametype.integer == GT_TOURNAMENT)
 		&& level.numNonSpectatorClients >= 2 ) {
-		team = TEAM_SPECTATOR;
-	} else if ( g_maxGameClients.integer > 0 && 
-		level.numNonSpectatorClients >= g_maxGameClients.integer ) {
 		team = TEAM_SPECTATOR;
 	}
 
@@ -4143,7 +4138,9 @@ void Cmd_Team_f( gentity_t *ent ) {
 	}
 
 	if ( ent->client->switchTeamTime > level.time ) {
-		trap_SendServerCommand( ent-g_entities, "print \"May not switch teams more than once per 5 seconds.\n\"" );
+		trap_SendServerCommand( ent-g_entities,
+			va( "print \"^1May not switch teams more than once per %i seconds.^7\n\"",
+				g_switchTeamDelay.integer ) );
 		return;
 	}
 
@@ -4157,7 +4154,7 @@ void Cmd_Team_f( gentity_t *ent ) {
 
 	SetTeam( ent, s );
 
-	ent->client->switchTeamTime = level.time + 5000;
+	ent->client->switchTeamTime = level.time + g_switchTeamDelay.integer * 1000;
 }
 
 
@@ -6711,15 +6708,6 @@ static void Cmd_Complaint_f( gentity_t *ent ) {
 
 /*
 ==================
-Cmd_Ruleset_f
-==================
-*/
-void Cmd_Ruleset_f( gentity_t *ent ) {
-	trap_SendServerCommand( ent - g_entities, va( "print \"Current ruleset: %s\n\"", g_ruleset.string ) );
-}
-
-/*
-==================
 Cmd_Invite_f
 ==================
 */
@@ -8591,8 +8579,6 @@ void ClientCommand( int clientNum ) {
 		Cmd_Elo_f( ent );
 	else if (Q_stricmp (cmd, "admin") == 0)
 		Cmd_Admin_f( ent );
-	else if (Q_stricmp (cmd, "ruleset") == 0)
-		Cmd_Ruleset_f( ent );
 	else if (Q_stricmp (cmd, "invite") == 0)
 		Cmd_Invite_f( ent );
 	else if (Q_stricmp (cmd, "revoke") == 0)

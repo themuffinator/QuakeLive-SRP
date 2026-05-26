@@ -33,6 +33,11 @@ static void CG_UpdateSpectatorCvar( void );
 #define CG_BUFFERED_ANNOUNCER_COUNT	32
 #define CG_BUFFERED_ANNOUNCER_DELAY	1500
 #define CG_RETAIL_SELECTED_BOT_INFO_CONFIGSTRING	0x10
+#define CG_RUNPITCH	0.002f
+#define CG_RUNROLL	0.005f
+#define CG_BOBPITCH	0.002f
+#define CG_BOBROLL	0.002f
+#define CG_BOBUP	0.005f
 
 static int cg_viewFilterModificationCount;
 static int cg_bufferedSoundHead;
@@ -584,21 +589,21 @@ static void CG_OffsetFirstPersonView( void ) {
 	VectorCopy( cg.predictedPlayerState.velocity, predictedVelocity );
 
 	delta = DotProduct ( predictedVelocity, cg.refdef.viewaxis[0]);
-	angles[PITCH] += delta * cg_runpitch.value * bobScale;
+	angles[PITCH] += delta * CG_RUNPITCH * bobScale;
 	
 	delta = DotProduct ( predictedVelocity, cg.refdef.viewaxis[1]);
-	angles[ROLL] -= delta * cg_runroll.value * bobScale;
+	angles[ROLL] -= delta * CG_RUNROLL * bobScale;
 
 	// add angles based on bob
 
 	// make sure the bob is visible even at low speeds
 	speed = cg.xyspeed > 200 ? cg.xyspeed : 200;
 
-	delta = cg.bobfracsin * cg_bobpitch.value * speed * bobScale;
+	delta = cg.bobfracsin * CG_BOBPITCH * speed * bobScale;
 	if (cg.predictedPlayerState.pm_flags & PMF_DUCKED)
 		delta *= 3;		// crouching
 	angles[PITCH] += delta;
-	delta = cg.bobfracsin * cg_bobroll.value * speed * bobScale;
+	delta = cg.bobfracsin * CG_BOBROLL * speed * bobScale;
 	if (cg.predictedPlayerState.pm_flags & PMF_DUCKED)
 		delta *= 3;		// crouching accentuates roll
 	if (cg.bobcycle & 1)
@@ -618,7 +623,7 @@ static void CG_OffsetFirstPersonView( void ) {
 	}
 
 	// add bob height
-	bob = cg.bobfracsin * cg.xyspeed * cg_bobup.value * bobScale;
+	bob = cg.bobfracsin * cg.xyspeed * CG_BOBUP * bobScale;
 	if (bob > 6) {
 		bob = 6;
 	}

@@ -161,15 +161,18 @@ void SP_misc_model( gentity_t *ent ) {
 SP_advertisement
 
 Consumes Quake Live advertisement entities. Retail qagame recognizes this
-classname and reports entities missing a cellId. The advert delivery path is
-stubbed here, so the entity is removed after validation.
+classname, validates cellId only while com_build is enabled, and then removes
+the entity because advert rendering is owned by the client/renderer bridge.
 =============
 */
 void SP_advertisement( gentity_t *ent ) {
 	char	*cellId;
 
-	if ( !G_SpawnString( "cellId", "", &cellId ) || atoi( cellId ) == 0 ) {
-		G_Printf( "advertisement entity with no cellId at %s\n", vtos( ent->s.origin ) );
+	if ( trap_Cvar_VariableValue( "com_build" ) ) {
+		G_SpawnString( "cellId", "", &cellId );
+		if ( atoi( cellId ) == 0 ) {
+			G_Error( "advertisement entity with no cellId at %s", vtos( ent->s.origin ) );
+		}
 	}
 
 	G_FreeEntity( ent );

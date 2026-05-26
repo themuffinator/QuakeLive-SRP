@@ -70,9 +70,10 @@ Observed local facts:
    - `.bmp`
    - `.jpg`
    - `.png`
-3. On the `.tga` path it retries the same fallback extensions when the TGA load fails:
+3. On the `.tga` path it prefers Quake Live's replacement-asset extensions before falling back to the original TGA:
    - `.jpg`
    - `.png`
+   - original `.tga`
 4. It emits the exact final miss warning:
    - `image not found (tga/jpg/png): %s\n`
 

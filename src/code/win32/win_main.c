@@ -750,8 +750,7 @@ void * QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoin
 
 #ifdef NDEBUG
 	timestamp = Sys_Milliseconds();
-	if( ((timestamp - lastWarning) > (5 * 60000)) && !Cvar_VariableIntegerValue( "dedicated" )
-		&& !Cvar_VariableIntegerValue( "com_blindlyLoadDLLs" ) ) {
+	if( ((timestamp - lastWarning) > (5 * 60000)) && !Cvar_VariableIntegerValue( "dedicated" ) ) {
 		if (FS_FileExists(filename)) {
 			lastWarning = timestamp;
 			ret = MessageBoxEx( NULL, "You are about to load a .DLL executable that\n"

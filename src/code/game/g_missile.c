@@ -481,7 +481,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		ent->nextthink = level.time + FRAMETIME;
 
 		ent->parent->client->ps.pm_flags |= PMF_GRAPPLE_PULL;
-		VectorCopy( ent->r.currentOrigin, ent->parent->client->ps.grapplePoint);
+		Weapon_UpdateHookGrapplePoint( ent );
 
 		trap_LinkEntity( ent );
 		trap_LinkEntity( nent );
@@ -517,18 +517,22 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 		vec3_t	splashOrigin;
 		vec3_t	normal;
 		float	normalLength;
+		qboolean	haveNormal;
 
 		VectorCopy( trace->endpos, splashOrigin );
+		haveNormal = qfalse;
+		VectorCopy( trace->plane.normal, normal );
+		normalLength = VectorLengthSquared( normal );
+		if ( normalLength > 0.0f ) {
+			normalLength = VectorNormalize( normal );
+			haveNormal = ( normalLength != 0.0f ) ? qtrue : qfalse;
+		}
+
+		if ( haveNormal && g_splashdamageOffset.value != 0.0f ) {
+			VectorMA( splashOrigin, g_splashdamageOffset.value, normal, splashOrigin );
+		}
+
 		if ( ent->s.weapon == WP_ROCKET_LAUNCHER && g_weaponConfig.rocketSplashOffset != 0 ) {
-			qboolean	haveNormal = qfalse;
-
-			VectorCopy( trace->plane.normal, normal );
-			normalLength = VectorLengthSquared( normal );
-			if ( normalLength > 0.0f ) {
-				normalLength = VectorNormalize( normal );
-				haveNormal = ( normalLength != 0.0f ) ? qtrue : qfalse;
-			}
-
 			if ( !haveNormal ) {
 				vec3_t	velocity;
 
@@ -539,19 +543,19 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 				}
 			}
 
-				if ( haveNormal ) {
-					float	splashOffset;
+			if ( haveNormal ) {
+				float	splashOffset;
 
-					splashOffset = ( float )g_weaponConfig.rocketSplashOffset;
-					if ( splashOffset > ( float )ent->splashRadius ) {
-						splashOffset = ( float )ent->splashRadius;
-					} else if ( splashOffset < -(float)ent->splashRadius ) {
-						splashOffset = -(float)ent->splashRadius;
-					}
-
-					VectorMA( splashOrigin, splashOffset, normal, splashOrigin );
+				splashOffset = ( float )g_weaponConfig.rocketSplashOffset;
+				if ( splashOffset > ( float )ent->splashRadius ) {
+					splashOffset = ( float )ent->splashRadius;
+				} else if ( splashOffset < -(float)ent->splashRadius ) {
+					splashOffset = -(float)ent->splashRadius;
 				}
-}
+
+				VectorMA( splashOrigin, splashOffset, normal, splashOrigin );
+			}
+		}
 
 		if( G_RadiusDamage( splashOrigin, ent->parent, ent->splashDamage, ent->splashRadius, 
 			other, ent->splashMethodOfDeath, &splashMidAir ) ) {
@@ -1040,7 +1044,7 @@ gentity_t *fire_nail( gentity_t *self, vec3_t start, vec3_t forward, vec3_t righ
 	bolt->clipmask = MASK_SHOT;
 	bolt->target_ent = NULL;
 
-	bolt->s.pos.trType = g_weaponConfig.nailgunGravityEnabled ? TR_GRAVITY : TR_LINEAR;
+	bolt->s.pos.trType = TR_LINEAR;
 	bolt->s.pos.trTime = level.time;
 	VectorCopy( start, bolt->s.pos.trBase );
 

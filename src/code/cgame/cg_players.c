@@ -837,7 +837,7 @@ static void CG_LoadClientInfo( clientInfo_t *ci ) {
 	}
 	modelloaded = qtrue;
 	if ( !CG_RegisterClientModelname( ci, ci->modelName, ci->skinName, ci->headModelName, ci->headSkinName, teamname ) ) {
-		if ( cg_buildScript.integer ) {
+		if ( trap_Cvar_VariableValue( "com_build" ) ) {
 			CG_Error( "CG_RegisterClientModelname( %s, %s, %s, %s %s ) failed", ci->modelName, ci->skinName, ci->headModelName, ci->headSkinName, teamname );
 		}
 
@@ -1296,18 +1296,12 @@ static void CG_ApplyClientModelOverrides( clientInfo_t *ci, cgClientOverrideCont
 		return;
 	}
 
-	if ( !cg_forceModel.integer ) {
-		return;
-	}
-
 	useTeam = CG_ShouldUseTeamOverrides( context );
 	allowBodyOverride = ( cgs.playermodelOverride[0] == '\0' );
 	allowHeadOverride = ( cgs.playerheadmodelOverride[0] == '\0' );
 	forcedModel[0] = '\0';
 	forcedSkin[0] = '\0';
-	modelValue = useTeam ?
-		( cg_forceTeamModel.string[0] ? cg_forceTeamModel.string : cg_teamModel.string ) :
-		( cg_forceEnemyModel.string[0] ? cg_forceEnemyModel.string : cg_enemyModel.string );
+	modelValue = useTeam ? cg_forceTeamModel.string : cg_forceEnemyModel.string;
 	skinValue = useTeam ? cg_forceTeamSkin.string : cg_forceEnemySkin.string;
 	if ( CG_ParseForcedModelString( modelValue, forcedModel, sizeof( forcedModel ), forcedSkin, sizeof( forcedSkin ) ) ) {
 		if ( allowBodyOverride ) {
@@ -1364,32 +1358,6 @@ static void CG_ApplyClientColorOverrides( clientInfo_t *ci, cgClientOverrideCont
 	ci->upperColorForced = qfalse;
 	VectorCopy( ci->color2, ci->lowerColor );
 	ci->lowerColorForced = qfalse;
-
-	// Apply team/enemy colors
-	if ( cg_forceModel.integer ) {
-		const char *colorStr = useTeam ? cg_teamColors.string : cg_enemyColors.string;
-		if ( colorStr && *colorStr ) {
-			int len = strlen( colorStr );
-			int i;
-			vec4_t color;
-			for( i = 0; i < 3; i++ ) {
-				int idx = CG_ColorCharToIndex( colorStr[ (i < len) ? i : (len-1) ] );
-				if ( idx != -1 ) {
-					CG_GetColorForIndex( idx, color );
-					if ( i == 0 ) {
-						VectorCopy( color, ci->headColor );
-						ci->headColorForced = qtrue;
-					} else if ( i == 1 ) {
-						VectorCopy( color, ci->upperColor );
-						ci->upperColorForced = qtrue;
-					} else if ( i == 2 ) {
-						VectorCopy( color, ci->lowerColor );
-						ci->lowerColorForced = qtrue;
-					}
-				}
-			}
-		}
-	}
 
 	value = useTeam ? cg_teamHeadColor.string : cg_enemyHeadColor.string;
 	if ( CG_ParseOverrideColorString( value, ci->headColor ) ) {
@@ -1702,7 +1670,6 @@ void CG_NewClientInfo( int clientNum ) {
 	clientInfo_t newInfo;
 	const char	*configstring;
 	const char	*v;
-	const char	*skinToken;
 	cgClientOverrideContext_t overrideContext;
 
 	ci = &cgs.clientinfo[clientNum];
@@ -1777,46 +1744,12 @@ void CG_NewClientInfo( int clientNum ) {
 
 	// model
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_MODEL );
-	if ( cg_forceModel.integer && !cgs.playermodelOverride[0] ) {
-		// forcemodel makes everyone use a single model
-		// to prevent load hitches
-		char modelStr[MAX_QPATH];
-
-		if( cgs.gametype >= GT_TEAM ) {
-			Q_strncpyz( newInfo.modelName, DEFAULT_TEAM_MODEL, sizeof( newInfo.modelName ) );
-			skinToken = strchr( v, '/' );
-			if ( skinToken ) {
-				Q_strncpyz( newInfo.skinName, skinToken + 1, sizeof( newInfo.skinName ) );
-			}
-		} else {
-			trap_Cvar_VariableStringBuffer( "model", modelStr, sizeof( modelStr ) );
-			Q_strncpyz( newInfo.modelName, modelStr, sizeof( newInfo.modelName ) );
-		}
-	} else {
-		Q_strncpyz( newInfo.modelName, v, sizeof( newInfo.modelName ) );
-	}
+	Q_strncpyz( newInfo.modelName, v, sizeof( newInfo.modelName ) );
 	CG_NormalizeClientSkinName( &newInfo );
 
 	// head model
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_HEADMODEL );
-	if ( cg_forceModel.integer && !cgs.playerheadmodelOverride[0] ) {
-		// forcemodel makes everyone use a single model
-		// to prevent load hitches
-		char modelStr[MAX_QPATH];
-
-		if( cgs.gametype >= GT_TEAM ) {
-			Q_strncpyz( newInfo.headModelName, DEFAULT_TEAM_MODEL, sizeof( newInfo.headModelName ) );
-			skinToken = strchr( v, '/' );
-			if ( skinToken ) {
-				Q_strncpyz( newInfo.headSkinName, skinToken + 1, sizeof( newInfo.headSkinName ) );
-			}
-		} else {
-			trap_Cvar_VariableStringBuffer( "headmodel", modelStr, sizeof( modelStr ) );
-			Q_strncpyz( newInfo.headModelName, modelStr, sizeof( newInfo.headModelName ) );
-		}
-	} else {
-		Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
-	}
+	Q_strncpyz( newInfo.headModelName, v, sizeof( newInfo.headModelName ) );
 	CG_NormalizeClientHeadSkinName( &newInfo );
 
 	if ( !cgs.allowCustomHeadmodels ) {
@@ -1836,7 +1769,7 @@ void CG_NewClientInfo( int clientNum ) {
 		forceDefer = trap_MemoryRemaining() < 4000000;
 
 		// if we are defering loads, just have it pick the first valid
-		if ( forceDefer || (cg_deferPlayers.integer && !cg_buildScript.integer && !cg.loading ) ) {
+		if ( forceDefer || (cg_deferPlayers.integer && !trap_Cvar_VariableValue( "com_build" ) && !cg.loading ) ) {
 			// keep whatever they had if it won't violate team skins
 			CG_SetDeferredClientInfo( &newInfo );
 			// if we are low on memory, leave them with this model
@@ -3858,8 +3791,5 @@ void CG_ResetPlayerEntity( centity_t *cent ) {
 	cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];
 	cent->pe.torso.pitching = qfalse;
 
-	if ( cg_debugPosition.integer ) {
-		CG_Printf("%i ResetPlayerEntity yaw=%i\n", cent->currentState.number, cent->pe.torso.yawAngle );
-	}
 }
 

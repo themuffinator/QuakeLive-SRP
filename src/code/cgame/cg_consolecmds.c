@@ -701,14 +701,10 @@ Mirrors the retail team and enemy color wrappers using the observed 26-entry pal
 */
 static void CG_SetColorCommand_f( qboolean useTeam ) {
 	char colorArg[128];
-	char currentColor[128];
 	int len;
 
 	trap_Argv( 1, colorArg, sizeof( colorArg ) );
 	if ( !colorArg[0] ) {
-		trap_Cvar_VariableStringBuffer( useTeam ? "cg_teamColors" : "cg_enemyColors",
-			currentColor, sizeof( currentColor ) );
-		Com_Printf( "Current %s color: %s\n", useTeam ? "team" : "enemy", currentColor );
 		return;
 	}
 
@@ -717,7 +713,6 @@ static void CG_SetColorCommand_f( qboolean useTeam ) {
 		colorArg[3] = '\0';
 	}
 
-	trap_Cvar_Set( useTeam ? "cg_teamColors" : "cg_enemyColors", colorArg );
 	CG_ApplyCommandColorString( useTeam, colorArg );
 }
 

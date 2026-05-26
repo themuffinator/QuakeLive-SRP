@@ -4090,8 +4090,6 @@ Draws the retail fullscreen vignette overlay when the cached cvar allows it.
 =================
 */
 static void CG_DrawScreenVignette( void ) {
-	vec4_t vignetteColor = { 1.0f, 1.0f, 1.0f, 0.35f };
-
 	if ( !cg.vignetteEnabled ) {
 		return;
 	}
@@ -4104,9 +4102,7 @@ static void CG_DrawScreenVignette( void ) {
 		return;
 	}
 
-	trap_R_SetColor( vignetteColor );
 	CG_DrawPic( 0.0f, 0.0f, 640.0f, 480.0f, cgs.media.vignetteShader );
-	trap_R_SetColor( NULL );
 }
 
 /*
@@ -5986,17 +5982,12 @@ or tutorial wording.
 =============
 */
 static qboolean CG_IsTrainingTutorialSession( void ) {
-	const char	*info;
-	const char	*trainingValue;
 	const char	*tutorialName;
 	const char	*tutorialText;
 
-	info = CG_ConfigString( CS_SERVERINFO );
-	if ( info && info[0] ) {
-		trainingValue = Info_ValueForKey( info, SERVERINFO_KEY_TRAINING );
-		if ( trainingValue && trainingValue[0] && atoi( trainingValue ) ) {
-			return qtrue;
-		}
+	trap_Cvar_Update( &g_training );
+	if ( g_training.integer ) {
+		return qtrue;
 	}
 
 	tutorialName = CG_ConfigString( CS_TUTORIAL_NAME );

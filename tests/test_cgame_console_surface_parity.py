@@ -561,14 +561,13 @@ def test_retail_final_command_tail_completes_main_table_coverage() -> None:
 
 	for expected in (
 		"trap_Argv( 1, colorArg, sizeof( colorArg ) );",
-		'trap_Cvar_VariableStringBuffer( useTeam ? "cg_teamColors" : "cg_enemyColors"',
-		'Com_Printf( "Current %s color: %s\\n", useTeam ? "team" : "enemy", currentColor );',
 		"if ( len > 3 ) {",
 		"colorArg[3] = '\\0';",
-		'trap_Cvar_Set( useTeam ? "cg_teamColors" : "cg_enemyColors", colorArg );',
 		"CG_ApplyCommandColorString( useTeam, colorArg );",
 	):
 		assert expected in set_color_block
+	assert "cg_teamColors" not in set_color_block
+	assert "cg_enemyColors" not in set_color_block
 	assert "CG_SetColorCommand_f( qtrue );" in set_team_block
 	assert "CG_SetColorCommand_f( qfalse );" in set_enemy_block
 
@@ -687,13 +686,13 @@ def test_retail_local_color_wrappers_remain_in_console_surface() -> None:
 		'cg_retailCommandColorPalette[26]',
 		'0x800000ffu',
 		'0x404040ffu',
-		'Current %s color: %s\\n',
-		'trap_Cvar_Set( useTeam ? "cg_teamColors" : "cg_enemyColors", colorArg );',
 		'trap_Cvar_Set( useTeam ? "cg_teamHeadColor" : "cg_enemyHeadColor", headColor );',
 		'trap_Cvar_Set( useTeam ? "cg_teamUpperColor" : "cg_enemyUpperColor", upperColor );',
 		'trap_Cvar_Set( useTeam ? "cg_teamLowerColor" : "cg_enemyLowerColor", lowerColor );',
 	):
 		assert expected in source
+	assert "cg_teamColors" not in source
+	assert "cg_enemyColors" not in source
 
 
 def test_retail_local_team_wrapper_remains_in_console_surface() -> None:

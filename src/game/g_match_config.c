@@ -252,10 +252,10 @@ static matchFactoryConfig_t G_MatchConfig_Load( void ) {
 	config.suddenDeathIncrementSeconds = G_MatchConfig_ReadNonNegativeCvar( &g_suddenDeathRespawnIncrement, DEFAULT_SUDDEN_DEATH_INCREMENT_SECONDS, "g_suddenDeathRespawnIncrement" );
 	config.suddenDeathPrintAnnouncements = G_MatchConfig_ReadBoolCvar( &g_suddenDeathRespawnPrint, DEFAULT_SUDDEN_DEATH_PRINT ? qtrue : qfalse, "g_suddenDeathRespawnPrint" );
 	config.suddenDeathSpawnDelayActive = ( config.suddenDeathRespawnsEnabled && ( config.suddenDeathStartSeconds > 0 || config.suddenDeathIncrementSeconds > 0 ) ) ? qtrue : qfalse;
-	config.factoryRespawnDelayMilliseconds = G_MatchConfig_ReadNonNegativeCvar( &g_factoryRespawnDelay, DEFAULT_FACTORY_RESPAWN_DELAY_MILLISECONDS, "g_factoryRespawnDelay" );
-	config.factoryWarmupSpawnDelayMilliseconds = G_MatchConfig_ReadNonNegativeCvar( &g_factoryWarmupSpawnDelay, DEFAULT_FACTORY_WARMUP_DELAY_MILLISECONDS, "g_factoryWarmupSpawnDelay" );
-	config.factoryAllowItemDrops = G_MatchConfig_ReadBoolCvar( &g_factoryAllowItemDrops, DEFAULT_FACTORY_ALLOW_ITEM_DROPS ? qtrue : qfalse, "g_factoryAllowItemDrops" );
-	config.factoryAllowItemBounce = G_MatchConfig_ReadBoolCvar( &g_factoryAllowItemBounce, DEFAULT_FACTORY_ALLOW_ITEM_BOUNCE ? qtrue : qfalse, "g_factoryAllowItemBounce" );
+	config.factoryRespawnDelayMilliseconds = DEFAULT_FACTORY_RESPAWN_DELAY_MILLISECONDS;
+	config.factoryWarmupSpawnDelayMilliseconds = DEFAULT_FACTORY_WARMUP_DELAY_MILLISECONDS;
+	config.factoryAllowItemDrops = DEFAULT_FACTORY_ALLOW_ITEM_DROPS ? qtrue : qfalse;
+	config.factoryAllowItemBounce = DEFAULT_FACTORY_ALLOW_ITEM_BOUNCE ? qtrue : qfalse;
 
 	return config;
 }

@@ -793,8 +793,24 @@ def test_first_18_g_cvars_match_retail_defaults_flags_and_wiring() -> None:
 		'{ &g_spawnArmorDmgScale, "g_spawnArmorDmgScale", "0.5", CVAR_GAMERULE',
 		'{ &g_spawnDelay_key, "g_spawnDelay_key", "30", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE',
 		'{ &g_spawnDelay_powerup, "g_spawnDelay_powerup", "45", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE',
+		'{ NULL, "g_levelStartTime", "0", CVAR_SERVERINFO | CVAR_ROM',
+		'{ &g_gametype, "g_gametype", "0", CVAR_SERVERINFO | CVAR_LATCH | CVAR_ROM',
+		'{ &g_scorelimit, "scorelimit", "150", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART | CVAR_GAMERULE',
+		'{ &g_enemyTeamRespawnRatio, "g_enemyTeamRespawnRatio", "1.5", CVAR_GAMERULE',
+		'{ &g_switchTeamDelay, "g_switchTeamDelay", "3", CVAR_GAMERULE',
+		'{ &g_armorTiered, "armor_tiered", "0", GAME_CVAR_FLAG_RETAIL_20000 | CVAR_GAMERULE',
+		'{ &g_latchedHookOffset, "g_latchedHookOffset", "-2.0f", CVAR_GAMERULE',
+		'{ &g_spawnMinDistance, "g_spawnMinDistance", "64", CVAR_GAMERULE',
+		'{ &g_spawnRandomRatio, "g_spawnRandomRatio", "0.5", CVAR_GAMERULE',
+		'{ &g_spawnDelayRandom_key, "g_spawnDelayRandom_key", "15", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE',
+		'{ &g_spawnDelayRandom_powerup, "g_spawnDelayRandom_powerup", "15", GAME_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE',
+		'{ &g_warmupDelay, "g_warmupDelay", "15", 0',
+		'{ &g_training, "g_training", "0", CVAR_SYSTEMINFO | CVAR_GAMERULE',
+		'{ &g_splashdamageOffset, "g_splashdamageOffset", "0.05", CVAR_GAMERULE',
 	):
 		assert row in g_main
+	assert 'trap_Cvar_Register( NULL, "g_version", "1069 win-x86 Jun  3 2016 16:09:50", CVAR_ROM );' in g_main
+	assert "G_RegisterCvarHelp" not in g_main
 
 	for row in (
 		'{ &g_regenHealthRate,      "g_regenHealthRate",      STRINGIZE( DEFAULT_REGEN_HEALTH_RATE_MILLISECONDS ), CVAR_GAMERULE',
@@ -876,9 +892,33 @@ def test_first_18_g_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	spawn_delay_body = _function_body(g_items, "void G_InitItemSpawnDelays( void )")
 	finish_item_body = _function_body(g_items, "void FinishSpawningItem( gentity_t *ent )")
 	assert "g_spawnDelayKeySeconds = G_ComputeRetailSpawnDelay( g_spawnDelay_key.integer" in spawn_delay_body
+	assert "g_spawnDelayRandom_key.integer );" in spawn_delay_body
 	assert "g_spawnDelayPowerupSeconds = G_ComputeRetailSpawnDelay( g_spawnDelay_powerup.integer" in spawn_delay_body
+	assert "g_spawnDelayRandom_powerup.integer );" in spawn_delay_body
 	assert "respawn = g_spawnDelayPowerupSeconds;" in finish_item_body
 	assert "ent->item->giType == IT_KEY && g_spawnDelayKeySeconds > 0" in finish_item_body
+
+	spawn_rank_body = _function_body(g_client, "gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles )")
+	assert "dist = delta[0];" in spawn_rank_body
+	assert "if ( delta[1] > dist ) {" in spawn_rank_body
+	assert "if ( g_enemyTeamRespawnRatio.value != 0.0f" in spawn_rank_body
+	assert "&& ( enemyTeam == TEAM_RED || enemyTeam == TEAM_BLUE )" in spawn_rank_body
+	assert "&& other->client->sess.sessionTeam == enemyTeam ) {" in spawn_rank_body
+	assert "dist *= g_enemyTeamRespawnRatio.value;" in spawn_rank_body
+	assert "selectionRatio = g_spawnRandomRatio.value;" in spawn_rank_body
+	assert "if ( selectionRatio < 0.1f ) {" in spawn_rank_body
+	assert "selectionRatio = 1.0f;" in spawn_rank_body
+	assert "candidateCount = (float)rankedCount * selectionRatio;" in spawn_rank_body
+	assert "if ( selectionCount < 3 ) {" in spawn_rank_body
+	assert "if ( g_spawnMinDistance.integer > 0 ) {" in spawn_rank_body
+	assert "rankedDistances[selectionCount - 1] < (float)g_spawnMinDistance.integer" in spawn_rank_body
+	assert "return G_SelectRankedSpawnPointForTeam( spots, spotCount, TEAM_FREE, origin, angles );" in g_client
+	assert "g_switchTeamDelay.integer ) );" in g_cmds
+	assert "ent->client->switchTeamTime = level.time + g_switchTeamDelay.integer * 1000;" in g_cmds
+
+	warmup_ready_body = _function_body(g_main, "qboolean G_WarmupReadyToStart( void )")
+	assert "g_dedicated.integer && g_gametype.integer != GT_TOURNAMENT" in warmup_ready_body
+	assert "level.time - level.startTime < g_warmupDelay.integer * 1000" in warmup_ready_body
 
 	rr_death_body = _function_body(g_client, "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath )")
 	assert "G_RRApplyScoreDelta( victim, g_rrDeathScorePenalty.integer );" in rr_death_body
@@ -1910,6 +1950,64 @@ def test_classic_server_gameplay_cvar_rows_match_retail_hlil_batch() -> None:
 		assert snippet in hlil_part03
 
 
+def test_legacy_game_only_cvars_are_not_registered_or_wired() -> None:
+	g_main = G_MAIN_PATH.read_text(encoding="utf-8")
+	g_local = G_LOCAL_PATH.read_text(encoding="utf-8")
+	g_client = G_CLIENT_PATH.read_text(encoding="utf-8")
+	g_bot = (REPO_ROOT / "src" / "code" / "game" / "g_bot.c").read_text(encoding="utf-8")
+	g_items = G_ITEMS_PATH.read_text(encoding="utf-8")
+	g_cmds = G_CMDS_PATH.read_text(encoding="utf-8")
+	flag_config_body = _function_body(g_main, "void G_UpdateFlagConfig( void )")
+	client_spawn_body = _function_body(g_client, "void ClientSpawn(gentity_t *ent)")
+	pickup_weapon_body = _function_body(g_items, "int Pickup_Weapon (gentity_t *ent, gentity_t *other)")
+	cmd_cvar_body = _function_body(g_cmds, "void Cmd_Cvar_f( gentity_t *ent )")
+	cmd_team_body = _function_body(g_cmds, "void Cmd_Team_f( gentity_t *ent )")
+
+	for cvar_name in (
+		"g_maxGameClients",
+		"g_quadfactor",
+		"g_weaponTeamRespawn",
+		"g_forcerespawn",
+		"g_listEntity",
+		"g_pauseAudio",
+		"g_rankings",
+		"g_floodprot_penalty",
+		"g_spawnProtect",
+		"g_flagDroppedTimeout",
+		"g_enableBreath",
+		"g_forcedAtmosphere",
+		"g_damage_mg_team",
+		"g_nailgravity",
+		"g_ruleset",
+		"g_synchronousClients",
+		"g_factoryRespawnDelay",
+		"g_factoryWarmupSpawnDelay",
+		"g_factoryAllowItemDrops",
+		"g_factoryAllowItemBounce",
+		"g_redteam",
+		"g_blueteam",
+	):
+		assert f'"{cvar_name}"' not in g_main
+		assert f"vmCvar_t\t{cvar_name}" not in g_main
+		assert f"vmCvar_t\t{cvar_name}" not in g_local
+		assert f"vmCvar_t {cvar_name}" not in g_local
+
+	assert "g_weaponTeamRespawn.integer" not in pickup_weapon_body
+	assert "return g_weaponRespawn.integer;" in pickup_weapon_body
+	assert '"g_quadfactor"' not in cmd_cvar_body
+	assert '"g_forcerespawn"' not in cmd_cvar_body
+	assert "g_maxGameClients.integer" not in cmd_team_body
+	assert "g_spawnProtect.integer" not in client_spawn_body
+	assert "client->invulnerabilityTime = 0;" in client_spawn_body
+	assert "g_flagDroppedTimeout" not in flag_config_body
+	assert "g_flagConfig.dropTimeoutMs = DEFAULT_FLAG_DROPPED_TIMEOUT_MS;" in flag_config_body
+	assert '"g_arenasFile"' not in g_bot
+	assert 'G_LoadArenasFromFile("scripts/arenas.txt");' in g_bot
+	assert 'trap_Cvar_VariableStringBuffer( cvarName, buffer, bufferSize );' in g_main
+	assert 'cvarName = SERVERINFO_KEY_RED_TEAM;' in g_main
+	assert 'cvarName = SERVERINFO_KEY_BLUE_TEAM;' in g_main
+
+
 def test_inactivity_cvars_drive_retail_warning_reset_and_fallback_paths() -> None:
 	g_active = G_ACTIVE_PATH.read_text(encoding="utf-8")
 	g_main = G_MAIN_PATH.read_text(encoding="utf-8")
@@ -1955,7 +2053,7 @@ def test_g_runframe_client_slots_dispatch_clientthink_real_inline_like_retail() 
 	assert "G_RunClient( ent );" not in client_block
 	assert "G_RunThink( ent );" in client_block
 	assert "if ( ent->inuse && ent->client ) {" in client_block
-	assert "if ( ( ent->r.svFlags & SVF_BOT ) || g_synchronousClients.integer ) {" in client_block
+	assert "if ( ent->r.svFlags & SVF_BOT ) {" in client_block
 	assert "ent->client->pers.cmd.serverTime = level.time;" in client_block
 	assert "ClientThink_real( ent );" in client_block
 	assert client_block.index("G_RunThink( ent );") < client_block.index("ClientThink_real( ent );")

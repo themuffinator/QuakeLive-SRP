@@ -155,7 +155,6 @@ G_LoadArenas
 */
 static void G_LoadArenas( void ) {
 	int			numdirs;
-	vmCvar_t	arenasFile;
 	char		filename[128];
 	char		dirlist[1024];
 	char*		dirptr;
@@ -164,13 +163,7 @@ static void G_LoadArenas( void ) {
 
 	g_numArenas = 0;
 
-	trap_Cvar_Register( &arenasFile, "g_arenasFile", "", CVAR_INIT|CVAR_ROM );
-	if( *arenasFile.string ) {
-		G_LoadArenasFromFile(arenasFile.string);
-	}
-	else {
-		G_LoadArenasFromFile("scripts/arenas.txt");
-	}
+	G_LoadArenasFromFile("scripts/arenas.txt");
 
 	// get all arenas from .arena files
 	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, 1024 );

@@ -32,6 +32,8 @@ Observed local facts:
 1. The helper contains all of the construction logic previously bounded in round 40: allocation, hash insertion, upload, wrap-mode setup, and TMU handling.
 2. Unlike the public wrapper, it accepts an extra final argument and threads it into the GL bind/parameter path.
 3. The public `sub_445910` wrapper proves the helper sits one layer below `R_CreateImage`.
+4. The helper uses `glGenTextures` when the GL import is available and retains the historical `1024 + tr.numImages` fallback only for the no-import path.
+5. It binds through the target-aware `GL_BindToTarget` helper and forces the upload sample count to RGBA only for the literal `"browser"` surface image.
 
 The exact internal retail name is still unproven, but the role is now stable enough to promote `sub_445720` as the inferred target-aware helper `R_CreateImageWithTarget`.
 
@@ -104,7 +106,7 @@ Observed local facts:
 2. It initializes libpng through the same create-info / setjmp recovery flow used by the source-side PNG path.
 3. On decode failure it emits the same warning:
    - `LoadPNG: Error occurred while decoding %s.\n`
-4. It installs the now-closed `PNGReadData` callback, expands palette/gray/TRNS payloads, applies the same gamma handling, fills missing alpha with `0xFF`, allocates row pointers, and decodes into a contiguous RGBA buffer.
+4. It installs the now-closed `PNGReadData` callback, expands palette/gray/TRNS payloads, strips 16-bit channels, fills missing alpha with `0xFF`, allocates row pointers, and decodes into a contiguous RGBA buffer without requesting a per-file libpng gamma transform.
 
 The local GPL tree only exposes the file-backed entry point, but the retail helper role is stable enough to promote `sub_445F50` as the inferred in-memory decoder `LoadPNGFromBuffer`.
 
@@ -224,8 +226,8 @@ That closes `sub_446880` as the exact screenshot/output helper `SaveJPG`.
 Observed local facts:
 
 1. The helper classifies an incoming memory buffer by magic bytes instead of filename extension.
-2. It returns distinct selector values for JPEG, BMP, TGA, and PNG payloads.
-3. It returns a separate fallback selector when none of the known signatures match.
+2. It returns the retail selector order: `0` JPEG, `1` BMP, `2` TGA, `3` PNG, and `4` unknown.
+3. Its PNG check looks at bytes `1..3` for `PNG`, its JPEG check looks for `JFIF` at bytes `6..9`, and its TGA check uses the colormap, image-type, and pixel-size header bytes.
 4. The now-closed `R_LoadImageFromMemory` uses those selector values as a switch discriminator for the specific decoder entry points.
 
 The exact retail symbol name is not exported by the committed corpus, but the role is stable enough to promote `sub_446F00` as the inferred type detector `R_DetectImageTypeFromMemory`.
@@ -243,7 +245,7 @@ Observed local facts:
    - `LoadPNGFromBuffer`
 4. On unknown data it emits the exact warning:
    - `WARNING: R_LoadImageFromMemory() Unable to detect image type.\n`
-5. On successful decode it calls the now-corrected target-aware image constructor and frees the temporary RGBA buffer.
+5. On successful decode it calls the now-corrected target-aware image constructor with `GL_CLAMP` / `GL_TEXTURE_2D` and frees the temporary RGBA buffer.
 
 That closes `sub_446F80` as the exact Quake Live in-memory image loader `R_LoadImageFromMemory`.
 

@@ -390,7 +390,7 @@ static int G_ClampModDamage( int damage, int mod, gentity_t *attacker ) {
 		configuredDamage = g_weaponConfig.gauntletDamage;
 		break;
 	case MOD_MACHINEGUN:
-		configuredDamage = ( g_gametype.integer != GT_TEAM ) ? g_weaponConfig.machinegunDamage : g_weaponConfig.machinegunTeamDamage;
+		configuredDamage = g_weaponConfig.machinegunDamage;
 		break;
 	case MOD_HMG:
 		configuredDamage = g_weaponConfig.heavyMachinegunDamage;
@@ -1312,7 +1312,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	memset( self->client->ps.powerups, 0, sizeof(self->client->ps.powerups) );
 
 	// never gib in a nodrop
-	if ( (self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP) && g_blood.integer) || meansOfDeath == MOD_SUICIDE) {
+	if ( ( self->health <= GIB_HEALTH && !( contents & CONTENTS_NODROP ) ) || meansOfDeath == MOD_SUICIDE ) {
 		// gib death
 		GibEntity( self );
 	} else {
@@ -1332,8 +1332,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			break;
 		}
 
-		// for the no-blood option, we need to prevent the health
-		// from going to gib level
+		// for non-gibbed bodies, keep health above the gib threshold
 		if ( self->health <= GIB_HEALTH ) {
 			self->health = GIB_HEALTH+1;
 		}

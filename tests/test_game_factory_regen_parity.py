@@ -656,7 +656,7 @@ def test_factory_runes_are_gated_separately_from_map_powerups() -> None:
 	assert "extern vmCvar_t g_loadout;" in local_h
 	assert "extern vmCvar_t g_runes;" in local_h
 	assert '{ &g_loadout,              "g_loadout",              STRINGIZE( DEFAULT_FACTORY_LOADOUT ), CVAR_SERVERINFO | CVAR_GAMERULE,' in config_c
-	assert '{ &g_runes,                "g_runes",                STRINGIZE( DEFAULT_FACTORY_RUNES ), 0,' in config_c
+	assert '{ &g_runes,                "g_runes",                STRINGIZE( DEFAULT_FACTORY_RUNES ), CVAR_LATCH | CVAR_GAMERULE,' in config_c
 	assert """\tcase IT_PERSISTANT_POWERUP:
 \t\treturn g_runes.integer ? qtrue : qfalse;""" in items_c
 	assert items_c.count("if ( !g_runes.integer ) {") == 3
@@ -735,9 +735,12 @@ def test_factory_vm_parser_enforces_retail_definition_schema() -> None:
 	assert factory_c.count("state->cursor--;") >= 2
 
 
-def test_ruleset_sync_stops_seeding_factory_and_registers_weapon_spawn_alias() -> None:
+def test_ruleset_sync_stops_seeding_factory_and_drops_current_only_surfaces() -> None:
 	main_c = _read("src/code/game/g_main.c")
+	cmds_c = _read("src/code/game/g_cmds.c")
 
-	assert '{ &g_spawnItemWeapons, "g_spawnItemWeapons", &g_spawnItemWeaponLegacy, "g_spawnItemWeapon", "1", CVAR_SERVERINFO | CVAR_INIT, -1, -1 }' in main_c
+	assert '"g_spawnItemWeapon"' not in main_c
+	assert '"g_ruleset"' not in main_c
 	assert 'trap_Cvar_Set( "g_factory", ruleset );' not in main_c
+	assert 'Q_stricmp (cmd, "ruleset")' not in cmds_c
 	assert "defaulting to the current gametype's retail factory when unset or invalid." in main_c

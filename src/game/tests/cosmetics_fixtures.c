@@ -147,7 +147,6 @@ static void GT_ApplyForceBroadcast(const char *cvarName, qboolean enabled, const
 	static qboolean	forceHudHints = qfalse;
 	static qboolean	forceDamageThroughSurface = qfalse;
 	static char	forcedAtmosphericEffects[MAX_INFO_STRING];
-	static char	forcedAtmosphereFallback[MAX_INFO_STRING];
 
 	if (!log) {
 		return;
@@ -166,12 +165,6 @@ static void GT_ApplyForceBroadcast(const char *cvarName, qboolean enabled, const
 			} else {
 				forcedAtmosphericEffects[0] = '\0';
 			}
-		} else if ( Q_stricmp( cvarName, "g_forcedAtmosphere" ) == 0 ) {
-			if ( enabled && atmosphere && atmosphere[0] ) {
-				Q_strncpyz( forcedAtmosphereFallback, atmosphere, sizeof( forcedAtmosphereFallback ) );
-			} else {
-				forcedAtmosphereFallback[0] = '\0';
-			}
 		}
 	}
 
@@ -183,8 +176,6 @@ static void GT_ApplyForceBroadcast(const char *cvarName, qboolean enabled, const
 
 	if ( forcedAtmosphericEffects[0] ) {
 		Info_SetValueForKey( log->payload, "atm", forcedAtmosphericEffects );
-	} else if ( forcedAtmosphereFallback[0] ) {
-		Info_SetValueForKey( log->payload, "atm", forcedAtmosphereFallback );
 	}
 }
 
@@ -346,21 +337,20 @@ static qboolean GT_ForceBroadcastAddsAtmosphereOverride(void) {
 
 /*
 =============
-GT_ForceBroadcastFallsBackToServerOverride
+GT_ForceBroadcastClearsServerOverride
 
-Verifies fallback atmosphere tokens are published when explicit overrides clear.
+Verifies atmosphere tokens clear when explicit overrides clear.
 =============
 */
-static qboolean GT_ForceBroadcastFallsBackToServerOverride(void) {
+static qboolean GT_ForceBroadcastClearsServerOverride(void) {
 	gt_force_broadcast_log_t log;
 
 	memset(&log, 0, sizeof(log));
 	GT_ApplyForceBroadcast("g_forceAtmosphericEffects", qtrue, "snow", &log);
 	GT_ApplyForceBroadcast("g_forceAtmosphericEffects", qfalse, NULL, &log);
-	GT_ApplyForceBroadcast("g_forcedAtmosphere", qtrue, "rain", &log);
 
-	if ( Q_stricmp( Info_ValueForKey( log.payload, "atm" ), "rain" ) != 0 ) {
-		return GT_Failf("expected fallback atmosphere 'rain', received '%s'", Info_ValueForKey( log.payload, "atm" ) );
+	if ( Info_ValueForKey( log.payload, "atm" )[0] ) {
+		return GT_Failf("expected forced atmosphere to clear, received '%s'", Info_ValueForKey( log.payload, "atm" ) );
 	}
 
 	return qtrue;
@@ -412,7 +402,7 @@ static const game_fixture_t gt_cosmetics_training_fixtures[] = {
 	{
 		"force_atmosphere_fallback_included",
 		NULL,
-		GT_ForceBroadcastFallsBackToServerOverride,
+		GT_ForceBroadcastClearsServerOverride,
 		NULL,
 		"Ensures server fallback atmosphere strings are broadcast when overrides clear"
 	}

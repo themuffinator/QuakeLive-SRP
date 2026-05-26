@@ -222,7 +222,7 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 		and '"scripts/posteffect.vs"' in tr_backend
 		and "GL_TEXTURE_RECTANGLE_ARB" in tr_backend
 		and "tr.postProcessActive = backEnd.postProcessActive;" in tr_backend
-		and 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
+		and 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 		and "tests/test_renderer_post_process_parity.py" in workflow_text
 	)
 	report["tranches"]["RG-G03"] = _entry(
@@ -238,7 +238,7 @@ def _build_renderer_full_parity_gate_report() -> dict[str, Any]:
 			"posteffect_vertex_shader_present": '"scripts/posteffect.vs"' in tr_backend,
 			"rectangle_texture_path_present": "GL_TEXTURE_RECTANGLE_ARB" in tr_backend,
 			"active_state_mirror_present": "tr.postProcessActive = backEnd.postProcessActive;" in tr_backend,
-			"contrast_cvar_present": 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init,
+			"contrast_cvar_present": 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init,
 		},
 	)
 

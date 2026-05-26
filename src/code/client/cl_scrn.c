@@ -378,6 +378,7 @@ This will be called twice if rendering in stereo mode
 */
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	qboolean uiFullscreen;
+	qboolean browserOverlayRequested;
 	qboolean browserPendingSurface;
 	qboolean browserDrawableSurface;
 
@@ -401,14 +402,24 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	// if the menu is going to cover the entire screen, we
 	// don't need to render anything under it
 	uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN ) ? qtrue : qfalse;
+	browserOverlayRequested = qfalse;
 	browserDrawableSurface = qfalse;
 	browserPendingSurface = qfalse;
-	if ( ( cls.keyCatchers & KEYCATCH_BROWSER ) || Cvar_VariableIntegerValue( "web_browserActive" ) ) {
+	if ( ( cls.keyCatchers & KEYCATCH_BROWSER )
+		|| Cvar_VariableIntegerValue( "web_browserActive" )
+		|| Cvar_VariableIntegerValue( "ui_browserAwesomiumPending" ) ) {
+		browserOverlayRequested = qtrue;
+	}
+	if ( browserOverlayRequested ) {
 		browserDrawableSurface = CL_WebHost_HasDrawableSurface();
 		browserPendingSurface = browserDrawableSurface ? qfalse : qtrue;
 	}
 
 	if ( uiFullscreen && browserPendingSurface ) {
+		uiFullscreen = qfalse;
+	}
+	if ( uiFullscreen
+		&& ( cls.state == CA_LOADING || cls.state == CA_PRIMED || cls.state == CA_ACTIVE ) ) {
 		uiFullscreen = qfalse;
 	}
 	if ( uiFullscreen

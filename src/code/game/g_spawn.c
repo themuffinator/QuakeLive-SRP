@@ -1151,8 +1151,7 @@ void SP_worldspawn( void ) {
 	if ( atmosphere && atmosphere[0] ) {
 		G_SetWorldspawnAtmosphere( atmosphere );
 	} else {
-		trap_Cvar_Update( &g_forcedAtmosphere );
-		G_SetWorldspawnAtmosphere( g_forcedAtmosphere.string );
+		G_SetWorldspawnAtmosphere( "" );
 	}
 
 	g_entities[ENTITYNUM_WORLD].s.number = ENTITYNUM_WORLD;

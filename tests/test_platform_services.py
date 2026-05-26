@@ -1481,7 +1481,7 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "persisted" not in steam_resources
     assert "qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipRawImage );" in client_h
     assert "qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipRawImage ) {" in cl_main
-    assert "image = R_LoadImageFromMemory( name, buffer, bufferLength, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+    assert "image = R_LoadImageFromMemory( name, buffer, bufferLength, mipRawImage, mipRawImage );" in cl_main
     assert "if ( QLResourceInterceptor_OnFilterNavigation( url ) ) {" in interceptor_block
     assert "if ( CL_SteamDataSource_Request( url, response ) ) {" in interceptor_block
     assert "if ( QLResourceInterceptor_RequestRetailHost( url, response ) ) {" in interceptor_block

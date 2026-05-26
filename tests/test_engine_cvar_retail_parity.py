@@ -105,10 +105,59 @@ QL_UI_GHIDRA_DECOMPILE = (
 	/ "uix86"
 	/ "decompile_top_functions.c"
 )
+QL_CGAME_HLIL_PART02 = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "cgamex86.dll"
+	/ "cgamex86.dll_hlil_split"
+	/ "cgamex86.dll_hlil_part02.txt"
+)
+QL_CGAME_HLIL_PART01 = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "cgamex86.dll"
+	/ "cgamex86.dll_hlil_split"
+	/ "cgamex86.dll_hlil_part01.txt"
+)
+QL_QAGAME_HLIL_PART02 = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "qagamex86.dll"
+	/ "qagamex86.dll.bndb_hlil_split"
+	/ "qagamex86.dll.bndb_hlil_part02.txt"
+)
 
 
 def _read_text(path: Path) -> str:
 	return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _extract_function_block(text: str, signature: str) -> str:
+	start = text.find(signature)
+	if start == -1:
+		raise AssertionError(f"function signature not found: {signature}")
+
+	brace_start = text.find("{", start)
+	if brace_start == -1:
+		raise AssertionError(f"opening brace not found for: {signature}")
+
+	depth = 0
+	for index in range(brace_start, len(text)):
+		char = text[index]
+		if char == "{":
+			depth += 1
+		elif char == "}":
+			depth -= 1
+			if depth == 0:
+				return text[start : index + 1]
+
+	raise AssertionError(f"unterminated function block for: {signature}")
 
 
 RETAIL_CON_CVAR_REGISTRATIONS = (
@@ -835,6 +884,9 @@ def test_engine_cvar_twelfth_common_misc_tranche_matches_retail_contracts() -> N
 	cl_input = _read_text(REPO_ROOT / "src" / "code" / "client" / "cl_input.c")
 	cl_parse = _read_text(CL_PARSE)
 	cg_main = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c")
+	cg_local = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_local.h")
+	cg_players = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_players.c")
+	cg_servercmds = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c")
 	cg_draw = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_draw.c")
 	g_main = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_main.c")
 	g_rankings = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_rankings.c")
@@ -891,7 +943,15 @@ def test_engine_cvar_twelfth_common_misc_tranche_matches_retail_contracts() -> N
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in common
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in cl_main
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in sv_init
-	assert '{ &cg_buildScript, "com_build", "0", 0 },' in cg_main
+	assert 'cg_buildScript' not in "\n".join((cg_main, cg_local, cg_players, cg_servercmds))
+	assert '{ &cg_buildScript, "com_build", "0", 0 },' not in cg_main
+	assert 'vmCvar_t\tcg_buildScript;' not in cg_main
+	assert 'extern\tvmCvar_t\t\tcg_buildScript;' not in cg_local
+	assert 'if ( cgs.gametype >= GT_TEAM || trap_Cvar_VariableValue( "com_build" ) ) {' in cg_main
+	assert 'if ( items[ i ] == \'1\' || trap_Cvar_VariableValue( "com_build" ) ) {' in cg_main
+	assert 'if ( trap_Cvar_VariableValue( "com_build" ) ) {' in cg_players
+	assert 'cg_deferPlayers.integer && !trap_Cvar_VariableValue( "com_build" ) && !cg.loading' in cg_players
+	assert 'if ( trap_Cvar_VariableValue( "com_build" ) ) {' in cg_servercmds
 	assert 'if( g_gametype.integer == GT_SINGLE_PLAYER || trap_Cvar_VariableIntegerValue( "com_build" ) ) {' in g_main
 
 	assert 'com_version = Cvar_Get ("version", s, CVAR_ROM | CVAR_SERVERINFO );' in common
@@ -909,17 +969,33 @@ def test_selected_com_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	cl_main = _read_text(CL_MAIN)
 	ui_main = _read_text(UI_MAIN)
 	cg_main = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c")
+	cg_local = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_local.h")
+	cg_players = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_players.c")
+	cg_servercmds = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c")
 	cg_effects = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_effects.c")
 	cg_weapons = _read_text(REPO_ROOT / "src" / "code" / "cgame" / "cg_weapons.c")
 	g_main = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_main.c")
+	g_local = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_local.h")
 	g_combat = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_combat.c")
+	g_misc = _read_text(REPO_ROOT / "src" / "code" / "game" / "g_misc.c")
+	g_advertisement_block = _extract_function_block(g_misc, "void SP_advertisement( gentity_t *ent ) {")
 	sv_init = _read_text(SV_INIT)
 	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
 	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
+	retail_cgame_resource_hlil = _read_text(QL_CGAME_HLIL_PART01)
+	retail_cgame_hlil = _read_text(QL_CGAME_HLIL_PART02)
+	retail_qagame_hlil = _read_text(QL_QAGAME_HLIL_PART02)
 	ui_hlil = _read_text(QL_UI_HLIL_PART01)
 
 	assert 'sub_4cdd30(x87_r0, x87_r1, x87_r2, "com_maxfps", "125", "30", "250", 0x81001)' in retail_hlil
+	assert 'char const (* data_1007848c)[0xb] = data_1006a968 {"com_maxfps"}' in retail_cgame_hlil
+	assert 'void* data_10078490 = 0x1006a964' in retail_cgame_hlil
+	assert 'void* data_10078494 = data_1006ab94' in retail_cgame_hlil
+	assert 'void* data_10078498 = 0x1006b4f4' in retail_cgame_hlil
+	assert '01 18 08 00' in retail_cgame_hlil
 	assert 'com_maxfps = Cvar_GetBounded( "com_maxfps", "125", "30", "250", CVAR_ARCHIVE | CVAR_VM_CREATED | CVAR_CLOUD );' in common
+	assert "vmCvar_t\tcg_maxfps;" in cg_main
+	assert '{ &cg_maxfps, "com_maxfps", "125", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "30", "250" },' in cg_main
 	assert 'if ( !com_dedicated->integer && com_maxfps->integer > 0 && !com_timedemo->integer ) {' in common
 	assert 'minMsec = 1000 / com_maxfps->integer;' in common
 
@@ -928,10 +1004,11 @@ def test_selected_com_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	assert 'com_blood' not in common
 	assert 'com_blood' not in qcommon_h
 	assert '{ &cg_blood, "cg_blood", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },' in cg_main
-	assert '{ &g_blood, "com_blood", "1", 0, 0, qfalse },' in g_main
+	assert 'g_blood' not in g_main
+	assert 'g_blood' not in g_local
 	assert 'if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {' in cg_effects
 	assert 'if ( !cg_blood.integer || !cgs.media.bloodSprayShaders[0] ) {' in cg_weapons
-	assert 'if ( (self->health <= GIB_HEALTH && !(contents & CONTENTS_NODROP) && g_blood.integer) || meansOfDeath == MOD_SUICIDE) {' in g_combat
+	assert 'if ( ( self->health <= GIB_HEALTH && !( contents & CONTENTS_NODROP ) ) || meansOfDeath == MOD_SUICIDE ) {' in g_combat
 
 	assert 'data_145c9fc = sub_4ce0d0(x87_r5, "com_showtrace", U"0", 0x200)' in retail_hlil
 	assert 'com_showtrace = Cvar_Get ("com_showtrace", "0", CVAR_CHEAT);' in common
@@ -956,13 +1033,31 @@ def test_selected_com_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	assert 'if (Cvar_VariableValue ("com_cameraMode") == 0) {' in cl_keys
 
 	assert 'data_145b948 = sub_4ce0d0(x87_r1, "com_build", U"0", 0)' in retail_hlil
+	assert '(*(data_1074cccc + 0x28))("com_build")' in retail_cgame_resource_hlil
+	assert '{"com_build"}' not in retail_cgame_hlil
 	assert 'com_buildScript = Cvar_Get( "com_build", "0", 0 );' in common
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in common
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in files
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in cl_main
 	assert 'if ( com_buildScript && com_buildScript->integer ) {' in sv_init
-	assert '{ &cg_buildScript, "com_build", "0", 0 },' in cg_main
+	assert 'cg_buildScript' not in "\n".join((cg_main, cg_local, cg_players, cg_servercmds))
+	assert '{ &cg_buildScript, "com_build", "0", 0 },' not in cg_main
+	assert 'vmCvar_t\tcg_buildScript;' not in cg_main
+	assert 'extern\tvmCvar_t\t\tcg_buildScript;' not in cg_local
+	assert 'if ( cgs.gametype >= GT_TEAM || trap_Cvar_VariableValue( "com_build" ) ) {' in cg_main
+	assert 'if ( items[ i ] == \'1\' || trap_Cvar_VariableValue( "com_build" ) ) {' in cg_main
+	assert 'if ( trap_Cvar_VariableValue( "com_build" ) ) {' in cg_players
+	assert 'cg_deferPlayers.integer && !trap_Cvar_VariableValue( "com_build" ) && !cg.loading' in cg_players
+	assert 'if ( trap_Cvar_VariableValue( "com_build" ) ) {' in cg_servercmds
 	assert 'if( g_gametype.integer == GT_SINGLE_PLAYER || trap_Cvar_VariableIntegerValue( "com_build" ) ) {' in g_main
+	assert '10059ef8  (*(data_104b13ac + 0x2c))("com_build")' in retail_qagame_hlil
+	assert 'sub_10065c00("cellId", &data_1007d0a8, &var_44)' in retail_qagame_hlil
+	assert 'char const data_10087f48[0x2a] = "advertisement entity with no cellId at %s", 0' in retail_qagame_hlil
+	assert 'if ( trap_Cvar_VariableValue( "com_build" ) ) {' in g_advertisement_block
+	assert 'G_SpawnString( "cellId", "", &cellId );' in g_advertisement_block
+	assert 'G_Error( "advertisement entity with no cellId at %s", vtos( ent->s.origin ) );' in g_advertisement_block
+	assert 'G_Printf( "advertisement entity with no cellId' not in g_advertisement_block
+	assert g_advertisement_block.index('if ( trap_Cvar_VariableValue( "com_build" ) ) {') < g_advertisement_block.index('G_FreeEntity( ent );')
 
 	assert 'data_145ca54 = sub_4ce0d0(x87_r3, "com_introplayed", U"0", 1)' in retail_hlil
 	assert 'com_introPlayed = Cvar_Get( "com_introplayed", "0", CVAR_ARCHIVE);' in common
@@ -990,6 +1085,7 @@ def test_selected_com_cvars_second_batch_match_retail_defaults_flags_and_wiring(
 	snd_mem = _read_text(REPO_ROOT / "src" / "code" / "client" / "snd_mem.c")
 	cl_cin = _read_text(CL_CIN)
 	cl_main = _read_text(CL_MAIN)
+	win_main = _read_text(REPO_ROOT / "src" / "code" / "win32" / "win_main.c")
 	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
 	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
 
@@ -1010,6 +1106,18 @@ def test_selected_com_cvars_second_batch_match_retail_defaults_flags_and_wiring(
 	assert 'nMinAlloc = MIN_DEDICATED_COMHUNKMEGS;' in common
 	assert 'nMinAlloc = MIN_COMHUNKMEGS;' in common
 	assert 's_hunkTotal = cv->integer * 1024 * 1024;' in common
+	assert '"com_jp"' not in retail_hlil
+	assert '"com_jp"' not in retail_ghidra
+	assert 'com_jp' not in common
+	assert 'void Hunk_Trash( void ) {' in common
+	assert '"com_blindlyLoadDLLs"' not in retail_hlil
+	assert '"com_blindlyLoadDLLs"' not in retail_ghidra
+	assert 'com_blindlyLoadDLLs' not in win_main
+	assert 'if( ((timestamp - lastWarning) > (5 * 60000)) && !Cvar_VariableIntegerValue( "dedicated" ) ) {' in win_main
+	assert '"com_noErrorInterrupt"' not in retail_hlil
+	assert '"com_noErrorInterrupt"' not in retail_ghidra
+	assert 'com_noErrorInterrupt' not in common
+	assert 'int 0x03' not in common
 
 	assert 'int32_t esi_2 = sub_4ce0d0(x87_r0, "com_soundMegs", "16", 0x21)[0xc] * 0x202000' in retail_hlil
 	assert '#define DEF_COMSOUNDMEGS "16"' in snd_mem
@@ -1586,6 +1694,35 @@ def test_engine_cvar_thirtyeighth_client_native_ui_bridge_tranche_matches_retail
 	assert '(*(data_106b40a8 + 0x1c))("cl_packetdup", &data_1002729c)' in ui_hlil
 	assert '(*(data_106b40a8 + 0x1c))("cl_packetdup", &data_100272b0)' in ui_hlil
 	assert '(**(code **)(DAT_106b40a8 + 0x1c))("cl_packetdup",&DAT_1002729c);' in ui_ghidra
+
+	ui_update = _extract_function_block(ui_main, "static void UI_Update(const char *name) {")
+	colorbits_start = ui_update.index('} else if (Q_stricmp(name, "r_colorBits") == 0) {')
+	colorbits_end = ui_update.index('} else if (Q_stricmp(name, "ui_mousePitch") == 0) {', colorbits_start)
+	colorbits_block = ui_update[colorbits_start:colorbits_end]
+
+	assert 'result = sub_100016c0("r_colorBits", 0x1869f, arg1)' in ui_hlil
+	assert '(*(data_106b40a8 + 0x1c))("r_depthBits", &data_100252c0)' in ui_hlil
+	assert '(*(data_106b40a8 + 0x1c))("r_stencilBits", &data_100252c0)' in ui_hlil
+	assert '"ui_glCustom"' not in ui_hlil
+	assert '"r_lodBias"' not in ui_hlil
+	assert '"r_lodbias"' not in ui_hlil
+	assert 'Q_stricmp(name, "r_colorBits") == 0' in colorbits_block
+	assert 'trap_Cvar_SetValue( "r_depthBits", 0 );' in colorbits_block
+	assert 'trap_Cvar_SetValue( "r_stencilBits", 0 );' in colorbits_block
+	assert 'trap_Cvar_SetValue( "r_depthBits", 16 );' in colorbits_block
+	assert 'trap_Cvar_SetValue( "r_depthBits", 24 );' in colorbits_block
+	assert 'Q_stricmp(name, "r_colorbits") == 0' not in colorbits_block
+	assert 'trap_Cvar_SetValue( "r_depthbits",' not in colorbits_block
+	assert 'trap_Cvar_SetValue( "r_stencilbits",' not in colorbits_block
+	assert 'Q_stricmp(name, "r_lodbias") == 0' not in ui_update
+	assert 'Q_stricmp(name, "ui_glCustom") == 0' not in ui_update
+	assert 'trap_Cvar_SetValue( "r_fullScreen",' not in ui_update
+	assert 'trap_Cvar_SetValue( "r_subdivisions",' not in ui_update
+	assert 'trap_Cvar_SetValue( "r_vertexlight",' not in ui_update
+	assert 'trap_Cvar_SetValue( "r_lodbias",' not in ui_update
+	assert 'trap_Cvar_SetValue( "r_colorbits",' not in ui_update
+	assert 'trap_Cvar_SetValue( "r_texturebits",' not in ui_update
+	assert 'trap_Cvar_Set( "r_texturemode",' not in ui_update
 
 	assert 'DAT_01647ef8 = FUN_004ce0d0("cl_serverStatusResendTime",&DAT_0053f098,0);' in retail_ghidra
 	assert 'cl_serverStatusResendTime = Cvar_Get ("cl_serverStatusResendTime", "750", 0);' in cl_main
@@ -2317,7 +2454,7 @@ def test_engine_cvar_twentythird_renderer_runtime_tuning_tranche_matches_retail_
 	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {' in tr_backend
 	assert 'gammaRecip = 1.0f / r_gamma->value;' in tr_backend
 
-	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
+	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {' in tr_backend
 	assert 'contrast = r_contrast->value;' in tr_backend
 
@@ -2578,7 +2715,7 @@ def test_engine_cvar_fortyfirst_renderer_platform_scene_tranche_matches_retail_c
 	assert 'trap_Cvar_SetValue( "r_inGameVideo", 0 );' in ui_main
 
 	assert 'DAT_01740e40 = (*DAT_01740d40)("r_contrast",&DAT_00551620,0x80001);' in retail_ghidra
-	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
+	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'if ( r_contrast && r_contrast->modified ) {' in tr_init
 	assert 'contrast = r_contrast->value;' in tr_backend
 
@@ -2609,6 +2746,8 @@ def test_engine_cvar_fortyfirst_renderer_platform_scene_tranche_matches_retail_c
 	assert 'r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'GL_TextureMode( r_textureMode->string );' in tr_cmds
 	assert 'ri.Cvar_Set( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST" );' in win_glimp
+	assert 'ri.Cvar_Set( "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR" );' in win_glimp
+	assert 'ri.Cvar_Set( "r_texturemode", "GL_LINEAR_MIPMAP_LINEAR" );' not in win_glimp
 
 
 def test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts() -> None:
@@ -2660,7 +2799,8 @@ def test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_reta
 	assert 'if ( !backEnd.colorCorrectActive || !s_postProcess.colorCorrectTexture || !s_postProcess.colorCorrectProgram.programObject ) {' in tr_backend
 
 	assert '_DAT_01740f78 = (*DAT_01740d44)("r_bloomPasses",&DAT_00551624,&DAT_00551624,&DAT_0052f5d8,0x82821)' in retail_ghidra
-	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
+	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
+	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' not in tr_init
 	assert 'AssertCvarRange( r_bloomPasses, 1, 2, qtrue );' in tr_init
 	assert 'r_bloomPasses' not in tr_backend
 
@@ -3367,7 +3507,8 @@ def test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_c
 	tr_image = _read_text(REPO_ROOT / "src" / "code" / "renderer" / "tr_image.c")
 	win_glimp = _read_text(WIN_GLIMP)
 
-	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
+	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
+	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' not in tr_init
 	assert 'AssertCvarRange( r_bloomPasses, 1, 2, qtrue );' in tr_init
 	assert 'static int RBPP_GetBloomMode( void ) {' in tr_backend
 	assert 'bloomMode = RBPP_GetBloomMode();' in tr_backend
