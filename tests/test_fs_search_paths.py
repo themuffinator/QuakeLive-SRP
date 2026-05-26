@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ctypes
+import os
 import zipfile
 from pathlib import Path
 from typing import Iterator, Tuple
@@ -131,6 +132,19 @@ def _split_u64(value: int) -> Tuple[int, int]:
     return value & 0xFFFFFFFF, (value >> 32) & 0xFFFFFFFF
 
 
+def _expected_homepath(basepath: Path, steam_id: int | None = None) -> str:
+    if os.name == "nt":
+        if steam_id is not None:
+            return f"{basepath}/{steam_id}"
+        return str(basepath)
+
+    default_home = os.environ.get("HOME")
+    if default_home:
+        return default_home
+
+    return str(basepath)
+
+
 def test_homepath_resolution_defaults_to_basepath_without_steam_user(
     fs_environment: Tuple[ctypes.CDLL, Path, Path],
 ) -> None:
@@ -140,7 +154,7 @@ def test_homepath_resolution_defaults_to_basepath_without_steam_user(
 
     resolved = lib.QLR_FS_TestResolveHomePath(str(basepath).encode()).decode()
 
-    assert resolved == str(basepath)
+    assert resolved == _expected_homepath(basepath)
 
 
 def test_homepath_resolution_appends_retail_steamid_suffix_when_available(
@@ -154,7 +168,7 @@ def test_homepath_resolution_appends_retail_steamid_suffix_when_available(
 
     resolved = lib.QLR_FS_TestResolveHomePath(str(basepath).encode()).decode()
 
-    assert resolved == f"{basepath}/{steam_id}"
+    assert resolved == _expected_homepath(basepath, steam_id)
 
 
 def test_rewrite_web_path_prefixes_fs_webpath_and_preserves_screenshot_relative_path(
