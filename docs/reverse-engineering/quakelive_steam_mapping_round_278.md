@@ -25,7 +25,7 @@
   anchors the bloom-program uniform setter:
   - `sub_4386d0` guards on `sub_4507c0`, the active post-process state, and
     the bloom enable cvar before writing `p_brightthreshold`,
-    `p_bloomsaturation`, `p_bloomintensity`, `p_scenesaturation`, and
+    `p_bloomsaturation`, `p_scenesaturation`, `p_bloomintensity`, and
     `p_sceneintensity`.
   - `sub_4384d0` is adjacent command-buffer evidence for the exported bloom
     command lane, but this pass leaves its exact source name open.

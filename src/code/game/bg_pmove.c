@@ -935,7 +935,6 @@ static float PM_EvaluateJumpTakeoffVelocity( const pmove_settings_t *settings, q
 	float	threshold;
 	float	addVelocity;
 	float	offsetThreshold;
-	float	fadeWindow;
 	int	timeDelta;
 
 	if ( outTimeDelta ) {
@@ -983,10 +982,9 @@ static float PM_EvaluateJumpTakeoffVelocity( const pmove_settings_t *settings, q
 		if ( (float)timeDelta < offsetThreshold ) {
 			jumpVelocity += addVelocity;
 		} else {
-			fadeWindow = threshold - offsetThreshold;
-			if ( fadeWindow > 0.0f ) {
-				jumpVelocity += ( ( threshold - (float)timeDelta ) / fadeWindow ) * addVelocity;
-			}
+			// Retail divides by the offset threshold here, leaving a sharp
+			// drop when the outer threshold returns to base jump velocity.
+			jumpVelocity += ( ( offsetThreshold - (float)timeDelta ) / offsetThreshold ) * addVelocity + addVelocity;
 		}
 		break;
 	default:
@@ -1027,7 +1025,7 @@ static float PM_ApplyRampJumpVerticalVelocity( float jumpVelocity, qboolean from
 PM_PrepareStepJumpTakeoff
 
 Prepares the general step-jump takeoff latch before the shared retail jump
-leaf consumes the same step-aware velocity mode as the crouch-step fallback.
+leaf consumes the normal step-jump velocity selector.
 =============
 */
 static qboolean PM_PrepareStepJumpTakeoff( const pmove_settings_t *settings ) {
@@ -1048,8 +1046,8 @@ static qboolean PM_PrepareStepJumpTakeoff( const pmove_settings_t *settings ) {
 =============
 PM_PrepareCrouchStepJumpTakeoff
 
-Prepares the crouch-step fallback takeoff used when the retail step-jump seam
-falls through the general jump gate but the crouch clearance branch succeeds.
+Prepares the crouch-step fallback takeoff. Retail uses this latch to suppress
+ramp accumulation without enabling the normal step-jump velocity selector.
 =============
 */
 static qboolean PM_PrepareCrouchStepJumpTakeoff( const pmove_settings_t *settings ) {
@@ -1059,7 +1057,7 @@ static qboolean PM_PrepareCrouchStepJumpTakeoff( const pmove_settings_t *setting
 		return qfalse;
 	}
 
-	jumpVelocity = PM_EvaluateJumpTakeoffVelocity( settings, qtrue, NULL );
+	jumpVelocity = PM_EvaluateJumpTakeoffVelocity( settings, qfalse, NULL );
 	pm_jumpTakeoffVelocity = PM_ApplyRampJumpVerticalVelocity( jumpVelocity, qtrue, settings );
 	pm_jumpTakeoffDoubleJumpActive = qfalse;
 
@@ -1472,40 +1470,17 @@ static void PM_InvulnerabilityMove( void ) {
 ===================
 PM_FlyMove
 
-Only with the flight powerup
+Spectator and flight-powerup movement
 ===================
 */
 static void PM_FlyMove( void ) {
-	vec3_t	wishvel;
 	float	wishspeed;
 	vec3_t	wishdir;
 
 	// normal slowdown
 	PM_Friction ();
 
-	if ( PM_BuildWishMove3D( wishdir, &wishspeed ) ) {
-		if ( pm->ps->stats[STAT_PLAYER_ITEM_TIME] <= 0 ) {
-			pm->ps->pm_flags &= ~PMF_USE_ITEM_HELD;
-			VectorClear( wishvel );
-			wishspeed = 0.0f;
-		} else {
-			pm->ps->pm_flags |= PMF_USE_ITEM_HELD;
-			pm->ps->stats[STAT_PLAYER_ITEM_TIME] -= pml.msec;
-			if ( pm->ps->stats[STAT_PLAYER_ITEM_TIME] < 0 ) {
-				pm->ps->stats[STAT_PLAYER_ITEM_TIME] = 0;
-			}
-			if ( pm->ps->stats[STAT_PLAYER_ITEM_THRUST] > 0 ) {
-				wishspeed = (float)pm->ps->stats[STAT_PLAYER_ITEM_THRUST];
-			}
-			VectorScale( wishdir, wishspeed, wishvel );
-		}
-	} else {
-		pm->ps->pm_flags &= ~PMF_USE_ITEM_HELD;
-		VectorClear( wishvel );
-	}
-
-	VectorCopy( wishvel, wishdir );
-	wishspeed = VectorNormalize( wishdir );
+	PM_BuildWishMove3D( wishdir, &wishspeed );
 
 	PM_Accelerate (wishdir, wishspeed, pm_flyaccelerate);
 

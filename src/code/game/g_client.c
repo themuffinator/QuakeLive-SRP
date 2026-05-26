@@ -604,7 +604,10 @@ void SP_info_player_intermission( gentity_t *ent ) {
 */
 
 #define	MAX_SPAWN_POINTS	128
-#define	MAX_RANKED_SPAWN_POINTS	32
+#define	MAX_RANKED_SPAWN_POINTS	26
+#define	CLIENT_SPAWN_RETRY_DELAY	600
+#define	RANKED_SPAWN_INITIAL_FLAG	1
+#define	RANKED_SPAWN_EXCLUDE_FLAG	2
 
 /*
 ================
@@ -621,6 +624,63 @@ static void G_CopySpawnPointSelection( const gentity_t *spot, vec3_t origin, vec
 	VectorCopy( spot->s.origin, origin );
 	origin[2] += 9;
 	VectorCopy( spot->s.angles, angles );
+}
+
+/*
+================
+G_ClientCanUseSpawnPoint
+
+Applies the spawnpoint bot/human eligibility flags before ClientSpawn commits.
+================
+*/
+static qboolean G_ClientCanUseSpawnPoint( const gentity_t *ent, const gentity_t *spawnPoint ) {
+	if ( !ent || !spawnPoint ) {
+		return qfalse;
+	}
+	if ( ( spawnPoint->flags & FL_NO_BOTS ) && ( ent->r.svFlags & SVF_BOT ) ) {
+		return qfalse;
+	}
+	if ( ( spawnPoint->flags & FL_NO_HUMANS ) && !( ent->r.svFlags & SVF_BOT ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+================
+G_RankedSpawnPointAllowed
+
+Applies the normal retail ranked-spawn spawnflag filter.
+================
+*/
+static qboolean G_RankedSpawnPointAllowed( const gentity_t *spot ) {
+	if ( !spot ) {
+		return qfalse;
+	}
+	if ( spot->spawnflags & RANKED_SPAWN_EXCLUDE_FLAG ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+================
+G_RankedSpawnPointAllowedForMode
+
+Applies ranked-spawn mode filters before distance scoring.
+================
+*/
+static qboolean G_RankedSpawnPointAllowedForMode( const gentity_t *spot, qboolean requireInitial ) {
+	if ( !G_RankedSpawnPointAllowed( spot ) ) {
+		return qfalse;
+	}
+	if ( requireInitial && !( spot->spawnflags & RANKED_SPAWN_INITIAL_FLAG ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
 }
 
 /*
@@ -680,13 +740,13 @@ qboolean SpotWouldTelefrag( gentity_t *spot ) {
 
 /*
 ================
-G_SelectRankedSpawnPointForTeam
+G_SelectRankedSpawnPointForTeamMode
 
 Ranks candidate spawns against live players and applies the retail enemy-team
 distance weighting used by team spawns.
 ================
 */
-gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles ) {
+static gentity_t *G_SelectRankedSpawnPointForTeamMode( gentity_t *spots[], int spotCount, team_t enemyTeam, qboolean requireInitial, vec3_t origin, vec3_t angles ) {
 	gentity_t	*rankedSpots[MAX_RANKED_SPAWN_POINTS];
 	float		rankedDistances[MAX_RANKED_SPAWN_POINTS];
 	gentity_t	*spot;
@@ -707,7 +767,7 @@ gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, t
 		gentity_t	*other;
 
 		spot = spots[i];
-		if ( !spot ) {
+		if ( !G_RankedSpawnPointAllowedForMode( spot, requireInitial ) ) {
 			continue;
 		}
 		if ( SpotWouldTelefrag( spot ) ) {
@@ -791,7 +851,7 @@ gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, t
 	if ( !rankedCount ) {
 		for ( i = 0; i < spotCount; i++ ) {
 			spot = spots[i];
-			if ( !spot ) {
+			if ( !G_RankedSpawnPointAllowedForMode( spot, requireInitial ) ) {
 				continue;
 			}
 
@@ -839,6 +899,18 @@ gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, t
 
 /*
 ================
+G_SelectRankedSpawnPointForTeam
+
+Ranks candidate spawns against live players and applies the retail enemy-team
+distance weighting used by team spawns.
+================
+*/
+gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles ) {
+	return G_SelectRankedSpawnPointForTeamMode( spots, spotCount, enemyTeam, qfalse, origin, angles );
+}
+
+/*
+================
 G_SelectRankedSpawnPoint
 
 Ranks neutral candidate spawns against live players.
@@ -846,6 +918,17 @@ Ranks neutral candidate spawns against live players.
 */
 gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {
 	return G_SelectRankedSpawnPointForTeam( spots, spotCount, TEAM_FREE, origin, angles );
+}
+
+/*
+================
+G_SelectInitialRankedSpawnPoint
+
+Ranks neutral initial spawn candidates.
+================
+*/
+static gentity_t *G_SelectInitialRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {
+	return G_SelectRankedSpawnPointForTeamMode( spots, spotCount, TEAM_FREE, qtrue, origin, angles );
 }
 
 /*
@@ -988,21 +1071,17 @@ use normal spawn selection.
 ============
 */
 gentity_t *SelectInitialSpawnPoint( vec3_t origin, vec3_t angles ) {
+	gentity_t	*spots[MAX_SPAWN_POINTS];
 	gentity_t	*spot;
+	int		spotCount;
 
-	spot = NULL;
-	while ((spot = G_Find (spot, FOFS(classname), "info_player_deathmatch")) != NULL) {
-		if ( spot->spawnflags & 1 ) {
-			break;
-		}
+	spotCount = G_CollectSpawnPointsByClassname( "info_player_deathmatch", spots, ARRAY_LEN( spots ) );
+	spot = G_SelectInitialRankedSpawnPoint( spots, spotCount, origin, angles );
+	if ( spot ) {
+		return spot;
 	}
 
-	if ( !spot || SpotWouldTelefrag( spot ) ) {
-		return SelectSpawnPoint( vec3_origin, origin, angles );
-	}
-
-	G_CopySpawnPointSelection( spot, origin, angles );
-	return spot;
+	return SelectSpawnPoint( vec3_origin, origin, angles );
 }
 
 /*
@@ -1018,6 +1097,29 @@ gentity_t *SelectSpectatorSpawnPoint( vec3_t origin, vec3_t angles ) {
 	VectorCopy( level.intermission_angle, angles );
 
 	return NULL;
+}
+
+/*
+=============
+G_GametypeUsesTeamSpawnSelection
+
+Returns the retail ClientSpawn gametype band that routes through team spawn classes.
+=============
+*/
+static qboolean G_GametypeUsesTeamSpawnSelection( int gametype ) {
+	switch ( gametype ) {
+	case GT_CLAN_ARENA:
+	case GT_CTF:
+	case GT_1FCTF:
+	case GT_OBELISK:
+	case GT_HARVESTER:
+	case GT_FREEZE:
+	case GT_DOMINATION:
+	case GT_ATTACK_DEFEND:
+		return qtrue;
+	default:
+		return qfalse;
+	}
 }
 
 /*
@@ -1048,7 +1150,7 @@ static gentity_t *G_SelectClientSpawnPoint( gentity_t *ent, vec3_t origin, vec3_
 		}
 	}
 
-	if ( g_gametype.integer >= GT_CTF ) {
+	if ( G_GametypeUsesTeamSpawnSelection( g_gametype.integer ) ) {
 		return SelectCTFSpawnPoint( client->sess.sessionTeam, client->pers.teamState.state, origin, angles );
 	}
 
@@ -2527,6 +2629,53 @@ static void G_ApplySpawnArmor( gclient_t *client ) {
 }
 
 /*
+=============
+G_RetryDeferredClientSpawn
+
+Think callback used by the recovered no-spawn retry lane.
+=============
+*/
+static void G_RetryDeferredClientSpawn( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	ent->think = NULL;
+	ent->nextthink = 0;
+
+	if ( ent->client->pers.connected != CON_CONNECTED ) {
+		return;
+	}
+	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+		return;
+	}
+
+	ClientSpawn( ent );
+}
+
+/*
+=============
+G_DeferClientSpawnRetry
+
+Mirrors the retail ClientSpawn failure path when no active spawn can be chosen.
+=============
+*/
+static void G_DeferClientSpawnRetry( gentity_t *ent ) {
+	gclient_t	*client;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	client = ent->client;
+	client->respawnTime = level.time + CLIENT_SPAWN_RETRY_DELAY;
+	client->ps.pm_type = PM_SPECTATOR;
+	client->noSpawnRetryCount++;
+	ent->think = G_RetryDeferredClientSpawn;
+	ent->nextthink = client->respawnTime;
+}
+
+/*
 ===========
 ClientSpawn
 
@@ -2571,9 +2720,13 @@ void ClientSpawn(gentity_t *ent) {
 	char	userinfo[MAX_INFO_STRING];
 	const factoryCvarConfig_t	*factoryConfig;
 	int		baseHealth;
+	int		spawnAttempts;
+	qboolean	spawnAsSpectator;
 
 	index = ent - g_entities;
 	client = ent->client;
+	spawnAsSpectator = ( client->ps.pm_type == PM_SPECTATOR ||
+		client->sess.sessionTeam == TEAM_SPECTATOR ) ? qtrue : qfalse;
 	ent->keyMask = 0;
 	client->ps.stats[STAT_KEY_MASK] = 0;
 	if ( ent->s.number >= 0 && ent->s.number < level.maxclients ) {
@@ -2590,26 +2743,23 @@ void ClientSpawn(gentity_t *ent) {
 	// find a spawn point
 	// do it before setting health back up, so farthest
 	// ranging doesn't count this client
-	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+	if ( spawnAsSpectator ) {
 		spawnPoint = SelectSpectatorSpawnPoint ( 
 						spawn_origin, spawn_angles);
 	} else {
-		do {
+		for ( spawnAttempts = 0; spawnAttempts < MAX_SPAWN_POINTS; ++spawnAttempts ) {
 			spawnPoint = G_SelectClientSpawnPoint( ent, spawn_origin, spawn_angles );
-
-			// Tim needs to prevent bots from spawning at the initial point
-			// on q3dm0...
-			if ( ( spawnPoint->flags & FL_NO_BOTS ) && ( ent->r.svFlags & SVF_BOT ) ) {
-				continue;	// try again
+			if ( !spawnPoint || G_ClientCanUseSpawnPoint( ent, spawnPoint ) ) {
+				break;
 			}
-			// just to be symetric, we have a nohumans option...
-			if ( ( spawnPoint->flags & FL_NO_HUMANS ) && !( ent->r.svFlags & SVF_BOT ) ) {
-				continue;	// try again
-			}
+		}
 
-			break;
+		if ( !G_ClientCanUseSpawnPoint( ent, spawnPoint ) ) {
+			G_DeferClientSpawnRetry( ent );
+			return;
+		}
 
-		} while ( 1 );
+		client->noSpawnRetryCount = 0;
 	}
 	client->pers.teamState.state = TEAM_ACTIVE;
 
@@ -2684,8 +2834,12 @@ void ClientSpawn(gentity_t *ent) {
 	client->ps.persistant[PERS_SPAWN_COUNT]++;
 	client->ps.persistant[PERS_TEAM] = client->sess.sessionTeam;
 	G_PmoveApplyProfileFlags( &client->ps );
-	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+	if ( spawnAsSpectator ) {
 		client->ps.pm_type = PM_SPECTATOR;
+		client->ps.pm_flags &= ~PMF_FOLLOW;
+		if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
+			client->sess.spectatorState = SPECTATOR_FREE;
+		}
 		if ( client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
 			client->ps.pm_flags |= PMF_SCOREBOARD;
 		} else {
@@ -2748,7 +2902,7 @@ void ClientSpawn(gentity_t *ent) {
 	ent->classname = "player";
 	ent->r.contents = CONTENTS_BODY;
 	ent->clipmask = MASK_PLAYERSOLID;
-	if ( client->sess.sessionTeam == TEAM_SPECTATOR ) {
+	if ( spawnAsSpectator ) {
 		ent->takedamage = qfalse;
 		ent->r.contents = 0;
 		ent->clipmask = 0;
@@ -2774,7 +2928,7 @@ void ClientSpawn(gentity_t *ent) {
 	trap_GetUsercmd( client - level.clients, &ent->client->pers.cmd );
 	SetClientViewAngle( ent, spawn_angles );
 
-	if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+	if ( spawnAsSpectator ) {
 
 	} else {
 		G_KillBox( ent );
@@ -2812,7 +2966,7 @@ void ClientSpawn(gentity_t *ent) {
 	ClientThink( ent-g_entities );
 
 	// positively link the client, even if the command times are weird
-	if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+	if ( !spawnAsSpectator ) {
 		G_GrantConfiguredItems( ent );
 		BG_PlayerStateToEntityState( &client->ps, &ent->s, qtrue );
 		VectorCopy( ent->client->ps.origin, ent->r.currentOrigin );

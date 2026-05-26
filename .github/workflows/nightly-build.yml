@@ -1,0 +1,91 @@
+name: Nightly Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Native Windows configuration to build.
+        required: false
+        default: Release
+        type: choice
+        options:
+          - Release
+          - Debug
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-modern:
+    name: Windows modern compatibility package
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      NIGHTLY_CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+      NIGHTLY_PLATFORM_TOOLSET: v141
+      NIGHTLY_RUNTIME_PROFILE: modern
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compute nightly version
+        id: version
+        run: >-
+          python tools/ci/nightly_build.py version
+          --repo-root .
+          --channel nightly
+          --output artifacts/nightly/version.json
+
+      - name: Ensure Visual Studio toolset
+        run: |
+          pwsh tools/ci/install-vs-toolset.ps1 -PlatformToolset $env:NIGHTLY_PLATFORM_TOOLSET
+          pwsh tools/ci/verify-vs-toolchain.ps1 -PlatformToolset $env:NIGHTLY_PLATFORM_TOOLSET -RequireToolset
+
+      - name: Validate native Windows build
+        run: >-
+          pwsh tools/ci/validate-windows-native.ps1
+          -PlatformToolset $env:NIGHTLY_PLATFORM_TOOLSET
+          -RuntimeProfile $env:NIGHTLY_RUNTIME_PROFILE
+          -Configuration $env:NIGHTLY_CONFIGURATION
+
+      - name: Package nightly build
+        id: package
+        run: >-
+          python tools/ci/nightly_build.py package
+          --repo-root .
+          --configuration $env:NIGHTLY_CONFIGURATION
+          --manifest artifacts/nightly/version.json
+          --output-root artifacts/nightly
+          --runtime-profile $env:NIGHTLY_RUNTIME_PROFILE
+          --toolset $env:NIGHTLY_PLATFORM_TOOLSET
+
+      - name: Write build summary
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "### Nightly build"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Version: ``${{ steps.version.outputs.artifact_version }}``"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- SemVer: ``${{ steps.version.outputs.semver }}``"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Package: ``${{ steps.package.outputs.package_name }}``"
+
+      - name: Upload nightly package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.package_name }}
+          path: |
+            ${{ steps.package.outputs.package_path }}
+            ${{ steps.package.outputs.checksum_path }}
+            artifacts/nightly/version.json
+            artifacts/nightly/*-package-manifest.json
+          if-no-files-found: error
+          retention-days: 30

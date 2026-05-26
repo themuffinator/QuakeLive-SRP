@@ -76,6 +76,14 @@ TELEPORTERS
 =================================================================================
 */
 
+/*
+===============
+TeleportPlayer
+
+Moves a client to a destination, emits teleport presentation events, and
+seeds the shared movement-blocking state used by prediction and bot movement.
+===============
+*/
 void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 	gentity_t	*tent;
 
@@ -103,6 +111,10 @@ void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles ) {
 
 	// toggle the teleport bit so the client knows to not lerp
 	player->client->ps.eFlags ^= EF_TELEPORT_BIT;
+
+	if ( player->client->hook ) {
+		Weapon_HookFree( player->client->hook );
+	}
 
 	// set angles
 	SetClientViewAngle( player, angles );

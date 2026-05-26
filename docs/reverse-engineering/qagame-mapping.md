@@ -11,6 +11,158 @@ behavior and source analogue align cleanly.
 
 ## Latest Source Reconstruction Pass
 
+- Scope: spectator state and movement across `SpectatorThink`,
+  `G_TouchTriggers`, `SpectatorClientEndFrame`, `StopFollowing`,
+  `Cmd_Follow_f`, `Cmd_FollowCycle_f`, shared qagame/cgame `PM_FlyMove`, and
+  `Pickup_Powerup`.
+- Coverage delta: `+0` curated symbol-map entries; the owning functions were
+  already mapped, but the source still carried Q3/source-only spectator speed,
+  unlink ordering, POI camera branches, command-wrapper follow cycling,
+  stop-follow fallback policy, and Flight-fuel movement assumptions.
+- Source delta: `SpectatorThink` now unlinks before pmove, writes the retail
+  `480` spectator speed, touches triggers after moving, returns after
+  attack-edge inner follow cycling, and uses the later `BUTTON_ANY` edge to
+  drop follow state. `SpectatorClientEndFrame` now mirrors only connected
+  non-`PM_SPECTATOR` clients, forces copied snapshots back to
+  `PM_SPECTATOR | PMF_FOLLOW`, active-team cycles stale explicit targets, and
+  no longer carries source-only POI branches. `StopFollowing` now performs the
+  direct retail `SPECTATOR_FREE` reset. `Cmd_Follow_f` now resolves only player
+  strings, keeps the retail `"pw"` preserve-current-flag-carrier guard, rejects
+  targets through `ps.pm_type == PM_SPECTATOR`, and carries no source-only
+  training-map print gate; `Cmd_FollowCycle_f` uses the retail
+  `sess.sessionTeam` spectator handoff before tailcalling the inner cycle
+  worker. `G_CAADRespawnAsSpectator` now pre-seeds `PM_SPECTATOR` before
+  `ClientSpawn` and only enters follow mode through the shared `FollowCycle`
+  gate when both active teams still have players, while `ClientSpawn` now
+  preserves that pre-existing spectator spawn mode. Shared `PM_FlyMove` is
+  back to the retail four-call wish-vector body, and `Pickup_Powerup` no
+  longer seeds source-only Flight thrust/fuel stats.
+- Evidence note: qagame HLIL at `0x10033E30` shows `trap_UnlinkEntity` before
+  the spectator-state branch, `ps.speed = 0x1e0`, `Pmove` before
+  `G_TouchTriggers`, an immediate return after attack-edge follow cycling, and
+  a later `BUTTON_ANY` stop-follow branch. HLIL at `0x10035470`,
+  `0x10040D10`, and `0x10041130` pins the follow mirror, stop-follow reset,
+  and client-only follow-cycle filters. HLIL at `0x10040F30` and `0x100412E0`
+  pins the follow-command player-string path, `"pw"` suffix guard,
+  `PM_SPECTATOR` target rejection, absence of a training gate, and public
+  follow-cycle session-team handoff. HLIL at `0x10035960` sets
+  `PM_SPECTATOR` before `ClientSpawn`, counts active players by team, and calls
+  `FollowCycle` directly instead of using a bespoke target picker or relink
+  fallback. The qagame/cgame `PM_FlyMove` symbol-map entries and qagame
+  `Pickup_Powerup @ 0x1004DFE0` pin the Flight side of the shared fly-move
+  cleanup.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-spectator-state-movement-reconstruction-2026-05-26.md`.
+
+## Previous Source Reconstruction Pass
+
+- Scope: qagame client spawning and adjacent selection/finalization helpers:
+  `ClientBegin`, `G_SelectClientSpawnPoint`, `G_SelectRankedSpawnPoint`,
+  `Team_SelectDominationSpawnPoint`, `G_InitClientSpawnState`,
+  `G_FinalizeSpawnLoadout`, `G_GiveItemByName`, and `ClientSpawn`.
+- Coverage delta: `+0` curated symbol-map entries; the owning retail functions
+  were already mapped, but `ClientSpawn` still missed the null-spawn retry
+  edge visible in HLIL and Ghidra.
+- Source delta: `ClientSpawn` now exits through a retail-style 600 ms deferred
+  retry lane when an active player cannot claim an eligible spawnpoint. The
+  reconstructed source keeps bot/human spawnflag retries bounded, sets
+  `respawnTime`, parks the player in `PM_SPECTATOR`, increments the recovered
+  retry counter, and schedules a guarded retry instead of looping indefinitely
+  over an invalid/null spawn. The ClientSpawn-side wrapper also now uses the
+  recovered team-spawn gametype band instead of a broad `>= GT_CTF` shortcut:
+  Clan Arena routes through the team spawn-class family and Red Rover stays on
+  the neutral spawn path before its role/loadout finalizer runs.
+- Source delta follow-up: the shared source ranked picker now retains the
+  retail `0x1a` ranked-candidate window instead of the older 32-entry cap,
+  matching the `G_SelectRankedSpawnPoint @ 0x10039080` clamp.
+- Source delta follow-up: ranked spawn candidates now pass through the
+  recovered `spawnflags & 2` exclusion before distance scoring and before the
+  no-ranked-candidate fallback chooses a raw spawn entity.
+- Source delta follow-up: neutral initial spawns now use the ranked picker's
+  recovered bit-1 admission mode, and team `TEAM_BEGIN` spawns retry
+  `team_CTF_*spawn` after a failed `team_CTF_*player` pass before falling back
+  to neutral deathmatch starts.
+- Evidence note: qagame HLIL/Ghidra at `0x1003BC30` shows the active-player
+  `G_SelectClientSpawnPoint` call before the large client reset, the null
+  result branch writing `level.time + 600`, `PM_SPECTATOR`, and the retry
+  counter, and the successful branch clearing the retry counter before the
+  normal spawn bootstrap.
+- Evidence note: qagame HLIL/Ghidra at `0x10039080` shows the ranked helper
+  reading spawnflags at `entity + 0x248`; HLIL guards candidate admission with
+  `(flags & 2) == 0`, and the Ghidra companion decompile shows the same bit-2
+  filter before candidate counting/ranking.
+- Evidence note: the same ranked helper admits neutral initial starts only when
+  `(flags & 1) != 0`, and when begin-mode team class selection fails it clears
+  the begin-mode argument and re-enters selection for the same team's regular
+  spawn classname.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`.
+
+## Earlier Source Reconstruction Pass
+
+- Scope: qagame teleporting state and related wiring across `TeleportPlayer`,
+  `target_teleporter_use`, `trigger_teleporter_touch`, `SP_trigger_teleport`,
+  `Touch_DoorTriggerSpectator`, `ClientEvents`, `respawn`,
+  `G_DroppedPowerupRunFrame`, `BotSetupForMovement`, and the cgame consumers
+  documented in the companion symbol map.
+- Coverage delta: `+0` curated symbol-map entries; the owning functions were
+  already mapped, but the source helper missed one retail edge.
+- Source delta: `TeleportPlayer` now frees an active grappling hook through
+  `Weapon_HookFree` after toggling `EF_TELEPORT_BIT` and before applying the
+  destination view angles / telefrag path. The ordering matches retail
+  `sub_1005A420`.
+- Evidence note: the qagame HLIL at `0x1005A420` keeps the full teleport
+  contract: temp events, unlink, origin lift, 400 ups exit velocity,
+  `pm_time = 160`, `PMF_TIME_KNOCKBACK`, `EF_TELEPORT_BIT`, the active-hook
+  `sub_1006E330` call, view-angle setup, destination killbox, entitystate
+  mirror, lag-history clear, and non-spectator relink. The related producers
+  map through `target_teleporter_use`, `trigger_teleporter_touch`,
+  `ClientEvents`, `respawn`, `Touch_DoorTriggerSpectator`, and
+  `G_DroppedPowerupRunFrame`; cgame consumes the state through
+  `CG_SetNextSnap`, `CG_TransitionSnapshot`, `CG_TouchTriggerPrediction`,
+  `CG_CalcViewValues`, and the teleport event cases.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-teleport-state-reconstruction-2026-05-26.md`.
+
+## Previous Source Reconstruction Pass
+
+- Scope: qagame knockback application, blocking, and pmove-consumption wiring
+  around `G_KnockbackScaleForMOD`, `G_Damage`, `PMF_TIME_KNOCKBACK`,
+  `ClientSpawn`, `TeleportPlayer`, `BotSetupForMovement`, `PM_Friction`,
+  `PM_WalkMove`, `PM_DropTimers`, `target_laser_think`, and
+  `ProximityMine_ExplodeOnPlayer`.
+- Coverage delta: `+0` curated symbol-map entries; the owning functions were
+  already mapped, but the source path still diverged around signed knockback
+  and the meaning of the retail timer-floor cvar.
+- Source delta: `G_Damage` now preserves negative knockback by inverting the
+  incoming direction and applying the absolute magnitude, keeps
+  `FL_NO_KNOCKBACK` / `DAMAGE_NO_KNOCKBACK` as zeroing gates, uses the rounded
+  magnitude for the `PMF_TIME_KNOCKBACK` timer, and removes the non-retail
+  vertical boost plus crouch/low-health cripple velocity reduction. The
+  follow-up feedback pass also removes the inherited `damage_knockback`
+  frame-feedback slot/write/reset because retail stores `damage_from`
+  immediately after `damage_armor` and `damage_blood`.
+- Evidence note: the damage-side path is anchored at `sub_10048C30` in part02
+  HLIL. The same slice shows the negative branch, the `g_knockback_cripple`
+  timer-floor read, and negative evidence for `g_knockback_z` /
+  `g_knockback_z_self` as `G_Damage` consumers. The shared pmove source and
+  symbol maps carry the matching `PMF_TIME_KNOCKBACK` consumer contract:
+  friction suppression, slick/knockback air acceleration, gravity, and
+  `PMF_ALL_TIMES` expiry. `BotSetupForMovement` adds the bot-side bridge by
+  translating active `PMF_TIME_KNOCKBACK` plus positive `pm_time` into
+  `MFL_TELEPORTED` before the waterjump flag. The producer sweep also pins
+  the no-knockback side: null `dir` damage becomes `DAMAGE_NO_KNOCKBACK`,
+  target lasers pass that flag with `MOD_TARGET_LASER`, and juiced prox
+  discharge passes it with `MOD_JUICED`. The `P_DamageFeedback` HLIL at
+  `0x10033800` clears only the armor and blood totals, matching the absence of
+  a retail `damage_knockback` feedback slot. `TeleportPlayer` is a separate
+  producer: after the 400 ups exit launch it seeds `pm_time = 160` and
+  `PMF_TIME_KNOCKBACK`.
+- Reconstruction note:
+  `docs/reverse-engineering/qagame-knockback-reconstruction-2026-05-26.md`.
+
+## Earlier Source Reconstruction Pass
+
 - Scope: qagame score/stat/ready/vote/cheat `ClientCommand` ladder across ten
   command surfaces: `score`, `acc`, `pstats`, `readyup`, `vote`, `give`,
   `god`, `notarget`, `noclip`, and `kill`.
@@ -27,7 +179,7 @@ behavior and source analogue align cleanly.
 - Reconstruction note:
   `docs/reverse-engineering/qagame-score-vote-cheat-command-reconstruction-2026-05-25.md`.
 
-## Previous Source Reconstruction Pass
+## Earlier Source Reconstruction Pass
 
 - Scope: qagame chat and voice client-command ladder across ten command
   surfaces: `say`, `say_team`, `tell`, `botSay`, `vsay`, `vsay_team`,
@@ -505,11 +657,13 @@ HLIL velocity-mode block and moved the reconstructed source away from the
 wrapper-side step-velocity add: normal chain jumps now use the retail gradient
 scaler, PMF_AIR_CONTROL uses the additive chain/step branch, and ramp jumps
 accumulate vertical velocity before the max clamp.
-The corrective 2026-05-22 step/chain audit then restored the missing normal
-step-jump latch into that same shared takeoff path, kept crouch-step on the
-step addend, let PMF_AIR_CONTROL override disabled `pmove_ChainJump` mode `0`,
-and pinned the post-offset air-control fade plus final max clamp with executable
-fixtures.
+The corrective 2026-05-26 step/chain audit then split the two retail
+`PM_StepSlideMove` latches: the normal step-jump latch selects
+`pmove_StepJumpVelocity`, while the crouch-step fallback keeps the
+`pmove_ChainJumpVelocity` addend and uses its separate latch only to suppress
+ramp accumulation. PMF_AIR_CONTROL still overrides disabled `pmove_ChainJump`
+mode `0`, and the offset-threshold air-control denominator plus final max clamp
+are pinned with executable fixtures.
 The 2026-05-22 transport follow-up also restored `pmove_ChainJump` as an
 integer jump-mode selector rather than a boolean mirror, preserving the disabled
 mode `0`, gradient mode `1`, and additive mode `2` across server cvar caching,
@@ -914,12 +1068,12 @@ utility helpers outside that widened control surface.
 | --- | --- | --- | --- | --- |
 | `0x10023400` | `BotAIStartFrame` | `ai_main.c::BotAIStartFrame` | Native dispatch-table slot plus the `memorydump` / `bot_memorydump` bot-debug cvars and the per-bot frame/routing update loop match the source bot frame driver. | High |
 | `0x100327D0` | `G_PrintAccessListPage` | `g_main.c::G_PrintAccessListPage` | Access-list page printer anchored by `Access List: Page %i of %i`, the `=============================` separator, 20-entry pages, `%llu %s %s` rows, and the `TEMP` / `PERM` mode labels. | High |
-| `0x10033800` | `P_DamageFeedback` | `g_active.c::P_DamageFeedback` | Aggregates `damage_blood` and `damage_armor`, emits EV_PAIN and damage yaw/pitch, and clears the damage totals exactly like the client damage-feedback path. | High |
+| `0x10033800` | `P_DamageFeedback` | `g_active.c::P_DamageFeedback` | Aggregates `damage_blood` and `damage_armor`, emits EV_PAIN and damage yaw/pitch, clears only the armor/blood totals, and confirms the retail feedback record has no `damage_knockback` slot. | High |
 | `0x10033950` | `P_WorldEffects` | `g_active.c::P_WorldEffects` | Anchored by `sound/player/gurp1.wav` / `sound/player/gurp2.wav` plus the drowning, battlesuit, lava, and slime control flow. | High |
 | `0x10033B20` | `G_SetClientSound` | `g_active.c::G_SetClientSound` | Selects the proxmine ticking loop sound or the lava/slime fry loop on the outgoing playerstate, matching the source helper. | High |
 | `0x10033B80` | `ClientImpacts` | `g_active.c::ClientImpacts` | Walks unique pmove touchents and dispatches bot self-touch plus touched-entity callbacks exactly like the source post-pmove impact helper. | High |
 | `0x10033C00` | `G_TouchTriggers` | `g_active.c::G_TouchTriggers` | Uses the `40,40,52` trigger range box, spectator teleporter gating, ET_ITEM proximity checks, and jump-pad frame reset logic from the source trigger-touch path. | High |
-| `0x10033E30` | `SpectatorThink` | `g_active.c::SpectatorThink` | Sets `PM_SPECTATOR`, unlinks before `pmove`, relinks for `G_TouchTriggers`, and handles the attack-button follow cycle via `Cmd_FollowCycle_f`, matching the source spectator think flow. | High |
+| `0x10033E30` | `SpectatorThink` | `g_active.c::SpectatorThink` | Sets `PM_SPECTATOR` with the retail `480` spectator speed, unlinks linked spectators before `pmove`, touches triggers from the moved spectator origin, handles attack-edge follow cycling through the inner `FollowCycle` worker, and uses the later `BUTTON_ANY` edge to drop follow state. | High |
 | `0x10033FD0` | `ClientInactivityTimer` | `g_active.c::ClientInactivityTimer` | Anchored by `Dropped due to inactivity`, the inactivity warning centerprint, and the `client:%i inactivity:%i` debug line. | High |
 | `0x100341E0` | `G_CheckClientFlood` | Retail-only descriptive helper adjacent to `g_active.c::ClientThink_real` | Reads the client `floodCount` / `floodLastTime` state, decays it against the retail flood-protection cvars, and drops the offender with `Dropped for flooding the server` once the limit is exceeded. | High |
 | `0x10034260` | `G_RunFactoryHealthRegen` | Retail-only split of `g_active.c::G_RunFactoryRegen` | Per-frame health regen sidecar tailcalled from `ClientTimerActions`; it waits out the last-damage delay, accumulates the configured regen tick interval, stops once health reaches the target, and applies whole-point health increases to the entity. | High |
@@ -930,9 +1084,9 @@ utility helpers outside that widened control surface.
 | `0x10034C00` | `SendPendingPredictableEvents` | `g_active.c::SendPendingPredictableEvents` | Creates temporary ET_EVENTS entities from pending playerstate events, clears/restores `externalEvent`, and targets all clients except the originator. | High |
 | `0x10034C90` | `ClientThink_real` | `g_active.c::ClientThink_real` | Driven by the outer `ClientThink` export plus command-time clamping, spectator/inactivity gating, pmove, event dispatch, trigger touch, client impacts, respawn, and timer actions. | High |
 | `0x10035410` | `ClientThink` | `g_active.c::ClientThink` | Native dispatch-table slot plus `trap_GetUsercmd`, the `lastCmdTime` write, and the bot-gated tailcall into the deeper think path align with the source export wrapper. | High |
-| `0x10035470` | `SpectatorClientEndFrame` | `g_active.c::SpectatorClientEndFrame` | The body handles spectator follow targets, `follow1` / `follow2`, POI camera branches, `ClientBegin` fallback, and scoreboard flag toggling exactly like the source spectator end-frame routine. | High |
+| `0x10035470` | `SpectatorClientEndFrame` | `g_active.c::SpectatorClientEndFrame` | Resolves `follow1` / `follow2`, mirrors connected non-`PM_SPECTATOR` player targets while forcing the copied playerstate back to `PM_SPECTATOR | PMF_FOLLOW`, active-team cycles stale explicit targets, and otherwise falls back through `StopFollowing` before scoreboard flag toggling. | High |
 | `0x10035600` | `ClientEndFrame` | `g_active.c::ClientEndFrame` | Spectator short-circuit into `SpectatorClientEndFrame`, expired powerup cleanup, world/damage end-frame helpers, EF_CONNECTION handling, and final entity-state sync match the source end-frame path. | High |
-| `0x10035960` | `G_CAADRespawnAsSpectator` | Retail-only shared Clan Arena / Attack and Defend respawn helper | Reached from the dead-client respawn gate once those modes push a player back into spectator follow; it copies the corpse into the body queue, forces `PM_SPECTATOR`, reruns `ClientSpawn`, and enters follow mode when both teams still have active players. | High |
+| `0x10035960` | `G_CAADRespawnAsSpectator` | Retail-only shared Clan Arena / Attack and Defend respawn helper | Reached from the dead-client respawn gate once those modes push a player back into spectator follow; it copies the corpse into the body queue, pre-seeds `PM_SPECTATOR` before `ClientSpawn`, counts active players by team, and only calls the shared `FollowCycle` worker when both teams still have live players. | High |
 | `0x100359E0` | `G_ADShouldTimeoutActiveRound` | Retail-only Attack and Defend timeout helper | Returns true once both sides still have active players, no objective winner is already latched, and the active-round elapsed time has reached `roundtimelimit`. | High |
 | `0x10035780` | `G_ADResolveRoundState` | Retail-only Attack and Defend controller helper | Resolves expired deferred `AD_RoundStateTransition` work and returns the current A/D round-state latch used by damage, objective, and HUD callers. | High |
 | `0x100357D0` | `G_ADHandleDamageScore` | Retail-only Attack and Defend damage helper | Reached from the main damage path; it applies the A/D self/team-damage suppression flags, resolves pending round-state work, and converts active-phase enemy damage into score once the accumulated threshold reaches 100. | High |
@@ -950,14 +1104,14 @@ utility helpers outside that widened control surface.
 | `0x10038160` | `G_CAADResetClientForRound` | Retail-only shared Clan Arena / Attack and Defend round helper | Reused from both `ClientBegin` and the delayed respawn path for GT_CLAN_ARENA and GT_ATTACK_DEFEND; it respawns immediately in the live release state, respawns into the holding state during the pre-release countdown, and otherwise falls back to the spectator-follow reset path used after round loss. | High |
 | `0x100389F0` | `G_CANotifyLastAlivePlayer` | Retail-only Clan Arena round alert helper | Services deferred `CA_RoundStateTransition` work, counts live players by team during the active round, and triggers the shared last-alive notification path when the queried side is down to one survivor. | High |
 | `0x10038B60` | `Team_SelectDominationSpawnPoint` | Retail-only Domination spawn helper / `g_team.c` analogue | Reached from the ClientSpawn-side spawn wrapper only for active GT_DOMINATION respawns; it walks `team_dom_point` entities, collects linked `info_player_deathmatch` targets for the owning team, ranks them against live players, and writes the chosen origin/angles. | High |
-| `0x10039080` | `G_SelectRankedSpawnPoint` | Retail-only shared spawn helper spanning `g_client.c::SelectRandomFurthestSpawnPoint` and `g_team.c::SelectCTFSpawnPoint` | Anchored by the `info_player_deathmatch`, `team_CTF_redspawn`, `team_CTF_bluespawn`, `team_CTF_redplayer`, and `team_CTF_blueplayer` classnames plus the `FindIntermissionPoint` fallback; it filters telefragging candidates, ranks them against live players, and picks from the best-ranked subset. | High |
-| `0x10039730` | `G_SelectClientSpawnPoint` | Retail-only ClientSpawn-side spawn wrapper | Called directly from `ClientSpawn` before the respawn bootstrap continues; it chooses between domination-linked spawns, team/base spawn classes, and the initial non-team spawn path, then falls back through the shared ranked spawn picker. | High |
+| `0x10039080` | `G_SelectRankedSpawnPoint` | Retail-only shared spawn helper spanning `g_client.c::SelectRandomFurthestSpawnPoint` and `g_team.c::SelectCTFSpawnPoint` | Anchored by the `info_player_deathmatch`, `team_CTF_redspawn`, `team_CTF_bluespawn`, `team_CTF_redplayer`, and `team_CTF_blueplayer` classnames plus the `FindIntermissionPoint` fallback; it rejects spawnflags bit 2, admits bit-1 neutral initial starts, retries team begin classes as same-team regular spawns, filters telefragging candidates, ranks against live players, and picks from the best-ranked subset. | High |
+| `0x10039730` | `G_SelectClientSpawnPoint` | Retail-only ClientSpawn-side spawn wrapper | Called directly from `ClientSpawn` before the respawn bootstrap continues; it chooses between domination-linked spawns, team/base spawn classes, and the initial non-team spawn path, then falls back through the shared ranked spawn picker and its begin-mode retry. | High |
 | `0x1003A270` | `G_UpdateTournamentQueuePositions` | Retail-only duel queue helper | Sorts eligible waiting spectators by the stored queue timestamp, assigns one-based `pq` queue positions, and marks changed entries dirty for the follow-on userinfo republish pass. | High |
 | `0x1003A450` | `ClientUserinfoChanged` | `g_client.c::ClientUserinfoChanged` | Native dispatch-table slot plus `ClientUserinfoChanged: %i %s` log string and matching configstring rebuild flow. | High |
 | `0x1003AC10` | `ClientConnect` | `g_client.c::ClientConnect` | `ClientConnect: %i` log string, bot masking, session init/read, and platform auth checks match the source connect routine. | High |
 | `0x1003B030` | `ClientBegin` | `g_client.c::ClientBegin` | `ClientBegin: %i` log string and the post-connect spawn/bootstrap path align with the source begin routine. | High |
 | `0x1003B5A0` | `G_FinalizeSpawnLoadout` | Retail-only spawn/loadout helper | Post-`ClientSpawn` finalizer that honors `selected_spawn_weapon`, parses the configured spawn-grant tokens, seeds the starting ammo and weapon masks through the deeper helper at `0x1003B2A0`, and applies the remaining intermission and live-weapon cleanup for the spawned client. | High |
-| `0x1003BC30` | `ClientSpawn` | `g_client.c::ClientSpawn` | Full retail spawn/bootstrap boundary that selects the spawn point, preserves the respawn-persistent client/session state, rebuilds the playerstate/entity defaults for the new life, and then tails into the deeper post-spawn finalization helper. | High |
+| `0x1003BC30` | `ClientSpawn` | `g_client.c::ClientSpawn` | Full retail spawn/bootstrap boundary that selects active or spectator spawn placement from the pre-existing `PM_SPECTATOR` state, preserves the respawn-persistent client/session state, rebuilds the playerstate/entity defaults for the new life, and then tails into the deeper post-spawn finalization helper. | High |
 | `0x1003C7E0` | `ClientDisconnect` | `g_client.c::ClientDisconnect` | Present in `functions.csv`, referenced by the native export table, and anchored by `ClientDisconnect: %i`. | High |
 | `0x1003CBF0` | `DeathmatchScoreboardMessage` | `g_cmds.c::DeathmatchScoreboardMessage` | Retail scoreboard sender that dispatches through per-gametype builders, falls back to a compact `smscores` serializer when needed, sends the resulting payload to one client, and during intermission fans into the extra mode-specific stat publishers. | High |
 | `0x1003CD70` | `G_BuildCompactScoreboardMessage` | Retail-only compact scoreboard helper | Emits the reduced `smscores` payload that `DeathmatchScoreboardMessage` uses when the richer per-mode payload would exceed the server-command limit or the compact-scoreboard gate is active. | High |
@@ -976,6 +1130,10 @@ utility helpers outside that widened control surface.
 | `0x100400F0` | `Cmd_TeamTask_f` | `g_cmds.c::Cmd_TeamTask_f` | Exact `Argc == 2` / `teamtask` userinfo rewrite flow from the stock command handler, ending in `ClientUserinfoChanged`. | High |
 | `0x10040440` | `G_ApplyTeamChange` | `g_cmds.c::G_ApplyTeamChange` | Recovered inner `SetTeam` executor that handles death/body-queue teardown, session mutation, spectator item sync, leadership repair, per-opponent revenge counter cleanup, userinfo publication, `ClientBegin`, and the rank switch-team event. | High |
 | `0x100406D0` | `SetTeam` | `g_cmds.c::SetTeam` | Outer team-change parser that handles `follow1`, `follow2`, spectator/team requests, duel-only spectate enforcement, and then forwards into the deeper retail execution helper. | High |
+| `0x10040D10` | `StopFollowing` | `g_cmds.c::StopFollowing` | Restores the caller's persisted team, forces `PM_SPECTATOR`, clears `PMF_FOLLOW`, enters `SPECTATOR_FREE`, resets `spectatorClient` and `ps.clientNum` to self, and unlinks if still linked. | High |
+| `0x10040F30` | `Cmd_Follow_f` | `g_cmds.c::Cmd_Follow_f` | Resolves argument 1 through `ClientNumberFromString`, preserves the current followed flag carrier on the cgame `"pw"` suffix, rejects self and `PM_SPECTATOR` targets, promotes non-spectator callers through `SetTeam("spectator")`, and keeps no `follow1` / `follow2` parser branch. | High |
+| `0x10041130` | `FollowCycle` | `g_cmds.c::FollowCycle` | Inner client-only follow-cycle worker with the retail bad-dir/bad-client diagnostics; it skips disconnected, `PM_SPECTATOR`, and `PMF_FOLLOW` clients, applies same-team filtering for active team callers, updates follow state, and emits the Race info side payload. | High |
+| `0x100412E0` | `Cmd_FollowCycle_f` | `g_cmds.c::Cmd_FollowCycle_f` | Public `follownext` / `followprev` entry that has no training-map print gate, counts tournament/free losses, moves non-spectator callers to spectator by testing `sess.sessionTeam`, and then tailcalls the inner `FollowCycle`. | High |
 | `0x100423A0` | `Cmd_CallVote_f` | `g_cmds.c::Cmd_CallVote_f` | Retail callvote gate/order, token validation, map/nextmap, kick/clientkick, numeric limit votes, command help, and the handoff into `G_StartPublicVote`. | High |
 | `0x10044270` | `Cmd_Vote_f` | `g_cmds.c::Cmd_Vote_f` | Uses the `No vote in progress`, `Vote cast`, and `disable_vote_ui` strings in the source-equivalent vote-cast flow. | High |
 | `0x100456B0` | `Cmd_Forfeit_f` | `g_cmds.c::Cmd_Forfeit_f` | Thin forfeit-command wrapper identified by the local pause/timeout and round-countdown rejection strings before the tailcall into the deeper retail forfeit helpers. | High |
@@ -1134,7 +1292,7 @@ utility helpers outside that widened control surface.
 - `G_CheckClientFlood` at `0x100341E0` is a descriptive retail-only split from the broader `ClientThink_real` path. It shares the same `floodCount` / `floodLastTime` state used by the current source tree, but unlike `g_cmds.c::G_FloodLimited` it drops over-limit clients directly from the active-client path instead of only rate-limiting commands.
 - `ClientThink_real` is a clean retail boundary at `0x10034C90`, and the surrounding `ClientEvents` (`0x10034860`) plus `StuckInOtherClient` (`0x10034B50`) splits are now settled.
 - `G_RunFactoryHealthRegen` at `0x10034260` and `G_RunFactoryArmorRegen` at `0x100342F0` are descriptive retail-only helpers keyed off a shared last-damage timestamp plus separate client-side accumulators/latches. The reconstructed tree now preserves the split helper flow, the retail spawn/damage latch-arming behavior, and the adjacent `ClientTimerActions` client-state names (`factoryRegenLastDamageTime`, `factoryRegenHealthAccumulatorMs`, `factoryRegenArmorAccumulatorMs`, `factoryRegenHealthPending`, `factoryRegenArmorPending`).
-- `ClientSpawn` at `0x1003BC30` is source-faithful on its outer boundary, and the current source now mirrors the recovered spawn-finalizer lane more directly by running the Red Rover override helper ahead of `G_FinalizeSpawnLoadout`, seeding the retail `PMF_CROUCH_SLIDE` / `PMF_DOUBLE_JUMP` / `PMF_AIR_CONTROL` movement-profile bits during spawn, and still keeping the broader GPL-shaped spawn bootstrap around that helper chain.
+- `ClientSpawn` at `0x1003BC30` is source-faithful on its outer boundary, and the current source now mirrors the recovered spawn-finalizer lane more directly by running the Red Rover override helper ahead of `G_FinalizeSpawnLoadout`, seeding the retail `PMF_CROUCH_SLIDE` / `PMF_DOUBLE_JUMP` / `PMF_AIR_CONTROL` movement-profile bits during spawn, preserving pre-existing `PM_SPECTATOR` as the spectator-spawn selector used by CA/A-D elimination, and preserving the retail null-spawn retry edge that sets `respawnTime = level.time + 600`, parks the player in `PM_SPECTATOR`, increments the retry counter, and returns before the full client reset. The broader bootstrap remains GPL-shaped around that helper chain.
 - The 2026-05-25 active-client pmove wiring sweep tightened the `G_RunFrame` edge around that same boundary: source now runs client-slot scheduled thinks inline in the frame entity loop and dispatches bot/synchronous clients directly to `ClientThink_real`, matching the recovered retail shape instead of routing the frame loop through the classic source `G_RunClient` wrapper. The new structural sentinel follows that call-site into `ClientThink_real` and pins command-time clamping, pmove setup, playerState-to-entityState projection, predictable-event flushing, trigger touch, client impacts, respawn checks, and timer actions.
 - `DeathmatchScoreboardMessage` at `0x1003CBF0` remains source-faithful on its public role, and the current source now mirrors the retail helper-family split directly: compact fallback, duel, Race, TDM, Clan Arena, shared CTF-style, Freeze, Red Rover, and Overload serializers all feed the scoreboard sender through payload-builder helpers, the intermission-only `tdmstats` / `castats` / `ctfstats` publishers remain sequenced under that sender, and the duel serializer now caches the lower/higher live duel client numbers in `level + 0x1C08/+0x1C0C` instead of keeping that ordering purely local. The `castats` publisher uses the cgame-matched classic weapon order G, MG, SG, GL, RL, LG, RG, PG, BFG, grappling hook, NG, PL, CG, HMG.
 - `G_CAADRespawnAsSpectator` at `0x10035960` and `G_CAADResetClientForRound` at `0x10038160` are descriptive retail-only shared Clan Arena / Attack and Defend helpers. Retail keeps the per-client round reset and dead-player spectator-follow fallback in standalone helpers that the GPL-derived tree does not preserve with these exact boundaries.

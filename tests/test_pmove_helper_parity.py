@@ -10,11 +10,16 @@ BG_PMOVE_PATH = REPO_ROOT / "src" / "code" / "game" / "bg_pmove.c"
 BG_PUBLIC_PATH = REPO_ROOT / "src" / "code" / "game" / "bg_public.h"
 G_CLIENT_PATH = REPO_ROOT / "src" / "code" / "game" / "g_client.c"
 G_LOCAL_PATH = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
+G_MISC_PATH = REPO_ROOT / "src" / "code" / "game" / "g_misc.c"
+AI_DMQ3_PATH = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.c"
+BOTLIB_AAS_MOVE_PATH = REPO_ROOT / "src" / "code" / "botlib" / "be_aas_move.c"
+BOTLIB_AI_MOVE_PATH = REPO_ROOT / "src" / "code" / "botlib" / "be_ai_move.c"
 G_PMOVE_PATH = REPO_ROOT / "src" / "code" / "game" / "g_pmove.c"
 CG_SERVERCMDS_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c"
 CLEAN_PMOVE_HEADER_PATH = REPO_ROOT / "src-re" / "clean" / "include" / "qlr_game_pmove.h"
 CLEAN_PMOVE_SOURCE_PATH = REPO_ROOT / "src-re" / "clean" / "gameplay" / "pmove.c"
 SYMBOL_MAP_DIR = REPO_ROOT / "references" / "symbol-maps"
+SYMBOL_ALIASES_PATH = REPO_ROOT / "references" / "analysis" / "quakelive_symbol_aliases.json"
 
 
 def _function_body(signature: str) -> str:
@@ -117,7 +122,8 @@ def test_load_move_tuning_constants_restores_the_retail_air_control_bundles() ->
 	assert "PM_JUMP_VELOCITY_MODE_AIR_CONTROL" in source
 	assert mode_body.index("if ( airControlTuning ) {") < mode_body.index("chainJumpMode = settings->chainJump;")
 	assert "pm_jumpVelocityMode = PM_JUMP_VELOCITY_MODE_AIR_CONTROL;" in mode_body
-	assert "fadeWindow = threshold - offsetThreshold;" in takeoff_body
+	assert "fadeWindow" not in takeoff_body
+	assert "jumpVelocity += ( ( offsetThreshold - (float)timeDelta ) / offsetThreshold ) * addVelocity + addVelocity;" in takeoff_body
 	assert "stepJumpActive ? settings->stepJumpVelocity : settings->chainJumpVelocity" in takeoff_body
 	assert "pm_accelerate = PM_LoadMoveTuningFloat(" in body
 	assert "pm_airaccelerate = PM_LoadMoveTuningFloat(" in body
@@ -266,8 +272,15 @@ def test_3d_move_paths_share_the_retail_wish_builder() -> None:
 
 	assert source.count("PM_BuildWishMove3D( wishdir, &wishspeed )") >= 4
 	assert "VectorSet( wishdir, 0.0f, 0.0f, -1.0f );" in source
+	assert "PM_Friction ();" in fly_body
+	assert "PM_BuildWishMove3D( wishdir, &wishspeed );" in fly_body
+	assert "PM_Accelerate (wishdir, wishspeed, pm_flyaccelerate);" in fly_body
+	assert "PM_StepSlideMove( qfalse );" in fly_body
 	assert "PM_GetActiveSettings" not in fly_body
 	assert "flightThrust" not in fly_body
+	assert "STAT_PLAYER_ITEM_THRUST" not in fly_body
+	assert "STAT_PLAYER_ITEM_TIME" not in fly_body
+	assert "PMF_USE_ITEM_HELD" not in fly_body
 
 
 def test_pm_accelerate_stays_on_the_generic_retail_body() -> None:
@@ -336,6 +349,9 @@ def test_symbol_maps_record_the_recovered_walkmove_edges() -> None:
 		assert "crouch-slide" in comment
 		assert "0.75" in comment
 		assert "slick/knockback" in comment
+		assert "PMF_TIME_KNOCKBACK" in comment
+		assert "pm_airaccelerate" in comment
+		assert "pm_accelerate" in comment
 
 	assert "walk and air movement tails" in cgame_invulnerability
 	assert "stub remains minimal" not in cgame_invulnerability
@@ -441,11 +457,113 @@ def test_symbol_maps_record_the_recovered_friction_edges() -> None:
 	cgame_friction = _symbol_comment("cgame", "PM_Friction")
 
 	for comment in (qagame_friction, cgame_friction):
+		assert "PMF_TIME_KNOCKBACK" in comment
 		assert "crouch-slide" in comment
 		assert "circle-strafe" in comment
 		assert "PM_FREEZE" in comment
 		assert "PMF_SCOREBOARD" in comment
 		assert "0.25" in comment
+
+
+def test_knockback_time_blocks_ground_control_until_drop_timers_expire() -> None:
+	friction_body = _function_body("PM_Friction")
+	walk_body = _function_body("PM_WalkMove")
+	drop_timers_body = _function_body("PM_DropTimers")
+	teleport_comment = _symbol_comment("qagame", "TeleportPlayer")
+	bot_setup_comment = _symbol_comment("qagame", "BotSetupForMovement")
+	spawn_body = _body_from_source(
+		G_CLIENT_PATH,
+		"void ClientSpawn(gentity_t *ent)",
+	)
+	teleport_body = _body_from_source(
+		G_MISC_PATH,
+		"void TeleportPlayer( gentity_t *player, vec3_t origin, vec3_t angles )",
+	)
+	bot_setup_body = _body_from_source(
+		AI_DMQ3_PATH,
+		"void BotSetupForMovement(bot_state_t *bs)",
+	)
+
+	assert "if ( !( pm->ps->pm_flags & PMF_TIME_KNOCKBACK ) ) {" in friction_body
+	assert "drop += control * friction * pml.frametime;" in friction_body
+	assert friction_body.index("if ( pml.walking && !(pml.groundTrace.surfaceFlags & SURF_SLICK) )") < friction_body.index("if ( !( pm->ps->pm_flags & PMF_TIME_KNOCKBACK ) ) {")
+	assert friction_body.index("if ( !( pm->ps->pm_flags & PMF_TIME_KNOCKBACK ) ) {") < friction_body.index("drop += control * friction * pml.frametime;")
+
+	assert "if ( ( pml.groundTrace.surfaceFlags & SURF_SLICK ) || pm->ps->pm_flags & PMF_TIME_KNOCKBACK ) {" in walk_body
+	assert "accelerate = pm_airaccelerate;" in walk_body
+	assert "accelerate = pm_accelerate;" in walk_body
+	assert "pm->ps->velocity[2] -= pm->ps->gravity * pml.frametime;" in walk_body
+	assert walk_body.index("accelerate = pm_airaccelerate;") < walk_body.index("PM_Accelerate (wishdir, wishspeed, accelerate);")
+	gravity_position = walk_body.index("pm->ps->velocity[2] -= pm->ps->gravity * pml.frametime;")
+	assert gravity_position < walk_body.index("PM_ClipVelocity (pm->ps->velocity", gravity_position)
+
+	assert "pm->ps->pm_flags &= ~PMF_ALL_TIMES;" in drop_timers_body
+	assert "pm->ps->pm_time = 0;" in drop_timers_body
+	assert drop_timers_body.index("pm->ps->pm_flags &= ~PMF_ALL_TIMES;") < drop_timers_body.index("pm->ps->pm_time = 0;")
+
+	assert "client->ps.pm_flags |= PMF_TIME_KNOCKBACK;" in spawn_body
+	assert "client->ps.pm_time = 100;" in spawn_body
+	assert spawn_body.index("client->ps.pm_flags |= PMF_TIME_KNOCKBACK;") < spawn_body.index("client->ps.pm_time = 100;")
+	assert "player->client->ps.pm_time = 160;" in teleport_body
+	assert "player->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;" in teleport_body
+	assert teleport_body.index("player->client->ps.pm_time = 160;") < teleport_body.index("player->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;")
+	assert "pm_time = 160" in teleport_comment
+	assert "PMF_TIME_KNOCKBACK" in teleport_comment
+
+	assert "if ((bs->cur_ps.pm_flags & PMF_TIME_KNOCKBACK) && (bs->cur_ps.pm_time > 0)) {" in bot_setup_body
+	assert "initmove.or_moveflags |= MFL_TELEPORTED;" in bot_setup_body
+	assert "if ((bs->cur_ps.pm_flags & PMF_TIME_WATERJUMP) && (bs->cur_ps.pm_time > 0)) {" in bot_setup_body
+	assert "initmove.or_moveflags |= MFL_WATERJUMP;" in bot_setup_body
+	assert bot_setup_body.index("PMF_TIME_KNOCKBACK") < bot_setup_body.index("PMF_TIME_WATERJUMP")
+	assert "PMF_TIME_KNOCKBACK" in bot_setup_comment
+	assert "MFL_TELEPORTED" in bot_setup_comment
+
+
+def test_botlib_knockback_prediction_and_teleported_blocking_are_mapped() -> None:
+	weapon_jump_body = _body_from_source(
+		BOTLIB_AAS_MOVE_PATH,
+		"float AAS_WeaponJumpZVelocity(vec3_t origin, float radiusdamage)",
+	)
+	rocket_jump_body = _body_from_source(
+		BOTLIB_AAS_MOVE_PATH,
+		"float AAS_RocketJumpZVelocity(vec3_t origin)",
+	)
+	bfg_jump_body = _body_from_source(
+		BOTLIB_AAS_MOVE_PATH,
+		"float AAS_BFGJumpZVelocity(vec3_t origin)",
+	)
+	bot_init_body = _body_from_source(
+		BOTLIB_AI_MOVE_PATH,
+		"void BotInitMoveState(int handle, bot_initmove_t *initmove)",
+	)
+	bot_teleport_body = _body_from_source(
+		BOTLIB_AI_MOVE_PATH,
+		"bot_moveresult_t BotTravel_Teleport(bot_movestate_t *ms, aas_reachability_t *reach)",
+	)
+	aliases = json.loads(SYMBOL_ALIASES_PATH.read_text(encoding="utf-8"))["quakelive_steam"]
+
+	for expected in (
+		"viewangles[PITCH] = 90;",
+		"vec3_t rocketoffset = {8, 8, -8};",
+		"VectorMA(start, 500, forward, end);",
+		"points = radiusdamage - 0.5 * VectorLength(v);",
+		"points *= 0.5;",
+		"mass = 200;",
+		"knockback = points;",
+		"VectorScale(dir, 1600.0 * (float)knockback / mass, kvel);",
+		"return kvel[2] + aassettings.phys_jumpvel;",
+	):
+		assert expected in weapon_jump_body
+
+	assert "return AAS_WeaponJumpZVelocity(origin, 120);" in rocket_jump_body
+	assert "return AAS_WeaponJumpZVelocity(origin, 120);" in bfg_jump_body
+	assert aliases["sub_486D40"] == "AAS_WeaponJumpZVelocity"
+	assert aliases["sub_4A4280"] == "BotTravel_RocketJump"
+	assert aliases["sub_4A4470"] == "BotTravel_BFGJump"
+
+	assert "ms->moveflags &= ~MFL_TELEPORTED;" in bot_init_body
+	assert "if (initmove->or_moveflags & MFL_TELEPORTED) ms->moveflags |= MFL_TELEPORTED;" in bot_init_body
+	assert "if (ms->moveflags & MFL_TELEPORTED) return result;" in bot_teleport_body
 
 
 def test_apply_jump_takeoff_restores_the_retail_shared_jump_leaf() -> None:
@@ -507,7 +625,7 @@ def test_step_jump_routes_through_the_shared_takeoff_helper() -> None:
 	assert "PM_CheckJump( qfalse )" not in body
 	assert "PM_EvaluateJumpTakeoffVelocity( settings, qtrue, NULL );" in step_body
 	assert "pm_jumpTakeoffVelocity = PM_ApplyRampJumpVerticalVelocity( jumpVelocity, qfalse, settings );" in step_body
-	assert "PM_EvaluateJumpTakeoffVelocity( settings, qtrue, NULL );" in crouch_body
+	assert "PM_EvaluateJumpTakeoffVelocity( settings, qfalse, NULL );" in crouch_body
 	assert "pm_jumpTakeoffVelocity = PM_ApplyRampJumpVerticalVelocity( jumpVelocity, qtrue, settings );" in crouch_body
 	assert "pm_jumpTakeoffDoubleJumpActive = qfalse;" in crouch_body
 
@@ -779,6 +897,7 @@ def test_drop_timers_keeps_the_retail_misc_and_animation_timer_order() -> None:
 
 	for comment in (qagame_comment, cgame_comment):
 		assert "PMF_ALL_TIMES" in comment
+		assert "PMF_TIME_KNOCKBACK" in comment
 		assert "legsTimer" in comment
 		assert "torsoTimer" in comment
 		assert "fixture" in comment
@@ -858,7 +977,9 @@ def test_spawn_owns_retail_movement_profile_flags() -> None:
 	assert "ps->crouchSlideTime = 0;" in g_pmove_body
 	pers_team_pos = g_client_body.index("client->ps.persistant[PERS_TEAM] = client->sess.sessionTeam;")
 	profile_flags_pos = g_client_body.index("G_PmoveApplyProfileFlags( &client->ps );", pers_team_pos)
-	spectator_pm_pos = g_client_body.index("if ( client->sess.sessionTeam == TEAM_SPECTATOR )", profile_flags_pos)
+	spectator_pm_pos = g_client_body.index("if ( spawnAsSpectator )", profile_flags_pos)
+	assert "spawnAsSpectator = ( client->ps.pm_type == PM_SPECTATOR ||" in g_client_body
+	assert "client->sess.sessionTeam == TEAM_SPECTATOR ) ? qtrue : qfalse;" in g_client_body
 	assert pers_team_pos < profile_flags_pos < spectator_pm_pos
 
 

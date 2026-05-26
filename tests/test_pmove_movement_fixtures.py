@@ -2795,7 +2795,7 @@ def test_chainjump_integer_mode_selects_retail_takeoff_velocity_branch(
 	assert pmove_fixture_harness.QLR_RunChainJumpModeTakeoff(2, 1) == pytest.approx(385.0, rel=1e-6)
 
 
-def test_aircontrol_chainjump_override_fades_to_base_at_the_retail_threshold(
+def test_aircontrol_chainjump_override_uses_the_retail_offset_threshold_denominator(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	assert pmove_fixture_harness.QLR_RunChainJumpModeTakeoffAtTime(0, 1, 100) == pytest.approx(
@@ -2803,7 +2803,11 @@ def test_aircontrol_chainjump_override_fades_to_base_at_the_retail_threshold(
 		rel=1e-6,
 	)
 	assert pmove_fixture_harness.QLR_RunChainJumpModeTakeoffAtTime(2, 1, 400) == pytest.approx(
-		330.0,
+		348.3333333333333,
+		rel=1e-6,
+	)
+	assert pmove_fixture_harness.QLR_RunChainJumpModeTakeoffAtTime(2, 1, 499) == pytest.approx(
+		312.03333333333336,
 		rel=1e-6,
 	)
 	assert pmove_fixture_harness.QLR_RunChainJumpModeTakeoffAtTime(2, 1, 500) == pytest.approx(
@@ -2828,7 +2832,7 @@ def test_chainjump_takeoff_velocity_is_clamped_after_non_ramp_mode_math(
 		) == pytest.approx(300.0, rel=1e-6)
 
 
-def test_step_jump_takeoff_uses_the_step_additive_branch_for_both_retail_paths(
+def test_step_jump_takeoff_uses_distinct_retail_latches_for_normal_and_crouch_paths(
 	pmove_fixture_harness: ctypes.CDLL,
 ) -> None:
 	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoff(2, 0, ctypes.c_float(700.0)) == pytest.approx(
@@ -2836,10 +2840,14 @@ def test_step_jump_takeoff_uses_the_step_additive_branch_for_both_retail_paths(
 		rel=1e-6,
 	)
 	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoff(2, 1, ctypes.c_float(700.0)) == pytest.approx(
-		323.0,
+		385.0,
 		rel=1e-6,
 	)
 	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoff(2, 0, ctypes.c_float(300.0)) == pytest.approx(
+		300.0,
+		rel=1e-6,
+	)
+	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoff(2, 1, ctypes.c_float(300.0)) == pytest.approx(
 		300.0,
 		rel=1e-6,
 	)
@@ -2860,8 +2868,12 @@ def test_step_jump_takeoff_covers_scale_and_aircontrol_profile_edges(
 		323.0,
 		rel=1e-6,
 	)
+	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoffAtTime(2, 0, 1, 400, ctypes.c_float(700.0)) == pytest.approx(
+		307.0,
+		rel=1e-6,
+	)
 	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoffAtTime(2, 1, 1, 400, ctypes.c_float(700.0)) == pytest.approx(
-		299.0,
+		348.3333333333333,
 		rel=1e-6,
 	)
 	assert pmove_fixture_harness.QLR_RunStepJumpModeTakeoffAtTime(2, 0, 1, 500, ctypes.c_float(700.0)) == pytest.approx(

@@ -65,6 +65,15 @@ Modern-host validation command:
 pwsh tools\ci\validate-windows-native.ps1 -PlatformToolset v141 -RuntimeProfile modern
 ```
 
+Hosted nightly builds use the same modern compatibility lane, then generate an
+external manifest version and package rebuilt outputs without changing the
+retail-aligned executable metadata:
+
+```powershell
+python tools\ci\nightly_build.py version --output artifacts\nightly\version.json
+python tools\ci\nightly_build.py package --configuration Release --manifest artifacts\nightly\version.json --runtime-profile modern --toolset v141
+```
+
 Notes:
 
 - Solution builds use `/p:Platform=x86`; direct `.vcxproj` builds use

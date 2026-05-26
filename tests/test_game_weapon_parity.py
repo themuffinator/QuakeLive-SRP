@@ -229,8 +229,18 @@ def test_second_ten_knockback_cvar_table_matches_retail_defaults_and_flags() -> 
 def test_second_ten_knockback_cvars_keep_retail_combat_wiring() -> None:
     config_c = _read("src/game/g_config.c")
     combat_c = _read("src/code/game/g_combat.c")
+    local_h = _read("src/code/game/g_local.h")
+    qagame_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
 
     init_body = _function_body(config_c, "void G_InitKnockbackConfig( void )")
+    knockback_struct = local_h[local_h.index("typedef struct knockbackConfig_s") : local_h.index("} knockbackConfig_t;")]
+    assert "G_ReadKnockbackCvar\n\nReads a bound knockback CVar value" in config_c
+    assert "G_UpdateKnockbackConfig\n\nRefreshes the cached knockback config" in config_c
+    assert "\tfloat\tgauntlet;" in knockback_struct
+    assert "\tfloat\tmaxKnockback;" in knockback_struct
+    assert "        float" not in knockback_struct
     for expected in (
         'g_knockbackConfig.bfg = G_ReadKnockbackCvar( &g_knockback_bfg, DEFAULT_KNOCKBACK_BFG, "g_knockback_bfg" );',
         'g_knockbackConfig.grapplingHook = G_ReadKnockbackCvar( &g_knockback_gh, DEFAULT_KNOCKBACK_GH, "g_knockback_gh" );',
@@ -262,16 +272,114 @@ def test_second_ten_knockback_cvars_keep_retail_combat_wiring() -> None:
     ):
         assert expected in scale_body
 
-    vertical_body = _function_body(combat_c, "static float G_KnockbackVerticalBoost( qboolean selfInflicted )")
-    cripple_body = _function_body(combat_c, "static float G_ApplyKnockbackCripple( gentity_t *targ, float knockbackValue, int dflags, float *outPenalty )")
+    damage_body = _function_body(
+        combat_c,
+        "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )",
+    )
+    g_damage_hlil = qagame_hlil[qagame_hlil.index("10048c30") : qagame_hlil.index("10049d20")]
 
-    assert "return selfInflicted ? g_knockbackConfig.verticalSelf : g_knockbackConfig.vertical;" in vertical_body
-    assert "if ( g_knockbackConfig.cripple <= 0.0f || !targ || !targ->client ) {" in cripple_body
-    assert "scale -= g_knockbackConfig.cripple;" in cripple_body
-    assert "scale -= g_knockbackConfig.cripple * deficitFraction;" in cripple_body
-    assert "knockbackValue = G_ApplyKnockbackCripple( targ, knockbackValue, dflags, &cripplePenalty );" in combat_c
-    assert "float verticalBoost = G_KnockbackVerticalBoost( selfInflicted );" in combat_c
-    assert "VectorScale (dir, g_knockback.value * knockbackValue / mass, kvel);" in combat_c
+    assert "G_KnockbackVerticalBoost" not in combat_c
+    assert "G_ApplyKnockbackCripple" not in combat_c
+    assert "knockback summary" not in combat_c
+    assert "knockbackPreClamp" not in combat_c
+    assert "knockbackMax" not in combat_c
+    assert '"g_knockback_z"' not in g_damage_hlil
+    assert '"g_knockback_z_self"' not in g_damage_hlil
+    assert '(*(data_104b13ac + 0x2c))("g_knockback_cripple")' in g_damage_hlil
+    assert "if (esi_3 s< 0)" in g_damage_hlil
+    assert "esi_3 = neg.d(esi_3)" in g_damage_hlil
+    assert "*(ebx_1 + 0xc) |= 0x40" in g_damage_hlil
+    assert "if ( !dir ) {" in damage_body
+    assert "dflags |= DAMAGE_NO_KNOCKBACK;" in damage_body
+    assert "VectorNormalize(dir);" in damage_body
+    assert damage_body.index("dflags |= DAMAGE_NO_KNOCKBACK;") < damage_body.index("knockbackScale = G_KnockbackScaleForMOD")
+    assert damage_body.index("VectorNormalize(dir);") < damage_body.index("knockbackScale = G_KnockbackScaleForMOD")
+    assert "if ( targ->flags & FL_NO_KNOCKBACK ) {" in damage_body
+    assert "if ( dflags & DAMAGE_NO_KNOCKBACK ) {" in damage_body
+    assert damage_body.index("if ( targ->flags & FL_NO_KNOCKBACK ) {") < damage_body.index("if ( knockbackValue >= 0.0f ) {")
+    assert damage_body.index("if ( dflags & DAMAGE_NO_KNOCKBACK ) {") < damage_body.index("if ( knockbackValue >= 0.0f ) {")
+    assert "knockbackMagnitude = ( knockbackInt < 0 ) ? -knockbackInt : knockbackInt;" in damage_body
+    assert "if ( knockbackInt != 0 && targ->client ) {" in damage_body
+    assert "if ( knockbackInt < 0 ) {" in damage_body
+    assert "VectorScale( dir, -1.0f, knockbackDir );" in damage_body
+    assert "VectorScale (knockbackDir, g_knockback.value * (float)knockbackMagnitude / mass, kvel);" in damage_body
+    assert "t = knockbackMagnitude * 2;" in damage_body
+    assert "if ( g_knockbackConfig.cripple > 0.0f ) {" in damage_body
+    assert "// calculated after knockback, so rocket jumping works" in damage_body
+    assert damage_body.index("targ->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;") < damage_body.index("// calculated after knockback, so rocket jumping works")
+    assert damage_body.index("VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);") < damage_body.index("targ->flags |= FL_NO_KNOCKBACK;")
+
+
+def test_knockback_feedback_record_matches_retail_damage_accumulator_layout() -> None:
+    active_c = _read("src/code/game/g_active.c")
+    combat_c = _read("src/code/game/g_combat.c")
+    local_h = _read("src/code/game/g_local.h")
+    qagame_feedback_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt"
+    )
+    qagame_damage_hlil = _read(
+        "references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+    )
+
+    damage_body = _function_body(
+        combat_c,
+        "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )",
+    )
+    feedback_body = _function_body(active_c, "void P_DamageFeedback( gentity_t *player )")
+    g_damage_hlil = qagame_damage_hlil[qagame_damage_hlil.index("10048c30") : qagame_damage_hlil.index("10049d20")]
+    feedback_hlil = qagame_feedback_hlil[qagame_feedback_hlil.index("10033800") : qagame_feedback_hlil.index("10033950")]
+
+    assert "damage_knockback" not in local_h
+    assert "damage_knockback" not in damage_body
+    assert "damage_knockback" not in feedback_body
+    assert "client->damage_armor += asave;" in damage_body
+    assert "client->damage_blood += take;" in damage_body
+    assert "VectorCopy ( dir, client->damage_from );" in damage_body
+    assert damage_body.index("client->damage_armor += asave;") < damage_body.index("client->damage_blood += take;")
+    assert damage_body.index("client->damage_blood += take;") < damage_body.index("VectorCopy ( dir, client->damage_from );")
+    assert "client->damage_blood = 0;" in feedback_body
+    assert "client->damage_armor = 0;" in feedback_body
+
+    assert "*(ebx_1 + 0x390) += var_440" in g_damage_hlil
+    assert "*(ebx_1 + 0x394) += var_448" in g_damage_hlil
+    assert "*(ebx_1 + 0x398)" in g_damage_hlil
+    assert "*(ebx_1 + 0x3a4)" in g_damage_hlil
+    assert "float xmm0_1 = float.s(*(ebx + 0x394) + *(ebx + 0x390))" in feedback_hlil
+    assert "sub_100702b0(ebx + 0x398, &var_c)" in feedback_hlil
+    assert "*(ebx + 0x394) = 0" in feedback_hlil
+    assert "*(ebx + 0x390) = 0" in feedback_hlil
+
+
+def test_knockback_reconstruction_note_carries_complete_wiring_map() -> None:
+    note = _read("docs/reverse-engineering/qagame-knockback-reconstruction-2026-05-26.md")
+
+    assert "## Wiring Map" in note
+    for expected in (
+        "g_knockback_* / g_max_knockback / g_knockback_cripple",
+        "G_InitKnockbackConfig / G_UpdateKnockbackConfig",
+        "G_KnockbackScaleForMOD",
+        "G_Damage",
+        "Positive-only g_max_knockback clamp",
+        "Signed knockback branch",
+        "Negative values reverse dir and use abs magnitude",
+        "Velocity add through g_knockback",
+        "pm_time and PMF_TIME_KNOCKBACK",
+        "Shared PM_Friction skips ground friction",
+        "Shared PM_WalkMove uses slick/knockback air acceleration and gravity",
+        "Shared PM_DropTimers clears PMF_ALL_TIMES",
+        "BotSetupForMovement maps active knockback time to MFL_TELEPORTED",
+        "DAMAGE_NO_KNOCKBACK / FL_NO_KNOCKBACK gates",
+        "target_laser_think",
+        "ProximityMine_ExplodeOnPlayer MOD_JUICED",
+        "No velocity add and no PMF_TIME_KNOCKBACK latch",
+        "ClientSpawn pm_time = 100",
+        "TeleportPlayer 400 ups exit velocity and pm_time = 160",
+        "damage_armor / damage_blood / damage_from",
+        "No retail damage_knockback slot",
+        "AAS_WeaponJumpZVelocity",
+        "Botlib reachability predictor only",
+    ):
+        assert expected in note
 
 
 def test_first_ten_damage_cvar_table_matches_retail_defaults_and_flags() -> None:
@@ -1872,7 +1980,7 @@ def test_hmg_full_server_and_cgame_wiring_matches_retail() -> None:
         "extern\tvmCvar_t\tg_startingAmmo_hmg;",
         "extern\tvmCvar_t\tweapon_reload_hmg;",
         "int\t\theavyMachinegun;",
-        "float           heavyMachinegun;",
+        "\tfloat\theavyMachinegun;",
     ):
         assert expected in g_local_h
     for expected in (
@@ -2849,6 +2957,7 @@ def test_prox_launcher_full_server_and_cgame_wiring_matches_retail() -> None:
         "creates the proxmine_trigger child entity",
         '"normalized_name": "ProximityMine_Player"',
         "already-ticking stack-up",
+        "DAMAGE_NO_KNOCKBACK for the MOD_JUICED invulnerability discharge",
         '"normalized_name": "G_CheckProxMinePosition"',
         '"normalized_name": "G_TryPushingProxMine"',
     ):

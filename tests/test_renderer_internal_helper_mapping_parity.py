@@ -198,7 +198,8 @@ def test_renderer_mapping_round_317_reconstructs_bloom_scene_target_owner() -> N
 	assert "if ( !s_postProcess.supported ) {" in bloom_enabled_block
 	assert "if ( !r_bloomActive || !r_bloomActive->integer ) {" in bloom_enabled_block
 	assert "RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, width, height, qfalse )" in bloom_init_block
-	assert "RBPP_DestroyRenderTarget( &s_postProcess.sceneTarget );" in bloom_shutdown_block
+	assert "targets[0] = &s_postProcess.sceneTarget;" in bloom_shutdown_block
+	assert bloom_shutdown_block.index("RBPP_DestroyBloomPrograms();") < bloom_shutdown_block.index("qglDeleteTextures") < bloom_shutdown_block.index("qglDeleteFramebuffersEXTFunc") < bloom_shutdown_block.index("qglDeleteRenderbuffersEXTFunc")
 	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in bind_block
 	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in begin_block
 	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in end_block
@@ -320,10 +321,477 @@ def test_renderer_mapping_round_319_reconstructs_postprocess_refexport_tail() ->
 	assert "re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;" in tr_init
 	assert "re.RetailPostProcessPass = R_SetPostProcessBloomParameters;" in tr_init
 	assert "static qboolean s_bloomUniformsDirty;" in tr_backend
-	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
-	assert "static void RBPP_SetBloomUniformsFromCvars( void ) {" in tr_backend
-	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
+	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {" in tr_backend
+	assert "void RBPP_SetBloomUniformsFromCvars( void ) {" in tr_backend
+	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {" in tr_backend
 	assert "post-process private-tail lane: before 96%, after 99%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_320_corrects_bloom_uniform_slot_order() -> None:
+	ghidra = _read("src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp")
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_320.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
+
+	for expected in (
+		'DAT_005860c8 = (*DAT_016e3d00)(DAT_005860c4, "p_bloomsaturation");',
+		'DAT_005860cc = (*DAT_016e3d00)(DAT_005860c4, "p_scenesaturation");',
+		'DAT_005860d0 = (*DAT_016e3d00)(DAT_005860c4, "p_bloomintensity");',
+		'DAT_005860d4 = (*DAT_016e3d00)(DAT_005860c4, "p_sceneintensity");',
+	):
+		assert expected in ghidra
+
+	for expected in (
+		"0043874e          int32_t var_8_7 = data_16e3bd0(data_5860c8, fconvert.s(fconvert.t(arg2)))",
+		"00438761          int32_t var_8_9 = data_16e3bd0(data_5860cc, fconvert.s(fconvert.t(arg4)))",
+		"0043876f          int32_t var_8_11 = data_16e3bd0(data_5860d0, fconvert.s(fconvert.t(arg3)))",
+		"0043877a          data_16e3bd0(data_5860d4, fconvert.s(fconvert.t(arg5)))",
+	):
+		assert expected in hlil_part01
+
+	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity );" in tr_local
+	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {" in tr_backend
+	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {" in tr_backend
+	assert tr_backend.index("GLint bloomSaturationUniform;") < tr_backend.index("GLint sceneSaturationUniform;") < tr_backend.index("GLint bloomIntensityUniform;") < tr_backend.index("GLint sceneIntensityUniform;")
+	load_program_block = _block_from_marker(tr_backend, "static qboolean RBPP_LoadProgram( ppProgram_t *program, const char *name, const char *fragmentPath, const char *vertexPath ) {")
+	assert load_program_block.index('"p_bloomsaturation"') < load_program_block.index('"p_scenesaturation"') < load_program_block.index('"p_bloomintensity"') < load_program_block.index('"p_sceneintensity"')
+	set_uniforms_block = _block_from_marker(tr_backend, "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {")
+	assert set_uniforms_block.index("combineProgram.bloomSaturationUniform") < set_uniforms_block.index("combineProgram.sceneSaturationUniform") < set_uniforms_block.index("combineProgram.bloomIntensityUniform") < set_uniforms_block.index("combineProgram.sceneIntensityUniform")
+	assert "post-process bloom uniform naming lane: before 99%, after 99.5%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_321_reconstructs_color_correct_uniform_helper() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	ghidra = _read("src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp")
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_321.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	assert aliases["sub_43CD60"] == "RBPP_SetColorCorrectUniformsFromCvars"
+
+	for expected in (
+		"0043cd60    void sub_43cd60()",
+		"0043cd89  if (sub_4507c0() != 0 && data_1743be8 != 0 && *(data_1740d90 + 0x30) != 0)",
+		"0043cdf5          data_16e3bd0(data_586224",
+		"0043ce2e          data_16e3bd0(data_586228",
+		"0043ce33      data_16e3bd0(data_58622c",
+		"0043d083          int32_t eax_5 = data_16e3d00(data_586220, \"p_gammarecip\")",
+		"0043d0a0          data_586228 = data_16e3d00(edx_2, \"p_overbright\")",
+		"0043d0b0          int32_t eax_8 = data_16e3d00(data_586220, \"p_contrast\")",
+	):
+		assert expected in hlil_part02
+
+	for expected in (
+		'(*DAT_016e3bd0)(DAT_00586224, fVar4);',
+		'(*DAT_016e3bd0)(DAT_00586228, fVar2);',
+		'(*DAT_016e3bd0)(DAT_0058622c, uVar3);',
+		'DAT_00586224 = (*DAT_016e3d00)(DAT_00586220, "p_gammaRecip");',
+		'DAT_00586228 = (*DAT_016e3d00)(DAT_00586220, "p_overbright");',
+		'DAT_0058622c = (*DAT_016e3d00)(DAT_00586220, "p_contrast");',
+	):
+		assert expected in ghidra
+
+	color_uniform_block = _block_from_marker(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
+	color_uniform_from_cvars_block = _block_from_marker(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
+	color_init_block = _block_from_marker(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
+	color_pass_block = _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+
+	assert "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {" in tr_backend
+	assert "void RBPP_SetColorCorrectUniformsFromCvars( void ) {" in tr_backend
+	assert "if ( !RBPP_ColorCorrectEnabled() ) {" in color_uniform_from_cvars_block
+	assert "RBPP_SetColorCorrectUniforms( qtrue );" in color_uniform_from_cvars_block
+	assert color_uniform_block.index("colorCorrectProgram.gammaRecipUniform") < color_uniform_block.index("colorCorrectProgram.overbrightUniform") < color_uniform_block.index("colorCorrectProgram.contrastUniform")
+	assert "RBPP_SetColorCorrectUniforms( qfalse );" in color_init_block
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in color_pass_block
+	assert "qglUniform1fARBFunc" not in color_pass_block
+	assert "post-process color-correct uniform helper lane: before 99.5%, after 99.7%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_322_reconstructs_live_postprocess_cvar_refresh() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	ghidra = _read("src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp")
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_322.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_cmds = _read("src/code/renderer/tr_cmds.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
+
+	assert aliases["sub_43CD60"] == "RBPP_SetColorCorrectUniformsFromCvars"
+	assert aliases["sub_438590"] == "RBPP_SetBloomUniformsFromCvars"
+
+	for expected in (
+		"if ((*(int*)(DAT_01740ddc + 0x20) != 0) || (*(int*)(DAT_01740e40 + 0x20) != 0))",
+		"*(std::uint32_t*)(DAT_01740e40 + 0x20) = 0;",
+		"FUN_0043cd60();",
+		"if ((((*(int*)(DAT_01740e84 + 0x20) != 0) || (*(int*)(DAT_01740e44 + 0x20) != 0)) ||",
+		"*(std::uint32_t*)(DAT_01740e84 + 0x20) = 0;",
+		"*(std::uint32_t*)(DAT_01740e44 + 0x20) = 0;",
+		"*(std::uint32_t*)(DAT_01740e5c + 0x20) = 0;",
+		"*(std::uint32_t*)(DAT_01743c10 + 0x20) = 0;",
+		"*(std::uint32_t*)(DAT_01740e78 + 0x20) = 0;",
+		"FUN_00438590();",
+		"if (*(int*)(DAT_01740ddc + 0x20) != 0)",
+		"R_SetColorMappings();",
+	):
+		assert expected in ghidra
+
+	for expected in (
+		"0043c922      if (*(data_1740ddc + 0x20) != 0 || *(eax_5 + 0x20) != 0)",
+		"0043c924          *(eax_5 + 0x20) = 0",
+		"0043c927          sub_43cd60()",
+		"0043c960      if (*(eax_6 + 0x20) != 0 || *(data_1740e44 + 0x20) != 0 || *(data_1740e5c + 0x20) != 0",
+		"0043c962          *(eax_6 + 0x20) = 0",
+		"0043c96a          *(data_1740e44 + 0x20) = 0",
+		"0043c973          *(data_1740e5c + 0x20) = 0",
+		"0043c97c          *(data_1743c10 + 0x20) = 0",
+		"0043c984          *(data_1740e78 + 0x20) = 0",
+		"0043c987          sub_438590()",
+		"0043c994      if (*(eax_9 + 0x20) != 0)",
+		"0043c9b7          sub_4475d0(0)",
+	):
+		assert expected in hlil_part02
+
+	live_block = _block_from_marker(tr_cmds, "static void R_RefreshLivePostProcessCvars( void ) {")
+	begin_frame_block = _block_from_marker(tr_cmds, "void RE_BeginFrame( stereoFrame_t stereoFrame ) {")
+
+	assert "static void R_ClearLivePostProcessModifiedFlags( void ) {" not in tr_init
+	assert "R_ClearLivePostProcessModifiedFlags();" not in tr_init
+	assert "void RBPP_SetColorCorrectUniformsFromCvars( void );" in tr_local
+	assert "void RBPP_SetBloomUniformsFromCvars( void );" in tr_local
+	assert "void RBPP_SetColorCorrectUniformsFromCvars( void ) {" in tr_backend
+	assert "void RBPP_SetBloomUniformsFromCvars( void ) {" in tr_backend
+	assert "r_gamma->modified = qfalse;" not in live_block
+	assert "\t\t\tr_contrast->modified = qfalse;" in live_block
+	assert "\t\t\tr_bloomBrightThreshold->modified = qfalse;" in live_block
+	assert "\t\t\tr_bloomSaturation->modified = qfalse;" in live_block
+	assert "\t\t\tr_bloomSceneSaturation->modified = qfalse;" in live_block
+	assert "\t\t\tr_bloomIntensity->modified = qfalse;" in live_block
+	assert "\t\t\tr_bloomSceneIntensity->modified = qfalse;" in live_block
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in live_block
+	assert "RBPP_SetBloomUniformsFromCvars();" in live_block
+	assert begin_frame_block.index("R_RefreshLivePostProcessCvars();") < begin_frame_block.index("if ( r_gamma->modified ) {")
+	assert "post-process live cvar refresh lane: before 99.7%, after 99.85%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_323_splits_color_correct_init_and_live_browser_override() -> None:
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	ghidra = _read("src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp")
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_323.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	live_hlil = hlil_part02[hlil_part02.index("0043cd60    void sub_43cd60()"):hlil_part02.index("0043ce50    int32_t __fastcall sub_43ce50")]
+	init_hlil = hlil_part02[hlil_part02.index("0043cfe0    void sub_43cfe0()"):hlil_part02.index("0043d160    void __convention")]
+	live_ghidra = ghidra[ghidra.index("/* FUN_0043cd60 @ 0x0043CD60 size 229 */"):ghidra.index("/* FUN_0043ce50 @ 0x0043CE50 size 345 */")]
+	init_ghidra = ghidra[ghidra.index("/* FUN_0043cfe0 @ 0x0043CFE0 size 383 */"):ghidra.index("/* FUN_0043d160 @ 0x0043D160 size 145 */")]
+	color_uniform_block = _block_from_marker(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
+	color_uniform_from_cvars_block = _block_from_marker(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
+	color_init_block = _block_from_marker(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
+
+	assert "data_15ee390" in live_hlil
+	assert "data_15ee390" not in init_hlil
+	assert "0043cd98      int32_t ecx_2 = data_15ee390" in live_hlil
+	assert "0043d12d          data_16e3bd0(data_58622c, fconvert.s(fconvert.t(*(data_1740e40 + 0x2c))))" in init_hlil
+	assert "DAT_015ee390 != 0" in live_ghidra
+	assert "DAT_015ee390" not in init_ghidra
+	assert "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {" in tr_backend
+	assert "if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in color_uniform_block
+	assert "if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in color_uniform_block
+	assert "RBPP_SetColorCorrectUniforms( qfalse );" in color_init_block
+	assert "RBPP_SetColorCorrectUniforms( qtrue );" in color_uniform_from_cvars_block
+	assert "post-process color-correct browser override lane: before 99.85%, after 99.9%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_324_retires_legacy_framebuffer_scratch_lane() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_324.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	create_block = _block_from_marker(tr_backend, "static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter ) {")
+	renderbuffer_block = _block_from_marker(tr_backend, "static GLuint RBPP_CreateDepthStencilRenderbuffer( int width, int height ) {")
+	swap_block = _block_from_marker(tr_backend, "const void\t*RB_SwapBuffers( const void *data ) {")
+	execute_block = _block_from_marker(tr_backend, "void RB_ExecuteRenderCommands( const void *data ) {")
+
+	expected_aliases = {
+		"sub_437E40": "RBPP_CreateBloomRenderTargets",
+		"sub_438790": "RBPP_BindSceneRenderTarget",
+		"sub_4387D0": "RBPP_ReleaseSceneRenderTarget",
+		"sub_4500B0": "RBPP_CreateRenderTarget",
+	}
+	for symbol, alias in expected_aliases.items():
+		assert aliases[symbol] == alias
+		assert f"| `{symbol}` | `{alias}` | High |" in mapping_round
+
+	for expected in (
+		"00437e40    int32_t __fastcall sub_437e40",
+		"sub_4500b0(",
+		"00438790    int32_t sub_438790()",
+		"return data_16e403c(0x8d40, result)",
+		"004387d0    int32_t sub_4387d0()",
+		"return data_16e403c(0x8d40, 0)",
+	):
+		assert expected in hlil_part01
+
+	for expected in (
+		"004500b0    int32_t sub_4500b0(",
+		"data_16e3dfc(0x84f5, *arg3)",
+		"data_16e3c7c(0x84f5, 0, var_2c",
+		"data_16e403c(0x8d40, *arg4)",
+		"data_16e3d34(0x8d40, 0x8ce0, 0x84f5, *arg3, 0)",
+		"data_16e3ee0(0x8d40, 0x8d00, 0x8d41, *arg5)",
+		"data_16e3ee0(0x8d40, 0x8d20, 0x8d41, *arg5)",
+		'"post process failure - unable to',
+	):
+		assert expected in hlil_part02
+
+	assert "GL_TEXTURE_RECTANGLE_ARB" in create_block
+	assert "GL_DEPTH24_STENCIL8_EXT" in renderbuffer_block
+	assert "GL_STENCIL_ATTACHMENT_EXT" in create_block
+	assert "GL_TEXTURE_2D" not in create_block
+	assert "glFramebufferProcs_t" not in tr_backend
+	assert "renderTarget_t" not in tr_backend
+	assert "s_fboProcs" not in tr_backend
+	assert "s_sceneRenderTarget" not in tr_backend
+	assert "RB_LoadFramebufferProcs" not in tr_backend
+	assert "RB_UploadBloomScratch" not in tr_backend
+	assert "RB_DrawBloomPass" not in tr_backend
+	assert "RBPP_ReleaseSceneRenderTarget();" in swap_block
+	assert "RBPP_ResetIfNeeded();" in execute_block
+	assert "post-process framebuffer owner lane: before 99.9%, after 99.93%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_325_reconstructs_bloom_teardown_order() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_325.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	bloom_programs_block = _block_from_marker(tr_backend, "static void RBPP_DestroyBloomPrograms( void ) {")
+	bloom_shutdown_block = _block_from_marker(tr_backend, "static void RBPP_ShutdownBloomResources( void ) {")
+	destroy_program_block = _block_from_marker(tr_backend, "static void RBPP_DestroyProgram( ppProgram_t *program ) {")
+
+	assert aliases["sub_437DA0"] == "RBPP_ShutdownBloomResources"
+	assert aliases["sub_4506A0"] == "RBPP_DestroyProgram"
+	assert "| `sub_437DA0` | `RBPP_ShutdownBloomResources` | High |" in mapping_round
+	assert "| `sub_4506A0` | `RBPP_DestroyProgram` | High |" in mapping_round
+
+	for expected in (
+		"00437da0    int32_t sub_437da0()",
+		"for (void* i = &data_585fb8; i s< &data_5860d8; i += 0x24)",
+		"sub_4506a0(i)",
+		"data_16e3fb4(1, i_1 + &data_585f78)",
+		"data_16e3ca4(1, i_1 + &data_585f98)",
+		"data_16e3e70(1, i_1 + &data_5860d8)",
+		'return data_1740d48("r_bloomactive"',
+	):
+		assert expected in hlil_part01
+
+	for expected in (
+		"004506a0    void sub_4506a0(void* arg1)",
+		"data_16e3ac4(ecx, eax_1)",
+		"data_16e3dc0(*(arg1 + 0x10))",
+		"data_16e3b18(eax_4)",
+	):
+		assert expected in hlil_part02
+
+	assert bloom_programs_block.index("&s_postProcess.brightPassProgram") < bloom_programs_block.index("&s_postProcess.downsampleProgram") < bloom_programs_block.index("&s_postProcess.blurVerticalProgram") < bloom_programs_block.index("&s_postProcess.blurHorizontalProgram") < bloom_programs_block.index("&s_postProcess.combineProgram")
+	assert "targets[0] = &s_postProcess.sceneTarget;" in bloom_shutdown_block
+	assert "targets[7] = &s_postProcess.bloomQuarterHorizontalTarget;" in bloom_shutdown_block
+	assert bloom_shutdown_block.index("RBPP_DestroyBloomPrograms();") < bloom_shutdown_block.index("qglDeleteTextures")
+	assert bloom_shutdown_block.index("qglDeleteTextures") < bloom_shutdown_block.index("qglDeleteFramebuffersEXTFunc")
+	assert bloom_shutdown_block.index("qglDeleteFramebuffersEXTFunc") < bloom_shutdown_block.index("qglDeleteRenderbuffersEXTFunc")
+	assert bloom_shutdown_block.index("qglDeleteRenderbuffersEXTFunc") < bloom_shutdown_block.index("Com_Memset")
+	assert 'ri.Cvar_Set( "r_bloomActive", "0" );' in bloom_shutdown_block
+	assert "qglDetachObjectARBFunc" in destroy_program_block
+	assert destroy_program_block.index("qglDetachObjectARBFunc") < destroy_program_block.index("qglDeleteObjectARBFunc( program->programObject )")
+	assert destroy_program_block.index("qglDeleteObjectARBFunc( program->programObject )") < destroy_program_block.index("qglDeleteObjectARBFunc( program->fragmentObject )") < destroy_program_block.index("qglDeleteObjectARBFunc( program->vertexObject )")
+	assert "post-process bloom teardown lane: before 99.93%, after 99.95%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_326_reconstructs_depth_stencil_renderbuffer_cache() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	functions_csv = _read("references/reverse-engineering/ghidra/quakelive_steam/functions.csv").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_326.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	renderbuffer_block = _block_from_marker(tr_backend, "static GLuint RBPP_CreateDepthStencilRenderbuffer( int width, int height ) {")
+	create_block = _block_from_marker(tr_backend, "static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter ) {")
+	shutdown_block = _block_from_marker(tr_backend, "static void RBPP_ShutdownBloomResources( void ) {")
+
+	expected_aliases = {
+		"sub_44FFD0": "RBPP_CreateDepthStencilRenderbuffer",
+		"sub_4500B0": "RBPP_CreateRenderTarget",
+		"sub_450710": "RBPP_RebuildState",
+		"sub_450780": "RBPP_Shutdown",
+	}
+	for symbol, alias in expected_aliases.items():
+		assert aliases[symbol] == alias
+		assert f"| `{symbol}` | `{alias}` | High |" in mapping_round
+		assert symbol.replace("sub_", "fun_00").lower() in functions_csv
+
+	for expected in (
+		"0044ffd0    int32_t __convention(\"regparm\") sub_44ffd0",
+		"0044ffdd  if (data_1743bac s>= 0x18)",
+		"0045000b      if (edx + 1 s<= 8)",
+		"0045003d          data_16e3b2c(0x8d41, 0x88f0, var_18, arg5)",
+		"00450043          int32_t eax_1 = data_16e3a9c()",
+		"00450088              *(ecx_3 + &data_1716e20) = arg4",
+		"00450096              *(ecx_3 + &data_1716e28) = result",
+		"0045014b  int32_t eax_1 = sub_44ffd0",
+		"00450156  if (eax_1 s< 1)",
+		"00450178  *arg5 = eax_1",
+		"004502ad      data_16e3ee0(0x8d40, 0x8d00, 0x8d41, *arg5)",
+		"00450719  sub_4c95e0(&data_1716e20, 0, 0x60)",
+		"00450728  data_5881e8 = 0",
+		"00450789  sub_4c95e0(&data_1716e20, 0, 0x60)",
+		"0045078e  data_5881e8 = 0",
+	):
+		assert expected in hlil_part02
+
+	assert "#define POST_PROCESS_RENDERBUFFER_CACHE_MAX 8" in tr_backend
+	assert "ppRenderbufferCacheEntry_t renderbufferCache[POST_PROCESS_RENDERBUFFER_CACHE_MAX];" in tr_backend
+	assert "int renderbufferCacheCount;" in tr_backend
+	assert "if ( glConfig.depthBits < 24 ) {" in renderbuffer_block
+	assert "s_postProcess.renderbufferCache[i].width == width && s_postProcess.renderbufferCache[i].height == height" in renderbuffer_block
+	assert "s_postProcess.renderbufferCacheCount >= POST_PROCESS_RENDERBUFFER_CACHE_MAX" in renderbuffer_block
+	assert "s_postProcess.procs.qglGenRenderbuffersEXTFunc( 1, &renderbuffer );" in renderbuffer_block
+	assert "s_postProcess.procs.qglRenderbufferStorageEXTFunc( GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, width, height );" in renderbuffer_block
+	assert "errorCode = qglGetError();" in renderbuffer_block
+	assert "s_postProcess.renderbufferCache[i].renderbuffer = renderbuffer;" in renderbuffer_block
+	assert "depthBuffer = RBPP_CreateDepthStencilRenderbuffer( width, height );" in create_block
+	assert "target->depthBuffer = depthBuffer;" in create_block
+	assert 'ri.Printf( PRINT_DEVELOPER, "Unable to create render buffer object.\\n\\n" );' in create_block
+	assert "s_postProcess.procs.qglGenRenderbuffersEXTFunc" not in create_block
+	assert "s_postProcess.procs.qglBindRenderbufferEXTFunc" not in create_block
+	assert "s_postProcess.procs.qglRenderbufferStorageEXTFunc" not in create_block
+	assert create_block.index("RBPP_CreateDepthStencilRenderbuffer") < create_block.index("qglGenTextures")
+	assert create_block.index("qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, 0 );") < create_block.index("qglGenFramebuffersEXTFunc")
+	assert "Com_Memset( s_postProcess.renderbufferCache, 0, sizeof( s_postProcess.renderbufferCache ) );" in shutdown_block
+	assert "s_postProcess.renderbufferCacheCount = 0;" in shutdown_block
+	assert "post-process depth-stencil renderbuffer cache lane: before 99.95%, after 99.97%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_327_reconstructs_postprocess_gl_error_wiring() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	functions_csv = _read("references/reverse-engineering/ghidra/quakelive_steam/functions.csv").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_327.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
+
+	create_block = _block_from_marker(tr_backend, "static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter ) {")
+	link_block = _block_from_marker(tr_backend, "static qboolean RBPP_LinkProgram( ppProgram_t *program ) {")
+	load_program_block = _block_from_marker(tr_backend, "static qboolean RBPP_LoadProgram( ppProgram_t *program, const char *name, const char *fragmentPath, const char *vertexPath ) {")
+	color_texture_block = _block_from_marker(tr_backend, "static qboolean RBPP_CreateColorCorrectTexture( void ) {")
+	gl_check_block = _block_from_marker(tr_init, "qboolean GL_CheckErrors( void ) {")
+
+	expected_aliases = {
+		"sub_447E40": "GL_CheckErrors",
+		"sub_4500B0": "RBPP_CreateRenderTarget",
+		"sub_4505F0": "RBPP_LinkProgram",
+		"sub_450640": "RBPP_LoadProgram",
+	}
+	for symbol, alias in expected_aliases.items():
+		assert aliases[symbol] == alias
+		assert f"| `{symbol}` | `{alias}` | High |" in mapping_round
+		assert symbol.replace("sub_", "fun_00").lower() in functions_csv
+
+	for expected in (
+		"00447e40    int32_t sub_447e40()",
+		"00447e50  int32_t eax_2 = data_16e3a9c()",
+		"00447e74  if (eax_2 == 0 || *(data_1740f4c + 0x30) != 0)",
+		"00447e69      return 0",
+		"00447fd1  data_1740d24(0, \"gl_checkerrors: %s\", &var_48)",
+		"00447fec  return 1",
+		"004501de  if (sub_447e40() == 0)",
+		"00450303          int32_t eax_8 = sub_447e40()",
+		"004505f0    int32_t sub_4505f0(void* arg1)",
+		"00450625  data_16e3e94(*(arg1 + 0x10))",
+		"0045062b  int32_t eax_3 = sub_447e40()",
+		"0045068d      return sub_4505f0(arg3)",
+	):
+		assert expected in hlil_part02
+
+	assert "qboolean GL_CheckErrors( void );" in tr_local
+	assert "qboolean GL_CheckErrors( void ) {" in tr_init
+	assert "return qfalse;" in gl_check_block
+	assert "return qtrue;" in gl_check_block
+	assert "ri.Error( ERR_FATAL, \"GL_CheckErrors: %s\", s );" in gl_check_block
+	assert "if ( GL_CheckErrors() ) {" in create_block
+	assert "qglGetError()" not in create_block
+	assert "s_postProcess.procs.qglBindRenderbufferEXTFunc" not in create_block
+	assert create_block.index("qglTexImage2D") < create_block.index("if ( GL_CheckErrors() )") < create_block.index("qglTexParameteri")
+	assert create_block.index("qglCheckFramebufferStatusEXTFunc") < create_block.rindex("if ( GL_CheckErrors() )")
+	assert "static qboolean RBPP_LinkProgram( ppProgram_t *program ) {" in tr_backend
+	assert "program->programObject = s_postProcess.procs.qglCreateProgramObjectARBFunc();" in link_block
+	assert "s_postProcess.procs.qglAttachObjectARBFunc( program->programObject, program->fragmentObject );" in link_block
+	assert "s_postProcess.procs.qglAttachObjectARBFunc( program->programObject, program->vertexObject );" in link_block
+	assert "s_postProcess.procs.qglLinkProgramARBFunc( program->programObject );" in link_block
+	assert "if ( GL_CheckErrors() ) {" in link_block
+	assert "RBPP_LinkProgram( program )" in load_program_block
+	assert "GL_OBJECT_LINK_STATUS_ARB" not in tr_backend
+	assert "linkStatus" not in load_program_block
+	assert "qglGetObjectParameterivARBFunc( program->programObject" not in load_program_block
+	assert "if ( GL_CheckErrors() ) {" in color_texture_block
+	assert "qglGetError()" not in color_texture_block
+	assert "post-process gl error and link lane: before 99.97%, after 99.985%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_328_splits_framebuffer_and_shader_proc_gates() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_328.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	framebuffer_loader_block = _block_from_marker(tr_backend, "static qboolean RBPP_LoadFramebufferProcs( void ) {")
+	full_loader_block = _block_from_marker(tr_backend, "static qboolean RBPP_LoadProcs( void ) {")
+	create_block = _block_from_marker(tr_backend, "static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter ) {")
+	load_program_block = _block_from_marker(tr_backend, "static qboolean RBPP_LoadProgram( ppProgram_t *program, const char *name, const char *fragmentPath, const char *vertexPath ) {")
+
+	assert aliases["sub_4500B0"] == "RBPP_CreateRenderTarget"
+	assert aliases["sub_450640"] == "RBPP_LoadProgram"
+	assert "| `sub_4500B0` | `RBPP_CreateRenderTarget` | High |" in mapping_round
+	assert "| `sub_450640` | `RBPP_LoadProgram` | High |" in mapping_round
+
+	for expected in (
+		"0045013c  if (data_16e3bec == 0 || data_16e3ca4 == 0 || data_16e403c == 0 || data_16e3d34 == 0",
+		"|| data_16e3f34 == 0 || data_16e3d2c == 0 || data_16e3e70 == 0",
+		"|| data_16e3c44 == 0 || data_16e3b2c == 0 || data_16e4020 == 0",
+		"|| data_16e3ee0 == 0)",
+		"00450655  if (*(data_1740ed4 + 0x30) == 0 || data_1743be8 == 0)",
+		"0045066a  if (sub_4504f0(arg1, arg3) != 0 && sub_450570(arg2, arg3) != 0)",
+		"0045068d      return sub_4505f0(arg3)",
+	):
+		assert expected in hlil_part02
+
+	assert "qboolean framebufferProcsLoaded;" in tr_backend
+	assert "qboolean framebufferSupported;" in tr_backend
+	assert "static qboolean RBPP_LoadFramebufferProcs( void ) {" in tr_backend
+	assert "if ( s_postProcess.framebufferProcsLoaded ) {" in framebuffer_loader_block
+	assert "return s_postProcess.framebufferSupported;" in framebuffer_loader_block
+	assert "GL_EXT_framebuffer_object" in framebuffer_loader_block
+	assert "GL_ARB_texture_rectangle" in framebuffer_loader_block
+	assert "GL_ARB_shader_objects" not in framebuffer_loader_block
+	assert "qglCreateShaderObjectARBFunc" not in framebuffer_loader_block
+	assert "qglGetUniformLocationARBFunc" not in framebuffer_loader_block
+	assert "qglGetIntegerv( GL_MAX_RECTANGLE_TEXTURE_SIZE_ARB, &s_postProcess.maxRectangleTextureSize );" in framebuffer_loader_block
+	assert "s_postProcess.framebufferSupported = qtrue;" in framebuffer_loader_block
+	assert "if ( !RBPP_LoadFramebufferProcs() ) {" in full_loader_block
+	assert "GL_ARB_shader_objects" in full_loader_block
+	assert "GL_ARB_vertex_shader" in full_loader_block
+	assert "GL_ARB_fragment_shader" in full_loader_block
+	assert "qglCreateShaderObjectARBFunc" in full_loader_block
+	assert "qglGetUniformLocationARBFunc" in full_loader_block
+	assert "RBPP_LoadFramebufferProcs()" in create_block
+	assert "RBPP_LoadProcs()" not in create_block
+	assert "RBPP_LoadProcs()" in load_program_block
+	assert "post-process proc gate lane: before 99.985%, after 99.99%" in mapping_round.lower()
 
 
 def test_renderer_advertisement_debug_labels_use_host_text() -> None:
@@ -447,10 +915,10 @@ def test_renderer_mapping_round_278_promotes_tail_postprocess_and_command_symbol
 	assert "void R_SyncRenderThread( void ) {" in tr_cmds
 	assert "void *R_GetCommandBuffer( int bytes ) {" in tr_cmds
 	assert "static qboolean RB_PostProcessEnabled( void ) {" in tr_backend
-	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
+	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {" in tr_backend
 	assert "static void RBPP_RebuildState( void ) {" in tr_backend
 	assert "static void RBPP_Shutdown( void ) {" in tr_backend
-	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
+	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {" in tr_backend
 	assert "static void R_PostProcessRestart( void ) {" in tr_init
 	assert "re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;" in tr_init
 	assert "re.RetailPostProcessPass = R_SetPostProcessBloomParameters;" in tr_init
@@ -542,7 +1010,11 @@ def test_renderer_mapping_round_279_promotes_postprocess_program_and_command_sym
 	assert "static qboolean RBPP_CreateColorCorrectTexture( void ) {" in tr_backend
 	assert "static qboolean RBPP_InitColorCorrectResources( void ) {" in tr_backend
 	assert "static qboolean RBPP_ApplyBloom( void ) {" in tr_backend
+	assert "void RBPP_SetColorCorrectUniformsFromCvars( void ) {" in tr_backend
+	assert "if ( !RBPP_ColorCorrectEnabled() ) {" in _block_from_marker(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
 	assert "static void RBPP_ApplyColorCorrectPass( void ) {" in tr_backend
+	assert "RBPP_SetColorCorrectUniforms( qfalse );" in _block_from_marker(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );" in tr_backend
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.colorCorrectProgram.gammaRecipUniform, gammaRecip );" in tr_backend
 

@@ -43,7 +43,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	RESPAWN_AMMO		40
 #define	RESPAWN_HOLDABLE	60
 #define	RESPAWN_MEGAHEALTH	35//120
-#define	MAX_FLIGHT_FUEL_RETAIL 32001
 static const keyItemDef_t g_keyItemDefs[] = {
 	{ KEY_FLAG_SILVER, "item_key_silver" },
 	{ KEY_FLAG_GOLD, "item_key_gold" },
@@ -1090,46 +1089,6 @@ static void G_ApplyItemBounceSettings( gentity_t *dropped, gitem_t *item ) {
 	}
 }
 
-/*
-=============
-G_ClampFlightFuel
-
-Clamps Flight fuel to the retail player-item stat ceiling.
-=============
-*/
-static int G_ClampFlightFuel( int fuel ) {
-	if ( fuel < 0 ) {
-		return 0;
-	}
-	if ( fuel > MAX_FLIGHT_FUEL_RETAIL ) {
-		return MAX_FLIGHT_FUEL_RETAIL;
-	}
-
-	return fuel;
-}
-
-/*
-=============
-G_ApplyFlightPowerupFuel
-
-Seeds the progress-backed Flight stats used by shared pmove and cgame HUD code.
-=============
-*/
-static void G_ApplyFlightPowerupFuel( gclient_t *client ) {
-	int	fuel;
-
-	if ( !client ) {
-		return;
-	}
-
-	fuel = G_ClampFlightFuel( g_maxFlightFuel.integer );
-	client->ps.stats[STAT_PLAYER_ITEM_THRUST] = g_flightThrust.integer;
-	client->ps.stats[STAT_PLAYER_ITEM_TIME_MAX] = fuel;
-	client->ps.stats[STAT_PLAYER_ITEM_TIME] = fuel;
-	client->ps.stats[STAT_PLAYER_ITEM_RECHARGE] = g_flightRefuelRate.integer;
-}
-
-
 //======================================================================
 
 int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
@@ -1151,9 +1110,6 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 	}
 
 	other->client->ps.powerups[ent->item->giTag] += quantity * 1000;
-	if ( ent->item->giTag == PW_FLIGHT ) {
-		G_ApplyFlightPowerupFuel( other->client );
-	}
 
 	{
 		teamScoreStatIndex_t holdStatIndex;

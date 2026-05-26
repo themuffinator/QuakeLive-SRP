@@ -362,7 +362,7 @@ typedef enum {
 	STAT_CLIENTS_READY,				// bit mask of clients wishing to exit the intermission (FIXME: configstring?)
 	STAT_MAX_HEALTH,				// health / armor limit, changable by handicap
 	STAT_CHAINGUN_SPINUP,			// retail chaingun spin accumulator, clamped to 0..1000
-	STAT_PLAYER_ITEM_THRUST,		// retail Flight thrust at playerState +0xe4
+	STAT_PLAYER_ITEM_THRUST,		// retail player-item sidecar at playerState +0xe4
 	STAT_PLAYER_ITEM_TIME_MAX = 10,	// retail progress-backed holdable maximum at playerState +0xe8
 	STAT_PLAYER_ITEM_TIME,			// retail progress-backed holdable current value at playerState +0xec
 	STAT_PLAYER_ITEM_RECHARGE,		// retail progress-backed holdable recharge rate at playerState +0xf0

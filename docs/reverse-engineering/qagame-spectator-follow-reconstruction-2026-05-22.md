@@ -11,6 +11,16 @@ It intentionally did not edit `src/ui/`, which remains read-only for agents,
 and did not launch the game because the recovered gap was settled by static
 source/reference evidence and focused parity tests.
 
+Correction on 2026-05-26: the later Binary Ninja HLIL pass supersedes the
+fallback-state and POI conclusions below. Retail `StopFollowing` always enters
+`SPECTATOR_FREE` and does not consult `g_teamSpecFreeCam`; retail
+`SpectatorClientEndFrame` has no POI camera branch and uses active-team
+`FollowCycle` fallback for stale explicit player targets. A further
+2026-05-26 command pass corrected `Cmd_Follow_f`: `follow1` and `follow2`
+belong to `SetTeam`, while the `follow` command itself resolves player strings
+through `ClientNumberFromString` and only special-cases the cgame `"pw"` suffix
+as a preserve-current-flag-carrier guard.
+
 ## Evidence
 
 Observed retail/reference signals:
@@ -23,8 +33,8 @@ Observed retail/reference signals:
    - `StopFollowing` at `0x10040D10`, described as restoring the caller's
      persisted team into playerstate, clearing follow state, resetting the
      spectator client to self, and dropping follow-only flags.
-   - `Cmd_Follow_f` at `0x10040F30`, with the `follow1` and `follow2`
-     shortcuts plus player-string resolution.
+   - `Cmd_Follow_f` at `0x10040F30`, with player-string resolution and the
+     cgame `"pw"` suffix guard.
    - `FollowCycle` at `0x10041130`, with the retail diagnostics and race info
      side payload.
 2. `references/symbol-maps/cgame.json` maps the HUD auto-follow command seam:
@@ -37,7 +47,8 @@ Observed retail/reference signals:
 
 ## Reconstruction
 
-Source changes:
+Original 2026-05-22 source changes, kept here as history and superseded by the
+2026-05-26 correction note where they mention fallback helper or POI behavior:
 
 1. Added `G_DefaultSpectatorState()` as the shared qagame fallback for leaving
    a follow camera. It preserves the repository's documented
@@ -50,10 +61,9 @@ Source changes:
    `PMF_FOLLOW`, updates `PMF_SCOREBOARD` according to the fallback state, and
    restores `ps.clientNum`.
 3. Reworked `Cmd_Follow_f()` so it accepts the retail cgame command surface:
-   no-arg `follow` stops an active follow camera, `follow1` and `follow2`
-   select the active-player shortcuts, normal names/slots still pass through
-   `ClientNumberFromString`, and extra command tokens such as the cgame
-   `" pw"` suffix no longer turn the command into a stop-follow request.
+   no-arg `follow` stops or cycles an active follow camera, names/slots pass
+   through `ClientNumberFromString`, and the cgame `" pw"` suffix preserves
+   the current followed flag carrier instead of forcing a target switch.
 4. Reworked `SpectatorClientEndFrame()` so unresolved `FOLLOW_ACTIVE1` /
    `FOLLOW_ACTIVE2`, removed POIs, and invalid explicit follow targets drop
    through `StopFollowing()` instead of leaving stale negative
@@ -67,7 +77,8 @@ for:
 - scoreboard spectators consuming command time without moving,
 - scoreboard spectator spawn state,
 - stop-follow team/self-client restoration,
-- retail follow command shortcuts plus optional powerup suffix tolerance,
+- retail follow command player-string parsing plus optional powerup suffix
+  tolerance,
 - end-frame missing-target fallback through `StopFollowing()`.
 
 Focused verification command:
@@ -78,10 +89,12 @@ python -m pytest tests/test_game_spectator_connection_parity.py tests/test_cgame
 
 ## Parity Estimate
 
-Scoped qagame spectator follow/stop-follow parity: **before 88% -> after 96%**.
+Original scoped qagame spectator follow/stop-follow estimate:
+**before 88% -> after 96%**.
 
-The remaining gap is mostly live-behavior confidence rather than known source
-shape: POI follow is a Quake Live-only extension in the current reconstruction,
-and a future reduced-runtime probe can verify the exact client snapshot
-experience when a POI or followed player disappears. Repo-wide parity remains
+The 2026-05-26 spectator state and command pass supersedes this estimate for
+the current source, raising the scoped command surface to **99.8%** and
+removing POI follow support as a non-retail branch. The remaining risk is
+live-behavior confidence around client snapshots rather than a known static
+mismatch when a followed player disappears. Repo-wide parity remains
 **98%** because this is a narrow qagame spectator closure.

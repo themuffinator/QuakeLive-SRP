@@ -695,13 +695,14 @@ def test_selected_jump_pmove_cvars_have_retail_defaults_and_active_consumers() -
 	assert "jumpVelocity += stepJumpActive ? settings->stepJumpVelocity : settings->chainJumpVelocity;" in takeoff_body
 	assert "offsetThreshold = threshold * settings->jumpVelocityTimeThresholdOffset;" in takeoff_body
 	assert "addVelocity = stepJumpActive ? settings->stepJumpVelocity : settings->chainJumpVelocity;" in takeoff_body
+	assert "jumpVelocity += ( ( offsetThreshold - (float)timeDelta ) / offsetThreshold ) * addVelocity + addVelocity;" in takeoff_body
 	assert "velocity = pm->ps->velocity[2] * settings->rampJumpScale + jumpVelocity;" in ramp_body
 	assert "settings && settings->rampJump && !fromCrouchStep" in ramp_body
 	assert "settings && settings->jumpVelocityMax > 0.0f && velocity > settings->jumpVelocityMax" in ramp_body
 	assert "velocity = settings->jumpVelocityMax;" in ramp_body
 	assert "PM_EvaluateJumpTakeoffVelocity( settings, qtrue, NULL );" in step_body
 	assert "PM_ApplyRampJumpVerticalVelocity( jumpVelocity, qfalse, settings );" in step_body
-	assert "PM_EvaluateJumpTakeoffVelocity( settings, qtrue, NULL );" in crouch_step_body
+	assert "PM_EvaluateJumpTakeoffVelocity( settings, qfalse, NULL );" in crouch_step_body
 	assert "PM_ApplyRampJumpVerticalVelocity( jumpVelocity, qtrue, settings );" in crouch_step_body
 	assert "PM_EvaluateJumpTakeoffVelocity( settings, qfalse, &timeDelta );" in prepare_body
 	assert "PM_ApplyRampJumpVerticalVelocity( jumpVelocity, qfalse, settings );" in prepare_body
@@ -720,14 +721,16 @@ def test_selected_jump_pmove_cvars_are_backed_by_committed_retail_evidence() -> 
 	for comment in (qagame_jump, cgame_jump):
 		assert "gradient chain-jump scaler" in comment
 		assert "additive chain/step branch" in comment
+		assert "offset-threshold denominator" in comment
 		assert "PMF_AIR_CONTROL" in comment
 		assert "`pmove_StepJumpVelocity`" in comment
 		assert "`pmove_ChainJumpVelocity`" in comment
-		assert "ramp-accumulated then max-clamped" in comment
+		assert "crouch-step latch suppresses ramp accumulation" in comment
 
 	assert "`pmove_JumpVelocityTimeThreshold`" in qagame_mapping
 	assert "`pmove_JumpVelocityTimeThresholdOffset`" in qagame_mapping
 	assert "vertical ramp-jump accumulation plus max clamp" in cgame_mapping
+	assert "offset-threshold air-control denominator" in cgame_mapping
 
 
 def test_selected_profile_utility_pmove_cvars_match_retail_registration_defaults_and_flags() -> None:

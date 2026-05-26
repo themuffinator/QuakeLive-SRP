@@ -269,44 +269,6 @@ static void G_ADPublishScoreHistory( void ) {
 
 /*
 =============
-G_ADResolveFollowTarget
-
-Selects the first live player that a round-eliminated CA/A&D client should follow.
-=============
-*/
-static int G_ADResolveFollowTarget( const gentity_t *ent ) {
-	int	clientNum;
-
-	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
-		const gentity_t	*target;
-		const gclient_t	*client;
-
-		target = &g_entities[clientNum];
-		client = target->client;
-		if ( !target->inuse || !client ) {
-			continue;
-		}
-		if ( target == ent ) {
-			continue;
-		}
-		if ( client->pers.connected != CON_CONNECTED ) {
-			continue;
-		}
-		if ( client->sess.sessionTeam != TEAM_RED && client->sess.sessionTeam != TEAM_BLUE ) {
-			continue;
-		}
-		if ( client->ps.pm_type != PM_NORMAL ) {
-			continue;
-		}
-
-		return clientNum;
-	}
-
-	return -1;
-}
-
-/*
-=============
 G_ADComputeRoundWinnerFromCounts
 
 Determines the current round winner from the active attacker/defender populations.
@@ -479,39 +441,20 @@ Respawns a Clan Arena / Attack & Defend player into the retail follow-spectator 
 */
 void G_CAADRespawnAsSpectator( gentity_t *ent ) {
 	int	counts[TEAM_NUM_TEAMS];
-	int	followTarget;
 
 	if ( !ent || !ent->client ) {
 		return;
 	}
 
 	CopyToBodyQue( ent );
-	ClientSpawn( ent );
 	ent->client->ps.pm_type = PM_SPECTATOR;
-	ent->client->respawnTime = level.time;
-	ent->takedamage = qfalse;
-	ent->r.contents = 0;
-	BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, qtrue );
-	VectorCopy( ent->client->ps.origin, ent->r.currentOrigin );
-	trap_LinkEntity( ent );
-
+	ClientSpawn( ent );
 	G_CountActivePlayersByTeam( counts );
-	if ( level.trainingMapActive || level.intermissiontime
-		|| counts[TEAM_RED] <= 0 || counts[TEAM_BLUE] <= 0 ) {
-		ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
-		ent->client->sess.spectatorClient = -1;
-		return;
+	if ( !level.trainingMapActive &&
+		ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
+		counts[TEAM_RED] > 0 && counts[TEAM_BLUE] > 0 ) {
+		FollowCycle( ent, 1 );
 	}
-
-	followTarget = G_ADResolveFollowTarget( ent );
-	if ( followTarget >= 0 ) {
-		ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
-		ent->client->sess.spectatorClient = followTarget;
-		return;
-	}
-
-	ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
-	ent->client->sess.spectatorClient = -1;
 }
 
 /*
@@ -4283,6 +4226,26 @@ gentity_t *SelectCTFSpawnPoint ( team_t team, int teamstate, vec3_t origin, vec3
 	}
 
 	spot = G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );
+
+	if ( !spot && teamstate == TEAM_BEGIN ) {
+		if (team == TEAM_RED)
+			classname = "team_CTF_redspawn";
+		else if (team == TEAM_BLUE)
+			classname = "team_CTF_bluespawn";
+		else
+			return SelectSpawnPoint( vec3_origin, origin, angles );
+
+		count = 0;
+		spot = NULL;
+		while ( ( spot = G_Find( spot, FOFS( classname ), classname ) ) != NULL ) {
+			spots[count++] = spot;
+			if ( count >= ARRAY_LEN( spots ) ) {
+				break;
+			}
+		}
+
+		spot = G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );
+	}
 
 	if (!spot) {
 		return SelectSpawnPoint( vec3_origin, origin, angles );

@@ -941,6 +941,15 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	loadout_block = _block_from_marker(game_client, "static weapon_t G_FinalizeSpawnLoadout")
 	init_spawn_block = _block_from_marker(game_client, "static weapon_t G_InitClientSpawnState")
 	spawn_block = _block_from_marker(game_client, "void ClientSpawn")
+	defer_block = _block_from_marker(game_client, "static void G_DeferClientSpawnRetry")
+	retry_block = _block_from_marker(game_client, "static void G_RetryDeferredClientSpawn")
+	eligibility_block = _block_from_marker(game_client, "static qboolean G_ClientCanUseSpawnPoint")
+	ranked_filter_block = _block_from_marker(game_client, "static qboolean G_RankedSpawnPointAllowed( const")
+	ranked_mode_filter_block = _block_from_marker(game_client, "static qboolean G_RankedSpawnPointAllowedForMode")
+	ranked_spawn_block = _block_from_marker(game_client, "static gentity_t *G_SelectRankedSpawnPointForTeamMode")
+	initial_spawn_block = _block_from_marker(game_client, "gentity_t *SelectInitialSpawnPoint")
+	ctf_spawn_block = _block_from_marker(game_team, "gentity_t *SelectCTFSpawnPoint")
+	team_spawn_gate_block = _block_from_marker(game_client, "static qboolean G_GametypeUsesTeamSpawnSelection")
 	skip_targets_block = _block_from_marker(game_client, "static qboolean G_GametypeSkipsSpawnPointTargets")
 	warmup_gate_block = _block_from_marker(game_client, "static qboolean G_ShouldGrantWarmupLevelWeapons")
 	warmup_allowed_block = _block_from_marker(game_client, "static qboolean G_WarmupLevelWeaponAllowed")
@@ -950,6 +959,34 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {" in game_client
 	assert "client->sess.selectedSpawnWeapon = (int)spawnWeapon;" in game_client
 	assert "if ( client->rrInfectionState == RR_STATE_INFECTED ) {" in game_client
+	assert "#define\tMAX_RANKED_SPAWN_POINTS\t26" in game_client
+	assert "#define\tCLIENT_SPAWN_RETRY_DELAY\t600" in game_client
+	assert "#define\tRANKED_SPAWN_INITIAL_FLAG\t1" in game_client
+	assert "#define\tRANKED_SPAWN_EXCLUDE_FLAG\t2" in game_client
+	assert "static qboolean G_ClientCanUseSpawnPoint( const gentity_t *ent, const gentity_t *spawnPoint ) {" in game_client
+	assert "spawnPoint->flags & FL_NO_BOTS" in eligibility_block
+	assert "spawnPoint->flags & FL_NO_HUMANS" in eligibility_block
+	assert "static qboolean G_RankedSpawnPointAllowed( const gentity_t *spot ) {" in game_client
+	assert "spot->spawnflags & RANKED_SPAWN_EXCLUDE_FLAG" in ranked_filter_block
+	assert "return qfalse;" in ranked_filter_block
+	assert "static qboolean G_RankedSpawnPointAllowedForMode( const gentity_t *spot, qboolean requireInitial ) {" in game_client
+	assert "G_RankedSpawnPointAllowed( spot )" in ranked_mode_filter_block
+	assert "requireInitial && !( spot->spawnflags & RANKED_SPAWN_INITIAL_FLAG )" in ranked_mode_filter_block
+	assert ranked_spawn_block.count("G_RankedSpawnPointAllowedForMode( spot, requireInitial )") == 2
+	assert ranked_spawn_block.index("if ( !G_RankedSpawnPointAllowedForMode( spot, requireInitial ) ) {") < ranked_spawn_block.index("if ( SpotWouldTelefrag( spot ) ) {")
+	assert "static void G_RetryDeferredClientSpawn( gentity_t *ent ) {" in game_client
+	assert "ClientSpawn( ent );" in retry_block
+	assert "static void G_DeferClientSpawnRetry( gentity_t *ent ) {" in game_client
+	assert "client->respawnTime = level.time + CLIENT_SPAWN_RETRY_DELAY;" in defer_block
+	assert "client->ps.pm_type = PM_SPECTATOR;" in defer_block
+	assert "client->noSpawnRetryCount++;" in defer_block
+	assert "ent->think = G_RetryDeferredClientSpawn;" in defer_block
+	assert "ent->nextthink = client->respawnTime;" in defer_block
+	assert "static qboolean G_GametypeUsesTeamSpawnSelection( int gametype ) {" in game_client
+	assert "case GT_CLAN_ARENA:" in team_spawn_gate_block
+	assert "case GT_ATTACK_DEFEND:" in team_spawn_gate_block
+	assert "case GT_RED_ROVER:" not in team_spawn_gate_block
+	assert "return qfalse;" in team_spawn_gate_block
 	assert "static weapon_t G_InitClientSpawnState( gentity_t *ent, gentity_t *spawnPoint, const factoryCvarConfig_t *factoryConfig ) {" in game_client
 	assert "spawnWeapon = G_InitClientSpawnState( ent, spawnPoint, factoryConfig );" in spawn_block
 	assert "static qboolean G_ShouldGrantWarmupLevelWeapons( void ) {" in game_client
@@ -1000,6 +1037,18 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "return qfalse;" in skip_targets_block
 	assert "return qtrue;" in skip_targets_block
 	assert spawn_block.index("client->lastkilled_client = -1;") < spawn_block.index("client->lasthurt_client = -1;")
+	assert "do {" not in spawn_block[spawn_block.index("// find a spawn point"):spawn_block.index("client->pers.teamState.state = TEAM_ACTIVE;")]
+	assert "for ( spawnAttempts = 0; spawnAttempts < MAX_SPAWN_POINTS; ++spawnAttempts ) {" in spawn_block
+	assert "if ( !spawnPoint || G_ClientCanUseSpawnPoint( ent, spawnPoint ) ) {" in spawn_block
+	assert "if ( !G_ClientCanUseSpawnPoint( ent, spawnPoint ) ) {" in spawn_block
+	assert "G_DeferClientSpawnRetry( ent );" in spawn_block
+	assert "client->noSpawnRetryCount = 0;" in spawn_block
+	assert spawn_block.index("spawnPoint = G_SelectClientSpawnPoint( ent, spawn_origin, spawn_angles );") < spawn_block.index("G_DeferClientSpawnRetry( ent );")
+	assert "static gentity_t *G_SelectInitialRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {" in game_client
+	assert "return G_SelectRankedSpawnPointForTeamMode( spots, spotCount, TEAM_FREE, qtrue, origin, angles );" in game_client
+	assert "spotCount = G_CollectSpawnPointsByClassname( \"info_player_deathmatch\", spots, ARRAY_LEN( spots ) );" in initial_spawn_block
+	assert "spot = G_SelectInitialRankedSpawnPoint( spots, spotCount, origin, angles );" in initial_spawn_block
+	assert "while ((spot = G_Find" not in initial_spawn_block
 	assert spawn_block.index("client->ps.pm_flags |= PMF_RESPAWNED;") < spawn_block.index("spawnWeapon = G_InitClientSpawnState( ent, spawnPoint, factoryConfig );")
 	assert spawn_block.index("spawnWeapon = G_InitClientSpawnState( ent, spawnPoint, factoryConfig );") < spawn_block.index("trap_GetUsercmd( client - level.clients, &ent->client->pers.cmd );")
 	assert spawn_block.index("G_GrantConfiguredItems( ent );") < spawn_block.index("BG_PlayerStateToEntityState( &client->ps, &ent->s, qtrue );")
@@ -1007,10 +1056,16 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles ) {" in game_client
 	assert "static gentity_t *G_SelectClientSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {" in game_client
 	assert "spawnPoint = G_SelectClientSpawnPoint( ent, spawn_origin, spawn_angles );" in game_client
+	assert "if ( G_GametypeUsesTeamSpawnSelection( g_gametype.integer ) ) {" in game_client
+	assert "if ( g_gametype.integer >= GT_CTF ) {" not in game_client
 	assert "gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles ) {" in game_team
 	assert "spawnPoint = Team_SelectDominationSpawnPoint( ent, origin, angles );" in game_client
 	assert "return G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );" in game_team
 	assert "spot = G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );" in game_team
+	assert "if ( !spot && teamstate == TEAM_BEGIN ) {" in ctf_spawn_block
+	assert ctf_spawn_block.count("classname = \"team_CTF_redspawn\";") == 2
+	assert ctf_spawn_block.count("classname = \"team_CTF_bluespawn\";") == 2
+	assert ctf_spawn_block.index("spot = G_SelectRankedSpawnPointForTeam( spots, count, OtherTeam( team ), origin, angles );") < ctf_spawn_block.index("if ( !spot && teamstate == TEAM_BEGIN ) {")
 	assert "gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles );" in game_local
 	assert "gentity_t *G_SelectRankedSpawnPoint( gentity_t *spots[], int spotCount, vec3_t origin, vec3_t angles );" in game_local
 	assert "gentity_t *Team_SelectDominationSpawnPoint( gentity_t *ent, vec3_t origin, vec3_t angles );" in game_local
@@ -1253,11 +1308,20 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	assert "void Cmd_RaceInit_f( gentity_t *ent ) {" in game_race
 	assert "G_RaceBroadcastInitCommand( ent->s.number );" in game_race
 	assert 'trap_SendServerCommand( clientNum, "race_init" );' in game_race
-	assert "static qboolean FollowCycle( gentity_t *ent, int dir ) {" in game_cmds
+	assert "qboolean FollowCycle( gentity_t *ent, int dir ) {" in game_cmds
+	assert "qboolean FollowCycle( gentity_t *ent, int dir );" in game_local
 	assert 'G_Error( "FollowCycle: bad dir %i", dir );' in game_cmds
 	assert 'G_Printf( "FollowCycle: bad input clientnum value: %d, maxclients: %d\\n", clientnum, level.maxclients );' in game_cmds
+	assert "clientTeam = ent->client->sess.sessionTeam;" in game_cmds
+	assert "if ( clientnum < 0 || clientnum >= level.maxclients ) {" in game_cmds
+	assert "if ( curr >= level.maxclients ) {" in game_cmds
+	assert "level.clients[curr].ps.pm_type == PM_SPECTATOR" in game_cmds
+	assert "level.clients[curr].ps.pm_flags & PMF_FOLLOW" in game_cmds
+	assert "clientTeam != TEAM_SPECTATOR && g_gametype.integer >= GT_TEAM" in game_cmds
 	assert "G_RaceSendInfoCommand( ent - g_entities );" in game_cmds
 	assert "FollowCycle( ent, dir );" in game_cmds
+	assert "level.numPois" not in game_cmds
+	assert "poiIndex" not in game_cmds
 	assert 'Com_sprintf( buffer, bufferSize, "race_info %i %i %i %i %i %i",' in game_race
 	assert "static gentity_t *G_RacePickPointTarget( const gentity_t *point ) {" in game_race
 	assert "static qboolean G_RacePointIsStart( const gentity_t *point ) {" in game_race

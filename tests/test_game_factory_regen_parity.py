@@ -600,7 +600,7 @@ def test_factory_pmove_reset_tracks_every_nonlocal_pmove_input_surface() -> None
 	assert 'trap_Cvar_Set( "g_quadHogTime", "60" );' in pmove_c
 
 
-def test_retail_flight_cvars_seed_progress_backed_fuel_stats() -> None:
+def test_retail_flight_cvars_stay_registration_only_for_shared_pmove() -> None:
 	bg_public = _read("src/code/game/bg_public.h")
 	bg_pmove = _read("src/code/game/bg_pmove.c")
 	g_items = _read("src/code/game/g_items.c")
@@ -620,22 +620,20 @@ def test_retail_flight_cvars_seed_progress_backed_fuel_stats() -> None:
 	fly_start = bg_pmove.index("static void PM_FlyMove( void )")
 	fly_end = bg_pmove.index("static void PM_AirMove", fly_start)
 	fly_body = bg_pmove[fly_start:fly_end]
-	assert "pm->ps->stats[STAT_PLAYER_ITEM_THRUST] > 0" in fly_body
-	assert "wishspeed = (float)pm->ps->stats[STAT_PLAYER_ITEM_THRUST];" in fly_body
-	assert "pm->ps->stats[STAT_PLAYER_ITEM_TIME] -= pml.msec;" in fly_body
+	assert "PM_Friction ();" in fly_body
+	assert "PM_BuildWishMove3D( wishdir, &wishspeed );" in fly_body
+	assert "PM_Accelerate (wishdir, wishspeed, pm_flyaccelerate);" in fly_body
+	assert "PM_StepSlideMove( qfalse );" in fly_body
+	assert "STAT_PLAYER_ITEM_THRUST" not in fly_body
+	assert "STAT_PLAYER_ITEM_TIME" not in fly_body
+	assert "PMF_USE_ITEM_HELD" not in fly_body
 	pickup_start = g_items.index("int Pickup_Powerup( gentity_t *ent, gentity_t *other )")
 	pickup_end = g_items.index("return RESPAWN_POWERUP;", pickup_start)
 	pickup_body = g_items[pickup_start:pickup_end]
-	assert "ent->item->giTag == PW_FLIGHT" in pickup_body
-	assert "G_ApplyFlightPowerupFuel( other->client );" in pickup_body
 	assert "other->client->ps.powerups[ent->item->giTag] += quantity * 1000;" in pickup_body
-	flight_body = _function_body(g_items, "static void G_ApplyFlightPowerupFuel( gclient_t *client )")
-	assert "fuel = G_ClampFlightFuel( g_maxFlightFuel.integer );" in flight_body
-	assert "client->ps.stats[STAT_PLAYER_ITEM_THRUST] = g_flightThrust.integer;" in flight_body
-	assert "client->ps.stats[STAT_PLAYER_ITEM_TIME_MAX] = fuel;" in flight_body
-	assert "client->ps.stats[STAT_PLAYER_ITEM_TIME] = fuel;" in flight_body
-	assert "client->ps.stats[STAT_PLAYER_ITEM_RECHARGE] = g_flightRefuelRate.integer;" in flight_body
-	assert "MAX_FLIGHT_FUEL_RETAIL 32001" in g_items
+	assert "G_ApplyFlightPowerupFuel" not in g_items
+	assert "G_ClampFlightFuel" not in g_items
+	assert "MAX_FLIGHT_FUEL_RETAIL" not in g_items
 
 
 def test_factory_regen_cvars_use_retail_gamerule_flags() -> None:

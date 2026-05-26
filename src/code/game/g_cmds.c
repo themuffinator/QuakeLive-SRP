@@ -4063,17 +4063,6 @@ void SetTeam( gentity_t *ent, char *s ) {
 
 /*
 =================
-G_DefaultSpectatorState
-
-Returns the spectator view mode used when retail clears a follow camera.
-=================
-*/
-spectatorState_t G_DefaultSpectatorState( void ) {
-	return g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;
-}
-
-/*
-=================
 StopFollowing
 
 If the client being followed leaves the game, or you just want to drop
@@ -4089,24 +4078,15 @@ void StopFollowing( gentity_t *ent ) {
 
 	clientNum = ent - g_entities;
 	ent->client->ps.persistant[ PERS_TEAM ] = ent->client->sess.sessionTeam;
-	ent->client->sess.spectatorState = G_DefaultSpectatorState();
-	ent->client->sess.spectatorClient = clientNum;
-	ent->client->lastKillCommandTime = 0;
-	ent->client->killCommandCooldownExpires = 0;
-	ent->client->friendlyFireComplaints = 0;
-	ent->client->friendlyFireComplaintEndTime = 0;
-	ent->client->teammateDamageGiven = 0;
-	ent->client->teammateDamageThisLife = 0;
-	ent->client->teamDamageEventsGiven = 0;
-	ent->client->teamDamageEventsReceived = 0;
+	ent->client->ps.pm_type = PM_SPECTATOR;
 	ent->client->ps.pm_flags &= ~PMF_FOLLOW;
-	if ( ent->client->sess.spectatorState == SPECTATOR_SCOREBOARD ) {
-		ent->client->ps.pm_flags |= PMF_SCOREBOARD;
-	} else {
-		ent->client->ps.pm_flags &= ~PMF_SCOREBOARD;
-	}
-	ent->r.svFlags &= ~SVF_BOT;
+	ent->client->sess.spectatorState = SPECTATOR_FREE;
+	ent->client->sess.spectatorClient = clientNum;
 	ent->client->ps.clientNum = clientNum;
+
+	if ( ent->r.linked ) {
+		trap_UnlinkEntity( ent );
+	}
 }
 
 /*
@@ -4167,22 +4147,23 @@ void Cmd_Follow_f( gentity_t *ent ) {
 	int			i;
 	int			argc;
 	char	arg[MAX_TOKEN_CHARS];
+	char	suffix[MAX_TOKEN_CHARS];
+	int			counts[TEAM_NUM_TEAMS];
 
 	if ( !ent || !ent->client ) {
-		return;
-	}
-
-	if ( level.trainingMapActive ) {
-		if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
-			StopFollowing( ent );
-		}
-		trap_SendServerCommand( ent-g_entities, "print \"Following is disabled in training.\n\"" );
 		return;
 	}
 
 	argc = trap_Argc();
 	if ( argc < 2 ) {
 		if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
+			if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR && !level.trainingMapActive ) {
+				G_CountActivePlayersByTeam( counts );
+				if ( counts[TEAM_RED] > 0 && counts[TEAM_BLUE] > 0 ) {
+					FollowCycle( ent, 1 );
+					return;
+				}
+			}
 			StopFollowing( ent );
 		} else if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecFreeCam.integer ) {
 			trap_SendServerCommand( ent-g_entities, "print \"Free-flying spectators are disabled while g_teamSpecFreeCam is 0.\n\"" );
@@ -4191,25 +4172,29 @@ void Cmd_Follow_f( gentity_t *ent ) {
 	}
 
 	trap_Argv( 1, arg, sizeof( arg ) );
-	if ( !Q_stricmp( arg, "follow1" ) ) {
-		i = FOLLOW_ACTIVE1;
-	} else if ( !Q_stricmp( arg, "follow2" ) ) {
-		i = FOLLOW_ACTIVE2;
-	} else {
-		i = ClientNumberFromString( ent, arg );
-		if ( i == -1 ) {
-			return;
-		}
+	i = ClientNumberFromString( ent, arg );
+	if ( i == -1 ) {
+		return;
+	}
 
-		// can't follow self
-		if ( &level.clients[ i ] == ent->client ) {
+	if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW && argc >= 3 ) {
+		trap_Argv( 2, suffix, sizeof( suffix ) );
+		if ( !Q_stricmp( suffix, "pw" ) &&
+			ent->client->sess.spectatorClient >= 0 &&
+			ent->client->sess.spectatorClient < level.maxclients &&
+			BG_PlayerCarryingFlag( &level.clients[ ent->client->sess.spectatorClient ].ps ) ) {
 			return;
 		}
+	}
 
-		// can't follow another spectator
-		if ( level.clients[ i ].sess.sessionTeam == TEAM_SPECTATOR ) {
-			return;
-		}
+	// can't follow self
+	if ( &level.clients[ i ] == ent->client ) {
+		return;
+	}
+
+	// can't follow another spectator
+	if ( level.clients[ i ].ps.pm_type == PM_SPECTATOR ) {
+		return;
 	}
 
 	// if they are playing a tournement game, count as a loss
@@ -4236,66 +4221,56 @@ Retail follow-cycle worker that rotates spectator targets and refreshes
 Race follow-state payloads when a player target is selected.
 =================
 */
-static qboolean FollowCycle( gentity_t *ent, int dir ) {
+qboolean FollowCycle( gentity_t *ent, int dir ) {
 	int		clientnum;
 	int		original;
 	int		curr;
-	int		max;
+	int		clientTeam;
 
 	if ( dir != 1 && dir != -1 ) {
 		G_Error( "FollowCycle: bad dir %i", dir );
 	}
 
 	clientnum = ent->client->sess.spectatorClient;
-	max = level.maxclients + level.numPois;
+	clientTeam = ent->client->sess.sessionTeam;
 
-	// Map spectatorClient to linear index 0..max-1
-	if ( clientnum >= 0 && clientnum < level.maxclients ) {
-		curr = clientnum;
-	} else if ( clientnum <= -10 ) {
-		curr = level.maxclients + ( -( clientnum + 10 ) );
-	} else {
+	if ( clientnum < 0 || clientnum >= level.maxclients ) {
 		G_Printf( "FollowCycle: bad input clientnum value: %d, maxclients: %d\n", clientnum, level.maxclients );
 		curr = 0;
+	} else {
+		curr = clientnum;
 	}
 
 	original = curr;
 
 	do {
 		curr += dir;
-		if ( curr >= max ) {
+		if ( curr >= level.maxclients ) {
 			curr = 0;
 		} else if ( curr < 0 ) {
-			curr = max - 1;
+			curr = level.maxclients - 1;
 		}
 
-		if ( curr < level.maxclients ) {
-			// Client logic
-			if ( level.clients[curr].pers.connected != CON_CONNECTED ) {
-				continue;
-			}
-			if ( level.clients[curr].sess.sessionTeam == TEAM_SPECTATOR ) {
-				continue;
-			}
-
-			ent->client->sess.spectatorClient = curr;
-			ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
-			if ( g_gametype.integer == GT_RACE ) {
-				G_RaceSendInfoCommand( ent - g_entities );
-			}
-			return qtrue;
+		if ( level.clients[curr].pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+		if ( level.clients[curr].ps.pm_type == PM_SPECTATOR ) {
+			continue;
+		}
+		if ( level.clients[curr].ps.pm_flags & PMF_FOLLOW ) {
+			continue;
+		}
+		if ( clientTeam != TEAM_SPECTATOR && g_gametype.integer >= GT_TEAM &&
+			level.clients[curr].sess.sessionTeam != clientTeam ) {
+			continue;
 		}
 
-		// POI logic
-		{
-			int poiIndex = curr - level.maxclients;
-			if ( poiIndex >= 0 && poiIndex < level.numPois && level.pois[poiIndex].inuse ) {
-				ent->client->sess.spectatorClient = -( poiIndex + 10 );
-				ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
-				return qtrue;
-			}
+		ent->client->sess.spectatorClient = curr;
+		ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
+		if ( g_gametype.integer == GT_RACE ) {
+			G_RaceSendInfoCommand( ent - g_entities );
 		}
-
+		return qtrue;
 	} while ( curr != original );
 
 	return qfalse;
@@ -4311,21 +4286,13 @@ void Cmd_FollowCycle_f( gentity_t *ent, int dir ) {
 		return;
 	}
 
-	if ( level.trainingMapActive ) {
-		if ( ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
-			StopFollowing( ent );
-		}
-		trap_SendServerCommand( ent-g_entities, "print \"Following is disabled in training.\n\"" );
-		return;
-	}
-
 	// if they are playing a tournement game, count as a loss
 	if ( (g_gametype.integer == GT_TOURNAMENT )
 		&& ent->client->sess.sessionTeam == TEAM_FREE ) {
 		ent->client->sess.losses++;
 	}
 	// first set them to spectator
-	if ( ent->client->sess.spectatorState == SPECTATOR_NOT ) {
+	if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		SetTeam( ent, "spectator" );
 	}
 
@@ -8615,122 +8582,6 @@ void ClientCommand( int clientNum ) {
 		Cmd_ClientKick_f( ent );
 	else if (Q_stricmp (cmd, "timelimit") == 0)
 		Cmd_TimeLimit_f( ent );
-	else if (Q_stricmp (cmd, "addpoi") == 0)
-		Cmd_AddPOI_f( ent );
-	else if (Q_stricmp (cmd, "delpoi") == 0)
-		Cmd_DelPOI_f( ent );
-	else if (Q_stricmp (cmd, "pois") == 0)
-		Cmd_POIs_f( ent );
 	else
 		trap_SendServerCommand( clientNum, va("print \"unknown cmd %s\n\"", cmd ) );
-}
-
-/*
-==================
-Cmd_AddPOI_f
-==================
-*/
-void Cmd_AddPOI_f( gentity_t *ent ) {
-	char	arg[MAX_TOKEN_CHARS];
-	vec3_t	origin, angles;
-	int		i;
-
-	if ( !CheatsOk( ent ) ) {
-		return;
-	}
-
-	if ( level.numPois >= MAX_POIS ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Max POIs reached.\n\"" );
-		return;
-	}
-
-	if ( trap_Argc() > 1 ) {
-		// x y z yaw pitch roll name
-		if ( trap_Argc() < 5 ) {
-			trap_SendServerCommand( ent-g_entities, "print \"usage: addpoi [x y z [yaw pitch roll]] [name]\n\"" );
-			return;
-		}
-		for ( i=0 ; i<3 ; i++ ) {
-			trap_Argv( i+1, arg, sizeof( arg ) );
-			origin[i] = atof( arg );
-		}
-		if ( trap_Argc() >= 7 ) {
-			for ( i=0 ; i<3 ; i++ ) {
-				trap_Argv( i+4, arg, sizeof( arg ) );
-				angles[i] = atof( arg );
-			}
-		} else {
-			VectorClear( angles );
-		}
-		if ( trap_Argc() >= 8 ) {
-			trap_Argv( 7, level.pois[level.numPois].name, sizeof( level.pois[level.numPois].name ) );
-		} else {
-			Com_sprintf( level.pois[level.numPois].name, sizeof( level.pois[level.numPois].name ), "POI %d", level.numPois );
-		}
-	} else {
-		VectorCopy( ent->r.currentOrigin, origin );
-		VectorCopy( ent->client->ps.viewangles, angles );
-		Com_sprintf( level.pois[level.numPois].name, sizeof( level.pois[level.numPois].name ), "POI %d", level.numPois );
-	}
-
-	VectorCopy( origin, level.pois[level.numPois].origin );
-	VectorCopy( angles, level.pois[level.numPois].angles );
-	level.pois[level.numPois].inuse = qtrue;
-	level.numPois++;
-
-	trap_SendServerCommand( ent-g_entities, va("print \"Added POI %d at %s\n\"", level.numPois-1, vtos(origin) ) );
-}
-
-/*
-==================
-Cmd_DelPOI_f
-==================
-*/
-void Cmd_DelPOI_f( gentity_t *ent ) {
-	char	arg[MAX_TOKEN_CHARS];
-	int		index;
-
-	if ( !CheatsOk( ent ) ) {
-		return;
-	}
-
-	if ( trap_Argc() != 2 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"usage: delpoi <index>\n\"" );
-		return;
-	}
-
-	trap_Argv( 1, arg, sizeof( arg ) );
-	index = atoi( arg );
-
-	if ( index < 0 || index >= level.numPois || !level.pois[index].inuse ) {
-		trap_SendServerCommand( ent-g_entities, "print \"Invalid POI index.\n\"" );
-		return;
-	}
-
-	// Remove by shifting
-	level.numPois--;
-	for ( ; index < level.numPois ; index++ ) {
-		level.pois[index] = level.pois[index+1];
-	}
-
-	trap_SendServerCommand( ent-g_entities, "print \"POI deleted.\n\"" );
-}
-
-/*
-==================
-Cmd_POIs_f
-==================
-*/
-void Cmd_POIs_f( gentity_t *ent ) {
-	int		i;
-
-	trap_SendServerCommand( ent-g_entities, "print \"Index Name                 Origin\n\"" );
-	trap_SendServerCommand( ent-g_entities, "print \"--------------------------------------------------\n\"" );
-
-	for ( i=0 ; i<level.numPois ; i++ ) {
-		if ( !level.pois[i].inuse ) {
-			continue;
-		}
-		trap_SendServerCommand( ent-g_entities, va("print \"  %3d %-20s %s\n\"", i, level.pois[i].name, vtos(level.pois[i].origin) ) );
-	}
 }

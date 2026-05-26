@@ -41,6 +41,788 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A109: Reconstruct CA/A-D spectator respawn handoff [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_team.c`, `src/code/game/g_client.c`,
+`tests/test_game_attack_defend_parity.py`,
+`tests/test_game_spectator_connection_parity.py`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/reverse-engineering/qagame-spectator-state-movement-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/symbol-maps/qagame.json`
+Parity estimate: **before 99.8% -> after 99.9%** for the scoped qagame
+spectator state/movement lane. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `G_CAADRespawnAsSpectator @ 0x10035960` and the dependent
+   `ClientSpawn @ 0x1003BC30` spectator branch against Binary Ninja HLIL.
+2. Collapsed the CA/A-D eliminated-player spectator helper back to the retail
+   sequence: `CopyToBodyQue`, pre-seed `PM_SPECTATOR`, `ClientSpawn`, active
+   team counts, and `FollowCycle` only when both teams still have players.
+3. Removed the source-only direct follow-target picker, post-spawn relink, and
+   free/scoreboard fallback assignment from that helper.
+4. Taught `ClientSpawn` to preserve a pre-existing `PM_SPECTATOR` state as the
+   spectator-spawn selector, so active-team CA/A-D eliminations can reuse the
+   retail spectator placement path without pretending the session team changed.
+5. Updated attack/defend, spectator, and active-pmove static parity coverage,
+   plus the qagame mapping, client-spawn note, spectator note, and symbol map.
+
+Verification:
+
+- `python -m pytest tests/test_game_attack_defend_parity.py tests/test_game_spectator_connection_parity.py -q --tb=short`
+  - Result: `10 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py::test_first_18_g_cvars_match_retail_defaults_flags_and_wiring tests/test_game_active_pmove_wiring_parity.py::test_spectator_impacts_and_predictable_event_sidecars_match_retail_wiring -q --tb=short`
+  - Result: `2 passed`.
+- `python -m pytest tests/test_game_attack_defend_parity.py tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py tests/test_game_helper_seam_parity.py tests/test_pmove_helper_parity.py tests/test_game_factory_regen_parity.py tests/test_bg_misc_validation_fixtures.py tests/test_spawn_spec_cvars.py tests/test_cgame_spectator_parity.py -q --tb=short`
+  - Result: `164 passed`.
+- `git diff --check`
+  - Result: clean; only Git line-ending normalization warnings were reported.
+
+### Task A108: Reconstruct initial and team-begin spawn fallback modes [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`, `src/code/game/g_team.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil.txt`,
+`references/reverse-engineering/ghidra/qagamex86/decompile_top_functions.c`
+Parity estimate: **before 98.8% -> after 99.0%** for the scoped qagame
+client-spawn band. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `G_SelectRankedSpawnPoint @ 0x10039080` and
+   `G_SelectClientSpawnPoint @ 0x10039730` against Binary Ninja HLIL and the
+   committed Ghidra companion body.
+2. Reconstructed the neutral initial-spawn admission mode: ranked neutral
+   initial selection now requires spawnflags bit 1 while still excluding bit 2.
+3. Added a ranked initial-spawn wrapper so `SelectInitialSpawnPoint` ranks all
+   eligible initial `info_player_deathmatch` starts instead of taking the first
+   matching entity from `G_Find`.
+4. Restored the team `TEAM_BEGIN` fallback retry from `team_CTF_*player` to
+   the same team's `team_CTF_*spawn` class before neutral deathmatch fallback.
+5. Updated helper/active parity coverage and the qagame client-spawn mapping
+   notes, leaving the training-map-specific ranked-spawn path as the next
+   explicit follow-up.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py tests/test_game_active_pmove_wiring_parity.py -q --tb=short`
+  - Result: `63 passed`.
+- `python -m pytest tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py tests/test_game_helper_seam_parity.py tests/test_pmove_helper_parity.py tests/test_game_factory_regen_parity.py tests/test_bg_misc_validation_fixtures.py tests/test_spawn_spec_cvars.py tests/test_cgame_spectator_parity.py -q --tb=short`
+  - Result: `161 passed`.
+- `git diff --check -- src/code/game/g_client.c src/code/game/g_team.c tests/test_game_helper_seam_parity.py tests/test_game_active_pmove_wiring_parity.py docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md docs/reverse-engineering/qagame-mapping.md`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A107: Correct spectator follow command surface [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_cmds.c`,
+`tests/test_game_spectator_connection_parity.py`,
+`docs/reverse-engineering/qagame-spectator-state-movement-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-spectator-follow-reconstruction-2026-05-22.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/symbol-maps/qagame.json`
+Parity estimate: **before 99.5% -> after 99.8%** for the scoped qagame
+spectator command surface. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `Cmd_Follow_f @ 0x10040F30` and `Cmd_FollowCycle_f @
+   0x100412E0` against the committed Binary Ninja HLIL after the broader
+   spectator-state pass.
+2. Corrected `Cmd_Follow_f` so `follow1` and `follow2` remain owned by
+   `SetTeam`, while the `follow` command resolves player strings through
+   `ClientNumberFromString`.
+3. Restored the retail cgame `"pw"` suffix guard that preserves the current
+   followed flag carrier via `BG_PlayerCarryingFlag`, and changed explicit
+   target rejection to the retail `ps.pm_type == PM_SPECTATOR` check.
+4. Removed source-only training-map print gates from `Cmd_Follow_f` and
+   `Cmd_FollowCycle_f`; no-arg follow cleanup remains handled by the retail
+   follow/end-frame paths.
+5. Rebuilt the public follow-cycle entry around the retail `sess.sessionTeam`
+   spectator handoff before tailcalling the inner `FollowCycle` worker.
+6. Updated static parity coverage, the spectator reconstruction notes, the
+   qagame mapping ledger, and the qagame symbol-map comments.
+
+Verification:
+
+- `python -m pytest tests/test_game_spectator_connection_parity.py tests/test_spawn_spec_cvars.py tests/test_cgame_spectator_parity.py -q --tb=short`
+  - Result: `18 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py::test_spectator_impacts_and_predictable_event_sidecars_match_retail_wiring tests/test_pmove_helper_parity.py -q --tb=short`
+  - Result: `41 passed`.
+- `python -m pytest tests/test_game_helper_seam_parity.py::test_last_alive_alert_helpers_match_recovered_retail_boundaries -q --tb=short`
+  - Result: `1 passed`.
+- Wider adjacent suite note:
+  `python -m pytest tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py tests/test_game_helper_seam_parity.py tests/test_pmove_helper_parity.py tests/test_game_factory_regen_parity.py tests/test_bg_misc_validation_fixtures.py tests/test_spawn_spec_cvars.py tests/test_cgame_spectator_parity.py -q --tb=short`
+  currently reports `159 passed, 2 failed`; both failures are in unrelated
+  ranked-spawn assertions in `tests/test_game_active_pmove_wiring_parity.py`
+  and `tests/test_game_helper_seam_parity.py`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A106: Reconstruct ranked-spawn spawnflag exclusion [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil.txt`,
+`references/reverse-engineering/ghidra/qagamex86/decompile_top_functions.c`
+Parity estimate: **before 98.7% -> after 98.8%** for the scoped qagame
+client-spawn band. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `G_SelectRankedSpawnPoint @ 0x10039080` against Binary Ninja
+   HLIL and the committed Ghidra companion body.
+2. Identified the retail candidate admission guard that reads spawnflags at
+   `entity + 0x248` and rejects candidates with bit 2 set before distance
+   scoring.
+3. Added `RANKED_SPAWN_EXCLUDE_FLAG` and `G_RankedSpawnPointAllowed`, then
+   routed both the ranked-scoring path and the no-ranked-candidate fallback
+   through the recovered filter.
+4. Pinned the helper, constant, and ranked-picker call sites in the qagame
+   helper and active pmove/spawn parity tests.
+5. Updated the client-spawn reconstruction note and qagame mapping ledger with
+   the HLIL/Ghidra evidence and the remaining bit-1 fallback question.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py tests/test_game_active_pmove_wiring_parity.py -q --tb=short`
+  - Result: `63 passed`.
+- `git diff --check -- src/code/game/g_client.c src/code/game/g_local.h tests/test_game_helper_seam_parity.py tests/test_game_active_pmove_wiring_parity.py docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md docs/reverse-engineering/qagame-mapping.md IMPLEMENTATION_PLAN.md`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A105: Split renderer framebuffer and shader procedure gates [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_328.md`,
+`docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`,
+`docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`
+Parity estimate: **before 99.985% -> after 99.99%** for the scoped
+post-process proc gate lane. The strict renderer estimate remains **100%** and
+the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `sub_4500B0` and `sub_450640` against HLIL to separate
+   framebuffer target prerequisites from post-effect shader/program
+   prerequisites.
+2. Added `RBPP_LoadFramebufferProcs` for the retail framebuffer-only target
+   lane: FBO/renderbuffer/rectangle entry points plus max rectangle texture
+   size.
+3. Added independent framebuffer procedure loaded/supported state to
+   `ppState_t`.
+4. Rewired `RBPP_CreateRenderTarget` to call the framebuffer-only loader,
+   while `RBPP_LoadProgram` remains behind the full shader/uniform
+   `RBPP_LoadProcs` gate.
+5. Updated the renderer mapping, audit, and source-file ledger; `tr_backend.c`
+   now tracks `79` functions.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `46 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A104: Reconstruct renderer post-process GL error and link wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`src/code/renderer/tr_init.c`, `src/code/renderer/tr_local.h`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`tests/test_renderer_post_process_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_327.md`,
+`docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`,
+`docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`references/reverse-engineering/ghidra/quakelive_steam/functions.csv`
+Parity estimate: **before 99.97% -> after 99.985%** for the scoped
+post-process GL error and link lane. The strict renderer estimate remains
+**100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `sub_447E40`, `sub_4500B0`, `sub_4505F0`, and
+   `sub_450640` against HLIL and the committed Ghidra function inventory.
+2. Restored `GL_CheckErrors` as a return-valued helper so post-process callers
+   can branch on unignored GL errors while existing callers may ignore the
+   result.
+3. Rewired `RBPP_CreateRenderTarget` to use `GL_CheckErrors()` after rectangle
+   texture allocation and after framebuffer completeness, and removed the
+   source-only renderbuffer bind from the attachment path.
+4. Promoted `sub_4505F0` as `RBPP_LinkProgram`, moving post-effect program
+   create/attach/link and GL-error-gated success into its own retail-shaped
+   helper.
+5. Dropped the source-only `GL_OBJECT_LINK_STATUS_ARB` link-status query from
+   `RBPP_LoadProgram` and routed color-correct texture allocation through
+   `GL_CheckErrors()`.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `45 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A103: Tighten spectator follow state and POI divergence [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_active.c`, `src/code/game/g_cmds.c`,
+`src/code/game/g_local.h`, `references/symbol-maps/qagame.json`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`docs/reverse-engineering/qagame-spectator-state-movement-reconstruction-2026-05-26.md`,
+`tests/test_game_spectator_connection_parity.py`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_helper_seam_parity.py`
+Parity estimate: **before 96% -> after 99.5%** for scoped qagame spectator
+follow-state and end-frame parity; repo-wide remains **98%** pending the
+active portability/runtime-evidence gaps.
+
+Completed work:
+
+1. Rechecked `SpectatorClientEndFrame @ 0x10035470`,
+   `StopFollowing @ 0x10040D10`, `Cmd_Follow_f @ 0x10040F30`, and
+   `FollowCycle @ 0x10041130` against the committed Binary Ninja HLIL.
+2. Removed the source-only POI spectator camera storage and direct admin
+   commands; retail follow cycling is client-only.
+3. Rebuilt `StopFollowing` around the retail `SPECTATOR_FREE` reset with
+   `PM_SPECTATOR`, `PMF_FOLLOW` clearing, self `spectatorClient/clientNum`,
+   and linked-entity unlinking.
+4. Routed `SpectatorThink` and stale end-frame targets through the recovered
+   inner `FollowCycle` worker, including active-team fallback cycling when both
+   teams still have live players.
+5. Tightened `FollowCycle` filters for disconnected, `PM_SPECTATOR`,
+   `PMF_FOLLOW`, and cross-team targets.
+
+Verification:
+
+- `python -m pytest tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py tests/test_game_helper_seam_parity.py tests/test_pmove_helper_parity.py tests/test_game_factory_regen_parity.py tests/test_bg_misc_validation_fixtures.py -q --tb=short`
+  - Result: `149 passed`.
+- `python -m pytest tests/test_spawn_spec_cvars.py tests/test_cgame_spectator_parity.py -q --tb=short`
+  - Result: `11 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A102: Reconstruct renderer post-process renderbuffer cache [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_326.md`,
+`docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`,
+`docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`references/reverse-engineering/ghidra/quakelive_steam/functions.csv`
+Parity estimate: **before 99.95% -> after 99.97%** for the scoped
+post-process depth-stencil renderbuffer cache lane. The strict renderer
+estimate remains **100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `sub_44FFD0`, `sub_4500B0`, `sub_450710`, and
+   `sub_450780` against HLIL and the committed Ghidra function inventory.
+2. Promoted `sub_44FFD0` as `RBPP_CreateDepthStencilRenderbuffer` and added
+   the retail eight-entry width/height renderbuffer cache to `ppState_t`.
+3. Routed `RBPP_CreateRenderTarget` through the cached
+   `GL_DEPTH24_STENCIL8_EXT` renderbuffer helper before rectangle-texture and
+   framebuffer creation.
+4. Reset the reconstructed renderbuffer cache metadata during bloom resource
+   shutdown, matching the retail rebuild/shutdown cache reset lane.
+5. Updated the renderer mapping, audit, source-file ledger, and symbol alias
+   evidence; `tr_backend.c` now tracks `77` functions.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `44 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A101: Correct ranked spawn candidate window [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`
+Parity estimate: **before 98.5% -> after 98.7%** for the scoped qagame
+client-spawn band. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `G_SelectRankedSpawnPoint @ 0x10039080` against HLIL and the
+   Ghidra companion body.
+2. Restored the retail `0x1a` retained ranked-spawn candidate cap by changing
+   `MAX_RANKED_SPAWN_POINTS` from 32 to 26.
+3. Pinned the cap in the active pmove/spawn wiring and helper seam parity
+   tests.
+4. Updated the qagame client-spawn reconstruction note and mapping ledger with
+   the ranked-picker evidence.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py tests/test_game_active_pmove_wiring_parity.py -q --tb=short`
+  - Result: `1 failed, 62 passed`; failure is an unrelated pre-existing
+    `g_cmds.c` spectator free-cam expectation in
+    `test_team_loadout_bot_and_drop_cvars_keep_retail_behavioral_wiring`.
+- `python -m pytest tests/test_game_helper_seam_parity.py::test_client_spawn_uses_recovered_loadout_and_rr_helpers tests/test_game_active_pmove_wiring_parity.py::test_first_18_g_cvars_match_retail_defaults_flags_and_wiring -q --tb=short`
+  - Result: `2 passed`.
+
+### Task A100: Reconstruct renderer bloom teardown and program cleanup ordering [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_325.md`,
+`docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`,
+`docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp`
+Parity estimate: **before 99.93% -> after 99.95%** for the scoped
+post-process bloom teardown lane. The strict renderer estimate remains
+**100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `sub_437DA0` and `sub_4506A0` against HLIL and the Ghidra
+   companion corpus.
+2. Updated `RBPP_DestroyBloomPrograms` to destroy bloom programs in retail
+   memory order: brightpass, downsample, blurvertical, blurhoriz, combine.
+3. Rebuilt `RBPP_ShutdownBloomResources` around the retail grouped delete
+   order: all textures, then all framebuffers, then all depth-stencil
+   renderbuffers, followed by target slot clearing.
+4. Added the retail `glDetachObjectARB` path to `RBPP_DestroyProgram` so
+   shader objects detach before program deletion.
+5. Kept `tr_backend.c` at `76` tracked functions while tightening lifecycle
+   parity in place.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `43 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A99: Restore client-spawn team gametype selection band [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`
+Parity estimate: **before 98% -> after 98.5%** for the scoped qagame
+client-spawn band. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `G_SelectClientSpawnPoint @ 0x10039730` against the HLIL
+   `gametype - 4 <= 7` branch and the current source gametype enum.
+2. Replaced the broad source `g_gametype >= GT_CTF` spawn-class shortcut with
+   `G_GametypeUsesTeamSpawnSelection`.
+3. Restored the retail edge cases: Clan Arena now uses team spawn classes, and
+   Red Rover no longer routes through the CTF-style team spawn family before
+   its Red Rover role/loadout finalizer.
+4. Extended the client-spawn reconstruction note and qagame mapping ledger.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py -q --tb=short`
+  - Result: `69 passed`.
+
+### Task A98: Reconstruct spectator state and fly-move parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_active.c`,
+`src/code/game/bg_pmove.c`, `src/code/game/g_items.c`,
+`src/code/game/g_main.c`, `src/code/game/bg_public.h`,
+`references/symbol-maps/qagame.json`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`docs/reverse-engineering/qagame-spectator-state-movement-reconstruction-2026-05-26.md`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_factory_regen_parity.py`,
+`tests/test_pmove_helper_parity.py`
+Parity estimate: **before 93% -> after 99%** for scoped spectator
+state/movement and shared fly-move parity; repo-wide remains **98%** pending
+the active portability/runtime-evidence gaps.
+
+Completed work:
+
+1. Rechecked qagame `SpectatorThink` at `0x10033E30`, adjacent spectator
+   helpers, qagame/cgame `PM_FlyMove`, and `Pickup_Powerup` against the
+   committed HLIL and symbol maps.
+2. Restored the retail spectator pmove ordering: unlink linked spectators
+   before pmove, set `PM_SPECTATOR` with speed `480`, run `Pmove`, copy the
+   moved origin, and touch triggers afterward.
+3. Restored the retail spectator input edge split: attack-edge follow cycling
+   returns before the later `BUTTON_ANY` edge can drop follow state.
+4. Collapsed shared `PM_FlyMove` back to the retail four-call path and removed
+   source-only Flight fuel/thrust stat seeding from powerup pickup while
+   keeping the retail cvar registrations.
+
+Verification:
+
+- `python -m pytest tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py tests/test_pmove_helper_parity.py tests/test_game_factory_regen_parity.py tests/test_bg_misc_validation_fixtures.py -q --tb=short`
+  - Result: `118 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A97: Reconstruct client-spawn no-spawn retry path [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`, `src/code/game/g_local.h`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-client-spawn-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`
+Parity estimate: **before 96% -> after 98%** for the scoped qagame
+client-spawn band. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `ClientSpawn @ 0x1003BC30`, `G_SelectClientSpawnPoint @
+   0x10039730`, `G_SelectRankedSpawnPoint @ 0x10039080`,
+   `Team_SelectDominationSpawnPoint @ 0x10038B60`, `G_InitClientSpawnState @
+   0x1003B6C0`, `G_FinalizeSpawnLoadout @ 0x1003B5A0`, and
+   `G_GiveItemByName @ 0x1003BB90` against HLIL, Ghidra, and the curated
+   symbol map.
+2. Restored the retail active-player no-spawn branch: `ClientSpawn` now
+   defers for 600 ms, writes `PM_SPECTATOR`, increments the retry counter, and
+   returns before the full client reset when the spawn wrapper cannot produce
+   an eligible point.
+3. Replaced the inherited unbounded spawnpoint eligibility loop with a bounded
+   `FL_NO_BOTS` / `FL_NO_HUMANS` guard and a scheduled retry callback.
+4. Added a dedicated reconstruction note and expanded qagame mapping coverage
+   for the client-spawn helper family.
+
+Verification:
+
+- `python -m pytest tests/test_game_helper_seam_parity.py tests/test_game_spectator_connection_parity.py tests/test_game_active_pmove_wiring_parity.py -q --tb=short`
+  - Result: `69 passed`.
+
+### Task A96: Reconstruct renderer framebuffer owner and retire legacy scratch path [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_324.md`,
+`docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`,
+`docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp`
+Parity estimate: **before 99.9% -> after 99.93%** for the scoped
+post-process framebuffer owner lane. The strict renderer estimate remains
+**100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `sub_4500B0`, `sub_437E40`, `sub_438790`, and
+   `sub_4387D0` against HLIL, the Ghidra companion corpus, and the alias
+   ledger.
+2. Confirmed the live retail-shaped framebuffer owner is the
+   `GL_TEXTURE_RECTANGLE_ARB` `RBPP_CreateRenderTarget` path with shared
+   depth-stencil renderbuffer attachment.
+3. Removed the disconnected legacy `GL_TEXTURE_2D` scene-target structs,
+   FBO-loader helpers, and fixed-function scratch-bloom helper family from
+   `tr_backend.c`.
+4. Rewired end-of-frame release and queued post-process reset handling to call
+   `RBPP_ReleaseSceneRenderTarget` and `RBPP_ResetIfNeeded` directly.
+5. Updated the renderer audit and source-file ledger; `tr_backend.c` now
+   tracks `76` functions after retiring the duplicate helper family.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `42 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A95: Reconstruct teleporting state and related wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_misc.c`,
+`tests/test_teleport_state_reconstruction.py`,
+`docs/reverse-engineering/qagame-teleport-state-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`docs/reverse-engineering/cgame-mapping.md`,
+`references/symbol-maps/qagame.json`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`,
+`references/hlil/quakelive/cgamex86.dll/cgamex86.dll_hlil_split/`
+Parity estimate: **before 96% -> after 99%** for the scoped teleporting
+state and related wiring lane. The repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `TeleportPlayer` at `0x1005A420`, `Weapon_HookFree` at
+   `0x1006E330`, target/trigger teleporter callbacks, holdable teleporter
+   event handling, spectator-door teleporting, respawn teleport-in effects,
+   dropped-powerup teleporter handling, bot movement flags, and cgame
+   teleport consumers against HLIL, Ghidra, and symbol-map evidence.
+2. Restored the missing `TeleportPlayer` active-hook cleanup edge:
+   `Weapon_HookFree( player->client->hook )` now runs after
+   `EF_TELEPORT_BIT` toggles and before destination view-angle / killbox
+   handling.
+3. Added focused parity tests pinning the server helper, server producers,
+   cgame prediction/snapshot/view/event consumers, bot
+   `PMF_TIME_KNOCKBACK` -> `MFL_TELEPORTED` bridge, and dropped-powerup
+   teleporter movement side path.
+4. Added a dedicated reconstruction note and updated qagame/cgame mapping
+   ledgers with the observed facts, source delta, confidence, and open
+   evidence boundary.
+
+Verification:
+
+- `python -m pytest tests/test_teleport_state_reconstruction.py -q --tb=short`
+  - Result: `4 passed`.
+- `python -m pytest tests/test_teleport_state_reconstruction.py tests/test_pmove_helper_parity.py tests/test_game_item_runframe_parity.py tests/test_game_target_parity.py tests/test_game_runthink_parity.py tests/test_cgame_snapshot_parity.py tests/test_cgame_event_transport_parity.py -q --tb=short`
+  - Result: `88 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A94: Split renderer color-correct init and live browser override [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`tests/test_engine_cvar_retail_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_323.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp`
+Parity estimate: **before 99.85% -> after 99.9%** for the scoped
+post-process color-correct browser override lane. The strict renderer estimate
+remains **100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `sub_43CD60` and `sub_43CFE0` against HLIL and the Ghidra
+   companion corpus.
+2. Confirmed that the browser-active override belongs to the live uniform
+   refresh helper, while the init helper seeds gamma reciprocal and contrast
+   directly from cvars.
+3. Added a `browserOverride` parameter to the shared source uniform writer so
+   `RBPP_InitColorCorrectResources` passes `qfalse` and
+   `RBPP_SetColorCorrectUniformsFromCvars` passes `qtrue`.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `41 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentythird_renderer_runtime_tuning_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtyeighth_renderer_image_quality_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `2 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A93: Reconstruct renderer live post-process cvar refresh [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_cmds.c`,
+`src/code/renderer/tr_backend.c`,
+`src/code/renderer/tr_init.c`,
+`src/code/renderer/tr_local.h`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`tests/test_engine_cvar_retail_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_322.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp`
+Parity estimate: **before 99.7% -> after 99.85%** for the scoped
+post-process live cvar refresh lane. The strict renderer estimate remains
+**100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked the retail `RE_BeginFrame` post-texture-mode branch against HLIL
+   and the Ghidra companion corpus.
+2. Moved live post-process modified-latch consumption out of
+   `R_UpdatePostProcessCvars`, preserving that function as the enable/restart
+   state owner.
+3. Added `R_RefreshLivePostProcessCvars` in `tr_cmds.c` so frame-begin now
+   refreshes color-correct uniforms from `r_gamma/r_contrast`, refreshes bloom
+   uniforms from the five live bloom cvars, and leaves `r_gamma->modified` for
+   the later `R_SetColorMappings` path.
+4. Exposed the two active-state guarded backend uniform helpers through
+   `tr_local.h` while keeping the low-level uniform writers private.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `40 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- Direct source sentinel for the `test_engine_cvar_fortyfirst_renderer_platform_scene_tranche_matches_retail_contracts` post-process assertions:
+  - Result: passed.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortyfirst_renderer_platform_scene_tranche_matches_retail_contracts -q --tb=short`
+  - Result: failed before the new post-process assertions on an unrelated
+    read-only `src/ui/ui_main.c` `r_inGameVideo` expectation.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A92: Reconstruct renderer color-correct uniform helper [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_321.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp`
+Parity estimate: **before 99.5% -> after 99.7%** for the scoped
+post-process color-correct uniform helper lane. The strict renderer estimate
+remains **100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `sub_43CD60`, `sub_43CFE0`, and `sub_436DC0` against HLIL and
+   the Ghidra companion corpus.
+2. Split color-correct cvar-to-uniform writes out of the draw pass into
+   `RBPP_SetColorCorrectUniforms` and the active-state guarded
+   `RBPP_SetColorCorrectUniformsFromCvars` helper.
+3. Seeded the color-correct program uniforms during
+   `RBPP_InitColorCorrectResources`, matching the initialization write sequence
+   recovered from `sub_43CFE0`.
+4. Left `RBPP_ApplyColorCorrectPass` focused on framebuffer copy, live uniform
+   refresh through the recovered helper, and full-screen draw execution.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `39 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentyninth_renderer_postprocess_extension_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `2 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A91: Correct renderer post-process bloom uniform slot order [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`src/code/renderer/tr_local.h`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_320.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`,
+`src2/ghidra/quakelive_steam/quakelive_steam_decomp.cpp`
+Parity estimate: **before 99% -> after 99.5%** for the scoped
+post-process bloom uniform naming lane. The strict renderer estimate remains
+**100%** and the repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked `sub_4380F0`, `sub_438590`, and `sub_4386D0` against HLIL and
+   the Ghidra companion corpus for the combine uniform slot order.
+2. Corrected the private five-float source signature so the last two arguments
+   are `sceneSaturation` and then `sceneIntensity`.
+3. Reordered the source-side combine uniform fields, uniform lookup, and uniform
+   write path to mirror the retail slots:
+   `p_bloomsaturation`, `p_scenesaturation`, `p_bloomintensity`,
+   `p_sceneintensity`.
+4. Added a dedicated mapping note and parity sentinels so the argument/slot
+   order cannot drift back to shader-declaration order.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `38 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `python -m pytest tests/test_engine_cvar_retail_parity.py::test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_contracts -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A90: Reconstruct qagame knockback application and blocking [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_combat.c`, `src/game/g_config.c`,
+`tests/test_game_weapon_parity.py`, `tests/test_pmove_helper_parity.py`,
+`docs/reverse-engineering/qagame-knockback-reconstruction-2026-05-26.md`,
+`docs/reverse-engineering/qagame-mapping.md`, `docs/gameplay/cvars.md`,
+`docs/gameplay-cvars-and-steam.md`, `references/symbol-maps/qagame.json`,
+`references/symbol-maps/cgame.json`,
+`src/code/game/ai_dmq3.c`, `src/code/game/g_target.c`,
+`src/code/game/g_missile.c`, `src/code/botlib/be_aas_move.c`,
+`src/code/botlib/be_ai_move.c`,
+`references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/`
+Parity estimate: **before 82% -> after 98%** for the scoped qagame
+knockback application, no-knockback producer, and movement-blocking lane. The repo-wide parity
+estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked retail `G_KnockbackScaleForMOD` at `0x10048A10` and `G_Damage`
+   at `0x10048C30` against HLIL, Ghidra, and the existing symbol map.
+2. Reconstructed signed knockback application so negative scalars invert the
+   damage direction and still latch `PMF_TIME_KNOCKBACK`.
+3. Kept `FL_NO_KNOCKBACK` and `DAMAGE_NO_KNOCKBACK` as zeroing gates before
+   velocity or timer side effects.
+4. Removed non-retail `G_Damage` vertical boost and crouch/low-health cripple
+   velocity reduction; `g_knockback_cripple` now remains only as the retail
+   knockback timer floor.
+5. Added focused source/evidence sentinels and a dedicated reconstruction
+   note for the signed knockback and blocking seam, including the shared
+   pmove friction, walk acceleration, drop-timer, spawn-side timer wiring, and
+   teleport-side timer wiring.
+6. Removed the inherited Quake III `damage_knockback` feedback slot/write/reset
+   after rechecking retail `G_Damage` and `P_DamageFeedback`: Quake Live stores
+   only armor, blood, `damage_from`, and `damage_fromWorld` in that record.
+7. Pinned the bot-side move initializer wiring where active
+   `PMF_TIME_KNOCKBACK` plus positive `pm_time` raises `MFL_TELEPORTED` before
+   the waterjump movement flag.
+8. Pinned the no-knockback producers (`target_laser_think` and juiced prox
+   discharge), the null-direction `DAMAGE_NO_KNOCKBACK` conversion, the fatal
+   `FL_NO_KNOCKBACK` ordering, and the companion botlib weapon-jump predictor.
+9. Aligned the `g_max_knockback` help text in both registration tables with
+   the reconstructed positive-only clamp behavior.
+10. Rechecked reconstructed source style: added the required function headers
+    for `G_ReadKnockbackCvar` and `G_UpdateKnockbackConfig`, clarified the
+    `G_Damage` knockback comment, and tab-indented `knockbackConfig_t`.
+11. Added a graph-level wiring map to the reconstruction note and pinned the
+    live knockback, no-knockback, pmove, feedback, bot bridge, and botlib
+    predictor nodes in the focused parity suite.
+12. Removed the source-only `g_debugDamage` knockback summary instrumentation
+    after the committed HLIL/string corpus showed only the retail
+    health/damage/armor debug print in `G_Damage`.
+
+Verification:
+
+- `python -m pytest tests/test_game_weapon_parity.py -q --tb=short`
+  - Result: `35 passed`.
+- `python -m pytest tests/test_game_active_pmove_wiring_parity.py -q --tb=short`
+  - Result: `32 passed`.
+- `python -m pytest tests/test_pmove_helper_parity.py -q --tb=short`
+  - Result: `40 passed`.
+- `python -m pytest tests/test_game_target_parity.py -q --tb=short`
+  - Result: `11 passed`.
+- `python -m pytest tests/test_game_weapon_parity.py tests/test_game_active_pmove_wiring_parity.py tests/test_pmove_helper_parity.py tests/test_game_target_parity.py -q --tb=short`
+  - Result: `118 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF warnings were reported.
+
 ### Task A89: Reconstruct renderer post-process private refexport tail [COMPLETED]
 Priority: High
 Primary areas: `src/code/renderer/tr_backend.c`,
@@ -1265,9 +2047,9 @@ Completed work:
    heavy machinegun rows now use `CONFIG_CVAR_FLAG_RETAIL_40000 |
    CVAR_GAMERULE`.
 4. Revalidated wiring through `G_InitKnockbackConfig`,
-   `G_KnockbackScaleForMOD`, `G_KnockbackVerticalBoost`,
-   `G_ApplyKnockbackCripple`, and the final `g_knockback.value` scaling in
-   `G_Damage`.
+   `G_KnockbackScaleForMOD`, and the final `g_knockback.value` scaling in
+   `G_Damage`; the later A90 pass removed the source-only vertical boost and
+   cripple-velocity helpers after the retail `G_Damage` branch was remapped.
 
 Verification:
 
@@ -2445,9 +3227,9 @@ Completed work:
    `ps.persistant[PERS_TEAM]` from it, reset `sess.spectatorClient` to the
    caller's own slot, clear `PMF_FOLLOW`, and set scoreboard flags from the
    fallback state.
-4. Restored `Cmd_Follow_f` support for `follow1` and `follow2`, and made the
-   parser accept cgame's optional powerup suffix tokens without treating them
-   as a no-arg stop-follow command.
+4. Restored `Cmd_Follow_f` player-string parsing and optional cgame powerup
+   suffix tolerance. A later 2026-05-26 HLIL pass corrected the boundary:
+   `follow1` and `follow2` are `SetTeam` tokens, not `Cmd_Follow_f` tokens.
 5. Routed unresolved active-player follow targets, removed POIs, and invalid
    explicit follow targets through `StopFollowing` from
    `SpectatorClientEndFrame`.
@@ -2542,17 +3324,17 @@ Completed work:
 1. Rechecked qagame `PM_StepSlideMove` at `0x1002EFE0`, cgame
    `PM_StepSlideMove` at `0x100034B0`, and the shared qagame/cgame
    `PM_ApplyJumpTakeoff` leaves at `0x1002E2C0` / `0x10002790`.
-2. Restored the missing normal step-jump takeoff latch so both normal
-   step-jump and crouch-step fallback paths select `pmove_StepJumpVelocity`
-   in the additive retail branches, while normal jumps continue to use
-   `pmove_ChainJumpVelocity`.
+2. Restored the missing normal step-jump takeoff latch so the normal path
+   selects `pmove_StepJumpVelocity` in the additive retail branches, while the
+   crouch-step fallback continues to use `pmove_ChainJumpVelocity` and raises
+   only the ramp-suppression latch.
 3. Corrected chain-jump mode wiring so PMF_AIR_CONTROL overrides disabled
-   `pmove_ChainJump` mode `0`, the post-offset air-control addend fades to
-   base velocity at `pmove_JumpVelocityTimeThreshold`, and max clamping applies
-   after additive and ramp-accumulated takeoff velocity.
+   `pmove_ChainJump` mode `0`, the post-offset air-control addend divides by
+   the retail offset threshold, and max clamping applies after additive and
+   ramp-accumulated takeoff velocity.
 4. Added executable fixtures that pin mode `0` air-control override,
-   late-window air-control fade, normal step additive takeoff, crouch-step
-   additive takeoff, step-jump scale-mode takeoff, step-jump air-control edge
+   late-window air-control edge values, normal step additive takeoff, crouch-step
+   chain-additive takeoff, step-jump scale-mode takeoff, step-jump air-control edge
    profiles, and non-ramp max clamping.
 
 ### Task A27: Pin pmove command/vector math helper contracts [COMPLETED]

@@ -22,8 +22,8 @@ Observed facts:
 - `sub_451420` sets `data_1740d08 = 1` and forwards five floats to
   `sub_4386D0`.
 - `sub_4386D0` writes the bright-pass threshold uniform and the four combine
-  uniforms in the order bloom saturation, scene intensity, bloom intensity, and
-  scene saturation.
+  uniforms in the slot order bloom saturation, scene saturation, bloom
+  intensity, and scene intensity.
 - `sub_436EC0` checks `data_1740d08` after the bloom pass, calls
   `sub_438590`, and clears the dirty flag.
 - `sub_438590` refreshes those same bloom uniforms from the cvar lane and

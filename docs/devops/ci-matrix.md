@@ -1,6 +1,22 @@
 # Deterministic Validation Matrix
 
-The hosted GitHub Actions workflows are intentionally pruned at this stage, but the deterministic validation matrix still exists as a local/manual runbook. The same three gameplay flavours remain the expected validation surface: bytecode, native, and reverse-engineered targets.
+Hosted GitHub Actions now cover the continuous push and nightly packaging
+edges, while the deeper deterministic target matrix remains available as a
+local/manual runbook. The same three gameplay flavours remain the expected
+validation surface: bytecode, native, and reverse-engineered targets.
+
+## Hosted lanes
+
+- **Push Verification** – `.github/workflows/push-verification.yml` runs on
+  every push, fanning out across the module, renderer, UI, client, qcommon,
+  server, and engine host/support parity gates. It uploads the existing
+  subsystem evidence roots with a 14-day retention window.
+- **Nightly Build** – `.github/workflows/nightly-build.yml` runs daily at
+  `03:17 UTC`, builds the Windows modern compatibility profile, generates a
+  manifest version like `nightly-YYYYMMDD.<run>-g<shortsha>`, packages rebuilt
+  binaries only, and uploads the package, checksum, and manifests for 30 days.
+  The package excludes retail pk3 files, retail launcher DLL payloads, and any
+  live-service credentials.
 
 ## Matrix jobs
 

@@ -171,12 +171,13 @@ chain/step branch keyed by `pmove_JumpVelocityTimeThresholdOffset`, and
 ramp-jump accumulation applies to vertical velocity before the max clamp rather
 than using the old source-only planar boost.
 
-The 2026-05-22 corrective step/chain audit rechecked the same takeoff leaf
+The 2026-05-26 corrective step/chain audit rechecked the same takeoff leaf
 against the `PM_StepSlideMove` latches. The normal step-jump path now feeds the
-step-aware additive branch just like the crouch-step fallback, PMF_AIR_CONTROL
-overrides `pmove_ChainJump` mode `0`, the air-control addend fades across the
-post-offset window to the base threshold, and the max clamp applies after both
-plain additive and ramp-accumulated takeoff velocity.
+`pmove_StepJumpVelocity` selector, while the crouch-step fallback uses the
+chain-jump addend and only raises the ramp-suppression latch. PMF_AIR_CONTROL
+still overrides `pmove_ChainJump` mode `0`, the air-control post-offset branch
+uses the offset threshold as its denominator, and the max clamp applies after
+both plain additive and ramp-accumulated takeoff velocity.
 
 The air-move follow-up rechecked qagame `0x1002FCB0` and cgame `0x10004180` against the current source and tests. The mode-specific airstop, strafe, and `pm_wishspeed` handling belongs to `PM_AirMove` before the generic `PM_Accelerate` call, while `PM_AirControl`, `PM_StepSlideMove(qtrue)`, `PM_InvulnerabilityMove`, and the trailing `PMF_DOUBLE_JUMP` probe remain in the same tail order in both binaries.
 

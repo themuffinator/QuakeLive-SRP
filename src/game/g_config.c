@@ -270,10 +270,10 @@ static configCvarTable_t s_configCvarTable[] = {
 	{ &g_knockback_pl,         "g_knockback_pl",         STRINGIZE( DEFAULT_KNOCKBACK_PL ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Proximity Launcher knockback scalar." },
 	{ &g_knockback_cg,         "g_knockback_cg",         STRINGIZE( DEFAULT_KNOCKBACK_CG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Chaingun knockback scalar." },
 	{ &g_knockback_hmg,        "g_knockback_hmg",        STRINGIZE( DEFAULT_KNOCKBACK_HMG ), CONFIG_CVAR_FLAG_RETAIL_40000 | CVAR_GAMERULE, "Heavy Machinegun knockback scalar." },
-	{ &g_knockback_z,          "g_knockback_z",          STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL ), CVAR_GAMERULE, "Vertical knockback boost added after weapon scaling." },
-	{ &g_knockback_z_self,     "g_knockback_z_self",     STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL_SELF ), CVAR_GAMERULE, "Vertical knockback boost when you knock yourself back." },
-        { &g_max_knockback,        "g_max_knockback",        "120", CVAR_GAMERULE, "Upper clamp applied to computed knockback force." },
-	{ &g_knockback_cripple,    "g_knockback_cripple",    STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), CVAR_GAMERULE, "Additional knockback scalar consumed by cripple modifiers." },
+	{ &g_knockback_z,          "g_knockback_z",          STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL ), CVAR_GAMERULE, "Retail knockback table cvar retained for parity; no G_Damage consumer is present in the committed HLIL." },
+	{ &g_knockback_z_self,     "g_knockback_z_self",     STRINGIZE( DEFAULT_KNOCKBACK_VERTICAL_SELF ), CVAR_GAMERULE, "Retail self-knockback table cvar retained for parity; no G_Damage consumer is present in the committed HLIL." },
+	{ &g_max_knockback,        "g_max_knockback",        "120", CVAR_GAMERULE, "Upper clamp applied to positive computed knockback force." },
+	{ &g_knockback_cripple,    "g_knockback_cripple",    STRINGIZE( DEFAULT_KNOCKBACK_CRIPPLE ), CVAR_GAMERULE, "Minimum PMF_TIME_KNOCKBACK timer floor when retail latches knockback movement blocking." },
 };
 
 void G_Config_RegisterCvars( void ) {
@@ -868,13 +868,20 @@ void G_UpdateStartingAmmoConfig( void ) {
         G_InitStartingAmmoConfig();
 }
 
-static float G_ReadKnockbackCvar( const vmCvar_t *cvar, float fallback, const char *cvarName ) {
-        if ( !cvar ) {
-                G_Config_ReportMissingCvar( cvarName );
-                return fallback;
-        }
+/*
+=============
+G_ReadKnockbackCvar
 
-        return cvar->value;
+Reads a bound knockback CVar value, falling back when the table entry is absent.
+=============
+*/
+static float G_ReadKnockbackCvar( const vmCvar_t *cvar, float fallback, const char *cvarName ) {
+	if ( !cvar ) {
+		G_Config_ReportMissingCvar( cvarName );
+		return fallback;
+	}
+
+	return cvar->value;
 }
 
 /*
@@ -885,38 +892,45 @@ Reads knockback scale CVars into the cached config block.
 =============
 */
 void G_InitKnockbackConfig( void ) {
-        g_knockbackConfig.gauntlet = G_ReadKnockbackCvar( &g_knockback_g, DEFAULT_KNOCKBACK_G, "g_knockback_g" );
-        g_knockbackConfig.machinegun = G_ReadKnockbackCvar( &g_knockback_mg, DEFAULT_KNOCKBACK_MG, "g_knockback_mg" );
-        g_knockbackConfig.shotgun = G_ReadKnockbackCvar( &g_knockback_sg, DEFAULT_KNOCKBACK_SG, "g_knockback_sg" );
-        g_knockbackConfig.grenadeLauncher = G_ReadKnockbackCvar( &g_knockback_gl, DEFAULT_KNOCKBACK_GL, "g_knockback_gl" );
-        g_knockbackConfig.rocketLauncher = G_ReadKnockbackCvar( &g_knockback_rl, DEFAULT_KNOCKBACK_RL, "g_knockback_rl" );
-        g_knockbackConfig.rocketLauncherSelf = G_ReadKnockbackCvar( &g_knockback_rl_self, DEFAULT_KNOCKBACK_RL_SELF, "g_knockback_rl_self" );
-        g_knockbackConfig.lightningGun = G_ReadKnockbackCvar( &g_knockback_lg, DEFAULT_KNOCKBACK_LG, "g_knockback_lg" );
-        g_knockbackConfig.railgun = G_ReadKnockbackCvar( &g_knockback_rg, DEFAULT_KNOCKBACK_RG, "g_knockback_rg" );
-        g_knockbackConfig.plasmagun = G_ReadKnockbackCvar( &g_knockback_pg, DEFAULT_KNOCKBACK_PG, "g_knockback_pg" );
-        g_knockbackConfig.plasmagunSelf = G_ReadKnockbackCvar( &g_knockback_pg_self, DEFAULT_KNOCKBACK_PG_SELF, "g_knockback_pg_self" );
-        g_knockbackConfig.bfg = G_ReadKnockbackCvar( &g_knockback_bfg, DEFAULT_KNOCKBACK_BFG, "g_knockback_bfg" );
-        g_knockbackConfig.grapplingHook = G_ReadKnockbackCvar( &g_knockback_gh, DEFAULT_KNOCKBACK_GH, "g_knockback_gh" );
-        g_knockbackConfig.nailgun = G_ReadKnockbackCvar( &g_knockback_ng, DEFAULT_KNOCKBACK_NG, "g_knockback_ng" );
-        g_knockbackConfig.proximityLauncher = G_ReadKnockbackCvar( &g_knockback_pl, DEFAULT_KNOCKBACK_PL, "g_knockback_pl" );
-        g_knockbackConfig.chaingun = G_ReadKnockbackCvar( &g_knockback_cg, DEFAULT_KNOCKBACK_CG, "g_knockback_cg" );
-        g_knockbackConfig.heavyMachinegun = G_ReadKnockbackCvar( &g_knockback_hmg, DEFAULT_KNOCKBACK_HMG, "g_knockback_hmg" );
-        g_knockbackConfig.vertical = G_ReadKnockbackCvar( &g_knockback_z, DEFAULT_KNOCKBACK_VERTICAL, "g_knockback_z" );
-        g_knockbackConfig.verticalSelf = G_ReadKnockbackCvar( &g_knockback_z_self, DEFAULT_KNOCKBACK_VERTICAL_SELF, "g_knockback_z_self" );
+	g_knockbackConfig.gauntlet = G_ReadKnockbackCvar( &g_knockback_g, DEFAULT_KNOCKBACK_G, "g_knockback_g" );
+	g_knockbackConfig.machinegun = G_ReadKnockbackCvar( &g_knockback_mg, DEFAULT_KNOCKBACK_MG, "g_knockback_mg" );
+	g_knockbackConfig.shotgun = G_ReadKnockbackCvar( &g_knockback_sg, DEFAULT_KNOCKBACK_SG, "g_knockback_sg" );
+	g_knockbackConfig.grenadeLauncher = G_ReadKnockbackCvar( &g_knockback_gl, DEFAULT_KNOCKBACK_GL, "g_knockback_gl" );
+	g_knockbackConfig.rocketLauncher = G_ReadKnockbackCvar( &g_knockback_rl, DEFAULT_KNOCKBACK_RL, "g_knockback_rl" );
+	g_knockbackConfig.rocketLauncherSelf = G_ReadKnockbackCvar( &g_knockback_rl_self, DEFAULT_KNOCKBACK_RL_SELF, "g_knockback_rl_self" );
+	g_knockbackConfig.lightningGun = G_ReadKnockbackCvar( &g_knockback_lg, DEFAULT_KNOCKBACK_LG, "g_knockback_lg" );
+	g_knockbackConfig.railgun = G_ReadKnockbackCvar( &g_knockback_rg, DEFAULT_KNOCKBACK_RG, "g_knockback_rg" );
+	g_knockbackConfig.plasmagun = G_ReadKnockbackCvar( &g_knockback_pg, DEFAULT_KNOCKBACK_PG, "g_knockback_pg" );
+	g_knockbackConfig.plasmagunSelf = G_ReadKnockbackCvar( &g_knockback_pg_self, DEFAULT_KNOCKBACK_PG_SELF, "g_knockback_pg_self" );
+	g_knockbackConfig.bfg = G_ReadKnockbackCvar( &g_knockback_bfg, DEFAULT_KNOCKBACK_BFG, "g_knockback_bfg" );
+	g_knockbackConfig.grapplingHook = G_ReadKnockbackCvar( &g_knockback_gh, DEFAULT_KNOCKBACK_GH, "g_knockback_gh" );
+	g_knockbackConfig.nailgun = G_ReadKnockbackCvar( &g_knockback_ng, DEFAULT_KNOCKBACK_NG, "g_knockback_ng" );
+	g_knockbackConfig.proximityLauncher = G_ReadKnockbackCvar( &g_knockback_pl, DEFAULT_KNOCKBACK_PL, "g_knockback_pl" );
+	g_knockbackConfig.chaingun = G_ReadKnockbackCvar( &g_knockback_cg, DEFAULT_KNOCKBACK_CG, "g_knockback_cg" );
+	g_knockbackConfig.heavyMachinegun = G_ReadKnockbackCvar( &g_knockback_hmg, DEFAULT_KNOCKBACK_HMG, "g_knockback_hmg" );
+	g_knockbackConfig.vertical = G_ReadKnockbackCvar( &g_knockback_z, DEFAULT_KNOCKBACK_VERTICAL, "g_knockback_z" );
+	g_knockbackConfig.verticalSelf = G_ReadKnockbackCvar( &g_knockback_z_self, DEFAULT_KNOCKBACK_VERTICAL_SELF, "g_knockback_z_self" );
 
-        {
-                float maxKnockback = G_ReadKnockbackCvar( &g_max_knockback, DEFAULT_MAX_KNOCKBACK, "g_max_knockback" );
+	{
+		float maxKnockback = G_ReadKnockbackCvar( &g_max_knockback, DEFAULT_MAX_KNOCKBACK, "g_max_knockback" );
 
-                if ( maxKnockback <= 0.0f ) {
-                        maxKnockback = DEFAULT_MAX_KNOCKBACK;
-                }
+		if ( maxKnockback <= 0.0f ) {
+			maxKnockback = DEFAULT_MAX_KNOCKBACK;
+		}
 
-                g_knockbackConfig.maxKnockback = maxKnockback;
-        }
+		g_knockbackConfig.maxKnockback = maxKnockback;
+	}
 
-        g_knockbackConfig.cripple = G_ReadKnockbackCvar( &g_knockback_cripple, DEFAULT_KNOCKBACK_CRIPPLE, "g_knockback_cripple" );
+	g_knockbackConfig.cripple = G_ReadKnockbackCvar( &g_knockback_cripple, DEFAULT_KNOCKBACK_CRIPPLE, "g_knockback_cripple" );
 }
 
+/*
+=============
+G_UpdateKnockbackConfig
+
+Refreshes the cached knockback config from the registered CVars.
+=============
+*/
 void G_UpdateKnockbackConfig( void ) {
-        G_InitKnockbackConfig();
+	G_InitKnockbackConfig();
 }

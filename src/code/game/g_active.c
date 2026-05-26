@@ -428,7 +428,6 @@ void P_DamageFeedback( gentity_t *player ) {
 	//
 	client->damage_blood = 0;
 	client->damage_armor = 0;
-	client->damage_knockback = 0;
 }
 
 
@@ -671,9 +670,13 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 
 	client = ent->client;
 
+	if ( ent->r.linked ) {
+		trap_UnlinkEntity( ent );
+	}
+
 	if ( client->sess.spectatorState != SPECTATOR_FOLLOW ) {
 		client->ps.pm_type = PM_SPECTATOR;
-		client->ps.speed = 400;	// faster than normal
+		client->ps.speed = 480;	// faster than normal
 
 		// set up for pmove
 		memset (&pm, 0, sizeof(pm));
@@ -690,17 +693,6 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 		VectorCopy( client->ps.origin, ent->s.origin );
 
 		G_TouchTriggers( ent );
-		trap_UnlinkEntity( ent );
-	} else {
-		// If following POI, ensure position is updated
-		if ( client->sess.spectatorClient <= -10 ) {
-			int poiIndex = -(client->sess.spectatorClient + 10);
-			if ( poiIndex >= 0 && poiIndex < level.numPois && level.pois[poiIndex].inuse ) {
-				VectorCopy( level.pois[poiIndex].origin, client->ps.origin );
-				VectorCopy( level.pois[poiIndex].angles, client->ps.viewangles );
-				SetClientViewAngle( ent, level.pois[poiIndex].angles );
-			}
-		}
 	}
 
 	client->oldbuttons = client->buttons;
@@ -708,7 +700,15 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 
 	// attack button cycles through spectators
 	if ( ( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK ) ) {
-		Cmd_FollowCycle_f( ent, 1 );
+		FollowCycle( ent, 1 );
+		return;
+	}
+
+	if ( ( client->buttons & BUTTON_ANY ) && ! ( client->oldbuttons & BUTTON_ANY ) ) {
+		if ( client->sess.sessionTeam == TEAM_SPECTATOR ||
+			( level.trainingMapActive && client->sess.spectatorState == SPECTATOR_FOLLOW ) ) {
+			StopFollowing( ent );
+		}
 	}
 }
 
@@ -1603,6 +1603,7 @@ SpectatorClientEndFrame
 */
 void SpectatorClientEndFrame( gentity_t *ent ) {
 	gclient_t	*cl;
+	int			counts[TEAM_NUM_TEAMS];
 
 	if ( level.trainingMapActive && ent->client->sess.spectatorState == SPECTATOR_FOLLOW ) {
 		StopFollowing( ent );
@@ -1621,44 +1622,27 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 			clientNum = level.follow2;
 		}
 
-		if ( clientNum < 0 && clientNum > -10 ) {
-			StopFollowing( ent );
-			return;
-		}
-
-		if ( clientNum <= -10 ) {
-			// POI following
-			int poiIndex = -(clientNum + 10);
-			if ( poiIndex >= 0 && poiIndex < level.numPois && level.pois[poiIndex].inuse ) {
-				ent->client->ps.pm_flags |= PMF_FOLLOW;
-				ent->client->ps.pm_type = PM_SPECTATOR;
-				ent->client->ps.clientNum = ent->s.number;
-				ent->client->ps.weapon = WP_NONE;
-				ent->client->ps.stats[STAT_HEALTH] = 1;
-				VectorCopy( level.pois[poiIndex].origin, ent->client->ps.origin );
-				VectorCopy( level.pois[poiIndex].angles, ent->client->ps.viewangles );
-				VectorCopy( level.pois[poiIndex].angles, ent->s.angles );
-				return;
-			} else {
-				// POI gone?
-				StopFollowing( ent );
-				return;
-			}
-		} else if ( clientNum >= 0 ) {
+		if ( clientNum >= 0 ) {
 			cl = &level.clients[ clientNum ];
-			if ( cl->pers.connected == CON_CONNECTED && cl->sess.sessionTeam != TEAM_SPECTATOR ) {
+			if ( cl->pers.connected == CON_CONNECTED && cl->ps.pm_type != PM_SPECTATOR ) {
 				flags = (cl->ps.eFlags & ~(EF_VOTED | EF_TEAMVOTED)) | (ent->client->ps.eFlags & (EF_VOTED | EF_TEAMVOTED));
 				ent->client->ps = cl->ps;
+				ent->client->ps.pm_type = PM_SPECTATOR;
 				ent->client->ps.pm_flags |= PMF_FOLLOW;
 				ent->client->ps.eFlags = flags;
 				return;
-			} else {
-				// drop them to free spectators unless they are dedicated camera followers
-				if ( ent->client->sess.spectatorClient >= 0 ) {
-					StopFollowing( ent );
+			}
+
+			if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR && !level.trainingMapActive ) {
+				G_CountActivePlayersByTeam( counts );
+				if ( counts[TEAM_RED] > 0 && counts[TEAM_BLUE] > 0 ) {
+					FollowCycle( ent, 1 );
 					return;
 				}
 			}
+
+			StopFollowing( ent );
+			return;
 		}
 	}
 

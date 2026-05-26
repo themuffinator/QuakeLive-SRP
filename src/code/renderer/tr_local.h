@@ -1215,7 +1215,7 @@ void	GL_BindToTarget( image_t *image, int glTarget );
 void	GL_SetDefaultState (void);
 void	GL_SelectTexture( int unit );
 void	GL_TextureMode( const char *string );
-void	GL_CheckErrors( void );
+qboolean GL_CheckErrors( void );
 void	GL_State( unsigned long stateVector );
 void	GL_TexEnv( int env );
 void	GL_Cull( int cullType );
@@ -1739,7 +1739,7 @@ void R_AddAdvertisementQueryCmd( const advertisementQueryEntry_t *entries, int n
 void R_AddBindSceneRenderTargetCommand( void );
 void R_AddBloomPostProcessCommand( void );
 void R_AddColorCorrectPostProcessCommand( void );
-void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation );
+void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity );
 
 void R_InitCommandBuffers( void );
 void R_ShutdownCommandBuffers( void );
@@ -1747,6 +1747,8 @@ void R_ShutdownCommandBuffers( void );
 void RB_InitRenderTargets( void );
 void RB_ShutdownRenderTargets( void );
 qboolean RBPP_ColorCorrectEnabled( void );
+void RBPP_SetColorCorrectUniformsFromCvars( void );
+void RBPP_SetBloomUniformsFromCvars( void );
 
 void R_SyncRenderThread( void );
 

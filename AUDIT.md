@@ -1,6 +1,6 @@
 # Quake Live Parity Audit
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This file is the current cross-subsystem ledger for the repository. Detailed
 reconstruction history belongs in the dedicated subsystem audits under
@@ -69,6 +69,26 @@ The current audited state, with the aggregate pytest sweep refreshed on
   `CL_CreateCmd` / `CL_WritePacket`, qcommon keyed usercmd deltas, server
   `SV_UserMove` / `SV_ClientThink`, qagame `G_GET_USERCMD`, and cgame
   `trap_GetUserCmd` prediction access.
+- The 2026-05-26 renderer framebuffer/post-process reconstruction keeps the
+  scoped post-process framebuffer owner lane at **99.93%** by retiring the
+  disconnected legacy `GL_TEXTURE_2D` scene-target and scratch-bloom helper
+  family in favor of the retail `RBPP_CreateRenderTarget` rectangle-texture
+  owner.
+- The follow-up 2026-05-26 renderer bloom teardown reconstruction keeps the
+  scoped post-process bloom teardown lane at **99.95%** by matching retail's
+  grouped program, texture, framebuffer, and renderbuffer shutdown order.
+- The next 2026-05-26 renderer renderbuffer-cache reconstruction keeps the
+  scoped post-process depth-stencil renderbuffer cache lane at **99.97%** by
+  matching retail's eight-entry width/height renderbuffer reuse helper and its
+  render-target creation wiring.
+- The follow-up 2026-05-26 renderer GL-error/link reconstruction keeps the
+  scoped post-process GL error and link lane at **99.985%** by restoring the
+  return-valued `GL_CheckErrors` contract, render-target error branches, and
+  the recovered post-effect program link helper.
+- The next 2026-05-26 renderer proc-gate reconstruction keeps the scoped
+  post-process proc gate lane at **99.99%** by splitting framebuffer-only
+  render-target procedure loading from the shader/uniform procedure gate used
+  by post-effect program setup.
 - The strict-retail Windows replacement target remains defensible at
   **100%** on the current worktree.
 - Repo-wide parity is not **100%** once the deliberate compatibility-only

@@ -11,6 +11,7 @@ build/win32/
 # Native DLL staging / CI output
 build/win32-native/
 build/re/
+artifacts/nightly/
 
 # Local third-party SDK drops
 src/libs/libpng/

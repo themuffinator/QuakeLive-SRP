@@ -433,42 +433,45 @@ static void InitOpenGL( void )
 GL_CheckErrors
 ==================
 */
-void GL_CheckErrors( void ) {
-    int		err;
-    char	s[64];
+qboolean GL_CheckErrors( void ) {
+	int		err;
+	char	s[64];
 
-    err = qglGetError();
-    if ( err == GL_NO_ERROR ) {
-        return;
-    }
-    if ( r_ignoreGLErrors->integer ) {
-        return;
-    }
-    switch( err ) {
-        case GL_INVALID_ENUM:
-            strcpy( s, "GL_INVALID_ENUM" );
-            break;
-        case GL_INVALID_VALUE:
-            strcpy( s, "GL_INVALID_VALUE" );
-            break;
-        case GL_INVALID_OPERATION:
-            strcpy( s, "GL_INVALID_OPERATION" );
-            break;
-        case GL_STACK_OVERFLOW:
-            strcpy( s, "GL_STACK_OVERFLOW" );
-            break;
-        case GL_STACK_UNDERFLOW:
-            strcpy( s, "GL_STACK_UNDERFLOW" );
-            break;
-        case GL_OUT_OF_MEMORY:
-            strcpy( s, "GL_OUT_OF_MEMORY" );
-            break;
-        default:
-            Com_sprintf( s, sizeof(s), "%i", err);
-            break;
-    }
+	err = qglGetError();
+	if ( err == GL_NO_ERROR ) {
+		return qfalse;
+	}
 
-    ri.Error( ERR_FATAL, "GL_CheckErrors: %s", s );
+	if ( r_ignoreGLErrors->integer ) {
+		return qfalse;
+	}
+
+	switch ( err ) {
+	case GL_INVALID_ENUM:
+		strcpy( s, "GL_INVALID_ENUM" );
+		break;
+	case GL_INVALID_VALUE:
+		strcpy( s, "GL_INVALID_VALUE" );
+		break;
+	case GL_INVALID_OPERATION:
+		strcpy( s, "GL_INVALID_OPERATION" );
+		break;
+	case GL_STACK_OVERFLOW:
+		strcpy( s, "GL_STACK_OVERFLOW" );
+		break;
+	case GL_STACK_UNDERFLOW:
+		strcpy( s, "GL_STACK_UNDERFLOW" );
+		break;
+	case GL_OUT_OF_MEMORY:
+		strcpy( s, "GL_OUT_OF_MEMORY" );
+		break;
+	default:
+		Com_sprintf( s, sizeof( s ), "%i", err );
+		break;
+	}
+
+	ri.Error( ERR_FATAL, "GL_CheckErrors: %s", s );
+	return qtrue;
 }
 
 
@@ -1297,40 +1300,6 @@ void R_ScreenShotJPEGAfterFrame_f( void ) {
 
 /*
 =============
-R_ClearLivePostProcessModifiedFlags
-
-Retail Quake Live consumes the live color-correct and bloom combine controls
-without forcing a full post-process restart.
-=============
-*/
-static void R_ClearLivePostProcessModifiedFlags( void ) {
-	if ( r_contrast && r_contrast->modified ) {
-		r_contrast->modified = qfalse;
-	}
-
-	if ( r_bloomBrightThreshold && r_bloomBrightThreshold->modified ) {
-		r_bloomBrightThreshold->modified = qfalse;
-	}
-
-	if ( r_bloomSaturation && r_bloomSaturation->modified ) {
-		r_bloomSaturation->modified = qfalse;
-	}
-
-	if ( r_bloomSceneSaturation && r_bloomSceneSaturation->modified ) {
-		r_bloomSceneSaturation->modified = qfalse;
-	}
-
-	if ( r_bloomIntensity && r_bloomIntensity->modified ) {
-		r_bloomIntensity->modified = qfalse;
-	}
-
-	if ( r_bloomSceneIntensity && r_bloomSceneIntensity->modified ) {
-		r_bloomSceneIntensity->modified = qfalse;
-	}
-}
-
-/*
-=============
 R_UpdatePostProcessCvars
 
 Synchronize post-process state mirrors with the enable toggles.
@@ -1369,8 +1338,6 @@ void R_UpdatePostProcessCvars( void ) {
 	if ( r_enableColorCorrect ) {
 		r_enableColorCorrect->modified = qfalse;
 	}
-
-	R_ClearLivePostProcessModifiedFlags();
 }
 
 /*

@@ -166,6 +166,17 @@ By running the VM and native workflows side by side, the project can continue le
 
 To support the gameplay testing strategy, CI must offer the following automation:
 
+The current hosted layer starts with two repo-wide workflows:
+
+- `Push Verification` runs the focused subsystem parity lanes on direct pushes,
+  publishes the existing validation roots as artifacts, and avoids runtime game
+  launches or live online-service use.
+- `Nightly Build` runs a scheduled Windows `v141` modern compatibility build,
+  generates `artifacts/nightly/version.json`, and packages rebuilt outputs into
+  a versioned artifact named from the nightly date, run number, and commit SHA.
+  This artifact carries manifests and checksums but intentionally excludes
+  retail payloads and credentials.
+
 - **Dual-Target Build Matrix:** Configure workflows with a `target` axis (`qvm`, `dll`). The QVM leg invokes the existing `Construct` scripts, while the DLL leg drives MSBuild or CMake presets configured for the Visual Studio 2010 toolset.
 - **Harness Bootstrapping:** Before running tests, stage the shared harness utilities from `tests/` (Python dependencies, data packs) and compile the native/QVM fixture runners. Package the compiled shims (`tests/bin/qvm/*`, `tests/bin/dll/*`) for reuse across suites.
 - **Test Execution:** For each leg, run `python tests/run_all.py --target <target>` which fans out to the deterministic match, rules engine, client regression, weapon timing, and syscall verification suites. Failures must surface unified diff snippets plus a link to the archived artefacts.

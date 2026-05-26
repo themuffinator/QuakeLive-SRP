@@ -317,6 +317,55 @@ static void R_SyncPostProcessState( void ) {
 	backEnd.colorCorrectActive = tr.colorCorrectActive;
 }
 
+/*
+=============
+R_RefreshLivePostProcessCvars
+
+Consume retail live post-process tuning modified flags and refresh uniforms.
+=============
+*/
+static void R_RefreshLivePostProcessCvars( void ) {
+	qboolean refreshBloom;
+	qboolean refreshColorCorrect;
+
+	refreshColorCorrect = (qboolean)(
+		( r_gamma && r_gamma->modified ) ||
+		( r_contrast && r_contrast->modified ) );
+
+	if ( refreshColorCorrect ) {
+		if ( r_contrast ) {
+			r_contrast->modified = qfalse;
+		}
+		RBPP_SetColorCorrectUniformsFromCvars();
+	}
+
+	refreshBloom = (qboolean)(
+		( r_bloomBrightThreshold && r_bloomBrightThreshold->modified ) ||
+		( r_bloomSaturation && r_bloomSaturation->modified ) ||
+		( r_bloomSceneSaturation && r_bloomSceneSaturation->modified ) ||
+		( r_bloomIntensity && r_bloomIntensity->modified ) ||
+		( r_bloomSceneIntensity && r_bloomSceneIntensity->modified ) );
+
+	if ( refreshBloom ) {
+		if ( r_bloomBrightThreshold ) {
+			r_bloomBrightThreshold->modified = qfalse;
+		}
+		if ( r_bloomSaturation ) {
+			r_bloomSaturation->modified = qfalse;
+		}
+		if ( r_bloomSceneSaturation ) {
+			r_bloomSceneSaturation->modified = qfalse;
+		}
+		if ( r_bloomIntensity ) {
+			r_bloomIntensity->modified = qfalse;
+		}
+		if ( r_bloomSceneIntensity ) {
+			r_bloomSceneIntensity->modified = qfalse;
+		}
+		RBPP_SetBloomUniformsFromCvars();
+	}
+}
+
 
 /*
 =============
@@ -415,6 +464,8 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 		GL_TextureMode( r_textureMode->string );
 		r_textureMode->modified = qfalse;
 	}
+
+	R_RefreshLivePostProcessCvars();
 
 	//
 	// gamma stuff

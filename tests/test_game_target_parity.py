@@ -130,6 +130,7 @@ def test_target_score_print_and_speaker_callbacks_keep_retail_routing() -> None:
 
 def test_target_laser_bootstrap_toggle_and_beam_think_match_retail() -> None:
 	target_c = _read("src/code/game/g_target.c")
+	qagame_symbols = _read("references/symbol-maps/qagame.json")
 	think_body = _function_block(target_c, "void target_laser_think")
 	use_body = _function_block(target_c, "void target_laser_use")
 	start_body = _function_block(target_c, "void target_laser_start")
@@ -140,6 +141,7 @@ def test_target_laser_bootstrap_toggle_and_beam_think_match_retail() -> None:
 	assert "VectorMA (self->s.origin, 2048, self->movedir, end);" in think_body
 	assert "CONTENTS_SOLID|CONTENTS_BODY|CONTENTS_CORPSE" in think_body
 	assert "DAMAGE_NO_KNOCKBACK, MOD_TARGET_LASER" in think_body
+	assert "DAMAGE_NO_KNOCKBACK beam damage" in qagame_symbols
 	assert "VectorCopy (tr.endpos, self->s.origin2);" in think_body
 	assert "self->nextthink = level.time + FRAMETIME;" in think_body
 

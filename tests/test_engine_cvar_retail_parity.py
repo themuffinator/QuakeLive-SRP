@@ -2451,11 +2451,11 @@ def test_engine_cvar_twentythird_renderer_runtime_tuning_tranche_matches_retail_
 	assert 'r_gamma = ri.Cvar_Get( "r_gamma", "1.2", CVAR_ARCHIVE | CVAR_CLOUD );' not in tr_init
 	assert 'ri.Cvar_Set( "r_gamma", "0.5" );' in tr_image
 	assert 'web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in tr_init
-	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {' in tr_backend
+	assert 'if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {' in tr_backend
 	assert 'gammaRecip = 1.0f / r_gamma->value;' in tr_backend
 
 	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
-	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {' in tr_backend
+	assert 'if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_contrast ) {' in tr_backend
 	assert 'contrast = r_contrast->value;' in tr_backend
 
 	assert 'r_railWidth = ri.Cvar_Get( "r_railWidth", "16", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
@@ -2530,7 +2530,7 @@ def test_engine_cvar_thirtyeighth_renderer_image_quality_tranche_matches_retail_
 	assert 'r_gamma = ri.Cvar_Get( "r_gamma", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'r_gamma = ri.Cvar_Get( "r_gamma", "1.2", CVAR_ARCHIVE | CVAR_CLOUD );' not in tr_init
 	assert 'ri.Cvar_Set( "r_gamma", "0.5" );' in tr_image
-	assert 'if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {' in tr_backend
+	assert 'if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {' in tr_backend
 
 
 def test_engine_cvar_thirtyninth_renderer_misc_runtime_tranche_matches_retail_contracts() -> None:
@@ -2716,7 +2716,8 @@ def test_engine_cvar_fortyfirst_renderer_platform_scene_tranche_matches_retail_c
 
 	assert 'DAT_01740e40 = (*DAT_01740d40)("r_contrast",&DAT_00551620,0x80001);' in retail_ghidra
 	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
-	assert 'if ( r_contrast && r_contrast->modified ) {' in tr_init
+	assert '( r_contrast && r_contrast->modified )' in tr_cmds
+	assert 'RBPP_SetColorCorrectUniformsFromCvars();' in tr_cmds
 	assert 'contrast = r_contrast->value;' in tr_backend
 
 	assert 'DAT_01740edc = (*DAT_01740d40)("r_railWidth",&DAT_0052f040,0x80001);' in retail_ghidra
@@ -2753,6 +2754,7 @@ def test_engine_cvar_fortyfirst_renderer_platform_scene_tranche_matches_retail_c
 def test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_retail_contracts() -> None:
 	tr_init = _read_text(TR_INIT)
 	tr_backend = _read_text(REPO_ROOT / "src" / "code" / "renderer" / "tr_backend.c")
+	tr_cmds = _read_text(REPO_ROOT / "src" / "code" / "renderer" / "tr_cmds.c")
 	retail_ghidra = _read_text(QL_STEAM_GHIDRA_DECOMPILE)
 	retail_hlil_part01 = _read_text(QL_STEAM_HLIL_PART01)
 	retail_hlil_part02 = _read_text(QL_STEAM_HLIL_PART02)
@@ -2807,14 +2809,14 @@ def test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_reta
 	assert 'DAT_01743c10 = (*DAT_01740d44)("r_bloomIntensity",&DAT_0052e590,&DAT_0052f660,&DAT_0052f5f0,' in retail_ghidra
 	assert 'r_bloomIntensity = ri.Cvar_GetBounded( "r_bloomIntensity", "0.5", "0.0", "10.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );' in tr_init
 	assert 'AssertCvarRange( r_bloomIntensity, 0.0f, 10.0f, qfalse );' in tr_init
-	assert 'if ( r_bloomIntensity && r_bloomIntensity->modified ) {' in tr_init
+	assert '( r_bloomIntensity && r_bloomIntensity->modified ) ||' in tr_cmds
 	assert 'bloomIntensity = r_bloomIntensity ? r_bloomIntensity->value : 0.5f;' in tr_backend
 	assert 's_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomIntensityUniform, bloomIntensity );' in tr_backend
 
 	assert 'DAT_01740e84 = (*DAT_01740d44)("r_bloomBrightThreshold",&DAT_0052f610,&DAT_0052f660,&DAT_00551620,' in retail_ghidra
 	assert 'r_bloomBrightThreshold = ri.Cvar_GetBounded( "r_bloomBrightThreshold", "0.25", "0.0", "1.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );' in tr_init
 	assert 'AssertCvarRange( r_bloomBrightThreshold, 0.0f, 1.0f, qfalse );' in tr_init
-	assert 'if ( r_bloomBrightThreshold && r_bloomBrightThreshold->modified ) {' in tr_init
+	assert '( r_bloomBrightThreshold && r_bloomBrightThreshold->modified ) ||' in tr_cmds
 	assert 'brightThreshold = r_bloomBrightThreshold ? r_bloomBrightThreshold->value : 0.25f;' in tr_backend
 	assert 's_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );' in tr_backend
 

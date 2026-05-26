@@ -1473,134 +1473,52 @@ int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t i
 }
 /*
 ============
-T_Damage
+G_KnockbackScaleForMOD
 
-targ		entity that is being damaged
-inflictor	entity that is causing the damage
-attacker	entity that caused the inflictor to damage targ
-	example: targ=monster, inflictor=rocket, attacker=player
-
-dir			direction of the attack for knockback
-point		point at which the damage is being inflicted, used for headshots
-damage		amount of damage being inflicted
-knockback	force to be applied against targ as a result of the damage
-
-inflictor, attacker, dir, and point can be NULL for environmental effects
-
-dflags		these flags are used to control how T_Damage works
-	DAMAGE_RADIUS			damage was indirect (from a nearby explosion)
-	DAMAGE_NO_ARMOR			armor does not protect from this damage
-	DAMAGE_NO_KNOCKBACK		do not affect velocity, just view angles
-	DAMAGE_NO_PROTECTION	kills godmode, armor, everything
+Selects the retail per-MOD knockback scalar, including self-damage overrides.
 ============
 */
-
 static float G_KnockbackScaleForMOD( int mod, qboolean selfInflicted ) {
-        switch ( mod ) {
-        case MOD_GAUNTLET:
-                return g_knockbackConfig.gauntlet;
-        case MOD_MACHINEGUN:
-                return g_knockbackConfig.machinegun;
-        case MOD_HMG:
-                return g_knockbackConfig.heavyMachinegun;
-        case MOD_SHOTGUN:
-                return g_knockbackConfig.shotgun;
-        case MOD_GRENADE:
-        case MOD_GRENADE_SPLASH:
-                return g_knockbackConfig.grenadeLauncher;
-        case MOD_ROCKET:
-        case MOD_ROCKET_SPLASH:
-                return selfInflicted ? g_knockbackConfig.rocketLauncherSelf : g_knockbackConfig.rocketLauncher;
-        case MOD_PLASMA:
-        case MOD_PLASMA_SPLASH:
-                return selfInflicted ? g_knockbackConfig.plasmagunSelf : g_knockbackConfig.plasmagun;
-        case MOD_LIGHTNING:
-        case MOD_LIGHTNING_DISCHARGE:
-                return g_knockbackConfig.lightningGun;
-        case MOD_RAILGUN:
-        case MOD_RAILGUN_HEADSHOT:
-                return g_knockbackConfig.railgun;
-        case MOD_BFG:
-        case MOD_BFG_SPLASH:
-                return g_knockbackConfig.bfg;
-        case MOD_GRAPPLE:
-                return g_knockbackConfig.grapplingHook;
-        case MOD_NAIL:
-                return g_knockbackConfig.nailgun;
-        case MOD_CHAINGUN:
-                return g_knockbackConfig.chaingun;
-        case MOD_PROXIMITY_MINE:
-                return g_knockbackConfig.proximityLauncher;
-        default:
-                break;
-        }
+	switch ( mod ) {
+	case MOD_GAUNTLET:
+		return g_knockbackConfig.gauntlet;
+	case MOD_MACHINEGUN:
+		return g_knockbackConfig.machinegun;
+	case MOD_HMG:
+		return g_knockbackConfig.heavyMachinegun;
+	case MOD_SHOTGUN:
+		return g_knockbackConfig.shotgun;
+	case MOD_GRENADE:
+	case MOD_GRENADE_SPLASH:
+		return g_knockbackConfig.grenadeLauncher;
+	case MOD_ROCKET:
+	case MOD_ROCKET_SPLASH:
+		return selfInflicted ? g_knockbackConfig.rocketLauncherSelf : g_knockbackConfig.rocketLauncher;
+	case MOD_PLASMA:
+	case MOD_PLASMA_SPLASH:
+		return selfInflicted ? g_knockbackConfig.plasmagunSelf : g_knockbackConfig.plasmagun;
+	case MOD_LIGHTNING:
+	case MOD_LIGHTNING_DISCHARGE:
+		return g_knockbackConfig.lightningGun;
+	case MOD_RAILGUN:
+	case MOD_RAILGUN_HEADSHOT:
+		return g_knockbackConfig.railgun;
+	case MOD_BFG:
+	case MOD_BFG_SPLASH:
+		return g_knockbackConfig.bfg;
+	case MOD_GRAPPLE:
+		return g_knockbackConfig.grapplingHook;
+	case MOD_NAIL:
+		return g_knockbackConfig.nailgun;
+	case MOD_CHAINGUN:
+		return g_knockbackConfig.chaingun;
+	case MOD_PROXIMITY_MINE:
+		return g_knockbackConfig.proximityLauncher;
+	default:
+		break;
+	}
 
-        return 1.0f;
-}
-
-static float G_KnockbackVerticalBoost( qboolean selfInflicted ) {
-        return selfInflicted ? g_knockbackConfig.verticalSelf : g_knockbackConfig.vertical;
-}
-
-static float G_ApplyKnockbackCripple( gentity_t *targ, float knockbackValue, int dflags, float *outPenalty ) {
-        float penalty = 0.0f;
-
-        if ( outPenalty ) {
-                *outPenalty = 0.0f;
-        }
-
-        if ( g_knockbackConfig.cripple <= 0.0f || !targ || !targ->client ) {
-                return knockbackValue;
-        }
-
-        if ( ( targ->flags & FL_NO_KNOCKBACK ) || ( dflags & DAMAGE_NO_KNOCKBACK ) ) {
-                return knockbackValue;
-        }
-
-        if ( targ->health <= 0 ) {
-                return knockbackValue;
-        }
-
-        qboolean crouched = ( targ->client->ps.pm_flags & PMF_DUCKED ) ? qtrue : qfalse;
-        int maxHealth = targ->client->ps.stats[STAT_MAX_HEALTH];
-        int currentHealth = targ->client->ps.stats[STAT_HEALTH];
-        qboolean weakened = ( maxHealth > 0 && currentHealth > 0 && currentHealth < maxHealth ) ? qtrue : qfalse;
-
-        if ( !crouched && !weakened ) {
-                return knockbackValue;
-        }
-
-        {
-                float scale = 1.0f;
-
-                if ( crouched ) {
-                        scale -= g_knockbackConfig.cripple;
-                }
-
-                if ( weakened ) {
-                        float deficitFraction = (float)( maxHealth - currentHealth ) / (float)maxHealth;
-
-                        scale -= g_knockbackConfig.cripple * deficitFraction;
-                }
-
-                if ( scale < 0.0f ) {
-                        scale = 0.0f;
-                }
-
-                penalty = knockbackValue - ( knockbackValue * scale );
-        }
-
-        if ( penalty < 0.0f ) {
-                penalty = 0.0f;
-        } else if ( penalty > knockbackValue ) {
-                penalty = knockbackValue;
-        }
-
-        if ( outPenalty ) {
-                *outPenalty = penalty;
-        }
-
-        return knockbackValue - penalty;
+	return 1.0f;
 }
 /*
 =============
@@ -1669,8 +1587,31 @@ static void G_ApplyVampiricReward( gentity_t *targ, gentity_t *attacker, int hea
 	}
 }
 
+/*
+============
+G_Damage
+
+targ		entity that is being damaged
+inflictor	entity that is causing the damage
+attacker	entity that caused the inflictor to damage targ
+	example: targ=monster, inflictor=rocket, attacker=player
+
+dir			direction of the attack for knockback
+point		point at which the damage is being inflicted, used for headshots
+damage		amount of damage being inflicted
+knockback	force computed from damage and mod-specific knockback scaling
+
+inflictor, attacker, dir, and point can be NULL for environmental effects
+
+dflags		these flags are used to control how G_Damage works
+	DAMAGE_RADIUS			damage was indirect (from a nearby explosion)
+	DAMAGE_NO_ARMOR			armor does not protect from this damage
+	DAMAGE_NO_KNOCKBACK		do not affect velocity, just view angles
+	DAMAGE_NO_PROTECTION	kills godmode, armor, everything
+============
+*/
 void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
-                           vec3_t dir, vec3_t point, int damage, int dflags, int mod ) {
+			vec3_t dir, vec3_t point, int damage, int dflags, int mod ) {
 	gclient_t	*client;
 	int			take;
 	int			save;
@@ -1680,14 +1621,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	int			targetHealth;
 	float		knockbackValue;
 	int			knockbackInt;
+	int			knockbackMagnitude;
 	int			max;
 	qboolean		selfInflicted;
 	vec3_t		bouncedir, impactpoint;
 	float		knockbackScale = 1.0f;
-	float		cripplePenalty = 0.0f;
-	float		knockbackPreClamp = 0.0f;
-	float		knockbackMax = 0.0f;
-	float		verticalBoostApplied = 0.0f;
 	float		powerupScale;
 
 	hitDamage = 0;
@@ -1816,7 +1754,6 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	knockbackScale = G_KnockbackScaleForMOD( mod, selfInflicted );
 	knockbackValue = (float)damage;
 	knockbackValue *= knockbackScale;
-	knockbackValue = G_ApplyKnockbackCripple( targ, knockbackValue, dflags, &cripplePenalty );
 
 	{
 		float maxKnockback = g_knockbackConfig.maxKnockback;
@@ -1824,9 +1761,6 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		if ( maxKnockback <= 0.0f ) {
 			maxKnockback = DEFAULT_MAX_KNOCKBACK;
 		}
-
-		knockbackPreClamp = knockbackValue;
-		knockbackMax = maxKnockback;
 
 		if ( knockbackValue > maxKnockback ) {
 			knockbackValue = maxKnockback;
@@ -1840,33 +1774,27 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		knockbackValue = 0.0f;
 	}
 
-	if ( g_debugDamage.integer ) {
-		G_Printf( "knockback summary: dmg=%d scale=%.2f cripple=%.2f preClamp=%.2f cap=%.2f final=%.2f vertical=%.2f self=%d mod=%d\n",
-				damage, knockbackScale, cripplePenalty, knockbackPreClamp, knockbackMax, knockbackValue, verticalBoostApplied, selfInflicted, mod );
+	if ( knockbackValue >= 0.0f ) {
+		knockbackInt = (int)( knockbackValue + 0.5f );
+	} else {
+		knockbackInt = (int)( knockbackValue - 0.5f );
 	}
-
-	knockbackInt = (int)( knockbackValue + 0.5f );
-	if ( knockbackInt <= 0 && knockbackValue > 0.0f ) {
-		knockbackInt = 1;
-	}
+	knockbackMagnitude = ( knockbackInt < 0 ) ? -knockbackInt : knockbackInt;
 
 	// figure momentum add, even if the damage won't be taken
-	if ( knockbackValue > 0.0f && targ->client ) {
+	if ( knockbackInt != 0 && targ->client ) {
 		vec3_t	kvel;
+		vec3_t	knockbackDir;
 		float	mass;
 
 		mass = 200;
 
-		VectorScale (dir, g_knockback.value * knockbackValue / mass, kvel);
-		{
-			float verticalBoost = G_KnockbackVerticalBoost( selfInflicted );
-
-			if ( verticalBoost != 0.0f ) {
-				kvel[2] += verticalBoost;
-			}
-
-			verticalBoostApplied = verticalBoost;
+		if ( knockbackInt < 0 ) {
+			VectorScale( dir, -1.0f, knockbackDir );
+		} else {
+			VectorCopy( dir, knockbackDir );
 		}
+		VectorScale (knockbackDir, g_knockback.value * (float)knockbackMagnitude / mass, kvel);
 		VectorAdd (targ->client->ps.velocity, kvel, targ->client->ps.velocity);
 
 		// set the timer so that the other client can't cancel
@@ -1874,7 +1802,7 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		if ( !targ->client->ps.pm_time ) {
 			int		t;
 
-			t = (int)( knockbackValue * 2.0f );
+			t = knockbackMagnitude * 2;
 			if ( g_knockbackConfig.cripple > 0.0f ) {
 				int floorValue = (int)g_knockbackConfig.cripple;
 
@@ -2010,7 +1938,6 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 		client->damage_armor += asave;
 		client->damage_blood += take;
-		client->damage_knockback += knockbackInt;
 		if ( dir ) {
 			VectorCopy ( dir, client->damage_from );
 			client->damage_fromWorld = qfalse;

@@ -725,7 +725,7 @@ def test_flag_physics_forced_override_cvars_keep_retail_behavioral_wiring() -> N
 	tackle_bonus_body = _function_body(g_team, "static qboolean G_HandleFlagTackleBonus( gentity_t *carrier, gentity_t *attacker, int flagTeam )")
 	dropped_think_body = _function_body(g_team, "void Team_DroppedFlagThink( gentity_t *ent )")
 	touch_flag_body = _function_body(g_team, "int Team_TouchOurFlag( gentity_t *ent, gentity_t *other, int team )")
-	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n                           vec3_t dir, vec3_t point, int damage, int dflags, int mod )")
+	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )")
 	atmosphere_body = _function_body(g_main, "static const char *G_SelectForcedAtmosphere( void )")
 	forced_body = _function_body(g_main, "void G_UpdateForcedCosmeticsConfigstring( qboolean forceBroadcast )")
 	update_body = _function_body(g_main, "void G_UpdateCvars( void )")
@@ -865,12 +865,14 @@ def test_first_18_g_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	assert "00 00 14 00" in first_18_block
 
 	assert "STAT_PLAYER_ITEM_THRUST" in bg_public
-	flight_pickup_body = _function_body(g_items, "static void G_ApplyFlightPowerupFuel( gclient_t *client )")
 	flight_move_body = _function_body(bg_pmove, "static void PM_FlyMove( void )")
-	assert "fuel = G_ClampFlightFuel( g_maxFlightFuel.integer );" in flight_pickup_body
-	assert "client->ps.stats[STAT_PLAYER_ITEM_THRUST] = g_flightThrust.integer;" in flight_pickup_body
-	assert "client->ps.stats[STAT_PLAYER_ITEM_RECHARGE] = g_flightRefuelRate.integer;" in flight_pickup_body
-	assert "wishspeed = (float)pm->ps->stats[STAT_PLAYER_ITEM_THRUST];" in flight_move_body
+	assert "static void G_ApplyFlightPowerupFuel" not in g_items
+	assert "G_ClampFlightFuel" not in g_items
+	assert "G_ApplyFlightPowerupFuel( other->client );" not in g_items
+	assert "PM_BuildWishMove3D( wishdir, &wishspeed );" in flight_move_body
+	assert "PM_Accelerate (wishdir, wishspeed, pm_flyaccelerate);" in flight_move_body
+	assert "STAT_PLAYER_ITEM_THRUST" not in flight_move_body
+	assert "STAT_PLAYER_ITEM_TIME" not in flight_move_body
 
 	kami_body = _function_body(g_weapon, "static void KamikazeRadiusDamage( vec3_t origin, gentity_t *attacker, float damage, float radius )")
 	assert "attenuate = g_kamiAttenuate.value;" in kami_body
@@ -885,7 +887,7 @@ def test_first_18_g_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	assert "EV_MISSILE_MISS_DMGTHROUGH" in g_missile
 
 	spawn_armor_body = _function_body(g_client, "static void G_ApplySpawnArmor( gclient_t *client )")
-	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n                           vec3_t dir, vec3_t point, int damage, int dflags, int mod )")
+	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )")
 	assert "client->ps.powerups[PW_NONE] = level.time - ( level.time % 1000 ) + g_spawnArmor.integer;" in spawn_armor_body
 	assert "damage = (int)( (float)damage * spawnArmorScale );" in damage_body
 
@@ -898,7 +900,15 @@ def test_first_18_g_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	assert "respawn = g_spawnDelayPowerupSeconds;" in finish_item_body
 	assert "ent->item->giType == IT_KEY && g_spawnDelayKeySeconds > 0" in finish_item_body
 
-	spawn_rank_body = _function_body(g_client, "gentity_t *G_SelectRankedSpawnPointForTeam( gentity_t *spots[], int spotCount, team_t enemyTeam, vec3_t origin, vec3_t angles )")
+	spawn_rank_body = _function_body(g_client, "static gentity_t *G_SelectRankedSpawnPointForTeamMode( gentity_t *spots[], int spotCount, team_t enemyTeam, qboolean requireInitial, vec3_t origin, vec3_t angles )")
+	assert "#define\tMAX_RANKED_SPAWN_POINTS\t26" in g_client
+	assert "#define\tRANKED_SPAWN_INITIAL_FLAG\t1" in g_client
+	assert "#define\tRANKED_SPAWN_EXCLUDE_FLAG\t2" in g_client
+	assert "static qboolean G_RankedSpawnPointAllowed( const gentity_t *spot ) {" in g_client
+	assert "static qboolean G_RankedSpawnPointAllowedForMode( const gentity_t *spot, qboolean requireInitial ) {" in g_client
+	assert "spot->spawnflags & RANKED_SPAWN_EXCLUDE_FLAG" in g_client
+	assert "requireInitial && !( spot->spawnflags & RANKED_SPAWN_INITIAL_FLAG )" in g_client
+	assert spawn_rank_body.count("G_RankedSpawnPointAllowedForMode( spot, requireInitial )") == 2
 	assert "dist = delta[0];" in spawn_rank_body
 	assert "if ( delta[1] > dist ) {" in spawn_rank_body
 	assert "if ( g_enemyTeamRespawnRatio.value != 0.0f" in spawn_rank_body
@@ -949,6 +959,8 @@ def test_access_ad_flood_drop_knockback_and_vampiric_cvar_rows_match_retail_hlil
 		assert row in g_main
 
 	assert '{ &g_max_knockback,        "g_max_knockback",        "120", CVAR_GAMERULE' in g_config
+	assert "Upper clamp applied to positive computed knockback force." in g_main
+	assert "Upper clamp applied to positive computed knockback force." in g_config
 
 	for snippet in (
 		'char const data_10087508[0xd] = "g_accessFile", 0',
@@ -1027,7 +1039,7 @@ def test_access_ad_flood_drop_knockback_and_vampiric_cvars_keep_retail_behaviora
 	cmd_flood_body = _function_body(g_cmds, "static qboolean G_FloodLimited( gentity_t *ent, const char *action, qboolean recordUsage )")
 	svcmd_flood_body = _function_body(g_svcmds, "static void Svcmd_FloodStatus_f( void )")
 	knockback_config_body = _function_body(g_config, "void G_InitKnockbackConfig( void )")
-	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n                           vec3_t dir, vec3_t point, int damage, int dflags, int mod )")
+	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )")
 	vampiric_body = _function_body(g_combat, "static void G_ApplyVampiricReward( gentity_t *targ, gentity_t *attacker, int healthDamage )")
 	custom_mask_body = _function_body(g_main, "static uint64_t G_ComputeCustomSettingsMask( void )")
 	dropped_health_body = _function_body(g_items, "static qboolean G_ShouldUseDroppedHealthCount( const gentity_t *ent )")
@@ -1060,6 +1072,8 @@ def test_access_ad_flood_drop_knockback_and_vampiric_cvars_keep_retail_behaviora
 	assert 'G_ReadKnockbackCvar( &g_max_knockback, DEFAULT_MAX_KNOCKBACK, "g_max_knockback" )' in knockback_config_body
 	assert "maxKnockback = DEFAULT_MAX_KNOCKBACK;" in knockback_config_body
 	assert "float maxKnockback = g_knockbackConfig.maxKnockback;" in damage_body
+	assert "if ( maxKnockback <= 0.0f ) {" in damage_body
+	assert damage_body.index("if ( maxKnockback <= 0.0f ) {") < damage_body.index("if ( knockbackValue > maxKnockback ) {")
 	assert "if ( knockbackValue > maxKnockback ) {" in damage_body
 	assert "knockbackValue = maxKnockback;" in damage_body
 
@@ -1178,8 +1192,10 @@ def test_team_loadout_bot_and_drop_cvars_keep_retail_behavioral_wiring() -> None
 
 	assert "if ( !level.teamLocks[team] && !g_teamSpawnAsSpec.integer ) {" in g_cmds
 	assert "if ( g_teamSpawnAsSpec.integer && g_gametype.integer >= GT_TEAM && level.warmupTime != 0 ) {" in g_session
-	assert "return g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;" in g_cmds
-	assert "ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;" in g_team
+	assert "G_DefaultSpectatorState" not in g_cmds
+	assert "ent->client->sess.spectatorState = SPECTATOR_FREE;" in g_cmds
+	assert "G_ADResolveFollowTarget" not in g_team
+	assert "FollowCycle( ent, 1 );" in g_team
 	assert "ent->client->sess.spectatorState = g_teamSpecFreeCam.integer ? SPECTATOR_FREE : SPECTATOR_SCOREBOARD;" in g_rankings
 	assert "client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecFreeCam.integer" in g_client
 	assert "if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR && !g_teamSpecSayEnable.integer ) {" in g_cmds
@@ -1405,7 +1421,7 @@ def test_round_freeze_timing_cvars_keep_retail_behavioral_wiring() -> None:
 	freeze_state_body = _function_body(g_freeze, "static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qboolean environmental, qboolean wasAuto, int helperNum )")
 	client_end_body = _function_body(g_client, "void G_FreezeClientEndFrame( gentity_t *ent )")
 	update_body = _function_body(g_main, "void G_UpdateCvars( void )")
-	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n                           vec3_t dir, vec3_t point, int damage, int dflags, int mod )")
+	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )")
 
 	assert "if ( g_roundDrawLivingCount.integer && counts[TEAM_RED] != counts[TEAM_BLUE] ) {" in ca_winner_body
 	assert "if ( health && g_roundDrawHealthCount.integer && health[TEAM_RED] != health[TEAM_BLUE] ) {" in ca_winner_body
@@ -2129,7 +2145,9 @@ def test_spectator_impacts_and_predictable_event_sidecars_match_retail_wiring() 
 
 	for snippet in (
 		"client->ps.pm_type = PM_SPECTATOR;",
-		"client->ps.speed = 400;",
+		"client->ps.speed = 480;",
+		"if ( ent->r.linked ) {",
+		"trap_UnlinkEntity( ent );",
 		"pm.ps = &client->ps;",
 		"pm.cmd = *ucmd;",
 		"pm.tracemask = MASK_PLAYERSOLID & ~CONTENTS_BODY;",
@@ -2139,14 +2157,20 @@ def test_spectator_impacts_and_predictable_event_sidecars_match_retail_wiring() 
 		"Pmove (&pm);",
 		"VectorCopy( client->ps.origin, ent->s.origin );",
 		"G_TouchTriggers( ent );",
-		"trap_UnlinkEntity( ent );",
-		"Cmd_FollowCycle_f( ent, 1 );",
+		"FollowCycle( ent, 1 );",
+		"return;",
+		"( client->buttons & BUTTON_ANY ) && ! ( client->oldbuttons & BUTTON_ANY )",
+		"StopFollowing( ent );",
 	):
 		assert snippet in spectator_body
 
+	assert spectator_body.index("if ( ent->r.linked ) {") < spectator_body.index("client->ps.pm_type = PM_SPECTATOR;")
+	assert spectator_body.index("trap_UnlinkEntity( ent );") < spectator_body.index("Pmove (&pm);")
 	assert spectator_body.index("Pmove (&pm);") < spectator_body.index("G_TouchTriggers( ent );")
-	assert spectator_body.index("G_TouchTriggers( ent );") < spectator_body.index("trap_UnlinkEntity( ent );")
 	assert "( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK )" in spectator_body
+	assert spectator_body.index("FollowCycle( ent, 1 );") < spectator_body.index("( client->buttons & BUTTON_ANY ) && ! ( client->oldbuttons & BUTTON_ANY )")
+	assert "Cmd_FollowCycle_f( ent, 1 );" not in spectator_body
+	assert "( level.trainingMapActive && client->sess.spectatorState == SPECTATOR_FOLLOW )" in spectator_body
 
 	assert "memset( &trace, 0, sizeof( trace ) );" in impacts_body
 	assert "for (j=0 ; j<i ; j++) {" in impacts_body
@@ -2181,7 +2205,8 @@ def test_game_active_pmove_wiring_is_backed_by_committed_retail_evidence() -> No
 	assert "Unique touch-entity walker" in _symbol_comment("ClientImpacts")
 	assert "dispatches bot self-touch callbacks and touched-entity handlers after pmove" in _symbol_comment("ClientImpacts")
 	assert "Spectator pmove path that sets PM_SPECTATOR" in _symbol_comment("SpectatorThink")
-	assert "touches triggers afterward, and handles follow cycling" in _symbol_comment("SpectatorThink")
+	assert "unlinks before pmove" in _symbol_comment("SpectatorThink")
+	assert "BUTTON_ANY edge" in _symbol_comment("SpectatorThink")
 	assert "turns pending playerstate events into temporary ET_EVENTS entities" in _symbol_comment("SendPendingPredictableEvents")
 	assert "Main per-command client simulation path covering command-time clamping" in _symbol_comment("ClientThink_real")
 	assert "pmove, events, linking, impacts, respawn checks, and once-per-second timers" in _symbol_comment("ClientThink_real")

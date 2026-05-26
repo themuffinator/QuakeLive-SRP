@@ -11,6 +11,9 @@ def _read(rel_path: str) -> str:
 def test_attack_defend_helper_surface_matches_retail_mapping_bundle() -> None:
 	local_h = _read("src/code/game/g_local.h")
 	team_c = _read("src/code/game/g_team.c")
+	respawn_start = team_c.index("void G_CAADRespawnAsSpectator")
+	respawn_end = team_c.index("/*", respawn_start + 1)
+	respawn_block = team_c[respawn_start:respawn_end]
 
 	assert "typedef enum {" in local_h
 	assert "AD_ROUNDSTATE_ACTIVE = 3" in local_h
@@ -42,6 +45,15 @@ def test_attack_defend_helper_surface_matches_retail_mapping_bundle() -> None:
 	assert "int G_ADUpdateScoreHistory( void ) {" in team_c
 	assert "void G_CAADRespawnAsSpectator( gentity_t *ent ) {" in team_c
 	assert "void G_CAADResetClientForRound( gentity_t *ent ) {" in team_c
+	assert "G_ADResolveFollowTarget" not in team_c
+	assert respawn_block.index("CopyToBodyQue( ent );") < respawn_block.index("ent->client->ps.pm_type = PM_SPECTATOR;")
+	assert respawn_block.index("ent->client->ps.pm_type = PM_SPECTATOR;") < respawn_block.index("ClientSpawn( ent );")
+	assert respawn_block.index("ClientSpawn( ent );") < respawn_block.index("G_CountActivePlayersByTeam( counts );")
+	assert "FollowCycle( ent, 1 );" in respawn_block
+	assert "level.intermissiontime" not in respawn_block
+	assert "BG_PlayerStateToEntityState" not in respawn_block
+	assert "trap_LinkEntity" not in respawn_block
+	assert "spectatorClient = -1" not in respawn_block
 
 
 def test_attack_defend_round_controller_hooks_use_retail_boundaries() -> None:

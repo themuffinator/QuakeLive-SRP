@@ -37,6 +37,10 @@ def test_runtime_probes_keep_multitexture_enabled_for_post_process() -> None:
 def test_color_correct_is_shader_backed_and_surfaces_retail_controls() -> None:
 	tr_backend = _read("src/code/renderer/tr_backend.c")
 	tr_init = _read("src/code/renderer/tr_init.c")
+	color_uniform_block = _extract_function_block(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
+	color_uniform_from_cvars_block = _extract_function_block(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
+	color_correct_pass_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+	color_correct_init_block = _extract_function_block(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
 
 	assert "qglGetTexImage(" not in tr_backend
 	assert "qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );" in tr_backend
@@ -45,10 +49,18 @@ def test_color_correct_is_shader_backed_and_surfaces_retail_controls() -> None:
 	assert '"p_contrast"' in tr_backend
 	assert 'r_contrast = ri.Cvar_Get( "r_contrast", "1.0", CVAR_ARCHIVE | CVAR_CLOUD );' in tr_init
 	assert 'web_browserActive = ri.Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in tr_init
-	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in tr_backend
-	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in tr_backend
-	assert "\t\tcontrast = r_contrast->value;" in tr_backend
-	assert "overbright = 2.0f * r_overBrightBits->integer;" in tr_backend
+	assert "if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in color_uniform_block
+	assert "if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in color_uniform_block
+	assert "\t\tcontrast = r_contrast->value;" in color_uniform_block
+	assert "overbright = 2.0f * r_overBrightBits->integer;" in color_uniform_block
+	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.colorCorrectProgram.gammaRecipUniform, gammaRecip );" in color_uniform_block
+	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.colorCorrectProgram.overbrightUniform, overbright );" in color_uniform_block
+	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.colorCorrectProgram.contrastUniform, contrast );" in color_uniform_block
+	assert "if ( !RBPP_ColorCorrectEnabled() ) {" in color_uniform_from_cvars_block
+	assert "RBPP_SetColorCorrectUniforms( qtrue );" in color_uniform_from_cvars_block
+	assert "RBPP_SetColorCorrectUniforms( qfalse );" in color_correct_init_block
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in color_correct_pass_block
+	assert "qglUniform1fARBFunc" not in color_correct_pass_block
 	assert "color *= p_overbright;" in tr_backend
 
 
@@ -76,7 +88,9 @@ def test_bloom_controls_and_active_mirrors_are_backend_validated() -> None:
 	assert "if ( !s_postProcess.supported ) {" in bloom_enabled_block
 	assert "if ( !r_bloomActive || !r_bloomActive->integer ) {" in bloom_enabled_block
 	assert "RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, width, height, qfalse )" in bloom_init_block
-	assert "RBPP_DestroyRenderTarget( &s_postProcess.sceneTarget );" in bloom_shutdown_block
+	assert "targets[0] = &s_postProcess.sceneTarget;" in bloom_shutdown_block
+	assert bloom_shutdown_block.index("RBPP_DestroyBloomPrograms();") < bloom_shutdown_block.index("qglDeleteTextures") < bloom_shutdown_block.index("qglDeleteFramebuffersEXTFunc") < bloom_shutdown_block.index("qglDeleteRenderbuffersEXTFunc")
+	assert 'ri.Cvar_Set( "r_bloomActive", "0" );' in bloom_shutdown_block
 	assert "RBPP_CreateRenderTarget( &s_postProcess.sceneTarget" not in rebuild_block
 	assert "if ( cmd->sceneTexture && RBPP_BloomEnabled() && s_postProcess.sceneTarget.initialized ) {" in bloom_command_block
 	assert '"p_blurStep"' not in tr_backend
@@ -167,9 +181,9 @@ def test_post_process_refexport_tail_sets_bloom_uniforms_like_retail() -> None:
 	tr_init = _read("src/code/renderer/tr_init.c")
 	tr_public = _read("src/code/renderer/tr_public.h")
 
-	set_uniforms_block = _extract_function_block(tr_backend, "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {")
-	set_from_cvars_block = _extract_function_block(tr_backend, "static void RBPP_SetBloomUniformsFromCvars( void ) {")
-	set_params_block = _extract_function_block(tr_backend, "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {")
+	set_uniforms_block = _extract_function_block(tr_backend, "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {")
+	set_from_cvars_block = _extract_function_block(tr_backend, "void RBPP_SetBloomUniformsFromCvars( void ) {")
+	set_params_block = _extract_function_block(tr_backend, "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {")
 	bloom_command_block = _extract_function_block(tr_backend, "static const void *RB_BloomPostProcessCommand( const void *data ) {")
 	apply_bloom_block = _extract_function_block(tr_backend, "static qboolean RBPP_ApplyBloom( void ) {")
 
@@ -178,18 +192,19 @@ def test_post_process_refexport_tail_sets_bloom_uniforms_like_retail() -> None:
 	assert "re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;" in tr_init
 	assert "re.RetailPostProcessPass = R_SetPostProcessBloomParameters;" in tr_init
 	assert "s_bloomUniformsDirty = qtrue;" in set_params_block
-	assert "RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneIntensity, sceneSaturation );" in set_params_block
+	assert "RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneSaturation, sceneIntensity );" in set_params_block
 	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.brightPassProgram.programObject );" in set_uniforms_block
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );" in set_uniforms_block
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomSaturationUniform, bloomSaturation );" in set_uniforms_block
-	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneIntensityUniform, sceneIntensity );" in set_uniforms_block
-	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomIntensityUniform, bloomIntensity );" in set_uniforms_block
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneSaturationUniform, sceneSaturation );" in set_uniforms_block
+	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomIntensityUniform, bloomIntensity );" in set_uniforms_block
+	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneIntensityUniform, sceneIntensity );" in set_uniforms_block
+	assert set_uniforms_block.index("combineProgram.bloomSaturationUniform") < set_uniforms_block.index("combineProgram.sceneSaturationUniform") < set_uniforms_block.index("combineProgram.bloomIntensityUniform") < set_uniforms_block.index("combineProgram.sceneIntensityUniform")
 	assert "if ( brightThreshold < 0.0f ) {" in set_from_cvars_block
 	assert "if ( s_bloomUniformsDirty ) {" in bloom_command_block
 	assert "RBPP_SetBloomUniformsFromCvars();" in bloom_command_block
 	assert "s_bloomUniformsDirty = qfalse;" in bloom_command_block
-	assert "RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneIntensity, sceneSaturation );" in apply_bloom_block
+	assert "RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneSaturation, sceneIntensity );" in apply_bloom_block
 
 
 def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> None:
@@ -200,6 +215,7 @@ def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> No
 	color_mapping_block = _extract_function_block(tr_image, "void R_SetColorMappings( void ) {")
 	light_scale_block = _extract_function_block(tr_image, "void R_LightScaleTexture (unsigned *in, int inwidth, int inheight, qboolean only_gamma )")
 	color_correct_enabled_block = _extract_function_block(tr_backend, "qboolean RBPP_ColorCorrectEnabled( void ) {")
+	color_correct_uniform_block = _extract_function_block(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
 	color_correct_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
 	restart_block = _extract_function_block(tr_init, "static void R_PostProcessRestart( void ) {")
 
@@ -211,8 +227,9 @@ def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> No
 	assert "if ( !RB_PostProcessEnabled() ) {" in color_correct_enabled_block
 	assert "if ( !s_postProcess.supported ) {" in color_correct_enabled_block
 	assert "if ( !r_colorCorrectActive || !r_colorCorrectActive->integer ) {" in color_correct_enabled_block
-	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in color_correct_block
-	assert "if ( ( !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in color_correct_block
+	assert "if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_gamma && r_gamma->value > 0.0f ) {" in color_correct_uniform_block
+	assert "if ( ( !browserOverride || !web_browserActive || !web_browserActive->integer ) && r_contrast ) {" in color_correct_uniform_block
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in color_correct_block
 	assert "R_SyncRenderThread();" in restart_block
 	assert "RB_ShutdownRenderTargets();" in restart_block
 	assert "RB_InitRenderTargets();" in restart_block
@@ -269,6 +286,10 @@ def test_post_process_render_targets_match_retail_fbo_format_lane() -> None:
 	tr_backend = _read("src/code/renderer/tr_backend.c")
 	tr_init = _read("src/code/renderer/tr_init.c")
 	tr_local = _read("src/code/renderer/tr_local.h")
+	create_block = _extract_function_block(tr_backend, "static qboolean RBPP_CreateRenderTarget( ppRenderTarget_t *target, int width, int height, qboolean linearFilter ) {")
+	renderbuffer_block = _extract_function_block(tr_backend, "static GLuint RBPP_CreateDepthStencilRenderbuffer( int width, int height ) {")
+	swap_block = _extract_function_block(tr_backend, "const void\t*RB_SwapBuffers( const void *data ) {")
+	execute_block = _extract_function_block(tr_backend, "void RB_ExecuteRenderCommands( const void *data ) {")
 
 	assert 'r_floatingPointFBOs = ri.Cvar_Get( "r_floatingPointFBOs", "0", CVAR_ARCHIVE | CVAR_LATCH );' in tr_init
 	assert "extern cvar_t\t*r_floatingPointFBOs;" in tr_local
@@ -279,24 +300,54 @@ def test_post_process_render_targets_match_retail_fbo_format_lane() -> None:
 	assert "\t\tpixelType = GL_FLOAT;" in tr_backend
 	assert "qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, internalFormat, width, height, 0, GL_RGBA, pixelType, NULL );" in tr_backend
 	assert "s_postProcess.procs.qglFramebufferRenderbufferEXTFunc( GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, target->depthBuffer );" in tr_backend
+	assert "GL_TEXTURE_2D" not in create_block
+	assert "GL_DEPTH24_STENCIL8_EXT" in renderbuffer_block
+	assert "if ( GL_CheckErrors() ) {" in create_block
+	assert "qglGetError()" not in create_block
+	assert "s_postProcess.procs.qglBindRenderbufferEXTFunc" not in create_block
+	assert "glFramebufferProcs_t" not in tr_backend
+	assert "renderTarget_t" not in tr_backend
+	assert "s_fboProcs" not in tr_backend
+	assert "s_sceneRenderTarget" not in tr_backend
+	assert "static qboolean RB_CreateRenderTarget( void )" not in tr_backend
+	assert "static void RB_DestroyRenderTarget( void )" not in tr_backend
+	assert "static void RB_ReleaseOffscreenRenderTarget( void )" not in tr_backend
+	assert "static void RB_ResetPostProcessState( void )" not in tr_backend
+	assert "static image_t *RB_UploadBloomScratch" not in tr_backend
+	assert "static void RB_DrawBloomPass" not in tr_backend
+	assert "RBPP_ReleaseSceneRenderTarget();" in swap_block
+	assert "RBPP_ResetIfNeeded();" in execute_block
 
 
 def test_live_post_process_tuning_cvars_consume_retail_modified_flags() -> None:
+	tr_backend = _read("src/code/renderer/tr_backend.c")
 	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
 	tr_cmds = _read("src/code/renderer/tr_cmds.c")
 
-	assert "static void R_ClearLivePostProcessModifiedFlags( void ) {" in tr_init
-	assert "if ( r_contrast && r_contrast->modified ) {" in tr_init
-	assert "\t\tr_contrast->modified = qfalse;" in tr_init
-	assert "if ( r_bloomBrightThreshold && r_bloomBrightThreshold->modified ) {" in tr_init
-	assert "\t\tr_bloomBrightThreshold->modified = qfalse;" in tr_init
-	assert "if ( r_bloomSaturation && r_bloomSaturation->modified ) {" in tr_init
-	assert "\t\tr_bloomSaturation->modified = qfalse;" in tr_init
-	assert "if ( r_bloomSceneSaturation && r_bloomSceneSaturation->modified ) {" in tr_init
-	assert "\t\tr_bloomSceneSaturation->modified = qfalse;" in tr_init
-	assert "if ( r_bloomIntensity && r_bloomIntensity->modified ) {" in tr_init
-	assert "\t\tr_bloomIntensity->modified = qfalse;" in tr_init
-	assert "if ( r_bloomSceneIntensity && r_bloomSceneIntensity->modified ) {" in tr_init
-	assert "\t\tr_bloomSceneIntensity->modified = qfalse;" in tr_init
-	assert "R_ClearLivePostProcessModifiedFlags();" in tr_init
+	live_block = _extract_function_block(tr_cmds, "static void R_RefreshLivePostProcessCvars( void ) {")
+
+	assert "static void R_ClearLivePostProcessModifiedFlags( void ) {" not in tr_init
+	assert "R_ClearLivePostProcessModifiedFlags();" not in tr_init
+	assert "void RBPP_SetColorCorrectUniformsFromCvars( void );" in tr_local
+	assert "void RBPP_SetBloomUniformsFromCvars( void );" in tr_local
+	assert "void RBPP_SetColorCorrectUniformsFromCvars( void ) {" in tr_backend
+	assert "void RBPP_SetBloomUniformsFromCvars( void ) {" in tr_backend
+	assert "( r_gamma && r_gamma->modified ) ||" in live_block
+	assert "( r_contrast && r_contrast->modified )" in live_block
+	assert "\t\t\tr_contrast->modified = qfalse;" in live_block
+	assert "r_gamma->modified = qfalse;" not in live_block
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in live_block
+	assert "( r_bloomBrightThreshold && r_bloomBrightThreshold->modified ) ||" in live_block
+	assert "\t\t\tr_bloomBrightThreshold->modified = qfalse;" in live_block
+	assert "( r_bloomSaturation && r_bloomSaturation->modified ) ||" in live_block
+	assert "\t\t\tr_bloomSaturation->modified = qfalse;" in live_block
+	assert "( r_bloomSceneSaturation && r_bloomSceneSaturation->modified ) ||" in live_block
+	assert "\t\t\tr_bloomSceneSaturation->modified = qfalse;" in live_block
+	assert "( r_bloomIntensity && r_bloomIntensity->modified ) ||" in live_block
+	assert "\t\t\tr_bloomIntensity->modified = qfalse;" in live_block
+	assert "( r_bloomSceneIntensity && r_bloomSceneIntensity->modified )" in live_block
+	assert "\t\t\tr_bloomSceneIntensity->modified = qfalse;" in live_block
+	assert "RBPP_SetBloomUniformsFromCvars();" in live_block
+	assert tr_cmds.index("R_RefreshLivePostProcessCvars();") < tr_cmds.index("if ( r_gamma->modified ) {")
 	assert "if ( r_gamma->modified ) {" in tr_cmds

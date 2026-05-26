@@ -1391,7 +1391,7 @@
       "signature": "void BotSetupForMovement(bot_state_t *bs)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Movement-state initializer identified by the zeroed bot_initmove_t build from the live playerstate, the onground or teleported or waterjump flags, the crouch presence selection, and the trap_BotInitMoveState call from ai_dmq3.c::BotSetupForMovement."
+      "comment": "Movement-state initializer identified by the zeroed bot_initmove_t build from the live playerstate, the ground flag, the PMF_TIME_KNOCKBACK && pm_time > 0 branch that raises MFL_TELEPORTED, the PMF_TIME_WATERJUMP branch that raises MFL_WATERJUMP, the crouch presence selection, and the trap_BotInitMoveState call from ai_dmq3.c::BotSetupForMovement."
     },
     {
       "address": "0x100160C0",
@@ -3217,7 +3217,7 @@
       "signature": "static void PM_Friction(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact friction helper from bg_pmove.c::PM_Friction. The retail body zeroes tiny speeds, applies grounded friction with crouch-slide and diagonal circle-strafe overrides, adds water/flight/spectator drops, applies the PM_FREEZE or PMF_SCOREBOARD 0.25 drop multiplier, then rescales all three velocity components by the resulting newspeed fraction."
+      "comment": "Exact friction helper from bg_pmove.c::PM_Friction. The retail body zeroes tiny speeds, applies grounded friction only while PMF_TIME_KNOCKBACK is clear, keeps the crouch-slide and diagonal circle-strafe overrides inside that ground-friction branch, adds water/flight/spectator drops, applies the PM_FREEZE or PMF_SCOREBOARD 0.25 drop multiplier, then rescales all three velocity components by the resulting newspeed fraction."
     },
     {
       "address": "0x1002DEF0",
@@ -3267,7 +3267,7 @@
       "signature": "static void PM_ApplyJumpTakeoff(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Descriptive retail-only jump takeoff body shared by PM_CheckJump and the step-jump seam. HLIL shows it latching the jump flags, deriving the final vertical takeoff velocity from the active jump-mode globals, using mode 1's gradient chain-jump scaler, mode 2's additive chain/step branch, or PMF_AIR_CONTROL's additive branch with the post-offset fade; the step-jump latches select `pmove_StepJumpVelocity`, normal jumps select `pmove_ChainJumpVelocity`, and the result is ramp-accumulated then max-clamped before `EV_JUMP` and the forward/back legs animation are emitted."
+      "comment": "Descriptive retail-only jump takeoff body shared by PM_CheckJump and the step-jump seam. HLIL shows it latching the jump flags, deriving the final vertical takeoff velocity from the active jump-mode globals, using mode 1's gradient chain-jump scaler, mode 2's additive chain/step branch, or PMF_AIR_CONTROL's additive branch with the offset-threshold denominator; the normal step-jump latch selects `pmove_StepJumpVelocity`, normal jumps and the crouch-step fallback select `pmove_ChainJumpVelocity`, and the crouch-step latch suppresses ramp accumulation before `EV_JUMP` and the forward/back legs animation are emitted."
     },
     {
       "address": "0x1002E4C0",
@@ -3437,7 +3437,7 @@
       "signature": "void PM_WalkMove(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact match for bg_pmove.c::PM_WalkMove. The retail path begins with the water transition gate, the PM_ShouldUseInvulnerabilityMove handoff through PM_StepSlideMove(qfalse) and PM_InvulnerabilityMove, and PM_CheckJump, then applies friction, refreshes the crouch-slide timer, projects forward/right onto the ground plane, applies duck/wade speed clamps including the crouch-slide 0.75 duck scale, splits slick/knockback acceleration, clips downhill motion, and resolves the final step move."
+      "comment": "Exact match for bg_pmove.c::PM_WalkMove. The retail path begins with the water transition gate, the PM_ShouldUseInvulnerabilityMove handoff through PM_StepSlideMove(qfalse) and PM_InvulnerabilityMove, and PM_CheckJump, then applies friction, refreshes the crouch-slide timer, projects forward/right onto the ground plane, applies duck/wade speed clamps including the crouch-slide 0.75 duck scale, splits slick/knockback (PMF_TIME_KNOCKBACK) acceleration to pm_airaccelerate with gravity while normal ground uses pm_accelerate, clips downhill motion, and resolves the final step move."
     },
     {
       "address": "0x10030790",
@@ -3597,7 +3597,7 @@
       "signature": "void PM_DropTimers(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact match for bg_pmove.c::PM_DropTimers. The retail helper decrements pm_time, legsTimer, torsoTimer, and the crouch-slide timer while clearing the PMF_ALL_TIMES flags once the misc timer expires; executable fixtures pin the partial-decay, expiry, animation-clamp, and crouch-slide gates."
+      "comment": "Exact match for bg_pmove.c::PM_DropTimers. The retail helper decrements pm_time, legsTimer, torsoTimer, and the crouch-slide timer while clearing the PMF_ALL_TIMES flags, including PMF_TIME_KNOCKBACK, once the misc timer expires; executable fixtures pin the partial-decay, expiry, animation-clamp, and crouch-slide gates."
     },
     {
       "address": "0x10031ED0",
@@ -3885,7 +3885,7 @@
       "signature": "void P_DamageFeedback(gentity_t *player)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "End-of-frame damage accumulator that converts client damage totals into damagePitch/damageYaw, EV_PAIN, and the outgoing damageCount payload."
+      "comment": "End-of-frame damage accumulator that converts client damage totals into damagePitch/damageYaw, EV_PAIN, and the outgoing damageCount payload. Retail clears only damage_blood and damage_armor; the adjacent G_Damage writes damage_from immediately after those totals, with no surviving damage_knockback feedback slot."
     },
     {
       "address": "0x10033950",
@@ -3940,7 +3940,7 @@
       "signature": "void SpectatorThink(gentity_t *ent, usercmd_t *ucmd)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Spectator pmove path that sets PM_SPECTATOR, unlinks before pmove, touches triggers afterward, and handles follow cycling from the attack-button edge exactly like the source spectator think routine."
+      "comment": "Spectator pmove path that sets PM_SPECTATOR with the retail 480 speed, unlinks before pmove, touches triggers afterward, handles follow cycling from the attack-button edge, and drops follow state from the later BUTTON_ANY edge."
     },
     {
       "address": "0x10033FD0",
@@ -4056,7 +4056,7 @@
       "signature": "void SpectatorClientEndFrame(gentity_t *ent)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Spectator follow/POI/scoreboard updater that mirrors followed players and falls back to free or scoreboard spectators when follow targets disappear."
+      "comment": "Spectator follow/scoreboard updater from g_active.c::SpectatorClientEndFrame. It resolves follow1/follow2, mirrors connected non-PM_SPECTATOR player targets while forcing the copied state back to PM_SPECTATOR | PMF_FOLLOW, cycles stale explicit targets for active team participants, and otherwise drops through StopFollowing."
     },
     {
       "address": "0x10035600",
@@ -4076,7 +4076,7 @@
       "signature": "void G_CAADRespawnAsSpectator(gentity_t *ent)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Descriptive retail-only shared Clan Arena / Attack and Defend respawn helper. Reached from the dead-client respawn gate once those modes push a player back into spectator follow, it copies the corpse into the body queue, forces PM_SPECTATOR, reruns ClientSpawn, and enters follow mode when both teams still have active players."
+      "comment": "Descriptive retail-only shared Clan Arena / Attack and Defend respawn helper. Reached from the dead-client respawn gate once those modes push a player back into spectator follow, it copies the corpse into the body queue, pre-seeds PM_SPECTATOR before rerunning ClientSpawn, counts active players by team, and only enters follow mode through FollowCycle when both teams still have active players."
     },
     {
       "address": "0x100359E0",
@@ -4641,7 +4641,7 @@
       "signature": "void ClientSpawn(gentity_t *ent)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Full retail player spawn/bootstrap boundary. It selects the spawn point, preserves the persistent and session state that survive respawn, rebuilds the playerstate and entity defaults for the new life, seeds the PMF_CROUCH_SLIDE / PMF_DOUBLE_JUMP / PMF_AIR_CONTROL profile bits from the active movement globals, links the player at the chosen origin, and then fans into the deeper post-spawn loadout and finalization helper."
+      "comment": "Full retail player spawn/bootstrap boundary. It selects active or spectator spawn placement from the incoming PM_SPECTATOR state, preserves the persistent and session state that survive respawn, rebuilds the playerstate and entity defaults for the new life, seeds the PMF_CROUCH_SLIDE / PMF_DOUBLE_JUMP / PMF_AIR_CONTROL profile bits from the active movement globals, links non-spectator players at the chosen origin, and then fans into the deeper post-spawn loadout and finalization helper."
     },
     {
       "address": "0x1003C7E0",
@@ -4997,7 +4997,7 @@
       "signature": "void StopFollowing(gentity_t *ent)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact spectator drop helper from g_cmds.c::StopFollowing. It restores the caller's persisted team, clears follow state, resets the spectator client to self, and drops the follow-only flags before optionally relinking the entity."
+      "comment": "Exact spectator drop helper from g_cmds.c::StopFollowing. It restores the caller's persisted team, forces PM_SPECTATOR, clears PMF_FOLLOW, sets SPECTATOR_FREE, resets spectatorClient/clientNum to self, and unlinks the entity if it is still linked."
     },
     {
       "address": "0x10040D90",
@@ -5017,17 +5017,17 @@
       "signature": "void Cmd_Follow_f(gentity_t *ent)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact follow command handler from g_cmds.c::Cmd_Follow_f. HLIL shows the expected `follow1`/`follow2` shortcuts plus the player-string resolution and spectator-follow transition flow."
+      "comment": "Exact follow command handler from g_cmds.c::Cmd_Follow_f. HLIL shows player-string resolution through ClientNumberFromString, no follow1/follow2 parser branch here, the cgame `pw` suffix guard that preserves the current followed flag carrier through BG_PlayerCarryingFlag, self/PM_SPECTATOR target rejection, no-arg active-team follow cycling, and the spectator-follow transition flow."
     },
     {
       "address": "0x10041130",
       "raw_name": "FUN_10041130",
       "normalized_name": "FollowCycle",
       "status": "matched",
-      "signature": "void FollowCycle(gentity_t *ent, int dir)",
+      "signature": "qboolean FollowCycle(gentity_t *ent, int dir)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Descriptive retail-only inner follow-cycle worker anchored by the preserved `FollowCycle: bad dir %i` and `FollowCycle: bad input clientnum value: %d, maxclients: %d` diagnostics. It rotates the current follow target, skips disconnected or spectator targets, and emits the retail `race_info` side payload when race spectators switch targets."
+      "comment": "Descriptive retail-only inner follow-cycle worker anchored by the preserved `FollowCycle: bad dir %i` and `FollowCycle: bad input clientnum value: %d, maxclients: %d` diagnostics. It rotates client targets only, skips disconnected, PM_SPECTATOR, and PMF_FOLLOW clients, applies same-team filtering for active team callers, and emits the retail `race_info` side payload when race spectators switch targets."
     },
     {
       "address": "0x100412E0",
@@ -5037,7 +5037,7 @@
       "signature": "void Cmd_FollowCycle_f(gentity_t *ent, int dir)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Public follow-cycle command entry from g_cmds.c::Cmd_FollowCycle_f. The retail ClientCommand ladder reaches it from both `follownext` and `followprev`, while the heavier iteration work remains in the adjacent inner helper."
+      "comment": "Public follow-cycle command entry from g_cmds.c::Cmd_FollowCycle_f. The retail ClientCommand ladder reaches it from both `follownext` and `followprev`; this wrapper has no training-map print gate, counts tournament/free losses, tests sess.sessionTeam before SetTeam(\"spectator\"), and leaves the heavier iteration work in the adjacent inner helper."
     },
     {
       "address": "0x10041330",
@@ -5553,7 +5553,7 @@
       "signature": "static float G_KnockbackScaleForMOD(int mod, qboolean selfInflicted)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact knockback-scale selector from g_combat.c::G_KnockbackScaleForMOD. HLIL preserves the MOD-to-weapon switch, the `g_knockback_%s` cvar lookup path, and the self-damage overrides for rocket and plasma knockback before the final float scale is returned to G_Damage."
+      "comment": "Exact knockback-scale selector from g_combat.c::G_KnockbackScaleForMOD. HLIL preserves the MOD-to-weapon switch, the `g_knockback_%s` cvar lookup path, the negative grappling-hook scalar, and the self-damage overrides for rocket and plasma knockback before the final float scale is returned to G_Damage."
     },
     {
       "address": "0x10048B50",
@@ -5583,7 +5583,7 @@
       "signature": "void G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker, vec3_t dir, vec3_t point, int damage, int dflags, int mod)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Main damage routine identified by the preserved g_knockback_cripple, g_knockback_pg_self, and g_knockback_rl_self cvar reads, the friendly-fire training warning, and the exact damage and armor debug prints used by the retail combat path."
+      "comment": "Main damage routine identified by the preserved g_knockback_cripple, g_knockback_pg_self, and g_knockback_rl_self cvar reads, the signed knockback application branch that inverts negative knockback direction before latching PMF_TIME_KNOCKBACK, the FL_NO_KNOCKBACK / DAMAGE_NO_KNOCKBACK zeroing gates, the damage feedback record that stores armor, blood, and damage_from without a damage_knockback slot, the friendly-fire training warning, and the exact damage and armor debug prints used by the retail combat path."
     },
     {
       "address": "0x10049D20",
@@ -8967,7 +8967,7 @@
       "signature": "void TeleportPlayer(gentity_t *player, vec3_t origin, vec3_t angles)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact g_misc.c teleport helper. Retail emits the paired teleport temp events for non-spectators, unlinks before the telefrag check, reapplies view angles and the 400 ups launch velocity, toggles EF_TELEPORT_BIT, kills blocking entities at the destination, mirrors the new playerstate back into the entitystate, and only relinks non-spectators."
+      "comment": "Exact g_misc.c teleport helper. Retail emits the paired teleport temp events for non-spectators, unlinks before the telefrag check, reapplies view angles and the 400 ups launch velocity, seeds pm_time = 160 with PMF_TIME_KNOCKBACK for the shared movement-blocking path, toggles EF_TELEPORT_BIT, frees an active grappling hook through Weapon_HookFree, kills blocking entities at the destination, mirrors the new playerstate back into the entitystate, and only relinks non-spectators."
     },
     {
       "address": "0x1005A660",
@@ -9187,7 +9187,7 @@
       "signature": "void ProximityMine_Player(gentity_t *mine, gentity_t *player)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact player-stick helper from g_missile.c. It handles the already-ticking stack-up case, otherwise hides the mine on the victim, marks EF_TICKING, and schedules ProximityMine_ExplodeOnPlayer with the retail invulnerability-aware delay split."
+      "comment": "Exact player-stick helper from g_missile.c. It handles the already-ticking stack-up case, otherwise hides the mine on the victim, marks EF_TICKING, and schedules ProximityMine_ExplodeOnPlayer with the retail invulnerability-aware delay split; the paired explode-on-player path uses DAMAGE_NO_KNOCKBACK for the MOD_JUICED invulnerability discharge before falling back to normal proximity splash."
     },
     {
       "address": "0x1005BBE0",
@@ -9543,7 +9543,7 @@
       "signature": "void target_laser_think(gentity_t *self)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact target_laser beam-think callback from g_target.c::target_laser_think, recovered through the enemy midpoint aim update, 2048-unit trace, G_Damage call, and FRAMETIME reschedule."
+      "comment": "Exact target_laser beam-think callback from g_target.c::target_laser_think, recovered through the enemy midpoint aim update, 2048-unit trace, DAMAGE_NO_KNOCKBACK beam damage with MOD_TARGET_LASER, and FRAMETIME reschedule."
     },
     {
       "address": "0x10067830",

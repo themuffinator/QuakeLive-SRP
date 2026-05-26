@@ -65,7 +65,7 @@ This tranche rechecks ten scattered `g_*` controls that were not part of the pri
 | `g_floodprot_maxcount` | `10` | `0` | Sets the shared command/chat burst limit used by active-client decay, command gating, and `floodstatus`.【F:src/code/game/g_main.c†L1016-L1016】【F:src/code/game/g_active.c†L786-L805】【F:src/code/game/g_cmds.c†L3001-L3032】 |
 | `g_floodprot_decay` | `1000` | `0` | Controls the millisecond decay window for the same flood counter; values at or below zero disable the limiter.【F:src/code/game/g_main.c†L1017-L1017】【F:src/code/game/g_svcmds.c†L527-L534】 |
 | `g_dropDamagedHealth` | `0` | `CVAR_TEMP \| 0x00040000 \| CVAR_GAMERULE` | Enables dropped health pickups to preserve their stored damaged count; the custom-settings bit now follows non-zero values instead of firing at the retail default.【F:src/code/game/g_main.c†L1026-L1026】【F:src/code/game/g_items.c†L481-L490】【F:src/code/game/g_main.c†L2173-L2174】 |
-| `g_max_knockback` | `120` | `CVAR_GAMERULE` | Caps computed knockback after per-weapon scaling and uses the same retail fallback in the cached knockback config and damage path.【F:src/code/game/g_main.c†L1052-L1052】【F:src/game/g_config.c†L301-L301】【F:src/code/game/g_combat.c†L1814-L1824】 |
+| `g_max_knockback` | `120` | `CVAR_GAMERULE` | Caps only positive weapon-scaled knockback and uses the same retail fallback in the cached knockback config and damage path.【F:src/code/game/g_main.c†L1078-L1078】【F:src/game/g_config.c†L908-L915】【F:src/code/game/g_combat.c†L1761-L1765】 |
 | `g_returnFlagOnSuicide` | `0` | `CVAR_GAMERULE` | Caches into `g_flagConfig.returnOnSuicide`; enabling it restores immediate carried-flag returns on suicide.【F:src/code/game/g_main.c†L1038-L1038】【F:src/code/game/g_main.c†L1442-L1442】 |
 | `g_vampiricDamage` | `0` | `0x00040000 \| CVAR_GAMERULE` | Heals attackers for a fraction of dealt health damage and advertises the custom setting/server tag only when the value is positive.【F:src/code/game/g_main.c†L1100-L1100】【F:src/code/game/g_combat.c†L1613-L1656】【F:src/code/server/sv_main.c†L919-L919】 |
 
@@ -489,38 +489,40 @@ The audited damage, splash, velocity, acceleration, weapon-special, Quad Hog, an
 
 ## Knockback Controls
 
-`g_knockback` remains the global scalar, but Quake Live extends it with per-weapon `g_knockback_*` hooks that influence how far targets (and players who self-damage) are launched. Defaults mirror the shipping DLL and are loaded into `g_knockbackConfig` during `G_InitKnockbackConfig`.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L297-L317】【F:src/code/game/g_main.c†L603-L620】
+`g_knockback` remains the global scalar, but Quake Live extends it with per-weapon `g_knockback_*` hooks that influence how far targets (and players who self-damage) are launched. Defaults mirror the shipping DLL and are loaded into `g_knockbackConfig` during `G_InitKnockbackConfig`.【F:src/game/g_config.c†L45-L63】【F:src/game/g_config.c†L257-L276】【F:src/game/g_config.c†L887-L917】
 
 | CVar | Default | Notes |
 | --- | --- | --- |
-| `g_knockback` | `1000` | Global scalar applied after the per-weapon knockback value is computed.【F:src/code/game/g_main.c†L1044-L1046】【F:src/code/game/g_combat.c†L1799-L1799】 |
-| `g_max_knockback` | `120` | Retail gamerule cap applied after weapon-specific scaling and cripple reductions; invalid non-positive values fall back to `120`.【F:src/code/game/g_main.c†L1052-L1052】【F:src/game/g_config.c†L959-L965】【F:src/code/game/g_combat.c†L1814-L1824】 |
-| `g_knockback_g` | `1` | Gauntlet knockback multiplier applied to melee hits.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L283-L292】 |
-| `g_knockback_mg` | `1` | Machinegun knockback scaling for bullet hits.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L283-L292】 |
-| `g_knockback_sg` | `1` | Shotgun pellet knockback multiplier.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L283-L292】 |
-| `g_knockback_gl` | `1.10` | Grenade launcher knockback scaling for direct and splash damage.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L300-L307】 |
-| `g_knockback_rl` | `0.90` | Rocket launcher enemy knockback multiplier.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L300-L308】 |
-| `g_knockback_rl_self` | `1.10` | Self-inflicted rocket knockback used for rocket jumps.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L300-L308】 |
-| `g_knockback_lg` | `1.75` | Lightning gun knockback multiplier per beam tick.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L304-L306】 |
-| `g_knockback_rg` | `0.85` | Railgun knockback scaling, affecting enemy displacement after hits.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L304-L307】 |
-| `g_knockback_pg` | `1.10` | Plasmagun enemy knockback multiplier.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L305-L308】 |
-| `g_knockback_pg_self` | `1.30` | Self-inflicted plasmagun knockback for plasma climbing.【F:src/code/game/g_main.c†L68-L86】【F:src/code/game/g_main.c†L305-L308】 |
-| `g_knockback_bfg` | `1` | BFG knockback scalar across splash and tracer hits.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_gh` | `-5` | Grappling hook pull strength; negative values reel players inward.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_ng` | `1` | Nailgun knockback multiplier for Team Arena modes.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_pl` | `1` | Proximity mine knockback scalar for explosions.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_cg` | `1` | Chaingun knockback multiplier.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_hmg` | `1` | Heavy machinegun knockback control for PQL/CA weapons.【F:src/code/game/g_main.c†L68-L86】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_z` | `24` | Additional vertical lift applied after weapon scaling.【F:src/code/game/g_combat.c†L1500-L1501】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_z_self` | `24` | Vertical boost when self-damaging for trick jumps.【F:src/code/game/g_combat.c†L1500-L1501】【F:src/game/g_config.c†L293-L302】 |
-| `g_knockback_cripple` | `0` | Modifier used when cripple effects are active.【F:src/code/game/g_combat.c†L1504-L1562】【F:src/game/g_config.c†L293-L302】 |
+| `g_knockback` | `1000` | Global scalar applied after the per-weapon knockback value is computed.【F:src/code/game/g_main.c†L1077-L1077】【F:src/code/game/g_combat.c†L1807-L1807】 |
+| `g_max_knockback` | `120` | Retail gamerule cap applied only to positive weapon-scaled knockback; invalid non-positive values fall back to `120`.【F:src/code/game/g_main.c†L1078-L1078】【F:src/game/g_config.c†L908-L915】【F:src/code/game/g_combat.c†L1761-L1765】 |
+| `g_knockback_g` | `1` | Gauntlet knockback multiplier applied to melee hits.【F:src/game/g_config.c†L257-L257】 |
+| `g_knockback_mg` | `1` | Machinegun knockback scaling for bullet hits.【F:src/game/g_config.c†L258-L258】 |
+| `g_knockback_sg` | `1` | Shotgun pellet knockback multiplier.【F:src/game/g_config.c†L259-L259】 |
+| `g_knockback_gl` | `1.10` | Grenade launcher knockback scaling for direct and splash damage.【F:src/game/g_config.c†L260-L260】 |
+| `g_knockback_rl` | `0.90` | Rocket launcher enemy knockback multiplier.【F:src/game/g_config.c†L261-L261】 |
+| `g_knockback_rl_self` | `1.10` | Self-inflicted rocket knockback used for rocket jumps.【F:src/game/g_config.c†L262-L262】 |
+| `g_knockback_lg` | `1.75` | Lightning gun knockback multiplier per beam tick.【F:src/game/g_config.c†L263-L263】 |
+| `g_knockback_rg` | `0.85` | Railgun knockback scaling, affecting enemy displacement after hits.【F:src/game/g_config.c†L264-L264】 |
+| `g_knockback_pg` | `1.10` | Plasmagun enemy knockback multiplier.【F:src/game/g_config.c†L265-L265】 |
+| `g_knockback_pg_self` | `1.30` | Self-inflicted plasmagun knockback for plasma climbing.【F:src/game/g_config.c†L266-L266】 |
+| `g_knockback_bfg` | `1` | BFG knockback scalar across splash and tracer hits.【F:src/game/g_config.c†L267-L267】 |
+| `g_knockback_gh` | `-5` | Grappling hook pull strength; negative values reel players inward.【F:src/game/g_config.c†L268-L268】 |
+| `g_knockback_ng` | `1` | Nailgun knockback multiplier for Team Arena modes.【F:src/game/g_config.c†L269-L269】 |
+| `g_knockback_pl` | `1` | Proximity mine knockback scalar for explosions.【F:src/game/g_config.c†L270-L270】 |
+| `g_knockback_cg` | `1` | Chaingun knockback multiplier.【F:src/game/g_config.c†L271-L271】 |
+| `g_knockback_hmg` | `1` | Heavy machinegun knockback control for PQL/CA weapons.【F:src/game/g_config.c†L272-L272】 |
+| `g_knockback_z` | `24` | Retail table cvar retained and cached for parity; the committed `G_Damage` HLIL slice does not read it.【F:src/game/g_config.c†L273-L273】【F:src/game/g_config.c†L904-L904】 |
+| `g_knockback_z_self` | `24` | Retail self-knockback table cvar retained and cached for parity; the committed `G_Damage` HLIL slice does not read it.【F:src/game/g_config.c†L274-L274】【F:src/game/g_config.c†L905-L905】 |
+| `g_knockback_cripple` | `0` | Minimum `PMF_TIME_KNOCKBACK` `pm_time` floor when damage newly latches knockback movement blocking.【F:src/game/g_config.c†L276-L276】【F:src/code/game/g_combat.c†L1816-L1830】 |
 
 ### Usage notes
 
-* `G_KnockbackScaleForMOD` in `g_combat.c` consumes the `g_knockbackConfig` scalars for both enemy and self-damage cases, tying the CVars directly to rocket jumping, plasma climbing, and grapple pulls.【F:src/code/game/g_combat.c†L804-L862】
-* The first ten weapon-specific rows (`g_knockback_g` through `g_knockback_pg_self`) match the retail qagame table for default spelling and flags: `0x00040000 | CVAR_GAMERULE`.【F:src/game/g_config.c†L11-L292】【F:tests/test_game_weapon_parity.py†L23-L178】
-* The second knockback tranche keeps global `g_knockback`, BFG/grapple/Team Arena weapon scalars, vertical boosters, and cripple reduction on their retail defaults and flags.【F:src/code/game/g_main.c†L1044-L1046】【F:tests/test_game_weapon_parity.py†L178-L326】
-* Adjust the vertical boosters (`g_knockback_z*`) in tandem with weapon-specific scalars to keep trick-jump heights consistent while experimenting with combat knockback changes.【F:src/code/game/g_combat.c†L804-L862】【F:src/code/game/g_main.c†L313-L320】
+* `G_KnockbackScaleForMOD` in `g_combat.c` consumes the `g_knockbackConfig` weapon scalars for both enemy and self-damage cases, tying the CVars directly to rocket jumping, plasma climbing, and grapple pulls while preserving negative grapple-style knockback.【F:src/code/game/g_combat.c†L1481-L1538】
+* The first ten weapon-specific rows (`g_knockback_g` through `g_knockback_pg_self`) match the retail qagame table for default spelling and flags: `0x00040000 | CVAR_GAMERULE`.【F:src/game/g_config.c†L257-L266】【F:tests/test_game_weapon_parity.py†L23-L178】
+* The second knockback tranche keeps global `g_knockback`, BFG/grapple/Team Arena weapon scalars, table-retained z rows, max clamp, and the cripple timer floor on their retail defaults and flags.【F:src/code/game/g_main.c†L1077-L1078】【F:tests/test_game_weapon_parity.py†L178-L326】
+* Damage-side blocking is a playerstate contract: `G_Damage` latches `PMF_TIME_KNOCKBACK`, `PM_Friction` suppresses normal ground friction while it is set, `PM_WalkMove` uses the slick/knockback air-acceleration path, and `PM_DropTimers` clears `PMF_ALL_TIMES` when `pm_time` expires.【F:src/code/game/g_combat.c†L1812-L1830】【F:src/code/game/bg_pmove.c†L691-L691】【F:src/code/game/bg_pmove.c†L1740-L1753】【F:src/code/game/bg_pmove.c†L2776-L2783】
+* No-knockback callers still land damage without movement blocking: target lasers pass `DAMAGE_NO_KNOCKBACK`, juiced proximity mine discharge uses the same flag, and null-direction damage is converted to `DAMAGE_NO_KNOCKBACK` inside `G_Damage`.【F:src/code/game/g_target.c†L342-L343】【F:src/code/game/g_missile.c†L260-L262】【F:src/code/game/g_combat.c†L1750-L1754】
+* Damage feedback is separate from movement blocking: Quake Live's retail feedback record keeps armor, blood, `damage_from`, and `damage_fromWorld`, with no surviving `damage_knockback` field.【F:src/code/game/g_combat.c†L1949-L1952】【F:src/code/game/g_active.c†L424-L430】
 
 ### Regression checklist
 
@@ -533,7 +535,7 @@ The audited damage, splash, velocity, acceleration, weapon-special, Quad Hog, an
 * Change multiple `weapon_reload_*` CVars, issue a `map_restart`, and observe the new refire cadence in a live match to confirm `g_weaponReloadConfig` picked up the overrides.【F:src/code/game/g_main.c†L494-L508】
 * Adjust `weapon_reload_rl` and `weapon_reload_lg`, trigger a `map_restart`, and ensure rockets and lightning ticks adopt the new delays immediately via `PM_GetWeaponReloadTime` and the pmove cache.【F:src/code/game/bg_pmove.c†L211-L250】【F:src/code/game/bg_pmove.c†L2398-L2417】【F:src/code/game/g_pmove.c†L170-L259】
 * Override `g_ammoPack_*` values, pick up the corresponding ammo entities, and verify the awarded counts match the configured integers across base maps and factory scripts.【F:src/code/game/g_main.c†L515-L556】
-* Adjust `g_knockback_*` scalars (including the self variants), perform rocket and plasma jumps, and check that `G_KnockbackScaleForMOD` applies the updated force for both enemy hits and self-damage.【F:src/code/game/g_combat.c†L804-L862】
+* Adjust `g_knockback_*` scalars (including the self variants), perform rocket and plasma jumps, and check that `G_KnockbackScaleForMOD` applies the updated force for both enemy hits and self-damage before `G_Damage` applies the signed knockback path.【F:src/code/game/g_combat.c†L1481-L1538】【F:src/code/game/g_combat.c†L1756-L1830】
 
 ## Spawn Grant and Spectator Controls
 
@@ -548,5 +550,5 @@ Quake Live exposes server-only knobs for tuning spawn loadouts and controlling h
 | `g_respawn_delay_max` | `2400` | Extra post-minimum grace window in milliseconds; once elapsed, the dead-client think path respawns automatically even without attack/use input.【F:src/game/g_config.c†L92-L93】【F:src/code/game/g_active.c†L1530-L1535】 |
 | `g_maxDeferredSpawns` | `4` | Caps how many delayed respawns may queue simultaneously; once the limit is hit, `G_RequestClientSpawn` falls back to instant spawns so scripts that stall respawns can't starve new requests.【F:src/code/game/g_main.c†L480-L483】【F:src/code/game/g_spawn.c†L692-L894】 |
 | `g_teamSpawnAsSpec` | `0` | When non-zero in team modes, both `SetTeam` and `ClientSpawn` divert joiners into spectator slots and print the retail warning until administrators clear the flag.【F:src/code/game/g_main.c†L402-L405】【F:src/code/game/g_cmds.c†L560-L710】【F:src/code/game/g_client.c†L1850-L1930】 |
-| `g_teamSpecFreeCam` | `0` | Governs whether spectators may free-fly; `StopFollowing`, ranking handoffs, and session persistence all clamp to scoreboard-only states when the toggle is off.【F:src/code/game/g_main.c†L403-L404】【F:src/code/game/g_cmds.c†L700-L840】【F:src/code/game/g_active.c†L1039-L1083】【F:src/code/game/g_session.c†L40-L120】【F:src/code/game/g_rankings.c†L40-L130】 |
+| `g_teamSpecFreeCam` | `0` | Governs whether spectators may free-fly during team/session handoffs; ranking handoffs and session persistence clamp to scoreboard-only states when the toggle is off, while retail `StopFollowing` itself always restores `SPECTATOR_FREE`.【F:src/code/game/g_main.c†L403-L404】【F:src/code/game/g_cmds.c†L700-L840】【F:src/code/game/g_active.c†L1039-L1083】【F:src/code/game/g_session.c†L40-L120】【F:src/code/game/g_rankings.c†L40-L130】 |
 | `g_teamSpecSayEnable` | `1` | Blocks spectator chat unless enabled, matching Quake Live's retail messaging while still allowing tells to themselves so clients understand why their text was discarded.【F:src/code/game/g_main.c†L404-L405】【F:src/code/game/g_cmds.c†L880-L950】 |

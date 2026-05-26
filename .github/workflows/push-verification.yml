@@ -1,0 +1,158 @@
+name: Push Verification
+
+on:
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-validation:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Module Validation
+            artifact_name: module-validation
+            artifact_path: artifacts/module_validation/**
+            command: >-
+              pytest tests/test_platform_services.py
+              tests/test_game_module_retail_parity_gate.py -q
+          - name: Renderer Validation
+            artifact_name: renderer-validation
+            artifact_path: artifacts/renderer_validation/**
+            command: >-
+              pytest tests/test_renderer_export_tail_parity.py
+              tests/test_renderer_font_build_lane_parity.py
+              tests/test_renderer_font_exactness_parity.py
+              tests/test_renderer_host_text_core_parity.py
+              tests/test_renderer_host_text_import_parity.py
+              tests/test_renderer_memory_image_parity.py
+              tests/test_renderer_post_process_parity.py
+              tests/test_renderer_text_runtime_validation_parity.py
+              tests/test_renderer_win32_host_glue_parity.py
+              tests/test_renderer_internal_helper_mapping_parity.py
+              tests/test_renderer_full_parity_gate.py -q
+          - name: UI Validation
+            artifact_name: ui-validation
+            artifact_path: |
+              artifacts/ui_bundle/**
+              artifacts/ui_validation/**
+            command: |
+              pytest tests/test_ui_src_panel_parity.py tests/test_ui_menu_files.py -q
+              pytest tests/test_platform_services.py -k "test_online_service_bridge_only_hard_stubs_when_build_disabled or test_service_disabled_menu_verb_matrix_stays_explicit or test_launcher_resource_fallbacks_survive_service_disabled_policy" -q
+              pytest tests/test_fs_search_paths.py tests/test_vote_ui_throttle.py -q
+              tools/build_ui_bundle.sh
+              python3 tests/run_ui_validation.py --log-dir artifacts/ui_validation/logs
+              UI_FULL_PARITY_GATE_ENFORCE=1 pytest tests/test_ui_full_parity_gate.py -q
+          - name: CI Tooling Validation
+            artifact_name: ci-tooling
+            artifact_path: artifacts/nightly/**
+            command: |
+              python -m py_compile tools/ci/nightly_build.py
+              python tools/ci/nightly_build.py version --repo-root . --channel nightly --date-utc 20260101 --run-number 0 --run-attempt 1 --sha "$GITHUB_SHA" --ref-name "$GITHUB_REF_NAME" --output artifacts/nightly/version-ci.json
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run ${{ matrix.name }}
+        run: ${{ matrix.command }}
+
+      - name: Upload ${{ matrix.name }} artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: push-${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: warn
+          retention-days: 14
+
+  windows-validation:
+    name: ${{ matrix.name }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Client Validation
+            artifact_name: client-validation
+            artifact_path: artifacts/client_validation/**
+            command: >-
+              pytest tests/test_platform_services.py tests/test_steamworks_harness.py
+              tests/test_client_config_parity.py
+              tests/test_client_workshop_bootstrap_parity.py
+              tests/test_ui_menu_files.py
+              tests/test_client_full_parity_gate.py -q
+          - name: Qcommon Validation
+            artifact_name: qcommon-validation
+            artifact_path: artifacts/qcommon_validation/**
+            command: >-
+              pytest tests/test_cvar_parity.py tests/test_cvar_alias_console.py
+              tests/test_fs_search_paths.py
+              tests/test_qcommon_collision_leaf_parity.py
+              tests/test_qcommon_collision_load_parity.py
+              tests/test_qcommon_vm_fallback_parity.py
+              tests/test_playerstate_replication.py
+              tests/test_client_config_parity.py
+              tests/test_platform_services.py
+              tests/test_cgame_event_transport_parity.py
+              tests/test_qshared_retail_parity.py
+              tests/test_qcommon_full_parity_gate.py -q
+          - name: Server Validation
+            artifact_name: server-validation
+            artifact_path: artifacts/server_validation/**
+            command: >-
+              pytest tests/test_platform_services.py tests/test_fake_vacban.py
+              tests/test_server_full_parity_gate.py -q
+          - name: Engine Host Support Validation
+            artifact_name: engine-host-support-validation
+            artifact_path: artifacts/engine_host_support_validation/**
+            command: >-
+              pytest tests/test_platform_services.py tests/test_steamworks_harness.py
+              tests/test_renderer_win32_host_glue_parity.py
+              tests/test_bot_resource_loading.py
+              tests/test_botlib_internal_parity.py
+              tests/test_win32_clipboard_parity.py
+              tests/test_win32_raw_input_parity.py
+              tests/test_input_translation.py
+              tests/test_engine_host_support_full_parity_gate.py -q
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run ${{ matrix.name }}
+        run: ${{ matrix.command }}
+
+      - name: Upload ${{ matrix.name }} artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: push-${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: warn
+          retention-days: 14

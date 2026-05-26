@@ -327,7 +327,7 @@
       "signature": "static void PM_Friction(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail friction path beneath every major move mode; HLIL preserves the same speed/drop computation, crouch-slide and diagonal circle-strafe friction overrides, walking-water-special-case gates, water/flight/spectator drops, PM_FREEZE or PMF_SCOREBOARD 0.25 drop multiplier, and final velocity scaling as `PM_Friction`."
+      "comment": "Retail friction path beneath every major move mode; HLIL preserves the same speed/drop computation, the PMF_TIME_KNOCKBACK gate around normal grounded friction, crouch-slide and diagonal circle-strafe friction overrides inside that branch, walking-water-special-case gates, water/flight/spectator drops, PM_FREEZE or PMF_SCOREBOARD 0.25 drop multiplier, and final velocity scaling as `PM_Friction`."
     },
     {
       "address": "0x100023C0",
@@ -377,7 +377,7 @@
       "signature": "static void PM_ApplyJumpTakeoff(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Descriptive retail-only jump takeoff body shared by PM_CheckJump and the step-jump seam. HLIL matches the qagame 0x1002E2C0 body: it latches jump flags, derives final vertical takeoff velocity from the active jump-mode globals, uses mode 1's gradient chain-jump scaler, mode 2's additive chain/step branch, or PMF_AIR_CONTROL's additive branch with the post-offset fade; the step-jump latches select `pmove_StepJumpVelocity`, normal jumps select `pmove_ChainJumpVelocity`, and the result is ramp-accumulated then max-clamped before ground state is cleared, EV_JUMP is queued, the forward/back jump animation is selected, and the jump timestamp is refreshed."
+      "comment": "Descriptive retail-only jump takeoff body shared by PM_CheckJump and the step-jump seam. HLIL matches the qagame 0x1002E2C0 body: it latches jump flags, derives final vertical takeoff velocity from the active jump-mode globals, uses mode 1's gradient chain-jump scaler, mode 2's additive chain/step branch, or PMF_AIR_CONTROL's additive branch with the offset-threshold denominator; the normal step-jump latch selects `pmove_StepJumpVelocity`, normal jumps and the crouch-step fallback select `pmove_ChainJumpVelocity`, and the crouch-step latch suppresses ramp accumulation before ground state is cleared, EV_JUMP is queued, the forward/back jump animation is selected, and the jump timestamp is refreshed."
     },
     {
       "address": "0x10002990",
@@ -537,7 +537,7 @@
       "signature": "static void PM_WalkMove(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail grounded walk path; HLIL preserves the early swim handoff, PM_ShouldUseInvulnerabilityMove handoff through PM_StepSlideMove(qfalse) and PM_InvulnerabilityMove, jump handoff, friction, crouch-slide timer refresh, ground-plane projection, duck/wade clamps including the crouch-slide 0.75 duck scale, slick/knockback acceleration split, and final PM_StepSlideMove(qfalse) from PM_WalkMove."
+      "comment": "Retail grounded walk path; HLIL preserves the early swim handoff, PM_ShouldUseInvulnerabilityMove handoff through PM_StepSlideMove(qfalse) and PM_InvulnerabilityMove, jump handoff, friction, crouch-slide timer refresh, ground-plane projection, duck/wade clamps including the crouch-slide 0.75 duck scale, slick/knockback (PMF_TIME_KNOCKBACK) acceleration to pm_airaccelerate with gravity while normal ground uses pm_accelerate, and final PM_StepSlideMove(qfalse) from PM_WalkMove."
     },
     {
       "address": "0x10004C60",
@@ -699,7 +699,7 @@
       "signature": "static void PM_DropTimers(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail pmove timer decrement helper; HLIL subtracts `pml.msec` from `pm_time`, `legsTimer`, `torsoTimer`, and the crouch-slide timer, clears `PMF_ALL_TIMES` only when the misc timer expires, and matches the floor-at-zero behavior now pinned by executable fixtures."
+      "comment": "Retail pmove timer decrement helper; HLIL subtracts `pml.msec` from `pm_time`, `legsTimer`, `torsoTimer`, and the crouch-slide timer, clears `PMF_ALL_TIMES`, including PMF_TIME_KNOCKBACK, only when the misc timer expires, and matches the floor-at-zero behavior now pinned by executable fixtures."
     },
     {
       "address": "0x100063A0",
