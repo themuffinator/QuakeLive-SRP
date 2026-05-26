@@ -226,6 +226,8 @@ R_AddDrawSurfCmd
 void	R_AddDrawSurfCmd( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	drawSurfsCommand_t	*cmd;
 
+	R_AddBindSceneRenderTargetCommand();
+
 	cmd = R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {
 		return;
@@ -477,6 +479,9 @@ void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {
 	if ( !tr.registered ) {
 		return;
 	}
+
+	R_AddBloomPostProcessCommand();
+	R_AddColorCorrectPostProcessCommand();
 
 	cmd = R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {

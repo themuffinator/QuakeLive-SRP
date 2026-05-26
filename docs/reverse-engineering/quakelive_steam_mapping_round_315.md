@@ -25,15 +25,16 @@ Inferred meaning:
 
 - Upload-time gamma/intensity remapping must not run while shader color
   correction owns the final image correction pass.
-- The reconstructed source equivalent is `tr.colorCorrectActive`, the frontend
-  mirror already published from the backend-validated post-process state.
+- The reconstructed source equivalent is `RBPP_ColorCorrectEnabled()`, which
+  checks the same post-process support and `r_colorCorrectActive` ownership
+  inputs before allowing the upload-time gamma/intensity path to proceed.
 
 ## Source Reconstruction
 
 `R_LightScaleTexture` now exits before upload-time gamma/intensity scaling when shader color correction is active.
 
 `R_LightScaleTexture` now exits before either the `only_gamma` path or the
-normal light-scaling path when `tr.colorCorrectActive` is true. This keeps
+normal light-scaling path when `RBPP_ColorCorrectEnabled()` is true. This keeps
 texture upload RGB data from being pre-gamma-adjusted under the shader
 color-correction pipeline and restores retail ownership between upload-time
 light scaling and post-process color correction.

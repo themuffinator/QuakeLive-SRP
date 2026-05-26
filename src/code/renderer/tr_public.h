@@ -103,6 +103,7 @@ typedef struct {
 	// private tail in retail order even when source callers use direct helpers.
 	void	(*RetailFrameCommandFlush)( void );
 	void	(*RetailPostProcessCapture)( void );
+	void	(*RetailBloomPostProcessCommand)( void );
 	void	(*PostProcessRestart)( void );
 	void	(*RetailPostProcessPass)( float arg1, float arg2, float arg3, float arg4, float arg5 );
 	qboolean (*RetailProjectPoint)( const vec3_t point, vec4_t clip, vec4_t window );

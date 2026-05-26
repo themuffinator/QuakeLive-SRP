@@ -166,11 +166,11 @@ The Binary Ninja decompilation truncates part of the scratch-image loop into an 
 
 Observed local facts:
 
-1. The helper pulls the current device gamma support state and clamps `r_overBrightBits` through the same fullscreen/color-depth policy used by the source.
+1. The helper calls the shader color-correction predicate before the overbright hardware-gamma clamp, then clamps `r_overBrightBits` through the same fullscreen/color-depth policy used by the source.
 2. It computes `tr.identityLight` and `tr.identityLightByte`.
 3. It clamps `r_intensity` to at least `1` and clamps `r_gamma` to the same valid range through `Cvar_Set`.
 4. It rebuilds the same gamma and intensity tables used by the image subsystem.
-5. It calls the gamma-setter when hardware gamma is available.
+5. It calls the gamma-setter only when hardware gamma is available and shader color correction is not active.
 
 That closes `sub_4475D0` as the exact color-mapping bootstrap helper `R_SetColorMappings`.
 
@@ -209,7 +209,7 @@ That closes `sub_447800` as the exact renderer texture teardown helper `R_Delete
 | `sub_4472B0` (`0x004472B0`) | `R_CreateFogImage` | Observed | Exact fog texture bootstrap helper. |
 | `sub_4473F0` (`0x004473F0`) | `R_CreateDefaultImage` | Observed | Exact default-image bootstrap helper. |
 | `sub_4474C0` (`0x004474C0`) | `R_CreateBuiltinImages` | Observed | Exact built-in image creation chain. |
-| `sub_4475D0` (`0x004475D0`) | `R_SetColorMappings` | Observed | Exact renderer gamma/intensity mapping bootstrap helper. |
+| `sub_4475D0` (`0x004475D0`) | `R_SetColorMappings` | Observed | Exact renderer gamma/intensity mapping bootstrap helper, including the two `sub_43CCE0` color-correction ownership checks. |
 | `sub_4477E0` (`0x004477E0`) | `R_InitImages` | Observed | Exact image-system init entry point. |
 | `sub_447800` (`0x00447800`) | `R_DeleteTextures` | Observed | Exact renderer texture teardown helper. |
 

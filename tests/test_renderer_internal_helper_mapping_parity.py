@@ -144,18 +144,186 @@ def test_renderer_mapping_round_315_restores_color_correct_upload_gamma_gate() -
 	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
 	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt")
 	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_315.md")
+	mapping_round_316 = _read("docs/reverse-engineering/quakelive_steam_mapping_round_316.md")
 	tr_image = _read("src/code/renderer/tr_image.c")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
 
 	light_scale_block = _block_from_marker(tr_image, "void R_LightScaleTexture")
+	color_mapping_block = _block_from_marker(tr_image, "void R_SetColorMappings")
+	color_correct_enabled_block = _block_from_marker(tr_backend, "qboolean RBPP_ColorCorrectEnabled")
 
 	assert aliases["sub_43CCE0"] == "RBPP_ColorCorrectEnabled"
 	assert aliases["sub_444D00"] == "R_LightScaleTexture"
 	assert "00444d03  void* eax = sub_43cce0()" in hlil_part02
 	assert "00444d0a  if (eax == 0)" in hlil_part02
 	assert "00444e14  return eax" in hlil_part02
-	assert "if ( tr.colorCorrectActive ) {\n\t\treturn;\n\t}" in light_scale_block
-	assert light_scale_block.index("if ( tr.colorCorrectActive )") < light_scale_block.index("if ( only_gamma )")
+	assert "004475e6  int32_t eax_1 = sub_43cce0()" in hlil_part02
+	assert "004477a9  int32_t result = sub_43cce0()" in hlil_part02
+	assert "if ( RBPP_ColorCorrectEnabled() ) {\n\t\treturn;\n\t}" in light_scale_block
+	assert light_scale_block.index("if ( RBPP_ColorCorrectEnabled() )") < light_scale_block.index("if ( only_gamma )")
+	assert "if ( !RBPP_ColorCorrectEnabled() && !glConfig.deviceSupportsGamma ) {" in color_mapping_block
+	assert "if ( !RBPP_ColorCorrectEnabled() && glConfig.deviceSupportsGamma )" in color_mapping_block
+	assert "if ( !RB_PostProcessEnabled() ) {" in color_correct_enabled_block
+	assert "if ( !s_postProcess.supported ) {" in color_correct_enabled_block
+	assert "if ( !r_colorCorrectActive || !r_colorCorrectActive->integer ) {" in color_correct_enabled_block
 	assert "`R_LightScaleTexture` now exits before upload-time gamma/intensity scaling when shader color correction is active." in mapping_round
+	assert "`R_SetColorMappings` now calls `RBPP_ColorCorrectEnabled()` at the same two decision points retail calls `sub_43CCE0`." in mapping_round_316
+
+
+def test_renderer_mapping_round_317_reconstructs_bloom_scene_target_owner() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_317.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	bloom_enabled_block = _block_from_marker(tr_backend, "static qboolean RBPP_BloomEnabled( void ) {")
+	bloom_init_block = _block_from_marker(tr_backend, "static qboolean RBPP_InitBloomResources( void ) {")
+	bloom_shutdown_block = _block_from_marker(tr_backend, "static void RBPP_ShutdownBloomResources( void ) {")
+	bind_block = _block_from_marker(tr_backend, "static void RBPP_BindSceneRenderTarget( void ) {")
+	begin_block = _block_from_marker(tr_backend, "void RB_BeginScreenshotReadback")
+	end_block = _block_from_marker(tr_backend, "void RB_EndScreenshotReadback")
+	bloom_command_block = _block_from_marker(tr_backend, "static const void *RB_BloomPostProcessCommand( const void *data ) {")
+
+	assert aliases["sub_4384A0"] == "RBPP_BloomEnabled"
+	assert aliases["sub_4380F0"] == "RBPP_InitBloomResources"
+	assert "004384a0    int32_t sub_4384a0()" in hlil_part01
+	assert "004384bb  if (sub_4507c0() != 0 && data_1743be8 != 0 && *(data_1740eb8 + 0x30) != 0)" in hlil_part01
+	assert "0043814b  if (*(data_1740e38 + 0x30) != 0)" in hlil_part01
+	assert "00437e40    int32_t __fastcall sub_437e40" in hlil_part01
+	assert "00437b43              if (sub_4384a0() != 0)" in hlil_part01
+	assert "00448215  if (sub_4384a0() != 0)" in hlil_part02
+
+	assert "if ( !RB_PostProcessEnabled() ) {" in bloom_enabled_block
+	assert "if ( !s_postProcess.supported ) {" in bloom_enabled_block
+	assert "if ( !r_bloomActive || !r_bloomActive->integer ) {" in bloom_enabled_block
+	assert "RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, width, height, qfalse )" in bloom_init_block
+	assert "RBPP_DestroyRenderTarget( &s_postProcess.sceneTarget );" in bloom_shutdown_block
+	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in bind_block
+	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in begin_block
+	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in end_block
+	assert "if ( cmd->sceneTexture && RBPP_BloomEnabled() && s_postProcess.sceneTarget.initialized ) {" in bloom_command_block
+	assert "offscreen scene target is bloom-owned" in mapping_round
+	assert "Color-correct-only frames should not route world rendering through the bloom" in mapping_round
+
+
+def test_renderer_mapping_round_318_reconstructs_postprocess_command_abi() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_318.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_cmds = _read("src/code/renderer/tr_cmds.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
+	tr_shader = _read("src/code/renderer/tr_shader.c")
+
+	expected_aliases = {
+		"sub_436DC0": "RB_ColorCorrectPostProcessCommand",
+		"sub_436EC0": "RB_BloomPostProcessCommand",
+		"sub_4384D0": "R_AddBloomPostProcessCommand",
+		"sub_43CBA0": "R_AddBindSceneRenderTargetCommand",
+		"sub_43CD10": "R_AddColorCorrectPostProcessCommand",
+	}
+	for symbol, alias in expected_aliases.items():
+		assert aliases[symbol] == alias
+		assert f"| `{symbol}` | `{alias}` | High |" in mapping_round
+
+	for expected in (
+		"00436dc0    void* sub_436dc0(void* arg1)",
+		"00436eb7  return arg1 + 0x10",
+		"00436ec0    void* sub_436ec0(int32_t arg1)",
+		"00437448  return arg1 + 0x38",
+		"00437b2d              eax_3, ecx, edx = sub_436dc0(esi)",
+		"00437b35              eax_3, ecx, edx, edi = sub_436ec0(esi)",
+		"00437b43              if (sub_4384a0() != 0)",
+		"00438507              *result = 0xa",
+		"00438537              *(result + 0x34) = data_5860c4",
+	):
+		assert expected in hlil_part01
+
+	for expected in (
+		"0043cac0    void sub_43cac0(int32_t* arg1, int32_t* arg2)",
+		"0043cad0      sub_43cd10()",
+		"0043cbd1          *result = 0xb",
+		"0043cd3b              *result = 9",
+		"data_5878c0 = j_sub_43cba0",
+		"data_5878c4 = j_sub_4384d0",
+	):
+		assert expected in hlil_part02
+
+	assert "colorCorrectPostProcessCommand_t" in tr_local
+	assert "bloomPostProcessCommand_t" in tr_local
+	assert "bindSceneRenderTargetCommand_t" in tr_local
+	assert "RC_COLOR_CORRECT_POST_PROCESS" in tr_local
+	assert "RC_BLOOM_POST_PROCESS" in tr_local
+	assert "RC_BIND_SCENE_RENDER_TARGET" in tr_local
+	assert "void R_AddBindSceneRenderTargetCommand( void ) {" in tr_backend
+	assert "void R_AddBloomPostProcessCommand( void ) {" in tr_backend
+	assert "void R_AddColorCorrectPostProcessCommand( void ) {" in tr_backend
+	assert "static const void *RB_ColorCorrectPostProcessCommand( const void *data ) {" in tr_backend
+	assert "static const void *RB_BloomPostProcessCommand( const void *data ) {" in tr_backend
+	assert "static const void *RB_BindSceneRenderTargetCommand( const void *data ) {" in tr_backend
+	assert "R_AddBindSceneRenderTargetCommand();" in _block_from_marker(tr_cmds, "void\tR_AddDrawSurfCmd")
+	assert "R_AddBloomPostProcessCommand();" in _block_from_marker(tr_cmds, "void RE_EndFrame")
+	assert "R_AddColorCorrectPostProcessCommand();" in _block_from_marker(tr_cmds, "void RE_EndFrame")
+	assert "re.RetailPostProcessCapture = R_AddBindSceneRenderTargetCommand;" in tr_init
+	assert "case RC_COLOR_CORRECT_POST_PROCESS:" in tr_shader
+	assert "case RC_BLOOM_POST_PROCESS:" in tr_shader
+	assert "case RC_BIND_SCENE_RENDER_TARGET:" in tr_shader
+	assert "post-process command abi lane: before 88%, after 96%" in mapping_round.lower()
+
+
+def test_renderer_mapping_round_319_reconstructs_postprocess_refexport_tail() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_319.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_public = _read("src/code/renderer/tr_public.h")
+
+	for symbol, alias in (
+		("sub_4386D0", "RBPP_SetBloomUniforms"),
+		("sub_438590", "RBPP_SetBloomUniformsFromCvars"),
+		("sub_4384D0", "R_AddBloomPostProcessCommand"),
+		("sub_451420", "R_SetPostProcessBloomParameters"),
+	):
+		assert aliases[symbol] == alias
+		assert f"| `{symbol}` | `{alias}` | High |" in mapping_round
+
+	for expected in (
+		"data_5878c0 = j_sub_43cba0",
+		"data_5878c4 = j_sub_4384d0",
+		"data_5878c8 = sub_449f10",
+		"data_5878cc = sub_451420",
+		"0045142d  data_1740d08 = 1",
+		"0045145b  return sub_4386d0",
+	):
+		assert expected in hlil_part02
+
+	for expected in (
+		"0043742e  if (data_1740d08 != 0)",
+		"00437430      sub_438590()",
+		"00437435      data_1740d08 = 0",
+		"004386d0    void* sub_4386d0(float arg1, float arg2, float arg3, float arg4, float arg5)",
+		"00438717          data_16e3bd0(data_585fcc, fconvert.s(fconvert.t(arg1)))",
+		"0043874e          int32_t var_8_7 = data_16e3bd0(data_5860c8, fconvert.s(fconvert.t(arg2)))",
+		"00438761          int32_t var_8_9 = data_16e3bd0(data_5860cc, fconvert.s(fconvert.t(arg4)))",
+		"0043876f          int32_t var_8_11 = data_16e3bd0(data_5860d0, fconvert.s(fconvert.t(arg3)))",
+		"0043877a          data_16e3bd0(data_5860d4, fconvert.s(fconvert.t(arg5)))",
+	):
+		assert expected in hlil_part01
+
+	assert "void\t(*RetailBloomPostProcessCommand)( void );" in tr_public
+	assert tr_public.index("(*RetailPostProcessCapture)") < tr_public.index("(*RetailBloomPostProcessCommand)") < tr_public.index("(*PostProcessRestart)") < tr_public.index("(*RetailPostProcessPass)")
+	assert "re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;" in tr_init
+	assert "re.RetailPostProcessPass = R_SetPostProcessBloomParameters;" in tr_init
+	assert "static qboolean s_bloomUniformsDirty;" in tr_backend
+	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
+	assert "static void RBPP_SetBloomUniformsFromCvars( void ) {" in tr_backend
+	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
+	assert "post-process private-tail lane: before 96%, after 99%" in mapping_round.lower()
 
 
 def test_renderer_advertisement_debug_labels_use_host_text() -> None:
@@ -279,9 +447,13 @@ def test_renderer_mapping_round_278_promotes_tail_postprocess_and_command_symbol
 	assert "void R_SyncRenderThread( void ) {" in tr_cmds
 	assert "void *R_GetCommandBuffer( int bytes ) {" in tr_cmds
 	assert "static qboolean RB_PostProcessEnabled( void ) {" in tr_backend
+	assert "static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
 	assert "static void RBPP_RebuildState( void ) {" in tr_backend
 	assert "static void RBPP_Shutdown( void ) {" in tr_backend
+	assert "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {" in tr_backend
 	assert "static void R_PostProcessRestart( void ) {" in tr_init
+	assert "re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;" in tr_init
+	assert "re.RetailPostProcessPass = R_SetPostProcessBloomParameters;" in tr_init
 	assert "void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor, const float *baseColor ) {" in tr_font
 	assert "void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outWidth, float *outHeight, float *outLeft ) {" in tr_font
 
@@ -292,6 +464,7 @@ def test_renderer_mapping_round_279_promotes_postprocess_program_and_command_sym
 	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
 	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
 	tr_backend = _read("src/code/renderer/tr_backend.c")
+	bloom_enabled_block = _block_from_marker(tr_backend, "static qboolean RBPP_BloomEnabled( void ) {")
 
 	expected_aliases = {
 		"sub_437A50": "RB_ExecuteRenderCommands",
@@ -361,6 +534,9 @@ def test_renderer_mapping_round_279_promotes_postprocess_program_and_command_sym
 	assert "void RB_ExecuteRenderCommands( const void *data ) {" in tr_backend
 	assert "static void RBPP_DestroyProgram( ppProgram_t *program ) {" in tr_backend
 	assert "static qboolean RBPP_LoadProgram( ppProgram_t *program, const char *name, const char *fragmentPath, const char *vertexPath ) {" in tr_backend
+	assert "if ( !RB_PostProcessEnabled() ) {" in bloom_enabled_block
+	assert "if ( !s_postProcess.supported ) {" in bloom_enabled_block
+	assert "if ( !r_bloomActive || !r_bloomActive->integer ) {" in bloom_enabled_block
 	assert "static void RBPP_ShutdownBloomResources( void ) {" in tr_backend
 	assert "static void RBPP_DestroyColorCorrectProgram( void ) {" in tr_backend
 	assert "static qboolean RBPP_CreateColorCorrectTexture( void ) {" in tr_backend
@@ -381,7 +557,8 @@ def test_renderer_mapping_round_281_promotes_backend_command_handlers_and_scene_
 	expected_aliases = {
 		"sub_436280": "RB_SetGL2D",
 		"sub_4367F0": "RB_SetColor",
-		"sub_436DC0": "RBPP_ApplyColorCorrectPass",
+		"sub_436DC0": "RB_ColorCorrectPostProcessCommand",
+		"sub_436EC0": "RB_BloomPostProcessCommand",
 		"sub_437450": "RB_DrawSurfs",
 		"sub_437920": "RB_SetViewportAndScissorCommand",
 		"sub_4379B0": "RB_DrawFontStashTextCommand",
@@ -441,7 +618,10 @@ def test_renderer_mapping_round_281_promotes_backend_command_handlers_and_scene_
 	assert "const void\t*RB_SetColor( const void *data ) {" in tr_backend
 	assert "const void\t*RB_DrawSurfs( const void *data ) {" in tr_backend
 	assert "void RB_RenderThread( void ) {" in tr_backend
+	assert "static const void *RB_ColorCorrectPostProcessCommand( const void *data ) {" in tr_backend
+	assert "static const void *RB_BloomPostProcessCommand( const void *data ) {" in tr_backend
 	assert "static void RBPP_BindSceneRenderTarget( void ) {" in tr_backend
+	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in _block_from_marker(tr_backend, "static void RBPP_BindSceneRenderTarget( void ) {")
 	assert "static void RBPP_ReleaseSceneRenderTarget( void ) {" in tr_backend
 	assert "static int RBPP_GetBloomMode( void ) {" in tr_backend
 	assert "static void RBPP_ApplyColorCorrectPass( void ) {" in tr_backend
@@ -489,7 +669,9 @@ def test_renderer_screenshot_readback_matches_retail_command_wiring() -> None:
 
 	begin_block = _block_from_marker(tr_backend, "void RB_BeginScreenshotReadback( void )")
 	end_block = _block_from_marker(tr_backend, "void RB_EndScreenshotReadback( void )")
+	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in begin_block
 	assert "RBPP_ReleaseSceneRenderTarget();" in begin_block
+	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in end_block
 	assert "RBPP_BindSceneRenderTarget();" in end_block
 	assert "case RC_SCREENSHOT:" in tr_backend
 	assert "data = RB_TakeScreenshotCmd( data );" in tr_backend

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 This file now tracks only active repo-level work. Detailed closure narratives
 live in the dedicated subsystem audits under `docs/reverse-engineering/`.
@@ -40,6 +40,127 @@ disabled, until a documented open replacement path exists.
   snapshots, not current gap ledgers.
 
 ## Active work
+
+### Task A89: Reconstruct renderer post-process private refexport tail [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`src/code/renderer/tr_init.c`, `src/code/renderer/tr_local.h`,
+`src/code/renderer/tr_public.h`,
+`tests/test_renderer_export_tail_parity.py`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_319.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`
+Parity estimate: **before 96% -> after 99%** for the scoped post-process
+private-tail lane. The strict renderer estimate remains **100%** and the
+repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked the retail `GetRefAPI` tail assignments around `data_5878c0`
+   through `data_5878cc`, including `j_sub_4384D0` and `sub_451420`.
+2. Added the missing `RetailBloomPostProcessCommand` refexport slot between
+   scene-target capture and post-process restart.
+3. Assigned the bloom command and five-float bloom uniform setter through
+   `GetRefAPI`.
+4. Factored the bloom uniform writes into `RBPP_SetBloomUniforms` and added the
+   cvar-refresh helper matching `sub_438590`.
+5. Mirrored the retail dirty-flag behavior so temporary tail-set bloom uniforms
+   are restored from cvars after the next bloom command.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py -q --tb=short`
+  - Result: `37 passed, 1 skipped`.
+- `python -m pytest tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration -q --tb=short`
+  - Result: `1 passed`.
+- `git diff --check`
+  - Result: pass; only repository LF-to-CRLF conversion warnings.
+
+### Task A88: Reconstruct renderer post-process backend command ABI [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`src/code/renderer/tr_cmds.c`, `src/code/renderer/tr_init.c`,
+`src/code/renderer/tr_local.h`, `src/code/renderer/tr_shader.c`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_318.md`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`
+Parity estimate: **before 88% -> after 96%** for the scoped post-process
+command ABI lane. The strict renderer estimate remains **100%** and the
+repo-wide parity estimate remains **98%**.
+
+Completed work:
+
+1. Rechecked the retail command emitter and executor evidence around
+   `sub_43CD10`, `sub_4384D0`, `sub_43CBA0`, `sub_436DC0`,
+   `sub_436EC0`, and the `sub_437A50` backend dispatch table.
+2. Reconstructed command payloads for color correction (`0x10` bytes), bloom
+   (`0x38` bytes), and scene-target binding (`0x04` bytes), preserving retail
+   command IDs `9`, `10`, and `11`.
+3. Added frontend emitters and backend handlers for the post-process command
+   lane, then routed draw-surface scene capture and end-frame post-processing
+   through queued commands instead of the swap-buffer shortcut.
+4. Updated command-list repair walking and the private refexport capture slot
+   so the newly reconstructed commands are visible in related wiring.
+5. Promoted command-handler aliases for `sub_436DC0` and `sub_436EC0` to match
+   their observed command-size returns.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py
+  tests/test_renderer_internal_helper_mapping_parity.py
+  tests/test_renderer_export_tail_parity.py tests/test_renderer_full_parity_gate.py
+  -q --tb=short` passed: `35 passed, 1 skipped`.
+- `python -m pytest
+  tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration
+  -q --tb=short` passed: `1 passed`.
+- `git diff --check` completed without whitespace errors; Git reported only
+  line-ending normalization warnings for modified text files.
+
+### Task A87: Reconstruct renderer post-process bloom scene-target wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/renderer/tr_backend.c`,
+`src/code/renderer/tr_image.c`, `src/code/renderer/tr_local.h`,
+`tests/test_renderer_post_process_parity.py`,
+`tests/test_renderer_internal_helper_mapping_parity.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_317.md`,
+`docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md`,
+`references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/`
+Parity estimate: **before 98% -> after 99.5%** for the scoped renderer
+post-process scene-target and bloom/color-correct owner boundary. The strict
+renderer estimate remains **100%** and the repo-wide parity estimate remains
+**98%**.
+
+Completed work:
+
+1. Rechecked the retail `quakelive_steam.exe` post-process evidence around
+   `sub_4384A0`, `sub_4380F0`, `sub_438790`, screenshot readback, and the
+   backend command ID `0x0b` scene-target rebind path.
+2. Promoted the source-side `RBPP_BloomEnabled()` predicate so the scene
+   render target is gated by the same broad post-process, shader-support, and
+   `r_bloomActive` checks recovered from retail.
+3. Moved the full-resolution scene target into the bloom resource lifecycle,
+   matching the retail split where color correction owns a default-framebuffer
+   copy/pass and bloom owns offscreen scene capture.
+4. Rewired scene-target binding, screenshot release/rebind, and post-process
+   submission so color-correct-only frames no longer route world rendering
+   through the bloom scene framebuffer.
+5. Added focused parity sentinels and a dedicated mapping note for the
+   bloom-owned scene-target boundary.
+
+Verification:
+
+- `python -m pytest tests/test_renderer_post_process_parity.py
+  tests/test_renderer_internal_helper_mapping_parity.py
+  tests/test_renderer_full_parity_gate.py -q --tb=short` passed:
+  `27 passed, 1 skipped`.
+- `python -m pytest tests/test_renderer_export_tail_parity.py
+  tests/test_engine_client_command_parity.py::test_postprocess_restart_routes_through_renderer_export_not_renderer_cmd_registration
+  -q --tb=short` passed: `7 passed`.
+- `git diff --check` completed without whitespace errors; Git reported only
+  line-ending normalization warnings for modified text files.
 
 ### Task A86: Reconstruct retail qagame score, vote, and cheat command ladder [COMPLETED]
 Priority: High

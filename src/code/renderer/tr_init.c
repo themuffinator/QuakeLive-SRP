@@ -1828,7 +1828,10 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.RemapShader = R_RemapShader;
 	re.GetEntityToken = R_GetEntityToken;
 	re.inPVS = R_inPVS;
+	re.RetailPostProcessCapture = R_AddBindSceneRenderTargetCommand;
+	re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;
 	re.PostProcessRestart = R_PostProcessRestart;
+	re.RetailPostProcessPass = R_SetPostProcessBloomParameters;
 	re.TransformClipToWindow = R_TransformClipToWindowExport;
 	re.DrawScaledText = RE_DrawScaledText;
 	re.MeasureScaledText = RE_MeasureScaledText;

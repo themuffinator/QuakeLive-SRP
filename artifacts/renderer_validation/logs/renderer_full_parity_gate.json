@@ -26,7 +26,10 @@
         "advert_bridge_slot_present": true,
         "bridge_assignment_present": true,
         "legacy_font_slot_is_noop": true,
+        "postprocess_capture_private_tail": true,
+        "postprocess_bloom_command_private_tail": true,
         "postprocess_restart_private_tail": true,
+        "postprocess_bloom_uniform_tail": true,
         "client_font_lane_present": true,
         "workflow_references_export_test": true
       }

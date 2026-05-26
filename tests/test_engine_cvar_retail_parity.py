@@ -2921,8 +2921,8 @@ def test_engine_cvar_twentyfourth_renderer_lighting_quality_tranche_matches_reta
 
 	assert 'r_overBrightBits = ri.Cvar_Get ("r_overBrightBits", "1", CVAR_ARCHIVE | CVAR_LATCH | CVAR_CLOUD );' in tr_init
 	assert 'tr.overbrightBits = r_overBrightBits->integer;' in tr_image
-	assert 'if ( !tr.colorCorrectActive && !glConfig.deviceSupportsGamma ) {' in tr_image
-	assert 'if ( !tr.colorCorrectActive && glConfig.deviceSupportsGamma )' in tr_image
+	assert 'if ( !RBPP_ColorCorrectEnabled() && !glConfig.deviceSupportsGamma ) {' in tr_image
+	assert 'if ( !RBPP_ColorCorrectEnabled() && glConfig.deviceSupportsGamma )' in tr_image
 	assert 'overbright = 2.0f * r_overBrightBits->integer;' in tr_backend
 	assert 'if ( overbright <= 1.0f ) {' in tr_backend
 

@@ -15,8 +15,11 @@ def test_refexport_tail_restores_retail_loading_view_slot() -> None:
 	assert tr_public.index("(*RenderScene)") < tr_public.index("(*AdvertisementBridge_UpdateLoadingViewParameters)") < tr_public.index("(*SetColor)")
 	assert tr_public.index("(*DrawStretchRaw)") < tr_public.index("(*BeginFrame)")
 	assert tr_public.index("(*ModelBounds)") < tr_public.index("(*RegisterFont)") < tr_public.index("(*RemapShader)")
-	assert tr_public.index("(*inPVS)") < tr_public.index("(*PostProcessRestart)") < tr_public.index("(*DrawScaledText)")
+	assert tr_public.index("(*inPVS)") < tr_public.index("(*RetailPostProcessCapture)") < tr_public.index("(*RetailBloomPostProcessCommand)")
+	assert tr_public.index("(*RetailBloomPostProcessCommand)") < tr_public.index("(*PostProcessRestart)") < tr_public.index("(*RetailPostProcessPass)")
+	assert tr_public.index("(*RetailPostProcessPass)") < tr_public.index("(*DrawScaledText)")
 	assert tr_public.index("(*RetailProjectPoint)") < tr_public.index("(*TransformClipToWindow)") < tr_public.index("(*DrawScaledText)")
+	assert "void\t(*RetailBloomPostProcessCommand)( void );" in tr_public
 	assert "void\t(*TransformClipToWindow)( const vec4_t clip, vec4_t normalized, vec4_t window );" in tr_public
 
 
@@ -38,7 +41,10 @@ def test_getrefapi_assigns_retail_tail_without_re_registerfont_export() -> None:
 		"re.RemapShader = R_RemapShader;",
 		"re.GetEntityToken = R_GetEntityToken;",
 		"re.inPVS = R_inPVS;",
+		"re.RetailPostProcessCapture = R_AddBindSceneRenderTargetCommand;",
+		"re.RetailBloomPostProcessCommand = R_AddBloomPostProcessCommand;",
 		"re.PostProcessRestart = R_PostProcessRestart;",
+		"re.RetailPostProcessPass = R_SetPostProcessBloomParameters;",
 		"re.TransformClipToWindow = R_TransformClipToWindowExport;",
 		"re.DrawScaledText = RE_DrawScaledText;",
 		"re.MeasureScaledText = RE_MeasureScaledText;",

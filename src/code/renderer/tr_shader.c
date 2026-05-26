@@ -1931,10 +1931,34 @@ static void FixRenderCommandList( int newShader ) {
 				curCmd = (const void *)(ss_cmd + 1);
 				break;
 				}
+			case RC_SUB_IMAGE:
+				{
+				const subImageCommand_t *si_cmd = (const subImageCommand_t *)curCmd;
+				curCmd = (const void *)(si_cmd + 1);
+				break;
+				}
 			case RC_ADVERTISEMENT_QUERIES:
 				{
 				const advertisementQueryCommand_t *aq_cmd = (const advertisementQueryCommand_t *)curCmd;
 				curCmd = (const void *)(aq_cmd + 1);
+				break;
+				}
+			case RC_COLOR_CORRECT_POST_PROCESS:
+				{
+				const colorCorrectPostProcessCommand_t *cc_cmd = (const colorCorrectPostProcessCommand_t *)curCmd;
+				curCmd = (const void *)(cc_cmd + 1);
+				break;
+				}
+			case RC_BLOOM_POST_PROCESS:
+				{
+				const bloomPostProcessCommand_t *bp_cmd = (const bloomPostProcessCommand_t *)curCmd;
+				curCmd = (const void *)(bp_cmd + 1);
+				break;
+				}
+			case RC_BIND_SCENE_RENDER_TARGET:
+				{
+				const bindSceneRenderTargetCommand_t *bst_cmd = (const bindSceneRenderTargetCommand_t *)curCmd;
+				curCmd = (const void *)(bst_cmd + 1);
 				break;
 				}
 			case RC_END_OF_LIST:

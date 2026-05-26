@@ -1660,6 +1660,34 @@ typedef struct {
 	advertisementQueryEntry_t	entries[MAX_MAP_ADVERTISEMENTS];
 } advertisementQueryCommand_t;
 
+typedef struct {
+	int		commandId;
+	GLuint	colorCorrectTexture;
+	GLuint	colorCorrectProgram;
+	int		pad;
+} colorCorrectPostProcessCommand_t;
+
+typedef struct {
+	int		commandId;
+	GLuint	sceneTexture;
+	GLuint	bloomBrightTexture;
+	GLuint	bloomDownsampleTexture;
+	GLuint	bloomBlurVerticalTexture;
+	GLuint	bloomBlurHorizontalTexture;
+	GLuint	bloomQuarterDownsampleTexture;
+	GLuint	bloomQuarterVerticalTexture;
+	GLuint	bloomQuarterHorizontalTexture;
+	GLuint	brightPassProgram;
+	GLuint	downsampleProgram;
+	GLuint	blurVerticalProgram;
+	GLuint	blurHorizontalProgram;
+	GLuint	combineProgram;
+} bloomPostProcessCommand_t;
+
+typedef struct {
+	int		commandId;
+} bindSceneRenderTargetCommand_t;
+
 typedef enum {
 	RC_END_OF_LIST,
 	RC_SET_COLOR,
@@ -1668,7 +1696,11 @@ typedef enum {
 	RC_DRAW_BUFFER,
 	RC_SWAP_BUFFERS,
 	RC_SCREENSHOT,
-	RC_ADVERTISEMENT_QUERIES
+	RC_SUB_IMAGE,
+	RC_ADVERTISEMENT_QUERIES,
+	RC_COLOR_CORRECT_POST_PROCESS,
+	RC_BLOOM_POST_PROCESS,
+	RC_BIND_SCENE_RENDER_TARGET
 } renderCommand_t;
 
 
@@ -1704,12 +1736,17 @@ extern	volatile qboolean	renderThreadActive;
 void *R_GetCommandBuffer( int bytes );
 void RB_ExecuteRenderCommands( const void *data );
 void R_AddAdvertisementQueryCmd( const advertisementQueryEntry_t *entries, int numEntries );
+void R_AddBindSceneRenderTargetCommand( void );
+void R_AddBloomPostProcessCommand( void );
+void R_AddColorCorrectPostProcessCommand( void );
+void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation );
 
 void R_InitCommandBuffers( void );
 void R_ShutdownCommandBuffers( void );
 
 void RB_InitRenderTargets( void );
 void RB_ShutdownRenderTargets( void );
+qboolean RBPP_ColorCorrectEnabled( void );
 
 void R_SyncRenderThread( void );
 

@@ -118,7 +118,6 @@ static void *RB_GetFramebufferProc( const char *procName );
 static qboolean RB_LoadFramebufferProcs( void );
 static qboolean RB_CreateRenderTarget( void );
 static void RB_DestroyRenderTarget( void );
-static void RB_BindOffscreenRenderTarget( void );
 static void RB_ReleaseOffscreenRenderTarget( void );
 static byte RB_ClampColorComponent( float value );
 static void RB_ApplyColorCorrection( void );
@@ -127,10 +126,10 @@ static void RB_DrawBloomSpread( float xOffset, float yOffset, int width, int hei
 void RB_SetGL2D( void );
 static void RBPP_Init( void );
 static void RBPP_Shutdown( void );
+static qboolean RBPP_BloomEnabled( void );
 static void RBPP_BindSceneRenderTarget( void );
 static void RBPP_ReleaseSceneRenderTarget( void );
 static void RBPP_ResetIfNeeded( void );
-static void RBPP_Submit( void );
 
 
 /*
@@ -296,18 +295,6 @@ static void RB_DestroyRenderTarget( void ) {
 	}
 
 	Com_Memset( &s_sceneRenderTarget, 0, sizeof( s_sceneRenderTarget ) );
-}
-
-
-/*
-=============
-RB_BindOffscreenRenderTarget
-
-Make the offscreen framebuffer active for scene rendering when post-processing is enabled.
-=============
-*/
-static void RB_BindOffscreenRenderTarget( void ) {
-	RBPP_BindSceneRenderTarget();
 }
 
 
@@ -496,17 +483,6 @@ static void RB_DrawBloomPass( int width, int height, int radius, float scale, fl
 		RB_DrawBloomSpread( 0.0f, -yStep * spread, width, height );
 	}
 }
-/*
-=============
-RB_SubmitPostProcess
-
-Run any post-process work gated by the current enable flags.
-=============
-*/
-static void RB_SubmitPostProcess( void ) {
-	RBPP_Submit();
-}
-
 #ifndef GL_TEXTURE_RECTANGLE_ARB
 #define GL_TEXTURE_RECTANGLE_ARB 0x84F5
 #endif
@@ -767,6 +743,7 @@ static const GLcharARB *s_colorCorrectFragmentShaderSource =
 	"}\n";
 
 static ppState_t s_postProcess;
+static qboolean s_bloomUniformsDirty;
 
 static qboolean RBPP_LoadProcs( void );
 static void RBPP_DestroyRenderTarget( ppRenderTarget_t *target );
@@ -793,8 +770,13 @@ static void RBPP_ShutdownColorCorrectResources( void );
 static void RBPP_MirrorState( void );
 static void RBPP_RebuildState( void );
 static void RBPP_BlitSceneTarget( void );
+static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation );
+static void RBPP_SetBloomUniformsFromCvars( void );
 static qboolean RBPP_ApplyBloom( void );
 static void RBPP_ApplyColorCorrectPass( void );
+static const void *RB_BindSceneRenderTargetCommand( const void *data );
+static const void *RB_BloomPostProcessCommand( const void *data );
+static const void *RB_ColorCorrectPostProcessCommand( const void *data );
 
 /*
 =============
@@ -876,6 +858,152 @@ static qboolean RBPP_LoadProcs( void ) {
 
 	s_postProcess.supported = qtrue;
 	return qtrue;
+}
+
+
+/*
+=============
+RBPP_BloomEnabled
+
+Return qtrue when the retail bloom path owns the scene render target.
+=============
+*/
+static qboolean RBPP_BloomEnabled( void ) {
+	if ( !RB_PostProcessEnabled() ) {
+		return qfalse;
+	}
+
+	if ( !s_postProcess.supported ) {
+		return qfalse;
+	}
+
+	if ( !r_bloomActive || !r_bloomActive->integer ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+
+/*
+=============
+RBPP_ColorCorrectEnabled
+
+Return qtrue when the retail shader-backed color correction path owns final gamma correction.
+=============
+*/
+qboolean RBPP_ColorCorrectEnabled( void ) {
+	if ( !RB_PostProcessEnabled() ) {
+		return qfalse;
+	}
+
+	if ( !s_postProcess.supported ) {
+		return qfalse;
+	}
+
+	if ( !r_colorCorrectActive || !r_colorCorrectActive->integer ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+
+/*
+=============
+R_AddBindSceneRenderTargetCommand
+
+Queue the retail command ID 0x0b scene-target binder. The backend command
+handler rechecks the bloom-active predicate after any pending reset.
+=============
+*/
+void R_AddBindSceneRenderTargetCommand( void ) {
+	bindSceneRenderTargetCommand_t	*cmd;
+
+	cmd = R_GetCommandBuffer( sizeof( *cmd ) );
+	if ( !cmd ) {
+		return;
+	}
+
+	cmd->commandId = RC_BIND_SCENE_RENDER_TARGET;
+}
+
+
+/*
+=============
+R_AddBloomPostProcessCommand
+
+Queue the retail command ID 0x0a bloom pass with the recovered 0x38-byte
+resource payload.
+=============
+*/
+void R_AddBloomPostProcessCommand( void ) {
+	bloomPostProcessCommand_t	*cmd;
+
+	if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {
+		return;
+	}
+
+	cmd = R_GetCommandBuffer( sizeof( *cmd ) );
+	if ( !cmd ) {
+		return;
+	}
+
+	cmd->commandId = RC_BLOOM_POST_PROCESS;
+	cmd->sceneTexture = s_postProcess.sceneTarget.texture;
+	cmd->bloomBrightTexture = s_postProcess.bloomBrightTarget.texture;
+	cmd->bloomDownsampleTexture = s_postProcess.bloomDownsampleTarget.texture;
+	cmd->bloomBlurVerticalTexture = s_postProcess.bloomBlurVerticalTarget.texture;
+	cmd->bloomBlurHorizontalTexture = s_postProcess.bloomBlurHorizontalTarget.texture;
+	cmd->bloomQuarterDownsampleTexture = s_postProcess.bloomQuarterDownsampleTarget.texture;
+	cmd->bloomQuarterVerticalTexture = s_postProcess.bloomQuarterVerticalTarget.texture;
+	cmd->bloomQuarterHorizontalTexture = s_postProcess.bloomQuarterHorizontalTarget.texture;
+	cmd->brightPassProgram = s_postProcess.brightPassProgram.programObject;
+	cmd->downsampleProgram = s_postProcess.downsampleProgram.programObject;
+	cmd->blurVerticalProgram = s_postProcess.blurVerticalProgram.programObject;
+	cmd->blurHorizontalProgram = s_postProcess.blurHorizontalProgram.programObject;
+	cmd->combineProgram = s_postProcess.combineProgram.programObject;
+}
+
+
+/*
+=============
+R_AddColorCorrectPostProcessCommand
+
+Queue the retail command ID 0x09 color-correct pass with the recovered
+0x10-byte texture/program payload.
+=============
+*/
+void R_AddColorCorrectPostProcessCommand( void ) {
+	colorCorrectPostProcessCommand_t	*cmd;
+
+	if ( !RBPP_ColorCorrectEnabled() || !s_postProcess.colorCorrectTexture || !s_postProcess.colorCorrectProgram.programObject ) {
+		return;
+	}
+
+	cmd = R_GetCommandBuffer( sizeof( *cmd ) );
+	if ( !cmd ) {
+		return;
+	}
+
+	cmd->commandId = RC_COLOR_CORRECT_POST_PROCESS;
+	cmd->colorCorrectTexture = s_postProcess.colorCorrectTexture;
+	cmd->colorCorrectProgram = s_postProcess.colorCorrectProgram.programObject;
+	cmd->pad = 0;
+}
+
+
+/*
+=============
+R_SetPostProcessBloomParameters
+
+Apply a temporary retail bloom uniform set through the private refexport tail.
+The next bloom command restores cvar-owned values after its pass.
+=============
+*/
+void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {
+	s_bloomUniformsDirty = qtrue;
+	RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneIntensity, sceneSaturation );
 }
 
 
@@ -1536,7 +1664,8 @@ static qboolean RBPP_InitBloomResources( void ) {
 		quarterHeight = 1;
 	}
 
-	if ( !RBPP_CreateRenderTarget( &s_postProcess.bloomDownsampleTarget, halfWidth, halfHeight, qtrue ) ||
+	if ( !RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, width, height, qfalse ) ||
+		!RBPP_CreateRenderTarget( &s_postProcess.bloomDownsampleTarget, halfWidth, halfHeight, qtrue ) ||
 		!RBPP_CreateRenderTarget( &s_postProcess.bloomBrightTarget, halfWidth, halfHeight, qtrue ) ||
 		!RBPP_CreateRenderTarget( &s_postProcess.bloomBlurVerticalTarget, halfWidth, halfHeight, qtrue ) ||
 		!RBPP_CreateRenderTarget( &s_postProcess.bloomBlurHorizontalTarget, halfWidth, halfHeight, qtrue ) ) {
@@ -1579,6 +1708,7 @@ static void RBPP_ShutdownBloomResources( void ) {
 	RBPP_DestroyRenderTarget( &s_postProcess.bloomBlurVerticalTarget );
 	RBPP_DestroyRenderTarget( &s_postProcess.bloomBrightTarget );
 	RBPP_DestroyRenderTarget( &s_postProcess.bloomDownsampleTarget );
+	RBPP_DestroyRenderTarget( &s_postProcess.sceneTarget );
 }
 
 
@@ -1657,7 +1787,6 @@ static void RBPP_RebuildState( void ) {
 
 	RBPP_ShutdownColorCorrectResources();
 	RBPP_ShutdownBloomResources();
-	RBPP_DestroyRenderTarget( &s_postProcess.sceneTarget );
 
 	backEnd.postProcessActive = qfalse;
 	backEnd.bloomActive = qfalse;
@@ -1679,11 +1808,6 @@ static void RBPP_RebuildState( void ) {
 	}
 
 	if ( !RBPP_LoadProcs() ) {
-		RBPP_MirrorState();
-		return;
-	}
-
-	if ( !RBPP_CreateRenderTarget( &s_postProcess.sceneTarget, glConfig.vidWidth, glConfig.vidHeight, qfalse ) ) {
 		RBPP_MirrorState();
 		return;
 	}
@@ -1711,6 +1835,7 @@ Initialize the shared retail post-process state at renderer startup.
 */
 static void RBPP_Init( void ) {
 	Com_Memset( &s_postProcess, 0, sizeof( s_postProcess ) );
+	s_bloomUniformsDirty = qfalse;
 	RBPP_RebuildState();
 	backEnd.postProcessNeedsReset = qfalse;
 }
@@ -1726,11 +1851,11 @@ Release the full post-process resource set.
 static void RBPP_Shutdown( void ) {
 	RBPP_ShutdownColorCorrectResources();
 	RBPP_ShutdownBloomResources();
-	RBPP_DestroyRenderTarget( &s_postProcess.sceneTarget );
 	backEnd.postProcessActive = qfalse;
 	backEnd.bloomActive = qfalse;
 	backEnd.colorCorrectActive = qfalse;
 	backEnd.postProcessNeedsReset = qfalse;
+	s_bloomUniformsDirty = qfalse;
 	RBPP_MirrorState();
 }
 
@@ -1739,11 +1864,11 @@ static void RBPP_Shutdown( void ) {
 =============
 RBPP_BindSceneRenderTarget
 
-Route scene rendering into the rectangle-texture scene target whenever post-processing is active.
+Route scene rendering into the rectangle-texture scene target whenever retail bloom is active.
 =============
 */
 static void RBPP_BindSceneRenderTarget( void ) {
-	if ( !RB_PostProcessEnabled() || !s_postProcess.sceneTarget.initialized ) {
+	if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {
 		RBPP_ReleaseSceneRenderTarget();
 		return;
 	}
@@ -1771,11 +1896,11 @@ static void RBPP_ReleaseSceneRenderTarget( void ) {
 RB_BeginScreenshotReadback
 
 Restore the default framebuffer before screenshot readback, matching the
-retail screenshot helpers' release of the post-process scene target.
+retail screenshot helpers' release of the bloom-owned scene target.
 =============
 */
 void RB_BeginScreenshotReadback( void ) {
-	if ( !RB_PostProcessEnabled() || !s_postProcess.sceneTarget.initialized ) {
+	if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {
 		return;
 	}
 
@@ -1788,11 +1913,11 @@ void RB_BeginScreenshotReadback( void ) {
 RB_EndScreenshotReadback
 
 Rebind the scene target after screenshot readback when the frame is still being
-rendered through the post-process path.
+rendered through the bloom path.
 =============
 */
 void RB_EndScreenshotReadback( void ) {
-	if ( !RB_PostProcessEnabled() || !s_postProcess.sceneTarget.initialized ) {
+	if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {
 		return;
 	}
 
@@ -1850,6 +1975,85 @@ static void RBPP_BlitSceneTarget( void ) {
 
 /*
 =============
+RBPP_SetBloomUniforms
+
+Write the recovered retail bright-pass and combine uniforms.
+=============
+*/
+static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneIntensity, float sceneSaturation ) {
+	if ( !RBPP_BloomEnabled() || !s_postProcess.procs.qglUseProgramObjectARBFunc || !s_postProcess.procs.qglUniform1fARBFunc ) {
+		return;
+	}
+
+	if ( s_postProcess.brightPassProgram.programObject ) {
+		s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.brightPassProgram.programObject );
+		if ( s_postProcess.brightPassProgram.brightThresholdUniform >= 0 ) {
+			s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );
+		}
+		s_postProcess.procs.qglUseProgramObjectARBFunc( 0 );
+	}
+
+	if ( s_postProcess.combineProgram.programObject ) {
+		s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.combineProgram.programObject );
+		if ( s_postProcess.combineProgram.bloomSaturationUniform >= 0 ) {
+			s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomSaturationUniform, bloomSaturation );
+		}
+		if ( s_postProcess.combineProgram.sceneIntensityUniform >= 0 ) {
+			s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneIntensityUniform, sceneIntensity );
+		}
+		if ( s_postProcess.combineProgram.bloomIntensityUniform >= 0 ) {
+			s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomIntensityUniform, bloomIntensity );
+		}
+		if ( s_postProcess.combineProgram.sceneSaturationUniform >= 0 ) {
+			s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneSaturationUniform, sceneSaturation );
+		}
+		s_postProcess.procs.qglUseProgramObjectARBFunc( 0 );
+	}
+}
+
+
+/*
+=============
+RBPP_SetBloomUniformsFromCvars
+
+Refresh bloom uniforms from the protected cvar lane.
+=============
+*/
+static void RBPP_SetBloomUniformsFromCvars( void ) {
+	float brightThreshold;
+	float bloomIntensity;
+	float bloomSaturation;
+	float sceneIntensity;
+	float sceneSaturation;
+
+	brightThreshold = r_bloomBrightThreshold ? r_bloomBrightThreshold->value : 0.25f;
+	bloomSaturation = r_bloomSaturation ? r_bloomSaturation->value : 0.8f;
+	sceneSaturation = r_bloomSceneSaturation ? r_bloomSceneSaturation->value : 1.0f;
+	bloomIntensity = r_bloomIntensity ? r_bloomIntensity->value : 0.5f;
+	sceneIntensity = r_bloomSceneIntensity ? r_bloomSceneIntensity->value : 1.0f;
+
+	if ( brightThreshold < 0.0f ) {
+		brightThreshold = 0.0f;
+	}
+	if ( bloomSaturation < 0.0f ) {
+		bloomSaturation = 0.0f;
+	}
+	if ( sceneSaturation < 0.0f ) {
+		sceneSaturation = 0.0f;
+	}
+	if ( bloomIntensity < 0.0f ) {
+		bloomIntensity = 0.0f;
+	}
+	if ( sceneIntensity < 0.0f ) {
+		sceneIntensity = 0.0f;
+	}
+
+	RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneIntensity, sceneSaturation );
+}
+
+
+/*
+=============
 RBPP_ApplyBloom
 
 Run the retail downsample, bright-pass, blur, and combine chain on rectangle textures.
@@ -1887,6 +2091,7 @@ static qboolean RBPP_ApplyBloom( void ) {
 	bloomSaturation = r_bloomSaturation ? r_bloomSaturation->value : 0.8f;
 	sceneIntensity = r_bloomSceneIntensity ? r_bloomSceneIntensity->value : 1.0f;
 	sceneSaturation = r_bloomSceneSaturation ? r_bloomSceneSaturation->value : 1.0f;
+	RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneIntensity, sceneSaturation );
 
 	RBPP_BindRenderTarget( &s_postProcess.bloomDownsampleTarget );
 	RBPP_Set2DState( s_postProcess.bloomDownsampleTarget.width, s_postProcess.bloomDownsampleTarget.height );
@@ -1897,9 +2102,6 @@ static qboolean RBPP_ApplyBloom( void ) {
 	RBPP_BindRenderTarget( &s_postProcess.bloomBrightTarget );
 	RBPP_Set2DState( s_postProcess.bloomBrightTarget.width, s_postProcess.bloomBrightTarget.height );
 	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.brightPassProgram.programObject );
-	if ( s_postProcess.brightPassProgram.brightThresholdUniform >= 0 ) {
-		s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );
-	}
 	RBPP_BindRectangleTexture( 0, s_postProcess.bloomDownsampleTarget.texture );
 	RBPP_DrawQuad( s_postProcess.bloomBrightTarget.width, s_postProcess.bloomBrightTarget.height, (float)s_postProcess.bloomDownsampleTarget.width, (float)s_postProcess.bloomDownsampleTarget.height, (float)s_postProcess.bloomDownsampleTarget.width, (float)s_postProcess.bloomDownsampleTarget.height );
 
@@ -1941,18 +2143,6 @@ static qboolean RBPP_ApplyBloom( void ) {
 	RBPP_ReleaseSceneRenderTarget();
 	RBPP_Set2DState( glConfig.vidWidth, glConfig.vidHeight );
 	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.combineProgram.programObject );
-	if ( s_postProcess.combineProgram.bloomSaturationUniform >= 0 ) {
-		s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomSaturationUniform, bloomSaturation );
-	}
-	if ( s_postProcess.combineProgram.bloomIntensityUniform >= 0 ) {
-		s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.bloomIntensityUniform, bloomIntensity );
-	}
-	if ( s_postProcess.combineProgram.sceneIntensityUniform >= 0 ) {
-		s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneIntensityUniform, sceneIntensity );
-	}
-	if ( s_postProcess.combineProgram.sceneSaturationUniform >= 0 ) {
-		s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.combineProgram.sceneSaturationUniform, sceneSaturation );
-	}
 	RBPP_BindRectangleTexture( 0, s_postProcess.sceneTarget.texture );
 	RBPP_BindRectangleTexture( 1, finalBloom->texture );
 	RBPP_DrawQuad( glConfig.vidWidth, glConfig.vidHeight, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height, (float)finalBloom->width, (float)finalBloom->height );
@@ -2040,42 +2230,71 @@ static void RBPP_ApplyColorCorrectPass( void ) {
 
 /*
 =============
-RBPP_Submit
+RB_BindSceneRenderTargetCommand
 
-Present the offscreen scene target through the recovered retail bloom and color-correct pipeline.
+Execute the retail command ID 0x0b scene-target bind command.
 =============
 */
-static void RBPP_Submit( void ) {
-	qboolean wasActive;
+static const void *RB_BindSceneRenderTargetCommand( const void *data ) {
+	const bindSceneRenderTargetCommand_t	*cmd;
 
-	wasActive = backEnd.postProcessActive;
-	if ( backEnd.postProcessNeedsReset && !wasActive ) {
-		RBPP_ResetIfNeeded();
-		return;
+	cmd = (const bindSceneRenderTargetCommand_t *)data;
+
+	if ( RBPP_BloomEnabled() ) {
+		RBPP_BindSceneRenderTarget();
 	}
 
-	if ( !RB_PostProcessEnabled() || !s_postProcess.sceneTarget.initialized ) {
-		return;
-	}
+	return (const void *)(cmd + 1);
+}
 
-	if ( backEnd.bloomActive ) {
+
+/*
+=============
+RB_BloomPostProcessCommand
+
+Execute the retail command ID 0x0a bloom post-process command.
+=============
+*/
+static const void *RB_BloomPostProcessCommand( const void *data ) {
+	const bloomPostProcessCommand_t	*cmd;
+
+	cmd = (const bloomPostProcessCommand_t *)data;
+
+	if ( cmd->sceneTexture && RBPP_BloomEnabled() && s_postProcess.sceneTarget.initialized ) {
 		if ( !RBPP_ApplyBloom() ) {
 			RBPP_ReleaseSceneRenderTarget();
 			RBPP_BlitSceneTarget();
 		}
-	} else {
-		RBPP_ReleaseSceneRenderTarget();
-		RBPP_BlitSceneTarget();
 	}
 
-	if ( backEnd.colorCorrectActive ) {
+	if ( s_bloomUniformsDirty ) {
+		RBPP_SetBloomUniformsFromCvars();
+		s_bloomUniformsDirty = qfalse;
+	}
+
+	return (const void *)(cmd + 1);
+}
+
+
+/*
+=============
+RB_ColorCorrectPostProcessCommand
+
+Execute the retail command ID 0x09 shader color-correct command.
+=============
+*/
+static const void *RB_ColorCorrectPostProcessCommand( const void *data ) {
+	const colorCorrectPostProcessCommand_t	*cmd;
+
+	cmd = (const colorCorrectPostProcessCommand_t *)data;
+
+	if ( cmd->colorCorrectTexture && cmd->colorCorrectProgram && RBPP_ColorCorrectEnabled() ) {
 		RBPP_ApplyColorCorrectPass();
 	}
 
-	if ( backEnd.postProcessNeedsReset ) {
-		RBPP_ResetIfNeeded();
-	}
+	return (const void *)(cmd + 1);
 }
+
 
 /*
 ** GL_BindToTarget
@@ -2649,7 +2868,6 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	originalTime = backEnd.refdef.floatTime;
 
 	// clear the z buffer, set the modelview, etc
-	RB_BindOffscreenRenderTarget();
 	RB_BeginDrawingView ();
 
 	// draw everything
@@ -3301,9 +3519,6 @@ const void	*RB_SwapBuffers( const void *data ) {
 		ri.Hunk_FreeTempMemory( stencilReadback );
 	}
 
-
-	RB_SubmitPostProcess();
-
 	if ( !glState.finishCalled ) {
 		qglFinish();
 	}
@@ -3360,6 +3575,15 @@ void RB_ExecuteRenderCommands( const void *data ) {
 			break;
 		case RC_ADVERTISEMENT_QUERIES:
 			data = RB_DrawAdvertisementQueries( data );
+			break;
+		case RC_COLOR_CORRECT_POST_PROCESS:
+			data = RB_ColorCorrectPostProcessCommand( data );
+			break;
+		case RC_BLOOM_POST_PROCESS:
+			data = RB_BloomPostProcessCommand( data );
+			break;
+		case RC_BIND_SCENE_RENDER_TARGET:
+			data = RB_BindSceneRenderTargetCommand( data );
 			break;
 
 		case RC_END_OF_LIST:

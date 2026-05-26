@@ -318,7 +318,7 @@ lighting range
 */
 void R_LightScaleTexture (unsigned *in, int inwidth, int inheight, qboolean only_gamma )
 {
-	if ( tr.colorCorrectActive ) {
+	if ( RBPP_ColorCorrectEnabled() ) {
 		return;
 	}
 
@@ -2743,7 +2743,7 @@ void R_SetColorMappings( void ) {
 
 	// setup the overbright lighting
 	tr.overbrightBits = r_overBrightBits->integer;
-	if ( !tr.colorCorrectActive && !glConfig.deviceSupportsGamma ) {
+	if ( !RBPP_ColorCorrectEnabled() && !glConfig.deviceSupportsGamma ) {
 		tr.overbrightBits = 0;		// need hardware gamma or color-correct shader ownership for overbright
 	}
 
@@ -2809,7 +2809,7 @@ void R_SetColorMappings( void ) {
 		s_intensitytable[i] = j;
 	}
 
-	if ( !tr.colorCorrectActive && glConfig.deviceSupportsGamma )
+	if ( !RBPP_ColorCorrectEnabled() && glConfig.deviceSupportsGamma )
 	{
 		GLimp_SetGamma( s_gammatable, s_gammatable, s_gammatable );
 	}
