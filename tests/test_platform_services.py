@@ -563,7 +563,7 @@ def _compile_and_run(
     platform_args = []
 
     if os.name == "nt":
-        platform_args.extend(["-DWIN32", "-D_CRT_SECURE_NO_WARNINGS", "-Wno-return-type"])
+        platform_args.extend(["-DWIN32", "-D_CRT_SECURE_NO_WARNINGS", "-Wno-return-type", "-Wno-unknown-pragmas"])
 
     if include_client_stub:
         macro_args.append("-DQL_AUTH_HAS_CLIENT_BACKEND=1")

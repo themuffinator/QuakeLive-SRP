@@ -14,6 +14,7 @@
 #include <windows.h>
 #else
 #include <dirent.h>
+#include <strings.h>
 #include <unistd.h>
 #endif
 
@@ -724,6 +725,15 @@ char *COM_SkipPath( char *pathname ) {
 	}
 
 	return last;
+}
+
+/*
+=============
+NET_DemoProtocol
+=============
+*/
+int NET_DemoProtocol( void ) {
+	return QL_RETAIL_PROTOCOL_VERSION;
 }
 
 /*

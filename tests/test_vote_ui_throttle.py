@@ -11,6 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _VOTE_THROTTLE_PROBE = textwrap.dedent(
     """
+    #include <ctype.h>
+    #include <stdarg.h>
     #include <stdio.h>
     #include <string.h>
 
@@ -19,11 +21,143 @@ _VOTE_THROTTLE_PROBE = textwrap.dedent(
 
     level_locals_t level;
     gclient_t localClients[MAX_CLIENTS];
+    vmCvar_t g_itemHeight;
 
     void trap_SendServerCommand( int clientNum, const char *text ) {
         if ( text ) {
             printf("%d:%s\\n", clientNum, text);
         }
+    }
+
+    /*
+    =============
+    qlr_tolower
+    =============
+    */
+    static int qlr_tolower( int ch ) {
+        return tolower( ch & 0xff );
+    }
+
+    /*
+    =============
+    va
+    =============
+    */
+    char * QDECL va( char *format, ... ) {
+        static char buffer[4096];
+        va_list args;
+
+        va_start( args, format );
+        vsnprintf( buffer, sizeof( buffer ), format, args );
+        va_end( args );
+
+        buffer[sizeof( buffer ) - 1] = '\\0';
+        return buffer;
+    }
+
+    /*
+    =============
+    Q_strncpyz
+    =============
+    */
+    void Q_strncpyz( char *dest, const char *src, int destsize ) {
+        size_t count;
+
+        if ( !dest || destsize <= 0 ) {
+            return;
+        }
+
+        if ( !src ) {
+            dest[0] = '\\0';
+            return;
+        }
+
+        count = destsize > 1 ? (size_t)( destsize - 1 ) : 0;
+        if ( count > 0 ) {
+            strncpy( dest, src, count );
+        }
+        dest[count] = '\\0';
+    }
+
+    /*
+    =============
+    Q_stricmp
+    =============
+    */
+    int Q_stricmp( const char *s1, const char *s2 ) {
+        if ( !s1 ) {
+            s1 = "";
+        }
+        if ( !s2 ) {
+            s2 = "";
+        }
+
+        while ( *s1 && *s2 ) {
+            int diff = qlr_tolower( *s1++ ) - qlr_tolower( *s2++ );
+            if ( diff ) {
+                return diff;
+            }
+        }
+
+        return qlr_tolower( *s1 ) - qlr_tolower( *s2 );
+    }
+
+    /*
+    =============
+    trap_SetConfigstring
+    =============
+    */
+    void trap_SetConfigstring( int num, const char *string ) {
+        (void)num;
+        (void)string;
+    }
+
+    /*
+    =============
+    trap_Cvar_Set
+    =============
+    */
+    void trap_Cvar_Set( const char *var_name, const char *value ) {
+        (void)var_name;
+        (void)value;
+    }
+
+    /*
+    =============
+    trap_SendConsoleCommand
+    =============
+    */
+    void trap_SendConsoleCommand( int exec_when, const char *text ) {
+        (void)exec_when;
+        (void)text;
+    }
+
+    /*
+    =============
+    Cmd_ShuffleTeams_f
+    =============
+    */
+    void Cmd_ShuffleTeams_f( void ) {}
+
+    /*
+    =============
+    TeamCount
+    =============
+    */
+    team_t TeamCount( int ignoreClientNum, int team ) {
+        (void)ignoreClientNum;
+        (void)team;
+        return TEAM_FREE;
+    }
+
+    /*
+    =============
+    G_BroadcastItemTimerState
+    =============
+    */
+    void G_BroadcastItemTimerState( int enabled, int height ) {
+        (void)enabled;
+        (void)height;
     }
 
     int main(void) {
