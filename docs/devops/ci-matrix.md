@@ -9,11 +9,11 @@ validation surface: bytecode, native, and reverse-engineered targets.
 
 - **Push Verification** – `.github/workflows/push-verification.yml` runs on
   every push, fanning out across the module, renderer, UI, client, qcommon,
-  server, and engine host/support parity gates plus Linux/macOS clean-room
-  builds. It uploads the existing subsystem evidence roots and build outputs
+  server, and engine host/support parity gates plus Linux/macOS native
+  source builds. It uploads the existing subsystem evidence roots and build outputs
   with a 14-day retention window.
 - **Nightly Build** – `.github/workflows/nightly-build.yml` runs daily at
-  `03:17 UTC`, builds Linux/macOS clean-room outputs, builds the Windows `v143`
+  `03:17 UTC`, builds Linux/macOS native outputs, builds the Windows `v143`
   modern compatibility profile, generates a manifest version like
   `nightly-YYYYMMDD.<run>-g<shortsha>`, packages rebuilt Windows binaries only,
   and uploads the package, checksum, manifests, and POSIX build outputs for 30
@@ -25,8 +25,10 @@ validation surface: bytecode, native, and reverse-engineered targets.
 - **QVM** – Run on a Unix-like host, re-validate the legacy toolchain, reuse the clean-room build helper, and drive the deterministic harness suite against the VM output.【F:tests/run_harnesses.py†L24-L112】
 - **DLL** – Run on Windows, provision the Visual Studio 2010 components as needed, verify the `v100` toolset, validate the retail-aligned Windows native pipeline, and then execute the shared harness runner.【F:tests/run_harnesses.py†L24-L112】
 - **Reverse** – Run on a Unix-like host, rebuild the clean-room modules via `tools/ci/build-cleanroom.sh`, and extend the harness invocation with the reverse build root so the trace harness can diff the clean-room binaries against the expected transcript.【F:tests/run_harnesses.py†L24-L112】
-- **POSIX clean-room builds** – Run on hosted Linux and macOS to compile the same
-  prototypes into `.so` and `.dylib` artefacts without launching the game or
+- **POSIX native builds** – Run on hosted Linux and macOS through
+  `tools/ci/build-posix-native.sh` to compile the current baseq3 native modules
+  from the real `src/code`/`src/game` source lists and the dedicated-host
+  makefile target into `.so`/`.dylib` packages without launching the game or
   requiring retail assets.
 
 ## Artefacts

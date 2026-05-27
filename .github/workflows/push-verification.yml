@@ -15,32 +15,32 @@ jobs:
   posix-builds:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Linux Clean-room Build
+          - name: Linux Native Build
             os: ubuntu-latest
             platform: linux
-            artifact_name: linux-cleanroom-build
-          - name: macOS Clean-room Build
+            artifact_name: linux-native-build
+          - name: macOS Native Build
             os: macos-latest
             platform: macos
-            artifact_name: macos-cleanroom-build
+            artifact_name: macos-native-build
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build clean-room shared objects
-        run: tools/ci/build-cleanroom.sh
+      - name: Build native POSIX targets
+        run: bash tools/ci/build-posix-native.sh
 
-      - name: Upload ${{ matrix.name }} artefacts
+      - name: Publish ${{ matrix.name }} package
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: push-${{ matrix.artifact_name }}
-          path: build/re/${{ matrix.platform }}/**
+          path: build/posix/${{ matrix.platform }}/dist/**
           if-no-files-found: warn
           retention-days: 14
 
@@ -111,7 +111,7 @@ jobs:
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
 
-      - name: Upload ${{ matrix.name }} artefacts
+      - name: Publish ${{ matrix.name }} artefacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -185,7 +185,7 @@ jobs:
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
 
-      - name: Upload ${{ matrix.name }} artefacts
+      - name: Publish ${{ matrix.name }} artefacts
         if: always()
         uses: actions/upload-artifact@v4
         with:

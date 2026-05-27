@@ -4,9 +4,9 @@ GitHub Actions now provides two hosted guardrails around the local/manual
 toolchain checks:
 
 - `.github/workflows/push-verification.yml` runs the current subsystem parity
-  lanes plus Linux/macOS clean-room builds on direct pushes and uploads the same
-  evidence roots as the focused PR workflows.
-- `.github/workflows/nightly-build.yml` runs scheduled Linux/macOS clean-room
+  lanes plus Linux/macOS native POSIX builds on direct pushes and uploads the
+  same evidence roots as the focused PR workflows.
+- `.github/workflows/nightly-build.yml` runs scheduled Linux/macOS native POSIX
   builds plus a Windows modern compatibility package, assigns the Windows
   package a traceable nightly version, and publishes checksums plus manifest
   metadata as workflow artifacts.
@@ -40,26 +40,27 @@ Windows hosts:
 
 The `Push Verification` workflow runs on every push and can also be started
 manually. It fans out across the same focused validation surfaces used by the
-dedicated PR workflows, then builds the clean-room POSIX targets:
+dedicated PR workflows, then builds the native POSIX targets:
 
 - Linux-hosted lanes: module, renderer, and UI parity validation.
 - Windows-hosted lanes: client, qcommon, server, and engine host/support parity
   validation.
-- Build lanes: Linux `.so` and macOS `.dylib` clean-room prototypes from
-  `tools/ci/build-cleanroom.sh`.
+- Build lanes: Linux `.so` and macOS `.dylib` native POSIX packages from
+  `tools/ci/build-posix-native.sh`, covering the real `src/code` baseq3 native
+  modules plus the dedicated host.
 
 Artifacts are retained for 14 days under names prefixed with `push-`. The lane
 does not launch the game or exercise live online services; it only runs the
 deterministic Python, bundle, and headless validation commands already used by
-the subsystem gates.
+the subsystem gates and publishes the native POSIX package manifest/tarball.
 
 ## Versioned nightly builds
 
 The `Nightly Build` workflow runs daily at `03:17 UTC` and can also be started
-manually for `Release` or `Debug`. Linux jobs build `.so` clean-room outputs,
-macOS jobs build `.dylib` outputs, and the Windows package job uses the
-hosted-compatible `v143` toolset and the `modern` runtime profile to package
-only rebuilt outputs:
+manually for `Release` or `Debug`. Linux jobs build a native POSIX package with
+`.so` module outputs, macOS jobs build a native POSIX package with `.dylib`
+module outputs, and the Windows package job uses the hosted-compatible `v143`
+toolset and the `modern` runtime profile to package only rebuilt outputs:
 
 - `quakelive_steam.exe`
 - `awesomium_process.exe`

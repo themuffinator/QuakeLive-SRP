@@ -22,34 +22,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  posix-cleanroom:
+  posix-native:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Linux clean-room build
+          - name: Linux native build
             os: ubuntu-latest
             platform: linux
-            artifact_name: linux-cleanroom
-          - name: macOS clean-room build
+            artifact_name: linux-native
+          - name: macOS native build
             os: macos-latest
             platform: macos
-            artifact_name: macos-cleanroom
+            artifact_name: macos-native
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build clean-room shared objects
-        run: tools/ci/build-cleanroom.sh
+      - name: Build native POSIX targets
+        run: bash tools/ci/build-posix-native.sh
 
-      - name: Upload ${{ matrix.name }} artefacts
+      - name: Publish ${{ matrix.name }} package
         uses: actions/upload-artifact@v4
         with:
           name: nightly-${{ matrix.artifact_name }}
-          path: build/re/${{ matrix.platform }}/**
+          path: build/posix/${{ matrix.platform }}/dist/**
           if-no-files-found: error
           retention-days: 30
 
@@ -109,7 +109,7 @@ jobs:
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- SemVer: ``${{ steps.version.outputs.semver }}``"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Package: ``${{ steps.package.outputs.package_name }}``"
 
-      - name: Upload nightly package
+      - name: Publish nightly package
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.package.outputs.package_name }}

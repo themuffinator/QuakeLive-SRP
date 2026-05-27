@@ -17,6 +17,7 @@ NULL_INPUT_PATH = REPO_ROOT / "src" / "code" / "null" / "null_input.c"
 UNIX_MAKEFILE_PATH = REPO_ROOT / "src" / "code" / "unix" / "Makefile"
 LINUX_SND_PATH = REPO_ROOT / "src" / "code" / "unix" / "linux_snd.c"
 BUILD_CLEANROOM_SCRIPT_PATH = REPO_ROOT / "tools" / "ci" / "build-cleanroom.sh"
+BUILD_POSIX_NATIVE_SCRIPT_PATH = REPO_ROOT / "tools" / "ci" / "build-posix-native.sh"
 RUN_HARNESSES_PATH = REPO_ROOT / "tests" / "run_harnesses.py"
 RE_TRACE_HARNESS_PATH = REPO_ROOT / "tools" / "tests" / "re_trace_harness.py"
 PUSH_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "push-verification.yml"
@@ -574,8 +575,9 @@ def test_null_runtime_shims_track_current_qcommon_contracts() -> None:
 	assert "void Sys_SendKeyEvents( void ) {" in null_input
 
 
-def test_posix_cleanroom_builds_cover_linux_and_macos_ci() -> None:
-	build_script = _read_text(BUILD_CLEANROOM_SCRIPT_PATH)
+def test_posix_native_builds_cover_linux_and_macos_ci() -> None:
+	native_build_script = _read_text(BUILD_POSIX_NATIVE_SCRIPT_PATH)
+	cleanroom_build_script = _read_text(BUILD_CLEANROOM_SCRIPT_PATH)
 	run_harnesses = _read_text(RUN_HARNESSES_PATH)
 	re_trace_harness = _read_text(RE_TRACE_HARNESS_PATH)
 	push_workflow = _read_text(PUSH_WORKFLOW_PATH)
@@ -583,33 +585,53 @@ def test_posix_cleanroom_builds_cover_linux_and_macos_ci() -> None:
 	reverse_builds_doc = _read_text(REVERSE_BUILDS_DOC_PATH)
 	toolchain_ci = _read_text(TOOLCHAIN_CI_PATH)
 
-	assert "PLATFORM_NAME=\"linux\"" in build_script
-	assert "PLATFORM_NAME=\"macos\"" in build_script
-	assert "SHLIB_EXT=\"so\"" in build_script
-	assert "SHLIB_EXT=\"dylib\"" in build_script
-	assert "LDFLAGS_DEFAULT=\"-shared\"" in build_script
-	assert "LDFLAGS_DEFAULT=\"-dynamiclib\"" in build_script
-	assert "build/re/${PLATFORM_NAME}" in build_script
-	assert "QLR_RE_BUILD_ROOT" in build_script
+	assert "UNIX_MAKE_DIR=\"${REPO_ROOT}/src/code/unix\"" in native_build_script
+	assert "PLATFORM_NAME=\"linux\"" in native_build_script
+	assert "PLATFORM_NAME=\"macos\"" in native_build_script
+	assert "MAKE_PLATFORM=\"darwin\"" in native_build_script
+	assert "SHLIB_EXT=\"so\"" in native_build_script
+	assert "SHLIB_EXT=\"dylib\"" in native_build_script
+	assert "SHLIB_LDFLAGS_DEFAULT=\"-shared\"" in native_build_script
+	assert "SHLIB_LDFLAGS_DEFAULT=\"-dynamiclib -Wl,-undefined,dynamic_lookup\"" in native_build_script
+	assert "build/posix/${PLATFORM_NAME}" in native_build_script
+	assert "QL_POSIX_BUILD_ROOT" in native_build_script
+	assert "baseq3/cgame${HOST_ARCH}.${SHLIB_EXT}" in native_build_script
+	assert "baseq3/qagame${HOST_ARCH}.${SHLIB_EXT}" in native_build_script
+	assert "baseq3/ui${HOST_ARCH}.${SHLIB_EXT}" in native_build_script
+	assert "src/code/cgame/cg_newdraw.c" in native_build_script
+	assert "src/code/game/g_match_state.c" in native_build_script
+	assert "src/game/g_match_config.c" in native_build_script
+	assert "src/code/ui/ui_quakelive_bridge.c" in native_build_script
+	assert "${BUILD_ROOT}/${MAKE_PLATFORM}q3ded" in native_build_script
+	assert "quakelive-${PLATFORM_NAME}-${HOST_ARCH}-native.tar.gz" in native_build_script
+	assert "package_sha256=" in native_build_script
+	assert "QL_BUILD_ONLINE_SERVICES=0" in native_build_script
+	assert "QL_ENABLE_OGG=0" in native_build_script
+
+	assert "PLATFORM_NAME=\"linux\"" in cleanroom_build_script
+	assert "PLATFORM_NAME=\"macos\"" in cleanroom_build_script
 
 	assert "sys.platform == \"darwin\"" in run_harnesses
 	assert "extension = \".dylib\"" in run_harnesses
 	assert "'.dylib' if sys.platform == 'darwin' else '.so'" in re_trace_harness
 
 	assert "posix-builds:" in push_workflow
-	assert "Linux Clean-room Build" in push_workflow
-	assert "macOS Clean-room Build" in push_workflow
-	assert "tools/ci/build-cleanroom.sh" in push_workflow
-	assert "build/re/${{ matrix.platform }}/**" in push_workflow
+	assert "Linux Native Build" in push_workflow
+	assert "macOS Native Build" in push_workflow
+	assert "bash tools/ci/build-posix-native.sh" in push_workflow
+	assert "build/posix/${{ matrix.platform }}/dist/**" in push_workflow
+	assert "Publish ${{ matrix.name }} package" in push_workflow
 
-	assert "posix-cleanroom:" in nightly_workflow
-	assert "Linux clean-room build" in nightly_workflow
-	assert "macOS clean-room build" in nightly_workflow
+	assert "posix-native:" in nightly_workflow
+	assert "Linux native build" in nightly_workflow
+	assert "macOS native build" in nightly_workflow
+	assert "bash tools/ci/build-posix-native.sh" in nightly_workflow
 	assert "nightly-${{ matrix.artifact_name }}" in nightly_workflow
+	assert "Publish ${{ matrix.name }} package" in nightly_workflow
 
-	assert "build/re/linux/" in reverse_builds_doc
-	assert "build/re/macos/" in reverse_builds_doc
-	assert "macOS jobs build `.dylib` outputs" in toolchain_ci
+	assert "build/posix/linux/dist/" in reverse_builds_doc
+	assert "build/posix/macos/dist/" in reverse_builds_doc
+	assert "native POSIX package" in toolchain_ci
 
 
 def test_portability_docs_track_restored_low_memory_probe_and_remaining_stubs() -> None:

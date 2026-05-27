@@ -97,6 +97,10 @@ Observed facts from the retail executable resources:
   - `requestedExecutionLevel level="asInvoker"`
   - `Microsoft.Windows.Common-Controls` version `6.0.0.0`
   - `Microsoft.VC80.CRT` version `8.0.50727.762`
+- The checked-in launcher manifest also carries the modern DPI-awareness block
+  used by the current Win32 host glue; `tools/ci/audit-retail-metadata.ps1`
+  treats that block as part of the source-visible metadata contract so the
+  modern compatibility lane and renderer host tests agree.
 
 The repo now stages those executable metadata resources explicitly in:
 

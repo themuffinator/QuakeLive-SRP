@@ -1,9 +1,10 @@
 # Quake Live Source Reconstruction Project
 
-[![Accuracy First](https://img.shields.io/badge/Accuracy-First-1f6feb)](AUDIT.md)
-[![Ongoing Reconstruction](https://img.shields.io/badge/Reconstruction-Ongoing-b8860b)](AUDIT.md)
-[![Reconstruction Plan](https://img.shields.io/badge/Work%20Queue-Reconstruction%20Plan-2ea44f)](IMPLEMENTATION_PLAN.md)
-[![Getting Started](https://img.shields.io/badge/Docs-Getting%20Started-6f42c1)](docs/onboarding/overview.md)
+[![Audit](https://img.shields.io/badge/Read-Audit-1f6feb)](AUDIT.md)
+[![Work Queue](https://img.shields.io/badge/View-Work%20Queue-2ea44f)](IMPLEMENTATION_PLAN.md)
+[![Build Guide](https://img.shields.io/badge/Open-Build%20Guide-b8860b)](BUILDING.md)
+[![Onboarding](https://img.shields.io/badge/Start-Onboarding-6f42c1)](docs/onboarding/overview.md)
+[![Reference Workflow](https://img.shields.io/badge/Trace-Reference%20Workflow-0969da)](docs/reverse-engineering/ghidra-reference-workflow.md)
 
 This project reconstructs the full Quake Live source code as faithfully as possible.
 It starts from the public Quake III Arena GPL source release and then rebuilds the

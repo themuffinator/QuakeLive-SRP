@@ -7,6 +7,11 @@ artifacts so the deterministic harnesses can exercise both implementations.
 The build scripts emit shared objects or DLLs under `build/re/` so local tooling
 and CI can locate the binaries without hard-coding platform-specific paths.
 
+These prototypes are not the Linux/macOS product build. Hosted push and nightly
+workflows now use `tools/ci/build-posix-native.sh` for native POSIX packages
+from the real `src/code` tree, while this clean-room lane remains a narrow
+reverse-harness target.
+
 ## Building locally
 
 ### Linux / macOS
@@ -57,10 +62,14 @@ highlight regressions.
 
 ## CI expectations
 
-The hosted build workflows now compile the clean-room prototypes on both Linux
-and macOS. `Push Verification` runs Linux and macOS clean-room build jobs on
-every push, while `Nightly Build` uploads the corresponding `build/re/linux/`
-and `build/re/macos/` artefacts with 30-day retention.
+The hosted build workflows compile native POSIX outputs from `src/code` on both
+Linux and macOS. `Push Verification` runs Linux and macOS native build jobs on
+every push, while `Nightly Build` publishes tarballs and manifests from
+`build/posix/linux/dist/` and `build/posix/macos/dist/` with 30-day retention.
+The native POSIX helper builds the current baseq3 `cgame`, `qagame`, and `ui`
+shared modules from the same source lists used by the native project files, then
+builds the dedicated host from the Unix makefile, with Quake Live online-service
+adapters disabled by default.
 
 The `Deterministic Harnesses` workflow now includes a `Reverse` leg that runs on
 `ubuntu-latest`. It
