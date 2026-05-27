@@ -11,6 +11,7 @@
 
 #ifdef QAGAME
 vmCvar_t g_armorTiered;
+vmCvar_t g_weaponRespawn;
 #endif
 
 /*
@@ -697,6 +698,38 @@ QLR_EXPORT int QLR_CanGrabOwnedWeaponWithAmmo( int ammoCount ) {
 
 	ps.stats[STAT_WEAPONS] = ( 1 << WP_ROCKET_LAUNCHER );
 	ps.ammo[WP_ROCKET_LAUNCHER] = ammoCount;
+#ifdef QAGAME
+	g_weaponRespawn.integer = 0;
+#endif
+
+	return BG_CanItemBeGrabbed( GT_FFA, 0, &item, &ps ) ? 1 : 0;
+}
+
+/*
+=============
+QLR_CanGrabOwnedWeaponWithAmmoAndRespawn
+
+Checks the retail weapon-stay gate with an explicit g_weaponRespawn value.
+=============
+*/
+QLR_EXPORT int QLR_CanGrabOwnedWeaponWithAmmoAndRespawn( int ammoCount, int weaponRespawn ) {
+	const gitem_t	*itemDef;
+	playerState_t	ps;
+	entityState_t	item;
+
+	itemDef = BG_FindItemForWeapon( WP_ROCKET_LAUNCHER );
+	if ( !itemDef ) {
+		return 0;
+	}
+
+	QLR_ResetPlayerState( &ps );
+	QLR_ResetEntityItem( &item, itemDef );
+
+	ps.stats[STAT_WEAPONS] = ( 1 << WP_ROCKET_LAUNCHER );
+	ps.ammo[WP_ROCKET_LAUNCHER] = ammoCount;
+#ifdef QAGAME
+	g_weaponRespawn.integer = weaponRespawn;
+#endif
 
 	return BG_CanItemBeGrabbed( GT_FFA, 0, &item, &ps ) ? 1 : 0;
 }

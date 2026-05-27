@@ -200,6 +200,8 @@ def bg_misc_validation_harness(tmp_path_factory: pytest.TempPathFactory) -> ctyp
 	library.QLR_CanGrabDroppedSelfWeaponAfterDelay.restype = ctypes.c_int
 	library.QLR_CanGrabOwnedWeaponWithAmmo.argtypes = [ctypes.c_int]
 	library.QLR_CanGrabOwnedWeaponWithAmmo.restype = ctypes.c_int
+	library.QLR_CanGrabOwnedWeaponWithAmmoAndRespawn.argtypes = [ctypes.c_int, ctypes.c_int]
+	library.QLR_CanGrabOwnedWeaponWithAmmoAndRespawn.restype = ctypes.c_int
 	library.QLR_CanGrabAmmoPack.argtypes = [
 		ctypes.c_int,
 		ctypes.c_int,
@@ -468,6 +470,9 @@ def test_weapon_and_ammo_pickup_fixtures_preserve_retail_gates(
 ) -> None:
 	assert bg_misc_validation_harness.QLR_CanGrabOwnedWeaponWithAmmo(5) == 0
 	assert bg_misc_validation_harness.QLR_CanGrabOwnedWeaponWithAmmo(0) == 1
+	assert bg_misc_validation_harness.QLR_CanGrabOwnedWeaponWithAmmoAndRespawn(5, 5) == 1
+	assert bg_misc_validation_harness.QLR_CanGrabOwnedWeaponWithAmmoAndRespawn(5, 0) == 0
+	assert bg_misc_validation_harness.QLR_CanGrabOwnedWeaponWithAmmoAndRespawn(-1, 0) == 0
 	assert bg_misc_validation_harness.QLR_CanGrabAmmoPack(1, 200, 1, 19) == 1
 	assert bg_misc_validation_harness.QLR_CanGrabAmmoPack(1, 200, 1, 20) == 0
 

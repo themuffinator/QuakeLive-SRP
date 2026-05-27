@@ -27,9 +27,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef CGAME
 extern vmCvar_t cg_armorTiered;
+extern float trap_Cvar_VariableValue( const char *var_name );
 #else
 #ifdef QAGAME
 extern vmCvar_t g_armorTiered;
+extern vmCvar_t g_weaponRespawn;
 #endif
 #endif
 
@@ -1792,11 +1794,29 @@ static qboolean BG_IsArmorTieredModeEnabled( void ) {
 
 /*
 =============
+BG_IsWeaponsStayEnabled
+
+Returns qtrue when retail weapon-stay behavior is active for world weapon
+pickups.
+=============
+*/
+static qboolean BG_IsWeaponsStayEnabled( void ) {
+#ifdef CGAME
+	return ( trap_Cvar_VariableValue( "g_weaponRespawn" ) == 0.0f ) ? qtrue : qfalse;
+#elif defined(QAGAME)
+	return ( g_weaponRespawn.integer == 0 ) ? qtrue : qfalse;
+#else
+	return qtrue;
+#endif
+}
+
+/*
+=============
 BG_CanGrabWeaponItem
 
 Preserves the retail weapon-touch leaf: ironsights block pickups, dropped
-weapons stay pickupable, and world weapons only regrab when the player does
-not already own them or has run dry on ammo.
+weapons stay pickupable, and world weapons only use the weapon-stay regrab
+gate when g_weaponRespawn is zero.
 =============
 */
 static qboolean BG_CanGrabWeaponItem( int gametype, int currentTime, const entityState_t *ent, const playerState_t *ps, const gitem_t *item, qboolean dropped )
@@ -1824,11 +1844,15 @@ static qboolean BG_CanGrabWeaponItem( int gametype, int currentTime, const entit
 		return qfalse;
 	}
 
+	if ( !BG_IsWeaponsStayEnabled() ) {
+		return qtrue;
+	}
+
 	if ( !( ps->stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {
 		return qtrue;
 	}
 
-	return ( ps->ammo[weapon] <= 0 ) ? qtrue : qfalse;
+	return ( ps->ammo[weapon] == 0 ) ? qtrue : qfalse;
 }
 
 /*

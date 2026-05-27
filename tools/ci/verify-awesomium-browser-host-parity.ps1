@@ -259,6 +259,16 @@ $sourceAnchors = @(
 		Description = 'retail browser key catcher bit'
 	},
 	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = 'if ( cl_webHost.browserActive && !( cls.keyCatchers & KEYCATCH_BROWSER ) ) {'
+		Description = 'retail browser-active keycatcher arm without surface gate'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );'
+		Description = 'retail browser-active cvar publish without surface gate'
+	},
+	@{
 		Path = 'src/code/client/cl_keys.c'
 		Literal = 'CL_WebView_OnKeyEvent( key, down );'
 		Description = 'browser keyboard route'
@@ -347,13 +357,13 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = '{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "QLWebView_InjectKeyboardEvent", "cl_cgame.c field model", CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD },'
-		Description = 'WebView keyboard event source-owned substitution'
+		Literal = '{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_WebView_InjectKeyboardEvent@16", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },'
+		Description = 'WebView keyboard event adapter import substitution'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'cl_awesomium.module = LoadLibraryA( "awesomium.dll" );'
-		Description = 'Awesomium DLL dynamic load'
+		Literal = 'cl_awesomium.module = CL_Awesomium_LoadLibraryCandidate( "awesomium.dll", loadError, sizeof( loadError ) );'
+		Description = 'Awesomium DLL dynamic load from process directory'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
@@ -382,17 +392,17 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), runtimePath, "awesomium_process.exe" );'
-		Description = 'Awesomium child process path configured from runtime path'
+		Literal = 'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), assetsPath, "awesomium_process.exe" );'
+		Description = 'Awesomium child process path configured from selected asset root'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'CL_Awesomium_BuildUserScript( userScript, sizeof( userScript ), playerName, appId, steamIdLow, steamIdHigh );'
+		Literal = 'CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh );'
 		Description = 'WebConfig user-script bootstrap projection'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = '!CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packagePath )'
+		Literal = '!CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packageRoot )'
 		Description = 'Awesomium package path configured on WebConfig'
 	}
 )

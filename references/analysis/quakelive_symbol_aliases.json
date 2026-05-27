@@ -3531,6 +3531,7 @@
     "sub_4EAEF0": "IN_JoyMove",
     "sub_4EB830": "IN_RawInputMouse",
     "sub_4EBBA0": "IN_InitDIMouse",
+    "sub_4EC580": "Sys_WinkeyHookProc",
     "sub_4EC6D0": "QLWebView_InvokeCommNoticeThunk",
     "sub_4EC6E0": "Sys_Error",
     "sub_4EC7A0": "Sys_Quit",

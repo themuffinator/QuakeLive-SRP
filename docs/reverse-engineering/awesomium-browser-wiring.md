@@ -130,6 +130,26 @@ Expected effect:
 - The main menu's inherited `stopRefresh` action no longer aborts the initial `asset://ql/index.html` load.
 - Awesomium can continue running JavaScript, receiving paints, and producing dirty `BitmapSurface` updates across frames instead of showing a black or stale canvas until shutdown timing changes.
 
+## 2026-05-27 browser keycatcher activation correction
+
+Retail evidence:
+
+- `references/analysis/quakelive_symbol_aliases.json` maps `sub_4F2590` to `QLWebCore_Update`.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt:15501` shows `sub_4f2590` checking the active browser byte and setting keycatcher bit `0x20` before dispatching WebCore slot `0x18`.
+- The same HLIL block does not gate the keycatcher write on the drawable browser surface or paint-presentation state.
+
+Source divergence found:
+
+- The reconstructed `QLWebCore_Update` armed `KEYCATCH_BROWSER` only when `browserActive` and `surfacePresented` were both true.
+- The frame loop also republished `web_browserActive` from the same surface-presented condition even after the browser was opened.
+- If live Awesomium was active but the first valid paint had not reached `CL_WebHost_DrawBrowserSurface`, keyboard capture could remain disabled even though retail would already route input to the WebUI.
+
+Fix implemented:
+
+- `QLWebCore_Update` now arms `KEYCATCH_BROWSER` from browser-active state alone, matching the retail `sub_4f2590` condition.
+- The frame loop now republishes `web_browserActive` from browser-active state alone.
+- Fullscreen browser drawing still remains protected by the existing visible-surface checks, so blank-surface presentation behavior is unchanged.
+
 ## 2026-05-25 WebView bootstrap slot reconstruction
 
 Retail evidence:

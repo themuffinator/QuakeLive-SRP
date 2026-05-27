@@ -86,6 +86,7 @@
 #define SERVERINFO_KEY_VOTEFLAGS "g_voteFlags"
 #define SERVERINFO_KEY_MAXCLIENTS "sv_maxclients"
 #define SERVERINFO_KEY_TEAMSIZE "teamsize"
+#define SERVERINFO_KEY_WEAPON_RESPAWN "g_weaponRespawn"
 #define SERVERINFO_KEY_LOADOUT "loadout"
 #define SERVERINFO_KEY_LEGACY_LOADOUT "g_loadout"
 #define SERVERINFO_KEY_FACTORY_TITLE "g_factoryTitle"

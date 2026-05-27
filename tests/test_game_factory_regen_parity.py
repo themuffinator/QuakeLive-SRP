@@ -206,6 +206,7 @@ def test_factory_item_respawn_cvar_table_matches_retail_defaults_and_flags() -> 
 	for expected in (
 		"#define DEFAULT_AMMO_PACK_TOGGLE           0",
 		"#define DEFAULT_AMMO_PACK_HACK             0",
+		"#define DEFAULT_WEAPON_RESPAWN_SECONDS     5",
 		"#define DEFAULT_AMMO_RESPAWN_SECONDS       40",
 		"#define DEFAULT_POWERUP_RESPAWN_SECONDS    120",
 		"#define DEFAULT_SPAWN_ITEM_POWERUP                  1",
@@ -507,6 +508,7 @@ def test_factory_apply_resets_factory_managed_cvars_before_overrides() -> None:
 	assert 'trap_Cvar_Set( "g_runes", STRINGIZE( DEFAULT_FACTORY_RUNES ) );' in config_c
 	assert 'trap_Cvar_Set( "g_ammoPack", STRINGIZE( DEFAULT_AMMO_PACK_TOGGLE ) );' in config_c
 	assert 'trap_Cvar_Set( "g_ammoPackHack", STRINGIZE( DEFAULT_AMMO_PACK_HACK ) );' in config_c
+	assert 'trap_Cvar_Set( "g_weaponRespawn", STRINGIZE( DEFAULT_WEAPON_RESPAWN_SECONDS ) );' in config_c
 	assert 'trap_Cvar_Set( "g_ammoRespawn", STRINGIZE( DEFAULT_AMMO_RESPAWN_SECONDS ) );' in config_c
 	assert 'trap_Cvar_Set( "g_regenHealth", STRINGIZE( DEFAULT_REGEN_HEALTH_DELAY_MILLISECONDS ) );' in config_c
 	assert 'trap_Cvar_Set( "g_spawnItemPowerup", STRINGIZE( DEFAULT_SPAWN_ITEM_POWERUP ) );' in config_c
@@ -578,6 +580,42 @@ def test_factory_apply_refreshes_pmove_after_retail_factory_override_sequence() 
 		position = next_position
 
 	assert reload_body.index("G_InitWeaponReloadConfig();") < reload_body.index("G_RefreshPmoveSettings();")
+
+
+def test_weapon_respawn_zero_drives_retail_weapon_stay_pickup_path() -> None:
+	bg_misc = _read("src/code/game/bg_misc.c")
+	g_items = _read("src/code/game/g_items.c")
+	cg_servercmds = _read("src/code/cgame/cg_servercmds.c")
+	keys_h = _read("src/game/match_state_keys.h")
+	qagame_hlil = _read(
+		"references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+	)
+	cgame_hlil = _read(
+		"references/hlil/quakelive/cgamex86.dll/cgamex86.dll_hlil_split/cgamex86.dll_hlil_part01.txt"
+	)
+	cgame_strings = _read(
+		"references/hlil/quakelive/cgamex86.dll/cgamex86.dll_hlil_split/cgamex86.dll_hlil_part02.txt"
+	)
+	pickup_weapon_body = _function_body(g_items, "int Pickup_Weapon (gentity_t *ent, gentity_t *other)")
+
+	assert "1004e95d  if (data_1059c4ac == 0)" in qagame_hlil
+	assert "1004e9fe  if (data_1059c4ac == 0 && *(arg3 + 0xac) == 0)" in qagame_hlil
+	assert "1004eab0  return data_1059c4ac" in qagame_hlil
+	assert '10071aac  char const data_10071aac[0x10] = "g_weaponRespawn", 0' in cgame_strings
+	assert "if (arg5 != 0 || (*(arg1 + 0xcc) & 1 << ecx.b) == 0" in cgame_hlil
+
+	assert "#define SERVERINFO_KEY_WEAPON_RESPAWN \"g_weaponRespawn\"" in keys_h
+	assert "weaponRespawnValue = Info_ValueForKey( info, SERVERINFO_KEY_WEAPON_RESPAWN );" in cg_servercmds
+	assert 'trap_Cvar_Set( "g_weaponRespawn", weaponRespawnValue );' in cg_servercmds
+	assert "static qboolean BG_IsWeaponsStayEnabled( void ) {" in bg_misc
+	assert 'trap_Cvar_VariableValue( "g_weaponRespawn" ) == 0.0f' in bg_misc
+	assert "return ( g_weaponRespawn.integer == 0 ) ? qtrue : qfalse;" in bg_misc
+	assert "if ( !BG_IsWeaponsStayEnabled() ) {\n\t\treturn qtrue;\n\t}" in bg_misc
+	assert "return ( ps->ammo[weapon] == 0 ) ? qtrue : qfalse;" in bg_misc
+	assert "if ( g_weaponRespawn.integer == 0 && !( ent->flags & FL_DROPPED_ITEM )" in pickup_weapon_body
+	assert "&& other->client->ps.ammo[weapon] != 0 ) {" in pickup_weapon_body
+	assert "other->client->ps.ammo[weapon] = ent->item->quantity;" in pickup_weapon_body
+	assert "return g_weaponRespawn.integer;" in pickup_weapon_body
 
 
 def test_factory_pmove_reset_tracks_every_nonlocal_pmove_input_surface() -> None:

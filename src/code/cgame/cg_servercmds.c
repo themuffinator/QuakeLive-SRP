@@ -2682,6 +2682,7 @@ void CG_ParseServerinfo( void ) {
 	qboolean	mapVotingDisabled;
 	const char	*serverLoadout;
 	const char	*voteFlagsString;
+	const char	*weaponRespawnValue;
 	int		voteFlags;
 
 	info = CG_ConfigString( CS_SERVERINFO );
@@ -2720,6 +2721,11 @@ void CG_ParseServerinfo( void ) {
 		trap_Cvar_Set( "ui_endMapVotingDisabled", endMapVotingDisabled ? "1" : "0" );
 	}
 	cgs.maxclients = atoi( Info_ValueForKey( info, SERVERINFO_KEY_MAXCLIENTS ) );
+	weaponRespawnValue = Info_ValueForKey( info, SERVERINFO_KEY_WEAPON_RESPAWN );
+	if ( !weaponRespawnValue || !weaponRespawnValue[0] ) {
+		weaponRespawnValue = "5";
+	}
+	trap_Cvar_Set( "g_weaponRespawn", weaponRespawnValue );
 
 	{
 		const char	*playerCountTeamSizeValue;

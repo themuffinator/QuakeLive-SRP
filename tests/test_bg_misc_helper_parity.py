@@ -281,11 +281,13 @@ def test_weapon_pickup_helper_restores_the_retail_world_weapon_regrab_gate() -> 
 	assert "if ( ps->pm_flags & PMF_IRONSIGHTS ) {" in body
 	assert "if ( dropped ) {" in body
 	assert "weapon = BG_WeaponForItemTag( item->giTag );" in body
+	assert "if ( !BG_IsWeaponsStayEnabled() ) {" in body
+	assert "return qtrue;" in body
 	assert "if ( !( ps->stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {" in body
 	assert "(void)gametype;" in body
 	assert "(void)currentTime;" in body
 	assert "(void)ent;" in body
-	assert "return ( ps->ammo[weapon] <= 0 ) ? qtrue : qfalse;" in body
+	assert "return ( ps->ammo[weapon] == 0 ) ? qtrue : qfalse;" in body
 
 
 def test_trajectory_evaluators_keep_the_retail_type_six_acceleration_path() -> None:

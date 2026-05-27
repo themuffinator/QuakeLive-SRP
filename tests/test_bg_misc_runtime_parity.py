@@ -37,6 +37,7 @@ C_SOURCE = r"""
 #endif
 
 vmCvar_t g_armorTiered;
+vmCvar_t g_weaponRespawn;
 
 typedef struct {
 	trajectory_t	tr;
@@ -173,6 +174,9 @@ QLR_EXPORT int QLR_CanGrabRocketLauncherCase(
 	if ( ironsights ) {
 		ps.pm_flags |= PMF_IRONSIGHTS;
 	}
+#ifdef QAGAME
+	g_weaponRespawn.integer = 0;
+#endif
 
 	ent.modelindex = itemIndex;
 	ent.modelindex2 = dropped ? 1 : 0;
@@ -180,6 +184,43 @@ QLR_EXPORT int QLR_CanGrabRocketLauncherCase(
 	ent.time2 = dropTime;
 
 	return BG_CanItemBeGrabbed( GT_FFA, currentTime, &ent, &ps ) ? 1 : 0;
+}
+
+/*
+=============
+QLR_CanGrabRocketLauncherCaseWithRespawn
+
+Runs the weapon pickup gate with an explicit g_weaponRespawn value.
+=============
+*/
+QLR_EXPORT int QLR_CanGrabRocketLauncherCaseWithRespawn(
+	int ownsWeapon,
+	int ammoCount,
+	int weaponRespawn
+) {
+	playerState_t	ps;
+	entityState_t	ent;
+	int		itemIndex;
+
+	memset( &ps, 0, sizeof( ps ) );
+	memset( &ent, 0, sizeof( ent ) );
+
+	itemIndex = QLR_FindItemIndexByClassname( "weapon_rocketlauncher" );
+	if ( itemIndex < 0 ) {
+		return -1;
+	}
+
+	if ( ownsWeapon ) {
+		ps.stats[STAT_WEAPONS] |= ( 1 << WP_ROCKET_LAUNCHER );
+	}
+	ps.ammo[WP_ROCKET_LAUNCHER] = ammoCount;
+#ifdef QAGAME
+	g_weaponRespawn.integer = weaponRespawn;
+#endif
+
+	ent.modelindex = itemIndex;
+
+	return BG_CanItemBeGrabbed( GT_FFA, 0, &ent, &ps ) ? 1 : 0;
 }
 
 /*
@@ -371,6 +412,12 @@ def bg_misc_library(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
 		ctypes.c_int,
 	]
 	library.QLR_CanGrabRocketLauncherCase.restype = ctypes.c_int
+	library.QLR_CanGrabRocketLauncherCaseWithRespawn.argtypes = [
+		ctypes.c_int,
+		ctypes.c_int,
+		ctypes.c_int,
+	]
+	library.QLR_CanGrabRocketLauncherCaseWithRespawn.restype = ctypes.c_int
 
 	library.QLR_CanGrabHealthCase.argtypes = [
 		ctypes.c_int,
@@ -455,6 +502,9 @@ def test_can_item_be_grabbed_keeps_the_normal_weapon_and_health_gates(
 
 	assert bg_misc_library.QLR_CanGrabRocketLauncherCase(1, 10, 0, 0, 0, 0, 0) == 0
 	assert bg_misc_library.QLR_CanGrabRocketLauncherCase(1, 0, 0, 0, 0, 0, 0) == 1
+	assert bg_misc_library.QLR_CanGrabRocketLauncherCaseWithRespawn(1, 10, 5) == 1
+	assert bg_misc_library.QLR_CanGrabRocketLauncherCaseWithRespawn(1, 10, 0) == 0
+	assert bg_misc_library.QLR_CanGrabRocketLauncherCaseWithRespawn(1, -1, 0) == 0
 	assert bg_misc_library.QLR_CanGrabRocketLauncherCase(0, 0, 1, 0, 0, 0, 0) == 0
 	assert bg_misc_library.QLR_CanGrabRocketLauncherCase(0, 0, 0, 1, 1, 1500, 1000) == 0
 	assert bg_misc_library.QLR_CanGrabRocketLauncherCase(0, 0, 0, 1, 1, 2000, 1000) == 1

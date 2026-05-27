@@ -1535,6 +1535,13 @@ int Pickup_Weapon (gentity_t *ent, gentity_t *other) {
 	weapon = ent->item ? BG_WeaponForItemTag( ent->item->giTag ) : WP_NONE;
 	basePickup = G_GetAmmoPackPickupCount( weapon, ent->item ? ent->item->quantity : 0 );
 
+	if ( g_weaponRespawn.integer == 0 && !( ent->flags & FL_DROPPED_ITEM )
+		&& weapon > WP_NONE && weapon < WP_NUM_WEAPONS
+		&& ( other->client->ps.stats[STAT_WEAPONS] & ( 1 << weapon ) )
+		&& other->client->ps.ammo[weapon] != 0 ) {
+		return 0;
+	}
+
 	if ( ent->count < 0 ) {
 		quantity = 0; // None for you, sir!
 	} else if ( ent->count > 0 ) {
@@ -1564,6 +1571,11 @@ int Pickup_Weapon (gentity_t *ent, gentity_t *other) {
 	other->client->ps.stats[STAT_WEAPONS] |= ( 1 << weapon );
 
 	Add_Ammo( other, weapon, quantity );
+
+	if ( g_weaponRespawn.integer == 0 && !( ent->flags & FL_DROPPED_ITEM )
+		&& weapon > WP_NONE && weapon < WP_NUM_WEAPONS && ent->item ) {
+		other->client->ps.ammo[weapon] = ent->item->quantity;
+	}
 
 	if ( weapon == WP_GRAPPLING_HOOK ) {
 		other->client->ps.ammo[weapon] = -1; // unlimited ammo

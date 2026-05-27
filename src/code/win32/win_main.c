@@ -49,6 +49,8 @@ static char		sys_cmdline[MAX_STRING_CHARS];
 static char		sys_dumpPath[MAX_OSPATH];
 static LONG		sys_crashHandled;
 static LPTOP_LEVEL_EXCEPTION_FILTER	sys_previousExceptionFilter;
+static HHOOK	sys_winkeyHook;
+static cvar_t	*sys_winkeyDisable;
 
 #ifndef DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
 #define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2	((HANDLE)-4)
@@ -100,6 +102,55 @@ static void Sys_EnableDpiAwareness( void )
 	if ( loadedUser32 )
 	{
 		FreeLibrary( user32 );
+	}
+}
+
+/*
+==================
+Sys_WinkeyHookProc
+
+Optionally swallows the Windows keys while the client is running.
+==================
+*/
+static LRESULT CALLBACK Sys_WinkeyHookProc( int nCode, WPARAM wParam, LPARAM lParam ) {
+	const KBDLLHOOKSTRUCT	*key;
+
+	if ( nCode < 0 ) {
+		return CallNextHookEx( sys_winkeyHook, nCode, wParam, lParam );
+	}
+
+	if ( nCode == HC_ACTION
+		&& sys_winkeyDisable
+		&& sys_winkeyDisable->integer
+		&& ( wParam == WM_SYSKEYDOWN || wParam == WM_KEYDOWN ) ) {
+		key = (const KBDLLHOOKSTRUCT *)lParam;
+		if ( key->vkCode == VK_LWIN || key->vkCode == VK_RWIN ) {
+			return 1;
+		}
+	}
+
+	return CallNextHookEx( sys_winkeyHook, nCode, wParam, lParam );
+}
+
+/*
+==================
+Sys_InitWinkeyHook
+==================
+*/
+static void Sys_InitWinkeyHook( void ) {
+	sys_winkeyHook = SetWindowsHookExA( WH_KEYBOARD_LL, Sys_WinkeyHookProc, g_wv.hInstance, 0 );
+	sys_winkeyDisable = Cvar_Get( "winkey_disable", "0", CVAR_CLOUD );
+}
+
+/*
+==================
+Sys_ShutdownWinkeyHook
+==================
+*/
+static void Sys_ShutdownWinkeyHook( void ) {
+	if ( sys_winkeyHook ) {
+		UnhookWindowsHookEx( sys_winkeyHook );
+		sys_winkeyHook = NULL;
 	}
 }
 
@@ -190,6 +241,7 @@ void QDECL Sys_Error( const char *error, ... ) {
 	timeEndPeriod( 1 );
 
 	IN_Shutdown();
+	Sys_ShutdownWinkeyHook();
 
 	// wait for the user to quit
 	while ( 1 ) {
@@ -212,6 +264,7 @@ Sys_Quit
 void Sys_Quit( void ) {
 	timeEndPeriod( 1 );
 	IN_Shutdown();
+	Sys_ShutdownWinkeyHook();
 	Sys_DestroyConsole();
 
 	exit (0);
@@ -1895,6 +1948,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if ( !com_dedicated->integer && !com_viewlog->integer ) {
 		Sys_ShowConsole( 0, qfalse );
 	}
+
+	Sys_InitWinkeyHook();
 
     // main game loop
 	while( 1 ) {

@@ -41,6 +41,49 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A113: Reconstruct application initialization host wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/win32/win_main.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_application_initialization_mapping.py`,
+`docs/reverse-engineering/application-initialization-wiring-reconstruction-2026-05-27.md`
+Parity estimate: **before 96.5% -> after 98.0%** for the scoped
+application-initialization wiring lane. The repo-wide parity estimate remains
+**98%**.
+
+Completed work:
+
+1. Rechecked `WinMain @ 0x004ED830`, `Com_Init @ 0x004CBFD0`,
+   `Sys_Init @ 0x004ED400`, `NET_Init @ 0x004EF320`,
+   `CL_Init @ 0x004BC690`, `SV_Init @ 0x004E3AD0`, and the adjacent ZMQ/browser
+   startup handoffs against Binary Ninja HLIL with Ghidra metadata support.
+2. Promoted `sub_4EC580` to `Sys_WinkeyHookProc` and reconstructed the
+   WinMain-owned low-level keyboard hook that gates `VK_LWIN` / `VK_RWIN`
+   behind `winkey_disable`.
+3. Added shutdown unhook wiring to both `Sys_Error` and `Sys_Quit`, matching
+   the retail unhook sites in the error and normal-exit paths.
+4. Documented policy-aware startup divergences for Steam, ZMQ, and Awesomium
+   so Quake Live-only online services remain behind the repository's disabled
+   defaults.
+5. Added static parity coverage for the retail owner map, host call order,
+   hook predicate, shutdown unhook, and policy-adjusted common/client/server
+   startup wiring.
+
+Verification:
+
+- `python -m pytest tests/test_application_initialization_mapping.py -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_renderer_win32_host_glue_parity.py tests/test_win32_raw_input_parity.py tests/test_engine_client_command_parity.py -q --tb=short`
+  - Result: `46 passed`.
+- `python -m pytest tests/test_platform_services.py::test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycle tests/test_platform_services.py::test_client_browser_host_core_reconstructs_retained_runtime_owner tests/test_platform_services.py::test_server_zmq_runtime_reconstructs_retail_publication_and_rcon_owners -q --tb=short`
+  - Result: `3 passed`.
+- `python -m pytest tests/test_awesomium_browser_parity.py::test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_contract tests/test_awesomium_browser_parity.py::test_awesomium_view_callbacks_reconstruct_tooltip_and_console_contracts -q --tb=short`
+  - Result: `2 passed`.
+- `MSBuild.exe src\code\quakelive_steam.vcxproj /p:Configuration=Debug /p:Platform=Win32 /m /v:minimal`
+  - Result: succeeded; existing `cl_cgame.c` unused-local warnings were reported.
+- `git diff --check`
+  - Result: clean; only Git line-ending normalization warnings were reported.
+
 ### Task A112: Retire generated UI bridge menu assets [COMPLETED]
 Priority: High
 Primary areas: `src/code/ui/ui_main.c`, `src/code/ui/ui_atoms.c`,

@@ -290,17 +290,17 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 	cl_awesomium = _read_text(CL_AWESOMIUM_WIN32_PATH)
 
 	load_block = _extract_function_block(
-		cl_awesomium, "static qboolean CL_Awesomium_LoadImports( void ) {"
+		cl_awesomium, "static qboolean CL_Awesomium_LoadImports( const char *runtimePath, const char *basePath ) {"
 	)
 	count_bootstrap_block = _extract_function_block(
 		cl_awesomium, "static int CL_Awesomium_CountBootstrapRetailMappings( void ) {"
 	)
 	prepare_config_block = _extract_function_block(
 		cl_awesomium,
-		"static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char *playerName, unsigned int appId, unsigned int steamIdLow, unsigned int steamIdHigh ) {",
+		"static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char *basePath, const char *playerName, unsigned int appId, unsigned int steamIdLow, unsigned int steamIdHigh ) {",
 	)
 	create_session_block = _extract_function_block(
-		cl_awesomium, "static qboolean CL_Awesomium_CreateSession( const char *runtimePath ) {"
+		cl_awesomium, "static qboolean CL_Awesomium_CreateSession( const char *runtimePath, const char *basePath ) {"
 	)
 	startup_block = _extract_function_block(
 		cl_awesomium,
@@ -362,7 +362,7 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'{ 0x004F27C0u, 0xd4u, "WebView::InjectMouseDown", "CL_Awesomium_InjectMouseDown", "_Awe_WebView_InjectMouseDown@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
 		'{ 0x004F2820u, 0xd8u, "WebView::InjectMouseUp", "CL_Awesomium_InjectMouseUp", "_Awe_WebView_InjectMouseUp@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
 		'{ 0x004F2870u, 0xdcu, "WebView::InjectMouseWheel", "CL_Awesomium_InjectMouseWheel", "_Awe_WebView_InjectMouseWheel@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
-		'{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "QLWebView_InjectKeyboardEvent", "cl_cgame.c field model", CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD },',
+		'{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_WebView_InjectKeyboardEvent@16", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
 	):
 		assert expected in cl_awesomium
 
@@ -377,9 +377,16 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },',
 		'{ 0x004F2D30u, 0x00000010u, "WebSession::AddDataSource slot 0x10", "CL_Awesomium_CreateSession", "_Awe_WebSession_AddDataSource@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00000004u, "WebCore::CreateWebView slot 0x04", "CL_Awesomium_Startup", "_Awe_WebCore_CreateWebView_0@20", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000A0u, "WebView::set_transparent slot 0xA0", "CL_Awesomium_Startup", "_Awe_WebView_set_transparent@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00000064u, "WebView::LoadURL slot 0x64", "CL_Awesomium_OpenURL", "_Awe_WebView_LoadURL@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
-		'{ 0x004F2D30u, 0x000000ACu, "WebView::Focus slot 0xAC", "CL_Awesomium_OpenURL", "_Awe_WebView_Focus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
-		'{ 0x004F2D30u, 0x000000C4u, "WebView::surface slot 0xC4", "CL_Awesomium_Surface", "_Awe_WebView_surface@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F24D0u, 0x000000A8u, "WebView::PauseRendering slot 0xA8", "CL_Awesomium_PauseRendering", "_Awe_WebView_PauseRendering@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000ACu, "WebView::ResumeRendering slot 0xAC", "CL_Awesomium_OpenURL", "_Awe_WebView_ResumeRendering@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000B0u, "WebView::Focus slot 0xB0", "CL_Awesomium_OpenURL", "_Awe_WebView_Focus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F24D0u, 0x000000B4u, "WebView::Unfocus slot 0xB4", "CL_Awesomium_Unfocus", "_Awe_WebView_Unfocus@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000C4u, "WebView::SetZoom slot 0xC4", "CL_Awesomium_SetZoom", "_Awe_WebView_SetZoom@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x00000124u, "WebView::ExecuteJavascript slot 0x124", "CL_Awesomium_ExecuteJavascript", "_Awe_WebView_ExecuteJavascript@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x0000012Cu, "WebView::set_js_method_handler slot 0x12C", "CL_Awesomium_BuildStartupScript", "qz_instance startup bridge", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },',
+		'{ 0x004F2D30u, 0x00000084u, "WebView::surface slot 0x84", "CL_Awesomium_Surface", "_Awe_WebView_surface@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2A60u, 0x00000000u, "WebView::Destroy slot 0x00", "CL_Awesomium_Shutdown", "_Awe_WebView_Destroy@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2A60u, 0x0052C684u, "WebCore::Shutdown", "CL_Awesomium_Shutdown", "_Awe_WebCore_Shutdown@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 	):
@@ -411,29 +418,42 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 
 	assert "for ( i = 0; cl_aweBootstrapRetailMappings[i].retailMember; i++ ) {" in count_bootstrap_block
 	assert "cl_aweBootstrapRetailMappings[i].retailOwnerAddress != 0u" in count_bootstrap_block
+	assert 'cl_awesomium.module = CL_Awesomium_LoadLibraryCandidate( "awesomium.dll", loadError, sizeof( loadError ) );' in load_block
+	assert 'CL_Awesomium_AppendPath( libraryPath, sizeof( libraryPath ), runtimePath, "awesomium.dll" );' in load_block
+	assert 'CL_Awesomium_AppendPath( libraryPath, sizeof( libraryPath ), basePath, "awesomium.dll" );' in load_block
 	assert "cl_awesomium.bootstrapMappingCount = CL_Awesomium_CountBootstrapRetailMappings();" in load_block
 
 	for expected in (
 		"char childProcessPath[MAX_PATH];",
 		"char logPath[MAX_PATH];",
 		"char packagePath[MAX_PATH];",
-		"char userScript[4096];",
-		'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), runtimePath, "awesomium_process.exe" );',
-		'CL_Awesomium_AppendPath( logPath, sizeof( logPath ), runtimePath, "awesomium.log" );',
-		'CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), runtimePath, "web.pak" );',
-		"CL_Awesomium_BuildUserScript( userScript, sizeof( userScript ), playerName, appId, steamIdLow, steamIdHigh );",
+		"char packageRoot[MAX_PATH];",
+		"const char *sessionPath;",
+		"const char *assetsPath;",
+		"sessionPath = runtimePath;",
+		"assetsPath = basePath && basePath[0] ? basePath : runtimePath;",
+		'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), assetsPath, "awesomium_process.exe" );',
+		'CL_Awesomium_AppendPath( logPath, sizeof( logPath ), sessionPath, "awesomium.log" );',
+		'CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), assetsPath, "web.pak" );',
+		'CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), sessionPath, "web.pak" );',
+		'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), sessionPath, "awesomium_process.exe" );',
+		"CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh );",
 		'!CL_Awesomium_SetConfigString( cl_awe.webConfigAssetProtocolSet, cl_awesomium.webConfig, "asset" )',
 		"!CL_Awesomium_SetConfigString( cl_awe.webConfigChildProcessPathSet, cl_awesomium.webConfig, childProcessPath )",
 		"!CL_Awesomium_SetConfigString( cl_awe.webConfigLogPathSet, cl_awesomium.webConfig, logPath )",
-		"!CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packagePath )",
-		"!CL_Awesomium_SetConfigString( cl_awe.webConfigUserScriptSet, cl_awesomium.webConfig, userScript )",
+		"!CL_Awesomium_SetConfigString( cl_awe.webConfigPackagePathSet, cl_awesomium.webConfig, packageRoot )",
+		"!CL_Awesomium_SetConfigString( cl_awe.webConfigUserScriptSet, cl_awesomium.webConfig, cl_awesomium.startupScript )",
 	):
 		assert expected in prepare_config_block
 	assert "(void)runtimePath;" not in prepare_config_block
+	assert "(void)basePath;" not in prepare_config_block
 	assert "(void)playerName;" not in prepare_config_block
 
 	assert 'cl_awesomium.webSession = cl_awe.webCoreCreateWebSession( cl_awesomium.webCore, dataPath, cl_awesomium.webPreferences );' in create_session_block
-	assert 'pakName = CL_Awesomium_AllocWideString( "web.pak" );' in create_session_block
+	assert "assetsPath = basePath && basePath[0] ? basePath : runtimePath;" in create_session_block
+	assert 'CL_Awesomium_AppendPath( pakPath, sizeof( pakPath ), assetsPath, "web.pak" );' in create_session_block
+	assert 'CL_Awesomium_AppendPath( pakPath, sizeof( pakPath ), sessionPath, "web.pak" );' in create_session_block
+	assert 'pakName = CL_Awesomium_AllocWideString( pakPath );' in create_session_block
 	assert "cl_awesomium.dataPakSource = cl_awe.newDataPakSource( pakName );" in create_session_block
 	assert 'sourceName = CL_Awesomium_AllocWideString( "QL" );' in create_session_block
 	assert "cl_awe.webSessionAddDataSource( cl_awesomium.webSession, sourceName, cl_awesomium.dataPakSource );" in create_session_block

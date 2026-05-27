@@ -2207,7 +2207,7 @@ static void QLWebCore_Update( void ) {
 	}
 #endif
 
-	if ( cl_webHost.browserActive && cl_webHost.surfacePresented && !( cls.keyCatchers & KEYCATCH_BROWSER ) ) {
+	if ( cl_webHost.browserActive && !( cls.keyCatchers & KEYCATCH_BROWSER ) ) {
 		cls.keyCatchers |= KEYCATCH_BROWSER;
 	}
 
@@ -5379,7 +5379,7 @@ void CL_WebHost_Frame( void ) {
 			cl_webHost.focused = qtrue;
 		}
 
-		Cvar_Set( "web_browserActive", ( cl_webHost.browserActive && cl_webHost.surfacePresented ) ? "1" : "0" );
+		Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );
 	} else if ( cl_webHost.browserVisible || cl_webHost.browserActive ) {
 		QLWebHost_HideBrowser();
 		Cvar_Set( "web_browserActive", "0" );
