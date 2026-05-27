@@ -102,7 +102,8 @@ def test_hosted_nightly_uses_preinstalled_vs2022_toolset() -> None:
 	assert "--asset-output-root artifacts/nightly/release-assets" in nightly_workflow
 	assert "gh release create" in nightly_workflow
 	assert "gh release upload" in nightly_workflow
-	assert "--prerelease" in nightly_workflow
+	assert "--prerelease" not in nightly_workflow
+	assert "prerelease=false" in nightly_workflow
 	assert "nightly-release-manifest.json" in nightly_workflow
 	assert "SHA256SUMS.txt" in nightly_workflow
 	assert "release-notes.md" in nightly_workflow
@@ -132,6 +133,8 @@ def test_hosted_nightly_uses_preinstalled_vs2022_toolset() -> None:
 	assert "RELEASE_PACKAGE_SUFFIXES" in nightly_build
 	assert "def is_release_package" in nightly_build
 	assert "def stage_release_asset" in nightly_build
+	assert "build/re/windows" not in nightly_build
+	assert "clean-room" not in nightly_build
 	assert '"nightly-release-manifest.json"' in nightly_build
 	assert '"SHA256SUMS.txt"' in nightly_build
 	assert "hosted-compatible `v143` toolset" in toolchain_ci

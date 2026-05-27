@@ -272,9 +272,6 @@ def copy_required_outputs(repo_root: Path, stage_root: Path, configuration: str)
 
 def copy_optional_globs(repo_root: Path, stage_root: Path) -> list[dict]:
     copied: list[dict] = []
-    for source in sorted((repo_root / "build/re/windows").glob("*.dll")):
-        copied.append(copy_artifact(source, stage_root / "clean-room" / source.name, stage_root))
-
     ui_bundle = repo_root / "artifacts/ui_bundle/pak_uiql.pk3"
     if ui_bundle.exists():
         copied.append(copy_artifact(ui_bundle, stage_root / "baseq3/pak_uiql.pk3", stage_root))
@@ -571,7 +568,7 @@ def release_notes(args: argparse.Namespace) -> int:
             "",
             "## Notes",
             "",
-            "These packages contain rebuilt project outputs only. They do not include retail pk3 files, proprietary launcher DLL payloads, Steam credentials, or live-service material.",
+            "These packages contain rebuilt project outputs only. They do not include retail pk3 files, proprietary launcher DLL payloads, reverse-engineering comparison DLLs, Steam credentials, or live-service material.",
         ]
     )
 

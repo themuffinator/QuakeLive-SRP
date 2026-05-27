@@ -240,17 +240,18 @@ jobs:
             gh release edit "${RELEASE_TAG}" \
               --target "${RELEASE_TARGET}" \
               --title "${RELEASE_TITLE}" \
-              --notes-file artifacts/nightly/release-notes.md \
-              --prerelease
+              --notes-file artifacts/nightly/release-notes.md
             gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
           else
             gh release create "${RELEASE_TAG}" "${assets[@]}" \
               --target "${RELEASE_TARGET}" \
               --title "${RELEASE_TITLE}" \
               --notes-file artifacts/nightly/release-notes.md \
-              --prerelease \
               --latest=false
           fi
+
+          release_id="$(gh release view "${RELEASE_TAG}" --json databaseId --jq .databaseId)"
+          gh api --method PATCH "/repos/${GITHUB_REPOSITORY}/releases/${release_id}" -f prerelease=false
 
       - name: Publish nightly release manifest
         uses: actions/upload-artifact@v4

@@ -17,10 +17,10 @@ validation surface: bytecode, native, and reverse-engineered targets.
   native outputs, builds the Windows `v143` modern compatibility profile,
   generates a manifest version like `nightly-YYYYMMDD.<run>-g<shortsha>`,
   uploads versioned workflow artifacts for 30 days, and creates or updates a
-  prerelease GitHub Release containing the Linux tarball, macOS tarball,
-  Windows zip, release manifest, checksum file, version manifest, and release
-  notes. The package excludes retail pk3 files, retail launcher DLL payloads,
-  and any live-service credentials.
+  GitHub Release containing the Linux tarball, macOS tarball, Windows zip,
+  release manifest, checksum file, version manifest, and release notes. The
+  package excludes retail pk3 files, retail launcher DLL payloads, reverse
+  clean-room comparison DLLs, and any live-service credentials.
 
 ## Matrix jobs
 

@@ -180,7 +180,7 @@ The current hosted layer starts with two repo-wide workflows:
   Windows `v143` modern compatibility package. A prepare job generates the
   shared `artifacts/nightly/version.json`, each platform package uses that
   version in its archive name, and a final publish job creates or updates a
-  prerelease GitHub Release with the Linux tarball, macOS tarball, Windows zip,
+  GitHub Release with the Linux tarball, macOS tarball, Windows zip,
   `nightly-release-manifest.json`, `SHA256SUMS.txt`, `version.json`, and
   release notes. The Windows artifact carries manifests and checksums but
   intentionally excludes retail payloads and credentials; the POSIX jobs publish
