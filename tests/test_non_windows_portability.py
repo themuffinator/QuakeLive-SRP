@@ -631,6 +631,12 @@ def test_posix_native_builds_cover_linux_and_macos_ci() -> None:
 	assert "defined __x86_64__ || defined __aarch64__" in unix_shared
 	assert "void SteamClient_Init( void ) {" in null_client
 
+	q_shared = _read_text(REPO_ROOT / "src" / "code" / "game" / "q_shared.h")
+	bg_lib = _read_text(REPO_ROOT / "src" / "code" / "game" / "bg_lib.c")
+	assert "#if idppc" in q_shared
+	assert '#define CPUSTRING\t"MacOSX-arm64"' in q_shared
+	assert 'defined( __APPLE__ )' in bg_lib
+
 	assert "PLATFORM_NAME=\"linux\"" in cleanroom_build_script
 	assert "PLATFORM_NAME=\"macos\"" in cleanroom_build_script
 

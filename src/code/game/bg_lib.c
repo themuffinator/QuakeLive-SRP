@@ -9,7 +9,7 @@
 #pragma function( memmove )
 #endif
 
-#if defined( _MSC_VER ) && !defined( Q3_VM ) && _MSC_VER >= 1900
+#if !defined( Q3_VM ) && ( ( defined( _MSC_VER ) && _MSC_VER >= 1900 ) || defined( __APPLE__ ) )
 #define BG_LIB_USE_NATIVE_CRT_STDLIB 1
 #else
 #define BG_LIB_USE_NATIVE_CRT_STDLIB 0

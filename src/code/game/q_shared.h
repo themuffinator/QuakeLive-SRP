@@ -199,12 +199,18 @@ static ID_INLINE float BigFloat(const float *l) { return FloatSwap(l); }
 #define CPUSTRING	"MacOSX-ppc"
 #elif defined __i386__
 #define CPUSTRING	"MacOSX-i386"
+#elif defined __x86_64__
+#define CPUSTRING	"MacOSX-x86_64"
+#elif defined __aarch64__
+#define CPUSTRING	"MacOSX-arm64"
 #else
 #define CPUSTRING	"MacOSX-other"
 #endif
 
 #define	PATH_SEP	'/'
 
+#if defined(powerc) || defined(powerpc) || defined(ppc) || defined(__ppc) || defined(__ppc__)
+#if idppc
 #define __rlwimi(out, in, shift, maskBegin, maskEnd) asm("rlwimi %0,%1,%2,%3,%4" : "=r" (out) : "r" (in), "i" (shift), "i" (maskBegin), "i" (maskEnd))
 #define __dcbt(addr, offset) asm("dcbt %0,%1" : : "b" (addr), "r" (offset))
 
@@ -229,6 +235,7 @@ static inline float __fctiw(register float f) {
 
     return fi;
 }
+#endif
 
 #define BigShort
 static inline short LittleShort(short l) { return ShortSwap(l); }
@@ -236,6 +243,29 @@ static inline short LittleShort(short l) { return ShortSwap(l); }
 static inline int LittleLong (int l) { return LongSwap(l); }
 #define BigFloat
 static inline float LittleFloat (const float l) { return FloatSwap(&l); }
+#else
+/*
+================
+BigShort
+================
+*/
+static ID_INLINE short BigShort( short l) { return ShortSwap(l); }
+#define LittleShort
+/*
+================
+BigLong
+================
+*/
+static ID_INLINE int BigLong(int l) { return LongSwap(l); }
+#define LittleLong
+/*
+================
+BigFloat
+================
+*/
+static ID_INLINE float BigFloat(const float *l) { return FloatSwap(l); }
+#define LittleFloat
+#endif
 
 #endif
 
