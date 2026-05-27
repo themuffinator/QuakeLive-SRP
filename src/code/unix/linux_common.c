@@ -33,6 +33,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <unistd.h>   // AH - for size_t
 #include <string.h>
 
+#if defined(__linux__) || defined(__FreeBSD__)
+
 // bk001207 - we need something under Linux, too. Mac?
 #if 1 // defined(C_ONLY) // bk010102 - dedicated?
 void Com_Memcpy (void* dest, const void* src, const size_t count) {
@@ -340,5 +342,7 @@ void Com_Prefetch (const void *s, const unsigned int bytes, e_prefetch type)
 		break;
 	}
 }
+
+#endif
 
 #endif
