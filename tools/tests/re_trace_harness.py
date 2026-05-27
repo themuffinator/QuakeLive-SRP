@@ -5,6 +5,7 @@ import ctypes
 import difflib
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -255,7 +256,7 @@ class _QlrGameFrameContext(ctypes.Structure):
 
 
 def _load_library(build_root: Path, name: str) -> ctypes.CDLL:
-    ext = '.dll' if os.name == 'nt' else '.so'
+    ext = '.dll' if os.name == 'nt' else ('.dylib' if sys.platform == 'darwin' else '.so')
     path = build_root / f"{name}{ext}"
     if not path.exists():
         raise FileNotFoundError(f"Clean-room library missing: {path}")

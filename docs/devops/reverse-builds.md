@@ -11,18 +11,20 @@ and CI can locate the binaries without hard-coding platform-specific paths.
 
 ### Linux / macOS
 
-Use the helper script to compile the `.so` artefacts:
+Use the helper script to compile the clean-room shared-library artefacts:
 
 ```bash
 ./tools/ci/build-cleanroom.sh
 ```
 
-Outputs are written to `build/re/linux/`. Override compiler settings with the
-following environment variables when required:
+Linux outputs are written to `build/re/linux/` with a `.so` extension. macOS
+outputs are written to `build/re/macos/` with a `.dylib` extension. Override
+compiler settings with the following environment variables when required:
 
 - `QLR_RE_CC` – alternate compiler (defaults to `gcc`).
 - `QLR_RE_CFLAGS` – additional C compiler flags (`-std=c99 -Wall -Wextra -O2 -fPIC` by default).
-- `QLR_RE_LDFLAGS` – linker flags (defaults to `-shared`).
+- `QLR_RE_LDFLAGS` – linker flags (defaults to `-shared` on Linux and `-dynamiclib` on macOS).
+- `QLR_RE_BUILD_ROOT` – alternate output directory.
 
 ### Windows
 
@@ -54,6 +56,11 @@ remains stable across runs. Expectation data lives in
 highlight regressions.
 
 ## CI expectations
+
+The hosted build workflows now compile the clean-room prototypes on both Linux
+and macOS. `Push Verification` runs Linux and macOS clean-room build jobs on
+every push, while `Nightly Build` uploads the corresponding `build/re/linux/`
+and `build/re/macos/` artefacts with 30-day retention.
 
 The `Deterministic Harnesses` workflow now includes a `Reverse` leg that runs on
 `ubuntu-latest`. It

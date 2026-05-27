@@ -173,11 +173,13 @@ To support the gameplay testing strategy, CI must offer the following automation
 The current hosted layer starts with two repo-wide workflows:
 
 - `Push Verification` runs the focused subsystem parity lanes on direct pushes,
-  publishes the existing validation roots as artifacts, and avoids runtime game
-  launches or live online-service use.
-- `Nightly Build` runs a scheduled Windows `v143` modern compatibility build,
-  generates `artifacts/nightly/version.json`, and packages rebuilt outputs into
-  a versioned artifact named from the nightly date, run number, and commit SHA.
+  publishes the existing validation roots plus Linux/macOS clean-room build
+  outputs as artifacts, and avoids runtime game launches or live online-service
+  use.
+- `Nightly Build` runs scheduled Linux/macOS clean-room builds alongside the
+  Windows `v143` modern compatibility package, generates
+  `artifacts/nightly/version.json`, and packages rebuilt Windows outputs into a
+  versioned artifact named from the nightly date, run number, and commit SHA.
   This artifact carries manifests and checksums but intentionally excludes
   retail payloads and credentials.
 

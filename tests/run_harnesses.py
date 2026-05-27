@@ -554,6 +554,8 @@ def _ensure_reverse_build(target: str, reverse_build_root: Path) -> None:
 
     if reverse_build_root.name.lower() == "windows":
         extension = ".dll"
+    elif reverse_build_root.name.lower() == "macos" or sys.platform == "darwin":
+        extension = ".dylib"
     else:
         extension = ".so"
 
@@ -581,7 +583,8 @@ def run_harness_bundle(
 
     artifact_root.mkdir(parents=True, exist_ok=True)
     if reverse_build_root is None:
-        reverse_build_root = Path("build") / "re" / ("windows" if os.name == "nt" else "linux")
+        reverse_platform = "windows" if os.name == "nt" else ("macos" if sys.platform == "darwin" else "linux")
+        reverse_build_root = Path("build") / "re" / reverse_platform
 
     _ensure_reverse_build(target, reverse_build_root)
 
@@ -641,7 +644,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--reverse-build-root",
         type=Path,
-        default=Path("build") / "re" / ("windows" if os.name == "nt" else "linux"),
+        default=Path("build") / "re" / ("windows" if os.name == "nt" else ("macos" if sys.platform == "darwin" else "linux")),
         help="Location of clean-room binaries for the trace harness.",
     )
     args = parser.parse_args(argv)

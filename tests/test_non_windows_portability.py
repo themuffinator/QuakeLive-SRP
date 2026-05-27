@@ -16,8 +16,15 @@ NULL_SNDDMA_PATH = REPO_ROOT / "src" / "code" / "null" / "null_snddma.c"
 NULL_INPUT_PATH = REPO_ROOT / "src" / "code" / "null" / "null_input.c"
 UNIX_MAKEFILE_PATH = REPO_ROOT / "src" / "code" / "unix" / "Makefile"
 LINUX_SND_PATH = REPO_ROOT / "src" / "code" / "unix" / "linux_snd.c"
+BUILD_CLEANROOM_SCRIPT_PATH = REPO_ROOT / "tools" / "ci" / "build-cleanroom.sh"
+RUN_HARNESSES_PATH = REPO_ROOT / "tests" / "run_harnesses.py"
+RE_TRACE_HARNESS_PATH = REPO_ROOT / "tools" / "tests" / "re_trace_harness.py"
+PUSH_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "push-verification.yml"
+NIGHTLY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly-build.yml"
 LINUX_GLIBC_32BIT_DOC_PATH = REPO_ROOT / "docs" / "build" / "linux-glibc-32bit.md"
 TOOLCHAIN_MATRIX_PATH = REPO_ROOT / "docs" / "platform" / "toolchain-matrix.md"
+REVERSE_BUILDS_DOC_PATH = REPO_ROOT / "docs" / "devops" / "reverse-builds.md"
+TOOLCHAIN_CI_PATH = REPO_ROOT / "docs" / "toolchain-ci.md"
 REPO_WIDE_AUDIT_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "repo-wide-parity-audit-2026-04-21.md"
 )
@@ -565,6 +572,44 @@ def test_null_runtime_shims_track_current_qcommon_contracts() -> None:
 	assert 'joy_threshold = Cvar_Get( "joy_threshold", "0.15", CVAR_ARCHIVE );' in null_input
 	assert 'Cvar_Set( "ui_joyavail", "0" );' in null_input
 	assert "void Sys_SendKeyEvents( void ) {" in null_input
+
+
+def test_posix_cleanroom_builds_cover_linux_and_macos_ci() -> None:
+	build_script = _read_text(BUILD_CLEANROOM_SCRIPT_PATH)
+	run_harnesses = _read_text(RUN_HARNESSES_PATH)
+	re_trace_harness = _read_text(RE_TRACE_HARNESS_PATH)
+	push_workflow = _read_text(PUSH_WORKFLOW_PATH)
+	nightly_workflow = _read_text(NIGHTLY_WORKFLOW_PATH)
+	reverse_builds_doc = _read_text(REVERSE_BUILDS_DOC_PATH)
+	toolchain_ci = _read_text(TOOLCHAIN_CI_PATH)
+
+	assert "PLATFORM_NAME=\"linux\"" in build_script
+	assert "PLATFORM_NAME=\"macos\"" in build_script
+	assert "SHLIB_EXT=\"so\"" in build_script
+	assert "SHLIB_EXT=\"dylib\"" in build_script
+	assert "LDFLAGS_DEFAULT=\"-shared\"" in build_script
+	assert "LDFLAGS_DEFAULT=\"-dynamiclib\"" in build_script
+	assert "build/re/${PLATFORM_NAME}" in build_script
+	assert "QLR_RE_BUILD_ROOT" in build_script
+
+	assert "sys.platform == \"darwin\"" in run_harnesses
+	assert "extension = \".dylib\"" in run_harnesses
+	assert "'.dylib' if sys.platform == 'darwin' else '.so'" in re_trace_harness
+
+	assert "posix-builds:" in push_workflow
+	assert "Linux Clean-room Build" in push_workflow
+	assert "macOS Clean-room Build" in push_workflow
+	assert "tools/ci/build-cleanroom.sh" in push_workflow
+	assert "build/re/${{ matrix.platform }}/**" in push_workflow
+
+	assert "posix-cleanroom:" in nightly_workflow
+	assert "Linux clean-room build" in nightly_workflow
+	assert "macOS clean-room build" in nightly_workflow
+	assert "nightly-${{ matrix.artifact_name }}" in nightly_workflow
+
+	assert "build/re/linux/" in reverse_builds_doc
+	assert "build/re/macos/" in reverse_builds_doc
+	assert "macOS jobs build `.dylib` outputs" in toolchain_ci
 
 
 def test_portability_docs_track_restored_low_memory_probe_and_remaining_stubs() -> None:

@@ -22,6 +22,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  posix-cleanroom:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux clean-room build
+            os: ubuntu-latest
+            platform: linux
+            artifact_name: linux-cleanroom
+          - name: macOS clean-room build
+            os: macos-latest
+            platform: macos
+            artifact_name: macos-cleanroom
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build clean-room shared objects
+        run: tools/ci/build-cleanroom.sh
+
+      - name: Upload ${{ matrix.name }} artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ matrix.artifact_name }}
+          path: build/re/${{ matrix.platform }}/**
+          if-no-files-found: error
+          retention-days: 30
+
   windows-modern:
     name: Windows modern compatibility package
     runs-on: windows-latest

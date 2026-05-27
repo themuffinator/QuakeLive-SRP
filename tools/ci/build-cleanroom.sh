@@ -2,13 +2,34 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BUILD_ROOT="${REPO_ROOT}/build/re/linux"
 SRC_ROOT="${REPO_ROOT}/src-re/prototypes"
 INCLUDE_ROOT="${REPO_ROOT}/src-re/include"
 
-CC="${QLR_RE_CC:-${CC:-gcc}}"
+HOST_SYSTEM="${QLR_RE_PLATFORM:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
+case "${HOST_SYSTEM}" in
+  linux*)
+    PLATFORM_NAME="linux"
+    SHLIB_EXT="so"
+    CC_DEFAULT="gcc"
+    LDFLAGS_DEFAULT="-shared"
+    ;;
+  darwin*|macos*)
+    PLATFORM_NAME="macos"
+    SHLIB_EXT="dylib"
+    CC_DEFAULT="cc"
+    LDFLAGS_DEFAULT="-dynamiclib"
+    ;;
+  *)
+    echo "Unsupported clean-room build host: ${HOST_SYSTEM}" >&2
+    exit 1
+    ;;
+esac
+
+BUILD_ROOT="${QLR_RE_BUILD_ROOT:-${BUILD_ROOT:-${REPO_ROOT}/build/re/${PLATFORM_NAME}}}"
+[[ "${BUILD_ROOT}" = /* ]] || BUILD_ROOT="${REPO_ROOT}/${BUILD_ROOT}"
+
+CC="${QLR_RE_CC:-${CC:-$CC_DEFAULT}}"
 CFLAGS_DEFAULT="-std=c99 -Wall -Wextra -O2 -fPIC"
-LDFLAGS_DEFAULT="-shared"
 CFLAGS="${QLR_RE_CFLAGS:-${CFLAGS:-$CFLAGS_DEFAULT}}"
 LDFLAGS="${QLR_RE_LDFLAGS:-${LDFLAGS:-$LDFLAGS_DEFAULT}}"
 
@@ -22,7 +43,7 @@ fi
 build_module() {
   local name="$1"
   shift
-  local output="${BUILD_ROOT}/${name}.so"
+  local output="${BUILD_ROOT}/${name}.${SHLIB_EXT}"
   echo "[clean-room] Building ${name} -> ${output}"
   "$CC" \
     $CFLAGS \
@@ -43,4 +64,4 @@ build_module qlr_game_frame \
   "${SRC_ROOT}/g_gameplay/g_frame.c" \
   "${SRC_ROOT}/common/native_shim.c"
 
-echo "Clean-room shared objects stored under ${BUILD_ROOT}" 
+echo "Clean-room ${PLATFORM_NAME} shared objects stored under ${BUILD_ROOT}"
