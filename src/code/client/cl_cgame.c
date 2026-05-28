@@ -235,6 +235,8 @@ typedef struct {
 	qboolean	cursorPositionValid;
 	int			viewWidth;
 	int			viewHeight;
+	int			surfaceContentWidth;
+	int			surfaceContentHeight;
 	int			surfaceWidth;
 	int			surfaceHeight;
 	int			cursorX;
@@ -953,6 +955,8 @@ static void CL_WebHost_ResetRuntime( qboolean clearVisibility ) {
 	cl_webHost.cursorPositionValid = qfalse;
 	cl_webHost.viewWidth = 0;
 	cl_webHost.viewHeight = 0;
+	cl_webHost.surfaceContentWidth = 0;
+	cl_webHost.surfaceContentHeight = 0;
 	cl_webHost.surfaceWidth = 0;
 	cl_webHost.surfaceHeight = 0;
 	cl_webHost.cursorX = 0;
@@ -994,6 +998,8 @@ static void CL_WebHost_ClearSurfaceImage( void ) {
 	cl_webHost.surfaceDirty = qfalse;
 	cl_webHost.surfaceHasVisiblePixels = qfalse;
 	cl_webHost.surfacePresented = qfalse;
+	cl_webHost.surfaceContentWidth = 0;
+	cl_webHost.surfaceContentHeight = 0;
 	cl_webHost.surfaceUploadWidth = 0;
 	cl_webHost.surfaceUploadHeight = 0;
 	cl_webHost.surfaceShaderName[0] = '\0';
@@ -1491,9 +1497,8 @@ static int QLWebView_NextPowerOfTwo( int value ) {
 QLWebView_MapCursorCoordinate
 =============
 */
-static int QLWebView_MapCursorCoordinate( int coordinate, int viewDimension, int surfaceDimension ) {
+static int QLWebView_MapCursorCoordinate( int coordinate, int sourceDimension, int targetDimension ) {
 	int clampedCoordinate;
-	int targetDimension;
 	double mappedCoordinate;
 
 	clampedCoordinate = coordinate;
@@ -1501,16 +1506,18 @@ static int QLWebView_MapCursorCoordinate( int coordinate, int viewDimension, int
 		clampedCoordinate = 0;
 	}
 
-	if ( viewDimension > 0 && clampedCoordinate > viewDimension ) {
-		clampedCoordinate = viewDimension;
+	if ( sourceDimension > 0 && clampedCoordinate > sourceDimension ) {
+		clampedCoordinate = sourceDimension;
 	}
 
-	targetDimension = surfaceDimension > 0 ? surfaceDimension : viewDimension;
-	if ( targetDimension <= 0 || viewDimension <= 0 ) {
+	if ( targetDimension <= 0 ) {
+		targetDimension = sourceDimension;
+	}
+	if ( targetDimension <= 0 || sourceDimension <= 0 ) {
 		return clampedCoordinate;
 	}
 
-	mappedCoordinate = ( (double)clampedCoordinate / (double)viewDimension ) * (double)targetDimension;
+	mappedCoordinate = ( (double)clampedCoordinate / (double)sourceDimension ) * (double)targetDimension;
 	clampedCoordinate = (int)( mappedCoordinate + 0.5 );
 	if ( clampedCoordinate < 0 ) {
 		clampedCoordinate = 0;
@@ -1534,8 +1541,8 @@ static void QLWebView_InjectMappedMouseMove( int x, int y ) {
 
 	cursorX = x;
 	cursorY = y;
-	cursorWidth = cl_webHost.surfaceWidth > 0 ? cl_webHost.surfaceWidth : cl_webHost.viewWidth;
-	cursorHeight = cl_webHost.surfaceHeight > 0 ? cl_webHost.surfaceHeight : cl_webHost.viewHeight;
+	cursorWidth = cl_webHost.surfaceContentWidth > 0 ? cl_webHost.surfaceContentWidth : cl_webHost.viewWidth;
+	cursorHeight = cl_webHost.surfaceContentHeight > 0 ? cl_webHost.surfaceContentHeight : cl_webHost.viewHeight;
 
 	if ( cursorX < 0 ) {
 		cursorX = 0;
@@ -1603,6 +1610,8 @@ static void QLWebView_RebuildSurfaceImage( void ) {
 		}
 	}
 #endif
+	cl_webHost.surfaceContentWidth = contentWidth;
+	cl_webHost.surfaceContentHeight = contentHeight;
 	cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( contentWidth );
 	cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( contentHeight );
 	cl_webHost.surfaceDirty = qtrue;
@@ -1614,7 +1623,7 @@ static void QLWebView_RebuildSurfaceImage( void ) {
 QLWebView_MakeAwesomiumSurfaceOpaque
 =============
 */
-static void QLWebView_MakeAwesomiumSurfaceOpaque( byte *pixels, int surfaceWidth, int surfaceHeight, int viewWidth, int viewHeight ) {
+static void QLWebView_MakeAwesomiumSurfaceOpaque( byte *pixels, int surfaceWidth, int surfaceHeight, int contentWidth, int contentHeight ) {
 	int x;
 	int y;
 	int copyWidth;
@@ -1624,8 +1633,8 @@ static void QLWebView_MakeAwesomiumSurfaceOpaque( byte *pixels, int surfaceWidth
 		return;
 	}
 
-	copyWidth = viewWidth;
-	copyHeight = viewHeight;
+	copyWidth = contentWidth;
+	copyHeight = contentHeight;
 	if ( copyWidth <= 0 || copyWidth > surfaceWidth ) {
 		copyWidth = surfaceWidth;
 	}
@@ -1711,7 +1720,7 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 		dirty = CL_Awesomium_SurfaceDirty();
 		copied = CL_Awesomium_CopySurface( cl_webHost.surfaceBuffer, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.surfaceWidth * 4 );
 		if ( copied ) {
-			QLWebView_MakeAwesomiumSurfaceOpaque( cl_webHost.surfaceBuffer, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.viewWidth, cl_webHost.viewHeight );
+			QLWebView_MakeAwesomiumSurfaceOpaque( cl_webHost.surfaceBuffer, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.surfaceContentWidth, cl_webHost.surfaceContentHeight );
 		}
 		visible = copied && QLWebView_SurfaceHasVisiblePixels( cl_webHost.surfaceBuffer, requiredLength );
 		loading = CL_Awesomium_IsLoading();
@@ -1719,8 +1728,8 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 		lastError = CL_Awesomium_LastErrorCode();
 		if ( copied ) {
 			if ( !cl_webHost.surfaceHasVisiblePixels && visible ) {
-				Com_Printf( "Awesomium surface became visible: copy=%d dirty=%d size=%dx%d view=%dx%d\n",
-					copied, dirty, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.viewWidth, cl_webHost.viewHeight );
+				Com_Printf( "Awesomium surface became visible: copy=%d dirty=%d size=%dx%d content=%dx%d view=%dx%d\n",
+					copied, dirty, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.surfaceContentWidth, cl_webHost.surfaceContentHeight, cl_webHost.viewWidth, cl_webHost.viewHeight );
 			}
 			cl_webHost.surfaceHasVisiblePixels = visible;
 			return qtrue;
@@ -1731,7 +1740,7 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 			if ( midOffset < 0 || midOffset + 3 >= requiredLength ) {
 				midOffset = 0;
 			}
-			Com_Printf( "Awesomium surface not visible: copy=%d dirty=%d loading=%d crashed=%d lastError=%d size=%dx%d view=%dx%d first=%02x%02x%02x%02x mid=%02x%02x%02x%02x\n",
+			Com_Printf( "Awesomium surface not visible: copy=%d dirty=%d loading=%d crashed=%d lastError=%d size=%dx%d content=%dx%d view=%dx%d first=%02x%02x%02x%02x mid=%02x%02x%02x%02x\n",
 				copied,
 				dirty,
 				loading,
@@ -1739,6 +1748,8 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 				lastError,
 				cl_webHost.surfaceWidth,
 				cl_webHost.surfaceHeight,
+				cl_webHost.surfaceContentWidth,
+				cl_webHost.surfaceContentHeight,
 				cl_webHost.viewWidth,
 				cl_webHost.viewHeight,
 				cl_webHost.surfaceBuffer[0],
@@ -1882,8 +1893,8 @@ static void QLWebView_InjectMouseMove( int x, int y ) {
 	}
 
 	QLWebView_InjectMappedMouseMove(
-		QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceWidth ),
-		QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceHeight )
+		QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceContentWidth ),
+		QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceContentHeight )
 	);
 }
 
@@ -2361,7 +2372,9 @@ static void QLWebHost_PumpFrame( void ) {
 		awesomiumWidth = CL_Awesomium_SurfaceWidth();
 		awesomiumHeight = CL_Awesomium_SurfaceHeight();
 		if ( awesomiumWidth > 0 && awesomiumHeight > 0
-			&& ( QLWebView_NextPowerOfTwo( awesomiumWidth ) != cl_webHost.surfaceWidth
+			&& ( awesomiumWidth != cl_webHost.surfaceContentWidth
+				|| awesomiumHeight != cl_webHost.surfaceContentHeight
+				|| QLWebView_NextPowerOfTwo( awesomiumWidth ) != cl_webHost.surfaceWidth
 				|| QLWebView_NextPowerOfTwo( awesomiumHeight ) != cl_webHost.surfaceHeight ) ) {
 			QLWebView_RebuildSurfaceImage();
 			return;
@@ -5532,6 +5545,9 @@ Awesomium host owns the browser keycatcher.
 void CL_WebHost_DrawBrowserSurface( void ) {
 	float s1;
 	float t1;
+	int contentWidth;
+	int contentHeight;
+
 	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {
 		return;
 	}
@@ -5549,8 +5565,10 @@ void CL_WebHost_DrawBrowserSurface( void ) {
 		return;
 	}
 
-	s1 = cl_webHost.viewWidth > 0 ? (float)cl_webHost.viewWidth / (float)cl_webHost.surfaceWidth : 1.0f;
-	t1 = cl_webHost.viewHeight > 0 ? (float)cl_webHost.viewHeight / (float)cl_webHost.surfaceHeight : 1.0f;
+	contentWidth = cl_webHost.surfaceContentWidth > 0 ? cl_webHost.surfaceContentWidth : cl_webHost.viewWidth;
+	contentHeight = cl_webHost.surfaceContentHeight > 0 ? cl_webHost.surfaceContentHeight : cl_webHost.viewHeight;
+	s1 = contentWidth > 0 ? (float)contentWidth / (float)cl_webHost.surfaceWidth : 1.0f;
+	t1 = contentHeight > 0 ? (float)contentHeight / (float)cl_webHost.surfaceHeight : 1.0f;
 	if ( s1 <= 0.0f || s1 > 1.0f ) {
 		s1 = 1.0f;
 	}

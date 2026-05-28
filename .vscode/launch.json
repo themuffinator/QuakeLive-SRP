@@ -40,7 +40,10 @@
 			"symbolSearchPath": "${workspaceFolder}\\build\\win32\\Debug\\bin;${workspaceFolder}\\build\\win32\\Debug\\bin\\baseq3;${workspaceFolder}\\build\\win32\\Debug\\modules\\cgamex86;${workspaceFolder}\\build\\win32\\Debug\\modules\\qagamex86",
 			"env": {
 				"QLR_DUMP_PATH": "${workspaceFolder}\\build\\win32\\Debug\\dumps",
-				"QLR_FULL_DUMP": "1"
+				"QLR_FULL_DUMP": "1",
+				"QL_DISABLE_EXTERNAL_ECOSYSTEMS": "0",
+				"QL_DISABLE_AWESOMIUM": "0",
+				"QL_DISABLE_STEAMWORKS": "0"
 			},
 			"stopAtEntry": false
 		},
@@ -187,7 +190,6 @@
 			"type": "cppvsdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}\\build\\win32\\Debug\\bin\\qzeroded.exe",
-			"preLaunchTask": "Build Debug",
 			"args": [
 				"+set",
 				"developer",

@@ -807,6 +807,7 @@ def test_team_overlay_uses_retail_cvars_and_scaled_host_text_lane() -> None:
 	source = CG_DRAW.read_text(encoding="utf-8")
 	main_source = CG_MAIN.read_text(encoding="utf-8")
 	overlay_block = _block_from_marker(source, "static float CG_DrawTeamOverlay")
+	frozen_block = _block_from_marker(source, "static qboolean CG_TeamOverlayPlayerIsFrozen")
 
 	retail_flags = "CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD"
 
@@ -827,10 +828,16 @@ def test_team_overlay_uses_retail_cvars_and_scaled_host_text_lane() -> None:
 	assert "opacity = Com_Clamp( 0.0f, 1.0f, cg_drawTeamOverlayOpacity.value );" in overlay_block
 	assert "xOffset = cg_drawTeamOverlayX.value;" in overlay_block
 	assert "yOffset = cg_drawTeamOverlayY.value;" in overlay_block
+	assert "if ( cg.snap->ps.pm_flags & PMF_INVULEXPAND ) {" in overlay_block
 	assert 'textHeight = CG_Text_HeightExt( "O", scale, 0, FONT_SANS );' in overlay_block
 	assert "static int CG_TeamOverlayPlayerPowerups( int clientNum )" in source
 	assert "return cg_entities[clientNum].currentState.powerups;" in source
 	assert "static qboolean CG_TeamOverlayPlayerIsFrozen( int clientNum )" in source
+	assert "cgs.gametype" not in frozen_block
+	assert "PM_FREEZE" not in frozen_block
+	assert "CG_TeamOverlayPlayerPowerups( clientNum ) & TEAM_OVERLAY_FROZEN_BIT" in frozen_block
+	assert "static qboolean CG_TeamOverlayPlayerIsDead( int clientNum, int health )" in source
+	assert "cg_entities[clientNum].currentState.eFlags & EF_DEAD" in source
 	assert "CG_CopyHudTextWithLimit( nameText, sizeof( nameText ), ci->name, TEAM_OVERLAY_NAME_PRINT_LIMIT );" in overlay_block
 	assert "Q_strncpyz( retailBuffer, source, sizeof( retailBuffer ) );" in source
 	assert "Q_strncpyz( prefix, retailBuffer, sizeof( prefix ) );" in source
@@ -839,24 +846,27 @@ def test_team_overlay_uses_retail_cvars_and_scaled_host_text_lane() -> None:
 	assert "locationWidth = TEAM_OVERLAY_LOCATION_MAX_PIXELS;" in overlay_block
 	assert "w = nameWidth + locationWidth + (float)textHeight * 13.0f;" in overlay_block
 	assert "x = (float)(int)( 640.0f - w + xOffset );" in overlay_block
-	assert "drawY = y - yOffset;" in overlay_block
-	assert "drawY = y - ( h + yOffset );" in overlay_block
+	assert "drawY = (float)(int)( y - yOffset );" in overlay_block
+	assert "drawY = (float)(int)( y - ( h + yOffset ) );" in overlay_block
 	assert "hcolor[3] = opacity;" in overlay_block
 	assert "CG_DrawPic( x, drawY, w, h, cgs.media.teamStatusBar );" in overlay_block
 	assert "CG_IsSelfOnTeamOverlay()" in overlay_block
-	assert "CG_Text_PaintExt( textX, textY, scale, textColor, nameText, 0.0f, TEAM_OVERLAY_NAME_PRINT_LIMIT, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );" in overlay_block
+	assert "CG_Text_PaintExt( textX, textY, scale, textColor, nameText, 0.0f, TEAM_OVERLAY_NAME_PRINT_LIMIT, ITEM_TEXTSTYLE_SHADOWED, FONT_SANS );" in overlay_block
 	assert "powerups = CG_TeamOverlayPlayerPowerups( clientNum );" in overlay_block
 	assert "health = cg.snap->ps.stats[STAT_HEALTH];" in overlay_block
 	assert "armor = cg.snap->ps.stats[STAT_ARMOR];" in overlay_block
 	assert "weapon = cg.snap->ps.weapon;" in overlay_block
 	assert "CG_TeamOverlayPlayerIsFrozen( clientNum )" in overlay_block
+	assert "CG_TeamOverlayPlayerIsDead( clientNum, health )" in overlay_block
 	assert 'Q_strncpyz( healthText, "FROZEN", sizeof( healthText ) );' in overlay_block
 	assert 'Q_strncpyz( healthText, "DEAD", sizeof( healthText ) );' in overlay_block
-	assert "CG_Text_PaintExt( statusX, textY, scale, textColor, healthText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );" in overlay_block
-	assert "CG_Text_PaintExt( armorX, textY, scale, textColor, armorText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );" in overlay_block
+	assert "CG_Text_PaintExt( statusX, textY, scale, textColor, healthText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_MONO );" in overlay_block
+	assert "CG_Text_PaintExt( armorX, textY, scale, textColor, armorText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_MONO );" in overlay_block
 	assert "if ( locationWidth > 0.0f ) {" in overlay_block
-	assert "CG_Text_PaintExt( locationX, textY, scale, textColor, p, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );" in overlay_block
+	assert "CG_Text_PaintExt( locationX, textY, scale, textColor, p, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_SANS );" in overlay_block
 	assert "if ( powerups & ( 1 << j ) ) {" in overlay_block
+	assert "j == PW_INVULNERABILITY" not in overlay_block
+	assert "j == PW_NUM_POWERUPS" in overlay_block
 	assert "ci->powerups & TEAM_OVERLAY_FROZEN_BIT" not in overlay_block
 	assert "TINYCHAR_WIDTH" not in overlay_block
 	assert "CG_DrawStringExt" not in overlay_block

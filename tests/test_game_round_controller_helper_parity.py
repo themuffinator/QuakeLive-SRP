@@ -29,6 +29,15 @@ def test_clan_arena_round_controller_helpers_match_retail_mapping_surface() -> N
 	assert "caState = G_CAResolveRoundState();" in client_c
 
 
+def test_round_waiting_warmup_releases_pre_round_weapon_lockout() -> None:
+	active_c = _read("src/code/game/g_active.c")
+
+	assert "static void G_Frame_ReleaseWaitingWarmupClients( void ) {" in active_c
+	assert "ent->client->ps.pm_type == PM_FREEZE && !ent->client->freezeFrozen" in active_c
+	assert "G_SetClientAttackLockout( ent, qfalse );" in active_c
+	assert active_c.count("G_Frame_ReleaseWaitingWarmupClients();") >= 5
+
+
 def test_freeze_round_controller_helpers_match_retail_mapping_surface() -> None:
 	active_c = _read("src/code/game/g_active.c")
 	client_c = _read("src/code/game/g_client.c")

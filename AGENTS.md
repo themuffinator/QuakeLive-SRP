@@ -12,6 +12,7 @@ This repository currently has the following rules for agents:
 - Do not make significant decisions based on assumptions; ask questions if needed.
 - Treat Quake Live-only online services (advert fetching, Awesomium/web menu fetching, and Steam integration) as an explicit divergence from the repository's accuracy-prioritizing reverse-engineering goal: keep them behind `QL_BUILD_ONLINE_SERVICES`, default that setting to disabled, and prefer elegant stubs or fallbacks over live service usage until a documented open replacement path exists.
 - Prefer `rg` instead of `ls -R` or `grep -R` for repository searches.
+- Never add VS Code `preLaunchTask` entries to `.vscode/launch.json` or any other launch configuration; keep build and launch steps explicit and separate.
 - Never launch the game in fullscreen; always use `+set r_fullscreen 0` for every automated or manual launch command.
 - Only launch the game when there is a credible investigative or testing need that cannot be resolved by static analysis, unit/integration tests, log inspection, or other lower-cost evidence. Prefer the cheapest runtime mode that answers the question: use dedicated or otherwise headless-style probes for qagame/server-only work when possible, prefer reduced-render client probes such as `+set r_norefresh 1 +set s_initsound 0` when visuals are not under test, and reserve full visual client launches for renderer, UI, input, cgame, or rendered-output validation.
 - After committing changes, generate a pull request message using the `make_pr` tool.

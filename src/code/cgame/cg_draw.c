@@ -2017,15 +2017,26 @@ Checks the retail Freeze bit used for team-overlay row status.
 =============
 */
 static qboolean CG_TeamOverlayPlayerIsFrozen( int clientNum ) {
-	if ( cgs.gametype != GT_FREEZE ) {
-		return qfalse;
-	}
+	return ( qboolean )( ( CG_TeamOverlayPlayerPowerups( clientNum ) & TEAM_OVERLAY_FROZEN_BIT ) != 0 );
+}
 
-	if ( cg.snap && clientNum == cg.snap->ps.clientNum && cg.snap->ps.pm_type == PM_FREEZE ) {
+/*
+=============
+CG_TeamOverlayPlayerIsDead
+
+Checks the retail dead-row gates used before formatting health and armor.
+=============
+*/
+static qboolean CG_TeamOverlayPlayerIsDead( int clientNum, int health ) {
+	if ( health <= 0 ) {
 		return qtrue;
 	}
 
-	return ( qboolean )( ( CG_TeamOverlayPlayerPowerups( clientNum ) & TEAM_OVERLAY_FROZEN_BIT ) != 0 );
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		return qfalse;
+	}
+
+	return ( qboolean )( ( cg_entities[clientNum].currentState.eFlags & EF_DEAD ) != 0 );
 }
 
 /*
@@ -2261,6 +2272,10 @@ static float CG_DrawTeamOverlay( float y, qboolean right, qboolean upper ) {
 		return y;
 	}
 
+	if ( cg.snap->ps.pm_flags & PMF_INVULEXPAND ) {
+		return y;
+	}
+
 	if ( cg.snap->ps.persistant[PERS_TEAM] != TEAM_RED && cg.snap->ps.persistant[PERS_TEAM] != TEAM_BLUE ) {
 		return y; // Not on any team
 	}
@@ -2331,10 +2346,10 @@ static float CG_DrawTeamOverlay( float y, qboolean right, qboolean upper ) {
 	}
 
 	if ( upper ) {
-		drawY = y - yOffset;
+		drawY = (float)(int)( y - yOffset );
 		retY = (float)(int)( y + h + 0.999f );
 	} else {
-		drawY = y - ( h + yOffset );
+		drawY = (float)(int)( y - ( h + yOffset ) );
 		retY = (float)(int)drawY;
 	}
 
@@ -2377,7 +2392,7 @@ static float CG_DrawTeamOverlay( float y, qboolean right, qboolean upper ) {
 		textColor[0] = textColor[1] = textColor[2] = textColor[3] = 1.0f;
 		CG_CopyHudTextWithLimit( nameText, sizeof( nameText ), ci->name, TEAM_OVERLAY_NAME_PRINT_LIMIT );
 		textY = drawY + (float)textHeight;
-		CG_Text_PaintExt( textX, textY, scale, textColor, nameText, 0.0f, TEAM_OVERLAY_NAME_PRINT_LIMIT, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );
+		CG_Text_PaintExt( textX, textY, scale, textColor, nameText, 0.0f, TEAM_OVERLAY_NAME_PRINT_LIMIT, ITEM_TEXTSTYLE_SHADOWED, FONT_SANS );
 
 		health = ci->health;
 		armor = ci->armor;
@@ -2396,7 +2411,7 @@ static float CG_DrawTeamOverlay( float y, qboolean right, qboolean upper ) {
 			textColor[3] = 1.0f;
 			Q_strncpyz( healthText, "FROZEN", sizeof( healthText ) );
 			armorText[0] = '\0';
-		} else if ( health <= 0 ) {
+		} else if ( CG_TeamOverlayPlayerIsDead( clientNum, health ) ) {
 			textColor[0] = 1.0f;
 			textColor[1] = 0.0f;
 			textColor[2] = 0.0f;
@@ -2409,8 +2424,8 @@ static float CG_DrawTeamOverlay( float y, qboolean right, qboolean upper ) {
 			Com_sprintf( armorText, sizeof( armorText ), "%3i", armor );
 		}
 
-		CG_Text_PaintExt( statusX, textY, scale, textColor, healthText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );
-		CG_Text_PaintExt( armorX, textY, scale, textColor, armorText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );
+		CG_Text_PaintExt( statusX, textY, scale, textColor, healthText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_MONO );
+		CG_Text_PaintExt( armorX, textY, scale, textColor, armorText, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_MONO );
 
 		if ( !CG_TeamOverlayPlayerIsFrozen( clientNum ) ) {
 			if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS && cg_weapons[weapon].weaponIcon ) {
@@ -2426,7 +2441,7 @@ static float CG_DrawTeamOverlay( float y, qboolean right, qboolean upper ) {
 		}
 		if ( locationWidth > 0.0f ) {
 			textColor[0] = textColor[1] = textColor[2] = textColor[3] = 1.0f;
-			CG_Text_PaintExt( locationX, textY, scale, textColor, p, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWEDMORE, FONT_SANS );
+			CG_Text_PaintExt( locationX, textY, scale, textColor, p, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, FONT_SANS );
 		}
 
 		if ( right ) {

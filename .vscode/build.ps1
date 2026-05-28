@@ -8,7 +8,10 @@ param(
 	[ValidateSet('0', '1')]
 	[string]$Steamworks = '',
 	[ValidateSet('0', '1')]
-	[string]$OpenSteam = ''
+	[string]$OpenSteam = '',
+	[ValidateSet('0', '1')]
+	[string]$RequireAwesomiumSdk = '',
+	[string]$Targets = ''
 )
 
 $scriptRoot = $PSScriptRoot
@@ -267,6 +270,9 @@ $msbuildArgs = @(
 	"/p:Configuration=$Configuration",
 	"/p:Platform=$platformNormalized"
 )
+if ($Targets) {
+	$msbuildArgs += "/t:$Targets"
+}
 if ($toolset) {
 	$msbuildArgs += "/p:PlatformToolset=$toolset"
 }
@@ -281,6 +287,9 @@ if ($Steamworks -ne '') {
 }
 if ($OpenSteam -ne '') {
 	$msbuildArgs += "/p:QLBuildOpenSteam=$OpenSteam"
+}
+if ($RequireAwesomiumSdk -ne '') {
+	$msbuildArgs += "/p:QLRequireAwesomiumSdk=$RequireAwesomiumSdk"
 }
 if ($enableOgg -ne $null) {
 	$msbuildArgs += "/p:QLEnableOgg=$enableOgg"
@@ -307,6 +316,12 @@ if ($Steamworks -ne '') {
 }
 if ($OpenSteam -ne '') {
 	Write-Host "QLBuildOpenSteam: $OpenSteam"
+}
+if ($RequireAwesomiumSdk -ne '') {
+	Write-Host "QLRequireAwesomiumSdk: $RequireAwesomiumSdk"
+}
+if ($Targets) {
+	Write-Host "MSBuild targets: $Targets"
 }
 Write-Host "QLEnableOgg: $enableOgg (available: $oggAvailable)"
 Write-Host "Vorbis include: $vorbisIncludeDir"
@@ -385,12 +400,14 @@ $buildSettingsPath = Join-Path $runtimeBinDir 'ql_build_settings.txt'
 $onlineServicesSetting = if ($OnlineServices -ne '') { $OnlineServices } else { '0' }
 $steamworksSetting = if ($Steamworks -ne '') { $Steamworks } else { '0' }
 $openSteamSetting = if ($OpenSteam -ne '') { $OpenSteam } else { '0' }
+$requireAwesomiumSdkSetting = if ($RequireAwesomiumSdk -ne '') { $RequireAwesomiumSdk } else { '1' }
 @(
 	"Configuration=$Configuration",
 	"Platform=$platformNormalized",
 	"QLBuildOnlineServices=$onlineServicesSetting",
 	"QLBuildSteamworks=$steamworksSetting",
-	"QLBuildOpenSteam=$openSteamSetting"
+	"QLBuildOpenSteam=$openSteamSetting",
+	"QLRequireAwesomiumSdk=$requireAwesomiumSdkSetting"
 ) | Set-Content -Path $buildSettingsPath -Encoding ASCII
 
 function Sync-ModuleRuntimeArtifacts {
@@ -414,6 +431,71 @@ function Sync-ModuleRuntimeArtifacts {
 		$destinationPath = Join-Path $RuntimeBaseq3Dir "$ModuleName.$artifact"
 		Copy-Item -Path $sourcePath -Destination $destinationPath -Force
 	}
+}
+
+function Resolve-RetailBasePath {
+	$steamBasePath = $env:QLR_STEAM_BASEPATH
+	if (-not $steamBasePath) {
+		$steamBasePath = 'C:\Program Files (x86)\Steam\steamapps\common\Quake Live'
+	}
+
+	return [System.IO.Path]::GetFullPath($steamBasePath)
+}
+
+function Sync-AwesomiumRuntime {
+	param(
+		[string]$SourceRoot,
+		[string]$DestinationRoot
+	)
+
+	$requiredFiles = @(
+		'awesomium.dll',
+		'awesomium_process.exe',
+		'web.pak',
+		'icudt.dll',
+		'libEGL.dll',
+		'libGLESv2.dll',
+		'avcodec-53.dll',
+		'avformat-53.dll',
+		'avutil-51.dll',
+		'xinput9_1_0.dll'
+	)
+
+	$retailPakPath = Join-Path $SourceRoot 'baseq3\pak00.pk3'
+	if (-not (Test-Path -LiteralPath $SourceRoot -PathType Container)) {
+		throw "Awesomium online build requested, but Quake Live base path was not found: $SourceRoot. Set QLR_STEAM_BASEPATH to the Steam install root."
+	}
+
+	if (-not (Test-Path -LiteralPath $retailPakPath -PathType Leaf)) {
+		throw "Awesomium online build requested, but the Quake Live base path is missing retail data: $retailPakPath."
+	}
+
+	if (-not (Test-Path -LiteralPath $DestinationRoot -PathType Container)) {
+		New-Item -ItemType Directory -Path $DestinationRoot | Out-Null
+	}
+
+	foreach ($fileName in $requiredFiles) {
+		$sourcePath = Join-Path $SourceRoot $fileName
+		$destinationPath = Join-Path $DestinationRoot $fileName
+
+		if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+			throw "Awesomium runtime dependency was not found: $sourcePath"
+		}
+
+		$shouldCopy = $true
+		if (Test-Path -LiteralPath $destinationPath -PathType Leaf) {
+			$sourceInfo = Get-Item -LiteralPath $sourcePath
+			$destinationInfo = Get-Item -LiteralPath $destinationPath
+			$shouldCopy = $sourceInfo.Length -ne $destinationInfo.Length -or
+				$sourceInfo.LastWriteTimeUtc -gt $destinationInfo.LastWriteTimeUtc
+		}
+
+		if ($shouldCopy) {
+			Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
+		}
+	}
+
+	Write-Host "Synced Awesomium runtime dependencies from $SourceRoot"
 }
 
 if (-not (Test-Path $runtimeBaseq3Dir)) {
@@ -441,6 +523,11 @@ if ($pythonCmd) {
 
 Sync-ModuleRuntimeArtifacts -ModuleName 'cgamex86' -RuntimeBaseq3Dir $runtimeBaseq3Dir -ModulesDir $runtimeModulesDir
 Sync-ModuleRuntimeArtifacts -ModuleName 'qagamex86' -RuntimeBaseq3Dir $runtimeBaseq3Dir -ModulesDir $runtimeModulesDir
+
+if ($onlineServicesSetting -eq '1') {
+	$steamBasePath = Resolve-RetailBasePath
+	Sync-AwesomiumRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir
+}
 
 $clientExe = Join-Path $runtimeBinDir 'quakelive_steam.exe'
 $dedicatedExe = Join-Path $runtimeBinDir 'qzeroded.exe'

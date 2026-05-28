@@ -35,7 +35,7 @@ State legend:
 | --- | --- | --- | --- | --- | --- |
 | 512 | `UI_OWNERDRAW_BASE` | Sentinel base, not dispatched | None | Sentinel | None |
 | 513 | `UI_HANDICAP` | `UI_DrawHandicap @ 0x10005100`; key `UI_Handicap_HandleKey @ 0x1000A040`; width helper participates | Draw, width, and key handler wired | Checked | Covered by `test_ui_retail_handicap_netsource_netfilter_ownerdraws_match_ql` |
-| 514 | `UI_PLAYERMODEL` | `UI_DrawPlayerModel @ 0x10005690` | Draw wired; no key or width route | Needs check | Verify model/headmodel cvar refresh, `playerInfo` update, and draw dispatch against HLIL |
+| 514 | `UI_PLAYERMODEL` | `UI_DrawPlayerModel @ 0x10005690` | Draw wired; no key or width route | Checked | Covered by `test_ui_retail_player_opponent_ownerdraws_match_ql` |
 | 515 | `UI_GAMETYPE` | `UI_DrawGameType @ 0x10005220`; key `UI_GameType_HandleKey @ 0x1000A110`; width helper participates | Draw, width, and key handler wired | Checked | Covered by `test_ui_retail_gametype_selector_ownerdraws_match_ql` |
 | 516 | `UI_MAPPREVIEW` | `UI_DrawMapPreview @ 0x100053C0` with net-map path | Draw wired as `UI_DrawMapPreview(..., qtrue)` | Checked | Covered by `test_ui_retail_skill_mappreview_maptime_ownerdraws_match_ql` |
 | 517 | `UI_SKILL` | `UI_DrawSkill @ 0x10005350`; key `UI_Skill_HandleKey @ 0x1000A390`; width helper participates | Draw, width, and key handler wired | Checked | Covered by `test_ui_retail_skill_mappreview_maptime_ownerdraws_match_ql` |
@@ -43,14 +43,14 @@ State legend:
 | 519 | `UI_NETMAPPREVIEW` | `UI_DrawNetMapPreview @ 0x100065B0` | Draw wired; no key or width route | Checked | Covered by `test_ui_retail_map_media_ownerdraws_match_ql` |
 | 520 | `UI_NETFILTER` | `UI_DrawNetFilter @ 0x100066D0`; key `UI_NetFilter_HandleKey @ 0x1000A4F0`; width helper participates | Draw, width, and key handler wired | Checked | Covered by `test_ui_retail_handicap_netsource_netfilter_ownerdraws_match_ql` |
 | 521 | `UI_TIER` | Retail dispatcher default/no-op for this ID | Legacy `UI_DrawTier` draw route exists; width case is empty | Retail no-op/source legacy | Confirm menu reachability, then decide whether to leave as harmless legacy or remove/gate for strict parity |
-| 522 | `UI_OPPONENTMODEL` | `UI_DrawOpponent @ 0x10006730` | Draw wired; no key or width route | Needs check | Verify opponent model cvar refresh and draw behavior |
+| 522 | `UI_OPPONENTMODEL` | `UI_DrawOpponent @ 0x10006730` | Draw wired; no key or width route | Checked | Covered by `test_ui_retail_player_opponent_ownerdraws_match_ql` |
 | 523 | `UI_TIERMAP1` | Retail dispatcher default/no-op for this ID; `menudef.h` marks unused | Legacy `UI_DrawTierMap(..., 0)` draw route exists | Retail no-op/source legacy | Confirm unused status and document divergence decision |
 | 524 | `UI_TIERMAP2` | Retail dispatcher default/no-op for this ID; `menudef.h` marks unused | Legacy `UI_DrawTierMap(..., 1)` draw route exists | Retail no-op/source legacy | Confirm unused status and document divergence decision |
 | 525 | `UI_TIERMAP3` | Retail dispatcher default/no-op for this ID; `menudef.h` marks unused | Legacy `UI_DrawTierMap(..., 2)` draw route exists | Retail no-op/source legacy | Confirm unused status and document divergence decision |
 | 526 | `UI_TIER_MAPNAME` | Retail dispatcher default/no-op for this ID; `menudef.h` marks unused | Legacy `UI_DrawTierMapName` draw route exists; width case is empty | Retail no-op/source legacy | Confirm unused status and document divergence decision |
 | 527 | `UI_TIER_GAMETYPE` | Retail dispatcher default/no-op for this ID; `menudef.h` marks unused | Legacy `UI_DrawTierGameType` draw route exists; width case is empty | Retail no-op/source legacy | Confirm unused status and document divergence decision |
 | 528 | `UI_ALLMAPS_SELECTION` | `UI_DrawAllMapsSelection @ 0x10006890` with all-maps/net path | Draw wired as `UI_DrawAllMapsSelection(..., qtrue)`; width case is empty | Checked | Covered by `test_ui_retail_map_selection_ownerdraws_match_ql` |
-| 529 | `UI_OPPONENT_NAME` | `UI_DrawOpponentName @ 0x100068F0`; key routed by retail key dispatcher | Draw and key handler wired; width case is empty | Needs check | Verify cvar read buffer behavior, paint path, and key cycling |
+| 529 | `UI_OPPONENT_NAME` | `UI_DrawOpponentName @ 0x100068F0`; retail key dispatcher has no case for this ID | Draw wired; width case is empty; no key route | Checked | Covered by `test_ui_retail_player_opponent_ownerdraws_match_ql` |
 | 530 | `UI_VOTE_KICK` | Retail dispatcher default/no-op for this ID | No draw, key, or width route | No-op/missing | Confirm no shipped menu depends on it as a UI ownerdraw; document as closed no-op if so |
 | 531 | `UI_BOTNAME` | `UI_DrawBotName @ 0x10006B30`; key `UI_BotName_HandleKey @ 0x1000A570` | Draw and key handler wired | Checked | Covered by `test_ui_retail_botname_botskill_redblue_ownerdraws_match_ql` |
 | 532 | `UI_BOTSKILL` | `UI_DrawBotSkill @ 0x10006BC0`; key `UI_BotSkill_HandleKey @ 0x1000A5D0` | Draw and key handler wired | Checked | Covered by `test_ui_retail_botname_botskill_redblue_ownerdraws_match_ql` |
@@ -85,20 +85,18 @@ State legend:
 
 | Bucket | Count | IDs |
 | --- | ---: | --- |
-| Checked | 33 | `513`, `515`, `516`, `517`, `518`, `519`, `520`, `528`, `531`, `532`, `533`, `534`, `535`, `536`, `537`, `538`, `539`, `540`, `541`, `544`, `545`, `547`, `548`, `549`, `550`, `551`, `552`, `553`, `554`, `555`, `556`, `557`, `558` |
+| Checked | 36 | `513`, `514`, `515`, `516`, `517`, `518`, `519`, `520`, `522`, `528`, `529`, `531`, `532`, `533`, `534`, `535`, `536`, `537`, `538`, `539`, `540`, `541`, `544`, `545`, `547`, `548`, `549`, `550`, `551`, `552`, `553`, `554`, `555`, `556`, `557`, `558` |
 | Partial | 1 | `542` |
-| Needs check | 3 | `514`, `522`, `529` |
+| Needs check | 0 | None |
 | Retail no-op/source legacy | 8 | `521`, `523`, `524`, `525`, `526`, `527`, `543`, `546` |
 | No-op/missing | 1 | `530` |
 | Sentinel | 1 | `512` |
 
 Next practical sweep order:
 
-1. Finish retail-routed but unchecked draw paths first: `UI_PLAYERMODEL`,
-   `UI_OPPONENTMODEL`, and `UI_OPPONENT_NAME`.
-2. Complete `UI_KEYBINDSTATUS` from partial coverage to full parity.
-3. Separately audit the retail no-op/source legacy set and decide whether each
+1. Complete `UI_KEYBINDSTATUS` from partial coverage to full parity.
+2. Separately audit the retail no-op/source legacy set and decide whether each
    source route should stay as harmless compatibility, be gated, or be removed
    for strict retail parity.
-4. Confirm `UI_VOTE_KICK` has no shipped UI ownerdraw usage before marking it
+3. Confirm `UI_VOTE_KICK` has no shipped UI ownerdraw usage before marking it
    closed as a no-op.

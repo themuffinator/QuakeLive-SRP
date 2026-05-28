@@ -48,12 +48,17 @@ With a Steam install and the Quake Live SteamID homepath detected, this typicall
 
 - `C:\\Program Files (x86)\\Steam\\steamapps\\common\\Quake Live\\<steamid>\\baseq3\\qconsole.log`
 
-The default VS Code `Launch Quake Live` configuration launches through
-`.vscode\\launch.ps1`, which sets the working directory to the Steam Quake Live
-install root so the native UI can locate `awesomium.dll`,
-`awesomium_process.exe`, and `web.pak` at runtime. The launcher also passes
-`+set fs_basepath <Steam Quake Live install root>` explicitly, and it validates
-that `baseq3\\pak00.pk3` exists before the process is started.
+The VS Code default `Build` task uses the local online-services lane. It stamps
+`QLBuildOnlineServices=1`, uses the client dynamic-loader path with
+`QLRequireAwesomiumSdk=0`, and stages `awesomium.dll`,
+`awesomium_process.exe`, `web.pak`, and the dependent runtime DLLs next to the
+rebuilt executable. The default `Launch Quake Live` configuration does not use
+a `preLaunchTask`; it directly starts the repo-local `quakelive_steam.exe`
+through `cppvsdbg`, using the binary produced by the last explicit build. The
+underlying project defaults remain offline unless that property is set
+explicitly. The debugger profile also passes `+set fs_basepath <Steam Quake
+Live install root>` explicitly so retail data still comes from the Steam
+install.
 
 The same launcher overrides `fs_homepath` to the repo-local runtime tree:
 

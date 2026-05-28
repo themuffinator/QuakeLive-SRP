@@ -22,9 +22,9 @@ Summary:
 
 | ID | Ownerdraw type | Current implementation | Parity state | Next action |
 |---:|---|---|---|---|
-| 1 | `CG_SERVER_SETTINGS` | Direct switch: CG_DrawServerSettings. | Checked | No action unless source changes. |
-| 2 | `CG_STARTING_WEAPONS` | Direct switch: CG_DrawStartingWeapons. | Checked | No action unless source changes. |
-| 3 | `CG_GAME_LIMIT` | Direct switch: CG_DrawGameLimit. | Checked | No action unless source changes. |
+| 1 | `CG_SERVER_SETTINGS` | Direct switch: CG_DrawServerSettings custom-settings text plus modified-weapon icon strip. | Checked | No action unless source changes. |
+| 2 | `CG_STARTING_WEAPONS` | Direct switch: CG_DrawStartingWeapons CS_LOADOUT_MASK icon strip plus queued-primary preview. | Checked | No action unless source changes. |
+| 3 | `CG_GAME_LIMIT` | Direct switch: CG_DrawGameLimit retail Cap/Frag/Round/Score limit label. | Checked | No action unless source changes. |
 | 4 | `CG_GAME_TYPE` | Direct switch: CG_DrawGameType. | Checked | No action unless source changes. |
 | 5 | `CG_GAME_TYPE_ICON` | Direct switch: CG_DrawGameTypeIcon. | Checked | No action unless source changes. |
 | 6 | `CG_GAME_TYPE_MAP` | Direct switch: CG_DrawGameTypeMap. | Checked | No action unless source changes. |

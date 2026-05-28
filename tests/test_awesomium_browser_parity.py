@@ -240,7 +240,7 @@ def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_su
 		cl_cgame, "static int QLWebView_NextPowerOfTwo( int value ) {"
 	)
 	map_cursor_block = _extract_function_block(
-		cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int viewDimension, int surfaceDimension ) {"
+		cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int sourceDimension, int targetDimension ) {"
 	)
 	inject_mapped_mouse_block = _extract_function_block(
 		cl_cgame, "static void QLWebView_InjectMappedMouseMove( int x, int y ) {"
@@ -272,13 +272,17 @@ def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_su
 	assert "#define KEYCATCH_BROWSER\t\t\t0x0020" in client_h
 	assert "if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {" in inject_mouse_block
 	assert "for ( result = 1; result < value; result <<= 1 ) {" in next_power_block
-	assert "mappedCoordinate = ( (double)clampedCoordinate / (double)viewDimension ) * (double)targetDimension;" in map_cursor_block
+	assert "mappedCoordinate = ( (double)clampedCoordinate / (double)sourceDimension ) * (double)targetDimension;" in map_cursor_block
+	assert "cursorWidth = cl_webHost.surfaceContentWidth > 0 ? cl_webHost.surfaceContentWidth : cl_webHost.viewWidth;" in inject_mapped_mouse_block
+	assert "cursorHeight = cl_webHost.surfaceContentHeight > 0 ? cl_webHost.surfaceContentHeight : cl_webHost.viewHeight;" in inject_mapped_mouse_block
 	assert "cl_webHost.cursorX = cursorX;" in inject_mapped_mouse_block
 	assert "cl_webHost.cursorY = cursorY;" in inject_mapped_mouse_block
 	assert "cl_webHost.cursorPositionValid = qtrue;" in inject_mapped_mouse_block
 	assert "QLWebView_InjectMappedMouseMove(" in inject_mouse_block
-	assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceWidth )" in inject_mouse_block
-	assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceHeight )" in inject_mouse_block
+	assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceContentWidth )" in inject_mouse_block
+	assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceContentHeight )" in inject_mouse_block
+	assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceWidth )" not in inject_mouse_block
+	assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceHeight )" not in inject_mouse_block
 	assert "if ( !down && cl_webHost.keyCaptureArmed ) {" in inject_keyboard_block
 	assert "QLWebView_PublishGameKey( key );" in inject_keyboard_block
 	assert "cl_webHost.keyCaptureArmed = qfalse;" in inject_keyboard_block
@@ -1164,7 +1168,7 @@ def test_awesomium_surface_rebuild_and_mouse_mapping_reconstruct_browser_surface
 		cl_cgame, "static void QLWebView_RebuildSurfaceImage( void ) {"
 	)
 	map_cursor_block = _extract_function_block(
-		cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int viewDimension, int surfaceDimension ) {"
+		cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int sourceDimension, int targetDimension ) {"
 	)
 	mouse_block = _extract_function_block(
 		cl_cgame, "static void QLWebView_InjectMouseMove( int x, int y ) {"
@@ -1172,14 +1176,17 @@ def test_awesomium_surface_rebuild_and_mouse_mapping_reconstruct_browser_surface
 
 	assert "contentWidth = cl_webHost.viewWidth;" in rebuild_surface_block
 	assert "contentHeight = cl_webHost.viewHeight;" in rebuild_surface_block
+	assert "cl_webHost.surfaceContentWidth = contentWidth;" in rebuild_surface_block
+	assert "cl_webHost.surfaceContentHeight = contentHeight;" in rebuild_surface_block
 	assert "cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( contentWidth );" in rebuild_surface_block
 	assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( contentHeight );" in rebuild_surface_block
 	assert "cl_webHost.surfaceDirty = qtrue;" in rebuild_surface_block
 	assert "QLWebView_UploadSurfaceImage();" in rebuild_surface_block
-	assert "targetDimension = surfaceDimension > 0 ? surfaceDimension : viewDimension;" in map_cursor_block
+	assert "if ( targetDimension <= 0 ) {" in map_cursor_block
+	assert "targetDimension = sourceDimension;" in map_cursor_block
 	assert "clampedCoordinate = (int)( mappedCoordinate + 0.5 );" in map_cursor_block
-	assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceWidth )" in mouse_block
-	assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceHeight )" in mouse_block
+	assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceContentWidth )" in mouse_block
+	assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceContentHeight )" in mouse_block
 
 
 def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_contract() -> None:
@@ -1254,9 +1261,13 @@ def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_co
 	assert "if ( CL_Awesomium_SurfaceDirty() ) {" in update_block
 	assert "return;" in update_block
 	assert "if ( !cl_webHost.surfaceImageInitialised ) {" in pump_block
+	assert "awesomiumWidth != cl_webHost.surfaceContentWidth" in pump_block
+	assert "awesomiumHeight != cl_webHost.surfaceContentHeight" in pump_block
 	assert "if ( cl_webHost.surfaceUploadWidth != cl_webHost.surfaceWidth || cl_webHost.surfaceUploadHeight != cl_webHost.surfaceHeight ) {" in pump_block
 	assert "if ( cl_webHost.surfaceDirty ) {" in pump_block
 	assert "if ( !cl_webHost.surfaceShader || cl_webHost.surfaceDirty ) {" in draw_block
+	assert "contentWidth = cl_webHost.surfaceContentWidth > 0 ? cl_webHost.surfaceContentWidth : cl_webHost.viewWidth;" in draw_block
+	assert "contentHeight = cl_webHost.surfaceContentHeight > 0 ? cl_webHost.surfaceContentHeight : cl_webHost.viewHeight;" in draw_block
 	assert "if ( !cl_webHost.surfaceShader ) {" in draw_block
 	assert "if ( !cl_webHost.surfaceShader ) {" in drawable_block
 	assert "surfaceHasVisiblePixels" not in drawable_block

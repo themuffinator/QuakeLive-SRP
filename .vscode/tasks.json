@@ -14,7 +14,17 @@
 				"-Configuration",
 				"Debug",
 				"-Platform",
-				"x86"
+				"x86",
+				"-OnlineServices",
+				"1",
+				"-Steamworks",
+				"0",
+				"-OpenSteam",
+				"1",
+				"-RequireAwesomiumSdk",
+				"0",
+				"-Targets",
+				"Splines;botlib;cgame;game;renderer;ui;qagamex86;cgamex86;quakelive_steam"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -65,7 +75,11 @@
 				"-Steamworks",
 				"0",
 				"-OpenSteam",
-				"1"
+				"1",
+				"-RequireAwesomiumSdk",
+				"0",
+				"-Targets",
+				"Splines;botlib;cgame;game;renderer;ui;qagamex86;cgamex86;quakelive_steam"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"

@@ -581,6 +581,23 @@ def test_ui_dead_legacy_helper_band_is_removed() -> None:
     assert "UI_SetBrowserActive(UI_MenuFlowUsesBrowserOverlay(ui_activeMenuFlow));" in load_menus_block
 
 
+def test_ui_browser_active_state_does_not_write_client_owned_rom_cvar() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+
+    browser_active_block = _extract_function_block(
+        ui_main, "static void UI_SetBrowserActive(qboolean active) {"
+    )
+    init_block = _extract_function_block(ui_main, "void _UI_Init( qboolean inGameLoad ) {")
+
+    assert "ui_browserActiveState = active;" in browser_active_block
+    assert "ui_browserActiveKnown = qtrue;" in browser_active_block
+    assert "web_browserActive 1" not in browser_active_block
+    assert "web_browserActive 0" not in browser_active_block
+    assert 'trap_Cmd_ExecuteText(EXEC_NOW, active ? "web_browserActive' not in browser_active_block
+    assert 'trap_Cvar_Set("web_browserActive", "0");' not in init_block
+    assert "UI_SetBrowserActive(qfalse);" in init_block
+
+
 def test_ui_menu_flow_uses_retail_roots_when_overlay_is_absent() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     ui_atoms = (REPO_ROOT / "src/code/ui/ui_atoms.c").read_text(encoding="utf-8")
@@ -1345,7 +1362,7 @@ def test_ui_retail_handicap_netsource_netfilter_ownerdraws_match_ql() -> None:
         ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
     )
     netsource_key_case = key_dispatch_block.split("case UI_NETSOURCE:", 1)[1].split("case UI_NETFILTER:", 1)[0]
-    netfilter_key_case = key_dispatch_block.split("case UI_NETFILTER:", 1)[1].split("case UI_OPPONENT_NAME:", 1)[0]
+    netfilter_key_case = key_dispatch_block.split("case UI_NETFILTER:", 1)[1].split("case UI_BOTNAME:", 1)[0]
 
     assert 'static const char *handicapValues[] = {"None","95","90","85","80","75","70","65","60","55","50","45","40","35","30","25","20","15","10","5",NULL};' in ui_main
     assert 'h = Com_Clamp( 5, 100, trap_Cvar_VariableValue("handicap") );' in handicap_draw
@@ -1395,6 +1412,120 @@ def test_ui_retail_handicap_netsource_netfilter_ownerdraws_match_ql() -> None:
     assert "ui_serverFilterType.integer = numServerFilters - 1;" in netfilter_key
     assert "UI_BuildServerDisplayList(qtrue);" in netfilter_key
     assert 'trap_Cvar_Set( "ui_serverFilterType"' not in netfilter_key
+
+
+def test_ui_retail_player_opponent_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ghidra_reference = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/uix86/ui_ghidra_reference.h"
+    ).read_text(encoding="utf-8")
+    hlil = UI_HLIL_PART01.read_text(encoding="utf-8")
+    key_hlil_block = hlil.split("1000a820    int32_t __convention(\"regparm\") sub_1000a820", 1)[
+        1
+    ].split("1000a917", 1)[0]
+    player_draw = _extract_function_block(ui_main, "static void UI_DrawPlayerModel(rectDef_t *rect) {")
+    opponent_draw = _extract_function_block(ui_main, "static void UI_DrawOpponent(rectDef_t *rect) {")
+    opponent_name_draw = _extract_function_block(
+        ui_main, "static void UI_DrawOpponentName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    width_block = _extract_function_block(ui_main, "static int UI_OwnerDrawWidth(int ownerDraw, float scale) {")
+    opponent_name_width_case = width_block.split("case UI_OPPONENT_NAME:", 1)[1].split(
+        "case UI_KEYBINDSTATUS:", 1
+    )[0]
+
+    assert "#define QLR_UI_ADDR_UI_DRAWPLAYERMODEL" in ghidra_reference
+    assert "0x10005690u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWOPPONENT" in ghidra_reference
+    assert "0x10006730u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWOPPONENTNAME" in ghidra_reference
+    assert "0x100068F0u" in ghidra_reference
+    assert "10005690    int32_t sub_10005690" in hlil
+    assert '100056c6  (*(data_106b40a8 + 0x24))("model", &data_10042f38, 0x400)' in hlil
+    assert '100056ff  (*(data_106b40a8 + 0x24))("headmodel", &data_10042f38, 0x400)' in hlil
+    assert '10005733  (*(eax_4 + 0x28))("cg_loadout")' in hlil
+    assert '10005754      (*(data_106b40a8 + 0x28))("cg_weaponPrimary")' in hlil
+    assert "10005776      esi = 0xe" in hlil
+    assert "100057a5      int32_t var_250_1 = 0x43520000" in hlil
+    assert "100057b8      float var_254 = 5f" in hlil
+    assert "1000580d  data_1004f9c8 = 0" in hlil
+    assert "10005824  int32_t result = sub_10012d90()" in hlil
+    assert "10006730    int32_t sub_10006730" in hlil
+    assert '1000676b      (*(data_106b40a8 + 0x24))("ui_opponentModel", &data_10042f38, 0x400)' in hlil
+    assert '10006799      (*(data_106b40a8 + 0x24))("ui_opponentModel", &data_10042f38, 0x400)' in hlil
+    assert "100067d5      int32_t var_194_1 = 0x432a0000" in hlil
+    assert "1000680c      int32_t eax_6" in hlil
+    assert "10006850  data_100468a8 = 0" in hlil
+    assert "10006866      fconvert.s(fconvert.t(*arg1)), fconvert.s(x87_r7_2))" in hlil
+    assert "100068f0    int32_t sub_100068f0" in hlil
+    assert '10006907  int32_t ecx_1 = (*(data_106b40a8 + 0x24))("ui_opponentName", &data_10042f38, 0x400)' in hlil
+    assert "10009824          float* var_2c_2 = &var_18" in hlil
+    assert "10009833          return sub_10005690(x87_r0)" in hlil
+    assert "100099da      case 9" in hlil
+    assert "100099da          return sub_10006730(&var_18)" in hlil
+    assert "10009a66      case 0x10" in hlil
+    assert "10009a7c          return sub_100068f0(&var_18, fconvert.s(fconvert.t(arg11)), arg12, arg14)" in hlil
+    assert "case 0x211" not in key_hlil_block
+    assert "case 0x213" in key_hlil_block
+
+    assert 'trap_Cvar_VariableStringBuffer("model", model, sizeof(model));' in player_draw
+    assert 'trap_Cvar_VariableStringBuffer("headmodel", head, sizeof(head));' in player_draw
+    assert "team[0] = '\\0';" in player_draw
+    assert "weapon = WP_MACHINEGUN;" in player_draw
+    assert 'if (trap_Cvar_VariableValue("cg_loadout") != 0.0f) {' in player_draw
+    assert 'weapon = (weapon_t)(int)trap_Cvar_VariableValue("cg_weaponPrimary");' in player_draw
+    assert "item = BG_FindItemForWeapon(weapon);" in player_draw
+    assert "if (!item || item->giType != IT_WEAPON) {" in player_draw
+    assert "weapon = WP_HEAVY_MACHINEGUN;" in player_draw
+    assert "viewangles[PITCH] = 5;" in player_draw
+    assert "viewangles[YAW]   = 210;" in player_draw
+    assert "UI_PlayerInfo_SetModel( &info, model, head, team);" in player_draw
+    assert "UI_PlayerInfo_SetInfo( &info, LEGS_IDLE, TORSO_STAND, viewangles, moveangles, weapon, qfalse );" in player_draw
+    assert "info.headColor[0] = 0.0f;" in player_draw
+    assert "UI_DrawPlayer( rect->x, rect->y, rect->w, rect->h, &info, uiInfo.uiDC.realTime / 2);" in player_draw
+    assert '"ui_Q3Model"' not in player_draw
+    assert '"team_model"' not in player_draw
+    assert '"team_headmodel"' not in player_draw
+    assert "q3Model" not in ui_main
+    assert "case UI_PLAYERMODEL:" in draw_dispatch_block
+    assert "UI_DrawPlayerModel(&rect);" in draw_dispatch_block
+
+    assert 'trap_Cvar_VariableStringBuffer("ui_opponentModel", model, sizeof(model));' in opponent_draw
+    assert 'trap_Cvar_VariableStringBuffer("ui_opponentModel", headmodel, sizeof(headmodel));' in opponent_draw
+    assert "team[0] = '\\0';" in opponent_draw
+    assert "viewangles[YAW]   = 180 - 10;" in opponent_draw
+    assert 'UI_PlayerInfo_SetModel( &info2, model, headmodel, "");' in opponent_draw
+    assert "UI_PlayerInfo_SetInfo( &info2, LEGS_IDLE, TORSO_STAND, viewangles, moveangles, WP_MACHINEGUN, qfalse );" in opponent_draw
+    assert "UI_RegisterClientModelname( &info2, model, headmodel, team);" in opponent_draw
+    assert "updateOpponentModel = qfalse;" in opponent_draw
+    assert "info2.headColor[0] = 0.0f;" in opponent_draw
+    assert "UI_DrawPlayer( rect->x, rect->y, rect->w, rect->h, &info2, uiInfo.uiDC.realTime / 2);" in opponent_draw
+    assert "case UI_OPPONENTMODEL:" in draw_dispatch_block
+    assert "UI_DrawOpponent(&rect);" in draw_dispatch_block
+
+    assert "char opponentName[MAX_INFO_STRING];" in opponent_name_draw
+    assert 'trap_Cvar_VariableStringBuffer("ui_opponentName", opponentName, sizeof(opponentName));' in opponent_name_draw
+    assert "Text_Paint(rect->x, rect->y, scale, color, opponentName, 0, 0, textStyle);" in opponent_name_draw
+    assert 'UI_Cvar_VariableString("ui_opponentName")' not in opponent_name_draw
+    assert "case UI_OPPONENT_NAME:" in draw_dispatch_block
+    assert "UI_DrawOpponentName(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "case UI_OPPONENT_NAME:" in width_block
+    assert "break;" in opponent_name_width_case
+    assert "s =" not in opponent_name_width_case
+    assert "case UI_PLAYERMODEL:" not in width_block
+    assert "case UI_OPPONENTMODEL:" not in width_block
+    assert "case UI_PLAYERMODEL:" not in key_dispatch_block
+    assert "case UI_OPPONENTMODEL:" not in key_dispatch_block
+    assert "case UI_OPPONENT_NAME:" not in key_dispatch_block
+    assert "UI_OpponentName_HandleKey" not in ui_main
+    assert "UI_NextOpponent" not in ui_main
+    assert "UI_PriorOpponent" not in ui_main
 
 
 def test_ui_retail_starting_weapons_ownerdraw_restored() -> None:

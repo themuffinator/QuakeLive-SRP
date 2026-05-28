@@ -1609,16 +1609,38 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
 
 def test_awesomium_launch_task_builds_with_in_process_overlay_provider() -> None:
     tasks = json.loads((REPO_ROOT / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+    launch_json = json.loads((REPO_ROOT / ".vscode" / "launch.json").read_text(encoding="utf-8"))
     build_script = (REPO_ROOT / ".vscode" / "build.ps1").read_text(encoding="utf-8")
     launch_script = (REPO_ROOT / ".vscode" / "launch.ps1").read_text(encoding="utf-8")
+    default_build_task = next(task for task in tasks["tasks"] if task["label"] == "Build")
     awesomium_task = next(task for task in tasks["tasks"] if task["label"] == "Build Debug Awesomium")
+    awesomium_launch = next(configuration for configuration in launch_json["configurations"] if configuration["name"] == "Launch Quake Live")
     args = awesomium_task["args"]
+    default_args = default_build_task["args"]
 
+    assert default_args[default_args.index("-OnlineServices") + 1] == "1"
+    assert default_args[default_args.index("-Steamworks") + 1] == "0"
+    assert default_args[default_args.index("-OpenSteam") + 1] == "1"
+    assert default_args[default_args.index("-RequireAwesomiumSdk") + 1] == "0"
+    assert default_args[default_args.index("-Targets") + 1] == "Splines;botlib;cgame;game;renderer;ui;qagamex86;cgamex86;quakelive_steam"
     assert args[args.index("-OnlineServices") + 1] == "1"
     assert args[args.index("-Steamworks") + 1] == "0"
     assert args[args.index("-OpenSteam") + 1] == "1"
+    assert args[args.index("-RequireAwesomiumSdk") + 1] == "0"
+    assert args[args.index("-Targets") + 1] == "Splines;botlib;cgame;game;renderer;ui;qagamex86;cgamex86;quakelive_steam"
+    assert "preLaunchTask" not in awesomium_launch
+    assert awesomium_launch["args"][awesomium_launch["args"].index("ui_browserAwesomium") + 1] == "1"
+    assert awesomium_launch["env"]["QL_DISABLE_EXTERNAL_ECOSYSTEMS"] == "0"
+    assert awesomium_launch["env"]["QL_DISABLE_AWESOMIUM"] == "0"
     assert "ql_build_settings.txt" in build_script
     assert "QLBuildOnlineServices=$onlineServicesSetting" in build_script
+    assert "QLRequireAwesomiumSdk=$requireAwesomiumSdkSetting" in build_script
+    assert '"/p:QLRequireAwesomiumSdk=$RequireAwesomiumSdk"' in build_script
+    assert '"/t:$Targets"' in build_script
+    assert "function Sync-AwesomiumRuntime" in build_script
+    assert "$steamBasePath = $env:QLR_STEAM_BASEPATH" in build_script
+    assert "if ($onlineServicesSetting -eq '1')" in build_script
+    assert "Sync-AwesomiumRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir" in build_script
     assert "function Sync-AwesomiumRuntime" in launch_script
     assert "ql_build_settings.txt" in launch_script
     assert "Assert-AwesomiumEnabledBuild -RuntimeBinDir $runtimeBinDir" in launch_script
@@ -2042,7 +2064,7 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     load_scripts_block = _extract_function_block(cl_cgame, "static void QLLoadHandler_LoadDocumentScripts( void ) {")
     document_ready_block = _extract_function_block(cl_cgame, "static void QLLoadHandler_OnDocumentReady( void ) {")
     next_power_block = _extract_function_block(cl_cgame, "static int QLWebView_NextPowerOfTwo( int value ) {")
-    map_cursor_block = _extract_function_block(cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int viewDimension, int surfaceDimension ) {")
+    map_cursor_block = _extract_function_block(cl_cgame, "static int QLWebView_MapCursorCoordinate( int coordinate, int sourceDimension, int targetDimension ) {")
     mapped_mouse_block = _extract_function_block(cl_cgame, "static void QLWebView_InjectMappedMouseMove( int x, int y ) {")
     rebuild_surface_block = _extract_function_block(cl_cgame, "static void QLWebView_RebuildSurfaceImage( void ) {")
     coerce_integer_block = _extract_function_block(
@@ -2114,10 +2136,15 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     assert "CL_LauncherRequestData( scriptPath, &scriptBuffer, &scriptLength )" in load_scripts_block
     assert "QLLoadHandler_LoadDocumentScripts();" in document_ready_block
     assert "for ( result = 1; result < value; result <<= 1 ) {" in next_power_block
-    assert "targetDimension = surfaceDimension > 0 ? surfaceDimension : viewDimension;" in map_cursor_block
+    assert "if ( targetDimension <= 0 ) {" in map_cursor_block
+    assert "targetDimension = sourceDimension;" in map_cursor_block
     assert "cl_webHost.cursorX = cursorX;" in mapped_mouse_block
+    assert "cursorWidth = cl_webHost.surfaceContentWidth > 0 ? cl_webHost.surfaceContentWidth : cl_webHost.viewWidth;" in mapped_mouse_block
+    assert "cursorHeight = cl_webHost.surfaceContentHeight > 0 ? cl_webHost.surfaceContentHeight : cl_webHost.viewHeight;" in mapped_mouse_block
     assert "contentWidth = cl_webHost.viewWidth;" in rebuild_surface_block
     assert "contentHeight = cl_webHost.viewHeight;" in rebuild_surface_block
+    assert "cl_webHost.surfaceContentWidth = contentWidth;" in rebuild_surface_block
+    assert "cl_webHost.surfaceContentHeight = contentHeight;" in rebuild_surface_block
     assert "cl_webHost.surfaceWidth = QLWebView_NextPowerOfTwo( contentWidth );" in rebuild_surface_block
     assert "cl_webHost.surfaceHeight = QLWebView_NextPowerOfTwo( contentHeight );" in rebuild_surface_block
     assert "QLJSHandler_BindQzInstance();" in document_ready_block
@@ -2192,8 +2219,10 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
     assert "Cvar_Reset( arguments[0] );" in return_block
 
     assert "QLWebView_InjectMappedMouseMove(" in mouse_block
-    assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceWidth )" in mouse_block
-    assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceHeight )" in mouse_block
+    assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceContentWidth )" in mouse_block
+    assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceContentHeight )" in mouse_block
+    assert "QLWebView_MapCursorCoordinate( x, cl_webHost.viewWidth, cl_webHost.surfaceWidth )" not in mouse_block
+    assert "QLWebView_MapCursorCoordinate( y, cl_webHost.viewHeight, cl_webHost.surfaceHeight )" not in mouse_block
     assert "button = CL_WebHost_MapMouseButton( key );" in mouse_down_block
     assert "button = CL_WebHost_MapMouseButton( key );" in mouse_up_block
     assert "QLWebView_InjectMappedMouseMove( cl_webHost.cursorX, cl_webHost.cursorY );" in mouse_down_block
@@ -4899,6 +4928,9 @@ def test_windows_build_and_launch_pipeline_refresh_runtime_ui_bundle_and_vm_modu
 	assert "function Sync-LaunchModuleArtifact" in launch_script
 	assert "Sync-LaunchModuleArtifact -ModuleName 'cgamex86'" in launch_script
 	assert "Sync-LaunchModuleArtifact -ModuleName 'qagamex86'" in launch_script
+
+	default_launch = next(configuration for configuration in launch_json["configurations"] if configuration["name"] == "Launch Quake Live")
+	assert "preLaunchTask" not in default_launch
 
 	for configuration in launch_json["configurations"]:
 		assert configuration["cwd"] == "${workspaceFolder}\\build\\win32\\Debug\\bin"

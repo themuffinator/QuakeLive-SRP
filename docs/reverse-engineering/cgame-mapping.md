@@ -830,6 +830,12 @@ analogue line up cleanly enough to support a stable mapping.
 - `0x100310F0 -> CG_DrawCTFPowerUp` remains the direct `STAT_PERSISTANT_POWERUP` item-icon ownerdraw, and `0x1003B0F0 -> CG_OwnerDraw` routes raw `0x3C` directly to that leaf with no value, width, or key callback participation.
 - `0x10031160 -> CG_DrawPowerupSpriteStack` is reached directly from raw `0x3D` (`CG_AREA_POWERUP`). The retail leaf sorts active timed powerups by expiry, skips hidden transport slots, paints the blinking icon/timer stack, and appends the Quad/Battle Suit counter badges. Neither the switch nor the leaf checks `cg_drawSprites` or `cg_drawSpriteSelf`, so the source/tests now keep those sprite cvars out of this ownerdraw path.
 
+### Retail Front-Panel Ownerdraw Follow-Up
+
+- This follow-up keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and closes the focused front-panel menudef rows `CG_SERVER_SETTINGS`, `CG_STARTING_WEAPONS`, and `CG_GAME_LIMIT`.
+- The committed retail dispatcher routes raw cases `1`, `2`, and `3` to `0x1003A1C0 -> CG_DrawServerSettings`, `0x10033910 -> CG_DrawStartingWeapons`, and `0x10033800 -> CG_DrawGameLimit` respectively. The current source switch keeps the same direct routes and does not involve placement, award, value, width, or key-handler callbacks for this trio.
+- `CG_DrawServerSettings` remains on the custom-settings configstring path and renders the recovered settings text plus modified-weapon icon strip. `CG_DrawStartingWeapons` remains on the `CS_LOADOUT_MASK` icon-strip path with the queued-primary loadout preview. `CG_DrawGameLimit` remains on the narrowed retail `Cap Limit` / `Frag Limit` / `Round Limit` / `Score Limit` label family using cached serverinfo mirrors.
+
 ### Retail Classic HUD / Player-Status Sweep
 
 - This pass promotes twelve committed cgame helpers from the classic player-status ownerdraw corridor: `0x10009850 -> CG_DrawTeamBackground`, `0x1002E3F0 -> CG_DrawPlayerArmorIcon`, `0x1002E500 -> CG_DrawPlayerArmorValue`, `0x1002E660 -> CG_DrawPlayerAmmoIcon`, `0x1002E7C0 -> CG_DrawPlayerAmmoValue`, `0x1002ED50 -> CG_DrawPlayerHealthBar100`, `0x1002EE50 -> CG_DrawPlayerHealthBar200`, `0x1002EFB0 -> CG_DrawPlayerArmorBar100`, `0x1002F0C0 -> CG_DrawPlayerArmorBar200`, `0x1002F780 -> CG_DrawArmorTieredColorized`, `0x1002F950 -> CG_DrawPlayerHead`, and `0x1002FDF0 -> CG_DrawPlayerHealth`.

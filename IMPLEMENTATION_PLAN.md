@@ -45,6 +45,67 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A134: Close player/opponent UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`,
+`docs/reverse-engineering/ui-ownerdrawtype-parity-index.md`
+Parity estimate: **before 76% -> after 100%** for the selected
+`UI_PLAYERMODEL`, `UI_OPPONENTMODEL`, and `UI_OPPONENT_NAME` ownerdraw trio.
+Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for
+   `UI_DrawPlayerModel` at `0x10005690`, `UI_DrawOpponent` at `0x10006730`,
+   `UI_DrawOpponentName` at `0x100068F0`, and `UI_OwnerDrawHandleKey` at
+   `0x1000A820`.
+2. Rebuilt `UI_PLAYERMODEL` around the retail `model`/`headmodel` cvar reads,
+   empty team name, `cg_loadout`/`cg_weaponPrimary` primary weapon selection,
+   weapon item validation, heavy-machinegun fallback for invalid primary
+   weapon values, retail `5/210/0` view angles, and the pre-draw cached
+   `playerInfo_t` reset observed in HLIL.
+3. Tightened `UI_OPPONENTMODEL` cvar refresh to use buffered
+   `ui_opponentModel` reads before rebuilding and drawing the cached
+   `playerInfo_t`, including the retail `0/170/0` view angles and pre-draw
+   cached preview reset.
+4. Tightened `UI_OPPONENT_NAME` to the retail buffered `ui_opponentName` paint
+   path, kept the empty width-helper case, and removed the source-only
+   ownerdraw key route that retail does not dispatch.
+5. Updated the UI ownerdraw parity index so all retail-routed `Needs check`
+   rows are now checked.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -k "player_opponent_ownerdraws or handicap_netsource_netfilter"`
+  - Result: `2 passed, 76 deselected`.
+- `python -m pytest tests/test_ui_menu_files.py`
+  - Result: `78 passed`.
+
+### Task A133: Close front-panel cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_ownerdraw_text_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 98% -> after 100%** for the selected
+`CG_SERVER_SETTINGS`, `CG_STARTING_WEAPONS`, and `CG_GAME_LIMIT` ownerdraw
+trio. Repo-wide parity remains **98%** because no unrelated compatibility or
+runtime-evidence surfaces changed.
+
+Completed work:
+
+1. Rechecked the retail `CG_OwnerDraw` dispatcher cases `1`, `2`, and `3`
+   against the committed Ghidra/HLIL evidence.
+2. Confirmed `CG_SERVER_SETTINGS` stays on the custom-settings text and
+   modified-weapon icon-strip leaf.
+3. Confirmed `CG_STARTING_WEAPONS` stays on the `CS_LOADOUT_MASK` icon-strip
+   and queued-primary loadout preview leaf.
+4. Confirmed `CG_GAME_LIMIT` stays on the narrowed retail
+   `Cap Limit` / `Frag Limit` / `Round Limit` / `Score Limit` label family.
+5. Added focused structural coverage that guards switch wiring, display-context
+   callback non-participation, menudef constants, and shipped menu reachability
+   for the two shipped front-panel menu users.
+
 ### Task A132: Close objective/powerup cgame ownerdraw parity [COMPLETED]
 Priority: High
 Primary areas: `src/code/cgame/cg_newdraw.c`,
@@ -125,14 +186,15 @@ Verification:
 - `python -m pytest tests/test_cgame_displaycontext_parity.py -k "combo_rampage_midair or ownerdraw_dispatch_covers_committed_retail_switch_cases or ownerdraw_width_callback" -q`
   - Result: `3 passed, 144 deselected`.
 
-### Task A129: Close team overlay transport parity [COMPLETED]
+### Task A129: Close team overlay transport and drawing parity [COMPLETED]
 Priority: High
 Primary areas: `src/code/game/g_team.c`,
 `src/code/cgame/cg_servercmds.c`, `src/code/game/bg_public.h`,
-`tests/test_cgame_hud_parity.py`
+`src/code/cgame/cg_draw.c`, `tests/test_cgame_hud_parity.py`
 Parity estimate: **before 98% -> after 100%** for the focused team-overlay
-transport/cache lane. Repo-wide parity remains **98%** because unrelated dirty
-worktree changes and non-Windows/runtime-evidence lanes are unchanged.
+transport/cache and classic HUD drawing lane. Repo-wide parity remains **98%**
+because unrelated dirty worktree changes and non-Windows/runtime-evidence lanes
+are unchanged.
 
 Completed work:
 
@@ -144,7 +206,12 @@ Completed work:
 3. Kept the emitted `tinfo` row count tied to successfully serialized rows and
    guarded the cgame receiver against oversized, truncated, or invalid client
    rows before updating `sortedTeamPlayers`.
-4. Added a focused parity test covering the eight-row cap, sorted top-eight
+4. Matched the retail drawing gates and row body: invulnerability-expand early
+   return, integer row placement, `ITEM_TEXTSTYLE_SHADOWED` host text, sans
+   name/location columns, mono health/armor columns, `EF_DEAD` dead-row gating,
+   and a powerup icon ladder that suppresses the neutral flag and frozen
+   sentinel while preserving the invulnerability item path.
+5. Added a focused parity test covering the eight-row cap, sorted top-eight
    payload order, `tinfo` row count, and receiver-side bounds.
 
 Verification:

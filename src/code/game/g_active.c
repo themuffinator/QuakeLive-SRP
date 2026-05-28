@@ -1865,6 +1865,36 @@ void G_SetAllActiveClientAttackLockout( qboolean lockout ) {
 
 /*
 =============
+G_Frame_ReleaseWaitingWarmupClients
+
+Clears pre-round holding state while a round gametype is only waiting for
+enough team presence to start its actual countdown.
+=============
+*/
+static void G_Frame_ReleaseWaitingWarmupClients( void ) {
+	int		clientNum;
+
+	for ( clientNum = 0; clientNum < level.maxclients; clientNum++ ) {
+		gentity_t	*ent;
+
+		ent = &g_entities[clientNum];
+		if ( !ent->inuse || !ent->client ) {
+			continue;
+		}
+
+		if ( ent->client->sess.sessionTeam == TEAM_SPECTATOR ) {
+			continue;
+		}
+
+		if ( ent->client->ps.pm_type == PM_FREEZE && !ent->client->freezeFrozen ) {
+			ent->client->ps.pm_type = PM_NORMAL;
+		}
+		G_SetClientAttackLockout( ent, qfalse );
+	}
+}
+
+/*
+=============
 G_Frame_BeginRoundWarmup
 
 Transitions the round controller into the warmup state.
@@ -2175,6 +2205,7 @@ static int CA_RoundStateTransition( qboolean announce ) {
 				G_UpdateReadyUpConfigstring();
 				G_LogPrintf( "Warmup:\n" );
 			}
+			G_Frame_ReleaseWaitingWarmupClients();
 			break;
 		}
 
@@ -2273,6 +2304,7 @@ static void G_Frame_UpdateAttackDefendRoundController( void ) {
 			G_ADResetScoreHistory();
 			G_UpdateMatchStateConfigString();
 		}
+		G_Frame_ReleaseWaitingWarmupClients();
 		return;
 	}
 
@@ -2864,6 +2896,7 @@ static int Freeze_RoundStateTransition( qboolean announce ) {
 				G_UpdateReadyUpConfigstring();
 				G_LogPrintf( "Warmup:\n" );
 			}
+			G_Frame_ReleaseWaitingWarmupClients();
 			break;
 		}
 
@@ -3110,6 +3143,7 @@ static int RR_RoundStateTransition( qboolean announce ) {
 				G_UpdateReadyUpConfigstring();
 				G_LogPrintf( "Warmup:\n" );
 			}
+			G_Frame_ReleaseWaitingWarmupClients();
 			break;
 		}
 
@@ -3289,6 +3323,7 @@ void G_Frame_UpdateRoundController( void ) {
 				G_UpdateReadyUpConfigstring();
 				G_LogPrintf( "Warmup:\n" );
 			}
+			G_Frame_ReleaseWaitingWarmupClients();
 			break;
 		}
 

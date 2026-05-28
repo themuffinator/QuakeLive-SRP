@@ -971,6 +971,53 @@ def test_starting_weapons_uses_retail_icon_preview_path() -> None:
         assert stale not in block
 
 
+def test_front_panel_ownerdraw_trio_matches_retail_dispatch_and_callback_surface() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    main_source = CG_MAIN.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    intro_menu = INTRO_MENU.read_text(encoding="utf-8")
+    endscoreteam_menu = ENDSCORETEAM_MENU.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    retail_ownerdraw_block = _block_from_marker(ghidra_source, "void FUN_1003b0f0")
+    value_block = _block_from_marker(source, "float CG_GetValue")
+    width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+    key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+    display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+    server_case = _text_between(ownerdraw_block, "case CG_SERVER_SETTINGS:", "case CG_STARTING_WEAPONS:")
+    starting_case = _text_between(ownerdraw_block, "case CG_STARTING_WEAPONS:", "case CG_GAME_LIMIT:")
+    limit_case = _text_between(ownerdraw_block, "case CG_GAME_LIMIT:", "case CG_GAME_TYPE_ICON:")
+
+    assert any(line.split() == ["#define", "CG_SERVER_SETTINGS", "1"] for line in menudef_source.splitlines())
+    assert any(line.split() == ["#define", "CG_STARTING_WEAPONS", "2"] for line in menudef_source.splitlines())
+    assert any(line.split() == ["#define", "CG_GAME_LIMIT", "3"] for line in menudef_source.splitlines())
+
+    assert "CG_DrawServerSettings(&rect, text_x, text_y, scale, color, textStyle);" in server_case
+    assert "CG_DrawStartingWeapons(&rect, text_x, text_y, scale, color, textStyle);" in starting_case
+    assert "CG_DrawGameLimit( &rect, scale, color, textStyle, align );" in limit_case
+
+    assert "case 1:" in retail_ownerdraw_block
+    assert "FUN_1003a1c0(param_13,param_14);" in retail_ownerdraw_block
+    assert "case 2:" in retail_ownerdraw_block
+    assert "FUN_10033910(param_13,param_14,param_16);" in retail_ownerdraw_block
+    assert "case 3:" in retail_ownerdraw_block
+    assert "FUN_10033800(&local_18,param_13,param_14,param_16,param_10);" in retail_ownerdraw_block
+
+    for ownerdraw in ("CG_SERVER_SETTINGS", "CG_STARTING_WEAPONS", "CG_GAME_LIMIT"):
+        assert ownerdraw not in value_block
+        assert ownerdraw not in width_block
+        assert ownerdraw not in key_block
+
+    assert "cgDC.ownerDrawItem = &CG_OwnerDraw;" in display_context_block
+    assert "cgDC.getValue = &CG_GetValue;" in display_context_block
+    assert "cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;" in display_context_block
+    assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in display_context_block
+
+    assert "ownerdraw CG_STARTING_WEAPONS" in intro_menu
+    assert "ownerdraw CG_GAME_LIMIT" in intro_menu
+    assert "ownerdraw CG_GAME_LIMIT" in endscoreteam_menu
+
+
 def test_gametype_icons_use_retail_tga_registration_path() -> None:
     newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
     main_source = CG_MAIN.read_text(encoding="utf-8")

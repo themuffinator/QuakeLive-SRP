@@ -102,11 +102,18 @@ outside the repository:
 pwsh tools\ci\verify-awesomium-process-parity.ps1
 ```
 
-The VS Code `Launch Debug Awesomium` task uses the matching
-`Build Debug Awesomium` task first. That build writes
-`build\win32\<Configuration>\bin\ql_build_settings.txt`;
-`launch.ps1 -EnableAwesomium` refuses to start if the stamp reports
-`QLBuildOnlineServices=0`, because that default offline build will always fall
+The VS Code default `Build` task and the `Launch Debug Awesomium` task both use
+the local online-services launch lane. That build enables the client's dynamic
+Awesomium loader with
+`QLRequireAwesomiumSdk=0`, skips rebuilding the helper project unless an
+external SDK is supplied separately, writes
+`build\win32\<Configuration>\bin\ql_build_settings.txt`, and stages the retail
+Awesomium runtime payload from the Steam install root. The C/MSBuild project
+properties still default `QLBuildOnlineServices` to `0`; the VS Code task is an
+explicit local opt-in. The `Launch Quake Live` debugger profile does not use a
+`preLaunchTask`, so run the build task explicitly before launching. The
+standalone `launch.ps1 -EnableAwesomium` path also refuses to start if the stamp
+reports `QLBuildOnlineServices=0`, because that offline build will always fall
 back to the menu path instead of showing the WebUI.
 
 ## Repo-Managed Codec Bootstrap

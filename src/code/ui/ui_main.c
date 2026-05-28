@@ -536,7 +536,7 @@ static uiMenuFlow_t UI_ResolveMenuFlowInternal(void) {
 =============
 UI_SetBrowserActive
 
-Inform the engine overlay about whether the Awesomium-driven UI is active.
+Track whether the current UI flow expects the client-owned browser overlay.
 =============
 */
 static void UI_SetBrowserActive(qboolean active) {
@@ -546,7 +546,6 @@ static void UI_SetBrowserActive(qboolean active) {
 
 	ui_browserActiveState = active;
 	ui_browserActiveKnown = qtrue;
-	trap_Cmd_ExecuteText(EXEC_NOW, active ? "web_browserActive 1\n" : "web_browserActive 0\n");
 }
 
 /*
@@ -2635,47 +2634,43 @@ static void UI_DrawMapCinematic(rectDef_t *rect, float scale, vec4_t color, qboo
 
 
 static qboolean updateModel = qtrue;
-static qboolean q3Model = qfalse;
 
 static void UI_DrawPlayerModel(rectDef_t *rect) {
-  static playerInfo_t info;
-  char model[MAX_QPATH];
-  char team[256];
+	static playerInfo_t info;
+	char model[MAX_QPATH];
+	char team[256];
 	char head[256];
 	vec3_t	viewangles;
 	vec3_t	moveangles;
+	weapon_t weapon;
+	gitem_t *item;
 
-	  if (trap_Cvar_VariableValue("ui_Q3Model")) {
-	  strcpy(model, UI_Cvar_VariableString("model"));
-		strcpy(head, UI_Cvar_VariableString("headmodel"));
-		if (!q3Model) {
-			q3Model = qtrue;
-			updateModel = qtrue;
-		}
-		team[0] = '\0';
-	} else {
+	trap_Cvar_VariableStringBuffer("model", model, sizeof(model));
+	trap_Cvar_VariableStringBuffer("headmodel", head, sizeof(head));
+	team[0] = '\0';
 
-		strcpy(team, UI_Cvar_VariableString("ui_teamName"));
-		strcpy(model, UI_Cvar_VariableString("team_model"));
-		strcpy(head, UI_Cvar_VariableString("team_headmodel"));
-		if (q3Model) {
-			q3Model = qfalse;
-			updateModel = qtrue;
-		}
+	weapon = WP_MACHINEGUN;
+	if (trap_Cvar_VariableValue("cg_loadout") != 0.0f) {
+		weapon = (weapon_t)(int)trap_Cvar_VariableValue("cg_weaponPrimary");
 	}
-  if (updateModel) {
-  	memset( &info, 0, sizeof(playerInfo_t) );
-  	viewangles[YAW]   = 180 - 10;
-  	viewangles[PITCH] = 0;
-  	viewangles[ROLL]  = 0;
-  	VectorClear( moveangles );
-    UI_PlayerInfo_SetModel( &info, model, head, team);
-    UI_PlayerInfo_SetInfo( &info, LEGS_IDLE, TORSO_STAND, viewangles, vec3_origin, WP_MACHINEGUN, qfalse );
-//		UI_RegisterClientModelname( &info, model, head, team);
-    updateModel = qfalse;
-  }
+	item = BG_FindItemForWeapon(weapon);
+	if (!item || item->giType != IT_WEAPON) {
+		weapon = WP_HEAVY_MACHINEGUN;
+	}
 
-  UI_DrawPlayer( rect->x, rect->y, rect->w, rect->h, &info, uiInfo.uiDC.realTime / 2);
+	if (updateModel) {
+		memset( &info, 0, sizeof(playerInfo_t) );
+		viewangles[PITCH] = 5;
+		viewangles[YAW]   = 210;
+		viewangles[ROLL]  = 0;
+		VectorClear( moveangles );
+		UI_PlayerInfo_SetModel( &info, model, head, team);
+		UI_PlayerInfo_SetInfo( &info, LEGS_IDLE, TORSO_STAND, viewangles, moveangles, weapon, qfalse );
+		updateModel = qfalse;
+	}
+
+	info.headColor[0] = 0.0f;
+	UI_DrawPlayer( rect->x, rect->y, rect->w, rect->h, &info, uiInfo.uiDC.realTime / 2);
 
 		}
 
@@ -3314,64 +3309,32 @@ static const char *UI_AIFromName(const char *name) {
 
 static qboolean updateOpponentModel = qtrue;
 static void UI_DrawOpponent(rectDef_t *rect) {
-  static playerInfo_t info2;
-  char model[MAX_QPATH];
-  char headmodel[MAX_QPATH];
-  char team[256];
+	static playerInfo_t info2;
+	char model[MAX_QPATH];
+	char headmodel[MAX_QPATH];
+	char team[256];
 	vec3_t	viewangles;
 	vec3_t	moveangles;
-  
+
 	if (updateOpponentModel) {
-		
-		strcpy(model, UI_Cvar_VariableString("ui_opponentModel"));
-	  strcpy(headmodel, UI_Cvar_VariableString("ui_opponentModel"));
+		trap_Cvar_VariableStringBuffer("ui_opponentModel", model, sizeof(model));
+		trap_Cvar_VariableStringBuffer("ui_opponentModel", headmodel, sizeof(headmodel));
 		team[0] = '\0';
 
-  	memset( &info2, 0, sizeof(playerInfo_t) );
-  	viewangles[YAW]   = 180 - 10;
-  	viewangles[PITCH] = 0;
-  	viewangles[ROLL]  = 0;
-  	VectorClear( moveangles );
-    UI_PlayerInfo_SetModel( &info2, model, headmodel, "");
-    UI_PlayerInfo_SetInfo( &info2, LEGS_IDLE, TORSO_STAND, viewangles, vec3_origin, WP_MACHINEGUN, qfalse );
+		memset( &info2, 0, sizeof(playerInfo_t) );
+		viewangles[YAW]   = 180 - 10;
+		viewangles[PITCH] = 0;
+		viewangles[ROLL]  = 0;
+		VectorClear( moveangles );
+		UI_PlayerInfo_SetModel( &info2, model, headmodel, "");
+		UI_PlayerInfo_SetInfo( &info2, LEGS_IDLE, TORSO_STAND, viewangles, moveangles, WP_MACHINEGUN, qfalse );
 		UI_RegisterClientModelname( &info2, model, headmodel, team);
-    updateOpponentModel = qfalse;
-  }
-
-  UI_DrawPlayer( rect->x, rect->y, rect->w, rect->h, &info2, uiInfo.uiDC.realTime / 2);
-
-		}
-
-static void UI_NextOpponent() {
-  int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_opponentName"));
-  int j = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
-	i++;
-	if (i >= uiInfo.teamCount) {
-		i = 0;
+		updateOpponentModel = qfalse;
 	}
-	if (i == j) {
-		i++;
-		if ( i >= uiInfo.teamCount) {
-			i = 0;
-		}
-	}
- 	trap_Cvar_Set( "ui_opponentName", uiInfo.teamList[i].teamName );
-		}
 
-static void UI_PriorOpponent() {
-  int i = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_opponentName"));
-  int j = UI_TeamIndexFromName(UI_Cvar_VariableString("ui_teamName"));
-	i--;
-	if (i < 0) {
-		i = uiInfo.teamCount - 1;
-	}
-	if (i == j) {
-		i--;
-		if ( i < 0) {
-			i = uiInfo.teamCount - 1;
-		}
-	}
- 	trap_Cvar_Set( "ui_opponentName", uiInfo.teamList[i].teamName );
+	info2.headColor[0] = 0.0f;
+	UI_DrawPlayer( rect->x, rect->y, rect->w, rect->h, &info2, uiInfo.uiDC.realTime / 2);
+
 		}
 
 static void	UI_DrawPlayerLogo(rectDef_t *rect, vec3_t color) {
@@ -3461,7 +3424,10 @@ static void UI_DrawAllMapsSelection(rectDef_t *rect, float scale, vec4_t color, 
 		}
 
 static void UI_DrawOpponentName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-  Text_Paint(rect->x, rect->y, scale, color, UI_Cvar_VariableString("ui_opponentName"), 0, 0, textStyle);
+	char opponentName[MAX_INFO_STRING];
+
+	trap_Cvar_VariableStringBuffer("ui_opponentName", opponentName, sizeof(opponentName));
+	Text_Paint(rect->x, rect->y, scale, color, opponentName, 0, 0, textStyle);
 		}
 
 
@@ -5199,18 +5165,6 @@ static qboolean UI_NetFilter_HandleKey(int flags, float *special, int key) {
   return qfalse;
 		}
 
-static qboolean UI_OpponentName_HandleKey(int flags, float *special, int key) {
-  if (key == K_MOUSE1 || key == K_MOUSE2 || key == K_ENTER || key == K_KP_ENTER) {
-		if (key == K_MOUSE2) {
-			UI_PriorOpponent();
-		} else {
-			UI_NextOpponent();
-		}
-    return qtrue;
-  }
-  return qfalse;
-		}
-
 static qboolean UI_BotName_HandleKey(int flags, float *special, int key) {
   if (key == K_MOUSE1 || key == K_MOUSE2 || key == K_ENTER || key == K_KP_ENTER) {
 		int value = uiInfo.botIndex;
@@ -5390,9 +5344,6 @@ static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, 
 			break;
 		case UI_NETFILTER:
       UI_NetFilter_HandleKey(flags, special, key);
-			break;
-		case UI_OPPONENT_NAME:
-			UI_OpponentName_HandleKey(flags, special, key);
 			break;
 		case UI_BOTNAME:
 			return UI_BotName_HandleKey(flags, special, key);
@@ -8535,7 +8486,7 @@ void _UI_Init( qboolean inGameLoad ) {
 			trap_Cvar_Set("ui_browserAwesomium", "0");
 			trap_Cvar_Update(&ui_browserAwesomium);
 		}
-		trap_Cvar_Set("web_browserActive", "0");
+		UI_SetBrowserActive(qfalse);
 		Com_Printf("UI: external ecosystems disabled (QL_DISABLE_EXTERNAL_ECOSYSTEMS/QL_DISABLE_AWESOMIUM/QL_DISABLE_STEAMWORKS).\n");
 	}
 	UI_InitMemory();
