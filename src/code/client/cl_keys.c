@@ -1484,7 +1484,7 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 	// escape is always handled special
 	if ( key == K_ESCAPE && dispatchDown ) {
 		if ( cls.keyCatchers & KEYCATCH_BROWSER ) {
-			CL_WebHost_HideBrowser();
+			// Retail WebUI consumes Escape while the browser owns input.
 			return;
 		}
 		CL_ToggleMenuInternal( dispatchKey, qfalse, time );

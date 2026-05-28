@@ -67,7 +67,7 @@ def test_awesomium_hash_navigation_normalizes_leading_hash_tokens() -> None:
 	)
 	show_browser_block = _extract_function_block(cl_cgame, "void CL_Web_ShowBrowser_f( void ) {")
 	change_hash_block = _extract_function_block(cl_cgame, "void CL_Web_ChangeHash_f( void ) {")
-	set_hash_block = _extract_function_block(cl_cgame, "static void QLWebView_SetLocationHash( const char *hash ) {")
+	set_hash_block = _extract_function_block(cl_cgame, "static qboolean QLWebView_SetLocationHash( const char *hash ) {")
 
 	assert "while ( *cursor == '#'" in normalize_block
 	assert "CL_WebHost_NormalizeHash( hash, normalizedHash, sizeof( normalizedHash ) );" in build_url_block
@@ -75,6 +75,8 @@ def test_awesomium_hash_navigation_normalizes_leading_hash_tokens() -> None:
 	assert "CL_WebHost_NormalizeHash( hash, cl_webBrowserHash, sizeof( cl_webBrowserHash ) );" in show_browser_block
 	assert "CL_WebHost_NormalizeHash( hash, cl_webBrowserHash, sizeof( cl_webBrowserHash ) );" in change_hash_block
 	assert "CL_WebHost_NormalizeHash( hash, cl_webHost.pendingHash, sizeof( cl_webHost.pendingHash ) );" in set_hash_block
+	assert "CL_Awesomium_ExecuteJavascript( script, \"\" )" in set_hash_block
+	assert "return qtrue;" in set_hash_block
 
 
 def test_awesomium_view_callbacks_reconstruct_tooltip_and_console_contracts() -> None:
@@ -190,6 +192,7 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	navigate_block = _extract_function_block(cl_cgame, "static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {")
 	hide_browser_block = _extract_function_block(cl_cgame, "static void QLWebHost_HideBrowser( void ) {")
 	update_block = _extract_function_block(cl_cgame, "static void QLWebCore_Update( void ) {")
+	ownership_block = _extract_function_block(cl_cgame, "static void CL_WebHost_UpdateOverlayOwnership( void ) {")
 	show_error_block = _extract_function_block(cl_cgame, "void CL_Web_ShowError_f( void ) {")
 	clear_cache_block = _extract_function_block(cl_cgame, "void CL_Web_ClearCache_f( void ) {")
 	clear_session_block = _extract_function_block(cl_cgame, "static void CL_Web_ClearSessionState( void ) {")
@@ -207,11 +210,13 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	assert 'if ( !cl_webHost.coreInitialised || !cl_webHost.viewInitialised || cl_webHost.keyCaptureArmed ) {' in hide_browser_block
 	assert 'Cvar_Set( "web_browserActive", "0" );' in hide_browser_block
 	assert "cls.keyCatchers &= ~KEYCATCH_BROWSER;" in hide_browser_block
-	assert "if ( cl_webHost.browserActive && !( cls.keyCatchers & KEYCATCH_BROWSER ) ) {" in update_block
-	assert "cls.keyCatchers |= KEYCATCH_BROWSER;" in update_block
+	assert "KEYCATCH_BROWSER" not in update_block
+	assert "ownsOverlay = CL_WebHost_SurfaceReadyForOverlay( qtrue );" in ownership_block
+	assert "cls.keyCatchers |= KEYCATCH_BROWSER;" in ownership_block
+	assert 'CL_SetCvarIfChanged( "web_browserActive", ownsOverlay ? "1" : "0" );' in ownership_block
 	assert "VM_Call( cgvm, CG_EVENT_HANDLING, CGAME_EVENT_CLOSECOMMANDOVERLAY );" in hide_browser_block
-	assert "if ( !CL_Awesomium_OpenURL( cl_webHost.currentUrl ) ) {" in navigate_block
-	assert "QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );" in navigate_block
+	assert "if ( !QLWebView_SetLocationHash( hash ) ) {" in navigate_block
+	assert "CL_Awesomium_OpenURL( cl_webHost.currentUrl )" not in navigate_block
 
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in show_browser_block
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in change_hash_block
@@ -227,7 +232,7 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	assert "QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );" in reload_view_block
 	assert "QLWebHost_ReloadView( qtrue );" in reload_block
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in reload_block
-	assert 'CL_SetCvarIfChanged( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' in frame_block
+	assert "CL_WebHost_UpdateOverlayOwnership();" in frame_block
 
 
 def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_surface() -> None:
@@ -406,6 +411,7 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		"adapterOwner;",
 		"adapterBinding;",
 		"substitutionKind;",
+		"webSessionClearCache;",
 		"static const clAwesomiumRetailAbiEquivalence_t cl_aweRetailAbiEquivalence[] = {",
 		"static const clAwesomiumBootstrapRetailMapping_t cl_aweBootstrapRetailMappings[] = {",
 		"exports resolved from `awesomium.dll`.",
@@ -442,6 +448,7 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'{ 0x004F2D30u, 0x0052C698u, "WebPreferences::WebPreferences", "CL_Awesomium_PreparePreferences", "_Awe_new_WebPreferences@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00000000u, "WebCore::CreateWebSession slot 0x00", "CL_Awesomium_CreateSession", "_Awe_WebCore_CreateWebSession@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00000018u, "WebSession bootstrap slot 0x18", "CL_Awesomium_CreateSession", "_Awe_WebSession_Initialize@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2A10u, 0x0000001Cu, "WebSession::ClearCache slot 0x1C", "CL_Awesomium_ClearCache", "_Awe_WebSession_ClearCache@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x0052C694u, "DataPakSource::DataPakSource", "CL_Awesomium_CreateSession", "_Awe_new_DataPakSource@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00548068u, "QL data-source name", "CL_Awesomium_CreateSession", "\\"QL\\"", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },',
 		'{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },',
@@ -474,6 +481,7 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'CL_AWE_IMPORT( newDataPakSource, "_Awe_new_DataPakSource@4" );',
 		'CL_AWE_IMPORT( webSessionAddDataSource, "_Awe_WebSession_AddDataSource@12" );',
 		'cl_awe.webSessionInitialize = reinterpret_cast<awe_websession_void_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebSession_Initialize@4" ) );',
+		'cl_awe.webSessionClearCache = reinterpret_cast<awe_websession_void_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebSession_ClearCache@4" ) );',
 		'CL_AWE_IMPORT( webSessionRelease, "_Awe_WebSession_Release@4" );',
 		'CL_AWE_IMPORT( webViewDestroy, "_Awe_WebView_Destroy@4" );',
 		'CL_AWE_IMPORT( webViewLoadURL, "_Awe_WebView_LoadURL@8" );',
@@ -551,11 +559,11 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 	assert "event = cl_awe.newWebKeyboardEvent( eventType, virtualKeyCode, nativeKeyCode );" in cl_awesomium
 	assert "cl_awe.webViewInjectKeyboardEvent( cl_awesomium.webView, event );" in cl_awesomium
 	assert "cl_awe.deleteWebKeyboardEvent( event );" in cl_awesomium
-	assert "The SDK C API exposes WebSession_Release, not a cache-clear call." in clear_cache_live_block
+	assert "if ( cl_awesomium.started && cl_awesomium.webSession && cl_awe.webSessionClearCache ) {" in clear_cache_live_block
+	assert "cl_awe.webSessionClearCache( cl_awesomium.webSession );" in clear_cache_live_block
 	assert "cl_awe.webViewDestroy( cl_awesomium.webView );" in shutdown_block
 	assert "cl_awe.webSessionRelease( cl_awesomium.webSession );" in shutdown_block
 	assert "cl_awe.webCoreShutdown();" in shutdown_block
-	assert "webSessionClearCache" not in cl_awesomium
 
 
 def test_awesomium_sdk_dependency_is_external_and_non_replicated() -> None:
@@ -1051,8 +1059,12 @@ def test_awesomium_mouse_button_and_wheel_helpers_reconstruct_retail_pointer_inj
 	assert 'key == K_MWHEELDOWN' in browser_key_block
 	assert 'CL_WebView_OnMouseWheelEvent( -1 );' in browser_key_block
 	assert "CL_WebView_OnKeyEvent( key, down );" in browser_key_block
-	assert "if ( cls.keyCatchers & KEYCATCH_BROWSER ) {" in key_event_block
-	assert "CL_WebHost_HideBrowser();" in key_event_block
+	escape_block_index = key_event_block.index("if ( key == K_ESCAPE && dispatchDown ) {")
+	browser_escape_index = key_event_block.index("if ( cls.keyCatchers & KEYCATCH_BROWSER ) {", escape_block_index)
+	browser_escape_return_index = key_event_block.index("return;", browser_escape_index)
+	menu_toggle_index = key_event_block.index("CL_ToggleMenuInternal", escape_block_index)
+	assert browser_escape_return_index < menu_toggle_index
+	assert "CL_WebHost_HideBrowser();" not in key_event_block
 	assert "CL_DispatchBrowserKeyEvent( dispatchKey, dispatchDown );" in key_event_block
 	assert "CL_WebView_OnMouseButtonEvent( dispatchKey, dispatchDown );" not in key_event_block
 
@@ -1210,6 +1222,9 @@ def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_co
 	write_surface_block = _extract_function_block(
 		cl_cgame, "static qboolean QLWebView_WriteSurfacePixels( void ) {"
 	)
+	content_surface_block = _extract_function_block(
+		cl_cgame, "static qboolean QLWebView_SurfaceHasUiContent( const byte *pixels, int surfaceWidth, int surfaceHeight, int contentWidth, int contentHeight ) {"
+	)
 	update_block = _extract_function_block(
 		cl_cgame, "static void QLWebCore_Update( void ) {"
 	)
@@ -1225,11 +1240,16 @@ def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_co
 	drawable_block = _extract_function_block(
 		cl_cgame, "qboolean CL_WebHost_HasDrawableSurface( void ) {"
 	)
+	surface_ready_block = _extract_function_block(
+		cl_cgame, "static qboolean CL_WebHost_SurfaceReadyForOverlay( qboolean requireShader ) {"
+	)
 	live_view_block = _extract_function_block(
 		cl_cgame, "qboolean CL_WebHost_HasLiveView( void ) {"
 	)
 
-	assert '#define CL_WEB_SURFACE_SHADER "browser"' in cl_cgame
+	assert '#define CL_WEB_RETAIL_SURFACE_IMAGE "browser"' in cl_cgame
+	assert '#define CL_WEB_SURFACE_IMAGE "*ql_web_browser"' in cl_cgame
+	assert '#define CL_WEB_SURFACE_SHADER "browserShader"' in cl_cgame
 	assert "#define CL_WEB_BOOTSTRAP_MAX_ATTEMPTS 10" in cl_cgame
 	assert "#define CL_WEB_BOOTSTRAP_SLEEP_MSEC 100" in cl_cgame
 	assert 'Cvar_VariableStringBuffer( "fs_homepath", buffer, bufferSize );' in resolve_session_block
@@ -1248,14 +1268,21 @@ def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_co
 	assert "cl_webHost.jsMethodHandlerInstalled = qtrue;" in runtime_block
 	assert "if ( !QLWebHost_WaitForBootstrapReady() ) {" in runtime_block
 	assert "QLWebHost_InstallRuntimeListeners();" in runtime_block
+	assert "char\t\tsurfaceImageName[MAX_QPATH];" in cl_cgame
+	assert "qboolean\tsurfaceHasUiContent;" in cl_cgame
+	assert 'Q_strncpyz( cl_webHost.surfaceImageName, CL_WEB_SURFACE_IMAGE, sizeof( cl_webHost.surfaceImageName ) );' in upload_surface_block
 	assert 'Q_strncpyz( cl_webHost.surfaceShaderName, CL_WEB_SURFACE_SHADER, sizeof( cl_webHost.surfaceShaderName ) );' in upload_surface_block
-	assert "cl_webHost.surfaceShader = CL_RegisterShaderFromRGBA(" in upload_surface_block
+	assert "cl_webHost.surfaceShader = CL_RegisterShaderFromRGBAWithImageName(" in upload_surface_block
+	assert "cl_webHost.surfaceImageName," in upload_surface_block
 	assert "cl_webHost.surfaceUploadWidth = cl_webHost.surfaceWidth;" in upload_surface_block
 	assert "cl_webHost.surfaceUploadHeight = cl_webHost.surfaceHeight;" in upload_surface_block
 	assert "cl_webHost.surfaceImageInitialised = qtrue;" in upload_surface_block
 	assert "cl_webHost.surfaceDirty = qfalse;" in upload_surface_block
 	assert "if ( copied ) {" in write_surface_block
 	assert "cl_webHost.surfaceHasVisiblePixels = visible;" in write_surface_block
+	assert "cl_webHost.surfaceHasUiContent = contentful;" in write_surface_block
+	assert "QLWebView_SurfaceHasUiContent(" in write_surface_block
+	assert "contentPixels >= 32 && contentPixels * 500 >= sampled" in content_surface_block
 	assert "return qtrue;" in write_surface_block
 	assert "if ( cl_webHost.liveAwesomium ) {" in update_block
 	assert "if ( CL_Awesomium_SurfaceDirty() ) {" in update_block
@@ -1266,11 +1293,13 @@ def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_co
 	assert "if ( cl_webHost.surfaceUploadWidth != cl_webHost.surfaceWidth || cl_webHost.surfaceUploadHeight != cl_webHost.surfaceHeight ) {" in pump_block
 	assert "if ( cl_webHost.surfaceDirty ) {" in pump_block
 	assert "if ( !cl_webHost.surfaceShader || cl_webHost.surfaceDirty ) {" in draw_block
+	assert "if ( !CL_WebHost_SurfaceReadyForOverlay( qtrue ) ) {" in draw_block
 	assert "contentWidth = cl_webHost.surfaceContentWidth > 0 ? cl_webHost.surfaceContentWidth : cl_webHost.viewWidth;" in draw_block
 	assert "contentHeight = cl_webHost.surfaceContentHeight > 0 ? cl_webHost.surfaceContentHeight : cl_webHost.viewHeight;" in draw_block
 	assert "if ( !cl_webHost.surfaceShader ) {" in draw_block
-	assert "if ( !cl_webHost.surfaceShader ) {" in drawable_block
-	assert "surfaceHasVisiblePixels" not in drawable_block
+	assert "return CL_WebHost_SurfaceReadyForOverlay( qtrue );" in drawable_block
+	assert "if ( requireShader && !cl_webHost.surfaceShader ) {" in surface_ready_block
+	assert "if ( !cl_webHost.surfaceHasVisiblePixels || !cl_webHost.surfaceHasUiContent ) {" in surface_ready_block
 	assert "return cl_webHost.viewInitialised && cl_webHost.bootstrapReady;" in live_view_block
 
 

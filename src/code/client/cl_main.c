@@ -7537,28 +7537,43 @@ void CL_RegisterFont( const char *fontName, int pointSize, fontInfo_t *font ) {
 
 /*
 ============
-CL_RegisterShaderFromRGBA
+CL_RegisterShaderFromRGBAWithImageName
 
 Keeps direct renderer image creation for live RGBA payloads on an explicit
-client compatibility lane outside the retail renderer export ABI.
+client compatibility lane outside the retail renderer export ABI. Retail
+updates the browser image separately from its retained shader handle.
+============
+*/
+qhandle_t CL_RegisterShaderFromRGBAWithImageName( const char *shaderName, const char *imageName, const byte *pic, int width, int height, qboolean mipRawImage ) {
+	image_t *image;
+	const char *rendererImageName;
+
+	rendererImageName = ( imageName && imageName[0] ) ? imageName : shaderName;
+	if ( !shaderName || !shaderName[0] || !rendererImageName || !rendererImageName[0] || !pic || width <= 0 || height <= 0
+		|| strlen( shaderName ) >= MAX_QPATH || strlen( rendererImageName ) >= MAX_QPATH ) {
+		return 0;
+	}
+
+	image = R_UpdateImage( rendererImageName, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );
+	if ( !image ) {
+		image = R_CreateImage( rendererImageName, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );
+	}
+	if ( !image ) {
+		return 0;
+	}
+
+	return RE_RegisterShaderFromImage( shaderName, LIGHTMAP_2D, image, mipRawImage );
+}
+
+/*
+============
+CL_RegisterShaderFromRGBA
+
+Keeps the historical one-name source compatibility path for live RGBA payloads.
 ============
 */
 qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage ) {
-	image_t *image;
-
-	if ( !name || !pic || width <= 0 || height <= 0 || strlen( name ) >= MAX_QPATH ) {
-		return 0;
-	}
-
-	image = R_UpdateImage( name, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );
-	if ( !image ) {
-		image = R_CreateImage( name, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );
-	}
-	if ( !image ) {
-		return 0;
-	}
-
-	return RE_RegisterShaderFromImage( name, LIGHTMAP_2D, image, mipRawImage );
+	return CL_RegisterShaderFromRGBAWithImageName( name, name, pic, width, height, mipRawImage );
 }
 
 /*

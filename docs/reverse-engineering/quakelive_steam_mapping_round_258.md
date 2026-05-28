@@ -66,8 +66,9 @@ Implemented source changes:
    preserving the console-catcher exclusion.
 4. Key-down dispatch now follows the recovered console -> browser -> UI ->
    message -> cgame -> disconnected-console -> binding order.
-5. ESC while `KEYCATCH_BROWSER` is active now calls the public
-   `CL_WebHost_HideBrowser()` wrapper and returns before normal menu toggling.
+5. ESC while `KEYCATCH_BROWSER` is active returns before normal menu toggling.
+   Runtime comparison with retail WebUI shows Escape is consumed as a no-op,
+   not treated as a browser hide/back command.
 6. `src/code/client/cl_cgame.c` keeps the retail-named `QLWebHost_HideBrowser`
    helper private and exposes only the narrow wrapper needed by `cl_keys.c`.
 

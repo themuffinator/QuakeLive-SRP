@@ -68,6 +68,10 @@ Observed facts from the writable source tree:
 - `src/code/renderer/tr_font.c` now also preserves the previous atlas pixels
   and cached glyph coordinates when `R_fonsErrorCallback` expands the retained
   atlas, keeping cache invalidation reserved for the retail max-size flush.
+- `src/code/renderer/tr_font.c` now flushes queued renderer text quads before
+  a retained atlas resize or max-size reset, matching the retail FontStash
+  draw-queue boundary so loading-screen text cannot sample a newer atlas
+  generation than the one used for its UVs.
 - `src/code/renderer/tr_font.c` now refreshes the retained `*fontstash`
   texture as a `GL_ALPHA` atlas instead of expanding the alpha buffer into
   RGBA on every upload.
@@ -90,6 +94,9 @@ Observed facts from the writable source tree:
   `*fontstash` atlas alive, installs the retail expansion or flush callback,
   and retains `normal`, `sans`, `mono`, `sans-fallback`, and
   `sans-windows-fallback` in one face table.
+- The retained host text core now drains pending renderer commands before the
+  expansion/reset callback mutates `*fontstash`, preserving already-queued UI
+  and loading-screen text against the old atlas contents.
 - `src/code/renderer/tr_font.c` now also owns the shared host draw/measure
   helpers used by the native `ui` and `cgame` import wrappers.
 - Those shared helpers now resolve glyphs from the retained `*fontstash` face

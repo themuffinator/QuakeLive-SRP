@@ -35,8 +35,9 @@ and removal of local SDK ABI replication.
   `_Awe_delete_WebKeyboardEvent@4`.
 - Corrected the transparent-state import to `_Awe_WebView_SetTransparent@8`.
 - Stopped treating `_Awe_WebSession_Release@4` as a cache-clear export. It is
-  now used only to release the WebSession during shutdown; `CL_Awesomium_ClearCache`
-  is a documented no-op until a real public cache-clear SDK export is identified.
+  now used only to release the WebSession during shutdown. A later focused
+  launch/cache pass confirmed `_Awe_WebSession_ClearCache@4` in the staged and
+  retail Awesomium runtimes and wired `CL_Awesomium_ClearCache` to that export.
 - Replaced `src/code/win32/awesomium.def` with an external SDK dependency:
   `awesomium_process.vcxproj` requires `AwesomiumSdkDir` or `AWESOMIUM_SDK_DIR`
   when `QLBuildOnlineServices=1` and links `awesomium.lib`.

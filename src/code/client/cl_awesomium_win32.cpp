@@ -126,6 +126,7 @@ typedef struct {
 	awe_new_weburl_fn				newWebURL;
 	awe_delete_object_fn			deleteWebURL;
 	awe_websession_void_fn			webSessionInitialize;
+	awe_websession_void_fn			webSessionClearCache;
 	awe_websession_add_source_fn		webSessionAddDataSource;
 	awe_webview_destroy_fn			webViewDestroy;
 	awe_webview_load_url_fn			webViewLoadURL;
@@ -220,6 +221,7 @@ static const clAwesomiumBootstrapRetailMapping_t cl_aweBootstrapRetailMappings[]
 	{ 0x004F2D30u, 0x0052C698u, "WebPreferences::WebPreferences", "CL_Awesomium_PreparePreferences", "_Awe_new_WebPreferences@0", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x00000000u, "WebCore::CreateWebSession slot 0x00", "CL_Awesomium_CreateSession", "_Awe_WebCore_CreateWebSession@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x00000018u, "WebSession bootstrap slot 0x18", "CL_Awesomium_CreateSession", "_Awe_WebSession_Initialize@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
+	{ 0x004F2A10u, 0x0000001Cu, "WebSession::ClearCache slot 0x1C", "CL_Awesomium_ClearCache", "_Awe_WebSession_ClearCache@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x0052C694u, "DataPakSource::DataPakSource", "CL_Awesomium_CreateSession", "_Awe_new_DataPakSource@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },
 	{ 0x004F2D30u, 0x00548068u, "QL data-source name", "CL_Awesomium_CreateSession", "\"QL\"", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },
 	{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },
@@ -421,6 +423,7 @@ static qboolean CL_Awesomium_LoadImports( const char *runtimePath, const char *b
 	CL_AWE_IMPORT( deleteWebURL, "_Awe_delete_WebURL@4" );
 	CL_AWE_IMPORT( webSessionAddDataSource, "_Awe_WebSession_AddDataSource@12" );
 	cl_awe.webSessionInitialize = reinterpret_cast<awe_websession_void_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebSession_Initialize@4" ) );
+	cl_awe.webSessionClearCache = reinterpret_cast<awe_websession_void_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebSession_ClearCache@4" ) );
 	CL_AWE_IMPORT( webSessionRelease, "_Awe_WebSession_Release@4" );
 	CL_AWE_IMPORT( webViewDestroy, "_Awe_WebView_Destroy@4" );
 	CL_AWE_IMPORT( webViewLoadURL, "_Awe_WebView_LoadURL@8" );
@@ -623,7 +626,7 @@ static void CL_Awesomium_BuildUserScript( char *buffer, size_t bufferSize, const
 		"var factories={ffa:{id:'ffa',title:'Free For All',basegt:0,settings:{}}};"
 		"var config={cvars:{sv_servertype:'0',net_port:'27960',sv_hostname:'Quake Live Reverse',sv_maxclients:'8'},binds:[]};"
 		"var qz={appId:%u,steamId:\"%s\",playerName:\"%s\","
-		"SendGameCommand:function(cmd){console.log('qz SendGameCommand: '+cmd);},"
+		"SendGameCommand:function(cmd){cmd=String(cmd||'');console.log('qz SendGameCommand: '+cmd);var m=/^\\s*web_changeHash(?:\\s+(.*))?\\s*$/.exec(cmd);if(m){window.location.hash=(m[1]||'').replace(/^#/,'');return true;}return false;},"
 		"WriteTextFile:noop,OpenURL:function(url){document.location.href=url;},"
 		"OpenSteamOverlayURL:function(url){console.log('qz OpenSteamOverlayURL: '+url);},"
 		"GetClipboardText:function(){return '';},SetClipboardText:noop,"
@@ -1245,7 +1248,9 @@ CL_Awesomium_ClearCache
 =============
 */
 extern "C" void CL_Awesomium_ClearCache( void ) {
-	/* The SDK C API exposes WebSession_Release, not a cache-clear call. */
+	if ( cl_awesomium.started && cl_awesomium.webSession && cl_awe.webSessionClearCache ) {
+		cl_awe.webSessionClearCache( cl_awesomium.webSession );
+	}
 }
 
 /*

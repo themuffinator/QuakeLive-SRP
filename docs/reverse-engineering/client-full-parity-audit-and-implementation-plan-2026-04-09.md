@@ -48,9 +48,10 @@ Current ledger note:
 - A fifth focused `2026-05-18` reread of `sub_4B7B00` / `CL_KeyEvent`
   corrected the sibling key route: browser key/button/wheel delivery is now
   gated by `KEYCATCH_BROWSER` instead of running as an unconditional side
-  channel, console capture keeps priority over browser capture, ESC closes the
-  retained browser host, and key-down handler order now matches the recovered
-  console -> browser -> UI -> message -> cgame -> disconnected -> binding flow.
+  channel, console capture keeps priority over browser capture, browser-owned
+  Escape is consumed as a no-op per retail WebUI runtime behavior, and key-down
+  handler order now matches the recovered console -> browser -> UI -> message
+  -> cgame -> disconnected -> binding flow.
 - A sixth focused `2026-05-18` reread of the same `CL_KeyEvent` owner closed
   the demo-playback shortcut sublane: `clc.demoplaying` with only the recovered
   `0x10` pass-through catcher now handles the retail `cl_freezeDemo`,

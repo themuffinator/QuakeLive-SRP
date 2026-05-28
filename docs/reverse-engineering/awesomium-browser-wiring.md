@@ -38,7 +38,7 @@ This note records the current retail mapping for the Quake Live Awesomium browse
 | Retail object/API | Evidence | Source reconstruction status |
 | --- | --- | --- |
 | `WebSession` bootstrap slot `0x18` | HLIL bootstrap calls slot `0x18` immediately after `WebCore::CreateWebSession`. | Reconstructed only when the external SDK C API exposes optional `_Awe_WebSession_Initialize@4`; no local vtable fallback is retained. |
-| `WebSession` cache-clear slot `0x1c` | HLIL `web_clearCache` calls slot `0x1c`; `web_reload` calls the same slot before WebView reload. | Mapped as retail evidence. The source no longer treats `_Awe_WebSession_Release@4` as cache clear; reload uses the SDK WebView reload ignore-cache flag and `CL_Awesomium_ClearCache` is a no-op boundary. |
+| `WebSession` cache-clear slot `0x1c` | HLIL `web_clearCache` calls slot `0x1c`; `web_reload` calls the same slot before WebView reload; staged and retail `awesomium.dll` export `_Awe_WebSession_ClearCache@4`. | Reconstructed through optional `_Awe_WebSession_ClearCache@4`; `_Awe_WebSession_Release@4` remains shutdown-only, and reload still follows with the SDK WebView ignore-cache flag. |
 | `WebView::LoadURL` slot `0x64` | HLIL bootstrap and Awesomium import list | Reconstructed through `_Awe_WebView_LoadURL@8`. |
 | `WebView::Stop` slot `0x74` | HLIL/import surface | Reconstructed through `_Awe_WebView_Stop@4`. |
 | `WebView::surface` slot `0x84` | BitmapSurface copy path | Reconstructed and used by `CL_Awesomium_CopySurface`. |
@@ -75,7 +75,7 @@ Implemented or source-reconstructed:
 
 - WebCore initialization and shutdown behind `QL_BUILD_ONLINE_SERVICES`.
 - WebSession creation rooted in `fs_homepath`, including the post-create slot `0x18` initialization call.
-- WebSession cache-clear ownership is mapped, but no local SDK method is replicated; reload uses SDK reload ignore-cache and `CL_Awesomium_ClearCache` is intentionally a no-op without a proven SDK cache-clear export.
+- WebSession cache-clear ownership is reconstructed through the confirmed `_Awe_WebSession_ClearCache@4` export; reload clears the session cache and then uses SDK reload ignore-cache.
 - `web.pak` mounting and deterministic package-path behavior for `asset://ql/index.html`.
 - WebView creation, resize, URL load, render resume, focus, surface copy, dirty tracking, visible-surface gating, and dynamic texture upload.
 - External SDK C API imports for the core WebView calls needed by the menu path.
@@ -131,9 +131,49 @@ Fix implemented:
 
 - Added optional `_Awe_WebSession_Initialize@4` binding for WebSession slot `0x18`.
 - Removed the incorrect `_Awe_WebSession_Release@4` cache-clear classification. That SDK export is now used only as session release during shutdown.
-- Left `CL_Awesomium_ClearCache` as a no-op SDK boundary until a proven public cache-clear export is identified.
+- Confirmed `_Awe_WebSession_ClearCache@4` in both the staged rebuilt runtime and the retail Steam Awesomium runtime, then wired `CL_Awesomium_ClearCache` to call it when a live WebSession exists.
 - Routed `CL_Web_ClearSessionState` through `CL_Awesomium_ClearCache` before source-side resource cache clearing when live Awesomium is active.
 - Switched `web_showError` to `Cmd_ArgsFrom( 1 )` and made live navigation failure publish the load-failure path.
+
+## 2026-05-28 WebUI launch/cache/image correction
+
+Retail evidence:
+
+- `references/analysis/quakelive_symbol_aliases.json` maps `sub_4F2A10` to `CL_Web_ClearCache_f`, `sub_4F2A30` to `CL_Web_Reload_f`, `sub_4F2590` to `QLWebCore_Update`, `sub_445910` to `R_CreateImage`, `sub_458A40` to `R_GetShaderByHandle`, and `sub_4586D0` to `RE_RegisterShaderFromImage`.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt:15587` shows the browser bitmap upload calling `R_CreateImage("browser", ...)`, retrieving the retained shader handle, and writing the new image pointer into the shader stage.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt` shows the retained browser shader registration using the literal `browserShader`.
+- `dumpbin /exports` on both `build/win32/Debug/bin/awesomium.dll` and the Steam Quake Live `awesomium.dll` shows `_Awe_WebSession_ClearCache@4`, `_Awe_WebSession_Release@4`, and `_Awe_WebView_Reload@8`.
+
+Source reconstruction:
+
+- `ui_browserAwesomium 0` launch profiles stay authoritative through the source-side runtime request gate, so a map launch such as `campgrounds` does not bring up the WebUI runtime unless explicitly requested.
+- The browser upload path now separates the retained shader handle name from the backing renderer image name. Retail uses `browserShader` plus `browser`; source uses the retail shader handle `browserShader` and the private image `*ql_web_browser` to avoid collisions with unrelated renderer image cache entries.
+- `CL_RegisterShaderFromRGBAWithImageName` mirrors the retail distinction without changing existing Steam/avatar resource callers, which still use the one-name `CL_RegisterShaderFromRGBA` wrapper.
+- `CL_Awesomium_ClearCache` now dispatches to `_Awe_WebSession_ClearCache@4` when a live session and export are present; `_Awe_WebSession_Release@4` is kept solely in shutdown.
+
+## 2026-05-28 WebUI hash-navigation and overlay ownership correction
+
+Retail/runtime evidence:
+
+- Retail WebUI menu changes use the existing document and change only the hash;
+  they do not reload `asset://ql/index.html` for every menu transition.
+- A live runtime pass reproduced the source failure: navigating to Settings and
+  pressing Escape hid the retained browser host, leaving only the dark
+  background/copyright shell. Retail comparison shows browser-owned Escape is
+  consumed as a no-op.
+
+Source reconstruction:
+
+- `web_changeHash` on a live Awesomium view now executes JavaScript to assign
+  `window.location.hash` and rerun the bridge hook, instead of reloading the
+  current URL.
+- The startup script's `SendGameCommand` shim recognizes `web_changeHash`, but
+  no longer installs a JavaScript Escape handler.
+- `CL_KeyEvent` now returns immediately for Escape while `KEYCATCH_BROWSER` is
+  set, matching the observed retail no-op.
+- Overlay drawing, `KEYCATCH_BROWSER`, and `web_browserActive` publication are
+  now tied to a contentful browser surface, so shell-only paints do not take over
+  the native menu or game view.
 
 ## 2026-05-25 update/pump parity audit
 

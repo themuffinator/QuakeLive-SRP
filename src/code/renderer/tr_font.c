@@ -1319,6 +1319,27 @@ static void R_ClearFontStashAtlas( void ) {
 
 /*
 =================
+R_FlushFontStashRenderCommands
+
+FontStash resize/reset changes the live atlas dimensions or contents. Flush any
+queued glyph quads first so they sample the atlas generation they were built
+against.
+=================
+*/
+static void R_FlushFontStashRenderCommands( void ) {
+	if ( !tr.registered || !backEndData[tr.smpFrame] ) {
+		return;
+	}
+
+	if ( backEndData[tr.smpFrame]->commands.used <= 0 ) {
+		return;
+	}
+
+	R_SyncRenderThread();
+}
+
+/*
+=================
 R_ResizeFontStashAtlas
 =================
 */
@@ -1405,11 +1426,13 @@ static void R_fonsErrorCallback( rFontStashState_t *fontStash, int error, int va
 
 	if ( width != fontStash->width || height != fontStash->height ) {
 		ri.Printf( PRINT_ALL, "Expand font atlas to %dx%d\n", width, height );
+		R_FlushFontStashRenderCommands();
 		R_ResizeFontStashAtlas( width, height );
 		return;
 	}
 
 	ri.Printf( PRINT_ALL, "Max font atlas size, flushing\n" );
+	R_FlushFontStashRenderCommands();
 	R_ClearFontStashAtlas();
 }
 

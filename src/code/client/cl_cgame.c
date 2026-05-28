@@ -145,7 +145,9 @@ static int QLWebHost_CountRecoveredWebCvarMappings( void ) {
 #define CL_WEB_JSON_BUFFER_SIZE 32768
 #define CL_WEB_LAUNCHER_SCRIPT_LIST_BUFFER 4096
 #define CL_WEB_DEFAULT_URL "asset://ql/index.html"
-#define CL_WEB_SURFACE_SHADER "browser"
+#define CL_WEB_RETAIL_SURFACE_IMAGE "browser"
+#define CL_WEB_SURFACE_IMAGE "*ql_web_browser"
+#define CL_WEB_SURFACE_SHADER "browserShader"
 #define CL_WEB_BOOTSTRAP_MAX_ATTEMPTS 10
 #define CL_WEB_BOOTSTRAP_SLEEP_MSEC 100
 
@@ -229,6 +231,7 @@ typedef struct {
 	qboolean	surfaceImageInitialised;
 	qboolean	surfaceDirty;
 	qboolean	surfaceHasVisiblePixels;
+	qboolean	surfaceHasUiContent;
 	qboolean	surfacePresented;
 	qboolean	keyCaptureArmed;
 	qboolean	focused;
@@ -259,6 +262,7 @@ typedef struct {
 	char		pendingHash[MAX_STRING_CHARS];
 	char		playerName[MAX_NAME_LENGTH];
 	char		sessionPath[MAX_OSPATH];
+	char		surfaceImageName[MAX_QPATH];
 	char		surfaceShaderName[MAX_QPATH];
 	char		tooltip[MAX_QPATH];
 #if defined( _WIN32 )
@@ -514,6 +518,8 @@ static void QLWebHost_InstallRuntimeListeners( void );
 static qboolean QLWebView_WriteSurfacePixels( void );
 static qboolean QLWebView_UploadSurfaceImage( void );
 static qboolean CL_AwesomiumRuntimeAllowed( void );
+static qboolean CL_BrowserRuntimeRequested( void );
+static qboolean CL_AwesomiumRuntimeActive( void );
 static qboolean CL_BrowserHostServiceAvailable( void );
 void CL_Web_StopRefresh_f( void );
 void CL_Steam_FormatFriendSummaryJson( const ql_steam_friend_summary_t *summary, char *buffer, size_t bufferSize );
@@ -968,12 +974,14 @@ static void CL_WebHost_ResetRuntime( qboolean clearVisibility ) {
 	cl_webHost.surfaceUploadHeight = 0;
 	cl_webHost.surfaceShader = 0;
 	cl_webHost.surfaceHasVisiblePixels = qfalse;
+	cl_webHost.surfaceHasUiContent = qfalse;
 	cl_webHost.surfacePresented = qfalse;
 	cl_webHost.currentUrl[0] = '\0';
 	cl_webHost.currentDocument[0] = '\0';
 	cl_webHost.pendingHash[0] = '\0';
 	cl_webHost.tooltip[0] = '\0';
 	cl_webHost.sessionPath[0] = '\0';
+	cl_webHost.surfaceImageName[0] = '\0';
 	cl_webHost.surfaceShaderName[0] = '\0';
 
 	if ( clearVisibility ) {
@@ -997,11 +1005,13 @@ static void CL_WebHost_ClearSurfaceImage( void ) {
 	cl_webHost.surfaceImageInitialised = qfalse;
 	cl_webHost.surfaceDirty = qfalse;
 	cl_webHost.surfaceHasVisiblePixels = qfalse;
+	cl_webHost.surfaceHasUiContent = qfalse;
 	cl_webHost.surfacePresented = qfalse;
 	cl_webHost.surfaceContentWidth = 0;
 	cl_webHost.surfaceContentHeight = 0;
 	cl_webHost.surfaceUploadWidth = 0;
 	cl_webHost.surfaceUploadHeight = 0;
+	cl_webHost.surfaceImageName[0] = '\0';
 	cl_webHost.surfaceShaderName[0] = '\0';
 }
 
@@ -1468,9 +1478,29 @@ static void QLViewHandler_OnAddConsoleMessage( const char *source, int line, con
 QLWebView_SetLocationHash
 =============
 */
-static void QLWebView_SetLocationHash( const char *hash ) {
+static qboolean QLWebView_SetLocationHash( const char *hash ) {
+	char escapedHash[MAX_STRING_CHARS * 2];
+	char script[MAX_STRING_CHARS * 3];
+
 	CL_WebHost_NormalizeHash( hash, cl_webHost.pendingHash, sizeof( cl_webHost.pendingHash ) );
 	CL_WebHost_BuildCurrentURL( cl_webHost.pendingHash, cl_webHost.currentUrl, sizeof( cl_webHost.currentUrl ) );
+
+#if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
+	if ( cl_webHost.liveAwesomium ) {
+		CL_WebHost_JsonEscape( cl_webHost.pendingHash, escapedHash, sizeof( escapedHash ) );
+		Com_sprintf(
+			script,
+			sizeof( script ),
+			"(function(){var h=\"%s\";if(window.location.hash.replace(/^#/,\"\")!==h){window.location.hash=h;}if(window.main_hook_v2){window.main_hook_v2();}})();",
+			escapedHash
+		);
+		if ( !CL_Awesomium_ExecuteJavascript( script, "" ) ) {
+			return qfalse;
+		}
+	}
+#endif
+
+	return qtrue;
 }
 
 /*
@@ -1679,6 +1709,81 @@ static qboolean QLWebView_SurfaceHasVisiblePixels( const byte *pixels, int lengt
 
 /*
 =============
+QLWebView_SurfaceHasUiContent
+
+Filters shell-only Awesomium paints that contain a dark background/cursor but no
+usable menu widgets.  The retail host gates the native UI on a completed browser
+surface; this source-side guard approximates that completion signal until the
+native JSValue callback path is fully reconstructed.
+=============
+*/
+static qboolean QLWebView_SurfaceHasUiContent( const byte *pixels, int surfaceWidth, int surfaceHeight, int contentWidth, int contentHeight ) {
+	int x;
+	int y;
+	int xStep;
+	int yStep;
+	int sampled;
+	int contentPixels;
+
+	if ( !pixels || surfaceWidth <= 0 || surfaceHeight <= 0 ) {
+		return qfalse;
+	}
+
+	if ( contentWidth <= 0 || contentWidth > surfaceWidth ) {
+		contentWidth = surfaceWidth;
+	}
+	if ( contentHeight <= 0 || contentHeight > surfaceHeight ) {
+		contentHeight = surfaceHeight;
+	}
+
+	xStep = contentWidth / 200;
+	yStep = contentHeight / 120;
+	if ( xStep < 4 ) {
+		xStep = 4;
+	}
+	if ( yStep < 4 ) {
+		yStep = 4;
+	}
+
+	sampled = 0;
+	contentPixels = 0;
+	for ( y = 0; y < contentHeight; y += yStep ) {
+		const byte *row = pixels + y * surfaceWidth * 4;
+
+		for ( x = 0; x < contentWidth; x += xStep ) {
+			const byte *pixel = row + x * 4;
+			int red = pixel[0];
+			int green = pixel[1];
+			int blue = pixel[2];
+			int minChannel;
+			int maxChannel;
+			int luma;
+
+			sampled++;
+			minChannel = red < green ? red : green;
+			if ( blue < minChannel ) {
+				minChannel = blue;
+			}
+			maxChannel = red > green ? red : green;
+			if ( blue > maxChannel ) {
+				maxChannel = blue;
+			}
+			luma = ( red * 77 + green * 150 + blue * 29 ) >> 8;
+			if ( ( luma >= 160 ) || ( luma >= 96 && maxChannel - minChannel >= 16 ) ) {
+				contentPixels++;
+			}
+		}
+	}
+
+	if ( sampled <= 0 ) {
+		return qfalse;
+	}
+
+	return contentPixels >= 32 && contentPixels * 500 >= sampled ? qtrue : qfalse;
+}
+
+/*
+=============
 QLWebView_WriteSurfacePixels
 =============
 */
@@ -1711,6 +1816,7 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 		int midOffset;
 		qboolean copied;
 		qboolean visible;
+		qboolean contentful;
 		qboolean dirty;
 		qboolean loading;
 		qboolean crashed;
@@ -1723,6 +1829,13 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 			QLWebView_MakeAwesomiumSurfaceOpaque( cl_webHost.surfaceBuffer, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.surfaceContentWidth, cl_webHost.surfaceContentHeight );
 		}
 		visible = copied && QLWebView_SurfaceHasVisiblePixels( cl_webHost.surfaceBuffer, requiredLength );
+		contentful = visible && QLWebView_SurfaceHasUiContent(
+			cl_webHost.surfaceBuffer,
+			cl_webHost.surfaceWidth,
+			cl_webHost.surfaceHeight,
+			cl_webHost.surfaceContentWidth,
+			cl_webHost.surfaceContentHeight
+		);
 		loading = CL_Awesomium_IsLoading();
 		crashed = CL_Awesomium_IsCrashed();
 		lastError = CL_Awesomium_LastErrorCode();
@@ -1731,7 +1844,12 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 				Com_Printf( "Awesomium surface became visible: copy=%d dirty=%d size=%dx%d content=%dx%d view=%dx%d\n",
 					copied, dirty, cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.surfaceContentWidth, cl_webHost.surfaceContentHeight, cl_webHost.viewWidth, cl_webHost.viewHeight );
 			}
+			if ( !cl_webHost.surfaceHasUiContent && contentful ) {
+				Com_Printf( "Awesomium surface became menu-contentful: size=%dx%d content=%dx%d view=%dx%d\n",
+					cl_webHost.surfaceWidth, cl_webHost.surfaceHeight, cl_webHost.surfaceContentWidth, cl_webHost.surfaceContentHeight, cl_webHost.viewWidth, cl_webHost.viewHeight );
+			}
 			cl_webHost.surfaceHasVisiblePixels = visible;
+			cl_webHost.surfaceHasUiContent = contentful;
 			return qtrue;
 		}
 
@@ -1766,6 +1884,7 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 		}
 
 		cl_webHost.surfaceHasVisiblePixels = qfalse;
+		cl_webHost.surfaceHasUiContent = qfalse;
 		return qfalse;
 	}
 #endif
@@ -1819,6 +1938,7 @@ static qboolean QLWebView_WriteSurfacePixels( void ) {
 	}
 
 	cl_webHost.surfaceHasVisiblePixels = qtrue;
+	cl_webHost.surfaceHasUiContent = qtrue;
 	return qtrue;
 }
 
@@ -1839,12 +1959,16 @@ static qboolean QLWebView_UploadSurfaceImage( void ) {
 		return qfalse;
 	}
 
+	if ( !cl_webHost.surfaceImageName[0] ) {
+		Q_strncpyz( cl_webHost.surfaceImageName, CL_WEB_SURFACE_IMAGE, sizeof( cl_webHost.surfaceImageName ) );
+	}
 	if ( !cl_webHost.surfaceShaderName[0] ) {
 		Q_strncpyz( cl_webHost.surfaceShaderName, CL_WEB_SURFACE_SHADER, sizeof( cl_webHost.surfaceShaderName ) );
 	}
 
-	cl_webHost.surfaceShader = CL_RegisterShaderFromRGBA(
+	cl_webHost.surfaceShader = CL_RegisterShaderFromRGBAWithImageName(
 		cl_webHost.surfaceShaderName,
+		cl_webHost.surfaceImageName,
 		cl_webHost.surfaceBuffer,
 		cl_webHost.surfaceWidth,
 		cl_webHost.surfaceHeight,
@@ -2051,8 +2175,9 @@ static qboolean QLWebHost_EnsureRuntime( void ) {
 #if !QL_PLATFORM_HAS_ONLINE_SERVICES
 	return qfalse;
 #else
-	qboolean awesomiumAllowed = CL_AwesomiumRuntimeAllowed();
-	qboolean overlayAvailable = CL_OverlayServiceAvailable();
+	qboolean browserRequested = CL_BrowserRuntimeRequested();
+	qboolean awesomiumAllowed = CL_AwesomiumRuntimeActive();
+	qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();
 
 	if ( !overlayAvailable && !awesomiumAllowed ) {
 		return qfalse;
@@ -2193,14 +2318,8 @@ static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
 	if ( cl_webHost.viewInitialised && cl_webHost.documentReady && cl_webHost.windowObjectBound ) {
 #if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
 		if ( cl_webHost.liveAwesomium ) {
-			char url[MAX_STRING_CHARS];
-
-			CL_WebHost_NormalizeHash( hash, cl_webHost.pendingHash, sizeof( cl_webHost.pendingHash ) );
-			CL_WebHost_BuildCurrentURL( hash, url, sizeof( url ) );
-			Q_strncpyz( cl_webHost.currentUrl, url, sizeof( cl_webHost.currentUrl ) );
-			if ( !CL_Awesomium_OpenURL( cl_webHost.currentUrl ) ) {
-				Com_Printf( "Awesomium WebView failed to load %s: %s\n", cl_webHost.currentUrl, CL_Awesomium_LastError() );
-				QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );
+			if ( !QLWebView_SetLocationHash( hash ) ) {
+				Com_Printf( "Awesomium WebView failed to update location hash %s: %s\n", hash ? hash : "", CL_Awesomium_LastError() );
 				return qfalse;
 			}
 			cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
@@ -2212,7 +2331,9 @@ static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
 			return qtrue;
 		}
 #endif
-		QLWebView_SetLocationHash( hash );
+		if ( !QLWebView_SetLocationHash( hash ) ) {
+			return qfalse;
+		}
 		cl_webHost.browserVisible = qtrue;
 		cl_webHost.browserActive = qtrue;
 		cl_webHost.focused = qtrue;
@@ -2306,6 +2427,61 @@ void CL_WebHost_HideBrowser( void ) {
 
 /*
 =============
+CL_WebHost_SurfaceReadyForOverlay
+
+Returns true only when the retained browser has a surface that is safe to let
+own fullscreen drawing and input.
+=============
+*/
+static qboolean CL_WebHost_SurfaceReadyForOverlay( qboolean requireShader ) {
+#if !QL_PLATFORM_HAS_ONLINE_SERVICES
+	return qfalse;
+#else
+	if ( !CL_BrowserHostServiceAvailable() ) {
+		return qfalse;
+	}
+
+	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {
+		return qfalse;
+	}
+
+	if ( requireShader && !cl_webHost.surfaceShader ) {
+		return qfalse;
+	}
+
+	if ( !cl_webHost.surfaceHasVisiblePixels || !cl_webHost.surfaceHasUiContent ) {
+		return qfalse;
+	}
+
+	return qtrue;
+#endif
+}
+
+/*
+=============
+CL_WebHost_UpdateOverlayOwnership
+
+Keeps the UI-visible active cvar and browser key catcher tied to a usable
+surface, not just a live Awesomium view.
+=============
+*/
+static void CL_WebHost_UpdateOverlayOwnership( void ) {
+	qboolean ownsOverlay;
+
+	ownsOverlay = CL_WebHost_SurfaceReadyForOverlay( qtrue );
+	if ( ownsOverlay ) {
+		if ( !( cls.keyCatchers & KEYCATCH_BROWSER ) ) {
+			cls.keyCatchers |= KEYCATCH_BROWSER;
+		}
+	} else {
+		cls.keyCatchers &= ~KEYCATCH_BROWSER;
+	}
+
+	CL_SetCvarIfChanged( "web_browserActive", ownsOverlay ? "1" : "0" );
+}
+
+/*
+=============
 QLWebCore_Update
 =============
 */
@@ -2332,10 +2508,6 @@ static void QLWebCore_Update( void ) {
 		}
 	}
 #endif
-
-	if ( cl_webHost.browserActive && !( cls.keyCatchers & KEYCATCH_BROWSER ) ) {
-		cls.keyCatchers |= KEYCATCH_BROWSER;
-	}
 
 	cl_webHost.frameSequence++;
 	if ( cl_webHost.viewInitialised && ( cl_webHost.browserVisible || cl_webHost.browserActive || cl_webHost.loadingDocument ) ) {
@@ -4448,6 +4620,44 @@ static qboolean CL_AwesomiumRuntimeAllowed( void ) {
 
 /*
 =============
+CL_BrowserRuntimeRequested
+
+Honors explicit launch/profile requests to keep the browser host off while
+leaving the online-services build capability intact.
+=============
+*/
+static qboolean CL_BrowserRuntimeRequested( void ) {
+	char requested[MAX_CVAR_VALUE_STRING];
+
+	Cvar_VariableStringBuffer( "ui_browserAwesomium", requested, sizeof( requested ) );
+	if ( !requested[0] ) {
+		return qtrue;
+	}
+
+	if ( !Q_stricmp( requested, "0" )
+		|| !Q_stricmp( requested, "false" )
+		|| !Q_stricmp( requested, "no" )
+		|| !Q_stricmp( requested, "off" ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CL_AwesomiumRuntimeActive
+
+Returns whether the live Awesomium lane is both available and requested for
+this launch profile.
+=============
+*/
+static qboolean CL_AwesomiumRuntimeActive( void ) {
+	return CL_BrowserRuntimeRequested() && CL_AwesomiumRuntimeAllowed();
+}
+
+/*
+=============
 CL_BrowserHostServiceAvailable
 
 Returns qtrue when either the compatibility overlay bridge or the explicit
@@ -4455,6 +4665,10 @@ Awesomium WebCore lane can service browser commands.
 =============
 */
 static qboolean CL_BrowserHostServiceAvailable( void ) {
+	if ( !CL_BrowserRuntimeRequested() ) {
+		return qfalse;
+	}
+
 	return CL_OverlayServiceAvailable() || CL_AwesomiumRuntimeAllowed();
 }
 
@@ -4472,7 +4686,8 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	const char *advertPolicy = CL_GetAdvertisementBridgePolicyLabel();
 	const char *parityScope = QL_GetOnlineServicesParityScopeLabel();
 	const char *parityReason = QL_GetOnlineServicesParityReasonLabel();
-	qboolean awesomiumAllowed = CL_AwesomiumRuntimeAllowed();
+	qboolean browserRequested = CL_BrowserRuntimeRequested();
+	qboolean awesomiumAllowed = CL_AwesomiumRuntimeActive();
 
 #if !QL_PLATFORM_HAS_ONLINE_SERVICES
 	cl_advertisementBridge.overlayCompiled = qfalse;
@@ -4494,7 +4709,7 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	CL_ResetBrowserOverlayState();
 #else
 	const ql_platform_feature_descriptor *overlay = CL_GetOverlayServiceDescriptor();
-	qboolean overlayAvailable = CL_OverlayServiceAvailable();
+	qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();
 	qboolean browserAvailable = overlayAvailable || awesomiumAllowed;
 
 	cl_advertisementBridge.overlayCompiled = ( overlay && overlay->compiled );
@@ -5268,8 +5483,8 @@ void CL_Web_BrowserActive_f( void ) {
 	} else {
 		QLWebHost_HideBrowser();
 	}
-	Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );
-	Com_DPrintf( "web_browserActive %s\n", cl_webHost.browserActive ? "1" : "0" );
+	CL_WebHost_UpdateOverlayOwnership();
+	Com_DPrintf( "web_browserActive %s\n", Cvar_VariableIntegerValue( "web_browserActive" ) ? "1" : "0" );
 #endif
 }
 
@@ -5372,7 +5587,7 @@ void QLWebHost_RegisterCommands( void ) {
 	cl_webBrowserActive = Cvar_Get ("web_browserActive", "0", CVAR_ROM );
 	cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
 	cl_webHost.cvarMappingCount = QLWebHost_CountRecoveredWebCvarMappings();
-	Cvar_Set( "ui_browserAwesomiumPending", CL_AwesomiumRuntimeAllowed() ? "1" : "0" );
+	Cvar_Set( "ui_browserAwesomiumPending", CL_AwesomiumRuntimeActive() ? "1" : "0" );
 }
 
 /*
@@ -5451,7 +5666,7 @@ void CL_WebHost_BootstrapAwesomiumMenu( void ) {
 	qboolean awesomiumAllowed;
 
 	CL_RefreshOnlineServicesBridgeState();
-	awesomiumAllowed = CL_AwesomiumRuntimeAllowed();
+	awesomiumAllowed = CL_AwesomiumRuntimeActive();
 	if ( !awesomiumAllowed
 		|| cl_webHost.loadFailed
 		|| cls.glconfig.vidWidth <= 0
@@ -5523,7 +5738,6 @@ void CL_WebHost_Frame( void ) {
 			cl_webHost.focused = qtrue;
 		}
 
-		CL_SetCvarIfChanged( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );
 	} else if ( cl_webHost.browserVisible || cl_webHost.browserActive ) {
 		QLWebHost_HideBrowser();
 		CL_SetCvarIfChanged( "web_browserActive", "0" );
@@ -5531,6 +5745,7 @@ void CL_WebHost_Frame( void ) {
 
 	QLWebCore_Update();
 	QLWebHost_PumpFrame();
+	CL_WebHost_UpdateOverlayOwnership();
 #endif
 }
 
@@ -5558,6 +5773,9 @@ void CL_WebHost_DrawBrowserSurface( void ) {
 		}
 	}
 	if ( !cl_webHost.surfaceShader ) {
+		return;
+	}
+	if ( !CL_WebHost_SurfaceReadyForOverlay( qtrue ) ) {
 		return;
 	}
 
@@ -5636,15 +5854,7 @@ qboolean CL_WebHost_HasDrawableSurface( void ) {
 		return qfalse;
 	}
 
-	if ( !cl_webHost.viewInitialised || !cl_webHost.browserVisible || !cl_webHost.browserActive ) {
-		return qfalse;
-	}
-
-	if ( !cl_webHost.surfaceShader ) {
-		return qfalse;
-	}
-
-	return qtrue;
+	return CL_WebHost_SurfaceReadyForOverlay( qtrue );
 #endif
 }
 

@@ -3236,29 +3236,13 @@ const void	*RB_DrawBuffer( const void *data ) {
 
 /*
 ===============
-RB_ShowImages
-
-Draw all the images to the screen, on top of whatever
-was there.  This is used to test for texture thrashing.
-
-Also called by RE_EndRegistration
+RB_DrawImageCacheQuads
 ===============
 */
-void RB_ShowImages( void ) {
+static void RB_DrawImageCacheQuads( qboolean proportional ) {
 	int		i;
 	image_t	*image;
 	float	x, y, w, h;
-	int		start, end;
-
-	if ( !backEnd.projection2D ) {
-		RB_SetGL2D();
-	}
-
-	qglClear( GL_COLOR_BUFFER_BIT );
-
-	qglFinish();
-
-	start = ri.Milliseconds();
 
 	for ( i=0 ; i<tr.numImages ; i++ ) {
 		image = tr.images[i];
@@ -3269,7 +3253,7 @@ void RB_ShowImages( void ) {
 		y = i / 20 * h;
 
 		// show in proportional size in mode 2
-		if ( r_showImages->integer == 2 ) {
+		if ( proportional ) {
 			w *= image->uploadWidth / 512.0f;
 			h *= image->uploadHeight / 512.0f;
 		}
@@ -3286,12 +3270,74 @@ void RB_ShowImages( void ) {
 		qglVertex2f( x, y + h );
 		qglEnd();
 	}
+}
+
+
+/*
+===============
+RB_ShowImages
+
+Draw all the images to the screen, on top of whatever
+was there.  This is used to test for texture thrashing.
+===============
+*/
+void RB_ShowImages( void ) {
+	qboolean	proportional;
+	int		start, end;
+
+	if ( !backEnd.projection2D ) {
+		RB_SetGL2D();
+	}
+
+	qglClear( GL_COLOR_BUFFER_BIT );
+
+	qglFinish();
+
+	start = ri.Milliseconds();
+
+	proportional = qfalse;
+	if ( r_showImages->integer == 2 ) {
+		proportional = qtrue;
+	}
+	RB_DrawImageCacheQuads( proportional );
 
 	qglFinish();
 
 	end = ri.Milliseconds();
 	ri.Printf( PRINT_ALL, "%i msec to draw all images\n", end - start );
 
+}
+
+
+/*
+===============
+RB_TouchImages
+
+Touch every uploaded image without issuing screen-space quads.  The retail
+registration tail uses the same image-cache walk as the visible debug overlay,
+but in this reconstructed renderer the direct GL quad pass leaks state into the
+loading frame.  Keep the registration tail non-visual and leave the cache atlas
+behind the explicit r_showImages diagnostic.
+===============
+*/
+void RB_TouchImages( void ) {
+	int			i;
+	image_t		*image;
+	int			start, end;
+
+	qglFinish();
+
+	start = ri.Milliseconds();
+
+	for ( i = 0 ; i < tr.numImages ; i++ ) {
+		image = tr.images[i];
+		GL_Bind( image );
+	}
+
+	qglFinish();
+
+	end = ri.Milliseconds();
+	ri.Printf( PRINT_DEVELOPER, "%i msec to touch all images\n", end - start );
 }
 
 /*

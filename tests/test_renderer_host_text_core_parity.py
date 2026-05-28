@@ -68,6 +68,7 @@ def test_renderer_host_text_core_matches_retail_surface() -> None:
 	assert "static const char *R_DecodeFontStashCodepoint( const char *text, const char *end, unsigned int *outCodepoint ) {" in tr_font
 	assert "static qboolean R_ParseHostTextColorEscape( const char *text, const char *end, int *outColorIndex, const char **outNext ) {" in tr_font
 	assert "static int R_BuildFontStashFaceChain( rFontStashFace_t *face, rFontStashFace_t **faces, int maxFaces ) {" in tr_font
+	assert "static void R_FlushFontStashRenderCommands( void ) {" in tr_font
 	assert "r_fontStash.errorCallback = R_fonsErrorCallback;" in tr_font
 	assert "void R_InitFontStash( void ) {" in tr_font
 	assert "void R_DoneFontStash( void ) {" in tr_font
@@ -108,6 +109,16 @@ def test_renderer_host_text_core_matches_retail_surface() -> None:
 	assert "Z_Free( oldBuffer );" in resize_block
 	assert "R_RescaleFontStashGlyphUVs( oldWidth, oldHeight, width, height );" in resize_block
 	assert "R_ClearFontStashFaceGlyphState();" not in resize_block
+
+	flush_block = _block_from_marker(tr_font, "static void R_FlushFontStashRenderCommands")
+	assert "if ( !tr.registered || !backEndData[tr.smpFrame] ) {" in flush_block
+	assert "if ( backEndData[tr.smpFrame]->commands.used <= 0 ) {" in flush_block
+	assert "R_SyncRenderThread();" in flush_block
+
+	error_block = _block_from_marker(tr_font, "static void R_fonsErrorCallback")
+	assert error_block.index('ri.Printf( PRINT_ALL, "Expand font atlas to %dx%d\\n", width, height );') < error_block.index("R_FlushFontStashRenderCommands();")
+	assert error_block.index("R_FlushFontStashRenderCommands();") < error_block.index("R_ResizeFontStashAtlas( width, height );")
+	assert error_block.rindex("R_FlushFontStashRenderCommands();") < error_block.index("R_ClearFontStashAtlas();")
 
 	r_init_block = tr_font.split("void R_InitFontStash( void ) {", 1)[1].split("void R_DoneFontStash( void ) {", 1)[0]
 	assert "R_InitFontStashFaces();" in r_init_block

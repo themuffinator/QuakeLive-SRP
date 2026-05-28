@@ -457,6 +457,16 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'cl_awe.webSessionClearCache = reinterpret_cast<awe_websession_void_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebSession_ClearCache@4" ) );'
+		Description = 'optional WebSession clear-cache adapter import'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = '{ 0x004F2A10u, 0x0000001Cu, "WebSession::ClearCache slot 0x1C", "CL_Awesomium_ClearCache", "_Awe_WebSession_ClearCache@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },'
+		Description = 'WebSession retail cache-clear slot mapped to SDK export'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
 		Literal = 'CL_AWE_IMPORT( webSessionRelease, "_Awe_WebSession_Release@4" );'
 		Description = 'WebSession release adapter import'
 	},
@@ -489,6 +499,11 @@ $adapterAnchors = @(
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
 		Literal = 'extern "C" void CL_Awesomium_ClearCache( void ) {'
 		Description = 'live WebSession cache-clear API'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'cl_awe.webSessionClearCache( cl_awesomium.webSession );'
+		Description = 'live WebSession cache-clear dispatch'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
@@ -534,6 +549,21 @@ $adapterAnchors = @(
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
 		Literal = 'pakName = CL_Awesomium_AllocWideString( "web.pak" );'
 		Description = 'retail web.pak DataPakSource literal'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = '#define CL_WEB_SURFACE_SHADER "browserShader"'
+		Description = 'retail browser shader handle name'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = '#define CL_WEB_SURFACE_IMAGE "*ql_web_browser"'
+		Description = 'collision-avoiding source browser image name'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = 'cl_webHost.surfaceShader = CL_RegisterShaderFromRGBAWithImageName('
+		Description = 'browser upload separates shader handle from backing image'
 	},
 	@{
 		Path = 'src/code/client/cl_cgame.c'

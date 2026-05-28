@@ -526,7 +526,7 @@ Returns the retail per-image upload sample override.
 =====================
 */
 static int R_ForcedImageSamples( const char *name ) {
-	if ( name && !strcmp( name, "browser" ) ) {
+	if ( name && ( !strcmp( name, "browser" ) || !strcmp( name, "*ql_web_browser" ) ) ) {
 		return 4;
 	}
 

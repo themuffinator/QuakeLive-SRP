@@ -391,8 +391,9 @@ Closure in this pass:
   browser pointer helpers instead of flowing through the keyboard seam.
 - A later `2026-05-18` `CL_KeyEvent` reread tightened this further: those
   pointer/key helpers now run only while `KEYCATCH_BROWSER` owns input, console
-  capture remains higher priority, and ESC closes the retained browser host
-  through a public `CL_WebHost_HideBrowser()` wrapper.
+  capture remains higher priority, and a later runtime retail check corrected
+  the Escape lane so browser-owned Escape is consumed as a no-op instead of
+  closing or navigating the retained browser host.
 - Tightened the focused parity tests so the browser pointer helper split and
   the `CL_KeyEvent()` routing change are now machine-validated.
 

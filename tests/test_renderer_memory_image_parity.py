@@ -47,7 +47,7 @@ def test_upload32_keeps_retail_target_and_forced_sample_details() -> None:
 
 	assert "#define GL_TEXTURE_RECTANGLE_ARB 0x84F5" in tr_local
 	assert "static int R_ForcedImageSamples( const char *name ) {" in tr_image
-	assert 'if ( name && !strcmp( name, "browser" ) ) {' in tr_image
+	assert 'if ( name && ( !strcmp( name, "browser" ) || !strcmp( name, "*ql_web_browser" ) ) ) {' in tr_image
 	assert "void\tGL_BindToTarget( image_t *image, int glTarget );" in tr_local
 	assert "GL_BindToTarget( image, glTarget );" in create_block
 	assert "int forcedSamples," in upload_block
@@ -96,6 +96,31 @@ def test_memory_loader_dispatches_buffer_decoders_and_warns_on_unknown_payloads(
 	assert 'ri.Printf( PRINT_WARNING, "WARNING: R_LoadImageFromMemory() Unable to detect image type.\\n" );' in tr_image
 	assert "image = R_FindLoadedImage( name, mipmap, allowPicmip, GL_CLAMP );" in tr_image
 	assert "image = R_CreateImageWithTarget( name, pic, width, height, mipmap, allowPicmip, GL_CLAMP, GL_TEXTURE_2D );" in tr_image
+
+
+def test_end_registration_touches_images_without_visible_debug_overlay() -> None:
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	tr_local = _read("src/code/renderer/tr_local.h")
+	end_registration_block = tr_init[
+		tr_init.index("void RE_EndRegistration( void ) {"):
+		tr_init.index("/*\n@@@@@@@@@@@@@@@@@@@@@")
+	]
+	touch_block = tr_backend[
+		tr_backend.index("void RB_TouchImages( void ) {"):
+		tr_backend.index("/*\n===============\nRB_ShowFontAtlas")
+	]
+
+	assert "void RB_TouchImages( void );" in tr_local
+	assert "RB_TouchImages();" in end_registration_block
+	assert "RB_ShowImages();" not in end_registration_block
+	assert "GL_Bind( image );" in touch_block
+	assert "RB_DrawImageCacheQuads" not in touch_block
+	assert "RB_SetGL2D" not in touch_block
+	assert "qglColorMask" not in touch_block
+	assert "qglClear( GL_COLOR_BUFFER_BIT );" not in touch_block
+	assert "if ( r_showImages->integer == 2 ) {" in tr_backend
+	assert "RB_DrawImageCacheQuads( proportional );" in tr_backend
 
 
 def test_memory_type_detector_uses_retail_selector_values_and_magic_offsets() -> None:
@@ -151,9 +176,11 @@ def test_live_client_resource_registration_uses_renderer_memory_lane() -> None:
 	cl_main = _read("src/code/client/cl_main.c")
 	steam_resources = _read("src/code/client/cl_steam_resources.c")
 
+	assert "qhandle_t CL_RegisterShaderFromRGBAWithImageName( const char *shaderName, const char *imageName, const byte *pic, int width, int height, qboolean mipRawImage ) {" in cl_main
 	assert "qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage ) {" in cl_main
 	assert "qhandle_t CL_RegisterShaderFromMemory( const char *name, const byte *buffer, int bufferLength, qboolean mipRawImage ) {" in cl_main
-	assert "image = R_CreateImage( name, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+	assert "image = R_CreateImage( rendererImageName, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+	assert "return CL_RegisterShaderFromRGBAWithImageName( name, name, pic, width, height, mipRawImage );" in cl_main
 	assert "image = R_LoadImageFromMemory( name, buffer, bufferLength, mipRawImage, mipRawImage );" in cl_main
 
 	assert "CL_SteamResources_BuildRendererName( url, slot, rendererName, sizeof( rendererName ) );" in steam_resources

@@ -280,7 +280,7 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	)
 	assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in bootstrap
 	assert "return;" in bootstrap
-	assert "CL_AwesomiumRuntimeAllowed();" in bootstrap
+	assert "CL_AwesomiumRuntimeActive();" in bootstrap
 	assert "QLWebHost_OpenURL( CL_WEB_DEFAULT_URL )" in bootstrap
 
 	server_init = _extract_function_block(sv_init, "void SV_Init (void) {")

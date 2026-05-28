@@ -917,6 +917,9 @@ def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     assert 'CL_SetCvarIfChanged( "ui_advertisementBridgeParityScope", parityScope );' in refresh_block
     assert 'CL_SetCvarIfChanged( "ui_advertisementBridgeParityReason", parityReason );' in refresh_block
     assert "CL_GetOverlayServiceDescriptor()" in refresh_block
+    assert "qboolean browserRequested = CL_BrowserRuntimeRequested();" in refresh_block
+    assert "qboolean awesomiumAllowed = CL_AwesomiumRuntimeActive();" in refresh_block
+    assert "qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();" in refresh_block
     assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in refresh_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in refresh_block
     assert "CL_GetOverlayServiceProviderLabel()" in refresh_block
@@ -1088,9 +1091,12 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
     assert "*outHeight = (int)height;" in avatar_block
     assert "CL_SteamResources_EncodeAvatarTGA" not in avatar_block
 
+    assert "qhandle_t CL_RegisterShaderFromRGBAWithImageName( const char *shaderName, const char *imageName, const byte *pic, int width, int height, qboolean mipRawImage );" in client_h
     assert "qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage );" in client_h
+    assert "qhandle_t CL_RegisterShaderFromRGBAWithImageName( const char *shaderName, const char *imageName, const byte *pic, int width, int height, qboolean mipRawImage ) {" in cl_main
     assert "qhandle_t CL_RegisterShaderFromRGBA( const char *name, const byte *pic, int width, int height, qboolean mipRawImage ) {" in cl_main
-    assert "image = R_CreateImage( name, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+    assert "image = R_CreateImage( rendererImageName, pic, width, height, mipRawImage, mipRawImage, mipRawImage ? GL_REPEAT : GL_CLAMP );" in cl_main
+    assert "return CL_RegisterShaderFromRGBAWithImageName( name, name, pic, width, height, mipRawImage );" in cl_main
     assert "if ( image == -1 ) {" in request_avatar_image_block
     assert "return QL_STEAM_AVATAR_IMAGE_PENDING;" in request_avatar_image_block
     assert "QL_Steamworks_RequestAvatarImage( idLow, idHigh, size, &image ) != QL_STEAM_AVATAR_IMAGE_READY" in load_avatar_block
@@ -1975,7 +1981,9 @@ def test_client_browser_host_core_reconstructs_retained_runtime_owner() -> None:
     shutdown_block = _extract_function_block(cl_cgame, "void CL_WebHost_Shutdown( void ) {")
 
     assert '#define CL_WEB_DEFAULT_URL "asset://ql/index.html"' in cl_cgame
-    assert '#define CL_WEB_SURFACE_SHADER "browser"' in cl_cgame
+    assert '#define CL_WEB_RETAIL_SURFACE_IMAGE "browser"' in cl_cgame
+    assert '#define CL_WEB_SURFACE_IMAGE "*ql_web_browser"' in cl_cgame
+    assert '#define CL_WEB_SURFACE_SHADER "browserShader"' in cl_cgame
     assert "#define CL_WEB_BOOTSTRAP_MAX_ATTEMPTS 10" in cl_cgame
     assert "#define CL_WEB_BOOTSTRAP_SLEEP_MSEC 100" in cl_cgame
     assert "int\t\tFS_GetPakFileList( const pack_t *pack, const char *path, const char *extension, char *listbuf, int bufsize );" in qcommon_h
@@ -1989,9 +1997,15 @@ def test_client_browser_host_core_reconstructs_retained_runtime_owner() -> None:
     assert "cl_webHost.dialogHandlerInstalled = qtrue;" in install_listeners_block
     assert "cl_webHost.viewHandlerInstalled = qtrue;" in install_listeners_block
     assert "cl_webHost.loadHandlerInstalled = qtrue;" in install_listeners_block
+    assert "char\t\tsurfaceImageName[MAX_QPATH];" in cl_cgame
+    assert 'Q_strncpyz( cl_webHost.surfaceImageName, CL_WEB_SURFACE_IMAGE, sizeof( cl_webHost.surfaceImageName ) );' in upload_surface_block
     assert 'Q_strncpyz( cl_webHost.surfaceShaderName, CL_WEB_SURFACE_SHADER, sizeof( cl_webHost.surfaceShaderName ) );' in upload_surface_block
-    assert "cl_webHost.surfaceShader = CL_RegisterShaderFromRGBA(" in upload_surface_block
+    assert "cl_webHost.surfaceShader = CL_RegisterShaderFromRGBAWithImageName(" in upload_surface_block
+    assert "cl_webHost.surfaceImageName," in upload_surface_block
     assert "cl_webHost.coreInitialised = qtrue;" in runtime_block
+    assert "qboolean browserRequested = CL_BrowserRuntimeRequested();" in runtime_block
+    assert "qboolean awesomiumAllowed = CL_AwesomiumRuntimeActive();" in runtime_block
+    assert "qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();" in runtime_block
     assert "cl_webHost.sessionInitialised = qtrue;" in runtime_block
     assert "cl_webHost.viewInitialised = qtrue;" in runtime_block
     assert "QLWebHost_RegisterRuntimeSources();" in runtime_block
@@ -2016,8 +2030,14 @@ def test_client_browser_host_core_reconstructs_retained_runtime_owner() -> None:
     assert "sourceCount = FS_GetFileList( path, extension, sourceList, sizeof( sourceList ) );" in webpak_list_block
     assert "nFiles = FS_AddFileToList( name + temp, list, nFiles );" in pak_list_block
 
+    assert "static qboolean CL_BrowserRuntimeRequested( void )" in cl_cgame
+    assert 'Cvar_VariableStringBuffer( "ui_browserAwesomium", requested, sizeof( requested ) );' in cl_cgame
+    assert "qboolean browserRequested = CL_BrowserRuntimeRequested();" in bridge_block
+    assert "qboolean awesomiumAllowed = CL_AwesomiumRuntimeActive();" in bridge_block
+    assert "qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();" in bridge_block
     assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in bridge_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in bridge_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPending", ( awesomiumAllowed && !cl_webHost.loadFailed ) ? "1" : "0" );' in bridge_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );' in bridge_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );' in bridge_block
     assert "CL_WebHost_ResetRuntime( qtrue );" in bridge_block
