@@ -216,6 +216,42 @@ function Sync-AwesomiumRuntime {
 	}
 }
 
+function Read-BuildSettings {
+	param([string]$Path)
+
+	$settings = @{}
+	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+		return $settings
+	}
+
+	foreach ($line in Get-Content -LiteralPath $Path) {
+		$separator = $line.IndexOf('=')
+		if ($separator -le 0) {
+			continue
+		}
+
+		$key = $line.Substring(0, $separator)
+		$value = $line.Substring($separator + 1)
+		$settings[$key] = $value
+	}
+
+	return $settings
+}
+
+function Assert-AwesomiumEnabledBuild {
+	param([string]$RuntimeBinDir)
+
+	$buildSettingsPath = Join-Path $RuntimeBinDir 'ql_build_settings.txt'
+	$settings = Read-BuildSettings -Path $buildSettingsPath
+	if (-not $settings.ContainsKey('QLBuildOnlineServices')) {
+		throw "Awesomium launch requested, but build settings were not found at $buildSettingsPath. Run the Launch Debug Awesomium task so the client is rebuilt with QLBuildOnlineServices=1."
+	}
+
+	if ($settings['QLBuildOnlineServices'] -ne '1') {
+		throw "Awesomium launch requested, but the last build for $RuntimeBinDir used QLBuildOnlineServices=$($settings['QLBuildOnlineServices']). Run the Launch Debug Awesomium task or rebuild with -OnlineServices 1 before launching."
+	}
+}
+
 if (-not (Test-Path -LiteralPath $runtimeBaseq3)) {
 	New-Item -ItemType Directory -Path $runtimeBaseq3 | Out-Null
 }
@@ -226,6 +262,7 @@ Sync-LaunchModuleArtifact -ModuleName 'cgamex86'
 Sync-LaunchModuleArtifact -ModuleName 'qagamex86'
 
 if ($EnableAwesomium) {
+	Assert-AwesomiumEnabledBuild -RuntimeBinDir $runtimeBinDir
 	Sync-AwesomiumRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir
 }
 

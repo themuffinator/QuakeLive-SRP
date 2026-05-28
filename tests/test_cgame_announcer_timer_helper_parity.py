@@ -91,17 +91,21 @@ def test_cgame_timer_format_helpers_drive_retail_ownerdraw_call_sites() -> None:
 	assert 'Q_strncpyz( timeText, CG_FormatMinutesSeconds( timeHeld ), sizeof( timeText ) );' in summary_block
 	assert 'Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );' in timeheld_block
 	assert 'Q_strncpyz( buffer, CG_FormatMinutesSeconds( seconds ), sizeof( buffer ) );' in level_timer_block
-	assert 'Q_strncpyz( buffer, CG_FormatMinutesSeconds( seconds ), sizeof( buffer ) );' in round_timer_block
+	assert 'Com_sprintf( buffer, sizeof( buffer ), "%s%d", S_COLOR_RED, seconds );' in round_timer_block
+	assert "if ( !CG_ShowPlayersRemaining() ) {" in round_timer_block
 	assert "roundStartTime = CG_GetMatchRoundStartTime();" in round_timer_block
 	assert "roundTimeLimitSeconds = CG_GetRoundTimeLimitSeconds();" in round_timer_block
 	assert "remainingMilliseconds = roundTimeLimitSeconds * 1000 - cg.time + roundStartTime;" in round_timer_block
 	assert "if ( remainingMilliseconds <= 0 || remainingMilliseconds > 29999 ) {" in round_timer_block
-	assert "seconds = ( remainingMilliseconds + 500 ) / 1000;" in round_timer_block
+	assert "seconds = remainingMilliseconds / 1000;" in round_timer_block
+	assert "x = CG_AlignTextInRectX( rect, scale, buffer, align );" in round_timer_block
 
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );' not in level_timer_block
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );' not in round_timer_block
 	assert 'Com_sprintf( buffer, bufferSize, "%i:%i%i", value / 60, ( value % 60 ) / 10, value % 10 );' not in timeheld_block
 	assert "seconds = CG_GetScoreboardTimerSeconds();" not in round_timer_block
+	assert "CG_FormatMinutesSeconds" not in round_timer_block
+	assert "remainingMilliseconds + 500" not in round_timer_block
 
 
 def test_cgame_bg_plan_closes_cg_e_direct_owner_gap() -> None:

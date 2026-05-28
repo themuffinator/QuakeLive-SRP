@@ -315,6 +315,7 @@ def test_factory_item_respawn_cvars_keep_retail_behavioral_wiring() -> None:
 		'config.spawnItemAmmo = G_ReadFactoryBoolCvar( &g_spawnItemAmmo, DEFAULT_SPAWN_ITEM_AMMO ? qtrue : qfalse, "g_spawnItemAmmo" );',
 	):
 		assert expected in load_block
+	assert "weaponRespawnSeconds" not in config_c
 
 	item_gate = _function_body(items_c, "static qboolean G_ItemFactorySpawnAllowed( const gitem_t *item )")
 	for expected in (
@@ -615,6 +616,7 @@ def test_weapon_respawn_zero_drives_retail_weapon_stay_pickup_path() -> None:
 	assert "if ( g_weaponRespawn.integer == 0 && !( ent->flags & FL_DROPPED_ITEM )" in pickup_weapon_body
 	assert "&& other->client->ps.ammo[weapon] != 0 ) {" in pickup_weapon_body
 	assert "other->client->ps.ammo[weapon] = ent->item->quantity;" in pickup_weapon_body
+	assert "G_GetConfiguredWeaponRespawnSeconds" not in g_items
 	assert "return g_weaponRespawn.integer;" in pickup_weapon_body
 
 

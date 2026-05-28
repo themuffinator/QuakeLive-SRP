@@ -28,6 +28,10 @@ shape to queue: while capture is active and the catcher mask is clear except
 for message/pass-through bits, it queues relative deltas; when browser/UI/cgame
 capture, `in_nograb`, inactive focus, or the windowed console releases capture,
 it queues `ScreenToClient` client-area coordinates for the absolute cursor lane.
+The absolute lane keeps cursor ownership split the same way: the browser host may
+publish a native Win32 cursor while its `0x20` catcher is active, but UI/cgame
+catchers use the renderer-drawn game cursor and force the OS cursor to `NULL`
+over the client area until that game cursor owner clears.
 The cgame-owned join-game overlay projects those host coordinates back into
 the shared 640x480 cursor space and preserves any existing console catcher bit
 when it arms `KEYCATCH_CGAME`, so toggling the console does not immediately

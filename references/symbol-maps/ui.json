@@ -912,7 +912,7 @@
       "signature": null,
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Paints the starting-weapon icon row and the queued-primary label using the retail loadout mask and modified-weapon indicators."
+      "comment": "Paints the CS_LOADOUT_MASK starting-weapon icon row and the queued-primary label when cg_loadout is exactly 1."
     },
     {
       "address": "0x10008B60",

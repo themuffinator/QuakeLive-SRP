@@ -400,25 +400,17 @@ static unsigned int G_ParseDisableLoadoutString( const char *value ) {
 =============
 G_WriteDisableLoadoutConfigstrings
 
-Publishes the latest disable_loadout bitmasks to connected clients.
+Publishes the retail loadout choice flags and starting-weapon mask to clients.
 =============
 */
-static void G_WriteDisableLoadoutConfigstrings( unsigned int mapMask, unsigned int serverMask ) {
-	unsigned int combinedMask;
-
-	combinedMask = mapMask | serverMask;
-	if ( !combinedMask ) {
+static void G_WriteDisableLoadoutConfigstrings( unsigned int disabledMask, unsigned int startingWeaponsMask ) {
+	trap_SetConfigstring( CS_LOADOUT_MASK, va( "%u", startingWeaponsMask ) );
+	if ( !g_loadout.integer ) {
 		trap_SetConfigstring( CS_LOADOUT_FLAGS, "" );
-		trap_SetConfigstring( CS_LOADOUT_MASK, "" );
 		return;
 	}
 
-	trap_SetConfigstring( CS_LOADOUT_FLAGS, va( "%u", combinedMask ) );
-	if ( mapMask ) {
-		trap_SetConfigstring( CS_LOADOUT_MASK, va( "%u", mapMask ) );
-	} else {
-		trap_SetConfigstring( CS_LOADOUT_MASK, "" );
-	}
+	trap_SetConfigstring( CS_LOADOUT_FLAGS, va( "%u", disabledMask ) );
 }
 
 /*
@@ -430,10 +422,13 @@ Recomputes the disable_loadout configstrings from the map cache and server cvar.
 */
 void G_UpdateDisableLoadoutConfigstrings( void ) {
 	unsigned int serverMask;
+	unsigned int disabledMask;
 
 	trap_Cvar_Update( &g_disableLoadout );
+	trap_Cvar_Update( &g_loadout );
 	serverMask = G_ParseDisableLoadoutString( g_disableLoadout.string );
-	G_WriteDisableLoadoutConfigstrings( level.disableLoadoutMapMask, serverMask );
+	disabledMask = level.disableLoadoutMapMask | serverMask;
+	G_WriteDisableLoadoutConfigstrings( disabledMask, (unsigned int)g_factoryCvarConfig.startingWeaponsMask );
 }
 
 qboolean	G_SpawnString( const char *key, const char *defaultString, char **out ) {

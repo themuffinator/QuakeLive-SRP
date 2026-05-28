@@ -1745,7 +1745,7 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     assert '{ &cg_weaponConfig_gh, "cg_weaponConfig_gh", "", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD }' in cg_main_c
     assert '{ "gh", WP_GRAPPLING_HOOK, 10 }' in cg_main_c
     assert '{ "gh", WP_GRAPPLING_HOOK }' in cg_newdraw_c
-    assert "{ CUSTOM_SETTING_GRAPPLING_HOOK, WP_GRAPPLING_HOOK }" in cg_newdraw_c
+    assert '{ CUSTOM_SETTING_GRAPPLING_HOOK, "icons/iconw_grapple.tga" }' in cg_newdraw_c
     assert '"g mg sg gl rl lg rg pg bfg gh cg ng pl hmg"' in cg_main_c
     assert "CG_DISABLE_LOADOUT_GH" in cg_servercmds_c
     assert "WP_GRAPPLING_HOOK" in cg_servercmds_c
@@ -2303,7 +2303,7 @@ def test_chaingun_full_server_and_cgame_wiring_matches_retail() -> None:
         'if ( !Q_stricmp( token, "chaingun" ) ) {',
         "return WP_CHAINGUN;",
         '{ "cg", WP_CHAINGUN }',
-        "{ CUSTOM_SETTING_CHAINGUN, WP_CHAINGUN }",
+        '{ CUSTOM_SETTING_CHAINGUN, "icons/iconw_chaingun.tga" }',
         "CG_PlacementWeaponFired( WP_CHAINGUN )",
     ):
         assert expected in cg_playerstate_c + cg_newdraw_c

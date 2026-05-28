@@ -15,6 +15,8 @@ UI_SHARED = REPO_ROOT / "src" / "code" / "ui" / "ui_shared.c"
 MENUDEF_H = REPO_ROOT / "src" / "ui" / "menudef.h"
 INTRO_MENU = REPO_ROOT / "src" / "ui" / "intro.menu"
 ENDSCORETEAM_MENU = REPO_ROOT / "src" / "ui" / "endscoreteam.menu"
+SPECTATOR_MENU = REPO_ROOT / "src" / "ui" / "spectator.menu"
+SPECTATOR_FOLLOW_MENU = REPO_ROOT / "src" / "ui" / "spectator_follow.menu"
 CGAME_HLIL = (
     REPO_ROOT
     / "references"
@@ -54,6 +56,73 @@ def _text_between(source: str, start_marker: str, end_marker: str) -> str:
     start = source.index(start_marker)
     end = source.index(end_marker, start)
     return source[start:end]
+
+
+def test_vertical_accuracy_overlay_keeps_retail_payload_and_row_wiring() -> None:
+    newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+    servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    stats_menu = (REPO_ROOT / "src" / "ui" / "ingamestats.menu").read_text(encoding="utf-8")
+    order_block = _text_between(
+        servercmds_source,
+        "static const weapon_t cg_retailAccuracyCommandOrder[] = {",
+        "static const cgRetailMapAlias_t",
+    )
+    vertical_order_block = _text_between(
+        newdraw_source,
+        "static const weapon_t cgVerticalAccWeaponOrder[] = {",
+        "/*\n=============\nCG_ShouldDrawAccVertical",
+    )
+    parse_block = _block_from_marker(servercmds_source, "static void CG_ParseRetailAccuracyCommand")
+    draw_weapons_block = _block_from_marker(newdraw_source, "static void CG_DrawWeaponVertical")
+    draw_acc_block = _block_from_marker(newdraw_source, "static void CG_DrawAccVertical")
+    ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw(")
+
+    for expected in (
+        "WP_NONE",
+        "WP_GAUNTLET",
+        "WP_GRAPPLING_HOOK",
+        "WP_HEAVY_MACHINEGUN",
+    ):
+        assert expected in order_block
+
+    for expected in (
+        "WP_GAUNTLET",
+        "WP_MACHINEGUN",
+        "WP_SHOTGUN",
+        "WP_GRENADE_LAUNCHER",
+        "WP_ROCKET_LAUNCHER",
+        "WP_LIGHTNING",
+        "WP_RAILGUN",
+        "WP_PLASMAGUN",
+        "WP_BFG",
+        "WP_CHAINGUN",
+        "WP_NAILGUN",
+        "WP_PROX_LAUNCHER",
+        "WP_HEAVY_MACHINEGUN",
+    ):
+        assert expected in vertical_order_block
+
+    assert "WP_NONE" not in vertical_order_block
+    assert "WP_GRAPPLING_HOOK" not in vertical_order_block
+    assert "memset( cg.weaponAccuracies, 0, sizeof( cg.weaponAccuracies ) );" in parse_block
+    assert "value = atoi( CG_Argv( i + 1 ) );" in parse_block
+    assert "cg.weaponAccuracies[weapon] = value;" in parse_block
+    assert "value < 0" not in parse_block
+    assert "value > 100" not in parse_block
+    assert "CG_DrawPic( rect->x, rect->y + rect->h * i, rect->w, rect->w, icon );" in draw_weapons_block
+    assert "Com_sprintf( buffer, sizeof( buffer ), \"%i%%\", cg.weaponAccuracies[weapon] );" in draw_acc_block
+    assert "CG_Text_Paint( rect->x, rect->y + rect->h * i, scale, color, buffer, 0, 0, textStyle );" in draw_acc_block
+    assert "rect->h * ( i + 1 )" not in draw_acc_block
+
+    assert "#define\tCG_WP_VERTICAL\t\t\t\t\t\t97" in menudef_source
+    assert "#define\tCG_ACC_VERTICAL\t\t\t\t\t\t98" in menudef_source
+    assert "ownerdraw CG_WP_VERTICAL" in stats_menu
+    assert "ownerdraw CG_ACC_VERTICAL" in stats_menu
+    assert "case CG_WP_VERTICAL:" in ownerdraw_block
+    assert "CG_DrawWeaponVertical( &rect, color );" in ownerdraw_block
+    assert "case CG_ACC_VERTICAL:" in ownerdraw_block
+    assert "CG_DrawAccVertical( &rect, scale, color, textStyle );" in ownerdraw_block
 
 
 def test_game_limit_uses_retail_limit_strings() -> None:
@@ -161,6 +230,13 @@ def test_game_limit_uses_retail_limit_strings() -> None:
 def test_match_end_condition_uses_retail_condition_strings() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
     hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    end_condition_menu_hits = [
+        path
+        for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+        if "ownerdraw CG_MATCH_END_CONDITION" in path.read_text(encoding="utf-8")
+    ]
     block = _block_from_marker(source, "static void CG_DrawMatchEndCondition")
     ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
     retail_block = _text_between(
@@ -168,6 +244,7 @@ def test_match_end_condition_uses_retail_condition_strings() -> None:
         '10034280    int32_t __convention("regparm") sub_10034280',
         "10034360",
     )
+    retail_ownerdraw_block = _block_from_marker(ghidra_source, "void FUN_1003b0f0")
 
     for expected in (
         '"Fastest race time within the time limit"',
@@ -209,6 +286,11 @@ def test_match_end_condition_uses_retail_condition_strings() -> None:
     ):
         assert expected in block
 
+    assert any(line.split()[:3] == ["#define", "CG_MATCH_END_CONDITION", "9"] for line in menudef_source.splitlines())
+    assert len(end_condition_menu_hits) >= 10
+    assert "case 9:" in retail_ownerdraw_block
+    assert "FUN_10034280(param_13,param_14,param_16);" in retail_ownerdraw_block
+    assert "case CG_MATCH_END_CONDITION:" in ownerdraw_block
     assert "CG_DrawMatchEndCondition( &rect, scale, color, textStyle );" in ownerdraw_block
     assert "CG_DrawMatchEndCondition(&rect, text_x, text_y, scale, color, textStyle);" not in ownerdraw_block
 
@@ -245,17 +327,79 @@ def test_local_time_uses_retail_date_format() -> None:
 
 def test_spectator_messages_use_retail_copy_family() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    spectator_menu = SPECTATOR_MENU.read_text(encoding="utf-8")
+    spectator_follow_menu = SPECTATOR_FOLLOW_MENU.read_text(encoding="utf-8")
     block = _block_from_marker(source, "static void CG_DrawSpectatorMessages")
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    retail_block = _text_between(
+        hlil_source,
+        "10034d70    int32_t __fastcall sub_10034d70",
+        "100350c0",
+    )
+    retail_decompile = _text_between(
+        ghidra_source,
+        "/* FUN_10034d70 @ 10034d70",
+        "/* FUN_10005e60",
+    )
+    retail_switch = _text_between(ghidra_source, "case 0x23:", "case 0x24:")
 
     for expected in (
+        "vec4_t spectatorHintColor = { 0.73f, 0.73f, 0.73f, 0.7f };",
+        "(void)scale;",
+        "(void)color;",
+        "(void)textStyle;",
+        "if ( !rect || !cg.snap || !cg_drawSpecMessages.integer ) {",
+        "cgs.gametype == GT_CLAN_ARENA || cgs.gametype == GT_RED_ROVER",
+        "cg.snap->ps.pm_type == PM_SPECTATOR",
+        "cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR",
         "Round In Progress",
+        "x = 320.0f - (float)CG_Text_Width( message, 0.35f, 0 ) * 0.5f;",
+        "CG_Text_Paint( x, 60.0f, 0.35f, colorWhite, message, 0, 0, 3 );",
+        'CG_Text_Paint( rect->x, rect->y, 0.22f, colorWhite, "SPECTATOR MODE", 0, 0, 0 );',
         "SPECTATOR MODE",
+        'CG_Text_Paint( rect->x, rect->y + 12.0f, 0.18f, spectatorHintColor, "Press mouse button 1 to cycle through players", 0, 0, 0 );',
         "Press mouse button 1 to cycle through players",
+        'trap_Key_GetBindingBuf( trap_Key_GetKey( "+moveup" ), bindingBuf, sizeof( bindingBuf ) );',
+        'CG_FindBrowserOverlayByName( "comp_specfollowhud_menu" )',
+        "!cgs.clientinfo[cg.clientNum].spectateOnly",
+        'CG_Text_Paint( 20.0f, 461.0f, 0.28f, colorWhite, "waiting to play", 0, 0, 3 );',
         "waiting to play",
+        'CG_Text_Paint( 20.0f, 453.0f, 0.28f, colorWhite, "press ESC and use the JOIN buttons", 0, 0, 3 );',
         "press ESC and use the JOIN buttons",
+        'CG_Text_Paint( 20.0f, 470.0f, 0.28f, colorWhite, "to enter the game", 0, 0, 3 );',
         "to enter the game",
     ):
         assert expected in block
+
+    for expected in (
+        "eax_2 == 4 || eax_2 == 0xb",
+        "*(ecx + 0x30) == 2",
+        "*(ecx + 0x138) != 3",
+        "data_10aa6934 == 0",
+        'sub_100575e0("SPECTATOR MODE")',
+        '(*(data_1074cccc + 0x184))("+moveup")',
+        "data_10ab9688 == 0 ||",
+        "data_10a42404 == 0",
+    ):
+        assert expected in retail_block
+
+    for expected in (
+        '"Press mouse button 1 to cycle through players"',
+        '"press ESC and use the JOIN buttons"',
+        '"to enter the game"',
+    ):
+        assert expected in hlil_source
+    assert '"Press mouse button 1 to cycle through players"' in retail_decompile
+
+    assert "FUN_10034d70();" in retail_switch
+    assert "case CG_SPEC_MESSAGES:" in ownerdraw_block
+    assert "CG_DrawSpectatorMessages( &rect, scale, color, textStyle );" in ownerdraw_block
+    assert "#define\tCG_SPEC_MESSAGES" in menudef_source
+    assert spectator_menu.count("ownerdraw CG_SPEC_MESSAGES") == 2
+    assert spectator_follow_menu.count("ownerdraw CG_SPEC_MESSAGES") == 2
 
     for stale in (
         "FOLLOWING %s",
@@ -263,6 +407,11 @@ def test_spectator_messages_use_retail_copy_family() -> None:
         "Press FIRE to cycle, JUMP for free camera",
         "Press FIRE to follow a player",
         "press ESC and use the JOIN menu to play",
+        "CG_DrawPregameCoach(rect",
+        "case GT_FREEZE:",
+        "case GT_ATTACK_DEFEND:",
+        "cgs.matchRoundState",
+        "scale * 0.8f",
     ):
         assert stale not in block
 
@@ -357,10 +506,18 @@ def test_level_timer_uses_retail_clock_format() -> None:
 def test_intro_panel_draws_use_retail_map_panel_shapes() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
     hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    match_details_menu_hits = [
+        path
+        for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+        if "ownerdraw CG_MATCH_DETAILS" in path.read_text(encoding="utf-8")
+    ]
     game_type_map = _block_from_marker(source, "static void CG_DrawGameTypeMap")
     match_details = _block_from_marker(source, "static void CG_DrawMatchDetails")
-    phase_label = _block_from_marker(source, "static const char *CG_GetMatchDetailsPhaseLabel")
+    phase_label = _block_from_marker(source, "static const char *CG_GetMatchPhaseText")
     ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    retail_ownerdraw_block = _block_from_marker(ghidra_source, "void FUN_1003b0f0")
     retail_match_details = _text_between(
         hlil_source,
         '10034420    int32_t __convention("regparm") sub_10034420',
@@ -391,14 +548,17 @@ def test_intro_panel_draws_use_retail_map_panel_shapes() -> None:
         assert expected in retail_game_type_map
 
     assert "CG_BuildIntroPanelDetailString( detailBuffer, sizeof( detailBuffer ) );" in match_details
-    assert 'CG_GetMatchDetailsPhaseLabel()' in match_details
+    assert 'CG_GetMatchPhaseText()' in match_details
     assert 'CG_GameTypeShortString(), detailBuffer );' in match_details
     assert '%s - %s - %s' in match_details
-    assert "CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );" in match_details
+    assert "CG_Text_PaintExt( rect->x, rect->y, scale, color, buffer, 0, 0, ITEM_TEXTSTYLE_NORMAL, FONT_DEFAULT );" in match_details
+    assert "CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );" not in match_details
     assert '%s - %s - %s - %s' not in match_details
     assert 'CG_GetMapDisplayName( mapName, sizeof( mapName ) );' not in match_details
     assert "CG_GetTextPosition" not in match_details
     assert 'sub_100575e0("%s - %s - %s")' in retail_match_details
+    assert "sub_10008440(fconvert.s(fconvert.t(var_4)), fconvert.s(fconvert.t(var_8)), 0," in retail_match_details
+    assert "fconvert.s(float.t(0)), 0)" in retail_match_details
 
     for expected in (
         'MATCH WARMUP',
@@ -407,7 +567,13 @@ def test_intro_panel_draws_use_retail_map_panel_shapes() -> None:
     ):
         assert expected in phase_label
 
+    assert "CG_GetMatchDetailsPhaseLabel" not in source
+    assert any(line.split()[:3] == ["#define", "CG_MATCH_DETAILS", "8"] for line in menudef_source.splitlines())
+    assert len(match_details_menu_hits) >= 10
+    assert "case 8:" in retail_ownerdraw_block
+    assert "FUN_10034420(param_13,param_14,param_16);" in retail_ownerdraw_block
     assert "CG_DrawGameTypeMap( &rect, scale, color, textStyle, align );" in ownerdraw_block
+    assert "case CG_MATCH_DETAILS:" in ownerdraw_block
     assert "CG_DrawMatchDetails( &rect, scale, color, textStyle );" in ownerdraw_block
     assert "CG_DrawGameTypeMap(&rect, text_x, text_y, scale, color, textStyle);" not in ownerdraw_block
     assert "CG_DrawMatchDetails(&rect, text_x, text_y, scale, color, textStyle);" not in ownerdraw_block
@@ -485,7 +651,9 @@ def test_plain_gametype_and_match_state_draws_use_retail_origin_alignment() -> N
 def test_match_status_uses_retail_status_text_family() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
     hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
-    status_text = _block_from_marker(source, "const char *CG_GetGameStatusText()")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    intro_menu = INTRO_MENU.read_text(encoding="utf-8")
+    status_text = _block_from_marker(source, "const char *CG_GetGameStatusText")
     status_helper = _block_from_marker(source, "const char *CG_GetMatchStatusText")
     draw_match_status = _block_from_marker(source, "static void CG_DrawMatchStatus")
     ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
@@ -510,9 +678,10 @@ def test_match_status_uses_retail_status_text_family() -> None:
     assert '"Blue leads Red, %i to %i"' not in status_text
     assert "cgs.gametype < GT_TEAM" not in status_text
 
-    assert 'phase = "MATCH SUMMARY";' in status_helper
-    assert 'phase = "MATCH WARMUP";' in status_helper
-    assert 'phase = "MATCH IN PROGRESS";' in status_helper
+    assert "phase = CG_GetMatchPhaseText();" in status_helper
+    assert 'phase = "MATCH SUMMARY";' not in status_helper
+    assert 'phase = "MATCH WARMUP";' not in status_helper
+    assert 'phase = "MATCH IN PROGRESS";' not in status_helper
     assert "if ( cgs.scores1 == SCORE_NOT_PRESENT && cgs.scores2 == SCORE_NOT_PRESENT &&" in status_helper
     assert "( cgs.gametype < GT_TEAM || cgs.gametype == GT_RED_ROVER )" in status_helper
     assert "if ( cgs.gametype == GT_RACE ) {" in status_helper
@@ -523,6 +692,8 @@ def test_match_status_uses_retail_status_text_family() -> None:
     assert '"%s - ^1Red^7 leads ^4Blue^7, %i to %i"' in status_helper
     assert '"%s - ^4Blue^7 leads ^1Red^7, %i to %i"' in status_helper
     assert "cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR" in status_helper
+    assert "if ( cgs.scores1 != CG_SCORE_FORFEIT ) {" in status_helper
+    assert "if ( cgs.scores1 != SCORE_NOT_PRESENT ) {" not in status_helper
     assert "leaderName = cgs.firstPlaceName;" in status_helper
     assert "leaderName = cgs.secondPlaceName;" in status_helper
     assert '"%s - %s leads with %i"' in status_helper
@@ -537,6 +708,9 @@ def test_match_status_uses_retail_status_text_family() -> None:
     assert 'Com_sprintf( buffer, sizeof( buffer ), "%s - %s", CG_GetMatchStateLabel(), CG_GetGameStatusText() );' not in draw_match_status
     assert "if ( !cg.snap ) {" not in draw_match_status
     assert "CG_GetTextPosition" not in draw_match_status
+    assert any(line.split()[:3] == ["#define", "CG_MATCH_STATUS", "10"] for line in menudef_source.splitlines())
+    assert "ownerdraw CG_MATCH_STATUS" in intro_menu
+    assert "case CG_MATCH_STATUS:" in ownerdraw_block
     assert "CG_DrawMatchStatus( &rect, scale, color, textStyle, align );" in ownerdraw_block
     assert "CG_DrawMatchStatus(&rect, text_x, text_y, scale, color, textStyle);" not in ownerdraw_block
 
@@ -548,6 +722,7 @@ def test_match_status_uses_retail_status_text_family() -> None:
         'var_18 = " - ^4Blue^7 leads ^1Red^7, %i to',
         'var_18 = " - ^1Red^7 leads ^4Blue^7, %i to',
         "if (*(edi + 0x138) == 3)",
+        "if (esi != 0xfffffc19)",
         'var_18 = " - %s leads with %i"',
         'var_18 = " - %s place with %i"',
     ):
@@ -562,6 +737,99 @@ def test_match_status_uses_retail_status_text_family() -> None:
         "*ebx = fconvert.s(fconvert.t(*ebx) - float.t(arg_10))",
     ):
         assert expected in retail_draw_match_status
+
+
+def test_game_status_ownerdraw_matches_retail_text_and_wiring() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    main_source = CG_MAIN.read_text(encoding="utf-8")
+    local_source = CG_LOCAL.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+
+    status_text = _block_from_marker(source, "const char *CG_GetGameStatusText")
+    draw_game_status = _block_from_marker(source, "static void CG_DrawGameStatus")
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+    retail_status_text = _text_between(
+        hlil_source,
+        "10034b30    void* const sub_10034b30()",
+        "10034bc7",
+    )
+    retail_draw_call = _text_between(
+        ghidra_source,
+        "  case 7:\n    FUN_10034bd0(param_13,param_14,param_16);",
+        "  case 8:",
+    )
+
+    assert "#define\tCG_GAME_STATUS\t\t\t\t\t\t7" in menudef_source
+    assert "case 7:\n    FUN_10034bd0(param_13,param_14,param_16);" in retail_draw_call
+    assert "const char *CG_GetGameStatusText( void );" in local_source
+
+    for menu_name in (
+        "ingamescoreteam.menu",
+        "ingamescorenoteam.menu",
+        "ingame_scoreboard_1fctf.menu",
+        "ingame_scoreboard_ad.menu",
+        "ingame_scoreboard_ca.menu",
+        "ingame_scoreboard_ctf.menu",
+        "ingame_scoreboard_dom.menu",
+        "ingame_scoreboard_duel.menu",
+        "ingame_scoreboard_ffa.menu",
+        "ingame_scoreboard_ft.menu",
+        "ingame_scoreboard_har.menu",
+        "ingame_scoreboard_race.menu",
+        "ingame_scoreboard_rr.menu",
+        "ingame_scoreboard_tdm.menu",
+    ):
+        menu_source = (REPO_ROOT / "src" / "ui" / menu_name).read_text(encoding="utf-8")
+        assert "ownerdraw CG_GAME_STATUS" in menu_source
+
+    for expected in (
+        "case GT_SINGLE_PLAYER:",
+        "case GT_FFA:",
+        "case GT_TOURNAMENT:",
+        "case GT_RED_ROVER:",
+        "cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR",
+        '"%s place with %i"',
+        "if ( cg.teamScores[0] == cg.teamScores[1] ) {",
+        '"Teams are tied at %i"',
+        "if ( cg.teamScores[0] > cg.teamScores[1] ) {",
+        '"^1Red^7 leads ^4Blue^7, %i to %i"',
+        '"^4Blue^7 leads ^1Red^7, %i to %i"',
+    ):
+        assert expected in status_text
+
+    for stale in (
+        "cgs.scores1",
+        "cgs.scores2",
+        "CG_GetMatchStatusText",
+        "CG_GetMatchStateLabel",
+        '" - Teams are tied at %i"',
+        '"Red leads Blue, %i to %i"',
+        '"Blue leads Red, %i to %i"',
+    ):
+        assert stale not in status_text
+
+    for expected in (
+        "if (esi == 2)",
+        "if (esi s< 3 || esi == 0xc)",
+        "if (*(edx + 0x138) == 3)",
+        'return sub_100575e0("%s place with %i")',
+        "int32_t eax_1 = data_10a9cdc8",
+        "int32_t ecx_2 = data_10a9cdcc",
+        'return sub_100575e0("Teams are tied at %i")',
+        'return sub_100575e0("^4Blue^7 leads ^1Red^7, %i to %i")',
+        'return sub_100575e0("^1Red^7 leads ^4Blue^7, %i to %i")',
+    ):
+        assert expected in retail_status_text
+
+    assert "static void CG_DrawGameStatus( rectDef_t *rect, float scale, vec4_t color, int textStyle )" in draw_game_status
+    assert "qhandle_t shader" not in draw_game_status
+    assert "CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, CG_GetGameStatusText(), 0, 0, textStyle);" in draw_game_status
+    assert "CG_DrawGameStatus( &rect, scale, color, textStyle );" in ownerdraw_block
+    assert "CG_DrawGameStatus(&rect, scale, color, shader, textStyle);" not in ownerdraw_block
+    assert "return CG_Text_Width( CG_GetGameStatusText(), scale, 0 );" in width_block
 
 
 def test_player_model_helper_restores_retail_3d_preview_scene() -> None:
@@ -647,14 +915,27 @@ def test_endgame_summary_uses_retail_message_family() -> None:
 def test_starting_weapons_uses_retail_icon_preview_path() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
     main_source = CG_MAIN.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
     token_table = _block_from_marker(main_source, "static const cgRetailWeaponToken_t cgRetailWeaponTokens")
     token_helper = _block_from_marker(main_source, "int CG_StartingWeaponIndexFromToken")
     preview_mask = _block_from_marker(source, "static unsigned int CG_GetStartingWeaponPreviewMask")
     block = _block_from_marker(source, "static void CG_DrawStartingWeapons")
+    retail_block = _text_between(
+        hlil_source,
+        "10033910    int32_t sub_10033910",
+        "10033b10",
+    )
 
     assert "static const cgStartingWeaponInfo_t cgStartingWeaponIcons" in source
     assert "CG_ConfigString( CS_LOADOUT_MASK )" in preview_mask
-    assert '"g_startingWeapons"' in preview_mask
+    assert '"g_startingWeapons"' not in preview_mask
+    for expected in (
+        "if ((data_10a601dc & result) != 0)",
+        "if (data_10a249cc != 0)",
+        "int32_t esi_1 = data_10a9c7a4",
+        "esi_1 = 0xe",
+    ):
+        assert expected in retail_block
 
     assert "primaryIndex = cg.weaponPrimary;" in block
     assert "primaryIndex = CG_STARTING_WEAPON_ICON_COUNT;" in block
@@ -748,7 +1029,10 @@ def test_first_twenty_limit_count_map_and_vote_draws_match_retail_origins() -> N
     race_limit_block = _block_from_marker(source, "static int CG_GetRaceCapFragLimitValue")
     count_block = _block_from_marker(source, "static int CG_CountActivePlayers")
     player_counts_block = _block_from_marker(source, "static void CG_DrawPlayerCounts")
+    map_text_block = _block_from_marker(source, "static const char *CG_MapNameText")
     map_name_block = _block_from_marker(source, "static void CG_DrawMapName")
+    map_display_block = _block_from_marker(source, "static void CG_GetMapDisplayName")
+    detail_block = _block_from_marker(source, "static void CG_BuildIntroPanelDetailString")
     vote_gametype_block = _block_from_marker(source, "static void CG_DrawVoteGametype")
     ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
     retail_capfrag = _text_between(
@@ -830,12 +1114,31 @@ def test_first_twenty_limit_count_map_and_vote_draws_match_retail_origins() -> N
     assert "rect->y + rect->h" not in player_counts_block
     assert "CG_DrawPlayerCounts(&rect, scale, color, textStyle, align);" in ownerdraw_block
 
-    assert "fconvert.s(fconvert.t(arg1[1]))" in retail_map_name
-    assert "CG_BuildMapDisplayName( nameBuffer, sizeof( nameBuffer ) );" in map_name_block
-    assert "ARENA_INFO_KEY_LONGNAME" in source
-    assert 'CG_FindArenaLongNameInFile( "scripts/arenas.txt", mapName, buffer, bufferSize )' in source
-    assert "CG_Text_Paint(rect->x, rect->y, scale, color, nameBuffer, 0, 0, textStyle);" in map_name_block
+    for expected in (
+        "int32_t var_10 = data_10a3842c + 0x10a39420",
+        "eax_1, ecx_1 = sub_100575e0(&data_10068de8)",
+        "return sub_10008440(fconvert.s(fconvert.t(*arg1))",
+        "fconvert.s(fconvert.t(arg1[1]))",
+    ):
+        assert expected in retail_map_name
+
+    for expected in (
+        "info = CG_ConfigString( CS_SERVERINFO );",
+        "mapName = info ? Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) : \"\";",
+        "return mapName ? mapName : \"\";",
+    ):
+        assert expected in map_text_block
+    assert "cgs.mapname" not in map_text_block
+
+    assert "CG_Text_Paint( rect->x, rect->y, scale, color, CG_MapNameText(), 0, 0, textStyle );" in map_name_block
     assert "rect->y + rect->h" not in map_name_block
+    assert "Q_strncpyz( buffer, CG_MapNameText(), bufferSize );" in map_display_block
+    assert "CG_GetMapDisplayName( buffer, bufferSize );" in detail_block
+    assert "CG_GetServerLocation" not in source
+    assert "CG_BuildMapDisplayName" not in source
+    assert "ARENA_INFO_KEY_LONGNAME" not in source
+    assert 'CG_FindArenaLongNameInFile( "scripts/arenas.txt", mapName, buffer, bufferSize )' not in source
+    assert "CG_DrawMapName( &rect, scale, color, textStyle );" in ownerdraw_block
 
     assert "if (arg1 == 0x13 || arg1 == 0x14 || arg1 == 0x15)" in retail_vote_gametype
     assert "arg2[1]) - fconvert.t(8.0)" in retail_vote_gametype
@@ -985,7 +1288,7 @@ def test_second_twenty_vote_and_local_player_ownerdraws_match_retail_wiring() ->
 
     assert "Round In Progress" in retail_spectator
     assert "SPECTATOR MODE" in spectator_block
-    assert "CG_DrawSpectatorMessages(&rect, scale, color, textStyle);" in ownerdraw_block
+    assert "CG_DrawSpectatorMessages( &rect, scale, color, textStyle );" in ownerdraw_block
 
     assert "data_10a5f418" in retail_armor_icon
     assert "data_10a5f414" in retail_armor_icon

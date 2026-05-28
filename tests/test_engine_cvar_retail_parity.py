@@ -932,6 +932,8 @@ def test_engine_cvar_twelfth_common_misc_tranche_matches_retail_contracts() -> N
 	assert 'Cvar_Set( "nextmap", "cinematic intro.RoQ" );' in common
 
 	assert 'Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in common
+	assert 'cvar_t\t*com_webBrowserActive;' in common
+	assert 'com_webBrowserActive = Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in common
 	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' not in cl_main
 	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in cl_cgame
 	assert 'Cmd_AddCommand ("web_browserActive", CL_Web_BrowserActive_f );' not in cl_main
@@ -1070,7 +1072,7 @@ def test_selected_com_cvars_match_retail_defaults_flags_and_wiring() -> None:
 
 	assert 'data_145b944 = sub_4ce0d0(x87_r5, "com_idleSleep", U"1", 0x80001)' in retail_hlil
 	assert 'com_idleSleep = Cvar_Get( "com_idleSleep", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in common
-	assert 'Cvar_VariableIntegerValue( "web_browserActive" ) == 1 || ( com_idleSleep && com_idleSleep->integer == 1 )' in common
+	assert '( com_webBrowserActive && com_webBrowserActive->integer == 1 ) || ( com_idleSleep && com_idleSleep->integer == 1 )' in common
 	assert 'Com_IdleSleep( minMsec - msec );' in common
 
 	assert 'void** eax_37 = sub_4ce0d0(x87_r1, "com_allowConsole", U"1", 0x80801)' in retail_hlil
@@ -1333,7 +1335,7 @@ def test_engine_cvar_fourteenth_core_timing_tranche_matches_retail_contracts() -
 	assert 'FS_FOpenFileRead( "journaldata.dat", &com_journalDataFile, qtrue );' in common
 
 	assert 'com_idleSleep = Cvar_Get( "com_idleSleep", "1", CVAR_ARCHIVE | CVAR_CLOUD );' in common
-	assert 'Cvar_VariableIntegerValue( "web_browserActive" ) == 1 || ( com_idleSleep && com_idleSleep->integer == 1 )' in common
+	assert '( com_webBrowserActive && com_webBrowserActive->integer == 1 ) || ( com_idleSleep && com_idleSleep->integer == 1 )' in common
 	assert 'Com_IdleSleep( minMsec - msec );' in common
 	assert 'dueTime.QuadPart = -( (LONGLONG)msec * 10000 );' in common
 	assert 'usleep( msec * 1000 );' in common

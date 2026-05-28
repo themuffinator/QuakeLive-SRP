@@ -1281,6 +1281,7 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 
 	assert "void G_UpdateTimeoutConfigStrings( void ) {" in game_match_state
 	assert "static void G_UpdateRoundStartConfigString( void ) {" in game_match_state
+	assert "if ( level.roundState != ROUNDSTATE_ACTIVE ) {" in game_match_state
 	assert "trap_SetConfigstring( CS_ROUND_START_TIME" in game_match_state
 	assert "trap_SetConfigstring( CS_TIMEOUT_START_TIME" in game_match_state
 	assert "trap_SetConfigstring( CS_TIMEOUT_EXPIRE_TIME" in game_match_state

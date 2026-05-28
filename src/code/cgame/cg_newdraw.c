@@ -27,9 +27,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 extern displayContextDef_t cgDC;
 
-#define CG_ARENA_LOOKUP_TEXT_SIZE		( 128 * 1024 )
-#define CG_ARENA_LOOKUP_FILE_LIST_SIZE		8192
-
 typedef enum cgVoteSlotField_e {
 	CG_VOTE_FIELD_GAMETYPE,
 	CG_VOTE_FIELD_MAP,
@@ -44,7 +41,7 @@ typedef struct cgStartingWeaponInfo_s {
 
 typedef struct cgServerSettingsWeaponIcon_s {
 	unsigned int bit;
-	weapon_t weapon;
+	const char *iconName;
 } cgServerSettingsWeaponIcon_t;
 
 //
@@ -132,6 +129,15 @@ static void *CG_ClearBrowserFocus( void *overlay );
 
 #define CG_STARTING_WEAPON_ICON_COUNT 14
 #define CG_SCORE_FORFEIT -999
+#define CG_SERVER_SETTINGS_LINE_HEIGHT 12.0f
+#define CG_SERVER_SETTINGS_ICON_X 445.0f
+#define CG_SERVER_SETTINGS_MODIFIED_ICON_X 457.0f
+#define CG_SERVER_SETTINGS_ICON_SIZE 16.0f
+#define CG_SERVER_SETTINGS_MODIFIED_ICON_SIZE 8.0f
+#define CG_SERVER_SETTINGS_ICON_SPACING 24.0f
+#define CG_SERVER_SETTINGS_MODIFIED_ICON_Y_OFFSET 8.0f
+#define CG_SERVER_SETTINGS_ICON_WRAP 8
+#define CG_SERVER_SETTINGS_MAX_TEXT_ROWS_WITH_ICONS 15
 
 static const cgStartingWeaponInfo_t cgStartingWeaponIcons[CG_STARTING_WEAPON_ICON_COUNT] = {
 	{ "g", WP_GAUNTLET },
@@ -151,19 +157,19 @@ static const cgStartingWeaponInfo_t cgStartingWeaponIcons[CG_STARTING_WEAPON_ICO
 };
 
 static const cgServerSettingsWeaponIcon_t cgServerSettingsWeaponIcons[] = {
-	{ CUSTOM_SETTING_GAUNTLET, WP_GAUNTLET },
-	{ CUSTOM_SETTING_MACHINEGUN, WP_MACHINEGUN },
-	{ CUSTOM_SETTING_SHOTGUN, WP_SHOTGUN },
-	{ CUSTOM_SETTING_GRENADE_LAUNCHER, WP_GRENADE_LAUNCHER },
-	{ CUSTOM_SETTING_ROCKET_LAUNCHER, WP_ROCKET_LAUNCHER },
-	{ CUSTOM_SETTING_LIGHTNING_GUN, WP_LIGHTNING },
-	{ CUSTOM_SETTING_RAILGUN, WP_RAILGUN },
-	{ CUSTOM_SETTING_PLASMAGUN, WP_PLASMAGUN },
-	{ CUSTOM_SETTING_BFG, WP_BFG },
-	{ CUSTOM_SETTING_GRAPPLING_HOOK, WP_GRAPPLING_HOOK },
-	{ CUSTOM_SETTING_NAILGUN, WP_NAILGUN },
-	{ CUSTOM_SETTING_PROX_LAUNCHER, WP_PROX_LAUNCHER },
-	{ CUSTOM_SETTING_CHAINGUN, WP_CHAINGUN }
+	{ CUSTOM_SETTING_GAUNTLET, "icons/iconw_gauntlet.tga" },
+	{ CUSTOM_SETTING_MACHINEGUN, "icons/iconw_machinegun.tga" },
+	{ CUSTOM_SETTING_SHOTGUN, "icons/iconw_shotgun.tga" },
+	{ CUSTOM_SETTING_GRENADE_LAUNCHER, "icons/iconw_grenade.tga" },
+	{ CUSTOM_SETTING_ROCKET_LAUNCHER, "icons/iconw_rocket.tga" },
+	{ CUSTOM_SETTING_LIGHTNING_GUN, "icons/iconw_lightning.tga" },
+	{ CUSTOM_SETTING_RAILGUN, "icons/iconw_railgun.tga" },
+	{ CUSTOM_SETTING_PLASMAGUN, "icons/iconw_plasma.tga" },
+	{ CUSTOM_SETTING_BFG, "icons/iconw_bfg.tga" },
+	{ CUSTOM_SETTING_GRAPPLING_HOOK, "icons/iconw_grapple.tga" },
+	{ CUSTOM_SETTING_NAILGUN, "icons/iconw_nailgun.tga" },
+	{ CUSTOM_SETTING_PROX_LAUNCHER, "icons/iconw_proxlauncher.tga" },
+	{ CUSTOM_SETTING_CHAINGUN, "icons/iconw_chaingun.tga" }
 };
 
 static qhandle_t cgGameTypeIconShaders[GT_MAX_GAME_TYPE];
@@ -2204,51 +2210,24 @@ static void CG_DrawPlayerCount( rectDef_t *rect, float scale, vec4_t color, int 
 
 /*
 =============
-CG_SampleSpeedometer
-
-Samples and caches the player's horizontal speed for the current frame.
-=============
-*/
-static float CG_SampleSpeedometer(void) {
-vec3_t horizontalVelocity;
-
-if (!cg.snap) {
-cg.speedometerSample = 0.0f;
-cg.speedometerSampleTime = cg.time;
-return 0.0f;
-}
-
-if (cg.speedometerSampleTime == cg.time) {
-return cg.speedometerSample;
-}
-
-VectorCopy(cg.snap->ps.velocity, horizontalVelocity);
-horizontalVelocity[2] = 0.0f;
-cg.speedometerSample = VectorLength(horizontalVelocity);
-cg.speedometerSampleTime = cg.time;
-return cg.speedometerSample;
-}
-
-/*
-=============
 CG_DrawSpeedometer
 
 Renders the HUD speedometer text when the corresponding cvar is enabled.
 =============
 */
-static void CG_DrawSpeedometer(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-	char buffer[32];
-	float speed;
-	int width;
+static void CG_DrawSpeedometer( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
+	char	buffer[32];
+	float	speed;
+	int	width;
 
 	if ( !rect || !CG_ShouldDrawSpeedometer() ) {
 		return;
 	}
 
-	speed = CG_SampleSpeedometer();
-	Com_sprintf(buffer, sizeof(buffer), "%i", (int)(speed + 0.5f));
-	width = CG_Text_Width(buffer, scale, 0);
-	CG_Text_Paint(rect->x + (rect->w - width) * 0.5f, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);
+	speed = CG_GetSpeedometerSpeed();
+	Com_sprintf( buffer, sizeof( buffer ), "%i", (int)speed );
+	width = CG_Text_Width( buffer, scale, 0 );
+	CG_Text_Paint( rect->x + ( rect->w - width ) * 0.5f, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -2258,7 +2237,7 @@ CG_DrawSpeedometerOwnerDraw
 Retail split ownerdraw leaf for the speedometer slot.
 =============
 */
-static void CG_DrawSpeedometerOwnerDraw(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+static void CG_DrawSpeedometerOwnerDraw( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
 	CG_DrawSpeedometer( rect, scale, color, textStyle );
 }
 
@@ -2896,281 +2875,44 @@ static int CG_CountActivePlayers( void ) {
 
 /*
 =============
-CG_CleanMapName
+CG_MapNameText
 
-Normalizes a map path to just the BSP name without extensions.
+Returns the raw serverinfo map label used by the retail map-name ownerdraws.
 =============
 */
-static void CG_CleanMapName( const char *input, char *output, size_t outputSize ) {
-	char					*ext;
+static const char *CG_MapNameText( void ) {
+	const char	*info;
+	const char	*mapName;
 
-	if ( !output || outputSize <= 0 ) {
-		return;
-	}
-
-	output[0] = '\0';
-	if ( !input || !*input ) {
-		return;
-	}
-
-	Q_strncpyz( output, input, outputSize );
-	if ( !Q_stricmpn( output, "maps/", 5 ) ) {
-		memmove( output, output + 5, strlen( output + 5 ) + 1 );
-	}
-
-	ext = strrchr( output, '.' );
-	if ( ext ) {
-		*ext = '\0';
-	}
-}
-
-/*
-=============
-CG_BuildCleanMapName
-
-Resolves the current map name in a player-friendly format.
-=============
-*/
-static void CG_BuildCleanMapName( char *buffer, size_t bufferSize ) {
-	const char	*serverInfo;
-	const char	*configName;
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	serverInfo = CG_ConfigString( CS_SERVERINFO );
-	configName = serverInfo ? Info_ValueForKey( serverInfo, SERVERINFO_KEY_MAPNAME ) : NULL;
-	if ( configName && *configName ) {
-		CG_CleanMapName( configName, buffer, bufferSize );
-		return;
-	}
-
-	if ( cgs.mapname[0] != '\0' ) {
-		CG_CleanMapName( cgs.mapname, buffer, bufferSize );
-		return;
-	}
-
-	Q_strncpyz( buffer, "Unknown", bufferSize );
-}
-
-/*
-=============
-CG_FindArenaLongNameInData
-
-Searches parsed arena info blocks for the long display name of the supplied map.
-=============
-*/
-static qboolean CG_FindArenaLongNameInData( char *data, const char *mapName, char *buffer, size_t bufferSize ) {
-	char	*cursor;
-	char	*token;
-	char	key[MAX_TOKEN_CHARS];
-	char	info[MAX_INFO_STRING];
-
-	if ( !data || !mapName || !*mapName || !buffer || bufferSize <= 0 ) {
-		return qfalse;
-	}
-
-	cursor = data;
-	while ( 1 ) {
-		token = COM_Parse( &cursor );
-		if ( !token[0] ) {
-			break;
-		}
-		if ( strcmp( token, "{" ) ) {
-			break;
-		}
-
-		info[0] = '\0';
-		while ( 1 ) {
-			token = COM_ParseExt( &cursor, qtrue );
-			if ( !token[0] ) {
-				break;
-			}
-			if ( !strcmp( token, "}" ) ) {
-				break;
-			}
-
-			Q_strncpyz( key, token, sizeof( key ) );
-			token = COM_ParseExt( &cursor, qfalse );
-			Info_SetValueForKey( info, key, token[0] ? token : "<NULL>" );
-		}
-
-		if ( !Q_stricmp( Info_ValueForKey( info, ARENA_INFO_KEY_MAP ), mapName ) ) {
-			const char	*longName;
-
-			longName = Info_ValueForKey( info, ARENA_INFO_KEY_LONGNAME );
-			if ( longName && *longName ) {
-				Q_strncpyz( buffer, longName, bufferSize );
-				return qtrue;
-			}
-		}
-	}
-
-	return qfalse;
-}
-
-/*
-=============
-CG_FindArenaLongNameInFile
-
-Loads an arena metadata file and searches it for a retail long map name.
-=============
-*/
-static qboolean CG_FindArenaLongNameInFile( const char *filename, const char *mapName, char *buffer, size_t bufferSize ) {
-	static char	arenaText[CG_ARENA_LOOKUP_TEXT_SIZE];
-	fileHandle_t	file;
-	int		length;
-
-	if ( !filename || !*filename ) {
-		return qfalse;
-	}
-
-	file = 0;
-	length = trap_FS_FOpenFile( filename, &file, FS_READ );
-	if ( length <= 0 || !file ) {
-		return qfalse;
-	}
-	if ( length >= (int)sizeof( arenaText ) ) {
-		trap_FS_FCloseFile( file );
-		return qfalse;
-	}
-
-	trap_FS_Read( arenaText, length, file );
-	arenaText[length] = '\0';
-	trap_FS_FCloseFile( file );
-
-	return CG_FindArenaLongNameInData( arenaText, mapName, buffer, bufferSize );
-}
-
-/*
-=============
-CG_FindArenaLongName
-
-Looks up a map's arena longname using the retail arena metadata search paths.
-=============
-*/
-static qboolean CG_FindArenaLongName( const char *mapName, char *buffer, size_t bufferSize ) {
-	char	fileList[CG_ARENA_LOOKUP_FILE_LIST_SIZE];
-	char	*cursor;
-	int	count;
-	int	index;
-
-	if ( !mapName || !*mapName || !buffer || bufferSize <= 0 ) {
-		return qfalse;
-	}
-
-	if ( CG_FindArenaLongNameInFile( "scripts/arenas.txt", mapName, buffer, bufferSize ) ) {
-		return qtrue;
-	}
-
-	fileList[0] = '\0';
-	count = trap_QL_FS_GetFileList( "scripts", ".arena", fileList, sizeof( fileList ) );
-	cursor = fileList;
-	for ( index = 0; index < count; index++ ) {
-		char	path[MAX_QPATH];
-		int	length;
-
-		length = strlen( cursor );
-		if ( length <= 0 ) {
-			cursor++;
-			continue;
-		}
-
-		Com_sprintf( path, sizeof( path ), "scripts/%s", cursor );
-		if ( CG_FindArenaLongNameInFile( path, mapName, buffer, bufferSize ) ) {
-			return qtrue;
-		}
-		cursor += length + 1;
-	}
-
-	return qfalse;
-}
-
-/*
-=============
-CG_BuildMapDisplayName
-
-Resolves the scoreboard map label to the arena longname when retail metadata is available.
-=============
-*/
-static void CG_BuildMapDisplayName( char *buffer, size_t bufferSize ) {
-	static char	cachedMap[MAX_QPATH];
-	static char	cachedTitle[MAX_INFO_VALUE];
-	char		mapName[MAX_QPATH];
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	CG_BuildCleanMapName( mapName, sizeof( mapName ) );
-	if ( !mapName[0] ) {
-		return;
-	}
-
-	if ( cachedMap[0] && !Q_stricmp( cachedMap, mapName ) ) {
-		Q_strncpyz( buffer, cachedTitle, bufferSize );
-		return;
-	}
-
-	Q_strncpyz( cachedMap, mapName, sizeof( cachedMap ) );
-	if ( !CG_FindArenaLongName( mapName, cachedTitle, sizeof( cachedTitle ) ) ) {
-		Q_strncpyz( cachedTitle, mapName, sizeof( cachedTitle ) );
-	}
-
-	Q_strncpyz( buffer, cachedTitle, bufferSize );
+	info = CG_ConfigString( CS_SERVERINFO );
+	mapName = info ? Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) : "";
+	return mapName ? mapName : "";
 }
 
 /*
 =============
 CG_DrawMapName
 
-Prints the current retail map display name.
+Prints the current retail map label.
 =============
 */
 static void CG_DrawMapName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-	char		nameBuffer[MAX_INFO_VALUE];
-
-	CG_BuildMapDisplayName( nameBuffer, sizeof( nameBuffer ) );
-	CG_Text_Paint(rect->x, rect->y, scale, color, nameBuffer, 0, 0, textStyle);
-}
-
-/*
-=============
-CG_GetServerInfoValue
-
-Looks up a key in the CS_SERVERINFO string and copies it into the caller's buffer.
-=============
-*/
-static void CG_GetServerInfoValue( const char *info, const char *key, char *buffer, size_t bufferSize ) {
-	const char *value;
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	if ( !info || !*info || !key ) {
-		return;
-	}
-
-	value = Info_ValueForKey( info, key );
-	if ( value && *value ) {
-		Q_strncpyz( buffer, value, bufferSize );
-	}
+	CG_Text_Paint( rect->x, rect->y, scale, color, CG_MapNameText(), 0, 0, textStyle );
 }
 
 /*
 =============
 CG_GetMapDisplayName
 
-Returns the same arena longname label used by the standalone map-name ownerdraw.
+Copies the same raw map label used by the standalone map-name ownerdraw.
 =============
 */
 static void CG_GetMapDisplayName( char *buffer, size_t bufferSize ) {
-	CG_BuildMapDisplayName( buffer, bufferSize );
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	Q_strncpyz( buffer, CG_MapNameText(), bufferSize );
 }
 
 /*
@@ -3229,39 +2971,18 @@ static void CG_DrawPlayerCounts(rectDef_t *rect, float scale, vec4_t color, int 
 =============
 CG_GetStartingWeaponPreviewMask
 
-Prefers the retail loadout-mask configstring and falls back to legacy
-g_startingWeapons serverinfo when the configstring is absent.
+Reads the retail starting-weapon mask published through CS_LOADOUT_MASK.
 =============
 */
 static unsigned int CG_GetStartingWeaponPreviewMask( void ) {
 	const char	*maskText;
-	const char	*info;
-	char		value[MAX_INFO_VALUE];
-	unsigned int	serverMask;
-	unsigned int	previewMask;
-	weapon_t	weapon;
 
 	maskText = CG_ConfigString( CS_LOADOUT_MASK );
 	if ( maskText && maskText[0] ) {
 		return (unsigned int)strtoul( maskText, NULL, 0 );
 	}
 
-	info = CG_ConfigString( CS_SERVERINFO );
-	if ( !info || !*info ) {
-		return 0u;
-	}
-
-	CG_GetServerInfoValue( info, "g_startingWeapons", value, sizeof( value ) );
-	serverMask = value[0] ? (unsigned int)strtoul( value, NULL, 0 ) : 0u;
-	previewMask = 0u;
-
-	for ( weapon = WP_GAUNTLET; weapon < WP_NUM_WEAPONS; weapon++ ) {
-		if ( serverMask & ( 1u << weapon ) ) {
-			previewMask |= ( 1u << ( weapon - WP_GAUNTLET ) );
-		}
-	}
-
-	return previewMask;
+	return 0u;
 }
 
 /*
@@ -3285,66 +3006,13 @@ static qhandle_t CG_GetStartingWeaponIconHandle( weapon_t weapon ) {
 
 /*
 =============
-CG_GetServerLocation
-
-Returns the best-effort server location string from the serverinfo block.
-=============
-*/
-static void CG_GetServerLocation( char *buffer, size_t bufferSize ) {
-	const char *info;
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	info = CG_ConfigString( CS_SERVERINFO );
-	buffer[0] = '\0';
-	if ( info && *info ) {
-		CG_GetServerInfoValue( info, "location", buffer, bufferSize );
-		if ( !buffer[0] ) {
-			CG_GetServerInfoValue( info, "sv_location", buffer, bufferSize );
-		}
-		if ( !buffer[0] ) {
-			CG_GetServerInfoValue( info, "server_location", buffer, bufferSize );
-		}
-		if ( !buffer[0] ) {
-			CG_GetServerInfoValue( info, "sv_hostname", buffer, bufferSize );
-		}
-	}
-
-	if ( !buffer[0] ) {
-		Q_strncpyz( buffer, "Unknown location", bufferSize );
-	}
-}
-
-/*
-=============
 CG_BuildIntroPanelDetailString
 
-Builds the shared retail location/map detail string for intro panel ownerdraws.
+Copies the shared retail map-label field consumed by intro panel ownerdraws.
 =============
 */
 static void CG_BuildIntroPanelDetailString( char *buffer, size_t bufferSize ) {
-	char	mapName[MAX_INFO_VALUE];
-	char	location[MAX_INFO_VALUE];
-
-	if ( !buffer || bufferSize <= 0 ) {
-		return;
-	}
-
-	buffer[0] = '\0';
-	CG_GetMapDisplayName( mapName, sizeof( mapName ) );
-	if ( !mapName[0] ) {
-		return;
-	}
-
-	CG_GetServerLocation( location, sizeof( location ) );
-	if ( location[0] && Q_stricmp( location, "Unknown location" ) ) {
-		Com_sprintf( buffer, bufferSize, "%s - %s", location, mapName );
-		return;
-	}
-
-	Q_strncpyz( buffer, mapName, bufferSize );
+	CG_GetMapDisplayName( buffer, bufferSize );
 }
 
 /*
@@ -3420,7 +3088,6 @@ static void CG_DrawServerSettings(rectDef_t *rect, float text_x, float text_y, f
 	unsigned int	weaponMask;
 	float		x;
 	float		y;
-	float		lineHeight;
 	int		activeCount;
 	char		buffer[64];
 	int		i;
@@ -3429,125 +3096,128 @@ static void CG_DrawServerSettings(rectDef_t *rect, float text_x, float text_y, f
 		return;
 	}
 
-	CG_GetTextPosition( rect, text_x, text_y, &x, &y );
-	lineHeight = (float)CG_Text_Height( "AIR CONTROL", scale, 0 );
-	if ( lineHeight <= 0.0f ) {
-		lineHeight = 10.0f;
-	}
-	lineHeight += 2.0f;
+	(void)text_x;
+	(void)text_y;
+
+	x = rect->x;
+	y = rect->y;
 	activeCount = 0;
 	weaponMask = (unsigned int)( cgs.customSettingsMask & CUSTOM_SETTING_WEAPON_MASK );
 
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_AIR_CONTROL ) {
 		CG_Text_Paint( x, y, scale, color, "AIR CONTROL", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_RAMP_JUMP ) {
 		CG_Text_Paint( x, y, scale, color, "RAMP JUMPING", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.serverSettingsArmorTiered ) {
 		CG_Text_Paint( x, y, scale, color, "TIERED ARMOR", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_WEAPON_SWITCHING ) {
 		CG_Text_Paint( x, y, scale, color, "MODIFIED WEAPON SWITCH", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.serverSettingsQuadFactor != 3 ) {
 		Com_sprintf( buffer, sizeof( buffer ), "%ix QUAD", cgs.serverSettingsQuadFactor );
 		CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_PHYSICS ) {
 		CG_Text_Paint( x, y, scale, color, "MODIFIED PHYSICS", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.serverSettingsGravity != 800 ) {
 		Com_sprintf( buffer, sizeof( buffer ), "GRAVITY %i", cgs.serverSettingsGravity );
 		CG_Text_Paint( x, y, scale, color, buffer, 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_INSTAGIB ) {
 		CG_Text_Paint( x, y, scale, color, "INSTAGIB", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_QUAD_HOG ) {
 		CG_Text_Paint( x, y, scale, color, "QUAD HOG", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_REGEN_HEALTH ) {
 		CG_Text_Paint( x, y, scale, color, "REGEN HEALTH", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( ( cgs.customSettingsMask & CUSTOM_SETTING_DROP_HEALTH ) && !( cgs.customSettingsMask & CUSTOM_SETTING_INSTAGIB ) ) {
 		CG_Text_Paint( x, y, scale, color, "DROP DAMAGED HEALTH", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_VAMPIRIC_DAMAGE ) {
 		CG_Text_Paint( x, y, scale, color, "VAMPIRIC DAMAGE", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_ITEM_SPAWNING ) {
 		CG_Text_Paint( x, y, scale, color, "MODIFIED ITEM SPAWNING", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_HEADSHOTS ) {
 		CG_Text_Paint( x, y, scale, color, "HEADSHOTS ENABLED", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( cgs.customSettingsMask & CUSTOM_SETTING_RAIL_JUMPING ) {
 		CG_Text_Paint( x, y, scale, color, "RAIL JUMPING", 0, 0, textStyle );
-		y += lineHeight;
+		y += CG_SERVER_SETTINGS_LINE_HEIGHT;
 		activeCount++;
 	}
 	if ( weaponMask != 0u ) {
 		CG_Text_Paint( x, y, scale, color, "MODIFIED WEAPONS", 0, 0, textStyle );
-		if ( activeCount < 15 ) {
-			float	iconSize;
-			float	iconX;
-			float	iconY;
+		if ( activeCount < CG_SERVER_SETTINGS_MAX_TEXT_ROWS_WITH_ICONS ) {
+			float	iconXOffset;
+			int	iconsInRow;
 
-			y += lineHeight;
-			iconSize = lineHeight + 2.0f;
-			iconX = x;
-			iconY = y - iconSize + 2.0f;
-
+			y += CG_SERVER_SETTINGS_LINE_HEIGHT;
+			iconXOffset = 0.0f;
+			iconsInRow = 0;
 			for ( i = 0; i < ARRAY_LEN( cgServerSettingsWeaponIcons ); i++ ) {
-				float		badgeSize;
 				qhandle_t	icon;
-				weapon_t	weapon;
 
 				if ( ( weaponMask & cgServerSettingsWeaponIcons[i].bit ) == 0u ) {
 					continue;
 				}
 
-				weapon = cgServerSettingsWeaponIcons[i].weapon;
-				icon = CG_GetStartingWeaponIconHandle( weapon );
+				icon = trap_R_RegisterShaderNoMip( cgServerSettingsWeaponIcons[i].iconName );
 				if ( !icon ) {
 					continue;
 				}
 
-				CG_DrawPic( iconX, iconY, iconSize, iconSize, icon );
-				badgeSize = iconSize * 0.5f;
+				CG_DrawPic( CG_SERVER_SETTINGS_ICON_X + iconXOffset, y, CG_SERVER_SETTINGS_ICON_SIZE, CG_SERVER_SETTINGS_ICON_SIZE, icon );
 				if ( cgs.media.modifiedIcon != 0 ) {
-					CG_DrawPic( iconX + iconSize * 0.75f, iconY + iconSize * 0.5f, badgeSize, badgeSize, cgs.media.modifiedIcon );
+					CG_DrawPic( CG_SERVER_SETTINGS_MODIFIED_ICON_X + iconXOffset,
+						y + CG_SERVER_SETTINGS_MODIFIED_ICON_Y_OFFSET,
+						CG_SERVER_SETTINGS_MODIFIED_ICON_SIZE,
+						CG_SERVER_SETTINGS_MODIFIED_ICON_SIZE,
+						cgs.media.modifiedIcon );
 				}
-				iconX += iconSize + 2.0f;
+
+				iconsInRow++;
+				iconXOffset += CG_SERVER_SETTINGS_ICON_SPACING;
+				if ( iconsInRow >= CG_SERVER_SETTINGS_ICON_WRAP ) {
+					iconsInRow = 0;
+					iconXOffset = 0.0f;
+					y += CG_SERVER_SETTINGS_LINE_HEIGHT;
+				}
 			}
 		}
 	}
@@ -3810,12 +3480,12 @@ static const char *CG_GetMatchStateLabel( void ) {
 
 /*
 =============
-CG_GetMatchDetailsPhaseLabel
+	CG_GetMatchPhaseText
 
-Returns the narrower retail phase label used by the intro-panel ownerdraw.
+Returns the retail uppercase match-phase banner used by scoreboard ownerdraws.
 =============
 */
-static const char *CG_GetMatchDetailsPhaseLabel( void ) {
+static const char *CG_GetMatchPhaseText( void ) {
 	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		return "MATCH SUMMARY";
 	}
@@ -3831,18 +3501,21 @@ static const char *CG_GetMatchDetailsPhaseLabel( void ) {
 =============
 CG_DrawMatchDetails
 
-Renders the retail "Match phase - Gametype Shortname - Detail" text.
+Renders the retail "Match phase - Gametype Shortname - Detail" text with
+the retail default font bucket.
 =============
 */
 static void CG_DrawMatchDetails( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
 	char	detailBuffer[256];
 	char	buffer[256];
 
+	(void)textStyle;
+
 	CG_BuildIntroPanelDetailString( detailBuffer, sizeof( detailBuffer ) );
 	Com_sprintf( buffer, sizeof( buffer ), "%s - %s - %s",
-		CG_GetMatchDetailsPhaseLabel(), CG_GameTypeShortString(), detailBuffer );
+		CG_GetMatchPhaseText(), CG_GameTypeShortString(), detailBuffer );
 
-	CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );
+	CG_Text_PaintExt( rect->x, rect->y, scale, color, buffer, 0, 0, ITEM_TEXTSTYLE_NORMAL, FONT_DEFAULT );
 }
 
 /*
@@ -3889,24 +3562,6 @@ static void CG_DrawMatchEndCondition( rectDef_t *rect, float scale, vec4_t color
 
 /*
 =============
-CG_GetMatchPhaseText
-
-Returns the retail uppercase match-phase banner used by compact scoreboard ownerdraws.
-=============
-*/
-static const char *CG_GetMatchPhaseText( void ) {
-	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
-		return "MATCH SUMMARY";
-	}
-	if ( cg.warmup != 0 ) {
-		return "MATCH WARMUP";
-	}
-
-	return "MATCH IN PROGRESS";
-}
-
-/*
-=============
 CG_GetMatchStatusText
 
 Builds the retail phase-plus-status text used by the match-status ownerdraw.
@@ -3920,13 +3575,7 @@ const char *CG_GetMatchStatusText( void ) {
 	int		blueScore;
 	int		score;
 
-	if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {
-		phase = "MATCH SUMMARY";
-	} else if ( cg.warmup != 0 ) {
-		phase = "MATCH WARMUP";
-	} else {
-		phase = "MATCH IN PROGRESS";
-	}
+	phase = CG_GetMatchPhaseText();
 
 	if ( cgs.scores1 == SCORE_NOT_PRESENT && cgs.scores2 == SCORE_NOT_PRESENT &&
 		( cgs.gametype < GT_TEAM || cgs.gametype == GT_RED_ROVER ) ) {
@@ -3960,7 +3609,7 @@ const char *CG_GetMatchStatusText( void ) {
 	}
 
 	if ( cg.snap && cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
-		if ( cgs.scores1 != SCORE_NOT_PRESENT ) {
+		if ( cgs.scores1 != CG_SCORE_FORFEIT ) {
 			score = cgs.scores1;
 			leaderName = cgs.firstPlaceName;
 		} else {
@@ -4289,7 +3938,7 @@ static void CG_DrawRoundLabel( rectDef_t *rect, float scale, vec4_t color, int t
 	}
 
 	x = CG_AlignTextInRectX( rect, scale, label, align );
-	CG_Text_Paint( x, rect->y + rect->h, scale, color, label, 0, 0, textStyle );
+	CG_Text_Paint( x, rect->y, scale, color, label, 0, 0, textStyle );
 }
 
 /*
@@ -4662,7 +4311,7 @@ static void CG_DrawAccVertical( rectDef_t *rect, float scale, vec4_t color, int 
 
 		weapon = cgVerticalAccWeaponOrder[i];
 		Com_sprintf( buffer, sizeof( buffer ), "%i%%", cg.weaponAccuracies[weapon] );
-		CG_Text_Paint( rect->x, rect->y + rect->h * ( i + 1 ), scale, color, buffer, 0, 0, textStyle );
+		CG_Text_Paint( rect->x, rect->y + rect->h * i, scale, color, buffer, 0, 0, textStyle );
 	}
 }
 
@@ -6935,72 +6584,58 @@ static qboolean CG_DrawPregameCoach(rectDef_t *rect, float scale, vec4_t color, 
 =============
 CG_DrawSpectatorMessages
 
-Shows the retail spectator/pregame text family inside the owner-draw rect.
+Shows the retail spectator/pregame text family for the spectator HUD.
 =============
 */
 static void CG_DrawSpectatorMessages(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-	char line1[64];
-	char line2[96];
-	char line3[64];
-	char line4[64];
-	vec4_t drawColor;
-	float y;
+	vec4_t spectatorHintColor = { 0.73f, 0.73f, 0.73f, 0.7f };
+	char bindingBuf[32];
+	const char *message;
+	float x;
 
-	if (!cg.snap) {
+	(void)scale;
+	(void)color;
+	(void)textStyle;
+
+	if ( !rect || !cg.snap || !cg_drawSpecMessages.integer ) {
 		return;
 	}
 
-	if (cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR) {
-		if (CG_DrawPregameCoach(rect, scale, color, textStyle)) {
-			return;
-		}
-		if (!cg_drawSpecMessages.integer) {
-			return;
-		}
-
-		switch ( cgs.gametype ) {
-		case GT_CLAN_ARENA:
-		case GT_FREEZE:
-		case GT_ATTACK_DEFEND:
-		case GT_RED_ROVER:
-			if ( cgs.matchRoundState == ROUNDSTATE_ACTIVE ) {
-				Q_strncpyz( line1, "Round In Progress", sizeof( line1 ) );
-				y = rect->y + CG_Text_Height( line1, scale, 0 );
-				CG_Text_Paint( rect->x, y, scale, color, line1, 0, 0, textStyle );
-			}
-			break;
-		}
-
+	if ( ( cgs.gametype == GT_CLAN_ARENA || cgs.gametype == GT_RED_ROVER ) &&
+			cg.snap->ps.pm_type == PM_SPECTATOR &&
+			cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR ) {
+		message = "Round In Progress";
+		x = 320.0f - (float)CG_Text_Width( message, 0.35f, 0 ) * 0.5f;
+		CG_Text_Paint( x, 60.0f, 0.35f, colorWhite, message, 0, 0, 3 );
 		return;
 	}
 
-	if (!cg_drawSpecMessages.integer) {
+	if ( cg.scoreBoardShowing || cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR ) {
 		return;
 	}
 
-	Vector4Copy(color, drawColor);
-	Q_strncpyz(line1, "SPECTATOR MODE", sizeof(line1));
-	Q_strncpyz(line2, "Press mouse button 1 to cycle through players", sizeof(line2));
-	line3[0] = '\0';
-	line4[0] = '\0';
+	CG_Text_Paint( rect->x, rect->y, 0.22f, colorWhite, "SPECTATOR MODE", 0, 0, 0 );
+	CG_Text_Paint( rect->x, rect->y + 12.0f, 0.18f, spectatorHintColor, "Press mouse button 1 to cycle through players", 0, 0, 0 );
+
+	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) &&
+			( cg_gametype.integer == GT_FFA || cg_gametype.integer == GT_TOURNAMENT ) ) {
+		bindingBuf[0] = '\0';
+		trap_Key_GetBindingBuf( trap_Key_GetKey( "+moveup" ), bindingBuf, sizeof( bindingBuf ) );
+	}
+
+	if ( ( cg.snap->ps.pm_flags & PMF_FOLLOW ) &&
+			CG_FindBrowserOverlayByName( "comp_specfollowhud_menu" ) ) {
+		return;
+	}
+
 	if ( cgs.gametype == GT_TOURNAMENT ) {
-		Q_strncpyz( line3, "waiting to play", sizeof( line3 ) );
+		if ( cg.clientNum < 0 || cg.clientNum >= MAX_CLIENTS ||
+				!cgs.clientinfo[cg.clientNum].spectateOnly ) {
+			CG_Text_Paint( 20.0f, 461.0f, 0.28f, colorWhite, "waiting to play", 0, 0, 3 );
+		}
 	} else if ( cgs.gametype >= GT_TEAM ) {
-		Q_strncpyz( line3, "press ESC and use the JOIN buttons", sizeof( line3 ) );
-		Q_strncpyz( line4, "to enter the game", sizeof( line4 ) );
-	}
-
-	y = rect->y + CG_Text_Height(line1, scale, 0);
-	CG_Text_Paint(rect->x, y, scale, drawColor, line1, 0, 0, textStyle);
-	y += CG_Text_Height(line2, scale * 0.8f, 0) + 2.0f;
-	CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line2, 0, 0, textStyle);
-	if ( line3[0] ) {
-		y += CG_Text_Height(line3, scale * 0.8f, 0) + 2.0f;
-		CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line3, 0, 0, textStyle);
-	}
-	if ( line4[0] ) {
-		y += CG_Text_Height(line4, scale * 0.8f, 0) + 2.0f;
-		CG_Text_Paint(rect->x, y, scale * 0.8f, drawColor, line4, 0, 0, textStyle);
+		CG_Text_Paint( 20.0f, 453.0f, 0.28f, colorWhite, "press ESC and use the JOIN buttons", 0, 0, 3 );
+		CG_Text_Paint( 20.0f, 470.0f, 0.28f, colorWhite, "to enter the game", 0, 0, 3 );
 	}
 }
 
@@ -7014,51 +6649,69 @@ Displays the timed chat stack that the Quake Live menus reference.
 static void CG_DrawNewChatArea(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
 	int chatHeight;
 	int maxLines;
-	float lineHeight;
+	int availableLines;
 	float y;
 	int i;
 
-	if ( !rect || cg_teamChatTime.integer <= 0 ) {
+	if ( !rect ) {
 		return;
 	}
 
+	if ( scale <= 0.0f || scale < 0.1f ) {
+		scale = 0.1f;
+	} else if ( scale > 0.22f ) {
+		scale = 0.22f;
+	}
+
+	y = rect->y + rect->h;
+
+	if ( cgs.teamChatActiveMsg[0] ) {
+		if ( cg.time <= cgs.teamChatActiveExpireTime ) {
+			CG_Text_Paint(rect->x, y, scale, color, cgs.teamChatActiveMsg, 0, 0, textStyle);
+		} else {
+			CG_ArchiveNewChatLine();
+		}
+	}
+
 	chatHeight = CG_GetChatHistoryLength();
+	maxLines = chatHeight;
+	if ( cg.intermissionStarted || ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) ) {
+		maxLines = 4;
+	} else if ( cg.scoreBoardShowing ) {
+		maxLines = 2;
+	}
 
-	maxLines = cg.chatHistoryVisible ? chatHeight : 1;
-	lineHeight = CG_Text_Height("A", scale, 0);
-	y = rect->y + rect->h - lineHeight;
+	if ( !( cg.chatHistoryVisible || cg.scoreBoardShowing ) ) {
+		return;
+	}
 
-	for (i = 0; i < maxLines; i++) {
+	if ( maxLines <= 0 ) {
+		return;
+	}
+
+	availableLines = cgs.teamChatPos - cgs.teamLastChatPos;
+	if ( availableLines < maxLines ) {
+		maxLines = availableLines;
+	}
+	if ( maxLines > TEAMCHAT_HEIGHT ) {
+		maxLines = TEAMCHAT_HEIGHT;
+	}
+
+	for ( i = 0; i < maxLines; i++ ) {
 		int pos = cgs.teamChatPos - 1 - i;
 		int index;
-		int elapsed;
-		vec4_t lineColor;
 
-		if (pos < 0 || pos < cgs.teamChatPos - maxLines) {
+		if ( pos < cgs.teamLastChatPos ) {
 			break;
 		}
 
-		index = pos % chatHeight;
-		if (index < 0) {
-			index += chatHeight;
+		index = pos % TEAMCHAT_HEIGHT;
+		if ( index < 0 ) {
+			index += TEAMCHAT_HEIGHT;
 		}
 
-		elapsed = cg.time - cgs.teamChatMsgTimes[index];
-		if (elapsed < 0) {
-			elapsed = 0;
-		}
-		if (elapsed >= cg_teamChatTime.integer || !cgs.teamChatMsgs[index][0]) {
-			continue;
-		}
-
-		Vector4Copy(color, lineColor);
-		lineColor[3] *= 1.0f - (float)elapsed / (float)cg_teamChatTime.integer;
-		CG_Text_Paint(rect->x, y, scale, lineColor, cgs.teamChatMsgs[index], 0, 0, textStyle);
-
-		y -= lineHeight;
-		if (y < rect->y) {
-			break;
-		}
+		y -= 13.0f;
+		CG_Text_Paint(rect->x, y, scale, color, cgs.teamChatMsgs[index], 0, 0, textStyle);
 	}
 }
 
@@ -7483,23 +7136,18 @@ static void CG_DrawLevelTimer(rectDef_t *rect, float scale, vec4_t color, int te
 =============
 CG_DrawRoundTimer
 
-Displays the round-clock ownerdraw during active round play.
+Displays the retail final-seconds round-clock ownerdraw.
 =============
 */
-static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align) {
 	int		roundStartTime;
 	int		roundTimeLimitSeconds;
 	int		remainingMilliseconds;
 	int		seconds;
-	int		width;
 	float	x;
 	char	buffer[32];
 
-	if ( cgs.matchRoundState != ROUNDSTATE_ACTIVE ) {
-		return;
-	}
-
-	if ( cgs.matchTimeoutActive ) {
+	if ( !CG_ShowPlayersRemaining() ) {
 		return;
 	}
 
@@ -7514,11 +7162,14 @@ static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int te
 		return;
 	}
 
-	seconds = ( remainingMilliseconds + 500 ) / 1000;
-	Q_strncpyz( buffer, CG_FormatMinutesSeconds( seconds ), sizeof( buffer ) );
-	width = CG_Text_Width( buffer, scale, 0 );
-	x = rect->x + ( rect->w - width ) * 0.5f;
-	CG_Text_Paint( x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );
+	if ( cgs.matchTimeoutActive ) {
+		return;
+	}
+
+	seconds = remainingMilliseconds / 1000;
+	Com_sprintf( buffer, sizeof( buffer ), "%s%d", S_COLOR_RED, seconds );
+	x = CG_AlignTextInRectX( rect, scale, buffer, align );
+	CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );
 }
 
 /*
@@ -7573,14 +7224,16 @@ static void CG_DrawPlayerObituary( rectDef_t *rect, float scale, vec4_t color, i
 		rowHeight = ( rect->h > 0.0f ) ? rect->h : SMALLCHAR_HEIGHT;
 	}
 
-	y = rect->y;
+	y = (float)(int)rect->y;
 	for ( i = 0; i < MAX_OBITUARIES; i++ ) {
 		const cgObituary_t	*entry;
 		vec4_t			targetColor;
 		vec4_t			attackerColor;
 		vec4_t			iconColor;
 		float			alpha;
-		float			x;
+		float			attackerWidth;
+		float			iconX;
+		float			targetX;
 		float			iconSize;
 		int			time;
 
@@ -7600,40 +7253,54 @@ static void CG_DrawPlayerObituary( rectDef_t *rect, float scale, vec4_t color, i
 			continue;
 		}
 
-		x = rect->x;
-		if ( entry->targetName[0] ) {
-			CG_ObituaryColorForIndex( entry->targetColorIndex, alpha, targetColor );
-			CG_Text_Paint( x, y, scale, targetColor, entry->targetName, 0, 0, textStyle );
-			x += CG_Text_Width( entry->targetName, scale, 0 );
+		attackerWidth = 0.0f;
+		if ( entry->hasAttacker && entry->attackerName[0] ) {
+			CG_ObituaryColorForIndex( entry->attackerColorIndex, alpha, attackerColor );
+			CG_Text_Paint( rect->x, y, scale, attackerColor, entry->attackerName, 0, 0, textStyle );
+			attackerWidth = (float)CG_Text_Width( entry->attackerName, scale, 0 );
 		}
 
 		iconSize = rowHeight;
 		if ( entry->icon ) {
+			iconX = rect->x + attackerWidth + rowHeight * 0.5f;
 			iconColor[0] = 1.0f;
 			iconColor[1] = 1.0f;
 			iconColor[2] = 1.0f;
 			iconColor[3] = alpha;
 			trap_R_SetColor( iconColor );
-			CG_DrawPic( x, y - iconSize, iconSize, iconSize, entry->icon );
+			CG_DrawPic( iconX, y - iconSize, iconSize, iconSize, entry->icon );
 			trap_R_SetColor( NULL );
-			x += iconSize + 2.0f;
 		}
 
-		if ( entry->hasAttacker && entry->attackerName[0] ) {
-			CG_ObituaryColorForIndex( entry->attackerColorIndex, alpha, attackerColor );
-			CG_Text_Paint( x, y, scale, attackerColor, entry->attackerName, 0, 0, textStyle );
+		if ( entry->targetName[0] ) {
+			targetX = rect->x + attackerWidth + rowHeight * 2.0f;
+			CG_ObituaryColorForIndex( entry->targetColorIndex, alpha, targetColor );
+			CG_Text_Paint( targetX, y, scale, targetColor, entry->targetName, 0, 0, textStyle );
 		}
 
 		y += rowHeight + 2.0f;
 	}
 }
 
+/*
+=============
+CG_InitTeamChat
+
+Clears the retail active chat record and its 24-entry history ring.
+=============
+*/
 void CG_InitTeamChat() {
 	memset( teamChat1, 0, sizeof( teamChat1 ) );
 	memset( teamChat2, 0, sizeof( teamChat2 ) );
 	memset( systemChat, 0, sizeof( systemChat ) );
 	memset( cgs.teamChatMsgs, 0, sizeof( cgs.teamChatMsgs ) );
 	memset( cgs.teamChatMsgTimes, 0, sizeof( cgs.teamChatMsgTimes ) );
+	memset( cgs.teamChatMsgExpireTimes, 0, sizeof( cgs.teamChatMsgExpireTimes ) );
+	memset( cgs.teamChatMsgTypes, 0, sizeof( cgs.teamChatMsgTypes ) );
+	memset( cgs.teamChatActiveMsg, 0, sizeof( cgs.teamChatActiveMsg ) );
+	cgs.teamChatActiveTime = 0;
+	cgs.teamChatActiveExpireTime = 0;
+	cgs.teamChatActiveType = 0;
 	cgs.teamChatPos = 0;
 	cgs.teamLastChatPos = 0;
 	cg.chatHistoryVisible = qfalse;
@@ -10558,7 +10225,14 @@ static void CG_Draw2ndPlaceScore( rectDef_t *rect, float scale, vec4_t color, in
 	CG_DrawPlacementScoreLine( rect, scale, color, textStyle, rankBuffer, nameBuffer, valueBuffer );
 }
 
-const char *CG_GetGameStatusText() {
+/*
+=============
+CG_GetGameStatusText
+
+Returns the standalone retail CG_GAME_STATUS scoreboard text.
+=============
+*/
+const char *CG_GetGameStatusText( void ) {
 	if ( !cg.snap ) {
 		return "";
 	}
@@ -10587,8 +10261,15 @@ const char *CG_GetGameStatusText() {
 		return va( "^4Blue^7 leads ^1Red^7, %i to %i", cg.teamScores[1], cg.teamScores[0] );
 	}
 }
-	
-static void CG_DrawGameStatus(rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle ) {
+
+/*
+=============
+CG_DrawGameStatus
+
+Paints CG_GAME_STATUS at the retail ownerdraw baseline.
+=============
+*/
+static void CG_DrawGameStatus( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
 	CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, CG_GetGameStatusText(), 0, 0, textStyle);
 }
 
@@ -10886,6 +10567,7 @@ void CG_DrawTeamSpectators(rectDef_t *rect, float scale, vec4_t color, qhandle_t
 	int displayedCount;
 	const char *entry;
 	int i;
+	int paintLen;
 	int startIndex;
 	float x;
 	float y;
@@ -10896,12 +10578,13 @@ void CG_DrawTeamSpectators(rectDef_t *rect, float scale, vec4_t color, qhandle_t
 		return;
 	}
 
-	if ( cg.spectatorOffset < 0 || cg.spectatorOffset >= cg.spectatorEntryCount ) {
+	if ( cg.spectatorOffset < 0 ) {
 		cg.spectatorOffset = 0;
 	}
 
 	startIndex = cg.spectatorOffset;
 	displayedCount = 0;
+	paintLen = 0;
 	cg.spectatorPaintLen = 0;
 
 	for ( i = startIndex; i < cg.spectatorEntryCount; i++ ) {
@@ -10909,29 +10592,18 @@ void CG_DrawTeamSpectators(rectDef_t *rect, float scale, vec4_t color, qhandle_t
 		int pendingWidth;
 
 		entry = cg.spectatorEntries[i];
-		if ( !entry[0] ) {
-			continue;
-		}
-
 		width = CG_Text_Width( entry, scale, 0 );
-		pendingWidth = cg.spectatorPaintLen + width;
-		if ( displayedCount > 0 ) {
-			pendingWidth += 10;
-		}
+		pendingWidth = paintLen + width;
 
 		if ( (float)pendingWidth > rect->w ) {
 			break;
 		}
 
-		cg.spectatorPaintLen = pendingWidth;
+		paintLen = pendingWidth + 10;
 		displayedCount++;
 	}
 
-	if ( displayedCount <= 0 ) {
-		return;
-	}
-
-	x = rect->x;
+	x = (float)(int)rect->x;
 	y = rect->y + rect->h - 3.0f;
 	cg.spectatorPaintX = (int)x;
 
@@ -10939,20 +10611,15 @@ void CG_DrawTeamSpectators(rectDef_t *rect, float scale, vec4_t color, qhandle_t
 		int width;
 
 		entry = cg.spectatorEntries[startIndex + i];
-		if ( !entry[0] ) {
-			continue;
-		}
-
 		CG_Text_Paint( x, y, scale, color, entry, 0, 0, 0 );
 		width = CG_Text_Width( entry, scale, 0 );
 		x += width + 10.0f;
 	}
 
 	cg.spectatorPaintX2 = (int)x;
+	cg.spectatorPaintLen = paintLen;
 
-	if ( cg.spectatorTime <= 0 ) {
-		cg.spectatorTime = cg.time + 4000;
-	} else if ( cg.time > cg.spectatorTime && cg.spectatorEntryCount > displayedCount ) {
+	if ( cg.time > cg.spectatorTime ) {
 		cg.spectatorTime = cg.time + 4000;
 		cg.spectatorOffset = startIndex + displayedCount;
 		if ( cg.spectatorOffset >= cg.spectatorEntryCount ) {
@@ -11157,7 +10824,7 @@ rect.y = y;
 		CG_DrawGameType( &rect, scale, color, textStyle, align );
 		break;
 	case CG_GAME_STATUS:
-		CG_DrawGameStatus(&rect, scale, color, shader, textStyle);
+		CG_DrawGameStatus( &rect, scale, color, textStyle );
 		break;
 	case CG_MATCH_DETAILS:
 		CG_DrawMatchDetails( &rect, scale, color, textStyle );
@@ -11183,7 +10850,7 @@ rect.y = y;
 			/* Retail maps raw ownerdraw 0x162 to the common no-op return target. */
 			return;
 	case CG_ROUNDTIMER:
-			CG_DrawRoundTimer(&rect, scale, color, textStyle);
+			CG_DrawRoundTimer(&rect, scale, color, textStyle, align);
 			break;
 	case CG_OVERTIME:
 		if ( cg.warmup == 0 ) {
@@ -11200,7 +10867,7 @@ rect.y = y;
 		CG_DrawPlayerCounts(&rect, scale, color, textStyle, align);
 		break;
 	case CG_MAP_NAME:
-		CG_DrawMapName(&rect, scale, color, textStyle);
+		CG_DrawMapName( &rect, scale, color, textStyle );
 		break;
 	case CG_VOTEGAMETYPE1:
 		CG_DrawVoteGametype(&rect, scale, color, textStyle, 1);
@@ -11415,9 +11082,9 @@ rect.y = y;
 	case CG_AREA_CHAT:
 		/* Retail maps raw ownerdraws 0x16d-0x16f to the common no-op return target. */
 		return;
-  case CG_AREA_NEW_CHAT:
-                CG_DrawNewChatArea(&rect, scale, color, textStyle);
-                break;
+	case CG_AREA_NEW_CHAT:
+		CG_DrawNewChatArea(&rect, scale, color, textStyle);
+		break;
   case CG_KILLER:
 		if ( cg.killerName[0] ) {
 			CG_DrawKiller(&rect, scale, color, shader, textStyle);
@@ -11435,7 +11102,7 @@ rect.y = y;
 		break;
 	case CG_SPECTATORS:
 		if ( cg.spectatorEntryCount > 0 ) {
-			CG_DrawTeamSpectators(&rect, scale, color, shader);
+			CG_DrawTeamSpectators( &rect, scale, color, shader );
 		}
 		break;
 	case UI_ADVERT:
@@ -11456,8 +11123,8 @@ rect.y = y;
   case CG_PLYR_BEST_WEAPON_NAME:
 		CG_DrawSelectedPlayerBestWeapon(&rect, scale, color, textStyle);
 		break;
-  case CG_SPEC_MESSAGES:
-		CG_DrawSpectatorMessages(&rect, scale, color, textStyle);
+	case CG_SPEC_MESSAGES:
+		CG_DrawSpectatorMessages( &rect, scale, color, textStyle );
 		break;
 	case CG_TEAMINFO:
 		/* Retail maps raw ownerdraw 0x166 to the common no-op return target. */

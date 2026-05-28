@@ -1369,7 +1369,7 @@ QL_UI_trap_S_RegisterSound_QL
 */
 static sfxHandle_t QDECL QL_UI_trap_S_RegisterSound_QL( const char *sample, int compressed ) {
 	if ( compressed != qfalse && compressed != qtrue ) {
-		compressed = qfalse;
+		compressed = ( compressed != 0 ) ? qtrue : qfalse;
 	}
 
 	return S_RegisterSound( sample, compressed );

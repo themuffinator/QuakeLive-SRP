@@ -1022,6 +1022,7 @@ int AD_RoundStateTransition( qboolean announce ) {
 		level.roundTransitionTime = ROUND_TRANSITION_NONE;
 		level.adPendingRoundState = AD_ROUNDSTATE_ACTIVE;
 		level.adStateChangeTime = level.time;
+		level.roundStartTime = level.time;
 		level.adRoundWinner = TEAM_FREE;
 		level.adRoundWinnerAlreadyScored = qfalse;
 

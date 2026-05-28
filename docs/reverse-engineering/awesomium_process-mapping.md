@@ -5,7 +5,7 @@
 This pass adds `awesomium_process.exe` to the committed Ghidra reference corpus,
 normalizes its function inventory in the shared alias set, and now also anchors
 the thin bootstrap reconstruction in `src/code/win32/awesomium_process.cpp`,
-`src/code/win32/awesomium.def`, and `src/code/awesomium_process.vcxproj`.
+and `src/code/awesomium_process.vcxproj`.
 
 Observed facts from the committed corpus:
 
@@ -42,13 +42,15 @@ The repo now reconstructs the full executable-owned behavior:
 
 - `src/code/win32/awesomium_process.cpp` mirrors the owned entry flow as
   `WinMain -> Awesomium::ChildProcessMain(hInstance)`.
-- `src/code/win32/awesomium.def` generates an import library on demand so the
-  online-enabled build links against `awesomium.dll` directly instead of using a
-  synthetic `LoadLibrary` shim.
+- The online-enabled build now depends on the external Awesomium SDK import
+  library (`awesomium.lib`) instead of generating a repo-local import library.
 - `src/code/awesomium_process.vcxproj` now matches the retail helper's intended
   build profile more closely: static CRT, GUI subsystem version `5.01`,
   `/DYNAMICBASE`, `/NXCOMPAT`, `/TSAWARE`, and the preserved PDB breadcrumb
   `C:\dev\chromium2\chromium\src\build\Release\awesomium_process.pdb`.
+- `src/code/win32/awesomium_process.cpp` includes the SDK
+  `<Awesomium/ChildProcess.h>` header when `QLBuildOnlineServices=1`; it does
+  not locally redeclare Awesomium SDK symbols.
 
 The only intentional divergence is policy-driven: `QLBuildOnlineServices`
 defaults to `0`, which keeps the repository's default build on an offline-safe

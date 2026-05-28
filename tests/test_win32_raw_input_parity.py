@@ -367,7 +367,48 @@ def test_win32_mouse_capture_falls_back_to_absolute_client_coordinates_for_ui_la
 	)
 	assert "if ( !IN_ShouldUseRelativeMouse() ) {" in mouse_move_block
 	assert "IN_WindowMouse();" in mouse_move_block
-	assert len(re.findall(r"IN_DeactivateMouse\s*\(\s*\);\s*IN_MouseMove\s*\(\s*\);", frame_block)) >= 3
+	assert len(re.findall(
+		r"IN_DeactivateMouse\s*\(\s*\);\s*IN_UpdateSystemCursor\s*\(\s*\);\s*IN_MouseMove\s*\(\s*\);",
+		frame_block,
+	)) >= 3
+
+
+def test_win32_game_cursor_hides_the_os_cursor_for_ui_and_cgame_lanes() -> None:
+	win_input = WIN_INPUT.read_text(encoding="utf-8")
+	win_local = WIN_LOCAL.read_text(encoding="utf-8")
+	win_wndproc = WIN_WNDPROC.read_text(encoding="utf-8")
+	game_cursor_block = _extract_function_block(win_input, "qboolean IN_GameCursorActive( void ) {")
+	update_cursor_block = _extract_function_block(win_input, "void IN_UpdateSystemCursor( void ) {")
+	deactivate_block = _extract_function_block(win_input, "void IN_DeactivateWin32Mouse( void )")
+	frame_block = _extract_function_block(win_input, "void IN_Frame (void) {")
+	main_wndproc = _extract_function_block(win_wndproc, "LONG WINAPI MainWndProc (")
+
+	assert "qboolean IN_GameCursorActive( void );" in win_local
+	assert "void\tIN_UpdateSystemCursor( void );" in win_local
+	assert "static qboolean s_systemCursorHiddenForGameCursor;" in win_input
+	assert "if ( !in_appactive )" in game_cursor_block
+	assert "cls.keyCatchers & KEYCATCH_BROWSER" in game_cursor_block
+	assert "KEYCATCH_UI | KEYCATCH_CGAME" in game_cursor_block
+
+	assert "SetCursor( NULL );" in update_cursor_block
+	assert "s_systemCursorHiddenForGameCursor = qtrue;" in update_cursor_block
+	assert "SetCursor( LoadCursor( NULL, IDC_ARROW ) );" in update_cursor_block
+	assert "s_systemCursorHiddenForGameCursor = qfalse;" in update_cursor_block
+
+	assert deactivate_block.index("while (ShowCursor (TRUE) < 0)") < deactivate_block.index(
+		"IN_UpdateSystemCursor();"
+	)
+	assert frame_block.count("IN_UpdateSystemCursor();") >= 4
+	assert frame_block.index("IN_ActivateMouse();") < frame_block.rindex("IN_UpdateSystemCursor();")
+
+	set_cursor_case = main_wndproc[main_wndproc.index("case WM_SETCURSOR:") :]
+	assert "browserCursor = (HCURSOR)CL_WebHost_GetCursorHandle();" in set_cursor_case
+	assert "SetCursor( browserCursor );" in set_cursor_case
+	assert "if ( IN_GameCursorActive() )" in set_cursor_case
+	assert "IN_UpdateSystemCursor();" in set_cursor_case
+	assert set_cursor_case.index("CL_WebHost_GetCursorHandle()") < set_cursor_case.index(
+		"IN_GameCursorActive()"
+	)
 
 
 def test_fast_vid_restart_deactivates_mouse_without_flipping_appactive_state() -> None:

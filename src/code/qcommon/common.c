@@ -1475,6 +1475,7 @@ cvar_t	*com_version;
 cvar_t	*com_buildScript;	// retail com_build gate for automated data building scripts
 cvar_t	*com_introPlayed;
 cvar_t	*com_idleSleep;
+cvar_t	*com_webBrowserActive;
 cvar_t	*com_ignorecrash;
 cvar_t	*com_crashed;
 cvar_t	*com_pid;
@@ -4324,12 +4325,11 @@ void Com_Init( char *commandLine ) {
 	sv_paused = Cvar_Get ("sv_paused", "0", CVAR_ROM);
 	com_sv_running = Cvar_Get ("sv_running", "0", CVAR_ROM);
 	com_cl_running = Cvar_Get ("cl_running", "0", CVAR_ROM);
-	Cvar_Get( "web_browserActive", "0", CVAR_ROM );
-	com_allowConsole = Cvar_Get( "com_allowConsole", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 	com_buildScript = Cvar_Get( "com_build", "0", 0 );
-
 	com_introPlayed = Cvar_Get( "com_introplayed", "0", CVAR_ARCHIVE);
 	com_idleSleep = Cvar_Get( "com_idleSleep", "1", CVAR_ARCHIVE | CVAR_CLOUD );
+	com_webBrowserActive = Cvar_Get( "web_browserActive", "0", CVAR_ROM );
+	com_allowConsole = Cvar_Get( "com_allowConsole", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
 
 	if ( com_dedicated->integer ) {
 		if ( !com_viewlog->integer ) {
@@ -4694,7 +4694,7 @@ void Com_Frame( void ) {
 
 		if ( com_dedicated->integer ) {
 			NET_Sleep( minMsec - msec );
-		} else if ( Cvar_VariableIntegerValue( "web_browserActive" ) == 1 || ( com_idleSleep && com_idleSleep->integer == 1 ) ) {
+		} else if ( ( com_webBrowserActive && com_webBrowserActive->integer == 1 ) || ( com_idleSleep && com_idleSleep->integer == 1 ) ) {
 			Com_IdleSleep( minMsec - msec );
 		}
 	} while ( msec < minMsec );

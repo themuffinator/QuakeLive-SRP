@@ -441,6 +441,10 @@ LONG WINAPI MainWndProc (
 				SetCursor( browserCursor );
 				return TRUE;
 			}
+			if ( IN_GameCursorActive() ) {
+				IN_UpdateSystemCursor();
+				return TRUE;
+			}
 		}
 		break;
 

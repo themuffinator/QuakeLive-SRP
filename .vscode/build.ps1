@@ -377,6 +377,22 @@ if (-not $pythonCmd) {
 	$pythonCmd = Get-Command py -ErrorAction SilentlyContinue
 }
 
+if (-not (Test-Path $runtimeBinDir)) {
+	New-Item -ItemType Directory -Path $runtimeBinDir | Out-Null
+}
+
+$buildSettingsPath = Join-Path $runtimeBinDir 'ql_build_settings.txt'
+$onlineServicesSetting = if ($OnlineServices -ne '') { $OnlineServices } else { '0' }
+$steamworksSetting = if ($Steamworks -ne '') { $Steamworks } else { '0' }
+$openSteamSetting = if ($OpenSteam -ne '') { $OpenSteam } else { '0' }
+@(
+	"Configuration=$Configuration",
+	"Platform=$platformNormalized",
+	"QLBuildOnlineServices=$onlineServicesSetting",
+	"QLBuildSteamworks=$steamworksSetting",
+	"QLBuildOpenSteam=$openSteamSetting"
+) | Set-Content -Path $buildSettingsPath -Encoding ASCII
+
 function Sync-ModuleRuntimeArtifacts {
 	param(
 		[string]$ModuleName,

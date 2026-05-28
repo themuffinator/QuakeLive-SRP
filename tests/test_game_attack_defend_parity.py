@@ -62,6 +62,7 @@ def test_attack_defend_round_controller_hooks_use_retail_boundaries() -> None:
 	match_state_c = _read("src/code/game/g_match_state.c")
 	main_c = _read("src/code/game/g_main.c")
 	cmds_c = _read("src/code/game/g_cmds.c")
+	team_c = _read("src/code/game/g_team.c")
 
 	assert "case GT_ATTACK_DEFEND:" in active_c
 	assert "static void G_Frame_UpdateAttackDefendRoundController( void ) {" in active_c
@@ -77,6 +78,7 @@ def test_attack_defend_round_controller_hooks_use_retail_boundaries() -> None:
 
 	assert "case GT_ATTACK_DEFEND:" in match_state_c
 	assert "turn = level.adTurnIndex;" in match_state_c
+	assert "level.roundStartTime = level.time;" in team_c
 
 	assert "level.adRoundState = AD_ROUNDSTATE_INACTIVE;" in main_c
 	assert "if ( g_gametype.integer == GT_ATTACK_DEFEND ) {" in main_c

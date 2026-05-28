@@ -1272,12 +1272,6 @@ static void CG_ParseRetailAccuracyCommand( void ) {
 		}
 
 		value = atoi( CG_Argv( i + 1 ) );
-		if ( value < 0 ) {
-			value = 0;
-		} else if ( value > 100 ) {
-			value = 100;
-		}
-
 		cg.weaponAccuracies[weapon] = value;
 	}
 }
@@ -2544,13 +2538,14 @@ static unsigned long CG_ParseUnsignedConfigMask( const char *configstring ) {
 ==================
 CG_ParseDisableLoadoutConfigString
 
-Mirrors the retail loadout-disable configstrings onto the per-weapon ROM cvars.
+Mirrors the retail loadout-disable and starting-weapon configstrings onto the
+per-weapon ROM cvars.
 ==================
 */
 static void CG_ParseDisableLoadoutConfigString( void ) {
 	const cgDisableLoadoutToken_t	*entry;
 	unsigned long			flags;
-	unsigned long			mapMask;
+	unsigned long			startingMask;
 	unsigned long			shiftedMask;
 	char				cvarName[MAX_CVAR_VALUE_STRING];
 	char				currentValue[MAX_CVAR_VALUE_STRING];
@@ -2558,12 +2553,12 @@ static void CG_ParseDisableLoadoutConfigString( void ) {
 	qboolean			disabled;
 
 	flags = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_FLAGS ) );
-	mapMask = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_MASK ) );
+	startingMask = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_MASK ) );
 
 	for ( entry = cg_retailDisableLoadoutTokens; entry->token; ++entry ) {
 		shiftedMask = entry->mask << 1;
 		disabled = (qboolean)( !cg_loadout.integer || ( flags & entry->mask ) ||
-			( flags & shiftedMask ) || ( mapMask & entry->mask ) );
+			( flags & shiftedMask ) || ( startingMask & entry->mask ) );
 		resolvedValue = disabled ? "1" : "0";
 		Com_sprintf( cvarName, sizeof( cvarName ), "cg_disableLoadout_%s", entry->token );
 		trap_Cvar_VariableStringBuffer( cvarName, currentValue, sizeof( currentValue ) );
@@ -3961,6 +3956,9 @@ static void CG_ConfigStringModified( void ) {
 		trap_S_StartLocalSound( cgs.media.voteNow, CHAN_ANNOUNCER );
 	} else if ( num == CS_INTERMISSION ) {
 		cg.intermissionStarted = atoi( str );
+		if ( cg.intermissionStarted == 1 ) {
+			trap_Cvar_Set( "ui_intermission", "1" );
+		}
 	} else if ( num >= CS_MODELS && num < CS_MODELS+MAX_MODELS ) {
 		cgs.gameModels[ num-CS_MODELS ] = trap_R_RegisterModel( str );
 	} else if ( num >= CS_SOUNDS && num < CS_SOUNDS+MAX_MODELS ) {

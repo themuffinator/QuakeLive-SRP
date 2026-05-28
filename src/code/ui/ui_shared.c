@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 qboolean UI_HandleDeferredScriptExec( const itemDef_t *item, const char *commandText );
 
+#define UI_SCRIPT_BUFFER_SIZE			2048
 #define SCROLL_TIME_START					500
 #define SCROLL_TIME_ADJUST				150
 #define SCROLL_TIME_ADJUSTOFFSET	40
@@ -607,7 +608,7 @@ PC_Script_Parse
 =================
 */
 qboolean PC_Script_Parse(int handle, const char **out) {
-	char script[1024];
+	char script[UI_SCRIPT_BUFFER_SIZE];
 	pc_token_t token;
 
 	memset(script, 0, sizeof(script));
@@ -630,11 +631,11 @@ qboolean PC_Script_Parse(int handle, const char **out) {
 		}
 
 		if (token.string[1] != '\0') {
-			Q_strcat(script, 1024, va("\"%s\"", token.string));
+			Q_strcat(script, UI_SCRIPT_BUFFER_SIZE, va("\"%s\"", token.string));
 		} else {
-			Q_strcat(script, 1024, token.string);
+			Q_strcat(script, UI_SCRIPT_BUFFER_SIZE, token.string);
 		}
-		Q_strcat(script, 1024, " ");
+		Q_strcat(script, UI_SCRIPT_BUFFER_SIZE, " ");
 	}
 	return qfalse; 	// bk001105 - LCC   missing return value
 }
@@ -1972,40 +1973,44 @@ commandDef_t commandList[] =
 
 int scriptCommandCount = sizeof(commandList) / sizeof(commandDef_t);
 
-
+/*
+===============
+Item_RunScript
+===============
+*/
 void Item_RunScript(itemDef_t *item, const char *s) {
-  char script[1024], *p;
-  int i;
-  qboolean bRan;
-  memset(script, 0, sizeof(script));
-  if (item && s && s[0]) {
-    Q_strcat(script, 1024, s);
-    p = script;
-    while (1) {
-      const char *command;
-      // expect command then arguments, ; ends command, NULL ends script
-      if (!String_Parse(&p, &command)) {
-        return;
-      }
+	char script[UI_SCRIPT_BUFFER_SIZE], *p;
+	int i;
+	qboolean bRan;
+	memset(script, 0, sizeof(script));
+	if (item && s && s[0]) {
+		Q_strcat(script, sizeof(script), s);
+		p = script;
+		while (1) {
+			const char *command;
+			// expect command then arguments, ; ends command, NULL ends script
+			if (!String_Parse(&p, &command)) {
+				return;
+			}
 
-      if (command[0] == ';' && command[1] == '\0') {
-        continue;
-      }
+			if (command[0] == ';' && command[1] == '\0') {
+				continue;
+			}
 
-      bRan = qfalse;
-      for (i = 0; i < scriptCommandCount; i++) {
-        if (Q_stricmp(command, commandList[i].name) == 0) {
-          (commandList[i].handler(item, &p));
-          bRan = qtrue;
-          break;
-        }
-      }
-      // not in our auto list, pass to handler
-      if (!bRan) {
-        DC->runScript(&p);
-      }
-    }
-  }
+			bRan = qfalse;
+			for (i = 0; i < scriptCommandCount; i++) {
+				if (Q_stricmp(command, commandList[i].name) == 0) {
+					(commandList[i].handler(item, &p));
+					bRan = qtrue;
+					break;
+				}
+			}
+			// not in our auto list, pass to handler
+			if (!bRan) {
+				DC->runScript(&p);
+			}
+		}
+	}
 }
 
 /*
@@ -2035,7 +2040,7 @@ Item_EnableShowViaCvarSlot
 ========================
 */
 static qboolean Item_EnableShowViaCvarSlot( const itemDef_t *item, int slot, int flag ) {
-	char script[1024], *p;
+	char script[UI_SCRIPT_BUFFER_SIZE], *p;
 	char buff[1024];
 
 	if ( item == NULL ) {
@@ -2079,7 +2084,11 @@ static qboolean Item_EnableShowViaCvarSlot( const itemDef_t *item, int slot, int
 	}
 }
 
-
+/*
+======================
+Item_EnableShowViaCvar
+======================
+*/
 qboolean Item_EnableShowViaCvar(itemDef_t *item, int flag) {
 	int i;
 
@@ -4762,11 +4771,21 @@ void Item_ListBox_Paint(itemDef_t *item) {
 			for (i = listPtr->startPos; i < count; i++) {
 				vec4_t textColor;
 				const char *text;
+				float backgroundX;
+				float backgroundY;
+				float backgroundW;
 				// always draw at least one
 				// which may overdraw the box if it is too small for the element
 
+				backgroundX = x + 2;
+				backgroundY = y + 6;
+				backgroundW = item->window.rect.w - SCROLLBAR_SIZE - 6;
 				if ( i == item->cursorPos ) {
-					DC->fillRect( x + 2, y + 2, item->window.rect.w - SCROLLBAR_SIZE - 4, listPtr->elementHeight, item->window.outlineColor );
+					if ( item->outlineImage ) {
+						DC->drawHandlePic( backgroundX, backgroundY, backgroundW, listPtr->elementHeight, item->outlineImage );
+					} else {
+						DC->fillRect( backgroundX, backgroundY, backgroundW, listPtr->elementHeight, item->window.outlineColor );
+					}
 					if ( listPtr->selectedColorSet ) {
 						memcpy( textColor, listPtr->selectedColor, sizeof( textColor ) );
 					} else {
@@ -4779,8 +4798,8 @@ void Item_ListBox_Paint(itemDef_t *item) {
 						memcpy( textColor, item->window.foreColor, sizeof( textColor ) );
 					}
 
-					if ( listPtr->altRowColorSet && ( ( (int)i - listPtr->startPos ) & 1 ) ) {
-						DC->fillRect( x + 2, y + 2, item->window.rect.w - SCROLLBAR_SIZE - 4, listPtr->elementHeight, listPtr->altRowColor );
+					if ( listPtr->altRowColorSet && ( (int)i & 1 ) ) {
+						DC->fillRect( backgroundX, backgroundY, backgroundW, listPtr->elementHeight, listPtr->altRowColor );
 					}
 				}
 
@@ -6051,6 +6070,11 @@ static qboolean ItemParse_cvarTestSlot( itemDef_t *item, int handle, int slot ) 
 	return qtrue;
 }
 
+/*
+==================
+ItemParse_cvarTest
+==================
+*/
 qboolean ItemParse_cvarTest( itemDef_t *item, int handle ) {
 	return ItemParse_cvarTestSlot( item, handle, 0 );
 }
@@ -6486,6 +6510,26 @@ qboolean ItemParse_selectedcolor( itemDef_t *item, int handle ) {
 }
 
 /*
+=====================
+ItemParse_outlineimage
+=====================
+*/
+qboolean ItemParse_outlineimage( itemDef_t *item, int handle ) {
+	const char *imageName;
+
+	if ( item == NULL ) {
+		return qfalse;
+	}
+
+	if ( !PC_String_Parse( handle, &imageName ) ) {
+		return qfalse;
+	}
+
+	item->outlineImage = DC->registerShaderNoMip( imageName );
+	return qtrue;
+}
+
+/*
 ========================
 ItemParse_enableCvarSlot
 ========================
@@ -6670,6 +6714,7 @@ keywordHash_t itemParseKeywords[] = {
 	{"altrowcolor", ItemParse_altrowcolor, NULL},
 	{"elementcolor", ItemParse_elementcolor, NULL},
 	{"selectedcolor", ItemParse_selectedcolor, NULL},
+	{"outlineimage", ItemParse_outlineimage, NULL},
 	{"enableCvar", ItemParse_enableCvar, NULL},
 	{"cvarTest", ItemParse_cvarTest, NULL},
 	{"cvarTest2", ItemParse_cvarTest2, NULL},

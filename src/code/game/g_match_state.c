@@ -198,10 +198,14 @@ void G_UpdateTimeoutConfigStrings( void ) {
 =============
 G_UpdateRoundStartConfigString
 
-Publishes the hidden retail round-start timestamp used by CG_ROUNDTIMER.
+Publishes the hidden retail active-round timestamp used by CG_ROUNDTIMER.
 =============
 */
 static void G_UpdateRoundStartConfigString( void ) {
+	if ( level.roundState != ROUNDSTATE_ACTIVE ) {
+		return;
+	}
+
 	trap_SetConfigstring( CS_ROUND_START_TIME, va( "%i", level.roundStartTime ) );
 }
 

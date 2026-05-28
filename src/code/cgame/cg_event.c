@@ -29,6 +29,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../../ui/menudef.h"
 //==========================================================================
 
+#define CG_OBITUARY_RETAIL_NAME_CHARS 29
+
 enum {
 	QL_EV_OVERTIME = 0x54,
 	QL_EV_GAMEOVER = 0x55,
@@ -1167,6 +1169,8 @@ Copies a player configstring name into the cached obituary payload.
 =============
 */
 static void CG_SetObituaryName( char *buffer, int bufferSize, const char *playerInfo ) {
+	int		copySize;
+
 	if ( !buffer || bufferSize <= 0 ) {
 		return;
 	}
@@ -1176,9 +1180,12 @@ static void CG_SetObituaryName( char *buffer, int bufferSize, const char *player
 		return;
 	}
 
-	Q_strncpyz( buffer, Info_ValueForKey( playerInfo, PLAYER_INFO_KEY_NAME ), bufferSize );
+	copySize = CG_OBITUARY_RETAIL_NAME_CHARS + 1;
+	if ( copySize > bufferSize ) {
+		copySize = bufferSize;
+	}
+	Q_strncpyz( buffer, Info_ValueForKey( playerInfo, PLAYER_INFO_KEY_NAME ), copySize );
 	Q_strcat( buffer, bufferSize, S_COLOR_WHITE );
-	CG_SanitizeObituaryText( buffer );
 }
 
 /*
@@ -1281,7 +1288,7 @@ Stores the retail-style cached obituary row consumed by the draw path.
 */
 static void CG_RecordObituaryFeedEntry( const char *targetName, int targetColorIndex,
 		const char *attackerName, int attackerColorIndex, qboolean hasAttacker,
-		qhandle_t icon, int attacker, int target, int mod ) {
+		qhandle_t icon ) {
 	cgObituary_t	*entry;
 	int			activeCount;
 	int			limit;
@@ -1301,9 +1308,6 @@ static void CG_RecordObituaryFeedEntry( const char *targetName, int targetColorI
 	entry->attackerColorIndex = attackerColorIndex;
 	entry->hasAttacker = ( qboolean )( hasAttacker && attackerName && attackerName[0] );
 	entry->icon = icon;
-	entry->attacker = attacker;
-	entry->target = target;
-	entry->mod = mod;
 
 	Q_strncpyz( entry->targetName, targetName ? targetName : "", sizeof( entry->targetName ) );
 	Q_strncpyz( entry->attackerName, attackerName ? attackerName : "", sizeof( entry->attackerName ) );
@@ -1450,7 +1454,7 @@ static void CG_Obituary( entityState_t *ent ) {
 
 	if (message) {
 		CG_RecordObituaryFeedEntry( targetName, targetColorIndex, "", attackerColorIndex,
-			qfalse, icon, attacker, target, mod );
+			qfalse, icon );
 		CG_Printf( "%s %s.\n", targetName, message);
 		return;
 	}
@@ -1564,7 +1568,7 @@ static void CG_Obituary( entityState_t *ent ) {
 
 		if (message) {
 			CG_RecordObituaryFeedEntry( targetName, targetColorIndex,
-				attackerName, attackerColorIndex, qtrue, icon, attacker, target, mod );
+				attackerName, attackerColorIndex, qtrue, icon );
 			CG_Printf( "%s %s %s%s\n", 
 				targetName, message, attackerName, message2);
 			return;
@@ -1573,7 +1577,7 @@ static void CG_Obituary( entityState_t *ent ) {
 
 	// we don't know what it was
 	CG_RecordObituaryFeedEntry( targetName, targetColorIndex, "", attackerColorIndex,
-		qfalse, icon, attacker, target, mod );
+		qfalse, icon );
 	CG_Printf( "%s died.\n", targetName );
 }
 

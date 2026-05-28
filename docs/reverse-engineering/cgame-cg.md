@@ -158,8 +158,7 @@ tracked spectator flow that updates `cg_trackPlayer`.
 | `0x20BC4` | `scoreboardTimerStopTime` | `int` | Last frozen scoreboard timer anchor. |
 | `0x20BC8` | `scoreFadeTime` | `int` | Fade-out start time for transient scoreboard display. |
 | `0x20BCC` | `killerName` | `char[MAX_NAME_LENGTH]` | Cached killer name used by death/scoreboard messaging. |
-| `0x20BEC` | `obituaries[MAX_OBITUARIES]` | `cgObituary_t[8]` | Ring of recent obituary entries. |
-| `0x20C6C` | `obituaryIndex` | `int` | Current write cursor into `obituaries[]`. |
+| `0x20BEC` | `obituaries[MAX_OBITUARIES]` | `cgObituary_t[16]` | Retail 16-row obituary feed; each 0x68-byte row stores target/attacker names, palette ids, a has-attacker flag, and an icon handle. |
 | `0x20C70` | `spectatorList` | `char[MAX_STRING_CHARS]` | Concatenated spectator name string built from `cgs.clientinfo[]`. |
 | `0x21070` | `spectatorLen` | `int` | Cached spectator string length. |
 | `0x21074` | `spectatorWidth` | `float` | Cached spectator string width; reset when the list changes. |
@@ -344,7 +343,7 @@ console commands own this tail.
   `trackedPlayerClientNum`, `trackedPlayerExpireTime`, and
   `trackedPlayerPriority`.
 - `cg_servercmds.c` owns `clientKeyMask[]` through the key-status mirrors.
-- `cg_event.c` owns `killerName`, `obituaries[]`, `obituaryIndex`, and the
+- `cg_event.c` owns `killerName`, `obituaries[]`, and the
   scoreboard timer triplet.
 
 ### Feedback, Queues, And Combat Tail

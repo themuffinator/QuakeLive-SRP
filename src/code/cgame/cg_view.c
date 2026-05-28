@@ -1092,6 +1092,9 @@ static int CG_CalcViewValues( void ) {
 	cg.bobfracsin = fabs( sin( ( ps->bobCycle & 127 ) / 127.0 * M_PI ) );
 	cg.xyspeed = sqrt( ps->velocity[0] * ps->velocity[0] +
 		ps->velocity[1] * ps->velocity[1] );
+	cg.speedometerSample = cg.xyspeed;
+	cg.speedometerSampleTime = cg.time;
+	CG_RecordSpeedometerSample();
 
 
 	VectorCopy( ps->origin, cg.refdef.vieworg );

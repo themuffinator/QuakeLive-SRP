@@ -17,6 +17,7 @@ def test_team_count_configstrings_are_declared_and_published() -> None:
 	assert "#define CS_TEAM_COUNT_RED" in bg_public
 	assert "#define CS_TEAM_COUNT_BLUE" in bg_public
 	assert "static void G_UpdateRoundStartConfigString( void ) {" in match_state
+	assert "if ( level.roundState != ROUNDSTATE_ACTIVE ) {" in match_state
 	assert 'trap_SetConfigstring( CS_ROUND_START_TIME, va( "%i", level.roundStartTime ) );' in match_state
 	assert "void G_UpdateTeamCountConfigstrings( void ) {" in match_state
 	assert "level.time > s_lastTeamCountConfigstringUpdateTime" in match_state

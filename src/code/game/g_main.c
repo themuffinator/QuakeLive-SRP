@@ -84,6 +84,8 @@ static int	s_forceAtmosphericEffectsModCount = -1;
 static int	s_forceDmgThroughSurfaceModCount = -1;
 static int	s_armorTieredModCount = -1;
 static int	s_disableLoadoutModCount = 0;
+static int	s_loadoutModCount = 0;
+static int	s_startingWeaponsModCount = 0;
 static int	s_factoryModCount = 0;
 static int	s_inactivityModCount = 0;
 static int	s_roundWarmupDelayModCount = 0;
@@ -1799,6 +1801,8 @@ void G_RegisterCvars( void ) {
 	s_forceDmgThroughSurfaceModCount = g_forceDmgThroughSurface.modificationCount;
 	s_armorTieredModCount = g_armorTiered.modificationCount;
 	s_disableLoadoutModCount = g_disableLoadout.modificationCount;
+	s_loadoutModCount = g_loadout.modificationCount;
+	s_startingWeaponsModCount = g_startingWeapons.modificationCount;
 	s_roundWarmupDelayModCount = g_roundWarmupDelay.modificationCount;
 	s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
 	s_worldspawnAtmosphere[0] = '\0';
@@ -1859,6 +1863,7 @@ void G_UpdateCvars( void ) {
         int                     i;
         cvarTable_t     *cv;
         qboolean remapped = qfalse;
+	qboolean loadoutConfigstringsDirty = qfalse;
 
         for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
                 if ( cv->vmCvar ) {
@@ -1921,6 +1926,14 @@ void G_UpdateCvars( void ) {
 	G_UpdateFactoryCvarConfig();
         G_UpdateMatchFactoryConfig();
 	G_SyncMatchFactoryConfigToLevel();
+	if ( g_loadout.modificationCount != s_loadoutModCount ) {
+		s_loadoutModCount = g_loadout.modificationCount;
+		loadoutConfigstringsDirty = qtrue;
+	}
+	if ( g_startingWeapons.modificationCount != s_startingWeaponsModCount ) {
+		s_startingWeaponsModCount = g_startingWeapons.modificationCount;
+		loadoutConfigstringsDirty = qtrue;
+	}
 	if ( g_itemTimers.modificationCount != s_itemTimersModCount || g_itemHeight.modificationCount != s_itemHeightModCount ) {
 		s_itemTimersModCount = g_itemTimers.modificationCount;
 		s_itemHeightModCount = g_itemHeight.modificationCount;
@@ -1938,6 +1951,9 @@ void G_UpdateCvars( void ) {
 	}
 	if ( g_disableLoadout.modificationCount != s_disableLoadoutModCount ) {
 		s_disableLoadoutModCount = g_disableLoadout.modificationCount;
+		loadoutConfigstringsDirty = qtrue;
+	}
+	if ( loadoutConfigstringsDirty ) {
 		G_UpdateDisableLoadoutConfigstrings();
 	}
 	level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );

@@ -202,9 +202,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_READYUP_STATUS		0x2C4		// ready-up controller state machine payload
 #define CS_RR_INFECTED_SURVIVOR_PING_RATE	0x2C5		// floating-point g_rrInfectedSurvivorPingRate payload
 #define CS_RACE_RECORDS		0x2C6		// race checkpoint history used by race_init
-#define CS_LOADOUT_FLAGS		0x2C7		// bitmask of forced loadout toggles
+#define CS_LOADOUT_FLAGS		0x2C7		// bitmask of disabled loadout choices
 #define CS_WARMUP_READY		0x2C8		// warmup ready threshold and readiness snapshot
-#define CS_LOADOUT_MASK		0x2C9		// bitmask of disabled loadout entries
+#define CS_LOADOUT_MASK		0x2C9		// bitmask of starting loadout weapons
 #define CS_SPAWN_HINTS_ALT		CS_RR_INFECTED_SURVIVOR_PING_RATE
 // Tutorial/freezetip coaching strings are kept on reconstruction-local slots so the
 // recovered retail award configstring block at 0x2B4/0x2B5/0x2B8-0x2BB stays intact.

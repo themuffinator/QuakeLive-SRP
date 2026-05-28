@@ -540,6 +540,8 @@ def test_cgame_match_status_ownerdrawtype_wiring_matches_retail_dispatch() -> No
 	ui_shared_source = UI_SHARED.read_text(encoding="utf-8")
 	menudef_source = MENUDEF_H.read_text(encoding="utf-8")
 	intro_source = INTRO_MENU.read_text(encoding="utf-8")
+	match_details_menu = (REPO_ROOT / "src" / "ui" / "ingame_scoreboard_duel.menu").read_text(encoding="utf-8")
+	match_end_menu = (REPO_ROOT / "src" / "ui" / "endscoreteam.menu").read_text(encoding="utf-8")
 	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
 	ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw(")
 	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
@@ -547,17 +549,29 @@ def test_cgame_match_status_ownerdrawtype_wiring_matches_retail_dispatch() -> No
 	item_ownerdraw_parse_block = _block_from_marker(ui_shared_source, "qboolean ItemParse_ownerdraw( itemDef_t")
 	retail_ownerdraw_block = _block_from_marker(ghidra_source, "void FUN_1003b0f0")
 
+	assert re.search(r"#define\s+CG_MATCH_DETAILS\s+8\b", menudef_source)
+	assert re.search(r"#define\s+CG_MATCH_END_CONDITION\s+9\b", menudef_source)
 	assert re.search(r"#define\s+CG_MATCH_STATUS\s+10\b", menudef_source)
+	assert re.search(r"\bownerdraw\s+CG_MATCH_DETAILS\b", match_details_menu)
+	assert re.search(r"\bownerdraw\s+CG_MATCH_END_CONDITION\b", match_end_menu)
 	assert '#include "ui/menudef.h"' in intro_source
 	assert re.search(r"\bownerdraw\s+CG_MATCH_STATUS\b", intro_source)
 
 	for expected in (
+		"case 8:",
+		"FUN_10034420(param_13,param_14,param_16);",
+		"case 9:",
+		"FUN_10034280(param_13,param_14,param_16);",
 		"case 10:",
 		"FUN_10034cc0(param_13,param_14,param_16,param_10);",
 	):
 		assert expected in retail_ownerdraw_block
 
 	for expected in (
+		"case CG_MATCH_DETAILS:",
+		"CG_DrawMatchDetails( &rect, scale, color, textStyle );",
+		"case CG_MATCH_END_CONDITION:",
+		"CG_DrawMatchEndCondition( &rect, scale, color, textStyle );",
 		"case CG_MATCH_STATUS:",
 		"CG_DrawMatchStatus( &rect, scale, color, textStyle, align );",
 	):
@@ -579,6 +593,76 @@ def test_cgame_match_status_ownerdrawtype_wiring_matches_retail_dispatch() -> No
 	assert "PC_Int_Parse(handle, &item->window.ownerDraw)" in item_ownerdraw_parse_block
 	assert "item->type = ITEM_TYPE_OWNERDRAW;" in item_ownerdraw_parse_block
 	assert '{"ownerdraw", ItemParse_ownerdraw, NULL}' in ui_shared_source
+
+
+def test_cgame_game_type_map_ownerdrawtype_wiring_matches_retail_dispatch() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	ui_shared_source = UI_SHARED.read_text(encoding="utf-8")
+	menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+	intro_source = INTRO_MENU.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	game_type_map_block = _block_from_marker(newdraw_source, "static void CG_DrawGameTypeMap")
+	ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw(")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+	item_ownerdraw_parse_block = _block_from_marker(ui_shared_source, "qboolean ItemParse_ownerdraw( itemDef_t")
+	retail_ownerdraw_block = _block_from_marker(ghidra_source, "void FUN_1003b0f0")
+	retail_game_type_map = _text_between(
+		hlil_source,
+		"100344b0    void sub_100344b0",
+		"10034590",
+	)
+
+	assert re.search(r"#define\s+CG_GAME_TYPE_MAP\s+6\b", menudef_source)
+	assert '#include "ui/menudef.h"' in intro_source
+	assert re.search(r"\bownerdraw\s+CG_GAME_TYPE_MAP\b", intro_source)
+
+	for expected in (
+		"case 6:",
+		"FUN_100344b0(&local_18,param_13,param_14,param_16,param_10);",
+	):
+		assert expected in retail_ownerdraw_block
+
+	for expected in (
+		"case CG_GAME_TYPE_MAP:",
+		"CG_DrawGameTypeMap( &rect, scale, color, textStyle, align );",
+	):
+		assert expected in ownerdraw_block
+
+	for expected in (
+		'Com_sprintf( buffer, sizeof( buffer ), "%s - %s", CG_GameTypeString(), detailBuffer );',
+		"x = rect->x;",
+		"CG_AlignTextX( &x, buffer, scale, align );",
+		"CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in game_type_map_block
+
+	for expected in (
+		"data_10a3842c + 0x10a39420",
+		'eax_2, ecx_1 = sub_100575e0("%s - %s")',
+		"if (arg5 == 1)",
+		"*ebp = fconvert.s(fconvert.t(*ebp) - float.t(arg1) * fconvert.t(0.5))",
+		"else if (arg5 == 2)",
+		"*ebp = fconvert.s(fconvert.t(*ebp) - float.t(arg1))",
+		"fconvert.t(*(ebp + 4))",
+	):
+		assert expected in retail_game_type_map
+
+	for expected in (
+		"cgDC.ownerDrawItem = &CG_OwnerDraw;",
+		"cgDC.ownerDrawVisible = &CG_OwnerDrawVisible;",
+		"cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;",
+	):
+		assert expected in display_context_block
+
+	assert "PC_Int_Parse(handle, &item->window.ownerDraw)" in item_ownerdraw_parse_block
+	assert "item->type = ITEM_TYPE_OWNERDRAW;" in item_ownerdraw_parse_block
+	assert '{"ownerdraw", ItemParse_ownerdraw, NULL}' in ui_shared_source
+	assert "case CG_GAME_TYPE_MAP:" not in width_block
+	assert 'Com_sprintf( buffer, sizeof( buffer ), "%s - %s", CG_GameTypeString(), mapName );' not in game_type_map_block
+	assert "CG_GetTextPosition" not in game_type_map_block
 
 
 def test_scoreboard_and_race_server_command_wrappers_match_retail_dispatch() -> None:
@@ -791,7 +875,7 @@ def test_cgame_acc_vertical_overlay_reconstruction_uses_retail_acc_parser_and_se
 	assert "icon = CG_GetStartingWeaponIconHandle( cgVerticalAccWeaponOrder[i] );" in draw_weapon_block
 	assert "CG_DrawPic( rect->x, rect->y + rect->h * i, rect->w, rect->w, icon );" in draw_weapon_block
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "%i%%", cg.weaponAccuracies[weapon] );' in draw_acc_block
-	assert "CG_Text_Paint( rect->x, rect->y + rect->h * ( i + 1 ), scale, color, buffer, 0, 0, textStyle );" in draw_acc_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h * i, scale, color, buffer, 0, 0, textStyle );" in draw_acc_block
 
 	assert "case CG_WP_VERTICAL:" in newdraw_source
 	assert "CG_DrawWeaponVertical( &rect, color );" in newdraw_source
@@ -2577,7 +2661,9 @@ def test_cgame_live_placement_and_follow_ownerdraws_follow_retail_helper_split()
 	assert "weapon = cent->currentState.weapon;" not in best_weapon_block
 	assert '"Unknown"' not in best_weapon_block
 	assert "rect->y + rect->h" not in best_weapon_block
-	assert "if ( !rect || cg_teamChatTime.integer <= 0 ) {" in new_chat_block
+	assert "if ( !rect ) {" in new_chat_block
+	assert "if ( scale <= 0.0f || scale < 0.1f ) {" in new_chat_block
+	assert "cgs.teamChatActiveExpireTime" in new_chat_block
 
 	assert "case CG_1ST_PLACE_SCORE:" in source
 	assert "CG_Draw1stPlaceScore(&rect, scale, color, textStyle);" in source
@@ -3111,7 +3197,7 @@ def test_cgame_team_score_name_playercount_and_match_phase_ownerdraws_follow_ret
 		'Com_sprintf( label, sizeof( label ), "Round %d", cgs.matchRoundNumber );',
 		'Q_strncpyz( label, "Warmup", sizeof( label ) );',
 		"x = CG_AlignTextInRectX( rect, scale, label, align );",
-		"CG_Text_Paint( x, rect->y + rect->h, scale, color, label, 0, 0, textStyle );",
+		"CG_Text_Paint( x, rect->y, scale, color, label, 0, 0, textStyle );",
 	):
 		assert expected in round_label_block
 
@@ -3127,15 +3213,22 @@ def test_cgame_team_score_name_playercount_and_match_phase_ownerdraws_follow_ret
 		'return "MATCH IN PROGRESS";',
 	):
 		assert expected in match_phase_block
+		assert source.count(expected) == 1
 
 	for expected in (
-		"if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {",
+		"phase = CG_GetMatchPhaseText();",
 		"if ( cgs.scores1 == SCORE_NOT_PRESENT && cgs.scores2 == SCORE_NOT_PRESENT &&",
 		"if ( cgs.gametype == GT_RACE ) {",
 		"if ( cgs.gametype >= GT_TEAM && cgs.gametype != GT_RED_ROVER ) {",
 		"cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR",
+		"if ( cgs.scores1 != CG_SCORE_FORFEIT ) {",
 	):
 		assert expected in match_status_block
+	assert 'phase = "MATCH SUMMARY";' not in match_status_block
+	assert 'phase = "MATCH WARMUP";' not in match_status_block
+	assert 'phase = "MATCH IN PROGRESS";' not in match_status_block
+	assert "if ( cgs.scores1 != SCORE_NOT_PRESENT ) {" not in match_status_block
+	assert "CG_GetMatchDetailsPhaseLabel" not in source
 	assert "CG_GetGameStatusText()" not in match_status_block
 	assert "CG_AlignTextX( &x, statusText, scale, align );" in draw_match_status_block
 	assert "CG_Text_Paint( x, rect->y, scale, color, statusText, 0, 0, textStyle );" in draw_match_status_block
@@ -3231,18 +3324,53 @@ def test_cgame_intro_panel_and_player_count_widgets_restore_retail_detail_and_ca
 	game_source = G_MAIN.read_text(encoding="utf-8")
 	local_source = CG_LOCAL.read_text(encoding="utf-8")
 	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	map_menu_hits = [
+		path
+		for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+		if "ownerdraw CG_MAP_NAME" in path.read_text(encoding="utf-8")
+	]
+	match_details_menu_hits = [
+		path
+		for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+		if "ownerdraw CG_MATCH_DETAILS" in path.read_text(encoding="utf-8")
+	]
+	match_end_condition_menu_hits = [
+		path
+		for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+		if "ownerdraw CG_MATCH_END_CONDITION" in path.read_text(encoding="utf-8")
+	]
 	active_count_block = _block_from_marker(newdraw_source, "static int CG_CountActivePlayers")
 	player_limit_block = _block_from_marker(newdraw_source, "static int CG_GetConfiguredPlayerCountLimit")
 	player_counts_block = _block_from_marker(newdraw_source, "static void CG_DrawPlayerCounts")
+	map_text_block = _block_from_marker(newdraw_source, "static const char *CG_MapNameText")
+	map_name_block = _block_from_marker(newdraw_source, "static void CG_DrawMapName")
+	map_display_block = _block_from_marker(newdraw_source, "static void CG_GetMapDisplayName")
 	ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw(")
 	retail_player_counts_block = _text_between(hlil_source, "10032f30    void sub_10032f30", "10033040")
-	location_block = _block_from_marker(newdraw_source, "static void CG_GetServerLocation")
+	retail_map_name_block = _text_between(
+		hlil_source,
+		"100343d0    int32_t sub_100343d0",
+		"10034420",
+	)
 	detail_block = _block_from_marker(newdraw_source, "static void CG_BuildIntroPanelDetailString")
 	game_type_map_block = _block_from_marker(newdraw_source, "static void CG_DrawGameTypeMap")
 	match_details_block = _block_from_marker(newdraw_source, "static void CG_DrawMatchDetails")
 	parse_serverinfo_block = _block_from_marker(servercmds_source, "void CG_ParseServerinfo")
 
 	assert "playerCountTeamSize;" in local_source
+	assert constants["CG_MATCH_DETAILS"] == 0x8
+	assert constants["CG_MATCH_END_CONDITION"] == 0x9
+	assert constants["CG_MAP_NAME"] == 0x12
+	assert _retail_cg_ownerdraw_cases_for_target("FUN_10034420") == {0x8}
+	assert _retail_cg_ownerdraw_cases_for_target("FUN_10034280") == {0x9}
+	assert _retail_cg_ownerdraw_cases_for_target("FUN_100343d0") == {0x12}
+	assert len(match_details_menu_hits) >= 10
+	assert len(match_end_condition_menu_hits) >= 10
+	assert len(map_menu_hits) >= 10
+	assert "ownerdraw CG_MAP_NAME" in (
+		REPO_ROOT / "src" / "ui" / "ingamescoreteam.menu"
+	).read_text(encoding="utf-8")
 
 	for expected in (
 		"playerLimit = cgs.maxclients;",
@@ -3278,20 +3406,27 @@ def test_cgame_intro_panel_and_player_count_widgets_restore_retail_detail_and_ca
 	assert "CG_DrawPlayerCounts(&rect, scale, color, textStyle, align);" in ownerdraw_block
 
 	for expected in (
-		'CG_GetServerInfoValue( info, "location", buffer, bufferSize );',
-		'CG_GetServerInfoValue( info, "sv_location", buffer, bufferSize );',
-		'CG_GetServerInfoValue( info, "server_location", buffer, bufferSize );',
-		'CG_GetServerInfoValue( info, "sv_hostname", buffer, bufferSize );',
+		"int32_t var_10 = data_10a3842c + 0x10a39420",
+		"eax_1, ecx_1 = sub_100575e0(&data_10068de8)",
+		"return sub_10008440(fconvert.s(fconvert.t(*arg1))",
 	):
-		assert expected in location_block
+		assert expected in retail_map_name_block
 
 	for expected in (
-		"CG_GetMapDisplayName( mapName, sizeof( mapName ) );",
-		"CG_GetServerLocation( location, sizeof( location ) );",
-		'Com_sprintf( buffer, bufferSize, "%s - %s", location, mapName );',
-		'Q_strncpyz( buffer, mapName, bufferSize );',
+		"info = CG_ConfigString( CS_SERVERINFO );",
+		"mapName = info ? Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME ) : \"\";",
+		"return mapName ? mapName : \"\";",
 	):
-		assert expected in detail_block
+		assert expected in map_text_block
+	assert "cgs.mapname" not in map_text_block
+	assert "CG_Text_Paint( rect->x, rect->y, scale, color, CG_MapNameText(), 0, 0, textStyle );" in map_name_block
+	assert "rect->y + rect->h" not in map_name_block
+	assert "Q_strncpyz( buffer, CG_MapNameText(), bufferSize );" in map_display_block
+	assert "CG_GetMapDisplayName( buffer, bufferSize );" in detail_block
+	assert "CG_GetServerLocation" not in newdraw_source
+	assert "CG_BuildMapDisplayName" not in newdraw_source
+	assert "ARENA_INFO_KEY_LONGNAME" not in newdraw_source
+	assert "CG_DrawMapName( &rect, scale, color, textStyle );" in ownerdraw_block
 
 	assert "CG_BuildIntroPanelDetailString( detailBuffer, sizeof( detailBuffer ) );" in game_type_map_block
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "%s - %s", CG_GameTypeString(), detailBuffer );' in game_type_map_block
@@ -3303,7 +3438,8 @@ def test_cgame_intro_panel_and_player_count_widgets_restore_retail_detail_and_ca
 	assert "CG_BuildIntroPanelDetailString( detailBuffer, sizeof( detailBuffer ) );" in match_details_block
 	assert 'Com_sprintf( buffer, sizeof( buffer ), "%s - %s - %s",' in match_details_block
 	assert "CG_GameTypeShortString(), detailBuffer );" in match_details_block
-	assert "CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );" in match_details_block
+	assert "CG_Text_PaintExt( rect->x, rect->y, scale, color, buffer, 0, 0, ITEM_TEXTSTYLE_NORMAL, FONT_DEFAULT );" in match_details_block
+	assert "CG_Text_Paint( rect->x, rect->y, scale, color, buffer, 0, 0, textStyle );" not in match_details_block
 	assert "CG_GetMapDisplayName( mapName, sizeof( mapName ) );" not in match_details_block
 	assert "CG_GameTypeShortString(), mapName );" not in match_details_block
 	assert "CG_GetTextPosition" not in match_details_block
@@ -3329,7 +3465,7 @@ def test_cgame_hud_ownerdraw_reconstruction_keeps_retail_medal_spectator_advert_
 	client_source = CL_CGAME.read_text(encoding="utf-8")
 	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
 	build_spectator_block = _block_from_marker(main_source, "void CG_BuildSpectatorString()")
-	speedometer_core_block = _block_from_marker(newdraw_source, "static void CG_DrawSpeedometer(rectDef_t")
+	speedometer_core_block = _block_from_marker(newdraw_source, "static void CG_DrawSpeedometer( rectDef_t")
 	speedometer_block = _block_from_marker(newdraw_source, "static void CG_DrawSpeedometerOwnerDraw")
 	spectator_block = _block_from_marker(newdraw_source, "void CG_DrawTeamSpectators")
 	advert_block = _block_from_marker(newdraw_source, "static void CG_DrawAdvert")
@@ -3350,27 +3486,33 @@ def test_cgame_hud_ownerdraw_reconstruction_keeps_retail_medal_spectator_advert_
 	client_block = _block_from_marker(client_source, "static void QDECL QL_CG_trap_UpdateAdvert")
 
 	for expected in (
-		"cg.spectatorOffset = 0;",
 		"cg.spectatorPaintX = 0;",
 		"cg.spectatorPaintX2 = 0;",
 		"cg.spectatorPaintLen = 0;",
-		"cg.spectatorTime = 0;",
+		"oldEntryCount != newEntryCount && cg.spectatorOffset > newEntryCount",
 	):
 		assert expected in build_spectator_block
 
 	assert "if ( !rect || !CG_ShouldDrawSpeedometer() ) {" in speedometer_core_block
+	assert "speed = CG_GetSpeedometerSpeed();" in speedometer_core_block
+	assert 'Com_sprintf( buffer, sizeof( buffer ), "%i", (int)speed );' in speedometer_core_block
+	assert "speed + 0.5f" not in speedometer_core_block
 	assert "CG_DrawSpeedometer( rect, scale, color, textStyle );" in speedometer_block
 
 	for expected in (
-		"cg.spectatorOffset < 0 || cg.spectatorOffset >= cg.spectatorEntryCount",
+		"cg.spectatorOffset < 0",
 		"entry = cg.spectatorEntries[i];",
-		"pendingWidth += 10;",
+		"pendingWidth = paintLen + width;",
+		"paintLen = pendingWidth + 10;",
+		"x = (float)(int)rect->x;",
 		"CG_Text_Paint( x, y, scale, color, entry, 0, 0, 0 );",
-		"cg.spectatorTime = cg.time + 4000;",
+		"if ( cg.time > cg.spectatorTime ) {",
 		"cg.spectatorOffset = startIndex + displayedCount;",
 	):
 		assert expected in spectator_block
 	assert "CG_UpdateSpectatorTargets();" not in spectator_block
+	assert "cg.spectatorTime <= 0" not in spectator_block
+	assert "cg.spectatorEntryCount > displayedCount" not in spectator_block
 
 	start = ownerdraw_block.index("case CG_KILLER:")
 	end = ownerdraw_block.index("break;", start)
@@ -3382,7 +3524,7 @@ def test_cgame_hud_ownerdraw_reconstruction_keeps_retail_medal_spectator_advert_
 	end = ownerdraw_block.index("break;", start)
 	spectators_case_block = ownerdraw_block[start:end]
 	assert "if ( cg.spectatorEntryCount > 0 ) {" in spectators_case_block
-	assert "CG_DrawTeamSpectators(&rect, scale, color, shader);" in spectators_case_block
+	assert "CG_DrawTeamSpectators( &rect, scale, color, shader );" in spectators_case_block
 
 	for expected in (
 		"trap_R_SetColor( color );",
@@ -3437,7 +3579,7 @@ def test_cgame_hud_ownerdraw_reconstruction_keeps_retail_medal_spectator_advert_
 	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in team_pickup_block
 
 	assert "case CG_SPECTATORS:" in newdraw_source
-	assert "CG_DrawTeamSpectators(&rect, scale, color, shader);" in newdraw_source
+	assert "CG_DrawTeamSpectators( &rect, scale, color, shader );" in newdraw_source
 	assert "case UI_ADVERT:" in newdraw_source
 	assert "CG_DrawAdvert( &rect, color, shader );" in newdraw_source
 	assert "case CG_SPEEDOMETER:" in newdraw_source
@@ -3549,10 +3691,44 @@ def test_cgame_spectator_cache_restores_retail_queue_metadata_and_cached_strip()
 	local_source = CG_LOCAL.read_text(encoding="utf-8")
 	main_source = CG_MAIN.read_text(encoding="utf-8")
 	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	spectator_menu_hits = [
+		path
+		for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+		if "ownerdraw CG_SPECTATORS" in path.read_text(encoding="utf-8")
+	]
 	parse_block = _block_from_marker(players_source, "void CG_NewClientInfo( int clientNum )")
+	clean_block = _block_from_marker(main_source, "static void CG_CleanSpectatorName")
 	compare_block = _block_from_marker(main_source, "static int QDECL CG_CompareSpectatorClients")
 	build_block = _block_from_marker(main_source, "void CG_BuildSpectatorString()")
 	draw_block = _block_from_marker(newdraw_source, "void CG_DrawTeamSpectators")
+	ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw(")
+	retail_compare_block = _text_between(
+		hlil_source,
+		"10024f90    int32_t sub_10024f90",
+		"10024ff0    void* sub_10024ff0()",
+	)
+	retail_build_block = _text_between(
+		hlil_source,
+		"10024ff0    void* sub_10024ff0()",
+		"10025260    void* sub_10025260()",
+	)
+	retail_draw_block = _text_between(
+		hlil_source,
+		"100351a0    void sub_100351a0",
+		"10035340    int32_t __convention",
+	)
+	start = ownerdraw_block.index("case CG_SPECTATORS:")
+	end = ownerdraw_block.index("break;", start)
+	spectators_case_block = ownerdraw_block[start:end]
+
+	assert constants["CG_SPECTATORS"] == 0x51
+	assert _retail_cg_ownerdraw_cases_for_target("FUN_100351a0") == {0x51}
+	assert len(spectator_menu_hits) >= 20
+	assert "ownerdraw CG_SPECTATORS" in (
+		REPO_ROOT / "src" / "ui" / "ingame_scoreboard_duel.menu"
+	).read_text(encoding="utf-8")
 
 	for expected in (
 		"qboolean\t\tspectateOnly;",
@@ -3571,31 +3747,86 @@ def test_cgame_spectator_cache_restores_retail_queue_metadata_and_cached_strip()
 		assert expected in parse_block
 
 	for expected in (
+		"src[0] == Q_COLOR_ESCAPE && src[1] >= '0' && src[1] <= '7'",
+		"c >= 0x20",
+	):
+		assert expected in clean_block
+	assert "Q_IsColorString" not in clean_block
+
+	for expected in (
 		"clientA->spectateOnly > clientB->spectateOnly",
 		"clientA->spectatorQueuePosition > clientB->spectatorQueuePosition",
-		"return clientNumA - clientNumB;",
+		"return 0;",
 	):
 		assert expected in compare_block
+	assert "return clientNumA - clientNumB;" not in compare_block
 
 	for expected in (
 		"qsort( spectatorClients, newEntryCount, sizeof( spectatorClients[0] ), CG_CompareSpectatorClients );",
-		"Q_CleanStr( cleanName );",
-		'Com_sprintf( entry, sizeof( entry ), "^7(^5s^7) %s", cleanName );',
-		'Com_sprintf( entry, sizeof( entry ), "(%d) %s", ci->spectatorQueuePosition, cleanName );',
+		"CG_CleanSpectatorName( cleanName );",
+		'Q_strncpyz( prefix, "^7(^5s^7)", sizeof( prefix ) );',
+		"queueDisplayPosition != ci->spectatorQueuePosition - 1",
+		"queuePosition = queueDisplayPosition + 1;",
+		'Com_sprintf( prefix, sizeof( prefix ), "(%d)", queuePosition );',
+		"queueDisplayPosition++;",
+		'Com_sprintf( entry, sizeof( entry ), "%s%s", prefix, cleanName );',
 		"memcpy( cg.spectatorEntries, newSpectatorEntries, sizeof( cg.spectatorEntries ) );",
 		"cg.spectatorEntryCount = newEntryCount;",
+		"oldEntryCount != newEntryCount && cg.spectatorOffset > newEntryCount",
 	):
 		assert expected in build_block
+	assert "if ( newEntryCount > 1 )" not in build_block
+	assert "Q_CleanStr( cleanName );" not in build_block
+	assert "UnnamedPlayer" not in build_block
+	assert '^7(^5s^7) %s' not in build_block
+	assert '(%d) %s' not in build_block
+	assert "cg.spectatorTime = 0;" not in build_block
 
 	for expected in (
 		"cg.spectatorEntryCount <= 0",
 		"entry = cg.spectatorEntries[i];",
 		"entry = cg.spectatorEntries[startIndex + i];",
-		"cg.spectatorEntryCount > displayedCount",
+		"pendingWidth = paintLen + width;",
+		"paintLen = pendingWidth + 10;",
+		"x = (float)(int)rect->x;",
+		"if ( cg.time > cg.spectatorTime ) {",
 	):
 		assert expected in draw_block
+	assert "if ( !entry[0] )" not in draw_block
+	assert "cg.spectatorTime <= 0" not in draw_block
+	assert "cg.spectatorEntryCount > displayedCount" not in draw_block
 
 	assert "CG_UpdateSpectatorTargets();" not in draw_block
+
+	for expected in (
+		"if (edx s<= esi)",
+		"return edx_1 - 1",
+	):
+		assert expected in retail_compare_block
+
+	for expected in (
+		"qsort(&var_104, esi, 4, sub_10024f90)",
+		'if (edi != eax_5 - 1)',
+		"int32_t var_128_2 = edi + 1",
+		'ebp_1 = "^7(^5s^7)"',
+		'ebp_1 = sub_100575e0("(%d)")',
+		'int32_t eax_8 = sub_100575e0("%s%s")',
+		"data_10ab69b4 = ebp",
+		"if (data_10ab69bc s> ebp)",
+	):
+		assert expected in retail_build_block
+
+	for expected in (
+		"int32_t i_4 = data_10ab69bc",
+		"int32_t ebp_4 = int.d(fconvert.t(*arg1))",
+		"sub_10008440(float.s(ebp_4)",
+		"if (ecx_9 s> data_10ab69b8)",
+		"data_10ab69bc = eax_5",
+	):
+		assert expected in retail_draw_block
+
+	assert "if ( cg.spectatorEntryCount > 0 ) {" in spectators_case_block
+	assert "CG_DrawTeamSpectators( &rect, scale, color, shader );" in spectators_case_block
 
 
 def test_cgame_team_scoreboard_and_award_ownerdraws_follow_retail_helper_split() -> None:
@@ -4434,11 +4665,11 @@ def test_cgame_disable_loadout_cvars_match_retail_table_and_configstring_wiring(
 		assert expected in parse_mask_block
 	for expected in (
 		"flags = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_FLAGS ) );",
-		"mapMask = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_MASK ) );",
+		"startingMask = CG_ParseUnsignedConfigMask( CG_ConfigString( CS_LOADOUT_MASK ) );",
 		"for ( entry = cg_retailDisableLoadoutTokens; entry->token; ++entry ) {",
 		"shiftedMask = entry->mask << 1;",
 		"disabled = (qboolean)( !cg_loadout.integer || ( flags & entry->mask ) ||",
-		"( flags & shiftedMask ) || ( mapMask & entry->mask ) );",
+		"( flags & shiftedMask ) || ( startingMask & entry->mask ) );",
 		'Com_sprintf( cvarName, sizeof( cvarName ), "cg_disableLoadout_%s", entry->token );',
 		"trap_Cvar_VariableStringBuffer( cvarName, currentValue, sizeof( currentValue ) );",
 		"trap_Cvar_Set( cvarName, resolvedValue );",
@@ -4502,8 +4733,11 @@ def test_cgame_sprite_crosshair_and_footstep_cvars_match_retail_table_and_wiring
 	assert '{"cg_footsteps"}' in retail_footsteps_table
 	assert "00 02 00 00" in retail_footsteps_table
 
-	assert "if (!cg_drawSpecMessages.integer) {" in spectator_messages_block
-	assert spectator_messages_block.count("if (!cg_drawSpecMessages.integer) {") == 2
+	assert "if ( !rect || !cg.snap || !cg_drawSpecMessages.integer ) {" in spectator_messages_block
+	assert spectator_messages_block.count("cg_drawSpecMessages.integer") == 1
+	assert "cg.scoreBoardShowing" in spectator_messages_block
+	assert 'CG_FindBrowserOverlayByName( "comp_specfollowhud_menu" )' in spectator_messages_block
+	assert "CG_DrawPregameCoach" not in spectator_messages_block
 	assert "return ( qboolean )( cg_drawSpriteSelf.integer != 0 );" in sprite_self_block
 	assert "if ( !rect || !cg.snap || !cg_drawSprites.integer ) {" in area_powerup_block
 	assert "if ( !CG_ShouldDrawSpriteSelf() && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.snap->ps.clientNum == cg.clientNum ) {" in area_powerup_block
@@ -5300,7 +5534,8 @@ def test_cgame_chat_automation_input_cvars_match_retail_wiring() -> None:
 	assert "historyLength = cg_chatHistoryLength.integer;" in chat_history_block
 	assert "historyLength = cg_teamChatHeight.integer;" in chat_history_block
 	assert "if ( historyLength > TEAMCHAT_HEIGHT ) {" in chat_history_block
-	assert "chatHeight = CG_GetChatHistoryLength();" in push_print_block
+	assert "maxLength = cg.intermissionStarted ? 73 : (int)sizeof( cgs.teamChatActiveMsg );" in push_print_block
+	assert "cgs.teamChatActiveExpireTime = cg.time + holdTime + 2000;" in push_print_block
 	assert "if ( cg_chatbeep.integer && cgs.media.talkSound ) {" in parse_chat_block
 	assert "trap_S_StartLocalSound( cgs.media.talkSound, CHAN_LOCAL_SOUND );" in parse_chat_block
 	assert "cg_complaintWarning.integer && cg.complaintClient >= 0" in vote_block
@@ -8338,10 +8573,13 @@ def test_cgame_team_chat_cvars_keep_retail_runtime_wiring() -> None:
 	assert "if ( mode == SAY_TEAM || !cg_teamChatsOnly.integer ) {" in voice_chat_local_block
 	assert "if ( cg_teamChatsOnly.integer ) {" in parse_chat_block
 	assert "return;" in parse_chat_block
-	assert "if ( chatHeight <= 0 || cg_teamChatTime.integer <= 0 ) {" in push_print_block
-	assert "if ( !rect || cg_teamChatTime.integer <= 0 ) {" in new_chat_block
-	assert "if (elapsed >= cg_teamChatTime.integer || !cgs.teamChatMsgs[index][0]) {" in new_chat_block
-	assert "lineColor[3] *= 1.0f - (float)elapsed / (float)cg_teamChatTime.integer;" in new_chat_block
+	assert "CG_ArchiveNewChatLine();" in push_print_block
+	assert "cgs.teamChatActiveExpireTime = cg.time + holdTime + 2000;" in push_print_block
+	assert "if ( !( cg.chatHistoryVisible || cg.scoreBoardShowing ) ) {" in new_chat_block
+	assert "y -= 13.0f;" in new_chat_block
+	assert "cg_teamChatTime.integer" not in push_print_block
+	assert "cg_teamChatTime.integer" not in new_chat_block
+	assert "lineColor[3]" not in new_chat_block
 
 
 def test_cgame_spectator_stats_switch_and_teamchat_cvars_match_retail_table_and_wiring() -> None:
@@ -8403,9 +8641,11 @@ def test_cgame_spectator_stats_switch_and_teamchat_cvars_match_retail_table_and_
 	assert "if ( cg_teamChatsOnly.integer ) {" in parse_chat_block
 	assert "historyLength = cg_teamChatHeight.integer;" in chat_history_block
 	assert "if ( historyLength > TEAMCHAT_HEIGHT ) {" in chat_history_block
-	assert "if ( chatHeight <= 0 || cg_teamChatTime.integer <= 0 ) {" in push_print_block
-	assert "if ( !rect || cg_teamChatTime.integer <= 0 ) {" in new_chat_block
-	assert "lineColor[3] *= 1.0f - (float)elapsed / (float)cg_teamChatTime.integer;" in new_chat_block
+	assert "maxLength = cg.intermissionStarted ? 73 : (int)sizeof( cgs.teamChatActiveMsg );" in push_print_block
+	assert "if ( !( cg.chatHistoryVisible || cg.scoreBoardShowing ) ) {" in new_chat_block
+	assert "cg_teamChatTime.integer" not in push_print_block
+	assert "cg_teamChatTime.integer" not in new_chat_block
+	assert "lineColor[3]" not in new_chat_block
 
 
 def test_cgame_event_reconstruction_keeps_retail_overtime_gameover_and_race_handlers() -> None:
@@ -8695,12 +8935,18 @@ def test_cgame_server_settings_panel_reconstruction_uses_retail_custom_setting_c
 	servercmds_source = ( REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c" ).read_text(encoding="utf-8")
 	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
 	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
 	parse_custom_block = _block_from_marker(servercmds_source, "static void CG_ParseCustomSettingsConfigString")
 	parse_serverinfo_block = _block_from_marker(servercmds_source, "void CG_ParseServerinfo")
 	parse_armor_block = _block_from_marker(servercmds_source, "static void CG_ParseArmorTieredConfigString")
 	parse_info_block = _block_from_marker(servercmds_source, "static void CG_ParseServerSettingsInfoConfigStrings")
 	draw_block = _block_from_marker(newdraw_source, "static void CG_DrawServerSettings")
 	set_config_values_block = _block_from_marker(servercmds_source, "void CG_SetConfigValues")
+	retail_draw_block = _text_between(
+		hlil_source,
+		'1003a1c0    int32_t __convention("regparm") sub_1003a1c0',
+		"1003b0f0",
+	)
 
 	for expected in (
 		"unsigned long long\tcustomSettingsMask;",
@@ -8765,10 +9011,48 @@ def test_cgame_server_settings_panel_reconstruction_uses_retail_custom_setting_c
 		"cgs.serverSettingsQuadFactor != 3",
 		"cgs.serverSettingsGravity != 800",
 		"cgs.serverSettingsArmorTiered",
-		"if ( activeCount < 15 ) {",
-		"CG_DrawPic( iconX, iconY, iconSize, iconSize, icon );",
+		"x = rect->x;",
+		"y = rect->y;",
+		"y += CG_SERVER_SETTINGS_LINE_HEIGHT;",
+		"if ( activeCount < CG_SERVER_SETTINGS_MAX_TEXT_ROWS_WITH_ICONS ) {",
+		"icon = trap_R_RegisterShaderNoMip( cgServerSettingsWeaponIcons[i].iconName );",
+		"CG_DrawPic( CG_SERVER_SETTINGS_ICON_X + iconXOffset, y, CG_SERVER_SETTINGS_ICON_SIZE, CG_SERVER_SETTINGS_ICON_SIZE, icon );",
 	):
 		assert expected in draw_block
+
+	assert "CG_GetTextPosition( rect, text_x, text_y" not in draw_block
+	assert "CG_GetStartingWeaponIconHandle( weapon )" not in draw_block
+	for expected in (
+		"#define CG_SERVER_SETTINGS_LINE_HEIGHT 12.0f",
+		"#define CG_SERVER_SETTINGS_ICON_X 445.0f",
+		"#define CG_SERVER_SETTINGS_MODIFIED_ICON_X 457.0f",
+		"#define CG_SERVER_SETTINGS_ICON_SIZE 16.0f",
+		"#define CG_SERVER_SETTINGS_MODIFIED_ICON_SIZE 8.0f",
+		"#define CG_SERVER_SETTINGS_ICON_SPACING 24.0f",
+		"#define CG_SERVER_SETTINGS_MODIFIED_ICON_Y_OFFSET 8.0f",
+		"#define CG_SERVER_SETTINGS_ICON_WRAP 8",
+	):
+		assert expected in newdraw_source
+	for expected in (
+		'{ CUSTOM_SETTING_GAUNTLET, "icons/iconw_gauntlet.tga" }',
+		'{ CUSTOM_SETTING_PLASMAGUN, "icons/iconw_plasma.tga" }',
+		'{ CUSTOM_SETTING_GRAPPLING_HOOK, "icons/iconw_grapple.tga" }',
+		'{ CUSTOM_SETTING_PROX_LAUNCHER, "icons/iconw_proxlauncher.tga" }',
+		'{ CUSTOM_SETTING_CHAINGUN, "icons/iconw_chaingun.tga" }',
+	):
+		assert expected in newdraw_source
+	for expected in (
+		"var_c = fconvert.s(fconvert.t(var_c) + fconvert.t(12.0))",
+		"fconvert.t(445.0)",
+		"fconvert.t(457.0)",
+		"long double x87_r7_97 = fconvert.t(16f)",
+		"long double x87_r7_102 = fconvert.t(8f)",
+		"fconvert.t(var_8_1) + fconvert.t(24.0)",
+		"if (esi_1 s>= 8)",
+		'"icons/iconw_grapple.tga"',
+		'"icons/iconw_proxlauncher.tga"',
+	):
+		assert expected in retail_draw_block
 
 
 def test_cgame_armor_tiered_configstring_retains_direct_retail_parser_boundary() -> None:
@@ -9925,12 +10209,14 @@ def test_cgame_secondary_ownerdrawflags2_are_defined_and_wired() -> None:
 	ui_shared_source = UI_SHARED.read_text(encoding="utf-8")
 	ui_shared_header = UI_SHARED_H.read_text(encoding="utf-8")
 	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
 	secondary_block = _block_from_marker(newdraw_source, "static qboolean CG_OwnerDrawSecondaryFlagVisible")
 	slot_match_block = _block_from_marker(newdraw_source, "static qboolean CG_PlacementSlotContainsPredictedPlayer")
 	slot_follow_block = _block_from_marker(newdraw_source, "static qboolean CG_PlacementSlotCanBeFollowed")
 	weapon_fired_block = _block_from_marker(newdraw_source, "static qboolean CG_PlacementWeaponFired")
 	loadout_block = _block_from_marker(newdraw_source, "static qboolean CG_LoadoutsEnabled")
 	visible_block = _block_from_marker(newdraw_source, "qboolean CG_OwnerDrawVisible")
+	retail_visible_block = _block_from_marker(ghidra_source, "uint FUN_10031790")
 	flags2 = {
 		"CG_SHOW_IF_PLYR1": "0x00000001",
 		"CG_SHOW_IF_PLYR2": "0x00000002",
@@ -9990,6 +10276,13 @@ def test_cgame_secondary_ownerdrawflags2_are_defined_and_wired() -> None:
 		assert expected in slot_follow_block
 
 	assert "return ( cg_loadout.integer != 0 ) ? qtrue : qfalse;" in loadout_block
+	for expected in (
+		"(((param_2 & 0x80000) == 0 || (DAT_10a249cc == 0))))",
+		"((param_2 & 0x100000) == 0 || (DAT_10a249cc != 0))",
+	):
+		assert expected in retail_visible_block
+	assert retail_visible_block.index("(param_2 & 0x80000)") < retail_visible_block.index("(param_2 & 0x100000)")
+	assert secondary_block.index("flags2 & CG_SHOW_IF_LOADOUT_ENABLED") < secondary_block.index("flags2 & CG_SHOW_IF_LOADOUT_DISABLED")
 
 	for expected in (
 		"for ( i = 0; i < cg.numScores && i < 2; i++ ) {",
@@ -10045,6 +10338,7 @@ def test_cgame_secondary_ownerdrawflags2_are_defined_and_wired() -> None:
 
 def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None:
 	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
 	race_block = _block_from_marker(source, "static void CG_DrawRaceStatusAndTimes")
 	round_timer_block = _block_from_marker(source, "static void CG_DrawRoundTimer")
 	other_flag_block = _block_from_marker(source, "qboolean CG_OtherTeamHasFlag")
@@ -10062,6 +10356,11 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 			_block_from_marker(source, "qboolean CG_OwnerDrawVisible"),
 		)
 	)
+	retail_round_timer_block = _text_between(
+		hlil_source,
+		'10033b10    uint32_t __convention("regparm") sub_10033b10',
+		"10033bf0",
+	)
 
 	for expected in (
 		"if ( ownerDraw == CG_RACE_STATUS ) {",
@@ -10073,19 +10372,35 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 		assert expected in race_block
 
 	for expected in (
-		"if ( cgs.matchRoundState != ROUNDSTATE_ACTIVE ) {",
+		"int32_t edx = data_10a403dc",
+		"uint32_t result = data_10a3ff14 - 4",
+		"ecx_2 - 1 u<= 0x752e",
+		"data_10ab8f4c == 0",
+		"int32_t var_c_1 = ecx_2 s/ 0x3e8",
+		"void* const var_10_1 = &data_100669ec",
+		'eax_5, edx_4 = sub_100575e0("%s%d")',
+	):
+		assert expected in retail_round_timer_block
+
+	for expected in (
+		"if ( !CG_ShowPlayersRemaining() ) {",
 		"if ( cgs.matchTimeoutActive ) {",
 		"roundStartTime = CG_GetMatchRoundStartTime();",
 		"roundTimeLimitSeconds = CG_GetRoundTimeLimitSeconds();",
 		"remainingMilliseconds = roundTimeLimitSeconds * 1000 - cg.time + roundStartTime;",
 		"if ( remainingMilliseconds <= 0 || remainingMilliseconds > 29999 ) {",
-		"seconds = ( remainingMilliseconds + 500 ) / 1000;",
-		'Q_strncpyz( buffer, CG_FormatMinutesSeconds( seconds ), sizeof( buffer ) );',
+		"seconds = remainingMilliseconds / 1000;",
+		'Com_sprintf( buffer, sizeof( buffer ), "%s%d", S_COLOR_RED, seconds );',
+		"x = CG_AlignTextInRectX( rect, scale, buffer, align );",
+		"CG_Text_Paint( x, rect->y, scale, color, buffer, 0, 0, textStyle );",
 	):
 		assert expected in round_timer_block
 
 	assert "CG_DrawLevelTimer(" not in round_timer_block
 	assert "CG_GetScoreboardTimerSeconds();" not in round_timer_block
+	assert "cgs.matchRoundState" not in round_timer_block
+	assert "CG_FormatMinutesSeconds" not in round_timer_block
+	assert "remainingMilliseconds + 500" not in round_timer_block
 
 	for expected in (
 		"cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_ATTACK_DEFEND",
@@ -10166,6 +10481,7 @@ def test_cgame_round_race_and_flag_ownerdraws_follow_retail_leaf_split() -> None
 		"if ( ( flags2 & CG_SHOW_IF_PLYR1 ) && CG_PlacementSlotContainsPredictedPlayer( 0 ) ) {",
 		"if ( ( flags2 & CG_SHOW_IF_PLYR2 ) && CG_PlacementSlotContainsPredictedPlayer( 1 ) ) {",
 		"if ( ( flags2 & CG_SHOW_IF_LOADOUT_ENABLED ) && loadoutsEnabled ) {",
+		"if ( ( flags2 & CG_SHOW_IF_LOADOUT_DISABLED ) && !loadoutsEnabled ) {",
 		"if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED_OR_SPEC ) && ( playerTeam == TEAM_RED || pmType == PM_SPECTATOR ) ) {",
 		"if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_BLUE_OR_SPEC ) && ( playerTeam == TEAM_BLUE || pmType == PM_SPECTATOR ) ) {",
 		"if ( ( flags2 & CG_SHOW_IF_PLYR_IS_ON_RED_NO_SPEC ) && playerTeam == TEAM_RED && pmType != PM_SPECTATOR ) {",

@@ -362,7 +362,7 @@ char *	va( const char *format, ... );
 #define QLR_UI_ADDR_UI_DRAWVOTESTRING                            0x10006F30u
 /* UI_DrawServerSettings: Renders the in-game server settings panel, including gametype limits, gameplay modifiers, and the modified-weapons icon list. */
 #define QLR_UI_ADDR_UI_DRAWSERVERSETTINGS                        0x10007030u
-/* UI_DrawStartingWeapons: Paints the starting-weapon icon row and the queued-primary label using the retail loadout mask and modified-weapon indicators. */
+/* UI_DrawStartingWeapons: Paints the CS_LOADOUT_MASK starting-weapon icon row and the queued-primary label when cg_loadout is exactly 1. */
 #define QLR_UI_ADDR_UI_DRAWSTARTINGWEAPONS                       0x10008730u
 /* UI_BuildPlayerList: Builds the player and team name caches from player configstrings and refreshes the selected-player cvars. */
 #define QLR_UI_ADDR_UI_BUILDPLAYERLIST                           0x10008B60u

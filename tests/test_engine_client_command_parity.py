@@ -706,9 +706,10 @@ def test_client_command_registration_matches_retail_cinematic_network_and_browse
 	assert 'Cmd_AddCommand ("web_showError", CL_Web_ShowError_f );' in register_block
 	assert 'Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );' in register_block
 	assert 'Cmd_AddCommand ("web_reload", CL_Web_Reload_f );' in register_block
-	assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
-	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
-	assert 'Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in register_block
+	assert 'cl_webZoom = Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
+	assert 'cl_webConsole = Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
+	assert 'cl_webBrowserActive = Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in register_block
+	assert "cl_webHost.cvarMappingCount = QLWebHost_CountRecoveredWebCvarMappings();" in register_block
 	assert aliases["sub_4F3CD0"] == "QLWebHost_RegisterCommands"
 
 	assert 'Cmd_RemoveCommand ("cinematic");' in shutdown_block
@@ -838,7 +839,7 @@ def test_client_command_handlers_match_retail_cinematic_network_and_browser_cont
 	assert 'Cvar_Set( "web_browserActive", "0" );' in hide_browser_block
 	assert "VM_Call( cgvm, CG_EVENT_HANDLING, CGAME_EVENT_CLOSECOMMANDOVERLAY );" in hide_browser_block
 
-	assert 'const char *message = ( Cmd_Argc() > 1 ) ? Cmd_Argv( 1 ) : "";' in show_error_block
+	assert 'const char *message = ( Cmd_Argc() > 1 ) ? Cmd_ArgsFrom( 1 ) : "";' in show_error_block
 	assert 'Cvar_Set( "com_errorMessage", message );' in show_error_block
 	assert "CL_WebView_PublishGameError( message );" in show_error_block
 	assert "QLWebHost_NavigateOrOpen( cl_webBrowserHash );" not in show_error_block

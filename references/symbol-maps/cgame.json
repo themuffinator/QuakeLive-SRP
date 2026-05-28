@@ -2694,10 +2694,10 @@
       "raw_name": "FUN_10018f60",
       "normalized_name": "CG_RecordObituaryFeedEntry",
       "status": "matched",
-      "signature": "static void CG_RecordObituaryFeedEntry(const char *targetName, int targetColorIndex, const char *attackerName, int attackerColorIndex, qboolean hasAttacker, qhandle_t icon, int attacker, int target, int mod)",
+      "signature": "static void CG_RecordObituaryFeedEntry(const char *targetName, int targetColorIndex, const char *attackerName, int attackerColorIndex, qboolean hasAttacker, qhandle_t icon)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail obituary-feed recorder that sits directly beneath `CG_Obituary`. HLIL preserves the same 16-slot `cg.obituaries` cache, row-cap trim/left-shift behavior, `cg.time` stamp, target/attacker name copies, icon/mod metadata, and the team-game color-code scrub path, with the small `CG_ClearObituaryEntry`, `CG_ShiftObituaryFeedLeft`, `CG_CompactObituaryFeed`, and `CG_SanitizeObituaryText` helpers folded inline."
+      "comment": "Retail obituary-feed recorder that sits directly beneath `CG_Obituary`. HLIL preserves the same 16-slot 0x68-byte `cg.obituaries` cache, row-cap trim/left-shift behavior, `cg.time` stamp, target/attacker name copies, palette ids, has-attacker flag, icon handle, and the team-game color-code scrub path, with the small `CG_ClearObituaryEntry`, `CG_ShiftObituaryFeedLeft`, `CG_CompactObituaryFeed`, and `CG_SanitizeObituaryText` helpers folded inline."
     },
     {
       "address": "0x10019130",
@@ -3987,7 +3987,7 @@
       "signature": "static void CG_DrawPlayerObituary(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail `CG_PLAYER_OBIT` ownerdraw. HLIL compacts and ages the cached obituary-feed rows, then paints the target/icon/attacker columns with the compact retail palette; broader than the current narrow source wrapper, but the owning slot is unambiguous."
+      "comment": "Retail `CG_PLAYER_OBIT` ownerdraw. HLIL compacts and ages the cached obituary-feed rows for the 2000 ms lifetime, then paints attacker, icon, and target columns with the compact retail palette and the orange unknown-color fallback."
     },
     {
       "address": "0x1002F1F0",
@@ -4081,10 +4081,10 @@
       "raw_name": "FUN_10033b10",
       "normalized_name": "CG_DrawRoundTimer",
       "status": "matched",
-      "signature": "static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle)",
+      "signature": "static void CG_DrawRoundTimer(rectDef_t *rect, float scale, vec4_t color, int textStyle, int align)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail `CG_ROUNDTIMER` ownerdraw reached from raw case `0x0E`. HLIL shows a dedicated round-mode lookup plus centered countdown formatting rather than a direct alias to `CG_DrawLevelTimer`; the current source now owns that leaf explicitly, while the exact retail last-30-second countdown still depends on a not-yet-reconstructed round-start anchor."
+      "comment": "Retail `CG_ROUNDTIMER` ownerdraw reached from raw case `0x0E`. HLIL shows the round-family gametype lookup, hidden active-round start timestamp, 1..29999 ms countdown window, timeout suppression, `^1` red `\"%s%d\"` seconds text with integer truncation, ownerdraw alignment, and rect-y paint baseline rather than a direct alias to `CG_DrawLevelTimer`."
     },
     {
       "address": "0x10030D20",
@@ -4352,7 +4352,7 @@
         "0x10070810"
       ],
       "relocation_refs": [],
-      "comment": "Retail round-label ownerdraw that reads the cached round number at `data_10AB8F58`, emits `Round %d` only when it is positive, otherwise emits `Warmup`, then measures the `%s` text for center/right alignment before painting; the ownerdraw dispatcher reaches it only after admitting the round-family gametypes, so source now keeps timeout, overtime, intermission, in-progress, and non-round-mode text out of this dedicated label slot."
+      "comment": "Retail round-label ownerdraw that reads the cached round number at `data_10AB8F58`, emits `Round %d` only when it is positive, otherwise emits `Warmup`, then measures the `%s` text for center/right alignment before painting on the rect-y baseline; the ownerdraw dispatcher reaches it only after admitting the round-family gametypes, so source now keeps timeout, overtime, intermission, in-progress, and non-round-mode text out of this dedicated label slot."
     },
     {
       "address": "0x100337A0",
@@ -4387,7 +4387,7 @@
       "signature": "static void CG_DrawStartingWeapons(rectDef_t *rect, float text_x, float text_y, float scale, vec4_t color, int textStyle)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Retail `CG_STARTING_WEAPONS` ownerdraw that walks the starting-weapon mask and renders the configured loadout through the intro-panel draw path; source now mirrors the icon-strip path with `CS_LOADOUT_MASK` preference and queued-primary preview fallback."
+      "comment": "Retail `CG_STARTING_WEAPONS` ownerdraw that walks the `CS_LOADOUT_MASK` starting-weapon mask directly, renders the icon strip in retail weapon order, and appends the queued-primary preview only when loadouts are enabled."
     },
     {
       "address": "0x10033BF0",

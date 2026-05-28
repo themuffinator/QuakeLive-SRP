@@ -250,15 +250,6 @@ static char uiCachedForceTeamSkin[MAX_QPATH];
 static char uiCachedForceEnemyModel[MAX_QPATH];
 static char uiCachedForceEnemySkin[MAX_QPATH];
 
-static int uiTeamHeadColorModificationCount = -1;
-static int uiTeamUpperColorModificationCount = -1;
-static int uiTeamLowerColorModificationCount = -1;
-static int uiEnemyHeadColorModificationCount = -1;
-static int uiEnemyUpperColorModificationCount = -1;
-static int uiEnemyLowerColorModificationCount = -1;
-static int uiScreenDamageModificationCount = -1;
-static int uiScreenDamageTeamModificationCount = -1;
-
 /*
 =============
 UI_IsUnsetValue
@@ -462,6 +453,32 @@ bright-model state after a visible preset change.
 */
 static void UI_UpdateForceModelSettings(qboolean team) {
 	UI_SyncForceModelCvars( team );
+}
+
+/*
+=============
+UI_UpdateForceTeamModelSettings
+
+Retail cvar-table callback for `ui_forceTeamModel` and `ui_forceTeamSkin`.
+=============
+*/
+static void UI_UpdateForceTeamModelSettings( vmCvar_t *uiCvar ) {
+	(void)uiCvar;
+
+	UI_UpdateForceModelSettings( qtrue );
+}
+
+/*
+=============
+UI_UpdateForceEnemyModelSettings
+
+Retail cvar-table callback for `ui_forceEnemyModel` and `ui_forceEnemySkin`.
+=============
+*/
+static void UI_UpdateForceEnemyModelSettings( vmCvar_t *uiCvar ) {
+	(void)uiCvar;
+
+	UI_UpdateForceModelSettings( qfalse );
 }
 
 /*
@@ -2826,6 +2843,64 @@ static void UI_SyncRetailSliderColorCvar( const vmCvar_t *uiCvar, const char *cg
 
 /*
 =============
+UI_UpdateRetailSliderColorCvar
+
+Retail cvar-table callback that mirrors Quake Live slider-backed color cvars
+into the packed `cg_*Color` cvars consumed by cgame.
+=============
+*/
+static void UI_UpdateRetailSliderColorCvar( vmCvar_t *uiCvar ) {
+	if ( !uiCvar ) {
+		return;
+	}
+
+	if ( uiCvar == &ui_teamColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamUpperColor" );
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamLowerColor" );
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamHeadColor" );
+		return;
+	}
+	if ( uiCvar == &ui_enemyColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyUpperColor" );
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyLowerColor" );
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyHeadColor" );
+		return;
+	}
+	if ( uiCvar == &ui_teamHeadColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamHeadColor" );
+		return;
+	}
+	if ( uiCvar == &ui_teamUpperColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamUpperColor" );
+		return;
+	}
+	if ( uiCvar == &ui_teamLowerColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamLowerColor" );
+		return;
+	}
+	if ( uiCvar == &ui_enemyHeadColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyHeadColor" );
+		return;
+	}
+	if ( uiCvar == &ui_enemyUpperColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyUpperColor" );
+		return;
+	}
+	if ( uiCvar == &ui_enemyLowerColor ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyLowerColor" );
+		return;
+	}
+	if ( uiCvar == &ui_screenDamage ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_screenDamage" );
+		return;
+	}
+	if ( uiCvar == &ui_screenDamage_Team ) {
+		UI_SyncRetailSliderColorCvar( uiCvar, "cg_screenDamage_Team" );
+	}
+}
+
+/*
+=============
 UI_ParsePreviewColorString
 
 Parses either retail packed hex color strings or legacy numeric slider values
@@ -2928,6 +3003,41 @@ static void UI_UpdatePreviewPlayerColors( playerInfo_t *info, const char *headCo
 			info->lowerColorForced = qtrue;
 		}
 	}
+}
+
+/*
+=============
+UI_UpdateAnnouncer
+
+Retail cvar-table callback for `cg_announcer`; plays the selected voice preview
+and mirrors the numeric selection into `ui_announcer` for menu scripts.
+=============
+*/
+static void UI_UpdateAnnouncer( vmCvar_t *uiCvar ) {
+	const char *sample;
+	sfxHandle_t sound;
+
+	if ( !uiCvar ) {
+		return;
+	}
+
+	switch ( uiCvar->integer ) {
+	case 2:
+		sample = "sound/misc/vo_evil.wav";
+		break;
+	case 3:
+		sample = "sound/misc/vo_female.wav";
+		break;
+	default:
+		sample = "sound/misc/vo_default.wav";
+		break;
+	}
+
+	sound = trap_S_RegisterSound( sample, qtrue );
+	if ( sound ) {
+		trap_S_StartLocalSound( sound, CHAN_ANNOUNCER );
+	}
+	trap_Cvar_Set( "ui_announcer", va( "%i", uiCvar->integer ) );
 }
 
 /*
@@ -4159,7 +4269,7 @@ static void UI_DrawStartingWeapons( rectDef_t *rect, float scale, vec4_t color, 
 		xOffset += rect->w * 1.5f;
 	}
 
-	if ( trap_Cvar_VariableValue( "cg_loadout" ) == 0.0f ) {
+	if ( trap_Cvar_VariableValue( "cg_loadout" ) != 1.0f ) {
 		return;
 	}
 
@@ -4701,6 +4811,36 @@ static qboolean UI_OwnerDrawVisibleFlags( int flags ) {
 			}
 			flags &= ~UI_SHOW_NOTFAVORITESERVERS;
 		} 
+		if (flags & UI_SHOW_IF_LOADOUT_ENABLED) {
+			if (trap_Cvar_VariableValue("cg_loadout") != 1.0f) {
+				vis = qfalse;
+			}
+			flags &= ~UI_SHOW_IF_LOADOUT_ENABLED;
+		}
+		if (flags & UI_SHOW_IF_LOADOUT_DISABLED) {
+			if (trap_Cvar_VariableValue("cg_loadout") == 1.0f) {
+				vis = qfalse;
+			}
+			flags &= ~UI_SHOW_IF_LOADOUT_DISABLED;
+		}
+		if (flags & UI_SHOW_IF_NOT_INTERMISSION) {
+			if (trap_Cvar_VariableValue("ui_intermission") == 1.0f) {
+				vis = qfalse;
+			}
+			flags &= ~UI_SHOW_IF_NOT_INTERMISSION;
+		}
+		if (flags & UI_SHOW_IF_WARMUP) {
+			if (trap_Cvar_VariableValue("ui_warmup") >= 0.0f) {
+				vis = qfalse;
+			}
+			flags &= ~UI_SHOW_IF_WARMUP;
+		}
+		if (flags & UI_SHOW_IF_NOT_WARMUP) {
+			if (trap_Cvar_VariableValue("ui_warmup") < 0.0f) {
+				vis = qfalse;
+			}
+			flags &= ~UI_SHOW_IF_NOT_WARMUP;
+		}
 		if (flags & UI_SHOW_ANYTEAMGAME) {
 			if (uiInfo.gameTypes[ui_gameType.integer].gtEnum <= GT_TEAM ) {
 				vis = qfalse;
@@ -9029,12 +9169,21 @@ cvars
 ================
 */
 
+typedef void (*uiCvarUpdate_t)( vmCvar_t *vmCvar );
+
 typedef struct {
 	vmCvar_t	*vmCvar;
-	char		*cvarName;
-	char		*defaultString;
+	const char	*cvarName;
+	const char	*defaultString;
+	uiCvarUpdate_t	update;
 	int			cvarFlags;
 } cvarTable_t;
+
+#define UI_CVAR_TABLE_ENTRY( vmCvar, cvarName, defaultString, cvarFlags ) \
+	{ (vmCvar), (cvarName), (defaultString), NULL, (cvarFlags) }
+
+#define UI_CVAR_TABLE_CALLBACK( vmCvar, cvarName, defaultString, cvarFlags, update ) \
+	{ (vmCvar), (cvarName), (defaultString), (update), (cvarFlags) }
 
 vmCvar_t	ui_ffa_fraglimit;
 vmCvar_t	ui_ffa_timelimit;
@@ -9176,15 +9325,17 @@ vmCvar_t	ui_serverStatusTimeOut;
 vmCvar_t	ui_mapVotingDisabled;
 vmCvar_t	ui_gameTypeVotingDisabled;
 vmCvar_t	ui_bloomPreset;
-	vmCvar_t	ui_forceTeamModel;
-	vmCvar_t	ui_forceTeamModelBright;
-	vmCvar_t	ui_forceEnemyModel;
-	vmCvar_t	ui_forceEnemyModelBright;
-	vmCvar_t	ui_forceEnemySkin;
-	vmCvar_t	ui_forceTeamSkin;
+vmCvar_t	ui_forceTeamModel;
+vmCvar_t	ui_forceTeamModelBright;
+vmCvar_t	ui_forceEnemyModel;
+vmCvar_t	ui_forceEnemyModelBright;
+vmCvar_t	ui_forceEnemySkin;
+vmCvar_t	ui_forceTeamSkin;
+vmCvar_t	ui_enemyColor;
 vmCvar_t	ui_enemyHeadColor;
 vmCvar_t	ui_enemyLowerColor;
 vmCvar_t	ui_enemyUpperColor;
+vmCvar_t	ui_teamColor;
 vmCvar_t	ui_teamHeadColor;
 vmCvar_t	ui_teamLowerColor;
 vmCvar_t	ui_teamUpperColor;
@@ -9219,189 +9370,194 @@ vmCvar_t	ui_cdkeyvalid;
 
 // bk001129 - made static to avoid aliasing
 static cvarTable_t		cvarTable[] = {
-	{ &ui_ffa_fraglimit, "ui_ffa_fraglimit", "20", CVAR_ARCHIVE },
-	{ &ui_ffa_timelimit, "ui_ffa_timelimit", "0", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_ffa_fraglimit, "ui_ffa_fraglimit", "20", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_ffa_timelimit, "ui_ffa_timelimit", "0", CVAR_ARCHIVE ),
 
-	{ &ui_tourney_fraglimit, "ui_tourney_fraglimit", "0", CVAR_ARCHIVE },
-	{ &ui_tourney_timelimit, "ui_tourney_timelimit", "15", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_tourney_fraglimit, "ui_tourney_fraglimit", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_tourney_timelimit, "ui_tourney_timelimit", "15", CVAR_ARCHIVE ),
 
-	{ &ui_team_fraglimit, "ui_team_fraglimit", "0", CVAR_ARCHIVE },
-	{ &ui_team_timelimit, "ui_team_timelimit", "20", CVAR_ARCHIVE },
-	{ &ui_team_friendly, "ui_team_friendly",  "1", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_team_fraglimit, "ui_team_fraglimit", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_team_timelimit, "ui_team_timelimit", "20", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_team_friendly, "ui_team_friendly", "1", CVAR_ARCHIVE ),
 
-	{ &ui_ctf_capturelimit, "ui_ctf_capturelimit", "8", CVAR_ARCHIVE },
-	{ &ui_ctf_timelimit, "ui_ctf_timelimit", "30", CVAR_ARCHIVE },
-	{ &ui_ctf_friendly, "ui_ctf_friendly",  "0", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_ctf_capturelimit, "ui_ctf_capturelimit", "8", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_ctf_timelimit, "ui_ctf_timelimit", "30", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_ctf_friendly, "ui_ctf_friendly", "0", CVAR_ARCHIVE ),
 
-	{ &ui_arenasFile, "g_arenasFile", "", CVAR_INIT|CVAR_ROM },
-	{ &ui_botsFile, "g_botsFile", "", CVAR_INIT|CVAR_ROM },
-	{ &ui_spScores1, "g_spScores1", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spScores2, "g_spScores2", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spScores3, "g_spScores3", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spScores4, "g_spScores4", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spScores5, "g_spScores5", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spAwards, "g_spAwards", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spVideos, "g_spVideos", "", CVAR_ARCHIVE | CVAR_ROM },
-	{ &ui_spSkill, "g_spSkill", "2", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_arenasFile, "g_arenasFile", "", CVAR_INIT|CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_botsFile, "g_botsFile", "", CVAR_INIT|CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spScores1, "g_spScores1", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spScores2, "g_spScores2", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spScores3, "g_spScores3", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spScores4, "g_spScores4", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spScores5, "g_spScores5", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spAwards, "g_spAwards", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spVideos, "g_spVideos", "", CVAR_ARCHIVE | CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_spSkill, "g_spSkill", "2", CVAR_ARCHIVE ),
 
-	{ &ui_spSelection, "ui_spSelection", "", CVAR_ROM },
+	UI_CVAR_TABLE_ENTRY( &ui_spSelection, "ui_spSelection", "", CVAR_ROM ),
 
-	{ &ui_browserMaster, "ui_browserMaster", "0", CVAR_ARCHIVE },
-	{ &ui_browserGameType, "ui_browserGameType", "0", CVAR_ARCHIVE },
-	{ &ui_browserSortKey, "ui_browserSortKey", "4", CVAR_ARCHIVE },
-	{ &ui_browserShowFull, "ui_browserShowFull", "1", CVAR_ARCHIVE },
-	{ &ui_browserShowEmpty, "ui_browserShowEmpty", "1", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_browserMaster, "ui_browserMaster", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_browserGameType, "ui_browserGameType", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_browserSortKey, "ui_browserSortKey", "4", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_browserShowFull, "ui_browserShowFull", "1", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_browserShowEmpty, "ui_browserShowEmpty", "1", CVAR_ARCHIVE ),
 
-	{ &ui_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE },
-	{ &ui_drawCrosshair, "cg_drawCrosshair", "2", CVAR_ARCHIVE },
-	{ &ui_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE },
-	{ &ui_marks, "cg_marks", "1", CVAR_ARCHIVE },
+	UI_CVAR_TABLE_ENTRY( &ui_brassTime, "cg_brassTime", "2500", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_drawCrosshair, "cg_drawCrosshair", "2", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_drawCrosshairNames, "cg_drawCrosshairNames", "1", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_marks, "cg_marks", "1", CVAR_ARCHIVE ),
 
-	{ &ui_server1, "server1", "", CVAR_ARCHIVE },
-	{ &ui_server2, "server2", "", CVAR_ARCHIVE },
-	{ &ui_server3, "server3", "", CVAR_ARCHIVE },
-	{ &ui_server4, "server4", "", CVAR_ARCHIVE },
-	{ &ui_server5, "server5", "", CVAR_ARCHIVE },
-	{ &ui_server6, "server6", "", CVAR_ARCHIVE },
-	{ &ui_server7, "server7", "", CVAR_ARCHIVE },
-	{ &ui_server8, "server8", "", CVAR_ARCHIVE },
-	{ &ui_server9, "server9", "", CVAR_ARCHIVE },
-	{ &ui_server10, "server10", "", CVAR_ARCHIVE },
-	{ &ui_server11, "server11", "", CVAR_ARCHIVE },
-	{ &ui_server12, "server12", "", CVAR_ARCHIVE },
-	{ &ui_server13, "server13", "", CVAR_ARCHIVE },
-	{ &ui_server14, "server14", "", CVAR_ARCHIVE },
-	{ &ui_server15, "server15", "", CVAR_ARCHIVE },
-	{ &ui_server16, "server16", "", CVAR_ARCHIVE },
-	{ &ui_cdkeychecked, "ui_cdkeychecked", "0", CVAR_ROM },
-	{ &ui_new, "ui_new", "0", CVAR_TEMP },
-	{ &ui_debug, "ui_debug", "0", CVAR_TEMP },
-	{ &ui_initialized, "ui_initialized", "0", CVAR_TEMP },
-	{ &ui_teamName, "ui_teamName", "Pagans", CVAR_ARCHIVE },
-	{ &ui_opponentName, "ui_opponentName", "Stroggs", CVAR_ARCHIVE },
-	{ &ui_redteam, "ui_redteam", "Pagans", CVAR_ARCHIVE },
-	{ &ui_blueteam, "ui_blueteam", "Stroggs", CVAR_ARCHIVE },
-	{ &ui_dedicated, "ui_dedicated", "0", CVAR_ARCHIVE },
-	{ &ui_gameType, "ui_gameType", "3", CVAR_ARCHIVE },
-	{ &ui_joinGameType, "ui_joinGameType", "0", CVAR_ARCHIVE },
-	{ &ui_netGameType, "ui_netGameType", "3", CVAR_ARCHIVE },
-	{ &ui_actualNetGameType, "ui_actualNetGameType", "3", CVAR_ARCHIVE },
-	{ &ui_cvGameType, "ui_cvGameType", "-1", CVAR_ARCHIVE },
-	{ &ui_redteam1, "ui_redteam1", "0", CVAR_ARCHIVE },
-	{ &ui_redteam2, "ui_redteam2", "0", CVAR_ARCHIVE },
-	{ &ui_redteam3, "ui_redteam3", "0", CVAR_ARCHIVE },
-	{ &ui_redteam4, "ui_redteam4", "0", CVAR_ARCHIVE },
-	{ &ui_redteam5, "ui_redteam5", "0", CVAR_ARCHIVE },
-	{ &ui_blueteam1, "ui_blueteam1", "0", CVAR_ARCHIVE },
-	{ &ui_blueteam2, "ui_blueteam2", "0", CVAR_ARCHIVE },
-	{ &ui_blueteam3, "ui_blueteam3", "0", CVAR_ARCHIVE },
-	{ &ui_blueteam4, "ui_blueteam4", "0", CVAR_ARCHIVE },
-	{ &ui_blueteam5, "ui_blueteam5", "0", CVAR_ARCHIVE },
-	{ &ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE },
-	{ &ui_menuFiles, "ui_menuFiles", UI_MENU_FILE_QUAKELIVE, CVAR_ARCHIVE },
-	{ &ui_menuFlow, "ui_menuFlow", "1", CVAR_ARCHIVE },
-	{ &ui_globalpreset, "ui_globalpreset", "0", CVAR_ARCHIVE },
-	{ &ui_screenDamage_Team_preset, "ui_screenDamage_Team_preset", "0", CVAR_ARCHIVE },
-	{ &ui_screenDamage_preset, "ui_screenDamage_preset", "0", CVAR_ARCHIVE },
-	{ &ui_browserAwesomium, "ui_browserAwesomium", UI_BROWSER_AWESOMIUM_DEFAULT, CVAR_TEMP },
-	{ &ui_currentTier, "ui_currentTier", "0", CVAR_ARCHIVE },
-	{ &ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE },
-	{ &ui_currentNetMap, "ui_currentNetMap", "0", CVAR_ARCHIVE },
-	{ &ui_mapIndex, "ui_mapIndex", "0", CVAR_ARCHIVE },
-	{ &ui_currentOpponent, "ui_currentOpponent", "0", CVAR_ARCHIVE },
-	{ &ui_selectedPlayer, "cg_selectedPlayer", "0", CVAR_ARCHIVE},
-	{ &ui_selectedPlayerName, "cg_selectedPlayerName", "", CVAR_ARCHIVE},
-	{ &ui_lastServerRefresh_0, "ui_lastServerRefresh_0", "", CVAR_ARCHIVE},
-	{ &ui_lastServerRefresh_1, "ui_lastServerRefresh_1", "", CVAR_ARCHIVE},
-	{ &ui_lastServerRefresh_2, "ui_lastServerRefresh_2", "", CVAR_ARCHIVE},
-	{ &ui_lastServerRefresh_3, "ui_lastServerRefresh_3", "", CVAR_ARCHIVE},
-	{ &ui_singlePlayerActive, "ui_singlePlayerActive", "0", 0},
-	{ &ui_scoreAccuracy, "ui_scoreAccuracy", "0", CVAR_ARCHIVE},
-	{ &ui_scoreImpressives, "ui_scoreImpressives", "0", CVAR_ARCHIVE},
-	{ &ui_scoreExcellents, "ui_scoreExcellents", "0", CVAR_ARCHIVE},
-	{ &ui_scoreCaptures, "ui_scoreCaptures", "0", CVAR_ARCHIVE},
-	{ &ui_scoreDefends, "ui_scoreDefends", "0", CVAR_ARCHIVE},
-	{ &ui_scoreAssists, "ui_scoreAssists", "0", CVAR_ARCHIVE},
-	{ &ui_scoreGauntlets, "ui_scoreGauntlets", "0", CVAR_ARCHIVE},
-	{ &ui_scoreScore, "ui_scoreScore", "0", CVAR_ARCHIVE},
-	{ &ui_scorePerfect, "ui_scorePerfect", "0", CVAR_ARCHIVE},
-	{ &ui_scoreTeam, "ui_scoreTeam", "0 to 0", CVAR_ARCHIVE},
-	{ &ui_scoreBase, "ui_scoreBase", "0", CVAR_ARCHIVE},
-	{ &ui_scoreTime, "ui_scoreTime", "00:00", CVAR_ARCHIVE},
-	{ &ui_scoreTimeBonus, "ui_scoreTimeBonus", "0", CVAR_ARCHIVE},
-	{ &ui_scoreSkillBonus, "ui_scoreSkillBonus", "0", CVAR_ARCHIVE},
-	{ &ui_scoreShutoutBonus, "ui_scoreShutoutBonus", "0", CVAR_ARCHIVE},
-	{ &ui_scoreAccuracy2, "ui_scoreAccuracy2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreImpressives2, "ui_scoreImpressives2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreExcellents2, "ui_scoreExcellents2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreCaptures2, "ui_scoreCaptures2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreDefends2, "ui_scoreDefends2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreAssists2, "ui_scoreAssists2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreGauntlets2, "ui_scoreGauntlets2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreScore2, "ui_scoreScore2", "0", CVAR_ARCHIVE},
-	{ &ui_scorePerfect2, "ui_scorePerfect2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreTeam2, "ui_scoreTeam2", "0 to 0", CVAR_ARCHIVE},
-	{ &ui_scoreBase2, "ui_scoreBase2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreTime2, "ui_scoreTime2", "00:00", CVAR_ARCHIVE},
-	{ &ui_scoreTimeBonus2, "ui_scoreTimeBonus2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreSkillBonus2, "ui_scoreSkillBonus2", "0", CVAR_ARCHIVE},
-	{ &ui_scoreShutoutBonus2, "ui_scoreShutoutBonus2", "0", CVAR_ARCHIVE},
-	{ &ui_fragLimit, "ui_fragLimit", "10", 0},
-	{ &ui_captureLimit, "ui_captureLimit", "5", 0},
-	{ &ui_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE},
-	{ &ui_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE},
-	{ &ui_findPlayer, "ui_findPlayer", "Sarge", CVAR_ARCHIVE},
-	{ &ui_Q3Model, "ui_q3model", "0", CVAR_ARCHIVE},
-	{ &ui_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_ARCHIVE},
-	{ &ui_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE},
-	{ &ui_teamArenaFirstRun, "ui_teamArenaFirstRun", "0", CVAR_ARCHIVE},
-	{ &ui_realWarmUp, "g_warmup", "20", CVAR_ARCHIVE},
-	{ &ui_realCaptureLimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART},
-	{ &ui_bloomPreset, "ui_bloomPreset", "0", CVAR_ARCHIVE},
-	{ &ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_ARCHIVE},
-	{ &ui_forceEnemyModelBright, "ui_forceEnemyModelBright", "0", CVAR_ARCHIVE},
-	{ &ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_ARCHIVE},
-	{ &ui_forceTeamModel, "ui_forceTeamModel", "", CVAR_ARCHIVE},
-	{ &ui_forceTeamModelBright, "ui_forceTeamModelBright", "0", CVAR_ARCHIVE},
-	{ &ui_forceTeamSkin, "ui_forceTeamSkin", "", CVAR_ARCHIVE},
-	{ &ui_enemyHeadColor, "ui_enemyHeadColor", "0", CVAR_ARCHIVE},
-	{ &ui_enemyLowerColor, "ui_enemyLowerColor", "0", CVAR_ARCHIVE},
-	{ &ui_enemyUpperColor, "ui_enemyUpperColor", "0", CVAR_ARCHIVE},
-	{ &ui_teamHeadColor, "ui_teamHeadColor", "0", CVAR_ARCHIVE},
-	{ &ui_teamLowerColor, "ui_teamLowerColor", "0", CVAR_ARCHIVE},
-	{ &ui_teamUpperColor, "ui_teamUpperColor", "0", CVAR_ARCHIVE},
-	{ &ui_mousePitch, "ui_mousePitch", "0", CVAR_ARCHIVE},
-	{ &ui_screenDamage, "ui_screenDamage", "0", CVAR_ARCHIVE},
-	{ &ui_screenDamage_Team, "ui_screenDamage_Team", "0", CVAR_ARCHIVE},
-	{ &ui_teammateIndicator, "ui_teammateIndicator", "0", CVAR_ARCHIVE},
-	{ &ui_drawRewards, "ui_drawRewards", "0", CVAR_ARCHIVE},
-	{ &ui_postProcessPreset, "ui_postProcessPreset", "0", CVAR_ARCHIVE},
-	{ &ui_marksPreset, "ui_marksPreset", "0", CVAR_ARCHIVE},
-	{ &ui_lightingModelPreset, "ui_lightingModelPreset", "0", CVAR_ARCHIVE},
-	{ &ui_lowAmmoPreset, "ui_lowAmmoPreset", "0", CVAR_ARCHIVE},
-	{ &ui_impactSparks, "ui_impactSparks", "0", CVAR_ARCHIVE},
-	{ &ui_announcer, "ui_announcer", "1", CVAR_ARCHIVE},
-	{ &ui_voteactive, "ui_voteactive", "0", CVAR_TEMP},
-	{ &ui_endMapVotingDisabled, "ui_endMapVotingDisabled", "0", CVAR_TEMP},
-	{ &ui_mainmenu, "ui_mainmenu", "0", CVAR_TEMP},
-	{ &ui_priv, "ui_priv", "0", CVAR_TEMP},
-	{ &ui_warmup, "ui_warmup", "0", CVAR_TEMP},
-	{ &ui_doWarmup, "ui_doWarmup", "0", CVAR_TEMP},
-	{ &ui_friendlyFire, "ui_friendlyFire", "0", CVAR_TEMP},
-	{ &ui_Warmup, "ui_Warmup", "0", CVAR_TEMP},
-	{ &ui_pure, "ui_pure", "0", CVAR_TEMP},
-	{ &ui_saveCaptureLimit, "ui_saveCaptureLimit", "0", CVAR_TEMP},
-	{ &ui_saveFragLimit, "ui_saveFragLimit", "0", CVAR_TEMP},
-	{ &ui_recordSPDemoName, "ui_recordSPDemoName", "", CVAR_TEMP},
-	{ &ui_glCustom, "ui_glCustom", "0", CVAR_ARCHIVE},
-	{ &ui_country, "ui_country", "", CVAR_ARCHIVE},
-	{ &ui_opponentModel, "ui_opponentModel", "", CVAR_ARCHIVE},
-	{ &ui_cdkeyvalid, "ui_cdkeyvalid", "", CVAR_TEMP},
-	{ &ui_serverStatusTimeOut, "ui_serverStatusTimeOut", "7000", CVAR_ARCHIVE},
-	{ &ui_mapVotingDisabled, "ui_mapVotingDisabled", "0", CVAR_TEMP},
-	{ &ui_gameTypeVotingDisabled, "ui_gameTypeVotingDisabled", "0", CVAR_TEMP},
+	UI_CVAR_TABLE_ENTRY( &ui_server1, "server1", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server2, "server2", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server3, "server3", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server4, "server4", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server5, "server5", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server6, "server6", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server7, "server7", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server8, "server8", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server9, "server9", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server10, "server10", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server11, "server11", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server12, "server12", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server13, "server13", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server14, "server14", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server15, "server15", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_server16, "server16", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_cdkeychecked, "ui_cdkeychecked", "0", CVAR_ROM ),
+	UI_CVAR_TABLE_ENTRY( &ui_new, "ui_new", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_debug, "ui_debug", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_initialized, "ui_initialized", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_teamName, "ui_teamName", "Pagans", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_opponentName, "ui_opponentName", "Stroggs", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_redteam, "ui_redteam", "Pagans", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_blueteam, "ui_blueteam", "Stroggs", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_dedicated, "ui_dedicated", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_gameType, "ui_gameType", "3", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_joinGameType, "ui_joinGameType", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_netGameType, "ui_netGameType", "3", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_actualNetGameType, "ui_actualNetGameType", "3", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_cvGameType, "ui_cvGameType", "-1", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_redteam1, "ui_redteam1", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_redteam2, "ui_redteam2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_redteam3, "ui_redteam3", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_redteam4, "ui_redteam4", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_redteam5, "ui_redteam5", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_blueteam1, "ui_blueteam1", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_blueteam2, "ui_blueteam2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_blueteam3, "ui_blueteam3", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_blueteam4, "ui_blueteam4", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_blueteam5, "ui_blueteam5", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_netSource, "ui_netSource", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_menuFiles, "ui_menuFiles", UI_MENU_FILE_QUAKELIVE, CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_menuFlow, "ui_menuFlow", "1", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_globalpreset, "ui_globalpreset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_screenDamage_Team_preset, "ui_screenDamage_Team_preset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_screenDamage_preset, "ui_screenDamage_preset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_browserAwesomium, "ui_browserAwesomium", UI_BROWSER_AWESOMIUM_DEFAULT, CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_currentTier, "ui_currentTier", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_currentMap, "ui_currentMap", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_currentNetMap, "ui_currentNetMap", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_mapIndex, "ui_mapIndex", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_currentOpponent, "ui_currentOpponent", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_selectedPlayer, "cg_selectedPlayer", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_selectedPlayerName, "cg_selectedPlayerName", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_lastServerRefresh_0, "ui_lastServerRefresh_0", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_lastServerRefresh_1, "ui_lastServerRefresh_1", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_lastServerRefresh_2, "ui_lastServerRefresh_2", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_lastServerRefresh_3, "ui_lastServerRefresh_3", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_singlePlayerActive, "ui_singlePlayerActive", "0", 0 ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreAccuracy, "ui_scoreAccuracy", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreImpressives, "ui_scoreImpressives", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreExcellents, "ui_scoreExcellents", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreCaptures, "ui_scoreCaptures", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreDefends, "ui_scoreDefends", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreAssists, "ui_scoreAssists", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreGauntlets, "ui_scoreGauntlets", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreScore, "ui_scoreScore", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scorePerfect, "ui_scorePerfect", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreTeam, "ui_scoreTeam", "0 to 0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreBase, "ui_scoreBase", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreTime, "ui_scoreTime", "00:00", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreTimeBonus, "ui_scoreTimeBonus", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreSkillBonus, "ui_scoreSkillBonus", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreShutoutBonus, "ui_scoreShutoutBonus", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreAccuracy2, "ui_scoreAccuracy2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreImpressives2, "ui_scoreImpressives2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreExcellents2, "ui_scoreExcellents2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreCaptures2, "ui_scoreCaptures2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreDefends2, "ui_scoreDefends2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreAssists2, "ui_scoreAssists2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreGauntlets2, "ui_scoreGauntlets2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreScore2, "ui_scoreScore2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scorePerfect2, "ui_scorePerfect2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreTeam2, "ui_scoreTeam2", "0 to 0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreBase2, "ui_scoreBase2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreTime2, "ui_scoreTime2", "00:00", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreTimeBonus2, "ui_scoreTimeBonus2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreSkillBonus2, "ui_scoreSkillBonus2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_scoreShutoutBonus2, "ui_scoreShutoutBonus2", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_fragLimit, "ui_fragLimit", "10", 0 ),
+	UI_CVAR_TABLE_ENTRY( &ui_captureLimit, "ui_captureLimit", "5", 0 ),
+	UI_CVAR_TABLE_ENTRY( &ui_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_findPlayer, "ui_findPlayer", "Sarge", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_Q3Model, "ui_q3model", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_hudFiles, "cg_hudFiles", "ui/hud.txt", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_recordSPDemo, "ui_recordSPDemo", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_teamArenaFirstRun, "ui_teamArenaFirstRun", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_realWarmUp, "g_warmup", "20", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_realCaptureLimit, "capturelimit", "8", CVAR_SERVERINFO | CVAR_ARCHIVE | CVAR_NORESTART ),
+	UI_CVAR_TABLE_ENTRY( &ui_bloomPreset, "ui_bloomPreset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_CALLBACK( &ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_ARCHIVE, UI_UpdateForceEnemyModelSettings ),
+	UI_CVAR_TABLE_ENTRY( &ui_forceEnemyModelBright, "ui_forceEnemyModelBright", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_CALLBACK( &ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_ARCHIVE, UI_UpdateForceEnemyModelSettings ),
+	UI_CVAR_TABLE_CALLBACK( &ui_forceTeamModel, "ui_forceTeamModel", "", CVAR_ARCHIVE, UI_UpdateForceTeamModelSettings ),
+	UI_CVAR_TABLE_ENTRY( &ui_forceTeamModelBright, "ui_forceTeamModelBright", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_CALLBACK( &ui_forceTeamSkin, "ui_forceTeamSkin", "", CVAR_ARCHIVE, UI_UpdateForceTeamModelSettings ),
+	UI_CVAR_TABLE_CALLBACK( &ui_enemyColor, "ui_enemyColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_enemyHeadColor, "ui_enemyHeadColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_enemyLowerColor, "ui_enemyLowerColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_enemyUpperColor, "ui_enemyUpperColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_teamColor, "ui_teamColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_teamHeadColor, "ui_teamHeadColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_teamLowerColor, "ui_teamLowerColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_teamUpperColor, "ui_teamUpperColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_ENTRY( &ui_mousePitch, "ui_mousePitch", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_CALLBACK( &ui_screenDamage, "ui_screenDamage", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_CALLBACK( &ui_screenDamage_Team, "ui_screenDamage_Team", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),
+	UI_CVAR_TABLE_ENTRY( &ui_teammateIndicator, "ui_teammateIndicator", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_drawRewards, "ui_drawRewards", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_postProcessPreset, "ui_postProcessPreset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_marksPreset, "ui_marksPreset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_lightingModelPreset, "ui_lightingModelPreset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_lowAmmoPreset, "ui_lowAmmoPreset", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_impactSparks, "ui_impactSparks", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_CALLBACK( &ui_announcer, "cg_announcer", "1", CVAR_ARCHIVE, UI_UpdateAnnouncer ),
+	UI_CVAR_TABLE_ENTRY( &ui_voteactive, "ui_voteactive", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_endMapVotingDisabled, "ui_endMapVotingDisabled", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_mainmenu, "ui_mainmenu", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_priv, "ui_priv", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_warmup, "ui_warmup", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_doWarmup, "ui_doWarmup", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_friendlyFire, "ui_friendlyFire", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_Warmup, "ui_Warmup", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_pure, "ui_pure", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_saveCaptureLimit, "ui_saveCaptureLimit", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_saveFragLimit, "ui_saveFragLimit", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_recordSPDemoName, "ui_recordSPDemoName", "", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_glCustom, "ui_glCustom", "0", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_country, "ui_country", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_opponentModel, "ui_opponentModel", "", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_cdkeyvalid, "ui_cdkeyvalid", "", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_serverStatusTimeOut, "ui_serverStatusTimeOut", "7000", CVAR_ARCHIVE ),
+	UI_CVAR_TABLE_ENTRY( &ui_mapVotingDisabled, "ui_mapVotingDisabled", "0", CVAR_TEMP ),
+	UI_CVAR_TABLE_ENTRY( &ui_gameTypeVotingDisabled, "ui_gameTypeVotingDisabled", "0", CVAR_TEMP ),
 
 };
+
+#undef UI_CVAR_TABLE_CALLBACK
+#undef UI_CVAR_TABLE_ENTRY
 
 // bk001129 - made static to avoid aliasing
 static int		cvarTableSize = sizeof(cvarTable) / sizeof(cvarTable[0]);
@@ -9422,15 +9578,6 @@ void UI_RegisterCvars( void ) {
 
 	UI_SyncForceModelCvars( qtrue );
 	UI_SyncForceModelCvars( qfalse );
-
-	uiTeamHeadColorModificationCount = ui_teamHeadColor.modificationCount;
-	uiTeamUpperColorModificationCount = ui_teamUpperColor.modificationCount;
-	uiTeamLowerColorModificationCount = ui_teamLowerColor.modificationCount;
-	uiEnemyHeadColorModificationCount = ui_enemyHeadColor.modificationCount;
-	uiEnemyUpperColorModificationCount = ui_enemyUpperColor.modificationCount;
-	uiEnemyLowerColorModificationCount = ui_enemyLowerColor.modificationCount;
-	uiScreenDamageModificationCount = ui_screenDamage.modificationCount;
-	uiScreenDamageTeamModificationCount = ui_screenDamage_Team.modificationCount;
 }
 
 /*
@@ -9441,11 +9588,18 @@ UI_UpdateCvars
 void UI_UpdateCvars( void ) {
 	int			i;
 	cvarTable_t	*cv;
+	int			oldModificationCount;
 	char		model[MAX_QPATH];
 	char		skin[MAX_QPATH];
 
 	for ( i = 0, cv = cvarTable ; i < cvarTableSize ; i++, cv++ ) {
+		oldModificationCount = cv->vmCvar->modificationCount;
 		trap_Cvar_Update( cv->vmCvar );
+		if ( cv->update
+			&& oldModificationCount != 0
+			&& oldModificationCount != cv->vmCvar->modificationCount ) {
+			cv->update( cv->vmCvar );
+		}
 	}
 
 	trap_Cvar_VariableStringBuffer( "cg_forceTeamModel", model, sizeof( model ) );
@@ -9458,39 +9612,6 @@ void UI_UpdateCvars( void ) {
 	trap_Cvar_VariableStringBuffer( "cg_forceEnemySkin", skin, sizeof( skin ) );
 	if ( Q_stricmp( model, uiCachedForceEnemyModel ) != 0 || Q_stricmp( skin, uiCachedForceEnemySkin ) != 0 ) {
 		UI_SyncForceModelCvars( qfalse );
-	}
-
-	if ( uiTeamHeadColorModificationCount != ui_teamHeadColor.modificationCount ) {
-		uiTeamHeadColorModificationCount = ui_teamHeadColor.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_teamHeadColor, "cg_teamHeadColor" );
-	}
-	if ( uiTeamUpperColorModificationCount != ui_teamUpperColor.modificationCount ) {
-		uiTeamUpperColorModificationCount = ui_teamUpperColor.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_teamUpperColor, "cg_teamUpperColor" );
-	}
-	if ( uiTeamLowerColorModificationCount != ui_teamLowerColor.modificationCount ) {
-		uiTeamLowerColorModificationCount = ui_teamLowerColor.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_teamLowerColor, "cg_teamLowerColor" );
-	}
-	if ( uiEnemyHeadColorModificationCount != ui_enemyHeadColor.modificationCount ) {
-		uiEnemyHeadColorModificationCount = ui_enemyHeadColor.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_enemyHeadColor, "cg_enemyHeadColor" );
-	}
-	if ( uiEnemyUpperColorModificationCount != ui_enemyUpperColor.modificationCount ) {
-		uiEnemyUpperColorModificationCount = ui_enemyUpperColor.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_enemyUpperColor, "cg_enemyUpperColor" );
-	}
-	if ( uiEnemyLowerColorModificationCount != ui_enemyLowerColor.modificationCount ) {
-		uiEnemyLowerColorModificationCount = ui_enemyLowerColor.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_enemyLowerColor, "cg_enemyLowerColor" );
-	}
-	if ( uiScreenDamageModificationCount != ui_screenDamage.modificationCount ) {
-		uiScreenDamageModificationCount = ui_screenDamage.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_screenDamage, "cg_screenDamage" );
-	}
-	if ( uiScreenDamageTeamModificationCount != ui_screenDamage_Team.modificationCount ) {
-		uiScreenDamageTeamModificationCount = ui_screenDamage_Team.modificationCount;
-		UI_SyncRetailSliderColorCvar( &ui_screenDamage_Team, "cg_screenDamage_Team" );
 	}
 }
 

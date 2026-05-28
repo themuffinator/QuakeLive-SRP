@@ -48,6 +48,7 @@ char teamChat1[256];
 char teamChat2[256];
 
 #define CG_SPEEDOMETER_HISTORY_SAMPLES	128
+#define CG_SPEEDOMETER_GRAPH_SAMPLES		( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 )
 #define CG_SPEEDOMETER_RANGE			960.0f
 #define TEAM_OVERLAY_MAX_PLAYERS		8
 #define TEAM_OVERLAY_NAME_PRINT_LIMIT	20
@@ -103,21 +104,48 @@ qboolean CG_ShouldDrawSpeedometer( void ) {
 
 /*
 =============
-CG_SampleLegacySpeedometer
+CG_GetSpeedometerSpeed
 
-Samples the current horizontal movement speed for the classic HUD renderer.
+Returns the cached horizontal movement speed used by both speedometer paths.
 =============
 */
-static float CG_SampleLegacySpeedometer( void ) {
+float CG_GetSpeedometerSpeed( void ) {
 	vec3_t	horizontalVelocity;
 
 	if ( !cg.snap ) {
+		cg.speedometerSample = 0.0f;
+		cg.speedometerSampleTime = cg.time;
 		return 0.0f;
 	}
 
-	VectorCopy( cg.snap->ps.velocity, horizontalVelocity );
+	if ( cg.speedometerSampleTime == cg.time ) {
+		return cg.speedometerSample;
+	}
+
+	VectorCopy( cg.predictedPlayerState.velocity, horizontalVelocity );
 	horizontalVelocity[2] = 0.0f;
-	return VectorLength( horizontalVelocity );
+	cg.speedometerSample = VectorLength( horizontalVelocity );
+	cg.speedometerSampleTime = cg.time;
+	return cg.speedometerSample;
+}
+
+/*
+=============
+CG_ShouldDrawClassicSpeedometer
+
+Matches the retail classic HUD gate for the speedometer graph.
+=============
+*/
+static qboolean CG_ShouldDrawClassicSpeedometer( void ) {
+	if ( !CG_ShouldDrawSpeedometer() || !cg.snap ) {
+		return qfalse;
+	}
+
+	if ( cg.snap->ps.pm_type == PM_SPECTATOR && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
 }
 
 /*
@@ -128,7 +156,7 @@ Maintains the retail-style 128-sample history ring used by the classic HUD
 speedometer graph.
 =============
 */
-static void CG_RecordSpeedometerSample( void ) {
+void CG_RecordSpeedometerSample( void ) {
 	if ( !cg.snap ) {
 		cg_speedometerHistoryCount = 0;
 		cg_speedometerHistoryHead = -1;
@@ -146,8 +174,8 @@ static void CG_RecordSpeedometerSample( void ) {
 	}
 
 	cg_speedometerHistoryHead = ( cg_speedometerHistoryHead + 1 ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );
-	cg_speedometerHistory[cg_speedometerHistoryHead] = CG_SampleLegacySpeedometer();
-	if ( cg_speedometerHistoryCount < CG_SPEEDOMETER_HISTORY_SAMPLES ) {
+	cg_speedometerHistory[cg_speedometerHistoryHead] = CG_GetSpeedometerSpeed();
+	if ( cg_speedometerHistoryCount < CG_SPEEDOMETER_GRAPH_SAMPLES ) {
 		cg_speedometerHistoryCount++;
 	}
 	cg_speedometerHistoryTime = cg.time;
@@ -1820,6 +1848,11 @@ Maps the retail obituary palette index to the draw color for one name column.
 */
 void CG_ObituaryColorForIndex( int colorIndex, float alpha, vec4_t color ) {
 	switch ( colorIndex ) {
+	case 0:
+		color[0] = 1.0f;
+		color[1] = 1.0f;
+		color[2] = 1.0f;
+		break;
 	case 1:
 		color[0] = 1.0f;
 		color[1] = 0.5f;
@@ -1837,8 +1870,8 @@ void CG_ObituaryColorForIndex( int colorIndex, float alpha, vec4_t color ) {
 		break;
 	default:
 		color[0] = 1.0f;
-		color[1] = 1.0f;
-		color[2] = 1.0f;
+		color[1] = 0.8f;
+		color[2] = 0.2f;
 		break;
 	}
 
@@ -3021,11 +3054,7 @@ static void CG_DrawSpeedometer( void ) {
 	int		sampleIndex;
 	int		i;
 
-	if ( !CG_ShouldDrawSpeedometer() || !cg.snap ) {
-		return;
-	}
-
-	if ( cg.showScores || cg.warmup || cg.snap->ps.pm_type == PM_INTERMISSION ) {
+	if ( !CG_ShouldDrawClassicSpeedometer() ) {
 		return;
 	}
 
@@ -3035,6 +3064,10 @@ static void CG_DrawSpeedometer( void ) {
 	}
 
 	CG_RecordSpeedometerSample();
+	if ( mode >= 4 ) {
+		return;
+	}
+
 	if ( cg_speedometerHistoryCount <= 0 || cg_speedometerHistoryHead < 0 ) {
 		return;
 	}
@@ -3058,13 +3091,13 @@ static void CG_DrawSpeedometer( void ) {
 	barScale = ( graphHeight - 5.0f ) / CG_SPEEDOMETER_RANGE;
 	halfHeight = graphHeight * 0.5f;
 	sampleCount = cg_speedometerHistoryCount;
-	if ( sampleCount > CG_SPEEDOMETER_HISTORY_SAMPLES ) {
-		sampleCount = CG_SPEEDOMETER_HISTORY_SAMPLES;
+	if ( sampleCount > CG_SPEEDOMETER_GRAPH_SAMPLES ) {
+		sampleCount = CG_SPEEDOMETER_GRAPH_SAMPLES;
 	}
 
 	if ( mode < 3 ) {
 		for ( i = 0; i < sampleCount; i++ ) {
-			sampleIndex = ( cg_speedometerHistoryHead - sampleCount + 1 + i + CG_SPEEDOMETER_HISTORY_SAMPLES ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );
+			sampleIndex = ( cg_speedometerHistoryHead + 1 + i ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );
 			currentSpeed = cg_speedometerHistory[sampleIndex];
 			if ( currentSpeed <= 0.0f ) {
 				continue;
@@ -6549,7 +6582,9 @@ static void CG_Draw2D( void ) {
 	}
 
 	CG_DrawStatsMenu();
-	CG_DrawObituaries( 150.0f );
+	if ( !menuHudActive ) {
+		CG_DrawObituaries( 150.0f );
+	}
 
 	if ( cg.demoPlayback && cg_drawDemoHUD.integer ) {
 		CG_DrawDemoPlaybackControls( 0 );

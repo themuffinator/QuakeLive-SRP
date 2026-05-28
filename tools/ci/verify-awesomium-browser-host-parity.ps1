@@ -42,6 +42,21 @@ function Assert-FileContainsLiteral {
 	Write-Host "Verified ${RelativePath}: $Description"
 }
 
+function Assert-FileDoesNotContainLiteral {
+	param(
+		[string]$RelativePath,
+		[string]$Literal,
+		[string]$Description
+	)
+
+	$content = Get-RepoFileText -RelativePath $RelativePath
+	if ($content.Contains($Literal)) {
+		throw "Unexpected $Description in ${RelativePath}: $Literal"
+	}
+
+	Write-Host "Verified ${RelativePath}: absent $Description"
+}
+
 function Assert-FileContainsRegex {
 	param(
 		[string]$RelativePath,
@@ -300,8 +315,28 @@ $sourceAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_cgame.c'
-		Literal = 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );'
-		Description = 'retail browser-active cvar publish without surface gate'
+		Literal = 'CL_SetCvarIfChanged( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );'
+		Description = 'browser-active cvar publish without surface gate or no-op Cvar_Set2 churn'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = '{ "web_zoom", 0x012D3060u, "100", CVAR_ARCHIVE, "Awesomium WebView::SetZoom" },'
+		Description = 'retail web_zoom cached cvar mapping'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = '{ "web_console", 0x012D3064u, "0", CVAR_ARCHIVE, "QLViewHandler::OnAddConsoleMessage" },'
+		Description = 'retail web_console cached cvar mapping'
+	},
+	@{
+		Path = 'src/code/client/cl_cgame.c'
+		Literal = '{ "web_browserActive", 0x0145CA50u, "0", CVAR_ROM, "browser-active client/renderer/UI state" },'
+		Description = 'retail web_browserActive cached cvar mapping'
+	},
+	@{
+		Path = 'src/code/qcommon/common.c'
+		Literal = 'com_webBrowserActive = Cvar_Get( "web_browserActive", "0", CVAR_ROM );'
+		Description = 'core cached web_browserActive cvar owner'
 	},
 	@{
 		Path = 'src/code/client/cl_keys.c'
@@ -372,11 +407,6 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = '{ 0x004F2A10u, 0x0000001Cu, "WebSession::ClearCache slot 0x1C", "CL_Awesomium_ClearCache", "_Awe_WebSession_Release@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },'
-		Description = 'WebSession cache-clear command substitution'
-	},
-	@{
-		Path = 'src/code/client/cl_awesomium_win32.cpp'
 		Literal = '{ 0x004F2D30u, 0x00548068u, "QL data-source name", "CL_Awesomium_CreateSession", "\"QL\"", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },'
 		Description = 'retail QL data-source literal'
 	},
@@ -402,8 +432,8 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = '{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_WebView_InjectKeyboardEvent@16", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },'
-		Description = 'WebView keyboard event adapter import substitution'
+		Literal = '{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_new_WebKeyboardEvent_1@12 + _Awe_WebView_InjectKeyboardEvent@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },'
+		Description = 'WebView keyboard event SDK event-object adapter import substitution'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
@@ -427,8 +457,28 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'CL_AWE_IMPORT( webSessionClearCache, "_Awe_WebSession_Release@4" );'
-		Description = 'WebSession cache-clear adapter import'
+		Literal = 'CL_AWE_IMPORT( webSessionRelease, "_Awe_WebSession_Release@4" );'
+		Description = 'WebSession release adapter import'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_AWE_IMPORT( webViewSetTransparent, "_Awe_WebView_SetTransparent@8" );'
+		Description = 'WebView transparent adapter import'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'cl_awe.webViewSetZoom = reinterpret_cast<awe_webview_set_zoom_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebView_SetZoom@8" ) );'
+		Description = 'optional WebView SetZoom SDK import'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_AWE_IMPORT( newWebKeyboardEvent, "_Awe_new_WebKeyboardEvent_1@12" );'
+		Description = 'SDK WebKeyboardEvent constructor import'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_AWE_IMPORT( webViewInjectKeyboardEvent, "_Awe_WebView_InjectKeyboardEvent@8" );'
+		Description = 'SDK WebKeyboardEvent injection import'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
@@ -498,7 +548,7 @@ $adapterAnchors = @(
 	@{
 		Path = 'src/code/client/cl_cgame.c'
 		Literal = 'CL_Awesomium_ClearCache();'
-		Description = 'clear-cache command reaches live Awesomium session cache'
+		Description = 'clear-cache command reaches live Awesomium cache boundary'
 	},
 	@{
 		Path = 'src/code/client/cl_cgame.c'
@@ -509,6 +559,105 @@ $adapterAnchors = @(
 
 foreach ($anchor in $adapterAnchors) {
 	Assert-FileContainsLiteral -RelativePath $anchor.Path -Literal $anchor.Literal -Description $anchor.Description
+}
+
+$sdkDependencyAnchors = @(
+	@{
+		Path = 'src/code/win32/awesomium_process.cpp'
+		Literal = '#include <Awesomium/ChildProcess.h>'
+		Description = 'Awesomium child-process SDK header include'
+	},
+	@{
+		Path = 'src/code/awesomium_process.vcxproj'
+		Literal = '<AwesomiumSdkDir Condition="''$(AwesomiumSdkDir)''=='''' and ''$(AWESOMIUM_SDK_DIR)''!=''''">$(AWESOMIUM_SDK_DIR)</AwesomiumSdkDir>'
+		Description = 'external Awesomium SDK environment override'
+	},
+	@{
+		Path = 'src/code/awesomium_process.vcxproj'
+		Literal = '<Target Name="ValidateAwesomiumSdk" BeforeTargets="ClCompile;Link" Condition="''$(QLBuildOnlineServices)''==''1''">'
+		Description = 'Awesomium child-process SDK validator'
+	},
+	@{
+		Path = 'src/code/awesomium_process.vcxproj'
+		Literal = '<AdditionalDependencies>$(AwesomiumLib);%(AdditionalDependencies)</AdditionalDependencies>'
+		Description = 'external Awesomium SDK import library dependency'
+	},
+	@{
+		Path = 'src/code/quakelive_steam.vcxproj'
+		Literal = '<QLRequireAwesomiumSdk Condition="''$(QLRequireAwesomiumSdk)''==''''">1</QLRequireAwesomiumSdk>'
+		Description = 'online Awesomium SDK dependency required by default'
+	},
+	@{
+		Path = 'src/code/quakelive_steam.vcxproj'
+		Literal = '<Target Name="CopyAwesomiumRuntime" AfterTargets="Build" Condition="''$(QLBuildOnlineServices)''!=''0'' and ''$(AwesomiumRuntimeDll)''!='''' and Exists(''$(AwesomiumRuntimeDll)'')">'
+		Description = 'external Awesomium runtime copy target'
+	},
+	@{
+		Path = 'src/code/win32/awesomium_process.rc'
+		Literal = 'VALUE "ProductName", "Quake Live Reverse\0"'
+		Description = 'project-owned Awesomium child-process version metadata'
+	}
+)
+
+foreach ($anchor in $sdkDependencyAnchors) {
+	Assert-FileContainsLiteral -RelativePath $anchor.Path -Literal $anchor.Literal -Description $anchor.Description
+}
+
+$disallowedSdkReplicationAnchors = @(
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_AWE_OBJECT_STORAGE_BYTES'
+		Description = 'local Awesomium object storage replication'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_AWESOMIUM_RETAIL_IMPORT'
+		Description = 'decorated C++ retail import fallback macro'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = '__thiscall'
+		Description = 'local C++ thiscall SDK ABI thunk'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_Awesomium_RetailAdapterForImport'
+		Description = 'retail C++ ABI adapter fallback'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_AWE_BITMAP_WIDTH_OFFSET'
+		Description = 'local BitmapSurface field-offset replication'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = '??0WebConfig@Awesomium@@QAE@XZ'
+		Description = 'decorated WebConfig constructor lookup'
+	},
+	@{
+		Path = 'src/code/awesomium_process.vcxproj'
+		Literal = 'BuildAwesomiumImportLib'
+		Description = 'generated local Awesomium import-library target'
+	},
+	@{
+		Path = 'src/code/awesomium_process.vcxproj'
+		Literal = 'awesomium.def'
+		Description = 'local Awesomium SDK definition-file reference'
+	},
+	@{
+		Path = 'src/code/win32/awesomium_process.cpp'
+		Literal = 'int __cdecl ChildProcessMain'
+		Description = 'local Awesomium ChildProcessMain declaration'
+	},
+	@{
+		Path = 'src/code/win32/awesomium_process.rc'
+		Literal = 'Awesomium Technologies'
+		Description = 'vendor-owned version metadata replication'
+	}
+)
+
+foreach ($anchor in $disallowedSdkReplicationAnchors) {
+	Assert-FileDoesNotContainLiteral -RelativePath $anchor.Path -Literal $anchor.Literal -Description $anchor.Description
 }
 
 $aliasAnchors = @(
@@ -683,6 +832,16 @@ $mappingAnchors = @(
 		Path = 'docs/reverse-engineering/quakelive_steam_mapping_round_331.md'
 		Pattern = '(?s)data_55c008.+SetCustomMethod.+SetCvar.+0x0055C044.+ResetCvar.+0x0055C050.+NoOp.+0x0055C194'
 		Description = 'round 331 qz method table return-flag evidence'
+	},
+	@{
+		Path = 'docs/reverse-engineering/quakelive_steam_mapping_round_332.md'
+		Pattern = '(?s)Awesomium SDK Dependency Hygiene.+_Awe_new_WebKeyboardEvent_1@12.+AwesomiumSdkDir.+awesomium.lib'
+		Description = 'round 332 SDK dependency hygiene evidence'
+	},
+	@{
+		Path = 'docs/reverse-engineering/quakelive_steam_mapping_round_333.md'
+		Pattern = '(?s)web_zoom.+0x012D3060.+web_console.+0x012D3064.+web_browserActive.+0x0145CA50'
+		Description = 'round 333 web cvar cached-owner evidence'
 	},
 	@{
 		Path = 'docs/reverse-engineering/quakelive_steam_mapping_round_285.md'

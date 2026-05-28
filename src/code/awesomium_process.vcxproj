@@ -121,13 +121,14 @@
   <PropertyGroup Label="UserMacros">
     <QLBuildOnlineServices Condition="'$(QLBuildOnlineServices)'==''">0</QLBuildOnlineServices>
   </PropertyGroup>
-  <PropertyGroup>
-    <AwesomiumImportDef>$(ProjectDir)win32\awesomium.def</AwesomiumImportDef>
-    <AwesomiumImportLibDir>$(ProjectDir)..\..\build\win32\$(Configuration)\obj\$(ProjectName)\</AwesomiumImportLibDir>
-    <AwesomiumImportLib>$(AwesomiumImportLibDir)awesomium_import.lib</AwesomiumImportLib>
-    <AwesomiumLibTool Condition="'$(VCToolsInstallDir)'!=''">$(VCToolsInstallDir)bin\HostX86\x86\lib.exe</AwesomiumLibTool>
-    <AwesomiumLibTool Condition="'$(AwesomiumLibTool)'=='' and '$(VCInstallDir)'!=''">$(VCInstallDir)bin\lib.exe</AwesomiumLibTool>
-    <AwesomiumLibTool Condition="'$(AwesomiumLibTool)'==''">lib.exe</AwesomiumLibTool>
+  <PropertyGroup Label="AwesomiumSdk">
+    <AwesomiumSdkDir Condition="'$(AwesomiumSdkDir)'=='' and '$(AWESOMIUM_SDK_DIR)'!=''">$(AWESOMIUM_SDK_DIR)</AwesomiumSdkDir>
+    <AwesomiumIncludeDir Condition="'$(AwesomiumSdkDir)'!=''">$(AwesomiumSdkDir)\include</AwesomiumIncludeDir>
+    <AwesomiumIncludeDir Condition="'$(AwesomiumSdkDir)'==''"></AwesomiumIncludeDir>
+    <AwesomiumLibDir Condition="'$(AwesomiumSdkDir)'!='' and Exists('$(AwesomiumSdkDir)\lib')">$(AwesomiumSdkDir)\lib</AwesomiumLibDir>
+    <AwesomiumLibDir Condition="'$(AwesomiumLibDir)'=='' and '$(AwesomiumSdkDir)'!='' and Exists('$(AwesomiumSdkDir)\build\lib')">$(AwesomiumSdkDir)\build\lib</AwesomiumLibDir>
+    <AwesomiumLibDir Condition="'$(AwesomiumLibDir)'==''"></AwesomiumLibDir>
+    <AwesomiumLib Condition="'$(AwesomiumLib)'==''">awesomium.lib</AwesomiumLib>
   </PropertyGroup>
   <PropertyGroup>
     <_ProjectFileVersion>17.0.34511.75</_ProjectFileVersion>
@@ -140,7 +141,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\common;$(AwesomiumIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <PreprocessorDefinitions>QL_BUILD_ONLINE_SERVICES=$(QLBuildOnlineServices);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader />
@@ -236,13 +237,17 @@
   <ItemGroup>
     <ResourceCompile Include="win32\awesomium_process.rc" />
   </ItemGroup>
-  <Target Name="BuildAwesomiumImportLib" BeforeTargets="Link" Condition="'$(QLBuildOnlineServices)'=='1'">
-    <MakeDir Directories="$(AwesomiumImportLibDir)" />
-    <Exec Command="&quot;$(AwesomiumLibTool)&quot; /nologo /machine:X86 /def:&quot;$(AwesomiumImportDef)&quot; /out:&quot;$(AwesomiumImportLib)&quot;" />
+  <Target Name="ValidateAwesomiumSdk" BeforeTargets="ClCompile;Link" Condition="'$(QLBuildOnlineServices)'=='1'">
+    <Error Condition="'$(AwesomiumSdkDir)'==''" Text="Awesomium support is enabled, but no external SDK path was provided. Set AwesomiumSdkDir or AWESOMIUM_SDK_DIR to an Awesomium SDK checkout; do not commit or generate Awesomium SDK import libraries in this repository." />
+    <Error Condition="'$(AwesomiumSdkDir)'!='' and !Exists('$(AwesomiumSdkDir)')" Text="AwesomiumSdkDir '$(AwesomiumSdkDir)' was not found. Set it to an external Awesomium SDK checkout or build with QLBuildOnlineServices=0." />
+    <Error Condition="'$(AwesomiumIncludeDir)'=='' or !Exists('$(AwesomiumIncludeDir)\Awesomium\ChildProcess.h')" Text="Awesomium SDK header '$(AwesomiumIncludeDir)\Awesomium\ChildProcess.h' was not found. Set AwesomiumSdkDir to the SDK root that contains include\Awesomium\ChildProcess.h." />
+    <Error Condition="'$(AwesomiumLibDir)'=='' or !Exists('$(AwesomiumLibDir)\$(AwesomiumLib)')" Text="Awesomium SDK import library '$(AwesomiumLibDir)\$(AwesomiumLib)' was not found. Set AwesomiumSdkDir or AwesomiumLibDir to the external SDK library folder." />
+    <Message Text="Awesomium child-process support enabled with external SDK (headers: $(AwesomiumIncludeDir), import library: $(AwesomiumLibDir)\$(AwesomiumLib)). The SDK remains external and is not vendored." Importance="High" />
   </Target>
   <ItemDefinitionGroup Condition="'$(QLBuildOnlineServices)'=='1'">
     <Link>
-      <AdditionalDependencies>$(AwesomiumImportLib);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(AwesomiumLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(AwesomiumLib);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

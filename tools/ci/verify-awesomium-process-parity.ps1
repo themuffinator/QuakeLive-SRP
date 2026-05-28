@@ -80,13 +80,13 @@ if ($LASTEXITCODE -ne 0) {
 
 $version = (Get-Item $BuiltBinary).VersionInfo
 $expectedVersionFields = @{
-    CompanyName = 'Awesomium Technologies'
-    FileDescription = 'Awesomium Renderer'
-    FileVersion = '1.7.4.1'
+    CompanyName = 'Quake Live Reverse'
+    FileDescription = 'Quake Live Reverse Awesomium child-process host'
+    FileVersion = '1.0.0.0'
     InternalName = 'awesomium_process.exe'
     OriginalFilename = 'awesomium_process.exe'
-    ProductName = 'Awesomium'
-    ProductVersion = '1.7.4.1'
+    ProductName = 'Quake Live Reverse'
+    ProductVersion = '1.0.0.0'
 }
 
 foreach ($entry in $expectedVersionFields.GetEnumerator()) {
@@ -114,4 +114,4 @@ foreach ($library in $unexpectedImports) {
     }
 }
 
-Write-Host 'awesomium_process.exe matches the expected retail-facing import, linker, and version surface.'
+Write-Host 'awesomium_process.exe matches the expected external-SDK import, linker, and project-owned version surface.'

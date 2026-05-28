@@ -41,6 +41,143 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A119: Reconstruct retail ownership for `ui_*` cvars [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `src/code/ui/ui_local.h`,
+`src/code/client/cl_ui.c`, `tests/test_ui_menu_files.py`,
+`tests/test_cgame_hud_parity.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/ui-cvar-mapping-round-2026-05-28.md`
+Parity estimate: **before 93% -> after 98%** for the focused `ui_*` cvar
+callback and ownership lane. Repo-wide parity remains **98%** because the
+source still carries bounded GPL-era and compatibility cvar rows outside the
+retail `uix86.dll` table.
+
+Completed work:
+
+1. Rechecked `uix86.dll` Ghidra and HLIL evidence for the retail UI cvar table,
+   including the `0x82` row count, row field order, `UI_RegisterCvars`,
+   `UI_UpdateCvars`, and the callback owners at `sub_10011240`,
+   `sub_10011630`, `sub_10011660`, and `sub_10011690`.
+2. Reconstructed the source cvar table callback lane with a retail-shaped row
+   order of `vmCvar`, cvar name, default string, update callback, and flags.
+3. Replaced ad hoc color modification-count checks with the retail
+   `UI_UpdateCvars` callback rule and added the missing bulk `ui_teamColor` and
+   `ui_enemyColor` rows.
+4. Routed retail slider-color, force-model, and `cg_announcer` rows through
+   source-visible callbacks that mirror the committed HLIL behavior.
+5. Corrected the native UI `S_RegisterSound` host shim so the retail
+   announcer callback's non-zero `7` argument remains true after qboolean
+   normalization.
+6. Documented the full retail `0x82` row table, host-owned `ui_*` bridge cvars,
+   and compatibility-only source cvars, then refreshed focused parity tests.
+
+### Task A118: Reconstruct cached retail ownership for `web_*` cvars [COMPLETED]
+Priority: High
+Primary areas: `src/code/qcommon/common.c`,
+`src/code/client/cl_cgame.c`, `tests/test_engine_cvar_retail_parity.py`,
+`tests/test_engine_client_command_parity.py`,
+`tests/test_awesomium_browser_parity.py`,
+`tests/test_platform_services.py`,
+`tools/ci/verify-awesomium-browser-host-parity.ps1`,
+`docs/reverse-engineering/awesomium-browser-wiring.md`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_333.md`
+Parity estimate: **before 96% -> after 99%** for the focused `web_*` cvar
+ownership lane. Overall Awesomium WebUI wiring remains **99.1% -> 99.1%**;
+repo-wide parity remains **98%**.
+
+Completed work:
+
+1. Rechecked the committed Ghidra and HLIL corpus for all retail `web_*` cvar
+   names and confirmed the supported set is `web_zoom`, `web_console`, and
+   `web_browserActive`; the other `web_*` names in this subsystem are command
+   registrations.
+2. Reconstructed the core cached `web_browserActive` cvar pointer in
+   `common.c` and routed the frame idle-sleep browser-active test through that
+   pointer instead of a repeated name lookup.
+3. Reconstructed cached browser-host cvar pointers for `web_zoom`,
+   `web_console`, and `web_browserActive`, added a source-visible mapping table
+   with recovered retail globals/defaults/flags, and routed console-message and
+   live zoom consumers through the cached cvars.
+4. Matched the retail `web_zoom` modified-latch consumption path by clearing
+   the cvar latch after the live Awesomium view consumes a zoom update.
+5. Refreshed focused tests, verifier anchors, and mapping notes for the new
+   cvar-owner evidence.
+
+### Task A117: Stop no-op Awesomium bridge cvar churn and guard Awesomium launches [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_cgame.c`, `.vscode/build.ps1`,
+`.vscode/launch.ps1`, `tests/test_awesomium_browser_parity.py`,
+`tests/test_platform_services.py`,
+`tools/ci/verify-awesomium-browser-host-parity.ps1`,
+`docs/reverse-engineering/awesomium-browser-wiring.md`
+Parity estimate: **before 99.0% -> after 99.1%** for the focused Awesomium
+WebUI wiring lane. Repo-wide parity remains **98%** because default
+online-service exclusion is policy-bounded.
+
+Completed work:
+
+1. Rechecked the Ghidra/HLIL evidence for `Cvar_Set2` and confirmed that the
+   retail debug string is emitted before the unchanged-value return path, so
+   the core cvar setter must not be softened to hide compatibility publisher
+   spam.
+2. Added a client-side `CL_SetCvarIfChanged()` guard and routed repeated
+   browser/advert bridge telemetry plus frame-loop `web_browserActive` mirrors
+   through it, while keeping retail-style open/hide cvar writes direct.
+3. Added a build-settings stamp to the VS Code build wrapper and made
+   `launch.ps1 -EnableAwesomium` refuse a launch when the last build used
+   `QLBuildOnlineServices=0`, making accidental default-off WebUI tests fail
+   early with a clear message.
+4. Refreshed focused tests, verifier anchors, and the Awesomium wiring notes so
+   the no-op cvar publish behavior and explicit Awesomium build path stay
+   pinned.
+
+### Task A116: Remove Awesomium SDK replication and require external SDK dependencies [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_awesomium_win32.cpp`,
+`src/code/awesomium_process.vcxproj`,
+`src/code/quakelive_steam.vcxproj`,
+`src/code/win32/awesomium_process.cpp`,
+`src/code/win32/awesomium_process.rc`,
+`tests/test_awesomium_browser_parity.py`,
+`tests/test_platform_services.py`,
+`tools/ci/verify-awesomium-browser-host-parity.ps1`,
+`tools/ci/verify-awesomium-process-parity.ps1`,
+`docs/reverse-engineering/awesomium-browser-wiring.md`,
+`docs/reverse-engineering/awesomium_process-mapping.md`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_332.md`
+Parity estimate: **before 64% -> after 94%** for the focused
+Awesomium SDK-clean integration lane. Overall Awesomium WebUI wiring remains
+estimated at **99.0% -> 99.0%**; repo-wide parity remains **98%**.
+
+Completed work:
+
+1. Audited the Awesomium client/backend/helper build surface and found local
+   SDK-like replication in the C++ ABI fallback layer, generated `.def` import
+   library, local `ChildProcessMain` declaration, and vendor-owned helper
+   metadata.
+2. Removed local Awesomium object storage, `__thiscall` thunks, decorated C++
+   import fallbacks, vtable-dispatch fallbacks, and raw `BitmapSurface` field
+   offset reads from the live backend.
+3. Corrected live SDK export usage for transparent-state setup and keyboard
+   event injection, using the SDK-owned WebKeyboardEvent object path.
+4. Deleted `src/code/win32/awesomium.def`, required external
+   `AwesomiumSdkDir`/`AWESOMIUM_SDK_DIR` for online Awesomium builds, linked
+   `awesomium.lib` from that SDK for the helper, and declared the external
+   runtime dependency for the launcher.
+5. Updated documentation, mapping notes, pytest coverage, and verifier guards
+   so SDK replication does not re-enter silently.
+
+Verification:
+
+- `python -m pytest tests/test_awesomium_browser_parity.py tests/test_platform_services.py -q --tb=short`
+  - Result: `103 passed`.
+- `powershell -ExecutionPolicy Bypass -File tools\ci\verify-awesomium-browser-host-parity.ps1 -RepoRoot E:\Repositories\QuakeLive-reverse`
+  - Result: all Awesomium browser host parity and SDK-clean dependency anchors present.
+- `git diff --check -- ...`
+  - Result: clean; only Git line-ending normalization warnings were reported.
+- `powershell -ExecutionPolicy Bypass -File tools\ci\build-windows-dlls.ps1 -RepoRoot E:\Repositories\QuakeLive-reverse -Solution src/code/quakelive.sln -Configuration Debug -Platform Win32 -PlatformToolset v143 -DisableOptionalCodecs`
+  - Result: build succeeded with `29` existing warnings and `0` errors.
+
 ### Task A115: Reconstruct Awesomium qz method table return flags [COMPLETED]
 Priority: High
 Primary areas: `src/code/client/cl_cgame.c`,
@@ -9637,6 +9774,9 @@ Parity estimate: **before 99% -> after 100%**
 
 ### Task 111: Client/input m_cpi and general mouse parity closure [COMPLETED]
 Parity estimate: **before 96% -> after 100%** (`m_cpi` math was already retail-mapped; this closes the remaining Win32 mouse host/key-number gaps)
+
+### Task 112: Win32 game-cursor mouse ownership closure [COMPLETED]
+Parity estimate: **before 99% -> after 100%** (browser/UI/cgame absolute-coordinate lanes now preserve the retail cursor-owner split; UI/cgame game cursors suppress the OS cursor while browser cursor overrides remain browser-owned)
 
 ### Task 106: Remaining engine host/support EH-P6 parity gate and evidence closure [COMPLETED]
 Parity estimate: **before 89% -> after 92%**

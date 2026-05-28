@@ -64,8 +64,8 @@ instead of it:
 the PE/toolchain metadata in `references/analysis/quakelive_toolchain_metadata.json`
 on the reverse-engineering side; there is no committed Binary Ninja HLIL dump for
 that helper yet. The current source reconstruction for the thin bootstrap lives in
-`src/code/win32/awesomium_process.cpp`, `src/code/win32/awesomium.def`, and
-`src/code/awesomium_process.vcxproj`.
+`src/code/win32/awesomium_process.cpp` and `src/code/awesomium_process.vcxproj`,
+with the Awesomium import library supplied by an external SDK.
 
 Precedence rule:
 

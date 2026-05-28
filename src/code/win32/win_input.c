@@ -40,6 +40,7 @@ typedef struct {
 } WinMouseVars_t;
 
 static WinMouseVars_t s_wmv;
+static qboolean s_systemCursorHiddenForGameCursor;
 
 #define MAX_RAW_INPUT_SAMPLES 0x1ff
 
@@ -124,6 +125,46 @@ static void MidiInfo_f( void );
 static void ListInputDevices_f( void );
 
 /*
+================
+IN_GameCursorActive
+
+Returns whether the renderer is drawing a Quake cursor instead of relying on
+the host/browser cursor.
+================
+*/
+qboolean IN_GameCursorActive( void ) {
+	if ( !in_appactive ) {
+		return qfalse;
+	}
+
+	if ( cls.keyCatchers & KEYCATCH_BROWSER ) {
+		return qfalse;
+	}
+
+	return ( cls.keyCatchers & ( KEYCATCH_UI | KEYCATCH_CGAME ) ) ? qtrue : qfalse;
+}
+
+/*
+================
+IN_UpdateSystemCursor
+
+Keeps the Win32 cursor hidden while UI or cgame owns the visible game cursor.
+================
+*/
+void IN_UpdateSystemCursor( void ) {
+	if ( IN_GameCursorActive() ) {
+		SetCursor( NULL );
+		s_systemCursorHiddenForGameCursor = qtrue;
+		return;
+	}
+
+	if ( s_systemCursorHiddenForGameCursor ) {
+		SetCursor( LoadCursor( NULL, IDC_ARROW ) );
+		s_systemCursorHiddenForGameCursor = qfalse;
+	}
+}
+
+/*
 ============================================================
 
 WIN32 MOUSE CONTROL
@@ -193,6 +234,7 @@ void IN_DeactivateWin32Mouse( void )
 	ReleaseCapture ();
 	while (ShowCursor (TRUE) < 0)
 		;
+	IN_UpdateSystemCursor();
 }
 
 /*
@@ -1166,23 +1208,27 @@ void IN_Frame (void) {
 
 	if ( cls.keyCatchers & ~( KEYCATCH_MESSAGE | KEYCATCH_RETAIL_MOUSEPASS ) ) {
 		IN_DeactivateMouse();
+		IN_UpdateSystemCursor();
 		IN_MouseMove();
 		return;
 	}
 
 	if ( in_nograb && in_nograb->integer ) {
 		IN_DeactivateMouse();
+		IN_UpdateSystemCursor();
 		IN_MouseMove();
 		return;
 	}
 
 	if ( !in_appactive ) {
 		IN_DeactivateMouse();
+		IN_UpdateSystemCursor();
 		IN_MouseMove();
 		return;
 	}
 
 	IN_ActivateMouse();
+	IN_UpdateSystemCursor();
 
 	// post events to the system que
 	IN_MouseMove();

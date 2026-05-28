@@ -64,6 +64,76 @@ typedef struct {
 
 static clAdvertisementBridgeState_t cl_advertisementBridge;
 static qboolean cl_previousBrowserAvailable = qfalse;
+static cvar_t *cl_webZoom = NULL;
+static cvar_t *cl_webConsole = NULL;
+static cvar_t *cl_webBrowserActive = NULL;
+
+typedef struct {
+	const char	*name;
+	unsigned int	retailAddress;
+	const char	*defaultValue;
+	int			flags;
+	const char	*owner;
+} clWebCvarRetailMapping_t;
+
+static const clWebCvarRetailMapping_t cl_webCvarRetailMappings[] = {
+	{ "web_zoom", 0x012D3060u, "100", CVAR_ARCHIVE, "Awesomium WebView::SetZoom" },
+	{ "web_console", 0x012D3064u, "0", CVAR_ARCHIVE, "QLViewHandler::OnAddConsoleMessage" },
+	{ "web_browserActive", 0x0145CA50u, "0", CVAR_ROM, "browser-active client/renderer/UI state" },
+	{ NULL, 0u, NULL, 0, NULL }
+};
+
+/*
+=============
+CL_SetCvarIfChanged
+
+Suppresses no-op Cvar_Set2 debug churn from retained compatibility publishers.
+=============
+*/
+static void CL_SetCvarIfChanged( const char *name, const char *value ) {
+	const char *current;
+
+	if ( !name || !value ) {
+		return;
+	}
+
+	current = Cvar_VariableString( name );
+	if ( strcmp( current, value ) ) {
+		Cvar_Set( name, value );
+	}
+}
+
+/*
+=============
+CL_WebCvarIntegerValue
+
+Returns the cached web cvar integer value, falling back to a name lookup before
+the retail registration helper has run.
+=============
+*/
+static int CL_WebCvarIntegerValue( const cvar_t *cvar, const char *fallbackName ) {
+	if ( cvar ) {
+		return cvar->integer;
+	}
+
+	return Cvar_VariableIntegerValue( fallbackName );
+}
+
+/*
+=============
+QLWebHost_CountRecoveredWebCvarMappings
+
+Counts source-visible retail web cvar mapping rows.
+=============
+*/
+static int QLWebHost_CountRecoveredWebCvarMappings( void ) {
+	int count;
+
+	for ( count = 0; cl_webCvarRetailMappings[count].name; count++ ) {
+	}
+
+	return count;
+}
 
 #define CL_ADVERTISEMENT_DEBUG_LABEL_COUNT 2
 
@@ -172,6 +242,7 @@ typedef struct {
 	int			frameSequence;
 	int			zoomPercent;
 	int			bootstrapAttemptCount;
+	int			cvarMappingCount;
 	int			listenerCallbackMappingCount;
 	int			surfaceUploadWidth;
 	int			surfaceUploadHeight;
@@ -224,6 +295,38 @@ typedef struct {
 } clWebFactoryDefinition_t;
 
 static clWebHostState_t cl_webHost;
+
+/*
+=============
+CL_WebZoomIntegerValue
+
+Returns the browser zoom percent, preserving retail's default when the cvar is
+cleared or set to a non-positive value.
+=============
+*/
+static int CL_WebZoomIntegerValue( void ) {
+	int zoomPercent;
+
+	zoomPercent = CL_WebCvarIntegerValue( cl_webZoom, "web_zoom" );
+	if ( zoomPercent <= 0 ) {
+		return 100;
+	}
+
+	return zoomPercent;
+}
+
+/*
+=============
+CL_WebZoomClearModified
+
+Clears the cached web_zoom modified latch after the live view consumes it.
+=============
+*/
+static void CL_WebZoomClearModified( void ) {
+	if ( cl_webZoom ) {
+		cl_webZoom->modified = qfalse;
+	}
+}
 
 typedef struct {
 	unsigned int	eventType;
@@ -856,6 +959,7 @@ static void CL_WebHost_ResetRuntime( qboolean clearVisibility ) {
 	cl_webHost.cursorY = 0;
 	cl_webHost.frameSequence = 0;
 	cl_webHost.bootstrapAttemptCount = 0;
+	cl_webHost.cvarMappingCount = QLWebHost_CountRecoveredWebCvarMappings();
 	cl_webHost.surfaceUploadWidth = 0;
 	cl_webHost.surfaceUploadHeight = 0;
 	cl_webHost.surfaceShader = 0;
@@ -1346,7 +1450,7 @@ QLViewHandler_OnAddConsoleMessage
 =============
 */
 static void QLViewHandler_OnAddConsoleMessage( const char *source, int line, const char *message ) {
-	if ( !Cvar_VariableIntegerValue( "web_console" ) ) {
+	if ( !CL_WebCvarIntegerValue( cl_webConsole, "web_console" ) ) {
 		return;
 	}
 
@@ -2032,8 +2136,9 @@ static qboolean QLWebHost_OpenURL( const char *url ) {
 			cl_webHost.browserActive = qfalse;
 			return qfalse;
 		}
-		cl_webHost.zoomPercent = Cvar_VariableIntegerValue( "web_zoom" );
+		cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
 		CL_Awesomium_SetZoom( cl_webHost.zoomPercent );
+		CL_WebZoomClearModified();
 		QLLoadHandler_OnBeginLoadingFrame();
 		QLLoadHandler_OnFinishLoadingFrame();
 		QLLoadHandler_OnDocumentReady();
@@ -2087,8 +2192,9 @@ static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
 				QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );
 				return qfalse;
 			}
-			cl_webHost.zoomPercent = Cvar_VariableIntegerValue( "web_zoom" );
+			cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
 			CL_Awesomium_SetZoom( cl_webHost.zoomPercent );
+			CL_WebZoomClearModified();
 			cl_webHost.browserVisible = qtrue;
 			cl_webHost.browserActive = qtrue;
 			cl_webHost.focused = qtrue;
@@ -2125,8 +2231,9 @@ static void QLWebHost_ReloadView( qboolean ignoreCache ) {
 #if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
 	if ( cl_webHost.liveAwesomium ) {
 		CL_Awesomium_Reload( ignoreCache );
-		cl_webHost.zoomPercent = Cvar_VariableIntegerValue( "web_zoom" );
+		cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
 		CL_Awesomium_SetZoom( cl_webHost.zoomPercent );
+		CL_WebZoomClearModified();
 		cl_webHost.surfaceDirty = qtrue;
 		return;
 	}
@@ -2200,14 +2307,13 @@ static void QLWebCore_Update( void ) {
 	if ( cl_webHost.liveAwesomium ) {
 		int zoomPercent;
 
-		zoomPercent = Cvar_VariableIntegerValue( "web_zoom" );
-		if ( zoomPercent <= 0 ) {
-			zoomPercent = 100;
-		}
-		if ( zoomPercent != cl_webHost.zoomPercent && CL_Awesomium_SetZoom( zoomPercent ) ) {
+		zoomPercent = CL_WebZoomIntegerValue();
+		if ( ( ( cl_webZoom && cl_webZoom->modified ) || zoomPercent != cl_webHost.zoomPercent )
+			&& CL_Awesomium_SetZoom( zoomPercent ) ) {
 			cl_webHost.zoomPercent = zoomPercent;
 			cl_webHost.surfaceDirty = qtrue;
 		}
+		CL_WebZoomClearModified();
 
 		CL_Awesomium_Update();
 		if ( CL_Awesomium_SurfaceDirty() ) {
@@ -4144,7 +4250,7 @@ static void CL_ResetBrowserOverlayState( void ) {
 	cl_webHost.focused = qfalse;
 	cls.keyCatchers &= ~KEYCATCH_BROWSER;
 	CL_WebHost_ClearCursorOverride();
-	Cvar_Set( "web_browserActive", "0" );
+	CL_SetCvarIfChanged( "web_browserActive", "0" );
 }
 
 /*
@@ -4361,16 +4467,16 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	cl_advertisementBridge.viewWidth = 0;
 	cl_advertisementBridge.viewHeight = 0;
 	cl_previousBrowserAvailable = qfalse;
-	Cvar_Set( "ui_browserAwesomium", "0" );
-	Cvar_Set( "ui_browserAwesomiumPending", "0" );
-	Cvar_Set( "ui_browserAwesomiumProvider", overlayProvider );
-	Cvar_Set( "ui_browserAwesomiumPolicy", overlayPolicy );
-	Cvar_Set( "ui_browserAwesomiumParityScope", parityScope );
-	Cvar_Set( "ui_browserAwesomiumParityReason", parityReason );
-	Cvar_Set( "ui_advertisementBridgeProvider", advertProvider );
-	Cvar_Set( "ui_advertisementBridgePolicy", advertPolicy );
-	Cvar_Set( "ui_advertisementBridgeParityScope", parityScope );
-	Cvar_Set( "ui_advertisementBridgeParityReason", parityReason );
+	CL_SetCvarIfChanged( "ui_browserAwesomium", "0" );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumPending", "0" );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", overlayProvider );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", overlayPolicy );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumParityScope", parityScope );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumParityReason", parityReason );
+	CL_SetCvarIfChanged( "ui_advertisementBridgeProvider", advertProvider );
+	CL_SetCvarIfChanged( "ui_advertisementBridgePolicy", advertPolicy );
+	CL_SetCvarIfChanged( "ui_advertisementBridgeParityScope", parityScope );
+	CL_SetCvarIfChanged( "ui_advertisementBridgeParityReason", parityReason );
 	CL_WebHost_ResetRuntime( qtrue );
 	CL_ResetBrowserOverlayState();
 #else
@@ -4383,16 +4489,16 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	cl_advertisementBridge.viewWidth = cls.glconfig.vidWidth;
 	cl_advertisementBridge.viewHeight = cls.glconfig.vidHeight;
 
-	Cvar_Set( "ui_browserAwesomium", browserAvailable ? "1" : "0" );
-	Cvar_Set( "ui_browserAwesomiumPending", ( awesomiumAllowed && !cl_webHost.loadFailed ) ? "1" : "0" );
-	Cvar_Set( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );
-	Cvar_Set( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );
-	Cvar_Set( "ui_browserAwesomiumParityScope", parityScope );
-	Cvar_Set( "ui_browserAwesomiumParityReason", parityReason );
-	Cvar_Set( "ui_advertisementBridgeProvider", advertProvider );
-	Cvar_Set( "ui_advertisementBridgePolicy", advertPolicy );
-	Cvar_Set( "ui_advertisementBridgeParityScope", parityScope );
-	Cvar_Set( "ui_advertisementBridgeParityReason", parityReason );
+	CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumPending", ( awesomiumAllowed && !cl_webHost.loadFailed ) ? "1" : "0" );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumParityScope", parityScope );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumParityReason", parityReason );
+	CL_SetCvarIfChanged( "ui_advertisementBridgeProvider", advertProvider );
+	CL_SetCvarIfChanged( "ui_advertisementBridgePolicy", advertPolicy );
+	CL_SetCvarIfChanged( "ui_advertisementBridgeParityScope", parityScope );
+	CL_SetCvarIfChanged( "ui_advertisementBridgeParityReason", parityReason );
 	if ( browserAvailable != cl_previousBrowserAvailable ) {
 		cl_previousBrowserAvailable = browserAvailable;
 		if ( cls.keyCatchers & KEYCATCH_UI ) {
@@ -5248,9 +5354,11 @@ void QLWebHost_RegisterCommands( void ) {
 	Cmd_AddCommand ("web_clearCache", CL_Web_ClearCache_f );
 	Cmd_AddCommand ("web_reload", CL_Web_Reload_f );
 	Cmd_AddCommand ("web_stopRefresh", CL_Web_StopRefresh_f );
-	Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );
-	Cvar_Get ("web_console", "0", CVAR_ARCHIVE );
-	Cvar_Get ("web_browserActive", "0", CVAR_ROM );
+	cl_webZoom = Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );
+	cl_webConsole = Cvar_Get ("web_console", "0", CVAR_ARCHIVE );
+	cl_webBrowserActive = Cvar_Get ("web_browserActive", "0", CVAR_ROM );
+	cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
+	cl_webHost.cvarMappingCount = QLWebHost_CountRecoveredWebCvarMappings();
 	Cvar_Set( "ui_browserAwesomiumPending", CL_AwesomiumRuntimeAllowed() ? "1" : "0" );
 }
 
@@ -5402,10 +5510,10 @@ void CL_WebHost_Frame( void ) {
 			cl_webHost.focused = qtrue;
 		}
 
-		Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );
+		CL_SetCvarIfChanged( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );
 	} else if ( cl_webHost.browserVisible || cl_webHost.browserActive ) {
 		QLWebHost_HideBrowser();
-		Cvar_Set( "web_browserActive", "0" );
+		CL_SetCvarIfChanged( "web_browserActive", "0" );
 	}
 
 	QLWebCore_Update();

@@ -5,6 +5,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CL_AWESOMIUM_WIN32_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_awesomium_win32.cpp"
+AWESOMIUM_PROCESS_CPP_PATH = REPO_ROOT / "src" / "code" / "win32" / "awesomium_process.cpp"
+AWESOMIUM_PROCESS_RC_PATH = REPO_ROOT / "src" / "code" / "win32" / "awesomium_process.rc"
+AWESOMIUM_DEF_PATH = REPO_ROOT / "src" / "code" / "win32" / "awesomium.def"
+AWESOMIUM_PROCESS_VCXPROJ_PATH = REPO_ROOT / "src" / "code" / "awesomium_process.vcxproj"
+QUAKELIVE_STEAM_VCXPROJ_PATH = REPO_ROOT / "src" / "code" / "quakelive_steam.vcxproj"
 CL_CGAME_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
 CL_STEAM_RESOURCES_PATH = REPO_ROOT / "src" / "code" / "client" / "cl_steam_resources.c"
 CG_PUBLIC_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_public.h"
@@ -86,13 +91,54 @@ def test_awesomium_view_callbacks_reconstruct_tooltip_and_console_contracts() ->
 	register_block = _extract_function_block(cl_cgame, "void QLWebHost_RegisterCommands( void ) {")
 
 	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' not in cl_main
-	assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
+	assert 'cl_webConsole = Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
 	assert 'Q_strncpyz( cl_webHost.tooltip, tooltip ? tooltip : "", sizeof( cl_webHost.tooltip ) );' in tooltip_block
 	assert 'Com_sprintf( payload, sizeof( payload ), "{\\"tooltip\\":\\"%s\\"}", escapedTooltip );' in tooltip_block
 	assert 'CL_WebView_PublishEvent( "web.tooltip", payload );' in tooltip_block
-	assert 'if ( !Cvar_VariableIntegerValue( "web_console" ) ) {' in console_block
+	assert 'if ( !CL_WebCvarIntegerValue( cl_webConsole, "web_console" ) ) {' in console_block
 	assert 'Com_Printf( "%s:%i: %s\\n", source ? source : "", line, message ? message : "" );' in console_block
 	assert 'QLViewHandler_OnChangeTooltip( "" );' in hide_browser_block
+
+
+def test_awesomium_web_cvar_reconstruction_keeps_cached_retail_globals() -> None:
+	cl_cgame = _read_text(CL_CGAME_PATH)
+	common = _read_text(REPO_ROOT / "src" / "code" / "qcommon" / "common.c")
+	mapping_round = _read_text(REPO_ROOT / "docs" / "reverse-engineering" / "quakelive_steam_mapping_round_333.md")
+
+	register_block = _extract_function_block(cl_cgame, "void QLWebHost_RegisterCommands( void ) {")
+	update_block = _extract_function_block(cl_cgame, "static void QLWebCore_Update( void ) {")
+
+	for expected in (
+		'static cvar_t *cl_webZoom = NULL;',
+		'static cvar_t *cl_webConsole = NULL;',
+		'static cvar_t *cl_webBrowserActive = NULL;',
+		"static const clWebCvarRetailMapping_t cl_webCvarRetailMappings[] = {",
+		'{ "web_zoom", 0x012D3060u, "100", CVAR_ARCHIVE, "Awesomium WebView::SetZoom" },',
+		'{ "web_console", 0x012D3064u, "0", CVAR_ARCHIVE, "QLViewHandler::OnAddConsoleMessage" },',
+		'{ "web_browserActive", 0x0145CA50u, "0", CVAR_ROM, "browser-active client/renderer/UI state" },',
+		"static int QLWebHost_CountRecoveredWebCvarMappings( void )",
+	):
+		assert expected in cl_cgame
+
+	assert 'cl_webZoom = Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
+	assert 'cl_webConsole = Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
+	assert 'cl_webBrowserActive = Cvar_Get ("web_browserActive", "0", CVAR_ROM );' in register_block
+	assert "cl_webHost.cvarMappingCount = QLWebHost_CountRecoveredWebCvarMappings();" in register_block
+	assert "CL_WebZoomIntegerValue();" in update_block
+	assert "cl_webZoom->modified" in update_block
+	assert "CL_WebZoomClearModified();" in update_block
+
+	assert 'cvar_t\t*com_webBrowserActive;' in common
+	assert 'com_webBrowserActive = Cvar_Get( "web_browserActive", "0", CVAR_ROM );' in common
+	assert '( com_webBrowserActive && com_webBrowserActive->integer == 1 ) || ( com_idleSleep && com_idleSleep->integer == 1 )' in common
+
+	for expected in (
+		"`web_zoom` | `0x012D3060` | `100` | `CVAR_ARCHIVE`",
+		"`web_console` | `0x012D3064` | `0` | `CVAR_ARCHIVE`",
+		"`web_browserActive` | `0x0145CA50` | `0` | `CVAR_ROM`",
+		"No additional `web_*` cvar names were found",
+	):
+		assert expected in mapping_round
 
 
 def test_awesomium_cursor_override_reconstructs_retail_win32_callback_surface() -> None:
@@ -181,7 +227,7 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	assert "QLLoadHandler_OnFailLoadingFrame( cl_webHost.currentUrl );" in reload_view_block
 	assert "QLWebHost_ReloadView( qtrue );" in reload_block
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in reload_block
-	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' in frame_block
+	assert 'CL_SetCvarIfChanged( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' in frame_block
 
 
 def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_surface() -> None:
@@ -341,10 +387,10 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 	)
 
 	for expected in (
-		'#define CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT "bounded C-export substitution"',
+		'#define CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT "external SDK C API dependency"',
 		'#define CL_AWE_RETAIL_ABI_SCOPE_SOURCE_KEYBOARD "source-owned keyboard event path"',
-		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT "bounded C-export bootstrap substitution"',
-		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME "retail object lifetime mapped to adapter handle"',
+		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT "external SDK C API dependency"',
+		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME "SDK-owned object lifetime"',
 		'#define CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL "retail literal retained in source adapter"',
 		"clAwesomiumRetailAbiEquivalence_t",
 		"clAwesomiumBootstrapRetailMapping_t",
@@ -358,11 +404,22 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		"substitutionKind;",
 		"static const clAwesomiumRetailAbiEquivalence_t cl_aweRetailAbiEquivalence[] = {",
 		"static const clAwesomiumBootstrapRetailMapping_t cl_aweBootstrapRetailMappings[] = {",
-		"rather than claiming literal ABI identity",
+		"exports resolved from `awesomium.dll`.",
 		"view, URL, focus, and shutdown chain",
 		"bootstrapMappingCount;",
 	):
 		assert expected in cl_awesomium
+
+	for disallowed in (
+		"CL_AWE_OBJECT_STORAGE_BYTES",
+		"CL_AWESOMIUM_RETAIL_IMPORT",
+		"CL_Awesomium_RetailAdapterForImport",
+		"CL_Awesomium_VTableMethod",
+		"__thiscall",
+		"CL_AWE_BITMAP_WIDTH_OFFSET",
+		"??0WebConfig@Awesomium@@QAE@XZ",
+	):
+		assert disallowed not in cl_awesomium
 
 	for expected in (
 		'{ 0x004F2590u, 0x18u, "WebCore::Update", "CL_Awesomium_Update", "_Awe_WebCore_Update@4", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
@@ -371,7 +428,7 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'{ 0x004F27C0u, 0xd4u, "WebView::InjectMouseDown", "CL_Awesomium_InjectMouseDown", "_Awe_WebView_InjectMouseDown@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
 		'{ 0x004F2820u, 0xd8u, "WebView::InjectMouseUp", "CL_Awesomium_InjectMouseUp", "_Awe_WebView_InjectMouseUp@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
 		'{ 0x004F2870u, 0xdcu, "WebView::InjectMouseWheel", "CL_Awesomium_InjectMouseWheel", "_Awe_WebView_InjectMouseWheel@12", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
-		'{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_WebView_InjectKeyboardEvent@16", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
+		'{ 0x004F28A0u, 0xe0u, "WebView::InjectKeyboardEvent", "CL_Awesomium_InjectKeyboardEvent", "_Awe_new_WebKeyboardEvent_1@12 + _Awe_WebView_InjectKeyboardEvent@8", CL_AWE_RETAIL_ABI_SCOPE_C_EXPORT },',
 	):
 		assert expected in cl_awesomium
 
@@ -385,9 +442,8 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'{ 0x004F2D30u, 0x00548068u, "QL data-source name", "CL_Awesomium_CreateSession", "\\"QL\\"", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_SOURCE_LITERAL },',
 		'{ 0x004F2D30u, 0x00548070u, "DataPakSource::vftable", "CL_Awesomium_CreateSession", "Awesomium built-in DataPakSource", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_OBJECT_LIFETIME },',
 		'{ 0x004F2D30u, 0x00000010u, "WebSession::AddDataSource slot 0x10", "CL_Awesomium_CreateSession", "_Awe_WebSession_AddDataSource@12", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
-		'{ 0x004F2A10u, 0x0000001Cu, "WebSession::ClearCache slot 0x1C", "CL_Awesomium_ClearCache", "_Awe_WebSession_Release@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00000004u, "WebCore::CreateWebView slot 0x04", "CL_Awesomium_Startup", "_Awe_WebCore_CreateWebView_0@20", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
-		'{ 0x004F2D30u, 0x000000A0u, "WebView::set_transparent slot 0xA0", "CL_Awesomium_Startup", "_Awe_WebView_set_transparent@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
+		'{ 0x004F2D30u, 0x000000A0u, "WebView::SetTransparent slot 0xA0", "CL_Awesomium_Startup", "_Awe_WebView_SetTransparent@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x00000064u, "WebView::LoadURL slot 0x64", "CL_Awesomium_OpenURL", "_Awe_WebView_LoadURL@8", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F24D0u, 0x000000A8u, "WebView::PauseRendering slot 0xA8", "CL_Awesomium_PauseRendering", "_Awe_WebView_PauseRendering@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
 		'{ 0x004F2D30u, 0x000000ACu, "WebView::ResumeRendering slot 0xAC", "CL_Awesomium_OpenURL", "_Awe_WebView_ResumeRendering@4", CL_AWE_RETAIL_BOOTSTRAP_SCOPE_C_EXPORT },',
@@ -414,17 +470,22 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		'CL_AWE_IMPORT( newDataPakSource, "_Awe_new_DataPakSource@4" );',
 		'CL_AWE_IMPORT( webSessionAddDataSource, "_Awe_WebSession_AddDataSource@12" );',
 		'cl_awe.webSessionInitialize = reinterpret_cast<awe_websession_void_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebSession_Initialize@4" ) );',
-		'CL_AWE_IMPORT( webSessionClearCache, "_Awe_WebSession_Release@4" );',
+		'CL_AWE_IMPORT( webSessionRelease, "_Awe_WebSession_Release@4" );',
 		'CL_AWE_IMPORT( webViewDestroy, "_Awe_WebView_Destroy@4" );',
 		'CL_AWE_IMPORT( webViewLoadURL, "_Awe_WebView_LoadURL@8" );',
 		'CL_AWE_IMPORT( webViewFocus, "_Awe_WebView_Focus@4" );',
 		'CL_AWE_IMPORT( webViewSurface, "_Awe_WebView_surface@4" );',
 		'CL_AWE_IMPORT( webCoreUpdate, "_Awe_WebCore_Update@4" );',
+		'CL_AWE_IMPORT( webViewSetTransparent, "_Awe_WebView_SetTransparent@8" );',
+		'cl_awe.webViewSetZoom = reinterpret_cast<awe_webview_set_zoom_fn>( CL_Awesomium_ResolveOptionalImport( "_Awe_WebView_SetZoom@8" ) );',
 		'CL_AWE_IMPORT( webViewResize, "_Awe_WebView_Resize@12" );',
 		'CL_AWE_IMPORT( webViewInjectMouseMove, "_Awe_WebView_InjectMouseMove@12" );',
 		'CL_AWE_IMPORT( webViewInjectMouseDown, "_Awe_WebView_InjectMouseDown@8" );',
 		'CL_AWE_IMPORT( webViewInjectMouseUp, "_Awe_WebView_InjectMouseUp@8" );',
 		'CL_AWE_IMPORT( webViewInjectMouseWheel, "_Awe_WebView_InjectMouseWheel@12" );',
+		'CL_AWE_IMPORT( newWebKeyboardEvent, "_Awe_new_WebKeyboardEvent_1@12" );',
+		'CL_AWE_IMPORT( deleteWebKeyboardEvent, "_Awe_delete_WebKeyboardEvent@4" );',
+		'CL_AWE_IMPORT( webViewInjectKeyboardEvent, "_Awe_WebView_InjectKeyboardEvent@8" );',
 	):
 		assert expected in load_block
 
@@ -475,6 +536,7 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 	assert "cl_awe.webViewFocus( cl_awesomium.webView );" in startup_block
 	assert 'url = "asset://ql/index.html";' in open_url_block
 	assert "cl_awe.webViewLoadURL( cl_awesomium.webView, webURL );" in open_url_block
+	assert "CL_Awesomium_SetZoom( 100 );" in open_url_block
 	assert "cl_awe.webViewFocus( cl_awesomium.webView );" in open_url_block
 	assert "cl_awe.webCoreUpdate( cl_awesomium.webCore );" in update_block
 	assert "cl_awe.webViewResize( cl_awesomium.webView, width, height );" in resize_block
@@ -482,10 +544,65 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 	assert "cl_awe.webViewInjectMouseDown( cl_awesomium.webView, button );" in mouse_down_block
 	assert "cl_awe.webViewInjectMouseUp( cl_awesomium.webView, button );" in mouse_up_block
 	assert "cl_awe.webViewInjectMouseWheel( cl_awesomium.webView, 0, direction * 30 );" in wheel_block
-	assert "cl_awe.webSessionClearCache( cl_awesomium.webSession );" in clear_cache_live_block
+	assert "event = cl_awe.newWebKeyboardEvent( eventType, virtualKeyCode, nativeKeyCode );" in cl_awesomium
+	assert "cl_awe.webViewInjectKeyboardEvent( cl_awesomium.webView, event );" in cl_awesomium
+	assert "cl_awe.deleteWebKeyboardEvent( event );" in cl_awesomium
+	assert "The SDK C API exposes WebSession_Release, not a cache-clear call." in clear_cache_live_block
 	assert "cl_awe.webViewDestroy( cl_awesomium.webView );" in shutdown_block
+	assert "cl_awe.webSessionRelease( cl_awesomium.webSession );" in shutdown_block
 	assert "cl_awe.webCoreShutdown();" in shutdown_block
-	assert "webSessionClearCache" not in shutdown_block
+	assert "webSessionClearCache" not in cl_awesomium
+
+
+def test_awesomium_sdk_dependency_is_external_and_non_replicated() -> None:
+	process_cpp = _read_text(AWESOMIUM_PROCESS_CPP_PATH)
+	process_rc = _read_text(AWESOMIUM_PROCESS_RC_PATH)
+	process_project = _read_text(AWESOMIUM_PROCESS_VCXPROJ_PATH)
+	steam_project = _read_text(QUAKELIVE_STEAM_VCXPROJ_PATH)
+
+	assert not AWESOMIUM_DEF_PATH.exists()
+	assert "#include <Awesomium/ChildProcess.h>" in process_cpp
+	assert "namespace Awesomium" not in process_cpp
+	assert "int __cdecl ChildProcessMain" not in process_cpp
+	assert "Awesomium::ChildProcessMain( instance );" in process_cpp
+
+	for expected in (
+		"AwesomiumSdkDir",
+		"AWESOMIUM_SDK_DIR",
+		"ValidateAwesomiumSdk",
+		"Awesomium\\ChildProcess.h",
+		"awesomium.lib",
+		"do not commit or generate Awesomium SDK import libraries",
+	):
+		assert expected in process_project
+
+	for disallowed in (
+		"AwesomiumImportDef",
+		"AwesomiumImportLib",
+		"BuildAwesomiumImportLib",
+		"awesomium.def",
+		"awesomium_import.lib",
+		"lib.exe",
+	):
+		assert disallowed not in process_project
+
+	for expected in (
+		"QLRequireAwesomiumSdk",
+		"AwesomiumSdkDir",
+		"AWESOMIUM_SDK_DIR",
+		"ValidateAwesomiumSdk",
+		"Awesomium\\WebCore.h",
+		"awesomium.dll",
+		"CopyAwesomiumRuntime",
+		"The SDK remains external and is not vendored.",
+	):
+		assert expected in steam_project
+
+	assert 'VALUE "CompanyName", "Quake Live Reverse\\0"' in process_rc
+	assert 'VALUE "FileDescription", "Quake Live Reverse Awesomium child-process host\\0"' in process_rc
+	assert 'VALUE "ProductName", "Quake Live Reverse\\0"' in process_rc
+	assert "Awesomium Technologies" not in process_rc
+	assert 'VALUE "ProductName", "Awesomium\\0"' not in process_rc
 
 
 def test_awesomium_null_host_browser_lane_is_explicit_compatibility_scope() -> None:

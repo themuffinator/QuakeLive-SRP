@@ -8,7 +8,7 @@
   "main_package": {
     "path": "build/win32/Debug/bin/baseq3/pak_uiql.pk3",
     "size": 83105163,
-    "sha256": "c158fcfcd304edb08381e0090e94713960480dce0617d9bdca9f5c0b24eda4d1",
+    "sha256": "2dbed7dda2df21bc8880603fe7e7316be87447b49ec30913cfc64a88639afeb5",
     "entry_count": 950,
     "required_entries": [
       "default.cfg",

@@ -41,7 +41,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	POWERUP_BLINK_TIME	1000
 #define	FADE_TIME			200
-#define	OBITUARY_TIME		5000
+#define	OBITUARY_TIME		2000
 #define	MAX_OBITUARIES		16
 #define	CG_OBITUARY_NAME_SIZE	40
 #define	PULSE_TIME			200
@@ -77,7 +77,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	TEXT_ICON_SPACE		4
 
 #define	TEAMCHAT_WIDTH		80
-#define TEAMCHAT_HEIGHT		8
+#define	TEAMCHAT_HEIGHT		24
+#define	TEAMCHAT_TEXT_SIZE	256
 
 // very large characters
 #define	GIANT_WIDTH			32
@@ -800,9 +801,6 @@ typedef struct {
 	int		attackerColorIndex;
 	qboolean	hasAttacker;
 	qhandle_t	icon;
-	int		attacker;
-	int		target;
-	int		mod;
 } cgObituary_t;
 
 #define CG_SPECTATOR_ITEM_PICKUP_COUNT	10
@@ -953,7 +951,6 @@ typedef struct {
 	int			pendingFollowKillerClient;
 	int			pendingFollowKillerTime;
 	cgObituary_t	obituaries[MAX_OBITUARIES];
-	int			obituaryIndex;
 	char			spectatorList[MAX_STRING_CHARS];		// list of names
 	char			spectatorEntries[MAX_CLIENTS][64];
 	int				spectatorLen;												// length of list
@@ -1799,9 +1796,14 @@ typedef struct {
 
 	clientInfo_t	clientinfo[MAX_CLIENTS];
 
-	// teamchat width is *3 because of embedded color codes
-	char			teamChatMsgs[TEAMCHAT_HEIGHT][TEAMCHAT_WIDTH*3+1];
+	char			teamChatMsgs[TEAMCHAT_HEIGHT][TEAMCHAT_TEXT_SIZE];
 	int				teamChatMsgTimes[TEAMCHAT_HEIGHT];
+	int				teamChatMsgExpireTimes[TEAMCHAT_HEIGHT];
+	int				teamChatMsgTypes[TEAMCHAT_HEIGHT];
+	char			teamChatActiveMsg[TEAMCHAT_TEXT_SIZE];
+	int				teamChatActiveTime;
+	int				teamChatActiveExpireTime;
+	int				teamChatActiveType;
 	int				teamChatPos;
 	int				teamLastChatPos;
 
@@ -2287,11 +2289,12 @@ void CG_ScoresDown_f( void );
 void CG_RunMenuScript(char **args);
 void CG_SetPrintString(int type, const char *p);
 void CG_InitTeamChat();
+void CG_ArchiveNewChatLine( void );
 void CG_PushPrintString( const char *text, int type, int holdTime );
 void CG_GetTeamColor(vec4_t *color);
 void CG_GetColorForIndex( int index, vec4_t color );
 const char *CG_GetTeamName( team_t team );
-const char *CG_GetGameStatusText();
+const char *CG_GetGameStatusText( void );
 const char *CG_GetMatchStatusText( void );
 const char *CG_GetKillerText();
 const char *CG_GetRaceStatusText( void );
@@ -2542,6 +2545,8 @@ void CG_RunQueuedAutoActions( void );
 qboolean CG_ShouldDrawSpriteSelf( void );
 qboolean CG_ShouldDrawTieredArmor( void );
 qboolean CG_ShouldDrawSpeedometer( void );
+float CG_GetSpeedometerSpeed( void );
+void CG_RecordSpeedometerSample( void );
 float CG_TeamOverlayXValue( void );
 float CG_TeamOverlayYValue( void );
 float CG_TeamOverlaySizeValue( void );

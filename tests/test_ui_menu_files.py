@@ -10,6 +10,15 @@ from scripts.ui.retail_ui_corpus import inventory_missing_reason
 from scripts.ui.retail_ui_corpus import DEFAULT_BASEQ3_ROOT
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+UI_HLIL_PART01 = (
+    REPO_ROOT
+    / "references"
+    / "hlil"
+    / "quakelive"
+    / "uix86.all"
+    / "uix86.dll_hlil_split"
+    / "uix86.dll_hlil_part01.txt"
+)
 
 
 def _extract_define(text: str, name: str) -> str:
@@ -317,11 +326,135 @@ def test_ui_ownerdraw_force_model_previews_match_retail_ql() -> None:
     assert '"ui_teamModelBright"' not in ui_main
     assert '"ui_enemyModelBright"' not in ui_main
 
-    assert 'UI_SyncRetailSliderColorCvar( &ui_teamHeadColor, "cg_teamHeadColor" );' in ui_main
-    assert 'UI_SyncRetailSliderColorCvar( &ui_enemyHeadColor, "cg_enemyHeadColor" );' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_teamHeadColor, "ui_teamHeadColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_enemyHeadColor, "ui_enemyHeadColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),' in ui_main
+    color_callback_block = _extract_function_block(
+        ui_main,
+        "static void UI_UpdateRetailSliderColorCvar( vmCvar_t *uiCvar ) {",
+    )
+    assert 'UI_SyncRetailSliderColorCvar( uiCvar, "cg_teamHeadColor" );' in color_callback_block
+    assert 'UI_SyncRetailSliderColorCvar( uiCvar, "cg_enemyHeadColor" );' in color_callback_block
     assert "static int UI_CountPlayerModelEntries( qboolean skipAliasSkins )" in ui_main
     assert "UI_AddPlayerModelEntry( dirptr, skinname + 5, iconShaderName );" in ui_main
     assert "if ( UI_PlayerModelSkinIsAlias( ui_playerModelEntries[i].skinName ) ) {" in ui_main
+
+
+def test_ui_cvar_table_reconstructs_retail_callback_lane() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_hlil = UI_HLIL_PART01.read_text(encoding="utf-8", errors="ignore")
+
+    struct_start = ui_main.index("typedef struct {\n\tvmCvar_t\t*vmCvar;")
+    struct_block = ui_main[struct_start:ui_main.index("} cvarTable_t;", struct_start)]
+    assert "uiCvarUpdate_t\tupdate;" in struct_block
+    assert "int\t\t\tcvarFlags;" in struct_block
+    assert struct_block.index("uiCvarUpdate_t\tupdate;") < struct_block.index("int\t\t\tcvarFlags;")
+
+    assert "#define UI_CVAR_TABLE_ENTRY( vmCvar, cvarName, defaultString, cvarFlags ) \\" in ui_main
+    assert "{ (vmCvar), (cvarName), (defaultString), NULL, (cvarFlags) }" in ui_main
+    assert "#define UI_CVAR_TABLE_CALLBACK( vmCvar, cvarName, defaultString, cvarFlags, update ) \\" in ui_main
+    assert "{ (vmCvar), (cvarName), (defaultString), (update), (cvarFlags) }" in ui_main
+
+    update_block = _extract_function_block(ui_main, "void UI_UpdateCvars( void ) {")
+    assert "oldModificationCount = cv->vmCvar->modificationCount;" in update_block
+    assert "trap_Cvar_Update( cv->vmCvar );" in update_block
+    assert "&& oldModificationCount != 0" in update_block
+    assert "&& oldModificationCount != cv->vmCvar->modificationCount" in update_block
+    assert "cv->update( cv->vmCvar );" in update_block
+    assert "uiTeamHeadColorModificationCount" not in ui_main
+    assert "uiScreenDamageTeamModificationCount" not in ui_main
+
+    assert "10011747  void** esi_1 = &data_1002afe0" in ui_hlil
+    assert "1001174c  int32_t i_3 = 0x82" in ui_hlil
+    assert "(*(data_106b40a8 + 0x10))(esi_1[-2], esi_1[-1], *esi_1, esi_1[2])" in ui_hlil
+    assert "100118a3  void** esi = &data_1002afd8" in ui_hlil
+    assert "100118a8  int32_t i_1 = 0x82" in ui_hlil
+    assert "result = esi[3]" in ui_hlil
+    assert "if (result != 0 && edi_1 != 0)" in ui_hlil
+    assert "if (edi_1 != *(ecx_3 + 4))" in ui_hlil
+    assert "result = result(ecx_3)" in ui_hlil
+
+
+def test_ui_cvar_table_reconstructs_retail_slider_color_callbacks() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_local = (REPO_ROOT / "src/code/ui/ui_local.h").read_text(encoding="utf-8")
+    ui_hlil = UI_HLIL_PART01.read_text(encoding="utf-8", errors="ignore")
+
+    assert "vmCvar_t\tui_enemyColor;" in ui_main
+    assert "vmCvar_t\tui_teamColor;" in ui_main
+    assert "extern vmCvar_t\tui_enemyColor;" in ui_local
+    assert "extern vmCvar_t\tui_teamColor;" in ui_local
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_enemyColor, "ui_enemyColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_teamColor, "ui_teamColor", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),' in ui_main
+
+    color_callback_block = _extract_function_block(
+        ui_main,
+        "static void UI_UpdateRetailSliderColorCvar( vmCvar_t *uiCvar ) {",
+    )
+    team_bulk_block = color_callback_block[
+        color_callback_block.index("if ( uiCvar == &ui_teamColor ) {"):
+        color_callback_block.index("if ( uiCvar == &ui_enemyColor ) {")
+    ]
+    enemy_bulk_block = color_callback_block[
+        color_callback_block.index("if ( uiCvar == &ui_enemyColor ) {"):
+        color_callback_block.index("if ( uiCvar == &ui_teamHeadColor ) {")
+    ]
+    assert team_bulk_block.index('"cg_teamUpperColor"') < team_bulk_block.index('"cg_teamLowerColor"')
+    assert team_bulk_block.index('"cg_teamLowerColor"') < team_bulk_block.index('"cg_teamHeadColor"')
+    assert enemy_bulk_block.index('"cg_enemyUpperColor"') < enemy_bulk_block.index('"cg_enemyLowerColor"')
+    assert enemy_bulk_block.index('"cg_enemyLowerColor"') < enemy_bulk_block.index('"cg_enemyHeadColor"')
+
+    for target in (
+        '"cg_teamHeadColor"',
+        '"cg_teamUpperColor"',
+        '"cg_teamLowerColor"',
+        '"cg_enemyHeadColor"',
+        '"cg_enemyUpperColor"',
+        '"cg_enemyLowerColor"',
+        '"cg_screenDamage"',
+        '"cg_screenDamage_Team"',
+    ):
+        assert target in color_callback_block
+
+    assert 'data_1002b258 = 0x107404c0' in ui_hlil
+    assert 'data_1002b25c)[0xe] = data_10026240 {"ui_enemyColor"}' in ui_hlil
+    assert "data_1002b264 = sub_10011240" in ui_hlil
+    assert 'data_1002b974 = 0x1073fbc0' in ui_hlil
+    assert 'data_1002b978)[0xd] = data_10025ec4 {"ui_teamColor"}' in ui_hlil
+    assert "data_1002b980 = sub_10011240" in ui_hlil
+    assert "10011240    void sub_10011240(float arg1)" in ui_hlil
+    assert '"cg_teamUpperColor", sub_10001900("0x%08x")' in ui_hlil
+    assert '"cg_enemyUpperColor", sub_10001900("0x%08x")' in ui_hlil
+    assert '"cg_screenDamage_Team", sub_10001900("0x%08x")' in ui_hlil
+
+
+def test_ui_cvar_table_reconstructs_retail_force_model_and_announcer_callbacks() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_hlil = UI_HLIL_PART01.read_text(encoding="utf-8", errors="ignore")
+
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_forceEnemyModel, "ui_forceEnemyModel", "", CVAR_ARCHIVE, UI_UpdateForceEnemyModelSettings ),' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_forceEnemySkin, "ui_forceEnemySkin", "", CVAR_ARCHIVE, UI_UpdateForceEnemyModelSettings ),' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_forceTeamModel, "ui_forceTeamModel", "", CVAR_ARCHIVE, UI_UpdateForceTeamModelSettings ),' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_forceTeamSkin, "ui_forceTeamSkin", "", CVAR_ARCHIVE, UI_UpdateForceTeamModelSettings ),' in ui_main
+    assert 'UI_CVAR_TABLE_CALLBACK( &ui_announcer, "cg_announcer", "1", CVAR_ARCHIVE, UI_UpdateAnnouncer ),' in ui_main
+
+    announcer_block = _extract_function_block(ui_main, "static void UI_UpdateAnnouncer( vmCvar_t *uiCvar ) {")
+    assert 'sample = "sound/misc/vo_evil.wav";' in announcer_block
+    assert 'sample = "sound/misc/vo_female.wav";' in announcer_block
+    assert 'sample = "sound/misc/vo_default.wav";' in announcer_block
+    assert "trap_S_StartLocalSound( sound, CHAN_ANNOUNCER );" in announcer_block
+    assert 'trap_Cvar_Set( "ui_announcer", va( "%i", uiCvar->integer ) );' in announcer_block
+
+    assert 'data_1002afdc)[0xd] = data_1002641c {"cg_announcer"}' in ui_hlil
+    assert "data_1002afe4 = sub_10011690" in ui_hlil
+    assert "10011640  int32_t eax" in ui_hlil
+    assert 'sub_10011510(eax, edx, "cg_forceTeamSkin", "cg_forceTeamModel")' in ui_hlil
+    assert "data_1002b304 = sub_10011630" in ui_hlil
+    assert 'sub_10011510(eax, edx, "cg_forceEnemySkin", "cg_forceEnemyModel")' in ui_hlil
+    assert "data_1002b2c8 = sub_10011660" in ui_hlil
+    assert '"sound/misc/vo_default.wav", 7' in ui_hlil
+    assert '"sound/misc/vo_evil.wav", 7' in ui_hlil
+    assert '"sound/misc/vo_female.wav", 7' in ui_hlil
+    assert '("ui_announcer", sub_10001900(&data_10025920))' in ui_hlil
 
 
 def test_ui_startup_uses_retail_teaminfo_path() -> None:
@@ -657,6 +790,45 @@ def test_ui_retail_ownerdraw_extensions_restored() -> None:
     assert "crosshair%c" not in asset_cache_block
 
 
+def test_ui_retail_ownerdraw_visibility_cvar_gates_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    visible_block = _extract_function_block(
+        ui_main,
+        "static qboolean UI_OwnerDrawVisibleFlags( int flags ) {",
+    )
+
+    for expected in (
+        "if (flags & UI_SHOW_IF_LOADOUT_ENABLED) {",
+        'if (trap_Cvar_VariableValue("cg_loadout") != 1.0f) {',
+        "flags &= ~UI_SHOW_IF_LOADOUT_ENABLED;",
+        "if (flags & UI_SHOW_IF_LOADOUT_DISABLED) {",
+        'if (trap_Cvar_VariableValue("cg_loadout") == 1.0f) {',
+        "flags &= ~UI_SHOW_IF_LOADOUT_DISABLED;",
+        "if (flags & UI_SHOW_IF_NOT_INTERMISSION) {",
+        'if (trap_Cvar_VariableValue("ui_intermission") == 1.0f) {',
+        "flags &= ~UI_SHOW_IF_NOT_INTERMISSION;",
+        "if (flags & UI_SHOW_IF_WARMUP) {",
+        'if (trap_Cvar_VariableValue("ui_warmup") >= 0.0f) {',
+        "flags &= ~UI_SHOW_IF_WARMUP;",
+        "if (flags & UI_SHOW_IF_NOT_WARMUP) {",
+        'if (trap_Cvar_VariableValue("ui_warmup") < 0.0f) {',
+        "flags &= ~UI_SHOW_IF_NOT_WARMUP;",
+    ):
+        assert expected in visible_block
+
+    order = (
+        "if (flags & UI_SHOW_IF_LOADOUT_ENABLED) {",
+        "if (flags & UI_SHOW_IF_LOADOUT_DISABLED) {",
+        "if (flags & UI_SHOW_IF_NOT_INTERMISSION) {",
+        "if (flags & UI_SHOW_IF_WARMUP) {",
+        "if (flags & UI_SHOW_IF_NOT_WARMUP) {",
+        "if (flags & UI_SHOW_ANYTEAMGAME) {",
+    )
+    assert [visible_block.index(marker) for marker in order] == sorted(
+        visible_block.index(marker) for marker in order
+    )
+
+
 def test_ui_retail_starting_weapons_ownerdraw_restored() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     token_block = _extract_function_block(ui_main, "static int UI_StartingWeaponIndexFromToken")
@@ -665,6 +837,7 @@ def test_ui_retail_starting_weapons_ownerdraw_restored() -> None:
     assert "COM_ParseExt( &cursor, qtrue )" in token_block
     assert "uiStartingWeaponIcons[i].token" in token_block
     assert 'trap_GetConfigString( CS_LOADOUT_MASK, loadoutMaskText, sizeof( loadoutMaskText ) );' in ui_main
+    assert 'if ( trap_Cvar_VariableValue( "cg_loadout" ) != 1.0f ) {' in ui_main
     assert 'UI_Cvar_VariableString( "cg_weaponPrimaryQueued" )' in ui_main
     assert "case UI_STARTING_WEAPONS:" in ui_main
     assert "UI_DrawStartingWeapons(&rect, scale, color, textStyle);" in ui_main
@@ -753,6 +926,7 @@ def test_ui_retail_listbox_and_secondary_ownerdraw_flags_parse_cleanly() -> None
     assert "vec4_t altRowColor;" in ui_shared_h
     assert "vec4_t elementColor;" in ui_shared_h
     assert "vec4_t selectedColor;" in ui_shared_h
+    assert "qhandle_t outlineImage;" in ui_shared_h
     assert "qboolean altRowColorSet;" in ui_shared_h
     assert "qboolean elementColorSet;" in ui_shared_h
     assert "qboolean selectedColorSet;" in ui_shared_h
@@ -764,11 +938,13 @@ def test_ui_retail_listbox_and_secondary_ownerdraw_flags_parse_cleanly() -> None
         "qboolean ItemParse_altrowcolor( itemDef_t *item, int handle ) {",
         "qboolean ItemParse_elementcolor( itemDef_t *item, int handle ) {",
         "qboolean ItemParse_selectedcolor( itemDef_t *item, int handle ) {",
+        "qboolean ItemParse_outlineimage( itemDef_t *item, int handle ) {",
         "qboolean MenuParse_ownerdrawFlag2( itemDef_t *item, int handle ) {",
         '{"ownerdrawFlag2", ItemParse_ownerdrawFlag2, NULL},',
         '{"altrowcolor", ItemParse_altrowcolor, NULL},',
         '{"elementcolor", ItemParse_elementcolor, NULL},',
         '{"selectedcolor", ItemParse_selectedcolor, NULL},',
+        '{"outlineimage", ItemParse_outlineimage, NULL},',
         '{"ownerdrawFlag2", MenuParse_ownerdrawFlag2, NULL},',
         "item->window.ownerDrawFlags2 |= i;",
         "menu->window.ownerDrawFlags2 |= i;",
@@ -780,8 +956,13 @@ def test_ui_retail_listbox_and_secondary_ownerdraw_flags_parse_cleanly() -> None
         "((listBoxDef_t *)item->typeData)->elementColor[3] = 1.0f;",
         "((listBoxDef_t *)item->typeData)->selectedColor[0] = 1.0f;",
         "((listBoxDef_t *)item->typeData)->selectedColor[3] = 1.0f;",
-        "if ( i == item->cursorPos ) {\n\t\t\t\t\tDC->fillRect( x + 2, y + 2, item->window.rect.w - SCROLLBAR_SIZE - 4, listPtr->elementHeight, item->window.outlineColor );",
-        "if ( listPtr->altRowColorSet && ( ( (int)i - listPtr->startPos ) & 1 ) ) {",
+        "item->outlineImage = DC->registerShaderNoMip( imageName );",
+        "backgroundX = x + 2;",
+        "backgroundY = y + 6;",
+        "backgroundW = item->window.rect.w - SCROLLBAR_SIZE - 6;",
+        "if ( item->outlineImage ) {\n\t\t\t\t\t\tDC->drawHandlePic( backgroundX, backgroundY, backgroundW, listPtr->elementHeight, item->outlineImage );\n\t\t\t\t\t} else {\n\t\t\t\t\t\tDC->fillRect( backgroundX, backgroundY, backgroundW, listPtr->elementHeight, item->window.outlineColor );",
+        "if ( listPtr->altRowColorSet && ( (int)i & 1 ) ) {",
+        "DC->fillRect( backgroundX, backgroundY, backgroundW, listPtr->elementHeight, listPtr->altRowColor );",
         "Item_DrawText(item, x + 4, y + listPtr->elementHeight, textColor, text, 0, 0);",
     ):
         assert expected in ui_shared
@@ -1132,8 +1313,8 @@ def test_ui_retail_item_font_runtime_compatibility_restored() -> None:
 def test_ui_retail_font_cvars_and_scale_buckets_match_retail() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
 
-    assert '{ &ui_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE}' in ui_main
-    assert '{ &ui_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE}' in ui_main
+    assert 'UI_CVAR_TABLE_ENTRY( &ui_smallFont, "ui_smallFont", "0.25", CVAR_ARCHIVE ),' in ui_main
+    assert 'UI_CVAR_TABLE_ENTRY( &ui_bigFont, "ui_bigFont", "0.4", CVAR_ARCHIVE ),' in ui_main
 
     select_block = _extract_function_block(
         ui_main,
@@ -1409,6 +1590,7 @@ def test_ui_retail_parser_gating_extensions_restored() -> None:
     assert "qboolean backgroundSizeSet;" in ui_shared_h
 
     ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    assert re.search(r"#define\s+UI_SCRIPT_BUFFER_SIZE\s+2048\b", ui_shared)
     assert "static qboolean Item_HasCvarFlags( const itemDef_t *item, int mask )" in ui_shared
     assert "static qboolean Item_EnableShowViaCvarSlot( const itemDef_t *item, int slot, int flag )" in ui_shared
     assert "qboolean ItemParse_cvarTest2( itemDef_t *item, int handle )" in ui_shared
@@ -1429,6 +1611,43 @@ def test_ui_retail_parser_gating_extensions_restored() -> None:
     assert "qboolean MenuParse_backgroundSize( itemDef_t *item, int handle )" in ui_shared
     assert 'menu->backgroundSizeSet = qtrue;' in ui_shared
     assert '{"backgroundSize", MenuParse_backgroundSize, NULL}' in ui_shared
+
+    script_parse_start = ui_shared.index(
+        "qboolean PC_Script_Parse(int handle, const char **out) {"
+    )
+    script_parse_block = ui_shared[
+        script_parse_start:ui_shared.index(
+            "// display, window, menu, item code", script_parse_start
+        )
+    ]
+    assert "char script[UI_SCRIPT_BUFFER_SIZE];" in script_parse_block
+    assert script_parse_block.count("Q_strcat(script, UI_SCRIPT_BUFFER_SIZE,") == 3
+
+    run_script_block = _extract_function_block(
+        ui_shared, "void Item_RunScript(itemDef_t *item, const char *s) {"
+    )
+    assert "char script[UI_SCRIPT_BUFFER_SIZE], *p;" in run_script_block
+    assert "Q_strcat(script, sizeof(script), s);" in run_script_block
+
+    cvar_slot_block = _extract_function_block(
+        ui_shared,
+        "static qboolean Item_EnableShowViaCvarSlot( const itemDef_t *item, int slot, int flag ) {",
+    )
+    assert "char script[UI_SCRIPT_BUFFER_SIZE], *p;" in cvar_slot_block
+    assert "char buff[1024];" in cvar_slot_block
+    assert "DC->getCVarString( item->cvarTest[slot], buff, sizeof( buff ) );" in cvar_slot_block
+    assert "Q_strcat( script, sizeof( script ), item->enableCvar[slot] );" in cvar_slot_block
+
+    ui_hlil = UI_HLIL_PART01.read_text(encoding="utf-8", errors="ignore")
+    assert "10014d1a  memset(&var_810, 0, 0x800)" in ui_hlil
+    assert "sub_10001750(0x800, edx_2)" in ui_hlil
+    assert "10016d9b  result, edx = memset(&var_804, 0, 0x800)" in ui_hlil
+    assert "10016dc7      sub_10001750(0x800, edx)" in ui_hlil
+    assert "10016e9f      memset(&var_804, 0, 0x800)" in ui_hlil
+    assert (
+        "10016ee6                  char* edx_2 = "
+        "(*(data_106b40d0 + 0x58))(eax_3, &var_c04, 0x400)"
+    ) in ui_hlil
 
     admin_menu = (REPO_ROOT / "src/ui/ingame_admin.menu").read_text(encoding="utf-8")
     assert 'cvarTest2 "cg_gametype"' in admin_menu

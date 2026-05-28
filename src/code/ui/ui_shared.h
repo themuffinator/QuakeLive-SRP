@@ -300,6 +300,7 @@ typedef struct itemDef_s {
   const char *text;              // display text
   void *parent;                  // menu owner
   qhandle_t asset;               // handle to asset
+	qhandle_t outlineImage;				 // retail selected listbox background asset
   const char *mouseEnterText;    // mouse enter script
   const char *mouseExitText;     // mouse exit script
   const char *mouseEnter;        // mouse enter script

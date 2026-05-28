@@ -1991,20 +1991,46 @@ static void CG_WriteLastMessageCvar( int timestamp, const char *message ) {
 
 /*
 =============
+CG_ArchiveNewChatLine
+
+Moves the active retail chat record into the 24-entry history ring.
+=============
+*/
+void CG_ArchiveNewChatLine( void ) {
+	int	index;
+
+	if ( !cgs.teamChatActiveMsg[0] ) {
+		return;
+	}
+
+	index = cgs.teamChatPos % TEAMCHAT_HEIGHT;
+	Q_strncpyz( cgs.teamChatMsgs[index], cgs.teamChatActiveMsg, sizeof( cgs.teamChatMsgs[index] ) );
+	cgs.teamChatMsgTimes[index] = cgs.teamChatActiveTime;
+	cgs.teamChatMsgExpireTimes[index] = cgs.teamChatActiveExpireTime;
+	cgs.teamChatMsgTypes[index] = cgs.teamChatActiveType;
+
+	cgs.teamChatPos++;
+	if ( cgs.teamChatPos - cgs.teamLastChatPos > TEAMCHAT_HEIGHT ) {
+		cgs.teamLastChatPos = cgs.teamChatPos - TEAMCHAT_HEIGHT;
+	}
+
+	cgs.teamChatActiveMsg[0] = '\0';
+	cgs.teamChatActiveTime = 0;
+	cgs.teamChatActiveExpireTime = 0;
+	cgs.teamChatActiveType = 0;
+}
+
+/*
+=============
 CG_PushPrintString
 
-Mirrors the retail buffered chat writer on top of the existing timed chat ring.
+Mirrors the retail buffered chat writer's active record and history rotation.
 =============
 */
 void CG_PushPrintString( const char *text, int type, int holdTime ) {
 	char		cleanText[MAX_STRING_CHARS];
-	const char	*cursor;
-	int		chatHeight;
 	int		len;
-	char		*p;
-	char		*lastSpace;
-	int		lastColor;
-	int		messageTime;
+	int		maxLength;
 
 	if ( !text ) {
 		text = "";
@@ -2023,64 +2049,19 @@ void CG_PushPrintString( const char *text, int type, int holdTime ) {
 		return;
 	}
 
-	chatHeight = CG_GetChatHistoryLength();
-	if ( chatHeight <= 0 || cg_teamChatTime.integer <= 0 ) {
-		cgs.teamChatPos = 0;
-		cgs.teamLastChatPos = 0;
-		return;
-	}
-
 	if ( holdTime < 0 ) {
 		holdTime = 0;
 	}
-	messageTime = cg.time + holdTime;
 
-	cursor = cleanText;
-	len = 0;
-	p = cgs.teamChatMsgs[cgs.teamChatPos % chatHeight];
-	*p = '\0';
-	lastSpace = NULL;
-	lastColor = '7';
-
-	while ( *cursor ) {
-		if ( len > TEAMCHAT_WIDTH - 1 ) {
-			if ( lastSpace ) {
-				cursor -= ( p - lastSpace );
-				cursor++;
-				p -= ( p - lastSpace );
-			}
-			*p = '\0';
-
-			cgs.teamChatMsgTimes[cgs.teamChatPos % chatHeight] = messageTime;
-			cgs.teamChatPos++;
-			p = cgs.teamChatMsgs[cgs.teamChatPos % chatHeight];
-			*p = '\0';
-			*p++ = Q_COLOR_ESCAPE;
-			*p++ = (char)lastColor;
-			len = 0;
-			lastSpace = NULL;
-		}
-
-		if ( Q_IsColorString( cursor ) ) {
-			*p++ = *cursor++;
-			lastColor = *cursor;
-			*p++ = *cursor++;
-			continue;
-		}
-		if ( *cursor == ' ' ) {
-			lastSpace = p;
-		}
-		*p++ = *cursor++;
-		len++;
+	if ( cgs.teamChatActiveMsg[0] ) {
+		CG_ArchiveNewChatLine();
 	}
-	*p = '\0';
 
-	cgs.teamChatMsgTimes[cgs.teamChatPos % chatHeight] = messageTime;
-	cgs.teamChatPos++;
-
-	if ( cgs.teamChatPos - cgs.teamLastChatPos > chatHeight ) {
-		cgs.teamLastChatPos = cgs.teamChatPos - chatHeight;
-	}
+	maxLength = cg.intermissionStarted ? 73 : (int)sizeof( cgs.teamChatActiveMsg );
+	Q_strncpyz( cgs.teamChatActiveMsg, cleanText, maxLength );
+	cgs.teamChatActiveTime = cg.time;
+	cgs.teamChatActiveExpireTime = cg.time + holdTime + 2000;
+	cgs.teamChatActiveType = type;
 }
 
 /*
@@ -3601,6 +3582,31 @@ static void CG_RegisterGraphics( void ) {
 
 /*
 =======================
+CG_CleanSpectatorName
+
+=======================
+*/
+static void CG_CleanSpectatorName( char *string ) {
+	char	*src;
+	char	*dst;
+	int	c;
+
+	src = string;
+	dst = string;
+	while ( ( c = (unsigned char)*src ) != 0 ) {
+		if ( src[0] == Q_COLOR_ESCAPE && src[1] >= '0' && src[1] <= '7' ) {
+			src++;
+		} else if ( c >= 0x20 ) {
+			*dst = *src;
+			dst++;
+		}
+		src++;
+	}
+	*dst = '\0';
+}
+
+/*
+=======================
 CG_CompareSpectatorClients
 
 =======================
@@ -3630,7 +3636,7 @@ static int QDECL CG_CompareSpectatorClients( const void *a, const void *b ) {
 		return -1;
 	}
 
-	return clientNumA - clientNumB;
+	return 0;
 }
 
 /*																																			
@@ -3642,6 +3648,8 @@ CG_BuildSpectatorString
 void CG_BuildSpectatorString() {
 	int		i;
 	int		newEntryCount;
+	int		oldEntryCount;
+	int		queueDisplayPosition;
 	int		spectatorClients[MAX_CLIENTS];
 	char		newSpectatorList[MAX_STRING_CHARS];
 	char		newSpectatorEntries[MAX_CLIENTS][64];
@@ -3650,6 +3658,7 @@ void CG_BuildSpectatorString() {
 	newSpectatorList[0] = '\0';
 	memset( newSpectatorEntries, 0, sizeof( newSpectatorEntries ) );
 	newEntryCount = 0;
+	queueDisplayPosition = 0;
 
 	for ( i = 0; i < MAX_CLIENTS; i++ ) {
 		const clientInfo_t	*ci;
@@ -3664,34 +3673,36 @@ void CG_BuildSpectatorString() {
 		Q_strcat( newSpectatorList, sizeof( newSpectatorList ), va( "%s     ", ci->name ) );
 	}
 
-	if ( newEntryCount > 1 ) {
-		qsort( spectatorClients, newEntryCount, sizeof( spectatorClients[0] ), CG_CompareSpectatorClients );
-	}
+	qsort( spectatorClients, newEntryCount, sizeof( spectatorClients[0] ), CG_CompareSpectatorClients );
 
 	for ( i = 0; i < newEntryCount; i++ ) {
 		const clientInfo_t	*ci;
 		char			cleanName[MAX_NAME_LENGTH];
 		char			entry[64];
+		char			prefix[16];
 
 		ci = &cgs.clientinfo[spectatorClients[i]];
 		Q_strncpyz( cleanName, ci->name, sizeof( cleanName ) );
-		Q_CleanStr( cleanName );
-		if ( !cleanName[0] ) {
-			Q_strncpyz( cleanName, "UnnamedPlayer", sizeof( cleanName ) );
-		}
+		CG_CleanSpectatorName( cleanName );
 
+		prefix[0] = '\0';
 		if ( cgs.gametype == GT_TOURNAMENT ) {
 			if ( ci->spectateOnly ) {
-				Com_sprintf( entry, sizeof( entry ), "^7(^5s^7) %s", cleanName );
+				Q_strncpyz( prefix, "^7(^5s^7)", sizeof( prefix ) );
 			} else if ( ci->spectatorQueuePosition > 0 ) {
-				Com_sprintf( entry, sizeof( entry ), "(%d) %s", ci->spectatorQueuePosition, cleanName );
-			} else {
-				Q_strncpyz( entry, cleanName, sizeof( entry ) );
+				int	queuePosition;
+
+				if ( queueDisplayPosition != ci->spectatorQueuePosition - 1 ) {
+					queuePosition = queueDisplayPosition + 1;
+				} else {
+					queuePosition = ci->spectatorQueuePosition;
+				}
+				Com_sprintf( prefix, sizeof( prefix ), "(%d)", queuePosition );
+				queueDisplayPosition++;
 			}
-		} else {
-			Q_strncpyz( entry, cleanName, sizeof( entry ) );
 		}
 
+		Com_sprintf( entry, sizeof( entry ), "%s%s", prefix, cleanName );
 		Q_strncpyz( newSpectatorEntries[i], entry, sizeof( newSpectatorEntries[i] ) );
 	}
 
@@ -3708,18 +3719,20 @@ void CG_BuildSpectatorString() {
 		}
 	}
 
+	oldEntryCount = cg.spectatorEntryCount;
 	Q_strncpyz( cg.spectatorList, newSpectatorList, sizeof( cg.spectatorList ) );
 	memcpy( cg.spectatorEntries, newSpectatorEntries, sizeof( cg.spectatorEntries ) );
 	cg.spectatorEntryCount = newEntryCount;
 	cg.spectatorLen = strlen( cg.spectatorList );
 
+	if ( oldEntryCount != newEntryCount && cg.spectatorOffset > newEntryCount ) {
+		cg.spectatorOffset = 0;
+	}
 	if ( cacheChanged ) {
 		cg.spectatorWidth = -1;
-		cg.spectatorOffset = 0;
 		cg.spectatorPaintX = 0;
 		cg.spectatorPaintX2 = 0;
 		cg.spectatorPaintLen = 0;
-		cg.spectatorTime = 0;
 	}
 }
 

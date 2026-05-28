@@ -1202,10 +1202,15 @@ def test_team_loadout_bot_and_drop_cvars_keep_retail_behavioral_wiring() -> None
 	assert "Spectator chat is disabled while g_teamSpecSayEnable is 0." in g_cmds
 
 	assert "trap_Cvar_Update( &g_disableLoadout );" in g_spawn
+	assert "trap_Cvar_Update( &g_loadout );" in g_spawn
 	assert "serverMask = G_ParseDisableLoadoutString( g_disableLoadout.string );" in g_spawn
 	assert 'trap_Cvar_Set( "g_disableLoadout", va( "%u", level.disableLoadoutMapMask ) );' in g_spawn
 	assert "g_disableLoadout.modificationCount != s_disableLoadoutModCount" in update_cvars_body
-	assert "G_WriteDisableLoadoutConfigstrings( level.disableLoadoutMapMask, serverMask );" in g_spawn
+	assert "disabledMask = level.disableLoadoutMapMask | serverMask;" in g_spawn
+	assert "G_WriteDisableLoadoutConfigstrings( disabledMask, (unsigned int)g_factoryCvarConfig.startingWeaponsMask );" in g_spawn
+	assert "g_loadout.modificationCount != s_loadoutModCount" in update_cvars_body
+	assert "g_startingWeapons.modificationCount != s_startingWeaponsModCount" in update_cvars_body
+	assert "loadoutConfigstringsDirty = qtrue;" in update_cvars_body
 
 	for cvar_name in (
 		"g_droppedPowerupsDecay",

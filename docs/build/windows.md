@@ -85,20 +85,29 @@ CRT import surface.
 `awesomium_process.exe` respects the same online-services policy as the rest of
 the launcher stack. `QLBuildOnlineServices` defaults to `0`, which produces an
 offline-safe stub that exits cleanly without loading `awesomium.dll`. Set
-`/p:QLBuildOnlineServices=1` if you want the helper to forward into the retail
-Awesomium child-process entry point:
+`/p:QLBuildOnlineServices=1` and point `AwesomiumSdkDir` or
+`AWESOMIUM_SDK_DIR` at an external Awesomium SDK if you want the helper to
+forward into the retail Awesomium child-process entry point:
 
 ```powershell
-msbuild src\code\awesomium_process.vcxproj /p:Configuration=Debug /p:Platform=Win32 /p:PlatformToolset=v100 /p:QLBuildOnlineServices=1
+msbuild src\code\awesomium_process.vcxproj /p:Configuration=Debug /p:Platform=Win32 /p:PlatformToolset=v100 /p:QLBuildOnlineServices=1 /p:AwesomiumSdkDir=C:\SDKs\Awesomium
 ```
 
 For a parity-oriented rebuild of the helper, keep `QLBuildOnlineServices=1` and
-run the dedicated verifier after the build. This checks the retail-facing
-version resource, import surface, and linker/header profile for the executable:
+run the dedicated verifier after the build. This checks the import surface and
+linker/header profile for the executable while keeping the proprietary SDK
+outside the repository:
 
 ```powershell
 pwsh tools\ci\verify-awesomium-process-parity.ps1
 ```
+
+The VS Code `Launch Debug Awesomium` task uses the matching
+`Build Debug Awesomium` task first. That build writes
+`build\win32\<Configuration>\bin\ql_build_settings.txt`;
+`launch.ps1 -EnableAwesomium` refuses to start if the stamp reports
+`QLBuildOnlineServices=0`, because that default offline build will always fall
+back to the menu path instead of showing the WebUI.
 
 ## Repo-Managed Codec Bootstrap
 

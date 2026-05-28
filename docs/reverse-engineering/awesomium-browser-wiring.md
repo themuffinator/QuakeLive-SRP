@@ -37,22 +37,22 @@ This note records the current retail mapping for the Quake Live Awesomium browse
 
 | Retail object/API | Evidence | Source reconstruction status |
 | --- | --- | --- |
-| `WebSession` bootstrap slot `0x18` | HLIL bootstrap calls slot `0x18` immediately after `WebCore::CreateWebSession`. | Reconstructed through optional `_Awe_WebSession_Initialize@4` and retail vtable fallback. |
-| `WebSession` cache-clear slot `0x1c` | HLIL `web_clearCache` calls slot `0x1c`; `web_reload` calls the same slot before WebView reload. | Reconstructed as `CL_Awesomium_ClearCache`; also used by `CL_Web_ClearSessionState` before source-side Steam/resource cache clear. |
-| `WebView::LoadURL` slot `0x64` | HLIL bootstrap and Awesomium import list | Reconstructed through `_Awe_WebView_LoadURL@8` and retail vtable fallback. |
-| `WebView::Stop` slot `0x74` | HLIL/import surface | Reconstructed through retail vtable fallback. |
+| `WebSession` bootstrap slot `0x18` | HLIL bootstrap calls slot `0x18` immediately after `WebCore::CreateWebSession`. | Reconstructed only when the external SDK C API exposes optional `_Awe_WebSession_Initialize@4`; no local vtable fallback is retained. |
+| `WebSession` cache-clear slot `0x1c` | HLIL `web_clearCache` calls slot `0x1c`; `web_reload` calls the same slot before WebView reload. | Mapped as retail evidence. The source no longer treats `_Awe_WebSession_Release@4` as cache clear; reload uses the SDK WebView reload ignore-cache flag and `CL_Awesomium_ClearCache` is a no-op boundary. |
+| `WebView::LoadURL` slot `0x64` | HLIL bootstrap and Awesomium import list | Reconstructed through `_Awe_WebView_LoadURL@8`. |
+| `WebView::Stop` slot `0x74` | HLIL/import surface | Reconstructed through `_Awe_WebView_Stop@4`. |
 | `WebView::surface` slot `0x84` | BitmapSurface copy path | Reconstructed and used by `CL_Awesomium_CopySurface`. |
-| `WebView::Resize` slot `0x9c` | Video size integration | Reconstructed through `_Awe_WebView_Resize@12` and fallback. |
-| `WebView::set_transparent` slot `0xa0` | HLIL bootstrap calls slot `0xa0` with `1` before URL presentation | Reconstructed in this pass through `_Awe_WebView_set_transparent@8` and retail vtable fallback. |
-| `WebView::PauseRendering` slot `0xa8` | HLIL hide-browser path calls slot `0xa8` before deactivating `web_browserActive` | Reconstructed in this pass through `_Awe_WebView_PauseRendering@4` and retail vtable fallback. |
+| `WebView::Resize` slot `0x9c` | Video size integration | Reconstructed through `_Awe_WebView_Resize@12`. |
+| `WebView::SetTransparent` slot `0xa0` | HLIL bootstrap calls slot `0xa0` with `1` before URL presentation | Reconstructed through the SDK C API export `_Awe_WebView_SetTransparent@8`. |
+| `WebView::PauseRendering` slot `0xa8` | HLIL hide-browser path calls slot `0xa8` before deactivating `web_browserActive` | Reconstructed through `_Awe_WebView_PauseRendering@4`. |
 | `WebView::ExecuteJavascript` slot `0x124` | Awesomium import list and retail WebView ABI layout | Reconstructed in this pass as `CL_Awesomium_ExecuteJavascript`. |
 | `WebView::set_js_method_handler` slot `0x12c` | HLIL bootstrap constructs `QLJSHandler` and calls slot `0x12c`; `data_55c008` stores the 34-entry `qz_instance` method table. | Native handler object remains mapped, while the source-visible browser contract is reconstructed through the injected `qz_instance`/`FakeClient.qz_instance` bridge. |
-| `WebView::ResumeRendering` slot `0xac` | HLIL bootstrap | Reconstructed through fallback. |
-| `WebView::Focus` slot `0xb0` | HLIL bootstrap | Reconstructed through fallback. |
-| `WebView::Unfocus` slot `0xb4` | HLIL hide-browser path calls slot `0xb4` after pause rendering | Reconstructed in this pass through `_Awe_WebView_Unfocus@4` and retail vtable fallback. |
-| `WebView::SetZoom` slot `0xc4` | HLIL bootstrap passes the `web_zoom` cvar integer to slot `0xc4` before rebuilding the surface | Reconstructed in this pass as `CL_Awesomium_SetZoom`, including frame-time cvar change propagation. |
-| Mouse input slots `0xd0` to `0xdc` | Input path reconstruction | Reconstructed through fallback. |
-| `WebKeyboardEvent` / `WebView::InjectKeyboardEvent` slot `0xe0` | HLIL `sub_4f28a0` constructs `Awesomium::WebKeyboardEvent(eventType, virtualKeyCode, nativeKeyCode)` and dispatches it through WebView slot `0xe0`; the import list names `??0WebKeyboardEvent@Awesomium@@QAE@IIJ@Z`. | Reconstructed through `_Awe_WebView_InjectKeyboardEvent@16` and a retail constructor/vtable fallback, with source-side modeled keyboard fields forwarded to live Awesomium. |
+| `WebView::ResumeRendering` slot `0xac` | HLIL bootstrap | Reconstructed through `_Awe_WebView_ResumeRendering@4`. |
+| `WebView::Focus` slot `0xb0` | HLIL bootstrap | Reconstructed through `_Awe_WebView_Focus@4`. |
+| `WebView::Unfocus` slot `0xb4` | HLIL hide-browser path calls slot `0xb4` after pause rendering | Reconstructed through `_Awe_WebView_Unfocus@4`. |
+| `WebView::SetZoom` slot `0xc4` | HLIL bootstrap passes the `web_zoom` cvar integer to slot `0xc4` before rebuilding the surface | Kept as an optional SDK C API import `_Awe_WebView_SetZoom@8`; no local vtable fallback is retained. |
+| Mouse input slots `0xd0` to `0xdc` | Input path reconstruction | Reconstructed through SDK C API exports. |
+| `WebKeyboardEvent` / `WebView::InjectKeyboardEvent` slot `0xe0` | HLIL `sub_4f28a0` constructs `Awesomium::WebKeyboardEvent(eventType, virtualKeyCode, nativeKeyCode)` and dispatches it through WebView slot `0xe0`; the import list names `??0WebKeyboardEvent@Awesomium@@QAE@IIJ@Z`. | Reconstructed through the SDK event-object path: `_Awe_new_WebKeyboardEvent_1@12`, `_Awe_WebView_InjectKeyboardEvent@8`, and `_Awe_delete_WebKeyboardEvent@4`. |
 | `BitmapSurface::CopyTo` and dirty flag | Import list | Reconstructed in surface copy/upload path. |
 | `Awesomium::DataPakSource` | Retail vtable and bootstrap | Reconstructed enough to load `web.pak`; source additionally searches deterministic filesystem roots. |
 | `Awesomium::DataSource::SendResponse` | Import list | Mapped; source fallback request path is implemented in `cl_webpak.c` and `cl_steam_resources.c`. |
@@ -75,11 +75,11 @@ Implemented or source-reconstructed:
 
 - WebCore initialization and shutdown behind `QL_BUILD_ONLINE_SERVICES`.
 - WebSession creation rooted in `fs_homepath`, including the post-create slot `0x18` initialization call.
-- WebSession cache clearing for `web_clearCache`/reload through retail slot `0x1c`; shutdown no longer treats that slot as a session release path.
+- WebSession cache-clear ownership is mapped, but no local SDK method is replicated; reload uses SDK reload ignore-cache and `CL_Awesomium_ClearCache` is intentionally a no-op without a proven SDK cache-clear export.
 - `web.pak` mounting and deterministic package-path behavior for `asset://ql/index.html`.
 - WebView creation, resize, URL load, render resume, focus, surface copy, dirty tracking, visible-surface gating, and dynamic texture upload.
-- Retail vtable fallback for the core WebView calls needed by the menu path.
-- Retail `WebKeyboardEvent` construction and WebView slot-`0xe0` keyboard event injection for modeled browser activation events.
+- External SDK C API imports for the core WebView calls needed by the menu path.
+- SDK-owned `WebKeyboardEvent` construction and WebView slot-`0xe0` keyboard event injection for modeled browser activation events.
 - Startup JS bridge for the 34-entry `qz_instance` method-name surface, deterministic `FakeClient.qz_instance` compatibility, and bounded helper-readiness retries.
 - `ExecuteJavascript` wrapper/fallback reconstructed at the retail WebView ABI seam.
 - Retail-shaped resource request mapping for `asset://ql/screenshot/...` and `fs_webpath` overrides.
@@ -129,10 +129,10 @@ Source divergence found:
 
 Fix implemented:
 
-- Added optional `_Awe_WebSession_Initialize@4` binding plus retail vtable fallback for WebSession slot `0x18`.
-- Reclassified `_Awe_WebSession_Release@4` as the adapter's historical name for WebSession slot `0x1c` cache clearing, exposed through `CL_Awesomium_ClearCache`.
+- Added optional `_Awe_WebSession_Initialize@4` binding for WebSession slot `0x18`.
+- Removed the incorrect `_Awe_WebSession_Release@4` cache-clear classification. That SDK export is now used only as session release during shutdown.
+- Left `CL_Awesomium_ClearCache` as a no-op SDK boundary until a proven public cache-clear export is identified.
 - Routed `CL_Web_ClearSessionState` through `CL_Awesomium_ClearCache` before source-side resource cache clearing when live Awesomium is active.
-- Removed the WebSession slot `0x1c` call from shutdown, matching retail WebView destroy plus `WebCore::Shutdown`.
 - Switched `web_showError` to `Cmd_ArgsFrom( 1 )` and made live navigation failure publish the load-failure path.
 
 ## 2026-05-25 update/pump parity audit
@@ -179,8 +179,42 @@ Source divergence found:
 Fix implemented:
 
 - `QLWebCore_Update` now arms `KEYCATCH_BROWSER` from browser-active state alone, matching the retail `sub_4f2590` condition.
-- The frame loop now republishes `web_browserActive` from browser-active state alone.
+- The frame loop now republishes `web_browserActive` from browser-active state alone, but the publisher first checks the existing cvar value so repeated compatibility refreshes do not re-enter `Cvar_Set2`.
 - Fullscreen browser drawing still remains protected by the existing visible-surface checks, so blank-surface presentation behavior is unchanged.
+
+## 2026-05-28 no-op bridge cvar publish guard
+
+Retail evidence:
+
+- `references/reverse-engineering/ghidra/quakelive_steam/functions.csv` identifies `FUN_004cce90` as the 959-byte cvar setter body and `references/analysis/quakelive_symbol_aliases.json` promotes it to `Cvar_Set2`.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt:33429` shows the retail `Cvar_Set2: %s (%s)\n` debug print before cvar lookup and same-value filtering.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt:15483` and `:15927` show retail `web_browserActive` publication on hide/open transitions, not as a generic advert-bridge telemetry stream.
+
+Source divergence found:
+
+- The retained compatibility advert/browser bridge refreshed provider, policy, parity, and active cvars from renderer/UI bridge callbacks that can run every frame.
+- Because reconstructed `Cvar_Set2` correctly prints before detecting an unchanged value, default offline builds could flood the developer console with unchanged bridge cvar writes while falling back to the main menu.
+
+Fix implemented:
+
+- Added `CL_SetCvarIfChanged()` for bridge telemetry publishers that mirror long-lived compatibility state.
+- Routed repeated browser/advert bridge telemetry and frame-loop `web_browserActive` mirrors through that helper while keeping the retail event-style open/hide cvar writes intact.
+- Added an Awesomium launch guard that refuses `-EnableAwesomium` launches when the latest build stamp says `QLBuildOnlineServices=0`, preventing accidental testing of the default offline build.
+
+## 2026-05-28 web_* cvar cached-owner reconstruction
+
+Retail evidence:
+
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt:32923` registers `web_browserActive` into `data_145ca50` with default `0` and flags `0x40`.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt:16547` registers `web_zoom` into `data_12d3060` with default `100` and flags `1`.
+- `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt:16550` registers `web_console` into `data_12d3064` with default `0` and flags `1`.
+- The live WebView path checks the `web_zoom` modified byte before calling WebView slot `0xc4`, then clears that modified latch.
+
+Source reconstruction:
+
+- `common.c` now keeps `com_webBrowserActive` as the cached core cvar pointer and uses it in the frame idle-sleep decision.
+- `cl_cgame.c` now keeps `cl_webZoom`, `cl_webConsole`, and `cl_webBrowserActive` pointers from `QLWebHost_RegisterCommands()`.
+- The browser host exposes `cl_webCvarRetailMappings[]` with the recovered retail globals/defaults/flags, and live Awesomium zoom handling now consumes the cached `web_zoom` modified latch.
 
 ## 2026-05-25 WebView bootstrap slot reconstruction
 
@@ -192,8 +226,8 @@ Retail evidence:
 
 Source reconstruction:
 
-- Added `CL_AWE_WEBVIEW_SET_TRANSPARENT_SLOT` at `0xa0` and a C-export/vtable fallback wrapper named through `_Awe_WebView_set_transparent@8`.
-- Added `CL_AWE_WEBVIEW_SET_ZOOM_SLOT` at `0xc4` and a C-export/vtable fallback wrapper named through `_Awe_WebView_SetZoom@8`.
+- Added the SDK C API export `_Awe_WebView_SetTransparent@8` for the retail slot `0xa0` behavior.
+- Kept `_Awe_WebView_SetZoom@8` optional. The retail slot remains mapped, but the source no longer reconstructs a local vtable fallback when the SDK C API export is absent.
 - `CL_Awesomium_Startup` now applies transparent mode immediately after WebView creation, matching the retail bootstrap position.
 - `CL_Awesomium_OpenURL` applies default zoom before resume/focus.
 - `QLWebCore_Update` now watches `web_zoom` and pushes changes to live Awesomium before the WebCore update tick, matching the retail cvar-modified behavior.
@@ -210,7 +244,7 @@ Retail evidence:
 Source reconstruction:
 
 - Added `CL_AWE_WEBVIEW_PAUSE_RENDERING_SLOT` and `CL_AWE_WEBVIEW_UNFOCUS_SLOT` wrappers to the Win32 adapter.
-- Added `_Awe_WebView_PauseRendering@4` and `_Awe_WebView_Unfocus@4` dynamic import seams with retail vtable fallback.
+- Added `_Awe_WebView_PauseRendering@4` and `_Awe_WebView_Unfocus@4` dynamic import seams.
 - Added public `CL_Awesomium_PauseRendering` and `CL_Awesomium_Unfocus` APIs plus disabled-build stubs.
 - `QLWebHost_HideBrowser` now invokes pause/unfocus for live Awesomium before clearing source-side active/visible state, matching the retail lifecycle ordering.
 
@@ -228,8 +262,8 @@ Retail evidence:
 
 Source reconstruction:
 
-- Added a Win32 adapter seam for `_Awe_WebView_InjectKeyboardEvent@16`.
-- Added a retail fallback that resolves the `WebKeyboardEvent` constructor, materializes the event in local object storage, and dispatches through WebView slot `0xe0`.
+- Replaced the old four-argument pseudo export with the SDK event-object path: `_Awe_new_WebKeyboardEvent_1@12`, `_Awe_WebView_InjectKeyboardEvent@8`, and `_Awe_delete_WebKeyboardEvent@4`.
+- Removed the local object-storage constructor/vtable fallback so `WebKeyboardEvent` lifetime remains owned by the external SDK.
 - Added `CL_Awesomium_InjectKeyboardEvent` and wired `QLWebView_InjectKeyboardEventFields` to forward the preserved `{ eventType, virtualKeyCode, nativeKeyCode }` triplet when live Awesomium is active.
 
 Remaining caveat:
@@ -362,3 +396,24 @@ Expected effect:
 
 - Menu JavaScript that checks the result of `qz_instance.SetCvar(...)` or `qz_instance.ResetCvar(...)` should now see the same truthy return behavior retail exposes.
 - Future reconstruction work has source-visible anchors for the exact `data_55c008` table span and row addresses, reducing the chance of silently drifting from the retail qz method surface.
+
+## 2026-05-28 SDK dependency hygiene correction
+
+Audit finding:
+
+- The Win32 backend had accumulated SDK-like C++ ABI fallback code: local object storage, `__thiscall` typedefs, vtable-slot dispatch helpers, decorated constructor lookups, and raw `BitmapSurface` field-offset reads.
+- The helper project generated an Awesomium import library from `src/code/win32/awesomium.def`, and `awesomium_process.cpp` locally redeclared `Awesomium::ChildProcessMain`.
+- `awesomium_process.rc` presented the rebuilt helper as an Awesomium Technologies binary instead of project-owned source.
+
+Fix implemented:
+
+- Removed the C++ ABI fallback layer. Runtime calls now stay on the external Awesomium SDK C API exports loaded from `awesomium.dll`; if an export is absent, the adapter reports the missing SDK export or treats documented optional exports as no-op/optional.
+- Corrected SDK export names for live paths that matter at startup/input: `_Awe_WebView_SetTransparent@8` and the SDK-owned keyboard event-object sequence `_Awe_new_WebKeyboardEvent_1@12`, `_Awe_WebView_InjectKeyboardEvent@8`, `_Awe_delete_WebKeyboardEvent@4`.
+- Deleted `src/code/win32/awesomium.def`; `awesomium_process.vcxproj` now requires an external Awesomium SDK path and links `awesomium.lib` when `QLBuildOnlineServices=1`.
+- `quakelive_steam.vcxproj` now declares the external SDK/runtime dependency for online builds through `AwesomiumSdkDir` or `AWESOMIUM_SDK_DIR`, while default builds remain offline-safe.
+- `awesomium_process.cpp` includes `<Awesomium/ChildProcess.h>` instead of redeclaring SDK symbols, and the helper version resource now uses project-owned metadata.
+
+Expected effect:
+
+- The repository no longer contains a local reconstruction of Awesomium SDK object layout or C++ ABI behavior.
+- Live WebUI startup should fail with a precise missing-SDK/missing-export diagnostic instead of falling into an inaccurate local ABI imitation.

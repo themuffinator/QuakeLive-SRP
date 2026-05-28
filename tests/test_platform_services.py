@@ -764,7 +764,7 @@ def test_msbuild_steamworks_sdk_dependency_stays_external_and_optional() -> None
     assert "<SteamworksSdkDir Condition=\"'$(SteamworksSdkDir)'=='' and '$(STEAMWORKS_SDK_DIR)'!=''\">$(STEAMWORKS_SDK_DIR)</SteamworksSdkDir>" in vcxproj
     assert "<SteamworksIncludeDir Condition=\"'$(SteamworksSdkDir)'!=''\">$(SteamworksSdkDir)\\public</SteamworksIncludeDir>" in vcxproj
     assert "<SteamworksRedistDll Condition=\"'$(SteamworksRedistDir)'!=''\">$(SteamworksRedistDir)\\steam_api.dll</SteamworksRedistDll>" in vcxproj
-    assert "<AdditionalIncludeDirectories>$(SteamworksIncludeDir);$(VorbisIncludeDir);$(PngIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>" in vcxproj
+    assert "<AdditionalIncludeDirectories>$(AwesomiumIncludeDir);$(SteamworksIncludeDir);$(VorbisIncludeDir);$(PngIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>" in vcxproj
     assert "<Target Name=\"ValidateSteamworksSdk\" BeforeTargets=\"ClCompile\" Condition=\"'$(QLBuildOnlineServices)'!='0' and '$(QLBuildSteamworks)'!='0'\">" in vcxproj
     assert "do not commit the proprietary SDK into this repository" in vcxproj
     assert "public\\steam\\steam_api.h" in vcxproj
@@ -905,19 +905,20 @@ def test_online_service_bridge_only_hard_stubs_when_build_disabled() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
 
     refresh_block = _extract_function_block(cl_cgame, "void CL_RefreshOnlineServicesBridgeState( void )")
+    assert "static void CL_SetCvarIfChanged( const char *name, const char *value )" in cl_cgame
     assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomium", "0" );' in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomiumProvider", overlayProvider );' in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomiumPolicy", overlayPolicy );' in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomiumParityScope", parityScope );' in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomiumParityReason", parityReason );' in refresh_block
-    assert 'Cvar_Set( "ui_advertisementBridgeProvider", advertProvider );' in refresh_block
-    assert 'Cvar_Set( "ui_advertisementBridgePolicy", advertPolicy );' in refresh_block
-    assert 'Cvar_Set( "ui_advertisementBridgeParityScope", parityScope );' in refresh_block
-    assert 'Cvar_Set( "ui_advertisementBridgeParityReason", parityReason );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomium", "0" );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", overlayProvider );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", overlayPolicy );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumParityScope", parityScope );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumParityReason", parityReason );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_advertisementBridgeProvider", advertProvider );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_advertisementBridgePolicy", advertPolicy );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_advertisementBridgeParityScope", parityScope );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_advertisementBridgeParityReason", parityReason );' in refresh_block
     assert "CL_GetOverlayServiceDescriptor()" in refresh_block
     assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in refresh_block
-    assert 'Cvar_Set( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in refresh_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in refresh_block
     assert "CL_GetOverlayServiceProviderLabel()" in refresh_block
     assert "CL_GetOverlayServicePolicyLabel()" in refresh_block
     assert "QL_GetOnlineServicesParityScopeLabel()" in refresh_block
@@ -1608,6 +1609,7 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
 
 def test_awesomium_launch_task_builds_with_in_process_overlay_provider() -> None:
     tasks = json.loads((REPO_ROOT / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+    build_script = (REPO_ROOT / ".vscode" / "build.ps1").read_text(encoding="utf-8")
     launch_script = (REPO_ROOT / ".vscode" / "launch.ps1").read_text(encoding="utf-8")
     awesomium_task = next(task for task in tasks["tasks"] if task["label"] == "Build Debug Awesomium")
     args = awesomium_task["args"]
@@ -1615,7 +1617,11 @@ def test_awesomium_launch_task_builds_with_in_process_overlay_provider() -> None
     assert args[args.index("-OnlineServices") + 1] == "1"
     assert args[args.index("-Steamworks") + 1] == "0"
     assert args[args.index("-OpenSteam") + 1] == "1"
+    assert "ql_build_settings.txt" in build_script
+    assert "QLBuildOnlineServices=$onlineServicesSetting" in build_script
     assert "function Sync-AwesomiumRuntime" in launch_script
+    assert "ql_build_settings.txt" in launch_script
+    assert "Assert-AwesomiumEnabledBuild -RuntimeBinDir $runtimeBinDir" in launch_script
     assert "'awesomium.dll'" in launch_script
     assert "'web.pak'" in launch_script
     assert "Sync-AwesomiumRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir" in launch_script
@@ -1907,8 +1913,8 @@ def test_browser_cache_reload_owner_restores_retail_command_and_cvar_surface() -
 
     assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' not in cl_main
     assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' not in cl_main
-    assert 'Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
-    assert 'Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
+    assert 'cl_webZoom = Cvar_Get ("web_zoom", "100", CVAR_ARCHIVE );' in register_block
+    assert 'cl_webConsole = Cvar_Get ("web_console", "0", CVAR_ARCHIVE );' in register_block
     assert "CL_ClearSteamResourceCache( qtrue );" in clear_session_block
     assert "if ( !cl_webHost.sessionInitialised ) {" in clear_cache_block
     assert "CL_Web_ClearSessionState();" in clear_cache_block
@@ -1989,9 +1995,9 @@ def test_client_browser_host_core_reconstructs_retained_runtime_owner() -> None:
     assert "nFiles = FS_AddFileToList( name + temp, list, nFiles );" in pak_list_block
 
     assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in bridge_block
-    assert 'Cvar_Set( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in bridge_block
-    assert 'Cvar_Set( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );' in bridge_block
-    assert 'Cvar_Set( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );' in bridge_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in bridge_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );' in bridge_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );' in bridge_block
     assert "CL_WebHost_ResetRuntime( qtrue );" in bridge_block
 
     assert "CL_RefreshOnlineServicesBridgeState();" in frame_block
@@ -4466,9 +4472,14 @@ def test_ui_and_cgame_native_import_slabs_leave_unrecovered_retail_gaps_null() -
 
 
 def test_module_side_syscall_wrappers_normalize_qboolean_contracts() -> None:
+    cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
     ui_syscalls = (REPO_ROOT / "src/code/ui/ui_syscalls.c").read_text(encoding="utf-8")
     cg_syscalls = (REPO_ROOT / "src/code/cgame/cg_syscalls.c").read_text(encoding="utf-8")
     g_syscalls = (REPO_ROOT / "src/code/game/g_syscalls.c").read_text(encoding="utf-8")
+
+    ui_register_sound_block = _extract_function_block(cl_ui, "static sfxHandle_t QDECL QL_UI_trap_S_RegisterSound_QL")
+    assert "compressed = ( compressed != 0 ) ? qtrue : qfalse;" in ui_register_sound_block
+    assert "return S_RegisterSound( sample, compressed );" in ui_register_sound_block
 
     assert "return syscall( UI_S_REGISTERSOUND, sample, compressed ? qtrue : qfalse );" in ui_syscalls
     assert "return syscall( UI_KEY_ISDOWN, keynum ) ? qtrue : qfalse;" in ui_syscalls

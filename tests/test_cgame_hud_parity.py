@@ -11,6 +11,7 @@ CG_DRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_draw.c"
 CG_EVENT = REPO_ROOT / "src" / "code" / "cgame" / "cg_event.c"
 CG_MAIN = REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c"
 CG_NEWDRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_newdraw.c"
+CG_VIEW = REPO_ROOT / "src" / "code" / "cgame" / "cg_view.c"
 CG_SERVERCMDS = REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c"
 CG_SCREEN = REPO_ROOT / "src" / "code" / "cgame" / "cg_screen.c"
 CG_PLAYERSTATE = REPO_ROOT / "src" / "code" / "cgame" / "cg_playerstate.c"
@@ -404,10 +405,13 @@ def test_screen_damage_cvars_and_tint_latch_match_retail_wiring() -> None:
 	assert "ent->shaderRGBA[0] = (byte)( ( packedColor >> 24 ) & 0xff );" in entity_color_block
 	assert "alphaByte = (float)( packedColor & 0xff );" in entity_color_block
 
-	assert '{ &ui_screenDamage, "ui_screenDamage", "0", CVAR_ARCHIVE},' in ui_source
-	assert '{ &ui_screenDamage_Team, "ui_screenDamage_Team", "0", CVAR_ARCHIVE},' in ui_source
-	assert 'UI_SyncRetailSliderColorCvar( &ui_screenDamage, "cg_screenDamage" );' in ui_source
-	assert 'UI_SyncRetailSliderColorCvar( &ui_screenDamage_Team, "cg_screenDamage_Team" );' in ui_source
+	assert 'UI_CVAR_TABLE_CALLBACK( &ui_screenDamage, "ui_screenDamage", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),' in ui_source
+	assert 'UI_CVAR_TABLE_CALLBACK( &ui_screenDamage_Team, "ui_screenDamage_Team", "0", CVAR_ARCHIVE, UI_UpdateRetailSliderColorCvar ),' in ui_source
+	update_block = _block_from_marker(ui_source, "static void UI_UpdateRetailSliderColorCvar")
+	assert "if ( uiCvar == &ui_screenDamage ) {" in update_block
+	assert 'UI_SyncRetailSliderColorCvar( uiCvar, "cg_screenDamage" );' in update_block
+	assert "if ( uiCvar == &ui_screenDamage_Team ) {" in update_block
+	assert 'UI_SyncRetailSliderColorCvar( uiCvar, "cg_screenDamage_Team" );' in update_block
 	assert '"cg_screenDamage", sub_10001900("0x%08x")' in ui_hlil
 	assert '"cg_screenDamage_Team", sub_10001900("0x%08x")' in ui_hlil
 
@@ -880,22 +884,31 @@ def test_classic_speedometer_restores_retail_history_ring_and_draw_order() -> No
 	source = CG_DRAW.read_text(encoding="utf-8")
 	main_source = CG_MAIN.read_text(encoding="utf-8")
 	speedometer_block = _block_from_marker(source, "static void CG_DrawSpeedometer( void )")
-	record_block = _block_from_marker(source, "static void CG_RecordSpeedometerSample( void )")
+	record_block = _block_from_marker(source, "void CG_RecordSpeedometerSample( void )")
+	view_source = CG_VIEW.read_text(encoding="utf-8")
 	draw2d_block = _block_from_marker(source, "static void CG_Draw2D( void )")
 
 	assert '{ &cg_speedometer, "cg_speedometer", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "4" },' in main_source
 	assert "#define CG_SPEEDOMETER_HISTORY_SAMPLES\t128" in source
+	assert "#define CG_SPEEDOMETER_GRAPH_SAMPLES\t\t( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 )" in source
 	assert "#define CG_SPEEDOMETER_RANGE\t\t\t960.0f" in source
-	assert "static float CG_SampleLegacySpeedometer( void )" in source
+	assert "float CG_GetSpeedometerSpeed( void )" in source
 	assert "cg_speedometerHistoryHead = ( cg_speedometerHistoryHead + 1 ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );" in record_block
-	assert "cg_speedometerHistory[cg_speedometerHistoryHead] = CG_SampleLegacySpeedometer();" in record_block
+	assert "cg_speedometerHistory[cg_speedometerHistoryHead] = CG_GetSpeedometerSpeed();" in record_block
+	assert "if ( cg_speedometerHistoryCount < CG_SPEEDOMETER_GRAPH_SAMPLES ) {" in record_block
+	assert "cg.speedometerSample = cg.xyspeed;" in view_source
+	assert "CG_RecordSpeedometerSample();" in view_source
+	assert "if ( cg.snap->ps.pm_type == PM_SPECTATOR && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) ) {" in source
 	assert "mode = cg_speedometer.integer;" in speedometer_block
+	assert "if ( mode >= 4 ) {" in speedometer_block
+	assert speedometer_block.index("CG_RecordSpeedometerSample();") < speedometer_block.index("if ( mode >= 4 ) {")
 	assert "graphX = 592.0f;" in speedometer_block
 	assert "graphY = 384.0f;" in speedometer_block
 	assert "graphWidth = 128.0f;" in speedometer_block
 	assert "graphHeight = 32.0f;" in speedometer_block
 	assert "barScale = ( graphHeight - 5.0f ) / CG_SPEEDOMETER_RANGE;" in speedometer_block
 	assert "if ( mode < 3 ) {" in speedometer_block
+	assert "sampleIndex = ( cg_speedometerHistoryHead + 1 + i ) & ( CG_SPEEDOMETER_HISTORY_SAMPLES - 1 );" in speedometer_block
 	assert 'Com_sprintf( speedText, sizeof( speedText ), "%i", (int)currentSpeed );' in speedometer_block
 	assert "CG_DrawSpeedometer();" in draw2d_block
 

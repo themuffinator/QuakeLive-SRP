@@ -273,6 +273,7 @@ def test_log_exit_runs_rank_match_report_once_after_player_stats() -> None:
 
 def test_cgame_and_match_state_follow_retail_configstring_ownership() -> None:
 	cgame_servercmds = _read("src/code/cgame/cg_servercmds.c")
+	cgame_main = _read("src/code/cgame/cg_main.c")
 	match_state_c = _read("src/code/game/g_match_state.c")
 
 	assert "cgs.matchSuddenDeathActive = cgs.matchOvertimeActive;" in cgame_servercmds
@@ -281,4 +282,7 @@ def test_cgame_and_match_state_follow_retail_configstring_ownership() -> None:
 	assert "static void CG_ParseIntermissionExitStatus( void ) {" in cgame_servercmds
 	assert "info = CG_ConfigString( CS_INTERMISSION_EXIT_STATUS );" in cgame_servercmds
 	assert "cgs.intermissionExitStatusLatched = value ? qtrue : qfalse;" in cgame_servercmds
+	assert "if ( cg.intermissionStarted == 1 ) {" in cgame_servercmds
+	assert 'trap_Cvar_Set( "ui_intermission", "1" );' in cgame_servercmds
+	assert 'trap_Cvar_Set( "ui_intermission", "0" );' in cgame_main
 	assert 'trap_SetConfigstring( CS_SUDDENDEATH_STATUS, level.suddenDeathActive ? "1" : "0" );' in match_state_c
