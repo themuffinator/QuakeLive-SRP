@@ -1177,6 +1177,7 @@ typedef struct {
 
 	qhandle_t	armorModel;
 	qhandle_t	armorIcon;
+	qhandle_t	powerupFragIcon;
 
 	qhandle_t	teamStatusBar;
 

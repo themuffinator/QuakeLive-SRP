@@ -1091,15 +1091,51 @@ static void G_ApplyItemBounceSettings( gentity_t *dropped, gitem_t *item ) {
 
 //======================================================================
 
+/*
+=============
+G_ResetPowerupFragCount
+
+Clears the retail frag counter paired with a newly started timed powerup.
+=============
+*/
+static void G_ResetPowerupFragCount( gclient_t *client, int powerup ) {
+	if ( !client ) {
+		return;
+	}
+
+	switch ( powerup ) {
+	case PW_QUAD:
+		client->ps.stats[STAT_QUAD_FRAG_COUNT] = 0;
+		break;
+	case PW_BATTLESUIT:
+		client->ps.stats[STAT_BATTLESUIT_FRAG_COUNT] = 0;
+		break;
+	default:
+		break;
+	}
+}
+
+/*
+=============
+Pickup_Powerup
+
+Applies retail timed powerup pickup state and side effects.
+=============
+*/
 int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 	int			quantity;
 	int			i;
+	int			powerup;
 	gclient_t	*client;
 
-	if ( !other->client->ps.powerups[ent->item->giTag] ) {
+	powerup = ent->item->giTag;
+
+	if ( !other->client->ps.powerups[powerup] ) {
+		G_ResetPowerupFragCount( other->client, powerup );
+
 		// round timing to seconds to make multiple powerup timers
 		// count in sync
-		other->client->ps.powerups[ent->item->giTag] = 
+		other->client->ps.powerups[powerup] =
 			level.time - ( level.time % 1000 );
 	}
 
@@ -1109,19 +1145,19 @@ int Pickup_Powerup( gentity_t *ent, gentity_t *other ) {
 		quantity = ent->item->quantity;
 	}
 
-	other->client->ps.powerups[ent->item->giTag] += quantity * 1000;
+	other->client->ps.powerups[powerup] += quantity * 1000;
 
 	{
 		teamScoreStatIndex_t holdStatIndex;
 
-		holdStatIndex = G_TeamHoldStatForPowerup( ent->item->giTag );
+		holdStatIndex = G_TeamHoldStatForPowerup( powerup );
 		if ( holdStatIndex >= 0 && holdStatIndex < TEAMSTAT_COUNT ) {
 			G_FlushExpiredClientTeamHoldStats( other->client, level.time );
 			G_BeginClientTeamHoldStat( other->client, holdStatIndex );
 		}
 	}
 
-	if ( ent->item->giTag == PW_QUAD ) {
+	if ( powerup == PW_QUAD ) {
 		G_QuadHogOnPickup( other );
 	}
 
@@ -1530,10 +1566,8 @@ Handles weapon pickups and issues any ammo associated with the weapon.
 int Pickup_Weapon (gentity_t *ent, gentity_t *other) {
 	int		quantity;
 	weapon_t	weapon;
-	int		basePickup;
 
 	weapon = ent->item ? BG_WeaponForItemTag( ent->item->giTag ) : WP_NONE;
-	basePickup = G_GetAmmoPackPickupCount( weapon, ent->item ? ent->item->quantity : 0 );
 
 	if ( g_weaponRespawn.integer == 0 && !( ent->flags & FL_DROPPED_ITEM )
 		&& weapon > WP_NONE && weapon < WP_NUM_WEAPONS
@@ -1543,24 +1577,12 @@ int Pickup_Weapon (gentity_t *ent, gentity_t *other) {
 	}
 
 	if ( ent->count < 0 ) {
-		quantity = 0; // None for you, sir!
-	} else if ( ent->count > 0 ) {
-		quantity = ent->count;
-	} else {
-		quantity = basePickup;
+		Com_Error( ERR_DROP, "Pickup_Weapon: item has infinite ammo" );
+	}
 
-		if ( quantity <= 0 ) {
-			quantity = ent->item ? ent->item->quantity : 0;
-		}
-
-		if ( !( ent->flags & FL_DROPPED_ITEM ) && g_gametype.integer != GT_TEAM ) {
-			if ( weapon > WP_NONE && weapon < WP_NUM_WEAPONS && basePickup > 0
-				&& other->client->ps.ammo[weapon] < basePickup ) {
-				quantity = basePickup - other->client->ps.ammo[weapon];
-			} else {
-				quantity = 1;		// only add a single shot
-			}
-		}
+	quantity = ent->count;
+	if ( quantity == 0 ) {
+		quantity = ent->item->quantity;
 	}
 
 	if ( quantity < 0 ) {

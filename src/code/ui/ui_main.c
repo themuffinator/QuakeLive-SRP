@@ -3193,7 +3193,7 @@ static void UI_DrawBlueTeamModel( rectDef_t *rect ) {
 }
 
 static void UI_DrawNetSource(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-	if (ui_netSource.integer < 0 || ui_netSource.integer > numNetSources) {
+	if (ui_netSource.integer < 0 || ui_netSource.integer >= numNetSources) {
 		ui_netSource.integer = 0;
 	}
   Text_Paint(rect->x, rect->y, scale, color, va("Source: %s", netSources[ui_netSource.integer]), 0, 0, textStyle);
@@ -3226,7 +3226,7 @@ static void UI_DrawNetMapCinematic(rectDef_t *rect, float scale, vec4_t color) {
 
 
 static void UI_DrawNetFilter(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-	if (ui_serverFilterType.integer < 0 || ui_serverFilterType.integer > numServerFilters) {
+	if (ui_serverFilterType.integer < 0 || ui_serverFilterType.integer >= numServerFilters) {
 		ui_serverFilterType.integer = 0;
 	}
   Text_Paint(rect->x, rect->y, scale, color, va("Filter: %s", serverFilters[ui_serverFilterType.integer].description), 0, 0, textStyle);
@@ -3540,13 +3540,13 @@ static int UI_OwnerDrawWidth(int ownerDraw, float scale) {
 			s = va("%i. %s", ownerDraw-UI_REDTEAM1 + 1, text);
       break;
 		case UI_NETSOURCE:
-			if (ui_netSource.integer < 0 || ui_netSource.integer > uiInfo.numJoinGameTypes) {
+			if (ui_netSource.integer < 0 || ui_netSource.integer >= numNetSources) {
 				ui_netSource.integer = 0;
 			}
 			s = va("Source: %s", netSources[ui_netSource.integer]);
 			break;
 		case UI_NETFILTER:
-			if (ui_serverFilterType.integer < 0 || ui_serverFilterType.integer > numServerFilters) {
+			if (ui_serverFilterType.integer < 0 || ui_serverFilterType.integer >= numServerFilters) {
 				ui_serverFilterType.integer = 0;
 			}
 			s = va("Filter: %s", serverFilters[ui_serverFilterType.integer].description );
@@ -3583,13 +3583,19 @@ static int UI_OwnerDrawWidth(int ownerDraw, float scale) {
 
 static void UI_DrawBotName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
 	int value = uiInfo.botIndex;
-	const char *text = "";
+	int botCount = UI_GetNumBots();
+	const char *text = "Sarge";
 
-	if (value >= UI_GetNumBots()) {
+	if (value >= botCount) {
 		value = 0;
 	}
-	text = UI_GetBotNameByNumber(value);
-  Text_Paint(rect->x, rect->y, scale, color, text, 0, 0, textStyle);
+
+	if (value < 0 || value >= botCount) {
+		trap_Print(va(S_COLOR_RED "Invalid bot number: %i\n", value));
+	} else {
+		text = UI_GetBotNameByNumber(value);
+	}
+	Text_Paint(rect->x, rect->y, scale, color, text, 0, 0, textStyle);
 		}
 
 static void UI_DrawBotSkill(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
@@ -3743,6 +3749,13 @@ static void UI_DrawCrosshairColor( rectDef_t *rect ) {
 	_UI_DrawRect( rect->x + selected * segmentWidth, top, segmentWidth, 12.0f, 1.0f, outlineColor );
 }
 
+/*
+=============
+UI_DrawCrosshair
+
+Paints the retail crosshair preview using fixed size clamps and top-left anchor.
+=============
+*/
 static void UI_DrawCrosshair(rectDef_t *rect, float scale, vec4_t color) {
 	vec4_t previewColor;
 	float size;
@@ -3759,17 +3772,13 @@ static void UI_DrawCrosshair(rectDef_t *rect, float scale, vec4_t color) {
 
 	UI_GetCrosshairPreviewColor(color, previewColor);
 	size = trap_Cvar_VariableValue("cg_crosshairSize");
-	if (size < 16.0f) {
-		size = 16.0f;
+	if (size > 40.0f) {
+		size = 40.0f;
+	} else if (size < 24.0f) {
+		size = 24.0f;
 	}
-	if (rect->w > 0.0f && size > rect->w) {
-		size = rect->w;
-	}
-	if (rect->h > 0.0f && size > rect->h) {
-		size = rect->h;
-	}
-	x = rect->x + (rect->w - size) * 0.5f;
-	y = rect->y - rect->h + (rect->h - size) * 0.5f;
+	x = rect->x - 2.0f;
+	y = rect->y - rect->h + 2.0f;
 
 	trap_R_SetColor(previewColor);
 	UI_DrawHandlePic(x, y, size, size, uiInfo.uiDC.Assets.crosshairShader[uiInfo.currentCrosshair]);
@@ -3809,20 +3818,26 @@ static void UI_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader) {
 =============
 UI_DrawVoteString
 
-Paints the active vote string centered within the ownerdraw rect.
+Paints the active vote string using the retail ownerdraw x-anchor.
 =============
 */
 static void UI_DrawVoteString(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
-	const char *voteString;
-	float x;
+	char voteString[MAX_INFO_STRING];
+	int paintX;
+	int textWidth;
 
-	voteString = UI_Cvar_VariableString("ui_votestring");
-	if (!voteString || !voteString[0]) {
+	trap_Cvar_VariableStringBuffer( "ui_votestring", voteString, sizeof( voteString ) );
+	if (!voteString[0]) {
 		return;
 	}
 
-	x = rect->x + (rect->w - Text_Width(voteString, scale, 0)) * 0.5f;
-	Text_Paint(x, rect->y, scale, color, voteString, 0, 0, textStyle);
+	paintX = (int)rect->x;
+	textWidth = Text_Width( voteString, scale, 0 );
+	if ( paintX > 0 && textWidth > 0 ) {
+		paintX -= textWidth / 2;
+	}
+
+	Text_Paint( (float)paintX, rect->y, scale, color, voteString, 0, 0, textStyle );
 }
 
 #define UI_SERVER_SETTINGS_COLUMN_ROWS		8
@@ -4241,7 +4256,6 @@ static void UI_DrawStartingWeapons( rectDef_t *rect, float scale, vec4_t color, 
 	float xOffset;
 	float plusX;
 	float plusY;
-	float plusWidth;
 	unsigned int loadoutMask;
 	qhandle_t shader;
 
@@ -4251,7 +4265,7 @@ static void UI_DrawStartingWeapons( rectDef_t *rect, float scale, vec4_t color, 
 
 	UI_EnsureStartingWeaponIcons();
 	trap_GetConfigString( CS_LOADOUT_MASK, loadoutMaskText, sizeof( loadoutMaskText ) );
-	loadoutMask = loadoutMaskText[0] ? (unsigned int)strtoul( loadoutMaskText, NULL, 0 ) : 0u;
+	loadoutMask = (unsigned int)atoi( loadoutMaskText );
 	xOffset = 0.0f;
 
 	for ( i = 0; i < UI_STARTING_WEAPON_ICON_COUNT; i++ ) {
@@ -4273,11 +4287,7 @@ static void UI_DrawStartingWeapons( rectDef_t *rect, float scale, vec4_t color, 
 		return;
 	}
 
-	plusWidth = Text_Width( "+", scale, 0 );
 	plusX = rect->x + xOffset;
-	if ( plusWidth < rect->w ) {
-		plusX += ( rect->w - plusWidth ) * 0.5f;
-	}
 	plusY = rect->y + rect->h * 0.5f + Text_Height( "+", scale, 0 ) * 0.5f;
 	Text_Paint( plusX, plusY, scale, color, "+", 0, 0, textStyle );
 
@@ -4298,55 +4308,20 @@ static void UI_DrawStartingWeapons( rectDef_t *rect, float scale, vec4_t color, 
 
 /*
 =============
-UI_GetNextMapText
-
-Fetches the retail next-map label from the undocumented configstring slot used
-by `UI_DrawNextMap`, then falls back to the mirrored rotation preview payload
-when the direct slot is not populated yet.
-=============
-*/
-static const char *UI_GetNextMapText( void ) {
-	static char nextMapText[MAX_INFO_STRING];
-	char rotationTitles[MAX_INFO_STRING];
-	const char *valueText;
-
-	nextMapText[0] = '\0';
-	trap_GetConfigString( UI_NEXTMAP_CONFIGSTRING, nextMapText, sizeof( nextMapText ) );
-	if ( nextMapText[0] != '\0' ) {
-		return nextMapText;
-	}
-
-	trap_GetConfigString( CS_ROTATION_TITLES, rotationTitles, sizeof( rotationTitles ) );
-	valueText = Info_ValueForKey( rotationTitles, "title_0" );
-	if ( valueText == NULL || valueText[0] == '\0' ) {
-		valueText = Info_ValueForKey( rotationTitles, "map_0" );
-	}
-	if ( valueText != NULL && valueText[0] != '\0' ) {
-		Q_strncpyz( nextMapText, valueText, sizeof( nextMapText ) );
-		return nextMapText;
-	}
-
-	return "";
-}
-
-/*
-=============
 UI_DrawNextMap
 
-Restores the retail `UI_NEXTMAP` ownerdraw by painting the next-map label from
-the same configstring seam used by the native UI, with the mirrored rotation
-payload as the only compatibility fallback.
+Paints the retail `UI_NEXTMAP` label from configstring `0x29A`.
 =============
 */
 static void UI_DrawNextMap( rectDef_t *rect, float scale, vec4_t color, int textStyle ) {
-	const char *nextMapText;
+	char nextMapText[MAX_INFO_STRING];
 
 	if ( rect == NULL ) {
 		return;
 	}
 
-	nextMapText = UI_GetNextMapText();
-	if ( nextMapText == NULL || nextMapText[0] == '\0' ) {
+	nextMapText[0] = '\0';
+	if ( !trap_GetConfigString( UI_NEXTMAP_CONFIGSTRING, nextMapText, sizeof( nextMapText ) ) ) {
 		return;
 	}
 
@@ -4411,11 +4386,14 @@ static void UI_BuildPlayerList() {
 
 
 static void UI_DrawSelectedPlayer(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
+	char selectedPlayer[MAX_INFO_STRING];
+
 	if (uiInfo.uiDC.realTime > uiInfo.playerRefresh) {
 		uiInfo.playerRefresh = uiInfo.uiDC.realTime + 3000;
 		UI_BuildPlayerList();
 	}
-  Text_Paint(rect->x, rect->y, scale, color, (uiInfo.teamLeader) ? UI_Cvar_VariableString("cg_selectedPlayerName") : UI_Cvar_VariableString("name") , 0, 0, textStyle);
+	trap_Cvar_VariableStringBuffer( (uiInfo.teamLeader) ? "cg_selectedPlayerName" : "name", selectedPlayer, sizeof( selectedPlayer ) );
+  Text_Paint(rect->x, rect->y, scale, color, selectedPlayer, 0, 0, textStyle);
 		}
 
 static void UI_DrawServerRefreshDate(rectDef_t *rect, float scale, vec4_t color, int textStyle) {
@@ -5005,12 +4983,6 @@ static qboolean UI_GameType_HandleKey(int flags, float *special, int key, qboole
 			}
 		}
     
-		if (uiInfo.gameTypes[ui_gameType.integer].gtEnum == GT_TOURNAMENT) {
-			trap_Cvar_Set("ui_Q3Model", "1");
-		} else {
-			trap_Cvar_Set("ui_Q3Model", "0");
-		}
-
 		trap_Cvar_Set("ui_gameType", va("%d", ui_gameType.integer));
 		UI_SetCapFragLimits(qtrue);
 		UI_LoadBestScores(uiInfo.mapList[ui_currentMap.integer].mapLoadName, uiInfo.gameTypes[ui_gameType.integer].gtEnum);
@@ -5020,23 +4992,49 @@ static qboolean UI_GameType_HandleKey(int flags, float *special, int key, qboole
 		}
     return qtrue;
   }
-  return qfalse;
+	return qfalse;
 		}
+
+/*
+=============
+UI_NetGameTypeVisible
+
+Returns whether the retail net-gametype ownerdraw selector exposes this row.
+=============
+*/
+static qboolean UI_NetGameTypeVisible( int gameTypeIndex ) {
+	int gtEnum;
+
+	if ( gameTypeIndex < 0 || gameTypeIndex >= uiInfo.numGameTypes ) {
+		return qfalse;
+	}
+
+	gtEnum = uiInfo.gameTypes[gameTypeIndex].gtEnum;
+	return gtEnum != GT_1FCTF &&
+		gtEnum != GT_OBELISK &&
+		gtEnum != GT_HARVESTER;
+}
 
 static qboolean UI_NetGameType_HandleKey(int flags, float *special, int key) {
   if (key == K_MOUSE1 || key == K_MOUSE2 || key == K_ENTER || key == K_KP_ENTER) {
+		int direction;
+		int guard;
 
-		if (key == K_MOUSE2) {
-			ui_netGameType.integer--;
-		} else {
-			ui_netGameType.integer++;
+		if ( uiInfo.numGameTypes <= 0 ) {
+			return qfalse;
 		}
 
-    if (ui_netGameType.integer < 0) {
-      ui_netGameType.integer = uiInfo.numGameTypes - 1;
-		} else if (ui_netGameType.integer >= uiInfo.numGameTypes) {
-      ui_netGameType.integer = 0;
-    } 
+		direction = ( key == K_MOUSE2 ) ? -1 : 1;
+		guard = 0;
+		do {
+			ui_netGameType.integer += direction;
+			if ( ui_netGameType.integer < 0 ) {
+				ui_netGameType.integer = uiInfo.numGameTypes - 1;
+			} else if ( ui_netGameType.integer >= uiInfo.numGameTypes ) {
+				ui_netGameType.integer = 0;
+			}
+			guard++;
+		} while ( guard < uiInfo.numGameTypes && !UI_NetGameTypeVisible( ui_netGameType.integer ) );
 
   	trap_Cvar_Set( "ui_netGameType", va("%d", ui_netGameType.integer));
   	trap_Cvar_Set( "ui_actualnetGameType", va("%d", uiInfo.gameTypes[ui_netGameType.integer].gtEnum));

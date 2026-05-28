@@ -823,6 +823,13 @@ analogue line up cleanly enough to support a stable mapping.
 - Source reconstruction now mirrors the retail leaf behavior more closely. `CG_DrawPlayerHasFlag` restores the 4-pixel 3D inset plus the neutral-flag `dropflag` prompt, `CG_OneFlagStatus` now uses the dedicated 1FCTF icon set registered in `cg_main.c`, and `CG_DrawPlayerHasKey` now spaces the carried key icons at the recovered half-width overlap instead of the older wider gap.
 - Before this round, the current cgame map held `571` named addresses: `471 / 751` committed Ghidra functions (`62.7%`) plus `100` HLIL-only anchors for `571 / 851` combined committed anchors (`67.1%`). After this round, the map holds `576` named addresses: `476 / 751` committed Ghidra functions (`63.4%`) plus the same `100` HLIL-only anchors for `576 / 851` combined committed anchors (`67.7%`).
 
+### Retail Objective/Powerup Ownerdraw Follow-Up
+
+- This follow-up keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and closes the focused menudef rows `CG_PLAYER_HASKEY`, `CG_CTF_POWERUP`, and `CG_AREA_POWERUP`.
+- Binary Ninja HLIL for `0x10031F90 -> CG_DrawPlayerHasKey` shows three `BG_FindItemByTypeAndTag` calls against `IT_KEY` tags `1`, `2`, and `4`, matching the silver, gold, and master key mask bits. `cg_newdraw.c` now mirrors that tag lookup directly instead of resolving the same items by classname before registering/drawing their icons.
+- `0x100310F0 -> CG_DrawCTFPowerUp` remains the direct `STAT_PERSISTANT_POWERUP` item-icon ownerdraw, and `0x1003B0F0 -> CG_OwnerDraw` routes raw `0x3C` directly to that leaf with no value, width, or key callback participation.
+- `0x10031160 -> CG_DrawPowerupSpriteStack` is reached directly from raw `0x3D` (`CG_AREA_POWERUP`). The retail leaf sorts active timed powerups by expiry, skips hidden transport slots, paints the blinking icon/timer stack, and appends the Quad/Battle Suit counter badges. Neither the switch nor the leaf checks `cg_drawSprites` or `cg_drawSpriteSelf`, so the source/tests now keep those sprite cvars out of this ownerdraw path.
+
 ### Retail Classic HUD / Player-Status Sweep
 
 - This pass promotes twelve committed cgame helpers from the classic player-status ownerdraw corridor: `0x10009850 -> CG_DrawTeamBackground`, `0x1002E3F0 -> CG_DrawPlayerArmorIcon`, `0x1002E500 -> CG_DrawPlayerArmorValue`, `0x1002E660 -> CG_DrawPlayerAmmoIcon`, `0x1002E7C0 -> CG_DrawPlayerAmmoValue`, `0x1002ED50 -> CG_DrawPlayerHealthBar100`, `0x1002EE50 -> CG_DrawPlayerHealthBar200`, `0x1002EFB0 -> CG_DrawPlayerArmorBar100`, `0x1002F0C0 -> CG_DrawPlayerArmorBar200`, `0x1002F780 -> CG_DrawArmorTieredColorized`, `0x1002F950 -> CG_DrawPlayerHead`, and `0x1002FDF0 -> CG_DrawPlayerHealth`.
@@ -1448,6 +1455,12 @@ analogue line up cleanly enough to support a stable mapping.
 - This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and completes the source-vs-retail ownerdraw-table comparison around `0x1003B0F0 -> CG_OwnerDraw`.
 - The committed Ghidra switch does not list raw ownerdraw `0x66` (`CG_1STPLACE_PLYR_MODEL_ACTIVE`), `0x154`-`0x157` (`CG_SPEC_FOLLOW_*` / `CG_SPEC_COMPARE_*`), or `0x16d`-`0x16f` (`CG_AREA_SYSTEMCHAT`, `CG_AREA_TEAMCHAT`, `CG_AREA_CHAT`). The HLIL lookup table routes those ids to target `0x6f`, the same common no-op return bucket as the broader legacy corridor.
 - `cg_newdraw.c::CG_OwnerDraw` now keeps those labels explicit but returns immediately. The retail timed chat stack remains intact through `CG_AREA_NEW_CHAT` (`89`) and `0x10006A10 -> CG_DrawNewChatArea`; only the older area-chat aliases at `365`-`367` are inert. The source-side competitive-score refresh predicate also excludes raw `0x66`, so that no-op ownerdraw no longer emits an extra `score` refresh before returning.
+
+### Retail Medal-Adjacent Ownerdraw No-Op Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and tightens three medal-adjacent cgame ownerdraw ids against the committed `0x1003B0F0 -> CG_OwnerDraw` dispatcher evidence.
+- `src/ui/menudef.h` defines `CG_COMBOKILLS` (`0x43`), `CG_RAMPAGES` (`0x48`), and `CG_MIDAIRS` (`0x49`) beside the real medal ownerdraws, but the retail switch does not list those raw ids and routes only `0x40`, `0x41`, `0x42`, `0x44`, `0x45`, `0x46`, `0x47`, and `0x4A` to `0x10035340 -> CG_DrawMedal`.
+- `cg_newdraw.c::CG_OwnerDraw` now keeps the three labels explicit and returns immediately, while the display-context parity test guards that they have no shipped menu usage, no `CG_GetValue` or `CG_OwnerDrawWidth` callback participation, no key-handler special case, and no accidental medal-helper route.
 
 ### Retail Round Player-Count Gate Sweep
 

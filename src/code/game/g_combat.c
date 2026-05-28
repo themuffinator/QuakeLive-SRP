@@ -944,6 +944,33 @@ static qboolean G_ClientHasBattleSuit( const gclient_t *client ) {
 
 /*
 ==================
+G_RecordPowerupFragCounters
+==================
+*/
+static void G_RecordPowerupFragCounters( gentity_t *attacker ) {
+	int	quadFrags;
+
+	if ( !attacker || !attacker->client ) {
+		return;
+	}
+
+	if ( G_ClientHasBattleSuit( attacker->client ) ) {
+		attacker->client->ps.stats[STAT_BATTLESUIT_FRAG_COUNT]++;
+	}
+
+	if ( !G_ClientHasQuadDamage( attacker->client ) ) {
+		return;
+	}
+
+	quadFrags = ++attacker->client->ps.stats[STAT_QUAD_FRAG_COUNT];
+	if ( quadFrags > 9 && !( quadFrags % 10 ) ) {
+		attacker->client->ps.persistant[PERS_PLAYEREVENTS] ^= PLAYEREVENT_QUADGOD;
+		G_RankSendPlayerMedal( attacker, "QUADGOD" );
+	}
+}
+
+/*
+==================
 G_ClientHasHaste
 ==================
 */
@@ -1204,6 +1231,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 					attacker->client->pers.weaponFrags[fragWeapon]++;
 				}
 			}
+
+			G_RecordPowerupFragCounters( attacker );
 
 			if( meansOfDeath == MOD_GAUNTLET ) {
 				

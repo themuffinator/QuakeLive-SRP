@@ -775,6 +775,9 @@ def test_ui_retail_ownerdraw_extensions_restored() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     ui_shared_h = (REPO_ROOT / "src/code/ui/ui_shared.h").read_text(encoding="utf-8")
     asset_cache_block = _extract_function_block(ui_main, "void AssetCache() {")
+    vote_block = _extract_function_block(
+        ui_main, "static void UI_DrawVoteString(rectDef_t *rect, float scale, vec4_t color, int textStyle)"
+    )
 
     assert "#define\tNUM_CROSSHAIRS\t\t\t30" in ui_shared_h
     assert "#define UI_CROSSHAIR_COLOR_COUNT\t26" in ui_main
@@ -784,7 +787,14 @@ def test_ui_retail_ownerdraw_extensions_restored() -> None:
     assert "return UI_CrosshairColor_HandleKey(flags, special, key);" in ui_main
     assert "case UI_VOTESTRING:" in ui_main
     assert "UI_DrawVoteString(&rect, scale, color, textStyle);" in ui_main
-    assert 'UI_Cvar_VariableString("ui_votestring")' in ui_main
+    assert "char voteString[MAX_INFO_STRING];" in vote_block
+    assert 'trap_Cvar_VariableStringBuffer( "ui_votestring", voteString, sizeof( voteString ) );' in vote_block
+    assert "paintX = (int)rect->x;" in vote_block
+    assert "textWidth = Text_Width( voteString, scale, 0 );" in vote_block
+    assert "paintX -= textWidth / 2;" in vote_block
+    assert "Text_Paint( (float)paintX, rect->y, scale, color, voteString, 0, 0, textStyle );" in vote_block
+    assert 'UI_Cvar_VariableString("ui_votestring")' not in vote_block
+    assert "rect->w - Text_Width" not in vote_block
     assert "for ( n = 1; n < NUM_CROSSHAIRS; n++ ) {" in asset_cache_block
     assert 'trap_R_RegisterShaderNoMip( va( "gfx/2d/crosshair%d", n ) );' in asset_cache_block
     assert "crosshair%c" not in asset_cache_block
@@ -829,18 +839,587 @@ def test_ui_retail_ownerdraw_visibility_cvar_gates_match_ql() -> None:
     )
 
 
+def test_ui_retail_gametype_selector_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    draw_game_block = _extract_function_block(ui_main, "static void UI_DrawGameType")
+    draw_net_block = _extract_function_block(ui_main, "static void UI_DrawNetGameType")
+    draw_join_block = _extract_function_block(ui_main, "static void UI_DrawJoinGameType")
+    game_key_block = _extract_function_block(ui_main, "static qboolean UI_GameType_HandleKey")
+    net_visible_block = _extract_function_block(ui_main, "static qboolean UI_NetGameTypeVisible")
+    net_key_block = _extract_function_block(ui_main, "static qboolean UI_NetGameType_HandleKey")
+    join_key_block = _extract_function_block(ui_main, "static qboolean UI_JoinGameType_HandleKey")
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+
+    assert "Text_Paint(rect->x, rect->y, scale, color, uiInfo.gameTypes[ui_gameType.integer].gameType, 0, 0, textStyle);" in draw_game_block
+    assert "case UI_GAMETYPE:" in draw_dispatch_block
+    assert "UI_DrawGameType(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "return UI_GameType_HandleKey(flags, special, key, qtrue);" in key_dispatch_block
+    assert "if (ui_gameType.integer == 2) {" in game_key_block
+    assert "ui_gameType.integer = 3;" in game_key_block
+    assert 'trap_Cvar_Set("ui_gameType", va("%d", ui_gameType.integer));' in game_key_block
+    assert "UI_SetCapFragLimits(qtrue);" in game_key_block
+    assert "UI_LoadBestScores(uiInfo.mapList[ui_currentMap.integer].mapLoadName, uiInfo.gameTypes[ui_gameType.integer].gtEnum);" in game_key_block
+    assert "ui_Q3Model" not in game_key_block
+
+    assert 'trap_Cvar_Set("ui_netGameType", "0");' in draw_net_block
+    assert 'trap_Cvar_Set("ui_actualNetGameType", "0");' in draw_net_block
+    assert "Text_Paint(rect->x, rect->y, scale, color, uiInfo.gameTypes[ui_netGameType.integer].gameType , 0, 0, textStyle);" in draw_net_block
+    assert "case UI_NETGAMETYPE:" in draw_dispatch_block
+    assert "UI_DrawNetGameType(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "UI_NetGameType_HandleKey(flags, special, key);" in key_dispatch_block
+    assert "gtEnum = uiInfo.gameTypes[gameTypeIndex].gtEnum;" in net_visible_block
+    assert "gtEnum != GT_1FCTF &&" in net_visible_block
+    assert "gtEnum != GT_OBELISK &&" in net_visible_block
+    assert "gtEnum != GT_HARVESTER;" in net_visible_block
+    assert "direction = ( key == K_MOUSE2 ) ? -1 : 1;" in net_key_block
+    assert "ui_netGameType.integer += direction;" in net_key_block
+    assert "} while ( guard < uiInfo.numGameTypes && !UI_NetGameTypeVisible( ui_netGameType.integer ) );" in net_key_block
+    assert 'trap_Cvar_Set( "ui_actualnetGameType", va("%d", uiInfo.gameTypes[ui_netGameType.integer].gtEnum));' in net_key_block
+    assert 'trap_Cvar_Set( "ui_currentNetMap", "0");' in net_key_block
+    assert "UI_MapCountByGameType(qfalse);" in net_key_block
+    assert "Menu_SetFeederSelection(NULL, FEEDER_ALLMAPS, 0, NULL);" in net_key_block
+
+    assert 'trap_Cvar_Set("ui_joinGameType", "0");' in draw_join_block
+    assert "Text_Paint(rect->x, rect->y, scale, color, uiInfo.joinGameTypes[ui_joinGameType.integer].gameType , 0, 0, textStyle);" in draw_join_block
+    assert "case UI_JOINGAMETYPE:" in draw_dispatch_block
+    assert "UI_DrawJoinGameType(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "UI_JoinGameType_HandleKey(flags, special, key);" in key_dispatch_block
+    assert 'trap_Cvar_Set( "ui_joinGameType", va("%d", ui_joinGameType.integer));' in join_key_block
+    assert "UI_BuildServerDisplayList(qtrue);" in join_key_block
+
+
+def test_ui_retail_skill_mappreview_maptime_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ghidra_reference = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/uix86/ui_ghidra_reference.h"
+    ).read_text(encoding="utf-8")
+    hlil = UI_HLIL_PART01.read_text(encoding="utf-8")
+    draw_skill_block = _extract_function_block(
+        ui_main, "static void UI_DrawSkill(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    draw_preview_block = _extract_function_block(
+        ui_main, "static void UI_DrawMapPreview(rectDef_t *rect, float scale, vec4_t color, qboolean net) {"
+    )
+    draw_time_block = _extract_function_block(
+        ui_main, "static void UI_DrawMapTimeToBeat(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    skill_key_block = _extract_function_block(
+        ui_main, "static qboolean UI_Skill_HandleKey(int flags, float *special, int key) {"
+    )
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    skill_key_case = key_dispatch_block.split("case UI_SKILL:", 1)[1].split("case UI_BLUETEAMNAME:", 1)[0]
+
+    assert "#define QLR_UI_ADDR_UI_DRAWSKILL" in ghidra_reference
+    assert "0x10005350u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWMAPPREVIEW" in ghidra_reference
+    assert "0x100053C0u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWMAPTIMETOBEAT" in ghidra_reference
+    assert "0x100054A0u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_SKILL_HANDLEKEY" in ghidra_reference
+    assert "0x1000A390u" in ghidra_reference
+    assert "10005350    int32_t sub_10005350" in hlil
+    assert '1000535d  (*(data_106b40a8 + 0x28))("g_spSkill")' in hlil
+    assert "1000536f  if (eax s< 1 || eax s> 5)" in hlil
+    assert '100053c0    int32_t __convention("regparm") sub_100053c0' in hlil
+    assert "100053db  if (esi_1 s< 0 || esi_1 s> data_1075add0)" in hlil
+    assert '1000545d      *(esp_1 - 4) = "menu/art/unknownmap"' in hlil
+    assert "100054a0    int32_t sub_100054a0" in hlil
+    assert "100054af  if (eax_1 s< 0 || eax_1 s> data_1075add0)" in hlil
+    assert '10005522  eax_8, ecx_4 = sub_10001900("%02i:%02i")' in hlil
+    assert '1000a390    int32_t __convention("regparm") sub_1000a390' in hlil
+    assert '1000a3c1  (*(data_106b40a8 + 0x28))("g_spSkill")' in hlil
+    assert "1000a3da  if (eax_3 s< 1)" in hlil
+    assert "1000a3e8      eax_3 = 1" in hlil
+
+    assert 'trap_Cvar_VariableValue( "g_spSkill" );' in draw_skill_block
+    assert "if (i < 1 || i > numSkillLevels) {" in draw_skill_block
+    assert "i = 1;" in draw_skill_block
+    assert "skillLevels[i-1]" in draw_skill_block
+    assert "case UI_SKILL:" in draw_dispatch_block
+    assert "UI_DrawSkill(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "return UI_Skill_HandleKey(flags, special, key);" in skill_key_case
+    assert "if (key == K_MOUSE1 || key == K_MOUSE2 || key == K_ENTER || key == K_KP_ENTER) {" in skill_key_block
+    assert 'int i = trap_Cvar_VariableValue( "g_spSkill" );' in skill_key_block
+    assert "if (key == K_MOUSE2) {" in skill_key_block
+    assert "i--;" in skill_key_block
+    assert "i++;" in skill_key_block
+    assert "i = numSkillLevels;" in skill_key_block
+    assert "i = 1;" in skill_key_block
+    assert 'trap_Cvar_Set("g_spSkill", va("%i", i));' in skill_key_block
+
+    assert "int map = (net) ? ui_currentNetMap.integer : ui_currentMap.integer;" in draw_preview_block
+    assert "if (map < 0 || map > uiInfo.mapCount) {" in draw_preview_block
+    assert 'trap_Cvar_Set("ui_currentNetMap", "0");' in draw_preview_block
+    assert 'trap_Cvar_Set("ui_currentMap", "0");' in draw_preview_block
+    assert "uiInfo.mapList[map].levelShot = trap_R_RegisterShaderNoMip(uiInfo.mapList[map].imageName);" in draw_preview_block
+    assert 'trap_R_RegisterShaderNoMip("menu/art/unknownmap")' in draw_preview_block
+    assert "case UI_MAPPREVIEW:" in draw_dispatch_block
+    assert "UI_DrawMapPreview(&rect, scale, color, qtrue);" in draw_dispatch_block
+
+    assert "if (ui_currentMap.integer < 0 || ui_currentMap.integer > uiInfo.mapCount) {" in draw_time_block
+    assert 'trap_Cvar_Set("ui_currentMap", "0");' in draw_time_block
+    assert "time = uiInfo.mapList[ui_currentMap.integer].timeToBeat[uiInfo.gameTypes[ui_gameType.integer].gtEnum];" in draw_time_block
+    assert "minutes = time / 60;" in draw_time_block
+    assert "seconds = time % 60;" in draw_time_block
+    assert 'va("%02i:%02i", minutes, seconds)' in draw_time_block
+    assert "case UI_MAP_TIMETOBEAT:" in draw_dispatch_block
+    assert "UI_DrawMapTimeToBeat(&rect, scale, color, textStyle);" in draw_dispatch_block
+
+
+def test_ui_retail_map_media_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ghidra_reference = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/uix86/ui_ghidra_reference.h"
+    ).read_text(encoding="utf-8")
+    hlil = UI_HLIL_PART01.read_text(encoding="utf-8")
+    draw_map_cinematic = _extract_function_block(
+        ui_main, "static void UI_DrawMapCinematic(rectDef_t *rect, float scale, vec4_t color, qboolean net) {"
+    )
+    draw_net_preview = _extract_function_block(
+        ui_main, "static void UI_DrawNetMapPreview(rectDef_t *rect, float scale, vec4_t color) {"
+    )
+    draw_net_cinematic = _extract_function_block(
+        ui_main, "static void UI_DrawNetMapCinematic(rectDef_t *rect, float scale, vec4_t color) {"
+    )
+    stop_cinematic = _extract_function_block(ui_main, "static void UI_StopCinematic(int handle) {")
+    init_block = _extract_function_block(ui_main, "void _UI_Init( qboolean inGameLoad ) {")
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    width_block = _extract_function_block(ui_main, "static int UI_OwnerDrawWidth(int ownerDraw, float scale) {")
+
+    assert "#define QLR_UI_ADDR_UI_DRAWMAPCINEMATIC" in ghidra_reference
+    assert "0x10005560u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWNETMAPPREVIEW" in ghidra_reference
+    assert "0x100065B0u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWNETMAPCINEMATIC" in ghidra_reference
+    assert "0x10006600u" in ghidra_reference
+    assert "10005560    int32_t __convention(\"regparm\") sub_10005560" in hlil
+    assert "10005581  if (esi_1 s< 0 || esi_1 s> data_1075add0)" in hlil
+    assert '100055f1      *(esp_1 - 0x1c) = "%s.roq"' in hlil
+    assert "10005680      int32_t eax_12 = sub_100053c0(arg1, arg3)" in hlil
+    assert "100065b0    int32_t sub_100065b0" in hlil
+    assert "100065b7  if (eax_1 s<= 0)" in hlil
+    assert '100065c6      eax_1 = (*(data_106b40a8 + 0x5c))("menu/art/unknownmap")' in hlil
+    assert "10006600    int32_t sub_10006600" in hlil
+    assert "1000660f  if (eax_10 s< 0 || eax_10 s> data_1075add0)" in hlil
+    assert "10006639  if (eax_1 s>= 0)" in hlil
+    assert "1000668d  int32_t eax_7 = data_107644b0" in hlil
+    assert "100098fd          return sub_100053c0(1, &var_18)" in hlil
+    assert "10009931      case 0x17" in hlil
+    assert "10009931          return sub_10005560(0, edx, &var_18)" in hlil
+    assert "10009999      case 6" in hlil
+    assert "10009999          return sub_100065b0(&var_18)" in hlil
+    assert "100099a9      case 0x19" in hlil
+    assert "100099a9          return sub_10006600(&var_18)" in hlil
+    assert "1000f893  if (eax_3 == 0x218)" in hlil
+    assert "1000f8c2          *(data_10744ccc * 0x64 + 0x1075adec) = 0xffffffff" in hlil
+    assert "1000f893  else if (eax_3 == 0x21a)" in hlil
+    assert "1000f8ee          data_107644b4 = 0xffffffff" in hlil
+
+    assert "int map = (net) ? ui_currentNetMap.integer : ui_currentMap.integer;" in draw_map_cinematic
+    assert "if (map < 0 || map > uiInfo.mapCount) {" in draw_map_cinematic
+    assert 'trap_Cvar_Set("ui_currentNetMap", "0");' in draw_map_cinematic
+    assert 'trap_Cvar_Set("ui_currentMap", "0");' in draw_map_cinematic
+    assert 'trap_CIN_PlayCinematic(va("%s.roq", uiInfo.mapList[map].mapLoadName), 0, 0, 0, 0, (CIN_loop | CIN_silent) );' in draw_map_cinematic
+    assert "trap_CIN_RunCinematic(uiInfo.mapList[map].cinematic);" in draw_map_cinematic
+    assert "trap_CIN_SetExtents(uiInfo.mapList[map].cinematic, rect->x, rect->y, rect->w, rect->h);" in draw_map_cinematic
+    assert "trap_CIN_DrawCinematic(uiInfo.mapList[map].cinematic);" in draw_map_cinematic
+    assert "uiInfo.mapList[map].cinematic = -2;" in draw_map_cinematic
+    assert "UI_DrawMapPreview(rect, scale, color, net);" in draw_map_cinematic
+    assert "case UI_MAPCINEMATIC:" in draw_dispatch_block
+    assert "UI_DrawMapCinematic(&rect, scale, color, qfalse);" in draw_dispatch_block
+
+    assert "if (uiInfo.serverStatus.currentServerPreview > 0) {" in draw_net_preview
+    assert "UI_DrawHandlePic( rect->x, rect->y, rect->w, rect->h, uiInfo.serverStatus.currentServerPreview);" in draw_net_preview
+    assert 'trap_R_RegisterShaderNoMip("menu/art/unknownmap")' in draw_net_preview
+    assert "case UI_NETMAPPREVIEW:" in draw_dispatch_block
+    assert "UI_DrawNetMapPreview(&rect, scale, color);" in draw_dispatch_block
+
+    assert "if (ui_currentNetMap.integer < 0 || ui_currentNetMap.integer > uiInfo.mapCount) {" in draw_net_cinematic
+    assert 'trap_Cvar_Set("ui_currentNetMap", "0");' in draw_net_cinematic
+    assert "if (uiInfo.serverStatus.currentServerCinematic >= 0) {" in draw_net_cinematic
+    assert "trap_CIN_RunCinematic(uiInfo.serverStatus.currentServerCinematic);" in draw_net_cinematic
+    assert "trap_CIN_SetExtents(uiInfo.serverStatus.currentServerCinematic, rect->x, rect->y, rect->w, rect->h);" in draw_net_cinematic
+    assert "trap_CIN_DrawCinematic(uiInfo.serverStatus.currentServerCinematic);" in draw_net_cinematic
+    assert "UI_DrawNetMapPreview(rect, scale, color);" in draw_net_cinematic
+    assert "case UI_NETMAPCINEMATIC:" in draw_dispatch_block
+    assert "UI_DrawNetMapCinematic(&rect, scale, color);" in draw_dispatch_block
+
+    assert "uiInfo.uiDC.stopCinematic = &UI_StopCinematic;" in init_block
+    assert "if (handle >= 0) {" in stop_cinematic
+    assert "trap_CIN_StopCinematic(handle);" in stop_cinematic
+    assert "handle = abs(handle);" in stop_cinematic
+    assert "if (handle == UI_MAPCINEMATIC) {" in stop_cinematic
+    assert "trap_CIN_StopCinematic(uiInfo.mapList[ui_currentMap.integer].cinematic);" in stop_cinematic
+    assert "uiInfo.mapList[ui_currentMap.integer].cinematic = -1;" in stop_cinematic
+    assert "} else if (handle == UI_NETMAPCINEMATIC) {" in stop_cinematic
+    assert "trap_CIN_StopCinematic(uiInfo.serverStatus.currentServerCinematic);" in stop_cinematic
+    assert "uiInfo.serverStatus.currentServerCinematic = -1;" in stop_cinematic
+    assert "case UI_MAPCINEMATIC:" not in key_dispatch_block
+    assert "case UI_NETMAPPREVIEW:" not in key_dispatch_block
+    assert "case UI_NETMAPCINEMATIC:" not in key_dispatch_block
+    assert "case UI_MAPCINEMATIC:" not in width_block
+    assert "case UI_NETMAPPREVIEW:" not in width_block
+    assert "case UI_NETMAPCINEMATIC:" not in width_block
+
+
+def test_ui_retail_map_selection_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ghidra_reference = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/uix86/ui_ghidra_reference.h"
+    ).read_text(encoding="utf-8")
+    hlil = UI_HLIL_PART01.read_text(encoding="utf-8")
+    draw_selection = _extract_function_block(
+        ui_main,
+        "static void UI_DrawAllMapsSelection(rectDef_t *rect, float scale, vec4_t color, int textStyle, qboolean net) {",
+    )
+    draw_map_cinematic = _extract_function_block(
+        ui_main, "static void UI_DrawMapCinematic(rectDef_t *rect, float scale, vec4_t color, qboolean net) {"
+    )
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    width_block = _extract_function_block(ui_main, "static int UI_OwnerDrawWidth(int ownerDraw, float scale) {")
+
+    assert "#define QLR_UI_ADDR_UI_DRAWALLMAPSSELECTION" in ghidra_reference
+    assert "0x10006890u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWMAPCINEMATIC" in ghidra_reference
+    assert "0x10005560u" in ghidra_reference
+    assert '10005560    int32_t __convention("regparm") sub_10005560' in hlil
+    assert "1000556f  if (arg1 == 0)" in hlil
+    assert "10005581  if (esi_1 s< 0 || esi_1 s> data_1075add0)" in hlil
+    assert '100055f1      *(esp_1 - 0x1c) = "%s.roq"' in hlil
+    assert "10005680      int32_t eax_12 = sub_100053c0(arg1, arg3)" in hlil
+    assert "10006890    int32_t __convention(\"regparm\") sub_10006890" in hlil
+    assert "10006895  int32_t result = data_10742f8c" in hlil
+    assert "1000689a  if (arg6 == 0)" in hlil
+    assert "1000689c      result = data_10744ccc" in hlil
+    assert "100068ab  if (result s< 0 || result s>= data_1075add0)" in hlil
+    assert "100068de      fconvert.s(fconvert.t(arg4)), arg5, *(result * 0x64 + 0x1075add4)," in hlil
+    assert "100099e7      case 0xf" in hlil
+    assert "100099fd          return sub_10006890(arg12, arg14, &var_18, fconvert.s(fconvert.t(arg11)), arg12," in hlil
+    assert "100099fd              1)" in hlil
+    assert "10009946      case 0x22" in hlil
+    assert "10009946          return sub_10005560(1, edx, &var_18)" in hlil
+    assert "100099fe      case 0x23" in hlil
+    assert "10009a11          if (eax_1 s>= 0 && eax_1 s< data_1075add0)" in hlil
+    assert "10009a5a                  fconvert.s(float.t(0)), 0)" in hlil
+
+    assert "int map = (net) ? ui_currentNetMap.integer : ui_currentMap.integer;" in draw_selection
+    assert "if (map >= 0 && map < uiInfo.mapCount) {" in draw_selection
+    assert "Text_Paint(rect->x, rect->y, scale, color, uiInfo.mapList[map].mapName, 0, 0, textStyle);" in draw_selection
+    assert "case UI_ALLMAPS_SELECTION:" in draw_dispatch_block
+    assert "UI_DrawAllMapsSelection(&rect, scale, color, textStyle, qtrue);" in draw_dispatch_block
+    assert "case UI_MAPS_SELECTION:" in draw_dispatch_block
+    assert "UI_DrawAllMapsSelection(&rect, scale, color, textStyle, qfalse);" in draw_dispatch_block
+
+    assert "int map = (net) ? ui_currentNetMap.integer : ui_currentMap.integer;" in draw_map_cinematic
+    assert "if (map < 0 || map > uiInfo.mapCount) {" in draw_map_cinematic
+    assert 'trap_Cvar_Set("ui_currentNetMap", "0");' in draw_map_cinematic
+    assert 'trap_Cvar_Set("ui_currentMap", "0");' in draw_map_cinematic
+    assert 'trap_CIN_PlayCinematic(va("%s.roq", uiInfo.mapList[map].mapLoadName), 0, 0, 0, 0, (CIN_loop | CIN_silent) );' in draw_map_cinematic
+    assert "trap_CIN_RunCinematic(uiInfo.mapList[map].cinematic);" in draw_map_cinematic
+    assert "UI_DrawMapPreview(rect, scale, color, net);" in draw_map_cinematic
+    assert "case UI_STARTMAPCINEMATIC:" in draw_dispatch_block
+    assert "UI_DrawMapCinematic(&rect, scale, color, qtrue);" in draw_dispatch_block
+
+    allmaps_width_case = width_block.split("case UI_ALLMAPS_SELECTION:", 1)[1].split("case UI_OPPONENT_NAME:", 1)[0]
+    assert "break;" in allmaps_width_case
+    assert "s =" not in allmaps_width_case
+    assert "case UI_MAPS_SELECTION:" not in width_block
+    assert "case UI_STARTMAPCINEMATIC:" not in width_block
+    assert "case UI_ALLMAPS_SELECTION:" not in key_dispatch_block
+    assert "case UI_MAPS_SELECTION:" not in key_dispatch_block
+    assert "case UI_STARTMAPCINEMATIC:" not in key_dispatch_block
+
+
+def test_ui_retail_server_info_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ghidra_reference = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/uix86/ui_ghidra_reference.h"
+    ).read_text(encoding="utf-8")
+    hlil = UI_HLIL_PART01.read_text(encoding="utf-8")
+    draw_refresh = _extract_function_block(
+        ui_main, "static void UI_DrawServerRefreshDate(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    draw_motd = _extract_function_block(
+        ui_main, "static void UI_DrawServerMOTD(rectDef_t *rect, float scale, vec4_t color) {"
+    )
+    draw_glinfo = _extract_function_block(
+        ui_main, "static void UI_DrawGLInfo(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    build_server_display = _extract_function_block(
+        ui_main, "static void UI_BuildServerDisplayList(qboolean force) {"
+    )
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    width_block = _extract_function_block(ui_main, "static int UI_OwnerDrawWidth(int ownerDraw, float scale) {")
+
+    assert "#define QLR_UI_ADDR_UI_DRAWSERVERREFRESHDATE" in ghidra_reference
+    assert "0x10008F20u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWSERVERMOTD" in ghidra_reference
+    assert "0x10009080u" in ghidra_reference
+    assert "#define QLR_UI_ADDR_UI_DRAWGLINFO" in ghidra_reference
+    assert "0x100093B0u" in ghidra_reference
+    assert "10008f20    int32_t sub_10008f20" in hlil
+    assert '10009037      eax_12, ecx_5 = sub_10001900("Refresh Time: %s")' in hlil
+    assert '10008fdc      var_80_1 = sub_10001900("Getting info for %d servers (ESC…")' in hlil
+    assert "10009080    void sub_10009080" in hlil
+    assert "10009221          edx = sub_10004280(&var_c, edx, 0f, float.s(data_107644c0)," in hlil
+    assert "10009285          sub_10004280(&var_4, edx, esi_1, float.s(ecx_1)," in hlil
+    assert "100093b0    int32_t sub_100093b0" in hlil
+    assert '100093e0  eax_2, ecx_1 = sub_10001900("VENDOR: %s")' in hlil
+    assert '10009434  eax_3, ecx_3 = sub_10001900("VERSION: %s: %s")' in hlil
+    assert '100094a0  eax_5, ecx_6 = sub_10001900("PIXELFORMAT: color(%d-bits) Z(%d…")' in hlil
+    assert '10026c88  char const data_10026c88[0x39] = "Press ENTER or CLICK to change, Press BACKSPACE to clear", 0' in hlil
+    assert '100270ec  char const data_100270ec[0x2c] = "Getting info for %d servers (ESC to cancel)", 0' in hlil
+    assert '10027118  char const data_10027118[0x11] = "Refresh Time: %s", 0' in hlil
+    assert '1002712c  char const data_1002712c[0xb] = "VENDOR: %s", 0' in hlil
+    assert '10027138  char const data_10027138[0x10] = "VERSION: %s: %s", 0' in hlil
+    assert '10027148  char const data_10027148[0x38] = "PIXELFORMAT: color(%d-bits) Z(%d-bits) stencil(%d-bits)", 0' in hlil
+    assert '10027be0  char const data_10027be0[0x17] = "Welcome to Team Arena!", 0' in hlil
+    assert "10009b35      case 0x1a" in hlil
+    assert "10009b4b          return sub_10008f20(arg12, &var_18, fconvert.s(fconvert.t(arg11)))" in hlil
+    assert "10009b53      case 0x1b" in hlil
+    assert "10009b5b          int80_t st0" in hlil
+    assert "10009b74      case 0x1c" in hlil
+    assert "10009b8a          return sub_100093b0(&var_18, fconvert.s(fconvert.t(arg11)), arg14)" in hlil
+    assert "10006abb          case 0x21b" in hlil
+    assert '10006ada                  &data_10042f38, 0x400)' in hlil
+
+    assert "if (uiInfo.serverStatus.refreshActive) {" in draw_refresh
+    assert "lowLight[0] = 0.8 * color[0];" in draw_refresh
+    assert "lowLight[3] = 0.8 * color[3];" in draw_refresh
+    assert "LerpColor(color,lowLight,newColor,0.5+0.5*sin(uiInfo.uiDC.realTime / PULSE_DIVISOR));" in draw_refresh
+    assert 'va("Getting info for %d servers (ESC to cancel)", trap_LAN_GetServerCount(ui_netSource.integer))' in draw_refresh
+    assert "char buff[64];" in draw_refresh
+    assert 'Q_strncpyz(buff, UI_Cvar_VariableString(va("ui_lastServerRefresh_%i", ui_netSource.integer)), 64);' in draw_refresh
+    assert 'va("Refresh Time: %s", buff)' in draw_refresh
+    assert "case UI_SERVERREFRESHDATE:" in draw_dispatch_block
+    assert "UI_DrawServerRefreshDate(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "case UI_SERVERREFRESHDATE:" in width_block
+    assert 's = UI_Cvar_VariableString(va("ui_lastServerRefresh_%i", ui_netSource.integer));' in width_block
+
+    assert 'trap_Cvar_VariableStringBuffer( "cl_motdString", uiInfo.serverStatus.motd, sizeof(uiInfo.serverStatus.motd) );' in build_server_display
+    assert "len = strlen(uiInfo.serverStatus.motd);" in build_server_display
+    assert "if (len == 0) {" in build_server_display
+    assert 'strcpy(uiInfo.serverStatus.motd, "Welcome to Team Arena!");' in build_server_display
+    assert "uiInfo.serverStatus.motdWidth = -1;" in build_server_display
+    assert "if (uiInfo.serverStatus.motdLen) {" in draw_motd
+    assert "uiInfo.serverStatus.motdPaintX = rect->x + 1;" in draw_motd
+    assert "uiInfo.serverStatus.motdPaintX2 = -1;" in draw_motd
+    assert "uiInfo.serverStatus.motdTime = uiInfo.uiDC.realTime + 10;" in draw_motd
+    assert "uiInfo.serverStatus.motdPaintX -= 2;" in draw_motd
+    assert "maxX = rect->x + rect->w - 2;" in draw_motd
+    assert "Text_Paint_Limit(&maxX, uiInfo.serverStatus.motdPaintX, rect->y + rect->h - 3, scale, color, &uiInfo.serverStatus.motd[uiInfo.serverStatus.motdOffset], 0, 0);" in draw_motd
+    assert "Text_Paint_Limit(&maxX2, uiInfo.serverStatus.motdPaintX2, rect->y + rect->h - 3, scale, color, uiInfo.serverStatus.motd, 0, uiInfo.serverStatus.motdOffset);" in draw_motd
+    assert "case UI_SERVERMOTD:" in draw_dispatch_block
+    assert "UI_DrawServerMOTD(&rect, scale, color);" in draw_dispatch_block
+
+    assert 'va("VENDOR: %s", uiInfo.uiDC.glconfig.vendor_string)' in draw_glinfo
+    assert 'va("VERSION: %s: %s", uiInfo.uiDC.glconfig.version_string,uiInfo.uiDC.glconfig.renderer_string)' in draw_glinfo
+    assert 'va ("PIXELFORMAT: color(%d-bits) Z(%d-bits) stencil(%d-bits)", uiInfo.uiDC.glconfig.colorBits, uiInfo.uiDC.glconfig.depthBits, uiInfo.uiDC.glconfig.stencilBits)' in draw_glinfo
+    assert "Q_strncpyz(buff, uiInfo.uiDC.glconfig.extensions_string, 1024);" in draw_glinfo
+    assert "y = rect->y + 45;" in draw_glinfo
+    assert "while ( y < rect->y + rect->h && *eptr )" in draw_glinfo
+    assert "lines[numLines++] = eptr;" in draw_glinfo
+    assert "Text_Paint(rect->x + 2, y, scale, color, lines[i++], 0, 20, textStyle);" in draw_glinfo
+    assert "Text_Paint(rect->x + rect->w / 2, y, scale, color, lines[i++], 0, 20, textStyle);" in draw_glinfo
+    assert "if (y > rect->y + rect->h - 11) {" in draw_glinfo
+    assert "case UI_GLINFO:" in draw_dispatch_block
+    assert "UI_DrawGLInfo(&rect,scale, color, textStyle);" in draw_dispatch_block
+
+    assert "case UI_SERVERREFRESHDATE:" not in key_dispatch_block
+    assert "case UI_SERVERMOTD:" not in key_dispatch_block
+    assert "case UI_GLINFO:" not in key_dispatch_block
+    assert "case UI_SERVERMOTD:" not in width_block
+    assert "case UI_GLINFO:" not in width_block
+
+
+def test_ui_retail_botname_botskill_redblue_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    botname_draw = _extract_function_block(
+        ui_main, "static void UI_DrawBotName(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    botskill_draw = _extract_function_block(
+        ui_main, "static void UI_DrawBotSkill(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    redblue_draw = _extract_function_block(
+        ui_main, "static void UI_DrawRedBlue(rectDef_t *rect, float scale, vec4_t color, int textStyle) {"
+    )
+    botname_key = _extract_function_block(
+        ui_main, "static qboolean UI_BotName_HandleKey(int flags, float *special, int key) {"
+    )
+    botskill_key = _extract_function_block(
+        ui_main, "static qboolean UI_BotSkill_HandleKey(int flags, float *special, int key) {"
+    )
+    redblue_key = _extract_function_block(
+        ui_main, "static qboolean UI_RedBlue_HandleKey(int flags, float *special, int key) {"
+    )
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    botname_key_case = key_dispatch_block.split("case UI_BOTNAME:", 1)[1].split("case UI_BOTSKILL:", 1)[0]
+    botskill_key_case = key_dispatch_block.split("case UI_BOTSKILL:", 1)[1].split("case UI_REDBLUE:", 1)[0]
+    redblue_key_case = key_dispatch_block.split("case UI_REDBLUE:", 1)[1].split("case UI_CROSSHAIR:", 1)[0]
+
+    assert "botCount = UI_GetNumBots();" in botname_draw
+    assert 'const char *text = "Sarge";' in botname_draw
+    assert "if (value >= botCount) {" in botname_draw
+    assert "if (value < 0 || value >= botCount) {" in botname_draw
+    assert 'trap_Print(va(S_COLOR_RED "Invalid bot number: %i\\n", value));' in botname_draw
+    assert "text = UI_GetBotNameByNumber(value);" in botname_draw
+    assert "case UI_BOTNAME:" in draw_dispatch_block
+    assert "UI_DrawBotName(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "return UI_BotName_HandleKey(flags, special, key);" in botname_key_case
+    assert "value = UI_GetNumBots() + 2 - 1;" in botname_key
+    assert "uiInfo.botIndex = value;" in botname_key
+    assert 'trap_Cvar_VariableValue("g_gametype")' not in botname_draw
+    assert 'trap_Cvar_VariableValue("g_gametype")' not in botname_key
+    assert "uiInfo.characterList[value].name" not in botname_draw
+    assert "uiInfo.characterCount + 2" not in botname_key
+
+    assert "if (uiInfo.skillIndex >= 0 && uiInfo.skillIndex < numSkillLevels) {" in botskill_draw
+    assert "skillLevels[uiInfo.skillIndex]" in botskill_draw
+    assert "case UI_BOTSKILL:" in draw_dispatch_block
+    assert "UI_DrawBotSkill(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "return UI_BotSkill_HandleKey(flags, special, key);" in botskill_key_case
+    assert "uiInfo.skillIndex++;" in botskill_key
+    assert "uiInfo.skillIndex--;" in botskill_key
+    assert "if (uiInfo.skillIndex >= numSkillLevels) {" in botskill_key
+    assert "uiInfo.skillIndex = numSkillLevels-1;" in botskill_key
+
+    assert '(uiInfo.redBlue == 0) ? "Red" : "Blue"' in redblue_draw
+    assert "case UI_REDBLUE:" in draw_dispatch_block
+    assert "UI_DrawRedBlue(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "UI_RedBlue_HandleKey(flags, special, key);" in redblue_key_case
+    assert "return UI_RedBlue_HandleKey" not in redblue_key_case
+    assert "uiInfo.redBlue ^= 1;" in redblue_key
+    assert "return qtrue;" in redblue_key
+
+
+def test_ui_retail_handicap_netsource_netfilter_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    handicap_draw = _extract_function_block(ui_main, "static void UI_DrawHandicap")
+    netsource_draw = _extract_function_block(ui_main, "static void UI_DrawNetSource")
+    netfilter_draw = _extract_function_block(ui_main, "static void UI_DrawNetFilter")
+    width_block = _extract_function_block(ui_main, "static int UI_OwnerDrawWidth")
+    handicap_key = _extract_function_block(ui_main, "static qboolean UI_Handicap_HandleKey")
+    netsource_key = _extract_function_block(ui_main, "static qboolean UI_NetSource_HandleKey")
+    netfilter_key = _extract_function_block(ui_main, "static qboolean UI_NetFilter_HandleKey")
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+    netsource_key_case = key_dispatch_block.split("case UI_NETSOURCE:", 1)[1].split("case UI_NETFILTER:", 1)[0]
+    netfilter_key_case = key_dispatch_block.split("case UI_NETFILTER:", 1)[1].split("case UI_OPPONENT_NAME:", 1)[0]
+
+    assert 'static const char *handicapValues[] = {"None","95","90","85","80","75","70","65","60","55","50","45","40","35","30","25","20","15","10","5",NULL};' in ui_main
+    assert 'h = Com_Clamp( 5, 100, trap_Cvar_VariableValue("handicap") );' in handicap_draw
+    assert "i = 20 - h / 5;" in handicap_draw
+    assert "Text_Paint(rect->x, rect->y, scale, color, handicapValues[i], 0, 0, textStyle);" in handicap_draw
+    assert "case UI_HANDICAP:" in draw_dispatch_block
+    assert "UI_DrawHandicap(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "return UI_Handicap_HandleKey(flags, special, key);" in key_dispatch_block
+    assert 'h = Com_Clamp( 5, 100, trap_Cvar_VariableValue("handicap") );' in handicap_key
+    assert "h -= 5;" in handicap_key
+    assert "h += 5;" in handicap_key
+    assert "if (h > 100) {" in handicap_key
+    assert "h = 5;" in handicap_key
+    assert "} else if (h < 0) {" in handicap_key
+    assert "h = 100;" in handicap_key
+    assert 'trap_Cvar_Set( "handicap", va( "%i", h) );' in handicap_key
+
+    assert '"Local",\n\t"Mplayer",\n\t"Internet",\n\t"Favorites"' in ui_main
+    assert "static const int numNetSources = sizeof(netSources) / sizeof(const char*);" in ui_main
+    assert "if (ui_netSource.integer < 0 || ui_netSource.integer >= numNetSources) {" in netsource_draw
+    assert 'Text_Paint(rect->x, rect->y, scale, color, va("Source: %s", netSources[ui_netSource.integer]), 0, 0, textStyle);' in netsource_draw
+    assert "if (ui_netSource.integer < 0 || ui_netSource.integer >= numNetSources) {" in width_block
+    assert 's = va("Source: %s", netSources[ui_netSource.integer]);' in width_block
+    assert "case UI_NETSOURCE:" in draw_dispatch_block
+    assert "UI_DrawNetSource(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "UI_NetSource_HandleKey(flags, special, key);" in netsource_key_case
+    assert "return UI_NetSource_HandleKey" not in netsource_key_case
+    assert "if (ui_netSource.integer == AS_MPLAYER)" in netsource_key
+    assert "if (ui_netSource.integer >= numNetSources) {" in netsource_key
+    assert "ui_netSource.integer = numNetSources - 1;" in netsource_key
+    assert "UI_BuildServerDisplayList(qtrue);" in netsource_key
+    assert "if (ui_netSource.integer != AS_GLOBAL) {" in netsource_key
+    assert "UI_StartServerRefresh(qtrue);" in netsource_key
+    assert 'trap_Cvar_Set( "ui_netSource", va("%d", ui_netSource.integer));' in netsource_key
+
+    assert '{"OSP", "osp" },' in ui_main
+    assert "static const int numServerFilters = sizeof(serverFilters) / sizeof(serverFilter_t);" in ui_main
+    assert "if (ui_serverFilterType.integer < 0 || ui_serverFilterType.integer >= numServerFilters) {" in netfilter_draw
+    assert 'Text_Paint(rect->x, rect->y, scale, color, va("Filter: %s", serverFilters[ui_serverFilterType.integer].description), 0, 0, textStyle);' in netfilter_draw
+    assert "if (ui_serverFilterType.integer < 0 || ui_serverFilterType.integer >= numServerFilters) {" in width_block
+    assert 's = va("Filter: %s", serverFilters[ui_serverFilterType.integer].description );' in width_block
+    assert "case UI_NETFILTER:" in draw_dispatch_block
+    assert "UI_DrawNetFilter(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "UI_NetFilter_HandleKey(flags, special, key);" in netfilter_key_case
+    assert "return UI_NetFilter_HandleKey" not in netfilter_key_case
+    assert "if (ui_serverFilterType.integer >= numServerFilters) {" in netfilter_key
+    assert "ui_serverFilterType.integer = numServerFilters - 1;" in netfilter_key
+    assert "UI_BuildServerDisplayList(qtrue);" in netfilter_key
+    assert 'trap_Cvar_Set( "ui_serverFilterType"' not in netfilter_key
+
+
 def test_ui_retail_starting_weapons_ownerdraw_restored() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
     token_block = _extract_function_block(ui_main, "static int UI_StartingWeaponIndexFromToken")
+    starting_block = _extract_function_block(ui_main, "static void UI_DrawStartingWeapons")
     assert "#define UI_STARTING_WEAPON_ICON_COUNT\t14" in ui_main
     assert "static int UI_StartingWeaponIndexFromToken( const char *value )" in ui_main
     assert "COM_ParseExt( &cursor, qtrue )" in token_block
     assert "uiStartingWeaponIcons[i].token" in token_block
+    assert '{ "hmg", "icons/weap_hmg.tga" }' in ui_main
     assert 'trap_GetConfigString( CS_LOADOUT_MASK, loadoutMaskText, sizeof( loadoutMaskText ) );' in ui_main
+    assert "loadoutMask = (unsigned int)atoi( loadoutMaskText );" in starting_block
+    assert "xOffset += rect->w * 1.5f;" in starting_block
     assert 'if ( trap_Cvar_VariableValue( "cg_loadout" ) != 1.0f ) {' in ui_main
+    assert "plusX = rect->x + xOffset;" in starting_block
+    assert 'plusY = rect->y + rect->h * 0.5f + Text_Height( "+", scale, 0 ) * 0.5f;' in starting_block
+    assert 'Text_Paint( plusX, plusY, scale, color, "+", 0, 0, textStyle );' in starting_block
     assert 'UI_Cvar_VariableString( "cg_weaponPrimaryQueued" )' in ui_main
+    assert "UI_DrawHandlePic( rect->x + xOffset + rect->w, rect->y, rect->w, rect->h, shader );" in starting_block
     assert "case UI_STARTING_WEAPONS:" in ui_main
     assert "UI_DrawStartingWeapons(&rect, scale, color, textStyle);" in ui_main
+    assert "strtoul( loadoutMaskText" not in starting_block
+    assert "plusWidth" not in starting_block
+    assert "( rect->w - plusWidth )" not in starting_block
     for stale in ('"gauntlet"', '"rocket_launcher"', '"grappling_hook"', '"heavy_machinegun"'):
         assert stale not in token_block
 
@@ -855,6 +1434,11 @@ def test_ui_retail_advert_runtime_seam_restored() -> None:
     assert "initAdvertisementBridge" in ui_shared_h
 
     ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    update_block = _extract_function_block(
+        ui_shared, "static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh) {"
+    )
+    post_parse_block = _extract_function_block(ui_shared, "void Menu_PostParse(menuDef_t *menu) {")
+    script_block = _extract_function_block(ui_shared, "static void Script_ActivateAdvert")
     assert "static void Menu_SetupAdvertCellShaders(menuDef_t *menu)" in ui_shared
     assert "static void Menu_RefreshAdvertCellShaders(menuDef_t *menu)" in ui_shared
     assert "static qhandle_t Item_UpdateAdvertShader(itemDef_t *item, qboolean refresh)" in ui_shared
@@ -866,7 +1450,16 @@ def test_ui_retail_advert_runtime_seam_restored() -> None:
     assert "rect.y = 0.0f;" in ui_shared
     assert "rect.w = 0.0f;" in ui_shared
     assert "rect.h = 0.0f;" in ui_shared
+    assert "shader = DC->refreshAdvertCellShader(item->defaultContent, &rect, item->cellId);" in update_block
+    assert "shader = DC->setupAdvertCellShader(item->defaultContent, &rect, item->cellId);" in update_block
+    assert "item->window.background = shader;" in update_block
+    assert "item->window.style = WINDOW_STYLE_SHADER;" in update_block
+    assert post_parse_block.index("Menu_UpdatePosition(menu);") < post_parse_block.index(
+        "Menu_SetupAdvertCellShaders(menu);"
+    )
     assert "static void Script_ActivateAdvert(itemDef_t *item, char **args)" in ui_shared
+    assert "if (!String_Parse(args, &cellIdToken)) {" in script_block
+    assert "DC->activateAdvert(atoi(cellIdToken));" in script_block
     assert '{"activateAdvert", &Script_ActivateAdvert}' in ui_shared
     assert '{"cellId", ItemParse_cellId, NULL}' in ui_shared
     assert '{"defaultContent", ItemParse_defaultContent, NULL}' in ui_shared
@@ -879,6 +1472,9 @@ def test_ui_retail_advert_runtime_seam_restored() -> None:
     assert "void\t\t\ttrap_QL_ActivateAdvert( int cellId );" in ui_local
 
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    advert_block = _extract_function_block(
+        ui_main, "static void UI_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader) {"
+    )
     assert "static qhandle_t UI_SetupAdvertCellShader" in ui_main
     assert "static qhandle_t UI_RefreshAdvertCellShader" in ui_main
     assert "static void UI_ActivateAdvert(int cellId)" in ui_main
@@ -889,6 +1485,15 @@ def test_ui_retail_advert_runtime_seam_restored() -> None:
     assert "trap_QL_UpdateAdvert( shader, pixelArea );" in ui_main
     assert "trap_QL_ActivateAdvert( cellId );" in ui_main
     assert "static void UI_DrawAdvert(rectDef_t *rect, vec4_t color, qhandle_t shader)" in ui_main
+    assert advert_block.index("trap_R_SetColor(color);") < advert_block.index(
+        "UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, shader);"
+    )
+    assert advert_block.index("UI_DrawHandlePic(rect->x, rect->y, rect->w, rect->h, shader);") < advert_block.index(
+        "trap_QL_UpdateAdvert( shader, pixelArea );"
+    )
+    assert advert_block.index("trap_QL_UpdateAdvert( shader, pixelArea );") < advert_block.index(
+        "trap_R_SetColor(NULL);"
+    )
     assert "case UI_ADVERT:" in ui_main
     assert "UI_InitAdvertisementBridge();" in ui_main
     assert "uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;" in ui_main
@@ -1227,6 +1832,64 @@ def test_ui_retail_crosshair_color_uses_one_based_palette_indices() -> None:
     assert "for ( i = 0; i < UI_CROSSHAIR_COLOR_COUNT; i++ ) {" in chooser_block
     assert "if (colorIndex > UI_CROSSHAIR_COLOR_COUNT) {" in key_block
     assert "colorIndex = UI_CROSSHAIR_COLOR_COUNT;" in key_block
+
+
+def test_ui_retail_crosshair_nextmap_selectedplayer_ownerdraws_match_ql() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    crosshair_block = _extract_function_block(ui_main, "static void UI_DrawCrosshair(rectDef_t *rect, float scale, vec4_t color) {")
+    nextmap_block = _extract_function_block(ui_main, "static void UI_DrawNextMap")
+    selected_block = _extract_function_block(ui_main, "static void UI_DrawSelectedPlayer")
+    build_player_block = _extract_function_block(ui_main, "static void UI_BuildPlayerList() {")
+    selected_key_block = _extract_function_block(ui_main, "static qboolean UI_SelectedPlayer_HandleKey")
+    draw_dispatch_block = _extract_function_block(
+        ui_main,
+        "static void UI_OwnerDraw(float x, float y, float w, float h, float text_x, float text_y, int ownerDraw, int ownerDrawFlags, int align, float special, float scale, vec4_t color, qhandle_t shader, int textStyle) {",
+    )
+    key_dispatch_block = _extract_function_block(
+        ui_main, "static qboolean UI_OwnerDrawHandleKey(int ownerDraw, int flags, float *special, int key) {"
+    )
+
+    assert "case UI_CROSSHAIR:" in draw_dispatch_block
+    assert "UI_DrawCrosshair(&rect, scale, color);" in draw_dispatch_block
+    assert "case UI_CROSSHAIR:" in key_dispatch_block
+    assert "UI_Crosshair_HandleKey(flags, special, key);" in key_dispatch_block
+    assert "UI_GetCrosshairPreviewColor(color, previewColor);" in crosshair_block
+    assert 'size = trap_Cvar_VariableValue("cg_crosshairSize");' in crosshair_block
+    assert "if (size > 40.0f) {" in crosshair_block
+    assert "size = 40.0f;" in crosshair_block
+    assert "size = 24.0f;" in crosshair_block
+    assert "x = rect->x - 2.0f;" in crosshair_block
+    assert "y = rect->y - rect->h + 2.0f;" in crosshair_block
+    assert "UI_DrawHandlePic(x, y, size, size, uiInfo.uiDC.Assets.crosshairShader[uiInfo.currentCrosshair]);" in crosshair_block
+    assert "rect->w - size" not in crosshair_block
+    assert "rect->h - size" not in crosshair_block
+
+    assert "#define UI_NEXTMAP_CONFIGSTRING\t0x29A" in ui_main
+    assert "case UI_NEXTMAP:" in draw_dispatch_block
+    assert "UI_DrawNextMap(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "char nextMapText[MAX_INFO_STRING];" in nextmap_block
+    assert "if ( !trap_GetConfigString( UI_NEXTMAP_CONFIGSTRING, nextMapText, sizeof( nextMapText ) ) ) {" in nextmap_block
+    assert "Text_Paint( rect->x, rect->y, scale, color, nextMapText, 0, 0, textStyle );" in nextmap_block
+    assert "CS_ROTATION_TITLES" not in nextmap_block
+    assert "Info_ValueForKey" not in nextmap_block
+
+    assert "case UI_SELECTEDPLAYER:" in draw_dispatch_block
+    assert "UI_DrawSelectedPlayer(&rect, scale, color, textStyle);" in draw_dispatch_block
+    assert "case UI_SELECTEDPLAYER:" in key_dispatch_block
+    assert "UI_SelectedPlayer_HandleKey(flags, special, key);" in key_dispatch_block
+    assert "uiInfo.playerRefresh = uiInfo.uiDC.realTime + 3000;" in selected_block
+    assert "UI_BuildPlayerList();" in selected_block
+    assert 'trap_Cvar_VariableStringBuffer( (uiInfo.teamLeader) ? "cg_selectedPlayerName" : "name", selectedPlayer, sizeof( selectedPlayer ) );' in selected_block
+    assert "Text_Paint(rect->x, rect->y, scale, color, selectedPlayer, 0, 0, textStyle);" in selected_block
+    assert 'UI_Cvar_VariableString("cg_selectedPlayerName")' not in selected_block
+    assert 'UI_Cvar_VariableString("name")' not in selected_block
+    assert 'trap_Cvar_Set("cg_selectedPlayer", va("%d", playerTeamNumber));' in build_player_block
+    assert 'trap_Cvar_Set("cg_selectedPlayerName", uiInfo.teamNames[n]);' in build_player_block
+    assert "UI_BuildPlayerList();" in selected_key_block
+    assert "if (!uiInfo.teamLeader) {" in selected_key_block
+    assert 'trap_Cvar_Set( "cg_selectedPlayerName", "Everyone");' in selected_key_block
+    assert 'trap_Cvar_Set( "cg_selectedPlayerName", uiInfo.teamNames[selected]);' in selected_key_block
+    assert 'trap_Cvar_Set( "cg_selectedPlayer", va("%d", selected));' in selected_key_block
 
 
 def test_ui_retail_toggle_script_command_restored() -> None:
@@ -1811,15 +2474,16 @@ def test_game_retail_weapon_reload_configstring_restored() -> None:
 
 def test_ui_retail_nextmap_ownerdraw_restored() -> None:
     ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    nextmap_block = _extract_function_block(ui_main, "static void UI_DrawNextMap")
     assert "#define UI_NEXTMAP_CONFIGSTRING\t0x29A" in ui_main
-    assert "static const char *UI_GetNextMapText( void )" in ui_main
-    assert "trap_GetConfigString( UI_NEXTMAP_CONFIGSTRING, nextMapText, sizeof( nextMapText ) );" in ui_main
-    assert "trap_GetConfigString( CS_ROTATION_TITLES, rotationTitles, sizeof( rotationTitles ) );" in ui_main
-    assert 'Info_ValueForKey( rotationTitles, "title_0" )' in ui_main
-    assert 'Info_ValueForKey( rotationTitles, "map_0" )' in ui_main
+    assert "static const char *UI_GetNextMapText( void )" not in ui_main
+    assert "char nextMapText[MAX_INFO_STRING];" in nextmap_block
+    assert "if ( !trap_GetConfigString( UI_NEXTMAP_CONFIGSTRING, nextMapText, sizeof( nextMapText ) ) ) {" in nextmap_block
+    assert "CS_ROTATION_TITLES" not in nextmap_block
+    assert "Info_ValueForKey" not in nextmap_block
     assert "UI_MapRotationEntryForIndex" not in ui_main
     assert "static void UI_DrawNextMap( rectDef_t *rect, float scale, vec4_t color, int textStyle )" in ui_main
-    assert "Text_Paint( rect->x, rect->y, scale, color, nextMapText, 0, 0, textStyle );" in ui_main
+    assert "Text_Paint( rect->x, rect->y, scale, color, nextMapText, 0, 0, textStyle );" in nextmap_block
     assert "case UI_NEXTMAP:" in ui_main
     assert "UI_DrawNextMap(&rect, scale, color, textStyle);" in ui_main
 
@@ -1940,8 +2604,11 @@ def test_ui_retail_addbot_uses_bot_catalog_independent_of_gametype() -> None:
         'Q_stricmp(name, "addFavorite") == 0', 1
     )[0]
 
+    assert "botCount = UI_GetNumBots();" in draw_bot_block
+    assert "if (value >= botCount) {" in draw_bot_block
+    assert "if (value < 0 || value >= botCount) {" in draw_bot_block
+    assert 'trap_Print(va(S_COLOR_RED "Invalid bot number: %i\\n", value));' in draw_bot_block
     assert "text = UI_GetBotNameByNumber(value);" in draw_bot_block
-    assert "if (value >= UI_GetNumBots()) {" in draw_bot_block
     assert 'trap_Cvar_VariableValue("g_gametype")' not in draw_bot_block
     assert "uiInfo.characterList[value].name" not in draw_bot_block
 

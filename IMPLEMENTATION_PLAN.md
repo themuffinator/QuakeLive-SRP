@@ -38,8 +38,414 @@ disabled, until a documented open replacement path exists.
 - The older broad planning notes under `docs/parity-plan.md`,
   `docs/ui_deltas.md`, and `docs/ui_followup_issues.md` are historical
   snapshots, not current gap ledgers.
+- The ownerdraw index checklists live in
+  `docs/reverse-engineering/ui-ownerdrawtype-parity-index.md` and
+  `docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`; use them to
+  pick and close remaining `src/ui/menudef.h` ownerdraw IDs.
 
 ## Active work
+
+### Task A132: Close objective/powerup cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/cgame/cg_newdraw.c`,
+`tests/test_cgame_displaycontext_parity.py`,
+`tests/test_cgame_hud_parity.py`,
+`tests/test_game_key_item_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 98% -> after 100%** for the selected
+`CG_PLAYER_HASKEY`, `CG_CTF_POWERUP`, and `CG_AREA_POWERUP` ownerdraw trio.
+Repo-wide parity remains **98%** because unrelated dirty worktree and runtime
+evidence surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail cgame `CG_OwnerDraw` switch and leaves at
+   `0x10031F90`, `0x100310F0`, and `0x10031160`.
+2. Reconstructed `CG_PLAYER_HASKEY` to use the retail
+   `BG_FindItemByTypeAndTag( IT_KEY, tag )` path for silver, gold, and master
+   keys instead of a classname detour.
+3. Confirmed `CG_CTF_POWERUP` remains the direct
+   `STAT_PERSISTANT_POWERUP` item-icon ownerdraw.
+4. Confirmed `CG_AREA_POWERUP` is directly wired to the retail powerup stack
+   helper and has no `cg_drawSprites` or `cg_drawSpriteSelf` ownerdraw gate.
+5. Updated the cgame ownerdraw index so all menudef cgame rows are now checked
+   or checked retail no-ops.
+
+### Task A131: Add full cgame ownerdraw parity index [COMPLETED]
+Priority: High
+Primary areas: `docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`tests/test_cgame_displaycontext_parity.py`
+Parity estimate: **before 0% -> after 100%** for durable index coverage of
+the `src/ui/menudef.h` cgame ownerdraw block. The current ledger has `327`
+checked rows, `12` checked retail no-ops, and no open partial rows after the
+objective/powerup ownerdraw follow-up.
+
+Completed work:
+
+1. Added a full tabulated listing for menudef cgame ownerdraw IDs `1..339`,
+   excluding `CG_SHOW_*` flags, `UI_*` ownerdraws, and `ui_shared.h`-only
+   source aliases outside the menudef range.
+2. Recorded the current cgame implementation route and parity state for every
+   row so future parity-picking has a stable index.
+3. Added a structural test that compares the ledger rows back to the menudef
+   cgame block and rejects accidental UI/visibility-flag leakage.
+
+### Task A130: Close medal-adjacent cgame ownerdraw no-op parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/cgame/cg_newdraw.c`,
+`tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 95% -> after 100%** for the focused
+`CG_COMBOKILLS`, `CG_RAMPAGES`, and `CG_MIDAIRS` cgame ownerdraw lane.
+Repo-wide parity remains **98%** because unrelated dirty worktree changes and
+non-Windows/runtime-evidence lanes are unchanged.
+
+Completed work:
+
+1. Rechecked the committed cgame ownerdraw switch evidence for
+   `0x1003B0F0 -> CG_OwnerDraw` and the medal helper route at
+   `0x10035340 -> CG_DrawMedal`.
+2. Confirmed retail routes only `CG_ACCURACY`, `CG_ASSISTS`, `CG_CAPTURES`,
+   `CG_DEFEND`, `CG_EXCELLENT`, `CG_GAUNTLET`, `CG_IMPRESSIVE`, and
+   `CG_PERFECT` to the medal helper; `CG_COMBOKILLS` (`0x43`),
+   `CG_RAMPAGES` (`0x48`), and `CG_MIDAIRS` (`0x49`) are absent from the
+   retail ownerdraw switch.
+3. Made the three absent ownerdraws explicit no-op cases in
+   `CG_OwnerDraw`, preserving no menu usage, no `CG_GetValue` route, no
+   `CG_OwnerDrawWidth` route, and the retail null key-handler behavior.
+4. Added focused structural coverage for the retail switch absence, medal
+   helper exclusion, display-context callback non-participation, and shipped
+   menu reachability.
+
+Verification:
+
+- `python -m pytest tests/test_cgame_displaycontext_parity.py -k "combo_rampage_midair or team_pickup_timeheld_and_medal_dispatch_groups" -q`
+  - Result: `2 passed, 145 deselected`.
+- `python -m pytest tests/test_cgame_displaycontext_parity.py -k "combo_rampage_midair or ownerdraw_dispatch_covers_committed_retail_switch_cases or ownerdraw_width_callback" -q`
+  - Result: `3 passed, 144 deselected`.
+
+### Task A129: Close team overlay transport parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_team.c`,
+`src/code/cgame/cg_servercmds.c`, `src/code/game/bg_public.h`,
+`tests/test_cgame_hud_parity.py`
+Parity estimate: **before 98% -> after 100%** for the focused team-overlay
+transport/cache lane. Repo-wide parity remains **98%** because unrelated dirty
+worktree changes and non-Windows/runtime-evidence lanes are unchanged.
+
+Completed work:
+
+1. Rechecked the retail evidence for cgame `CG_DrawTeamOverlay` at
+   `0x10009DA0`, cgame `CG_ParseTeamInfo` at `0x100487B0`, and qagame
+   `TeamplayInfoMessage` at `0x10068490`.
+2. Restored the retail eight-player overlay cap and made qagame format the
+   sorted top-eight teammate set it already selected from `level.sortedClients`.
+3. Kept the emitted `tinfo` row count tied to successfully serialized rows and
+   guarded the cgame receiver against oversized, truncated, or invalid client
+   rows before updating `sortedTeamPlayers`.
+4. Added a focused parity test covering the eight-row cap, sorted top-eight
+   payload order, `tinfo` row count, and receiver-side bounds.
+
+Verification:
+
+- `python -m pytest tests/test_cgame_hud_parity.py -k "team_overlay" -q`
+  - Result: `3 passed, 29 deselected`.
+- `python -m pytest tests/test_cgame_hud_parity.py tests/test_game_runframe_parity.py -q`
+  - Result: `35 passed, 2 failed`; the two failures are unrelated existing
+    HUD assertions for `CG_DrawTeamInfoRow` width and `CG_DrawAreaPowerUp`
+    sprite gating on the dirty worktree.
+
+### Task A128: Close map selection UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`,
+`docs/reverse-engineering/ui-ownerdrawtype-parity-index.md`
+Parity estimate: **before 98% -> after 100%** for the focused
+`UI_ALLMAPS_SELECTION`, `UI_MAPS_SELECTION`, and `UI_STARTMAPCINEMATIC`
+ownerdraw lane. Repo-wide parity remains **98%** because unrelated
+compatibility and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for
+   `UI_DrawAllMapsSelection` at `0x10006890` and `UI_DrawMapCinematic` at
+   `0x10005560`.
+2. Confirmed `UI_ALLMAPS_SELECTION` uses the retail shared map-name draw path
+   with the net/current selector flag, guards the map index against the retail
+   active map count, and has an empty width-helper case with no key handler.
+3. Confirmed `UI_MAPS_SELECTION` matches the retail current-map name paint
+   path and is reconstructed through the shared source helper with the current
+   map selector flag.
+4. Confirmed `UI_STARTMAPCINEMATIC` uses the retail map cinematic helper with
+   the start/net selector flag, including map index reset, `%s.roq` lazy
+   start, run/extents/draw behavior, and preview fallback.
+5. Updated the ownerdraw parity index so the three selected IDs are now marked
+   checked and the unchecked retail-routed set is down to
+   `UI_PLAYERMODEL`, `UI_OPPONENTMODEL`, and `UI_OPPONENT_NAME`.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -k "map_selection_ownerdraws"`
+  - Result: `1 passed, 76 deselected`.
+- `python -m pytest tests/test_ui_menu_files.py`
+  - Result: `77 passed`.
+
+### Task A127: Close server info UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`,
+`docs/reverse-engineering/ui-ownerdrawtype-parity-index.md`
+Parity estimate: **before 98% -> after 100%** for the focused
+`UI_SERVERREFRESHDATE`, `UI_SERVERMOTD`, and `UI_GLINFO` ownerdraw lane.
+Repo-wide parity remains **98%** because unrelated compatibility and packaging
+surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for
+   `UI_DrawServerRefreshDate` at `0x10008F20`, `UI_DrawServerMOTD` at
+   `0x10009080`, and `UI_DrawGLInfo` at `0x100093B0`.
+2. Confirmed `UI_SERVERREFRESHDATE` matches the retail active-refresh pulse
+   path, server-count message, cached `ui_lastServerRefresh_%i` timestamp
+   path, draw dispatcher route, and `UI_OwnerDrawWidth` route.
+3. Confirmed `UI_SERVERMOTD` matches the retail MOTD scroll state,
+   wraparound dual-paint behavior, and the `cl_motdString` fallback seeding to
+   `Welcome to Team Arena!` before drawing.
+4. Confirmed `UI_GLINFO` matches the retail vendor/version/pixel-format paint
+   lines and the extension-string split/wrap behavior.
+5. Confirmed none of the three selected ownerdraws has retail key-handler
+   wiring, and only `UI_SERVERREFRESHDATE` participates in the width helper.
+6. Updated the ownerdraw parity index so the three selected IDs are now marked
+   checked and the unchecked retail-routed set reflects the remaining work.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -k "server_info_ownerdraws"`
+  - Result: `1 passed, 75 deselected`.
+- `python -m pytest tests/test_ui_menu_files.py`
+  - Result: `76 passed`.
+
+### Task A126: Close map media UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`,
+`docs/reverse-engineering/ui-ownerdrawtype-parity-index.md`
+Parity estimate: **before 98% -> after 100%** for the focused
+`UI_NETMAPPREVIEW`, `UI_MAPCINEMATIC`, and `UI_NETMAPCINEMATIC` ownerdraw
+lane. Repo-wide parity remains **98%** because unrelated compatibility and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for
+   `UI_DrawMapCinematic` at `0x10005560`, `UI_DrawNetMapPreview` at
+   `0x100065B0`, and `UI_DrawNetMapCinematic` at `0x10006600`.
+2. Confirmed `UI_NETMAPPREVIEW` matches the retail current-server preview
+   shader draw path and the `menu/art/unknownmap` fallback when no preview
+   shader is available.
+3. Confirmed `UI_MAPCINEMATIC` matches the retail map selector validation,
+   lazy `%s.roq` cinematic start, run/extents/draw sequence, failure marker,
+   preview fallback, and ownerdraw dispatcher route.
+4. Confirmed `UI_NETMAPCINEMATIC` matches the retail current-server cinematic
+   run/extents/draw sequence, current-net-map reset guard, preview fallback,
+   and ownerdraw dispatcher route.
+5. Locked the shared cinematic cleanup wiring: `_UI_Init` installs
+   `UI_StopCinematic`, positive handles stop directly, and ownerdraw cleanup
+   handles `UI_MAPCINEMATIC` and `UI_NETMAPCINEMATIC` by resetting their
+   backing cinematic handles to `-1`.
+6. Updated the ownerdraw parity index so the three selected IDs are now marked
+   checked and the unchecked retail-routed set reflects the remaining work.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -k "map_media_ownerdraws"`
+  - Result: `1 passed, 74 deselected`.
+- `python -m pytest tests/test_ui_menu_files.py`
+  - Result: `75 passed`.
+
+### Task A125: Close skill and map preview UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`
+Parity estimate: **before 98% -> after 100%** for the focused `UI_SKILL`,
+`UI_MAPPREVIEW`, and `UI_MAP_TIMETOBEAT` ownerdraw lane. Repo-wide parity
+remains **98%** because unrelated compatibility and packaging surfaces are
+unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for `UI_DrawSkill` at
+   `0x10005350`, `UI_DrawMapPreview` at `0x100053C0`,
+   `UI_DrawMapTimeToBeat` at `0x100054A0`, and `UI_Skill_HandleKey` at
+   `0x1000A390`.
+2. Confirmed `UI_SKILL` clamps `g_spSkill` into the retail one-to-five range,
+   paints the matching skill table entry, and wires the ownerdraw key handler
+   to the retail click/enter cycle behavior.
+3. Confirmed `UI_MAPPREVIEW` validates the selected map slot, resets the
+   current map cvars on invalid indexes, lazily caches levelshot shaders, falls
+   back to `menu/art/unknownmap`, and uses the net-map preview path from the
+   ownerdraw dispatcher.
+4. Confirmed `UI_MAP_TIMETOBEAT` validates `ui_currentMap`, resolves the
+   retail gametype enum before indexing the per-map time table, formats the
+   value as `%02i:%02i`, and paints it through the ownerdraw dispatcher.
+5. Added regression coverage binding all three ownerdraws to the promoted
+   retail evidence addresses, draw dispatch wiring, key dispatch wiring, and
+   fallback/reset behavior.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -k "skill_mappreview_maptime"`
+  - Result: `1 passed, 73 deselected`.
+- `python -m pytest tests/test_ui_menu_files.py`
+  - Result: `74 passed`.
+
+### Task A124: Close bot selector UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`
+Parity estimate: **before 97% -> after 100%** for the focused `UI_BOTNAME`,
+`UI_BOTSKILL`, and `UI_REDBLUE` ownerdraw lane. Repo-wide parity remains
+**98%** because unrelated compatibility and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for
+   `UI_DrawBotName` at `0x10006b30`, `UI_DrawBotSkill` at `0x10006bc0`,
+   `UI_DrawRedBlue` at `0x10006c10`, and the bot-name/bot-skill key handlers
+   at `0x1000a570` and `0x1000a5d0`.
+2. Made the `UI_BOTNAME` draw path explicitly mirror the retail invalid-index
+   behavior: clamp high indexes back to zero, print the retail invalid bot
+   warning for remaining invalid indexes, and paint the `Sarge` fallback while
+   keeping the add-bot selector bound to the bot catalog rather than the
+   character roster.
+3. Confirmed `UI_BOTSKILL` already matches the retail five-entry skill table
+   paint path and wraparound key cycling.
+4. Confirmed `UI_REDBLUE` already matches the retail `Red`/`Blue` paint path,
+   toggle handler, and non-returning ownerdraw key dispatch.
+5. Locked all three ownerdraw draw dispatches, key dispatches, key wrap paths,
+   fallback behavior, and add-bot catalog wiring with focused regression
+   coverage.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -k "botname_botskill_redblue or addbot_uses_bot_catalog"`
+  - Result: `2 passed, 71 deselected`.
+- `python -m pytest tests/test_ui_menu_files.py`
+  - Result: `73 passed`.
+
+### Task A123: Close handicap and server-browser selector UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`
+Parity estimate: **before 96% -> after 99%** for the focused
+`UI_HANDICAP`, `UI_NETSOURCE`, and `UI_NETFILTER` ownerdraw lane. Repo-wide
+parity remains **98%** because unrelated compatibility and packaging surfaces
+are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for the handicap draw
+   and key handler, plus the browser source/filter draw, width, and key
+   handlers at `0x1000a040`, `0x1000a420`, and `0x1000a4f0`.
+2. Confirmed `UI_HANDICAP` already matched the retail `5..100` clamp, label
+   table indexing, five-point key steps, and wrap behavior, then locked that
+   draw/width/key-dispatch path with focused tests.
+3. Corrected `UI_NETSOURCE` draw and ownerdraw-width bounds to reject
+   `index == numNetSources`, and replaced the stale width check against
+   `uiInfo.numJoinGameTypes` with the retail browser-source count.
+4. Corrected `UI_NETFILTER` draw and ownerdraw-width bounds to reject
+   `index == numServerFilters`, matching the retail seven-filter table limit.
+5. Locked the Mplayer-skip source cycling, global-refresh gate, server-list
+   rebuilds, non-returning ownerdraw key dispatch, and filter wrap behavior
+   with focused regression coverage.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -q --tb=short`
+  - Result: `72 passed`.
+
+### Task A122: Close crosshair, next-map, and selected-player UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`
+Parity estimate: **before 93% -> after 99%** for the focused
+`UI_CROSSHAIR`, `UI_NEXTMAP`, and `UI_SELECTEDPLAYER` ownerdraw lane.
+Repo-wide parity remains **98%** because unrelated compatibility and packaging
+surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for the crosshair
+   preview, next-map label, selected-player draw, player-list refresh, and
+   selected-player key-handler paths.
+2. Reconstructed `UI_CROSSHAIR` preview placement to use the retail
+   `24..40` size clamp and fixed `rect->x - 2`, `rect->y - rect->h + 2`
+   anchor instead of scaling/centering within the ownerdraw rect.
+3. Reconstructed `UI_NEXTMAP` to paint only the retail configstring `0x29A`
+   payload and removed the compatibility fallback through rotation-title
+   configstrings from that ownerdraw.
+4. Reconstructed `UI_SELECTEDPLAYER` drawing to use the retail buffered cvar
+   read for either `cg_selectedPlayerName` or `name`, while preserving the
+   player-list refresh and selected-player key cycling semantics.
+5. Locked draw dispatch, key dispatch, cvar reads/writes, configstring reads,
+   selected-player cache refresh, wrap behavior, and removed fallback paths
+   with focused regression coverage.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -q --tb=short`
+  - Result: `71 passed`.
+
+### Task A121: Close retail gametype-selector UI ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`
+Parity estimate: **before 95% -> after 99%** for the focused
+`UI_GAMETYPE`, `UI_NETGAMETYPE`, and `UI_JOINGAMETYPE` ownerdraw lane.
+Repo-wide parity remains **98%** because unrelated compatibility and packaging
+surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra evidence for the gametype
+   ownerdraw dispatch cases and their key handlers at `0x1000a110`,
+   `0x1000a210`, and `0x1000a300`.
+2. Removed the old non-retail `ui_Q3Model` side effect from the
+   `UI_GAMETYPE` key path while preserving retail cycling, cap/frag refresh,
+   best-score reload, and map-feeder reset wiring.
+3. Reconstructed the retail `UI_NETGAMETYPE` hidden-enum skip so the selector
+   cycles past One Flag CTF, Overload, and Harvester before updating
+   `ui_netGameType`, `ui_actualnetGameType`, `ui_currentNetMap`, and the map
+   feeder.
+4. Locked the `UI_GAMETYPE`, `UI_NETGAMETYPE`, and `UI_JOINGAMETYPE`
+   draw-dispatch, key-dispatch, cvar, feeder, and server-list wiring with
+   focused regression coverage.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -q --tb=short`
+  - Result: `70 passed`.
+
+### Task A120: Close three retail UI ownerdraw parity seams [COMPLETED]
+Priority: High
+Primary areas: `src/code/ui/ui_main.c`, `tests/test_ui_menu_files.py`
+Parity estimate: **before 94% -> after 99%** for the focused
+`UI_VOTESTRING`, `UI_STARTING_WEAPONS`, and `UI_ADVERT` ownerdraw lane.
+Repo-wide parity remains **98%** because the remaining non-ownerdraw
+compatibility and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `uix86.dll` HLIL/Ghidra ownerdraw dispatch evidence for
+   `UI_VOTESTRING`, `UI_STARTING_WEAPONS`, and `UI_ADVERT`.
+2. Reconstructed `UI_VOTESTRING` to use the retail buffered cvar read and
+   integer x-anchor centering behavior instead of centering inside the rect
+   width.
+3. Reconstructed `UI_STARTING_WEAPONS` to parse the loadout mask through the
+   retail decimal `atoi` path and to draw the loadout `+` marker at the retail
+   x-offset before the queued-primary icon.
+4. Locked the advert ownerdraw parse/setup/refresh/paint/activate bridge with
+   focused regression coverage, including default content, cell id,
+   hidden-menu refresh rectangles, shader assignment, draw/update ordering, and
+   activation script forwarding.
+
+Verification:
+
+- `python -m pytest tests/test_ui_menu_files.py -q --tb=short`
+  - Result: `69 passed`.
 
 ### Task A119: Reconstruct retail ownership for `ui_*` cvars [COMPLETED]
 Priority: High

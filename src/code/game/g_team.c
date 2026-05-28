@@ -4278,10 +4278,11 @@ void TeamplayInfoMessage( gentity_t *ent ) {
 	int			i, j;
 	gentity_t	*player;
 	int			cnt;
+	int			sent;
 	int			h, a;
 	int			clients[TEAM_MAXOVERLAY];
 
-	if ( ! ent->client->pers.teamInfo )
+	if ( !ent || !ent->client || !ent->client->pers.teamInfo )
 		return;
 
 	// figure out what client should be on the display
@@ -4289,7 +4290,7 @@ void TeamplayInfoMessage( gentity_t *ent ) {
 	// but in client order (so they don't keep changing position on the overlay)
 	for (i = 0, cnt = 0; i < g_maxclients.integer && cnt < TEAM_MAXOVERLAY; i++) {
 		player = g_entities + level.sortedClients[i];
-		if (player->inuse && player->client->sess.sessionTeam == 
+		if (player->inuse && player->client && player->client->sess.sessionTeam == 
 			ent->client->sess.sessionTeam ) {
 			clients[cnt++] = level.sortedClients[i];
 		}
@@ -4301,10 +4302,11 @@ void TeamplayInfoMessage( gentity_t *ent ) {
 	// send the latest information on all clients
 	string[0] = 0;
 	stringlength = 0;
+	sent = 0;
 
-	for (i = 0, cnt = 0; i < g_maxclients.integer && cnt < TEAM_MAXOVERLAY; i++) {
-		player = g_entities + i;
-		if (player->inuse && player->client->sess.sessionTeam == 
+	for (i = 0; i < cnt; i++) {
+		player = g_entities + clients[i];
+		if (player->inuse && player->client && player->client->sess.sessionTeam == 
 			ent->client->sess.sessionTeam ) {
 
 			h = player->client->ps.stats[STAT_HEALTH];
@@ -4314,19 +4316,18 @@ void TeamplayInfoMessage( gentity_t *ent ) {
 
 			Com_sprintf (entry, sizeof(entry),
 				" %i %i %i %i %i %i", 
-//				level.sortedClients[i], player->client->pers.teamState.location, h, a, 
-				i, player->client->pers.teamState.location, h, a, 
+				clients[i], player->client->pers.teamState.location, h, a, 
 				player->client->ps.weapon, player->s.powerups);
 			j = strlen(entry);
-			if (stringlength + j > sizeof(string))
+			if (stringlength + j >= sizeof(string))
 				break;
 			strcpy (string + stringlength, entry);
 			stringlength += j;
-			cnt++;
+			sent++;
 		}
 	}
 
-	trap_SendServerCommand( ent-g_entities, va("tinfo %i %s", cnt, string) );
+	trap_SendServerCommand( ent-g_entities, va("tinfo %i %s", sent, string) );
 }
 
 void CheckTeamStatus(void) {

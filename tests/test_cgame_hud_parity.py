@@ -23,6 +23,8 @@ UI_SHARED = REPO_ROOT / "src" / "code" / "ui" / "ui_shared.c"
 Q_SHARED = REPO_ROOT / "src" / "code" / "game" / "q_shared.h"
 MSG = REPO_ROOT / "src" / "code" / "qcommon" / "msg.c"
 G_ACTIVE = REPO_ROOT / "src" / "code" / "game" / "g_active.c"
+G_TEAM = REPO_ROOT / "src" / "code" / "game" / "g_team.c"
+BG_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "bg_public.h"
 CGAME_HLIL = (
 	REPO_ROOT
 	/ "references"
@@ -860,6 +862,35 @@ def test_team_overlay_uses_retail_cvars_and_scaled_host_text_lane() -> None:
 	assert "CG_DrawStringExt" not in overlay_block
 
 
+def test_team_overlay_transport_uses_retail_top_eight_stable_client_order() -> None:
+	bg_public = BG_PUBLIC.read_text(encoding="utf-8")
+	game_team = G_TEAM.read_text(encoding="utf-8")
+	servercmds = CG_SERVERCMDS.read_text(encoding="utf-8")
+	message_block = _block_from_marker(game_team, "void TeamplayInfoMessage")
+	parse_block = _block_from_marker(servercmds, "static void CG_ParseTeamInfo")
+
+	assert "#define TEAM_MAXOVERLAY\t\t8" in bg_public
+	assert "int\t\t\tclients[TEAM_MAXOVERLAY];" in message_block
+	assert "cnt < TEAM_MAXOVERLAY" in message_block
+	assert "clients[cnt++] = level.sortedClients[i];" in message_block
+	assert "qsort( clients, cnt, sizeof( clients[0] ), SortClients );" in message_block
+	assert "for (i = 0; i < cnt; i++) {" in message_block
+	assert "player = g_entities + clients[i];" in message_block
+	assert "clients[i], player->client->pers.teamState.location, h, a," in message_block
+	assert "if (stringlength + j >= sizeof(string))" in message_block
+	assert 'trap_SendServerCommand( ent-g_entities, va("tinfo %i %s", sent, string) );' in message_block
+
+	assert "count = atoi( CG_Argv( 1 ) );" in parse_block
+	assert "if ( count > TEAM_MAXOVERLAY ) {" in parse_block
+	assert "count = TEAM_MAXOVERLAY;" in parse_block
+	assert "numSortedTeamPlayers = 0;" in parse_block
+	assert "baseArg = i * 6 + 2;" in parse_block
+	assert "if ( argc <= baseArg + 5 ) {" in parse_block
+	assert "if ( client < 0 || client >= MAX_CLIENTS ) {" in parse_block
+	assert "sortedTeamPlayers[numSortedTeamPlayers] = client;" in parse_block
+	assert "numSortedTeamPlayers++;" in parse_block
+
+
 def test_spectator_item_timer_text_uses_retail_default_font_lane() -> None:
 	source = CG_DRAW.read_text(encoding="utf-8")
 	main_source = CG_MAIN.read_text(encoding="utf-8")
@@ -1037,8 +1068,9 @@ def test_cgame_classic_overlay_cvars_match_retail_table_and_runtime_wiring() -> 
 	assert "rowSize = Com_Clamp(1, MAX_REWARDSTACK, rowSize);" in reward_block
 
 	assert "return ( qboolean )( cg_drawSpriteSelf.integer != 0 );" in sprite_self_block
-	assert "if ( !rect || !cg.snap || !cg_drawSprites.integer ) {" in area_powerup_block
-	assert "if ( !CG_ShouldDrawSpriteSelf() && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.snap->ps.clientNum == cg.clientNum ) {" in area_powerup_block
+	assert "if ( !rect || !cg.snap ) {" in area_powerup_block
+	assert "cg_drawSprites.integer" not in area_powerup_block
+	assert "CG_ShouldDrawSpriteSelf()" not in area_powerup_block
 
 	assert "if ( cg_overheadNamesWidth.value > 0.0f && w > cg_overheadNamesWidth.value ) {" in crosshair_names_block
 	assert "float clampedScale = cg_overheadNamesWidth.value / w;" in crosshair_names_block

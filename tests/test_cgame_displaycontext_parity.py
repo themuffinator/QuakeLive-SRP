@@ -31,6 +31,7 @@ CG_SYSCALLS = REPO_ROOT / "src" / "code" / "cgame" / "cg_syscalls.c"
 BG_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "bg_public.h"
 BG_MISC = REPO_ROOT / "src" / "code" / "game" / "bg_misc.c"
 CG_BG_PLAN = REPO_ROOT / "docs" / "reverse-engineering" / "cgame-bg-parity-implementation-plan.md"
+CG_OWNERDRAW_INDEX = REPO_ROOT / "docs" / "reverse-engineering" / "cg-ownerdrawtype-parity-index.md"
 CL_CGAME = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
 G_CLIENT = REPO_ROOT / "src" / "code" / "game" / "g_client.c"
 G_COMBAT = REPO_ROOT / "src" / "code" / "game" / "g_combat.c"
@@ -111,6 +112,22 @@ def _menudef_ownerdraw_constants() -> dict[str, int]:
 		constants[match.group(1)] = int(match.group(2), 0)
 
 	return constants
+
+
+def _menudef_cgame_ownerdraw_entries() -> dict[str, int]:
+	menudef = MENUDEF_H.read_text(encoding="utf-8")
+	ownerdraw_block = _text_between(menudef, "// owner draw types", "#define UI_OWNERDRAW_BASE")
+	entries = {
+		match.group(1): int(match.group(2), 0)
+		for match in re.finditer(
+			r"#define\s+(CG_[A-Z0-9_]+)\s+(0x[0-9a-fA-F]+|\d+)",
+			ownerdraw_block,
+		)
+	}
+
+	assert len(entries) == 339
+	assert sorted(entries.values()) == list(range(1, 340))
+	return entries
 
 
 def _retail_cg_ownerdraw_case_values() -> set[int]:
@@ -2696,19 +2713,47 @@ def test_cgame_live_placement_and_follow_ownerdraws_follow_retail_helper_split()
 
 def test_cgame_objective_ownerdraws_restore_retail_flag_key_and_powerup_seam() -> None:
 	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
 	harvester_block = _block_from_marker(source, "static void CG_HarvesterSkulls")
 	oneflag_block = _block_from_marker(source, "static void CG_OneFlagStatus")
 	powerup_block = _block_from_marker(source, "static void CG_DrawCTFPowerUp")
 	key_block = _block_from_marker(source, "static void CG_DrawPlayerHasKey")
+	area_powerup_block = _block_from_marker(source, "static void CG_DrawAreaPowerUp")
+	powerup_stack_block = _block_from_marker(source, "static void CG_DrawPowerupSpriteStack")
 	flag_block = _block_from_marker(source, "static void CG_DrawPlayerHasFlag")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_handler_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
 
 	assert "value = cg.snap->ps.generic1 & 0x3f;" in harvester_block
 	assert "value = cg.snap->ps.stats[STAT_PERSISTANT_POWERUP];" in powerup_block
 	assert "if ( value <= 0 || value >= bg_numItems ) {" in powerup_block
+	assert "CG_RegisterItemVisuals( value );" in powerup_block
 	assert "cgs.gametype < GT_CTF" not in powerup_block
 	assert "mask = cg.snap->ps.stats[STAT_KEY_MASK];" in key_block
+	assert "BG_FindItemByTypeAndTag( IT_KEY, def->tag );" in key_block
+	assert "{ KEY_FLAG_SILVER, KEY_FLAG_SILVER }" in source
+	assert "{ KEY_FLAG_GOLD, KEY_FLAG_GOLD }" in source
+	assert "{ KEY_FLAG_MASTER, KEY_FLAG_MASTER }" in source
+	assert "BG_FindItemByClassname" not in key_block
 	assert "x += rect->w * 0.5f;" in key_block
 	assert "x += rect->w * 0.65f;" not in key_block
+	assert "CG_DrawPowerupSpriteStack( rect, align, special, scale, color, &cg.snap->ps );" in area_powerup_block
+	assert "if ( !rect || !cg.snap ) {" in area_powerup_block
+	assert "cg_drawSprites.integer" not in area_powerup_block
+	assert "CG_ShouldDrawSpriteSelf()" not in area_powerup_block
+	assert "for ( i = 1; i < MAX_POWERUPS; i++ ) {" in powerup_stack_block
+	assert "if ( i == PW_NEUTRALFLAG || i == PW_NUM_POWERUPS ) {" in powerup_stack_block
+	assert "CG_DrawPowerupFragCount( &r2, ps, item );" in powerup_stack_block
+
+	assert constants["CG_PLAYER_HASKEY"] in _retail_cg_ownerdraw_cases_for_target("FUN_10031f90")
+	assert constants["CG_CTF_POWERUP"] in _retail_cg_ownerdraw_cases_for_target("FUN_100310f0")
+	assert constants["CG_AREA_POWERUP"] in _retail_cg_ownerdraw_cases_for_target("FUN_10031160")
+	for name in ("CG_PLAYER_HASKEY", "CG_CTF_POWERUP", "CG_AREA_POWERUP"):
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_handler_block
 
 	for expected in (
 		"shaderIndex = 0;",
@@ -2739,6 +2784,8 @@ def test_cgame_objective_ownerdraws_restore_retail_flag_key_and_powerup_seam() -
 		"CG_OneFlagStatus(&rect);",
 		"case CG_CTF_POWERUP:",
 		"CG_DrawCTFPowerUp(&rect);",
+		"case CG_AREA_POWERUP:",
+		"CG_DrawAreaPowerUp(&rect, align, special, scale, color);",
 		"case CG_PLAYER_HASFLAG:",
 		"CG_DrawPlayerHasFlag(&rect, qfalse);",
 		"case CG_PLAYER_HASFLAG2D:",
@@ -3574,7 +3621,9 @@ def test_cgame_hud_ownerdraw_reconstruction_keeps_retail_medal_spectator_advert_
 	):
 		assert expected in powerup_stack_block
 
-	assert "if ( !rect || !cg.snap || !cg_drawSprites.integer ) {" in area_powerup_block
+	assert "if ( !rect || !cg.snap ) {" in area_powerup_block
+	assert "cg_drawSprites.integer" not in area_powerup_block
+	assert "CG_ShouldDrawSpriteSelf()" not in area_powerup_block
 
 	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in team_pickup_block
 
@@ -3591,6 +3640,70 @@ def test_cgame_hud_ownerdraw_reconstruction_keeps_retail_medal_spectator_advert_
 	assert "(void)handleOrToken;" in client_block
 	assert "(void)area;" in client_block
 	assert "ql_cgame_imports[CG_QL_IMPORT_UPDATE_ADVERT] = (ql_import_f)QL_CG_trap_UpdateAdvert;" in client_source
+
+
+def test_cgame_combo_rampage_midair_ownerdraws_are_retail_noops() -> None:
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	ownerdraw_block = _block_from_marker(newdraw_source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(newdraw_source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	start = ownerdraw_block.index("case CG_COMBOKILLS:")
+	end = ownerdraw_block.index("case CG_ACCURACY:", start)
+	noop_block = ownerdraw_block[start:end]
+	noop_names = {
+		"CG_COMBOKILLS": 0x43,
+		"CG_RAMPAGES": 0x48,
+		"CG_MIDAIRS": 0x49,
+	}
+	noop_values = set(noop_names.values())
+	menu_hits = [
+		path.name
+		for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+		if any(
+			re.search(rf"\bownerdraw\s+{name}\b", path.read_text(encoding="utf-8"))
+			for name in noop_names
+		)
+	]
+
+	for name, value in noop_names.items():
+		assert constants[name] == value
+		assert f"case {name}:" in noop_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+	assert noop_values.isdisjoint(_retail_cg_ownerdraw_case_values())
+	assert noop_values.isdisjoint(_retail_cg_ownerdraw_cases_for_target("FUN_10035340"))
+	assert set(_case_labels(noop_block)) == set(noop_names)
+	assert "return;" in noop_block
+	assert "CG_DrawMedal" not in noop_block
+	assert "CG_DrawAwardPlayer" not in noop_block
+	assert "return qfalse;" in key_block
+	assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in main_source
+	assert not menu_hits
+
+
+def test_cgame_ownerdrawtype_parity_index_covers_menudef_cgame_block() -> None:
+	index = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	expected_entries = _menudef_cgame_ownerdraw_entries()
+	indexed_entries = {
+		match.group(2): int(match.group(1), 0)
+		for match in re.finditer(
+			r"^\| (\d+) \| `(CG_[A-Z0-9_]+)` \|",
+			index,
+			flags=re.MULTILINE,
+		)
+	}
+
+	assert indexed_entries == expected_entries
+	assert "Open parity-review rows: none" in index
+	assert "| 61 | `CG_AREA_POWERUP` |" in index
+	assert "| 61 | `CG_AREA_POWERUP` | Direct switch: CG_DrawPowerupSpriteStack; retail has no cg_drawSprites or cg_drawSpriteSelf ownerdraw gate. | Checked | No action unless source changes. |" in index
+	assert "| 512 |" not in index
+	assert "| `CG_SHOW_" not in index
 
 
 def test_cgame_team_pickup_timeheld_and_medal_dispatch_groups_match_retail_switch() -> None:
@@ -4739,8 +4852,9 @@ def test_cgame_sprite_crosshair_and_footstep_cvars_match_retail_table_and_wiring
 	assert 'CG_FindBrowserOverlayByName( "comp_specfollowhud_menu" )' in spectator_messages_block
 	assert "CG_DrawPregameCoach" not in spectator_messages_block
 	assert "return ( qboolean )( cg_drawSpriteSelf.integer != 0 );" in sprite_self_block
-	assert "if ( !rect || !cg.snap || !cg_drawSprites.integer ) {" in area_powerup_block
-	assert "if ( !CG_ShouldDrawSpriteSelf() && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.snap->ps.clientNum == cg.clientNum ) {" in area_powerup_block
+	assert "if ( !rect || !cg.snap ) {" in area_powerup_block
+	assert "cg_drawSprites.integer" not in area_powerup_block
+	assert "CG_ShouldDrawSpriteSelf()" not in area_powerup_block
 	assert "if ( !cg_enemyCrosshairNames.integer ) {" in crosshair_name_block
 	assert "alpha *= cg_enemyCrosshairNamesOpacity.value;" in crosshair_name_block
 	for expected in (

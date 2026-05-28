@@ -7924,13 +7924,13 @@ static void CG_DrawPlayerItem( rectDef_t *rect, float scale, qboolean draw2D ) {
 
 typedef struct {
 	int			bit;
-	const char	*classname;
+	int			tag;
 } cgKeyIconDef_t;
 
 static const cgKeyIconDef_t cgKeyIconDefs[] = {
-	{ KEY_FLAG_SILVER, "item_key_silver" },
-	{ KEY_FLAG_GOLD, "item_key_gold" },
-	{ KEY_FLAG_MASTER, "item_key_master" }
+	{ KEY_FLAG_SILVER, KEY_FLAG_SILVER },
+	{ KEY_FLAG_GOLD, KEY_FLAG_GOLD },
+	{ KEY_FLAG_MASTER, KEY_FLAG_MASTER }
 };
 
 /*
@@ -7966,7 +7966,7 @@ static void CG_DrawPlayerHasKey( rectDef_t *rect ) {
 			continue;
 		}
 
-		item = BG_FindItemByClassname( def->classname );
+		item = BG_FindItemByTypeAndTag( IT_KEY, def->tag );
 		if ( !item || !item->icon || !item->icon[0] ) {
 			continue;
 		}
@@ -9061,6 +9061,53 @@ static void CG_DrawTeamColor( rectDef_t *rect, vec4_t color ) {
 
 /*
 =============
+CG_PowerupFragCountForItem
+
+Returns the retail frag counter paired with a timed powerup icon.
+=============
+*/
+static int CG_PowerupFragCountForItem( const playerState_t *ps, const gitem_t *item ) {
+	if ( !ps || !item ) {
+		return 0;
+	}
+
+	switch ( item->giTag ) {
+	case PW_QUAD:
+		return ps->stats[STAT_QUAD_FRAG_COUNT];
+	case PW_BATTLESUIT:
+		return ps->stats[STAT_BATTLESUIT_FRAG_COUNT];
+	default:
+		return 0;
+	}
+}
+
+/*
+=============
+CG_DrawPowerupFragCount
+
+Draws the retail Quad/Battle Suit frag counter badge beside a powerup slot.
+=============
+*/
+static void CG_DrawPowerupFragCount( const rectDef_t *cursor, const playerState_t *ps, const gitem_t *item ) {
+	char	num[16];
+	int		count;
+
+	if ( !cursor || !cgs.media.powerupFragIcon ) {
+		return;
+	}
+
+	count = CG_PowerupFragCountForItem( ps, item );
+	if ( count <= 0 ) {
+		return;
+	}
+
+	CG_DrawPic( cursor->x + 10.0f, cursor->y - cursor->h, cursor->w * 0.75f, cursor->h * 0.75f, cgs.media.powerupFragIcon );
+	Com_sprintf( num, sizeof( num ), "x%i", count );
+	CG_Text_Paint( cursor->x + 15.0f, cursor->y - cursor->h * 0.5f, 0.2f, colorWhite, num, 0, 0, 0 );
+}
+
+/*
+=============
 CG_DrawPowerupSpriteStack
 
 Renders a stacked list of active powerups, mirroring the retail sprite stack.
@@ -9077,13 +9124,10 @@ static void CG_DrawPowerupSpriteStack( rectDef_t *rect, int align, float special
 	float		f;
 	rectDef_t r2;
 	float *inc;
-	float		baseStep;
-	float		stackScale;
 	float		iconWidth;
 	float		iconHeight;
 	float		iconOffset;
 	float		textOffsetX;
-	float		textScale;
 
 	if ( !rect || !ps || ps->stats[STAT_HEALTH] <= 0 ) {
 		return;
@@ -9094,8 +9138,6 @@ static void CG_DrawPowerupSpriteStack( rectDef_t *rect, int align, float special
 	r2.w = rect->w;
 	r2.h = rect->h;
 	inc = (align == HUD_VERTICAL) ? &r2.y : &r2.x;
-	baseStep = (align == HUD_VERTICAL) ? r2.h : r2.w;
-	stackScale = 1.0f;
 
 	active = 0;
 	for ( i = 1; i < MAX_POWERUPS; i++ ) {
@@ -9126,22 +9168,10 @@ static void CG_DrawPowerupSpriteStack( rectDef_t *rect, int align, float special
 		return;
 	}
 
-	if (baseStep > 0.0f) {
-		float neededSpan;
-		float availableSpan;
-
-		neededSpan = (active * baseStep) + ((active - 1) * special);
-		availableSpan = (align == HUD_VERTICAL) ? rect->h : rect->w;
-		if (availableSpan > 0.0f && neededSpan > availableSpan) {
-			stackScale = availableSpan / neededSpan;
-		}
-	}
-
-	iconWidth = (r2.w * 0.75f) * stackScale;
-	iconHeight = r2.h * stackScale;
-	iconOffset = (baseStep + special) * stackScale;
+	iconWidth = r2.w * 0.75f;
+	iconHeight = r2.h;
+	iconOffset = r2.w + special;
 	textOffsetX = iconWidth + 3.0f;
-	textScale = scale * stackScale;
 
 	for (i = 0; i < active; i++) {
 		item = BG_FindItemForPowerup(sorted[i]);
@@ -9163,8 +9193,9 @@ static void CG_DrawPowerupSpriteStack( rectDef_t *rect, int align, float special
 
 		CG_DrawPic(r2.x, r2.y, iconWidth, iconHeight, trap_R_RegisterShader(item->icon));
 		Com_sprintf(num, sizeof(num), "%i", sortedTime[i] / 1000 + 1);
-		CG_Text_Paint(r2.x + textOffsetX, r2.y + iconHeight, textScale, color, num, 0, 0, 0);
+		CG_Text_Paint(r2.x + textOffsetX, r2.y + iconHeight, scale, color, num, 0, 0, 0);
 		*inc += iconOffset;
+		CG_DrawPowerupFragCount( &r2, ps, item );
 	}
 
 	trap_R_SetColor(NULL);
@@ -9174,15 +9205,11 @@ static void CG_DrawPowerupSpriteStack( rectDef_t *rect, int align, float special
 =============
 CG_DrawAreaPowerUp
 
-Draws the local area powerup stack when sprite self-display allows it.
+Draws the local area powerup stack.
 =============
 */
 static void CG_DrawAreaPowerUp( rectDef_t *rect, int align, float special, float scale, vec4_t color ) {
-	if ( !rect || !cg.snap || !cg_drawSprites.integer ) {
-		return;
-	}
-
-	if ( !CG_ShouldDrawSpriteSelf() && !( cg.snap->ps.pm_flags & PMF_FOLLOW ) && cg.snap->ps.clientNum == cg.clientNum ) {
+	if ( !rect || !cg.snap ) {
 		return;
 	}
 
@@ -11090,6 +11117,11 @@ rect.y = y;
 			CG_DrawKiller(&rect, scale, color, shader, textStyle);
 		}
 		break;
+	case CG_COMBOKILLS:
+	case CG_RAMPAGES:
+	case CG_MIDAIRS:
+		/* Retail has no ownerdraw switch route for raw ids 0x43, 0x48, or 0x49. */
+		return;
 	case CG_ACCURACY:
 	case CG_ASSISTS:
 	case CG_DEFEND:

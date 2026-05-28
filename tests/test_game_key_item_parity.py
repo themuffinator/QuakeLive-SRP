@@ -120,11 +120,11 @@ def test_key_hud_ownerdraw_uses_replicated_local_stat_mask() -> None:
 	cg_newdraw = _read("src/code/cgame/cg_newdraw.c")
 	key_body = _function_body(cg_newdraw, "static void CG_DrawPlayerHasKey( rectDef_t *rect )")
 
-	assert '{ KEY_FLAG_SILVER, "item_key_silver" }' in cg_newdraw
-	assert '{ KEY_FLAG_GOLD, "item_key_gold" }' in cg_newdraw
-	assert '{ KEY_FLAG_MASTER, "item_key_master" }' in cg_newdraw
+	assert "{ KEY_FLAG_SILVER, KEY_FLAG_SILVER }" in cg_newdraw
+	assert "{ KEY_FLAG_GOLD, KEY_FLAG_GOLD }" in cg_newdraw
+	assert "{ KEY_FLAG_MASTER, KEY_FLAG_MASTER }" in cg_newdraw
 	assert "mask = cg.snap->ps.stats[STAT_KEY_MASK];" in key_body
-	assert "BG_FindItemByClassname( def->classname );" in key_body
+	assert "BG_FindItemByTypeAndTag( IT_KEY, def->tag );" in key_body
 	assert "CG_RegisterItemVisuals( itemNum );" in key_body
 	assert "CG_DrawPic( x, rect->y, rect->w, rect->h, icon );" in key_body
 	assert "x += rect->w * 0.5f;" in key_body

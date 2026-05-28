@@ -2464,19 +2464,39 @@ CG_ParseTeamInfo
 static void CG_ParseTeamInfo( void ) {
 	int		i;
 	int		client;
+	int		count;
+	int		baseArg;
+	int		argc;
 
-	numSortedTeamPlayers = atoi( CG_Argv( 1 ) );
+	argc = trap_Argc();
+	count = atoi( CG_Argv( 1 ) );
+	if ( count < 0 ) {
+		count = 0;
+	}
+	if ( count > TEAM_MAXOVERLAY ) {
+		count = TEAM_MAXOVERLAY;
+	}
 
-	for ( i = 0 ; i < numSortedTeamPlayers ; i++ ) {
-		client = atoi( CG_Argv( i * 6 + 2 ) );
+	numSortedTeamPlayers = 0;
+	for ( i = 0 ; i < count ; i++ ) {
+		baseArg = i * 6 + 2;
+		if ( argc <= baseArg + 5 ) {
+			break;
+		}
 
-		sortedTeamPlayers[i] = client;
+		client = atoi( CG_Argv( baseArg ) );
+		if ( client < 0 || client >= MAX_CLIENTS ) {
+			continue;
+		}
 
-		cgs.clientinfo[ client ].location = atoi( CG_Argv( i * 6 + 3 ) );
-		cgs.clientinfo[ client ].health = atoi( CG_Argv( i * 6 + 4 ) );
-		cgs.clientinfo[ client ].armor = atoi( CG_Argv( i * 6 + 5 ) );
-		cgs.clientinfo[ client ].curWeapon = atoi( CG_Argv( i * 6 + 6 ) );
-		cgs.clientinfo[ client ].powerups = atoi( CG_Argv( i * 6 + 7 ) );
+		sortedTeamPlayers[numSortedTeamPlayers] = client;
+		numSortedTeamPlayers++;
+
+		cgs.clientinfo[ client ].location = atoi( CG_Argv( baseArg + 1 ) );
+		cgs.clientinfo[ client ].health = atoi( CG_Argv( baseArg + 2 ) );
+		cgs.clientinfo[ client ].armor = atoi( CG_Argv( baseArg + 3 ) );
+		cgs.clientinfo[ client ].curWeapon = atoi( CG_Argv( baseArg + 4 ) );
+		cgs.clientinfo[ client ].powerups = atoi( CG_Argv( baseArg + 5 ) );
 	}
 }
 

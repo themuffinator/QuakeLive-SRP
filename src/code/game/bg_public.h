@@ -359,6 +359,7 @@ typedef enum {
 	STAT_WEAPONS,					// 16 bit fields
 	STAT_ARMOR,				
 	STAT_DEAD_YAW,					// look this direction when dead (FIXME: get rid of?)
+	STAT_BATTLESUIT_FRAG_COUNT = STAT_DEAD_YAW,	// retail reuses this slot while alive
 	STAT_CLIENTS_READY,				// bit mask of clients wishing to exit the intermission (FIXME: configstring?)
 	STAT_MAX_HEALTH,				// health / armor limit, changable by handicap
 	STAT_CHAINGUN_SPINUP,			// retail chaingun spin accumulator, clamped to 0..1000
@@ -366,6 +367,7 @@ typedef enum {
 	STAT_PLAYER_ITEM_TIME_MAX = 10,	// retail progress-backed holdable maximum at playerState +0xe8
 	STAT_PLAYER_ITEM_TIME,			// retail progress-backed holdable current value at playerState +0xec
 	STAT_PLAYER_ITEM_RECHARGE,		// retail progress-backed holdable recharge rate at playerState +0xf0
+	STAT_QUAD_FRAG_COUNT = 13,		// retail Quad frag counter for CG_AREA_POWERUP
 	STAT_ARMOR_TIER = 14,			// retail armor tier replicated for HUD colorization
 	STAT_KEY_MASK					// retail carried-key bitmask replicated for HUD icons
 } statIndex_t;
@@ -857,7 +859,7 @@ typedef enum {
 #define TEAM_LOCATION_UPDATE_TIME		1000
 
 // How many players on the overlay
-#define TEAM_MAXOVERLAY		32
+#define TEAM_MAXOVERLAY		8
 
 //team task
 typedef enum {
