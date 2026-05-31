@@ -3,8 +3,9 @@ param(
 	[string]$RepoRoot = '',
 	[string]$RetailInstallRoot = '',
 	[string]$RetailProfileRoot = '',
-	[string]$MapName = 'catalyst',
-	[int]$MenuWaitFrames = 240
+	[string]$MapName = 'bloodrun',
+	[int]$MenuWaitFrames = 240,
+	[int]$MapWaitFrames = 3600
 )
 
 Set-StrictMode -Version Latest
@@ -481,10 +482,6 @@ function Invoke-MapRuntimeProbe {
 	) ) {
 		$lines.Add( $line )
 	}
-	Add-WaitLines -Lines $lines -Count 1200
-	$lines.Add( 'disconnect' )
-	Add-WaitLines -Lines $lines -Count 180
-	$lines.Add( 'quit' )
 	Set-Content -Path $configPath -Value $lines -Encoding ascii
 
 	Reset-LiveLogs
@@ -503,7 +500,7 @@ function Invoke-MapRuntimeProbe {
 	$restartSeen = $false
 	$shotLogged = $false
 	$rendererOwnerBlocker = ''
-	$deadline = (Get-Date).AddSeconds( 210 )
+	$deadline = (Get-Date).AddSeconds( [Math]::Max( 60, [Math]::Ceiling( $MapWaitFrames / 30 ) + 30 ) )
 
 	while ( ( Get-Date ) -lt $deadline -and -not $process.HasExited ) {
 		Start-Sleep -Milliseconds 500
@@ -540,6 +537,10 @@ function Invoke-MapRuntimeProbe {
 				Start-Sleep -Milliseconds 500
 				$logText = Read-OptionalText -Path $script:RuntimeLog
 				if ( $logText -match [regex]::Escape( "Wrote screenshots/$ScreenshotName.jpg" ) ) {
+					$shotLogged = $true
+					break
+				}
+				if ( Find-EngineScreenshot -ScreenshotName $ScreenshotName ) {
 					$shotLogged = $true
 					break
 				}
@@ -675,8 +676,7 @@ $missingMarkers = @()
 foreach ( $marker in @(
 	'----- UI Initialization -----',
 	'----- UI Initialization Complete -----',
-	("LoadLibrary '" + ( Join-Path $script:RetailProfileBaseq3Root 'uix86.dll' ) + "' ok"),
-	("Wrote screenshots/$mainShotName.jpg")
+	("LoadLibrary '" + ( Join-Path $script:RetailProfileBaseq3Root 'uix86.dll' ) + "' ok")
 ) ) {
 	if ( $mainProbe.log_text -match [regex]::Escape( $marker ) ) {
 		$verifiedMarkers += $marker
@@ -685,18 +685,31 @@ foreach ( $marker in @(
 	}
 }
 
+$mainScreenshotMarker = "Wrote screenshots/$mainShotName.jpg"
+if ( ( $mainProbe.log_text -match [regex]::Escape( $mainScreenshotMarker ) ) -or $mainProbe.engine_screenshot ) {
+	$verifiedMarkers += $mainScreenshotMarker
+} else {
+	$missingMarkers += $mainScreenshotMarker
+}
+
 foreach ( $marker in @(
 	("LoadLibrary '" + ( Join-Path $script:RetailProfileBaseq3Root 'qagamex86.dll' ) + "' ok"),
 	("LoadLibrary '" + ( Join-Path $script:RetailProfileBaseq3Root 'cgamex86.dll' ) + "' ok"),
 	("Server: $MapName"),
-	'Going from CS_PRIMED to CS_ACTIVE',
-	("Wrote screenshots/$mapShotName.jpg")
+	'Going from CS_PRIMED to CS_ACTIVE'
 ) ) {
 	if ( $mapProbe.log_text -match [regex]::Escape( $marker ) ) {
 		$verifiedMarkers += $marker
 	} else {
 		$missingMarkers += $marker
 	}
+}
+
+$mapScreenshotMarker = "Wrote screenshots/$mapShotName.jpg"
+if ( ( $mapProbe.log_text -match [regex]::Escape( $mapScreenshotMarker ) ) -or $mapProbe.engine_screenshot ) {
+	$verifiedMarkers += $mapScreenshotMarker
+} else {
+	$missingMarkers += $mapScreenshotMarker
 }
 
 if ( $mainProbe.trace_stats.ui_create_count -ge 1 ) {

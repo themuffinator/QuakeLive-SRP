@@ -461,11 +461,11 @@ static qboolean RBPP_InitColorCorrectResources( void );
 static void RBPP_ShutdownColorCorrectResources( void );
 static void RBPP_MirrorState( void );
 static void RBPP_RebuildState( void );
-static void RBPP_BlitSceneTarget( void );
+static void RBPP_BlitSceneTarget( GLuint sceneTexture );
 static void RBPP_SetColorCorrectUniforms( qboolean browserOverride );
 static void RBPP_SetBloomUniforms( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity );
-static qboolean RBPP_ApplyBloom( void );
-static void RBPP_ApplyColorCorrectPass( void );
+static qboolean RBPP_ApplyBloom( const bloomPostProcessCommand_t *cmd );
+static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd );
 static const void *RB_BindSceneRenderTargetCommand( const void *data );
 static const void *RB_BloomPostProcessCommand( const void *data );
 static const void *RB_ColorCorrectPostProcessCommand( const void *data );
@@ -1786,14 +1786,14 @@ RBPP_BlitSceneTarget
 Present the scene rectangle texture directly to the default framebuffer.
 =============
 */
-static void RBPP_BlitSceneTarget( void ) {
-	if ( !s_postProcess.sceneTarget.initialized ) {
+static void RBPP_BlitSceneTarget( GLuint sceneTexture ) {
+	if ( !s_postProcess.sceneTarget.initialized || !sceneTexture ) {
 		return;
 	}
 
 	RBPP_Set2DState( glConfig.vidWidth, glConfig.vidHeight );
 	s_postProcess.procs.qglUseProgramObjectARBFunc( 0 );
-	RBPP_BindRectangleTexture( 0, s_postProcess.sceneTarget.texture );
+	RBPP_BindRectangleTexture( 0, sceneTexture );
 	RBPP_DrawQuad( glConfig.vidWidth, glConfig.vidHeight, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height );
 
 	if ( qglActiveTextureARB ) {
@@ -1961,18 +1961,27 @@ RBPP_ApplyBloom
 Run the retail downsample, bright-pass, blur, and combine chain on rectangle textures.
 =============
 */
-static qboolean RBPP_ApplyBloom( void ) {
+static qboolean RBPP_ApplyBloom( const bloomPostProcessCommand_t *cmd ) {
 	int bloomMode;
 	float brightThreshold;
 	float bloomIntensity;
 	float bloomSaturation;
 	float sceneIntensity;
 	float sceneSaturation;
-	ppRenderTarget_t *finalBloom;
+	GLuint finalBloomTexture;
+	int finalBloomWidth;
+	int finalBloomHeight;
 
-	if ( !backEnd.bloomActive || !s_postProcess.sceneTarget.initialized ||
+	if ( !cmd || !backEnd.bloomActive || !s_postProcess.sceneTarget.initialized ||
 		!s_postProcess.bloomDownsampleTarget.initialized || !s_postProcess.bloomBrightTarget.initialized ||
 		!s_postProcess.bloomBlurVerticalTarget.initialized || !s_postProcess.bloomBlurHorizontalTarget.initialized ) {
+		return qfalse;
+	}
+
+	if ( !cmd->sceneTexture || !cmd->bloomDownsampleTexture || !cmd->bloomBrightTexture ||
+		!cmd->bloomBlurVerticalTexture || !cmd->bloomBlurHorizontalTexture ||
+		!cmd->brightPassProgram || !cmd->downsampleProgram || !cmd->blurVerticalProgram ||
+		!cmd->blurHorizontalProgram || !cmd->combineProgram ) {
 		return qfalse;
 	}
 
@@ -1984,7 +1993,9 @@ static qboolean RBPP_ApplyBloom( void ) {
 	if ( bloomMode == 2 &&
 		( !s_postProcess.bloomQuarterDownsampleTarget.initialized ||
 		!s_postProcess.bloomQuarterVerticalTarget.initialized ||
-		!s_postProcess.bloomQuarterHorizontalTarget.initialized ) ) {
+		!s_postProcess.bloomQuarterHorizontalTarget.initialized ||
+		!cmd->bloomQuarterDownsampleTexture || !cmd->bloomQuarterVerticalTexture ||
+		!cmd->bloomQuarterHorizontalTexture ) ) {
 		return qfalse;
 	}
 
@@ -1997,57 +2008,61 @@ static qboolean RBPP_ApplyBloom( void ) {
 
 	RBPP_BindRenderTarget( &s_postProcess.bloomDownsampleTarget );
 	RBPP_Set2DState( s_postProcess.bloomDownsampleTarget.width, s_postProcess.bloomDownsampleTarget.height );
-	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.downsampleProgram.programObject );
-	RBPP_BindRectangleTexture( 0, s_postProcess.sceneTarget.texture );
+	s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->downsampleProgram );
+	RBPP_BindRectangleTexture( 0, cmd->sceneTexture );
 	RBPP_DrawQuad( s_postProcess.bloomDownsampleTarget.width, s_postProcess.bloomDownsampleTarget.height, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height );
 
 	RBPP_BindRenderTarget( &s_postProcess.bloomBrightTarget );
 	RBPP_Set2DState( s_postProcess.bloomBrightTarget.width, s_postProcess.bloomBrightTarget.height );
-	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.brightPassProgram.programObject );
-	RBPP_BindRectangleTexture( 0, s_postProcess.bloomDownsampleTarget.texture );
+	s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->brightPassProgram );
+	RBPP_BindRectangleTexture( 0, cmd->bloomDownsampleTexture );
 	RBPP_DrawQuad( s_postProcess.bloomBrightTarget.width, s_postProcess.bloomBrightTarget.height, (float)s_postProcess.bloomDownsampleTarget.width, (float)s_postProcess.bloomDownsampleTarget.height, (float)s_postProcess.bloomDownsampleTarget.width, (float)s_postProcess.bloomDownsampleTarget.height );
 
 	RBPP_BindRenderTarget( &s_postProcess.bloomBlurVerticalTarget );
 	RBPP_Set2DState( s_postProcess.bloomBlurVerticalTarget.width, s_postProcess.bloomBlurVerticalTarget.height );
-	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.blurVerticalProgram.programObject );
-	RBPP_BindRectangleTexture( 0, s_postProcess.bloomBrightTarget.texture );
+	s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurVerticalProgram );
+	RBPP_BindRectangleTexture( 0, cmd->bloomBrightTexture );
 	RBPP_DrawQuad( s_postProcess.bloomBlurVerticalTarget.width, s_postProcess.bloomBlurVerticalTarget.height, (float)s_postProcess.bloomBrightTarget.width, (float)s_postProcess.bloomBrightTarget.height, (float)s_postProcess.bloomBrightTarget.width, (float)s_postProcess.bloomBrightTarget.height );
 
 	RBPP_BindRenderTarget( &s_postProcess.bloomBlurHorizontalTarget );
 	RBPP_Set2DState( s_postProcess.bloomBlurHorizontalTarget.width, s_postProcess.bloomBlurHorizontalTarget.height );
-	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.blurHorizontalProgram.programObject );
-	RBPP_BindRectangleTexture( 0, s_postProcess.bloomBlurVerticalTarget.texture );
+	s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurHorizontalProgram );
+	RBPP_BindRectangleTexture( 0, cmd->bloomBlurVerticalTexture );
 	RBPP_DrawQuad( s_postProcess.bloomBlurHorizontalTarget.width, s_postProcess.bloomBlurHorizontalTarget.height, (float)s_postProcess.bloomBlurVerticalTarget.width, (float)s_postProcess.bloomBlurVerticalTarget.height, (float)s_postProcess.bloomBlurVerticalTarget.width, (float)s_postProcess.bloomBlurVerticalTarget.height );
 
-	finalBloom = &s_postProcess.bloomBlurHorizontalTarget;
+	finalBloomTexture = cmd->bloomBlurHorizontalTexture;
+	finalBloomWidth = s_postProcess.bloomBlurHorizontalTarget.width;
+	finalBloomHeight = s_postProcess.bloomBlurHorizontalTarget.height;
 
 	if ( bloomMode == 2 ) {
 		RBPP_BindRenderTarget( &s_postProcess.bloomQuarterDownsampleTarget );
 		RBPP_Set2DState( s_postProcess.bloomQuarterDownsampleTarget.width, s_postProcess.bloomQuarterDownsampleTarget.height );
-		s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.downsampleProgram.programObject );
-		RBPP_BindRectangleTexture( 0, finalBloom->texture );
-		RBPP_DrawQuad( s_postProcess.bloomQuarterDownsampleTarget.width, s_postProcess.bloomQuarterDownsampleTarget.height, (float)finalBloom->width, (float)finalBloom->height, (float)finalBloom->width, (float)finalBloom->height );
+		s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->downsampleProgram );
+		RBPP_BindRectangleTexture( 0, finalBloomTexture );
+		RBPP_DrawQuad( s_postProcess.bloomQuarterDownsampleTarget.width, s_postProcess.bloomQuarterDownsampleTarget.height, (float)finalBloomWidth, (float)finalBloomHeight, (float)finalBloomWidth, (float)finalBloomHeight );
 
 		RBPP_BindRenderTarget( &s_postProcess.bloomQuarterVerticalTarget );
 		RBPP_Set2DState( s_postProcess.bloomQuarterVerticalTarget.width, s_postProcess.bloomQuarterVerticalTarget.height );
-		s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.blurVerticalProgram.programObject );
-		RBPP_BindRectangleTexture( 0, s_postProcess.bloomQuarterDownsampleTarget.texture );
+		s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurVerticalProgram );
+		RBPP_BindRectangleTexture( 0, cmd->bloomQuarterDownsampleTexture );
 		RBPP_DrawQuad( s_postProcess.bloomQuarterVerticalTarget.width, s_postProcess.bloomQuarterVerticalTarget.height, (float)s_postProcess.bloomQuarterDownsampleTarget.width, (float)s_postProcess.bloomQuarterDownsampleTarget.height, (float)s_postProcess.bloomQuarterDownsampleTarget.width, (float)s_postProcess.bloomQuarterDownsampleTarget.height );
 
 		RBPP_BindRenderTarget( &s_postProcess.bloomQuarterHorizontalTarget );
 		RBPP_Set2DState( s_postProcess.bloomQuarterHorizontalTarget.width, s_postProcess.bloomQuarterHorizontalTarget.height );
-		s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.blurHorizontalProgram.programObject );
-		RBPP_BindRectangleTexture( 0, s_postProcess.bloomQuarterVerticalTarget.texture );
+		s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurHorizontalProgram );
+		RBPP_BindRectangleTexture( 0, cmd->bloomQuarterVerticalTexture );
 		RBPP_DrawQuad( s_postProcess.bloomQuarterHorizontalTarget.width, s_postProcess.bloomQuarterHorizontalTarget.height, (float)s_postProcess.bloomQuarterVerticalTarget.width, (float)s_postProcess.bloomQuarterVerticalTarget.height, (float)s_postProcess.bloomQuarterVerticalTarget.width, (float)s_postProcess.bloomQuarterVerticalTarget.height );
-		finalBloom = &s_postProcess.bloomQuarterHorizontalTarget;
+		finalBloomTexture = cmd->bloomQuarterHorizontalTexture;
+		finalBloomWidth = s_postProcess.bloomQuarterHorizontalTarget.width;
+		finalBloomHeight = s_postProcess.bloomQuarterHorizontalTarget.height;
 	}
 
 	RBPP_ReleaseSceneRenderTarget();
 	RBPP_Set2DState( glConfig.vidWidth, glConfig.vidHeight );
-	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.combineProgram.programObject );
-	RBPP_BindRectangleTexture( 0, s_postProcess.sceneTarget.texture );
-	RBPP_BindRectangleTexture( 1, finalBloom->texture );
-	RBPP_DrawQuad( glConfig.vidWidth, glConfig.vidHeight, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height, (float)finalBloom->width, (float)finalBloom->height );
+	s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->combineProgram );
+	RBPP_BindRectangleTexture( 0, cmd->sceneTexture );
+	RBPP_BindRectangleTexture( 1, finalBloomTexture );
+	RBPP_DrawQuad( glConfig.vidWidth, glConfig.vidHeight, (float)s_postProcess.sceneTarget.width, (float)s_postProcess.sceneTarget.height, (float)finalBloomWidth, (float)finalBloomHeight );
 
 	s_postProcess.procs.qglUseProgramObjectARBFunc( 0 );
 	if ( qglActiveTextureARB ) {
@@ -2071,20 +2086,20 @@ RBPP_ApplyColorCorrectPass
 Copy the current default framebuffer into the retail color-correct texture and run the shader-backed correction pass.
 =============
 */
-static void RBPP_ApplyColorCorrectPass( void ) {
-	if ( !backEnd.colorCorrectActive || !s_postProcess.colorCorrectTexture || !s_postProcess.colorCorrectProgram.programObject ) {
+static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {
+	if ( !cmd || !backEnd.colorCorrectActive || !cmd->colorCorrectTexture || !cmd->colorCorrectProgram ) {
 		return;
 	}
 
-	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, s_postProcess.colorCorrectTexture );
+	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, cmd->colorCorrectTexture );
 	qglCopyTexSubImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, 0, 0, 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, 0 );
 
 	RBPP_SetColorCorrectUniformsFromCvars();
 
 	RBPP_Set2DState( glConfig.vidWidth, glConfig.vidHeight );
-	s_postProcess.procs.qglUseProgramObjectARBFunc( s_postProcess.colorCorrectProgram.programObject );
-	RBPP_BindRectangleTexture( 0, s_postProcess.colorCorrectTexture );
+	s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->colorCorrectProgram );
+	RBPP_BindRectangleTexture( 0, cmd->colorCorrectTexture );
 	RBPP_DrawQuad( glConfig.vidWidth, glConfig.vidHeight, (float)s_postProcess.colorCorrectWidth, (float)s_postProcess.colorCorrectHeight, (float)s_postProcess.colorCorrectWidth, (float)s_postProcess.colorCorrectHeight );
 	s_postProcess.procs.qglUseProgramObjectARBFunc( 0 );
 
@@ -2134,9 +2149,9 @@ static const void *RB_BloomPostProcessCommand( const void *data ) {
 	cmd = (const bloomPostProcessCommand_t *)data;
 
 	if ( cmd->sceneTexture && RBPP_BloomEnabled() && s_postProcess.sceneTarget.initialized ) {
-		if ( !RBPP_ApplyBloom() ) {
+		if ( !RBPP_ApplyBloom( cmd ) ) {
 			RBPP_ReleaseSceneRenderTarget();
-			RBPP_BlitSceneTarget();
+			RBPP_BlitSceneTarget( cmd->sceneTexture );
 		}
 	}
 
@@ -2162,7 +2177,7 @@ static const void *RB_ColorCorrectPostProcessCommand( const void *data ) {
 	cmd = (const colorCorrectPostProcessCommand_t *)data;
 
 	if ( cmd->colorCorrectTexture && cmd->colorCorrectProgram && RBPP_ColorCorrectEnabled() ) {
-		RBPP_ApplyColorCorrectPass();
+		RBPP_ApplyColorCorrectPass( cmd );
 	}
 
 	return (const void *)(cmd + 1);

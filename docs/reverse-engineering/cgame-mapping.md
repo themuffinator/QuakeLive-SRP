@@ -138,7 +138,7 @@ analogue line up cleanly enough to support a stable mapping.
 | `0x1002F950` | `CG_DrawPlayerHead` | `cg_newdraw.c::CG_DrawPlayerHead` | Retail `CG_PLAYER_HEAD` ownerdraw leaf. HLIL preserves the head-damage kick, the interpolated idle yaw/pitch wobble, and the final call into `CG_DrawHead` for the local client slot. | High |
 | `0x1002FDF0` | `CG_DrawPlayerHealth` | `cg_newdraw.c::CG_DrawPlayerHealth` | Retail `CG_PLAYER_HEALTH` ownerdraw leaf. HLIL reads `STAT_HEALTH`, chooses the centered text-or-shader path, and matches the public-source helper more closely than any nearby selected-player widget. | High |
 | `0x10030C00` | `CG_DrawLevelTimer` | `cg_newdraw.c::CG_DrawLevelTimer` | Retail `CG_LEVELTIMER` ownerdraw that formats the live clock as `%i:%i%i` and then routes it through the standard centered text path. | High |
-| `0x10030DF0` | `CG_HarvesterSkulls` | `cg_newdraw.c::CG_HarvesterSkulls` | Retail ownerdraw shared by `CG_HARVESTER_SKULLS` and `CG_HARVESTER_SKULLS2D`; HLIL formats the local skull count, paints it at the rect baseline, and adds the matching cube icon/marker branch. | High |
+| `0x10030DF0` | `CG_HarvesterSkulls` | `cg_newdraw.c::CG_HarvesterSkulls` | Retail ownerdraw shared by `CG_HARVESTER_SKULLS` and `CG_HARVESTER_SKULLS2D`; HLIL formats the local skull count, paints it at the rect baseline, draws the 3D cube at `rect->y + 5`, and falls back to the 20x20 cube icon at `x + 3, y + 16`. | High |
 | `0x10030FF0` | `CG_OneFlagStatus` | `cg_newdraw.c::CG_OneFlagStatus` | Retail `CG_ONEFLAG_STATUS` ownerdraw that only executes in `GT_1FCTF`, draws the `gfx/2d/flag_status/*` status-icon bank, and offsets stolen-state icons by the team score relationship. | High |
 | `0x100310F0` | `CG_DrawCTFPowerUp` | `cg_newdraw.c::CG_DrawCTFPowerUp` | Retail `CG_CTF_POWERUP` ownerdraw. HLIL reads `STAT_PERSISTANT_POWERUP`, resolves the active item icon, and paints it directly into the requested rect. | High |
 | `0x10031610` | `CG_GetValue` | `cg_newdraw.c::CG_GetValue` | Assigned into the `cgDC` callback table at `0x10029210`; HLIL body returns only the retail score/stat ownerdraw values (`armor`, `health`, `ammo`, local score, red score, blue score) and leaves the legacy selected-player ids unhandled. | High |
@@ -858,9 +858,17 @@ analogue line up cleanly enough to support a stable mapping.
 - This pass promotes five committed cgame objective ownerdraw helpers from the Harvester / 1FCTF / flag / key / persistent-powerup seam: `0x10030DF0 -> CG_HarvesterSkulls`, `0x10030FF0 -> CG_OneFlagStatus`, `0x100310F0 -> CG_DrawCTFPowerUp`, `0x10031CD0 -> CG_DrawPlayerHasFlag`, and `0x10031F90 -> CG_DrawPlayerHasKey`.
 - `0x10031CD0` is especially strong from ownerdraw reachability plus the preserved binding-prompt path. The committed `CG_OwnerDraw` switch routes raw cases `0x37` and `0x38` there, which match `CG_PLAYER_HASFLAG` and `CG_PLAYER_HASFLAG2D` in `src/ui/menudef.h`, and HLIL keeps the exact `dropflag` lookup plus `Press %s to throw.` hint that only make sense on the neutral-flag carrier seam in 1FCTF.
 - `0x10031F90` and `0x100310F0` are direct single-slot ownerdraw leaves. Raw cases `0x3B` and `0x3C` match `CG_PLAYER_HASKEY` and `CG_CTF_POWERUP`, and the bodies are unambiguous: one resolves the local silver/gold/master key bitmask into overlapping item icons, while the other resolves the active persistent-powerup item icon and paints it directly.
-- `0x10030DF0` and `0x10030FF0` close the adjacent objective-status pair. The Harvester helper only executes in `GT_HARVESTER`, formats the local skull count, and adds the same cube icon/marker family already mirrored by the source helper; the one-flag helper only executes in `GT_1FCTF` and chooses the dedicated `iconf_neutral1` / `iconf_red2` / `iconf_blu2` / `iconf_neutral3` icon family instead of the newer generic status-bar fallback.
+- `0x10030DF0` and `0x10030FF0` close the adjacent objective-status pair. The Harvester helper only executes in `GT_HARVESTER`, formats the local skull count, and adds the same cube icon/marker family mirrored by the source helper, including the recovered 3D cube `y + 5` offset; the one-flag helper only executes in `GT_1FCTF` and chooses the dedicated flag-status icon family instead of the newer generic status-bar fallback.
 - Source reconstruction now mirrors the retail leaf behavior more closely. `CG_DrawPlayerHasFlag` restores the 4-pixel 3D inset plus the neutral-flag `dropflag` prompt, `CG_OneFlagStatus` uses the recovered flag-status icon bank registered in `cg_main.c`, and `CG_DrawPlayerHasKey` spaces the carried key icons at the recovered half-width overlap instead of the older wider gap.
 - Before this round, the current cgame map held `571` named addresses: `471 / 751` committed Ghidra functions (`62.7%`) plus `100` HLIL-only anchors for `571 / 851` combined committed anchors (`67.1%`). After this round, the map holds `576` named addresses: `476 / 751` committed Ghidra functions (`63.4%`) plus the same `100` HLIL-only anchors for `576 / 851` combined committed anchors (`67.7%`).
+
+### Retail Flag / Harvester / Key Ownerdraw Follow-Up
+
+- This focused follow-up keeps map coverage unchanged and closes the selected cgame ownerdraw rows `CG_PLAYER_HASFLAG`, `CG_PLAYER_HASFLAG2D`, `CG_HARVESTER_SKULLS`, `CG_HARVESTER_SKULLS2D`, and `CG_PLAYER_HASKEY`.
+- The committed retail dispatcher routes raw cases `0x37`, `0x38`, `0x39`, `0x3A`, and `0x3B` to `0x10031CD0 -> CG_DrawPlayerHasFlag`, shared `0x10030DF0 -> CG_HarvesterSkulls`, and `0x10031F90 -> CG_DrawPlayerHasKey`. The current source switch preserves those routes and keeps all five out of the value, width, and key-handler callbacks.
+- `CG_PLAYER_HASFLAG` / `CG_PLAYER_HASFLAG2D` continue to share the retail carried-flag leaf: the 3D-capable path uses the recovered 4-pixel inset, the forced-2D path uses no inset, and the 1FCTF neutral-flag branch keeps the `dropflag` binding prompt.
+- `CG_HARVESTER_SKULLS` / `CG_HARVESTER_SKULLS2D` now match the retail cube geometry exactly: the count is right-aligned at the rect baseline, the 3D cube draws at `rect->y + 5` sized `35x35`, and the forced-2D cube icon draws at `rect->x + 3, rect->y + 16` sized `20x20`.
+- `CG_PLAYER_HASKEY` remains on the retail replicated key-mask branch, resolving silver/gold/master through `BG_FindItemByTypeAndTag( IT_KEY, tag )`, registering item visuals when possible, and overlapping successive key icons by half the ownerdraw width.
 
 ### Retail Objective/Powerup Ownerdraw Follow-Up
 
@@ -1558,6 +1566,57 @@ analogue line up cleanly enough to support a stable mapping.
 - The committed Ghidra `CG_OwnerDraw` switch reaches raw ownerdraw `0x3F` (`CG_KILLER`) only when `DAT_10aa6988` is nonzero, matching the first byte of the cached `cg.killerName` string that the obituary path writes. It reaches raw ownerdraw `0x51` (`CG_SPECTATORS`) only when `DAT_10ab69b4` is nonzero, matching the cached spectator-entry count built by `CG_BuildSpectatorString`.
 - `cg_newdraw.c::CG_OwnerDraw` now mirrors both retail gates before calling the helpers. The helper bodies still keep their local early-outs, but authored HUD slots no longer enter those leaves when retail would fall through to the common return path.
 
+### Retail 55-59 Objective Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x37` through `0x3B`.
+- The committed retail dispatcher routes `CG_PLAYER_HASFLAG` and `CG_PLAYER_HASFLAG2D` to `0x10031CD0`, `CG_HARVESTER_SKULLS` and `CG_HARVESTER_SKULLS2D` to `0x10030DF0`, and `CG_PLAYER_HASKEY` to `0x10031F90`. Binary Ninja HLIL carries the matching calls from `0x1003B0F0 -> CG_OwnerDraw`.
+- Source reconstruction keeps the same wiring: flag ownerdraws share the local carried-flag helper with the 4-pixel 3D inset and neutral-flag `dropflag` prompt, Harvester ownerdraws share the skull-count helper with forced-2D and 3D-capable cube branches, and key ownerdraws read `STAT_KEY_MASK`, resolve silver/gold/master by `IT_KEY` tag, and paint with the retail half-width overlap.
+- The display-context parity suite now guards the selected constants, retail target groups, HLIL call sites, source switch calls, authored menu reachability where present, helper behavior, and absence from value/width/key callbacks.
+
+### Retail 60-64 Powerup/Killer/Medal Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x3C` through `0x40`.
+- The committed retail dispatcher routes `CG_CTF_POWERUP` to `0x100310F0`, `CG_AREA_POWERUP` to `0x10031160`, `CG_TEAM_COLOR` to `0x10009850`, `CG_KILLER` to `0x10032110` behind the cached-killer-name gate, and `CG_ACCURACY` into the shared `0x10035340` medal leaf.
+- Source reconstruction keeps the same wiring: the CTF powerup icon reads `STAT_PERSISTANT_POWERUP`, the area powerup stack sorts active timed powerups and preserves the retail Quad/Battle Suit `x %i` badge text, team color delegates to the local-team red/blue `teamStatusBar` helper, killer text stays centered around `Fragged by %s` with the matching width callback, and accuracy remains the selected-score `%i%%` branch of the medal helper.
+- The ownerdraw-text and display-context parity suites now guard the selected constants, retail target groups, HLIL call sites, source switch calls, menu reachability or intentional menu absence, the `CG_KILLER` width callback, helper behavior, and absence from value/key callbacks.
+
+### Retail 65-69 Medal And No-Op Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x41` through `0x45`.
+- The committed retail dispatcher routes raw `0x41`, `0x42`, `0x44`, and `0x45` to `0x10035340 -> CG_DrawMedal`, while raw `0x43` (`CG_COMBOKILLS`) has no medal route and falls through the inert ownerdraw path.
+- Binary Ninja HLIL for `0x10035340` reads the expected selected-score fields for this batch: assist count at `+0xC0`, captures at `+0xC4`, defend count at `+0xBC`, and excellent count at `+0xB4`. Each nonzero value uses the shared integer text format and promotes alpha from `0.25` to `1.0`.
+- Source reconstruction already matched the retail behavior, so this sweep stays in evidence and guard coverage: `CG_ASSISTS`, `CG_CAPTURES`, `CG_DEFEND`, and `CG_EXCELLENT` remain in the medal target group, `CG_COMBOKILLS` remains a no-op, and none of the five participate in value, width, or key callbacks.
+- The ownerdraw-text parity suite now guards ids `65-69` end to end, including menudef constants, retail switch membership, source dispatch/no-op separation, selected-score field reads, menu reachability counts, and display-context callback wiring.
+
+### Retail 70-74 Medal And No-Op Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x46` through `0x4A`.
+- The committed retail dispatcher routes raw `0x46`, `0x47`, and `0x4A` to `0x10035340 -> CG_DrawMedal`, while raw `0x48` (`CG_RAMPAGES`) and `0x49` (`CG_MIDAIRS`) have no medal route and stay inert.
+- Binary Ninja HLIL for `0x10035340` reads gauntlet count at `+0xB8`, impressive count at `+0xB0`, and perfect at `+0xE4`. The first two use the shared integer medal text path; perfect uses the retail `Wow` literal after the same alpha promotion for a nonzero value.
+- Source reconstruction already matched the retail behavior, so this sweep stays in evidence and guard coverage: `CG_GAUNTLET`, `CG_IMPRESSIVE`, and `CG_PERFECT` remain in the medal target group, `CG_RAMPAGES` and `CG_MIDAIRS` remain no-ops, and none of the five participate in value, width, or key callbacks.
+- The ownerdraw-text parity suite now guards ids `70-74` end to end, including menudef constants, retail switch membership, source dispatch/no-op separation, selected-score field reads, menu reachability counts, and display-context callback wiring.
+
+### Retail 81-85 Scoreboard Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x51` through `0x55`.
+- The committed retail dispatcher routes `CG_SPECTATORS`, `CG_MATCH_WINNER`, `CG_1STPLACE`, `CG_1ST_PLACE_SCORE`, and `CG_1STPLACE_PLYR_MODEL` to five distinct helper leaves: `0x100351A0`, `0x10033F00`, `0x100323D0`, `0x10032520`, and `0x10034900`. Binary Ninja HLIL carries matching call-site evidence for each leaf inside `0x1003B0F0 -> CG_OwnerDraw`.
+- Source reconstruction keeps the same wiring: spectators are gated by the rebuilt spectator-entry cache, match winner text preserves retail tie/intermission/forfeit cases, compact first-place score remains on `CG_DrawScoreValue`, the wide first-place line is fed by `CS_FIRST_PLACE_NAME` plus `CS_SCORES1`, and the first-place model preview uses the inactive `5/160/0` preview path with profile fallback.
+- The display-context parity suite now guards the selected constants, retail target groups, HLIL call sites, source switch calls, configstring producer/consumer path, shipped menu reachability, competitive-cache refresh participation where retail needs it, and absence from value/width/key callbacks.
+
+### Retail 86-90 Endgame Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x56` through `0x5A`.
+- The committed retail dispatcher routes `CG_2NDPLACE`, `CG_2ND_PLACE_SCORE`, `CG_PLAYER_OBIT`, `CG_AREA_NEW_CHAT`, and `CG_PLYR_END_GAME_SCORE` to `0x100323D0`, `0x100329A0`, `0x1002E9B0`, `0x10006A10`, and `0x100346E0`.
+- Source reconstruction keeps the same wiring: compact second-place score remains on the shared score helper, the wide second-place row preserves spectator/local-row selection plus the positive Race-time guard, obituary feed drawing preserves prune/fade/color/icon columns, the new-chat area preserves active-message archival and clamped history-stack drawing, and endgame score text preserves the retail placement/score/assist/defend/capture/skull/forfeit family.
+- The display-context parity suite now guards the selected constants, retail target groups, HLIL call sites, source switch calls, menu reachability, competitive-cache refresh participation where retail needs it, obituary/chat/endgame helper behavior, and absence from value/width/key callbacks.
+
+### Retail 91-95 Selected/Follow Ownerdraw Wiring Sweep
+
+- This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and hardens the selected cgame ownerdraw block from raw `0x5B` through `0x5F`.
+- The committed retail dispatcher routes `CG_PLYR_BEST_WEAPON_NAME`, `CG_SELECTED_PLYR_TEAM_COLOR`, and `CG_SELECTED_PLYR_ACCURACY` to `0x100345F0`, `0x1002F860`, and `0x10034590`, while both `CG_FOLLOW_PLAYER_NAME` and `CG_FOLLOW_PLAYER_NAME_EX` share `0x10033BF0`.
+- Source reconstruction keeps the same wiring: selected-player widgets read the selected scoreboard row and resolved client info with bounds checks, best weapon uses the recovered fixed label table, selected accuracy paints the `%i%%` score field, selected team color preserves red/blue/neutral fill behavior, and the follow-name pair shares the team-tinted alignment helper with the retail `Following - ` prefix split.
+- The display-context parity suite now guards the selected constants, retail target groups, HLIL call sites, source switch calls, shipped menu reachability, selected-score/client bounds, best-weapon label table, follow-name tint/alignment behavior, and absence from value/width/key callbacks.
+
 ### Retail Clan Arena Stats Strip Order Sweep
 
 - This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and tightens the already-mapped Clan Arena stats seam around `0x10027720 -> CG_FeederItemTextClanArenaStats` and `0x10046B00 -> CG_ParseClanArenaStats`.
@@ -1578,13 +1637,18 @@ analogue line up cleanly enough to support a stable mapping.
 - `cg_newdraw.c::CG_DrawMedal` now carries the required reconstruction header and tabbed source style while preserving the existing retail text/alpha behavior. The source-side dispatcher still routes the medal, pickup, and time-held families through their separate helpers.
 - The display-context parity suite now extracts those raw retail target groups from `FUN_1003B0F0`, resolves the ids through `src/ui/menudef.h`, and asserts that the source switch keeps pickup counts out of the time-held leaf and time-held values out of the pickup-count leaf.
 
-### Retail Placement Weapon-Frag Wiring Sweep
+### Retail Placement Weapon-Stat Wiring Sweep
 
 - This pass keeps map coverage unchanged at `854 / 854` combined committed anchors (`100.0%`) and tightens selected raw ownerdraws `0x75` through `0x79` (`CG_1ST_PLYR_FRAGS_G` through `CG_1ST_PLYR_FRAGS_RL`).
 - Binary Ninja HLIL for `0x100368A0` resolves the menu id through the placement weapon-index helper, reads the weapon-frag cache, formats with the retail `%d` literal at `data_10068E44`, and paints through the baseline text path. The source formatter now uses the same `%d` literal for the weapon-frag band.
 - The backing `scorestats` protocol is guarded end to end: qagame emits weapon frags in the retail G, MG, SG, GL, RL, LG, RG, PG, BFG, CG, NG, PL, HMG order and cgame parses the same order into `cg.scoreStats[clientNum].weaponFrags[weapon]` before the placement ownerdraw reads it.
 - The follow-up 122-126 slice pins `0x1002E2B0` resolver returns for raw ownerdraws `0x7A` through `0x7E`: LG/RG/PG/BFG return weapon indexes `6` through `9`, while CG returns `0xD`, preserving the Quake Live enum gap for the grappling hook before nailgun/prox/chaingun.
-- The display-context parity suite now checks the selected constants, retail target group, HLIL resolver/format/paint signals, weapon mapping, server send path, cgame parse path, placement guard, direct-switch absence, and callback absence for these selected ownerdraw sets.
+- The follow-up 127-131 slice pins the remaining first-player frag tail and the hit head: raw `0x7F` / `0x80` / `0x81` resolve to `0xB`, `0xC`, and `0xE` for NG/PL/HMG, while raw `0x82` and `0x83` resolve to MG and SG. The hit helper at `0x100369D0` reads the separate hit cache at `data_10A603CC`, uses the same retail `%d` literal, and is fed by the compact `accuracy_hits` order.
+- The follow-up 132-136 slice pins the middle hit band: raw `0x84` through `0x88` resolve to GL/RL/LG/RG/PG weapon indexes `4` through `8`, remain on `0x100369D0`, and consume the same compact `accuracy_hits` transport from qagame send through cgame parse before drawing.
+- The follow-up 137-141 slice pins the first-player hit tail: raw `0x89` / `0x8A` / `0x8B` / `0x8C` / `0x8D` resolve to BFG/CG/NG/PL/HMG weapon indexes `9`, `0xD`, `0xB`, `0xC`, and `0xE`, preserving the Quake Live weapon enum gap while staying on the same hit cache and compact `accuracy_hits` transport.
+- The follow-up 142-146 slice starts the first-player shot band: raw `0x8E` through `0x92` resolve to MG/SG/GL/RL/LG weapon indexes `2` through `6`, land on `0x10036B00`, read the shot cache at `data_10A6038C`, format with retail `%d`, and consume the compact `accuracy_shots` transport.
+- The follow-up 147-151 slice pins the next shot band: raw `0x93` through `0x97` resolve to RG/PG/BFG/CG/NG weapon indexes `7`, `8`, `9`, `0xD`, and `0xB`, again preserving the enum gap while staying on `0x10036B00`, `data_10A6038C`, and compact `accuracy_shots`.
+- The display-context parity suite now checks the selected constants, retail target groups, HLIL resolver/cache/format/paint signals, weapon mapping, server send path, cgame parse path, placement guard, direct-switch absence, and callback absence for these selected ownerdraw sets.
 
 ### Retail Compact Score Dispatch Correction
 

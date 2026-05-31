@@ -505,6 +505,7 @@ def test_qcommon_redirect_and_startup_helpers_match_retail_contracts() -> None:
 	assert 'Com_FreeStartupCommandLines();' in parse_block
 	assert 'Cmd_TokenizeString( commandLine );' in parse_block
 	assert 'argc = Cmd_Argc();' in parse_block
+	assert 'tokenLength = 1;' in parse_block
 	assert 'if ( token[0] == \'+\' ) {' in parse_block
 	assert 'if ( !Q_stricmp( token, "+bind" ) ) {' in parse_block
 	assert 'if ( bindCommandIndex <= 0 || effectiveIndex - 2 != bindCommandIndex ) {' in parse_block
@@ -513,6 +514,7 @@ def test_qcommon_redirect_and_startup_helpers_match_retail_contracts() -> None:
 	assert '*cursor++ = \'\\0\';' in parse_block
 	assert 'com_consoleLines[com_numConsoleLines] = cursor;' in parse_block
 	assert 'Com_Memcpy( cursor, token, tokenLength + 1 );' in parse_block
+	assert '*cursor = \'\\0\';' in parse_block
 
 	assert 'pidLength = FS_FOpenFileRead( "profile.pid", &f, qtrue );' in profile_pid_block
 	assert 'if ( pidLength < 0 || !f ) {' in profile_pid_block

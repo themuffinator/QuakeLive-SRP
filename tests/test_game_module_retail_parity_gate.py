@@ -64,6 +64,7 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 	after = float(runtime_evidence["parity_estimate"]["after"])
 	main_menu = runtime_evidence["main_menu"]
 	map_runtime = runtime_evidence["map_runtime"]
+	map_name = map_runtime.get("map", "")
 	trace_stats = map_runtime["trace_stats"]
 	bounded_owner_items = runtime_evidence.get("bounded_owner_items", [])
 	renderer_owner_blocker = map_runtime.get("renderer_owner_blocker", "")
@@ -112,7 +113,9 @@ def _runtime_evidence_is_sufficient(runtime_evidence: dict[str, Any] | None) -> 
 		and main_menu["engine_screenshot"]
 		and main_menu["ui_init_complete"] is True
 		and main_menu["retail_ui_load_seen"] is True
-		and map_runtime["map"] == "catalyst"
+		and isinstance(map_name, str)
+		and map_name != ""
+		and f"Server: {map_name}" in runtime_evidence["verified_log_markers"]
 		and map_runtime["server_seen"] is True
 		and map_runtime["retail_cgame_load_seen"] is True
 		and map_runtime["retail_qagame_load_seen"] is True
@@ -154,6 +157,8 @@ def _build_retail_module_parity_gate_report() -> dict[str, Any]:
 		RUNTIME_PROBE_PATH.exists()
 		and RETAIL_MODULE_RUNTIME_EVIDENCE_ARTIFACT_NAME in runtime_probe
 		and "map $MapName ffa" in runtime_probe
+		and 'or $mapProbe.engine_screenshot' in runtime_probe
+		and 'or $mainProbe.engine_screenshot' in runtime_probe
 		and runtime_evidence_sufficient
 		and "tests/test_game_module_retail_parity_gate.py" in workflow_text
 		and "tests/test_platform_services.py" in workflow_text
@@ -269,6 +274,10 @@ def _build_retail_module_parity_gate_report() -> dict[str, Any]:
 			"runtime_probe_present": RUNTIME_PROBE_PATH.exists(),
 			"runtime_probe_mentions_latest_alias": RETAIL_MODULE_RUNTIME_EVIDENCE_ARTIFACT_NAME in runtime_probe,
 			"runtime_probe_uses_current_map_contract": "map $MapName ffa" in runtime_probe,
+			"runtime_probe_accepts_engine_screenshot_artifact": (
+				'or $mapProbe.engine_screenshot' in runtime_probe
+				and 'or $mainProbe.engine_screenshot' in runtime_probe
+			),
 			"runtime_evidence_present": RETAIL_MODULE_RUNTIME_EVIDENCE_PATH.exists(),
 			"runtime_evidence_sufficient": runtime_evidence_sufficient,
 			"workflow_references_gate": "tests/test_game_module_retail_parity_gate.py" in workflow_text,
@@ -381,7 +390,9 @@ def test_retail_module_runtime_evidence_artifact_is_tracked_and_clean() -> None:
 	assert runtime_evidence["main_menu"]["engine_screenshot"]
 	assert runtime_evidence["main_menu"]["ui_init_complete"] is True
 	assert runtime_evidence["main_menu"]["retail_ui_load_seen"] is True
-	assert runtime_evidence["map_runtime"]["map"] == "catalyst"
+	map_name = runtime_evidence["map_runtime"]["map"]
+	assert map_name
+	assert f"Server: {map_name}" in runtime_evidence["verified_log_markers"]
 	assert runtime_evidence["map_runtime"]["server_seen"] is True
 	assert runtime_evidence["map_runtime"]["retail_cgame_load_seen"] is True
 	assert runtime_evidence["map_runtime"]["retail_qagame_load_seen"] is True

@@ -395,7 +395,7 @@ def test_renderer_mapping_round_321_reconstructs_color_correct_uniform_helper() 
 	color_uniform_block = _block_from_marker(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
 	color_uniform_from_cvars_block = _block_from_marker(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
 	color_init_block = _block_from_marker(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
-	color_pass_block = _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+	color_pass_block = _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {")
 
 	assert "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {" in tr_backend
 	assert "void RBPP_SetColorCorrectUniformsFromCvars( void ) {" in tr_backend
@@ -794,6 +794,46 @@ def test_renderer_mapping_round_328_splits_framebuffer_and_shader_proc_gates() -
 	assert "post-process proc gate lane: before 99.985%, after 99.99%" in mapping_round.lower()
 
 
+def test_renderer_mapping_round_341_closes_postprocess_command_payload_wiring() -> None:
+	hlil_part01 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_341.md")
+	tr_backend = _read("src/code/renderer/tr_backend.c")
+
+	apply_bloom_block = _block_from_marker(tr_backend, "static qboolean RBPP_ApplyBloom( const bloomPostProcessCommand_t *cmd ) {")
+	apply_color_block = _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {")
+	bloom_command_block = _block_from_marker(tr_backend, "static const void *RB_BloomPostProcessCommand( const void *data ) {")
+	color_command_block = _block_from_marker(tr_backend, "static const void *RB_ColorCorrectPostProcessCommand( const void *data ) {")
+
+	for expected in (
+		"00436dff      data_16e3d98(0x84f5)",
+		"00436e46      int32_t edx_2 = data_16e3d14(*(arg1 + 8))",
+		"00436eb7  return arg1 + 0x10",
+		"00438537              *(result + 0x34) = data_5860c4",
+		"00437448  return arg1 + 0x38",
+	):
+		assert expected in hlil_part01
+
+	for expected in (
+		"0043cd3b              *result = 9",
+		"0043cd47              *(result + 8) = data_586220",
+		"0043cd50              *(result + 4) = data_586234",
+	):
+		assert expected in hlil_part02
+
+	assert "RBPP_ApplyBloom( cmd )" in bloom_command_block
+	assert "RBPP_BlitSceneTarget( cmd->sceneTexture );" in bloom_command_block
+	assert "RBPP_ApplyColorCorrectPass( cmd );" in color_command_block
+	assert "qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, cmd->colorCorrectTexture );" in apply_color_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->colorCorrectProgram );" in apply_color_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->downsampleProgram );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->brightPassProgram );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurVerticalProgram );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurHorizontalProgram );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->combineProgram );" in apply_bloom_block
+	assert "post-process command payload wiring lane: before 99.99%, after 100%" in mapping_round.lower()
+
+
 def test_renderer_advertisement_debug_labels_use_host_text() -> None:
 	tr_world = _read("src/code/renderer/tr_world.c")
 	block = _block_from_marker(tr_world, "static void R_DrawAdvertisementDebugText")
@@ -1009,12 +1049,12 @@ def test_renderer_mapping_round_279_promotes_postprocess_program_and_command_sym
 	assert "static void RBPP_DestroyColorCorrectProgram( void ) {" in tr_backend
 	assert "static qboolean RBPP_CreateColorCorrectTexture( void ) {" in tr_backend
 	assert "static qboolean RBPP_InitColorCorrectResources( void ) {" in tr_backend
-	assert "static qboolean RBPP_ApplyBloom( void ) {" in tr_backend
+	assert "static qboolean RBPP_ApplyBloom( const bloomPostProcessCommand_t *cmd ) {" in tr_backend
 	assert "void RBPP_SetColorCorrectUniformsFromCvars( void ) {" in tr_backend
 	assert "if ( !RBPP_ColorCorrectEnabled() ) {" in _block_from_marker(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
-	assert "static void RBPP_ApplyColorCorrectPass( void ) {" in tr_backend
+	assert "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {" in tr_backend
 	assert "RBPP_SetColorCorrectUniforms( qfalse );" in _block_from_marker(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
-	assert "RBPP_SetColorCorrectUniformsFromCvars();" in _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+	assert "RBPP_SetColorCorrectUniformsFromCvars();" in _block_from_marker(tr_backend, "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {")
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );" in tr_backend
 	assert "s_postProcess.procs.qglUniform1fARBFunc( s_postProcess.colorCorrectProgram.gammaRecipUniform, gammaRecip );" in tr_backend
 
@@ -1096,7 +1136,7 @@ def test_renderer_mapping_round_281_promotes_backend_command_handlers_and_scene_
 	assert "if ( !RBPP_BloomEnabled() || !s_postProcess.sceneTarget.initialized ) {" in _block_from_marker(tr_backend, "static void RBPP_BindSceneRenderTarget( void ) {")
 	assert "static void RBPP_ReleaseSceneRenderTarget( void ) {" in tr_backend
 	assert "static int RBPP_GetBloomMode( void ) {" in tr_backend
-	assert "static void RBPP_ApplyColorCorrectPass( void ) {" in tr_backend
+	assert "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {" in tr_backend
 	assert "static void SetViewportAndScissor( void ) {" in tr_backend
 
 

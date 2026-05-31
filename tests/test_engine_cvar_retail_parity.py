@@ -499,10 +499,13 @@ def test_engine_cvar_fifth_server_tranche_matches_retail_contracts() -> None:
 	sv_init = _read_text(SV_INIT)
 	sv_main = _read_text(SV_MAIN)
 	files = _read_text(FILES)
+	retail_hlil = _read_text(QL_STEAM_HLIL_PART04)
 	ai_main = _read_text(AI_MAIN)
 	be_aas_file = _read_text(BE_AAS_FILE)
 	server_h = _read_text(SERVER_H)
 	qcommon_cm_trace = _read_text(REPO_ROOT / "src" / "code" / "qcommon" / "cm_trace.c")
+	referenced_sums_block = _extract_function_block(files, "const char *FS_ReferencedPakChecksums( void ) {")
+	referenced_names_block = _extract_function_block(files, "const char *FS_ReferencedPakNames( void ) {")
 
 	assert 'Cvar_Get ("sv_paks", "", CVAR_SYSTEMINFO | CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_paks", p );' in sv_init
@@ -525,6 +528,12 @@ def test_engine_cvar_fifth_server_tranche_matches_retail_contracts() -> None:
 	assert 'Cvar_Set( "sv_referencedPakNames", p );' in sv_init
 	assert 't = Info_ValueForKey( systemInfo, NET_GetReferencedPakNamesInfoKey() );' in cl_parse
 	assert 'void FS_PureServerSetReferencedPaks( const char *pakSums, const char *pakNames ) {' in files
+	assert "if ( search->pack->referenced )" in referenced_sums_block
+	assert "if ( search->pack->referenced )" in referenced_names_block
+	assert "Q_stricmpn(search->pack->pakGamename" not in referenced_sums_block
+	assert "Q_stricmpn(search->pack->pakGamename" not in referenced_names_block
+	assert "004d1de0      if (eax_1 != 0 && *(eax_1 + 0x310) != 0)" in retail_hlil
+	assert "004d1e62          if (*(eax_1 + 0x310) != 0)" in retail_hlil
 
 	assert 'Cvar_Get ("sv_referencedSteamworks", "", CVAR_ROM );' in sv_init
 	assert 'Cvar_Set( "sv_referencedSteamworks", referencedSteamworks );' in sv_init
@@ -2795,13 +2804,13 @@ def test_engine_cvar_fortysecond_renderer_postprocess_state_tranche_matches_reta
 	assert 'data_1740d48("r_bloomActive", &data_54ffe0)' in retail_hlil_part01
 	assert 'data_1740d48("r_bloomActive", &data_551624, var_8_5)' in retail_hlil_part01
 	assert 'ri.Cvar_Set( "r_bloomActive", backEnd.bloomActive ? "1" : "0" );' in tr_backend
-	assert 'if ( !backEnd.bloomActive || !s_postProcess.sceneTarget.initialized ||' in tr_backend
+	assert 'if ( !cmd || !backEnd.bloomActive || !s_postProcess.sceneTarget.initialized ||' in tr_backend
 
 	assert 'DAT_01740d90 = (*DAT_01740d40)("r_colorCorrectActive",&DAT_0054ffe0,0x140);' in retail_ghidra
 	assert 'r_colorCorrectActive = ri.Cvar_Get( "r_colorCorrectActive", "0", CVAR_TEMP | CVAR_ROM );' in tr_init
 	assert 'data_1740d48("r_colorCorrectActive", sub_4d9220(&data_52d9b4))' in retail_hlil_part02
 	assert 'ri.Cvar_Set( "r_colorCorrectActive", backEnd.colorCorrectActive ? "1" : "0" );' in tr_backend
-	assert 'if ( !backEnd.colorCorrectActive || !s_postProcess.colorCorrectTexture || !s_postProcess.colorCorrectProgram.programObject ) {' in tr_backend
+	assert 'if ( !cmd || !backEnd.colorCorrectActive || !cmd->colorCorrectTexture || !cmd->colorCorrectProgram ) {' in tr_backend
 
 	assert '_DAT_01740f78 = (*DAT_01740d44)("r_bloomPasses",&DAT_00551624,&DAT_00551624,&DAT_0052f5d8,0x82821)' in retail_ghidra
 	assert 'r_bloomPasses = ri.Cvar_GetBounded( "r_bloomPasses", "1", "1", "2", CVAR_ARCHIVE | CVAR_LATCH | CVAR_PROTECTED | CVAR_BOUNDED_DISCRETE | CVAR_CLOUD );' in tr_init
@@ -3531,9 +3540,9 @@ def test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_c
 	assert 'brightThreshold = r_bloomBrightThreshold ? r_bloomBrightThreshold->value : 0.25f;' in tr_backend
 	assert 's_postProcess.procs.qglUniform1fARBFunc( s_postProcess.brightPassProgram.brightThresholdUniform, brightThreshold );' in tr_backend
 	assert 'RBPP_BindRenderTarget( &s_postProcess.bloomDownsampleTarget );' in tr_backend
-	assert 'RBPP_BindRectangleTexture( 0, s_postProcess.sceneTarget.texture );' in tr_backend
+	assert 'RBPP_BindRectangleTexture( 0, cmd->sceneTexture );' in tr_backend
 	assert 'RBPP_BindRenderTarget( &s_postProcess.bloomBrightTarget );' in tr_backend
-	assert 'RBPP_BindRectangleTexture( 0, s_postProcess.bloomDownsampleTarget.texture );' in tr_backend
+	assert 'RBPP_BindRectangleTexture( 0, cmd->bloomDownsampleTexture );' in tr_backend
 
 	assert 'r_bloomBlurScale = ri.Cvar_GetBounded( "r_bloomBlurScale", "0.0", "1.0", "2.0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );' in tr_init
 	assert 'AssertCvarRange( r_bloomBlurScale, 1.0f, 2.0f, qfalse );' in tr_init

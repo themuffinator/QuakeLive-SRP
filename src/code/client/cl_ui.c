@@ -1317,6 +1317,17 @@ static int QDECL UI_Import_Syscall( int arg, ... ) {
 	int i;
 	va_list ap;
 
+	if ( arg == UI_GETGLCONFIG ) {
+		void *glconfig;
+
+		va_start(ap, arg);
+		glconfig = va_arg(ap, void *);
+		va_end(ap);
+
+		CL_GetRetailGlconfig( glconfig );
+		return 0;
+	}
+
 	args[0] = arg;
 
 	va_start(ap, arg);
@@ -1608,7 +1619,6 @@ static unsigned long long QDECL QL_UI_trap_MeasureText( const char *text, const 
 	float height;
 
 	// uix86.dll HLIL: import[95] (offset 0x17c) measures text and returns packed floats.
-
 	RE_MeasureScaledText( text, end, fontHandle, scale, maxX, &width, &height, outLeft );
 
 	return QL_UI_PackFloatBits64( width, height );

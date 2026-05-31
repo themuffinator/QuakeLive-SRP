@@ -1055,6 +1055,51 @@ QLR_TEST_EXPORT const char *QLR_FS_TestLoadedPakNames( void ) {
 
 /*
 =============
+QLR_FS_TestReferencedPakChecksums
+=============
+*/
+QLR_TEST_EXPORT const char *QLR_FS_TestReferencedPakChecksums( void ) {
+	return FS_ReferencedPakChecksums();
+}
+
+/*
+=============
+QLR_FS_TestReferencedPakNames
+=============
+*/
+QLR_TEST_EXPORT const char *QLR_FS_TestReferencedPakNames( void ) {
+	return FS_ReferencedPakNames();
+}
+
+/*
+=============
+QLR_FS_TestSetPakReferences
+=============
+*/
+QLR_TEST_EXPORT int QLR_FS_TestSetPakReferences( const char *pakBasename, int flags ) {
+	searchpath_t *search;
+	int matched;
+
+	matched = 0;
+
+	for ( search = fs_searchpaths; search; search = search->next ) {
+		if ( !search->pack ) {
+			continue;
+		}
+
+		if ( Q_stricmp( search->pack->pakBasename, pakBasename ) ) {
+			continue;
+		}
+
+		search->pack->referenced = flags;
+		matched++;
+	}
+
+	return matched;
+}
+
+/*
+=============
 QLR_FS_TestReadFile
 =============
 */

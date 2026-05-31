@@ -6396,6 +6396,77 @@ void CL_GetGlconfig( glconfig_t *glconfig ) {
 	*glconfig = cls.glconfig;
 }
 
+typedef struct {
+	char					renderer_string[MAX_STRING_CHARS];
+	char					vendor_string[MAX_STRING_CHARS];
+	char					version_string[MAX_STRING_CHARS];
+	char					extensions_string[BIG_INFO_STRING];
+
+	int						maxTextureSize;
+	int						maxActiveTextures;
+
+	int						colorBits, depthBits, stencilBits;
+
+	glDriverType_t			driverType;
+	glHardwareType_t		hardwareType;
+
+	qboolean				deviceSupportsGamma;
+	textureCompression_t	textureCompression;
+	qboolean				textureEnvAddAvailable;
+	qboolean				multitextureAvailable;
+
+	int						vidWidth, vidHeight;
+	float					windowAspect;
+
+	int						displayFrequency;
+
+	qboolean				isFullscreen;
+	qboolean				stereoEnabled;
+} qlRetailGlconfig_t;
+
+typedef char qlRetailGlconfigSizeCheck[( sizeof( qlRetailGlconfig_t ) == 0x2c44 ) ? 1 : -1 ];
+
+/*
+====================
+CL_GetRetailGlconfig
+
+Retail Quake Live stores GL_ARB_multitexture availability before vidWidth and
+does not expose the legacy smpActive tail slot used by the GPL struct.
+====================
+*/
+void CL_GetRetailGlconfig( void *glconfig ) {
+	qlRetailGlconfig_t retailConfig;
+
+	if ( !glconfig ) {
+		return;
+	}
+
+	Com_Memset( &retailConfig, 0, sizeof( retailConfig ) );
+	Q_strncpyz( retailConfig.renderer_string, cls.glconfig.renderer_string, sizeof( retailConfig.renderer_string ) );
+	Q_strncpyz( retailConfig.vendor_string, cls.glconfig.vendor_string, sizeof( retailConfig.vendor_string ) );
+	Q_strncpyz( retailConfig.version_string, cls.glconfig.version_string, sizeof( retailConfig.version_string ) );
+	Q_strncpyz( retailConfig.extensions_string, cls.glconfig.extensions_string, sizeof( retailConfig.extensions_string ) );
+	retailConfig.maxTextureSize = cls.glconfig.maxTextureSize;
+	retailConfig.maxActiveTextures = cls.glconfig.maxActiveTextures;
+	retailConfig.colorBits = cls.glconfig.colorBits;
+	retailConfig.depthBits = cls.glconfig.depthBits;
+	retailConfig.stencilBits = cls.glconfig.stencilBits;
+	retailConfig.driverType = cls.glconfig.driverType;
+	retailConfig.hardwareType = cls.glconfig.hardwareType;
+	retailConfig.deviceSupportsGamma = cls.glconfig.deviceSupportsGamma;
+	retailConfig.textureCompression = cls.glconfig.textureCompression;
+	retailConfig.textureEnvAddAvailable = cls.glconfig.textureEnvAddAvailable;
+	retailConfig.multitextureAvailable = cls.glconfig.maxActiveTextures > 1 ? qtrue : qfalse;
+	retailConfig.vidWidth = cls.glconfig.vidWidth;
+	retailConfig.vidHeight = cls.glconfig.vidHeight;
+	retailConfig.windowAspect = cls.glconfig.windowAspect;
+	retailConfig.displayFrequency = cls.glconfig.displayFrequency;
+	retailConfig.isFullscreen = cls.glconfig.isFullscreen;
+	retailConfig.stereoEnabled = cls.glconfig.stereoEnabled;
+
+	Com_Memcpy( glconfig, &retailConfig, sizeof( retailConfig ) );
+}
+
 
 /*
 ====================
@@ -7141,6 +7212,17 @@ static int QDECL CG_Import_Syscall( int arg, ... ) {
 	int i;
 	va_list ap;
 
+	if ( arg == CG_GETGLCONFIG ) {
+		void *glconfig;
+
+		va_start(ap, arg);
+		glconfig = va_arg(ap, void *);
+		va_end(ap);
+
+		CL_GetRetailGlconfig( glconfig );
+		return 0;
+	}
+
 	args[0] = arg;
 
 	va_start(ap, arg);
@@ -7330,6 +7412,16 @@ QL_CG_trap_SetActiveAdvert
 */
 static void QDECL QL_CG_trap_SetActiveAdvert( int cellId ) {
 	CL_AdvertisementBridge_SetActiveAdvert( cellId );
+}
+
+/*
+==============
+QL_CG_trap_AdvertisementBridge_Reserved21C0
+==============
+*/
+static void QDECL QL_CG_trap_AdvertisementBridge_Reserved21C0( void ) {
+	// cgamex86.dll HLIL: CG_LoadHudMenu calls import[54], retail sub_4AFF10 -> bridge slot +0x40.
+	cl_webBridge.vtbl->reserved21C0( &cl_webBridge );
 }
 
 /*
@@ -7581,6 +7673,7 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_R_REGISTERSKIN] = (ql_import_f)QL_CG_trap_R_RegisterSkin;
 	ql_cgame_imports[CG_QL_IMPORT_R_REGISTERSHADER] = (ql_import_f)QL_CG_trap_R_RegisterShader;
 	ql_cgame_imports[CG_QL_IMPORT_R_REGISTERSHADERNOMIP] = (ql_import_f)QL_CG_trap_R_RegisterShaderNoMip;
+	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_21C0] = (ql_import_f)QL_CG_trap_AdvertisementBridge_Reserved21C0;
 	ql_cgame_imports[CG_QL_IMPORT_SETUP_ADVERT_CELL_SHADER] = (ql_import_f)QL_CG_trap_SetupAdvertCellShader;
 	ql_cgame_imports[CG_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER] = (ql_import_f)QL_CG_trap_RefreshAdvertCellShader;
 	ql_cgame_imports[CG_QL_IMPORT_SET_ACTIVE_ADVERT] = (ql_import_f)QL_CG_trap_SetActiveAdvert;

@@ -1983,7 +1983,7 @@ void Com_ParseCommandLine( char *commandLine ) {
 		return;
 	}
 
-	tokenLength = 0;
+	tokenLength = 1;
 	for ( i = 0 ; i < argc ; i++ ) {
 		token = Cmd_Argv( i );
 		tokenLength += strlen( token ) + 1;
@@ -2036,6 +2036,10 @@ void Com_ParseCommandLine( char *commandLine ) {
 		tokenLength = strlen( token );
 		Com_Memcpy( cursor, token, tokenLength + 1 );
 		cursor += tokenLength + 1;
+	}
+
+	if ( com_numConsoleLines != 0 ) {
+		*cursor = '\0';
 	}
 }
 

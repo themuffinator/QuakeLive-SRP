@@ -549,6 +549,7 @@ qboolean CL_WebPak_Fetch( const char *virtualPath, void **outBuffer, int *outLen
 int CL_WebPak_GetFileList( const char *path, const char *extension, char *listbuf, int bufsize );
 qboolean CL_WebRequestResolve( const char *virtualPath, void **outBuffer, int *outLength );
 qboolean CL_LauncherRequestData( const char *virtualPath, void **outBuffer, int *outLength );
+void CL_GetRetailGlconfig( void *glconfig );
 void CL_RegisterFont( const char *fontName, int pointSize, fontInfo_t *font );
 void RE_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor, const float *baseColor );
 void RE_MeasureScaledText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outWidth, float *outHeight, float *outLeft );

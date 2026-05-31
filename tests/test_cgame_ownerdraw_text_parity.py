@@ -1237,6 +1237,616 @@ def test_item_score_race_and_oneflag_ownerdraws_50_to_54_match_retail_dispatch_v
     assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in display_context_block
 
 
+def test_flag_harvester_and_key_ownerdraws_55_to_59_match_retail_dispatch_values_and_menus() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    main_source = CG_MAIN.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    all_menu_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+    )
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    value_block = _block_from_marker(source, "float CG_GetValue")
+    width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+    key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+    display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+    flag_block = _block_from_marker(source, "static void CG_DrawPlayerHasFlag")
+    harvester_block = _block_from_marker(source, "static void CG_HarvesterSkulls")
+    player_key_block = _block_from_marker(source, "static void CG_DrawPlayerHasKey")
+    retail_switch = _block_from_marker(ghidra_source, "void FUN_1003b0f0")
+    retail_flag = _text_between(
+        hlil_source,
+        "10031cd0    void* __fastcall sub_10031cd0",
+        "10031f90",
+    )
+    retail_harvester = _text_between(
+        hlil_source,
+        "10030df0    int32_t* sub_10030df0",
+        "10030ff0",
+    )
+    retail_key = _text_between(
+        hlil_source,
+        "10031f90    void* sub_10031f90",
+        "10032110",
+    )
+
+    def menu_ownerdraw_count(menu_source: str, ownerdraw: str) -> int:
+        return sum(
+            1
+            for line in menu_source.splitlines()
+            if line.split()[:2] == ["ownerdraw", ownerdraw]
+        )
+
+    for ownerdraw, value in (
+        ("CG_PLAYER_HASFLAG", "55"),
+        ("CG_PLAYER_HASFLAG2D", "56"),
+        ("CG_HARVESTER_SKULLS", "57"),
+        ("CG_HARVESTER_SKULLS2D", "58"),
+        ("CG_PLAYER_HASKEY", "59"),
+    ):
+        assert any(line.split()[:3] == ["#define", ownerdraw, value] for line in menudef_source.splitlines())
+        assert ownerdraw not in value_block
+        assert ownerdraw not in width_block
+        assert ownerdraw not in key_block
+
+    for expected in (
+        "case 0x37:\n    FUN_10031cd0();",
+        "case 0x38:\n    FUN_10031cd0();",
+        "case 0x39:",
+        "uVar1 = 0;",
+        "case 0x3a:",
+        "uVar1 = 1;",
+        "FUN_10030df0(param_13,param_14,uVar1,param_16);",
+        "case 0x3b:\n    FUN_10031f90();",
+    ):
+        assert expected in retail_switch
+
+    for expected in (
+        "case CG_PLAYER_HASFLAG:",
+        "CG_DrawPlayerHasFlag(&rect, qfalse);",
+        "case CG_PLAYER_HASFLAG2D:",
+        "CG_DrawPlayerHasFlag(&rect, qtrue);",
+        "case CG_HARVESTER_SKULLS:",
+        "CG_HarvesterSkulls(&rect, scale, color, qfalse, textStyle);",
+        "case CG_HARVESTER_SKULLS2D:",
+        "CG_HarvesterSkulls(&rect, scale, color, qtrue, textStyle);",
+        "case CG_PLAYER_HASKEY:",
+        "CG_DrawPlayerHasKey( &rect );",
+    ):
+        assert expected in ownerdraw_block
+
+    for expected in (
+        "var_40 = (sbb.d(eax_3, eax_3, arg1 != 0) & 0xfffffffc) + 4",
+        "if (data_10a9c354 != 0)",
+        "if (data_10a9c358 != 0)",
+        "if (data_10a9c35c != 0)",
+        "sub_10009660",
+        "data_10a3ff14 == 6",
+        '(*(data_1074cccc + 0x184))("dropflag")',
+        'sub_100575e0("Press %s to throw.")',
+        "fconvert.t(0.180000007f)",
+    ):
+        assert expected in retail_flag
+
+    for expected in (
+        "inset = force2D ? 0.0f : 4.0f;",
+        "cg.predictedPlayerState.powerups[PW_REDFLAG]",
+        "cg.predictedPlayerState.powerups[PW_BLUEFLAG]",
+        "cg.predictedPlayerState.powerups[PW_NEUTRALFLAG]",
+        "CG_DrawFlagModel( rect->x + inset, rect->y + inset, rect->w - inset, rect->h - inset, flagTeam, force2D );",
+        'key = trap_Key_GetKey( "dropflag" );',
+        'trap_Key_KeynumToStringBuf( key, keyName, sizeof( keyName ) );',
+        'Q_strupr( keyName );',
+        'Com_sprintf( prompt, sizeof( prompt ), "Press %s to throw.", keyName );',
+        "promptScale = 0.18f;",
+        "CG_Text_Paint( promptX, rect->y + rect->h, promptScale, promptColor, prompt, 0, 0, 3 );",
+    ):
+        assert expected in flag_block
+
+    for expected in (
+        "*(data_10a6f8c4 + 0x1ec) & 0x3f",
+        "data_10a3ff14 == 8",
+        "fconvert.t(ebx[3]) + fconvert.t(ebx[1])",
+        "fconvert.t(ebx[2]) - float.t(var_38) + fconvert.t(*ebx)",
+        "data_10b7102c != 0",
+        "arg3 == 0 && data_10a69a2c != 0",
+        "*(data_10a6f8c4 + 0x138) == 2",
+        "fconvert.t(ebx[1]) + fconvert.t(5.0)",
+        "fconvert.t(35f)",
+        "fconvert.t(ebx[1]) + fconvert.t(16.0)",
+        "fconvert.t(*ebx) + fconvert.t(3.0)",
+        "fconvert.t(20f)",
+    ):
+        assert expected in retail_harvester
+
+    for expected in (
+        "if (cgs.gametype != GT_HARVESTER) {",
+        "value = cg.snap->ps.generic1 & 0x3f;",
+        "CG_Text_Paint(rect->x + (rect->w - value), rect->y + rect->h, scale, color, num, 0, 0, textStyle);",
+        "if (!force2D && cg_draw3dIcons.integer) {",
+        "handle = cgs.media.redCubeModel;",
+        "handle = cgs.media.blueCubeModel;",
+        "CG_Draw3DModel( rect->x, rect->y + 5, 35, 35, handle, 0, origin, angles );",
+        "handle = cgs.media.redCubeIcon;",
+        "handle = cgs.media.blueCubeIcon;",
+        "CG_DrawPic( rect->x + 3, rect->y + 16, 20, 20, handle );",
+    ):
+        assert expected in harvester_block
+    assert "CG_Draw3DModel( rect->x, rect->y, 35, 35" not in harvester_block
+
+    for expected in (
+        "*(data_10a6f8c4 + 0x128) & 1",
+        "sub_10001170(ecx, 1, 9)",
+        "*(data_10a6f8c4 + 0x128) & 2",
+        "sub_10001170(ecx, 2, 9)",
+        "*(result + 0x128) & 4",
+        "sub_10001170(ecx, 4, 9)",
+        "fconvert.t(arg1[2]) * fconvert.t(0.5)",
+        "sub_100126a0",
+    ):
+        assert expected in retail_key
+
+    for expected in (
+        "mask = cg.snap->ps.stats[STAT_KEY_MASK];",
+        "{ KEY_FLAG_SILVER, KEY_FLAG_SILVER }",
+        "{ KEY_FLAG_GOLD, KEY_FLAG_GOLD }",
+        "{ KEY_FLAG_MASTER, KEY_FLAG_MASTER }",
+        "item = BG_FindItemByTypeAndTag( IT_KEY, def->tag );",
+        "CG_RegisterItemVisuals( itemNum );",
+        "icon = trap_R_RegisterShader( item->icon );",
+        "CG_DrawPic( x, rect->y, rect->w, rect->h, icon );",
+        "x += rect->w * 0.5f;",
+    ):
+        assert expected in player_key_block or expected in source
+    assert "BG_FindItemByClassname" not in player_key_block
+    assert "x += rect->w * 0.65f;" not in player_key_block
+
+    assert menu_ownerdraw_count(all_menu_source, "CG_PLAYER_HASFLAG") == 6
+    assert menu_ownerdraw_count(all_menu_source, "CG_PLAYER_HASFLAG2D") == 0
+    assert menu_ownerdraw_count(all_menu_source, "CG_HARVESTER_SKULLS") == 5
+    assert menu_ownerdraw_count(all_menu_source, "CG_HARVESTER_SKULLS2D") == 0
+    assert menu_ownerdraw_count(all_menu_source, "CG_PLAYER_HASKEY") == 5
+
+    assert "cgDC.ownerDrawItem = &CG_OwnerDraw;" in display_context_block
+    assert "cgDC.getValue = &CG_GetValue;" in display_context_block
+    assert "cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;" in display_context_block
+    assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in display_context_block
+
+
+def test_powerup_teamcolor_killer_and_accuracy_ownerdraws_60_to_64_match_retail_dispatch_values_and_menus() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    main_source = CG_MAIN.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    all_menu_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+    )
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    value_block = _block_from_marker(source, "float CG_GetValue")
+    width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+    key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+    display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+    ctf_powerup_block = _block_from_marker(source, "static void CG_DrawCTFPowerUp")
+    area_powerup_block = _block_from_marker(source, "static void CG_DrawAreaPowerUp")
+    powerup_stack_block = _block_from_marker(source, "static void CG_DrawPowerupSpriteStack")
+    powerup_frag_block = _block_from_marker(source, "static void CG_DrawPowerupFragCount")
+    team_color_block = _block_from_marker(source, "static void CG_DrawTeamColor")
+    killer_text_block = _block_from_marker(source, "const char *CG_GetKillerText")
+    killer_block = _block_from_marker(source, "static void CG_DrawKiller")
+    medal_block = _block_from_marker(source, "void CG_DrawMedal")
+    retail_switch = _block_from_marker(ghidra_source, "void FUN_1003b0f0(")
+    retail_ctf_powerup = _text_between(
+        hlil_source,
+        "100310f0    void* sub_100310f0",
+        "10031154",
+    )
+    retail_area_powerup = _text_between(
+        hlil_source,
+        "10031160    void __convention(\"regparm\") sub_10031160",
+        "10031605",
+    )
+    retail_team_color = _text_between(
+        hlil_source,
+        "10009850    int32_t sub_10009850",
+        "1000992a",
+    )
+    retail_killer = _text_between(
+        hlil_source,
+        "10032110    int32_t __convention(\"regparm\") sub_10032110",
+        "10032236",
+    )
+    retail_medal = _text_between(
+        hlil_source,
+        "10035340    int32_t __convention(\"regparm\") sub_10035340",
+        "1003550b",
+    )
+
+    def menu_ownerdraw_count(menu_source: str, ownerdraw: str) -> int:
+        return sum(
+            1
+            for line in menu_source.splitlines()
+            if line.split()[:2] == ["ownerdraw", ownerdraw]
+        )
+
+    for ownerdraw, value in (
+        ("CG_CTF_POWERUP", "60"),
+        ("CG_AREA_POWERUP", "61"),
+        ("CG_TEAM_COLOR", "62"),
+        ("CG_KILLER", "63"),
+        ("CG_ACCURACY", "64"),
+    ):
+        assert any(line.split()[:3] == ["#define", ownerdraw, value] for line in menudef_source.splitlines())
+        assert f"case {ownerdraw}:" not in value_block
+        assert f"case {ownerdraw}:" not in key_block
+
+    for ownerdraw in ("CG_CTF_POWERUP", "CG_AREA_POWERUP", "CG_TEAM_COLOR", "CG_ACCURACY"):
+        assert f"case {ownerdraw}:" not in width_block
+    assert "case CG_KILLER:" in width_block
+    assert "return CG_Text_Width( CG_GetKillerText(), scale, 0 );" in width_block
+
+    for expected in (
+        "case 0x3c:\n    FUN_100310f0();",
+        "case 0x3d:\n    FUN_10031160(&local_18,param_10,param_11,param_13);",
+        "case 0x3e:",
+        "FUN_10009850((int)param_1,(int)param_2,(int)param_3,(int)param_4,",
+        "*(undefined4 *)(DAT_10a6f8c4 + 0x138)",
+        "case 0x3f:",
+        "if (DAT_10aa6988 != '\\0') {",
+        "FUN_10032110(param_13,param_14,param_16,param_10);",
+        "case 0x40:",
+        "FUN_10035340(param_12,param_13,param_14,param_15);",
+    ):
+        assert expected in retail_switch
+
+    for expected in (
+        "case CG_CTF_POWERUP:",
+        "CG_DrawCTFPowerUp(&rect);",
+        "case CG_AREA_POWERUP:",
+        "CG_DrawAreaPowerUp(&rect, align, special, scale, color);",
+        "case CG_TEAM_COLOR:",
+        "CG_DrawTeamColor(&rect, color);",
+        "case CG_KILLER:",
+        "if ( cg.killerName[0] ) {",
+        "CG_DrawKiller(&rect, scale, color, shader, textStyle);",
+        "case CG_ACCURACY:",
+        "CG_DrawMedal(ownerDraw, &rect, scale, color, shader);",
+    ):
+        assert expected in ownerdraw_block
+
+    for expected in (
+        "value = cg.snap->ps.stats[STAT_PERSISTANT_POWERUP];",
+        "if ( value <= 0 || value >= bg_numItems ) {",
+        "CG_RegisterItemVisuals( value );",
+        "CG_DrawPic( rect->x, rect->y, rect->w, rect->h, cg_items[ value ].icon );",
+    ):
+        assert expected in ctf_powerup_block
+
+    for expected in (
+        "int32_t edx = *(result + 0xf4)",
+        "if (edx == 0)",
+        "sub_10001170(ecx, edx, 7)",
+        "sub_100126a0",
+    ):
+        assert expected in retail_ctf_powerup
+
+    assert "CG_DrawPowerupSpriteStack( rect, align, special, scale, color, &cg.snap->ps );" in area_powerup_block
+    assert "cg_drawSprites.integer" not in area_powerup_block
+    assert "CG_ShouldDrawSpriteSelf()" not in area_powerup_block
+
+    for expected in (
+        "for ( i = 1; i < MAX_POWERUPS; i++ ) {",
+        "if ( i == PW_NEUTRALFLAG || i == PW_NUM_POWERUPS ) {",
+        "if ( !ps->powerups[i] || ps->powerups[i] == 0x7fffffff ) {",
+        "if ( t <= 0 || t >= 999000 ) {",
+        'Com_sprintf(num, sizeof(num), "%i", sortedTime[i] / 1000 + 1);',
+        "CG_DrawPowerupFragCount( &r2, ps, item );",
+    ):
+        assert expected in powerup_stack_block
+    assert 'Com_sprintf( num, sizeof( num ), "x %i", count );' in powerup_frag_block
+    assert '"x%i"' not in powerup_frag_block
+
+    for expected in (
+        "if (eax_5 != 0 && eax_5 != 0x7fffffff && i != 9 && i != 0xf)",
+        "if (eax_6 - 1 u<= 0xf3e56)",
+        "sub_100575e0(&data_100687a8)",
+        "*(eax_9 + 0x38) != 5",
+        "*(eax_9 + 0x38) == 4",
+    ):
+        assert expected in retail_area_powerup
+    assert retail_area_powerup.count('sub_100575e0("x %i")') == 2
+
+    assert "CG_DrawTeamBackground( rect->x, rect->y, rect->w, rect->h, color[3], cg.snap->ps.persistant[PERS_TEAM] );" in team_color_block
+    for expected in (
+        "if (result == 1)",
+        "else if (result == 2)",
+        "data_10a5f41c",
+        "sub_100126a0",
+    ):
+        assert expected in retail_team_color
+
+    assert 's = va( "Fragged by %s", cg.killerName );' in killer_text_block
+    assert "x = rect->x + rect->w * 0.5f - CG_Text_Width( text, scale, 0 ) * 0.5f;" in killer_block
+    assert "CG_Text_Paint( x, rect->y + rect->h, scale, color, text, 0, 0, textStyle );" in killer_block
+    for expected in (
+        "if (data_10aa6988 != 0)",
+        'sub_100575e0("Fragged by %s")',
+        "if (eax == 1)",
+        "else if (eax == 2)",
+        "sub_10008440",
+    ):
+        assert expected in retail_killer
+
+    for expected in (
+        "case CG_ACCURACY:",
+        "value = score->accuracy;",
+        'text = va( "%i%%", (int)value );',
+        "color[3] = 1.0;",
+        "CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );",
+        "CG_Text_Paint( rect->x + ( rect->w - value ) / 2, rect->y + rect->h + 10, scale, color, text, 0, 0, 0 );",
+    ):
+        assert expected in medal_block
+    for expected in (
+        "case 0x40",
+        "xmm0_1 = float.s(*(eax_2 + 0xac))",
+        'ebp = sub_100575e0("%i%%")',
+        "*(arg6 i+ 0xc) = 0x3f800000",
+    ):
+        assert expected in retail_medal
+
+    assert menu_ownerdraw_count(all_menu_source, "CG_CTF_POWERUP") == 6
+    assert menu_ownerdraw_count(all_menu_source, "CG_AREA_POWERUP") == 6
+    assert menu_ownerdraw_count(all_menu_source, "CG_TEAM_COLOR") == 0
+    assert menu_ownerdraw_count(all_menu_source, "CG_KILLER") == 12
+    assert menu_ownerdraw_count(all_menu_source, "CG_ACCURACY") == 16
+
+    assert "cgDC.ownerDrawItem = &CG_OwnerDraw;" in display_context_block
+    assert "cgDC.getValue = &CG_GetValue;" in display_context_block
+    assert "cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;" in display_context_block
+    assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in display_context_block
+
+
+def test_assist_capture_combo_defend_and_excellent_ownerdraws_65_to_69_match_retail_medal_and_noop_wiring() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    main_source = CG_MAIN.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    all_menu_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+    )
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    value_block = _block_from_marker(source, "float CG_GetValue")
+    width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+    key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+    display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+    medal_block = _block_from_marker(source, "void CG_DrawMedal")
+    noop_block = ownerdraw_block[
+        ownerdraw_block.index("case CG_COMBOKILLS:"):
+        ownerdraw_block.index("case CG_ACCURACY:")
+    ]
+    medal_dispatch_block = ownerdraw_block[
+        ownerdraw_block.index("case CG_ACCURACY:"):
+        ownerdraw_block.index("case CG_SPECTATORS:")
+    ]
+    retail_switch = _block_from_marker(ghidra_source, "void FUN_1003b0f0(")
+    retail_medal = _text_between(
+        hlil_source,
+        "10035340    int32_t __convention(\"regparm\") sub_10035340",
+        "1003550b",
+    )
+
+    def menu_ownerdraw_count(menu_source: str, ownerdraw: str) -> int:
+        return sum(
+            1
+            for line in menu_source.splitlines()
+            if line.split()[:2] == ["ownerdraw", ownerdraw]
+        )
+
+    for ownerdraw, value in (
+        ("CG_ASSISTS", "65"),
+        ("CG_CAPTURES", "66"),
+        ("CG_COMBOKILLS", "67"),
+        ("CG_DEFEND", "68"),
+        ("CG_EXCELLENT", "69"),
+    ):
+        assert any(line.split()[:3] == ["#define", ownerdraw, value] for line in menudef_source.splitlines())
+        assert f"case {ownerdraw}:" not in value_block
+        assert f"case {ownerdraw}:" not in width_block
+        assert f"case {ownerdraw}:" not in key_block
+
+    for expected in (
+        "case 0x41:",
+        "case 0x42:",
+        "case 0x44:",
+        "case 0x45:",
+        "FUN_10035340(param_12,param_13,param_14,param_15);",
+    ):
+        assert expected in retail_switch
+    assert "case 0x43:" not in retail_switch
+
+    for expected in (
+        "case CG_ASSISTS:",
+        "case CG_CAPTURES:",
+        "case CG_DEFEND:",
+        "case CG_EXCELLENT:",
+        "CG_DrawMedal(ownerDraw, &rect, scale, color, shader);",
+    ):
+        assert expected in medal_dispatch_block
+    assert "CG_COMBOKILLS" not in medal_dispatch_block
+
+    assert "case CG_COMBOKILLS:" in noop_block
+    assert "return;" in noop_block
+    assert "CG_DrawMedal" not in noop_block
+    assert "CG_DrawAwardPlayer" not in noop_block
+
+    for expected in (
+        "case CG_ASSISTS:",
+        "value = score->assistCount;",
+        "case CG_CAPTURES:",
+        "value = score->captures;",
+        "case CG_DEFEND:",
+        "value = score->defendCount;",
+        "case CG_EXCELLENT:",
+        "value = score->excellentCount;",
+        'text = va( "%i", (int)value );',
+        "color[3] = 0.25;",
+        "color[3] = 1.0;",
+        "CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );",
+        "CG_Text_Paint( rect->x + ( rect->w - value ) / 2, rect->y + rect->h + 10, scale, color, text, 0, 0, 0 );",
+    ):
+        assert expected in medal_block
+    assert "case CG_COMBOKILLS:" not in medal_block
+
+    for expected in (
+        "case 0x41",
+        "xmm0_1 = float.s(*(eax_2 + 0xc0))",
+        "case 0x42",
+        "xmm0_1 = float.s(*(eax_2 + 0xc4))",
+        "case 0x44",
+        "xmm0_1 = float.s(*(eax_2 + 0xbc))",
+        "case 0x45",
+        "xmm0_1 = float.s(*(eax_2 + 0xb4))",
+        "ebp = sub_100575e0(&data_100687a8)",
+    ):
+        assert expected in retail_medal
+    assert "case 0x43" not in retail_medal
+
+    assert menu_ownerdraw_count(all_menu_source, "CG_ASSISTS") == 2
+    assert menu_ownerdraw_count(all_menu_source, "CG_CAPTURES") == 2
+    assert menu_ownerdraw_count(all_menu_source, "CG_COMBOKILLS") == 0
+    assert menu_ownerdraw_count(all_menu_source, "CG_DEFEND") == 2
+    assert menu_ownerdraw_count(all_menu_source, "CG_EXCELLENT") == 24
+
+    assert "cgDC.ownerDrawItem = &CG_OwnerDraw;" in display_context_block
+    assert "cgDC.getValue = &CG_GetValue;" in display_context_block
+    assert "cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;" in display_context_block
+    assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in display_context_block
+
+
+def test_gauntlet_impressive_rampage_midair_and_perfect_ownerdraws_70_to_74_match_retail_medal_and_noop_wiring() -> None:
+    source = CG_NEWDRAW.read_text(encoding="utf-8")
+    main_source = CG_MAIN.read_text(encoding="utf-8")
+    hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+    ghidra_source = CGAME_GHIDRA.read_text(encoding="utf-8")
+    menudef_source = MENUDEF_H.read_text(encoding="utf-8")
+    all_menu_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in (REPO_ROOT / "src" / "ui").glob("*.menu")
+    )
+    ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+    value_block = _block_from_marker(source, "float CG_GetValue")
+    width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+    key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+    display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+    medal_block = _block_from_marker(source, "void CG_DrawMedal")
+    noop_block = ownerdraw_block[
+        ownerdraw_block.index("case CG_COMBOKILLS:"):
+        ownerdraw_block.index("case CG_ACCURACY:")
+    ]
+    medal_dispatch_block = ownerdraw_block[
+        ownerdraw_block.index("case CG_ACCURACY:"):
+        ownerdraw_block.index("case CG_SPECTATORS:")
+    ]
+    retail_switch = _block_from_marker(ghidra_source, "void FUN_1003b0f0(")
+    retail_medal = _text_between(
+        hlil_source,
+        "10035340    int32_t __convention(\"regparm\") sub_10035340",
+        "1003550b",
+    )
+
+    def menu_ownerdraw_count(menu_source: str, ownerdraw: str) -> int:
+        return sum(
+            1
+            for line in menu_source.splitlines()
+            if line.split()[:2] == ["ownerdraw", ownerdraw]
+        )
+
+    for ownerdraw, value in (
+        ("CG_GAUNTLET", "70"),
+        ("CG_IMPRESSIVE", "71"),
+        ("CG_RAMPAGES", "72"),
+        ("CG_MIDAIRS", "73"),
+        ("CG_PERFECT", "74"),
+    ):
+        assert any(line.split()[:3] == ["#define", ownerdraw, value] for line in menudef_source.splitlines())
+        assert f"case {ownerdraw}:" not in value_block
+        assert f"case {ownerdraw}:" not in width_block
+        assert f"case {ownerdraw}:" not in key_block
+
+    for expected in (
+        "case 0x46:",
+        "case 0x47:",
+        "case 0x4a:",
+        "FUN_10035340(param_12,param_13,param_14,param_15);",
+    ):
+        assert expected in retail_switch
+    assert "case 0x48:" not in retail_switch
+    assert "case 0x49:" not in retail_switch
+
+    for expected in (
+        "case CG_GAUNTLET:",
+        "case CG_IMPRESSIVE:",
+        "case CG_PERFECT:",
+        "CG_DrawMedal(ownerDraw, &rect, scale, color, shader);",
+    ):
+        assert expected in medal_dispatch_block
+    assert "CG_RAMPAGES" not in medal_dispatch_block
+    assert "CG_MIDAIRS" not in medal_dispatch_block
+
+    for expected in (
+        "case CG_RAMPAGES:",
+        "case CG_MIDAIRS:",
+        "return;",
+    ):
+        assert expected in noop_block
+    assert "CG_DrawMedal" not in noop_block
+    assert "CG_DrawAwardPlayer" not in noop_block
+
+    for expected in (
+        "case CG_GAUNTLET:",
+        "value = score->guantletCount;",
+        "case CG_IMPRESSIVE:",
+        "value = score->impressiveCount;",
+        "case CG_PERFECT:",
+        "value = score->perfect;",
+        'text = va( "%i", (int)value );',
+        'text = "Wow";',
+        "color[3] = 0.25;",
+        "color[3] = 1.0;",
+        "CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );",
+        "CG_Text_Paint( rect->x + ( rect->w - value ) / 2, rect->y + rect->h + 10, scale, color, text, 0, 0, 0 );",
+    ):
+        assert expected in medal_block
+    assert "case CG_RAMPAGES:" not in medal_block
+    assert "case CG_MIDAIRS:" not in medal_block
+
+    for expected in (
+        "case 0x46",
+        "xmm0_1 = float.s(*(eax_2 + 0xb8))",
+        "case 0x47",
+        "xmm0_1 = float.s(*(eax_2 + 0xb0))",
+        "case 0x4a",
+        "xmm0_1 = float.s(*(eax_2 + 0xe4))",
+        "ebp = &data_10070dc8",
+        "ebp = sub_100575e0(&data_100687a8)",
+    ):
+        assert expected in retail_medal
+    assert "case 0x48" not in retail_medal
+    assert "case 0x49" not in retail_medal
+
+    assert menu_ownerdraw_count(all_menu_source, "CG_GAUNTLET") == 24
+    assert menu_ownerdraw_count(all_menu_source, "CG_IMPRESSIVE") == 24
+    assert menu_ownerdraw_count(all_menu_source, "CG_RAMPAGES") == 0
+    assert menu_ownerdraw_count(all_menu_source, "CG_MIDAIRS") == 0
+    assert menu_ownerdraw_count(all_menu_source, "CG_PERFECT") == 0
+
+    assert "cgDC.ownerDrawItem = &CG_OwnerDraw;" in display_context_block
+    assert "cgDC.getValue = &CG_GetValue;" in display_context_block
+    assert "cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;" in display_context_block
+    assert "cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;" in display_context_block
+
+
 def test_level_timer_uses_retail_clock_format() -> None:
     source = CG_NEWDRAW.read_text(encoding="utf-8")
     draw_source = CG_DRAW.read_text(encoding="utf-8")

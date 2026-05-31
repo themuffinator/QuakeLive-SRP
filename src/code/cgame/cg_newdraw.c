@@ -5652,12 +5652,12 @@ static qboolean CG_BuildPlacementWeaponMetricText( int ownerDraw, const score_t 
 	}
 
 	if ( normalized >= CG_1ST_PLYR_HITS_MG && normalized <= CG_1ST_PLYR_HITS_HMG ) {
-		Com_sprintf( buffer, bufferSize, "%i", stats->weaponHits[weapon] );
+		Com_sprintf( buffer, bufferSize, "%d", stats->weaponHits[weapon] );
 		return qtrue;
 	}
 
 	if ( normalized >= CG_1ST_PLYR_SHOTS_MG && normalized <= CG_1ST_PLYR_SHOTS_HMG ) {
-		Com_sprintf( buffer, bufferSize, "%i", stats->weaponShots[weapon] );
+		Com_sprintf( buffer, bufferSize, "%d", stats->weaponShots[weapon] );
 		return qtrue;
 	}
 
@@ -8490,7 +8490,7 @@ static void CG_HarvesterSkulls(rectDef_t *rect, float scale, vec4_t color, qbool
 			} else {
 				handle = cgs.media.blueCubeModel;
 			}
-			CG_Draw3DModel( rect->x, rect->y, 35, 35, handle, 0, origin, angles );
+			CG_Draw3DModel( rect->x, rect->y + 5, 35, 35, handle, 0, origin, angles );
 		} else {
 			if( cg.snap->ps.persistant[PERS_TEAM] == TEAM_BLUE ) {
 				handle = cgs.media.redCubeIcon;
@@ -9196,7 +9196,7 @@ static void CG_DrawPowerupFragCount( const rectDef_t *cursor, const playerState_
 	}
 
 	CG_DrawPic( cursor->x + 10.0f, cursor->y - cursor->h, cursor->w * 0.75f, cursor->h * 0.75f, cgs.media.powerupFragIcon );
-	Com_sprintf( num, sizeof( num ), "x%i", count );
+	Com_sprintf( num, sizeof( num ), "x %i", count );
 	CG_Text_Paint( cursor->x + 15.0f, cursor->y - cursor->h * 0.5f, 0.2f, colorWhite, num, 0, 0, 0 );
 }
 

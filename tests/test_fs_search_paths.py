@@ -69,6 +69,12 @@ def fs_harness(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
 	lib.QLR_FS_TestSetDebug.argtypes = [ctypes.c_int]
 	lib.QLR_FS_TestLoadedPakNames.argtypes = []
 	lib.QLR_FS_TestLoadedPakNames.restype = ctypes.c_char_p
+	lib.QLR_FS_TestReferencedPakChecksums.argtypes = []
+	lib.QLR_FS_TestReferencedPakChecksums.restype = ctypes.c_char_p
+	lib.QLR_FS_TestReferencedPakNames.argtypes = []
+	lib.QLR_FS_TestReferencedPakNames.restype = ctypes.c_char_p
+	lib.QLR_FS_TestSetPakReferences.argtypes = [ctypes.c_char_p, ctypes.c_int]
+	lib.QLR_FS_TestSetPakReferences.restype = ctypes.c_int
 	lib.QLR_FS_TestClearCapturedLog.argtypes = []
 	lib.QLR_FS_TestCapturedLog.argtypes = []
 	lib.QLR_FS_TestCapturedLog.restype = ctypes.c_char_p
@@ -106,6 +112,15 @@ def _write_pk3(root: Path, relative: str, content: str) -> None:
 
 def _write_named_pk3(root: Path, pak_name: str, relative: str, content: str) -> None:
     pak_path = root / "baseq3" / pak_name
+    with zipfile.ZipFile(pak_path, "w") as archive:
+        archive.writestr(relative, content)
+
+
+def _write_named_game_pk3(
+    root: Path, game: str, pak_name: str, relative: str, content: str
+) -> None:
+    pak_path = root / game / pak_name
+    pak_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(pak_path, "w") as archive:
         archive.writestr(relative, content)
 
@@ -325,4 +340,27 @@ def test_homepath_overlay_pk3_precedes_lower_priority_base_pk3_and_logs_source(
     assert content == "overlay-bundle"
     assert "FS_FOpenFileRead: ui/hud.txt" in captured
     assert str(homepath / "baseq3" / "overlay.pk3") in captured
+
+
+def test_referenced_pak_publication_requires_retail_reference_flags(
+    fs_environment: Tuple[ctypes.CDLL, Path, Path],
+) -> None:
+    lib, basepath, _ = fs_environment
+
+    _write_named_pk3(basepath, "pak00.pk3", "default.cfg", "base")
+    _write_named_game_pk3(basepath, "qlmod", "pak_mod.pk3", "maps/test.bsp", "mod")
+
+    lib.QLR_FS_TestAddGameDirectory(str(basepath).encode(), b"baseq3")
+    lib.QLR_FS_TestAddGameDirectory(str(basepath).encode(), b"qlmod")
+
+    assert lib.QLR_FS_TestReferencedPakChecksums().decode() == ""
+    assert lib.QLR_FS_TestReferencedPakNames().decode() == ""
+
+    assert lib.QLR_FS_TestSetPakReferences(b"pak_mod", 1) == 1
+
+    checksums = lib.QLR_FS_TestReferencedPakChecksums().decode().strip().split()
+    names = lib.QLR_FS_TestReferencedPakNames().decode().strip().split()
+
+    assert len(checksums) == 1
+    assert names == ["qlmod/pak_mod"]
 

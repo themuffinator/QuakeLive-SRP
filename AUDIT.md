@@ -1,6 +1,6 @@
 # Quake Live Parity Audit
 
-Last updated: 2026-05-26
+Last updated: 2026-05-31
 
 This file is the current cross-subsystem ledger for the repository. Detailed
 reconstruction history belongs in the dedicated subsystem audits under
@@ -69,6 +69,11 @@ The current audited state, with the aggregate pytest sweep refreshed on
   `CL_CreateCmd` / `CL_WritePacket`, qcommon keyed usercmd deltas, server
   `SV_UserMove` / `SV_ClientThink`, qagame `G_GET_USERCMD`, and cgame
   `trap_GetUserCmd` prediction access.
+- The 2026-05-31 referenced-pak publication re-audit keeps the
+  `sv_referencedPaks` / `sv_referencedPakNames` filesystem publication and
+  client autodownload decision lane at **100%** by matching the retail
+  `FS_ReferencedPakChecksums` / `FS_ReferencedPakNames` flag-only condition
+  instead of the older Quake III fs_game-wide publication rule.
 - The 2026-05-26 renderer framebuffer/post-process reconstruction keeps the
   scoped post-process framebuffer owner lane at **99.93%** by retiring the
   disconnected legacy `GL_TEXTURE_2D` scene-target and scratch-bloom helper
@@ -89,6 +94,10 @@ The current audited state, with the aggregate pytest sweep refreshed on
   post-process proc gate lane at **99.99%** by splitting framebuffer-only
   render-target procedure loading from the shader/uniform procedure gate used
   by post-effect program setup.
+- The 2026-05-31 renderer post-process command-payload reconstruction closes
+  the scoped post-process command wiring lane at **100%** by matching retail's
+  command-buffer texture/program handle consumption for color-correct and
+  bloom execution.
 - The strict-retail Windows replacement target remains defensible at
   **100%** on the current worktree.
 - Repo-wide parity is not **100%** once the deliberate compatibility-only

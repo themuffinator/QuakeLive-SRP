@@ -1,6 +1,6 @@
 # CGame Ownerdrawtype Parity Index
 
-Last updated: 2026-05-29
+Last updated: 2026-05-31
 
 Scope: the cgame ownerdraw block in `src/ui/menudef.h`, from `CG_SERVER_SETTINGS` (`1`) through `CG_MATCH_STATE` (`339`). This index intentionally excludes `CG_SHOW_*` visibility flags, `UI_*` ownerdraws beginning at `UI_OWNERDRAW_BASE` (`512`), and the `src/code/ui/ui_shared.h` source-only legacy aliases after `339`.
 
@@ -76,47 +76,47 @@ Summary:
 | 52 | `CG_RACE_STATUS` | Direct switch: shared CG_DrawRaceStatusAndTimes status branch with the recovered respawn/status text source. | Checked | No action unless source changes. |
 | 53 | `CG_RACE_TIMES` | Direct switch: shared CG_DrawRaceStatusAndTimes timing branch with current/last/best/leader Race timing strings. | Checked | No action unless source changes. |
 | 54 | `CG_ONEFLAG_STATUS` | Direct switch: CG_OneFlagStatus using the retail flag-status shader bank, white draw color, and stolen-flag score-dependent y offset. | Checked | No action unless source changes. |
-| 55 | `CG_PLAYER_HASFLAG` | Direct switch: CG_DrawPlayerHasFlag in model/icon mode. | Checked | No action unless source changes. |
-| 56 | `CG_PLAYER_HASFLAG2D` | Direct switch: CG_DrawPlayerHasFlag forced 2D. | Checked | No action unless source changes. |
-| 57 | `CG_HARVESTER_SKULLS` | Direct switch: CG_HarvesterSkulls in 3D-capable mode. | Checked | No action unless source changes. |
-| 58 | `CG_HARVESTER_SKULLS2D` | Direct switch: CG_HarvesterSkulls forced 2D. | Checked | No action unless source changes. |
-| 59 | `CG_PLAYER_HASKEY` | Direct switch: CG_DrawPlayerHasKey using retail IT_KEY tag lookup. | Checked | No action unless source changes. |
-| 60 | `CG_CTF_POWERUP` | Direct switch: CG_DrawCTFPowerUp using STAT_PERSISTANT_POWERUP item icon lookup. | Checked | No action unless source changes. |
-| 61 | `CG_AREA_POWERUP` | Direct switch: CG_DrawPowerupSpriteStack; retail has no cg_drawSprites or cg_drawSpriteSelf ownerdraw gate. | Checked | No action unless source changes. |
-| 62 | `CG_TEAM_COLOR` | Direct switch: CG_DrawTeamColor. | Checked | No action unless source changes. |
-| 63 | `CG_KILLER` | Direct switch gated by cg.killerName, then CG_DrawKiller. | Checked | No action unless source changes. |
-| 64 | `CG_ACCURACY` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 65 | `CG_ASSISTS` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 66 | `CG_CAPTURES` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 67 | `CG_COMBOKILLS` | Explicit retail no-op case; no medal/helper route. | Checked no-op | Keep inert; no width/value/key route. |
-| 68 | `CG_DEFEND` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 69 | `CG_EXCELLENT` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 70 | `CG_GAUNTLET` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 71 | `CG_IMPRESSIVE` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
-| 72 | `CG_RAMPAGES` | Explicit retail no-op case; no medal/helper route. | Checked no-op | Keep inert; no width/value/key route. |
-| 73 | `CG_MIDAIRS` | Explicit retail no-op case; no medal/helper route. | Checked no-op | Keep inert; no width/value/key route. |
-| 74 | `CG_PERFECT` | Direct switch: CG_DrawMedal. | Checked | No action unless source changes. |
+| 55 | `CG_PLAYER_HASFLAG` | Direct switch: CG_DrawPlayerHasFlag in model/icon mode with the retail 4px inset and neutral-flag `dropflag` prompt. | Checked | Guard flag powerup selection, 3D inset, prompt path, menu reachability, and callback absence together. |
+| 56 | `CG_PLAYER_HASFLAG2D` | Direct switch: CG_DrawPlayerHasFlag forced 2D with no inset, sharing the neutral-flag prompt branch. | Checked | Guard shared flag target group, forced-2D call, and callback absence together. |
+| 57 | `CG_HARVESTER_SKULLS` | Direct switch: CG_HarvesterSkulls in 3D-capable mode with right-aligned count and the retail cube model at y + 5. | Checked | Guard skull count, team cube selection, menu reachability, and callback absence together. |
+| 58 | `CG_HARVESTER_SKULLS2D` | Direct switch: CG_HarvesterSkulls forced 2D, using the retail 20x20 cube icon at x + 3, y + 16. | Checked | Guard shared Harvester target group, forced-2D call, and callback absence together. |
+| 59 | `CG_PLAYER_HASKEY` | Direct switch: CG_DrawPlayerHasKey using retail IT_KEY tag lookup and half-width overlap for silver/gold/master key icons. | Checked | Guard key mask/tag lookup, icon registration/fallback, menu reachability, and callback absence together. |
+| 60 | `CG_CTF_POWERUP` | Direct switch: CG_DrawCTFPowerUp using STAT_PERSISTANT_POWERUP bounds, item visual registration, and the active item icon. | Checked | Guard persistent-powerup stat lookup, item registration, menu reachability, and callback absence together. |
+| 61 | `CG_AREA_POWERUP` | Direct switch: CG_DrawPowerupSpriteStack with sorted timed powerups, hidden-slot skips, and Quad/Battle Suit counter badges; retail has no cg_drawSprites or cg_drawSpriteSelf ownerdraw gate. | Checked | Guard sorted timer stack, sprite-cvar absence, retail `x %i` badge, menu reachability, and callback absence together. |
+| 62 | `CG_TEAM_COLOR` | Direct switch: CG_DrawTeamColor through the local-team red/blue teamStatusBar background helper. | Checked | Guard local-team background tint, intentional authored-menu absence, and callback absence together. |
+| 63 | `CG_KILLER` | Direct switch gated by cg.killerName, then CG_DrawKiller centered `Fragged by %s` text with the matching width callback. | Checked | Guard switch gate, width callback, centered text, menu reachability, and value/key callback absence together. |
+| 64 | `CG_ACCURACY` | Direct switch: CG_DrawMedal selected-score accuracy badge with `%i%%` text and retail active/inactive alpha handling. | Checked | Guard medal target group, accuracy text/alpha behavior, menu reachability, and value/width/key callback absence together. |
+| 65 | `CG_ASSISTS` | Direct switch: CG_DrawMedal selected-score assistCount badge using the shared non-accuracy integer text path. | Checked | Guard medal target group, selected-score field, menu reachability, and callback absence with the 65-69 batch. |
+| 66 | `CG_CAPTURES` | Direct switch: CG_DrawMedal selected-score captures badge using the shared non-accuracy integer text path. | Checked | Guard medal target group, selected-score field, menu reachability, and callback absence with the 65-69 batch. |
+| 67 | `CG_COMBOKILLS` | Explicit retail no-op case between medal IDs; no medal/helper route and no authored menu usage. | Checked no-op | Keep inert; guard no medal dispatch, no menu reachability, and no width/value/key route. |
+| 68 | `CG_DEFEND` | Direct switch: CG_DrawMedal selected-score defendCount badge using the shared non-accuracy integer text path. | Checked | Guard medal target group, selected-score field, menu reachability, and callback absence with the 65-69 batch. |
+| 69 | `CG_EXCELLENT` | Direct switch: CG_DrawMedal selected-score excellentCount badge using the shared non-accuracy integer text path. | Checked | Guard medal target group, selected-score field, menu reachability, and callback absence with the 65-69 batch. |
+| 70 | `CG_GAUNTLET` | Direct switch: CG_DrawMedal selected-score gauntlet badge using the shared non-accuracy integer text path. | Checked | Guard medal target group, selected-score field, menu reachability, and callback absence with the 70-74 batch. |
+| 71 | `CG_IMPRESSIVE` | Direct switch: CG_DrawMedal selected-score impressive badge using the shared non-accuracy integer text path. | Checked | Guard medal target group, selected-score field, menu reachability, and callback absence with the 70-74 batch. |
+| 72 | `CG_RAMPAGES` | Explicit retail no-op case between medal IDs; no medal/helper route and no authored menu usage. | Checked no-op | Keep inert; guard no medal dispatch, no menu reachability, and no width/value/key route. |
+| 73 | `CG_MIDAIRS` | Explicit retail no-op case between medal IDs; no medal/helper route and no authored menu usage. | Checked no-op | Keep inert; guard no medal dispatch, no menu reachability, and no width/value/key route. |
+| 74 | `CG_PERFECT` | Direct switch: CG_DrawMedal selected-score perfect badge using the retail `Wow` text path. | Checked | Guard medal target group, selected-score field, no authored menu reachability, and callback absence with the 70-74 batch. |
 | 75 | `CG_MOST_VALUABLE_OFFENSIVE_PLYR` | Pre-switch award player helper: CS_AWARD_MOST_VALUABLE_OFFENSIVE profile image. | Checked | No action unless source changes. |
 | 76 | `CG_MOST_VALUABLE_DEFENSIVE_PLYR` | Pre-switch award player helper: CS_AWARD_MOST_VALUABLE_DEFENSIVE profile image. | Checked | No action unless source changes. |
 | 77 | `CG_MOST_VALUABLE_PLYR` | Pre-switch award player helper: CS_AWARD_MOST_VALUABLE profile image. | Checked | No action unless source changes. |
 | 78 | `CG_BEST_ITEMCONTROL_PLYR` | Pre-switch award player helper: CS_AWARD_BEST_ITEMCONTROL profile image. | Checked | No action unless source changes. |
 | 79 | `CG_MOST_ACCURATE_PLYR` | Pre-switch award player helper: CS_AWARD_MOST_ACCURATE profile image. | Checked | No action unless source changes. |
 | 80 | `CG_MOST_DAMAGEDEALT_PLYR` | Pre-switch award player helper: CS_AWARD_MOST_DAMAGEDEALT. | Checked | No action unless source changes. |
-| 81 | `CG_SPECTATORS` | Direct switch gated by spectatorEntryCount, then CG_DrawTeamSpectators. | Checked | No action unless source changes. |
-| 82 | `CG_MATCH_WINNER` | Direct switch: CG_DrawMatchWinner. | Checked | No action unless source changes. |
-| 83 | `CG_1STPLACE` | Direct switch: CG_DrawScoreValue compact score helper, including Race `[-]Ns` formatting; touches competitive score cache. | Checked | No action unless source changes. |
-| 84 | `CG_1ST_PLACE_SCORE` | Direct switch: CG_Draw1stPlaceScore wide score line. | Checked | No action unless source changes. |
-| 85 | `CG_1STPLACE_PLYR_MODEL` | Direct switch: CG_DrawFirstPlaceModel inactive variant. | Checked | No action unless source changes. |
-| 86 | `CG_2NDPLACE` | Direct switch: CG_DrawScoreValue compact score helper, including Race `[-]Ns` formatting; touches competitive score cache. | Checked | No action unless source changes. |
-| 87 | `CG_2ND_PLACE_SCORE` | Direct switch: CG_Draw2ndPlaceScore wide score line with retail spectator/local-row selection. | Checked | No action unless source changes. |
-| 88 | `CG_PLAYER_OBIT` | Direct switch: CG_DrawPlayerObituary. | Checked | No action unless source changes. |
-| 89 | `CG_AREA_NEW_CHAT` | Direct switch: CG_DrawNewChatArea. | Checked | No action unless source changes. |
-| 90 | `CG_PLYR_END_GAME_SCORE` | Direct switch: CG_DrawEndGameScore. | Checked | No action unless source changes. |
-| 91 | `CG_PLYR_BEST_WEAPON_NAME` | Direct switch: CG_DrawSelectedPlayerBestWeapon. | Checked | No action unless source changes. |
-| 92 | `CG_SELECTED_PLYR_TEAM_COLOR` | Direct switch: CG_DrawSelectedPlayerTeamColor. | Checked | No action unless source changes. |
-| 93 | `CG_SELECTED_PLYR_ACCURACY` | Direct switch: CG_DrawSelectedPlayerAccuracy. | Checked | No action unless source changes. |
-| 94 | `CG_FOLLOW_PLAYER_NAME` | Direct switch: CG_DrawFollowPlayerNameEx. | Checked | No action unless source changes. |
-| 95 | `CG_FOLLOW_PLAYER_NAME_EX` | Direct switch: CG_DrawFollowPlayerNameEx. | Checked | No action unless source changes. |
+| 81 | `CG_SPECTATORS` | Direct switch gated by spectatorEntryCount, then CG_DrawTeamSpectators paged spectator cache. | Checked | Guard spectator cache rebuild, switch gate, menu reachability, and callback absence together. |
+| 82 | `CG_MATCH_WINNER` | Direct switch: CG_DrawMatchWinner using retail tie, team, intermission, and forfeit winner text. | Checked | Guard dispatcher route, text composition, menu reachability, and callback absence together. |
+| 83 | `CG_1STPLACE` | Direct switch: CG_DrawScoreValue compact first-place score helper, including Race `[-]Ns` formatting; touches competitive score cache. | Checked | Guard compact score target group and keep it out of value/width/key callbacks. |
+| 84 | `CG_1ST_PLACE_SCORE` | Direct switch: CG_Draw1stPlaceScore wide score line fed by CS_FIRST_PLACE_NAME and CS_SCORES1. | Checked | Guard qagame configstring producer, cgame cache, wide-line clipping, and menu reachability together. |
+| 85 | `CG_1STPLACE_PLYR_MODEL` | Direct switch: CG_DrawFirstPlaceModel inactive 5/160/0 preview with model/profile fallback. | Checked | Guard first score slot selection, preview/fallback path, menu reachability, and callback absence together. |
+| 86 | `CG_2NDPLACE` | Direct switch: CG_DrawScoreValue compact second-place score helper, including Race `[-]Ns` formatting; touches competitive score cache. | Checked | Guard compact score target group and keep it out of value/width/key callbacks. |
+| 87 | `CG_2ND_PLACE_SCORE` | Direct switch: CG_Draw2ndPlaceScore wide score line with retail spectator/local-row selection and positive Race-time guard. | Checked | Guard second-place configstring/cache wiring, wide-line clipping, menu reachability, and callback absence together. |
+| 88 | `CG_PLAYER_OBIT` | Direct switch: CG_DrawPlayerObituary compact obituary feed with prune/fade/color/icon columns. | Checked | Guard obituary feed gate, paint columns, menu reachability, and callback absence together. |
+| 89 | `CG_AREA_NEW_CHAT` | Direct switch: CG_DrawNewChatArea timed active chat plus clamped history stack. | Checked | Guard active-message archival, chat-history clamp, menu reachability, and callback absence together. |
+| 90 | `CG_PLYR_END_GAME_SCORE` | Direct switch: CG_DrawEndGameScore local endgame summary family for placement, score, assists, defends, captures, skulls, and forfeits. | Checked | Guard endgame text family, draw-position wiring, menu reachability, and callback absence together. |
+| 91 | `CG_PLYR_BEST_WEAPON_NAME` | Direct switch: CG_DrawSelectedPlayerBestWeapon using selected-score bestWeapon and fixed retail label table. | Checked | Guard selected-score bounds, label mapping, menu reachability, and callback absence together. |
+| 92 | `CG_SELECTED_PLYR_TEAM_COLOR` | Direct switch: CG_DrawSelectedPlayerTeamColor using selected client team fill colors. | Checked | Guard selected-client bounds, red/blue/neutral fill behavior, menu reachability, and callback absence together. |
+| 93 | `CG_SELECTED_PLYR_ACCURACY` | Direct switch: CG_DrawSelectedPlayerAccuracy with `%i%%` selected-score accuracy text. | Checked | Guard selected-score source, text paint baseline, menu reachability, and callback absence together. |
+| 94 | `CG_FOLLOW_PLAYER_NAME` | Direct switch: CG_DrawFollowPlayerNameEx with `Following - ` prefix, team tint, and ownerdraw alignment. | Checked | Guard shared follow-name target group, prefix split, menu reachability, and callback absence together. |
+| 95 | `CG_FOLLOW_PLAYER_NAME_EX` | Direct switch: CG_DrawFollowPlayerNameEx without the follow prefix, sharing team tint and alignment. | Checked | Guard shared follow-name target group, prefix split, menu reachability, and callback absence together. |
 | 96 | `CG_SPEEDOMETER` | Direct switch: CG_DrawSpeedometerOwnerDraw. | Checked | No action unless source changes. |
 | 97 | `CG_WP_VERTICAL` | Direct switch: CG_DrawWeaponVertical. | Checked | No action unless source changes. |
 | 98 | `CG_ACC_VERTICAL` | Direct switch: CG_DrawAccVertical. | Checked | No action unless source changes. |
@@ -148,31 +148,31 @@ Summary:
 | 124 | `CG_1ST_PLYR_FRAGS_PG` | Pre-switch placement helper: weapon frags PG slot 0, retail `0x100368A0` / `%d` paint path with resolver return `8` and compact `scorestats` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
 | 125 | `CG_1ST_PLYR_FRAGS_BFG` | Pre-switch placement helper: weapon frags BFG slot 0, retail `0x100368A0` / `%d` paint path with resolver return `9` and compact `scorestats` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
 | 126 | `CG_1ST_PLYR_FRAGS_CG` | Pre-switch placement helper: weapon frags CG slot 0, retail `0x100368A0` / `%d` paint path with resolver return `0xd` and compact `scorestats` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
-| 127 | `CG_1ST_PLYR_FRAGS_NG` | Pre-switch placement helper: weapon frags NG slot 0. | Checked | No action unless source changes. |
-| 128 | `CG_1ST_PLYR_FRAGS_PL` | Pre-switch placement helper: weapon frags PL slot 0. | Checked | No action unless source changes. |
-| 129 | `CG_1ST_PLYR_FRAGS_HMG` | Pre-switch placement helper: weapon frags HMG slot 0. | Checked | No action unless source changes. |
-| 130 | `CG_1ST_PLYR_HITS_MG` | Pre-switch placement helper: weapon hits MG slot 0. | Checked | No action unless source changes. |
-| 131 | `CG_1ST_PLYR_HITS_SG` | Pre-switch placement helper: weapon hits SG slot 0. | Checked | No action unless source changes. |
-| 132 | `CG_1ST_PLYR_HITS_GL` | Pre-switch placement helper: weapon hits GL slot 0. | Checked | No action unless source changes. |
-| 133 | `CG_1ST_PLYR_HITS_RL` | Pre-switch placement helper: weapon hits RL slot 0. | Checked | No action unless source changes. |
-| 134 | `CG_1ST_PLYR_HITS_LG` | Pre-switch placement helper: weapon hits LG slot 0. | Checked | No action unless source changes. |
-| 135 | `CG_1ST_PLYR_HITS_RG` | Pre-switch placement helper: weapon hits RG slot 0. | Checked | No action unless source changes. |
-| 136 | `CG_1ST_PLYR_HITS_PG` | Pre-switch placement helper: weapon hits PG slot 0. | Checked | No action unless source changes. |
-| 137 | `CG_1ST_PLYR_HITS_BFG` | Pre-switch placement helper: weapon hits BFG slot 0. | Checked | No action unless source changes. |
-| 138 | `CG_1ST_PLYR_HITS_CG` | Pre-switch placement helper: weapon hits CG slot 0. | Checked | No action unless source changes. |
-| 139 | `CG_1ST_PLYR_HITS_NG` | Pre-switch placement helper: weapon hits NG slot 0. | Checked | No action unless source changes. |
-| 140 | `CG_1ST_PLYR_HITS_PL` | Pre-switch placement helper: weapon hits PL slot 0. | Checked | No action unless source changes. |
-| 141 | `CG_1ST_PLYR_HITS_HMG` | Pre-switch placement helper: weapon hits HMG slot 0. | Checked | No action unless source changes. |
-| 142 | `CG_1ST_PLYR_SHOTS_MG` | Pre-switch placement helper: weapon shots MG slot 0. | Checked | No action unless source changes. |
-| 143 | `CG_1ST_PLYR_SHOTS_SG` | Pre-switch placement helper: weapon shots SG slot 0. | Checked | No action unless source changes. |
-| 144 | `CG_1ST_PLYR_SHOTS_GL` | Pre-switch placement helper: weapon shots GL slot 0. | Checked | No action unless source changes. |
-| 145 | `CG_1ST_PLYR_SHOTS_RL` | Pre-switch placement helper: weapon shots RL slot 0. | Checked | No action unless source changes. |
-| 146 | `CG_1ST_PLYR_SHOTS_LG` | Pre-switch placement helper: weapon shots LG slot 0. | Checked | No action unless source changes. |
-| 147 | `CG_1ST_PLYR_SHOTS_RG` | Pre-switch placement helper: weapon shots RG slot 0. | Checked | No action unless source changes. |
-| 148 | `CG_1ST_PLYR_SHOTS_PG` | Pre-switch placement helper: weapon shots PG slot 0. | Checked | No action unless source changes. |
-| 149 | `CG_1ST_PLYR_SHOTS_BFG` | Pre-switch placement helper: weapon shots BFG slot 0. | Checked | No action unless source changes. |
-| 150 | `CG_1ST_PLYR_SHOTS_CG` | Pre-switch placement helper: weapon shots CG slot 0. | Checked | No action unless source changes. |
-| 151 | `CG_1ST_PLYR_SHOTS_NG` | Pre-switch placement helper: weapon shots NG slot 0. | Checked | No action unless source changes. |
+| 127 | `CG_1ST_PLYR_FRAGS_NG` | Pre-switch placement helper: weapon frags NG slot 0, retail `0x100368A0` / `%d` paint path with resolver return `0xb` and compact `scorestats` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 128 | `CG_1ST_PLYR_FRAGS_PL` | Pre-switch placement helper: weapon frags PL slot 0, retail `0x100368A0` / `%d` paint path with resolver return `0xc` and compact `scorestats` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 129 | `CG_1ST_PLYR_FRAGS_HMG` | Pre-switch placement helper: weapon frags HMG slot 0, retail `0x100368A0` / `%d` paint path with resolver return `0xe` and compact `scorestats` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 130 | `CG_1ST_PLYR_HITS_MG` | Pre-switch placement helper: weapon hits MG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `2` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 131 | `CG_1ST_PLYR_HITS_SG` | Pre-switch placement helper: weapon hits SG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `3` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 132 | `CG_1ST_PLYR_HITS_GL` | Pre-switch placement helper: weapon hits GL slot 0, retail `0x100369D0` / `%d` paint path with resolver return `4` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 133 | `CG_1ST_PLYR_HITS_RL` | Pre-switch placement helper: weapon hits RL slot 0, retail `0x100369D0` / `%d` paint path with resolver return `5` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 134 | `CG_1ST_PLYR_HITS_LG` | Pre-switch placement helper: weapon hits LG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `6` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 135 | `CG_1ST_PLYR_HITS_RG` | Pre-switch placement helper: weapon hits RG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `7` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 136 | `CG_1ST_PLYR_HITS_PG` | Pre-switch placement helper: weapon hits PG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `8` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 137 | `CG_1ST_PLYR_HITS_BFG` | Pre-switch placement helper: weapon hits BFG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `9` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 138 | `CG_1ST_PLYR_HITS_CG` | Pre-switch placement helper: weapon hits CG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `0xd` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 139 | `CG_1ST_PLYR_HITS_NG` | Pre-switch placement helper: weapon hits NG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `0xb` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 140 | `CG_1ST_PLYR_HITS_PL` | Pre-switch placement helper: weapon hits PL slot 0, retail `0x100369D0` / `%d` paint path with resolver return `0xc` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 141 | `CG_1ST_PLYR_HITS_HMG` | Pre-switch placement helper: weapon hits HMG slot 0, retail `0x100369D0` / `%d` paint path with resolver return `0xe` and compact `accuracy_hits` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 142 | `CG_1ST_PLYR_SHOTS_MG` | Pre-switch placement helper: weapon shots MG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `2` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 143 | `CG_1ST_PLYR_SHOTS_SG` | Pre-switch placement helper: weapon shots SG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `3` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 144 | `CG_1ST_PLYR_SHOTS_GL` | Pre-switch placement helper: weapon shots GL slot 0, retail `0x10036B00` / `%d` paint path with resolver return `4` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 145 | `CG_1ST_PLYR_SHOTS_RL` | Pre-switch placement helper: weapon shots RL slot 0, retail `0x10036B00` / `%d` paint path with resolver return `5` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 146 | `CG_1ST_PLYR_SHOTS_LG` | Pre-switch placement helper: weapon shots LG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `6` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 147 | `CG_1ST_PLYR_SHOTS_RG` | Pre-switch placement helper: weapon shots RG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `7` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 148 | `CG_1ST_PLYR_SHOTS_PG` | Pre-switch placement helper: weapon shots PG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `8` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 149 | `CG_1ST_PLYR_SHOTS_BFG` | Pre-switch placement helper: weapon shots BFG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `9` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 150 | `CG_1ST_PLYR_SHOTS_CG` | Pre-switch placement helper: weapon shots CG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `0xd` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
+| 151 | `CG_1ST_PLYR_SHOTS_NG` | Pre-switch placement helper: weapon shots NG slot 0, retail `0x10036B00` / `%d` paint path with resolver return `0xb` and compact `accuracy_shots` wiring. | Checked | Guard weapon mapping, server send, cgame parse, and formatter together. |
 | 152 | `CG_1ST_PLYR_SHOTS_PL` | Pre-switch placement helper: weapon shots PL slot 0. | Checked | No action unless source changes. |
 | 153 | `CG_1ST_PLYR_SHOTS_HMG` | Pre-switch placement helper: weapon shots HMG slot 0. | Checked | No action unless source changes. |
 | 154 | `CG_1ST_PLYR_DMG_G` | Pre-switch placement helper: weapon damage G slot 0. | Checked | No action unless source changes. |

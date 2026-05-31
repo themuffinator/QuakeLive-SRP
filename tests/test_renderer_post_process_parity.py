@@ -39,7 +39,7 @@ def test_color_correct_is_shader_backed_and_surfaces_retail_controls() -> None:
 	tr_init = _read("src/code/renderer/tr_init.c")
 	color_uniform_block = _extract_function_block(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
 	color_uniform_from_cvars_block = _extract_function_block(tr_backend, "void RBPP_SetColorCorrectUniformsFromCvars( void ) {")
-	color_correct_pass_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+	color_correct_pass_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {")
 	color_correct_init_block = _extract_function_block(tr_backend, "static qboolean RBPP_InitColorCorrectResources( void ) {")
 
 	assert "qglGetTexImage(" not in tr_backend
@@ -110,7 +110,9 @@ def test_bloom_controls_and_active_mirrors_are_backend_validated() -> None:
 	assert "qglOrtho( 0, width, height, 0, 0, 1 );" in tr_backend
 	assert "RB_SetGL2D();" not in _extract_function_block(tr_backend, "static void RBPP_Set2DState( int width, int height ) {")
 	assert "if ( cmd->colorCorrectTexture && cmd->colorCorrectProgram && RBPP_ColorCorrectEnabled() ) {" in color_command_block
-	assert "\t\tRBPP_ApplyColorCorrectPass();" in color_command_block
+	assert "\t\tRBPP_ApplyColorCorrectPass( cmd );" in color_command_block
+	assert "qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, cmd->colorCorrectTexture );" in tr_backend
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->colorCorrectProgram );" in tr_backend
 	assert "approximate Quake Live" not in tr_backend
 
 
@@ -138,6 +140,10 @@ def test_post_process_commands_match_retail_backend_command_wiring() -> None:
 	bind_emit_block = _extract_function_block(tr_backend, "void R_AddBindSceneRenderTargetCommand( void ) {")
 	bloom_emit_block = _extract_function_block(tr_backend, "void R_AddBloomPostProcessCommand( void ) {")
 	color_emit_block = _extract_function_block(tr_backend, "void R_AddColorCorrectPostProcessCommand( void ) {")
+	bloom_command_block = _extract_function_block(tr_backend, "static const void *RB_BloomPostProcessCommand( const void *data ) {")
+	color_command_block = _extract_function_block(tr_backend, "static const void *RB_ColorCorrectPostProcessCommand( const void *data ) {")
+	apply_bloom_block = _extract_function_block(tr_backend, "static qboolean RBPP_ApplyBloom( const bloomPostProcessCommand_t *cmd ) {")
+	apply_color_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {")
 	end_frame_block = _extract_function_block(tr_cmds, "void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {")
 	draw_surf_cmd_block = _extract_function_block(tr_cmds, "void\tR_AddDrawSurfCmd( drawSurf_t *drawSurfs, int numDrawSurfs ) {")
 	swap_block = _extract_function_block(tr_backend, "const void\t*RB_SwapBuffers( const void *data ) {")
@@ -149,6 +155,16 @@ def test_post_process_commands_match_retail_backend_command_wiring() -> None:
 	assert "cmd->combineProgram = s_postProcess.combineProgram.programObject;" in bloom_emit_block
 	assert "cmd->commandId = RC_COLOR_CORRECT_POST_PROCESS;" in color_emit_block
 	assert "cmd->colorCorrectTexture = s_postProcess.colorCorrectTexture;" in color_emit_block
+	assert "RBPP_ApplyBloom( cmd )" in bloom_command_block
+	assert "RBPP_BlitSceneTarget( cmd->sceneTexture );" in bloom_command_block
+	assert "RBPP_ApplyColorCorrectPass( cmd );" in color_command_block
+	assert "cmd->downsampleProgram" in apply_bloom_block
+	assert "cmd->brightPassProgram" in apply_bloom_block
+	assert "cmd->blurVerticalProgram" in apply_bloom_block
+	assert "cmd->blurHorizontalProgram" in apply_bloom_block
+	assert "cmd->combineProgram" in apply_bloom_block
+	assert "cmd->colorCorrectTexture" in apply_color_block
+	assert "cmd->colorCorrectProgram" in apply_color_block
 	assert "R_AddBindSceneRenderTargetCommand();" in draw_surf_cmd_block
 	assert end_frame_block.index("R_AddBloomPostProcessCommand();") < end_frame_block.index("R_AddColorCorrectPostProcessCommand();") < end_frame_block.index("cmd = R_GetCommandBuffer( sizeof( *cmd ) );")
 	assert "RB_SubmitPostProcess();" not in swap_block
@@ -185,7 +201,7 @@ def test_post_process_refexport_tail_sets_bloom_uniforms_like_retail() -> None:
 	set_from_cvars_block = _extract_function_block(tr_backend, "void RBPP_SetBloomUniformsFromCvars( void ) {")
 	set_params_block = _extract_function_block(tr_backend, "void R_SetPostProcessBloomParameters( float brightThreshold, float bloomSaturation, float bloomIntensity, float sceneSaturation, float sceneIntensity ) {")
 	bloom_command_block = _extract_function_block(tr_backend, "static const void *RB_BloomPostProcessCommand( const void *data ) {")
-	apply_bloom_block = _extract_function_block(tr_backend, "static qboolean RBPP_ApplyBloom( void ) {")
+	apply_bloom_block = _extract_function_block(tr_backend, "static qboolean RBPP_ApplyBloom( const bloomPostProcessCommand_t *cmd ) {")
 
 	assert "void\t(*RetailBloomPostProcessCommand)( void );" in tr_public
 	assert tr_public.index("(*RetailPostProcessCapture)") < tr_public.index("(*RetailBloomPostProcessCommand)") < tr_public.index("(*PostProcessRestart)") < tr_public.index("(*RetailPostProcessPass)")
@@ -205,6 +221,16 @@ def test_post_process_refexport_tail_sets_bloom_uniforms_like_retail() -> None:
 	assert "RBPP_SetBloomUniformsFromCvars();" in bloom_command_block
 	assert "s_bloomUniformsDirty = qfalse;" in bloom_command_block
 	assert "RBPP_SetBloomUniforms( brightThreshold, bloomSaturation, bloomIntensity, sceneSaturation, sceneIntensity );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->downsampleProgram );" in apply_bloom_block
+	assert "RBPP_BindRectangleTexture( 0, cmd->sceneTexture );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->brightPassProgram );" in apply_bloom_block
+	assert "RBPP_BindRectangleTexture( 0, cmd->bloomDownsampleTexture );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurVerticalProgram );" in apply_bloom_block
+	assert "RBPP_BindRectangleTexture( 0, cmd->bloomBrightTexture );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->blurHorizontalProgram );" in apply_bloom_block
+	assert "RBPP_BindRectangleTexture( 0, cmd->bloomBlurVerticalTexture );" in apply_bloom_block
+	assert "s_postProcess.procs.qglUseProgramObjectARBFunc( cmd->combineProgram );" in apply_bloom_block
+	assert "RBPP_BindRectangleTexture( 1, finalBloomTexture );" in apply_bloom_block
 
 
 def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> None:
@@ -216,7 +242,7 @@ def test_hardware_gamma_color_mapping_matches_retail_color_correct_owner() -> No
 	light_scale_block = _extract_function_block(tr_image, "void R_LightScaleTexture (unsigned *in, int inwidth, int inheight, qboolean only_gamma )")
 	color_correct_enabled_block = _extract_function_block(tr_backend, "qboolean RBPP_ColorCorrectEnabled( void ) {")
 	color_correct_uniform_block = _extract_function_block(tr_backend, "static void RBPP_SetColorCorrectUniforms( qboolean browserOverride ) {")
-	color_correct_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( void ) {")
+	color_correct_block = _extract_function_block(tr_backend, "static void RBPP_ApplyColorCorrectPass( const colorCorrectPostProcessCommand_t *cmd ) {")
 	restart_block = _extract_function_block(tr_init, "static void R_PostProcessRestart( void ) {")
 
 	assert "if ( !RBPP_ColorCorrectEnabled() && !glConfig.deviceSupportsGamma ) {" in color_mapping_block

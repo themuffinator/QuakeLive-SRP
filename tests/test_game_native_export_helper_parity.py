@@ -99,6 +99,56 @@ def test_native_loader_api_version_wiring_matches_retail_dllentry_contracts() ->
 	assert "fallback then opens `vm/<name>.qvm`" in qvm_fallback_note
 
 
+def test_native_ui_and_cgame_receive_retail_packed_glconfig() -> None:
+	client_h = _read("src/code/client/client.h")
+	cl_cgame = _read("src/code/client/cl_cgame.c")
+	cl_ui = _read("src/code/client/cl_ui.c")
+	helper_block = _extract_block(cl_cgame, "void CL_GetRetailGlconfig")
+	cgame_import_block = _extract_block(cl_cgame, "static int QDECL CG_Import_Syscall")
+	ui_import_block = _extract_block(cl_ui, "static int QDECL UI_Import_Syscall")
+
+	assert "void CL_GetRetailGlconfig( void *glconfig );" in client_h
+	assert "qboolean\t\t\t\tmultitextureAvailable;" in cl_cgame
+	assert "typedef char qlRetailGlconfigSizeCheck[( sizeof( qlRetailGlconfig_t ) == 0x2c44 ) ? 1 : -1 ];" in cl_cgame
+	assert "retailConfig.textureEnvAddAvailable = cls.glconfig.textureEnvAddAvailable;" in helper_block
+	assert "retailConfig.multitextureAvailable = cls.glconfig.maxActiveTextures > 1 ? qtrue : qfalse;" in helper_block
+	assert "retailConfig.vidWidth = cls.glconfig.vidWidth;" in helper_block
+	assert "retailConfig.vidHeight = cls.glconfig.vidHeight;" in helper_block
+	assert "retailConfig.windowAspect = cls.glconfig.windowAspect;" in helper_block
+	assert "retailConfig.stereoEnabled = cls.glconfig.stereoEnabled;" in helper_block
+	assert "retailConfig.smpActive" not in helper_block
+	assert "Com_Memcpy( glconfig, &retailConfig, sizeof( retailConfig ) );" in helper_block
+
+	for import_block, syscall_name in (
+		(cgame_import_block, "CG_GETGLCONFIG"),
+		(ui_import_block, "UI_GETGLCONFIG"),
+	):
+		assert f"if ( arg == {syscall_name} ) {{" in import_block
+		assert "glconfig = va_arg(ap, void *);" in import_block
+		assert "CL_GetRetailGlconfig( glconfig );" in import_block
+		assert import_block.index(f"if ( arg == {syscall_name} ) {{") < import_block.index("args[0] = arg;")
+
+
+def test_native_cgame_import_slot_54_preserves_retail_ad_bridge_callout() -> None:
+	cgame_public = _read("src/code/cgame/cg_public.h")
+	cl_cgame = _read("src/code/client/cl_cgame.c")
+	engine_hlil = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt")
+	cgame_hlil = _read("references/hlil/quakelive/cgamex86.dll/cgamex86.dll_hlil.txt")
+	import_block = _extract_block(cl_cgame, "static void CL_InitCGameImports")
+	wrapper_block = _extract_block(cl_cgame, "static void QDECL QL_CG_trap_AdvertisementBridge_Reserved21C0")
+
+	assert "CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_21C0 = 54," in cgame_public
+	assert "004f21c0    void sub_4f21c0()" in engine_hlil
+	assert "jump(*(*ecx + 0x40))" in engine_hlil
+	assert "10029139  int32_t ecx = *(data_1074cccc + 0xd8)" in cgame_hlil
+	assert "10029149  ecx()" in cgame_hlil
+	assert "cl_webBridge.vtbl->reserved21C0( &cl_webBridge );" in wrapper_block
+	assert "CG_LoadHudMenu calls import[54]" in wrapper_block
+	assert "ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_21C0] = (ql_import_f)QL_CG_trap_AdvertisementBridge_Reserved21C0;" in import_block
+	assert import_block.index("CG_QL_IMPORT_R_REGISTERSHADERNOMIP") < import_block.index("CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_21C0")
+	assert import_block.index("CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_21C0") < import_block.index("CG_QL_IMPORT_SETUP_ADVERT_CELL_SHADER")
+
+
 def test_voice_suppression_helper_matches_retail_export_policy() -> None:
 	local_h = _read("src/code/game/g_local.h")
 	team_c = _read("src/code/game/g_team.c")
