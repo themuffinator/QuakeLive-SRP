@@ -834,6 +834,73 @@ def test_renderer_mapping_round_341_closes_postprocess_command_payload_wiring() 
 	assert "post-process command payload wiring lane: before 99.99%, after 100%" in mapping_round.lower()
 
 
+def test_renderer_mapping_round_342_closes_win32_gl_startup_wiring() -> None:
+	aliases = json.loads(_read("references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	functions_csv = _read("references/reverse-engineering/ghidra/quakelive_steam/functions.csv").lower()
+	hlil_part02 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt").lower()
+	hlil_part06 = _read("references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt").lower()
+	mapping_round = _read("docs/reverse-engineering/quakelive_steam_mapping_round_342.md")
+	renderer_wiring = _read("docs/reverse-engineering/renderer-wiring-reverse-engineering-round-2026-05-20.md")
+	source_ledger = _read("docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md")
+	renderer_audit = _read("docs/reverse-engineering/renderer-full-parity-audit-and-implementation-plan-2026-04-09.md")
+	ownership_note = _read("docs/reverse-engineering/renderer-internal-helper-ownership-2026-04-09.md")
+	tr_init = _read("src/code/renderer/tr_init.c")
+	win_glimp = _read("src/code/win32/win_glimp.c")
+	normalized_renderer_wiring = _normalize_whitespace(renderer_wiring)
+	normalized_source_ledger = _normalize_whitespace(source_ledger)
+	normalized_renderer_audit = _normalize_whitespace(renderer_audit)
+	normalized_ownership_note = _normalize_whitespace(ownership_note)
+
+	expected_aliases = {
+		"sub_46A2A0": "GLW_MakeContext",
+		"sub_46A9F0": "GLW_GetModeInfo",
+		"sub_46B7A0": "GLW_CheckOSVersion",
+		"sub_46C020": "GLW_StartDriverAndSetMode",
+		"sub_46C060": "GLW_LoadOpenGL",
+		"sub_46C1E0": "GLW_StartOpenGL",
+		"sub_46C2E0": "GLimp_Init",
+	}
+
+	for symbol, alias in expected_aliases.items():
+		assert aliases[symbol] == alias
+		assert symbol.replace("sub_", "fun_00").lower() in functions_csv
+
+	for expected in (
+		"0046a2a0    int32_t sub_46a2a0",
+		"0046a9f0    int32_t __convention(\"regparm\") sub_46a9f0",
+		"0046b7a0    int32_t sub_46b7a0()",
+		"0046c020    int32_t __fastcall sub_46c020",
+		"0046c060    int32_t sub_46c060",
+		"0046c1e0    void* sub_46c1e0()",
+		"0046c2e0    int32_t sub_46c2e0()",
+		"0046c187          if (sub_46c020(arg1, 7.00649232e-45f) != 0)",
+		"0046c19b          if (sub_46c020(arg1, 1.68155816e-44f) != 0)",
+	):
+		assert expected in hlil_part02
+
+	assert '00534e38  char const data_534e38[0x35] = "glw_startopengl() - could not load opengl subsystem\\n", 0' in hlil_part06
+	assert '{ "Mode  5: 640x480",\t\t640,\t480,\t0 },' in tr_init
+	assert '{ "Mode 12: 1024x768",\t\t1024,\t768,\t0 },' in tr_init
+	assert "static int GLW_MakeContext( PIXELFORMATDESCRIPTOR *pPFD )" in win_glimp
+	assert "static qboolean GLW_GetModeInfo( int *width, int *height, int *aspectRatio, int mode, qboolean fullscreen )" in win_glimp
+	assert "static qboolean GLW_CheckOSVersion( void )" in win_glimp
+	assert "static qboolean GLW_StartDriverAndSetMode( const char *drivername," in win_glimp
+	assert "static qboolean GLW_LoadOpenGL( const char *drivername )" in win_glimp
+	assert "static void GLW_StartOpenGL( void )" in win_glimp
+	assert "started = GLW_StartDriverAndSetMode( drivername, 5, 16, qtrue );" in win_glimp
+	assert "started = GLW_StartDriverAndSetMode( drivername, 12, 16, qtrue );" in win_glimp
+	assert "GLW_StartDriverAndSetMode( drivername, 3, 16, qtrue )" not in win_glimp
+	assert "Win32 OpenGL startup/fallback wiring lane: before 96%, after 100%" in mapping_round
+	assert "2026-06-02 follow-up: Win32 OpenGL startup wiring is now pinned through" in renderer_wiring
+	assert "retail mode `5` then mode `12` safe-mode sequence" in normalized_renderer_wiring
+	assert "2026-06-02 follow-up validation pins the Win32 OpenGL startup lane through mapping round 342" in normalized_renderer_wiring
+	assert "Win32 OpenGL startup/fallback wiring pinned in round 342" in source_ledger
+	assert "retail ICD fallback pair at Quake Live modes `5` and `12`" in normalized_source_ledger
+	assert "mapping rounds 98, 100, and 342" in renderer_audit
+	assert "OpenGL startup ICD fallback modes `5` then `12`" in normalized_renderer_audit
+	assert "mapping round 342's promoted `GLW_MakeContext`, `GLW_CheckOSVersion`, `GLW_StartDriverAndSetMode`, `GLW_LoadOpenGL`, and `GLW_StartOpenGL` helpers" in normalized_ownership_note
+
+
 def test_renderer_advertisement_debug_labels_use_host_text() -> None:
 	tr_world = _read("src/code/renderer/tr_world.c")
 	block = _block_from_marker(tr_world, "static void R_DrawAdvertisementDebugText")

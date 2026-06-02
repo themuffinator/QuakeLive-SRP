@@ -653,7 +653,9 @@ struct gentity_s {
 	float		wait;
 	float		random;
 
+	int			itemAvailableTime;	// level.time when this item last became available
 	gitem_t		*item;			// for bonus items
+	int			itemPickupCount;	// successful pickups from this item entity
 	int			keyMask;
 	int			racePointIndex;
 	qboolean		racePointAdminSpawned;

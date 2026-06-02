@@ -547,8 +547,18 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), assetsPath, "awesomium_process.exe" );'
-		Description = 'Awesomium child process path configured from selected asset root'
+		Literal = 'CL_Awesomium_SelectChildProcessPath( childProcessPath, sizeof( childProcessPath ), runtimePath, basePath )'
+		Description = 'Awesomium child process path selected from a validated retail helper'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'ChildProcessMain@Awesomium'
+		Description = 'Awesomium child helper import-table validation'
+	},
+	@{
+		Path = 'src/code/client/cl_awesomium_win32.cpp'
+		Literal = 'CL_Awesomium_CopyPath( childProcessConfigPath, sizeof( childProcessConfigPath ), "awesomium_process.exe" );'
+		Description = 'Awesomium child helper configured as retail filename after validation'
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
@@ -572,8 +582,8 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'pakName = CL_Awesomium_AllocWideString( "web.pak" );'
-		Description = 'retail web.pak DataPakSource literal'
+		Literal = 'pakName = CL_Awesomium_AllocWideString( pakPath );'
+		Description = 'resolved web.pak DataPakSource path'
 	},
 	@{
 		Path = 'src/code/client/cl_cgame.c'

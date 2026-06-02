@@ -329,13 +329,16 @@ Current 2026-04-22 audit result: the `src/code/win32` function walk did
 not isolate any new file-level owners inside the closed strict-retail
 Windows platform register. The retained clipboard, raw-input,
 loading-window, renderer-host glue, and `win_glimp.c` pixel-format
-closures still hold on current evidence.
+closures still hold on current evidence. The 2026-06-02 Win32 OpenGL
+startup follow-up also promotes the remaining `GLW_*` loader/orchestration
+helpers and pins the retail ICD fallback pair at Quake Live modes `5` and
+`12`.
 
 | File | Functions | Current parity state | Primary evidence | Gap note |
 | --- | ---: | --- | --- | --- |
 | `src/code/win32/awesomium_process.cpp` | `2` | Current function walk complete; no file-level parity gap isolated | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk | - |
 | `src/code/win32/win_gamma.c` | `4` | Current function walk complete; no file-level parity gap isolated | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk | - |
-| `src/code/win32/win_glimp.c` | `26` | Current function walk complete; no file-level parity gap isolated | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk | - |
+| `src/code/win32/win_glimp.c` | `26` | Current function walk complete; no file-level parity gap isolated; Win32 OpenGL startup/fallback wiring pinned in round 342 | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk + [round 342](quakelive_steam_mapping_round_342.md) | - |
 | `src/code/win32/win_input.c` | `45` | Current function walk complete; no file-level parity gap isolated | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk | - |
 | `src/code/win32/win_main.c` | `48` | Current function walk complete; no file-level parity gap isolated | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk | - |
 | `src/code/win32/win_net.c` | `21` | Current function walk complete; no file-level parity gap isolated | [platform-specific audit](platform-specific-engine-parity-audit-and-implementation-plan-2026-04-16.md) + current 2026-04-22 source walk | - |

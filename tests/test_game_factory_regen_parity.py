@@ -623,6 +623,9 @@ def test_weapon_respawn_zero_drives_retail_weapon_stay_pickup_path() -> None:
 	assert "item->giType != IT_WEAPON" in sync_weapon_respawn_body
 	assert "g_weaponRespawn.modificationCount = -1;" in sync_weapon_respawn_body
 	assert "trap_Cvar_Update( &g_weaponRespawn );" in sync_weapon_respawn_body
+	assert 'cvarInteger = trap_Cvar_VariableIntegerValue( "g_weaponRespawn" );' in sync_weapon_respawn_body
+	assert 'trap_Cvar_VariableStringBuffer( "g_weaponRespawn", cvarString, sizeof( cvarString ) );' in sync_weapon_respawn_body
+	assert "g_weaponRespawn.integer = cvarInteger;" in sync_weapon_respawn_body
 	assert touch_item_body.index("G_SyncWeaponRespawnCvarForItem( ent->item );") < touch_item_body.index("BG_CanItemBeGrabbed")
 	assert touch_item_body.index("BG_CanItemBeGrabbed") < touch_item_body.index("respawn = Pickup_Weapon(ent, other);")
 	assert "if ( g_weaponRespawn.integer == 0 && !( ent->flags & FL_DROPPED_ITEM )" in pickup_weapon_body
@@ -637,6 +640,43 @@ def test_weapon_respawn_zero_drives_retail_weapon_stay_pickup_path() -> None:
 	assert "g_gametype.integer != GT_TEAM" not in pickup_weapon_body
 	assert "only add a single shot" not in pickup_weapon_body
 	assert "return g_weaponRespawn.integer;" in pickup_weapon_body
+
+
+def test_item_pickup_lifecycle_tracks_retail_availability_and_respawn_state() -> None:
+	g_items = _read("src/code/game/g_items.c")
+	g_local = _read("src/code/game/g_local.h")
+	qagame_hlil = _read(
+		"references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt"
+	)
+	respawn_body = _function_body(g_items, "void RespawnItem( gentity_t *ent )")
+	touch_body = _function_body(g_items, "void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace)")
+	finish_body = _function_body(g_items, "void FinishSpawningItem( gentity_t *ent )")
+	mark_body = _function_body(g_items, "static void G_MarkItemAvailable( gentity_t *ent )")
+	pickup_lifecycle_body = _function_body(g_items, "static void G_RecordItemPickupLifecycle( gentity_t *ent )")
+
+	for expected in (
+		"int\t\t\titemAvailableTime;",
+		"gitem_t\t\t*item;",
+		"int\t\t\titemPickupCount;",
+	):
+		assert expected in g_local
+
+	for expected in (
+		"1004f1b8                      *(arg1 i+ 0x380) += 1",
+		"1004ef4f  i_4[0xde] = data_105dce5c",
+		"10050790              arg1[0xde] = data_105dce5c",
+		"1004f493                              *(arg1 i+ 0x2f8) = sub_1004ee20",
+		"1004f49d                              *(arg1 i+ 0x2f4) = edx_17",
+	):
+		assert expected in qagame_hlil
+
+	assert "ent->itemAvailableTime = level.time;" in mark_body
+	assert "ent->itemPickupCount++;" in pickup_lifecycle_body
+	assert respawn_body.index("G_MarkItemAvailable( ent );") < respawn_body.index("trap_LinkEntity (ent);")
+	assert touch_body.index("G_RecordItemPickupLifecycle( ent );") < touch_body.index("if ( !respawn ) {")
+	assert touch_body.index("ent->r.svFlags |= SVF_NOCLIENT;") < touch_body.index("ent->nextthink = level.time + respawn * 1000;")
+	assert touch_body.index("ent->nextthink = level.time + respawn * 1000;") < touch_body.index("ent->think = RespawnItem;")
+	assert finish_body.rindex("G_MarkItemAvailable( ent );\n\ttrap_LinkEntity (ent);") > finish_body.index("if ( ent->item->giType == IT_KEY")
 
 
 def test_factory_pmove_reset_tracks_every_nonlocal_pmove_input_surface() -> None:

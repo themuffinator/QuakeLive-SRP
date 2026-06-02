@@ -542,15 +542,13 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 		"const char *assetsPath;",
 		"sessionPath = runtimePath;",
 		"assetsPath = runtimePath && runtimePath[0] ? runtimePath : basePath;",
-		'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), assetsPath, "awesomium_process.exe" );',
-		'strncpy( childProcessConfigPath, "awesomium_process.exe", sizeof( childProcessConfigPath ) - 1 );',
 		'CL_Awesomium_AppendPath( logPath, sizeof( logPath ), sessionPath, "awesomium.log" );',
 		'CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), assetsPath, "web.pak" );',
 		'CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), basePath, "web.pak" );',
-		'CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), basePath, "awesomium_process.exe" );',
 		"CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh, initialConfigJson );",
-		'"--no-sandbox",',
-		'"--single-process"',
+		"CL_Awesomium_SelectChildProcessPath( childProcessPath, sizeof( childProcessPath ), runtimePath, basePath )",
+		'CL_Awesomium_CopyPath( childProcessConfigPath, sizeof( childProcessConfigPath ), "awesomium_process.exe" );',
+		'"--no-sandbox"',
 		'!CL_Awesomium_SetConfigString( cl_awe.webConfigAssetProtocolSet, cl_awesomium.webConfig, "asset" )',
 		'!CL_Awesomium_SetConfigStringArrayOptions( cl_awe.webConfigAdditionalOptionsSet, cl_awesomium.webConfig, awesomiumOptions, sizeof( awesomiumOptions ) / sizeof( awesomiumOptions[0] ) )',
 		"!CL_Awesomium_SetConfigString( cl_awe.webConfigChildProcessPathSet, cl_awesomium.webConfig, childProcessConfigPath )",
@@ -562,6 +560,11 @@ def test_awesomium_win32_backend_documents_retail_slot_to_export_substitution() 
 	assert "(void)runtimePath;" not in prepare_config_block
 	assert "(void)basePath;" not in prepare_config_block
 	assert "(void)playerName;" not in prepare_config_block
+	assert "CL_Awesomium_HelperImportsChildProcessMain" in cl_awesomium
+	assert "IMAGE_DIRECTORY_ENTRY_IMPORT" in cl_awesomium
+	assert "ChildProcessMain@Awesomium" in cl_awesomium
+	assert "must be staged beside the executable" in cl_awesomium
+	assert '"--single-process"' not in prepare_config_block
 
 	assert 'cl_awesomium.webSession = cl_awe.webCoreCreateWebSession( cl_awesomium.webCore, dataPath, cl_awesomium.webPreferences );' in create_session_block
 	assert "cl_awe.webSessionInitialize( cl_awesomium.webSession );" in create_session_block

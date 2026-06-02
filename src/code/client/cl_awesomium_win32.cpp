@@ -260,7 +260,10 @@ static clAwesomiumState_t cl_awesomium;
 static clAwesomiumImports_t cl_awe;
 
 static void CL_Awesomium_AppendPath( char *buffer, size_t bufferSize, const char *root, const char *fileName );
+static qboolean CL_Awesomium_CopyPath( char *buffer, size_t bufferSize, const char *path );
 static qboolean CL_Awesomium_FileExists( const char *path );
+static qboolean CL_Awesomium_HelperImportsChildProcessMain( const char *path );
+static qboolean CL_Awesomium_SelectChildProcessPath( char *buffer, size_t bufferSize, const char *runtimePath, const char *basePath );
 static qboolean CL_Awesomium_LoadImports( const char *runtimePath, const char *basePath );
 static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char *basePath, const char *playerName, unsigned int appId, unsigned int steamIdLow, unsigned int steamIdHigh, const char *initialConfigJson );
 static void CL_Awesomium_BuildRetryScript( char *buffer, size_t bufferSize );
@@ -609,9 +612,29 @@ static void CL_Awesomium_AppendPath( char *buffer, size_t bufferSize, const char
 	if ( root[length - 1] == '\\' || root[length - 1] == '/' ) {
 		_snprintf( buffer, bufferSize, "%s%s", root, fileName );
 	} else {
-	_snprintf( buffer, bufferSize, "%s\\%s", root, fileName );
+		_snprintf( buffer, bufferSize, "%s\\%s", root, fileName );
 	}
 	buffer[bufferSize - 1] = '\0';
+}
+
+/*
+=============
+CL_Awesomium_CopyPath
+=============
+*/
+static qboolean CL_Awesomium_CopyPath( char *buffer, size_t bufferSize, const char *path ) {
+	if ( !buffer || bufferSize == 0 ) {
+		return qfalse;
+	}
+
+	buffer[0] = '\0';
+	if ( !path || !path[0] ) {
+		return qfalse;
+	}
+
+	strncpy( buffer, path, bufferSize - 1 );
+	buffer[bufferSize - 1] = '\0';
+	return buffer[0] != '\0';
 }
 
 /*
@@ -625,6 +648,258 @@ static qboolean CL_Awesomium_FileExists( const char *path ) {
 	}
 
 	return GetFileAttributesA( path ) != INVALID_FILE_ATTRIBUTES;
+}
+
+/*
+=============
+CL_Awesomium_RvaToFileOffset
+=============
+*/
+static qboolean CL_Awesomium_RvaToFileOffset( const IMAGE_NT_HEADERS *ntHeaders, DWORD rva, DWORD *fileOffset ) {
+	const IMAGE_SECTION_HEADER *section;
+	WORD i;
+
+	if ( !ntHeaders || !fileOffset ) {
+		return qfalse;
+	}
+
+	if ( rva < ntHeaders->OptionalHeader.SizeOfHeaders ) {
+		*fileOffset = rva;
+		return qtrue;
+	}
+
+	section = IMAGE_FIRST_SECTION( ntHeaders );
+	for ( i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++ ) {
+		DWORD sectionStart;
+		DWORD sectionSize;
+		DWORD delta;
+
+		sectionStart = section[i].VirtualAddress;
+		sectionSize = section[i].Misc.VirtualSize;
+		if ( sectionSize < section[i].SizeOfRawData ) {
+			sectionSize = section[i].SizeOfRawData;
+		}
+		if ( sectionSize == 0 || rva < sectionStart ) {
+			continue;
+		}
+
+		delta = rva - sectionStart;
+		if ( delta >= sectionSize || section[i].PointerToRawData > 0xffffffffu - delta ) {
+			continue;
+		}
+
+		*fileOffset = section[i].PointerToRawData + delta;
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_MappedStringIsTerminated
+=============
+*/
+static qboolean CL_Awesomium_MappedStringIsTerminated( const byte *image, DWORD imageSize, DWORD offset ) {
+	DWORD i;
+
+	if ( !image || offset >= imageSize ) {
+		return qfalse;
+	}
+
+	for ( i = offset; i < imageSize; i++ ) {
+		if ( image[i] == '\0' ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+CL_Awesomium_HelperImportsChildProcessMain
+
+Retail `awesomium_process.exe` is only a thin wrapper into
+Awesomium::ChildProcessMain. Rejecting helpers that do not import that symbol
+keeps source-built online-service stubs from occupying the WebConfig child slot.
+=============
+*/
+static qboolean CL_Awesomium_HelperImportsChildProcessMain( const char *path ) {
+	HANDLE file;
+	HANDLE mapping;
+	const byte *image;
+	DWORD imageSize;
+	qboolean result;
+	const IMAGE_DOS_HEADER *dosHeader;
+	const IMAGE_NT_HEADERS *ntHeaders;
+	const IMAGE_DATA_DIRECTORY *importDirectory;
+	DWORD ntOffset;
+	DWORD importOffset;
+
+	if ( !path || !path[0] ) {
+		return qfalse;
+	}
+
+	file = CreateFileA( path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
+	if ( file == INVALID_HANDLE_VALUE ) {
+		return qfalse;
+	}
+
+	mapping = NULL;
+	image = NULL;
+	imageSize = GetFileSize( file, NULL );
+	result = qfalse;
+	if ( imageSize == INVALID_FILE_SIZE || imageSize < sizeof( IMAGE_DOS_HEADER ) ) {
+		goto cleanup;
+	}
+
+	mapping = CreateFileMappingA( file, NULL, PAGE_READONLY, 0, 0, NULL );
+	if ( !mapping ) {
+		goto cleanup;
+	}
+
+	image = (const byte *)MapViewOfFile( mapping, FILE_MAP_READ, 0, 0, 0 );
+	if ( !image ) {
+		goto cleanup;
+	}
+
+	dosHeader = (const IMAGE_DOS_HEADER *)image;
+	if ( dosHeader->e_magic != IMAGE_DOS_SIGNATURE || dosHeader->e_lfanew < 0 ) {
+		goto cleanup;
+	}
+
+	ntOffset = (DWORD)dosHeader->e_lfanew;
+	if ( imageSize < sizeof( IMAGE_NT_HEADERS ) || ntOffset > imageSize - sizeof( IMAGE_NT_HEADERS ) ) {
+		goto cleanup;
+	}
+
+	ntHeaders = (const IMAGE_NT_HEADERS *)( image + ntOffset );
+	if ( ntHeaders->Signature != IMAGE_NT_SIGNATURE
+		|| ntHeaders->FileHeader.Machine != IMAGE_FILE_MACHINE_I386
+		|| ntHeaders->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC ) {
+		goto cleanup;
+	}
+
+	importDirectory = &ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+	if ( importDirectory->VirtualAddress == 0
+		|| !CL_Awesomium_RvaToFileOffset( ntHeaders, importDirectory->VirtualAddress, &importOffset ) ) {
+		goto cleanup;
+	}
+
+	while ( importOffset + sizeof( IMAGE_IMPORT_DESCRIPTOR ) <= imageSize ) {
+		const IMAGE_IMPORT_DESCRIPTOR *descriptor;
+		DWORD nameOffset;
+		DWORD thunkRva;
+		DWORD thunkOffset;
+		const char *dllName;
+
+		descriptor = (const IMAGE_IMPORT_DESCRIPTOR *)( image + importOffset );
+		if ( descriptor->OriginalFirstThunk == 0 && descriptor->FirstThunk == 0 && descriptor->Name == 0 ) {
+			break;
+		}
+
+		importOffset += sizeof( IMAGE_IMPORT_DESCRIPTOR );
+		if ( descriptor->Name == 0
+			|| !CL_Awesomium_RvaToFileOffset( ntHeaders, descriptor->Name, &nameOffset )
+			|| !CL_Awesomium_MappedStringIsTerminated( image, imageSize, nameOffset ) ) {
+			continue;
+		}
+
+		dllName = (const char *)( image + nameOffset );
+		if ( _stricmp( dllName, "awesomium.dll" ) != 0 ) {
+			continue;
+		}
+
+		thunkRva = descriptor->OriginalFirstThunk ? descriptor->OriginalFirstThunk : descriptor->FirstThunk;
+		if ( thunkRva == 0 || !CL_Awesomium_RvaToFileOffset( ntHeaders, thunkRva, &thunkOffset ) ) {
+			continue;
+		}
+
+		while ( thunkOffset + sizeof( IMAGE_THUNK_DATA32 ) <= imageSize ) {
+			const IMAGE_THUNK_DATA32 *thunk;
+			DWORD importNameOffset;
+			const char *importName;
+
+			thunk = (const IMAGE_THUNK_DATA32 *)( image + thunkOffset );
+			if ( thunk->u1.AddressOfData == 0 ) {
+				break;
+			}
+
+			thunkOffset += sizeof( IMAGE_THUNK_DATA32 );
+			if ( thunk->u1.Ordinal & IMAGE_ORDINAL_FLAG32 ) {
+				continue;
+			}
+
+			if ( !CL_Awesomium_RvaToFileOffset( ntHeaders, thunk->u1.AddressOfData, &importNameOffset )
+				|| importNameOffset > imageSize - sizeof( WORD ) - 1
+				|| !CL_Awesomium_MappedStringIsTerminated( image, imageSize, importNameOffset + sizeof( WORD ) ) ) {
+				continue;
+			}
+
+			importName = (const char *)( image + importNameOffset + sizeof( WORD ) );
+			if ( strstr( importName, "ChildProcessMain@Awesomium" ) ) {
+				result = qtrue;
+				goto cleanup;
+			}
+		}
+	}
+
+cleanup:
+	if ( image ) {
+		UnmapViewOfFile( image );
+	}
+	if ( mapping ) {
+		CloseHandle( mapping );
+	}
+	CloseHandle( file );
+	return result;
+}
+
+/*
+=============
+CL_Awesomium_TryChildProcessPath
+=============
+*/
+static qboolean CL_Awesomium_TryChildProcessPath( char *buffer, size_t bufferSize, const char *root ) {
+	char candidate[MAX_PATH];
+
+	CL_Awesomium_AppendPath( candidate, sizeof( candidate ), root, "awesomium_process.exe" );
+	if ( !CL_Awesomium_FileExists( candidate ) ) {
+		return qfalse;
+	}
+
+	if ( !CL_Awesomium_HelperImportsChildProcessMain( candidate ) ) {
+		Com_Printf( "Awesomium child helper rejected: %s does not import Awesomium::ChildProcessMain\n", candidate );
+		return qfalse;
+	}
+
+	return CL_Awesomium_CopyPath( buffer, bufferSize, candidate );
+}
+
+/*
+=============
+CL_Awesomium_SelectChildProcessPath
+=============
+*/
+static qboolean CL_Awesomium_SelectChildProcessPath( char *buffer, size_t bufferSize, const char *runtimePath, const char *basePath ) {
+	char baseCandidate[MAX_PATH];
+
+	if ( !buffer || bufferSize == 0 ) {
+		return qfalse;
+	}
+
+	buffer[0] = '\0';
+	if ( runtimePath && runtimePath[0] && CL_Awesomium_TryChildProcessPath( buffer, bufferSize, runtimePath ) ) {
+		return qtrue;
+	}
+
+	CL_Awesomium_AppendPath( baseCandidate, sizeof( baseCandidate ), basePath, "awesomium_process.exe" );
+	if ( CL_Awesomium_FileExists( baseCandidate ) && CL_Awesomium_HelperImportsChildProcessMain( baseCandidate ) ) {
+		Com_Printf( "Awesomium retail child helper found at %s but must be staged beside the executable for the legacy child launcher\n", baseCandidate );
+	}
+
+	return qfalse;
 }
 
 /*
@@ -788,8 +1063,7 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 	const char *sessionPath;
 	const char *assetsPath;
 	const char *awesomiumOptions[] = {
-		"--no-sandbox",
-		"--single-process"
+		"--no-sandbox"
 	};
 
 	Com_Printf( "Awesomium startup phase: creating WebConfig\n" );
@@ -802,9 +1076,6 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 	sessionPath = runtimePath;
 	assetsPath = runtimePath && runtimePath[0] ? runtimePath : basePath;
 
-	CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), assetsPath, "awesomium_process.exe" );
-	strncpy( childProcessConfigPath, "awesomium_process.exe", sizeof( childProcessConfigPath ) - 1 );
-	childProcessConfigPath[sizeof( childProcessConfigPath ) - 1] = '\0';
 	CL_Awesomium_AppendPath( logPath, sizeof( logPath ), sessionPath, "awesomium.log" );
 	CL_Awesomium_AppendPath( packagePath, sizeof( packagePath ), assetsPath, "web.pak" );
 	strncpy( packageRoot, assetsPath, sizeof( packageRoot ) - 1 );
@@ -814,13 +1085,10 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 		strncpy( packageRoot, basePath, sizeof( packageRoot ) - 1 );
 		packageRoot[sizeof( packageRoot ) - 1] = '\0';
 	}
-	if ( !CL_Awesomium_FileExists( childProcessPath ) && basePath && basePath[0] ) {
-		CL_Awesomium_AppendPath( childProcessPath, sizeof( childProcessPath ), basePath, "awesomium_process.exe" );
-	}
 	CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh, initialConfigJson );
 	CL_Awesomium_BuildRetryScript( cl_awesomium.startupRetryScript, sizeof( cl_awesomium.startupRetryScript ) );
-	if ( !CL_Awesomium_FileExists( childProcessPath ) ) {
-		CL_Awesomium_SetError( "awesomium_process.exe was not found in runtimePath or basePath" );
+	if ( !CL_Awesomium_SelectChildProcessPath( childProcessPath, sizeof( childProcessPath ), runtimePath, basePath ) ) {
+		CL_Awesomium_SetError( "valid awesomium_process.exe was not found in runtimePath or basePath" );
 		return qfalse;
 	}
 	if ( !CL_Awesomium_FileExists( packagePath ) ) {
@@ -828,6 +1096,8 @@ static qboolean CL_Awesomium_PrepareConfig( const char *runtimePath, const char 
 		return qfalse;
 	}
 
+	CL_Awesomium_CopyPath( childProcessConfigPath, sizeof( childProcessConfigPath ), "awesomium_process.exe" );
+	Com_Printf( "Awesomium startup phase: child process path %s (validated %s)\n", childProcessConfigPath, childProcessPath );
 	Com_Printf( "Awesomium startup phase: applying WebConfig\n" );
 	if ( !CL_Awesomium_SetConfigString( cl_awe.webConfigAssetProtocolSet, cl_awesomium.webConfig, "asset" )
 		|| !CL_Awesomium_SetConfigStringArrayOptions( cl_awe.webConfigAdditionalOptionsSet, cl_awesomium.webConfig, awesomiumOptions, sizeof( awesomiumOptions ) / sizeof( awesomiumOptions[0] ) )

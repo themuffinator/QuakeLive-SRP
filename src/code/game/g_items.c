@@ -1606,6 +1606,37 @@ int Pickup_Weapon (gentity_t *ent, gentity_t *other) {
 	return g_weaponRespawn.integer;
 }
 
+/*
+=============
+G_MarkItemAvailable
+
+Stamps the retail item-availability time used by repeated-pickup telemetry.
+=============
+*/
+static void G_MarkItemAvailable( gentity_t *ent ) {
+	if ( !ent || !ent->item ) {
+		return;
+	}
+
+	ent->itemAvailableTime = level.time;
+}
+
+/*
+=============
+G_RecordItemPickupLifecycle
+
+Tracks successful item pickups on the source entity, matching retail's
+per-entity pickup counter.
+=============
+*/
+static void G_RecordItemPickupLifecycle( gentity_t *ent ) {
+	if ( !ent || !ent->item ) {
+		return;
+	}
+
+	ent->itemPickupCount++;
+}
+
 
 //======================================================================
 
@@ -1713,6 +1744,7 @@ void RespawnItem( gentity_t *ent ) {
 	ent->r.svFlags &= ~SVF_NOCLIENT;
 	G_SetPowerupPOITime( ent, level.time );
 	G_SetItemRespawnTimerState( ent, level.time, 0 );
+	G_MarkItemAvailable( ent );
 	trap_LinkEntity (ent);
 
 	if ( ent->item->giType == IT_POWERUP ) {
@@ -1974,6 +2006,9 @@ code read it.
 ===============
 */
 static void G_SyncWeaponRespawnCvarForItem( const gitem_t *item ) {
+	char		cvarString[MAX_CVAR_VALUE_STRING];
+	int		cvarInteger;
+
 	if ( !item || item->giType != IT_WEAPON ) {
 		return;
 	}
@@ -1981,6 +2016,16 @@ static void G_SyncWeaponRespawnCvarForItem( const gitem_t *item ) {
 	// Cvar_Update may otherwise skip a stale mirror with a matching mod count.
 	g_weaponRespawn.modificationCount = -1;
 	trap_Cvar_Update( &g_weaponRespawn );
+
+	cvarInteger = trap_Cvar_VariableIntegerValue( "g_weaponRespawn" );
+	if ( cvarInteger == g_weaponRespawn.integer ) {
+		return;
+	}
+
+	trap_Cvar_VariableStringBuffer( "g_weaponRespawn", cvarString, sizeof( cvarString ) );
+	Q_strncpyz( g_weaponRespawn.string, cvarString, sizeof( g_weaponRespawn.string ) );
+	g_weaponRespawn.value = atof( g_weaponRespawn.string );
+	g_weaponRespawn.integer = cvarInteger;
 }
 
 
@@ -2053,6 +2098,8 @@ void Touch_Item (gentity_t *ent, gentity_t *other, trace_t *trace) {
 	default:
 		return;
 	}
+
+	G_RecordItemPickupLifecycle( ent );
 
 	if ( !respawn ) {
 		return;
@@ -2679,6 +2726,7 @@ void FinishSpawningItem( gentity_t *ent ) {
 
 		respawn = g_spawnDelayPowerupSeconds;
 		if ( respawn <= 0 ) {
+			G_MarkItemAvailable( ent );
 			trap_LinkEntity (ent);
 			return;
 		}
@@ -2699,6 +2747,7 @@ void FinishSpawningItem( gentity_t *ent ) {
 		return;
 	}
 
+	G_MarkItemAvailable( ent );
 	trap_LinkEntity (ent);
 }
 

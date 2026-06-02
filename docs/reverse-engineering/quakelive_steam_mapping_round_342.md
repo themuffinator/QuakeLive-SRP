@@ -66,6 +66,12 @@ Inference:
 ## Verification
 
 - `python -m pytest tests/test_renderer_win32_host_glue_parity.py tests/test_renderer_internal_helper_mapping_parity.py tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentysecond_renderer_startup_tranche_matches_retail_contracts -q --tb=short`
-  - Result: `42 passed`.
-- `msbuild src\code\quakelive.sln /p:Configuration=Debug /p:Platform=x86 /m /nologo`
-  - Result: `Build succeeded`, `0 warnings`, `0 errors`.
+  - Result: `43 passed`.
+- `$tests = Get-ChildItem tests -Filter 'test_renderer_*.py' | ForEach-Object { $_.FullName }; python -m pytest $tests tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentysecond_renderer_startup_tranche_matches_retail_contracts tests/test_source_file_audit_generator.py -q --tb=short`
+  - Result: `110 passed, 1 skipped`.
+- `git diff --check`
+  - Result: clean.
+- `MSBuild.exe src\code\quakelive.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86 /m /nologo`
+  - Result: `Build succeeded`, `33 warnings`, `0 errors`; warnings were
+    pre-existing non-renderer const-qualifier, float-truncation, and unused-local
+    warnings outside the Win32 OpenGL startup lane.

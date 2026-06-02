@@ -61,6 +61,11 @@ Observed facts:
 - Win32 renderer host glue remains a closed strict-retail Windows surface on
   current evidence; the remaining non-Windows graphics debt stays under
   `RW-G02`, not the renderer source tree.
+- 2026-06-02 follow-up: Win32 OpenGL startup wiring is now pinned through
+  `GLW_MakeContext`, `GLW_GetModeInfo`, `GLW_CheckOSVersion`,
+  `GLW_StartDriverAndSetMode`, `GLW_LoadOpenGL`, `GLW_StartOpenGL`, and
+  `GLimp_Init`. The ICD retry path now matches the retail mode `5` then mode
+  `12` safe-mode sequence rather than the GPL-era single mode `3` fallback.
 - Native `ui` and `cgame` host text imports route through
   `RE_DrawScaledText` and `RE_MeasureScaledText`, and those renderer helpers
   now own UTF-8 decode, digit-only color escapes, fallback-face probing, and
@@ -173,12 +178,23 @@ Static validation performed in this round:
   order.
 - The function-level gap audit now distinguishes the source-side fix from the
   still-stale retail-module runtime artifact.
+- 2026-06-02 follow-up validation pins the Win32 OpenGL startup lane through
+  mapping round 342, including the retail ICD fallback sequence at modes `5`
+  and `12` and the absence of the older mode `3` retry.
 - `pytest tests/test_renderer_export_tail_parity.py
   tests/test_engine_client_command_parity.py
   tests/test_renderer_host_text_core_parity.py
   tests/test_renderer_full_parity_gate.py -q`: `27 passed, 1 skipped`.
 - `$tests = Get-ChildItem tests -Filter 'test_renderer_*.py' | ForEach-Object {
   $_.FullName }; pytest $tests -q`: `43 passed, 1 skipped`.
+- `python -m pytest tests/test_renderer_win32_host_glue_parity.py
+  tests/test_renderer_internal_helper_mapping_parity.py
+  tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentysecond_renderer_startup_tranche_matches_retail_contracts
+  -q --tb=short`: `43 passed`.
+- `$tests = Get-ChildItem tests -Filter 'test_renderer_*.py' | ForEach-Object {
+  $_.FullName }; python -m pytest $tests
+  tests/test_engine_cvar_retail_parity.py::test_engine_cvar_twentysecond_renderer_startup_tranche_matches_retail_contracts
+  tests/test_source_file_audit_generator.py -q --tb=short`: `110 passed, 1 skipped`.
 - `pwsh -NoProfile -ExecutionPolicy Bypass -File
   tools\ci\audit-retail-font-stack.ps1`: completed and verified retained
   FontStash atlas growth, `GL_ALPHA` uploads, and refexport tail order. The
@@ -190,6 +206,9 @@ Static validation performed in this round:
   tests/test_game_module_retail_parity_gate.py -q`: `10 passed, 5 skipped`.
 - `git diff --check` over the touched renderer/docs/test/audit files completed
   without whitespace errors.
+- `MSBuild.exe src\code\quakelive.sln /t:Rebuild /p:Configuration=Debug
+  /p:Platform=x86 /m /nologo`: build succeeded with 33 pre-existing
+  non-renderer warnings and 0 errors.
 
 Runtime validation not performed:
 
