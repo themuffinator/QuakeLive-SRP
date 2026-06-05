@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "task": "A6",
+  "scope": "windows_native_validation_preflight",
+  "status": "blocked_before_build",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "tooling_fix": {
+    "summary": "The Windows native validation wrappers now resolve an omitted RepoRoot after discovering the script root, so documented -File invocations reach the real validation checks.",
+    "files": [
+      "tools/ci/audit-retail-toolchain.ps1",
+      "tools/ci/validate-windows-native.ps1"
+    ],
+    "changes_strict_retail_target": false
+  },
+  "commands": [
+    {
+      "id": "strict_retail_toolchain_audit",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\ci\\audit-retail-toolchain.ps1 -Strict",
+      "exit_code": 1,
+      "verified_before_failure": [
+        "src/code/quakelive_steam.vcxproj ToolsVersion='4.0'",
+        "src/code/quakelive_steam.vcxproj Release RuntimeLibrary='MultiThreadedDLL'",
+        "src/code/quakelive_steam.vcxproj Debug RuntimeLibrary='MultiThreadedDebugDLL'"
+      ],
+      "failure": "Value mismatch in src/code/quakelive_steam.vcxproj for //msb:PlatformToolset: expected 'v100', found 'v141'"
+    },
+    {
+      "id": "retail_native_validation_wrapper",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\ci\\validate-windows-native.ps1 -RuntimeProfile retail",
+      "exit_code": 1,
+      "verified_before_failure": [
+        "src/code/game/qagamex86.vcxproj uses PlatformToolset='v141'",
+        "src/code/cgame/cgamex86.vcxproj uses PlatformToolset='v141'",
+        "src/code/ui/ui.vcxproj uses PlatformToolset='v141'",
+        "src/code/quakelive_steam.vcxproj uses PlatformToolset='v141'",
+        "src/code/awesomium_process.vcxproj uses PlatformToolset='v141'"
+      ],
+      "failure": "Value mismatch in src/code/quakelive_steam.vcxproj for //msb:PlatformToolset: expected 'v100', found 'v141'"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "strict_retail_project_toolset_mismatch",
+      "expected": "v100",
+      "actual": "v141",
+      "first_failing_project": "src/code/quakelive_steam.vcxproj",
+      "enforced_by": "tools/ci/audit-retail-toolchain.ps1",
+      "effect": "Strict retail native validation stops before metadata, dependency, build, export, or staged-runtime checks can complete."
+    }
+  ],
+  "checklist_effect": {
+    "preflight_blocker_captured": true,
+    "refresh_archived_build_runtime_evidence_closed": false,
+    "native_windows_build_validation_closed": false,
+    "latest_runtime_alias_promotion_allowed": false,
+    "retail_module_runtime_freshness_closed": false
+  },
+  "parity_estimate": {
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "This pass improves A6 diagnosability but does not refresh native build outputs or runtime evidence."
+  }
+}

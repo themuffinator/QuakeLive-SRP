@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Protocol-91 demo transcript validation gate for residual byte-for-byte replay evidence",
+  "checklist_row_supported": "Commit at least one retail packet capture, protocol-91 demo transcript, or equivalent known-good capture fixture for byte-for-byte replay validation.",
+  "status": "completed_transcript_validation_gate_no_retail_fixture_claimed",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "source_files": [
+    "tools/trace/demo_transcript.py",
+    "tools/trace/__init__.py",
+    "tools/tests/test_trace_harness.py"
+  ],
+  "validator_contract": {
+    "function": "tools.trace.demo_transcript.validate_demo_transcript_dict",
+    "format": "quake_live_demo_message_transcript",
+    "schema_version": 1,
+    "checks": [
+      "schema and format identifiers",
+      "positive protocol number",
+      "message_count equals messages length",
+      "source_size equals terminator_offset plus the -1/-1 terminator length",
+      "message offsets are contiguous from zero",
+      "message payload_hex decodes and matches length",
+      "per-message payload_sha256 matches payload_hex",
+      "aggregate payload_sha256 matches concatenated payloads",
+      "first_byte matches the decoded payload",
+      "retail closure mode requires provenance metadata"
+    ],
+    "retail_provenance_keys": [
+      "source",
+      "capture_type",
+      "capture_date_utc",
+      "retail_build"
+    ],
+    "accepted_capture_types": [
+      "retail_packet_capture",
+      "protocol91_demo_transcript",
+      "known_good_byte_fixture"
+    ]
+  },
+  "checklist_effect": {
+    "new_checked_fixture_validation_row": true,
+    "byte_for_byte_replay_fixture_row_closed": false,
+    "capture_rows_remain_open": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "The pass validates future transcript evidence but does not add a retail packet/demo artifact."
+  },
+  "assertion_tests": [
+    "tools/tests/test_trace_harness.py::test_demo_transcript_validator_requires_retail_provenance_for_closure",
+    "tools/tests/test_trace_harness.py::test_demo_transcript_validator_rejects_corrupt_hashes_and_offsets",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_capture_fixture_validation_gate_blocks_unproven_transcripts"
+  ]
+}

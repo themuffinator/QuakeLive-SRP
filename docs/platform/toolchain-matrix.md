@@ -17,6 +17,14 @@ This matrix tracks the host expectations for rebuilding Quake Live’s native ga
 - Use `dumpbin /exports` and `dumpbin /imports` (or the CI helpers) to verify the rebuilt DLLs expose only `dllEntry` and `vmMain` while depending solely on the Visual C++ 2010 CRT plus the Steam/Awesomium launcher payload recorded in the asset audit.【F:docs/windows-native-pipeline.md†L22-L24】【F:docs/toolchain-ci.md†L11-L18】
 - Run `pwsh tools\ci\audit-retail-dependencies.ps1 -Strict` to confirm a local Steam install still matches the committed retail payload, and use `pwsh tools\ci\audit-retail-dependencies.ps1 -RuntimeRoot build\win32\Release\retail-runtime -SkipSteamInstall -Strict` when you want to re-check the staged strict runtime root directly.【F:docs/platform/retail-dependencies.md†L80-L84】
 - Run `pwsh tools\ci\audit-retail-toolchain.ps1 -Strict` to confirm the project files still encode the recovered retail compiler/linker settings and that a `v100` toolset is actually installed on the machine.【F:docs/platform/retail-toolchain.md†L66-L72】
+- The 2026-06-05 A6 refresh verified the local Visual Studio 2022 `v143`
+  toolchain and produced a clean modern `Release|x86` build with optional
+  codecs disabled. The direct gameplay DLL export audit passed against the
+  fresh `Release\modules` outputs. Strict `v100` staged-runtime evidence is
+  not current on this checkout because the strict audit expects
+  `PlatformToolset=v100` while the checked-in projects currently report
+  `v141`; treat that as a local strict-retail toolchain boundary, not as
+  modern-host package evidence.
 
 ## Linux requirements
 
@@ -29,8 +37,13 @@ This matrix tracks the host expectations for rebuilding Quake Live’s native ga
 - **Windows hosts:** Visual C++ 2010 CRT (`MSVCR100.dll`, `MSVCP100.dll`), launcher binaries (`quakelive_steam.exe`, `awesomium_process.exe`), and supporting DLLs for Awesomium, Chromium/FFmpeg, Steamworks, ICU, and XInput as catalogued in the asset audit.【F:docs/quakelive_asset_audit.md†L17-L25】
 - **Linux hosts:** glibc-based userland (`libc6`), X11 stack with DGA and VidMode extensions, and vendor OpenGL drivers (Mesa/Glide for 3dfx hardware) per the historical Linux README.【F:src/code/unix/README.Linux†L68-L155】
 
-## Outstanding follow-ups
+## Future publication follow-ups
 
+- Reconcile the strict retail native validation policy before claiming fresh
+  VC10 staged-runtime evidence: `tools/ci/audit-retail-toolchain.ps1 -Strict`
+  still expects `PlatformToolset=v100`, while the current checked-in native
+  projects report `v141`. This is documented by the A6 evidence refresh rather
+  than tracked as an open freshness gap.【F:docs/reverse-engineering/runtime-build-evidence-refresh-2026-06-05.md†L1-L47】
 - Publish the retained WOW64 smoke harness in a self-hosted or other 32-bit-capable validation lane if we want the current local 2026-04-21 log to become continuously enforced evidence instead of a manual refresh point.【F:docs/testing/wow64-smoketest.md†L1-L51】
 - Capture additional automated or scripted coverage for the 32-bit glibc preset if we want parity checks beyond the manual helper script.【F:docs/build/linux-glibc-32bit.md†L1-L39】【F:tools/build/linux32_qagame.sh†L1-L36】
 
@@ -41,13 +54,17 @@ compatibility-only ports rather than part of the retail replacement target.
 That means the strict retail Windows engine-host/support score tracks them as documented divergences,
 not as missing Windows parity. They stay visible in the ledger so portability
 work is not forgotten, but they are excluded from the strict-retail parity score and the final `EH-P5` gate result.
+The 2026-06-05 A4 boundary decision closes the active non-Windows portability
+planning gap by treating Linux client/runtime parity as not an active target
+unless a future task explicitly adopts a modern renderer/audio/input dependency
+stack and adds reproducible validation.
 
 - **Hosted Linux/macOS native builds are source-tree builds.** Push and nightly workflows now drive `tools/ci/build-posix-native.sh` on hosted Linux and macOS, producing package manifests/tarballs for the baseq3 native modules plus the dedicated host from `src/code`. The documented glibc preset and helper script still exclusively target the 32-bit `qagamei386.so` server module and explicitly disable Vorbis while diffing exports against the archived server binary, so that specific preset remains server-module-only evidence rather than Linux client/runtime parity proof.【F:tools/ci/build-posix-native.sh†L1-L150】【F:docs/build/linux-glibc-32bit.md†L1-L36】
 - **Legacy rendering/input stack is unported.** The Unix makefile still advertises X11/GLX/DGA-era client builds tied to `/usr/X11R6` headers and Glide-era Mesa copies, while the legacy README calls for XFree86 with DGA/VidMode mouse paths and Glide-specific OpenGL drivers—none of which are wired into current automated validation or available on modern distributions. Linux GLX shutdown now detaches any current context, destroys partial contexts/windows only when present, restores VidMode/gamma state, closes the QGL log, and guards the end-frame swap after shutdown or partial init failure. Linux joystick probing now prefers `/dev/input/js*` before the historical `/dev/js*` nodes, caps retained button/axis translation to the exposed Quake key ranges, updates `ui_joyavail`, and closes the joystick descriptor on shutdown or cvar restart; Linux input shutdown now also releases the retained X mouse grab before clearing mouse availability and activity state, but that is still retained Linux rendering/input compatibility rather than a modern input stack.【F:src/code/unix/Makefile†L4-L198】【F:src/code/unix/README.Linux†L68-L177】
 - **Audio path is still OSS-first, with a bounded silent sink.** The shipped Linux instructions require mmap’ing `/dev/dsp` with permissive device permissions, so there is still no ALSA/PulseAudio shim or SDL abstraction to satisfy a real modern sound backend on contemporary systems. The Linux OSS sound backend can now opt into a silent DMA sink with `snddevice null`, `none`, or `silent`, and the OSS path now closes its file descriptor and unmaps the mmap DMA buffer on shutdown; this is useful for headless/client smoke work but is not full audio parity.【F:src/code/unix/README.Linux†L161-L177】
 - **Platform syscall coverage remains partial, but the old Unix profiling, clipboard, unconditional data-root, module-root, event-packet, and Linux sound-lifecycle stubs are now bounded.** `Sys_LowPhysicalMemory()` now queries physical page counts through `sysconf()`, and `Sys_FunctionCmp()` / `Sys_FunctionCheckSum()` now use Linux/glibc symbol metadata (`dladdr1(..., RTLD_DL_SYMENT)`) plus `Com_BlockChecksum()` to compare and checksum function bodies when symbol sizes are available. `Sys_MonkeyShouldBeSpanked()` now reconstructs the retained `q3monkeyid` release-marker probe from the historical Unix build lane, `Sys_BeginProfiling()` / `Sys_EndProfiling()` now pause or resume `moncontrol()` and flush `_mcleanup()` when the Unix engine is built with `QL_ENABLE_GPROF=1`, `Sys_GetClipboardData()` now exposes a bounded clipboard retrieval path through `wl-paste`, `xclip`, or `xsel` when the surrounding Wayland/X11 environment is present, `Sys_CheckCD()` now probes configured `baseq3` roots for `default.cfg`, `pak00.pk3`, or `pak0.pk3` instead of unconditionally succeeding, Unix `Sys_LoadDll()` now clears failed-load outputs, validates module exports, and closes incompatible candidates while probing cwd, `fs_homepath`, `fs_basepath`, and `fs_cdpath` for native modules, and Unix `Sys_GetEvent()` now queues only unread packet bytes after `netmsg.readcount`. The null host/runtime now carries current executable-name, path, timer, and loopback-network scaffolding plus browser/advert/input shim entry points, input bootstrap cvars and a no-device key-event pump, a renderer GL init refusal, and an explicit null silent DMA sink plus sound/device activation/voice stubs instead of the old stale `FILE *`, `NET_StringToAdr`, `Com_Init( argc, argv )`, and missing web-host/audio/input entry points.【F:src/code/unix/unix_main.c†L102-L208】
 
-### Blockers and next steps
+### Future opt-in work
 
 - Modernise the Unix client toolchain by replacing the XFree86/GLX/DGA assumptions with SDL2 or a contemporary GL loader, then gate Linux client builds in a reproducible validation lane once the dependency chain works on current distros.【F:src/code/unix/Makefile†L4-L198】【F:src/code/unix/README.Linux†L68-L155】 Document interim skips for any renderer/input tests that assume GLX or DGA until the migration lands.
 - Add a real audio shim layer that can select ALSA/PulseAudio/SDL-style backends so `/dev/dsp` is no longer required for audible Linux client runs; the current silent `snddevice null` sink is only a bounded headless bridge, so skip Linux sound validation tests until a real adapter exists.【F:src/code/unix/README.Linux†L161-L177】

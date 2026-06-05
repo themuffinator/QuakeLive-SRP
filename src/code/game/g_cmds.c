@@ -3000,15 +3000,13 @@ static qboolean G_FloodLimited( gentity_t *ent, const char *action, qboolean rec
 	gclient_t		*client;
 	const char	*label;
 	int		maxCount;
-	int		decay;
 
 	if ( !ent || !ent->client ) {
 		return qfalse;
 	}
 
 	maxCount = g_floodprot_maxcount.integer;
-	decay = g_floodprot_decay.integer;
-	if ( maxCount <= 0 || decay <= 0 ) {
+	if ( maxCount <= 0 ) {
 		return qfalse;
 	}
 
@@ -5130,6 +5128,22 @@ static qboolean G_CallVoteClientSlotIsActive( int clientNum ) {
 
 /*
 =============
+G_CallVoteFactoryExists
+
+Checks the retail host factory registry for native builds, falling back to the
+game-local registry for legacy QVM-compatible builds.
+=============
+*/
+static qboolean G_CallVoteFactoryExists( const char *id ) {
+#ifdef Q3_VM
+	return Factory_FindById( id ) ? qtrue : qfalse;
+#else
+	return trap_FactoryExists( id );
+#endif
+}
+
+/*
+=============
 G_VoteArgumentIsNumericValue
 
 Reports whether a callvote argument is a non-empty numeric token with at most one decimal point.
@@ -5420,6 +5434,10 @@ void Cmd_CallVote_f( gentity_t *ent ) {
 		if ( arg3[0] ) {
 			if ( ( g_voteFlags.integer & VF_NO_GAMETYPE ) && !privilegedCallVote ) {
 				trap_SendServerCommand( ent-g_entities, "print \"Voting to change the gametype being played is disabled on this server.\\n\"" );
+				return;
+			}
+			if ( !G_CallVoteFactoryExists( arg3 ) ) {
+				trap_SendServerCommand( ent-g_entities, "print \"Factory does not exist.\\n\"" );
 				return;
 			}
 			factoryOverride = Factory_FindById( arg3 );

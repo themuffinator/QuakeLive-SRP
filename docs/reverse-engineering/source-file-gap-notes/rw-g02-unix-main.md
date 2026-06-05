@@ -1,12 +1,12 @@
 # `src/code/unix/unix_main.c` Gap Note
 
-Last updated: 2026-05-17
+Last updated: 2026-06-05
 
 Gap family: `RW-G02`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
-- Current classification: Open repo-wide gap; several helpers are now bounded, but the broader Unix host still remains compatibility-only rather than retail-equivalent.
+- Current classification: Closed as explicit compatibility-only containment; several helpers are now bounded, but the broader Unix host remains compatibility-only rather than retail-equivalent.
 
-## Why this file is still open
+## Why this file remains compatibility-only
 
 This file has absorbed a lot of restoration work, yet its current state is still explicitly bounded: profiling is optional, clipboard access depends on host tools, `Sys_CheckCD()` is only a coarse data-root probe, and the surrounding Unix runtime is not claimed as a retail-equivalent client host.
 
@@ -15,7 +15,7 @@ This file has absorbed a lot of restoration work, yet its current state is still
 - `Sys_LowPhysicalMemory()`, `Sys_FunctionCmp()`, `Sys_FunctionCheckSum()`, `Sys_MonkeyShouldBeSpanked()`, bounded `gprof` hooks, clipboard retrieval, `Sys_CheckCD()`, the Unix native-module loader, and the Unix packet event copy path are all restored in scoped form.
 - `Sys_LoadDll()` now clears the legacy `entryPoint` output before probing, searches cwd, `fs_homepath`, `fs_basepath`, and `fs_cdpath`, and rejects incompatible native-module candidates before continuing the root search, keeping archived module roots reachable without changing the broader Unix host classification.
 - `Sys_GetEvent()` now queues only unread packet payload bytes after `netmsg.readcount`, matching the recovered Win32 event-loop shape while the current Unix UDP path still leaves `readcount` at zero.
-- The file still underpins a broader Unix runtime that the repo-wide audit explicitly classifies as compatibility-only rather than a closed retail replacement target.
+- The 2026-06-05 A4 boundary decision explicitly classifies the broader Unix runtime as compatibility-only rather than a closed retail replacement target.
 - Optional profiling and environment-dependent clipboard helpers remain bounded host shims, not broad portability closure proof.
 
 ## Function-by-function status
@@ -80,9 +80,8 @@ This file has absorbed a lot of restoration work, yet its current state is still
 | `Sys_ConfigureFPU` | `not currently implicated` | Recovered or retained helper not currently singled out as the active remaining portability blocker. |
 | `Sys_PrintBinVersion` | `not currently implicated` | Recovered or retained helper not currently singled out as the active remaining portability blocker. |
 | `Sys_ParseArgs` | `not currently implicated` | Recovered or retained helper not currently singled out as the active remaining portability blocker. |
-| `main` | `compatibility host owner` | Top-level Unix host entry remains part of the broader still-open portability lane. |
+| `main` | `compatibility boundary` | Top-level Unix host entry remains part of the broader compatibility-only portability lane. |
 
-## Closure target
+## Reopen target
 
-- Finish deciding whether the Unix runtime is meant to reach client/runtime parity or remain a compatibility-only boundary.
-- When that decision is made, rerun the full Unix file walk and split the still-bounded helpers from any truly closed retail-equivalent host functions.
+- Reopen only if the Unix runtime is promoted to an active client/runtime parity target. Until then, rerun focused file walks against this compatibility-only boundary rather than treating retained host helpers as open retail source debt.

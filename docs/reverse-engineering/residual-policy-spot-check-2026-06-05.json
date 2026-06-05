@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "residual_policy_and_planning_checks",
+  "status": "dated_spot_check_complete_manifest_guard_added_policy_callsite_inventory_added",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "source_files": [
+    "docs/reverse-engineering/residual-policy-spot-check-2026-06-05.json",
+    "docs/reverse-engineering/residual-policy-spot-check-2026-06-05.md",
+    "docs/plans/2026-06-05-outstanding-work-checklist.md",
+    "tests/test_netcode_parity_manifest.py"
+  ],
+  "online_services": {
+    "checklist_row": "Keep Quake Live-only online-service replacements behind QL_BUILD_ONLINE_SERVICES unless a documented open replacement path exists.",
+    "spot_check_result": "No policy drift found in the default source path.",
+    "observed_facts": [
+      "src/common/platform/platform_config.h defaults QL_BUILD_ONLINE_SERVICES to 0.",
+      "When QL_BUILD_ONLINE_SERVICES is false, platform_config.h forces QL_BUILD_STEAMWORKS and QL_BUILD_OPEN_STEAM to 0.",
+      "QL_BuildServiceTable publishes Build-disabled (QL_BUILD_ONLINE_SERVICES=0) descriptors for auth, matchmaking, workshop, overlay, and stats in the default build.",
+      "Legacy Q3 service calls remain guarded by QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES.",
+      "Known Steamworks, open-adapter, Awesomium, and Steam-resource bridge lanes are inventoried and guarded by compile-time or runtime policy checks.",
+      "Online-service call sites in auth, common startup/frame, client Steam frame/init, and Windows net restart route through compile-time stubs or CL_SteamServicesEnabled runtime checks in the default build."
+    ],
+    "policy_lane_inventory": [
+      {
+        "lane_id": "steamworks_platform_wrapper",
+        "path": "src/common/platform/platform_steamworks.c",
+        "gate": "#if QL_BUILD_STEAMWORKS",
+        "classification": "opt-in compile-time Steamworks compatibility lane"
+      },
+      {
+        "lane_id": "steamworks_auth_backend",
+        "path": "src/common/platform/backends/platform_backend_steamworks.c",
+        "gate": "#if QL_BUILD_STEAMWORKS",
+        "classification": "opt-in compile-time Steamworks auth backend"
+      },
+      {
+        "lane_id": "open_steam_auth_backend",
+        "path": "src/common/platform/backends/platform_backend_open_steam.c",
+        "gate": "#if QL_BUILD_OPEN_STEAM",
+        "classification": "opt-in compile-time open-adapter auth backend"
+      },
+      {
+        "lane_id": "awesomium_host_adapter",
+        "path": "src/code/client/cl_awesomium_win32.cpp",
+        "gate": "#if QL_BUILD_ONLINE_SERVICES",
+        "classification": "opt-in compile-time Windows Awesomium compatibility lane"
+      },
+      {
+        "lane_id": "awesomium_child_process",
+        "path": "src/code/win32/awesomium_process.cpp",
+        "gate": "#if QL_PLATFORM_HAS_ONLINE_SERVICES",
+        "classification": "build-policy-gated Awesomium child-process lane"
+      },
+      {
+        "lane_id": "steam_resource_uri_bridge",
+        "path": "src/code/client/cl_steam_resources.c",
+        "gate": "CL_SteamServicesEnabled runtime checks before live Steam avatar callbacks and requests",
+        "classification": "compiled launcher fallback bridge with live Steam requests runtime-gated"
+      }
+    ],
+    "callsite_stub_inventory": [
+      {
+        "lane_id": "auth_backend_dispatch_stubs",
+        "paths": [
+          "src/common/auth_credentials.c",
+          "src/common/platform/platform_backend_auth.h"
+        ],
+        "callsite": "QL_Auth_ExecuteRequest tries Open Steam then Steamworks auth backends.",
+        "default_policy_guard": "platform_backend_auth.h returns qfalse inline when QL_BUILD_OPEN_STEAM or QL_BUILD_STEAMWORKS are disabled."
+      },
+      {
+        "lane_id": "steamworks_header_default_stubs",
+        "paths": [
+          "src/common/platform/platform_steamworks.h"
+        ],
+        "callsite": "Shared Steamworks wrapper declarations are only live under #if QL_BUILD_STEAMWORKS.",
+        "default_policy_guard": "The #else surface returns qfalse for initialisation/server init and no-ops shutdown/callback calls."
+      },
+      {
+        "lane_id": "common_steam_gameserver_bootstrap",
+        "paths": [
+          "src/code/qcommon/common.c"
+        ],
+        "callsite": "Com_InitSteamGameServer is called from Com_Init and NET_Restart paths.",
+        "default_policy_guard": "Com_InitSteamGameServer executes live Steam GameServer calls only inside #if QL_BUILD_STEAMWORKS."
+      },
+      {
+        "lane_id": "client_steam_frame_and_init",
+        "paths": [
+          "src/code/client/cl_main.c"
+        ],
+        "callsite": "SteamClient_Frame and SteamClient_Init own client Steam callbacks, voice, stats, lobby, and rich-presence bootstrap.",
+        "default_policy_guard": "SteamClient_Frame returns unless CL_SteamServicesEnabled and QL_Steamworks_Init succeed; SteamClient_Init logs compatibility fallback when services are disabled."
+      },
+      {
+        "lane_id": "windows_net_restart_steam_hooks",
+        "paths": [
+          "src/code/win32/win_net.c"
+        ],
+        "callsite": "NET_Restart calls QL_Steamworks_ServerShutdown and Com_InitSteamGameServer around socket reconfiguration.",
+        "default_policy_guard": "The shutdown call resolves to the platform_steamworks.h no-op stub and the init call resolves to the #if QL_BUILD_STEAMWORKS bootstrap gate when online services are disabled."
+      }
+    ],
+    "source_scan": {
+      "date": "2026-06-05",
+      "paths": [
+        "src/common",
+        "src/code"
+      ],
+      "patterns": [
+        "QL_BUILD_ONLINE_SERVICES",
+        "QL_PLATFORM_HAS_ONLINE_SERVICES",
+        "QL_BUILD_STEAMWORKS",
+        "QL_BUILD_OPEN_STEAM",
+        "Awesomium",
+        "Steam",
+        "steam",
+        "advert",
+        "matchmaking",
+        "workshop",
+        "overlay",
+        "stats"
+      ],
+      "classification": "targeted policy drift scan; gameplay uses of stats/overlay words were treated as search noise unless they touched live service bridges",
+      "result": "no new default-enabled Quake Live online-service lane found"
+    },
+    "remaining_boundary": "Opt-in Steamworks/open-adapter lanes remain bounded compatibility until a documented open replacement path exists."
+  },
+  "ownerdraw": {
+    "checklist_row": "Check the ownerdraw parity indexes before starting new UI work.",
+    "spot_check_result": "Index reviewed; no src/ui edits were made.",
+    "index": "docs/reverse-engineering/ui-ownerdrawtype-parity-index.md",
+    "last_updated": "2026-05-28",
+    "counts": {
+      "checked": 36,
+      "partial": 1,
+      "needs_check": 0,
+      "retail_noop_source_legacy": 8,
+      "noop_missing": 1,
+      "sentinel": 1
+    },
+    "remaining_actions": [
+      "Complete UI_KEYBINDSTATUS from partial coverage to full parity.",
+      "Audit the retail no-op/source legacy set before any menu-owner changes.",
+      "Confirm UI_VOTE_KICK has no shipped UI ownerdraw usage before marking it closed as a no-op."
+    ],
+    "followup_lane_inventory": [
+      {
+        "lane_id": "keybindstatus_full_parity_pass",
+        "ownerdraw_ids": [
+          "542"
+        ],
+        "ownerdraw_types": [
+          "UI_KEYBINDSTATUS"
+        ],
+        "current_index_state": "Partial",
+        "index_evidence": "UI_DrawKeyBindStatus @ 0x100092F0; width helper participates; draw and width route wired.",
+        "required_before_closure": [
+          "Add the full normal/pending prompt parity pass called out by the index.",
+          "Keep the retail UI_OwnerDraw and UI_OwnerDrawWidth control-flow evidence attached to the closure note.",
+          "Do not mark the lane checked from count evidence alone."
+        ]
+      },
+      {
+        "lane_id": "retail_noop_source_legacy_audit",
+        "ownerdraw_ids": [
+          "521",
+          "523",
+          "524",
+          "525",
+          "526",
+          "527",
+          "543",
+          "546"
+        ],
+        "ownerdraw_types": [
+          "UI_TIER",
+          "UI_TIERMAP1",
+          "UI_TIERMAP2",
+          "UI_TIERMAP3",
+          "UI_TIER_MAPNAME",
+          "UI_TIER_GAMETYPE",
+          "UI_CLANCINEMATIC",
+          "UI_PREVIEWCINEMATIC"
+        ],
+        "current_index_state": "Retail no-op/source legacy",
+        "index_evidence": "Retail dispatcher falls through/defaults for these IDs while current source still has legacy draw or cinematic routes.",
+        "required_before_closure": [
+          "Confirm menu reachability or unused status for each ID.",
+          "Document whether each legacy route stays as compatibility, is gated, or is removed for strict retail parity.",
+          "Recheck UI_CLANCINEMATIC stop-cinematic handling before any source-owner change."
+        ]
+      },
+      {
+        "lane_id": "vote_kick_noop_reachability",
+        "ownerdraw_ids": [
+          "530"
+        ],
+        "ownerdraw_types": [
+          "UI_VOTE_KICK"
+        ],
+        "current_index_state": "No-op/missing",
+        "index_evidence": "Retail dispatcher default/no-op for this ID; no draw, key, or width route exists in current source.",
+        "required_before_closure": [
+          "Confirm no shipped menu depends on UI_VOTE_KICK as a UI ownerdraw.",
+          "Document the menu-search evidence before marking it closed as a no-op.",
+          "Keep closure documentation-first because src/ui is read-only for agents."
+        ]
+      }
+    ],
+    "src_ui_read_only_respected": true
+  },
+  "guardrail_assertions": {
+    "manifest_test": "tests/test_netcode_parity_manifest.py::test_residual_policy_spot_check_guardrails_remain_manifest_backed",
+    "runtime_launch_required": false,
+    "game_launch_required": false,
+    "source_assertions": [
+      "platform_config_default_offline_policy",
+      "provider_specific_flags_forced_off_when_online_services_disabled",
+      "default_service_descriptors_publish_build_disabled_labels",
+      "legacy_q3_service_calls_remain_dual_gated",
+      "online_service_lane_inventory_compile_and_runtime_gates",
+      "online_service_callsite_stub_inventory_gates"
+    ],
+    "ownerdraw_assertions": [
+      "ownerdraw_index_counts_match_spot_check_manifest",
+      "ownerdraw_followup_lane_inventory_matches_index_rows",
+      "UI_KEYBINDSTATUS_remains_partial_documentation_first",
+      "retail_noop_source_legacy_set_remains_documentation_first",
+      "UI_VOTE_KICK_remains_noop_missing_documentation_first",
+      "src_ui_tree_was_not_edited_for_this_guard_pass"
+    ]
+  },
+  "checklist_effect": {
+    "dated_online_services_spot_check_captured": true,
+    "dated_online_service_lane_inventory_captured": true,
+    "dated_online_service_callsite_stub_inventory_captured": true,
+    "dated_ownerdraw_spot_check_captured": true,
+    "dated_ownerdraw_followup_lane_inventory_captured": true,
+    "dated_policy_manifest_guard_captured": true,
+    "ongoing_guardrails_closed": false
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_residual_policy_spot_check_guardrails_remain_manifest_backed"
+  ],
+  "parity_estimate": {
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "This pass records policy freshness and does not close source parity or runtime evidence gaps."
+  }
+}

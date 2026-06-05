@@ -232,6 +232,8 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 		"Netchan_Init( Com_Milliseconds() & 0xffff );",
 		"VM_Init();",
 		"SV_Init();",
+		"SV_RegisterGameCvars();",
+		"CL_RegisterCGameCvars();",
 		"SteamClient_Init();",
 		"CL_Init();",
 		"CL_StartHunkUsers();",
@@ -246,7 +248,9 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	assert common_init.index("Sys_Init();") < common_init.index("Netchan_Init")
 	assert common_init.index("Netchan_Init") < common_init.index("VM_Init();")
 	assert common_init.index("VM_Init();") < common_init.index("SV_Init();")
-	assert common_init.index("SV_Init();") < common_init.index("SteamClient_Init();")
+	assert common_init.index("SV_Init();") < common_init.index("SV_RegisterGameCvars();")
+	assert common_init.index("SV_RegisterGameCvars();") < common_init.index("CL_RegisterCGameCvars();")
+	assert common_init.index("CL_RegisterCGameCvars();") < common_init.index("SteamClient_Init();")
 	assert common_init.index("SteamClient_Init();") < common_init.index("CL_Init();")
 	assert common.count("SteamClient_Init();") == 1
 

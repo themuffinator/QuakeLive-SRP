@@ -165,7 +165,9 @@ function Get-BuiltBinaryPath {
             continue
         }
 
-        $releaseCandidates = $candidates | Where-Object { $_.FullName -match '[\\/](Release|Release TA|Release TA DEMO|Release Alpha)[\\/]' }
+        $releaseCandidates = $candidates |
+            Where-Object { $_.FullName -match '[\\/](Release|Release TA|Release TA DEMO|Release Alpha)[\\/]' } |
+            Sort-Object LastWriteTimeUtc -Descending
         if ($releaseCandidates) {
             return $releaseCandidates[0].FullName
         }

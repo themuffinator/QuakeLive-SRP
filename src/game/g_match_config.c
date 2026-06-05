@@ -301,7 +301,6 @@ void G_InitMatchFactoryConfig( void ) {
 	g_matchFactoryConfig = G_MatchConfig_Load();
 	s_reportedMatchFactoryConfig = g_matchFactoryConfig;
 	G_LogMatchFactoryConfig( "init", &g_matchFactoryConfig );
-	G_MatchConfig_UpdateConfigstrings();
 }
 
 /*

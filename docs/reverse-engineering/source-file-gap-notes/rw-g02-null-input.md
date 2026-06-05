@@ -1,12 +1,12 @@
 # `src/code/null/null_input.c` Gap Note
 
-Last updated: 2026-05-17
+Last updated: 2026-06-05
 
 Gap family: `RW-G02`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
-- Current classification: Open repo-wide gap; the file exposes bootstrap cvars but still resolves to a no-device input shim.
+- Current classification: Closed as explicit compatibility-only containment; the file exposes bootstrap cvars but still resolves to a no-device input shim.
 
-## Why this file is still open
+## Why this file remains compatibility-only
 
 The file now touches the modern input cvar surface and keeps `ui_joyavail` plus the joystick modified latch honest, but it still represents a no-device compatibility path rather than a real input host.
 
@@ -22,11 +22,11 @@ The file now touches the modern input cvar surface and keeps `ui_joyavail` plus 
 | --- | --- | --- |
 | `IN_NullTouchCompatibilityCvars` | `bounded compatibility` | Null-input compatibility shim. |
 | `IN_NullRefreshCompatibilityState` | `bounded compatibility` | Maintains the explicit no-device input state and clears the retained joystick modified latch. |
-| `IN_Init` | `open portability owner` | Initialises only the null input compatibility cvars and no-device state. |
-| `IN_Frame` | `open portability owner` | No real input pump; only refreshes null compatibility state. |
+| `IN_Init` | `compatibility boundary` | Initialises only the null input compatibility cvars and no-device state. |
+| `IN_Frame` | `compatibility boundary` | No real input pump; only refreshes null compatibility state. |
 | `IN_Shutdown` | `bounded compatibility` | Null-input shutdown shim. |
-| `Sys_SendKeyEvents` | `open portability owner` | Refreshes the no-device state but still emits no real key events. |
+| `Sys_SendKeyEvents` | `compatibility boundary` | Refreshes the no-device state but still emits no real key events. |
 
-## Closure target
+## Reopen target
 
-- Either keep the null input layer explicitly no-op or promote it to a better-defined host target; do not blur the current boundary.
+- Reopen only if the null input layer is promoted to a better-defined host target with real input devices and validation.

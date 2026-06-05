@@ -964,7 +964,7 @@ float	LittleFloat (const float *l);
 
 void	Swap_Init (void);
 */
-char	* QDECL va(char *format, ...);
+char	* QDECL va(const char *format, ...);
 
 //=============================================
 
@@ -1423,10 +1423,17 @@ typedef struct entityState_s {
 	int		legsAnim;		// mask off ANIM_TOGGLEBIT
 	int		torsoAnim;		// mask off ANIM_TOGGLEBIT
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4201)
+#endif
 	union {
 		int	generic1;
 		int	retailEventData;	// source clarity alias for the retail 0xE0 generic1 slot
 	};
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 	int		jumpTime;
 	int		doubleJumped;
 } entityState_t;

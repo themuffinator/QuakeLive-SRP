@@ -103,6 +103,15 @@ int AAS_UpdateEntity(int entnum, bot_entitystate_t *state)
 	ent->i.weapon = state->weapon;
 	ent->i.legsAnim = state->legsAnim;
 	ent->i.torsoAnim = state->torsoAnim;
+	ent->i.qlTimeSeconds = state->qlTimeSeconds;
+	ent->i.qlPlayerGravity = state->qlPlayerGravity;
+	ent->i.qlPlayerSpeed = state->qlPlayerSpeed;
+	ent->i.qlPlayerDeltaAngle0 = state->qlPlayerDeltaAngle0;
+	ent->i.qlEntityHealth = state->qlEntityHealth;
+	ent->i.qlClientMaxHealth = state->qlClientMaxHealth;
+	Com_Memcpy(ent->i.qlPowerupsActive, state->qlPowerupsActive, sizeof(ent->i.qlPowerupsActive));
+	ent->i.qlFlagsBit18Clear = state->qlFlagsBit18Clear;
+	ent->i.qlRedBlueFlagCarrier = state->qlRedBlueFlagCarrier;
 	//number of the entity
 	ent->i.number = entnum;
 	//updated so set valid flag

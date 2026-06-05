@@ -1,6 +1,6 @@
 # `Botlib` Internal Parity Audit And Implementation Plan
 
-Last updated: 2026-04-10
+Last updated: 2026-06-05
 
 Scope: `src/code/botlib/*` internals as owned by retail `quakelive_steam.exe`, excluding the already-closed server bridge/import table in `src/code/server/sv_bot.c`
 
@@ -52,6 +52,50 @@ Conclusion:
 
 - the open botlib work is not a bridge-ownership problem anymore
 - the remaining question was internal helper confidence, not whether the engine still owns the import seam
+- 2026-06-05 recheck: `docs/reverse-engineering/botlib-server-import-bridge-recheck-2026-06-05.md`
+  adds focused regression coverage for `SV_BotInitBotLib`, the `BotImport_*`
+  trace/BSP/debug helpers, the retail `0x004DD940` import table, and the
+  qagame syscall bridge while confirming no C source body change was needed.
+- 2026-06-05 native-import recheck:
+  `docs/reverse-engineering/botlib-native-import-compat-bridge-recheck-2026-06-05.md`
+  pins the adjacent qagame native import compatibility slab, separating named
+  retail `G_QL_IMPORT_BOTLIB_*` slots and direct bot-AI resource slots from the
+  smaller retained legacy botlib ID set that is intentionally served through
+  `G_QL_IMPORT_COMPAT_BASE + arg`.
+- 2026-06-05 export-table layout recheck:
+  `docs/reverse-engineering/botlib-export-table-layout-recheck-2026-06-05.md`
+  pins retail `GetBotLibAPI`, the internal AAS/EA/AI table offsets, the hidden
+  `EA_Walk` slot between `EA_Action` and `EA_Gesture`, the two AI debug tail
+  slots after `GeneticParentsAndChildSelection`, and the direct AAS quartet
+  order exported by `quakelive_steam.exe`.
+- 2026-06-05 structure-reader mapping:
+  `docs/reverse-engineering/botlib-structure-resource-reader-mapping-2026-06-05.md`
+  identifies `l_struct.c` as a productive forward botlib section and pins
+  `FindField`, `ReadNumber`, and `ReadStructure` against the retail
+  `quakelive_steam.exe` HLIL, Ghidra call sites, and bot item/weapon resource
+  consumers. The same pass now also pins the concrete `iteminfo`,
+  `weaponinfo`, and `projectileinfo` field tables, retail allocation sizes, and
+  weapon/projectile fix-up wiring while documenting the adjacent write helpers
+  as source-real but not yet safely retail-aliased.
+- 2026-06-05 parser-sibling extension: the same mapping note now covers the
+  adjacent characteristic and fuzzy-weight resource readers. It pins
+  `BotLoadCharacterFromFile`, `BotLoadCachedCharacter`,
+  `BotLoadCharacterSkill`, `ReadValue`, `ReadFuzzyWeight`,
+  `ReadFuzzySeperators_r`, `ReadWeightConfig`, and `FindFuzzyWeight` against
+  retail HLIL/Ghidra evidence, including character allocation `0x2cc`, weight
+  config allocation `0x444`, characteristic index bounds, default-character
+  fallback, weight cache behavior, recursive fuzzy-switch parsing, and the
+  source `#if 0` writer boundary.
+- 2026-06-05 precompiler source-handle mapping:
+  `docs/reverse-engineering/botlib-precompiler-source-handle-mapping-2026-06-05.md`
+  selects the next botlib slice after the parser-resource corridor and pins
+  `PC_LoadSourceHandle`, `PC_FreeSourceHandle`, `PC_ReadTokenHandle`,
+  `PC_SourceFileAndLine`, `PC_SetBaseFolder`, and
+  `PC_CheckOpenSourceHandles` against retail HLIL/Ghidra evidence. The pass
+  also records the related ABI wiring through `GetBotLibAPI`,
+  `botlib_export_t`, `SV_GameSystemCallsImpl`, qagame compatibility imports,
+  and classic `trap_PC_*` wrappers, while preserving the fact that only
+  `PC_AddGlobalDefine` has a named direct native qagame slot.
 
 ## Retail-Backed Internal Anchors
 
@@ -210,6 +254,13 @@ Observed result on 2026-04-10:
 
 - `14 passed, 1 skipped`
 
+Follow-up focused validation on 2026-06-05 expanded the botlib proof lane with
+export-table, qagame native-import, showpath, entity-layout, selected-bot
+telemetry, structure-reader, and snapshot-ordering sentinels. The current
+focused botlib/native suite is tracked in `tests/test_botlib_internal_parity.py`
+and `tests/test_game_native_export_helper_parity.py`; recent tranche runs
+include the full pair passing with `24 passed`.
+
 Broader remaining-engine host/support validation after wiring this proof lane back into the shared workflow is recorded in the parent host/support audit and gate artifact.
 
 ## Gap Outcome
@@ -234,9 +285,14 @@ Completed in this pass:
 
 ## Follow-On Work
 
-No new standalone botlib closure tranche is required under the remaining-engine host/support audit after this pass.
+No new standalone botlib closure tranche is required to keep `EH-G04` closed
+under the remaining-engine host/support audit after this pass. However, the
+June 2026 reconstruction rounds show that smaller botlib refinement tranches
+are still worthwhile when the committed retail references expose a concrete
+source, ABI, or mapping mismatch.
 
-Relevant future work can still happen elsewhere when it is driven by a more specific gameplay question:
+Relevant future work can still happen when it is driven by a more specific
+gameplay or retail-reference question:
 
 - deeper route-generation or live-map AAS investigations if a concrete retail mismatch appears
 - weapon/goal desirability tuning audits if the gameplay/module audits surface a bot behavior regression

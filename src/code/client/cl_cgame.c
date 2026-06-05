@@ -164,6 +164,7 @@ static int QLWebHost_CountRecoveredWebCvarMappings( void ) {
 #define CL_WEB_MAP_JSON_BUFFER_SIZE 65536
 #define CL_WEB_FACTORY_JSON_BUFFER_SIZE 65536
 #define CL_WEB_MAP_SYNC_CHUNK_CHARS 8192
+#define CL_WEB_FACTORY_SYNC_CHUNK_CHARS 8192
 #define CL_WEB_LIVE_SURFACE_FAILURE_FRAMES 180
 
 typedef struct clWebFactoryBasegt_s clWebFactoryBasegt_t;
@@ -1592,8 +1593,10 @@ QLWebView_SetLocationHash
 =============
 */
 static qboolean QLWebView_SetLocationHash( const char *hash ) {
+#if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
 	char escapedHash[MAX_STRING_CHARS * 2];
 	char script[MAX_STRING_CHARS * 3];
+#endif
 
 	CL_WebHost_NormalizeHash( hash, cl_webHost.pendingHash, sizeof( cl_webHost.pendingHash ) );
 	CL_WebHost_BuildCurrentURL( cl_webHost.pendingHash, cl_webHost.currentUrl, sizeof( cl_webHost.currentUrl ) );
@@ -4840,6 +4843,60 @@ static void CL_WebHost_PumpNativeJavascriptRequests( void ) {
 
 /*
 =============
+CL_WebHost_WriteJavascriptJsonCall
+
+Builds a script around a large JSON literal without routing that literal
+through Com_sprintf's 32K shared scratch buffer.
+=============
+*/
+static qboolean CL_WebHost_WriteJavascriptJsonCall( char *script, int scriptSize, const char *prefix, const char *json, const char *suffix ) {
+	if ( !script || scriptSize <= 0 || !prefix || !json || !suffix ) {
+		return qfalse;
+	}
+
+	Q_strncpyz( script, prefix, scriptSize );
+	Q_strcat( script, scriptSize, json );
+	Q_strcat( script, scriptSize, suffix );
+	return qtrue;
+}
+
+/*
+=============
+CL_WebHost_ExecuteConfigSnapshot
+
+Pushes the current native cvar/bind snapshot into the browser helper using
+bounded appends so oversized config payloads cannot trip Com_sprintf.
+=============
+*/
+static qboolean CL_WebHost_ExecuteConfigSnapshot( const char *configJson ) {
+#if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
+	static const char prefix[] = "(function(){if(window.__qlr_apply_native_config){window.__qlr_apply_native_config(";
+	static const char suffix[] = ");}})();";
+	char *script;
+	size_t scriptSize;
+	qboolean executed;
+
+	if ( !configJson || !configJson[0] ) {
+		return qfalse;
+	}
+
+	scriptSize = strlen( prefix ) + strlen( configJson ) + strlen( suffix ) + 1;
+	script = (char *)Z_Malloc( (int)scriptSize );
+	if ( !script ) {
+		return qfalse;
+	}
+
+	executed = CL_WebHost_WriteJavascriptJsonCall( script, (int)scriptSize, prefix, configJson, suffix ) && CL_Awesomium_ExecuteJavascript( script, "" );
+	Z_Free( script );
+	return executed;
+#else
+	(void)configJson;
+	return qfalse;
+#endif
+}
+
+/*
+=============
 CL_WebHost_SyncConfigSnapshot
 
 Synchronizes the browser-side qz config cache from the native client cvar/bind
@@ -4849,8 +4906,6 @@ state, giving WebUI GetConfig/GetCvar callers a retail-like native data source.
 static void CL_WebHost_SyncConfigSnapshot( void ) {
 #if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
 	char *configJson;
-	char *script;
-	size_t scriptSize;
 
 	if ( !cl_webHost.liveAwesomium ) {
 		return;
@@ -4870,25 +4925,11 @@ static void CL_WebHost_SyncConfigSnapshot( void ) {
 	configJson[0] = '\0';
 	CL_WebHost_BuildConfigJson( configJson, CL_WEB_NATIVE_CONFIG_BUFFER_SIZE );
 
-	scriptSize = strlen( configJson ) + 160;
-	script = (char *)Z_Malloc( (int)scriptSize );
-	if ( !script ) {
-		Z_Free( configJson );
-		return;
-	}
-
-	Com_sprintf(
-		script,
-		scriptSize,
-		"(function(){if(window.__qlr_apply_native_config){window.__qlr_apply_native_config(%s);}})();",
-		configJson
-	);
-	if ( CL_Awesomium_ExecuteJavascript( script, "" ) ) {
+	if ( CL_WebHost_ExecuteConfigSnapshot( configJson ) ) {
 		cl_webHost.configSynced = qtrue;
 		cl_webHost.nextConfigSyncFrame = cl_webHost.frameSequence + CL_WEB_NATIVE_CONFIG_SYNC_FRAMES;
 	}
 
-	Z_Free( script );
 	Z_Free( configJson );
 #endif
 }
@@ -5016,7 +5057,7 @@ static qboolean CL_WebHost_MapCatalogBridgeReady( void ) {
 	int ready;
 
 	if ( !CL_Awesomium_ExecuteJavascriptInteger(
-		"(function(){return(window.__qlr_browser_helpers_ready&&window.qz_instance&&typeof window.qz_instance.GetMapList==='function'&&typeof window.qz_instance.GetFactoryList==='function'&&typeof window.__qlr_begin_native_maps==='function'&&typeof window.__qlr_add_native_maps==='function'&&typeof window.__qlr_commit_native_maps==='function'&&typeof window.__qlr_apply_native_factories==='function')?1:0;})()",
+		"(function(){return(window.__qlr_browser_helpers_ready&&window.qz_instance&&typeof window.qz_instance.GetMapList==='function'&&typeof window.qz_instance.GetFactoryList==='function'&&typeof window.__qlr_begin_native_maps==='function'&&typeof window.__qlr_add_native_maps==='function'&&typeof window.__qlr_commit_native_maps==='function'&&typeof window.__qlr_begin_native_factories==='function'&&typeof window.__qlr_add_native_factories==='function'&&typeof window.__qlr_commit_native_factories==='function')?1:0;})()",
 		"",
 		&ready ) ) {
 		return qfalse;
@@ -5188,28 +5229,24 @@ static void CL_WebHost_SyncMapCatalogSnapshot( void ) {
 
 /*
 =============
-CL_WebHost_ExecuteFactoryCatalogSnapshot
+CL_WebHost_ExecuteFactoryCatalogBatch
 
-Pushes the recovered retail factory catalog into the live browser bridge so the
-Start Match factory and arena filters observe the same base gametype wiring.
+Adds one bounded top-level factory batch to the pending browser-side cache.
 =============
 */
-static qboolean CL_WebHost_ExecuteFactoryCatalogSnapshot( const char *factoryJson, size_t factoryJsonLength ) {
+static qboolean CL_WebHost_ExecuteFactoryCatalogBatch( const char *entries, size_t entryLength ) {
 #if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
 	char *script;
 	size_t scriptSize;
-	int result;
 	qboolean executed;
+	int result;
 
-	if ( !factoryJson || factoryJsonLength < 2 || factoryJson[0] != '[' || factoryJson[factoryJsonLength - 1] != ']' ) {
-		return qfalse;
-	}
-	if ( !CL_WebHost_MapCatalogBridgeReady() ) {
-		return qfalse;
+	if ( !entries || entryLength == 0 ) {
+		return qtrue;
 	}
 
-	scriptSize = factoryJsonLength + 160;
-	script = (char *)Z_Malloc( scriptSize );
+	scriptSize = entryLength + 144;
+	script = (char *)Z_Malloc( (int)scriptSize );
 	if ( !script ) {
 		return qfalse;
 	}
@@ -5217,12 +5254,137 @@ static qboolean CL_WebHost_ExecuteFactoryCatalogSnapshot( const char *factoryJso
 	Com_sprintf(
 		script,
 		scriptSize,
-		"(function(){return(window.__qlr_apply_native_factories&&window.__qlr_apply_native_factories(%s))?1:0;})()",
-		factoryJson
+		"(function(){return(window.__qlr_add_native_factories&&window.__qlr_add_native_factories([%.*s]))?1:0;})()",
+		(int)entryLength,
+		entries
 	);
 	executed = CL_Awesomium_ExecuteJavascriptInteger( script, "", &result ) && result != 0;
 	Z_Free( script );
 	return executed;
+#else
+	(void)entries;
+	(void)entryLength;
+	return qfalse;
+#endif
+}
+
+/*
+=============
+CL_WebHost_QueueFactoryCatalogEntry
+
+Extends the current factory transfer batch, flushing when the next entry would
+make the JavaScript payload too large for a conservative Awesomium hand-off.
+=============
+*/
+static qboolean CL_WebHost_QueueFactoryCatalogEntry( const char **batchStart, const char **batchEnd, size_t *batchLength, const char *entryStart, size_t entryLength ) {
+	if ( !batchStart || !batchEnd || !batchLength || !entryStart || entryLength == 0 ) {
+		return qtrue;
+	}
+
+	if ( *batchStart && *batchLength + 1 + entryLength > CL_WEB_FACTORY_SYNC_CHUNK_CHARS ) {
+		if ( !CL_WebHost_ExecuteFactoryCatalogBatch( *batchStart, *batchLength ) ) {
+			return qfalse;
+		}
+		*batchStart = NULL;
+		*batchEnd = NULL;
+		*batchLength = 0;
+	}
+
+	if ( !*batchStart ) {
+		*batchStart = entryStart;
+	}
+
+	*batchEnd = entryStart + entryLength;
+	*batchLength = (size_t)( *batchEnd - *batchStart );
+	return qtrue;
+}
+
+/*
+=============
+CL_WebHost_ExecuteFactoryCatalogBatches
+
+Streams the generated factory JSON into the browser in top-level object
+batches, then commits the pending factory cache in one browser-side swap.
+=============
+*/
+static qboolean CL_WebHost_ExecuteFactoryCatalogBatches( const char *factoryJson, size_t factoryJsonLength ) {
+#if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
+	const char *arrayEnd;
+	const char *cursor;
+	const char *entryStart;
+	const char *batchStart;
+	const char *batchEnd;
+	size_t batchLength;
+	int depth;
+	int result;
+	qboolean inString;
+	qboolean escaped;
+
+	if ( !factoryJson || factoryJsonLength < 2 || factoryJson[0] != '[' || factoryJson[factoryJsonLength - 1] != ']' ) {
+		return qfalse;
+	}
+
+	if ( !CL_WebHost_MapCatalogBridgeReady() ) {
+		return qfalse;
+	}
+	if ( !CL_Awesomium_ExecuteJavascriptInteger( "(function(){return(window.__qlr_begin_native_factories&&window.__qlr_begin_native_factories())?1:0;})()", "", &result ) || result == 0 ) {
+		return qfalse;
+	}
+
+	arrayEnd = factoryJson + factoryJsonLength - 1;
+	entryStart = factoryJson + 1;
+	batchStart = NULL;
+	batchEnd = NULL;
+	batchLength = 0;
+	depth = 0;
+	inString = qfalse;
+	escaped = qfalse;
+
+	for ( cursor = factoryJson + 1; cursor < arrayEnd; cursor++ ) {
+		char ch;
+
+		ch = *cursor;
+		if ( inString ) {
+			if ( escaped ) {
+				escaped = qfalse;
+			} else if ( ch == '\\' ) {
+				escaped = qtrue;
+			} else if ( ch == '"' ) {
+				inString = qfalse;
+			}
+			continue;
+		}
+
+		if ( ch == '"' ) {
+			inString = qtrue;
+			continue;
+		}
+		if ( ch == '{' || ch == '[' ) {
+			depth++;
+			continue;
+		}
+		if ( ch == '}' || ch == ']' ) {
+			if ( depth > 0 ) {
+				depth--;
+			}
+			continue;
+		}
+		if ( ch == ',' && depth == 0 ) {
+			if ( !CL_WebHost_QueueFactoryCatalogEntry( &batchStart, &batchEnd, &batchLength, entryStart, (size_t)( cursor - entryStart ) ) ) {
+				return qfalse;
+			}
+			entryStart = cursor + 1;
+		}
+	}
+
+	if ( !CL_WebHost_QueueFactoryCatalogEntry( &batchStart, &batchEnd, &batchLength, entryStart, (size_t)( arrayEnd - entryStart ) ) ) {
+		return qfalse;
+	}
+	if ( !CL_WebHost_ExecuteFactoryCatalogBatch( batchStart, batchLength ) ) {
+		return qfalse;
+	}
+
+	return CL_Awesomium_ExecuteJavascriptInteger( "(function(){return(window.__qlr_commit_native_factories&&window.__qlr_commit_native_factories())?1:0;})()", "", &result ) && result != 0;
 #else
 	(void)factoryJson;
 	(void)factoryJsonLength;
@@ -5276,7 +5438,7 @@ static void CL_WebHost_SyncFactoryCatalogSnapshot( void ) {
 		return;
 	}
 
-	if ( CL_WebHost_ExecuteFactoryCatalogSnapshot( factoryJson, factoryJsonLength ) ) {
+	if ( CL_WebHost_ExecuteFactoryCatalogBatches( factoryJson, factoryJsonLength ) ) {
 		int qzFactoryCount;
 		int moduleFactoryCount;
 
@@ -8466,6 +8628,15 @@ static void QDECL QL_CG_trap_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *v
 
 /*
 ==============
+QL_CG_trap_Cvar_SetValue
+==============
+*/
+static void QDECL QL_CG_trap_Cvar_SetValue( const char *varName, float value ) {
+	Cvar_SetValue( varName, value );
+}
+
+/*
+==============
 QL_CG_trap_Cvar_Reset
 ==============
 */
@@ -8565,6 +8736,16 @@ static void QDECL QL_CG_trap_UpdateAdvert( int handleOrToken, int area ) {
 	// The recovered host-side provider remains inert here as well, so preserve the callback surface without inventing behavior.
 	(void)handleOrToken;
 	(void)area;
+}
+
+/*
+==============
+QL_CG_trap_RetailReservedImport
+==============
+*/
+static int QDECL QL_CG_trap_RetailReservedImport( void ) {
+	// Address-backed retail import rows whose exact signatures remain unresolved fail closed.
+	return 0;
 }
 
 /*
@@ -8722,6 +8903,21 @@ static int QDECL QL_CG_trap_ToggleClientMute( unsigned int identityLow, unsigned
 
 /*
 ==============
+QL_CG_trap_IsSubscribedApp
+==============
+*/
+static int QDECL QL_CG_trap_IsSubscribedApp( int appId ) {
+	// quakelive_steam.exe HLIL: cgame import[122] is the shared SteamApps subscription wrapper.
+	if ( !CL_SteamServicesEnabled() ) {
+		Com_DPrintf( "CGame subscription bridge ignored for app %d: subscription bridge provider unavailable\n", appId );
+		return 0;
+	}
+
+	return QL_Steamworks_IsSubscribedApp( (uint32_t)appId ) ? 1 : 0;
+}
+
+/*
+==============
 QL_CG_trap_GetAvatarImageHandle
 ==============
 */
@@ -8759,6 +8955,7 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_REGISTER_RANGE] = (ql_import_f)QL_CG_trap_Cvar_RegisterRange;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_UPDATE] = (ql_import_f)QL_CG_trap_Cvar_Update;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_SET] = (ql_import_f)QL_CG_trap_Cvar_Set;
+	ql_cgame_imports[CG_QL_IMPORT_CVAR_SET_VALUE] = (ql_import_f)QL_CG_trap_Cvar_SetValue;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_VARIABLESTRINGBUFFER] = (ql_import_f)QL_CG_trap_Cvar_VariableStringBuffer;
 	ql_cgame_imports[CG_QL_IMPORT_CVAR_RESET] = (ql_import_f)QL_CG_trap_Cvar_Reset;
 	ql_cgame_imports[CG_QL_IMPORT_ARGC] = (ql_import_f)QL_CG_trap_Argc;
@@ -8809,11 +9006,18 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER] = (ql_import_f)QL_CG_trap_RefreshAdvertCellShader;
 	ql_cgame_imports[CG_QL_IMPORT_SET_ACTIVE_ADVERT] = (ql_import_f)QL_CG_trap_SetActiveAdvert;
 	ql_cgame_imports[CG_QL_IMPORT_UPDATE_ADVERT] = (ql_import_f)QL_CG_trap_UpdateAdvert;
+	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_59] = (ql_import_f)QL_CG_trap_RetailReservedImport;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_SET_MAP_PATH] = (ql_import_f)QL_CG_trap_AdvertisementBridge_SetMapPath;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_INITCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_InitCGame;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_SHUTDOWNCGAME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_ShutdownCGame;
+	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_63] = (ql_import_f)QL_CG_trap_RetailReservedImport;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_UPDATE_VIEW_PARAMETERS] = (ql_import_f)QL_CG_trap_AdvertisementBridge_UpdateViewParameters;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_SETFRAMETIME] = (ql_import_f)QL_CG_trap_AdvertisementBridge_SetFrameTime;
+	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_65] = (ql_import_f)QL_CG_trap_RetailReservedImport;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_66] = (ql_import_f)QL_CG_trap_RetailReservedImport;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_67] = (ql_import_f)QL_CG_trap_RetailReservedImport;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_68] = (ql_import_f)QL_CG_trap_RetailReservedImport;
+	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_RESERVED_69] = (ql_import_f)QL_CG_trap_RetailReservedImport;
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_CLEAR_DELAY] = (ql_import_f)QL_CG_trap_AdvertisementBridge_ClearDelay;
 	ql_cgame_imports[CG_QL_IMPORT_R_CLEARSCENE] = (ql_import_f)QL_CG_trap_R_ClearScene;
 	ql_cgame_imports[CG_QL_IMPORT_R_ADDREFENTITYTOSCENE] = (ql_import_f)QL_CG_trap_R_AddRefEntityToScene;
@@ -8825,6 +9029,7 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_ADVERTISEMENTBRIDGE_UPDATE_LOADING_VIEW_PARAMETERS] = (ql_import_f)QL_CG_trap_AdvertisementBridge_UpdateLoadingViewParameters;
 	ql_cgame_imports[CG_QL_IMPORT_R_SETCOLOR] = (ql_import_f)QL_CG_trap_R_SetColor_QL;
 	ql_cgame_imports[CG_QL_IMPORT_R_DRAWSTRETCHPIC] = (ql_import_f)QL_CG_trap_R_DrawStretchPic;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_80] = (ql_import_f)QL_CG_trap_RetailReservedImport;
 	ql_cgame_imports[CG_QL_IMPORT_R_MODELBOUNDS] = (ql_import_f)QL_CG_trap_R_ModelBounds;
 	ql_cgame_imports[CG_QL_IMPORT_R_LERPTAG] = (ql_import_f)QL_CG_trap_R_LerpTag;
 	ql_cgame_imports[CG_QL_IMPORT_R_REMAP_SHADER] = (ql_import_f)QL_CG_trap_R_RemapShader;
@@ -8850,13 +9055,18 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_CIN_DRAWCINEMATIC] = (ql_import_f)QL_CG_trap_CIN_DrawCinematic;
 	ql_cgame_imports[CG_QL_IMPORT_CIN_SETEXTENTS] = (ql_import_f)QL_CG_trap_CIN_SetExtents;
 	ql_cgame_imports[CG_QL_IMPORT_GET_ENTITY_TOKEN] = (ql_import_f)QL_CG_trap_GetEntityToken;
+	ql_cgame_imports[CG_QL_IMPORT_PC_ADD_GLOBAL_DEFINE] = (ql_import_f)QL_CG_trap_PC_AddGlobalDefine;
 	ql_cgame_imports[CG_QL_IMPORT_PC_LOAD_SOURCE] = (ql_import_f)QL_CG_trap_PC_LoadSource;
 	ql_cgame_imports[CG_QL_IMPORT_PC_FREE_SOURCE] = (ql_import_f)QL_CG_trap_PC_FreeSource;
 	ql_cgame_imports[CG_QL_IMPORT_PC_READ_TOKEN] = (ql_import_f)QL_CG_trap_PC_ReadToken;
 	ql_cgame_imports[CG_QL_IMPORT_PC_SOURCE_FILE_AND_LINE] = (ql_import_f)QL_CG_trap_PC_SourceFileAndLine;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_112] = (ql_import_f)QL_CG_trap_RetailReservedImport;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_113] = (ql_import_f)QL_CG_trap_RetailReservedImport;
 	ql_cgame_imports[CG_QL_IMPORT_PUBLISH_TAGGED_INFO_STRING] = (ql_import_f)QL_CG_trap_PublishTaggedInfoString;
+	ql_cgame_imports[CG_QL_IMPORT_RETAIL_RESERVED_117] = (ql_import_f)QL_CG_trap_RetailReservedImport;
 	ql_cgame_imports[CG_QL_IMPORT_R_MIRROR_POINT] = (ql_import_f)QL_CG_trap_R_MirrorPoint;
 	ql_cgame_imports[CG_QL_IMPORT_R_MIRROR_VECTOR] = (ql_import_f)QL_CG_trap_R_MirrorVector;
+	ql_cgame_imports[CG_QL_IMPORT_IS_SUBSCRIBED_APP] = (ql_import_f)QL_CG_trap_IsSubscribedApp;
 	ql_cgame_imports[CG_QL_IMPORT_DRAW_SCALED_TEXT] = (ql_import_f)QL_CG_trap_DrawScaledText;
 	ql_cgame_imports[CG_QL_IMPORT_MEASURE_TEXT] = (ql_import_f)QL_CG_trap_MeasureText;
 	ql_cgame_imports[CG_QL_IMPORT_IS_CLIENT_MUTED] = (ql_import_f)QL_CG_trap_IsClientMuted;
@@ -8889,6 +9099,20 @@ static void CL_InitCGameImports( void ) {
 	ql_cgame_imports[CG_QL_IMPORT_COMPAT_ACOS] = (ql_import_f)QL_CG_trap_ACos;
 }
 
+/*
+====================
+CL_CheckCGameNativeImportIntegrity
+
+Checks the native cgame import slots guarded by retail before cgame frame work.
+====================
+*/
+void CL_CheckCGameNativeImportIntegrity( void ) {
+	if ( ql_cgame_imports[CG_QL_IMPORT_R_ADDREFENTITYTOSCENE] != (ql_import_f)QL_CG_trap_R_AddRefEntityToScene ||
+		ql_cgame_imports[CG_QL_IMPORT_R_RENDERSCENE] != (ql_import_f)QL_CG_trap_R_RenderScene ) {
+		CL_SetRetailClientMessageCGameImportGuardFlag();
+	}
+}
+
 
 /*
 ====================
@@ -8915,6 +9139,36 @@ static vm_t *CL_LoadCGameVM( vmInterpret_t interpret ) {
 	}
 
 	return VM_Create( "cgame", CL_CgameSystemCalls, interpret, ql_cgame_imports, CGAME_IMPORT_API_VERSION );
+}
+
+/*
+====================
+CL_LoadCGameForCvarRegistration
+
+Retail startup-only owner for loading cgame before the register-cvars export call.
+====================
+*/
+static vm_t *CL_LoadCGameForCvarRegistration( vmInterpret_t interpret ) {
+	return CL_LoadCGameVM( interpret );
+}
+
+/*
+====================
+CL_RegisterCGameCvars
+
+Loads cgame for the retail startup cvar pass and invokes its native register-cvars export.
+====================
+*/
+void CL_RegisterCGameCvars( void ) {
+	vmInterpret_t	interpret;
+
+	interpret = Cvar_VariableValue( "vm_cgame" );
+	cgvm = CL_LoadCGameForCvarRegistration( interpret );
+	if ( !cgvm ) {
+		Com_Error( ERR_FATAL, "Couldn't load cgame VM during cvar registration.\n" );
+	}
+
+	VM_CallCGameRegisterCvars( cgvm );
 }
 
 /*

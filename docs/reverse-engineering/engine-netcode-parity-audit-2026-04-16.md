@@ -343,6 +343,9 @@ Retail/profile evidence:
 - `CS_WARMUP_READY` carries an info-string snapshot of the warmup readiness
   threshold, current ready count, and eligible client count. The server and
   qagame publish the payload; cgame parses the same keys for HUD consumers.
+- Source note after the 2026-06-05 GUID wiring pass: this reconstructed
+  readiness lane now uses extension slot `0x2D1`, leaving retail `0x2C8` for
+  `CS_MATCH_GUID`.
 - The key spellings are a shared network/configstring contract rather than a
   Steam browser, Steam auth, or Workshop-owned surface.
 
@@ -544,6 +547,48 @@ Sixth network-plan follow-up:
 4. Preserved the existing UDP pk3 autodownload behavior and kept Steam
    Workshop/UGC download handling outside this round for the concurrent
    Steamworks plan.
+
+### 2026-06-05 addendum: server snapshot retail send closure
+
+Server snapshot follow-up:
+
+1. Rechecked retail `SV_SendClientSnapshot` at `0x004E5AC0` in the committed
+   Binary Ninja HLIL and the Ghidra `functions.csv` row.
+2. Closed the previously documented snapshot-wrapper divergence: source
+   `SV_SendClientSnapshot` now writes `lastClientCommand`, pending reliable
+   server commands, and `SV_WriteSnapshotToClient`, then proceeds directly to
+   overflow handling and `SV_SendMessageToClient`.
+3. Removed snapshot-side `SV_WriteDownloadToClient` emission. Legacy UDP
+   download requests now clear any existing download state and do not arm
+   `downloadName`, preventing stale compatibility state from changing QL
+   snapshot scheduling.
+4. Updated `docs/reverse-engineering/netcode-parity-manifest.json` and
+   `tests/test_netcode_parity_manifest.py` so `svc_download` injection between
+   snapshot body and overflow handling is a regression.
+
+Scoped parity estimate: server snapshot send-wrapper **95% -> 100%**. The
+classic UDP helper code remains documented as an inactive compatibility lane,
+outside the retail snapshot stream.
+
+### 2026-06-05 addendum: related snapshot wiring re-audit
+
+Server snapshot adjacent wiring follow-up:
+
+1. Rechecked the snapshot corridor around server authoring/send,
+   client-side parsing, cgame `trap_GetSnapshot` readback, qagame
+   visibility-export inclusion, and bot snapshot entity access.
+2. Confirmed no additional source behavior drift after the send-wrapper
+   closure: `SV_SendClientSnapshot` stays aligned with retail `0x004E5AC0`,
+   `CL_ParseSnapshot`/`CL_GetSnapshot` preserve the existing playerState and
+   entity-ring handoff, and bot clients still build snapshots without network
+   emission before querying the ring directly.
+3. Added a focused regression guard for `SV_BotGetSnapshotEntity` and
+   `QL_G_trap_BotGetSnapshotEntity`, pinning retail `sub_4DDAC0` and
+   `sub_4E17E0` plus the legacy syscall, native import slot, qagame syscall
+   map, and `BotAI_GetSnapshotEntity` handoff.
+
+Scoped parity estimate: related server snapshot wiring **100% -> 100%**. No
+source behavior patch was required for this follow-up.
 
 ### 2026-05-24 addendum: pure validation reliable-command profile
 

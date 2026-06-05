@@ -59,8 +59,12 @@ botlib_export_t be_botlib_export;
 botlib_import_t botimport;
 //
 int bot_developer;
+int bot_showPath;
 //qtrue if the library is setup
 int botlibsetup = qfalse;
+
+#define RETAIL_BOT_DEBUG_AREA_REFRESH	0.1f
+#define RETAIL_BOT_DEBUG_AREA_RADIUS	512
 
 //===========================================================================
 //
@@ -138,7 +142,8 @@ int Export_BotLibSetup(void)
 	int		errnum;
 	
 	bot_developer = LibVarGetValue("bot_developer");
-  memset( &botlibglobals, 0, sizeof(botlibglobals) ); // bk001207 - init
+	bot_showPath = LibVarGetValue("bot_showPath");
+	memset( &botlibglobals, 0, sizeof(botlibglobals) ); // bk001207 - init
 	//initialize byte swapping (litte endian etc.)
 //	Swap_Init();
 	Log_Open("botlib.log");
@@ -646,6 +651,83 @@ int BotExportTest(int parm0, char *parm1, vec3_t parm2, vec3_t parm3)
 	return 0;
 } //end of the function BotExportTest
 
+//===========================================================================
+//
+// Parameter:				-
+// Returns:					-
+// Changes Globals:		-
+//===========================================================================
+void BotDrawDebugAreas(vec3_t origin, int enable, int areanum)
+{
+	static int shown;
+	static float nextshowtime;
+	int area, startarea, endarea, reachnum, traveltype, linecolor;
+	vec3_t dir;
+	aas_reachability_t reach;
+
+	if (AAS_Time() < nextshowtime) {
+		return;
+	} //end if
+
+	if (!enable) {
+		if (shown) {
+			AAS_ClearShownDebugLines();
+			AAS_ClearShownPolygons();
+			shown = qfalse;
+		} //end if
+		return;
+	} //end if
+
+	AAS_ClearShownDebugLines();
+	AAS_ClearShownPolygons();
+	nextshowtime = AAS_Time() + RETAIL_BOT_DEBUG_AREA_REFRESH;
+	shown = qtrue;
+
+	if (!aasworld.loaded) {
+		return;
+	} //end if
+
+	if (areanum > 0) {
+		if (areanum >= aasworld.numareas) {
+			return;
+		} //end if
+		startarea = areanum;
+		endarea = areanum + 1;
+	} //end if
+	else {
+		startarea = 1;
+		endarea = aasworld.numareas;
+	} //end else
+
+	for (area = startarea; area < endarea; area++) {
+		if (!areanum) {
+			VectorSubtract(origin, aasworld.areas[area].center, dir);
+			if (VectorLength(dir) > RETAIL_BOT_DEBUG_AREA_RADIUS) {
+				continue;
+			} //end if
+			if (!AAS_inPVS(aasworld.areas[area].center, origin)) {
+				continue;
+			} //end if
+		} //end if
+
+		AAS_ShowAreaPolygons(area, LINECOLOR_ORANGE, qtrue);
+
+		for (reachnum = AAS_NextAreaReachability(area, 0); reachnum;
+				reachnum = AAS_NextAreaReachability(area, reachnum)) {
+			AAS_ReachabilityFromNum(reachnum, &reach);
+			traveltype = reach.traveltype & TRAVELTYPE_MASK;
+			linecolor = LINECOLOR_BLUE;
+			if (traveltype == TRAVEL_JUMP || traveltype == TRAVEL_WALKOFFLEDGE) {
+				linecolor = LINECOLOR_GREEN;
+			} //end if
+			else if (traveltype == TRAVEL_ROCKETJUMP) {
+				linecolor = LINECOLOR_RED;
+			} //end else if
+			AAS_DrawArrow(reach.start, reach.end, linecolor, LINECOLOR_YELLOW);
+		} //end for
+	} //end for
+} //end of the function BotDrawDebugAreas
+
 
 /*
 ============
@@ -714,6 +796,7 @@ static void Init_EA_Export( ea_export_t *ea ) {
 	ea->EA_SayTeam = EA_SayTeam;
 
 	ea->EA_Action = EA_Action;
+	ea->EA_Walk = EA_Walk;
 	ea->EA_Gesture = EA_Gesture;
 	ea->EA_Talk = EA_Talk;
 	ea->EA_Attack = EA_Attack;
@@ -732,8 +815,8 @@ static void Init_EA_Export( ea_export_t *ea ) {
 	ea->EA_DelayedJump = EA_DelayedJump;
 	ea->EA_Move = EA_Move;
 	ea->EA_View = EA_View;
-	ea->EA_GetInput = EA_GetInput;
 	ea->EA_EndRegular = EA_EndRegular;
+	ea->EA_GetInput = EA_GetInput;
 	ea->EA_ResetInput = EA_ResetInput;
 }
 
@@ -837,6 +920,8 @@ static void Init_AI_Export( ai_export_t *ai ) {
 	// be_ai_gen.h
 	//-----------------------------------
 	ai->GeneticParentsAndChildSelection = GeneticParentsAndChildSelection;
+	ai->BotDrawDebugAreas = BotDrawDebugAreas;
+	ai->BotDrawAvoidSpots = BotDrawAvoidSpots;
 }
 
 

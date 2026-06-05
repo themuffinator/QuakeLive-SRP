@@ -735,7 +735,7 @@ def test_serverinfo_configstring_uses_shared_key_contract() -> None:
 
 	for helper_source, expectations in (
 		(cg_draw, ("Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT )", "Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT )", "trap_Cvar_Update( &g_training );")),
-		(cg_newdraw, ("Info_ValueForKey( info, SERVERINFO_KEY_ROUNDTIMELIMIT )", "Info_ValueForKey( serverInfo, SERVERINFO_KEY_MAPNAME )")),
+		(cg_newdraw, ("Info_ValueForKey( info, SERVERINFO_KEY_ROUNDTIMELIMIT )", "Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME )")),
 		(cg_info, ("Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME )",)),
 		(ai_chat, ("Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME )",)),
 		(ai_dmq3, ("Info_ValueForKey( info, SERVERINFO_KEY_MAPNAME )",)),

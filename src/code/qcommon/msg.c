@@ -1024,6 +1024,9 @@ void MSG_ReadDeltaEntity( msg_t *msg, entityState_t *from, entityState_t *to,
 
 	numFields = sizeof(entityStateFields)/sizeof(entityStateFields[0]);
 	lc = MSG_ReadByte(msg);
+	if ( lc < 0 || lc > numFields ) {
+		Com_Error( ERR_DROP, "MSG_ReadDeltaEntity: invalid field count %i", lc );
+	}
 
 	// shownet 2/3 will interleave with other printed info, -1 will
 	// just print the delta records`
@@ -1426,6 +1429,9 @@ void MSG_ReadDeltaPlayerstate (msg_t *msg, playerState_t *from, playerState_t *t
 
 	numFields = sizeof( playerStateFields ) / sizeof( playerStateFields[0] );
 	lc = MSG_ReadByte(msg);
+	if ( lc < 0 || lc > numFields ) {
+		Com_Error( ERR_DROP, "MSG_ReadDeltaPlayerstate: invalid field count %i", lc );
+	}
 
 	for ( i = 0, field = playerStateFields ; i < lc ; i++, field++ ) {
 		if ( ! MSG_ReadBits( msg, 1 ) ) {

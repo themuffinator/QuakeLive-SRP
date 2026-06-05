@@ -38,7 +38,9 @@ def test_award_configstring_slots_match_retail_recovery() -> None:
 	assert "#define CS_TUTORIAL_TEXT\t\t0x2CB" in bg_public
 	assert "#define CS_FREEZE_TIP_OBJECTIVE\t0x2CC" in bg_public
 	assert "#define CS_FREEZE_TIP_SUMMARY\t0x2D0" in bg_public
-	assert "#define CS_MAX\t\t\t\t\t(CS_FREEZE_TIP_SUMMARY + 1)" in bg_public
+	assert "#define CS_MATCH_GUID\t\t0x2C8" in bg_public
+	assert "#define CS_WARMUP_READY\t\t0x2D1" in bg_public
+	assert "#define CS_MAX\t\t\t\t\t(CS_WARMUP_READY + 1)" in bg_public
 
 
 def test_award_helper_and_callsites_follow_retail_boundary() -> None:

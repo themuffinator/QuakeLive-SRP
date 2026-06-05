@@ -126,7 +126,7 @@ static int CG_MapNativeImport( int arg, const intptr_t *stack ) {
 	case CG_KEY_GETCATCHER: return CG_QL_IMPORT_KEY_GETCATCHER;
 	case CG_KEY_SETCATCHER: return CG_QL_IMPORT_KEY_SETCATCHER;
 	case CG_KEY_GETKEY: return CG_QL_IMPORT_KEY_GETKEY;
-	case CG_PC_ADD_GLOBAL_DEFINE: return CG_QL_IMPORT_COMPAT_PC_ADD_GLOBAL_DEFINE;
+	case CG_PC_ADD_GLOBAL_DEFINE: return CG_QL_IMPORT_PC_ADD_GLOBAL_DEFINE;
 	case CG_PC_LOAD_SOURCE: return CG_QL_IMPORT_PC_LOAD_SOURCE;
 	case CG_PC_FREE_SOURCE: return CG_QL_IMPORT_PC_FREE_SOURCE;
 	case CG_PC_READ_TOKEN: return CG_QL_IMPORT_PC_READ_TOKEN;
@@ -319,6 +319,29 @@ void trap_QL_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *varName, const ch
 	}
 
 	((void (QDECL *)( vmCvar_t *, const char *, const char *, const char *, const char *, int ))import)( vmCvar, varName, defaultValue, minimumValue, maximumValue, flags );
+}
+
+/*
+=================
+trap_QL_Cvar_SetValue
+=================
+*/
+void trap_QL_Cvar_SetValue( const char *varName, float value ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_CVAR_SET_VALUE );
+
+	if ( !import ) {
+		char valueString[32];
+
+		if ( value == (int)value ) {
+			Com_sprintf( valueString, sizeof( valueString ), "%i", (int)value );
+		} else {
+			Com_sprintf( valueString, sizeof( valueString ), "%f", value );
+		}
+		trap_Cvar_Set( varName, valueString );
+		return;
+	}
+
+	((void (QDECL *)( const char *, float ))import)( varName, value );
 }
 
 /*
@@ -629,6 +652,21 @@ unsigned long long trap_QL_MeasureText( const char *text, const char *end, int f
 	}
 
 	return ((unsigned long long (QDECL *)( const char *, const char *, int, float, int, float * ))import)( text, end, fontHandle, scale, maxX, outLeft );
+}
+
+/*
+=================
+trap_QL_IsSubscribedApp
+=================
+*/
+qboolean trap_QL_IsSubscribedApp( int appId ) {
+	ql_import_f import = CG_GetNativeImportFunction( CG_QL_IMPORT_IS_SUBSCRIBED_APP );
+
+	if ( !import ) {
+		return qfalse;
+	}
+
+	return ((int (QDECL *)( int ))import)( appId ) ? qtrue : qfalse;
 }
 
 /*

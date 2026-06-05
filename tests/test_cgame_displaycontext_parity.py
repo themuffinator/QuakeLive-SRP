@@ -12839,9 +12839,12 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 	assert 'trap_Cvar_Register( cv->vmCvar, cv->cvarName,' in block
 	assert 'trap_Cvar_VariableStringBuffer( "sv_running", var, sizeof( var ) );' in block
 	assert 'cgs.localServer = atoi( var );' in block
+	assert 'trap_Cvar_Register(NULL, "fov", "", CVAR_USERINFO | CVAR_ROM );' in block
 	assert 'trap_Cvar_Register(NULL, "cg_version", QL_CGAME_VERSION, CVAR_ROM );' in block
 	assert 'trap_Cvar_Set( "ui_voteactive", "0" );' in block
-	assert 'trap_Cvar_Set( "ui_votestring", "" );' in block
+	assert 'trap_Cvar_Register(NULL, "team_model", DEFAULT_TEAM_MODEL, CVAR_USERINFO | CVAR_ARCHIVE );' not in block
+	assert 'trap_Cvar_Register(NULL, "team_headmodel", DEFAULT_TEAM_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );' not in block
+	assert 'trap_Cvar_Set( "ui_votestring", "" );' not in block
 	assert "trap_Cvar_Update( cv->vmCvar );" in update_block
 	assert "CG_UpdateDamagePlumSettings();" in update_block
 	assert "CG_UpdateCrosshairColorSettings();" in update_block
@@ -12858,6 +12861,8 @@ def test_register_cvars_publishes_retail_version_and_vote_reset() -> None:
 		"esi += 0x18",
 		'(*(data_1074cccc + 0x10))(i_1, "model", "sarge", 0x803)',
 		'(*(data_1074cccc + 0x10))(i_1, "headmodel", "sarge", 0x803)',
+		'(*(data_1074cccc + 0x10))(i_1, &data_1006cdd4, &data_100669b8, 0x42)',
+		"1006cdd4",
 		'"cg_version"',
 		'return (*(data_1074cccc + 0x1c))("ui_voteactive", &data_1006841c)',
 	):

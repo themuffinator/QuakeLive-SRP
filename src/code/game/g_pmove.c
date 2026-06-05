@@ -53,6 +53,7 @@ static vmCvar_t g_pmove_wishSpeed_cvar;
 
 static int g_pmove_last_frame = -1;
 static qboolean g_pmove_force_update = qtrue;
+static qboolean g_pmove_configstrings_ready = qfalse;
 
 static char s_pmoveSettingsPayload[MAX_INFO_STRING];
 
@@ -186,6 +187,11 @@ static void G_PmovePublishSettings( qboolean forceBroadcast ) {
 		payload[0] = '\0';
 	}
 
+	if ( !g_pmove_configstrings_ready ) {
+		s_pmoveSettingsPayload[0] = '\0';
+		return;
+	}
+
 	if ( !forceBroadcast && !Q_stricmp( payload, s_pmoveSettingsPayload ) ) {
 		return;
 	}
@@ -203,7 +209,24 @@ Resets the pmove settings configstring payload cache and clears the broadcast st
 */
 void G_PmoveClearConfigstring( void ) {
 	s_pmoveSettingsPayload[0] = '\0';
-	trap_SetConfigstring( CS_PMOVE_SETTINGS, "" );
+	if ( g_pmove_configstrings_ready ) {
+		trap_SetConfigstring( CS_PMOVE_SETTINGS, "" );
+	}
+}
+
+/*
+=============
+G_PmoveSetConfigstringsReady
+
+Tracks whether the server configstring table has been initialized for qagame publishes.
+=============
+*/
+void G_PmoveSetConfigstringsReady( qboolean ready ) {
+	g_pmove_configstrings_ready = ready;
+	s_pmoveSettingsPayload[0] = '\0';
+	if ( ready ) {
+		g_pmove_force_update = qtrue;
+	}
 }
 
 pmove_settings_t g_pmoveSettings;

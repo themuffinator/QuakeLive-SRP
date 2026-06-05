@@ -821,7 +821,7 @@ static int UI_RefreshDisplayContext(void) {
 =============
 UI_ForEachArenaName
 
-Visits each loaded arena display name for native host consumers.
+Visits each loaded arena map token for native host consumers.
 =============
 */
 static void UI_ForEachArenaName(uiArenaNameCallback_t callback) {
@@ -836,8 +836,8 @@ static void UI_ForEachArenaName(uiArenaNameCallback_t callback) {
 	}
 
 	for (i = 0; i < uiInfo.mapCount; i++) {
-		if (uiInfo.mapList[i].mapName) {
-			callback(uiInfo.mapList[i].mapName);
+		if (uiInfo.mapList[i].mapLoadName) {
+			callback(uiInfo.mapList[i].mapLoadName);
 		}
 	}
 }

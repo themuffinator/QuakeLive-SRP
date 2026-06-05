@@ -244,7 +244,7 @@
     "overall_network_protocol_parity_before_percent": 84,
     "overall_network_protocol_parity_after_percent": 85,
     "remaining_gaps": [
-      "No committed retail packet capture is available for byte-for-byte compressed connect comparison.",
+      "A deterministic compressed-connect Huffman fixture is now pinned in docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json, but no committed retail packet capture is available for byte-for-byte compressed connect comparison.",
       "Live Steam platform auth remains a documented online-service divergence unless QL_BUILD_ONLINE_SERVICES is enabled."
     ]
   },

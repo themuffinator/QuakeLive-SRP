@@ -534,6 +534,8 @@ void	VM_Clear(void);
 vm_t	*VM_Restart( vm_t *vm );
 
 int		QDECL VM_Call( vm_t *vm, int callNum, ... );
+qboolean VM_CallGameRegisterCvars( vm_t *vm );
+qboolean VM_CallCGameRegisterCvars( vm_t *vm );
 
 void	VM_Debug( int level );
 
@@ -1089,6 +1091,7 @@ void CL_InitKeyCommands( void );
 // config files, but the rest of client startup will happen later
 
 void CL_Init( void );
+void CL_RegisterCGameCvars( void );
 void SteamClient_Init( void );
 void SteamClient_Frame( void );
 void CL_Disconnect( qboolean showMainMenu );
@@ -1145,6 +1148,7 @@ void SCR_DebugGraph (float value, int color);	// FIXME: move logging to common?
 // server interface
 //
 void SV_Init( void );
+void SV_RegisterGameCvars( void );
 void SV_Shutdown( char *finalmsg );
 void SV_ClearIdleServerExit( void );
 qboolean SV_ShouldErrorExit( errorParm_t code );

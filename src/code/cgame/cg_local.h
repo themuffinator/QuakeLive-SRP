@@ -2760,6 +2760,16 @@ static ID_INLINE void trap_QL_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *
 	(void)maximumValue;
 	trap_Cvar_Register( vmCvar, varName, defaultValue, flags );
 }
+static ID_INLINE void trap_QL_Cvar_SetValue( const char *varName, float value ) {
+	char	valueString[32];
+
+	if ( value == (int)value ) {
+		Com_sprintf( valueString, sizeof( valueString ), "%i", (int)value );
+	} else {
+		Com_sprintf( valueString, sizeof( valueString ), "%f", value );
+	}
+	trap_Cvar_Set( varName, valueString );
+}
 static ID_INLINE void trap_QL_Cvar_Reset( const char *varName ) {
 	(void)varName;
 }
@@ -2860,6 +2870,10 @@ static ID_INLINE int trap_QL_ToggleClientMute( unsigned int identityLow, unsigne
 	(void)identityHigh;
 	return 0;
 }
+static ID_INLINE qboolean trap_QL_IsSubscribedApp( int appId ) {
+	(void)appId;
+	return qfalse;
+}
 static ID_INLINE qhandle_t trap_QL_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh ) {
 	(void)identityLow;
 	(void)identityHigh;
@@ -2867,6 +2881,7 @@ static ID_INLINE qhandle_t trap_QL_GetAvatarImageHandle( unsigned int identityLo
 }
 #else
 void		trap_QL_Cvar_RegisterRange( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, const char *minimumValue, const char *maximumValue, int flags );
+void		trap_QL_Cvar_SetValue( const char *varName, float value );
 void		trap_QL_Cvar_Reset( const char *varName );
 int			trap_QL_FS_GetFileList( const char *path, const char *extension, char *listbuf, int bufsize );
 void		trap_QL_S_StartSoundVolume( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx, float volume );
@@ -2889,6 +2904,7 @@ void		trap_QL_R_MirrorPoint( vec3_t in, orientation_t *surface, orientation_t *c
 void		trap_QL_R_MirrorVector( vec3_t in, orientation_t *surface, orientation_t *camera, vec3_t out );
 void		trap_QL_DrawScaledText( int x, int y, const char *text, int fontHandle, float scale, int maxX, float *outMaxX, qboolean forceColor );
 unsigned long long trap_QL_MeasureText( const char *text, const char *end, int fontHandle, float scale, int maxX, float *outLeft );
+qboolean	trap_QL_IsSubscribedApp( int appId );
 qhandle_t	trap_QL_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh );
 #endif
 

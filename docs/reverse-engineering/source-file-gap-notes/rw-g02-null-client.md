@@ -72,7 +72,7 @@ This file carries the modern null-client contract as an explicit compatibility b
 | `CL_ShutdownAll` | `bounded compatibility` | Null-client compatibility shim. |
 | `CL_CDKeyValidate` | `bounded compatibility` | Null-client compatibility shim. |
 
-## Closure target
+## Reopen target
 
 - Closed for the current null-client browser/advert scope because the no-op bridges are explicit and machine-testable compatibility shims.
 - Reopen only if the repo begins claiming a richer null-host parity target than the current compatibility boundary, or if a real non-Windows browser/input/audio policy is adopted.

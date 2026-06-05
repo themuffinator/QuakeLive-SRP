@@ -27,6 +27,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../qcommon/vm_local.h"
 #include <limits.h>
 #include <stdint.h>
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 #include "../../../src-re/include/fs_imports.h"
 
 botlib_export_t	*botlib_export;
@@ -1309,6 +1312,145 @@ static const ql_import_f ql_game_compat_imports[GAME_LEGACY_IMPORT_COUNT] = {
 	[TRAP_TESTPRINTFLOAT] = (ql_import_f)QL_G_trap_TestPrintFloat,
 };
 
+typedef struct {
+	uint32_t	Data1;
+	uint16_t	Data2;
+	uint16_t	Data3;
+	byte		Data4[8];
+} ql_guid_t;
+
+#if defined(_WIN32)
+typedef HRESULT (WINAPI *ql_co_create_guid_t)( ql_guid_t *guid );
+#endif
+
+/*
+=================
+SV_CreateSystemGuid
+
+Uses the retail engine's CoCreateGuid source when available.
+=================
+*/
+static qboolean SV_CreateSystemGuid( ql_guid_t *guid ) {
+#if defined(_WIN32)
+	HMODULE ole32;
+	ql_co_create_guid_t createGuid;
+	HRESULT result;
+
+	if ( !guid ) {
+		return qfalse;
+	}
+
+	ole32 = LoadLibraryA( "ole32.dll" );
+	if ( !ole32 ) {
+		return qfalse;
+	}
+
+	createGuid = (ql_co_create_guid_t)GetProcAddress( ole32, "CoCreateGuid" );
+	if ( !createGuid ) {
+		FreeLibrary( ole32 );
+		return qfalse;
+	}
+
+	result = createGuid( guid );
+	FreeLibrary( ole32 );
+
+	return result >= 0 ? qtrue : qfalse;
+#else
+	(void)guid;
+	return qfalse;
+#endif
+}
+
+/*
+=================
+SV_GuidRand32
+=================
+*/
+static uint32_t SV_GuidRand32( uint32_t salt ) {
+	uint32_t value;
+
+	value = ( (uint32_t)( rand() & 0xffff ) << 16 ) ^ (uint32_t)( rand() & 0xffff );
+	value ^= (uint32_t)Com_Milliseconds();
+	value ^= salt + 0x9e3779b9u + ( value << 6 ) + ( value >> 2 );
+
+	return value;
+}
+
+/*
+=================
+SV_CreateFallbackGuid
+
+Produces a version-4-shaped UUID when CoCreateGuid is unavailable.
+=================
+*/
+static void SV_CreateFallbackGuid( ql_guid_t *guid ) {
+	uint32_t value;
+	int i;
+
+	guid->Data1 = SV_GuidRand32( (uint32_t)svs.time );
+	value = SV_GuidRand32( guid->Data1 );
+	guid->Data2 = (uint16_t)( value & 0xffffu );
+	guid->Data3 = (uint16_t)( ( ( value >> 16 ) & 0x0fffu ) | 0x4000u );
+
+	for ( i = 0; i < 8; i++ ) {
+		if ( ( i & 3 ) == 0 ) {
+			value = SV_GuidRand32( value ^ (uint32_t)i );
+		}
+		guid->Data4[i] = (byte)( ( value >> ( ( i & 3 ) * 8 ) ) & 0xffu );
+	}
+
+	guid->Data4[0] = (byte)( ( guid->Data4[0] & 0x3fu ) | 0x80u );
+}
+
+/*
+=================
+SV_FormatMatchGuid
+=================
+*/
+static void SV_FormatMatchGuid( const ql_guid_t *guid, char *buffer, int bufferSize ) {
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	Com_sprintf(
+		buffer,
+		bufferSize,
+		"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+		(unsigned int)guid->Data1,
+		(unsigned int)guid->Data2,
+		(unsigned int)guid->Data3,
+		(unsigned int)guid->Data4[0],
+		(unsigned int)guid->Data4[1],
+		(unsigned int)guid->Data4[2],
+		(unsigned int)guid->Data4[3],
+		(unsigned int)guid->Data4[4],
+		(unsigned int)guid->Data4[5],
+		(unsigned int)guid->Data4[6],
+		(unsigned int)guid->Data4[7]
+	);
+}
+
+/*
+=================
+SV_GenerateMatchGuid
+
+Retail slot 202 writes a lowercase hyphenated GUID into a 0x40 qagame buffer.
+=================
+*/
+static void SV_GenerateMatchGuid( char *buffer, int bufferSize ) {
+	ql_guid_t guid;
+
+	if ( !buffer || bufferSize <= 0 ) {
+		return;
+	}
+
+	if ( !SV_CreateSystemGuid( &guid ) ) {
+		SV_CreateFallbackGuid( &guid );
+	}
+
+	SV_FormatMatchGuid( &guid, buffer, bufferSize );
+}
+
 /*
 =================
 SV_ClientAddSteamStat
@@ -1399,6 +1541,19 @@ static void QDECL QL_G_trap_AddSteamStat( int clientNum, int statIndex, int delt
 
 /*
 =================
+QL_G_trap_GenerateMatchGuid
+=================
+*/
+static void QDECL QL_G_trap_GenerateMatchGuid( char *buffer, int bufferSize ) {
+	if ( bufferSize <= 0 || bufferSize > GAME_MATCH_GUID_BUFFER_SIZE ) {
+		bufferSize = GAME_MATCH_GUID_BUFFER_SIZE;
+	}
+
+	SV_GenerateMatchGuid( buffer, bufferSize );
+}
+
+/*
+=================
 QL_G_trap_UnlockSteamAchievement
 =================
 */
@@ -1413,6 +1568,24 @@ QL_G_trap_HasSteamAchievement
 */
 static qboolean QDECL QL_G_trap_HasSteamAchievement( int clientNum, int achievementId ) {
 	return SV_ClientHasSteamAchievement( clientNum, achievementId );
+}
+
+/*
+=================
+QL_G_trap_BotDrawDebugAreas
+=================
+*/
+static void QDECL QL_G_trap_BotDrawDebugAreas( vec3_t origin, int enable, int areanum ) {
+	botlib_export->ai.BotDrawDebugAreas( origin, enable, areanum );
+}
+
+/*
+=================
+QL_G_trap_BotDrawAvoidSpots
+=================
+*/
+static void QDECL QL_G_trap_BotDrawAvoidSpots( int movestate ) {
+	botlib_export->ai.BotDrawAvoidSpots( movestate );
 }
 
 /*
@@ -1491,19 +1664,53 @@ static void SV_InitGameImports( void ) {
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_AREA_REACHABILITY] = (ql_import_f)QL_G_trap_AAS_AreaReachability;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_AREA_TRAVEL_TIME_TO_GOAL_AREA] = (ql_import_f)QL_G_trap_AAS_AreaTravelTimeToGoalArea;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_ENABLE_ROUTING_AREA] = (ql_import_f)QL_G_trap_AAS_EnableRoutingArea;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_PREDICT_ROUTE] = (ql_import_f)QL_G_trap_AAS_PredictRoute;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_ALTERNATIVE_ROUTE_GOAL] = (ql_import_f)QL_G_trap_AAS_AlternativeRouteGoals;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_SWIMMING] = (ql_import_f)QL_G_trap_AAS_Swimming;
-	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_PREDICT_ROUTE] = (ql_import_f)QL_G_trap_AAS_PredictRoute;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AAS_PREDICT_CLIENT_MOVEMENT] = (ql_import_f)QL_G_trap_AAS_PredictClientMovement;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_DRAW_DEBUG_AREAS] = (ql_import_f)QL_G_trap_BotDrawDebugAreas;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_DRAW_AVOID_SPOTS] = (ql_import_f)QL_G_trap_BotDrawAvoidSpots;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_SAY] = (ql_import_f)QL_G_trap_EA_Say;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_SAY_TEAM] = (ql_import_f)QL_G_trap_EA_SayTeam;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_COMMAND] = (ql_import_f)QL_G_trap_EA_Command;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_ACTION] = (ql_import_f)QL_G_trap_EA_Action;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_WALK] = (ql_import_f)QL_G_trap_EA_Walk;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_GESTURE] = (ql_import_f)QL_G_trap_EA_Gesture;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_TALK] = (ql_import_f)QL_G_trap_EA_Talk;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_ATTACK] = (ql_import_f)QL_G_trap_EA_Attack;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_USE] = (ql_import_f)QL_G_trap_EA_Use;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_RESPAWN] = (ql_import_f)QL_G_trap_EA_Respawn;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_CROUCH] = (ql_import_f)QL_G_trap_EA_Crouch;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE_UP] = (ql_import_f)QL_G_trap_EA_MoveUp;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE_DOWN] = (ql_import_f)QL_G_trap_EA_MoveDown;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE_FORWARD] = (ql_import_f)QL_G_trap_EA_MoveForward;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE_BACK] = (ql_import_f)QL_G_trap_EA_MoveBack;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE_LEFT] = (ql_import_f)QL_G_trap_EA_MoveLeft;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE_RIGHT] = (ql_import_f)QL_G_trap_EA_MoveRight;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_SELECT_WEAPON] = (ql_import_f)QL_G_trap_EA_SelectWeapon;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_JUMP] = (ql_import_f)QL_G_trap_EA_Jump;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_DELAYED_JUMP] = (ql_import_f)QL_G_trap_EA_DelayedJump;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_MOVE] = (ql_import_f)QL_G_trap_EA_Move;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_VIEW] = (ql_import_f)QL_G_trap_EA_View;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_END_REGULAR] = (ql_import_f)QL_G_trap_EA_EndRegular;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_GET_INPUT] = (ql_import_f)QL_G_trap_EA_GetInput;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_EA_RESET_INPUT] = (ql_import_f)QL_G_trap_EA_ResetInput;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_LOAD_CHARACTER] = (ql_import_f)QL_G_trap_BotLoadCharacter;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_CHARACTER] = (ql_import_f)QL_G_trap_BotFreeCharacter;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_FLOAT] = (ql_import_f)QL_G_trap_Characteristic_Float;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_BFLOAT] = (ql_import_f)QL_G_trap_Characteristic_BFloat;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_INTEGER] = (ql_import_f)QL_G_trap_Characteristic_Integer;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_BINTEGER] = (ql_import_f)QL_G_trap_Characteristic_BInteger;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHARACTERISTIC_STRING] = (ql_import_f)QL_G_trap_Characteristic_String;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ALLOC_CHAT_STATE] = (ql_import_f)QL_G_trap_BotAllocChatState;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_CHAT_STATE] = (ql_import_f)QL_G_trap_BotFreeChatState;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_QUEUE_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotQueueConsoleMessage;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_REMOVE_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotRemoveConsoleMessage;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_NEXT_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotNextConsoleMessage;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_NUM_CONSOLE_MESSAGE] = (ql_import_f)QL_G_trap_BotNumConsoleMessages;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_INITIAL_CHAT] = (ql_import_f)QL_G_trap_BotInitialChat;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_NUM_INITIAL_CHATS] = (ql_import_f)QL_G_trap_BotNumInitialChats;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_REPLY_CHAT] = (ql_import_f)QL_G_trap_BotReplyChat;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ENTER_CHAT] = (ql_import_f)QL_G_trap_BotEnterChat;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_CHAT_MESSAGE] = (ql_import_f)QL_G_trap_BotGetChatMessage;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FIND_MATCH] = (ql_import_f)QL_G_trap_BotFindMatch;
@@ -1518,6 +1725,9 @@ static void SV_InitGameImports( void ) {
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_AVOID_GOALS] = (ql_import_f)QL_G_trap_BotResetAvoidGoals;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_PUSH_GOAL] = (ql_import_f)QL_G_trap_BotPushGoal;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_POP_GOAL] = (ql_import_f)QL_G_trap_BotPopGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_EMPTY_GOAL_STACK] = (ql_import_f)QL_G_trap_BotEmptyGoalStack;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_DUMP_AVOID_GOALS] = (ql_import_f)QL_G_trap_BotDumpAvoidGoals;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_DUMP_GOAL_STACK] = (ql_import_f)QL_G_trap_BotDumpGoalStack;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GOAL_NAME] = (ql_import_f)QL_G_trap_BotGoalName;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_TOP_GOAL] = (ql_import_f)QL_G_trap_BotGetTopGoal;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_SECOND_GOAL] = (ql_import_f)QL_G_trap_BotGetSecondGoal;
@@ -1526,14 +1736,29 @@ static void SV_InitGameImports( void ) {
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_TOUCHING_GOAL] = (ql_import_f)QL_G_trap_BotTouchingGoal;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ITEM_GOAL_IN_VIS_BUT_NOT_VISIBLE] = (ql_import_f)QL_G_trap_BotItemGoalInVisButNotVisible;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_NEXT_CAMP_SPOT_GOAL] = (ql_import_f)QL_G_trap_BotGetNextCampSpotGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_MAP_LOCATION_GOAL] = (ql_import_f)QL_G_trap_BotGetMapLocationGoal;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_GET_LEVEL_ITEM_GOAL] = (ql_import_f)QL_G_trap_BotGetLevelItemGoal;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_AVOID_GOAL_TIME] = (ql_import_f)QL_G_trap_BotAvoidGoalTime;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_SET_AVOID_GOAL_TIME] = (ql_import_f)QL_G_trap_BotSetAvoidGoalTime;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_INIT_LEVEL_ITEMS] = (ql_import_f)QL_G_trap_BotInitLevelItems;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_UPDATE_ENTITY_ITEMS] = (ql_import_f)QL_G_trap_BotUpdateEntityItems;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_LOAD_ITEM_WEIGHTS] = (ql_import_f)QL_G_trap_BotLoadItemWeights;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_ITEM_WEIGHTS] = (ql_import_f)QL_G_trap_BotFreeItemWeights;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_INTERBREED_GOAL_FUZZY_LOGIC] = (ql_import_f)QL_G_trap_BotInterbreedGoalFuzzyLogic;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_SAVE_GOAL_FUZZY_LOGIC] = (ql_import_f)QL_G_trap_BotSaveGoalFuzzyLogic;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MUTATE_GOAL_FUZZY_LOGIC] = (ql_import_f)QL_G_trap_BotMutateGoalFuzzyLogic;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ALLOC_GOAL_STATE] = (ql_import_f)QL_G_trap_BotAllocGoalState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_GOAL_STATE] = (ql_import_f)QL_G_trap_BotFreeGoalState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_MOVE_STATE] = (ql_import_f)QL_G_trap_BotResetMoveState;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MOVE_TO_GOAL] = (ql_import_f)QL_G_trap_BotMoveToGoal;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MOVE_IN_DIRECTION] = (ql_import_f)QL_G_trap_BotMoveInDirection;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_AVOID_REACH] = (ql_import_f)QL_G_trap_BotResetAvoidReach;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_RESET_LAST_AVOID_REACH] = (ql_import_f)QL_G_trap_BotResetLastAvoidReach;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_REACHABILITY_AREA] = (ql_import_f)QL_G_trap_BotReachabilityArea;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_MOVEMENT_VIEW_TARGET] = (ql_import_f)QL_G_trap_BotMovementViewTarget;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_PREDICT_VISIBLE_POSITION] = (ql_import_f)QL_G_trap_BotPredictVisiblePosition;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ALLOC_MOVE_STATE] = (ql_import_f)QL_G_trap_BotAllocMoveState;
+	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_FREE_MOVE_STATE] = (ql_import_f)QL_G_trap_BotFreeMoveState;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_INIT_MOVE_STATE] = (ql_import_f)QL_G_trap_BotInitMoveState;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_ADD_AVOID_SPOT] = (ql_import_f)QL_G_trap_BotAddAvoidSpot;
 	ql_game_imports[G_QL_IMPORT_BOTLIB_AI_CHOOSE_BEST_FIGHT_WEAPON] = (ql_import_f)QL_G_trap_BotChooseBestFightWeapon;
@@ -1547,9 +1772,11 @@ static void SV_InitGameImports( void ) {
 	ql_game_imports[G_QL_IMPORT_REPORT_PLAYER_EVENT] = (ql_import_f)QL_G_trap_ReportPlayerEvent;
 	ql_game_imports[G_QL_IMPORT_STEAMID_QUERY] = (ql_import_f)QL_G_trap_GetSteamId;
 	ql_game_imports[G_QL_IMPORT_STEAM_STAT_ADD] = (ql_import_f)QL_G_trap_AddSteamStat;
+	ql_game_imports[G_QL_IMPORT_GENERATE_MATCH_GUID] = (ql_import_f)QL_G_trap_GenerateMatchGuid;
 	ql_game_imports[G_QL_IMPORT_STEAM_UNLOCK_ACHIEVEMENT] = (ql_import_f)QL_G_trap_UnlockSteamAchievement;
 	ql_game_imports[G_QL_IMPORT_STEAM_HAS_ACHIEVEMENT] = (ql_import_f)QL_G_trap_HasSteamAchievement;
 	ql_game_imports[G_QL_IMPORT_STEAM_AUTH_VALIDATE] = (ql_import_f)QL_G_trap_VerifySteamAuth;
+	ql_game_imports[G_QL_IMPORT_FACTORY_EXISTS] = (ql_import_f)QL_G_trap_FactoryExists;
 
 	Com_Memcpy( &ql_game_imports[G_QL_IMPORT_COMPAT_BASE], ql_game_compat_imports, sizeof( ql_game_compat_imports ) );
 }
@@ -1775,6 +2002,35 @@ static vm_t *SV_LoadGameModule( vmInterpret_t interpret ) {
 	}
 
 	return VM_Create( "qagame", SV_GameSystemCalls, interpret, ql_game_imports, GAME_API_VERSION );
+}
+
+/*
+=============
+SV_RegisterGameCvars
+
+Loads qagame for the retail startup cvar pass and invokes its native register-cvars export.
+=============
+*/
+void SV_RegisterGameCvars( void ) {
+	cvar_t	*var;
+	vmInterpret_t interpret;
+	extern int	bot_enable;
+
+	var = Cvar_Get( "bot_enable", "1", 0 );
+	if ( var ) {
+		bot_enable = var->integer;
+	}
+	else {
+		bot_enable = 0;
+	}
+
+	interpret = Cvar_VariableValue( "vm_game" );
+	gvm = SV_LoadGameModule( interpret );
+	if ( !gvm ) {
+		Com_Error( ERR_FATAL, "Couldn't load game VM during cvar registration.\n" );
+	}
+
+	VM_CallGameRegisterCvars( gvm );
 }
 
 /*

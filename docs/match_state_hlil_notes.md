@@ -9,7 +9,8 @@
 ## Current server assembly vs HLIL
 - `G_UpdateMatchStateConfigString` currently assembles `CS_MATCH_STATE` with all timeout, overtime, turn/state, respawn, shuffle, and factory fields that mirror the HLIL match-state payload keys (`time`, `round`, `turn`, `state`, `ot*`, `to*`, `team*`, `resp*`, `shuffle*`, `sd*`).【cdfa05†L52-L136】【b0fd33†L1-L32】
 - The server publishes the ready-up deadline through `G_UpdateReadyUpConfigstring`, but the configstring ID used is `CS_READYUP_STATUS` (0x2C4) instead of a distinct HLIL slot in the 0x297/0x298 range. The timeout pause handler also rebroadcasts this deadline when warmup time is adjusted.【5c0be4†L2820-L2833】
-- Warmup readiness snapshots are emitted from the server side via `SV_CheckWarmupReadiness`, which encodes `pct`, `ready`, and `eligible` into `CS_WARMUP_READY`.【c818ff†L730-L754】
+- Warmup readiness snapshots are emitted from the server side via `SV_CheckWarmupReadiness`, which encodes `pct`, `ready`, and `eligible` into `CS_WARMUP_READY`; this source-only readiness lane now lives on extension slot `0x2D1`.
+  Retail `0x2C8` remains `CS_MATCH_GUID`.【c818ff†L730-L754】
 - The server now mirrors the observed sudden-death status latch through `CS_SUDDENDEATH_STATUS` alongside `CS_MATCH_STATE`, but it still does not recreate the distinct 0x297/0x298 readiness/status mirrors seen in HLIL.【bddfe1†L117-L154】
 
 ## Client parsing vs HLIL

@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -13,6 +14,8 @@
 #define MAX_CLIENTS 64
 #define MAX_AVOIDGOALS 256
 #define MAX_GOALSTACK 8
+#define MAX_AVOIDREACH 1
+#define MAX_AVOIDSPOTS 32
 
 #define PRT_MESSAGE 1
 #define PRT_WARNING 2
@@ -21,6 +24,13 @@
 
 #define PRESENCE_NORMAL 2
 #define PRESENCE_CROUCH 4
+
+#define MFL_ONGROUND 2
+#define MFL_SWIMMING 4
+#define MFL_WATERJUMP 16
+#define MFL_TELEPORTED 32
+#define MFL_GRAPPLEPULL 64
+#define MFL_WALK 512
 
 #define TRAVELFLAG_NOTTEAM1 ( 1 << 24 )
 #define TRAVELFLAG_NOTTEAM2 ( 2 << 24 )
@@ -39,6 +49,7 @@ typedef struct bot_goal_s {
 	int number;
 	int flags;
 	int iteminfo;
+	int qlGoalExtra[ 2 ];
 } bot_goal_t;
 
 typedef struct iteminfo_s {
@@ -66,6 +77,51 @@ typedef struct bot_goalstate_s {
 	float avoidgoaltimes[ MAX_AVOIDGOALS ];
 } bot_goalstate_t;
 
+typedef struct bot_avoidspot_s {
+	vec3_t origin;
+	float radius;
+	int type;
+} bot_avoidspot_t;
+
+typedef struct bot_initmove_s {
+	vec3_t origin;
+	vec3_t velocity;
+	vec3_t viewoffset;
+	int entitynum;
+	int client;
+	float thinktime;
+	int presencetype;
+	vec3_t viewangles;
+	int or_moveflags;
+} bot_initmove_t;
+
+typedef struct bot_movestate_s {
+	vec3_t origin;
+	vec3_t velocity;
+	vec3_t viewoffset;
+	int entitynum;
+	int client;
+	float thinktime;
+	int presencetype;
+	vec3_t viewangles;
+	int areanum;
+	int lastareanum;
+	int lastgoalareanum;
+	int lastreachnum;
+	vec3_t lastorigin;
+	int reachareanum;
+	int moveflags;
+	int jumpreach;
+	float grapplevisible_time;
+	float lastgrappledist;
+	float reachability_time;
+	int avoidreach[ MAX_AVOIDREACH ];
+	float avoidreachtimes[ MAX_AVOIDREACH ];
+	int avoidreachtries[ MAX_AVOIDREACH ];
+	bot_avoidspot_t avoidspots[ MAX_AVOIDSPOTS ];
+	int numavoidspots;
+} bot_movestate_t;
+
 typedef struct qlr_bot_import_s {
 	void ( *Print )( int type, char *fmt, ... );
 } qlr_bot_import_t;
@@ -78,6 +134,7 @@ typedef struct qlr_aassettings_s {
 
 static qlr_bot_import_t botimport;
 static bot_goalstate_t *botgoalstates[ MAX_CLIENTS + 1 ];
+static bot_movestate_t *botmovestates[ MAX_CLIENTS + 1 ];
 static itemconfig_t *itemconfig = NULL;
 static levelitem_t *levelitems = NULL;
 static qlr_aassettings_t qlr_aassettings;
@@ -323,6 +380,185 @@ static int AAS_TravelFlagsForTeam( int ent ) {
 		return TRAVELFLAG_NOTTEAM2;
 	}
 	return 0;
+}
+
+/*
+=============
+BotMoveStateFromHandle
+
+Copied move-state handle validator from be_ai_move.c.
+=============
+*/
+static bot_movestate_t *BotMoveStateFromHandle( int handle ) {
+	if ( handle <= 0 || handle > MAX_CLIENTS ) {
+		botimport.Print( PRT_FATAL, "move state handle %d out of range\n", handle );
+		return NULL;
+	}
+	if ( !botmovestates[ handle ] ) {
+		botimport.Print( PRT_FATAL, "invalid move state %d\n", handle );
+		return NULL;
+	}
+	return botmovestates[ handle ];
+}
+
+/*
+=============
+BotAllocMoveState
+
+Copied move-state allocator from be_ai_move.c.
+=============
+*/
+static int BotAllocMoveState( void ) {
+	int i;
+
+	for ( i = 1; i <= MAX_CLIENTS; i++ ) {
+		if ( !botmovestates[ i ] ) {
+			botmovestates[ i ] = (bot_movestate_t *) calloc( 1, sizeof( bot_movestate_t ) );
+			return i;
+		}
+	}
+	return 0;
+}
+
+/*
+=============
+BotFreeMoveState
+
+Copied move-state free helper from be_ai_move.c.
+=============
+*/
+static void BotFreeMoveState( int handle ) {
+	if ( handle <= 0 || handle > MAX_CLIENTS ) {
+		botimport.Print( PRT_FATAL, "move state handle %d out of range\n", handle );
+		return;
+	}
+	if ( !botmovestates[ handle ] ) {
+		botimport.Print( PRT_FATAL, "invalid move state %d\n", handle );
+		return;
+	}
+
+	free( botmovestates[ handle ] );
+	botmovestates[ handle ] = NULL;
+}
+
+/*
+=============
+BotInitMoveState
+
+Copied movement input initializer from be_ai_move.c.
+=============
+*/
+static void BotInitMoveState( int handle, bot_initmove_t *initmove ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return;
+	}
+
+	memcpy( ms->origin, initmove->origin, sizeof( vec3_t ) );
+	memcpy( ms->velocity, initmove->velocity, sizeof( vec3_t ) );
+	memcpy( ms->viewoffset, initmove->viewoffset, sizeof( vec3_t ) );
+	ms->entitynum = initmove->entitynum;
+	ms->client = initmove->client;
+	ms->thinktime = initmove->thinktime;
+	ms->presencetype = initmove->presencetype;
+	memcpy( ms->viewangles, initmove->viewangles, sizeof( vec3_t ) );
+
+	ms->moveflags &= ~MFL_ONGROUND;
+	if ( initmove->or_moveflags & MFL_ONGROUND ) {
+		ms->moveflags |= MFL_ONGROUND;
+	}
+	ms->moveflags &= ~MFL_TELEPORTED;
+	if ( initmove->or_moveflags & MFL_TELEPORTED ) {
+		ms->moveflags |= MFL_TELEPORTED;
+	}
+	ms->moveflags &= ~MFL_WATERJUMP;
+	if ( initmove->or_moveflags & MFL_WATERJUMP ) {
+		ms->moveflags |= MFL_WATERJUMP;
+	}
+	ms->moveflags &= ~MFL_WALK;
+	if ( initmove->or_moveflags & MFL_WALK ) {
+		ms->moveflags |= MFL_WALK;
+	}
+	ms->moveflags &= ~MFL_GRAPPLEPULL;
+	if ( initmove->or_moveflags & MFL_GRAPPLEPULL ) {
+		ms->moveflags |= MFL_GRAPPLEPULL;
+	}
+}
+
+/*
+=============
+BotResetAvoidReach
+
+Copied avoid-reach reset helper from be_ai_move.c.
+=============
+*/
+static void BotResetAvoidReach( int movestate ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( movestate );
+	if ( !ms ) {
+		return;
+	}
+
+	memset( ms->avoidreach, 0, MAX_AVOIDREACH * sizeof( int ) );
+	memset( ms->avoidreachtimes, 0, MAX_AVOIDREACH * sizeof( float ) );
+	memset( ms->avoidreachtries, 0, MAX_AVOIDREACH * sizeof( int ) );
+}
+
+/*
+=============
+BotResetLastAvoidReach
+
+Retail-shaped reset-last helper from be_ai_move.c, using a safe read for the post-loop +0x80 gate.
+=============
+*/
+static void BotResetLastAvoidReach( int movestate ) {
+	int i;
+	int latest;
+	int gate;
+	float latesttime;
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( movestate );
+	if ( !ms ) {
+		return;
+	}
+
+	latesttime = 0;
+	latest = 0;
+	for ( i = 0; i < MAX_AVOIDREACH; i++ ) {
+		if ( ms->avoidreachtimes[ i ] > latesttime ) {
+			latesttime = ms->avoidreachtimes[ i ];
+			latest = i;
+		}
+	}
+	if ( latesttime ) {
+		ms->avoidreachtimes[ latest ] = 0;
+		memcpy( &gate, ( (char *) ms ) + offsetof( bot_movestate_t, avoidspots ), sizeof( gate ) );
+		if ( gate > 0 ) {
+			ms->avoidreachtries[ latest ]--;
+		}
+	}
+}
+
+/*
+=============
+BotResetMoveState
+
+Copied full move-state reset helper from be_ai_move.c.
+=============
+*/
+static void BotResetMoveState( int movestate ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( movestate );
+	if ( !ms ) {
+		return;
+	}
+
+	memset( ms, 0, sizeof( bot_movestate_t ) );
 }
 
 /*
@@ -696,6 +932,10 @@ QLR_TEST_EXPORT void QLR_BotlibResetState( void ) {
 			free( botgoalstates[ i ] );
 			botgoalstates[ i ] = NULL;
 		}
+		if ( botmovestates[ i ] ) {
+			free( botmovestates[ i ] );
+			botmovestates[ i ] = NULL;
+		}
 	}
 
 	memset( &qlr_aassettings, 0, sizeof( qlr_aassettings ) );
@@ -831,6 +1071,207 @@ Wrapper used by the Python harness to exercise the copied bot_notteam flag trans
 */
 QLR_TEST_EXPORT int QLR_BotlibTravelFlagsForTeam( int ent ) {
 	return AAS_TravelFlagsForTeam( ent );
+}
+
+/*
+=============
+QLR_BotlibAllocMoveState
+
+Wrapper used by the Python harness to allocate a copied move state.
+=============
+*/
+QLR_TEST_EXPORT int QLR_BotlibAllocMoveState( void ) {
+	return BotAllocMoveState();
+}
+
+/*
+=============
+QLR_BotlibFreeMoveState
+
+Wrapper used by the Python harness to free a copied move state.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibFreeMoveState( int handle ) {
+	BotFreeMoveState( handle );
+}
+
+/*
+=============
+QLR_BotlibMoveStateExists
+
+Returns whether the copied move-state handle is currently allocated.
+=============
+*/
+QLR_TEST_EXPORT int QLR_BotlibMoveStateExists( int handle ) {
+	if ( handle <= 0 || handle > MAX_CLIENTS ) {
+		return 0;
+	}
+	return botmovestates[ handle ] != NULL;
+}
+
+/*
+=============
+QLR_BotlibInitMoveState
+
+Wrapper used by the Python harness to initialize copied move-state input.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibInitMoveState( int handle, bot_initmove_t *initmove ) {
+	BotInitMoveState( handle, initmove );
+}
+
+/*
+=============
+QLR_BotlibSetMoveFlags
+
+Seeds move flags directly for masking and reset probes.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibSetMoveFlags( int handle, int moveflags ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return;
+	}
+	ms->moveflags = moveflags;
+}
+
+/*
+=============
+QLR_BotlibMoveFlags
+
+Returns the copied move-state flags.
+=============
+*/
+QLR_TEST_EXPORT int QLR_BotlibMoveFlags( int handle ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return 0;
+	}
+	return ms->moveflags;
+}
+
+/*
+=============
+QLR_BotlibSeedAvoidReach
+
+Seeds the first avoid-reach slot for reset probes.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibSeedAvoidReach( int handle, int reach, float time, int tries ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return;
+	}
+	ms->avoidreach[ 0 ] = reach;
+	ms->avoidreachtimes[ 0 ] = time;
+	ms->avoidreachtries[ 0 ] = tries;
+}
+
+/*
+=============
+QLR_BotlibSetAvoidReachGateWord
+
+Seeds the retail +0x80 gate word that follows avoidreachtries when MAX_AVOIDREACH is one.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibSetAvoidReachGateWord( int handle, int gate ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return;
+	}
+	memcpy( ( (char *) ms ) + offsetof( bot_movestate_t, avoidspots ), &gate, sizeof( gate ) );
+}
+
+/*
+=============
+QLR_BotlibAvoidReach
+
+Returns the first copied avoid-reach id.
+=============
+*/
+QLR_TEST_EXPORT int QLR_BotlibAvoidReach( int handle ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return 0;
+	}
+	return ms->avoidreach[ 0 ];
+}
+
+/*
+=============
+QLR_BotlibAvoidReachTime
+
+Returns the first copied avoid-reach time.
+=============
+*/
+QLR_TEST_EXPORT float QLR_BotlibAvoidReachTime( int handle ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return 0.0f;
+	}
+	return ms->avoidreachtimes[ 0 ];
+}
+
+/*
+=============
+QLR_BotlibAvoidReachTries
+
+Returns the first copied avoid-reach try counter.
+=============
+*/
+QLR_TEST_EXPORT int QLR_BotlibAvoidReachTries( int handle ) {
+	bot_movestate_t *ms;
+
+	ms = BotMoveStateFromHandle( handle );
+	if ( !ms ) {
+		return 0;
+	}
+	return ms->avoidreachtries[ 0 ];
+}
+
+/*
+=============
+QLR_BotlibResetAvoidReach
+
+Wrapper used by the Python harness to reset copied avoid-reach arrays.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibResetAvoidReach( int handle ) {
+	BotResetAvoidReach( handle );
+}
+
+/*
+=============
+QLR_BotlibResetLastAvoidReach
+
+Wrapper used by the Python harness to reset the latest copied avoid-reach slot.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibResetLastAvoidReach( int handle ) {
+	BotResetLastAvoidReach( handle );
+}
+
+/*
+=============
+QLR_BotlibResetMoveState
+
+Wrapper used by the Python harness to clear a copied move state.
+=============
+*/
+QLR_TEST_EXPORT void QLR_BotlibResetMoveState( int handle ) {
+	BotResetMoveState( handle );
 }
 
 /*

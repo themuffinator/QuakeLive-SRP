@@ -885,12 +885,19 @@ def test_client_cgame_native_bridge_mapping_round_275_promotes_hlil_backed_symbo
 	cg_public = (REPO_ROOT / "src/code/cgame/cg_public.h").read_text(encoding="utf-8")
 	cg_local = (REPO_ROOT / "src/code/cgame/cg_local.h").read_text(encoding="utf-8")
 	cg_syscalls = (REPO_ROOT / "src/code/cgame/cg_syscalls.c").read_text(encoding="utf-8")
+	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	vm_c = (REPO_ROOT / "src/code/qcommon/vm.c").read_text(encoding="utf-8")
+	qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
 	cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
 	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
 	client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
 	mapping_round = (
 		REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_275.md"
 	).read_text(encoding="utf-8")
+	common_init_block = _extract_function_block(common_c, "void Com_Init( char *commandLine ) {")
+	load_cvars_block = _extract_function_block(cl_cgame, "static vm_t *CL_LoadCGameForCvarRegistration( vmInterpret_t interpret ) {")
+	register_cvars_block = _extract_function_block(cl_cgame, "void CL_RegisterCGameCvars( void ) {")
+	vm_register_cvars_block = _extract_function_block(vm_c, "qboolean VM_CallCGameRegisterCvars( vm_t *vm ) {")
 
 	expected_aliases = {
 		"sub_4B03B0": "QLCGImport_PublishTaggedInfoString",
@@ -940,6 +947,11 @@ def test_client_cgame_native_bridge_mapping_round_275_promotes_hlil_backed_symbo
 		"004bf6b5  sub_4ec6d0()",
 		"004ec6d4  return sub_4f2950() __tailcall",
 		'004f29e0          char* eax_5 = sub_4314d0(&var_10, "OnCommNotice")',
+		'004cc228          sub_4ec6e0("Couldn\'t load game VM during cva',
+		"004cc239      (*(data_13e180c + 8))()",
+		"004cc240      sub_4b0460(sub_4e2a40())",
+		'004cc252          sub_4ec6e0("Couldn\'t load cgame VM during cv',
+		"004cc262      (*(data_146cc38 + 4))()",
 	):
 		assert expected in host_hlil
 
@@ -964,8 +976,38 @@ def test_client_cgame_native_bridge_mapping_round_275_promotes_hlil_backed_symbo
 	for expected in (
 		"void CL_WebView_InvokeCommNotice( const char *message );",
 		"void CL_WebView_PublishTaggedInfoString( const char *messageType, const char *infoString );",
+		"void CL_RegisterCGameCvars( void );",
 	):
 		assert expected in client_h
+
+	for expected in (
+		"qboolean VM_CallGameRegisterCvars( vm_t *vm );",
+		"qboolean VM_CallCGameRegisterCvars( vm_t *vm );",
+		"void SV_RegisterGameCvars( void );",
+		"void CL_RegisterCGameCvars( void );",
+	):
+		assert expected in qcommon_h
+
+	for expected in (
+		'interpret = Cvar_VariableValue( "vm_cgame" );',
+		"cgvm = CL_LoadCGameForCvarRegistration( interpret );",
+		'Com_Error( ERR_FATAL, "Couldn\'t load cgame VM during cvar registration.\\n" );',
+		"VM_CallCGameRegisterCvars( cgvm );",
+	):
+		assert expected in register_cvars_block
+	assert "return CL_LoadCGameVM( interpret );" in load_cvars_block
+
+	for expected in (
+		'if ( Q_stricmp( vm->name, "cgame" ) || !vm->dllExports ) {',
+		'VM_LogTraceEvent( "call %s CG_REGISTER_CVARS", vm->name );',
+		"dllExports[CG_NATIVE_EXPORT_REGISTER_CVARS]",
+		"((void (QDECL *)( void ))exportFunc)();",
+	):
+		assert expected in vm_register_cvars_block
+
+	assert common_init_block.index("SV_Init();") < common_init_block.index("SV_RegisterGameCvars();")
+	assert common_init_block.index("SV_RegisterGameCvars();") < common_init_block.index("CL_RegisterCGameCvars();")
+	assert common_init_block.index("CL_RegisterCGameCvars();") < common_init_block.index("CL_Init();")
 
 	for expected in (
 		"void trap_QL_PublishTaggedInfoString( const char *messageType, const char *infoString )",

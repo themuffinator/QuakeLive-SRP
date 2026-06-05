@@ -925,17 +925,71 @@ qboolean CL_ReadyToSendPacket( void ) {
 	return qtrue;
 }
 
+#define RETAIL_CLIENT_MESSAGE_FLAG_VIEWANGLE_DELTA	0x20
+#define RETAIL_CLIENT_MESSAGE_FLAG_CGAME_IMPORT_GUARD	0x40
+#define RETAIL_CLIENT_MESSAGE_FLAG_INITIAL_HIGH_BIT	0x80
+#define RETAIL_CLIENT_MESSAGE_RENDERER_NODE_MASK		0x1f
+#define RETAIL_CLIENT_MESSAGE_RENDERER_NODE_LIMIT	0x20
+
+static int cl_retailClientMessageFlags = RETAIL_CLIENT_MESSAGE_FLAG_INITIAL_HIGH_BIT;
+
+/*
+===================
+CL_SetRetailClientMessageViewangleDeltaFlag
+
+Marks the retail sideband bit that is raised when cgame/render-frame work
+changes client pitch or yaw after input packet emission.
+===================
+*/
+void CL_SetRetailClientMessageViewangleDeltaFlag( void ) {
+	cl_retailClientMessageFlags |= RETAIL_CLIENT_MESSAGE_FLAG_VIEWANGLE_DELTA;
+}
+
+/*
+===================
+CL_SetRetailClientMessageCGameImportGuardFlag
+
+Marks the retail sideband bit that is raised when protected native cgame import
+slots no longer point at their expected renderer bridge wrappers.
+===================
+*/
+void CL_SetRetailClientMessageCGameImportGuardFlag( void ) {
+	cl_retailClientMessageFlags |= RETAIL_CLIENT_MESSAGE_FLAG_CGAME_IMPORT_GUARD;
+}
+
+/*
+===================
+CL_SetRetailClientMessageRendererNodeCount
+
+Replaces the retail sideband low-five renderer counter bits while preserving
+the sticky high bits owned by the other sideband producers.
+===================
+*/
+void CL_SetRetailClientMessageRendererNodeCount( int nodeCount ) {
+	int clampedNodeCount;
+
+	if ( nodeCount < 0 ) {
+		clampedNodeCount = 0;
+	} else if ( nodeCount > RETAIL_CLIENT_MESSAGE_RENDERER_NODE_LIMIT ) {
+		clampedNodeCount = RETAIL_CLIENT_MESSAGE_RENDERER_NODE_LIMIT;
+	} else {
+		clampedNodeCount = nodeCount;
+	}
+
+	cl_retailClientMessageFlags ^= ( cl_retailClientMessageFlags ^ clampedNodeCount ) & RETAIL_CLIENT_MESSAGE_RENDERER_NODE_MASK;
+}
+
 /*
 ===================
 CL_RetailClientMessageFlags
 
 Returns the retail Quake Live client-message sideband flags byte. The retail
-server consumes this byte before opcode parsing but does not validate it; keep
-unrecovered native cgame state bits clear until their producers are mapped.
+global is initialized with the high bit set. Dynamic producer bits are only
+raised after their retail owner has a safe source-side mapping.
 ===================
 */
 static int CL_RetailClientMessageFlags( void ) {
-	return 0;
+	return cl_retailClientMessageFlags;
 }
 
 /*

@@ -1871,7 +1871,7 @@
       "signature": "int BotGetActivateGoal(bot_state_t *bs, int entitynum, bot_activategoal_t *activategoal)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Exact match for ai_dmq3.c::BotGetActivateGoal. The decompile preserves the func_door, func_button, trigger_multiple, func_timer, target_relay, and target_delay scans that identify an actionable bot route target."
+      "comment": "Exact match for ai_dmq3.c::BotGetActivateGoal. The decompile preserves the first-byte classname guard after the BSP epair fetch, plus the func_door, func_button, trigger_multiple, func_timer, target_relay, and target_delay scans that identify an actionable bot route target."
     },
     {
       "address": "0x1001D6D0",
@@ -1886,12 +1886,12 @@
     {
       "address": "0x1001D810",
       "raw_name": "FUN_1001d810",
-      "normalized_name": "BotPrintActivateGoalInfo",
+      "normalized_name": "BotRandomMove",
       "status": "matched",
-      "signature": "void BotPrintActivateGoalInfo(bot_state_t *bs, bot_activategoal_t *activategoal, int bspent)",
+      "signature": "void BotRandomMove(bot_state_t *bs, bot_moveresult_t *moveresult)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Debug activate-goal announcer identified by the preserved `I have to shoot at a %s` / `I have to activate a %s` strings, the `ClientName` and BSP classname lookup, and the final `trap_EA_Say` call from ai_dmq3.c::BotPrintActivateGoalInfo."
+      "comment": "Random blocked-movement escape helper identified by the random yaw AngleVectors setup, the trap_BotMoveInDirection call at botlib import offset +0x2a0 with speed 400 and MOVE_WALK, the moveresult failure clear/movedir copy, and the direct BotAIBlocked RESULTTYPE_INSOLIDAREA branch call. The retail qagame references do not preserve the GPL debug activate-goal speech strings from ai_dmq3.c::BotPrintActivateGoalInfo."
     },
     {
       "address": "0x1001D960",
@@ -1906,12 +1906,12 @@
     {
       "address": "0x1001DCF0",
       "raw_name": "FUN_1001dcf0",
-      "normalized_name": "BotCheckForGrenades",
+      "normalized_name": "BotAIPredictObstacles",
       "status": "matched",
-      "signature": "void BotCheckForGrenades(bot_state_t *bs, entityState_t *state)",
+      "signature": "int BotAIPredictObstacles(bot_state_t *bs, bot_goal_t *goal)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Grenade-avoidance helper identified by the ET_MISSILE and `WP_GRENADE_LAUNCHER` gate, the six-second duplicate suppression window keyed by `state->number`, and the final `trap_BotAddAvoidSpot` path from ai_dmq3.c::BotCheckForGrenades."
+      "comment": "Obstacle-prediction bridge identified by the `bot_predictobstacles` gate, the six-second goal-area throttle at `bs->predictobstacles_time`, the `trap_AAS_PredictRoute` call with maxareas 100, maxtime 1000, stopevents `RSE_USETRAVELTYPE|RSE_ENTERCONTENTS`, stopcontents `AREACONTENTS_MOVER`, and stoptfl `TFL_BRIDGE`, plus the mover-model lookup and `BotGetActivateGoal` / `BotGoForActivateGoal` path from ai_dmq3.c::BotAIPredictObstacles."
     },
     {
       "address": "0x1001DEB0",
@@ -1951,7 +1951,7 @@
       "signature": "void BotCheckSnapshot(bot_state_t *bs)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Snapshot sweep identified by the avoid-spot reset, the kamikaze-body and prox-mine counter clears, the loop over `BotAI_GetSnapshotEntity`, and the chained calls into `BotCheckEvents`, `BotCheckForGrenades`, and `BotCheckForProxMines`, matching ai_dmq3.c::BotCheckSnapshot."
+      "comment": "Snapshot sweep identified by the avoid-spot reset, the kamikaze-body and prox-mine counter clears, the loop over `BotAI_GetSnapshotEntity`, the inlined grenade avoidance path, and the calls into `BotCheckEvents` and `BotCheckForProxMines`, matching ai_dmq3.c::BotCheckSnapshot."
     },
     {
       "address": "0x1001ECB0",

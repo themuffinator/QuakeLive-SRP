@@ -32,6 +32,13 @@ R_PerformanceCounters
 =====================
 */
 void R_PerformanceCounters( void ) {
+	int		nodeCount;
+
+	nodeCount = tr.pc.c_leafs;
+	if ( ri.SetClientMessageRendererNodeCount ) {
+		ri.SetClientMessageRendererNodeCount( nodeCount );
+	}
+
 	if ( !r_speeds->integer ) {
 		// clear the counters even if we aren't printing
 		Com_Memset( &tr.pc, 0, sizeof( tr.pc ) );

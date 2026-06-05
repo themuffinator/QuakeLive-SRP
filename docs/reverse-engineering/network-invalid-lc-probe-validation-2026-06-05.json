@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Invalid-lc malicious packet retail probe report validation gate",
+  "status": "completed_invalid_lc_probe_validation_gate_no_retail_probe_claimed",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-hardening-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json"
+  ],
+  "source_files": [
+    "tools/trace/invalid_lc_probe.py",
+    "tools/trace/__init__.py",
+    "tools/tests/test_trace_harness.py"
+  ],
+  "supported_checklist_row": "Probe invalid-`lc` malicious packet behavior against retail before claiming exact crash/drop equivalence.",
+  "tool_contract": {
+    "module": "tools.trace.invalid_lc_probe",
+    "function": "validate_invalid_lc_probe_dict",
+    "format": "quake_live_invalid_lc_probe",
+    "schema_version": 1,
+    "protocol": 91,
+    "field_tables": [
+      {
+        "name": "entityStateFields",
+        "field_count": 58,
+        "source_guard": "MSG_ReadDeltaEntity: invalid field count <lc>"
+      },
+      {
+        "name": "playerStateFields",
+        "field_count": 58,
+        "source_guard": "MSG_ReadDeltaPlayerstate: invalid field count <lc>"
+      }
+    ],
+    "malicious_input_checks": [
+      "protocol is 91",
+      "field_table is entityStateFields or playerStateFields",
+      "field_count equals the recovered retail table count",
+      "lc exceeds field_count",
+      "packet_sha256 is a lowercase SHA-256 hex string when present"
+    ],
+    "retail_observation_checks": [
+      "classification is one of accepted, crash, disconnect, drop, err_drop, ignored, or rejected_packet",
+      "observed_message is present",
+      "closure mode requires provenance metadata",
+      "closure mode requires at least one hashed artifact",
+      "crash classification requires a crash_dump artifact"
+    ],
+    "source_observation_checks": [
+      "classification is err_drop",
+      "error_message matches the source guard for the chosen field table and lc"
+    ],
+    "accepted_capture_types": [
+      "controlled_retail_probe",
+      "known_good_byte_fixture",
+      "protocol91_demo_transcript",
+      "retail_packet_capture"
+    ],
+    "retail_provenance_required_for_closure": true
+  },
+  "report_columns": [
+    "probe_id",
+    "protocol",
+    "field_table",
+    "field_count",
+    "lc",
+    "packet_sha256",
+    "retail_classification",
+    "observed_message",
+    "artifact_type",
+    "artifact_sha256",
+    "source_classification",
+    "source_error_message"
+  ],
+  "checklist_effect": {
+    "new_checked_invalid_lc_probe_validation_row": true,
+    "invalid_lc_retail_probe_row_closed": false,
+    "capture_rows_remain_open": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "The pass validates future invalid-lc retail probe reports and does not run or commit a controlled retail probe."
+  },
+  "assertion_tests": [
+    "tools/tests/test_trace_harness.py::test_invalid_lc_probe_validator_accepts_controlled_retail_report",
+    "tools/tests/test_trace_harness.py::test_invalid_lc_probe_validator_rejects_non_malicious_lc_and_wrong_source_guard",
+    "tools/tests/test_trace_harness.py::test_invalid_lc_probe_validator_requires_retail_provenance_and_hashed_artifacts",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_invalid_lc_probe_validation_gate_requires_retail_probe"
+  ]
+}

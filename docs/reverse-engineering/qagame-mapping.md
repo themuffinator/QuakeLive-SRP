@@ -9,6 +9,83 @@ Observed facts come from exports, `functions.csv`, native dispatch-table slots,
 log strings, and call flow. Inferred names are only promoted when the retail
 behavior and source analogue align cleanly.
 
+## Latest Botlib Debug Visualization Wiring
+
+- Scope: `ai_main.c::BotTestAAS`, qagame native import slots `83/84`, and the
+  engine-owned botlib debug helpers `BotDrawDebugAreas` / `BotDrawAvoidSpots`.
+- Coverage delta: `+0` curated symbol-map entries; this is source and wiring
+  reconstruction against already-named engine-side botlib exports.
+- Source delta: `g_public.h` now names `G_QL_IMPORT_BOTLIB_AI_DRAW_DEBUG_AREAS`
+  and `G_QL_IMPORT_BOTLIB_AI_DRAW_AVOID_SPOTS`, qagame uses direct native
+  wrappers for those retail-only slots, `SV_InitGameImports` fills them from
+  `botlib_export->ai`, and `BotTestAAS` performs the retail debug draw pass
+  before the solid/cluster AAS diagnostics.
+- Evidence note: qagame HLIL at `0x10020F00` updates `bot_testsolid`,
+  `bot_testclusters`, and `bot_showAreas`, then calls
+  `data_104b13ac + 0x14c` with `(origin, bot_showAreas.integer,
+  bot_showAreaNumber.integer)`. The same body reads `bot_showAvoidSpots` as a
+  selected bot index and calls `data_104b13ac + 0x150` with the selected
+  `bot_state_t::ms` handle, or clears `bot_showAvoidSpots` through `Cvar_Set`
+  when the selected bot state is missing.
+- Reconstruction note:
+  `docs/reverse-engineering/botlib-native-import-compat-bridge-recheck-2026-06-05.md`.
+
+## Latest Mapping Correction
+
+- Scope: botlib obstacle-prediction wiring around
+  `ai_dmq3.c::BotAIPredictObstacles`, the qagame `trap_AAS_PredictRoute` import
+  call, and the engine-owned `AAS_PredictRoute` result layout.
+- Coverage delta: `+0` curated symbol-map entries; corrected one existing
+  identity from `BotCheckForGrenades` to `BotAIPredictObstacles`.
+- Source delta: none. The current qagame source already carries the retail
+  `bot_predictobstacles` gate, six-second goal-area throttle, route-prediction
+  constants, mover model lookup, and activation-goal path. The engine
+  `AAS_PredictRoute` source already mirrors retail by initializing `endarea`,
+  `stopevent`, `endcontents`, `endtravelflags`, `endpos`, and `time` without
+  writing `numareas`.
+- Evidence note: qagame HLIL at `0x1001DCF0` calls the botlib import slot
+  `0x13c` with `100`, `1000`, `RSE_USETRAVELTYPE|RSE_ENTERCONTENTS`,
+  `AREACONTENTS_MOVER`, `TFL_BRIDGE`, and `0`, then follows the mover
+  activation path. Host HLIL/Ghidra at `0x00494870` pins the matching
+  `AAS_PredictRoute` layout. The same round rejected adding HMG/heavy-bullet bot
+  inventory wiring because retail `BotUpdateInventory` and
+  `BotNormalizeAmmoInventory` stop at the chaingun/belt inventory slab.
+- Reconstruction note:
+  `docs/reverse-engineering/botlib-obstacle-prediction-mapping-2026-06-05.md`.
+
+## Botlib Import And AI Alias Recheck
+
+- Scope: qagame native botlib import offsets plus the recent bot-AI tranche
+  aliases around seek/combat nodes, activate-goal helpers, obstacle prediction,
+  snapshot scans, prox-mine/event helpers, and direct AI resource slots.
+- Coverage delta: `+44` scoped alias entries in
+  `references/analysis/quakelive_symbol_aliases.json` for the paired
+  `FUN_`/`sub_` names from `AINode_Seek_NBG` through `BotCheckSnapshot`,
+  including the contiguous activate-goal helper run from
+  `BotFuncButtonActivateGoal` through `BotRandomMove`.
+- Source delta: `BotGetActivateGoal` now checks the fetched classname's first
+  byte rather than the stack-array pointer, matching the retail first-byte guard
+  before the no-classname error path.
+- Evidence note: qagame Ghidra/HLIL pins `BotLibStartFrame` at
+  `DAT_104b13ac + 0xd8`, `BotLibUpdateEntity` at `+0xe0`,
+  `AAS_PredictRoute` at `+0x13c`, `AAS_AlternativeRouteGoals` at `+0x140`,
+  `AAS_Swimming` at `+0x144`, and `AAS_PredictClientMovement` at `+0x148`.
+  The same corpus now backs direct bot-AI native imports for character
+  load/free, characteristic float/integer, goal-stack diagnostics, item-weight
+  loads, fuzzy-logic interbreed/save/mutate, goal-state alloc/free, reset move
+  state, and move-state alloc/free.
+- Mapping note: no standalone retail `BotCheckForGrenades` owner was promoted,
+  and the previous `0x1001D810` `BotPrintActivateGoalInfo` identity was
+  corrected to `BotRandomMove`. The retail `BotCheckSnapshot` body carries the
+  grenade avoidance flow inline while calling out to `BotCheckEvents` and
+  `BotCheckForProxMines`; retail references also omit the GPL debug activate
+  speech strings used by `BotPrintActivateGoalInfo`.
+- Reconstruction note:
+  `docs/reverse-engineering/botlib-snapshot-grenade-inline-reconstruction-2026-06-05.md`,
+  `docs/reverse-engineering/botlib-native-import-compat-bridge-recheck-2026-06-05.md`,
+  and
+  `docs/reverse-engineering/botlib-activate-goal-source-mapping-2026-06-05.md`.
+
 ## Latest Source Reconstruction Pass
 
 - Scope: spectator client-state resync across `G_ApplyTeamChange`,
@@ -1334,7 +1411,7 @@ utility helpers outside that widened control surface.
 - `G_InitWorldSession` is inlined into retail `G_InitGame`. The current source now mirrors that directly: the `session` cvar read and the `Gametype changed, clearing session data.` print occur inside `G_InitGame`, not a separate helper boundary.
 - The outer `G_SpawnEntitiesFromString` loop is likewise inlined into `G_InitGame`: retail parses the first entity, runs `SP_worldspawn`, then loops `G_SpawnGEntityFromSpawnVars` until `G_ParseSpawnVars` returns false.
 - `G_CountSpawnPoints` at `0x10055000` is a descriptive recovery name. The current source now mirrors that recovered standalone helper directly from `G_InitGame` instead of keeping the scan inline.
-- The current source now mirrors the recovered `G_InitGame` bootstrap corridor more closely: `G_LoadAdminAccessFile` uses static storage and runs before the `level` wipe, `G_InitPublishedCvarState` seeds the init-time configstring slab before entity parsing, `g_levelStartTime` is republished from the post-`memset` time-seed lane, the non-restart `CS_WARMUP_READY` snapshot is restored before `trap_LocateGameData`, `FindIntermissionPoint` is restored to the init path, and the late `G_SpawnQuadHogQuad` / `G_SpawnItemPowerups` tail now runs after bot setup. The earlier source-only `G_ProcessIPBans` init call and init-time `AUTOACTION_MATCH_START` tail have been removed from this corridor.
+- The current source now mirrors the recovered `G_InitGame` bootstrap corridor more closely: `G_LoadAdminAccessFile` uses static storage and runs before the `level` wipe, `G_InitPublishedCvarState` seeds the init-time configstring slab before entity parsing, `g_levelStartTime` is republished from the post-`memset` time-seed lane, the retail `CS_MATCH_GUID` snapshot is generated or restored and published before `trap_LocateGameData`, `FindIntermissionPoint` is restored to the init path, and the late `G_SpawnQuadHogQuad` / `G_SpawnItemPowerups` tail now runs after bot setup. The earlier source-only `G_ProcessIPBans` init call and init-time `AUTOACTION_MATCH_START` tail have been removed from this corridor.
 - `G_FindNextTournamentPlayer` at `0x10055710` is now preserved as a stable callable helper in `g_main.c`, and `AddTournamentPlayer` delegates the duel queue selection to it before resetting the duel pregame state.
 - `G_UpdateAwardConfigstrings` at `0x100559E0` is now preserved as a standalone `g_main.c` helper. It publishes winning client numbers into the legacy award configstring block (`0x2B4`, `0x2B5`, `0x2B8-0x2BB`) and remains wired as the shared tail after both `SendScoreboardMessageToAllClients` and `CalculateRanks`.
 - `SendScoreboardMessageToAllClients` at `0x10055E50` is source-faithful on its outer boundary, but retail makes it slightly fatter by tailcalling `G_UpdateAwardConfigstrings` instead of returning immediately after the scoreboard loop.

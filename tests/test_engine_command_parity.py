@@ -147,20 +147,45 @@ def test_bind_family_commands_match_retail_handler_and_registration_shape() -> N
 def test_console_autocomplete_matches_retail_argument_sources_and_field_rebuild() -> None:
 	cl_keys = (REPO_ROOT / "src/code/client/cl_keys.c").read_text(encoding="utf-8")
 	common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+	cmd_c = (REPO_ROOT / "src/code/qcommon/cmd.c").read_text(encoding="utf-8")
 	cvar_c = (REPO_ROOT / "src/code/qcommon/cvar.c").read_text(encoding="utf-8")
 	qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
 	vm_c = (REPO_ROOT / "src/code/qcommon/vm.c").read_text(encoding="utf-8")
+	ui_public = (REPO_ROOT / "src/code/ui/ui_public.h").read_text(encoding="utf-8")
+	ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
 
 	argument_block = _extract_function_block(cl_keys, "static void Console_CompleteArgument( const char *command, void(*callback)( const char *s ) ) {")
+	console_key_block = _extract_function_block(cl_keys, "void Console_Key (int key) {")
+	cmd_completion_block = _extract_function_block(cmd_c, "Cmd_CommandCompletion( void(*callback)(const char *s) ) {")
+	find_matches_block = _extract_function_block(common_c, "static void FindMatches( const char *s ) {")
+	print_matches_block = _extract_function_block(common_c, "static void PrintMatches( const char *s ) {")
 	field_block = _extract_function_block(common_c, "void Field_CompleteCommand( field_t *field, fieldCompletionCallback_t callback ) {")
 	cvar_completion_block = _extract_function_block(cvar_c, "void\tCvar_CommandCompletion( void(*callback)(const char *s), qboolean includeValues ) {")
 	native_call_block = _extract_function_block(vm_c, "static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {")
+	ui_arena_name_block = _extract_function_block(ui_main, "static void UI_ForEachArenaName(uiArenaNameCallback_t callback) {")
 
 	assert '#include "../qcommon/vm_local.h"' in cl_keys
+	assert "if (key == K_TAB) {" in console_key_block
+	assert "Field_CompleteCommand( &g_consoleField, Console_CompleteArgument );" in console_key_block
+	assert "for (cmd=cmd_functions ; cmd ; cmd=cmd->next) {" in cmd_completion_block
+	assert "callback( cmd->name );" in cmd_completion_block
+	assert "if ( Q_stricmpn( s, completionString, strlen( completionString ) ) ) {" in find_matches_block
+	assert "matchCount++;" in find_matches_block
+	assert "Q_strncpyz( shortestMatch, s, sizeof( shortestMatch ) );" in find_matches_block
+	assert "tolower(shortestMatch[i]) != tolower(s[i])" in find_matches_block
+	assert 'Com_Printf( "    %s\\n", s );' in print_matches_block
 	assert "if ( uivm && uivm->dllExports ) {" in argument_block
 	assert "VM_Call( uivm, UI_FOR_EACH_ARENA_NAME, (int)(intptr_t)callback );" in argument_block
+	assert "UI_FOR_EACH_ARENA_NAME" in ui_public
+	assert "UI_NATIVE_EXPORT_FOR_EACH_ARENA_NAME" in ui_public
+	assert "if ( vm->dllInterface && vm->dllApiVersion > UI_API_VERSION ) {" in native_call_block
+	assert "uiExportIndex = callnum - 1;" in native_call_block
 	assert "case UI_FOR_EACH_ARENA_NAME:" in native_call_block
 	assert "((void (QDECL *)( uiArenaNameCallback_t ))exportFunc)( (uiArenaNameCallback_t)(intptr_t)args[0] );" in native_call_block
+	assert "[UI_NATIVE_EXPORT_FOR_EACH_ARENA_NAME] = UI_ForEachArenaName," in ui_main
+	assert "if (uiInfo.mapList[i].mapLoadName) {" in ui_arena_name_block
+	assert "callback(uiInfo.mapList[i].mapLoadName);" in ui_arena_name_block
+	assert "callback(uiInfo.mapList[i].mapName);" not in ui_arena_name_block
 
 	assert 'if ( Q_stricmp( command, "demo" ) && Q_stricmp( command, "\\\\demo" ) ) {' in argument_block
 	assert 'FS_ListFiles( "demos", ".dm_73", &fileCount );' in argument_block

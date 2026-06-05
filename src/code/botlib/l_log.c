@@ -57,7 +57,7 @@ static logfile_t logfile;
 //===========================================================================
 void Log_Open(char *filename)
 {
-	if (!LibVarValue("log", "0")) return;
+	if (!LibVarValue("bot_log", "0")) return;
 	if (!filename || !strlen(filename))
 	{
 		botimport.Print(PRT_MESSAGE, "openlog <filename>\n");
@@ -166,4 +166,3 @@ void Log_Flush(void)
 {
 	if (logfile.fp) fflush(logfile.fp);
 } //end of the function Log_Flush
-

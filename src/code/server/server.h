@@ -395,6 +395,7 @@ qboolean SV_SteamStats_HasAchievement( int clientNum, int achievementId );
 // sv_ccmds.c
 //
 void SV_Heartbeat_f( void );
+qboolean SV_FactoryExists( const char *id );
 
 //
 // sv_snapshot.c
@@ -415,6 +416,7 @@ playerState_t *SV_GameClientNum( int num );
 svEntity_t	*SV_SvEntityForGentity( sharedEntity_t *gEnt );
 sharedEntity_t *SV_GEntityForSvEntity( svEntity_t *svEnt );
 void		SV_InitGameProgs ( void );
+void		SV_RegisterGameCvars( void );
 void		SV_ShutdownGameProgs ( void );
 void		SV_RestartGameProgs( void );
 const char	*SV_GameClientConnect( int clientNum, qboolean firstTime, qboolean isBot );

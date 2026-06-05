@@ -132,9 +132,13 @@ OOB behavior:
   `0x004E05C0` reads the three longs, consumes one unassigned byte, then reads
   byte opcodes. Retail `CL_WritePacket` at `0x004B5F70` writes the matching
   byte as `sub_4AF4D0() ^ serverCommandSequence`.
-- Required next step: recover the sideband flag producers behind
-  `sub_4AF4D0` / `data_565948`; the parser-compatible source stub writes zero
-  flag bits until that cgame/native-state pass is complete.
+- 2026-06-05 residual update: the sideband producer map is captured in
+  `network-client-message-sideband-producers-2026-06-05.md`, and the source now
+  emits the observed `0x80` initializer bit plus the recovered sticky `0x20`
+  `CL_Frame` viewangle-delta bit, recovered low-five renderer count, and
+  recovered `0x40` native cgame import guard. Remaining work is to capture-diff
+  client packet bytes before calling the sideband byte fully byte-for-byte
+  complete.
 
 ## Parity Estimate
 

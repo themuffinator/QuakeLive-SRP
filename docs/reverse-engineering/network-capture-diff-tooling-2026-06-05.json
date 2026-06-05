@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Packet-byte capture diff tooling for residual XOR and compressed-connect capture rows",
+  "status": "completed_capture_diff_tooling_no_retail_capture_claimed",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "source_files": [
+    "tools/trace/capture_diff.py",
+    "tools/trace/__init__.py",
+    "tools/tests/test_trace_harness.py"
+  ],
+  "supported_checklist_rows": [
+    "Capture-diff the XOR golden datagrams against retail packet traces.",
+    "Capture-diff the compressed connect request path against a retail trace."
+  ],
+  "tool_contract": {
+    "module": "tools.trace.capture_diff",
+    "capture_format": "quake_live_packet_byte_capture",
+    "report_format": "quake_live_capture_diff_report",
+    "functions": [
+      "validate_packet_capture_dict",
+      "packet_expectations_from_xor_spec",
+      "packet_expectations_from_huffman_spec",
+      "diff_packet_capture"
+    ],
+    "result_statuses": [
+      "match",
+      "missing",
+      "mismatch"
+    ],
+    "report_columns": [
+      "fixture_id",
+      "lane",
+      "source",
+      "status",
+      "expected_size",
+      "observed_size",
+      "expected_sha256",
+      "observed_sha256",
+      "first_mismatch_offset"
+    ],
+    "retail_provenance_required_for_closure": true
+  },
+  "expectation_sources": [
+    {
+      "lane": "xor_golden_datagram",
+      "source": "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+      "field": "golden_vectors[].encoded_datagram_hex"
+    },
+    {
+      "lane": "adaptive_huffman_datagram",
+      "source": "docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json",
+      "field": "fixtures[].encoded_datagram_hex"
+    }
+  ],
+  "checklist_effect": {
+    "new_checked_capture_diff_tooling_row": true,
+    "xor_capture_diff_row_closed": false,
+    "compressed_connect_capture_diff_row_closed": false,
+    "capture_rows_remain_open": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "The pass adds capture-diff tooling and does not add retail packet traces."
+  },
+  "assertion_tests": [
+    "tools/tests/test_trace_harness.py::test_packet_capture_diff_matches_xor_and_huffman_fixture_bytes",
+    "tools/tests/test_trace_harness.py::test_packet_capture_diff_reports_missing_and_mismatched_fixture_bytes",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_capture_diff_tooling_compares_xor_and_connect_datagrams"
+  ]
+}

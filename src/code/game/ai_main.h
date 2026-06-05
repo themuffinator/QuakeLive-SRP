@@ -34,6 +34,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CTF
 
 #define MAX_ITEMS					256
+#define MAX_AINODENAME				80
 //bot flags
 #define BFL_STRAFERIGHT				1	//strafe to the right
 #define BFL_ATTACKED				2	//bot has attacked last ai frame
@@ -277,6 +278,7 @@ typedef struct bot_state_s
 	bot_waypoint_t *patrolpoints;					//patrol points
 	bot_waypoint_t *curpatrolpoint;					//current patrol point the bot is going for
 	int patrolflags;								//patrol flags
+	char ainodename[MAX_AINODENAME];					//current AI node name
 } bot_state_t;
 
 //resets the whole bot state

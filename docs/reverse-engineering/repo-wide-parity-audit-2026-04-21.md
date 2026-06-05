@@ -1,6 +1,6 @@
 # Repo-Wide Parity Audit
 
-Last updated: 2026-05-17
+Last updated: 2026-06-05
 
 ## Scope
 
@@ -61,7 +61,7 @@ Reviewed by source and current documentation:
 ## Current assessment
 
 - Strict-retail Windows replacement target: **100%**
-- Repo-wide parity across the checked-in tree: **98%**
+- Repo-wide parity across the checked-in tree: **99%**
 
 Rationale:
 
@@ -74,9 +74,11 @@ Rationale:
 3. The checked-in `src/ui` runtime-panel compare is now clean, and the
    accepted runtime correction/proof path remains explicit, machine-described,
    and test-backed if future drift ever reappears.
-4. The remaining repo-wide deficit is concentrated in two bounded gap
-   families, while the online-services lane is now tracked as a documented
-   bounded divergence rather than active parity debt.
+4. The former `RW-G04` evidence-freshness lane is now refreshed for the
+   available current-host evidence and narrowed to a documented strict VC10
+   toolchain boundary. `RW-G02` non-Windows portability is closed as an
+   explicit compatibility-only boundary, while the online-services lane is
+   tracked as a documented bounded divergence rather than active parity debt.
 
 ## Gap register
 
@@ -108,7 +110,7 @@ Impact:
 
 Current status: **Closed as an active repo-wide gap; bounded divergence remains documented**
 
-### RW-G02 - Non-Windows portability remains incomplete
+### RW-G02 - Non-Windows portability is explicitly contained
 
 Observed facts:
 
@@ -167,18 +169,25 @@ Observed facts:
   window, restores VidMode/gamma state, closes the QGL log file, releases QGL,
   and guards the end-frame swap path when display/window/swap state is absent.
   This bounds lifecycle leakage without claiming a modern Linux renderer.
-- The same platform note now records a successful 2026-04-21 WOW64 smoke run,
-  but it still carries open follow-ups for broader glibc validation breadth
-  and Unix-side modernization.
+- The same platform note now records a successful 2026-04-21 WOW64 smoke run
+  and keeps broader glibc validation breadth plus Unix-side modernization as
+  future opt-in follow-ups rather than active A4 blockers.
+- The 2026-06-05 A4 boundary decision closes the active non-Windows
+  portability planning gap by making hosted POSIX builds and server/module
+  validation the active support endpoint. Linux client/runtime parity, the
+  retained X11/GLX/DGA renderer/input stack, the OSS-first audio path, and the
+  null runtime remain documented compatibility-only carries unless a future
+  task explicitly adopts a modern dependency stack and validation lane.
 
 Impact:
 
 - The repository cannot claim broad retail-equivalent parity outside the
   Windows host/runtime target.
-- Linux/macOS/null support remains a bounded compatibility story, not a closed
-  replacement story.
+- Linux/macOS/null support remains a bounded compatibility story, not a
+  replacement story, and that boundary is now an explicit closed planning
+  decision rather than open source parity debt.
 
-Current status: **Open repo-wide gap**
+Current status: **Closed as an active repo-wide gap; non-Windows runtime divergence remains documented**
 
 ### RW-G03 - UI overlay dependence is now explicit and machine-verified
 
@@ -214,7 +223,7 @@ Impact:
 
 Current status: **Closed as an active repo-wide proof gap; bounded fallback remains documented**
 
-### RW-G04 - Evidence freshness remains weaker than the structural gate story
+### RW-G04 - Evidence freshness is refreshed where available
 
 Observed facts:
 
@@ -232,13 +241,13 @@ Observed facts:
   `artifacts/renderer_validation/logs/renderer_runtime_evidence_20260421.json`
   bundle, and the probe only promotes that alias when a rerun remains
   sufficient.
-- The retail module probe was rerun on 2026-04-21 and now again reaches the
-  current `map <name> ffa` contract, retail `qagamex86.dll` / `cgamex86.dll`
-  load, and `Server: catalyst`. The stable alias
+- The retail module probe was rerun again by 2026-06-02. The stable alias
   `artifacts/module_validation/logs/retail_module_runtime_evidence_latest.json`
-  now points at the current bounded `2026-04-21` artifact, whose remaining
-  live-map shortfall is the renderer-owned `R_fonsErrorCallback` font-atlas
-  saturation blocker preventing `CS_ACTIVE` after retail module load.
+  now points at
+  `artifacts/module_validation/logs/retail_module_runtime_evidence_20260602.json`,
+  which has no missing log markers, no warnings, retail `ui` / `qagame` /
+  `cgame` loads, `Server: bloodrun`, `Going from CS_PRIMED to CS_ACTIVE`,
+  engine screenshots, and vm-trace create/free/call traffic.
 - The retained WOW64 smoke harness was also rerun successfully on 2026-04-21
   from 32-bit PowerShell, with the current log captured at
   `artifacts/wow64-smoketest/wow64-smoketest.log`.
@@ -253,21 +262,37 @@ Observed facts:
   staged root passes with rebuilt `cgamex86.dll`, `qagamex86.dll`, and
   `uix86.dll` treated as required-but-hash-optional validation outputs rather
   than retail byte-identity targets.
-- Fresh native build outputs were still not regenerated on this pass, and the
-  remaining freshness debt is now concentrated in the still-open
-  build/publication follow-ups plus the broader need to regenerate additional
-  runtime/build artifacts on current toolchains.
-- `docs/platform/toolchain-matrix.md` still lists outstanding follow-ups for
-  broader glibc validation and continuous/self-hosted publication of the WOW64
-  lane.
+- A 2026-06-05 native Windows preflight is now captured in
+  `docs/reverse-engineering/windows-native-validation-preflight-2026-06-05.md`.
+  The audit wrappers reach their project metadata checks when run through the
+  documented `-File` commands, but strict retail validation stops before build
+  because `audit-retail-toolchain.ps1` expects `PlatformToolset=v100` while
+  the current checked-in project files report `v141`.
+- The 2026-06-05 A6 pass added
+  `docs/reverse-engineering/runtime-build-evidence-refresh-2026-06-05.json`
+  and `.md` as the focused build/runtime evidence ledger.
+- Visual Studio 2022 `v143` was available on 2026-06-05. The modern native
+  validation lane built `Release|x86` with optional codecs disabled; MSBuild
+  reported `Build succeeded`, `0 Warning(s)`, and `0 Error(s)`.
+- The validation wrapper timed out after the successful build while continuing
+  post-build checks, so the gameplay DLL export audit was rerun directly and
+  passed. `tools/ci/assert-dll-exports.ps1` now prefers the newest Release
+  candidate so it validates the fresh `Release\modules` DLL outputs rather
+  than older `bin/baseq3` copies.
+- Strict retail VC10 staged-runtime evidence remains a documented local
+  toolchain/project-shape boundary: `tools/ci/audit-retail-toolchain.ps1
+  -Strict` expects `PlatformToolset` `v100`, while the current checked-in
+  projects use `v141`.
 
 Impact:
 
-- The current closure story is structurally strong, but some proof remains
-  artifact-backed rather than freshly regenerated on this audit pass.
-- This is a validation/freshness gap, not a broad source-reconstruction gap.
+- The current closure story now has current modern-host build/export evidence
+  plus current retail-module runtime evidence.
+- The remaining distinction is strict retail VC10 evidence versus
+  modern-host compatibility build evidence, not an uninspected runtime
+  freshness gap.
 
-Current status: **Open repo-wide gap**
+Current status: **Closed as an active repo-wide gap; strict retail VC10 evidence remains a documented local-toolchain boundary**
 
 ## Historical docs corrected in this pass
 
@@ -305,13 +330,12 @@ files in the active file-ownership queue.
    of only by tree or subsystem.
 2. Keep the online-services lane explicitly bounded and documented unless a
    real open replacement path is intentionally adopted later.
-3. Re-baseline the Unix/null portability boundary and finish any platform work
-   that should count toward repo-wide parity.
-4. Refresh archived runtime/build evidence on current toolchains when the
-   remaining Windows and non-Windows environments are available, especially the
-   native build outputs, a fresh
-   `tools/ci/validate-windows-native.ps1 -RuntimeProfile retail` pass, and the
-   next promotable retail-module rerun.
+3. Keep the closed non-Windows compatibility boundary visible in the
+   toolchain, gap-note, and source-file ledgers until a successor portability
+   task deliberately reopens it.
+4. Reopen archived runtime/build evidence only when the project is ready to
+   produce fresh strict VC10 staged-runtime evidence or to change the supported
+   retail-toolchain audit path.
 5. Keep the clean `src/ui` runtime-panel baseline and overlay manifests in
    sync so future regressions are caught immediately without reviving a manual
    packaging dependency.

@@ -57,6 +57,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_PATH		144
 #define RETAIL_SELECTED_BOT_INFO_CONFIGSTRING	0x10
+#define RETAIL_BOTLIB_GENTITY_FLAG_BIT18	0x00040000
 
 
 //bot states
@@ -82,6 +83,9 @@ vmCvar_t bot_pause;
 vmCvar_t bot_report;
 vmCvar_t bot_testsolid;
 vmCvar_t bot_testclusters;
+vmCvar_t bot_showAreas;
+vmCvar_t bot_showAreaNumber;
+vmCvar_t bot_showAvoidSpots;
 vmCvar_t bot_developer;
 vmCvar_t bot_log;
 vmCvar_t bot_interbreedchar;
@@ -91,49 +95,6 @@ vmCvar_t bot_interbreedwrite;
 
 
 void ExitLevel( void );
-
-/*
-==================
-BotDebugAINodeName
-==================
-*/
-static const char *BotDebugAINodeName( bot_state_t *bs ) {
-	if ( bs->ainode == AINode_Intermission ) {
-		return "intermission";
-	}
-	if ( bs->ainode == AINode_Observer ) {
-		return "observer";
-	}
-	if ( bs->ainode == AINode_Respawn ) {
-		return "respawn";
-	}
-	if ( bs->ainode == AINode_Stand ) {
-		return "stand";
-	}
-	if ( bs->ainode == AINode_Seek_ActivateEntity ) {
-		return "activate entity";
-	}
-	if ( bs->ainode == AINode_Seek_NBG ) {
-		return "seek NBG";
-	}
-	if ( bs->ainode == AINode_Seek_LTG ) {
-		return "seek LTG";
-	}
-	if ( bs->ainode == AINode_Battle_Fight ) {
-		return "battle fight";
-	}
-	if ( bs->ainode == AINode_Battle_Chase ) {
-		return "battle chase";
-	}
-	if ( bs->ainode == AINode_Battle_Retreat ) {
-		return "battle retreat";
-	}
-	if ( bs->ainode == AINode_Battle_NBG ) {
-		return "battle NBG";
-	}
-
-	return "";
-}
 
 /*
 ==================
@@ -248,7 +209,7 @@ static int BotPublishDebugInfoString( bot_state_t *bs ) {
 			topGoalDistance,
 			secondGoalName,
 			secondGoalDistance,
-			BotDebugAINodeName( bs ),
+			bs->ainodename,
 			ltgTypeName,
 			bs->areanum,
 			goalAreaNum,
@@ -420,10 +381,28 @@ BotTestAAS
 */
 void BotTestAAS(vec3_t origin) {
 	int areanum;
+	int client;
+	bot_state_t *bs;
 	aas_areainfo_t info;
 
 	trap_Cvar_Update(&bot_testsolid);
 	trap_Cvar_Update(&bot_testclusters);
+	trap_Cvar_Update(&bot_showAreaNumber);
+	trap_Cvar_Update(&bot_showAvoidSpots);
+	trap_Cvar_Update(&bot_showAreas);
+	trap_BotDrawDebugAreas(origin, bot_showAreas.integer, bot_showAreaNumber.integer);
+
+	client = bot_showAvoidSpots.integer;
+	if ( client >= 1 && client < MAX_CLIENTS ) {
+		bs = botstates[client];
+		if ( bs && bs->inuse ) {
+			trap_BotDrawAvoidSpots(bs->ms);
+		}
+		else {
+			trap_Cvar_Set("bot_showAvoidSpots", "0");
+		}
+	}
+
 	if (bot_testsolid.integer) {
 		if (!trap_AAS_Initialized()) return;
 		areanum = BotPointAreaNum(origin);
@@ -1371,13 +1350,21 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	bot_state_t *bs;
 	int errnum;
 
-	if (!botstates[client]) botstates[client] = G_Alloc(sizeof(bot_state_t));
+	if (!botstates[client]) {
+		botstates[client] = G_Alloc(sizeof(bot_state_t));
+		if (!botstates[client]) {
+			return qfalse;
+		}
+		memset(botstates[client], 0, sizeof(bot_state_t));
+	}
 	bs = botstates[client];
 
-	if (bs && bs->inuse) {
+	if (bs->inuse) {
 		BotAI_Print(PRT_FATAL, "BotAISetupClient: client %d already setup\n", client);
 		return qfalse;
 	}
+
+	memset(bs, 0, sizeof(bot_state_t));
 
 	if (!trap_AAS_Initialized()) {
 		BotAI_Print(PRT_FATAL, "AAS not initialized\n");
@@ -1388,7 +1375,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	bs->character = trap_BotLoadCharacter(settings->characterfile, settings->skill);
 	if (!bs->character) {
 		BotAI_Print(PRT_FATAL, "couldn't load skill %f from %s\n", settings->skill, settings->characterfile);
-		return qfalse;
+		goto setup_failed_character;
 	}
 	//copy the settings
 	memcpy(&bs->settings, settings, sizeof(bot_settings_t));
@@ -1398,8 +1385,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	trap_Characteristic_String(bs->character, CHARACTERISTIC_ITEMWEIGHTS, filename, MAX_PATH);
 	errnum = trap_BotLoadItemWeights(bs->gs, filename);
 	if (errnum != BLERR_NOERROR) {
-		trap_BotFreeGoalState(bs->gs);
-		return qfalse;
+		goto setup_failed_goal;
 	}
 	//allocate a weapon state
 	bs->ws = trap_BotAllocWeaponState();
@@ -1407,9 +1393,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	trap_Characteristic_String(bs->character, CHARACTERISTIC_WEAPONWEIGHTS, filename, MAX_PATH);
 	errnum = trap_BotLoadWeaponWeights(bs->ws, filename);
 	if (errnum != BLERR_NOERROR) {
-		trap_BotFreeGoalState(bs->gs);
-		trap_BotFreeWeaponState(bs->ws);
-		return qfalse;
+		goto setup_failed_weapon;
 	}
 	//allocate a chat state
 	bs->cs = trap_BotAllocChatState();
@@ -1418,10 +1402,7 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	trap_Characteristic_String(bs->character, CHARACTERISTIC_CHAT_NAME, name, MAX_PATH);
 	errnum = trap_BotLoadChatFile(bs->cs, filename, name);
 	if (errnum != BLERR_NOERROR) {
-		trap_BotFreeChatState(bs->cs);
-		trap_BotFreeGoalState(bs->gs);
-		trap_BotFreeWeaponState(bs->ws);
-		return qfalse;
+		goto setup_failed_chat;
 	}
 	//get the gender characteristic
 	trap_Characteristic_String(bs->character, CHARACTERISTIC_GENDER, gender, MAX_PATH);
@@ -1455,6 +1436,17 @@ int BotAISetupClient(int client, struct bot_settings_s *settings, qboolean resta
 	}
 	//bot has been setup succesfully
 	return qtrue;
+
+setup_failed_chat:
+	if (bs->cs) trap_BotFreeChatState(bs->cs);
+setup_failed_weapon:
+	if (bs->ws) trap_BotFreeWeaponState(bs->ws);
+setup_failed_goal:
+	if (bs->gs) trap_BotFreeGoalState(bs->gs);
+setup_failed_character:
+	if (bs->character) trap_BotFreeCharacter(bs->character);
+	memset(bs, 0, sizeof(bot_state_t));
+	return qfalse;
 }
 
 /*
@@ -1591,6 +1583,8 @@ BotAIStartFrame
 */
 int BotAIStartFrame(int time) {
 	int i;
+	int powerup;
+	int powerupTime;
 	gentity_t	*ent;
 	bot_entitystate_t state;
 	int elapsed_time, thinktime;
@@ -1725,6 +1719,22 @@ int BotAIStartFrame(int time) {
 			state.legsAnim = ent->s.legsAnim;
 			state.torsoAnim = ent->s.torsoAnim;
 			state.weapon = ent->s.weapon;
+			state.qlTimeSeconds = (float)( ent->s.time / 1000 );
+			state.qlFlagsBit18Clear = ( ent->flags & RETAIL_BOTLIB_GENTITY_FLAG_BIT18 ) ? 0 : 1;
+			if (ent->client) {
+				state.qlPlayerGravity = ent->client->ps.gravity;
+				state.qlPlayerSpeed = ent->client->ps.speed;
+				state.qlPlayerDeltaAngle0 = ent->client->ps.delta_angles[0];
+				state.qlEntityHealth = ent->health;
+				state.qlClientMaxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];
+				state.qlRedBlueFlagCarrier = ( ent->client->ps.powerups[PW_REDFLAG]
+					|| ent->client->ps.powerups[PW_BLUEFLAG] ) ? 1 : 0;
+				for ( powerup = 0; powerup < BOTLIB_QL_POWERUP_ACTIVE_COUNT && powerup < MAX_POWERUPS; powerup++ ) {
+					powerupTime = ent->client->ps.powerups[powerup];
+					state.qlPowerupsActive[powerup] =
+						( powerupTime != 0 && ( powerupTime >= level.time || powerupTime == INT_MAX ) ) ? 1 : 0;
+				}
+			}
 			//
 			trap_BotLibUpdateEntity(i, &state);
 		}
@@ -1879,13 +1889,16 @@ int BotAISetup( int restart ) {
 	int			errnum;
 
 	trap_Cvar_Register(&bot_log, "bot_log", "0", 0);
-	trap_Cvar_Register(&bot_thinktime, "bot_thinktime", "100", CVAR_CHEAT);
+	trap_Cvar_Register(&bot_thinktime, "bot_thinktime", "100", 0);
 	trap_Cvar_Register(&bot_memorydump, "bot_memorydump", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_saveroutingcache, "bot_saveroutingcache", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_pause, "bot_pause", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_report, "bot_report", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_testsolid, "bot_testsolid", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_testclusters, "bot_testclusters", "0", CVAR_CHEAT);
+	trap_Cvar_Register(&bot_showAreaNumber, "bot_showAreaNumber", "0", CVAR_VM_CREATED);
+	trap_Cvar_Register(&bot_showAreas, "bot_showAreas", "0", CVAR_VM_CREATED);
+	trap_Cvar_Register(&bot_showAvoidSpots, "bot_showAvoidSpots", "0", CVAR_VM_CREATED);
 	trap_Cvar_Register(&bot_developer, "bot_developer", "0", CVAR_CHEAT);
 	trap_Cvar_Register(&bot_interbreedchar, "bot_interbreedchar", "", 0);
 	trap_Cvar_Register(&bot_interbreedbots, "bot_interbreedbots", "10", 0);

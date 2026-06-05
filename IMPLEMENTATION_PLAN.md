@@ -24,8 +24,10 @@ disabled, until a documented open replacement path exists.
 - Treat the 2026-04-10 engine-wide **100%** report as the strict-retail
   Windows closure milestone, not as a whole-repo all-green claim.
 - The strict-retail Windows replacement target remains **100%** on the current
-  worktree, but the current repo-wide parity estimate is **98%** once the
-  compatibility-only and packaging-dependent surfaces are counted.
+  worktree, and the current repo-wide parity estimate is **99%** after the
+  non-Windows portability lanes were closed as explicit compatibility-only
+  containment. Remaining repo-wide uncertainty is validation freshness rather
+  than active non-Windows source parity debt.
 - The new file-by-file audit campaign now lives in
   `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md` and
   `docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`.
@@ -44,6 +46,261 @@ disabled, until a documented open replacement path exists.
   pick and close remaining `src/ui/menudef.h` ownerdraw IDs.
 
 ## Active work
+
+### Task A219: Map botlib precompiler source-handle API parity [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/l_precomp.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/botlib.h`,
+`src/code/game/g_public.h`, `src/code/game/g_syscalls.c`,
+`src/code/server/sv_game.c`, `src/code/server/ql_game_imports.inc`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-precompiler-source-handle-mapping-2026-06-05.md`
+Parity estimate: **before 76% -> after 96%** for the focused precompiler
+source-handle API slice. Overall botlib plus related parser/API wiring moves
+approximately **68% -> 69%** because this pass closes a compact ABI boundary
+without changing broader macro expansion, script lexing, AAS, or gameplay
+heuristics.
+
+Completed work:
+
+1. Selected `l_precomp.c` public source-handle wrappers as the next botlib
+   slice after the structure/character/weight parser corridor.
+2. Rechecked retail `quakelive_steam.exe` HLIL and Ghidra `functions.csv`
+   evidence for `PC_LoadSourceHandle`, `PC_FreeSourceHandle`,
+   `PC_ReadTokenHandle`, `PC_SourceFileAndLine`, `PC_SetBaseFolder`, and
+   `PC_CheckOpenSourceHandles`.
+3. Pinned source and retail behavior for `MAX_SOURCEFILES == 64`, valid handle
+   range `1..63`, token field copying, `TT_STRING` quote stripping, source
+   file/line reporting, base-folder forwarding, and open-source leak warnings.
+4. Confirmed related wiring through `botlib_export_t`, `GetBotLibAPI`, legacy
+   `SV_GameSystemCallsImpl` dispatch, qagame compatibility import table
+   wrappers, and classic `trap_PC_*` syscall stubs.
+5. Documented that `BOTLIB_PC_ADD_GLOBAL_DEFINE` has a named direct native
+   qagame import slot while the four PC source-handle calls intentionally
+   remain behind the retained compatibility import surface.
+
+### Task A218: Extend botlib parser-resource sibling mapping [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_ai_char.c`,
+`src/code/botlib/be_ai_weight.c`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-structure-resource-reader-mapping-2026-06-05.md`
+Parity estimate: **before 97% -> after 98%** for the focused botlib
+parser-resource corridor selected around `l_struct.c` and its adjacent
+resource loaders. Overall botlib plus related parser wiring moves
+approximately **67% -> 68%** because this pass adds characteristic and
+fuzzy-weight parser evidence without changing broader AAS, movement, or combat
+heuristics.
+
+Completed work:
+
+1. Extended the selected botlib parser section from structure-table resources
+   into the closest source siblings: `be_ai_char.c` character resources and
+   `be_ai_weight.c` fuzzy-weight resources.
+2. Rechecked retail `quakelive_steam.exe` HLIL and Ghidra evidence for
+   `BotLoadCharacterFromFile`, `BotLoadCachedCharacter`,
+   `BotLoadCharacterSkill`, `ReadValue`, `ReadFuzzyWeight`,
+   `ReadFuzzySeperators_r`, `ReadWeightConfig`, and `FindFuzzyWeight`.
+3. Pinned retail allocation/layout evidence: character load allocation
+   `0x2cc`, weight config allocation `0x444`, `MAX_CHARACTERISTICS == 80`,
+   `MAX_WEIGHT_FILES == 128`, and the weight filename copy at offset `0x404`.
+4. Preserved parser quirks as retail parity facts, including the characteristic
+   upper-bound check shape and fuzzy-switch missing-default fallback.
+5. Documented that `be_ai_weight.c` writer helpers remain inside `#if 0`,
+   reinforcing that active retail evidence belongs to the read-side parser
+   surface for this round.
+
+### Task A217: Map botlib structure resource reader parity [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/l_struct.c`,
+`src/code/botlib/be_ai_goal.c`, `src/code/botlib/be_ai_weap.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-structure-resource-reader-mapping-2026-06-05.md`
+Parity estimate: **before 72% -> after 97%** for the focused
+`l_struct.c` resource-reader plus item/weapon/projectile consumer-table mapping
+slice. Overall botlib plus related parser wiring moves approximately
+**65% -> 67%** because this pass tightens a narrow resource-parser proof
+surface without changing broader bot movement, AAS, or gameplay heuristics.
+
+Completed work:
+
+1. Selected botlib structure resource parsing as the next productive forward
+   section because it gates bot item, weapon, and projectile resource data.
+2. Rechecked retail `quakelive_steam.exe` HLIL and Ghidra evidence for
+   `FindField`, `ReadNumber`, and `ReadStructure`, including diagnostic
+   strings, numeric bounds behavior, nested-structure handling, and consumer
+   call sites.
+3. Confirmed the checked-in C source already matches the observed retail shape,
+   including the source-local `ReadChar`/`ReadString` helpers that retail folds
+   into `ReadStructure`.
+4. Added focused regression coverage that pins the structure-reader source
+   contract, bot item/weapon consumers, alias map entries, HLIL anchors, and
+   Ghidra call-site evidence.
+5. Extended the pass to the concrete `iteminfo`, `weaponinfo`, and
+   `projectileinfo` field tables, retail allocation sizes, table data
+   addresses, top-level resource tokens, and weapon/projectile fix-up wiring.
+   Documented the adjacent writer helpers as source-real but not yet safely
+   retail-aliased because the visible `WriteStructure` caller is debug-gated.
+
+### Task A216: Verify server snapshot related wiring parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/server/sv_snapshot.c`, `src/code/server/sv_bot.c`,
+`src/code/server/sv_game.c`, `src/code/game/g_syscalls.c`,
+`src/code/game/ai_main.c`, `src/code/client/cl_parse.c`,
+`src/code/client/cl_cgame.c`, `src/code/cgame/cg_snapshot.c`,
+`tests/test_netcode_parity_manifest.py`
+Parity estimate: **before 100% -> after 100%** for the focused server
+snapshot related-wiring slice. Repo-wide parity remains **99%** because this
+pass confirmed adjacent retail wiring and added a missing guard without
+changing the broader compatibility-only or validation-freshness boundaries.
+
+Completed work:
+
+1. Rechecked the server snapshot construction/send path, client parse/readback
+   path, cgame snapshot pump, qagame visibility exports, and bot snapshot
+   entity bridge against the committed HLIL aliases and existing parity tests.
+2. Confirmed no additional source behavior drift after the `SV_SendClientSnapshot`
+   wrapper closure: snapshot body writing still flows directly to overflow
+   handling/send, client/cgame readback remains ordered, and bot clients query
+   the built snapshot ring without packet emission.
+3. Added a focused parity guard that pins `SV_BotGetSnapshotEntity` and
+   `QL_G_trap_BotGetSnapshotEntity` to retail `sub_4DDAC0`/`sub_4E17E0`,
+   including the legacy syscall, native import slot, qagame syscall mapping,
+   and `BotAI_GetSnapshotEntity` handoff.
+
+### Task A215: Verify client connection adjacent wiring parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`, `src/code/client/cl_net_chan.c`,
+`src/code/server/sv_client.c`, `src/code/server/sv_main.c`,
+`src/code/cgame/cg_newdraw.c`, `tests/test_engine_netcode_parity.py`
+Parity estimate: **before 96% -> after 100%** for the adjacent client
+connection wiring slice. Repo-wide parity remains **99%** because this pass
+confirmed the focused wiring and corrected a stale guard rather than changing
+the broader online-service or validation-freshness boundaries.
+
+Completed work:
+
+1. Rechecked the related connection corridor around client connect/retry,
+   challenge and connect responses, packet dispatch, client netchan setup, and
+   server challenge/direct-connect acceptance.
+2. Confirmed the cgame serverinfo handoff still pulls the retail map-name
+   ownerdraw label from `CS_SERVERINFO` through `SERVERINFO_KEY_MAPNAME`.
+3. Corrected the broad engine-netcode parity guard so it matches the stricter
+   retail-backed cgame ownerdraw tests for the `CG_MapNameText` helper.
+4. Reran the focused and adjacent parity tests covering netcode manifest,
+   engine netcode, client full-parity gate, client command/netchan wrappers,
+   command registration/run-loop mapping, platform challenge/direct-connect
+   wiring, and cgame map-name display wiring.
+
+### Task A214: Close client connection-response protocol parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/client.h`, `src/code/client/cl_main.c`,
+`tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/netcode-parity-manifest.json`
+Parity estimate: **before 94% -> after 100%** for the focused client
+connection-response protocol slice. Repo-wide parity remains **99%** because
+the online-service policy and broader external validation freshness boundaries
+are unchanged.
+
+Completed work:
+
+1. Rechecked `CL_Connect_f`, `CL_CheckForResend`, and
+   `CL_ConnectionlessPacket` against the committed `quakelive_steam.exe` HLIL
+   and Ghidra corpus.
+2. Restored the retail bad-address path by publishing
+   `CL_WebView_PublishGameError( "Bad server address" )` after the failed
+   address parse, matching retail `sub_4F3570`.
+3. Added the missing 0x400-byte `challengeResponse` sideband text slot before
+   `clc.netchan` and copied `Cmd_Argv(2)` into it before entering
+   `CA_CHALLENGING`, matching the retail `0x016177fc` -> `0x01617bfc`
+   layout/order.
+4. Tightened the netcode parity guard so the retail sideband copy, client
+   connection layout, and connectionless state transition order remain pinned.
+
+### Task A213: Close server snapshot retail send parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/server/sv_snapshot.c`,
+`src/code/server/sv_client.c`, `tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/netcode-parity-manifest.json`
+Parity estimate: **before 95% -> after 100%** for the focused
+`SV_SendClientSnapshot` retail send-wrapper slice. Repo-wide parity remains
+**99%** because broader compatibility-only and online-service boundaries are
+unchanged.
+
+Completed work:
+
+1. Rechecked the `quakelive_steam.exe` HLIL for `0x004E5AC0` and the Ghidra
+   `functions.csv` row for `SV_SendClientSnapshot`.
+2. Removed the classic `SV_WriteDownloadToClient` injection from
+   `SV_SendClientSnapshot`, matching the retail order from
+   `SV_WriteSnapshotToClient` directly to overflow handling and
+   `SV_SendMessageToClient`.
+3. Kept legacy UDP download requests from arming stale `downloadName` state now
+   that QL snapshots no longer carry `svc_download` blocks.
+4. Updated the netcode manifest and parity guard so reintroducing
+   snapshot-side classic download payloads is treated as a regression.
+
+### Task A212: Recheck client-side prediction retail parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/cgame/cg_predict.c`,
+`src/code/cgame/cg_view.c`, `src/code/cgame/cg_ents.c`,
+`src/code/cgame/cg_snapshot.c`, `tests/test_cgame_snapshot_parity.py`,
+`references/symbol-maps/cgame.json`, `docs/reverse-engineering/cgame-mapping.md`,
+`docs/reverse-engineering/cgame-client-prediction-parity-recheck-2026-06-05.md`
+Parity estimate: **before 100% -> after 100%** for the focused cgame
+client-side prediction and related wiring slice. Repo-wide parity remains
+**99%** because this pass strengthened validation for an already-closed
+strict-retail corridor rather than closing a new whole-repo gap.
+
+Completed work:
+
+1. Rechecked the `cgamex86.dll` Ghidra metadata, symbol map, and cgame mapping
+   notes for the retail prediction corridor.
+2. Confirmed no gameplay source patch was needed: `cg_predict.c` already keeps
+   the retail replay shape for interpolation fallbacks, local `pmove_t` setup,
+   command replay, item/trigger prediction, mover adjustment, step smoothing,
+   projectile nudge, predicted rail replay, and transition handoff.
+3. Tightened `tests/test_cgame_snapshot_parity.py` to pin the mapped solid-list,
+   box/capsule trace, point-contents, interpolation, red/blue-flag predicate,
+   high-value item skip, and complete prediction symbol-map evidence set.
+4. Rechecked and pinned related wiring around prediction: `CG_DrawActiveFrame`
+   caller order, `CG_AddPacketEntities` predicted-player proxy,
+   non-predicted local-player refresh, mover compensation, initial/next/
+   transition snapshot handoffs, snapshot pump, native draw wrapper, snapshot
+   import, usercmd import, pmove settings, and the mapped retail symbols for
+   those edges.
+
+### Task A211: Close server browser protocol and master heartbeat parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`, `src/code/client/cl_cgame.c`,
+`src/code/server/sv_main.c`, `src/code/server/sv_init.c`,
+`src/code/server/sv_client.c`, `src/code/qcommon/common.c`,
+`src/common/platform/platform_steamworks.c`, `tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/network-server-browser-master-heartbeat-parity-2026-06-05.md`
+Parity estimate: **before 96% -> after 100%** for the focused server browser
+protocol and master heartbeat slice. Repo-wide parity remains **99%** because
+the online-service boundary and broader native Steam product-integration policy
+are unchanged.
+
+Completed work:
+
+1. Rechecked the `quakelive_steam.exe` HLIL and Ghidra corpus for
+   `getserversResponse`, `getinfo xxx`, `getstatus`, `sv_master`, protocol
+   `91`, and the Steam GameServer / SteamMatchmakingServers imports.
+2. Confirmed the active profile owns the Quake Live browser/status tokens and
+   info keys, while legacy UDP master traffic remains policy-gated.
+3. Fixed `SV_MasterHeartbeat` so explicit configured `host:port` master entries
+   keep their port instead of being overwritten with `PORT_MASTER`.
+4. Added a focused regression guard for the QL browser parser, request grammar,
+   heartbeat token, Steam heartbeat owner, and committed retail evidence.
+5. Rechecked the related `qz_instance` browser dispatch, browser event
+   publication, native `ISteamMatchmakingServers` wrapper, server info/status
+   key publication, Steam GameServer published state, spawn/frame/reconnect/
+   shutdown heartbeat lifecycle, and default-disabled legacy UDP service gate.
+6. Added a wiring-level parity guard so the related browser/heartbeat source
+   graph remains pinned at **100%** for this focused source-owned and
+   policy-gated slice.
 
 ### Task A210: Close selected 335-339 cgame ownerdraw parity [COMPLETED]
 Priority: High
@@ -12270,11 +12527,12 @@ Completed work:
 
 ## Active tasks
 
-### Task A4: Modernise or explicitly contain the non-Windows portability lanes [OPEN]
+### Task A4: Modernise or explicitly contain the non-Windows portability lanes [COMPLETED 2026-06-05]
 Priority: High
 Primary areas: `src/code/unix/`, `src/code/null/`,
-`docs/platform/toolchain-matrix.md`, `docs/build/linux-glibc-32bit.md`
-Estimated repo-wide lift if closed: **98% -> 99%**
+`docs/platform/toolchain-matrix.md`, `docs/build/linux-glibc-32bit.md`,
+`docs/reverse-engineering/non-windows-portability-boundary-2026-06-05.md`
+Parity estimate: **before 98% -> after 99%**
 
 Scope:
 
@@ -12297,11 +12555,29 @@ Scope:
 3. Refresh the toolchain/runtime guidance and validation coverage once the
    intended portability boundary is settled.
 
-### Task A6: Refresh build/runtime evidence for the repo-wide ledger [OPEN]
+Completed work:
+
+1. Re-baselined the non-Windows portability lanes around the current target:
+   hosted POSIX source builds and dedicated/server-module validation are the
+   active support endpoints.
+2. Chose explicit containment for the legacy Linux client/runtime stack: the
+   retained X11/GLX/DGA renderer/input path, OSS-first audio host, silent
+   sink, and null host/client/audio/input/renderer shims are compatibility-only
+   carries, not active modern Linux client parity targets.
+3. Added
+   `docs/reverse-engineering/non-windows-portability-boundary-2026-06-05.md`
+   and refreshed the RW-G02 gap notes, repo-wide audit, function-gap summary,
+   toolchain matrix, Linux glibc preset note, and focused portability tests so
+   this boundary is enforced as a documented closure.
+4. Future Linux client/runtime work now needs a successor task that explicitly
+   adopts a modern renderer/audio/input dependency stack and reproducible
+   validation.
+
+### Task A6: Refresh build/runtime evidence for the repo-wide ledger [COMPLETED 2026-06-05]
 Priority: Medium
 Primary areas: tracked runtime probe bundles, native build helpers, platform
 docs
-Estimated repo-wide lift if closed: **98% -> 99%**
+Parity estimate: **before 99% -> after 99%**
 
 Scope:
 
@@ -12313,6 +12589,53 @@ Scope:
 3. Capture the remaining glibc and continuous/self-hosted publication
    follow-ups called out in `docs/platform/toolchain-matrix.md`, including the
    remaining retail-module runtime freshness tail.
+
+Completed work:
+
+1. Added
+   `docs/reverse-engineering/runtime-build-evidence-refresh-2026-06-05.json`
+   and `docs/reverse-engineering/runtime-build-evidence-refresh-2026-06-05.md`
+   as the A6 evidence ledger.
+2. Confirmed the retail-module `latest` alias now points at
+   `artifacts/module_validation/logs/retail_module_runtime_evidence_20260602.json`,
+   with no warnings, no missing markers, retail `ui`/`qagame`/`cgame` loads,
+   `Server: bloodrun`, `Going from CS_PRIMED to CS_ACTIVE`, screenshots, and
+   vm-trace create/free/call traffic.
+3. Verified Visual Studio 2022 `v143` availability and ran the modern native
+   validation lane with optional codecs disabled. MSBuild produced a clean
+   `Release|x86` build with `0` warnings and `0` errors; the wrapper timed out
+   after the successful build while continuing post-build checks, so
+   `tools/ci/assert-dll-exports.ps1` was rerun directly.
+4. Tightened `tools/ci/assert-dll-exports.ps1` so it prefers the newest
+   Release artifact before inspecting exports. The direct export audit now
+   validates the fresh `build/win32/Release/modules/qagamex86/qagamex86.dll`
+   and `build/win32/Release/modules/cgamex86/cgamex86.dll` outputs rather
+   than older `bin/baseq3` copies.
+5. Recorded that strict retail VC10 staged-runtime evidence is still blocked
+   on this checkout because `tools/ci/audit-retail-toolchain.ps1 -Strict`
+   expects `PlatformToolset` `v100`, while the checked-in project files
+   currently use `v141`. This is now a documented validation boundary, not an
+   uninspected A6 freshness gap.
+
+Earlier 2026-06-05 preflight, now superseded by the A6 refresh ledger:
+
+1. `docs/reverse-engineering/windows-native-validation-preflight-2026-06-05.md`
+   now records the local native Windows validation preflight. The wrapper-level
+   repo-root inference issue was fixed in
+   `tools/ci/audit-retail-toolchain.ps1` and
+   `tools/ci/validate-windows-native.ps1`, so documented `-File` invocations
+   now reach the project metadata checks.
+2. `powershell -NoProfile -ExecutionPolicy Bypass -File
+   .\tools\ci\audit-retail-toolchain.ps1 -Strict` stops before build because
+   the strict retail audit expects `PlatformToolset=v100` while
+   `src/code/quakelive_steam.vcxproj` currently reports `v141`.
+3. `powershell -NoProfile -ExecutionPolicy Bypass -File
+   .\tools\ci\validate-windows-native.ps1 -RuntimeProfile retail` verifies the
+   current `v141` defaults for `qagamex86`, `cgamex86`, `uix86`,
+   `quakelive_steam`, and `awesomium_process`, then hits the same strict
+   `v100` audit blocker. The later A6 refresh above adds modern-host build
+   evidence and current retail-module runtime evidence while keeping this
+   strict VC10 blocker documented.
 
 ### Task 23: Ownerdraw/stat payload completion and validation [COMPLETED]
 Priority: High
@@ -12350,15 +12673,34 @@ Completed work:
    current worktree; the gameplay validation sweep is now covered by dedicated
    fixtures rather than left as an open catch-all validation reminder.
 
+### Task 25: UI import contract retail remap guard [COMPLETED]
+Priority: High
+Primary areas: `tests/test_ui_menu_files.py`, `src/code/ui/ui_public.h`,
+`src/code/ui/ui_syscalls.c`
+Parity estimate: **before 98% -> after 100%** for the focused `uiImport_t`
+legacy-to-retail-native import contract.
+
+Completed work:
+
+1. Rechecked the committed `uix86.dll` native import evidence and preserved the
+   current runtime split: `uiImport_t` remains the legacy source/QVM syscall
+   ABI, while `uiQlImport_t` carries the recovered retail native slot numbers.
+2. Added a parser-based parity guard that pins every `uiImport_t` value,
+   verifies the complete `UI_MapNativeImport` handoff into recovered retail
+   native slots, and keeps direct-only retail native slots out of the legacy
+   syscall surface.
+3. Re-ran the full UI static regression lane so future drift in either the
+   enum or remap table fails before it can affect retail-module loading.
+
 ## Working priority order
 
-1. Re-baseline the non-Windows portability lanes.
-2. Refresh archived build/runtime evidence on current toolchains.
-3. Keep the online-service compatibility boundary explicitly documented if a
+1. Keep the online-service compatibility boundary explicitly documented if a
    future open replacement path is introduced.
 
 ## Reference audits for closed surfaces
 
+- `docs/reverse-engineering/non-windows-portability-boundary-2026-06-05.md`
+- `docs/reverse-engineering/runtime-build-evidence-refresh-2026-06-05.md`
 - `docs/reverse-engineering/repo-wide-parity-audit-2026-04-21.md`
 - `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md`
 - `docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`

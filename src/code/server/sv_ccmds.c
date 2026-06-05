@@ -1320,6 +1320,17 @@ static void SV_FactoryEnsureRegistryLoaded( void ) {
 														return NULL;
 													}
 
+/*
+=============
+SV_FactoryExists
+
+Reports whether the host-side factory registry contains the supplied id.
+=============
+*/
+qboolean SV_FactoryExists( const char *id ) {
+	return SV_FactoryFindById( id ) ? qtrue : qfalse;
+}
+
 													/*
 													=============
 													SV_FactoryPrintValidList

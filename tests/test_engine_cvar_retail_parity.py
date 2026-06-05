@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -20,6 +21,7 @@ SND_MIX = REPO_ROOT / "src" / "code" / "client" / "snd_mix.c"
 SV_INIT = REPO_ROOT / "src" / "code" / "server" / "sv_init.c"
 SV_MAIN = REPO_ROOT / "src" / "code" / "server" / "sv_main.c"
 SV_SNAPSHOT = REPO_ROOT / "src" / "code" / "server" / "sv_snapshot.c"
+SV_BOT = REPO_ROOT / "src" / "code" / "server" / "sv_bot.c"
 SV_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
 SV_CLIENT = REPO_ROOT / "src" / "code" / "server" / "sv_client.c"
 SV_CCMDS = REPO_ROOT / "src" / "code" / "server" / "sv_ccmds.c"
@@ -31,6 +33,7 @@ FILES = REPO_ROOT / "src" / "code" / "qcommon" / "files.c"
 NET_CHAN = REPO_ROOT / "src" / "code" / "qcommon" / "net_chan.c"
 UI_MAIN = REPO_ROOT / "src" / "code" / "ui" / "ui_main.c"
 AI_MAIN = REPO_ROOT / "src" / "code" / "game" / "ai_main.c"
+BOTLIB_H = REPO_ROOT / "src" / "code" / "game" / "botlib.h"
 BE_AAS_FILE = REPO_ROOT / "src" / "code" / "botlib" / "be_aas_file.c"
 SERVER_H = REPO_ROOT / "src" / "code" / "server" / "server.h"
 CG_VIEW = REPO_ROOT / "src" / "code" / "cgame" / "cg_view.c"
@@ -799,6 +802,7 @@ def test_engine_cvar_tenth_client_userinfo_tranche_matches_retail_contracts() ->
 	assert 'Cvar_Get ("headmodel", "sarge", CVAR_USERINFO | CVAR_ARCHIVE | CVAR_PROTECTED );' in cl_main
 	assert 'Cvar_Set( "headmodel", arg );' in cl_main
 	assert 'trap_Cvar_Register(NULL, "headmodel", DEFAULT_HEAD, CVAR_USERINFO | CVAR_ARCHIVE );' in cg_main
+	assert 'trap_Cvar_Register(NULL, "fov", "", CVAR_USERINFO | CVAR_ROM );' in cg_main
 	assert 'Q_strncpyz( headModel, Info_ValueForKey (userinfo, "headmodel"), sizeof( headModel ) );' in g_client
 
 	assert 'Cvar_Get ("password", "", CVAR_USERINFO | CVAR_TEMP);' in cl_main
@@ -2032,8 +2036,16 @@ def test_engine_cvar_seventeenth_network_bootstrap_tranche_matches_retail_contra
 	assert 'Cvar_SetValue( "net_port", port + i );' in win_net
 	assert 'netPort = Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH );' in common
 	assert 'netPort = Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH );' in sv_zmq
-	assert 's_zmqRconIp = Cvar_Get( "zmq_rcon_ip", "0.0.0.0", CVAR_ARCHIVE );' in sv_zmq
-	assert 's_zmqRconPort = Cvar_Get( "zmq_rcon_port", "28960", CVAR_ARCHIVE );' in sv_zmq
+	assert 's_zmqRconEnable = Cvar_Get( "zmq_rcon_enable", "0", CVAR_INIT );' in sv_zmq
+	assert 's_zmqStatsEnable = Cvar_Get( "zmq_stats_enable", "0", CVAR_INIT );' in sv_zmq
+	assert 's_zmqRconIp = Cvar_Get( "zmq_rcon_ip", "0.0.0.0", CVAR_INIT );' in sv_zmq
+	assert 's_zmqRconPort = Cvar_Get( "zmq_rcon_port", "28960", CVAR_INIT );' in sv_zmq
+	assert 's_zmqStatsIp = Cvar_Get( "zmq_stats_ip", "", CVAR_INIT );' in sv_zmq
+	assert 's_zmqStatsPort = Cvar_Get( "zmq_stats_port", "", CVAR_INIT );' in sv_zmq
+	assert 's_zmqStatsPassword = Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE );' in sv_zmq
+	assert 's_zmqRconPassword = Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE );' in sv_zmq
+	assert 'Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );' not in sv_zmq
+	assert 'Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );' not in sv_zmq
 
 	assert 'net_strict = Cvar_Get( "net_strict", "0", 0 );' in win_net
 	assert 'if ( net_strict->integer ) {' in win_net
@@ -3587,11 +3599,40 @@ def test_engine_cvar_thirtysecond_renderer_bloom_picmip_tranche_matches_retail_c
 
 def test_engine_cvar_thirtythird_server_botlib_tranche_matches_retail_contracts() -> None:
 	sv_bot = _read_text(REPO_ROOT / "src" / "code" / "server" / "sv_bot.c")
+	sv_game = _read_text(REPO_ROOT / "src" / "code" / "server" / "sv_game.c")
+	ai_main = _read_text(REPO_ROOT / "src" / "code" / "game" / "ai_main.c")
+	ai_dmq3 = _read_text(REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.c")
+	q_shared = _read_text(REPO_ROOT / "src" / "code" / "game" / "q_shared.h")
 	be_interface = _read_text(REPO_ROOT / "src" / "code" / "botlib" / "be_interface.c")
 	be_aas_main = _read_text(REPO_ROOT / "src" / "code" / "botlib" / "be_aas_main.c")
 	be_aas_reach = _read_text(REPO_ROOT / "src" / "code" / "botlib" / "be_aas_reach.c")
 	be_ai_char = _read_text(REPO_ROOT / "src" / "code" / "botlib" / "be_ai_char.c")
 	be_ai_chat = _read_text(REPO_ROOT / "src" / "code" / "botlib" / "be_ai_chat.c")
+	ql_steam_ghidra = _read_text(REPO_ROOT / "src2" / "ghidra" / "quakelive_steam" / "quakelive_steam_decomp.cpp")
+	ql_steam_hlil_part04 = _read_text(
+		REPO_ROOT
+		/ "references"
+		/ "hlil"
+		/ "quakelive"
+		/ "quakelive_steam.exe"
+		/ "quakelive_steam.exe_hlil_split"
+		/ "quakelive_steam.exe_hlil_part04.txt"
+	)
+	qagame_hlil_part01 = _read_text(
+		REPO_ROOT
+		/ "references"
+		/ "hlil"
+		/ "quakelive"
+		/ "qagamex86.dll"
+		/ "qagamex86.dll.bndb_hlil_split"
+		/ "qagamex86.dll.bndb_hlil_part01.txt"
+	)
+	qagame_ghidra = _read_text(REPO_ROOT / "references" / "reverse-engineering" / "ghidra" / "qagamex86" / "decompile_top_functions.c")
+
+	assert 'Cvar_Get("bot_enable", "1", CVAR_ROM);' in sv_bot
+	assert 'var = Cvar_Get( "bot_enable", "1", CVAR_LATCH );' in sv_game
+	assert 'Cvar_Get("bot_enable", &DAT_00551624, 0x40);' in ql_steam_ghidra
+	assert 'sub_4ce0d0(x87_r0, "bot_enable", U"1", 0x40)' in ql_steam_hlil_part04
 
 	assert 'Cvar_Get("bot_developer", "0", CVAR_CHEAT);' in sv_bot
 	assert 'bot_developer = LibVarGetValue("bot_developer");' in be_interface
@@ -3633,3 +3674,246 @@ def test_engine_cvar_thirtythird_server_botlib_tranche_matches_retail_contracts(
 
 	assert 'Cvar_Get("bot_testrchat", "0", 0);' in sv_bot
 	assert 'if (LibVarGetValue("bot_testrchat"))' in be_ai_chat
+
+	assert 'Cvar_Get("bot_thinktime", "100", 0);' in sv_bot
+	assert 'Cvar_Get("bot_thinktime", "100", CVAR_CHEAT);' not in sv_bot
+	assert 'trap_Cvar_Register(&bot_thinktime, "bot_thinktime", "100", 0);' in ai_main
+	assert 'trap_Cvar_Register(&bot_thinktime, "bot_thinktime", "100", CVAR_CHEAT);' not in ai_main
+	assert 'Cvar_Get("bot_thinktime", &DAT_0052f690, 0);' in ql_steam_ghidra
+	assert 'sub_4ce0d0(x87_r0, "bot_thinktime", "100", 0)' in ql_steam_hlil_part04
+	assert '(*(data_104b13ac + 0x44))(0x105e3900, "bot_thinktime", &data_1007e154, 0)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0x44))(0x105e2de0, "bot_memorydump", &data_1007d0a8, 0x200)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0x44))(0x105e2ba0, "bot_saveroutingcache", &data_1007d0a8, 0x200)' in qagame_hlil_part01
+
+	assert 'if (bot_memorydump.integer) {' in ai_main
+	assert 'trap_BotLibVarSet("memorydump", "1");' in ai_main
+	assert 'trap_Cvar_Set("bot_memorydump", "0");' in ai_main
+	assert 'if (bot_saveroutingcache.integer) {' in ai_main
+	assert 'trap_BotLibVarSet("saveroutingcache", "1");' in ai_main
+	assert 'trap_Cvar_Set("bot_saveroutingcache", "0");' in ai_main
+	assert 'if (bot_thinktime.integer > 200) {' in ai_main
+	assert 'trap_Cvar_Set("bot_thinktime", "200");' in ai_main
+	assert 'trap_BotLibVarSet("bot_showPath", "0");' in ai_main
+	assert '(*(data_104b13ac + 0xcc))("memorydump", &data_1007d1d8)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0x3c))("bot_memorydump", &data_1007d0a8)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0xcc))("saveroutingcache", &data_1007d1d8)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0x3c))("bot_saveroutingcache", &data_1007d0a8)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0x3c))("bot_thinktime", &data_1007dfe0)' in qagame_hlil_part01
+	assert '(*(data_104b13ac + 0xcc))("bot_showPath", 0x104b1cd4)' in qagame_hlil_part01
+
+	assert 'Cvar_Get("bot_grapple", "1", 0);' in sv_bot
+	assert 'Cvar_Get("bot_grapple", "0", 0);' not in sv_bot
+	assert 'trap_Cvar_Register(&bot_grapple, "bot_grapple", "1", 0);' in ai_dmq3
+	assert 'trap_Cvar_Register(&bot_grapple, "bot_grapple", "0", 0);' not in ai_dmq3
+	assert 'Cvar_Get("bot_grapple", &DAT_00551624, 0);' in ql_steam_ghidra
+	assert 'sub_4ce0d0(x87_r4, "bot_grapple", U"1", 0)' in ql_steam_hlil_part04
+	assert '(**(code **)(DAT_104b13ac + 0x44))(&DAT_105e4280,"bot_grapple",&DAT_1007d1d8,0);' in qagame_ghidra
+
+	assert '#define CVAR_CLOUD' in q_shared
+	assert '0x80000' in q_shared
+	assert 'trap_Cvar_Register(&bot_nochat, "bot_nochat", "0", CVAR_CLOUD);' in ai_dmq3
+	assert 'trap_Cvar_Register(&bot_nochat, "bot_nochat", "0", 0);' not in ai_dmq3
+	assert 'trap_Cvar_Register(&bot_challenge, "bot_challenge", "0", CVAR_CLOUD);' in ai_dmq3
+	assert 'trap_Cvar_Register(&bot_challenge, "bot_challenge", "0", 0);' not in ai_dmq3
+	assert '(**(code **)(DAT_104b13ac + 0x44))(&DAT_105e3d20,"bot_nochat",&DAT_1007d0a8,0x80000);' in qagame_ghidra
+	assert '(**(code **)(DAT_104b13ac + 0x44))(&DAT_105e3e80,"bot_challenge",&DAT_1007d0a8,0x80000);' in qagame_ghidra
+
+
+def test_engine_cvar_thirtyfourth_server_botlib_import_bridge_matches_retail_contracts() -> None:
+	sv_bot = _read_text(SV_BOT)
+	sv_game = _read_text(SV_GAME)
+	botlib_h = _read_text(BOTLIB_H)
+	aliases = json.loads(_read_text(REPO_ROOT / "references" / "analysis" / "quakelive_symbol_aliases.json"))["quakelive_steam"]
+	ql_steam_hlil_part04 = _read_text(QL_STEAM_HLIL_PART04)
+	round_61 = _read_text(REPO_ROOT / "docs" / "reverse-engineering" / "quakelive_steam_mapping_round_61.md")
+
+	for raw_name, normalized_name in (
+		("sub_4DD0B0", "BotImport_Trace"),
+		("sub_4DD160", "BotImport_EntityTrace"),
+		("sub_4DD210", "BotImport_PointContents"),
+		("sub_4DD230", "BotImport_inPVS"),
+		("sub_4DD240", "BotImport_BSPEntityData"),
+		("sub_4DD250", "BotImport_BSPModelMinsMaxsOrigin"),
+		("sub_4DD350", "BotImport_GetMemory"),
+		("sub_4DD370", "BotImport_FreeMemory"),
+		("sub_4DD380", "BotImport_HunkAlloc"),
+		("sub_4DD3B0", "BotImport_DebugPolygonCreate"),
+		("sub_4DD430", "BotImport_DebugPolygonDelete"),
+		("sub_4DD450", "BotImport_DebugLineCreate"),
+		("sub_4DD480", "BotImport_DebugLineShow"),
+		("sub_4DD640", "BotClientCommand"),
+		("sub_4DD6A0", "SV_BotLibSetup"),
+		("sub_4DD6D0", "SV_BotLibShutdown"),
+		("sub_4DD940", "SV_BotInitBotLib"),
+	):
+		assert aliases[raw_name] == normalized_name
+		assert f"`{raw_name} -> {normalized_name}`" in round_61
+
+	botlib_import_decl = _extract_function_block(
+		botlib_h,
+		"typedef struct botlib_import_s",
+	)
+	botlib_init = _extract_function_block(sv_bot, "void SV_BotInitBotLib(void)")
+	bot_trace = _extract_function_block(
+		sv_bot,
+		"void BotImport_Trace(bsp_trace_t *bsptrace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)",
+	)
+	bot_entity_trace = _extract_function_block(
+		sv_bot,
+		"void BotImport_EntityTrace(bsp_trace_t *bsptrace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)",
+	)
+	bsp_entity_data = _extract_function_block(sv_bot, "char *BotImport_BSPEntityData(void)")
+	bsp_model_bounds = _extract_function_block(
+		sv_bot,
+		"void BotImport_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t outmins, vec3_t outmaxs, vec3_t origin)",
+	)
+	debug_polygon_create = _extract_function_block(
+		sv_bot,
+		"int BotImport_DebugPolygonCreate(int color, int numPoints, vec3_t *points)",
+	)
+	debug_line_create = _extract_function_block(sv_bot, "int BotImport_DebugLineCreate(void)")
+	debug_line_show = _extract_function_block(
+		sv_bot,
+		"void BotImport_DebugLineShow(int line, vec3_t start, vec3_t end, int color)",
+	)
+	debug_draw = _extract_function_block(
+		sv_bot,
+		"void BotDrawDebugPolygons(void (*drawPoly)(int color, int numPoints, float *points), int value)",
+	)
+	legacy_syscalls = _extract_function_block(
+		sv_game,
+		"static int SV_GameSystemCallsImpl( int *args, qboolean logContract )",
+	)
+
+	for expected in (
+		"void\t\t(QDECL *Print)(int type, char *fmt, ...);",
+		"void\t\t(*Trace)(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask);",
+		"void\t\t(*EntityTrace)(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask);",
+		"int\t\t\t(*PointContents)(vec3_t point);",
+		"int\t\t\t(*inPVS)(vec3_t p1, vec3_t p2);",
+		"char\t\t*(*BSPEntityData)(void);",
+		"void\t\t(*BSPModelMinsMaxsOrigin)(int modelnum, vec3_t angles, vec3_t mins, vec3_t maxs, vec3_t origin);",
+		"void\t\t(*BotClientCommand)(int client, char *command);",
+		"void\t\t*(*GetMemory)(int size);",
+		"void\t\t(*FreeMemory)(void *ptr);",
+		"int\t\t\t(*AvailableMemory)(void);",
+		"void\t\t*(*HunkAlloc)(int size);",
+		"int\t\t\t(*FS_FOpenFile)( const char *qpath, fileHandle_t *file, fsMode_t mode );",
+		"int\t\t\t(*DebugLineCreate)(void);",
+		"void\t\t(*DebugLineShow)(int line, vec3_t start, vec3_t end, int color);",
+		"int\t\t\t(*DebugPolygonCreate)(int color, int numPoints, vec3_t *points);",
+		"void\t\t(*DebugPolygonDelete)(int id);",
+	):
+		assert expected in botlib_import_decl
+
+	for expected in (
+		"botlib_import.Print = BotImport_Print;",
+		"botlib_import.Trace = BotImport_Trace;",
+		"botlib_import.EntityTrace = BotImport_EntityTrace;",
+		"botlib_import.PointContents = BotImport_PointContents;",
+		"botlib_import.inPVS = BotImport_inPVS;",
+		"botlib_import.BSPEntityData = BotImport_BSPEntityData;",
+		"botlib_import.BSPModelMinsMaxsOrigin = BotImport_BSPModelMinsMaxsOrigin;",
+		"botlib_import.BotClientCommand = BotClientCommand;",
+		"botlib_import.GetMemory = BotImport_GetMemory;",
+		"botlib_import.FreeMemory = BotImport_FreeMemory;",
+		"botlib_import.AvailableMemory = Z_AvailableMemory;",
+		"botlib_import.HunkAlloc = BotImport_HunkAlloc;",
+		"botlib_import.FS_FOpenFile = FS_FOpenFileByMode;",
+		"botlib_import.DebugLineCreate = BotImport_DebugLineCreate;",
+		"botlib_import.DebugLineDelete = BotImport_DebugLineDelete;",
+		"botlib_import.DebugLineShow = BotImport_DebugLineShow;",
+		"botlib_import.DebugPolygonCreate = BotImport_DebugPolygonCreate;",
+		"botlib_import.DebugPolygonDelete = BotImport_DebugPolygonDelete;",
+		"GetBotLibAPI( BOTLIB_API_VERSION, &botlib_import );",
+	):
+		assert expected in botlib_init
+
+	for expected in (
+		"int32_t (* var_5c)(int32_t arg1, int32_t arg2) = sub_4dcf90",
+		"int32_t (* var_58)(int32_t* arg1, float* arg2, int32_t* arg3, int32_t* arg4, float* arg5,",
+		"int32_t (* var_54)(int32_t* arg1, float* arg2, int32_t* arg3, int32_t* arg4, float* arg5,",
+		"int32_t (* var_50)(float* arg1) = sub_4dd210",
+		"int32_t (* var_4c)() = sub_4dd230",
+		"int32_t (* var_48)() = j_sub_4c0250",
+		"float* (* var_44)(int32_t arg1, float* arg2, float* arg3, float* arg4, float* arg5) =",
+		"void* (* var_40)(int32_t arg1, char* arg2) = sub_4dd640",
+		"void* (* var_3c)(int32_t arg1) = sub_4dd350",
+		"int32_t (* var_38)() = sub_4dd370",
+		"int32_t (* var_34)() = sub_4c9220",
+		"char* (* var_30)(int32_t arg1) = sub_4dd380",
+		"int32_t (* var_18)() = sub_4dd450",
+		"int32_t (* var_14)(int32_t arg1) = sub_4dd430",
+		"int32_t (* var_10)(int32_t arg1, float* arg2, float* arg3, int32_t arg4) = sub_4dd480",
+		"int32_t (* var_c)(int32_t arg1, int32_t arg2, int32_t* arg3) = sub_4dd3b0",
+		"int32_t (* var_8)(int32_t arg1) = sub_4dd430",
+		"int32_t result = sub_4a83c0(2, &var_5c)",
+	):
+		assert expected in ql_steam_hlil_part04
+
+	assert "SV_Trace(&trace, start, mins, maxs, end, passent, contentmask, qfalse);" in bot_trace
+	assert "SV_ClipToEntity(&trace, start, mins, maxs, end, entnum, contentmask, qfalse);" in bot_entity_trace
+	for trace_block in (bot_trace, bot_entity_trace):
+		assert "bsptrace->allsolid = trace.allsolid;" in trace_block
+		assert "bsptrace->startsolid = trace.startsolid;" in trace_block
+		assert "bsptrace->fraction = trace.fraction;" in trace_block
+		assert "VectorCopy(trace.endpos, bsptrace->endpos);" in trace_block
+		assert "bsptrace->surface.value = trace.surfaceFlags;" in trace_block
+		assert "bsptrace->ent = trace.entityNum;" in trace_block
+		assert "bsptrace->exp_dist = 0;" in trace_block
+		assert "bsptrace->sidenum = 0;" in trace_block
+		assert "bsptrace->contents = 0;" in trace_block
+	assert "004dd0e4  sub_4e6930(&var_40, arg2, arg3, arg4, arg5, arg6, arg7, 0)" in ql_steam_hlil_part04
+	assert "004dd194  sub_4e6690(&var_40, arg2, arg3, arg4, arg5, arg6, arg7, 0)" in ql_steam_hlil_part04
+	assert "004dd147  arg1[0xb] = fconvert.s(float.t(0))" in ql_steam_hlil_part04
+	assert "004dd14a  arg1[0xc] = 0" in ql_steam_hlil_part04
+	assert "004dd14d  arg1[0x13] = 0" in ql_steam_hlil_part04
+
+	assert "return CM_EntityString();" in bsp_entity_data
+	assert "004dd240    int32_t j_sub_4c0250()" in ql_steam_hlil_part04
+	assert "004dd240  return sub_4c0250() __tailcall" in ql_steam_hlil_part04
+
+	assert "h = CM_InlineModel(modelnum);" in bsp_model_bounds
+	assert "CM_ModelBounds(h, mins, maxs);" in bsp_model_bounds
+	assert "if ((angles[0] || angles[1] || angles[2])) {" in bsp_model_bounds
+	assert "max = RadiusFromBounds(mins, maxs);" in bsp_model_bounds
+	assert "if (outmins) VectorCopy(mins, outmins);" in bsp_model_bounds
+	assert "if (outmaxs) VectorCopy(maxs, outmaxs);" in bsp_model_bounds
+	assert "if (origin) VectorClear(origin);" in bsp_model_bounds
+	assert "004dd27e  sub_4c0540(sub_4c0210(arg1), &var_14, &var_20)" in ql_steam_hlil_part04
+	assert "004dd2c0      long double st0_1" in ql_steam_hlil_part04
+	assert "004dd303  if (arg4 != 0)" in ql_steam_hlil_part04
+	assert "004dd31a  arg5[2] = fconvert.s(x87_r7)" in ql_steam_hlil_part04
+
+	assert "for (i = 1; i < bot_maxdebugpolys; i++)" in debug_polygon_create
+	assert "if (i >= bot_maxdebugpolys)" in debug_polygon_create
+	assert "poly->inuse = qtrue;" in debug_polygon_create
+	assert "poly->color = color;" in debug_polygon_create
+	assert "poly->numPoints = numPoints;" in debug_polygon_create
+	assert "Com_Memcpy(poly->points, points, numPoints * sizeof(vec3_t));" in debug_polygon_create
+	assert "return BotImport_DebugPolygonCreate(0, 0, points);" in debug_line_create
+	assert "VectorMA(points[0], 2, cross, points[0]);" in debug_line_show
+	assert "BotImport_DebugPolygonShow(line, color, 4, points);" in debug_line_show
+	assert "004dd3b3  void* edx = data_12cdeb0" in ql_steam_hlil_part04
+	assert "004dd3cf  if (ecx s> 1)" in ql_steam_hlil_part04
+	assert "004dd415          *eax_7 = 1" in ql_steam_hlil_part04
+	assert "004dd420          sub_4cb7d0(eax_7 + 0xc, arg3, arg2 * 0xc)" in ql_steam_hlil_part04
+	assert "004dd468  void var_14" in ql_steam_hlil_part04
+	assert "004dd468  int32_t result = sub_4dd3b0(0, 0, &var_14)" in ql_steam_hlil_part04
+	assert "004dd615      *eax_6 = 1" in ql_steam_hlil_part04
+	assert "004dd61b      eax_6[1] = arg4" in ql_steam_hlil_part04
+	assert "004dd61e      eax_6[2] = 4" in ql_steam_hlil_part04
+	assert "004dd62a      result = sub_4cb7d0(&eax_6[3], &var_44, 0x30)" in ql_steam_hlil_part04
+
+	assert 'botlib_export->BotLibVarSet("bot_highlightarea", bot_highlightarea->string);' in debug_draw
+	assert "botlib_export->Test(parm0, NULL, svs.clients[0].gentity->r.currentOrigin," in debug_draw
+	assert "drawPoly(poly->color, poly->numPoints, (float *) poly->points);" in debug_draw
+	assert "004dcf0d          (*(data_13e1844 + 0x1f8))(\"bot_highlightarea\", eax_3[1])" in ql_steam_hlil_part04
+	assert "004dcf37          (*(data_13e1844 + 0x220))(esi_1, 0, eax_5 + 0x220, eax_5 + 0x22c)" in ql_steam_hlil_part04
+
+	assert "case G_DEBUG_POLYGON_CREATE:" in legacy_syscalls
+	assert "return BotImport_DebugPolygonCreate( args[1], args[2], VMA(3) );" in legacy_syscalls
+	assert "case G_DEBUG_POLYGON_DELETE:" in legacy_syscalls
+	assert "BotImport_DebugPolygonDelete( args[1] );" in legacy_syscalls
+	assert "case BOTLIB_SETUP:" in legacy_syscalls
+	assert "return SV_BotLibSetup();" in legacy_syscalls

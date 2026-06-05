@@ -654,6 +654,54 @@ Scoped parity estimate:
   audited snapshot body itself. The wrapper-level classic download injection is
   not reclassified as strict retail identity in this round.
 
+### Implementation round - 2026-06-05, server snapshot retail send closure
+
+Completed work:
+
+1. Rechecked retail `SV_SendClientSnapshot` at `0x004E5AC0` in Binary Ninja
+   HLIL and Ghidra `functions.csv`.
+2. Closed the 2026-06-04 wrapper divergence by removing the classic
+   `SV_WriteDownloadToClient` call after `SV_WriteSnapshotToClient`.
+3. Left the old UDP download helpers documented as inactive compatibility code
+   outside the QL retail snapshot stream, and prevented legacy download
+   requests from arming stale `downloadName` state.
+4. Updated the netcode manifest and parity guard so the source order now
+   matches retail: snapshot body write, overflow handling, send.
+
+Scoped parity estimate:
+
+- Server snapshot send-wrapper parity: **95% -> 100%**.
+- Netcode manifest/proof-chain maturity: **40% -> 42%** for this roadmap
+  artifact; the remaining gains still depend on packet corpus replay and
+  broader validation surfaces.
+
+### Implementation round - 2026-06-05, related snapshot wiring re-audit
+
+Completed work:
+
+1. Rechecked the adjacent snapshot wiring after the send-wrapper closure:
+   server authoring/build helpers, qagame force-visibility exports,
+   bot snapshot entity access, client snapshot parsing, cgame snapshot readback,
+   and cgame snapshot pumping.
+2. Confirmed no additional source behavior drift. `SV_SendClientSnapshot`
+   still emits the retail snapshot body and proceeds directly to overflow
+   handling/send, while bot clients keep the retail no-packet path that builds
+   the frame and queries `SV_BotGetSnapshotEntity` from the current snapshot
+   ring.
+3. Added an executable guard for the previously documentation-only bot bridge:
+   retail `sub_4DDAC0 -> SV_BotGetSnapshotEntity` and
+   `sub_4E17E0 -> QL_G_trap_BotGetSnapshotEntity`, including the legacy
+   syscall path, native import slot `G_QL_IMPORT_BOTLIB_GET_SNAPSHOT_ENTITY`,
+   qagame syscall mapping, and `BotAI_GetSnapshotEntity` caller.
+
+Scoped parity estimate:
+
+- Related server snapshot wiring parity: **100% -> 100%**.
+- Netcode manifest/proof-chain maturity: **42% -> 43%** for this roadmap
+  artifact; remaining maturity still depends on packet corpus replay and
+  broader validation publication rather than an identified source mismatch in
+  this corridor.
+
 ### Implementation round - 2026-06-04, server connectionless control-plane manifest expansion
 
 Completed work:

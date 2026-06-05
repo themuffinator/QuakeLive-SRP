@@ -6411,6 +6411,7 @@ void CL_Connect_f( void ) {
 
 	if (!NET_StringToAdr( cls.servername, &clc.serverAddress) ) {
 		Com_Printf ("Bad server address\n");
+		CL_WebView_PublishGameError( "Bad server address" );
 		cls.state = CA_DISCONNECTED;
 		return;
 	}
@@ -7167,6 +7168,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		} else {
 			// start sending challenge repsonse instead of challenge request packets
 			clc.challenge = atoi(Cmd_Argv(1));
+			Q_strncpyz( clc.challengeResponseText, Cmd_Argv(2), sizeof( clc.challengeResponseText ) );
 			cls.state = CA_CHALLENGING;
 			clc.connectPacketCount = 0;
 			clc.connectTime = -99999;
@@ -7375,6 +7377,9 @@ CL_Frame
 ==================
 */
 void CL_Frame ( int msec ) {
+	float	oldViewPitch;
+	float	oldViewYaw;
+
 	if ( !com_cl_running->integer ) {
 		return;
 	}
@@ -7459,11 +7464,20 @@ void CL_Frame ( int msec ) {
 	// resend a connection request if necessary
 	CL_CheckForResend();
 
+	CL_CheckCGameNativeImportIntegrity();
+
 	// decide on the serverTime to render
 	CL_SetCGameTime();
 
+	oldViewYaw = cl.viewangles[YAW];
+	oldViewPitch = cl.viewangles[PITCH];
+
 	// update the screen
 	SCR_UpdateScreen();
+
+	if ( oldViewYaw != cl.viewangles[YAW] || oldViewPitch != cl.viewangles[PITCH] ) {
+		CL_SetRetailClientMessageViewangleDeltaFlag();
+	}
 
 	// update audio
 	S_Update();
@@ -7718,6 +7732,7 @@ void CL_InitRef( void ) {
 	ri.CIN_UploadCinematic = CIN_UploadCinematic;
 	ri.CIN_PlayCinematic = CIN_PlayCinematic;
 	ri.CIN_RunCinematic = CIN_RunCinematic;
+	ri.SetClientMessageRendererNodeCount = CL_SetRetailClientMessageRendererNodeCount;
 	ri.AdvertisementBridge_GetCellDisplayState = CL_AdvertisementBridge_GetCellDisplayState;
 	ri.AdvertisementBridge_GetCellLabel = CL_AdvertisementBridge_GetCellLabel;
 	ri.AdvertisementBridge_GetLabelList1Count = CL_AdvertisementBridge_GetLabelList1Count;

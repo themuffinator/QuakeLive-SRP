@@ -1027,8 +1027,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_playerModelScale, "g_playerModelScale", "1.1", GAME_CVAR_FLAG_RETAIL_10000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Applies a global scale multiplier to server-enforced player models." },
 	{ &g_autoAction, "g_autoAction", "0", 0, 0, qfalse, qfalse, "Comma or semicolon separated list of event:command pairs executed automatically (match_start, match_end, player_connect, player_disconnect)." },
 	{ &g_skipTrainingEnable, "g_skipTrainingEnable", "0", CVAR_SYSTEMINFO | CVAR_ROM, 0, qfalse, qfalse, "Retail read-only training skip latch reset by the training command path." },
-	{ &g_floodprot_maxcount, "g_floodprot_maxcount", "10", 0, 0, qfalse, qfalse, "Maximum chat or command bursts allowed before flood protection engages; 0 disables the limiter." },
-	{ &g_floodprot_decay, "g_floodprot_decay", "1000", 0, 0, qfalse, qfalse, "Milliseconds required before a flood point decays back off the counter." },
+	{ &g_floodprot_maxcount, "g_floodprot_maxcount", "10", 0, 0, qfalse, qfalse, "Maximum chat or command bursts allowed before retail flood protection drops clients on overflow; 0 disables the limiter." },
+	{ &g_floodprot_decay, "g_floodprot_decay", "1000", 0, 0, qfalse, qfalse, "Milliseconds required before a flood point decays back off the counter; maxcount is the limiter on/off switch." },
 	{ &g_startingHealth, "g_startingHealth", "100", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Health awarded to players when they spawn." },
 	{ &g_startingArmor, "g_startingArmor", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Armor awarded to players when they spawn." },
 	{ &g_armorTiered, "armor_tiered", "0", GAME_CVAR_FLAG_RETAIL_20000 | CVAR_GAMERULE, 0, qfalse, qfalse, "Enable retail Quake Live tiered armor behaviour for pickups, regen, and the dedicated HUD settings transport." },
@@ -1761,7 +1761,6 @@ G_RegisterCvars
 void G_RegisterCvars( void ) {
 	int		i;
 	cvarTable_t	*cv;
-	qboolean remapped = qfalse;
 
 	for ( i = 0, cv = gameCvarTable ; i < gameCvarTableSize ; i++, cv++ ) {
 		trap_Cvar_Register( cv->vmCvar, cv->cvarName,
@@ -1771,24 +1770,15 @@ void G_RegisterCvars( void ) {
 		}
 
 		G_UpdateCustomSettingsMaskForCvar( cv );
-
-		if ( cv->teamShader ) {
-			remapped = qtrue;
-		}
 	}
 
 	LegacyCvar_RegisterAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) );
 	s_customSettingsDirty = qtrue;
 
-	if ( remapped ) {
-		G_RemapTeamShaders();
-	}
-
 	G_Config_RegisterCvars();
 	G_Config_UpdateCvars();
 	LegacyCvar_UpdateAliases( s_legacyCvarAliases, ARRAY_LEN( s_legacyCvarAliases ) );
 	G_RegisterPmoveCvars();
-	G_RefreshPmoveSettings();
 
 	// check some things
 	if ( g_gametype.integer < 0 || g_gametype.integer >= GT_MAX_GAME_TYPE ) {
@@ -1814,9 +1804,6 @@ void G_RegisterCvars( void ) {
 	s_teamSizeMinModCount = g_teamSizeMin.modificationCount;
 	s_worldspawnAtmosphere[0] = '\0';
 	s_lastForcedCosmeticsPayload[0] = '\0';
-	G_UpdateItemTimerConfig( qtrue );
-	G_UpdateForcedCosmeticsConfigstring( qtrue );
-	G_UpdateGametypeTutorialText();
 	G_InitWeaponConfig();
 	G_InitWeaponReloadConfig();
 	G_InitKnockbackConfig();
@@ -1836,6 +1823,8 @@ has been finalized for the new level.
 =============
 */
 static void G_InitPublishedCvarState( void ) {
+	G_PmoveSetConfigstringsReady( qtrue );
+	G_RefreshPmoveSettings();
 	G_UpdatePlayerCylindersConfigstring( qtrue );
 	G_MatchConfig_UpdateConfigstrings();
 	G_UpdateModeSpecificConfigstrings( qtrue );
@@ -1843,6 +1832,9 @@ static void G_InitPublishedCvarState( void ) {
 	level.disableLoadoutMapMask = 0;
 	G_UpdateDisableLoadoutConfigstrings();
 	G_UpdateServerSettingsInfoConfigstrings( qtrue );
+	G_UpdateItemTimerConfig( qtrue );
+	G_UpdateForcedCosmeticsConfigstring( qtrue );
+	G_UpdateGametypeTutorialText();
 	G_UpdateWeaponReloadConfigstring( qtrue );
 	G_UpdatePlayerAppearanceConfigstring( qtrue );
 }
@@ -2811,8 +2803,18 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 		Com_sprintf( startTimeBuffer, sizeof( startTimeBuffer ), "%u", (unsigned int)levelStart );
 		trap_Cvar_Set( "g_levelStartTime", startTimeBuffer );
 	}
-	Com_sprintf( level.rankMatchGuid, sizeof( level.rankMatchGuid ), "%08X%08X",
-		(unsigned int)level.startTime, (unsigned int)( randomSeed ^ rand() ) );
+	if ( restart ) {
+		trap_GetConfigstring( CS_MATCH_GUID, level.rankMatchGuid, sizeof( level.rankMatchGuid ) );
+	} else {
+		level.rankMatchGuid[0] = '\0';
+	}
+	if ( !level.rankMatchGuid[0] ) {
+		trap_GenerateMatchGuid( level.rankMatchGuid, sizeof( level.rankMatchGuid ) );
+	}
+	if ( !level.rankMatchGuid[0] ) {
+		Com_sprintf( level.rankMatchGuid, sizeof( level.rankMatchGuid ), "%08X%08X",
+			(unsigned int)level.startTime, (unsigned int)( randomSeed ^ rand() ) );
+	}
 	level.rankMatchStartedSent = qfalse;
 	level.rankMatchReportSent = qfalse;
 	level.rankExitMessage[0] = '\0';
@@ -2913,11 +2915,19 @@ void G_InitGame( int levelTime, int randomSeed, int restart ) {
 	// range are NEVER anything but clients
 	level.num_entities = MAX_CLIENTS;
 
-	if ( !g_restarted.integer ) {
-		char	warmupReadyInfo[64];
+	{
+		char	matchGuidInfo[GAME_MATCH_GUID_BUFFER_SIZE];
 
-		trap_GetConfigstring( CS_WARMUP_READY, warmupReadyInfo, sizeof( warmupReadyInfo ) );
-		trap_SetConfigstring( CS_WARMUP_READY, warmupReadyInfo );
+		if ( restart ) {
+			trap_GetConfigstring( CS_MATCH_GUID, matchGuidInfo, sizeof( matchGuidInfo ) );
+		} else {
+			matchGuidInfo[0] = '\0';
+		}
+		if ( !matchGuidInfo[0] ) {
+			Q_strncpyz( matchGuidInfo, level.rankMatchGuid, sizeof( matchGuidInfo ) );
+		}
+		Q_strncpyz( level.rankMatchGuid, matchGuidInfo, sizeof( level.rankMatchGuid ) );
+		trap_SetConfigstring( CS_MATCH_GUID, matchGuidInfo );
 	}
 
 	// let the server system know where the entites are
@@ -2997,6 +3007,7 @@ void G_ShutdownGame( int restart ) {
 
 	G_Printf ("==== ShutdownGame ====\n");
 	G_PmoveClearConfigstring();
+	G_PmoveSetConfigstringsReady( qfalse );
 
 	trap_Cvar_VariableStringBuffer( "com_errorMessage", exitReason, sizeof( exitReason ) );
 	if ( !exitReason[0] ) {

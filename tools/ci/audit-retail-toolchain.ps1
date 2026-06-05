@@ -1,10 +1,25 @@
 [CmdletBinding()]
 param(
-	[string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path,
+	[string]$RepoRoot = '',
 	[switch]$Strict
 )
 
 $ErrorActionPreference = 'Stop'
+
+$ToolchainAuditScriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($ToolchainAuditScriptRoot) -and $PSCommandPath) {
+	$ToolchainAuditScriptRoot = Split-Path -Parent $PSCommandPath
+}
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+	if ([string]::IsNullOrWhiteSpace($ToolchainAuditScriptRoot)) {
+		throw 'Unable to determine repository root. Provide -RepoRoot explicitly.'
+	}
+
+	$RepoRoot = (Resolve-Path (Join-Path $ToolchainAuditScriptRoot '../..')).Path
+}
+else {
+	$RepoRoot = (Resolve-Path $RepoRoot).Path
+}
 
 function Get-ProjectXml {
 	param(

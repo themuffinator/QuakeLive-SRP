@@ -38,6 +38,7 @@ that exercise distinct HUD flows:
 | Weapons and items | `tools/tests/client_regression/weapons_and_items_snapshots.json` | Rapid weapon swaps with mixed ammo adjustments. |
 | Server correction | `tools/tests/client_regression/server_correction_snapshots.json` | Demonstrates server authoritative overrides mid-run. |
 | Resource drain | `tools/tests/client_regression/resource_drain_snapshots.json` | Attrition and recovery across stacked resources. |
+| Retail duel semantic netdump | `tests/netdumps/retail_duel.snap.json` | Known-good retail snapshot frames replayed against `tools/tests/client_regression/retail_netdump_baseline.json`; this is semantic replay evidence, not packet-byte capture evidence. |
 
 Use these archives as templates when capturing additional scenarios; all follow
 the canonical format described above.

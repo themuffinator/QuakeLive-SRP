@@ -788,7 +788,7 @@ static qboolean G_CheckClientFlood( gentity_t *ent ) {
 	client = ent->client;
 	client->floodPenaltyTime = 0;
 
-	if ( maxCount <= 0 || decay <= 0 ) {
+	if ( maxCount <= 0 ) {
 		return qtrue;
 	}
 
@@ -797,7 +797,7 @@ static qboolean G_CheckClientFlood( gentity_t *ent ) {
 		return qfalse;
 	}
 
-	if ( client->floodLastTime > 0 && level.time - client->floodLastTime > decay ) {
+	if ( level.time - client->floodLastTime > decay ) {
 		client->floodLastTime = level.time;
 		if ( client->floodCount > 0 ) {
 			client->floodCount--;

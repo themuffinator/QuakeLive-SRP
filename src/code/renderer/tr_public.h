@@ -170,6 +170,8 @@ typedef struct {
 	void	(*CIN_UploadCinematic)(int handle);
 	int		(*CIN_PlayCinematic)( const char *arg0, int xpos, int ypos, int width, int height, int bits);
 	e_status (*CIN_RunCinematic) (int handle);
+
+	void	(*SetClientMessageRendererNodeCount)( int nodeCount );
 	int		(*AdvertisementBridge_GetCellDisplayState)( int cellId );
 	void	(*AdvertisementBridge_GetCellLabel)( int cellId, char *buffer, int bufferSize );
 	int		(*AdvertisementBridge_GetLabelList1Count)( void );

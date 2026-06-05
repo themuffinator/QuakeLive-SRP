@@ -39,6 +39,53 @@ def _extract_numeric_defines(text: str, prefix: str) -> dict[str, int]:
     }
 
 
+def _extract_enum_values(text: str, enum_name: str) -> dict[str, int]:
+    end_match = re.search(rf"\}}\s*{re.escape(enum_name)}\s*;", text)
+    if not end_match:
+        raise AssertionError(f"enum {enum_name} not found")
+
+    start = text.rfind("typedef enum", 0, end_match.start())
+    if start == -1:
+        raise AssertionError(f"typedef enum start for {enum_name} not found")
+
+    brace_start = text.find("{", start, end_match.start())
+    if brace_start == -1:
+        raise AssertionError(f"enum body for {enum_name} not found")
+
+    body = re.sub(r"/\*.*?\*/", "", text[brace_start + 1 : end_match.start()], flags=re.DOTALL)
+    body = "\n".join(line.split("//", 1)[0] for line in body.splitlines())
+
+    values: dict[str, int] = {}
+    next_value = 0
+    for raw_entry in body.split(","):
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+
+        if "=" in entry:
+            name, value_text = (part.strip() for part in entry.split("=", 1))
+            value = int(value_text.rstrip("uU"), 0)
+        else:
+            name = entry
+            value = next_value
+
+        values[name] = value
+        next_value = value + 1
+
+    return values
+
+
+def _extract_ui_native_import_map(text: str) -> dict[str, str]:
+    block = _extract_function_block(text, "static int UI_MapNativeImport( int arg ) {")
+    return {
+        match.group(1): match.group(2)
+        for match in re.finditer(
+            r"case\s+(UI_[A-Z0-9_]+):\s+return\s+(UI_QL_IMPORT_[A-Z0-9_]+);",
+            block,
+        )
+    }
+
+
 def _extract_vcxproj_group(text: str, condition: str) -> str:
     pattern = (
         r"<ItemDefinitionGroup Condition=\""
@@ -1838,6 +1885,240 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
     assert "ql_ui_imports[85] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;" not in cl_ui
     assert "UI_QL_IMPORT_MEMORY_REMAINING = 101" not in cl_ui
     assert "UI_QL_IMPORT_R_REMAP_SHADER = 104" not in cl_ui
+
+
+def test_ui_import_t_legacy_surface_has_complete_retail_native_remap() -> None:
+    ui_public = (REPO_ROOT / "src/code/ui/ui_public.h").read_text(encoding="utf-8")
+    ui_syscalls = (REPO_ROOT / "src/code/ui/ui_syscalls.c").read_text(encoding="utf-8")
+
+    ui_import_values = _extract_enum_values(ui_public, "uiImport_t")
+    ql_import_values = _extract_enum_values(ui_public, "uiQlImport_t")
+    native_import_map = _extract_ui_native_import_map(ui_syscalls)
+
+    expected_legacy_order = (
+        "UI_ERROR",
+        "UI_PRINT",
+        "UI_MILLISECONDS",
+        "UI_CVAR_SET",
+        "UI_CVAR_VARIABLEVALUE",
+        "UI_CVAR_VARIABLESTRINGBUFFER",
+        "UI_CVAR_SETVALUE",
+        "UI_CVAR_RESET",
+        "UI_CVAR_CREATE",
+        "UI_CVAR_INFOSTRINGBUFFER",
+        "UI_ARGC",
+        "UI_ARGV",
+        "UI_CMD_EXECUTETEXT",
+        "UI_FS_FOPENFILE",
+        "UI_FS_READ",
+        "UI_FS_WRITE",
+        "UI_FS_FCLOSEFILE",
+        "UI_FS_GETFILELIST",
+        "UI_R_REGISTERMODEL",
+        "UI_R_REGISTERSKIN",
+        "UI_R_REGISTERSHADERNOMIP",
+        "UI_R_CLEARSCENE",
+        "UI_R_ADDREFENTITYTOSCENE",
+        "UI_R_ADDPOLYTOSCENE",
+        "UI_R_ADDLIGHTTOSCENE",
+        "UI_R_RENDERSCENE",
+        "UI_R_SETCOLOR",
+        "UI_R_DRAWSTRETCHPIC",
+        "UI_UPDATESCREEN",
+        "UI_CM_LERPTAG",
+        "UI_CM_LOADMODEL",
+        "UI_S_REGISTERSOUND",
+        "UI_S_STARTLOCALSOUND",
+        "UI_KEY_KEYNUMTOSTRINGBUF",
+        "UI_KEY_GETBINDINGBUF",
+        "UI_KEY_SETBINDING",
+        "UI_KEY_ISDOWN",
+        "UI_KEY_GETOVERSTRIKEMODE",
+        "UI_KEY_SETOVERSTRIKEMODE",
+        "UI_KEY_CLEARSTATES",
+        "UI_KEY_GETCATCHER",
+        "UI_KEY_SETCATCHER",
+        "UI_GETCLIPBOARDDATA",
+        "UI_GETGLCONFIG",
+        "UI_GETCLIENTSTATE",
+        "UI_GETCONFIGSTRING",
+        "UI_LAN_GETPINGQUEUECOUNT",
+        "UI_LAN_CLEARPING",
+        "UI_LAN_GETPING",
+        "UI_LAN_GETPINGINFO",
+        "UI_CVAR_REGISTER",
+        "UI_CVAR_UPDATE",
+        "UI_MEMORY_REMAINING",
+        "UI_GET_CDKEY",
+        "UI_SET_CDKEY",
+        "UI_R_REGISTERFONT",
+        "UI_R_MODELBOUNDS",
+        "UI_PC_ADD_GLOBAL_DEFINE",
+        "UI_PC_LOAD_SOURCE",
+        "UI_PC_FREE_SOURCE",
+        "UI_PC_READ_TOKEN",
+        "UI_PC_SOURCE_FILE_AND_LINE",
+        "UI_S_STOPBACKGROUNDTRACK",
+        "UI_S_STARTBACKGROUNDTRACK",
+        "UI_REAL_TIME",
+        "UI_LAN_GETSERVERCOUNT",
+        "UI_LAN_GETSERVERADDRESSSTRING",
+        "UI_LAN_GETSERVERINFO",
+        "UI_LAN_MARKSERVERVISIBLE",
+        "UI_LAN_UPDATEVISIBLEPINGS",
+        "UI_LAN_RESETPINGS",
+        "UI_LAN_LOADCACHEDSERVERS",
+        "UI_LAN_SAVECACHEDSERVERS",
+        "UI_LAN_ADDSERVER",
+        "UI_LAN_REMOVESERVER",
+        "UI_CIN_PLAYCINEMATIC",
+        "UI_CIN_STOPCINEMATIC",
+        "UI_CIN_RUNCINEMATIC",
+        "UI_CIN_DRAWCINEMATIC",
+        "UI_CIN_SETEXTENTS",
+        "UI_R_REMAP_SHADER",
+        "UI_VERIFY_CDKEY",
+        "UI_LAN_SERVERSTATUS",
+        "UI_LAN_GETSERVERPING",
+        "UI_LAN_SERVERISVISIBLE",
+        "UI_LAN_COMPARESERVERS",
+        "UI_FS_SEEK",
+        "UI_SET_PBCLSTATUS",
+        "UI_LAUNCHER_READSCREENSHOT",
+    )
+    expected_libc_values = {
+        "UI_MEMSET": 100,
+        "UI_MEMCPY": 101,
+        "UI_STRNCPY": 102,
+        "UI_SIN": 103,
+        "UI_COS": 104,
+        "UI_ATAN2": 105,
+        "UI_SQRT": 106,
+        "UI_FLOOR": 107,
+        "UI_CEIL": 108,
+    }
+
+    for value, name in enumerate(expected_legacy_order):
+        assert ui_import_values[name] == value
+    assert {name: ui_import_values[name] for name in expected_libc_values} == expected_libc_values
+    assert set(ui_import_values) == set(expected_legacy_order) | set(expected_libc_values)
+
+    expected_native_slot_by_legacy_import = {
+        "UI_PRINT": 0,
+        "UI_ERROR": 1,
+        "UI_MILLISECONDS": 2,
+        "UI_REAL_TIME": 3,
+        "UI_CVAR_REGISTER": 4,
+        "UI_CVAR_CREATE": 5,
+        "UI_CVAR_UPDATE": 6,
+        "UI_CVAR_SET": 7,
+        "UI_CVAR_SETVALUE": 8,
+        "UI_CVAR_VARIABLESTRINGBUFFER": 9,
+        "UI_CVAR_VARIABLEVALUE": 10,
+        "UI_ARGC": 11,
+        "UI_ARGV": 12,
+        "UI_FS_FOPENFILE": 14,
+        "UI_FS_READ": 15,
+        "UI_FS_WRITE": 16,
+        "UI_FS_FCLOSEFILE": 17,
+        "UI_FS_SEEK": 18,
+        "UI_FS_GETFILELIST": 19,
+        "UI_CMD_EXECUTETEXT": 20,
+        "UI_R_REGISTERMODEL": 21,
+        "UI_R_REGISTERSKIN": 22,
+        "UI_R_REGISTERSHADERNOMIP": 23,
+        "UI_R_CLEARSCENE": 24,
+        "UI_R_ADDREFENTITYTOSCENE": 25,
+        "UI_R_ADDPOLYTOSCENE": 26,
+        "UI_R_ADDLIGHTTOSCENE": 27,
+        "UI_R_RENDERSCENE": 28,
+        "UI_R_SETCOLOR": 29,
+        "UI_R_DRAWSTRETCHPIC": 30,
+        "UI_R_MODELBOUNDS": 31,
+        "UI_UPDATESCREEN": 32,
+        "UI_CM_LERPTAG": 33,
+        "UI_S_STARTLOCALSOUND": 34,
+        "UI_S_REGISTERSOUND": 35,
+        "UI_KEY_KEYNUMTOSTRINGBUF": 36,
+        "UI_KEY_GETBINDINGBUF": 37,
+        "UI_KEY_SETBINDING": 38,
+        "UI_KEY_ISDOWN": 39,
+        "UI_KEY_GETOVERSTRIKEMODE": 40,
+        "UI_KEY_SETOVERSTRIKEMODE": 41,
+        "UI_KEY_CLEARSTATES": 42,
+        "UI_KEY_GETCATCHER": 43,
+        "UI_KEY_SETCATCHER": 44,
+        "UI_GETCLIPBOARDDATA": 45,
+        "UI_GETCLIENTSTATE": 46,
+        "UI_GETGLCONFIG": 47,
+        "UI_GETCONFIGSTRING": 48,
+        "UI_LAN_GETSERVERCOUNT": 49,
+        "UI_LAN_GETSERVERADDRESSSTRING": 50,
+        "UI_LAN_GETSERVERINFO": 51,
+        "UI_LAN_GETSERVERPING": 52,
+        "UI_LAN_GETPINGQUEUECOUNT": 53,
+        "UI_LAN_CLEARPING": 54,
+        "UI_LAN_GETPING": 55,
+        "UI_LAN_GETPINGINFO": 56,
+        "UI_LAN_LOADCACHEDSERVERS": 57,
+        "UI_LAN_SAVECACHEDSERVERS": 58,
+        "UI_LAN_MARKSERVERVISIBLE": 59,
+        "UI_LAN_SERVERISVISIBLE": 60,
+        "UI_LAN_UPDATEVISIBLEPINGS": 61,
+        "UI_LAN_ADDSERVER": 62,
+        "UI_LAN_REMOVESERVER": 63,
+        "UI_LAN_RESETPINGS": 64,
+        "UI_LAN_SERVERSTATUS": 65,
+        "UI_LAN_COMPARESERVERS": 66,
+        "UI_MEMORY_REMAINING": 67,
+        "UI_GET_CDKEY": 68,
+        "UI_SET_CDKEY": 69,
+        "UI_R_REGISTERFONT": 70,
+        "UI_S_STOPBACKGROUNDTRACK": 71,
+        "UI_S_STARTBACKGROUNDTRACK": 72,
+        "UI_CIN_PLAYCINEMATIC": 73,
+        "UI_CIN_STOPCINEMATIC": 74,
+        "UI_CIN_DRAWCINEMATIC": 75,
+        "UI_CIN_RUNCINEMATIC": 76,
+        "UI_CIN_SETEXTENTS": 77,
+        "UI_R_REMAP_SHADER": 78,
+        "UI_VERIFY_CDKEY": 79,
+        "UI_PC_ADD_GLOBAL_DEFINE": 88,
+        "UI_PC_LOAD_SOURCE": 89,
+        "UI_PC_FREE_SOURCE": 90,
+        "UI_PC_READ_TOKEN": 91,
+        "UI_PC_SOURCE_FILE_AND_LINE": 92,
+        "UI_CVAR_RESET": 97,
+        "UI_CVAR_INFOSTRINGBUFFER": 98,
+        "UI_CM_LOADMODEL": 108,
+        "UI_SET_PBCLSTATUS": 109,
+        "UI_LAUNCHER_READSCREENSHOT": 110,
+    }
+    direct_native_only_slots = {
+        13,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        93,
+        94,
+        95,
+        96,
+    }
+
+    assert set(native_import_map) == set(expected_native_slot_by_legacy_import)
+    assert direct_native_only_slots.isdisjoint(
+        {
+            ql_import_values[native_name]
+            for native_name in native_import_map.values()
+        }
+    )
+    for legacy_name, expected_native_slot in expected_native_slot_by_legacy_import.items():
+        assert ql_import_values[native_import_map[legacy_name]] == expected_native_slot
 
 
 def test_ui_native_host_text_wrappers_preserve_color_force_and_packed_measure_contract() -> None:

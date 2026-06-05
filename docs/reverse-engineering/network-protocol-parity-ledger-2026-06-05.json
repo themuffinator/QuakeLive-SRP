@@ -149,9 +149,9 @@
         "Committed HLIL at 0x004E05C0 reads three leading packet-body longs, consumes one sideband byte, and then begins byte-opcode parsing."
       ],
       "open_questions": [
-        "Recover the native cgame state bits behind retail sub_4AF4D0/data_565948 so the sideband value becomes byte-for-byte complete instead of parser-compatible."
+        "The sideband producer map is now captured in docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json; the observed 0x80 initializer bit, recovered 0x20 CL_Frame viewangle-delta bit, recovered low-five renderer count, and recovered 0x40 native cgame import guard are implemented. Capture-diff client packet bytes against retail before claiming byte-for-byte sideband completeness."
       ],
-      "confidence": "high for parser offsets; medium for the sideband flag value until sub_4AF4D0 producers are fully named"
+      "confidence": "high for parser offsets and all observed sideband producers; medium for byte-for-byte sideband value until retail capture comparison exists"
     },
     {
       "id": "netchan_transport",
@@ -557,9 +557,9 @@
         "Committed retail HLIL at 0x004E05C0 follows the same three-long, sideband-byte, opcode shape."
       ],
       "open_questions": [
-        "The sideband byte producer is stubbed in source as zero until the cgame/native-state bit producers behind retail sub_4AF4D0/data_565948 are fully recovered."
+        "The sideband byte source helper now emits all observed retail producer bits: the 0x80 initializer bit, recovered 0x20 CL_Frame viewangle-delta bit, recovered low-five renderer count, and recovered 0x40 native cgame import guard. Capture-diff client packet bytes against retail before claiming byte-for-byte sideband completeness."
       ],
-      "confidence": "high for parser offsets; medium for exact sideband value"
+      "confidence": "high for parser offsets and source-modeled sideband producers; medium for exact sideband bytes until retail capture comparison exists"
     },
     {
       "id": "oob_connect_auth",

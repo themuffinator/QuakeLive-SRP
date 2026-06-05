@@ -1359,6 +1359,84 @@ static int VM_CallNativeExports( vm_t *vm, int callnum, const int *args ) {
 	return 0;
 }
 
+/*
+================
+VM_CallGameRegisterCvars
+
+Invokes the retail qagame native export slot used by host startup cvar registration.
+================
+*/
+qboolean VM_CallGameRegisterCvars( vm_t *vm ) {
+	vm_t	*oldVM;
+	void	**dllExports;
+	void	*exportFunc;
+
+	if ( !vm ) {
+		Com_Error( ERR_FATAL, "VM_CallGameRegisterCvars with NULL vm" );
+	}
+
+	if ( Q_stricmp( vm->name, "qagame" ) || !vm->dllExports ) {
+		return qfalse;
+	}
+
+	oldVM = currentVM;
+	currentVM = vm;
+	lastVM = vm;
+	VM_LogTraceEvent( "call %s GAME_REGISTER_CVARS", vm->name );
+
+	dllExports = (void **)vm->dllExports;
+	exportFunc = dllExports[GAME_NATIVE_EXPORT_REGISTER_CVARS];
+	if ( !exportFunc ) {
+		Com_Error( ERR_DROP, "VM_CallGameRegisterCvars: missing game export %i", GAME_NATIVE_EXPORT_REGISTER_CVARS );
+	}
+
+	((void (QDECL *)( void ))exportFunc)();
+
+	if ( oldVM != NULL ) {
+		currentVM = oldVM;
+	}
+	return qtrue;
+}
+
+/*
+================
+VM_CallCGameRegisterCvars
+
+Invokes the retail cgame native export slot used by host startup cvar registration.
+================
+*/
+qboolean VM_CallCGameRegisterCvars( vm_t *vm ) {
+	vm_t	*oldVM;
+	void	**dllExports;
+	void	*exportFunc;
+
+	if ( !vm ) {
+		Com_Error( ERR_FATAL, "VM_CallCGameRegisterCvars with NULL vm" );
+	}
+
+	if ( Q_stricmp( vm->name, "cgame" ) || !vm->dllExports ) {
+		return qfalse;
+	}
+
+	oldVM = currentVM;
+	currentVM = vm;
+	lastVM = vm;
+	VM_LogTraceEvent( "call %s CG_REGISTER_CVARS", vm->name );
+
+	dllExports = (void **)vm->dllExports;
+	exportFunc = dllExports[CG_NATIVE_EXPORT_REGISTER_CVARS];
+	if ( !exportFunc ) {
+		Com_Error( ERR_DROP, "VM_CallCGameRegisterCvars: missing cgame export %i", CG_NATIVE_EXPORT_REGISTER_CVARS );
+	}
+
+	((void (QDECL *)( void ))exportFunc)();
+
+	if ( oldVM != NULL ) {
+		currentVM = oldVM;
+	}
+	return qtrue;
+}
+
 int	QDECL VM_Call( vm_t *vm, int callnum, ... ) {
 	vm_t	*oldVM;
 	int		r;

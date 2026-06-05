@@ -2816,9 +2816,8 @@ void SV_BeginDownload_f( client_t *cl ) {
 	// Kill any existing download
 	SV_CloseDownload( cl );
 
-	// cl->downloadName is non-zero now, SV_WriteDownloadToClient will see this and open
-	// the file itself
-	Q_strncpyz( cl->downloadName, Cmd_Argv(1), sizeof(cl->downloadName) );
+	Com_DPrintf( "clientDownload: %d : legacy UDP download request \"%s\" ignored in Quake Live retail snapshot path\n",
+		cl - svs.clients, Cmd_Argv(1) );
 }
 
 /*

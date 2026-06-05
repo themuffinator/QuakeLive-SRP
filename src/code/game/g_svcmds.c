@@ -526,8 +526,8 @@ static void Svcmd_FloodStatus_f( void ) {
 
 	maxCount = g_floodprot_maxcount.integer;
 	decay = g_floodprot_decay.integer;
-	if ( maxCount <= 0 || decay <= 0 ) {
-		G_Printf( "Flood protection is disabled. Set g_floodprot_maxcount and g_floodprot_decay to enable it.\n" );
+	if ( maxCount <= 0 ) {
+		G_Printf( "Flood protection is disabled. Set g_floodprot_maxcount to enable it.\n" );
 		return;
 	}
 

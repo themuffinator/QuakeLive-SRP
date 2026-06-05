@@ -83,6 +83,14 @@ void CL_Init( void ) {
 
 /*
 ================
+CL_RegisterCGameCvars
+================
+*/
+void CL_RegisterCGameCvars( void ) {
+}
+
+/*
+================
 CL_MouseEvent
 ================
 */

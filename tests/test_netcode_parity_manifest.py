@@ -16,6 +16,8 @@ NETWORKING_2_CLIENT_PARSER_GRAMMAR_PATH = REPO_ROOT / "docs/reverse-engineering/
 NETWORKING_2_CLIENT_PARSER_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.md"
 NETWORKING_2_XOR_CODEC_PATH = REPO_ROOT / "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json"
 NETWORKING_2_XOR_CODEC_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.md"
+NETWORKING_2_CLIENT_SIDEBAND_PRODUCERS_PATH = REPO_ROOT / "docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json"
+NETWORKING_2_CLIENT_SIDEBAND_PRODUCERS_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.md"
 NETWORKING_2_USERCMD_DELTA_PATH = REPO_ROOT / "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json"
 NETWORKING_2_USERCMD_DELTA_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.md"
 NETWORKING_2_PLAYERSTATE_FIELDS_PATH = REPO_ROOT / "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json"
@@ -24,16 +26,56 @@ NETWORKING_2_ENTITYSTATE_FIELDS_PATH = REPO_ROOT / "docs/reverse-engineering/net
 NETWORKING_2_ENTITYSTATE_FIELDS_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.md"
 NETWORKING_2_OOB_CONNECT_AUTH_PATH = REPO_ROOT / "docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json"
 NETWORKING_2_OOB_CONNECT_AUTH_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.md"
+NETWORKING_2_HUFFMAN_FIXTURES_PATH = REPO_ROOT / "docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json"
+NETWORKING_2_HUFFMAN_FIXTURES_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.md"
+NETWORKING_2_REPLAY_VALIDATION_PATH = REPO_ROOT / "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json"
+NETWORKING_2_REPLAY_VALIDATION_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.md"
+NETWORKING_2_HARDENING_PATH = REPO_ROOT / "docs/reverse-engineering/network-protocol-hardening-parity-2026-06-05.json"
+NETWORKING_2_HARDENING_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-protocol-hardening-parity-2026-06-05.md"
+NETWORKING_2_CAPTURE_DIFF_TOOLING_PATH = REPO_ROOT / "docs/reverse-engineering/network-capture-diff-tooling-2026-06-05.json"
+NETWORKING_2_CAPTURE_DIFF_TOOLING_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-capture-diff-tooling-2026-06-05.md"
+NETWORKING_2_CAPTURE_EVIDENCE_BUNDLE_VALIDATION_PATH = REPO_ROOT / "docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.json"
+NETWORKING_2_CAPTURE_EVIDENCE_BUNDLE_VALIDATION_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.md"
+NETWORKING_2_FRAGMENT_QUEUE_TIMING_VALIDATION_PATH = REPO_ROOT / "docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.json"
+NETWORKING_2_FRAGMENT_QUEUE_TIMING_VALIDATION_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.md"
+NETWORKING_2_INVALID_LC_PROBE_VALIDATION_PATH = REPO_ROOT / "docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.json"
+NETWORKING_2_INVALID_LC_PROBE_VALIDATION_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.md"
+NETWORKING_2_SNAPSHOT_FIELD_DECODE_VALIDATION_PATH = REPO_ROOT / "docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.json"
+NETWORKING_2_SNAPSHOT_FIELD_DECODE_VALIDATION_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.md"
+NETWORKING_2_CAPTURE_FIXTURE_VALIDATION_PATH = REPO_ROOT / "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.json"
+NETWORKING_2_CAPTURE_FIXTURE_VALIDATION_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.md"
+NETWORKING_2_DEMO_TRANSCRIPT_INTAKE_PATH = REPO_ROOT / "docs/reverse-engineering/network-demo-transcript-intake-2026-06-05.json"
+NETWORKING_2_DEMO_TRANSCRIPT_INTAKE_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-demo-transcript-intake-2026-06-05.md"
+NETWORKING_2_CAPTURE_BLOCKERS_PATH = REPO_ROOT / "docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json"
+NETWORKING_2_CAPTURE_BLOCKERS_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.md"
+NETWORK_BROWSER_HEARTBEAT_AUDIT_PATH = (
+	REPO_ROOT / "docs/reverse-engineering/network-server-browser-master-heartbeat-parity-2026-06-05.md"
+)
 NETWORKING_2_PLAN_PATH = REPO_ROOT / "docs/plans/2026-06-05-networking-2.md"
+OUTSTANDING_WORK_CHECKLIST_PATH = REPO_ROOT / "docs/plans/2026-06-05-outstanding-work-checklist.md"
+RESIDUAL_POLICY_SPOT_CHECK_PATH = REPO_ROOT / "docs/reverse-engineering/residual-policy-spot-check-2026-06-05.json"
+RESIDUAL_POLICY_SPOT_CHECK_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/residual-policy-spot-check-2026-06-05.md"
+UI_OWNERDRAWTYPE_PARITY_INDEX_PATH = REPO_ROOT / "docs/reverse-engineering/ui-ownerdrawtype-parity-index.md"
+PLATFORM_CONFIG_PATH = REPO_ROOT / "src/common/platform/platform_config.h"
+PLATFORM_SERVICES_PATH = REPO_ROOT / "src/common/platform/platform_services.c"
 QCOMMON_H_PATH = REPO_ROOT / "src/code/qcommon/qcommon.h"
 Q_SHARED_PATH = REPO_ROOT / "src/code/game/q_shared.h"
 HUFFMAN_C_PATH = REPO_ROOT / "src/code/qcommon/huffman.c"
 MSG_C_PATH = REPO_ROOT / "src/code/qcommon/msg.c"
 SV_SNAPSHOT_PATH = REPO_ROOT / "src/code/server/sv_snapshot.c"
+SV_BOT_PATH = REPO_ROOT / "src/code/server/sv_bot.c"
+SV_GAME_PATH = REPO_ROOT / "src/code/server/sv_game.c"
 SV_MAIN_PATH = REPO_ROOT / "src/code/server/sv_main.c"
+G_SYSCALLS_PATH = REPO_ROOT / "src/code/game/g_syscalls.c"
+G_PUBLIC_PATH = REPO_ROOT / "src/code/game/g_public.h"
+AI_MAIN_PATH = REPO_ROOT / "src/code/game/ai_main.c"
 CL_INPUT_PATH = REPO_ROOT / "src/code/client/cl_input.c"
+CL_CGAME_PATH = REPO_ROOT / "src/code/client/cl_cgame.c"
 CL_MAIN_PATH = REPO_ROOT / "src/code/client/cl_main.c"
 CLIENT_H_PATH = REPO_ROOT / "src/code/client/client.h"
+CG_PUBLIC_PATH = REPO_ROOT / "src/code/cgame/cg_public.h"
+TR_PUBLIC_PATH = REPO_ROOT / "src/code/renderer/tr_public.h"
+TR_CMDS_PATH = REPO_ROOT / "src/code/renderer/tr_cmds.c"
 CL_PARSE_PATH = REPO_ROOT / "src/code/client/cl_parse.c"
 CL_NET_CHAN_PATH = REPO_ROOT / "src/code/client/cl_net_chan.c"
 SV_CLIENT_PATH = REPO_ROOT / "src/code/server/sv_client.c"
@@ -44,6 +86,10 @@ COMMON_C_PATH = REPO_ROOT / "src/code/qcommon/common.c"
 WIN_NET_PATH = REPO_ROOT / "src/code/win32/win_net.c"
 GHIDRA_FUNCTIONS_PATH = REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
 GHIDRA_DECOMPILE_TOP_PATH = REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/decompile_top_functions.c"
+HLIL_PART02_PATH = (
+	REPO_ROOT
+	/ "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+)
 HLIL_PART04_PATH = (
 	REPO_ROOT
 	/ "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt"
@@ -55,6 +101,10 @@ HLIL_PART05_PATH = (
 HLIL_PART06_PATH = (
 	REPO_ROOT
 	/ "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt"
+)
+HLIL_PART07_PATH = (
+	REPO_ROOT
+	/ "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part07.txt"
 )
 PLAN_PATH = REPO_ROOT / "docs/plans/2026-06-04-networking.md"
 NETCODE_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/engine-netcode-parity-audit-2026-04-16.md"
@@ -86,6 +136,10 @@ def _networking_2_xor_codec_spec() -> dict:
 	return json.loads(_read(NETWORKING_2_XOR_CODEC_PATH))
 
 
+def _networking_2_client_sideband_producers_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_CLIENT_SIDEBAND_PRODUCERS_PATH))
+
+
 def _networking_2_usercmd_delta_spec() -> dict:
 	return json.loads(_read(NETWORKING_2_USERCMD_DELTA_PATH))
 
@@ -100,6 +154,54 @@ def _networking_2_entitystate_fields_spec() -> dict:
 
 def _networking_2_oob_connect_auth_spec() -> dict:
 	return json.loads(_read(NETWORKING_2_OOB_CONNECT_AUTH_PATH))
+
+
+def _networking_2_huffman_fixtures_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_HUFFMAN_FIXTURES_PATH))
+
+
+def _networking_2_replay_validation_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_REPLAY_VALIDATION_PATH))
+
+
+def _networking_2_hardening_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_HARDENING_PATH))
+
+
+def _networking_2_capture_fixture_validation_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_CAPTURE_FIXTURE_VALIDATION_PATH))
+
+
+def _networking_2_capture_diff_tooling_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_CAPTURE_DIFF_TOOLING_PATH))
+
+
+def _networking_2_capture_evidence_bundle_validation_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_CAPTURE_EVIDENCE_BUNDLE_VALIDATION_PATH))
+
+
+def _networking_2_fragment_queue_timing_validation_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_FRAGMENT_QUEUE_TIMING_VALIDATION_PATH))
+
+
+def _networking_2_invalid_lc_probe_validation_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_INVALID_LC_PROBE_VALIDATION_PATH))
+
+
+def _networking_2_snapshot_field_decode_validation_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_SNAPSHOT_FIELD_DECODE_VALIDATION_PATH))
+
+
+def _networking_2_demo_transcript_intake_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_DEMO_TRANSCRIPT_INTAKE_PATH))
+
+
+def _networking_2_capture_blockers_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_CAPTURE_BLOCKERS_PATH))
+
+
+def _residual_policy_spot_check_spec() -> dict:
+	return json.loads(_read(RESIDUAL_POLICY_SPOT_CHECK_PATH))
 
 
 def _ql_reliable_xor(data: bytes, start: int, initial_key: int, command_bytes: bytes) -> bytes:
@@ -532,6 +634,349 @@ def test_manifest_covers_protocol_profile_and_token_lane() -> None:
 		assert expected in (audit + round_290)
 
 	assert "Implementation round - 2026-06-04, protocol profile manifest expansion" in plan
+
+
+def test_ql_server_browser_protocol_and_master_heartbeat_parity_closure() -> None:
+	common_c = _read(COMMON_C_PATH)
+	cl_main = _read(CL_MAIN_PATH)
+	sv_main = _read(SV_MAIN_PATH)
+	sv_init = _read(REPO_ROOT / "src/code/server/sv_init.c")
+	steamworks = _read(REPO_ROOT / "src/common/platform/platform_steamworks.c")
+	ghidra_imports = _read(REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/imports.txt")
+	ghidra_decompile = _read(GHIDRA_DECOMPILE_TOP_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	audit = _read(NETWORK_BROWSER_HEARTBEAT_AUDIT_PATH)
+	implementation_plan = _read(REPO_ROOT / "IMPLEMENTATION_PLAN.md")
+
+	profile_block = common_c.split("static const netprofile_desc_t s_netProtocolProfile = {", 1)[1].split("\n};", 1)[0]
+	_assert_order(
+		profile_block,
+		"\"getinfo\",",
+		"\"infoResponse\",",
+		"\"getstatus\",",
+		"\"statusResponse\",",
+		"\"getservers\",",
+		"\"getserversResponse\",",
+		"\"heartbeat\",",
+		"\"QuakeArena-1\",",
+		"QL_RETAIL_PROTOCOL_VERSION,",
+	)
+
+	servers_response = _function_block(cl_main, "void CL_ServersResponsePacket( netadr_t from, msg_t *msg )")
+	connectionless = _function_block(cl_main, "void CL_ConnectionlessPacket( netadr_t from, msg_t *msg )")
+	request_global = _function_block(cl_main, "static void CL_RequestGlobalServers( int masterNum, const char *protocol, const char *keywords ) {")
+	master_heartbeat = _function_block(sv_main, "void SV_MasterHeartbeat( void )")
+	steam_masters = _function_block(sv_init, "static qboolean SV_SteamServerHasConfiguredMasters( void )")
+	spawn_server = _function_block(sv_init, "void SV_SpawnServer( char *server, qboolean killBots )")
+	enable_heartbeats = _function_block(steamworks, "qboolean QL_Steamworks_ServerEnableHeartbeats( qboolean enable )")
+
+	assert "#define MAX_SERVERSPERPACKET\t256" in cl_main
+	_assert_order(
+		servers_response,
+		"buffptr    = msg->data;",
+		"buffend    = buffptr + msg->cursize;",
+		"if (*buffptr++ == '\\\\')",
+		"addresses[numservers].ip[0] = *buffptr++;",
+		"addresses[numservers].ip[3] = *buffptr++;",
+		"addresses[numservers].port = (*buffptr++)<<8;",
+		"addresses[numservers].port = BigShort( addresses[numservers].port );",
+		"if (buffptr[1] == 'E' && buffptr[2] == 'O' && buffptr[3] == 'T') {",
+		"CL_InitServerInfo( server, &addresses[i] );",
+	)
+	assert "if ( NET_IsServersResponse( c ) ) {" in connectionless
+	assert "CL_ServersResponsePacket( from, msg );" in connectionless
+
+	_assert_order(
+		request_global,
+		"#if QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES",
+		"NET_StringToAdr( MASTER_SERVER_NAME, &to );",
+		"to.port = BigShort(PORT_MASTER);",
+		"Com_sprintf( command, sizeof( command ), \"%s %s\", NET_GetServersRequestCommand(), protocol );",
+		"Q_strcat( command, sizeof( command ), keywords );",
+		"NET_OutOfBandPrint( NS_SERVER, to, command );",
+	)
+
+	assert "#if QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES" in master_heartbeat
+	assert "if ( !strstr( sv_master[i]->string, \":\" ) ) {" in master_heartbeat
+	assert "strstr( \":\", sv_master[i]->string )" not in master_heartbeat
+	assert 'NET_OutOfBandPrint( NS_SERVER, adr[i], "%s %s\\n", NET_GetHeartbeatCommand(), NET_GetHeartbeatGameName() );' in master_heartbeat
+	assert "SV_LogMasterVACHeartbeat( &adr[i], sv_master[i]->string );" in master_heartbeat
+	assert "if ( sv_masterAdvertise && sv_masterAdvertise->integer ) {" in steam_masters
+	assert "if ( sv_master[i] && sv_master[i]->string[0] ) {" in steam_masters
+	assert "QL_Steamworks_ServerEnableHeartbeats( SV_SteamServerHasConfiguredMasters() );" in spawn_server
+	assert "vtable[0x9c / 4]" in enable_heartbeats
+	assert "fn( gameServer, enable ? 1 : 0 );" in enable_heartbeats
+
+	for expected in (
+		"STEAM_API.DLL!SteamGameServer @",
+		"STEAM_API.DLL!SteamMatchmakingServers @",
+	):
+		assert expected in ghidra_imports
+
+	for expected in (
+		"iVar3 = FUN_004d9020(uVar1,\"getserversResponse\",0x12);",
+		"004bc11c      if (sub_4d9020(eax_4, \"getserversResponse\", 0x12) == 0)",
+		"004bbf0c  if (sub_4d9060(eax_4, \"infoResponse\") == 0)",
+		"004bbf59  if (sub_4d9060(eax_4, \"statusResponse\") == 0)",
+	):
+		assert expected in (ghidra_decompile + hlil_part04)
+
+	for expected in (
+		"004bb084                              *(esi_1 + 0x10), \"getinfo xxx\")",
+		"004ba971              sub_4d7080(0, var_1c, var_18, var_14, var_10, var_c, \"getstatus\")",
+		"004e3b9b  data_13e17e4 = sub_4ce0d0(x87_r6, \"sv_master\", U\"1\", 1)",
+		"004e3bc4  sub_4ce0d0(x87_r2, \"protocol\", sub_4d9220(&data_52e930), 0x44)",
+	):
+		assert expected in (hlil_part04 + hlil_part05)
+
+	for expected in (
+		"Focused server browser protocol and master heartbeat slice: before **96%**",
+		"after **100%**",
+		"Task A211: Close server browser protocol and master heartbeat parity [COMPLETED]",
+	):
+		assert expected in (audit + implementation_plan)
+
+
+def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() -> None:
+	platform_config = _read(REPO_ROOT / "src/common/platform/platform_config.h")
+	client_h = _read(CLIENT_H_PATH)
+	cl_cgame = _read(REPO_ROOT / "src/code/client/cl_cgame.c")
+	cl_main = _read(CL_MAIN_PATH)
+	common_c = _read(COMMON_C_PATH)
+	sv_main = _read(SV_MAIN_PATH)
+	sv_init = _read(REPO_ROOT / "src/code/server/sv_init.c")
+	sv_client = _read(SV_CLIENT_PATH)
+	sv_ccmds = _read(REPO_ROOT / "src/code/server/sv_ccmds.c")
+	steamworks_h = _read(REPO_ROOT / "src/common/platform/platform_steamworks.h")
+	steamworks = _read(REPO_ROOT / "src/common/platform/platform_steamworks.c")
+	aliases = _read(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json")
+	ghidra_imports = _read(REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/imports.txt")
+	ghidra_decompile = _read(GHIDRA_DECOMPILE_TOP_PATH)
+	hlil_part02 = _read(HLIL_PART02_PATH)
+	audit = _read(NETWORK_BROWSER_HEARTBEAT_AUDIT_PATH)
+	implementation_plan = _read(REPO_ROOT / "IMPLEMENTATION_PLAN.md")
+
+	method_block = _function_block(
+		cl_cgame,
+		"static qboolean QLJSHandler_OnMethodCall( const char *methodName, const char **arguments, int argumentCount ) {",
+	)
+	request_servers = _function_block(cl_main, "qboolean CL_Steam_RequestServers( int requestMode )")
+	request_details = _function_block(
+		cl_main, "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort )"
+	)
+	refresh_list = _function_block(cl_main, "qboolean CL_Steam_RefreshServerList( void )")
+	browser_frame = _function_block(cl_main, "static void CL_SteamBrowser_Frame( void )")
+	publish_refresh_end = _function_block(cl_main, "static void CL_SteamBrowser_PublishRefreshEnd( void )")
+	publish_server_response = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_PublishServerResponse( const netadr_t *address, uint32_t serverIp, uint16_t serverPort, const char *infoString, int ping )",
+	)
+	server_info_packet = _function_block(cl_main, "void CL_ServerInfoPacket( netadr_t from, msg_t *msg )")
+	server_status_response = _function_block(cl_main, "void CL_ServerStatusResponse( netadr_t from, msg_t *msg ) {")
+	compute_counts = _function_block(sv_main, "static void SV_ComputeDisplayedCounts( int *clientCount, int *botCount ) {")
+	status_response = _function_block(sv_main, "void SVC_Status( netadr_t from )")
+	info_response = _function_block(sv_main, "void SVC_Info( netadr_t from )")
+	published_state = _function_block(sv_main, "void SV_SteamServerUpdatePublishedState( qboolean fullUpdate )")
+	server_frame = _function_block(sv_main, "void SV_Frame( int msec )")
+	spawn_server = _function_block(sv_init, "void SV_SpawnServer( char *server, qboolean killBots )")
+	shutdown_server = _function_block(sv_init, "void SV_Shutdown( char *finalmsg )")
+	steam_masters = _function_block(sv_init, "static qboolean SV_SteamServerHasConfiguredMasters( void )")
+	steam_connected = _function_block(
+		sv_client, "static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event )"
+	)
+	direct_connect = _function_block(sv_client, "void SV_DirectConnect( netadr_t from )")
+	drop_client = _function_block(sv_client, "void SV_DropClient( client_t *drop, const char *reason )")
+	heartbeat_command = _function_block(sv_ccmds, "void SV_Heartbeat_f( void )")
+	add_operator_commands = _function_block(sv_ccmds, "void SV_AddOperatorCommands( void )")
+	steam_bootstrap = _function_block(common_c, "void Com_InitSteamGameServer( void )")
+	browser_owner = _function_block(
+		steamworks,
+		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject )",
+	)
+	request_server_list = _function_block(
+		steamworks,
+		"ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql_steam_server_browser_request_mode_t requestMode, void *responseObject )",
+	)
+	get_server_details = _function_block(
+		steamworks, "const void *QL_Steamworks_GetServerListDetails( ql_steam_server_list_request_t request, int index )"
+	)
+	release_request = _function_block(steamworks, "void QL_Steamworks_ReleaseServerListRequest( ql_steam_server_list_request_t request )")
+	refresh_request = _function_block(steamworks, "void QL_Steamworks_RefreshServerListRequest( ql_steam_server_list_request_t request )")
+	detail_request = _function_block(
+		steamworks,
+		"qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, void *pingResponse, void *playersResponse, void *rulesResponse, ql_steam_server_query_t *outPingQuery, ql_steam_server_query_t *outPlayersQuery, ql_steam_server_query_t *outRulesQuery )",
+	)
+	enable_heartbeats = _function_block(steamworks, "qboolean QL_Steamworks_ServerEnableHeartbeats( qboolean enable )")
+
+	assert "#define QL_BUILD_ONLINE_SERVICES 0" in platform_config
+	assert "#define QL_ENABLE_LEGACY_Q3_SERVICES 0" in platform_config
+	assert "qboolean CL_Steam_RequestServers( int requestMode );" in client_h
+	assert "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort );" in client_h
+	assert "qboolean CL_Steam_RefreshServerList( void );" in client_h
+
+	assert "case CL_WEB_METHOD_REQUEST_SERVERS:" in method_block
+	assert "return CL_Steam_RequestServers( QLJSHandler_CoerceIntegerArgument( arguments[0] ) );" in method_block
+	assert "case CL_WEB_METHOD_REQUEST_SERVER_DETAILS:" in method_block
+	assert "return CL_Steam_RequestServerDetails(" in method_block
+	assert "case CL_WEB_METHOD_REFRESH_LIST:" in method_block
+	assert "return CL_Steam_RefreshServerList();" in method_block
+
+	_assert_order(
+		request_servers,
+		"CL_SteamBrowser_RequestModeToSource( requestMode )",
+		"cl_steamBrowserState.refreshActive = qtrue;",
+		'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );',
+		"CL_SteamBrowser_PublishCompatibilitySource( requestMode, source );",
+		"CL_RequestLocalServers();",
+		'CL_RequestGlobalServers( masterNum, debugProtocol, "full empty" );',
+		'CL_RequestGlobalServers( masterNum, va( "%d", protocol ), "full empty" );',
+	)
+	assert "CL_SteamBrowser_BeginDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort, &address );" in request_details
+	assert "CL_ServerStatus( addressString, NULL, 0 );" in request_details
+	assert "CL_ServerStatus( addressString, serverStatus, sizeof( serverStatus ) );" in request_details
+	assert "return CL_Steam_RequestServers( cl_steamBrowserState.requestMode );" in refresh_list
+	assert "CL_SteamBrowser_FailDetailRequest();" in browser_frame
+	assert "CL_UpdateVisiblePings_f( cl_steamBrowserState.requestSource )" in browser_frame
+	assert "CL_SteamBrowser_PublishRefreshEnd();" in browser_frame
+	assert "CL_SteamBrowser_PublishServerFailed( i );" in publish_refresh_end
+	assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.end", NULL );' in publish_refresh_end
+	assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%s.response", responseId );' in publish_server_response
+	assert 'Info_ValueForKey( infoString, "botPlayers" )' in publish_server_response
+	assert 'Info_ValueForKey( infoString, "vac" )' in publish_server_response
+	assert 'Info_ValueForKey( infoString, "steamid" )' in publish_server_response
+	assert "CL_SteamBrowser_PublishServerResponse(" in server_info_packet
+	assert "CL_SteamBrowser_PackAddressIP( &from )" in server_info_packet
+	assert "publishBrowserDetails = CL_SteamBrowser_DetailMatchesAddress( &from );" in server_status_response
+	assert "CL_SteamBrowser_PublishRulesFromInfoString(" in server_status_response
+	assert "CL_SteamBrowser_PublishPlayerResponse(" in server_status_response
+	assert "CL_SteamBrowser_PublishPlayersEnd( cl_steamBrowserState.detailId );" in server_status_response
+	assert "CL_SteamBrowser_ClearDetailRequest();" in server_status_response
+
+	assert "SV_ClientIsBot( cl )" in compute_counts
+	assert "sv_maskBots && sv_maskBots->integer" in compute_counts
+	assert "reportedBots++;" in compute_counts
+	for expected in (
+		"NET_GetClientsInfoKey()",
+		"NET_GetBotPlayersInfoKey()",
+		"NET_GetVACInfoKey()",
+		"NET_GetServerTypeInfoKey()",
+	):
+		assert expected in status_response
+		assert expected in info_response
+	assert "if ( sv_maskBots->integer && SV_ClientIsBot( cl ) ) {" in status_response
+
+	for expected in (
+		"QL_Steamworks_ServerSetMaxPlayerCount",
+		"QL_Steamworks_ServerSetPasswordProtected",
+		"QL_Steamworks_ServerSetServerName",
+		"QL_Steamworks_ServerSetMapName",
+		"QL_Steamworks_ServerSetGameDescription",
+		"QL_Steamworks_ServerSetGameTags",
+		'QL_Steamworks_ServerSetKeyValue( "g_redScore", redScore )',
+		'QL_Steamworks_ServerSetKeyValue( "g_blueScore", blueScore )',
+		"QL_Steamworks_ServerUpdateUserData",
+		"QL_Steamworks_ServerSetBotPlayerCount",
+	):
+		assert expected in published_state
+	assert "SV_SteamServerNetworkingFrame();" in server_frame
+	assert "QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );" in server_frame
+	assert "SV_SteamServerUpdatePublishedState( qfalse );" in server_frame
+	assert "SV_MasterHeartbeat();" in server_frame
+	assert "SV_RefreshPlatformServiceCvars();" in spawn_server
+	assert "SV_SteamServerPublishIdentity();" in spawn_server
+	assert "QL_Steamworks_ServerEnableHeartbeats( SV_SteamServerHasConfiguredMasters() );" in spawn_server
+	assert "SV_SteamServerUpdatePublishedState( qtrue );" in spawn_server
+	assert "QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );" in spawn_server
+	assert "SV_Heartbeat_f();" in spawn_server
+	assert "SV_MasterShutdown();" in shutdown_server
+	assert "QL_Steamworks_ServerEnableHeartbeats( qfalse );" in shutdown_server
+	assert "QL_Steamworks_ServerShutdown();" in shutdown_server
+	assert "SV_SteamServerPublishIdentity();" in steam_connected
+	assert "SV_SteamServerUpdatePublishedState( qtrue );" in steam_connected
+	assert "if ( sv_masterAdvertise && sv_masterAdvertise->integer ) {" in steam_masters
+	assert "if ( sv_master[i] && sv_master[i]->string[0] ) {" in steam_masters
+	assert "newcl->state = CS_CONNECTED;" in direct_connect
+	assert "if ( count == 1 || count == sv_maxclients->integer ) {" in direct_connect
+	assert "SV_SetUserinfo( drop - svs.clients, \"\" );" in drop_client
+	assert "if ( i == sv_maxclients->integer ) {" in drop_client
+	assert "svs.nextHeartbeatTime = -9999999;" in heartbeat_command
+	assert 'Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);' not in add_operator_commands
+	assert "QL_Steamworks_ServerEnableHeartbeats( qfalse );" in steam_bootstrap
+	assert "QL_Steamworks_ServerSetProduct( QL_PRODUCT_NAME );" in steam_bootstrap
+	assert "QL_Steamworks_ServerSetGameDir( QL_BASEGAME );" in steam_bootstrap
+
+	for expected in (
+		"ql_steam_server_browser_owner_t",
+		"ql_steam_server_browser_detail_request_t",
+		"ql_steam_server_browser_response_t",
+		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequest",
+		"qboolean QL_Steamworks_BeginServerBrowserDetailRequest",
+	):
+		assert expected in steamworks_h
+	assert "QL_Steamworks_ReleaseServerListRequest( owner->request );" in browser_owner
+	assert "owner->request = QL_Steamworks_RequestServerList( requestMode, responseObject );" in browser_owner
+	assert 'Q_strncpyz( filter->key, "gamedir", sizeof( filter->key ) );' in steamworks
+	assert "Q_strncpyz( filter->value, QL_BASEGAME, sizeof( filter->value ) );" in steamworks
+	for expected in (
+		"vtable[0x00 / 4]",
+		"vtable[0x04 / 4]",
+		"vtable[0x08 / 4]",
+		"vtable[0x0c / 4]",
+		"vtable[0x10 / 4]",
+	):
+		assert expected in request_server_list
+	assert "vtable[0x1c / 4]" in get_server_details
+	assert "vtable[0x18 / 4]" in release_request
+	assert "vtable[0x24 / 4]" in refresh_request
+	assert "vtable[0x34 / 4]" in detail_request
+	assert "vtable[0x38 / 4]" in detail_request
+	assert "vtable[0x3c / 4]" in detail_request
+	_assert_order(
+		detail_request,
+		"pingQuery = pingFn( serverBrowser, NULL, serverIp, serverPort, pingResponse );",
+		"rulesQuery = rulesFn( serverBrowser, NULL, serverIp, serverPort, rulesResponse );",
+		"playersQuery = playersFn( serverBrowser, NULL, serverIp, serverPort, playersResponse );",
+	)
+	assert "vtable[0x9c / 4]" in enable_heartbeats
+	assert "fn( gameServer, enable ? 1 : 0 );" in enable_heartbeats
+
+	for expected in (
+		"STEAM_API.DLL!SteamMatchmakingServers @",
+		"STEAM_API.DLL!SteamGameServer @",
+	):
+		assert expected in ghidra_imports
+	for expected in (
+		'"sub_461F70": "JSBrowserDetails_RequestServerDetails"',
+		'"sub_462EB0": "JSBrowser_RequestServers"',
+		'"sub_463090": "SteamBrowser_RequestServers"',
+		'"sub_4630B0": "SteamBrowser_RequestServerDetails"',
+		'"sub_465DB0": "SteamServer_EnableHeartbeats"',
+		'"sub_4DF660": "SV_DropClient"',
+		'"sub_4E0750": "SV_DirectConnect"',
+	):
+		assert expected in aliases
+	for expected in (
+		"00461fab  (*(*SteamMatchmakingServers() + 0x34))(arg2, arg3, arg1 + 8)",
+		"00461fbd  (*(*SteamMatchmakingServers() + 0x3c))(arg2, arg3, arg1)",
+		"00461fd8  return (*(*SteamMatchmakingServers() + 0x38))(arg2, arg3, arg1 + 4)",
+		'00463058      result = sub_4f3260(arg1, edi_1, "servers.refresh.start", nullptr)',
+		'00462e73  return sub_4f3260(esi, edi, "servers.refresh.end", nullptr)',
+		"00465dd7      (*(*SteamGameServer() + 0x9c))(arg1 == 1)",
+		"00467073          (*(*SteamGameServer() + 0x9c))(0)",
+	):
+		assert expected in hlil_part02
+	for expected in (
+		'DAT_013e17e4 = FUN_004ce0d0("sv_master",&DAT_00551624,1);',
+		"FUN_00465db0(*(int *)(DAT_013e17e4 + 0x30) != 0);",
+	):
+		assert expected in ghidra_decompile
+	for expected in (
+		"Related browser/heartbeat wiring recheck: before **97%**, after **100%**",
+		"Retail `SV_Startup` / `SV_SpawnServer` evidence gates Steam heartbeats from",
+		"graph remains pinned at **100%**",
+	):
+		assert expected in (audit + implementation_plan)
 
 
 def test_manifest_covers_transport_constants_and_netchan_layout_lane() -> None:
@@ -2673,6 +3118,7 @@ def test_manifest_covers_client_connectionless_handshake_lane() -> None:
 	ghidra_functions = _read(GHIDRA_FUNCTIONS_PATH)
 	ghidra_decompile = _read(GHIDRA_DECOMPILE_TOP_PATH)
 	cl_main = _read(CL_MAIN_PATH)
+	client_h = _read(CLIENT_H_PATH)
 	plan = _read(PLAN_PATH)
 	round_105 = _read(REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_105.md")
 	round_290 = _read(REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_290.md")
@@ -2707,6 +3153,7 @@ def test_manifest_covers_client_connectionless_handshake_lane() -> None:
 		"/* FUN_004bbbe0 @ 004bbbe0 size 1445 */",
 		"FUN_004c9ab0(\"CL packet %s: %s\\n\",uVar2);",
 		"iVar3 = FUN_004d9060(uVar1,\"challengeResponse\");",
+		"FUN_004d8f40(&DAT_016177fc,uVar1);",
 		"iVar3 = FUN_004d9060(uVar1,\"connectResponse\");",
 		"FUN_004d6d00(0,&DAT_01617bfc,local_1c,local_18,local_14,local_10,local_c,uVar1);",
 	):
@@ -2714,6 +3161,7 @@ def test_manifest_covers_client_connectionless_handshake_lane() -> None:
 
 	for expected in (
 		"004b9150    int32_t sub_4b9150(int32_t arg1 @ esi)",
+		"004b8e0d      int32_t result = sub_4f3570(\"Bad server address\")",
 		"004b9182      if (eax_1 == 3 || eax_1 == 4)",
 		"004b91c1                      sub_4c9b60(0, \"CL_CheckForResend: bad cls.state\")",
 		"004b9221                  sub_4d9620(&var_808, \"protocol\", sub_4d9220(&data_52e930))",
@@ -2722,6 +3170,7 @@ def test_manifest_covers_client_connectionless_handshake_lane() -> None:
 		"004b9418              eax_1 = sub_4d6fd0(0, eax_13 + 0x19, &var_9808, data_15f6750, data_15f6754,",
 		"004bbbe0    void* sub_4bbbe0",
 		"004bbc7d  if (sub_4d9060(eax_4, \"challengeResponse\") == 0)",
+		"004bbcd4          sub_4d8f40(0x16177fc, sub_4c7ee0(2), 0x400)",
 		"004bbd2e          void* eax_12 = sub_4c9ab0(\"challengeResponse: %d\\n\")",
 		"004bbd56  if (sub_4d9060(eax_4, \"connectResponse\") == 0)",
 		"004bbd8d              int32_t eax_16 = sub_4c9860(arg9, \"connectResponse packet while not",
@@ -2743,9 +3192,26 @@ def test_manifest_covers_client_connectionless_handshake_lane() -> None:
 
 	build_challenge = _function_block(cl_main, "static qboolean CL_BuildSteamChallengeRequest( byte *data, int dataSize, int *dataLength )")
 	send_challenge = _function_block(cl_main, "static void CL_SendChallengeRequest( void )")
+	connect_f = _function_block(cl_main, "void CL_Connect_f( void )")
 	check_resend = _function_block(cl_main, "void CL_CheckForResend( void ) {")
 	connectionless = _function_block(cl_main, "void CL_ConnectionlessPacket( netadr_t from, msg_t *msg )")
 	packet_event = _function_block(cl_main, "void CL_PacketEvent( netadr_t from, msg_t *msg )")
+
+	_assert_order(
+		client_h,
+		"int\t\t\ttimeDemoBaseTime;",
+		"char\t\tchallengeResponseText[MAX_STRING_CHARS];",
+		"netchan_t\tnetchan;",
+	)
+
+	_assert_order(
+		connect_f,
+		"if (!NET_StringToAdr( cls.servername, &clc.serverAddress) ) {",
+		"Com_Printf (\"Bad server address\\n\");",
+		"CL_WebView_PublishGameError( \"Bad server address\" );",
+		"cls.state = CA_DISCONNECTED;",
+		"return;",
+	)
 
 	_assert_order(
 		build_challenge,
@@ -2805,6 +3271,7 @@ def test_manifest_covers_client_connectionless_handshake_lane() -> None:
 		"if ( NET_IsChallengeResponse( c ) ) {",
 		"if ( cls.state != CA_CONNECTING ) {",
 		"clc.challenge = atoi(Cmd_Argv(1));",
+		"Q_strncpyz( clc.challengeResponseText, Cmd_Argv(2), sizeof( clc.challengeResponseText ) );",
 		"cls.state = CA_CHALLENGING;",
 		"clc.connectPacketCount = 0;",
 		"clc.connectTime = -99999;",
@@ -2885,7 +3352,8 @@ def test_manifest_covers_download_bootstrap_and_compatibility_lane() -> None:
 	assert entries["CL_Workshop_Frame"]["retail_address"] == "0x004BC320"
 	assert entries["SV_DoneDownload_f"]["retail_address"] == "0x004DFAC0"
 	assert entries["ClassicUdpAutodownloadCompatibility"]["retail_address"] is None
-	assert "classic UDP pk3 autodownload lane" in " ".join(entries["ClassicUdpAutodownloadCompatibility"]["compatibility_notes"])
+	assert "inactive compatibility lane" in " ".join(entries["ClassicUdpAutodownloadCompatibility"]["compatibility_notes"])
+	assert "no longer injects svc_download payloads" in " ".join(entries["ClassicUdpAutodownloadCompatibility"]["compatibility_notes"])
 	assert "classic donedl restart branch" in " ".join(entries["CL_DownloadsComplete"]["compatibility_notes"])
 
 	for expected in (
@@ -2935,6 +3403,7 @@ def test_manifest_covers_download_bootstrap_and_compatibility_lane() -> None:
 	begin_download = _function_block(cl_main, "void CL_BeginDownload( const char *localName, const char *remoteName )")
 	parse_download = _function_block(cl_parse, "void CL_ParseDownload ( msg_t *msg )")
 	done_download = _function_block(sv_client, "void SV_DoneDownload_f( client_t *cl )")
+	begin_download_server = _function_block(sv_client, "void SV_BeginDownload_f( client_t *cl )")
 	write_download = _function_block(sv_client, "void SV_WriteDownloadToClient( client_t *cl , msg_t *msg )")
 
 	_assert_order(
@@ -3026,6 +3495,13 @@ def test_manifest_covers_download_bootstrap_and_compatibility_lane() -> None:
 		"SV_SendClientGameState( cl );",
 	)
 	assert "SV_SendClientGameState(cl);" not in done_download
+
+	_assert_order(
+		begin_download_server,
+		"SV_CloseDownload( cl );",
+		"Com_DPrintf( \"clientDownload: %d : legacy UDP download request",
+	)
+	assert "Q_strncpyz( cl->downloadName" not in begin_download_server
 
 	_assert_order(
 		write_download,
@@ -3648,8 +4124,7 @@ def test_manifest_covers_server_snapshot_authoring_lane() -> None:
 		assert "tests/test_netcode_parity_manifest.py::test_manifest_covers_server_snapshot_authoring_lane" in entries[symbol]["tests"]
 
 	send_snapshot_entry = entries["SV_SendClientSnapshot"]
-	assert "compatibility_notes" in send_snapshot_entry
-	assert "classic SV_WriteDownloadToClient" in " ".join(send_snapshot_entry["compatibility_notes"])
+	assert send_snapshot_entry.get("compatibility_notes", []) == []
 
 	for expected in (
 		"FUN_004e4fc0,004e4fc0,281,0,unknown",
@@ -3787,11 +4262,11 @@ def test_manifest_covers_server_snapshot_authoring_lane() -> None:
 		"MSG_WriteLong( &msg, client->lastClientCommand );",
 		"SV_UpdateServerCommandsToClient( client, &msg );",
 		"SV_WriteSnapshotToClient( client, &msg );",
-		"SV_WriteDownloadToClient( client, &msg );",
 		"if ( msg.overflowed ) {",
 		"MSG_Clear (&msg);",
 		"SV_SendMessageToClient( &msg, client );",
 	)
+	assert "SV_WriteDownloadToClient( client, &msg );" not in send_snapshot
 
 	send_snapshot_hlil = hlil_part05.split("004e5ac0    void* sub_4e5ac0", 1)[1].split("004e5b8b", 1)[0]
 	_assert_order(
@@ -3831,6 +4306,87 @@ def test_manifest_covers_server_snapshot_authoring_lane() -> None:
 
 	assert "Preserved the existing UDP pk3 autodownload behavior" in netcode_audit
 	assert "Implementation round - 2026-06-04, server snapshot authoring manifest expansion" in plan
+
+
+def test_related_snapshot_wiring_pins_bot_snapshot_bridge_to_retail_aliases() -> None:
+	aliases = json.loads(_read(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	ghidra_functions = _read(GHIDRA_FUNCTIONS_PATH)
+	sv_bot = _read(SV_BOT_PATH)
+	sv_game = _read(SV_GAME_PATH)
+	g_syscalls = _read(G_SYSCALLS_PATH)
+	g_public = _read(G_PUBLIC_PATH)
+	ai_main = _read(AI_MAIN_PATH)
+	round_61 = _read(REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_61.md")
+	round_64 = _read(REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_64.md")
+	botlib_audit = _read(
+		REPO_ROOT / "docs/reverse-engineering/botlib-internal-parity-audit-and-implementation-plan-2026-04-10.md"
+	)
+
+	assert aliases["sub_4DDAC0"] == "SV_BotGetSnapshotEntity"
+	assert aliases["sub_4E17E0"] == "QL_G_trap_BotGetSnapshotEntity"
+
+	for expected in (
+		"FUN_004ddac0,004ddac0,91,0,unknown",
+		"FUN_004e17e0,004e17e0,9,0,unknown",
+	):
+		assert expected in ghidra_functions
+
+	for expected in (
+		"004ddac0    int32_t sub_4ddac0(int32_t arg1, int32_t arg2)",
+		"004ddae1  void* eax_3 = (*(eax_2 + 0x15b08) & 0x1f) * 0x288 + eax_2 + 0x109d0",
+		"004ddaf5  if (arg2 s< 0 || arg2 s>= *(eax_3 + 0x274))",
+		"004ddb1a      return 0xffffffff",
+		"004ddb15  return *(mods.dp.d(sx.q(*(eax_3 + 0x278) + arg2), data_13337b0) * 0xec + data_13337b8)",
+	):
+		assert expected in hlil_part04
+
+	for expected in (
+		"004e17e0    int32_t sub_4e17e0()",
+		"004e17e4  return sub_4ddac0() __tailcall",
+	):
+		assert expected in hlil_part05
+
+	bot_snapshot = _function_block(sv_bot, "int SV_BotGetSnapshotEntity( int client, int sequence )")
+	_assert_order(
+		bot_snapshot,
+		"cl = &svs.clients[client];",
+		"frame = &cl->frames[cl->netchan.outgoingSequence & PACKET_MASK];",
+		"if (sequence < 0 || sequence >= frame->num_entities) {",
+		"return -1;",
+		"return svs.snapshotEntities[(frame->first_entity + sequence) % svs.numSnapshotEntities].number;",
+	)
+
+	legacy_syscall = _function_block(sv_game, "static int SV_GameSystemCallsImpl( int *args, qboolean logContract )")
+	native_imports = _function_block(sv_game, "static void SV_InitGameImports( void )")
+	qagame_syscall_map = _function_block(g_syscalls, "static int G_MapNativeImport")
+	game_ai_snapshot = _function_block(ai_main, "int BotAI_GetSnapshotEntity( int clientNum, int sequence, entityState_t *state )")
+
+	assert "G_QL_IMPORT_BOTLIB_GET_SNAPSHOT_ENTITY = 58," in g_public
+	assert "case BOTLIB_GET_SNAPSHOT_ENTITY:" in legacy_syscall
+	assert "return SV_BotGetSnapshotEntity( args[1], args[2] );" in legacy_syscall
+	assert "[BOTLIB_GET_SNAPSHOT_ENTITY] = (ql_import_f)QL_G_trap_BotGetSnapshotEntity" in sv_game
+	assert "ql_game_imports[G_QL_IMPORT_BOTLIB_GET_SNAPSHOT_ENTITY] = (ql_import_f)QL_G_trap_BotGetSnapshotEntity;" in native_imports
+	assert "case BOTLIB_GET_SNAPSHOT_ENTITY: return G_QL_IMPORT_BOTLIB_GET_SNAPSHOT_ENTITY;" in qagame_syscall_map
+
+	_assert_order(
+		game_ai_snapshot,
+		"entNum = trap_BotGetSnapshotEntity( clientNum, sequence );",
+		"if ( entNum == -1 ) {",
+		"memset(state, 0, sizeof(entityState_t));",
+		"return -1;",
+		"BotAI_GetEntityState( entNum, state );",
+		"return sequence + 1;",
+	)
+
+	for expected in (
+		"`sub_4DDAC0 -> SV_BotGetSnapshotEntity`",
+		"`sub_4E17E0 -> QL_G_trap_BotGetSnapshotEntity`",
+		"`SV_BotGetSnapshotEntity`",
+		"`QL_G_trap_BotGetSnapshotEntity`",
+	):
+		assert expected in (round_61 + round_64 + botlib_audit)
 
 
 def test_networking_2_focused_parity_ledger_maps_first_plan_entry() -> None:
@@ -4585,6 +5141,212 @@ def test_networking_2_oob_connect_auth_matrix_and_negative_compression_contract(
 	assert "focused OOB/connect/auth slice" in plan
 
 
+def test_networking_2_capture_scoped_adaptive_huffman_fixtures() -> None:
+	spec = _networking_2_huffman_fixtures_spec()
+	header_spec = _networking_2_header_spec()
+	oob_spec = _networking_2_oob_connect_auth_spec()
+	replay_spec = _networking_2_replay_validation_spec()
+	usercmd_spec = _networking_2_usercmd_delta_spec()
+	huffman_c = _read(HUFFMAN_C_PATH)
+	msg_c = _read(MSG_C_PATH)
+	net_chan = _read(NET_CHAN_PATH)
+	cl_main = _read(CL_MAIN_PATH)
+	sv_main = _read(SV_MAIN_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	audit_note = _read(NETWORKING_2_HUFFMAN_FIXTURES_AUDIT_PATH)
+	oob_note = _read(NETWORKING_2_OOB_CONNECT_AUTH_AUDIT_PATH)
+	replay_note = _read(NETWORKING_2_REPLAY_VALIDATION_AUDIT_PATH)
+	usercmd_note = _read(NETWORKING_2_USERCMD_DELTA_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+	assert spec["source_files"] == [
+		"src/code/qcommon/huffman.c",
+		"src/code/qcommon/msg.c",
+		"src/code/qcommon/net_chan.c",
+		"src/code/client/cl_main.c",
+		"src/code/server/sv_main.c",
+	]
+
+	scopes = {scope["id"]: scope for scope in spec["huffman_scopes"]}
+	assert set(scopes) == {"huffcompress_local_reset", "msghuff_seeded_bitstream"}
+	assert scopes["huffcompress_local_reset"]["owner"] == "Huff_Compress"
+	assert scopes["huffcompress_local_reset"]["retail_anchor"] == "0x004D40F0"
+	assert scopes["huffcompress_local_reset"]["state_model"] == "local NYT tree per call"
+	assert "Huff_transmit then Huff_addRef" in scopes["huffcompress_local_reset"]["update_policy"]
+	assert scopes["msghuff_seeded_bitstream"]["owner"] == "MSG_WriteBits"
+	assert scopes["msghuff_seeded_bitstream"]["retail_anchor"] == "0x004D4AF0"
+	assert "msg_hData" in scopes["msghuff_seeded_bitstream"]["state_model"]
+	assert "do not add per-symbol references after MSG_initHuffman" in scopes["msghuff_seeded_bitstream"]["update_policy"]
+
+	fixtures = {fixture["id"]: fixture for fixture in spec["fixtures"]}
+	assert set(fixtures) == {
+		"compressed_connect_profile91_numeric_challenge",
+		"huffcompress_local_reset_abc",
+		"msghuff_seeded_three_ascii_bytes",
+		"msghuff_seeded_client_sideband_move_body",
+	}
+
+	connect = fixtures["compressed_connect_profile91_numeric_challenge"]
+	clear_prefix = bytes.fromhex(connect["clear_prefix_hex"])
+	encoded_remainder = bytes.fromhex(connect["encoded_remainder_hex"])
+	encoded_datagram = bytes.fromhex(connect["encoded_datagram_hex"])
+	uncompressed_remainder = bytes.fromhex(connect["uncompressed_remainder_hex"])
+	assert connect["scope"] == "huffcompress_local_reset"
+	assert connect["clear_datagram_ascii_after_sentinel"] == 'connect "\\protocol\\91\\qport\\1234\\challenge\\1234"'
+	assert clear_prefix == b"\xff\xff\xff\xffconnect "
+	assert connect["compressed_remainder_offset"] == 12
+	assert len(uncompressed_remainder) == connect["uncompressed_remainder_size"] == 40
+	assert encoded_remainder[:2] == connect["uncompressed_remainder_size"].to_bytes(2, "big")
+	assert len(encoded_remainder) == connect["encoded_remainder_size"] == 42
+	assert len(encoded_datagram) == connect["encoded_datagram_size"] == 54
+	assert encoded_datagram[:12] == clear_prefix
+	assert encoded_datagram[12:] == encoded_remainder
+	assert connect["encoded_bit_count"] == 317
+	assert connect["encoded_bit_count_mod8"] == connect["encoded_bit_count"] % 8 == 5
+	assert connect["encoded_remainder_size"] == ((16 + connect["encoded_bit_count"] + 8) >> 3)
+	assert connect["unstable_terminal_pad_bytes"] == 0
+
+	local_abc = fixtures["huffcompress_local_reset_abc"]
+	assert local_abc["encoded_remainder_hex"] == "00 03 86 8c 30 06"
+	assert len(bytes.fromhex(local_abc["encoded_remainder_hex"])) == local_abc["encoded_remainder_size"]
+	assert local_abc["encoded_remainder_size"] == ((16 + local_abc["encoded_bit_count"] + 8) >> 3)
+	assert local_abc["encoded_bit_count_mod8"] == local_abc["encoded_bit_count"] % 8 == 3
+
+	seeded_ascii = fixtures["msghuff_seeded_three_ascii_bytes"]
+	assert seeded_ascii["input_hex"] == "61 62 63"
+	assert seeded_ascii["encoded_hex"] == "3c ab 1f 03"
+	assert len(bytes.fromhex(seeded_ascii["encoded_hex"])) == seeded_ascii["encoded_size"]
+	assert seeded_ascii["encoded_size"] == (seeded_ascii["encoded_bit_count"] >> 3) + 1
+	assert seeded_ascii["encoded_bit_count_mod8"] == seeded_ascii["encoded_bit_count"] % 8 == 2
+
+	seeded_body = fixtures["msghuff_seeded_client_sideband_move_body"]
+	assert seeded_body["input_hex"] == "04 03 02 01 0d 0c 0b 0a 02 00 00 00 80 02 01 05"
+	assert seeded_body["encoded_hex"] == "a1 6c e4 6e 27 8b 34 52 fd 90 3b 02"
+	assert len(bytes.fromhex(seeded_body["encoded_hex"])) == seeded_body["encoded_size"]
+	assert seeded_body["encoded_size"] == (seeded_body["encoded_bit_count"] >> 3) + 1
+	assert seeded_body["encoded_bit_count_mod8"] == seeded_body["encoded_bit_count"] % 8 == 5
+	assert all(fixture["unstable_terminal_pad_bytes"] == 0 for fixture in fixtures.values())
+
+	header_packets = {packet["id"]: packet for packet in header_spec["packet_headers"]}
+	compressed_header_fields = {
+		field["name"]: field
+		for field in header_packets["compressed_connect_oob"]["fields"]
+	}
+	assert compressed_header_fields["compressed_remainder"]["offset"] == 12
+	oob_connect = {item["id"]: item for item in oob_spec["compatibility_matrix"]}["compressed_connect_request"]
+	assert oob_connect["compression"]["client_offset"] == connect["compressed_remainder_offset"]
+	assert oob_connect["compression"]["server_offset"] == connect["compressed_remainder_offset"]
+	assert "network-adaptive-huffman-fixtures-2026-06-05.json" in replay_spec["completion_status"]["remaining_gaps"][1]
+	assert "network-adaptive-huffman-fixtures-2026-06-05.json" in usercmd_spec["completion_status"]["residual_risks"][0]
+
+	huff_compress = _function_block(huffman_c, "void Huff_Compress(msg_t *mbuf, int offset)")
+	_assert_order(
+		huff_compress,
+		"Com_Memset(&huff, 0, sizeof(huff_t));",
+		"huff.tree = huff.lhead = huff.loc[NYT] =  &(huff.nodeList[huff.blocNode++]);",
+		"seq[0] = (size>>8);",
+		"seq[1] = size&0xff;",
+		"bloc = 16;",
+		"Huff_transmit(&huff, ch, seq);",
+		"Huff_addRef(&huff, (byte)ch);",
+		"bloc += 8;",
+		"mbuf->cursize = (bloc>>3) + offset;",
+	)
+	write_bits = _function_block(msg_c, "void MSG_WriteBits( msg_t *msg, int value, int bits )")
+	assert "Huff_offsetTransmit (&msgHuff.compressor, (value&0xff), msg->data, &msg->bit);" in write_bits
+	assert "Huff_addRef" not in write_bits
+	msg_init = _function_block(msg_c, "void MSG_initHuffman() {")
+	_assert_order(
+		msg_init,
+		"Huff_Init(&msgHuff);",
+		"for(i=0;i<256;i++) {",
+		"for (j=0;j<msg_hData[i];j++) {",
+		"Huff_addRef(&msgHuff.compressor,\t(byte)i);",
+		"Huff_addRef(&msgHuff.decompressor,\t(byte)i);",
+	)
+
+	oob_data = _function_block(net_chan, "void QDECL NET_OutOfBandData( netsrc_t sock, netadr_t adr, byte *format, int len )")
+	_assert_order(
+		oob_data,
+		"string[0] = 0xff;",
+		"string[i+4] = format[i];",
+		"mbuf.data = string;",
+		"mbuf.cursize = len+4;",
+		"Huff_Compress( &mbuf, 12);",
+	)
+	check_resend = _function_block(cl_main, "void CL_CheckForResend( void ) {")
+	_assert_order(
+		check_resend,
+		"Com_sprintf( data, sizeof( data ), \"%s \\\"%s\\\"\", NET_GetConnectRequestCommand(), info );",
+		"dataLength = strlen( data );",
+		"if ( NET_ProtocolUsesCompressedConnect() ) {",
+		"NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *)data, dataLength );",
+	)
+	connectionless = _function_block(sv_main, "void SV_ConnectionlessPacket( netadr_t from, msg_t *msg )")
+	_assert_order(
+		connectionless,
+		"if ( NET_ProtocolUsesCompressedConnect() && NET_IsConnectRequestPacket( msg ) ) {",
+		"Huff_Decompress(msg, 12);",
+		"s = MSG_ReadStringLine( msg );",
+	)
+
+	for expected in (
+		"004d40f0    int32_t sub_4d40f0(void* arg1, int32_t arg2)",
+		"004d41bd      char var_10008 = (ebx_2 s>> 8).b",
+		"004d41c3      char var_10007_1 = ebx_2.b",
+		"004d41c9      data_1239df0 = 0x10",
+		"004d41f9              sub_4d3c90(&var_17024, edi_1, &var_10008)",
+		"004d4206              sub_4d3980(&var_17024, edi_1.b)",
+		"004d4233      *(arg1 + 0x10) = eax_8 + result",
+		"004d6bb0    void* sub_4d6bb0()",
+		"004d6be6              sub_4d3980(&data_123c5f8, esi.b)",
+		"004d6bf1              result = sub_4d3980(&data_1243614, esi.b)",
+	):
+		assert expected in hlil_part04
+	connectionless_hlil = hlil_part05.split("004e4340    int32_t sub_4e4340", 1)[1].split("004e4500", 1)[0]
+	assert "sub_4d3e60(arg9, 0xc)" in connectionless_hlil
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["MSG_initHuffman"]["address"] == "0x004D6BB0"
+	assert anchors["MSG_WriteBits"]["address"] == "0x004D4AF0"
+	assert anchors["Huff_Compress"]["address"] == "0x004D40F0"
+	assert anchors["NET_OutOfBandData"]["address"] == "0x004D7120"
+	assert anchors["SV_ConnectionlessPacket"]["address"] == "0x004E4340"
+
+	assert "Network Adaptive Huffman Fixtures" in audit_note
+	assert "compressed_connect_profile91_numeric_challenge" in audit_note
+	assert "Focused Huffman fixture slice: `35%` before, `82%` after." in audit_note
+	assert "- [x] Add capture-scoped adaptive Huffman fixtures" in checklist
+	assert "network-adaptive-huffman-fixtures-2026-06-05.md" in checklist
+	assert "network-adaptive-huffman-fixtures-2026-06-05.json" in plan
+	assert "focused Huffman fixture" in plan
+	assert "`35%` -> `82%`" in plan
+	assert "network-adaptive-huffman-fixtures-2026-06-05.md" in replay_note
+	assert "network-adaptive-huffman-fixtures-2026-06-05.md" in usercmd_note
+	assert "network-adaptive-huffman-fixtures-2026-06-05.md" in oob_note
+
+	assert spec["completion_status"]["status"] == "completed_capture_scoped_fixture_contract"
+	assert spec["completion_status"]["runtime_launch_required"] is False
+	assert spec["completion_status"]["source_patch_required"] is False
+	assert spec["completion_status"]["focused_huffman_fixture_slice_before_percent"] == 35
+	assert spec["completion_status"]["focused_huffman_fixture_slice_after_percent"] == 82
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 87
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 88
+	assert "retail packet capture" in spec["completion_status"]["remaining_gaps"][0]
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_capture_scoped_adaptive_huffman_fixtures" in spec["assertion_tests"]
+
+
 def test_networking_2_client_message_parser_grammar_and_sideband_byte() -> None:
 	grammar = _networking_2_client_parser_grammar()
 	qcommon_h = _read(QCOMMON_H_PATH)
@@ -4698,8 +5460,9 @@ def test_networking_2_client_message_parser_grammar_and_sideband_byte() -> None:
 	flags = _function_block(cl_input, "static int CL_RetailClientMessageFlags( void )")
 	_assert_order(
 		flags,
-		"return 0;",
+		"return cl_retailClientMessageFlags;",
 	)
+	assert "static int cl_retailClientMessageFlags = RETAIL_CLIENT_MESSAGE_FLAG_INITIAL_HIGH_BIT;" in cl_input
 
 	write_packet = _function_block(cl_input, "void CL_WritePacket( void )")
 	_assert_order(
@@ -4795,7 +5558,7 @@ def test_networking_2_client_message_parser_grammar_and_sideband_byte() -> None:
 	anchors = {item["symbol"]: item for item in grammar["retail_anchors"]}
 	assert anchors["CL_WritePacket"]["address"] == "0x004B5F70"
 	assert anchors["SV_ExecuteClientMessage"]["address"] == "0x004E05C0"
-	assert anchors["CL_RetailClientMessageFlags_source_stub"]["address"] is None
+	assert anchors["CL_RetailClientMessageFlags_source_partial"]["address"] is None
 
 	assert grammar["resolved_conflict"]["source_change_required"] is True
 	assert "unassigned MSG_ReadByte" in grammar["resolved_conflict"]["resolution"]
@@ -4812,6 +5575,225 @@ def test_networking_2_client_message_parser_grammar_and_sideband_byte() -> None:
 	assert "Verify **client-parser header semantics**" in plan
 	assert "network-client-message-parser-grammar-2026-06-05.json" in plan
 	assert "focused client-parser header slice" in plan
+
+
+def test_networking_2_client_message_sideband_producer_map_and_constant_high_bit() -> None:
+	spec = _networking_2_client_sideband_producers_spec()
+	grammar = _networking_2_client_parser_grammar()
+	xor_spec = _networking_2_xor_codec_spec()
+	ledger = _networking_2_ledger()
+	cl_input = _read(CL_INPUT_PATH)
+	cl_cgame = _read(CL_CGAME_PATH)
+	cl_main = _read(CL_MAIN_PATH)
+	client_h = _read(CLIENT_H_PATH)
+	cg_public = _read(CG_PUBLIC_PATH)
+	tr_public = _read(TR_PUBLIC_PATH)
+	tr_cmds = _read(TR_CMDS_PATH)
+	functions_csv = _read(GHIDRA_FUNCTIONS_PATH)
+	ghidra_top = _read(GHIDRA_DECOMPILE_TOP_PATH)
+	aliases = json.loads(_read(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part02 = _read(HLIL_PART02_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part07 = _read(HLIL_PART07_PATH)
+	audit_note = _read(NETWORKING_2_CLIENT_SIDEBAND_PRODUCERS_AUDIT_PATH)
+	parser_note = _read(NETWORKING_2_CLIENT_PARSER_AUDIT_PATH)
+	xor_note = _read(NETWORKING_2_XOR_CODEC_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+		"docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+	assert spec["source_files"] == [
+		"src/code/client/cl_cgame.c",
+		"src/code/client/cl_input.c",
+		"src/code/client/cl_main.c",
+		"src/code/client/client.h",
+		"src/code/renderer/tr_cmds.c",
+		"src/code/renderer/tr_public.h",
+	]
+
+	state = spec["retail_state"]
+	assert state["symbol"] == "data_565948"
+	assert state["address"] == "0x00565948"
+	assert state["initial_value"] == "0x80"
+	assert state["read_helper"] == {
+		"symbol": "sub_4AF4D0",
+		"address": "0x004AF4D0",
+		"observed": "return data_565948",
+	}
+
+	producers = {producer["id"]: producer for producer in spec["producer_map"]}
+	assert set(producers) == {
+		"initial_high_bit",
+		"renderer_low_five_bits",
+		"cgame_import_pointer_guard",
+		"viewangle_delta_bit",
+	}
+	assert producers["initial_high_bit"]["mask"] == "0x80"
+	assert producers["initial_high_bit"]["source_status"] == "implemented_by_persistent_CL_RetailClientMessageFlags_initializer"
+	assert producers["renderer_low_five_bits"]["mask"] == "0x1f"
+	assert producers["renderer_low_five_bits"]["function"] == "sub_43C120"
+	assert producers["renderer_low_five_bits"]["source_status"] == "implemented_by_refimport_SetClientMessageRendererNodeCount"
+	assert producers["cgame_import_pointer_guard"]["mask"] == "0x40"
+	assert producers["cgame_import_pointer_guard"]["function"] == "sub_4B0A50"
+	assert producers["cgame_import_pointer_guard"]["source_status"] == "implemented_by_CL_CheckCGameNativeImportIntegrity"
+	assert "R_AddRefEntityToScene and R_RenderScene" in producers["cgame_import_pointer_guard"]["inferred_meaning"]
+	assert producers["viewangle_delta_bit"]["mask"] == "0x20"
+	assert producers["viewangle_delta_bit"]["function"] == "sub_4BC3E0 / CL_Frame"
+	assert producers["viewangle_delta_bit"]["source_status"] == "implemented_by_CL_Frame_viewangle_compare_after_SCR_UpdateScreen"
+
+	source_status = spec["source_status"]
+	assert source_status["helper"] == "CL_RetailClientMessageFlags"
+	assert source_status["current_return"] == "persistent cl_retailClientMessageFlags, initialized to 0x80"
+	assert source_status["classification"] == "all_observed_retail_sideband_producers_implemented_static_capture_diff_pending"
+	assert source_status["byte_for_byte_complete"] is False
+
+	assert "#define RETAIL_CLIENT_MESSAGE_FLAG_VIEWANGLE_DELTA\t0x20" in cl_input
+	assert "#define RETAIL_CLIENT_MESSAGE_FLAG_CGAME_IMPORT_GUARD\t0x40" in cl_input
+	assert "#define RETAIL_CLIENT_MESSAGE_FLAG_INITIAL_HIGH_BIT\t0x80" in cl_input
+	assert "#define RETAIL_CLIENT_MESSAGE_RENDERER_NODE_MASK\t\t0x1f" in cl_input
+	assert "#define RETAIL_CLIENT_MESSAGE_RENDERER_NODE_LIMIT\t0x20" in cl_input
+	assert "static int cl_retailClientMessageFlags = RETAIL_CLIENT_MESSAGE_FLAG_INITIAL_HIGH_BIT;" in cl_input
+	setter = _function_block(cl_input, "void CL_SetRetailClientMessageViewangleDeltaFlag( void )")
+	assert "cl_retailClientMessageFlags |= RETAIL_CLIENT_MESSAGE_FLAG_VIEWANGLE_DELTA;" in setter
+	cgame_guard_setter = _function_block(cl_input, "void CL_SetRetailClientMessageCGameImportGuardFlag( void )")
+	assert "cl_retailClientMessageFlags |= RETAIL_CLIENT_MESSAGE_FLAG_CGAME_IMPORT_GUARD;" in cgame_guard_setter
+	renderer_setter = _function_block(cl_input, "void CL_SetRetailClientMessageRendererNodeCount( int nodeCount )")
+	_assert_order(
+		renderer_setter,
+		"if ( nodeCount < 0 ) {",
+		"clampedNodeCount = 0;",
+		"} else if ( nodeCount > RETAIL_CLIENT_MESSAGE_RENDERER_NODE_LIMIT ) {",
+		"clampedNodeCount = RETAIL_CLIENT_MESSAGE_RENDERER_NODE_LIMIT;",
+		"cl_retailClientMessageFlags ^= ( cl_retailClientMessageFlags ^ clampedNodeCount ) & RETAIL_CLIENT_MESSAGE_RENDERER_NODE_MASK;",
+	)
+	flags = _function_block(cl_input, "static int CL_RetailClientMessageFlags( void )")
+	assert "return cl_retailClientMessageFlags;" in flags
+	assert "return 0;" not in flags
+	assert "Dynamic producer bits are only" in cl_input
+	assert "void CL_SetRetailClientMessageViewangleDeltaFlag( void );" in client_h
+	assert "void CL_SetRetailClientMessageCGameImportGuardFlag( void );" in client_h
+	assert "void CL_SetRetailClientMessageRendererNodeCount( int nodeCount );" in client_h
+	assert "void CL_CheckCGameNativeImportIntegrity( void );" in client_h
+	assert "(*SetClientMessageRendererNodeCount)( int nodeCount );" in tr_public
+	assert "CG_QL_IMPORT_R_ADDREFENTITYTOSCENE = 71," in cg_public
+	assert "CG_QL_IMPORT_R_RENDERSCENE = 76," in cg_public
+
+	frame = _function_block(cl_main, "void CL_Frame ( int msec )")
+	_assert_order(
+		frame,
+		"CL_SendCmd();",
+		"CL_CheckForResend();",
+		"CL_CheckCGameNativeImportIntegrity();",
+		"CL_SetCGameTime();",
+		"oldViewYaw = cl.viewangles[YAW];",
+		"oldViewPitch = cl.viewangles[PITCH];",
+		"SCR_UpdateScreen();",
+		"if ( oldViewYaw != cl.viewangles[YAW] || oldViewPitch != cl.viewangles[PITCH] ) {",
+		"CL_SetRetailClientMessageViewangleDeltaFlag();",
+		"S_Update();",
+	)
+	init_ref = _function_block(cl_main, "void CL_InitRef( void )")
+	_assert_order(
+		init_ref,
+		"ri.CIN_RunCinematic = CIN_RunCinematic;",
+		"ri.SetClientMessageRendererNodeCount = CL_SetRetailClientMessageRendererNodeCount;",
+		"ri.AdvertisementBridge_GetCellDisplayState = CL_AdvertisementBridge_GetCellDisplayState;",
+	)
+	cgame_imports = _function_block(cl_cgame, "static void CL_InitCGameImports( void )")
+	_assert_order(
+		cgame_imports,
+		"ql_cgame_imports[CG_QL_IMPORT_R_CLEARSCENE] = (ql_import_f)QL_CG_trap_R_ClearScene;",
+		"ql_cgame_imports[CG_QL_IMPORT_R_ADDREFENTITYTOSCENE] = (ql_import_f)QL_CG_trap_R_AddRefEntityToScene;",
+		"ql_cgame_imports[CG_QL_IMPORT_R_RENDERSCENE] = (ql_import_f)QL_CG_trap_R_RenderScene;",
+	)
+	cgame_integrity = _function_block(cl_cgame, "void CL_CheckCGameNativeImportIntegrity( void )")
+	_assert_order(
+		cgame_integrity,
+		"ql_cgame_imports[CG_QL_IMPORT_R_ADDREFENTITYTOSCENE] != (ql_import_f)QL_CG_trap_R_AddRefEntityToScene ||",
+		"ql_cgame_imports[CG_QL_IMPORT_R_RENDERSCENE] != (ql_import_f)QL_CG_trap_R_RenderScene ) {",
+		"CL_SetRetailClientMessageCGameImportGuardFlag();",
+	)
+	performance_counters = _function_block(tr_cmds, "void R_PerformanceCounters( void )")
+	_assert_order(
+		performance_counters,
+		"nodeCount = tr.pc.c_leafs;",
+		"if ( ri.SetClientMessageRendererNodeCount ) {",
+		"ri.SetClientMessageRendererNodeCount( nodeCount );",
+		"if ( !r_speeds->integer ) {",
+		"Com_Memset( &tr.pc, 0, sizeof( tr.pc ) );",
+	)
+
+	for expected in (
+		"FUN_0043c120,0043c120,692,0,unknown",
+		"FUN_004af4d0,004af4d0,6,0,unknown",
+		"FUN_004b0a50,004b0a50,32,0,unknown",
+		"FUN_004bc3e0,004bc3e0,674,0,unknown",
+	):
+		assert expected in functions_csv
+	assert aliases["sub_43C120"] == "R_PerformanceCounters"
+	assert aliases["sub_4B0000"] == "QLCGImport_R_AddRefEntityToScene"
+	assert aliases["sub_4BEF80"] == "QLCGImport_R_RenderScene"
+	assert aliases["sub_4BC3E0"] == "CL_Frame"
+	assert aliases["sub_4B07C0"] == "CL_SetCGameTime"
+	assert aliases["sub_4BE3A0"] == "SCR_UpdateScreen"
+
+	assert "00565948  int32_t data_565948 = 0x80" in hlil_part07
+	assert "00565a74  void* data_565a74 = sub_4b0000" in hlil_part07
+	assert "00565a88  void* data_565a88 = sub_4bef80" in hlil_part07
+	assert "004af4d0    int32_t sub_4af4d0()" in hlil_part04
+	assert "004af4d5  return data_565948" in hlil_part04
+	assert "0043c120    int32_t sub_43c120()" in hlil_part02
+	assert "0043c13a      int32_t eax_2 = sub_4d8970(eax_1, 0x20, data_1745edc)" in hlil_part02
+	assert "data_565948 = ecx_2 ^ ((ecx_2 ^ eax_2) & 0x1f)" in hlil_part02
+	assert "0043c33b              data_1740d20(0, \"Nodes:%i\\n\", data_1745edc)" in hlil_part02
+	assert "0043c396  int32_t eax_27 = sub_4d8970(0, 0x20, data_1745edc)" in hlil_part02
+	assert "data_565948 = ecx_18 ^ ((ecx_18 ^ eax_27) & 0x1f)" in hlil_part02
+	assert "004d8970    int32_t sub_4d8970(int32_t arg1, int32_t arg2, int32_t arg3) __pure" in hlil_part04
+	assert "004b0a50    int32_t sub_4b0a50()" in hlil_part04
+	assert "004b0a66  if (data_565a74 != sub_4b0000 || data_565a88 != sub_4bef80)" in hlil_part04
+	assert "data_565948 |= 0x40" in hlil_part04
+	assert "data_565948 |= 0x20" in hlil_part04
+	assert "DAT_01740f6c = (*DAT_01740d40)(\"r_speeds\"" in ghidra_top
+	assert "004bc568      sub_4b0a50()" in hlil_part04
+	assert "004bc632      sub_4be3a0()" in hlil_part04
+	assert "004bc661          data_565948 |= 0x20" in hlil_part04
+
+	assert grammar["retail_anchors"][2]["observed"].startswith(
+		"Source reconstruction helper now returns a persistent retail sideband flag byte initialized to 0x80"
+	)
+	assert "The sideband producer map is captured" in grammar["completion_status"]["residual_risks"][0]
+	assert "source now emits all observed retail sideband producers" in xor_spec["completion_status"]["residual_risks"][1]
+	assert "0x80 initializer bit, recovered 0x20 CL_Frame viewangle-delta bit, recovered low-five renderer count, and recovered 0x40 native cgame import guard are implemented" in ledger["focus_areas"][0]["open_questions"][0]
+	assert "Capture-diff client packet bytes against retail" in ledger["focus_areas"][6]["open_questions"][0]
+
+	assert "Network Client Message Sideband Producers" in audit_note
+	assert "`0x80` | data initializer `0x00565948`" in audit_note
+	assert "`0x1f` | `sub_43C120` / `R_PerformanceCounters`" in audit_note
+	assert "`0x40` | `sub_4B0A50`" in audit_note
+	assert "Focused sideband producer slice: `88%` before, `100%` after." in audit_note
+	assert "The source emits all observed sideband producers" in parser_note
+	assert "remaining sideband proof is capture-backed packet comparison" in xor_note
+	assert "- [x] Map the observed retail sideband producers" in checklist
+	assert "- [x] Recover the retail `0x20` `CL_Frame` viewangle-delta sideband producer" in checklist
+	assert "- [x] Recover the retail low-five renderer counter bits behind `sub_43C120`" in checklist
+	assert "- [x] Recover the retail `0x40` native cgame/import guard" in checklist
+	assert "network-client-message-sideband-producers-2026-06-05.json" in plan
+	assert "focused sideband producer" in plan
+	assert "`88%` -> `100%`" in plan
+
+	assert spec["completion_status"]["status"] == "producer_map_captured_all_observed_producers_implemented_static_capture_diff_pending"
+	assert spec["completion_status"]["runtime_launch_required"] is False
+	assert spec["completion_status"]["focused_sideband_slice_before_percent"] == 88
+	assert spec["completion_status"]["focused_sideband_slice_after_percent"] == 100
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 89
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 90
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_client_message_sideband_producer_map_and_constant_high_bit" in spec["assertion_tests"]
 
 
 def test_networking_2_xor_codec_golden_vectors_and_capture_diff_windows() -> None:
@@ -6032,3 +7014,2315 @@ def test_networking_2_entitystate_fields_source_of_truth_and_delta_contract() ->
 	assert "Reconstruct **entityStateFields** exactly from retail" in plan
 	assert "network-entitystate-fields-parity-2026-06-05.json" in plan
 	assert "focused `entityStateFields` slice" in plan
+
+
+def test_networking_2_demo_capture_replay_validation_contract_and_semantic_diff_lanes() -> None:
+	spec = _networking_2_replay_validation_spec()
+	cl_parse = _read(CL_PARSE_PATH)
+	sv_snapshot = _read(SV_SNAPSHOT_PATH)
+	sv_net_chan = _read(SV_NET_CHAN_PATH)
+	net_chan = _read(NET_CHAN_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	audit_note = _read(NETWORKING_2_REPLAY_VALIDATION_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+		"docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	lanes = {lane["id"]: lane for lane in spec["validation_lanes"]}
+	assert set(lanes) == {
+		"gamestate_baseline_replay",
+		"snapshot_delta_replay",
+		"packet_entity_merge_replay",
+		"delta_aging_rejection",
+		"fragment_reassembly_replay",
+		"queued_fragment_send_replay",
+		"capture_diff_report_contract",
+	}
+	assert lanes["gamestate_baseline_replay"]["retail_anchor"] == "0x004BD790"
+	assert lanes["snapshot_delta_replay"]["retail_anchors"] == ["0x004E50E0", "0x004BD350"]
+	assert lanes["packet_entity_merge_replay"]["retail_anchors"] == ["0x004E4FC0", "0x004BD000"]
+	assert lanes["delta_aging_rejection"]["constants"]["stale_parse_entities_threshold"] == 1920
+	assert lanes["delta_aging_rejection"]["constants"]["reject_when_difference_greater_than"] == 1920
+	assert lanes["fragment_reassembly_replay"]["source_owner"] == "Netchan_Process"
+	assert lanes["queued_fragment_send_replay"]["retail_anchors"] == ["0x004E4EE0", "0x004E4E20"]
+	assert lanes["capture_diff_report_contract"]["diff_report_columns"] == [
+		"fixtureId",
+		"fixtureType",
+		"laneId",
+		"expectedHash",
+		"actualHash",
+		"matchKind",
+		"status",
+	]
+
+	vectors = {vector["id"]: vector for vector in spec["semantic_replay_vectors"]}
+	assert set(vectors) == {
+		"gamestate_baseline_from_nullstate",
+		"snapshot_uncompressed_baseline",
+		"snapshot_valid_delta",
+		"stale_delta_parse_entities_reject",
+		"packet_entities_merge_cases",
+		"fragmented_message_final_reassembly",
+		"queued_fragment_xor_timing",
+	}
+	assert vectors["snapshot_uncompressed_baseline"]["expected_steps"] == [
+		"newSnap.deltaNum becomes -1",
+		"old snapshot pointer is NULL",
+		"clc.demowaiting is cleared",
+		"MSG_ReadDeltaPlayerstate uses NULL baseline",
+		"CL_ParsePacketEntities uses entity baselines for new entities",
+	]
+	assert vectors["stale_delta_parse_entities_reject"]["input_shape"].endswith("is 1921")
+	assert vectors["fragmented_message_final_reassembly"]["expected_steps"][-1] == "msg->readcount becomes 4 and msg->bit becomes 32"
+	assert vectors["queued_fragment_xor_timing"]["expected_outcome"] == "queued datagram bytes are encoded with send-time sequence and command-string state"
+
+	parse_gamestate = _function_block(cl_parse, "void CL_ParseGamestate")
+	_assert_order(
+		parse_gamestate,
+		"CL_ClearState();",
+		"clc.serverCommandSequence = MSG_ReadLong( msg );",
+		"cl.gameState.dataCount = 1;",
+		"cmd = MSG_ReadByte( msg );",
+		"if ( cmd == svc_EOF ) {",
+		"if ( cmd == svc_configstring ) {",
+		"i = MSG_ReadShort( msg );",
+		"s = MSG_ReadBigString( msg );",
+		"cl.gameState.stringOffsets[ i ] = cl.gameState.dataCount;",
+		"} else if ( cmd == svc_baseline ) {",
+		"newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );",
+		"Com_Memset (&nullstate, 0, sizeof(nullstate));",
+		"es = &cl.entityBaselines[ newnum ];",
+		"MSG_ReadDeltaEntity( msg, &nullstate, es, newnum );",
+		"clc.clientNum = MSG_ReadLong(msg);",
+		"clc.checksumFeed = MSG_ReadLong( msg );",
+		"CL_SystemInfoChanged();",
+		"FS_ConditionalRestart( clc.checksumFeed );",
+		"CL_InitDownloads();",
+	)
+
+	parse_snapshot = _function_block(cl_parse, "void CL_ParseSnapshot")
+	_assert_order(
+		parse_snapshot,
+		"newSnap.serverCommandNum = clc.serverCommandSequence;",
+		"newSnap.serverTime = MSG_ReadLong( msg );",
+		"newSnap.messageNum = clc.serverMessageSequence;",
+		"deltaNum = MSG_ReadByte( msg );",
+		"if ( !deltaNum ) {",
+		"newSnap.deltaNum = -1;",
+		"newSnap.snapFlags = MSG_ReadByte( msg );",
+		"if ( newSnap.deltaNum <= 0 ) {",
+		"old = NULL;",
+		"clc.demowaiting = qfalse;",
+		"old = &cl.snapshots[newSnap.deltaNum & PACKET_MASK];",
+		"if ( !old->valid ) {",
+		"old->messageNum != newSnap.deltaNum",
+		"cl.parseEntitiesNum - old->parseEntitiesNum > MAX_PARSE_ENTITIES-128",
+		"len = MSG_ReadByte( msg );",
+		"MSG_ReadData( msg, &newSnap.areamask, len);",
+		"MSG_ReadDeltaPlayerstate( msg, &old->ps, &newSnap.ps );",
+		"MSG_ReadDeltaPlayerstate( msg, NULL, &newSnap.ps );",
+		"CL_ParsePacketEntities( msg, old, &newSnap );",
+		"if ( !newSnap.valid ) {",
+		"return;",
+		"cl.snap = newSnap;",
+		"cl.snapshots[cl.snap.messageNum & PACKET_MASK] = cl.snap;",
+	)
+	for expected in (
+		"Delta from invalid frame (not supposed to happen!).\\n",
+		"Delta frame too old.\\n",
+		"Delta parseEntitiesNum too old.\\n",
+	):
+		assert expected in parse_snapshot
+
+	delta_entity = _function_block(cl_parse, "void CL_DeltaEntity")
+	_assert_order(
+		delta_entity,
+		"state = &cl.parseEntities[cl.parseEntitiesNum & (MAX_PARSE_ENTITIES-1)];",
+		"if ( unchanged ) {",
+		"*state = *old;",
+		"MSG_ReadDeltaEntity( msg, old, state, newnum );",
+		"if ( state->number == (MAX_GENTITIES-1) ) {",
+		"return;",
+		"cl.parseEntitiesNum++;",
+		"frame->numEntities++;",
+	)
+
+	parse_entities = _function_block(cl_parse, "void CL_ParsePacketEntities")
+	_assert_order(
+		parse_entities,
+		"newframe->parseEntitiesNum = cl.parseEntitiesNum;",
+		"newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );",
+		"if ( newnum == (MAX_GENTITIES-1) ) {",
+		"if ( msg->readcount > msg->cursize ) {",
+		"while ( oldnum < newnum ) {",
+		"CL_DeltaEntity( msg, newframe, oldnum, oldstate, qtrue );",
+		"if (oldnum == newnum) {",
+		"CL_DeltaEntity( msg, newframe, newnum, oldstate, qfalse );",
+		"if ( oldnum > newnum ) {",
+		"CL_DeltaEntity( msg, newframe, newnum, &cl.entityBaselines[newnum], qfalse );",
+		"while ( oldnum != 99999 ) {",
+		"CL_DeltaEntity( msg, newframe, oldnum, oldstate, qtrue );",
+	)
+
+	sv_emit = _function_block(sv_snapshot, "static void SV_EmitPacketEntities")
+	_assert_order(
+		sv_emit,
+		"if ( !from ) {",
+		"from_num_entities = 0;",
+		"while ( newindex < to->num_entities || oldindex < from_num_entities ) {",
+		"if ( newnum == oldnum ) {",
+		"MSG_WriteDeltaEntity (msg, oldent, newent, qfalse );",
+		"if ( newnum < oldnum ) {",
+		"MSG_WriteDeltaEntity (msg, &sv.svEntities[newnum].baseline, newent, qtrue );",
+		"if ( newnum > oldnum ) {",
+		"MSG_WriteDeltaEntity (msg, oldent, NULL, qtrue );",
+		"MSG_WriteBits( msg, (MAX_GENTITIES-1), GENTITYNUM_BITS );",
+	)
+
+	sv_write = _function_block(sv_snapshot, "static void SV_WriteSnapshotToClient")
+	_assert_order(
+		sv_write,
+		"frame = &client->frames[ client->netchan.outgoingSequence & PACKET_MASK ];",
+		"if ( client->deltaMessage <= 0 || client->state != CS_ACTIVE ) {",
+		"oldframe = NULL;",
+		"lastframe = 0;",
+		"oldframe = &client->frames[ client->deltaMessage & PACKET_MASK ];",
+		"lastframe = client->netchan.outgoingSequence - client->deltaMessage;",
+		"MSG_WriteByte (msg, svc_snapshot);",
+		"MSG_WriteLong (msg, svs.time);",
+		"MSG_WriteByte (msg, lastframe);",
+		"MSG_WriteByte (msg, snapFlags);",
+		"MSG_WriteByte (msg, frame->areabytes);",
+		"MSG_WriteData (msg, frame->areabits, frame->areabytes);",
+		"MSG_WriteDeltaPlayerstate( msg, &oldframe->ps, &frame->ps );",
+		"MSG_WriteDeltaPlayerstate( msg, NULL, &frame->ps );",
+		"SV_EmitPacketEntities (oldframe, frame, msg);",
+	)
+
+	process = _function_block(net_chan, "qboolean Netchan_Process( netchan_t *chan, msg_t *msg )")
+	_assert_order(
+		process,
+		"MSG_BeginReadingOOB( msg );",
+		"sequence = MSG_ReadLong( msg );",
+		"if ( sequence & FRAGMENT_BIT ) {",
+		"sequence &= ~FRAGMENT_BIT;",
+		"if ( chan->sock == NS_SERVER && NET_ProtocolUsesNetchanClientQport() ) {",
+		"(void)MSG_ReadShort( msg );",
+		"if ( fragmented ) {",
+		"fragmentStart = MSG_ReadShort( msg );",
+		"fragmentLength = MSG_ReadShort( msg );",
+		"if ( sequence <= chan->incomingSequence ) {",
+		"return qfalse;",
+		"chan->dropped = sequence - (chan->incomingSequence+1);",
+		"if ( fragmented ) {",
+		"if ( sequence != chan->fragmentSequence ) {",
+		"chan->fragmentSequence = sequence;",
+		"chan->fragmentLength = 0;",
+		"if ( fragmentStart != chan->fragmentLength ) {",
+		"return qfalse;",
+		"if ( fragmentLength < 0 || msg->readcount + fragmentLength > msg->cursize ||",
+		"return qfalse;",
+		"Com_Memcpy( chan->fragmentBuffer + chan->fragmentLength,",
+		"chan->fragmentLength += fragmentLength;",
+		"if ( fragmentLength == FRAGMENT_SIZE ) {",
+		"return qfalse;",
+		"*(int *)msg->data = LittleLong( sequence );",
+		"Com_Memcpy( msg->data + 4, chan->fragmentBuffer, chan->fragmentLength );",
+		"msg->cursize = chan->fragmentLength + 4;",
+		"msg->readcount = 4;",
+		"msg->bit = 32;",
+		"chan->incomingSequence = sequence;",
+		"return qtrue;",
+	)
+
+	sv_transmit = sv_net_chan.split("void SV_Netchan_Transmit( client_t *client, msg_t *msg)", 1)[1].split(
+		"/*\n=================\nNetchan_SV_Process",
+		1,
+	)[0]
+	_assert_order(
+		sv_transmit,
+		"MSG_WriteByte( msg, svc_EOF );",
+		"if (client->netchan.unsentFragments) {",
+		"MSG_Copy(&netbuf->msg, netbuf->msgBuffer, sizeof( netbuf->msgBuffer ), msg);",
+		"*client->netchan_end_queue = netbuf;",
+		"client->netchan_end_queue = &(*client->netchan_end_queue)->next;",
+		"Netchan_TransmitNextFragment(&client->netchan);",
+		"if ( NET_ProtocolUsesReliableXorCodec() ) {",
+		"SV_Netchan_Encode( client, msg );",
+		"Netchan_Transmit( &client->netchan, msg->cursize, msg->data );",
+	)
+	assert "we can't store it encoded, as the encoding depends on stuff we still have to finish sending" in sv_transmit
+
+	sv_next_fragment = _function_block(sv_net_chan, "void SV_Netchan_TransmitNextFragment( client_t *client )")
+	_assert_order(
+		sv_next_fragment,
+		"Netchan_TransmitNextFragment( &client->netchan );",
+		"if (!client->netchan.unsentFragments)",
+		"if (client->netchan_start_queue) {",
+		"netbuf = client->netchan_start_queue;",
+		"if ( NET_ProtocolUsesReliableXorCodec() ) {",
+		"SV_Netchan_Encode( client, &netbuf->msg );",
+		"Netchan_Transmit( &client->netchan, netbuf->msg.cursize, netbuf->msg.data );",
+		"client->netchan_start_queue = netbuf->next;",
+		"client->netchan_end_queue = &client->netchan_start_queue;",
+		"Z_Free(netbuf);",
+	)
+
+	parse_entities_hlil = hlil_part04.split("004bd000    uint32_t sub_4bd000", 1)[1].split("004bd350", 1)[0]
+	_assert_order(
+		parse_entities_hlil,
+		"uint32_t i = sub_4d4c70(esi, 0xa)",
+		"if (i_4 != 0x3ff)",
+		"CL_ParsePacketEntities: end of m",
+		"\"%3i:  unchanged: %i\\n\"",
+		"sub_4d5ac0(arg1, ebx, esi_5, i_4)",
+		"\"%3i:  baseline: %i\\n\"",
+		"sub_4d5ac0(arg1, i_4 * 0xec + &data_1477b74, esi_9, i_4)",
+	)
+
+	parse_snapshot_hlil = hlil_part04.split("004bd350    uint32_t sub_4bd350", 1)[1].split("004bd790", 1)[0]
+	_assert_order(
+		parse_snapshot_hlil,
+		"uint32_t var_298 = sub_4d5020(arg1)",
+		"uint32_t eax_4 = sub_4d4fc0(arg1)",
+		"var_290 = eax_3 - eax_4",
+		"Delta frame too old.\\n",
+		"data_1471e98 - esi[0xa4] s<= 0x780",
+		"Delta parseEntitiesNum too old.\\n",
+		"sub_4d5160(arg1, &var_288, eax_7)",
+		"sub_4d66c0(esi, arg1, var_2b0_4, var_2ac_8)",
+		"uint32_t result = sub_4bd000(arg1, esi, &var_2a0)",
+	)
+
+	parse_gamestate_hlil = hlil_part04.split("004bd790    int32_t* sub_4bd790", 1)[1].split("004bda00", 1)[0]
+	_assert_order(
+		parse_gamestate_hlil,
+		"sub_4b4930()",
+		"sub_4b8920()",
+		"data_1606b80 = sub_4d5020(arg1)",
+		"for (uint32_t i = sub_4d4fc0(arg1); i != 8; i = sub_4d4fc0(arg1))",
+		"CL_ParseGamestate: bad command b",
+		"void* eax_9 = sub_4d4c70(arg1, 0xa)",
+		"Baseline number out of range: %i",
+		"memset(&var_174, 0, 0xec)",
+		"sub_4d5ac0(arg1, &var_174, eax_9 * 0xec + &data_1477b74, eax_9)",
+	)
+
+	sv_emit_hlil = hlil_part05.split("004e4fc0    int32_t* sub_4e4fc0", 1)[1].split("004e50e0", 1)[0]
+	_assert_order(
+		sv_emit_hlil,
+		"if (arg1 != 0)",
+		"if (ecx_2 == eax_7)",
+		"sub_4d5780(arg3, edi, esi, 0)",
+		"else if (ecx_2 s< eax_7)",
+		"sub_4d5780(arg3, ecx_2 * 0x148 + &data_12e176c, esi, 1)",
+		"else if (ecx_2 s> eax_7)",
+		"sub_4d5780(arg3, edi, nullptr, 1)",
+	)
+	assert "return sub_4d4af0(arg3, 0x3ff, 0xa)" in sv_emit_hlil
+
+	sv_write_hlil = hlil_part05.split("004e50e0    void* __convention", 1)[1].split("004e5680", 1)[0]
+	_assert_order(
+		sv_write_hlil,
+		"sub_4d4dc0(arg2, 7)",
+		"sub_4d4e30(arg2, eax_6)",
+		"sub_4d4dc0(arg2, var_8_1)",
+		"sub_4d4dc0(arg2, eax_7)",
+		"sub_4d4dc0(arg2, arg1[(eax & 0x1f) * 0xa2 + 0x4274])",
+		"sub_4d4de0(arg2, &arg1[(eax & 0x1f) * 0xa2 + 0x4275], arg1[(eax & 0x1f) * 0xa2 + 0x4274])",
+		"sub_4d5d50(arg2, var_1c_6, var_18_6)",
+		"sub_4e4fc0(ebx, &arg1[(eax & 0x1f) * 0xa2 + 0x4274], arg2)",
+	)
+
+	process_hlil = hlil_part04.split("004d7640    int32_t sub_4d7640", 1)[1].split("004d7970", 1)[0]
+	_assert_order(
+		process_hlil,
+		"sub_4d4a80(arg5)",
+		"uint32_t ebx_1 = sub_4d5020(arg5)",
+		"ebx_1 &= 0x7fffffff",
+		"if (*esi == 1)",
+		"var_c = sub_4d4ff0(arg5)",
+		"eax_2 = sub_4d4ff0(arg5)",
+		"if (ebx_1 s> ecx_2)",
+		"if (var_c != ecx_7)",
+		"\"%s:Dropped a message fragment\\n\"",
+		"\"%s:illegal fragment length\\n\"",
+		"sub_4cb7d0(ecx_7 + esi + 0x30, *(arg5 + 8) + *(arg5 + 0x14), eax_2)",
+		"**(arg5 + 8) = ebx_1",
+		"sub_4cb7d0(*(arg5 + 8) + 4, &esi[0xc], esi[0xb])",
+		"*(arg5 + 0x10) = esi[0xb] + 4",
+		"*(arg5 + 0x14) = 4",
+		"*(arg5 + 0x18) = 0x20",
+	)
+
+	queue_next_hlil = hlil_part05.split("004e4e20    int32_t sub_4e4e20", 1)[1].split("004e4ee0", 1)[0]
+	_assert_order(
+		queue_next_hlil,
+		"sub_4d7370(arg1 + 0x15ae4)",
+		"if (*(arg1 + 0x1db14) == 0)",
+		"if (*(arg1 + 0x25b20) != 0)",
+		"char* esi_1 = *(arg1 + 0x25b20)",
+		"sub_4e4cd0(esi_1, arg1)",
+		"sub_4d74e0(arg1 + 0x15ae4, *(esi_1 + 0x10), *(esi_1 + 8))",
+		"*(arg1 + 0x25b20) = eax_3",
+	)
+
+	queue_transmit_hlil = hlil_part05.split("004e4ee0    int32_t sub_4e4ee0", 1)[1].split("004e4f80", 1)[0]
+	assert "sub_4d4dc0(arg2, 8)" in queue_transmit_hlil
+	assert "sub_4e4cd0(arg2, arg1)" in queue_transmit_hlil
+	assert "return sub_4d74e0(arg1 + 0x15ae4, arg2[4], arg2[2])" in queue_transmit_hlil
+	assert "sub_4d4aa0(eax, eax + 0x1c, 0x8000, arg2)" in queue_transmit_hlil
+	assert "return sub_4d7370(arg1 + 0x15ae4)" in queue_transmit_hlil
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["CL_ParsePacketEntities"]["address"] == "0x004BD000"
+	assert anchors["CL_ParseSnapshot"]["address"] == "0x004BD350"
+	assert anchors["CL_ParseGamestate"]["address"] == "0x004BD790"
+	assert anchors["Netchan_Process"]["address"] == "0x004D7640"
+	assert anchors["SV_Netchan_TransmitNextFragment"]["address"] == "0x004E4E20"
+	assert anchors["SV_Netchan_Transmit"]["address"] == "0x004E4EE0"
+	assert anchors["SV_EmitPacketEntities"]["address"] == "0x004E4FC0"
+	assert anchors["SV_WriteSnapshotToClient"]["address"] == "0x004E50E0"
+
+	capture_status = spec["capture_diff_status"]
+	assert capture_status["status"] == "semantic_replay_contract_and_static_assertions_added"
+	assert capture_status["external_retail_captures_available"] is False
+	assert capture_status["byte_for_byte_replay_available"] is False
+	assert capture_status["semantic_diff_report_ready"] is True
+	known_fixtures = {fixture["fixture_id"]: fixture for fixture in capture_status["current_known_good_fixtures"]}
+	assert set(known_fixtures) == {"retail_duel_semantic_netdump"}
+	assert known_fixtures["retail_duel_semantic_netdump"] == {
+		"fixture_id": "retail_duel_semantic_netdump",
+		"fixture_type": "semantic_snapshot_netdump",
+		"path": "tests/netdumps/retail_duel.snap.json",
+		"baseline": "tools/tests/client_regression/retail_netdump_baseline.json",
+		"source": "retail-qzdm6",
+		"map": "tritoxin",
+		"frame_count": 3,
+		"coverage": [
+			"ordered retail snapshot frames",
+			"HUD hash replay",
+			"usercmd hash replay",
+		],
+		"byte_for_byte_packet_fixture": False,
+	}
+	assert "fragmented server-message capture with a queued follow-up message" in capture_status["required_future_fixture_sources"]
+
+	assert spec["completion_status"]["status"] == "completed_static_replay_contract_and_semantic_diff_ready"
+	assert spec["completion_status"]["source_patch_required"] is False
+	assert spec["completion_status"]["runtime_launch_required"] is False
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 45
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 78
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 85
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 86
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_demo_capture_replay_validation_contract_and_semantic_diff_lanes" in spec["assertion_tests"]
+
+	assert "Network Demo/Capture Replay Validation" in audit_note
+	assert "semantic diff lanes" in audit_note
+	assert "`tests/netdumps/retail_duel.snap.json`" in audit_note
+	assert "semantic snapshot evidence" in audit_note
+	assert "Queued fragment send replay" in audit_note
+	assert "Focused demo/capture replay validation slice: `45%` before, `78%` after." in audit_note
+	assert "Build **demo/capture replay validation**" in plan
+	assert "network-demo-capture-replay-validation-2026-06-05.json" in plan
+	assert "focused demo/capture replay validation slice" in plan
+
+
+def test_residual_policy_spot_check_guardrails_remain_manifest_backed() -> None:
+	spec = _residual_policy_spot_check_spec()
+	note = _read(RESIDUAL_POLICY_SPOT_CHECK_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	platform_config = _read(PLATFORM_CONFIG_PATH)
+	platform_services = _read(PLATFORM_SERVICES_PATH)
+	qcommon_h = _read(QCOMMON_H_PATH)
+	cl_main = _read(CL_MAIN_PATH)
+	sv_main = _read(SV_MAIN_PATH)
+	ownerdraw_index = _read(UI_OWNERDRAWTYPE_PARITY_INDEX_PATH)
+	platform_steamworks = _read(REPO_ROOT / "src/common/platform/platform_steamworks.c")
+	backend_steamworks = _read(REPO_ROOT / "src/common/platform/backends/platform_backend_steamworks.c")
+	backend_open_steam = _read(REPO_ROOT / "src/common/platform/backends/platform_backend_open_steam.c")
+	cl_awesomium = _read(REPO_ROOT / "src/code/client/cl_awesomium_win32.cpp")
+	awesomium_process = _read(REPO_ROOT / "src/code/win32/awesomium_process.cpp")
+	cl_steam_resources = _read(REPO_ROOT / "src/code/client/cl_steam_resources.c")
+	auth_credentials = _read(REPO_ROOT / "src/common/auth_credentials.c")
+	backend_auth = _read(REPO_ROOT / "src/common/platform/platform_backend_auth.h")
+	platform_steamworks_h = _read(REPO_ROOT / "src/common/platform/platform_steamworks.h")
+	win_net = _read(WIN_NET_PATH)
+	common_c = _read(COMMON_C_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["scope"] == "residual_policy_and_planning_checks"
+	assert spec["status"] == "dated_spot_check_complete_manifest_guard_added_policy_callsite_inventory_added"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["source_files"] == [
+		"docs/reverse-engineering/residual-policy-spot-check-2026-06-05.json",
+		"docs/reverse-engineering/residual-policy-spot-check-2026-06-05.md",
+		"docs/plans/2026-06-05-outstanding-work-checklist.md",
+		"tests/test_netcode_parity_manifest.py",
+	]
+
+	online = spec["online_services"]
+	assert online["spot_check_result"] == "No policy drift found in the default source path."
+	assert online["observed_facts"] == [
+		"src/common/platform/platform_config.h defaults QL_BUILD_ONLINE_SERVICES to 0.",
+		"When QL_BUILD_ONLINE_SERVICES is false, platform_config.h forces QL_BUILD_STEAMWORKS and QL_BUILD_OPEN_STEAM to 0.",
+		"QL_BuildServiceTable publishes Build-disabled (QL_BUILD_ONLINE_SERVICES=0) descriptors for auth, matchmaking, workshop, overlay, and stats in the default build.",
+		"Legacy Q3 service calls remain guarded by QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES.",
+		"Known Steamworks, open-adapter, Awesomium, and Steam-resource bridge lanes are inventoried and guarded by compile-time or runtime policy checks.",
+		"Online-service call sites in auth, common startup/frame, client Steam frame/init, and Windows net restart route through compile-time stubs or CL_SteamServicesEnabled runtime checks in the default build.",
+	]
+	_assert_order(
+		platform_config,
+		"#ifndef QL_BUILD_ONLINE_SERVICES",
+		"#define QL_BUILD_ONLINE_SERVICES 0",
+		"#if !QL_BUILD_ONLINE_SERVICES",
+		"#undef QL_BUILD_STEAMWORKS",
+		"#define QL_BUILD_STEAMWORKS 0",
+		"#undef QL_BUILD_OPEN_STEAM",
+		"#define QL_BUILD_OPEN_STEAM 0",
+	)
+	assert "#if !QL_PLATFORM_HAS_ONLINE_SERVICES" in platform_config
+	assert "#undef QL_ENABLE_LEGACY_Q3_SERVICES" in platform_config
+	assert "#define QL_ENABLE_LEGACY_Q3_SERVICES 0" in platform_config
+	for feature in ("auth", "matchmaking", "workshop", "overlay", "stats"):
+		assert f'table.{feature}.provider = "Build-disabled (QL_BUILD_ONLINE_SERVICES=0)";' in platform_services
+	legacy_guard = "#if QL_PLATFORM_HAS_ONLINE_SERVICES && QL_ENABLE_LEGACY_Q3_SERVICES"
+	assert legacy_guard in qcommon_h
+	assert legacy_guard in cl_main
+	assert legacy_guard in sv_main
+
+	lane_inventory = {lane["lane_id"]: lane for lane in online["policy_lane_inventory"]}
+	assert lane_inventory == {
+		"steamworks_platform_wrapper": {
+			"lane_id": "steamworks_platform_wrapper",
+			"path": "src/common/platform/platform_steamworks.c",
+			"gate": "#if QL_BUILD_STEAMWORKS",
+			"classification": "opt-in compile-time Steamworks compatibility lane",
+		},
+		"steamworks_auth_backend": {
+			"lane_id": "steamworks_auth_backend",
+			"path": "src/common/platform/backends/platform_backend_steamworks.c",
+			"gate": "#if QL_BUILD_STEAMWORKS",
+			"classification": "opt-in compile-time Steamworks auth backend",
+		},
+		"open_steam_auth_backend": {
+			"lane_id": "open_steam_auth_backend",
+			"path": "src/common/platform/backends/platform_backend_open_steam.c",
+			"gate": "#if QL_BUILD_OPEN_STEAM",
+			"classification": "opt-in compile-time open-adapter auth backend",
+		},
+		"awesomium_host_adapter": {
+			"lane_id": "awesomium_host_adapter",
+			"path": "src/code/client/cl_awesomium_win32.cpp",
+			"gate": "#if QL_BUILD_ONLINE_SERVICES",
+			"classification": "opt-in compile-time Windows Awesomium compatibility lane",
+		},
+		"awesomium_child_process": {
+			"lane_id": "awesomium_child_process",
+			"path": "src/code/win32/awesomium_process.cpp",
+			"gate": "#if QL_PLATFORM_HAS_ONLINE_SERVICES",
+			"classification": "build-policy-gated Awesomium child-process lane",
+		},
+		"steam_resource_uri_bridge": {
+			"lane_id": "steam_resource_uri_bridge",
+			"path": "src/code/client/cl_steam_resources.c",
+			"gate": "CL_SteamServicesEnabled runtime checks before live Steam avatar callbacks and requests",
+			"classification": "compiled launcher fallback bridge with live Steam requests runtime-gated",
+		},
+	}
+	assert "#if QL_BUILD_STEAMWORKS" in platform_steamworks
+	assert "#if QL_BUILD_STEAMWORKS" in backend_steamworks
+	assert "#if QL_BUILD_OPEN_STEAM" in backend_open_steam
+	_assert_order(
+		cl_awesomium,
+		"#ifndef QL_BUILD_ONLINE_SERVICES",
+		"#define QL_BUILD_ONLINE_SERVICES 0",
+		"#if QL_BUILD_ONLINE_SERVICES",
+	)
+	_assert_order(
+		awesomium_process,
+		"#include \"platform/platform_config.h\"",
+		"#if QL_PLATFORM_HAS_ONLINE_SERVICES",
+		"#include <Awesomium/ChildProcess.h>",
+	)
+	avatar_callbacks = _function_block(cl_steam_resources, "static void CL_SteamResources_RegisterAvatarCallbacks")
+	_assert_order(
+		avatar_callbacks,
+		"if ( cl_steamAvatarCallbacksRegistered || !CL_SteamServicesEnabled() ) {",
+		"return;",
+		"QL_Steamworks_RegisterAvatarCallbacks( &bindings )",
+	)
+	steam_data_request = _function_block(cl_steam_resources, "static qboolean CL_SteamDataSource_Request")
+	_assert_order(
+		steam_data_request,
+		"if ( CL_SteamResources_IsAvatarURL( url ) ) {",
+		"if ( !CL_SteamServicesEnabled() ) {",
+		"return qfalse;",
+		"CL_SteamResources_RequestAvatarRGBA( url, &response->rgbaPixels, &response->width, &response->height )",
+	)
+	steam_register_shader = _function_block(cl_steam_resources, "qhandle_t CL_Steam_RegisterShader")
+	_assert_order(
+		steam_register_shader,
+		"if ( CL_SteamResources_IsSteamURL( url ) ) {",
+		"if ( !CL_SteamServicesEnabled() ) {",
+		"return 0;",
+		"CL_SteamResources_RequestAvatarRGBA( url, &rgbaPixels, &width, &height )",
+	)
+	callsite_inventory = {lane["lane_id"]: lane for lane in online["callsite_stub_inventory"]}
+	assert callsite_inventory == {
+		"auth_backend_dispatch_stubs": {
+			"lane_id": "auth_backend_dispatch_stubs",
+			"paths": [
+				"src/common/auth_credentials.c",
+				"src/common/platform/platform_backend_auth.h",
+			],
+			"callsite": "QL_Auth_ExecuteRequest tries Open Steam then Steamworks auth backends.",
+			"default_policy_guard": "platform_backend_auth.h returns qfalse inline when QL_BUILD_OPEN_STEAM or QL_BUILD_STEAMWORKS are disabled.",
+		},
+		"steamworks_header_default_stubs": {
+			"lane_id": "steamworks_header_default_stubs",
+			"paths": ["src/common/platform/platform_steamworks.h"],
+			"callsite": "Shared Steamworks wrapper declarations are only live under #if QL_BUILD_STEAMWORKS.",
+			"default_policy_guard": "The #else surface returns qfalse for initialisation/server init and no-ops shutdown/callback calls.",
+		},
+		"common_steam_gameserver_bootstrap": {
+			"lane_id": "common_steam_gameserver_bootstrap",
+			"paths": ["src/code/qcommon/common.c"],
+			"callsite": "Com_InitSteamGameServer is called from Com_Init and NET_Restart paths.",
+			"default_policy_guard": "Com_InitSteamGameServer executes live Steam GameServer calls only inside #if QL_BUILD_STEAMWORKS.",
+		},
+		"client_steam_frame_and_init": {
+			"lane_id": "client_steam_frame_and_init",
+			"paths": ["src/code/client/cl_main.c"],
+			"callsite": "SteamClient_Frame and SteamClient_Init own client Steam callbacks, voice, stats, lobby, and rich-presence bootstrap.",
+			"default_policy_guard": "SteamClient_Frame returns unless CL_SteamServicesEnabled and QL_Steamworks_Init succeed; SteamClient_Init logs compatibility fallback when services are disabled.",
+		},
+		"windows_net_restart_steam_hooks": {
+			"lane_id": "windows_net_restart_steam_hooks",
+			"paths": ["src/code/win32/win_net.c"],
+			"callsite": "NET_Restart calls QL_Steamworks_ServerShutdown and Com_InitSteamGameServer around socket reconfiguration.",
+			"default_policy_guard": "The shutdown call resolves to the platform_steamworks.h no-op stub and the init call resolves to the #if QL_BUILD_STEAMWORKS bootstrap gate when online services are disabled.",
+		},
+	}
+	assert online["source_scan"] == {
+		"date": "2026-06-05",
+		"paths": ["src/common", "src/code"],
+		"patterns": [
+			"QL_BUILD_ONLINE_SERVICES",
+			"QL_PLATFORM_HAS_ONLINE_SERVICES",
+			"QL_BUILD_STEAMWORKS",
+			"QL_BUILD_OPEN_STEAM",
+			"Awesomium",
+			"Steam",
+			"steam",
+			"advert",
+			"matchmaking",
+			"workshop",
+			"overlay",
+			"stats",
+		],
+		"classification": "targeted policy drift scan; gameplay uses of stats/overlay words were treated as search noise unless they touched live service bridges",
+		"result": "no new default-enabled Quake Live online-service lane found",
+	}
+	auth_request = _function_block(auth_credentials, "qboolean QL_Auth_ExecuteRequest")
+	_assert_order(
+		auth_request,
+		"if ( QL_PlatformBackendOpenSteam_Authenticate( credential, response ) ) {",
+		"return qtrue;",
+		"if ( QL_PlatformBackendSteamworks_Authenticate( credential, response ) ) {",
+		"return qtrue;",
+		"No authentication backend is available.",
+	)
+	_assert_order(
+		backend_auth,
+		"#if QL_BUILD_STEAMWORKS",
+		"qboolean QL_PlatformBackendSteamworks_Authenticate",
+		"#else",
+		"static inline qboolean QL_PlatformBackendSteamworks_Authenticate",
+		"return qfalse;",
+		"#if QL_BUILD_OPEN_STEAM",
+		"qboolean QL_PlatformBackendOpenSteam_Authenticate",
+		"#else",
+		"static inline qboolean QL_PlatformBackendOpenSteam_Authenticate",
+		"return qfalse;",
+	)
+	_assert_order(
+		platform_steamworks_h,
+		"#if QL_BUILD_STEAMWORKS",
+		"qboolean QL_Steamworks_Init( void );",
+		"qboolean QL_Steamworks_ServerInitWithVersion",
+		"void QL_Steamworks_ServerShutdown( void );",
+		"#else",
+		"static inline qboolean QL_Steamworks_Init( void )",
+		"return qfalse;",
+		"static inline void QL_Steamworks_Shutdown( void )",
+		"static inline void QL_Steamworks_RunCallbacks( void )",
+		"static inline void QL_Steamworks_RunServerCallbacks( void )",
+		"static inline qboolean QL_Steamworks_ServerInitWithVersion",
+		"return qfalse;",
+		"static inline void QL_Steamworks_ServerShutdown( void )",
+	)
+	steam_gameserver = _function_block(common_c, "void Com_InitSteamGameServer")
+	_assert_order(
+		steam_gameserver,
+		"#if QL_BUILD_STEAMWORKS",
+		"QL_Steamworks_ServerInitWithVersion",
+		"QL_Steamworks_ServerLogOn",
+		"QL_Steamworks_ServerEnableHeartbeats( qfalse );",
+		"#elif QL_PLATFORM_HAS_STEAM_SERVICES",
+		"Steam GameServer bootstrap unavailable",
+	)
+	steam_client_frame = _function_block(cl_main, "void SteamClient_Frame( void )")
+	_assert_order(
+		steam_client_frame,
+		"if ( !CL_SteamServicesEnabled() || !QL_Steamworks_Init() ) {",
+		"return;",
+		"QL_Steamworks_RunCallbacks();",
+	)
+	steam_client_init = _function_block(cl_main, "void SteamClient_Init( void )")
+	_assert_order(
+		steam_client_init,
+		"if ( !CL_SteamServicesEnabled() ) {",
+		"CL_LogClientCallbackBootstrapFallback( \"online services disabled; keeping compatibility-only browser event fallback\" );",
+		"} else {",
+		"SteamCallbacks_Init();",
+		"if ( CL_SteamServicesEnabled() ) {",
+		"QL_Steamworks_UnregisterClientCallbacks();",
+	)
+	net_restart = _function_block(win_net, "void NET_Restart( void )")
+	_assert_order(
+		net_restart,
+		"QL_Steamworks_ServerShutdown();",
+		"NET_Config( networkingEnabled );",
+		"Com_InitSteamGameServer();",
+	)
+
+	ownerdraw = spec["ownerdraw"]
+	assert ownerdraw["spot_check_result"] == "Index reviewed; no src/ui edits were made."
+	assert ownerdraw["index"] == "docs/reverse-engineering/ui-ownerdrawtype-parity-index.md"
+	assert ownerdraw["counts"] == {
+		"checked": 36,
+		"partial": 1,
+		"needs_check": 0,
+		"retail_noop_source_legacy": 8,
+		"noop_missing": 1,
+		"sentinel": 1,
+	}
+	assert ownerdraw["remaining_actions"] == [
+		"Complete UI_KEYBINDSTATUS from partial coverage to full parity.",
+		"Audit the retail no-op/source legacy set before any menu-owner changes.",
+		"Confirm UI_VOTE_KICK has no shipped UI ownerdraw usage before marking it closed as a no-op.",
+	]
+	followup_lanes = {lane["lane_id"]: lane for lane in ownerdraw["followup_lane_inventory"]}
+	assert followup_lanes == {
+		"keybindstatus_full_parity_pass": {
+			"lane_id": "keybindstatus_full_parity_pass",
+			"ownerdraw_ids": ["542"],
+			"ownerdraw_types": ["UI_KEYBINDSTATUS"],
+			"current_index_state": "Partial",
+			"index_evidence": "UI_DrawKeyBindStatus @ 0x100092F0; width helper participates; draw and width route wired.",
+			"required_before_closure": [
+				"Add the full normal/pending prompt parity pass called out by the index.",
+				"Keep the retail UI_OwnerDraw and UI_OwnerDrawWidth control-flow evidence attached to the closure note.",
+				"Do not mark the lane checked from count evidence alone.",
+			],
+		},
+		"retail_noop_source_legacy_audit": {
+			"lane_id": "retail_noop_source_legacy_audit",
+			"ownerdraw_ids": ["521", "523", "524", "525", "526", "527", "543", "546"],
+			"ownerdraw_types": [
+				"UI_TIER",
+				"UI_TIERMAP1",
+				"UI_TIERMAP2",
+				"UI_TIERMAP3",
+				"UI_TIER_MAPNAME",
+				"UI_TIER_GAMETYPE",
+				"UI_CLANCINEMATIC",
+				"UI_PREVIEWCINEMATIC",
+			],
+			"current_index_state": "Retail no-op/source legacy",
+			"index_evidence": "Retail dispatcher falls through/defaults for these IDs while current source still has legacy draw or cinematic routes.",
+			"required_before_closure": [
+				"Confirm menu reachability or unused status for each ID.",
+				"Document whether each legacy route stays as compatibility, is gated, or is removed for strict retail parity.",
+				"Recheck UI_CLANCINEMATIC stop-cinematic handling before any source-owner change.",
+			],
+		},
+		"vote_kick_noop_reachability": {
+			"lane_id": "vote_kick_noop_reachability",
+			"ownerdraw_ids": ["530"],
+			"ownerdraw_types": ["UI_VOTE_KICK"],
+			"current_index_state": "No-op/missing",
+			"index_evidence": "Retail dispatcher default/no-op for this ID; no draw, key, or width route exists in current source.",
+			"required_before_closure": [
+				"Confirm no shipped menu depends on UI_VOTE_KICK as a UI ownerdraw.",
+				"Document the menu-search evidence before marking it closed as a no-op.",
+				"Keep closure documentation-first because src/ui is read-only for agents.",
+			],
+		},
+	}
+	assert ownerdraw["src_ui_read_only_respected"] is True
+	for expected in (
+		"| Partial | 1 | `542` |",
+		"| Retail no-op/source legacy | 8 | `521`, `523`, `524`, `525`, `526`, `527`, `543`, `546` |",
+		"| No-op/missing | 1 | `530` |",
+		"| 542 | `UI_KEYBINDSTATUS` |",
+		"| 530 | `UI_VOTE_KICK` |",
+		"| 521 | `UI_TIER` |",
+		"| 543 | `UI_CLANCINEMATIC` |",
+		"| 546 | `UI_PREVIEWCINEMATIC` |",
+		"Next practical sweep order:",
+	):
+		assert expected in ownerdraw_index
+
+	guard = spec["guardrail_assertions"]
+	assert guard["manifest_test"] == "tests/test_netcode_parity_manifest.py::test_residual_policy_spot_check_guardrails_remain_manifest_backed"
+	assert guard["runtime_launch_required"] is False
+	assert guard["game_launch_required"] is False
+	assert guard["source_assertions"] == [
+		"platform_config_default_offline_policy",
+		"provider_specific_flags_forced_off_when_online_services_disabled",
+		"default_service_descriptors_publish_build_disabled_labels",
+		"legacy_q3_service_calls_remain_dual_gated",
+		"online_service_lane_inventory_compile_and_runtime_gates",
+		"online_service_callsite_stub_inventory_gates",
+	]
+	assert guard["ownerdraw_assertions"] == [
+		"ownerdraw_index_counts_match_spot_check_manifest",
+		"ownerdraw_followup_lane_inventory_matches_index_rows",
+		"UI_KEYBINDSTATUS_remains_partial_documentation_first",
+		"retail_noop_source_legacy_set_remains_documentation_first",
+		"UI_VOTE_KICK_remains_noop_missing_documentation_first",
+		"src_ui_tree_was_not_edited_for_this_guard_pass",
+	]
+	assert spec["checklist_effect"] == {
+		"dated_online_services_spot_check_captured": True,
+		"dated_online_service_lane_inventory_captured": True,
+		"dated_online_service_callsite_stub_inventory_captured": True,
+		"dated_ownerdraw_spot_check_captured": True,
+		"dated_ownerdraw_followup_lane_inventory_captured": True,
+		"dated_policy_manifest_guard_captured": True,
+		"ongoing_guardrails_closed": False,
+	}
+	assert spec["assertion_tests"] == [
+		"tests/test_netcode_parity_manifest.py::test_residual_policy_spot_check_guardrails_remain_manifest_backed"
+	]
+	assert spec["parity_estimate"]["repo_wide_before_percent"] == 99
+	assert spec["parity_estimate"]["repo_wide_after_percent"] == 99
+
+	assert "- [ ] Keep Quake Live-only online-service replacements behind" in checklist
+	assert "- [x] 2026-06-05 spot-check: default online-service policy still routes through" in checklist
+	assert "- [x] 2026-06-05 lane inventory: known Steamworks, open-adapter, Awesomium," in checklist
+	assert "- [x] 2026-06-05 call-site/stub inventory: auth dispatch, Steamworks stubs," in checklist
+	assert "- [x] 2026-06-05 manifest guard: residual policy spot-check is backed by" in checklist
+	assert "- [ ] Check the ownerdraw parity indexes before starting new UI work" in checklist
+	assert "- [x] 2026-06-05 spot-check: `ui-ownerdrawtype-parity-index.md` was reviewed" in checklist
+	assert "- [x] 2026-06-05 ownerdraw follow-up inventory: `UI_KEYBINDSTATUS`, the" in checklist
+	assert "Manifest Guard" in note
+	assert "Policy lane inventory:" in note
+	assert "Call-site/stub inventory:" in note
+	assert "Targeted source scan:" in note
+	assert "Follow-up lane inventory:" in note
+	assert "Keybind status full parity pass" in note
+	assert "Retail no-op/source legacy audit" in note
+	assert "Vote-kick no-op reachability" in note
+	assert "test_residual_policy_spot_check_guardrails_remain_manifest_backed" in note
+	assert "No `src/ui/` files were edited for this guard pass." in note
+
+
+def test_networking_2_residual_capture_blocker_audit_keeps_external_evidence_rows_open() -> None:
+	spec = _networking_2_capture_blockers_spec()
+	note = _read(NETWORKING_2_CAPTURE_BLOCKERS_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	replay_spec = _networking_2_replay_validation_spec()
+	xor_spec = _networking_2_xor_codec_spec()
+	huffman_spec = _networking_2_huffman_fixtures_spec()
+	hardening_spec = _networking_2_hardening_spec()
+	capture_bundle_spec = _networking_2_capture_evidence_bundle_validation_spec()
+	fragment_timing_spec = _networking_2_fragment_queue_timing_validation_spec()
+	invalid_lc_spec = _networking_2_invalid_lc_probe_validation_spec()
+	snapshot_decode_spec = _networking_2_snapshot_field_decode_validation_spec()
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json",
+		"docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-hardening-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json",
+		"docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.json",
+	]
+
+	inventory = spec["evidence_inventory"]
+	assert inventory["committed_byte_for_byte_retail_capture_available"] is False
+	assert inventory["committed_protocol_91_demo_transcript_available"] is False
+	assert inventory["demo_transcript_intake_ready"] is True
+	assert inventory["demo_transcript_intake"]["tool"] == "tools/trace/demo_transcript.py"
+	assert inventory["demo_transcript_intake"]["validator_audit"] == "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.md"
+	assert inventory["demo_transcript_intake"]["capture_diff_audit"] == "docs/reverse-engineering/network-capture-diff-tooling-2026-06-05.md"
+	assert inventory["demo_transcript_intake"]["retail_transcript_committed"] is False
+	assert inventory["fragment_queue_timing_validation_ready"] is True
+	assert inventory["fragment_queue_timing_validation"]["tool"] == "tools/trace/fragment_timing.py"
+	assert inventory["fragment_queue_timing_validation"]["audit"] == "docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.md"
+	assert inventory["fragment_queue_timing_validation"]["retail_fragment_queue_capture_committed"] is False
+	assert inventory["invalid_lc_probe_validation_ready"] is True
+	assert inventory["invalid_lc_probe_validation"]["tool"] == "tools/trace/invalid_lc_probe.py"
+	assert inventory["invalid_lc_probe_validation"]["audit"] == "docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.md"
+	assert inventory["invalid_lc_probe_validation"]["retail_invalid_lc_probe_committed"] is False
+	assert inventory["snapshot_field_decode_validation_ready"] is True
+	assert inventory["snapshot_field_decode_validation"]["tool"] == "tools/trace/snapshot_decode.py"
+	assert inventory["snapshot_field_decode_validation"]["audit"] == "docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.md"
+	assert inventory["snapshot_field_decode_validation"]["retail_snapshot_decode_report_committed"] is False
+	assert inventory["capture_evidence_bundle_validation_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["tool"] == "tools/trace/capture_evidence.py"
+	assert inventory["capture_evidence_bundle_validation"]["audit"] == "docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.md"
+	assert inventory["capture_evidence_bundle_validation"]["cli"] == "python -m tools.trace.capture_evidence"
+	assert inventory["capture_evidence_bundle_validation"]["cli_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["required_closure_row_cli_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["required_closure_row_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --require-closure-row <row_id>"
+	assert inventory["capture_evidence_bundle_validation"]["all_closure_rows_cli_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["all_closure_rows_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --require-all-closure-rows"
+	assert inventory["capture_evidence_bundle_validation"]["strict_final_closure_cli_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["strict_final_closure_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --strict-final-closure --artifact-root <repo_root>"
+	assert inventory["capture_evidence_bundle_validation"]["row_contract_cli_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["row_contract_cli"] == "python -m tools.trace.capture_evidence --print-row-contracts --row-contract <row_id>"
+	assert inventory["capture_evidence_bundle_validation"]["capture_plan_cli_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["capture_plan_cli"] == "python -m tools.trace.capture_evidence --print-capture-plan --capture-plan-row <row_id>"
+	assert inventory["capture_evidence_bundle_validation"]["template_generation_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["template_cli"] == "python -m tools.trace.capture_evidence --print-template --template-row <row_id>"
+	assert inventory["capture_evidence_bundle_validation"]["artifact_hash_generation_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["artifact_hash_cli"] == "python -m tools.trace.capture_evidence --hash-artifact <artifact_path> --artifact-root <repo_root>"
+	assert inventory["capture_evidence_bundle_validation"]["artifact_file_verification_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["artifact_verification_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --verify-artifact-files --artifact-root <repo_root>"
+	assert inventory["capture_evidence_bundle_validation"]["artifact_text_policy_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["artifact_text_policy_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --enforce-artifact-text-policy"
+	assert inventory["capture_evidence_bundle_validation"]["artifact_path_policy_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["artifact_path_policy_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --enforce-artifact-path-policy"
+	assert inventory["capture_evidence_bundle_validation"]["artifact_uniqueness_policy_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["artifact_uniqueness_policy_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --enforce-artifact-uniqueness-policy"
+	assert inventory["capture_evidence_bundle_validation"]["closure_status_summary_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["closure_status_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --print-closure-status"
+	assert inventory["capture_evidence_bundle_validation"]["closure_blocker_summary_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["closure_blocker_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --print-closure-blockers"
+	assert inventory["capture_evidence_bundle_validation"]["closure_blocker_fail_gate_ready"] is True
+	assert inventory["capture_evidence_bundle_validation"]["closure_blocker_fail_gate_cli"] == "python -m tools.trace.capture_evidence <bundle.json> --print-closure-blockers --fail-on-closure-blockers"
+	assert inventory["capture_evidence_bundle_validation"]["retail_capture_evidence_bundle_committed"] is False
+	assert inventory["committed_semantic_snapshot_fixture_available"] is True
+	assert inventory["known_semantic_fixture"]["path"] == "tests/netdumps/retail_duel.snap.json"
+	assert inventory["known_semantic_fixture"]["baseline"] == "tools/tests/client_regression/retail_netdump_baseline.json"
+	assert "no original datagram bytes" in inventory["known_semantic_fixture"]["limits"]
+	assert "no packet-entity byte stream for playerStateFields/entityStateFields decode comparison" in inventory["known_semantic_fixture"]["limits"]
+
+	assert replay_spec["capture_diff_status"]["byte_for_byte_replay_available"] is False
+	assert capture_bundle_spec["checklist_effect"]["external_evidence_rows_closed"] is False
+	assert fragment_timing_spec["checklist_effect"]["fragmented_snapshot_queued_followup_row_closed"] is False
+	assert xor_spec["capture_diff_status"]["external_retail_captures_available"] is False
+	assert "compressed_connect_profile91_numeric_challenge" in {
+		fixture["id"] for fixture in huffman_spec["fixtures"]
+	}
+	assert "controlled retail probing" in hardening_spec["completion_status"]["remaining_gaps"][1]
+	assert invalid_lc_spec["checklist_effect"]["invalid_lc_retail_probe_row_closed"] is False
+	assert snapshot_decode_spec["checklist_effect"]["snapshot_field_capture_decode_row_closed"] is False
+
+	source_boundaries = {boundary["id"]: boundary for boundary in spec["source_complete_boundaries"]}
+	assert source_boundaries["client_message_sideband_producers"]["status"] == "source_complete_capture_diff_pending"
+	assert source_boundaries["xor_codec_static_datagrams"]["status"] == "static_wire_vectors_ready_capture_diff_pending"
+	assert source_boundaries["compressed_connect_huffman_fixture"]["status"] == "deterministic_fixture_ready_capture_diff_pending"
+	assert source_boundaries["snapshot_field_tables"]["status"] == "retail_table_parity_locked_capture_decode_pending"
+
+	blocked_rows = {row["row_id"]: row for row in spec["blocked_checklist_rows"]}
+	assert set(blocked_rows) == {
+		"byte_for_byte_replay_fixture",
+		"fragmented_snapshot_queued_followup",
+		"xor_golden_datagrams",
+		"compressed_connect_capture_diff",
+		"invalid_lc_retail_probe",
+		"snapshot_field_capture_decode",
+	}
+	assert blocked_rows["byte_for_byte_replay_fixture"]["status"] == "external_evidence_required"
+	assert blocked_rows["fragmented_snapshot_queued_followup"]["status"] == "external_evidence_required"
+	assert blocked_rows["invalid_lc_retail_probe"]["status"] == "external_runtime_probe_required"
+	assert "tests/netdumps/retail_duel.snap.json is semantic snapshot evidence only." in blocked_rows["byte_for_byte_replay_fixture"]["current_repo_evidence"]
+	assert "network-capture-evidence-bundle-validation-2026-06-05.json validates future evidence bundles, can require specific submitted closure rows or all residual rows, can run strict final closure with retail provenance plus artifact-file verification, can print row contract inventories, row-scoped capture plans, and row-scoped templates, can emit artifact hash inventories, can verify committed artifact files against declared SHA-256 values, can enforce reviewed JSON/text artifact paths, evidence-directory path scope, and artifact uniqueness, can summarize per-row closure status and blockers, and can fail CI/review jobs when blockers remain, but commits no retail capture bundle." in blocked_rows["byte_for_byte_replay_fixture"]["current_repo_evidence"]
+	assert "network-fragment-queue-timing-validation-2026-06-05.json validates future timing reports but commits no retail capture." in blocked_rows["fragmented_snapshot_queued_followup"]["current_repo_evidence"]
+	assert "retail packet traces exercising the committed XOR vector windows" in blocked_rows["xor_golden_datagrams"]["closure_requires"]
+	assert "network-invalid-lc-probe-validation-2026-06-05.json validates future controlled probe reports but commits no retail probe." in blocked_rows["invalid_lc_retail_probe"]["current_repo_evidence"]
+	assert "controlled retail invalid-lc probe" in blocked_rows["invalid_lc_retail_probe"]["closure_requires"]
+	assert "network-snapshot-field-decode-validation-2026-06-05.json validates future player/entity decode reports but commits no retail packet/decode evidence." in blocked_rows["snapshot_field_capture_decode"]["current_repo_evidence"]
+	assert "retail snapshot packet capture or protocol-91 transcript with playerstate and packet entities" in blocked_rows["snapshot_field_capture_decode"]["closure_requires"]
+
+	assert spec["checklist_effect"] == {
+		"new_checked_blocker_audit_row": True,
+		"new_checked_demo_transcript_intake_row": True,
+		"new_checked_fixture_validation_row": True,
+		"new_checked_capture_diff_tooling_row": True,
+		"new_checked_fragment_queue_timing_validation_row": True,
+		"new_checked_invalid_lc_probe_validation_row": True,
+		"new_checked_snapshot_field_decode_validation_row": True,
+		"new_checked_capture_evidence_bundle_validation_row": True,
+		"new_checked_capture_evidence_bundle_cli_row": True,
+		"new_checked_capture_evidence_required_row_cli_row": True,
+		"new_checked_capture_evidence_row_contract_cli_row": True,
+		"new_checked_capture_evidence_capture_plan_cli_row": True,
+		"new_checked_capture_evidence_bundle_template_row": True,
+		"new_checked_capture_evidence_artifact_hash_generation_row": True,
+		"new_checked_capture_evidence_bundle_artifact_hash_row": True,
+		"new_checked_capture_evidence_artifact_text_policy_row": True,
+		"new_checked_capture_evidence_artifact_path_policy_row": True,
+		"new_checked_capture_evidence_artifact_uniqueness_policy_row": True,
+		"new_checked_capture_evidence_closure_status_row": True,
+		"new_checked_capture_evidence_all_rows_cli_row": True,
+		"new_checked_capture_evidence_strict_final_closure_row": True,
+		"new_checked_capture_evidence_closure_blockers_row": True,
+		"new_checked_capture_evidence_blocker_fail_gate_row": True,
+		"capture_rows_remain_open": True,
+		"policy_rows_unchanged": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+	assert spec["parity_estimate"]["repo_wide_before_percent"] == 99
+	assert spec["parity_estimate"]["repo_wide_after_percent"] == 99
+
+	assert "- [x] 2026-06-05 residual capture-blocker audit: committed evidence inventory" in checklist
+	assert "- [x] Add protocol-91 demo transcript intake tooling so future retail `.dm_91`" in checklist
+	assert "- [x] Add protocol-91 transcript validation gates for hashes, offsets," in checklist
+	assert "- [x] Add residual capture evidence bundle validation gates so future retail" in checklist
+	assert "- [x] Add a command-line validator for residual capture evidence bundles so" in checklist
+	assert "- [x] Add command-line residual capture evidence required-row checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence row contract output so" in checklist
+	assert "- [x] Add command-line residual capture evidence capture-plan output so" in checklist
+	assert "- [x] Add command-line residual capture evidence bundle template generation so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact hash generation so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact path/SHA-256" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact text-policy checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact path-scope checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact uniqueness checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence closure-status summaries so" in checklist
+	assert "- [x] Add command-line residual capture evidence all-rows closure checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence strict final-closure checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence closure-blocker reports so" in checklist
+	assert "- [x] Add command-line residual capture evidence blocker-fail gates so" in checklist
+	assert "- [x] Add packet-byte capture-diff tooling for committed XOR datagram vectors" in checklist
+	assert "- [x] Add fragmented snapshot/queued follow-up timing report validation gates" in checklist
+	assert "- [x] Add invalid-`lc` controlled retail probe report validation gates" in checklist
+	assert "- [x] Add snapshot field decode report validation gates for future" in checklist
+	assert "- [ ] Commit at least one retail packet capture, protocol-91 demo transcript" in checklist
+	assert "- [ ] Validate fragmented snapshot plus queued follow-up timing against a" in checklist
+	assert "- [ ] Capture-diff the XOR golden datagrams against retail packet traces." in checklist
+	assert "- [ ] Capture-diff the compressed `connect` request path against a retail trace." in checklist
+	assert "- [ ] Probe invalid-`lc` malicious packet behavior against retail before" in checklist
+	assert "- [ ] Verify end-to-end retail snapshot capture/decode parity for" in checklist
+	assert "docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.md" in checklist
+
+	assert "Network Residual Capture Blockers" in note
+	assert "checked transcript-intake, transcript-validation, and capture-diff" in note
+	assert "checked fragment/queue timing-validation and invalid-`lc`" in note
+	assert "checked snapshot field decode-validation" in note
+	assert "capture evidence bundle-validation rows" in note
+	assert "including CLI validation" in note
+	assert "required-row closure checks" in note
+	assert "all-rows closure checks" in note
+	assert "strict final-closure checks" in note
+	assert "row contract output" in note
+	assert "non-claiming template generation" in note
+	assert "artifact hash generation" in note
+	assert "artifact path/SHA-256 verification" in note
+	assert "artifact text-policy checks" in note
+	assert "artifact path-scope checks" in note
+	assert "artifact uniqueness checks" in note
+	assert "closure-status summaries" in note
+	assert "closure-blocker" in note
+	assert "blocker-fail gates" in note
+	assert "packet-byte and" in note
+	assert "retail-probe rows remain unchecked" in note
+	assert "unchecked" in note
+	assert "Overall network-protocol source parity remains `90%` -> `90%`." in note
+	assert "Residual capture-blocker audit, 2026-06-05:" in plan
+	assert "byte-for-byte capture evidence remains" in plan
+	assert "--require-all-closure-rows" in plan
+	assert "--strict-final-closure --artifact-root <repo_root>" in plan
+	assert "--enforce-artifact-text-policy" in plan
+	assert "--enforce-artifact-path-policy" in plan
+	assert "--enforce-artifact-uniqueness-policy" in plan
+	assert "--print-closure-status" in plan
+	assert "--print-closure-blockers" in plan
+	assert "--fail-on-closure-blockers" in plan
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_residual_capture_blocker_audit_keeps_external_evidence_rows_open" in spec["assertion_tests"]
+
+
+def test_networking_2_capture_diff_tooling_compares_xor_and_connect_datagrams() -> None:
+	spec = _networking_2_capture_diff_tooling_spec()
+	note = _read(NETWORKING_2_CAPTURE_DIFF_TOOLING_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	tool = _read(REPO_ROOT / "tools/trace/capture_diff.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+	xor_spec = _networking_2_xor_codec_spec()
+	huffman_spec = _networking_2_huffman_fixtures_spec()
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_capture_diff_tooling_no_retail_capture_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["source_files"] == [
+		"tools/trace/capture_diff.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+	assert spec["supported_checklist_rows"] == [
+		"Capture-diff the XOR golden datagrams against retail packet traces.",
+		"Capture-diff the compressed connect request path against a retail trace.",
+	]
+
+	contract = spec["tool_contract"]
+	assert contract["module"] == "tools.trace.capture_diff"
+	assert contract["capture_format"] == "quake_live_packet_byte_capture"
+	assert contract["report_format"] == "quake_live_capture_diff_report"
+	assert contract["functions"] == [
+		"validate_packet_capture_dict",
+		"packet_expectations_from_xor_spec",
+		"packet_expectations_from_huffman_spec",
+		"diff_packet_capture",
+	]
+	assert contract["result_statuses"] == ["match", "missing", "mismatch"]
+	assert contract["report_columns"] == [
+		"fixture_id",
+		"lane",
+		"source",
+		"status",
+		"expected_size",
+		"observed_size",
+		"expected_sha256",
+		"observed_sha256",
+		"first_mismatch_offset",
+	]
+	assert contract["retail_provenance_required_for_closure"] is True
+
+	sources = {source["lane"]: source for source in spec["expectation_sources"]}
+	assert sources["xor_golden_datagram"]["field"] == "golden_vectors[].encoded_datagram_hex"
+	assert sources["adaptive_huffman_datagram"]["field"] == "fixtures[].encoded_datagram_hex"
+	assert any("encoded_datagram_hex" in vector for vector in xor_spec["golden_vectors"])
+	assert any("encoded_datagram_hex" in fixture for fixture in huffman_spec["fixtures"])
+
+	assert "class PacketExpectation" in tool
+	assert "def validate_packet_capture_dict" in tool
+	assert "def packet_expectations_from_xor_spec" in tool
+	assert "def packet_expectations_from_huffman_spec" in tool
+	assert "def diff_packet_capture" in tool
+	assert "\"quake_live_capture_diff_report\"" in tool
+	assert "\"first_mismatch_offset\"" in tool
+	assert "packet_expectations_from_xor_spec" in trace_init
+	assert "packet_expectations_from_huffman_spec" in trace_init
+	assert "test_packet_capture_diff_matches_xor_and_huffman_fixture_bytes" in trace_tests
+	assert "test_packet_capture_diff_reports_missing_and_mismatched_fixture_bytes" in trace_tests
+
+	assert spec["checklist_effect"] == {
+		"new_checked_capture_diff_tooling_row": True,
+		"xor_capture_diff_row_closed": False,
+		"compressed_connect_capture_diff_row_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+
+	assert "- [x] Add packet-byte capture-diff tooling for committed XOR datagram vectors" in checklist
+	assert "- [ ] Capture-diff the XOR golden datagrams against retail packet traces." in checklist
+	assert "- [ ] Capture-diff the compressed `connect` request path against a retail trace." in checklist
+	assert "docs/reverse-engineering/network-capture-diff-tooling-2026-06-05.md" in checklist
+	assert "Network Capture Diff Tooling" in note
+	assert "does not claim that a retail packet trace" in note
+	assert "committed." in note
+	assert "The actual XOR" in note
+	assert "Residual capture-diff tooling update, 2026-06-05:" in plan
+	assert "The XOR and compressed-`connect` capture" in plan
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_capture_diff_tooling_compares_xor_and_connect_datagrams" in spec["assertion_tests"]
+
+
+def test_networking_2_capture_evidence_bundle_validation_gate_maps_residual_rows() -> None:
+	spec = _networking_2_capture_evidence_bundle_validation_spec()
+	note = _read(NETWORKING_2_CAPTURE_EVIDENCE_BUNDLE_VALIDATION_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	blockers = _networking_2_capture_blockers_spec()
+	tool = _read(REPO_ROOT / "tools/trace/capture_evidence.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_capture_evidence_bundle_validation_gate_no_retail_evidence_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-capture-diff-tooling-2026-06-05.json",
+		"docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json",
+	]
+	assert spec["source_files"] == [
+		"tools/trace/capture_evidence.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+	assert spec["supported_checklist_rows"] == [
+		"Commit at least one retail packet capture, protocol-91 demo transcript, or equivalent known-good capture fixture for byte-for-byte replay validation.",
+		"Validate fragmented snapshot plus queued follow-up timing against a byte-for-byte retail capture.",
+		"Capture-diff the XOR golden datagrams against retail packet traces.",
+		"Capture-diff the compressed connect request path against a retail trace.",
+		"Probe invalid-lc malicious packet behavior against retail before claiming exact crash/drop equivalence.",
+		"Verify end-to-end retail snapshot capture/decode parity for playerStateFields and entityStateFields.",
+	]
+
+	contract = spec["tool_contract"]
+	assert contract["module"] == "tools.trace.capture_evidence"
+	assert contract["function"] == "validate_capture_evidence_bundle_dict"
+	assert contract["row_contract_function"] == "capture_evidence_row_contracts"
+	assert contract["capture_plan_function"] == "capture_evidence_capture_plan"
+	assert contract["template_function"] == "capture_evidence_bundle_template"
+	assert contract["artifact_hash_function"] == "hash_capture_evidence_artifacts"
+	assert contract["artifact_verify_function"] == "verify_capture_evidence_artifact_files"
+	assert contract["artifact_text_policy_function"] == "verify_capture_evidence_artifact_text_policy"
+	assert contract["artifact_path_policy_function"] == "verify_capture_evidence_artifact_path_policy"
+	assert contract["artifact_uniqueness_policy_function"] == "verify_capture_evidence_artifact_uniqueness_policy"
+	assert contract["closure_row_require_function"] == "require_capture_evidence_closure_rows"
+	assert contract["all_closure_rows_require_function"] == "require_all_capture_evidence_closure_rows"
+	assert contract["closure_status_function"] == "summarize_capture_evidence_closure_status"
+	assert contract["closure_blockers_function"] == "summarize_capture_evidence_closure_blockers"
+	assert contract["closure_blocker_gate_function"] == "require_capture_evidence_no_closure_blockers"
+	assert contract["format"] == "quake_live_capture_evidence_bundle"
+	assert contract["protocol"] == 91
+	assert contract["closure_target_statuses"] == [
+		"submitted_for_closure",
+		"supporting_evidence",
+		"not_claimed",
+	]
+	assert contract["residual_row_ids"] == [
+		"byte_for_byte_replay_fixture",
+		"fragmented_snapshot_queued_followup",
+		"xor_golden_datagrams",
+		"compressed_connect_capture_diff",
+		"invalid_lc_retail_probe",
+		"snapshot_field_capture_decode",
+	]
+	assert contract["embedded_report_formats"] == [
+		"quake_live_demo_message_transcript",
+		"quake_live_packet_byte_capture",
+		"quake_live_capture_diff_report",
+		"quake_live_fragment_queue_timing",
+		"quake_live_invalid_lc_probe",
+		"quake_live_snapshot_field_decode",
+	]
+	assert "embedded reports are delegated to their row-specific validators" in contract["checks"]
+	assert "closure capture-diff reports must have match status" in contract["checks"]
+	assert "optional required closure row checks prove selected residual rows are submitted_for_closure" in contract["checks"]
+	assert "all-rows closure checks require every residual row to be submitted_for_closure" in contract["checks"]
+	assert "row contract output lists residual row IDs, checklist text, allowed formats, artifact types, and target statuses" in contract["checks"]
+	assert "capture plan output lists required evidence, provenance keys, reviewed artifact paths, and row-scoped helper commands without claiming retail evidence" in contract["checks"]
+	assert "template generation emits not_claimed targets until retail artifacts are filled" in contract["checks"]
+	assert "artifact hash generation emits repo-relative path, byte size, and lowercase SHA-256 for future bundle entries" in contract["checks"]
+	assert "optional artifact file verification confirms committed paths exist and match declared SHA-256 values" in contract["checks"]
+	assert "optional artifact text-policy checks require reviewed .json, .md, or .txt paths and reject raw capture/demo/dump/archive suffixes" in contract["checks"]
+	assert "optional artifact path-scope checks require reviewed evidence directories and reject assets, references, and source-tree paths" in contract["checks"]
+	assert "optional artifact uniqueness checks reject repeated artifact IDs or paths across closure rows" in contract["checks"]
+	assert "closure status output summarizes every residual row as submitted, supporting, not claimed, or missing" in contract["checks"]
+	assert "closure blocker output lists blocked residual rows with accepted artifact formats and next actions" in contract["checks"]
+	assert "closure blocker fail gate returns non-zero when required rows remain blocked" in contract["checks"]
+	assert "strict final closure mode requires retail provenance, all residual rows, and verified artifact files" in contract["checks"]
+	assert contract["retail_provenance_required_for_closure"] is True
+	assert spec["cli_contract"] == {
+		"entry_point": "python -m tools.trace.capture_evidence",
+		"arguments": [
+			"bundle",
+			"--playerstate-spec",
+			"--entitystate-spec",
+			"--require-retail-provenance",
+			"--require-closure-row",
+			"--require-all-closure-rows",
+			"--strict-final-closure",
+			"--print-row-contracts",
+			"--row-contract",
+			"--print-capture-plan",
+			"--capture-plan-row",
+			"--print-template",
+			"--template-row",
+			"--hash-artifact",
+			"--verify-artifact-files",
+			"--enforce-artifact-text-policy",
+			"--enforce-artifact-path-policy",
+			"--enforce-artifact-uniqueness-policy",
+			"--print-closure-status",
+			"--print-closure-blockers",
+			"--fail-on-closure-blockers",
+			"--artifact-root",
+		],
+		"strict_final_closure_cli": "python -m tools.trace.capture_evidence <bundle.json> --strict-final-closure --artifact-root <repo_root>",
+		"success_output": "JSON validation summary, row contract inventory, capture plan inventory, artifact hash inventory, artifact-file verification summary, strict final-closure summary, closure status summary, closure blocker summary, blocker-fail gate summary, or non-claiming bundle template",
+		"failure_output": "non-zero exit with diagnostic on stderr",
+	}
+
+	assert "ROW_ALLOWED_FORMATS" in tool
+	assert "\"byte_for_byte_replay_fixture\"" in tool
+	assert "\"fragmented_snapshot_queued_followup\"" in tool
+	assert "\"xor_golden_datagrams\"" in tool
+	assert "\"compressed_connect_capture_diff\"" in tool
+	assert "\"invalid_lc_retail_probe\"" in tool
+	assert "\"snapshot_field_capture_decode\"" in tool
+	assert "def validate_capture_evidence_bundle_dict" in tool
+	assert "def capture_evidence_row_contracts" in tool
+	assert "def capture_evidence_capture_plan" in tool
+	assert "def capture_evidence_bundle_template" in tool
+	assert "def hash_capture_evidence_artifacts" in tool
+	assert "def verify_capture_evidence_artifact_files" in tool
+	assert "def verify_capture_evidence_artifact_text_policy" in tool
+	assert "def verify_capture_evidence_artifact_path_policy" in tool
+	assert "def verify_capture_evidence_artifact_uniqueness_policy" in tool
+	assert "def require_capture_evidence_closure_rows" in tool
+	assert "def require_capture_evidence_no_closure_blockers" in tool
+	assert "def require_all_capture_evidence_closure_rows" in tool
+	assert "def summarize_capture_evidence_closure_status" in tool
+	assert "def summarize_capture_evidence_closure_blockers" in tool
+	assert "def main" in tool
+	assert "\"quake_live_capture_evidence_bundle\"" in tool
+	assert "python -m tools.trace.capture_evidence --print-template" in tool
+	assert "closure capture diff reports must have match status" in tool
+	assert "--require-retail-provenance" in tool
+	assert "--require-closure-row" in tool
+	assert "--require-all-closure-rows" in tool
+	assert "--strict-final-closure" in tool
+	assert "--print-row-contracts" in tool
+	assert "--row-contract" in tool
+	assert "--print-capture-plan" in tool
+	assert "--capture-plan-row" in tool
+	assert "--print-template" in tool
+	assert "--template-row" in tool
+	assert "--hash-artifact" in tool
+	assert "--verify-artifact-files" in tool
+	assert "--enforce-artifact-text-policy" in tool
+	assert "--enforce-artifact-path-policy" in tool
+	assert "--enforce-artifact-uniqueness-policy" in tool
+	assert "--print-closure-status" in tool
+	assert "--print-closure-blockers" in tool
+	assert "--fail-on-closure-blockers" in tool
+	assert "--artifact-root" in tool
+	assert "validator(report, **kwargs)" in tool
+	assert "CaptureEvidenceError" in trace_init
+	assert "capture_evidence_capture_plan" in trace_init
+	assert "capture_evidence_row_contracts" in trace_init
+	assert "capture_evidence_bundle_template" in trace_init
+	assert "hash_capture_evidence_artifacts" in trace_init
+	assert "verify_capture_evidence_artifact_path_policy" in trace_init
+	assert "verify_capture_evidence_artifact_text_policy" in trace_init
+	assert "verify_capture_evidence_artifact_uniqueness_policy" in trace_init
+	assert "require_capture_evidence_closure_rows" in trace_init
+	assert "require_capture_evidence_no_closure_blockers" in trace_init
+	assert "require_all_capture_evidence_closure_rows" in trace_init
+	assert "summarize_capture_evidence_closure_status" in trace_init
+	assert "summarize_capture_evidence_closure_blockers" in trace_init
+	assert "validate_capture_evidence_bundle_dict" in trace_init
+	assert "verify_capture_evidence_artifact_files" in trace_init
+	assert "test_capture_evidence_bundle_validator_accepts_embedded_retail_reports" in trace_tests
+	assert "test_capture_evidence_bundle_validator_rejects_wrong_row_format_and_diff_failures" in trace_tests
+	assert "test_capture_evidence_bundle_cli_validates_json_file" in trace_tests
+	assert "test_capture_evidence_bundle_cli_reports_validation_errors" in trace_tests
+	assert "test_capture_evidence_bundle_cli_requires_specific_closure_rows" in trace_tests
+	assert "test_capture_evidence_bundle_cli_requires_all_closure_rows" in trace_tests
+	assert "test_capture_evidence_all_closure_row_requirement_rejects_missing_rows" in trace_tests
+	assert "test_capture_evidence_closure_row_requirement_rejects_supporting_only_rows" in trace_tests
+	assert "test_capture_evidence_closure_status_summarizes_all_residual_rows" in trace_tests
+	assert "test_capture_evidence_bundle_cli_prints_closure_status" in trace_tests
+	assert "test_capture_evidence_closure_blockers_summarize_blocked_residual_rows" in trace_tests
+	assert "test_capture_evidence_bundle_cli_prints_closure_blockers" in trace_tests
+	assert "test_capture_evidence_no_closure_blockers_rejects_blocked_rows" in trace_tests
+	assert "test_capture_evidence_bundle_cli_fails_on_closure_blockers_after_printing_report" in trace_tests
+	assert "test_capture_evidence_bundle_cli_prints_row_contracts" in trace_tests
+	assert "test_capture_evidence_row_contracts_reject_unknown_rows" in trace_tests
+	assert "test_capture_evidence_capture_plan_lists_row_scoped_collection_requirements" in trace_tests
+	assert "test_capture_evidence_bundle_cli_prints_row_scoped_capture_plan" in trace_tests
+	assert "test_capture_evidence_capture_plan_rejects_unknown_rows" in trace_tests
+	assert "test_capture_evidence_bundle_template_is_non_claiming_and_row_scoped" in trace_tests
+	assert "test_capture_evidence_bundle_cli_prints_row_scoped_template" in trace_tests
+	assert "test_capture_evidence_bundle_cli_hashes_artifacts_for_bundle_population" in trace_tests
+	assert "test_capture_evidence_artifact_hashing_rejects_root_escape" in trace_tests
+	assert "test_capture_evidence_bundle_cli_verifies_artifact_files" in trace_tests
+	assert "test_capture_evidence_artifact_text_policy_accepts_reviewed_text_paths" in trace_tests
+	assert "test_capture_evidence_bundle_cli_enforces_artifact_text_policy" in trace_tests
+	assert "test_capture_evidence_artifact_path_policy_accepts_reviewed_evidence_paths" in trace_tests
+	assert "test_capture_evidence_bundle_cli_enforces_artifact_path_policy" in trace_tests
+	assert "test_capture_evidence_artifact_uniqueness_policy_accepts_unique_artifacts" in trace_tests
+	assert "test_capture_evidence_bundle_cli_enforces_artifact_uniqueness_policy" in trace_tests
+	assert "test_capture_evidence_bundle_cli_strict_final_closure_requires_all_rows_and_artifacts" in trace_tests
+	assert "test_capture_evidence_bundle_cli_strict_final_closure_rejects_missing_artifact_files" in trace_tests
+	assert "test_capture_evidence_bundle_artifact_file_verification_rejects_hash_mismatch" in trace_tests
+
+	assert spec["checklist_effect"] == {
+		"new_checked_capture_evidence_bundle_validation_row": True,
+		"new_checked_capture_evidence_bundle_cli_row": True,
+		"new_checked_capture_evidence_required_row_cli_row": True,
+		"new_checked_capture_evidence_row_contract_cli_row": True,
+		"new_checked_capture_evidence_capture_plan_cli_row": True,
+		"new_checked_capture_evidence_bundle_template_row": True,
+		"new_checked_capture_evidence_artifact_hash_generation_row": True,
+		"new_checked_capture_evidence_bundle_artifact_hash_row": True,
+		"new_checked_capture_evidence_artifact_text_policy_row": True,
+		"new_checked_capture_evidence_artifact_path_policy_row": True,
+		"new_checked_capture_evidence_artifact_uniqueness_policy_row": True,
+		"new_checked_capture_evidence_closure_status_row": True,
+		"new_checked_capture_evidence_all_rows_cli_row": True,
+		"new_checked_capture_evidence_strict_final_closure_row": True,
+		"new_checked_capture_evidence_closure_blockers_row": True,
+		"new_checked_capture_evidence_blocker_fail_gate_row": True,
+		"external_evidence_rows_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+
+	assert "- [x] Add residual capture evidence bundle validation gates so future retail" in checklist
+	assert "- [x] Add a command-line validator for residual capture evidence bundles so" in checklist
+	assert "- [x] Add command-line residual capture evidence required-row checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence row contract output so" in checklist
+	assert "- [x] Add command-line residual capture evidence capture-plan output so" in checklist
+	assert "- [x] Add command-line residual capture evidence bundle template generation so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact hash generation so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact path/SHA-256" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact text-policy checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact path-scope checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence artifact uniqueness checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence closure-status summaries so" in checklist
+	assert "- [x] Add command-line residual capture evidence all-rows closure checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence strict final-closure checks so" in checklist
+	assert "- [x] Add command-line residual capture evidence closure-blocker reports so" in checklist
+	assert "- [x] Add command-line residual capture evidence blocker-fail gates so" in checklist
+	assert "- [ ] Commit at least one retail packet capture, protocol-91 demo transcript" in checklist
+	assert "docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.md" in checklist
+	assert "Network Capture Evidence Bundle Validation" in note
+	assert "No retail capture, probe, or decode" in note
+	assert "Closure capture-diff reports must be full matches" in note
+	assert "python -m tools.trace.capture_evidence" in note
+	assert "--print-closure-status" in note
+	assert "--print-closure-blockers" in note
+	assert "--fail-on-closure-blockers" in note
+	assert "--require-all-closure-rows" in note
+	assert "--strict-final-closure" in note
+	assert "--require-closure-row" in note
+	assert "--print-row-contracts" in note
+	assert "--print-capture-plan" in note
+	assert "--print-template" in note
+	assert "--hash-artifact" in note
+	assert "--verify-artifact-files" in note
+	assert "--enforce-artifact-text-policy" in note
+	assert "--enforce-artifact-path-policy" in note
+	assert "--enforce-artifact-uniqueness-policy" in note
+	assert "not_claimed" in note
+	assert "Residual capture evidence bundle validation update, 2026-06-05:" in plan
+	assert "python -m tools.trace.capture_evidence" in plan
+	assert "--require-closure-row <row_id>" in plan
+	assert "--print-row-contracts --row-contract <row_id>" in plan
+	assert "--print-capture-plan --capture-plan-row <row_id>" in plan
+	assert "--print-template --template-row <row_id>" in plan
+	assert "--hash-artifact <artifact_path> --artifact-root <repo_root>" in plan
+	assert "--verify-artifact-files --artifact-root <repo_root>" in plan
+	assert "--enforce-artifact-text-policy" in plan
+	assert "--enforce-artifact-path-policy" in plan
+	assert "--enforce-artifact-uniqueness-policy" in plan
+	assert "--print-closure-status" in plan
+	assert "--print-closure-blockers" in plan
+	assert "--fail-on-closure-blockers" in plan
+	assert "--require-all-closure-rows" in plan
+	assert "--strict-final-closure --artifact-root <repo_root>" in plan
+	assert "allowed artifact" in plan
+
+	assert blockers["evidence_inventory"]["capture_evidence_bundle_validation_ready"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_bundle_validation_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_bundle_cli_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_required_row_cli_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_row_contract_cli_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_capture_plan_cli_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_bundle_template_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_artifact_hash_generation_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_bundle_artifact_hash_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_artifact_text_policy_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_artifact_path_policy_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_artifact_uniqueness_policy_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_closure_status_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_all_rows_cli_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_strict_final_closure_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_closure_blockers_row"] is True
+	assert blockers["checklist_effect"]["new_checked_capture_evidence_blocker_fail_gate_row"] is True
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_capture_evidence_bundle_validation_gate_maps_residual_rows" in spec["assertion_tests"]
+
+
+def test_networking_2_fragment_queue_timing_validation_gate_requires_retail_capture() -> None:
+	spec = _networking_2_fragment_queue_timing_validation_spec()
+	note = _read(NETWORKING_2_FRAGMENT_QUEUE_TIMING_VALIDATION_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	blockers = _networking_2_capture_blockers_spec()
+	tool = _read(REPO_ROOT / "tools/trace/fragment_timing.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_fragment_queue_timing_validation_gate_no_retail_capture_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json",
+	]
+	assert spec["source_files"] == [
+		"tools/trace/fragment_timing.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+	assert spec["supported_checklist_row"] == "Validate fragmented snapshot plus queued follow-up timing against a byte-for-byte retail capture."
+
+	contract = spec["tool_contract"]
+	assert contract["module"] == "tools.trace.fragment_timing"
+	assert contract["function"] == "validate_fragment_queue_timing_dict"
+	assert contract["format"] == "quake_live_fragment_queue_timing"
+	assert contract["fragment_size"] == 1300
+	assert contract["required_sections"] == ["fragment_reassembly", "queued_followup"]
+	assert "at least one full FRAGMENT_SIZE fragment is present and not accepted" in contract["fragment_checks"]
+	assert "at least one terminal short fragment is present and accepted" in contract["fragment_checks"]
+	assert "storedEncoded is false" in contract["queued_followup_checks"]
+	assert "encodedOnPop is true" in contract["queued_followup_checks"]
+	assert "the final queued follow-up event has queueEmptyAfterPop true" in contract["queued_followup_checks"]
+	assert contract["retail_provenance_required_for_closure"] is True
+	assert spec["report_columns"] == [
+		"sequence",
+		"fragmentStart",
+		"fragmentLength",
+		"accumulatedLength",
+		"accepted",
+		"reassembledPayloadHash",
+		"queuedMessageSequence",
+		"storedEncoded",
+		"encodedOnPop",
+		"queueEmptyAfterPop",
+		"datagramHash",
+	]
+
+	assert "FRAGMENT_SIZE = 1300" in tool
+	assert "def validate_fragment_queue_timing_dict" in tool
+	assert "\"quake_live_fragment_queue_timing\"" in tool
+	assert "full FRAGMENT_SIZE fragments must not be accepted" in tool
+	assert "terminal short fragments must be accepted" in tool
+	assert "queued follow-up messages must be stored unencoded" in tool
+	assert "queued follow-up messages must be encoded on pop" in tool
+	assert "last queued follow-up event must empty the queue" in tool
+	assert "validate_fragment_queue_timing_dict" in trace_init
+	assert "FragmentTimingError" in trace_init
+	assert "test_fragment_queue_timing_validator_accepts_retail_timing_report" in trace_tests
+	assert "test_fragment_queue_timing_validator_requires_retail_provenance_for_closure" in trace_tests
+
+	assert spec["checklist_effect"] == {
+		"new_checked_fragment_queue_timing_validation_row": True,
+		"fragmented_snapshot_queued_followup_row_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+
+	assert "- [x] Add fragmented snapshot/queued follow-up timing report validation gates" in checklist
+	assert "- [ ] Validate fragmented snapshot plus queued follow-up timing against a" in checklist
+	assert "docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.md" in checklist
+	assert "Network Fragment Queue Timing Validation" in note
+	assert "No retail packet capture is claimed by" in note
+	assert "The actual fragmented snapshot plus queued follow-up" in note
+	assert "Residual fragment/queue timing validation update, 2026-06-05:" in plan
+	assert "stored unencoded" in plan
+	assert "encoded only when popped" in plan
+
+	blocked_rows = {row["row_id"]: row for row in blockers["blocked_checklist_rows"]}
+	assert blocked_rows["fragmented_snapshot_queued_followup"]["status"] == "external_evidence_required"
+	assert blockers["checklist_effect"]["new_checked_fragment_queue_timing_validation_row"] is True
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_fragment_queue_timing_validation_gate_requires_retail_capture" in spec["assertion_tests"]
+
+
+def test_networking_2_invalid_lc_probe_validation_gate_requires_retail_probe() -> None:
+	spec = _networking_2_invalid_lc_probe_validation_spec()
+	note = _read(NETWORKING_2_INVALID_LC_PROBE_VALIDATION_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	blockers = _networking_2_capture_blockers_spec()
+	hardening = _networking_2_hardening_spec()
+	tool = _read(REPO_ROOT / "tools/trace/invalid_lc_probe.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_invalid_lc_probe_validation_gate_no_retail_probe_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-hardening-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json",
+	]
+	assert spec["source_files"] == [
+		"tools/trace/invalid_lc_probe.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+	assert spec["supported_checklist_row"] == "Probe invalid-`lc` malicious packet behavior against retail before claiming exact crash/drop equivalence."
+
+	contract = spec["tool_contract"]
+	assert contract["module"] == "tools.trace.invalid_lc_probe"
+	assert contract["function"] == "validate_invalid_lc_probe_dict"
+	assert contract["format"] == "quake_live_invalid_lc_probe"
+	assert contract["protocol"] == 91
+	field_tables = {table["name"]: table for table in contract["field_tables"]}
+	assert field_tables["entityStateFields"]["field_count"] == 58
+	assert field_tables["entityStateFields"]["source_guard"] == "MSG_ReadDeltaEntity: invalid field count <lc>"
+	assert field_tables["playerStateFields"]["field_count"] == 58
+	assert field_tables["playerStateFields"]["source_guard"] == "MSG_ReadDeltaPlayerstate: invalid field count <lc>"
+	assert "lc exceeds field_count" in contract["malicious_input_checks"]
+	assert "closure mode requires at least one hashed artifact" in contract["retail_observation_checks"]
+	assert "crash classification requires a crash_dump artifact" in contract["retail_observation_checks"]
+	assert "classification is err_drop" in contract["source_observation_checks"]
+	assert contract["accepted_capture_types"] == [
+		"controlled_retail_probe",
+		"known_good_byte_fixture",
+		"protocol91_demo_transcript",
+		"retail_packet_capture",
+	]
+	assert contract["retail_provenance_required_for_closure"] is True
+	assert spec["report_columns"] == [
+		"probe_id",
+		"protocol",
+		"field_table",
+		"field_count",
+		"lc",
+		"packet_sha256",
+		"retail_classification",
+		"observed_message",
+		"artifact_type",
+		"artifact_sha256",
+		"source_classification",
+		"source_error_message",
+	]
+
+	assert "FIELD_TABLES" in tool
+	assert "\"entityStateFields\"" in tool
+	assert "\"playerStateFields\"" in tool
+	assert "def validate_invalid_lc_probe_dict" in tool
+	assert "\"quake_live_invalid_lc_probe\"" in tool
+	assert "invalid-lc lc must exceed the retail field table count" in tool
+	assert "retail invalid-lc closure requires at least one hashed artifact" in tool
+	assert "retail crash classification requires a crash_dump artifact" in tool
+	assert "source classification must be err_drop" in tool
+	assert "validate_invalid_lc_probe_dict" in trace_init
+	assert "InvalidLcProbeError" in trace_init
+	assert "test_invalid_lc_probe_validator_accepts_controlled_retail_report" in trace_tests
+	assert "test_invalid_lc_probe_validator_requires_retail_provenance_and_hashed_artifacts" in trace_tests
+
+	assert spec["checklist_effect"] == {
+		"new_checked_invalid_lc_probe_validation_row": True,
+		"invalid_lc_retail_probe_row_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+
+	assert "- [x] Add invalid-`lc` controlled retail probe report validation gates" in checklist
+	assert "- [ ] Probe invalid-`lc` malicious packet behavior against retail before" in checklist
+	assert "docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.md" in checklist
+	assert "Network Invalid-lc Probe Validation" in note
+	assert "No retail probe is claimed by" in note
+	assert "source observation must be `err_drop`" in note
+	assert "Residual invalid-`lc` probe validation update, 2026-06-05:" in plan
+	assert "at least one hashed retail evidence" in plan
+
+	assert hardening["completion_status"]["remaining_gaps"][1] == "Byte-for-byte malicious-packet behavior still needs external capture or controlled retail probing before claiming exact retail crash/drop equivalence."
+	blocked_rows = {row["row_id"]: row for row in blockers["blocked_checklist_rows"]}
+	assert blocked_rows["invalid_lc_retail_probe"]["status"] == "external_runtime_probe_required"
+	assert blockers["checklist_effect"]["new_checked_invalid_lc_probe_validation_row"] is True
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_invalid_lc_probe_validation_gate_requires_retail_probe" in spec["assertion_tests"]
+
+
+def test_networking_2_snapshot_field_decode_validation_gate_requires_retail_capture() -> None:
+	spec = _networking_2_snapshot_field_decode_validation_spec()
+	note = _read(NETWORKING_2_SNAPSHOT_FIELD_DECODE_VALIDATION_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	blockers = _networking_2_capture_blockers_spec()
+	player_spec = _networking_2_playerstate_fields_spec()
+	entity_spec = _networking_2_entitystate_fields_spec()
+	tool = _read(REPO_ROOT / "tools/trace/snapshot_decode.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_snapshot_field_decode_validation_gate_no_retail_capture_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+		"docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json",
+	]
+	assert spec["source_files"] == [
+		"tools/trace/snapshot_decode.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+	assert spec["supported_checklist_row"] == "Verify end-to-end retail snapshot capture/decode parity for playerStateFields and entityStateFields."
+
+	contract = spec["tool_contract"]
+	assert contract["module"] == "tools.trace.snapshot_decode"
+	assert contract["function"] == "validate_snapshot_field_decode_dict"
+	assert contract["format"] == "quake_live_snapshot_field_decode"
+	assert contract["protocol"] == 91
+	field_tables = {table["name"]: table for table in contract["field_tables"]}
+	assert field_tables["playerStateFields"] == {
+		"name": "playerStateFields",
+		"field_count": 58,
+		"spec_source": "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+	}
+	assert field_tables["entityStateFields"] == {
+		"name": "entityStateFields",
+		"field_count": 58,
+		"spec_source": "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+	}
+	assert "observed field indexes, bits, and wire_kind match the retail source-of-truth specs when supplied" in contract["field_decode_checks"]
+	assert "entityStateFields source_alias entries such as retailEventData may validate against the retail generic1 slot" in contract["field_decode_checks"]
+	assert "at least one decoded snapshot frame is present" in contract["snapshot_checks"]
+	assert contract["retail_provenance_required_for_closure"] is True
+	assert spec["report_columns"] == [
+		"capture_id",
+		"protocol",
+		"field_table",
+		"field_count",
+		"decode_hash",
+		"observed_field",
+		"observed_index",
+		"observed_bits",
+		"observed_wire_kind",
+		"value_hash",
+		"messageNum",
+		"serverTime",
+		"deltaNum",
+		"packetEntityCount",
+		"playerStateHash",
+		"entityStateHash",
+		"packetEntitiesHash",
+	]
+
+	assert player_spec["retail_table"]["field_count"] == 58
+	assert entity_spec["retail_table"]["field_count"] == 58
+	assert player_spec["source_of_truth"]["entries"][49]["field"] == "jumpTime"
+	assert entity_spec["source_of_truth"]["entries"][33]["source_alias"] == "retailEventData"
+
+	assert "FIELD_TABLE_NAMES = (\"playerStateFields\", \"entityStateFields\")" in tool
+	assert "EXPECTED_FIELD_COUNT = 58" in tool
+	assert "def validate_snapshot_field_decode_dict" in tool
+	assert "\"quake_live_snapshot_field_decode\"" in tool
+	assert "field_count must be {EXPECTED_FIELD_COUNT}" in tool
+	assert "wire_kind does not match spec" in tool
+	assert "source_alias" in tool
+	assert "snapshot decode snapshots must not be empty" in tool
+	assert "validate_snapshot_field_decode_dict" in trace_init
+	assert "SnapshotDecodeError" in trace_init
+	assert "test_snapshot_field_decode_validator_accepts_player_and_entity_decode_report" in trace_tests
+	assert "test_snapshot_field_decode_validator_rejects_field_table_drift" in trace_tests
+
+	assert spec["checklist_effect"] == {
+		"new_checked_snapshot_field_decode_validation_row": True,
+		"snapshot_field_capture_decode_row_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+
+	assert "- [x] Add snapshot field decode report validation gates for future" in checklist
+	assert "- [ ] Verify end-to-end retail snapshot capture/decode parity for" in checklist
+	assert "docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.md" in checklist
+	assert "Network Snapshot Field Decode Validation" in note
+	assert "No retail packet capture or protocol-91" in note
+	assert "source aliases such as `retailEventData`" in note
+	assert "Residual snapshot field decode validation update, 2026-06-05:" in plan
+	assert "source-of-truth spec checks" in plan
+
+	blocked_rows = {row["row_id"]: row for row in blockers["blocked_checklist_rows"]}
+	assert blocked_rows["snapshot_field_capture_decode"]["status"] == "external_evidence_required"
+	assert blockers["checklist_effect"]["new_checked_snapshot_field_decode_validation_row"] is True
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_snapshot_field_decode_validation_gate_requires_retail_capture" in spec["assertion_tests"]
+
+
+def test_networking_2_capture_fixture_validation_gate_blocks_unproven_transcripts() -> None:
+	spec = _networking_2_capture_fixture_validation_spec()
+	note = _read(NETWORKING_2_CAPTURE_FIXTURE_VALIDATION_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	tool = _read(REPO_ROOT / "tools/trace/demo_transcript.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+	intake_spec = _networking_2_demo_transcript_intake_spec()
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_transcript_validation_gate_no_retail_fixture_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["source_files"] == [
+		"tools/trace/demo_transcript.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+
+	contract = spec["validator_contract"]
+	assert contract["function"] == "tools.trace.demo_transcript.validate_demo_transcript_dict"
+	assert contract["format"] == "quake_live_demo_message_transcript"
+	assert contract["schema_version"] == 1
+	for expected_check in (
+		"message_count equals messages length",
+		"source_size equals terminator_offset plus the -1/-1 terminator length",
+		"message offsets are contiguous from zero",
+		"per-message payload_sha256 matches payload_hex",
+		"aggregate payload_sha256 matches concatenated payloads",
+		"retail closure mode requires provenance metadata",
+	):
+		assert expected_check in contract["checks"]
+	assert contract["retail_provenance_keys"] == [
+		"source",
+		"capture_type",
+		"capture_date_utc",
+		"retail_build",
+	]
+	assert contract["accepted_capture_types"] == [
+		"retail_packet_capture",
+		"protocol91_demo_transcript",
+		"known_good_byte_fixture",
+	]
+
+	assert "RETAIL_CAPTURE_TYPES" in tool
+	assert "RETAIL_PROVENANCE_KEYS" in tool
+	assert "def validate_demo_transcript_dict" in tool
+	assert "source_size != terminator_offset + 8" in tool
+	assert "message_count != len(messages)" in tool
+	assert "payload_sha256 mismatch" in tool
+	assert "retail transcript requires provenance metadata" in tool
+	assert "capture_type is not recognized" in tool
+	assert "validate_demo_transcript_dict" in trace_init
+	assert "test_demo_transcript_validator_requires_retail_provenance_for_closure" in trace_tests
+	assert "test_demo_transcript_validator_rejects_corrupt_hashes_and_offsets" in trace_tests
+
+	assert intake_spec["validation_gate"] == "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.md"
+	assert "validate_demo_transcript_dict" in intake_spec["tool_contract"]["entry_points"]
+	assert spec["checklist_effect"] == {
+		"new_checked_fixture_validation_row": True,
+		"byte_for_byte_replay_fixture_row_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+
+	assert "- [x] Add protocol-91 transcript validation gates for hashes, offsets," in checklist
+	assert "- [ ] Commit at least one retail packet capture, protocol-91 demo transcript" in checklist
+	assert "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.md" in checklist
+	assert "Network Capture Fixture Validation" in note
+	assert "does not claim that retail packet or demo evidence is now committed" in note
+	assert "The actual" in note
+	assert "Residual capture-fixture validation update, 2026-06-05:" in plan
+	assert "The actual" in plan
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_capture_fixture_validation_gate_blocks_unproven_transcripts" in spec["assertion_tests"]
+
+
+def test_networking_2_demo_transcript_intake_supports_textual_byte_fixture_submission() -> None:
+	spec = _networking_2_demo_transcript_intake_spec()
+	note = _read(NETWORKING_2_DEMO_TRANSCRIPT_INTAKE_AUDIT_PATH)
+	checklist = _read(OUTSTANDING_WORK_CHECKLIST_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+	cl_main = _read(CL_MAIN_PATH)
+	tool = _read(REPO_ROOT / "tools/trace/demo_transcript.py")
+	trace_init = _read(REPO_ROOT / "tools/trace/__init__.py")
+	trace_tests = _read(REPO_ROOT / "tools/tests/test_trace_harness.py")
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["status"] == "completed_transcript_intake_tooling_no_retail_transcript_claimed"
+	assert spec["runtime_launch_required"] is False
+	assert spec["game_launch_required"] is False
+	assert spec["source_files"] == [
+		"tools/trace/demo_transcript.py",
+		"tools/trace/__init__.py",
+		"tools/tests/test_trace_harness.py",
+	]
+
+	anchor = spec["retail_source_anchor"]
+	assert anchor["writer"] == "CL_WriteDemoMessage"
+	assert anchor["reader"] == "CL_ReadDemoMessage"
+	assert anchor["terminator"] == "CL_StopRecord_f"
+	assert "records begin with a little-endian int32 serverMessageSequence" in anchor["observed_contract"]
+	assert "CL_StopRecord_f writes the -1/-1 terminator" in anchor["observed_contract"]
+
+	write_demo = _function_block(cl_main, "void CL_WriteDemoMessage")
+	_assert_order(
+		write_demo,
+		"len = clc.serverMessageSequence;",
+		"swlen = LittleLong( len );",
+		"FS_Write (&swlen, 4, clc.demofile);",
+		"len = msg->cursize - headerBytes;",
+		"swlen = LittleLong(len);",
+		"FS_Write (&swlen, 4, clc.demofile);",
+		"FS_Write ( msg->data + headerBytes, len, clc.demofile );",
+	)
+	read_demo = _function_block(cl_main, "void CL_ReadDemoMessage")
+	_assert_order(
+		read_demo,
+		"r = FS_Read( &s, 4, clc.demofile);",
+		"clc.serverMessageSequence = LittleLong( s );",
+		"r = FS_Read (&buf.cursize, 4, clc.demofile);",
+		"buf.cursize = LittleLong( buf.cursize );",
+		"if ( buf.cursize == -1 ) {",
+		"if ( buf.cursize > buf.maxsize ) {",
+		"CL_ReadDemoMessage: demoMsglen > MAX_MSGLEN",
+		"r = FS_Read( buf.data, buf.cursize, clc.demofile );",
+	)
+	stop_record = _function_block(cl_main, "void CL_StopRecord_f")
+	assert "len = -1;" in stop_record
+	assert "FS_Write (&len, 4, clc.demofile);" in stop_record
+
+	assert "MAX_MSGLEN = 16384" in tool
+	assert "struct.unpack_from(\"<ii\", data, offset)" in tool
+	assert "payload.hex(\" \")" in tool
+	assert "payload_sha256" in tool
+	assert "demo file ended without a -1/-1 terminator" in tool
+	assert "python -m tools.trace.demo_transcript" in spec["tool_contract"]["entry_points"]
+	assert spec["tool_contract"]["output_format"] == "quake_live_demo_message_transcript"
+	assert spec["tool_contract"]["payload_bytes_committed_as"] == "lowercase space-separated hex plus SHA-256"
+	assert spec["tool_contract"]["provenance_required_for_retail_closure"] is True
+	assert spec["local_artifact_inventory"]["classification"] == "local generated demos, not committed retail evidence"
+	assert spec["checklist_effect"] == {
+		"new_checked_intake_tooling_row": True,
+		"byte_for_byte_replay_fixture_row_closed": False,
+		"capture_rows_remain_open": True,
+	}
+	assert spec["parity_estimate"]["overall_network_protocol_before_percent"] == 90
+	assert spec["parity_estimate"]["overall_network_protocol_after_percent"] == 90
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_before_percent"] == 0
+	assert spec["parity_estimate"]["byte_for_byte_capture_evidence_after_percent"] == 0
+	assert "parse_demo_bytes" in trace_init
+	assert "test_demo_transcript_parses_quake_live_demo_envelope" in trace_tests
+	assert "test_demo_transcript_rejects_invalid_envelopes" in trace_tests
+
+	assert "- [x] Add protocol-91 demo transcript intake tooling so future retail `.dm_91`" in checklist
+	assert "- [ ] Commit at least one retail packet capture, protocol-91 demo transcript" in checklist
+	assert "docs/reverse-engineering/network-demo-transcript-intake-2026-06-05.md" in checklist
+	assert "Network Demo Transcript Intake" in note
+	assert "It does not claim that a retail" in note
+	assert "is now committed." in note
+	assert "The byte-for-byte replay fixture row and downstream capture-diff rows remain" in note
+	assert "Residual demo-transcript intake update, 2026-06-05:" in plan
+	assert "Local ignored `.dm_91`" in plan
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_demo_transcript_intake_supports_textual_byte_fixture_submission" in spec["assertion_tests"]
+
+
+def test_networking_2_protocol_hardening_invalid_lc_fragments_rings_and_stale_deltas() -> None:
+	spec = _networking_2_hardening_spec()
+	msg_c = _read(MSG_C_PATH)
+	net_chan = _read(NET_CHAN_PATH)
+	cl_parse = _read(CL_PARSE_PATH)
+	cl_net_chan = _read(CL_NET_CHAN_PATH)
+	sv_client = _read(SV_CLIENT_PATH)
+	sv_net_chan = _read(SV_NET_CHAN_PATH)
+	sv_snapshot = _read(SV_SNAPSHOT_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	audit_note = _read(NETWORKING_2_HARDENING_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+		"docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+		"docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	lanes = {lane["id"]: lane for lane in spec["hardening_lanes"]}
+	assert set(lanes) == {
+		"entity_delta_invalid_lc",
+		"playerstate_delta_invalid_lc",
+		"netchan_fragment_edge_cases",
+		"client_server_command_ring_wraparound",
+		"server_client_command_ring_wraparound",
+		"reliable_acknowledge_bounds",
+		"xor_command_ring_sanitized_wraparound",
+		"stale_delta_frame_rejection",
+		"server_snapshot_delta_source_aging",
+		"usercmd_count_bounds",
+		"bad_opcode_and_read_past_end",
+	}
+	assert lanes["entity_delta_invalid_lc"]["field_count"] == 58
+	assert lanes["entity_delta_invalid_lc"]["source_patch"] is True
+	assert lanes["entity_delta_invalid_lc"]["error_message"] == "MSG_ReadDeltaEntity: invalid field count %i"
+	assert lanes["playerstate_delta_invalid_lc"]["field_count"] == 58
+	assert lanes["playerstate_delta_invalid_lc"]["source_patch"] is True
+	assert lanes["playerstate_delta_invalid_lc"]["error_message"] == "MSG_ReadDeltaPlayerstate: invalid field count %i"
+	assert "no committed HLIL bounds guard" in lanes["entity_delta_invalid_lc"]["retail_observation"]
+	assert lanes["netchan_fragment_edge_cases"]["source_patch"] is False
+	assert lanes["stale_delta_frame_rejection"]["stale_parse_entities_threshold"] == 1920
+	assert lanes["xor_command_ring_sanitized_wraparound"]["ring_mask"] == "MAX_RELIABLE_COMMANDS - 1"
+	assert lanes["usercmd_count_bounds"]["diagnostics"] == [
+		"cmdCount < 1",
+		"cmdCount > MAX_PACKET_USERCMDS",
+	]
+
+	vectors = {vector["id"]: vector for vector in spec["negative_vectors"]}
+	assert set(vectors) == {
+		"entity_lc_above_field_count",
+		"playerstate_lc_above_field_count",
+		"fragment_start_gap",
+		"fragment_negative_length",
+		"reliable_ack_too_old",
+		"snapshot_parse_entities_too_old",
+		"cmd_count_too_large",
+	}
+	assert vectors["entity_lc_above_field_count"]["input"] == {"lc": 59, "field_count": 58}
+	assert vectors["playerstate_lc_above_field_count"]["expected"] == "ERR_DROP before reading playerStateFields[59]"
+	assert vectors["fragment_start_gap"]["expected"] == "return qfalse and preserve the accumulated fragment buffer"
+	assert vectors["cmd_count_too_large"]["expected"] == "return before MSG_ReadDeltaUsercmdKey"
+
+	read_entity = _function_block(msg_c, "void MSG_ReadDeltaEntity")
+	_assert_order(
+		read_entity,
+		"numFields = sizeof(entityStateFields)/sizeof(entityStateFields[0]);",
+		"lc = MSG_ReadByte(msg);",
+		"if ( lc < 0 || lc > numFields ) {",
+		"Com_Error( ERR_DROP, \"MSG_ReadDeltaEntity: invalid field count %i\", lc );",
+		"for ( i = 0, field = entityStateFields ; i < lc ; i++, field++ ) {",
+		"for ( i = lc, field = &entityStateFields[lc] ; i < numFields ; i++, field++ ) {",
+	)
+	assert read_entity.index("Com_Error( ERR_DROP, \"MSG_ReadDeltaEntity: invalid field count %i\", lc );") < read_entity.index(
+		"field = &entityStateFields[lc]"
+	)
+
+	read_playerstate = _function_block(msg_c, "void MSG_ReadDeltaPlayerstate")
+	_assert_order(
+		read_playerstate,
+		"numFields = sizeof( playerStateFields ) / sizeof( playerStateFields[0] );",
+		"lc = MSG_ReadByte(msg);",
+		"if ( lc < 0 || lc > numFields ) {",
+		"Com_Error( ERR_DROP, \"MSG_ReadDeltaPlayerstate: invalid field count %i\", lc );",
+		"for ( i = 0, field = playerStateFields ; i < lc ; i++, field++ ) {",
+		"for ( i=lc,field = &playerStateFields[lc];i<numFields; i++, field++) {",
+	)
+	assert read_playerstate.index(
+		"Com_Error( ERR_DROP, \"MSG_ReadDeltaPlayerstate: invalid field count %i\", lc );"
+	) < read_playerstate.index("field = &playerStateFields[lc]")
+	assert _netfield_count(msg_c, "entityStateFields") == lanes["entity_delta_invalid_lc"]["field_count"]
+	assert _netfield_count(msg_c, "playerStateFields") == lanes["playerstate_delta_invalid_lc"]["field_count"]
+
+	process = _function_block(net_chan, "qboolean Netchan_Process( netchan_t *chan, msg_t *msg )")
+	_assert_order(
+		process,
+		"sequence = MSG_ReadLong( msg );",
+		"if ( sequence & FRAGMENT_BIT ) {",
+		"sequence &= ~FRAGMENT_BIT;",
+		"if ( chan->sock == NS_SERVER && NET_ProtocolUsesNetchanClientQport() ) {",
+		"(void)MSG_ReadShort( msg );",
+		"if ( fragmented ) {",
+		"fragmentStart = MSG_ReadShort( msg );",
+		"fragmentLength = MSG_ReadShort( msg );",
+		"if ( sequence <= chan->incomingSequence ) {",
+		"return qfalse;",
+		"if ( sequence != chan->fragmentSequence ) {",
+		"chan->fragmentSequence = sequence;",
+		"chan->fragmentLength = 0;",
+		"if ( fragmentStart != chan->fragmentLength ) {",
+		"Com_Printf( \"%s:Dropped a message fragment\\n\"",
+		"return qfalse;",
+		"if ( fragmentLength < 0 || msg->readcount + fragmentLength > msg->cursize ||",
+		"chan->fragmentLength + fragmentLength > sizeof( chan->fragmentBuffer ) ) {",
+		"Com_Printf (\"%s:illegal fragment length\\n\"",
+		"return qfalse;",
+		"if ( fragmentLength == FRAGMENT_SIZE ) {",
+		"return qfalse;",
+		"if ( chan->fragmentLength > msg->maxsize ) {",
+		"return qfalse;",
+		"msg->cursize = chan->fragmentLength + 4;",
+		"msg->readcount = 4;",
+		"msg->bit = 32;",
+	)
+
+	parse_command = _function_block(cl_parse, "void CL_ParseCommandString")
+	_assert_order(
+		parse_command,
+		"seq = MSG_ReadLong( msg );",
+		"s = MSG_ReadString( msg );",
+		"if ( clc.serverCommandSequence >= seq ) {",
+		"return;",
+		"clc.serverCommandSequence = seq;",
+		"index = seq & (MAX_RELIABLE_COMMANDS-1);",
+		"Q_strncpyz( clc.serverCommands[ index ], s, sizeof( clc.serverCommands[ index ] ) );",
+	)
+
+	parse_server = _function_block(cl_parse, "void CL_ParseServerMessage")
+	_assert_order(
+		parse_server,
+		"clc.reliableAcknowledge = MSG_ReadLong( msg );",
+		"if ( clc.reliableAcknowledge < clc.reliableSequence - MAX_RELIABLE_COMMANDS ) {",
+		"clc.reliableAcknowledge = clc.reliableSequence;",
+		"if ( msg->readcount > msg->cursize ) {",
+		"Com_Error (ERR_DROP,\"CL_ParseServerMessage: read past end of server message\");",
+		"cmd = MSG_ReadByte( msg );",
+		"default:",
+		"Com_Error (ERR_DROP,\"CL_ParseServerMessage: Illegible server message %d\\n\", cmd);",
+	)
+
+	client_encode = _function_block(cl_net_chan, "static void CL_Netchan_Encode")
+	client_decode = _function_block(cl_net_chan, "static void CL_Netchan_Decode")
+	server_encode = _function_block(sv_net_chan, "static void SV_Netchan_Encode")
+	server_decode = _function_block(sv_net_chan, "static void SV_Netchan_Decode")
+	for block, ring_source in (
+		(client_encode, "clc.serverCommands[ reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ]"),
+		(client_decode, "clc.reliableCommands[ reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ]"),
+		(server_encode, "client->lastClientCommandString"),
+		(server_decode, "client->reliableCommands[ reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ]"),
+	):
+		assert ring_source in block
+		_assert_order(
+			block,
+			"index = 0;",
+			"if (!string[index])",
+			"index = 0;",
+			"if (string[index] > 127 || string[index] == '%') {",
+			"key ^= '.' << (i & 1);",
+		)
+
+	client_command = _function_block(sv_client, "static qboolean SV_ClientCommand")
+	_assert_order(
+		client_command,
+		"seq = MSG_ReadLong( msg );",
+		"s = MSG_ReadString( msg );",
+		"if ( cl->lastClientCommand >= seq ) {",
+		"return qtrue;",
+		"if ( seq > cl->lastClientCommand + 1 ) {",
+		"SV_DropClient( cl, \"Lost reliable commands\" );",
+		"return qfalse;",
+		"cl->lastClientCommand = seq;",
+		"Com_sprintf(cl->lastClientCommandString, sizeof(cl->lastClientCommandString), \"%s\", s);",
+	)
+
+	user_move = _function_block(sv_client, "static void SV_UserMove")
+	_assert_order(
+		user_move,
+		"cmdCount = MSG_ReadByte( msg );",
+		"if ( cmdCount < 1 ) {",
+		"Com_Printf( \"cmdCount < 1\\n\" );",
+		"return;",
+		"if ( cmdCount > MAX_PACKET_USERCMDS ) {",
+		"Com_Printf( \"cmdCount > MAX_PACKET_USERCMDS\\n\" );",
+		"return;",
+		"key ^= Com_HashKey(cl->reliableCommands[ cl->reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ], 32);",
+		"MSG_ReadDeltaUsercmdKey( msg, key, oldcmd, cmd );",
+	)
+
+	execute = _function_block(sv_client, "void SV_ExecuteClientMessage")
+	_assert_order(
+		execute,
+		"serverId = MSG_ReadLong( msg );",
+		"cl->messageAcknowledge = MSG_ReadLong( msg );",
+		"if (cl->messageAcknowledge < 0) {",
+		"return;",
+		"cl->reliableAcknowledge = MSG_ReadLong( msg );",
+		"(void)MSG_ReadByte( msg );",
+		"if (cl->reliableAcknowledge < cl->reliableSequence - MAX_RELIABLE_COMMANDS) {",
+		"cl->reliableAcknowledge = cl->reliableSequence;",
+		"return;",
+		"if ( serverId != sv.serverId && !*cl->downloadName && !strstr(cl->lastClientCommandString, NET_GetDownloadNextCommand()) ) {",
+		"SV_SendClientGameState( cl );",
+		"return;",
+		"if ( c == clc_move ) {",
+		"SV_UserMove( cl, msg, qtrue );",
+		"} else if ( c == clc_moveNoDelta ) {",
+		"SV_UserMove( cl, msg, qfalse );",
+		"Com_Printf( \"WARNING: bad command byte for client %i\\n\", cl - svs.clients );",
+	)
+
+	update_commands = _function_block(sv_snapshot, "void SV_UpdateServerCommandsToClient")
+	_assert_order(
+		update_commands,
+		"for ( i = client->reliableAcknowledge + 1 ; i <= client->reliableSequence ; i++ ) {",
+		"MSG_WriteByte( msg, svc_serverCommand );",
+		"MSG_WriteLong( msg, i );",
+		"MSG_WriteString( msg, client->reliableCommands[ i & (MAX_RELIABLE_COMMANDS-1) ] );",
+	)
+
+	parse_snapshot = _function_block(cl_parse, "void CL_ParseSnapshot")
+	_assert_order(
+		parse_snapshot,
+		"old = &cl.snapshots[newSnap.deltaNum & PACKET_MASK];",
+		"if ( !old->valid ) {",
+		"Com_Printf (\"Delta from invalid frame (not supposed to happen!).\\n\");",
+		"} else if ( old->messageNum != newSnap.deltaNum ) {",
+		"Com_Printf (\"Delta frame too old.\\n\");",
+		"} else if ( cl.parseEntitiesNum - old->parseEntitiesNum > MAX_PARSE_ENTITIES-128 ) {",
+		"Com_Printf (\"Delta parseEntitiesNum too old.\\n\");",
+		"} else {",
+		"newSnap.valid = qtrue;",
+		"if ( !newSnap.valid ) {",
+		"return;",
+	)
+
+	write_snapshot = _function_block(sv_snapshot, "static void SV_WriteSnapshotToClient")
+	_assert_order(
+		write_snapshot,
+		"if ( client->deltaMessage <= 0 || client->state != CS_ACTIVE ) {",
+		"oldframe = NULL;",
+		"lastframe = 0;",
+		"} else if ( client->netchan.outgoingSequence - client->deltaMessage",
+		">= (PACKET_BACKUP - 3) ) {",
+		"oldframe = NULL;",
+		"lastframe = 0;",
+		"oldframe = &client->frames[ client->deltaMessage & PACKET_MASK ];",
+		"if ( oldframe->first_entity <= svs.nextSnapshotEntities - svs.numSnapshotEntities ) {",
+		"oldframe = NULL;",
+		"lastframe = 0;",
+	)
+
+	read_entity_hlil = hlil_part04.split("004d5ac0    int32_t sub_4d5ac0", 1)[1].split("004d5d50", 1)[0]
+	_assert_order(
+		read_entity_hlil,
+		"uint32_t i_4 = zx.d(sub_4d4c70(ebx, 8))",
+		"if (i_4 s> 0)",
+		"arg4 = &data_542228",
+		"do",
+		"arg4 += 0xc",
+		"if (i_4 s< 0x3a)",
+		"int32_t i_3 = 0x3a - i_4",
+	)
+	read_player_hlil = hlil_part04.split("004d66c0    uint32_t sub_4d66c0", 1)[1].split("004d6b80", 1)[0]
+	_assert_order(
+		read_player_hlil,
+		"uint32_t i_12 = zx.d(sub_4d4c70(arg2, 8))",
+		"if (i_12 s> 0)",
+		"void* const edi_1 = &data_5424e0",
+		"do",
+		"edi_1 += 0xc",
+		"if (i_12 s< 0x3a)",
+		"int32_t i_11 = 0x3a - i_12",
+	)
+	process_hlil = hlil_part04.split("004d7640    int32_t sub_4d7640", 1)[1].split("004d7970", 1)[0]
+	_assert_order(
+		process_hlil,
+		"ebx_1 &= 0x7fffffff",
+		"if (ebx_1 s> ecx_2)",
+		"if (var_c != ecx_7)",
+		"\"%s:Dropped a message fragment\\n\"",
+		"\"%s:illegal fragment length\\n\"",
+		"*(arg5 + 0x10) = esi[0xb] + 4",
+		"*(arg5 + 0x14) = 4",
+		"*(arg5 + 0x18) = 0x20",
+	)
+	execute_hlil = hlil_part04.split("004e05c0    uint32_t sub_4e05c0", 1)[1].split("004e0750", 1)[0]
+	_assert_order(
+		execute_hlil,
+		"uint32_t eax = sub_4d5020(arg2)",
+		"uint32_t i = sub_4d5020(arg2)",
+		"arg1[0x4102] = sub_4d5020(arg2)",
+		"sub_4d4fc0(arg2)",
+		"while (i == 4)",
+		"if (i == 2)",
+		"return sub_4e0320(arg2, 1)",
+		"if (i == 3)",
+		"return sub_4e0320(arg2, 0)",
+	)
+	snapshot_hlil = hlil_part04.split("004bd350    uint32_t sub_4bd350", 1)[1].split("004bd790", 1)[0]
+	_assert_order(
+		snapshot_hlil,
+		"Delta frame too old.\\n",
+		"data_1471e98 - esi[0xa4] s<= 0x780",
+		"Delta parseEntitiesNum too old.\\n",
+	)
+	write_snapshot_hlil = hlil_part05.split("004e50e0    void* __convention", 1)[1].split("004e5680", 1)[0]
+	_assert_order(
+		write_snapshot_hlil,
+		"if (ecx_3 s<= 0 || *arg1 != 4)",
+		"var_8_1 = 0",
+		"if (eax - ecx_3 s< 0x1d)",
+		"Delta request from out of da",
+		"ebx = nullptr",
+		"var_8_1 = 0",
+		"sub_4d4dc0(arg2, var_8_1)",
+	)
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["MSG_ReadDeltaEntity"]["address"] == "0x004D5AC0"
+	assert anchors["MSG_ReadDeltaPlayerstate"]["address"] == "0x004D66C0"
+	assert anchors["Netchan_Process"]["address"] == "0x004D7640"
+	assert anchors["CL_ParseSnapshot"]["address"] == "0x004BD350"
+	assert anchors["SV_UserMove"]["address"] == "0x004E0320"
+	assert anchors["SV_ExecuteClientMessage"]["address"] == "0x004E05C0"
+	assert anchors["SV_WriteSnapshotToClient"]["address"] == "0x004E50E0"
+
+	assert spec["completion_status"]["status"] == "completed_source_patch_and_static_hardening_assertions"
+	assert spec["completion_status"]["source_patch_required"] is True
+	assert spec["completion_status"]["runtime_launch_required"] is False
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 58
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 88
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 86
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 87
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_protocol_hardening_invalid_lc_fragments_rings_and_stale_deltas" in spec["assertion_tests"]
+
+	assert "Network Protocol Hardening Parity" in audit_note
+	assert "Invalid entity `lc`" in audit_note
+	assert "Focused protocol-hardening slice: `58%` before, `88%` after." in audit_note
+	assert "Hardening pass: invalid `lc`, fragment edge cases, command-ring wraparound, stale delta frames" in plan
+	assert "network-protocol-hardening-parity-2026-06-05.json" in plan
+	assert "focused protocol-hardening slice" in plan

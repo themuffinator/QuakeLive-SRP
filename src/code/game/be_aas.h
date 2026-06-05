@@ -34,6 +34,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MAX_STRINGFIELD				80
 #endif
 
+#ifndef BOTLIB_QL_POWERUP_ACTIVE_COUNT
+#define BOTLIB_QL_POWERUP_ACTIVE_COUNT	16
+#endif
+
 //travel flags
 #define TFL_INVALID				0x00000001	//traveling temporary not possible
 #define TFL_WALK				0x00000002	//walking
@@ -145,6 +149,15 @@ typedef struct aas_entityinfo_s
 	int		weapon;			// determines weapon and flash model, etc
 	int		legsAnim;		// mask off ANIM_TOGGLEBIT
 	int		torsoAnim;		// mask off ANIM_TOGGLEBIT
+	float	qlTimeSeconds;	// retail word 0x23: entity-side millisecond timer / 1000
+	int		qlPlayerGravity;	// retail word 0x24: playerState_t.gravity when client data exists
+	int		qlPlayerSpeed;	// retail word 0x25: playerState_t.speed when client data exists
+	int		qlPlayerDeltaAngle0;	// retail word 0x26: playerState_t.delta_angles[0] when client data exists
+	int		qlEntityHealth;	// retail word 0x27: gentity_t.health when client data exists
+	int		qlClientMaxHealth;	// retail word 0x28: playerState_t.stats[STAT_MAX_HEALTH] when client data exists
+	int		qlPowerupsActive[BOTLIB_QL_POWERUP_ACTIVE_COUNT];	// retail words 0x29-0x38
+	int		qlFlagsBit18Clear;	// retail word 0x39: !(gentity_t.flags & 0x00040000)
+	int		qlRedBlueFlagCarrier;	// retail word 0x3a: red/blue carried-flag sidecar present
 } aas_entityinfo_t;
 
 // area info

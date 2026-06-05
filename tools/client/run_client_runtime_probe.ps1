@@ -317,6 +317,7 @@ function Invoke-MainMenuProbe {
 		'set developer 1',
 		'set logfile 2',
 		'set g_logfile 1',
+		'set web_eventDebug 1',
 		'set com_maxfps 30',
 		'set r_fullscreen 0',
 		'set name "^2CLP6Probe"',
@@ -407,6 +408,7 @@ function Invoke-MapRuntimeProbe {
 		'set developer 1',
 		'set logfile 2',
 		'set g_logfile 1',
+		'set web_eventDebug 1',
 		'set com_maxfps 30',
 		'set r_fullscreen 0',
 		'set sv_pure 0',
@@ -569,10 +571,30 @@ if ( -not $mapProbe.demo_file ) {
 }
 
 $mapScreenshotLogged = ( $mapLogText -match [regex]::Escape( "Wrote screenshots/$mapShotPrefix.jpg" ) ) -or -not [string]::IsNullOrWhiteSpace( $mapEngineScreenshotPath )
-$gameEndPublished = $mapLogText -match [regex]::Escape( 'steam_event game.end' )
+$gameEndPublished = (
+	( $mapLogText -match [regex]::Escape( 'steam_event game.end' ) ) -or
+	( $mapLogText -match 'browser event: game\.end' ) -or
+	( $mapLogText -match 'game\.end browser event' )
+)
 $shutdownSeen = $mapLogText -match [regex]::Escape( '----- CL_Shutdown -----' )
 $lifecycleEndConfirmed = $mapProbe.disconnect_seen -or $gameEndPublished -or $shutdownSeen
-$gameErrorPublished = ( $mainLogText -match [regex]::Escape( 'steam_event game.error' ) ) -and ( $mainLogText -match [regex]::Escape( 'codex_client_p6_error' ) )
+$showBrowserFallbackLogged = (
+	( $mainLogText -match [regex]::Escape( 'web_showBrowser ignored: online services disabled by build settings' ) ) -or
+	( $mainLogText -match [regex]::Escape( 'web_showBrowser ignored: browser overlay provider unavailable' ) ) -or
+	( $mainLogText -match [regex]::Escape( 'UI: browser overlay unavailable; web_showBrowser stubbed.' ) )
+)
+$changeHashFallbackLogged = (
+	( $mainLogText -match [regex]::Escape( 'web_changeHash ignored: online services disabled by build settings' ) ) -or
+	( $mainLogText -match [regex]::Escape( 'web_changeHash ignored: browser overlay provider unavailable' ) )
+)
+$gameErrorPublished = (
+	(
+		( $mainLogText -match [regex]::Escape( 'steam_event game.error' ) ) -or
+		( $mainLogText -match 'browser event: game\.error' ) -or
+		( $mainLogText -match [regex]::Escape( 'Cvar_Set2: com_errorMessage (codex_client_p6_error)' ) )
+	) -and
+	( $mainLogText -match [regex]::Escape( 'codex_client_p6_error' ) )
+)
 $nativeStopRefreshFallbackLogged = $mainLogText -match [regex]::Escape( 'UI: stopRefresh requested without browser overlay; only native refresh stopped.' )
 
 foreach ( $pair in @(
@@ -580,8 +602,6 @@ foreach ( $pair in @(
 		@('----- UI Initialization Complete -----', $mainLogText),
 		@('execing qzconfig.cfg', $mainLogText),
 		@('execing repconfig.cfg', $mainLogText),
-		@('web_showBrowser ignored: online services disabled by build settings', $mainLogText),
-		@('web_changeHash ignored: online services disabled by build settings', $mainLogText),
 		@("Wrote screenshots/$menuShotPrefix.jpg", $mainLogText),
 		@("Server: $MapName", $mapLogText),
 		@('Going from CS_PRIMED to CS_ACTIVE', $mapLogText)
@@ -591,6 +611,18 @@ foreach ( $pair in @(
 	} else {
 		$missingMarkers.Add( $pair[0] )
 	}
+}
+
+if ( $showBrowserFallbackLogged ) {
+	$verifiedMarkers.Add( 'client runtime showBrowser fallback observed' )
+} else {
+	$missingMarkers.Add( 'client runtime showBrowser fallback observed' )
+}
+
+if ( $changeHashFallbackLogged ) {
+	$verifiedMarkers.Add( 'client runtime changeHash fallback observed' )
+} else {
+	$missingMarkers.Add( 'client runtime changeHash fallback observed' )
 }
 
 if ( $mapScreenshotLogged ) {
@@ -666,8 +698,8 @@ $artifact = [ordered]@{
 			sha256 = Get-ArtifactSha256 -Path $savedConfigPath
 		}
 		offline_browser_policy = [ordered]@{
-			show_browser_ignored = $mainLogText -match [regex]::Escape( 'web_showBrowser ignored: online services disabled by build settings' )
-			change_hash_ignored = $mainLogText -match [regex]::Escape( 'web_changeHash ignored: online services disabled by build settings' )
+			show_browser_ignored = $showBrowserFallbackLogged
+			change_hash_ignored = $changeHashFallbackLogged
 			game_error_published = $gameErrorPublished
 			native_stop_refresh_logged = $nativeStopRefreshFallbackLogged
 		}

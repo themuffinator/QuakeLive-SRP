@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Protocol 91 client-message sideband producer map for retail sub_4AF4D0/data_565948",
+  "depends_on": [
+    "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+    "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "functions": "references/reverse-engineering/ghidra/quakelive_steam/functions.csv",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "source_files": [
+    "src/code/client/cl_cgame.c",
+    "src/code/client/cl_input.c",
+    "src/code/client/cl_main.c",
+    "src/code/client/client.h",
+    "src/code/renderer/tr_cmds.c",
+    "src/code/renderer/tr_public.h"
+  ],
+  "retail_state": {
+    "symbol": "data_565948",
+    "address": "0x00565948",
+    "initial_value": "0x80",
+    "read_helper": {
+      "symbol": "sub_4AF4D0",
+      "address": "0x004AF4D0",
+      "observed": "return data_565948"
+    }
+  },
+  "producer_map": [
+    {
+      "id": "initial_high_bit",
+      "function": null,
+      "address": "0x00565948",
+      "operation": "initialize",
+      "mask": "0x80",
+      "observed": "data_565948 is initialized to 0x80 in the committed HLIL data region.",
+      "source_status": "implemented_by_persistent_CL_RetailClientMessageFlags_initializer",
+      "confidence": "high"
+    },
+    {
+      "id": "renderer_low_five_bits",
+      "function": "sub_43C120",
+      "address": "0x0043C120",
+      "operation": "replace_low_five_bits",
+      "mask": "0x1f",
+      "observed": "data_565948 = old ^ ((old ^ hash) & 0x1f) after sub_4D8970(..., 0x20, data_1745edc).",
+      "inferred_meaning": "The low five bits carry the clamped renderer front-end node/leaf visit count from R_PerformanceCounters before the counters are cleared.",
+      "source_status": "implemented_by_refimport_SetClientMessageRendererNodeCount",
+      "confidence": "high"
+    },
+    {
+      "id": "cgame_import_pointer_guard",
+      "function": "sub_4B0A50",
+      "address": "0x004B0A50",
+      "operation": "or",
+      "mask": "0x40",
+      "observed": "if data_565a74 != sub_4b0000 || data_565a88 != sub_4bef80 then data_565948 |= 0x40.",
+      "inferred_meaning": "This is a native cgame import-slab integrity guard for the R_AddRefEntityToScene and R_RenderScene bridge slots.",
+      "source_status": "implemented_by_CL_CheckCGameNativeImportIntegrity",
+      "confidence": "high"
+    },
+    {
+      "id": "viewangle_delta_bit",
+      "function": "sub_4BC3E0 / CL_Frame",
+      "address": "0x004BC661",
+      "operation": "or",
+      "mask": "0x20",
+      "observed": "CL_Frame stores data_1472758/data_1472754, calls sub_4BE3A0, compares the values, and ORs data_565948 with 0x20 if either comparison changes.",
+      "inferred_meaning": "This bit tracks client pitch/yaw mutation across SCR_UpdateScreen after CL_SendCmd has emitted the current input packet.",
+      "source_status": "implemented_by_CL_Frame_viewangle_compare_after_SCR_UpdateScreen",
+      "confidence": "high"
+    }
+  ],
+  "source_status": {
+    "helper": "CL_RetailClientMessageFlags",
+    "current_return": "persistent cl_retailClientMessageFlags, initialized to 0x80",
+    "classification": "all_observed_retail_sideband_producers_implemented_static_capture_diff_pending",
+    "byte_for_byte_complete": false,
+    "notes": [
+      "The observed retail initializer is emitted by source packets.",
+      "CL_Frame now snapshots cl.viewangles[YAW]/cl.viewangles[PITCH], calls SCR_UpdateScreen, and raises the sticky 0x20 sideband flag if either angle changes, matching the observed retail call window.",
+      "R_PerformanceCounters reports tr.pc.c_leafs through a renderer import callback before clearing counters, and the client replaces the low five bits with clamp(nodeCount, 0, 32) & 0x1f using the retail XOR replacement form.",
+      "CL_Frame calls CL_CheckCGameNativeImportIntegrity before CL_SetCGameTime, and the check raises the sticky 0x40 guard if the native cgame R_AddRefEntityToScene or R_RenderScene import slots no longer point at their expected wrappers."
+    ]
+  },
+  "completion_status": {
+    "implementation_plan_entry": "Recover retail client-message sideband producers behind sub_4AF4D0/data_565948",
+    "status": "producer_map_captured_all_observed_producers_implemented_static_capture_diff_pending",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "focused_sideband_slice_before_percent": 88,
+    "focused_sideband_slice_after_percent": 100,
+    "overall_network_protocol_parity_before_percent": 89,
+    "overall_network_protocol_parity_after_percent": 90,
+    "residual_risks": [
+      "A capture-backed client packet comparison is still required before calling the sideband byte fully byte-for-byte complete."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_client_message_sideband_producer_map_and_constant_high_bit"
+  ]
+}

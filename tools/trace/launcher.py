@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import queue
 import selectors
 import subprocess
+import threading
 import time
-import argparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -84,16 +86,20 @@ class TraceLauncher:
             bufsize=1,
         )
 
-        selector = selectors.DefaultSelector()
-        if process.stdout is not None:
-            selector.register(process.stdout, selectors.EVENT_READ, data="stdout")
-        if process.stderr is not None:
-            selector.register(process.stderr, selectors.EVENT_READ, data="stderr")
-
         try:
-            self._pump_streams(process, selector, collector, stdout_handle, stderr_handle)
+            if os.name == "nt":
+                self._pump_streams_threaded(process, collector, stdout_handle, stderr_handle)
+            else:
+                selector = selectors.DefaultSelector()
+                if process.stdout is not None:
+                    selector.register(process.stdout, selectors.EVENT_READ, data="stdout")
+                if process.stderr is not None:
+                    selector.register(process.stderr, selectors.EVENT_READ, data="stderr")
+                try:
+                    self._pump_streams(process, selector, collector, stdout_handle, stderr_handle)
+                finally:
+                    selector.close()
         finally:
-            selector.close()
             stdout_handle.close()
             stderr_handle.close()
 
@@ -172,6 +178,54 @@ class TraceLauncher:
                 handle.write(line)
                 handle.flush()
                 collector.handle_line(line)
+
+            if time.monotonic() >= deadline:
+                break
+
+    def _pump_streams_threaded(
+        self,
+        process: subprocess.Popen[str],
+        collector: TraceCollector,
+        stdout_handle: TextIO,
+        stderr_handle: TextIO,
+    ) -> None:
+        cfg = self.config
+        deadline = time.monotonic() + cfg.match_duration
+        events: queue.Queue[tuple[str, str | None]] = queue.Queue()
+        active_streams = 0
+
+        def reader(stream_name: str, stream) -> None:
+            try:
+                for line in stream:
+                    events.put((stream_name, line))
+            finally:
+                events.put((stream_name, None))
+
+        for stream_name, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
+            if stream is None:
+                continue
+            active_streams += 1
+            thread = threading.Thread(target=reader, args=(stream_name, stream), daemon=True)
+            thread.start()
+
+        while active_streams:
+            timeout = max(0.0, deadline - time.monotonic())
+            timeout = min(timeout, cfg.poll_interval)
+            try:
+                stream_name, line = events.get(timeout=timeout or cfg.poll_interval)
+            except queue.Empty:
+                if time.monotonic() >= deadline:
+                    break
+                continue
+
+            if line is None:
+                active_streams -= 1
+                continue
+
+            handle = stdout_handle if stream_name == "stdout" else stderr_handle
+            handle.write(line)
+            handle.flush()
+            collector.handle_line(line)
 
             if time.monotonic() >= deadline:
                 break

@@ -1019,9 +1019,9 @@ idZMQ_BuildPublication
 */
 static void idZMQ_BuildPublication( const char *type, const char *payload, char *buffer, size_t bufferSize ) {
 	if ( payload && payload[0] ) {
-		Com_sprintf( buffer, bufferSize, "{\"TYPE\":\"%s\",\"DATA\":%s}\n", type, payload );
+		Com_sprintf( buffer, bufferSize, "{\"TYPE\":\"%s\",\"DATA\":%s}", type, payload );
 	} else {
-		Com_sprintf( buffer, bufferSize, "{\"TYPE\":\"%s\",\"DATA\":null}\n", type );
+		Com_sprintf( buffer, bufferSize, "{\"TYPE\":\"%s\",\"DATA\":null}", type );
 	}
 }
 
@@ -1045,6 +1045,7 @@ static void idZMQ_WriteStatsTranscript( const char *message ) {
 	length = (int)strlen( message );
 	if ( length > 0 ) {
 		FS_Write( message, length, s_zmq.statsTranscript );
+		FS_Write( "\n", 1, s_zmq.statsTranscript );
 	}
 }
 
@@ -1074,14 +1075,14 @@ Zmq_RegisterCvarsAndInitRcon
 ==================
 */
 void Zmq_RegisterCvarsAndInitRcon( void ) {
-	s_zmqRconEnable = Cvar_Get( "zmq_rcon_enable", "0", CVAR_ARCHIVE );
-	s_zmqStatsEnable = Cvar_Get( "zmq_stats_enable", "0", CVAR_ARCHIVE );
-	s_zmqRconIp = Cvar_Get( "zmq_rcon_ip", "0.0.0.0", CVAR_ARCHIVE );
-	s_zmqRconPort = Cvar_Get( "zmq_rcon_port", "28960", CVAR_ARCHIVE );
-	s_zmqStatsIp = Cvar_Get( "zmq_stats_ip", "", CVAR_ARCHIVE );
-	s_zmqStatsPort = Cvar_Get( "zmq_stats_port", "", CVAR_ARCHIVE );
-	s_zmqStatsPassword = Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );
-	s_zmqRconPassword = Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );
+	s_zmqRconEnable = Cvar_Get( "zmq_rcon_enable", "0", CVAR_INIT );
+	s_zmqStatsEnable = Cvar_Get( "zmq_stats_enable", "0", CVAR_INIT );
+	s_zmqRconIp = Cvar_Get( "zmq_rcon_ip", "0.0.0.0", CVAR_INIT );
+	s_zmqRconPort = Cvar_Get( "zmq_rcon_port", "28960", CVAR_INIT );
+	s_zmqStatsIp = Cvar_Get( "zmq_stats_ip", "", CVAR_INIT );
+	s_zmqStatsPort = Cvar_Get( "zmq_stats_port", "", CVAR_INIT );
+	s_zmqStatsPassword = Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE );
+	s_zmqRconPassword = Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE );
 
 	Zmq_UpdatePasswords();
 	idZMQ_EnsureRconSocket();

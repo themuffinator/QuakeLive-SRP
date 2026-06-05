@@ -266,6 +266,8 @@ int AAS_StartFrame(float time)
 		} //end if
 	} //end if
 	//
+	bot_showPath = LibVarGetValue("bot_showPath");
+	//
 	if (saveroutingcache->value)
 	{
 		AAS_WriteRouteCache();

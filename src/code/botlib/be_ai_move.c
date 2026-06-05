@@ -741,6 +741,27 @@ void BotAddAvoidSpot(int movestate, vec3_t origin, float radius, int type)
 // Returns:				-
 // Changes Globals:		-
 //===========================================================================
+void BotDrawAvoidSpots(int movestate)
+{
+	bot_movestate_t *ms;
+	int i;
+
+	ms = BotMoveStateFromHandle(movestate);
+	if (!ms) {
+		return;
+	} //end if
+
+	AAS_ClearShownDebugLines();
+	for (i = 0; i < ms->numavoidspots; i++) {
+		AAS_DrawCross(ms->avoidspots[i].origin, ms->avoidspots[i].radius, LINECOLOR_RED);
+	} //end for
+} //end of the function BotDrawAvoidSpots
+//===========================================================================
+//
+// Parameter:			-
+// Returns:				-
+// Changes Globals:		-
+//===========================================================================
 int BotGetReachabilityToGoal(vec3_t origin, int areanum,
 									  int lastgoalareanum, int lastareanum,
 									  int *avoidreach, float *avoidreachtimes, int *avoidreachtries,
@@ -3501,6 +3522,12 @@ void BotMoveToGoal(bot_moveresult_t *result, int movestate, bot_goal_t *goal, in
 	} //end else
 	//FIXME: is it right to do this here?
 	if (result->blocked) ms->reachability_time -= 10 * ms->thinktime;
+	if (bot_showPath)
+	{
+		AAS_ReachabilityFromNum(ms->lastreachnum, &reach);
+		AAS_DebugLine(ms->origin, ms->lastorigin, LINECOLOR_YELLOW);
+		AAS_DrawArrow(reach.start, reach.end, LINECOLOR_BLUE, LINECOLOR_YELLOW);
+	} //end if
 	//copy the last origin
 	VectorCopy(ms->origin, ms->lastorigin);
 	//return the movement result
@@ -3606,5 +3633,3 @@ void BotShutdownMoveAI(void)
 		} //end if
 	} //end for
 } //end of the function BotShutdownMoveAI
-
-

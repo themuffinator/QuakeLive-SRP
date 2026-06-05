@@ -1,0 +1,311 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Network protocol hardening pass for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+    "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json",
+    "ghidra_functions": "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+  },
+  "source_files": [
+    "src/code/qcommon/msg.c",
+    "src/code/qcommon/net_chan.c",
+    "src/code/client/cl_parse.c",
+    "src/code/client/cl_net_chan.c",
+    "src/code/server/sv_client.c",
+    "src/code/server/sv_net_chan.c",
+    "src/code/server/sv_snapshot.c"
+  ],
+  "hardening_lanes": [
+    {
+      "id": "entity_delta_invalid_lc",
+      "source_owner": "MSG_ReadDeltaEntity",
+      "retail_anchor": "0x004D5AC0",
+      "guard": "drop if lc < 0 or lc > entityStateFields count",
+      "source_patch": true,
+      "field_count": 58,
+      "retail_observation": "Retail reads an unsigned byte lc and walks the 0x3a-entry entityStateFields table; no committed HLIL bounds guard was observed before the walk.",
+      "source_resolution": "Source now drops with ERR_DROP before indexing entityStateFields[lc] or walking beyond the recovered retail table.",
+      "error_message": "MSG_ReadDeltaEntity: invalid field count %i"
+    },
+    {
+      "id": "playerstate_delta_invalid_lc",
+      "source_owner": "MSG_ReadDeltaPlayerstate",
+      "retail_anchor": "0x004D66C0",
+      "guard": "drop if lc < 0 or lc > playerStateFields count",
+      "source_patch": true,
+      "field_count": 58,
+      "retail_observation": "Retail reads an unsigned byte lc and walks the 0x3a-entry playerStateFields table; no committed HLIL bounds guard was observed before the walk.",
+      "source_resolution": "Source now drops with ERR_DROP before indexing playerStateFields[lc] or walking beyond the recovered retail table.",
+      "error_message": "MSG_ReadDeltaPlayerstate: invalid field count %i"
+    },
+    {
+      "id": "netchan_fragment_edge_cases",
+      "source_owner": "Netchan_Process",
+      "retail_anchor": "0x004D7640",
+      "guard": "reject duplicate/out-of-order packets, non-contiguous fragments, negative lengths, read-past-packet lengths, fragment buffer overflow, and terminal reassembly larger than msg->maxsize",
+      "source_patch": false,
+      "retail_observation": "Retail Netchan_Process strips FRAGMENT_BIT, reads optional qport, validates fragment ordering and lengths, returns false for nonterminal fragments, and rebuilds the accepted terminal fragment into msg->data + 4.",
+      "diagnostics": [
+        "Out of order packet",
+        "Dropped a message fragment",
+        "illegal fragment length",
+        "fragmentLength %i > msg->maxsize"
+      ]
+    },
+    {
+      "id": "client_server_command_ring_wraparound",
+      "source_owner": "CL_ParseCommandString",
+      "retail_anchor": "0x004BDAB0",
+      "guard": "ignore already-stored server commands and store new commands in seq & (MAX_RELIABLE_COMMANDS - 1)",
+      "source_patch": false,
+      "ring_mask": "MAX_RELIABLE_COMMANDS - 1",
+      "source_resolution": "The parser keeps monotonically increasing clc.serverCommandSequence and only uses the masked index after accepting a newer sequence."
+    },
+    {
+      "id": "server_client_command_ring_wraparound",
+      "source_owner": "SV_ClientCommand",
+      "retail_anchor": "0x004E00F0",
+      "guard": "ignore already-executed reliable client commands and drop clients that skip sequence numbers",
+      "source_patch": false,
+      "ring_mask": "MAX_RELIABLE_COMMANDS - 1",
+      "drop_message": "Lost reliable commands"
+    },
+    {
+      "id": "reliable_acknowledge_bounds",
+      "source_owners": [
+        "CL_ParseServerMessage",
+        "SV_ExecuteClientMessage"
+      ],
+      "retail_anchors": [
+        "0x004BDA00",
+        "0x004E05C0"
+      ],
+      "guard": "clamp or reject acknowledgements older than reliableSequence - MAX_RELIABLE_COMMANDS before ring-indexed command emission",
+      "source_patch": false,
+      "client_action": "clc.reliableAcknowledge is clamped to clc.reliableSequence",
+      "server_action": "cl->reliableAcknowledge is set to cl->reliableSequence and parsing returns"
+    },
+    {
+      "id": "xor_command_ring_sanitized_wraparound",
+      "source_owners": [
+        "CL_Netchan_Encode",
+        "CL_Netchan_Decode",
+        "SV_Netchan_Encode",
+        "SV_Netchan_Decode"
+      ],
+      "retail_anchors": [
+        "0x004BCE30",
+        "0x004BCEF0",
+        "0x004E4CD0",
+        "0x004E4D70"
+      ],
+      "guard": "select command strings through reliableAcknowledge & (MAX_RELIABLE_COMMANDS - 1), reset the string cursor at NUL, and sanitize percent/high-bit bytes to '.' before key folding",
+      "source_patch": false,
+      "ring_mask": "MAX_RELIABLE_COMMANDS - 1",
+      "sanitized_bytes": [
+        "0x25",
+        "byte > 0x7f"
+      ]
+    },
+    {
+      "id": "stale_delta_frame_rejection",
+      "source_owner": "CL_ParseSnapshot",
+      "retail_anchor": "0x004BD350",
+      "guard": "reject invalid old snapshots, mismatched old message numbers, and parse-entity ages greater than MAX_PARSE_ENTITIES - 128",
+      "source_patch": false,
+      "stale_parse_entities_threshold": 1920,
+      "retail_valid_condition_hlil": "data_1471e98 - old.parseEntitiesNum <= 0x780",
+      "diagnostics": [
+        "Delta from invalid frame (not supposed to happen!).",
+        "Delta frame too old.",
+        "Delta parseEntitiesNum too old."
+      ]
+    },
+    {
+      "id": "server_snapshot_delta_source_aging",
+      "source_owner": "SV_WriteSnapshotToClient",
+      "retail_anchor": "0x004E50E0",
+      "guard": "fall back to an uncompressed snapshot when deltaMessage is unavailable, too old for PACKET_BACKUP - 3, or its snapshot entities have rolled out of the ring",
+      "source_patch": false,
+      "fallback": {
+        "oldframe": "NULL",
+        "lastframe": 0
+      }
+    },
+    {
+      "id": "usercmd_count_bounds",
+      "source_owner": "SV_UserMove",
+      "retail_anchor": "0x004E0320",
+      "guard": "ignore packets with cmdCount < 1 or cmdCount > MAX_PACKET_USERCMDS before reading usercmd deltas",
+      "source_patch": false,
+      "diagnostics": [
+        "cmdCount < 1",
+        "cmdCount > MAX_PACKET_USERCMDS"
+      ]
+    },
+    {
+      "id": "bad_opcode_and_read_past_end",
+      "source_owners": [
+        "CL_ParseServerMessage",
+        "SV_ExecuteClientMessage"
+      ],
+      "retail_anchors": [
+        "0x004BDA00",
+        "0x004E05C0"
+      ],
+      "guard": "client drops illegible server messages and read-past-end server messages; server warns on unexpected client command bytes after optional clientCommand records",
+      "source_patch": false,
+      "diagnostics": [
+        "CL_ParseServerMessage: read past end of server message",
+        "CL_ParseServerMessage: Illegible server message %d",
+        "WARNING: bad command byte for client %i"
+      ]
+    }
+  ],
+  "negative_vectors": [
+    {
+      "id": "entity_lc_above_field_count",
+      "lane": "entity_delta_invalid_lc",
+      "input": {
+        "lc": 59,
+        "field_count": 58
+      },
+      "expected": "ERR_DROP before reading entityStateFields[59]"
+    },
+    {
+      "id": "playerstate_lc_above_field_count",
+      "lane": "playerstate_delta_invalid_lc",
+      "input": {
+        "lc": 59,
+        "field_count": 58
+      },
+      "expected": "ERR_DROP before reading playerStateFields[59]"
+    },
+    {
+      "id": "fragment_start_gap",
+      "lane": "netchan_fragment_edge_cases",
+      "input": {
+        "fragmentStart": "chan->fragmentLength + 1"
+      },
+      "expected": "return qfalse and preserve the accumulated fragment buffer"
+    },
+    {
+      "id": "fragment_negative_length",
+      "lane": "netchan_fragment_edge_cases",
+      "input": {
+        "fragmentLength": -1
+      },
+      "expected": "return qfalse before copying fragment bytes"
+    },
+    {
+      "id": "reliable_ack_too_old",
+      "lane": "reliable_acknowledge_bounds",
+      "input": {
+        "reliableAcknowledge": "reliableSequence - MAX_RELIABLE_COMMANDS - 1"
+      },
+      "expected": "clamp or return before ring-indexed emission can amplify commands"
+    },
+    {
+      "id": "snapshot_parse_entities_too_old",
+      "lane": "stale_delta_frame_rejection",
+      "input": {
+        "parseEntitiesAge": 1921
+      },
+      "expected": "message is consumed but snapshot is not committed"
+    },
+    {
+      "id": "cmd_count_too_large",
+      "lane": "usercmd_count_bounds",
+      "input": {
+        "cmdCount": "MAX_PACKET_USERCMDS + 1"
+      },
+      "expected": "return before MSG_ReadDeltaUsercmdKey"
+    }
+  ],
+  "retail_anchors": [
+    {
+      "symbol": "MSG_ReadDeltaEntity",
+      "address": "0x004D5AC0",
+      "observed": "Retail reads an 8-bit lc and uses the 0x3a-entry entityStateFields table."
+    },
+    {
+      "symbol": "MSG_ReadDeltaPlayerstate",
+      "address": "0x004D66C0",
+      "observed": "Retail reads an 8-bit lc and uses the 0x3a-entry playerStateFields table."
+    },
+    {
+      "symbol": "Netchan_Process",
+      "address": "0x004D7640",
+      "observed": "Retail rejects out-of-order, non-contiguous, and illegal fragments and accepts only terminal reassembly."
+    },
+    {
+      "symbol": "CL_ParseServerMessage",
+      "address": "0x004BDA00",
+      "observed": "Retail parses server reliable acknowledgements, opcodes, and bad-message drop paths."
+    },
+    {
+      "symbol": "CL_ParseSnapshot",
+      "address": "0x004BD350",
+      "observed": "Retail rejects invalid, mismatched, and parse-entity-stale delta frames."
+    },
+    {
+      "symbol": "CL_ParseCommandString",
+      "address": "0x004BDAB0",
+      "observed": "Retail stores server commands through the reliable command ring."
+    },
+    {
+      "symbol": "SV_UserMove",
+      "address": "0x004E0320",
+      "observed": "Retail bounds client usercmd counts before reading keyed usercmd deltas."
+    },
+    {
+      "symbol": "SV_ExecuteClientMessage",
+      "address": "0x004E05C0",
+      "observed": "Retail consumes the three client-message longs plus sideband byte, validates stale acknowledgements, and dispatches move opcodes."
+    },
+    {
+      "symbol": "SV_WriteSnapshotToClient",
+      "address": "0x004E50E0",
+      "observed": "Retail falls back to uncompressed snapshots when delta sources are too old."
+    }
+  ],
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_protocol_hardening_invalid_lc_fragments_rings_and_stale_deltas"
+  ],
+  "completion_status": {
+    "status": "completed_source_patch_and_static_hardening_assertions",
+    "source_patch_required": true,
+    "runtime_launch_required": false,
+    "focused_task_parity_before_percent": 58,
+    "focused_task_parity_after_percent": 88,
+    "overall_network_protocol_parity_before_percent": 86,
+    "overall_network_protocol_parity_after_percent": 87,
+    "remaining_gaps": [
+      "Invalid lc handling is source-hardened with ERR_DROP guards because committed retail HLIL does not show a safe pre-walk bounds guard.",
+      "Byte-for-byte malicious-packet behavior still needs external capture or controlled retail probing before claiming exact retail crash/drop equivalence.",
+      "The retail sideband producers behind CL_RetailClientMessageFlags are now source-modeled; byte-for-byte sideband validation remains a packet-capture follow-up."
+    ]
+  }
+}

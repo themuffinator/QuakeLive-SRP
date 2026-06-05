@@ -31,6 +31,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	BOTLIB_API_VERSION		2
 
+#ifndef BOTLIB_QL_POWERUP_ACTIVE_COUNT
+#define BOTLIB_QL_POWERUP_ACTIVE_COUNT	16
+#endif
+
 struct aas_clientmove_s;
 struct aas_entityinfo_s;
 struct aas_areainfo_s;
@@ -163,6 +167,15 @@ typedef struct bot_entitystate_s
 	int		weapon;			// determines weapon and flash model, etc
 	int		legsAnim;		// mask off ANIM_TOGGLEBIT
 	int		torsoAnim;		// mask off ANIM_TOGGLEBIT
+	float	qlTimeSeconds;	// retail word 0x1c: entity-side millisecond timer / 1000
+	int		qlPlayerGravity;	// retail word 0x1d: playerState_t.gravity when client data exists
+	int		qlPlayerSpeed;	// retail word 0x1e: playerState_t.speed when client data exists
+	int		qlPlayerDeltaAngle0;	// retail word 0x1f: playerState_t.delta_angles[0] when client data exists
+	int		qlEntityHealth;	// retail word 0x20: gentity_t.health when client data exists
+	int		qlClientMaxHealth;	// retail word 0x21: playerState_t.stats[STAT_MAX_HEALTH] when client data exists
+	int		qlPowerupsActive[BOTLIB_QL_POWERUP_ACTIVE_COUNT];	// retail words 0x22-0x31
+	int		qlFlagsBit18Clear;	// retail word 0x32: !(gentity_t.flags & 0x00040000)
+	int		qlRedBlueFlagCarrier;	// retail word 0x33: red/blue carried-flag sidecar present
 } bot_entitystate_t;
 
 //bot AI library exported functions
@@ -272,6 +285,7 @@ typedef struct ea_export_s
 	void	(*EA_SayTeam)(int client, char *str);
 	//
 	void	(*EA_Action)(int client, int action);
+	void	(*EA_Walk)(int client);
 	void	(*EA_Gesture)(int client);
 	void	(*EA_Talk)(int client);
 	void	(*EA_Attack)(int client);
@@ -392,6 +406,8 @@ typedef struct ai_export_s
 	// be_ai_gen.h
 	//-----------------------------------
 	int		(*GeneticParentsAndChildSelection)(int numranks, float *ranks, int *parent1, int *parent2, int *child);
+	void	(*BotDrawDebugAreas)(vec3_t origin, int enable, int areanum);
+	void	(*BotDrawAvoidSpots)(int movestate);
 } ai_export_t;
 
 //bot AI library imported functions
@@ -513,4 +529,3 @@ name:						default:			module(s):			description:
 "max_levelitems"			"256"				be_ai_goal.c		maximum number of level items
 
 */
-

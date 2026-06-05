@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "last_updated": "2026-06-04",
+  "last_updated": "2026-06-05",
   "scope": "Quake Live retail netcode and adjacent message wrapper parity",
   "owning_retail_binary": "assets/quakelive/quakelive_steam.exe",
   "reference_profile": {
@@ -21,7 +21,22 @@
     {
       "date": "2026-06-04",
       "focus": "server snapshot authoring, reliable resend, and send scheduling checkpoints",
-      "outcome": "verified with documented classic-download compatibility divergence"
+      "outcome": "verified; classic-download compatibility divergence closed by the 2026-06-05 server snapshot send-wrapper follow-up"
+    },
+    {
+      "date": "2026-06-05",
+      "focus": "server snapshot send wrapper retail closure",
+      "outcome": "closed the classic-download injection divergence; SV_SendClientSnapshot now matches the retail snapshot-to-overflow send order"
+    },
+    {
+      "date": "2026-06-05",
+      "focus": "client connection-response protocol closure",
+      "outcome": "restored the retail bad-address game-error publish and the 0x400 challengeResponse sideband slot before clc.netchan"
+    },
+    {
+      "date": "2026-06-05",
+      "focus": "client connection adjacent wiring parity sweep",
+      "outcome": "confirmed connect/retry, challenge/connect response, packet dispatch, netchan setup, server challenge/direct-connect, and cgame serverinfo map-name wiring; corrected a stale broad-test expectation with no further source behavior changes"
     },
     {
       "date": "2026-06-04",
@@ -2727,7 +2742,7 @@
       "behavior_checkpoints": [
         "begins reading out-of-band packets after the 0xffffffff marker",
         "tokenizes the first connectionless command line",
-        "accepts challengeResponse only from CA_CONNECTING, stores the challenge, moves to CA_CHALLENGING, and resets resend state",
+        "accepts challengeResponse only from CA_CONNECTING, stores the challenge and optional sideband token, moves to CA_CHALLENGING, and resets resend state",
         "accepts connectResponse only while CA_CHALLENGING and from the current base address",
         "sets up the client netchan with net_qport and moves to CA_CONNECTED on connectResponse",
         "dispatches infoResponse, statusResponse, disconnect, echo, keyAuthorize, motd, print, and getserversResponse through the retained handlers",
@@ -2914,11 +2929,12 @@
         "client CL_BeginDownload emits the active profile download request command",
         "client CL_ParseDownload reads svc_download block ids, block-zero file size, stop and next acknowledgements, temp-file rename, and CL_NextDownload handoff",
         "server SV_WriteDownloadToClient retains the sliding MAX_DOWNLOAD_WINDOW block writer for svc_download",
-        "server user-command dispatch routes download, nextdl, stopdl, and donedl through profile token getters"
+        "server user-command dispatch routes download, nextdl, stopdl, and donedl through profile token getters",
+        "server SV_BeginDownload_f clears legacy download state without arming snapshot-side svc_download emission"
       ],
       "compatibility_notes": [
         "committed retail HLIL search for this round did not find svc_download, nextdl, stopdl, donedl, or classic clientDownload block-transfer strings",
-        "source keeps the classic UDP pk3 autodownload lane for Quake III compatibility while Quake Live retail download bootstrap is workshop-first"
+        "source retains classic UDP pk3 autodownload helpers as an inactive compatibility lane while the Quake Live retail snapshot send path no longer injects svc_download payloads"
       ],
       "tests": [
         "tests/test_netcode_parity_manifest.py::test_manifest_covers_download_bootstrap_and_compatibility_lane"
@@ -3424,12 +3440,9 @@
         "writes lastClientCommand at the start of every server-to-client message",
         "resends reliable server commands before the snapshot body",
         "writes the snapshot body through SV_WriteSnapshotToClient",
+        "does not inject classic svc_download payloads between SV_WriteSnapshotToClient and overflow handling",
         "clears overflowed messages after printing the retail warning",
         "sends through SV_SendMessageToClient after overflow handling"
-      ],
-      "compatibility_notes": [
-        "the writable source intentionally retains the classic SV_WriteDownloadToClient call after SV_WriteSnapshotToClient for the preserved UDP pk3 autodownload lane",
-        "the committed retail HLIL for 0x004E5AC0 does not show an intervening classic download writer between SV_WriteSnapshotToClient and overflow handling"
       ],
       "tests": [
         "tests/test_netcode_parity_manifest.py::test_manifest_covers_server_snapshot_authoring_lane"

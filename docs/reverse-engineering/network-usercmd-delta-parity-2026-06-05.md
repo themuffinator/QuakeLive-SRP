@@ -59,4 +59,4 @@ Validation added:
 
 Estimated parity movement for this task: focused `usercmd_t` delta slice `78%` -> `94%`; overall network-protocol parity `78%` -> `80%`.
 
-Residual risk: final packet-byte fixtures still require a pinned adaptive Huffman state or an external retail capture. No source patch or runtime launch was needed for this pass.
+Residual risk: capture-scoped adaptive Huffman fixtures are now pinned in `network-adaptive-huffman-fixtures-2026-06-05.md`, but full usercmd packet-byte replay still requires capture-specific message ordering or an external retail capture. No source patch or runtime launch was needed for this pass.

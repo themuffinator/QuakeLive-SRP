@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Fragmented snapshot plus queued follow-up timing report validation gate",
+  "status": "completed_fragment_queue_timing_validation_gate_no_retail_capture_claimed",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "depends_on": [
+    "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json"
+  ],
+  "source_files": [
+    "tools/trace/fragment_timing.py",
+    "tools/trace/__init__.py",
+    "tools/tests/test_trace_harness.py"
+  ],
+  "supported_checklist_row": "Validate fragmented snapshot plus queued follow-up timing against a byte-for-byte retail capture.",
+  "tool_contract": {
+    "module": "tools.trace.fragment_timing",
+    "function": "validate_fragment_queue_timing_dict",
+    "format": "quake_live_fragment_queue_timing",
+    "schema_version": 1,
+    "fragment_size": 1300,
+    "required_sections": [
+      "fragment_reassembly",
+      "queued_followup"
+    ],
+    "fragment_checks": [
+      "capture_id is present",
+      "fragmentStart equals the previous accumulated length for that sequence",
+      "accumulatedLength equals fragmentStart plus fragmentLength",
+      "at least one full FRAGMENT_SIZE fragment is present and not accepted",
+      "at least one terminal short fragment is present and accepted",
+      "terminal short fragments carry a lowercase SHA-256 reassembledPayloadHash"
+    ],
+    "queued_followup_checks": [
+      "at least one queued follow-up event is present",
+      "queuedMessageSequence is present",
+      "storedEncoded is false",
+      "encodedOnPop is true",
+      "datagramHash is a lowercase SHA-256 hex string",
+      "the final queued follow-up event has queueEmptyAfterPop true"
+    ],
+    "retail_provenance_required_for_closure": true
+  },
+  "report_columns": [
+    "sequence",
+    "fragmentStart",
+    "fragmentLength",
+    "accumulatedLength",
+    "accepted",
+    "reassembledPayloadHash",
+    "queuedMessageSequence",
+    "storedEncoded",
+    "encodedOnPop",
+    "queueEmptyAfterPop",
+    "datagramHash"
+  ],
+  "checklist_effect": {
+    "new_checked_fragment_queue_timing_validation_row": true,
+    "fragmented_snapshot_queued_followup_row_closed": false,
+    "capture_rows_remain_open": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "The pass validates future fragment/queue timing reports and does not add a retail fragmented-message capture."
+  },
+  "assertion_tests": [
+    "tools/tests/test_trace_harness.py::test_fragment_queue_timing_validator_accepts_retail_timing_report",
+    "tools/tests/test_trace_harness.py::test_fragment_queue_timing_validator_rejects_wrong_fragment_and_queue_timing",
+    "tools/tests/test_trace_harness.py::test_fragment_queue_timing_validator_requires_retail_provenance_for_closure",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_fragment_queue_timing_validation_gate_requires_retail_capture"
+  ]
+}

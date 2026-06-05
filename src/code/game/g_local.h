@@ -1132,7 +1132,7 @@ typedef struct {
 	int			msec;				// time elapsed since previous frame
 
 	int			startTime;				// level.time the map was started
-	char			rankMatchGuid[32];
+	char			rankMatchGuid[GAME_MATCH_GUID_BUFFER_SIZE];
 	qboolean		rankMatchStartedSent;
 	qboolean		rankMatchReportSent;
 	char			rankExitMessage[128];
@@ -2003,6 +2003,8 @@ void	trap_SetUserinfo( int num, const char *buffer );
 void	trap_GetServerinfo( char *buffer, int bufferSize );
 qboolean	trap_GetSteamId( int clientNum, unsigned int *steamIdLow, unsigned int *steamIdHigh );
 qboolean	trap_VerifySteamAuth( int clientNum );
+qboolean	trap_FactoryExists( const char *id );
+void	trap_GenerateMatchGuid( char *buffer, int bufferSize );
 void	trap_SubmitMatchReport( void *report );
 void	trap_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, void *payload );
 void	trap_AddSteamStat( int clientNum, int statIndex, int delta );
@@ -2082,6 +2084,8 @@ int		trap_AAS_AlternativeRouteGoals(vec3_t start, int startareanum, vec3_t goal,
 										int type);
 int		trap_AAS_Swimming(vec3_t origin);
 int		trap_AAS_PredictClientMovement(void /* aas_clientmove_s */ *move, int entnum, vec3_t origin, int presencetype, int onground, vec3_t velocity, vec3_t cmdmove, int cmdframes, int maxframes, float frametime, int stopevent, int stopareanum, int visualize);
+void	trap_BotDrawDebugAreas(vec3_t origin, int enable, int areanum);
+void	trap_BotDrawAvoidSpots(int movestate);
 
 
 void	trap_EA_Say(int client, char *str);
@@ -2198,6 +2202,7 @@ void G_PmoveResetFactoryManagedCvars( void );
 void G_RegisterPmoveCvars( void );
 void G_RefreshPmoveSettings( void );
 void G_PmoveClearConfigstring( void );
+void G_PmoveSetConfigstringsReady( qboolean ready );
 qboolean G_PmoveHasAirControlCustomSetting( void );
 qboolean G_PmoveHasRampJumpCustomSetting( void );
 qboolean G_PmoveHasPhysicsCustomSetting( void );

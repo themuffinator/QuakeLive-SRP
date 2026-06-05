@@ -84,8 +84,9 @@ The parity manifest test now verifies:
 No source patch was required. Remaining risk is limited to evidence that is not
 committed in this repository:
 
-- There is still no retail packet capture for byte-for-byte compressed connect
-  comparison.
+- A deterministic compressed-connect Huffman fixture is now pinned in
+  `network-adaptive-huffman-fixtures-2026-06-05.md`, but there is still no
+  retail packet capture for byte-for-byte compressed connect comparison.
 - Live Steam platform auth remains a documented online-service divergence
   unless `QL_BUILD_ONLINE_SERVICES` is enabled.
 

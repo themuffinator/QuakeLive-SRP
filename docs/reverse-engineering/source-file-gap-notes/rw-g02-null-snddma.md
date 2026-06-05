@@ -1,12 +1,12 @@
 # `src/code/null/null_snddma.c` Gap Note
 
-Last updated: 2026-05-17
+Last updated: 2026-06-05
 
 Gap family: `RW-G02`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
-- Current classification: Open repo-wide gap; the file is an explicitly silent sound/device compatibility shim.
+- Current classification: Closed as explicit compatibility-only containment; the file is an explicitly silent sound/device compatibility shim.
 
-## Why this file is still open
+## Why this file remains compatibility-only
 
 This file honestly exposes the current sound entry points, but it still resolves them through a silent compatibility sink or no-op behavior, which keeps the null runtime outside any repo-wide parity closure claim.
 
@@ -27,12 +27,12 @@ This file honestly exposes the current sound entry points, but it still resolves
 | `SNDDMA_Shutdown` | `bounded compatibility` | Clears the silent DMA sink state. |
 | `SNDDMA_BeginPainting` | `bounded compatibility` | Clears the silent DMA buffer before mixing. |
 | `SNDDMA_Submit` | `bounded compatibility` | Silent compatibility no-op. |
-| `SNDDMA_Activate` | `open portability owner` | Silent sound or voice compatibility stub. |
-| `S_RegisterSound` | `open portability owner` | Silent sound or voice compatibility stub. |
-| `S_StartLocalSound` | `open portability owner` | Silent sound or voice compatibility stub. |
+| `SNDDMA_Activate` | `compatibility boundary` | Silent sound or voice compatibility stub. |
+| `S_RegisterSound` | `compatibility boundary` | Silent sound or voice compatibility stub. |
+| `S_StartLocalSound` | `compatibility boundary` | Silent sound or voice compatibility stub. |
 | `S_ClearSoundBuffer` | `bounded compatibility` | Clears the silent DMA buffer and resets the local cursor. |
-| `S_AddVoiceSamples` | `open portability owner` | Silent sound or voice compatibility stub. |
+| `S_AddVoiceSamples` | `compatibility boundary` | Silent sound or voice compatibility stub. |
 
-## Closure target
+## Reopen target
 
-- Keep the file explicitly classified as a silent compatibility shim unless the null runtime grows a richer audio target.
+- Reopen only if the null runtime grows a richer audio target. Until then, keep the file explicitly classified as a silent compatibility shim.

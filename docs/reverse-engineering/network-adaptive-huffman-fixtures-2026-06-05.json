@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Capture-scoped adaptive Huffman fixtures for protocol-91 final packet-byte comparison",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "functions": "references/reverse-engineering/ghidra/quakelive_steam/functions.csv",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "source_files": [
+    "src/code/qcommon/huffman.c",
+    "src/code/qcommon/msg.c",
+    "src/code/qcommon/net_chan.c",
+    "src/code/client/cl_main.c",
+    "src/code/server/sv_main.c"
+  ],
+  "huffman_scopes": [
+    {
+      "id": "huffcompress_local_reset",
+      "owner": "Huff_Compress",
+      "retail_anchor": "0x004D40F0",
+      "state_model": "local NYT tree per call",
+      "length_prefix": "two-byte big-endian uncompressed payload length at the compression offset",
+      "update_policy": "Huff_transmit then Huff_addRef for each source byte",
+      "capture_compare_policy": "compare every byte when encoded_bit_count_mod8 is non-zero; exact byte-aligned payloads need a captured terminal pad byte"
+    },
+    {
+      "id": "msghuff_seeded_bitstream",
+      "owner": "MSG_WriteBits",
+      "retail_anchor": "0x004D4AF0",
+      "state_model": "MSG_initHuffman pre-seeds msgHuff.compressor and msgHuff.decompressor from msg_hData",
+      "length_prefix": null,
+      "update_policy": "Huff_offsetTransmit/Huff_offsetReceive use the seeded tree and do not add per-symbol references after MSG_initHuffman",
+      "capture_compare_policy": "fixture starts from a freshly initialized msgHuff seed and writes the listed byte sequence with 8-bit MSG_WriteBits calls"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "compressed_connect_profile91_numeric_challenge",
+      "scope": "huffcompress_local_reset",
+      "description": "Profile-91 connect OOB datagram with clear sentinel plus clear 'connect ' token and a Huff_Compress remainder starting at byte offset 12.",
+      "clear_datagram_ascii_after_sentinel": "connect \"\\protocol\\91\\qport\\1234\\challenge\\1234\"",
+      "clear_prefix_hex": "ff ff ff ff 63 6f 6e 6e 65 63 74 20",
+      "compressed_remainder_offset": 12,
+      "uncompressed_remainder_hex": "22 5c 70 72 6f 74 6f 63 6f 6c 5c 39 31 5c 71 70 6f 72 74 5c 31 32 33 34 5c 63 68 61 6c 6c 65 6e 67 65 5c 31 32 33 34 22",
+      "uncompressed_remainder_size": 40,
+      "encoded_bit_count": 317,
+      "encoded_bit_count_mod8": 5,
+      "encoded_remainder_size": 42,
+      "encoded_remainder_hex": "00 28 44 74 70 88 13 ec c7 a5 61 2c d8 e8 70 1a c6 05 c7 f9 c4 dc 30 15 cc 09 cb 52 60 61 18 26 51 4c 11 3b c2 9c 3e 14 51 14",
+      "encoded_datagram_size": 54,
+      "encoded_datagram_hex": "ff ff ff ff 63 6f 6e 6e 65 63 74 20 00 28 44 74 70 88 13 ec c7 a5 61 2c d8 e8 70 1a c6 05 c7 f9 c4 dc 30 15 cc 09 cb 52 60 61 18 26 51 4c 11 3b c2 9c 3e 14 51 14",
+      "unstable_terminal_pad_bytes": 0
+    },
+    {
+      "id": "huffcompress_local_reset_abc",
+      "scope": "huffcompress_local_reset",
+      "description": "Small local-reset Huff_Compress fixture for the adaptive NYT path independent of OOB connect framing.",
+      "uncompressed_remainder_hex": "61 62 63",
+      "uncompressed_remainder_size": 3,
+      "encoded_bit_count": 27,
+      "encoded_bit_count_mod8": 3,
+      "encoded_remainder_size": 6,
+      "encoded_remainder_hex": "00 03 86 8c 30 06",
+      "unstable_terminal_pad_bytes": 0
+    },
+    {
+      "id": "msghuff_seeded_three_ascii_bytes",
+      "scope": "msghuff_seeded_bitstream",
+      "description": "Fresh MSG_initHuffman seeded bitstream writing three MSG_WriteByte-compatible bytes.",
+      "input_hex": "61 62 63",
+      "encoded_bit_count": 26,
+      "encoded_bit_count_mod8": 2,
+      "encoded_size": 4,
+      "encoded_hex": "3c ab 1f 03",
+      "unstable_terminal_pad_bytes": 0
+    },
+    {
+      "id": "msghuff_seeded_client_sideband_move_body",
+      "scope": "msghuff_seeded_bitstream",
+      "description": "Fresh seeded bitstream for the byte-aligned client-message body header plus sideband/move/EOF bytes before usercmd bitfields.",
+      "input_hex": "04 03 02 01 0d 0c 0b 0a 02 00 00 00 80 02 01 05",
+      "encoded_bit_count": 93,
+      "encoded_bit_count_mod8": 5,
+      "encoded_size": 12,
+      "encoded_hex": "a1 6c e4 6e 27 8b 34 52 fd 90 3b 02",
+      "unstable_terminal_pad_bytes": 0
+    }
+  ],
+  "retail_anchors": [
+    {
+      "symbol": "MSG_initHuffman",
+      "address": "0x004D6BB0",
+      "observed": "Seeds both msgHuff compressor and decompressor from msg_hData."
+    },
+    {
+      "symbol": "MSG_WriteBits",
+      "address": "0x004D4AF0",
+      "observed": "Uses Huff_offsetTransmit for non-OOB 8-bit chunks after any sub-byte prefix bits."
+    },
+    {
+      "symbol": "Huff_Compress",
+      "address": "0x004D40F0",
+      "observed": "Builds a local NYT tree, writes the uncompressed size prefix, transmits each byte, and updates the local tree."
+    },
+    {
+      "symbol": "NET_OutOfBandData",
+      "address": "0x004D7120",
+      "observed": "Writes the OOB sentinel, copies connect data, and calls Huff_Compress at offset 12."
+    },
+    {
+      "symbol": "SV_ConnectionlessPacket",
+      "address": "0x004E4340",
+      "observed": "Calls Huff_Decompress(msg, 12) only after the compressed-connect guard sees the clear connect token."
+    }
+  ],
+  "completion_status": {
+    "implementation_plan_entry": "Add capture-scoped adaptive Huffman fixtures for final packet-byte comparison",
+    "status": "completed_capture_scoped_fixture_contract",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "source_patch_required": false,
+    "focused_huffman_fixture_slice_before_percent": 35,
+    "focused_huffman_fixture_slice_after_percent": 82,
+    "overall_network_protocol_parity_before_percent": 87,
+    "overall_network_protocol_parity_after_percent": 88,
+    "remaining_gaps": [
+      "No committed external retail packet capture is available to compare these fixtures against.",
+      "Full snapshot/usercmd packet-byte replay still needs capture-specific message ordering and payloads.",
+      "The compressed-connect fixture is deterministic but still needs a retail trace before the compressed-connect capture-diff row can close."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_capture_scoped_adaptive_huffman_fixtures"
+  ]
+}

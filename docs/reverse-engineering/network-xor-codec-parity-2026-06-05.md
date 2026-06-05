@@ -58,4 +58,4 @@ Validation added:
 
 Estimated parity movement for this task: focused XOR codec slice `80%` -> `94%`; overall network-protocol parity `76%` -> `78%`.
 
-Residual risk: the full retail capture replay is still pending because no committed external retail packet capture is available. The client-message flag producer behind retail `sub_4AF4D0` also remains a follow-up, but the codec now explicitly protects the sideband byte inside the client-to-server XOR window.
+Residual risk: the full retail capture replay is still pending because no committed external retail packet capture is available. The client-message sideband producer map now captures the retail `data_565948` writers and source emits all observed retail sideband producers, so the remaining sideband proof is capture-backed packet comparison. The codec still explicitly protects the sideband byte inside the client-to-server XOR window.

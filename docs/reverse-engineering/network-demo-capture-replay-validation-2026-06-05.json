@@ -1,0 +1,415 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Demo/capture replay validation contract for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+    "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json",
+    "ghidra_functions": "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+  },
+  "source_files": [
+    "src/code/client/cl_parse.c",
+    "src/code/server/sv_snapshot.c",
+    "src/code/server/sv_net_chan.c",
+    "src/code/qcommon/net_chan.c",
+    "src/code/qcommon/msg.c"
+  ],
+  "validation_lanes": [
+    {
+      "id": "gamestate_baseline_replay",
+      "priority": "required_for_demo_start",
+      "source_owner": "CL_ParseGamestate",
+      "retail_anchor": "0x004BD790",
+      "semantic_contract": [
+        "read serverCommandSequence before configstrings and baselines",
+        "accept svc_configstring records into gameState string storage",
+        "read svc_baseline entity numbers with GENTITYNUM_BITS",
+        "reconstruct baselines with MSG_ReadDeltaEntity from an all-zero nullstate",
+        "read clientNum and checksumFeed after svc_EOF, then run systeminfo and download initialization"
+      ],
+      "diff_report_columns": [
+        "serverCommandSequence",
+        "configstringIndex",
+        "baselineEntityNumber",
+        "baselineStateHash",
+        "clientNum",
+        "checksumFeed"
+      ]
+    },
+    {
+      "id": "snapshot_delta_replay",
+      "priority": "required_for_playback",
+      "source_owners": [
+        "SV_WriteSnapshotToClient",
+        "CL_ParseSnapshot"
+      ],
+      "retail_anchors": [
+        "0x004E50E0",
+        "0x004BD350"
+      ],
+      "semantic_contract": [
+        "server writes svc_snapshot, serverTime, lastframe, snapFlags, areamask, playerstate delta, then packet entities",
+        "client resolves deltaNum 0 as an uncompressed frame with no old snapshot",
+        "client resolves nonzero deltaNum relative to clc.serverMessageSequence",
+        "client reads areamask before MSG_ReadDeltaPlayerstate and packet entities",
+        "valid snapshots replace cl.snap and are stored in cl.snapshots[messageNum & PACKET_MASK]"
+      ],
+      "diff_report_columns": [
+        "messageNum",
+        "serverTime",
+        "deltaNum",
+        "snapFlags",
+        "areamaskBytes",
+        "playerStateHash",
+        "packetEntityCount"
+      ]
+    },
+    {
+      "id": "packet_entity_merge_replay",
+      "priority": "required_for_snapshot_semantics",
+      "source_owners": [
+        "SV_EmitPacketEntities",
+        "CL_ParsePacketEntities",
+        "CL_DeltaEntity"
+      ],
+      "retail_anchors": [
+        "0x004E4FC0",
+        "0x004BD000"
+      ],
+      "semantic_contract": [
+        "unchanged old entities are copied when oldnum < newnum",
+        "matching old and new entity numbers delta from the previous state",
+        "new entities delta from sv.svEntities[number].baseline on the server and cl.entityBaselines[number] on the client",
+        "removed entities are emitted as oldent to NULL with force qtrue",
+        "MAX_GENTITIES - 1 terminates packetentities"
+      ],
+      "diff_report_columns": [
+        "entityNumber",
+        "mergeCase",
+        "baseSource",
+        "deltaHash",
+        "stateHash",
+        "removed"
+      ]
+    },
+    {
+      "id": "delta_aging_rejection",
+      "priority": "required_for_drop_recovery",
+      "source_owner": "CL_ParseSnapshot",
+      "retail_anchor": "0x004BD350",
+      "semantic_contract": [
+        "invalid old snapshots keep newSnap.valid false",
+        "old->messageNum mismatches keep newSnap.valid false",
+        "cl.parseEntitiesNum - old->parseEntitiesNum greater than MAX_PARSE_ENTITIES - 128 rejects the snapshot",
+        "rejected snapshots are still consumed from the message but are not copied into cl.snap"
+      ],
+      "constants": {
+        "PACKET_BACKUP": 32,
+        "MAX_PARSE_ENTITIES": 2048,
+        "stale_parse_entities_threshold": 1920,
+        "reject_when_difference_greater_than": 1920,
+        "retail_valid_condition_hlil": "data_1471e98 - old.parseEntitiesNum <= 0x780"
+      },
+      "diff_report_columns": [
+        "messageNum",
+        "deltaNum",
+        "oldValid",
+        "oldMessageNum",
+        "parseEntitiesAge",
+        "accepted"
+      ]
+    },
+    {
+      "id": "fragment_reassembly_replay",
+      "priority": "required_for_large_server_messages",
+      "source_owner": "Netchan_Process",
+      "retail_anchor": "0x004D7640",
+      "semantic_contract": [
+        "FRAGMENT_BIT is stripped from the sequence before ordering checks",
+        "server-side processing consumes qport before fragment metadata when the profile enables client qport",
+        "fragmentStart must equal chan->fragmentLength or the message is deferred",
+        "fragmentLength must be nonnegative, within the packet, and within the reassembly buffer",
+        "FRAGMENT_SIZE fragments return qfalse until the terminal short fragment arrives",
+        "terminal fragments copy the sequence to msg->data[0..3], payload to msg->data + 4, set cursize to fragmentLength + 4, readcount to 4, bit to 32, and accept the message"
+      ],
+      "diff_report_columns": [
+        "sequence",
+        "fragmentStart",
+        "fragmentLength",
+        "accumulatedLength",
+        "accepted",
+        "reassembledPayloadHash"
+      ]
+    },
+    {
+      "id": "queued_fragment_send_replay",
+      "priority": "required_for_fragmented_snapshot_plus_followup",
+      "source_owners": [
+        "SV_Netchan_Transmit",
+        "SV_Netchan_TransmitNextFragment"
+      ],
+      "retail_anchors": [
+        "0x004E4EE0",
+        "0x004E4E20"
+      ],
+      "semantic_contract": [
+        "SV_Netchan_Transmit always appends svc_EOF before send or queue",
+        "messages queued behind active fragments are copied before XOR encoding",
+        "the current fragment train advances immediately after queueing a follow-up message",
+        "queued messages are XOR-encoded only when popped by SV_Netchan_TransmitNextFragment",
+        "queue tail pointers are reset when the last queued message is popped"
+      ],
+      "diff_report_columns": [
+        "queuedMessageSequence",
+        "storedEncoded",
+        "encodedOnPop",
+        "queueEmptyAfterPop",
+        "datagramHash"
+      ]
+    },
+    {
+      "id": "capture_diff_report_contract",
+      "priority": "required_for_future_byte_for_byte_replay",
+      "source_owner": "tests/test_netcode_parity_manifest.py",
+      "semantic_contract": [
+        "capture fixtures must declare whether they are byte-for-byte packet captures or semantic message transcripts",
+        "byte-for-byte reports compare datagram bytes after deterministic OOB/compression/XOR state is established",
+        "semantic reports compare ordered gamestate, snapshot, entity, stale-delta, and fragment fields when adaptive Huffman state prevents stable standalone packet bytes",
+        "missing retail captures are reported as an external evidence gap rather than a source parity failure"
+      ],
+      "diff_report_columns": [
+        "fixtureId",
+        "fixtureType",
+        "laneId",
+        "expectedHash",
+        "actualHash",
+        "matchKind",
+        "status"
+      ]
+    }
+  ],
+  "semantic_replay_vectors": [
+    {
+      "id": "gamestate_baseline_from_nullstate",
+      "lane": "gamestate_baseline_replay",
+      "input_shape": "svc_configstring records followed by svc_baseline records and svc_EOF",
+      "expected_steps": [
+        "MSG_ReadLong serverCommandSequence",
+        "MSG_ReadShort configstring index and MSG_ReadBigString value",
+        "MSG_ReadBits baseline entity number with GENTITYNUM_BITS",
+        "Com_Memset nullstate to zero entityState_t storage",
+        "MSG_ReadDeltaEntity from nullstate into cl.entityBaselines[newnum]",
+        "MSG_ReadLong clientNum",
+        "MSG_ReadLong checksumFeed"
+      ],
+      "expected_outcome": "baseline entries are deterministic input to later packet-entity baseline deltas"
+    },
+    {
+      "id": "snapshot_uncompressed_baseline",
+      "lane": "snapshot_delta_replay",
+      "input_shape": "svc_snapshot with deltaNum byte 0",
+      "expected_steps": [
+        "newSnap.deltaNum becomes -1",
+        "old snapshot pointer is NULL",
+        "clc.demowaiting is cleared",
+        "MSG_ReadDeltaPlayerstate uses NULL baseline",
+        "CL_ParsePacketEntities uses entity baselines for new entities"
+      ],
+      "expected_outcome": "snapshot is valid without a previous frame"
+    },
+    {
+      "id": "snapshot_valid_delta",
+      "lane": "snapshot_delta_replay",
+      "input_shape": "svc_snapshot with nonzero deltaNum byte and retained old snapshot",
+      "expected_steps": [
+        "newSnap.deltaNum becomes messageNum - deltaByte",
+        "old snapshot is selected by deltaNum & PACKET_MASK",
+        "old->valid and old->messageNum are checked before accepting",
+        "playerstate deltas from old->ps",
+        "packet entities merge unchanged, delta, baseline, and removed cases"
+      ],
+      "expected_outcome": "snapshot is copied to cl.snap and cl.snapshots when all aging checks pass"
+    },
+    {
+      "id": "stale_delta_parse_entities_reject",
+      "lane": "delta_aging_rejection",
+      "input_shape": "old snapshot retained but cl.parseEntitiesNum - old->parseEntitiesNum is 1921",
+      "expected_steps": [
+        "message is fully consumed",
+        "Delta parseEntitiesNum too old diagnostic is reachable",
+        "newSnap.valid remains false",
+        "cl.snap is not overwritten"
+      ],
+      "expected_outcome": "client requests recovery from a non-delta snapshot path"
+    },
+    {
+      "id": "packet_entities_merge_cases",
+      "lane": "packet_entity_merge_replay",
+      "input_shape": "ordered old and new entity lists containing unchanged, changed, new, and removed entities",
+      "expected_steps": [
+        "oldnum < newnum copies unchanged old state",
+        "oldnum == newnum reads a delta from oldstate",
+        "oldnum > newnum reads a delta from baseline",
+        "server oldnum > newnum emits oldent to NULL",
+        "MAX_GENTITIES - 1 terminates the stream"
+      ],
+      "expected_outcome": "client parseEntities ring matches server snapshotEntities semantic state"
+    },
+    {
+      "id": "fragmented_message_final_reassembly",
+      "lane": "fragment_reassembly_replay",
+      "input_shape": "two fragments with identical sequence, contiguous starts, and terminal short fragment",
+      "expected_steps": [
+        "first FRAGMENT_SIZE fragment returns qfalse",
+        "terminal short fragment appends to chan->fragmentBuffer",
+        "msg->data receives LittleLong(sequence) at offset 0",
+        "fragmentBuffer copies to msg->data + 4",
+        "msg->cursize becomes accumulated fragmentLength + 4",
+        "msg->readcount becomes 4 and msg->bit becomes 32"
+      ],
+      "expected_outcome": "endpoint parser sees one accepted unfragmented message body"
+    },
+    {
+      "id": "queued_fragment_xor_timing",
+      "lane": "queued_fragment_send_replay",
+      "input_shape": "server emits a follow-up message while client->netchan.unsentFragments is true",
+      "expected_steps": [
+        "SV_Netchan_Transmit writes svc_EOF",
+        "MSG_Copy stores the unencoded message in a netchan queue node",
+        "Netchan_TransmitNextFragment advances the current fragment train",
+        "SV_Netchan_TransmitNextFragment later calls SV_Netchan_Encode before Netchan_Transmit",
+        "queue start and end pointers advance after pop"
+      ],
+      "expected_outcome": "queued datagram bytes are encoded with send-time sequence and command-string state"
+    }
+  ],
+  "capture_diff_status": {
+    "status": "semantic_replay_contract_and_static_assertions_added",
+    "external_retail_captures_available": false,
+    "byte_for_byte_replay_available": false,
+    "semantic_diff_report_ready": true,
+    "current_known_good_fixtures": [
+      {
+        "fixture_id": "retail_duel_semantic_netdump",
+        "fixture_type": "semantic_snapshot_netdump",
+        "path": "tests/netdumps/retail_duel.snap.json",
+        "baseline": "tools/tests/client_regression/retail_netdump_baseline.json",
+        "source": "retail-qzdm6",
+        "map": "tritoxin",
+        "frame_count": 3,
+        "coverage": [
+          "ordered retail snapshot frames",
+          "HUD hash replay",
+          "usercmd hash replay"
+        ],
+        "byte_for_byte_packet_fixture": false
+      }
+    ],
+    "required_future_fixture_sources": [
+      "retail packet capture containing gamestate and at least two snapshots",
+      "protocol-91 demo-derived snapshot transcript",
+      "fragmented server-message capture with a queued follow-up message"
+    ],
+    "current_artifacts": [
+      "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+      "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.md",
+      "tests/test_netcode_parity_manifest.py::test_networking_2_demo_capture_replay_validation_contract_and_semantic_diff_lanes",
+      "tests/netdumps/retail_duel.snap.json",
+      "tools/tests/client_regression/retail_netdump_baseline.json"
+    ]
+  },
+  "retail_anchors": [
+    {
+      "symbol": "CL_ParsePacketEntities",
+      "address": "0x004BD000",
+      "observed": "Reads 10-bit entity numbers, merges unchanged/delta/baseline cases, and terminates at 0x3ff."
+    },
+    {
+      "symbol": "CL_ParseSnapshot",
+      "address": "0x004BD350",
+      "observed": "Reads serverTime, deltaNum, snapFlags, areamask, playerstate, packet entities, and rejects stale deltas."
+    },
+    {
+      "symbol": "CL_ParseGamestate",
+      "address": "0x004BD790",
+      "observed": "Reads configstrings and baselines, rebuilding baselines from zero entityState_t storage."
+    },
+    {
+      "symbol": "Netchan_TransmitNextFragment",
+      "address": "0x004D7370",
+      "observed": "Writes sequence|FRAGMENT_BIT, optional qport, fragmentStart, fragmentLength, and payload."
+    },
+    {
+      "symbol": "Netchan_Transmit",
+      "address": "0x004D74E0",
+      "observed": "Queues large messages into unsentBuffer and starts the fragment train."
+    },
+    {
+      "symbol": "Netchan_Process",
+      "address": "0x004D7640",
+      "observed": "Rejects out-of-order packets, enforces fragment contiguity, and rebuilds terminal fragments into a normal message."
+    },
+    {
+      "symbol": "SV_Netchan_TransmitNextFragment",
+      "address": "0x004E4E20",
+      "observed": "Pops queued messages after the active fragment train finishes and encodes them immediately before transmit."
+    },
+    {
+      "symbol": "SV_Netchan_Transmit",
+      "address": "0x004E4EE0",
+      "observed": "Appends svc_EOF, queues unencoded follow-up messages behind active fragments, or encodes and transmits immediately."
+    },
+    {
+      "symbol": "SV_EmitPacketEntities",
+      "address": "0x004E4FC0",
+      "observed": "Emits unchanged/delta/baseline/remove entity cases and writes the MAX_GENTITIES - 1 sentinel."
+    },
+    {
+      "symbol": "SV_WriteSnapshotToClient",
+      "address": "0x004E50E0",
+      "observed": "Writes svc_snapshot, serverTime, lastframe, snapFlags, areamask, playerstate delta, and packet entities."
+    },
+    {
+      "symbol": "SV_BuildClientSnapshot",
+      "address": "0x004E5680",
+      "observed": "Builds the client snapshot source consumed by SV_WriteSnapshotToClient."
+    }
+  ],
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_demo_capture_replay_validation_contract_and_semantic_diff_lanes"
+  ],
+  "completion_status": {
+    "status": "completed_static_replay_contract_and_semantic_diff_ready",
+    "source_patch_required": false,
+    "runtime_launch_required": false,
+    "focused_task_parity_before_percent": 45,
+    "focused_task_parity_after_percent": 78,
+    "overall_network_protocol_parity_before_percent": 85,
+    "overall_network_protocol_parity_after_percent": 86,
+    "remaining_gaps": [
+      "No committed retail packet capture or protocol-91 demo transcript is available for byte-for-byte replay.",
+      "Capture-scoped adaptive Huffman fixtures are now defined in docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json; external retail packet captures are still needed for byte-for-byte replay.",
+      "Fragmented snapshot plus queued follow-up behavior is statically pinned but still needs an external capture for byte-for-byte timing validation."
+    ]
+  }
+}

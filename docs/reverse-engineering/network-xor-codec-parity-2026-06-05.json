@@ -226,7 +226,7 @@
     "overall_network_protocol_parity_after_percent": 78,
     "residual_risks": [
       "No committed external retail packet capture is available yet for byte-for-byte differential replay.",
-      "Client-message flag-bit recovery behind sub_4AF4D0 remains a follow-up; the XOR window now covers the sideband byte correctly."
+      "Client-message sideband producer mapping is captured in docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json and source now emits all observed retail sideband producers; capture-backed packet comparison remains a follow-up."
     ]
   },
   "assertion_tests": [

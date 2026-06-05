@@ -653,6 +653,8 @@ Completed work:
 3. Routed the qagame `G_PublishWarmupReadyConfigstring` publisher and cgame
    `CG_ParseWarmupReadyStatus` parser through the same shared key contract
    while preserving all clamping and HUD-facing values.
+   A later 2026-06-05 GUID wiring pass moved this source-only transport to
+   extension slot `0x2D1`, leaving retail `0x2C8` for `CS_MATCH_GUID`.
 4. Left Steamworks server publishing, Steam authentication, Steam browser
    enrichment, Workshop/UGC handling, and platform-service ownership outside
    this round so the concurrent Steamworks plan can continue without overlap.

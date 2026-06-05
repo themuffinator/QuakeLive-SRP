@@ -1391,6 +1391,11 @@ def test_g_initgame_pipeline_matches_recovered_retail_bootstrap_order() -> None:
 
 	assert "G_MatchConfig_UpdateConfigstrings();" in published_block
 	assert "G_UpdateDisableLoadoutConfigstrings();" in published_block
+	assert "G_PmoveSetConfigstringsReady( qtrue );" in published_block
+	assert "G_RefreshPmoveSettings();" in published_block
+	assert "G_UpdateItemTimerConfig( qtrue );" in published_block
+	assert "G_UpdateForcedCosmeticsConfigstring( qtrue );" in published_block
+	assert "G_UpdateGametypeTutorialText();" in published_block
 	assert "G_SyncMatchFactoryConfigToLevel();" in level_mirror_block
 	assert "level.quadHogEnabled = ( g_weaponConfig.quadHogEnabled != 0 );" in level_mirror_block
 
@@ -1422,8 +1427,8 @@ def test_g_initgame_pipeline_matches_recovered_retail_bootstrap_order() -> None:
 		"matchFlow_lastConfig = g_matchFactoryConfig;",
 		'trap_Cvar_VariableStringBuffer( "session", session, sizeof( session ) );',
 		'G_Printf( "Gametype changed, clearing session data.\\n" );',
-		'trap_GetConfigstring( CS_WARMUP_READY, warmupReadyInfo, sizeof( warmupReadyInfo ) );',
-		'trap_SetConfigstring( CS_WARMUP_READY, warmupReadyInfo );',
+		'trap_GetConfigstring( CS_MATCH_GUID, matchGuidInfo, sizeof( matchGuidInfo ) );',
+		'trap_SetConfigstring( CS_MATCH_GUID, matchGuidInfo );',
 		"FindIntermissionPoint();",
 		"G_FreezeSyncCvars();",
 		"level.timeoutRemaining[team] = 0;",
@@ -1458,8 +1463,14 @@ def test_g_initgame_pipeline_matches_recovered_retail_bootstrap_order() -> None:
 	assert init_block.index("G_SetGameState( GAME_STATE_PRE_GAME );") < init_block.index("level.timeoutOwner = -1;")
 	assert init_block.index("level.suddenDeathNoRespawnLogged = qfalse;") < init_block.index("matchFlow_lastConfig = g_matchFactoryConfig;")
 	assert init_block.index('trap_Cvar_VariableStringBuffer( "session", session, sizeof( session ) );') < init_block.index("memset( g_entities, 0, MAX_GENTITIES * sizeof(g_entities[0]) );")
-	assert init_block.index('trap_GetConfigstring( CS_WARMUP_READY, warmupReadyInfo, sizeof( warmupReadyInfo ) );') < init_block.index("trap_LocateGameData( level.gentities, level.num_entities, sizeof( gentity_t ),")
-	assert init_block.index('trap_SetConfigstring( CS_WARMUP_READY, warmupReadyInfo );') < init_block.index("trap_LocateGameData( level.gentities, level.num_entities, sizeof( gentity_t ),")
+
+	assert published_block.index("G_PmoveSetConfigstringsReady( qtrue );") < published_block.index("G_RefreshPmoveSettings();")
+	assert published_block.index("G_UpdateItemTimerConfig( qtrue );") < published_block.index("G_UpdateForcedCosmeticsConfigstring( qtrue );")
+	assert published_block.index("G_UpdateForcedCosmeticsConfigstring( qtrue );") < published_block.index("G_UpdateWeaponReloadConfigstring( qtrue );")
+
+
+	assert init_block.index('trap_GetConfigstring( CS_MATCH_GUID, matchGuidInfo, sizeof( matchGuidInfo ) );') < init_block.index("trap_LocateGameData( level.gentities, level.num_entities, sizeof( gentity_t ),")
+	assert init_block.index('trap_SetConfigstring( CS_MATCH_GUID, matchGuidInfo );') < init_block.index("trap_LocateGameData( level.gentities, level.num_entities, sizeof( gentity_t ),")
 	assert init_block.index("G_SpawnEntitiesFromString();") < init_block.index("FindIntermissionPoint();")
 	assert init_block.index("FindIntermissionPoint();") < init_block.index("G_CountSpawnPoints();")
 	assert init_block.index("G_CountSpawnPoints();") < init_block.index("G_InitLagHaxHistory();")
@@ -1473,6 +1484,21 @@ def test_g_initgame_pipeline_matches_recovered_retail_bootstrap_order() -> None:
 	assert init_block.index("G_UpdateMatchStateConfigString();") < init_block.index("G_UpdateTeamCountConfigstrings();")
 	assert init_block.index("G_UpdateTeamCountConfigstrings();") < init_block.index("G_MatchConfig_UpdateConfigstrings();")
 	assert init_block.index("G_MatchConfig_UpdateConfigstrings();") < init_block.index("G_UpdateTournamentQueuePositions();")
+
+
+def test_register_cvars_does_not_publish_configstrings_during_app_bootstrap() -> None:
+	game_main = _read("src/code/game/g_main.c")
+	register_block = _block_from_marker(game_main, "void G_RegisterCvars")
+
+	for forbidden in (
+		"G_RemapTeamShaders();",
+		"G_RefreshPmoveSettings();",
+		"G_UpdateItemTimerConfig( qtrue );",
+		"G_MatchConfig_UpdateConfigstrings();",
+		"G_UpdateForcedCosmeticsConfigstring( qtrue );",
+		"G_UpdateGametypeTutorialText();",
+	):
+		assert forbidden not in register_block
 
 
 def test_console_tail_and_training_bootstrap_helpers_match_recovered_boundaries() -> None:
@@ -1520,6 +1546,8 @@ def test_shutdown_game_routes_engine_error_message_through_retail_log_exit_path(
 
 	for expected in (
 		"char\texitReason[MAX_STRING_CHARS];",
+		"G_PmoveClearConfigstring();",
+		"G_PmoveSetConfigstringsReady( qfalse );",
 		'trap_Cvar_VariableStringBuffer( "com_errorMessage", exitReason, sizeof( exitReason ) );',
 		"if ( !exitReason[0] ) {",
 		'Q_strncpyz( exitReason, "Shutdown", sizeof( exitReason ) );',
@@ -1531,6 +1559,7 @@ def test_shutdown_game_routes_engine_error_message_through_retail_log_exit_path(
 	):
 		assert expected in shutdown_block
 
+	assert shutdown_block.index("G_PmoveClearConfigstring();") < shutdown_block.index("G_PmoveSetConfigstringsReady( qfalse );")
 	assert shutdown_block.index('trap_Cvar_VariableStringBuffer( "com_errorMessage", exitReason, sizeof( exitReason ) );') < shutdown_block.index("if ( !exitReason[0] ) {")
 	assert shutdown_block.index("if ( !exitReason[0] ) {") < shutdown_block.index("if ( level.time ) {")
 	assert shutdown_block.index("if ( level.time ) {") < shutdown_block.index("LogExit( exitReason );")
@@ -1567,6 +1596,45 @@ def test_bot_training_state_tail_is_wired_to_bot_frame() -> None:
 	assert "BotUpdateTrainingState();" in start_frame
 	assert start_frame.index("trap_BotUserCommand(botstates[i]->client, &botstates[i]->lastucmd);") < start_frame.index("BotUpdateTrainingState();")
 	assert start_frame.index("BotUpdateTrainingState();") < start_frame.index("RETAIL_SELECTED_BOT_INFO_CONFIGSTRING")
+
+
+def test_bot_selected_debug_info_uses_retail_node_name_storage() -> None:
+	ai_main = _read("src/code/game/ai_main.c")
+	ai_main_h = _read("src/code/game/ai_main.h")
+	ai_dmnet = _read("src/code/game/ai_dmnet.c")
+	qagame_symbols = _read("references/symbol-maps/qagame.json")
+	qagame_ghidra = _read("references/reverse-engineering/ghidra/qagamex86/decompile_top_functions.c")
+	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
+	record_block = _block_from_marker(ai_dmnet, "void BotRecordNodeSwitch")
+	publish_block = _block_from_marker(ai_main, "static int BotPublishDebugInfoString")
+	start_frame = _block_from_marker(ai_main, "int BotAIStartFrame")
+	reset_block = _block_from_marker(ai_main, "void BotResetState")
+	retail_payload = "e\\\\%s\\\\ed\\\\%.1f\\\\tg\\\\%s\\\\tgd\\\\%.1f\\\\sg\\\\%s\\\\sgd\\\\%.1f\\\\ainode\\\\%s\\\\ltg\\\\%s\\\\ban\\\\%i\\\\gan\\\\%i\\\\bh\\\\%i\\\\ba\\\\%i\\\\sk\\\\%.1f\\\\eh\\\\%i\\\\"
+
+	assert '"normalized_name": "BotRecordNodeSwitch"' in qagame_symbols
+	assert '"normalized_name": "BotPublishDebugInfoString"' in qagame_symbols
+	assert '"address": "0x10008460"' in qagame_symbols
+	assert '"address": "0x10022EE0"' in qagame_symbols
+	assert "sub_10070be0(arg1 + 0x23cc, 0x50, &data_1007c7bc)" in qagame_hlil
+	assert "10022d2c  memset(arg1, 0, 0x2698)" in qagame_hlil
+	assert "param_1 + 0x23cc,&local_1e0" in qagame_ghidra
+	assert retail_payload in qagame_ghidra
+
+	assert "#define MAX_AINODENAME" in ai_main_h
+	assert "80" in ai_main_h[ai_main_h.index("#define MAX_AINODENAME"):ai_main_h.index("//bot flags")]
+	assert "char ainodename[MAX_AINODENAME];" in ai_main_h
+	assert 'Com_sprintf(bs->ainodename, sizeof(bs->ainodename), "%s", node);' in record_block
+	assert record_block.index("Com_sprintf(nodeswitch[numnodeswitches]") < record_block.index("Com_sprintf(bs->ainodename")
+
+	assert "BotDebugAINodeName" not in ai_main
+	assert retail_payload in publish_block
+	assert "bs->ainodename," in publish_block
+	assert "trap_SetConfigstring( RETAIL_SELECTED_BOT_INFO_CONFIGSTRING" in publish_block
+	assert "memset(bs, 0, sizeof(bot_state_t));" in reset_block
+	assert "ainodename" not in reset_block
+	assert 'if ( !bot_developer.integer || bot_report.integer < 0 ) {' in start_frame
+	assert "BotPublishDebugInfoString( botstates[i] );" in start_frame
+	assert start_frame.index("bot_report.integer < 0") < start_frame.index("BotPublishDebugInfoString( botstates[i] );")
 
 
 def test_info_string_helpers_keep_room_for_the_terminating_nul() -> None:

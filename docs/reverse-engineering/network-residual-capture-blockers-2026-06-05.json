@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Residual external-capture blocker audit for docs/plans/2026-06-05-outstanding-work-checklist.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json",
+    "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-oob-connect-auth-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-hardening-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json",
+    "docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.json"
+  ],
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "evidence_inventory": {
+    "artifact_search": "rg --files | rg -i \"(pcap|pcapng|packet|capture|trace|demo|dm_91|netdump|snap)\"",
+    "committed_byte_for_byte_retail_capture_available": false,
+    "committed_protocol_91_demo_transcript_available": false,
+    "demo_transcript_intake_ready": true,
+    "demo_transcript_intake": {
+      "tool": "tools/trace/demo_transcript.py",
+      "audit": "docs/reverse-engineering/network-demo-transcript-intake-2026-06-05.md",
+      "validator_audit": "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.md",
+      "capture_diff_audit": "docs/reverse-engineering/network-capture-diff-tooling-2026-06-05.md",
+      "format": "quake_live_demo_message_transcript",
+      "retail_transcript_committed": false
+    },
+    "fragment_queue_timing_validation_ready": true,
+    "fragment_queue_timing_validation": {
+      "tool": "tools/trace/fragment_timing.py",
+      "audit": "docs/reverse-engineering/network-fragment-queue-timing-validation-2026-06-05.md",
+      "format": "quake_live_fragment_queue_timing",
+      "retail_fragment_queue_capture_committed": false
+    },
+    "invalid_lc_probe_validation_ready": true,
+    "invalid_lc_probe_validation": {
+      "tool": "tools/trace/invalid_lc_probe.py",
+      "audit": "docs/reverse-engineering/network-invalid-lc-probe-validation-2026-06-05.md",
+      "format": "quake_live_invalid_lc_probe",
+      "retail_invalid_lc_probe_committed": false
+    },
+    "snapshot_field_decode_validation_ready": true,
+    "snapshot_field_decode_validation": {
+      "tool": "tools/trace/snapshot_decode.py",
+      "audit": "docs/reverse-engineering/network-snapshot-field-decode-validation-2026-06-05.md",
+      "format": "quake_live_snapshot_field_decode",
+      "retail_snapshot_decode_report_committed": false
+    },
+    "capture_evidence_bundle_validation_ready": true,
+    "capture_evidence_bundle_validation": {
+      "tool": "tools/trace/capture_evidence.py",
+      "audit": "docs/reverse-engineering/network-capture-evidence-bundle-validation-2026-06-05.md",
+      "format": "quake_live_capture_evidence_bundle",
+      "cli": "python -m tools.trace.capture_evidence",
+      "cli_ready": true,
+      "required_closure_row_cli_ready": true,
+      "required_closure_row_cli": "python -m tools.trace.capture_evidence <bundle.json> --require-closure-row <row_id>",
+      "all_closure_rows_cli_ready": true,
+      "all_closure_rows_cli": "python -m tools.trace.capture_evidence <bundle.json> --require-all-closure-rows",
+      "strict_final_closure_cli_ready": true,
+      "strict_final_closure_cli": "python -m tools.trace.capture_evidence <bundle.json> --strict-final-closure --artifact-root <repo_root>",
+      "row_contract_cli_ready": true,
+      "row_contract_cli": "python -m tools.trace.capture_evidence --print-row-contracts --row-contract <row_id>",
+      "capture_plan_cli_ready": true,
+      "capture_plan_cli": "python -m tools.trace.capture_evidence --print-capture-plan --capture-plan-row <row_id>",
+      "template_generation_ready": true,
+      "template_cli": "python -m tools.trace.capture_evidence --print-template --template-row <row_id>",
+      "artifact_hash_generation_ready": true,
+      "artifact_hash_cli": "python -m tools.trace.capture_evidence --hash-artifact <artifact_path> --artifact-root <repo_root>",
+      "artifact_file_verification_ready": true,
+      "artifact_verification_cli": "python -m tools.trace.capture_evidence <bundle.json> --verify-artifact-files --artifact-root <repo_root>",
+      "artifact_text_policy_ready": true,
+      "artifact_text_policy_cli": "python -m tools.trace.capture_evidence <bundle.json> --enforce-artifact-text-policy",
+      "artifact_path_policy_ready": true,
+      "artifact_path_policy_cli": "python -m tools.trace.capture_evidence <bundle.json> --enforce-artifact-path-policy",
+      "artifact_uniqueness_policy_ready": true,
+      "artifact_uniqueness_policy_cli": "python -m tools.trace.capture_evidence <bundle.json> --enforce-artifact-uniqueness-policy",
+      "closure_status_summary_ready": true,
+      "closure_status_cli": "python -m tools.trace.capture_evidence <bundle.json> --print-closure-status",
+      "closure_blocker_summary_ready": true,
+      "closure_blocker_cli": "python -m tools.trace.capture_evidence <bundle.json> --print-closure-blockers",
+      "closure_blocker_fail_gate_ready": true,
+      "closure_blocker_fail_gate_cli": "python -m tools.trace.capture_evidence <bundle.json> --print-closure-blockers --fail-on-closure-blockers",
+      "retail_capture_evidence_bundle_committed": false
+    },
+    "committed_semantic_snapshot_fixture_available": true,
+    "known_semantic_fixture": {
+      "fixture_id": "retail_duel_semantic_netdump",
+      "path": "tests/netdumps/retail_duel.snap.json",
+      "baseline": "tools/tests/client_regression/retail_netdump_baseline.json",
+      "coverage": [
+        "ordered retail snapshot frames",
+        "HUD hash replay",
+        "usercmd hash replay"
+      ],
+      "limits": [
+        "no original datagram bytes",
+        "no protocol-91 demo command transcript",
+        "no packet-entity byte stream for playerStateFields/entityStateFields decode comparison",
+        "no fragmented server-message plus queued follow-up packet timing"
+      ]
+    }
+  },
+  "source_complete_boundaries": [
+    {
+      "id": "client_message_sideband_producers",
+      "status": "source_complete_capture_diff_pending",
+      "evidence": "docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json"
+    },
+    {
+      "id": "xor_codec_static_datagrams",
+      "status": "static_wire_vectors_ready_capture_diff_pending",
+      "evidence": "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json"
+    },
+    {
+      "id": "compressed_connect_huffman_fixture",
+      "status": "deterministic_fixture_ready_capture_diff_pending",
+      "evidence": "docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json"
+    },
+    {
+      "id": "snapshot_field_tables",
+      "status": "retail_table_parity_locked_capture_decode_pending",
+      "evidence": [
+        "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+        "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json"
+      ]
+    }
+  ],
+  "blocked_checklist_rows": [
+    {
+      "row_id": "byte_for_byte_replay_fixture",
+      "checklist_text": "Commit at least one retail packet capture, protocol-91 demo transcript, or equivalent known-good capture fixture for byte-for-byte replay validation.",
+      "blocker": "No committed retail packet capture, protocol-91 demo transcript, or equivalent packet-byte fixture is present.",
+      "current_repo_evidence": [
+        "tests/netdumps/retail_duel.snap.json is semantic snapshot evidence only.",
+        "network-demo-capture-replay-validation-2026-06-05.json declares byte_for_byte_replay_available=false.",
+        "network-capture-evidence-bundle-validation-2026-06-05.json validates future evidence bundles, can require specific submitted closure rows or all residual rows, can run strict final closure with retail provenance plus artifact-file verification, can print row contract inventories, row-scoped capture plans, and row-scoped templates, can emit artifact hash inventories, can verify committed artifact files against declared SHA-256 values, can enforce reviewed JSON/text artifact paths, evidence-directory path scope, and artifact uniqueness, can summarize per-row closure status and blockers, and can fail CI/review jobs when blockers remain, but commits no retail capture bundle."
+      ],
+      "closure_requires": [
+        "committed retail datagram capture",
+        "protocol-91 demo-derived transcript with packet bytes",
+        "or an equivalent known-good byte fixture with documented provenance"
+      ],
+      "status": "external_evidence_required"
+    },
+    {
+      "row_id": "fragmented_snapshot_queued_followup",
+      "checklist_text": "Validate fragmented snapshot plus queued follow-up timing against a byte-for-byte retail capture.",
+      "blocker": "The fragment and queue timing lanes are statically pinned, but no fragmented retail server-message capture with a queued follow-up is committed.",
+      "current_repo_evidence": [
+        "network-demo-capture-replay-validation-2026-06-05.json defines fragment_reassembly_replay and queued_fragment_send_replay lanes.",
+        "SV_Netchan_Transmit and SV_Netchan_TransmitNextFragment HLIL/source ordering is asserted by the manifest tests.",
+        "network-fragment-queue-timing-validation-2026-06-05.json validates future timing reports but commits no retail capture."
+      ],
+      "closure_requires": [
+        "fragmented retail server-message capture",
+        "queued follow-up datagram from the same session",
+        "byte-for-byte queue timing report"
+      ],
+      "status": "external_evidence_required"
+    },
+    {
+      "row_id": "xor_golden_datagrams",
+      "checklist_text": "Capture-diff the XOR golden datagrams against retail packet traces.",
+      "blocker": "XOR datagram vectors are committed, but no retail packet trace is available for byte comparison.",
+      "current_repo_evidence": [
+        "network-xor-codec-parity-2026-06-05.json stores full unfragmented clear and encoded datagram bytes.",
+        "The same spec declares external_retail_captures_available=false."
+      ],
+      "closure_requires": [
+        "retail packet traces exercising the committed XOR vector windows",
+        "byte-for-byte diff report against encoded_datagram_hex"
+      ],
+      "status": "external_evidence_required"
+    },
+    {
+      "row_id": "compressed_connect_capture_diff",
+      "checklist_text": "Capture-diff the compressed connect request path against a retail trace.",
+      "blocker": "The deterministic profile-91 compressed-connect Huffman fixture is committed, but no retail connect trace is committed.",
+      "current_repo_evidence": [
+        "network-adaptive-huffman-fixtures-2026-06-05.json pins compressed_connect_profile91_numeric_challenge.",
+        "network-oob-connect-auth-parity-2026-06-05.json keeps compressed connect as the only confirmed OOB Huffman exception."
+      ],
+      "closure_requires": [
+        "retail connect datagram trace",
+        "documented challenge/qport inputs",
+        "byte-for-byte comparison from offset 12 onward"
+      ],
+      "status": "external_evidence_required"
+    },
+    {
+      "row_id": "invalid_lc_retail_probe",
+      "checklist_text": "Probe invalid-lc malicious packet behavior against retail before claiming exact crash/drop equivalence.",
+      "blocker": "Source hardening is implemented and documented, but exact malicious retail crash/drop behavior requires a controlled retail probe.",
+      "current_repo_evidence": [
+        "network-protocol-hardening-parity-2026-06-05.json records no committed HLIL bounds guard before the retail field-table walk.",
+        "Source now drops before indexing field 59 for both entity and playerstate deltas.",
+        "network-invalid-lc-probe-validation-2026-06-05.json validates future controlled probe reports but commits no retail probe."
+      ],
+      "closure_requires": [
+        "controlled retail invalid-lc probe",
+        "log or dump classification of crash/drop behavior",
+        "explicit comparison against the source ERR_DROP path"
+      ],
+      "status": "external_runtime_probe_required"
+    },
+    {
+      "row_id": "snapshot_field_capture_decode",
+      "checklist_text": "Verify end-to-end retail snapshot capture/decode parity for playerStateFields and entityStateFields.",
+      "blocker": "The retail field tables are locked, but the committed semantic netdump does not include original packet bytes or packet-entity decode streams.",
+      "current_repo_evidence": [
+        "network-playerstate-fields-parity-2026-06-05.json locks the 58-entry playerStateFields order.",
+        "network-entitystate-fields-parity-2026-06-05.json locks the 58-entry entityStateFields order.",
+        "tests/netdumps/retail_duel.snap.json validates semantic HUD/usercmd replay only.",
+        "network-snapshot-field-decode-validation-2026-06-05.json validates future player/entity decode reports but commits no retail packet/decode evidence."
+      ],
+      "closure_requires": [
+        "retail snapshot packet capture or protocol-91 transcript with playerstate and packet entities",
+        "decode report covering playerStateFields and entityStateFields",
+        "hash or byte comparison against expected retail field deltas"
+      ],
+      "status": "external_evidence_required"
+    }
+  ],
+  "checklist_effect": {
+    "new_checked_blocker_audit_row": true,
+    "new_checked_demo_transcript_intake_row": true,
+    "new_checked_fixture_validation_row": true,
+    "new_checked_capture_diff_tooling_row": true,
+    "new_checked_fragment_queue_timing_validation_row": true,
+    "new_checked_invalid_lc_probe_validation_row": true,
+    "new_checked_snapshot_field_decode_validation_row": true,
+    "new_checked_capture_evidence_bundle_validation_row": true,
+    "new_checked_capture_evidence_bundle_cli_row": true,
+    "new_checked_capture_evidence_required_row_cli_row": true,
+    "new_checked_capture_evidence_row_contract_cli_row": true,
+    "new_checked_capture_evidence_capture_plan_cli_row": true,
+    "new_checked_capture_evidence_bundle_template_row": true,
+    "new_checked_capture_evidence_artifact_hash_generation_row": true,
+    "new_checked_capture_evidence_bundle_artifact_hash_row": true,
+    "new_checked_capture_evidence_artifact_text_policy_row": true,
+    "new_checked_capture_evidence_artifact_path_policy_row": true,
+    "new_checked_capture_evidence_artifact_uniqueness_policy_row": true,
+    "new_checked_capture_evidence_closure_status_row": true,
+    "new_checked_capture_evidence_all_rows_cli_row": true,
+    "new_checked_capture_evidence_strict_final_closure_row": true,
+    "new_checked_capture_evidence_closure_blockers_row": true,
+    "new_checked_capture_evidence_blocker_fail_gate_row": true,
+    "capture_rows_remain_open": true,
+    "policy_rows_unchanged": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "This pass improves closure accounting only; it does not add retail packet bytes or source behavior."
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_residual_capture_blocker_audit_keeps_external_evidence_rows_open",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_fragment_queue_timing_validation_gate_requires_retail_capture",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_invalid_lc_probe_validation_gate_requires_retail_probe",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_snapshot_field_decode_validation_gate_requires_retail_capture",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_capture_evidence_bundle_validation_gate_maps_residual_rows"
+  ]
+}

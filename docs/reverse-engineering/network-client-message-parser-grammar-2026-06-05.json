@@ -150,9 +150,9 @@
       "observed": "Reads three longs with MSG_ReadLong, consumes one MSG_ReadByte sideband byte, then reads the first command opcode."
     },
     {
-      "symbol": "CL_RetailClientMessageFlags_source_stub",
+      "symbol": "CL_RetailClientMessageFlags_source_partial",
       "address": null,
-      "observed": "Source reconstruction helper returns zero until the native cgame flag producers behind retail sub_4AF4D0/data_565948 are fully named."
+      "observed": "Source reconstruction helper now returns a persistent retail sideband flag byte initialized to 0x80, CL_Frame raises the recovered 0x20 viewangle-delta bit, R_PerformanceCounters feeds the recovered low-five renderer count, and CL_CheckCGameNativeImportIntegrity raises the recovered 0x40 import-guard bit."
     }
   ],
   "resolved_conflict": {
@@ -170,8 +170,8 @@
     "overall_network_protocol_parity_before_percent": 74,
     "overall_network_protocol_parity_after_percent": 76,
     "residual_risks": [
-      "The sideband flag producers behind retail sub_4AF4D0/data_565948 still need a cgame/native-state naming pass.",
-      "The server consumes but does not validate the sideband byte in committed HLIL, so a zero flag stub is parser-compatible but not byte-for-byte complete.",
+      "The sideband producer map is captured in docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.json.",
+      "The source now emits all observed retail sideband producers; capture-backed packet comparison is still required before claiming byte-for-byte sideband completeness.",
       "Full XOR byte-vector tests remain the next transport task."
     ]
   },

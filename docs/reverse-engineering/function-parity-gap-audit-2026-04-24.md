@@ -345,24 +345,23 @@ Closure requirement:
 
 ### FG-04: Runtime Evidence Freshness
 
-Classification: open repo-wide validation gap, not a broad source-code
-reconstruction gap.
+Classification: closed as current available evidence refresh, with strict VC10
+staged-runtime evidence left as a documented local-toolchain boundary.
 
 Function-level blocker:
 
 | Owner | Function or probe surface | Current state | Gap reason |
 | --- | --- | --- | --- |
-| `src/code/renderer/tr_font.c` / `tr_public.h` / `tr_init.c` | `R_fonsErrorCallback` / retained glyph cache / `GetRefAPI` export ABI | source-side blockers patched; runtime evidence stale | Retail-module live-map probe can load retail `qagamex86.dll` and `cgamex86.dll`, but the tracked 2026-04-21 artifact still records repeated font-atlas saturation. The 2026-05-20 renderer pass removed the non-retail eager all-face glyph prebuild, made normal atlas expansion preserve existing pixels plus cached glyph UVs, restored direct `GL_ALPHA` texture uploads for the retained one-byte atlas, and realigned the `GetRefAPI` table to the retail `REF_API_VERSION == 9` / `0x9c` ABI with the no-op legacy font slot plus private `postprocess_restart` offset; this lane needs a fresh module-runtime rerun before FG-04 can close. |
-| `tools/modules/run_retail_module_runtime_probe.ps1` | map-probe blocker classification | evidence bounded | Probe recognizes the renderer-owned blocker rather than treating it as module parity failure |
-| `tools/ci/validate-windows-native.ps1` | staged `retail-runtime` validation | evidence needs fresh rerun | Current audit did not regenerate all native build outputs on current toolchains |
-| `docs/platform/toolchain-matrix.md` | glibc and self-hosted publication follow-ups | evidence needs breadth | Broader glibc validation and continuous/self-hosted WOW64 publication remain follow-up work |
+| `src/code/renderer/tr_font.c` / `tr_public.h` / `tr_init.c` | `R_fonsErrorCallback` / retained glyph cache / `GetRefAPI` export ABI | refreshed runtime evidence clean | The retail-module latest alias now points at `retail_module_runtime_evidence_20260602.json`, which has no missing markers or warnings and reaches `CS_ACTIVE` on `bloodrun`; the stale 2026-04-21 font-atlas blocker is no longer present in latest evidence. |
+| `tools/modules/run_retail_module_runtime_probe.ps1` | map-probe blocker classification | evidence refreshed | The promoted latest artifact proves retail `ui`, `qagame`, and `cgame` loads, screenshots, and vm-trace traffic. |
+| `tools/ci/validate-windows-native.ps1` | staged `retail-runtime` validation | modern evidence refreshed; strict retail blocked | The 2026-06-05 `v143` modern lane built `Release|x86` with `0` warnings and `0` errors, and a direct export audit passed. Strict `v100` staged-runtime evidence is blocked because current projects use `v141` while the strict audit expects `v100`. |
+| `tools/ci/assert-dll-exports.ps1` | gameplay DLL export audit | helper tightened | The audit now prefers the newest Release candidate so fresh `Release\modules` DLL outputs win over stale `bin/baseq3` copies. |
+| `docs/platform/toolchain-matrix.md` | glibc and self-hosted publication follow-ups | documented future publication work | Broader glibc validation and continuous/self-hosted WOW64 publication remain future publication breadth, not an active parity blocker. |
 
-Closure requirement:
+Reopen requirement:
 
-- Regenerate current native build outputs and rerun the strict staged retail
-  runtime validation lane.
-- Rerun/promote retail-module evidence only when the renderer-owned font-atlas
-  blocker is either fixed or deliberately reclassified with fresh artifacts.
+- Reopen when the project is ready to produce fresh strict VC10 staged-runtime
+  evidence or to change the supported retail-toolchain audit path.
 
 ## Mapping-Only Gaps
 
@@ -596,9 +595,9 @@ native qagame corpus rather than in the legacy sparse `server.json` seed file.
 | Gap family | Source parity impact | Mapping impact | Status |
 | --- | --- | --- | --- |
 | FG-01 online services and external ecosystems | Default builds intentionally use disabled, heuristic, or fallback behavior | `quakelive_steam.exe` service clusters remain only partially mapped | Documented bounded divergence |
-| FG-02 Unix/Linux client/runtime portability | Linux client graphics, input, audio, and host runtime remain compatibility-only | Mostly source-file gap notes, not closed retail reference debt | Open repo-wide gap |
-| FG-03 null host compatibility | Null graphics/audio/input/browser/module hosts are no-op or safe-default shims | No direct retail target; whole-tree parity gap only | Open repo-wide gap; Awesomium/browser lane is bounded compatibility |
-| FG-04 evidence freshness | Structural gates are green, but some runtime/build artifacts need fresh regeneration | Retail-module live-map probe still records the stale pre-fix `R_fonsErrorCallback` blocker | Open validation gap |
+| FG-02 Unix/Linux client/runtime portability | Linux client graphics, input, audio, and host runtime remain compatibility-only | Mostly source-file gap notes, not closed retail reference debt | Documented compatibility-only boundary |
+| FG-03 null host compatibility | Null graphics/audio/input/browser/module hosts are no-op or safe-default shims | No direct retail target; whole-tree parity gap only | Documented compatibility-only boundary |
+| FG-04 evidence freshness | Current modern-host build/export evidence and retail-module runtime evidence are refreshed | Strict VC10 staged-runtime proof remains local-toolchain/project-shape gated | Documented validation boundary |
 | Mapping-only host coverage | Not automatically source debt | `quakelive_steam.exe` retains unresolved function rows; legacy `client.json` and `server.json` stale rows are retired | Open host mapping work |
 
 ## Recommended Next Audit Tasks
@@ -609,7 +608,8 @@ native qagame corpus rather than in the legacy sparse `server.json` seed file.
    SDK support before opening source debt.
 2. If repo-wide parity is the target, choose whether FG-01 is permanently
    excluded or whether an open service replacement should be designed.
-3. Re-baseline the Unix/null portability target so FG-02 and FG-03 can either
-   become explicit permanent compatibility lanes or receive real runtime work.
-4. Refresh native Windows runtime/build evidence and rerun the retail-module
-   probe after the renderer font-atlas blocker has a current disposition.
+3. Reopen Unix/null portability only if the project adopts a real runtime
+   target; FG-02 and FG-03 are now explicit compatibility-only boundaries.
+4. Reopen native Windows runtime/build evidence only when strict VC10
+   staged-runtime proof is ready to be regenerated or the retail-toolchain
+   audit path changes.

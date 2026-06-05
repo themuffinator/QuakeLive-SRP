@@ -203,7 +203,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_RR_INFECTED_SURVIVOR_PING_RATE	0x2C5		// floating-point g_rrInfectedSurvivorPingRate payload
 #define CS_RACE_RECORDS		0x2C6		// race checkpoint history used by race_init
 #define CS_LOADOUT_FLAGS		0x2C7		// bitmask of disabled loadout choices
-#define CS_WARMUP_READY		0x2C8		// warmup ready threshold and readiness snapshot
+#define CS_MATCH_GUID		0x2C8		// retail match GUID consumed by rankings payloads
 #define CS_LOADOUT_MASK		0x2C9		// bitmask of starting loadout weapons
 #define CS_SPAWN_HINTS_ALT		CS_RR_INFECTED_SURVIVOR_PING_RATE
 // Tutorial/freezetip coaching strings are kept on reconstruction-local slots so the
@@ -215,8 +215,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_FREEZE_TIP_FREEZE	0x2CE
 #define CS_FREEZE_TIP_SHOOT	0x2CF
 #define CS_FREEZE_TIP_SUMMARY	0x2D0
+#define CS_WARMUP_READY		0x2D1		// source-side warmup ready threshold and readiness snapshot
 
-#define CS_MAX					(CS_FREEZE_TIP_SUMMARY + 1)
+#define CS_MAX					(CS_WARMUP_READY + 1)
 
 #if (CS_MAX) > MAX_CONFIGSTRINGS
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS

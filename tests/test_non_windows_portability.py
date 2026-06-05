@@ -28,8 +28,18 @@ LINUX_GLIBC_32BIT_DOC_PATH = REPO_ROOT / "docs" / "build" / "linux-glibc-32bit.m
 TOOLCHAIN_MATRIX_PATH = REPO_ROOT / "docs" / "platform" / "toolchain-matrix.md"
 REVERSE_BUILDS_DOC_PATH = REPO_ROOT / "docs" / "devops" / "reverse-builds.md"
 TOOLCHAIN_CI_PATH = REPO_ROOT / "docs" / "toolchain-ci.md"
+IMPLEMENTATION_PLAN_PATH = REPO_ROOT / "IMPLEMENTATION_PLAN.md"
+OUTSTANDING_WORK_CHECKLIST_PATH = (
+	REPO_ROOT / "docs" / "plans" / "2026-06-05-outstanding-work-checklist.md"
+)
 REPO_WIDE_AUDIT_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "repo-wide-parity-audit-2026-04-21.md"
+)
+FUNCTION_GAP_AUDIT_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "function-parity-gap-audit-2026-04-24.md"
+)
+NON_WINDOWS_BOUNDARY_NOTE_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "non-windows-portability-boundary-2026-06-05.md"
 )
 UNIX_MAIN_GAP_NOTE_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "source-file-gap-notes" / "rw-g02-unix-main.md"
@@ -51,6 +61,12 @@ NULL_INPUT_GAP_NOTE_PATH = (
 )
 NULL_SNDDMA_GAP_NOTE_PATH = (
 	REPO_ROOT / "docs" / "reverse-engineering" / "source-file-gap-notes" / "rw-g02-null-snddma.md"
+)
+NULL_MAIN_GAP_NOTE_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "source-file-gap-notes" / "rw-g02-null-main.md"
+)
+NULL_CLIENT_GAP_NOTE_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "source-file-gap-notes" / "rw-g02-null-client.md"
 )
 
 
@@ -674,6 +690,8 @@ def test_posix_native_builds_cover_linux_and_macos_ci() -> None:
 def test_portability_docs_track_restored_low_memory_probe_and_remaining_stubs() -> None:
 	linux_glibc_doc = _read_text(LINUX_GLIBC_32BIT_DOC_PATH)
 	toolchain_matrix = _read_text(TOOLCHAIN_MATRIX_PATH)
+	non_windows_boundary = _read_text(NON_WINDOWS_BOUNDARY_NOTE_PATH)
+	outstanding_checklist = _read_text(OUTSTANDING_WORK_CHECKLIST_PATH)
 	repo_wide_audit = _read_text(REPO_WIDE_AUDIT_PATH)
 	unix_main_gap_note = _read_text(UNIX_MAIN_GAP_NOTE_PATH)
 	linux_snd_gap_note = _read_text(LINUX_SND_GAP_NOTE_PATH)
@@ -693,6 +711,20 @@ def test_portability_docs_track_restored_low_memory_probe_and_remaining_stubs() 
 	assert "Linux input shutdown path now releases retained X mouse grabs before clearing mouse availability" in linux_glibc_doc
 	assert "a bounded silent Linux sound sink is available through `snddevice null`" in linux_glibc_doc
 	assert "remaining Unix renderer/audio/input host gaps" in linux_glibc_doc
+
+	assert "Status: closed as explicit compatibility-only containment for Task A4." in non_windows_boundary
+	assert "Active support endpoint: hosted POSIX source builds and dedicated/server" in non_windows_boundary
+	assert "Compatibility-only endpoint: retained Unix host helpers" in non_windows_boundary
+	assert "Non-target by default: modern Linux client renderer, audio, input" in non_windows_boundary
+	assert "Before: repo-wide parity remained 98%" in non_windows_boundary
+	assert "After: repo-wide parity estimate moves to 99%" in non_windows_boundary
+
+	assert "- [x] Task A4: Re-baseline the non-Windows portability lanes." in outstanding_checklist
+	assert "- [x] Task A4: Decide whether Linux client, renderer, audio, and input support" in outstanding_checklist
+	assert "- [x] Task A4: Replace or explicitly classify any remaining Unix `Sys_*`" in outstanding_checklist
+	assert "- [x] Task A4: Refresh Linux/glibc, null-host, and Unix-host docs/tests after" in outstanding_checklist
+	assert "- [x] Task A6: Capture remaining glibc and continuous/self-hosted publication" in outstanding_checklist
+	assert "- [x] Task A6: Refresh archived build/runtime evidence on current toolchains." in outstanding_checklist
 
 	assert "`Sys_LowPhysicalMemory()` now queries physical page counts through `sysconf()`" in toolchain_matrix
 	assert "`Sys_FunctionCmp()` / `Sys_FunctionCheckSum()` now use Linux/glibc symbol metadata" in toolchain_matrix
@@ -757,6 +789,9 @@ def test_portability_docs_track_restored_low_memory_probe_and_remaining_stubs() 
 	assert "no-device key-pump surface" in repo_wide_audit
 	assert "explicit null silent DMA sink" in repo_wide_audit
 	assert "sound/device activation/voice shims" in repo_wide_audit
+	assert "Repo-wide parity across the checked-in tree: **99%**" in repo_wide_audit
+	assert "`RW-G02` non-Windows portability is closed as" in repo_wide_audit
+	assert "Current status: **Closed as an active repo-wide gap; non-Windows runtime divergence remains documented**" in repo_wide_audit
 
 	assert "bounded silent DMA sink for `snddevice null`, `none`, or `silent`" in linux_snd_gap_note
 	assert "`SNDDMA_Shutdown()` now unmaps the OSS DMA buffer and closes `audio_fd`" in linux_snd_gap_note
@@ -778,10 +813,59 @@ def test_portability_docs_track_restored_low_memory_probe_and_remaining_stubs() 
 	assert "`IN_NullRefreshCompatibilityState()` clears `in_joystick->modified`" in null_input_gap_note
 
 
+def test_a4_non_windows_portability_boundary_is_explicitly_contained() -> None:
+	boundary_note = _read_text(NON_WINDOWS_BOUNDARY_NOTE_PATH)
+	implementation_plan = _read_text(IMPLEMENTATION_PLAN_PATH)
+	outstanding_checklist = _read_text(OUTSTANDING_WORK_CHECKLIST_PATH)
+	toolchain_matrix = _read_text(TOOLCHAIN_MATRIX_PATH)
+	linux_glibc_doc = _read_text(LINUX_GLIBC_32BIT_DOC_PATH)
+	repo_wide_audit = _read_text(REPO_WIDE_AUDIT_PATH)
+	function_gap_audit = _read_text(FUNCTION_GAP_AUDIT_PATH)
+	gap_notes = [
+		_read_text(UNIX_MAIN_GAP_NOTE_PATH),
+		_read_text(LINUX_SND_GAP_NOTE_PATH),
+		_read_text(LINUX_JOYSTICK_GAP_NOTE_PATH),
+		_read_text(LINUX_GLIMP_GAP_NOTE_PATH),
+		_read_text(NULL_GLIMP_GAP_NOTE_PATH),
+		_read_text(NULL_INPUT_GAP_NOTE_PATH),
+		_read_text(NULL_SNDDMA_GAP_NOTE_PATH),
+		_read_text(NULL_MAIN_GAP_NOTE_PATH),
+		_read_text(NULL_CLIENT_GAP_NOTE_PATH),
+	]
+
+	assert "Status: closed as explicit compatibility-only containment for Task A4." in boundary_note
+	assert "Active support endpoint: hosted POSIX source builds and dedicated/server" in boundary_note
+	assert "Non-target by default: modern Linux client renderer, audio, input, and null" in boundary_note
+	assert "Linux client/runtime parity is not an active target" in boundary_note
+	assert "before 98% -> after 99%" in implementation_plan
+	assert "Task A4: Modernise or explicitly contain the non-Windows portability lanes [COMPLETED 2026-06-05]" in implementation_plan
+	assert "`docs/reverse-engineering/non-windows-portability-boundary-2026-06-05.md`" in implementation_plan
+	assert "- [x] Task A4: Re-baseline the non-Windows portability lanes." in outstanding_checklist
+	assert "- [x] Task A4: Decide whether Linux client, renderer, audio, and input support" in outstanding_checklist
+	assert "- [x] Task A4: Replace or explicitly classify any remaining Unix `Sys_*`" in outstanding_checklist
+	assert "- [x] Task A4: Refresh Linux/glibc, null-host, and Unix-host docs/tests after" in outstanding_checklist
+
+	assert "The 2026-06-05 A4 boundary decision closes the active non-Windows portability" in toolchain_matrix
+	assert "Future opt-in work" in toolchain_matrix
+	assert "The 2026-06-05 A4 boundary decision closes the remaining Unix renderer/audio/input host gaps as explicit compatibility-only containment" in linux_glibc_doc
+	assert "Current status: **Closed as an active repo-wide gap; non-Windows runtime divergence remains documented**" in repo_wide_audit
+	assert "Documented compatibility-only boundary" in function_gap_audit
+	assert "FG-02 and FG-03 are now explicit compatibility-only boundaries" in function_gap_audit
+
+	for gap_note in gap_notes:
+		assert "Current classification: Closed as explicit compatibility-only" in gap_note
+		assert "open portability owner" not in gap_note
+		assert "Open repo-wide gap" not in gap_note
+
+
 def test_repo_wide_audit_closes_rw_g01_as_documented_divergence() -> None:
 	repo_wide_audit = _read_text(REPO_WIDE_AUDIT_PATH)
 
-	assert "Repo-wide parity across the checked-in tree: **98%**" in repo_wide_audit
-	assert "two bounded gap" in repo_wide_audit
+	assert "Repo-wide parity across the checked-in tree: **99%**" in repo_wide_audit
+	assert "former `RW-G04` evidence-freshness lane is now refreshed" in repo_wide_audit
+	assert "narrowed to a documented strict VC10" in repo_wide_audit
+	assert "local-toolchain boundary" in repo_wide_audit
 	assert "### RW-G01 - Online services and external ecosystems are now a documented bounded divergence" in repo_wide_audit
 	assert "Current status: **Closed as an active repo-wide gap; bounded divergence remains documented**" in repo_wide_audit
+	assert "### RW-G02 - Non-Windows portability is explicitly contained" in repo_wide_audit
+	assert "Current status: **Closed as an active repo-wide gap; non-Windows runtime divergence remains documented**" in repo_wide_audit

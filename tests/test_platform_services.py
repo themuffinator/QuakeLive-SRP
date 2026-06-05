@@ -4710,12 +4710,15 @@ def test_server_zmq_runtime_reconstructs_retail_publication_and_rcon_owners() ->
     assert "void Zmq_SubmitMatchReport( const void *report );" in server_h
     assert "void Zmq_ReportPlayerEvent( uint32_t steamIdLow, uint32_t steamIdHigh, const void *clientStats, const char *eventName, const void *payload );" in server_h
 
-    assert 'Cvar_Get( "zmq_rcon_enable", "0", CVAR_ARCHIVE );' in register_block
-    assert 'Cvar_Get( "zmq_stats_enable", "0", CVAR_ARCHIVE );' in register_block
-    assert 'Cvar_Get( "zmq_rcon_ip", "0.0.0.0", CVAR_ARCHIVE );' in register_block
-    assert 'Cvar_Get( "zmq_rcon_port", "28960", CVAR_ARCHIVE );' in register_block
-    assert 'Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );' in register_block
-    assert 'Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE | CVAR_PROTECTED );' in register_block
+    assert 'Cvar_Get( "zmq_rcon_enable", "0", CVAR_INIT );' in register_block
+    assert 'Cvar_Get( "zmq_stats_enable", "0", CVAR_INIT );' in register_block
+    assert 'Cvar_Get( "zmq_rcon_ip", "0.0.0.0", CVAR_INIT );' in register_block
+    assert 'Cvar_Get( "zmq_rcon_port", "28960", CVAR_INIT );' in register_block
+    assert 'Cvar_Get( "zmq_stats_ip", "", CVAR_INIT );' in register_block
+    assert 'Cvar_Get( "zmq_stats_port", "", CVAR_INIT );' in register_block
+    assert 'Cvar_Get( "zmq_rcon_password", "", CVAR_ARCHIVE );' in register_block
+    assert 'Cvar_Get( "zmq_stats_password", "", CVAR_ARCHIVE );' in register_block
+    assert "CVAR_PROTECTED" not in register_block
     assert "idZMQ_EnsureRconSocket();" in register_block
     assert 'FS_FOpenFileWrite( QL_ZMQ_PASSFILE );' in sv_zmq
     assert 'Com_sprintf( line, sizeof( line ), "stats_stats=%s\\n", s_zmq.statsPassword );' in sv_zmq
@@ -4744,9 +4747,10 @@ def test_server_zmq_runtime_reconstructs_retail_publication_and_rcon_owners() ->
     assert 'Com_Printf( "zmq RCON client connected: %s\\n", peer->label );' in pump_block
     assert 'Com_Printf( "zmq RCON command from %s: %s\\n", peer->label, command );' in pump_block
     assert 'Com_Printf( "zmq RCON client disconnected: %s\\n", peer->label );' in broadcast_block
-    assert 'Com_sprintf( buffer, bufferSize, "{\\"TYPE\\":\\"%s\\",\\"DATA\\":%s}\\n", type, payload );' in sv_zmq
-    assert 'Com_sprintf( buffer, bufferSize, "{\\"TYPE\\":\\"%s\\",\\"DATA\\":null}\\n", type );' in sv_zmq
+    assert 'Com_sprintf( buffer, bufferSize, "{\\"TYPE\\":\\"%s\\",\\"DATA\\":%s}", type, payload );' in sv_zmq
+    assert 'Com_sprintf( buffer, bufferSize, "{\\"TYPE\\":\\"%s\\",\\"DATA\\":null}", type );' in sv_zmq
     assert 's_zmq.statsTranscript = FS_FOpenFileWrite( QL_ZMQ_STATS_TRANSCRIPT );' in sv_zmq
+    assert 'FS_Write( "\\n", 1, s_zmq.statsTranscript );' in sv_zmq
     assert "idZMQ_CloseAuthSocket();" in shutdown_runtime_block
     assert "QL_ZMQ_IMMEDIATE" not in sv_zmq
     assert "QL_ZMQ_ROUTER_HANDOVER" not in sv_zmq

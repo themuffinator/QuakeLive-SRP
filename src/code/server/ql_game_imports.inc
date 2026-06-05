@@ -863,6 +863,15 @@ static void QDECL QL_G_trap_EA_Action( int client, int action ) {
 
 /*
 ==============
+QL_G_trap_EA_Walk
+==============
+*/
+static void QDECL QL_G_trap_EA_Walk( int client ) {
+	botlib_export->ea.EA_Walk( client );
+}
+
+/*
+==============
 QL_G_trap_EA_Gesture
 ==============
 */
@@ -1756,6 +1765,15 @@ QL_G_trap_PC_SourceFileAndLine
 */
 static int QDECL QL_G_trap_PC_SourceFileAndLine( int handle, char *filename, int *line ) {
 	return G_Import_Syscall( BOTLIB_PC_SOURCE_FILE_AND_LINE, handle, filename, line );
+}
+
+/*
+==============
+QL_G_trap_FactoryExists
+==============
+*/
+static int QDECL QL_G_trap_FactoryExists( const char *id ) {
+	return SV_FactoryExists( id );
 }
 
 /*

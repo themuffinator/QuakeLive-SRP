@@ -757,7 +757,7 @@
     "overall_network_protocol_parity_before_percent": 78,
     "overall_network_protocol_parity_after_percent": 80,
     "residual_risks": [
-      "Byte-for-byte packet fixtures still require a pinned adaptive Huffman state or external retail capture.",
+      "Capture-scoped adaptive Huffman fixtures are now pinned in docs/reverse-engineering/network-adaptive-huffman-fixtures-2026-06-05.json, but full usercmd packet-byte replay still requires capture-specific message ordering or an external retail capture.",
       "The unkeyed path is source-locked for parity even though normal protocol-91 client movement uses the keyed path."
     ]
   },

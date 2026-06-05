@@ -1,0 +1,99 @@
+{
+  "task": "A6",
+  "title": "Build/runtime evidence refresh for repo-wide ledger",
+  "date": "2026-06-05",
+  "status": "completed_available_evidence_refresh_with_strict_retail_toolchain_gap_documented",
+  "repo_wide_parity_estimate": {
+    "before": 99,
+    "after": 99
+  },
+  "runtime_evidence": {
+    "retail_module_latest": {
+      "path": "artifacts/module_validation/logs/retail_module_runtime_evidence_latest.json",
+      "source_artifact": "artifacts/module_validation/logs/retail_module_runtime_evidence_20260602.json",
+      "promoted_latest": true,
+      "missing_log_markers": 0,
+      "warnings": 0,
+      "verified_markers": [
+        "LoadLibrary retail uix86.dll",
+        "LoadLibrary retail qagamex86.dll",
+        "LoadLibrary retail cgamex86.dll",
+        "Server: bloodrun",
+        "Going from CS_PRIMED to CS_ACTIVE",
+        "vm_trace ui/cgame/qagame create/free/call traffic"
+      ],
+      "map_runtime": {
+        "map": "bloodrun",
+        "server_seen": true,
+        "active_seen": true,
+        "frame_ready": true,
+        "restart_seen": true,
+        "shot_logged": true,
+        "renderer_owner_blocker": "",
+        "engine_screenshot": "build/win32/Debug/bin/baseq3/screenshots/codex_retail_module_map_20260602_202127.jpg",
+        "log": "build/win32/Debug/dumps/logs/codex_retail_module_map_20260602_202127.log"
+      }
+    },
+    "renderer_latest": {
+      "path": "artifacts/renderer_validation/logs/renderer_runtime_evidence_latest.json",
+      "status": "still_points_at_20260421_clean_renderer_probe"
+    }
+  },
+  "build_validation": {
+    "vs2022_v143_toolchain": {
+      "command": "tools/ci/verify-vs-toolchain.ps1 -PlatformToolset v143 -RequireToolset",
+      "status": "passed",
+      "detected": "Visual Studio 2022 (v143)",
+      "dumpbin": "available"
+    },
+    "modern_native_validation": {
+      "command": "tools/ci/validate-windows-native.ps1 -PlatformToolset v143 -RuntimeProfile modern -DisableOptionalCodecs",
+      "status": "partial_pass_timeout_after_build",
+      "build_log": "artifacts/build-logs/msbuild-Release-x86-v143.log",
+      "build_result": {
+        "configuration": "Release|x86",
+        "toolset": "v143",
+        "warnings": 0,
+        "errors": 0,
+        "outputs": [
+          "build/win32/Release/bin/quakelive_steam.exe",
+          "build/win32/Release/bin/awesomium_process.exe",
+          "build/win32/Release/modules/cgamex86/cgamex86.dll",
+          "build/win32/Release/modules/qagamex86/qagamex86.dll",
+          "build/win32/Release/bin/baseq3/uix86.dll"
+        ]
+      },
+      "direct_export_audit": {
+        "command": "tools/ci/assert-dll-exports.ps1 -RepoRoot <repo>",
+        "status": "passed",
+        "validated_outputs": [
+          "build/win32/Release/modules/qagamex86/qagamex86.dll",
+          "build/win32/Release/modules/cgamex86/cgamex86.dll",
+          "build/win32/Release/bin/baseq3/uix86.dll"
+        ]
+      }
+    },
+    "strict_retail_v100_validation": {
+      "command": "tools/ci/audit-retail-toolchain.ps1 -Strict",
+      "status": "blocked",
+      "reason": "Current checked-in project files use PlatformToolset v141 while the strict retail audit expects v100.",
+      "first_failure": "src/code/quakelive_steam.vcxproj //msb:PlatformToolset expected v100, found v141"
+    }
+  },
+  "source_changes": [
+    {
+      "path": "tools/ci/assert-dll-exports.ps1",
+      "change": "Prefer the newest Release candidate before inspecting DLL exports so fresh module outputs win over stale bin/baseq3 copies."
+    }
+  ],
+  "remaining_risks": [
+    "Strict retail VC10 staged-runtime evidence still requires either restored v100 project defaults or an explicit supported audit/build path for v100, plus local v100 toolchain availability.",
+    "Modern v143 build evidence is compatibility evidence, not a strict retail compiler/CRT replacement proof."
+  ],
+  "validation": [
+    "tools/ci/verify-vs-toolchain.ps1 -PlatformToolset v143 -RequireToolset",
+    "tools/ci/validate-windows-native.ps1 -PlatformToolset v143 -RuntimeProfile modern -DisableOptionalCodecs (timed out after successful MSBuild)",
+    "tools/ci/assert-dll-exports.ps1 -RepoRoot <repo>",
+    "tools/ci/audit-retail-toolchain.ps1 -Strict (blocked as documented)"
+  ]
+}

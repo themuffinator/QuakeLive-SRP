@@ -525,7 +525,7 @@ SV_BotInitCvars
 */
 void SV_BotInitCvars(void) {
 
-	Cvar_Get("bot_enable", "1", 0);						//enable the bot
+	Cvar_Get("bot_enable", "1", CVAR_ROM);				//enable the bot
 	Cvar_Get("bot_developer", "0", CVAR_CHEAT);			//bot developer mode
 	Cvar_Get("bot_debug", "0", CVAR_CHEAT);				//enable bot debugging
 	Cvar_Get("bot_maxdebugpolys", "2", 0);				//maximum number of debug polys
@@ -537,7 +537,7 @@ void SV_BotInitCvars(void) {
 	Cvar_Get("bot_forcewrite", "0", 0);					//force writing aas file
 	Cvar_Get("bot_aasoptimize", "0", 0);				//no aas file optimisation
 	Cvar_Get("bot_saveroutingcache", "0", 0);			//save routing cache
-	Cvar_Get("bot_thinktime", "100", CVAR_CHEAT);		//msec the bots thinks
+	Cvar_Get("bot_thinktime", "100", 0);				//msec the bots thinks
 	Cvar_Get("bot_reloadcharacters", "0", 0);			//reload the bot characters each time
 	Cvar_Get("bot_testichat", "0", 0);					//test ichats
 	Cvar_Get("bot_testrchat", "0", 0);					//test rchats
@@ -547,7 +547,7 @@ void SV_BotInitCvars(void) {
 	Cvar_Get("bot_nochat", "0", 0);						//disable chats
 	Cvar_Get("bot_pause", "0", CVAR_CHEAT);				//pause the bots thinking
 	Cvar_Get("bot_report", "0", CVAR_CHEAT);			//get a full report in ctf
-	Cvar_Get("bot_grapple", "0", 0);					//enable grapple
+	Cvar_Get("bot_grapple", "1", 0);					//enable grapple
 	Cvar_Get("bot_rocketjump", "1", 0);					//enable rocket jumping
 	Cvar_Get("bot_challenge", "0", 0);					//challenging bot
 	Cvar_Get("bot_minplayers", "0", 0);					//minimum players in a team or the game

@@ -53,11 +53,17 @@ The source now mirrors that parser shape:
 - `SV_ExecuteClientMessage` consumes one byte after `reliableAcknowledge` and
   before reliable-command opcode parsing.
 
-`CL_RetailClientMessageFlags()` currently returns zero. Retail `sub_4AF4D0`
-returns `data_565948`, whose producers are cgame/native-state bits. The retail
-server consumes but does not validate this byte in committed HLIL, so the zero
-stub restores parser compatibility while leaving byte-for-byte flag recovery as
-a named follow-up.
+`CL_RetailClientMessageFlags()` now returns a persistent retail sideband flag
+byte initialized to `0x80`, and `CL_Frame` raises the recovered sticky `0x20`
+viewangle-delta bit after `SCR_UpdateScreen()` mutates pitch or yaw. The
+renderer import callback also feeds the recovered low-five `R_PerformanceCounters`
+node count before the renderer counters are cleared. `CL_Frame` also checks the
+recovered native cgame import guard before cgame frame work and raises sticky
+`0x40` if the guarded renderer import slots diverge. Retail `sub_4AF4D0`
+returns `data_565948`, whose observed producers are now source-modeled in
+`docs/reverse-engineering/network-client-message-sideband-producers-2026-06-05.md`.
+The retail server consumes but does not validate this byte in committed HLIL, so
+capture-backed client packet comparison is the remaining byte-for-byte proof.
 
 ## Frozen Body Grammar
 
@@ -98,10 +104,11 @@ task still needs byte-for-byte encrypted packet coverage.
 
 ## Residual Risks
 
-- The cgame/native-state flag producers behind retail `sub_4AF4D0` /
-  `data_565948` still need a dedicated naming pass.
-- The sideband byte is currently parser-compatible but not byte-for-byte
-  complete when retail would set `0x20`, `0x40`, or future recovered bits.
+- The retail sideband producer map is captured in
+  `network-client-message-sideband-producers-2026-06-05.md`.
+- The source emits all observed sideband producers; capture-backed packet
+  comparison is still required before claiming byte-for-byte sideband
+  completeness.
 - Full XOR byte-vector tests remain the next transport task.
 
 Estimated parity movement for this task:

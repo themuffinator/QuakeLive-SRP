@@ -8,6 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 G_PMOVE_PATH = REPO_ROOT / "src" / "code" / "game" / "g_pmove.c"
 BG_PMOVE_PATH = REPO_ROOT / "src" / "code" / "game" / "bg_pmove.c"
 BG_PMOVE_JUMP_PATH = REPO_ROOT / "src" / "code" / "game" / "bg_pmove_jump.h"
+G_LOCAL_PATH = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
 G_CONFIG_PATH = REPO_ROOT / "src" / "game" / "g_config.c"
 G_MAIN_PATH = REPO_ROOT / "src" / "code" / "game" / "g_main.c"
 CG_SERVERCMDS_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c"
@@ -549,6 +550,20 @@ def test_selected_pmove_cvars_reset_refresh_cache_and_cross_vm_transport() -> No
 
 	assert serialize_body.index("settings->wishSpeed") < serialize_body.index("settings->airControl")
 	assert compact_parse_body.index("PMOVE_COMPACT_FLOAT( wishSpeed );") < compact_parse_body.index("PMOVE_COMPACT_FLOAT( airControl );")
+
+def test_pmove_configstring_publish_waits_for_game_init_lifecycle() -> None:
+	g_pmove = G_PMOVE_PATH.read_text(encoding="utf-8")
+	g_local = G_LOCAL_PATH.read_text(encoding="utf-8")
+	publish_body = _function_body(g_pmove, "static void G_PmovePublishSettings( qboolean forceBroadcast )")
+	clear_body = _function_body(g_pmove, "void G_PmoveClearConfigstring( void )")
+	ready_body = _function_body(g_pmove, "void G_PmoveSetConfigstringsReady( qboolean ready )")
+
+	assert "static qboolean g_pmove_configstrings_ready = qfalse;" in g_pmove
+	assert "void G_PmoveSetConfigstringsReady( qboolean ready );" in g_local
+	assert "if ( !g_pmove_configstrings_ready ) {" in publish_body
+	assert "if ( g_pmove_configstrings_ready ) {" in clear_body
+	assert "g_pmove_force_update = qtrue;" in ready_body
+	assert publish_body.index("if ( !g_pmove_configstrings_ready ) {") < publish_body.index("trap_SetConfigstring( CS_PMOVE_SETTINGS, payload );")
 
 
 def test_selected_pmove_cvars_have_retail_defaults_and_active_consumers() -> None:

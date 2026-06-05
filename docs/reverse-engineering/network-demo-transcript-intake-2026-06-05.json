@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Protocol-91 demo transcript intake support for residual byte-for-byte replay evidence",
+  "checklist_row_supported": "Commit at least one retail packet capture, protocol-91 demo transcript, or equivalent known-good capture fixture for byte-for-byte replay validation.",
+  "status": "completed_transcript_intake_tooling_no_retail_transcript_claimed",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "source_files": [
+    "tools/trace/demo_transcript.py",
+    "tools/trace/__init__.py",
+    "tools/tests/test_trace_harness.py"
+  ],
+  "retail_source_anchor": {
+    "source": "src/code/client/cl_main.c",
+    "writer": "CL_WriteDemoMessage",
+    "reader": "CL_ReadDemoMessage",
+    "terminator": "CL_StopRecord_f",
+    "observed_contract": [
+      "records begin with a little-endian int32 serverMessageSequence",
+      "records continue with a little-endian int32 payload length",
+      "payload bytes follow with packet sequencing bytes already skipped by CL_WriteDemoMessage",
+      "CL_StopRecord_f writes the -1/-1 terminator",
+      "CL_ReadDemoMessage rejects payload lengths larger than MAX_MSGLEN"
+    ]
+  },
+  "tool_contract": {
+    "module": "tools.trace.demo_transcript",
+    "entry_points": [
+      "parse_demo_bytes",
+      "parse_demo_file",
+      "validate_demo_transcript_dict",
+      "python -m tools.trace.demo_transcript"
+    ],
+    "output_format": "quake_live_demo_message_transcript",
+    "schema_version": 1,
+    "payload_bytes_committed_as": "lowercase space-separated hex plus SHA-256",
+    "provenance_required_for_retail_closure": true
+  },
+  "validation_gate": "docs/reverse-engineering/network-capture-fixture-validation-2026-06-05.md",
+  "local_artifact_inventory": {
+    "ignored_local_dm91_files_found_under_build": true,
+    "classification": "local generated demos, not committed retail evidence",
+    "decision": "do not commit binary demos; require JSON transcript with retail provenance before closing capture rows"
+  },
+  "checklist_effect": {
+    "new_checked_intake_tooling_row": true,
+    "byte_for_byte_replay_fixture_row_closed": false,
+    "capture_rows_remain_open": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "The pass adds transcript intake tooling and does not add a retail packet/demo artifact."
+  },
+  "assertion_tests": [
+    "tools/tests/test_trace_harness.py::test_demo_transcript_parses_quake_live_demo_envelope",
+    "tools/tests/test_trace_harness.py::test_demo_transcript_rejects_invalid_envelopes",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_demo_transcript_intake_supports_textual_byte_fixture_submission"
+  ]
+}

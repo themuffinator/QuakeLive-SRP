@@ -4177,7 +4177,7 @@ int BotGetActivateGoal(bot_state_t *bs, int entitynum, bot_activategoal_t *activ
 		return 0;
 	}
 	trap_AAS_ValueForBSPEpairKey(ent, "classname", classname, sizeof(classname));
-	if (!classname) {
+	if (!*classname) {
 		BotAI_Print(PRT_ERROR, "BotGetActivateGoal: entity with model %s has no classname\n", model);
 		return 0;
 	}
@@ -4703,19 +4703,6 @@ void BotCheckConsoleMessages(bot_state_t *bs) {
 
 /*
 ==================
-BotCheckEvents
-==================
-*/
-void BotCheckForGrenades(bot_state_t *bs, entityState_t *state) {
-	// if this is not a grenade
-	if (state->eType != ET_MISSILE || state->weapon != WP_GRENADE_LAUNCHER)
-		return;
-	// try to avoid the grenade
-	trap_BotAddAvoidSpot(bs->ms, state->pos.trBase, 160, AVOID_ALWAYS);
-}
-
-/*
-==================
 BotCheckForProxMines
 ==================
 */
@@ -5013,7 +5000,9 @@ void BotCheckSnapshot(bot_state_t *bs) {
 		//check the entity state for events
 		BotCheckEvents(bs, &state);
 		//check for grenades the bot should avoid
-		BotCheckForGrenades(bs, &state);
+		if (state.eType == ET_MISSILE && state.weapon == WP_GRENADE_LAUNCHER) {
+			trap_BotAddAvoidSpot(bs->ms, state.pos.trBase, 160, AVOID_ALWAYS);
+		}
 		//
 		//check for proximity mines which the bot should deactivate
 		BotCheckForProxMines(bs, &state);
@@ -5379,11 +5368,11 @@ void BotSetupDeathmatchAI(void) {
 	maxclients = trap_Cvar_VariableIntegerValue("sv_maxclients");
 
 	trap_Cvar_Register(&bot_rocketjump, "bot_rocketjump", "1", 0);
-	trap_Cvar_Register(&bot_grapple, "bot_grapple", "0", 0);
+	trap_Cvar_Register(&bot_grapple, "bot_grapple", "1", 0);
 	trap_Cvar_Register(&bot_fastchat, "bot_fastchat", "0", 0);
-	trap_Cvar_Register(&bot_nochat, "bot_nochat", "0", 0);
+	trap_Cvar_Register(&bot_nochat, "bot_nochat", "0", CVAR_CLOUD);
 	trap_Cvar_Register(&bot_testrchat, "bot_testrchat", "0", 0);
-	trap_Cvar_Register(&bot_challenge, "bot_challenge", "0", 0);
+	trap_Cvar_Register(&bot_challenge, "bot_challenge", "0", CVAR_CLOUD);
 	trap_Cvar_Register(&bot_predictobstacles, "bot_predictobstacles", "1", 0);
 	trap_Cvar_Register(&g_spSkill, "g_spSkill", "2", 0);
 	//

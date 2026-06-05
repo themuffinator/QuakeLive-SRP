@@ -1,6 +1,6 @@
 # Quake Live Parity Audit
 
-Last updated: 2026-05-31
+Last updated: 2026-06-05
 
 This file is the current cross-subsystem ledger for the repository. Detailed
 reconstruction history belongs in the dedicated subsystem audits under
@@ -55,6 +55,13 @@ The current audited state, with the aggregate pytest sweep refreshed on
   through local `pmove_t` setup, command replay, item/trigger prediction,
   mover adjustment, step smoothing, predictable-event handoff, and committed
   cgame symbol evidence.
+- The 2026-06-05 client-side prediction recheck keeps that focused cgame
+  prediction slice at **100%** while tightening executable coverage for the
+  mapped solid-list, box/capsule trace, point-contents, interpolation,
+  red/blue-flag predicate, high-value item skip, trigger-touch, step smoothing,
+  rail replay, active-frame caller, packet-entity predicted proxy, mover
+  compensation, snapshot handoff/pump, native export, snapshot import, usercmd
+  import, pmove settings, and symbol-map evidence corridor.
 - The 2026-05-25 qcommon playerState delta-codec re-audit keeps the snapshot
   replication bridge at **100%** while pinning the Quake Live scalar netfield
   table, signed movement command mirrors, and the `stats[]`, `persistant[]`,
@@ -64,6 +71,17 @@ The current audited state, with the aggregate pytest sweep refreshed on
   `SV_BuildClientSnapshot`, `SV_WriteSnapshotToClient`, `CL_ParseSnapshot`,
   `CL_GetSnapshot`, and `trap_GetSnapshot` ordering around playerState,
   areamask, packet entities, and `ps.commandTime` ping derivation.
+- The 2026-06-05 server snapshot send-wrapper closure keeps the focused
+  snapshot system at **100%** by removing the non-retail classic
+  `SV_WriteDownloadToClient` injection from `SV_SendClientSnapshot`; retail
+  `0x004E5AC0` now maps cleanly from snapshot body write to overflow handling
+  and `SV_SendMessageToClient`.
+- The 2026-06-05 related snapshot wiring re-audit keeps the adjacent
+  snapshot corridor at **100%** by rechecking server authoring, client parse,
+  cgame readback, qagame visibility exports, and bot snapshot entity access.
+  The pass added an executable guard for `SV_BotGetSnapshotEntity` and
+  `QL_G_trap_BotGetSnapshotEntity` against retail `sub_4DDAC0` and
+  `sub_4E17E0`.
 - The 2026-05-25 client/server usercmd movement-transport re-audit keeps the
   command side of the movement bridge at **100%** while pinning client
   `CL_CreateCmd` / `CL_WritePacket`, qcommon keyed usercmd deltas, server
@@ -101,9 +119,10 @@ The current audited state, with the aggregate pytest sweep refreshed on
 - The strict-retail Windows replacement target remains defensible at
   **100%** on the current worktree.
 - Repo-wide parity is not **100%** once the deliberate compatibility-only
-  lanes, the bounded non-Windows portability debt, and the remaining
-  evidence-freshness gap are counted. The current repo-wide estimate for the
-  whole checked-in tree is **98%**.
+  lanes and the remaining evidence-freshness gap are counted. The current
+  repo-wide estimate for the whole checked-in tree is **99%** after the
+  non-Windows portability lanes were closed as explicit compatibility-only
+  containment on 2026-06-05.
 - A new source-file parity campaign is now open under
   `docs/reverse-engineering/source-file-parity-ledger-2026-04-22.md` and
   `docs/reverse-engineering/source-file-parity-audit-plan-2026-04-22.md`.
@@ -134,8 +153,19 @@ Verified directly:
 - `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/qcommon/run_qcommon_runtime_probe.ps1` -> refreshed `artifacts/qcommon_validation/logs/qcommon_runtime_evidence_20260410.json`
 - `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/renderer/run_renderer_runtime_probe.ps1` -> refreshed `artifacts/renderer_validation/logs/renderer_runtime_evidence_latest.json` via the clean dated `20260421` bundle
 - `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/server/run_server_runtime_probe.ps1` -> refreshed `artifacts/server_validation/logs/server_runtime_evidence_20260410.json`
-- `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/modules/run_retail_module_runtime_probe.ps1` -> refreshed `artifacts/module_validation/logs/retail_module_runtime_evidence_latest.json` through the bounded `20260421` retail-module probe bundle
+- `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/modules/run_retail_module_runtime_probe.ps1` -> refreshed `artifacts/module_validation/logs/retail_module_runtime_evidence_latest.json`; the latest alias now points at the clean `20260602` retail-module probe bundle
 - `C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\ci\wow64-smoketest.ps1` -> refreshed `artifacts/wow64-smoketest/wow64-smoketest.log`
+- 2026-06-05 A6 native Windows preflight captured in
+  `docs/reverse-engineering/windows-native-validation-preflight-2026-06-05.md`:
+  `audit-retail-toolchain.ps1 -Strict` and
+  `validate-windows-native.ps1 -RuntimeProfile retail` now reach project
+  metadata checks, but both stop before build because the strict retail audit
+  expects `PlatformToolset=v100` while the current project files report `v141`
+- 2026-06-05 A6 modern-host build evidence captured in
+  `docs/reverse-engineering/runtime-build-evidence-refresh-2026-06-05.md`:
+  Visual Studio 2022 `v143` is available, the modern `Release|x86` build
+  completed with `0` warnings and `0` errors, and the direct gameplay DLL
+  export audit passed against the fresh `Release\modules` outputs
 - `pytest tests/test_client_full_parity_gate.py -q --tb=no` -> `2 passed, 1 skipped`
 - `pytest tests/test_ui_full_parity_gate.py -q --tb=no` -> `1 passed, 1 skipped`
 - `pytest tests/test_game_module_retail_parity_gate.py -q --tb=no` -> `2 passed, 1 skipped`
@@ -201,9 +231,11 @@ accept/retry/deny shims rather than live service implementations, but that
 lane is now explicitly excluded from the repo-wide deficit instead of being
 left as ambiguous open work.
 
-Two repo-wide gap families remain active:
+The formerly active portability gap and the remaining active gap now stand as
+follows:
 
-- `RW-G02` Non-Windows portability is still incomplete. The Linux path remains
+- The former `RW-G02` non-Windows portability gap is now closed as an active
+  repo-wide gap by the 2026-06-05 boundary decision. The Linux path remains
   server-only, the documented glibc preset is server-module-only evidence
   rather than Linux client/runtime parity proof, Unix
   `Sys_LowPhysicalMemory()` plus Linux/glibc
@@ -231,10 +263,12 @@ Two repo-wide gap families remain active:
   loopback-network, browser/advert/input, a renderer GL init refusal, an
   explicit null silent DMA sink, and sound/device activation/voice
   compatibility shims plus the newer input bootstrap-cvar and no-device
-  key-pump surface, but the profiling lane
-  is still optional, the Linux sound lane still lacks a real modern audible
-  backend, and the broader Unix runtime still remains
-  compatibility-only rather than retail-equivalent hosts.
+  key-pump surface. The optional profiling lane, Linux sound backend, broader
+  Unix runtime, Linux client renderer/input stack, and null runtime remain
+  documented compatibility-only carries rather than retail-equivalent hosts.
+  Reopening this family now requires a successor task that intentionally
+  adopts a modern renderer/audio/input dependency stack and reproducible
+  validation lane.
 - `RW-G04` Evidence freshness outside the tracked artifacts remains incomplete.
   This audit reran the gate suites, refreshed the tracked client, qcommon,
   server, and renderer runtime bundles, reran the retained WOW64 smoke
@@ -247,18 +281,16 @@ Two repo-wide gap families remain active:
   also pinned by `tests/test_retail_dependency_runtime_audit.py`, which proves
   the mixed `build\win32\Debug\bin` lane still fails the strict audit while a
   clean staged root passes with rebuilt module slots treated as required but
-  hash-optional. The module alias still points at the bounded `2026-04-21`
-  retail-module artifact, whose remaining live-map shortfall was explicitly the
-  renderer-owned `R_fonsErrorCallback` font-atlas saturation lane rather than an
-  ambiguous module-host failure. The 2026-05-20 renderer wiring pass removed the
-  non-retail eager FontStash prebuild that most plausibly caused that
-  saturation, restored direct `GL_ALPHA` atlas refreshes, and re-aligned the
-  retail `GetRefAPI` export ABI tail around API version `9`, the no-op legacy
-  font slot, and the private `postprocess_restart` offset. This part of
-  `RW-G04` is now stale evidence awaiting a fresh module-runtime rerun. The
-  remaining debt is concentrated in fresh native build
-  outputs and the broader glibc plus self-hosted publication follow-ups in
-  `docs/platform/toolchain-matrix.md`.
+  hash-optional. The module alias now points at the `2026-06-02`
+  retail-module artifact, whose live-map pass loads retail `ui`, `qagame`, and
+  `cgame`, reaches `CS_ACTIVE` on `bloodrun`, and records no missing markers
+  or warnings. The 2026-06-05 A6 build refresh also produced current
+  modern-host `v143` `Release|x86` outputs and a passing direct export audit
+  after `tools/ci/assert-dll-exports.ps1` was tightened to prefer the newest
+  Release candidate. Strict VC10 staged-runtime evidence remains documented as
+  a local toolchain/project-shape boundary: the strict retail audit still
+  expects `PlatformToolset=v100`, while the current checked-in projects report
+  `v141`.
 
 The former `RW-G03` UI packaging/proof gap is now bounded rather than active:
 the checked-in `src/ui` runtime-panel baseline is clean, and explicit

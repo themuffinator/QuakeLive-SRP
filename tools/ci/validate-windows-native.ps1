@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path,
+    [string]$RepoRoot = '',
     [string]$PlatformToolset = 'v143',
     [string]$ProjectToolset = 'v141',
     [ValidateSet('retail', 'modern')]
@@ -13,6 +13,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+$NativeValidationScriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($NativeValidationScriptRoot) -and $PSCommandPath) {
+    $NativeValidationScriptRoot = Split-Path -Parent $PSCommandPath
+}
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    if ([string]::IsNullOrWhiteSpace($NativeValidationScriptRoot)) {
+        throw 'Unable to determine repository root. Provide -RepoRoot explicitly.'
+    }
+
+    $RepoRoot = (Resolve-Path (Join-Path $NativeValidationScriptRoot '../..')).Path
+}
+else {
+    $RepoRoot = (Resolve-Path $RepoRoot).Path
+}
 
 function Assert-PlatformToolset {
     param(
@@ -237,7 +252,7 @@ foreach ($project in $projectChecks) {
 }
 
 if ($RuntimeProfile -eq 'retail') {
-    $toolchainAudit = Join-Path $PSScriptRoot 'audit-retail-toolchain.ps1'
+    $toolchainAudit = Join-Path $NativeValidationScriptRoot 'audit-retail-toolchain.ps1'
     & $toolchainAudit -RepoRoot $RepoRoot -Strict:$true
 }
 elseif ($PlatformToolset -ne $ProjectToolset) {
@@ -253,7 +268,7 @@ if ($RuntimeProfile -eq 'modern' -and -not $WindowsTargetPlatformVersion) {
     Write-Host "Using Windows SDK $WindowsTargetPlatformVersion for the modern compatibility build."
 }
 
-$metadataAudit = Join-Path $PSScriptRoot 'audit-retail-metadata.ps1'
+$metadataAudit = Join-Path $NativeValidationScriptRoot 'audit-retail-metadata.ps1'
 & $metadataAudit -RepoRoot $RepoRoot
 
 $launcherRoot = Join-Path $RepoRoot 'assets/quakelive'
@@ -287,14 +302,14 @@ else {
     }
 
     if ($missingLauncherPayload.Count -gt 0) {
-        Write-Warning "Retail launcher payload is not fully staged under '$launcherRoot'; modern compatibility validation will continue without it."
+        Write-Host "Retail launcher payload is not fully staged under '$launcherRoot'; modern compatibility validation treats those files as optional."
     }
     else {
         Write-Host "Validated required launcher payload DLLs are available: $($launcherPayload -join ', ')"
     }
 }
 
-$builder = Join-Path $PSScriptRoot 'build-windows-dlls.ps1'
+$builder = Join-Path $NativeValidationScriptRoot 'build-windows-dlls.ps1'
 & $builder `
     -RepoRoot $RepoRoot `
     -Configuration $Configuration `
@@ -309,7 +324,7 @@ if (-not (Test-Path $awesomiumProcessPath)) {
     throw "Expected awesomium_process.exe at '$awesomiumProcessPath' after the native Windows build."
 }
 
-$exportAudit = Join-Path $PSScriptRoot 'assert-dll-exports.ps1'
+$exportAudit = Join-Path $NativeValidationScriptRoot 'assert-dll-exports.ps1'
 & $exportAudit -RepoRoot $RepoRoot
 
 if ($RuntimeProfile -eq 'retail') {

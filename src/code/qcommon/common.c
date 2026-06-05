@@ -4356,6 +4356,8 @@ void Com_Init( char *commandLine ) {
 	Netchan_Init( Com_Milliseconds() & 0xffff );	// pick a port value that should be nice and random
 	VM_Init();
 	SV_Init();
+	SV_RegisterGameCvars();
+	CL_RegisterCGameCvars();
 
 	com_dedicated->modified = qfalse;
 	if ( !com_dedicated->integer ) {

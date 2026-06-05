@@ -209,6 +209,8 @@ typedef struct {
 	int			timeDemoStart;		// cls.realtime before first frame
 	int			timeDemoBaseTime;	// each frame will be at this time + frameNum * 50
 
+	char		challengeResponseText[MAX_STRING_CHARS];	// optional challengeResponse sideband token retained before netchan
+
 	// big stuff at end of structure so most offsets are 15 bits or less
 	netchan_t	netchan;
 } clientConnection_t;
@@ -423,6 +425,9 @@ void CL_InitInput (void);
 void CL_SendCmd (void);
 void CL_ClearState (void);
 void CL_ReadPackets (void);
+void CL_SetRetailClientMessageViewangleDeltaFlag( void );
+void CL_SetRetailClientMessageCGameImportGuardFlag( void );
+void CL_SetRetailClientMessageRendererNodeCount( int nodeCount );
 
 void CL_WritePacket( void );
 void IN_CenterView (void);
@@ -535,6 +540,8 @@ void CIN_CloseAllVideos(void);
 //
 // cl_cgame.c
 //
+void CL_RegisterCGameCvars( void );
+void CL_CheckCGameNativeImportIntegrity( void );
 void CL_InitCGame( void );
 void CL_ShutdownCGame( void );
 qboolean CL_GameCommand( void );

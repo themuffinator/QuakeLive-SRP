@@ -47,6 +47,7 @@ typedef struct bot_goal_s
 	int number;					//goal number
 	int flags;					//goal flags
 	int iteminfo;				//item information
+	int qlGoalExtra[2];			//retail Quake Live goal tail, semantics pending
 } bot_goal_t;
 
 //reset the whole goal state, but keep the item weights

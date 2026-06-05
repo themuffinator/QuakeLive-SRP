@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "End-to-end snapshot player/entity field decode report validation gate",
+  "status": "completed_snapshot_field_decode_validation_gate_no_retail_capture_claimed",
+  "runtime_launch_required": false,
+  "game_launch_required": false,
+  "depends_on": [
+    "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json",
+    "docs/reverse-engineering/network-demo-capture-replay-validation-2026-06-05.json",
+    "docs/reverse-engineering/network-residual-capture-blockers-2026-06-05.json"
+  ],
+  "source_files": [
+    "tools/trace/snapshot_decode.py",
+    "tools/trace/__init__.py",
+    "tools/tests/test_trace_harness.py"
+  ],
+  "supported_checklist_row": "Verify end-to-end retail snapshot capture/decode parity for playerStateFields and entityStateFields.",
+  "tool_contract": {
+    "module": "tools.trace.snapshot_decode",
+    "function": "validate_snapshot_field_decode_dict",
+    "format": "quake_live_snapshot_field_decode",
+    "schema_version": 1,
+    "protocol": 91,
+    "field_tables": [
+      {
+        "name": "playerStateFields",
+        "field_count": 58,
+        "spec_source": "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json"
+      },
+      {
+        "name": "entityStateFields",
+        "field_count": 58,
+        "spec_source": "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json"
+      }
+    ],
+    "field_decode_checks": [
+      "both playerStateFields and entityStateFields sections are present",
+      "field_count equals the recovered retail table count",
+      "decode_hash is a lowercase SHA-256 hex string",
+      "observed_fields is non-empty",
+      "observed field indexes are within 0..57",
+      "observed field indexes, bits, and wire_kind match the retail source-of-truth specs when supplied",
+      "entityStateFields source_alias entries such as retailEventData may validate against the retail generic1 slot"
+    ],
+    "snapshot_checks": [
+      "at least one decoded snapshot frame is present",
+      "messageNum and packetEntityCount are non-negative integers",
+      "serverTime and deltaNum are integers",
+      "playerStateHash, entityStateHash, and packetEntitiesHash are lowercase SHA-256 hex strings"
+    ],
+    "retail_provenance_required_for_closure": true
+  },
+  "report_columns": [
+    "capture_id",
+    "protocol",
+    "field_table",
+    "field_count",
+    "decode_hash",
+    "observed_field",
+    "observed_index",
+    "observed_bits",
+    "observed_wire_kind",
+    "value_hash",
+    "messageNum",
+    "serverTime",
+    "deltaNum",
+    "packetEntityCount",
+    "playerStateHash",
+    "entityStateHash",
+    "packetEntitiesHash"
+  ],
+  "checklist_effect": {
+    "new_checked_snapshot_field_decode_validation_row": true,
+    "snapshot_field_capture_decode_row_closed": false,
+    "capture_rows_remain_open": true
+  },
+  "parity_estimate": {
+    "overall_network_protocol_before_percent": 90,
+    "overall_network_protocol_after_percent": 90,
+    "byte_for_byte_capture_evidence_before_percent": 0,
+    "byte_for_byte_capture_evidence_after_percent": 0,
+    "repo_wide_before_percent": 99,
+    "repo_wide_after_percent": 99,
+    "reason": "The pass validates future snapshot field decode reports and does not add a retail snapshot packet capture or protocol-91 transcript."
+  },
+  "assertion_tests": [
+    "tools/tests/test_trace_harness.py::test_snapshot_field_decode_validator_accepts_player_and_entity_decode_report",
+    "tools/tests/test_trace_harness.py::test_snapshot_field_decode_validator_rejects_field_table_drift",
+    "tools/tests/test_trace_harness.py::test_snapshot_field_decode_validator_requires_retail_provenance_and_snapshots",
+    "tests/test_netcode_parity_manifest.py::test_networking_2_snapshot_field_decode_validation_gate_requires_retail_capture"
+  ]
+}

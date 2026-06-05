@@ -138,7 +138,7 @@ int BotValidWeaponNumber(int weaponnum)
 {
 	if (weaponnum <= 0 || weaponnum > weaponconfig->numweapons)
 	{
-		botimport.Print(PRT_ERROR, "weapon number out of range\n");
+		botimport.Print(PRT_ERROR, "weapon number (%d) out of range\n", weaponnum);
 		return qfalse;
 	} //end if
 	return qtrue;
@@ -392,7 +392,6 @@ void BotGetWeaponInfo(int weaponstate, int weapon, weaponinfo_t *weaponinfo)
 	if (!BotValidWeaponNumber(weapon)) return;
 	ws = BotWeaponStateFromHandle(weaponstate);
 	if (!ws) return;
-	if (!weaponconfig) return;
 	Com_Memcpy(weaponinfo, &weaponconfig->weaponinfo[weapon], sizeof(weaponinfo_t));
 } //end of the function BotGetWeaponInfo
 //===========================================================================
@@ -440,18 +439,10 @@ int BotChooseBestFightWeapon(int weaponstate, int *inventory)
 //===========================================================================
 void BotResetWeaponState(int weaponstate)
 {
-	struct weightconfig_s *weaponweightconfig;
-	int *weaponweightindex;
 	bot_weaponstate_t *ws;
 
 	ws = BotWeaponStateFromHandle(weaponstate);
 	if (!ws) return;
-	weaponweightconfig = ws->weaponweightconfig;
-	weaponweightindex = ws->weaponweightindex;
-
-	//Com_Memset(ws, 0, sizeof(bot_weaponstate_t));
-	ws->weaponweightconfig = weaponweightconfig;
-	ws->weaponweightindex = weaponweightindex;
 } //end of the function BotResetWeaponState
 //========================================================================
 //
@@ -540,4 +531,3 @@ void BotShutdownWeaponAI(void)
 		} //end if
 	} //end for
 } //end of the function BotShutdownWeaponAI
-
