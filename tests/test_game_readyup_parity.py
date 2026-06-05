@@ -39,6 +39,8 @@ def test_ready_latch_declared_and_helpers_present() -> None:
 def test_readyup_commands_use_latch_and_retail_gate_strings() -> None:
     cmds_c = _read("src/code/game/g_cmds.c")
     main_c = _read("src/code/game/g_main.c")
+    warmup_ready_block = _block_from_marker(main_c, "qboolean G_WarmupReadyToStart")
+    duel_ready_block = _block_from_marker(main_c, "static void G_GetDuelReadyStateCounts")
 
     assert "Cannot ready up until more players are present." in cmds_c
     assert "Players cannot ready up until both teams are present." in cmds_c
@@ -46,7 +48,10 @@ def test_readyup_commands_use_latch_and_retail_gate_strings() -> None:
     assert "G_ClientIsReady( ent->client )" in cmds_c
     assert "G_SetClientReadyState( ent->client, qtrue );" in cmds_c
     assert "G_SetClientReadyState( ent->client, qfalse );" in cmds_c
-    assert "G_ClientIsReady( cl )" in main_c
+    assert "G_ClientIsReady( client )" in warmup_ready_block
+    assert "level.readyUpEligibleClients = eligibleCount;" in warmup_ready_block
+    assert "level.readyUpReadyClients = readyCount;" in warmup_ready_block
+    assert "G_ClientIsReady( client )" in duel_ready_block
 
 
 def test_readyup_team_presence_truth_table_matches_retail_mapping_notes() -> None:

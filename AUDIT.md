@@ -29,6 +29,16 @@ The current audited state, with the aggregate pytest sweep refreshed on
   Awesomium/browser-host audits.
 - The focused gameplay validation sweep remains closed on the current worktree
   through dedicated Race, gametype-lifecycle, ready-up, and `pmove` fixtures.
+- The 2026-06-05 Race gametype closure keeps the focused Race qagame/cgame
+  wiring surface at **100%** by matching the retail evidence for `race_info`,
+  `race_init`, admin `racepoint`/`admin_race_point_N` transport, checkpoint
+  touch events, finish ranking, and `scores_race` rows sourced from
+  `level.sortedClients` / `level.numPlayingClients`.
+- The 2026-06-05 Domination gametype closure keeps the focused Domination
+  qagame/cgame wiring surface at **100%** by matching the qagame HLIL evidence
+  for the five-point registration cap, delayed point activation, participant
+  capture/assist rewards, primary-capturer retention, shared point-count
+  configstrings, owned-point spawn selection, and point-defense bonus routing.
 - The 2026-05-25 movement/playerState re-audit keeps the shared pmove,
   playerState replication, pmove settings transport, and prediction wiring
   surface at **100%** for the scoped retail source reconstruction; no source
@@ -177,6 +187,7 @@ Verified directly:
 - `pytest tests/test_gametype_lifecycle.py -q` -> `8 passed`
 - `pytest tests/test_game_readyup_parity.py tests/test_game_team_count_parity.py -q` -> `7 passed`
 - `pytest tests/test_racepoint_commands.py -q` -> `1 passed`
+- `python -m pytest tests/test_racepoint_commands.py tests/test_game_nonteam_scoreboard_helper_parity.py tests/test_game_helper_seam_parity.py::test_timeout_race_and_direct_command_helpers_match_recovered_boundaries tests/test_cgame_event_transport_parity.py tests/test_gametype_lifecycle.py -q --tb=short` -> `28 passed`
 - `pytest tests/test_pmove_validation_fixtures.py tests/test_pmove_air_control_runtime_parity.py tests/test_pmove_jump_timing_parity.py -q` -> `14 passed`
 - `python -m pytest tests/test_pmove_validation_fixtures.py tests/test_pmove_air_control_runtime_parity.py tests/test_pmove_jump_timing_parity.py tests/test_pmove_movement_fixtures.py tests/test_pmove_helper_parity.py tests/test_pmove_acceleration_scope_parity.py tests/test_pmove_crouch_time_parity.py tests/test_pmove_crouch_slide_friction_parity.py tests/test_pmove_reload_fallback_parity.py tests/test_pmove_water_scale_parity.py tests/test_bg_playerstate_bridge_parity.py tests/test_cgame_playerstate_transition_parity.py tests/test_playerstate_replication.py tools/tests/test_pmove_settings_configstring.py -q --tb=short` -> `145 passed, 107 subtests passed`
 - `python -m pytest tools/tests/test_pmove_settings_configstring.py tests/test_game_factory_regen_parity.py tests/test_game_weapon_parity.py::test_grappling_hook_full_server_and_cgame_wiring_matches_retail tests/test_ui_menu_files.py::test_ui_retail_server_settings_ownerdraw_restored tests/test_ui_menu_files.py::test_game_retail_weapon_reload_configstring_restored tests/test_cgame_displaycontext_parity.py::test_cgame_weapon_reload_configstring_bridge_restored tests/test_cgame_displaycontext_parity.py::test_cgame_server_settings_panel_reconstruction_uses_retail_custom_setting_configstrings -q --tb=short` -> `32 passed, 107 subtests passed`

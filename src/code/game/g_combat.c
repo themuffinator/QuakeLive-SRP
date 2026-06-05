@@ -1920,10 +1920,17 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	asave = CheckArmor (targ, take, dflags);
 	take -= asave;
 	if ( take > 0 || asave > 0 ) {
-		G_ADHandleDamageScore( attacker, 0, targ, &take, &asave );
-	}
-	if ( take > 0 ) {
-		G_RRHandleDamageScore( attacker, targ, take );
+		if ( g_gametype.integer == GT_CLAN_ARENA ) {
+			if ( !G_CAHandleDamageScore( attacker, targ, &take, &asave ) ) {
+				return;
+			}
+		} else if ( g_gametype.integer == GT_RED_ROVER ) {
+			if ( !G_RRHandleDamageScore( attacker, targ, &take, &asave ) ) {
+				return;
+			}
+		} else {
+			G_ADHandleDamageScore( attacker, 0, targ, &take, &asave );
+		}
 	}
 
 	// add to the attacker's damage counter for retail hit-beep selection

@@ -36,7 +36,7 @@ def test_ad_round_scoreboard_owner_restores_retail_grid_and_banner_strings() -> 
 
 	for expected in (
 		"value = Info_ValueForKey( info, SERVERINFO_KEY_SCORELIMIT );",
-		'value = Info_ValueForKey( info, "roundlimit" );',
+		"value = Info_ValueForKey( info, SERVERINFO_KEY_ROUNDLIMIT );",
 		'return "Red Wins! Good Game";',
 		'return "Last Chance";',
 		'return "Match Point";',

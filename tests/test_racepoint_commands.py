@@ -99,7 +99,7 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
             Q_strncpyz(buffer, g_cmd_argv[n], bufferLength);
         }
 
-        char *va(char *fmt, ...) {
+        char *QDECL va(const char *fmt, ...) {
             static char buffers[4][1024];
             static int index = 0;
             char *buffer = buffers[index];
@@ -373,6 +373,9 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
             (void)raceTime;
         }
 
+        void CalculateRanks(void) {
+        }
+
         int main(void) {
             gentity_t *admin;
             const char *spawnArgs[] = { "racepoint" };
@@ -384,7 +387,7 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
             memset(g_clients, 0, sizeof(g_clients));
 
             level.clients = g_clients;
-            level.maxclients = 1;
+            level.maxclients = 3;
             level.gentities = g_entities;
             level.gentitySize = sizeof(gentity_t);
 
@@ -413,9 +416,11 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
             g_clients[0].raceState.active = qtrue;
             g_clients[0].raceState.startTime = 1337;
             g_clients[0].raceState.lastFinishTime = -1;
-            g_clients[0].raceState.nextCheckpoint = 1;
+            g_clients[0].raceState.nextCheckpoint = 2;
             g_clients[0].raceState.currentPoint = &g_entities[1];
             g_clients[0].raceState.nextPoint = NULL;
+            G_RaceSendInfoCommand(0);
+            Cmd_RaceInit_f(admin);
             G_RaceSendInfoCommand(0);
 
             Test_SetArgs(2, clearArgs);
@@ -428,6 +433,19 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
             g_clients[0].raceState.currentPoint = NULL;
             g_clients[0].raceState.nextPoint = NULL;
             G_RaceSendInfoCommand(0);
+
+            level.time = 34567;
+            level.numPlayingClients = 2;
+            level.sortedClients[0] = 2;
+            level.sortedClients[1] = 0;
+            g_clients[2].pers.connected = CON_CONNECTED;
+            g_clients[2].ps.persistant[PERS_SCORE] = RACE_INVALID_TIME;
+            g_clients[2].ps.ping = 1000;
+            g_clients[2].pers.enterTime = 4567;
+            g_clients[0].ps.persistant[PERS_SCORE] = 42000;
+            g_clients[0].ps.ping = 50;
+            g_clients[0].pers.enterTime = 30000;
+            G_BuildRaceScoreboardMessage(admin);
 
             printf("DONE\n");
             return 0;
@@ -450,7 +468,8 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
     assert admin_payloads[0] == "CMD:-1:admin_race_point_0 128.00 -64.00 248.00 - arp0", output
 
     assert any(line == "CMD:-1:race_init" for line in cmd_lines), output
-    assert "CMD:0:race_info 1 1337 -1 0 1 -1" in cmd_lines, output
+    assert "CMD:0:race_info 1 1337 -1 2 1 -1" in cmd_lines, output
+    assert "CMD:0:race_info 0 1337 -1 2 -1 -1" in cmd_lines, output
 
     dump_lines = [line for line in cmd_lines if 'print "128.000000 -64.000000 248.000000' in line]
     assert dump_lines, output
@@ -458,5 +477,6 @@ def test_racepoint_command_emits_metadata(tmp_path: Path) -> None:
     assert any(line.startswith("CMD:-1:print \"clearing race points") for line in cmd_lines), output
     assert sum(1 for line in cmd_lines if line == "CMD:-1:race_init") >= 2, output
     assert "CMD:0:race_info 0 0 -1 0 -1 -1" in cmd_lines, output
+    assert "CMD:0:scores_race 2 2 -1 999 30 0 42000 50 4" in cmd_lines, output
 
     assert lines[-1] == "DONE"

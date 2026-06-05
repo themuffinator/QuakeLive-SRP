@@ -274,15 +274,21 @@ def test_health_pickup_helper_restores_retail_leaf_boundary() -> None:
 
 
 def test_weapon_pickup_helper_restores_the_retail_world_weapon_regrab_gate() -> None:
+	source = BG_MISC.read_text(encoding="utf-8")
 	body = _function_body(
 		r"static qboolean BG_CanGrabWeaponItem\( int gametype, int currentTime, const entityState_t \*ent, const playerState_t \*ps, const gitem_t \*item, qboolean dropped \)\s*\{(?P<body>.*?)^\}",
 	)
 
+	assert 'trap_Cvar_VariableValue( "g_weaponRespawn" )' not in source
+	assert "static qboolean BG_IsWeaponsStayEnabled( void ) {" in source
+	assert "return ( g_weaponRespawn.integer == 0 ) ? qtrue : qfalse;" in source
 	assert "if ( ps->pm_flags & PMF_IRONSIGHTS ) {" in body
 	assert "if ( dropped ) {" in body
 	assert "weapon = BG_WeaponForItemTag( item->giTag );" in body
+	assert "#ifdef QAGAME" in body
 	assert "if ( !BG_IsWeaponsStayEnabled() ) {" in body
 	assert "return qtrue;" in body
+	assert "#endif" in body
 	assert "if ( !( ps->stats[STAT_WEAPONS] & ( 1 << weapon ) ) ) {" in body
 	assert "(void)gametype;" in body
 	assert "(void)currentTime;" in body

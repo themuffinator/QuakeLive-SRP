@@ -410,11 +410,15 @@ def test_qagame_native_import_table_uses_public_header_count() -> None:
 		ql_game_imports,
 		"static float QDECL QL_G_trap_BotAvoidGoalTime",
 	)
+	send_console_block = _extract_block(sv_game, "static void SV_GameExecuteConsoleCommand")
+	game_syscall_block = _extract_block(sv_game, "static int SV_GameSystemCallsImpl")
+	retail_send_console = _extract_block(sv_game, "static void QDECL QL_G_trap_SendConsoleCommandText")
 
 	assert "#define GAME_LEGACY_IMPORT_COUNT\t(G_RANK_REPORT_STR + 1)" in public_h
 	assert "#define GAME_NATIVE_IMPORT_COUNT\tG_QL_IMPORT_TOTAL_COUNT" in public_h
 	assert "G_QL_IMPORT_COMPAT_BASE = G_QL_IMPORT_COUNT," in public_h
 	assert "G_QL_IMPORT_TOTAL_COUNT = G_QL_IMPORT_COMPAT_BASE + GAME_LEGACY_IMPORT_COUNT" in public_h
+	assert "G_SEND_CONSOLE_COMMAND,\t// ( const char *text );" in public_h
 	assert "G_QL_IMPORT_BOTLIB_LIBVAR_GET = 52," in public_h
 	assert "G_QL_IMPORT_BOTLIB_START_FRAME = 54," in public_h
 	assert "G_QL_IMPORT_BOTLIB_UPDATE_ENTITY = 56," in public_h
@@ -519,6 +523,15 @@ def test_qagame_native_import_table_uses_public_header_count() -> None:
 	assert "BOTLIB_AAS_POINT_REACHABILITY_AREA_INDEX," in public_h
 	assert "static ql_import_f ql_game_imports[GAME_NATIVE_IMPORT_COUNT];" in sv_game
 	assert "Com_Memset( ql_game_imports, 0, sizeof( ql_game_imports ) );" in sv_game
+	assert '(*(code *)*DAT_104b13ac)("map_restart 0\\n");' in qagame_ghidra
+	assert '(*(code *)*DAT_104b13ac)("vstr nextmap\\n");' in qagame_ghidra
+	assert "Cbuf_ExecuteText( exec_when, text );" in send_console_block
+	assert "if ( args[1] >= EXEC_NOW && args[1] <= EXEC_APPEND ) {" in game_syscall_block
+	assert "SV_GameExecuteConsoleCommand( args[1], VMA(2) );" in game_syscall_block
+	assert "SV_GameExecuteConsoleCommand( EXEC_APPEND, VMA(1) );" in game_syscall_block
+	assert "G_Import_Syscall( G_SEND_CONSOLE_COMMAND, text );" in retail_send_console
+	assert "ql_game_imports[G_QL_IMPORT_SEND_CONSOLE_COMMAND] = (ql_import_f)QL_G_trap_SendConsoleCommandText;" in sv_game
+	assert "[G_SEND_CONSOLE_COMMAND] = (ql_import_f)QL_G_trap_SendConsoleCommand," in sv_game
 	assert "ql_game_imports[G_QL_IMPORT_BOTLIB_LIBVAR_GET] = (ql_import_f)QL_G_trap_BotLibVarGet;" in sv_game
 	assert "ql_game_imports[G_QL_IMPORT_BOTLIB_START_FRAME] = (ql_import_f)QL_G_trap_BotLibStartFrame;" in sv_game
 	assert "ql_game_imports[G_QL_IMPORT_BOTLIB_UPDATE_ENTITY] = (ql_import_f)QL_G_trap_BotLibUpdateEntity;" in sv_game

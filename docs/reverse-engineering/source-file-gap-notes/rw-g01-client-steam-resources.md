@@ -1,6 +1,6 @@
 # `src/code/client/cl_steam_resources.c` Divergence Note
 
-Last updated: 2026-05-24
+Last updated: 2026-06-05
 
 Gap family: `RW-G01`
 - Owning retail binary: `assets/quakelive/quakelive_steam.exe` for engine-owned surfaces, or the corresponding committed module corpus when this file sits in a module tree.
@@ -18,7 +18,8 @@ The client resource bridge reconstructs the menu-facing resource flow and now mi
 - `QLResourceInterceptor_OnFilterNavigation()` is now source-visible as the retail false-returning navigation filter.
 - `QLResourceInterceptor_OnRequest()` now reconstructs the retail `ql` host and `/screenshot` split before falling back from SteamDataSource to launcher/web filesystem owners.
 - `CL_InitSteamResources()` explicitly reports that the Steam resource bridge is disabled by build/runtime policy when the lane is unavailable.
-- `CL_RefreshSteamResourceBridgeCvars()` now mirrors the shared online-service parity scope/reason labels through `ui_resourceBridgeParityScope` and `ui_resourceBridgeParityReason`.
+- `CL_RefreshSteamResourceBridgeCvars()` now mirrors the shared online-service parity scope/reason labels through `ui_resourceBridgeParityScope` and `ui_resourceBridgeParityReason`, and also publishes the SteamDataSource subset, native-gap, and fallback-owner labels.
+- Non-avatar `steam://` requests are explicitly labeled as routed to the `QLResourceInterceptor launcher/web fallback` owner; avatars remain the only native SteamDataSource subset.
 
 ## Function-by-function status
 
@@ -27,10 +28,13 @@ The client resource bridge reconstructs the menu-facing resource flow and now mi
 | `CL_GetSteamResourceServiceDescriptor` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_GetSteamResourceServiceProviderLabel` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_GetSteamResourceServicePolicyLabel` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
-| `CL_LogSteamResourceBridgeUnavailable` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
+| `CL_GetSteamDataSourceSubsetLabel` | `bounded divergence classifier` | Publishes `avatar-only SteamDataSource` as the currently reconstructed native subset. |
+| `CL_GetSteamDataSourceNativeGapLabel` | `bounded divergence classifier` | Publishes `missing non-avatar SteamDataSource owner` until the broader retail semantics are promoted. |
+| `CL_GetSteamDataSourceFallbackOwnerLabel` | `bounded divergence classifier` | Names the retained non-avatar fallback owner as `QLResourceInterceptor launcher/web fallback`. |
+| `CL_LogSteamResourceBridgeUnavailable` | `helper closed` | Publishes provider, policy, subset, fallback owner, and native-gap diagnostics for unresolved SteamDataSource requests. |
 | `CL_LogLauncherResourceFallbackUnavailable` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_LogSteamResourceRequestStubbed` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
-| `CL_RefreshSteamResourceBridgeCvars` | `bounded divergence classifier` | Mirrors provider, policy, parity scope, and parity reason labels for the resource bridge. |
+| `CL_RefreshSteamResourceBridgeCvars` | `bounded divergence classifier` | Mirrors provider, policy, parity scope/reason, SteamDataSource subset, native-gap, fallback-owner, and mapping-count labels for the resource bridge. |
 | `CL_SteamResources_IsSteamURL` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_IsURIResource` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamResources_IsAvatarURL` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
@@ -51,7 +55,7 @@ The client resource bridge reconstructs the menu-facing resource flow and now mi
 | `CL_SteamResources_RequestAvatarRGBA` | `bounded compatibility` | Still depends on the Steam-facing compatibility bridge rather than a repo-wide-closed live path. |
 | `CL_SteamDataSource_ClearResponse` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
 | `CL_SteamDataSource_GuessMimeType` | `helper closed` | Utility parser or cache helper; not the direct remaining parity blocker on its own. |
-| `CL_SteamDataSource_Request` | `divergence owner` | Live resource requests still depend on bounded Steam or launcher compatibility backends. |
+| `CL_SteamDataSource_Request` | `divergence owner` | Live avatar requests still depend on bounded Steam callbacks; non-avatar `steam://` requests are explicitly routed to the launcher/web fallback owner. |
 | `QLResourceInterceptor_OnFilterNavigation` | `helper closed` | Mirrors retail `sub_434600` by returning false for every navigation. |
 | `QLResourceInterceptor_ParseURL` | `helper closed` | Source-visible stand-in for the retail `WebURL::host/path/filename` extraction used by the interceptor. |
 | `QLResourceInterceptor_IsRetailHost` | `helper closed` | Keeps the retail `ql` host comparison explicit. |
@@ -68,5 +72,5 @@ The client resource bridge reconstructs the menu-facing resource flow and now mi
 
 ## Maintenance expectations
 
-- Keep the fallback, pending-retry, stub logging, and parity-scope cvars explicit while Steam-backed menu resources remain a permanent bounded compatibility story.
+- Keep the fallback, pending-retry, stub logging, parity-scope cvars, and SteamDataSource subset/native-gap/fallback-owner labels explicit while Steam-backed menu resources remain a permanent bounded compatibility story.
 - If a real open replacement path is adopted later, refresh the request bridge and note accordingly.

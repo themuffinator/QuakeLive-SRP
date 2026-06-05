@@ -695,6 +695,7 @@ vmCvar_t	g_warmupDelay;
 vmCvar_t	g_warmupReadyDelay;
 vmCvar_t	g_warmupReadyDelayAction;
 vmCvar_t	g_restarted;
+static vmCvar_t	g_svWarmupReadyPercentage;
 vmCvar_t	g_log;
 vmCvar_t	g_logSync;
 vmCvar_t	g_podiumDist;
@@ -1111,6 +1112,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_warmupDelay, "g_warmupDelay", "15", 0, 0, qfalse, qfalse, "Seconds after level start before retail warmup countdown checks may proceed." },
 	{ &g_warmupReadyDelay, "g_warmupReadyDelay", "0", 0, 0, qfalse, qfalse, "Seconds to wait in duel after exactly one player readies before applying g_warmupReadyDelayAction; 0 disables the retail delay controller." },
 	{ &g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", 0, 0, qfalse, qfalse, "Retail duel ready-delay action: 1 moves the unready duelist to spectate-only, 2 forces both duelists ready." },
+	{ &g_svWarmupReadyPercentage, "sv_warmupReadyPercentage", "0.51", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse, qfalse, "Fraction of warmup-eligible clients required to ready before the retail countdown starts." },
 	{ &g_training, "g_training", "0", CVAR_SYSTEMINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Marks training sessions and disables competitive match flow when set." },
 	{ &g_lagHaxHistory, "g_lagHaxHistory", "4", CVAR_LATCH, 0, qfalse, qfalse, "Hidden Quake Live rewind history depth used by the retail lag compensation seam." },
 	{ &g_lagHaxMs, "g_lagHaxMs", "80", CVAR_LATCH, 0, qfalse, qfalse, "Hidden Quake Live rewind window in milliseconds for the retail lag compensation seam." },
@@ -3641,6 +3643,18 @@ int QDECL SortRanks( const void *a, const void *b ) {
 		return -1;
 	}
 
+	if ( g_gametype.integer == GT_RACE ) {
+		if ( ca->ps.persistant[PERS_SCORE]
+			< cb->ps.persistant[PERS_SCORE] ) {
+			return -1;
+		}
+		if ( ca->ps.persistant[PERS_SCORE]
+			> cb->ps.persistant[PERS_SCORE] ) {
+			return 1;
+		}
+		return 0;
+	}
+
 	// then sort by score
 	if ( ca->ps.persistant[PERS_SCORE]
 		> cb->ps.persistant[PERS_SCORE] ) {
@@ -5016,7 +5030,7 @@ static rankMedal_t G_RankResolveMedalIndex( const char *medal ) {
 	if ( Q_stricmp( medal, "PERFECT" ) == 0 ) {
 		return RANK_MEDAL_PERFECT;
 	}
-	if ( Q_stricmp( medal, "DEFENDS" ) == 0 || Q_stricmp( medal, "DEFEND" ) == 0 ) {
+	if ( Q_stricmp( medal, "DEFENDS" ) == 0 || Q_stricmp( medal, "DEFEND" ) == 0 || Q_stricmp( medal, "DEFENSE" ) == 0 ) {
 		return RANK_MEDAL_DEFENDS;
 	}
 	if ( Q_stricmp( medal, "ASSISTS" ) == 0 || Q_stricmp( medal, "ASSIST" ) == 0 ) {
@@ -7368,6 +7382,47 @@ void G_UpdateReadyUpConfigstring( void ) {
 
 /*
 =============
+G_SetWarmupTime
+
+Stores the warmup timestamp and refreshes the retail side effects tied to CS_WARMUP.
+=============
+*/
+void G_SetWarmupTime( int warmupTime ) {
+	const char	*state;
+
+	level.warmupTime = warmupTime;
+	trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
+	G_UpdateReadyUpConfigstring();
+	G_CheckAutoRecord();
+
+	if ( warmupTime < 0 ) {
+		state = GAME_STATE_PRE_GAME;
+	} else if ( warmupTime == 0 ) {
+		state = GAME_STATE_IN_PROGRESS;
+	} else {
+		state = GAME_STATE_COUNT_DOWN;
+	}
+
+	G_SetGameState( state );
+}
+
+/*
+=============
+G_RequestWarmupMapRestart
+
+Runs the retail qagame-owned warmup expiration sequence before map_restart.
+=============
+*/
+static void G_RequestWarmupMapRestart( void ) {
+	G_RankSendMatchStarted();
+	level.warmupTime += 10000;
+	trap_Cvar_Set( "g_restarted", "1" );
+	trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
+	level.restarted = qtrue;
+}
+
+/*
+=============
 G_PublishWarmupReadyConfigstring
 
 Publishes the retail warmup readiness snapshot consumed by the HUD.
@@ -7389,9 +7444,11 @@ static void G_PublishWarmupReadyConfigstring( int readyCount, int eligibleCount,
 		readyCount = eligibleCount;
 	}
 
-	percent = 0;
-	if ( eligibleCount > 0 ) {
-		percent = ( readyCount * 100 ) / eligibleCount;
+	percent = (int)( g_svWarmupReadyPercentage.value * 100.0f + 0.5f );
+	if ( percent < 0 ) {
+		percent = 0;
+	} else if ( percent > 100 ) {
+		percent = 100;
 	}
 
 	info[0] = '\0';
@@ -7428,6 +7485,7 @@ qboolean G_WarmupReadyToStart( void ) {
 	int	eligibleCount;
 	int	readyCount;
 	int	readyMask;
+	float	readyRatio;
 
 	eligibleCount = 0;
 	readyCount = 0;
@@ -7490,7 +7548,15 @@ qboolean G_WarmupReadyToStart( void ) {
 		return qfalse;
 	}
 
-	return ( eligibleCount > 0 && readyCount == eligibleCount ) ? qtrue : qfalse;
+	if ( g_svWarmupReadyPercentage.value <= 0.0f ) {
+		return qtrue;
+	}
+	if ( eligibleCount <= 0 || readyCount <= 0 ) {
+		return qfalse;
+	}
+
+	readyRatio = (float)readyCount / (float)eligibleCount;
+	return ( readyRatio >= g_svWarmupReadyPercentage.value ) ? qtrue : qfalse;
 }
 
 /*
@@ -7578,15 +7644,13 @@ static void G_ResetDuelWarmupState( qboolean clearReadyFlags ) {
 
 	configChanged = qfalse;
 	warmupChanged = qfalse;
-	if ( level.warmupTime != -1 ) {
-		level.warmupTime = -1;
-		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-		configChanged = qtrue;
-		warmupChanged = qtrue;
-	}
 	if ( level.readyUpDelayDeadline != 0 ) {
 		level.readyUpDelayDeadline = 0;
 		configChanged = qtrue;
+	}
+	if ( level.warmupTime != -1 ) {
+		G_SetWarmupTime( -1 );
+		warmupChanged = qtrue;
 	}
 
 	if ( clearReadyFlags && G_ClearConnectedReadyStates( qtrue ) ) {
@@ -7597,7 +7661,6 @@ static void G_ResetDuelWarmupState( qboolean clearReadyFlags ) {
 		G_UpdateReadyUpConfigstring();
 	}
 	if ( warmupChanged ) {
-		G_SetGameState( GAME_STATE_PRE_GAME );
 		G_LogPrintf( "Warmup:\n" );
 	}
 }
@@ -7989,6 +8052,8 @@ Once a frame, check for changes in tournement player state
 =============
 */
 void CheckTournament( void ) {
+	qboolean	warmupReady;
+
 	// check because we run 3 game frames before calling Connect and/or ClientBegin
 	// for clients on a map_restart
 	if ( level.numPlayingClients == 0 ) {
@@ -7998,9 +8063,7 @@ void CheckTournament( void ) {
 	if ( level.trainingMapActive ) {
 		G_WarmupReadyToStart();
 		if ( level.warmupTime != 0 ) {
-			level.warmupTime = 0;
-			trap_SetConfigstring( CS_WARMUP, "" );
-			G_UpdateReadyUpConfigstring();
+			G_SetWarmupTime( 0 );
 		}
 		return;
 	}
@@ -8009,7 +8072,7 @@ void CheckTournament( void ) {
 		return;
 	}
 
-	G_WarmupReadyToStart();
+	warmupReady = G_WarmupReadyToStart();
 
 	if ( g_gametype.integer == GT_TOURNAMENT ) {
 		int	eligibleCount;
@@ -8022,11 +8085,6 @@ void CheckTournament( void ) {
 			return;
 		}
 
-		// pull in a spectator if needed
-		if ( level.numPlayingClients < 2 ) {
-			AddTournamentPlayer();
-		}
-
 		// if we don't have two players, go back to "waiting for players"
 		if ( level.numPlayingClients != 2 ) {
 			G_ResetDuelWarmupState( ( level.warmupTime != -1 ) ? qtrue : qfalse );
@@ -8037,51 +8095,13 @@ void CheckTournament( void ) {
 		readyCount = 0;
 		if ( g_doWarmup.integer ) {
 			G_GetDuelReadyStateCounts( &eligibleCount, &readyCount );
-
-			if ( level.warmupTime > 0 && ( eligibleCount != 2 || readyCount != 2 ) ) {
-				G_ResetDuelWarmupState( qtrue );
-				return;
-			}
-		}
-
-		if ( level.warmupTime > 0 ) {
-			int remaining = ( level.warmupTime - level.time ) / 1000;
-
-			if ( remaining < 0 ) {
-				level.warmupTime = 0;
-				level.readyUpDelayDeadline = 0;
-				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-				G_UpdateReadyUpConfigstring();
-				G_SetGameState( GAME_STATE_IN_PROGRESS );
-				return;
-			}
-			if ( remaining != level.warmupModificationCount ) {
-				level.warmupModificationCount = remaining;
-				if ( remaining == 3 ) {
-					trap_SendServerCommand( -1, "cp \"Match begins in 3...\"" );
-					G_GlobalSound( G_SoundIndex( "sound/world/3.wav" ) );
-				} else if ( remaining == 2 ) {
-					trap_SendServerCommand( -1, "cp \"Match begins in 2...\"" );
-					G_GlobalSound( G_SoundIndex( "sound/world/2.wav" ) );
-				} else if ( remaining == 1 ) {
-					trap_SendServerCommand( -1, "cp \"Match begins in 1...\"" );
-					G_GlobalSound( G_SoundIndex( "sound/world/1.wav" ) );
-				} else if ( remaining == 0 ) {
-					trap_SendServerCommand( -1, "cp \"Match begins!\"" );
-					G_GlobalSound( G_SoundIndex( "sound/world/go.wav" ) );
-				}
-			}
-			return;
 		}
 
 		// if the warmup is changed at the console, restart it
 		if ( g_warmup.modificationCount != level.warmupModificationCount ) {
 			level.warmupModificationCount = g_warmup.modificationCount;
-			level.warmupTime = -1;
 			level.readyUpDelayDeadline = 0;
-			trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-			G_UpdateReadyUpConfigstring();
-			G_SetGameState( GAME_STATE_PRE_GAME );
+			G_SetWarmupTime( -1 );
 			G_InitWeaponConfig();
 		}
 
@@ -8089,27 +8109,21 @@ void CheckTournament( void ) {
 		if ( level.warmupTime < 0 ) {
 			if ( g_doWarmup.integer ) {
 				if ( eligibleCount == 2 && readyCount == 2 ) {
-					level.warmupTime = level.time + 10000;
-					trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-					G_UpdateReadyUpConfigstring();
+					if ( warmupReady ) {
+						G_SetWarmupTime( level.time + g_warmup.integer * 1000 );
+					}
 				} else {
 					G_CheckReadyUpDelayAction();
 				}
 			} else if ( level.numPlayingClients == 2 ) {
-				// fudge by -1 to account for extra delays
-				level.warmupTime = level.time + ( g_warmup.integer - 1 ) * 1000;
-				trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-				G_UpdateReadyUpConfigstring();
+				G_SetWarmupTime( level.time + g_warmup.integer * 1000 );
 			}
 			return;
 		}
 
 		// if the warmup time has counted down, restart
-		if ( level.time > level.warmupTime ) {
-			level.warmupTime += 10000;
-			trap_Cvar_Set( "g_restarted", "1" );
-			trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
-			level.restarted = qtrue;
+		if ( level.time >= level.warmupTime ) {
+			G_RequestWarmupMapRestart();
 			return;
 		}
 	} else if ( g_gametype.integer != GT_SINGLE_PLAYER && level.warmupTime != 0 ) {
@@ -8126,9 +8140,7 @@ void CheckTournament( void ) {
 		if ( notEnough ) {
 			if ( level.warmupTime != -1 ) {
 				G_ClearConnectedReadyStates( qtrue );
-				level.warmupTime = -1;
-				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
-				G_UpdateReadyUpConfigstring();
+				G_SetWarmupTime( -1 );
 				G_LogPrintf( "Warmup:\n" );
 			}
 			return; // still waiting for team members
@@ -8141,69 +8153,26 @@ void CheckTournament( void ) {
 		// if the warmup is changed at the console, restart it
 		if ( g_warmup.modificationCount != level.warmupModificationCount ) {
 			level.warmupModificationCount = g_warmup.modificationCount;
-			level.warmupTime = -1;
+			G_SetWarmupTime( -1 );
 			G_InitWeaponConfig();
 		}
 
 		// if all players have arrived, start the countdown
 		if ( level.warmupTime < 0 ) {
 			if ( g_doWarmup.integer ) {
-				int i, readyCount = 0;
-				for ( i = 0; i < level.maxclients; i++ ) {
-					gclient_t *cl = &level.clients[i];
-					if ( cl->pers.connected != CON_CONNECTED || cl->sess.sessionTeam == TEAM_SPECTATOR ) {
-						continue;
-					}
-					if ( !G_ClientIsReady( cl ) ) {
-						break;
-					}
-					readyCount++;
-				}
-				if ( i == level.maxclients && readyCount > 0 ) {
-					level.warmupTime = level.time + 10000;
-					trap_SendServerCommand( -1, "print \"All players ready! Match starting in 10 seconds.\n\"" );
-					trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
-					G_UpdateReadyUpConfigstring();
-					return;
+				if ( warmupReady ) {
+					G_SetWarmupTime( level.time + g_warmup.integer * 1000 );
 				}
 			} else {
-				// fudge by -1 to account for extra delays
-				level.warmupTime = level.time + ( g_warmup.integer - 1 ) * 1000;
-				trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
-				G_UpdateReadyUpConfigstring();
+				G_SetWarmupTime( level.time + g_warmup.integer * 1000 );
 				Team_ClampWarmupToShuffleCountdown();
-				return;
 			}
-		}
-
-		// check ready flags
-		if ( g_doWarmup.integer && level.warmupTime > 0 ) {
-			int i, readyCount = 0;
-			for ( i = 0; i < level.maxclients; i++ ) {
-				gclient_t *cl = &level.clients[i];
-				if ( cl->pers.connected != CON_CONNECTED || cl->sess.sessionTeam == TEAM_SPECTATOR ) {
-					continue;
-				}
-				if ( !G_ClientIsReady( cl ) ) {
-					break;
-				}
-				readyCount++;
-			}
-			if ( i == level.maxclients && readyCount > 0 ) {
-				if ( level.warmupTime > level.time + 10000 ) {
-					level.warmupTime = level.time + 10000;
-					trap_SendServerCommand( -1, "print \"All players ready! Match starting in 10 seconds.\n\"" );
-					trap_SetConfigstring( CS_WARMUP, va("%i", level.warmupTime) );
-				}
-			}
+			return;
 		}
 
 		// if the warmup time has counted down, restart
-		if ( level.time > level.warmupTime ) {
-			level.warmupTime += 10000;
-			trap_Cvar_Set( "g_restarted", "1" );
-			trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\n" );
-			level.restarted = qtrue;
+		if ( level.time >= level.warmupTime ) {
+			G_RequestWarmupMapRestart();
 			return;
 		}
 	}

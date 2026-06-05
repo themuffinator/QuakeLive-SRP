@@ -229,6 +229,44 @@ def test_cg_item_queues_poi_markers_from_raw_item_origin_before_render_offsets()
 	assert "CG_QueueItemPOIMarker( cent, item, cent->lerpOrigin );" not in item_block
 
 
+def test_cg_item_weapon_pickup_children_and_railgun_color_match_retail_shape() -> None:
+	source = CG_ENTS.read_text(encoding="utf-8")
+	item_block = _block_from_marker(source, "static void CG_Item")
+
+	for expected in (
+		"if ( BG_WeaponForItemTag( item->giTag ) == WP_RAILGUN ) {",
+		"ent.shaderRGBA[0] = 0;",
+		"ent.shaderRGBA[1] = 255;",
+		"ent.shaderRGBA[2] = 0;",
+		"ent.shaderRGBA[3] = 255;",
+		"if ( wi->barrelModel ) {",
+		'CG_PositionRotatedEntityOnTag( &barrel, &ent, wi->weaponModel, "tag_barrel" );',
+		"AxisCopy( ent.axis, barrel.axis );",
+		"barrel.nonNormalizedAxes = ent.nonNormalizedAxes;",
+		"if ( wi->ammoModel ) {",
+		"ammo.hModel = wi->ammoModel;",
+		'CG_PositionRotatedEntityOnTag( &ammo, &ent, wi->weaponModel, "tag_ammo" );',
+		"AxisCopy( ent.axis, ammo.axis );",
+		"ammo.nonNormalizedAxes = ent.nonNormalizedAxes;",
+		"trap_R_AddRefEntityToScene( &ammo );",
+	):
+		assert expected in item_block
+
+	assert item_block.index("if ( item->giType == IT_WEAPON ) {") < item_block.index(
+		"if ( BG_WeaponForItemTag( item->giTag ) == WP_RAILGUN ) {"
+	)
+	assert item_block.index("trap_R_AddRefEntityToScene(&ent);") < item_block.index(
+		"if ( wi->barrelModel ) {"
+	)
+	assert item_block.index('CG_PositionRotatedEntityOnTag( &barrel, &ent, wi->weaponModel, "tag_barrel" );') < item_block.index(
+		"if ( wi->ammoModel ) {"
+	)
+	assert item_block.index('CG_PositionRotatedEntityOnTag( &ammo, &ent, wi->weaponModel, "tag_ammo" );') < item_block.index(
+		"// accompanying rings / spheres for powerups"
+	)
+	assert "cgs.media.weaponHoverSound" not in item_block
+
+
 def test_cgame_draw_lane_keeps_world_marker_owners_and_closes_appendix_gap() -> None:
 	draw_source = CG_DRAW.read_text(encoding="utf-8")
 	plan = CG_BG_PLAN.read_text(encoding="utf-8")

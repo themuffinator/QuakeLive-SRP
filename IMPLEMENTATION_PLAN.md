@@ -47,6 +47,414 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A234: Pin legacy Steam P2P networking vtables [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_349.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 82% -> after 96%** for the focused legacy
+`ISteamNetworking` client/server wrapper and harness lane. Broader Steamworks
+parity remains approximately **99%** because the retained retail-era P2P path
+is now executable evidence while live Steam runtime behavior and a documented
+modern `ISteamNetworkingSockets` / `ISteamNetworkingMessages` adapter remain
+explicitly open.
+
+Completed work:
+
+1. Rechecked the `SteamNetworking` and `SteamGameServerNetworking` import
+   evidence plus HLIL availability/read/send call sites for the legacy P2P
+   wrapper slots.
+2. Added a mock `SteamAPI_SteamNetworking` provider with send, availability,
+   read, and accept slots matching the reconstructed wrapper offsets.
+3. Replaced the null game-server networking mock with equivalent server-side
+   P2P slots and added a one-shot `SteamGameServer::GetNextOutgoingPacket`
+   harness path.
+4. Added enabled/disabled ctypes wrappers and focused tests proving payload,
+   SteamID, channel, send-type, failure, read, accept, and outgoing UDP packet
+   behavior.
+
+### Task A233: Pin Steam favorite-server matchmaking wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_cgame.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_348.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 88% -> after 98%** for the focused
+`SetFavoriteServer` SteamMatchmaking add/remove wrapper and client fallback
+lane. Broader Steam server-browser and WebUI bridge parity remains
+approximately **99%** because live friends/history/recent-mode behavior and
+live Steam favorite persistence remain validation uncertainties.
+
+Completed work:
+
+1. Rechecked the retail `qz_instance` method row at `0x0055C188`, the
+   `0x00432681` dispatcher case, and the Ghidra import evidence for
+   `SteamMatchmaking` plus `SteamUtils`.
+2. Extended the Steamworks harness with mock `SteamMatchmaking` favorite-game
+   add/remove slots at vtable offsets `0x08` and `0x0c`, capture getters, result
+   controls, and disabled-build stubs.
+3. Added executable coverage proving app ID, IP, shared connection/query port,
+   favorite flag, add timestamp, remove timestamp absence, and provider failure
+   propagation.
+4. Made the client local favorites cache mirror an explicit compatibility
+   fallback when an opted-in Steam provider cannot update favorites.
+
+### Task A232: Close Attack and Defend retail parity wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_team.c`, `src/code/game/g_items.c`,
+`src/code/cgame/cg_main.c`, `tests/test_attack_defend_retail_parity.py`
+Parity estimate: **before 97% -> after 100%** for the focused Attack and
+Defend gametype rules, flag-status transport, map item validation, score
+history, round controller, spawn/reset, media registration, POI, scoreboard,
+and HUD wiring surface. Broader gameplay/gametype parity remains approximately
+**99%** repo-wide because this pass closes AD-specific drift while leaving
+unrelated gametype and validation-freshness boundaries unchanged.
+
+Completed work:
+
+1. Rechecked `qagamex86.dll` and `cgamex86.dll` symbol maps plus Binary Ninja
+   HLIL and Ghidra evidence for `Team_SetFlagStatus`, `G_CheckTeamItems`,
+   `Team_TouchOurFlag`, `Team_TouchEnemyFlag`, `G_ADHandleDamageScore`,
+   `AD_RoundStateTransition`, `G_ADUpdateScoreHistory`,
+   `CG_ParseADScores`, `CG_DrawADRoundScoreboard`,
+   `CG_DrawObjectiveStatus`, `CG_PlayerObjectiveSprite`, and
+   `CG_RegisterGraphics`.
+2. Restored the retail CTF-family AD flag-status path so `Team_InitGame`
+   initializes red/blue status for `GT_ATTACK_DEFEND` and
+   `Team_SetFlagStatus` publishes the two-character `CS_FLAGSTATUS` payload
+   for both CTF and Attack and Defend.
+3. Restored AD map-item validation in `G_CheckTeamItems`, matching the retail
+   red/blue flag warning branch for gametype `0xb`.
+4. Restored AD client media registration for the red/blue flag model bank and
+   neutral/dropped flag model bank in `CG_RegisterGraphics`, matching the
+   retail cgame evidence that includes gametype `0xb` in those assets.
+5. Added `tests/test_attack_defend_retail_parity.py` to pin the AD symbol-map
+   owners, retail evidence snippets, server flag/status and item-validation
+   gates, round controller, damage/bonus flow, spawn/frame hooks,
+   `scores_ad`/`adscores` transport, cgame flag media, POI, and HUD wiring.
+
+### Task A231: Label invalid Steam browser request modes as internet default [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_347.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 85% -> after 99%** for the focused
+invalid/default WebUI server-browser request-mode labeling path. Broader
+Steam server-browser parity remains approximately **99%** because native
+list/detail owners are already reconstructed and the remaining uncertainty is
+live friends/history result parity plus any distinct recent-mode UI evidence,
+not the observed invalid/default `RequestServers` dispatch.
+
+Completed work:
+
+1. Rechecked the retail `JSBrowser_RequestServers` HLIL branch
+   `arg2 - 1 u> 3`, which routes mode `0` and out-of-range retained values to
+   the internet `ISteamMatchmakingServers` request slot with the
+   `gamedir=baseq3` filter.
+2. Confirmed the source dispatch helpers already agreed with retail:
+   invalid/default modes enter `QL_STEAM_SERVER_BROWSER_INTERNET` natively and
+   `AS_GLOBAL` in the source-browser fallback path.
+3. Updated `CL_SteamBrowser_RequestModeLabel` so the retained default case now
+   reports `internet` instead of `unknown`, aligning diagnostics and fallback
+   telemetry with the actual dispatch path.
+4. Added a platform-service parity assertion that the request-mode label block
+   has the explicit mode-0 and default `internet` returns and no longer
+   contains an `unknown` request-mode label.
+
+### Task A230: Lock CTF and One Flag retail parity wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_team.c`, `src/code/game/g_combat.c`,
+`src/code/game/g_cmds.c`, `src/code/game/ai_dmq3.c`,
+`src/code/game/ai_team.c`, `src/code/cgame/cg_servercmds.c`,
+`src/code/cgame/cg_main.c`, `src/code/cgame/cg_newdraw.c`,
+`tests/test_ctf_oneflag_retail_parity.py`
+Parity estimate: **before 99% -> after 100%** for the focused CTF and One
+Flag gametype rules, scoring, status, bot, scoreboard, and HUD wiring surface.
+Broader gameplay/gametype parity remains approximately **99%** repo-wide
+because this pass found the source behavior already aligned with the committed
+retail references and converted the audit into focused regression coverage
+without changing unrelated gametype lanes.
+
+Completed work:
+
+1. Rechecked `qagamex86.dll` and `cgamex86.dll` symbol maps plus Binary Ninja
+   HLIL evidence for `Team_SetFlagStatus`, `Team_TouchOurFlag`,
+   `Team_TouchEnemyFlag`, `Pickup_Team`, `Team_FragBonuses`,
+   `Team_CheckHurtCarrier`, `CheckAlmostCapture`, `CG_ParseCtfScores`,
+   `CG_ParseCTFStats`, `CG_OneFlagStatus`, `CG_OtherTeamHasFlag`,
+   `CG_YourTeamHasFlag`, and `CG_DrawPlayerHasFlag`.
+2. Verified qagame CTF and One Flag initialization/status configstrings,
+   dropped-flag return/reset handling, neutral-flag pickup/capture flow,
+   capture assist accounting, near-capture event selection, and the retail
+   carrier-bonus split where `Team_CheckHurtCarrier` only stamps red/blue flag
+   or Harvester skull carrier damage while `Team_FragBonuses` handles One Flag
+   neutral-carrier frags.
+3. Verified score transports and client parsing stay on the retail
+   `scores_ctf`/`ctfstats` family path, including the two-character CTF flag
+   status payload versus the single-character One Flag payload.
+4. Verified client HUD/objective wiring for One Flag neutral status icons,
+   CTF/One Flag ownerdraw visibility predicates, local carried-flag rendering,
+   and CTF-family feeder rows.
+5. Verified bot inventory, flag-state event handling, and team-order dispatch
+   keep CTF red/blue flag state separate from One Flag neutral-flag state.
+6. Added `tests/test_ctf_oneflag_retail_parity.py` to pin the audited retail
+   surface across qagame, cgame, and bot wiring.
+
+### Task A229: Tighten native Steam detail query-handle fallback [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_346.md`
+Parity estimate: **before 86% -> after 98%** for the focused native
+server-browser detail query-handle failure path. Broader WebUI server-browser
+ownership remains approximately **99%** because the list and detail native
+owners were already wired; this pass closes the partial ping/rules/players
+query allocation hole and preserves the documented source status-query
+fallback. Repo-wide parity remains **99%** because the
+`QL_BUILD_ONLINE_SERVICES` default-disabled policy boundary is unchanged.
+
+Completed work:
+
+1. Rechecked the `JSBrowserDetails_RequestServerDetails` evidence for the
+   retained `PingServer -> ServerRules -> PlayerDetails` dispatch order and
+   the adjacent `CancelServerQuery` vtable slot.
+2. Updated `QL_Steamworks_RequestServerDetails` so the three-detail-probe
+   bundle is all-or-nothing: any non-positive query handle cancels the valid
+   partial handles, leaves output handles zeroed, and returns false.
+3. Verified `QL_Steamworks_BeginServerBrowserDetailRequest` stays inactive on
+   partial native detail allocation failure, allowing the client's existing UDP
+   status-query fallback to run.
+4. Added a Steamworks harness detail-query result setter plus enabled-build
+   regression coverage for the low-level wrapper and retained detail owner.
+5. Pinned the new lifecycle invariant in the netcode parity manifest and
+   documented the source-side inference boundary in round 346.
+
+### Task A228: Close Race gametype retail parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_race.c`,
+`tests/test_racepoint_commands.py`,
+`tests/test_game_nonteam_scoreboard_helper_parity.py`,
+`tests/test_game_helper_seam_parity.py`
+Parity estimate: **before 98% -> after 100%** for the focused Race gametype
+server command, checkpoint, timing, score transport, admin-point, and
+scoreboard wiring surface. Broader gameplay/gametype parity remains
+approximately **99%** repo-wide because this pass closes the remaining
+Race-specific qagame scoreboard/start-predicate drift without changing the
+known compatibility-only lanes.
+
+Completed work:
+
+1. Rechecked qagame and cgame retail evidence for `race_info`, `race_init`,
+   `admin_race_point_N`, Race touch events, finish ranking, and
+   `scores_race` row transport.
+2. Aligned `G_RaceBuildScoreString` with retail qagame ownership by consuming
+   `level.numPlayingClients` and `level.sortedClients` instead of rebuilding a
+   local Race order with a private `qsort` comparator.
+3. Tightened the Race start predicate to the retail targetname-free authored
+   map behavior while preserving the command-spawned `arp*` admin chain for
+   immediate testing/editing.
+4. Extended the compiled Race command probe and static parity guards to pin the
+   retail score row shape: client number, personal best/PERS_SCORE, clamped
+   ping, and session seconds in the sorted-client order.
+
+### Task A227: Close Red Rover retail gametype parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`, `src/code/game/g_cmds.c`,
+`src/code/game/g_combat.c`, `src/code/game/g_local.h`, `src/code/game/g_rr.c`,
+`tests/test_game_round_controller_helper_parity.py`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/qagame-setteam-reconstruction-2026-05-25.md`
+Parity estimate: **before 90% -> after 100%** for the focused Red Rover
+gametype server surface: damage-score/active-round gating, infected
+spawn/loadout ownership, and SetTeam warmup/pre-release wiring. Broader Red
+Rover gametype wiring moves approximately **95% -> 100%** because the round
+controller, infection seeding/spread, survivor bonus, autojoin, scoreboard,
+cgame HUD, and last-alive paths were already source-owned while the retail
+boolean damage helper dispatch and direct Red Rover SetTeam spawn branch still
+needed to be closed. Repo-wide parity remains **99%**.
+
+Completed work:
+
+1. Rechecked `qagamex86.dll` symbols, Ghidra function inventory, Binary Ninja
+   HLIL `0x100643E0`, and the `G_Damage` gametype-12 call site.
+2. Converted `G_RRHandleDamageScore` to the retail helper shape:
+   same-team suppression, active-round gating, health/armor damage caps, and
+   100-damage score buckets for the non-infected lane.
+3. Preserved the already recovered infected-survivor score policy inside the
+   active-round helper after retail damage capping.
+4. Wired `G_Damage` so Red Rover calls the helper at the retail post-armor
+   split point and aborts inactive-round damage when the helper returns false.
+5. Split the Red Rover spawn/loadout finalizer so infected clients consume the
+   zombie gauntlet/health path before the generic loadout finalizer, matching
+   the retail survivor-vs-infected branch.
+6. Restored the Red Rover seed/spread forced-conversion shortcut so RR team
+   mutations rerun `G_RRResetClientForRound` directly, matching the retail
+   internal team-change latch without broadening external `SetTeam`.
+7. Retired the stale non-owning `g_rr.c` stub so the source tree no longer
+   carries a second, divergent Red Rover implementation.
+8. Extended the Red Rover parity tests to pin the source helper, public
+   prototypes, combat/SetTeam dispatch, loadout split, build-owner boundary,
+   and HLIL offsets used for reconstruction.
+
+### Task A226: Close Domination gametype retail parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_team.c`, `src/code/game/g_local.h`,
+`src/code/game/g_main.c`, `tests/test_game_domination_parity.py`
+Parity estimate: **before 93% -> after 100%** for the focused Domination
+gametype server and client-wiring surface. Broader gameplay/gametype parity
+remains approximately **99%** repo-wide because this pass closes the known
+Domination-specific qagame reward, point activation, and defense routing gaps
+without changing unrelated gametype lanes.
+
+Completed work:
+
+1. Rechecked `qagamex86.dll` Binary Ninja HLIL and symbol-map evidence for
+   `Team_SelectDominationSpawnPoint`, `G_DominationRewardCaptureParticipants`,
+   `G_DominationSelectPrimaryCapturer`, `G_DominationPointActivate`,
+   `G_UpdateDominationPointCountConfigstrings`,
+   `G_DominationCheckDefenseBonus`, `SP_team_dom_point`, and the
+   `Team_FragBonuses` Domination branch.
+2. Restored the retail qagame five-point registration cap and delayed
+   `team_dom_point` floor-settling activation trace while preserving delayed
+   spawn-target retry wiring.
+3. Added current-frame Domination participant lists, primary-capturer
+   retention, and retail capture/assist reward fan-out with the 25/15 score
+   bonuses, award sprites, persistent counters, and rank medal events.
+4. Routed Domination frags through the retail owned-point defense check before
+   CTF flag logic and accepted the retail `DEFENSE` medal token in the rank
+   resolver.
+5. Added focused Domination parity tests and validated them with the existing
+   Domination count and gametype lifecycle fixtures plus a Debug Win32 native
+   solution build.
+
+### Task A225: Tighten native Steam browser request-handle fallback [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/code/client/cl_main.c`, `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_345.md`
+Parity estimate: **before 88% -> after 98%** for the focused native
+server-browser request-owner failure path. Broader WebUI server-browser
+ownership remains approximately **99%** because the list and detail native
+owners were already wired; this pass closes the null-handle fallback hole and
+relabels friends/history compatibility telemetry as fallback-only. Repo-wide
+parity remains **99%** because the `QL_BUILD_ONLINE_SERVICES` default-disabled
+policy boundary is unchanged.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and alias evidence for
+   `JSBrowser_RequestServers`, `SteamBrowser_RefreshList`,
+   `JSBrowser_OnRefreshComplete`, and the retained
+   `ISteamMatchmakingServers` request-mode slots.
+2. Confirmed the current client list path is native-first for internet, LAN,
+   friends, favorites, and history modes when an opted-in Steamworks provider
+   exposes the native server-browser interface.
+3. Updated `QL_Steamworks_BeginServerBrowserOwnerRequest` so a zero native
+   request handle returns false, leaves the owner idle, and lets the existing
+   source-browser fallback run instead of timing out an active-but-handleless
+   native refresh.
+4. Added a Steamworks harness request-result setter and lifecycle coverage for
+   the zero-handle path.
+5. Relabeled the browser compatibility diagnostics so friends/history now read
+   as source fallback mappings after native request-handle failure, not as
+   permanently source-owned modes.
+
+### Task A224: Wire Clan Arena retail damage-score helper [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_team.c`, `src/code/game/g_combat.c`,
+`src/code/game/g_local.h`, `tests/test_game_round_controller_helper_parity.py`
+Parity estimate: **before 92% -> after 98%** for the focused Clan Arena
+damage-score and active-round damage gate lane. Broader Clan Arena gametype
+wiring moves approximately **96% -> 98%** because the round controller,
+spectator reset/release, compact scoreboard, castats, and last-alive event
+surfaces were already reconstructed while the dedicated retail CA damage helper
+was still absent. Repo-wide parity remains **99%**.
+
+Completed work:
+
+1. Rechecked `qagamex86.dll` Ghidra metadata/function inventory and Binary
+   Ninja HLIL for `0x10037F80`, `0x10037FD0`, `0x10038230`, and the sibling
+   Attack & Defend damage helper.
+2. Added `G_CAHandleDamageScore` to mirror the retail CA post-armor damage
+   helper: same-team suppression, active-round gating, health/armor damage
+   caps, and 100-damage score bucket conversion through direct `PERS_SCORE`
+   increments plus `CalculateRanks`.
+3. Wired `G_Damage` so Clan Arena calls the CA helper at the retail
+   post-armor split point and aborts inactive-round damage when the helper
+   returns false.
+4. Extended the round-controller parity test to pin the source helper,
+   `G_Damage` dispatch, and the HLIL evidence offsets used for reconstruction.
+
+### Task A223: Name the SteamDataSource non-avatar fallback owner [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_steam_resources.c`,
+`src/code/client/cl_main.c`, `tests/test_platform_services.py`,
+`tests/test_awesomium_browser_parity.py`,
+`tools/ci/verify-awesomium-browser-host-parity.ps1`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_344.md`
+Parity estimate: **before 82% -> after 96%** for the focused
+SteamDataSource fallback-owner diagnostic surface. Broader SteamDataSource
+resource-bridge source visibility moves approximately **93% -> 95%** because
+the fallback owner is now named and cvar-published, while exact live Awesomium
+delayed-response ownership remains bounded. Repo-wide parity remains **99%**
+because the `QL_BUILD_ONLINE_SERVICES` default-disabled policy boundary is
+unchanged.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` symbols and HLIL for
+   `SteamDataSource`, `QLResourceInterceptor`, the
+   `Awesomium::DataSource::SendResponse` boundary, and prior mapping rounds 91
+   and 289.
+2. Added a source-visible `QLResourceInterceptor launcher/web fallback` owner
+   label for non-avatar `steam://` requests outside the avatar-native
+   SteamDataSource subset.
+3. Published SteamDataSource subset, native-gap, and fallback-owner labels
+   through the retained resource-bridge ROM cvar surface.
+4. Updated non-avatar Steam resource diagnostics to say they are routed to the
+   launcher/web fallback owner rather than leaving the route as a generic
+   missing-owner message.
+5. Extended platform-service, Awesomium parity, and verifier-script anchors to
+   pin the label and cvars.
+
+### Task A222: Wire WebUI server browser native Steam detail owner [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`,
+`src/common/platform/platform_steamworks.[ch]`,
+`tests/test_steamworks_harness.py`, `tests/steamworks_harness.c`,
+`tests/test_platform_services.py`, `tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_343.md`
+Parity estimate: **before 74% -> after 98%** for the focused WebUI
+server-detail request dispatch lane. Broader server-browser/details parity
+moves approximately **98% -> 99%** because native detail callbacks are now
+wired while provider-disabled and failed native requests still retain explicit
+source-owned fallbacks. Repo-wide parity remains **99%** because the
+`QL_BUILD_ONLINE_SERVICES` default-disabled policy boundary is unchanged.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL, alias, and prior mapping evidence for
+   `SteamBrowser_RequestServerDetails`, `JSBrowserDetails_RequestServerDetails`,
+   the `0x58`-byte callback object, the base/base+4/base+8 callback views, and
+   the `PingServer -> ServerRules -> PlayerDetails` query order.
+2. Added `QL_Steamworks_ReadServerBrowserPingResponse` so raw Steam
+   `gameserveritem_t` ping payloads project into the retained
+   `servers.details.<ip>_<port>.response` WebUI shape.
+3. Added a client-owned native detail object with ping, rules, and players
+   callbacks that publish the retained detail response/failed/end event
+   families.
+4. Made `CL_Steam_RequestServerDetails` native-first for opted-in Steamworks
+   builds, keeping the existing UDP status query as an explicit fallback.
+5. Extended harness, platform-service, and netcode parity tests to pin the new
+   native detail owner, projection helper, and source fallback boundary.
+
 ### Task A221: Allow retail LAN clients through server auth fallback [COMPLETED]
 Priority: High
 Primary areas: `src/code/server/sv_game.c`, `src/code/server/sv_client.c`,

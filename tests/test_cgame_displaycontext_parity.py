@@ -685,10 +685,13 @@ def test_cgame_game_type_map_ownerdrawtype_wiring_matches_retail_dispatch() -> N
 
 def test_scoreboard_and_race_server_command_wrappers_match_retail_dispatch() -> None:
 	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
 	ffa_block = _block_from_marker(servercmds_source, "static void CG_ParseFFAScores( void )")
 	rich_payload_block = _block_from_marker(servercmds_source, "static void CG_ParseRichScoreboardPayload( void )")
 	compact_block = _block_from_marker(servercmds_source, "static void CG_ParseCompactScores( void )")
+	race_scores_block = _block_from_marker(servercmds_source, "static void CG_ParseRaceScores( void )")
 	race_info_block = _block_from_marker(servercmds_source, "static void CG_ParseRaceInfo( void )")
+	race_status_block = _block_from_marker(newdraw_source, "void CG_ParseRaceStatusString( const char *statusString )")
 
 	assert 'if ( !strcmp( cmd, "scores_ffa" ) ) {' in servercmds_source
 	assert "\t\tCG_ParseFFAScores();" in servercmds_source
@@ -715,6 +718,12 @@ def test_scoreboard_and_race_server_command_wrappers_match_retail_dispatch() -> 
 	assert "cg.scores[i].activePlayer = atoi( CG_Argv( i * 8 + 9 ) ) ? qtrue : qfalse;" in compact_block
 	assert "CG_FinalizeParsedScoreRow( &cg.scores[i], powerups );" in compact_block
 	assert "cg.scores[i].scoreFlags = atoi( CG_Argv( i * 8 + 9 ) );" not in compact_block
+	assert "cg.scores[i].ping = atoi( CG_Argv( i * 4 + 4 ) );" in race_scores_block
+	assert "cg.scores[i].time = atoi( CG_Argv( i * 4 + 5 ) );" in race_scores_block
+	assert "status->lastTime = -1;" in race_status_block
+	assert "status->currentElapsed = -1;" in race_status_block
+	assert "status->lastTime = values[2];" not in race_status_block
+	assert "status->currentElapsed = values[3];" not in race_status_block
 
 	for expected in (
 		"cgs.raceInfoActive = atoi( CG_Argv( 1 ) ) ? qtrue : qfalse;",

@@ -2703,7 +2703,7 @@ QL_Steamworks_GetServerBrowserIntegrationGapLabel
 =============
 */
 const char *QL_Steamworks_GetServerBrowserIntegrationGapLabel( void ) {
-	return "native wrapper reconstructed; client fallback not yet wired";
+	return "native request handle unavailable; source-browser fallback retained";
 }
 
 /*
@@ -2759,6 +2759,8 @@ Starts one native server-browser owner request when the retained owner is idle.
 =============
 */
 qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject ) {
+	ql_steam_server_list_request_t request;
+
 	if ( !owner || !responseObject ) {
 		return qfalse;
 	}
@@ -2770,8 +2772,15 @@ qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_o
 		owner->request = NULL;
 	}
 
+	request = QL_Steamworks_RequestServerList( requestMode, responseObject );
+	if ( !request ) {
+		owner->refreshActive = qfalse;
+		owner->request = NULL;
+		return qfalse;
+	}
+
 	owner->refreshActive = qtrue;
-	owner->request = QL_Steamworks_RequestServerList( requestMode, responseObject );
+	owner->request = request;
 	return qtrue;
 }
 
@@ -3009,6 +3018,37 @@ qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t
 		return qfalse;
 	}
 
+	QL_Steamworks_CopyServerBrowserResponse( outResponse, &server );
+	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerBrowserPingResponse
+
+Projects the raw gameserveritem_t payload delivered by PingServer into the
+retained JSBrowserDetails server response shape.
+=============
+*/
+qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse ) {
+	const ql_steam_gameserveritem_raw_t *raw;
+	ql_steam_server_item_t server;
+	uint32_t appId;
+
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	if ( !serverDetails || !outResponse ) {
+		return qfalse;
+	}
+
+	raw = (const ql_steam_gameserveritem_raw_t *)serverDetails;
+	appId = QL_Steamworks_GetAppID();
+	if ( appId == 0u || raw->appId != appId ) {
+		return qfalse;
+	}
+
+	QL_Steamworks_CopyServerListDetails( &server, raw );
 	QL_Steamworks_CopyServerBrowserResponse( outResponse, &server );
 	return qtrue;
 }
@@ -3544,6 +3584,13 @@ qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverP
 	pingQuery = pingFn( serverBrowser, NULL, serverIp, serverPort, pingResponse );
 	rulesQuery = rulesFn( serverBrowser, NULL, serverIp, serverPort, rulesResponse );
 	playersQuery = playersFn( serverBrowser, NULL, serverIp, serverPort, playersResponse );
+
+	if ( pingQuery <= 0 || rulesQuery <= 0 || playersQuery <= 0 ) {
+		QL_Steamworks_CancelServerQuery( pingQuery );
+		QL_Steamworks_CancelServerQuery( rulesQuery );
+		QL_Steamworks_CancelServerQuery( playersQuery );
+		return qfalse;
+	}
 
 	if ( outPingQuery ) {
 		*outPingQuery = pingQuery;

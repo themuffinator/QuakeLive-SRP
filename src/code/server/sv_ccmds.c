@@ -2562,11 +2562,6 @@ static void SV_MapRestart_f( void ) {
 		return;
 	}
 
-	if ( !SV_CheckWarmupReadiness( qtrue ) ) {
-		sv.restartTime = svs.time + 1000;
-		return;
-	}
-
 	// check for changes in variables that can't just be restarted
 	// check for maxclients change
 	if ( sv_maxclients->modified || sv_gametype->modified || ( sv_ammoPack && sv_ammoPack->modified ) ) {

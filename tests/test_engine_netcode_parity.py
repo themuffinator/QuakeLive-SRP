@@ -155,7 +155,7 @@ def test_warmup_ready_configstring_uses_shared_key_contract() -> None:
 	sv_snippet = _snippet_after(
 		sv_main,
 		"qboolean SV_CheckWarmupReadiness( qboolean announce ) {",
-		44,
+		64,
 	)
 	game_snippet = _snippet_after(
 		g_main,
@@ -169,9 +169,11 @@ def test_warmup_ready_configstring_uses_shared_key_contract() -> None:
 	)
 
 	for expected in (
-		'Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT, va( "%i", sv_warmupReadyPercentage->integer ) );',
+		"thresholdRatio = sv_warmupReadyPercentage->value;",
+		'Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT, va( "%i", thresholdPercent ) );',
 		'Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_COUNT, va( "%i", ready ) );',
 		'Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_ELIGIBLE, va( "%i", eligible ) );',
+		"if ( readyRatio >= thresholdRatio ) {",
 	):
 		assert expected in sv_snippet
 

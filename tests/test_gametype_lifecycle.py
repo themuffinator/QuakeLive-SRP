@@ -80,7 +80,7 @@ va
 Provides a minimal vsnprintf-backed formatter for the harness.
 =============
 */
-char *va( char *format, ... ) {
+char *va( const char *format, ... ) {
 @TAB@va_list args;
 
 @TAB@if ( !format ) {

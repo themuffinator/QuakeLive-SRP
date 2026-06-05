@@ -2990,6 +2990,7 @@ static void G_RRSeedInfectionTeams( void ) {
 			ent->client->sess.teamLeader = qfalse;
 			G_RRInitClient( ent );
 			ClientUserinfoChanged( clientNum );
+			G_RRResetClientForRound( ent );
 		}
 	}
 
@@ -3030,6 +3031,7 @@ static void G_RRSeedInfectionTeams( void ) {
 		infectedClient->client->sess.teamLeader = qfalse;
 		G_RRInitClient( infectedClient );
 		ClientUserinfoChanged( infectedClientNum );
+		G_RRResetClientForRound( infectedClient );
 		return;
 	}
 

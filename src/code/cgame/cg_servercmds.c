@@ -1219,8 +1219,8 @@ static void CG_ParseRaceScores( void ) {
 	for ( i = 0 ; i < cg.numScores ; i++ ) {
 		cg.scores[i].client = atoi( CG_Argv( i * 4 + 2 ) );
 		cg.scores[i].score = atoi( CG_Argv( i * 4 + 3 ) );
-		cg.scores[i].ping = 0;
-		cg.scores[i].time = 0;
+		cg.scores[i].ping = atoi( CG_Argv( i * 4 + 4 ) );
+		cg.scores[i].time = atoi( CG_Argv( i * 4 + 5 ) );
 		cg.scores[i].scoreFlags = 0;
 		cg.scores[i].powerUps = 0;
 		cg.scores[i].accuracy = 0;

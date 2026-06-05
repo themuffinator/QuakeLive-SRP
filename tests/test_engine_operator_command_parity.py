@@ -6,6 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SV_WORLD = REPO_ROOT / "src" / "code" / "server" / "sv_world.c"
 SV_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
+SV_MAIN = REPO_ROOT / "src" / "code" / "server" / "sv_main.c"
 SERVER_H = REPO_ROOT / "src" / "code" / "server" / "server.h"
 QL_STEAM_HLIL_PART05 = (
 	REPO_ROOT
@@ -111,6 +112,7 @@ def test_operator_command_registration_matches_retail_quakelive_surface() -> Non
 
 def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() -> None:
 	sv_ccmds = (REPO_ROOT / "src/code/server/sv_ccmds.c").read_text(encoding="utf-8")
+	sv_main = SV_MAIN.read_text(encoding="utf-8")
 	sv_world = SV_WORLD.read_text(encoding="utf-8")
 
 	kick_block = _extract_function_block(sv_ccmds, "static void SV_Kick_f( void ) {")
@@ -118,6 +120,7 @@ def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() 
 	serverinfo_block = _extract_function_block(sv_ccmds, "static void SV_Serverinfo_f( void ) {")
 	dumpuser_block = _extract_function_block(sv_ccmds, "static void SV_DumpUser_f( void ) {")
 	map_restart_block = _extract_function_block(sv_ccmds, "static void SV_MapRestart_f( void ) {")
+	sv_frame_block = _extract_function_block(sv_main, "void SV_Frame( int msec ) {")
 	map_block = _extract_function_block(sv_ccmds, "static void SV_Map_f( void ) {")
 	arena_block = _extract_function_block(sv_ccmds, "static void SV_Arena_f( void ) {")
 	killserver_block = _extract_function_block(sv_ccmds, "static void SV_KillServer_f( void ) {")
@@ -148,6 +151,8 @@ def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() 
 	assert 'Com_Printf( "userinfo\\n" );' in dumpuser_block
 
 	assert "SV_UpdateMapPoolRotationCvars();" in map_restart_block
+	assert "SV_CheckWarmupReadiness" not in map_restart_block
+	assert "SV_CheckWarmupReadiness" not in sv_frame_block
 	assert 'Cvar_Set( "ui_singlePlayerActive", "1" );' in map_block
 	assert 'Cvar_Set( "ui_priv", "3" );' in map_block
 

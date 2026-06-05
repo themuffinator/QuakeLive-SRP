@@ -3,9 +3,10 @@
 ## Scope
 
 This pass makes the Awesomium WebUI server browser functional in opted-in
-Steamworks builds by routing `qz_instance.RequestServers` through the native
-`ISteamMatchmakingServers` list owner before falling back to the source-owned
-LAN/global/favorites browser.
+Steamworks builds by routing `qz_instance.RequestServers` and
+`qz_instance.RequestServerDetails` through native `ISteamMatchmakingServers`
+owners before falling back to the source-owned LAN/global/favorites browser and
+UDP status-query paths.
 
 It does not enable Steam or other Quake Live online services in default builds.
 `QL_BUILD_ONLINE_SERVICES` remains disabled by default, and runtime
@@ -22,6 +23,7 @@ Committed evidence used:
 - `references/analysis/quakelive_symbol_aliases.json`
 - `references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt`
 - `docs/reverse-engineering/network-server-browser-master-heartbeat-parity-2026-06-05.md`
+- `docs/reverse-engineering/quakelive_steam_mapping_round_343.md`
 
 ## Observed Facts
 
@@ -33,6 +35,9 @@ Committed evidence used:
   publishes `servers.refresh.start`.
 - Retail list callbacks publish `servers.details.<ip>_<port>.response`,
   `servers.details.<index>.failed`, and `servers.refresh.end`.
+- Retail detail callbacks publish a ping response through
+  `servers.details.<ip>_<port>.response`, plus rules/player events through
+  `servers.rules.<ip>_<port>.*` and `servers.players.<ip>_<port>.*`.
 - The previous source path mapped Internet requests to `CL_RequestGlobalServers`,
   but that legacy UDP master query is intentionally disabled unless both
   `QL_PLATFORM_HAS_ONLINE_SERVICES` and `QL_ENABLE_LEGACY_Q3_SERVICES` are set.
@@ -53,7 +58,12 @@ Committed evidence used:
 - `CL_Steam_RefreshServerList` refreshes an existing native request handle when
   available, otherwise it restarts the retained request mode through the fallback
   path.
-- Client shutdown releases any retained native server-list request handle.
+- Added a native `JSBrowserDetails`-shaped detail owner in `cl_main.c` with
+  rules, players, and ping callback views at the observed retail offsets.
+- `CL_Steam_RequestServerDetails` now tries the native detail owner first and
+  publishes ping/rules/player payloads into the retained WebUI event families.
+- Client shutdown releases any retained native server-list request handle and
+  any outstanding native detail query bundle.
 
 ## Policy Answer
 
@@ -73,8 +83,9 @@ The correct boundary is:
 ## Parity Estimate
 
 - Focused WebUI server-list dispatch slice: before **82%**, after **100%**.
-- Broader server-browser/details surface: before **96%**, after **98%** because
-  native list callbacks are wired while the detail request still retains the
-  existing UDP status fallback.
+- Focused WebUI server-detail dispatch slice: before **74%**, after **98%**.
+- Broader server-browser/details surface: before **98%**, after **99%** because
+  native list and detail callbacks are wired while source-owned fallbacks remain
+  for provider-disabled and request-failure cases.
 - Repo-wide parity remains **99%** because the online-service policy boundary is
   unchanged.

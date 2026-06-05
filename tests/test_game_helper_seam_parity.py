@@ -980,7 +980,7 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "static weapon_t G_SelectConfiguredSpawnWeapon( gclient_t *client, unsigned int startingMask ) {" in game_client
 	assert "static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_t *factoryConfig ) {" in game_client
 	assert "client->sess.selectedSpawnWeapon = (int)spawnWeapon;" in game_client
-	assert "if ( client->rrInfectionState == RR_STATE_INFECTED ) {" in game_client
+	assert "if ( client->rrInfectionState != RR_STATE_INFECTED ) {" in game_client
 	assert "#define\tMAX_RANKED_SPAWN_POINTS\t26" in game_client
 	assert "#define\tCLIENT_SPAWN_RETRY_DELAY\t600" in game_client
 	assert "#define\tRANKED_SPAWN_INITIAL_FLAG\t1" in game_client
@@ -1034,6 +1034,7 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "G_ItemRegistered( weaponItem )" in loadout_block
 	assert "G_WarmupLevelWeaponAllowed( weapon, factoryConfig->startingWeaponsMask )" in loadout_block
 	assert "startingMask |= 1u << weapon;" in loadout_block
+	assert "rrInfectionState" not in loadout_block
 	assert "warmupLevelWeaponsGranted[weapon] = qtrue;" in loadout_block
 	assert loadout_block.index("startingMask |= 1u << weapon;") < loadout_block.index("client->ps.stats[STAT_WEAPONS] = startingMask;")
 	assert "weaponItem = BG_FindItemForWeapon( weapon );" in loadout_block
@@ -1043,14 +1044,17 @@ def test_client_spawn_uses_recovered_loadout_and_rr_helpers() -> None:
 	assert "qboolean G_ItemRegistered( const gitem_t *item );" in game_local
 	assert "qboolean G_ItemRegistered( const gitem_t *item ) {" in game_items
 	assert "return itemRegistered[itemIndex];" in game_items
-	assert "static void G_RRFinalizeSpawnLoadout( gentity_t *ent ) {" in game_client
+	assert "static qboolean G_RRFinalizeSpawnLoadout( gentity_t *ent ) {" in game_client
 	assert "client->ps.stats[STAT_WEAPONS] = 1u << WP_GAUNTLET;" in game_client
 	assert "client->pers.maxHealth = client->ps.stats[STAT_MAX_HEALTH] + g_rrInfectedZombieHealthBonus.integer;" in game_client
-	assert "G_RRFinalizeSpawnLoadout( ent );" in init_spawn_block
+	assert "rrLoadoutFinalized = G_RRFinalizeSpawnLoadout( ent );" in init_spawn_block
 	assert "G_UseTargets( spawnPoint, ent );" in init_spawn_block
+	assert "if ( rrLoadoutFinalized ) {" in init_spawn_block
+	assert "return WP_GAUNTLET;" in init_spawn_block
 	assert "return G_FinalizeSpawnLoadout( ent, factoryConfig );" in init_spawn_block
-	assert init_spawn_block.index("G_RRFinalizeSpawnLoadout( ent );") < init_spawn_block.index("G_UseTargets( spawnPoint, ent );")
-	assert init_spawn_block.index("G_UseTargets( spawnPoint, ent );") < init_spawn_block.index("return G_FinalizeSpawnLoadout( ent, factoryConfig );")
+	assert init_spawn_block.index("rrLoadoutFinalized = G_RRFinalizeSpawnLoadout( ent );") < init_spawn_block.index("G_UseTargets( spawnPoint, ent );")
+	assert init_spawn_block.index("G_UseTargets( spawnPoint, ent );") < init_spawn_block.index("if ( rrLoadoutFinalized ) {")
+	assert init_spawn_block.index("if ( rrLoadoutFinalized ) {") < init_spawn_block.index("return G_FinalizeSpawnLoadout( ent, factoryConfig );")
 	assert "static qboolean G_GametypeSkipsSpawnPointTargets( int gametype ) {" in game_client
 	assert "case GT_RACE:" in skip_targets_block
 	assert "case GT_CLAN_ARENA:" in skip_targets_block
@@ -1206,18 +1210,23 @@ def test_red_rover_helpers_match_recovered_retail_boundaries() -> None:
 	game_active = _read("src/code/game/g_active.c")
 	game_client = _read("src/code/game/g_client.c")
 	game_local = _read("src/code/game/g_local.h")
-	reset_block = _block_from_marker(game_client, "static void G_RRResetClientForRound")
+	reset_block = _block_from_marker(game_client, "void G_RRResetClientForRound")
 
 	assert "int G_RRResolveRoundState( void ) {" in game_active
 	assert "if ( G_RRResolveRoundState() != RR_ROUNDSTATE_ACTIVE ) {" in game_client
-	assert "static void G_RRResetClientForRound( gentity_t *ent ) {" in game_client
+	assert "void G_RRResetClientForRound( gentity_t *ent ) {" in game_client
 	assert "G_RRResetClientForRound( ent );" in game_client
 	assert "ClientSpawn( ent );" in reset_block
+	assert "if ( level.rrRoundState == RR_ROUNDSTATE_WARMUP ) {" in reset_block
+	assert "G_SetClientAttackLockout( ent, qtrue );" in reset_block
 	assert "void G_RRInitRoundController( void );" in game_local
+	assert "void G_RRResetClientForRound( gentity_t *ent );" in game_local
 	assert "void G_RRHandleCompletedRound( void );" in game_local
 	assert "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath );" in game_local
+	assert "qboolean G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave );" in game_local
 	assert "void G_RRHandleCompletedRound( void ) {" in game_client
 	assert "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath ) {" in game_client
+	assert "qboolean G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave ) {" in game_client
 	assert "G_RRHandlePlayerDeath( client->sess.sessionTeam, self, attacker, meansOfDeath );" in game_client
 	assert "G_FreezeRunFrame();" in game_client
 	assert "G_CountConnectedClientsByTeam( counts );" in game_client
@@ -1290,6 +1299,16 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	game_client = _read("src/code/game/g_client.c")
 	game_svcmds = _read("src/code/game/g_svcmds.c")
 	game_local = _read("src/code/game/g_local.h")
+	race_info_block = _block_from_marker(game_race, "static void G_RaceBuildInfoCommand")
+	race_abort_block = _block_from_marker(game_race, "static void G_RaceAbortClientRunState")
+	race_leader_block = _block_from_marker(game_race, "static gclient_t *G_RaceFindLeader")
+	race_score_block = _block_from_marker(game_race, "static void G_RaceBuildScoreString")
+	race_start_predicate_block = _block_from_marker(game_race, "static qboolean G_RacePointIsStart")
+	race_checkpoint_count_block = _block_from_marker(game_race, "static int G_RaceCheckpointCount")
+	race_start_block = _block_from_marker(game_race, "static void G_RaceStartRun")
+	race_finish_block = _block_from_marker(game_race, "static void G_RaceFinishRun")
+	race_advance_block = _block_from_marker(game_race, "static void G_RaceAdvanceCheckpoint")
+	race_touch_block = _block_from_marker(game_race, "void G_RaceHandlePointTouch")
 
 	assert "static qboolean G_StartTimeout( gentity_t *ent, int durationSeconds ) {" in game_cmds
 	assert "static qboolean G_BeginTimein( gentity_t *ent ) {" in game_cmds
@@ -1331,6 +1350,9 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	assert "void Cmd_RaceInit_f( gentity_t *ent ) {" in game_race
 	assert "G_RaceBroadcastInitCommand( ent->s.number );" in game_race
 	assert 'trap_SendServerCommand( clientNum, "race_init" );' in game_race
+	assert "G_RaceAbortClientRunState( ent->client );" in game_race
+	assert "client->raceState.startTime = 0;" not in race_abort_block
+	assert "memset( client->raceState.currentSplits" not in race_abort_block
 	assert "qboolean FollowCycle( gentity_t *ent, int dir ) {" in game_cmds
 	assert "qboolean FollowCycle( gentity_t *ent, int dir );" in game_local
 	assert 'G_Error( "FollowCycle: bad dir %i", dir );' in game_cmds
@@ -1346,17 +1368,54 @@ def test_timeout_race_and_direct_command_helpers_match_recovered_boundaries() ->
 	assert "level.numPois" not in game_cmds
 	assert "poiIndex" not in game_cmds
 	assert 'Com_sprintf( buffer, bufferSize, "race_info %i %i %i %i %i %i",' in game_race
+	assert "checkpointCount = G_RaceCheckpointCount( client );" in race_info_block
+	assert "if ( client->raceState.active ) {" not in race_info_block
 	assert "static gentity_t *G_RacePickPointTarget( const gentity_t *point ) {" in game_race
 	assert "static qboolean G_RacePointIsStart( const gentity_t *point ) {" in game_race
+	assert "if ( !point->targetname || !point->targetname[0] ) {" in race_start_predicate_block
+	assert "if ( point->racePointAdminSpawned && point->racePointIndex == 0 ) {" in race_start_predicate_block
+	assert "if ( point->racePointIndex == 0 ) {" not in race_start_predicate_block
 	assert "static gentity_t *G_RaceEmitClientEvent( gentity_t *player, int event ) {" in game_race
 	assert "client->raceState.currentPoint = currentPoint;" in game_race
 	assert "client->raceState.nextPoint = G_RacePickPointTarget( currentPoint );" in game_race
 	assert "client->raceState.currentPoint = G_RacePickPointTarget( point );" in game_race
 	assert "client->raceState.nextPoint = G_RacePickPointTarget( client->raceState.currentPoint );" in game_race
+	assert "return client->raceState.nextCheckpoint;" in race_checkpoint_count_block
+	assert "client->raceState.nextCheckpoint - 1" not in race_checkpoint_count_block
+	assert "client->raceState.nextCheckpoint = 0;" in race_start_block
+	assert "client->raceState.currentSplits[0] = 0;" not in race_start_block
+	assert "client->raceState.currentSplits[client->raceState.nextCheckpoint] = elapsed;" in race_advance_block
+	assert "client->raceState.currentSplits[client->raceState.nextCheckpoint] = elapsed;" not in race_finish_block
 	assert "G_RaceEmitStartEvent( player );" in game_race
 	assert "G_RaceEmitCheckpointEvent( player, splitDelta, hasBestSplit );" in game_race
 	assert "G_RaceEmitFinishEvent( player, elapsed );" in game_race
 	assert "G_RaceEmitNewHighScoreEvent( player );" in game_race
+	assert 'format = personalBest ? "^1Personal best! ^7%s^7 finished the race in in %s\\n" : "%s^7 finished the race in %s\\n";' in game_race
+	assert "static void G_RaceSyncScore( gclient_t *client ) {" in game_race
+	assert "client->ps.persistant[PERS_SCORE] = client->raceState.bestTime;" in game_race
+	assert "G_RaceSyncScore( client );" in game_race
+	assert "client->raceState.bestTime = RACE_INVALID_TIME;" in game_race
+	assert "memset( client->raceState.bestSplits, 0, sizeof( client->raceState.bestSplits ) );" in game_race
+	assert "static int G_RaceResolveUniqueFinishTime( int elapsed ) {" in game_race
+	assert "if ( elapsed == level.clients[clientNum].ps.persistant[PERS_SCORE] ) {" in game_race
+	assert "elapsed = G_RaceResolveUniqueFinishTime( elapsed );" in game_race
+	assert "client->ps.persistant[PERS_SCORE] == RACE_INVALID_TIME" in race_leader_block
+	assert "client->ps.persistant[PERS_SCORE] < leader->ps.persistant[PERS_SCORE]" in race_leader_block
+	assert "newHighScore = ( leader == NULL || elapsed < leader->ps.persistant[PERS_SCORE] ) ? qtrue : qfalse;" in race_finish_block
+	assert "G_RaceClearClientRunState( client );\n\tCalculateRanks();" in game_race
+	assert "if ( level.intermissiontime ) {" in race_touch_block
+	assert "static int G_RaceScoreboardPing( const gclient_t *client ) {" in game_race
+	assert "static int G_RaceScoreboardSessionSeconds( const gclient_t *client ) {" in game_race
+	assert "ping = G_RaceScoreboardPing( client );" in game_race
+	assert "sessionSeconds = G_RaceScoreboardSessionSeconds( client );" in game_race
+	assert "count = level.numPlayingClients;" in race_score_block
+	assert "clientNum = level.sortedClients[i];" in race_score_block
+	assert "indices[" not in race_score_block
+	assert "qsort(" not in race_score_block
+	assert 'Com_sprintf( entry, sizeof( entry ), " %i %i %i %i", clientNum, bestTime, ping, sessionSeconds );' in race_score_block
+	assert "if ( g_gametype.integer == GT_RACE ) {" in game_main
+	assert "ca->ps.persistant[PERS_SCORE]\n\t\t\t< cb->ps.persistant[PERS_SCORE]" in game_main
+	assert "ca->ps.persistant[PERS_SCORE]\n\t\t\t> cb->ps.persistant[PERS_SCORE]" in game_main
 	assert "Cmd_RaceInit_f( ent );" in game_cmds
 	assert "void\tCmd_RaceInit_f( gentity_t *ent );" in game_local
 	assert "gentity_t\t\t*currentPoint;" in game_local

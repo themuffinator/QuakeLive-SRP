@@ -615,10 +615,11 @@ def test_weapon_respawn_zero_drives_retail_weapon_stay_pickup_path() -> None:
 	assert "#define SERVERINFO_KEY_WEAPON_RESPAWN \"g_weaponRespawn\"" in keys_h
 	assert "weaponRespawnValue = Info_ValueForKey( info, SERVERINFO_KEY_WEAPON_RESPAWN );" in cg_servercmds
 	assert 'trap_Cvar_Set( "g_weaponRespawn", weaponRespawnValue );' in cg_servercmds
+	assert 'trap_Cvar_VariableValue( "g_weaponRespawn" )' not in bg_misc
+	assert "#ifdef QAGAME\n/*\n=============\nBG_IsWeaponsStayEnabled" in bg_misc
 	assert "static qboolean BG_IsWeaponsStayEnabled( void ) {" in bg_misc
-	assert 'trap_Cvar_VariableValue( "g_weaponRespawn" ) == 0.0f' in bg_misc
 	assert "return ( g_weaponRespawn.integer == 0 ) ? qtrue : qfalse;" in bg_misc
-	assert "if ( !BG_IsWeaponsStayEnabled() ) {\n\t\treturn qtrue;\n\t}" in bg_misc
+	assert "#ifdef QAGAME\n\tif ( !BG_IsWeaponsStayEnabled() ) {\n\t\treturn qtrue;\n\t}\n#endif" in bg_misc
 	assert "return ( ps->ammo[weapon] == 0 ) ? qtrue : qfalse;" in bg_misc
 	assert "item->giType != IT_WEAPON" in sync_weapon_respawn_body
 	assert "g_weaponRespawn.modificationCount = -1;" in sync_weapon_respawn_body

@@ -1,6 +1,6 @@
 # Source-File Parity Ledger
 
-Last updated: 2026-05-24
+Last updated: 2026-06-05
 
 ## Purpose
 
@@ -113,7 +113,7 @@ online-services story inside this tree.
 | `src/code/client/cl_parse.c` | `9` | Current function walk complete; no new file-level gap isolated | [client audit](client-full-parity-audit-and-implementation-plan-2026-04-09.md) + current 2026-04-22 source walk | - |
 | `src/code/client/cl_screenshot_io.c` | `3` | Current function walk complete; no new file-level gap isolated | [client audit](client-full-parity-audit-and-implementation-plan-2026-04-09.md) + current 2026-04-22 source walk | - |
 | `src/code/client/cl_scrn.c` | `18` | Current function walk complete; no new file-level gap isolated | [client audit](client-full-parity-audit-and-implementation-plan-2026-04-09.md) + current 2026-04-22 source walk | - |
-| `src/code/client/cl_steam_resources.c` | `27` | RW-G01 documented divergence note | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g01-client-steam-resources.md) | [note](source-file-gap-notes/rw-g01-client-steam-resources.md) |
+| `src/code/client/cl_steam_resources.c` | `28` | RW-G01 documented divergence note | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g01-client-steam-resources.md) | [note](source-file-gap-notes/rw-g01-client-steam-resources.md) |
 | `src/code/client/cl_ui.c` | `64` | Current function walk complete; no new file-level gap isolated | [client audit](client-full-parity-audit-and-implementation-plan-2026-04-09.md) + current 2026-04-22 source walk | - |
 | `src/code/client/cl_webpak.c` | `28` | Current function walk complete; no new file-level gap isolated | [client audit](client-full-parity-audit-and-implementation-plan-2026-04-09.md) + current 2026-04-22 source walk | - |
 | `src/code/client/ql_auth.c` | `18` | RW-G01 documented divergence note | [repo-wide audit](repo-wide-parity-audit-2026-04-21.md) + [note](source-file-gap-notes/rw-g01-client-auth.md) | [note](source-file-gap-notes/rw-g01-client-auth.md) |

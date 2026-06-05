@@ -1440,9 +1440,11 @@ Evaluates the warmup ready percentage and optionally announces deficiencies.
 qboolean SV_CheckWarmupReadiness( qboolean announce ) {
 	int		ready;
 	int		eligible;
-	int		percent;
+	int		thresholdPercent;
 	int		index;
 	char	info[MAX_INFO_STRING];
+	float		readyRatio;
+	float		thresholdRatio;
 
 	ready = 0;
 	eligible = 0;
@@ -1462,27 +1464,35 @@ qboolean SV_CheckWarmupReadiness( qboolean announce ) {
 	}
 
 	if ( eligible <= 0 ) {
-		percent = 100;
+		readyRatio = 1.0f;
 	} else {
-		percent = ( ready * 100 ) / eligible;
+		readyRatio = (float)ready / (float)eligible;
+	}
+
+	thresholdRatio = sv_warmupReadyPercentage->value;
+	thresholdPercent = (int)( thresholdRatio * 100.0f + 0.5f );
+	if ( thresholdPercent < 0 ) {
+		thresholdPercent = 0;
+	} else if ( thresholdPercent > 100 ) {
+		thresholdPercent = 100;
 	}
 
 	info[0] = '\0';
-	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT, va( "%i", sv_warmupReadyPercentage->integer ) );
+	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_PERCENT, va( "%i", thresholdPercent ) );
 	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_COUNT, va( "%i", ready ) );
 	Info_SetValueForKey( info, MATCH_STATE_KEY_WARMUP_READY_ELIGIBLE, va( "%i", eligible ) );
 	SV_SetConfigstring( CS_WARMUP_READY, info );
 
-	if ( sv_warmupReadyPercentage->integer <= 0 ) {
+	if ( thresholdRatio <= 0.0f ) {
 		return qtrue;
 	}
 
-	if ( percent >= sv_warmupReadyPercentage->integer ) {
+	if ( readyRatio >= thresholdRatio ) {
 		return qtrue;
 	}
 
 	if ( announce ) {
-		SV_SendServerCommand( NULL, va( "print \"Warmup waiting: %i of %i players ready (%i%% required).\\n\"", ready, eligible, sv_warmupReadyPercentage->integer ) );
+		SV_SendServerCommand( NULL, va( "print \"Warmup waiting: %i of %i players ready (%i%% required).\\n\"", ready, eligible, thresholdPercent ) );
 	}
 
 	return qfalse;
@@ -1828,10 +1838,6 @@ void SV_Frame( int msec ) {
 	}
 
 	if( sv.restartTime && svs.time >= sv.restartTime ) {
-		if ( !SV_CheckWarmupReadiness( qtrue ) ) {
-			sv.restartTime = svs.time + 1000;
-			return;
-		}
 		sv.restartTime = 0;
 		if ( SV_HandleQuitOnExitLevel( "scheduled map_restart" ) ) {
 			return;

@@ -37,10 +37,18 @@ def test_nonteam_scoreboard_helper_family_is_split_from_generic_builder() -> Non
 def test_race_scoreboard_helper_is_exposed_and_reused() -> None:
 	local_h = _read("src/code/game/g_local.h")
 	race_c = _read("src/code/game/g_race.c")
+	score_block = race_c[
+		race_c.index("static void G_RaceBuildScoreString"):
+		race_c.index("static gclient_t *G_RaceFindLeader")
+	]
 
 	assert "void\tG_BuildRaceScoreboardMessage( gentity_t *ent );" in local_h
 	assert "void G_BuildRaceScoreboardMessage( gentity_t *ent ) {" in race_c
 	assert "G_RaceBuildScoreString();" in race_c
+	assert "count = level.numPlayingClients;" in score_block
+	assert "clientNum = level.sortedClients[i];" in score_block
+	assert "qsort(" not in score_block
+	assert "G_RaceCompareClients" not in race_c
 	assert "trap_SendServerCommand( ent - g_entities, g_raceScores );" in race_c
 	assert "G_BuildRaceScoreboardMessage( ent );" in race_c
 

@@ -26,6 +26,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define DOMINATION_DISTRESS_REPEAT_TIME	2000
 #define DOMINATION_MAX_POINT_SPAWNS	25
+#define DOMINATION_CAPTURE_BONUS	25
+#define DOMINATION_ASSIST_BONUS	15
+#define DOMINATION_DEFENSE_RADIUS	500.0f
 
 typedef struct dominationPoint_s {
 	gentity_t	*pointEnt;
@@ -35,6 +38,11 @@ typedef struct dominationPoint_s {
 	float	progress;
 	int	redOccupants;
 	int	blueOccupants;
+	gentity_t	*redParticipants[MAX_CLIENTS];
+	gentity_t	*blueParticipants[MAX_CLIENTS];
+	int	redParticipantCount;
+	int	blueParticipantCount;
+	gentity_t	*primaryCapturer;
 	int	lastOccupancyFrame;
 	int	lastDistressTime;
 	qboolean	distressNotified;
@@ -89,6 +97,13 @@ static void Team_DominationEventOrigin( const dominationPoint_t *point, vec3_t o
 static int Team_DominationCaptureRadius( const dominationPoint_t *point );
 static void Team_DominationPublishPointState( dominationPoint_t *point, int pointIndex, int playerCount, qboolean contested );
 static void Team_DominationUpdatePointState( dominationPoint_t *point, int captureTime );
+static void Team_DominationResetOccupants( dominationPoint_t *point );
+static void Team_DominationAddParticipant( dominationPoint_t *point, gentity_t *player );
+static qboolean G_DominationParticipantInList( gentity_t *participant, gentity_t **participants, int participantCount );
+static void G_DominationSelectPrimaryCapturer( dominationPoint_t *point, int redCount, int blueCount, gentity_t **redTeam, gentity_t **blueTeam );
+static void G_DominationRewardCaptureParticipants( gentity_t **participants, dominationPoint_t *point, int participantCount );
+static void G_DominationPointActivate( gentity_t *ent );
+static qboolean G_DominationCheckDefenseBonus( gentity_t *attacker, gentity_t *targ );
 static int Team_DominationCaptureTime( void );
 static int Team_DominationScoreInterval( void );
 static float Team_DominationCaptureMultiplier( int playerCount );
@@ -110,7 +125,7 @@ static void Team_PerformAutomaticShuffle( void );
 =============
 SP_team_dom_point
 
-Registers Domination control point metadata and links spawn targets.
+Registers Domination control point metadata and schedules retail activation.
 =============
 */
 void SP_team_dom_point( gentity_t *ent ) {
@@ -134,9 +149,14 @@ void SP_team_dom_point( gentity_t *ent ) {
 	ent->s.constantLight = 0;
 	ent->s.generic1 = 0;
 	ent->s.time2 = 0;
-	trap_LinkEntity( ent );
 
 	Team_RegisterDominationPoint( ent );
+	if ( !ent->inuse ) {
+		return;
+	}
+
+	ent->think = G_DominationPointActivate;
+	ent->nextthink = level.time + 1;
 }
 
 /*
@@ -787,6 +807,70 @@ int G_ADResolveRoundState( void ) {
 
 /*
 =============
+G_CAHandleDamageScore
+
+Applies Clan Arena damage gating and converts active-round enemy damage into retail score buckets.
+=============
+*/
+qboolean G_CAHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave ) {
+	int	damage;
+	int	cappedTake;
+	int	cappedArmor;
+
+	if ( g_gametype.integer != GT_CLAN_ARENA || !attacker || !targ || !take || !asave ) {
+		return qfalse;
+	}
+
+	if ( attacker->client && targ->client && attacker != targ && OnSameTeam( attacker, targ ) ) {
+		if ( !g_friendlyFire.integer ) {
+			*take = 0;
+			*asave = 0;
+		}
+	}
+
+	if ( G_CAResolveRoundState() != ROUNDSTATE_ACTIVE ) {
+		return qfalse;
+	}
+
+	if ( !attacker->client || !targ->client || attacker == targ || OnSameTeam( attacker, targ ) ) {
+		return qtrue;
+	}
+
+	cappedTake = *take;
+	if ( cappedTake > targ->health ) {
+		cappedTake = targ->health;
+	}
+	if ( cappedTake < 0 ) {
+		cappedTake = 0;
+	}
+
+	cappedArmor = *asave;
+	if ( cappedArmor > targ->client->ps.stats[STAT_ARMOR] ) {
+		cappedArmor = targ->client->ps.stats[STAT_ARMOR];
+	}
+	if ( cappedArmor < 0 ) {
+		cappedArmor = 0;
+	}
+
+	*take = cappedTake;
+	*asave = cappedArmor;
+	damage = cappedTake + cappedArmor;
+	if ( damage <= 0 ) {
+		return qtrue;
+	}
+
+	attacker->client->adAccumulatedDamage += damage;
+	while ( attacker->client->adAccumulatedDamage >= 100 ) {
+		attacker->client->adAccumulatedDamage -= 100;
+		attacker->client->ps.persistant[PERS_SCORE] += 1;
+		CalculateRanks();
+	}
+
+	return qtrue;
+}
+
+/*
+=============
 G_ADHandleDamageScore
 
 Applies Attack & Defend team-damage suppression and converts live enemy damage into retail score buckets.
@@ -1132,6 +1216,7 @@ void Team_InitGame( void ) {
 
 	switch ( g_gametype.integer ) {
 	case GT_CTF:
+	case GT_ATTACK_DEFEND:
 		teamgame.redStatus = teamgame.blueStatus = -1; // Invalid to force update
 		Team_SetFlagStatus( TEAM_RED, FLAG_ATBASE );
 		Team_SetFlagStatus( TEAM_BLUE, FLAG_ATBASE );
@@ -1930,6 +2015,292 @@ static float Team_DominationCaptureMultiplier( int playerCount ) {
 
 /*
 =============
+Team_DominationResetOccupants
+
+Clears the current-frame Domination occupant lists while keeping capture ownership state.
+=============
+*/
+static void Team_DominationResetOccupants( dominationPoint_t *point ) {
+	if ( !point ) {
+		return;
+	}
+
+	point->redOccupants = 0;
+	point->blueOccupants = 0;
+	point->redParticipantCount = 0;
+	point->blueParticipantCount = 0;
+}
+
+/*
+=============
+Team_DominationAddParticipant
+
+Records a player occupying a Domination point during the current frame.
+=============
+*/
+static void Team_DominationAddParticipant( dominationPoint_t *point, gentity_t *player ) {
+	gentity_t	**participants;
+	int		*participantCount;
+	int		i;
+
+	if ( !point || !player || !player->client ) {
+		return;
+	}
+
+	if ( player->client->sess.sessionTeam == TEAM_RED ) {
+		participants = point->redParticipants;
+		participantCount = &point->redParticipantCount;
+	} else if ( player->client->sess.sessionTeam == TEAM_BLUE ) {
+		participants = point->blueParticipants;
+		participantCount = &point->blueParticipantCount;
+	} else {
+		return;
+	}
+
+	for ( i = 0; i < *participantCount; i++ ) {
+		if ( participants[i] == player ) {
+			return;
+		}
+	}
+
+	if ( *participantCount >= MAX_CLIENTS ) {
+		return;
+	}
+
+	participants[*participantCount] = player;
+	(*participantCount)++;
+}
+
+/*
+=============
+G_DominationParticipantInList
+
+Returns qtrue when a retained primary capturer is still touching the point.
+=============
+*/
+static qboolean G_DominationParticipantInList( gentity_t *participant, gentity_t **participants, int participantCount ) {
+	int		i;
+
+	if ( !participant || !participants || participantCount <= 0 ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < participantCount; i++ ) {
+		if ( participants[i] == participant ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
+G_DominationSelectPrimaryCapturer
+
+Matches the retail primary-capturer retention rules for Domination capture awards.
+=============
+*/
+static void G_DominationSelectPrimaryCapturer( dominationPoint_t *point, int redCount, int blueCount, gentity_t **redTeam, gentity_t **blueTeam ) {
+	if ( !point ) {
+		return;
+	}
+
+	if ( redCount > 0 && blueCount > 0 ) {
+		point->primaryCapturer = NULL;
+		return;
+	}
+
+	if ( redCount > 0 ) {
+		if ( G_DominationParticipantInList( point->primaryCapturer, redTeam, redCount ) ) {
+			return;
+		}
+
+		point->primaryCapturer = redTeam[0];
+		return;
+	}
+
+	if ( blueCount > 0 ) {
+		if ( G_DominationParticipantInList( point->primaryCapturer, blueTeam, blueCount ) ) {
+			return;
+		}
+
+		point->primaryCapturer = blueTeam[0];
+	}
+}
+
+/*
+=============
+G_DominationRewardCaptureParticipants
+
+Awards retail Domination capture and assist medals to the players in the capture list.
+=============
+*/
+static void G_DominationRewardCaptureParticipants( gentity_t **participants, dominationPoint_t *point, int participantCount ) {
+	gentity_t	*participant;
+	vec3_t	origin;
+	int		i;
+
+	if ( !participants || !point || participantCount <= 0 ) {
+		return;
+	}
+
+	Team_DominationEventOrigin( point, origin );
+	for ( i = 0; i < participantCount; i++ ) {
+		participant = participants[i];
+		if ( !participant || !participant->client ) {
+			continue;
+		}
+
+		participant->client->ps.eFlags &= ~( EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP );
+		if ( participant == point->primaryCapturer ) {
+			AddScore( participant, origin, DOMINATION_CAPTURE_BONUS );
+			participant->client->pers.teamState.captures++;
+			participant->client->ps.persistant[PERS_CAPTURES]++;
+			G_RankSendPlayerMedal( participant, "CAPTURE" );
+			participant->client->ps.eFlags |= EF_AWARD_CAP;
+		} else {
+			AddScore( participant, origin, DOMINATION_ASSIST_BONUS );
+			participant->client->pers.teamState.assists++;
+			participant->client->ps.persistant[PERS_ASSIST_COUNT]++;
+			G_RankSendPlayerMedal( participant, "ASSIST" );
+			participant->client->ps.eFlags |= EF_AWARD_ASSIST;
+		}
+
+		participant->client->rewardTime = level.time + REWARD_SPRITE_TIME;
+	}
+}
+
+/*
+=============
+G_DominationPointActivate
+
+Drops a Domination point marker to the floor before exposing it to clients.
+=============
+*/
+static void G_DominationPointActivate( gentity_t *ent ) {
+	dominationPoint_t	*point;
+	trace_t		tr;
+	vec3_t	mins;
+	vec3_t	maxs;
+	vec3_t	start;
+	vec3_t	end;
+	vec3_t	fallbackStart;
+	qboolean	settled;
+	int		pointIndex;
+
+	if ( !ent ) {
+		return;
+	}
+
+	point = Team_DominationPointForPointEnt( ent );
+	if ( !point ) {
+		ent->think = NULL;
+		ent->nextthink = 0;
+		return;
+	}
+
+	VectorSet( mins, -15.0f, -15.0f, -15.0f );
+	VectorSet( maxs, 15.0f, 15.0f, 35.0f );
+	VectorCopy( ent->s.origin, start );
+	VectorCopy( start, end );
+	end[2] -= 256.0f;
+	settled = qfalse;
+
+	trap_Trace( &tr, start, mins, maxs, end, ent->s.number, MASK_SOLID );
+	if ( !tr.allsolid && !tr.startsolid && tr.fraction < 1.0f ) {
+		settled = qtrue;
+	} else {
+		VectorCopy( start, fallbackStart );
+		fallbackStart[2] += 128.0f;
+		trap_Trace( &tr, fallbackStart, mins, maxs, end, ent->s.number, MASK_SOLID );
+		if ( !tr.allsolid && !tr.startsolid && tr.fraction < 1.0f ) {
+			settled = qtrue;
+		}
+	}
+
+	if ( settled ) {
+		VectorCopy( tr.endpos, ent->s.origin );
+		G_SetOrigin( ent, tr.endpos );
+	} else {
+		G_SetOrigin( ent, ent->s.origin );
+	}
+	VectorClear( ent->s.apos.trDelta );
+
+	trap_LinkEntity( ent );
+	Team_DominationBuildSpawnList( point );
+	if ( point->spawnTargetCount <= 0 && ent->target && ent->target[0] ) {
+		ent->think = Team_DominationPointThink;
+		ent->nextthink = level.time + 100;
+	} else {
+		ent->think = NULL;
+		ent->nextthink = 0;
+	}
+
+	pointIndex = point - teamgame.dominationPoints;
+	if ( pointIndex >= 0 && pointIndex < DOMINATION_MAX_POINTS ) {
+		Team_DominationPublishPointState( point, pointIndex, 0, qfalse );
+	}
+}
+
+/*
+=============
+G_DominationCheckDefenseBonus
+
+Awards the retail Domination point-defense bonus for kills near owned points.
+=============
+*/
+static qboolean G_DominationCheckDefenseBonus( gentity_t *attacker, gentity_t *targ ) {
+	dominationPoint_t	*point;
+	team_t	team;
+	vec3_t	origin;
+	vec3_t	delta;
+	int		i;
+
+	if ( g_gametype.integer != GT_DOMINATION ) {
+		return qfalse;
+	}
+
+	if ( !attacker || !attacker->client || !targ || !targ->client || attacker == targ || OnSameTeam( attacker, targ ) ) {
+		return qfalse;
+	}
+
+	team = attacker->client->sess.sessionTeam;
+	if ( team != TEAM_RED && team != TEAM_BLUE ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < teamgame.dominationPointCount; i++ ) {
+		point = &teamgame.dominationPoints[i];
+		if ( point->ownerTeam != team ) {
+			continue;
+		}
+
+		Team_DominationEventOrigin( point, origin );
+		VectorSubtract( targ->r.currentOrigin, origin, delta );
+		if ( VectorLength( delta ) >= DOMINATION_DEFENSE_RADIUS ) {
+			continue;
+		}
+
+		if ( !trap_InPVS( origin, targ->r.currentOrigin ) ) {
+			continue;
+		}
+
+		AddScore( attacker, targ->r.currentOrigin, CTF_FLAG_DEFENSE_BONUS );
+		attacker->client->pers.teamState.basedefense++;
+		attacker->client->ps.persistant[PERS_DEFEND_COUNT]++;
+		G_RankSendPlayerMedal( attacker, "DEFENSE" );
+		attacker->client->ps.eFlags &= ~( EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP );
+		attacker->client->ps.eFlags |= EF_AWARD_DEFEND;
+		attacker->client->rewardTime = level.time + REWARD_SPRITE_TIME;
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+=============
 Team_RegisterDominationPoint
 
 Registers a Domination control point metadata entity.
@@ -2101,8 +2472,7 @@ void Team_DominationPointTouch( gentity_t *trigger, gentity_t *other, trace_t *t
 	other->client->dominationTouchFrame[pointIndex] = level.framenum;
 
 	if ( point->lastOccupancyFrame != level.framenum ) {
-		point->redOccupants = 0;
-		point->blueOccupants = 0;
+		Team_DominationResetOccupants( point );
 		point->lastOccupancyFrame = level.framenum;
 	}
 
@@ -2111,6 +2481,7 @@ void Team_DominationPointTouch( gentity_t *trigger, gentity_t *other, trace_t *t
 	} else {
 		point->blueOccupants++;
 	}
+	Team_DominationAddParticipant( point, other );
 }
 
 /*
@@ -2209,6 +2580,8 @@ static void Team_DominationUpdatePointState( dominationPoint_t *point, int captu
 	if ( point->lastOccupancyFrame == level.framenum ) {
 		redOccupants = point->redOccupants;
 		blueOccupants = point->blueOccupants;
+		G_DominationSelectPrimaryCapturer( point, point->redParticipantCount, point->blueParticipantCount,
+			point->redParticipants, point->blueParticipants );
 	}
 
 	if ( redOccupants > 0 || blueOccupants > 0 ) {
@@ -2242,8 +2615,7 @@ static void Team_DominationUpdatePointState( dominationPoint_t *point, int captu
 			point->neutralizing = qfalse;
 			point->distressNotified = qfalse;
 		}
-		point->redOccupants = 0;
-		point->blueOccupants = 0;
+		Team_DominationResetOccupants( point );
 		Team_DominationPublishPointState( point, pointIndex, playerCount, contested );
 		return;
 	}
@@ -2251,8 +2623,7 @@ static void Team_DominationUpdatePointState( dominationPoint_t *point, int captu
 	delta = ( captureTime > 0 ) ? ( (float)level.msec / (float)captureTime ) * 100.0f : 0.0f;
 	delta *= Team_DominationCaptureMultiplier( playerCount );
 	if ( delta <= 0.0f ) {
-		point->redOccupants = 0;
-		point->blueOccupants = 0;
+		Team_DominationResetOccupants( point );
 		Team_DominationPublishPointState( point, pointIndex, playerCount, contested );
 		return;
 	}
@@ -2272,8 +2643,7 @@ static void Team_DominationUpdatePointState( dominationPoint_t *point, int captu
 			point->neutralizing = ( g_domNeutralFlag.integer && point->ownerTeam != TEAM_FREE && point->ownerTeam != advanceTeam );
 			point->distressNotified = qfalse;
 		}
-		point->redOccupants = 0;
-		point->blueOccupants = 0;
+		Team_DominationResetOccupants( point );
 		Team_DominationPublishPointState( point, pointIndex, playerCount, contested );
 		return;
 	}
@@ -2297,6 +2667,11 @@ static void Team_DominationUpdatePointState( dominationPoint_t *point, int captu
 			point->progress = 0.0f;
 			point->distressNotified = qfalse;
 			if ( previousOwner != point->ownerTeam ) {
+				if ( point->ownerTeam == TEAM_RED ) {
+					G_DominationRewardCaptureParticipants( point->redParticipants, point, point->redParticipantCount );
+				} else if ( point->ownerTeam == TEAM_BLUE ) {
+					G_DominationRewardCaptureParticipants( point->blueParticipants, point, point->blueParticipantCount );
+				}
 				Team_DominationAnnounceCapture( point, previousOwner );
 			}
 		}
@@ -2309,8 +2684,7 @@ static void Team_DominationUpdatePointState( dominationPoint_t *point, int captu
 		}
 	}
 
-	point->redOccupants = 0;
-	point->blueOccupants = 0;
+	Team_DominationResetOccupants( point );
 	Team_DominationPublishPointState( point, pointIndex, playerCount, contested );
 }
 
@@ -3195,7 +3569,7 @@ void Team_SetFlagStatus( int team, flagStatus_t status ) {
 	if( modified ) {
 		char st[4];
 
-		if( g_gametype.integer == GT_CTF ) {
+		if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_ATTACK_DEFEND ) {
 			st[0] = ctfFlagStatusRemap[teamgame.redStatus];
 			st[1] = ctfFlagStatusRemap[teamgame.blueStatus];
 			st[2] = 0;
@@ -3346,6 +3720,11 @@ void Team_FragBonuses(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker
 	otherteam = OtherTeam(targ->client->sess.sessionTeam);
 	if (otherteam < 0)
 		return; // whoever died isn't on a team
+
+	if ( g_gametype.integer == GT_DOMINATION ) {
+		G_DominationCheckDefenseBonus( attacker, targ );
+		return;
+	}
 
 	// same team, if the flag at base, check to he has the enemy flag
 	if (team == TEAM_RED) {

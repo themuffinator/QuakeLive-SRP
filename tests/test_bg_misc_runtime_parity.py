@@ -36,8 +36,23 @@ C_SOURCE = r"""
 #define QLR_EXPORT
 #endif
 
+#ifdef CGAME
+vmCvar_t cg_armorTiered;
+static float qlrCgameWeaponRespawnValue;
+static int qlrCgameWeaponRespawnQueries;
+
+float trap_Cvar_VariableValue( const char *var_name ) {
+	if ( var_name && strcmp( var_name, "g_weaponRespawn" ) == 0 ) {
+		qlrCgameWeaponRespawnQueries++;
+		return qlrCgameWeaponRespawnValue;
+	}
+
+	return 0.0f;
+}
+#else
 vmCvar_t g_armorTiered;
 vmCvar_t g_weaponRespawn;
+#endif
 
 typedef struct {
 	trajectory_t	tr;
@@ -223,6 +238,48 @@ QLR_EXPORT int QLR_CanGrabRocketLauncherCaseWithRespawn(
 	return BG_CanItemBeGrabbed( GT_FFA, 0, &ent, &ps ) ? 1 : 0;
 }
 
+#ifdef CGAME
+/*
+=============
+QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn
+
+Runs the cgame weapon pickup gate while tracking accidental cvar reads.
+=============
+*/
+QLR_EXPORT int QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn( int ammoCount, float weaponRespawnValue ) {
+	playerState_t	ps;
+	entityState_t	ent;
+	int		itemIndex;
+
+	memset( &ps, 0, sizeof( ps ) );
+	memset( &ent, 0, sizeof( ent ) );
+
+	itemIndex = QLR_FindItemIndexByClassname( "weapon_rocketlauncher" );
+	if ( itemIndex < 0 ) {
+		return -1;
+	}
+
+	ps.stats[STAT_WEAPONS] |= ( 1 << WP_ROCKET_LAUNCHER );
+	ps.ammo[WP_ROCKET_LAUNCHER] = ammoCount;
+	ent.modelindex = itemIndex;
+	qlrCgameWeaponRespawnValue = weaponRespawnValue;
+	qlrCgameWeaponRespawnQueries = 0;
+
+	return BG_CanItemBeGrabbed( GT_FFA, 0, &ent, &ps ) ? 1 : 0;
+}
+
+/*
+=============
+QLR_CgameWeaponRespawnQueryCount
+
+Returns how often the cgame pickup gate queried g_weaponRespawn.
+=============
+*/
+QLR_EXPORT int QLR_CgameWeaponRespawnQueryCount( void ) {
+	return qlrCgameWeaponRespawnQueries;
+}
+#endif
+
 /*
 =============
 QLR_CanGrabHealthCase
@@ -271,7 +328,11 @@ QLR_EXPORT int QLR_CanGrabArmorCase( int itemIndex, int armor, int armorTier, in
 		ps.stats[STAT_PERSISTANT_POWERUP] = scoutIndex;
 	}
 
+#ifdef CGAME
+	cg_armorTiered.integer = armorTiered;
+#else
 	g_armorTiered.integer = armorTiered;
+#endif
 	ent.modelindex = itemIndex;
 
 	return BG_CanItemBeGrabbed( GT_FFA, 0, &ent, &ps ) ? 1 : 0;
@@ -306,8 +367,8 @@ QLR_EXPORT void QLR_EvaluateAcceleratedTrajectory( float acceleration, int atTim
 """
 
 
-def _build_test_library(tmp_path: Path) -> Path:
-	src_path = tmp_path / "bg_misc_runtime_test.c"
+def _build_test_library(tmp_path: Path, module_define: str = "QAGAME") -> Path:
+	src_path = tmp_path / f"bg_misc_runtime_test_{module_define.lower()}.c"
 	src_path.write_text(C_SOURCE, encoding="utf-8")
 
 	if os.name == "nt":
@@ -315,12 +376,12 @@ def _build_test_library(tmp_path: Path) -> Path:
 		if clang is None:
 			pytest.skip("clang is required to build the bg_misc runtime harness on Windows")
 
-		lib_path = tmp_path / "bg_misc_runtime_test.dll"
+		lib_path = tmp_path / f"bg_misc_runtime_test_{module_define.lower()}.dll"
 		compile_cmd = [
 			clang,
 			"-DWIN32",
 			"-D_CRT_SECURE_NO_WARNINGS",
-			"-DQAGAME",
+			f"-D{module_define}",
 			"-std=c99",
 			"-shared",
 			"-fuse-ld=lld",
@@ -341,10 +402,10 @@ def _build_test_library(tmp_path: Path) -> Path:
 		if cc is None:
 			pytest.skip("cc is required to build the bg_misc runtime harness")
 
-		lib_path = tmp_path / "libbg_misc_runtime_test.dylib"
+		lib_path = tmp_path / f"libbg_misc_runtime_test_{module_define.lower()}.dylib"
 		compile_cmd = [
 			cc,
-			"-DQAGAME",
+			f"-D{module_define}",
 			"-std=c99",
 			"-dynamiclib",
 			"-I",
@@ -362,10 +423,10 @@ def _build_test_library(tmp_path: Path) -> Path:
 		if cc is None:
 			pytest.skip("cc is required to build the bg_misc runtime harness")
 
-		lib_path = tmp_path / "libbg_misc_runtime_test.so"
+		lib_path = tmp_path / f"libbg_misc_runtime_test_{module_define.lower()}.so"
 		compile_cmd = [
 			cc,
-			"-DQAGAME",
+			f"-D{module_define}",
 			"-std=c99",
 			"-shared",
 			"-fPIC",
@@ -448,6 +509,22 @@ def bg_misc_library(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
 	return library
 
 
+@pytest.fixture(scope="module")
+def bg_misc_cgame_library(tmp_path_factory: pytest.TempPathFactory) -> ctypes.CDLL:
+	lib_path = _build_test_library(tmp_path_factory.mktemp("bg_misc_runtime_cgame"), "CGAME")
+	library = ctypes.CDLL(str(lib_path))
+
+	library.QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn.argtypes = [
+		ctypes.c_int,
+		ctypes.c_float,
+	]
+	library.QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn.restype = ctypes.c_int
+	library.QLR_CgameWeaponRespawnQueryCount.argtypes = []
+	library.QLR_CgameWeaponRespawnQueryCount.restype = ctypes.c_int
+
+	return library
+
+
 def _item_index(bg_misc_library: ctypes.CDLL, classname: str) -> int:
 	return bg_misc_library.QLR_FindItemIndexByClassname(classname.encode("ascii"))
 
@@ -516,6 +593,17 @@ def test_can_item_be_grabbed_keeps_the_normal_weapon_and_health_gates(
 	assert bg_misc_library.QLR_CanGrabHealthCase(small_health_index, 200, 100) == 0
 	assert bg_misc_library.QLR_CanGrabHealthCase(mega_index, 150, 100) == 1
 	assert bg_misc_library.QLR_CanGrabHealthCase(mega_index, 200, 100) == 0
+
+
+def test_cgame_weapon_item_pickups_match_retail_duplicate_gate(
+	bg_misc_cgame_library: ctypes.CDLL,
+) -> None:
+	assert bg_misc_cgame_library.QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn(10, 5.0) == 0
+	assert bg_misc_cgame_library.QLR_CgameWeaponRespawnQueryCount() == 0
+	assert bg_misc_cgame_library.QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn(0, 5.0) == 1
+	assert bg_misc_cgame_library.QLR_CgameWeaponRespawnQueryCount() == 0
+	assert bg_misc_cgame_library.QLR_CgameCanGrabOwnedWeaponWithAmmoAndRespawn(-1, 5.0) == 0
+	assert bg_misc_cgame_library.QLR_CgameWeaponRespawnQueryCount() == 0
 
 
 def test_can_item_be_grabbed_keeps_retail_armor_gates(

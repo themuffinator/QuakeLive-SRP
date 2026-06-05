@@ -82,12 +82,14 @@ def test_clientuserinfochanged_publishes_queue_surface() -> None:
 def test_queue_helpers_are_wired_into_init_and_frame_flow() -> None:
 	main_c = _read("src/code/game/g_main.c")
 	session_c = _read("src/code/game/g_session.c")
+	check_block = _extract_block(main_c, "void CheckTournament( void ) {")
 
 	assert "G_UpdateTournamentQueuePositions();" in main_c
 	assert "G_SyncTournamentQueueTeamTasks();" in main_c
 	assert "AddTournamentPlayer();" in main_c
 	assert main_c.index("G_SyncTournamentQueueTeamTasks();") < main_c.index("CheckTournament();")
 	assert main_c.index("AddTournamentPlayer();") < main_c.index("G_SyncTournamentQueueTeamTasks();")
+	assert "AddTournamentPlayer();" not in check_block
 	assert "G_UpdateTournamentQueuePositions();" not in _extract_block(session_c, "void G_WriteSessionData( void ) {")
 
 

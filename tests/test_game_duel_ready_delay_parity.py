@@ -49,11 +49,14 @@ def test_duel_queue_semantics_use_spectate_only_latch() -> None:
 
 def test_checktournament_gates_duel_countdown_on_ready_state() -> None:
 	main_c = _read("src/code/game/g_main.c")
+	check_block = _block_from_marker(main_c, "void CheckTournament")
 
 	assert "G_GetDuelReadyStateCounts( &eligibleCount, &readyCount );" in main_c
-	assert "G_ResetDuelWarmupState( qtrue );" in main_c
 	assert "if ( eligibleCount == 2 && readyCount == 2 )" in main_c
 	assert "G_CheckReadyUpDelayAction();" in main_c
+	assert "G_RequestWarmupMapRestart();" in check_block
+	assert "if ( level.time >= level.warmupTime ) {" in check_block
+	assert "level.warmupTime > 0 && ( eligibleCount != 2 || readyCount != 2 )" not in check_block
 
 
 def test_ready_delay_uses_cached_retail_tally() -> None:

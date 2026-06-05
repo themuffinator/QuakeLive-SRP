@@ -1120,6 +1120,9 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
     assert 'Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceSubset", CL_GetSteamDataSourceSubsetLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceNativeGap", CL_GetSteamDataSourceNativeGapLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceFallbackOwner", CL_GetSteamDataSourceFallbackOwnerLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgeResponseThreadMappings", va( "%i", CL_CountSteamResponseThreadRetailMappings() ) );' in refresh_cvars_block
     assert "CL_RefreshSteamResourceBridgeCvars();" in resources_init_block
@@ -1179,6 +1182,9 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert 'Cvar_Get ("ui_resourceBridgePolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_resourceBridgeParityScope", "unclassified", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_resourceBridgeParityReason", "unclassified", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_resourceBridgeSteamDataSourceSubset", "avatar-only SteamDataSource", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_resourceBridgeSteamDataSourceNativeGap", "missing non-avatar SteamDataSource owner", CVAR_ROM );' in init_block
+    assert 'Cvar_Get ("ui_resourceBridgeSteamDataSourceFallbackOwner", "QLResourceInterceptor launcher/web fallback", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_subscriptionBridgeMode", "Unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_subscriptionBridgePolicy", "compatibility-unavailable", CVAR_ROM );' in init_block
     assert 'Cvar_Get ("ui_subscriptionBridgeParityScope", "unclassified", CVAR_ROM );' in init_block
@@ -1443,6 +1449,7 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "static const char *CL_GetSteamResourceServicePolicyLabel( void ) {" in steam_resources
     assert "static const char *CL_GetSteamDataSourceSubsetLabel( void ) {" in steam_resources
     assert "static const char *CL_GetSteamDataSourceNativeGapLabel( void ) {" in steam_resources
+    assert "static const char *CL_GetSteamDataSourceFallbackOwnerLabel( void ) {" in steam_resources
     assert "static const clSteamDataSourceRetailMapping_t cl_steamDataSourceRetailMappings[] = {" in steam_resources
     assert '{ "SteamDataSource", "OnRequest", 0x00532B80u, 0x04u, 0x004640C0u, "CL_SteamDataSource_Request", CL_STEAM_DATA_SOURCE_SCOPE_COMPATIBILITY_OWNER },' in steam_resources
     assert '{ "CCallback<class SteamDataSource, struct AvatarImageLoaded_t, 0>", "callback target", 0x00532B68u, 0x10u, 0x00464290u, "CL_SteamResources_OnAvatarImageLoaded", CL_STEAM_DATA_SOURCE_SCOPE_AVATAR_CALLBACK },' in steam_resources
@@ -1464,6 +1471,7 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert "return &services->overlay;" in steam_resources
     assert 'return "avatar-only SteamDataSource";' in steam_resources
     assert 'return "missing non-avatar SteamDataSource owner";' in steam_resources
+    assert 'return "QLResourceInterceptor launcher/web fallback";' in steam_resources
     assert "static void CL_SteamResources_BuildRendererName( const char *url, const clSteamResource_t *slot, char *rendererName, size_t rendererNameSize ) {" in steam_resources
     assert "if ( !CL_SteamResources_IsURIResource( url ) ) {" in shader_block
     assert "CL_LogSteamResourceRequestStubbed( url );" in shader_block
@@ -1472,7 +1480,7 @@ def test_launcher_resource_bridge_reconstructs_retail_web_fallback_owner() -> No
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );' in data_source_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "avatar request deferred pending AvatarImageLoaded callback" );' in data_source_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "avatar request could not be satisfied" );' in data_source_block
-    assert 'CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available; trying launcher/web fallback" );' in data_source_block
+    assert 'CL_LogSteamResourceBridgeUnavailable( url, "non-avatar Steam URI routed to launcher/web fallback owner" );' in data_source_block
     assert "(void)url;" in filter_block
     assert "return qfalse;" in filter_block
     assert 'scheme = strstr( url, "://" );' in parse_block
@@ -1589,9 +1597,10 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
     assert "Steam backend disabled by build/runtime policy" not in steam_resources
     assert "Steam backend unavailable for %s" not in steam_resources
     assert "Steam resource bridge disabled by build/runtime policy" not in steam_resources
-    assert 'Com_Printf( "Steam resource bridge unavailable for %s via %s [%s] (%s; gap=%s); %s\\n"' in steam_resources
+    assert 'Com_Printf( "Steam resource bridge unavailable for %s via %s [%s] (%s; fallback=%s; gap=%s); %s\\n"' in steam_resources
     assert "CL_GetSteamDataSourceSubsetLabel()" in steam_resources
     assert "CL_GetSteamDataSourceNativeGapLabel()" in steam_resources
+    assert "CL_GetSteamDataSourceFallbackOwnerLabel()" in steam_resources
     assert 'Com_Printf( "Launcher/web fallback unavailable for %s via %s [%s]; %s\\n"' in steam_resources
     assert '#define QL_RESOURCE_INTERCEPTOR_HOST "ql"' in steam_resources
     assert '#define QL_RESOURCE_INTERCEPTOR_SCREENSHOT_PATH "/screenshot"' in steam_resources
@@ -1601,8 +1610,12 @@ def test_launcher_resource_fallbacks_survive_service_disabled_policy() -> None:
     assert 'Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );' in refresh_cvars_block
     assert 'Cvar_Set( "ui_resourceBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceSubset", CL_GetSteamDataSourceSubsetLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceNativeGap", CL_GetSteamDataSourceNativeGapLabel() );' in refresh_cvars_block
+    assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceFallbackOwner", CL_GetSteamDataSourceFallbackOwnerLabel() );' in refresh_cvars_block
     assert 'Com_Printf( "Steam resource bridge disabled for %s [%s]; keeping launcher/web fallback resource bridge.\\n",' in resources_init_block
     assert 'CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );' in data_source_block
+    assert 'CL_LogSteamResourceBridgeUnavailable( url, "non-avatar Steam URI routed to launcher/web fallback owner" );' in data_source_block
     assert "(void)url;" in filter_block
     assert "return qfalse;" in filter_block
     assert "QL_RESOURCE_INTERCEPTOR_SCREENSHOT_FALLBACK_PREFIX" in mapped_request_block
@@ -1759,6 +1772,10 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
         cl_main,
         "static const char *CL_SteamBrowser_NativeAdapterGapLabel( void )",
     )
+    browser_integration_gap_block = _extract_function_block(
+        steamworks,
+        "const char *QL_Steamworks_GetServerBrowserIntegrationGapLabel( void )",
+    )
     steam_data_source_label_block = _extract_function_block(
         steam_resources,
         "static const char *CL_GetSteamDataSourceSubsetLabel( void )",
@@ -1766,6 +1783,10 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
     steam_data_source_gap_block = _extract_function_block(
         steam_resources,
         "static const char *CL_GetSteamDataSourceNativeGapLabel( void )",
+    )
+    steam_data_source_fallback_block = _extract_function_block(
+        steam_resources,
+        "static const char *CL_GetSteamDataSourceFallbackOwnerLabel( void )",
     )
 
     for source_text in (steamworks, steamworks_header):
@@ -1786,9 +1807,11 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
     assert 'return "raw GetAllUGC integer filter";' in ugc_filter_label_block
     assert 'return "unpromoted GetAllUGC filter semantic";' in ugc_filter_semantic_gap_block
     assert 'return "ISteamMatchmakingServers";' in missing_browser_owner_block
-    assert 'return "ISteamMatchmakingServers native list owner unavailable; using source-browser fallback";' in browser_native_adapter_gap_block
+    assert 'return "ISteamMatchmakingServers native request handle unavailable; using source-browser fallback";' in browser_native_adapter_gap_block
+    assert 'return "native request handle unavailable; source-browser fallback retained";' in browser_integration_gap_block
     assert 'return "avatar-only SteamDataSource";' in steam_data_source_label_block
     assert 'return "missing non-avatar SteamDataSource owner";' in steam_data_source_gap_block
+    assert 'return "QLResourceInterceptor launcher/web fallback";' in steam_data_source_fallback_block
     assert "QL_Steamworks_GetAuthTicketApiLabel()" in ql_auth
     assert "QL_Steamworks_GetAuthTicketModernGapLabel()" in ql_auth
     assert "QL_Steamworks_GetP2PTransportLabel()" in cl_main
@@ -1798,6 +1821,7 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
     assert "CL_SteamBrowser_NativeAdapterGapLabel()" in cl_main
     assert "CL_GetSteamDataSourceSubsetLabel()" in steam_resources
     assert "CL_GetSteamDataSourceNativeGapLabel()" in steam_resources
+    assert "CL_GetSteamDataSourceFallbackOwnerLabel()" in steam_resources
 
 
 def test_client_auth_logs_include_provider_and_policy_labels() -> None:
@@ -2509,7 +2533,11 @@ def test_client_browser_favorite_server_lane_reconstructs_retail_steam_matchmaki
     assert '#include "../../common/platform/platform_steamworks.h"' in cl_cgame
     assert "qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add );" in platform_steamworks_h
     assert "if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServer( ip, port, add ) ) {" in favorite_block
+    assert "Com_DPrintf(" in favorite_block
+    assert '"Steam favorite server %s failed for %u:%u; using local favorites cache fallback\\n"' in favorite_block
+    assert 'add ? "add" : "remove"' in favorite_block
     assert "return CL_WebHost_MirrorFavoriteServer( ip, port, add );" in favorite_block
+    assert "return qfalse;" not in favorite_block
     assert "CL_WebHost_BuildFavoriteAddress( ip, port, addressString, sizeof( addressString ) );" in mirror_block
     assert "LAN_SaveServersToCache();" in mirror_block
     assert "QL_Steamworks_GetAppID();" in steamworks_block
@@ -2574,12 +2602,53 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
         cl_main,
         "static void CL_SteamBrowser_PublishNativeServerResponse( const ql_steam_server_browser_response_t *response )",
     )
+    publish_native_rule_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishNativeRuleResponse( const ql_steam_server_browser_rule_response_t *response )",
+    )
+    publish_native_player_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishNativePlayerResponse( const ql_steam_server_browser_player_response_t *response )",
+    )
+    publish_native_detail_event_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishNativeDetailEvent( const ql_steam_server_browser_detail_event_t *event, qboolean includePayload )",
+    )
     native_server_responded_block = _extract_function_block(
         cl_main,
         "static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex )",
     )
     complete_native_refresh_block = _extract_function_block(
         cl_main, "static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut )"
+    )
+    native_ping_responded_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_NativePingRespondedImpl( clSteamNativeServerPingResponse_t *self, const void *serverDetails )",
+    )
+    native_rule_responded_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_NativeRuleRespondedImpl( clSteamNativeServerRulesResponse_t *self, const char *rule, const char *value )",
+    )
+    native_rules_complete_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_NativeRulesRefreshCompleteImpl( clSteamNativeServerRulesResponse_t *self )",
+    )
+    native_player_responded_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_NativePlayerRespondedImpl( clSteamNativeServerPlayersResponse_t *self, const char *name, int score, float timePlayed )",
+    )
+    native_players_complete_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_NativePlayersRefreshCompleteImpl( clSteamNativeServerPlayersResponse_t *self )",
+    )
+    complete_native_detail_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_CompleteNativeDetailTerminal( clSteamNativeServerDetail_t *detail )"
+    )
+    release_native_detail_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_ReleaseNativeDetailRequests( void )"
+    )
+    begin_native_detail_block = _extract_function_block(
+        cl_main, "static qboolean CL_SteamBrowser_BeginNativeDetailRequest( uint32_t serverIp, uint16_t serverPort )"
     )
     request_details_block = _extract_function_block(
         cl_main, "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort )"
@@ -2626,6 +2695,8 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "return AS_FAVORITES;" in request_mode_block
     assert 'return "friends";' in request_mode_label_block
     assert 'return "history";' in request_mode_label_block
+    assert request_mode_label_block.count('return "internet";') == 2
+    assert 'return "unknown";' not in request_mode_label_block
     assert "return QL_STEAM_SERVER_BROWSER_INTERNET;" in request_native_mode_block
     assert "return QL_STEAM_SERVER_BROWSER_LAN;" in request_native_mode_block
     assert "return QL_STEAM_SERVER_BROWSER_FRIENDS;" in request_native_mode_block
@@ -2635,15 +2706,15 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert 'return "favorites";' in source_label_block
     assert 'return "source-browser compatibility";' in compatibility_owner_block
     assert 'return "ISteamMatchmakingServers";' in missing_owner_block
-    assert 'return "ISteamMatchmakingServers native list owner unavailable; using source-browser fallback";' in native_adapter_gap_block
+    assert 'return "ISteamMatchmakingServers native request handle unavailable; using source-browser fallback";' in native_adapter_gap_block
     assert "CL_MatchmakingServiceAvailable()" in native_available_block
     assert "QL_Steamworks_HasServerBrowserInterface()" in native_available_block
     assert "case 2:" in compatibility_source_block
     assert "case 4:" in compatibility_source_block
     assert "return qtrue;" in compatibility_source_block
     assert "CL_SteamBrowser_RequestModeUsesCompatibilitySource( requestMode )" in publish_compatibility_block
-    assert 'return "friends mapped to global source";' in compatibility_reason_block
-    assert 'return "history mapped to favorites source";' in compatibility_reason_block
+    assert 'return "friends fallback mapped to global source";' in compatibility_reason_block
+    assert 'return "history fallback mapped to favorites source";' in compatibility_reason_block
     assert 'return "native-compatible source";' in compatibility_reason_block
     assert 'Com_DPrintf(' in publish_compatibility_block
     assert "adapter %s" in publish_compatibility_block
@@ -2690,10 +2761,44 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "QL_Steamworks_ReadServerBrowserResponse( request, serverIndex, &response )" in native_server_responded_block
     assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_server_responded_block
     assert "CL_SteamBrowser_PublishServerFailed( serverIndex );" in native_server_responded_block
+    assert 'CL_Steam_PublishBrowserEvent( response->eventName, payload );' in publish_native_rule_block
+    assert '\\"rule\\":\\"%s\\",\\"value\\":\\"%s\\"' in publish_native_rule_block
+    assert 'CL_Steam_PublishBrowserEvent( response->eventName, payload );' in publish_native_player_block
+    assert '\\"name\\":\\"%s\\",\\"score\\":%d,\\"time\\":%d' in publish_native_player_block
+    assert 'CL_Steam_PublishBrowserEvent( event->eventName, payload );' in publish_native_detail_event_block
+    assert '\\"id\\":\\"%s\\",\\"ip\\":%u,\\"port\\":%u' in publish_native_detail_event_block
     assert "CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS" in cl_main
     assert "static __declspec(naked) void CL_SteamBrowser_NativeServerResponded" in cl_main
     assert "CL_SteamBrowser_NativeServerRespondedImpl( self, request, serverIndex );" in cl_main
+    assert "#define CL_STEAM_BROWSER_DETAIL_OBJECT_ID_LENGTH 64" in cl_main
+    assert "const clSteamNativeServerRulesResponseVTable_t *rulesVtable;" in cl_main
+    assert "const clSteamNativeServerPlayersResponseVTable_t *playersVtable;" in cl_main
+    assert "const clSteamNativeServerPingResponseVTable_t *pingVtable;" in cl_main
+    assert "char detailId[CL_STEAM_BROWSER_DETAIL_OBJECT_ID_LENGTH];" in cl_main
+    assert "ql_steam_server_browser_detail_request_t request;" in cl_main
+    assert "static clSteamNativeServerDetail_t *cl_steamNativeDetails;" in cl_main
+    assert "QL_Steamworks_ReadServerBrowserPingResponse( serverDetails, &response )" in native_ping_responded_block
+    assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_ping_responded_block
+    assert "CL_SteamBrowser_CompleteNativeDetailTerminal( detail );" in native_ping_responded_block
+    assert "QL_Steamworks_BuildServerBrowserRuleResponse( &detail->request.lifecycle.identity, rule, value, &response )" in native_rule_responded_block
+    assert "CL_SteamBrowser_PublishNativeRuleResponse( &response );" in native_rule_responded_block
+    assert "QL_Steamworks_BuildServerBrowserDetailEvent( &detail->request.lifecycle.identity, QL_STEAM_SERVER_BROWSER_DETAIL_RULES, QL_STEAM_SERVER_BROWSER_DETAIL_END, &event )" in native_rules_complete_block
+    assert "CL_SteamBrowser_PublishNativeDetailEvent( &event, qtrue );" in native_rules_complete_block
+    assert "CL_SteamBrowser_CompleteNativeDetailTerminal( detail );" in native_rules_complete_block
+    assert "QL_Steamworks_BuildServerBrowserPlayerResponse( &detail->request.lifecycle.identity, name, score, (int)timePlayed, &response )" in native_player_responded_block
+    assert "CL_SteamBrowser_PublishNativePlayerResponse( &response );" in native_player_responded_block
+    assert "QL_Steamworks_BuildServerBrowserDetailEvent( &detail->request.lifecycle.identity, QL_STEAM_SERVER_BROWSER_DETAIL_PLAYERS, QL_STEAM_SERVER_BROWSER_DETAIL_END, &event )" in native_players_complete_block
+    assert "CL_SteamBrowser_CompleteNativeDetailTerminal( detail );" in native_players_complete_block
+    assert "QL_Steamworks_CompleteServerBrowserDetailRequestCallback( &detail->request, &releaseReady )" in complete_native_detail_block
+    assert "CL_SteamBrowser_FreeNativeDetail( detail, qfalse );" in complete_native_detail_block
+    assert "CL_SteamBrowser_FreeNativeDetail( cl_steamNativeDetails, qtrue );" in release_native_detail_block
+    assert "CL_SteamBrowser_NativeListAvailable()" in begin_native_detail_block
+    assert "Z_Malloc( sizeof( *detail ) )" in begin_native_detail_block
+    assert "QL_Steamworks_FormatServerBrowserDetailId( serverIp, serverPort, detail->detailId, sizeof( detail->detailId ) );" in begin_native_detail_block
+    assert "QL_Steamworks_BeginServerBrowserDetailRequest( &detail->request, serverIp, serverPort, detail )" in begin_native_detail_block
+    assert 'CL_LogMatchmakingServiceIgnored( "RequestServerDetails", "native SteamMatchmakingServers detail request failed; using status-query fallback" );' in begin_native_detail_block
 
+    assert "CL_SteamBrowser_BeginNativeDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort )" in request_details_block
     assert "CL_SteamBrowser_BuildAddressString( (uint32_t)serverIp, (uint16_t)serverPort, addressString, sizeof( addressString ) );" in request_details_block
     assert "CL_SteamBrowser_BeginDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort, &address );" in request_details_block
     assert "CL_ServerStatus( addressString, NULL, 0 );" in request_details_block

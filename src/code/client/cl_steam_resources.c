@@ -190,6 +190,18 @@ static const char *CL_GetSteamDataSourceNativeGapLabel( void ) {
 
 /*
 =============
+CL_GetSteamDataSourceFallbackOwnerLabel
+
+Returns the retained resource owner that receives SteamDataSource requests
+outside the reconstructed avatar-native subset.
+=============
+*/
+static const char *CL_GetSteamDataSourceFallbackOwnerLabel( void ) {
+	return "QLResourceInterceptor launcher/web fallback";
+}
+
+/*
+=============
 CL_CountSteamDataSourceRetailMappings
 
 Returns the number of recovered retail SteamDataSource and callback wiring
@@ -241,11 +253,12 @@ bridge cannot satisfy a request.
 =============
 */
 static void CL_LogSteamResourceBridgeUnavailable( const char *url, const char *reason ) {
-	Com_Printf( "Steam resource bridge unavailable for %s via %s [%s] (%s; gap=%s); %s\n",
+	Com_Printf( "Steam resource bridge unavailable for %s via %s [%s] (%s; fallback=%s; gap=%s); %s\n",
 		url ? url : "<null>",
 		CL_GetSteamResourceServiceProviderLabel(),
 		CL_GetSteamResourceServicePolicyLabel(),
 		CL_GetSteamDataSourceSubsetLabel(),
+		CL_GetSteamDataSourceFallbackOwnerLabel(),
 		CL_GetSteamDataSourceNativeGapLabel(),
 		reason ? reason : "request could not be satisfied" );
 }
@@ -294,6 +307,9 @@ static void CL_RefreshSteamResourceBridgeCvars( void ) {
 	Cvar_Set( "ui_resourceBridgePolicy", CL_GetSteamResourceServicePolicyLabel() );
 	Cvar_Set( "ui_resourceBridgeParityScope", QL_GetOnlineServicesParityScopeLabel() );
 	Cvar_Set( "ui_resourceBridgeParityReason", QL_GetOnlineServicesParityReasonLabel() );
+	Cvar_Set( "ui_resourceBridgeSteamDataSourceSubset", CL_GetSteamDataSourceSubsetLabel() );
+	Cvar_Set( "ui_resourceBridgeSteamDataSourceNativeGap", CL_GetSteamDataSourceNativeGapLabel() );
+	Cvar_Set( "ui_resourceBridgeSteamDataSourceFallbackOwner", CL_GetSteamDataSourceFallbackOwnerLabel() );
 	Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );
 	Cvar_Set( "ui_resourceBridgeResponseThreadMappings", va( "%i", CL_CountSteamResponseThreadRetailMappings() ) );
 }
@@ -1036,11 +1052,11 @@ static qboolean CL_SteamDataSource_Request( const char *url, clSteamDataSourceRe
 	}
 
 	if ( !CL_SteamServicesEnabled() ) {
-		CL_LogSteamResourceBridgeUnavailable( url, "keeping launcher/web fallback resource bridge" );
+		CL_LogSteamResourceBridgeUnavailable( url, "non-avatar Steam URI routed to launcher/web fallback owner" );
 		return qfalse;
 	}
 
-	CL_LogSteamResourceBridgeUnavailable( url, "no live SteamDataSource owner is available; trying launcher/web fallback" );
+	CL_LogSteamResourceBridgeUnavailable( url, "non-avatar Steam URI routed to launcher/web fallback owner" );
 	return qfalse;
 }
 

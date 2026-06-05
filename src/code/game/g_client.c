@@ -31,9 +31,6 @@ static vec3_t	playerMaxs = { 15, 15, 32 };
 
 extern char *modNames[];
 
-static void G_RRResetClientForRound( gentity_t *ent );
-
-
 /*
 =============
 G_ParseRatingScaleValue
@@ -2459,12 +2456,6 @@ static weapon_t G_FinalizeSpawnLoadout( gentity_t *ent, const factoryCvarConfig_
 	}
 
 	client = ent->client;
-	if ( client->rrInfectionState == RR_STATE_INFECTED ) {
-		client->sess.selectedSpawnWeapon = WP_GAUNTLET;
-		client->ps.weapon = WP_GAUNTLET;
-		return WP_GAUNTLET;
-	}
-
 	startingAmmoTable[WP_GAUNTLET] = g_startingAmmoConfig.gauntlet;
 	startingAmmoTable[WP_MACHINEGUN] = g_startingAmmoConfig.machinegun;
 	startingAmmoTable[WP_SHOTGUN] = g_startingAmmoConfig.shotgun;
@@ -2534,17 +2525,17 @@ Applies the retail Red Rover spawn-side infection finalization before the
 generic spawn loadout selects the live weapon.
 =============
 */
-static void G_RRFinalizeSpawnLoadout( gentity_t *ent ) {
+static qboolean G_RRFinalizeSpawnLoadout( gentity_t *ent ) {
 	gclient_t	*client;
 
 	if ( !ent || !ent->client ) {
-		return;
+		return qfalse;
 	}
 
 	G_RRInitClient( ent );
 	client = ent->client;
 	if ( client->rrInfectionState != RR_STATE_INFECTED ) {
-		return;
+		return qfalse;
 	}
 
 	client->ps.stats[STAT_WEAPONS] = 1u << WP_GAUNTLET;
@@ -2561,6 +2552,7 @@ static void G_RRFinalizeSpawnLoadout( gentity_t *ent ) {
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 	ent->health = client->ps.stats[STAT_HEALTH] = client->pers.maxHealth;
 	BG_UpdateArmorTierFromCurrentArmor( &client->ps, g_armorTiered.integer ? qtrue : qfalse );
+	return qtrue;
 }
 
 /*
@@ -2593,10 +2585,16 @@ the shared spawn loadout finalizer.
 =============
 */
 static weapon_t G_InitClientSpawnState( gentity_t *ent, gentity_t *spawnPoint, const factoryCvarConfig_t *factoryConfig ) {
-	G_RRFinalizeSpawnLoadout( ent );
+	qboolean	rrLoadoutFinalized;
+
+	rrLoadoutFinalized = G_RRFinalizeSpawnLoadout( ent );
 
 	if ( spawnPoint && !level.intermissiontime && !G_GametypeSkipsSpawnPointTargets( g_gametype.integer ) ) {
 		G_UseTargets( spawnPoint, ent );
+	}
+
+	if ( rrLoadoutFinalized ) {
+		return WP_GAUNTLET;
 	}
 
 	return G_FinalizeSpawnLoadout( ent, factoryConfig );
@@ -3432,12 +3430,15 @@ G_RRResetClientForRound
 Reapplies the Red Rover round-side infection state for one live participant.
 =============
 */
-static void G_RRResetClientForRound( gentity_t *ent ) {
+void G_RRResetClientForRound( gentity_t *ent ) {
 	if ( !ent || !ent->client ) {
 		return;
 	}
 
 	ClientSpawn( ent );
+	if ( level.rrRoundState == RR_ROUNDSTATE_WARMUP ) {
+		G_SetClientAttackLockout( ent, qtrue );
+	}
 }
 
 /*
@@ -3550,6 +3551,7 @@ static void G_RRCheckInfectionSpread( void ) {
 		}
 
 		G_RRMoveClientToTeam( ent, TEAM_RED, qtrue, qtrue );
+		G_RRResetClientForRound( ent );
 		level.rrLastInfectionTime = level.time;
 		return;
 	}
@@ -3835,45 +3837,96 @@ void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attack
 =============
 G_RRHandleDamageScore
 
-Awards survivor score based on the configured scoring method.
+Applies Red Rover damage gating and awards active-round damage score buckets.
 =============
 */
-void G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int damage ) {
+qboolean G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave ) {
+	int			damage;
+	int			cappedTake;
+	int			cappedArmor;
 	int			threshold;
 	int			bonus;
 
-	if ( !G_RRIsActive() || damage <= 0 ) {
-		return;
+	if ( g_gametype.integer != GT_RED_ROVER || !attacker || !targ || !take || !asave ) {
+		return qfalse;
 	}
 
-	if ( !attacker || !attacker->client || !targ || !targ->client ) {
-		return;
+	if ( attacker->client && targ->client && attacker != targ && OnSameTeam( attacker, targ ) ) {
+		if ( !g_friendlyFire.integer ) {
+			*take = 0;
+			*asave = 0;
+		}
 	}
 
-	if ( attacker->client->rrInfectionState != RR_STATE_SURVIVOR
-		|| targ->client->rrInfectionState != RR_STATE_INFECTED ) {
-		return;
+	if ( G_RRResolveRoundState() != RR_ROUNDSTATE_ACTIVE ) {
+		return qfalse;
 	}
 
-	if ( g_rrInfectedSurvivorScoreMethod.integer == 0 ) {
-		threshold = g_rrInfectedSurvivorScoreRate.integer;
-		if ( threshold <= 0 ) {
-			return;
+	if ( !attacker->client || !targ->client || attacker == targ || OnSameTeam( attacker, targ ) ) {
+		return qtrue;
+	}
+
+	cappedTake = *take;
+	if ( cappedTake > targ->health ) {
+		cappedTake = targ->health;
+	}
+	if ( cappedTake < 0 ) {
+		cappedTake = 0;
+	}
+
+	cappedArmor = *asave;
+	if ( cappedArmor > targ->client->ps.stats[STAT_ARMOR] ) {
+		cappedArmor = targ->client->ps.stats[STAT_ARMOR];
+	}
+	if ( cappedArmor < 0 ) {
+		cappedArmor = 0;
+	}
+
+	*take = cappedTake;
+	*asave = cappedArmor;
+	damage = cappedTake + cappedArmor;
+	if ( damage <= 0 ) {
+		return qtrue;
+	}
+
+	if ( g_rrInfected.integer
+		&& attacker->client->rrInfectionState == RR_STATE_SURVIVOR
+		&& targ->client->rrInfectionState == RR_STATE_INFECTED ) {
+		if ( g_rrInfectedSurvivorScoreMethod.integer == 0 ) {
+			threshold = g_rrInfectedSurvivorScoreRate.integer;
+			if ( threshold <= 0 ) {
+				return qtrue;
+			}
+
+			attacker->client->rrAccumulatedDamage += damage;
+			bonus = G_RRResolveScoreValue( g_rrInfectedSurvivorScoreBonus.value );
+			while ( attacker->client->rrAccumulatedDamage >= threshold && bonus > 0 ) {
+				attacker->client->rrAccumulatedDamage -= threshold;
+				G_RRApplyScoreDelta( attacker, bonus );
+			}
+			return qtrue;
 		}
 
-		attacker->client->rrAccumulatedDamage += damage;
-		bonus = G_RRResolveScoreValue( g_rrInfectedSurvivorScoreBonus.value );
-		while ( attacker->client->rrAccumulatedDamage >= threshold && bonus > 0 ) {
-			attacker->client->rrAccumulatedDamage -= threshold;
+		bonus = G_RRResolveScoreValue( damage * g_rrDamageScoreBonus.value );
+		if ( bonus > 0 ) {
 			G_RRApplyScoreDelta( attacker, bonus );
 		}
-		return;
+		return qtrue;
 	}
 
-	bonus = G_RRResolveScoreValue( damage * g_rrDamageScoreBonus.value );
-	if ( bonus > 0 ) {
-		G_RRApplyScoreDelta( attacker, bonus );
+	bonus = G_RRResolveScoreValue( g_rrDamageScoreBonus.value );
+	if ( bonus <= 0 ) {
+		return qtrue;
 	}
+
+	attacker->client->rrAccumulatedDamage += damage;
+	while ( attacker->client->rrAccumulatedDamage >= 100 ) {
+		attacker->client->rrAccumulatedDamage -= 100;
+		G_RRApplyRawScoreDelta( attacker, bonus );
+		CalculateRanks();
+	}
+
+	return qtrue;
 }
 
 /*

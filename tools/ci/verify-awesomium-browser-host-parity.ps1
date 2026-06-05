@@ -220,6 +220,21 @@ $sourceAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_steam_resources.c'
+		Literal = 'Cvar_Set( "ui_resourceBridgeSteamDataSourceSubset", CL_GetSteamDataSourceSubsetLabel() );'
+		Description = 'SteamDataSource supported-subset diagnostic cvar'
+	},
+	@{
+		Path = 'src/code/client/cl_steam_resources.c'
+		Literal = 'Cvar_Set( "ui_resourceBridgeSteamDataSourceNativeGap", CL_GetSteamDataSourceNativeGapLabel() );'
+		Description = 'SteamDataSource native-gap diagnostic cvar'
+	},
+	@{
+		Path = 'src/code/client/cl_steam_resources.c'
+		Literal = 'Cvar_Set( "ui_resourceBridgeSteamDataSourceFallbackOwner", CL_GetSteamDataSourceFallbackOwnerLabel() );'
+		Description = 'SteamDataSource fallback-owner diagnostic cvar'
+	},
+	@{
+		Path = 'src/code/client/cl_steam_resources.c'
 		Literal = 'Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );'
 		Description = 'SteamDataSource mapping count diagnostic cvar'
 	},

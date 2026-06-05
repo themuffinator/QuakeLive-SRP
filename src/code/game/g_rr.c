@@ -25,61 +25,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "g_local.h"
 
-void G_RRInitClient( gentity_t *ent ) {
-	if ( g_gametype.integer != GT_RED_ROVER ) {
-		return;
-	}
-
-	ent->client->rrInfectionState = RR_STATE_SURVIVOR;
-	ent->client->rrInfectionChangeTime = 0;
-	ent->client->rrAccumulatedDamage = 0;
-}
-
-void G_RRProcessClient( gentity_t *ent ) {
-	if ( g_gametype.integer != GT_RED_ROVER ) {
-		return;
-	}
-
-	// Infection logic would go here if enabled
-	if ( g_rrInfected.integer ) {
-		// ...
-	}
-}
-
-void G_RRHandlePlayerDeath( gentity_t *victim, gentity_t *attacker ) {
-	if ( g_gametype.integer != GT_RED_ROVER ) {
-		return;
-	}
-
-	if ( g_rrInfected.integer ) {
-		// Handle infection transfer
-	} else {
-		// Swap teams
-		if ( victim->client->sess.sessionTeam == TEAM_RED ) {
-			victim->client->sess.sessionTeam = TEAM_BLUE;
-		} else if ( victim->client->sess.sessionTeam == TEAM_BLUE ) {
-			victim->client->sess.sessionTeam = TEAM_RED;
-		}
-		victim->client->sess.teamLeader = qfalse;
-		ClientUserinfoChanged( victim->s.number );
-	}
-}
-
-void G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int damage ) {
-	if ( g_gametype.integer != GT_RED_ROVER ) {
-		return;
-	}
-
-	// Score based on damage dealt
-	if ( attacker && attacker->client && targ && targ->client ) {
-		attacker->client->ps.persistant[PERS_SCORE] += damage;
-	}
-}
-
-void G_RRResetRoundState( void ) {
-	// Reset any round-specific RR state
-}
-
-void G_RRTrackRoundActivity( void ) {
-	// Monitor round progress
-}
+/*
+ * Red Rover has no standalone retail translation unit in the recovered qagame
+ * surface. The owning helpers live with their retail call sites:
+ * g_active.c, g_client.c, g_cmds.c, and g_combat.c.
+ */

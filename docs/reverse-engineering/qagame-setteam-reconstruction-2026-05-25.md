@@ -29,12 +29,17 @@
   resolved team, and `ClientSpawn` repeats the same rule before the respawn
   teleport toggle so cgame can send `specresp` from `CG_Respawn`.
 - Red Rover live team changes suppress the generic team-change broadcast and rank-stat teardown path unless the destination is spectator, reflecting the special-case branches visible around the retail inner helper.
+- Follow-up 2026-06-05: the previously deferred Red Rover forced-conversion
+  shortcut is now modeled in the owning RR seed/spread helpers. Retail toggles
+  an internal RR team-change latch before calling `G_ApplyTeamChange`; this
+  source keeps external `SetTeam` on the normal `ClientBegin` path and mirrors
+  the latched behavior by rerunning `G_RRResetClientForRound` immediately after
+  RR seed/spread team mutation.
 - The rank switch-team event is emitted after `ClientBegin`, matching the observed retail executor ordering more closely than the previous monolithic source tail.
 - `gclient_t` now carries the reconstructed `revengeKillStreaks[MAX_CLIENTS]` matrix. The death path increments `attacker[victim]`, awards the `REVENGE` player event/rank medal when the reverse counter reaches the retail threshold, and clears `victim[attacker]`; `ClientSpawn` preserves the matrix across respawn memset, while `ClientDisconnect` clears the departing slot from the connected clients.
 
 ## Open Questions
 
-- The retail helper has a Red Rover direct `ClientSpawn`/loadout path when the round controller is already in a live state. Current source routes Red Rover through `ClientBegin` and `G_RRResetClientForRound`; this remains intentionally deferred until that controller state can be cross-checked in a focused Red Rover runtime/static pass.
 - The outer `SetTeam` decompile exposes a team-size cap diagnostic distinct from `g_maxGameClients`. Current source still relies on the existing `g_maxGameClients` and balance gates until the cvar ownership for that cap is pinned down.
 
 ## Parity Estimate
@@ -42,4 +47,8 @@
 - Before this round: `SetTeam` and immediate command wiring were about 78% reconstructed relative to the retail evidence, with the parser behavior mostly present but the inner executor boundary flattened into the GPL-shaped function.
 - After the first source split: the same surface was about 88% reconstructed.
 - After the follow/Red Rover parser pass: the same surface was about 91% reconstructed.
-- After the revenge-matrix pass: the same surface is about 94% reconstructed. The major remaining gaps are the ambiguous spectator eflag write, the team-size cap diagnostic, and the Red Rover live-spawn shortcut.
+- After the revenge-matrix pass: the same surface was about 94% reconstructed. The major remaining gaps at that point were the ambiguous spectator eflag write, the team-size cap diagnostic, and the Red Rover live-spawn shortcut.
+- After the 2026-06-05 Red Rover shortcut pass: the SetTeam-adjacent Red Rover
+  forced-conversion surface is retail-aligned for the known RR seed/spread
+  lanes. The remaining known SetTeam gap is the team-size cap diagnostic, which
+  is outside the Red Rover-specific wiring closed here.

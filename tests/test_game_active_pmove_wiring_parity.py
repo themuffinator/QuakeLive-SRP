@@ -406,6 +406,7 @@ def test_match_flow_warmup_timeout_cvar_rows_match_retail_hlil_batch() -> None:
 		'{ &g_warmup, "g_warmup", "10", CVAR_ARCHIVE, 0, qtrue',
 		'{ &g_warmupReadyDelay, "g_warmupReadyDelay", "0", 0, 0, qfalse',
 		'{ &g_warmupReadyDelayAction, "g_warmupReadyDelayAction", "1", 0, 0, qfalse',
+		'{ &g_svWarmupReadyPercentage, "sv_warmupReadyPercentage", "0.51", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse',
 		'{ &g_timeoutCount, "g_timeoutCount", "0", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse',
 		'{ &g_timeoutLen, "g_timeoutLen", "60", CVAR_GAMERULE, 0, qfalse',
 	):
@@ -492,8 +493,12 @@ def test_match_flow_warmup_timeout_cvars_keep_retail_behavioral_wiring() -> None
 	g_spawn = G_SPAWN_PATH.read_text(encoding="utf-8")
 	g_team = G_TEAM_PATH.read_text(encoding="utf-8")
 	game_state_body = _function_body(g_main, "void G_SetGameState( const char *state )")
+	set_warmup_body = _function_body(g_main, "void G_SetWarmupTime( int warmupTime )")
+	warmup_restart_body = _function_body(g_main, "static void G_RequestWarmupMapRestart( void )")
 	update_state_body = _function_body(g_main, "static void G_UpdateGameStateForLevel( void )")
 	ready_delay_body = _function_body(g_main, "static void G_CheckReadyUpDelayAction( void )")
+	check_tournament_body = _function_body(g_main, "void CheckTournament( void )")
+	worldspawn_body = _function_body(g_spawn, "void SP_worldspawn( void )")
 	level_timers_body = _function_body(g_main, "static void LevelCheckTimers( void )")
 	duel_begin_body = _function_body(g_lifecycle, "static void G_DuelClientBegin( gentity_t *ent )")
 	match_config_body = _function_body(g_match_config, "static matchFactoryConfig_t G_MatchConfig_Load( void )")
@@ -507,6 +512,21 @@ def test_match_flow_warmup_timeout_cvars_keep_retail_behavioral_wiring() -> None
 	assert "state = GAME_STATE_PRE_GAME;" in update_state_body
 	assert "G_SetGameState( state );" in update_state_body
 
+	assert "level.warmupTime = warmupTime;" in set_warmup_body
+	assert 'trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );' in set_warmup_body
+	assert "G_UpdateReadyUpConfigstring();" in set_warmup_body
+	assert "G_CheckAutoRecord();" in set_warmup_body
+	assert "state = GAME_STATE_COUNT_DOWN;" in set_warmup_body
+	assert "state = GAME_STATE_IN_PROGRESS;" in set_warmup_body
+	assert "state = GAME_STATE_PRE_GAME;" in set_warmup_body
+	assert "void G_SetWarmupTime( int warmupTime );" in G_LOCAL_PATH.read_text(encoding="utf-8")
+
+	assert "G_RankSendMatchStarted();" in warmup_restart_body
+	assert "level.warmupTime += 10000;" in warmup_restart_body
+	assert 'trap_Cvar_Set( "g_restarted", "1" );' in warmup_restart_body
+	assert 'trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\\n" );' in warmup_restart_body
+	assert warmup_restart_body.index("G_RankSendMatchStarted();") < warmup_restart_body.index('trap_SendConsoleCommand( EXEC_APPEND, "map_restart 0\\n" );')
+
 	assert "if ( g_debugAlloc.integer ) {" in memory_body
 	assert 'G_Printf( "G_Alloc of %i bytes (%i left)\\n"' in memory_body
 	assert "if ( !g_friendlyFire.integer ) {" in g_combat
@@ -514,10 +534,18 @@ def test_match_flow_warmup_timeout_cvars_keep_retail_behavioral_wiring() -> None
 	assert 'G_RunGrantScript( ent, g_grantItemOnSpawn.string );' in grant_body
 
 	assert "} else if ( g_doWarmup.integer ) { // Turn it on" in g_spawn
+	assert "G_SetWarmupTime( -1 );" in worldspawn_body
+	assert "G_SetWarmupTime( 0 );" in worldspawn_body
+	assert "trap_Cvar_Set( \"g_gameState\", \"PRE_GAME\" );" not in worldspawn_body
+	assert "trap_Cvar_Set( \"g_gameState\", \"IN_PROGRESS\" );" not in worldspawn_body
+	assert "else {\n\t\tG_SetWarmupTime( 0 );\n\t}" not in worldspawn_body
 	assert "if ( !g_doWarmup.integer ) {" in g_main
 	assert "countdownSeconds = g_warmup.integer;" in duel_begin_body
 	assert "level.warmupTime = level.time + ( countdownSeconds - 1 ) * 1000;" in duel_begin_body
 	assert "if ( g_warmup.modificationCount != level.warmupModificationCount ) {" in g_main
+	assert "G_SetWarmupTime( level.time + g_warmup.integer * 1000 );" in check_tournament_body
+	assert "if ( level.time >= level.warmupTime ) {" in check_tournament_body
+	assert "G_RequestWarmupMapRestart();" in check_tournament_body
 
 	assert "g_warmupReadyDelay.integer <= 0" in ready_delay_body
 	assert "level.readyUpDelayDeadline = level.time + g_warmupReadyDelay.integer * 1000;" in ready_delay_body
@@ -929,6 +957,9 @@ def test_first_18_g_cvars_match_retail_defaults_flags_and_wiring() -> None:
 	warmup_ready_body = _function_body(g_main, "qboolean G_WarmupReadyToStart( void )")
 	assert "g_dedicated.integer && g_gametype.integer != GT_TOURNAMENT" in warmup_ready_body
 	assert "level.time - level.startTime < g_warmupDelay.integer * 1000" in warmup_ready_body
+	assert "g_svWarmupReadyPercentage.value <= 0.0f" in warmup_ready_body
+	assert "readyRatio = (float)readyCount / (float)eligibleCount;" in warmup_ready_body
+	assert "return ( readyRatio >= g_svWarmupReadyPercentage.value ) ? qtrue : qfalse;" in warmup_ready_body
 
 	rr_death_body = _function_body(g_client, "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath )")
 	assert "G_RRApplyScoreDelta( victim, g_rrDeathScorePenalty.integer );" in rr_death_body
@@ -1575,7 +1606,7 @@ def test_freeze_last_man_and_rr_zombie_cvars_keep_retail_behavioral_wiring() -> 
 	ca_notify_body = _function_body(g_team, "qboolean G_CANotifyLastAlivePlayer( team_t team )")
 	freeze_notify_body = _function_body(g_team, "qboolean G_FreezeNotifyLastAlivePlayer( team_t team )")
 	rr_notify_body = _function_body(g_team, "qboolean G_RRNotifyLastAlivePlayer( team_t team )")
-	rr_spawn_body = _function_body(g_client, "static void G_RRFinalizeSpawnLoadout( gentity_t *ent )")
+	rr_spawn_body = _function_body(g_client, "static qboolean G_RRFinalizeSpawnLoadout( gentity_t *ent )")
 	rr_process_body = _function_body(g_client, "void G_RRProcessClient( gentity_t *ent )")
 
 	for expected in (
@@ -1610,6 +1641,8 @@ def test_freeze_last_man_and_rr_zombie_cvars_keep_retail_behavioral_wiring() -> 
 		assert "return G_NotifyLastAlivePlayer( team );" in body
 
 	assert "client->pers.maxHealth = client->ps.stats[STAT_MAX_HEALTH] + g_rrInfectedZombieHealthBonus.integer;" in rr_spawn_body
+	assert "return qfalse;" in rr_spawn_body
+	assert "return qtrue;" in rr_spawn_body
 	assert "client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;" in rr_spawn_body
 	assert "ent->health = client->ps.stats[STAT_HEALTH] = client->pers.maxHealth;" in rr_spawn_body
 	assert "if ( g_rrInfectedZombieSpeed.value > 0.0f ) {" in rr_process_body
@@ -1703,7 +1736,7 @@ def test_red_rover_infection_cvars_keep_retail_behavioral_wiring() -> None:
 	rr_completion_body = _function_body(g_client, "static qboolean G_RRCheckRoundCompletion( const int counts[TEAM_NUM_TEAMS] )")
 	rr_completed_body = _function_body(g_client, "void G_RRHandleCompletedRound( void )")
 	rr_death_body = _function_body(g_client, "void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath )")
-	rr_damage_body = _function_body(g_client, "void G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int damage )")
+	rr_damage_body = _function_body(g_client, "qboolean G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave )")
 	rr_next_body = _function_body(g_active, "static rrRoundState_t G_RRNextRestartState( void )")
 	rr_init_body = _function_body(g_active, "void G_RRInitRoundController( void )")
 	rr_auto_join_body = _function_body(g_cmds, "static team_t G_RRResolveAutoJoinTeam( int clientNum )")
@@ -1720,7 +1753,15 @@ def test_red_rover_infection_cvars_keep_retail_behavioral_wiring() -> None:
 
 	assert "if ( score < 0 && !g_rrAllowNegativeScores.integer ) {" in rr_apply_score_body
 	assert "if ( score < 0 && !g_rrAllowNegativeScores.integer ) {" in rr_apply_raw_body
+	assert "if ( G_RRResolveRoundState() != RR_ROUNDSTATE_ACTIVE ) {" in rr_damage_body
+	assert "if ( cappedTake > targ->health ) {" in rr_damage_body
+	assert "if ( cappedArmor > targ->client->ps.stats[STAT_ARMOR] ) {" in rr_damage_body
+	assert "if ( !attacker->client || !targ->client || attacker == targ || OnSameTeam( attacker, targ ) ) {" in rr_damage_body
 	assert "bonus = G_RRResolveScoreValue( damage * g_rrDamageScoreBonus.value );" in rr_damage_body
+	assert "bonus = G_RRResolveScoreValue( g_rrDamageScoreBonus.value );" in rr_damage_body
+	assert "while ( attacker->client->rrAccumulatedDamage >= 100 ) {" in rr_damage_body
+	assert "G_RRApplyRawScoreDelta( attacker, bonus );" in rr_damage_body
+	assert "CalculateRanks();" in rr_damage_body
 
 	assert "scoreMethod = g_rrInfectedSurvivorScoreMethod.integer;" in rr_survival_body
 	assert "scoreRateSeconds = g_rrInfectedSurvivorScoreRate.integer;" in rr_survival_body
@@ -1738,6 +1779,7 @@ def test_red_rover_infection_cvars_keep_retail_behavioral_wiring() -> None:
 	assert "spreadDelayMs = g_rrInfectedSpreadTime.integer * 1000;" in rr_spread_body
 	assert "warningDelayMs = g_rrInfectedSpreadWarningTime.integer * 1000;" in rr_spread_body
 	assert "g_rrInfectedSpreadWarningTime.integer," in rr_spread_body
+	assert "G_RRResetClientForRound( ent );" in rr_spread_body
 	assert "minSpeed = g_rrInfectedSurvivorMinSpeed.value;" in rr_process_body
 	assert "ent->client->rrInfectionNextPingTime = level.time + g_rrInfectedSurvivorPingRate.integer;" in rr_process_body
 	assert 'Com_sprintf( payload, sizeof( payload ), "%f", g_rrInfectedSurvivorPingRate.value );' in rr_ping_config_body

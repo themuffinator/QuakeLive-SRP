@@ -3282,7 +3282,7 @@ static void CG_RegisterGraphics( void ) {
 		}
 	}
 
-	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_HARVESTER || trap_Cvar_VariableValue( "com_build" ) ) {
+	if ( cgs.gametype == GT_CTF || cgs.gametype == GT_1FCTF || cgs.gametype == GT_ATTACK_DEFEND || cgs.gametype == GT_HARVESTER || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.redFlagModel = trap_R_RegisterModel( "models/flags/r_flag.md3" );
 		cgs.media.blueFlagModel = trap_R_RegisterModel( "models/flags/b_flag.md3" );
 		cgs.media.redFlagModel3 = trap_R_RegisterModel( "models/flag3/r_flag3.md3" );
@@ -3305,7 +3305,7 @@ static void CG_RegisterGraphics( void ) {
 		cgs.media.neutralFlagBaseModel = trap_R_RegisterModel( "models/mapobjects/flagbase/ntrl_base.md3" );
 	}
 
-	if ( cgs.gametype == GT_1FCTF || trap_Cvar_VariableValue( "com_build" ) ) {
+	if ( cgs.gametype == GT_1FCTF || cgs.gametype == GT_ATTACK_DEFEND || trap_Cvar_VariableValue( "com_build" ) ) {
 		cgs.media.neutralFlagModel = trap_R_RegisterModel( "models/flags/n_flag.md3" );
 		cgs.media.neutralFlagModel3 = trap_R_RegisterModel( "models/flag3/n_flag3.md3" );
 		cgs.media.flagShader[0] = trap_R_RegisterShaderNoMip( "icons/iconf_neutral1" );

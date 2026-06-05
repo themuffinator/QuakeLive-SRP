@@ -1072,11 +1072,17 @@ static void CG_Item( centity_t *cent ) {
 
 	// increase the size of the weapons when they are presented as items
 	if ( item->giType == IT_WEAPON ) {
+		if ( BG_WeaponForItemTag( item->giTag ) == WP_RAILGUN ) {
+			ent.shaderRGBA[0] = 0;
+			ent.shaderRGBA[1] = 255;
+			ent.shaderRGBA[2] = 0;
+			ent.shaderRGBA[3] = 255;
+		}
+
 		VectorScale( ent.axis[0], 1.5, ent.axis[0] );
 		VectorScale( ent.axis[1], 1.5, ent.axis[1] );
 		VectorScale( ent.axis[2], 1.5, ent.axis[2] );
 		ent.nonNormalizedAxes = qtrue;
-		trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin, cgs.media.weaponHoverSound );
 	}
 
 	if ( item->giType == IT_HOLDABLE && BG_HoldableForItemTag( item->giTag ) == HI_KAMIKAZE ) {
@@ -1089,23 +1095,44 @@ static void CG_Item( centity_t *cent ) {
 	// add to refresh list
 	trap_R_AddRefEntityToScene(&ent);
 
-	if ( item->giType == IT_WEAPON && wi->barrelModel ) {
-		refEntity_t	barrel;
+	if ( item->giType == IT_WEAPON ) {
+		if ( wi->barrelModel ) {
+			refEntity_t	barrel;
 
-		memset( &barrel, 0, sizeof( barrel ) );
+			memset( &barrel, 0, sizeof( barrel ) );
 
-		barrel.hModel = wi->barrelModel;
+			barrel.hModel = wi->barrelModel;
 
-		VectorCopy( ent.lightingOrigin, barrel.lightingOrigin );
-		barrel.shadowPlane = ent.shadowPlane;
-		barrel.renderfx = ent.renderfx;
+			VectorCopy( ent.lightingOrigin, barrel.lightingOrigin );
+			barrel.shadowPlane = ent.shadowPlane;
+			barrel.renderfx = ent.renderfx;
 
-		CG_PositionRotatedEntityOnTag( &barrel, &ent, wi->weaponModel, "tag_barrel" );
+			CG_PositionRotatedEntityOnTag( &barrel, &ent, wi->weaponModel, "tag_barrel" );
 
-		AxisCopy( ent.axis, barrel.axis );
-		barrel.nonNormalizedAxes = ent.nonNormalizedAxes;
+			AxisCopy( ent.axis, barrel.axis );
+			barrel.nonNormalizedAxes = ent.nonNormalizedAxes;
 
-		trap_R_AddRefEntityToScene( &barrel );
+			trap_R_AddRefEntityToScene( &barrel );
+		}
+
+		if ( wi->ammoModel ) {
+			refEntity_t	ammo;
+
+			memset( &ammo, 0, sizeof( ammo ) );
+
+			ammo.hModel = wi->ammoModel;
+
+			VectorCopy( ent.lightingOrigin, ammo.lightingOrigin );
+			ammo.shadowPlane = ent.shadowPlane;
+			ammo.renderfx = ent.renderfx;
+
+			CG_PositionRotatedEntityOnTag( &ammo, &ent, wi->weaponModel, "tag_ammo" );
+
+			AxisCopy( ent.axis, ammo.axis );
+			ammo.nonNormalizedAxes = ent.nonNormalizedAxes;
+
+			trap_R_AddRefEntityToScene( &ammo );
+		}
 	}
 
 	// accompanying rings / spheres for powerups

@@ -17,6 +17,7 @@
 
 #define QLR_TICKET_BUFFER 1024
 #define QLR_AVATAR_BUFFER ( 256 * 256 * 4 )
+#define QLR_P2P_PACKET_BUFFER 512
 
 #if defined(_MSC_VER)
 #define QLR_FASTCALL __fastcall
@@ -134,6 +135,51 @@ typedef struct {
 	char rich_presence_value[128];
 	int rich_presence_calls;
 	int rich_presence_result;
+	int p2p_send_calls;
+	uint64_t p2p_last_send_steam_id;
+	uint8_t p2p_last_send_data[QLR_P2P_PACKET_BUFFER];
+	uint32_t p2p_last_send_length;
+	int p2p_last_send_type;
+	int p2p_last_send_channel;
+	int p2p_send_result;
+	int p2p_available_calls;
+	uint32_t p2p_available_size;
+	int p2p_last_available_channel;
+	int p2p_available_result;
+	int p2p_read_calls;
+	uint8_t p2p_read_data[QLR_P2P_PACKET_BUFFER];
+	uint32_t p2p_read_length;
+	uint64_t p2p_read_steam_id;
+	int p2p_last_read_channel;
+	int p2p_read_result;
+	int p2p_accept_calls;
+	uint64_t p2p_last_accept_steam_id;
+	int p2p_accept_result;
+	int server_p2p_send_calls;
+	uint64_t server_p2p_last_send_steam_id;
+	uint8_t server_p2p_last_send_data[QLR_P2P_PACKET_BUFFER];
+	uint32_t server_p2p_last_send_length;
+	int server_p2p_last_send_type;
+	int server_p2p_last_send_channel;
+	int server_p2p_send_result;
+	int server_p2p_available_calls;
+	uint32_t server_p2p_available_size;
+	int server_p2p_last_available_channel;
+	int server_p2p_available_result;
+	int server_p2p_read_calls;
+	uint8_t server_p2p_read_data[QLR_P2P_PACKET_BUFFER];
+	uint32_t server_p2p_read_length;
+	uint64_t server_p2p_read_steam_id;
+	int server_p2p_last_read_channel;
+	int server_p2p_read_result;
+	int server_p2p_accept_calls;
+	uint64_t server_p2p_last_accept_steam_id;
+	int server_p2p_accept_result;
+	int steam_game_server_outgoing_packet_calls;
+	uint8_t steam_game_server_outgoing_packet_data[QLR_P2P_PACKET_BUFFER];
+	int steam_game_server_outgoing_packet_length;
+	uint32_t steam_game_server_outgoing_packet_ip;
+	uint16_t steam_game_server_outgoing_packet_port;
 	int steam_game_server_init_calls;
 	int steam_game_server_shutdown_calls;
 	int steam_game_server_init_result;
@@ -185,6 +231,8 @@ typedef struct {
 	int lobby_user_invite_calls;
 	int lobby_say_calls;
 	int lobby_set_server_calls;
+	int favorite_add_calls;
+	int favorite_remove_calls;
 	int user_stats_request_calls;
 	int game_invite_calls;
 	int lobby_create_type;
@@ -201,12 +249,20 @@ typedef struct {
 	uint64_t game_invite_target_id;
 	uint32_t lobby_set_server_ip;
 	uint16_t lobby_set_server_port;
+	uint32_t favorite_last_app_id;
+	uint32_t favorite_last_ip;
+	uint16_t favorite_last_conn_port;
+	uint16_t favorite_last_query_port;
+	uint32_t favorite_last_flags;
+	uint32_t favorite_last_played;
 	char lobby_say_message[256];
 	char game_invite_connect_string[256];
 	uint64_t user_stats_request_id;
 	uint64_t create_lobby_result;
 	uint64_t join_lobby_result;
 	int say_lobby_result;
+	int favorite_add_result;
+	int favorite_remove_result;
 	uint64_t request_user_stats_result;
 	int server_browser_internet_calls;
 	int server_browser_lan_calls;
@@ -348,6 +404,51 @@ static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.rich_presence_value = "",
 	.rich_presence_calls = 0,
 	.rich_presence_result = 1,
+	.p2p_send_calls = 0,
+	.p2p_last_send_steam_id = 0ull,
+	.p2p_last_send_data = { 0 },
+	.p2p_last_send_length = 0u,
+	.p2p_last_send_type = 0,
+	.p2p_last_send_channel = 0,
+	.p2p_send_result = qtrue,
+	.p2p_available_calls = 0,
+	.p2p_available_size = 0u,
+	.p2p_last_available_channel = 0,
+	.p2p_available_result = qfalse,
+	.p2p_read_calls = 0,
+	.p2p_read_data = { 0 },
+	.p2p_read_length = 0u,
+	.p2p_read_steam_id = 0ull,
+	.p2p_last_read_channel = 0,
+	.p2p_read_result = qfalse,
+	.p2p_accept_calls = 0,
+	.p2p_last_accept_steam_id = 0ull,
+	.p2p_accept_result = qtrue,
+	.server_p2p_send_calls = 0,
+	.server_p2p_last_send_steam_id = 0ull,
+	.server_p2p_last_send_data = { 0 },
+	.server_p2p_last_send_length = 0u,
+	.server_p2p_last_send_type = 0,
+	.server_p2p_last_send_channel = 0,
+	.server_p2p_send_result = qtrue,
+	.server_p2p_available_calls = 0,
+	.server_p2p_available_size = 0u,
+	.server_p2p_last_available_channel = 0,
+	.server_p2p_available_result = qfalse,
+	.server_p2p_read_calls = 0,
+	.server_p2p_read_data = { 0 },
+	.server_p2p_read_length = 0u,
+	.server_p2p_read_steam_id = 0ull,
+	.server_p2p_last_read_channel = 0,
+	.server_p2p_read_result = qfalse,
+	.server_p2p_accept_calls = 0,
+	.server_p2p_last_accept_steam_id = 0ull,
+	.server_p2p_accept_result = qtrue,
+	.steam_game_server_outgoing_packet_calls = 0,
+	.steam_game_server_outgoing_packet_data = { 0 },
+	.steam_game_server_outgoing_packet_length = 0,
+	.steam_game_server_outgoing_packet_ip = 0u,
+	.steam_game_server_outgoing_packet_port = 0u,
 	.steam_game_server_init_calls = 0,
 	.steam_game_server_shutdown_calls = 0,
 	.steam_game_server_init_result = 1,
@@ -544,6 +645,8 @@ void *QLR_SteamAPI_SteamUtils( void );
 
 void *QLR_SteamAPI_SteamUserStats( void );
 
+void *QLR_SteamAPI_SteamNetworking( void );
+
 void *QLR_SteamAPI_SteamMatchmaking( void );
 
 void *QLR_SteamAPI_SteamMatchmakingServers( void );
@@ -692,6 +795,51 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.rich_presence_value[0] = '\0';
 	qlr_mock_state.rich_presence_calls = 0;
 	qlr_mock_state.rich_presence_result = 1;
+	qlr_mock_state.p2p_send_calls = 0;
+	qlr_mock_state.p2p_last_send_steam_id = 0ull;
+	memset( qlr_mock_state.p2p_last_send_data, 0, sizeof( qlr_mock_state.p2p_last_send_data ) );
+	qlr_mock_state.p2p_last_send_length = 0u;
+	qlr_mock_state.p2p_last_send_type = 0;
+	qlr_mock_state.p2p_last_send_channel = 0;
+	qlr_mock_state.p2p_send_result = qtrue;
+	qlr_mock_state.p2p_available_calls = 0;
+	qlr_mock_state.p2p_available_size = 0u;
+	qlr_mock_state.p2p_last_available_channel = 0;
+	qlr_mock_state.p2p_available_result = qfalse;
+	qlr_mock_state.p2p_read_calls = 0;
+	memset( qlr_mock_state.p2p_read_data, 0, sizeof( qlr_mock_state.p2p_read_data ) );
+	qlr_mock_state.p2p_read_length = 0u;
+	qlr_mock_state.p2p_read_steam_id = 0ull;
+	qlr_mock_state.p2p_last_read_channel = 0;
+	qlr_mock_state.p2p_read_result = qfalse;
+	qlr_mock_state.p2p_accept_calls = 0;
+	qlr_mock_state.p2p_last_accept_steam_id = 0ull;
+	qlr_mock_state.p2p_accept_result = qtrue;
+	qlr_mock_state.server_p2p_send_calls = 0;
+	qlr_mock_state.server_p2p_last_send_steam_id = 0ull;
+	memset( qlr_mock_state.server_p2p_last_send_data, 0, sizeof( qlr_mock_state.server_p2p_last_send_data ) );
+	qlr_mock_state.server_p2p_last_send_length = 0u;
+	qlr_mock_state.server_p2p_last_send_type = 0;
+	qlr_mock_state.server_p2p_last_send_channel = 0;
+	qlr_mock_state.server_p2p_send_result = qtrue;
+	qlr_mock_state.server_p2p_available_calls = 0;
+	qlr_mock_state.server_p2p_available_size = 0u;
+	qlr_mock_state.server_p2p_last_available_channel = 0;
+	qlr_mock_state.server_p2p_available_result = qfalse;
+	qlr_mock_state.server_p2p_read_calls = 0;
+	memset( qlr_mock_state.server_p2p_read_data, 0, sizeof( qlr_mock_state.server_p2p_read_data ) );
+	qlr_mock_state.server_p2p_read_length = 0u;
+	qlr_mock_state.server_p2p_read_steam_id = 0ull;
+	qlr_mock_state.server_p2p_last_read_channel = 0;
+	qlr_mock_state.server_p2p_read_result = qfalse;
+	qlr_mock_state.server_p2p_accept_calls = 0;
+	qlr_mock_state.server_p2p_last_accept_steam_id = 0ull;
+	qlr_mock_state.server_p2p_accept_result = qtrue;
+	qlr_mock_state.steam_game_server_outgoing_packet_calls = 0;
+	memset( qlr_mock_state.steam_game_server_outgoing_packet_data, 0, sizeof( qlr_mock_state.steam_game_server_outgoing_packet_data ) );
+	qlr_mock_state.steam_game_server_outgoing_packet_length = 0;
+	qlr_mock_state.steam_game_server_outgoing_packet_ip = 0u;
+	qlr_mock_state.steam_game_server_outgoing_packet_port = 0u;
 	qlr_mock_state.steam_game_server_init_calls = 0;
 	qlr_mock_state.steam_game_server_shutdown_calls = 0;
 	qlr_mock_state.steam_game_server_init_result = 1;
@@ -743,6 +891,8 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.lobby_user_invite_calls = 0;
 	qlr_mock_state.lobby_say_calls = 0;
 	qlr_mock_state.lobby_set_server_calls = 0;
+	qlr_mock_state.favorite_add_calls = 0;
+	qlr_mock_state.favorite_remove_calls = 0;
 	qlr_mock_state.user_stats_request_calls = 0;
 	qlr_mock_state.game_invite_calls = 0;
 	qlr_mock_state.lobby_create_type = 0;
@@ -759,12 +909,20 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.game_invite_target_id = 0;
 	qlr_mock_state.lobby_set_server_ip = 0;
 	qlr_mock_state.lobby_set_server_port = 0;
+	qlr_mock_state.favorite_last_app_id = 0u;
+	qlr_mock_state.favorite_last_ip = 0u;
+	qlr_mock_state.favorite_last_conn_port = 0u;
+	qlr_mock_state.favorite_last_query_port = 0u;
+	qlr_mock_state.favorite_last_flags = 0u;
+	qlr_mock_state.favorite_last_played = 0u;
 	qlr_mock_state.lobby_say_message[0] = '\0';
 	qlr_mock_state.game_invite_connect_string[0] = '\0';
 	qlr_mock_state.user_stats_request_id = 0;
 	qlr_mock_state.create_lobby_result = 1;
 	qlr_mock_state.join_lobby_result = 1;
 	qlr_mock_state.say_lobby_result = 1;
+	qlr_mock_state.favorite_add_result = 1;
+	qlr_mock_state.favorite_remove_result = qtrue;
 	qlr_mock_state.request_user_stats_result = 1;
 	qlr_mock_state.server_browser_internet_calls = 0;
 	qlr_mock_state.server_browser_lan_calls = 0;
@@ -937,6 +1095,26 @@ QLR_EXPORT void QLR_SteamworksMock_SetServerBrowserServerName( const char *name 
 
 /*
 =============
+QLR_SteamworksMock_SetServerBrowserRequestResult
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetServerBrowserRequestResult( uintptr_t request ) {
+	qlr_mock_state.server_browser_request_result = request;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetServerBrowserDetailQueryResults
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetServerBrowserDetailQueryResults( int pingQuery, int playersQuery, int rulesQuery ) {
+	qlr_mock_state.server_browser_ping_query_result = pingQuery;
+	qlr_mock_state.server_browser_players_query_result = playersQuery;
+	qlr_mock_state.server_browser_rules_query_result = rulesQuery;
+}
+
+/*
+=============
 QLR_SteamworksMock_SetLobbyOwnerId
 =============
 */
@@ -951,6 +1129,104 @@ QLR_SteamworksMock_SetLobbyChatEntryMessage
 */
 QLR_EXPORT void QLR_SteamworksMock_SetLobbyChatEntryMessage( const char *message ) {
 	Q_strncpyz( qlr_mock_state.lobby_chat_entry_message, message ? message : "", sizeof( qlr_mock_state.lobby_chat_entry_message ) );
+}
+
+/*
+=============
+QLR_SteamworksMock_SetFavoriteResults
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetFavoriteResults( int addResult, int removeResult ) {
+	qlr_mock_state.favorite_add_result = addResult;
+	qlr_mock_state.favorite_remove_result = removeResult;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetP2PResults
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetP2PResults( int sendResult, int availableResult, int readResult, int acceptResult ) {
+	qlr_mock_state.p2p_send_result = sendResult ? qtrue : qfalse;
+	qlr_mock_state.p2p_available_result = availableResult ? qtrue : qfalse;
+	qlr_mock_state.p2p_read_result = readResult ? qtrue : qfalse;
+	qlr_mock_state.p2p_accept_result = acceptResult ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetP2PReadPacket
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetP2PReadPacket( uint64_t steamId, const uint8_t *data, uint32_t length ) {
+	if ( length > sizeof( qlr_mock_state.p2p_read_data ) ) {
+		length = sizeof( qlr_mock_state.p2p_read_data );
+	}
+
+	memset( qlr_mock_state.p2p_read_data, 0, sizeof( qlr_mock_state.p2p_read_data ) );
+	if ( data && length > 0u ) {
+		memcpy( qlr_mock_state.p2p_read_data, data, length );
+	}
+	qlr_mock_state.p2p_read_length = length;
+	qlr_mock_state.p2p_available_size = length;
+	qlr_mock_state.p2p_read_steam_id = steamId;
+	qlr_mock_state.p2p_available_result = length > 0u ? qtrue : qfalse;
+	qlr_mock_state.p2p_read_result = length > 0u ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetServerP2PResults
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetServerP2PResults( int sendResult, int availableResult, int readResult, int acceptResult ) {
+	qlr_mock_state.server_p2p_send_result = sendResult ? qtrue : qfalse;
+	qlr_mock_state.server_p2p_available_result = availableResult ? qtrue : qfalse;
+	qlr_mock_state.server_p2p_read_result = readResult ? qtrue : qfalse;
+	qlr_mock_state.server_p2p_accept_result = acceptResult ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetServerP2PReadPacket
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetServerP2PReadPacket( uint64_t steamId, const uint8_t *data, uint32_t length ) {
+	if ( length > sizeof( qlr_mock_state.server_p2p_read_data ) ) {
+		length = sizeof( qlr_mock_state.server_p2p_read_data );
+	}
+
+	memset( qlr_mock_state.server_p2p_read_data, 0, sizeof( qlr_mock_state.server_p2p_read_data ) );
+	if ( data && length > 0u ) {
+		memcpy( qlr_mock_state.server_p2p_read_data, data, length );
+	}
+	qlr_mock_state.server_p2p_read_length = length;
+	qlr_mock_state.server_p2p_available_size = length;
+	qlr_mock_state.server_p2p_read_steam_id = steamId;
+	qlr_mock_state.server_p2p_available_result = length > 0u ? qtrue : qfalse;
+	qlr_mock_state.server_p2p_read_result = length > 0u ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetServerOutgoingPacket
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetServerOutgoingPacket( const uint8_t *data, int length, uint32_t ip, uint16_t port ) {
+	if ( length < 0 ) {
+		length = 0;
+	}
+	if ( length > (int)sizeof( qlr_mock_state.steam_game_server_outgoing_packet_data ) ) {
+		length = (int)sizeof( qlr_mock_state.steam_game_server_outgoing_packet_data );
+	}
+
+	memset( qlr_mock_state.steam_game_server_outgoing_packet_data, 0, sizeof( qlr_mock_state.steam_game_server_outgoing_packet_data ) );
+	if ( data && length > 0 ) {
+		memcpy( qlr_mock_state.steam_game_server_outgoing_packet_data, data, (size_t)length );
+	}
+	qlr_mock_state.steam_game_server_outgoing_packet_length = length;
+	qlr_mock_state.steam_game_server_outgoing_packet_ip = ip;
+	qlr_mock_state.steam_game_server_outgoing_packet_port = port;
 }
 
 /*
@@ -1130,6 +1406,237 @@ QLR_SteamworksMock_GetRichPresenceValue
 */
 QLR_EXPORT const char *QLR_SteamworksMock_GetRichPresenceValue( void ) {
 	return qlr_mock_state.rich_presence_value;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PSendCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PSendCalls( void ) {
+	return qlr_mock_state.p2p_send_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastSendSteamId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetP2PLastSendSteamId( void ) {
+	return qlr_mock_state.p2p_last_send_steam_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastSendLength
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetP2PLastSendLength( void ) {
+	return qlr_mock_state.p2p_last_send_length;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastSendType
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PLastSendType( void ) {
+	return qlr_mock_state.p2p_last_send_type;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastSendChannel
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PLastSendChannel( void ) {
+	return qlr_mock_state.p2p_last_send_channel;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastSendByte
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PLastSendByte( int index ) {
+	if ( index < 0 || index >= (int)qlr_mock_state.p2p_last_send_length || index >= (int)sizeof( qlr_mock_state.p2p_last_send_data ) ) {
+		return -1;
+	}
+	return qlr_mock_state.p2p_last_send_data[index];
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PAvailableCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PAvailableCalls( void ) {
+	return qlr_mock_state.p2p_available_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastAvailableChannel
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PLastAvailableChannel( void ) {
+	return qlr_mock_state.p2p_last_available_channel;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PReadCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PReadCalls( void ) {
+	return qlr_mock_state.p2p_read_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastReadChannel
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PLastReadChannel( void ) {
+	return qlr_mock_state.p2p_last_read_channel;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PAcceptCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetP2PAcceptCalls( void ) {
+	return qlr_mock_state.p2p_accept_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetP2PLastAcceptSteamId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetP2PLastAcceptSteamId( void ) {
+	return qlr_mock_state.p2p_last_accept_steam_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PSendCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PSendCalls( void ) {
+	return qlr_mock_state.server_p2p_send_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastSendSteamId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetServerP2PLastSendSteamId( void ) {
+	return qlr_mock_state.server_p2p_last_send_steam_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastSendLength
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetServerP2PLastSendLength( void ) {
+	return qlr_mock_state.server_p2p_last_send_length;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastSendType
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PLastSendType( void ) {
+	return qlr_mock_state.server_p2p_last_send_type;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastSendChannel
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PLastSendChannel( void ) {
+	return qlr_mock_state.server_p2p_last_send_channel;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastSendByte
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PLastSendByte( int index ) {
+	if ( index < 0 || index >= (int)qlr_mock_state.server_p2p_last_send_length || index >= (int)sizeof( qlr_mock_state.server_p2p_last_send_data ) ) {
+		return -1;
+	}
+	return qlr_mock_state.server_p2p_last_send_data[index];
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PAvailableCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PAvailableCalls( void ) {
+	return qlr_mock_state.server_p2p_available_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastAvailableChannel
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PLastAvailableChannel( void ) {
+	return qlr_mock_state.server_p2p_last_available_channel;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PReadCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PReadCalls( void ) {
+	return qlr_mock_state.server_p2p_read_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastReadChannel
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PLastReadChannel( void ) {
+	return qlr_mock_state.server_p2p_last_read_channel;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PAcceptCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerP2PAcceptCalls( void ) {
+	return qlr_mock_state.server_p2p_accept_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerP2PLastAcceptSteamId
+=============
+*/
+QLR_EXPORT uint64_t QLR_SteamworksMock_GetServerP2PLastAcceptSteamId( void ) {
+	return qlr_mock_state.server_p2p_last_accept_steam_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetServerOutgoingPacketCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetServerOutgoingPacketCalls( void ) {
+	return qlr_mock_state.steam_game_server_outgoing_packet_calls;
 }
 
 /*
@@ -1512,6 +2019,24 @@ QLR_EXPORT int QLR_SteamworksMock_GetLobbySetServerCalls( void ) {
 
 /*
 =============
+QLR_SteamworksMock_GetFavoriteAddCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetFavoriteAddCalls( void ) {
+	return qlr_mock_state.favorite_add_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteRemoveCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetFavoriteRemoveCalls( void ) {
+	return qlr_mock_state.favorite_remove_calls;
+}
+
+/*
+=============
 QLR_SteamworksMock_GetLobbyJoinCalls
 =============
 */
@@ -1643,6 +2168,60 @@ QLR_SteamworksMock_GetLobbySetServerPort
 */
 QLR_EXPORT uint16_t QLR_SteamworksMock_GetLobbySetServerPort( void ) {
 	return qlr_mock_state.lobby_set_server_port;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteLastAppId
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetFavoriteLastAppId( void ) {
+	return qlr_mock_state.favorite_last_app_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteLastIp
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetFavoriteLastIp( void ) {
+	return qlr_mock_state.favorite_last_ip;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteLastConnPort
+=============
+*/
+QLR_EXPORT uint16_t QLR_SteamworksMock_GetFavoriteLastConnPort( void ) {
+	return qlr_mock_state.favorite_last_conn_port;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteLastQueryPort
+=============
+*/
+QLR_EXPORT uint16_t QLR_SteamworksMock_GetFavoriteLastQueryPort( void ) {
+	return qlr_mock_state.favorite_last_query_port;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteLastFlags
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetFavoriteLastFlags( void ) {
+	return qlr_mock_state.favorite_last_flags;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetFavoriteLastPlayed
+=============
+*/
+QLR_EXPORT uint32_t QLR_SteamworksMock_GetFavoriteLastPlayed( void ) {
+	return qlr_mock_state.favorite_last_played;
 }
 
 /*
@@ -2421,6 +3000,10 @@ void *dlsym( void *handle, const char *symbol ) {
 		return QLR_SteamAPI_SteamUserStats;
 	}
 
+	if ( strcmp( symbol, "SteamAPI_SteamNetworking" ) == 0 ) {
+		return QLR_SteamAPI_SteamNetworking;
+	}
+
 	if ( strcmp( symbol, "SteamAPI_SteamMatchmaking" ) == 0 ) {
 		return QLR_SteamAPI_SteamMatchmaking;
 	}
@@ -2763,12 +3346,205 @@ QLR_SteamGameServer_GetNextOutgoingPacket
 =============
 */
 static int QLR_FASTCALL QLR_SteamGameServer_GetNextOutgoingPacket( void *self, void *data, int dataSize, uint32_t *outIp, uint16_t *outPort ) {
+	int length;
+
 	(void)self;
-	(void)data;
-	(void)dataSize;
-	(void)outIp;
-	(void)outPort;
-	return 0;
+
+	qlr_mock_state.steam_game_server_outgoing_packet_calls++;
+
+	if ( outIp ) {
+		*outIp = 0u;
+	}
+	if ( outPort ) {
+		*outPort = 0u;
+	}
+
+	length = qlr_mock_state.steam_game_server_outgoing_packet_length;
+	if ( !data || dataSize <= 0 || !outIp || !outPort || length <= 0 || dataSize < length ) {
+		return 0;
+	}
+
+	memcpy( data, qlr_mock_state.steam_game_server_outgoing_packet_data, (size_t)length );
+	*outIp = qlr_mock_state.steam_game_server_outgoing_packet_ip;
+	*outPort = qlr_mock_state.steam_game_server_outgoing_packet_port;
+	qlr_mock_state.steam_game_server_outgoing_packet_length = 0;
+	return length;
+}
+
+/*
+=============
+QLR_SteamNetworking_SendP2PPacket
+=============
+*/
+static qboolean QLR_SteamNetworking_SendP2PPacket( void *self, CSteamID steamId, const void *data, uint32_t length, int sendType, int channel ) {
+	uint32_t copiedLength;
+
+	(void)self;
+
+	qlr_mock_state.p2p_send_calls++;
+	qlr_mock_state.p2p_last_send_steam_id = steamId.value;
+	qlr_mock_state.p2p_last_send_type = sendType;
+	qlr_mock_state.p2p_last_send_channel = channel;
+
+	copiedLength = length;
+	if ( copiedLength > sizeof( qlr_mock_state.p2p_last_send_data ) ) {
+		copiedLength = sizeof( qlr_mock_state.p2p_last_send_data );
+	}
+
+	memset( qlr_mock_state.p2p_last_send_data, 0, sizeof( qlr_mock_state.p2p_last_send_data ) );
+	if ( data && copiedLength > 0u ) {
+		memcpy( qlr_mock_state.p2p_last_send_data, data, copiedLength );
+	}
+	qlr_mock_state.p2p_last_send_length = copiedLength;
+
+	return data && length > 0u && qlr_mock_state.p2p_send_result ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamNetworking_IsP2PPacketAvailable
+=============
+*/
+static qboolean QLR_SteamNetworking_IsP2PPacketAvailable( void *self, uint32_t *outSize, int channel ) {
+	(void)self;
+
+	qlr_mock_state.p2p_available_calls++;
+	qlr_mock_state.p2p_last_available_channel = channel;
+
+	if ( outSize ) {
+		*outSize = qlr_mock_state.p2p_available_result ? qlr_mock_state.p2p_available_size : 0u;
+	}
+
+	return outSize && qlr_mock_state.p2p_available_result ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamNetworking_ReadP2PPacket
+=============
+*/
+static qboolean QLR_SteamNetworking_ReadP2PPacket( void *self, void *data, uint32_t dataSize, uint32_t *outSize, CSteamID *outSteamId, int channel ) {
+	(void)self;
+
+	qlr_mock_state.p2p_read_calls++;
+	qlr_mock_state.p2p_last_read_channel = channel;
+
+	if ( outSize ) {
+		*outSize = 0u;
+	}
+	if ( outSteamId ) {
+		outSteamId->value = 0ull;
+	}
+
+	if ( !data || !outSize || !outSteamId || !qlr_mock_state.p2p_read_result || dataSize < qlr_mock_state.p2p_read_length ) {
+		return qfalse;
+	}
+
+	memcpy( data, qlr_mock_state.p2p_read_data, qlr_mock_state.p2p_read_length );
+	*outSize = qlr_mock_state.p2p_read_length;
+	outSteamId->value = qlr_mock_state.p2p_read_steam_id;
+	return qtrue;
+}
+
+/*
+=============
+QLR_SteamNetworking_AcceptP2PSessionWithUser
+=============
+*/
+static qboolean QLR_SteamNetworking_AcceptP2PSessionWithUser( void *self, CSteamID steamId ) {
+	(void)self;
+
+	qlr_mock_state.p2p_accept_calls++;
+	qlr_mock_state.p2p_last_accept_steam_id = steamId.value;
+	return qlr_mock_state.p2p_accept_result ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamGameServerNetworking_SendP2PPacket
+=============
+*/
+static qboolean QLR_SteamGameServerNetworking_SendP2PPacket( void *self, CSteamID steamId, const void *data, uint32_t length, int sendType, int channel ) {
+	uint32_t copiedLength;
+
+	(void)self;
+
+	qlr_mock_state.server_p2p_send_calls++;
+	qlr_mock_state.server_p2p_last_send_steam_id = steamId.value;
+	qlr_mock_state.server_p2p_last_send_type = sendType;
+	qlr_mock_state.server_p2p_last_send_channel = channel;
+
+	copiedLength = length;
+	if ( copiedLength > sizeof( qlr_mock_state.server_p2p_last_send_data ) ) {
+		copiedLength = sizeof( qlr_mock_state.server_p2p_last_send_data );
+	}
+
+	memset( qlr_mock_state.server_p2p_last_send_data, 0, sizeof( qlr_mock_state.server_p2p_last_send_data ) );
+	if ( data && copiedLength > 0u ) {
+		memcpy( qlr_mock_state.server_p2p_last_send_data, data, copiedLength );
+	}
+	qlr_mock_state.server_p2p_last_send_length = copiedLength;
+
+	return data && length > 0u && qlr_mock_state.server_p2p_send_result ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamGameServerNetworking_IsP2PPacketAvailable
+=============
+*/
+static qboolean QLR_SteamGameServerNetworking_IsP2PPacketAvailable( void *self, uint32_t *outSize, int channel ) {
+	(void)self;
+
+	qlr_mock_state.server_p2p_available_calls++;
+	qlr_mock_state.server_p2p_last_available_channel = channel;
+
+	if ( outSize ) {
+		*outSize = qlr_mock_state.server_p2p_available_result ? qlr_mock_state.server_p2p_available_size : 0u;
+	}
+
+	return outSize && qlr_mock_state.server_p2p_available_result ? qtrue : qfalse;
+}
+
+/*
+=============
+QLR_SteamGameServerNetworking_ReadP2PPacket
+=============
+*/
+static qboolean QLR_SteamGameServerNetworking_ReadP2PPacket( void *self, void *data, uint32_t dataSize, uint32_t *outSize, CSteamID *outSteamId, int channel ) {
+	(void)self;
+
+	qlr_mock_state.server_p2p_read_calls++;
+	qlr_mock_state.server_p2p_last_read_channel = channel;
+
+	if ( outSize ) {
+		*outSize = 0u;
+	}
+	if ( outSteamId ) {
+		outSteamId->value = 0ull;
+	}
+
+	if ( !data || !outSize || !outSteamId || !qlr_mock_state.server_p2p_read_result || dataSize < qlr_mock_state.server_p2p_read_length ) {
+		return qfalse;
+	}
+
+	memcpy( data, qlr_mock_state.server_p2p_read_data, qlr_mock_state.server_p2p_read_length );
+	*outSize = qlr_mock_state.server_p2p_read_length;
+	outSteamId->value = qlr_mock_state.server_p2p_read_steam_id;
+	return qtrue;
+}
+
+/*
+=============
+QLR_SteamGameServerNetworking_AcceptP2PSessionWithUser
+=============
+*/
+static qboolean QLR_SteamGameServerNetworking_AcceptP2PSessionWithUser( void *self, CSteamID steamId ) {
+	(void)self;
+
+	qlr_mock_state.server_p2p_accept_calls++;
+	qlr_mock_state.server_p2p_last_accept_steam_id = steamId.value;
+	return qlr_mock_state.server_p2p_accept_result ? qtrue : qfalse;
 }
 
 /*
@@ -3262,6 +4038,44 @@ static uint64_t QLR_FASTCALL QLR_SteamMatchmaking_CreateLobby( void *self, void 
 	qlr_mock_state.lobby_create_type = lobbyType;
 	qlr_mock_state.lobby_create_max_members = maxMembers;
 	return qlr_mock_state.create_lobby_result;
+}
+
+/*
+=============
+QLR_SteamMatchmaking_AddFavoriteGame
+=============
+*/
+static int QLR_FASTCALL QLR_SteamMatchmaking_AddFavoriteGame( void *self, void *unused, uint32_t appId, uint32_t serverIp, uint16_t connPort, uint16_t queryPort, uint32_t flags, uint32_t lastPlayedOnServer ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.favorite_add_calls++;
+	qlr_mock_state.favorite_last_app_id = appId;
+	qlr_mock_state.favorite_last_ip = serverIp;
+	qlr_mock_state.favorite_last_conn_port = connPort;
+	qlr_mock_state.favorite_last_query_port = queryPort;
+	qlr_mock_state.favorite_last_flags = flags;
+	qlr_mock_state.favorite_last_played = lastPlayedOnServer;
+	return qlr_mock_state.favorite_add_result;
+}
+
+/*
+=============
+QLR_SteamMatchmaking_RemoveFavoriteGame
+=============
+*/
+static qboolean QLR_FASTCALL QLR_SteamMatchmaking_RemoveFavoriteGame( void *self, void *unused, uint32_t appId, uint32_t serverIp, uint16_t connPort, uint16_t queryPort, uint32_t flags ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.favorite_remove_calls++;
+	qlr_mock_state.favorite_last_app_id = appId;
+	qlr_mock_state.favorite_last_ip = serverIp;
+	qlr_mock_state.favorite_last_conn_port = connPort;
+	qlr_mock_state.favorite_last_query_port = queryPort;
+	qlr_mock_state.favorite_last_flags = flags;
+	qlr_mock_state.favorite_last_played = 0u;
+	return qlr_mock_state.favorite_remove_result ? qtrue : qfalse;
 }
 
 /*
@@ -3951,6 +4765,22 @@ void *QLR_SteamAPI_SteamUserStats( void ) {
 
 /*
 =============
+QLR_SteamAPI_SteamNetworking
+=============
+*/
+void *QLR_SteamAPI_SteamNetworking( void ) {
+	static void *vtable[0x0c / 4 + 1];
+	static qlr_steamworks_mock_interface_t iface = { vtable };
+
+	vtable[0x00 / 4] = QLR_SteamNetworking_SendP2PPacket;
+	vtable[0x04 / 4] = QLR_SteamNetworking_IsP2PPacketAvailable;
+	vtable[0x08 / 4] = QLR_SteamNetworking_ReadP2PPacket;
+	vtable[0x0c / 4] = QLR_SteamNetworking_AcceptP2PSessionWithUser;
+	return &iface;
+}
+
+/*
+=============
 QLR_SteamAPI_SteamMatchmaking
 =============
 */
@@ -3958,6 +4788,8 @@ void *QLR_SteamAPI_SteamMatchmaking( void ) {
 	static void *vtable[0x8c / 4 + 1];
 	static qlr_steamworks_mock_interface_t iface = { vtable };
 
+	vtable[0x08 / 4] = QLR_SteamMatchmaking_AddFavoriteGame;
+	vtable[0x0c / 4] = QLR_SteamMatchmaking_RemoveFavoriteGame;
 	vtable[0x34 / 4] = QLR_SteamMatchmaking_CreateLobby;
 	vtable[0x3c / 4] = QLR_SteamMatchmaking_LeaveLobby;
 	vtable[0x38 / 4] = QLR_SteamMatchmaking_JoinLobby;
@@ -4029,7 +4861,14 @@ QLR_SteamAPI_SteamGameServerNetworking
 =============
 */
 void *QLR_SteamAPI_SteamGameServerNetworking( void ) {
-	return NULL;
+	static void *vtable[0x0c / 4 + 1];
+	static qlr_steamworks_mock_interface_t iface = { vtable };
+
+	vtable[0x00 / 4] = QLR_SteamGameServerNetworking_SendP2PPacket;
+	vtable[0x04 / 4] = QLR_SteamGameServerNetworking_IsP2PPacketAvailable;
+	vtable[0x08 / 4] = QLR_SteamGameServerNetworking_ReadP2PPacket;
+	vtable[0x0c / 4] = QLR_SteamGameServerNetworking_AcceptP2PSessionWithUser;
+	return &iface;
 }
 
 /*
@@ -4167,6 +5006,7 @@ QLR_EXPORT void QLR_SteamworksMock_PrimeState( void ) {
 	state.SteamFriends = QLR_SteamAPI_SteamFriends;
 	state.SteamUtils = QLR_SteamAPI_SteamUtils;
 	state.SteamUserStats = QLR_SteamAPI_SteamUserStats;
+	state.SteamNetworking = QLR_SteamAPI_SteamNetworking;
 	state.SteamMatchmaking = QLR_SteamAPI_SteamMatchmaking;
 	state.SteamMatchmakingServers = QLR_SteamAPI_SteamMatchmakingServers;
 	state.SteamUGC = QLR_SteamAPI_SteamUGC;
@@ -4964,6 +5804,15 @@ QLR_EXPORT qboolean QLR_Steamworks_ReadServerBrowserResponse( uintptr_t request,
 
 /*
 =============
+QLR_Steamworks_ReadServerBrowserPingResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadServerBrowserPingResponse( ql_steam_server_browser_response_t *outResponse ) {
+	return QL_Steamworks_ReadServerBrowserPingResponse( &qlr_mock_state.server_browser_details, outResponse );
+}
+
+/*
+=============
 QLR_Steamworks_FormatServerBrowserFailureEventName
 =============
 */
@@ -5168,6 +6017,15 @@ QLR_Steamworks_CreateLobby
 */
 QLR_EXPORT qboolean QLR_Steamworks_CreateLobby( int maxMembers ) {
 	return QL_Steamworks_CreateLobby( maxMembers );
+}
+
+/*
+=============
+QLR_Steamworks_SetFavoriteServer
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add ) {
+	return QL_Steamworks_SetFavoriteServer( serverIp, serverPort, add );
 }
 
 /*
@@ -5499,6 +6357,123 @@ QLR_EXPORT uint32_t QLR_Steamworks_ServerGetPublicIP( void ) {
 
 /*
 =============
+QLR_Steamworks_SendP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_SendP2PPacket( uint64_t steamIdValue, const uint8_t *data, uint32_t length, int sendType, int channel ) {
+	CSteamID steamId;
+
+	steamId.value = steamIdValue;
+	return QL_Steamworks_SendP2PPacket( &steamId, data, length, sendType, channel );
+}
+
+/*
+=============
+QLR_Steamworks_IsP2PPacketAvailable
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_IsP2PPacketAvailable( uint32_t *outSize, int channel ) {
+	return QL_Steamworks_IsP2PPacketAvailable( outSize, channel );
+}
+
+/*
+=============
+QLR_Steamworks_ReadP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadP2PPacket( uint8_t *data, uint32_t dataSize, uint32_t *outSize, uint64_t *outSteamIdValue, int channel ) {
+	CSteamID steamId;
+	qboolean result;
+
+	if ( outSteamIdValue ) {
+		*outSteamIdValue = 0ull;
+	}
+
+	steamId.value = 0ull;
+	result = QL_Steamworks_ReadP2PPacket( data, dataSize, outSize, &steamId, channel );
+	if ( result && outSteamIdValue ) {
+		*outSteamIdValue = steamId.value;
+	}
+	return result;
+}
+
+/*
+=============
+QLR_Steamworks_AcceptP2PSession
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_AcceptP2PSession( uint64_t steamIdValue ) {
+	CSteamID steamId;
+
+	steamId.value = steamIdValue;
+	return QL_Steamworks_AcceptP2PSession( &steamId );
+}
+
+/*
+=============
+QLR_Steamworks_ServerSendP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerSendP2PPacket( uint64_t steamIdValue, const uint8_t *data, uint32_t length, int sendType, int channel ) {
+	CSteamID steamId;
+
+	steamId.value = steamIdValue;
+	return QL_Steamworks_ServerSendP2PPacket( &steamId, data, length, sendType, channel );
+}
+
+/*
+=============
+QLR_Steamworks_ServerIsP2PPacketAvailable
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerIsP2PPacketAvailable( uint32_t *outSize, int channel ) {
+	return QL_Steamworks_ServerIsP2PPacketAvailable( outSize, channel );
+}
+
+/*
+=============
+QLR_Steamworks_ServerReadP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerReadP2PPacket( uint8_t *data, uint32_t dataSize, uint32_t *outSize, uint64_t *outSteamIdValue, int channel ) {
+	CSteamID steamId;
+	qboolean result;
+
+	if ( outSteamIdValue ) {
+		*outSteamIdValue = 0ull;
+	}
+
+	steamId.value = 0ull;
+	result = QL_Steamworks_ServerReadP2PPacket( data, dataSize, outSize, &steamId, channel );
+	if ( result && outSteamIdValue ) {
+		*outSteamIdValue = steamId.value;
+	}
+	return result;
+}
+
+/*
+=============
+QLR_Steamworks_ServerGetNextOutgoingPacket
+=============
+*/
+QLR_EXPORT int QLR_Steamworks_ServerGetNextOutgoingPacket( uint8_t *data, int dataSize, uint32_t *outIp, uint16_t *outPort ) {
+	return QL_Steamworks_ServerGetNextOutgoingPacket( data, dataSize, outIp, outPort );
+}
+
+/*
+=============
+QLR_Steamworks_ServerAcceptP2PSession
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerAcceptP2PSession( uint64_t steamIdValue ) {
+	CSteamID steamId;
+
+	steamId.value = steamIdValue;
+	return QL_Steamworks_ServerAcceptP2PSession( &steamId );
+}
+
+/*
+=============
 QLR_Steamworks_Shutdown
 =============
 */
@@ -5750,6 +6725,15 @@ QLR_EXPORT qboolean QLR_Steamworks_ReadServerBrowserResponse( uintptr_t request,
 
 /*
 =============
+QLR_Steamworks_ReadServerBrowserPingResponse
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadServerBrowserPingResponse( ql_steam_server_browser_response_t *outResponse ) {
+	return QL_Steamworks_ReadServerBrowserPingResponse( NULL, outResponse );
+}
+
+/*
+=============
 QLR_Steamworks_FormatServerBrowserFailureEventName
 =============
 */
@@ -5940,6 +6924,18 @@ QLR_Steamworks_CreateLobby
 */
 QLR_EXPORT qboolean QLR_Steamworks_CreateLobby( int maxMembers ) {
 	(void)maxMembers;
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_SetFavoriteServer
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add ) {
+	(void)serverIp;
+	(void)serverPort;
+	(void)add;
 	return qfalse;
 }
 
@@ -6449,6 +7445,133 @@ QLR_Steamworks_ServerGetPublicIP
 */
 QLR_EXPORT uint32_t QLR_Steamworks_ServerGetPublicIP( void ) {
 	return 0u;
+}
+
+/*
+=============
+QLR_Steamworks_SendP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_SendP2PPacket( uint64_t steamIdValue, const uint8_t *data, uint32_t length, int sendType, int channel ) {
+	(void)steamIdValue;
+	(void)data;
+	(void)length;
+	(void)sendType;
+	(void)channel;
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_IsP2PPacketAvailable
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_IsP2PPacketAvailable( uint32_t *outSize, int channel ) {
+	(void)channel;
+	if ( outSize ) {
+		*outSize = 0u;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ReadP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ReadP2PPacket( uint8_t *data, uint32_t dataSize, uint32_t *outSize, uint64_t *outSteamIdValue, int channel ) {
+	(void)data;
+	(void)dataSize;
+	(void)channel;
+	if ( outSize ) {
+		*outSize = 0u;
+	}
+	if ( outSteamIdValue ) {
+		*outSteamIdValue = 0ull;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_AcceptP2PSession
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_AcceptP2PSession( uint64_t steamIdValue ) {
+	(void)steamIdValue;
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ServerSendP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerSendP2PPacket( uint64_t steamIdValue, const uint8_t *data, uint32_t length, int sendType, int channel ) {
+	(void)steamIdValue;
+	(void)data;
+	(void)length;
+	(void)sendType;
+	(void)channel;
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ServerIsP2PPacketAvailable
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerIsP2PPacketAvailable( uint32_t *outSize, int channel ) {
+	(void)channel;
+	if ( outSize ) {
+		*outSize = 0u;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ServerReadP2PPacket
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerReadP2PPacket( uint8_t *data, uint32_t dataSize, uint32_t *outSize, uint64_t *outSteamIdValue, int channel ) {
+	(void)data;
+	(void)dataSize;
+	(void)channel;
+	if ( outSize ) {
+		*outSize = 0u;
+	}
+	if ( outSteamIdValue ) {
+		*outSteamIdValue = 0ull;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ServerGetNextOutgoingPacket
+=============
+*/
+QLR_EXPORT int QLR_Steamworks_ServerGetNextOutgoingPacket( uint8_t *data, int dataSize, uint32_t *outIp, uint16_t *outPort ) {
+	(void)data;
+	(void)dataSize;
+	if ( outIp ) {
+		*outIp = 0u;
+	}
+	if ( outPort ) {
+		*outPort = 0u;
+	}
+	return 0;
+}
+
+/*
+=============
+QLR_Steamworks_ServerAcceptP2PSession
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerAcceptP2PSession( uint64_t steamIdValue ) {
+	(void)steamIdValue;
+	return qfalse;
 }
 
 /*

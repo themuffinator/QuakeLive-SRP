@@ -622,6 +622,8 @@ qboolean QL_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t 
 
 qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t request, int index, ql_steam_server_browser_response_t *outResponse );
 
+qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse );
+
 void QL_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize );
 
 qboolean QL_Steamworks_BuildServerBrowserFailure( int serverIndex, ql_steam_server_browser_failure_t *outFailure );
@@ -1943,6 +1945,19 @@ QL_Steamworks_ReadServerBrowserResponse
 static inline qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t request, int index, ql_steam_server_browser_response_t *outResponse ) {
 	(void)request;
 	(void)index;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerBrowserPingResponse
+=============
+*/
+static inline qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse ) {
+	(void)serverDetails;
 	if ( outResponse ) {
 		memset( outResponse, 0, sizeof( *outResponse ) );
 	}

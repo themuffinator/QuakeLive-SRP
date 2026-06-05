@@ -762,6 +762,9 @@ def test_awesomium_browser_host_verifier_covers_closed_gap_anchors() -> None:
 		"0x00463440u",
 		"image/png",
 		"request_%i",
+		"ui_resourceBridgeSteamDataSourceSubset",
+		"ui_resourceBridgeSteamDataSourceNativeGap",
+		"ui_resourceBridgeSteamDataSourceFallbackOwner",
 		"ui_resourceBridgeSteamDataSourceMappings",
 		"ui_resourceBridgeResponseThreadMappings",
 		"QLDialogHandler_OnShowFileChooser",
@@ -909,6 +912,9 @@ def test_awesomium_steam_data_source_retail_wiring_is_source_visible() -> None:
 
 	assert "for ( i = 0; cl_steamDataSourceRetailMappings[i].retailOwner; i++ ) {" in count_block
 	assert "cl_steamDataSourceRetailMappings[i].retailAddress != 0u" in count_block
+	assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceSubset", CL_GetSteamDataSourceSubsetLabel() );' in refresh_block
+	assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceNativeGap", CL_GetSteamDataSourceNativeGapLabel() );' in refresh_block
+	assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceFallbackOwner", CL_GetSteamDataSourceFallbackOwnerLabel() );' in refresh_block
 	assert 'Cvar_Set( "ui_resourceBridgeSteamDataSourceMappings", va( "%i", CL_CountSteamDataSourceRetailMappings() ) );' in refresh_block
 
 

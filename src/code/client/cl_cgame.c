@@ -5635,13 +5635,18 @@ static qboolean CL_WebHost_MirrorFavoriteServer( uint32_t ip, uint16_t port, qbo
 CL_WebHost_SetFavoriteServer
 
 Mirrors the retail browser favorite-game owner through Steam matchmaking while
-keeping the local favorites cache in sync until the deeper favorites browser
-backend is reconstructed in source.
+keeping the local favorites cache in sync as an explicit compatibility
+fallback when the opted-in Steam provider cannot update favorites.
 =============
 */
 static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add ) {
 	if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServer( ip, port, add ) ) {
-		return qfalse;
+		Com_DPrintf(
+			"Steam favorite server %s failed for %u:%u; using local favorites cache fallback\n",
+			add ? "add" : "remove",
+			(unsigned int)ip,
+			(unsigned int)port
+		);
 	}
 
 	return CL_WebHost_MirrorFavoriteServer( ip, port, add );

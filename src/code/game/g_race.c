@@ -108,11 +108,9 @@ static void G_RaceBuildInfoCommand( const gclient_t *client, char *buffer, size_
 		active = client->raceState.active ? 1 : 0;
 		startTime = client->raceState.startTime;
 		lastFinishTime = client->raceState.lastFinishTime;
-		if ( client->raceState.active ) {
-			checkpointCount = G_RaceCheckpointCount( client );
-			currentCheckpointEntityNum = G_RacePointEntityNum( client->raceState.currentPoint );
-			nextCheckpointEntityNum = G_RacePointEntityNum( client->raceState.nextPoint );
-		}
+		checkpointCount = G_RaceCheckpointCount( client );
+		currentCheckpointEntityNum = G_RacePointEntityNum( client->raceState.currentPoint );
+		nextCheckpointEntityNum = G_RacePointEntityNum( client->raceState.nextPoint );
 	}
 
 	Com_sprintf( buffer, bufferSize, "race_info %i %i %i %i %i %i",
@@ -339,6 +337,38 @@ static void G_RaceClearClientRunState( gclient_t *client ) {
 
 /*
 =============
+G_RaceAbortClientRunState
+
+Stops the active Race attempt without discarding the timing fields retail leaves intact.
+=============
+*/
+static void G_RaceAbortClientRunState( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	client->raceState.active = qfalse;
+	client->raceState.currentPoint = NULL;
+	client->raceState.nextPoint = NULL;
+}
+
+/*
+=============
+G_RaceSyncScore
+
+Mirrors the Race personal-best sentinel into the retail player score slot.
+=============
+*/
+static void G_RaceSyncScore( gclient_t *client ) {
+	if ( !client ) {
+		return;
+	}
+
+	client->ps.persistant[PERS_SCORE] = client->raceState.bestTime;
+}
+
+/*
+=============
 Cmd_RaceInit_f
 
 Clears the invoking client's in-progress race state without rebuilding level metadata.
@@ -349,7 +379,7 @@ void Cmd_RaceInit_f( gentity_t *ent ) {
 		return;
 	}
 
-	G_RaceClearClientRunState( ent->client );
+	G_RaceAbortClientRunState( ent->client );
 }
 
 /*
@@ -364,51 +394,49 @@ static void G_RaceResetClient( gclient_t *client ) {
 		return;
 	}
 
-	if ( !client->raceState.initialized ) {
-		client->raceState.initialized = qtrue;
-		client->raceState.bestTime = RACE_INVALID_TIME;
-		client->raceState.lastFinishTime = -1;
-		memset( client->raceState.bestSplits, 0, sizeof( client->raceState.bestSplits ) );
-	}
+	client->raceState.initialized = qtrue;
+	client->raceState.bestTime = RACE_INVALID_TIME;
+	client->raceState.lastFinishTime = -1;
+	memset( client->raceState.bestSplits, 0, sizeof( client->raceState.bestSplits ) );
 
+	G_RaceSyncScore( client );
 	G_RaceClearClientRunState( client );
 }
 
 /*
 =============
-G_RaceCompareClients
+G_RaceScoreboardPing
 
-qsort comparator used for building the race scoreboard.
+Returns the retail Race scoreboard ping column for one client.
 =============
 */
-static int G_RaceCompareClients( const void *a, const void *b ) {
-	const int left = *(const int *)a;
-	const int right = *(const int *)b;
-	const gclient_t *leftClient = &level.clients[left];
-	const gclient_t *rightClient = &level.clients[right];
-	int leftTime;
-	int rightTime;
-
-	leftTime = leftClient->raceState.bestTime;
-	rightTime = rightClient->raceState.bestTime;
-
-	if ( leftTime == RACE_INVALID_TIME && rightTime == RACE_INVALID_TIME ) {
-		return left - right;
-	}
-
-	if ( leftTime == RACE_INVALID_TIME ) {
-		return 1;
-	}
-
-	if ( rightTime == RACE_INVALID_TIME ) {
+static int G_RaceScoreboardPing( const gclient_t *client ) {
+	if ( !client ) {
 		return -1;
 	}
-
-	if ( leftTime != rightTime ) {
-		return leftTime - rightTime;
+	if ( client->pers.connected == CON_CONNECTING ) {
+		return -1;
+	}
+	if ( client->ps.ping >= 999 ) {
+		return 999;
 	}
 
-	return left - right;
+	return client->ps.ping;
+}
+
+/*
+=============
+G_RaceScoreboardSessionSeconds
+
+Returns the retail Race scoreboard session-time column for one client.
+=============
+*/
+static int G_RaceScoreboardSessionSeconds( const gclient_t *client ) {
+	if ( !client ) {
+		return 0;
+	}
+
+	return ( level.time - client->pers.enterTime ) / 1000;
 }
 
 /*
@@ -421,35 +449,29 @@ Regenerates the race scoreboard command and updates the configstring.
 static void G_RaceBuildScoreString( void ) {
 	char buffer[MAX_STRING_CHARS];
 	char entry[64];
-	int indices[MAX_CLIENTS];
 	int count;
 	int i;
 
 	buffer[0] = '\0';
-	count = 0;
-
-	for ( i = 0; i < level.maxclients; ++i ) {
-		if ( level.clients[i].pers.connected != CON_CONNECTED ) {
-			continue;
-		}
-		indices[count++] = i;
-	}
-
-	if ( count > 1 ) {
-		qsort( indices, count, sizeof( indices[0] ), G_RaceCompareClients );
-	}
+	count = level.numPlayingClients;
 
 	for ( i = 0; i < count; ++i ) {
 		gclient_t *client;
+		int clientNum;
 		int bestTime;
-		int lastTime;
-		int currentElapsed;
+		int ping;
+		int sessionSeconds;
 
-		client = &level.clients[indices[i]];
-		bestTime = ( client->raceState.bestTime == RACE_INVALID_TIME ) ? -1 : client->raceState.bestTime;
-		lastTime = client->raceState.lastFinishTime;
-		currentElapsed = client->raceState.active ? ( level.time - client->raceState.startTime ) : -1;
-		Com_sprintf( entry, sizeof( entry ), " %i %i %i %i", indices[i], bestTime, lastTime, currentElapsed );
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+
+		client = &level.clients[clientNum];
+		bestTime = ( client->ps.persistant[PERS_SCORE] == RACE_INVALID_TIME ) ? -1 : client->ps.persistant[PERS_SCORE];
+		ping = G_RaceScoreboardPing( client );
+		sessionSeconds = G_RaceScoreboardSessionSeconds( client );
+		Com_sprintf( entry, sizeof( entry ), " %i %i %i %i", clientNum, bestTime, ping, sessionSeconds );
 		if ( strlen( buffer ) + strlen( entry ) >= sizeof( buffer ) ) {
 			break;
 		}
@@ -479,11 +501,11 @@ static gclient_t *G_RaceFindLeader( void ) {
 			continue;
 		}
 
-		if ( client->raceState.bestTime == RACE_INVALID_TIME ) {
+		if ( client->ps.persistant[PERS_SCORE] == RACE_INVALID_TIME ) {
 			continue;
 		}
 
-		if ( !leader || client->raceState.bestTime < leader->raceState.bestTime ) {
+		if ( !leader || client->ps.persistant[PERS_SCORE] < leader->ps.persistant[PERS_SCORE] ) {
 			leader = client;
 		}
 	}
@@ -507,7 +529,7 @@ static void G_RaceUpdateInfoConfigString( void ) {
 	buffer[0] = '\0';
 	leader = G_RaceFindLeader();
 
-	if ( leader && leader->raceState.bestTime != RACE_INVALID_TIME ) {
+	if ( leader && leader->ps.persistant[PERS_SCORE] != RACE_INVALID_TIME ) {
 		for ( i = 0; i < level.racePointCount && i < MAX_RACE_POINTS; ++i ) {
 			int split = leader->raceState.bestSplits[i];
 
@@ -543,18 +565,15 @@ Returns the number of cleared checkpoints for the current run.
 =============
 */
 static int G_RaceCheckpointCount( const gclient_t *client ) {
-	int	checkpointCount;
-
 	if ( !client ) {
 		return 0;
 	}
 
-	checkpointCount = client->raceState.nextCheckpoint - 1;
-	if ( checkpointCount < 0 ) {
-		checkpointCount = 0;
+	if ( client->raceState.nextCheckpoint < 0 ) {
+		return 0;
 	}
 
-	return checkpointCount;
+	return client->raceState.nextCheckpoint;
 }
 
 /*
@@ -576,8 +595,8 @@ static gentity_t *G_RacePickPointTarget( const gentity_t *point ) {
 =============
 G_RacePointIsStart
 
-Treats the first registered point as a valid start while preserving the retail
-targetname-free start-point behavior for authored maps.
+Uses the retail targetname-free start-point predicate, while keeping
+command-spawned first points playable through the admin `arp*` chain.
 =============
 */
 static qboolean G_RacePointIsStart( const gentity_t *point ) {
@@ -585,11 +604,15 @@ static qboolean G_RacePointIsStart( const gentity_t *point ) {
 		return qfalse;
 	}
 
-	if ( point->racePointIndex == 0 ) {
+	if ( !point->targetname || !point->targetname[0] ) {
 		return qtrue;
 	}
 
-	return ( qboolean )( !point->targetname || !point->targetname[0] );
+	if ( point->racePointAdminSpawned && point->racePointIndex == 0 ) {
+		return qtrue;
+	}
+
+	return qfalse;
 }
 
 /*
@@ -726,10 +749,9 @@ static void G_RaceStartRun( gentity_t *point, gentity_t *player ) {
 	G_RaceClearClientRunState( client );
 	client->raceState.active = qtrue;
 	client->raceState.startTime = level.time;
-	client->raceState.nextCheckpoint = 1;
+	client->raceState.nextCheckpoint = 0;
 	client->raceState.currentPoint = currentPoint;
 	client->raceState.nextPoint = G_RacePickPointTarget( currentPoint );
-	client->raceState.currentSplits[0] = 0;
 	G_RaceEmitStartEvent( player );
 }
 
@@ -750,9 +772,34 @@ static void G_RaceAnnounceFinish( gentity_t *player, int elapsed, qboolean perso
 	}
 
 	G_RaceFormatMilliseconds( elapsed, timeBuffer, sizeof( timeBuffer ) );
-	format = personalBest ? "^1Personal best! ^7%s^7 finished the race in %s\n" : "%s finished the race in %s\n";
+	format = personalBest ? "^1Personal best! ^7%s^7 finished the race in in %s\n" : "%s^7 finished the race in %s\n";
 	Com_sprintf( message, sizeof( message ), format, player->client->pers.netname, timeBuffer );
 	trap_SendServerCommand( -1, va( "print \"%s\"", message ) );
+}
+
+/*
+=============
+G_RaceResolveUniqueFinishTime
+
+Matches retail's rank-table guard that nudges duplicate Race finish times.
+=============
+*/
+static int G_RaceResolveUniqueFinishTime( int elapsed ) {
+	int	i;
+
+	for ( i = 0; i < level.numPlayingClients; i++ ) {
+		int		clientNum;
+
+		clientNum = level.sortedClients[i];
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			continue;
+		}
+		if ( elapsed == level.clients[clientNum].ps.persistant[PERS_SCORE] ) {
+			elapsed++;
+		}
+	}
+
+	return elapsed;
 }
 
 /*
@@ -777,18 +824,16 @@ static void G_RaceFinishRun( gentity_t *point, gentity_t *player, int elapsed ) 
 		return;
 	}
 
-	if ( client->raceState.nextCheckpoint >= 0 && client->raceState.nextCheckpoint < MAX_RACE_POINTS ) {
-		client->raceState.currentSplits[client->raceState.nextCheckpoint] = elapsed;
-	}
-
+	elapsed = G_RaceResolveUniqueFinishTime( elapsed );
 	client->raceState.lastFinishTime = elapsed;
 	leader = G_RaceFindLeader();
 	personalBest = ( client->raceState.bestTime == RACE_INVALID_TIME || elapsed < client->raceState.bestTime );
-	newHighScore = ( leader == NULL || elapsed < leader->raceState.bestTime ) ? qtrue : qfalse;
+	newHighScore = ( leader == NULL || elapsed < leader->ps.persistant[PERS_SCORE] ) ? qtrue : qfalse;
 
 	if ( personalBest ) {
 		client->raceState.bestTime = elapsed;
 		memcpy( client->raceState.bestSplits, client->raceState.currentSplits, sizeof( client->raceState.bestSplits ) );
+		G_RaceSyncScore( client );
 	}
 
 	if ( newHighScore ) {
@@ -798,6 +843,7 @@ static void G_RaceFinishRun( gentity_t *point, gentity_t *player, int elapsed ) 
 	G_RaceAnnounceFinish( player, elapsed, personalBest );
 	G_RankSendPlayerRaceComplete( player, elapsed );
 	G_RaceClearClientRunState( client );
+	CalculateRanks();
 	G_RaceUpdateConfigstrings();
 }
 
@@ -857,6 +903,10 @@ Entry point invoked when a race checkpoint is touched by an entity.
 */
 void G_RaceHandlePointTouch( gentity_t *point, gentity_t *player ) {
 	if ( g_gametype.integer != GT_RACE || !point || !player || !player->client ) {
+		return;
+	}
+
+	if ( level.intermissiontime ) {
 		return;
 	}
 

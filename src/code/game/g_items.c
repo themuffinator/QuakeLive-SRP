@@ -2764,7 +2764,7 @@ void G_CheckTeamItems( void ) {
 	// Set up team stuff
 	Team_InitGame();
 
-	if( g_gametype.integer == GT_CTF ) {
+	if( g_gametype.integer == GT_CTF || g_gametype.integer == GT_ATTACK_DEFEND ) {
 		gitem_t	*item;
 
 		// check for the two flags

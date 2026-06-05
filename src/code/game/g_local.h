@@ -36,7 +36,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define BODY_QUEUE_SIZE		8
 
-#define DOMINATION_MAX_POINTS	8
+#define DOMINATION_MAX_POINTS	5
 #define DOMINATION_LABEL_MAX	8
 #define INFINITE			1000000
 
@@ -1530,8 +1530,9 @@ void AddScore( gentity_t *ent, const vec3_t origin, int score );
 void CalculateRanks( void );
 void G_RRInitClient( gentity_t *ent );
 void G_RRProcessClient( gentity_t *ent );
+void G_RRResetClientForRound( gentity_t *ent );
 void G_RRHandlePlayerDeath( team_t oldTeam, gentity_t *victim, gentity_t *attacker, int meansOfDeath );
-void G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int damage );
+qboolean G_RRHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave );
 void G_RRHandleCompletedRound( void );
 void G_RRInitRoundController( void );
 void G_RRResetRoundState( void );
@@ -1542,6 +1543,7 @@ int G_ADResolveRoundState( void );
 int G_CAResolveRoundState( void );
 int G_FreezeResolveRoundState( void );
 qboolean G_LastManStandingWarningsEnabled( void );
+qboolean G_CAHandleDamageScore( gentity_t *attacker, gentity_t *targ, int *take, int *asave );
 qboolean G_ADHandleDamageScore( gentity_t *attacker, int announce, gentity_t *targ, int *take, int *asave );
 qboolean G_ADCheckExitRules( qboolean announce );
 int AD_RoundStateTransition( qboolean announce );
@@ -1659,6 +1661,7 @@ void G_RankSendPlayerStats( gentity_t *ent, qboolean aborted );
 void G_RankSendMatchStarted( void );
 void G_RankSubmitMatchReport( qboolean aborted );
 qboolean G_WarmupReadyToStart( void );
+void G_SetWarmupTime( int warmupTime );
 
 void G_UpdateForcedCosmeticsConfigstring( qboolean forceBroadcast );
 void G_SetWorldspawnAtmosphere( const char *atmosphere );

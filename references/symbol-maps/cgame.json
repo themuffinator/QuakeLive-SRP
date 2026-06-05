@@ -2561,7 +2561,7 @@
         "0x10069720"
       ],
       "relocation_refs": [],
-      "comment": "Retail item renderer anchored by the `Bad item index %i on entity` diagnostic. HLIL preserves the same modelindex guard, simple-items split, bobbing/spin logic, weapon midpoint lift, optional icon sprite path, and scale pulse from src/code/cgame/cg_ents.c::CG_Item."
+      "comment": "Retail item renderer anchored by the `Bad item index %i on entity` diagnostic. HLIL preserves the same modelindex guard, simple-items split, bobbing/spin logic, weapon midpoint lift, optional icon sprite path, scale pulse, railgun pickup tint, weapon barrel/ammo child tags, and absence of the legacy weapon-hover loop from src/code/cgame/cg_ents.c::CG_Item."
     },
     {
       "address": "0x100175F0",

@@ -481,6 +481,26 @@ native import-table bridge.
 
 #define	VMF(x)	((float *)args)[x]
 
+/*
+====================
+SV_GameExecuteConsoleCommand
+
+Executes qagame command-buffer requests while accepting both the retail
+text-only Quake Live trap and the source-compatible explicit exec_when form.
+====================
+*/
+static void SV_GameExecuteConsoleCommand( int exec_when, const char *text ) {
+	if ( !text ) {
+		return;
+	}
+
+	if ( exec_when < EXEC_NOW || exec_when > EXEC_APPEND ) {
+		exec_when = EXEC_APPEND;
+	}
+
+	Cbuf_ExecuteText( exec_when, text );
+}
+
 static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
 	if ( logContract ) {
 		SyscallContract_LogEvent( "shim-game", "qagame", args, SYSCALL_CONTRACT_MAX_ARGS );
@@ -515,7 +535,11 @@ static int SV_GameSystemCallsImpl( int *args, qboolean logContract ) {
 		Cmd_ArgvBuffer( args[1], VMA(2), args[3] );
 		return 0;
 	case G_SEND_CONSOLE_COMMAND:
-		Cbuf_ExecuteText( args[1], VMA(2) );
+		if ( args[1] >= EXEC_NOW && args[1] <= EXEC_APPEND ) {
+			SV_GameExecuteConsoleCommand( args[1], VMA(2) );
+		} else {
+			SV_GameExecuteConsoleCommand( EXEC_APPEND, VMA(1) );
+		}
 		return 0;
 
 	case G_FS_FOPEN_FILE:
@@ -1102,6 +1126,18 @@ typedef void (QDECL *ql_import_f)( void );
 
 static ql_import_f ql_game_imports[GAME_NATIVE_IMPORT_COUNT];
 
+/*
+==============
+QL_G_trap_SendConsoleCommandText
+
+Retail Quake Live qagame import slot 0 passes only the command text and appends
+it to the engine command buffer.
+==============
+*/
+static void QDECL QL_G_trap_SendConsoleCommandText( const char *text ) {
+	G_Import_Syscall( G_SEND_CONSOLE_COMMAND, text );
+}
+
 static const ql_import_f ql_game_compat_imports[GAME_LEGACY_IMPORT_COUNT] = {
 	[G_PRINT] = (ql_import_f)QL_G_trap_Printf,
 	[G_ERROR] = (ql_import_f)QL_G_trap_Error,
@@ -1599,7 +1635,7 @@ table as a compatibility tail for source-built qagame and unrecovered slots.
 static void SV_InitGameImports( void ) {
 	Com_Memset( ql_game_imports, 0, sizeof( ql_game_imports ) );
 
-	ql_game_imports[G_QL_IMPORT_SEND_CONSOLE_COMMAND] = (ql_import_f)QL_G_trap_SendConsoleCommand;
+	ql_game_imports[G_QL_IMPORT_SEND_CONSOLE_COMMAND] = (ql_import_f)QL_G_trap_SendConsoleCommandText;
 	ql_game_imports[G_QL_IMPORT_PRINT] = (ql_import_f)QL_G_trap_Printf;
 	ql_game_imports[G_QL_IMPORT_FS_WRITE] = (ql_import_f)QL_G_trap_FS_Write;
 	ql_game_imports[G_QL_IMPORT_FS_READ] = (ql_import_f)QL_G_trap_FS_Read;

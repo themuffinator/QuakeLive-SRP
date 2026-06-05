@@ -870,7 +870,7 @@ void SV_Init (void) {
 	sv_altEntDir = Cvar_Get ("sv_altEntDir", "", 0 );
 	sv_dumpEntities = Cvar_Get ("sv_dumpEntities", "0", 0 );
 	sv_cylinderScale = Cvar_Get ("sv_cylinderScale", "1.1f", 0 );
-	sv_warmupReadyPercentage = Cvar_Get ("sv_warmupReadyPercentage", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );
+	sv_warmupReadyPercentage = Cvar_Get ("sv_warmupReadyPercentage", "0.51", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	sv_vac = Cvar_Get ("sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	sv_maskBots = Cvar_Get ("sv_maskBots", "0", CVAR_ARCHIVE );
 	sv_enableRankings = Cvar_Get ("sv_enableRankings", "0", CVAR_SERVERINFO | CVAR_ARCHIVE );

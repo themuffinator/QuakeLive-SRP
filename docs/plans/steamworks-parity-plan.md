@@ -74,6 +74,13 @@
 - Added `CL_GetSteamDataSourceNativeGapLabel` and threaded it into Steam resource bridge unavailable diagnostics as `missing non-avatar SteamDataSource owner`.
 - Remaining SteamDataSource work: this keeps the native subset boundary explicit, but does not add new non-avatar resource owners.
 
+### SteamDataSource fallback-owner labeling - 2026-06-05
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_344.md`, grounded in the retained `SteamDataSource`, `QLResourceInterceptor`, and `Awesomium::DataSource::SendResponse` evidence.
+- Added `CL_GetSteamDataSourceFallbackOwnerLabel` as `QLResourceInterceptor launcher/web fallback` and published it through `ui_resourceBridgeSteamDataSourceFallbackOwner`.
+- Updated the non-avatar `steam://` diagnostic to say the request is routed to the launcher/web fallback owner, while keeping avatars as the only native SteamDataSource subset.
+- Remaining SteamDataSource work: the exact retail non-avatar SteamDataSource semantics and live Awesomium delayed-response object remain bounded until stronger evidence or an open replacement path exists.
+
 ### UGC GetAllUGC filter harness - 2026-05-24
 
 - Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_246.md`: the strongest retail-backed contract is pass-through of the single coerced integer into `CreateQueryAllUGCRequest( 1, 0, appId, appId, filter )`, not a bounded page number.
@@ -97,7 +104,10 @@
 - Added `docs/reverse-engineering/quakelive_steam_mapping_round_297.md`, grounded in the `SteamMatchmakingServers` import, the `JSBrowser` / `JSBrowserDetails` vtables, the alias map, and HLIL offsets for `JSBrowser_RequestServers`, `SteamBrowser_RefreshList`, `JSBrowser_OnServerResponded`, and `JSBrowserDetails_RequestServerDetails`.
 - Reconstructed the low-level `ISteamMatchmakingServers` wrapper in `platform_steamworks.[ch]`: list request modes 0-4, retained `gamedir=baseq3` filtering, row lookup, refresh/release, and detail probes through the observed ping/rules/players slots.
 - Extended the Steamworks harness to mock the native server-browser vtable and pin disabled stubs, all request modes, filter/app-id forwarding, request lifecycle calls, and the retail detail-probe order `PingServer -> ServerRules -> PlayerDetails`.
-- Remaining server-browser work: the client `CL_SteamBrowser_*` friends/history path is still the explicit source-browser compatibility owner. Native wrapper parity improved, but product-level browser integration remains open.
+- Remaining server-browser work at that point: the client `CL_SteamBrowser_*`
+  friends/history path was still the explicit source-browser compatibility
+  owner. Later 2026-06-05 list/detail passes wired native-first client owners
+  and narrowed this to a provider/request-handle fallback boundary.
 
 ### Server-browser row projection reconstruction - 2026-05-25
 
@@ -122,7 +132,7 @@
 ### Server-browser client integration relabeling - 2026-05-25
 
 - Added `docs/reverse-engineering/quakelive_steam_mapping_round_301.md`, reconciling the source-backed client browser telemetry with the low-level `ISteamMatchmakingServers` wrapper reconstructed in rounds 297-300.
-- Updated the compatibility marker from a total missing-adapter label to `ISteamMatchmakingServers native list owner unavailable; using source-browser fallback`, preserving the existing `nativeAdapterGap` payload key while making the remaining fallback a runtime/provider boundary rather than a wrapper-existence gap.
+- Updated the compatibility marker from a total missing-adapter label to `ISteamMatchmakingServers native list owner unavailable; using source-browser fallback`, preserving the existing `nativeAdapterGap` payload key while making the then-remaining fallback a runtime/provider boundary rather than a wrapper-existence gap. Round 345 later narrows the label to native request-handle unavailability.
 - Remaining server-browser work: extend the native detail-query owner beyond the current UDP status fallback with clear ping/player/rules callback ownership and cancellation evidence.
 
 ### Server-browser request-mode contract - 2026-05-25
@@ -130,7 +140,27 @@
 - Added `docs/reverse-engineering/quakelive_steam_mapping_round_302.md`, formalizing the retained `JSBrowser_RequestServers` mode labels and filter behavior from the HLIL switch.
 - Added wrapper helpers for request-mode labels and the `gamedir=baseq3` filter predicate, then routed `QL_Steamworks_RequestServerList` through that predicate so LAN stays the only unfiltered native request and invalid/default modes remain internet-filtered.
 - Extended the Steamworks harness to pin enabled/disabled labels, LAN no-filter behavior, and invalid/default dispatch through the internet request slot.
-- Remaining server-browser work: reconstruct the native request owner state/lifecycle and client event publication before replacing the source-backed compatibility browser lane.
+- Round 347 later aligned the client retained-mode label with this wrapper
+  contract, so invalid/default request modes now publish diagnostics as
+  `internet` rather than `unknown`.
+- Remaining server-browser work after the native owner passes is live
+  friends/history result parity and any distinct WebUI recent-mode evidence.
+
+### Browser favorite-server SteamMatchmaking fallback - 2026-06-05
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_348.md`,
+  grounded in the `SetFavoriteServer` qz method row, the `0x00432681` HLIL
+  dispatcher branch, and the `SteamMatchmaking` / `SteamUtils` imports.
+- Extended the Steamworks harness so the favorite-game add/remove vtable slots
+  at `0x08` and `0x0c` are executable evidence, not only source-text mapping.
+- Pinned app ID, IP, shared connection/query port, favorite flag, add
+  timestamp, remove timestamp absence, disabled-build false returns, and
+  provider failure propagation.
+- Updated the client bridge so a failed opted-in Steam favorite update logs the
+  failure but still mirrors the server into the inherited local favorites
+  cache as an explicit open-build compatibility fallback.
+- Remaining work: live Steam favorite persistence can still be compared against
+  retail if online services are promoted beyond the current opt-in boundary.
 
 ### Server-browser owner lifecycle reconstruction - 2026-05-25
 
@@ -179,32 +209,86 @@
 - Added `docs/reverse-engineering/quakelive_steam_mapping_round_310.md`, reconstructing the retained `JSBrowserDetails` base, `base + 4`, and `base + 8` response views used by `ServerRules`, `PlayerDetails`, and `PingServer`.
 - Added response-view offsets, `ql_steam_server_browser_detail_response_views_t`, `ql_steam_server_browser_detail_request_t`, and helpers to begin the detail request bundle plus retire the wrapper sidecar once the shared completion counter reaches three terminal callbacks.
 - Extended the Steamworks harness to pin enabled/disabled view building, the retail `PingServer -> ServerRules -> PlayerDetails` launch order, response pointers `base + 8`, `base`, and `base + 4`, active-request suppression, and release-time sidecar clearing.
-- Remaining server-browser work: allocate or embed the real callback object in client code and publish native detail events through one client-owned path.
+- Remaining server-browser work at the time: allocate or embed the real callback object in client code and publish native detail events through one client-owned path. The 2026-06-05 detail-owner pass below closes that item for the WebUI `RequestServerDetails` lane.
+
+### WebUI server-browser native detail owner - 2026-06-05
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_343.md`, grounding the client detail owner in the retail `JSBrowserDetails` object layout, callback view offsets, event names, and terminal callback counter.
+- Added `QL_Steamworks_ReadServerBrowserPingResponse` so ping-row `gameserveritem_t` payloads share the same app-id gate and WebUI response projection as native list rows.
+- Wired `CL_Steam_RequestServerDetails` to try the native `ISteamMatchmakingServers` detail owner first in opted-in Steamworks builds, publishing ping, rules, and players events through the retained WebUI event families before falling back to the UDP status-query path when the native owner is unavailable.
+- Extended Steamworks harness, platform-service, and netcode parity guards so the native detail owner, ping projection, callback publication, and fallback boundary are all pinned.
+- Remaining server-browser work: live friends/history result parity and any
+  distinct WebUI recent-mode semantics still need stronger evidence; the
+  Internet/LAN/friends/favorites/history list modes, invalid/default
+  `RequestServers` internet default, and WebUI detail lane are no longer
+  missing native owner integration.
+
+### Server-browser native request-handle fallback - 2026-06-05
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_345.md`,
+  reconciling the round 297/302/303 native owner evidence with the current
+  native-first client list path.
+- Tightened `QL_Steamworks_BeginServerBrowserOwnerRequest` so a zero
+  `ISteamMatchmakingServers` request handle leaves the owner idle and returns
+  false, allowing `CL_Steam_RequestServers` to enter the retained source-browser
+  fallback instead of timing out a handleless native refresh.
+- Relabeled friends/history compatibility telemetry as fallback-only:
+  `friends fallback mapped to global source` and
+  `history fallback mapped to favorites source` are now reasons used after the
+  native request cannot start, not evidence that those modes are permanently
+  source-owned.
+- Extended the Steamworks harness with a request-result setter and direct
+  zero-handle lifecycle coverage.
+- Remaining server-browser work: live Steam-enabled result comparison for
+  friends/history and evidence for any distinct WebUI recent mode outside the
+  observed 0-4 `RequestServers` switch.
+
+### Server-browser invalid/default request-mode labeling - 2026-06-05
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_347.md`,
+  rechecking the retail `JSBrowser_RequestServers` HLIL branch where
+  `arg2 - 1 u> 3` sends mode `0` and out-of-range values through the internet
+  request slot with the `gamedir=baseq3` filter.
+- Updated `CL_SteamBrowser_RequestModeLabel` so the client retained-mode label
+  now matches both dispatch helpers: invalid/default modes are `internet`, not
+  `unknown`.
+- Extended the platform-service parity guard to pin the explicit mode-0 and
+  default `internet` labels while preserving the native/source dispatch
+  behavior.
+- Remaining server-browser work: live friends/history result parity and any
+  separate WebUI recent-mode semantics remain open; the observed
+  invalid/default `RequestServers` behavior is now documented and guarded.
 
 ### Server-browser compatibility telemetry - 2026-05-24
 
-- Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`: the retained browser methods are reconstructed on the source-owned LAN/global/favorites browser path, while friends/history remain bounded compatibility mappings until native `ISteamMatchmakingServers` ownership is rebuilt.
-- Added explicit telemetry for those fallback modes: Steam browser request mode `2` (`friends`) now reports that it is serviced through the global source list, and mode `4` (`history`) reports the favorites source list.
+- Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`: the retained browser methods are reconstructed on the source-owned LAN/global/favorites browser path, while friends/history needed bounded compatibility mappings until native `ISteamMatchmakingServers` ownership was rebuilt.
+- Added explicit telemetry for those fallback modes: Steam browser request mode `2` (`friends`) reported that it was serviced through the global source list, and mode `4` (`history`) reported the favorites source list.
 - Published a `servers.refresh.compatibility` browser event and provider/policy diagnostic log only for those fallback modes, so compatibility behavior is visible without changing internet/LAN/favorites refresh semantics.
-- Remaining server-browser work: wire or deliberately defer the already-reconstructed `ISteamMatchmakingServers` wrapper as a product owner for friends, history, and recent lists.
+- Remaining server-browser work after the 2026-06-05 native-first pass is live
+  friends/history result parity and any distinct WebUI recent-mode semantics.
 
 ### Server-browser compatibility owner labeling - 2026-05-24
 
-- Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`: friends/history browser modes are intentionally source-backed compatibility mappings, not native Steam server-browser queries.
+- Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`: friends/history browser modes were intentionally source-backed compatibility mappings before the native list owner was wired.
 - Added stable compatibility-owner and missing-native-owner labels to the browser fallback telemetry payload: `source-browser compatibility` and `ISteamMatchmakingServers`.
-- Remaining server-browser work: the labels do not add native server discovery; they make the current compatibility owner explicit before any future `ISteamMatchmakingServers` adapter is designed.
+- Remaining server-browser work after the native list-owner pass is keeping the
+  fallback owner explicit when the native request handle is unavailable.
 
 ### Server-browser compatibility reason labeling - 2026-05-24
 
-- Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`: mode `2` is currently backed by the global source list and mode `4` by the favorites source list.
-- Added reason labels to the compatibility log/event payload so friends/history fallbacks now say `friends mapped to global source` or `history mapped to favorites source` alongside the missing native owner.
-- Remaining server-browser work: this is still observability around a bounded compatibility lane, not a native `ISteamMatchmakingServers` reconstruction.
+- Rechecked `docs/reverse-engineering/quakelive_steam_mapping_round_181.md`: mode `2` fell back to the global source list and mode `4` fell back to the favorites source list when native ownership was not yet available.
+- Added reason labels to the compatibility log/event payload so friends/history fallback reasons now say `friends fallback mapped to global source` or `history fallback mapped to favorites source` alongside the missing native owner.
+- Remaining server-browser work after the native list-owner pass is stronger
+  live evidence for friends/history result parity, not absence of the native
+  `ISteamMatchmakingServers` wrapper or client owner.
 
 ### Server-browser native adapter gap labeling - 2026-05-24
 
-- Rechecked the server-browser compatibility lane: friends/history still publish through retained source-backed lists instead of a native Steam server-browser adapter.
-- Added `CL_SteamBrowser_NativeAdapterGapLabel` and threaded it into the compatibility log/event payload as the explicit native adapter gap marker. Round 301 updates the value after the low-level wrapper reconstruction so the label now points at the missing client wiring.
-- Remaining server-browser work: this label does not add native Steam server discovery; it keeps the exact product-integration target explicit before a client owner is wired.
+- Rechecked the server-browser compatibility lane: friends/history published through retained source-backed lists before the native list owner was wired.
+- Added `CL_SteamBrowser_NativeAdapterGapLabel` and threaded it into the compatibility log/event payload as the explicit native adapter gap marker. Round 345 updates the value again after native list/detail client ownership so the label now points at native request-handle unavailability.
+- Remaining server-browser work: this label keeps the provider/request-handle
+  fallback explicit without hiding the native-first owner now present in the
+  client.
 
 ### Client P2P peer guard - 2026-05-24
 
@@ -225,6 +309,23 @@
 - Rechecked the modern-adapter gap list: the retained P2P transport still has no `ISteamNetworkingSockets` or `ISteamNetworkingMessages` adapter.
 - Added `QL_Steamworks_GetP2PModernGapLabel` and threaded it through client voice transport, server networking maintenance, and server P2P session-request diagnostics as `missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter`.
 - Remaining P2P work: this label does not alter legacy packet handling; it keeps the migration target explicit before any dual-stack adapter is designed.
+
+### Legacy P2P vtable harness coverage - 2026-06-05
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_349.md`,
+  grounded in the retained `SteamNetworking` / `SteamGameServerNetworking`
+  import evidence and the HLIL availability/read/send call sites.
+- Extended the Steamworks harness with executable client
+  `SteamAPI_SteamNetworking` send, availability, read, and accept slots, plus
+  equivalent `SteamGameServerNetworking` slots instead of the prior null mock.
+- Added a one-shot mock for the retained `SteamGameServer::GetNextOutgoingPacket`
+  wrapper slot, including packet payload, IP, port, and call-count assertions.
+- Added enabled/disabled ctypes coverage proving legacy packet payloads,
+  SteamIDs, send types, channels, availability/read outputs, accept failures,
+  and outgoing UDP packet behavior.
+- Remaining P2P work: live Steam runtime comparison and any
+  `ISteamNetworkingSockets` / `ISteamNetworkingMessages` adapter remain
+  intentionally separate from this retail-era wrapper mapping.
 
 ### GameServer version override - 2026-05-24
 
@@ -255,7 +356,7 @@
 ### Modern adapter gap guard - 2026-05-24
 
 - Added a source-bound pytest guard that keeps the current modern-SDK gaps explicit: no native `GetAuthTicketForWebApi`, `ISteamNetworkingSockets`, or `ISteamNetworkingMessages` adapter is present yet, and the server-browser fallback label remains visible for profiles where the native Steam list owner is unavailable.
-- The same guard pins the labels that describe the retained owners and explicit gaps: `retail GetAuthSessionTicket`, `missing GetAuthTicketForWebApi adapter`, `legacy ISteamNetworking`, `missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter`, `raw GetAllUGC integer filter`, `unpromoted GetAllUGC filter semantic`, `avatar-only SteamDataSource`, `missing non-avatar SteamDataSource owner`, missing-native-owner `ISteamMatchmakingServers`, and `ISteamMatchmakingServers native list owner unavailable; using source-browser fallback`.
+- The same guard pins the labels that describe the retained owners and explicit gaps: `retail GetAuthSessionTicket`, `missing GetAuthTicketForWebApi adapter`, `legacy ISteamNetworking`, `missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter`, `raw GetAllUGC integer filter`, `unpromoted GetAllUGC filter semantic`, `avatar-only SteamDataSource`, `missing non-avatar SteamDataSource owner`, `QLResourceInterceptor launcher/web fallback`, missing-native-owner `ISteamMatchmakingServers`, and `ISteamMatchmakingServers native request handle unavailable; using source-browser fallback`.
 - Remaining modern-adapter work: future native adapter implementations should update this guard deliberately instead of silently replacing a retail-faithful compatibility owner.
 
 ## Executive summary
@@ -264,9 +365,16 @@ The repository contains a broad Steamworks compatibility surface centered on `sr
 
 Against the repo’s own Ghidra-derived reverse-engineering references, most low-level wrapper mappings are **strongly aligned**. The Ghidra rounds consistently show the same owner objects, callback registration patterns, and vtable-level behaviors that the checked-in wrapper reproduces for rich presence, friends, lobbies, stats, workshop, avatars, and game-server setup. In other words, the wrapper layer is generally a **good retail-behavior reconstruction**. fileciteturn32file0 fileciteturn33file0 fileciteturn34file0 fileciteturn15file0 fileciteturn25file0 fileciteturn26file0 fileciteturn27file0
 
-The material parity gaps are concentrated in **product behavior around the wrapper**, not in the existence of wrapper calls themselves. The three most important gaps are these. First, the repo self-labels the Steamworks path as a **“compatibility” / “heuristic”** lane rather than a strict native-equivalence lane, which matters because the checked-in browser and resource-bridge behavior intentionally substitute or omit some retail Steam owners. Second, the **server browser friends/history paths are not native Steam server-browser implementations**; they are compatibility shims over Quake Live’s retained browser lane. Third, the server auth flow now exposes and pumps **`ValidateAuthTicketResponse_t` completion callbacks**, so the remaining auth gap is stronger runtime/ownership-policy evidence plus a deliberate modern Web API adapter. The highest-value unfinished areas are native server-browser ownership, modern transport/auth adapters, and clearly documented bounded compatibility. fileciteturn47file0 fileciteturn27file0 fileciteturn46file0 citeturn21view2turn11view1
+The material parity gaps are concentrated in **product behavior around the wrapper**, not in the existence of wrapper calls themselves. The three most important gaps are these. First, the repo self-labels the Steamworks path as a **"compatibility" / "heuristic"** lane rather than a strict native-equivalence lane, which matters because some browser/resource behavior intentionally retains fallback owners. Second, the server browser now has native list/detail owners, but friends/history result parity and any distinct recent-mode semantics still need live Steam-enabled evidence. Third, the server auth flow now exposes and pumps **`ValidateAuthTicketResponse_t` completion callbacks**, so the remaining auth gap is stronger runtime/ownership-policy evidence plus a deliberate modern Web API adapter. The highest-value unfinished areas are live server-browser semantic validation, modern transport/auth adapters, and clearly documented bounded compatibility.    citeturn21view2turn11view1
 
 A secondary but important observation is that the implementation appears to target an **older retail-era Steamworks ABI generation**. The clearest signal is the wrapper use of `GetAuthSessionTicket` without the newer remote-identity argument that appears in the current public documentation. That is not automatically wrong for Quake Live retail parity, but it does mean the code is best understood as **retail-faithful, modern-SDK-partial** rather than universally current-SDK-faithful. fileciteturn46file0 citeturn11view0turn11view1
+
+2026-06-05 update: the broad server-browser ownership gap above has narrowed.
+The WebUI Internet/LAN/friends/favorites/history list modes and
+`RequestServerDetails` lane now have native `ISteamMatchmakingServers` owners
+in opted-in Steamworks builds. The remaining browser gap is live
+friends/history result parity, any distinct recent-mode semantics, and deliberate
+compatibility documentation for fallback-only modes.
 
 ## Scope, assumptions, and method
 
@@ -302,14 +410,22 @@ The public wrapper surface found in the repo comprises the following symbol grou
 
 **Game server, networking, voice, and auth:** `QL_Steamworks_ServerSetDedicated`, `QL_Steamworks_ServerLogOnAnonymous`, `QL_Steamworks_ServerLogOn`, `QL_Steamworks_ServerSetProduct`, `QL_Steamworks_ServerSetGameDir`, `QL_Steamworks_ServerSetGameDescription`, `QL_Steamworks_ServerSetMaxPlayerCount`, `QL_Steamworks_ServerSetBotPlayerCount`, `QL_Steamworks_ServerSetServerName`, `QL_Steamworks_ServerSetMapName`, `QL_Steamworks_ServerSetPasswordProtected`, `QL_Steamworks_ServerEnableHeartbeats`, `QL_Steamworks_ServerGetSteamID`, `QL_Steamworks_ServerSetGameTags`, `QL_Steamworks_ServerSetKeyValue`, `QL_Steamworks_ServerSetKeyValuesFromInfoString`, `QL_Steamworks_ServerUpdateUserData`, `QL_Steamworks_ServerGetPublicIP`, `QL_Steamworks_SendP2PPacket`, `QL_Steamworks_IsP2PPacketAvailable`, `QL_Steamworks_ReadP2PPacket`, `QL_Steamworks_AcceptP2PSession`, `QL_Steamworks_ServerSendP2PPacket`, `QL_Steamworks_ServerIsP2PPacketAvailable`, `QL_Steamworks_ServerReadP2PPacket`, `QL_Steamworks_ServerGetNextOutgoingPacket`, `QL_Steamworks_ServerAcceptP2PSession`, `QL_Steamworks_StartVoiceRecording`, `QL_Steamworks_StopVoiceRecording`, `QL_Steamworks_GetCompressedVoice`, `QL_Steamworks_DecompressVoice`, `QL_Steamworks_GetVoiceOptimalSampleRate`, `QL_Steamworks_RequestAuthTicket`, `QL_Steamworks_CancelAuthTicket`, `QL_Steamworks_ServerBeginAuthSession`, `QL_Steamworks_ServerEndAuthSession`, and `QL_Steamworks_ValidateTicket`. fileciteturn36file0 fileciteturn45file0 fileciteturn46file0
 
-Notably absent from the public wrapper surface are native wrappers for **`ISteamMatchmakingServers`**, **`ISteamNetworkingSockets`**, **`ISteamNetworkingMessages`**, and **`ISteamUser::GetAuthTicketForWebApi`**. That absence matters because it explains several later parity gaps. fileciteturn35file0 fileciteturn36file0 citeturn27view3turn11view1
+Notably absent from the public wrapper surface are native wrappers for **`ISteamNetworkingSockets`**, **`ISteamNetworkingMessages`**, and **`ISteamUser::GetAuthTicketForWebApi`**. The native `ISteamMatchmakingServers` wrapper/list/detail owners now exist, so the browser gap is no longer in that wrapper's existence.   citeturn27view3turn11view1
 
 2026-05-25 update: `ISteamMatchmakingServers` now has a low-level wrapper for
-the observed retail list/detail slots, but the higher-level client browser
-still uses compatibility owners for friends/history until native integration is
-rewired. The remaining native wrapper absences in this paragraph are
-`ISteamNetworkingSockets`, `ISteamNetworkingMessages`, and
+the observed retail list/detail slots. The remaining native wrapper absences in
+this paragraph are `ISteamNetworkingSockets`, `ISteamNetworkingMessages`, and
 `ISteamUser::GetAuthTicketForWebApi`.
+
+2026-06-05 update: the WebUI Internet/LAN server list and
+`RequestServerDetails` lanes now have native client owners in opted-in
+Steamworks builds. The remaining Steam browser compatibility scope is live
+friends/history result parity and any distinct recent-mode behavior, plus modern
+networking/auth adapters outside the retail-era `ISteamMatchmakingServers`
+owner. Round 346 tightened the native detail-query failure boundary so partial
+ping/rules/player query allocation cancels valid partial handles and falls back
+to the retained UDP status-query lane. Round 347 aligned the client
+invalid/default mode label with the retail internet-default dispatcher.
 
 ## Parity assessment against Ghidra references and Steamworks APIs
 
@@ -334,7 +450,12 @@ exists for the retail list/detail slots, including the adjacent query-cancel
 primitive. The parity weakness in this section has narrowed to higher-level
 client browser integration, not total absence of a native wrapper.
 
-The lobby surface itself is reconstructively strong. The larger weakness is the **server-browser behavior around it**: favorites/history/friends server lists are not implemented as a native Steam server-browser stack, and the repo’s reverse-engineering notes explicitly frame parts of this as a compatibility lane. fileciteturn15file0 fileciteturn25file0 fileciteturn27file0
+2026-06-05 update: the WebUI Internet/LAN/friends/favorites/history list modes
+and `RequestServerDetails` lane now have native client owners. The remaining
+browser integration weakness is live friends/history result parity,
+any distinct recent-mode behavior, and deliberate fallback documentation.
+
+The lobby surface itself is reconstructively strong. The larger weakness is the **server-browser behavior around it**: native server-list/detail ownership is now present, but result parity for friends/history and fallback behavior still need runtime evidence and documentation.
 
 | Repo symbol(s) | Ghidra reference | Official Steamworks API | Parity | Audit note |
 |---|---|---|---|---|
@@ -343,7 +464,7 @@ The lobby surface itself is reconstructively strong. The larger weakness is the 
 | `QL_Steamworks_GetLobbyOwner`, `GetLobbyDataCount`, `GetLobbyDataByIndex`, `GetNumLobbyMembers`, `GetLobbyMemberLimit`, `GetLobbyMemberByIndex` | Round 178 | `ISteamMatchmaking::GetLobbyOwner`, `GetLobbyDataCount`, `GetLobbyDataByIndex`, `GetNumLobbyMembers`, `GetLobbyMemberLimit`, `GetLobbyMemberByIndex` | Full | This is a good example of broad retail reconstruction done correctly. fileciteturn15file0 fileciteturn35file0 citeturn16view0turn16view1turn16view2turn15view3 |
 | `QL_Steamworks_InviteUserToLobby`, `QL_Steamworks_SendLobbyChatMsg`, `QL_Steamworks_GetLobbyChatEntry` | Round 178 | `ISteamMatchmaking::InviteUserToLobby`, `SendLobbyChatMsg`, `GetLobbyChatEntry` | Full | Wrapper/API parity is solid for invite and chat message retrieval. fileciteturn15file0 fileciteturn35file0 citeturn14view2turn16view3turn15view4 |
 | `QL_Steamworks_AddFavoriteGame`, `QL_Steamworks_RemoveFavoriteGame` | Round 179 ties these into popup/browser entry paths | `ISteamMatchmaking::AddFavoriteGame`, `RemoveFavoriteGame` | Partial | The low-level calls exist, but the broader browser pipeline is not a native Steam matchmaking-servers implementation. Valve documents these as local favorites/history helpers, which matches their repo use but not full retail browser parity. fileciteturn25file0 fileciteturn35file0 citeturn14view4turn15view2 |
-| Friends/history/recent browser modes around the above wrappers | Round 181 | Closest official analogue would be `ISteamMatchmakingServers` rather than just favorites/history helpers | Missing | The repo docs explicitly describe modes that are serviced through a compatibility browser lane rather than a native Steam server-browser owner. I found no `ISteamMatchmakingServers` wrapper surface in the repo. fileciteturn27file0 fileciteturn35file0 |
+| Friends/history/recent browser modes around the above wrappers | Round 181 plus rounds 297-303, 343, 345, and 347 | Closest official analogue is the now-reconstructed `ISteamMatchmakingServers` list/detail owner | Partial | Modes 0-4 have native-first client wiring in opted-in Steamworks builds, including friends/history, and invalid/default `RequestServers` values are documented as internet-default. Remaining uncertainty is live friends/history result parity, any distinct recent-mode semantics, and source-browser fallback behavior when native requests fail.   |
 
 2026-05-25 row note: the older `Friends/history/recent` row now has `Partial`
 native-wrapper parity rather than `Missing` at the platform layer. Round 298
@@ -352,14 +473,19 @@ also promotes the retained server-row layout into a typed projection, round
 cancellation, round 301 relabels the client telemetry as a wiring gap, round
 302 names the retained request-mode/filter contract, round 303 adds the native
 owner lifecycle helper, round 304 projects the native row response payload,
-round 305 adds failure/refresh-complete callback projections, and round 306
-adds detail rules/player identity projections, and round 307 adds successful
+round 305 adds failure/refresh-complete callback projections, round 306 adds
+detail rules/player identity projections, and round 307 adds successful
 rules/player detail response payload projections. Round 309 adds the retained
-`JSBrowserDetails` shared three-terminal-callback lifecycle counter, and round
-310 adds the response-view request sidecar for the retained detail probe
-bundle.
-The table row above is historical; the client browser integration still needs
-follow-up before this can become full product-level browser parity.
+`JSBrowserDetails` shared three-terminal-callback lifecycle counter, round 310
+adds the response-view request sidecar for the retained detail probe bundle,
+and round 343 wires the WebUI native detail callback owner in client code.
+Round 345 tightens the native request-handle failure path, and round 346
+tightens the native detail query-handle failure path. Round 347 aligns the
+client invalid/default request-mode label with the retail internet-default
+dispatcher. The table row above is historical; remaining client browser
+follow-up is now focused on live friends/history parity, any distinct
+recent-mode semantics, and fallback documentation rather than missing native
+owner integration.
 
 ### Workshop, avatars, and stats
 
@@ -398,12 +524,12 @@ This section contains the most important parity and risk findings. The wrapper c
 
 The repo’s own service-policy code is explicit that Steamworks is being treated as a **compatibility/heuristic lane**. That framing matters because it explains why the most important issues are not “missing wrappers” so much as “behavior that is sufficient for observed retail paths but not complete Steamworks ownership.” fileciteturn47file0
 
-2026-05-24 reconciliation: the original table below should now be read as a current gap list, not a snapshot of the earlier auth/resource state. Server auth callback completion, SteamDataSource fallback labeling, UGC pass-through labeling, P2P owner labeling, browser compatibility owner labeling, and GameServer version diagnostics now have source/test coverage. The remaining high-value gaps are modern adapters, native server-browser ownership, stronger runtime auth evidence, and unpromoted retail semantics.
+2026-05-24 reconciliation, updated 2026-06-05: the original table below should now be read as a current gap list, not a snapshot of the earlier auth/resource/browser state. Server auth callback completion, SteamDataSource fallback labeling, UGC pass-through labeling, P2P owner labeling, browser compatibility owner labeling, GameServer version diagnostics, and native server-browser list/detail ownership now have source/test coverage. The remaining high-value gaps are modern adapters, live friends/history/recent browser semantic evidence, stronger runtime auth evidence, and unpromoted retail semantics.
 
 | Issue | Parity status | Functional impact | Compatibility impact | Security impact | Severity | Exploitability |
 |---|---|---|---|---|---|---|
 | Server auth validation is now callback-complete but still needs stronger runtime/ownership-policy evidence | Partial | Source-bound tests cover pending-to-callback finalization; an in-process or low-cost dedicated probe would provide stronger end-to-end evidence | Aligns better with Valve’s documented lifecycle, while modern Web API auth remains absent | Lower optimistic-acceptance risk; owner/family-share policy remains observational | Medium | Low to Medium |
-| Friends/history/recent browser behavior uses compatibility lane instead of native Steam server-browser owner | Missing | Browser results can differ from retail Steam friend/history behavior | Limits parity with Steam-native discovery semantics | Low direct security risk | High | Low |
+| Friends/history/recent browser behavior still needs live semantic parity evidence and fallback documentation | Partial | Browser results can differ from retail Steam friend/history/recent behavior when native requests fail or an unobserved recent-mode route is used | Native-first ownership is present for observed modes 0-4; compatibility risk is now in result equivalence and fallback transparency | Low direct security risk | High | Low |
 | Continued dependence on deprecated `ISteamNetworking` P2P surface | Partial | Legacy P2P can still work now, and diagnostics now label that owner explicitly, but it is not future-facing | Valve marks this API deprecated and recommends newer replacements | Low direct risk unless mixed with old auth assumptions | High | Low to Medium |
 | General `steam://` resource owner is avatar-only; non-avatar requests fall through to launcher/web fallback | Missing | Some browser-integrated Steam resources still do not resolve through a native SteamDataSource owner | Feature subset may surprise UI code or regress retail edge cases | Low | Medium | Low |
 | UGC query integer filter semantics remain intentionally unpromoted | Unknown | Pass-through behavior is pinned, but the safest enum/domain name is still unresolved | Potential drift only if future code reinterprets the raw integer without new evidence | Low | Medium | Low |
@@ -419,7 +545,7 @@ A **reduced but still open partial-parity example** is auth. The repo now routes
 
 A **bounded browser/resource example** is the Steam resource bridge. The code explicitly handles avatar URLs, tracks pending avatar callbacks, loads RGBA avatar data, and routes non-avatar `steam://` requests toward launcher/web fallback. That is a valid subset implementation, not a full native SteamDataSource owner. fileciteturn48file0
 
-A **compatibility-lane example** is the browser stack. The reverse-engineering notes for the browser/server modes describe exact parity in some paths and compatibility-owned substitutions in others, especially for friends/history-style browsing. That means the repo itself already knows this area is not strict native Steam parity. fileciteturn27file0
+A **compatibility-lane example** is the browser stack. The reverse-engineering notes for the browser/server modes describe exact parity in some paths and compatibility-owned substitutions in others, especially when native requests are unavailable. The current tree is native-first for observed list/detail modes, but it still needs live Steam-enabled evidence before claiming strict Steam result parity.
 
 ## Remediation, tests, and verification
 
@@ -427,7 +553,7 @@ The highest-value remediation is to make authentication **asynchronous and callb
 
 The second remediation is architectural: separate **retail-faithful wrappers** from **modern-SDK adapters**. Keep the existing Ghidra-faithful vtable/owner mappings for regression purposes, but introduce a typed adapter layer that can explicitly express newer API shapes, including `GetAuthTicketForWebApi` and eventually `ISteamNetworkingSockets`/`ISteamNetworkingMessages`. This preserves retail fidelity while making current-SDK behavior deliberate and testable rather than accidental. fileciteturn35file0 fileciteturn46file0 citeturn11view1turn27view3
 
-The third remediation is product-level: decide whether the goal is **strict Steam browser parity** or **documented compatibility**. If strict parity is the goal, add a native server-browser owner for friend/history/recent flows instead of relying on Quake Live’s retained browser lane. If bounded compatibility is the goal, surface that explicitly in UI/telemetry and avoid presenting those modes as indistinguishable from retail Steam behavior. fileciteturn27file0 fileciteturn47file0
+The third remediation is product-level: validate whether the native-first Steam browser path gives **strict Steam browser parity** or needs **documented compatibility** for specific provider/fallback cases. If strict parity is the goal, compare friends/history/recent results against a Steam-enabled retail environment. If bounded compatibility is the goal, keep fallback telemetry explicit and avoid presenting fallback-owned modes as indistinguishable from retail Steam behavior.
 
 The fourth remediation is narrower but worthwhile: formalize the **SteamDataSource subset**. Either expand non-avatar `steam://` handling to cover all observed retail resource owners, or explicitly reject unsupported schemes with deterministic UI fallback rather than a generic unavailable path. The current code is serviceable but ambiguous from a parity standpoint. fileciteturn48file0
 
@@ -437,7 +563,7 @@ The repo is already well positioned for test hardening because the harness cover
 |---|---|---|
 | Auth ticket accepted only after validation callback | Close the highest-risk gap | Connection remains pending until callback success; failure callback disconnects and logs reason |
 | Expired / replayed / wrong-app / family-share ticket tests | Exercise edge cases that immediate `BeginAuthSession` alone may not fully resolve | No optimistic acceptance; state transitions are explicit and auditable |
-| Friends/history browser mode parity test | Compare compatibility browser results vs native Steam expectations | Either native parity is achieved or UI labels/reporting clearly denote compatibility mode |
+| Friends/history browser mode parity test | Compare native-first and fallback browser results vs retail Steam expectations | Either native parity is confirmed or UI labels/reporting clearly denote compatibility mode |
 | Avatar pending/retry regression | Validate the bounded async avatar reconstruction | Initial pending response returns no image; callback clears pending state; retry succeeds |
 | UGC filter golden tests | Resolve round 246’s open semantic question | Query results match retail reference cases across all filter values used by UI |
 | UGC callback app-ID filtering tests | Ensure all-item callbacks do not bleed across apps | Event handlers ignore mismatched app IDs |

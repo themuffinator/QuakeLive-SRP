@@ -776,6 +776,21 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		"static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex )",
 	)
 	complete_native = _function_block(cl_main, "static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut )")
+	native_ping_responded = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_NativePingRespondedImpl( clSteamNativeServerPingResponse_t *self, const void *serverDetails )",
+	)
+	native_rule_responded = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_NativeRuleRespondedImpl( clSteamNativeServerRulesResponse_t *self, const char *rule, const char *value )",
+	)
+	native_player_responded = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_NativePlayerRespondedImpl( clSteamNativeServerPlayersResponse_t *self, const char *name, int score, float timePlayed )",
+	)
+	begin_native_detail = _function_block(
+		cl_main, "static qboolean CL_SteamBrowser_BeginNativeDetailRequest( uint32_t serverIp, uint16_t serverPort )"
+	)
 	request_servers = _function_block(cl_main, "qboolean CL_Steam_RequestServers( int requestMode )")
 	request_details = _function_block(
 		cl_main, "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort )"
@@ -822,6 +837,10 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		steamworks,
 		"qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverPort, void *pingResponse, void *playersResponse, void *rulesResponse, ql_steam_server_query_t *outPingQuery, ql_steam_server_query_t *outPlayersQuery, ql_steam_server_query_t *outRulesQuery )",
 	)
+	ping_response_reader = _function_block(
+		steamworks,
+		"qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse )",
+	)
 	enable_heartbeats = _function_block(steamworks, "qboolean QL_Steamworks_ServerEnableHeartbeats( qboolean enable )")
 
 	assert "#define QL_BUILD_ONLINE_SERVICES 0" in platform_config
@@ -855,6 +874,18 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "static __declspec(naked) void CL_SteamBrowser_NativeServerResponded" in cl_main
 	assert "CL_SteamBrowser_NativeServerRespondedImpl( self, request, serverIndex );" in cl_main
 	assert "QL_Steamworks_CompleteServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner );" in complete_native
+	assert "const clSteamNativeServerRulesResponseVTable_t *rulesVtable;" in cl_main
+	assert "const clSteamNativeServerPlayersResponseVTable_t *playersVtable;" in cl_main
+	assert "const clSteamNativeServerPingResponseVTable_t *pingVtable;" in cl_main
+	assert "QL_Steamworks_ReadServerBrowserPingResponse( serverDetails, &response )" in native_ping_responded
+	assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_ping_responded
+	assert "QL_Steamworks_BuildServerBrowserRuleResponse( &detail->request.lifecycle.identity, rule, value, &response )" in native_rule_responded
+	assert "CL_SteamBrowser_PublishNativeRuleResponse( &response );" in native_rule_responded
+	assert "QL_Steamworks_BuildServerBrowserPlayerResponse( &detail->request.lifecycle.identity, name, score, (int)timePlayed, &response )" in native_player_responded
+	assert "CL_SteamBrowser_PublishNativePlayerResponse( &response );" in native_player_responded
+	assert "QL_Steamworks_BeginServerBrowserDetailRequest( &detail->request, serverIp, serverPort, detail )" in begin_native_detail
+	assert "CL_SteamBrowser_FreeNativeDetail( detail, qfalse );" in cl_main
+	assert "CL_SteamBrowser_FreeNativeDetail( cl_steamNativeDetails, qtrue );" in cl_main
 
 	_assert_order(
 		request_servers,
@@ -868,6 +899,7 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		'CL_RequestGlobalServers( masterNum, debugProtocol, "full empty" );',
 		'CL_RequestGlobalServers( masterNum, va( "%d", protocol ), "full empty" );',
 	)
+	assert "CL_SteamBrowser_BeginNativeDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort )" in request_details
 	assert "CL_SteamBrowser_BeginDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort, &address );" in request_details
 	assert "CL_ServerStatus( addressString, NULL, 0 );" in request_details
 	assert "CL_ServerStatus( addressString, serverStatus, sizeof( serverStatus ) );" in request_details
@@ -947,12 +979,18 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		"ql_steam_server_browser_owner_t",
 		"ql_steam_server_browser_detail_request_t",
 		"ql_steam_server_browser_response_t",
+		"qboolean QL_Steamworks_ReadServerBrowserPingResponse",
 		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequest",
 		"qboolean QL_Steamworks_BeginServerBrowserDetailRequest",
 	):
 		assert expected in steamworks_h
 	assert "QL_Steamworks_ReleaseServerListRequest( owner->request );" in browser_owner
-	assert "owner->request = QL_Steamworks_RequestServerList( requestMode, responseObject );" in browser_owner
+	assert "ql_steam_server_list_request_t request;" in browser_owner
+	assert "request = QL_Steamworks_RequestServerList( requestMode, responseObject );" in browser_owner
+	assert "if ( !request ) {" in browser_owner
+	assert "owner->refreshActive = qfalse;" in browser_owner
+	assert "owner->request = NULL;" in browser_owner
+	assert "owner->request = request;" in browser_owner
 	assert 'Q_strncpyz( filter->key, "gamedir", sizeof( filter->key ) );' in steamworks
 	assert "Q_strncpyz( filter->value, QL_BASEGAME, sizeof( filter->value ) );" in steamworks
 	for expected in (
@@ -969,11 +1007,20 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "vtable[0x34 / 4]" in detail_request
 	assert "vtable[0x38 / 4]" in detail_request
 	assert "vtable[0x3c / 4]" in detail_request
+	assert "raw = (const ql_steam_gameserveritem_raw_t *)serverDetails;" in ping_response_reader
+	assert "raw->appId != appId" in ping_response_reader
+	assert "QL_Steamworks_CopyServerBrowserResponse( outResponse, &server );" in ping_response_reader
 	_assert_order(
 		detail_request,
 		"pingQuery = pingFn( serverBrowser, NULL, serverIp, serverPort, pingResponse );",
 		"rulesQuery = rulesFn( serverBrowser, NULL, serverIp, serverPort, rulesResponse );",
 		"playersQuery = playersFn( serverBrowser, NULL, serverIp, serverPort, playersResponse );",
+		"if ( pingQuery <= 0 || rulesQuery <= 0 || playersQuery <= 0 ) {",
+		"QL_Steamworks_CancelServerQuery( pingQuery );",
+		"QL_Steamworks_CancelServerQuery( rulesQuery );",
+		"QL_Steamworks_CancelServerQuery( playersQuery );",
+		"return qfalse;",
+		"if ( outPingQuery ) {",
 	)
 	assert "vtable[0x9c / 4]" in enable_heartbeats
 	assert "fn( gameServer, enable ? 1 : 0 );" in enable_heartbeats
@@ -985,6 +1032,9 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		assert expected in ghidra_imports
 	for expected in (
 		'"sub_461F70": "JSBrowserDetails_RequestServerDetails"',
+		'"sub_461FE0": "JSBrowserDetails_OnServerResponded"',
+		'"sub_462360": "JSBrowserDetails_OnRuleResponded"',
+		'"sub_4626B0": "JSBrowserDetails_OnPlayerResponded"',
 		'"sub_462EB0": "JSBrowser_RequestServers"',
 		'"sub_463090": "SteamBrowser_RequestServers"',
 		'"sub_4630B0": "SteamBrowser_RequestServerDetails"',
@@ -997,6 +1047,8 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		"00461fab  (*(*SteamMatchmakingServers() + 0x34))(arg2, arg3, arg1 + 8)",
 		"00461fbd  (*(*SteamMatchmakingServers() + 0x3c))(arg2, arg3, arg1)",
 		"00461fd8  return (*(*SteamMatchmakingServers() + 0x38))(arg2, arg3, arg1 + 4)",
+		'0046245d  sub_4f3260(arg1, arg1 + 0x14, sub_4d9220("servers.rules.%s.response"), &var_20)',
+		'004627fc  sub_4f3260(arg1, arg1 + 0x10, sub_4d9220("servers.players.%s.response"), &var_20)',
 		'00463058      result = sub_4f3260(arg1, edi_1, "servers.refresh.start", nullptr)',
 		'00462e73  return sub_4f3260(esi, edi, "servers.refresh.end", nullptr)',
 		"00465dd7      (*(*SteamGameServer() + 0x9c))(arg1 == 1)",

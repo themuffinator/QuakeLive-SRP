@@ -153,7 +153,7 @@ def test_intermission_pipeline_clears_and_publishes_retail_state() -> None:
 	assert "#define CS_INTERMISSION_EXIT_STATUS" in bg_public_h
 	assert 'trap_SetConfigstring( CS_INTERMISSION_EXIT_STATUS, "" );' in spawn_c
 	assert "trap_GetServerinfo( serverinfo, sizeof( serverinfo ) );" in exit_block
-	assert 'Q_strncpyz( mapName, Info_ValueForKey( serverinfo, "mapname" ), sizeof( mapName ) );' in exit_block
+	assert 'Q_strncpyz( mapName, Info_ValueForKey( serverinfo, SERVERINFO_KEY_MAPNAME ), sizeof( mapName ) );' in exit_block
 	assert 'if ( trap_Cvar_VariableIntegerValue( "sv_killserver" ) ) {' in exit_block
 	assert 'trap_SendConsoleCommand( EXEC_APPEND, "killserver\\n" );' in exit_block
 	assert 'if ( trap_Cvar_VariableIntegerValue( "sv_quitOnExitLevel" ) ) {' in exit_block

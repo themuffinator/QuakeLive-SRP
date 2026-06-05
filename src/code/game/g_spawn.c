@@ -1153,25 +1153,17 @@ void SP_worldspawn( void ) {
 	g_entities[ENTITYNUM_WORLD].classname = "worldspawn";
 
 	// see if we want a warmup time
-	trap_SetConfigstring( CS_WARMUP, "" );
-	G_UpdateReadyUpConfigstring();
 	trap_SetConfigstring( CS_MATCH_STATE, "" );
 	trap_SetConfigstring( CS_INTERMISSION_EXIT_STATUS, "" );
 	trap_SetConfigstring( CS_ROTATION_TITLES, "" );
 	trap_SetConfigstring( CS_ROTATION_CONFIGS, "" );
-	trap_Cvar_Set( "g_gameState", "PRE_GAME" );
+	G_SetWarmupTime( -1 );
 
 	if ( g_restarted.integer ) {
 		trap_Cvar_Set( "g_restarted", "0" );
-		level.warmupTime = 0;
-		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-		G_UpdateReadyUpConfigstring();
-		trap_Cvar_Set( "g_gameState", "IN_PROGRESS" );
+		G_SetWarmupTime( 0 );
 	} else if ( g_doWarmup.integer ) { // Turn it on
-		level.warmupTime = -1;
-		trap_SetConfigstring( CS_WARMUP, va( "%i", level.warmupTime ) );
-		G_UpdateReadyUpConfigstring();
-		trap_Cvar_Set( "g_gameState", "PRE_GAME" );
+		G_SetWarmupTime( -1 );
 		G_LogPrintf( "Warmup:\n" );
 	}
 

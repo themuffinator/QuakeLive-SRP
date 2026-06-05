@@ -633,7 +633,6 @@ void CG_ParseRaceStatusString( const char *statusString ) {
 		}
 
 		cgRaceClientStatus_t *status = &cgs.raceStatus[values[0]];
-		int previousLast = status->lastTime;
 
 		if ( !status->initialized ) {
 			status->lapCount = 0;
@@ -641,15 +640,11 @@ void CG_ParseRaceStatusString( const char *statusString ) {
 
 		status->initialized = qtrue;
 		status->bestTime = values[1];
-		status->lastTime = values[2];
-		status->currentElapsed = values[3];
+		status->lastTime = -1;
+		status->currentElapsed = -1;
 		status->lastUpdateSequence = sequence;
 
-		if ( status->lastTime >= 0 && status->lastTime != previousLast ) {
-			if ( status->lapCount < RACE_INVALID_TIME ) {
-				status->lapCount++;
-			}
-		} else if ( status->lastTime < 0 && status->bestTime < 0 ) {
+		if ( status->bestTime < 0 ) {
 			status->lapCount = 0;
 		}
 
