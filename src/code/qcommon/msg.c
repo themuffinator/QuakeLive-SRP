@@ -790,6 +790,7 @@ netField_t	entityStateFields[] =
 { NETF(apos.trBase[1]), 0 },
 { NETF(pos.trDelta[2]), 0 },
 { NETF(apos.trBase[0]), 0 },
+{ NETF(pos.gravity), 32 },
 { NETF(event), 10 },
 { NETF(angles2[1]), 0 },
 { NETF(eType), 8 },
@@ -826,13 +827,18 @@ netField_t	entityStateFields[] =
 { NETF(apos.trDelta[0]), 0 },
 { NETF(apos.trDelta[1]), 0 },
 { NETF(apos.trDelta[2]), 0 },
+{ NETF(apos.gravity), 32 },
 { NETF(time2), 32 },
 { NETF(angles[2]), 0 },
 { NETF(angles2[0]), 0 },
 { NETF(angles2[2]), 0 },
 { NETF(constantLight), 32 },
 { NETF(frame), 16 },
-{ NETF(retailEventData), 8 }
+{ NETF(jumpTime), 32 },
+{ NETF(doubleJumped), 1 },
+{ NETF(health), 16 },
+{ NETF(armor), 16 },
+{ NETF(location), 8 }
 };
 
 
@@ -1127,8 +1133,6 @@ netField_t	playerStateFields[] =
 { PSF(events[1]), 8 },
 { PSF(pm_flags), 24 },
 { PSF(groundEntityNum), GENTITYNUM_BITS },
-{ PSF(jumpTime), 32 },
-{ PSF(doubleJumped), 1 },
 { PSF(weaponstate), 4 },
 { PSF(eFlags), 16 },
 { PSF(externalEvent), 10 },
@@ -1157,6 +1161,8 @@ netField_t	playerStateFields[] =
 { PSF(grapplePoint[2]), 0 },
 { PSF(jumppad_ent), 10 },
 { PSF(loopSound), 16 },
+{ PSF(jumpTime), 32 },
+{ PSF(doubleJumped), 1 },
 { PSF(crouchTime), 32 },
 { PSF(crouchSlideTime), 32 },
 { PSF(location), 8 },

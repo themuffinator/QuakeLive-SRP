@@ -113,12 +113,6 @@ displayContextDef_t *DC = NULL;
 static qboolean g_waitingForKey = qfalse;
 static qboolean g_editingField = qfalse;
 
-#ifndef CGAME
-extern void UI_StopMenuRefresh( void );
-extern void UI_CloseInGameMenu( void );
-extern void UI_LeaveGame( void );
-#endif
-
 static itemDef_t *g_bindItem = NULL;
 static itemDef_t *g_editItem = NULL;
 
@@ -1877,68 +1871,6 @@ void Script_playLooped(itemDef_t *item, char **args) {
 	}
 }
 
-/*
-=============
-Script_PlayLauncherCinematic
-
-Start silent shader-backed playback for launcher menu surfaces.
-Arguments: <path> [loop] [width] [height] to mirror legacy autoplay semantics.
-=============
-*/
-static void Script_PlayLauncherCinematic(itemDef_t *item, char **args) {
-	const char *path;
-	int shouldLoop = 1;
-	int width = 0;
-	int height = 0;
-	qhandle_t shaderHandle;
-
-	if (!item) {
-		return;
-	}
-
-	if (!String_Parse(args, &path)) {
-		return;
-	}
-
-	Int_Parse(args, &shouldLoop);
-	Int_Parse(args, &width);
-	Int_Parse(args, &height);
-
-	if (!DC->playLauncherCinematic) {
-		return;
-	}
-
-	shaderHandle = DC->playLauncherCinematic(path, shouldLoop ? qtrue : qfalse, width, height);
-	if (shaderHandle > 0) {
-		item->window.background = shaderHandle;
-		item->window.style = WINDOW_STYLE_SHADER;
-	}
-}
-
-#ifndef CGAME
-static void Script_StopRefresh(itemDef_t *item, char **args) {
-        UI_StopMenuRefresh();
-}
-
-static void Script_CloseInGame(itemDef_t *item, char **args) {
-        UI_CloseInGameMenu();
-}
-
-static void Script_Leave(itemDef_t *item, char **args) {
-        UI_LeaveGame();
-}
-#else
-static void Script_StopRefresh(itemDef_t *item, char **args) {
-}
-
-static void Script_CloseInGame(itemDef_t *item, char **args) {
-}
-
-static void Script_Leave(itemDef_t *item, char **args) {
-}
-#endif
-
-
 commandDef_t commandList[] =
 {
 	{"fadein", &Script_FadeIn},				// group/name
@@ -1961,13 +1893,9 @@ commandDef_t commandList[] =
 	{"setcvar", &Script_SetCvar},			// group/name
 	{"exec", &Script_Exec},			// group/name
 	{"play", &Script_Play},				// group/name
-	{"activateAdvert", &Script_ActivateAdvert},
 	{"playlooped", &Script_playLooped},		// group/name
-	{"playlaunchercinematic", &Script_PlayLauncherCinematic},
-	{"stoprefresh", &Script_StopRefresh},
-	{"closeingame", &Script_CloseInGame},
-	{"leave", &Script_Leave},
-	{"orbit", &Script_Orbit}					// group/name
+	{"orbit", &Script_Orbit},					// group/name
+	{"activateAdvert", &Script_ActivateAdvert}
 };
 
 

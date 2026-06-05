@@ -297,6 +297,7 @@ QLR_EXPORT void QLR_EvaluateAcceleratedTrajectory( float acceleration, int atTim
 	trajectory.tr.trDelta[0] = 3.0f;
 	trajectory.tr.trDelta[1] = 4.0f;
 	trajectory.tr.trDelta[2] = 100.0f;
+	trajectory.tr.gravity = acceleration;
 	trajectory.acceleration = acceleration;
 
 	BG_EvaluateTrajectory( &trajectory.tr, atTime, position );

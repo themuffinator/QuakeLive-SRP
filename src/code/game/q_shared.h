@@ -1360,7 +1360,7 @@ typedef enum {
 	TR_LINEAR_STOP,
 	TR_SINE,					// value = base + sin( time / duration ) * delta
 	TR_GRAVITY,
-	TR_QL_ACCEL					// Quake Live extension: type 6 reads an extra acceleration scalar after trDelta
+	TR_QL_ACCEL					// Quake Live extension: type 6 reads the trajectory gravity scalar
 } trType_t;
 
 typedef struct {
@@ -1369,6 +1369,7 @@ typedef struct {
 	int		trDuration;			// if non 0, trTime + trDuration = stop time
 	vec3_t	trBase;
 	vec3_t	trDelta;			// velocity, etc
+	float	gravity;			// Quake Live trajectory acceleration scalar
 } trajectory_t;
 
 // entityState_t is the information conveyed from the server
@@ -1415,16 +1416,19 @@ typedef struct entityState_s {
 
 	// for players
 	int		powerups;		// bit flags
+	int		health;			// replicated player health for retail observers/HUD
+	int		armor;			// replicated player armor for retail observers/HUD
 	int		weapon;			// determines weapon and flash model, etc
+	int		location;		// retail team location index
 	int		legsAnim;		// mask off ANIM_TOGGLEBIT
 	int		torsoAnim;		// mask off ANIM_TOGGLEBIT
 
-	int		generic1;
-
-	// Retail temp-entity payloads also consume a recovered 0xE0 data slot
-	// beyond the classic GPL entityState_t tail.
-	int		retailEventPadding[4];
-	int		retailEventData;
+	union {
+		int	generic1;
+		int	retailEventData;	// source clarity alias for the retail 0xE0 generic1 slot
+	};
+	int		jumpTime;
+	int		doubleJumped;
 } entityState_t;
 
 typedef enum {

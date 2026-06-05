@@ -40,9 +40,14 @@ def test_shared_entity_state_restores_retail_event_data_slot() -> None:
 	q_shared_source = Q_SHARED.read_text(encoding="utf-8")
 	msg_source = MSG.read_text(encoding="utf-8")
 
-	assert "int\t\tretailEventPadding[4];" in q_shared_source
-	assert "int\t\tretailEventData;" in q_shared_source
-	assert "{ NETF(retailEventData), 8 }" in msg_source
+	assert "int\t\thealth;" in q_shared_source
+	assert "int\t\tarmor;" in q_shared_source
+	assert "int\t\tlocation;" in q_shared_source
+	assert "int\tgeneric1;" in q_shared_source
+	assert "int\tretailEventData;" in q_shared_source
+	assert "int\t\tretailEventPadding[4];" not in q_shared_source
+	assert "{ NETF(generic1), 8 }" in msg_source
+	assert "{ NETF(retailEventData), 8 }" not in msg_source
 	assert "serializedBytes = sizeof( from->number );" in msg_source
 	assert "assert( serializedBytes <= sizeof( *from ) );" in msg_source
 	assert "assert( numFields + 1 == sizeof( *from )/4 );" not in msg_source

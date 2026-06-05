@@ -1,0 +1,644 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Focused Quake Live retail network protocol parity ledger for docs/plans/2026-06-05-networking-2.md",
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default",
+    "function_count": 5473
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt"
+    ],
+    "ghidra": [
+      "references/reverse-engineering/ghidra/quakelive_steam/functions.csv",
+      "references/reverse-engineering/ghidra/quakelive_steam/imports.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/exports.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/analysis_symbols.txt"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json",
+    "companion_manifest": "docs/reverse-engineering/netcode-parity-manifest.json"
+  },
+  "source_profile": {
+    "protocol": 91,
+    "source_constant": "QL_RETAIL_PROTOCOL_VERSION",
+    "source_path": "src/code/qcommon/qcommon.h",
+    "feature_gates": {
+      "uses_client_qport_in_connect": true,
+      "uses_netchan_client_qport": true,
+      "uses_reliable_xor_codec": true,
+      "uses_compressed_connect": true,
+      "uses_legacy_q3_authorize": false,
+      "supports_platform_auth": "build gated by QL_BUILD_ONLINE_SERVICES / platform service support"
+    }
+  },
+  "focus_areas": [
+    {
+      "id": "protocol_gates_and_packet_headers",
+      "priority": "critical",
+      "status": "mapped",
+      "source_files": [
+        "src/code/qcommon/qcommon.h",
+        "src/code/qcommon/common.c",
+        "src/code/client/cl_input.c",
+        "src/code/server/sv_client.c"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "CL_WritePacket",
+          "address": "0x004B5F70",
+          "size": 802
+        },
+        {
+          "symbol": "SV_ExecuteClientMessage",
+          "address": "0x004E05C0",
+          "size": 385
+        }
+      ],
+      "packet_offsets": [
+        {
+          "packet": "client sequenced datagram",
+          "relative_to": "datagram start",
+          "fields": [
+            {
+              "name": "netchan sequence",
+              "offset": 0,
+              "bytes": 4
+            },
+            {
+              "name": "qport",
+              "offset": 4,
+              "bytes": 2,
+              "condition": "NS_CLIENT and NET_ProtocolUsesNetchanClientQport()"
+            },
+            {
+              "name": "serverId",
+              "offset": 6,
+              "bytes": 4,
+              "condition": "client body follows qport"
+            },
+            {
+              "name": "messageAcknowledge",
+              "offset": 10,
+              "bytes": 4
+            },
+            {
+              "name": "reliableAcknowledge",
+              "offset": 14,
+              "bytes": 4
+            },
+            {
+              "name": "retailClientMessageSideband",
+              "offset": 18,
+              "bytes": 1
+            },
+            {
+              "name": "first opcode",
+              "offset": 19,
+              "bytes": 1
+            }
+          ]
+        },
+        {
+          "packet": "client message body",
+          "relative_to": "body start after netchan header",
+          "fields": [
+            {
+              "name": "serverId",
+              "offset": 0,
+              "bytes": 4
+            },
+            {
+              "name": "messageAcknowledge",
+              "offset": 4,
+              "bytes": 4
+            },
+            {
+              "name": "reliableAcknowledge",
+              "offset": 8,
+              "bytes": 4
+            },
+            {
+              "name": "retailClientMessageSideband",
+              "offset": 12,
+              "bytes": 1,
+              "note": "retail client writes sub_4AF4D0() xor serverCommandSequence low byte"
+            },
+            {
+              "name": "first opcode",
+              "offset": 13,
+              "bytes": 1,
+              "values": [
+                "clc_clientCommand",
+                "clc_move",
+                "clc_moveNoDelta",
+                "clc_EOF"
+              ]
+            }
+          ]
+        }
+      ],
+      "observed_facts": [
+        "Retail protocol version is 91.",
+        "The source profile gates qport, reliable XOR, and compressed connect behind profile helpers.",
+        "Committed HLIL at 0x004E05C0 reads three leading packet-body longs, consumes one sideband byte, and then begins byte-opcode parsing."
+      ],
+      "open_questions": [
+        "Recover the native cgame state bits behind retail sub_4AF4D0/data_565948 so the sideband value becomes byte-for-byte complete instead of parser-compatible."
+      ],
+      "confidence": "high for parser offsets; medium for the sideband flag value until sub_4AF4D0 producers are fully named"
+    },
+    {
+      "id": "netchan_transport",
+      "priority": "critical",
+      "status": "mapped",
+      "source_files": [
+        "src/code/qcommon/net_chan.c",
+        "src/code/qcommon/qcommon.h"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "Netchan_TransmitNextFragment",
+          "address": "0x004D7370",
+          "size": 357
+        },
+        {
+          "symbol": "Netchan_Transmit",
+          "address": "0x004D74E0",
+          "size": 346
+        },
+        {
+          "symbol": "Netchan_Process",
+          "address": "0x004D7640",
+          "size": 812
+        }
+      ],
+      "packet_offsets": [
+        {
+          "packet": "netchan header",
+          "relative_to": "datagram start",
+          "fields": [
+            {
+              "name": "sequence",
+              "offset": 0,
+              "bytes": 4,
+              "flags": [
+                "FRAGMENT_BIT"
+              ]
+            },
+            {
+              "name": "qport",
+              "offset": 4,
+              "bytes": 2,
+              "condition": "client to server profile qport"
+            },
+            {
+              "name": "fragmentStart",
+              "offset": "after qport or sequence",
+              "bytes": 2,
+              "condition": "FRAGMENT_BIT set"
+            },
+            {
+              "name": "fragmentLength",
+              "offset": "after fragmentStart",
+              "bytes": 2,
+              "condition": "FRAGMENT_BIT set"
+            }
+          ]
+        }
+      ],
+      "observed_facts": [
+        "FRAGMENT_SIZE is MAX_PACKETLEN - 100.",
+        "Client qport is profile-gated in transmit and process.",
+        "Retail Netchan_Process strips FRAGMENT_BIT, rejects stale/out-of-order sequences, and reassembles fragments before endpoint decode."
+      ],
+      "open_questions": [
+        "Capture-diff exact fragment queue timing against retail or a known-good vector."
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "xor_netchan_encoding",
+      "priority": "high",
+      "status": "mapped",
+      "source_files": [
+        "src/code/client/cl_net_chan.c",
+        "src/code/server/sv_net_chan.c",
+        "src/code/qcommon/qcommon.h"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "CL_Netchan_Encode",
+          "address": "0x004BCE30",
+          "size": 173
+        },
+        {
+          "symbol": "CL_Netchan_Decode",
+          "address": "0x004BCEF0",
+          "size": 140
+        },
+        {
+          "symbol": "SV_Netchan_Encode",
+          "address": "0x004E4CD0",
+          "size": 152
+        },
+        {
+          "symbol": "SV_Netchan_Decode",
+          "address": "0x004E4D70",
+          "size": 164
+        }
+      ],
+      "packet_offsets": [
+        {
+          "name": "CL_ENCODE_START",
+          "value": 12,
+          "meaning": "client to server XOR begins after serverId, messageAcknowledge, reliableAcknowledge"
+        },
+        {
+          "name": "CL_DECODE_START",
+          "value": 4,
+          "meaning": "client server-message decode skips reliableAcknowledge after the netchan sequence cursor"
+        },
+        {
+          "name": "SV_ENCODE_START",
+          "value": 4,
+          "meaning": "server to client XOR begins after reliableAcknowledge"
+        },
+        {
+          "name": "SV_DECODE_START",
+          "value": 12,
+          "meaning": "server client-message decode begins after three client body longs"
+        }
+      ],
+      "observed_facts": [
+        "Client to server key is challenge xor serverId xor messageAcknowledge.",
+        "Server to client key is challenge xor outgoingSequence.",
+        "Both directions fold percent and high-bit command-string characters to '.'."
+      ],
+      "open_questions": [
+        "Promote deterministic XOR byte vectors from the plan into executable unit tests."
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "usercmd_delta",
+      "priority": "high",
+      "status": "mapped",
+      "source_files": [
+        "src/code/game/q_shared.h",
+        "src/code/qcommon/msg.c",
+        "src/code/client/cl_input.c",
+        "src/code/server/sv_client.c"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "MSG_WriteDeltaUsercmdKey",
+          "address": "0x004D51A0",
+          "size": 756
+        },
+        {
+          "symbol": "MSG_ReadDeltaUsercmdKey",
+          "address": "0x004D54A0",
+          "size": 683
+        },
+        {
+          "symbol": "SV_UserMove",
+          "address": "0x004E0320",
+          "size": 669
+        }
+      ],
+      "struct_offsets": [
+        {
+          "struct": "usercmd_t",
+          "field": "serverTime",
+          "offset": "0x00",
+          "bytes": 4
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "angles[0..2]",
+          "offset": "0x04",
+          "bytes": 12
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "buttons",
+          "offset": "0x10",
+          "bytes": 4
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "weapon",
+          "offset": "0x14",
+          "bytes": 1
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "weaponPrimary",
+          "offset": "0x15",
+          "bytes": 1
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "fov",
+          "offset": "0x16",
+          "bytes": 1
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "forwardmove",
+          "offset": "0x17",
+          "bytes": 1
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "rightmove",
+          "offset": "0x18",
+          "bytes": 1
+        },
+        {
+          "struct": "usercmd_t",
+          "field": "upmove",
+          "offset": "0x19",
+          "bytes": 1
+        }
+      ],
+      "wire_order": [
+        "serverTime delta flag and payload",
+        "changed-command flag",
+        "angles[0]",
+        "angles[1]",
+        "angles[2]",
+        "forwardmove",
+        "rightmove",
+        "upmove",
+        "buttons",
+        "weapon",
+        "weaponPrimary",
+        "fov"
+      ],
+      "observed_facts": [
+        "Retail HLIL reads and writes the Quake Live usercmd tail at offsets 0x15 and 0x16.",
+        "The keyed path xors the key with reconstructed serverTime before field deltas."
+      ],
+      "open_questions": [
+        "Keep keyed and unkeyed golden vectors distinct; keyed vectors depend on serverTime folding."
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "playerstate_delta_fields",
+      "priority": "high",
+      "status": "mapped",
+      "source_files": [
+        "src/code/game/q_shared.h",
+        "src/code/qcommon/msg.c",
+        "src/code/server/sv_snapshot.c",
+        "src/code/client/cl_parse.c"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "MSG_WriteDeltaPlayerstate",
+          "address": "0x004D5D50",
+          "size": 2398
+        },
+        {
+          "symbol": "MSG_ReadDeltaPlayerstate",
+          "address": "0x004D66C0",
+          "size": 1250
+        }
+      ],
+      "field_table": {
+        "retail_table_base": "0x005424D8",
+        "retail_field_count": 58,
+        "source_field_count": 58,
+        "source_table": "src/code/qcommon/msg.c::playerStateFields",
+        "last_change_width_bits": 8,
+        "array_masks": [
+          {
+            "name": "stats",
+            "mask_bits": 16,
+            "value_bits": 16
+          },
+          {
+            "name": "persistant",
+            "mask_bits": 16,
+            "value_bits": 16
+          },
+          {
+            "name": "ammo",
+            "mask_bits": 16,
+            "value_bits": 16
+          },
+          {
+            "name": "powerups",
+            "mask_bits": 16,
+            "value_bits": 32
+          }
+        ],
+        "key_fields": [
+          {
+            "field": "pm_flags",
+            "bits": 24
+          },
+          {
+            "field": "weaponPrimary",
+            "bits": 8
+          },
+          {
+            "field": "location",
+            "bits": 8
+          },
+          {
+            "field": "fov",
+            "bits": 8
+          },
+          {
+            "field": "forwardmove/rightmove/upmove",
+            "bits": 8,
+            "signed_source_value": true,
+            "unsigned_wire_value": true
+          }
+        ]
+      },
+      "observed_facts": [
+        "Retail playerstate scalar table loops over 0x3a entries.",
+        "Source playerStateFields also contains 58 entries and keeps pm_flags at 24 bits.",
+        "Stats, persistant, ammo, and powerup arrays are outside the scalar table and use 16-bit masks."
+      ],
+      "open_questions": [
+        "Extract raw table literals from the retail data region to make every playerstate offset and bit width table-generated."
+      ],
+      "confidence": "high for field count and key fields; medium for complete raw-table extraction"
+    },
+    {
+      "id": "entity_delta_fields",
+      "priority": "high",
+      "status": "completed_by_network_entitystate_fields_parity_2026_06_05",
+      "source_files": [
+        "src/code/game/q_shared.h",
+        "src/code/qcommon/msg.c",
+        "src/code/server/sv_snapshot.c",
+        "src/code/client/cl_parse.c"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "MSG_WriteDeltaEntity",
+          "address": "0x004D5780",
+          "size": 828
+        },
+        {
+          "symbol": "MSG_ReadDeltaEntity",
+          "address": "0x004D5AC0",
+          "size": 654
+        }
+      ],
+      "field_table": {
+        "retail_table_base": "0x00542220",
+        "retail_field_count": 58,
+        "source_field_count": 58,
+        "source_table": "src/code/qcommon/msg.c::entityStateFields",
+        "last_change_width_bits": 8,
+        "source_tail_field": {
+          "field": "location",
+          "bits": 8
+        },
+        "retail_entity_copy_size": "0xEC"
+      },
+      "observed_facts": [
+        "Retail MSG_WriteDeltaEntity adds 0x3a - lc to oldsize and the read path copies unchanged fields until lc reaches 0x3a.",
+        "The 2026-06-05 entitystate pass reconstructed all 58 source entries from the raw 0x00542220 table.",
+        "The source entityState_t now includes trajectory gravity, health, armor, location, jumpTime, and doubleJumped, with retailEventData retained as a source alias of the retail generic1 slot."
+      ],
+      "open_questions": [
+        "Capture-diff at least one retail snapshot or demo-derived packet containing terminal entity fields."
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "client_message_parser",
+      "priority": "critical",
+      "status": "mapped_with_external_conflict",
+      "source_files": [
+        "src/code/client/cl_input.c",
+        "src/code/server/sv_client.c",
+        "src/code/qcommon/qcommon.h"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "CL_WritePacket",
+          "address": "0x004B5F70",
+          "size": 802
+        },
+        {
+          "symbol": "SV_ExecuteClientMessage",
+          "address": "0x004E05C0",
+          "size": 385
+        }
+      ],
+      "packet_offsets": [
+        {
+          "relative_to": "client message body",
+          "serverId": 0,
+          "messageAcknowledge": 4,
+          "reliableAcknowledge": 8,
+          "retailClientMessageSideband": 12,
+          "first_opcode": 13
+        }
+      ],
+      "observed_facts": [
+        "Source CL_WritePacket writes serverId, serverMessageSequence, serverCommandSequence, and a retail sideband byte before any reliable client command opcode.",
+        "Source SV_ExecuteClientMessage reads serverId, messageAcknowledge, reliableAcknowledge, consumes the sideband byte, then reads a byte opcode.",
+        "Committed retail HLIL at 0x004E05C0 follows the same three-long, sideband-byte, opcode shape."
+      ],
+      "open_questions": [
+        "The sideband byte producer is stubbed in source as zero until the cgame/native-state bit producers behind retail sub_4AF4D0/data_565948 are fully recovered."
+      ],
+      "confidence": "high for parser offsets; medium for exact sideband value"
+    },
+    {
+      "id": "oob_connect_auth",
+      "priority": "medium",
+      "status": "mapped",
+      "source_files": [
+        "src/code/qcommon/msg.c",
+        "src/code/qcommon/net_chan.c",
+        "src/code/client/cl_main.c",
+        "src/code/server/sv_main.c",
+        "src/code/server/sv_client.c"
+      ],
+      "retail_functions": [
+        {
+          "symbol": "MSG_WriteBits",
+          "address": "0x004D4AF0",
+          "size": 371
+        },
+        {
+          "symbol": "MSG_ReadBits",
+          "address": "0x004D4C70",
+          "size": 333
+        },
+        {
+          "symbol": "MSG_InitOOB",
+          "address": "0x004D6C50",
+          "size": 56
+        },
+        {
+          "symbol": "NET_OutOfBandPrint",
+          "address": "0x004D7080",
+          "size": 159
+        },
+        {
+          "symbol": "NET_OutOfBandData",
+          "address": "0x004D7120",
+          "size": 296
+        }
+      ],
+      "packet_offsets": [
+        {
+          "packet": "OOB datagram",
+          "fields": [
+            {
+              "name": "sentinel",
+              "offset": 0,
+              "bytes": 4,
+              "value": "0xffffffff"
+            },
+            {
+              "name": "command payload",
+              "offset": 4,
+              "encoding": "raw OOB bytes unless profile-specific connect compression is selected before send"
+            }
+          ]
+        }
+      ],
+      "observed_facts": [
+        "MSG_InitOOB and MSG_BeginReadingOOB set msg->oob and raw OOB scalar reads/writes bypass the adaptive Huffman bitstream.",
+        "Compressed connect remains a profile-gated exception candidate and is already exposed through NET_ProtocolUsesCompressedConnect().",
+        "Steam-era auth challenge payloads are policy-gated online-service work and must stay behind QL_BUILD_ONLINE_SERVICES."
+      ],
+      "open_questions": [
+        "Add negative tests proving ordinary OOB commands are raw and not Huffman-coded.",
+        "Keep live Steam service use disabled by default; only document or stub open replacements unless QL_BUILD_ONLINE_SERVICES is explicitly enabled."
+      ],
+      "confidence": "high for raw OOB primitives; medium for compressed-connect/auth edge cases until vectors exist"
+    }
+  ],
+  "completion_status": {
+    "plan_task": "Build a parity ledger mapping each focus area to source files, retail function addresses, struct offsets, field counts, and packet offsets",
+    "status": "completed_with_follow_up_gaps",
+    "deliverables": [
+      "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+        "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.md"
+      ],
+      "new_high_value_findings": [
+        "Retail entityStateFields count is 58 in committed HLIL; source currently serializes 52 fields.",
+        "Retail CL_WritePacket and SV_ExecuteClientMessage confirm one sideband byte after the three client-message body longs; source was patched in the parser grammar pass."
+      ]
+    }
+  }

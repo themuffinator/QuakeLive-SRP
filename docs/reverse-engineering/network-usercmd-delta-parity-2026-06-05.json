@@ -1,0 +1,767 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "usercmd_t keyed and unkeyed delta parity for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt"
+    ],
+    "ghidra": [
+      "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+    ],
+    "mapping_notes": [
+      "docs/reverse-engineering/quakelive_steam_mapping_round_57.md",
+      "docs/reverse-engineering/quakelive_steam_mapping_round_62.md"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json"
+  },
+  "source_files": [
+    "src/code/game/q_shared.h",
+    "src/code/qcommon/msg.c",
+    "src/code/client/cl_input.c",
+    "src/code/server/sv_client.c"
+  ],
+  "struct_layout": {
+    "name": "usercmd_t",
+    "sizeof_bytes": 28,
+    "alignment_bytes": 4,
+    "fields": [
+      {
+        "name": "serverTime",
+        "ctype": "int",
+        "offset": "0x00",
+        "bytes": 4
+      },
+      {
+        "name": "angles[0]",
+        "ctype": "int",
+        "offset": "0x04",
+        "bytes": 4
+      },
+      {
+        "name": "angles[1]",
+        "ctype": "int",
+        "offset": "0x08",
+        "bytes": 4
+      },
+      {
+        "name": "angles[2]",
+        "ctype": "int",
+        "offset": "0x0c",
+        "bytes": 4
+      },
+      {
+        "name": "buttons",
+        "ctype": "int",
+        "offset": "0x10",
+        "bytes": 4
+      },
+      {
+        "name": "weapon",
+        "ctype": "byte",
+        "offset": "0x14",
+        "bytes": 1
+      },
+      {
+        "name": "weaponPrimary",
+        "ctype": "byte",
+        "offset": "0x15",
+        "bytes": 1
+      },
+      {
+        "name": "fov",
+        "ctype": "byte",
+        "offset": "0x16",
+        "bytes": 1
+      },
+      {
+        "name": "forwardmove",
+        "ctype": "signed char",
+        "offset": "0x17",
+        "bytes": 1
+      },
+      {
+        "name": "rightmove",
+        "ctype": "signed char",
+        "offset": "0x18",
+        "bytes": 1
+      },
+      {
+        "name": "upmove",
+        "ctype": "signed char",
+        "offset": "0x19",
+        "bytes": 1
+      }
+    ],
+    "retail_stride_observation": "CL_WritePacket indexes buffered commands with eax_16 * 0x1c before calling MSG_WriteDeltaUsercmdKey."
+  },
+  "wire_order": [
+    "serverTime delta flag and payload",
+    "changed-command flag for keyed commands only",
+    "angles[0]",
+    "angles[1]",
+    "angles[2]",
+    "forwardmove",
+    "rightmove",
+    "upmove",
+    "buttons",
+    "weapon",
+    "weaponPrimary",
+    "fov"
+  ],
+  "field_widths": [
+    {
+      "field": "angles[0]",
+      "bits": 16,
+      "signed_assignment": false
+    },
+    {
+      "field": "angles[1]",
+      "bits": 16,
+      "signed_assignment": false
+    },
+    {
+      "field": "angles[2]",
+      "bits": 16,
+      "signed_assignment": false
+    },
+    {
+      "field": "forwardmove",
+      "bits": 8,
+      "signed_assignment": true
+    },
+    {
+      "field": "rightmove",
+      "bits": 8,
+      "signed_assignment": true
+    },
+    {
+      "field": "upmove",
+      "bits": 8,
+      "signed_assignment": true
+    },
+    {
+      "field": "buttons",
+      "bits": 16,
+      "signed_assignment": false
+    },
+    {
+      "field": "weapon",
+      "bits": 8,
+      "signed_assignment": false
+    },
+    {
+      "field": "weaponPrimary",
+      "bits": 8,
+      "signed_assignment": false
+    },
+    {
+      "field": "fov",
+      "bits": 8,
+      "signed_assignment": false
+    }
+  ],
+  "time_encoding": {
+    "compact_delta_condition": "to->serverTime - from->serverTime < 256",
+    "compact_delta_bits": 8,
+    "full_time_bits": 32,
+    "keyed_effective_key": "base key ^ to->serverTime after the time payload is reconstructed"
+  },
+  "golden_vectors": [
+    {
+      "id": "keyed_compact_all_fields_changed",
+      "codec": "keyed",
+      "from": {
+        "serverTime": 0,
+        "angles[0]": 0,
+        "angles[1]": 0,
+        "angles[2]": 0,
+        "forwardmove": 0,
+        "rightmove": 0,
+        "upmove": 0,
+        "buttons": 0,
+        "weapon": 0,
+        "weaponPrimary": 0,
+        "fov": 0
+      },
+      "to": {
+        "serverTime": 64,
+        "angles[0]": 4369,
+        "angles[1]": 8738,
+        "angles[2]": 13107,
+        "forwardmove": -127,
+        "rightmove": 64,
+        "upmove": -12,
+        "buttons": 2065,
+        "weapon": 5,
+        "weaponPrimary": 14,
+        "fov": 110
+      },
+      "base_key": "0x12345678",
+      "time": {
+        "encoding": "delta8",
+        "flag_bit": 1,
+        "bits": 8,
+        "written_value": 64
+      },
+      "changed_command_bit": 1,
+      "effective_key": "0x12345638",
+      "field_events": [
+        {
+          "field": "angles[0]",
+          "bits": 16,
+          "old": 0,
+          "new": 4369,
+          "changed": true,
+          "written_value": "0x4729",
+          "decoded_value": 4369
+        },
+        {
+          "field": "angles[1]",
+          "bits": 16,
+          "old": 0,
+          "new": 8738,
+          "changed": true,
+          "written_value": "0x741a",
+          "decoded_value": 8738
+        },
+        {
+          "field": "angles[2]",
+          "bits": 16,
+          "old": 0,
+          "new": 13107,
+          "changed": true,
+          "written_value": "0x650b",
+          "decoded_value": 13107
+        },
+        {
+          "field": "forwardmove",
+          "bits": 8,
+          "old": 0,
+          "new": -127,
+          "changed": true,
+          "written_value": "0xb9",
+          "decoded_value": -127
+        },
+        {
+          "field": "rightmove",
+          "bits": 8,
+          "old": 0,
+          "new": 64,
+          "changed": true,
+          "written_value": "0x78",
+          "decoded_value": 64
+        },
+        {
+          "field": "upmove",
+          "bits": 8,
+          "old": 0,
+          "new": -12,
+          "changed": true,
+          "written_value": "0xcc",
+          "decoded_value": -12
+        },
+        {
+          "field": "buttons",
+          "bits": 16,
+          "old": 0,
+          "new": 2065,
+          "changed": true,
+          "written_value": "0x5e29",
+          "decoded_value": 2065
+        },
+        {
+          "field": "weapon",
+          "bits": 8,
+          "old": 0,
+          "new": 5,
+          "changed": true,
+          "written_value": "0x3d",
+          "decoded_value": 5
+        },
+        {
+          "field": "weaponPrimary",
+          "bits": 8,
+          "old": 0,
+          "new": 14,
+          "changed": true,
+          "written_value": "0x36",
+          "decoded_value": 14
+        },
+        {
+          "field": "fov",
+          "bits": 8,
+          "old": 0,
+          "new": 110,
+          "changed": true,
+          "written_value": "0x56",
+          "decoded_value": 110
+        }
+      ],
+      "logical_bit_count": 132
+    },
+    {
+      "id": "keyed_compact_no_field_changes",
+      "codec": "keyed",
+      "from": {
+        "serverTime": 1000,
+        "angles[0]": 1,
+        "angles[1]": 2,
+        "angles[2]": 3,
+        "forwardmove": 10,
+        "rightmove": -20,
+        "upmove": 30,
+        "buttons": 4660,
+        "weapon": 2,
+        "weaponPrimary": 3,
+        "fov": 90
+      },
+      "to": {
+        "serverTime": 1016,
+        "angles[0]": 1,
+        "angles[1]": 2,
+        "angles[2]": 3,
+        "forwardmove": 10,
+        "rightmove": -20,
+        "upmove": 30,
+        "buttons": 4660,
+        "weapon": 2,
+        "weaponPrimary": 3,
+        "fov": 90
+      },
+      "base_key": "0x13579bdf",
+      "time": {
+        "encoding": "delta8",
+        "flag_bit": 1,
+        "bits": 8,
+        "written_value": 16
+      },
+      "changed_command_bit": 0,
+      "effective_key": "0x13579827",
+      "field_events": [],
+      "copied_fields": [
+        "angles[0]",
+        "angles[1]",
+        "angles[2]",
+        "forwardmove",
+        "rightmove",
+        "upmove",
+        "buttons",
+        "weapon",
+        "weaponPrimary",
+        "fov"
+      ],
+      "logical_bit_count": 10
+    },
+    {
+      "id": "keyed_full_time_tail_only",
+      "codec": "keyed",
+      "from": {
+        "serverTime": 1000,
+        "angles[0]": 1,
+        "angles[1]": 2,
+        "angles[2]": 3,
+        "forwardmove": 10,
+        "rightmove": -20,
+        "upmove": 30,
+        "buttons": 4660,
+        "weapon": 2,
+        "weaponPrimary": 3,
+        "fov": 90
+      },
+      "to": {
+        "serverTime": 2000,
+        "angles[0]": 1,
+        "angles[1]": 2,
+        "angles[2]": 3,
+        "forwardmove": 10,
+        "rightmove": -20,
+        "upmove": 30,
+        "buttons": 4660,
+        "weapon": 2,
+        "weaponPrimary": 14,
+        "fov": 110
+      },
+      "base_key": "0x0badc0de",
+      "time": {
+        "encoding": "full32",
+        "flag_bit": 0,
+        "bits": 32,
+        "written_value": 2000
+      },
+      "changed_command_bit": 1,
+      "effective_key": "0x0badc70e",
+      "field_events": [
+        {
+          "field": "angles[0]",
+          "bits": 16,
+          "old": 1,
+          "new": 1,
+          "changed": false
+        },
+        {
+          "field": "angles[1]",
+          "bits": 16,
+          "old": 2,
+          "new": 2,
+          "changed": false
+        },
+        {
+          "field": "angles[2]",
+          "bits": 16,
+          "old": 3,
+          "new": 3,
+          "changed": false
+        },
+        {
+          "field": "forwardmove",
+          "bits": 8,
+          "old": 10,
+          "new": 10,
+          "changed": false
+        },
+        {
+          "field": "rightmove",
+          "bits": 8,
+          "old": -20,
+          "new": -20,
+          "changed": false
+        },
+        {
+          "field": "upmove",
+          "bits": 8,
+          "old": 30,
+          "new": 30,
+          "changed": false
+        },
+        {
+          "field": "buttons",
+          "bits": 16,
+          "old": 4660,
+          "new": 4660,
+          "changed": false
+        },
+        {
+          "field": "weapon",
+          "bits": 8,
+          "old": 2,
+          "new": 2,
+          "changed": false
+        },
+        {
+          "field": "weaponPrimary",
+          "bits": 8,
+          "old": 3,
+          "new": 14,
+          "changed": true,
+          "written_value": "0x00",
+          "decoded_value": 14
+        },
+        {
+          "field": "fov",
+          "bits": 8,
+          "old": 90,
+          "new": 110,
+          "changed": true,
+          "written_value": "0x60",
+          "decoded_value": 110
+        }
+      ],
+      "logical_bit_count": 60
+    },
+    {
+      "id": "unkeyed_compact_all_fields_changed",
+      "codec": "unkeyed",
+      "from": {
+        "serverTime": 0,
+        "angles[0]": 0,
+        "angles[1]": 0,
+        "angles[2]": 0,
+        "forwardmove": 0,
+        "rightmove": 0,
+        "upmove": 0,
+        "buttons": 0,
+        "weapon": 0,
+        "weaponPrimary": 0,
+        "fov": 0
+      },
+      "to": {
+        "serverTime": 64,
+        "angles[0]": 4369,
+        "angles[1]": 8738,
+        "angles[2]": 13107,
+        "forwardmove": -127,
+        "rightmove": 64,
+        "upmove": -12,
+        "buttons": 2065,
+        "weapon": 5,
+        "weaponPrimary": 14,
+        "fov": 110
+      },
+      "time": {
+        "encoding": "delta8",
+        "flag_bit": 1,
+        "bits": 8,
+        "written_value": 64
+      },
+      "field_events": [
+        {
+          "field": "angles[0]",
+          "bits": 16,
+          "old": 0,
+          "new": 4369,
+          "changed": true,
+          "written_value": "0x1111",
+          "decoded_value": 4369
+        },
+        {
+          "field": "angles[1]",
+          "bits": 16,
+          "old": 0,
+          "new": 8738,
+          "changed": true,
+          "written_value": "0x2222",
+          "decoded_value": 8738
+        },
+        {
+          "field": "angles[2]",
+          "bits": 16,
+          "old": 0,
+          "new": 13107,
+          "changed": true,
+          "written_value": "0x3333",
+          "decoded_value": 13107
+        },
+        {
+          "field": "forwardmove",
+          "bits": 8,
+          "old": 0,
+          "new": -127,
+          "changed": true,
+          "written_value": "0x81",
+          "decoded_value": -127
+        },
+        {
+          "field": "rightmove",
+          "bits": 8,
+          "old": 0,
+          "new": 64,
+          "changed": true,
+          "written_value": "0x40",
+          "decoded_value": 64
+        },
+        {
+          "field": "upmove",
+          "bits": 8,
+          "old": 0,
+          "new": -12,
+          "changed": true,
+          "written_value": "0xf4",
+          "decoded_value": -12
+        },
+        {
+          "field": "buttons",
+          "bits": 16,
+          "old": 0,
+          "new": 2065,
+          "changed": true,
+          "written_value": "0x0811",
+          "decoded_value": 2065
+        },
+        {
+          "field": "weapon",
+          "bits": 8,
+          "old": 0,
+          "new": 5,
+          "changed": true,
+          "written_value": "0x05",
+          "decoded_value": 5
+        },
+        {
+          "field": "weaponPrimary",
+          "bits": 8,
+          "old": 0,
+          "new": 14,
+          "changed": true,
+          "written_value": "0x0e",
+          "decoded_value": 14
+        },
+        {
+          "field": "fov",
+          "bits": 8,
+          "old": 0,
+          "new": 110,
+          "changed": true,
+          "written_value": "0x6e",
+          "decoded_value": 110
+        }
+      ],
+      "logical_bit_count": 131
+    },
+    {
+      "id": "unkeyed_full_time_tail_only",
+      "codec": "unkeyed",
+      "from": {
+        "serverTime": 1000,
+        "angles[0]": 1,
+        "angles[1]": 2,
+        "angles[2]": 3,
+        "forwardmove": 10,
+        "rightmove": -20,
+        "upmove": 30,
+        "buttons": 4660,
+        "weapon": 2,
+        "weaponPrimary": 3,
+        "fov": 90
+      },
+      "to": {
+        "serverTime": 2000,
+        "angles[0]": 1,
+        "angles[1]": 2,
+        "angles[2]": 3,
+        "forwardmove": 10,
+        "rightmove": -20,
+        "upmove": 30,
+        "buttons": 4660,
+        "weapon": 2,
+        "weaponPrimary": 14,
+        "fov": 110
+      },
+      "time": {
+        "encoding": "full32",
+        "flag_bit": 0,
+        "bits": 32,
+        "written_value": 2000
+      },
+      "field_events": [
+        {
+          "field": "angles[0]",
+          "bits": 16,
+          "old": 1,
+          "new": 1,
+          "changed": false
+        },
+        {
+          "field": "angles[1]",
+          "bits": 16,
+          "old": 2,
+          "new": 2,
+          "changed": false
+        },
+        {
+          "field": "angles[2]",
+          "bits": 16,
+          "old": 3,
+          "new": 3,
+          "changed": false
+        },
+        {
+          "field": "forwardmove",
+          "bits": 8,
+          "old": 10,
+          "new": 10,
+          "changed": false
+        },
+        {
+          "field": "rightmove",
+          "bits": 8,
+          "old": -20,
+          "new": -20,
+          "changed": false
+        },
+        {
+          "field": "upmove",
+          "bits": 8,
+          "old": 30,
+          "new": 30,
+          "changed": false
+        },
+        {
+          "field": "buttons",
+          "bits": 16,
+          "old": 4660,
+          "new": 4660,
+          "changed": false
+        },
+        {
+          "field": "weapon",
+          "bits": 8,
+          "old": 2,
+          "new": 2,
+          "changed": false
+        },
+        {
+          "field": "weaponPrimary",
+          "bits": 8,
+          "old": 3,
+          "new": 14,
+          "changed": true,
+          "written_value": "0x0e",
+          "decoded_value": 14
+        },
+        {
+          "field": "fov",
+          "bits": 8,
+          "old": 90,
+          "new": 110,
+          "changed": true,
+          "written_value": "0x6e",
+          "decoded_value": 110
+        }
+      ],
+      "logical_bit_count": 59
+    }
+  ],
+  "retail_anchors": [
+    {
+      "symbol": "MSG_WriteDeltaUsercmdKey",
+      "address": "0x004D51A0",
+      "observed": "Writes compact or full serverTime, checks all non-time fields for no-change, xors the key with to->serverTime, then writes angle, movement, button, weapon, weaponPrimary, and fov deltas."
+    },
+    {
+      "symbol": "MSG_ReadDeltaUsercmdKey",
+      "address": "0x004D54A0",
+      "observed": "Reads compact or full serverTime, copies all non-time fields when the changed-command bit is clear, otherwise applies key ^ serverTime to the same field order."
+    },
+    {
+      "symbol": "CL_WritePacket",
+      "address": "0x004B5F70",
+      "observed": "Calls MSG_WriteDeltaUsercmdKey for each outgoing command using the previous command as baseline."
+    },
+    {
+      "symbol": "SV_UserMove",
+      "address": "0x004E0320",
+      "observed": "Calls MSG_ReadDeltaUsercmdKey for each incoming command using the previous decoded command as baseline."
+    }
+  ],
+  "completion_status": {
+    "implementation_plan_entry": "Finalize usercmd_t delta parity",
+    "status": "completed_static_struct_layout_and_logical_vectors",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "source_patch_required": false,
+    "focused_task_parity_before_percent": 78,
+    "focused_task_parity_after_percent": 94,
+    "overall_network_protocol_parity_before_percent": 78,
+    "overall_network_protocol_parity_after_percent": 80,
+    "residual_risks": [
+      "Byte-for-byte packet fixtures still require a pinned adaptive Huffman state or external retail capture.",
+      "The unkeyed path is source-locked for parity even though normal protocol-91 client movement uses the keyed path."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_usercmd_delta_struct_layout_and_logical_vectors"
+  ]
+}

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 This file now tracks only active repo-level work. Detailed closure narratives
 live in the dedicated subsystem audits under `docs/reverse-engineering/`.
@@ -44,6 +44,835 @@ disabled, until a documented open replacement path exists.
   pick and close remaining `src/ui/menudef.h` ownerdraw IDs.
 
 ## Active work
+
+### Task A210: Close selected 335-339 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_BLUE_TEAM_TIMEHELD_HASTE`, `CG_BLUE_TEAM_TIMEHELD_INVIS`,
+`CG_FLAG_STATUS`, `CG_HEALTH_COLORIZED`, and `CG_MATCH_STATE` ownerdraw set.
+Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher for raw ownerdraw cases
+   `0x14F` through `0x153`.
+2. Confirmed blue Haste and Invisibility time-held ownerdraws normalize
+   through `0x10039AE0` selector cases `4` and `5`, select the blue
+   `scorestats_team` row, accumulate qagame hold-stat seconds through the
+   Haste/Invisibility powerup mappings, and format through the recovered
+   `%i:%i%i` minute-second helper.
+3. Confirmed `CG_FLAG_STATUS` routes to the recovered retail objective-status
+   graphic strip, with source parity covering the CTF-family, one-flag,
+   Harvester, and Domination strip paths plus the preserved fallback label
+   route for unsupported states.
+4. Confirmed `CG_HEALTH_COLORIZED` resolves local or followed-client
+   health/armor color, preserves the competitive HUD `scorebox_follow` shader
+   fallback, and keeps both shader-tint and filled-rect draw paths.
+5. Confirmed `CG_MATCH_STATE` paints only the compact uppercase phase banner
+   (`MATCH SUMMARY`, `MATCH WARMUP`, or `MATCH IN PROGRESS`) and leaves
+   timeout/overtime text to their dedicated ownerdraws.
+6. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A209: Close selected 330-334 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_BLUE_TEAM_PICKUPS_REGEN`, `CG_BLUE_TEAM_PICKUPS_HASTE`,
+`CG_BLUE_TEAM_PICKUPS_INVIS`, `CG_BLUE_TEAM_TIMEHELD_FLAG`, and
+`CG_BLUE_TEAM_TIMEHELD_REGEN` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x10037F80`
+   sparse pickup-count helper, and `0x10039AE0` time-held helper for raw
+   ownerdraw cases `0x14A` through `0x14E`.
+2. Confirmed blue Regeneration, Haste, and Invisibility pickup ownerdraws
+   select the blue team-stat row, normalize through retail pickup selector
+   cases `9`, `10`, and `11`, and paint direct integer counts from the parsed
+   `scorestats_team` payload.
+3. Confirmed blue flag and Regeneration time-held ownerdraws select the blue
+   row, accumulate qagame hold-stat seconds through the flag/Regen powerup
+   mappings, and format through the recovered `%i:%i%i` minute-second helper.
+4. Confirmed the selected rows keep retail TDM/CTF payload membership, route
+   through the correct pickup versus time-held draw helpers, refresh
+   competitive scorestats through `CG_IsTeamPickupOwnerDraw`, and have no
+   value, width, or key callback routes.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A208: Close selected 325-329 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_BLUE_TEAM_PICKUPS_BS`, `CG_BLUE_TEAM_TIMEHELD_QUAD`,
+`CG_BLUE_TEAM_TIMEHELD_BS`, `CG_BLUE_TEAM_PICKUPS_FLAG`, and
+`CG_BLUE_TEAM_PICKUPS_MEDKIT` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x10037F80`
+   pickup-count helper, and `0x10039AE0` time-held helper for raw ownerdraw
+   cases `0x145` through `0x149`.
+2. Confirmed blue Battle Suit, flag, and Medkit pickup ownerdraws select the
+   blue team-stat row, normalize through the retail pickup selector, and paint
+   direct integer counts from the parsed `scorestats_team` payload.
+3. Confirmed blue Quad and Battle Suit time-held ownerdraws select the blue
+   row, accumulate qagame hold-stat seconds, and format through the recovered
+   `%i:%i%i` minute-second helper.
+4. Confirmed the selected rows keep retail TDM/CTF payload membership, route
+   through the correct pickup versus time-held draw helpers, refresh
+   competitive scorestats through `CG_IsTeamPickupOwnerDraw`, and have no
+   value, width, or key callback routes.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A207: Close selected 308-312 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_RED_TEAM_TIMEHELD_HASTE`, `CG_RED_TEAM_TIMEHELD_INVIS`,
+`CG_BLUE_FLAGSTATUS`, `CG_BLUE_NAME`, and `CG_BLUE_SCORE` ownerdraw set.
+Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher for raw ownerdraw cases
+   `0x134` through `0x138`.
+2. Confirmed red Haste and Invisibility time-held ownerdraws normalize
+   through `0x10039AE0` selector cases `4` and `5`, read the retail
+   `scorestats_team` caches, and format with the minute-second helper.
+3. Confirmed the blue flag-status, team-name, and score ownerdraws route to
+   retail leaves `0x10030A80`, `0x10030090`, and `0x1002FF50` with matching
+   team selection, fallback, alignment, and score value callback behavior.
+4. Confirmed only the time-held pair refreshes competitive scorestats through
+   the team-pickup ownerdraw predicate and that all selected width/key
+   callback boundaries match retail.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A206: Close selected 315-319 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_BLUE_BASESTATUS`, `CG_BLUE_PLAYER_COUNT`, `CG_BLUE_CLAN_PLYRS`,
+`CG_BLUE_TIMEOUT_COUNT`, and `CG_BLUE_TEAM_MAP_PICKUPS` ownerdraw set.
+Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher for raw ownerdraw cases
+   `0x13B` through `0x13F`.
+2. Confirmed `CG_BLUE_BASESTATUS` stays on the shared
+   `0x10030A80` flag/base-status helper with blue/base semantics and the
+   expected competitive refresh boundary.
+3. Confirmed `CG_BLUE_PLAYER_COUNT`, `CG_BLUE_CLAN_PLYRS`, and
+   `CG_BLUE_TIMEOUT_COUNT` preserve the retail player-count formatter,
+   round-family players-remaining gate, positive-team-size timeout gate,
+   blue cached team-count source, blue timeout source, and alignment paths.
+4. Confirmed `CG_BLUE_TEAM_MAP_PICKUPS` enters the zero-offset blue aggregate
+   pickup strip, consumes the parsed blue `scorestats_team` row, and refreshes
+   competitive scorestats through `CG_IsTeamPickupOwnerDraw`.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A205: Close selected 320-324 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_BLUE_TEAM_PICKUPS_RA`, `CG_BLUE_TEAM_PICKUPS_YA`,
+`CG_BLUE_TEAM_PICKUPS_GA`, `CG_BLUE_TEAM_PICKUPS_MH`, and
+`CG_BLUE_TEAM_PICKUPS_QUAD` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and `0x10037F80`
+   team-pickup helper for raw ownerdraw cases `0x140` through `0x144`.
+2. Confirmed the selected blue pickup ownerdraws normalize from
+   `CG_BLUE_TEAM_MAP_PICKUPS` to offsets `1` through `5`, consume the blue
+   row of parsed `scorestats_team` fields, and paint RA/YA/GA/MH/Quad counts
+   through the retail direct integer text path.
+3. Confirmed qagame publishes red then blue team-stat rows, cgame parses both
+   rows into `cg.teamScoreStats.values`, and the retail TDM/CTF field order
+   backs the selected RA/YA/GA/MH/Quad cache slots.
+4. Confirmed the selected rows route through `CG_DrawTeamPickupOwnerDraw`,
+   refresh competitive scorestats through `CG_IsTeamPickupOwnerDraw`, and
+   have no value, width, or key callback routes.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A204: Close selected 303-307 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/cgame/cg_servercmds.c`,
+`tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 96% -> after 100%** for the selected
+`CG_RED_TEAM_PICKUPS_REGEN`, `CG_RED_TEAM_PICKUPS_HASTE`,
+`CG_RED_TEAM_PICKUPS_INVIS`, `CG_RED_TEAM_TIMEHELD_FLAG`, and
+`CG_RED_TEAM_TIMEHELD_REGEN` ownerdraw set. Repo-wide parity remains
+**98%** because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, pickup helper
+   `0x10037F80`, time-held helper `0x10039AE0`, retail selector tables, and
+   team scoreboard parsers for raw ownerdraw cases `0x12f` through `0x133`.
+2. Confirmed red Regen/Haste/Invis pickup ownerdraws normalize through the
+   sparse retail selector to caches `data_10aa687c`, `data_10aa6880`, and
+   `data_10aa6884`, then paint through the direct integer text path.
+3. Confirmed red flag and Regeneration time-held ownerdraws normalize through
+   the retail time-held selector to `data_10aa68a4` and `data_10aa6898`, then
+   use the shared `%i:%i%i` minute-second formatter.
+4. Corrected the source TDM/CTF scoreboard aggregate header order so retail
+   scoreboard payloads populate the same sparse cache slots; the synthetic
+   `CG_TEAMSTAT_MAP_PICKUPS` slot remains limited to the compact
+   `scorestats_team` path.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A203: Close selected 282 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for
+`CG_2ND_PLYR_TIER`. Repo-wide parity remains **98%** because unrelated
+compatibility, source-legacy, online-service, and packaging surfaces are
+unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` ownerdraw target set for raw ownerdraw
+   `0x11A` and confirmed `CG_2ND_PLYR_TIER` has no retail draw helper route.
+2. Confirmed source keeps `CG_2ND_PLYR_TIER` as an explicit direct no-op with
+   the neighboring `CG_2ND_PLYR_PR` boundary while leaving the broad
+   second-player resolver range intact for adjacent ids.
+3. Confirmed compact scorestats may still parse progression tier for data
+   parity, but the tier ownerdraw has no placement guard, metric dispatcher,
+   competitive refresh, value, width, key, or direct draw route.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected id.
+
+### Task A202: Close selected 277-281 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_AVG_PICKUP_TIME_MH`, `CG_2ND_PLYR_EXCELLENT`,
+`CG_2ND_PLYR_IMPRESSIVE`, `CG_2ND_PLYR_HUMILIATION`, and
+`CG_2ND_PLYR_PR` ownerdraw set. Repo-wide parity remains **98%** because
+unrelated compatibility, source-legacy, online-service, and packaging surfaces
+are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, pickup-average helper
+   `0x10037730`, award-count helper `0x10037990`, and raw no-route boundary
+   for ownerdraw cases `0x115` through `0x119`.
+2. Confirmed `CG_2ND_PLYR_AVG_PICKUP_TIME_MH` selects slot 1, consumes the
+   compact MH pickup-average scorestats payload, paints through retail
+   `%3.2f`, and preserves the `"-"` fallback when the MH pickup count is zero.
+3. Confirmed `CG_2ND_PLYR_EXCELLENT`, `CG_2ND_PLYR_IMPRESSIVE`, and
+   `CG_2ND_PLYR_HUMILIATION` select slot 1, consume parsed duel-score award
+   counts, and paint through the retail `%d` formatter.
+4. Confirmed `CG_2ND_PLYR_PR` remains an explicit no-op ownerdraw boundary:
+   progression PR is still parsed from compact scorestats, but retail has no
+   raw `0x119` draw helper, placement guard, competitive refresh, value,
+   width, or key callback route.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A201: Close selected 237-241 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_SHOTS_RG`, `CG_2ND_PLYR_SHOTS_PG`,
+`CG_2ND_PLYR_SHOTS_BFG`, `CG_2ND_PLYR_SHOTS_CG`, and
+`CG_2ND_PLYR_SHOTS_NG` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x10036B00`
+   weapon-shot leaf, and `0x1002E2B0` weapon resolver for raw ownerdraw
+   cases `0xed` through `0xf1`.
+2. Confirmed the selected second-player shot ownerdraws select slot 1,
+   resolve RG/PG/BFG/CG/NG to weapon indexes `7`, `8`, `9`, `0xd`, and
+   `0xb`, read `data_10A6038C`, and paint through the retail `%d`
+   formatter.
+3. Confirmed source normalization, metric dispatch, qagame scorestats
+   emission, cgame scorestats parsing, competitive placement refresh, and
+   ownerdraw/value/width/key callback absence match the retail wiring.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A200: Close selected 272-276 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_PICKUPS_GA`, `CG_2ND_PLYR_PICKUPS_MH`,
+`CG_2ND_PLYR_AVG_PICKUP_TIME_RA`, `CG_2ND_PLYR_AVG_PICKUP_TIME_YA`,
+and `CG_2ND_PLYR_AVG_PICKUP_TIME_GA` ownerdraw set. Repo-wide parity
+remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, pickup-count helper
+   `0x10036EB0`, and pickup-average helper `0x10037730` for raw ownerdraw
+   cases `0x110` through `0x114`.
+2. Confirmed `CG_2ND_PLYR_PICKUPS_GA` and `CG_2ND_PLYR_PICKUPS_MH` select
+   slot 1, consume compact GA/MH pickup-count `scorestats` payloads, and paint
+   through the retail `%d` formatter.
+3. Confirmed `CG_2ND_PLYR_AVG_PICKUP_TIME_RA`,
+   `CG_2ND_PLYR_AVG_PICKUP_TIME_YA`, and
+   `CG_2ND_PLYR_AVG_PICKUP_TIME_GA` select slot 1, consume compact pickup
+   average payloads, paint through retail `%3.2f`, and preserve the retail
+   `"-"` fallback when the associated pickup count is zero.
+4. Confirmed source normalization, placement metric dispatch, qagame
+   scorestats emission, cgame scorestats parsing, competitive placement
+   refresh, and ownerdraw/value/width/key callback absence match the retail
+   wiring.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A198: Close selected 232-236 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_SHOTS_MG`, `CG_2ND_PLYR_SHOTS_SG`,
+`CG_2ND_PLYR_SHOTS_GL`, `CG_2ND_PLYR_SHOTS_RL`, and
+`CG_2ND_PLYR_SHOTS_LG` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x10036B00`
+   weapon-shot leaf, and `0x1002E2B0` weapon resolver for raw ownerdraw
+   cases `0xe8` through `0xec`.
+2. Confirmed the selected second-player shot ownerdraws select slot 1,
+   resolve MG/SG/GL/RL/LG to weapon indexes `2`, `3`, `4`, `5`, and `6`,
+   read `data_10A6038C`, and paint through the retail `%d` formatter.
+3. Confirmed source normalization, metric dispatch, qagame scorestats
+   emission, cgame scorestats parsing, competitive placement refresh, and
+   ownerdraw/value/width/key callback absence match the retail wiring.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A199: Close selected 267-271 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_ACC_PL`, `CG_2ND_PLYR_ACC_HMG`, `CG_2ND_PLYR_PICKUPS`,
+`CG_2ND_PLYR_PICKUPS_RA`, and `CG_2ND_PLYR_PICKUPS_YA` ownerdraw set.
+Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, HLIL weapon-accuracy leaf,
+   pickup-count/summary leaf, and shared placement weapon resolver for raw
+   ownerdraw cases `0x10B` through `0x10F`.
+2. Confirmed `CG_2ND_PLYR_ACC_PL` and `CG_2ND_PLYR_ACC_HMG` stay on the
+   pre-switch `0x10036D60` accuracy helper, normalize through the retail
+   `0x1002E2B0` weapon resolver, preserve the Quake Live enum gaps for PL/HMG,
+   and consume hit/shot-derived `scorestats` accuracy payloads.
+3. Confirmed `CG_2ND_PLYR_PICKUPS`, `CG_2ND_PLYR_PICKUPS_RA`, and
+   `CG_2ND_PLYR_PICKUPS_YA` stay on the pre-switch `0x10036EB0` pickup helper,
+   select slot 1, and consume compact RA/YA/GA/MH pickup count and average
+   scorestats payloads.
+4. Confirmed the selected pickup summary/count ownerdraws preserve retail
+   placement summary icon/text layout, direct `%d` count formatting for RA/YA,
+   competitive refresh, and absence from direct `CG_OwnerDraw`, value, width,
+   and key callback routes.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL resolver/cache/format/layout signals, server/client
+   `scorestats` transport, weapon and pickup mapping, dispatcher routing,
+   callback absence, and competitive refresh wiring.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A197: Close selected 298-302 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_RED_TEAM_PICKUPS_BS`, `CG_RED_TEAM_TIMEHELD_QUAD`,
+`CG_RED_TEAM_TIMEHELD_BS`, `CG_RED_TEAM_PICKUPS_FLAG`, and
+`CG_RED_TEAM_PICKUPS_MEDKIT` ownerdraw set. Repo-wide parity remains
+**98%** because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x10037F80`
+   pickup-count leaf, and `0x10039AE0` time-held leaf for raw ownerdraw
+   cases `0x12a` through `0x12e`.
+2. Confirmed `CG_RED_TEAM_PICKUPS_BS`, `CG_RED_TEAM_PICKUPS_FLAG`, and
+   `CG_RED_TEAM_PICKUPS_MEDKIT` stay in the `arg5 - 0x124` retail pickup
+   range and paint the direct red team integer fields for offsets `6`,
+   `9`, and `0xa`.
+3. Confirmed `CG_RED_TEAM_TIMEHELD_QUAD` and `CG_RED_TEAM_TIMEHELD_BS`
+   route through `0x10039AE0`, resolve offsets `0` and `1`, and format
+   seconds through the recovered `%i:%i%i` minute-second helper.
+4. Confirmed source metadata, team-scorestats transports, pickup/time-held
+   dispatcher split, competitive refresh, and value/width/key callback
+   absence match retail wiring.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A196: Close selected 227-231 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_HITS_BFG`, `CG_2ND_PLYR_HITS_CG`,
+`CG_2ND_PLYR_HITS_NG`, `CG_2ND_PLYR_HITS_PL`, and
+`CG_2ND_PLYR_HITS_HMG` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x100369D0`
+   weapon-hit leaf, and `0x1002E2B0` weapon resolver for raw ownerdraw
+   cases `0xe3` through `0xe7`.
+2. Confirmed the selected second-player hit ownerdraws select slot 1,
+   resolve BFG/CG/NG/PL/HMG to weapon indexes `9`, `0xd`, `0xb`, `0xc`,
+   and `0xe`, read `data_10A603CC`, and paint through the retail `%d`
+   formatter.
+3. Confirmed source normalization, metric dispatch, qagame scorestats
+   emission, cgame scorestats parsing, competitive placement refresh, and
+   ownerdraw/value/width/key callback absence match the retail wiring.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A195: Close selected 293-297 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_RED_TEAM_PICKUPS_RA`, `CG_RED_TEAM_PICKUPS_YA`,
+`CG_RED_TEAM_PICKUPS_GA`, `CG_RED_TEAM_PICKUPS_MH`, and
+`CG_RED_TEAM_PICKUPS_QUAD` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and `0x10037F80`
+   team-pickup leaf for raw ownerdraw cases `0x125` through `0x129`.
+2. Confirmed all five selected ownerdraws stay in the `arg5 - 0x124`
+   retail range, resolve to offsets `1` through `5`, and paint the direct
+   red team pickup-count fields through the common integer text path.
+3. Confirmed source metadata maps the selected rows to
+   `CG_TEAMSTAT_PICKUPS_RA`, `CG_TEAMSTAT_PICKUPS_YA`,
+   `CG_TEAMSTAT_PICKUPS_GA`, `CG_TEAMSTAT_PICKUPS_MH`, and
+   `CG_TEAMSTAT_PICKUPS_QUAD`, backed by the retail team-scorestats header
+   and `scorestats_team` transports.
+4. Confirmed the selected rows route through `CG_DrawTeamPickupOwnerDraw`,
+   refresh competitive scorestats through `CG_IsTeamPickupOwnerDraw`, and
+   have no value, width, key, or time-held callback routes.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A194: Close selected 262-266 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_ACC_RG`, `CG_2ND_PLYR_ACC_PG`, `CG_2ND_PLYR_ACC_BFG`,
+`CG_2ND_PLYR_ACC_CG`, and `CG_2ND_PLYR_ACC_NG` ownerdraw set. Repo-wide
+parity remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL weapon-accuracy
+   leaf for raw ownerdraw cases `0x106` through `0x10A`.
+2. Confirmed all five selected ownerdraws stay on the pre-switch `0x10036D60`
+   accuracy helper, normalize through the retail `0x1002E2B0` weapon resolver,
+   and consume hit/shot-derived `scorestats` accuracy payloads.
+3. Confirmed the selected accuracy ownerdraws resolve to Railgun, Plasmagun,
+   BFG, Chaingun, and Nailgun, preserving the Quake Live enum gaps for CG and
+   NG.
+4. Confirmed all five selected ownerdraws preserve the retail best-row white
+   `0.8` alpha override, refresh the competitive score cache, draw through the
+   placement metric dispatcher instead of direct `CG_OwnerDraw` cases, and
+   have no value, width, or key callback routes.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL resolver/cache/format/color/paint signals, server/client
+   `scorestats` transport, weapon mapping, dispatcher routing, callback
+   absence, and competitive refresh wiring.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A193: Close selected 222-226 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_HITS_GL`, `CG_2ND_PLYR_HITS_RL`,
+`CG_2ND_PLYR_HITS_LG`, `CG_2ND_PLYR_HITS_RG`, and
+`CG_2ND_PLYR_HITS_PG` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x100369D0`
+   weapon-hit leaf, and `0x1002E2B0` weapon resolver for raw ownerdraw
+   cases `0xde` through `0xe2`.
+2. Confirmed the selected second-player hit ownerdraws select slot 1,
+   resolve GL/RL/LG/RG/PG to weapon indexes `4`, `5`, `6`, `7`, and `8`,
+   read `data_10A603CC`, and paint through the retail `%d` formatter.
+3. Confirmed source normalization, metric dispatch, qagame scorestats
+   emission, cgame scorestats parsing, competitive placement refresh, and
+   ownerdraw/value/width/key callback absence match the retail wiring.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A192: Close selected 257-261 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_ACC_MG`, `CG_2ND_PLYR_ACC_SG`, `CG_2ND_PLYR_ACC_GL`,
+`CG_2ND_PLYR_ACC_RL`, and `CG_2ND_PLYR_ACC_LG` ownerdraw set. Repo-wide
+parity remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL weapon-accuracy
+   leaf for raw ownerdraw cases `0x101` through `0x105`.
+2. Confirmed all five selected ownerdraws stay on the pre-switch `0x10036D60`
+   accuracy helper, normalize through the retail `0x1002E2B0` weapon resolver,
+   and consume hit/shot-derived `scorestats` accuracy payloads.
+3. Confirmed the selected accuracy ownerdraws resolve to Machinegun, Shotgun,
+   Grenade Launcher, Rocket Launcher, and Lightning Gun.
+4. Confirmed all five selected ownerdraws preserve the retail best-row white
+   `0.8` alpha override, refresh the competitive score cache, draw through the
+   placement metric dispatcher instead of direct `CG_OwnerDraw` cases, and
+   have no value, width, or key callback routes.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL resolver/cache/format/color/paint signals, server/client
+   `scorestats` transport, weapon mapping, dispatcher routing, callback
+   absence, and competitive refresh wiring.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A191: Close selected 288-292 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_RED_BASESTATUS`, `CG_RED_PLAYER_COUNT`, `CG_RED_CLAN_PLYRS`,
+`CG_RED_TIMEOUT_COUNT`, and `CG_RED_TEAM_MAP_PICKUPS` ownerdraw set.
+Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher paths for raw ownerdraw
+   cases `0x120` through `0x124`.
+2. Confirmed red base status shares `0x10030A80` with flag status, red
+   player count routes to `0x100333C0`, red clan-player count routes to
+   `0x100335F0` behind the players-remaining gate, and red timeout count
+   routes to `0x10033530` behind the positive team-size gate.
+3. Confirmed red map pickups enter the `0x10037F80` aggregate pickup strip
+   as the zero-offset red range case, preserving parsed `scorestats_team`
+   fields, icon selection, visible positive-count filtering, and the retail
+   `25`/`28` slot strides.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A190: Close selected 217-221 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_FRAGS_NG`, `CG_2ND_PLYR_FRAGS_PL`,
+`CG_2ND_PLYR_FRAGS_HMG`, `CG_2ND_PLYR_HITS_MG`, and
+`CG_2ND_PLYR_HITS_SG` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x100368A0`
+   weapon-frag leaf, `0x100369D0` weapon-hit leaf, and `0x1002E2B0`
+   weapon resolver for raw ownerdraw cases `0xd9` through `0xdd`.
+2. Confirmed `CG_2ND_PLYR_FRAGS_NG`, `CG_2ND_PLYR_FRAGS_PL`, and
+   `CG_2ND_PLYR_FRAGS_HMG` select slot 1, resolve to weapon indexes
+   `0xb`, `0xc`, and `0xe`, read `data_10A6030C`, and paint through
+   the retail `%d` formatter.
+3. Confirmed `CG_2ND_PLYR_HITS_MG` and `CG_2ND_PLYR_HITS_SG` select
+   slot 1, resolve to weapon indexes `2` and `3`, read
+   `data_10A603CC`, and paint through the retail `%d` formatter.
+4. Confirmed source normalization, metric dispatch, qagame scorestats
+   emission, cgame scorestats parsing, competitive placement refresh, and
+   ownerdraw/value/width/key callback absence match the retail wiring across
+   the frag-order and accuracy-order payload split.
+5. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A189: Close selected 252-256 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_DMG_BFG`, `CG_2ND_PLYR_DMG_CG`, `CG_2ND_PLYR_DMG_NG`,
+`CG_2ND_PLYR_DMG_PL`, and `CG_2ND_PLYR_DMG_HMG` ownerdraw set. Repo-wide
+parity remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL damage leaf for raw
+   ownerdraw cases `0xfc` through `0x100`.
+2. Confirmed all five selected ownerdraws stay on the pre-switch `0x10036C30`
+   damage helper, normalize through the retail `0x1002E2B0` weapon resolver,
+   and consume the parsed `scorestats` damage payload.
+3. Confirmed the selected damage ownerdraws resolve to BFG, Chaingun, Nailgun,
+   Proximity Launcher, and Heavy Machinegun, preserving the Quake Live enum
+   gaps for CG/NG/PL/HMG.
+4. Confirmed all five selected ownerdraws refresh the competitive score cache,
+   draw through the placement metric dispatcher instead of direct
+   `CG_OwnerDraw` cases, and have no value, width, or key callback routes.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL resolver/cache/format/paint signals, server/client
+   `scorestats` transport, weapon mapping, dispatcher routing, callback
+   absence, and competitive refresh wiring.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A188: Close selected 212-216 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_FRAGS_LG`, `CG_2ND_PLYR_FRAGS_RG`,
+`CG_2ND_PLYR_FRAGS_PG`, `CG_2ND_PLYR_FRAGS_BFG`, and
+`CG_2ND_PLYR_FRAGS_CG` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x100368A0`
+   weapon-frag leaf, and `0x1002E2B0` weapon resolver for raw ownerdraw
+   cases `0xd4` through `0xd8`.
+2. Confirmed the selected second-player frag ownerdraws select slot 1,
+   resolve LG/RG/PG/BFG/CG to weapon indexes `6`, `7`, `8`, `9`, and
+   `0xd`, read `data_10A6030C`, and paint through the retail `%d`
+   formatter.
+3. Confirmed source normalization, metric dispatch, qagame scorestats
+   emission, cgame scorestats parsing, competitive placement refresh, and
+   ownerdraw/value/width/key callback absence match the retail wiring.
+4. Added focused structural coverage and refreshed the cgame ownerdraw and
+   mapping ledgers for the selected five.
+
+### Task A187: Close selected 247-251 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_DMG_GL`, `CG_2ND_PLYR_DMG_RL`, `CG_2ND_PLYR_DMG_LG`,
+`CG_2ND_PLYR_DMG_RG`, and `CG_2ND_PLYR_DMG_PG` ownerdraw set. Repo-wide
+parity remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL damage leaf for raw
+   ownerdraw cases `0xf7` through `0xfb`.
+2. Confirmed all five selected ownerdraws stay on the pre-switch `0x10036C30`
+   damage helper, normalize through the retail `0x1002E2B0` weapon resolver,
+   and consume the parsed `scorestats` damage payload.
+3. Confirmed the selected damage ownerdraws resolve to Grenade Launcher,
+   Rocket Launcher, Lightning Gun, Railgun, and Plasmagun in the same order as
+   the qagame producer and cgame parser.
+4. Confirmed all five selected ownerdraws refresh the competitive score cache,
+   draw through the placement metric dispatcher instead of direct
+   `CG_OwnerDraw` cases, and have no value, width, or key callback routes.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL resolver/cache/format/paint signals, server/client
+   `scorestats` transport, weapon mapping, dispatcher routing, callback
+   absence, and competitive refresh wiring.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A186: Close selected 283-287 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/cgame/cg_newdraw.c`,
+`tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_RED_FLAGSTATUS`, `CG_RED_SCORE`, `CG_RED_NAME`,
+`CG_RED_OWNED_FLAGS`, and `CG_RED_AVG_PING` ownerdraw set. Repo-wide
+parity remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL leaves for raw
+   ownerdraw cases `0x11b` through `0x11f`.
+2. Confirmed `CG_RED_FLAGSTATUS` stays on the shared team flag/base-status
+   icon leaf, including red status selection and shader fallback behavior.
+3. Confirmed `CG_RED_SCORE` stays on the aligned team-score leaf and remains
+   the only selected ownerdraw with a `CG_GetValue` callback route.
+4. Confirmed `CG_RED_NAME` stays on the aligned team-name leaf with the
+   configured-name and default-name fallback path.
+5. Confirmed `CG_RED_OWNED_FLAGS` stays behind the retail Domination /
+   Attack-Defend gate before drawing the red owned-point count.
+6. Restored the shared `CG_DrawTeamAveragePing` leaf to retail behavior:
+   matching score rows are averaged without a negative-ping skip, no matching
+   rows still paint `(0)`, thresholds are `>40` and `>80`, alpha is `0.8`,
+   and text formats as `(%d)`.
+7. Added focused structural coverage for constants, retail target-group
+   membership, HLIL branch/format/color signals, local dispatcher routes,
+   value/width/key callback membership, competitive-refresh absence, and the
+   selected ownerdraw ledger rows.
+8. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A185: Close selected 242-246 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_SHOTS_PL`, `CG_2ND_PLYR_SHOTS_HMG`, `CG_2ND_PLYR_DMG_G`,
+`CG_2ND_PLYR_DMG_MG`, and `CG_2ND_PLYR_DMG_SG` ownerdraw set. Repo-wide
+parity remains **98%** because unrelated compatibility, source-legacy,
+online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL leaves for raw
+   ownerdraw cases `0xf2` through `0xf6`.
+2. Confirmed `CG_2ND_PLYR_SHOTS_PL` and `CG_2ND_PLYR_SHOTS_HMG` stay on the
+   pre-switch `0x10036B00` shot-count helper, normalize through the retail
+   weapon resolver, and consume the parsed `scorestats` shot-count payload.
+3. Confirmed `CG_2ND_PLYR_DMG_G`, `CG_2ND_PLYR_DMG_MG`, and
+   `CG_2ND_PLYR_DMG_SG` stay on the pre-switch `0x10036C30` damage helper,
+   normalize to Gauntlet/Machinegun/Shotgun, and consume the parsed
+   `scorestats` damage payload.
+4. Confirmed all five selected ownerdraws refresh the competitive score cache,
+   draw through the placement metric dispatcher instead of direct
+   `CG_OwnerDraw` cases, and have no value, width, or key callback routes.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL helper-field signals, server/client `scorestats` transport,
+   weapon mapping, dispatcher routing, callback absence, and competitive
+   refresh wiring.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A184: Close selected 207-211 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_FRAGS_G`, `CG_2ND_PLYR_FRAGS_MG`,
+`CG_2ND_PLYR_FRAGS_SG`, `CG_2ND_PLYR_FRAGS_GL`, and
+`CG_2ND_PLYR_FRAGS_RL` ownerdraw set. Repo-wide parity remains **98%**
+because unrelated compatibility, source-legacy, online-service, and
+packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher, `0x100368A0` weapon-frag
+   leaf, and `0x1002E2B0` placement weapon resolver for raw ownerdraw cases
+   `0xcf` through `0xd3`.
+2. Confirmed the selected second-player frag head resolves to G/MG/SG/GL/RL
+   weapon indexes `1` through `5`, reads the slot-1 weapon-frag cells, and
+   formats through the retail `%d` literal.
+3. Confirmed the source placement resolver normalizes the selected second-slot
+   ownerdraws back to the first-player family before weapon lookup and text
+   construction.
+4. Confirmed the qagame-to-cgame compact `scorestats` transport uses the same
+   G/MG/SG/GL/RL-leading weapon-frag order before the ownerdraws read
+   `cg.scoreStats[clientNum].weaponFrags`.
+5. Added focused structural coverage for constants, retail target-group
+   membership, HLIL resolver/cache/format/paint signals, source weapon
+   mapping, server send path, cgame parse path, placement dispatch, competitive
+   refresh wiring, and callback/direct-switch absence.
+6. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
+
+### Task A183: Close selected 202-206 cgame ownerdraw parity [COMPLETED]
+Priority: High
+Primary areas: `tests/test_cgame_displaycontext_parity.py`,
+`docs/reverse-engineering/cg-ownerdrawtype-parity-index.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 99% -> after 100%** for the selected
+`CG_2ND_PLYR_ACC`, `CG_2ND_PLYR_FLAG`, `CG_2ND_PLYR_AVATAR`,
+`CG_2ND_PLYR_TIMEOUT_COUNT`, and `CG_2ND_PLYR_HEALTH_ARMOR` ownerdraw
+set. Repo-wide parity remains **98%** because unrelated compatibility,
+source-legacy, online-service, and packaging surfaces are unchanged.
+
+Completed work:
+
+1. Rechecked the retail `cgamex86.dll` dispatcher and HLIL leaves for raw
+   ownerdraw cases `0xca` through `0xce`.
+2. Confirmed `CG_2ND_PLYR_ACC` stays on the pre-switch placement accuracy
+   helper and uses the retail `%d%%` total-accuracy path.
+3. Confirmed `CG_2ND_PLYR_FLAG` stays on the pre-switch placement flag helper
+   and draws the cached country-flag shader or `CG_RegisterCountryFlag`
+   fallback without team-flag powerup logic.
+4. Confirmed `CG_2ND_PLYR_AVATAR` directly calls the slot-1 avatar/model-icon
+   path and preserves the avatar-handle-before-model-icon fallback.
+5. Confirmed `CG_2ND_PLYR_TIMEOUT_COUNT` remains an explicit retail no-op,
+   with no placement guard, competitive refresh, value, width, or key callback
+   route.
+6. Confirmed `CG_2ND_PLYR_HEALTH_ARMOR` directly calls the secondary
+   health/armor comparison bars, including local-client stat fallback,
+   damage-loss segment, left-anchored secondary bars, and no text paint.
+7. Added focused structural coverage for constants, retail target-group
+   membership, HLIL offset/format/fallback signals, local helper routes,
+   competitive refresh wiring, callback absence, and direct no-op behavior.
+8. Refreshed the cgame ownerdraw and mapping ledgers for the selected five.
 
 ### Task A182: Feed retail arena catalog into live Awesomium start-server map list [COMPLETED]
 Priority: High

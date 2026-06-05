@@ -927,6 +927,19 @@ qboolean CL_ReadyToSendPacket( void ) {
 
 /*
 ===================
+CL_RetailClientMessageFlags
+
+Returns the retail Quake Live client-message sideband flags byte. The retail
+server consumes this byte before opcode parsing but does not validate it; keep
+unrecovered native cgame state bits clear until their producers are mapped.
+===================
+*/
+static int CL_RetailClientMessageFlags( void ) {
+	return 0;
+}
+
+/*
+===================
 CL_WritePacket
 
 Create and send the command packet to the server
@@ -939,6 +952,7 @@ During normal gameplay, a client packet will contain something like:
 4	serverid
 4	acknowledged sequence number
 4	clc.serverCommandSequence
+1	retail client message sideband
 <optional reliable commands>
 1	clc_move or clc_moveNoDelta
 1	command count
@@ -978,6 +992,7 @@ void CL_WritePacket( void ) {
 
 	// write the last reliable message we received
 	MSG_WriteLong( &buf, clc.serverCommandSequence );
+	MSG_WriteByte( &buf, CL_RetailClientMessageFlags() ^ ( clc.serverCommandSequence & 0xff ) );
 
 	// write any unacknowledged clientCommands
 	for ( i = clc.reliableAcknowledge + 1 ; i <= clc.reliableSequence ; i++ ) {

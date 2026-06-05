@@ -3533,6 +3533,7 @@ void SV_ExecuteClientMessage( client_t *cl, msg_t *msg ) {
 	}
 
 	cl->reliableAcknowledge = MSG_ReadLong( msg );
+	(void)MSG_ReadByte( msg );
 
 	// NOTE: when the client message is fux0red the acknowledgement numbers
 	// can be out of range, this could cause the server to send thousands of server

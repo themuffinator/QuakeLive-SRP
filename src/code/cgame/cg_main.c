@@ -6684,6 +6684,9 @@ static void CG_InitDisplayContext( void ) {
 	cgDC.stopCinematic = &CG_StopCinematic;
 	cgDC.drawCinematic = &CG_DrawCinematic;
 	cgDC.runCinematicFrame = &CG_RunCinematicFrame;
+	cgDC.setupAdvertCellShader = &trap_QL_SetupAdvertCellShader;
+	cgDC.refreshAdvertCellShader = &trap_QL_RefreshAdvertCellShader;
+	cgDC.activateAdvert = &trap_QL_SetActiveAdvert;
 	cgDC.adjustFrom640 = &CG_AdjustFrom640;
 	cgDC.setAdjustFrom640Mode = &CG_SetAdjustFrom640Mode;
 	cgDC.glconfig = cgs.glconfig;

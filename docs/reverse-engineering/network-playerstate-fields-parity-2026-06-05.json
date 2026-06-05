@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "playerStateFields retail table parity for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt"
+    ],
+    "ghidra": [
+      "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+    ],
+    "mapping_notes": [
+      "docs/reverse-engineering/quakelive_steam_mapping_round_57.md",
+      "docs/reverse-engineering/quakelive_steam_mapping_round_65.md"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json"
+  },
+  "source_files": [
+    "src/code/game/q_shared.h",
+    "src/code/qcommon/msg.c",
+    "tests/test_playerstate_replication.py"
+  ],
+  "retail_table": {
+    "symbol": "data_5424d8",
+    "base_address": "0x005424D8",
+    "entry_stride_bytes": 12,
+    "field_count": 58,
+    "field_count_hex": "0x3a",
+    "entry_layout": [
+      "name pointer",
+      "playerState_t offset",
+      "wire bit width"
+    ],
+    "read_copy_bytes": "0x250",
+    "source_table": "playerStateFields"
+  },
+  "source_of_truth": {
+    "field_macro": "PSF",
+    "c_table": "playerStateFields",
+    "entries": [
+      {"index": 0, "table_address": "0x005424D8", "field": "commandTime", "offset_hex": "0x000", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 1, "table_address": "0x005424E4", "field": "origin[0]", "offset_hex": "0x014", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 2, "table_address": "0x005424F0", "field": "origin[1]", "offset_hex": "0x018", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 3, "table_address": "0x005424FC", "field": "bobCycle", "offset_hex": "0x008", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 4, "table_address": "0x00542508", "field": "velocity[0]", "offset_hex": "0x020", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 5, "table_address": "0x00542514", "field": "velocity[1]", "offset_hex": "0x024", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 6, "table_address": "0x00542520", "field": "viewangles[1]", "offset_hex": "0x0a4", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 7, "table_address": "0x0054252C", "field": "viewangles[0]", "offset_hex": "0x0a0", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 8, "table_address": "0x00542538", "field": "weaponTime", "offset_hex": "0x02c", "bits": -16, "source_bits": "-16", "wire_kind": "signed_int"},
+      {"index": 9, "table_address": "0x00542544", "field": "origin[2]", "offset_hex": "0x01c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 10, "table_address": "0x00542550", "field": "velocity[2]", "offset_hex": "0x028", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 11, "table_address": "0x0054255C", "field": "legsTimer", "offset_hex": "0x048", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 12, "table_address": "0x00542568", "field": "pm_time", "offset_hex": "0x010", "bits": -16, "source_bits": "-16", "wire_kind": "signed_int"},
+      {"index": 13, "table_address": "0x00542574", "field": "eventSequence", "offset_hex": "0x06c", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 14, "table_address": "0x00542580", "field": "torsoAnim", "offset_hex": "0x054", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 15, "table_address": "0x0054258C", "field": "movementDir", "offset_hex": "0x058", "bits": 4, "source_bits": "4", "wire_kind": "unsigned_int"},
+      {"index": 16, "table_address": "0x00542598", "field": "events[0]", "offset_hex": "0x070", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 17, "table_address": "0x005425A4", "field": "legsAnim", "offset_hex": "0x04c", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 18, "table_address": "0x005425B0", "field": "events[1]", "offset_hex": "0x074", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 19, "table_address": "0x005425BC", "field": "pm_flags", "offset_hex": "0x00c", "bits": 24, "source_bits": "24", "wire_kind": "unsigned_int"},
+      {"index": 20, "table_address": "0x005425C8", "field": "groundEntityNum", "offset_hex": "0x044", "bits": 10, "source_bits": "GENTITYNUM_BITS", "wire_kind": "unsigned_int"},
+      {"index": 21, "table_address": "0x005425D4", "field": "weaponstate", "offset_hex": "0x098", "bits": 4, "source_bits": "4", "wire_kind": "unsigned_int"},
+      {"index": 22, "table_address": "0x005425E0", "field": "eFlags", "offset_hex": "0x068", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 23, "table_address": "0x005425EC", "field": "externalEvent", "offset_hex": "0x080", "bits": 10, "source_bits": "10", "wire_kind": "unsigned_int"},
+      {"index": 24, "table_address": "0x005425F8", "field": "gravity", "offset_hex": "0x030", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 25, "table_address": "0x00542604", "field": "speed", "offset_hex": "0x034", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 26, "table_address": "0x00542610", "field": "delta_angles[1]", "offset_hex": "0x03c", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 27, "table_address": "0x0054261C", "field": "externalEventParm", "offset_hex": "0x084", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 28, "table_address": "0x00542628", "field": "viewheight", "offset_hex": "0x0ac", "bits": -8, "source_bits": "-8", "wire_kind": "signed_int"},
+      {"index": 29, "table_address": "0x00542634", "field": "damageEvent", "offset_hex": "0x0b0", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 30, "table_address": "0x00542640", "field": "damageYaw", "offset_hex": "0x0b4", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 31, "table_address": "0x0054264C", "field": "damagePitch", "offset_hex": "0x0b8", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 32, "table_address": "0x00542658", "field": "damageCount", "offset_hex": "0x0bc", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 33, "table_address": "0x00542664", "field": "generic1", "offset_hex": "0x1c0", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 34, "table_address": "0x00542670", "field": "pm_type", "offset_hex": "0x004", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 35, "table_address": "0x0054267C", "field": "delta_angles[0]", "offset_hex": "0x038", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 36, "table_address": "0x00542688", "field": "delta_angles[2]", "offset_hex": "0x040", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 37, "table_address": "0x00542694", "field": "torsoTimer", "offset_hex": "0x050", "bits": 12, "source_bits": "12", "wire_kind": "unsigned_int"},
+      {"index": 38, "table_address": "0x005426A0", "field": "eventParms[0]", "offset_hex": "0x078", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 39, "table_address": "0x005426AC", "field": "eventParms[1]", "offset_hex": "0x07c", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 40, "table_address": "0x005426B8", "field": "clientNum", "offset_hex": "0x088", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 41, "table_address": "0x005426C4", "field": "weapon", "offset_hex": "0x090", "bits": 5, "source_bits": "5", "wire_kind": "unsigned_int"},
+      {"index": 42, "table_address": "0x005426D0", "field": "weaponPrimary", "offset_hex": "0x094", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 43, "table_address": "0x005426DC", "field": "viewangles[2]", "offset_hex": "0x0a8", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 44, "table_address": "0x005426E8", "field": "grapplePoint[0]", "offset_hex": "0x05c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 45, "table_address": "0x005426F4", "field": "grapplePoint[1]", "offset_hex": "0x060", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 46, "table_address": "0x00542700", "field": "grapplePoint[2]", "offset_hex": "0x064", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 47, "table_address": "0x0054270C", "field": "jumppad_ent", "offset_hex": "0x1c8", "bits": 10, "source_bits": "10", "wire_kind": "unsigned_int"},
+      {"index": 48, "table_address": "0x00542718", "field": "loopSound", "offset_hex": "0x1c4", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 49, "table_address": "0x00542724", "field": "jumpTime", "offset_hex": "0x1cc", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 50, "table_address": "0x00542730", "field": "doubleJumped", "offset_hex": "0x1d0", "bits": 1, "source_bits": "1", "wire_kind": "unsigned_int"},
+      {"index": 51, "table_address": "0x0054273C", "field": "crouchTime", "offset_hex": "0x1d4", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 52, "table_address": "0x00542748", "field": "crouchSlideTime", "offset_hex": "0x1d8", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 53, "table_address": "0x00542754", "field": "location", "offset_hex": "0x08c", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 54, "table_address": "0x00542760", "field": "fov", "offset_hex": "0x09c", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 55, "table_address": "0x0054276C", "field": "forwardmove", "offset_hex": "0x1dc", "bits": 8, "source_bits": "8", "wire_kind": "signed_byte_unsigned_wire"},
+      {"index": 56, "table_address": "0x00542778", "field": "rightmove", "offset_hex": "0x1dd", "bits": 8, "source_bits": "8", "wire_kind": "signed_byte_unsigned_wire"},
+      {"index": 57, "table_address": "0x00542784", "field": "upmove", "offset_hex": "0x1de", "bits": 8, "source_bits": "8", "wire_kind": "signed_byte_unsigned_wire"}
+    ]
+  },
+  "signed_byte_fields": [
+    "forwardmove",
+    "rightmove",
+    "upmove"
+  ],
+  "array_masks": [
+    {"name": "stats", "mask_bits": 16, "value_bits": 16, "retail_offset_hex": "0x0c0"},
+    {"name": "persistant", "mask_bits": 16, "value_bits": 16, "retail_offset_hex": "0x100"},
+    {"name": "ammo", "mask_bits": 16, "value_bits": 16, "retail_offset_hex": "0x180"},
+    {"name": "powerups", "mask_bits": 16, "value_bits": 32, "retail_offset_hex": "0x140"}
+  ],
+  "golden_vectors": [
+    {
+      "id": "jump_time_tail_lc",
+      "changed_fields": [
+        "jumpTime"
+      ],
+      "expected_lc": 50,
+      "retail_zero_based_indices": [
+        49
+      ],
+      "written_events": [
+        {"field": "jumpTime", "bits": 32, "written_value": "0x000004d2"}
+      ],
+      "parity_note": "This is the retail-order correction: source formerly placed jumpTime at index 21, which would have emitted lc 22 for a jumpTime-only delta."
+    },
+    {
+      "id": "double_jump_tail_lc",
+      "changed_fields": [
+        "doubleJumped"
+      ],
+      "expected_lc": 51,
+      "retail_zero_based_indices": [
+        50
+      ],
+      "written_events": [
+        {"field": "doubleJumped", "bits": 1, "written_value": "0x1"}
+      ]
+    },
+    {
+      "id": "command_mirror_tail_lc",
+      "changed_fields": [
+        "weaponPrimary",
+        "fov",
+        "forwardmove",
+        "rightmove",
+        "upmove"
+      ],
+      "expected_lc": 58,
+      "retail_zero_based_indices": [
+        42,
+        54,
+        55,
+        56,
+        57
+      ],
+      "written_events": [
+        {"field": "weaponPrimary", "bits": 8, "written_value": "0x0e"},
+        {"field": "fov", "bits": 8, "written_value": "0x6e"},
+        {"field": "forwardmove", "bits": 8, "written_value": "0x81", "decoded_signed_value": -127},
+        {"field": "rightmove", "bits": 8, "written_value": "0x40", "decoded_signed_value": 64},
+        {"field": "upmove", "bits": 8, "written_value": "0xf4", "decoded_signed_value": -12}
+      ]
+    },
+    {
+      "id": "pm_flags_24_bit",
+      "changed_fields": [
+        "pm_flags"
+      ],
+      "expected_lc": 20,
+      "retail_zero_based_indices": [
+        19
+      ],
+      "written_events": [
+        {"field": "pm_flags", "bits": 24, "written_value": "0xabcdef"}
+      ]
+    },
+    {
+      "id": "origin0_integral_float",
+      "changed_fields": [
+        "origin[0]"
+      ],
+      "expected_lc": 2,
+      "retail_zero_based_indices": [
+        1
+      ],
+      "float_int_bias": 4096,
+      "float_int_bits": 13,
+      "written_events": [
+        {"field": "commandTime", "changed": false},
+        {"field": "origin[0]", "bits": 0, "float_full_flag": 0, "integer_value": 128, "written_value": 4224}
+      ]
+    }
+  ],
+  "retail_anchors": [
+    {
+      "symbol": "MSG_WriteDeltaPlayerstate",
+      "address": "0x004D5D50",
+      "observed": "Uses data_5424d8/data_5424e0 with an 0x3a field-count loop, writes lc as 8 bits, and emits changed scalar fields followed by stats, persistant, ammo, and powerups masks."
+    },
+    {
+      "symbol": "MSG_ReadDeltaPlayerstate",
+      "address": "0x004D66C0",
+      "observed": "Copies 0x250 bytes from the baseline, reads lc as 8 bits, decodes fields from data_5424d8, copies the unchanged tail up to 0x3a, then reads the same four array masks."
+    },
+    {
+      "symbol": "playerStateFields",
+      "address": "0x005424D8",
+      "observed": "Raw table entries recover 58 name/offset/bits triples; jumpTime and doubleJumped are at indices 49 and 50, after loopSound."
+    }
+  ],
+  "retail_order_corrections": [
+    {
+      "field": "jumpTime",
+      "previous_source_index": 21,
+      "retail_index": 49,
+      "source_patch_required": true
+    },
+    {
+      "field": "doubleJumped",
+      "previous_source_index": 22,
+      "retail_index": 50,
+      "source_patch_required": true
+    }
+  ],
+  "completion_status": {
+    "implementation_plan_entry": "Reconstruct playerStateFields exactly from retail and generate the table from a single source of truth",
+    "status": "completed_source_patch_retail_table_source_of_truth",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "source_patch_required": true,
+    "focused_task_parity_before_percent": 70,
+    "focused_task_parity_after_percent": 94,
+    "overall_network_protocol_parity_before_percent": 80,
+    "overall_network_protocol_parity_after_percent": 82,
+    "residual_risks": [
+      "Byte-for-byte retail snapshot capture comparison is still needed for full end-to-end snapshot parity.",
+      "Retail playerState_t carries a 0x250-byte copy window; source keeps local sidecars after the replicated prefix, so this pass locks the serialized table and offsets rather than changing local non-network fields."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_playerstate_fields_source_of_truth_and_roundtrip_contract",
+    "tests/test_playerstate_replication.py::test_playerstate_netfield_table_matches_retail_quake_live_scalar_order"
+  ]
+}

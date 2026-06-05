@@ -169,7 +169,7 @@ menu runtime.
 | `0x00AC` | `startBackgroundTrack` | `void (*)(const char *, const char *)` | Background music start hook used by menu open/activation paths. |
 | `0x00B0` | `stopBackgroundTrack` | `void (*)(void)` | Background music stop hook used by menu scripts. |
 | `0x00B4` | `playCinematic` | `int (*)(const char *, float, float, float, float)` | Classic cinematic-start hook used by window-backed cinematics. |
-| `0x00B8` | `playLauncherCinematic` | `qhandle_t (*)(const char *, qboolean, int, int)` | Quake Live-era launcher-video hook. `Script_PlayLauncher` uses it to turn a browser/launcher video into a shader-backed item background. |
+| `0x00B8` | `playLauncherCinematic` | `qhandle_t (*)(const char *, qboolean, int, int)` | Compatibility launcher-video hook retained on the source-side display context; the retail UI script command table does not expose a `playlaunchercinematic` action. |
 | `0x00BC` | `stopCinematic` | `void (*)(int)` | Cinematic stop hook used by menu/window cleanup. |
 | `0x00C0` | `drawCinematic` | `void (*)(int, float, float, float, float)` | Cinematic draw hook used by window-backed cinematics. |
 | `0x00C4` | `runCinematicFrame` | `void (*)(int)` | Per-frame cinematic advance hook used by cinematic windows. |

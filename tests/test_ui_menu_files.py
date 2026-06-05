@@ -2490,6 +2490,44 @@ def test_ui_retail_parser_gating_extensions_restored() -> None:
     assert "char script[UI_SCRIPT_BUFFER_SIZE], *p;" in run_script_block
     assert "Q_strcat(script, sizeof(script), s);" in run_script_block
 
+    command_list_block = ui_shared.split("commandDef_t commandList[] =", 1)[1].split(
+        "int scriptCommandCount = sizeof(commandList) / sizeof(commandDef_t);", 1
+    )[0]
+    assert command_list_block.count('{"') == 23
+    for expected in (
+        '{"fadein", &Script_FadeIn}',
+        '{"fadeout", &Script_FadeOut}',
+        '{"show", &Script_Show}',
+        '{"hide", &Script_Hide}',
+        '{"setcolor", &Script_SetColor}',
+        '{"open", &Script_Open}',
+        '{"conditionalopen", &Script_ConditionalOpen}',
+        '{"close", &Script_Close}',
+        '{"toggle", &Script_Toggle}',
+        '{"setasset", &Script_SetAsset}',
+        '{"setbackground", &Script_SetBackground}',
+        '{"setitemcolor", &Script_SetItemColor}',
+        '{"setteamcolor", &Script_SetTeamColor}',
+        '{"setfocus", &Script_SetFocus}',
+        '{"setplayermodel", &Script_SetPlayerModel}',
+        '{"setplayerhead", &Script_SetPlayerHead}',
+        '{"transition", &Script_Transition}',
+        '{"setcvar", &Script_SetCvar}',
+        '{"exec", &Script_Exec}',
+        '{"play", &Script_Play}',
+        '{"playlooped", &Script_playLooped}',
+        '{"orbit", &Script_Orbit}',
+        '{"activateAdvert", &Script_ActivateAdvert}',
+    ):
+        assert expected in command_list_block
+    for nonretail in (
+        "playlaunchercinematic",
+        "stoprefresh",
+        "closeingame",
+        '"leave"',
+    ):
+        assert nonretail not in command_list_block
+
     cvar_slot_block = _extract_function_block(
         ui_shared,
         "static qboolean Item_EnableShowViaCvarSlot( const itemDef_t *item, int slot, int flag ) {",
@@ -2504,6 +2542,7 @@ def test_ui_retail_parser_gating_extensions_restored() -> None:
     assert "sub_10001750(0x800, edx_2)" in ui_hlil
     assert "10016d9b  result, edx = memset(&var_804, 0, 0x800)" in ui_hlil
     assert "10016dc7      sub_10001750(0x800, edx)" in ui_hlil
+    assert "1002a014                                                              17 00 00 00" in ui_hlil
     assert "10016e9f      memset(&var_804, 0, 0x800)" in ui_hlil
     assert (
         "10016ee6                  char* edx_2 = "
@@ -2527,6 +2566,279 @@ def test_ui_retail_parser_gating_extensions_restored() -> None:
     advanced_menu = (REPO_ROOT / "src/ui/ingame_options_advanced.menu").read_text(encoding="utf-8")
     assert controls_menu.lower().count("itemdef") > 96
     assert advanced_menu.lower().count("itemdef") > 96
+
+
+def test_ui_run_menu_script_covers_retail_action_surface_and_wiring() -> None:
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    ui_hlil = UI_HLIL_PART01.read_text(encoding="utf-8", errors="ignore")
+    retail_hlil_block = ui_hlil[
+        ui_hlil.index("1000b0e0"):ui_hlil.index("1000d2f0", ui_hlil.index("1000b0e0"))
+    ]
+    run_menu_script_block = _extract_function_block(
+        ui_main, "static void UI_RunMenuScript(char **args) {"
+    )
+    init_block = _extract_function_block(ui_main, "void _UI_Init( qboolean inGameLoad ) {")
+    item_run_script_block = _extract_function_block(
+        ui_shared, "void Item_RunScript(itemDef_t *item, const char *s) {"
+    )
+
+    retail_actions = {
+        "StartServer",
+        "resetDefaults",
+        "getCDKey",
+        "verifyCDKey",
+        "loadArenas",
+        "saveControls",
+        "loadControls",
+        "clearError",
+        "loadGameInfo",
+        "RefreshServers",
+        "RefreshFilter",
+        "RunSPDemo",
+        "LoadDemos",
+        "LoadMovies",
+        "LoadMods",
+        "playMovie",
+        "RunMod",
+        "RunDemo",
+        "Quake3",
+        "closeJoin",
+        "StopRefresh",
+        "UpdateFilter",
+        "ServerStatus",
+        "FoundPlayerServerStatus",
+        "FindPlayer",
+        "JoinServer",
+        "FoundPlayerJoinServer",
+        "Quit",
+        "Controls",
+        "Leave",
+        "clearComError",
+        "ServerSort",
+        "closeingame",
+        "setFullScreen",
+        "setWindowed",
+        "toggleFullscreen",
+        "updateCallvoteMapPreview",
+        "voteMap",
+        "voteKick",
+        "voteGame",
+        "addBot",
+        "addFavorite",
+        "deleteFavorite",
+        "createFavorite",
+        "orders",
+        "voiceOrdersTeam",
+        "voiceOrders",
+        "update",
+        "teamColorDefaults",
+        "enemyColorDefaults",
+        "enemyModelChanged",
+        "teamModelChanged",
+        "openWebGameSettings",
+        "playerModelChanged",
+        "kickPlayer",
+        "clientviewProfile",
+        "clientFriendInvite",
+        "tempbanPlayer",
+        "banPlayer",
+        "clientmutePlayer",
+        "mutePlayer",
+        "unmutePlayer",
+        "modPlayer",
+        "adminPlayer",
+        "deopPlayer",
+        "putred",
+        "putblue",
+        "putspec",
+    }
+    compatibility_actions = {
+        "stopRefresh",
+        "web_showBrowser",
+        "updateSPMenu",
+        "resetScores",
+        "nextSkirmish",
+        "SkirmishStart",
+        "voteLeader",
+        "glCustom",
+        "setPbClStatus",
+    }
+    source_actions = set(
+        re.findall(r'Q_stricmp\(name,\s*"([^"]+)"\)\s*==\s*0', run_menu_script_block)
+    )
+
+    assert len(retail_actions) == 68
+    assert retail_actions <= source_actions
+    assert source_actions - retail_actions - compatibility_actions == set()
+    for action in retail_actions:
+        assert f'"{action}"' in retail_hlil_block
+
+    for expected in (
+        "uiInfo.uiDC.runScript = &UI_RunMenuScript;",
+        "uiInfo.uiDC.executeText = &trap_Cmd_ExecuteText;",
+        "uiInfo.uiDC.setCVar = trap_Cvar_Set;",
+        "uiInfo.uiDC.startLocalSound = &trap_S_StartLocalSound;",
+        "uiInfo.uiDC.startBackgroundTrack = &trap_S_StartBackgroundTrack;",
+        "uiInfo.uiDC.stopBackgroundTrack = &trap_S_StopBackgroundTrack;",
+        "uiInfo.uiDC.setupAdvertCellShader = &UI_SetupAdvertCellShader;",
+        "uiInfo.uiDC.refreshAdvertCellShader = &UI_RefreshAdvertCellShader;",
+        "uiInfo.uiDC.activateAdvert = &UI_ActivateAdvert;",
+    ):
+        assert expected in init_block
+
+    assert "DC->runScript(&p);" in item_run_script_block
+    assert "DC->executeText(EXEC_APPEND, va(\"%s ; \", val));" in ui_shared
+
+
+def test_committed_ui_menu_scripts_are_fully_wired_to_retail_handlers() -> None:
+    ui_shared = (REPO_ROOT / "src/code/ui/ui_shared.c").read_text(encoding="utf-8")
+    ui_main = (REPO_ROOT / "src/code/ui/ui_main.c").read_text(encoding="utf-8")
+    command_list_block = ui_shared.split("commandDef_t commandList[] =", 1)[1].split(
+        "int scriptCommandCount = sizeof(commandList) / sizeof(commandDef_t);", 1
+    )[0]
+    shared_actions = {
+        action.lower()
+        for action in re.findall(r'\{"([^"]+)"', command_list_block)
+    }
+    run_menu_script_block = _extract_function_block(
+        ui_main, "static void UI_RunMenuScript(char **args) {"
+    )
+    ui_actions = {
+        action.lower()
+        for action in re.findall(r'Q_stricmp\(name,\s*"([^"]+)"\)\s*==\s*0', run_menu_script_block)
+    }
+
+    def strip_menu_comments(text: str) -> str:
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+        return re.sub(r"//.*", "", text)
+
+    def tokenize_script_commands(script: str) -> list[list[str]]:
+        commands: list[list[str]] = []
+        command: list[str] = []
+        index = 0
+        while index < len(script):
+            char = script[index]
+            if char.isspace() or char in "{}":
+                index += 1
+                continue
+            if char == ";":
+                if command:
+                    commands.append(command)
+                    command = []
+                index += 1
+                continue
+            if char == '"':
+                end = index + 1
+                token: list[str] = []
+                while end < len(script) and script[end] != '"':
+                    token.append(script[end])
+                    end += 1
+                command.append("".join(token))
+                index = end + 1
+                continue
+
+            end = index
+            while end < len(script) and not script[end].isspace() and script[end] not in "{};":
+                end += 1
+            command.append(script[index:end])
+            index = end
+
+        if command:
+            commands.append(command)
+        return commands
+
+    def iter_script_blocks(text: str) -> list[str]:
+        blocks: list[str] = []
+        for match in re.finditer(
+            r"\b(action|onOpen|onClose|mouseEnter|mouseExit|mouseEnterText|mouseExitText)\b\s*\{",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            brace_start = text.find("{", match.start())
+            depth = 0
+            for index in range(brace_start, len(text)):
+                if text[index] == "{":
+                    depth += 1
+                elif text[index] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        blocks.append(text[brace_start + 1:index])
+                        break
+        return blocks
+
+    shared_used: set[str] = set()
+    ui_used: set[str] = set()
+    unknown: list[str] = []
+    for menu_file in (REPO_ROOT / "src/ui").glob("*.menu"):
+        text = strip_menu_comments(menu_file.read_text(encoding="utf-8"))
+        for script in iter_script_blocks(text):
+            for command in tokenize_script_commands(script):
+                verb = command[0].lower()
+                if verb == "uiscript":
+                    if len(command) < 2:
+                        unknown.append(f"{menu_file.name}: missing uiScript action")
+                        continue
+                    action = command[1].lower()
+                    ui_used.add(action)
+                    if action not in ui_actions:
+                        unknown.append(f"{menu_file.name}: uiScript {command[1]}")
+                else:
+                    shared_used.add(verb)
+                    if verb not in shared_actions:
+                        unknown.append(f"{menu_file.name}: {command[0]}")
+
+    assert unknown == []
+    assert shared_used == {
+        "activateadvert",
+        "close",
+        "exec",
+        "fadein",
+        "fadeout",
+        "hide",
+        "open",
+        "play",
+        "setcolor",
+        "setitemcolor",
+        "show",
+        "transition",
+    }
+    assert ui_used == {
+        "addbot",
+        "adminplayer",
+        "banplayer",
+        "clearcomerror",
+        "clientfriendinvite",
+        "clientmuteplayer",
+        "clientviewprofile",
+        "closeingame",
+        "deopplayer",
+        "enemycolordefaults",
+        "enemymodelchanged",
+        "glcustom",
+        "kickplayer",
+        "leave",
+        "loadarenas",
+        "loadcontrols",
+        "loaddemos",
+        "modplayer",
+        "muteplayer",
+        "putblue",
+        "putred",
+        "putspec",
+        "quit",
+        "resetdefaults",
+        "rundemo",
+        "savecontrols",
+        "stoprefresh",
+        "teamcolordefaults",
+        "teammodelchanged",
+        "tempbanplayer",
+        "unmuteplayer",
+        "update",
+        "updatecallvotemappreview",
+        "votemap",
+    }
 
 
 def test_ui_retail_server_settings_ownerdraw_restored() -> None:

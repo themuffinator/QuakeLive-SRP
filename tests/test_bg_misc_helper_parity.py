@@ -301,9 +301,10 @@ def test_trajectory_evaluators_keep_the_retail_type_six_acceleration_path() -> N
 	)
 
 	assert "TR_QL_ACCEL" in q_shared_source
+	assert "float\tgravity;" in q_shared_source
 	assert "float\t\ttrAcceleration" not in q_shared_source
 	assert "static float BG_TrajectoryAcceleration( const trajectory_t *tr )" in source
-	assert "( (const byte *)tr + sizeof( *tr ) )" in source
+	assert "return tr->gravity;" in source
 	assert "case TR_QL_ACCEL:" in position_body
 	assert "0.5 * BG_TrajectoryAcceleration( tr ) * deltaTime * deltaTime" in position_body
 	assert "case TR_QL_ACCEL:" in delta_body

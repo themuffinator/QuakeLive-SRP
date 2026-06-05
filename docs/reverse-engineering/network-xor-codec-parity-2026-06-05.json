@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Reliable XOR netchan codec parity for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt"
+    ],
+    "ghidra": [
+      "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json"
+  },
+  "source_files": [
+    "src/code/qcommon/qcommon.h",
+    "src/code/client/cl_net_chan.c",
+    "src/code/server/sv_net_chan.c"
+  ],
+  "codec_constants": {
+    "SV_ENCODE_START": 4,
+    "SV_DECODE_START": 12,
+    "CL_ENCODE_START": 12,
+    "CL_DECODE_START": 4,
+    "rolling_key_width_bits": 8,
+    "command_ring_mask": "MAX_RELIABLE_COMMANDS - 1"
+  },
+  "algorithm": {
+    "step_order": [
+      "Read the clear header fields before the XOR window.",
+      "Compute the initial byte key from the retail challenge and direction-specific sequence/header fields.",
+      "Select the acknowledged reliable-command string ring entry.",
+      "For each byte in the XOR window, reset the command-string index to 0 if the current byte is NUL.",
+      "Fold command bytes greater than 0x7f or equal to 0x25 (%) to 0x2e (.).",
+      "Update the byte key with sanitized_command_byte << (offset & 1), truncated to 8 bits.",
+      "XOR the current packet byte with the updated key."
+    ],
+    "symmetric": true,
+    "sanitized_command_replacement_hex": "2e",
+    "sanitized_conditions": [
+      "command_byte > 0x7f",
+      "command_byte == 0x25"
+    ]
+  },
+  "codec_windows": {
+    "client_to_server": {
+      "encode_function": "CL_Netchan_Encode",
+      "decode_function": "SV_Netchan_Decode",
+      "encode_start": 12,
+      "decode_start_relative_to_msg_readcount": 12,
+      "readcount_after_unfragmented_netchan_process_with_qport": 6,
+      "initial_key_source": "challenge ^ serverId ^ messageAcknowledge",
+      "source_command_string": "clc.serverCommands[reliableAcknowledge & 63]",
+      "server_decode_command_string": "client->reliableCommands[reliableAcknowledge & 63]",
+      "clear_prefix": [
+        "serverId",
+        "messageAcknowledge",
+        "reliableAcknowledge"
+      ],
+      "first_encoded_body_offset": 12,
+      "first_encoded_body_field": "retailClientMessageSideband"
+    },
+    "server_to_client": {
+      "encode_function": "SV_Netchan_Encode",
+      "decode_function": "CL_Netchan_Decode",
+      "encode_start": 4,
+      "decode_start_relative_to_msg_readcount": 4,
+      "readcount_after_unfragmented_netchan_process": 4,
+      "initial_key_source": "challenge ^ outgoingSequence",
+      "client_decode_initial_key_source": "clc.challenge ^ LittleLong(*(unsigned *)msg->data)",
+      "source_command_string": "client->lastClientCommandString",
+      "client_decode_command_string": "clc.reliableCommands[reliableAcknowledge & 63]",
+      "clear_prefix": [
+        "reliableAcknowledge"
+      ],
+      "first_encoded_body_offset": 4,
+      "first_encoded_body_field": "first server opcode or payload byte"
+    }
+  },
+  "golden_vectors": [
+    {
+      "id": "client_to_server_sideband_move",
+      "direction": "client_to_server",
+      "description": "Client body with the retail sideband byte, clc_move, count 1, and clc_EOF. The three header longs stay clear and the sideband byte is inside the XOR window.",
+      "challenge": "0x0000005a",
+      "serverId": "0x01020304",
+      "messageAcknowledge": "0x0a0b0c0d",
+      "reliableAcknowledge": 2,
+      "initial_key_low_byte": "0x53",
+      "initial_key_full_expression": "0x0000005a ^ 0x01020304 ^ 0x0a0b0c0d",
+      "command_string_bytes_hex": "61 62 63",
+      "command_string_ascii": "abc",
+      "encode_start": 12,
+      "decode_start_relative_to_msg_readcount": 12,
+      "decoder_readcount_after_netchan_process": 6,
+      "datagram_body_offset": 6,
+      "clear_body_hex": "04 03 02 01 0d 0c 0b 0a 02 00 00 00 77 02 01 05",
+      "encoded_body_hex": "04 03 02 01 0d 0c 0b 0a 02 00 00 00 45 f4 94 52",
+      "clear_datagram_hex": "10 00 00 00 96 27 04 03 02 01 0d 0c 0b 0a 02 00 00 00 77 02 01 05",
+      "encoded_datagram_hex": "10 00 00 00 96 27 04 03 02 01 0d 0c 0b 0a 02 00 00 00 45 f4 94 52",
+      "capture_diff_assertions": [
+        "datagram bytes 0 through 17 remain clear",
+        "client body byte 12 changes from 0x77 to 0x45"
+      ]
+    },
+    {
+      "id": "client_to_server_sanitized_command_bytes",
+      "direction": "client_to_server",
+      "description": "Client body using command-string bytes 0x25 and 0x80 to prove retail sanitation to '.'.",
+      "challenge": "0x0000005a",
+      "serverId": "0x01020304",
+      "messageAcknowledge": "0x0a0b0c0d",
+      "reliableAcknowledge": 2,
+      "initial_key_low_byte": "0x53",
+      "initial_key_full_expression": "0x0000005a ^ 0x01020304 ^ 0x0a0b0c0d",
+      "command_string_bytes_hex": "25 80 7a",
+      "encode_start": 12,
+      "decode_start_relative_to_msg_readcount": 12,
+      "decoder_readcount_after_netchan_process": 6,
+      "datagram_body_offset": 6,
+      "clear_body_hex": "04 03 02 01 0d 0c 0b 0a 02 00 00 00 10 20 30 40 05",
+      "encoded_body_hex": "04 03 02 01 0d 0c 0b 0a 02 00 00 00 6d 01 6b 47 2c",
+      "clear_datagram_hex": "10 00 00 00 96 27 04 03 02 01 0d 0c 0b 0a 02 00 00 00 10 20 30 40 05",
+      "encoded_datagram_hex": "10 00 00 00 96 27 04 03 02 01 0d 0c 0b 0a 02 00 00 00 6d 01 6b 47 2c",
+      "capture_diff_assertions": [
+        "0x25 and 0x80 command bytes produce the same sanitation branch as 0x2e before key mixing"
+      ]
+    },
+    {
+      "id": "server_to_client_reliable_acknowledge",
+      "direction": "server_to_client",
+      "description": "Server body with reliableAcknowledge clear and the first server payload byte at the XOR start.",
+      "challenge": "0x0000002c",
+      "outgoingSequence": "0x01020304",
+      "reliableAcknowledge": 3,
+      "initial_key_low_byte": "0x28",
+      "initial_key_full_expression": "0x0000002c ^ 0x01020304",
+      "command_string_bytes_hex": "73 61 79",
+      "command_string_ascii": "say",
+      "encode_start": 4,
+      "decode_start_relative_to_msg_readcount": 4,
+      "decoder_readcount_after_netchan_process": 4,
+      "datagram_body_offset": 4,
+      "clear_body_hex": "03 00 00 00 55 aa 99 06",
+      "encoded_body_hex": "03 00 00 00 0e 33 79 00",
+      "clear_datagram_hex": "04 03 02 01 03 00 00 00 55 aa 99 06",
+      "encoded_datagram_hex": "04 03 02 01 03 00 00 00 0e 33 79 00",
+      "capture_diff_assertions": [
+        "datagram bytes 0 through 7 remain clear",
+        "server body byte 4 changes from 0x55 to 0x0e"
+      ]
+    },
+    {
+      "id": "server_to_client_sanitized_command_bytes",
+      "direction": "server_to_client",
+      "description": "Server body using command-string bytes 0x25 and 0x80 to prove retail sanitation to '.'.",
+      "challenge": "0x0000002c",
+      "outgoingSequence": "0x01020304",
+      "reliableAcknowledge": 3,
+      "initial_key_low_byte": "0x28",
+      "initial_key_full_expression": "0x0000002c ^ 0x01020304",
+      "command_string_bytes_hex": "25 80 71",
+      "encode_start": 4,
+      "decode_start_relative_to_msg_readcount": 4,
+      "decoder_readcount_after_netchan_process": 4,
+      "datagram_body_offset": 4,
+      "clear_body_hex": "03 00 00 00 10 20 30 40 06",
+      "encoded_body_hex": "03 00 00 00 16 7a 1b 37 5f",
+      "clear_datagram_hex": "04 03 02 01 03 00 00 00 10 20 30 40 06",
+      "encoded_datagram_hex": "04 03 02 01 03 00 00 00 16 7a 1b 37 5f",
+      "capture_diff_assertions": [
+        "0x25 and 0x80 command bytes produce the same sanitation branch as 0x2e before key mixing"
+      ]
+    }
+  ],
+  "retail_anchors": [
+    {
+      "symbol": "CL_Netchan_Encode",
+      "address": "0x004BCE30",
+      "observed": "Reads serverId, messageAcknowledge, reliableAcknowledge; computes data_15f6b6c.b ^ serverId ^ messageAcknowledge; starts at offset 0x0c."
+    },
+    {
+      "symbol": "CL_Netchan_Decode",
+      "address": "0x004BCEF0",
+      "observed": "Reads reliableAcknowledge from the current message cursor; computes challenge ^ netchan sequence; starts at readcount + 4."
+    },
+    {
+      "symbol": "SV_Netchan_Encode",
+      "address": "0x004E4CD0",
+      "observed": "Reads reliableAcknowledge, computes client challenge ^ outgoingSequence, uses lastClientCommandString, and starts at offset 4."
+    },
+    {
+      "symbol": "SV_Netchan_Decode",
+      "address": "0x004E4D70",
+      "observed": "Reads serverId, messageAcknowledge, reliableAcknowledge; computes client challenge ^ serverId ^ messageAcknowledge; starts at readcount + 0x0c."
+    }
+  ],
+  "capture_diff_status": {
+    "status": "static_wire_datagram_vectors_added",
+    "external_retail_captures_available": false,
+    "notes": [
+      "The golden vectors include full unfragmented datagram bytes so future retail captures can be compared directly.",
+      "No runtime launch or live packet capture was required for this static parity entry."
+    ]
+  },
+  "completion_status": {
+    "implementation_plan_entry": "Finalize XOR codec parity with deterministic unit vectors and capture-diff checks",
+    "status": "completed_static_golden_vectors_capture_diff_ready",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "focused_task_parity_before_percent": 80,
+    "focused_task_parity_after_percent": 94,
+    "overall_network_protocol_parity_before_percent": 76,
+    "overall_network_protocol_parity_after_percent": 78,
+    "residual_risks": [
+      "No committed external retail packet capture is available yet for byte-for-byte differential replay.",
+      "Client-message flag-bit recovery behind sub_4AF4D0 remains a follow-up; the XOR window now covers the sideband byte correctly."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_xor_codec_golden_vectors_and_capture_diff_windows"
+  ]
+}

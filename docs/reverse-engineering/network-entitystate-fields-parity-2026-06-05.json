@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "entityStateFields retail table parity for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": [
+    "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+    "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+    "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json"
+  ],
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part06.txt"
+    ],
+    "ghidra": [
+      "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+    ],
+    "mapping_notes": [
+      "docs/reverse-engineering/quakelive_steam_mapping_round_57.md",
+      "docs/reverse-engineering/quakelive_steam_mapping_round_65.md"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json"
+  },
+  "source_files": [
+    "src/code/game/q_shared.h",
+    "src/code/qcommon/msg.c",
+    "src/code/game/bg_misc.c",
+    "tests/test_cgame_event_transport_parity.py"
+  ],
+  "retail_table": {
+    "symbol": "data_542220",
+    "base_address": "0x00542220",
+    "entry_stride_bytes": 12,
+    "field_count": 58,
+    "field_count_hex": "0x3a",
+    "entry_layout": [
+      "name pointer",
+      "entityState_t offset",
+      "wire bit width"
+    ],
+    "read_copy_bytes": "0xec",
+    "source_table": "entityStateFields"
+  },
+  "source_of_truth": {
+    "field_macro": "NETF",
+    "c_table": "entityStateFields",
+    "entries": [
+      {"index": 0, "table_address": "0x00542220", "field": "pos.trTime", "offset_hex": "0x010", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 1, "table_address": "0x0054222C", "field": "pos.trBase[0]", "offset_hex": "0x018", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 2, "table_address": "0x00542238", "field": "pos.trBase[1]", "offset_hex": "0x01c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 3, "table_address": "0x00542244", "field": "pos.trDelta[0]", "offset_hex": "0x024", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 4, "table_address": "0x00542250", "field": "pos.trDelta[1]", "offset_hex": "0x028", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 5, "table_address": "0x0054225C", "field": "pos.trBase[2]", "offset_hex": "0x020", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 6, "table_address": "0x00542268", "field": "apos.trBase[1]", "offset_hex": "0x044", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 7, "table_address": "0x00542274", "field": "pos.trDelta[2]", "offset_hex": "0x02c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 8, "table_address": "0x00542280", "field": "apos.trBase[0]", "offset_hex": "0x040", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 9, "table_address": "0x0054228C", "field": "pos.gravity", "offset_hex": "0x030", "bits": 32, "source_bits": "32", "wire_kind": "raw_float_bits"},
+      {"index": 10, "table_address": "0x00542298", "field": "event", "offset_hex": "0x0bc", "bits": 10, "source_bits": "10", "wire_kind": "unsigned_int"},
+      {"index": 11, "table_address": "0x005422A4", "field": "angles2[1]", "offset_hex": "0x08c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 12, "table_address": "0x005422B0", "field": "eType", "offset_hex": "0x004", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 13, "table_address": "0x005422BC", "field": "torsoAnim", "offset_hex": "0x0dc", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 14, "table_address": "0x005422C8", "field": "eventParm", "offset_hex": "0x0c0", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 15, "table_address": "0x005422D4", "field": "legsAnim", "offset_hex": "0x0d8", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 16, "table_address": "0x005422E0", "field": "groundEntityNum", "offset_hex": "0x09c", "bits": 10, "source_bits": "GENTITYNUM_BITS", "wire_kind": "unsigned_int"},
+      {"index": 17, "table_address": "0x005422EC", "field": "pos.trType", "offset_hex": "0x00c", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 18, "table_address": "0x005422F8", "field": "eFlags", "offset_hex": "0x008", "bits": 19, "source_bits": "19", "wire_kind": "unsigned_int"},
+      {"index": 19, "table_address": "0x00542304", "field": "otherEntityNum", "offset_hex": "0x094", "bits": 10, "source_bits": "GENTITYNUM_BITS", "wire_kind": "unsigned_int"},
+      {"index": 20, "table_address": "0x00542310", "field": "weapon", "offset_hex": "0x0d0", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 21, "table_address": "0x0054231C", "field": "clientNum", "offset_hex": "0x0b0", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 22, "table_address": "0x00542328", "field": "angles[1]", "offset_hex": "0x080", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 23, "table_address": "0x00542334", "field": "pos.trDuration", "offset_hex": "0x014", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 24, "table_address": "0x00542340", "field": "apos.trType", "offset_hex": "0x034", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 25, "table_address": "0x0054234C", "field": "origin[0]", "offset_hex": "0x064", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 26, "table_address": "0x00542358", "field": "origin[1]", "offset_hex": "0x068", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 27, "table_address": "0x00542364", "field": "origin[2]", "offset_hex": "0x06c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 28, "table_address": "0x00542370", "field": "solid", "offset_hex": "0x0b8", "bits": 24, "source_bits": "24", "wire_kind": "unsigned_int"},
+      {"index": 29, "table_address": "0x0054237C", "field": "powerups", "offset_hex": "0x0c4", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 30, "table_address": "0x00542388", "field": "modelindex", "offset_hex": "0x0a8", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 31, "table_address": "0x00542394", "field": "otherEntityNum2", "offset_hex": "0x098", "bits": 10, "source_bits": "GENTITYNUM_BITS", "wire_kind": "unsigned_int"},
+      {"index": 32, "table_address": "0x005423A0", "field": "loopSound", "offset_hex": "0x0a4", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 33, "table_address": "0x005423AC", "field": "generic1", "offset_hex": "0x0e0", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int", "source_alias": "retailEventData"},
+      {"index": 34, "table_address": "0x005423B8", "field": "origin2[2]", "offset_hex": "0x078", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 35, "table_address": "0x005423C4", "field": "origin2[0]", "offset_hex": "0x070", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 36, "table_address": "0x005423D0", "field": "origin2[1]", "offset_hex": "0x074", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 37, "table_address": "0x005423DC", "field": "modelindex2", "offset_hex": "0x0ac", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"},
+      {"index": 38, "table_address": "0x005423E8", "field": "angles[0]", "offset_hex": "0x07c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 39, "table_address": "0x005423F4", "field": "time", "offset_hex": "0x05c", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 40, "table_address": "0x00542400", "field": "apos.trTime", "offset_hex": "0x038", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 41, "table_address": "0x0054240C", "field": "apos.trDuration", "offset_hex": "0x03c", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 42, "table_address": "0x00542418", "field": "apos.trBase[2]", "offset_hex": "0x048", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 43, "table_address": "0x00542424", "field": "apos.trDelta[0]", "offset_hex": "0x04c", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 44, "table_address": "0x00542430", "field": "apos.trDelta[1]", "offset_hex": "0x050", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 45, "table_address": "0x0054243C", "field": "apos.trDelta[2]", "offset_hex": "0x054", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 46, "table_address": "0x00542448", "field": "apos.gravity", "offset_hex": "0x058", "bits": 32, "source_bits": "32", "wire_kind": "raw_float_bits"},
+      {"index": 47, "table_address": "0x00542454", "field": "time2", "offset_hex": "0x060", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 48, "table_address": "0x00542460", "field": "angles[2]", "offset_hex": "0x084", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 49, "table_address": "0x0054246C", "field": "angles2[0]", "offset_hex": "0x088", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 50, "table_address": "0x00542478", "field": "angles2[2]", "offset_hex": "0x090", "bits": 0, "source_bits": "0", "wire_kind": "float"},
+      {"index": 51, "table_address": "0x00542484", "field": "constantLight", "offset_hex": "0x0a0", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 52, "table_address": "0x00542490", "field": "frame", "offset_hex": "0x0b4", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 53, "table_address": "0x0054249C", "field": "jumpTime", "offset_hex": "0x0e4", "bits": 32, "source_bits": "32", "wire_kind": "unsigned_int"},
+      {"index": 54, "table_address": "0x005424A8", "field": "doubleJumped", "offset_hex": "0x0e8", "bits": 1, "source_bits": "1", "wire_kind": "unsigned_int"},
+      {"index": 55, "table_address": "0x005424B4", "field": "health", "offset_hex": "0x0c8", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 56, "table_address": "0x005424C0", "field": "armor", "offset_hex": "0x0cc", "bits": 16, "source_bits": "16", "wire_kind": "unsigned_int"},
+      {"index": 57, "table_address": "0x005424CC", "field": "location", "offset_hex": "0x0d4", "bits": 8, "source_bits": "8", "wire_kind": "unsigned_int"}
+    ]
+  },
+  "retail_order_corrections": [
+    {"field": "pos.gravity", "retail_index": 9, "source_patch_required": true},
+    {"field": "apos.gravity", "retail_index": 46, "source_patch_required": true},
+    {"field": "jumpTime", "retail_index": 53, "source_patch_required": true},
+    {"field": "doubleJumped", "retail_index": 54, "source_patch_required": true},
+    {"field": "health", "retail_index": 55, "source_patch_required": true},
+    {"field": "armor", "retail_index": 56, "source_patch_required": true},
+    {"field": "location", "retail_index": 57, "source_patch_required": true},
+    {"field": "retailEventData", "retail_index": null, "source_patch_required": true, "resolution": "removed from the network table; retained as a source alias of retail generic1 at 0x0e0"}
+  ],
+  "golden_vectors": [
+    {
+      "id": "terminal_location_lc",
+      "changed_fields": ["location"],
+      "expected_lc": 58,
+      "retail_zero_based_indices": [57],
+      "written_events": [
+        {"field": "location", "bits": 8, "written_value": "0x05"}
+      ]
+    },
+    {
+      "id": "health_armor_tail_lc",
+      "changed_fields": ["health", "armor"],
+      "expected_lc": 57,
+      "retail_zero_based_indices": [55, 56],
+      "written_events": [
+        {"field": "health", "bits": 16, "written_value": "0x0064"},
+        {"field": "armor", "bits": 16, "written_value": "0x0032"}
+      ]
+    },
+    {
+      "id": "jump_state_tail_lc",
+      "changed_fields": ["jumpTime", "doubleJumped"],
+      "expected_lc": 55,
+      "retail_zero_based_indices": [53, 54],
+      "written_events": [
+        {"field": "jumpTime", "bits": 32, "written_value": "0x000004d2"},
+        {"field": "doubleJumped", "bits": 1, "written_value": "0x1"}
+      ]
+    },
+    {
+      "id": "trajectory_gravity_lc",
+      "changed_fields": ["pos.gravity", "apos.gravity"],
+      "expected_lc": 47,
+      "retail_zero_based_indices": [9, 46],
+      "written_events": [
+        {"field": "pos.gravity", "bits": 32, "wire_kind": "raw_float_bits", "written_value": "0x43c80000"},
+        {"field": "apos.gravity", "bits": 32, "wire_kind": "raw_float_bits", "written_value": "0x42c80000"}
+      ]
+    },
+    {
+      "id": "generic1_alias_event_payload",
+      "changed_fields": ["generic1"],
+      "expected_lc": 34,
+      "retail_zero_based_indices": [33],
+      "source_alias": "retailEventData",
+      "written_events": [
+        {"field": "generic1", "bits": 8, "written_value": "0x07"}
+      ]
+    }
+  ],
+  "retail_anchors": [
+    {
+      "symbol": "MSG_WriteDeltaEntity",
+      "address": "0x004D5780",
+      "observed": "Uses data_542220 with an 0x3a field-count loop and writes lc as 8 bits before field change records."
+    },
+    {
+      "symbol": "MSG_ReadDeltaEntity",
+      "address": "0x004D5AC0",
+      "observed": "Copies 0xec bytes from the baseline for no-delta entities, decodes table entries from data_542220, and copies unchanged tail fields until 0x3a."
+    },
+    {
+      "symbol": "entityStateFields",
+      "address": "0x00542220",
+      "observed": "Raw table entries recover 58 name/offset/bits triples, including trajectory gravity and the terminal health, armor, and location fields."
+    }
+  ],
+  "completion_status": {
+    "implementation_plan_entry": "Reconstruct entityStateFields exactly from retail, including terminal fields like retailEventData and any Quake Live int/float width changes",
+    "status": "completed_source_patch_retail_table_source_of_truth",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "source_patch_required": true,
+    "focused_task_parity_before_percent": 48,
+    "focused_task_parity_after_percent": 92,
+    "overall_network_protocol_parity_before_percent": 82,
+    "overall_network_protocol_parity_after_percent": 84,
+    "residual_risks": [
+      "Byte-for-byte retail snapshot capture comparison is still needed for full end-to-end entity snapshot parity.",
+      "The source keeps retailEventData as a readability alias of the retail generic1 network slot because older event helpers name that recovered payload role directly."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_entitystate_fields_source_of_truth_and_delta_contract",
+    "tests/test_cgame_event_transport_parity.py::test_shared_entity_state_restores_retail_event_data_slot",
+    "tests/test_bg_playerstate_bridge_parity.py::test_playerstate_bridge_body_stays_on_the_interpolating_retail_path"
+  ]
+}

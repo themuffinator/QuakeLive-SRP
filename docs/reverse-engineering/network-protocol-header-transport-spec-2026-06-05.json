@@ -1,0 +1,382 @@
+{
+  "schema_version": 1,
+  "last_updated": "2026-06-05",
+  "scope": "Protocol gates and packet header transport contract for docs/plans/2026-06-05-networking-2.md",
+  "depends_on": "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+  "owning_retail_binary": {
+    "path": "assets/quakelive/quakelive_steam.exe",
+    "metadata": "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+    "program_name": "quakelive_steam.exe",
+    "language": "x86:LE:32:default"
+  },
+  "reference_corpus": {
+    "binary_ninja_hlil": [
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt",
+      "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt"
+    ],
+    "ghidra": [
+      "references/reverse-engineering/ghidra/quakelive_steam/metadata.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/imports.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/exports.txt",
+      "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+    ],
+    "aliases": "references/analysis/quakelive_symbol_aliases.json"
+  },
+  "source_files": [
+    "src/code/qcommon/qcommon.h",
+    "src/code/qcommon/common.c",
+    "src/code/qcommon/net_chan.c",
+    "src/code/client/cl_main.c",
+    "src/code/server/sv_main.c",
+    "src/code/client/cl_net_chan.c",
+    "src/code/server/sv_net_chan.c"
+  ],
+  "active_profile": {
+    "profile": "NETPROFILE_QL_RETAIL",
+    "name": "ql-retail-steam",
+    "connect_protocol": 91,
+    "demo_protocol": 91,
+    "protocol_constant": "QL_RETAIL_PROTOCOL_VERSION",
+    "uses_challenge_handshake": true,
+    "uses_client_qport": true,
+    "uses_netchan_client_qport": true,
+    "uses_reliable_xor_codec": true,
+    "uses_compressed_connect": true,
+    "uses_legacy_q3_authorize": false,
+    "supports_platform_auth": "build gated by QL_BUILD_ONLINE_SERVICES / platform service support",
+    "requires_platform_auth": false,
+    "supports_workshop_content": "build gated by QL_BUILD_STEAM_WORKSHOP"
+  },
+  "packet_headers": [
+    {
+      "id": "connectionless_oob",
+      "description": "Generic out-of-band control packet.",
+      "direction": "both",
+      "relative_to": "datagram start",
+      "fields": [
+        {
+          "name": "sentinel",
+          "offset": 0,
+          "bytes": 4,
+          "value": "0xffffffff"
+        },
+        {
+          "name": "command_or_payload",
+          "offset": 4,
+          "bytes": "variable",
+          "encoding": "raw bytes unless this is the profile-gated compressed connect exception"
+        }
+      ],
+      "source_anchors": [
+        "NET_OutOfBandPrint",
+        "NET_OutOfBandRaw",
+        "SV_ConnectionlessPacket"
+      ]
+    },
+    {
+      "id": "compressed_connect_oob",
+      "description": "Profile-gated connect request sent through NET_OutOfBandData.",
+      "direction": "client-to-server",
+      "relative_to": "datagram start",
+      "fields": [
+        {
+          "name": "sentinel",
+          "offset": 0,
+          "bytes": 4,
+          "value": "0xffffffff"
+        },
+        {
+          "name": "clear_connect_token",
+          "offset": 4,
+          "bytes": 7,
+          "value": "connect"
+        },
+        {
+          "name": "clear_delimiter",
+          "offset": 11,
+          "bytes": 1,
+          "value": "space"
+        },
+        {
+          "name": "compressed_remainder",
+          "offset": 12,
+          "bytes": "variable",
+          "value": "quoted userinfo and trailing Huffman-compressed bytes"
+        }
+      ],
+      "compression": {
+        "client_compress_function": "Huff_Compress",
+        "client_compress_offset": 12,
+        "server_decompress_function": "Huff_Decompress",
+        "server_decompress_offset": 12,
+        "packet_detector": "NET_IsConnectRequestPacket",
+        "detector_command_offset": 4,
+        "accepted_detectors_after_token": [
+          "nul",
+          "space",
+          "double_quote",
+          "line_feed",
+          "carriage_return"
+        ]
+      }
+    },
+    {
+      "id": "client_netchan_unfragmented",
+      "description": "Sequenced client packet without fragmentation.",
+      "direction": "client-to-server",
+      "relative_to": "datagram start",
+      "fields": [
+        {
+          "name": "sequence",
+          "offset": 0,
+          "bytes": 4
+        },
+        {
+          "name": "qport",
+          "offset": 4,
+          "bytes": 2,
+          "condition": "NS_CLIENT and NET_ProtocolUsesNetchanClientQport()"
+        },
+        {
+          "name": "client_message_body",
+          "offset": 6,
+          "bytes": "variable"
+        }
+      ]
+    },
+    {
+      "id": "server_netchan_unfragmented",
+      "description": "Sequenced server packet without fragmentation.",
+      "direction": "server-to-client",
+      "relative_to": "datagram start",
+      "fields": [
+        {
+          "name": "sequence",
+          "offset": 0,
+          "bytes": 4
+        },
+        {
+          "name": "server_message_body",
+          "offset": 4,
+          "bytes": "variable"
+        }
+      ]
+    },
+    {
+      "id": "client_netchan_fragment",
+      "description": "Fragmented client packet.",
+      "direction": "client-to-server",
+      "relative_to": "datagram start",
+      "fields": [
+        {
+          "name": "sequence_with_fragment_bit",
+          "offset": 0,
+          "bytes": 4,
+          "flag": "FRAGMENT_BIT"
+        },
+        {
+          "name": "qport",
+          "offset": 4,
+          "bytes": 2,
+          "condition": "NS_CLIENT and NET_ProtocolUsesNetchanClientQport()"
+        },
+        {
+          "name": "fragment_start",
+          "offset": 6,
+          "bytes": 2
+        },
+        {
+          "name": "fragment_length",
+          "offset": 8,
+          "bytes": 2
+        },
+        {
+          "name": "fragment_payload",
+          "offset": 10,
+          "bytes": "variable"
+        }
+      ]
+    },
+    {
+      "id": "server_netchan_fragment",
+      "description": "Fragmented server packet.",
+      "direction": "server-to-client",
+      "relative_to": "datagram start",
+      "fields": [
+        {
+          "name": "sequence_with_fragment_bit",
+          "offset": 0,
+          "bytes": 4,
+          "flag": "FRAGMENT_BIT"
+        },
+        {
+          "name": "fragment_start",
+          "offset": 4,
+          "bytes": 2
+        },
+        {
+          "name": "fragment_length",
+          "offset": 6,
+          "bytes": 2
+        },
+        {
+          "name": "fragment_payload",
+          "offset": 8,
+          "bytes": "variable"
+        }
+      ]
+    },
+    {
+      "id": "client_message_body",
+      "description": "Client command stream after netchan sequence and qport.",
+      "direction": "client-to-server",
+      "relative_to": "body start",
+      "fields": [
+        {
+          "name": "serverId",
+          "offset": 0,
+          "bytes": 4
+        },
+        {
+          "name": "messageAcknowledge",
+          "offset": 4,
+          "bytes": 4
+        },
+        {
+          "name": "reliableAcknowledge",
+          "offset": 8,
+          "bytes": 4
+        },
+        {
+          "name": "retailClientMessageSideband",
+          "offset": 12,
+          "bytes": 1,
+          "note": "retail client writes sub_4AF4D0() xor serverCommandSequence low byte; server consumes but does not validate it"
+        },
+        {
+          "name": "first_opcode",
+          "offset": 13,
+          "bytes": 1,
+          "note": "Committed retail HLIL enters normal byte-opcode parsing after the sideband byte."
+        }
+      ]
+    },
+    {
+      "id": "server_message_body",
+      "description": "Server command stream after netchan sequence.",
+      "direction": "server-to-client",
+      "relative_to": "body start",
+      "fields": [
+        {
+          "name": "reliableAcknowledge",
+          "offset": 0,
+          "bytes": 4
+        },
+        {
+          "name": "first_opcode",
+          "offset": 4,
+          "bytes": 1
+        }
+      ]
+    }
+  ],
+  "netchan_constants": {
+    "source_MAX_MSGLEN": 16384,
+    "retail_transmit_rejects_above": 32768,
+    "FRAGMENT_SIZE": 1300,
+    "FRAGMENT_SIZE_SOURCE": "MAX_PACKETLEN - 100",
+    "FRAGMENT_BIT": "1 << 31",
+    "fragment_bit_hex": "0x80000000",
+    "note": "Current source uses MAX_MSGLEN 16384 while committed retail HLIL shows the Netchan_Transmit error branch above 0x8000; this spec freezes the observed distinction for follow-up transport parity work."
+  },
+  "qport_rules": {
+    "connect_userinfo_key": "qport",
+    "connect_userinfo_included_when": "NET_ProtocolUsesClientQport()",
+    "sequenced_client_header_included_when": "chan->sock == NS_CLIENT && NET_ProtocolUsesNetchanClientQport()",
+    "server_packet_lookup": "SV_PacketEvent reads sequence then qport before matching client base address and netchan qport.",
+    "server_netchan_consume": "Netchan_Process consumes qport again for NS_SERVER netchans before fragment fields."
+  },
+  "xor_windows": {
+    "client_to_server": {
+      "encode_function": "CL_Netchan_Encode",
+      "decode_function": "SV_Netchan_Decode",
+      "encode_start": 12,
+      "decode_start": 12,
+      "header_fields_before_xor": [
+        "serverId",
+        "messageAcknowledge",
+        "reliableAcknowledge"
+      ]
+    },
+    "server_to_client": {
+      "encode_function": "SV_Netchan_Encode",
+      "decode_function": "CL_Netchan_Decode",
+      "encode_start": 4,
+      "decode_start": 4,
+      "header_fields_before_xor": [
+        "reliableAcknowledge"
+      ]
+    },
+    "source_constants": {
+      "SV_ENCODE_START": 4,
+      "SV_DECODE_START": 12,
+      "CL_ENCODE_START": 12,
+      "CL_DECODE_START": 4
+    }
+  },
+  "retail_anchors": [
+    {
+      "symbol": "CL_CheckForResend",
+      "address": "0x004B9150",
+      "observed": "Connect state builds a connect request and reaches NET_OutOfBandData at 0x004B9314 for the compressed connect path."
+    },
+    {
+      "symbol": "NET_OutOfBandPrint",
+      "address": "0x004D7080",
+      "observed": "Writes four 0xff bytes and sends the raw formatted payload."
+    },
+    {
+      "symbol": "NET_OutOfBandData",
+      "address": "0x004D7120",
+      "observed": "Writes four 0xff bytes and calls the Huffman helper with offset 0x0c before sending."
+    },
+    {
+      "symbol": "Netchan_TransmitNextFragment",
+      "address": "0x004D7370",
+      "observed": "Writes sequence|0x80000000, optional client qport, fragment start, fragment length, and fragment bytes."
+    },
+    {
+      "symbol": "Netchan_Transmit",
+      "address": "0x004D74E0",
+      "observed": "Rejects payloads above 0x8000, fragments payloads at 0x514, and writes optional client qport before unfragmented data."
+    },
+    {
+      "symbol": "Netchan_Process",
+      "address": "0x004D7640",
+      "observed": "Begins OOB reading, reads sequence, strips fragment bit, reads qport for server netchans, then reads fragment metadata."
+    },
+    {
+      "symbol": "SV_PacketEvent",
+      "address": "0x004E4500",
+      "observed": "Dispatches 0xffffffff packets as connectionless; otherwise reads sequence and qport for client lookup before SV_Netchan_Process."
+    }
+  ],
+  "completion_status": {
+    "implementation_plan_entry": "Freeze protocol gates and packet headers",
+    "status": "completed_static_spec_and_assertions",
+    "completed_on": "2026-06-05",
+    "runtime_launch_required": false,
+    "focused_task_parity_before_percent": 70,
+    "focused_task_parity_after_percent": 90,
+    "overall_network_protocol_parity_before_percent": 72,
+    "overall_network_protocol_parity_after_percent": 74,
+    "residual_risks": [
+      "Parser golden vectors now live in docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json; byte-for-byte sideband flag recovery remains follow-up work.",
+      "XOR byte vectors and capture diffs remain separate follow-up tasks.",
+      "Entity field-table parity is still blocked on extracting the six missing retail entries."
+    ]
+  },
+  "assertion_tests": [
+    "tests/test_netcode_parity_manifest.py::test_networking_2_header_transport_spec_freezes_protocol_gates_and_headers"
+  ]
+}

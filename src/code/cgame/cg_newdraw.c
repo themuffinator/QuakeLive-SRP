@@ -44,6 +44,13 @@ typedef struct cgServerSettingsWeaponIcon_s {
 	const char *iconName;
 } cgServerSettingsWeaponIcon_t;
 
+typedef void (*cgBrowserScriptHandler_t)( void *widget, char **args );
+
+typedef struct cgBrowserScriptCommand_s {
+	const char *name;
+	cgBrowserScriptHandler_t handler;
+} cgBrowserScriptCommand_t;
+
 //
 // Forward declarations for HUD ownerdraw helpers used by Quake Live menus.
 //
@@ -112,6 +119,7 @@ void Menu_TransitionItemByName( menuDef_t *menu, const char *p, rectDef_t rectFr
 void Menu_OrbitItemByName( menuDef_t *menu, const char *p, float x, float y, float cx, float cy, int time );
 void Menus_Activate( menuDef_t *menu );
 void Script_SetColor( itemDef_t *item, char **args );
+void Script_SetAsset( itemDef_t *item, char **args );
 void Script_SetBackground( itemDef_t *item, char **args );
 void Script_SetTeamColor( itemDef_t *item, char **args );
 void Script_SetItemColor( itemDef_t *item, char **args );
@@ -121,6 +129,29 @@ void Script_SetCvar( itemDef_t *item, char **args );
 void Script_Exec( itemDef_t *item, char **args );
 void Script_Play( itemDef_t *item, char **args );
 void Script_playLooped( itemDef_t *item, char **args );
+static void CG_BrowserScriptFadeIn( void *widget, char **args );
+static void CG_BrowserScriptFadeOut( void *widget, char **args );
+static void CG_BrowserScriptShow( void *widget, char **args );
+static void CG_BrowserScriptHide( void *widget, char **args );
+static void CG_BrowserScriptSetColor( void *widget, char **args );
+static void CG_BrowserScriptOpen( void *widget, char **args );
+static void CG_BrowserScriptConditionalOpen( void *widget, char **args );
+static void CG_BrowserScriptClose( void *widget, char **args );
+static void CG_BrowserScriptToggle( void *widget, char **args );
+static void CG_BrowserScriptSetAsset( void *widget, char **args );
+static void CG_BrowserScriptSetBackground( void *widget, char **args );
+static void CG_BrowserScriptSetItemColor( void *widget, char **args );
+static void CG_BrowserScriptSetTeamColor( void *widget, char **args );
+static void CG_BrowserScriptSetFocus( void *widget, char **args );
+static void CG_BrowserScriptSetPlayerModel( void *widget, char **args );
+static void CG_BrowserScriptSetPlayerHead( void *widget, char **args );
+static void CG_BrowserScriptTransition( void *widget, char **args );
+static void CG_BrowserScriptSetCvar( void *widget, char **args );
+static void CG_BrowserScriptExec( void *widget, char **args );
+static void CG_BrowserScriptPlay( void *widget, char **args );
+static void CG_BrowserScriptPlayLooped( void *widget, char **args );
+static void CG_BrowserScriptOrbit( void *widget, char **args );
+static void CG_BrowserScriptActivateAdvert( void *widget, char **args );
 static void *CG_ClearBrowserFocus( void *overlay );
 
 #define CG_RACE_CHECKPOINT_HALF_WIDTH 24.0f
@@ -4557,36 +4588,31 @@ static void CG_DrawTeamAveragePing(rectDef_t *rect, float scale, vec4_t color, i
 	char	buffer[48];
 	vec4_t	drawColor;
 
+	(void)color;
+
 	sum = 0;
 	count = 0;
 	for ( i = 0; i < cg.numScores; i++ ) {
 		if ( cg.scores[i].team != team ) {
 			continue;
 		}
-		if ( cg.scores[i].ping < 0 ) {
-			continue;
-		}
 		sum += cg.scores[i].ping;
 		count++;
 	}
 
-	if ( count <= 0 ) {
-		return;
-	}
-
-	average = sum / count;
-	Vector4Copy( color, drawColor );
-	if ( average >= 80 ) {
+	average = ( count > 0 ) ? sum / count : 0;
+	if ( average > 40 ) {
 		drawColor[0] = 1.0f;
-		drawColor[1] = 0.2f;
-		drawColor[2] = 0.2f;
-	} else if ( average >= 40 ) {
-		drawColor[0] = 1.0f;
-		drawColor[1] = 0.85f;
-		drawColor[2] = 0.2f;
+		drawColor[1] = ( average > 80 ) ? 0.0f : 1.0f;
+		drawColor[2] = 0.0f;
+	} else {
+		drawColor[0] = 0.0f;
+		drawColor[1] = 1.0f;
+		drawColor[2] = 0.0f;
 	}
+	drawColor[3] = 0.8f;
 
-	Com_sprintf( buffer, sizeof( buffer ), "Avg ping %i", average );
+	Com_sprintf( buffer, sizeof( buffer ), "(%d)", average );
 	CG_Text_Paint(rect->x, rect->y + rect->h, scale, drawColor, buffer, 0, 0, textStyle);
 }
 
@@ -8380,8 +8406,8 @@ CG_DrawScoreValue
 
 Restores the retail wrapper over the local and compact placement score ownerdraw
 slots. Related retail team-score wiring stays in the ownerdraw dispatcher:
-retail case CG_RED_SCORE: CG_DrawTeamScore( rect, scale, color, textStyle, TEAM_RED, ITEM_ALIGN_CENTER );
-retail case CG_BLUE_SCORE: CG_DrawTeamScore( rect, scale, color, textStyle, TEAM_BLUE, ITEM_ALIGN_CENTER );
+retail case CG_RED_SCORE: CG_DrawTeamScore( rect, scale, color, textStyle, TEAM_RED, align );
+retail case CG_BLUE_SCORE: CG_DrawTeamScore( rect, scale, color, textStyle, TEAM_BLUE, align );
 =============
 */
 static void CG_DrawScoreValue( rectDef_t *rect, float scale, vec4_t color, qhandle_t shader, int textStyle, int ownerDraw ) {
@@ -11728,6 +11754,17 @@ static void CG_BrowserScriptFadeOut( void *widget, char **args ) {
 
 /*
 =============
+CG_BrowserScriptSetAsset
+
+Runs the retail browser `setasset` verb through the shared script helper.
+=============
+*/
+static void CG_BrowserScriptSetAsset( void *widget, char **args ) {
+	Script_SetAsset( (itemDef_t *)widget, args );
+}
+
+/*
+=============
 CG_BrowserScriptSetBackground
 
 Runs the retail browser `setbackground` verb through the shared script helper.
@@ -12706,11 +12743,73 @@ static void *CG_FindBrowserWidgetByName( void *overlay, const char *name ) {
 =============
 CG_RunBrowserScript
 
-Runs one retail browser widget script through the shared script-command table.
+Runs one retail browser widget script through the cgame-owned script-command table.
 =============
 */
 static void CG_RunBrowserScript( void *widget, const char *script ) {
-	Item_RunScript( (itemDef_t *)widget, script );
+	char			buffer[UI_SCRIPT_BUFFER_SIZE];
+	char			*p;
+	const char		*command;
+	int			i;
+	qboolean		ran;
+	static const cgBrowserScriptCommand_t browserScriptCommands[] = {
+		{ "fadein", CG_BrowserScriptFadeIn },
+		{ "fadeout", CG_BrowserScriptFadeOut },
+		{ "show", CG_BrowserScriptShow },
+		{ "hide", CG_BrowserScriptHide },
+		{ "setcolor", CG_BrowserScriptSetColor },
+		{ "open", CG_BrowserScriptOpen },
+		{ "conditionalopen", CG_BrowserScriptConditionalOpen },
+		{ "close", CG_BrowserScriptClose },
+		{ "toggle", CG_BrowserScriptToggle },
+		{ "setasset", CG_BrowserScriptSetAsset },
+		{ "setbackground", CG_BrowserScriptSetBackground },
+		{ "setitemcolor", CG_BrowserScriptSetItemColor },
+		{ "setteamcolor", CG_BrowserScriptSetTeamColor },
+		{ "setfocus", CG_BrowserScriptSetFocus },
+		{ "setplayermodel", CG_BrowserScriptSetPlayerModel },
+		{ "setplayerhead", CG_BrowserScriptSetPlayerHead },
+		{ "transition", CG_BrowserScriptTransition },
+		{ "setcvar", CG_BrowserScriptSetCvar },
+		{ "exec", CG_BrowserScriptExec },
+		{ "play", CG_BrowserScriptPlay },
+		{ "playlooped", CG_BrowserScriptPlayLooped },
+		{ "orbit", CG_BrowserScriptOrbit },
+		{ "activateAdvert", CG_BrowserScriptActivateAdvert }
+	};
+
+	if ( widget == NULL || script == NULL || script[0] == '\0' ) {
+		return;
+	}
+
+	memset( buffer, 0, sizeof( buffer ) );
+	Q_strcat( buffer, sizeof( buffer ), script );
+	p = buffer;
+
+	while ( 1 ) {
+		if ( !String_Parse( &p, &command ) ) {
+			return;
+		}
+
+		if ( command[0] == ';' && command[1] == '\0' ) {
+			continue;
+		}
+
+		ran = qfalse;
+		for ( i = 0; i < ARRAY_LEN( browserScriptCommands ); i++ ) {
+			if ( browserScriptCommands[i].name && !Q_stricmp( command, browserScriptCommands[i].name ) ) {
+				if ( browserScriptCommands[i].handler ) {
+					browserScriptCommands[i].handler( widget, &p );
+				}
+				ran = qtrue;
+				break;
+			}
+		}
+
+		if ( !ran && cgDC.runScript ) {
+			cgDC.runScript( &p );
+		}
+	}
 }
 
 /*

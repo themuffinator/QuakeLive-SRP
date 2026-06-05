@@ -1,12 +1,30 @@
 from __future__ import annotations
 
 import json
+import ctypes
+import re
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = REPO_ROOT / "docs/reverse-engineering/netcode-parity-manifest.json"
+NETWORKING_2_LEDGER_PATH = REPO_ROOT / "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json"
+NETWORKING_2_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.md"
+NETWORKING_2_HEADER_SPEC_PATH = REPO_ROOT / "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json"
+NETWORKING_2_HEADER_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.md"
+NETWORKING_2_CLIENT_PARSER_GRAMMAR_PATH = REPO_ROOT / "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json"
+NETWORKING_2_CLIENT_PARSER_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.md"
+NETWORKING_2_XOR_CODEC_PATH = REPO_ROOT / "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.json"
+NETWORKING_2_XOR_CODEC_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-xor-codec-parity-2026-06-05.md"
+NETWORKING_2_USERCMD_DELTA_PATH = REPO_ROOT / "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json"
+NETWORKING_2_USERCMD_DELTA_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.md"
+NETWORKING_2_PLAYERSTATE_FIELDS_PATH = REPO_ROOT / "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json"
+NETWORKING_2_PLAYERSTATE_FIELDS_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.md"
+NETWORKING_2_ENTITYSTATE_FIELDS_PATH = REPO_ROOT / "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.json"
+NETWORKING_2_ENTITYSTATE_FIELDS_AUDIT_PATH = REPO_ROOT / "docs/reverse-engineering/network-entitystate-fields-parity-2026-06-05.md"
+NETWORKING_2_PLAN_PATH = REPO_ROOT / "docs/plans/2026-06-05-networking-2.md"
 QCOMMON_H_PATH = REPO_ROOT / "src/code/qcommon/qcommon.h"
+Q_SHARED_PATH = REPO_ROOT / "src/code/game/q_shared.h"
 HUFFMAN_C_PATH = REPO_ROOT / "src/code/qcommon/huffman.c"
 MSG_C_PATH = REPO_ROOT / "src/code/qcommon/msg.c"
 SV_SNAPSHOT_PATH = REPO_ROOT / "src/code/server/sv_snapshot.c"
@@ -50,11 +68,69 @@ def _manifest() -> dict:
 	return json.loads(_read(MANIFEST_PATH))
 
 
+def _networking_2_ledger() -> dict:
+	return json.loads(_read(NETWORKING_2_LEDGER_PATH))
+
+
+def _networking_2_header_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_HEADER_SPEC_PATH))
+
+
+def _networking_2_client_parser_grammar() -> dict:
+	return json.loads(_read(NETWORKING_2_CLIENT_PARSER_GRAMMAR_PATH))
+
+
+def _networking_2_xor_codec_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_XOR_CODEC_PATH))
+
+
+def _networking_2_usercmd_delta_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_USERCMD_DELTA_PATH))
+
+
+def _networking_2_playerstate_fields_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_PLAYERSTATE_FIELDS_PATH))
+
+
+def _networking_2_entitystate_fields_spec() -> dict:
+	return json.loads(_read(NETWORKING_2_ENTITYSTATE_FIELDS_PATH))
+
+
+def _ql_reliable_xor(data: bytes, start: int, initial_key: int, command_bytes: bytes) -> bytes:
+	out = bytearray(data)
+	key = initial_key & 0xff
+	index = 0
+
+	if not command_bytes:
+		command_bytes = b"\x00"
+
+	for offset in range(start, len(out)):
+		command_byte = command_bytes[index] if index < len(command_bytes) else 0
+		if command_byte == 0:
+			index = 0
+			command_byte = command_bytes[index] if index < len(command_bytes) else 0
+		if command_byte > 0x7f or command_byte == ord("%"):
+			command_byte = ord(".")
+
+		key = (key ^ ((command_byte << (offset & 1)) & 0xff)) & 0xff
+		out[offset] ^= key
+		index += 1
+
+	return bytes(out)
+
+
 def _entry(symbol: str) -> dict:
 	for item in _manifest()["entries"]:
 		if item["symbol"] == symbol:
 			return item
 	raise AssertionError(f"missing manifest entry: {symbol}")
+
+
+def _netfield_count(source: str, table_name: str) -> int:
+	start = source.index(f"netField_t\t{table_name}[]")
+	table = source[start:source.index("};", start)]
+	macro = "PSF(" if table_name == "playerStateFields" else "NETF("
+	return table.count("{ " + macro)
 
 
 def _msg_t_block(source: str) -> str:
@@ -1482,7 +1558,8 @@ def test_manifest_covers_msg_entity_playerstate_delta_lane() -> None:
 		"((byte *)data)[i] = MSG_ReadByte (msg);",
 	)
 
-	assert "{ NETF(retailEventData), 8 }" in msg_c
+	assert "{ NETF(generic1), 8 }" in msg_c
+	assert "{ NETF(retailEventData), 8 }" not in msg_c
 	_assert_order(
 		write_entity,
 		"if ( to == NULL ) {",
@@ -1619,7 +1696,8 @@ def test_manifest_covers_msg_entity_playerstate_delta_lane() -> None:
 
 	for expected in (
 		"test_shared_entity_state_restores_retail_event_data_slot",
-		"assert \"{ NETF(retailEventData), 8 }\" in msg_source",
+		"assert \"{ NETF(generic1), 8 }\" in msg_source",
+		"assert \"{ NETF(retailEventData), 8 }\" not in msg_source",
 		"assert \"assert( serializedBytes <= sizeof( *from ) );\" in msg_source",
 	):
 		assert expected in event_transport_test
@@ -2473,6 +2551,7 @@ def test_manifest_covers_client_usercmd_packet_lane() -> None:
 		"004b5ff0      sub_4d4e30(&var_8044, data_1472870)",
 		"004b6003      sub_4d4e30(&var_8044, data_1606b7c)",
 		"004b6015      sub_4d4e30(&var_8044, data_1606b80)",
+		"004b6030      sub_4d4dc0(&var_8044, zx.d(sub_4af4d0()) ^ data_1606b80.b)",
 		"004b6045      for (int32_t i = data_15f6b78 + 1; i s<= data_15f6b74; i += 1)",
 		"004b6153          sub_4d4dc0(__saved_ebx_5, __saved_edi_6)",
 		"004b618f          int32_t edi_3 = data_15f6b70 ^ data_1606b7c",
@@ -2483,6 +2562,7 @@ def test_manifest_covers_client_usercmd_packet_lane() -> None:
 		"004d54a0    int32_t sub_4d54a0(void* arg1, int32_t arg2, void* arg3, int32_t* arg4)",
 		"004e0411          sub_4d54a0(arg1, edi_2, eax_8, esi)",
 		"004e05c0    uint32_t sub_4e05c0(int32_t* arg1, void* arg2)",
+		"004e05fe      sub_4d4fc0(arg2)",
 		"004e06fc              return sub_4e0320(arg2, 1)",
 		"004e0711              return sub_4e0320(arg2, 0)",
 		"004e0734              return sub_4c9860(arg2, \"WARNING: bad command byte for cl",
@@ -2501,6 +2581,7 @@ def test_manifest_covers_client_usercmd_packet_lane() -> None:
 		"MSG_WriteLong( &buf, cl.serverId );",
 		"MSG_WriteLong( &buf, clc.serverMessageSequence );",
 		"MSG_WriteLong( &buf, clc.serverCommandSequence );",
+		"MSG_WriteByte( &buf, CL_RetailClientMessageFlags() ^ ( clc.serverCommandSequence & 0xff ) );",
 		"for ( i = clc.reliableAcknowledge + 1 ; i <= clc.reliableSequence ; i++ ) {",
 		"MSG_WriteByte( &buf, clc_clientCommand );",
 		"oldPacketNum = (clc.netchan.outgoingSequence - 1 - cl_packetdup->integer) & PACKET_MASK;",
@@ -2566,6 +2647,7 @@ def test_manifest_covers_client_usercmd_packet_lane() -> None:
 		"serverId = MSG_ReadLong( msg );",
 		"cl->messageAcknowledge = MSG_ReadLong( msg );",
 		"cl->reliableAcknowledge = MSG_ReadLong( msg );",
+		"(void)MSG_ReadByte( msg );",
 		"if ( serverId != sv.serverId && !*cl->downloadName && !strstr(cl->lastClientCommandString, NET_GetDownloadNextCommand()) ) {",
 		"do {",
 		"c = MSG_ReadByte( msg );",
@@ -3743,3 +3825,1920 @@ def test_manifest_covers_server_snapshot_authoring_lane() -> None:
 
 	assert "Preserved the existing UDP pk3 autodownload behavior" in netcode_audit
 	assert "Implementation round - 2026-06-04, server snapshot authoring manifest expansion" in plan
+
+
+def test_networking_2_focused_parity_ledger_maps_first_plan_entry() -> None:
+	ledger = _networking_2_ledger()
+	msg_source = _read(MSG_C_PATH)
+	qcommon_h = _read(QCOMMON_H_PATH)
+	aliases = json.loads(_read(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json"))["quakelive_steam"]
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	audit_note = _read(NETWORKING_2_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert ledger["schema_version"] == 1
+	assert ledger["last_updated"] == "2026-06-05"
+	assert ledger["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+	assert ledger["owning_retail_binary"]["function_count"] == 5473
+	assert ledger["source_profile"]["protocol"] == 91
+	assert ledger["source_profile"]["source_constant"] == "QL_RETAIL_PROTOCOL_VERSION"
+	assert "#define\tQL_RETAIL_PROTOCOL_VERSION\t91" in qcommon_h
+
+	focus = {area["id"]: area for area in ledger["focus_areas"]}
+	assert set(focus) == {
+		"protocol_gates_and_packet_headers",
+		"netchan_transport",
+		"xor_netchan_encoding",
+		"usercmd_delta",
+		"playerstate_delta_fields",
+		"entity_delta_fields",
+		"client_message_parser",
+		"oob_connect_auth",
+	}
+
+	for symbol, address in {
+		"CL_WritePacket": "sub_4B5F70",
+		"SV_ExecuteClientMessage": "sub_4E05C0",
+		"CL_Netchan_Encode": "sub_4BCE30",
+		"CL_Netchan_Decode": "sub_4BCEF0",
+		"MSG_WriteDeltaUsercmdKey": "sub_4D51A0",
+		"MSG_ReadDeltaUsercmdKey": "sub_4D54A0",
+		"MSG_WriteDeltaEntity": "sub_4D5780",
+		"MSG_ReadDeltaEntity": "sub_4D5AC0",
+		"MSG_WriteDeltaPlayerstate": "sub_4D5D50",
+		"MSG_ReadDeltaPlayerstate": "sub_4D66C0",
+		"Netchan_Process": "sub_4D7640",
+		"SV_Netchan_Encode": "sub_4E4CD0",
+		"SV_Netchan_Decode": "sub_4E4D70",
+	}.items():
+		assert aliases[address] == symbol
+
+	xor_offsets = {
+		item["name"]: item["value"]
+		for item in focus["xor_netchan_encoding"]["packet_offsets"]
+	}
+	assert xor_offsets == {
+		"CL_ENCODE_START": 12,
+		"CL_DECODE_START": 4,
+		"SV_ENCODE_START": 4,
+		"SV_DECODE_START": 12,
+	}
+	for expected in (
+		"#define\tSV_ENCODE_START\t\t4",
+		"#define SV_DECODE_START\t\t12",
+		"#define\tCL_ENCODE_START\t\t12",
+		"#define CL_DECODE_START\t\t4",
+	):
+		assert expected in qcommon_h
+
+	usercmd_offsets = {
+		item["field"]: item["offset"]
+		for item in focus["usercmd_delta"]["struct_offsets"]
+	}
+	assert usercmd_offsets["weaponPrimary"] == "0x15"
+	assert usercmd_offsets["fov"] == "0x16"
+	assert usercmd_offsets["forwardmove"] == "0x17"
+	assert focus["usercmd_delta"]["wire_order"][-2:] == ["weaponPrimary", "fov"]
+
+	player_table = focus["playerstate_delta_fields"]["field_table"]
+	assert player_table["retail_table_base"] == "0x005424D8"
+	assert player_table["retail_field_count"] == 58
+	assert player_table["source_field_count"] == _netfield_count(msg_source, "playerStateFields")
+	assert "005424D8" not in msg_source
+	assert "{ PSF(pm_flags), 24 }" in msg_source
+	assert "{ PSF(weaponPrimary), 8 }" in msg_source
+	assert "{ PSF(fov), 8 }" in msg_source
+
+	entity_table = focus["entity_delta_fields"]["field_table"]
+	assert focus["entity_delta_fields"]["status"] == "completed_by_network_entitystate_fields_parity_2026_06_05"
+	assert entity_table["retail_table_base"] == "0x00542220"
+	assert entity_table["retail_field_count"] == 58
+	assert entity_table["source_field_count"] == _netfield_count(msg_source, "entityStateFields")
+	assert entity_table["retail_field_count"] - entity_table["source_field_count"] == 0
+	assert entity_table["source_tail_field"] == {"field": "location", "bits": 8}
+	assert "{ NETF(location), 8 }" in msg_source
+	assert "{ NETF(retailEventData), 8 }" not in msg_source
+	q_shared_source = _read(REPO_ROOT / "src/code/game/q_shared.h")
+	assert "int\t\tretailEventPadding[4];" not in q_shared_source
+	assert "int\tretailEventData;" in q_shared_source
+
+	write_entity_hlil = hlil_part04.split("004d5780    int32_t* sub_4d5780", 1)[1].split("004d5ac0", 1)[0]
+	read_entity_hlil = hlil_part04.split("004d5ac0    int32_t sub_4d5ac0", 1)[1].split("004d5d50", 1)[0]
+	assert "data_124a634 += 0x3a" in write_entity_hlil
+	assert "i_4 s< 0x3a" in read_entity_hlil
+	assert "__builtin_memcpy(dest: arg3, src: arg2, n: 0xec)" in read_entity_hlil
+
+	parser_offsets = focus["client_message_parser"]["packet_offsets"][0]
+	assert parser_offsets["serverId"] == 0
+	assert parser_offsets["messageAcknowledge"] == 4
+	assert parser_offsets["reliableAcknowledge"] == 8
+	assert parser_offsets["retailClientMessageSideband"] == 12
+	assert parser_offsets["first_opcode"] == 13
+	parser_hlil = hlil_part04.split("004e05c0    uint32_t sub_4e05c0", 1)[1].split("004e0750", 1)[0]
+	_assert_order(
+		parser_hlil,
+		"sub_4d4a70(arg2)",
+		"uint32_t eax = sub_4d5020(arg2)",
+		"uint32_t i = sub_4d5020(arg2)",
+		"arg1[0x4102] = sub_4d5020(arg2)",
+		"sub_4d4fc0(arg2)",
+		"i, edx_2 = sub_4d4fc0(arg2)",
+	)
+
+	assert ledger["completion_status"]["status"] == "completed_with_follow_up_gaps"
+	assert "Retail entityStateFields count is 58" in ledger["completion_status"]["new_high_value_findings"][0]
+	assert "NET2-G01" in audit_note
+	assert "NET2-Q01" in audit_note
+	assert "Focused networking-ledger task" in audit_note
+	assert "Build a **parity ledger**" in plan
+	assert "**[COMPLETED 2026-06-05]**" in plan
+	assert "network-protocol-parity-ledger-2026-06-05.json" in plan
+	assert "Retail `entityStateFields` uses `58` entries" in plan
+
+
+def test_networking_2_header_transport_spec_freezes_protocol_gates_and_headers() -> None:
+	spec = _networking_2_header_spec()
+	qcommon_h = _read(QCOMMON_H_PATH)
+	common_c = _read(COMMON_C_PATH)
+	net_chan = _read(NET_CHAN_PATH)
+	cl_main = _read(CL_MAIN_PATH)
+	sv_main = _read(SV_MAIN_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	audit_note = _read(NETWORKING_2_HEADER_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == "docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json"
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	profile = spec["active_profile"]
+	assert profile["profile"] == "NETPROFILE_QL_RETAIL"
+	assert profile["name"] == "ql-retail-steam"
+	assert profile["connect_protocol"] == 91
+	assert profile["demo_protocol"] == 91
+	assert profile["uses_challenge_handshake"] is True
+	assert profile["uses_client_qport"] is True
+	assert profile["uses_netchan_client_qport"] is True
+	assert profile["uses_reliable_xor_codec"] is True
+	assert profile["uses_compressed_connect"] is True
+	assert profile["uses_legacy_q3_authorize"] is False
+	assert profile["requires_platform_auth"] is False
+	assert "QL_BUILD_ONLINE_SERVICES" in profile["supports_platform_auth"]
+
+	for expected in (
+		"#define\tQL_RETAIL_PROTOCOL_VERSION\t91",
+		"#define\tPROTOCOL_VERSION\tQL_RETAIL_PROTOCOL_VERSION",
+		"#define\tMAX_MSGLEN\t\t\t\t16384",
+		"#define\tSV_ENCODE_START\t\t4",
+		"#define SV_DECODE_START\t\t12",
+		"#define\tCL_ENCODE_START\t\t12",
+		"#define CL_DECODE_START\t\t4",
+	):
+		assert expected in qcommon_h
+
+	profile_block = common_c.split("static const netprofile_desc_t s_netProtocolProfile = {", 1)[1].split("\n};", 1)[0]
+	_assert_order(
+		profile_block,
+		"NETPROFILE_QL_RETAIL,",
+		"\"ql-retail-steam\",",
+		"\"connect\",",
+		"\"qport\",",
+		"\"challenge\",",
+		"QL_RETAIL_PROTOCOL_VERSION,",
+		"QL_RETAIL_PROTOCOL_VERSION,",
+		"qtrue,",
+		"qtrue,",
+		"qtrue,",
+		"qtrue,",
+		"qtrue,",
+		"qfalse,",
+		"NET_PROFILE_SUPPORTS_PLATFORM_AUTH,",
+		"qfalse,",
+		"NET_PROFILE_SUPPORTS_WORKSHOP_CONTENT",
+	)
+
+	for signature, field in (
+		("qboolean NET_ProtocolUsesClientQport( void )", "usesClientQport"),
+		("qboolean NET_ProtocolUsesNetchanClientQport( void )", "usesNetchanClientQport"),
+		("qboolean NET_ProtocolUsesReliableXorCodec( void )", "usesReliableXorCodec"),
+		("qboolean NET_ProtocolUsesLegacyAuthorize( void )", "usesLegacyQ3Authorize"),
+		("qboolean NET_ProtocolUsesCompressedConnect( void )", "usesCompressedConnect"),
+		("qboolean NET_ProtocolSupportsPlatformAuth( void )", "supportsPlatformAuth"),
+	):
+		assert f"return NET_GetProtocolProfile()->{field};" in _function_block(common_c, signature)
+
+	headers = {item["id"]: item for item in spec["packet_headers"]}
+	assert set(headers) == {
+		"connectionless_oob",
+		"compressed_connect_oob",
+		"client_netchan_unfragmented",
+		"server_netchan_unfragmented",
+		"client_netchan_fragment",
+		"server_netchan_fragment",
+		"client_message_body",
+		"server_message_body",
+	}
+
+	def fields(header_id: str) -> dict:
+		return {field["name"]: field for field in headers[header_id]["fields"]}
+
+	assert fields("connectionless_oob")["sentinel"]["value"] == "0xffffffff"
+	assert fields("connectionless_oob")["command_or_payload"]["offset"] == 4
+	assert fields("compressed_connect_oob")["sentinel"]["offset"] == 0
+	assert fields("compressed_connect_oob")["clear_connect_token"]["offset"] == 4
+	assert fields("compressed_connect_oob")["clear_connect_token"]["value"] == "connect"
+	assert fields("compressed_connect_oob")["clear_delimiter"]["offset"] == 11
+	assert fields("compressed_connect_oob")["compressed_remainder"]["offset"] == 12
+	assert headers["compressed_connect_oob"]["compression"]["client_compress_offset"] == 12
+	assert headers["compressed_connect_oob"]["compression"]["server_decompress_offset"] == 12
+	assert headers["compressed_connect_oob"]["compression"]["detector_command_offset"] == 4
+
+	assert fields("client_netchan_unfragmented")["sequence"]["offset"] == 0
+	assert fields("client_netchan_unfragmented")["qport"]["offset"] == 4
+	assert fields("client_netchan_unfragmented")["client_message_body"]["offset"] == 6
+	assert fields("server_netchan_unfragmented")["sequence"]["offset"] == 0
+	assert fields("server_netchan_unfragmented")["server_message_body"]["offset"] == 4
+	assert fields("client_netchan_fragment")["sequence_with_fragment_bit"]["offset"] == 0
+	assert fields("client_netchan_fragment")["qport"]["offset"] == 4
+	assert fields("client_netchan_fragment")["fragment_start"]["offset"] == 6
+	assert fields("client_netchan_fragment")["fragment_length"]["offset"] == 8
+	assert fields("client_netchan_fragment")["fragment_payload"]["offset"] == 10
+	assert fields("server_netchan_fragment")["fragment_start"]["offset"] == 4
+	assert fields("server_netchan_fragment")["fragment_length"]["offset"] == 6
+	assert fields("server_netchan_fragment")["fragment_payload"]["offset"] == 8
+
+	client_body = fields("client_message_body")
+	assert client_body["serverId"]["offset"] == 0
+	assert client_body["messageAcknowledge"]["offset"] == 4
+	assert client_body["reliableAcknowledge"]["offset"] == 8
+	assert client_body["retailClientMessageSideband"]["offset"] == 12
+	assert client_body["first_opcode"]["offset"] == 13
+	assert fields("server_message_body")["reliableAcknowledge"]["offset"] == 0
+	assert fields("server_message_body")["first_opcode"]["offset"] == 4
+
+	constants = spec["netchan_constants"]
+	assert constants["source_MAX_MSGLEN"] == 16384
+	assert constants["retail_transmit_rejects_above"] == 32768
+	assert constants["FRAGMENT_SIZE"] == 1300
+	assert constants["FRAGMENT_SIZE_SOURCE"] == "MAX_PACKETLEN - 100"
+	assert constants["fragment_bit_hex"] == "0x80000000"
+
+	assert spec["qport_rules"]["connect_userinfo_key"] == "qport"
+	assert spec["qport_rules"]["connect_userinfo_included_when"] == "NET_ProtocolUsesClientQport()"
+	assert "SV_PacketEvent reads sequence then qport" in spec["qport_rules"]["server_packet_lookup"]
+
+	xor = spec["xor_windows"]
+	assert xor["client_to_server"]["encode_start"] == 12
+	assert xor["client_to_server"]["decode_start"] == 12
+	assert xor["server_to_client"]["encode_start"] == 4
+	assert xor["server_to_client"]["decode_start"] == 4
+	assert xor["source_constants"] == {
+		"SV_ENCODE_START": 4,
+		"SV_DECODE_START": 12,
+		"CL_ENCODE_START": 12,
+		"CL_DECODE_START": 4,
+	}
+
+	connect_packet = common_c.split("qboolean NET_IsConnectRequestPacket( const msg_t *msg )", 1)[1].split(
+		"NET_ProtocolUsesClientQport", 1
+	)[0]
+	_assert_order(
+		connect_packet,
+		"if ( !msg || !msg->data || msg->cursize < 4 ) {",
+		"command = NET_GetConnectRequestCommand();",
+		"commandLength = strlen( command );",
+		"payload = (const char *)msg->data + 4;",
+		"if ( Q_strncmp( payload, command, commandLength ) ) {",
+		"delimiter = payload[commandLength];",
+		"delimiter == '\\0' || delimiter == ' ' || delimiter == '\"' || delimiter == '\\n' || delimiter == '\\r'",
+	)
+
+	check_resend = cl_main.split("void CL_CheckForResend( void ) {", 1)[1].split("CL_DisconnectPacket", 1)[0]
+	_assert_order(
+		check_resend,
+		"if ( NET_ProtocolUsesLegacyAuthorize() && !Sys_IsLANAddress( clc.serverAddress ) ) {",
+		"CL_SendChallengeRequest();",
+		"port = Cvar_VariableValue (\"net_qport\");",
+		'Info_SetValueForKey( info, NET_GetProtocolInfoKey(), va("%i", NET_ProtocolVersion() ) );',
+		"if ( NET_ProtocolUsesClientQport() ) {",
+		'Info_SetValueForKey( info, NET_GetQportInfoKey(), va("%i", port ) );',
+		'Info_SetValueForKey( info, NET_GetChallengeInfoKey(), va("%i", clc.challenge ) );',
+		'Com_sprintf( data, sizeof( data ), "%s \\"%s\\"", NET_GetConnectRequestCommand(), info );',
+		"if ( NET_ProtocolUsesCompressedConnect() ) {",
+		"NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *)data, dataLength );",
+		"NET_OutOfBandPrint( NS_CLIENT, clc.serverAddress, \"%s\", data );",
+	)
+
+	connectionless = _function_block(sv_main, "void SV_ConnectionlessPacket( netadr_t from, msg_t *msg )")
+	_assert_order(
+		connectionless,
+		"MSG_BeginReadingOOB( msg );",
+		"MSG_ReadLong( msg );",
+		"if ( NET_ProtocolUsesCompressedConnect() && NET_IsConnectRequestPacket( msg ) ) {",
+		"Huff_Decompress(msg, 12);",
+		"s = MSG_ReadStringLine( msg );",
+		"Cmd_TokenizeString( s );",
+	)
+
+	packet_event = _function_block(sv_main, "void SV_PacketEvent( netadr_t from, msg_t *msg )")
+	_assert_order(
+		packet_event,
+		"if ( msg->cursize >= 4 && *(int *)msg->data == -1) {",
+		"SV_ConnectionlessPacket( from, msg );",
+		"MSG_BeginReadingOOB( msg );",
+		"MSG_ReadLong( msg );",
+		"qport = MSG_ReadShort( msg ) & 0xffff;",
+		"if (cl->netchan.qport != qport) {",
+		"if (SV_Netchan_Process(cl, msg)) {",
+		"SV_ExecuteClientMessage( cl, msg );",
+	)
+
+	oob_print = _function_block(net_chan, "void QDECL NET_OutOfBandPrint( netsrc_t sock, netadr_t adr, const char *format, ... )")
+	_assert_order(
+		oob_print,
+		"string[0] = -1;",
+		"string[1] = -1;",
+		"string[2] = -1;",
+		"string[3] = -1;",
+		"vsprintf( string+4, format, argptr );",
+		"NET_SendPacket( sock, strlen( string ), string, adr );",
+	)
+
+	oob_data = _function_block(net_chan, "void QDECL NET_OutOfBandData( netsrc_t sock, netadr_t adr, byte *format, int len )")
+	_assert_order(
+		oob_data,
+		"string[0] = 0xff;",
+		"string[1] = 0xff;",
+		"string[2] = 0xff;",
+		"string[3] = 0xff;",
+		"string[i+4] = format[i];",
+		"mbuf.cursize = len+4;",
+		"Huff_Compress( &mbuf, 12);",
+		"NET_SendPacket( sock, mbuf.cursize, mbuf.data, adr );",
+	)
+
+	next_fragment = _function_block(net_chan, "void Netchan_TransmitNextFragment( netchan_t *chan )")
+	_assert_order(
+		next_fragment,
+		"MSG_InitOOB (&send, send_buf, sizeof(send_buf));",
+		"MSG_WriteLong( &send, chan->outgoingSequence | FRAGMENT_BIT );",
+		"if ( chan->sock == NS_CLIENT && NET_ProtocolUsesNetchanClientQport() ) {",
+		"MSG_WriteShort( &send, qport->integer );",
+		"fragmentLength = FRAGMENT_SIZE;",
+		"MSG_WriteShort( &send, chan->unsentFragmentStart );",
+		"MSG_WriteShort( &send, fragmentLength );",
+		"MSG_WriteData( &send, chan->unsentBuffer + chan->unsentFragmentStart, fragmentLength );",
+	)
+
+	transmit = _function_block(net_chan, "void Netchan_Transmit( netchan_t *chan, int length, const byte *data )")
+	_assert_order(
+		transmit,
+		"if ( length > MAX_MSGLEN ) {",
+		"if ( length >= FRAGMENT_SIZE ) {",
+		"Netchan_TransmitNextFragment( chan );",
+		"MSG_InitOOB (&send, send_buf, sizeof(send_buf));",
+		"MSG_WriteLong( &send, chan->outgoingSequence );",
+		"chan->outgoingSequence++;",
+		"if ( chan->sock == NS_CLIENT && NET_ProtocolUsesNetchanClientQport() ) {",
+		"MSG_WriteShort( &send, qport->integer );",
+		"MSG_WriteData( &send, data, length );",
+	)
+
+	process = _function_block(net_chan, "qboolean Netchan_Process( netchan_t *chan, msg_t *msg )")
+	_assert_order(
+		process,
+		"MSG_BeginReadingOOB( msg );",
+		"sequence = MSG_ReadLong( msg );",
+		"if ( sequence & FRAGMENT_BIT ) {",
+		"sequence &= ~FRAGMENT_BIT;",
+		"if ( chan->sock == NS_SERVER && NET_ProtocolUsesNetchanClientQport() ) {",
+		"(void)MSG_ReadShort( msg );",
+		"if ( fragmented ) {",
+		"fragmentStart = MSG_ReadShort( msg );",
+		"fragmentLength = MSG_ReadShort( msg );",
+	)
+
+	oob_data_hlil = hlil_part04.split("004d7120    int32_t sub_4d7120", 1)[1].split("004d7248", 1)[0]
+	_assert_order(
+		oob_data_hlil,
+		"int32_t var_10008 = 0xffffffff",
+		"if (arg8 s> 0)",
+		"memcpy(&var_10004, arg7, arg8)",
+		"int32_t eax_3 = sub_4d40f0(&var_10024, 0xc)",
+		"eax_3 = sub_4ee460(arg8 + 4, var_1001c, arg2)",
+	)
+
+	netchan_hlil = hlil_part04.split("004d7370    int32_t sub_4d7370", 1)[1].split("004d7640", 1)[0]
+	_assert_order(
+		netchan_hlil,
+		"sub_4d6c50(&var_59c, &var_580, 0x578)",
+		"sub_4d4e30(&var_59c, arg1[9] | 0x80000000)",
+		"if (*arg1 == 0)",
+		"sub_4d4e10(&var_59c, *(data_142c344 + 0x30))",
+		"int32_t edi = 0x514",
+		"sub_4d4e10(&var_59c, ecx_2)",
+		"sub_4d4e10(&var_59c, edi)",
+		"if (arg2 s> 0x8000)",
+		"if (arg2 s>= 0x514)",
+		"sub_4d4e30(&var_59c, arg1[9])",
+		"if (*arg1 == 0)",
+		"sub_4d4e10(&var_59c, *(data_142c344 + 0x30))",
+	)
+
+	process_hlil = hlil_part04.split("004d7640    int32_t sub_4d7640", 1)[1].split("004d794f", 1)[0]
+	_assert_order(
+		process_hlil,
+		"sub_4d4a80(arg5)",
+		"uint32_t ebx_1 = sub_4d5020(arg5)",
+		"ebx_1 &= 0x7fffffff",
+		"if (*esi == 1)",
+		"sub_4d4ff0(arg5)",
+		"var_c = sub_4d4ff0(arg5)",
+		"eax_2 = sub_4d4ff0(arg5)",
+	)
+
+	packet_hlil = hlil_part05.split("004e4500    int32_t sub_4e4500", 1)[1].split("004e46a3", 1)[0]
+	_assert_order(
+		packet_hlil,
+		"if (*(arg6 + 0x10) s>= 4 && **(arg6 + 8) == 0xffffffff)",
+		"return sub_4e4340",
+		"sub_4d4a80(arg6)",
+		"sub_4d5020(arg6)",
+		"int16_t eax_1 = sub_4d4ff0(arg6)",
+		"esi_2[0x56c0] == zx.d(eax_1)",
+		"result = sub_4e4f80(esi_2, arg6)",
+		"return sub_4e05c0(esi_2, arg6)",
+	)
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["CL_CheckForResend"]["address"] == "0x004B9150"
+	assert anchors["NET_OutOfBandData"]["address"] == "0x004D7120"
+	assert anchors["Netchan_Transmit"]["address"] == "0x004D74E0"
+	assert anchors["SV_PacketEvent"]["address"] == "0x004E4500"
+
+	assert spec["completion_status"]["status"] == "completed_static_spec_and_assertions"
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 70
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 90
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 72
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 74
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_header_transport_spec_freezes_protocol_gates_and_headers" in spec["assertion_tests"]
+
+	assert "Network Protocol Header And Transport Spec" in audit_note
+	assert "Offset `12`: compressed remainder." in audit_note
+	assert "Offset `12`: retail client-message sideband byte." in audit_note
+	assert "Source `MAX_MSGLEN` is `16384`; committed retail HLIL shows" in audit_note
+	assert "Focused protocol-gate/header slice: `70%` before, `90%` after." in audit_note
+	assert "Freeze **protocol gates and packet headers**" in plan
+	assert "network-protocol-header-transport-spec-2026-06-05.json" in plan
+	assert "completed_static_spec_and_assertions" in plan
+
+
+def test_networking_2_client_message_parser_grammar_and_sideband_byte() -> None:
+	grammar = _networking_2_client_parser_grammar()
+	qcommon_h = _read(QCOMMON_H_PATH)
+	msg_c = _read(MSG_C_PATH)
+	cl_input = _read(CL_INPUT_PATH)
+	cl_net_chan = _read(CL_NET_CHAN_PATH)
+	sv_client = _read(SV_CLIENT_PATH)
+	sv_net_chan = _read(SV_NET_CHAN_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	audit_note = _read(NETWORKING_2_CLIENT_PARSER_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert grammar["schema_version"] == 1
+	assert grammar["last_updated"] == "2026-06-05"
+	assert grammar["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+	]
+	assert grammar["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	opcodes = grammar["opcode_enum"]
+	assert opcodes == {
+		"clc_bad": 0,
+		"clc_nop": 1,
+		"clc_move": 2,
+		"clc_moveNoDelta": 3,
+		"clc_clientCommand": 4,
+		"clc_EOF": 5,
+	}
+	opcode_names = {value: name for name, value in opcodes.items()}
+
+	clc_enum = qcommon_h.split("enum clc_ops_e {", 1)[1].split("};", 1)[0]
+	_assert_order(
+		clc_enum,
+		"clc_bad,",
+		"clc_nop,",
+		"clc_move,",
+		"clc_moveNoDelta,",
+		"clc_clientCommand,",
+		"clc_EOF",
+	)
+
+	body_fields = {
+		field["name"]: field
+		for field in grammar["client_message_body"]["fields"]
+	}
+	assert body_fields["serverId"]["offset"] == 0
+	assert body_fields["messageAcknowledge"]["offset"] == 4
+	assert body_fields["reliableAcknowledge"]["offset"] == 8
+	assert body_fields["retailClientMessageSideband"]["offset"] == 12
+	assert body_fields["firstOpcode"]["offset"] == 13
+	assert body_fields["retailClientMessageSideband"]["source_value"] == "CL_RetailClientMessageFlags() ^ (clc.serverCommandSequence & 0xff)"
+	assert body_fields["retailClientMessageSideband"]["retail_value"] == "sub_4AF4D0() ^ (serverCommandSequence & 0xff)"
+
+	def parse_body(vector: dict) -> dict:
+		body = bytes.fromhex(vector["hex"])
+		return {
+			"serverId": int.from_bytes(body[0:4], "little"),
+			"messageAcknowledge": int.from_bytes(body[4:8], "little"),
+			"reliableAcknowledge": int.from_bytes(body[8:12], "little"),
+			"sideband": body[12],
+			"first_opcode": opcode_names[body[13]],
+			"body": body,
+		}
+
+	vectors = {vector["id"]: vector for vector in grammar["golden_vectors"]}
+	assert set(vectors) == {
+		"zero_sideband_move",
+		"server_command_sequence_sideband_move_no_delta",
+		"client_command_then_move",
+		"legacy_no_sideband_negative",
+	}
+
+	zero_move = parse_body(vectors["zero_sideband_move"])
+	assert f"0x{zero_move['serverId']:08x}" == vectors["zero_sideband_move"]["expected"]["serverId"]
+	assert f"0x{zero_move['messageAcknowledge']:08x}" == vectors["zero_sideband_move"]["expected"]["messageAcknowledge"]
+	assert zero_move["reliableAcknowledge"] == vectors["zero_sideband_move"]["expected"]["reliableAcknowledge"]
+	assert zero_move["sideband"] == 0
+	assert zero_move["first_opcode"] == "clc_move"
+	assert zero_move["body"][14] == 1
+
+	no_delta = parse_body(vectors["server_command_sequence_sideband_move_no_delta"])
+	assert no_delta["sideband"] == 0x77
+	assert no_delta["first_opcode"] == "clc_moveNoDelta"
+	assert no_delta["body"][14] == 1
+
+	client_command = parse_body(vectors["client_command_then_move"])
+	client_command_body = client_command["body"]
+	assert client_command["sideband"] == 0x77
+	assert client_command["first_opcode"] == "clc_clientCommand"
+	assert int.from_bytes(client_command_body[14:18], "little") == 0x10
+	string_start = vectors["client_command_then_move"]["expected"]["client_command_string_offset"]
+	string_end = client_command_body.index(0, string_start)
+	assert client_command_body[string_start:string_end].decode("ascii") == "userinfo"
+	assert opcode_names[client_command_body[27]] == "clc_move"
+	assert client_command_body[28] == 1
+
+	legacy_negative = parse_body(vectors["legacy_no_sideband_negative"])
+	assert legacy_negative["sideband"] == opcodes["clc_move"]
+	assert legacy_negative["first_opcode"] == "clc_nop"
+
+	write_byte = _function_block(msg_c, "void MSG_WriteByte( msg_t *sb, int c )")
+	read_byte = _function_block(msg_c, "int MSG_ReadByte( msg_t *msg )")
+	write_long = _function_block(msg_c, "void MSG_WriteLong( msg_t *sb, int c )")
+	read_long = _function_block(msg_c, "int MSG_ReadLong( msg_t *msg )")
+	assert "MSG_WriteBits( sb, c, 8 );" in write_byte
+	assert "c = (unsigned char)MSG_ReadBits( msg, 8 );" in read_byte
+	assert "MSG_WriteBits( sb, c, 32 );" in write_long
+	assert "c = MSG_ReadBits( msg, 32 );" in read_long
+
+	flags = _function_block(cl_input, "static int CL_RetailClientMessageFlags( void )")
+	_assert_order(
+		flags,
+		"return 0;",
+	)
+
+	write_packet = _function_block(cl_input, "void CL_WritePacket( void )")
+	_assert_order(
+		write_packet,
+		"MSG_Bitstream( &buf );",
+		"MSG_WriteLong( &buf, cl.serverId );",
+		"MSG_WriteLong( &buf, clc.serverMessageSequence );",
+		"MSG_WriteLong( &buf, clc.serverCommandSequence );",
+		"MSG_WriteByte( &buf, CL_RetailClientMessageFlags() ^ ( clc.serverCommandSequence & 0xff ) );",
+		"MSG_WriteByte( &buf, clc_clientCommand );",
+		"MSG_WriteByte (&buf, clc_moveNoDelta);",
+		"MSG_WriteByte( &buf, count );",
+		"CL_Netchan_Transmit (&clc.netchan, &buf);",
+	)
+
+	client_encode = _function_block(cl_net_chan, "static void CL_Netchan_Encode( msg_t *msg )")
+	_assert_order(
+		client_encode,
+		"if ( msg->cursize <= CL_ENCODE_START ) {",
+		"serverId = MSG_ReadLong(msg);",
+		"messageAcknowledge = MSG_ReadLong(msg);",
+		"reliableAcknowledge = MSG_ReadLong(msg);",
+		"for (i = CL_ENCODE_START; i < msg->cursize; i++) {",
+	)
+	client_transmit = _function_block(cl_net_chan, "void CL_Netchan_Transmit( netchan_t *chan, msg_t* msg )")
+	_assert_order(
+		client_transmit,
+		"MSG_WriteByte( msg, clc_EOF );",
+		"if ( NET_ProtocolUsesReliableXorCodec() ) {",
+		"CL_Netchan_Encode( msg );",
+		"Netchan_Transmit( chan, msg->cursize, msg->data );",
+	)
+
+	server_decode = _function_block(sv_net_chan, "static void SV_Netchan_Decode( client_t *client, msg_t *msg )")
+	_assert_order(
+		server_decode,
+		"serverId = MSG_ReadLong(msg);",
+		"messageAcknowledge = MSG_ReadLong(msg);",
+		"reliableAcknowledge = MSG_ReadLong(msg);",
+		"for (i = msg->readcount + SV_DECODE_START; i < msg->cursize; i++) {",
+	)
+
+	execute = _function_block(sv_client, "void SV_ExecuteClientMessage( client_t *cl, msg_t *msg )")
+	_assert_order(
+		execute,
+		"MSG_Bitstream(msg);",
+		"serverId = MSG_ReadLong( msg );",
+		"cl->messageAcknowledge = MSG_ReadLong( msg );",
+		"cl->reliableAcknowledge = MSG_ReadLong( msg );",
+		"(void)MSG_ReadByte( msg );",
+		"do {",
+		"c = MSG_ReadByte( msg );",
+		"if ( c == clc_EOF ) {",
+		"if ( c != clc_clientCommand ) {",
+		"if ( c == clc_move ) {",
+		"SV_UserMove( cl, msg, qtrue );",
+		"} else if ( c == clc_moveNoDelta ) {",
+		"SV_UserMove( cl, msg, qfalse );",
+	)
+
+	write_hlil = hlil_part04.split("004b5f70    int32_t sub_4b5f70", 1)[1].split("004b6262", 1)[0]
+	_assert_order(
+		write_hlil,
+		"sub_4d4e30(&var_8044, data_1472870)",
+		"sub_4d4e30(&var_8044, data_1606b7c)",
+		"sub_4d4e30(&var_8044, data_1606b80)",
+		"sub_4d4dc0(&var_8044, zx.d(sub_4af4d0()) ^ data_1606b80.b)",
+		"sub_4d4dc0(&var_8044, 4)",
+		"sub_4d4e30(&var_8044, i)",
+		"sub_4d4dc0(__saved_ebx_5, __saved_edi_6)",
+	)
+
+	execute_hlil = hlil_part04.split("004e05c0    uint32_t sub_4e05c0", 1)[1].split("004e0750", 1)[0]
+	_assert_order(
+		execute_hlil,
+		"uint32_t eax = sub_4d5020(arg2)",
+		"uint32_t i = sub_4d5020(arg2)",
+		"arg1[0x4102] = sub_4d5020(arg2)",
+		"sub_4d4fc0(arg2)",
+		"i, edx_2 = sub_4d4fc0(arg2)",
+		"while (i == 4)",
+		"i, edx_2 = sub_4d4fc0(arg2)",
+		"if (i == 2)",
+		"return sub_4e0320(arg2, 1)",
+		"if (i == 3)",
+		"return sub_4e0320(arg2, 0)",
+	)
+	assert "004af4d0    int32_t sub_4af4d0()" in hlil_part04
+	assert "004af4d5  return data_565948" in hlil_part04
+	assert "data_565948 |= 0x40" in hlil_part04
+	assert "data_565948 |= 0x20" in hlil_part04
+
+	anchors = {item["symbol"]: item for item in grammar["retail_anchors"]}
+	assert anchors["CL_WritePacket"]["address"] == "0x004B5F70"
+	assert anchors["SV_ExecuteClientMessage"]["address"] == "0x004E05C0"
+	assert anchors["CL_RetailClientMessageFlags_source_stub"]["address"] is None
+
+	assert grammar["resolved_conflict"]["source_change_required"] is True
+	assert "unassigned MSG_ReadByte" in grammar["resolved_conflict"]["resolution"]
+	assert grammar["completion_status"]["status"] == "completed_source_patch_static_grammar_and_golden_vectors"
+	assert grammar["completion_status"]["focused_task_parity_before_percent"] == 55
+	assert grammar["completion_status"]["focused_task_parity_after_percent"] == 90
+	assert grammar["completion_status"]["overall_network_protocol_parity_before_percent"] == 74
+	assert grammar["completion_status"]["overall_network_protocol_parity_after_percent"] == 76
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_client_message_parser_grammar_and_sideband_byte" in grammar["assertion_tests"]
+
+	assert "Network Client Message Parser Grammar" in audit_note
+	assert "Retail client-message sideband byte" in audit_note
+	assert "Focused client-parser header slice: `55%` before, `90%` after." in audit_note
+	assert "Verify **client-parser header semantics**" in plan
+	assert "network-client-message-parser-grammar-2026-06-05.json" in plan
+	assert "focused client-parser header slice" in plan
+
+
+def test_networking_2_xor_codec_golden_vectors_and_capture_diff_windows() -> None:
+	spec = _networking_2_xor_codec_spec()
+	header_spec = _networking_2_header_spec()
+	qcommon_h = _read(QCOMMON_H_PATH)
+	cl_net_chan = _read(CL_NET_CHAN_PATH)
+	sv_net_chan = _read(SV_NET_CHAN_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part05 = _read(HLIL_PART05_PATH)
+	audit_note = _read(NETWORKING_2_XOR_CODEC_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	constants = spec["codec_constants"]
+	assert constants == {
+		"SV_ENCODE_START": 4,
+		"SV_DECODE_START": 12,
+		"CL_ENCODE_START": 12,
+		"CL_DECODE_START": 4,
+		"rolling_key_width_bits": 8,
+		"command_ring_mask": "MAX_RELIABLE_COMMANDS - 1",
+	}
+	for expected in (
+		"#define\tSV_ENCODE_START\t\t4",
+		"#define SV_DECODE_START\t\t12",
+		"#define\tCL_ENCODE_START\t\t12",
+		"#define CL_DECODE_START\t\t4",
+	):
+		assert expected in qcommon_h
+
+	assert header_spec["xor_windows"]["client_to_server"]["encode_start"] == spec["codec_windows"]["client_to_server"]["encode_start"]
+	assert header_spec["xor_windows"]["client_to_server"]["decode_start"] == spec["codec_windows"]["client_to_server"]["decode_start_relative_to_msg_readcount"]
+	assert header_spec["xor_windows"]["server_to_client"]["encode_start"] == spec["codec_windows"]["server_to_client"]["encode_start"]
+	assert header_spec["xor_windows"]["server_to_client"]["decode_start"] == spec["codec_windows"]["server_to_client"]["decode_start_relative_to_msg_readcount"]
+
+	assert spec["algorithm"]["symmetric"] is True
+	assert spec["algorithm"]["sanitized_command_replacement_hex"] == "2e"
+	assert spec["algorithm"]["sanitized_conditions"] == [
+		"command_byte > 0x7f",
+		"command_byte == 0x25",
+	]
+
+	vectors = {vector["id"]: vector for vector in spec["golden_vectors"]}
+	assert set(vectors) == {
+		"client_to_server_sideband_move",
+		"client_to_server_sanitized_command_bytes",
+		"server_to_client_reliable_acknowledge",
+		"server_to_client_sanitized_command_bytes",
+	}
+
+	for vector in vectors.values():
+		clear_body = bytes.fromhex(vector["clear_body_hex"])
+		encoded_body = bytes.fromhex(vector["encoded_body_hex"])
+		command_bytes = bytes.fromhex(vector["command_string_bytes_hex"])
+		initial_key = int(vector["initial_key_low_byte"], 16)
+
+		assert _ql_reliable_xor(clear_body, vector["encode_start"], initial_key, command_bytes) == encoded_body
+		assert _ql_reliable_xor(encoded_body, vector["encode_start"], initial_key, command_bytes) == clear_body
+		assert clear_body[:vector["encode_start"]] == encoded_body[:vector["encode_start"]]
+
+		clear_datagram = bytes.fromhex(vector["clear_datagram_hex"])
+		encoded_datagram = bytes.fromhex(vector["encoded_datagram_hex"])
+		body_offset = vector["datagram_body_offset"]
+		decode_start = vector["decoder_readcount_after_netchan_process"] + vector["decode_start_relative_to_msg_readcount"]
+
+		assert clear_datagram[:body_offset] == encoded_datagram[:body_offset]
+		assert clear_datagram[body_offset:] == clear_body
+		assert encoded_datagram[body_offset:] == encoded_body
+		assert _ql_reliable_xor(clear_datagram, decode_start, initial_key, command_bytes) == encoded_datagram
+		assert _ql_reliable_xor(encoded_datagram, decode_start, initial_key, command_bytes) == clear_datagram
+
+	sideband = vectors["client_to_server_sideband_move"]
+	sideband_clear = bytes.fromhex(sideband["clear_body_hex"])
+	sideband_encoded = bytes.fromhex(sideband["encoded_body_hex"])
+	assert sideband_clear[12] == 0x77
+	assert sideband_encoded[12] == 0x45
+	assert sideband_clear[:12] == sideband_encoded[:12]
+	assert sideband["capture_diff_assertions"] == [
+		"datagram bytes 0 through 17 remain clear",
+		"client body byte 12 changes from 0x77 to 0x45",
+	]
+
+	for vector_id in (
+		"client_to_server_sanitized_command_bytes",
+		"server_to_client_sanitized_command_bytes",
+	):
+		command_bytes = bytes.fromhex(vectors[vector_id]["command_string_bytes_hex"])
+		assert command_bytes[0] == ord("%")
+		assert command_bytes[1] == 0x80
+
+	client_encode = _function_block(cl_net_chan, "static void CL_Netchan_Encode( msg_t *msg )")
+	_assert_order(
+		client_encode,
+		"if ( msg->cursize <= CL_ENCODE_START ) {",
+		"serverId = MSG_ReadLong(msg);",
+		"messageAcknowledge = MSG_ReadLong(msg);",
+		"reliableAcknowledge = MSG_ReadLong(msg);",
+		"string = (byte *)clc.serverCommands[ reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ];",
+		"key = clc.challenge ^ serverId ^ messageAcknowledge;",
+		"for (i = CL_ENCODE_START; i < msg->cursize; i++) {",
+		"if (!string[index])",
+		"if (string[index] > 127 || string[index] == '%') {",
+		"key ^= '.' << (i & 1);",
+		"*(msg->data + i) = (*(msg->data + i)) ^ key;",
+	)
+
+	client_decode = _function_block(cl_net_chan, "static void CL_Netchan_Decode( msg_t *msg )")
+	_assert_order(
+		client_decode,
+		"reliableAcknowledge = MSG_ReadLong(msg);",
+		"string = clc.reliableCommands[ reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ];",
+		"key = clc.challenge ^ LittleLong( *(unsigned *)msg->data );",
+		"for (i = msg->readcount + CL_DECODE_START; i < msg->cursize; i++) {",
+		"if (string[index] > 127 || string[index] == '%') {",
+		"key ^= '.' << (i & 1);",
+		"*(msg->data + i) = *(msg->data + i) ^ key;",
+	)
+
+	server_encode = _function_block(sv_net_chan, "static void SV_Netchan_Encode( client_t *client, msg_t *msg )")
+	_assert_order(
+		server_encode,
+		"if ( msg->cursize < SV_ENCODE_START ) {",
+		"reliableAcknowledge = MSG_ReadLong(msg);",
+		"string = (byte *)client->lastClientCommandString;",
+		"key = client->challenge ^ client->netchan.outgoingSequence;",
+		"for (i = SV_ENCODE_START; i < msg->cursize; i++) {",
+		"if (string[index] > 127 || string[index] == '%') {",
+		"key ^= '.' << (i & 1);",
+		"*(msg->data + i) = *(msg->data + i) ^ key;",
+	)
+
+	server_decode = _function_block(sv_net_chan, "static void SV_Netchan_Decode( client_t *client, msg_t *msg )")
+	_assert_order(
+		server_decode,
+		"serverId = MSG_ReadLong(msg);",
+		"messageAcknowledge = MSG_ReadLong(msg);",
+		"reliableAcknowledge = MSG_ReadLong(msg);",
+		"string = (byte *)client->reliableCommands[ reliableAcknowledge & (MAX_RELIABLE_COMMANDS-1) ];",
+		"key = client->challenge ^ serverId ^ messageAcknowledge;",
+		"for (i = msg->readcount + SV_DECODE_START; i < msg->cursize; i++) {",
+		"if (string[index] > 127 || string[index] == '%') {",
+		"key ^= '.' << (i & 1);",
+		"*(msg->data + i) = *(msg->data + i) ^ key;",
+	)
+
+	client_encode_hlil = hlil_part04.split("004bce30    void sub_4bce30", 1)[1].split("004bcef0", 1)[0]
+	_assert_order(
+		client_encode_hlil,
+		"if (*(arg1 + 0x10) s> 0xc)",
+		"char eax_2 = sub_4d5020(arg1)",
+		"char eax_3 = sub_4d5020(arg1)",
+		"uint32_t eax_4 = sub_4d5020(arg1)",
+		"char edx_1 = data_15f6b6c.b ^ eax_2 ^ eax_3",
+		"int32_t edi_2 = 0xc",
+		"if (eax.b u> 0x7f || eax.b == 0x25)",
+		"eax.b = 0x2e",
+		"eax.b <<= edi_2.b & 1",
+		"*(eax + edi_2 - 1) ^= edx_1",
+	)
+
+	client_decode_hlil = hlil_part04.split("004bcef0    int32_t sub_4bcef0", 1)[1].split("004bcf80", 1)[0]
+	_assert_order(
+		client_decode_hlil,
+		"uint32_t eax_1 = sub_4d5020(arg1)",
+		"result.b = *edx",
+		"result.b ^= data_15f6b6c.b",
+		"int32_t edx_1 = ebx + 4",
+		"if (ebx.b u> 0x7f || ebx.b == 0x25)",
+		"ebx.b = 0x2e",
+		"ebx.b <<= edx_1.b & 1",
+		"*(ecx_5 + edx_1 - 1) ^= result.b",
+	)
+
+	server_encode_hlil = hlil_part05.split("004e4cd0    void sub_4e4cd0", 1)[1].split("004e4d70", 1)[0]
+	_assert_order(
+		server_encode_hlil,
+		"if (*(arg1 + 0x10) s>= 4)",
+		"sub_4d5020(arg1)",
+		"char edx_1 = *(ecx_2 + 0x15b08) ^ *(ecx_2 + 0x10418)",
+		"int32_t eax = 4",
+		"if (ebx_1.b u> 0x7f || ebx_1.b == 0x25)",
+		"ebx_1.b = 0x2e",
+		"ebx_1.b <<= eax.b & 1",
+		"*(ecx_5 + eax - 1) ^= edx_1",
+	)
+
+	server_decode_hlil = hlil_part05.split("004e4d70    int32_t sub_4e4d70", 1)[1].split("004e4e20", 1)[0]
+	_assert_order(
+		server_decode_hlil,
+		"char eax_1 = sub_4d5020(arg1)",
+		"char eax_2 = sub_4d5020(arg1)",
+		"int32_t result = (sub_4d5020(arg1) & 0x3f) << 0xa",
+		"result.b = *(arg2 + 0x10418)",
+		"result.b ^= eax_1",
+		"int32_t edi_1 = edi + 0xc",
+		"result.b ^= eax_2",
+		"if (edx.b u> 0x7f || edx.b == 0x25)",
+		"edx.b = 0x2e",
+		"edx.b <<= edi_1.b & 1",
+		"*(ecx_4 + edi_1 - 1) ^= result.b",
+	)
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["CL_Netchan_Encode"]["address"] == "0x004BCE30"
+	assert anchors["CL_Netchan_Decode"]["address"] == "0x004BCEF0"
+	assert anchors["SV_Netchan_Encode"]["address"] == "0x004E4CD0"
+	assert anchors["SV_Netchan_Decode"]["address"] == "0x004E4D70"
+
+	assert spec["capture_diff_status"]["status"] == "static_wire_datagram_vectors_added"
+	assert spec["capture_diff_status"]["external_retail_captures_available"] is False
+	assert spec["completion_status"]["status"] == "completed_static_golden_vectors_capture_diff_ready"
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 80
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 94
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 76
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 78
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_xor_codec_golden_vectors_and_capture_diff_windows" in spec["assertion_tests"]
+
+	assert "Network XOR Codec Parity" in audit_note
+	assert "client body byte 12 changes from `0x77` to `0x45`" in audit_note
+	assert "focused XOR codec slice `80%` -> `94%`" in audit_note
+	assert "Finalize **XOR codec parity**" in plan
+	assert "network-xor-codec-parity-2026-06-05.json" in plan
+	assert "focused XOR codec slice" in plan
+
+
+def test_networking_2_usercmd_delta_struct_layout_and_logical_vectors() -> None:
+	spec = _networking_2_usercmd_delta_spec()
+	q_shared = _read(Q_SHARED_PATH)
+	msg_c = _read(MSG_C_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	audit_note = _read(NETWORKING_2_USERCMD_DELTA_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-client-message-parser-grammar-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	class Usercmd(ctypes.Structure):
+		_fields_ = [
+			("serverTime", ctypes.c_int),
+			("angles", ctypes.c_int * 3),
+			("buttons", ctypes.c_int),
+			("weapon", ctypes.c_ubyte),
+			("weaponPrimary", ctypes.c_ubyte),
+			("fov", ctypes.c_ubyte),
+			("forwardmove", ctypes.c_byte),
+			("rightmove", ctypes.c_byte),
+			("upmove", ctypes.c_byte),
+		]
+
+	layout = spec["struct_layout"]
+	assert layout["name"] == "usercmd_t"
+	assert layout["sizeof_bytes"] == ctypes.sizeof(Usercmd) == 0x1c
+	assert layout["alignment_bytes"] == ctypes.alignment(Usercmd) == 4
+
+	expected_offsets = {
+		"serverTime": Usercmd.serverTime.offset,
+		"angles[0]": Usercmd.angles.offset,
+		"angles[1]": Usercmd.angles.offset + ctypes.sizeof(ctypes.c_int),
+		"angles[2]": Usercmd.angles.offset + ctypes.sizeof(ctypes.c_int) * 2,
+		"buttons": Usercmd.buttons.offset,
+		"weapon": Usercmd.weapon.offset,
+		"weaponPrimary": Usercmd.weaponPrimary.offset,
+		"fov": Usercmd.fov.offset,
+		"forwardmove": Usercmd.forwardmove.offset,
+		"rightmove": Usercmd.rightmove.offset,
+		"upmove": Usercmd.upmove.offset,
+	}
+	spec_offsets = {field["name"]: int(field["offset"], 16) for field in layout["fields"]}
+	assert spec_offsets == expected_offsets
+
+	usercmd_decl = q_shared[q_shared.index("typedef struct usercmd_s {") : q_shared.index("} usercmd_t;")]
+	_assert_order(
+		usercmd_decl,
+		"int\t\t\t\tserverTime;",
+		"int\t\t\t\tangles[3];",
+		"int \t\t\tbuttons;",
+		"byte\t\t\tweapon;",
+		"byte\t\t\tweaponPrimary;",
+		"byte\t\t\tfov;",
+		"signed char\tforwardmove, rightmove, upmove;",
+	)
+
+	field_widths = spec["field_widths"]
+	field_order = [(field["field"], field["bits"], field["signed_assignment"]) for field in field_widths]
+	expected_field_order = [
+		("angles[0]", 16, False),
+		("angles[1]", 16, False),
+		("angles[2]", 16, False),
+		("forwardmove", 8, True),
+		("rightmove", 8, True),
+		("upmove", 8, True),
+		("buttons", 16, False),
+		("weapon", 8, False),
+		("weaponPrimary", 8, False),
+		("fov", 8, False),
+	]
+	assert field_order == expected_field_order
+	assert spec["wire_order"] == [
+		"serverTime delta flag and payload",
+		"changed-command flag for keyed commands only",
+		"angles[0]",
+		"angles[1]",
+		"angles[2]",
+		"forwardmove",
+		"rightmove",
+		"upmove",
+		"buttons",
+		"weapon",
+		"weaponPrimary",
+		"fov",
+	]
+
+	def mask(bits: int) -> int:
+		return (1 << bits) - 1
+
+	def signed_byte(value: int) -> int:
+		value &= 0xff
+		return value - 0x100 if value & 0x80 else value
+
+	def hex_value(value: int, bits: int) -> str:
+		return f"0x{value & mask(bits):0{bits // 4}x}"
+
+	def expected_time(from_cmd: dict, to_cmd: dict) -> dict:
+		delta = to_cmd["serverTime"] - from_cmd["serverTime"]
+		if delta < 256:
+			return {"encoding": "delta8", "flag_bit": 1, "bits": 8, "written_value": delta}
+		return {"encoding": "full32", "flag_bit": 0, "bits": 32, "written_value": to_cmd["serverTime"]}
+
+	def expected_field_event(vector: dict, field_name: str, bits: int, signed: bool) -> dict:
+		from_cmd = vector["from"]
+		to_cmd = vector["to"]
+		old = from_cmd[field_name]
+		new = to_cmd[field_name]
+		event = {
+			"field": field_name,
+			"bits": bits,
+			"old": old,
+			"new": new,
+			"changed": old != new,
+		}
+		if old != new:
+			if vector["codec"] == "keyed":
+				key = int(vector["effective_key"], 16)
+				written = (new ^ key) & mask(bits)
+				decoded = written ^ (key & mask(bits))
+			else:
+				written = new & mask(bits)
+				decoded = written
+			if signed:
+				decoded = signed_byte(decoded)
+			event["written_value"] = hex_value(written, bits)
+			event["decoded_value"] = decoded
+		return event
+
+	def expected_bit_count(vector: dict) -> int:
+		total = 1 + vector["time"]["bits"]
+		if vector["codec"] == "keyed":
+			total += 1
+			if vector["changed_command_bit"]:
+				total += sum(1 + (event["bits"] if event["changed"] else 0) for event in vector["field_events"])
+		else:
+			total += sum(1 + (event["bits"] if event["changed"] else 0) for event in vector["field_events"])
+		return total
+
+	vectors = {vector["id"]: vector for vector in spec["golden_vectors"]}
+	assert set(vectors) == {
+		"keyed_compact_all_fields_changed",
+		"keyed_compact_no_field_changes",
+		"keyed_full_time_tail_only",
+		"unkeyed_compact_all_fields_changed",
+		"unkeyed_full_time_tail_only",
+	}
+
+	for vector in vectors.values():
+		assert vector["time"] == expected_time(vector["from"], vector["to"])
+		if vector["codec"] == "keyed":
+			assert vector["effective_key"] == f"0x{(int(vector['base_key'], 16) ^ vector['to']['serverTime']):08x}"
+			changed = any(vector["from"][field_name] != vector["to"][field_name] for field_name, _bits, _signed in field_order)
+			assert vector["changed_command_bit"] == (1 if changed else 0)
+			if not changed:
+				assert vector["field_events"] == []
+				assert vector["copied_fields"] == [field_name for field_name, _bits, _signed in field_order]
+			else:
+				assert vector["field_events"] == [
+					expected_field_event(vector, field_name, bits, signed)
+					for field_name, bits, signed in field_order
+				]
+		else:
+			assert vector["field_events"] == [
+				expected_field_event(vector, field_name, bits, signed)
+				for field_name, bits, signed in field_order
+			]
+		assert vector["logical_bit_count"] == expected_bit_count(vector)
+
+	assert vectors["keyed_compact_all_fields_changed"]["field_events"][3]["decoded_value"] == -127
+	assert vectors["keyed_compact_all_fields_changed"]["field_events"][5]["decoded_value"] == -12
+	assert vectors["unkeyed_compact_all_fields_changed"]["field_events"][3]["written_value"] == "0x81"
+	assert vectors["unkeyed_compact_all_fields_changed"]["field_events"][5]["written_value"] == "0xf4"
+	assert vectors["keyed_full_time_tail_only"]["field_events"][8]["written_value"] == "0x00"
+	assert vectors["unkeyed_full_time_tail_only"]["field_events"][8]["written_value"] == "0x0e"
+	assert vectors["keyed_compact_no_field_changes"]["logical_bit_count"] == 10
+
+	write_unkeyed = _function_block(msg_c, "void MSG_WriteDeltaUsercmd( msg_t *msg, usercmd_t *from, usercmd_t *to )")
+	read_unkeyed = _function_block(msg_c, "void MSG_ReadDeltaUsercmd( msg_t *msg, usercmd_t *from, usercmd_t *to )")
+	write_keyed = _function_block(msg_c, "void MSG_WriteDeltaUsercmdKey( msg_t *msg, int key, usercmd_t *from, usercmd_t *to )")
+	read_keyed = _function_block(msg_c, "void MSG_ReadDeltaUsercmdKey( msg_t *msg, int key, usercmd_t *from, usercmd_t *to )")
+
+	_assert_order(
+		write_unkeyed,
+		"MSG_WriteBits( msg, 1, 1 );",
+		"MSG_WriteBits( msg, to->serverTime - from->serverTime, 8 );",
+		"MSG_WriteBits( msg, 0, 1 );",
+		"MSG_WriteBits( msg, to->serverTime, 32 );",
+		"MSG_WriteDelta( msg, from->angles[0], to->angles[0], 16 );",
+		"MSG_WriteDelta( msg, from->angles[1], to->angles[1], 16 );",
+		"MSG_WriteDelta( msg, from->angles[2], to->angles[2], 16 );",
+		"MSG_WriteDelta( msg, from->forwardmove, to->forwardmove, 8 );",
+		"MSG_WriteDelta( msg, from->rightmove, to->rightmove, 8 );",
+		"MSG_WriteDelta( msg, from->upmove, to->upmove, 8 );",
+		"MSG_WriteDelta( msg, from->buttons, to->buttons, 16 );",
+		"MSG_WriteDelta( msg, from->weapon, to->weapon, 8 );",
+		"MSG_WriteDelta( msg, from->weaponPrimary, to->weaponPrimary, 8 );",
+		"MSG_WriteDelta( msg, from->fov, to->fov, 8 );",
+	)
+	_assert_order(
+		read_unkeyed,
+		"to->serverTime = from->serverTime + MSG_ReadBits( msg, 8 );",
+		"to->serverTime = MSG_ReadBits( msg, 32 );",
+		"to->angles[0] = MSG_ReadDelta( msg, from->angles[0], 16);",
+		"to->angles[1] = MSG_ReadDelta( msg, from->angles[1], 16);",
+		"to->angles[2] = MSG_ReadDelta( msg, from->angles[2], 16);",
+		"to->forwardmove = MSG_ReadDelta( msg, from->forwardmove, 8);",
+		"to->rightmove = MSG_ReadDelta( msg, from->rightmove, 8);",
+		"to->upmove = MSG_ReadDelta( msg, from->upmove, 8);",
+		"to->buttons = MSG_ReadDelta( msg, from->buttons, 16);",
+		"to->weapon = MSG_ReadDelta( msg, from->weapon, 8);",
+		"to->weaponPrimary = MSG_ReadDelta( msg, from->weaponPrimary, 8);",
+		"to->fov = MSG_ReadDelta( msg, from->fov, 8);",
+	)
+	_assert_order(
+		write_keyed,
+		"from->weaponPrimary == to->weaponPrimary",
+		"from->fov == to->fov) {",
+		"MSG_WriteBits( msg, 0, 1 );",
+		"oldsize += 7;",
+		"key ^= to->serverTime;",
+		"MSG_WriteBits( msg, 1, 1 );",
+		"MSG_WriteDeltaKey( msg, key, from->angles[0], to->angles[0], 16 );",
+		"MSG_WriteDeltaKey( msg, key, from->angles[1], to->angles[1], 16 );",
+		"MSG_WriteDeltaKey( msg, key, from->angles[2], to->angles[2], 16 );",
+		"MSG_WriteDeltaKey( msg, key, from->forwardmove, to->forwardmove, 8 );",
+		"MSG_WriteDeltaKey( msg, key, from->rightmove, to->rightmove, 8 );",
+		"MSG_WriteDeltaKey( msg, key, from->upmove, to->upmove, 8 );",
+		"MSG_WriteDeltaKey( msg, key, from->buttons, to->buttons, 16 );",
+		"MSG_WriteDeltaKey( msg, key, from->weapon, to->weapon, 8 );",
+		"MSG_WriteDeltaKey( msg, key, from->weaponPrimary, to->weaponPrimary, 8 );",
+		"MSG_WriteDeltaKey( msg, key, from->fov, to->fov, 8 );",
+	)
+	_assert_order(
+		read_keyed,
+		"key ^= to->serverTime;",
+		"to->angles[0] = MSG_ReadDeltaKey( msg, key, from->angles[0], 16);",
+		"to->angles[1] = MSG_ReadDeltaKey( msg, key, from->angles[1], 16);",
+		"to->angles[2] = MSG_ReadDeltaKey( msg, key, from->angles[2], 16);",
+		"to->forwardmove = MSG_ReadDeltaKey( msg, key, from->forwardmove, 8);",
+		"to->rightmove = MSG_ReadDeltaKey( msg, key, from->rightmove, 8);",
+		"to->upmove = MSG_ReadDeltaKey( msg, key, from->upmove, 8);",
+		"to->buttons = MSG_ReadDeltaKey( msg, key, from->buttons, 16);",
+		"to->weapon = MSG_ReadDeltaKey( msg, key, from->weapon, 8);",
+		"to->weaponPrimary = MSG_ReadDeltaKey( msg, key, from->weaponPrimary, 8);",
+		"to->fov = MSG_ReadDeltaKey( msg, key, from->fov, 8);",
+		"to->angles[0] = from->angles[0];",
+		"to->weaponPrimary = from->weaponPrimary;",
+		"to->fov = from->fov;",
+	)
+
+	write_hlil = hlil_part04.split("004d51a0    int32_t* sub_4d51a0", 1)[1].split("004d54a0", 1)[0]
+	_assert_order(
+		write_hlil,
+		"if (*edi - *arg3 s>= 0x100)",
+		"sub_4d4af0(arg1, 0, 1)",
+		"var_20 = 0x20",
+		"sub_4d4af0(arg1, 1, 1)",
+		"var_20 = 8",
+		"if (arg3[1] == edi[1] && arg3[2] == edi[2] && arg3[3] == edi[3])",
+		"*(arg3 + 0x17)",
+		"arg3[6].b",
+		"*(arg3 + 0x19)",
+		"arg3[4] == edi[4]",
+		"arg3[5].b",
+		"*(arg3 + 0x15)",
+		"*(arg3 + 0x16)",
+		"sub_4d4af0(arg1, 0, 1)",
+		"int32_t ebx_2 = arg2 ^ *edi",
+	)
+	for expected in (
+		"sub_4d4af0(arg1, eax_4 ^ ebx_2, 0x10)",
+		"sub_4d4af0(arg1, eax_13 ^ ebx_2, 8)",
+		"sub_4d4af0(arg1, eax_22 ^ ebx_2, 0x10)",
+		"sub_4d4af0(arg1, eax_25 ^ ebx_2, 8)",
+		"sub_4d4af0(arg1, eax_28 ^ ebx_2, 8)",
+		"return sub_4d4af0(arg1, edi_1 ^ ebx_2, 8)",
+	):
+		assert expected in write_hlil
+
+	read_hlil = hlil_part04.split("004d54a0    int32_t sub_4d54a0", 1)[1].split("004d5750", 1)[0]
+	_assert_order(
+		read_hlil,
+		"if (sub_4d4c70(arg1, 1) == 0)",
+		"eax_2 = sub_4d4c70(arg1, 0x20)",
+		"eax_2 = sub_4d4c70(arg1, 8) + *arg3",
+		"*arg4 = eax_2",
+		"if (sub_4d4c70(arg1, 1) == 0)",
+		"arg4[1] = *(arg3 + 4)",
+		"*(arg4 + 0x17) = *(arg3 + 0x17)",
+		"arg4[6].b = *(arg3 + 0x18)",
+		"*(arg4 + 0x19) = *(arg3 + 0x19)",
+		"arg4[5].b = *(arg3 + 0x14)",
+		"*(arg4 + 0x15) = *(arg3 + 0x15)",
+		"*(arg4 + 0x16) = eax_40",
+	)
+	_assert_order(
+		read_hlil,
+		"arg2 ^= *arg4",
+		"arg4[1] = eax_7",
+		"arg4[2] = eax_11",
+		"arg4[3] = eax_14",
+		"*(arg4 + 0x17) = eax_17",
+		"arg4[6].b = eax_20",
+		"*(arg4 + 0x19) = eax_23",
+		"arg4[4] = eax_26",
+		"arg4[5].b = eax_29",
+		"*(arg4 + 0x15) = eax_32",
+		"*(arg4 + 0x16) = eax_35",
+	)
+	assert "004b61d6                  sub_4d51a0" in hlil_part04
+	assert "eax_16 * 0x1c + &data_1471ed0" in hlil_part04
+	assert "004e0411          sub_4d54a0" in hlil_part04
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["MSG_WriteDeltaUsercmdKey"]["address"] == "0x004D51A0"
+	assert anchors["MSG_ReadDeltaUsercmdKey"]["address"] == "0x004D54A0"
+	assert anchors["CL_WritePacket"]["address"] == "0x004B5F70"
+	assert anchors["SV_UserMove"]["address"] == "0x004E0320"
+
+	assert spec["completion_status"]["status"] == "completed_static_struct_layout_and_logical_vectors"
+	assert spec["completion_status"]["source_patch_required"] is False
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 78
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 94
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 78
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 80
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_usercmd_delta_struct_layout_and_logical_vectors" in spec["assertion_tests"]
+
+	assert "Network Usercmd Delta Parity" in audit_note
+	assert "focused `usercmd_t` delta slice `78%` -> `94%`" in audit_note
+	assert "regular message payload bytes go through the adaptive Huffman bitstream layer" in audit_note
+	assert "Finalize **usercmd_t delta parity**" in plan
+	assert "network-usercmd-delta-parity-2026-06-05.json" in plan
+	assert "focused `usercmd_t` delta slice" in plan
+
+
+def test_networking_2_playerstate_fields_source_of_truth_and_roundtrip_contract() -> None:
+	spec = _networking_2_playerstate_fields_spec()
+	msg_c = _read(MSG_C_PATH)
+	q_shared = _read(Q_SHARED_PATH)
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part06 = _read(HLIL_PART06_PATH)
+	audit_note = _read(NETWORKING_2_PLAYERSTATE_FIELDS_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-usercmd-delta-parity-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	entries = spec["source_of_truth"]["entries"]
+	assert len(entries) == spec["retail_table"]["field_count"] == 0x3a
+	assert spec["retail_table"]["base_address"] == "0x005424D8"
+	assert spec["retail_table"]["entry_stride_bytes"] == 12
+	assert spec["retail_table"]["read_copy_bytes"] == "0x250"
+	assert [entry["index"] for entry in entries] == list(range(58))
+	assert [
+		int(entry["table_address"], 16)
+		for entry in entries
+	] == [0x5424D8 + index * 0x0C for index in range(58)]
+
+	table_start = msg_c.index("netField_t\tplayerStateFields[]")
+	table = msg_c[table_start:msg_c.index("};", table_start)]
+	source_entries = re.findall(r"\{ PSF\(([^)]+)\), ([^ }]+) \}", table)
+	spec_entries = [(entry["field"], entry["source_bits"]) for entry in entries]
+	assert source_entries == spec_entries
+	assert _netfield_count(msg_c, "playerStateFields") == 58
+	_assert_order(
+		table,
+		"{ PSF(groundEntityNum), GENTITYNUM_BITS }",
+		"{ PSF(weaponstate), 4 }",
+		"{ PSF(loopSound), 16 }",
+		"{ PSF(jumpTime), 32 }",
+		"{ PSF(doubleJumped), 1 }",
+		"{ PSF(crouchTime), 32 }",
+	)
+
+	class PlayerState(ctypes.Structure):
+		_fields_ = [
+			("commandTime", ctypes.c_int),
+			("pm_type", ctypes.c_int),
+			("bobCycle", ctypes.c_int),
+			("pm_flags", ctypes.c_int),
+			("pm_time", ctypes.c_int),
+			("origin", ctypes.c_float * 3),
+			("velocity", ctypes.c_float * 3),
+			("weaponTime", ctypes.c_int),
+			("gravity", ctypes.c_int),
+			("speed", ctypes.c_int),
+			("delta_angles", ctypes.c_int * 3),
+			("groundEntityNum", ctypes.c_int),
+			("legsTimer", ctypes.c_int),
+			("legsAnim", ctypes.c_int),
+			("torsoTimer", ctypes.c_int),
+			("torsoAnim", ctypes.c_int),
+			("movementDir", ctypes.c_int),
+			("grapplePoint", ctypes.c_float * 3),
+			("eFlags", ctypes.c_int),
+			("eventSequence", ctypes.c_int),
+			("events", ctypes.c_int * 2),
+			("eventParms", ctypes.c_int * 2),
+			("externalEvent", ctypes.c_int),
+			("externalEventParm", ctypes.c_int),
+			("clientNum", ctypes.c_int),
+			("location", ctypes.c_int),
+			("weapon", ctypes.c_int),
+			("weaponPrimary", ctypes.c_int),
+			("weaponstate", ctypes.c_int),
+			("fov", ctypes.c_int),
+			("viewangles", ctypes.c_float * 3),
+			("viewheight", ctypes.c_int),
+			("damageEvent", ctypes.c_int),
+			("damageYaw", ctypes.c_int),
+			("damagePitch", ctypes.c_int),
+			("damageCount", ctypes.c_int),
+			("stats", ctypes.c_int * 16),
+			("persistant", ctypes.c_int * 16),
+			("powerups", ctypes.c_int * 16),
+			("ammo", ctypes.c_int * 16),
+			("generic1", ctypes.c_int),
+			("loopSound", ctypes.c_int),
+			("jumppad_ent", ctypes.c_int),
+			("jumpTime", ctypes.c_int),
+			("doubleJumped", ctypes.c_int),
+			("crouchTime", ctypes.c_int),
+			("crouchSlideTime", ctypes.c_int),
+			("forwardmove", ctypes.c_byte),
+			("rightmove", ctypes.c_byte),
+			("upmove", ctypes.c_byte),
+			("commandMirrorPad", ctypes.c_byte),
+			("ping", ctypes.c_int),
+			("pmove_framecount", ctypes.c_int),
+			("jumppad_frame", ctypes.c_int),
+			("entityEventSequence", ctypes.c_int),
+			("externalEventTime", ctypes.c_int),
+			("armorTier", ctypes.c_int),
+		]
+
+	int_size = ctypes.sizeof(ctypes.c_int)
+	float_size = ctypes.sizeof(ctypes.c_float)
+	expected_offsets = {
+		"commandTime": PlayerState.commandTime.offset,
+		"origin[0]": PlayerState.origin.offset,
+		"origin[1]": PlayerState.origin.offset + float_size,
+		"bobCycle": PlayerState.bobCycle.offset,
+		"velocity[0]": PlayerState.velocity.offset,
+		"velocity[1]": PlayerState.velocity.offset + float_size,
+		"viewangles[1]": PlayerState.viewangles.offset + float_size,
+		"viewangles[0]": PlayerState.viewangles.offset,
+		"weaponTime": PlayerState.weaponTime.offset,
+		"origin[2]": PlayerState.origin.offset + float_size * 2,
+		"velocity[2]": PlayerState.velocity.offset + float_size * 2,
+		"legsTimer": PlayerState.legsTimer.offset,
+		"pm_time": PlayerState.pm_time.offset,
+		"eventSequence": PlayerState.eventSequence.offset,
+		"torsoAnim": PlayerState.torsoAnim.offset,
+		"movementDir": PlayerState.movementDir.offset,
+		"events[0]": PlayerState.events.offset,
+		"legsAnim": PlayerState.legsAnim.offset,
+		"events[1]": PlayerState.events.offset + int_size,
+		"pm_flags": PlayerState.pm_flags.offset,
+		"groundEntityNum": PlayerState.groundEntityNum.offset,
+		"weaponstate": PlayerState.weaponstate.offset,
+		"eFlags": PlayerState.eFlags.offset,
+		"externalEvent": PlayerState.externalEvent.offset,
+		"gravity": PlayerState.gravity.offset,
+		"speed": PlayerState.speed.offset,
+		"delta_angles[1]": PlayerState.delta_angles.offset + int_size,
+		"externalEventParm": PlayerState.externalEventParm.offset,
+		"viewheight": PlayerState.viewheight.offset,
+		"damageEvent": PlayerState.damageEvent.offset,
+		"damageYaw": PlayerState.damageYaw.offset,
+		"damagePitch": PlayerState.damagePitch.offset,
+		"damageCount": PlayerState.damageCount.offset,
+		"generic1": PlayerState.generic1.offset,
+		"pm_type": PlayerState.pm_type.offset,
+		"delta_angles[0]": PlayerState.delta_angles.offset,
+		"delta_angles[2]": PlayerState.delta_angles.offset + int_size * 2,
+		"torsoTimer": PlayerState.torsoTimer.offset,
+		"eventParms[0]": PlayerState.eventParms.offset,
+		"eventParms[1]": PlayerState.eventParms.offset + int_size,
+		"clientNum": PlayerState.clientNum.offset,
+		"weapon": PlayerState.weapon.offset,
+		"weaponPrimary": PlayerState.weaponPrimary.offset,
+		"viewangles[2]": PlayerState.viewangles.offset + float_size * 2,
+		"grapplePoint[0]": PlayerState.grapplePoint.offset,
+		"grapplePoint[1]": PlayerState.grapplePoint.offset + float_size,
+		"grapplePoint[2]": PlayerState.grapplePoint.offset + float_size * 2,
+		"jumppad_ent": PlayerState.jumppad_ent.offset,
+		"loopSound": PlayerState.loopSound.offset,
+		"jumpTime": PlayerState.jumpTime.offset,
+		"doubleJumped": PlayerState.doubleJumped.offset,
+		"crouchTime": PlayerState.crouchTime.offset,
+		"crouchSlideTime": PlayerState.crouchSlideTime.offset,
+		"location": PlayerState.location.offset,
+		"fov": PlayerState.fov.offset,
+		"forwardmove": PlayerState.forwardmove.offset,
+		"rightmove": PlayerState.rightmove.offset,
+		"upmove": PlayerState.upmove.offset,
+	}
+	assert {
+		entry["field"]: int(entry["offset_hex"], 16)
+		for entry in entries
+	} == expected_offsets
+	assert PlayerState.forwardmove.offset == 0x1DC
+	assert PlayerState.commandMirrorPad.offset == 0x1DF
+	assert PlayerState.ping.offset == 0x1E0
+
+	playerstate_decl = q_shared[q_shared.index("typedef struct playerState_s {") : q_shared.index("} playerState_t;")]
+	_assert_order(
+		playerstate_decl,
+		"int\t\t\tgeneric1;",
+		"int\t\t\tloopSound;",
+		"int\t\t\tjumppad_ent;",
+		"int\t\t\tjumpTime;",
+		"int\t\t\tdoubleJumped;",
+		"int\t\t\tcrouchTime;",
+		"int\t\t\tcrouchSlideTime;",
+		"signed char\tforwardmove;",
+	)
+
+	hlil_lines = {
+		line[:8].lower(): line
+		for line in hlil_part06.splitlines()
+		if re.match(r"^[0-9a-f]{8}\s", line)
+	}
+	for entry in entries:
+		address = entry["table_address"].lower().removeprefix("0x")
+		line = hlil_lines[address]
+		if entry["field"] == "fov":
+			assert line == "00542760  void* data_542760 = 0x53d0b0"
+			assert "0053d0a9                             00 00 00 4e 41 00 00 66 6f 76 00" in hlil_part06
+		else:
+			assert f'{{"{entry["field"]}"}}' in line
+
+	for expected in (
+		"005425c0  0c 00 00 00 18 00 00 00",
+		"00542728                          cc 01 00 00 20 00 00 00",
+		"00542734                                                              d0 01 00 00 01 00 00 00",
+		"00542764              9c 00 00 00 08 00 00 00",
+		"00542770                                                  dc 01 00 00 08 00 00 00",
+		"0054277c                                                                                      dd 01 00 00",
+		"00542788                          de 01 00 00 08 00 00 00",
+	):
+		assert expected in hlil_part06
+
+	write_hlil = hlil_part04.split("004d5d50    int32_t* sub_4d5d50", 1)[1].split("004d66c0", 1)[0]
+	read_hlil = hlil_part04.split("004d66c0    uint32_t sub_4d66c0", 1)[1].split("004d6ba2", 1)[0]
+	_assert_order(
+		write_hlil,
+		"void* const eax_2 = &data_5424e8",
+		"int32_t i_15 = 0x1d",
+		"sub_4d4af0(arg1, i_20, 8)",
+		"void* const var_260 = &data_5424e0",
+		"sub_4d4af0(arg1, *(ebx_1 + arg3), eax_7)",
+		"sub_4d4af0(arg1, edi_3 + 0x1000, 0xd)",
+		"sub_4d4af0(arg1, var_260_1, 0x10)",
+		"sub_4d4af0(arg1, var_26c, 0x10)",
+		"eax_47 = sub_4d4af0(arg1, var_268, 0x10)",
+		"int32_t* eax_52 = sub_4d4af0(arg1, var_25c, 0x10)",
+		"eax_52 = sub_4d4af0(arg1, *ebx_15, 0x20)",
+	)
+	_assert_order(
+		read_hlil,
+		"__builtin_memcpy(dest: arg4, src: arg3, n: 0x250)",
+		"uint32_t i_12 = zx.d(sub_4d4c70(arg2, 8))",
+		"void* const edi_1 = &data_5424e0",
+		"if (i_12 s< 0x3a)",
+		"int32_t i_11 = 0x3a - i_12",
+		"void* ecx_10 = i_12 * 0xc + 0x5424dc",
+		"char const* const var_280_5 = \"PS_STATS\"",
+		"char const* const var_280_6 = \"PS_PERSISTANT\"",
+		"char const* const var_280_7 = \"PS_AMMO\"",
+		"char const* const var_280_8 = \"PS_POWERUPS\"",
+	)
+
+	assert spec["signed_byte_fields"] == ["forwardmove", "rightmove", "upmove"]
+	signed_byte_block = _function_block(msg_c, "static qboolean MSG_PlayerStateFieldIsSignedByte")
+	network_value_block = _function_block(msg_c, "static int MSG_PlayerStateFieldNetworkValue")
+	set_value_block = _function_block(msg_c, "static void MSG_SetPlayerStateFieldValue")
+	for field in spec["signed_byte_fields"]:
+		assert f"field->offset == PSF_OFFSET({field})" in signed_byte_block
+	assert "return (unsigned char)value;" in network_value_block
+	assert "*(signed char *)( (byte *)ps + field->offset ) = (signed char)value;" in set_value_block
+
+	array_masks = {mask["name"]: mask for mask in spec["array_masks"]}
+	assert array_masks == {
+		"stats": {"name": "stats", "mask_bits": 16, "value_bits": 16, "retail_offset_hex": "0x0c0"},
+		"persistant": {"name": "persistant", "mask_bits": 16, "value_bits": 16, "retail_offset_hex": "0x100"},
+		"ammo": {"name": "ammo", "mask_bits": 16, "value_bits": 16, "retail_offset_hex": "0x180"},
+		"powerups": {"name": "powerups", "mask_bits": 16, "value_bits": 32, "retail_offset_hex": "0x140"},
+	}
+	assert PlayerState.stats.offset == 0x0C0
+	assert PlayerState.persistant.offset == 0x100
+	assert PlayerState.powerups.offset == 0x140
+	assert PlayerState.ammo.offset == 0x180
+
+	field_indices = {entry["field"]: entry["index"] for entry in entries}
+	field_bits = {entry["field"]: entry["bits"] for entry in entries}
+	vectors = {vector["id"]: vector for vector in spec["golden_vectors"]}
+	assert set(vectors) == {
+		"jump_time_tail_lc",
+		"double_jump_tail_lc",
+		"command_mirror_tail_lc",
+		"pm_flags_24_bit",
+		"origin0_integral_float",
+	}
+	for vector in vectors.values():
+		changed_indices = [field_indices[field] for field in vector["changed_fields"]]
+		assert vector["retail_zero_based_indices"] == changed_indices
+		assert vector["expected_lc"] == (max(changed_indices) + 1 if changed_indices else 0)
+		for event in vector["written_events"]:
+			field = event["field"]
+			if field in field_bits and event.get("changed", True):
+				assert event["bits"] == field_bits[field]
+
+	assert vectors["jump_time_tail_lc"]["expected_lc"] == 50
+	assert vectors["double_jump_tail_lc"]["expected_lc"] == 51
+	assert vectors["command_mirror_tail_lc"]["expected_lc"] == 58
+	assert vectors["pm_flags_24_bit"]["written_events"][0] == {
+		"field": "pm_flags",
+		"bits": 24,
+		"written_value": "0xabcdef",
+	}
+	command_events = {event["field"]: event for event in vectors["command_mirror_tail_lc"]["written_events"]}
+	assert command_events["forwardmove"]["written_value"] == "0x81"
+	assert command_events["forwardmove"]["decoded_signed_value"] == -127
+	assert command_events["upmove"]["written_value"] == "0xf4"
+	assert command_events["upmove"]["decoded_signed_value"] == -12
+	assert vectors["origin0_integral_float"]["float_int_bias"] == 4096
+	assert vectors["origin0_integral_float"]["float_int_bits"] == 13
+	assert vectors["origin0_integral_float"]["written_events"][1]["written_value"] == 128 + 4096
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["MSG_WriteDeltaPlayerstate"]["address"] == "0x004D5D50"
+	assert anchors["MSG_ReadDeltaPlayerstate"]["address"] == "0x004D66C0"
+	assert anchors["playerStateFields"]["address"] == "0x005424D8"
+
+	assert spec["retail_order_corrections"] == [
+		{"field": "jumpTime", "previous_source_index": 21, "retail_index": 49, "source_patch_required": True},
+		{"field": "doubleJumped", "previous_source_index": 22, "retail_index": 50, "source_patch_required": True},
+	]
+	assert spec["completion_status"]["status"] == "completed_source_patch_retail_table_source_of_truth"
+	assert spec["completion_status"]["source_patch_required"] is True
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 70
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 94
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 80
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 82
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_playerstate_fields_source_of_truth_and_roundtrip_contract" in spec["assertion_tests"]
+
+	assert "Network PlayerState Fields Parity" in audit_note
+	assert "`jumpTime` and `doubleJumped` after `loopSound`" in audit_note
+	assert "focused `playerStateFields` slice `70%` -> `94%`" in audit_note
+	assert "Reconstruct **playerStateFields** exactly from retail" in plan
+	assert "network-playerstate-fields-parity-2026-06-05.json" in plan
+	assert "focused `playerStateFields` slice" in plan
+
+
+def test_networking_2_entitystate_fields_source_of_truth_and_delta_contract() -> None:
+	spec = _networking_2_entitystate_fields_spec()
+	msg_c = _read(MSG_C_PATH)
+	q_shared = _read(Q_SHARED_PATH)
+	bg_misc = _read(REPO_ROOT / "src/code/game/bg_misc.c")
+	hlil_part04 = _read(HLIL_PART04_PATH)
+	hlil_part06 = _read(HLIL_PART06_PATH)
+	audit_note = _read(NETWORKING_2_ENTITYSTATE_FIELDS_AUDIT_PATH)
+	plan = _read(NETWORKING_2_PLAN_PATH)
+
+	assert spec["schema_version"] == 1
+	assert spec["last_updated"] == "2026-06-05"
+	assert spec["depends_on"] == [
+		"docs/reverse-engineering/network-protocol-parity-ledger-2026-06-05.json",
+		"docs/reverse-engineering/network-protocol-header-transport-spec-2026-06-05.json",
+		"docs/reverse-engineering/network-playerstate-fields-parity-2026-06-05.json",
+	]
+	assert spec["owning_retail_binary"]["path"] == "assets/quakelive/quakelive_steam.exe"
+
+	entries = spec["source_of_truth"]["entries"]
+	assert len(entries) == spec["retail_table"]["field_count"] == 0x3a
+	assert spec["retail_table"]["base_address"] == "0x00542220"
+	assert spec["retail_table"]["entry_stride_bytes"] == 12
+	assert spec["retail_table"]["read_copy_bytes"] == "0xec"
+	assert [entry["index"] for entry in entries] == list(range(58))
+	assert [
+		int(entry["table_address"], 16)
+		for entry in entries
+	] == [0x542220 + index * 0x0C for index in range(58)]
+
+	table_start = msg_c.index("netField_t\tentityStateFields[]")
+	table = msg_c[table_start:msg_c.index("};", table_start)]
+	source_entries = re.findall(r"\{ NETF\(([^)]+)\), ([^ }]+) \}", table)
+	spec_entries = [(entry["field"], entry["source_bits"]) for entry in entries]
+	assert source_entries == spec_entries
+	assert _netfield_count(msg_c, "entityStateFields") == 58
+	_assert_order(
+		table,
+		"{ NETF(apos.trBase[0]), 0 }",
+		"{ NETF(pos.gravity), 32 }",
+		"{ NETF(event), 10 }",
+		"{ NETF(generic1), 8 }",
+		"{ NETF(apos.trDelta[2]), 0 }",
+		"{ NETF(apos.gravity), 32 }",
+		"{ NETF(time2), 32 }",
+		"{ NETF(jumpTime), 32 }",
+		"{ NETF(doubleJumped), 1 }",
+		"{ NETF(health), 16 }",
+		"{ NETF(armor), 16 }",
+		"{ NETF(location), 8 }",
+	)
+	assert "{ NETF(retailEventData), 8 }" not in table
+
+	class Trajectory(ctypes.Structure):
+		_fields_ = [
+			("trType", ctypes.c_int),
+			("trTime", ctypes.c_int),
+			("trDuration", ctypes.c_int),
+			("trBase", ctypes.c_float * 3),
+			("trDelta", ctypes.c_float * 3),
+			("gravity", ctypes.c_float),
+		]
+
+	class Generic1Slot(ctypes.Union):
+		_fields_ = [
+			("generic1", ctypes.c_int),
+			("retailEventData", ctypes.c_int),
+		]
+
+	class EntityState(ctypes.Structure):
+		_fields_ = [
+			("number", ctypes.c_int),
+			("eType", ctypes.c_int),
+			("eFlags", ctypes.c_int),
+			("pos", Trajectory),
+			("apos", Trajectory),
+			("time", ctypes.c_int),
+			("time2", ctypes.c_int),
+			("origin", ctypes.c_float * 3),
+			("origin2", ctypes.c_float * 3),
+			("angles", ctypes.c_float * 3),
+			("angles2", ctypes.c_float * 3),
+			("otherEntityNum", ctypes.c_int),
+			("otherEntityNum2", ctypes.c_int),
+			("groundEntityNum", ctypes.c_int),
+			("constantLight", ctypes.c_int),
+			("loopSound", ctypes.c_int),
+			("modelindex", ctypes.c_int),
+			("modelindex2", ctypes.c_int),
+			("clientNum", ctypes.c_int),
+			("frame", ctypes.c_int),
+			("solid", ctypes.c_int),
+			("event", ctypes.c_int),
+			("eventParm", ctypes.c_int),
+			("powerups", ctypes.c_int),
+			("health", ctypes.c_int),
+			("armor", ctypes.c_int),
+			("weapon", ctypes.c_int),
+			("location", ctypes.c_int),
+			("legsAnim", ctypes.c_int),
+			("torsoAnim", ctypes.c_int),
+			("generic1Slot", Generic1Slot),
+			("jumpTime", ctypes.c_int),
+			("doubleJumped", ctypes.c_int),
+		]
+
+	int_size = ctypes.sizeof(ctypes.c_int)
+	float_size = ctypes.sizeof(ctypes.c_float)
+	assert ctypes.sizeof(Trajectory) == 0x28
+	assert Trajectory.gravity.offset == 0x24
+	assert ctypes.sizeof(EntityState) == int(spec["retail_table"]["read_copy_bytes"], 16) == 0xEC
+	assert EntityState.generic1Slot.offset == 0xE0
+	assert Generic1Slot.generic1.offset == Generic1Slot.retailEventData.offset == 0
+
+	expected_offsets = {
+		"pos.trTime": EntityState.pos.offset + Trajectory.trTime.offset,
+		"pos.trBase[0]": EntityState.pos.offset + Trajectory.trBase.offset,
+		"pos.trBase[1]": EntityState.pos.offset + Trajectory.trBase.offset + float_size,
+		"pos.trDelta[0]": EntityState.pos.offset + Trajectory.trDelta.offset,
+		"pos.trDelta[1]": EntityState.pos.offset + Trajectory.trDelta.offset + float_size,
+		"pos.trBase[2]": EntityState.pos.offset + Trajectory.trBase.offset + float_size * 2,
+		"apos.trBase[1]": EntityState.apos.offset + Trajectory.trBase.offset + float_size,
+		"pos.trDelta[2]": EntityState.pos.offset + Trajectory.trDelta.offset + float_size * 2,
+		"apos.trBase[0]": EntityState.apos.offset + Trajectory.trBase.offset,
+		"pos.gravity": EntityState.pos.offset + Trajectory.gravity.offset,
+		"event": EntityState.event.offset,
+		"angles2[1]": EntityState.angles2.offset + float_size,
+		"eType": EntityState.eType.offset,
+		"torsoAnim": EntityState.torsoAnim.offset,
+		"eventParm": EntityState.eventParm.offset,
+		"legsAnim": EntityState.legsAnim.offset,
+		"groundEntityNum": EntityState.groundEntityNum.offset,
+		"pos.trType": EntityState.pos.offset + Trajectory.trType.offset,
+		"eFlags": EntityState.eFlags.offset,
+		"otherEntityNum": EntityState.otherEntityNum.offset,
+		"weapon": EntityState.weapon.offset,
+		"clientNum": EntityState.clientNum.offset,
+		"angles[1]": EntityState.angles.offset + float_size,
+		"pos.trDuration": EntityState.pos.offset + Trajectory.trDuration.offset,
+		"apos.trType": EntityState.apos.offset + Trajectory.trType.offset,
+		"origin[0]": EntityState.origin.offset,
+		"origin[1]": EntityState.origin.offset + float_size,
+		"origin[2]": EntityState.origin.offset + float_size * 2,
+		"solid": EntityState.solid.offset,
+		"powerups": EntityState.powerups.offset,
+		"modelindex": EntityState.modelindex.offset,
+		"otherEntityNum2": EntityState.otherEntityNum2.offset,
+		"loopSound": EntityState.loopSound.offset,
+		"generic1": EntityState.generic1Slot.offset,
+		"origin2[2]": EntityState.origin2.offset + float_size * 2,
+		"origin2[0]": EntityState.origin2.offset,
+		"origin2[1]": EntityState.origin2.offset + float_size,
+		"modelindex2": EntityState.modelindex2.offset,
+		"angles[0]": EntityState.angles.offset,
+		"time": EntityState.time.offset,
+		"apos.trTime": EntityState.apos.offset + Trajectory.trTime.offset,
+		"apos.trDuration": EntityState.apos.offset + Trajectory.trDuration.offset,
+		"apos.trBase[2]": EntityState.apos.offset + Trajectory.trBase.offset + float_size * 2,
+		"apos.trDelta[0]": EntityState.apos.offset + Trajectory.trDelta.offset,
+		"apos.trDelta[1]": EntityState.apos.offset + Trajectory.trDelta.offset + float_size,
+		"apos.trDelta[2]": EntityState.apos.offset + Trajectory.trDelta.offset + float_size * 2,
+		"apos.gravity": EntityState.apos.offset + Trajectory.gravity.offset,
+		"time2": EntityState.time2.offset,
+		"angles[2]": EntityState.angles.offset + float_size * 2,
+		"angles2[0]": EntityState.angles2.offset,
+		"angles2[2]": EntityState.angles2.offset + float_size * 2,
+		"constantLight": EntityState.constantLight.offset,
+		"frame": EntityState.frame.offset,
+		"jumpTime": EntityState.jumpTime.offset,
+		"doubleJumped": EntityState.doubleJumped.offset,
+		"health": EntityState.health.offset,
+		"armor": EntityState.armor.offset,
+		"location": EntityState.location.offset,
+	}
+	assert {
+		entry["field"]: int(entry["offset_hex"], 16)
+		for entry in entries
+	} == expected_offsets
+
+	entity_decl = q_shared[q_shared.index("typedef struct entityState_s {") : q_shared.index("} entityState_t;")]
+	_assert_order(
+		q_shared[q_shared.index("typedef struct {", q_shared.index("TR_QL_ACCEL")) : q_shared.index("} trajectory_t;")],
+		"vec3_t\ttrDelta;",
+		"float\tgravity;",
+	)
+	_assert_order(
+		entity_decl,
+		"int\t\teventParm;",
+		"int\t\tpowerups;",
+		"int\t\thealth;",
+		"int\t\tarmor;",
+		"int\t\tweapon;",
+		"int\t\tlocation;",
+		"int\t\tlegsAnim;",
+		"int\t\ttorsoAnim;",
+		"union {",
+		"int\tgeneric1;",
+		"int\tretailEventData;",
+		"int\t\tjumpTime;",
+		"int\t\tdoubleJumped;",
+	)
+	assert "int\t\tretailEventPadding[4];" not in entity_decl
+
+	hlil_lines = {
+		line[:8].lower(): line
+		for line in hlil_part06.splitlines()
+		if re.match(r"^[0-9a-f]{8}\s", line)
+	}
+	for entry in entries:
+		address = entry["table_address"].lower().removeprefix("0x")
+		assert f'{{"{entry["field"]}"}}' in hlil_lines[address]
+	for expected in (
+		"00542290                                                  30 00 00 00 20 00 00 00",
+		"0054244c                                      58 00 00 00 20 00 00 00",
+		"005423b0                                                  e0 00 00 00 08 00 00 00",
+		"005424a0  e4 00 00 00 20 00 00 00",
+		"005424ac                                      e8 00 00 00 01 00 00 00",
+		"005424b8                                                                          c8 00 00 00 10 00 00 00",
+		"005424c4              cc 00 00 00 10 00 00 00",
+		"005424d0                                                  d4 00 00 00 08 00 00 00",
+	):
+		assert expected in hlil_part06
+
+	write_hlil = hlil_part04.split("004d5780    int32_t* sub_4d5780", 1)[1].split("004d5ac0", 1)[0]
+	read_hlil = hlil_part04.split("004d5ac0    int32_t sub_4d5ac0", 1)[1].split("004d5d50", 1)[0]
+	_assert_order(
+		write_hlil,
+		"sub_4d4af0(arg1, *arg3, 0xa)",
+		"result = sub_4d4af0(arg1, i_4, 8)",
+		"data_124a634 += 0x3a",
+		"if (i_4 s> 0)",
+		"if (result != *(edi_3 + ebx_5))",
+		"if (*var_8_1 == 0)",
+		"sub_4d4af0(arg1, ebx_7 + 0x1000, 0xd)",
+		"result = sub_4d4af0(arg1, *(edi_3 + ebx_5), *var_8_1)",
+	)
+	_assert_order(
+		read_hlil,
+		"__builtin_memcpy(dest: arg3, src: arg2, n: 0xec)",
+		"uint32_t i_4 = zx.d(sub_4d4c70(ebx, 8))",
+		"arg4 = &data_542228",
+		"if (*arg4 != 0)",
+		"eax_16 = sub_4d4c70(ebx, *arg4)",
+		"else if (sub_4d4c70(ebx, 1) != 0)",
+		"sub_4d4c70(ebx, 0xd) - 0x1000",
+		"eax_4 = &(&data_542220)[i_4 * 3]",
+		"if (i_4 s< 0x3a)",
+	)
+
+	trajectory_accel = _function_block(bg_misc, "static float BG_TrajectoryAcceleration( const trajectory_t *tr )")
+	assert "return tr->gravity;" in trajectory_accel
+	bridge = _function_block(bg_misc, "void BG_PlayerStateToEntityState( playerState_t *ps, entityState_t *s, qboolean snap )")
+	for expected in (
+		"s->pos.gravity = ps->gravity;",
+		"s->apos.gravity = 0.0f;",
+		"s->health = ps->stats[STAT_HEALTH];",
+		"s->armor = ps->stats[STAT_ARMOR];",
+		"s->location = ps->location;",
+		"s->jumpTime = ps->jumpTime;",
+		"s->doubleJumped = ps->doubleJumped;",
+	):
+		assert expected in bridge
+
+	field_indices = {entry["field"]: entry["index"] for entry in entries}
+	field_bits = {entry["field"]: entry["bits"] for entry in entries}
+	vectors = {vector["id"]: vector for vector in spec["golden_vectors"]}
+	assert set(vectors) == {
+		"terminal_location_lc",
+		"health_armor_tail_lc",
+		"jump_state_tail_lc",
+		"trajectory_gravity_lc",
+		"generic1_alias_event_payload",
+	}
+	for vector in vectors.values():
+		changed_indices = [field_indices[field] for field in vector["changed_fields"]]
+		assert vector["retail_zero_based_indices"] == changed_indices
+		assert vector["expected_lc"] == max(changed_indices) + 1
+		for event in vector["written_events"]:
+			assert event["bits"] == field_bits[event["field"]]
+	assert vectors["terminal_location_lc"]["expected_lc"] == 58
+	assert vectors["health_armor_tail_lc"]["expected_lc"] == 57
+	assert vectors["jump_state_tail_lc"]["expected_lc"] == 55
+	assert vectors["trajectory_gravity_lc"]["expected_lc"] == 47
+	assert vectors["generic1_alias_event_payload"]["source_alias"] == "retailEventData"
+	assert vectors["generic1_alias_event_payload"]["expected_lc"] == 34
+
+	anchors = {item["symbol"]: item for item in spec["retail_anchors"]}
+	assert anchors["MSG_WriteDeltaEntity"]["address"] == "0x004D5780"
+	assert anchors["MSG_ReadDeltaEntity"]["address"] == "0x004D5AC0"
+	assert anchors["entityStateFields"]["address"] == "0x00542220"
+
+	corrections = {item["field"]: item for item in spec["retail_order_corrections"]}
+	assert set(corrections) == {
+		"pos.gravity",
+		"apos.gravity",
+		"jumpTime",
+		"doubleJumped",
+		"health",
+		"armor",
+		"location",
+		"retailEventData",
+	}
+	assert corrections["retailEventData"]["resolution"] == "removed from the network table; retained as a source alias of retail generic1 at 0x0e0"
+	assert spec["completion_status"]["status"] == "completed_source_patch_retail_table_source_of_truth"
+	assert spec["completion_status"]["source_patch_required"] is True
+	assert spec["completion_status"]["focused_task_parity_before_percent"] == 48
+	assert spec["completion_status"]["focused_task_parity_after_percent"] == 92
+	assert spec["completion_status"]["overall_network_protocol_parity_before_percent"] == 82
+	assert spec["completion_status"]["overall_network_protocol_parity_after_percent"] == 84
+	assert "tests/test_netcode_parity_manifest.py::test_networking_2_entitystate_fields_source_of_truth_and_delta_contract" in spec["assertion_tests"]
+
+	assert "Network EntityState Fields Parity" in audit_note
+	assert "`pos.gravity` at index `9`" in audit_note
+	assert "`location`-only delta emits retail `lc == 58`" in audit_note
+	assert "focused `entityStateFields` slice `48%` -> `92%`" in audit_note
+	assert "Reconstruct **entityStateFields** exactly from retail" in plan
+	assert "network-entitystate-fields-parity-2026-06-05.json" in plan
+	assert "focused `entityStateFields` slice" in plan

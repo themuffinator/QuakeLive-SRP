@@ -44,7 +44,14 @@ def test_playerstate_bridge_body_stays_on_the_interpolating_retail_path() -> Non
 
 	assert "s->pos.trType = TR_INTERPOLATE;" in body
 	assert "VectorCopy( ps->velocity, s->pos.trDelta );" in body
+	assert "s->pos.gravity = ps->gravity;" in body
 	assert "s->apos.trType = TR_INTERPOLATE;" in body
+	assert "s->apos.gravity = 0.0f;" in body
+	assert "s->health = ps->stats[STAT_HEALTH];" in body
+	assert "s->armor = ps->stats[STAT_ARMOR];" in body
+	assert "s->location = ps->location;" in body
+	assert "s->jumpTime = ps->jumpTime;" in body
+	assert "s->doubleJumped = ps->doubleJumped;" in body
 	assert "s->powerups |= 1 << i;" in body
 	assert "TR_LINEAR_STOP" not in body
 	assert "s->pos.trTime = time;" not in body

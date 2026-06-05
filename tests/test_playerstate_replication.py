@@ -20,6 +20,9 @@ MAPPING_ROUND_17 = REPO_ROOT / "docs" / "reverse-engineering" / "quakelive_steam
 MAPPING_ROUND_57 = REPO_ROOT / "docs" / "reverse-engineering" / "quakelive_steam_mapping_round_57.md"
 MAPPING_ROUND_65 = REPO_ROOT / "docs" / "reverse-engineering" / "quakelive_steam_mapping_round_65.md"
 MAPPING_ROUND_127 = REPO_ROOT / "docs" / "reverse-engineering" / "quakelive_steam_mapping_round_127.md"
+PLAYERSTATE_FIELDS_SPEC_PATH = (
+	REPO_ROOT / "docs" / "reverse-engineering" / "network-playerstate-fields-parity-2026-06-05.json"
+)
 
 C_SOURCE = r"""
 #include <stdarg.h>
@@ -643,69 +646,14 @@ def test_keyed_usercmd_delta_round_trips_ql_weapon_primary_fov_and_signed_axes(
 
 def test_playerstate_netfield_table_matches_retail_quake_live_scalar_order() -> None:
 	source = MSG_PATH.read_text(encoding="utf-8")
+	spec = json.loads(PLAYERSTATE_FIELDS_SPEC_PATH.read_text(encoding="utf-8"))
 	table_start = source.index("netField_t\tplayerStateFields[]")
 	table_end = source.index("};", table_start) + len("};")
 	table = source[table_start:table_end]
-
-	expected_entries = (
-		"{ PSF(commandTime), 32 }",
-		"{ PSF(origin[0]), 0 }",
-		"{ PSF(origin[1]), 0 }",
-		"{ PSF(bobCycle), 8 }",
-		"{ PSF(velocity[0]), 0 }",
-		"{ PSF(velocity[1]), 0 }",
-		"{ PSF(viewangles[1]), 0 }",
-		"{ PSF(viewangles[0]), 0 }",
-		"{ PSF(weaponTime), -16 }",
-		"{ PSF(origin[2]), 0 }",
-		"{ PSF(velocity[2]), 0 }",
-		"{ PSF(legsTimer), 8 }",
-		"{ PSF(pm_time), -16 }",
-		"{ PSF(eventSequence), 16 }",
-		"{ PSF(torsoAnim), 8 }",
-		"{ PSF(movementDir), 4 }",
-		"{ PSF(events[0]), 8 }",
-		"{ PSF(legsAnim), 8 }",
-		"{ PSF(events[1]), 8 }",
-		"{ PSF(pm_flags), 24 }",
-		"{ PSF(groundEntityNum), GENTITYNUM_BITS }",
-		"{ PSF(jumpTime), 32 }",
-		"{ PSF(doubleJumped), 1 }",
-		"{ PSF(weaponstate), 4 }",
-		"{ PSF(eFlags), 16 }",
-		"{ PSF(externalEvent), 10 }",
-		"{ PSF(gravity), 16 }",
-		"{ PSF(speed), 16 }",
-		"{ PSF(delta_angles[1]), 16 }",
-		"{ PSF(externalEventParm), 8 }",
-		"{ PSF(viewheight), -8 }",
-		"{ PSF(damageEvent), 8 }",
-		"{ PSF(damageYaw), 8 }",
-		"{ PSF(damagePitch), 8 }",
-		"{ PSF(damageCount), 8 }",
-		"{ PSF(generic1), 8 }",
-		"{ PSF(pm_type), 8 }",
-		"{ PSF(delta_angles[0]), 16 }",
-		"{ PSF(delta_angles[2]), 16 }",
-		"{ PSF(torsoTimer), 12 }",
-		"{ PSF(eventParms[0]), 8 }",
-		"{ PSF(eventParms[1]), 8 }",
-		"{ PSF(clientNum), 8 }",
-		"{ PSF(weapon), 5 }",
-		"{ PSF(weaponPrimary), 8 }",
-		"{ PSF(viewangles[2]), 0 }",
-		"{ PSF(grapplePoint[0]), 0 }",
-		"{ PSF(grapplePoint[1]), 0 }",
-		"{ PSF(grapplePoint[2]), 0 }",
-		"{ PSF(jumppad_ent), 10 }",
-		"{ PSF(loopSound), 16 }",
-		"{ PSF(crouchTime), 32 }",
-		"{ PSF(crouchSlideTime), 32 }",
-		"{ PSF(location), 8 }",
-		"{ PSF(fov), 8 }",
-		"{ PSF(forwardmove), 8 }",
-		"{ PSF(rightmove), 8 }",
-		"{ PSF(upmove), 8 }",
+	entries = spec["source_of_truth"]["entries"]
+	expected_entries = tuple(
+		f"{{ PSF({entry['field']}), {entry['source_bits']} }}"
+		for entry in entries
 	)
 
 	cursor = 0
@@ -714,6 +662,9 @@ def test_playerstate_netfield_table_matches_retail_quake_live_scalar_order() -> 
 		cursor = index + len(entry)
 
 	assert table.count("{ PSF(") == len(expected_entries)
+	assert len(expected_entries) == spec["retail_table"]["field_count"] == 58
+	assert entries[49]["field"] == "jumpTime"
+	assert entries[50]["field"] == "doubleJumped"
 
 
 def test_playerstate_delta_codec_preserves_retail_signed_byte_and_array_mask_wiring() -> None:

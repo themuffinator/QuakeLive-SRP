@@ -2312,7 +2312,7 @@ def test_cgame_red_pickup_tail_and_blue_team_head_slice_matches_retail_wiring() 
 		assert expected in team_status_block
 	assert "score = ( team == TEAM_RED ) ? cgs.scores1 : cgs.scores2;" in score_text_block
 	assert "teamName = CG_GetTeamName( team );" in name_block
-	assert 'Com_sprintf( buffer, sizeof( buffer ), "Avg ping %i", average );' in average_ping_block
+	assert 'Com_sprintf( buffer, sizeof( buffer ), "(%d)", average );' in average_ping_block
 
 
 def test_cgame_blue_pickup_tail_and_final_ownerdraw_slice_matches_retail_wiring() -> None:
@@ -5545,6 +5545,10 @@ def test_cgame_selected_177_to_181_ownerdraws_match_retail_accuracy_tail_and_pic
 		"CG_TEAM_PICKUP_SUMMARY_ICON_YA",
 		"CG_TEAM_PICKUP_SUMMARY_ICON_GA",
 		"CG_TEAM_PICKUP_SUMMARY_ICON_MH",
+	):
+		assert expected in source
+
+	for expected in (
 		"iconHandle = CG_GetTeamPickupSummaryIconHandle( TEAM_FREE, cgPlacementPickupSummaryIcons[index] );",
 		"CG_DrawPic( drawX, drawY, rect->w, rect->h, iconHandle );",
 		'Com_sprintf( countText, sizeof( countText ), "%d", stats->pickupCounts[index] );',
@@ -6198,6 +6202,4954 @@ def test_cgame_selected_197_to_201_ownerdraws_match_retail_second_player_metric_
 		assert name not in key_block
 
 
+def test_cgame_selected_202_to_206_ownerdraws_match_retail_second_player_acc_flag_avatar_timeout_and_comparison() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	build_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	flag_shader_block = _block_from_marker(source, "static qhandle_t CG_GetPlacementFlagShader")
+	flag_block = _block_from_marker(source, "static void CG_DrawPlacementFlagOwnerDraw")
+	avatar_block = _block_from_marker(source, "static void CG_DrawPlacementAvatarOwnerDraw")
+	profile_block = _block_from_marker(source, "static void CG_DrawSpectatorProfileImage")
+	slot_block = _block_from_marker(source, "static int CG_GetSpectatorOwnerDrawSlot")
+	comparison_block = _block_from_marker(source, "static void CG_DrawSpectatorComparison")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	retail_comparison_block = _text_between(
+		hlil_source,
+		"10033040    int32_t __convention(\"regparm\") sub_10033040",
+		"100333c0",
+	)
+	retail_accuracy_block = _text_between(
+		hlil_source,
+		"10036570    void __convention(\"regparm\") sub_10036570",
+		"100366a0    void* __convention(\"regparm\") sub_100366a0",
+	)
+	retail_avatar_block = _text_between(
+		hlil_source,
+		"100366a0    void* __convention(\"regparm\") sub_100366a0",
+		"10036720    int32_t __convention(\"regparm\") sub_10036720",
+	)
+	retail_flag_block = _text_between(
+		hlil_source,
+		"10036720    int32_t __convention(\"regparm\") sub_10036720",
+		"10036770    void __convention(\"regparm\") sub_10036770",
+	)
+	selected = {
+		"CG_2ND_PLYR_ACC",
+		"CG_2ND_PLYR_FLAG",
+		"CG_2ND_PLYR_AVATAR",
+		"CG_2ND_PLYR_TIMEOUT_COUNT",
+		"CG_2ND_PLYR_HEALTH_ARMOR",
+	}
+
+	assert constants["CG_2ND_PLYR_ACC"] == 0xca
+	assert constants["CG_2ND_PLYR_FLAG"] == 0xcb
+	assert constants["CG_2ND_PLYR_AVATAR"] == 0xcc
+	assert constants["CG_2ND_PLYR_TIMEOUT_COUNT"] == 0xcd
+	assert constants["CG_2ND_PLYR_HEALTH_ARMOR"] == 0xce
+	assert {constants["CG_2ND_PLYR_ACC"]} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036570")
+	assert {constants["CG_2ND_PLYR_FLAG"]} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036720")
+	assert {constants["CG_2ND_PLYR_AVATAR"]} <= _retail_cg_ownerdraw_cases_for_target("FUN_100366a0")
+	assert {constants["CG_2ND_PLYR_HEALTH_ARMOR"]} <= _retail_cg_ownerdraw_cases_for_target("FUN_10033040")
+	assert constants["CG_2ND_PLYR_TIMEOUT_COUNT"] not in _retail_cg_ownerdraw_case_values()
+
+	for expected in (
+		"if (arg1 s< 0xc1 || arg1 s> 0x11a)",
+		"0x10a60290",
+		'sub_100575e0("%d%%")',
+		"sub_10008440(",
+	):
+		assert expected in retail_accuracy_block
+
+	for expected in (
+		"if (arg1 s< 0xc1 || arg1 s> 0x11a)",
+		"*(eax * 0x268 + 0x10a60268)",
+		"return sub_100126a0(fconvert.s(fconvert.t(*arg3)))",
+	):
+		assert expected in retail_flag_block
+
+	for expected in (
+		"if (arg1 s< 0xc1 || arg1 s> 0x11a)",
+		"if (data_10b7210c != 0)",
+		"ecx_1 = *(result + 0x730)",
+		"eax_3 = *(result + 0x314)",
+		"return sub_100126a0(fconvert.s(fconvert.t(*arg2)))",
+	):
+		assert expected in retail_avatar_block
+
+	for expected in (
+		"if (arg1 s< 0xc1 || arg1 s> 0x11a)",
+		"var_28 = 1",
+		"data_10a6090c != 0",
+		"Vector4-like health fill source",
+	):
+		if expected == "Vector4-like health fill source":
+			assert "sub_100123d0" in retail_comparison_block
+		else:
+			assert expected in retail_comparison_block
+	for expected in (
+		"ebx_1 = *(ecx + 0xec)",
+		"var_24_1 = *(ecx + 0xfc)",
+		"fconvert.t(2.0)",
+		"float var_44 = fconvert.s(fconvert.t(8f))",
+		"fconvert.t(10.0)",
+		"float var_44_2 = fconvert.s(fconvert.t(2f))",
+	):
+		assert expected in retail_comparison_block
+
+	for name in ("CG_2ND_PLYR_ACC", "CG_2ND_PLYR_FLAG"):
+		assert f"case {name}:" in guard_block
+	for name in ("CG_2ND_PLYR_AVATAR", "CG_2ND_PLYR_TIMEOUT_COUNT", "CG_2ND_PLYR_HEALTH_ARMOR"):
+		assert name not in guard_block
+
+	for expected in (
+		"case CG_1ST_PLYR_ACC:",
+		'Com_sprintf( buffer, bufferSize, "%d%%", score->accuracy );',
+		"case CG_1ST_PLYR_FLAG:",
+		"return qfalse;",
+	):
+		assert expected in build_metric_block
+
+	for expected in (
+		"if ( ownerDraw == CG_1ST_PLYR_ACC || ownerDraw == CG_2ND_PLYR_ACC ) {",
+		"CG_DrawPlacementAccuracyOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"case CG_1ST_PLYR_FLAG:",
+		"CG_DrawPlacementFlagOwnerDraw( rect, slot );",
+	):
+		assert expected in dispatch_block
+
+	for expected in (
+		"ci->countryFlagShader ? ci->countryFlagShader : CG_RegisterCountryFlag( ci->country );",
+		"CG_GetPlacementFlagShader( slot );",
+		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );",
+	):
+		if expected.startswith("ci->"):
+			assert expected in flag_shader_block
+		else:
+			assert expected in flag_block
+	assert "PW_REDFLAG" not in flag_shader_block
+	assert "PW_BLUEFLAG" not in flag_shader_block
+	assert "CG_DrawSpectatorProfileImage( rect, slot );" in avatar_block
+
+	for expected in (
+		"if ( cg_drawProfileImages.integer && ( ci->identityLow || ci->identityHigh ) ) {",
+		"shader = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );",
+		"shader = ci->modelIcon;",
+		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );",
+	):
+		assert expected in profile_block
+	assert "CG_GetProfileFallbackShader" not in profile_block
+	assert "trap_R_SetColor" not in profile_block
+
+	for expected in (
+		"case CG_2ND_PLYR_HEALTH_ARMOR:",
+		"return 1;",
+	):
+		assert expected in slot_block
+	for expected in (
+		"score = CG_SpectatorClientScore( slot );",
+		"localClient = (qboolean)( cg.snap && score->client == cg.snap->ps.clientNum );",
+		"if ( !localClient && !cent->currentValid ) {",
+		"health = cg.snap->ps.stats[STAT_HEALTH];",
+		"armor = cg.snap->ps.stats[STAT_ARMOR];",
+		"health = ci->health;",
+		"armor = ci->armor;",
+		"Vector4Set( armorColor, 0.0f, 1.0f, 1.0f, 1.0f );",
+		"Vector4Set( damageColor, 1.0f, 0.0f, 0.0f, 0.5f );",
+		"healthX = ( slot == 0 ) ? rect->x + rect->w - healthWidth : rect->x;",
+		"armorX = ( slot == 0 ) ? rect->x + rect->w - armorWidth : rect->x;",
+		"damageX = ( slot == 0 ) ? healthX - damageWidth : healthX + healthWidth;",
+		"CG_FillRect( healthX, rect->y + 2.0f, healthWidth, 8.0f, healthColor );",
+		"CG_FillRect( armorX, rect->y + 10.0f, armorWidth, 2.0f, armorColor );",
+	):
+		assert expected in comparison_block
+	assert "CG_Text_Paint" not in comparison_block
+
+	for expected in (
+		"case CG_2ND_PLYR_AVATAR:",
+		"CG_DrawPlacementAvatarOwnerDraw( &rect, 1 );",
+		"case CG_2ND_PLYR_TIMEOUT_COUNT:",
+		"Retail has no raw ownerdraw 0xcd helper route.",
+		"case CG_2ND_PLYR_HEALTH_ARMOR:",
+		"CG_DrawSpectatorComparison( &rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in ownerdraw_block
+	for name in ("CG_2ND_PLYR_ACC", "CG_2ND_PLYR_FLAG"):
+		assert f"case {name}:" not in ownerdraw_block
+
+	for expected in (
+		"ownerDraw == CG_2ND_PLYR_HEALTH_ARMOR || ownerDraw == CG_2ND_PLYR_AVATAR",
+		"if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {",
+	):
+		assert expected in competitive_block
+	assert "CG_2ND_PLYR_TIMEOUT_COUNT" not in competitive_block
+
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_207_to_211_ownerdraws_match_retail_second_player_weapon_frag_head() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	frags_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponFragsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_frag_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatFragWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_frag_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatFragWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_frags_block = _text_between(
+		hlil_source,
+		"100368a0    void sub_100368a0",
+		"100369d0",
+	)
+	selected = {
+		"CG_2ND_PLYR_FRAGS_G",
+		"CG_2ND_PLYR_FRAGS_MG",
+		"CG_2ND_PLYR_FRAGS_SG",
+		"CG_2ND_PLYR_FRAGS_GL",
+		"CG_2ND_PLYR_FRAGS_RL",
+	}
+
+	assert constants["CG_2ND_PLYR_FRAGS_G"] == 0xcf
+	assert constants["CG_2ND_PLYR_FRAGS_MG"] == 0xd0
+	assert constants["CG_2ND_PLYR_FRAGS_SG"] == 0xd1
+	assert constants["CG_2ND_PLYR_FRAGS_GL"] == 0xd2
+	assert constants["CG_2ND_PLYR_FRAGS_RL"] == 0xd3
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_100368a0")
+
+	for expected in (
+		"case 0x75, 0x9a, 0xcf, 0xf4",
+		"return 1",
+		"case 0x76, 0x82, 0x8e, 0x9b, 0xa7, 0xd0",
+		"return 2",
+		"case 0x77, 0x83, 0x8f, 0x9c, 0xa8, 0xd1",
+		"return 3",
+		"case 0x78, 0x84, 0x90, 0x9d, 0xa9, 0xd2",
+		"return 4",
+		"case 0x79, 0x85, 0x91, 0x9e, 0xaa, 0xd3",
+		"return 5",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6030c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_frags_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_FRAGS_G:",
+		"return WP_GAUNTLET;",
+		"case CG_1ST_PLYR_FRAGS_MG:",
+		"return WP_MACHINEGUN;",
+		"case CG_1ST_PLYR_FRAGS_SG:",
+		"return WP_SHOTGUN;",
+		"case CG_1ST_PLYR_FRAGS_GL:",
+		"return WP_GRENADE_LAUNCHER;",
+		"case CG_1ST_PLYR_FRAGS_RL:",
+		"return WP_ROCKET_LAUNCHER;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_GAUNTLET,\n\tWP_MACHINEGUN,\n\tWP_SHOTGUN,\n\tWP_GRENADE_LAUNCHER,\n\tWP_ROCKET_LAUNCHER,",
+	):
+		assert expected in cgame_frag_order_block
+		assert expected in game_frag_order_block
+
+	for expected in (
+		"weapon = cgScoreStatFragWeapons[j];",
+		"cg.scoreStats[clientNum].weaponFrags[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponFrags, scorestatFragWeapons, SCORESTAT_FRAG_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_FRAGS_G && normalized <= CG_1ST_PLYR_FRAGS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponFrags[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_FRAGS_HMG",
+		"CG_DrawPlacementWeaponFragsOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in frags_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_212_to_216_ownerdraws_match_retail_second_player_weapon_frag_midband() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	frags_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponFragsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_frag_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatFragWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_frag_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatFragWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_frags_block = _text_between(
+		hlil_source,
+		"100368a0    void sub_100368a0",
+		"100369d0",
+	)
+	selected = {
+		"CG_2ND_PLYR_FRAGS_LG",
+		"CG_2ND_PLYR_FRAGS_RG",
+		"CG_2ND_PLYR_FRAGS_PG",
+		"CG_2ND_PLYR_FRAGS_BFG",
+		"CG_2ND_PLYR_FRAGS_CG",
+	}
+
+	assert constants["CG_2ND_PLYR_FRAGS_LG"] == 0xd4
+	assert constants["CG_2ND_PLYR_FRAGS_RG"] == 0xd5
+	assert constants["CG_2ND_PLYR_FRAGS_PG"] == 0xd6
+	assert constants["CG_2ND_PLYR_FRAGS_BFG"] == 0xd7
+	assert constants["CG_2ND_PLYR_FRAGS_CG"] == 0xd8
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_100368a0")
+
+	for expected in (
+		"case 0x7a, 0x86, 0x92, 0x9f, 0xab, 0xd4",
+		"return 6",
+		"case 0x7b, 0x87, 0x93, 0xa0, 0xac, 0xd5",
+		"return 7",
+		"case 0x7c, 0x88, 0x94, 0xa1, 0xad, 0xd6",
+		"return 8",
+		"case 0x7d, 0x89, 0x95, 0xa2, 0xae, 0xd7",
+		"return 9",
+		"case 0x7e, 0x8a, 0x96, 0xa3, 0xaf, 0xd8",
+		"return 0xd",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6030c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_frags_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_FRAGS_LG:",
+		"return WP_LIGHTNING;",
+		"case CG_1ST_PLYR_FRAGS_RG:",
+		"return WP_RAILGUN;",
+		"case CG_1ST_PLYR_FRAGS_PG:",
+		"return WP_PLASMAGUN;",
+		"case CG_1ST_PLYR_FRAGS_BFG:",
+		"return WP_BFG;",
+		"case CG_1ST_PLYR_FRAGS_CG:",
+		"return WP_CHAINGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_LIGHTNING,\n\tWP_RAILGUN,\n\tWP_PLASMAGUN,\n\tWP_BFG,\n\tWP_CHAINGUN,",
+	):
+		assert expected in cgame_frag_order_block
+		assert expected in game_frag_order_block
+
+	for expected in (
+		"weapon = cgScoreStatFragWeapons[j];",
+		"cg.scoreStats[clientNum].weaponFrags[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponFrags, scorestatFragWeapons, SCORESTAT_FRAG_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_FRAGS_G && normalized <= CG_1ST_PLYR_FRAGS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponFrags[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_FRAGS_HMG",
+		"CG_DrawPlacementWeaponFragsOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in frags_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_217_to_221_ownerdraws_match_retail_second_player_frag_tail_and_hit_head() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	frags_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponFragsOwnerDraw")
+	hits_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponHitsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_frag_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatFragWeapons")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_frag_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatFragWeapons")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_frags_block = _text_between(
+		hlil_source,
+		"100368a0    void sub_100368a0",
+		"100369d0",
+	)
+	retail_weapon_hits_block = _text_between(
+		hlil_source,
+		"100369d0    void sub_100369d0",
+		"10036b00",
+	)
+	selected_frags = {
+		"CG_2ND_PLYR_FRAGS_NG",
+		"CG_2ND_PLYR_FRAGS_PL",
+		"CG_2ND_PLYR_FRAGS_HMG",
+	}
+	selected_hits = {
+		"CG_2ND_PLYR_HITS_MG",
+		"CG_2ND_PLYR_HITS_SG",
+	}
+
+	assert constants["CG_2ND_PLYR_FRAGS_NG"] == 0xd9
+	assert constants["CG_2ND_PLYR_FRAGS_PL"] == 0xda
+	assert constants["CG_2ND_PLYR_FRAGS_HMG"] == 0xdb
+	assert constants["CG_2ND_PLYR_HITS_MG"] == 0xdc
+	assert constants["CG_2ND_PLYR_HITS_SG"] == 0xdd
+	assert {constants[name] for name in selected_frags} <= _retail_cg_ownerdraw_cases_for_target("FUN_100368a0")
+	assert {constants[name] for name in selected_hits} <= _retail_cg_ownerdraw_cases_for_target("FUN_100369d0")
+
+	for expected in (
+		"case 0x7f, 0x8b, 0x97, 0xa4, 0xb0, 0xd9",
+		"return 0xb",
+		"case 0x80, 0x8c, 0x98, 0xa5, 0xb1, 0xda",
+		"return 0xc",
+		"case 0x81, 0x8d, 0x99, 0xa6, 0xb2, 0xdb",
+		"return 0xe",
+		"case 0x76, 0x82, 0x8e, 0x9b, 0xa7, 0xd0, 0xdc",
+		"return 2",
+		"case 0x77, 0x83, 0x8f, 0x9c, 0xa8, 0xd1, 0xdd",
+		"return 3",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6030c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_frags_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a603cc",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_hits_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_FRAGS_HMG",
+		"ownerDraw >= CG_2ND_PLYR_HITS_MG && ownerDraw <= CG_2ND_PLYR_HITS_HMG",
+	):
+		assert expected in guard_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_FRAGS_NG:",
+		"return WP_NAILGUN;",
+		"case CG_1ST_PLYR_FRAGS_PL:",
+		"return WP_PROX_LAUNCHER;",
+		"case CG_1ST_PLYR_FRAGS_HMG:",
+		"return WP_HEAVY_MACHINEGUN;",
+		"case CG_1ST_PLYR_HITS_MG:",
+		"return WP_MACHINEGUN;",
+		"case CG_1ST_PLYR_HITS_SG:",
+		"return WP_SHOTGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_CHAINGUN,\n\tWP_NAILGUN,\n\tWP_PROX_LAUNCHER,\n\tWP_HEAVY_MACHINEGUN",
+	):
+		assert expected in cgame_frag_order_block
+		assert expected in game_frag_order_block
+
+	for expected in (
+		"WP_MACHINEGUN,\n\tWP_SHOTGUN,\n\tWP_GRENADE_LAUNCHER,",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"weapon = cgScoreStatFragWeapons[j];",
+		"cg.scoreStats[clientNum].weaponFrags[weapon] = value;",
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponHits[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponFrags, scorestatFragWeapons, SCORESTAT_FRAG_WEAPON_COUNT );",
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_FRAGS_G && normalized <= CG_1ST_PLYR_FRAGS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponFrags[weapon] );',
+		"if ( normalized >= CG_1ST_PLYR_HITS_MG && normalized <= CG_1ST_PLYR_HITS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponHits[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	for expected in (
+		"CG_DrawPlacementWeaponFragsOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"CG_DrawPlacementWeaponHitsOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in frags_wrapper_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in hits_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected_frags | selected_hits:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_222_to_226_ownerdraws_match_retail_second_player_weapon_hit_midband() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	hits_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponHitsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_hits_block = _text_between(
+		hlil_source,
+		"100369d0    void sub_100369d0",
+		"10036b00",
+	)
+	selected = {
+		"CG_2ND_PLYR_HITS_GL",
+		"CG_2ND_PLYR_HITS_RL",
+		"CG_2ND_PLYR_HITS_LG",
+		"CG_2ND_PLYR_HITS_RG",
+		"CG_2ND_PLYR_HITS_PG",
+	}
+
+	assert constants["CG_2ND_PLYR_HITS_GL"] == 0xde
+	assert constants["CG_2ND_PLYR_HITS_RL"] == 0xdf
+	assert constants["CG_2ND_PLYR_HITS_LG"] == 0xe0
+	assert constants["CG_2ND_PLYR_HITS_RG"] == 0xe1
+	assert constants["CG_2ND_PLYR_HITS_PG"] == 0xe2
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_100369d0")
+
+	for expected in (
+		"case 0x78, 0x84, 0x90, 0x9d, 0xa9, 0xd2, 0xde",
+		"return 4",
+		"case 0x79, 0x85, 0x91, 0x9e, 0xaa, 0xd3, 0xdf",
+		"return 5",
+		"case 0x7a, 0x86, 0x92, 0x9f, 0xab, 0xd4, 0xe0",
+		"return 6",
+		"case 0x7b, 0x87, 0x93, 0xa0, 0xac, 0xd5, 0xe1",
+		"return 7",
+		"case 0x7c, 0x88, 0x94, 0xa1, 0xad, 0xd6, 0xe2",
+		"return 8",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a603cc",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_hits_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_HITS_MG && ownerDraw <= CG_2ND_PLYR_HITS_HMG" in guard_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_HITS_GL:",
+		"return WP_GRENADE_LAUNCHER;",
+		"case CG_1ST_PLYR_HITS_RL:",
+		"return WP_ROCKET_LAUNCHER;",
+		"case CG_1ST_PLYR_HITS_LG:",
+		"return WP_LIGHTNING;",
+		"case CG_1ST_PLYR_HITS_RG:",
+		"return WP_RAILGUN;",
+		"case CG_1ST_PLYR_HITS_PG:",
+		"return WP_PLASMAGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_GRENADE_LAUNCHER,\n\tWP_ROCKET_LAUNCHER,\n\tWP_LIGHTNING,\n\tWP_RAILGUN,\n\tWP_PLASMAGUN,",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponHits[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_HITS_MG && normalized <= CG_1ST_PLYR_HITS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponHits[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	assert "CG_DrawPlacementWeaponHitsOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in hits_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_227_to_231_ownerdraws_match_retail_second_player_weapon_hit_tail() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	hits_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponHitsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_hits_block = _text_between(
+		hlil_source,
+		"100369d0    void sub_100369d0",
+		"10036b00",
+	)
+	selected = {
+		"CG_2ND_PLYR_HITS_BFG",
+		"CG_2ND_PLYR_HITS_CG",
+		"CG_2ND_PLYR_HITS_NG",
+		"CG_2ND_PLYR_HITS_PL",
+		"CG_2ND_PLYR_HITS_HMG",
+	}
+
+	assert constants["CG_2ND_PLYR_HITS_BFG"] == 0xe3
+	assert constants["CG_2ND_PLYR_HITS_CG"] == 0xe4
+	assert constants["CG_2ND_PLYR_HITS_NG"] == 0xe5
+	assert constants["CG_2ND_PLYR_HITS_PL"] == 0xe6
+	assert constants["CG_2ND_PLYR_HITS_HMG"] == 0xe7
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_100369d0")
+
+	for expected in (
+		"case 0x7d, 0x89, 0x95, 0xa2, 0xae, 0xd7, 0xe3",
+		"return 9",
+		"case 0x7e, 0x8a, 0x96, 0xa3, 0xaf, 0xd8, 0xe4",
+		"return 0xd",
+		"case 0x7f, 0x8b, 0x97, 0xa4, 0xb0, 0xd9, 0xe5",
+		"return 0xb",
+		"case 0x80, 0x8c, 0x98, 0xa5, 0xb1, 0xda, 0xe6",
+		"return 0xc",
+		"case 0x81, 0x8d, 0x99, 0xa6, 0xb2, 0xdb, 0xe7",
+		"return 0xe",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a603cc",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_hits_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_HITS_MG && ownerDraw <= CG_2ND_PLYR_HITS_HMG" in guard_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_HITS_BFG:",
+		"return WP_BFG;",
+		"case CG_1ST_PLYR_HITS_CG:",
+		"return WP_CHAINGUN;",
+		"case CG_1ST_PLYR_HITS_NG:",
+		"return WP_NAILGUN;",
+		"case CG_1ST_PLYR_HITS_PL:",
+		"return WP_PROX_LAUNCHER;",
+		"case CG_1ST_PLYR_HITS_HMG:",
+		"return WP_HEAVY_MACHINEGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_BFG,\n\tWP_CHAINGUN,\n\tWP_NAILGUN,\n\tWP_PROX_LAUNCHER,\n\tWP_HEAVY_MACHINEGUN",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponHits[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_HITS_MG && normalized <= CG_1ST_PLYR_HITS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponHits[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	assert "CG_DrawPlacementWeaponHitsOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in hits_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_232_to_236_ownerdraws_match_retail_second_player_weapon_shot_head() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	shots_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponShotsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_shots_block = _text_between(
+		hlil_source,
+		"10036b00    void sub_10036b00",
+		"10036c30",
+	)
+	selected = {
+		"CG_2ND_PLYR_SHOTS_MG",
+		"CG_2ND_PLYR_SHOTS_SG",
+		"CG_2ND_PLYR_SHOTS_GL",
+		"CG_2ND_PLYR_SHOTS_RL",
+		"CG_2ND_PLYR_SHOTS_LG",
+	}
+
+	assert constants["CG_2ND_PLYR_SHOTS_MG"] == 0xe8
+	assert constants["CG_2ND_PLYR_SHOTS_SG"] == 0xe9
+	assert constants["CG_2ND_PLYR_SHOTS_GL"] == 0xea
+	assert constants["CG_2ND_PLYR_SHOTS_RL"] == 0xeb
+	assert constants["CG_2ND_PLYR_SHOTS_LG"] == 0xec
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036b00")
+
+	for expected in (
+		"case 0x76, 0x82, 0x8e, 0x9b, 0xa7, 0xd0, 0xdc, 0xe8",
+		"return 2",
+		"case 0x77, 0x83, 0x8f, 0x9c, 0xa8, 0xd1, 0xdd, 0xe9",
+		"return 3",
+		"case 0x78, 0x84, 0x90, 0x9d, 0xa9, 0xd2, 0xde, 0xea",
+		"return 4",
+		"case 0x79, 0x85, 0x91, 0x9e, 0xaa, 0xd3, 0xdf, 0xeb",
+		"return 5",
+		"case 0x7a, 0x86, 0x92, 0x9f, 0xab, 0xd4, 0xe0, 0xec",
+		"return 6",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6038c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_shots_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_SHOTS_MG && ownerDraw <= CG_2ND_PLYR_SHOTS_HMG" in guard_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_SHOTS_MG:",
+		"return WP_MACHINEGUN;",
+		"case CG_1ST_PLYR_SHOTS_SG:",
+		"return WP_SHOTGUN;",
+		"case CG_1ST_PLYR_SHOTS_GL:",
+		"return WP_GRENADE_LAUNCHER;",
+		"case CG_1ST_PLYR_SHOTS_RL:",
+		"return WP_ROCKET_LAUNCHER;",
+		"case CG_1ST_PLYR_SHOTS_LG:",
+		"return WP_LIGHTNING;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_MACHINEGUN,\n\tWP_SHOTGUN,\n\tWP_GRENADE_LAUNCHER,\n\tWP_ROCKET_LAUNCHER,\n\tWP_LIGHTNING,",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponShots[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_SHOTS_MG && normalized <= CG_1ST_PLYR_SHOTS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponShots[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	assert "CG_DrawPlacementWeaponShotsOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in shots_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_237_to_241_ownerdraws_match_retail_second_player_weapon_shot_tail() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	shots_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponShotsOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_shots_block = _text_between(
+		hlil_source,
+		"10036b00    void sub_10036b00",
+		"10036c30",
+	)
+	selected = {
+		"CG_2ND_PLYR_SHOTS_RG",
+		"CG_2ND_PLYR_SHOTS_PG",
+		"CG_2ND_PLYR_SHOTS_BFG",
+		"CG_2ND_PLYR_SHOTS_CG",
+		"CG_2ND_PLYR_SHOTS_NG",
+	}
+
+	assert constants["CG_2ND_PLYR_SHOTS_RG"] == 0xed
+	assert constants["CG_2ND_PLYR_SHOTS_PG"] == 0xee
+	assert constants["CG_2ND_PLYR_SHOTS_BFG"] == 0xef
+	assert constants["CG_2ND_PLYR_SHOTS_CG"] == 0xf0
+	assert constants["CG_2ND_PLYR_SHOTS_NG"] == 0xf1
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036b00")
+
+	for expected in (
+		"case 0x7b, 0x87, 0x93, 0xa0, 0xac, 0xd5, 0xe1, 0xed",
+		"return 7",
+		"case 0x7c, 0x88, 0x94, 0xa1, 0xad, 0xd6, 0xe2, 0xee",
+		"return 8",
+		"case 0x7d, 0x89, 0x95, 0xa2, 0xae, 0xd7, 0xe3, 0xef",
+		"return 9",
+		"case 0x7e, 0x8a, 0x96, 0xa3, 0xaf, 0xd8, 0xe4, 0xf0",
+		"return 0xd",
+		"case 0x7f, 0x8b, 0x97, 0xa4, 0xb0, 0xd9, 0xe5, 0xf1",
+		"return 0xb",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"if (ebx s< 0xc1 || ebx s> 0x11a)",
+		"ecx = 1",
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6038c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_shots_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_SHOTS_MG && ownerDraw <= CG_2ND_PLYR_SHOTS_HMG" in guard_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_2ND_PLYR_FRAGS_G && ownerDraw <= CG_2ND_PLYR_ACC_HMG ) {",
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"case CG_1ST_PLYR_SHOTS_RG:",
+		"return WP_RAILGUN;",
+		"case CG_1ST_PLYR_SHOTS_PG:",
+		"return WP_PLASMAGUN;",
+		"case CG_1ST_PLYR_SHOTS_BFG:",
+		"return WP_BFG;",
+		"case CG_1ST_PLYR_SHOTS_CG:",
+		"return WP_CHAINGUN;",
+		"case CG_1ST_PLYR_SHOTS_NG:",
+		"return WP_NAILGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"WP_RAILGUN,\n\tWP_PLASMAGUN,\n\tWP_BFG,\n\tWP_CHAINGUN,\n\tWP_NAILGUN,",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponShots[weapon] = value;",
+		"cg.scoreStats[clientNum].valid = qtrue;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		'trap_SendServerCommand( ent - g_entities, va( "scorestats %i%s", emitted, payload ) );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_SHOTS_MG && normalized <= CG_1ST_PLYR_SHOTS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponShots[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	assert "CG_DrawPlacementWeaponShotsOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "(void)CG_DrawPlacementMetricTextOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in shots_wrapper_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_242_to_246_ownerdraws_match_retail_second_player_weapon_shot_damage_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	cgame_frag_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatFragWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_frag_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatFragWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_shots_block = _text_between(
+		hlil_source,
+		"10036b00    void sub_10036b00",
+		"10036c30",
+	)
+	retail_weapon_damage_block = _text_between(
+		hlil_source,
+		"10036c30    void sub_10036c30",
+		"10036d60",
+	)
+	selected_shots = {
+		"CG_2ND_PLYR_SHOTS_PL",
+		"CG_2ND_PLYR_SHOTS_HMG",
+	}
+	selected_damage = {
+		"CG_2ND_PLYR_DMG_G",
+		"CG_2ND_PLYR_DMG_MG",
+		"CG_2ND_PLYR_DMG_SG",
+	}
+
+	assert constants["CG_2ND_PLYR_SHOTS_PL"] == 0xf2
+	assert constants["CG_2ND_PLYR_SHOTS_HMG"] == 0xf3
+	assert constants["CG_2ND_PLYR_DMG_G"] == 0xf4
+	assert constants["CG_2ND_PLYR_DMG_MG"] == 0xf5
+	assert constants["CG_2ND_PLYR_DMG_SG"] == 0xf6
+	assert {constants[name] for name in selected_shots} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036b00")
+	assert {constants[name] for name in selected_damage} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036c30")
+
+	for expected in (
+		"case 0x80, 0x8c, 0x98, 0xa5, 0xb1, 0xda, 0xe6, 0xf2, 0xff, 0x10b",
+		"return 0xc",
+		"case 0x81, 0x8d, 0x99, 0xa6, 0xb2, 0xdb, 0xe7, 0xf3, 0x100, 0x10c",
+		"return 0xe",
+		"case 0x75, 0x9a, 0xcf, 0xf4",
+		"return 1",
+		"case 0x76, 0x82, 0x8e, 0x9b, 0xa7, 0xd0, 0xdc, 0xe8, 0xf5, 0x101",
+		"return 2",
+		"case 0x77, 0x83, 0x8f, 0x9c, 0xa8, 0xd1, 0xdd, 0xe9, 0xf6, 0x102",
+		"return 3",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6038c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_shots_block
+
+	for expected in (
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6040c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_damage_block
+
+	for expected in (
+		"WP_NAILGUN,\n\tWP_PROX_LAUNCHER,\n\tWP_HEAVY_MACHINEGUN",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"WP_GAUNTLET,\n\tWP_MACHINEGUN,\n\tWP_SHOTGUN,",
+	):
+		assert expected in cgame_frag_order_block
+		assert expected in game_frag_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_SHOTS_MG && ownerDraw <= CG_2ND_PLYR_SHOTS_HMG",
+		"ownerDraw >= CG_2ND_PLYR_DMG_G && ownerDraw <= CG_2ND_PLYR_DMG_HMG",
+	):
+		assert expected in guard_block
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponShots[weapon] = value;",
+		"weapon = cgScoreStatFragWeapons[j];",
+		"cg.scoreStats[clientNum].weaponDamage[weapon] = value;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponDamage, scorestatFragWeapons, SCORESTAT_DMG_WEAPON_COUNT );",
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"case CG_1ST_PLYR_SHOTS_PL:",
+		"case CG_1ST_PLYR_DMG_PL:",
+		"return WP_PROX_LAUNCHER;",
+		"case CG_1ST_PLYR_SHOTS_HMG:",
+		"case CG_1ST_PLYR_DMG_HMG:",
+		"return WP_HEAVY_MACHINEGUN;",
+		"case CG_1ST_PLYR_DMG_G:",
+		"return WP_GAUNTLET;",
+		"case CG_1ST_PLYR_DMG_MG:",
+		"return WP_MACHINEGUN;",
+		"case CG_1ST_PLYR_DMG_SG:",
+		"return WP_SHOTGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"if ( normalized >= CG_1ST_PLYR_SHOTS_MG && normalized <= CG_1ST_PLYR_SHOTS_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponShots[weapon] );',
+		"if ( normalized >= CG_1ST_PLYR_DMG_G && normalized <= CG_1ST_PLYR_DMG_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponDamage[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	for expected in (
+		"CG_DrawPlacementWeaponShotsOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"CG_DrawPlacementWeaponDamageOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected_shots | selected_damage:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_247_to_251_ownerdraws_match_retail_second_player_weapon_damage_mid_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_frag_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatFragWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_frag_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatFragWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_damage_block = _text_between(
+		hlil_source,
+		"10036c30    void sub_10036c30",
+		"10036d60",
+	)
+	selected = {
+		"CG_2ND_PLYR_DMG_GL",
+		"CG_2ND_PLYR_DMG_RL",
+		"CG_2ND_PLYR_DMG_LG",
+		"CG_2ND_PLYR_DMG_RG",
+		"CG_2ND_PLYR_DMG_PG",
+	}
+
+	assert constants["CG_2ND_PLYR_DMG_GL"] == 0xf7
+	assert constants["CG_2ND_PLYR_DMG_RL"] == 0xf8
+	assert constants["CG_2ND_PLYR_DMG_LG"] == 0xf9
+	assert constants["CG_2ND_PLYR_DMG_RG"] == 0xfa
+	assert constants["CG_2ND_PLYR_DMG_PG"] == 0xfb
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036c30")
+
+	for expected in (
+		"case 0x78, 0x84, 0x90, 0x9d, 0xa9, 0xd2, 0xde, 0xea, 0xf7, 0x103",
+		"return 4",
+		"case 0x79, 0x85, 0x91, 0x9e, 0xaa, 0xd3, 0xdf, 0xeb, 0xf8, 0x104",
+		"return 5",
+		"case 0x7a, 0x86, 0x92, 0x9f, 0xab, 0xd4, 0xe0, 0xec, 0xf9, 0x105",
+		"return 6",
+		"case 0x7b, 0x87, 0x93, 0xa0, 0xac, 0xd5, 0xe1, 0xed, 0xfa, 0x106",
+		"return 7",
+		"case 0x7c, 0x88, 0x94, 0xa1, 0xad, 0xd6, 0xe2, 0xee, 0xfb, 0x107",
+		"return 8",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6040c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_damage_block
+
+	for expected in (
+		"WP_GRENADE_LAUNCHER,\n\tWP_ROCKET_LAUNCHER,\n\tWP_LIGHTNING,\n\tWP_RAILGUN,\n\tWP_PLASMAGUN,",
+	):
+		assert expected in cgame_frag_order_block
+		assert expected in game_frag_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_DMG_G && ownerDraw <= CG_2ND_PLYR_DMG_HMG" in guard_block
+
+	for expected in (
+		"weapon = cgScoreStatFragWeapons[j];",
+		"cg.scoreStats[clientNum].weaponDamage[weapon] = value;",
+	):
+		assert expected in scorestats_parse_block
+
+	assert "G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponDamage, scorestatFragWeapons, SCORESTAT_DMG_WEAPON_COUNT );" in game_scorestats_send_block
+
+	for expected in (
+		"case CG_1ST_PLYR_DMG_GL:",
+		"return WP_GRENADE_LAUNCHER;",
+		"case CG_1ST_PLYR_DMG_RL:",
+		"return WP_ROCKET_LAUNCHER;",
+		"case CG_1ST_PLYR_DMG_LG:",
+		"return WP_LIGHTNING;",
+		"case CG_1ST_PLYR_DMG_RG:",
+		"return WP_RAILGUN;",
+		"case CG_1ST_PLYR_DMG_PG:",
+		"return WP_PLASMAGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"if ( normalized >= CG_1ST_PLYR_DMG_G && normalized <= CG_1ST_PLYR_DMG_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponDamage[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	assert "CG_DrawPlacementWeaponDamageOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_252_to_256_ownerdraws_match_retail_second_player_weapon_damage_tail_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_frag_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatFragWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_frag_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatFragWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_damage_block = _text_between(
+		hlil_source,
+		"10036c30    void sub_10036c30",
+		"10036d60",
+	)
+	selected = {
+		"CG_2ND_PLYR_DMG_BFG",
+		"CG_2ND_PLYR_DMG_CG",
+		"CG_2ND_PLYR_DMG_NG",
+		"CG_2ND_PLYR_DMG_PL",
+		"CG_2ND_PLYR_DMG_HMG",
+	}
+
+	assert constants["CG_2ND_PLYR_DMG_BFG"] == 0xfc
+	assert constants["CG_2ND_PLYR_DMG_CG"] == 0xfd
+	assert constants["CG_2ND_PLYR_DMG_NG"] == 0xfe
+	assert constants["CG_2ND_PLYR_DMG_PL"] == 0xff
+	assert constants["CG_2ND_PLYR_DMG_HMG"] == 0x100
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036c30")
+
+	for expected in (
+		"case 0x7d, 0x89, 0x95, 0xa2, 0xae, 0xd7, 0xe3, 0xef, 0xfc, 0x108",
+		"return 9",
+		"case 0x7e, 0x8a, 0x96, 0xa3, 0xaf, 0xd8, 0xe4, 0xf0, 0xfd, 0x109",
+		"return 0xd",
+		"case 0x7f, 0x8b, 0x97, 0xa4, 0xb0, 0xd9, 0xe5, 0xf1, 0xfe, 0x10a",
+		"return 0xb",
+		"case 0x80, 0x8c, 0x98, 0xa5, 0xb1, 0xda, 0xe6, 0xf2, 0xff, 0x10b",
+		"return 0xc",
+		"case 0x81, 0x8d, 0x99, 0xa6, 0xb2, 0xdb, 0xe7, 0xf3, 0x100, 0x10c",
+		"return 0xe",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"int32_t eax_1 = sub_1002e2b0(ebx)",
+		"&data_10a6040c",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*esi_1))",
+	):
+		assert expected in retail_weapon_damage_block
+
+	for expected in (
+		"WP_BFG,\n\tWP_CHAINGUN,\n\tWP_NAILGUN,\n\tWP_PROX_LAUNCHER,\n\tWP_HEAVY_MACHINEGUN",
+	):
+		assert expected in cgame_frag_order_block
+		assert expected in game_frag_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_DMG_G && ownerDraw <= CG_2ND_PLYR_DMG_HMG" in guard_block
+
+	for expected in (
+		"weapon = cgScoreStatFragWeapons[j];",
+		"cg.scoreStats[clientNum].weaponDamage[weapon] = value;",
+	):
+		assert expected in scorestats_parse_block
+
+	assert "G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.weaponDamage, scorestatFragWeapons, SCORESTAT_DMG_WEAPON_COUNT );" in game_scorestats_send_block
+
+	for expected in (
+		"case CG_1ST_PLYR_DMG_BFG:",
+		"return WP_BFG;",
+		"case CG_1ST_PLYR_DMG_CG:",
+		"return WP_CHAINGUN;",
+		"case CG_1ST_PLYR_DMG_NG:",
+		"return WP_NAILGUN;",
+		"case CG_1ST_PLYR_DMG_PL:",
+		"return WP_PROX_LAUNCHER;",
+		"case CG_1ST_PLYR_DMG_HMG:",
+		"return WP_HEAVY_MACHINEGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"if ( normalized >= CG_1ST_PLYR_DMG_G && normalized <= CG_1ST_PLYR_DMG_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->weaponDamage[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	assert "CG_DrawPlacementWeaponDamageOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_257_to_261_ownerdraws_match_retail_second_player_weapon_accuracy_head_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	accuracy_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponAccuracyOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_accuracy_block = _text_between(
+		hlil_source,
+		"10036d60    void __convention(\"regparm\") sub_10036d60",
+		"10036eb0",
+	)
+	selected = {
+		"CG_2ND_PLYR_ACC_MG",
+		"CG_2ND_PLYR_ACC_SG",
+		"CG_2ND_PLYR_ACC_GL",
+		"CG_2ND_PLYR_ACC_RL",
+		"CG_2ND_PLYR_ACC_LG",
+	}
+
+	assert constants["CG_2ND_PLYR_ACC_MG"] == 0x101
+	assert constants["CG_2ND_PLYR_ACC_SG"] == 0x102
+	assert constants["CG_2ND_PLYR_ACC_GL"] == 0x103
+	assert constants["CG_2ND_PLYR_ACC_RL"] == 0x104
+	assert constants["CG_2ND_PLYR_ACC_LG"] == 0x105
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036d60")
+
+	for expected in (
+		"case 0x76, 0x82, 0x8e, 0x9b, 0xa7, 0xd0, 0xdc, 0xe8, 0xf5, 0x101",
+		"return 2",
+		"case 0x77, 0x83, 0x8f, 0x9c, 0xa8, 0xd1, 0xdd, 0xe9, 0xf6, 0x102",
+		"return 3",
+		"case 0x78, 0x84, 0x90, 0x9d, 0xa9, 0xd2, 0xde, 0xea, 0xf7, 0x103",
+		"return 4",
+		"case 0x79, 0x85, 0x91, 0x9e, 0xaa, 0xd3, 0xdf, 0xeb, 0xf8, 0x104",
+		"return 5",
+		"case 0x7a, 0x86, 0x92, 0x9f, 0xab, 0xd4, 0xe0, 0xec, 0xf9, 0x105",
+		"return 6",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"int32_t eax = sub_1002e2b0(arg1)",
+		"&data_10a6034c",
+		'sub_100575e0("%d%%")',
+		"if (*((ecx_3 << 2) + &data_10a6034c) s> *(((edx * 0x9a + eax) << 2) + &data_10a6034c))",
+		"*arg5 = 0x3f800000",
+		"arg5[1] = 0x3f800000",
+		"arg5[2] = 0x3f800000",
+		"arg5[3] = 0x3f4ccccd",
+		"sub_10008440(fconvert.s(fconvert.t(*edi))",
+	):
+		assert expected in retail_weapon_accuracy_block
+
+	for expected in (
+		"WP_MACHINEGUN,\n\tWP_SHOTGUN,\n\tWP_GRENADE_LAUNCHER,\n\tWP_ROCKET_LAUNCHER,\n\tWP_LIGHTNING,",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+	assert "#define CG_SCORESTAT_ACCURACY_WEAPON_COUNT\t12" in servercmds_source
+	assert "#define SCORESTAT_ACCURACY_WEAPON_COUNT\t12" in game_cmds_source
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponHits[weapon] = value;",
+		"cg.scoreStats[clientNum].weaponShots[weapon] = value;",
+		"hits = cg.scoreStats[clientNum].weaponHits[weapon];",
+		"shots = cg.scoreStats[clientNum].weaponShots[weapon];",
+		"cg.scoreStats[clientNum].weaponAccuracy[weapon] = ( shots > 0 ) ? ( hits * 100 ) / shots : 0;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_ACC_MG && ownerDraw <= CG_2ND_PLYR_ACC_HMG" in guard_block
+
+	for expected in (
+		"case CG_1ST_PLYR_ACC_MG:",
+		"return WP_MACHINEGUN;",
+		"case CG_1ST_PLYR_ACC_SG:",
+		"return WP_SHOTGUN;",
+		"case CG_1ST_PLYR_ACC_GL:",
+		"return WP_GRENADE_LAUNCHER;",
+		"case CG_1ST_PLYR_ACC_RL:",
+		"return WP_ROCKET_LAUNCHER;",
+		"case CG_1ST_PLYR_ACC_LG:",
+		"return WP_LIGHTNING;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"if ( normalized >= CG_1ST_PLYR_ACC_MG && normalized <= CG_1ST_PLYR_ACC_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d%%", stats->weaponAccuracy[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	for expected in (
+		"otherScore = CG_GetPlacementScore( slot == 0 ? 1 : 0 );",
+		"otherValue = otherStats ? otherStats->weaponAccuracy[weapon] : 0;",
+		"if ( stats->weaponAccuracy[weapon] > otherValue ) {",
+		"drawColor[0] = 1.0f;",
+		"drawColor[1] = 1.0f;",
+		"drawColor[2] = 1.0f;",
+		"drawColor[3] = 0.8f;",
+	):
+		assert expected in accuracy_wrapper_block
+
+	assert "CG_DrawPlacementWeaponAccuracyOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_262_to_266_ownerdraws_match_retail_second_player_weapon_accuracy_mid_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	accuracy_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponAccuracyOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_accuracy_block = _text_between(
+		hlil_source,
+		"10036d60    void __convention(\"regparm\") sub_10036d60",
+		"10036eb0",
+	)
+	selected = {
+		"CG_2ND_PLYR_ACC_RG",
+		"CG_2ND_PLYR_ACC_PG",
+		"CG_2ND_PLYR_ACC_BFG",
+		"CG_2ND_PLYR_ACC_CG",
+		"CG_2ND_PLYR_ACC_NG",
+	}
+
+	assert constants["CG_2ND_PLYR_ACC_RG"] == 0x106
+	assert constants["CG_2ND_PLYR_ACC_PG"] == 0x107
+	assert constants["CG_2ND_PLYR_ACC_BFG"] == 0x108
+	assert constants["CG_2ND_PLYR_ACC_CG"] == 0x109
+	assert constants["CG_2ND_PLYR_ACC_NG"] == 0x10A
+	assert {constants[name] for name in selected} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036d60")
+
+	for expected in (
+		"case 0x7b, 0x87, 0x93, 0xa0, 0xac, 0xd5, 0xe1, 0xed, 0xfa, 0x106",
+		"return 7",
+		"case 0x7c, 0x88, 0x94, 0xa1, 0xad, 0xd6, 0xe2, 0xee, 0xfb, 0x107",
+		"return 8",
+		"case 0x7d, 0x89, 0x95, 0xa2, 0xae, 0xd7, 0xe3, 0xef, 0xfc, 0x108",
+		"return 9",
+		"case 0x7e, 0x8a, 0x96, 0xa3, 0xaf, 0xd8, 0xe4, 0xf0, 0xfd, 0x109",
+		"return 0xd",
+		"case 0x7f, 0x8b, 0x97, 0xa4, 0xb0, 0xd9, 0xe5, 0xf1, 0xfe, 0x10a",
+		"return 0xb",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"int32_t eax = sub_1002e2b0(arg1)",
+		"&data_10a6034c",
+		'sub_100575e0("%d%%")',
+		"if (*((ecx_3 << 2) + &data_10a6034c) s> *(((edx * 0x9a + eax) << 2) + &data_10a6034c))",
+		"*arg5 = 0x3f800000",
+		"arg5[1] = 0x3f800000",
+		"arg5[2] = 0x3f800000",
+		"arg5[3] = 0x3f4ccccd",
+		"sub_10008440(fconvert.s(fconvert.t(*edi))",
+	):
+		assert expected in retail_weapon_accuracy_block
+
+	for expected in (
+		"WP_RAILGUN,\n\tWP_PLASMAGUN,\n\tWP_BFG,\n\tWP_CHAINGUN,\n\tWP_NAILGUN,",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+	assert "#define CG_SCORESTAT_ACCURACY_WEAPON_COUNT\t12" in servercmds_source
+	assert "#define SCORESTAT_ACCURACY_WEAPON_COUNT\t12" in game_cmds_source
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponHits[weapon] = value;",
+		"cg.scoreStats[clientNum].weaponShots[weapon] = value;",
+		"hits = cg.scoreStats[clientNum].weaponHits[weapon];",
+		"shots = cg.scoreStats[clientNum].weaponShots[weapon];",
+		"cg.scoreStats[clientNum].weaponAccuracy[weapon] = ( shots > 0 ) ? ( hits * 100 ) / shots : 0;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	assert "ownerDraw >= CG_2ND_PLYR_ACC_MG && ownerDraw <= CG_2ND_PLYR_ACC_HMG" in guard_block
+
+	for expected in (
+		"case CG_1ST_PLYR_ACC_RG:",
+		"return WP_RAILGUN;",
+		"case CG_1ST_PLYR_ACC_PG:",
+		"return WP_PLASMAGUN;",
+		"case CG_1ST_PLYR_ACC_BFG:",
+		"return WP_BFG;",
+		"case CG_1ST_PLYR_ACC_CG:",
+		"return WP_CHAINGUN;",
+		"case CG_1ST_PLYR_ACC_NG:",
+		"return WP_NAILGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"normalized = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+		"if ( normalized >= CG_1ST_PLYR_ACC_MG && normalized <= CG_1ST_PLYR_ACC_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d%%", stats->weaponAccuracy[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in build_block
+
+	for expected in (
+		"otherScore = CG_GetPlacementScore( slot == 0 ? 1 : 0 );",
+		"otherValue = otherStats ? otherStats->weaponAccuracy[weapon] : 0;",
+		"if ( stats->weaponAccuracy[weapon] > otherValue ) {",
+		"drawColor[0] = 1.0f;",
+		"drawColor[1] = 1.0f;",
+		"drawColor[2] = 1.0f;",
+		"drawColor[3] = 0.8f;",
+	):
+		assert expected in accuracy_wrapper_block
+
+	assert "CG_DrawPlacementWeaponAccuracyOwnerDraw( rect, scale, color, textStyle, ownerDraw );" in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_267_to_271_ownerdraws_match_retail_second_player_accuracy_tail_and_pickup_head_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	weapon_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementWeaponMetricText")
+	pickup_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementPickupMetricText")
+	pickup_summary_block = _block_from_marker(source, "static void CG_DrawPlacementPickupSummaryOwnerDraw")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	accuracy_wrapper_block = _block_from_marker(source, "static void CG_DrawPlacementWeaponAccuracyOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	cgame_accuracy_order_block = _block_from_marker(servercmds_source, "static const weapon_t cgScoreStatAccuracyWeapons")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_accuracy_order_block = _block_from_marker(game_cmds_source, "static const weapon_t scorestatAccuracyWeapons")
+	game_pickup_order_block = _block_from_marker(game_cmds_source, "static const teamScoreStatIndex_t scorestatPlacementPickupTeamStats")
+	game_pickup_average_block = _block_from_marker(game_cmds_source, "static float G_GetPlacementPickupAverageSeconds")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_weapon_resolver_block = _text_between(
+		hlil_source,
+		"1002e2b0    int32_t __convention(\"regparm\") sub_1002e2b0",
+		"1002e319",
+	)
+	retail_weapon_accuracy_block = _text_between(
+		hlil_source,
+		"10036d60    void __convention(\"regparm\") sub_10036d60",
+		"10036eb0",
+	)
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10036eb0    uint32_t __convention(\"regparm\") sub_10036eb0",
+		"10037730",
+	)
+	selected_accuracy = {
+		"CG_2ND_PLYR_ACC_PL",
+		"CG_2ND_PLYR_ACC_HMG",
+	}
+	selected_pickups = {
+		"CG_2ND_PLYR_PICKUPS",
+		"CG_2ND_PLYR_PICKUPS_RA",
+		"CG_2ND_PLYR_PICKUPS_YA",
+	}
+	selected = selected_accuracy | selected_pickups
+
+	assert constants["CG_2ND_PLYR_ACC_PL"] == 0x10B
+	assert constants["CG_2ND_PLYR_ACC_HMG"] == 0x10C
+	assert constants["CG_2ND_PLYR_PICKUPS"] == 0x10D
+	assert constants["CG_2ND_PLYR_PICKUPS_RA"] == 0x10E
+	assert constants["CG_2ND_PLYR_PICKUPS_YA"] == 0x10F
+	assert {constants[name] for name in selected_accuracy} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036d60")
+	assert {constants[name] for name in selected_pickups} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036eb0")
+
+	for expected in (
+		"case 0x80, 0x8c, 0x98, 0xa5, 0xb1, 0xda, 0xe6, 0xf2, 0xff, 0x10b",
+		"return 0xc",
+		"case 0x81, 0x8d, 0x99, 0xa6, 0xb2, 0xdb, 0xe7, 0xf3, 0x100, 0x10c",
+		"return 0xe",
+	):
+		assert expected in retail_weapon_resolver_block
+
+	for expected in (
+		"int32_t eax = sub_1002e2b0(arg1)",
+		"&data_10a6034c",
+		'sub_100575e0("%d%%")',
+		"*arg5 = 0x3f800000",
+		"arg5[3] = 0x3f4ccccd",
+	):
+		assert expected in retail_weapon_accuracy_block
+
+	for expected in (
+		"result = arg1 - 0xb3",
+		"lookup_table_100376c4",
+		"data_10a5f798",
+		"data_10a5f79c",
+		"data_10a5f7a0",
+		"data_10a5f7a4",
+		"*(edi_2 + 0x10a602d8)",
+		"*(edi_2 + 0x10a602e0)",
+		"*(edi_2 + 0x10a602e8)",
+		"*(edi_2 + 0x10a602f0)",
+		"*(edi_2 + 0x10a602dc)",
+		"*(edi_2 + 0x10a602e4)",
+		"&data_10068e44",
+		'sub_100575e0("%3.2f")',
+		"case 1",
+		"*(esi_1 + 0x10a602d8)",
+		"case 2",
+		"esi_4 = esi * 0x268 + 0x10a602e0",
+		"sub_10008440(fconvert.s(fconvert.t(fconvert.s(fconvert.t(*arg2))))",
+	):
+		assert expected in retail_pickup_block
+
+	assert "CG_SCORESTAT_PICKUP_RA = 0,\n\tCG_SCORESTAT_PICKUP_YA,\n\tCG_SCORESTAT_PICKUP_GA,\n\tCG_SCORESTAT_PICKUP_MH," in local_source
+	assert "int\t\t\tpickupCounts[CG_SCORESTAT_PICKUP_COUNT];" in local_source
+	assert "float\t\t\tpickupAvgSeconds[CG_SCORESTAT_PICKUP_COUNT];" in local_source
+
+	for expected in (
+		"WP_PROX_LAUNCHER,\n\tWP_HEAVY_MACHINEGUN",
+	):
+		assert expected in cgame_accuracy_order_block
+		assert expected in game_accuracy_order_block
+
+	for expected in (
+		"weapon = cgScoreStatAccuracyWeapons[j];",
+		"cg.scoreStats[clientNum].weaponHits[weapon] = value;",
+		"cg.scoreStats[clientNum].weaponShots[weapon] = value;",
+		"cg.scoreStats[clientNum].weaponAccuracy[weapon] = ( shots > 0 ) ? ( hits * 100 ) / shots : 0;",
+		"cg.scoreStats[clientNum].pickupCounts[j] = value;",
+		"cg.scoreStats[clientNum].pickupAvgSeconds[j] = value;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"TEAMSTAT_PICKUPS_RA,\n\tTEAMSTAT_PICKUPS_YA,\n\tTEAMSTAT_PICKUPS_GA,\n\tTEAMSTAT_PICKUPS_MH",
+	):
+		assert expected in game_pickup_order_block
+
+	for expected in (
+		"intervalCount = cl->pers.pickupIntervalCount[pickupIndex];",
+		"totalIntervalMs = cl->pers.pickupIntervalTotalMs[pickupIndex];",
+		"return ( (float)totalIntervalMs / 1000.0f ) / (float)intervalCount;",
+	):
+		assert expected in game_pickup_average_block
+
+	for expected in (
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_hits, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		"G_AppendScoreStatsWeaponValues( payload, sizeof( payload ), cl->pers.accuracy_shots, scorestatAccuracyWeapons, SCORESTAT_ACCURACY_WEAPON_COUNT );",
+		"teamStatIndex = scorestatPlacementPickupTeamStats[pickupIndex];",
+		"countValue = cl->pers.teamScoreStats[teamStatIndex];",
+		"avgSeconds = G_GetPlacementPickupAverageSeconds( cl, (scorestatPickupIndex_t)pickupIndex );",
+		'Com_sprintf( valueEntry, sizeof( valueEntry ), " %3.2f", avgSeconds );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_ACC_MG && ownerDraw <= CG_2ND_PLYR_ACC_HMG",
+		"ownerDraw >= CG_2ND_PLYR_PICKUPS && ownerDraw <= CG_2ND_PLYR_PICKUPS_MH",
+	):
+		assert expected in guard_block
+
+	for expected in (
+		"case CG_1ST_PLYR_ACC_PL:",
+		"return WP_PROX_LAUNCHER;",
+		"case CG_1ST_PLYR_ACC_HMG:",
+		"return WP_HEAVY_MACHINEGUN;",
+	):
+		assert expected in weapon_block
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_ACC_MG && normalized <= CG_1ST_PLYR_ACC_HMG ) {",
+		'Com_sprintf( buffer, bufferSize, "%d%%", stats->weaponAccuracy[weapon] );',
+		'Q_strncpyz( buffer, "-", bufferSize );',
+	):
+		assert expected in weapon_metric_block
+
+	for expected in (
+		"normalized = ownerDraw;",
+		"CG_ResolvePlacementMetricOwnerDraw( ownerDraw, NULL, &normalized );",
+		"if ( normalized == CG_1ST_PLYR_PICKUPS ) {",
+		"total += stats->pickupCounts[index];",
+		'Com_sprintf( buffer, bufferSize, "%d", total );',
+		"if ( normalized >= CG_1ST_PLYR_PICKUPS_RA && normalized <= CG_1ST_PLYR_PICKUPS_MH ) {",
+		"index = normalized - CG_1ST_PLYR_PICKUPS_RA;",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->pickupCounts[index] );',
+	):
+		assert expected in pickup_metric_block
+
+	for expected in (
+		"static const cgTeamPickupSummaryIcon_t cgPlacementPickupSummaryIcons[CG_SCORESTAT_PICKUP_COUNT]",
+		"CG_TEAM_PICKUP_SUMMARY_ICON_RA",
+		"CG_TEAM_PICKUP_SUMMARY_ICON_YA",
+		"CG_TEAM_PICKUP_SUMMARY_ICON_GA",
+		"CG_TEAM_PICKUP_SUMMARY_ICON_MH",
+	):
+		assert expected in source
+
+	for expected in (
+		"iconHandle = CG_GetTeamPickupSummaryIconHandle( TEAM_FREE, cgPlacementPickupSummaryIcons[index] );",
+		"CG_DrawPic( drawX, drawY, rect->w, rect->h, iconHandle );",
+		'Com_sprintf( countText, sizeof( countText ), "%d", stats->pickupCounts[index] );',
+		'Com_sprintf( averageText, sizeof( averageText ), "%3.2f", stats->pickupAvgSeconds[index] );',
+		"CG_Text_Paint( textX, drawY + 15.0f, scale, color, countText, 0, 0, textStyle );",
+	):
+		assert expected in pickup_summary_block
+
+	for expected in (
+		"otherScore = CG_GetPlacementScore( slot == 0 ? 1 : 0 );",
+		"otherValue = otherStats ? otherStats->weaponAccuracy[weapon] : 0;",
+		"if ( stats->weaponAccuracy[weapon] > otherValue ) {",
+		"drawColor[3] = 0.8f;",
+	):
+		assert expected in accuracy_wrapper_block
+
+	for expected in (
+		"CG_DrawPlacementWeaponAccuracyOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"CG_DrawPlacementPickupSummaryOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"CG_DrawPlacementPickupCountOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_272_to_276_ownerdraws_match_retail_second_player_pickup_tail_and_average_wiring() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	pickup_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementPickupMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	duel_scores_block = _block_from_marker(servercmds_source, "static void CG_ParseDuelScores")
+	game_pickup_order_block = _block_from_marker(game_cmds_source, "static const teamScoreStatIndex_t scorestatPlacementPickupTeamStats")
+	game_pickup_average_block = _block_from_marker(game_cmds_source, "static float G_GetPlacementPickupAverageSeconds")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_pickup_count_block = _text_between(
+		hlil_source,
+		"10036eb0    uint32_t __convention(\"regparm\") sub_10036eb0",
+		"10037730    int32_t __convention(\"regparm\") sub_10037730",
+	)
+	retail_pickup_average_block = _text_between(
+		hlil_source,
+		"10037730    int32_t __convention(\"regparm\") sub_10037730",
+		"10037990    void* __convention(\"regparm\") sub_10037990",
+	)
+	selected_counts = {
+		"CG_2ND_PLYR_PICKUPS_GA",
+		"CG_2ND_PLYR_PICKUPS_MH",
+	}
+	selected_averages = {
+		"CG_2ND_PLYR_AVG_PICKUP_TIME_RA",
+		"CG_2ND_PLYR_AVG_PICKUP_TIME_YA",
+		"CG_2ND_PLYR_AVG_PICKUP_TIME_GA",
+	}
+	selected = selected_counts | selected_averages
+
+	assert constants["CG_2ND_PLYR_PICKUPS_GA"] == 0x110
+	assert constants["CG_2ND_PLYR_PICKUPS_MH"] == 0x111
+	assert constants["CG_2ND_PLYR_AVG_PICKUP_TIME_RA"] == 0x112
+	assert constants["CG_2ND_PLYR_AVG_PICKUP_TIME_YA"] == 0x113
+	assert constants["CG_2ND_PLYR_AVG_PICKUP_TIME_GA"] == 0x114
+	assert {constants[name] for name in selected_counts} <= _retail_cg_ownerdraw_cases_for_target("FUN_10036eb0")
+	assert {constants[name] for name in selected_averages} <= _retail_cg_ownerdraw_cases_for_target("FUN_10037730")
+
+	for expected in (
+		"result = arg1 - 0xb3",
+		"lookup_table_100376c4",
+		"case 3",
+		"*(esi_5 + 0x10a9ced4)",
+		"case 4",
+		"esi_4 = esi * 0x268 + 0x10a602f0",
+		"&data_10068e44",
+		"sub_10008440(",
+	):
+		assert expected in retail_pickup_count_block
+
+	for expected in (
+		"if (arg3 - 0xb8 u<= 0x5d)",
+		"lookup_table_10037928",
+		"case 0",
+		"if (*(eax + 0x10a602d8) == 0)",
+		"*(eax + 0x10a602dc)",
+		"case 1",
+		"if (*(eax_3 + 0x10a602e0) == 0)",
+		"*(eax_3 + 0x10a602e4)",
+		"case 2",
+		"if (*(eax_7 + 0x10a602e8) == 0)",
+		"*(eax_7 + 0x10a602ec)",
+		"&data_10068420",
+		'sub_100575e0("%3.2f")',
+		"sub_10008780()",
+	):
+		assert expected in retail_pickup_average_block
+
+	assert "CG_SCORESTAT_PICKUP_RA = 0,\n\tCG_SCORESTAT_PICKUP_YA,\n\tCG_SCORESTAT_PICKUP_GA,\n\tCG_SCORESTAT_PICKUP_MH," in local_source
+	assert "int\t\t\tpickupCounts[CG_SCORESTAT_PICKUP_COUNT];" in local_source
+	assert "float\t\t\tpickupAvgSeconds[CG_SCORESTAT_PICKUP_COUNT];" in local_source
+
+	for expected in (
+		"TEAMSTAT_PICKUPS_RA,\n\tTEAMSTAT_PICKUPS_YA,\n\tTEAMSTAT_PICKUPS_GA,\n\tTEAMSTAT_PICKUPS_MH",
+	):
+		assert expected in game_pickup_order_block
+
+	for expected in (
+		"intervalCount = cl->pers.pickupIntervalCount[pickupIndex];",
+		"totalIntervalMs = cl->pers.pickupIntervalTotalMs[pickupIndex];",
+		"return ( (float)totalIntervalMs / 1000.0f ) / (float)intervalCount;",
+	):
+		assert expected in game_pickup_average_block
+
+	for expected in (
+		"cg.scoreStats[clientNum].pickupCounts[j] = value;",
+		"cg.scoreStats[clientNum].pickupAvgSeconds[j] = value;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"cg.scoreStats[clientNum].pickupCounts[CG_SCORESTAT_PICKUP_GA] = atoi( CG_Argv( baseArg + 17 ) );",
+		"cg.scoreStats[clientNum].pickupAvgSeconds[CG_SCORESTAT_PICKUP_GA] = (float)atof( CG_Argv( baseArg + 18 ) );",
+		"cg.scoreStats[clientNum].pickupCounts[CG_SCORESTAT_PICKUP_MH] = atoi( CG_Argv( baseArg + 19 ) );",
+		"cg.scoreStats[clientNum].pickupAvgSeconds[CG_SCORESTAT_PICKUP_MH] = (float)atof( CG_Argv( baseArg + 20 ) );",
+	):
+		assert expected in duel_scores_block
+
+	for expected in (
+		"teamStatIndex = scorestatPlacementPickupTeamStats[pickupIndex];",
+		"countValue = cl->pers.teamScoreStats[teamStatIndex];",
+		"avgSeconds = G_GetPlacementPickupAverageSeconds( cl, (scorestatPickupIndex_t)pickupIndex );",
+		'Com_sprintf( valueEntry, sizeof( valueEntry ), " %3.2f", avgSeconds );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_PICKUPS && ownerDraw <= CG_2ND_PLYR_PICKUPS_MH",
+		"ownerDraw >= CG_2ND_PLYR_AVG_PICKUP_TIME_RA && ownerDraw <= CG_2ND_PLYR_AVG_PICKUP_TIME_MH",
+	):
+		assert expected in guard_block
+
+	for expected in (
+		"normalized = ownerDraw;",
+		"CG_ResolvePlacementMetricOwnerDraw( ownerDraw, NULL, &normalized );",
+		"if ( normalized >= CG_1ST_PLYR_PICKUPS_RA && normalized <= CG_1ST_PLYR_PICKUPS_MH ) {",
+		"index = normalized - CG_1ST_PLYR_PICKUPS_RA;",
+		'Com_sprintf( buffer, bufferSize, "%d", stats->pickupCounts[index] );',
+		"if ( normalized >= CG_1ST_PLYR_AVG_PICKUP_TIME_RA && normalized <= CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {",
+		"index = normalized - CG_1ST_PLYR_AVG_PICKUP_TIME_RA;",
+		"if ( stats->pickupCounts[index] <= 0 ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		'Com_sprintf( buffer, bufferSize, "%3.2f", stats->pickupAvgSeconds[index] );',
+	):
+		assert expected in pickup_metric_block
+
+	average_start = pickup_metric_block.index("if ( normalized >= CG_1ST_PLYR_AVG_PICKUP_TIME_RA")
+	assert "buffer[0] = '\\0';" not in pickup_metric_block[average_start:]
+
+	for expected in (
+		"CG_DrawPlacementPickupCountOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"CG_DrawPlacementPickupAverageOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for name in selected:
+		assert f"case {name}:" not in ownerdraw_block
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_277_to_281_ownerdraws_match_retail_second_player_average_award_and_pr_boundary() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	pickup_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementPickupMetricText")
+	build_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	duel_scores_block = _block_from_marker(servercmds_source, "static void CG_ParseDuelScores")
+	game_duel_row_block = _block_from_marker(game_cmds_source, "static void G_BuildDuelScoreboardRow")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	retail_pickup_average_block = _text_between(
+		hlil_source,
+		"10037730    int32_t __convention(\"regparm\") sub_10037730",
+		"10037990    void* __convention(\"regparm\") sub_10037990",
+	)
+	retail_award_block = _text_between(
+		hlil_source,
+		"10037990    void* __convention(\"regparm\") sub_10037990",
+		"10037ba0",
+	)
+	selected_average = {"CG_2ND_PLYR_AVG_PICKUP_TIME_MH"}
+	selected_awards = {
+		"CG_2ND_PLYR_EXCELLENT",
+		"CG_2ND_PLYR_IMPRESSIVE",
+		"CG_2ND_PLYR_HUMILIATION",
+	}
+	selected_no_route = {"CG_2ND_PLYR_PR"}
+	selected = selected_average | selected_awards | selected_no_route
+
+	assert constants["CG_2ND_PLYR_AVG_PICKUP_TIME_MH"] == 0x115
+	assert constants["CG_2ND_PLYR_EXCELLENT"] == 0x116
+	assert constants["CG_2ND_PLYR_IMPRESSIVE"] == 0x117
+	assert constants["CG_2ND_PLYR_HUMILIATION"] == 0x118
+	assert constants["CG_2ND_PLYR_PR"] == 0x119
+	assert {constants[name] for name in selected_average} <= _retail_cg_ownerdraw_cases_for_target("FUN_10037730")
+	assert {constants[name] for name in selected_awards} <= _retail_cg_ownerdraw_cases_for_target("FUN_10037990")
+	assert constants["CG_2ND_PLYR_PR"] not in _retail_cg_ownerdraw_case_values()
+
+	for expected in (
+		"lookup_table_10037928",
+		"case 3",
+		"if (*(eax_10 + 0x10a602f0) == 0)",
+		"*(eax_10 + 0x10a602f4)",
+		"&data_10068420",
+		'sub_100575e0("%3.2f")',
+		"sub_10008780()",
+	):
+		assert expected in retail_pickup_average_block
+
+	for expected in (
+		"if (*result != 0 || data_10a6f8b8 == 1)",
+		"result = arg3 - 0xbc",
+		"lookup_table_10037b40",
+		"case nullptr",
+		"*(esi_1 + 0x10a60298)",
+		"case 1",
+		"*(esi_1 + 0x10a60294)",
+		"case 2",
+		"*(esi_1 + 0x10a6029c)",
+		"&data_10068e44",
+		"sub_10008440(",
+	):
+		assert expected in retail_award_block
+
+	assert "CG_SCORESTAT_PICKUP_RA = 0,\n\tCG_SCORESTAT_PICKUP_YA,\n\tCG_SCORESTAT_PICKUP_GA,\n\tCG_SCORESTAT_PICKUP_MH," in local_source
+	assert "int\t\t\tprogressionPr;" in local_source
+	assert "int\t\t\tprogressionTier;" in local_source
+
+	for expected in (
+		"if ( normalized >= CG_1ST_PLYR_AVG_PICKUP_TIME_RA && normalized <= CG_1ST_PLYR_AVG_PICKUP_TIME_MH ) {",
+		"index = normalized - CG_1ST_PLYR_AVG_PICKUP_TIME_RA;",
+		"if ( stats->pickupCounts[index] <= 0 ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		'Com_sprintf( buffer, bufferSize, "%3.2f", stats->pickupAvgSeconds[index] );',
+	):
+		assert expected in pickup_metric_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	for expected in (
+		"case CG_1ST_PLYR_EXCELLENT:",
+		'Com_sprintf( buffer, bufferSize, "%d", score->excellentCount );',
+		"case CG_1ST_PLYR_IMPRESSIVE:",
+		'Com_sprintf( buffer, bufferSize, "%d", score->impressiveCount );',
+		"case CG_1ST_PLYR_HUMILIATION:",
+		'Com_sprintf( buffer, bufferSize, "%d", score->guantletCount );',
+	):
+		assert expected in build_metric_block
+
+	for expected in (
+		"cg.scores[i].impressiveCount = atoi( CG_Argv( baseArg + 9 ) );",
+		"cg.scores[i].excellentCount = atoi( CG_Argv( baseArg + 10 ) );",
+		"cg.scores[i].guantletCount = atoi( CG_Argv( baseArg + 11 ) );",
+	):
+		assert expected in duel_scores_block
+
+	for expected in (
+		"impressiveCount = cl->ps.persistant[PERS_IMPRESSIVE_COUNT];",
+		"excellentCount = cl->ps.persistant[PERS_EXCELLENT_COUNT];",
+		"gauntletCount = cl->ps.persistant[PERS_GAUNTLET_FRAG_COUNT];",
+		"impressiveCount,\n\t\texcellentCount,\n\t\tgauntletCount,",
+	):
+		assert expected in game_duel_row_block
+
+	for expected in (
+		"cg.scoreStats[clientNum].progressionPr = value;",
+		"cg.scoreStats[clientNum].progressionTier = value;",
+	):
+		assert expected in scorestats_parse_block
+
+	for expected in (
+		"progressionPr = G_GetPlacementProgressionPr( cl );",
+		"progressionTier = G_GetPlacementProgressionTier( cl );",
+		'Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", progressionPr );',
+		'Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", progressionTier );',
+	):
+		assert expected in game_scorestats_send_block
+
+	for expected in (
+		"ownerDraw >= CG_2ND_PLYR_AVG_PICKUP_TIME_RA && ownerDraw <= CG_2ND_PLYR_AVG_PICKUP_TIME_MH",
+		"ownerDraw >= CG_2ND_PLYR_EXCELLENT && ownerDraw <= CG_2ND_PLYR_HUMILIATION",
+	):
+		assert expected in guard_block
+
+	for expected in (
+		"CG_DrawPlacementPickupAverageOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"CG_DrawPlacementAwardCountOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in dispatch_block
+	assert "if ( CG_IsPlacementMetricOwnerDraw( ownerDraw ) ) {" in competitive_block
+
+	for expected in (
+		"case CG_2ND_PLYR_PR:",
+		"case CG_2ND_PLYR_TIER:",
+		"Retail has no raw ownerdraw 0x119-0x11a helper route.",
+	):
+		assert expected in ownerdraw_block
+
+	for name in selected - selected_no_route:
+		assert f"case {name}:" not in ownerdraw_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+	assert "CG_2ND_PLYR_PR" not in guard_block
+	assert "CG_2ND_PLYR_PR" not in build_metric_block
+	assert "CG_2ND_PLYR_PR" not in competitive_block
+
+
+def test_cgame_selected_282_ownerdraw_matches_retail_second_player_tier_noop_boundary() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	resolve_block = _block_from_marker(source, "static qboolean CG_ResolvePlacementMetricOwnerDraw")
+	guard_block = _block_from_marker(source, "static qboolean CG_IsRetailPlacementMetricOwnerDraw")
+	weapon_block = _block_from_marker(source, "static weapon_t CG_GetPlacementMetricWeapon( int ownerDraw )")
+	build_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementMetricText")
+	pickup_metric_block = _block_from_marker(source, "static qboolean CG_BuildPlacementPickupMetricText")
+	dispatch_block = _block_from_marker(source, "static qboolean CG_DrawPlacementMetricOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	scorestats_parse_block = _block_from_marker(servercmds_source, "static void CG_ParseScoreStats")
+	game_scorestats_send_block = _block_from_marker(game_cmds_source, "static void G_SendScoreStatsMessage")
+	selected = "CG_2ND_PLYR_TIER"
+
+	assert constants[selected] == 0x11A
+	assert constants["CG_1ST_PLYR_TIER"] == 0xC0
+	assert constants[selected] - constants["CG_1ST_PLYR_TIER"] == constants["CG_2ND_PLYR"] - constants["CG_1ST_PLYR"]
+	assert constants[selected] not in _retail_cg_ownerdraw_case_values()
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_2ND_PLYR_READY && ownerDraw <= CG_2ND_PLYR_TIER ) {",
+		"resolvedSlot = 1;",
+		"resolvedOwnerDraw = ownerDraw - ( CG_2ND_PLYR - CG_1ST_PLYR );",
+	):
+		assert expected in resolve_block
+
+	start = ownerdraw_block.index("case CG_2ND_PLYR_PR:")
+	end = ownerdraw_block.index("case CG_2ND_PLYR_HEALTH_ARMOR:", start)
+	noop_block = ownerdraw_block[start:end]
+	for expected in (
+		"case CG_2ND_PLYR_PR:",
+		"case CG_2ND_PLYR_TIER:",
+		"Retail has no raw ownerdraw 0x119-0x11a helper route.",
+		"return;",
+	):
+		assert expected in noop_block
+	assert "CG_Draw" not in noop_block
+
+	for block in (
+		guard_block,
+		weapon_block,
+		build_metric_block,
+		pickup_metric_block,
+		dispatch_block,
+		competitive_block,
+		value_block,
+		width_block,
+		key_block,
+	):
+		assert selected not in block
+
+	for expected in (
+		"cg.scoreStats[clientNum].progressionTier = value;",
+		"progressionTier = G_GetPlacementProgressionTier( cl );",
+		'Com_sprintf( valueEntry, sizeof( valueEntry ), " %i", progressionTier );',
+	):
+		assert expected in (scorestats_parse_block + game_scorestats_send_block)
+
+	assert "CG_1ST_PLYR_TIER" not in guard_block
+	assert "CG_1ST_PLYR_TIER" not in build_metric_block
+	assert "CG_1ST_PLYR_TIER" not in competitive_block
+
+
+def test_cgame_selected_283_to_287_ownerdraws_match_retail_red_team_status_score_name_flags_and_ping() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	team_name_block = _block_from_marker(source, "const char *CG_GetTeamName")
+	flag_shader_block = _block_from_marker(source, "static qhandle_t CG_GetTeamFlagStatusShader")
+	team_status_block = _block_from_marker(source, "static void CG_DrawTeamFlagOrBaseStatus")
+	score_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamScoreText")
+	score_block = _block_from_marker(source, "static void CG_DrawTeamScore")
+	name_block = _block_from_marker(source, "static void CG_DrawTeamName")
+	domination_count_block = _block_from_marker(source, "static int CG_CountDominationOwnedFlags")
+	domination_draw_block = _block_from_marker(source, "static void CG_DrawDominationOwnedFlags")
+	average_ping_block = _block_from_marker(source, "static void CG_DrawTeamAveragePing")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
+	retail_score_block = _text_between(
+		hlil_source,
+		"1002ff50    void __convention(\"regparm\") sub_1002ff50",
+		"10030090    void sub_10030090",
+	)
+	retail_name_block = _text_between(
+		hlil_source,
+		"10030090    void sub_10030090",
+		"10030240",
+	)
+	retail_flag_status_block = _text_between(
+		hlil_source,
+		"10030a80    void* __convention(\"regparm\") sub_10030a80",
+		"10030c00",
+	)
+	retail_owned_flags_block = _text_between(
+		hlil_source,
+		"100337a0    int32_t __convention(\"regparm\") sub_100337a0",
+		"10033800",
+	)
+	retail_average_ping_block = _text_between(
+		hlil_source,
+		"10039e70    void __convention(\"regparm\") sub_10039e70",
+		"1003a0d0",
+	)
+	selected = {
+		"CG_RED_FLAGSTATUS": (0x11B, "FUN_10030a80"),
+		"CG_RED_SCORE": (0x11C, "FUN_1002ff50"),
+		"CG_RED_NAME": (0x11D, "FUN_10030090"),
+		"CG_RED_OWNED_FLAGS": (0x11E, "FUN_100337a0"),
+		"CG_RED_AVG_PING": (0x11F, "FUN_10039e70"),
+	}
+
+	for name, (value, target) in selected.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+
+	for expected in (
+		"if (arg1 != 0x11b)",
+		"if (arg1 == 0x11b || arg1 == 0x120)",
+		"if (arg1 == 0x120 || arg1 == 0x13b)",
+		"sub_100126a0(fconvert.s(fconvert.t(*arg2)))",
+	):
+		assert expected in retail_flag_status_block
+
+	for expected in (
+		"if (arg4 != 0x11c)",
+		"esi = data_10a403f0",
+		"if (esi != 0xffffd8f1 && esi != 0xfffffc19)",
+		"if (arg1 == 1)",
+		"else if (arg1 == 2)",
+		"sub_10008440(",
+	):
+		assert expected in retail_score_block
+
+	for expected in (
+		"if (arg1 != 0x11d)",
+		"strncpy(&var_2c, \"Blue Team\", 0x27)",
+		"&data_100669d4",
+		"if (arg6 == 1)",
+		"else if (arg6 == 2)",
+		"sub_10008440(",
+	):
+		assert expected in retail_name_block
+
+	for expected in (
+		"int32_t var_c = *((arg2 << 2) + &data_10a404c8)",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(",
+	):
+		assert expected in retail_owned_flags_block
+
+	for expected in (
+		"if (arg3 == 0x11f)",
+		"if (*(ecx_8 + 0x44) == 1)",
+		"if (i_3 s<= 0)",
+		"if (eax s<= 0x28)",
+		"if (eax s> 0x50)",
+		"ecx_9[3] = 0x3f4ccccd",
+		"sub_100575e0(\"(%d)\")",
+	):
+		assert expected in retail_average_ping_block
+
+	for expected in (
+		"case TEAM_RED:",
+		"teamName = cgs.redTeamName;",
+		"if ( cg_redTeamName.string[0] != '\\0' ) {",
+		"return DEFAULT_REDTEAM_NAME;",
+	):
+		assert expected in team_name_block
+
+	for expected in (
+		"if ( cgs.gametype == GT_HARVESTER && !baseStatus ) {",
+		"return ( team == TEAM_RED ) ? cgs.media.redCubeIcon : cgs.media.blueCubeIcon;",
+		"if ( team == TEAM_RED && cgs.flagStatus == FLAG_TAKEN_RED ) {",
+		"if ( cgs.gametype != GT_CTF && cgs.gametype != GT_ATTACK_DEFEND && cgs.gametype != GT_OBELISK ) {",
+		"status = ( team == TEAM_RED ) ? cgs.redflag : cgs.blueflag;",
+		"return ( team == TEAM_RED ) ? cgs.media.redFlagShader[status] : cgs.media.blueFlagShader[status];",
+	):
+		assert expected in flag_shader_block
+
+	for expected in (
+		"if ( shader && !baseStatus && cgs.gametype != GT_1FCTF ) {",
+		"handle = CG_GetTeamFlagStatusShader( team, baseStatus );",
+		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, handle );",
+	):
+		assert expected in team_status_block
+
+	for expected in (
+		"score = ( team == TEAM_RED ) ? cgs.scores1 : cgs.scores2;",
+		"if ( score == SCORE_NOT_PRESENT || score == CG_SCORE_FORFEIT ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		'Com_sprintf( buffer, bufferSize, "%i", score );',
+	):
+		assert expected in score_text_block
+
+	for expected in (
+		"CG_TranslateHudRectForWidescreen( rect, &widescreenRect );",
+		"x = CG_AlignTextInRectX( &widescreenRect, scale, buffer, align );",
+		"CG_Text_Paint( x, widescreenRect.y + widescreenRect.h, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in score_block
+	assert "teamName = CG_GetTeamName( team );" in name_block
+	assert "x = CG_AlignTextInRectX( &widescreenRect, scale, teamName, align );" in name_block
+
+	for expected in (
+		"if ( cgs.gametype != GT_DOMINATION && cgs.gametype != GT_ATTACK_DEFEND ) {",
+		"return cgs.dominationOwnedPointCount[team];",
+		"owned = CG_CountDominationOwnedFlags( team );",
+		'Com_sprintf( buffer, sizeof( buffer ), "%d", owned );',
+	):
+		assert expected in (domination_count_block + domination_draw_block)
+
+	for expected in (
+		"average = ( count > 0 ) ? sum / count : 0;",
+		"if ( average > 40 ) {",
+		"drawColor[1] = ( average > 80 ) ? 0.0f : 1.0f;",
+		"drawColor[0] = 0.0f;",
+		"drawColor[1] = 1.0f;",
+		"drawColor[2] = 0.0f;",
+		"drawColor[3] = 0.8f;",
+		'Com_sprintf( buffer, sizeof( buffer ), "(%d)", average );',
+	):
+		assert expected in average_ping_block
+	assert "cg.scores[i].ping < 0" not in average_ping_block
+	assert "if ( count <= 0 ) {" not in average_ping_block
+
+	for marker, expected in (
+		("case CG_RED_FLAGSTATUS:", "CG_DrawTeamFlagOrBaseStatus( &rect, TEAM_RED, qfalse, shader );"),
+		("case CG_RED_SCORE:", "CG_DrawTeamScore( &rect, scale, color, textStyle, TEAM_RED, align );"),
+		("case CG_RED_NAME:", "CG_DrawTeamName( &rect, scale, color, textStyle, TEAM_RED, align );"),
+		("case CG_RED_AVG_PING:", "CG_DrawTeamAveragePing(&rect, scale, color, textStyle, TEAM_RED);"),
+	):
+		start = ownerdraw_block.index(marker)
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert expected in case_block
+
+	start = ownerdraw_block.index("case CG_RED_OWNED_FLAGS:")
+	end = ownerdraw_block.index("break;", start)
+	owned_case_block = ownerdraw_block[start:end]
+	assert "if ( cgs.gametype == GT_DOMINATION || cgs.gametype == GT_ATTACK_DEFEND ) {" in owned_case_block
+	assert "CG_DrawDominationOwnedFlags(&rect, scale, color, textStyle, TEAM_RED);" in owned_case_block
+
+	assert "case CG_RED_SCORE:" in value_block
+	for name in selected:
+		assert name not in width_block
+		assert name not in key_block
+		assert name not in competitive_block
+	for name in selected.keys() - {"CG_RED_SCORE"}:
+		assert name not in value_block
+
+	for expected in (
+		"cgDC.ownerDrawItem = &CG_OwnerDraw;",
+		"cgDC.getValue = &CG_GetValue;",
+		"cgDC.ownerDrawVisible = &CG_OwnerDrawVisible;",
+		"cgDC.ownerDrawHandleKey = &CG_OwnerDrawHandleKey;",
+		"cgDC.ownerDrawWidth = &CG_OwnerDrawWidth;",
+	):
+		assert expected in display_context_block
+
+
+def test_cgame_selected_288_to_292_ownerdraws_match_retail_red_team_base_count_timeout_and_pickups() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	flag_shader_block = _block_from_marker(source, "static qhandle_t CG_GetTeamFlagStatusShader")
+	team_status_block = _block_from_marker(source, "static void CG_DrawTeamFlagOrBaseStatus")
+	player_count_block = _block_from_marker(source, "static void CG_DrawTeamPlayerCount")
+	clan_players_block = _block_from_marker(source, "static void CG_DrawClanArenaPlayers")
+	timeout_block = _block_from_marker(source, "static void CG_DrawTeamTimeoutCount")
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	pickup_value_block = _block_from_marker(source, "static qboolean CG_GetTeamScoreStatValue")
+	pickup_entries_block = _block_from_marker(source, "static const cgTeamPickupSummaryEntry_t cgTeamPickupSummaryEntries")
+	pickup_summary_block = _block_from_marker(source, "static void CG_DrawTeamPickupSummaryOwnerDraw")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	retail_flag_status_block = _text_between(
+		hlil_source,
+		"10030a80    void* __convention(\"regparm\") sub_10030a80",
+		"10030c00",
+	)
+	retail_player_count_block = _text_between(
+		hlil_source,
+		"100333c0    void __convention(\"regparm\") sub_100333c0",
+		"10033530",
+	)
+	retail_timeout_block = _text_between(
+		hlil_source,
+		"10033530    void __convention(\"regparm\") sub_10033530",
+		"100335f0",
+	)
+	retail_clan_players_block = _text_between(
+		hlil_source,
+		"100335f0    int32_t __convention(\"regparm\") sub_100335f0",
+		"10033650",
+	)
+	retail_pickup_summary_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	selected = {
+		"CG_RED_BASESTATUS": (0x120, "FUN_10030a80"),
+		"CG_RED_PLAYER_COUNT": (0x121, "FUN_100333c0"),
+		"CG_RED_CLAN_PLYRS": (0x122, "FUN_100335f0"),
+		"CG_RED_TIMEOUT_COUNT": (0x123, "FUN_10033530"),
+		"CG_RED_TEAM_MAP_PICKUPS": (0x124, "FUN_10037f80"),
+	}
+
+	for name, (value, target) in selected.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+
+	for expected in (
+		"if (arg1 == 0x11b || arg1 == 0x120)",
+		"if (arg1 == 0x120 || arg1 == 0x13b)",
+		"sub_100126a0(fconvert.s(fconvert.t(*arg2)))",
+	):
+		assert expected in retail_flag_status_block
+
+	for expected in (
+		"if (eax_1 == 3 || eax_1 == 4 || eax_1 == 5 || eax_1 == 6 || eax_1 == 8 || eax_1 == 0xa",
+		"sub_100575e0(\"(%d)\")",
+		"sub_100575e0(\"(%d/%d)\")",
+		"sub_100575e0(\"%d Player%s\")",
+		"sub_100575e0(\"%d/%d Players\")",
+		"if (arg6 == 1)",
+		"else if (arg6 == 2)",
+	):
+		assert expected in retail_player_count_block
+
+	for expected in (
+		"int32_t var_10 = *((arg1 << 2) + &data_10a404d8)",
+		"sub_100575e0(\"TO: %d\")",
+		"if (edx == 1)",
+		"else if (edx == 2)",
+	):
+		assert expected in retail_timeout_block
+
+	for expected in (
+		"int32_t var_c = *((arg2 << 2) + &data_10a404b8)",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(",
+	):
+		assert expected in retail_clan_players_block
+
+	for expected in (
+		"case 0",
+		"data_10aa6864",
+		"float.s(esi_1 + 0xb)",
+		"if (not(fconvert.t(*arg2) + fconvert.t(75.0) <= x87_r6_1))",
+		"esi_1 += 0x19",
+		"esi_1 += 0x1c",
+		"&data_10068420",
+	):
+		assert expected in retail_pickup_summary_block
+
+	for expected in (
+		"if ( baseStatus && status != FLAG_ATBASE ) {",
+		"status = FLAG_TAKEN;",
+		"return ( team == TEAM_RED ) ? cgs.media.redFlagShader[status] : cgs.media.blueFlagShader[status];",
+		"handle = CG_GetTeamFlagStatusShader( team, baseStatus );",
+		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, handle );",
+	):
+		assert expected in (flag_shader_block + team_status_block)
+
+	for expected in (
+		"count = CG_CountPlayersForTeam( team );",
+		"teamLimit = cgs.playerCountTeamSize;",
+		'Com_sprintf( buffer, sizeof( buffer ), "(%d/%d)", count, teamLimit );',
+		'Com_sprintf( buffer, sizeof( buffer ), "(%d)", count );',
+		'Com_sprintf( buffer, sizeof( buffer ), "%d/%d Players", count, teamLimit );',
+		'Com_sprintf( buffer, sizeof( buffer ), "%d Player%s", count, ( count == 1 ) ? "" : "s" );',
+		"x = CG_AlignTextInRectX( rect, scale, buffer, align );",
+	):
+		assert expected in player_count_block
+	assert "teamLimit * 2 <= cgs.maxclients" in player_count_block
+
+	for expected in (
+		"remaining = cgs.matchTimeoutRemaining[team];",
+		'Com_sprintf( buffer, sizeof( buffer ), "TO: %d", remaining );',
+		"x = CG_AlignTextInRectX( rect, scale, buffer, align );",
+	):
+		assert expected in timeout_block
+
+	for expected in (
+		"count = CG_GetRoundTeamCount( team );",
+		'Com_sprintf( buffer, sizeof( buffer ), "%d", count );',
+		"CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);",
+	):
+		assert expected in clan_players_block
+
+	for expected in (
+		"CG_TEAMSTAT_MAP_PICKUPS = 0,",
+		"CG_TEAMSTAT_PICKUPS_RA,",
+		"CG_TEAMSTAT_TIMEHELD_INVIS,",
+		"int\t\tvalues[2][CG_TEAMSTAT_COUNT];",
+	):
+		assert expected in local_source
+
+	for expected in (
+		"static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder[CG_RETAIL_CTF_TEAMSTAT_COUNT] = {",
+		"CG_TEAMSTAT_PICKUPS_RA,",
+		"CG_TEAMSTAT_TIMEHELD_INVIS,",
+		"CG_TEAMSTAT_TIMEHELD_FLAG",
+	):
+		assert expected in servercmds_source
+
+	for expected in (
+		"if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_RED;",
+		"resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;",
+		"resolvedValue = cg.teamScoreStats.values[teamIndex][statIndex];",
+	):
+		assert expected in (pickup_meta_block + pickup_value_block)
+
+	for expected in (
+		"{ CG_TEAMSTAT_PICKUPS_RA, -1, CG_TEAM_PICKUP_SUMMARY_ICON_RA, 14 },",
+		"{ CG_TEAMSTAT_PICKUPS_YA, -1, CG_TEAM_PICKUP_SUMMARY_ICON_YA, 11 },",
+		"{ CG_TEAMSTAT_PICKUPS_FLAG, CG_TEAMSTAT_TIMEHELD_FLAG, CG_TEAM_PICKUP_SUMMARY_ICON_FLAG, 14 },",
+		"{ CG_TEAMSTAT_PICKUPS_QUAD, CG_TEAMSTAT_TIMEHELD_QUAD, CG_TEAM_PICKUP_SUMMARY_ICON_QUAD, 14 },",
+	):
+		assert expected in pickup_entries_block
+
+	for expected in (
+		"drawX = (float)(int)rect->x;",
+		"drawY = (float)(int)rect->y;",
+		"trap_R_SetColor( NULL );",
+		"if ( !CG_GetTeamScoreStatValue( team, entry->statIndex, &pickupCount ) || pickupCount <= 0 ) {",
+		"CG_DrawPic( drawX, drawY - 7.0f, rect->w, rect->h, iconHandle );",
+		"CG_DrawPic( drawX, drawY, rect->w, rect->h, iconHandle );",
+		"CG_Text_Paint( drawX + entry->countTextOffsetX, drawY + 8.0f, scale, color, countText, 0, 0, textStyle );",
+		"CG_Text_Paint( drawX + entry->countTextOffsetX, drawY + 15.0f, scale, color, countText, 0, 0, textStyle );",
+		'Q_strncpyz( timeText, CG_FormatMinutesSeconds( timeHeld ), sizeof( timeText ) );',
+		'Q_strncpyz( timeText, "-", sizeof( timeText ) );',
+		"drawX += 28.0f;",
+		"drawX += 25.0f;",
+	):
+		assert expected in pickup_summary_block
+
+	for expected in (
+		"if ( CG_IsTeamPickupSummaryOwnerDraw( ownerDraw ) ) {",
+		"CG_DrawTeamPickupSummaryOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in pickup_dispatch_block
+
+	for marker, expected in (
+		("case CG_RED_BASESTATUS:", "CG_DrawTeamFlagOrBaseStatus( &rect, TEAM_RED, qtrue, shader );"),
+		("case CG_RED_PLAYER_COUNT:", "CG_DrawTeamPlayerCount(&rect, scale, color, textStyle, TEAM_RED, align);"),
+	):
+		start = ownerdraw_block.index(marker)
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert expected in case_block
+
+	for marker, gate, expected in (
+		("case CG_RED_CLAN_PLYRS:", "if ( CG_ShowPlayersRemaining() ) {", "CG_DrawClanArenaPlayers(&rect, scale, color, textStyle, TEAM_RED);"),
+		("case CG_RED_TIMEOUT_COUNT:", "if ( cgs.playerCountTeamSize > 0 ) {", "CG_DrawTeamTimeoutCount( &rect, scale, color, textStyle, TEAM_RED, align );"),
+	):
+		start = ownerdraw_block.index(marker)
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert gate in case_block
+		assert expected in case_block
+
+	start = ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:")
+	end = ownerdraw_block.index("break;", start)
+	pickup_case_block = ownerdraw_block[start:end]
+	assert "case CG_RED_TEAM_MAP_PICKUPS:" in pickup_case_block
+	assert "case CG_BLUE_TEAM_MAP_PICKUPS:" in pickup_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+
+	assert "CG_RED_BASESTATUS" in competitive_block
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in {"CG_RED_PLAYER_COUNT", "CG_RED_CLAN_PLYRS", "CG_RED_TIMEOUT_COUNT"}:
+		assert name not in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_293_to_297_ownerdraws_match_retail_red_pickup_count_lane() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	pickup_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamPickupText")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	retail_jump_table_block = _text_between(
+		hlil_source,
+		"10039a44  uint32_t jump_table_10039a44",
+		"10039aa8    void __convention",
+	)
+	selected = {
+		"CG_RED_TEAM_PICKUPS_RA": (0x125, "CG_TEAMSTAT_PICKUPS_RA", 1, "data_10aa6864"),
+		"CG_RED_TEAM_PICKUPS_YA": (0x126, "CG_TEAMSTAT_PICKUPS_YA", 2, "data_10aa6868"),
+		"CG_RED_TEAM_PICKUPS_GA": (0x127, "CG_TEAMSTAT_PICKUPS_GA", 3, "data_10aa686c"),
+		"CG_RED_TEAM_PICKUPS_MH": (0x128, "CG_TEAMSTAT_PICKUPS_MH", 4, "data_10aa6870"),
+		"CG_RED_TEAM_PICKUPS_QUAD": (0x129, "CG_TEAMSTAT_PICKUPS_QUAD", 5, "data_10aa6874"),
+	}
+
+	for name, (value, stat_name, offset, retail_cache_name) in selected.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10037f80")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert f"[0x0{offset}]" in retail_jump_table_block
+		assert f"case {offset}" in retail_pickup_block
+		assert retail_cache_name in retail_pickup_block
+
+	for expected in (
+		"switch (*(arg3 + sub_10039aa8))",
+		"sub_1002dff0(",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg2)), fconvert.s(fconvert.t(arg2[1]))",
+	):
+		assert expected in retail_pickup_block
+
+	assert "case 0" in retail_pickup_block
+	assert "esi_1 += 0x19" in retail_pickup_block
+	assert "esi_1 += 0x1c" in retail_pickup_block
+	assert "&data_10068420" in retail_pickup_block
+
+	for expected in (
+		"CG_TEAMSTAT_MAP_PICKUPS = 0,\n\tCG_TEAMSTAT_PICKUPS_RA,\n\tCG_TEAMSTAT_PICKUPS_YA,\n\tCG_TEAMSTAT_PICKUPS_GA,\n\tCG_TEAMSTAT_PICKUPS_MH,\n\tCG_TEAMSTAT_PICKUPS_QUAD,",
+		"int\t\tvalues[2][CG_TEAMSTAT_COUNT];",
+	):
+		assert expected in local_source
+
+	assert "CG_TEAMSTAT_MAP_PICKUPS," not in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_RA,\n\tCG_TEAMSTAT_PICKUPS_YA,\n\tCG_TEAMSTAT_PICKUPS_GA,\n\tCG_TEAMSTAT_PICKUPS_MH,\n\tCG_TEAMSTAT_PICKUPS_QUAD," in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_RA,\n\tCG_TEAMSTAT_PICKUPS_YA,\n\tCG_TEAMSTAT_PICKUPS_GA,\n\tCG_TEAMSTAT_PICKUPS_MH,\n\tCG_TEAMSTAT_PICKUPS_QUAD," in ctf_teamstat_order_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_RED;",
+		"resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"if ( !cg.teamScoreStats.valid ) {",
+		"if ( cg.teamScoreStats.fieldCount <= 0 ) {",
+		"if ( statIndex < 0 || statIndex >= cg.teamScoreStats.fieldCount ) {",
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"value = cg.teamScoreStats.values[teamIndex][statIndex];",
+		"if ( value < 0 ) {",
+		"Com_sprintf( buffer, bufferSize, \"%i\", value );",
+	):
+		assert expected in pickup_text_block
+
+	for expected in (
+		"if ( CG_IsTeamPickupSummaryOwnerDraw( ownerDraw ) ) {",
+		"CG_DrawTeamPickupSummaryOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"if ( !CG_BuildTeamPickupText( ownerDraw, buffer, sizeof( buffer ) ) ) {",
+		"CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in pickup_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected:
+		assert f"case {name}:" in pickup_case_block
+		assert name not in timeheld_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_298_to_302_ownerdraws_match_retail_red_pickup_and_timeheld_split() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	minutes_block = _block_from_marker(source, "static const char *CG_FormatMinutesSeconds")
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	pickup_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamPickupText")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	retail_pickup_jump_table_block = _text_between(
+		hlil_source,
+		"10039a44  uint32_t jump_table_10039a44",
+		"10039aa8    void __convention",
+	)
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	selected_pickups = {
+		"CG_RED_TEAM_PICKUPS_BS": (0x12A, "CG_TEAMSTAT_PICKUPS_BS", 6, 6, "data_10aa6878"),
+		"CG_RED_TEAM_PICKUPS_FLAG": (0x12D, "CG_TEAMSTAT_PICKUPS_FLAG", 9, 7, "data_10aa6888"),
+		"CG_RED_TEAM_PICKUPS_MEDKIT": (0x12E, "CG_TEAMSTAT_PICKUPS_MEDKIT", 10, 8, "data_10aa688c"),
+	}
+	selected_timeheld = {
+		"CG_RED_TEAM_TIMEHELD_QUAD": (0x12B, "CG_TEAMSTAT_TIMEHELD_QUAD", 0, "data_10aa6890"),
+		"CG_RED_TEAM_TIMEHELD_BS": (0x12C, "CG_TEAMSTAT_TIMEHELD_BS", 1, "data_10aa6894"),
+	}
+	selected = set(selected_pickups) | set(selected_timeheld)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name) in selected_pickups.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10037f80")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		if stat_name in {"CG_TEAMSTAT_PICKUPS_FLAG", "CG_TEAMSTAT_PICKUPS_MEDKIT"}:
+			assert stat_name not in tdm_teamstat_order_block
+		else:
+			assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert f"arg5 - 0x124" in hlil_source
+		assert f"[0x{selector:02x}]" in retail_pickup_jump_table_block
+		assert case_label in retail_pickup_block
+		assert retail_cache_name in retail_pickup_block
+		assert raw_offset == value - 0x124
+
+	for name, (value, stat_name, offset, retail_cache_name) in selected_timeheld.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert f"[0x{offset:x}]" in retail_timeheld_jump_table_block
+		assert f"case {offset}" in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for expected in (
+		"switch (*(arg3 + sub_10039aa8))",
+		"sub_1002dff0(",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg2)), fconvert.s(fconvert.t(arg2[1]))",
+	):
+		assert expected in retail_pickup_block
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+		"sub_10008780(",
+	):
+		assert expected in retail_timeheld_block
+
+	for expected in (
+		"if ( seconds < 0 ) {",
+		'return va( "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );',
+	):
+		assert expected in minutes_block
+
+	assert "CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_TIMEHELD_QUAD,\n\tCG_TEAMSTAT_TIMEHELD_BS,\n\tCG_TEAMSTAT_PICKUPS_FLAG,\n\tCG_TEAMSTAT_PICKUPS_MEDKIT," in local_source
+	assert "int\t\tvalues[2][CG_TEAMSTAT_COUNT];" in local_source
+	assert "CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_QUAD," in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_PICKUPS_FLAG,\n\tCG_TEAMSTAT_PICKUPS_MEDKIT," in ctf_teamstat_order_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_RED;",
+		"resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_QUAD:",
+		"case CG_TEAMSTAT_TIMEHELD_BS:",
+		"case CG_TEAMSTAT_TIMEHELD_FLAG:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+
+	for expected in (
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"value = cg.teamScoreStats.values[teamIndex][statIndex];",
+		"if ( value < 0 ) {",
+		"Com_sprintf( buffer, bufferSize, \"%i\", value );",
+	):
+		assert expected in pickup_text_block
+
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"return qtrue;",
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in pickup_dispatch_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_pickups:
+		assert f"case {name}:" in pickup_case_block
+		assert name not in timeheld_case_block
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+		assert name not in pickup_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_303_to_307_ownerdraws_match_retail_sparse_red_pickup_tail() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	pickup_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamPickupText")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	retail_pickup_jump_table_block = _text_between(
+		hlil_source,
+		"10039a44  uint32_t jump_table_10039a44",
+		"10039aa8    void __convention",
+	)
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	selected_pickups = {
+		"CG_RED_TEAM_PICKUPS_REGEN": (0x12F, "CG_TEAMSTAT_PICKUPS_REGEN", 0x0B, 0x09, "data_10aa687c", "data_10a5f7c0"),
+		"CG_RED_TEAM_PICKUPS_HASTE": (0x130, "CG_TEAMSTAT_PICKUPS_HASTE", 0x0C, 0x0A, "data_10aa6880", "data_10a5f7c4"),
+		"CG_RED_TEAM_PICKUPS_INVIS": (0x131, "CG_TEAMSTAT_PICKUPS_INVIS", 0x0D, 0x0B, "data_10aa6884", "data_10a5f7c8"),
+	}
+	selected_timeheld = {
+		"CG_RED_TEAM_TIMEHELD_FLAG": (0x132, "CG_TEAMSTAT_TIMEHELD_FLAG", 0x07, 0x02, "data_10aa68a4"),
+		"CG_RED_TEAM_TIMEHELD_REGEN": (0x133, "CG_TEAMSTAT_TIMEHELD_REGEN", 0x08, 0x03, "data_10aa6898"),
+	}
+	selected = set(selected_pickups) | set(selected_timeheld)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name, retail_icon_name) in selected_pickups.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10037f80")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert raw_offset == value - 0x124
+		assert f"[0x{selector:02x}]" in retail_pickup_jump_table_block
+		assert case_label in retail_pickup_block
+		assert retail_cache_name in retail_pickup_block
+		assert retail_icon_name in retail_pickup_block
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name) in selected_timeheld.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		if stat_name == "CG_TEAMSTAT_TIMEHELD_FLAG":
+			assert stat_name not in tdm_teamstat_order_block
+		else:
+			assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert raw_offset == value - 0x12B
+		assert f"[0x{selector:x}]" in retail_timeheld_jump_table_block
+		assert case_label in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for expected in (
+		"switch (*(arg3 + sub_10039aa8))",
+		"arg5 - 0x124",
+		"sub_1002dff0(",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg2)), fconvert.s(fconvert.t(arg2[1]))",
+	):
+		assert expected in hlil_source
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"arg5 - 0x12b",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+	):
+		assert expected in hlil_source
+
+	for expected in (
+		"CG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG,\n\tCG_TEAMSTAT_TIMEHELD_REGEN,",
+		"int\t\tvalues[2][CG_TEAMSTAT_COUNT];",
+	):
+		assert expected in local_source
+
+	for expected in (
+		"CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_QUAD,",
+		"CG_TEAMSTAT_TIMEHELD_BS,\n\tCG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS",
+	):
+		assert expected in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_FLAG" not in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_MEDKIT" not in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_TIMEHELD_FLAG" not in tdm_teamstat_order_block
+
+	for expected in (
+		"CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_PICKUPS_FLAG,\n\tCG_TEAMSTAT_PICKUPS_MEDKIT,",
+		"CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG",
+	):
+		assert expected in ctf_teamstat_order_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_RED;",
+		"resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_FLAG:",
+		"case CG_TEAMSTAT_TIMEHELD_REGEN:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+
+	for expected in (
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"value = cg.teamScoreStats.values[teamIndex][statIndex];",
+		"Com_sprintf( buffer, bufferSize, \"%i\", value );",
+	):
+		assert expected in pickup_text_block
+
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in pickup_dispatch_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_pickups:
+		assert f"case {name}:" in pickup_case_block
+		assert name not in timeheld_case_block
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+		assert name not in pickup_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_308_to_312_ownerdraws_match_retail_exact_requested_slice() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	team_status_block = _block_from_marker(source, "static void CG_DrawTeamFlagOrBaseStatus")
+	team_name_block = _block_from_marker(source, "const char *CG_GetTeamName")
+	score_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamScoreText")
+	score_block = _block_from_marker(source, "static void CG_DrawTeamScore")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	retail_flag_status_block = _text_between(
+		hlil_source,
+		"10030a80    void* __convention(\"regparm\") sub_10030a80",
+		"10030c00",
+	)
+	retail_score_block = _text_between(
+		hlil_source,
+		"1002ff50    void __convention(\"regparm\") sub_1002ff50",
+		"10030090",
+	)
+	retail_name_block = _text_between(
+		hlil_source,
+		"10030090    void sub_10030090",
+		"10030240",
+	)
+	selected_timeheld = {
+		"CG_RED_TEAM_TIMEHELD_HASTE": (0x134, "CG_TEAMSTAT_TIMEHELD_HASTE", 0x09, 0x04, "data_10aa689c"),
+		"CG_RED_TEAM_TIMEHELD_INVIS": (0x135, "CG_TEAMSTAT_TIMEHELD_INVIS", 0x0A, 0x05, "data_10aa68a0"),
+	}
+	selected_direct = {
+		"CG_BLUE_FLAGSTATUS": (0x136, "FUN_10030a80", "CG_DrawTeamFlagOrBaseStatus( &rect, TEAM_BLUE, qfalse, shader );"),
+		"CG_BLUE_NAME": (0x137, "FUN_10030090", "CG_DrawTeamName( &rect, scale, color, textStyle, TEAM_BLUE, align );"),
+		"CG_BLUE_SCORE": (0x138, "FUN_1002ff50", "CG_DrawTeamScore( &rect, scale, color, textStyle, TEAM_BLUE, align );"),
+	}
+	selected = set(selected_timeheld) | set(selected_direct)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name) in selected_timeheld.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert stat_name in timeheld_index_block
+		assert raw_offset == value - 0x12B
+		assert f"[0x{selector:x}]" in retail_timeheld_jump_table_block
+		assert f"case {selector}" in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for name, (value, target, source_call) in selected_direct.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		start = ownerdraw_block.index(f"case {name}:")
+		end = ownerdraw_block.index("break;", start)
+		assert source_call in ownerdraw_block[start:end]
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"arg5 - 0x12b",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+	):
+		assert expected in hlil_source
+	assert "CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS" in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG" in ctf_teamstat_order_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_RED;",
+		"resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_HASTE:",
+		"case CG_TEAMSTAT_TIMEHELD_INVIS:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	for expected in (
+		"if (arg1 != 0x11b)",
+		"if (arg1 == 0x11b || arg1 == 0x120)",
+		"if (arg1 == 0x120 || arg1 == 0x13b)",
+	):
+		assert expected in retail_flag_status_block
+	for expected in (
+		"if (arg4 != 0x11c)",
+		"esi = data_10a403f0",
+		"if (arg1 == 1)",
+		"else if (arg1 == 2)",
+	):
+		assert expected in retail_score_block
+	for expected in (
+		"if (arg1 != 0x11d)",
+		"strncpy(&var_2c, \"Blue Team\", 0x27)",
+		"else if (arg6 == 2)",
+	):
+		assert expected in retail_name_block
+	for expected in (
+		"if ( shader && !baseStatus && cgs.gametype != GT_1FCTF ) {",
+		"handle = CG_GetTeamFlagStatusShader( team, baseStatus );",
+	):
+		assert expected in team_status_block
+	for expected in (
+		"case TEAM_BLUE:",
+		"teamName = cgs.blueTeamName;",
+		"if ( cg_blueTeamName.string[0] != '\\0' ) {",
+		"return DEFAULT_BLUETEAM_NAME;",
+	):
+		assert expected in team_name_block
+	for expected in (
+		"score = ( team == TEAM_RED ) ? cgs.scores1 : cgs.scores2;",
+		"if ( score == SCORE_NOT_PRESENT || score == CG_SCORE_FORFEIT ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		'Com_sprintf( buffer, bufferSize, "%i", score );',
+	):
+		assert expected in score_text_block
+	for expected in (
+		"CG_TranslateHudRectForWidescreen( rect, &widescreenRect );",
+		"x = CG_AlignTextInRectX( &widescreenRect, scale, buffer, align );",
+		"CG_Text_Paint( x, widescreenRect.y + widescreenRect.h, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in score_block
+
+	assert "case CG_BLUE_SCORE:" in value_block
+	assert "return cgs.scores2;" in value_block
+	for name in ("CG_RED_TEAM_TIMEHELD_HASTE", "CG_RED_TEAM_TIMEHELD_INVIS", "CG_BLUE_FLAGSTATUS", "CG_BLUE_NAME"):
+		assert name not in value_block
+	for name in selected:
+		assert name not in width_block
+		assert name not in key_block
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in competitive_block
+
+
+def test_cgame_selected_309_to_313_ownerdraws_match_retail_red_invis_timeheld_and_blue_team_head() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	team_status_block = _block_from_marker(source, "static void CG_DrawTeamFlagOrBaseStatus")
+	flag_shader_block = _block_from_marker(source, "static qhandle_t CG_GetTeamFlagStatusShader")
+	team_name_block = _block_from_marker(source, "const char *CG_GetTeamName")
+	name_block = _block_from_marker(source, "static void CG_DrawTeamName")
+	score_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamScoreText")
+	score_block = _block_from_marker(source, "static void CG_DrawTeamScore")
+	domination_count_block = _block_from_marker(source, "static int CG_CountDominationOwnedFlags")
+	domination_draw_block = _block_from_marker(source, "static void CG_DrawDominationOwnedFlags")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	retail_flag_status_block = _text_between(
+		hlil_source,
+		"10030a80    void* __convention(\"regparm\") sub_10030a80",
+		"10030c00",
+	)
+	retail_score_block = _text_between(
+		hlil_source,
+		"1002ff50    void __convention(\"regparm\") sub_1002ff50",
+		"10030090",
+	)
+	retail_name_block = _text_between(
+		hlil_source,
+		"10030090    void sub_10030090",
+		"10030240",
+	)
+	retail_owned_flags_block = _text_between(
+		hlil_source,
+		"100337a0    int32_t __convention(\"regparm\") sub_100337a0",
+		"10033800",
+	)
+	selected_timeheld = {
+		"CG_RED_TEAM_TIMEHELD_INVIS": (0x135, "CG_TEAMSTAT_TIMEHELD_INVIS", 0x0A, 0x05, "data_10aa68a0"),
+	}
+	selected_direct = {
+		"CG_BLUE_FLAGSTATUS": (0x136, "FUN_10030a80", "CG_DrawTeamFlagOrBaseStatus( &rect, TEAM_BLUE, qfalse, shader );"),
+		"CG_BLUE_NAME": (0x137, "FUN_10030090", "CG_DrawTeamName( &rect, scale, color, textStyle, TEAM_BLUE, align );"),
+		"CG_BLUE_SCORE": (0x138, "FUN_1002ff50", "CG_DrawTeamScore( &rect, scale, color, textStyle, TEAM_BLUE, align );"),
+	}
+	selected_owned = {
+		"CG_BLUE_OWNED_FLAGS": (0x139, "FUN_100337a0", "CG_DrawDominationOwnedFlags(&rect, scale, color, textStyle, TEAM_BLUE);"),
+	}
+	selected = set(selected_timeheld) | set(selected_direct) | set(selected_owned)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name) in selected_timeheld.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert stat_name in timeheld_index_block
+		assert raw_offset == value - 0x12B
+		assert f"[0x{selector:x}]" in retail_timeheld_jump_table_block
+		assert case_label in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for name, (value, target, source_call) in selected_direct.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		start = ownerdraw_block.index(f"case {name}:")
+		end = ownerdraw_block.index("break;", start)
+		assert source_call in ownerdraw_block[start:end]
+
+	for name, (value, target, source_call) in selected_owned.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		start = ownerdraw_block.index(f"case {name}:")
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert "if ( cgs.gametype == GT_DOMINATION || cgs.gametype == GT_ATTACK_DEFEND ) {" in case_block
+		assert source_call in case_block
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"arg5 - 0x12b",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+	):
+		assert expected in hlil_source
+
+	for expected in (
+		"CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS",
+		"int\t\tvalues[2][CG_TEAMSTAT_COUNT];",
+	):
+		assert expected in local_source
+	assert "CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS" in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_FLAG" not in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG" in ctf_teamstat_order_block
+
+	for expected in (
+		"if ( ownerDraw >= CG_RED_TEAM_MAP_PICKUPS && ownerDraw <= CG_RED_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_RED;",
+		"resolvedStatIndex = ownerDraw - CG_RED_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_HASTE:",
+		"case CG_TEAMSTAT_TIMEHELD_INVIS:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+		assert name not in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	for expected in (
+		"if (arg1 != 0x11b)",
+		"if (arg1 == 0x11b || arg1 == 0x120)",
+		"if (arg1 == 0x120 || arg1 == 0x13b)",
+	):
+		assert expected in retail_flag_status_block
+	for expected in (
+		"if (arg4 != 0x11c)",
+		"esi = data_10a403f0",
+		"if (arg1 == 1)",
+		"else if (arg1 == 2)",
+	):
+		assert expected in retail_score_block
+	for expected in (
+		"if (arg1 != 0x11d)",
+		"strncpy(&var_2c, \"Blue Team\", 0x27)",
+		"else if (arg6 == 2)",
+	):
+		assert expected in retail_name_block
+	for expected in (
+		"int32_t var_c = *((arg2 << 2) + &data_10a404c8)",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(",
+	):
+		assert expected in retail_owned_flags_block
+
+	for expected in (
+		"if ( shader && !baseStatus && cgs.gametype != GT_1FCTF ) {",
+		"handle = CG_GetTeamFlagStatusShader( team, baseStatus );",
+		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, handle );",
+	):
+		assert expected in team_status_block
+	for expected in (
+		"status = ( team == TEAM_RED ) ? cgs.redflag : cgs.blueflag;",
+		"return ( team == TEAM_RED ) ? cgs.media.redFlagShader[status] : cgs.media.blueFlagShader[status];",
+	):
+		assert expected in flag_shader_block
+	for expected in (
+		"case TEAM_BLUE:",
+		"teamName = cgs.blueTeamName;",
+		"if ( cg_blueTeamName.string[0] != '\\0' ) {",
+		"return DEFAULT_BLUETEAM_NAME;",
+	):
+		assert expected in team_name_block
+	for expected in (
+		"teamName = CG_GetTeamName( team );",
+		"CG_TranslateHudRectForWidescreen( rect, &widescreenRect );",
+		"x = CG_AlignTextInRectX( &widescreenRect, scale, teamName, align );",
+	):
+		assert expected in name_block
+	for expected in (
+		"score = ( team == TEAM_RED ) ? cgs.scores1 : cgs.scores2;",
+		"if ( score == SCORE_NOT_PRESENT || score == CG_SCORE_FORFEIT ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		'Com_sprintf( buffer, bufferSize, "%i", score );',
+	):
+		assert expected in score_text_block
+	for expected in (
+		"CG_TranslateHudRectForWidescreen( rect, &widescreenRect );",
+		"x = CG_AlignTextInRectX( &widescreenRect, scale, buffer, align );",
+		"CG_Text_Paint( x, widescreenRect.y + widescreenRect.h, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in score_block
+	for expected in (
+		"if ( cgs.gametype != GT_DOMINATION && cgs.gametype != GT_ATTACK_DEFEND ) {",
+		"return cgs.dominationOwnedPointCount[team];",
+		"owned = CG_CountDominationOwnedFlags( team );",
+		'Com_sprintf( buffer, sizeof( buffer ), "%d", owned );',
+		"CG_Text_Paint(rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle);",
+	):
+		assert expected in (domination_count_block + domination_draw_block)
+
+	assert "case CG_BLUE_SCORE:" in value_block
+	assert "return cgs.scores2;" in value_block
+	for name in ("CG_RED_TEAM_TIMEHELD_INVIS", "CG_BLUE_FLAGSTATUS", "CG_BLUE_NAME", "CG_BLUE_OWNED_FLAGS"):
+		assert name not in value_block
+	for name in selected:
+		assert name not in width_block
+		assert name not in key_block
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in competitive_block
+
+
+def test_cgame_selected_315_to_319_ownerdraws_match_retail_blue_base_count_timeout_and_pickups() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	flag_shader_block = _block_from_marker(source, "static qhandle_t CG_GetTeamFlagStatusShader")
+	team_status_block = _block_from_marker(source, "static void CG_DrawTeamFlagOrBaseStatus")
+	player_count_block = _block_from_marker(source, "static void CG_DrawTeamPlayerCount")
+	show_players_remaining_block = _block_from_marker(source, "static qboolean CG_ShowPlayersRemaining")
+	round_team_count_block = _block_from_marker(source, "static int CG_GetRoundTeamCount")
+	clan_players_block = _block_from_marker(source, "static void CG_DrawClanArenaPlayers")
+	timeout_block = _block_from_marker(source, "static void CG_DrawTeamTimeoutCount")
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	pickup_value_block = _block_from_marker(source, "static qboolean CG_GetTeamScoreStatValue")
+	pickup_summary_block = _block_from_marker(source, "static void CG_DrawTeamPickupSummaryOwnerDraw")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	retail_flag_status_block = _text_between(
+		hlil_source,
+		"10030a80    void* __convention(\"regparm\") sub_10030a80",
+		"10030c00",
+	)
+	retail_player_count_block = _text_between(
+		hlil_source,
+		"100333c0    void __convention(\"regparm\") sub_100333c0",
+		"10033530",
+	)
+	retail_timeout_block = _text_between(
+		hlil_source,
+		"10033530    void __convention(\"regparm\") sub_10033530",
+		"100335f0",
+	)
+	retail_clan_players_block = _text_between(
+		hlil_source,
+		"100335f0    int32_t __convention(\"regparm\") sub_100335f0",
+		"10033650",
+	)
+	retail_pickup_summary_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	selected = {
+		"CG_BLUE_BASESTATUS": (0x13B, "FUN_10030a80"),
+		"CG_BLUE_PLAYER_COUNT": (0x13C, "FUN_100333c0"),
+		"CG_BLUE_CLAN_PLYRS": (0x13D, "FUN_100335f0"),
+		"CG_BLUE_TIMEOUT_COUNT": (0x13E, "FUN_10033530"),
+		"CG_BLUE_TEAM_MAP_PICKUPS": (0x13F, "FUN_10037f80"),
+	}
+
+	for name, (value, target) in selected.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+
+	for expected in (
+		"if (arg1 == 0x120 || arg1 == 0x13b)",
+		"if (arg1 == 0x11b || arg1 == 0x120)",
+		"sub_100126a0(fconvert.s(fconvert.t(*arg2)))",
+	):
+		assert expected in retail_flag_status_block
+
+	for expected in (
+		"if (eax_1 == 3 || eax_1 == 4 || eax_1 == 5 || eax_1 == 6 || eax_1 == 8 || eax_1 == 0xa",
+		"sub_100575e0(\"(%d)\")",
+		"sub_100575e0(\"(%d/%d)\")",
+		"sub_100575e0(\"%d Player%s\")",
+		"sub_100575e0(\"%d/%d Players\")",
+		"if (arg6 == 1)",
+		"else if (arg6 == 2)",
+	):
+		assert expected in retail_player_count_block
+
+	for expected in (
+		"int32_t var_10 = *((arg1 << 2) + &data_10a404d8)",
+		"sub_100575e0(\"TO: %d\")",
+		"if (edx == 1)",
+		"else if (edx == 2)",
+	):
+		assert expected in retail_timeout_block
+
+	for expected in (
+		"int32_t var_c = *((arg2 << 2) + &data_10a404b8)",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(",
+	):
+		assert expected in retail_clan_players_block
+
+	for expected in (
+		"case 0",
+		"data_10aa6864",
+		"float.s(esi_1 + 0xb)",
+		"if (not(fconvert.t(*arg2) + fconvert.t(75.0) <= x87_r6_1))",
+		"esi_1 += 0x19",
+		"esi_1 += 0x1c",
+		"&data_10068420",
+	):
+		assert expected in retail_pickup_summary_block
+
+	for expected in (
+		"if ( baseStatus && status != FLAG_ATBASE ) {",
+		"status = FLAG_TAKEN;",
+		"return ( team == TEAM_RED ) ? cgs.media.redFlagShader[status] : cgs.media.blueFlagShader[status];",
+		"handle = CG_GetTeamFlagStatusShader( team, baseStatus );",
+		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, handle );",
+	):
+		assert expected in (flag_shader_block + team_status_block)
+
+	for expected in (
+		"count = CG_CountPlayersForTeam( team );",
+		"teamLimit = cgs.playerCountTeamSize;",
+		'Com_sprintf( buffer, sizeof( buffer ), "(%d/%d)", count, teamLimit );',
+		'Com_sprintf( buffer, sizeof( buffer ), "(%d)", count );',
+		'Com_sprintf( buffer, sizeof( buffer ), "%d/%d Players", count, teamLimit );',
+		'Com_sprintf( buffer, sizeof( buffer ), "%d Player%s", count, ( count == 1 ) ? "" : "s" );',
+		"x = CG_AlignTextInRectX( rect, scale, buffer, align );",
+	):
+		assert expected in player_count_block
+
+	for expected in (
+		"case GT_CLAN_ARENA:",
+		"case GT_FREEZE:",
+		"case GT_ATTACK_DEFEND:",
+		"case GT_RED_ROVER:",
+		"return qtrue;",
+	):
+		assert expected in show_players_remaining_block
+
+	assert "return cgs.matchTeamCount[team];" in round_team_count_block
+	assert "count = CG_GetRoundTeamCount( team );" in clan_players_block
+	assert 'Com_sprintf( buffer, sizeof( buffer ), "%d", count );' in clan_players_block
+	assert "CG_CountPlayersForTeam" not in clan_players_block
+
+	for expected in (
+		"remaining = cgs.matchTimeoutRemaining[team];",
+		'Com_sprintf( buffer, sizeof( buffer ), "TO: %d", remaining );',
+		"x = CG_AlignTextInRectX( rect, scale, buffer, align );",
+	):
+		assert expected in timeout_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_BLUE_TEAM_MAP_PICKUPS && ownerDraw <= CG_BLUE_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_BLUE;",
+		"resolvedStatIndex = ownerDraw - CG_BLUE_TEAM_MAP_PICKUPS;",
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"resolvedValue = cg.teamScoreStats.values[teamIndex][statIndex];",
+	):
+		assert expected in (pickup_meta_block + pickup_value_block)
+
+	for expected in (
+		"if ( ownerDraw == CG_BLUE_TEAM_MAP_PICKUPS ) {",
+		"team = TEAM_BLUE;",
+		"drawX = (float)(int)rect->x;",
+		"drawY = (float)(int)rect->y;",
+		"CG_GetTeamScoreStatValue( team, entry->statIndex, &pickupCount )",
+		"drawX += 25.0f;",
+		"drawX += 28.0f;",
+	):
+		assert expected in pickup_summary_block
+
+	for expected in (
+		"if ( CG_IsTeamPickupSummaryOwnerDraw( ownerDraw ) ) {",
+		"CG_DrawTeamPickupSummaryOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+	):
+		assert expected in pickup_dispatch_block
+
+	for marker, expected in (
+		("case CG_BLUE_BASESTATUS:", "CG_DrawTeamFlagOrBaseStatus( &rect, TEAM_BLUE, qtrue, shader );"),
+		("case CG_BLUE_PLAYER_COUNT:", "CG_DrawTeamPlayerCount(&rect, scale, color, textStyle, TEAM_BLUE, align);"),
+	):
+		start = ownerdraw_block.index(marker)
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert expected in case_block
+
+	for marker, gate, expected in (
+		("case CG_BLUE_CLAN_PLYRS:", "if ( CG_ShowPlayersRemaining() ) {", "CG_DrawClanArenaPlayers(&rect, scale, color, textStyle, TEAM_BLUE);"),
+		("case CG_BLUE_TIMEOUT_COUNT:", "if ( cgs.playerCountTeamSize > 0 ) {", "CG_DrawTeamTimeoutCount( &rect, scale, color, textStyle, TEAM_BLUE, align );"),
+	):
+		start = ownerdraw_block.index(marker)
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert gate in case_block
+		assert expected in case_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	assert "case CG_BLUE_TEAM_MAP_PICKUPS:" in pickup_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+
+	assert "CG_BLUE_BASESTATUS" in competitive_block
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in {"CG_BLUE_PLAYER_COUNT", "CG_BLUE_CLAN_PLYRS", "CG_BLUE_TIMEOUT_COUNT"}:
+		assert name not in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_320_to_324_ownerdraws_match_retail_blue_pickup_count_lane() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	pickup_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamPickupText")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	parse_teamstats_block = _block_from_marker(servercmds_source, "static void CG_ParseTeamScoreStats")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	game_teamstats_block = _block_from_marker(game_cmds_source, "static void G_BuildTeamScoreStatsFields")
+	send_teamstats_block = _block_from_marker(game_cmds_source, "static void G_SendTeamScoreStatsMessage")
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	retail_jump_table_block = _text_between(
+		hlil_source,
+		"10039a44  uint32_t jump_table_10039a44",
+		"10039aa8    void __convention",
+	)
+	selected = {
+		"CG_BLUE_TEAM_PICKUPS_RA": (0x140, "CG_TEAMSTAT_PICKUPS_RA", 1, "data_10aa6864", "TEAMSTAT_PICKUPS_RA"),
+		"CG_BLUE_TEAM_PICKUPS_YA": (0x141, "CG_TEAMSTAT_PICKUPS_YA", 2, "data_10aa6868", "TEAMSTAT_PICKUPS_YA"),
+		"CG_BLUE_TEAM_PICKUPS_GA": (0x142, "CG_TEAMSTAT_PICKUPS_GA", 3, "data_10aa686c", "TEAMSTAT_PICKUPS_GA"),
+		"CG_BLUE_TEAM_PICKUPS_MH": (0x143, "CG_TEAMSTAT_PICKUPS_MH", 4, "data_10aa6870", "TEAMSTAT_PICKUPS_MH"),
+		"CG_BLUE_TEAM_PICKUPS_QUAD": (0x144, "CG_TEAMSTAT_PICKUPS_QUAD", 5, "data_10aa6874", "TEAMSTAT_PICKUPS_QUAD"),
+	}
+
+	for name, (value, stat_name, offset, retail_cache_name, game_stat_name) in selected.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10037f80")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert game_stat_name in game_teamstats_block
+		assert f"[0x0{offset}]" in retail_jump_table_block
+		assert f"case {offset}" in retail_pickup_block
+		assert retail_cache_name in retail_pickup_block
+		assert offset == value - constants["CG_BLUE_TEAM_MAP_PICKUPS"]
+
+	for expected in (
+		"switch (*(arg3 + sub_10039aa8))",
+		"sub_1002dff0(",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg2)), fconvert.s(fconvert.t(arg2[1]))",
+	):
+		assert expected in retail_pickup_block
+
+	assert constants["CG_BLUE_TEAM_MAP_PICKUPS"] == 0x13F
+	assert _retail_cg_ownerdraw_cases_for_target("FUN_10037f80").issuperset(
+		range(0x13F, 0x146)
+	)
+	assert "CG_TEAMSTAT_MAP_PICKUPS = 0,\n\tCG_TEAMSTAT_PICKUPS_RA,\n\tCG_TEAMSTAT_PICKUPS_YA,\n\tCG_TEAMSTAT_PICKUPS_GA,\n\tCG_TEAMSTAT_PICKUPS_MH,\n\tCG_TEAMSTAT_PICKUPS_QUAD," in local_source
+	assert "int\t\tvalues[2][CG_TEAMSTAT_COUNT];" in local_source
+	assert "CG_TEAMSTAT_PICKUPS_RA,\n\tCG_TEAMSTAT_PICKUPS_YA,\n\tCG_TEAMSTAT_PICKUPS_GA,\n\tCG_TEAMSTAT_PICKUPS_MH,\n\tCG_TEAMSTAT_PICKUPS_QUAD," in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_RA,\n\tCG_TEAMSTAT_PICKUPS_YA,\n\tCG_TEAMSTAT_PICKUPS_GA,\n\tCG_TEAMSTAT_PICKUPS_MH,\n\tCG_TEAMSTAT_PICKUPS_QUAD," in ctf_teamstat_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_BLUE_TEAM_MAP_PICKUPS && ownerDraw <= CG_BLUE_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_BLUE;",
+		"resolvedStatIndex = ownerDraw - CG_BLUE_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"if ( !cg.teamScoreStats.valid ) {",
+		"if ( cg.teamScoreStats.fieldCount <= 0 ) {",
+		"if ( statIndex < 0 || statIndex >= cg.teamScoreStats.fieldCount ) {",
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"value = cg.teamScoreStats.values[teamIndex][statIndex];",
+		"if ( value < 0 ) {",
+		"Com_sprintf( buffer, bufferSize, \"%i\", value );",
+	):
+		assert expected in pickup_text_block
+
+	for expected in (
+		"G_BuildTeamScoreStatsFields( TEAM_RED, teamFields[0], TEAMSTAT_COUNT );",
+		"G_BuildTeamScoreStatsFields( TEAM_BLUE, teamFields[1], TEAMSTAT_COUNT );",
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"trap_SendServerCommand( ent - g_entities, va( \"scorestats_team %i%s\", TEAMSTAT_COUNT, payload ) );",
+	):
+		assert expected in send_teamstats_block
+
+	for expected in (
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"cg.teamScoreStats.values[teamIndex][fieldIndex] = atoi( CG_Argv( arg++ ) );",
+		"cg.teamScoreStats.fieldCount = fieldCount;",
+		"cg.teamScoreStats.valid = qtrue;",
+	):
+		assert expected in parse_teamstats_block
+
+	for expected in (
+		"fields[fieldIndex] += cl->pers.teamScoreStats[fieldIndex];",
+		"fields[TEAMSTAT_MAP_PICKUPS] = mapPickups;",
+		"fields[TEAMSTAT_MAP_PICKUPS] = G_TeamMapPickupProxyTotal( team );",
+	):
+		assert expected in game_teamstats_block
+
+	for expected in (
+		"if ( CG_IsTeamPickupSummaryOwnerDraw( ownerDraw ) ) {",
+		"CG_DrawTeamPickupSummaryOwnerDraw( rect, scale, color, textStyle, ownerDraw );",
+		"if ( !CG_BuildTeamPickupText( ownerDraw, buffer, sizeof( buffer ) ) ) {",
+		"CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in pickup_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected:
+		assert f"case {name}:" in pickup_case_block
+		assert name not in timeheld_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_325_to_329_ownerdraws_match_retail_blue_pickup_and_timeheld_split() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	minutes_block = _block_from_marker(source, "static const char *CG_FormatMinutesSeconds")
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	pickup_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamPickupText")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	parse_teamstats_block = _block_from_marker(servercmds_source, "static void CG_ParseTeamScoreStats")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	game_hold_stat_block = _block_from_marker(game_cmds_source, "static qboolean G_IsTeamHoldStatIndex")
+	game_teamstats_block = _block_from_marker(game_cmds_source, "static void G_BuildTeamScoreStatsFields")
+	send_teamstats_block = _block_from_marker(game_cmds_source, "static void G_SendTeamScoreStatsMessage")
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	retail_pickup_jump_table_block = _text_between(
+		hlil_source,
+		"10039a44  uint32_t jump_table_10039a44",
+		"10039aa8    void __convention",
+	)
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	selected_pickups = {
+		"CG_BLUE_TEAM_PICKUPS_BS": (0x145, "CG_TEAMSTAT_PICKUPS_BS", 6, 6, "data_10aa6878", "TEAMSTAT_PICKUPS_BS"),
+		"CG_BLUE_TEAM_PICKUPS_FLAG": (0x148, "CG_TEAMSTAT_PICKUPS_FLAG", 9, 7, "data_10aa6888", "TEAMSTAT_PICKUPS_FLAG"),
+		"CG_BLUE_TEAM_PICKUPS_MEDKIT": (0x149, "CG_TEAMSTAT_PICKUPS_MEDKIT", 10, 8, "data_10aa688c", "TEAMSTAT_PICKUPS_MEDKIT"),
+	}
+	selected_timeheld = {
+		"CG_BLUE_TEAM_TIMEHELD_QUAD": (0x146, "CG_TEAMSTAT_TIMEHELD_QUAD", 7, 0, "data_10aa6890", "TEAMSTAT_TIMEHELD_QUAD"),
+		"CG_BLUE_TEAM_TIMEHELD_BS": (0x147, "CG_TEAMSTAT_TIMEHELD_BS", 8, 1, "data_10aa6894", "TEAMSTAT_TIMEHELD_BS"),
+	}
+	selected = set(selected_pickups) | set(selected_timeheld)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name, game_stat_name) in selected_pickups.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10037f80")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert game_stat_name in game_teamstats_block
+		if stat_name in {"CG_TEAMSTAT_PICKUPS_FLAG", "CG_TEAMSTAT_PICKUPS_MEDKIT"}:
+			assert stat_name not in tdm_teamstat_order_block
+		else:
+			assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert raw_offset == value - constants["CG_BLUE_TEAM_MAP_PICKUPS"]
+		assert f"[0x{selector:02x}]" in retail_pickup_jump_table_block
+		assert f"case {selector}" in retail_pickup_block
+		assert retail_cache_name in retail_pickup_block
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name, game_stat_name) in selected_timeheld.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert game_stat_name in game_hold_stat_block
+		assert raw_offset == value - constants["CG_BLUE_TEAM_MAP_PICKUPS"]
+		assert f"[0x{selector:x}]" in retail_timeheld_jump_table_block
+		assert f"case {selector}" in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for expected in (
+		"switch (*(arg3 + sub_10039aa8))",
+		"sub_1002dff0(",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg2)), fconvert.s(fconvert.t(arg2[1]))",
+	):
+		assert expected in retail_pickup_block
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+		"sub_10008780(",
+	):
+		assert expected in retail_timeheld_block
+
+	for expected in (
+		"if ( seconds < 0 ) {",
+		'return va( "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );',
+	):
+		assert expected in minutes_block
+
+	assert "CG_TEAMSTAT_PICKUPS_QUAD,\n\tCG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_TIMEHELD_QUAD,\n\tCG_TEAMSTAT_TIMEHELD_BS,\n\tCG_TEAMSTAT_PICKUPS_FLAG,\n\tCG_TEAMSTAT_PICKUPS_MEDKIT," in local_source
+	assert "int\t\tvalues[2][CG_TEAMSTAT_COUNT];" in local_source
+	assert "CG_TEAMSTAT_PICKUPS_QUAD,\n\tCG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_QUAD,\n\tCG_TEAMSTAT_TIMEHELD_BS," in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_QUAD,\n\tCG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_PICKUPS_FLAG,\n\tCG_TEAMSTAT_PICKUPS_MEDKIT,\n\tCG_TEAMSTAT_TIMEHELD_QUAD,\n\tCG_TEAMSTAT_TIMEHELD_BS," in ctf_teamstat_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_BLUE_TEAM_MAP_PICKUPS && ownerDraw <= CG_BLUE_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_BLUE;",
+		"resolvedStatIndex = ownerDraw - CG_BLUE_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_QUAD:",
+		"case CG_TEAMSTAT_TIMEHELD_BS:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+
+	for expected in (
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"value = cg.teamScoreStats.values[teamIndex][statIndex];",
+		"if ( value < 0 ) {",
+		"Com_sprintf( buffer, bufferSize, \"%i\", value );",
+	):
+		assert expected in pickup_text_block
+
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"return qtrue;",
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+
+	for expected in (
+		"G_BuildTeamScoreStatsFields( TEAM_RED, teamFields[0], TEAMSTAT_COUNT );",
+		"G_BuildTeamScoreStatsFields( TEAM_BLUE, teamFields[1], TEAMSTAT_COUNT );",
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"trap_SendServerCommand( ent - g_entities, va( \"scorestats_team %i%s\", TEAMSTAT_COUNT, payload ) );",
+	):
+		assert expected in send_teamstats_block
+
+	for expected in (
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"cg.teamScoreStats.values[teamIndex][fieldIndex] = atoi( CG_Argv( arg++ ) );",
+		"cg.teamScoreStats.fieldCount = fieldCount;",
+		"cg.teamScoreStats.valid = qtrue;",
+	):
+		assert expected in parse_teamstats_block
+
+	for expected in (
+		"case TEAMSTAT_TIMEHELD_QUAD:",
+		"case TEAMSTAT_TIMEHELD_BS:",
+		"return qtrue;",
+	):
+		assert expected in game_hold_stat_block
+
+	for expected in (
+		"fields[fieldIndex] += G_GetClientTeamHoldStatSeconds( cl, (teamScoreStatIndex_t)fieldIndex, level.time );",
+		"fields[fieldIndex] += cl->pers.teamScoreStats[fieldIndex];",
+		"TEAMSTAT_PICKUPS_BS",
+		"TEAMSTAT_PICKUPS_FLAG",
+		"TEAMSTAT_PICKUPS_MEDKIT",
+	):
+		assert expected in game_teamstats_block
+
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in pickup_dispatch_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_pickups:
+		assert f"case {name}:" in pickup_case_block
+		assert name not in timeheld_case_block
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+		assert name not in pickup_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_330_to_334_ownerdraws_match_retail_sparse_blue_pickup_tail() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	minutes_block = _block_from_marker(source, "static const char *CG_FormatMinutesSeconds")
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	pickup_text_block = _block_from_marker(source, "static qboolean CG_BuildTeamPickupText")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	pickup_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamPickupOwnerDraw")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	parse_teamstats_block = _block_from_marker(servercmds_source, "static void CG_ParseTeamScoreStats")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	game_hold_stat_block = _block_from_marker(game_cmds_source, "static qboolean G_IsTeamHoldStatIndex")
+	game_hold_powerup_block = _block_from_marker(game_cmds_source, "static int G_TeamHoldPowerupForStat")
+	game_hold_for_powerup_block = _block_from_marker(game_cmds_source, "teamScoreStatIndex_t G_TeamHoldStatForPowerup")
+	game_teamstats_block = _block_from_marker(game_cmds_source, "static void G_BuildTeamScoreStatsFields")
+	send_teamstats_block = _block_from_marker(game_cmds_source, "static void G_SendTeamScoreStatsMessage")
+	retail_pickup_block = _text_between(
+		hlil_source,
+		"10037f80    void __convention(\"regparm\") sub_10037f80",
+		"10039a50",
+	)
+	retail_pickup_jump_table_block = _text_between(
+		hlil_source,
+		"10039a44  uint32_t jump_table_10039a44",
+		"10039aa8    void __convention",
+	)
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	selected_pickups = {
+		"CG_BLUE_TEAM_PICKUPS_REGEN": (0x14A, "CG_TEAMSTAT_PICKUPS_REGEN", 0x0B, 0x09, "data_10aa687c", "TEAMSTAT_PICKUPS_REGEN"),
+		"CG_BLUE_TEAM_PICKUPS_HASTE": (0x14B, "CG_TEAMSTAT_PICKUPS_HASTE", 0x0C, 0x0A, "data_10aa6880", "TEAMSTAT_PICKUPS_HASTE"),
+		"CG_BLUE_TEAM_PICKUPS_INVIS": (0x14C, "CG_TEAMSTAT_PICKUPS_INVIS", 0x0D, 0x0B, "data_10aa6884", "TEAMSTAT_PICKUPS_INVIS"),
+	}
+	selected_timeheld = {
+		"CG_BLUE_TEAM_TIMEHELD_FLAG": (0x14D, "CG_TEAMSTAT_TIMEHELD_FLAG", 0x0E, 0x02, "data_10aa68a4", "TEAMSTAT_TIMEHELD_FLAG"),
+		"CG_BLUE_TEAM_TIMEHELD_REGEN": (0x14E, "CG_TEAMSTAT_TIMEHELD_REGEN", 0x0F, 0x03, "data_10aa6898", "TEAMSTAT_TIMEHELD_REGEN"),
+	}
+	selected = set(selected_pickups) | set(selected_timeheld)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name, game_stat_name) in selected_pickups.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10037f80")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert game_stat_name in game_teamstats_block
+		assert raw_offset == value - constants["CG_BLUE_TEAM_MAP_PICKUPS"]
+		assert f"[0x{selector:02x}]" in retail_pickup_jump_table_block
+		assert case_label in retail_pickup_block
+		assert retail_cache_name in retail_pickup_block
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name, game_stat_name) in selected_timeheld.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		if stat_name == "CG_TEAMSTAT_TIMEHELD_FLAG":
+			assert stat_name not in tdm_teamstat_order_block
+		else:
+			assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert game_stat_name in game_hold_stat_block
+		assert raw_offset == value - constants["CG_BLUE_TEAM_MAP_PICKUPS"]
+		assert f"[0x{selector:x}]" in retail_timeheld_jump_table_block
+		assert case_label in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for expected in (
+		"switch (*(arg3 + sub_10039aa8))",
+		"sub_1002dff0(",
+		"sub_100575e0(&data_10068e44)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg2)), fconvert.s(fconvert.t(arg2[1]))",
+	):
+		assert expected in retail_pickup_block
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+		"sub_10008780(",
+	):
+		assert expected in retail_timeheld_block
+
+	for expected in (
+		"if ( seconds < 0 ) {",
+		'return va( "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );',
+	):
+		assert expected in minutes_block
+
+	for expected in (
+		"CG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG,\n\tCG_TEAMSTAT_TIMEHELD_REGEN,",
+		"int\t\tvalues[2][CG_TEAMSTAT_COUNT];",
+	):
+		assert expected in local_source
+
+	for expected in (
+		"CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_QUAD,",
+		"CG_TEAMSTAT_TIMEHELD_BS,\n\tCG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS",
+	):
+		assert expected in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_FLAG" not in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_PICKUPS_MEDKIT" not in tdm_teamstat_order_block
+	assert "CG_TEAMSTAT_TIMEHELD_FLAG" not in tdm_teamstat_order_block
+
+	for expected in (
+		"CG_TEAMSTAT_PICKUPS_BS,\n\tCG_TEAMSTAT_PICKUPS_REGEN,\n\tCG_TEAMSTAT_PICKUPS_HASTE,\n\tCG_TEAMSTAT_PICKUPS_INVIS,\n\tCG_TEAMSTAT_PICKUPS_FLAG,\n\tCG_TEAMSTAT_PICKUPS_MEDKIT,",
+		"CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG",
+	):
+		assert expected in ctf_teamstat_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_BLUE_TEAM_MAP_PICKUPS && ownerDraw <= CG_BLUE_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_BLUE;",
+		"resolvedStatIndex = ownerDraw - CG_BLUE_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_FLAG:",
+		"case CG_TEAMSTAT_TIMEHELD_REGEN:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+
+	for expected in (
+		"teamIndex = ( team == TEAM_RED ) ? 0 : 1;",
+		"value = cg.teamScoreStats.values[teamIndex][statIndex];",
+		"if ( value < 0 ) {",
+		"Com_sprintf( buffer, bufferSize, \"%i\", value );",
+	):
+		assert expected in pickup_text_block
+
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"return qtrue;",
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+
+	for expected in (
+		"G_BuildTeamScoreStatsFields( TEAM_RED, teamFields[0], TEAMSTAT_COUNT );",
+		"G_BuildTeamScoreStatsFields( TEAM_BLUE, teamFields[1], TEAMSTAT_COUNT );",
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"trap_SendServerCommand( ent - g_entities, va( \"scorestats_team %i%s\", TEAMSTAT_COUNT, payload ) );",
+	):
+		assert expected in send_teamstats_block
+
+	for expected in (
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"cg.teamScoreStats.values[teamIndex][fieldIndex] = atoi( CG_Argv( arg++ ) );",
+		"cg.teamScoreStats.fieldCount = fieldCount;",
+		"cg.teamScoreStats.valid = qtrue;",
+	):
+		assert expected in parse_teamstats_block
+
+	for expected in (
+		"case TEAMSTAT_TIMEHELD_FLAG:",
+		"case TEAMSTAT_TIMEHELD_REGEN:",
+		"return qtrue;",
+	):
+		assert expected in game_hold_stat_block
+
+	for expected in (
+		"case TEAMSTAT_TIMEHELD_FLAG:",
+		"return PW_NEUTRALFLAG;",
+		"case TEAMSTAT_TIMEHELD_REGEN:",
+		"return PW_REGEN;",
+	):
+		assert expected in game_hold_powerup_block
+
+	for expected in (
+		"case PW_REGEN:",
+		"return TEAMSTAT_TIMEHELD_REGEN;",
+		"case PW_REDFLAG:",
+		"case PW_BLUEFLAG:",
+		"case PW_NEUTRALFLAG:",
+		"return TEAMSTAT_TIMEHELD_FLAG;",
+	):
+		assert expected in game_hold_for_powerup_block
+
+	for expected in (
+		"fields[fieldIndex] += G_GetClientTeamHoldStatSeconds( cl, (teamScoreStatIndex_t)fieldIndex, level.time );",
+		"fields[fieldIndex] += cl->pers.teamScoreStats[fieldIndex];",
+		"TEAMSTAT_PICKUPS_REGEN",
+		"TEAMSTAT_PICKUPS_HASTE",
+		"TEAMSTAT_PICKUPS_INVIS",
+	):
+		assert expected in game_teamstats_block
+
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in pickup_dispatch_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	pickup_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_MAP_PICKUPS:"):
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:")
+	]
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_pickups:
+		assert f"case {name}:" in pickup_case_block
+		assert name not in timeheld_case_block
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+		assert name not in pickup_case_block
+	assert "CG_DrawTeamPickupOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in pickup_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
+def test_cgame_selected_335_to_339_ownerdraws_match_retail_final_cgame_tail() -> None:
+	source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
+	local_source = CG_LOCAL.read_text(encoding="utf-8")
+	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
+	game_cmds_source = G_CMDS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	index_source = CG_OWNERDRAW_INDEX.read_text(encoding="utf-8")
+	constants = _menudef_ownerdraw_constants()
+	minutes_block = _block_from_marker(source, "static const char *CG_FormatMinutesSeconds")
+	phase_text_block = _block_from_marker(source, "static const char *CG_GetMatchPhaseText")
+	pickup_meta_block = _block_from_marker(source, "static qboolean CG_GetTeamPickupOwnerDrawMeta")
+	timeheld_index_block = _block_from_marker(source, "static qboolean CG_IsTeamTimeHeldStatIndex")
+	timeheld_build_block = _block_from_marker(source, "static qboolean CG_BuildTeamTimeHeldText")
+	timeheld_dispatch_block = _block_from_marker(source, "static void CG_DrawTeamTimeHeldOwnerDraw")
+	competitive_block = _block_from_marker(source, "static qboolean CG_IsCompetitiveScoreOwnerDraw")
+	match_state_block = _block_from_marker(source, "static void CG_DrawMatchState")
+	health_block = _block_from_marker(source, "static void CG_DrawHealthColorized")
+	objective_ctf_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusCtfFamilyStrip")
+	objective_oneflag_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusOneFlagStrip")
+	objective_harvester_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusHarvesterStrip")
+	objective_domination_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusDominationStrip")
+	objective_strip_block = _block_from_marker(source, "static qboolean CG_DrawObjectiveStatusStrip")
+	objective_label_block = _block_from_marker(source, "static qboolean CG_BuildObjectiveStatusLabel")
+	objective_draw_block = _block_from_marker(source, "static void CG_DrawObjectiveStatus")
+	ownerdraw_block = _block_from_marker(source, "void CG_OwnerDraw(")
+	value_block = _block_from_marker(source, "float CG_GetValue")
+	width_block = _block_from_marker(main_source, "static int CG_OwnerDrawWidth")
+	key_block = _block_from_marker(main_source, "static qboolean CG_OwnerDrawHandleKey")
+	parse_teamstats_block = _block_from_marker(servercmds_source, "static void CG_ParseTeamScoreStats")
+	tdm_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailTdmTeamStatOrder")
+	ctf_teamstat_order_block = _block_from_marker(servercmds_source, "static const cgTeamStatIndex_t cgRetailCtfTeamStatOrder")
+	game_hold_stat_block = _block_from_marker(game_cmds_source, "static qboolean G_IsTeamHoldStatIndex")
+	game_hold_powerup_block = _block_from_marker(game_cmds_source, "static int G_TeamHoldPowerupForStat")
+	game_hold_for_powerup_block = _block_from_marker(game_cmds_source, "teamScoreStatIndex_t G_TeamHoldStatForPowerup")
+	game_teamstats_block = _block_from_marker(game_cmds_source, "static void G_BuildTeamScoreStatsFields")
+	send_teamstats_block = _block_from_marker(game_cmds_source, "static void G_SendTeamScoreStatsMessage")
+	retail_timeheld_block = _text_between(
+		hlil_source,
+		"10039ae0    void __convention(\"regparm\") sub_10039ae0",
+		"10039e06",
+	)
+	retail_timeheld_jump_table_block = _text_between(
+		hlil_source,
+		"10039e08  uint32_t jump_table_10039e08",
+		"10039e3c    void __convention",
+	)
+	retail_objective_block = _text_between(
+		hlil_source,
+		"10030240    uint32_t sub_10030240",
+		"10030a80",
+	)
+	retail_health_block = _text_between(
+		hlil_source,
+		"1002f6b0    int32_t sub_1002f6b0",
+		"1002f77c",
+	)
+	retail_match_state_block = _text_between(
+		hlil_source,
+		"10034360    int32_t sub_10034360",
+		"100343d0",
+	)
+	selected_timeheld = {
+		"CG_BLUE_TEAM_TIMEHELD_HASTE": (0x14F, "CG_TEAMSTAT_TIMEHELD_HASTE", 0x10, 0x04, "data_10aa689c", "TEAMSTAT_TIMEHELD_HASTE"),
+		"CG_BLUE_TEAM_TIMEHELD_INVIS": (0x150, "CG_TEAMSTAT_TIMEHELD_INVIS", 0x11, 0x05, "data_10aa68a0", "TEAMSTAT_TIMEHELD_INVIS"),
+	}
+	selected_direct = {
+		"CG_FLAG_STATUS": (0x151, "FUN_10030240"),
+		"CG_HEALTH_COLORIZED": (0x152, "FUN_1002f6b0"),
+		"CG_MATCH_STATE": (0x153, "FUN_10034360"),
+	}
+	selected = set(selected_timeheld) | set(selected_direct)
+
+	for name, (value, stat_name, raw_offset, selector, retail_cache_name, game_stat_name) in selected_timeheld.items():
+		case_label = f"case 0x{selector:x}" if selector >= 10 else f"case {selector}"
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target("FUN_10039ae0")
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+		assert stat_name in local_source
+		assert stat_name in tdm_teamstat_order_block
+		assert stat_name in ctf_teamstat_order_block
+		assert game_stat_name in game_hold_stat_block
+		assert raw_offset == value - constants["CG_BLUE_TEAM_MAP_PICKUPS"]
+		assert f"[0x{selector:x}]" in retail_timeheld_jump_table_block
+		assert case_label in retail_timeheld_block
+		assert retail_cache_name in retail_timeheld_block
+
+	for name, (value, target) in selected_direct.items():
+		assert constants[name] == value
+		assert value in _retail_cg_ownerdraw_cases_for_target(target)
+		assert re.search(rf"\|\s+{value}\s+\| `{name}` \| .*Checked", index_source)
+
+	for expected in (
+		"uint32_t ecx = zx.d(*(arg1 + sub_10039e3c))",
+		"sub_10057470(",
+		"sub_100575e0(&data_10068de8)",
+		"&data_10068420",
+		"sub_10008780(",
+	):
+		assert expected in retail_timeheld_block
+
+	for expected in (
+		"if ( seconds < 0 ) {",
+		'return va( "%i:%i%i", seconds / 60, ( seconds % 60 ) / 10, seconds % 10 );',
+	):
+		assert expected in minutes_block
+
+	for expected in (
+		"CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS,",
+		"int\t\tvalues[2][CG_TEAMSTAT_COUNT];",
+	):
+		assert expected in local_source
+
+	for expected in (
+		"CG_TEAMSTAT_TIMEHELD_BS,\n\tCG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS",
+		"CG_TEAMSTAT_TIMEHELD_REGEN,\n\tCG_TEAMSTAT_TIMEHELD_HASTE,\n\tCG_TEAMSTAT_TIMEHELD_INVIS,\n\tCG_TEAMSTAT_TIMEHELD_FLAG",
+	):
+		assert expected in tdm_teamstat_order_block + ctf_teamstat_order_block
+
+	for expected in (
+		"} else if ( ownerDraw >= CG_BLUE_TEAM_MAP_PICKUPS && ownerDraw <= CG_BLUE_TEAM_TIMEHELD_INVIS ) {",
+		"resolvedTeam = TEAM_BLUE;",
+		"resolvedStatIndex = ownerDraw - CG_BLUE_TEAM_MAP_PICKUPS;",
+	):
+		assert expected in pickup_meta_block
+
+	for expected in (
+		"case CG_TEAMSTAT_TIMEHELD_HASTE:",
+		"case CG_TEAMSTAT_TIMEHELD_INVIS:",
+		"return qtrue;",
+	):
+		assert expected in timeheld_index_block
+
+	for expected in (
+		"if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {",
+		"if ( !CG_GetTeamScoreStatValue( team, statIndex, &value ) ) {",
+		'Q_strncpyz( buffer, "-", bufferSize );',
+		"return qtrue;",
+		"Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );",
+	):
+		assert expected in timeheld_build_block
+
+	for expected in (
+		"G_BuildTeamScoreStatsFields( TEAM_RED, teamFields[0], TEAMSTAT_COUNT );",
+		"G_BuildTeamScoreStatsFields( TEAM_BLUE, teamFields[1], TEAMSTAT_COUNT );",
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"trap_SendServerCommand( ent - g_entities, va( \"scorestats_team %i%s\", TEAMSTAT_COUNT, payload ) );",
+	):
+		assert expected in send_teamstats_block
+
+	for expected in (
+		"for ( teamIndex = 0; teamIndex < 2; teamIndex++ ) {",
+		"cg.teamScoreStats.values[teamIndex][fieldIndex] = atoi( CG_Argv( arg++ ) );",
+		"cg.teamScoreStats.fieldCount = fieldCount;",
+		"cg.teamScoreStats.valid = qtrue;",
+	):
+		assert expected in parse_teamstats_block
+
+	for expected in (
+		"case TEAMSTAT_TIMEHELD_HASTE:",
+		"case TEAMSTAT_TIMEHELD_INVIS:",
+		"return qtrue;",
+	):
+		assert expected in game_hold_stat_block
+
+	for expected in (
+		"case TEAMSTAT_TIMEHELD_HASTE:",
+		"return PW_HASTE;",
+		"case TEAMSTAT_TIMEHELD_INVIS:",
+		"return PW_INVIS;",
+	):
+		assert expected in game_hold_powerup_block
+
+	for expected in (
+		"case PW_HASTE:",
+		"return TEAMSTAT_TIMEHELD_HASTE;",
+		"case PW_INVIS:",
+		"return TEAMSTAT_TIMEHELD_INVIS;",
+	):
+		assert expected in game_hold_for_powerup_block
+
+	for expected in (
+		"fields[fieldIndex] += G_GetClientTeamHoldStatSeconds( cl, (teamScoreStatIndex_t)fieldIndex, level.time );",
+		"fields[fieldIndex] += cl->pers.teamScoreStats[fieldIndex];",
+	):
+		assert expected in game_teamstats_block
+
+	for expected in (
+		"result = ecx - 5",
+		"lookup_table_10030a74",
+		"(data_10a9c278 & 0x4000)",
+		"data_10a403f4",
+		"data_10a403f8",
+		"sub_100123d0(",
+		"sub_100126a0(",
+	):
+		assert expected in retail_objective_block
+
+	for expected in (
+		"if ( cgs.gametype != GT_CTF && cgs.gametype != GT_ATTACK_DEFEND && cgs.gametype != GT_OBELISK ) {",
+		"CG_GetTeamFlagStatusShader( TEAM_RED, qtrue );",
+		"CG_GetTeamFlagStatusShader( TEAM_BLUE, qtrue );",
+		"CG_GetTeamFlagStatusShader( TEAM_RED, qfalse );",
+		"CG_GetTeamFlagStatusShader( TEAM_BLUE, qfalse );",
+		"CG_DrawObjectiveStatusTrack( rect, trackLeft, trackRight );",
+		"cgs.redflag == FLAG_ATBASE",
+		"cgs.blueflag == FLAG_TAKEN",
+		"CG_DrawPic( redMarkerX, markerY, markerSize, markerSize, redFlagShader );",
+	):
+		assert expected in objective_ctf_block
+
+	for expected in (
+		"if ( cgs.gametype != GT_1FCTF ) {",
+		"flagShader = CG_GetOneFlagStatusShader();",
+		"CG_DrawObjectiveStatusTrack( rect, leftIconX + iconSize + 6.0f, rightIconX - 6.0f );",
+		"CG_DrawPic( centerX, rect->y, iconSize, iconSize, flagShader );",
+	):
+		assert expected in objective_oneflag_block
+
+	for expected in (
+		"if ( cgs.gametype != GT_HARVESTER ) {",
+		"cgs.media.redCubeIcon",
+		"cgs.media.flagShader[0]",
+		"cgs.media.blueCubeIcon",
+	):
+		assert expected in objective_harvester_block
+
+	for expected in (
+		"if ( cgs.gametype != GT_DOMINATION ) {",
+		"cent->currentState.eType != ET_TEAM",
+		"pointIndex = cent->currentState.clientNum - 1;",
+		"CG_ObjectiveStatusDominationSelectShader( captureIcon, distress, progressIndex );",
+		"CG_DrawPic( x, rect->y, iconSize, iconSize, shader );",
+	):
+		assert expected in objective_domination_block
+
+	for expected in (
+		"if ( CG_DrawObjectiveStatusCtfFamilyStrip( rect ) ) {",
+		"if ( CG_DrawObjectiveStatusOneFlagStrip( rect ) ) {",
+		"if ( CG_DrawObjectiveStatusHarvesterStrip( rect ) ) {",
+		"return CG_DrawObjectiveStatusDominationStrip( rect );",
+	):
+		assert expected in objective_strip_block
+
+	for expected in (
+		"if ( cgs.gametype == GT_CTF ) {",
+		"Both Flags Taken",
+		"Flags At Base",
+		"if ( cgs.gametype == GT_1FCTF ) {",
+		"Neutral Flag Dropped",
+		"if ( cgs.gametype == GT_ATTACK_DEFEND ) {",
+		"CG_FlagStatusText( redStatus )",
+	):
+		assert expected in objective_label_block
+
+	for expected in (
+		"if ( CG_DrawObjectiveStatusStrip( rect ) ) {",
+		"if ( !CG_BuildObjectiveStatusLabel( buffer, sizeof( buffer ) ) ) {",
+		"CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );",
+	):
+		assert expected in objective_draw_block
+
+	for expected in (
+		"sub_1000ca90(",
+		"(*(ecx_4 + 0x138))(&var_14",
+		"sub_100126a0(",
+		"(*(data_1074cccc + 0x138))(0)",
+	):
+		assert expected in retail_health_block
+
+	for expected in (
+		"if ( !rect || !cg.snap ) {",
+		"if ( cg.snap->ps.pm_flags & PMF_FOLLOW ) {",
+		"slot = ( rect->x + rect->w * 0.5f < 320.0f ) ? 0 : 1;",
+		"ci = CG_SpectatorClientInfo( slot );",
+		"health = cg.snap->ps.stats[STAT_HEALTH];",
+		"armor = cg.snap->ps.stats[STAT_ARMOR];",
+		"health = ci->health;",
+		"armor = ci->armor;",
+		"CG_GetColorForHealth( health, armor, color );",
+		"color[3] = 0.5f;",
+		"if ( shader ) {",
+		"trap_R_DrawStretchPic( x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader );",
+		"CG_FillRect( rect->x, rect->y, rect->w, rect->h, color );",
+	):
+		assert expected in health_block
+
+	for expected in (
+		'"MATCH SUMMARY"',
+		'"MATCH WARMUP"',
+		'"MATCH IN PROGRESS"',
+		"sub_100575e0(&data_10068de8)",
+		"sub_10008440(fconvert.s(fconvert.t(*arg1)), fconvert.s(fconvert.t(arg1[1])), arg2,",
+	):
+		assert expected in retail_match_state_block
+
+	for expected in (
+		"if ( cg.snap && cg.snap->ps.pm_type == PM_INTERMISSION ) {",
+		'return "MATCH SUMMARY";',
+		"if ( cg.warmup != 0 ) {",
+		'return "MATCH WARMUP";',
+		'return "MATCH IN PROGRESS";',
+	):
+		assert expected in phase_text_block
+
+	assert "CG_Text_Paint( rect->x, rect->y, scale, color, CG_GetMatchPhaseText(), 0, 0, textStyle );" in match_state_block
+	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_dispatch_block
+
+	timeheld_case_block = ownerdraw_block[
+		ownerdraw_block.index("case CG_RED_TEAM_TIMEHELD_QUAD:"):
+		ownerdraw_block.index("case CG_MATCH_WINNER:")
+	]
+	for name in selected_timeheld:
+		assert f"case {name}:" in timeheld_case_block
+	assert "CG_DrawTeamTimeHeldOwnerDraw( &rect, scale, color, textStyle, ownerDraw );" in timeheld_case_block
+
+	for marker, expected in (
+		("case CG_FLAG_STATUS:", "CG_DrawObjectiveStatus( &rect, scale, color, textStyle );"),
+		("case CG_HEALTH_COLORIZED:", "CG_DrawHealthColorized(&rect, followShader);"),
+		("case CG_MATCH_STATE:", "CG_DrawMatchState(&rect, scale, color, textStyle);"),
+	):
+		start = ownerdraw_block.index(marker)
+		end = ownerdraw_block.index("break;", start)
+		case_block = ownerdraw_block[start:end]
+		assert expected in case_block
+		if marker == "case CG_HEALTH_COLORIZED:":
+			assert "qhandle_t followShader = shader;" in case_block
+			assert "if ( !followShader && cg.competitiveHudLoaded ) {" in case_block
+			assert "followShader = cgs.media.scoreboxFollowShader;" in case_block
+
+	assert "if ( CG_IsTeamPickupOwnerDraw( ownerDraw ) ) {" in competitive_block
+	assert "ownerDraw == CG_FLAG_STATUS" in competitive_block
+	assert "CG_HEALTH_COLORIZED" not in competitive_block
+	assert "CG_MATCH_STATE" not in competitive_block
+	for name in selected:
+		assert name not in value_block
+		assert name not in width_block
+		assert name not in key_block
+
+
 def test_cgame_intro_panel_and_player_count_widgets_restore_retail_detail_and_cap_rules() -> None:
 	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
 	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
@@ -6784,14 +11736,20 @@ def test_cgame_team_scoreboard_and_award_ownerdraws_follow_retail_helper_split()
 	award_client_block = _block_from_marker(source, "static int CG_GetAwardClientNum")
 	award_player_block = _block_from_marker(source, "static qboolean CG_DrawAwardPlayer")
 
-	assert 'Com_sprintf( buffer, sizeof( buffer ), "Avg ping %i", average );' in average_ping_block
+	assert 'Com_sprintf( buffer, sizeof( buffer ), "(%d)", average );' in average_ping_block
 	for expected in (
-		"Vector4Copy( color, drawColor );",
-		"if ( average >= 80 ) {",
-		"} else if ( average >= 40 ) {",
+		"average = ( count > 0 ) ? sum / count : 0;",
+		"if ( average > 40 ) {",
+		"drawColor[1] = ( average > 80 ) ? 0.0f : 1.0f;",
+		"drawColor[0] = 0.0f;",
+		"drawColor[1] = 1.0f;",
+		"drawColor[2] = 0.0f;",
+		"drawColor[3] = 0.8f;",
 		"CG_Text_Paint(rect->x, rect->y + rect->h, scale, drawColor, buffer, 0, 0, textStyle);",
 	):
 		assert expected in average_ping_block
+	assert "cg.scores[i].ping < 0" not in average_ping_block
+	assert "if ( count <= 0 ) {" not in average_ping_block
 	assert "if ( !CG_IsTeamTimeHeldOwnerDraw( ownerDraw ) ) {" in timeheld_build_block
 	assert 'Q_strncpyz( buffer, CG_FormatMinutesSeconds( value ), bufferSize );' in timeheld_build_block
 	assert "CG_Text_Paint( rect->x, rect->y + rect->h, scale, color, buffer, 0, 0, textStyle );" in timeheld_block
@@ -10549,12 +15507,14 @@ def test_cgame_browser_overlay_focus_wrappers_restore_retail_direct_owner_slice(
 
 def test_cgame_browser_runtime_state_and_simple_script_wrappers_restore_retail_owner_slice() -> None:
 	newdraw_source = CG_NEWDRAW.read_text(encoding="utf-8")
+	main_source = CG_MAIN.read_text(encoding="utf-8")
 
 	rect_block = _block_from_marker(newdraw_source, "static qboolean CG_BrowserRectContainsPoint")
 	items_group_block = _block_from_marker(newdraw_source, "static int CG_BrowserItemsMatchingGroup")
 	get_matching_block = _block_from_marker(newdraw_source, "static void *CG_BrowserGetMatchingItemByNumber")
 	find_widget_block = _block_from_marker(newdraw_source, "static void *CG_FindBrowserWidgetByName")
 	run_script_block = _block_from_marker(newdraw_source, "static void CG_RunBrowserScript")
+	display_context_block = _block_from_marker(main_source, "static void CG_InitDisplayContext")
 	enable_show_block = _block_from_marker(newdraw_source, "static qboolean CG_BrowserWidgetEnableShowViaCvar")
 	show_items_block = _block_from_marker(newdraw_source, "static void CG_ShowBrowserItemsByName")
 	script_show_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptShow")
@@ -10570,7 +15530,45 @@ def test_cgame_browser_runtime_state_and_simple_script_wrappers_restore_retail_o
 	assert "return Menu_ItemsMatchingGroup( (menuDef_t *)overlay, name );" in items_group_block
 	assert "return Menu_GetMatchingItemByNumber( (menuDef_t *)overlay, index, name );" in get_matching_block
 	assert "return Menu_FindItemByName( (menuDef_t *)overlay, name );" in find_widget_block
-	assert "Item_RunScript( (itemDef_t *)widget, script );" in run_script_block
+	assert "Item_RunScript( (itemDef_t *)widget, script );" not in run_script_block
+	assert "static const cgBrowserScriptCommand_t browserScriptCommands[] = {" in run_script_block
+	assert "ARRAY_LEN( browserScriptCommands )" in run_script_block
+	assert "browserScriptCommands[i].handler( widget, &p );" in run_script_block
+	assert "cgDC.runScript( &p );" in run_script_block
+	for expected in (
+		"cgDC.runScript = &CG_RunMenuScript;",
+		"cgDC.setupAdvertCellShader = &trap_QL_SetupAdvertCellShader;",
+		"cgDC.refreshAdvertCellShader = &trap_QL_RefreshAdvertCellShader;",
+		"cgDC.activateAdvert = &trap_QL_SetActiveAdvert;",
+	):
+		assert expected in display_context_block
+	assert run_script_block.count('{ "') == 23
+	for expected in (
+		'{ "fadein", CG_BrowserScriptFadeIn },',
+		'{ "fadeout", CG_BrowserScriptFadeOut },',
+		'{ "show", CG_BrowserScriptShow },',
+		'{ "hide", CG_BrowserScriptHide },',
+		'{ "setcolor", CG_BrowserScriptSetColor },',
+		'{ "open", CG_BrowserScriptOpen },',
+		'{ "conditionalopen", CG_BrowserScriptConditionalOpen },',
+		'{ "close", CG_BrowserScriptClose },',
+		'{ "toggle", CG_BrowserScriptToggle },',
+		'{ "setasset", CG_BrowserScriptSetAsset },',
+		'{ "setbackground", CG_BrowserScriptSetBackground },',
+		'{ "setitemcolor", CG_BrowserScriptSetItemColor },',
+		'{ "setteamcolor", CG_BrowserScriptSetTeamColor },',
+		'{ "setfocus", CG_BrowserScriptSetFocus },',
+		'{ "setplayermodel", CG_BrowserScriptSetPlayerModel },',
+		'{ "setplayerhead", CG_BrowserScriptSetPlayerHead },',
+		'{ "transition", CG_BrowserScriptTransition },',
+		'{ "setcvar", CG_BrowserScriptSetCvar },',
+		'{ "exec", CG_BrowserScriptExec },',
+		'{ "play", CG_BrowserScriptPlay },',
+		'{ "playlooped", CG_BrowserScriptPlayLooped },',
+		'{ "orbit", CG_BrowserScriptOrbit },',
+		'{ "activateAdvert", CG_BrowserScriptActivateAdvert }',
+	):
+		assert expected in run_script_block
 	assert "return Item_EnableShowViaCvar( (itemDef_t *)widget, flag );" in enable_show_block
 
 	for expected in (
@@ -10718,6 +15716,7 @@ def test_cgame_browser_leaf_wrappers_restore_remaining_retail_owner_slice() -> N
 	textfield_key_block = _block_from_marker(newdraw_source, "static qboolean CG_BrowserTextFieldHandleKey")
 	script_fade_in_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptFadeIn")
 	script_fade_out_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptFadeOut")
+	script_set_asset_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptSetAsset")
 	script_set_background_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptSetBackground")
 	script_set_color_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptSetColor")
 	script_set_team_color_block = _block_from_marker(newdraw_source, "static void CG_BrowserScriptSetTeamColor")
@@ -10787,6 +15786,7 @@ def test_cgame_browser_leaf_wrappers_restore_remaining_retail_owner_slice() -> N
 
 	assert "Menu_FadeItemByName( (menuDef_t *)item->parent, name, qfalse );" in script_fade_in_block
 	assert "Menu_FadeItemByName( (menuDef_t *)item->parent, name, qtrue );" in script_fade_out_block
+	assert "Script_SetAsset( (itemDef_t *)widget, args );" in script_set_asset_block
 	assert "Script_SetBackground( (itemDef_t *)widget, args );" in script_set_background_block
 	assert "Script_SetColor( (itemDef_t *)widget, args );" in script_set_color_block
 	assert "Script_SetTeamColor( (itemDef_t *)widget, args );" in script_set_team_color_block

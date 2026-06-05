@@ -2160,10 +2160,7 @@ by retail type-6 trajectory callers.
 ================
 */
 static float BG_TrajectoryAcceleration( const trajectory_t *tr ) {
-	const float	*acceleration;
-
-	acceleration = (const float *)(const void *)( (const byte *)tr + sizeof( *tr ) );
-	return *acceleration;
+	return tr->gravity;
 }
 
 /*
@@ -2472,9 +2469,11 @@ void BG_PlayerStateToEntityState( playerState_t *ps, entityState_t *s, qboolean 
 	}
 	// set the trDelta for flag direction
 	VectorCopy( ps->velocity, s->pos.trDelta );
+	s->pos.gravity = ps->gravity;
 
 	s->apos.trType = TR_INTERPOLATE;
 	VectorCopy( ps->viewangles, s->apos.trBase );
+	s->apos.gravity = 0.0f;
 	if ( snap ) {
 		SnapVector( s->apos.trBase );
 	}
@@ -2508,6 +2507,11 @@ void BG_PlayerStateToEntityState( playerState_t *ps, entityState_t *s, qboolean 
 
 	s->weapon = ps->weapon;
 	s->groundEntityNum = ps->groundEntityNum;
+	s->health = ps->stats[STAT_HEALTH];
+	s->armor = ps->stats[STAT_ARMOR];
+	s->location = ps->location;
+	s->jumpTime = ps->jumpTime;
+	s->doubleJumped = ps->doubleJumped;
 
 	s->powerups = 0;
 	for ( i = 0 ; i < MAX_POWERUPS ; i++ ) {
