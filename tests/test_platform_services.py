@@ -1786,7 +1786,7 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
     assert 'return "raw GetAllUGC integer filter";' in ugc_filter_label_block
     assert 'return "unpromoted GetAllUGC filter semantic";' in ugc_filter_semantic_gap_block
     assert 'return "ISteamMatchmakingServers";' in missing_browser_owner_block
-    assert 'return "ISteamMatchmakingServers wrapper not client-wired";' in browser_native_adapter_gap_block
+    assert 'return "ISteamMatchmakingServers native list owner unavailable; using source-browser fallback";' in browser_native_adapter_gap_block
     assert 'return "avatar-only SteamDataSource";' in steam_data_source_label_block
     assert 'return "missing non-avatar SteamDataSource owner";' in steam_data_source_gap_block
     assert "QL_Steamworks_GetAuthTicketApiLabel()" in ql_auth
@@ -2532,6 +2532,10 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     request_mode_label_block = _extract_function_block(
         cl_main, "static const char *CL_SteamBrowser_RequestModeLabel( int requestMode )"
     )
+    request_native_mode_block = _extract_function_block(
+        cl_main,
+        "static ql_steam_server_browser_request_mode_t CL_SteamBrowser_RequestModeToNativeMode( int requestMode )",
+    )
     source_label_block = _extract_function_block(
         cl_main, "static const char *CL_SteamBrowser_SourceLabel( int source )"
     )
@@ -2543,6 +2547,9 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     )
     native_adapter_gap_block = _extract_function_block(
         cl_main, "static const char *CL_SteamBrowser_NativeAdapterGapLabel( void )"
+    )
+    native_available_block = _extract_function_block(
+        cl_main, "static qboolean CL_SteamBrowser_NativeListAvailable( void )"
     )
     compatibility_source_block = _extract_function_block(
         cl_main, "static qboolean CL_SteamBrowser_RequestModeUsesCompatibilitySource( int requestMode )"
@@ -2560,6 +2567,20 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
         cl_main, "static void CL_SteamBrowser_FormatDetailId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize )"
     )
     request_servers_block = _extract_function_block(cl_main, "qboolean CL_Steam_RequestServers( int requestMode )")
+    begin_native_request_block = _extract_function_block(
+        cl_main, "static qboolean CL_SteamBrowser_BeginNativeRequest( int requestMode )"
+    )
+    publish_native_server_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_PublishNativeServerResponse( const ql_steam_server_browser_response_t *response )",
+    )
+    native_server_responded_block = _extract_function_block(
+        cl_main,
+        "static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex )",
+    )
+    complete_native_refresh_block = _extract_function_block(
+        cl_main, "static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut )"
+    )
     request_details_block = _extract_function_block(
         cl_main, "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort )"
     )
@@ -2605,11 +2626,18 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "return AS_FAVORITES;" in request_mode_block
     assert 'return "friends";' in request_mode_label_block
     assert 'return "history";' in request_mode_label_block
+    assert "return QL_STEAM_SERVER_BROWSER_INTERNET;" in request_native_mode_block
+    assert "return QL_STEAM_SERVER_BROWSER_LAN;" in request_native_mode_block
+    assert "return QL_STEAM_SERVER_BROWSER_FRIENDS;" in request_native_mode_block
+    assert "return QL_STEAM_SERVER_BROWSER_FAVORITES;" in request_native_mode_block
+    assert "return QL_STEAM_SERVER_BROWSER_HISTORY;" in request_native_mode_block
     assert 'return "global";' in source_label_block
     assert 'return "favorites";' in source_label_block
     assert 'return "source-browser compatibility";' in compatibility_owner_block
     assert 'return "ISteamMatchmakingServers";' in missing_owner_block
-    assert 'return "ISteamMatchmakingServers wrapper not client-wired";' in native_adapter_gap_block
+    assert 'return "ISteamMatchmakingServers native list owner unavailable; using source-browser fallback";' in native_adapter_gap_block
+    assert "CL_MatchmakingServiceAvailable()" in native_available_block
+    assert "QL_Steamworks_HasServerBrowserInterface()" in native_available_block
     assert "case 2:" in compatibility_source_block
     assert "case 4:" in compatibility_source_block
     assert "return qtrue;" in compatibility_source_block
@@ -2640,6 +2668,8 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
 
     assert "CL_SteamBrowser_RequestModeToSource( requestMode )" in request_servers_block
     assert "cl_steamBrowserState.requestInitialised = qtrue;" in request_servers_block
+    assert "CL_SteamBrowser_BeginNativeRequest( requestMode )" in request_servers_block
+    assert "cl_steamBrowserState.nativeRefreshActive = qfalse;" in request_servers_block
     assert "CL_SteamBrowser_MarkServerVisible( source, -1, qtrue );" in request_servers_block
     assert "CL_SteamBrowser_ResetPings( source );" in request_servers_block
     assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' in request_servers_block
@@ -2650,6 +2680,19 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert 'Cbuf_ExecuteText( EXEC_NOW, "localservers\\n" );' not in request_servers_block
     assert 'Cbuf_ExecuteText( EXEC_NOW, va( "globalservers %d %s full empty\\n", masterNum, debugProtocol ) );' not in request_servers_block
     assert 'Cbuf_ExecuteText( EXEC_NOW, va( "globalservers %d %d full empty\\n", masterNum, protocol ) );' not in request_servers_block
+    assert "CL_SteamBrowser_NativeListAvailable()" in begin_native_request_block
+    assert "QL_Steamworks_BeginServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner, nativeMode, &cl_steamNativeListResponse )" in begin_native_request_block
+    assert 'CL_LogMatchmakingServiceIgnored( "RequestServers", "native SteamMatchmakingServers list request failed; using source-browser fallback" );' in begin_native_request_block
+    assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' in begin_native_request_block
+    assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%s.response", response->id );' in publish_native_server_block
+    assert '\\"gametype\\":\\"%s\\"' in publish_native_server_block
+    assert "response->passwordProtected ? \"true\" : \"false\"" in publish_native_server_block
+    assert "QL_Steamworks_ReadServerBrowserResponse( request, serverIndex, &response )" in native_server_responded_block
+    assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_server_responded_block
+    assert "CL_SteamBrowser_PublishServerFailed( serverIndex );" in native_server_responded_block
+    assert "CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS" in cl_main
+    assert "static __declspec(naked) void CL_SteamBrowser_NativeServerResponded" in cl_main
+    assert "CL_SteamBrowser_NativeServerRespondedImpl( self, request, serverIndex );" in cl_main
 
     assert "CL_SteamBrowser_BuildAddressString( (uint32_t)serverIp, (uint16_t)serverPort, addressString, sizeof( addressString ) );" in request_details_block
     assert "CL_SteamBrowser_BeginDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort, &address );" in request_details_block
@@ -2657,7 +2700,10 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "CL_ServerStatus( addressString, serverStatus, sizeof( serverStatus ) );" in request_details_block
 
     assert "if ( !cl_steamBrowserState.requestInitialised ) {" in refresh_list_block
+    assert "QL_Steamworks_RefreshServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner )" in refresh_list_block
     assert "return CL_Steam_RequestServers( cl_steamBrowserState.requestMode );" in refresh_list_block
+    assert "QL_Steamworks_CompleteServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner );" in complete_native_refresh_block
+    assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.end", NULL );' in complete_native_refresh_block
 
     assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%i.failed", serverIndex );' in publish_server_failed_block
     assert '\\"id\\":%i' in publish_server_failed_block
@@ -2672,6 +2718,7 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "if ( !servers[i].visible || !servers[i].adr.port || servers[i].ping != 0 ) {" in publish_refresh_end_block
     assert "CL_SteamBrowser_PublishServerFailed( i );" in publish_refresh_end_block
     assert "CL_SteamBrowser_FailDetailRequest();" in browser_frame_block
+    assert "CL_SteamBrowser_CompleteNativeRefresh( qtrue );" in browser_frame_block
     assert "CL_UpdateVisiblePings_f( cl_steamBrowserState.requestSource )" in browser_frame_block
     assert "CL_SteamBrowser_PublishRefreshEnd();" in browser_frame_block
 

@@ -8,6 +8,8 @@
 #include <string.h>
 #include <time.h>
 
+void QDECL Com_DPrintf( const char *fmt, ... );
+
 #ifdef _WIN32
 #include <windows.h>
 #define QL_STEAMWORKS_LIB_PRIMARY "steam_api64.dll"
@@ -56,11 +58,17 @@ typedef void (*QL_SteamGameServer_SetIntFn)( void *, int );
 typedef void (*QL_SteamGameServer_SetKeyValueFn)( void *, const char *, const char * );
 typedef int (*QL_SteamGameServer_UpdateUserDataFn)( void *, uint32_t, uint32_t, const char *, uint32_t );
 
-#if defined(_MSC_VER) && defined(_M_IX86)
+#if defined(_MSC_VER) && defined(_M_IX86) && !defined(__cplusplus)
+#define QL_STEAMWORKS_USE_MSVC_C_THISCALL_THUNKS 1
+#define QL_STEAMWORKS_THISCALL
+#elif defined(_MSC_VER) && defined(_M_IX86)
+#define QL_STEAMWORKS_USE_MSVC_C_THISCALL_THUNKS 0
 #define QL_STEAMWORKS_THISCALL __thiscall
 #elif defined(__GNUC__) && defined(__i386__)
+#define QL_STEAMWORKS_USE_MSVC_C_THISCALL_THUNKS 0
 #define QL_STEAMWORKS_THISCALL __attribute__((thiscall))
 #else
+#define QL_STEAMWORKS_USE_MSVC_C_THISCALL_THUNKS 0
 #define QL_STEAMWORKS_THISCALL
 #endif
 
@@ -396,12 +404,12 @@ static ql_steamworks_state_t state;
 
 /*
 =============
-QL_Steamworks_CallbackRun
+QL_Steamworks_CallbackRunImpl
 
 Dispatches a normal Steam callback into the retained binding owner.
 =============
 */
-static void QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackRun( ql_steam_callback_base_t *self, void *payload ) {
+static void QL_Steamworks_CallbackRunImpl( ql_steam_callback_base_t *self, void *payload ) {
 	if ( !self || !self->dispatch ) {
 		return;
 	}
@@ -411,12 +419,12 @@ static void QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackRun( ql_steam_callback_
 
 /*
 =============
-QL_Steamworks_CallbackRunCallResult
+QL_Steamworks_CallbackRunCallResultImpl
 
 Dispatches a Steam call-result into the retained binding owner.
 =============
 */
-static void QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackRunCallResult( ql_steam_callback_base_t *self, void *payload, qboolean ioFailure, SteamAPICall_t callHandle ) {
+static void QL_Steamworks_CallbackRunCallResultImpl( ql_steam_callback_base_t *self, void *payload, qboolean ioFailure, SteamAPICall_t callHandle ) {
 	if ( !self ) {
 		return;
 	}
@@ -433,18 +441,106 @@ static void QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackRunCallResult( ql_steam
 
 /*
 =============
-QL_Steamworks_CallbackGetSize
+QL_Steamworks_CallbackGetSizeImpl
 
 Returns the payload size expected by the Steam callback object.
 =============
 */
-static int QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackGetSize( ql_steam_callback_base_t *self ) {
+static int QL_Steamworks_CallbackGetSizeImpl( ql_steam_callback_base_t *self ) {
 	if ( !self ) {
 		return 0;
 	}
 
 	return self->payloadSize;
 }
+
+#if QL_STEAMWORKS_USE_MSVC_C_THISCALL_THUNKS
+/*
+=============
+QL_Steamworks_CallbackRun
+
+Adapts Steam's x86 thiscall callback ABI to the C implementation.
+=============
+*/
+static __declspec(naked) void QL_Steamworks_CallbackRun( ql_steam_callback_base_t *self, void *payload ) {
+	__asm {
+		push dword ptr [esp + 4]
+		push ecx
+		call QL_Steamworks_CallbackRunImpl
+		add esp, 8
+		ret 4
+	}
+}
+
+/*
+=============
+QL_Steamworks_CallbackRunCallResult
+
+Adapts Steam's x86 thiscall call-result ABI to the C implementation.
+=============
+*/
+static __declspec(naked) void QL_Steamworks_CallbackRunCallResult( ql_steam_callback_base_t *self, void *payload, qboolean ioFailure, SteamAPICall_t callHandle ) {
+	__asm {
+		push dword ptr [esp + 16]
+		push dword ptr [esp + 16]
+		push dword ptr [esp + 16]
+		push dword ptr [esp + 16]
+		push ecx
+		call QL_Steamworks_CallbackRunCallResultImpl
+		add esp, 20
+		ret 16
+	}
+}
+
+/*
+=============
+QL_Steamworks_CallbackGetSize
+
+Adapts Steam's x86 thiscall payload-size query ABI to the C implementation.
+=============
+*/
+static __declspec(naked) int QL_Steamworks_CallbackGetSize( ql_steam_callback_base_t *self ) {
+	__asm {
+		push ecx
+		call QL_Steamworks_CallbackGetSizeImpl
+		add esp, 4
+		ret
+	}
+}
+#else
+/*
+=============
+QL_Steamworks_CallbackRun
+
+Dispatches a normal Steam callback through the configured calling convention.
+=============
+*/
+static void QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackRun( ql_steam_callback_base_t *self, void *payload ) {
+	QL_Steamworks_CallbackRunImpl( self, payload );
+}
+
+/*
+=============
+QL_Steamworks_CallbackRunCallResult
+
+Dispatches a Steam call-result through the configured calling convention.
+=============
+*/
+static void QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackRunCallResult( ql_steam_callback_base_t *self, void *payload, qboolean ioFailure, SteamAPICall_t callHandle ) {
+	QL_Steamworks_CallbackRunCallResultImpl( self, payload, ioFailure, callHandle );
+}
+
+/*
+=============
+QL_Steamworks_CallbackGetSize
+
+Returns the callback payload size through the configured calling convention.
+=============
+*/
+static int QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackGetSize( ql_steam_callback_base_t *self ) {
+	return QL_Steamworks_CallbackGetSizeImpl( self );
+}
+#endif
 
 static const ql_steam_callback_vtable_t ql_steam_callback_vtable = {
 	QL_Steamworks_CallbackRun,

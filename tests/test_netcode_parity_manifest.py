@@ -761,6 +761,21 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		cl_cgame,
 		"static qboolean QLJSHandler_OnMethodCall( const char *methodName, const char **arguments, int argumentCount ) {",
 	)
+	native_mode = _function_block(
+		cl_main,
+		"static ql_steam_server_browser_request_mode_t CL_SteamBrowser_RequestModeToNativeMode( int requestMode )",
+	)
+	native_available = _function_block(cl_main, "static qboolean CL_SteamBrowser_NativeListAvailable( void )")
+	begin_native = _function_block(cl_main, "static qboolean CL_SteamBrowser_BeginNativeRequest( int requestMode )")
+	native_response = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_PublishNativeServerResponse( const ql_steam_server_browser_response_t *response )",
+	)
+	native_server_responded = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex )",
+	)
+	complete_native = _function_block(cl_main, "static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut )")
 	request_servers = _function_block(cl_main, "qboolean CL_Steam_RequestServers( int requestMode )")
 	request_details = _function_block(
 		cl_main, "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort )"
@@ -821,10 +836,31 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "return CL_Steam_RequestServerDetails(" in method_block
 	assert "case CL_WEB_METHOD_REFRESH_LIST:" in method_block
 	assert "return CL_Steam_RefreshServerList();" in method_block
+	for expected in (
+		"return QL_STEAM_SERVER_BROWSER_INTERNET;",
+		"return QL_STEAM_SERVER_BROWSER_LAN;",
+		"return QL_STEAM_SERVER_BROWSER_FRIENDS;",
+		"return QL_STEAM_SERVER_BROWSER_FAVORITES;",
+		"return QL_STEAM_SERVER_BROWSER_HISTORY;",
+	):
+		assert expected in native_mode
+	assert "CL_MatchmakingServiceAvailable()" in native_available
+	assert "QL_Steamworks_HasServerBrowserInterface()" in native_available
+	assert "QL_Steamworks_BeginServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner, nativeMode, &cl_steamNativeListResponse )" in begin_native
+	assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' in begin_native
+	assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%s.response", response->id );' in native_response
+	assert "QL_Steamworks_ReadServerBrowserResponse( request, serverIndex, &response )" in native_server_responded
+	assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_server_responded
+	assert "CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS" in cl_main
+	assert "static __declspec(naked) void CL_SteamBrowser_NativeServerResponded" in cl_main
+	assert "CL_SteamBrowser_NativeServerRespondedImpl( self, request, serverIndex );" in cl_main
+	assert "QL_Steamworks_CompleteServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner );" in complete_native
 
 	_assert_order(
 		request_servers,
 		"CL_SteamBrowser_RequestModeToSource( requestMode )",
+		"CL_SteamBrowser_BeginNativeRequest( requestMode )",
+		"cl_steamBrowserState.nativeRefreshActive = qfalse;",
 		"cl_steamBrowserState.refreshActive = qtrue;",
 		'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );',
 		"CL_SteamBrowser_PublishCompatibilitySource( requestMode, source );",
@@ -837,6 +873,7 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "CL_ServerStatus( addressString, serverStatus, sizeof( serverStatus ) );" in request_details
 	assert "return CL_Steam_RequestServers( cl_steamBrowserState.requestMode );" in refresh_list
 	assert "CL_SteamBrowser_FailDetailRequest();" in browser_frame
+	assert "CL_SteamBrowser_CompleteNativeRefresh( qtrue );" in browser_frame
 	assert "CL_UpdateVisiblePings_f( cl_steamBrowserState.requestSource )" in browser_frame
 	assert "CL_SteamBrowser_PublishRefreshEnd();" in browser_frame
 	assert "CL_SteamBrowser_PublishServerFailed( i );" in publish_refresh_end

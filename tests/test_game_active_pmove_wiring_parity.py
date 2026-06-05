@@ -1831,14 +1831,18 @@ def test_player_appearance_laghax_and_instagib_cvars_keep_retail_behavioral_wiri
 	g_active = G_ACTIVE_PATH.read_text(encoding="utf-8")
 	g_client = G_CLIENT_PATH.read_text(encoding="utf-8")
 	g_main = G_MAIN_PATH.read_text(encoding="utf-8")
+	g_local = G_LOCAL_PATH.read_text(encoding="utf-8")
 	g_pmove = G_PMOVE_PATH.read_text(encoding="utf-8")
 	g_weapon = ( REPO_ROOT / "src" / "code" / "game" / "g_weapon.c" ).read_text(encoding="utf-8")
 	match_keys = MATCH_STATE_KEYS_PATH.read_text(encoding="utf-8")
 	update_body = _function_body(g_main, "void G_UpdateCvars( void )")
+	player_cylinder_flag_body = _function_body(g_main, "void G_SyncPlayerCylinderFlag( gentity_t *ent )")
+	player_cylinder_clients_body = _function_body(g_main, "static void G_SyncPlayerCylinderClientFlags( void )")
 	player_cylinders_body = _function_body(g_main, "static void G_UpdatePlayerCylindersConfigstring( qboolean forceBroadcast )")
 	player_appearance_body = _function_body(g_main, "static void G_UpdatePlayerAppearanceConfigstring( qboolean forceBroadcast )")
 	custom_settings_body = _function_body(g_main, "static uint64_t G_ComputeCustomSettingsMask( void )")
 	admin_config_body = _function_body(g_main, "static void G_SyncAdminConfig( void )")
+	client_spawn_body = _function_body(g_client, "void ClientSpawn(gentity_t *ent)")
 	client_userinfo_body = _function_body(g_client, "void ClientUserinfoChanged( int clientNum )")
 	laghax_init_body = _function_body(g_active, "void G_InitLagHaxHistory( void )")
 	laghax_store_body = _function_body(g_active, "void G_StoreHistory( gentity_t *ent )")
@@ -1859,8 +1863,17 @@ def test_player_appearance_laghax_and_instagib_cvars_keep_retail_behavioral_wiri
 		assert expected in match_keys
 
 	assert 'Com_sprintf( payload, sizeof( payload ), "%i", g_playerCylinders.integer );' in player_cylinders_body
+	assert "G_SyncPlayerCylinderClientFlags();" in player_cylinders_body
 	assert "trap_SetConfigstring( CS_PLAYER_CYLINDERS, payload );" in player_cylinders_body
 	assert "G_UpdatePlayerCylindersConfigstring( qfalse );" in update_body
+	assert "void\tG_SyncPlayerCylinderFlag( gentity_t *ent );" in g_local
+	assert "ent->r.svFlags |= SVF_CAPSULE;" in player_cylinder_flag_body
+	assert "ent->r.svFlags &= ~SVF_CAPSULE;" in player_cylinder_flag_body
+	assert "ent->client->pers.connected == CON_CONNECTED" in player_cylinder_flag_body
+	assert "ent->client->sess.sessionTeam != TEAM_SPECTATOR" in player_cylinder_flag_body
+	assert "ent->client->pers.connected != CON_CONNECTED" in player_cylinder_clients_body
+	assert "G_SyncPlayerCylinderFlag( ent );" in player_cylinder_clients_body
+	assert "G_SyncPlayerCylinderFlag( ent );" in client_spawn_body
 
 	for expected in (
 		"Info_SetValueForKey( payload, PLAYER_APPEARANCE_KEY_PLAYERMODEL_OVERRIDE, g_playermodelOverride.string );",

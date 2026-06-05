@@ -5,6 +5,17 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SV_WORLD = REPO_ROOT / "src" / "code" / "server" / "sv_world.c"
+SV_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
+SERVER_H = REPO_ROOT / "src" / "code" / "server" / "server.h"
+QL_STEAM_HLIL_PART05 = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "quakelive_steam.exe"
+	/ "quakelive_steam.exe_hlil_split"
+	/ "quakelive_steam.exe_hlil_part05.txt"
+)
 
 # Retail command-owner evidence for this focused operator slice comes from
 # `references/analysis/quakelive_symbol_aliases.json` plus the paired HLIL
@@ -193,6 +204,51 @@ def test_operator_command_handlers_match_retail_kick_map_and_reload_contracts() 
 	assert "(void)QL_Steamworks_UnsubscribeItem( itemIdLow, itemIdHigh );" in unsubscribe_helper_block
 	assert '"unsubscribe requested"' not in unsubscribe_helper_block
 	assert '"unsubscribe request failed"' not in unsubscribe_helper_block
+
+
+def test_server_world_clip_handle_contract_matches_retail_capsule_wiring() -> None:
+	sv_world = SV_WORLD.read_text(encoding="utf-8")
+	sv_game = SV_GAME.read_text(encoding="utf-8")
+	server_h = SERVER_H.read_text(encoding="utf-8")
+	retail_hlil = QL_STEAM_HLIL_PART05.read_text(encoding="utf-8")
+
+	clip_handle_block = _extract_function_block(
+		sv_world,
+		"clipHandle_t SV_ClipHandleForEntity( const sharedEntity_t *ent, qboolean capsule ) {",
+	)
+	clip_to_entity_block = _extract_function_block(
+		sv_world,
+		"void SV_ClipToEntity( trace_t *trace, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int entityNum, int contentmask, int capsule ) {",
+	)
+	clip_move_block = _extract_function_block(
+		sv_world,
+		"void SV_ClipMoveToEntities( moveclip_t *clip ) {",
+	)
+	point_contents_block = _extract_function_block(
+		sv_world,
+		"int SV_PointContents( const vec3_t p, int passEntityNum ) {",
+	)
+	entity_contact_block = _extract_function_block(
+		sv_game,
+		"qboolean\tSV_EntityContact( vec3_t mins, vec3_t maxs, const sharedEntity_t *gEnt, int capsule ) {",
+	)
+
+	assert "clipHandle_t SV_ClipHandleForEntity( const sharedEntity_t *ent, qboolean capsule );" in server_h
+	assert "return CM_InlineModel( ent->s.modelindex );" in clip_handle_block
+	assert "if ( capsule && ( ent->r.svFlags & SVF_CAPSULE ) ) {" in clip_handle_block
+	assert "return CM_TempBoxModel( ent->r.mins, ent->r.maxs, qtrue );" in clip_handle_block
+	assert "return CM_TempBoxModel( ent->r.mins, ent->r.maxs, qfalse );" in clip_handle_block
+	assert "clipHandle = SV_ClipHandleForEntity (touch, capsule);" in clip_to_entity_block
+	assert "clipHandle = SV_ClipHandleForEntity (touch, clip->capsule);" in clip_move_block
+	assert "clipHandle = SV_ClipHandleForEntity( hit, qfalse );" in point_contents_block
+	assert "ch = SV_ClipHandleForEntity( gEnt, capsule );" in entity_contact_block
+
+	assert "004e5c40    int32_t sub_4e5c40(void* arg1, int32_t arg2)" in retail_hlil
+	assert "004e5c70  if (arg2 != 0 && (*(arg1 + 0x1e0) & 0x400) != 0)" in retail_hlil
+	assert "004e5c8a      return sub_4c0400(arg1 + 0x1ec, arg1 + 0x1f8, 1)" in retail_hlil
+	assert "004e5ca3  return sub_4c0400(arg1 + 0x1ec, arg1 + 0x1f8, 0)" in retail_hlil
+	assert "004e6843                          sub_4e5c40(eax_7, fconvert.s(fconvert.t(*(data_12ce2c8 + 0x2c))))" in retail_hlil
+	assert "004e6b81              eax_5 = sub_4c0400(eax_4 + 0x1ec, eax_4 + 0x1f8, 0)" in retail_hlil
 
 
 def test_spawn_restart_and_game_consumers_follow_retail_nextmap_payload_wiring() -> None:

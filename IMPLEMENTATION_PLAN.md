@@ -47,6 +47,35 @@ disabled, until a documented open replacement path exists.
 
 ## Active work
 
+### Task A220: Wire WebUI server browser native Steam list owner [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`, `tests/test_platform_services.py`,
+`tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/webui-server-browser-native-steamworks-2026-06-05.md`
+Parity estimate: **before 82% -> after 100%** for the focused WebUI
+server-list dispatch slice. Broader server-browser/details parity moves
+approximately **96% -> 98%** because native list callbacks are now wired while
+detail requests still retain the existing UDP status fallback. Repo-wide parity
+remains **99%** because the `QL_BUILD_ONLINE_SERVICES` default-disabled policy
+boundary is unchanged.
+
+Completed work:
+
+1. Rechecked the `quakelive_steam.exe` HLIL and alias evidence for
+   `JSBrowser_RequestServers`, `SteamBrowser_RequestServers`,
+   `JSBrowser_OnServerResponded`, `JSBrowser_OnServerFailedToRespond`,
+   `JSBrowser_OnRefreshComplete`, and the `SteamMatchmakingServers` import.
+2. Confirmed the empty WebUI Internet list was caused by routing through the
+   policy-disabled legacy UDP master query rather than by missing Steam auth.
+3. Added a native `ISteamMatchmakingServerListResponse` owner in `cl_main.c`
+   so opted-in Steamworks builds publish `servers.details.*.response`,
+   `servers.details.*.failed`, and `servers.refresh.end` events into the WebUI.
+4. Kept default builds and runtime-disabled profiles on the explicit fallback
+   path; Steam and other Quake Live online services remain opt-in behind
+   `QL_BUILD_ONLINE_SERVICES`.
+5. Updated focused platform and netcode parity guards so the browser request
+   surface is pinned as native-first with source-owned fallback.
+
 ### Task A219: Map botlib precompiler source-handle API parity [COMPLETED]
 Priority: Medium
 Primary areas: `src/code/botlib/l_precomp.c`,

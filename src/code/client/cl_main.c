@@ -240,6 +240,19 @@ static const char *CL_GetMatchmakingServicePolicyLabel( void ) {
 
 /*
 =============
+CL_MatchmakingServiceAvailable
+
+Returns qtrue when the Steam-backed matchmaking descriptor is compiled and initialised.
+=============
+*/
+static qboolean CL_MatchmakingServiceAvailable( void ) {
+	const ql_platform_feature_descriptor *descriptor = CL_GetMatchmakingServiceDescriptor();
+
+	return ( descriptor && descriptor->compiled && descriptor->initialised && CL_SteamServicesEnabled() ) ? qtrue : qfalse;
+}
+
+/*
+=============
 CL_GetStatsServiceDescriptor
 
 Returns the current platform-service descriptor for the client stats seam.
@@ -923,6 +936,7 @@ typedef struct {
 	qboolean	refreshActive;
 	qboolean	detailActive;
 	qboolean	requestInitialised;
+	qboolean	nativeRefreshActive;
 	int			requestMode;
 	int			requestSource;
 	int			refreshTime;
@@ -935,6 +949,40 @@ typedef struct {
 } clSteamBrowserState_t;
 
 static clSteamBrowserState_t cl_steamBrowserState;
+
+#if QL_PLATFORM_HAS_STEAMWORKS
+#if defined( _MSC_VER ) && defined( _M_IX86 ) && !defined( __cplusplus )
+#define CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS 1
+#define CL_STEAM_BROWSER_THISCALL
+#elif defined( _MSC_VER ) && defined( _M_IX86 )
+#define CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS 0
+#define CL_STEAM_BROWSER_THISCALL __thiscall
+#elif defined( __GNUC__ ) && defined( __i386__ )
+#define CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS 0
+#define CL_STEAM_BROWSER_THISCALL __attribute__((thiscall))
+#else
+#define CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS 0
+#define CL_STEAM_BROWSER_THISCALL
+#endif
+
+typedef struct clSteamNativeServerListResponse_s clSteamNativeServerListResponse_t;
+typedef void (CL_STEAM_BROWSER_THISCALL *clSteamNativeServerRespondedFn)( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex );
+typedef void (CL_STEAM_BROWSER_THISCALL *clSteamNativeServerFailedFn)( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex );
+typedef void (CL_STEAM_BROWSER_THISCALL *clSteamNativeRefreshCompleteFn)( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int response );
+
+typedef struct {
+	clSteamNativeServerRespondedFn serverResponded;
+	clSteamNativeServerFailedFn serverFailedToRespond;
+	clSteamNativeRefreshCompleteFn refreshComplete;
+} clSteamNativeServerListResponseVTable_t;
+
+struct clSteamNativeServerListResponse_s {
+	const clSteamNativeServerListResponseVTable_t *vtable;
+};
+
+static clSteamNativeServerListResponse_t cl_steamNativeListResponse;
+static ql_steam_server_browser_owner_t cl_steamNativeBrowserOwner;
+#endif
 
 typedef struct {
 	uint32_t	itemIdLow;
@@ -2826,6 +2874,29 @@ static const char *CL_SteamBrowser_RequestModeLabel( int requestMode ) {
 
 /*
 =============
+CL_SteamBrowser_RequestModeToNativeMode
+
+Maps the retained WebUI request mode to the SteamMatchmakingServers request enum.
+=============
+*/
+static ql_steam_server_browser_request_mode_t CL_SteamBrowser_RequestModeToNativeMode( int requestMode ) {
+	switch ( requestMode ) {
+		case 1:
+			return QL_STEAM_SERVER_BROWSER_LAN;
+		case 2:
+			return QL_STEAM_SERVER_BROWSER_FRIENDS;
+		case 3:
+			return QL_STEAM_SERVER_BROWSER_FAVORITES;
+		case 4:
+			return QL_STEAM_SERVER_BROWSER_HISTORY;
+		case 0:
+		default:
+			return QL_STEAM_SERVER_BROWSER_INTERNET;
+	}
+}
+
+/*
+=============
 CL_SteamBrowser_SourceLabel
 
 Returns a stable label for the source-owned browser list backing one request.
@@ -2877,7 +2948,22 @@ source-backed compatibility browser modes.
 =============
 */
 static const char *CL_SteamBrowser_NativeAdapterGapLabel( void ) {
-	return "ISteamMatchmakingServers wrapper not client-wired";
+	return "ISteamMatchmakingServers native list owner unavailable; using source-browser fallback";
+}
+
+/*
+=============
+CL_SteamBrowser_NativeListAvailable
+
+Returns qtrue when an opted-in Steamworks build can service WebUI server-list requests natively.
+=============
+*/
+static qboolean CL_SteamBrowser_NativeListAvailable( void ) {
+#if QL_PLATFORM_HAS_STEAMWORKS
+	return ( CL_MatchmakingServiceAvailable() && QL_Steamworks_HasServerBrowserInterface() ) ? qtrue : qfalse;
+#else
+	return qfalse;
+#endif
 }
 
 /*
@@ -3346,6 +3432,56 @@ static void CL_SteamBrowser_PublishServerResponse( const netadr_t *address, uint
 
 /*
 =============
+CL_SteamBrowser_PublishNativeServerResponse
+
+Publishes one SteamMatchmakingServers row through the retained browser event family.
+=============
+*/
+static void CL_SteamBrowser_PublishNativeServerResponse( const ql_steam_server_browser_response_t *response ) {
+	char eventName[CL_STEAM_BROWSER_EVENT_NAME_LENGTH];
+	char payload[CL_STEAM_BROWSER_EVENT_PAYLOAD_LENGTH];
+	char nameEscaped[QL_STEAM_SERVER_BROWSER_DISPLAY_NAME_LENGTH * 2];
+	char mapEscaped[QL_STEAM_SERVER_BROWSER_MAP_LENGTH * 2];
+	char idEscaped[QL_STEAM_SERVER_BROWSER_ID_LENGTH * 2];
+	char steamIdEscaped[QL_STEAM_SERVER_BROWSER_STEAM_ID_LENGTH * 2];
+	char tagsEscaped[QL_STEAM_SERVER_BROWSER_TAGS_LENGTH * 2];
+	char gametypeEscaped[QL_STEAM_SERVER_BROWSER_GAME_DESCRIPTION_LENGTH * 2];
+
+	if ( !response || !response->id[0] ) {
+		return;
+	}
+
+	CL_Steam_JsonEscape( response->name, nameEscaped, sizeof( nameEscaped ) );
+	CL_Steam_JsonEscape( response->map, mapEscaped, sizeof( mapEscaped ) );
+	CL_Steam_JsonEscape( response->id, idEscaped, sizeof( idEscaped ) );
+	CL_Steam_JsonEscape( response->steamId, steamIdEscaped, sizeof( steamIdEscaped ) );
+	CL_Steam_JsonEscape( response->tags, tagsEscaped, sizeof( tagsEscaped ) );
+	CL_Steam_JsonEscape( response->gametype, gametypeEscaped, sizeof( gametypeEscaped ) );
+	Com_sprintf( eventName, sizeof( eventName ), "servers.details.%s.response", response->id );
+	Com_sprintf(
+		payload,
+		sizeof( payload ),
+		"{\"name\":\"%s\",\"numPlayers\":%d,\"maxPlayers\":%d,\"ping\":%d,\"map\":\"%s\",\"botPlayers\":%d,\"password\":%s,\"vac\":%s,\"ip\":%u,\"port\":%u,\"id\":\"%s\",\"steam_id\":\"%s\",\"tags\":\"%s\",\"gametype\":\"%s\",\"lastPlayed\":%u}",
+		nameEscaped,
+		response->numPlayers,
+		response->maxPlayers,
+		response->ping > 0 ? response->ping : 0,
+		mapEscaped,
+		response->botPlayers,
+		response->passwordProtected ? "true" : "false",
+		response->vacSecured ? "true" : "false",
+		(unsigned int)response->serverIp,
+		(unsigned int)response->serverPort,
+		idEscaped,
+		steamIdEscaped,
+		tagsEscaped,
+		gametypeEscaped,
+		(unsigned int)response->lastPlayed );
+	CL_Steam_PublishBrowserEvent( eventName, payload );
+}
+
+/*
+=============
 CL_SteamBrowser_PublishServerFailed
 =============
 */
@@ -3356,6 +3492,237 @@ static void CL_SteamBrowser_PublishServerFailed( int serverIndex ) {
 	Com_sprintf( eventName, sizeof( eventName ), "servers.details.%i.failed", serverIndex );
 	Com_sprintf( payload, sizeof( payload ), "{\"id\":%i}", serverIndex );
 	CL_Steam_PublishBrowserEvent( eventName, payload );
+}
+
+#if QL_PLATFORM_HAS_STEAMWORKS
+/*
+=============
+CL_SteamBrowser_CompleteNativeRefresh
+
+Completes one native SteamMatchmakingServers refresh and publishes the browser end event once.
+=============
+*/
+static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut ) {
+	if ( !cl_steamBrowserState.nativeRefreshActive ) {
+		return;
+	}
+
+	if ( timedOut ) {
+		Com_DPrintf( "Steam browser request mode %d (%s) timed out via %s [%s]\n",
+			cl_steamBrowserState.requestMode,
+			CL_SteamBrowser_RequestModeLabel( cl_steamBrowserState.requestMode ),
+			CL_GetMatchmakingServiceProviderLabel(),
+			CL_GetMatchmakingServicePolicyLabel() );
+	}
+
+	QL_Steamworks_CompleteServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner );
+	cl_steamBrowserState.nativeRefreshActive = qfalse;
+	cl_steamBrowserState.refreshActive = qfalse;
+	CL_Steam_PublishBrowserEvent( "servers.refresh.end", NULL );
+}
+
+/*
+=============
+CL_SteamBrowser_NativeServerRespondedImpl
+
+Handles the ISteamMatchmakingServerListResponse::ServerResponded callback.
+=============
+*/
+static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
+	ql_steam_server_browser_response_t response;
+
+	if ( self != &cl_steamNativeListResponse || !cl_steamBrowserState.nativeRefreshActive || request != cl_steamNativeBrowserOwner.request ) {
+		return;
+	}
+
+	if ( QL_Steamworks_ReadServerBrowserResponse( request, serverIndex, &response ) ) {
+		CL_SteamBrowser_PublishNativeServerResponse( &response );
+		return;
+	}
+
+	CL_SteamBrowser_PublishServerFailed( serverIndex );
+}
+
+/*
+=============
+CL_SteamBrowser_NativeServerFailedToRespondImpl
+
+Handles the ISteamMatchmakingServerListResponse::ServerFailedToRespond callback.
+=============
+*/
+static void CL_SteamBrowser_NativeServerFailedToRespondImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
+	if ( self != &cl_steamNativeListResponse || !cl_steamBrowserState.nativeRefreshActive || request != cl_steamNativeBrowserOwner.request ) {
+		return;
+	}
+
+	CL_SteamBrowser_PublishServerFailed( serverIndex );
+}
+
+/*
+=============
+CL_SteamBrowser_NativeRefreshCompleteImpl
+
+Handles the ISteamMatchmakingServerListResponse::RefreshComplete callback.
+=============
+*/
+static void CL_SteamBrowser_NativeRefreshCompleteImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int response ) {
+	(void)response;
+
+	if ( self != &cl_steamNativeListResponse || request != cl_steamNativeBrowserOwner.request ) {
+		return;
+	}
+
+	CL_SteamBrowser_CompleteNativeRefresh( qfalse );
+}
+
+#if CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS
+/*
+=============
+CL_SteamBrowser_NativeServerResponded
+
+Adapts the native Steam x86 thiscall server response into C browser logic.
+=============
+*/
+static __declspec(naked) void CL_SteamBrowser_NativeServerResponded( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
+	__asm {
+		push dword ptr [esp + 8]
+		push dword ptr [esp + 8]
+		push ecx
+		call CL_SteamBrowser_NativeServerRespondedImpl
+		add esp, 12
+		ret 8
+	}
+}
+
+/*
+=============
+CL_SteamBrowser_NativeServerFailedToRespond
+
+Adapts the native Steam x86 thiscall server failure into C browser logic.
+=============
+*/
+static __declspec(naked) void CL_SteamBrowser_NativeServerFailedToRespond( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
+	__asm {
+		push dword ptr [esp + 8]
+		push dword ptr [esp + 8]
+		push ecx
+		call CL_SteamBrowser_NativeServerFailedToRespondImpl
+		add esp, 12
+		ret 8
+	}
+}
+
+/*
+=============
+CL_SteamBrowser_NativeRefreshComplete
+
+Adapts the native Steam x86 thiscall refresh completion into C browser logic.
+=============
+*/
+static __declspec(naked) void CL_SteamBrowser_NativeRefreshComplete( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int response ) {
+	__asm {
+		push dword ptr [esp + 8]
+		push dword ptr [esp + 8]
+		push ecx
+		call CL_SteamBrowser_NativeRefreshCompleteImpl
+		add esp, 12
+		ret 8
+	}
+}
+#else
+/*
+=============
+CL_SteamBrowser_NativeServerResponded
+
+Forwards the configured native Steam server response ABI into C browser logic.
+=============
+*/
+static void CL_STEAM_BROWSER_THISCALL CL_SteamBrowser_NativeServerResponded( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
+	CL_SteamBrowser_NativeServerRespondedImpl( self, request, serverIndex );
+}
+
+/*
+=============
+CL_SteamBrowser_NativeServerFailedToRespond
+
+Forwards the configured native Steam server failure ABI into C browser logic.
+=============
+*/
+static void CL_STEAM_BROWSER_THISCALL CL_SteamBrowser_NativeServerFailedToRespond( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
+	CL_SteamBrowser_NativeServerFailedToRespondImpl( self, request, serverIndex );
+}
+
+/*
+=============
+CL_SteamBrowser_NativeRefreshComplete
+
+Forwards the configured native Steam refresh completion ABI into C browser logic.
+=============
+*/
+static void CL_STEAM_BROWSER_THISCALL CL_SteamBrowser_NativeRefreshComplete( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int response ) {
+	CL_SteamBrowser_NativeRefreshCompleteImpl( self, request, response );
+}
+#endif
+
+static const clSteamNativeServerListResponseVTable_t cl_steamNativeListResponseVTable = {
+	CL_SteamBrowser_NativeServerResponded,
+	CL_SteamBrowser_NativeServerFailedToRespond,
+	CL_SteamBrowser_NativeRefreshComplete
+};
+
+/*
+=============
+CL_SteamBrowser_ReleaseNativeRequest
+
+Releases any retained native Steam server-list request during client shutdown.
+=============
+*/
+static void CL_SteamBrowser_ReleaseNativeRequest( void ) {
+	if ( cl_steamNativeBrowserOwner.request ) {
+		QL_Steamworks_ReleaseServerListRequest( cl_steamNativeBrowserOwner.request );
+	}
+
+	QL_Steamworks_InitServerBrowserOwner( &cl_steamNativeBrowserOwner );
+	cl_steamBrowserState.nativeRefreshActive = qfalse;
+}
+#endif
+
+/*
+=============
+CL_SteamBrowser_BeginNativeRequest
+
+Starts a native SteamMatchmakingServers browser request when the opted-in provider is available.
+=============
+*/
+static qboolean CL_SteamBrowser_BeginNativeRequest( int requestMode ) {
+#if QL_PLATFORM_HAS_STEAMWORKS
+	ql_steam_server_browser_request_mode_t nativeMode;
+
+	if ( !CL_SteamBrowser_NativeListAvailable() ) {
+		return qfalse;
+	}
+
+	if ( cl_steamBrowserState.nativeRefreshActive && cl_steamNativeBrowserOwner.refreshActive ) {
+		return qtrue;
+	}
+
+	nativeMode = CL_SteamBrowser_RequestModeToNativeMode( requestMode );
+	cl_steamNativeListResponse.vtable = &cl_steamNativeListResponseVTable;
+	if ( !QL_Steamworks_BeginServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner, nativeMode, &cl_steamNativeListResponse ) ) {
+		CL_LogMatchmakingServiceIgnored( "RequestServers", "native SteamMatchmakingServers list request failed; using source-browser fallback" );
+		return qfalse;
+	}
+
+	cl_steamBrowserState.nativeRefreshActive = qtrue;
+	cl_steamBrowserState.refreshActive = qtrue;
+	cl_steamBrowserState.refreshTime = cls.realtime + CL_STEAM_BROWSER_REMOTE_REFRESH_WAIT_MSEC;
+	cl_steamBrowserState.refreshTimeoutTime = cls.realtime + CL_STEAM_BROWSER_REFRESH_TIMEOUT_MSEC;
+	CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );
+	return qtrue;
+#else
+	(void)requestMode;
+	return qfalse;
+#endif
 }
 
 /*
@@ -3494,6 +3861,15 @@ static void CL_SteamBrowser_Frame( void ) {
 		return;
 	}
 
+	if ( cl_steamBrowserState.nativeRefreshActive ) {
+#if QL_PLATFORM_HAS_STEAMWORKS
+		if ( cls.realtime >= cl_steamBrowserState.refreshTimeoutTime ) {
+			CL_SteamBrowser_CompleteNativeRefresh( qtrue );
+		}
+#endif
+		return;
+	}
+
 	wait = qfalse;
 	if ( cl_steamBrowserState.requestSource != AS_FAVORITES ) {
 		int count;
@@ -3543,6 +3919,12 @@ qboolean CL_Steam_RequestServers( int requestMode ) {
 	cl_steamBrowserState.requestInitialised = qtrue;
 	cl_steamBrowserState.requestMode = requestMode;
 	cl_steamBrowserState.requestSource = source;
+
+	if ( CL_SteamBrowser_BeginNativeRequest( requestMode ) ) {
+		return qtrue;
+	}
+
+	cl_steamBrowserState.nativeRefreshActive = qfalse;
 	cl_steamBrowserState.refreshActive = qtrue;
 	cl_steamBrowserState.refreshTime = cls.realtime + ( source == AS_LOCAL ? CL_STEAM_BROWSER_LOCAL_REFRESH_WAIT_MSEC : CL_STEAM_BROWSER_REMOTE_REFRESH_WAIT_MSEC );
 	cl_steamBrowserState.refreshTimeoutTime = cls.realtime + CL_STEAM_BROWSER_REFRESH_TIMEOUT_MSEC;
@@ -3604,6 +3986,18 @@ qboolean CL_Steam_RefreshServerList( void ) {
 	if ( !cl_steamBrowserState.requestInitialised ) {
 		return qfalse;
 	}
+
+#if QL_PLATFORM_HAS_STEAMWORKS
+	if ( cl_steamNativeBrowserOwner.request && CL_SteamBrowser_NativeListAvailable() ) {
+		if ( QL_Steamworks_RefreshServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner ) ) {
+			cl_steamBrowserState.nativeRefreshActive = qtrue;
+			cl_steamBrowserState.refreshActive = qtrue;
+			cl_steamBrowserState.refreshTimeoutTime = cls.realtime + CL_STEAM_BROWSER_REFRESH_TIMEOUT_MSEC;
+			CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );
+			return qtrue;
+		}
+	}
+#endif
 
 	return CL_Steam_RequestServers( cl_steamBrowserState.requestMode );
 }
@@ -5039,6 +5433,9 @@ CL_Steam_ShutdownCallbacks
 =============
 */
 static void CL_Steam_ShutdownCallbacks( void ) {
+#if QL_PLATFORM_HAS_STEAMWORKS
+	CL_SteamBrowser_ReleaseNativeRequest();
+#endif
 	QL_Steamworks_UnregisterWorkshopCallbacks();
 	QL_Steamworks_UnregisterMicroCallbacks();
 	QL_Steamworks_UnregisterLobbyCallbacks();

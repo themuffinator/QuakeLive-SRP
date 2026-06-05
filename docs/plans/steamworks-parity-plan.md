@@ -122,8 +122,8 @@
 ### Server-browser client integration relabeling - 2026-05-25
 
 - Added `docs/reverse-engineering/quakelive_steam_mapping_round_301.md`, reconciling the source-backed client browser telemetry with the low-level `ISteamMatchmakingServers` wrapper reconstructed in rounds 297-300.
-- Updated the compatibility marker from a total missing-adapter label to `ISteamMatchmakingServers wrapper not client-wired`, preserving the existing `nativeAdapterGap` payload key while making the remaining gap product integration rather than wrapper existence.
-- Remaining server-browser work: wire `CL_SteamBrowser_*` onto the native list/detail wrapper with clear callback ownership, refresh/release lifecycle, and detail-query cancellation evidence; friends/history still use the bounded source-browser compatibility owner.
+- Updated the compatibility marker from a total missing-adapter label to `ISteamMatchmakingServers native list owner unavailable; using source-browser fallback`, preserving the existing `nativeAdapterGap` payload key while making the remaining fallback a runtime/provider boundary rather than a wrapper-existence gap.
+- Remaining server-browser work: extend the native detail-query owner beyond the current UDP status fallback with clear ping/player/rules callback ownership and cancellation evidence.
 
 ### Server-browser request-mode contract - 2026-05-25
 
@@ -254,8 +254,8 @@
 
 ### Modern adapter gap guard - 2026-05-24
 
-- Added a source-bound pytest guard that keeps the current modern-SDK gaps explicit: no native `GetAuthTicketForWebApi`, `ISteamNetworkingSockets`, `ISteamNetworkingMessages`, or product-wired `ISteamMatchmakingServers` client browser owner is present yet.
-- The same guard pins the labels that describe the retained owners and explicit gaps: `retail GetAuthSessionTicket`, `missing GetAuthTicketForWebApi adapter`, `legacy ISteamNetworking`, `missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter`, `raw GetAllUGC integer filter`, `unpromoted GetAllUGC filter semantic`, `avatar-only SteamDataSource`, `missing non-avatar SteamDataSource owner`, missing-native-owner `ISteamMatchmakingServers`, and `ISteamMatchmakingServers wrapper not client-wired`.
+- Added a source-bound pytest guard that keeps the current modern-SDK gaps explicit: no native `GetAuthTicketForWebApi`, `ISteamNetworkingSockets`, or `ISteamNetworkingMessages` adapter is present yet, and the server-browser fallback label remains visible for profiles where the native Steam list owner is unavailable.
+- The same guard pins the labels that describe the retained owners and explicit gaps: `retail GetAuthSessionTicket`, `missing GetAuthTicketForWebApi adapter`, `legacy ISteamNetworking`, `missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter`, `raw GetAllUGC integer filter`, `unpromoted GetAllUGC filter semantic`, `avatar-only SteamDataSource`, `missing non-avatar SteamDataSource owner`, missing-native-owner `ISteamMatchmakingServers`, and `ISteamMatchmakingServers native list owner unavailable; using source-browser fallback`.
 - Remaining modern-adapter work: future native adapter implementations should update this guard deliberately instead of silently replacing a retail-faithful compatibility owner.
 
 ## Executive summary

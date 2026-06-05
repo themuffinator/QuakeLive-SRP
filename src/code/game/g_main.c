@@ -130,6 +130,7 @@ static void G_SyncAdminConfig( void );
 static void G_ResetAdminAccessList( void );
 static void G_UpdateGameStateForLevel( void );
 static void G_SyncAllClientArmorTiers( void );
+static void G_SyncPlayerCylinderClientFlags( void );
 static qboolean G_ParseAdminAccessTier( const char *token, int *tierOut );
 static const char *G_AdminAccessTierToken( int tier );
 static const char *G_AdminAccessTierLabel( int tier );
@@ -1995,6 +1996,51 @@ void G_ClearCustomSettingsDirtyFlag( void ) {
 
 /*
 =============
+G_SyncPlayerCylinderFlag
+
+Keeps the retail player-cylinder collision bit aligned with the published
+player-cylinder gameplay toggle for one active client entity.
+=============
+*/
+void G_SyncPlayerCylinderFlag( gentity_t *ent ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( g_playerCylinders.integer != 0
+		&& ent->client->pers.connected == CON_CONNECTED
+		&& ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+		ent->r.svFlags |= SVF_CAPSULE;
+	} else {
+		ent->r.svFlags &= ~SVF_CAPSULE;
+	}
+}
+
+/*
+=============
+G_SyncPlayerCylinderClientFlags
+
+Refreshes the capsule collision flag for every spawned client after the
+retail player-cylinder cvar changes.
+=============
+*/
+static void G_SyncPlayerCylinderClientFlags( void ) {
+	int	i;
+
+	for ( i = 0; i < level.maxclients; i++ ) {
+		gentity_t	*ent;
+
+		ent = &g_entities[i];
+		if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+			continue;
+		}
+
+		G_SyncPlayerCylinderFlag( ent );
+	}
+}
+
+/*
+=============
 G_UpdatePlayerCylindersConfigstring
 
 Publishes the retail dedicated numeric player-cylinder toggle configstring.
@@ -2008,6 +2054,7 @@ static void G_UpdatePlayerCylindersConfigstring( qboolean forceBroadcast ) {
 		return;
 	}
 
+	G_SyncPlayerCylinderClientFlags();
 	trap_SetConfigstring( CS_PLAYER_CYLINDERS, payload );
 	Q_strncpyz( s_playerCylindersPayload, payload, sizeof( s_playerCylindersPayload ) );
 }

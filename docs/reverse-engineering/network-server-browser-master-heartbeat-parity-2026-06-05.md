@@ -92,10 +92,11 @@ The adjacent browser/heartbeat graph was rechecked after the port fix:
   `sv_master`, while the old Quake III UDP heartbeat remains a disabled
   compatibility lane behind `QL_ENABLE_LEGACY_Q3_SERVICES`.
 
-No additional C source change was required for this second pass. The native
-Steam browser product-integration boundary remains the separately documented
-RW-G01 policy/compatibility boundary; it is explicit and not counted as an
-untracked defect in this protocol/heartbeat closure.
+No additional C source change was required for this second pass at the time.
+The follow-up WebUI native-list pass on 2026-06-05 wires the
+`ISteamMatchmakingServers` list owner in opted-in Steamworks builds while
+leaving the detail-query fallback and the default-disabled online-service policy
+as explicit boundaries.
 
 ## Parity Estimate
 

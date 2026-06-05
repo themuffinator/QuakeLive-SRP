@@ -32,12 +32,12 @@ given entity.  If the entity is a bsp model, the headnode will
 be returned, otherwise a custom box tree will be constructed.
 ================
 */
-clipHandle_t SV_ClipHandleForEntity( const sharedEntity_t *ent ) {
+clipHandle_t SV_ClipHandleForEntity( const sharedEntity_t *ent, qboolean capsule ) {
 	if ( ent->r.bmodel ) {
 		// explicit hulls in the BSP model
 		return CM_InlineModel( ent->s.modelindex );
 	}
-	if ( ent->r.svFlags & SVF_CAPSULE ) {
+	if ( capsule && ( ent->r.svFlags & SVF_CAPSULE ) ) {
 		// create a temp capsule from bounding box sizes
 		return CM_TempBoxModel( ent->r.mins, ent->r.maxs, qtrue );
 	}
@@ -482,7 +482,7 @@ void SV_ClipToEntity( trace_t *trace, const vec3_t start, const vec3_t mins, con
 	}
 
 	// might intersect, so do an exact clip
-	clipHandle = SV_ClipHandleForEntity (touch);
+	clipHandle = SV_ClipHandleForEntity (touch, capsule);
 
 	origin = touch->r.currentOrigin;
 	angles = touch->r.currentAngles;
@@ -553,7 +553,7 @@ void SV_ClipMoveToEntities( moveclip_t *clip ) {
 		}
 
 		// might intersect, so do an exact clip
-		clipHandle = SV_ClipHandleForEntity (touch);
+		clipHandle = SV_ClipHandleForEntity (touch, clip->capsule);
 
 		origin = touch->r.currentOrigin;
 		angles = touch->r.currentAngles;
@@ -674,7 +674,7 @@ int SV_PointContents( const vec3_t p, int passEntityNum ) {
 		}
 		hit = SV_GentityNum( touch[i] );
 		// might intersect, so do an exact clip
-		clipHandle = SV_ClipHandleForEntity( hit );
+		clipHandle = SV_ClipHandleForEntity( hit, qfalse );
 		angles = hit->s.angles;
 		if ( !hit->r.bmodel ) {
 			angles = vec3_origin;	// boxes don't rotate
@@ -687,5 +687,4 @@ int SV_PointContents( const vec3_t p, int passEntityNum ) {
 
 	return contents;
 }
-
 

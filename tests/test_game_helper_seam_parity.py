@@ -741,6 +741,7 @@ def test_qagame_server_command_wiring_tranche_matches_retail_evidence() -> None:
 	qagame_bot_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part01.txt")
 	qagame_hlil = _read("references/hlil/quakelive/qagamex86.dll/qagamex86.dll.bndb_hlil_split/qagamex86.dll.bndb_hlil_part02.txt")
 	console_block = _block_from_marker(game_svcmds, "qboolean\tConsoleCommand")
+	g_addbot_block = _block_from_marker(game_bot, "static void G_AddBot")
 	addbot_block = _block_from_marker(game_bot, "void Svcmd_AddBot_f")
 	game_crash_block = _block_from_marker(game_svcmds, "static void Svcmd_GameCrash_f")
 	reload_access_block = _block_from_marker(game_svcmds, "static void Svcmd_ReloadAccess_f")
@@ -797,6 +798,17 @@ def test_qagame_server_command_wiring_tranche_matches_retail_evidence() -> None:
 
 	assert "10037910" in qagame_bot_hlil
 	assert '"loaddeferred\\n"' in qagame_bot_hlil
+	for hlil_signal in (
+		'1003768c  sub_10070f30(&var_448, edx_4, "model", &var_448)',
+		'100376b2  sub_10070f30(eax_11, edx_5, "headmodel", &var_448)',
+		"100376f5      int32_t var_484_8 = 7",
+		'10037710  sub_10070f30(eax_13, edx_7, "color1", &var_448)',
+		"10037729      int32_t var_484_10 = 0x19",
+		'10037744  sub_10070f30(eax_14, &var_448, "color2", &var_448)',
+	):
+		assert hlil_signal in qagame_bot_hlil
+	assert "1008235c  data_1008235c:" in qagame_hlil
+	assert "25 69 00 00" in qagame_hlil
 	assert "void\tSvcmd_EntityList_f" in game_svcmds
 	assert "void\tSvcmd_ForceTeam_f" in game_svcmds
 	assert "void Svcmd_AddBot_f( void ) {" in game_bot
@@ -805,6 +817,16 @@ def test_qagame_server_command_wiring_tranche_matches_retail_evidence() -> None:
 	assert "static void Svcmd_ReloadAccess_f( void ) {" in game_svcmds
 	assert 'trap_SendServerCommand( -1, "loaddeferred\\n" );' in addbot_block
 	assert "loaddefered" not in addbot_block
+	assert 'key = "model";' in g_addbot_block
+	assert 'Info_SetValueForKey( userinfo, key, model );' in g_addbot_block
+	assert 'key = "team_model";' not in g_addbot_block
+	assert 'key = "headmodel";' in g_addbot_block
+	assert 'Info_SetValueForKey( userinfo, key, headmodel );' in g_addbot_block
+	assert 'key = "team_headmodel";' not in g_addbot_block
+	assert 'key = "color1";' in g_addbot_block
+	assert 's = "7";' in g_addbot_block
+	assert 'key = "color2";' in g_addbot_block
+	assert 's = "25";' in g_addbot_block
 	assert 'G_Printf( "Game memory status: %i out of %i bytes allocated\\n", allocPoint, POOLSIZE );' in game_mem_block
 	assert 'trap_Cvar_VariableIntegerValue( "developer" ) < 1' in game_crash_block
 	assert "*(volatile int *)0 = 0x12345678;" in game_crash_block

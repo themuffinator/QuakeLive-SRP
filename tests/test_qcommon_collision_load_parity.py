@@ -14,6 +14,15 @@ RETAIL_HLIL_PATH = (
 	/ "quakelive_steam.exe_hlil_split"
 	/ "quakelive_steam.exe_hlil_part06.txt"
 )
+RETAIL_HLIL_PART04_PATH = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "quakelive_steam.exe"
+	/ "quakelive_steam.exe_hlil_split"
+	/ "quakelive_steam.exe_hlil_part04.txt"
+)
 QCOMMON_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "qcommon-validation.yml"
 
 
@@ -31,6 +40,16 @@ def test_cm_load_map_source_matches_retail_bsp_version_floor() -> None:
 		"CM_LoadMap: %s has an invalid BSP version number (%i should be %i or greater)"
 		in retail_hlil
 	)
+
+
+def test_cm_clip_handle_to_model_accepts_retail_box_and_capsule_handles() -> None:
+	source = CM_LOAD_PATH.read_text(encoding="utf-8")
+	retail_hlil = RETAIL_HLIL_PART04_PATH.read_text(encoding="utf-8")
+
+	assert "if ( handle == BOX_MODEL_HANDLE || handle == CAPSULE_MODEL_HANDLE ) {" in source
+	assert "return &box_model;" in source
+	assert "if (arg1 == 0xff || arg1 == 0xfe)" in retail_hlil
+	assert 'CM_ClipHandleToModel: bad handle' in retail_hlil
 
 
 def test_qcommon_workflow_runs_collision_load_parity_probe() -> None:
