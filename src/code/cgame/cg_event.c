@@ -1392,6 +1392,13 @@ static void CG_Obituary( entityState_t *ent ) {
 	case MOD_TRIGGER_HURT:
 		message = "was in the wrong place";
 		break;
+	case MOD_THAW:
+		if ( attacker == ENTITYNUM_WORLD ) {
+			message = "was auto-thawed";
+		} else {
+			message = NULL;
+		}
+		break;
 	default:
 		message = NULL;
 		break;
@@ -1464,7 +1471,9 @@ static void CG_Obituary( entityState_t *ent ) {
 	if ( attacker == cg.snap->ps.clientNum ) {
 		char	*s;
 
-		if ( cgs.gametype < GT_TEAM ) {
+		if ( cgs.gametype == GT_FREEZE && mod == MOD_THAW ) {
+			s = va( "You thawed %s.", targetName );
+		} else if ( cgs.gametype < GT_TEAM ) {
 			s = va("You fragged %s\n%s place with %i", targetName, 
 				CG_PlaceString( cg.snap->ps.persistant[PERS_RANK] + 1 ),
 				cg.snap->ps.persistant[PERS_SCORE] );
@@ -1533,6 +1542,9 @@ static void CG_Obituary( entityState_t *ent ) {
 			break;
 		case MOD_LIGHTNING:
 			message = "was electrocuted by";
+			break;
+		case MOD_THAW:
+			message = "was thawed by";
 			break;
 		case MOD_BFG:
 		case MOD_BFG_SPLASH:

@@ -197,6 +197,51 @@ def test_winkey_hook_reconstructs_retail_keyboard_filter_and_shutdown() -> None:
 	)
 
 
+def test_debug_crash_dump_prompt_preserves_dump_and_log_contract() -> None:
+	win_main = (REPO_ROOT / "src/code/win32/win_main.c").read_text(encoding="utf-8")
+
+	confirm_block = _extract_function_block(
+		win_main, "static qboolean Sys_DebugCrashReportConfirmed"
+	)
+	result_block = _extract_function_block(
+		win_main, "static void Sys_ShowDebugCrashReportResult"
+	)
+	filter_block = _extract_function_block(
+		win_main, "static LONG WINAPI Sys_UnhandledExceptionFilter"
+	)
+	init_block = _extract_function_block(win_main, "static void Sys_InitCrashDumps")
+	dump_type_block = _extract_function_block(win_main, "static MINIDUMP_TYPE Sys_GetCrashDumpType")
+
+	assert '#define SYS_CRASH_DIALOG_TITLE\tQL_PRODUCT_NAME " Debug Crash"' in win_main
+	assert "#ifdef _DEBUG\n/*\n==================\nSys_DebugCrashReportConfirmed" in win_main
+	assert '"Create a memory dump and crash log?\\n\\n"' in confirm_block
+	assert "MessageBoxA( NULL, message, SYS_CRASH_DIALOG_TITLE," in confirm_block
+	assert "MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1 | MB_TASKMODAL | MB_SETFOREGROUND" in confirm_block
+	assert "return (qboolean)( result == IDYES );" in confirm_block
+
+	for snippet in [
+		"Crash dump and crash log written.",
+		"Crash dump written, but crash log creation failed.",
+		"Crash log written, but memory dump creation failed.",
+		"Crash report creation failed.",
+	]:
+		assert snippet in result_block
+
+	assert "envPath = getenv( \"QLR_DUMP_PATH\" );" in init_block
+	assert "SetUnhandledExceptionFilter( Sys_UnhandledExceptionFilter );" in init_block
+	assert "fullDump = getenv( \"QLR_FULL_DUMP\" );" in dump_type_block
+	assert "MiniDumpWithFullMemory" in dump_type_block
+
+	assert "if ( IsDebuggerPresent() ) {" in filter_block
+	assert "if ( !Sys_DebugCrashReportConfirmed( dumpName, logName ) ) {" in filter_block
+	assert "return EXCEPTION_EXECUTE_HANDLER;" in filter_block
+	assert 'Com_sprintf( dumpName, sizeof( dumpName ), "%s.dmp", crashBaseName );' in filter_block
+	assert 'Com_sprintf( logName, sizeof( logName ), "%s.log", crashBaseName );' in filter_block
+	assert filter_block.index("CreateFileA( logName") < filter_block.index("CreateFileA( dumpName")
+	assert "MiniDumpWriteDump( GetCurrentProcess(), GetCurrentProcessId(), dumpFile, dumpType, &dumpInfo, NULL, NULL );" in filter_block
+	assert "Sys_ShowDebugCrashReportResult( (qboolean)dumpWritten, logWritten, dumpName, logName, dumpError );" in filter_block
+
+
 def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain() -> None:
 	hlil = (
 		REPO_ROOT

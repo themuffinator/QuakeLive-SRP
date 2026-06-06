@@ -30,8 +30,10 @@ CG_SCREEN = REPO_ROOT / "src" / "code" / "cgame" / "cg_screen.c"
 CG_SYSCALLS = REPO_ROOT / "src" / "code" / "cgame" / "cg_syscalls.c"
 BG_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "bg_public.h"
 BG_MISC = REPO_ROOT / "src" / "code" / "game" / "bg_misc.c"
+MATCH_STATE_KEYS = REPO_ROOT / "src" / "game" / "match_state_keys.h"
 CG_BG_PLAN = REPO_ROOT / "docs" / "reverse-engineering" / "cgame-bg-parity-implementation-plan.md"
 CG_OWNERDRAW_INDEX = REPO_ROOT / "docs" / "reverse-engineering" / "cg-ownerdrawtype-parity-index.md"
+CG_CLIENTINFO_DOC = REPO_ROOT / "docs" / "reverse-engineering" / "cgame-clientinfo.md"
 CL_CGAME = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
 G_CLIENT = REPO_ROOT / "src" / "code" / "game" / "g_client.c"
 G_CMDS = REPO_ROOT / "src" / "code" / "game" / "g_cmds.c"
@@ -41,6 +43,8 @@ G_MAIN = REPO_ROOT / "src" / "code" / "game" / "g_main.c"
 QL_CGAME_IMPORTS = REPO_ROOT / "src" / "code" / "client" / "ql_cgame_imports.inc"
 UI_MAIN = REPO_ROOT / "src" / "code" / "ui" / "ui_main.c"
 UI_ATOMS = REPO_ROOT / "src" / "code" / "ui" / "ui_atoms.c"
+UI_LOCAL_H = REPO_ROOT / "src" / "code" / "ui" / "ui_local.h"
+UI_PLAYERS = REPO_ROOT / "src" / "code" / "ui" / "ui_players.c"
 UI_SHARED = REPO_ROOT / "src" / "code" / "ui" / "ui_shared.c"
 UI_SHARED_H = REPO_ROOT / "src" / "code" / "ui" / "ui_shared.h"
 MENUDEF_H = REPO_ROOT / "src" / "ui" / "menudef.h"
@@ -68,6 +72,14 @@ CGAME_HLIL = (
 	/ "quakelive"
 	/ "cgamex86.dll"
 	/ "cgamex86.dll_hlil.txt"
+)
+QAGAME_HLIL = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "qagamex86.dll"
+	/ "qagamex86.dll.bndb_hlil.txt"
 )
 UI_HLIL = (
 	REPO_ROOT
@@ -345,6 +357,9 @@ def test_grenade_missile_model_uses_weapon_color_entity_lane() -> None:
 	assert "CG_UnpackWeaponBarColor( packedColor, color );" in parse_block
 
 	for expected in (
+		"clientNum = cent ? cent->currentState.clientNum : -1;",
+		"CG_ResolveClientWeaponColor( &cgs.clientinfo[clientNum], ent->shaderRGBA, NULL )",
+		"ent->shaderRGBA[3] = 255;",
 		"ent->shaderRGBA[0] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[0] ) * 255.0f );",
 		"ent->shaderRGBA[1] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[1] ) * 255.0f );",
 		"ent->shaderRGBA[2] = (byte)( Com_Clamp( 0.0f, 1.0f, cg.weaponBarGrenadeColor[2] ) * 255.0f );",
@@ -353,9 +368,12 @@ def test_grenade_missile_model_uses_weapon_color_entity_lane() -> None:
 		assert expected in color_block
 
 	assert "if ( cent->currentState.weapon == WP_GRENADE_LAUNCHER ) {" in missile_block
-	assert "CG_ApplyGrenadeEntityColor( &ent );" in missile_block
-	assert missile_block.index("ent.renderfx = weapon->missileRenderfx | RF_NOSHADOW;") < missile_block.index("CG_ApplyGrenadeEntityColor( &ent );")
-	assert missile_block.index("CG_ApplyGrenadeEntityColor( &ent );") < missile_block.index("VectorNormalize2( s1->pos.trDelta, ent.axis[0] )")
+	assert 'CG_Error( "CG_Missile: invalid weapon %i", s1->weapon );' in missile_block
+	assert "s1->weapon = 0;" not in missile_block
+	assert "VectorCopy( s1->angles, cent->lerpAngles);" not in missile_block
+	assert "CG_ApplyGrenadeEntityColor( cent, &ent );" in missile_block
+	assert missile_block.index("ent.renderfx = weapon->missileRenderfx | RF_NOSHADOW;") < missile_block.index("CG_ApplyGrenadeEntityColor( cent, &ent );")
+	assert missile_block.index("CG_ApplyGrenadeEntityColor( cent, &ent );") < missile_block.index("VectorNormalize2( s1->pos.trDelta, ent.axis[0] )")
 
 
 def test_cgame_mark_axis_helper_restores_retail_impact_mark_math_split() -> None:
@@ -992,6 +1010,7 @@ def test_cgame_placement_scorebox_widgets_match_retail_split_ownerdraws() -> Non
 	assert "CG_GetProfileFallbackShader" not in profile_block
 	assert "trap_R_SetColor" not in profile_block
 	assert "if ( cg_drawProfileImages.integer && ( ci->identityLow || ci->identityHigh ) ) {" in profile_block
+	assert "shader = ci->avatarImageHandle;" in profile_block
 	assert "shader = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );" in profile_block
 	assert "shader = ci->modelIcon;" in profile_block
 	assert "CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );" in profile_block
@@ -2477,9 +2496,655 @@ def test_cgame_country_flag_cache_restores_retail_player_configstring_transport(
 
 	assert init_block.index("CG_ParseServerinfo();") < init_block.index("CG_CacheCountryFlags();") < init_block.index("CG_InitDisplayContext();")
 	assert "Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY );" in new_client_block
+	assert "Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY_LEGACY );" in new_client_block
 	assert "newInfo.countryFlagShader = CG_RegisterCountryFlag( newInfo.country );" in new_client_block
 	assert 'Info_ValueForKey( userinfo, "country" )' in g_client
-	assert g_client.count("PLAYER_INFO_KEY_COUNTRY") >= 2
+	assert 'PLAYER_INFO_KEY_STEAMID "\\\\%llu\\\\" PLAYER_INFO_KEY_COUNTRY "\\\\%s"' in g_client
+
+
+def test_cgame_clientinfo_identity_tail_reconstructs_retail_key_and_cache_wiring() -> None:
+	cg_local = CG_LOCAL.read_text(encoding="utf-8")
+	cg_players = CG_PLAYERS.read_text(encoding="utf-8")
+	cg_main = CG_MAIN.read_text(encoding="utf-8")
+	cg_newdraw = CG_NEWDRAW.read_text(encoding="utf-8")
+	keys_h = MATCH_STATE_KEYS.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	qagame_hlil = QAGAME_HLIL.read_text(encoding="utf-8")
+	names_block = _block_from_marker(cg_players, "static void CG_UpdateClientNames")
+	new_client_block = _block_from_marker(cg_players, "void CG_NewClientInfo( int clientNum )")
+	identity_block = _block_from_marker(cg_main, "static qboolean CG_CopyClientIdentity")
+	speaking_block = _block_from_marker(cg_main, "void *CG_SetClientSpeakingState")
+	social_block = _block_from_marker(cg_main, "static qhandle_t CG_FeederSocialHandle")
+	profile_block = _block_from_marker(cg_newdraw, "static void CG_DrawSpectatorProfileImage")
+
+	for expected in (
+		'#define PLAYER_INFO_KEY_CLEAN_NAME "cn"',
+		'#define PLAYER_INFO_KEY_EXTENDED_NAME "xcn"',
+		'#define PLAYER_INFO_KEY_READY "rp"',
+		'#define PLAYER_INFO_KEY_PRIVILEGE "p"',
+	):
+		assert expected in keys_h
+
+	for expected in (
+		"qboolean\t\tready;",
+		"char\t\t\tcleanName[MAX_QPATH];",
+		"char\t\t\textendedName[MAX_QPATH];",
+		"float\t\t\tbotSkillFloat;",
+		"int\t\t\t\tprivilege;",
+		"qhandle_t\t\tavatarImageHandle;",
+		"qboolean\t\tspeaking;",
+		"int\t\t\t\tspeakingTime;",
+	):
+		assert expected in cg_local
+
+	for expected in (
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_NAME )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_CLEAN_NAME )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_EXTENDED_NAME )",
+		"Q_CleanStr( generatedCleanName );",
+		"Q_strncpyz( ci->cleanName,",
+	):
+		assert expected in names_block
+
+	for expected in (
+		"CG_UpdateClientNames( configstring, &newInfo );",
+		"newInfo.botSkillFloat = atof( v );",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_READY );",
+		"newInfo.ready = atoi( v );",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_PRIVILEGE );",
+		"newInfo.privilege = atoi( v );",
+		"ci->avatarImageHandle = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );",
+	):
+		assert expected in new_client_block
+
+	for expected in (
+		"identity->identityTransport = ci->privilege;",
+		"Q_strncpyz( identity->cleanName, ci->cleanName, sizeof( identity->cleanName ) );",
+	):
+		assert expected in identity_block
+
+	for expected in (
+		"ci->speaking = speaking ? qtrue : qfalse;",
+		"ci->speakingTime = cg.time;",
+	):
+		assert expected in speaking_block
+	for expected in (
+		"if ( !ci->speaking ) {",
+		"if ( ci->speakingTime <= 0 ) {",
+		"if ( cg.time - ci->speakingTime > 2500 ) {",
+	):
+		assert expected in social_block
+	for expected in (
+		"shader = ci->avatarImageHandle;",
+		"shader = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );",
+	):
+		assert expected in profile_block
+
+	for expected in (
+		"arg2[1] = *(arg1 * 0x738 + 0x10a42400)",
+		"*(eax + 0x10a4240c) = arg2",
+		"*(eax + 0x10a42410) = edx_1",
+		"arg2[2] = *(arg1 * 0x738 + &data_10a42418)",
+		"arg2[3] = *(arg1 * 0x738 + 0x10a4241c)",
+		"0x10a42420",
+		"var_790 = arg2 * 0x738 + &data_10a41cf0",
+		"memset(&var_788, 0, 0x738)",
+		"__builtin_memcpy(dest: edi_7, src: esp_113 + 0x18, n: 0x738)",
+	):
+		assert expected in hlil_source
+
+	for expected in (
+		'n\\\\%s\\\\t\\\\%i\\\\model\\\\%s\\\\hmodel\\\\%s\\\\c1\\\\%s\\\\c2\\\\%s\\\\hc\\\\%i\\\\w\\\\%i\\\\l\\\\%i\\\\skill\\\\%s\\\\tt\\\\%d\\\\tl\\\\%d\\\\rp\\\\%d\\\\p\\\\%d\\\\so\\\\%i\\\\pq\\\\%i',
+		'n\\\\%s\\\\t\\\\%i\\\\model\\\\%s\\\\hmodel\\\\%s\\\\c1\\\\%s\\\\c2\\\\%s\\\\hc\\\\%i\\\\w\\\\%i\\\\l\\\\%i\\\\tt\\\\%d\\\\tl\\\\%d\\\\rp\\\\%d\\\\p\\\\%d\\\\so\\\\%i\\\\pq\\\\%i\\\\st\\\\%llu\\\\c\\\\%s',
+	):
+		assert expected in qagame_hlil
+
+
+def test_cgame_clientinfo_early_retail_offset_map_is_pinned_without_source_repack() -> None:
+	cg_local = CG_LOCAL.read_text(encoding="utf-8")
+	clientinfo_doc = CG_CLIENTINFO_DOC.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+
+	for expected in (
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_INFOVALID\t\t0x000",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_READY\t\t\t0x004",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_NAME\t\t\t\t0x008",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_CLEAN_NAME\t\t0x048",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_EXTENDED_NAME\t0x088",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_COUNTRY\t\t\t0x0C8",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_TEAM\t\t\t\t0x108",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_BOT_SKILL\t\t0x10C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_BOT_SKILL_FLOAT\t0x110",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_COLOR1\t\t\t0x114",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_COLOR2\t\t\t0x120",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_SCORE\t\t\t0x12C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_HANDICAP\t\t\t0x130",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_WINS\t\t\t\t0x134",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_LOSSES\t\t\t0x138",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_TEAMTASK\t\t\t0x13C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_TEAMLEADER\t\t0x140",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_MEDKIT_USAGE_TIME\t0x144",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_INVULN_START_TIME\t0x148",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_INVULN_STOP_TIME\t0x14C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_BREATH_PUFF_TIME\t0x150",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_MODEL_NAME\t\t0x154",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_SKIN_NAME\t\t0x194",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_ICON_MODEL_NAME\t0x1D4",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_ICON_SKIN_NAME\t0x214",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_HEAD_MODEL_NAME\t0x254",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_HEAD_SKIN_NAME\t0x294",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_DEFERRED\t\t\t0x2D4",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_MODEL_SCALE\t\t0x2D8",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_NEW_ANIMS\t\t0x2DC",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_ANIM_METADATA\t0x2E0",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_ANIMATIONS\t\t0x318",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_SOUNDS\t\t\t0x690",
+		"#define\tCG_CLIENTINFO_RETAIL_SIZE\t\t\t\t\t0x738",
+	):
+		assert expected in cg_local
+
+	for expected in (
+		"char local_780 [63];",
+		"char local_740 [63];",
+		"undefined1 local_700 [63];",
+		"undefined1 local_6c0 [63];",
+		"int local_680;",
+		"int local_67c;",
+		"float local_678;",
+		"undefined4 local_674;",
+		"undefined4 local_668;",
+		"strncpy(local_780,pcVar2,0x3f);",
+		"strncpy(local_634,pcVar3,0x3f);",
+	):
+		assert expected in ghidra_source
+
+	for expected in (
+		"strncpy(&arg2[4], arg1 * 0x738 + 0x10a41cf8, 0x27)",
+		"strncpy(&arg2[0xe], arg1 * 0x738 + 0x10a41d38, 0x27)",
+		"strncpy(var_42c, edi_3 * 0x738 + 0x10a41d78, 0x3f)",
+		"void* var_44c_2 = edi_3 * 0x738 + 0x10a41db8",
+		'"ui/assets/flags/%s.tga"',
+		"&data_10a41df8",
+		"float.t(*(arg1 * 0x738 + 0x10a41e20)) / fconvert.t(100.0)",
+		"int32_t var_44c_1 = *(edi_3 * 0x738 + 0x10a41e28)",
+		"int32_t var_450_1 = *(edi_3 * 0x738 + 0x10a41e24)",
+	):
+		assert expected in hlil_source
+
+	for expected in (
+		"| `0x008` | Display name",
+		"| `0x048` | Clean/native identity name",
+		"| `0x088` | Extended/alternate name",
+		"| `0x0C8` | Country code",
+		"| `0x108` | Team",
+		"| `0x10C` | Bot skill integer",
+		"| `0x110` | Bot skill float",
+		"| `0x114` | Primary color vector",
+		"| `0x120` | Secondary color vector",
+		"| `0x12C` | Score mirror",
+		"| `0x130` | Handicap",
+		"| `0x13C` | Team task",
+		"| `0x144` | Medkit usage time",
+		"| `0x148` | Invulnerability start time",
+		"| `0x14C` | Invulnerability stop time",
+		"| `0x150` | Breath-puff time",
+		"| `0x154` | Body model name",
+		"| `0x194` | Body skin name",
+		"| `0x1D4` | Icon body model name",
+		"| `0x214` | Icon body skin name",
+		"| `0x254` | Head model name",
+		"| `0x294` | Head skin name",
+		"| `0x2D4` | Deferred-model flag",
+		"| `0x2D8` | Model bounding-box scale",
+		"| `0x2DC` | New-animation flag",
+		"`CG_CLIENTINFO_RETAIL_OFFSET_*` constants",
+		"These constants describe the retail byte map, not the current C `offsetof`",
+	):
+		assert expected in clientinfo_doc
+
+
+def test_cgame_clientinfo_score_tinfo_and_effect_timer_band_are_pinned() -> None:
+	cg_local = CG_LOCAL.read_text(encoding="utf-8")
+	cg_servercmds = CG_SERVERCMDS.read_text(encoding="utf-8")
+	clientinfo_doc = CG_CLIENTINFO_DOC.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	qagame_hlil = QAGAME_HLIL.read_text(encoding="utf-8")
+	parse_block = _block_from_marker(cg_servercmds, "static void CG_ParseTeamInfo")
+
+	for expected in (
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_SCORE\t\t\t0x12C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_TEAMTASK\t\t\t0x13C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_TEAMLEADER\t\t0x140",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_MEDKIT_USAGE_TIME\t0x144",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_INVULN_START_TIME\t0x148",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_INVULN_STOP_TIME\t0x14C",
+		"#define\tCG_CLIENTINFO_RETAIL_OFFSET_BREATH_PUFF_TIME\t0x150",
+	):
+		assert expected in cg_local
+	assert "int\t\t\t\tpowerups;\t\t// source compatibility; retail 0x144 starts effect timers" in cg_local
+
+	for expected in (
+		"Retail `tinfo` carries only a count and client numbers.",
+		"Legacy source-style",
+		"qboolean\tlegacyRows;",
+		"legacyRows = (qboolean)( argc >= 2 + count * 6 );",
+		"baseArg = legacyRows ? ( i * 6 + 2 ) : ( i + 2 );",
+		"if ( argc <= baseArg ) {",
+		"if ( legacyRows ) {",
+		"cgs.clientinfo[ client ].location = atoi( CG_Argv( baseArg + 1 ) );",
+		"cgs.clientinfo[ client ].powerups = atoi( CG_Argv( baseArg + 5 ) );",
+	):
+		assert expected in cg_servercmds
+	for expected in (
+		"count = atoi( CG_Argv( 1 ) );",
+		"sortedTeamPlayers[numSortedTeamPlayers] = client;",
+		"numSortedTeamPlayers++;",
+	):
+		assert expected in parse_block
+
+	for expected in (
+		"(&DAT_10a41e1c)[iVar1 * 0x1ce] = piVar3[-8];",
+		"*(undefined4 *)(&DAT_10a41e38 + iVar6) = 0;",
+		"*(int *)(&DAT_10a41e38 + iVar6) = DAT_10a9c1ec;",
+		"*(int *)(&DAT_10a41e3c + iVar6) = iVar4;",
+		"local_300 = (float)(iVar4 - *(int *)(&DAT_10a41e34 + iVar6));",
+	):
+		assert expected in ghidra_source
+
+	for expected in (
+		"return float.t(*(ecx * 0x738 + 0x10a41e1c))",
+		"*(eax_4 * 0x738 + 0x10a41e34) = data_10a9c1ec",
+		"result = *(esi_1 + 0x10a41e2c)",
+		"*(ebx_1 * 0x738 + 0x10a41e38) = 0",
+		"*(ebx_1 * 0x738 + 0x10a41e38) = edx_32",
+		"*(ebx_1 * 0x738 + 0x10a41e3c) = edx_32",
+		"int32_t eax_52 = *(ebx_1 * 0x738 + 0x10a41e34)",
+		"*(eax_47 + 0x10a41e1c) = *(esi_1 - 0x1c)",
+		"100487b0    int32_t sub_100487b0()",
+		"*((i << 2) + &data_10b73140) = result",
+	):
+		assert expected in hlil_source
+	assert 'sub_10070cb0("tinfo %i %s")' in qagame_hlil
+
+	for expected in (
+		"| `0x12C` | Score mirror | High",
+		"| `0x13C` | Team task | High",
+		"| `0x140` | Team-leader flag | Medium",
+		"| `0x144` | Medkit usage time | High",
+		"| `0x148` | Invulnerability start time | High",
+		"| `0x14C` | Invulnerability stop time | High",
+		"| `0x150` | Breath-puff time | Medium",
+		"The retail `tinfo` parser only rebuilds",
+		"`sortedTeamPlayers`; source-compatible six-field `tinfo` rows",
+	):
+		assert expected in clientinfo_doc
+
+
+def test_cgame_clientinfo_model_string_band_and_pre_animation_scalars_are_pinned() -> None:
+	cg_local = CG_LOCAL.read_text(encoding="utf-8")
+	cg_players = CG_PLAYERS.read_text(encoding="utf-8")
+	cg_newdraw = CG_NEWDRAW.read_text(encoding="utf-8")
+	clientinfo_doc = CG_CLIENTINFO_DOC.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	update_block = _block_from_marker(cg_players, "static qboolean CG_UpdateClientHeadOffset")
+	copy_block = _block_from_marker(cg_players, "static void CG_CopyClientInfoModel")
+	scale_block = _block_from_marker(cg_players, "static float CG_PlayerModelBoundingBoxScale")
+	preview_block = _block_from_marker(cg_newdraw, "static void CG_DrawClientModelPreview")
+
+	assert "float\t\t\tmodelScale;" in cg_local
+	assert "int\t\t\t\tretailAnimationPad;" not in cg_local
+	assert cg_local.index("qboolean\t\tdeferred;") < cg_local.index("float\t\t\tmodelScale;")
+	assert cg_local.index("float\t\t\tmodelScale;") < cg_local.index("qboolean\t\tnewAnims;")
+	assert cg_local.index("qboolean\t\tnewAnims;") < cg_local.index("qboolean\t\tfixedlegs;")
+
+	for expected in (
+		"char local_634 [63];",
+		"char local_5f4 [63];",
+		"char local_5b4 [63];",
+		"char local_574 [63];",
+		"char local_534 [63];",
+		"char local_4f4 [63];",
+		"strncpy(local_5b4,local_634,0x3f);",
+		"strncpy(local_574,pcVar3,0x3f);",
+		"strncpy(local_534,pcVar3,0x3f);",
+		"strncpy(local_4f4,pcVar3,0x3f);",
+		"strncpy(local_5f4,pcVar3,0x3f);",
+		"iVar4 = param_1 + 0x254;",
+		"iVar1 = param_1 + 0x154;",
+		"iVar3 = FUN_1003d380(iVar1,param_1 + 0x194,iVar4);",
+		'"models/players/%s/icon_%s.tga",param_2 + 0x1d4,param_2 + 0x214',
+		'"sound/player/%s/%s",param_1 + 0x154',
+		"*(undefined4 *)(param_1 + 0x2d4) = 0;",
+		"*(undefined4 *)(param_1 + 0x2dc) = 0;",
+		"*(undefined4 *)(param_1 + 0x2dc) = 1;",
+	):
+		assert expected in ghidra_source
+
+	for expected in (
+		"sub_1003d380(arg3 + 0x194, arg3, arg3 + 0x294, arg3 + 0x154, arg3 + 0x194,",
+		"void* var_64_10 = arg2 + 0x214",
+		"void* var_68_2 = arg2 + 0x1d4",
+		"sub_10057510(&var_48, 0x40, \"models/players/%s/icon_%s.tga\")",
+		"*(arg1 + 0x2d8) =",
+		"fconvert.t(56.0) / fconvert.t(var_84) * fconvert.t(data_10a5fd98)",
+		"*(arg2 + 0x2d8) = 0x3f800000",
+		"*(arg3 + 0x2dc) = 1",
+		"*(arg3 + 0x2d4) = 0",
+		"__builtin_memcpy(dest: arg1 + 0x318, src: arg2 + 0x318, n: 0x378)",
+	):
+		assert expected in hlil_source
+
+	for expected in (
+		"ci->modelScale = 1.0f;",
+		"ci->modelScale = ( 56.0f / totalHeight ) * cgs.playerModelScale;",
+	):
+		assert expected in update_block
+	assert "ci->headOffset[0] = ( 56.0f / totalHeight )" not in update_block
+
+	assert "to->modelScale = from->modelScale;" in copy_block
+	assert "ci->modelScale == 1.0f" in scale_block
+	assert "return ci->modelScale;" in scale_block
+	assert "heightScale = ( ci->modelScale > 0.0f ) ? ci->modelScale : 1.0f;" in preview_block
+
+	for expected in (
+		"| `0x154` | Body model name | High",
+		"| `0x194` | Body skin name | High",
+		"| `0x1D4` | Icon body model name | High",
+		"| `0x214` | Icon body skin name | High",
+		"| `0x254` | Head model name | High",
+		"| `0x294` | Head skin name | High",
+		"| `0x2D4` | Deferred-model flag | High",
+		"| `0x2D8` | Model bounding-box scale | High",
+		"| `0x2DC` | New-animation flag | High",
+	):
+		assert expected in clientinfo_doc
+
+
+def test_cgame_clientinfo_animation_metadata_and_model_handle_band_are_pinned() -> None:
+	cg_local = CG_LOCAL.read_text(encoding="utf-8")
+	cg_players = CG_PLAYERS.read_text(encoding="utf-8")
+	cg_newdraw = CG_NEWDRAW.read_text(encoding="utf-8")
+	clientinfo_doc = CG_CLIENTINFO_DOC.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	parse_block = _block_from_marker(cg_players, "static qboolean\tCG_ParseAnimationFile")
+	register_model_block = _block_from_marker(cg_players, "static qboolean CG_RegisterClientModelname")
+	register_skin_block = _block_from_marker(cg_players, "static qboolean\tCG_RegisterClientSkin")
+	copy_block = _block_from_marker(cg_players, "static void CG_CopyClientInfoModel")
+	player_block = _block_from_marker(cg_players, "void CG_Player(")
+	preview_block = _block_from_marker(cg_newdraw, "static void CG_DrawClientModelPreview")
+	retail_copy_block = _text_between(
+		hlil_source,
+		"1003dd90    void __convention(\"regparm\") sub_1003dd90",
+		"1003de70",
+	)
+
+	for name, offset in (
+		("CG_CLIENTINFO_RETAIL_OFFSET_ANIM_METADATA", "0x2E0"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_FIXEDLEGS", "0x2E0"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_FIXEDTORSO", "0x2E4"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_HEAD_OFFSET", "0x2E8"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_FOOTSTEPS", "0x2F4"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_GENDER", "0x2F8"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_MODEL_HANDLES", "0x2FC"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_LEGS_MODEL", "0x2FC"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_LEGS_SKIN", "0x300"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_TORSO_MODEL", "0x304"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_TORSO_SKIN", "0x308"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_HEAD_MODEL", "0x30C"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_HEAD_SKIN", "0x310"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_MODEL_ICON", "0x314"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_ANIMATIONS", "0x318"),
+		("CG_CLIENTINFO_RETAIL_OFFSET_SOUNDS", "0x690"),
+	):
+		assert re.search(rf"#define\s+{name}\s+{offset}\b", cg_local)
+
+	for earlier, later in (
+		("qboolean\t\tnewAnims;", "qboolean\t\tfixedlegs;"),
+		("qboolean\t\tfixedlegs;", "qboolean\t\tfixedtorso;"),
+		("qboolean\t\tfixedtorso;", "vec3_t\t\t\theadOffset;"),
+		("vec3_t\t\t\theadOffset;", "footstep_t\t\tfootsteps;"),
+		("footstep_t\t\tfootsteps;", "gender_t\t\tgender;"),
+		("gender_t\t\tgender;", "qhandle_t\t\tlegsModel;"),
+		("qhandle_t\t\tlegsModel;", "qhandle_t\t\tlegsSkin;"),
+		("qhandle_t\t\tlegsSkin;", "qhandle_t\t\ttorsoModel;"),
+		("qhandle_t\t\ttorsoModel;", "qhandle_t\t\ttorsoSkin;"),
+		("qhandle_t\t\ttorsoSkin;", "qhandle_t\t\theadModel;"),
+		("qhandle_t\t\theadModel;", "qhandle_t\t\theadSkin;"),
+		("qhandle_t\t\theadSkin;", "qhandle_t\t\tmodelIcon;"),
+		("qhandle_t\t\tmodelIcon;", "cgAnimation_t\tanimations[MAX_TOTALANIMATIONS];"),
+	):
+		assert cg_local.index(earlier) < cg_local.index(later)
+
+	for expected in (
+		"ci->footsteps = FOOTSTEP_NORMAL;",
+		"VectorClear( ci->headOffset );",
+		"ci->gender = GENDER_MALE;",
+		"ci->fixedlegs = qfalse;",
+		"ci->fixedtorso = qfalse;",
+		"ci->headOffset[i] = atof( token );",
+		"ci->fixedlegs = qtrue;",
+		"ci->fixedtorso = qtrue;",
+	):
+		assert expected in parse_block
+	for expected in (
+		"ci->legsModel = trap_R_RegisterModel( filename );",
+		"ci->torsoModel = trap_R_RegisterModel( filename );",
+		"ci->headModel = trap_R_RegisterModel( filename );",
+		"ci->modelIcon = trap_R_RegisterShaderNoMip( filename );",
+	):
+		assert expected in register_model_block
+	for expected in (
+		"ci->legsSkin = trap_R_RegisterSkin( filename );",
+		"ci->torsoSkin = trap_R_RegisterSkin( filename );",
+		"ci->headSkin = trap_R_RegisterSkin( filename );",
+	):
+		assert expected in register_skin_block
+	for expected in (
+		"to->modelScale = from->modelScale;",
+		"VectorCopy( from->headOffset, to->headOffset );",
+		"to->footsteps = from->footsteps;",
+		"to->gender = from->gender;",
+		"to->legsModel = from->legsModel;",
+		"to->legsSkin = from->legsSkin;",
+		"to->torsoModel = from->torsoModel;",
+		"to->torsoSkin = from->torsoSkin;",
+		"to->headModel = from->headModel;",
+		"to->headSkin = from->headSkin;",
+		"to->modelIcon = from->modelIcon;",
+		"to->newAnims = from->newAnims;",
+		"memcpy( to->animations, from->animations, sizeof( to->animations ) );",
+		"memcpy( to->sounds, from->sounds, sizeof( to->sounds ) );",
+	):
+		assert expected in copy_block
+	assert "to->fixedlegs = from->fixedlegs;" not in copy_block
+	assert "to->fixedtorso = from->fixedtorso;" not in copy_block
+
+	for expected in (
+		"legs.hModel = ci->legsModel;",
+		"legs.customSkin = ci->legsSkin;",
+		"torso.hModel = ci->torsoModel;",
+		"torso.customSkin = ci->torsoSkin;",
+		"head.hModel = ci->headModel;",
+		"head.customSkin = ci->headSkin;",
+		'CG_PositionRotatedEntityOnTag( &torso, &legs, ci->legsModel, "tag_torso");',
+		'CG_PositionRotatedEntityOnTag( &head, &torso, ci->torsoModel, "tag_head");',
+	):
+		assert expected in player_block
+	for expected in (
+		"legs.hModel = ci->legsModel;",
+		"torso.hModel = ci->torsoModel;",
+		"head.hModel = ci->headModel;",
+		"shader = ci->modelIcon;",
+	):
+		assert expected in preview_block or expected in cg_newdraw
+
+	for expected in (
+		"*(undefined4 *)(unaff_ESI + 0x2e0) = 1",
+		"*(undefined4 *)(unaff_ESI + 0x2e4) = 1",
+		"pfVar10 = (float *)(unaff_ESI + 0x2e8);",
+		"*(undefined4 *)(unaff_ESI + 0x2f4) = 4;",
+		"*(undefined4 *)(unaff_ESI + 0x2f8) = 1;",
+		"*(int *)(param_2 + 0x2fc) = iVar1;",
+		"*(int *)(param_2 + 0x304) = iVar1;",
+		"*(int *)(param_2 + 0x30c) = iVar1;",
+		"*(int *)(param_2 + 0x314) = iVar1;",
+	):
+		assert expected in ghidra_source
+	for expected in (
+		"*(arg1 + 0x2e4) = 1",
+		"*(arg1 + 0x2e0) = 1",
+		"void* ebp_1 = arg1 + 0x2e8",
+		"*(arg1 + 0x2f4) = 4",
+		"*(arg1 + 0x2f8) = 1",
+		"*(arg2 + 0x2fc) = eax_3",
+		"*(arg1 + 0x300) = eax_4",
+		"*(arg2 + 0x304) = eax_6",
+		"*(arg1 + 0x308) = eax_6",
+		"*(arg2 + 0x30c) = eax_9",
+		"*(arg1 + 0x310) = eax_8",
+		"*(arg2 + 0x314) = eax_17",
+		"*(arg3 * 0x738 + 0x10a41fec) != 0",
+		"int32_t var_3c_4 = *(arg3 * 0x738 + 0x10a42004)",
+	):
+		assert expected in hlil_source
+	for expected in (
+		"*(arg1 + 0x2e8) = fconvert.s(fconvert.t(*(arg2 + 0x2e8)))",
+		"*(arg1 + 0x2f4) = *(arg2 + 0x2f4)",
+		"*(arg1 + 0x2f8) = *(arg2 + 0x2f8)",
+		"*(arg1 + 0x2fc) = *(arg2 + 0x2fc)",
+		"*(arg1 + 0x314) = *(arg2 + 0x314)",
+		"*(arg1 + 0x2dc) = *(arg2 + 0x2dc)",
+		"__builtin_memcpy(dest: arg1 + 0x318, src: arg2 + 0x318, n: 0x378)",
+		"__builtin_memcpy(dest: arg1 + 0x690, src: arg2 + 0x690, n: 0x80)",
+		"*(arg1 + 0x2d8) = fconvert.s(fconvert.t(*(arg2 + 0x2d8)))",
+	):
+		assert expected in retail_copy_block
+	assert "0x2e0" not in retail_copy_block
+	assert "0x2e4" not in retail_copy_block
+
+	for expected in (
+		"| `0x2E0` | Fixed-legs flag | High",
+		"| `0x2E4` | Fixed-torso flag | High",
+		"| `0x2E8` | Head offset X | High",
+		"| `0x2F4` | Footstep type | High",
+		"| `0x2F8` | Gender | High",
+		"| `0x2FC` | Legs model handle | High",
+		"| `0x300` | Legs skin handle | High",
+		"| `0x304` | Torso model handle | High",
+		"| `0x308` | Torso skin handle | High",
+		"| `0x30C` | Head model handle | High",
+		"| `0x310` | Head skin handle | High",
+		"| `0x314` | Model icon shader | High",
+		"Retail `CG_CopyClientInfoModel` starts its metadata",
+		"copy at `0x2E8`",
+		"does not copy",
+		"`fixedlegs` or `fixedtorso`",
+	):
+		assert expected in clientinfo_doc
+
+
+def test_cgame_clientinfo_animation_cache_uses_retail_cgame_record_stride() -> None:
+	cg_local = CG_LOCAL.read_text(encoding="utf-8")
+	cg_players = CG_PLAYERS.read_text(encoding="utf-8")
+	bg_public = BG_PUBLIC.read_text(encoding="utf-8")
+	ui_local = UI_LOCAL_H.read_text(encoding="utf-8")
+	ui_players = UI_PLAYERS.read_text(encoding="utf-8")
+	ghidra_source = CGAME_GHIDRA_DECOMPILE.read_text(encoding="utf-8")
+	hlil_source = CGAME_HLIL.read_text(encoding="utf-8")
+	parse_block = _block_from_marker(cg_players, "static qboolean\tCG_ParseAnimationFile")
+	set_lerp_block = _block_from_marker(cg_players, "static void CG_SetLerpFrameAnimation")
+	run_lerp_block = _block_from_marker(cg_players, "static void CG_RunLerpFrame")
+
+	for expected in (
+		"typedef struct {\n\tint\t\t\tfirstFrame;",
+		"int\t\t\tnumFrames;",
+		"int\t\t\tloopFrames;",
+		"int\t\t\tframeLerp;",
+		"int\t\t\tinitialLerp;",
+		"int\t\t\treversed;",
+		"} cgAnimation_t;",
+		"cgAnimation_t\t*animation;",
+		"float\t\t\tmodelScale;",
+		"cgAnimation_t\tanimations[MAX_TOTALANIMATIONS];",
+		"sfxHandle_t\t\tsounds[MAX_CUSTOM_SOUNDS];",
+		"int\t\t\t\tretailIdentityPad;",
+		"int\t\t\t\tretailLayoutPad;",
+	):
+		assert expected in cg_local
+	assert cg_local.index("qboolean\t\tdeferred;") < cg_local.index("float\t\t\tmodelScale;")
+	assert cg_local.index("float\t\t\tmodelScale;") < cg_local.index("qboolean\t\tnewAnims;")
+	assert cg_local.index("qboolean\t\tnewAnims;") < cg_local.index("qboolean\t\tfixedlegs;")
+	assert cg_local.index("qboolean\t\tfixedtorso;") < cg_local.index("vec3_t\t\t\theadOffset;")
+	assert cg_local.index("qhandle_t\t\tmodelIcon;") < cg_local.index("cgAnimation_t\tanimations[MAX_TOTALANIMATIONS];")
+	assert cg_local.index("cgAnimation_t\tanimations[MAX_TOTALANIMATIONS];") < cg_local.index("sfxHandle_t\t\tsounds[MAX_CUSTOM_SOUNDS];")
+	assert cg_local.index("sfxHandle_t\t\tsounds[MAX_CUSTOM_SOUNDS];") < cg_local.index("int\t\t\t\tprivilege;")
+	assert cg_local.index("int\t\t\t\tprivilege;") < cg_local.index("qboolean\t\tspectateOnly;")
+	assert cg_local.index("qboolean\t\tspectateOnly;") < cg_local.index("int\t\t\t\tspectatorQueuePosition;")
+	assert cg_local.index("int\t\t\t\tspectatorQueuePosition;") < cg_local.index("qboolean\t\tspeaking;")
+	assert cg_local.index("int\t\t\t\tspeakingTime;") < cg_local.index("int\t\t\t\tretailIdentityPad;")
+	assert cg_local.index("int\t\t\t\tretailIdentityPad;") < cg_local.index("unsigned int\tidentityLow;")
+	assert cg_local.index("unsigned int\tidentityLow;") < cg_local.index("unsigned int\tidentityHigh;")
+	assert cg_local.index("unsigned int\tidentityHigh;") < cg_local.index("qhandle_t\t\tavatarImageHandle;")
+	assert cg_local.index("qhandle_t\t\tavatarImageHandle;") < cg_local.index("int\t\t\t\tretailLayoutPad;")
+
+	for expected in (
+		"cgAnimation_t\t*animations;",
+		"animations = ci->animations;",
+		"sizeof(cgAnimation_t)",
+		"animations[LEGS_BACKCR].reversed = qtrue;",
+		"animations[LEGS_BACKWALK].reversed = qtrue;",
+	):
+		assert expected in parse_block
+
+	for expected in (
+		"cgAnimation_t\t*anim;",
+		"anim = &ci->animations[ newAnimation ];",
+	):
+		assert expected in set_lerp_block
+	for expected in (
+		"cgAnimation_t\t*anim;",
+		"anim = lf->animation;",
+		"if ( anim->reversed ) {",
+		"lf->frame = anim->firstFrame + anim->numFrames - 1 - f;",
+	):
+		assert expected in run_lerp_block
+	assert "flipflop" not in cg_players
+	assert "anim->flipflop" not in run_lerp_block
+
+	for expected in (
+		"int\t\tflipflop;",
+		"} animation_t;",
+	):
+		assert expected in bg_public
+	for expected in (
+		"animation_t\t*animation;",
+		"animation_t\t\tanimations[MAX_TOTALANIMATIONS];",
+	):
+		assert expected in ui_local
+	assert "static qboolean UI_ParseAnimationFile( const char *filename, animation_t *animations )" in ui_players
+
+	for expected in (
+		"unaff_ESI + 0x318 + iVar8 * 0x18",
+		"*(undefined4 *)(unaff_ESI + 0x2e0) = 1",
+		"*(undefined4 *)(unaff_ESI + 0x2e4) = 1",
+		"*(undefined4 *)(unaff_ESI + 0x2f4) = 0",
+		"*(undefined4 *)(unaff_ESI + 0x2f8) = 0",
+		"param_1 + 0x690",
+	):
+		assert expected in ghidra_source
+	for expected in (
+		"arg3 * 0x738 + &data_10a41cf0 + arg2 * 0x18 + 0x31c",
+		"return *(arg1 * 0x738 + &data_10a41cf0 + (edi << 2) + 0x690)",
+		"arg2[1] = *(arg1 * 0x738 + 0x10a42400)",
+		"*(eax + 0x10a4240c) = arg2",
+		"arg2[2] = *(arg1 * 0x738 + &data_10a42418)",
+		"arg2[3] = *(arg1 * 0x738 + 0x10a4241c)",
+	):
+		assert expected in hlil_source
 
 
 def test_cgame_live_placement_and_follow_ownerdraws_follow_retail_helper_split() -> None:
@@ -6349,6 +7014,7 @@ def test_cgame_selected_202_to_206_ownerdraws_match_retail_second_player_acc_fla
 
 	for expected in (
 		"if ( cg_drawProfileImages.integer && ( ci->identityLow || ci->identityHigh ) ) {",
+		"shader = ci->avatarImageHandle;",
 		"shader = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );",
 		"shader = ci->modelIcon;",
 		"CG_DrawPic( rect->x, rect->y, rect->w, rect->h, shader );",
@@ -13564,7 +14230,7 @@ def test_cgame_force_model_and_fov_cvars_match_retail_table_and_wiring() -> None
 	model_override_block = _block_from_marker(players_source, "static void CG_ApplyClientModelOverrides")
 	color_override_block = _block_from_marker(players_source, "static void CG_ApplyClientColorOverrides")
 	weapon_override_block = _block_from_marker(weapons_source, "static qboolean CG_ShouldOverrideWeaponColor")
-	resolve_weapon_color_block = _block_from_marker(weapons_source, "static qboolean CG_ResolveClientWeaponColor")
+	resolve_weapon_color_block = _block_from_marker(weapons_source, "qboolean CG_ResolveClientWeaponColor")
 	trace_block = _block_from_marker(view_source, "static float CG_CalcSmartCameraTraceRange")
 	fov_block = _block_from_marker(view_source, "static int CG_CalcFov")
 	weapon_fov_block = _block_from_marker(weapons_source, "static float CG_GetViewWeaponFovOffset")
@@ -16535,10 +17201,12 @@ def test_cgame_native_sidecar_helpers_match_retail_export_leafs() -> None:
 		"if ( !ci->infoValid ) {",
 		"memset( identity, 0, sizeof( *identity ) );",
 		"identity->clientNum = clientNum;",
-		"identity->identityTransport = 0;",
+		"identity->identityTransport = ci->privilege;",
 		"identity->identityLow = ci->identityLow;",
 		"identity->identityHigh = ci->identityHigh;",
 		"Q_strncpyz( identity->displayName, ci->name, sizeof( identity->displayName ) );",
+		"if ( ci->cleanName[0] ) {",
+		"Q_strncpyz( identity->cleanName, ci->cleanName, sizeof( identity->cleanName ) );",
 		"Q_CleanStr( cleanName );",
 		"return qtrue;",
 	):
@@ -16566,8 +17234,8 @@ def test_cgame_native_sidecar_helpers_match_retail_export_leafs() -> None:
 
 	for expected in (
 		"if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {",
-		"speakingState->speaking = speaking ? qtrue : qfalse;",
-		"speakingState->time = cg.time;",
+		"ci->speaking = speaking ? qtrue : qfalse;",
+		"ci->speakingTime = cg.time;",
 		"cgs.currentVoiceClient = clientNum;",
 		"cg.voiceTime = cg.time;",
 		"cgs.currentVoiceClient = -1;",
@@ -18044,12 +18712,12 @@ def test_cgame_head_offset_refresh_restores_retail_model_scale_seam() -> None:
 
 	for expected in (
 		'!Q_stricmp( ci->modelName, "orbb" )',
-		"ci->headOffset[0] = 1.0f;",
+		"ci->modelScale = 1.0f;",
 		"trap_R_ModelBounds( ci->headModel, mins, maxs );",
 		'"tag_torso"',
 		'"tag_head"',
 		"cgs.playerModelScale",
-		"ci->headOffset[0] = ( 56.0f / totalHeight ) * cgs.playerModelScale;",
+		"ci->modelScale = ( 56.0f / totalHeight ) * cgs.playerModelScale;",
 	):
 		assert expected in update_block
 
@@ -18176,6 +18844,33 @@ def test_cgame_client_skin_normalizers_restore_retail_team_default_and_sport_spl
 
 	assert 'Q_strncpyz( newInfo.skinName, slash + 1, sizeof( newInfo.skinName ) );' not in new_client_block
 	assert 'Q_strncpyz( newInfo.headSkinName, slash + 1, sizeof( newInfo.headSkinName ) );' not in new_client_block
+
+
+def test_cgame_clientinfo_color_parser_uses_retail_26_entry_palette() -> None:
+	players_source = ( REPO_ROOT / "src" / "code" / "cgame" / "cg_players.c" ).read_text(encoding="utf-8")
+	color_block = _block_from_marker(players_source, "static void CG_ColorFromString")
+	new_client_block = _block_from_marker(players_source, "void CG_NewClientInfo( int clientNum )")
+
+	for expected in (
+		"vec4_t paletteColor;",
+		"if ( val < 1 || val > 26 ) {",
+		"val = 1;",
+		"CG_GetColorForIndex( val - 1, paletteColor );",
+		"VectorCopy( paletteColor, color );",
+	):
+		assert expected in color_block
+
+	for unexpected in (
+		"VectorClear( color );",
+		"val > 7",
+		"val & 1",
+		"val & 2",
+		"val & 4",
+	):
+		assert unexpected not in color_block
+
+	assert "CG_ColorFromString( v, newInfo.color1 );" in new_client_block
+	assert "CG_ColorFromString( v, newInfo.color2 );" in new_client_block
 
 
 def test_cgame_respawn_weapon_select_restores_retail_primary_preference_seam() -> None:

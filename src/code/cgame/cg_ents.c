@@ -914,6 +914,109 @@ static void CG_DrawItemRespawnTimer( const gitem_t *item, int respawnRemaining, 
 }
 
 /*
+=========================
+CG_ItemSimpleItemsBobMode
+
+Returns the retail simple-item bob mode cached from cg_simpleItemsBob.
+=========================
+*/
+static int CG_ItemSimpleItemsBobMode( void ) {
+	int	bobMode;
+
+	bobMode = (int)cg.simpleItemsBob;
+	if ( bobMode < 0 ) {
+		return 0;
+	}
+	if ( bobMode > 2 ) {
+		return 2;
+	}
+
+	return bobMode;
+}
+
+/*
+========================
+CG_ItemUsesSimpleItemsBob
+
+Applies the retail simple-item bob mode split: mode 1 bobs every simple item,
+while mode 2 only bobs the major-item family flagged in the retail item table.
+========================
+*/
+static qboolean CG_ItemUsesSimpleItemsBob( const gitem_t *item ) {
+	switch ( CG_ItemSimpleItemsBobMode() ) {
+	case 1:
+		return qtrue;
+	case 2:
+		return CG_ItemUsesRespawnTimer( item );
+	default:
+		break;
+	}
+
+	return qfalse;
+}
+
+/*
+==========================
+CG_ItemSimpleItemsBobOffset
+
+Returns the fixed retail sine bob added above the raw world-item origin before
+the radius-relative sprite adjustment is applied.
+==========================
+*/
+static float CG_ItemSimpleItemsBobOffset( void ) {
+	float	phase;
+
+	phase = (float)( cg.time & 1023 ) * ( (float)M_PI * 2.0f / 1024.0f );
+	return 10.0f + sin( phase ) * 6.0f;
+}
+
+/*
+==========================
+CG_ItemSimpleItemsHeightOffset
+
+Returns the base retail simple-item height offset for non-bobbing items.
+==========================
+*/
+static float CG_ItemSimpleItemsHeightOffset( const gitem_t *item ) {
+	if ( item && item->giType == IT_PERSISTANT_POWERUP ) {
+		return 10.0f;
+	}
+
+	return cg.simpleItemsHeightOffset;
+}
+
+/*
+====================
+CG_DrawSimpleItem
+
+Draws the retail simple-item icon sprite path used by CG_Item.
+====================
+*/
+static void CG_DrawSimpleItem( const centity_t *cent, const entityState_t *es, const gitem_t *item ) {
+	refEntity_t	ent;
+
+	memset( &ent, 0, sizeof( ent ) );
+	ent.reType = RT_SPRITE;
+	VectorCopy( cent->lerpOrigin, ent.origin );
+
+	if ( CG_ItemUsesSimpleItemsBob( item ) ) {
+		ent.origin[2] += CG_ItemSimpleItemsBobOffset();
+	} else {
+		ent.origin[2] += CG_ItemSimpleItemsHeightOffset( item );
+	}
+
+	ent.origin[2] += cg.simpleItemsRadius - 15.0f;
+	VectorCopy( ent.origin, ent.oldorigin );
+	ent.radius = cg.simpleItemsRadius;
+	ent.customShader = cg_items[es->modelindex].icon;
+	ent.shaderRGBA[0] = 255;
+	ent.shaderRGBA[1] = 255;
+	ent.shaderRGBA[2] = 255;
+	ent.shaderRGBA[3] = 255;
+	trap_R_AddRefEntityToScene( &ent );
+}
+
+/*
 ==================
 CG_Item
 ==================
@@ -974,23 +1077,7 @@ static void CG_Item( centity_t *cent ) {
 	}
 
 	if ( cg_simpleItems.integer && item->giType != IT_TEAM ) {
-		memset( &ent, 0, sizeof( ent ) );
-		ent.reType = RT_SPRITE;
-		VectorCopy( cent->lerpOrigin, ent.origin );
-		if ( cg.simpleItemsBob > 0.0f ) {
-			float		spriteBobScale;
-
-			spriteBobScale = 0.005f + cent->currentState.number * 0.00001f;
-			ent.origin[2] += cos( ( cg.time + 1000 ) * spriteBobScale ) * cg.simpleItemsBob;
-		}
-		ent.origin[2] += cg.simpleItemsHeightOffset;
-		ent.radius = cg.simpleItemsRadius;
-		ent.customShader = cg_items[es->modelindex].icon;
-		ent.shaderRGBA[0] = 255;
-		ent.shaderRGBA[1] = 255;
-		ent.shaderRGBA[2] = 255;
-		ent.shaderRGBA[3] = 255;
-		trap_R_AddRefEntityToScene(&ent);
+		CG_DrawSimpleItem( cent, es, item );
 		return;
 	}
 
@@ -1115,12 +1202,12 @@ static void CG_Item( centity_t *cent ) {
 			trap_R_AddRefEntityToScene( &barrel );
 		}
 
-		if ( wi->ammoModel ) {
+		if ( wi->weaponAmmoModel ) {
 			refEntity_t	ammo;
 
 			memset( &ammo, 0, sizeof( ammo ) );
 
-			ammo.hModel = wi->ammoModel;
+			ammo.hModel = wi->weaponAmmoModel;
 
 			VectorCopy( ent.lightingOrigin, ammo.lightingOrigin );
 			ammo.shadowPlane = ent.shadowPlane;
@@ -1172,12 +1259,21 @@ static void CG_Item( centity_t *cent ) {
 =============
 CG_ApplyGrenadeEntityColor
 
-Applies the cached grenade weapon color to the model entity color lane used by
-retail rgbGen entity grenade shaders.
+Applies forced team/enemy weapon color overrides or the cached grenade weapon
+color to the model entity color lane used by retail rgbGen entity shaders.
 =============
 */
-static void CG_ApplyGrenadeEntityColor( refEntity_t *ent ) {
+static void CG_ApplyGrenadeEntityColor( const centity_t *cent, refEntity_t *ent ) {
+	int	clientNum;
+
 	if ( !ent ) {
+		return;
+	}
+
+	clientNum = cent ? cent->currentState.clientNum : -1;
+	if ( clientNum >= 0 && clientNum < cgs.maxclients &&
+		CG_ResolveClientWeaponColor( &cgs.clientinfo[clientNum], ent->shaderRGBA, NULL ) ) {
+		ent->shaderRGBA[3] = 255;
 		return;
 	}
 
@@ -1199,13 +1295,10 @@ static void CG_Missile( centity_t *cent ) {
 //	int	col;
 
 	s1 = &cent->currentState;
-	if ( s1->weapon > WP_NUM_WEAPONS ) {
-		s1->weapon = 0;
+	if ( s1->weapon >= MAX_WEAPONS ) {
+		CG_Error( "CG_Missile: invalid weapon %i", s1->weapon );
 	}
 	weapon = &cg_weapons[s1->weapon];
-
-	// calculate the axis
-	VectorCopy( s1->angles, cent->lerpAngles);
 
 	// add trails
 	if ( weapon->missileTrailFunc ) 
@@ -1270,7 +1363,7 @@ static void CG_Missile( centity_t *cent ) {
 	}
 
 	if ( cent->currentState.weapon == WP_GRENADE_LAUNCHER ) {
-		CG_ApplyGrenadeEntityColor( &ent );
+		CG_ApplyGrenadeEntityColor( cent, &ent );
 	}
 
 	// convert direction of travel into axis
@@ -1283,7 +1376,7 @@ static void CG_Missile( centity_t *cent ) {
 		RotateAroundDirection( ent.axis, cg.time / 4 );
 	} else {
 		if ( s1->weapon == WP_PROX_LAUNCHER ) {
-			AnglesToAxis( cent->lerpAngles, ent.axis );
+			AnglesToAxis( s1->angles, ent.axis );
 		}
 		else
 		{

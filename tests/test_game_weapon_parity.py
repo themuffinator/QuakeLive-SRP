@@ -1792,7 +1792,15 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     ):
         assert expected in grapple_register_body
     assert "continuousFlash = ( weaponNum == WP_LIGHTNING || weaponNum == WP_GAUNTLET || weaponNum == WP_GRAPPLING_HOOK );" in add_player_weapon_body
-    assert "weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel" in add_player_weapon_body
+    for expected in (
+        "qhandle_t\t\tweaponAmmoModel;",
+        "strcat( path, \"_ammo.md3\" );",
+        "weaponInfo->weaponAmmoModel = trap_R_RegisterModel( path );",
+        "weaponNum == WP_GRAPPLING_HOOK && weapon->weaponAmmoModel",
+        "ammo.hModel = weapon->weaponAmmoModel;",
+    ):
+        assert expected in cg_local_h or expected in register_weapon_body or expected in add_player_weapon_body
+    assert "weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel" not in add_player_weapon_body
     assert "CG_GrappleTrail ( cent, weapon );" in cg_grapple_body
     assert "ent.hModel = weapon->missileModel;" in cg_grapple_body
     assert "VectorNormalize2( s1->pos.trDelta, ent.axis[0] )" in cg_grapple_body
@@ -1800,7 +1808,8 @@ def test_grappling_hook_full_server_and_cgame_wiring_matches_retail() -> None:
     assert "case ET_GRAPPLE:" in cg_ents_c
     assert "CG_Grapple( cent );" in cg_ents_c
     assert "if ( weapon == WP_GAUNTLET || weapon == WP_GRAPPLING_HOOK ) {" in cg_newdraw_c
-    assert "weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel" in cg_newdraw_c
+    assert "weaponNum == WP_GRAPPLING_HOOK && weapon->weaponAmmoModel" in cg_newdraw_c
+    assert "weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel" not in cg_newdraw_c
     assert "WP_GRAPPLING_HOOK" in g_cmds_c
     assert '"Grapple"' in g_cmds_c
 
@@ -3212,7 +3221,7 @@ def test_prox_launcher_full_server_and_cgame_wiring_matches_retail() -> None:
         "if (s1->generic1 == TEAM_BLUE) {",
         "ent.hModel = cgs.media.blueProxMine;",
         "if ( s1->weapon == WP_PROX_LAUNCHER ) {",
-        "AnglesToAxis( cent->lerpAngles, ent.axis );",
+        "AnglesToAxis( s1->angles, ent.axis );",
     ):
         assert expected in cgame_missile_body
 

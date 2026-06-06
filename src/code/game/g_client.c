@@ -137,6 +137,34 @@ void G_SyncClientReadyState( gclient_t *client ) {
 
 /*
 =============
+G_FreezeUpdateThawProgressFlags
+
+Mirrors the retail low-bit thaw-progress buckets on frozen playerstate eFlags.
+=============
+*/
+static void G_FreezeUpdateThawProgressFlags( gclient_t *client, int thawTotal ) {
+	int		third;
+
+	if ( !client || thawTotal <= 0 ) {
+		return;
+	}
+
+	third = thawTotal / 3;
+	if ( client->freezeThawTimeRemaining > third ) {
+		if ( client->freezeThawTimeRemaining > third * 2 ) {
+			client->ps.eFlags &= ~( EF_DEAD | EF_TICKING );
+		}
+		else {
+			client->ps.eFlags |= EF_DEAD;
+		}
+	}
+	else {
+		client->ps.eFlags |= EF_TICKING;
+	}
+}
+
+/*
+=============
 G_FreezeClientEndFrame
 
 Runs the thaw and auto-respawn timers for frozen players.
@@ -148,7 +176,7 @@ void G_FreezeClientEndFrame( gentity_t *ent ) {
 	int		roundState;
 	int		thawTick;
 	int		thawTotal;
-	int		helperCount;
+	int		msec;
 
 	if ( !ent || !ent->client ) {
 		return;
@@ -162,56 +190,26 @@ void G_FreezeClientEndFrame( gentity_t *ent ) {
 	roundState = G_FreezeResolveRoundState();
 	thawTick = level.freezeConfig.thawTick;
 	thawTotal = level.freezeConfig.thawTime;
-	if ( thawTick <= 0 ) {
-		thawTick = thawTotal;
-	}
-	if ( thawTick <= 0 ) {
-		thawTick = 100;
-	}
 	if ( thawTotal <= 0 ) {
 		thawTotal = 2000;
 	}
+	msec = level.msec;
+	if ( msec < 0 ) {
+		msec = 0;
+	}
 
 	if ( client->freezeFrozen ) {
+		if ( client->freezeThawTimeRemaining <= 0 || client->freezeThawTimeRemaining > thawTotal ) {
+			client->freezeThawTimeRemaining = thawTotal;
+		}
+		G_FreezeUpdateThawProgressFlags( client, thawTotal );
+
 		if ( roundState != ROUNDSTATE_ACTIVE ) {
-			client->freezeAccumulatedThaw = 0;
-			client->freezeNextThawTick = 0;
+			client->freezeThawHelperActive = qfalse;
 			client->freezeAutoThawTime = 0;
 			client->freezeEnvironmentalRespawnTime = 0;
 			client->freezeLastHelper = -1;
 			return;
-		}
-
-		helper = NULL;
-		helperCount = G_FreezeCountThawHelpers( ent, &helper );
-		if ( helperCount > 0 ) {
-			if ( client->freezeNextThawTick <= level.time ) {
-				int			oldSecondsRemaining;
-				int			newSecondsRemaining;
-				gentity_t	*tent;
-
-				oldSecondsRemaining = ( thawTotal - client->freezeAccumulatedThaw ) / 1000;
-				client->freezeAccumulatedThaw += helperCount * thawTick;
-				if ( client->freezeAccumulatedThaw > thawTotal ) {
-					client->freezeAccumulatedThaw = thawTotal;
-				}
-				client->freezeNextThawTick = level.time + thawTick;
-				client->freezeLastHelper = helper ? helper->s.number : -1;
-
-				newSecondsRemaining = ( thawTotal - client->freezeAccumulatedThaw ) / 1000;
-				if ( oldSecondsRemaining > 0 && oldSecondsRemaining != newSecondsRemaining ) {
-					tent = G_TempEntity( ent->client->ps.origin, EV_THAW_TICK );
-					tent->s.otherEntityNum = ent->s.number;
-				}
-			}
-			if ( client->freezeAccumulatedThaw >= thawTotal ) {
-				G_FreezeThawClient( ent, qfalse, client->freezeLastHelper );
-				return;
-			}
-		} else {
-			client->freezeAccumulatedThaw = 0;
-			client->freezeNextThawTick = level.time + thawTick;
-			client->freezeLastHelper = -1;
 		}
 
 		if ( client->freezeAutoThawTime > 0 && level.time >= client->freezeAutoThawTime ) {
@@ -222,6 +220,45 @@ void G_FreezeClientEndFrame( gentity_t *ent ) {
 		&& level.time >= client->freezeEnvironmentalRespawnTime ) {
 			G_FreezeThawClient( ent, qtrue, -1 );
 			return;
+		}
+
+		helper = NULL;
+		if ( client->freezeThawHelperActive ) {
+			helper = G_FreezeFindThawHelperByClientNum( ent, client->freezeLastHelper );
+		}
+		if ( !helper ) {
+			G_FreezeCountThawHelpers( ent, &helper );
+		}
+
+		if ( helper ) {
+			int			oldSecondsRemaining;
+			int			newSecondsRemaining;
+			gentity_t	*tent;
+
+			oldSecondsRemaining = ( client->freezeThawTimeRemaining > 0 )
+				? client->freezeThawTimeRemaining / 1000 : 0;
+			client->freezeThawHelperActive = qtrue;
+			client->freezeLastHelper = helper->s.number;
+			client->freezeThawTimeRemaining -= msec;
+
+			newSecondsRemaining = ( client->freezeThawTimeRemaining > 0 )
+				? client->freezeThawTimeRemaining / 1000 : 0;
+			if ( oldSecondsRemaining > 0 && oldSecondsRemaining != newSecondsRemaining && thawTick != 0 ) {
+				tent = G_TempEntity( ent->client->ps.origin, EV_THAW_TICK );
+				tent->s.otherEntityNum = ent->s.number;
+			}
+
+			if ( client->freezeThawTimeRemaining <= 0 ) {
+				G_FreezeThawClient( ent, qfalse, client->freezeLastHelper );
+				return;
+			}
+		} else {
+			client->freezeThawHelperActive = qfalse;
+			client->freezeLastHelper = -1;
+			client->freezeThawTimeRemaining += msec;
+			if ( client->freezeThawTimeRemaining > thawTotal ) {
+				client->freezeThawTimeRemaining = thawTotal;
+			}
 		}
 	} else if ( client->freezeProtectedUntil > 0 && level.time >= client->freezeProtectedUntil ) {
 		client->freezeProtectedUntil = 0;
@@ -1599,6 +1636,7 @@ void ClientUserinfoChanged( int clientNum ) {
 	char	blueTeam[MAX_INFO_STRING];
 	char	country[MAX_COUNTRY_CODE];
 	char	userinfo[MAX_INFO_STRING];
+	unsigned long long	steamId;
 
 	ent = g_entities + clientNum;
 	client = ent->client;
@@ -1802,20 +1840,29 @@ void ClientUserinfoChanged( int clientNum ) {
 	strcpy(redTeam, Info_ValueForKey( userinfo, "g_redteam" ));
 	strcpy(blueTeam, Info_ValueForKey( userinfo, "g_blueteam" ));
 	Q_strncpyz( country, Info_ValueForKey( userinfo, "country" ), sizeof( country ) );
+	steamId = 0ull;
+	if ( client->pers.steamIdValid ) {
+		steamId = ( (unsigned long long)client->pers.steamIdHigh << 32 ) | client->pers.steamIdLow;
+	} else {
+		s = Info_ValueForKey( userinfo, PLAYER_INFO_KEY_STEAMID_LEGACY );
+		if ( s[0] ) {
+			sscanf( s, "%llu", &steamId );
+		}
+	}
 
 	// send over a subset of the userinfo keys so other clients can
 	// print scoreboards, display models, and play custom sounds
 	if ( ent->r.svFlags & SVF_BOT ) {
 		s = va(PLAYER_INFO_KEY_NAME "\\%s\\" PLAYER_INFO_KEY_TEAM "\\%i\\"
 			PLAYER_INFO_KEY_MODEL "\\%s\\" PLAYER_INFO_KEY_HEADMODEL "\\%s\\"
-			PLAYER_INFO_KEY_COUNTRY "\\%s\\" PLAYER_INFO_KEY_COLOR1 "\\%s\\"
-			PLAYER_INFO_KEY_COLOR2 "\\%s\\" PLAYER_INFO_KEY_HANDICAP "\\%i\\"
+			PLAYER_INFO_KEY_COLOR1 "\\%s\\" PLAYER_INFO_KEY_COLOR2 "\\%s\\"
+			PLAYER_INFO_KEY_HANDICAP "\\%i\\"
 			PLAYER_INFO_KEY_WINS "\\%i\\" PLAYER_INFO_KEY_LOSSES "\\%i\\"
 			PLAYER_INFO_KEY_SKILL "\\%s\\" PLAYER_INFO_KEY_TEAMTASK "\\%d\\"
 			PLAYER_INFO_KEY_TEAMLEADER "\\%d\\" PLAYER_INFO_KEY_READY "\\%d\\"
 			PLAYER_INFO_KEY_PRIVILEGE "\\%d\\" PLAYER_INFO_KEY_SPECTATE_ONLY "\\%i\\"
 			PLAYER_INFO_KEY_SPECTATOR_QUEUE "\\%i",
-			client->pers.netname, team, model, headModel, country, c1, c2,
+			client->pers.netname, team, model, headModel, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses,
 			Info_ValueForKey( userinfo, "skill" ), teamTask, teamLeader,
 			G_ClientIsReady( client ), client->sess.privilege,
@@ -1824,16 +1871,17 @@ void ClientUserinfoChanged( int clientNum ) {
 		s = va(PLAYER_INFO_KEY_NAME "\\%s\\" PLAYER_INFO_KEY_TEAM "\\%i\\"
 			PLAYER_INFO_KEY_MODEL "\\%s\\" PLAYER_INFO_KEY_HEADMODEL "\\%s\\"
 			PLAYER_INFO_KEY_REDTEAM "\\%s\\" PLAYER_INFO_KEY_BLUETEAM "\\%s\\"
-			PLAYER_INFO_KEY_COUNTRY "\\%s\\" PLAYER_INFO_KEY_COLOR1 "\\%s\\"
-			PLAYER_INFO_KEY_COLOR2 "\\%s\\" PLAYER_INFO_KEY_HANDICAP "\\%i\\"
+			PLAYER_INFO_KEY_COLOR1 "\\%s\\" PLAYER_INFO_KEY_COLOR2 "\\%s\\"
+			PLAYER_INFO_KEY_HANDICAP "\\%i\\"
 			PLAYER_INFO_KEY_WINS "\\%i\\" PLAYER_INFO_KEY_LOSSES "\\%i\\"
 			PLAYER_INFO_KEY_TEAMTASK "\\%d\\" PLAYER_INFO_KEY_TEAMLEADER "\\%d\\"
 			PLAYER_INFO_KEY_READY "\\%d\\" PLAYER_INFO_KEY_PRIVILEGE "\\%d\\"
-			PLAYER_INFO_KEY_SPECTATE_ONLY "\\%i\\" PLAYER_INFO_KEY_SPECTATOR_QUEUE "\\%i",
-			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, country, c1, c2,
+			PLAYER_INFO_KEY_SPECTATE_ONLY "\\%i\\" PLAYER_INFO_KEY_SPECTATOR_QUEUE "\\%i\\"
+			PLAYER_INFO_KEY_STEAMID "\\%llu\\" PLAYER_INFO_KEY_COUNTRY "\\%s",
+			client->pers.netname, client->sess.sessionTeam, model, headModel, redTeam, blueTeam, c1, c2,
 			client->pers.maxHealth, client->sess.wins, client->sess.losses, teamTask, teamLeader,
 			G_ClientIsReady( client ), client->sess.privilege,
-			client->sess.spectateOnly, client->sess.spectatorQueuePosition );
+			client->sess.spectateOnly, client->sess.spectatorQueuePosition, steamId, country );
 	}
 
 	trap_SetConfigstring( CS_PLAYERS+clientNum, s );

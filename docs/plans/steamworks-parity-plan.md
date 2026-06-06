@@ -2,6 +2,358 @@
 
 ## Implementation progress
 
+### SteamUserStats float descriptor lane - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_383.md`,
+  grounded in the retained `users.stats` callback descriptor walk at HLIL
+  anchors `0x0046006b`, `0x00460074`, `0x004600ef`, `0x00460103`,
+  `0x0046010e`, `0x0046008d`, and `0x00460149`.
+- Recovered the 88-row, seven-dword descriptor table rooted at
+  `data_55da98`, with `data_55da8c = 0x58` and all shipped row
+  discriminators observed as zero.
+- Added `QL_Steamworks_GetUserStatFloat` for the client `SteamUserStats`
+  vtable slot `0x44 / 4`, plus the disabled output-clearing fallback.
+- Converted the client stat catalog into explicit `{ name, isFloat }`
+  descriptors and preserved every current retail stat as an integer row.
+- Updated the retained `STATS` JSON builder to branch through the float path
+  when a descriptor is marked float, while continuing to use slot `0x48 / 4`
+  for the current integer catalog.
+- Extended executable harness coverage with mock float readback state, the
+  `0x44 / 4` vtable slot, enabled/disabled exports, and ctypes assertions for
+  guard, success, failure, and disabled fallback behavior.
+
+### SteamUserStats readback harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_382.md`,
+  grounded in the retained `users.stats` callback JSON builder at HLIL
+  anchors `0x0046008d`, `0x0046018e`, `0x004601a6`, and `0x004601c6`.
+- Extended the Steamworks harness with mock `SteamUserStats` readback slots
+  for `GetAchievementDisplayAttribute` at `0x30 / 4`, `GetUserStatInt` at
+  `0x48 / 4`, and `GetUserAchievement` at `0x50 / 4`.
+- Added deterministic mock state for stat value, achievement state,
+  unlock time, display attribute text, last SteamID, last name/key, call
+  counts, and result toggles.
+- Added enabled/disabled harness exports and ctypes coverage proving
+  invalid-input guards, output clearing, success projection, failure
+  propagation, SteamID/name/key forwarding, disabled fallback, and
+  `NULL` display-attribute normalization to an empty string.
+- Added static parity coverage tying the production wrappers, mock vtable
+  slots, executable test, Round 188 evidence, retail HLIL anchors, and round
+  382 note together.
+- No production behavior changed; this pass closes deterministic harness
+  evidence for already-reconstructed client stats/achievement readback
+  wrappers.
+
+### SteamUserStats clear/reset harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_375.md`,
+  grounded in the retained `stats_clear` command owner at `0x00460520` and
+  its `SteamUserStats()` slot `0x54` call at `0x00460531`.
+- Extended the Steamworks harness with a mock `ResetAllStats` vtable slot at
+  `0x54 / 4`, plus call-count, last-flag, and result controls.
+- Added enabled/disabled harness exports and ctypes coverage proving the
+  pre-initialisation guard, `achievementsToo ? 1 : 0` forwarding for both
+  values, failure propagation, and offline fallback behavior.
+- Added static parity coverage tying the production wrapper, mock vtable slot,
+  executable test, retail HLIL anchors, and round 375 note together.
+- No production behavior changed; this pass closes deterministic harness
+  evidence for an already-mapped client stats-clear wrapper.
+
+### Client Steam identity and SteamUtils harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_373.md`,
+  grounded in the retained local SteamID helper at `0x00460550`, persona cvar
+  sync helper at `0x00460610`, IP-country helper at `0x00460690`, and
+  `SteamUtils()->GetAppID` callsites at `0x00431c48` and `0x00460dd6`.
+- Extended the Steamworks harness with direct call counters for SteamFriends
+  persona name, SteamUser identity, SteamUtils IP country, and SteamUtils app
+  ID.
+- Added enabled/disabled harness exports and ctypes coverage for persona
+  copying, country copying, app-id forwarding, SteamID low/high projection,
+  unavailable-user failure behavior, and offline output clearing.
+- Added static parity coverage tying the production wrappers, mock vtable
+  slots, executable test, retail HLIL anchors, and round 373 note together.
+- No production behavior changed; this pass closes deterministic harness
+  evidence for already-mapped client bootstrap identity and utility wrappers.
+
+### SteamFriends friend enumeration and summary harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_372.md`,
+  grounded in the retained `GetFriendList` HLIL block at `0x0043355d` through
+  `0x00433a00`.
+- Extended the Steamworks harness with mock `SteamFriends` enumeration slots
+  for `GetFriendCount` at `0x0c / 4` and `GetFriendByIndex` at `0x10 / 4`.
+- Added enabled/disabled harness exports and ctypes coverage for friend-count
+  flag forwarding, by-index SteamID projection, invalid-index zeroing,
+  persona-name copying, and full retained friend-summary field projection.
+- Added static parity coverage tying the production wrappers, mock vtable,
+  executable test, HLIL evidence, and round 372 note together.
+- No production behavior changed; this pass closes deterministic harness
+  evidence for an already-mapped retained browser/social friend-list edge.
+
+### SteamFriends voice-speaking wrapper harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_368.md`,
+  grounded in the retained `SteamFriends` speaking-state slot used at
+  `0x00460441` and `0x004604dc` by the `+voice` and `-voice` owners.
+- Extended the Steamworks harness with a mock
+  `SetInGameVoiceSpeaking` vtable slot at `0x6c / 4`.
+- Added enabled/disabled harness exports and ctypes coverage proving SteamID
+  word-combination, speaking-on/speaking-off forwarding, call counts, and
+  offline fallback behavior.
+- Added static parity coverage tying the production wrapper slot, mock vtable,
+  executable test, HLIL evidence, and round 368 note together.
+- No production behavior changed; this pass closes deterministic harness
+  evidence for an already-mapped retained voice-command edge.
+
+### SteamUser voice wrapper harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_367.md`,
+  grounded in retained `SteamUser` voice slots at `0x0046044c`,
+  `0x00460459`, `0x004604b1`, `0x00460d4b`, and `0x00461b07`.
+- Extended the Steamworks harness with deterministic mock `SteamUser` voice
+  slots for start, stop, compressed capture, decompression, and optimal sample
+  rate.
+- Added enabled/disabled harness exports and ctypes coverage proving payload
+  projection, output-size clearing on failures, compressed/uncompressed flag
+  forwarding, sample-rate forwarding, and stable offline fallback behavior.
+- Added static parity coverage tying the production wrapper slots, mock vtable,
+  harness test, retail HLIL evidence, and round 367 note together.
+- No production Steamworks wrapper behavior changed; this pass closes harness
+  evidence for the retained voice lane rather than claiming live microphone or
+  backend validation.
+
+### Legacy P2P read-boundary harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_366.md`,
+  grounded in the retained `SteamNetworking` and
+  `SteamGameServerNetworking` HLIL availability/read slots at `0x00461a9d`,
+  `0x00461ad8`, `0x00461d8f`, `0x00461dc8`, `0x00466928`, and
+  `0x00466961`.
+- Extended the client and server legacy P2P harness coverage so a staged
+  packet rejected by a too-small read buffer fails deterministically and clears
+  stale output size plus remote SteamID state.
+- Added static parity coverage pinning the retail import names, client/server
+  vtable slots, mock read-output clearing, and round 366 evidence note.
+- No production Steamworks wrapper behavior changed; the retail-facing claim
+  remains slot ownership and packet-pump topology, while clear-on-reject output
+  cleanup is scoped to the deterministic local harness.
+
+### UGC call-result failure projection coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_364.md`,
+  grounded in the retained `SteamUGC` create/send query HLIL slots and the
+  imported `SteamUGCQueryCompleted_t` call-result vtable.
+- Extended the Steamworks harness with
+  `QLR_SteamworksMock_QueueUGCQueryCompletedEx` so tests can queue raw UGC
+  query-completion call results with explicit payload presence and
+  `ioFailure` state.
+- Added ctypes coverage proving raw failed results, `ioFailure`, no-payload
+  failure, and no-payload non-IO failure all preserve the originating call
+  handle and project the expected result value into the client callback bundle.
+- Added static dispatcher assertions for call-handle, query-handle, row-count,
+  cached-data, `ioFailure`, and no-payload branches.
+- Remaining UGC work: the raw `GetAllUGC` integer filter semantic remains
+  intentionally unpromoted, and live Steam backend timing remains outside this
+  local callback-pump pass.
+
+### UGC query result readback harness coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_363.md`,
+  grounded in the retained `SteamUGC` query/readback HLIL slots at
+  `0x00460DF3`, `0x00460E04`, `0x0045FD88`, and `0x0045FDAA`.
+- Extended the Steamworks harness so `GetQueryUGCResult`,
+  `GetQueryUGCPreviewURL`, and `ReleaseQueryUGCRequest` dispatch through
+  mocked `SteamUGC` vtable slots `0x10`, `0x14`, and `0x34`.
+- Added mock controls and ctypes coverage for published-file ID, title,
+  description, preview URL, query handle, row index, release, failure zeroing,
+  and disabled-build offline fallback behavior.
+- Remaining UGC work: the raw `GetAllUGC` integer filter semantic remains
+  intentionally unpromoted until stronger retail evidence identifies its
+  enum/domain, and live Steam backend timing remains outside this harness pass.
+
+### GameServer callback bundle pump coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_360.md`,
+  grounded in the `SteamServerCallbacks_Init` mapping row, promoted callback
+  handler aliases, and imported `SteamServerCallbacks` vtables in the Ghidra
+  symbols corpus.
+- Extended the Steamworks harness so `SteamServersConnected_t`,
+  `SteamServerConnectFailure_t`, `SteamServersDisconnected_t`, and
+  server-side `P2PSessionRequest_t` all have retained callback targets.
+- Added queue helpers for those four previously unsampled raw server callback
+  payloads.
+- Added ctypes coverage proving the payloads cross
+  `QL_Steamworks_RunServerCallbacks`, including result, retry, and SteamID
+  projection.
+- Remaining GameServer callback work: live Steam backend connection timing,
+  auth policy, VAC behavior, and transport behavior stay intentionally outside
+  this static/harness pass.
+
+### Main client callback bundle pump coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_359.md`,
+  grounded in the `SteamCallbacks_Init` mapping row, the promoted callback
+  handler aliases, and the imported `SteamCallbacks` callback/call-result
+  vtables in the Ghidra symbols corpus.
+- Extended the Steamworks harness so `UserStatsReceived_t`,
+  `PersonaStateChange_t`, client-side `P2PSessionRequest_t`,
+  `GameServerChangeRequested_t`, and `FriendRichPresenceUpdate_t` all have
+  retained callback targets.
+- Added queue helpers for those five previously unsampled raw client callback
+  payloads.
+- Added ctypes coverage proving the payloads cross
+  `QL_Steamworks_RunCallbacks`, including friend-summary enrichment and
+  server/password string projection.
+- Remaining client-callback work: live Steam backend timing, stats validity,
+  presence cadence, and P2P networking semantics stay intentionally outside
+  this static/harness pass.
+
+### Lobby callback bundle pump coverage - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_358.md`,
+  grounded in the `SteamLobbyCallbacks_Init` HLIL constructor block at
+  `0x004656A0`, the eight imported `SteamLobbyCallbacks` callback vtables in
+  Ghidra symbols, and the existing mapping report's lobby callback owner rows.
+- Extended the Steamworks harness so all retained lobby callback targets are
+  bound during harness registration, not only `LobbyEnter_t`.
+- Added queue helpers for `LobbyCreated_t`, `LobbyChatUpdate_t`,
+  `LobbyChatMsg_t`, `LobbyDataUpdate_t`, `LobbyGameCreated_t`,
+  `LobbyKicked_t`, and `GameLobbyJoinRequested_t`.
+- Expanded the callback-bundle harness test so every lobby payload crosses
+  `QL_Steamworks_RunCallbacks`, including the chat-message path that retrieves
+  the message body through the mocked `GetLobbyChatEntry` vtable slot.
+- Remaining lobby callback work: live Steam backend timing, lobby membership
+  edge cases, and browser event ordering remain intentionally outside this
+  static/harness pass.
+
+### GameServer and P2P vtable ABI normalization - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_356.md`,
+  grounded in the adjacent GameServer/P2P HLIL dispatches at `0x00465A40`,
+  `0x00465A60`, `0x00465B00`, `0x00465B70`, `0x00465D50`, and the outgoing
+  packet drain slot.
+- Added `QL_STEAMWORKS_FASTCALL` and converted the retained
+  `ISteamNetworking`, `ISteamGameServer`, and `ISteamGameServerNetworking`
+  vtable typedefs to the explicit `self, unused, ...` ABI shape used by the
+  rest of the reconstructed Steam interface wrappers.
+- Updated GameServer metadata, identity, logged-on, public-IP,
+  incoming/outgoing packet, and legacy P2P call sites to pass the unused second
+  argument before their mapped retail parameters.
+- Updated the Steamworks harness vtable mocks to the same ABI shape so harness
+  execution catches argument ordering instead of only slot presence.
+- Remaining ABI work: broader live Steam validation is still intentionally
+  bounded by the opt-in online-service policy, but the static x86 C++ vtable
+  shape for this server wrapper family is now source-backed.
+
+### GameServer P2P session request active-client gate - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_355.md`,
+  grounded in `SteamServerCallbacks_OnP2PSessionRequest` (`0x00465B70`), the
+  `CS_ACTIVE`-equivalent `*client == 4` comparison, the two-word SteamID match,
+  and the `SteamGameServerNetworking` slot `0x0c` accept dispatch.
+- Added `SV_FindActiveClientBySteamId` so server-side P2P admission can mirror
+  the retail active-slot scan without narrowing the broader SteamID lookup used
+  by `ValidateAuthTicketResponse_t` and other pre-active auth callbacks.
+- Updated `SV_SteamServerP2PSessionRequestCallback` to use the active-only
+  SteamID finder, remove the extra `platformAuthSucceeded` gate, and publish an
+  accepted diagnostic before calling the retained server P2P accept wrapper.
+- Tightened static parity coverage for the active-client finder, callback
+  dispatch, removed auth-success gate, null/missing-player rejection, and
+  provider-aware logging.
+- Remaining P2P work: live Steam networking callback timing and backend NAT
+  behavior remain intentionally bounded until online services have a documented
+  open replacement path or explicit opt-in validation pass.
+
+### GameServerStats logged-on request gate - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_354.md`,
+  grounded in `SteamStats_OnServersConnected` (`0x00467190`), the repeated
+  constructor/bootstrap gate at `0x004679d9`, and the observed
+  `SteamGameServer` slot `0x20` check before `SteamGameServerStats` slot
+  `0x00`.
+- Reconstructed `QL_Steamworks_ServerIsLoggedOn` with a disabled fallback stub
+  so default builds keep Quake Live online services offline.
+- Gated `QL_Steamworks_ServerRequestUserStats` behind the logged-on check
+  before dispatching to the retained `SteamGameServerStats` request slot.
+- Extended the Steamworks harness with a mocked `SteamGameServer::BLoggedOn`
+  slot, result control, call counting, and logged-off suppression coverage.
+- Remaining request-gate work: live Steam backend validation remains
+  intentionally bounded until online services have a documented open
+  replacement path or an explicit opt-in validation pass.
+
+### GameServer incoming UDP packet bridge - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_353.md`,
+  grounded in `SteamServer_HandleIncomingPacket` (`0x00465d50`), the HLIL
+  `SteamGameServer` slot `0x94` dispatch, and the existing outgoing slot
+  `0x98` drain.
+- Reconstructed `QL_Steamworks_ServerHandleIncomingPacket` with a disabled
+  fallback stub so live Steam online services remain opt-in.
+- Wired `SV_PacketEvent` through `SV_SteamServerHandleIncomingPacket`, which
+  packs IPv4 source bytes in the retail order and forwards the original packet
+  buffer and raw source port into the Steam GameServer interface.
+- Extended the Steamworks harness with a mocked incoming-packet slot, payload
+  capture, endpoint capture, and success/failure coverage.
+- Remaining bridge work: live Steam backend validation remains intentionally
+  bounded until online services have a documented open replacement path or a
+  deliberate opt-in validation pass.
+
+### GameServerStats descriptor replay map - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_352.md`,
+  grounded in `SteamStats_FlushPendingValues` (`0x004670c0`),
+  `SteamStats_OnStatsReceived` (`0x004671d0`), `data_561060`,
+  `data_561c00`, and the descriptor stride/type/value offsets.
+- Converted the server-owned stats table from bare names to descriptor records
+  with retail type IDs `0` (int), `1` (float), and `2` (average-rate).
+- Added type-aware server load/flush dispatch across int, float, and
+  average-rate wrappers while keeping the 88 recovered qagame stat names as
+  int descriptors.
+- Kept qagame `AddSteamStat` conservative as an int-delta API; non-int
+  descriptors are logged and declined until stronger retail evidence
+  identifies a public float/average-rate update owner.
+- Remaining stats work: exact non-int descriptor name promotion and live
+  backend validation remain bounded.
+
+### GameServerStats value wrapper map - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_351.md`,
+  grounded in `SteamStats_FlushPendingValues` (`0x004670c0`),
+  `SteamStats_OnStatsReceived` (`0x004671d0`), the
+  `SteamGameServerStats` import, and the promoted symbol aliases.
+- Reconstructed the remaining observed `SteamGameServerStats` value wrappers:
+  float get at slot `0x04`, float set at slot `0x10`, and average-rate update
+  at slot `0x18`, while preserving the existing int, achievement, request, and
+  store slots.
+- Extended the disabled stubs and the Steamworks harness so both enabled and
+  disabled fixture variants expose the same wrapper surface without promoting
+  live online services.
+- Added harness coverage for request, int/float read, int/float write,
+  average-rate update, achievement, store, and failure zeroing through a mocked
+  `SteamGameServerStats` vtable.
+- Remaining stats work: full descriptor-table replay and live backend behavior
+  remain bounded until a deliberate validation pass is justified.
+
+### GameServer stats callback bootstrap - 2026-06-06
+
+- Added `docs/reverse-engineering/quakelive_steam_mapping_round_350.md`,
+  grounded in the `SteamGameServerUtils` import, `idSteamStats`
+  `GSStatsReceived_t` / `GSStatsStored_t` callback vtables, and HLIL callback
+  registrations at IDs `0x708` and `0x709`.
+- Extended `platform_steamworks.[ch]` with public GS stats callback events,
+  server callback binding slots, raw payload dispatchers, retained callback
+  registration/unregistration, and optional `QL_Steamworks_ServerGetAppID`
+  through the observed server-utils slot `0x24`.
+- Wired the server stats owner to retain the app id, observe received/stored
+  callback results, and re-request values for the retail partial-validation
+  result `8` without promoting live Steam services by default.
+- Extended the Steamworks harness with mock `SteamGameServerUtils`, queueable
+  GS stats callback payloads, and executable callback-pump coverage.
+- Remaining stats work: live Steam backend validation and full descriptor-table
+  callback replay remain bounded until online services are deliberately
+  promoted beyond the current opt-in policy.
+
 ### Initial round - 2026-05-24
 
 - Confirmed the current tree already contains the `ValidateAuthTicketResponse_t` wrapper payload, `QL_Steamworks_RegisterServerCallbacks`, server-side pending auth state, and `SV_SteamServerValidateAuthTicketResponseCallback`.

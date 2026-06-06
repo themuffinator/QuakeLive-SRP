@@ -107,6 +107,10 @@ The `settings` child object is assembled from repeated key/value pairs starting 
 
 The dispatcher case at `0043335B` uses `sub_4D0DB0("demos", "dm_91", ...)` and returns the resulting filenames as a JS array. This is a direct browser exposure of the demo directory scan rather than a Steam-specific surface.
 
+2026-06-06 follow-up: the source-side `CL_WebHost_BuildDemoListJson` helper now
+matches this observed return shape by preserving raw `.dm_91` file-list entries
+instead of stripping the protocol suffix before building the JSON array.
+
 ## New High-Confidence Aliases Added Or Corrected This Round
 
 - `sub_431510 -> CGameID_IsValid`
@@ -120,4 +124,4 @@ The dispatcher case at `0043335B` uses `sub_4D0DB0("demos", "dm_91", ...)` and r
 ## Open Questions
 
 1. `sub_431640` is still only bounded as the single non-pure `QLDialogHandler` callback slot. The vtable ownership is clear, but the exact Awesomium dialog method name still needs one more pass.
-2. `GetMapList`, `GetFactoryList`, and `GetDemoList` are now field-complete at the JS contract level, but their source-side reconstruction still needs the owning native loaders named on the engine side if we want end-to-end parity rather than host-surface parity.
+2. `GetMapList` and `GetFactoryList` are now field-complete at the JS contract level, but their source-side reconstruction still needs the owning native loaders named on the engine side if we want end-to-end parity rather than host-surface parity. The `GetDemoList` raw `.dm_91` return shape was source-aligned in the 2026-06-06 demo record/playback follow-up.

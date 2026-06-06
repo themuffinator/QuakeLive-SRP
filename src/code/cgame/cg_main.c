@@ -269,14 +269,6 @@ weaponInfo_t		cg_weapons[MAX_WEAPONS];
 itemInfo_t			cg_items[MAX_ITEMS];
 pmove_settings_t		cg_pmoveSettings;
 
-typedef struct {
-	qboolean	speaking;
-	int		time;
-} cgClientSpeakingState_t;
-
-static cgClientSpeakingState_t	cgClientSpeakingState[MAX_CLIENTS];
-
-
 static int		weaponColorGrenadeModCount = -1;
 static int		lowAmmoWarningPercentileModCount = -1;
 static int		announcerModificationCount = -1;
@@ -1468,9 +1460,11 @@ static void CG_UpdateSimpleItemsSettings( void ) {
 
 	if ( simpleItemsBobModificationCount != cg_simpleItemsBob.modificationCount ) {
 		simpleItemsBobModificationCount = cg_simpleItemsBob.modificationCount;
-		cg.simpleItemsBob = cg_simpleItemsBob.value;
+		cg.simpleItemsBob = (float)cg_simpleItemsBob.integer;
 		if ( cg.simpleItemsBob < 0.0f ) {
 			cg.simpleItemsBob = 0.0f;
+		} else if ( cg.simpleItemsBob > 2.0f ) {
+			cg.simpleItemsBob = 2.0f;
 		}
 	}
 
@@ -2881,6 +2875,7 @@ static void CG_RegisterSounds( void ) {
 	CG_REGISTER_RETAIL_REWARD_SAMPLE( perforatedSound, "perforated", "perforated" );
 	if ( cgs.gametype == GT_RED_ROVER || trap_Cvar_VariableValue( "com_build" ) ) {
 		CG_REGISTER_CONFIGURED_ANNOUNCER_SAMPLE( biteSound, "bite.ogg" );
+		cgs.media.infectedLoopSound = trap_S_RegisterSound( "sound/misc/nightmare.wav", qfalse );
 		cgs.media.kamikazeRespawnSound = trap_S_RegisterSound( "sound/items/kamikazerespawn.wav", qfalse );
 	}
 	CG_REGISTER_RETAIL_REWARD_SAMPLE( headshotSound, "headshot", "headshot" );
@@ -2973,6 +2968,7 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.sfx_chghitmetal = trap_S_RegisterSound( "sound/weapons/vulcan/wvulimpm.ogg", qfalse );
 	cgs.media.sfx_chgwind = trap_S_RegisterSound( "sound/weapons/vulcan/wvulwind.ogg", qfalse );
 	cgs.media.weaponHoverSound = trap_S_RegisterSound( "sound/weapons/weapon_hover.ogg", qfalse );
+	cgs.media.sfx_grapplehit = trap_S_RegisterSound( "sound/weapons/grapple/grhit.ogg", qfalse );
 	cgs.media.kamikazeExplodeSound = trap_S_RegisterSound( "sound/items/kam_explode.ogg", qfalse );
 	cgs.media.kamikazeImplodeSound = trap_S_RegisterSound( "sound/items/kam_implode.ogg", qfalse );
 	cgs.media.kamikazeFarSound = trap_S_RegisterSound( "sound/items/kam_explode_far.ogg", qfalse );
@@ -3214,12 +3210,16 @@ static void CG_RegisterGraphics( void ) {
 	// powerup shaders
 	cgs.media.quadShader = trap_R_RegisterShader("powerups/quad" );
 	cgs.media.quadWeaponShader = trap_R_RegisterShader("powerups/quadWeapon" );
+	cgs.media.ice1Shader = trap_R_RegisterShader("powerups/ice1" );
+	cgs.media.ice2Shader = trap_R_RegisterShader("powerups/ice2" );
+	cgs.media.ice3Shader = trap_R_RegisterShader("powerups/ice3" );
 	cgs.media.battleSuitShader = trap_R_RegisterShader("powerups/battleSuit" );
 	cgs.media.battleWeaponShader = trap_R_RegisterShader("powerups/battleWeapon" );
 	cgs.media.invisShader = trap_R_RegisterShader("powerups/invisibility" );
 	cgs.media.ghostWeaponShader = trap_R_RegisterShader("ghostWeaponShader" );
 	cgs.media.regenShader = trap_R_RegisterShader("powerups/regen" );
 	cgs.media.hastePuffShader = trap_R_RegisterShader("hasteSmokePuff" );
+	cgs.media.gooShader = trap_R_RegisterShader("powerups/goo" );
 	if ( CG_ShouldRegisterPOIPowerupShaders() ) {
 		cgs.media.poiPowerupQuadShader = trap_R_RegisterShader( "gfx/2d/powerup/quad" );
 		cgs.media.poiPowerupBattleSuitShader = trap_R_RegisterShader( "gfx/2d/powerup/bs" );
@@ -3493,6 +3493,7 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.iceMarkShader = trap_R_RegisterShader( "iceMark" );
 	cgs.media.holeMarkShader = trap_R_RegisterShader( "gfx/damage/hole_lg_mrk" );
 	cgs.media.energyMarkShader = trap_R_RegisterShader( "gfx/damage/plasma_mrk" );
+	cgs.media.crackedMarkShader = trap_R_RegisterShader( "gfx/damage/cracked_mrk" );
 	cgs.media.shadowMarkShader = trap_R_RegisterShader( "markShadow" );
 	cgs.media.wakeMarkShader = trap_R_RegisterShader( "wake" );
 	cgs.media.bloodMarkShader = trap_R_RegisterShader( "bloodMark" );
@@ -5034,11 +5035,13 @@ Returns the retail-backed social overlay icon for a scoreboard client row.
 =============
 */
 static qhandle_t CG_FeederSocialHandle( int clientNum ) {
-	const cgClientSpeakingState_t	*speakingState;
+	const clientInfo_t	*ci;
 
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return 0;
 	}
+
+	ci = &cgs.clientinfo[clientNum];
 
 	if ( CG_IsClientMutedLocally( clientNum ) ) {
 		return cgs.media.scoreMutedShader;
@@ -5047,14 +5050,13 @@ static qhandle_t CG_FeederSocialHandle( int clientNum ) {
 	if ( !CG_ShouldDisplayVoiceIndicator() ) {
 		return 0;
 	}
-	speakingState = &cgClientSpeakingState[clientNum];
-	if ( !speakingState->speaking ) {
+	if ( !ci->speaking ) {
 		return 0;
 	}
-	if ( speakingState->time <= 0 ) {
+	if ( ci->speakingTime <= 0 ) {
 		return 0;
 	}
-	if ( cg.time - speakingState->time > 2500 ) {
+	if ( cg.time - ci->speakingTime > 2500 ) {
 		return 0;
 	}
 
@@ -6146,23 +6148,19 @@ static qboolean CG_CopyClientIdentity( int clientNum, void *outIdentity ) {
 	identity = (cgameClientIdentity_t *)outIdentity;
 	memset( identity, 0, sizeof( *identity ) );
 	identity->clientNum = clientNum;
-	identity->identityTransport = 0;
+	identity->identityTransport = ci->privilege;
 	identity->identityLow = ci->identityLow;
 	identity->identityHigh = ci->identityHigh;
 
-	/*
-	 * The committed retail corpus only observes this sidecar word being copied
-	 * back out through the native export. The retail player parser rebuilds the
-	 * Steam identity words and avatar cache, but it never materializes a
-	 * separate producer for the transport discriminator, and the recovered host
-	 * overlay consumer only branches on the identity words. Preserve that
-	 * observed ABI by keeping the exported transport word explicitly zero.
-	 */
 	Q_strncpyz( identity->displayName, ci->name, sizeof( identity->displayName ) );
-	Q_strncpyz( cleanName, ci->name, sizeof( cleanName ) );
-	Q_CleanStr( cleanName );
-	Q_strncpyz( identity->cleanName,
-		cleanName[0] ? cleanName : ci->name, sizeof( identity->cleanName ) );
+	if ( ci->cleanName[0] ) {
+		Q_strncpyz( identity->cleanName, ci->cleanName, sizeof( identity->cleanName ) );
+	} else {
+		Q_strncpyz( cleanName, ci->name, sizeof( cleanName ) );
+		Q_CleanStr( cleanName );
+		Q_strncpyz( identity->cleanName,
+			cleanName[0] ? cleanName : ci->name, sizeof( identity->cleanName ) );
+	}
 
 	return qtrue;
 }
@@ -6176,16 +6174,14 @@ Mirrors the retail voice-indicator sidecar on top of the existing HUD state.
 */
 void *CG_SetClientSpeakingState( int clientNum, int speaking ) {
 	clientInfo_t			*ci;
-	cgClientSpeakingState_t	*speakingState;
 
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
 		return NULL;
 	}
 
 	ci = &cgs.clientinfo[clientNum];
-	speakingState = &cgClientSpeakingState[clientNum];
-	speakingState->speaking = speaking ? qtrue : qfalse;
-	speakingState->time = cg.time;
+	ci->speaking = speaking ? qtrue : qfalse;
+	ci->speakingTime = cg.time;
 
 	if ( speaking ) {
 		cgs.currentVoiceClient = clientNum;
@@ -6788,7 +6784,6 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum ) {
 	memset( cg_entities, 0, sizeof(cg_entities) );
 	memset( cg_weapons, 0, sizeof(cg_weapons) );
 	memset( cg_items, 0, sizeof(cg_items) );
-	memset( cgClientSpeakingState, 0, sizeof( cgClientSpeakingState ) );
   
 	CG_ClearAutomationState();
 	CG_ResetIntermissionLetterboxState();
@@ -6934,7 +6929,6 @@ void CG_Shutdown( void ) {
 	// some mods may need to do cleanup work here,
 	// like closing files or archiving session data
 	CG_ClearAutomationState();
-	memset( cgClientSpeakingState, 0, sizeof( cgClientSpeakingState ) );
 	trap_AdvertisementBridge_ShutdownCGame();
 	trap_Cvar_Set( "ui_mainmenu", "1" );
 }

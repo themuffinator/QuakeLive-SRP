@@ -706,7 +706,7 @@ def test_ql_server_browser_protocol_and_master_heartbeat_parity_closure() -> Non
 	assert "if ( sv_master[i] && sv_master[i]->string[0] ) {" in steam_masters
 	assert "QL_Steamworks_ServerEnableHeartbeats( SV_SteamServerHasConfiguredMasters() );" in spawn_server
 	assert "vtable[0x9c / 4]" in enable_heartbeats
-	assert "fn( gameServer, enable ? 1 : 0 );" in enable_heartbeats
+	assert "fn( gameServer, NULL, enable ? 1 : 0 );" in enable_heartbeats
 
 	for expected in (
 		"STEAM_API.DLL!SteamGameServer @",
@@ -775,6 +775,10 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		cl_main,
 		"static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex )",
 	)
+	native_server_failed = _function_block(
+		cl_main,
+		"static void CL_SteamBrowser_NativeServerFailedToRespondImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex )",
+	)
 	complete_native = _function_block(cl_main, "static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut )")
 	native_ping_responded = _function_block(
 		cl_main,
@@ -820,13 +824,17 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	heartbeat_command = _function_block(sv_ccmds, "void SV_Heartbeat_f( void )")
 	add_operator_commands = _function_block(sv_ccmds, "void SV_AddOperatorCommands( void )")
 	steam_bootstrap = _function_block(common_c, "void Com_InitSteamGameServer( void )")
-	browser_owner = _function_block(
+	browser_owner_entry = _function_block(
 		steamworks,
 		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject )",
 	)
+	browser_owner = _function_block(
+		steamworks,
+		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequestForApp( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, uint32_t appId, void *responseObject )",
+	)
 	request_server_list = _function_block(
 		steamworks,
-		"ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql_steam_server_browser_request_mode_t requestMode, void *responseObject )",
+		"ql_steam_server_list_request_t QL_Steamworks_RequestServerListForApp( ql_steam_server_browser_request_mode_t requestMode, uint32_t appId, void *responseObject )",
 	)
 	get_server_details = _function_block(
 		steamworks, "const void *QL_Steamworks_GetServerListDetails( ql_steam_server_list_request_t request, int index )"
@@ -839,7 +847,7 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	)
 	ping_response_reader = _function_block(
 		steamworks,
-		"qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse )",
+		"qboolean QL_Steamworks_ReadServerBrowserPingResponseForApp( const void *serverDetails, uint32_t appId, ql_steam_server_browser_response_t *outResponse )",
 	)
 	enable_heartbeats = _function_block(steamworks, "qboolean QL_Steamworks_ServerEnableHeartbeats( qboolean enable )")
 
@@ -865,11 +873,16 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		assert expected in native_mode
 	assert "CL_MatchmakingServiceAvailable()" in native_available
 	assert "QL_Steamworks_HasServerBrowserInterface()" in native_available
-	assert "QL_Steamworks_BeginServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner, nativeMode, &cl_steamNativeListResponse )" in begin_native
+	assert "QL_Steamworks_BeginServerBrowserOwnerRequestForApp( &cl_steamNativeBrowserOwner, nativeMode, cl_steamBrowserState.nativeAppId, &cl_steamNativeListResponse )" in begin_native
 	assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' in begin_native
 	assert 'Com_sprintf( eventName, sizeof( eventName ), "servers.details.%s.response", response->id );' in native_response
-	assert "QL_Steamworks_ReadServerBrowserResponse( request, serverIndex, &response )" in native_server_responded
+	assert "if ( self != &cl_steamNativeListResponse || request != cl_steamNativeBrowserOwner.request ) {" in native_server_responded
+	assert "!cl_steamBrowserState.nativeRefreshActive" not in native_server_responded
+	assert "QL_Steamworks_ReadServerBrowserResponseForApp( request, serverIndex, cl_steamBrowserState.nativeAppId, &response )" in native_server_responded
 	assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_server_responded
+	assert "if ( self != &cl_steamNativeListResponse || request != cl_steamNativeBrowserOwner.request ) {" in native_server_failed
+	assert "!cl_steamBrowserState.nativeRefreshActive" not in native_server_failed
+	assert "CL_SteamBrowser_PublishServerFailed( serverIndex );" in native_server_failed
 	assert "CL_STEAM_BROWSER_USE_MSVC_C_THISCALL_THUNKS" in cl_main
 	assert "static __declspec(naked) void CL_SteamBrowser_NativeServerResponded" in cl_main
 	assert "CL_SteamBrowser_NativeServerRespondedImpl( self, request, serverIndex );" in cl_main
@@ -877,7 +890,7 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "const clSteamNativeServerRulesResponseVTable_t *rulesVtable;" in cl_main
 	assert "const clSteamNativeServerPlayersResponseVTable_t *playersVtable;" in cl_main
 	assert "const clSteamNativeServerPingResponseVTable_t *pingVtable;" in cl_main
-	assert "QL_Steamworks_ReadServerBrowserPingResponse( serverDetails, &response )" in native_ping_responded
+	assert "QL_Steamworks_ReadServerBrowserPingResponseForApp( serverDetails, detail->appId, &response )" in native_ping_responded
 	assert "CL_SteamBrowser_PublishNativeServerResponse( &response );" in native_ping_responded
 	assert "QL_Steamworks_BuildServerBrowserRuleResponse( &detail->request.lifecycle.identity, rule, value, &response )" in native_rule_responded
 	assert "CL_SteamBrowser_PublishNativeRuleResponse( &response );" in native_rule_responded
@@ -903,7 +916,14 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "CL_SteamBrowser_BeginDetailRequest( (uint32_t)serverIp, (uint16_t)serverPort, &address );" in request_details
 	assert "CL_ServerStatus( addressString, NULL, 0 );" in request_details
 	assert "CL_ServerStatus( addressString, serverStatus, sizeof( serverStatus ) );" in request_details
+	assert "QL_Steamworks_RefreshServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner )" in refresh_list
+	assert "cl_steamBrowserState.nativeAppId = CL_SteamBrowser_GetDiscoveryAppID();" in refresh_list
+	assert 'CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );' not in refresh_list
+	assert "cl_steamBrowserState.nativeRefreshActive = qtrue;" not in refresh_list
+	assert "cl_steamBrowserState.refreshActive = qtrue;" not in refresh_list
+	assert "cl_steamBrowserState.refreshTimeoutTime = cls.realtime + CL_STEAM_BROWSER_REFRESH_TIMEOUT_MSEC;" not in refresh_list
 	assert "return CL_Steam_RequestServers( cl_steamBrowserState.requestMode );" in refresh_list
+	assert "if ( timedOut && !cl_steamBrowserState.nativeRefreshActive ) {" in complete_native
 	assert "CL_SteamBrowser_FailDetailRequest();" in browser_frame
 	assert "CL_SteamBrowser_CompleteNativeRefresh( qtrue );" in browser_frame
 	assert "CL_UpdateVisiblePings_f( cl_steamBrowserState.requestSource )" in browser_frame
@@ -980,13 +1000,17 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		"ql_steam_server_browser_detail_request_t",
 		"ql_steam_server_browser_response_t",
 		"qboolean QL_Steamworks_ReadServerBrowserPingResponse",
+		"qboolean QL_Steamworks_ReadServerBrowserPingResponseForApp",
 		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequest",
+		"qboolean QL_Steamworks_BeginServerBrowserOwnerRequestForApp",
 		"qboolean QL_Steamworks_BeginServerBrowserDetailRequest",
 	):
 		assert expected in steamworks_h
+	assert "return QL_Steamworks_BeginServerBrowserOwnerRequestForApp( owner, requestMode, QL_Steamworks_GetAppID(), responseObject );" in browser_owner_entry
 	assert "QL_Steamworks_ReleaseServerListRequest( owner->request );" in browser_owner
 	assert "ql_steam_server_list_request_t request;" in browser_owner
-	assert "request = QL_Steamworks_RequestServerList( requestMode, responseObject );" in browser_owner
+	assert "if ( appId == 0u ) {" in browser_owner
+	assert "request = QL_Steamworks_RequestServerListForApp( requestMode, appId, responseObject );" in browser_owner
 	assert "if ( !request ) {" in browser_owner
 	assert "owner->refreshActive = qfalse;" in browser_owner
 	assert "owner->request = NULL;" in browser_owner
@@ -1023,7 +1047,7 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 		"if ( outPingQuery ) {",
 	)
 	assert "vtable[0x9c / 4]" in enable_heartbeats
-	assert "fn( gameServer, enable ? 1 : 0 );" in enable_heartbeats
+	assert "fn( gameServer, NULL, enable ? 1 : 0 );" in enable_heartbeats
 
 	for expected in (
 		"STEAM_API.DLL!SteamMatchmakingServers @",

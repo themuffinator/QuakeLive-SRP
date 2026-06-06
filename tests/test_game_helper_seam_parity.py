@@ -1160,12 +1160,19 @@ def test_input_spawn_and_host_map_paths_keep_retail_factory_gates() -> None:
 
 def test_freeze_helpers_match_recovered_retail_boundaries() -> None:
 	freeze_c = _read("src/code/game/g_freeze.c")
+	combat_c = _read("src/code/game/g_combat.c")
 	active_c = _read("src/code/game/g_active.c")
 	game_local = _read("src/code/game/g_local.h")
 
 	assert "static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qboolean environmental, qboolean wasAuto, int helperNum ) {" in freeze_c
 	assert "G_FreezeSetClientFrozenState( ent, qfalse, qfalse, wasAuto, helperNum );" in freeze_c
 	assert "G_FreezeSetClientFrozenState( self, qtrue, environmental, qfalse, -1 );" in freeze_c
+	assert "static void G_FreezeAwardThawAssist( gentity_t *ent, int helperNum ) {" in freeze_c
+	assert "GibEntity( ent );" in freeze_c
+	assert "self->client->ps.powerups[PW_NUM_POWERUPS]" in combat_c
+	assert "ClientSpawn( self );" in combat_c
+	assert "trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );" in freeze_c
+	assert "G_FreezeClientCanHelpThaw( ent, helper, thawRadius, NULL )" in freeze_c
 
 	assert "void G_FreezeResetClientForRound( gentity_t *ent ) {" in active_c
 	assert "warmupSpawn = ( level.roundState != ROUNDSTATE_ACTIVE ) ? qtrue : qfalse;" in active_c
@@ -1178,6 +1185,7 @@ def test_freeze_helpers_match_recovered_retail_boundaries() -> None:
 	assert "G_CountActivePlayersByTeam( level.freezeLivingCount );" in active_c
 	assert "level.freezeLivingHealth[TEAM_RED] = G_TotalLivingHealthByTeam( TEAM_RED );" in active_c
 	assert "void\tG_FreezeResetClientForRound( gentity_t *ent );" in game_local
+	assert "void GibEntity( gentity_t *self );" in game_local
 
 
 def test_client_begin_and_respawn_dispatch_freeze_and_rr_like_retail() -> None:

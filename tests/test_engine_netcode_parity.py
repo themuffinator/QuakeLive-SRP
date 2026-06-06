@@ -541,12 +541,15 @@ def test_player_info_configstring_uses_shared_key_contract() -> None:
 
 	for expected in (
 		'#define PLAYER_INFO_KEY_NAME "n"',
+		'#define PLAYER_INFO_KEY_CLEAN_NAME "cn"',
+		'#define PLAYER_INFO_KEY_EXTENDED_NAME "xcn"',
 		'#define PLAYER_INFO_KEY_TEAM "t"',
 		'#define PLAYER_INFO_KEY_MODEL "model"',
 		'#define PLAYER_INFO_KEY_HEADMODEL "hmodel"',
 		'#define PLAYER_INFO_KEY_REDTEAM "g_redteam"',
 		'#define PLAYER_INFO_KEY_BLUETEAM "g_blueteam"',
-		'#define PLAYER_INFO_KEY_COUNTRY "country"',
+		'#define PLAYER_INFO_KEY_COUNTRY "c"',
+		'#define PLAYER_INFO_KEY_COUNTRY_LEGACY "country"',
 		'#define PLAYER_INFO_KEY_COLOR1 "c1"',
 		'#define PLAYER_INFO_KEY_COLOR2 "c2"',
 		'#define PLAYER_INFO_KEY_HANDICAP "hc"',
@@ -559,6 +562,8 @@ def test_player_info_configstring_uses_shared_key_contract() -> None:
 		'#define PLAYER_INFO_KEY_PRIVILEGE "p"',
 		'#define PLAYER_INFO_KEY_SPECTATE_ONLY "so"',
 		'#define PLAYER_INFO_KEY_SPECTATOR_QUEUE "pq"',
+		'#define PLAYER_INFO_KEY_STEAMID "st"',
+		'#define PLAYER_INFO_KEY_STEAMID_LEGACY "steamid"',
 	):
 		assert expected in keys_h
 
@@ -581,17 +586,18 @@ def test_player_info_configstring_uses_shared_key_contract() -> None:
 	for expected in (
 		'PLAYER_INFO_KEY_NAME "\\\\%s\\\\" PLAYER_INFO_KEY_TEAM "\\\\%i\\\\"',
 		'PLAYER_INFO_KEY_MODEL "\\\\%s\\\\" PLAYER_INFO_KEY_HEADMODEL "\\\\%s\\\\"',
-		'PLAYER_INFO_KEY_COUNTRY "\\\\%s\\\\" PLAYER_INFO_KEY_COLOR1 "\\\\%s\\\\"',
-		'PLAYER_INFO_KEY_COLOR2 "\\\\%s\\\\" PLAYER_INFO_KEY_HANDICAP "\\\\%i\\\\"',
+		'PLAYER_INFO_KEY_COLOR1 "\\\\%s\\\\" PLAYER_INFO_KEY_COLOR2 "\\\\%s\\\\"',
+		'PLAYER_INFO_KEY_HANDICAP "\\\\%i\\\\"',
 		'PLAYER_INFO_KEY_WINS "\\\\%i\\\\" PLAYER_INFO_KEY_LOSSES "\\\\%i\\\\"',
 		'PLAYER_INFO_KEY_SKILL "\\\\%s\\\\" PLAYER_INFO_KEY_TEAMTASK "\\\\%d\\\\"',
 		'PLAYER_INFO_KEY_REDTEAM "\\\\%s\\\\" PLAYER_INFO_KEY_BLUETEAM "\\\\%s\\\\"',
+		'PLAYER_INFO_KEY_STEAMID "\\\\%llu\\\\" PLAYER_INFO_KEY_COUNTRY "\\\\%s"',
 		"trap_SetConfigstring( CS_PLAYERS+clientNum, s );",
 	):
 		assert expected in game_snippet
 
 	for expected in (
-		"Info_ValueForKey(configstring, PLAYER_INFO_KEY_NAME)",
+		"CG_UpdateClientNames( configstring, &newInfo );",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_COLOR1 )",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_COLOR2 )",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_SKILL )",
@@ -606,10 +612,20 @@ def test_player_info_configstring_uses_shared_key_contract() -> None:
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_REDTEAM )",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_BLUETEAM )",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY_LEGACY )",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_MODEL )",
 		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_HEADMODEL )",
 	):
 		assert expected in cgame_snippet
+
+	for expected in (
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_STEAMID )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_STEAMID_LEGACY )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_NAME )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_CLEAN_NAME )",
+		"Info_ValueForKey( configstring, PLAYER_INFO_KEY_EXTENDED_NAME )",
+	):
+		assert expected in cg_players
 
 	for helper_source, expectations in (
 		(cg_draw, ("Info_ValueForKey(  info, PLAYER_INFO_KEY_NAME )",)),

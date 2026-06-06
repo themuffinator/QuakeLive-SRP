@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "client.h"
 #include "../qcommon/vm_local.h"
+#include "../../game/match_state_keys.h"
 #include "../../common/auth_credentials.h"
 #include "../../common/platform/platform_config.h"
 #include "../../common/platform/platform_services.h"
@@ -665,6 +666,7 @@ cvar_t	*cl_serverStatusResendTime;
 cvar_t	*cl_trn;
 static cvar_t	*cl_lobbyAutoConnect;
 static cvar_t	*cl_steamMaxLobbyClients;
+static cvar_t	*cl_steamServerBrowserAppId;
 clientActive_t		cl;
 clientConnection_t	clc;
 clientStatic_t		cls;
@@ -763,95 +765,100 @@ static qboolean cl_statsClearRegistered;
 #define CL_STEAM_VOICE_MAX_COMPRESSED 0x4000
 #define CL_STEAM_VOICE_MAX_DECOMPRESSED 0x8000
 
-static const char *s_clSteamStatNames[CL_STEAM_STATS_FIELD_COUNT] = {
-	"version",
-	"kill_gauntlet",
-	"kill_machinegun",
-	"kill_shotgun",
-	"kill_grenade",
-	"kill_rocket",
-	"kill_lightning",
-	"kill_railgun",
-	"kill_plasma",
-	"kill_bfg",
-	"kill_nailgun",
-	"kill_proxmine",
-	"kill_chaingun",
-	"kill_hmg",
-	"hits_machinegun",
-	"hits_shotgun",
-	"hits_grenade",
-	"hits_rocket",
-	"hits_lightning",
-	"hits_railgun",
-	"hits_plasma",
-	"hits_bfg",
-	"hits_nailgun",
-	"hits_proxmine",
-	"hits_chaingun",
-	"hits_hmg",
-	"shots_machinegun",
-	"shots_shotgun",
-	"shots_grenade",
-	"shots_rocket",
-	"shots_lightning",
-	"shots_railgun",
-	"shots_plasma",
-	"shots_bfg",
-	"shots_nailgun",
-	"shots_proxmine",
-	"shots_chaingun",
-	"shots_hmg",
-	"mod_shotgun",
-	"mod_gauntlet",
-	"mod_machinegun",
-	"mod_grenade",
-	"mod_rocket",
-	"mod_plasma",
-	"mod_railgun",
-	"mod_lightning",
-	"mod_bfg",
-	"mod_water",
-	"mod_slime",
-	"mod_lava",
-	"mod_crush",
-	"mod_telefrag",
-	"mod_laser",
-	"BROKEN1",
-	"mod_nailgun",
-	"mod_chaingun",
-	"mod_proxmine",
-	"mod_kamikaze",
-	"mod_juiced",
-	"mod_suicide",
-	"mod_falling",
-	"mod_grapple",
-	"mod_hmg",
-	"mod_lightning_discharge",
-	"mod_other",
-	"medal_firstfrag",
-	"medal_gauntlet",
-	"medal_excellent",
-	"medal_revenge",
-	"medal_combokill",
-	"medal_midair",
-	"medal_perforated",
-	"medal_rampage",
-	"medal_impressive",
-	"medal_capture",
-	"medal_assist",
-	"medal_defense",
-	"medal_headshot",
-	"medal_quadgod",
-	"medal_perfect",
-	"medal_accuracy",
-	"wins",
-	"losses",
-	"played",
-	"BROKEN2",
-	"mod_hurt",
-	"total_kills",
-	"total_deaths"
+typedef struct clSteamStatDescriptor_s {
+	const char *name;
+	qboolean isFloat;
+} clSteamStatDescriptor_t;
+
+static const clSteamStatDescriptor_t s_clSteamStatDescriptors[CL_STEAM_STATS_FIELD_COUNT] = {
+	{ "version", qfalse },
+	{ "kill_gauntlet", qfalse },
+	{ "kill_machinegun", qfalse },
+	{ "kill_shotgun", qfalse },
+	{ "kill_grenade", qfalse },
+	{ "kill_rocket", qfalse },
+	{ "kill_lightning", qfalse },
+	{ "kill_railgun", qfalse },
+	{ "kill_plasma", qfalse },
+	{ "kill_bfg", qfalse },
+	{ "kill_nailgun", qfalse },
+	{ "kill_proxmine", qfalse },
+	{ "kill_chaingun", qfalse },
+	{ "kill_hmg", qfalse },
+	{ "hits_machinegun", qfalse },
+	{ "hits_shotgun", qfalse },
+	{ "hits_grenade", qfalse },
+	{ "hits_rocket", qfalse },
+	{ "hits_lightning", qfalse },
+	{ "hits_railgun", qfalse },
+	{ "hits_plasma", qfalse },
+	{ "hits_bfg", qfalse },
+	{ "hits_nailgun", qfalse },
+	{ "hits_proxmine", qfalse },
+	{ "hits_chaingun", qfalse },
+	{ "hits_hmg", qfalse },
+	{ "shots_machinegun", qfalse },
+	{ "shots_shotgun", qfalse },
+	{ "shots_grenade", qfalse },
+	{ "shots_rocket", qfalse },
+	{ "shots_lightning", qfalse },
+	{ "shots_railgun", qfalse },
+	{ "shots_plasma", qfalse },
+	{ "shots_bfg", qfalse },
+	{ "shots_nailgun", qfalse },
+	{ "shots_proxmine", qfalse },
+	{ "shots_chaingun", qfalse },
+	{ "shots_hmg", qfalse },
+	{ "mod_shotgun", qfalse },
+	{ "mod_gauntlet", qfalse },
+	{ "mod_machinegun", qfalse },
+	{ "mod_grenade", qfalse },
+	{ "mod_rocket", qfalse },
+	{ "mod_plasma", qfalse },
+	{ "mod_railgun", qfalse },
+	{ "mod_lightning", qfalse },
+	{ "mod_bfg", qfalse },
+	{ "mod_water", qfalse },
+	{ "mod_slime", qfalse },
+	{ "mod_lava", qfalse },
+	{ "mod_crush", qfalse },
+	{ "mod_telefrag", qfalse },
+	{ "mod_laser", qfalse },
+	{ "BROKEN1", qfalse },
+	{ "mod_nailgun", qfalse },
+	{ "mod_chaingun", qfalse },
+	{ "mod_proxmine", qfalse },
+	{ "mod_kamikaze", qfalse },
+	{ "mod_juiced", qfalse },
+	{ "mod_suicide", qfalse },
+	{ "mod_falling", qfalse },
+	{ "mod_grapple", qfalse },
+	{ "mod_hmg", qfalse },
+	{ "mod_lightning_discharge", qfalse },
+	{ "mod_other", qfalse },
+	{ "medal_firstfrag", qfalse },
+	{ "medal_gauntlet", qfalse },
+	{ "medal_excellent", qfalse },
+	{ "medal_revenge", qfalse },
+	{ "medal_combokill", qfalse },
+	{ "medal_midair", qfalse },
+	{ "medal_perforated", qfalse },
+	{ "medal_rampage", qfalse },
+	{ "medal_impressive", qfalse },
+	{ "medal_capture", qfalse },
+	{ "medal_assist", qfalse },
+	{ "medal_defense", qfalse },
+	{ "medal_headshot", qfalse },
+	{ "medal_quadgod", qfalse },
+	{ "medal_perfect", qfalse },
+	{ "medal_accuracy", qfalse },
+	{ "wins", qfalse },
+	{ "losses", qfalse },
+	{ "played", qfalse },
+	{ "BROKEN2", qfalse },
+	{ "mod_hurt", qfalse },
+	{ "total_kills", qfalse },
+	{ "total_deaths", qfalse }
 };
 
 static const char *s_clSteamAchievementNames[CL_STEAM_ACHIEVEMENT_COUNT] = {
@@ -937,6 +944,7 @@ typedef struct {
 	qboolean	detailActive;
 	qboolean	requestInitialised;
 	qboolean	nativeRefreshActive;
+	uint32_t	nativeAppId;
 	int			requestMode;
 	int			requestSource;
 	int			refreshTime;
@@ -1020,6 +1028,7 @@ struct clSteamNativeServerDetail_s {
 	const clSteamNativeServerPingResponseVTable_t *pingVtable;
 	uint32_t serverIp;
 	uint32_t serverPort;
+	uint32_t appId;
 	char detailId[CL_STEAM_BROWSER_DETAIL_OBJECT_ID_LENGTH];
 	int completedCallbacks;
 	ql_steam_server_browser_detail_request_t request;
@@ -1696,7 +1705,10 @@ static qboolean CL_GetClientSteamId( int clientNum, uint32_t *steamIdLow, uint32
 	}
 
 	Q_strncpyz( info, cl.gameState.stringData + offset, sizeof( info ) );
-	steamId = Info_ValueForKey( info, "steamid" );
+	steamId = Info_ValueForKey( info, PLAYER_INFO_KEY_STEAMID );
+	if ( !steamId[0] ) {
+		steamId = Info_ValueForKey( info, PLAYER_INFO_KEY_STEAMID_LEGACY );
+	}
 
 	return CL_ParseSteamIdString( steamId, steamIdLow, steamIdHigh );
 }
@@ -2051,11 +2063,24 @@ CL_Steam_GetUserStatFieldName
 =============
 */
 static const char *CL_Steam_GetUserStatFieldName( int statIndex ) {
-	if ( statIndex < 0 || statIndex >= ARRAY_LEN( s_clSteamStatNames ) ) {
+	if ( statIndex < 0 || statIndex >= ARRAY_LEN( s_clSteamStatDescriptors ) ) {
 		return NULL;
 	}
 
-	return s_clSteamStatNames[statIndex];
+	return s_clSteamStatDescriptors[statIndex].name;
+}
+
+/*
+=============
+CL_Steam_UserStatFieldIsFloat
+=============
+*/
+static qboolean CL_Steam_UserStatFieldIsFloat( int statIndex ) {
+	if ( statIndex < 0 || statIndex >= ARRAY_LEN( s_clSteamStatDescriptors ) ) {
+		return qfalse;
+	}
+
+	return s_clSteamStatDescriptors[statIndex].isFloat ? qtrue : qfalse;
 }
 
 /*
@@ -2081,9 +2106,10 @@ Rebuilds the retained Steam user-stat table as the nested browser-facing
 */
 static void CL_Steam_AppendUserStatsJson( uint32_t idLow, uint32_t idHigh, int result, char *buffer, size_t bufferSize ) {
 	qboolean first;
+	float floatValue;
 	const char *name;
 	int i;
-	int value;
+	int intValue;
 
 	if ( !buffer || bufferSize == 0 ) {
 		return;
@@ -2091,25 +2117,41 @@ static void CL_Steam_AppendUserStatsJson( uint32_t idLow, uint32_t idHigh, int r
 
 	first = qtrue;
 	CL_Steam_AppendJsonFragment( buffer, bufferSize, "\"STATS\":{" );
-	for ( i = 0; i < ARRAY_LEN( s_clSteamStatNames ); ++i ) {
+	for ( i = 0; i < ARRAY_LEN( s_clSteamStatDescriptors ); ++i ) {
 		name = CL_Steam_GetUserStatFieldName( i );
 		if ( !name || !name[0] ) {
 			continue;
 		}
 
-		value = 0;
-		if ( result == 1 ) {
-			QL_Steamworks_GetUserStatInt( idLow, idHigh, name, &value );
-		}
+		if ( CL_Steam_UserStatFieldIsFloat( i ) ) {
+			floatValue = 0.0f;
+			if ( result == 1 ) {
+				QL_Steamworks_GetUserStatFloat( idLow, idHigh, name, &floatValue );
+			}
 
-		CL_Steam_AppendJsonFragment(
-			buffer,
-			bufferSize,
-			"%s\"%s\":%d",
-			first ? "" : ",",
-			name,
-			value
-		);
+			CL_Steam_AppendJsonFragment(
+				buffer,
+				bufferSize,
+				"%s\"%s\":%g",
+				first ? "" : ",",
+				name,
+				(double)floatValue
+			);
+		} else {
+			intValue = 0;
+			if ( result == 1 ) {
+				QL_Steamworks_GetUserStatInt( idLow, idHigh, name, &intValue );
+			}
+
+			CL_Steam_AppendJsonFragment(
+				buffer,
+				bufferSize,
+				"%s\"%s\":%d",
+				first ? "" : ",",
+				name,
+				intValue
+			);
+		}
 		first = qfalse;
 	}
 	CL_Steam_AppendJsonFragment( buffer, bufferSize, "}" );
@@ -2865,6 +2907,25 @@ static void CL_SteamBrowser_ResetPings( int source ) {
 	for ( i = 0; i < count; i++ ) {
 		servers[i].ping = -1;
 	}
+}
+
+/*
+=============
+CL_SteamBrowser_GetDiscoveryAppID
+
+Returns the Steam app id used for native retail server-browser discovery.
+=============
+*/
+uint32_t CL_SteamBrowser_GetDiscoveryAppID( void ) {
+	if ( !cl_steamServerBrowserAppId ) {
+		cl_steamServerBrowserAppId = Cvar_Get( "cl_steamServerBrowserAppId", va( "%u", QL_STEAM_APPID_PUBLIC_RETAIL ), CVAR_ARCHIVE );
+	}
+
+	if ( !cl_steamServerBrowserAppId || cl_steamServerBrowserAppId->integer <= 0 ) {
+		return QL_STEAM_APPID_PUBLIC_RETAIL;
+	}
+
+	return (uint32_t)cl_steamServerBrowserAppId->integer;
 }
 
 /*
@@ -3637,7 +3698,7 @@ Completes one native SteamMatchmakingServers refresh and publishes the browser e
 =============
 */
 static void CL_SteamBrowser_CompleteNativeRefresh( qboolean timedOut ) {
-	if ( !cl_steamBrowserState.nativeRefreshActive ) {
+	if ( timedOut && !cl_steamBrowserState.nativeRefreshActive ) {
 		return;
 	}
 
@@ -3665,11 +3726,11 @@ Handles the ISteamMatchmakingServerListResponse::ServerResponded callback.
 static void CL_SteamBrowser_NativeServerRespondedImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
 	ql_steam_server_browser_response_t response;
 
-	if ( self != &cl_steamNativeListResponse || !cl_steamBrowserState.nativeRefreshActive || request != cl_steamNativeBrowserOwner.request ) {
+	if ( self != &cl_steamNativeListResponse || request != cl_steamNativeBrowserOwner.request ) {
 		return;
 	}
 
-	if ( QL_Steamworks_ReadServerBrowserResponse( request, serverIndex, &response ) ) {
+	if ( QL_Steamworks_ReadServerBrowserResponseForApp( request, serverIndex, cl_steamBrowserState.nativeAppId, &response ) ) {
 		CL_SteamBrowser_PublishNativeServerResponse( &response );
 		return;
 	}
@@ -3685,7 +3746,7 @@ Handles the ISteamMatchmakingServerListResponse::ServerFailedToRespond callback.
 =============
 */
 static void CL_SteamBrowser_NativeServerFailedToRespondImpl( clSteamNativeServerListResponse_t *self, ql_steam_server_list_request_t request, int serverIndex ) {
-	if ( self != &cl_steamNativeListResponse || !cl_steamBrowserState.nativeRefreshActive || request != cl_steamNativeBrowserOwner.request ) {
+	if ( self != &cl_steamNativeListResponse || request != cl_steamNativeBrowserOwner.request ) {
 		return;
 	}
 
@@ -3957,7 +4018,7 @@ static void CL_SteamBrowser_NativePingRespondedImpl( clSteamNativeServerPingResp
 		return;
 	}
 
-	if ( QL_Steamworks_ReadServerBrowserPingResponse( serverDetails, &response ) ) {
+	if ( QL_Steamworks_ReadServerBrowserPingResponseForApp( serverDetails, detail->appId, &response ) ) {
 		CL_SteamBrowser_PublishNativeServerResponse( &response );
 		CL_SteamBrowser_CompleteNativeDetailTerminal( detail );
 	}
@@ -4351,6 +4412,7 @@ static qboolean CL_SteamBrowser_BeginNativeDetailRequest( uint32_t serverIp, uin
 	detail->pingVtable = &cl_steamNativePingResponseVTable;
 	detail->serverIp = serverIp;
 	detail->serverPort = serverPort;
+	detail->appId = CL_SteamBrowser_GetDiscoveryAppID();
 	QL_Steamworks_FormatServerBrowserDetailId( serverIp, serverPort, detail->detailId, sizeof( detail->detailId ) );
 	detail->next = cl_steamNativeDetails;
 	cl_steamNativeDetails = detail;
@@ -4381,6 +4443,7 @@ static void CL_SteamBrowser_ReleaseNativeRequest( void ) {
 
 	QL_Steamworks_InitServerBrowserOwner( &cl_steamNativeBrowserOwner );
 	cl_steamBrowserState.nativeRefreshActive = qfalse;
+	cl_steamBrowserState.nativeAppId = 0u;
 }
 #endif
 
@@ -4404,9 +4467,11 @@ static qboolean CL_SteamBrowser_BeginNativeRequest( int requestMode ) {
 	}
 
 	nativeMode = CL_SteamBrowser_RequestModeToNativeMode( requestMode );
+	cl_steamBrowserState.nativeAppId = CL_SteamBrowser_GetDiscoveryAppID();
 	cl_steamNativeListResponse.vtable = &cl_steamNativeListResponseVTable;
-	if ( !QL_Steamworks_BeginServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner, nativeMode, &cl_steamNativeListResponse ) ) {
+	if ( !QL_Steamworks_BeginServerBrowserOwnerRequestForApp( &cl_steamNativeBrowserOwner, nativeMode, cl_steamBrowserState.nativeAppId, &cl_steamNativeListResponse ) ) {
 		CL_LogMatchmakingServiceIgnored( "RequestServers", "native SteamMatchmakingServers list request failed; using source-browser fallback" );
+		cl_steamBrowserState.nativeAppId = 0u;
 		return qfalse;
 	}
 
@@ -4622,6 +4687,7 @@ qboolean CL_Steam_RequestServers( int requestMode ) {
 	}
 
 	cl_steamBrowserState.nativeRefreshActive = qfalse;
+	cl_steamBrowserState.nativeAppId = 0u;
 	cl_steamBrowserState.refreshActive = qtrue;
 	cl_steamBrowserState.refreshTime = cls.realtime + ( source == AS_LOCAL ? CL_STEAM_BROWSER_LOCAL_REFRESH_WAIT_MSEC : CL_STEAM_BROWSER_REMOTE_REFRESH_WAIT_MSEC );
 	cl_steamBrowserState.refreshTimeoutTime = cls.realtime + CL_STEAM_BROWSER_REFRESH_TIMEOUT_MSEC;
@@ -4694,10 +4760,9 @@ qboolean CL_Steam_RefreshServerList( void ) {
 #if QL_PLATFORM_HAS_STEAMWORKS
 	if ( cl_steamNativeBrowserOwner.request && CL_SteamBrowser_NativeListAvailable() ) {
 		if ( QL_Steamworks_RefreshServerBrowserOwnerRequest( &cl_steamNativeBrowserOwner ) ) {
-			cl_steamBrowserState.nativeRefreshActive = qtrue;
-			cl_steamBrowserState.refreshActive = qtrue;
-			cl_steamBrowserState.refreshTimeoutTime = cls.realtime + CL_STEAM_BROWSER_REFRESH_TIMEOUT_MSEC;
-			CL_Steam_PublishBrowserEvent( "servers.refresh.start", NULL );
+			if ( cl_steamBrowserState.nativeAppId == 0u ) {
+				cl_steamBrowserState.nativeAppId = CL_SteamBrowser_GetDiscoveryAppID();
+			}
 			return qtrue;
 		}
 	}
@@ -8948,6 +9013,7 @@ void CL_Init( void ) {
 	Cvar_Get ("cl_socialOverlayPolicy", "compatibility-unavailable", CVAR_ROM );
 	cl_activeAction = Cvar_Get( "activeAction", "", CVAR_TEMP );
 	cl_demoRecordMessage = Cvar_Get ("cl_demoRecordMessage", "2", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_CLOUD );
+	cl_steamServerBrowserAppId = Cvar_Get( "cl_steamServerBrowserAppId", va( "%u", QL_STEAM_APPID_PUBLIC_RETAIL ), CVAR_ARCHIVE );
 
 	cl_timedemo = Cvar_Get ("timedemo", "0", 0);
 	cl_avidemo = Cvar_Get ("cl_avidemo", "0", 0);

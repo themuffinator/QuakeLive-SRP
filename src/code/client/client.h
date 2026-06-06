@@ -650,6 +650,7 @@ qhandle_t CL_Steam_RegisterShader( const char *url );
 void CL_InitSteamResources( void );
 void CL_ShutdownSteamResources( void );
 void CL_ClearSteamResourceCache( qboolean clearPersisted );
+uint32_t CL_SteamBrowser_GetDiscoveryAppID( void );
 void QL_ClientAuth_CancelSteamTicket( void );
 qboolean QL_ClientAuth_RequestSteamChallengeTicket( byte *ticketBuffer, int ticketBufferSize, int *ticketLength, uint32_t *steamIdLow, uint32_t *steamIdHigh );
 int CL_MenuReadScreenshot( const char *requestedName, byte *buffer, int bufferSize );

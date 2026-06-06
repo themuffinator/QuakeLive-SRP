@@ -307,9 +307,13 @@ def test_cgame_award_and_global_team_sound_read_retail_payload_slots_directly() 
 def test_freeze_temp_entity_band_uses_explicit_retail_ordinals() -> None:
 	bg_public_source = BG_PUBLIC.read_text(encoding="utf-8")
 	g_client_source = G_CLIENT.read_text(encoding="utf-8")
+	g_combat_source = G_COMBAT.read_text(encoding="utf-8")
 	g_freeze_source = (REPO_ROOT / "src" / "code" / "game" / "g_freeze.c").read_text(encoding="utf-8")
 	cg_event_source = CG_EVENT.read_text(encoding="utf-8")
 	freeze_helper_block = _block_from_marker(g_freeze_source, "static void G_FreezeSetClientFrozenState")
+	gib_block = _block_from_marker(g_combat_source, "void GibEntity")
+	thaw_event_block = _block_from_marker(g_freeze_source, "static void G_FreezeEmitThawCompletionEvents")
+	obituary_block = _block_from_marker(cg_event_source, "static void CG_Obituary")
 	freeze_frame_block = _block_from_marker(g_client_source, "void G_FreezeClientEndFrame")
 
 	assert "EV_DROWN = 57," in bg_public_source
@@ -317,7 +321,19 @@ def test_freeze_temp_entity_band_uses_explicit_retail_ordinals() -> None:
 	assert "EV_THAW_PLAYER = 87," in bg_public_source
 	assert "EV_THAW_TICK = 88," in bg_public_source
 
-	assert "tent = G_TempEntity( client->ps.origin, EV_THAW_PLAYER );" in freeze_helper_block
+	assert "thawThroughRespawn = ( client->ps.powerups[PW_NUM_POWERUPS] != 0 ) ? qtrue : qfalse;" in freeze_helper_block
+	assert "GibEntity( ent );" in freeze_helper_block
+	assert "tent = G_TempEntity( self->client->ps.origin, EV_THAW_PLAYER );" in gib_block
+	assert "ClientSpawn( self );" in gib_block
+	assert "if ( !wasAuto ) {" in freeze_helper_block
+	assert "G_FreezeEmitThawCompletionEvents( ent, helperNum );" in freeze_helper_block
+	assert "tent = G_TempEntity( ent->r.currentOrigin, EV_OBITUARY );" in thaw_event_block
+	assert "tent->s.eventParm = MOD_THAW;" in thaw_event_block
+	assert "tent->s.otherEntityNum = ent->s.number;" in thaw_event_block
+	assert "tent->s.otherEntityNum2 = thawerNum;" in thaw_event_block
+	assert "tent->r.svFlags = SVF_BROADCAST;" in thaw_event_block
+	assert "sound = ( client->sess.sessionTeam == TEAM_BLUE ) ? GTS_RED_RETURN : GTS_BLUE_RETURN;" in thaw_event_block
+	assert "G_BroadcastGlobalTeamSound( ent->s.pos.trBase, sound, -1, TEAM_FREE, 0 );" in thaw_event_block
 	assert "tent = G_TempEntity( ent->client->ps.origin, EV_THAW_TICK );" in freeze_frame_block
 	assert "QL_EVENTPARM_FREEZE_THAW" not in g_client_source
 	assert "QL_EVENTPARM_FREEZE_THAW" not in g_freeze_source
@@ -327,6 +343,9 @@ def test_freeze_temp_entity_band_uses_explicit_retail_ordinals() -> None:
 	assert 'CG_ThawPlayer( position );' in cg_event_source
 	assert 'case EV_THAW_TICK:' in cg_event_source
 	assert 'trap_S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.thawTickSound );' in cg_event_source
+	assert 'message = "was auto-thawed";' in obituary_block
+	assert 's = va( "You thawed %s.", targetName );' in obituary_block
+	assert 'message = "was thawed by";' in obituary_block
 
 
 def test_cgame_powerup_pickups_queue_retail_announcer_voice() -> None:

@@ -2459,6 +2459,8 @@ static void CG_ParseRedRoverScores( void ) {
 =================
 CG_ParseTeamInfo
 
+Retail `tinfo` carries only a count and client numbers. Legacy source-style
+servers append location, health, armor, weapon, and powerup fields per client.
 =================
 */
 static void CG_ParseTeamInfo( void ) {
@@ -2467,6 +2469,7 @@ static void CG_ParseTeamInfo( void ) {
 	int		count;
 	int		baseArg;
 	int		argc;
+	qboolean	legacyRows;
 
 	argc = trap_Argc();
 	count = atoi( CG_Argv( 1 ) );
@@ -2477,10 +2480,11 @@ static void CG_ParseTeamInfo( void ) {
 		count = TEAM_MAXOVERLAY;
 	}
 
+	legacyRows = (qboolean)( argc >= 2 + count * 6 );
 	numSortedTeamPlayers = 0;
 	for ( i = 0 ; i < count ; i++ ) {
-		baseArg = i * 6 + 2;
-		if ( argc <= baseArg + 5 ) {
+		baseArg = legacyRows ? ( i * 6 + 2 ) : ( i + 2 );
+		if ( argc <= baseArg ) {
 			break;
 		}
 
@@ -2492,11 +2496,13 @@ static void CG_ParseTeamInfo( void ) {
 		sortedTeamPlayers[numSortedTeamPlayers] = client;
 		numSortedTeamPlayers++;
 
-		cgs.clientinfo[ client ].location = atoi( CG_Argv( baseArg + 1 ) );
-		cgs.clientinfo[ client ].health = atoi( CG_Argv( baseArg + 2 ) );
-		cgs.clientinfo[ client ].armor = atoi( CG_Argv( baseArg + 3 ) );
-		cgs.clientinfo[ client ].curWeapon = atoi( CG_Argv( baseArg + 4 ) );
-		cgs.clientinfo[ client ].powerups = atoi( CG_Argv( baseArg + 5 ) );
+		if ( legacyRows ) {
+			cgs.clientinfo[ client ].location = atoi( CG_Argv( baseArg + 1 ) );
+			cgs.clientinfo[ client ].health = atoi( CG_Argv( baseArg + 2 ) );
+			cgs.clientinfo[ client ].armor = atoi( CG_Argv( baseArg + 3 ) );
+			cgs.clientinfo[ client ].curWeapon = atoi( CG_Argv( baseArg + 4 ) );
+			cgs.clientinfo[ client ].powerups = atoi( CG_Argv( baseArg + 5 ) );
+		}
 	}
 }
 

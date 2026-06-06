@@ -2561,7 +2561,7 @@
         "0x10069720"
       ],
       "relocation_refs": [],
-      "comment": "Retail item renderer anchored by the `Bad item index %i on entity` diagnostic. HLIL preserves the same modelindex guard, simple-items split, bobbing/spin logic, weapon midpoint lift, optional icon sprite path, scale pulse, railgun pickup tint, weapon barrel/ammo child tags, and absence of the legacy weapon-hover loop from src/code/cgame/cg_ents.c::CG_Item."
+      "comment": "Retail item renderer anchored by the `Bad item index %i on entity` diagnostic. HLIL preserves the same modelindex guard, simple-items split, cg_simpleItemsBob mode handling with the item-table major-item bob flag, visible-model gametype mask, bobbing/spin logic, weapon midpoint lift, optional icon sprite path, scale pulse, railgun pickup tint, weapon barrel child plus the separate retail `_ammo.md3` tag child slot, and absence of the legacy weapon-hover loop from src/code/cgame/cg_ents.c::CG_Item."
     },
     {
       "address": "0x100175F0",
@@ -2573,7 +2573,7 @@
         "0x1006974C"
       ],
       "relocation_refs": [],
-      "comment": "Missile renderer anchored by the invalid-weapon diagnostic; the body applies trail, dlight, looping sound, plasma and prox special cases, and movement-derived axis setup before submitting the missile entity."
+      "comment": "Missile renderer anchored by the invalid-weapon `CG_Error` diagnostic; the body applies trail, dlight, looping sound, plasma and prox special cases, grenade forced weapon-color fallback, and movement-derived axis setup before submitting the missile entity."
     },
     {
       "address": "0x100178E0",
@@ -3405,7 +3405,7 @@
         "0x1006D804"
       ],
       "relocation_refs": [],
-      "comment": "Sound and announcer registration pass reached from CG_Init after the retail loading string switches to \"sounds\"."
+      "comment": "Sound and announcer registration pass reached from CG_Init after the retail loading string switches to \"sounds\"; HLIL preserves the global impact-sound run including `sound/weapons/grapple/grhit.ogg`, which feeds the grappling-hook case in `CG_MissileHitWall`."
     },
     {
       "address": "0x10022F40",
@@ -3415,7 +3415,7 @@
       "signature": "static void CG_RegisterGraphics(void)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Graphics and media registration pass reached from CG_Init after the retail loading string switches to \"graphics\"; source wiring now mirrors the recovered teammate-POI `gfx/2d/health_segment.tga` handle, the gametype-gated `gfx/2d/powerup/*` POI bank, the exposed dropped-marker subset of the retail `gfx/2d/flag_status/*` bank, the FFA-only Quad Hog marker, score-arrow media (`ui/assets/score/arrowg.tga`, `arrowr.tga`, `ca_arrow_red.tga`, `ca_arrow_blue.tga`), plus the race HUD cluster including gfx/misc/racenav.jpg and gfx/2d/race/cmd_* handles."
+      "comment": "Graphics and media registration pass reached from CG_Init after the retail loading string switches to \"graphics\"; source wiring now mirrors the recovered teammate-POI `gfx/2d/health_segment.tga` handle, the gametype-gated `gfx/2d/powerup/*` POI bank, the exposed dropped-marker subset of the retail `gfx/2d/flag_status/*` bank, the FFA-only Quad Hog marker, score-arrow media (`ui/assets/score/arrowg.tga`, `arrowr.tga`, `ca_arrow_red.tga`, `ca_arrow_blue.tga`), the grapple-impact `gfx/damage/cracked_mrk` handle, plus the race HUD cluster including gfx/misc/racenav.jpg and gfx/2d/race/cmd_* handles."
     },
     {
       "address": "0x10025260",
@@ -6628,7 +6628,7 @@
         "0x100723CC"
       ],
       "relocation_refs": [],
-      "comment": "Weapon-media registration path anchored by the retail Couldn't find weapon %i diagnostic; the body resolves the weapon info table entry and registers the same model, icon, and effect media family as src/code/cgame/cg_weapons.c::CG_RegisterWeapon."
+      "comment": "Weapon-media registration path anchored by the retail Couldn't find weapon %i diagnostic; the body resolves the weapon info table entry, registers the weapon model/icon family, keeps the ammo-pickup model in the later HUD ammoModel slot, and separately registers the grappling-hook `_ammo.md3` tag child in the pre-midpoint weapon child slot."
     },
     {
       "address": "0x10051770",
@@ -6828,7 +6828,7 @@
       "signature": "void CG_MissileHitWall(int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType)",
       "string_refs": [],
       "relocation_refs": [],
-      "comment": "Weapon-impact wall helper selected by EV_MISSILE_MISS, EV_MISSILE_MISS_METAL, rail impacts, and local bullet traces; the switch matches `cg_weapons.c::CG_MissileHitWall`, including explosion model, sound, light, and mark selection."
+      "comment": "Weapon-impact wall helper selected by EV_MISSILE_MISS, EV_MISSILE_MISS_METAL, rail impacts, and local bullet traces; the switch matches `cg_weapons.c::CG_MissileHitWall`, including explosion model, sound, light, mark selection, and the retail grappling-hook branch that uses `sound/weapons/grapple/grhit.ogg` with `gfx/damage/cracked_mrk`."
     },
     {
       "address": "0x10054CC0",

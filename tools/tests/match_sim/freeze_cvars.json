@@ -86,10 +86,10 @@
       },
       "script": [
         {"time": 0.0, "action": "request_spawn", "params": {"warmup": false}},
-        {"time": 4.0, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": true}},
-        {"time": 4.5, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": true}},
-        {"time": 5.0, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": false}},
-        {"time": 5.5, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": false}}
+        {"time": 4.0, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": true, "duration": 1.0}},
+        {"time": 4.5, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": true, "duration": 1.0}},
+        {"time": 5.0, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": false, "duration": 1.0}},
+        {"time": 5.5, "action": "assist_thaw", "params": {"target": "ember", "line_of_sight": false, "duration": 1.0}}
       ]
     },
     {

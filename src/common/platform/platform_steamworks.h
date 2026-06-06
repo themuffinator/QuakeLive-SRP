@@ -59,6 +59,8 @@ typedef struct {
 #define QL_STEAM_SERVER_LENGTH 128
 #define QL_STEAM_PASSWORD_LENGTH 128
 #define QL_STEAM_LOBBY_MESSAGE_LENGTH 256
+#define QL_STEAM_APPID_PUBLIC_RETAIL 282440u
+#define QL_STEAM_APPID_REFERENCE_RETAIL 0x54100u
 #define QL_STEAM_GAMESERVER_DEFAULT_VERSION QL_RETAIL_VERSION
 #define QL_STEAM_SERVER_BROWSER_GAME_DIR_LENGTH 32
 #define QL_STEAM_SERVER_BROWSER_MAP_LENGTH 32
@@ -338,6 +340,16 @@ typedef struct {
 } ql_steam_server_disconnected_t;
 
 typedef struct {
+	int result;
+	CSteamID steamId;
+} ql_steam_gs_stats_received_t;
+
+typedef struct {
+	int result;
+	CSteamID steamId;
+} ql_steam_gs_stats_stored_t;
+
+typedef struct {
 	CSteamID steamId;
 	CSteamID ownerSteamId;
 	EAuthSessionResponse authSessionResponse;
@@ -389,6 +401,8 @@ typedef struct {
 	void (*onServersDisconnected)( void *context, const ql_steam_server_disconnected_t *event );
 	void (*onValidateAuthTicketResponse)( void *context, const ql_steam_validate_auth_ticket_response_t *event );
 	void (*onP2PSessionRequest)( void *context, const ql_steam_p2p_session_request_t *event );
+	void (*onGSStatsReceived)( void *context, const ql_steam_gs_stats_received_t *event );
+	void (*onGSStatsStored)( void *context, const ql_steam_gs_stats_stored_t *event );
 } ql_steam_server_callback_bindings_t;
 
 #if QL_BUILD_STEAMWORKS
@@ -510,6 +524,8 @@ qboolean QL_Steamworks_ServerIsP2PPacketAvailable( uint32_t *outSize, int channe
 
 qboolean QL_Steamworks_ServerReadP2PPacket( void *data, uint32_t dataSize, uint32_t *outSize, CSteamID *outSteamId, int channel );
 
+qboolean QL_Steamworks_ServerHandleIncomingPacket( const void *data, int dataSize, uint32_t ip, uint16_t port );
+
 int QL_Steamworks_ServerGetNextOutgoingPacket( void *data, int dataSize, uint32_t *outIp, uint16_t *outPort );
 
 qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId );
@@ -552,6 +568,8 @@ qboolean QL_Steamworks_SetRichPresence( const char *key, const char *value );
 
 qboolean QL_Steamworks_CreateLobby( int maxMembers );
 
+qboolean QL_Steamworks_SetFavoriteServerForApp( uint32_t serverIp, uint16_t serverPort, uint32_t appId, qboolean add );
+
 qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add );
 
 qboolean QL_Steamworks_LeaveLobby( uint32_t idLow, uint32_t idHigh );
@@ -588,6 +606,8 @@ qboolean QL_Steamworks_RequestUserStats( uint32_t idLow, uint32_t idHigh );
 
 qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t idHigh, const char *name, int *outValue );
 
+qboolean QL_Steamworks_GetUserStatFloat( uint32_t idLow, uint32_t idHigh, const char *name, float *outValue );
+
 qboolean QL_Steamworks_GetUserAchievement( uint32_t idLow, uint32_t idHigh, const char *name, qboolean *outAchieved, int *outUnlockTime );
 
 const char *QL_Steamworks_GetAchievementDisplayAttribute( const char *name, const char *key );
@@ -606,15 +626,21 @@ void QL_Steamworks_InitServerBrowserOwner( ql_steam_server_browser_owner_t *owne
 
 qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, void *responseObject );
 
+qboolean QL_Steamworks_BeginServerBrowserOwnerRequestForApp( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, uint32_t appId, void *responseObject );
+
 qboolean QL_Steamworks_RefreshServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner );
 
 qboolean QL_Steamworks_CompleteServerBrowserOwnerRequest( ql_steam_server_browser_owner_t *owner );
 
 ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql_steam_server_browser_request_mode_t requestMode, void *responseObject );
 
+ql_steam_server_list_request_t QL_Steamworks_RequestServerListForApp( ql_steam_server_browser_request_mode_t requestMode, uint32_t appId, void *responseObject );
+
 const void *QL_Steamworks_GetServerListDetails( ql_steam_server_list_request_t request, int index );
 
 qboolean QL_Steamworks_ReadServerListDetails( ql_steam_server_list_request_t request, int index, ql_steam_server_item_t *outServer );
+
+qboolean QL_Steamworks_ReadServerListDetailsForApp( ql_steam_server_list_request_t request, int index, uint32_t appId, ql_steam_server_item_t *outServer );
 
 void QL_Steamworks_FormatServerBrowserResponseId( uint32_t serverIp, uint16_t serverPort, char *buffer, size_t bufferSize );
 
@@ -622,7 +648,11 @@ qboolean QL_Steamworks_BuildServerBrowserResponse( const ql_steam_server_item_t 
 
 qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_list_request_t request, int index, ql_steam_server_browser_response_t *outResponse );
 
+qboolean QL_Steamworks_ReadServerBrowserResponseForApp( ql_steam_server_list_request_t request, int index, uint32_t appId, ql_steam_server_browser_response_t *outResponse );
+
 qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse );
+
+qboolean QL_Steamworks_ReadServerBrowserPingResponseForApp( const void *serverDetails, uint32_t appId, ql_steam_server_browser_response_t *outResponse );
 
 void QL_Steamworks_FormatServerBrowserFailureEventName( int serverIndex, char *buffer, size_t bufferSize );
 
@@ -662,13 +692,23 @@ qboolean QL_Steamworks_RequestServerDetails( uint32_t serverIp, uint16_t serverP
 
 void QL_Steamworks_CancelServerQuery( ql_steam_server_query_t query );
 
+uint32_t QL_Steamworks_ServerGetAppID( void );
+
+qboolean QL_Steamworks_ServerIsLoggedOn( void );
+
 qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId );
 
 qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char *name, int *outValue );
 
+qboolean QL_Steamworks_ServerGetUserStatFloat( const CSteamID *steamId, const char *name, float *outValue );
+
 qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const char *name, qboolean *outAchieved );
 
 qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char *name, int value );
+
+qboolean QL_Steamworks_ServerSetUserStatFloat( const CSteamID *steamId, const char *name, float value );
+
+qboolean QL_Steamworks_ServerUpdateAvgRateStat( const CSteamID *steamId, const char *name, float countThisSession, double sessionLength );
 
 qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const char *name );
 
@@ -1283,6 +1323,19 @@ static inline qboolean QL_Steamworks_ServerReadP2PPacket( void *data, uint32_t d
 
 /*
 =============
+QL_Steamworks_ServerHandleIncomingPacket
+=============
+*/
+static inline qboolean QL_Steamworks_ServerHandleIncomingPacket( const void *data, int dataSize, uint32_t ip, uint16_t port ) {
+	(void)data;
+	(void)dataSize;
+	(void)ip;
+	(void)port;
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_ServerGetNextOutgoingPacket
 =============
 */
@@ -1504,6 +1557,19 @@ QL_Steamworks_CreateLobby
 */
 static inline qboolean QL_Steamworks_CreateLobby( int maxMembers ) {
 	(void)maxMembers;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_SetFavoriteServerForApp
+=============
+*/
+static inline qboolean QL_Steamworks_SetFavoriteServerForApp( uint32_t serverIp, uint16_t serverPort, uint32_t appId, qboolean add ) {
+	(void)serverIp;
+	(void)serverPort;
+	(void)appId;
+	(void)add;
 	return qfalse;
 }
 
@@ -1743,6 +1809,21 @@ static inline qboolean QL_Steamworks_GetUserStatInt( uint32_t idLow, uint32_t id
 
 /*
 =============
+QL_Steamworks_GetUserStatFloat
+=============
+*/
+static inline qboolean QL_Steamworks_GetUserStatFloat( uint32_t idLow, uint32_t idHigh, const char *name, float *outValue ) {
+	(void)idLow;
+	(void)idHigh;
+	(void)name;
+	if ( outValue ) {
+		*outValue = 0.0f;
+	}
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_GetUserAchievement
 =============
 */
@@ -1855,6 +1936,22 @@ static inline qboolean QL_Steamworks_BeginServerBrowserOwnerRequest( ql_steam_se
 
 /*
 =============
+QL_Steamworks_BeginServerBrowserOwnerRequestForApp
+=============
+*/
+static inline qboolean QL_Steamworks_BeginServerBrowserOwnerRequestForApp( ql_steam_server_browser_owner_t *owner, ql_steam_server_browser_request_mode_t requestMode, uint32_t appId, void *responseObject ) {
+	(void)requestMode;
+	(void)appId;
+	(void)responseObject;
+	if ( owner ) {
+		owner->refreshActive = qfalse;
+		owner->request = NULL;
+	}
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_RefreshServerBrowserOwnerRequest
 =============
 */
@@ -1888,6 +1985,18 @@ static inline ql_steam_server_list_request_t QL_Steamworks_RequestServerList( ql
 
 /*
 =============
+QL_Steamworks_RequestServerListForApp
+=============
+*/
+static inline ql_steam_server_list_request_t QL_Steamworks_RequestServerListForApp( ql_steam_server_browser_request_mode_t requestMode, uint32_t appId, void *responseObject ) {
+	(void)requestMode;
+	(void)appId;
+	(void)responseObject;
+	return NULL;
+}
+
+/*
+=============
 QL_Steamworks_GetServerListDetails
 =============
 */
@@ -1905,6 +2014,21 @@ QL_Steamworks_ReadServerListDetails
 static inline qboolean QL_Steamworks_ReadServerListDetails( ql_steam_server_list_request_t request, int index, ql_steam_server_item_t *outServer ) {
 	(void)request;
 	(void)index;
+	if ( outServer ) {
+		memset( outServer, 0, sizeof( *outServer ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerListDetailsForApp
+=============
+*/
+static inline qboolean QL_Steamworks_ReadServerListDetailsForApp( ql_steam_server_list_request_t request, int index, uint32_t appId, ql_steam_server_item_t *outServer ) {
+	(void)request;
+	(void)index;
+	(void)appId;
 	if ( outServer ) {
 		memset( outServer, 0, sizeof( *outServer ) );
 	}
@@ -1953,11 +2077,40 @@ static inline qboolean QL_Steamworks_ReadServerBrowserResponse( ql_steam_server_
 
 /*
 =============
+QL_Steamworks_ReadServerBrowserResponseForApp
+=============
+*/
+static inline qboolean QL_Steamworks_ReadServerBrowserResponseForApp( ql_steam_server_list_request_t request, int index, uint32_t appId, ql_steam_server_browser_response_t *outResponse ) {
+	(void)request;
+	(void)index;
+	(void)appId;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_ReadServerBrowserPingResponse
 =============
 */
 static inline qboolean QL_Steamworks_ReadServerBrowserPingResponse( const void *serverDetails, ql_steam_server_browser_response_t *outResponse ) {
 	(void)serverDetails;
+	if ( outResponse ) {
+		memset( outResponse, 0, sizeof( *outResponse ) );
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ReadServerBrowserPingResponseForApp
+=============
+*/
+static inline qboolean QL_Steamworks_ReadServerBrowserPingResponseForApp( const void *serverDetails, uint32_t appId, ql_steam_server_browser_response_t *outResponse ) {
+	(void)serverDetails;
+	(void)appId;
 	if ( outResponse ) {
 		memset( outResponse, 0, sizeof( *outResponse ) );
 	}
@@ -2224,6 +2377,24 @@ static inline void QL_Steamworks_CancelServerQuery( ql_steam_server_query_t quer
 
 /*
 =============
+QL_Steamworks_ServerGetAppID
+=============
+*/
+static inline uint32_t QL_Steamworks_ServerGetAppID( void ) {
+	return 0u;
+}
+
+/*
+=============
+QL_Steamworks_ServerIsLoggedOn
+=============
+*/
+static inline qboolean QL_Steamworks_ServerIsLoggedOn( void ) {
+	return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_ServerRequestUserStats
 =============
 */
@@ -2242,6 +2413,20 @@ static inline qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steam
 	(void)name;
 	if ( outValue ) {
 		*outValue = 0;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerGetUserStatFloat
+=============
+*/
+static inline qboolean QL_Steamworks_ServerGetUserStatFloat( const CSteamID *steamId, const char *name, float *outValue ) {
+	(void)steamId;
+	(void)name;
+	if ( outValue ) {
+		*outValue = 0.0f;
 	}
 	return qfalse;
 }
@@ -2269,6 +2454,31 @@ static inline qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steam
 	(void)steamId;
 	(void)name;
 	(void)value;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerSetUserStatFloat
+=============
+*/
+static inline qboolean QL_Steamworks_ServerSetUserStatFloat( const CSteamID *steamId, const char *name, float value ) {
+	(void)steamId;
+	(void)name;
+	(void)value;
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerUpdateAvgRateStat
+=============
+*/
+static inline qboolean QL_Steamworks_ServerUpdateAvgRateStat( const CSteamID *steamId, const char *name, float countThisSession, double sessionLength ) {
+	(void)steamId;
+	(void)name;
+	(void)countThisSession;
+	(void)sessionLength;
 	return qfalse;
 }
 

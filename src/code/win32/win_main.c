@@ -52,6 +52,8 @@ static LPTOP_LEVEL_EXCEPTION_FILTER	sys_previousExceptionFilter;
 static HHOOK	sys_winkeyHook;
 static cvar_t	*sys_winkeyDisable;
 
+#define SYS_CRASH_DIALOG_TITLE	QL_PRODUCT_NAME " Debug Crash"
+
 #ifndef DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
 #define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2	((HANDLE)-4)
 #endif
@@ -1556,6 +1558,83 @@ static void Sys_WriteCrashLog( HANDLE logFile, const char *dumpName, MINIDUMP_TY
 	Sys_WriteCrashModuleList( logFile );
 }
 
+#ifdef _DEBUG
+/*
+==================
+Sys_DebugCrashReportConfirmed
+==================
+*/
+static qboolean Sys_DebugCrashReportConfirmed( const char *dumpName, const char *logName ) {
+	char message[4096];
+	int result;
+
+	Com_sprintf( message, sizeof( message ),
+		QL_PRODUCT_NAME " debug build detected an unhandled exception.\n\n"
+		"Create a memory dump and crash log?\n\n"
+		"Dump: %s\n"
+		"Log: %s",
+		dumpName, logName );
+
+	result = MessageBoxA( NULL, message, SYS_CRASH_DIALOG_TITLE,
+		MB_ICONERROR | MB_YESNO | MB_DEFBUTTON1 | MB_TASKMODAL | MB_SETFOREGROUND );
+
+	return (qboolean)( result == IDYES );
+}
+
+/*
+==================
+Sys_ShowDebugCrashReportResult
+==================
+*/
+static void Sys_ShowDebugCrashReportResult( qboolean dumpWritten, qboolean logWritten,
+	const char *dumpName, const char *logName, DWORD dumpError ) {
+	char message[4096];
+
+	if ( dumpWritten && logWritten ) {
+		Com_sprintf( message, sizeof( message ),
+			"Crash dump and crash log written.\n\n"
+			"Dump: %s\n"
+			"Log: %s",
+			dumpName, logName );
+		MessageBoxA( NULL, message, SYS_CRASH_DIALOG_TITLE,
+			MB_ICONERROR | MB_OK | MB_TASKMODAL | MB_SETFOREGROUND );
+		return;
+	}
+
+	if ( dumpWritten ) {
+		Com_sprintf( message, sizeof( message ),
+			"Crash dump written, but crash log creation failed.\n\n"
+			"Dump: %s\n"
+			"Log: %s",
+			dumpName, logName );
+		MessageBoxA( NULL, message, SYS_CRASH_DIALOG_TITLE,
+			MB_ICONERROR | MB_OK | MB_TASKMODAL | MB_SETFOREGROUND );
+		return;
+	}
+
+	if ( logWritten ) {
+		Com_sprintf( message, sizeof( message ),
+			"Crash log written, but memory dump creation failed.\n\n"
+			"Dump: %s\n"
+			"Log: %s\n"
+			"GetLastError: %lu",
+			dumpName, logName, dumpError );
+		MessageBoxA( NULL, message, SYS_CRASH_DIALOG_TITLE,
+			MB_ICONERROR | MB_OK | MB_TASKMODAL | MB_SETFOREGROUND );
+		return;
+	}
+
+	Com_sprintf( message, sizeof( message ),
+		"Crash report creation failed.\n\n"
+		"Dump: %s\n"
+		"Log: %s\n"
+		"GetLastError: %lu",
+		dumpName, logName, dumpError );
+	MessageBoxA( NULL, message, SYS_CRASH_DIALOG_TITLE,
+		MB_ICONERROR | MB_OK | MB_TASKMODAL | MB_SETFOREGROUND );
+}
+#endif
+
 /*
 ==================
 Sys_UnhandledExceptionFilter
@@ -1570,9 +1649,14 @@ static LONG WINAPI Sys_UnhandledExceptionFilter( EXCEPTION_POINTERS *exceptionIn
 	char crashBaseName[MAX_OSPATH];
 	char dumpName[MAX_OSPATH];
 	char logName[MAX_OSPATH];
+#ifdef _DEBUG
+	qboolean logWritten;
+#endif
 	BOOL dumpWritten;
 	DWORD dumpError;
+#ifndef _DEBUG
 	LONG previousAction;
+#endif
 
 	if ( !sys_dumpPath[0] ) {
 		return EXCEPTION_CONTINUE_SEARCH;
@@ -1593,16 +1677,34 @@ static LONG WINAPI Sys_UnhandledExceptionFilter( EXCEPTION_POINTERS *exceptionIn
 
 	dumpType = Sys_GetCrashDumpType();
 
+#ifdef _DEBUG
+	if ( IsDebuggerPresent() ) {
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+
+	if ( !Sys_DebugCrashReportConfirmed( dumpName, logName ) ) {
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+#endif
+
 	logFile = CreateFileA( logName, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+#ifdef _DEBUG
+	logWritten = (qboolean)( logFile != INVALID_HANDLE_VALUE );
+#endif
 	Sys_WriteCrashLog( logFile, dumpName, dumpType, exceptionInfo );
 
 	dumpFile = CreateFileA( dumpName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 	if ( dumpFile == INVALID_HANDLE_VALUE ) {
+		dumpError = GetLastError();
 		Sys_WriteCrashLogf( logFile, "\r\nMiniDumpWriteDump: failed to create dump file (GetLastError=%lu)\r\n",
-			GetLastError() );
+			dumpError );
 		if ( logFile != INVALID_HANDLE_VALUE ) {
 			CloseHandle( logFile );
 		}
+#ifdef _DEBUG
+		Sys_ShowDebugCrashReportResult( qfalse, logWritten, dumpName, logName, dumpError );
+		return EXCEPTION_EXECUTE_HANDLER;
+#else
 		if ( sys_previousExceptionFilter ) {
 			previousAction = sys_previousExceptionFilter( exceptionInfo );
 			if ( previousAction != EXCEPTION_CONTINUE_SEARCH ) {
@@ -1610,6 +1712,7 @@ static LONG WINAPI Sys_UnhandledExceptionFilter( EXCEPTION_POINTERS *exceptionIn
 			}
 		}
 		return EXCEPTION_CONTINUE_SEARCH;
+#endif
 	}
 
 	dumpInfo.ThreadId = GetCurrentThreadId();
@@ -1629,6 +1732,10 @@ static LONG WINAPI Sys_UnhandledExceptionFilter( EXCEPTION_POINTERS *exceptionIn
 		CloseHandle( logFile );
 	}
 
+#ifdef _DEBUG
+	Sys_ShowDebugCrashReportResult( (qboolean)dumpWritten, logWritten, dumpName, logName, dumpError );
+	return EXCEPTION_EXECUTE_HANDLER;
+#else
 	if ( sys_previousExceptionFilter ) {
 		previousAction = sys_previousExceptionFilter( exceptionInfo );
 		if ( previousAction != EXCEPTION_CONTINUE_SEARCH ) {
@@ -1637,6 +1744,7 @@ static LONG WINAPI Sys_UnhandledExceptionFilter( EXCEPTION_POINTERS *exceptionIn
 	}
 
 	return EXCEPTION_CONTINUE_SEARCH;
+#endif
 }
 
 /*

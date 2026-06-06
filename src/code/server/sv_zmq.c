@@ -87,6 +87,9 @@ typedef struct zmqRconPeer_s {
 	int						identityLength;
 	char					identity[QL_ZMQ_MAX_IDENTITY];
 	char					label[QL_ZMQ_MAX_IDENTITY];
+	struct zmqRconPeer_s	*left;
+	struct zmqRconPeer_s	*right;
+	struct zmqRconPeer_s	*parent;
 	struct zmqRconPeer_s	*prev;
 	struct zmqRconPeer_s	*next;
 } zmqRconPeer_t;
@@ -99,6 +102,9 @@ typedef struct {
 	void					*rconSocket;
 	fileHandle_t			statsTranscript;
 	zmqRconPeer_t			*rconPeers;
+	zmqRconPeer_t			*rconPeerRoot;
+	zmqRconPeer_t			*rconPeerLast;
+	int						rconPeerCount;
 	char					statsEndpoint[QL_ZMQ_ENDPOINT_MAX];
 	char					rconEndpoint[QL_ZMQ_ENDPOINT_MAX];
 	char					statsPassword[MAX_STRING_CHARS];
@@ -418,14 +424,55 @@ idZMQ_FindRconPeer
 */
 static zmqRconPeer_t *idZMQ_FindRconPeer( const char *identity ) {
 	zmqRconPeer_t *peer;
+	int compare;
 
-	for ( peer = s_zmq.rconPeers; peer; peer = peer->next ) {
-		if ( !Q_stricmp( peer->identity, identity ) ) {
+	if ( !identity || !identity[0] ) {
+		return NULL;
+	}
+
+	for ( peer = s_zmq.rconPeerRoot; peer; ) {
+		compare = strcmp( identity, peer->identity );
+		if ( compare == 0 ) {
 			return peer;
 		}
+		peer = ( compare < 0 ) ? peer->left : peer->right;
 	}
 
 	return NULL;
+}
+
+/*
+==================
+idZMQ_LeftmostRconPeer
+==================
+*/
+static zmqRconPeer_t *idZMQ_LeftmostRconPeer( zmqRconPeer_t *peer ) {
+	while ( peer && peer->left ) {
+		peer = peer->left;
+	}
+
+	return peer;
+}
+
+/*
+==================
+idZMQ_LinkRconPeerInOrder
+==================
+*/
+static void idZMQ_LinkRconPeerInOrder( zmqRconPeer_t *peer, zmqRconPeer_t *previous, zmqRconPeer_t *next ) {
+	peer->prev = previous;
+	peer->next = next;
+
+	if ( previous ) {
+		previous->next = peer;
+	} else {
+		s_zmq.rconPeers = peer;
+	}
+	if ( next ) {
+		next->prev = peer;
+	} else {
+		s_zmq.rconPeerLast = peer;
+	}
 }
 
 /*
@@ -436,13 +483,32 @@ idZMQ_InsertRconPeer
 static zmqRconPeer_t *idZMQ_InsertRconPeer( const char *identity ) {
 	zmqRconPeer_t *peer;
 	zmqRconPeer_t *cursor;
-	zmqRconPeer_t *previous;
+	zmqRconPeer_t *parent;
+	zmqRconPeer_t *previousPeer;
+	zmqRconPeer_t *nextPeer;
+	int compare;
 
 	if ( !identity || !identity[0] ) {
 		return NULL;
 	}
-	if ( idZMQ_FindRconPeer( identity ) ) {
-		return NULL;
+
+	parent = NULL;
+	previousPeer = NULL;
+	nextPeer = NULL;
+	compare = 0;
+	for ( cursor = s_zmq.rconPeerRoot; cursor; ) {
+		parent = cursor;
+		compare = strcmp( identity, cursor->identity );
+		if ( compare == 0 ) {
+			return NULL;
+		}
+		if ( compare < 0 ) {
+			nextPeer = cursor;
+			cursor = cursor->left;
+		} else {
+			previousPeer = cursor;
+			cursor = cursor->right;
+		}
 	}
 
 	peer = Z_Malloc( sizeof( *peer ) );
@@ -450,27 +516,49 @@ static zmqRconPeer_t *idZMQ_InsertRconPeer( const char *identity ) {
 	Q_strncpyz( peer->identity, identity, sizeof( peer->identity ) );
 	Q_strncpyz( peer->label, identity, sizeof( peer->label ) );
 	peer->identityLength = strlen( peer->identity );
+	peer->parent = parent;
 
-	previous = NULL;
-	for ( cursor = s_zmq.rconPeers; cursor; cursor = cursor->next ) {
-		if ( Q_stricmp( cursor->identity, peer->identity ) > 0 ) {
-			break;
+	if ( parent ) {
+		if ( compare < 0 ) {
+			parent->left = peer;
+			if ( !previousPeer ) {
+				previousPeer = parent->prev;
+			}
+			nextPeer = parent;
+		} else {
+			parent->right = peer;
+			previousPeer = parent;
+			if ( !nextPeer ) {
+				nextPeer = parent->next;
+			}
 		}
-		previous = cursor;
+	} else {
+		s_zmq.rconPeerRoot = peer;
 	}
 
-	peer->prev = previous;
-	peer->next = cursor;
-	if ( previous ) {
-		previous->next = peer;
-	} else {
-		s_zmq.rconPeers = peer;
-	}
-	if ( cursor ) {
-		cursor->prev = peer;
-	}
+	idZMQ_LinkRconPeerInOrder( peer, previousPeer, nextPeer );
+	s_zmq.rconPeerCount++;
 
 	return peer;
+}
+
+/*
+==================
+idZMQ_TransplantRconPeer
+==================
+*/
+static void idZMQ_TransplantRconPeer( zmqRconPeer_t *oldPeer, zmqRconPeer_t *newPeer ) {
+	if ( !oldPeer->parent ) {
+		s_zmq.rconPeerRoot = newPeer;
+	} else if ( oldPeer == oldPeer->parent->left ) {
+		oldPeer->parent->left = newPeer;
+	} else {
+		oldPeer->parent->right = newPeer;
+	}
+
+	if ( newPeer ) {
+		newPeer->parent = oldPeer->parent;
+	}
 }
 
 /*
@@ -479,6 +567,8 @@ idZMQ_EraseRconPeer
 ==================
 */
 static void idZMQ_EraseRconPeer( zmqRconPeer_t *peer ) {
+	zmqRconPeer_t *successor;
+
 	if ( !peer ) {
 		return;
 	}
@@ -490,8 +580,45 @@ static void idZMQ_EraseRconPeer( zmqRconPeer_t *peer ) {
 	}
 	if ( peer->next ) {
 		peer->next->prev = peer->prev;
+	} else {
+		s_zmq.rconPeerLast = peer->prev;
 	}
 
+	if ( !peer->left ) {
+		idZMQ_TransplantRconPeer( peer, peer->right );
+	} else if ( !peer->right ) {
+		idZMQ_TransplantRconPeer( peer, peer->left );
+	} else {
+		successor = idZMQ_LeftmostRconPeer( peer->right );
+		if ( successor->parent != peer ) {
+			idZMQ_TransplantRconPeer( successor, successor->right );
+			successor->right = peer->right;
+			successor->right->parent = successor;
+		}
+		idZMQ_TransplantRconPeer( peer, successor );
+		successor->left = peer->left;
+		successor->left->parent = successor;
+	}
+
+	if ( s_zmq.rconPeerCount > 0 ) {
+		s_zmq.rconPeerCount--;
+	}
+
+	Z_Free( peer );
+}
+
+/*
+==================
+idZMQ_FreeRconPeerSubtree
+==================
+*/
+static void idZMQ_FreeRconPeerSubtree( zmqRconPeer_t *peer ) {
+	if ( !peer ) {
+		return;
+	}
+
+	idZMQ_FreeRconPeerSubtree( peer->left );
+	idZMQ_FreeRconPeerSubtree( peer->right );
 	Z_Free( peer );
 }
 
@@ -501,15 +628,12 @@ idZMQ_ClearRconPeers
 ==================
 */
 static void idZMQ_ClearRconPeers( void ) {
-	zmqRconPeer_t *peer;
-	zmqRconPeer_t *next;
-
-	for ( peer = s_zmq.rconPeers; peer; peer = next ) {
-		next = peer->next;
-		Z_Free( peer );
-	}
+	idZMQ_FreeRconPeerSubtree( s_zmq.rconPeerRoot );
 
 	s_zmq.rconPeers = NULL;
+	s_zmq.rconPeerRoot = NULL;
+	s_zmq.rconPeerLast = NULL;
+	s_zmq.rconPeerCount = 0;
 }
 
 /*

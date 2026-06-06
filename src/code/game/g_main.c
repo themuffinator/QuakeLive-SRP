@@ -952,7 +952,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_freezeThawWinningTeam, "g_freezeThawWinningTeam", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Award thaw credit to the winning team before the next round when non-zero." },
 	{ &g_freezeThawThroughSurface, "g_freezeThawThroughSurface", "0", CVAR_GAMERULE, 0, qfalse, qfalse, "Allow thaw traces to pass through solid world geometry when enabled." },
 	{ &g_freezeThawTime, "g_freezeThawTime", "2000", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds teammates must remain nearby before a frozen player thaws." },
-	{ &g_freezeThawTick, "g_freezeThawTick", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Milliseconds added to thaw progress each time an ally stays in range." },
+	{ &g_freezeThawTick, "g_freezeThawTick", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Non-zero enables thaw-progress tick events while an ally stays in range." },
 	{ &g_freezeThawRadius, "g_freezeThawRadius", "96", CVAR_GAMERULE, 0, qfalse, qfalse, "Radius in units required for thaw assistance to register." },
 	{ &g_freezeRoundDelay, "g_freezeRoundDelay", "4000", CVAR_SERVERINFO | CVAR_GAMERULE, 0, qfalse, qfalse, "Delay in milliseconds between a freeze round ending and the next warmup." },
 	{ &g_freezeResetWeaponsOnRound, "g_freezeResetWeaponsOnRound", "1", CVAR_GAMERULE, 0, qfalse, qfalse, "Respawn players with the factory loadout each time a freeze round restarts." },
@@ -7773,7 +7773,6 @@ static void G_ApplyTimeoutPauseDeltaToClient( gclient_t *client, int msec, qbool
 	}
 
 	client->freezeTime = G_ShiftTimeoutAbsoluteTime( client->freezeTime, msec );
-	client->freezeNextThawTick = G_ShiftTimeoutAbsoluteTime( client->freezeNextThawTick, msec );
 	client->freezeAutoThawTime = G_ShiftTimeoutAbsoluteTime( client->freezeAutoThawTime, msec );
 	client->freezeEnvironmentalRespawnTime = G_ShiftTimeoutAbsoluteTime( client->freezeEnvironmentalRespawnTime, msec );
 	client->freezeProtectedUntil = G_ShiftTimeoutAbsoluteTime( client->freezeProtectedUntil, msec );

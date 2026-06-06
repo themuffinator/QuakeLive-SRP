@@ -612,7 +612,8 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 
 	assert "if ( CL_CopyClientIdentity( clientNum, &identity ) ) {" in get_steam_id_block
 	assert "offset = cl.gameState.stringOffsets[CS_PLAYERS + clientNum];" in get_steam_id_block
-	assert 'steamId = Info_ValueForKey( info, "steamid" );' in get_steam_id_block
+	assert "steamId = Info_ValueForKey( info, PLAYER_INFO_KEY_STEAMID );" in get_steam_id_block
+	assert "steamId = Info_ValueForKey( info, PLAYER_INFO_KEY_STEAMID_LEGACY );" in get_steam_id_block
 
 	assert 'if ( !Q_stricmp( commandName, "clientviewprofile" ) ) {' in overlay_block
 	assert 'dialog = "steamid";' in overlay_block

@@ -697,6 +697,7 @@ GibEntity
 */
 void GibEntity( gentity_t *self ) {
 	gentity_t *ent;
+	gentity_t *tent;
 	int i;
 	vec3_t dir;
 
@@ -721,6 +722,14 @@ void GibEntity( gentity_t *self ) {
 	} else {
 		VectorSet( dir, 0, 0, -1 );
 		G_AddEvent( self, EV_GIB_PLAYER, DirToByte( dir ) );
+	}
+
+	if ( self->client && G_FreezeGametypeEnabled() && self->client->ps.powerups[PW_NUM_POWERUPS] ) {
+		tent = G_TempEntity( self->client->ps.origin, EV_THAW_PLAYER );
+		tent->s.otherEntityNum = self->s.number;
+		self->client->ps.pm_type = PM_NORMAL;
+		ClientSpawn( self );
+		return;
 	}
 
 	self->takedamage = qfalse;

@@ -85,6 +85,97 @@ qboolean G_FreezeCanSeeThawProgressEvent( int clientNum, int entNum ) {
 
 /*
 ============
+G_FreezeSetClientFrozenPowerupMarker
+
+Mirrors the retail synthetic frozen-player marker through ps and entitystate powerups.
+============
+*/
+static void G_FreezeSetClientFrozenPowerupMarker( gentity_t *ent, qboolean frozen ) {
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( frozen ) {
+		ent->client->ps.powerups[PW_NUM_POWERUPS] = INT_MAX;
+		ent->s.powerups = ( 1 << PW_NUM_POWERUPS );
+	}
+	else {
+		ent->client->ps.powerups[PW_NUM_POWERUPS] = 0;
+		ent->s.powerups &= ~( 1 << PW_NUM_POWERUPS );
+	}
+}
+
+/*
+============
+G_FreezeEmitThawCompletionEvents
+
+Publishes the retail assisted-thaw obituary and global team sound.
+============
+*/
+static void G_FreezeEmitThawCompletionEvents( gentity_t *ent, int helperNum ) {
+	gclient_t			*client;
+	gentity_t			*tent;
+	global_team_sound_t	sound;
+	int					thawerNum;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	client = ent->client;
+	thawerNum = ENTITYNUM_WORLD;
+	if ( helperNum >= 0 && helperNum < level.maxclients ) {
+		if ( g_entities[helperNum].inuse && g_entities[helperNum].client ) {
+			thawerNum = helperNum;
+		}
+	}
+
+	tent = G_TempEntity( ent->r.currentOrigin, EV_OBITUARY );
+	tent->s.eventParm = MOD_THAW;
+	tent->s.otherEntityNum = ent->s.number;
+	tent->s.otherEntityNum2 = thawerNum;
+	tent->r.svFlags = SVF_BROADCAST;
+
+	sound = ( client->sess.sessionTeam == TEAM_BLUE ) ? GTS_RED_RETURN : GTS_BLUE_RETURN;
+	G_BroadcastGlobalTeamSound( ent->s.pos.trBase, sound, -1, TEAM_FREE, 0 );
+}
+
+/*
+============
+G_FreezeAwardThawAssist
+
+Credits the helper who completed a teammate thaw.
+============
+*/
+static void G_FreezeAwardThawAssist( gentity_t *ent, int helperNum ) {
+	gclient_t	*client;
+	gentity_t	*helper;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	if ( helperNum < 0 || helperNum >= level.maxclients ) {
+		return;
+	}
+
+	helper = &g_entities[helperNum];
+	if ( !helper || !helper->client ) {
+		return;
+	}
+
+	client = ent->client;
+	AddScore( helper, ent->r.currentOrigin, 1 );
+	trap_SendServerCommand( -1, va( "cp \"%s thawed %s!\"\n", helper->client->pers.netname, client->pers.netname ) );
+	helper->client->ps.persistant[PERS_ASSIST_COUNT]++;
+	helper->client->ps.eFlags &= ~( EF_AWARD_IMPRESSIVE | EF_AWARD_EXCELLENT | EF_AWARD_GAUNTLET | EF_AWARD_ASSIST | EF_AWARD_DEFEND | EF_AWARD_CAP );
+	helper->client->ps.eFlags |= EF_AWARD_ASSIST;
+	helper->client->rewardTime = level.time + REWARD_SPRITE_TIME;
+	G_RankSendPlayerMedal( helper, "ASSIST" );
+}
+
+/*
+============
 G_FreezeInitClient
 
 Initializes client state for Freeze Tag at the start of a round or upon connecting.
@@ -97,11 +188,13 @@ void G_FreezeInitClient( gentity_t *ent ) {
 
 	ent->client->freezeFrozen = qfalse;
 	ent->client->freezeTime = 0;
-	ent->client->freezeAccumulatedThaw = 0;
+	ent->client->freezeThawHelperActive = qfalse;
+	ent->client->freezeThawTimeRemaining = 0;
 	ent->client->freezeLastHelper = -1;
-	ent->client->freezeNextThawTick = 0;
 	ent->client->freezeAutoThawTime = 0;
+	ent->client->freezeEnvironmentalRespawnTime = 0;
 	ent->client->freezeProtectedUntil = 0;
+	G_FreezeSetClientFrozenPowerupMarker( ent, qfalse );
 
 	if ( ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
 		ent->client->ps.pm_type = PM_NORMAL;
@@ -117,9 +210,10 @@ Shared retail-style Freeze state mutator spanning the frozen and thawed paths.
 */
 static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qboolean environmental, qboolean wasAuto, int helperNum ) {
 	gclient_t	*client;
-	int			thawTick;
+	int			thawTime;
 	int			protectTime;
 	gentity_t	*tent;
+	qboolean	thawThroughRespawn;
 
 	if ( !ent || !ent->client ) {
 		return;
@@ -133,14 +227,13 @@ static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qbool
 
 		client->freezeFrozen = qtrue;
 		client->freezeTime = level.time;
-		client->freezeAccumulatedThaw = 0;
-		client->freezeLastHelper = -1;
-
-		thawTick = level.freezeConfig.thawTick;
-		if ( thawTick <= 0 ) {
-			thawTick = 100;
+		client->freezeThawHelperActive = qfalse;
+		thawTime = level.freezeConfig.thawTime;
+		if ( thawTime <= 0 ) {
+			thawTime = 2000;
 		}
-		client->freezeNextThawTick = level.time + thawTick;
+		client->freezeThawTimeRemaining = thawTime;
+		client->freezeLastHelper = -1;
 
 		client->freezeAutoThawTime = 0;
 		if ( level.freezeConfig.autoThawTime > 0 ) {
@@ -152,8 +245,10 @@ static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qbool
 			client->freezeEnvironmentalRespawnTime = level.time + level.freezeConfig.environmentalRespawnDelay;
 		}
 
+		G_FreezeSetClientFrozenPowerupMarker( ent, qtrue );
 		client->freezeProtectedUntil = 0;
 		client->ps.pm_type = PM_FREEZE;
+		client->ps.eFlags &= ~( EF_DEAD | EF_TICKING );
 		ent->takedamage = qfalse;
 		ent->health = 1;
 		client->ps.stats[STAT_HEALTH] = 1;
@@ -166,17 +261,28 @@ static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qbool
 
 	client->freezeFrozen = qfalse;
 	client->freezeTime = 0;
-	client->freezeAccumulatedThaw = 0;
-	client->freezeNextThawTick = 0;
+	client->freezeThawHelperActive = qfalse;
+	client->freezeThawTimeRemaining = 0;
 	client->freezeLastHelper = -1;
 	client->freezeAutoThawTime = 0;
 	client->freezeEnvironmentalRespawnTime = 0;
+	thawThroughRespawn = ( client->ps.powerups[PW_NUM_POWERUPS] != 0 ) ? qtrue : qfalse;
 	client->ps.pm_type = PM_NORMAL;
+	client->ps.eFlags &= ~( EF_DEAD | EF_TICKING );
 	ent->takedamage = qtrue;
 
-	// Reset health/armor to spawn defaults or specific thaw values?
-	// QL usually resets them or keeps what they had?
-	// Usually they respawn with default health/armor.
+	if ( !wasAuto ) {
+		G_FreezeEmitThawCompletionEvents( ent, helperNum );
+		G_FreezeAwardThawAssist( ent, helperNum );
+	}
+
+	if ( thawThroughRespawn ) {
+		GibEntity( ent );
+		return;
+	}
+
+	G_FreezeSetClientFrozenPowerupMarker( ent, qfalse );
+
 	ent->health = client->ps.stats[STAT_MAX_HEALTH];
 	client->ps.stats[STAT_HEALTH] = ent->health;
 	client->ps.stats[STAT_ARMOR] = g_factoryCvarConfig.startingArmor;
@@ -193,24 +299,10 @@ static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qbool
 	}
 	client->holdableInvulnerabilityTime = 0;
 
-	// Effect
 	tent = G_TempEntity( client->ps.origin, EV_THAW_PLAYER );
 	tent->s.otherEntityNum = ent->s.number;
 
-	// Sound
 	G_Sound( ent, CHAN_AUTO, G_SoundIndex( "sound/items/respawn1.wav" ) );
-
-	if ( wasAuto ) {
-		// Auto-thaw logic (e.g. round end or sudden death)
-	} else if ( helperNum >= 0 && helperNum < level.maxclients ) {
-		gentity_t *helper = &g_entities[helperNum];
-		if ( helper && helper->client ) {
-			AddScore( helper, ent->r.currentOrigin, 1 ); // Score for thawing
-			trap_SendServerCommand( -1, va( "cp \"%s thawed %s!\"\n", helper->client->pers.netname, client->pers.netname ) );
-			helper->client->ps.persistant[PERS_ASSIST_COUNT]++;
-			G_RankSendPlayerMedal( helper, "ASSISTS" );
-		}
-	}
 }
 
 /*
@@ -226,6 +318,64 @@ void G_FreezeThawClient( gentity_t *ent, qboolean wasAuto, int helperNum ) {
 
 /*
 ============
+G_FreezeClientCanHelpThaw
+
+Returns qtrue when helper is a live same-team client inside the thaw envelope.
+============
+*/
+static qboolean G_FreezeClientCanHelpThaw( gentity_t *ent, gentity_t *helper, float thawRadius, float *distSqOut ) {
+	vec3_t		delta;
+	float		distSq;
+
+	if ( distSqOut ) {
+		*distSqOut = 0.0f;
+	}
+
+	if ( !ent || !ent->client || !ent->client->freezeFrozen ) {
+		return qfalse;
+	}
+	if ( !helper || !helper->inuse || !helper->client ) {
+		return qfalse;
+	}
+	if ( helper == ent ) {
+		return qfalse;
+	}
+	if ( helper->client->pers.connected != CON_CONNECTED ) {
+		return qfalse;
+	}
+	if ( helper->client->sess.sessionTeam != ent->client->sess.sessionTeam ) {
+		return qfalse;
+	}
+	if ( helper->client->freezeFrozen ) {
+		return qfalse;
+	}
+	if ( helper->client->ps.pm_type != PM_NORMAL ) {
+		return qfalse;
+	}
+
+	VectorSubtract( helper->r.currentOrigin, ent->r.currentOrigin, delta );
+	distSq = VectorLengthSquared( delta );
+	if ( distSqOut ) {
+		*distSqOut = distSq;
+	}
+	if ( distSq > thawRadius * thawRadius ) {
+		return qfalse;
+	}
+
+	if ( !level.freezeConfig.thawThroughSurface ) {
+		trace_t		trace;
+
+		trap_Trace( &trace, ent->r.currentOrigin, NULL, NULL, helper->r.currentOrigin, ent->s.number, MASK_SOLID );
+		if ( trace.fraction < 1.0f && trace.entityNum != helper->s.number ) {
+			return qfalse;
+		}
+	}
+
+	return qtrue;
+}
+
+/*
+============
 G_FreezeCountThawHelpers
 
 Counts nearby allies who can thaw the frozen player and returns a helper.
@@ -233,11 +383,14 @@ Counts nearby allies who can thaw the frozen player and returns a helper.
 */
 int G_FreezeCountThawHelpers( gentity_t *ent, gentity_t **helperOut ) {
 	gentity_t	*helper;
-	int		count;
-	float		bestDistSq;
-	vec3_t		delta;
+	int			count;
+	int			entityList[MAX_GENTITIES];
+	int			entityNum;
+	int			numListedEntities;
 	float		thawRadius;
-	int		i;
+	vec3_t		maxs;
+	vec3_t		mins;
+	int			i;
 
 	if ( helperOut ) {
 		*helperOut = NULL;
@@ -253,50 +406,57 @@ int G_FreezeCountThawHelpers( gentity_t *ent, gentity_t **helperOut ) {
 	}
 
 	count = 0;
-	bestDistSq = 0.0f;
+	for ( i = 0; i < 3; i++ ) {
+		mins[i] = ent->r.currentOrigin[i] - thawRadius;
+		maxs[i] = ent->r.currentOrigin[i] + thawRadius;
+	}
 
-	for ( i = 0; i < level.maxclients; i++ ) {
-		helper = &g_entities[i];
-		if ( !helper->inuse || !helper->client ) {
-			continue;
-		}
-		if ( helper == ent ) {
-			continue;
-		}
-		if ( helper->client->sess.sessionTeam != ent->client->sess.sessionTeam ) {
-			continue;
-		}
-		if ( helper->client->freezeFrozen ) {
-			continue;
-		}
-		if ( helper->client->ps.pm_type == PM_DEAD ) {
+	numListedEntities = trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );
+
+	for ( i = 0; i < numListedEntities; i++ ) {
+		entityNum = entityList[i];
+		if ( entityNum < 0 || entityNum >= MAX_GENTITIES ) {
 			continue;
 		}
 
-		VectorSubtract( helper->r.currentOrigin, ent->r.currentOrigin, delta );
-		if ( VectorLengthSquared( delta ) > thawRadius * thawRadius ) {
+		helper = &g_entities[entityNum];
+		if ( !G_FreezeClientCanHelpThaw( ent, helper, thawRadius, NULL ) ) {
 			continue;
-		}
-
-		if ( !level.freezeConfig.thawThroughSurface ) {
-			trace_t trace;
-			trap_Trace( &trace, ent->r.currentOrigin, NULL, NULL, helper->r.currentOrigin, ent->s.number, MASK_SOLID );
-			if ( trace.fraction < 1.0f && trace.entityNum != helper->s.number ) {
-				continue;
-			}
 		}
 
 		count++;
-		if ( helperOut ) {
-			float distSq = VectorLengthSquared( delta );
-			if ( !*helperOut || distSq < bestDistSq ) {
-				*helperOut = helper;
-				bestDistSq = distSq;
-			}
+		if ( helperOut && !*helperOut ) {
+			*helperOut = helper;
 		}
 	}
 
 	return count;
+}
+
+/*
+============
+G_FreezeFindThawHelperByClientNum
+
+Finds a retained thaw helper by client slot if that helper is still valid.
+============
+*/
+gentity_t *G_FreezeFindThawHelperByClientNum( gentity_t *ent, int helperClientNum ) {
+	float	thawRadius;
+
+	if ( helperClientNum < 0 || helperClientNum >= level.maxclients ) {
+		return NULL;
+	}
+
+	thawRadius = (float)level.freezeConfig.thawRadius;
+	if ( thawRadius <= 0.0f ) {
+		return NULL;
+	}
+
+	if ( !G_FreezeClientCanHelpThaw( ent, &g_entities[helperClientNum], thawRadius, NULL ) ) {
+		return NULL;
+	}
+
+	return &g_entities[helperClientNum];
 }
 
 /*

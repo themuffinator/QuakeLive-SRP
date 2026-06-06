@@ -103,7 +103,7 @@ static qboolean	CG_ParseAnimationFile( const char *filename, clientInfo_t *ci ) 
 	int			skip;
 	char		text[20000];
 	fileHandle_t	f;
-	animation_t *animations;
+	cgAnimation_t	*animations;
 
 	animations = ci->animations;
 
@@ -206,7 +206,6 @@ static qboolean	CG_ParseAnimationFile( const char *filename, clientInfo_t *ci ) 
 				animations[i].loopFrames = animations[TORSO_GESTURE].loopFrames;
 				animations[i].numFrames = animations[TORSO_GESTURE].numFrames;
 				animations[i].reversed = qfalse;
-				animations[i].flipflop = qfalse;
 				continue;
 			}
 			break;
@@ -227,7 +226,6 @@ static qboolean	CG_ParseAnimationFile( const char *filename, clientInfo_t *ci ) 
 		animations[i].numFrames = atoi( token );
 
 		animations[i].reversed = qfalse;
-		animations[i].flipflop = qfalse;
 		// if numFrames is negative the animation is reversed
 		if (animations[i].numFrames < 0) {
 			animations[i].numFrames = -animations[i].numFrames;
@@ -258,10 +256,10 @@ static qboolean	CG_ParseAnimationFile( const char *filename, clientInfo_t *ci ) 
 	}
 
 	// crouch backward animation
-	memcpy(&animations[LEGS_BACKCR], &animations[LEGS_WALKCR], sizeof(animation_t));
+	memcpy(&animations[LEGS_BACKCR], &animations[LEGS_WALKCR], sizeof(cgAnimation_t));
 	animations[LEGS_BACKCR].reversed = qtrue;
 	// walk backward animation
-	memcpy(&animations[LEGS_BACKWALK], &animations[LEGS_WALK], sizeof(animation_t));
+	memcpy(&animations[LEGS_BACKWALK], &animations[LEGS_WALK], sizeof(cgAnimation_t));
 	animations[LEGS_BACKWALK].reversed = qtrue;
 	// flag moving fast
 	animations[FLAG_RUN].firstFrame = 0;
@@ -284,15 +282,6 @@ static qboolean	CG_ParseAnimationFile( const char *filename, clientInfo_t *ci ) 
 	animations[FLAG_STAND2RUN].frameLerp = 1000 / 15;
 	animations[FLAG_STAND2RUN].initialLerp = 1000 / 15;
 	animations[FLAG_STAND2RUN].reversed = qtrue;
-	//
-	// new anims changes
-	//
-//	animations[TORSO_GETFLAG].flipflop = qtrue;
-//	animations[TORSO_GUARDBASE].flipflop = qtrue;
-//	animations[TORSO_PATROL].flipflop = qtrue;
-//	animations[TORSO_AFFIRMATIVE].flipflop = qtrue;
-//	animations[TORSO_NEGATIVE].flipflop = qtrue;
-	//
 	return qtrue;
 }
 
@@ -648,12 +637,12 @@ static qboolean CG_UpdateClientHeadOffset( clientInfo_t *ci ) {
 	}
 
 	if ( !Q_stricmp( ci->modelName, "orbb" ) ) {
-		ci->headOffset[0] = 1.0f;
+		ci->modelScale = 1.0f;
 		return qtrue;
 	}
 
 	if ( !ci->legsModel || !ci->torsoModel || !ci->headModel ) {
-		ci->headOffset[0] = 1.0f;
+		ci->modelScale = 1.0f;
 		return qfalse;
 	}
 
@@ -666,40 +655,34 @@ static qboolean CG_UpdateClientHeadOffset( clientInfo_t *ci ) {
 		totalHeight += tag.origin[2];
 	}
 	if ( totalHeight <= 0.0f ) {
-		ci->headOffset[0] = 1.0f;
+		ci->modelScale = 1.0f;
 		return qfalse;
 	}
 
-	ci->headOffset[0] = ( 56.0f / totalHeight ) * cgs.playerModelScale;
+	ci->modelScale = ( 56.0f / totalHeight ) * cgs.playerModelScale;
 	return qtrue;
 }
 
 /*
 ====================
 CG_ColorFromString
+
+Maps a one-based retail color cvar/configstring value onto the 26-entry
+Quake Live palette.
 ====================
 */
 static void CG_ColorFromString( const char *v, vec3_t color ) {
 	int val;
-
-	VectorClear( color );
+	vec4_t paletteColor;
 
 	val = atoi( v );
 
-	if ( val < 1 || val > 7 ) {
-		VectorSet( color, 1, 1, 1 );
-		return;
+	if ( val < 1 || val > 26 ) {
+		val = 1;
 	}
 
-	if ( val & 1 ) {
-		color[2] = 1.0f;
-	}
-	if ( val & 2 ) {
-		color[1] = 1.0f;
-	}
-	if ( val & 4 ) {
-		color[0] = 1.0f;
-	}
+	CG_GetColorForIndex( val - 1, paletteColor );
+	VectorCopy( paletteColor, color );
 }
 
 /*
@@ -898,6 +881,7 @@ CG_CopyClientInfoModel
 ======================
 */
 static void CG_CopyClientInfoModel( clientInfo_t *from, clientInfo_t *to ) {
+	to->modelScale = from->modelScale;
 	VectorCopy( from->headOffset, to->headOffset );
 	to->footsteps = from->footsteps;
 	to->gender = from->gender;
@@ -1543,8 +1527,46 @@ static void CG_UpdateClientIdentity( const char *configstring, clientInfo_t *ci 
 		return;
 	}
 
-	steamId = Info_ValueForKey( configstring, "steamid" );
+	steamId = Info_ValueForKey( configstring, PLAYER_INFO_KEY_STEAMID );
+	if ( !steamId[0] ) {
+		steamId = Info_ValueForKey( configstring, PLAYER_INFO_KEY_STEAMID_LEGACY );
+	}
+
 	CG_ParseSteamIdString( steamId, &ci->identityLow, &ci->identityHigh );
+}
+
+/*
+=============
+CG_UpdateClientNames
+
+Caches the retail display, clean, and extended client-name strings.
+=============
+*/
+static void CG_UpdateClientNames( const char *configstring, clientInfo_t *ci ) {
+	const char	*name;
+	const char	*cleanName;
+	const char	*extendedName;
+	char		generatedCleanName[MAX_QPATH];
+
+	if ( !configstring || !ci ) {
+		return;
+	}
+
+	name = Info_ValueForKey( configstring, PLAYER_INFO_KEY_NAME );
+	Q_strncpyz( ci->name, name, sizeof( ci->name ) );
+
+	cleanName = Info_ValueForKey( configstring, PLAYER_INFO_KEY_CLEAN_NAME );
+	if ( cleanName[0] ) {
+		Q_strncpyz( ci->cleanName, cleanName, sizeof( ci->cleanName ) );
+	} else {
+		Q_strncpyz( generatedCleanName, ci->name, sizeof( generatedCleanName ) );
+		Q_CleanStr( generatedCleanName );
+		Q_strncpyz( ci->cleanName,
+			generatedCleanName[0] ? generatedCleanName : ci->name, sizeof( ci->cleanName ) );
+	}
+
+	extendedName = Info_ValueForKey( configstring, PLAYER_INFO_KEY_EXTENDED_NAME );
+	Q_strncpyz( ci->extendedName, extendedName, sizeof( ci->extendedName ) );
 }
 
 /*
@@ -1685,9 +1707,7 @@ void CG_NewClientInfo( int clientNum ) {
 	// the old value
 	memset( &newInfo, 0, sizeof( newInfo ) );
 
-	// isolate the player's name
-	v = Info_ValueForKey(configstring, PLAYER_INFO_KEY_NAME);
-	Q_strncpyz( newInfo.name, v, sizeof( newInfo.name ) );
+	CG_UpdateClientNames( configstring, &newInfo );
 	CG_UpdateClientIdentity( configstring, &newInfo );
 
 	// colors
@@ -1700,6 +1720,7 @@ void CG_NewClientInfo( int clientNum ) {
 	// bot skill
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SKILL );
 	newInfo.botSkill = atoi( v );
+	newInfo.botSkillFloat = atof( v );
 
 	// handicap
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_HANDICAP );
@@ -1725,6 +1746,12 @@ void CG_NewClientInfo( int clientNum ) {
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_TEAMLEADER );
 	newInfo.teamLeader = atoi(v);
 
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_READY );
+	newInfo.ready = atoi( v );
+
+	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_PRIVILEGE );
+	newInfo.privilege = atoi( v );
+
 	// pure spectator / duel queue metadata
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_SPECTATE_ONLY );
 	newInfo.spectateOnly = atoi( v );
@@ -1739,6 +1766,9 @@ void CG_NewClientInfo( int clientNum ) {
 	Q_strncpyz(newInfo.blueTeam, v, MAX_TEAMNAME);
 
 	v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY );
+	if ( !v[0] ) {
+		v = Info_ValueForKey( configstring, PLAYER_INFO_KEY_COUNTRY_LEGACY );
+	}
 	Q_strncpyz( newInfo.country, v, sizeof( newInfo.country ) );
 	newInfo.countryFlagShader = CG_RegisterCountryFlag( newInfo.country );
 
@@ -1787,8 +1817,10 @@ void CG_NewClientInfo( int clientNum ) {
 	*ci = newInfo;
 	if ( ci->identityLow || ci->identityHigh ) {
 		cg.clientMuted[clientNum] = trap_QL_IsClientMuted( ci->identityLow, ci->identityHigh ) ? qtrue : qfalse;
+		ci->avatarImageHandle = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );
 	} else {
 		cg.clientMuted[clientNum] = qfalse;
+		ci->avatarImageHandle = 0;
 	}
 }
 
@@ -1839,7 +1871,7 @@ may include ANIM_TOGGLEBIT
 ===============
 */
 static void CG_SetLerpFrameAnimation( clientInfo_t *ci, lerpFrame_t *lf, int newAnimation ) {
-	animation_t	*anim;
+	cgAnimation_t	*anim;
 
 	lf->animationNumber = newAnimation;
 	newAnimation &= ~ANIM_TOGGLEBIT;
@@ -1868,7 +1900,7 @@ cg.time should be between oldFrameTime and frameTime after exit
 */
 static void CG_RunLerpFrame( clientInfo_t *ci, lerpFrame_t *lf, int newAnimation, float speedScale ) {
 	int			f, numFrames;
-	animation_t	*anim;
+	cgAnimation_t	*anim;
 
 	// debugging tool to get no animations
 	if ( cg_animSpeed.integer == 0 ) {
@@ -1901,9 +1933,6 @@ static void CG_RunLerpFrame( clientInfo_t *ci, lerpFrame_t *lf, int newAnimation
 		f *= speedScale;		// adjust for haste, etc
 
 		numFrames = anim->numFrames;
-		if (anim->flipflop) {
-			numFrames *= 2;
-		}
 		if ( f >= numFrames ) {
 			f -= numFrames;
 			if ( anim->loopFrames ) {
@@ -1918,9 +1947,6 @@ static void CG_RunLerpFrame( clientInfo_t *ci, lerpFrame_t *lf, int newAnimation
 		}
 		if ( anim->reversed ) {
 			lf->frame = anim->firstFrame + anim->numFrames - 1 - f;
-		}
-		else if (anim->flipflop && f>=anim->numFrames) {
-			lf->frame = anim->firstFrame + anim->numFrames - 1 - (f%anim->numFrames);
 		}
 		else {
 			lf->frame = anim->firstFrame + f;
@@ -2629,7 +2655,12 @@ static void CG_PlayerPowerups( centity_t *cent, refEntity_t *torso ) {
 
 	// quad gives a dlight
 	if ( powerups & ( 1 << PW_QUAD ) ) {
-		trap_R_AddLightToScene( cent->lerpOrigin, 200 + (rand()&31), 0.2f, 0.2f, 1 );
+		trap_R_AddLightToScene( cent->lerpOrigin, 200 + (rand()&31), 0.25f, 0.75f, 1.0f );
+	}
+
+	// battlesuit gives a dlight
+	if ( powerups & ( 1 << PW_BATTLESUIT ) ) {
+		trap_R_AddLightToScene( cent->lerpOrigin, 200 + (rand()&31), 0.75f, 0.75f, 0.0f );
 	}
 
 	// flight plays a looped sound
@@ -3293,6 +3324,18 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int te
 			ent->customShader = cgs.media.battleSuitShader;
 			trap_R_AddRefEntityToScene( ent );
 		}
+		if ( state->powerups & ( 1 << PW_NUM_POWERUPS ) ) {
+			if ( state->generic1 & 2 ) {
+				ent->customShader = cgs.media.ice1Shader;
+			}
+			else if ( state->generic1 & 1 ) {
+				ent->customShader = cgs.media.ice2Shader;
+			}
+			else {
+				ent->customShader = cgs.media.ice3Shader;
+			}
+			trap_R_AddRefEntityToScene( ent );
+		}
 	}
 }
 
@@ -3372,11 +3415,11 @@ back into the Quake Live player bounding box.
 =============
 */
 static float CG_PlayerModelBoundingBoxScale( const clientInfo_t *ci ) {
-	if ( !ci || !cg_scalePlayerModelsToBB.integer || ci->headOffset[0] <= 1.0f ) {
+	if ( !ci || !cg_scalePlayerModelsToBB.integer || ci->modelScale == 1.0f ) {
 		return 0.0f;
 	}
 
-	return ci->headOffset[0];
+	return ci->modelScale;
 }
 
 /*
@@ -3400,6 +3443,74 @@ static void CG_ApplyPlayerModelBoundingBoxScale( refEntity_t *legs, float scale 
 }
 
 /*
+=============
+CG_ValidatePlayerModels
+
+Mirrors the retail fatal guard before any player part is submitted.
+=============
+*/
+static void CG_ValidatePlayerModels( const clientInfo_t *ci ) {
+	if ( !ci || !ci->legsModel || !ci->torsoModel || !ci->headModel ) {
+		CG_Error( "Invalid models for player entity" );
+	}
+}
+
+/*
+=============
+CG_IsRedRoverInfectedPlayer
+
+Tests the retail Red Rover infected-player presentation gate.
+=============
+*/
+static qboolean CG_IsRedRoverInfectedPlayer( const clientInfo_t *ci ) {
+	if ( cgs.gametype != GT_RED_ROVER ) {
+		return qfalse;
+	}
+
+	if ( !( cgs.customSettingsMask & CUSTOM_SETTING_INFECTED ) ) {
+		return qfalse;
+	}
+
+	if ( !ci || ci->team != TEAM_RED ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+CG_AddRedRoverInfectedPlayerEffects
+
+Adds the retail goo shell and persistent infected loop over Red Rover
+infected players.
+=============
+*/
+static void CG_AddRedRoverInfectedPlayerEffects( centity_t *cent, refEntity_t *legs,
+		refEntity_t *torso, refEntity_t *head ) {
+	qhandle_t	shader;
+
+	if ( !cent || !legs || !torso || !head ) {
+		return;
+	}
+
+	shader = cgs.media.gooShader;
+	if ( shader ) {
+		torso->customShader = shader;
+		head->customShader = shader;
+		legs->customShader = shader;
+		trap_R_AddRefEntityToScene( torso );
+		trap_R_AddRefEntityToScene( head );
+		trap_R_AddRefEntityToScene( legs );
+	}
+
+	if ( cgs.media.infectedLoopSound ) {
+		trap_S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin,
+			vec3_origin, cgs.media.infectedLoopSound );
+	}
+}
+
+/*
 ===============
 CG_Player
 ===============
@@ -3412,6 +3523,7 @@ void CG_Player( centity_t *cent ) {
 	int				clientNum;
 	int				renderfx;
 	qboolean		shadow;
+	qboolean		redRoverInfected;
 	float			shadowPlane;
 	refEntity_t		skull;
 	refEntity_t		powerup;
@@ -3435,6 +3547,7 @@ void CG_Player( centity_t *cent ) {
 	if ( !ci->infoValid ) {
 		return;
 	}
+	redRoverInfected = CG_IsRedRoverInfectedPlayer( ci );
 
 	// get the player model information
 	renderfx = 0;
@@ -3462,7 +3575,9 @@ void CG_Player( centity_t *cent ) {
 		 &torso.oldframe, &torso.frame, &torso.backlerp );
 
 	// add the talk baloon or disconnect icon
-	CG_PlayerSprites( cent );
+	if ( cg_drawSprites.integer ) {
+		CG_PlayerSprites( cent );
+	}
 
 	// add the shadow
 	shadow = CG_PlayerShadow( cent, &shadowPlane );
@@ -3478,6 +3593,7 @@ void CG_Player( centity_t *cent ) {
 	if( cgs.gametype == GT_HARVESTER ) {
 		CG_PlayerTokens( cent, renderfx );
 	}
+	CG_ValidatePlayerModels( ci );
 	//
 	// add the legs
 	//
@@ -3494,18 +3610,10 @@ void CG_Player( centity_t *cent ) {
 
 	CG_AddRefEntityWithPowerups( &legs, &cent->currentState, ci->team );
 
-	// if the model failed, allow the default nullmodel to be displayed
-	if (!legs.hModel) {
-		return;
-	}
-
 	//
 	// add the torso
 	//
 	torso.hModel = ci->torsoModel;
-	if (!torso.hModel) {
-		return;
-	}
 
 	torso.customSkin = ci->torsoSkin;
 
@@ -3727,9 +3835,6 @@ void CG_Player( centity_t *cent ) {
 	// add the head
 	//
 	head.hModel = ci->headModel;
-	if (!head.hModel) {
-		return;
-	}
 	head.customSkin = ci->headSkin;
 
 	VectorCopy( cent->lerpOrigin, head.lightingOrigin );
@@ -3749,11 +3854,19 @@ void CG_Player( centity_t *cent ) {
 	//
 	// add the gun / barrel / flash
 	//
-	CG_AddPlayerWeapon( &torso, NULL, cent, ci->team );
+	if ( redRoverInfected && cent->currentState.weapon == WP_GAUNTLET ) {
+		CG_RegisterWeapon( WP_GAUNTLET );
+	}
+	else {
+		CG_AddPlayerWeapon( &torso, NULL, cent, ci->team );
+	}
 
 	// add powerups floating behind the player
 	CG_PlayerPowerups( cent, &torso );
 	CG_PlayerObjectiveSprite( cent );
+	if ( redRoverInfected ) {
+		CG_AddRedRoverInfectedPlayerEffects( cent, &legs, &torso, &head );
+	}
 }
 
 

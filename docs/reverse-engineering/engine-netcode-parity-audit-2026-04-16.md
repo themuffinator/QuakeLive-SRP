@@ -192,8 +192,10 @@ Retail/profile evidence:
 Source closure:
 
 - Added shared key defines for the player-info payload: `n`, `t`, `model`,
-  `hmodel`, `g_redteam`, `g_blueteam`, `country`, `c1`, `c2`, `hc`, `w`,
-  `l`, `skill`, `tt`, `tl`, `rp`, `p`, `so`, and `pq`.
+  `hmodel`, `g_redteam`, `g_blueteam`, compact country key `c` with legacy
+  `country` fallback, `c1`, `c2`, `hc`, `w`, `l`, `skill`, `tt`, `tl`, `rp`,
+  `p`, `so`, `pq`, and compact SteamID key `st` with legacy `steamid`
+  fallback.
 - Routed `ClientUserinfoChanged`, `CG_NewClientInfo`, cgame player name/model
   display helpers, qagame clean-name lookup, and bot/team `CS_PLAYERS`
   consumers through the shared key names while preserving the existing payload

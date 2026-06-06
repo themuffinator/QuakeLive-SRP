@@ -4435,7 +4435,6 @@ CL_WebHost_BuildDemoListJson
 static void CL_WebHost_BuildDemoListJson( char *buffer, size_t bufferSize ) {
 	char fileList[32768];
 	char demoExt[32];
-	char fullDemoExt[32];
 	char *cursor;
 	int count;
 
@@ -4446,19 +4445,13 @@ static void CL_WebHost_BuildDemoListJson( char *buffer, size_t bufferSize ) {
 	buffer[0] = '\0';
 	Q_strcat( buffer, bufferSize, "[" );
 	Com_sprintf( demoExt, sizeof( demoExt ), "dm_%d", NET_DemoProtocol() );
-	Com_sprintf( fullDemoExt, sizeof( fullDemoExt ), ".dm_%d", NET_DemoProtocol() );
 	count = FS_GetFileList( "demos", demoExt, fileList, sizeof( fileList ) );
 	cursor = fileList;
 	for ( ; count > 0 && *cursor; count-- ) {
 		char demoName[MAX_QPATH];
-		size_t length;
 		clWebJsonBuilder_t builder;
 
 		Q_strncpyz( demoName, cursor, sizeof( demoName ) );
-		length = strlen( demoName );
-		if ( length > strlen( fullDemoExt ) && !Q_stricmp( demoName + length - strlen( fullDemoExt ), fullDemoExt ) ) {
-			demoName[length - strlen( fullDemoExt )] = '\0';
-		}
 
 		builder.buffer = buffer;
 		builder.bufferSize = bufferSize;
@@ -5640,7 +5633,7 @@ fallback when the opted-in Steam provider cannot update favorites.
 =============
 */
 static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add ) {
-	if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServer( ip, port, add ) ) {
+	if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServerForApp( ip, port, CL_SteamBrowser_GetDiscoveryAppID(), add ) ) {
 		Com_DPrintf(
 			"Steam favorite server %s failed for %u:%u; using local favorites cache fallback\n",
 			add ? "add" : "remove",

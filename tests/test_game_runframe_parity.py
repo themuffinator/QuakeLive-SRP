@@ -117,11 +117,11 @@ def test_timeout_resume_restores_retail_client_timer_shifts() -> None:
 	assert "client->invulnerabilityTime = G_ShiftTimeoutAbsoluteTime( client->invulnerabilityTime, msec );" in client_block
 	assert "client->holdableInvulnerabilityTime = G_ShiftTimeoutAbsoluteTime( client->holdableInvulnerabilityTime, msec );" in client_block
 	assert "client->freezeTime = G_ShiftTimeoutAbsoluteTime( client->freezeTime, msec );" in client_block
-	assert "client->freezeNextThawTick = G_ShiftTimeoutAbsoluteTime( client->freezeNextThawTick, msec );" in client_block
 	assert "client->freezeAutoThawTime = G_ShiftTimeoutAbsoluteTime( client->freezeAutoThawTime, msec );" in client_block
 	assert "client->freezeEnvironmentalRespawnTime = G_ShiftTimeoutAbsoluteTime( client->freezeEnvironmentalRespawnTime, msec );" in client_block
 	assert "client->freezeProtectedUntil = G_ShiftTimeoutAbsoluteTime( client->freezeProtectedUntil, msec );" in client_block
 	assert "client->ps.powerups[powerup] = G_ShiftTimeoutAbsoluteTime( client->ps.powerups[powerup], msec );" in client_block
+	assert "freezeNextThawTick" not in client_block
 	assert "client->inactivityTime = G_ShiftTimeoutAbsoluteTime" not in client_block
 
 	assert "freezeEnabled = G_FreezeGametypeEnabled();" in pause_delta_block

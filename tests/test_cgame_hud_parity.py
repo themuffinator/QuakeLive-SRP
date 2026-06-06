@@ -893,12 +893,14 @@ def test_team_overlay_transport_uses_retail_top_eight_stable_client_order() -> N
 	assert "count = atoi( CG_Argv( 1 ) );" in parse_block
 	assert "if ( count > TEAM_MAXOVERLAY ) {" in parse_block
 	assert "count = TEAM_MAXOVERLAY;" in parse_block
+	assert "legacyRows = (qboolean)( argc >= 2 + count * 6 );" in parse_block
 	assert "numSortedTeamPlayers = 0;" in parse_block
-	assert "baseArg = i * 6 + 2;" in parse_block
-	assert "if ( argc <= baseArg + 5 ) {" in parse_block
+	assert "baseArg = legacyRows ? ( i * 6 + 2 ) : ( i + 2 );" in parse_block
+	assert "if ( argc <= baseArg ) {" in parse_block
 	assert "if ( client < 0 || client >= MAX_CLIENTS ) {" in parse_block
 	assert "sortedTeamPlayers[numSortedTeamPlayers] = client;" in parse_block
 	assert "numSortedTeamPlayers++;" in parse_block
+	assert "if ( legacyRows ) {" in parse_block
 
 
 def test_spectator_item_timer_text_uses_retail_default_font_lane() -> None:

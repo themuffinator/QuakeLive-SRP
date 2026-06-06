@@ -8,6 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CG_DRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_draw.c"
 CG_ENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_ents.c"
+CG_MAIN = REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c"
 CG_PREDICT = REPO_ROOT / "src" / "code" / "cgame" / "cg_predict.c"
 G_ITEMS = REPO_ROOT / "src" / "code" / "game" / "g_items.c"
 CG_BG_PLAN = REPO_ROOT / "docs" / "reverse-engineering" / "cgame-bg-parity-implementation-plan.md"
@@ -137,6 +138,79 @@ def test_cg_item_calls_respawn_timer_before_skip_items_and_uses_time2_fallback()
 	assert item_block.index("CG_DrawItemRespawnTimer(") < item_block.index('trap_Cvar_VariableStringBuffer( "cg_skipItems"')
 
 
+def test_cg_item_simple_item_bob_mode_matches_retail_major_item_split() -> None:
+	source = CG_ENTS.read_text(encoding="utf-8")
+	bob_mode_block = _block_from_marker(source, "static int CG_ItemSimpleItemsBobMode")
+	uses_bob_block = _block_from_marker(source, "static qboolean CG_ItemUsesSimpleItemsBob")
+	bob_offset_block = _block_from_marker(source, "static float CG_ItemSimpleItemsBobOffset")
+	height_block = _block_from_marker(source, "static float CG_ItemSimpleItemsHeightOffset")
+	simple_draw_block = _block_from_marker(source, "static void CG_DrawSimpleItem")
+	item_block = _block_from_marker(source, "static void CG_Item")
+
+	for expected in (
+		"bobMode = (int)cg.simpleItemsBob;",
+		"if ( bobMode < 0 ) {",
+		"if ( bobMode > 2 ) {",
+	):
+		assert expected in bob_mode_block
+
+	for expected in (
+		"case 1:",
+		"return qtrue;",
+		"case 2:",
+		"return CG_ItemUsesRespawnTimer( item );",
+	):
+		assert expected in uses_bob_block
+
+	for expected in (
+		"phase = (float)( cg.time & 1023 ) * ( (float)M_PI * 2.0f / 1024.0f );",
+		"return 10.0f + sin( phase ) * 6.0f;",
+	):
+		assert expected in bob_offset_block
+
+	for expected in (
+		"if ( item && item->giType == IT_PERSISTANT_POWERUP ) {",
+		"return 10.0f;",
+		"return cg.simpleItemsHeightOffset;",
+	):
+		assert expected in height_block
+
+	for expected in (
+		"if ( CG_ItemUsesSimpleItemsBob( item ) ) {",
+		"ent.origin[2] += CG_ItemSimpleItemsBobOffset();",
+		"ent.origin[2] += CG_ItemSimpleItemsHeightOffset( item );",
+		"ent.origin[2] += cg.simpleItemsRadius - 15.0f;",
+		"VectorCopy( ent.origin, ent.oldorigin );",
+	):
+		assert expected in simple_draw_block
+
+	assert "spriteBobScale" not in item_block
+	assert "cos( ( cg.time + 1000 ) * spriteBobScale )" not in item_block
+	assert "CG_DrawSimpleItem( cent, es, item );" in item_block
+
+
+def test_simple_items_bob_cvar_cache_is_integer_mode_not_amplitude() -> None:
+	source = CG_MAIN.read_text(encoding="utf-8")
+	update_block = _block_from_marker(source, "static void CG_UpdateSimpleItemsSettings")
+
+	for expected in (
+		'{ &cg_simpleItemsBob, "cg_simpleItemsBob", "2",',
+		' "0", "2" },',
+	):
+		assert expected in source
+
+	for expected in (
+		"cg.simpleItemsBob = (float)cg_simpleItemsBob.integer;",
+		"if ( cg.simpleItemsBob < 0.0f ) {",
+		"cg.simpleItemsBob = 0.0f;",
+		"} else if ( cg.simpleItemsBob > 2.0f ) {",
+		"cg.simpleItemsBob = 2.0f;",
+	):
+		assert expected in update_block
+
+	assert "cg.simpleItemsBob = cg_simpleItemsBob.value;" not in update_block
+
+
 def test_qagame_item_timer_transport_keeps_forced_hidden_items_snapshot_visible() -> None:
 	source = G_ITEMS.read_text(encoding="utf-8")
 	transport_block = _block_from_marker(source, "static qboolean G_ShouldSendItemRespawnTimerSnapshot")
@@ -243,8 +317,8 @@ def test_cg_item_weapon_pickup_children_and_railgun_color_match_retail_shape() -
 		'CG_PositionRotatedEntityOnTag( &barrel, &ent, wi->weaponModel, "tag_barrel" );',
 		"AxisCopy( ent.axis, barrel.axis );",
 		"barrel.nonNormalizedAxes = ent.nonNormalizedAxes;",
-		"if ( wi->ammoModel ) {",
-		"ammo.hModel = wi->ammoModel;",
+		"if ( wi->weaponAmmoModel ) {",
+		"ammo.hModel = wi->weaponAmmoModel;",
 		'CG_PositionRotatedEntityOnTag( &ammo, &ent, wi->weaponModel, "tag_ammo" );',
 		"AxisCopy( ent.axis, ammo.axis );",
 		"ammo.nonNormalizedAxes = ent.nonNormalizedAxes;",
@@ -259,11 +333,12 @@ def test_cg_item_weapon_pickup_children_and_railgun_color_match_retail_shape() -
 		"if ( wi->barrelModel ) {"
 	)
 	assert item_block.index('CG_PositionRotatedEntityOnTag( &barrel, &ent, wi->weaponModel, "tag_barrel" );') < item_block.index(
-		"if ( wi->ammoModel ) {"
+		"if ( wi->weaponAmmoModel ) {"
 	)
 	assert item_block.index('CG_PositionRotatedEntityOnTag( &ammo, &ent, wi->weaponModel, "tag_ammo" );') < item_block.index(
 		"// accompanying rings / spheres for powerups"
 	)
+	assert "ammo.hModel = wi->ammoModel;" not in item_block
 	assert "cgs.media.weaponHoverSound" not in item_block
 
 

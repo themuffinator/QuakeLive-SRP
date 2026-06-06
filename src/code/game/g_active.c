@@ -2792,6 +2792,26 @@ static team_t G_FreezeEvaluateRoundWinner( const int counts[TEAM_NUM_TEAMS], con
 
 /*
 ============
+G_FreezeRespawnThawedWinner
+
+Runs the retail winning-team thaw visual and respawn tail.
+============
+*/
+static void G_FreezeRespawnThawedWinner( gentity_t *ent ) {
+	gentity_t	*tent;
+
+	if ( !ent || !ent->client ) {
+		return;
+	}
+
+	tent = G_TempEntity( ent->client->ps.origin, EV_THAW_PLAYER );
+	tent->s.otherEntityNum = ent->s.number;
+	ent->client->ps.pm_type = PM_NORMAL;
+	ClientSpawn( ent );
+}
+
+/*
+============
 G_FreezeThawWinningPlayers
 
 Automatically thaws members of the winning team when configured.
@@ -2820,7 +2840,7 @@ static void G_FreezeThawWinningPlayers( team_t winner ) {
 			continue;
 		}
 
-		G_FreezeThawClient( ent, qtrue, -1 );
+		G_FreezeRespawnThawedWinner( ent );
 	}
 }
 

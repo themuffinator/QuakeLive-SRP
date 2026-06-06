@@ -279,6 +279,9 @@ void AAS_OptimizeStore(optimized_t *optimized)
 //===========================================================================
 void AAS_Optimize(void)
 {
+#ifndef BSPC
+	botimport.Print(PRT_MESSAGE, "skipped AAS data optimization.\n");
+#else
 	int i, sign;
 	optimized_t optimized;
 
@@ -309,4 +312,5 @@ void AAS_Optimize(void)
 	AAS_OptimizeStore(&optimized);
 	//print some nice stuff :)
 	botimport.Print(PRT_MESSAGE, "AAS data optimized.\n");
+#endif
 } //end of the function AAS_Optimize

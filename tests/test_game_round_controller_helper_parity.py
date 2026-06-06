@@ -66,6 +66,11 @@ def test_freeze_round_controller_helpers_match_retail_mapping_surface() -> None:
 	assert "int G_FreezeResolveRoundState( void ) {" in active_c
 	assert "static qboolean G_FreezeShouldCompleteRound( const int counts[TEAM_NUM_TEAMS] ) {" in active_c
 	assert "static team_t G_FreezeEvaluateRoundWinner( const int counts[TEAM_NUM_TEAMS], const int health[TEAM_NUM_TEAMS] ) {" in active_c
+	assert "static void G_FreezeRespawnThawedWinner( gentity_t *ent ) {" in active_c
+	assert "G_FreezeRespawnThawedWinner( ent );" in active_c
+	assert "tent = G_TempEntity( ent->client->ps.origin, EV_THAW_PLAYER );" in active_c
+	assert "ent->client->ps.pm_type = PM_NORMAL;" in active_c
+	assert "ClientSpawn( ent );" in active_c
 	assert "void G_RoundHandleWarmupDelayCvarUpdate( void ) {" in active_c
 	assert "return G_RoundTimeLimitExpired( level.roundStartTime );" in active_c
 	assert "level.roundPendingExit = G_CAFZCheckExitRules( qfalse );" in active_c
@@ -83,9 +88,14 @@ def test_freeze_round_controller_helpers_match_retail_mapping_surface() -> None:
 	assert "Freeze_RoundStateTransition( qtrue );" in active_c
 	assert "if ( G_FreezeResolveRoundState() != ROUNDSTATE_ACTIVE ) {" in freeze_c
 	assert "roundState = G_FreezeResolveRoundState();" in client_c
-	assert "client->freezeAccumulatedThaw = 0;" in client_c
+	assert "client->freezeThawHelperActive = qfalse;" in client_c
+	assert "client->freezeThawTimeRemaining = thawTotal;" in client_c
 	assert "client->freezeAutoThawTime = 0;" in client_c
-	assert "client->freezeNextThawTick = G_ShiftTimeoutAbsoluteTime( client->freezeNextThawTick, msec );" in main_c
+	assert "freezeThawHelperActive" in freeze_c
+	assert "freezeThawTimeRemaining" in freeze_c
+	assert "trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );" in freeze_c
+	assert "for ( i = 0; i < level.maxclients; i++ )" not in freeze_c
+	assert "freezeNextThawTick" not in main_c
 	assert "client->freezeProtectedUntil = G_ShiftTimeoutAbsoluteTime( client->freezeProtectedUntil, msec );" in main_c
 
 

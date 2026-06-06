@@ -1502,6 +1502,28 @@ qboolean SV_CheckWarmupReadiness( qboolean announce ) {
 
 /*
 =================
+SV_SteamServerHandleIncomingPacket
+
+Forwards one IPv4 server UDP packet into the retained Steam GameServer socket bridge.
+=================
+*/
+static void SV_SteamServerHandleIncomingPacket( const netadr_t *from, const msg_t *msg ) {
+	uint32_t	packedIp;
+
+	if ( !from || !msg || !msg->data || msg->cursize <= 0 || from->type != NA_IP ) {
+		return;
+	}
+
+	packedIp = ( (uint32_t)from->ip[0] << 24 )
+		| ( (uint32_t)from->ip[1] << 16 )
+		| ( (uint32_t)from->ip[2] << 8 )
+		| (uint32_t)from->ip[3];
+
+	QL_Steamworks_ServerHandleIncomingPacket( msg->data, msg->cursize, packedIp, from->port );
+}
+
+/*
+=================
 SV_ReadPackets
 =================
 */
@@ -1509,6 +1531,8 @@ void SV_PacketEvent( netadr_t from, msg_t *msg ) {
 	int			i;
 	client_t	*cl;
 	int			qport;
+
+	SV_SteamServerHandleIncomingPacket( &from, msg );
 
 	// check for connectionless packet (0xffffffff) first
 	if ( msg->cursize >= 4 && *(int *)msg->data == -1) {

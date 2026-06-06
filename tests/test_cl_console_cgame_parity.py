@@ -97,10 +97,11 @@ def test_cgame_copy_client_identity_uses_reconstructed_sidecar_contract() -> Non
 
 	assert "cgameClientIdentity_t\t*identity;" in block
 	assert "identity->clientNum = clientNum;" in block
-	assert "identity->identityTransport = 0;" in block
+	assert "identity->identityTransport = ci->privilege;" in block
 	assert "identity->identityLow = ci->identityLow;" in block
 	assert "identity->identityHigh = ci->identityHigh;" in block
 	assert "Q_strncpyz( identity->displayName, ci->name, sizeof( identity->displayName ) );" in block
+	assert "Q_strncpyz( identity->cleanName, ci->cleanName, sizeof( identity->cleanName ) );" in block
 	assert "Q_CleanStr( cleanName );" in block
 	assert 'cleanName[0] ? cleanName : ci->name' in block
 

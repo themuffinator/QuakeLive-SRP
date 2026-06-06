@@ -1,6 +1,6 @@
 # Implementation Plan
 
-Last updated: 2026-06-05
+Last updated: 2026-06-06
 
 This file now tracks only active repo-level work. Detailed closure narratives
 live in the dedicated subsystem audits under `docs/reverse-engineering/`.
@@ -46,6 +46,1640 @@ disabled, until a documented open replacement path exists.
   pick and close remaining `src/ui/menudef.h` ownerdraw IDs.
 
 ## Active work
+
+### Task A289: Reconstruct client SteamUserStats float descriptor lane [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`,
+`src/common/platform/platform_steamworks.c`,
+`src/common/platform/platform_steamworks.h`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_383.md`
+Parity estimate: **before 86% -> after 99%** for focused client
+`STATS` descriptor-control-flow parity, **before 99% -> after 99.5%**
+for client `SteamUserStats` readback wrapper coverage, and broader
+Steamworks parity remains approximately **99%** because live backend values,
+localized achievement metadata, and production service availability are
+outside this deterministic source/harness pass.
+
+Completed work:
+
+1. Rechecked the retained `users.stats` callback descriptor walk at HLIL
+   anchors `0x0046006b`, `0x00460074`, `0x004600ef`, `0x00460103`,
+   `0x0046010e`, `0x0046008d`, and `0x00460149`.
+2. Parsed the committed HLIL data table rooted at `data_55da98` and confirmed
+   `data_55da8c = 0x58`, seven-dword rows, and all 88 shipped descriptor
+   discriminators set to zero.
+3. Added `QL_Steamworks_GetUserStatFloat` for the client `SteamUserStats`
+   vtable slot `0x44 / 4`, plus the disabled output-clearing fallback.
+4. Converted the retained client stat catalog into explicit `{ name, isFloat }`
+   descriptors and preserved the current catalog as integer rows.
+5. Updated the `STATS` JSON builder to retain the retail float/int branch while
+   keeping the shipped row behavior unchanged.
+6. Extended the executable Steamworks harness and ctypes coverage for the
+   float readback slot, including invalid-input guards, output clearing,
+   forwarding, failure propagation, and disabled fallback behavior.
+
+### Task A288: Pin botlib AAS native wrapper slab [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_public.h`,
+`src/code/game/g_syscalls.c`, `src/code/server/sv_game.c`,
+`src/code/server/ql_game_imports.inc`,
+`tests/test_botlib_aas_native_wrapper_slab_parity.py`,
+`docs/reverse-engineering/botlib-aas-native-wrapper-slab-mapping-2026-06-06.md`
+Parity estimate: **before 70% -> after 98%** for focused AAS native wrapper
+slab mapping, **before 92% -> after 94%** for focused qagame botlib native
+import table coverage, and overall botlib plus qagame native import wiring
+**92% -> 93%**.
+
+Completed work:
+
+1. Rechecked native slots 61 through 82 against the Quake Live HLIL import
+   table, Ghidra row sizes, source native enum, legacy syscall map, server
+   import initializer, and generated qagame wrappers.
+2. Pinned the retail table-order detail where `AAS_BBoxAreas` and
+   `AAS_AreaInfo` occupy slots 61 and 62 before the earlier-addressed
+   `AAS_EntityInfo` trampoline at slot 63.
+3. Preserved the raw-thunk classification for `AAS_Initialized` at `0x4e1840`
+   and `AAS_Time` at `0x4e1860` instead of promoting fake Ghidra function rows.
+4. Verified the wrapper marshaling details for `AAS_Time` and
+   `AAS_PredictClientMovement`, including the float bit-cast and
+   `QL_G_PASSFLOAT(frametime)` handoff.
+5. Added focused parity coverage to prevent AAS native imports from being
+   reordered by name/address or disconnected from the legacy syscall bridge.
+
+### Task A287: Extend SteamUserStats readback harness coverage [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_382.md`
+Parity estimate: **before 58% -> after 98%** for focused client
+SteamUserStats readback harness parity, **before 96% -> after 99%** for
+retained `users.stats` readback wrapper evidence confidence, and broader
+Steamworks parity remains approximately **99%** because live backend values,
+localized achievement metadata, and the observed-but-unwrapped float-stat lane
+are outside this deterministic harness pass.
+
+Completed work:
+
+1. Rechecked the retained `users.stats` callback JSON builder at HLIL anchors
+   `0x0046008d`, `0x0046018e`, `0x004601a6`, and `0x004601c6`.
+2. Added deterministic mock state for user stat value, achievement state,
+   unlock time, display attribute text, last SteamID, last stat/achievement
+   name, last display-attribute key, call counts, and result toggles.
+3. Added client `SteamUserStats` harness slots for display attributes,
+   integer stat reads, and achievement reads at `0x30 / 4`, `0x48 / 4`, and
+   `0x50 / 4`.
+4. Exported enabled/disabled harness wrappers for
+   `QL_Steamworks_GetUserStatInt`, `QL_Steamworks_GetUserAchievement`, and
+   `QL_Steamworks_GetAchievementDisplayAttribute`.
+5. Added ctypes and static parity coverage tying the HLIL evidence, Round 188
+   source reconstruction note, production wrappers, mock vtable slots,
+   executable test, plan entry, and Round 382 note together.
+
+### Task A286: Pin native-only botlib EA action slab [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_public.h`,
+`src/code/game/g_syscalls.c`, `src/code/game/g_local.h`,
+`src/code/game/botlib.h`, `src/code/botlib/be_ea.c`,
+`src/code/botlib/be_interface.c`, `src/code/server/sv_game.c`,
+`src/code/server/ql_game_imports.inc`,
+`tests/test_botlib_ea_native_action_slab_parity.py`,
+`docs/reverse-engineering/botlib-ea-native-action-slab-mapping-2026-06-06.md`
+Parity estimate: **before 78% -> after 99%** for focused EA native action
+slab mapping, **before 84% -> after 96%** for focused native-only botlib import
+classification, and overall botlib plus qagame native import wiring
+**91% -> 92%**.
+
+Completed work:
+
+1. Rechecked native slots 85 through 109 against the Quake Live HLIL import
+   table, Ghidra row sizes, source native enum, server import initializer, and
+   generated qagame wrappers.
+2. Pinned `G_QL_IMPORT_BOTLIB_EA_WALK = 89` as a direct-native-only import.
+3. Verified that no legacy `BOTLIB_EA_WALK` enum member or `trap_EA_Walk`
+   wrapper should be reconstructed in `g_syscalls.c` / `g_local.h`.
+4. Cross-checked the `ea_export_t` source chain from `ACTION_WALK` through
+   `EA_Walk`, `Init_EA_Export`, and `QL_G_trap_EA_Walk`.
+5. Added focused parity coverage to prevent the native EA slab from being
+   reordered by name or backfilled with a fake legacy syscall.
+
+### Task A285: Extend SteamUserStats clear/reset harness coverage [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_375.md`
+Parity estimate: **before 45% -> after 98%** for focused SteamUserStats
+clear/reset harness parity, **before 96% -> after 99%** for retained
+`stats_clear` wrapper evidence confidence, and broader Steamworks parity
+remains approximately **99%** because live backend behavior is outside this
+opt-in reconstruction pass.
+
+Completed work:
+
+1. Rechecked the retained `stats_clear` command owner at `0x00460520` and its
+   `SteamUserStats()` slot `0x54` call at `0x00460531`.
+2. Added deterministic mock state for reset-call count, last
+   `achievementsToo` value, and configurable reset result.
+3. Added `QLR_SteamUserStats_ResetAllStats` to the mock SteamUserStats vtable
+   at `0x54 / 4` and exported enabled/disabled harness wrappers for
+   `QL_Steamworks_ClearStats`.
+4. Added ctypes coverage for the pre-initialisation guard, boolean forwarding,
+   failure propagation, and disabled-build fallback behavior.
+5. Added static parity coverage and
+   `docs/reverse-engineering/quakelive_steam_mapping_round_375.md` to pin the
+   HLIL evidence, production offset, mock vtable, executable test, and plan
+   note together.
+
+### Task A284: Correct botlib-adjacent qagame world import slots [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_public.h`,
+`src/code/game/g_syscalls.c`, `src/code/server/sv_game.c`,
+`src/code/server/ql_game_imports.inc`,
+`tests/test_botlib_qagame_world_import_slab_parity.py`,
+`docs/reverse-engineering/botlib-qagame-world-import-slab-mapping-2026-06-06.md`
+Parity estimate: **before 76% -> after 98%** for focused qagame world/import
+slab native slot parity, **before 90% -> after 91%** for focused
+botlib-adjacent qagame import environment coverage, and overall botlib plus
+related server/game wiring **90% -> 91%**.
+
+Completed work:
+
+1. Rechecked the qagame world/import native table at
+   `0x0056CFFC..0x0056D02C` against Quake Live HLIL and promoted aliases.
+2. Reconstructed direct native import slots for `G_IN_PVS_IGNORE_PORTALS`,
+   `G_AREAS_CONNECTED`, and `G_ENTITY_CONTACT`.
+3. Corrected the native enum/server import order so slot 39 is
+   `G_QL_IMPORT_LINKENTITY` and slot 40 is `G_QL_IMPORT_UNLINK_ENTITY`.
+4. Bound the recovered slots in `G_MapNativeImport` and `SV_InitGameImports`
+   while leaving `EntityContactCapsule` on the legacy compatibility path.
+5. Added focused parity coverage for aliases, Ghidra row sizes, HLIL wrapper
+   shapes, native table order, syscall remap, qagame wrappers, and source
+   initializer assignments.
+
+### Task A283: Extend client Steam identity and SteamUtils harness coverage [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_373.md`
+Parity estimate: **before 68% -> after 98%** for focused client Steam
+identity/SteamUtils harness parity, **before 96% -> after 99%** for bootstrap
+identity/app-id wrapper evidence confidence, and broader Steamworks parity
+remains approximately **99%** because live backend behavior is outside this
+opt-in reconstruction pass.
+
+Completed work:
+
+1. Rechecked the retained local SteamID helper at `0x00460550`, persona cvar
+   sync helper at `0x00460610`, IP-country helper at `0x00460690`, and
+   `SteamUtils()->GetAppID` callsites at `0x00431c48` and `0x00460dd6`.
+2. Added deterministic mock call counters for SteamFriends persona name,
+   SteamUser identity, SteamUtils IP country, and SteamUtils app ID.
+3. Exported enabled/disabled harness wrappers for persona-name, IP-country,
+   app-id, and user-SteamID lookup.
+4. Added ctypes coverage for persona/country copying, app-id forwarding,
+   SteamID low/high projection, unavailable-user failure behavior, and
+   disabled-build output clearing.
+5. Added static parity coverage and
+   `docs/reverse-engineering/quakelive_steam_mapping_round_373.md` to pin the
+   HLIL evidence, production offsets, mock vtable, executable test, and plan
+   note together.
+
+### Task A282: Bind and pin server/qagame botlib bridge slots [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_public.h`,
+`src/code/game/g_syscalls.c`, `src/code/server/sv_game.c`,
+`src/code/server/sv_bot.c`,
+`tests/test_botlib_server_game_bridge_parity.py`,
+`docs/reverse-engineering/botlib-server-game-bridge-mapping-2026-06-06.md`
+Parity estimate: **before 72% -> after 100%** for focused server/qagame
+botlib bridge alias coverage, **before 82% -> after 98%** for focused native
+qagame botlib import-slot source parity, and focused botlib plus server/game
+wiring **89% -> 90%**.
+
+Completed work:
+
+1. Cross-checked the promoted `SV_Bot*`, `BotImport_*`, and `QL_G_trap_Bot*`
+   aliases against the committed Ghidra row sizes and Quake Live HLIL.
+2. Reconstructed native qagame import slots 44, 47, and 48 as
+   `G_QL_IMPORT_BOT_FREE_CLIENT`, `G_QL_IMPORT_DEBUG_POLYGON_CREATE`, and
+   `G_QL_IMPORT_DEBUG_POLYGON_DELETE`.
+3. Routed `G_BOT_FREE_CLIENT`, `G_DEBUG_POLYGON_CREATE`, and
+   `G_DEBUG_POLYGON_DELETE` through `G_MapNativeImport` and
+   `SV_InitGameProgs`.
+4. Added focused source/HLIL/table coverage for the server bot lifecycle,
+   botlib setup/shutdown, reliable command consumption, snapshot entity lookup,
+   and qagame native import table.
+5. Added a dedicated mapping note and a range scan requiring direct
+   `test_botlib_*.py` mentions for the promoted bridge aliases.
+
+### Task A281: Extend SteamFriends enumeration harness coverage [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_372.md`
+Parity estimate: **before 72% -> after 98%** for focused SteamFriends
+friend-list harness parity, **before 98% -> after 99%** for retained browser
+friend-summary wrapper evidence confidence, and broader Steamworks parity
+remains approximately **99%** because live backend behavior is outside this
+opt-in reconstruction pass.
+
+Completed work:
+
+1. Rechecked the retained `GetFriendList` HLIL block at `0x0043355d` through
+   `0x00433a00`, confirming SteamFriends slots `0x0c`, `0x10`, `0x1c`,
+   `0x18`, `0x14`, `0x2c`, `0xb4`, and `0x20`.
+2. Added deterministic SteamFriends mock enumeration state plus
+   `GetFriendCount` and `GetFriendByIndex` vtable slots at `0x0c / 4` and
+   `0x10 / 4`.
+3. Exported enabled/disabled harness wrappers for friend count, by-index
+   identity lookup, friend summary, and persona-name lookup.
+4. Added ctypes coverage for flag forwarding, SteamID projection,
+   invalid-index clearing, persona-name copying, full friend-summary
+   projection, and offline fallback behavior.
+5. Added static parity coverage and
+   `docs/reverse-engineering/quakelive_steam_mapping_round_372.md` to pin the
+   HLIL evidence, production offsets, mock vtable, executable test, and plan
+   note together.
+
+### Task A280: Split Freeze winning-team thaw respawn path [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_active.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_round_controller_helper_parity.py`,
+`docs/reverse-engineering/freeze-tag-winning-thaw-respawn-mapping-2026-06-06.md`,
+`docs/reverse-engineering/freeze-tag-mapping-2026-06-06.md`,
+`docs/reverse-engineering/qagame-mapping.md`
+Parity estimate: **before 55% -> after 96%** for the focused configured
+winning-team thaw respawn lane. The broader Freeze thaw-respawn tail moves
+approximately **88% -> 94%**, while broader Freeze Tag gametype wiring moves
+approximately **95% -> 96%**.
+
+Completed work:
+
+1. Rechecked `FUN_1004C1B0` / `Freeze_RoundStateTransition` in the committed
+   qagame Ghidra corpus and pinned the `pm_type == PM_FREEZE` branch that
+   emits `EV_THAW_PLAYER`, writes `PM_NORMAL`, and tailcalls `ClientSpawn`.
+2. Added `G_FreezeRespawnThawedWinner` in `g_active.c` to mirror that direct
+   round-controller thaw visual and respawn handoff.
+3. Routed `G_FreezeThawWinningPlayers` through the new helper instead of
+   `G_FreezeThawClient`, keeping winning-team thaw distinct from assisted,
+   admin, and auto-thaw paths.
+4. Added focused source/evidence tests for the direct helper and updated Freeze
+   round-controller parity coverage.
+5. Added a dedicated mapping note and updated the umbrella Freeze/qagame maps.
+
+### Task A279: Pin botlib-adjacent native cgame import slab [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_cgame.c`,
+`src/code/cgame/cg_public.h`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_cgame_native_import_slab_parity.py`,
+`docs/reverse-engineering/botlib-cgame-native-import-slab-mapping-2026-06-06.md`
+Parity estimate: **before 45% -> after 100%** for focused native cgame
+import-slab alias coverage, **before 78% -> after 97%** for focused
+import-table source initializer coverage, and focused botlib plus cgame-boundary
+related wiring **88% -> 89%**.
+
+Completed work:
+
+1. Widened the botlib-related alias/test scan to the native cgame slab at
+   `0x004AF820..0x004B0500`.
+2. Pinned all promoted aliases in that range against
+   `quakelive_symbol_aliases.json` and Ghidra row sizes where rows exist.
+3. Added HLIL wrapper-shape anchors for command, collision-model, sound,
+   renderer, advertisement bridge, snapshot/input, parser, cinematic, social,
+   avatar, and adjacent lifecycle owners.
+4. Cross-checked `CG_QL_IMPORT_COUNT = 128` and the reconstructed
+   `CL_InitCGameImports` source initializer assignments.
+5. Added a final scan gate confirming no promoted names in this slab remain
+   without direct `test_botlib_*.py` coverage; reserved retail-only rows remain
+   fail-closed rather than overpromoted.
+
+### Task A278: Close botlib parser-tail promoted alias coverage [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/l_precomp.c`,
+`src/code/botlib/l_script.c`, `src/code/botlib/l_script.h`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_parser_tail_coverage_parity.py`,
+`docs/reverse-engineering/botlib-parser-tail-coverage-mapping-2026-06-06.md`
+Parity estimate: **before 82% -> after 100%** for focused parser-tail
+promoted-alias test coverage, **before 78% -> after 97%** for focused
+`PC_EvaluateTokens` source-shape coverage, **before 74% -> after 96%** for
+focused `l_script.c` escape/number/expect-type source-shape coverage, and
+overall botlib parser/support static mapping **88% -> 89%**.
+
+Completed work:
+
+1. Widened the botlib alias/test scan to `0x004A83C0..0x004AF820` and isolated
+   the four remaining promoted parser-tail aliases without direct botlib test
+   mentions: `PC_EvaluateTokens`, `PS_ReadEscapeCharacter`, `PS_ReadNumber`,
+   and `PS_ExpectTokenType`.
+2. Pinned those helpers against `quakelive_symbol_aliases.json`,
+   `functions.csv`, HLIL function headers, and retail callsites in the
+   `quakelive_steam.exe` part03/part04 HLIL split.
+3. Cross-checked reconstructed source shape for the precompiler expression
+   evaluator, script escape decoder, numeric token scanner, and token-type
+   validator.
+4. Added a final support-tail scan gate confirming no aliases in this botlib
+   parser/support band remain without a direct `test_botlib_*.py` mention.
+5. Added a focused mapping note; no C source body changes or alias changes
+   were justified.
+
+### Task A277: Extend SteamFriends voice-speaking wrapper coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_368.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 60% -> after 97%** for focused SteamFriends
+voice-speaking wrapper harness parity, **before 98% -> after 99%** for
+retained client voice command wrapper evidence confidence, and broader
+Steamworks parity remains approximately **99%** because live Steam backend
+behavior and modern networking replacement work remain outside this opt-in
+reconstruction pass.
+
+Completed work:
+
+1. Rechecked the retained SteamFriends voice-speaking evidence at `0x00460441`
+   and `0x004604dc`.
+2. Added mock state and a `SteamFriends` vtable slot at `0x6c / 4` for
+   `SetInGameVoiceSpeaking`.
+3. Exported stable enabled and disabled harness wrappers for
+   `QL_Steamworks_SetInGameVoiceSpeaking`.
+4. Added ctypes coverage for SteamID word-combination, speaking-on/off
+   forwarding, call counts, and the offline fallback contract.
+5. Added static parity coverage tying the source wrapper slot, mock vtable,
+   executable coverage, HLIL evidence, and round 368 mapping note together.
+
+### Task A276: Close residual promoted botlib alias test coverage [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/be_aas_cluster.c`,
+`src/code/botlib/be_aas_debug.c`, `src/code/botlib/be_ai_chat.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_residual_promoted_alias_coverage.py`,
+`docs/reverse-engineering/botlib-residual-promoted-alias-coverage-2026-06-06.md`
+Parity estimate: **before 70% -> after 100%** for focused residual
+promoted-alias test coverage, **before 82% -> after 96%** for focused AAS
+cluster/debug residual source-shape coverage, **before 84% -> after 97%** for
+focused chat match-piece and integrity-tail source-shape coverage, and overall
+botlib static mapping/test coverage **87% -> 88%**.
+
+Completed work:
+
+1. Rescanned the promoted core botlib alias band from `0x004829C0` through
+   `0x004A83C0` and isolated the five remaining direct test-mention gaps:
+   `AAS_CheckAreaForPossiblePortals`, `AAS_ShowFacePolygon`,
+   `BotFreeMatchPieces`, `BotCheckInitialChatIntegrety`, and
+   `BotCheckReplyChatIntegrety`.
+2. Pinned those helpers against `quakelive_symbol_aliases.json`,
+   `functions.csv`, HLIL function headers, and their retail callsites in
+   `quakelive_steam.exe_hlil_part03.txt`.
+3. Cross-checked the reconstructed source shape for cluster portal candidate
+   detection, debug face polygon drawing, chat match-piece cleanup, and the
+   initial/reply chat integrity walkers.
+4. Added a final promoted-core botlib scan gate confirming no aliases in this
+   band remain without a direct `test_botlib_*.py` mention.
+5. Added a focused mapping note; no C source body changes or alias changes
+   were justified.
+
+### Task A275: Extend SteamUser voice wrapper harness coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_367.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 72% -> after 97%** for focused SteamUser voice
+wrapper harness parity, **before 96% -> after 98%** for client Steam voice
+transport evidence confidence, and broader Steamworks parity remains
+approximately **99%** because live Steam microphone/backend behavior and modern
+networking replacement work remain outside this opt-in reconstruction pass.
+
+Completed work:
+
+1. Rechecked the retained SteamUser voice slot evidence at `0x0046044c`,
+   `0x00460459`, `0x004604b1`, `0x00460d4b`, and `0x00461b07`.
+2. Added deterministic harness mock state and `SteamUser` vtable slots for
+   start, stop, compressed voice, decompression, and optimal sample rate.
+3. Exported stable enabled and disabled harness wrappers for the production
+   Steam voice API family.
+4. Added ctypes coverage for payload projection, output-size failure zeroing,
+   compressed/uncompressed flags, sample-rate forwarding, call counts, and the
+   offline fallback contract.
+5. Added static parity coverage tying the source wrapper slots, mock vtable,
+   harness coverage, HLIL evidence, and round 367 mapping note together.
+
+### Task A274: Pin late botlib movement support mapping [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/be_aas_move.c`,
+`src/code/botlib/be_aas_reach.c`, `src/code/botlib/be_ai_move.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_movement_late_support_parity.py`,
+`docs/reverse-engineering/botlib-movement-late-support-mapping-2026-06-06.md`
+Parity estimate: **before 68% -> after 96%** for focused late AAS
+movement/support mapping, **before 72% -> after 96%** for focused late travel
+dispatch coverage, and overall botlib plus movement/reachability wiring
+**86% -> 87%**.
+
+Completed work:
+
+1. Recomputed the botlib row coverage and confirmed the direct core remains
+   closed except for the documented libjpeg false leads and folded
+   `0x00486F40` weapon-jump thunk.
+2. Identified promoted movement/reachability aliases that lacked focused
+   parity-test coverage.
+3. Pinned `AAS_DropToFloor`, `AAS_AgainstLadder`, `AAS_OnGround`,
+   `AAS_ApplyFriction`, `AAS_ClipToBBox`, `AAS_GetJumpPadInfo`,
+   `AAS_Reachability_EqualFloorHeight`, and `AAS_FindFaceReachabilities`
+   against aliases, Ghidra rows, HLIL anchors, and source shape.
+4. Pinned the late travel handlers `BotTravel_Elevator`,
+   `BotTravel_FuncBobbing`, `BotFinishTravel_WeaponJump`,
+   `BotTravel_JumpPad`, `BotFinishTravel_JumpPad`, `BotReachabilityTime`, and
+   `BotMoveInGoalArea`, plus their `BotMoveToGoal` dispatch wiring.
+5. Added a focused parity gate and mapping note; no C source body changes or
+   alias changes were justified.
+
+### Task A273: Extend legacy Steam P2P read-boundary coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_366.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 96% -> after 98%** for focused legacy P2P
+read-boundary harness parity, **before 98% -> after 98.5%** for legacy Steam
+P2P wrapper evidence confidence, and broader Steamworks parity remains
+approximately **99%** with live backend behavior and modern networking
+replacement design still outside this opt-in reconstruction pass.
+
+Completed work:
+
+1. Rechecked the retained `SteamNetworking` and
+   `SteamGameServerNetworking` availability/read slot evidence in the retail
+   HLIL and existing Steamworks mapping rounds.
+2. Extended the client P2P harness path so a staged packet rejected by a
+   too-small read buffer clears stale output size and remote SteamID values.
+3. Extended the server P2P harness path with the matching too-small buffer
+   rejection coverage.
+4. Added static parity coverage for import names, client/server vtable slots,
+   mock read-output clearing, and the round 366 evidence note.
+5. Left production Steamworks wrappers unchanged because this pass proved local
+   harness boundary behavior rather than a new retail slot or live SDK edge.
+
+### Task A272: Close botlib-adjacent cgame shutdown import boundary [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_cgame.c`, `src/code/client/cl_main.c`,
+`src/code/client/client.h`, `src/code/qcommon/common.c`,
+`src/code/cgame/cg_public.h`, `references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_cgame_shutdown_import_boundary_parity.py`,
+`docs/reverse-engineering/botlib-cgame-shutdown-import-boundary-mapping-2026-06-06.md`
+Parity estimate: **before 70% -> after 98%** for focused cgame shutdown owner
+mapping, **before 80% -> after 92%** for adjacent cgame native residual import
+classification, and overall botlib plus related parser/import/lifecycle wiring
+**85% -> 86%**.
+
+Completed work:
+
+1. Rechecked `0x004AF820..0x004B0500` across HLIL, Ghidra `functions.csv`,
+   source lifecycle owners, and native cgame import wiring.
+2. Promoted `0x004AFBF0 -> CL_ShutdownCGame`, matching the source
+   `KEYCATCH_CGAME`, `CG_SHUTDOWN`, `VM_Free`, and `cgvm = NULL` lifecycle
+   sequence.
+3. Bounded the remaining unaliased cgame-native import rows at `0x004AFFC0`,
+   `0x004B00C0`, and `0x004B0370` as residual table trampolines whose exact
+   public meanings remain weaker than their slot neighborhoods.
+4. Confirmed the current source keeps the unresolved retail-only slots behind
+   `QL_CG_trap_RetailReservedImport`, preserving fail-closed behavior instead
+   of inventing live service or renderer behavior.
+5. Added a focused parity gate and mapping note for the botlib-adjacent cgame
+   shutdown/import boundary; no C source body changes were justified.
+
+### Task A271: Extend Steam UGC call-result failure projection coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_364.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 58% -> after 96%** for focused UGC call-result
+failure projection coverage, **before 94% -> after 98%** for combined UGC
+query callback pump projection, and broader Steamworks parity remains
+approximately **99%** because live backend timing, workshop availability, and
+the raw filter semantic remain intentionally bounded.
+
+Completed work:
+
+1. Rechecked the retained `SteamUGC` create/send query slots and the
+   `SteamUGCQueryCompleted_t` call-result owner.
+2. Added a harness queue helper for UGC call-result payloads with explicit
+   `ioFailure` and payload-presence controls.
+3. Added executable coverage for raw failed results, `ioFailure`, no-payload
+   failure, and no-payload non-IO failure projections.
+4. Pinned call-handle preservation and zeroed no-payload event projection.
+5. Added static dispatcher assertions for the mapped call-result fields and
+   failure branches.
+
+### Task A270: Close botlib structure-tail and cgame boundary mapping [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/l_struct.c`, `src/code/client/cl_cgame.c`,
+`src/code/client/ql_cgame_imports.inc`, `src/code/cgame/cg_syscalls.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_structure_tail_cgame_boundary_parity.py`,
+`docs/reverse-engineering/botlib-structure-tail-cgame-boundary-mapping-2026-06-06.md`
+Parity estimate: **before 78% -> after 98%** for focused botlib
+structure-tail boundary classification, **before 72% -> after 97%** for
+adjacent cgame snapshot/configstring owner naming, and overall botlib plus
+related parser/import wiring **84% -> 85%**.
+
+Completed work:
+
+1. Rechecked `0x004AE830..0x004AF820` across HLIL, Ghidra `functions.csv`,
+   botlib source, and client/cgame import wiring.
+2. Promoted `0x004AF570 -> CL_GetSnapshot` and
+   `0x004AF690 -> CL_ConfigstringModified`, separating true client owners from
+   the existing native cgame import wrappers.
+3. Confirmed `ReadStructure` remains the final promoted botlib structure-reader
+   owner in this seam.
+4. Classified `ReadChar`, `ReadString`, `WriteIndent`, `WriteFloat`,
+   `WriteStructWithIndent`, and `WriteStructure` as source-visible but
+   unpromoted in this retail address band.
+5. Added a focused parity gate and mapping note for the structure-tail to
+   cgame-import boundary; no C source body changes were justified.
+
+### Task A269: Extend Steam UGC query result readback coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_363.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 55% -> after 94%** for focused UGC query
+result/preview/release harness coverage, **before 96% -> after 98%** for
+combined UGC query wrapper and call-result projection, and broader Steamworks
+parity remains approximately **99%** because live backend timing, workshop
+availability, and the raw filter semantic remain intentionally bounded.
+
+Completed work:
+
+1. Rechecked the retained `SteamUGC` query/readback HLIL slots at
+   `0x00460DF3`, `0x00460E04`, `0x0045FD88`, and `0x0045FDAA`.
+2. Extended the Steamworks harness with mocked `GetQueryUGCResult`,
+   `GetQueryUGCPreviewURL`, and `ReleaseQueryUGCRequest` vtable slots.
+3. Added mock state for published-file ID, title, description, preview URL,
+   result/preview success flags, query handles, and row indexes.
+4. Exported enabled and disabled harness wrappers for the retained UGC query
+   readback/release surface.
+5. Added ctypes coverage for success, release, failure zeroing, and disabled
+   offline fallback behavior.
+
+### Task A268: Promote botlib CRC and libvar runtime owners [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/l_crc.c`, `src/code/botlib/l_libvar.c`,
+`src/code/botlib/be_aas_route.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_crc_libvar_alias_closure_parity.py`,
+`docs/reverse-engineering/botlib-crc-libvar-alias-closure-2026-06-06.md`
+Parity estimate: **before 76% -> after 99%** for focused CRC/libvar alias
+ownership, **before 88% -> after 98%** for route-cache CRC owner mapping, and
+overall botlib support/runtime mapping **83% -> 84%**.
+
+Completed work:
+
+1. Rechecked the unpromoted `0x004A84B0..0x004A8790` support-runtime block
+   immediately after `GetBotLibAPI`.
+2. Promoted `CRC_ProcessString` and nine libvar runtime helpers in the retail
+   symbol-alias map.
+3. Captured `LibVarGet` and `LibVarDeAlloc` as source-visible readability
+   helpers that retail folded into emitted callers, so they remain
+   intentionally unpromoted.
+4. Tied the CRC helper to AAS route-cache area and cluster CRC write/read
+   wiring.
+5. Added a focused regression gate and mapping note; no C source body changes
+   were justified for this slice.
+
+### Task A267: Close WebUI server-browser retained refresh parity [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`,
+`tests/test_platform_services.py`, `tests/test_netcode_parity_manifest.py`,
+`docs/reverse-engineering/steam-retail-server-browser-appid-interop-2026-06-06.md`
+Parity estimate: **before 96% -> after 100%** for the focused WebUI
+server-browser list/refresh support lane. Broader Steam server-browser parity
+remains approximately **99%** because live Steam backend timing and
+server-side Steam GameServer public-app publication still require opt-in
+runtime validation.
+
+Completed work:
+
+1. Rechecked the retained WebUI `RequestServers`, `RefreshList`,
+   list-response, list-failure, and refresh-complete HLIL against
+   `quakelive_steam.exe`.
+2. Confirmed retail `RefreshList` only refreshes the retained
+   `ISteamMatchmakingServers` query handle and does not publish a new
+   `servers.refresh.start` event or rearm browser active/timeout state.
+3. Removed the SRP-only active-refresh gate from native list response/failure
+   callbacks so retained-handle refresh rows publish like retail rows.
+4. Kept native timeout protection for SRP's frame-driven initial request path
+   while allowing callback-driven `RefreshComplete` to publish the retail
+   `servers.refresh.end` event after retained-handle refreshes.
+5. Re-audited the SRP-to-retail publication side and confirmed the existing
+   Steam GameServer bootstrap/state path mirrors retail product, game-dir,
+   identity, metadata, and heartbeat publication; public-retail app identity
+   remains a runtime Steam context requirement because retail has no source-side
+   app-id argument in `SteamGameServer_Init`.
+6. Added static parity gates and mapping notes for the retained refresh
+   callback semantics.
+
+### Task A266: Extend Steam GameServer callback pump coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_360.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 63% -> after 97%** for the focused Steam
+GameServer callback pump coverage lane. Steam GameServer callback registration
+plus payload projection moves approximately **92% -> 98%**, while broader
+Steamworks parity remains approximately **99%** because live backend connection
+timing, auth policy, VAC behavior, and transport behavior remain intentionally
+bounded behind opt-in online services.
+
+Completed work:
+
+1. Rechecked `SteamServerCallbacks_Init` (`0x00466DB0`) against the mapping
+   report, promoted server callback aliases, and imported `SteamServerCallbacks`
+   vtables in the Ghidra symbols corpus.
+2. Confirmed the platform layer already prepares retained callback objects for
+   `SteamServersConnected_t`, `SteamServerConnectFailure_t`,
+   `SteamServersDisconnected_t`, `ValidateAuthTicketResponse_t`, server-side
+   `P2PSessionRequest_t`, `GSStatsReceived_t`, and `GSStatsStored_t`.
+3. Extended the Steamworks harness with retained targets for the four server
+   callbacks that were not previously executable-test-backed.
+4. Added queue helpers and ctypes coverage proving those payloads cross
+   `QL_Steamworks_RunServerCallbacks`, including result, retry, and SteamID
+   projection.
+5. Tightened static parity coverage for all seven server callback IDs, object
+   preparations, object registrations, and unregister calls.
+
+### Task A265: Reconstruct Freeze Tag thaw respawn tail [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_freeze.c`, `src/code/game/g_combat.c`,
+`src/code/game/g_local.h`, `tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_cgame_event_transport_parity.py`,
+`docs/reverse-engineering/freeze-tag-thaw-respawn-tail-mapping-2026-06-06.md`
+Parity estimate: **before 38% -> after 88%** for the focused Freeze
+`EV_THAW_PLAYER` / `PM_NORMAL` / `ClientSpawn` respawn tail. The broader
+Freeze thaw-completion event lane moves approximately **86% -> 93%**, while
+broader Freeze Tag gametype wiring moves approximately **94% -> 95%**.
+
+Completed work:
+
+1. Rechecked `FUN_1004CD40` / `G_FreezeClientEndFrame` and confirmed assisted
+   thaw falls into `FUN_10046d80` after helper reward, obituary, and team-sound
+   publication.
+2. Rechecked `FUN_1004C1B0` / `Freeze_RoundStateTransition` and pinned the
+   independent winning-team thaw sequence: `EV_THAW_PLAYER`, `PM_NORMAL`, then
+   `ClientSpawn`.
+3. Reconstructed the Freeze marker branch in `GibEntity`: the normal
+   `EV_GIB_PLAYER` event remains first, then marked frozen clients emit
+   `EV_THAW_PLAYER`, restore `PM_NORMAL`, and rerun `ClientSpawn`.
+4. Split helper assist credit into `G_FreezeAwardThawAssist` so score, assist
+   medal, and centerprint side effects survive before the thawed client state
+   is rebuilt through `ClientSpawn`.
+5. Added focused parity tests and mapping notes for the retail thaw respawn
+   tail, while retaining the old direct thaw visual only as a stale-marker
+   fallback.
+
+### Task A264: Close botlib residual address and native import wiring audit [COMPLETED]
+Priority: High
+Primary areas: `references/analysis/quakelive_symbol_aliases.json`,
+`references/reverse-engineering/ghidra/quakelive_steam/functions.csv`,
+`src/code/botlib/be_interface.c`, `src/code/game/g_syscalls.c`,
+`src/code/server/sv_game.c`, `src/code/server/ql_game_imports.inc`,
+`tests/test_botlib_residual_gap_and_wiring_parity.py`,
+`docs/reverse-engineering/botlib-residual-gap-and-wiring-audit-2026-06-06.md`
+Parity estimate: **before 70% -> after 98%** for focused residual botlib
+address classification and **before 90% -> after 98%** for native botlib
+import bridge closure. Overall botlib plus related wiring moves approximately
+**82% -> 83%** because this round locks down classification and bridge
+consistency without changing source behavior.
+
+Completed work:
+
+1. Recomputed the `0x00482000..0x004A8400` botlib-neighborhood function scan
+   against the nested `quakelive_steam` symbol alias map.
+2. Captured the exact residual set as fifteen pre-`AAS_Trace` libjpeg
+   memory-manager false-lead rows plus the compiler-folded
+   `sub_486F40` weapon-jump thunk.
+3. Added a regression gate proving the neighborhood has `417` Ghidra rows,
+   `401` row-backed promoted aliases, `407` promoted aliases in the band
+   overall, and only the documented residual addresses left.
+4. Added a bridge-wide native import check proving all `134`
+   `G_QL_IMPORT_BOTLIB_*` slots are registered and backed by generated/local
+   `QL_G_trap_*` wrappers, with the three intentional direct-native slots
+   called out explicitly.
+5. Documented why no new source reconstruction or alias promotion is justified
+   for this residual pass.
+
+### Task A263: Extend main Steam client callback pump coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_359.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 62% -> after 97%** for the focused main client
+callback pump coverage lane. Steam client callback registration plus payload
+projection moves approximately **91% -> 98%**, while broader Steamworks parity
+remains approximately **99%** because live Steam backend timing, stats
+validity, presence cadence, and P2P networking behavior remain intentionally
+bounded behind opt-in online services.
+
+Completed work:
+
+1. Rechecked `SteamCallbacks_Init` (`0x004613A0`) against the mapping report,
+   promoted callback handler aliases, and imported `SteamCallbacks`
+   callback/call-result vtables in the Ghidra symbols corpus.
+2. Confirmed the platform layer already prepares the retained client callback
+   objects for rich presence, user stats, persona state, client P2P session,
+   game-server change, friend rich presence, and UGC query completion.
+3. Extended the Steamworks harness with retained callback targets for the five
+   normal client callbacks that were not previously executable-test-backed.
+4. Added queue helpers and ctypes coverage proving those payloads cross
+   `QL_Steamworks_RunCallbacks`, including friend-summary enrichment and
+   server/password string projection.
+5. Tightened static parity coverage for all client callback IDs, normal
+   callback registrations, and the UGC call-result preparation.
+
+### Task A262: Restore public retail Steam server-browser AppID interop [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/common/platform/platform_steamworks.h`, `src/code/client/cl_main.c`,
+`src/code/client/cl_cgame.c`, `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`,
+`docs/reverse-engineering/steam-retail-server-browser-appid-interop-2026-06-06.md`
+Parity estimate: **before 72% -> after 96%** for the focused public-retail
+Steam server-browser AppID interop lane. Broader WebUI server-browser parity
+remains approximately **99%** because live Steam backend timing and server-side
+Steam GameServer app-context publication still require opt-in runtime
+validation.
+
+Completed work:
+
+1. Traced the empty WebUI list to the native Steam browser path filtering list
+   requests and returned rows by the running Steam app id while the legacy
+   Quake III master fallback is policy-disabled.
+2. Added explicit `ForApp` Steam browser and favorite helpers so the recovered
+   current-app wrappers remain intact while the WebUI browser can target public
+   retail Quake Live discovery.
+3. Added `cl_steamServerBrowserAppId`, defaulting to public retail app id
+   `282440`, and stored the selected app id on native list/detail state for
+   callback-time validation.
+4. Routed WebUI favorite add/remove through the same discovery app id used by
+   Favorites/History list requests.
+5. Added executable harness coverage and source-parity assertions for
+   current-app behavior, public-retail request app id, public-retail row
+   validation, ping/detail projection, and favorites.
+
+### Task A261: Map botlib edge math and grapple helper owners [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/be_aas_reach.c`,
+`src/code/botlib/be_aas_move.c`, `src/code/botlib/be_ai_move.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_move_edge_grapple_helper_parity.py`,
+`docs/reverse-engineering/botlib-move-edge-grapple-helper-mapping-2026-06-06.md`
+Parity estimate: **before 70% -> after 97%** for focused AAS edge helper
+mapping and **before 78% -> after 97%** for focused move-AI angle/grapple
+helper mapping. Overall botlib plus movement/reachability helper wiring moves
+approximately **81% -> 82%** because this pass closes static helper ownership
+without changing live-map movement behavior.
+
+Completed work:
+
+1. Rechecked the remaining real botlib-neighborhood gaps after the route
+   prelude pass and separated them from the known libjpeg false lead.
+2. Promoted `VectorDistance`, `VectorBetweenVectors`, `AngleDiff`,
+   `GrappleState`, and `BotResetGrapple` from HLIL/Ghidra evidence.
+3. Pinned their source consumers in `AAS_ClosestEdgePoints`,
+   `BotTravel_Grapple`, rocket/BFG jump travel, and `BotMoveToGoal`.
+4. Preserved `sub_486F40` as an explicit non-promotion because retail folds the
+   identical rocket/BFG `AAS_WeaponJumpZVelocity(origin, 120)` wrappers into a
+   single thunk.
+
+### Task A260: Reconstruct Freeze Tag assisted-thaw obituary and team sound [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_freeze.c`, `src/code/cgame/cg_event.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_cgame_event_transport_parity.py`,
+`docs/reverse-engineering/freeze-tag-thaw-obituary-sound-mapping-2026-06-06.md`,
+`docs/reverse-engineering/freeze-tag-mapping-2026-06-06.md`,
+`docs/reverse-engineering/qagame-mapping.md`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 45% -> after 91%** for the focused assisted-thaw
+obituary/global-team-sound corridor. The broader Freeze thaw-completion event
+lane moves approximately **72% -> 86%**, while broader Freeze Tag gametype
+wiring moves approximately **93% -> 94%** because the deeper retail
+`GibEntity`/`ClientSpawn` thaw visual tail remains a separate source
+reconstruction target.
+
+Completed work:
+
+1. Rechecked `FUN_1004CD40` in the committed qagame Ghidra/HLIL corpus and
+   confirmed assisted thaw emits `EV_OBITUARY` with `MOD_THAW`, thawed client,
+   helper client, and `SVF_BROADCAST` immediately after assist credit.
+2. Mapped the following `EV_GLOBAL_TEAM_SOUND` payload to the existing
+   `G_BroadcastGlobalTeamSound` bridge, using `GTS_RED_RETURN` for blue-team
+   clients and `GTS_BLUE_RETURN` otherwise.
+3. Added `G_FreezeEmitThawCompletionEvents` and routed non-auto thaw completion
+   through it before the existing direct `EV_THAW_PLAYER` visual handoff.
+4. Rechecked cgame `CG_Obituary` strings in the committed cgame HLIL and symbol
+   map, then restored `MOD_THAW` text for world auto-thaw, local helper thaw,
+   and remote helper thaw.
+5. Added static parity coverage and a dedicated mapping note that records the
+   reconstructed assisted-thaw layer and leaves the retail `GibEntity` respawn
+   tail as the next explicit gap.
+
+### Task A259: Map AAS route prelude helpers [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/be_aas_route.c`,
+`src/code/botlib/be_aas_route.h`, `src/code/botlib/be_aas_main.c`,
+`src/code/botlib/be_ai_move.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_route_prelude_parity.py`,
+`docs/reverse-engineering/botlib-route-prelude-mapping-2026-06-06.md`
+Parity estimate: **before 55% -> after 96%** for focused AAS route-prelude
+helper mapping. Route-cache invalidation and travel-flag wiring moves
+approximately **72% -> 97%**, while overall botlib plus related AAS route/import
+wiring moves approximately **80% -> 81%** because later route runtime and
+alternative-route work was already mapped in the prior tranche.
+
+Completed work:
+
+1. Rechecked the retail `quakelive_steam.exe` HLIL range
+   `0x004925F0..0x00492F20` and separated actual AAS route helpers from the
+   adjacent libjpeg memory-manager false lead at `0x00482150..0x004829A0`.
+2. Promoted eleven missing route-prelude aliases for routing debug info,
+   cluster-local area numbering, travel-flag table initialization/access,
+   routing-cache invalidation, area-content flag table access, reversed
+   reachability creation, area travel time, and portal max travel-time
+   initialization.
+3. Documented which source helpers remain unpromoted because retail inlines or
+   fuses them into larger route-cache functions.
+4. Added focused parity coverage tying aliases to Ghidra rows, HLIL anchors,
+   debug strings, source structures, AAS init order, and move-AI consumers.
+
+### Task A258: Extend Steam lobby callback pump coverage [COMPLETED]
+Priority: High
+Primary areas: `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_358.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 58% -> after 96%** for the focused lobby callback
+pump coverage lane. Steam lobby callback registration plus payload projection
+moves approximately **90% -> 98%**, while broader Steamworks parity remains
+approximately **99%** because live Steam backend timing and browser event
+ordering remain intentionally bounded behind opt-in online services.
+
+Completed work:
+
+1. Rechecked the retail `SteamLobbyCallbacks_Init` HLIL constructor at
+   `0x004656A0`, the Ghidra imported `SteamLobbyCallbacks` callback vtables,
+   and the mapping report row for the eight lobby callback payload types.
+2. Confirmed the platform layer already prepares and registers callback
+   objects for `LobbyCreated_t`, `LobbyEnter_t`, `LobbyChatUpdate_t`,
+   `LobbyChatMsg_t`, `LobbyDataUpdate_t`, `LobbyGameCreated_t`,
+   `LobbyKicked_t`, and `GameLobbyJoinRequested_t`.
+3. Extended the Steamworks harness with retained callback targets and raw queue
+   helpers for the seven lobby callback payloads that were not previously
+   executable-test-backed.
+4. Expanded ctypes callback-pump coverage so all eight lobby payloads cross
+   `QL_Steamworks_RunCallbacks`, including the chat-message body retrieval
+   through the mocked `GetLobbyChatEntry` slot.
+5. Tightened static parity coverage for all eight callback IDs, object
+   preparations, and object registrations.
+
+### Task A257: Reconstruct Freeze Tag frozen powerup marker producer [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_freeze.c`,
+`src/code/cgame/cg_players.c`, `src/code/cgame/cg_draw.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/reverse-engineering/freeze-tag-frozen-marker-mapping-2026-06-06.md`,
+`docs/reverse-engineering/freeze-tag-mapping-2026-06-06.md`,
+`docs/reverse-engineering/qagame-mapping.md`
+Parity estimate: **before 35% -> after 94%** for the focused qagame
+frozen-marker producer lane. The combined Freeze Tag qagame/cgame
+presentation bridge moves approximately **88% -> 94%**, while broader Freeze
+Tag gametype wiring moves approximately **92% -> 93%** because the larger
+`FUN_1004BC80` thaw obituary/team-sound/GibEntity split remains open.
+
+Completed work:
+
+1. Rechecked the retail qagame death/freeze path against committed Ghidra and
+   confirmed `client + 0x17c = 0x7fffffff` plus `gentity + 0xc4 = 0x8000`
+   when Freeze Tag records a frozen player.
+2. Cross-checked `FUN_1004BC80` HLIL and confirmed the `arg2 == 1`
+   thaw/respawn branch clears the same client marker and entitystate bit.
+3. Added `G_FreezeSetClientFrozenPowerupMarker` so qagame now publishes
+   `ps.powerups[PW_NUM_POWERUPS] = INT_MAX` and
+   `ent->s.powerups = ( 1 << PW_NUM_POWERUPS )` on freeze entry, and clears
+   both surfaces during init/thaw.
+4. Anchored the bridge against existing cgame consumers in `CG_IsFrozenPlayer`,
+   `CG_PlayerSprites`, and the team overlay frozen bit.
+5. Added a dedicated mapping note and static parity coverage for the retail
+   offsets, source helper, and remaining thaw-event reconstruction gap.
+
+### Task A256: Map botlib chat private helper owners [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_ai_chat.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/botlib.h`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_chat_private_helper_parity.py`,
+`docs/reverse-engineering/botlib-chat-private-helper-mapping-2026-06-06.md`
+Parity estimate: **before 82% -> after 96%** for the focused chat
+private-helper corridor and **before 90% -> after 91%** for overall botlib
+chat mapping plus public chat export/import wiring. Remaining uncertainty is
+live chat-data behavior across retail `syn.c`, `rnd.c`, `match.c`, `rchat.c`,
+and per-bot initial chat files rather than private helper ownership.
+
+Completed work:
+
+1. Rechecked the `be_ai_chat.c` private-helper band against committed
+   `quakelive_steam.exe` HLIL and Ghidra function rows.
+2. Promoted `InitConsoleMessageHeap`, `BotRemoveTildes`,
+   `BotReplaceWeightedSynonyms`, `BotReplaceReplySynonyms`, and
+   `StringsMatch`.
+3. Preserved source bodies unchanged; the current reconstruction already
+   matches the retail static shape for heap setup, tilde scrubbing, synonym
+   replacement, and match-piece variable capture.
+4. Documented why `BotChatStateFromHandle`, `AllocConsoleMessage`,
+   `FreeConsoleMessage`, and `StringReplaceWords` remain source-visible but
+   unpromoted: the observed retail rows fold those operations into callers or
+   do not expose standalone owners.
+5. Added focused parity coverage for aliases, Ghidra sizes, HLIL helper call
+   sites, source helper bodies, setup/shutdown/matching/expansion wiring, and
+   the private/public AI export boundary.
+
+### Task A255: Normalize Steam GameServer and P2P vtable ABI wrappers [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/steamworks_harness.c`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_356.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 70% -> after 96%** for the focused
+GameServer/P2P vtable ABI wrapper family. The combined Steam GameServer
+metadata, identity, packet bridge, and legacy P2P wrapper surfaces move
+approximately **95% -> 98%**, while broader Steamworks parity remains
+approximately **99%** because live backend validation remains intentionally
+bounded behind opt-in online services.
+
+Completed work:
+
+1. Rechecked the committed HLIL around `0x00465A40`, `0x00465A60`,
+   `0x00465B00`, `0x00465B70`, and `0x00465D50` and confirmed the affected
+   lanes are Steam C++ interface vtable dispatches.
+2. Added `QL_STEAMWORKS_FASTCALL` and converted the retained
+   `ISteamNetworking`, `ISteamGameServer`, and `ISteamGameServerNetworking`
+   typedefs to the same `self, unused, ...` ABI shape used elsewhere in the
+   Steam wrapper layer.
+3. Updated GameServer metadata, identity, logged-on, public-IP,
+   incoming/outgoing packet, and legacy P2P call sites to pass the explicit
+   unused second argument before mapped retail parameters.
+4. Updated Steamworks harness vtable mocks to the corrected ABI shape so
+   argument ordering remains executable-test-backed.
+5. Tightened static parity assertions for the ABI macro, representative
+   typedefs, and mapped call sites.
+
+### Task A254: Map botlib goal item heap and avoid-goal wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_ai_goal.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/botlib.h`,
+`src/code/game/g_local.h`, `src/code/game/g_public.h`,
+`src/code/game/g_syscalls.c`, `src/code/game/ai_dmq3.c`,
+`src/code/server/sv_game.c`, `src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_goal_item_parity.py`,
+`docs/reverse-engineering/botlib-goal-item-mapping-2026-06-06.md`
+Parity estimate: **before 79% -> after 95%** for the focused goal item
+heap/info-entity/avoid-selection corridor. Overall botlib plus goal item
+export/import wiring moves approximately **88% -> 89%** because this pass
+closes static ownership and routing gaps without claiming live map-specific
+AAS item behavior, dynamic dropped-item behavior, or tactical item-selection
+quality.
+
+Completed work:
+
+1. Rechecked the retail `be_ai_goal.c` item config, fuzzy-weight index,
+   level-item heap, info-entity, avoid-goal, dynamic entity-item update, and
+   LTG/NBG selection band against the committed HLIL and Ghidra function rows.
+2. Promoted the missing private-owner aliases `ItemWeightIndex`,
+   `InitLevelItemHeap`, `BotFreeInfoEntities`, and `BotAddToAvoidGoals`.
+3. Confirmed no C source rewrite is currently justified; small source-visible
+   level-item helpers remain unaliased because the evidence supports them as
+   inlined operations inside larger retail owners.
+4. Added focused parity coverage for the source shape, botlib export block,
+   qagame legacy/native syscall bridge, server VM dispatch, direct native
+   import wrappers, and qagame level-item/camp-spot consumers.
+5. Added a dedicated mapping note for the goal-item heap and avoid-goal
+   wiring tranche.
+
+### Task A253: Reconstruct Steam GameServer P2P active-client gate [COMPLETED]
+Priority: High
+Primary areas: `src/code/server/sv_client.c`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_355.md`,
+`docs/plans/steamworks-parity-plan.md`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_01.md`,
+`docs/mapping-ref/quakelive_steam_mapping_report.md`
+Parity estimate: **before 72% -> after 96%** for the focused server-side
+`P2PSessionRequest_t` admission gate. The broader Steam GameServer callback
+bundle moves approximately **98% -> 99%**, while broader Steamworks parity
+remains approximately **99%** because live backend callback cadence and NAT
+behavior stay intentionally bounded behind opt-in online services.
+
+Completed work:
+
+1. Rechecked retail `SteamServerCallbacks_OnP2PSessionRequest`
+   (`0x00465B70`) in the committed HLIL and confirmed the callback scans
+   client slots for `*client == 4`, matching `CS_ACTIVE`, plus a two-word
+   SteamID match before dispatching `SteamGameServerNetworking` slot `0x0c`.
+2. Added `SV_FindActiveClientBySteamId` beside the broader SteamID finder so
+   auth-ticket responses can still locate pre-active clients while P2P session
+   admission mirrors the retail active-slot gate.
+3. Updated `SV_SteamServerP2PSessionRequestCallback` to remove the extra
+   `platformAuthSucceeded` condition, reject missing active SteamID matches,
+   log accepted matches, and then call the retained server P2P accept wrapper.
+4. Tightened static parity coverage for the active-client finder, callback
+   dispatch, removed auth-success gate, accepted diagnostic, and missing-player
+   rejection path.
+5. Corrected stale Steamworks mapping language that described the callback as
+   authenticated-client gated rather than active-client gated.
+
+### Task A252: Reconstruct Freeze Tag thaw-progress eFlag buckets [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_client.c`, `src/code/game/g_freeze.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`docs/reverse-engineering/freeze-tag-thaw-progress-eflags-mapping-2026-06-06.md`,
+`docs/reverse-engineering/freeze-tag-mapping-2026-06-06.md`,
+`docs/reverse-engineering/qagame-mapping.md`, `docs/gameplay/cvars.md`
+Parity estimate: **before 40% -> after 92%** for the focused Freeze
+thaw-progress low-bit producer lane. The broader Freeze thaw/end-frame lane
+moves approximately **94% -> 96%**, while broader Freeze Tag gametype wiring
+moves approximately **91% -> 92%** because this pass closes a static
+producer-side bucket mismatch without claiming live client visual validation.
+
+Completed work:
+
+1. Rechecked `FUN_1004CD40` / `G_FreezeClientEndFrame` in the committed Ghidra
+   corpus and pinned the top-of-function comparisons against
+   `DAT_105a472c / 3` and `(DAT_105a472c / 3) * 2`.
+2. Mapped the retail `gclient + 0x1c0` bit writes to the shared
+   `EF_DEAD` (`0x1`) and `EF_TICKING` (`0x2`) constants, preserving the retail
+   clear-high-bucket and OR-only middle/final bucket behavior.
+3. Reconstructed `G_FreezeUpdateThawProgressFlags` and called it at the top of
+   `G_FreezeClientEndFrame`, before helper lookup and remaining-time mutation,
+   matching the recovered retail ordering.
+4. Cleared the reused low Freeze progress bits on freeze entry and thaw exit so
+   stale progress state does not leak across reconstructed source transitions.
+5. Added static parity coverage and mapping notes for the Ghidra anchors,
+   source bucket helper, transition cleanup, and related `EV_THAW_TICK`
+   producer wiring.
+
+### Task A251: Map botlib character cache and characteristic export wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_ai_char.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/be_ai_char.h`,
+`src/code/game/botlib.h`, `src/code/game/g_local.h`,
+`src/code/game/g_public.h`, `src/code/game/g_syscalls.c`,
+`src/code/server/sv_game.c`, `src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_character_cache_parity.py`,
+`docs/reverse-engineering/botlib-character-cache-mapping-2026-06-06.md`
+Parity estimate: **before 80% -> after 96%** for the focused
+character cache/default/interpolation/accessor helper corridor and
+**before 87% -> after 88%** for overall botlib plus related character
+export/import wiring. Remaining uncertainty is live bot-character data behavior
+across maps and character files, not the static helper ownership or API routing
+covered here.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and Ghidra rows for the
+   `be_ai_char.c` helper band from `BotDumpCharacter` through
+   `BotShutdownCharacters`.
+2. Promoted missing private helper aliases for character dumping, string
+   cleanup, unconditional cleanup, default merge, cache lookup, interpolation,
+   and characteristic index validation.
+3. Verified that no C source rewrite is currently justified; the existing
+   source already preserves the retail cache fallback ladder, default-character
+   merge, float-only interpolation, characteristic conversion/clamping, and
+   parser/runtime index-check split.
+4. Added `tests/test_botlib_character_cache_parity.py` to pin aliases, Ghidra
+   sizes, HLIL anchors, source shape, botlib export order, legacy syscall
+   dispatch, native qagame import wrappers, and bot AI consumer wiring.
+5. Added a focused mapping note documenting observed evidence, inferred helper
+   names, confidence, and residual live-data risk.
+
+### Task A250: Recheck demo record/playback and browser demo-list wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/client/cl_main.c`, `src/code/client/cl_cgame.c`,
+`src/code/client/cl_keys.c`, `src/code/cgame/cg_draw.c`,
+`src/code/cgame/cg_view.c`,
+`tests/test_demo_record_playback_mapping_parity.py`,
+`docs/reverse-engineering/demo-record-playback-mapping-2026-06-06.md`
+Parity estimate: **before 96% -> after 99%** for the focused protocol-91 demo
+recording/playback, browser `GetDemoList`, console completion, and cgame demo
+HUD/control wiring surface. Remaining uncertainty is live `.dm_91` replay
+freshness across third-party captures, not a known static source mismatch.
+
+Completed work:
+
+1. Rechecked the `quakelive_steam.exe` HLIL and Ghidra rows for
+   `CL_WriteDemoMessage`, `CL_StopRecord_f`, `CL_DemoFilename`, `CL_Record_f`,
+   `CL_WalkDemoExt`, `CL_NextDemo`, `CL_DemoCompleted`,
+   `CL_ReadDemoMessage`, and `CL_PlayDemo_f`.
+2. Verified that the core packet envelope and playback reader already match
+   retail: little-endian server sequence and payload length, post-header
+   payload writes, `MAX_MSGLEN` rejection, truncation handling, protocol-list
+   fallback, and the `-1/-1` terminator.
+3. Reconstructed the browser-facing demo-list return shape by preserving raw
+   `.dm_91` file-list entries from `CL_WebHost_BuildDemoListJson` instead of
+   stripping the protocol suffix before returning the JSON array.
+4. Added static parity coverage that pins the retail aliases, HLIL anchors,
+   protocol-91 extension path, browser `dm_91` listing, retained console
+   `.dm_73` completion quirk, cgame `demoPlayback` draw handoff, demo HUD
+   controls, and the new mapping note.
+
+### Task A249: Reconstruct Freeze Tag helper entity-query topology [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_freeze.c`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_round_controller_helper_parity.py`,
+`tests/test_game_helper_seam_parity.py`,
+`docs/reverse-engineering/freeze-tag-helper-query-mapping-2026-06-06.md`,
+`docs/reverse-engineering/freeze-tag-mapping-2026-06-06.md`,
+`docs/reverse-engineering/qagame-mapping.md`, `docs/gameplay/cvars.md`
+Parity estimate: **before 72% -> after 94%** for the focused Freeze
+thaw-helper search topology. The broader Freeze thaw/end-frame lane moves
+approximately **91% -> 94%**, while broader Freeze Tag gametype wiring moves
+approximately **90% -> 91%** because this pass closes helper enumeration
+topology without claiming live match validation.
+
+Completed work:
+
+1. Rechecked `FUN_1004CD40` / `G_FreezeClientEndFrame` in Ghidra and HLIL,
+   including the thaw-radius mins/maxs build and qagame import call at
+   `DAT_104b13ac + 0xa4`.
+2. Identified the import as the recovered `trap_EntitiesInBox` /
+   `QL_G_trap_EntitiesInBox` bridge with a `0x400` entity-list limit.
+3. Reconstructed `G_FreezeCountThawHelpers` to enumerate the thaw-radius AABB
+   through `trap_EntitiesInBox` before applying the shared thaw-helper
+   predicate, replacing the previous source-only flat `level.maxclients` scan.
+4. Kept the public count-returning helper API stable while selecting the first
+   valid entity-list helper, matching retail's per-frame helper choice more
+   closely than the previous nearest-client selection.
+5. Updated Freeze mapping notes, gameplay cvar notes, and static parity tests
+   to pin the retail entity-query topology.
+
+### Task A248: Map botlib genetic-selection wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_ai_gen.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/be_ai_gen.h`,
+`src/code/game/botlib.h`, `src/code/game/ai_main.c`,
+`src/code/game/g_local.h`, `src/code/game/g_public.h`,
+`src/code/game/g_syscalls.c`, `src/code/server/sv_game.c`,
+`src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_genetic_selection_parity.py`,
+`docs/reverse-engineering/botlib-genetic-selection-mapping-2026-06-06.md`
+Parity estimate: **before 72% -> after 96%** for the focused
+genetic-selection helper/export corridor and **before 86% -> after 87%** for
+overall botlib plus fuzzy/genetic interbreed wiring. Remaining uncertainty is
+live interbreed behavior quality and map/bot-data effects rather than the
+static selector ownership or import/export routing covered here.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and Ghidra function rows for the
+   `be_ai_gen.c` helper pair around `GeneticSelection` and
+   `GeneticParentsAndChildSelection`.
+2. Promoted the missing `sub_49C6C0 -> GeneticSelection` alias and rechecked
+   the existing `sub_49C810 -> GeneticParentsAndChildSelection` export owner.
+3. Verified no C body change is currently justified; the checked-in genetic
+   selector source already matches the retail static shape for weighted
+   selection, fallback selection, parent exclusion, rank reversal, child
+   selection, and failure-output zeroing.
+4. Added `tests/test_botlib_genetic_selection_parity.py` to pin aliases,
+   Ghidra sizes, HLIL anchors, source shape, AI export order, qagame consumer
+   behavior, legacy syscall dispatch, server VM dispatch, and Quake Live native
+   import wrapper wiring.
+
+### Task A247: Reconstruct Steam GameServerStats logged-on request gate [COMPLETED]
+Priority: Medium
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/common/platform/platform_steamworks.h`, `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/plans/steamworks-parity-plan.md`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_354.md`
+Parity estimate: **before 40% -> after 94%** for the focused
+GameServerStats logged-on request gate, **before 97% -> after 98%** for the
+combined `idSteamStats` callback/value/descriptor/request-bootstrap lane, and
+approximately **99%** for broader Steamworks parity. Remaining uncertainty is
+live backend timing and callback cadence, which stay intentionally bounded
+behind `QL_BUILD_ONLINE_SERVICES` / `QL_BUILD_STEAMWORKS` opt-in behavior.
+
+Completed work:
+
+1. Rechecked the retail `quakelive_steam.exe` HLIL for
+   `SteamStats_OnServersConnected` (`0x00467190`) and the repeated
+   constructor/bootstrap gate at `0x004679d9`.
+2. Reconstructed `QL_Steamworks_ServerIsLoggedOn` through the observed
+   `SteamGameServer` vtable slot `0x20`, with the disabled-build stub returning
+   `qfalse`.
+3. Gated `QL_Steamworks_ServerRequestUserStats` behind the logged-on check
+   before issuing `SteamGameServerStats::RequestUserStats` through slot `0x00`.
+4. Extended the Steamworks harness with a mocked `SteamGameServer::BLoggedOn`
+   slot, result control, call counting, and enabled/disabled exports.
+5. Added regression coverage proving the logged-off path suppresses the
+   `SteamGameServerStats` request while the logged-on path reaches the retail
+   request slot.
+
+### Task A246: Map botlib AAS lifecycle wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_aas_bspq3.c`,
+`src/code/botlib/be_aas_cluster.c`, `src/code/botlib/be_aas_entity.c`,
+`src/code/botlib/be_aas_file.c`, `src/code/botlib/be_aas_main.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/botlib.h`,
+`src/code/game/g_syscalls.c`, `src/code/server/sv_game.c`,
+`src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_aas_lifecycle_parity.py`,
+`docs/reverse-engineering/botlib-aas-lifecycle-mapping-2026-06-06.md`
+Parity estimate: **before 78% -> after 94%** for the focused AAS
+BSP/file/entity lifecycle corridor and **before 85% -> after 86%** for overall
+botlib plus AAS lifecycle/import wiring. Remaining uncertainty is live-map
+`.aas` content, map-dependent clustering/reachability quality, and runtime bot
+behavior rather than the static lifecycle ownership or public wiring covered
+here.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and Ghidra function rows for the AAS
+   BSP wrapper, BSP entity parser, cluster initialization, entity query, AAS
+   file/lump, and main setup/start-frame/load-map/shutdown bands.
+2. Promoted missing aliases for `AAS_Trace`, `AAS_EntityCollision`,
+   `AAS_inPVS`, `AAS_BSPModelMinsMaxsOrigin`, `AAS_FreeBSPEntities`,
+   `AAS_EntityModelindex`, `AAS_EntityType`, `AAS_EntityModelNum`,
+   `AAS_OriginOfMoverWithModelNum`, `AAS_NextEntity`, `AAS_SwapAASData`,
+   `AAS_LoadAASLump`, and `AAS_WriteAASLump`.
+3. Verified no C body change is currently justified; the checked-in AAS
+   lifecycle source already matches the retail static shape for the mapped
+   owners.
+4. Added `tests/test_botlib_aas_lifecycle_parity.py` to pin aliases, Ghidra
+   sizes, HLIL anchors, lifecycle source shape, BSP/AAS export order, server VM
+   syscall dispatch, Quake Live native import slab entries, and qagame syscall
+   wrappers.
+
+### Task A245: Reconstruct Grappling Hook impact media and consolidate hook wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/cgame/cg_local.h`,
+`src/code/cgame/cg_main.c`, `src/code/cgame/cg_weapons.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`references/symbol-maps/cgame.json`,
+`tests/test_grappling_hook_mapping_parity.py`,
+`docs/reverse-engineering/grappling-hook-wiring-mapping-2026-06-06.md`
+Parity estimate: **before 93% -> after 98%** for the focused Grappling Hook
+wiring and cgame-impact lane. Broader repo-wide parity remains approximately
+**99%**; the remaining grapple uncertainty is the qagame hook temp-event
+weapon-field question and any untested live-map bot grapple path quality.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe`, `qagamex86.dll`, and `cgamex86.dll`
+   Ghidra/HLIL evidence for bot grapple reachability/travel, qagame hook
+   projectile lifecycle, shared grapple pmove pull, cgame hook rendering, and
+   cgame impact media.
+2. Reconstructed the missing cgame grapple-impact media branch: registered the
+   retail `gfx/damage/cracked_mrk` shader and `sound/weapons/grapple/grhit.ogg`
+   sound, then routed `CG_MissileHitWall` `WP_GRAPPLING_HOOK` impacts through
+   that sound, cracked mark, and the retail 16-unit mark radius.
+3. Promoted qagame hook lifecycle aliases for `fire_grapple`,
+   `G_MissileImpact`, `Weapon_GrapplingHook_Fire`, `Weapon_HookFree`,
+   `Weapon_HookThink`, `FireWeapon`, and `TeleportPlayer`, while retaining the
+   existing cgame and botlib hook aliases.
+4. Added a focused mapping document and regression test covering source,
+   symbol-map comments, alias promotion, and Ghidra/HLIL anchors across the
+   Grappling Hook corridor.
+
+### Task A244: Reconstruct Freeze Tag thaw-helper timer and wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_freeze.c`, `src/code/game/g_client.c`,
+`src/code/game/g_local.h`, `src/code/game/g_main.c`,
+`tools/tests/match_sim/harness.py`,
+`tests/test_game_active_pmove_wiring_parity.py`,
+`tests/test_game_round_controller_helper_parity.py`,
+`tests/test_game_runframe_parity.py`,
+`docs/reverse-engineering/freeze-tag-mapping-2026-06-06.md`,
+`docs/reverse-engineering/qagame-mapping.md`, `docs/gameplay/cvars.md`
+Parity estimate: **before 71% -> after 91%** for the focused Freeze
+thaw-helper/end-frame lane. Broader Freeze Tag gametype wiring moves
+approximately **88% -> 90%** because round-state, scoreboard, last-alive, and
+death wiring were already mostly reconstructed. The follow-up A249 pass closes
+the exact helper entity-query topology; live retail DLL validation remains open.
+
+Completed work:
+
+1. Rechecked `qagamex86.dll` Ghidra and HLIL evidence for the retail Freeze
+   helper band, especially `FUN_1004CD40` / `G_FreezeClientEndFrame` and the
+   small retained-helper lookup at `FUN_1004CD00`.
+2. Replaced the source-only accumulated thaw/tick-deadline model with the
+   retail-shaped remaining-time counter and helper-active latch.
+3. Reworked per-frame thaw handling to decrement by `level.msec` while a valid
+   helper remains in range, refill toward `g_freezeThawTime` when abandoned,
+   retain helper credit through the recovered lookup boundary, and treat
+   `g_freezeThawTick` as the non-zero `EV_THAW_TICK` event gate.
+4. Centralized helper validity checks for same-team connected live clients,
+   `PM_NORMAL` state, radius, and line of sight, then shared that predicate
+   between counting and retained-helper lookup.
+5. Refreshed the lightweight match-simulation harness, cvar notes, qagame
+   mapping notes, and static parity tests to pin the corrected retail
+   interpretation.
+
+### Task A243: Reconstruct CG_Missile renderer wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/cgame/cg_ents.c`,
+`src/code/cgame/cg_weapons.c`, `src/code/cgame/cg_local.h`,
+`tests/test_cgame_displaycontext_parity.py`,
+`tests/test_game_weapon_parity.py`,
+`docs/reverse-engineering/cgame-mapping.md`
+Parity estimate: **before 86% -> after 96%** for the focused
+`CG_Missile` renderer and related color/axis wiring. Overall cgame mapping
+coverage remains **854 / 854 committed anchors (100%)**; repo-wide parity
+remains approximately **98%** because this pass tightens an already mapped
+renderer rather than opening new corpus coverage.
+
+Completed work:
+
+1. Rechecked `0x100175F0 -> CG_Missile` in cgame HLIL, the Ghidra
+   `FUN_100175f0` function row, and the adjacent weapon-color helper evidence.
+2. Reconstructed the retail invalid-weapon guard as `CG_Error` without mutating
+   `s1->weapon`, matching the `>= 16` retail table boundary.
+3. Removed the source-only `cent->lerpAngles` rewrite from `CG_Missile` and
+   aligned stationary proximity-mine axis setup to `currentState.angles`.
+4. Exposed the shared weapon-color override helper and routed grenade missile
+   entity colors through forced team/enemy weapon color before falling back to
+   `cg_weaponColor_grenade`.
+
+### Task A242: Reconstruct Steam GameServer incoming UDP packet bridge [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/common/platform/platform_steamworks.h`, `src/code/server/sv_main.c`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_353.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 35% -> after 92%** for the focused incoming
+Steam GameServer UDP handoff lane. The combined incoming/outgoing GameServer
+UDP bridge moves approximately **82% -> 96%**, while broader Steamworks parity
+remains approximately **99%** because live backend validation and online
+service replacement remain intentionally bounded.
+
+Completed work:
+
+1. Rechecked `SteamServer_HandleIncomingPacket` (`0x00465d50`) in HLIL, the
+   Ghidra `FUN_00465d50` row, the Round 04 alias promotion, and the adjacent
+   outgoing packet drain at `SteamGameServer` slot `0x98`.
+2. Added `QL_Steamworks_ServerHandleIncomingPacket` for slot `0x94`, plus the
+   matching disabled inline stub.
+3. Wired `SV_PacketEvent` through `SV_SteamServerHandleIncomingPacket`, packing
+   IPv4 bytes in the retail order and forwarding the original packet payload
+   and source port into the Steam GameServer wrapper.
+4. Extended the Steamworks harness and source-bound tests to cover incoming
+   packet payload capture, endpoint capture, result propagation, and disabled
+   fallback behavior.
+
+### Task A241: Map botlib AAS sample/query wiring [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_aas_sample.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/botlib.h`,
+`src/code/game/g_public.h`, `src/code/game/g_syscalls.c`,
+`src/code/server/sv_game.c`, `src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_aas_sample_parity.py`,
+`docs/reverse-engineering/botlib-aas-sample-mapping-2026-06-06.md`
+Parity estimate: **before 79% -> after 95%** for the focused AAS
+sample/query helper corridor and **before 84% -> after 85%** for overall
+botlib plus AAS sample/import wiring. Remaining uncertainty is live-map `.aas`
+content and map-dependent bot behavior, not the static sample/query ownership
+or qagame-facing import surface covered here.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and Ghidra function rows for the AAS
+   sample/query band from `AAS_PresenceTypeBoundingBox` through
+   `AAS_PlaneFromNum`, including link heap lifecycle, point/area presence
+   queries, client bbox tracing, trace-area collection, face/plane helpers,
+   entity linking, bbox area enumeration, and area info copy-out.
+2. Promoted missing aliases for `AAS_AreaPresenceType`,
+   `AAS_PointPresenceType`, `AAS_AreaEntityCollision`, `AAS_InsideFace`,
+   `AAS_BoxOnPlaneSide2`, `AAS_UnlinkFromAreas`, `AAS_AASLinkEntity`,
+   `AAS_LinkEntityClientBBox`, and `AAS_PlaneFromNum`.
+3. Verified no `be_aas_sample.c` C body change is currently justified; the
+   checked-in source already matches the retail static shape for the mapped
+   sample/query corridor.
+4. Added `tests/test_botlib_aas_sample_parity.py` to pin aliases, Ghidra
+   sizes, HLIL anchors, source helper shape, public AAS export order, server VM
+   syscall dispatch, legacy qagame imports, Quake Live native import slab,
+   qagame direct wrappers, and qagame syscall wrappers.
+
+### Task A240: Reconstruct Steam GameServerStats descriptor replay owner [COMPLETED]
+Priority: High
+Primary areas: `src/code/server/sv_client.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_352.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 54% -> after 86%** for the focused descriptor-table
+replay lane. The combined `idSteamStats` callback/value/descriptor lane moves
+approximately **98% -> 99%**, while broader Steamworks parity remains
+approximately **99%** because online services stay opt-in and exact non-int
+descriptor promotion plus live backend validation remain bounded.
+
+Completed work:
+
+1. Rechecked `SteamStats_FlushPendingValues` (`0x004670c0`),
+   `SteamStats_OnStatsReceived` (`0x004671d0`), `data_561060`,
+   `data_561c00`, the promoted symbol aliases, and the Ghidra rows for the
+   retained `idSteamStats` descriptor owner.
+2. Reconstructed the server stats descriptor shape: count at owner `+0x10`,
+   pointer at `+0x18`, stride `0x1c`, type at descriptor `+0x04`, name at
+   `+0x08`, int value at `+0x0c`, float/current value at `+0x10`, and
+   average-rate count/session fields at `+0x14`/`+0x18`.
+3. Converted the server stats owner from a bare name table to typed descriptor
+   records and added type-aware load/flush dispatch for int, float, and
+   average-rate Steam GameServerStats slots.
+4. Kept all 88 currently recovered qagame-facing stat names as int descriptors
+   and made the qagame `AddSteamStat` import decline non-int descriptors until
+   stronger retail evidence identifies the public float/average-rate update
+   owner.
+
+### Task A239: Reconstruct botlib AAS reachability-generation support [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_aas_move.c`,
+`src/code/botlib/be_aas_optimize.c`, `src/code/botlib/be_aas_reach.c`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_reachability_generation_parity.py`,
+`docs/reverse-engineering/botlib-reachability-generation-mapping-2026-06-06.md`
+Parity estimate: **before 82% -> after 96%** for the focused
+reachability-generation support corridor and **before 82% -> after 84%** for
+overall botlib plus related movement/route wiring. Remaining uncertainty is
+live-map `.aas` content and generated reachability quality, not the static
+runtime helper ownership covered here.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and Ghidra function rows for the
+   reachability-generation utility band around jump velocity solving, jump
+   reach run-start probing, geometry helpers, area predicates, reachability
+   heap allocation, store/flattening, best-link selection, weapon-jump area
+   flags, and reachability initialization.
+2. Promoted missing aliases from `AAS_ClientMovementHitBBox` through
+   `AAS_BestReachableLinkArea`, including `AAS_HorizontalVelocityForJump`,
+   `AAS_JumpReachRunStart`, `AAS_FaceArea`, `AAS_AreaVolume`,
+   `AAS_SetupReachabilityHeap`, `AAS_AllocReachability`,
+   `AAS_FaceCenter`, fall/jump-distance math, liquid/damage area predicates,
+   `AAS_ReachabilityExists`, and `AAS_StoreReachability`.
+3. Reconstructed the retail non-`BSPC` `AAS_Optimize` body as the observed
+   no-op diagnostic stub while retaining the previous GPL optimizer under the
+   `BSPC` map-compiler/tooling path.
+4. Added `tests/test_botlib_reachability_generation_parity.py` to pin aliases,
+   Ghidra sizes, HLIL anchors, source shape, the runtime optimizer stub, and
+   retained `BSPC` optimizer branch.
+
+### Task A238: Reconstruct Steam GameServerStats value wrappers [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.[ch]`,
+`tests/steamworks_harness.c`, `tests/test_steamworks_harness.py`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_351.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 72% -> after 94%** for the focused
+`SteamGameServerStats` int/float/average-rate value-wrapper lane. The combined
+`idSteamStats` callback plus value-wrapper reconstruction moves approximately
+**97% -> 98%** for the focused lane, while broader Steamworks parity remains
+approximately **99%** because live backend behavior and full descriptor-table
+replay remain explicit validation boundaries.
+
+Completed work:
+
+1. Rechecked `SteamStats_FlushPendingValues` (`0x004670c0`),
+   `SteamStats_OnStatsReceived` (`0x004671d0`), the `SteamGameServerStats`
+   import row, and promoted symbol aliases for the server stats owner.
+2. Reconstructed the observed `SteamGameServerStats` float get slot `0x04`,
+   float set slot `0x10`, and average-rate update slot `0x18`, alongside the
+   already reconstructed request, int, achievement, and store slots.
+3. Extended disabled stubs so the online-services-off build keeps a stable
+   API while returning clean fallbacks and zeroed outputs.
+4. Built a full `SteamGameServerStats` harness mock vtable and executable
+   coverage for request, int/float read, int/float write, average-rate update,
+   achievement, store, and failure zeroing.
+
+### Task A237: Map botlib movement travel runtime parity [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_ai_move.c`,
+`src/code/botlib/be_interface.c`, `src/code/game/botlib.h`,
+`src/code/game/g_syscalls.c`, `src/code/server/sv_game.c`,
+`src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_move_travel_parity.py`,
+`docs/reverse-engineering/botlib-move-travel-mapping-2026-06-06.md`
+Parity estimate: **before 73% -> after 94%** for the focused
+`be_ai_move.c` movement/travel helper corridor and **before 80% -> after 82%**
+for overall botlib plus movement/import wiring. Remaining uncertainty is
+live-map `.aas` behavior and bot tactical movement quality, not the static
+runtime owner mapping covered here.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL and Ghidra function rows for mover
+   helpers, reachability selection, direct movement, travel methods, finish
+   handlers, and `BotMoveToGoal` dispatch.
+2. Promoted missing movement/travel aliases from `BotOnMover` through
+   `BotFuncBobStartEnd`, including low-level gap/barrier/blocking helpers and
+   jump, ladder, teleport, elevator, func_bobbing, waterjump, and walk-off-ledge
+   owners.
+3. Corrected the stale `sub_4A2620` alias from
+   `BotFinishTravel_WalkOffLedge` to `BotTravel_Jump`; the walk-off-ledge pair
+   is now mapped as `sub_4A21A0 -> BotTravel_WalkOffLedge` and
+   `sub_4A24E0 -> BotFinishTravel_WalkOffLedge`.
+4. Verified no `be_ai_move.c` C body change is currently justified; the current
+   source already matches the retail travel dispatch and helper shape for this
+   static slice.
+5. Added `tests/test_botlib_move_travel_parity.py` to pin aliases, Ghidra
+   sizes, HLIL anchors, source shape, public botlib export order, server VM
+   syscall dispatch, Quake Live native import slab, qagame direct wrappers, and
+   qagame syscall wrappers.
+
+### Task A236: Reconstruct Steam GameServer stats callback wiring [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.[ch]`,
+`src/code/server/sv_client.c`, `tests/steamworks_harness.c`,
+`tests/test_steamworks_harness.py`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_350.md`,
+`docs/plans/steamworks-parity-plan.md`
+Parity estimate: **before 84% -> after 97%** for the focused
+`idSteamStats` GameServer stats callback/bootstrap lane. Broader Steamworks
+parity remains approximately **99%** because online services remain opt-in and
+live Steam backend behavior plus full descriptor-table callback replay remain
+explicit validation boundaries.
+
+Completed work:
+
+1. Rechecked `SteamGameServerUtils` import evidence, `idSteamStats`
+   `GSStatsReceived_t` / `GSStatsStored_t` callback vtables, and HLIL
+   registrations at callback IDs `0x708` and `0x709`.
+2. Added public GS stats callback event structs, binding slots, raw payload
+   dispatchers, retained registration/unregistration, and the optional
+   `QL_Steamworks_ServerGetAppID` wrapper through server-utils slot `0x24`.
+3. Wired the server stats owner to retain the server app id, observe
+   received/stored callback results, and re-request values for the retail
+   partial-validation result `8`.
+4. Extended the Steamworks harness with mock `SteamGameServerUtils`, queueable
+   GS stats payloads, and full enabled/disabled regression coverage for the
+   callback pump and server app-id wrapper.
+
+### Task A235: Map botlib AAS route runtime parity [COMPLETED]
+Priority: Medium
+Primary areas: `src/code/botlib/be_aas_route.c`,
+`src/code/botlib/be_aas_routealt.c`, `src/code/botlib/be_interface.c`,
+`src/code/game/botlib.h`, `src/code/game/g_syscalls.c`,
+`src/code/server/sv_game.c`, `src/code/server/ql_game_imports.inc`,
+`references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_botlib_route_runtime_parity.py`,
+`docs/reverse-engineering/botlib-route-runtime-mapping-2026-06-06.md`
+Parity estimate: **before 70% -> after 96%** for the focused AAS
+route-cache/readback helper mapping and **before 82% -> after 97%** for the
+focused route query, prediction, and alternative-route-goal source mapping.
+Overall botlib plus related AAS route/import wiring moves approximately
+**78% -> 80%** because this pass promotes a cohesive route-runtime tranche
+without claiming exhaustive live-map `.aas` graph behavior.
+
+Completed work:
+
+1. Rechecked `quakelive_steam.exe` HLIL, Ghidra function rows, and existing
+   mapping rounds for the AAS route-cache, route-query, prediction, and
+   alternative-route helper corridor.
+2. Promoted missing route-cache helper aliases for `AAS_FreeOldestCache`,
+   `AAS_FreeAllClusterAreaCache`, `AAS_InitClusterAreaCache`,
+   `AAS_FreeAllPortalCache`, `AAS_InitRoutingUpdate`, `AAS_ReadCache`,
+   `AAS_ReadRouteCache`, and `AAS_InitReachabilityAreas`.
+3. Verified the current source shape already matches retail for `.rcd`
+   route-cache persistence, readback validation, initialization/shutdown
+   ordering, area/portal route lookup, `AAS_PredictRoute`,
+   reachability copy/iteration, model reachability, and
+   `AAS_AlternativeRouteGoals`.
+4. Added `tests/test_botlib_route_runtime_parity.py` to pin the new aliases,
+   Ghidra sizes, Binary Ninja HLIL anchors, source body shape, public AAS
+   export order, server import wrappers, qagame syscall wrappers, and qagame
+   alternative-route consumers.
+5. Documented the negative check that no route algorithm C body change is
+   currently justified; the remaining uncertainty is live-map route data and
+   broader bot behavior, not the mapped route-runtime source owner.
 
 ### Task A234: Pin legacy Steam P2P networking vtables [COMPLETED]
 Priority: High
@@ -13229,3 +14863,89 @@ Parity estimate: **before 92% -> after 95%**
 
 ### Task 109: Remaining engine host/support EH-P1 boundary formalisation closure [COMPLETED]
 Parity estimate: **before 100% -> after 100%** (`EH-P1` complete; strict-retail scope classification formalised)
+
+### Task 113: Clientinfo compact identity/color transport closure [COMPLETED]
+Parity estimate: **before 94% -> after 98%** for the scoped `CS_PLAYERS` clientinfo color, SteamID, and country transport lane
+
+### Task 114: Clientinfo identity-tail and native sidecar reconstruction [COMPLETED]
+Parity estimate: **before 82% -> after 90%** for the scoped cgame clientinfo
+identity/speaking/avatar tail. This pass confirmed the retail `0x738`
+clientinfo stride, documented the `0x710..0x730` privilege, queue, speaking,
+identity, and avatar tail, and reconstructed source wiring for `cn`, `xcn`,
+`rp`, `p`, cached clean names, avatar handles, and in-record speaking state.
+This pass left the binary-exact cgame animation/clientinfo layout split open:
+retail uses `37` animation records of size `0x18`, which is closed by the
+follow-up Task 115 animation-record pass below.
+
+### Task 115: Clientinfo cgame animation record and retail stride closure [COMPLETED]
+Parity estimate: **before 90% -> after 94%** for the scoped cgame clientinfo
+layout/animation lane. This pass confirmed the retail animation cache at
+clientinfo offset `0x318` with `37` records of size `0x18`, custom sounds at
+`0x690`, and the retail outer clientinfo stride of `0x738`. Source cgame now
+uses a local `cgAnimation_t` record without the shared GPL `flipflop` field,
+cgame animation parsing/playback consumes that type, and `clientInfo_t` carries
+an explicit temporary pad so the x86 source stride matches retail. The shared
+game/UI `animation_t` remains untouched. The remaining gap is the internal
+member-order repack to move the animation, sound, identity, avatar, and voice
+fields to their retail byte offsets naturally, which is closed by Task 116.
+
+### Task 116: Clientinfo internal anchor-offset repack [COMPLETED]
+Parity estimate: **before 94% -> after 96%** for the scoped cgame clientinfo
+byte-layout lane. This pass moved the recovered native sidecar fields behind
+`sounds[MAX_CUSTOM_SOUNDS]` and aligned the strongest retail anchors in the x86
+source layout: fixed animation metadata at `0x2E0`, model handles at `0x2FC`,
+animations at `0x318`, custom sounds at `0x690`, privilege/spectator queue at
+`0x710..0x718`, speaking state at `0x71C..0x720`, Steam identity at
+`0x728..0x72C`, avatar cache at `0x730`, and final size `0x738`. The remaining
+gap is the early `0x008..0x2DF` mixed retail/source-compatibility region,
+including model/head-model scratch strings, color override cache, country flag
+cache, and scoreboard/team-overlay mirrors.
+
+### Task 117: Clientinfo early-slot retail offset map [COMPLETED]
+Parity estimate: **before 96% -> after 97%** for the scoped cgame clientinfo
+byte-layout lane. This pass promoted the early `0x000..0x2FC` retail map into
+named `CG_CLIENTINFO_RETAIL_OFFSET_*` constants and documented the evidence
+chain from `CG_NewClientInfo`, `CG_CopyClientIdentity`, placement/profile text,
+country flag lookup, and head/model scale consumers. High-confidence early
+anchors now include display name `0x008`, clean/native identity name `0x048`,
+country `0x0C8`, team `0x108`, bot skill `0x10C..0x110`, colors
+`0x114..0x128`, handicap `0x130`, wins/losses `0x134..0x138`, fixed animation
+metadata `0x2E0..0x2F8`, and model handles `0x2FC..0x314`. The source struct is
+not forcibly repacked around this early map yet because the current tree keeps
+source-compatibility color override, country flag, and scoreboard/team-overlay
+fields in that region; moving them should be a deliberate sidecar migration once
+the remaining medium-confidence slots are closed.
+
+### Task 118: Clientinfo model-string band and pre-animation scalar reconstruction [COMPLETED]
+Parity estimate: **before 97% -> after 98%** for the scoped cgame clientinfo
+byte-layout lane. This pass promoted the six 64-byte retail model string slots
+from a medium-confidence band to named high-confidence offsets: body model/skin
+at `0x154..0x1D3`, icon body model/skin at `0x1D4..0x253`, and head
+model/skin at `0x254..0x2D3`. The adjacent pre-animation fields are now pinned
+as deferred flag `0x2D4`, model bounding-box scale `0x2D8`, and new-animation
+flag `0x2DC`. Source reconstruction now separates `clientInfo_t.modelScale`
+from the animation.cfg `headOffset` vector, moves `newAnims` onto the retail
+`0x2DC` lane, and keeps focused regression coverage over the Ghidra/HLIL
+constructor, load, copy, sound, icon, and tag-flag evidence.
+
+### Task 119: Clientinfo score, compact tinfo, and effect-timer lane closure [COMPLETED]
+Parity estimate: **before 98% -> after 99%** for the scoped cgame clientinfo
+byte-layout lane. This pass promoted the live score mirror at `0x12C`,
+team-task scalar at `0x13C`, medkit timer at `0x144`, and invulnerability
+start/stop timers at `0x148..0x14C` using HLIL/Ghidra producer and consumer
+evidence. It also documents the remaining `0x150` breath-puff timer candidate
+as medium confidence and reconstructs `CG_ParseTeamInfo` to accept the retail
+compact `tinfo <count> <client...>` shape while preserving legacy six-field
+source-server rows for teammate location, health, armor, weapon, and powerup
+compatibility.
+
+### Task 120: Clientinfo animation metadata and render-handle slot closure [COMPLETED]
+Parity estimate: **before 99% -> after 99.3%** for the scoped cgame
+clientinfo byte-layout lane. This pass split the broad `0x2E0..0x314`
+animation metadata/model-handle bands into individually named retail offsets:
+`fixedlegs`, `fixedtorso`, `headOffset[3]`, `footsteps`, `gender`, legs/torso/
+head model and skin handles, and `modelIcon`. The evidence now ties animation
+cfg parsing, model/skin/icon registration, player/model-preview rendering, and
+the retail deferred-asset copier together. It also preserves the retail detail
+that `CG_CopyClientInfoModel` copies from `0x2E8` onward and intentionally does
+not propagate `fixedlegs` or `fixedtorso` during deferred asset reuse.

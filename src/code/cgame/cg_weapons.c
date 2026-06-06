@@ -191,7 +191,7 @@ The byte output remains full-bright while the paired float tint is pre-scaled
 for the local-entity fade users.
 ==========================
 */
-static qboolean CG_ResolveClientWeaponColor( const clientInfo_t *ci, byte *rgbOut, vec3_t colorOut ) {
+qboolean CG_ResolveClientWeaponColor( const clientInfo_t *ci, byte *rgbOut, vec3_t colorOut ) {
 	if ( !ci || !CG_ShouldOverrideWeaponColor( ci ) ) {
 		return qfalse;
 	}
@@ -1087,6 +1087,13 @@ void CG_RegisterWeapon( int weaponNum ) {
 	strcat( path, "_hand.md3" );
 	weaponInfo->handsModel = trap_R_RegisterModel( path );
 
+	if ( weaponNum == WP_GRAPPLING_HOOK ) {
+		strcpy( path, item->world_model[0] );
+		COM_StripExtension( path, path );
+		strcat( path, "_ammo.md3" );
+		weaponInfo->weaponAmmoModel = trap_R_RegisterModel( path );
+	}
+
 	if ( !weaponInfo->handsModel ) {
 		weaponInfo->handsModel = trap_R_RegisterModel( "models/weapons2/shotgun/shotgun_hand.md3" );
 	}
@@ -1956,12 +1963,12 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		CG_AddWeaponWithPowerups( cent, &barrel );
 	}
 
-	if ( weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel && !( cent->currentState.eFlags & EF_FIRING ) ) {
+	if ( weaponNum == WP_GRAPPLING_HOOK && weapon->weaponAmmoModel && !( cent->currentState.eFlags & EF_FIRING ) ) {
 		memset( &ammo, 0, sizeof( ammo ) );
 		VectorCopy( parent->lightingOrigin, ammo.lightingOrigin );
 		ammo.shadowPlane = parent->shadowPlane;
 		ammo.renderfx = parent->renderfx;
-		ammo.hModel = weapon->ammoModel;
+		ammo.hModel = weapon->weaponAmmoModel;
 		AxisClear( ammo.axis );
 
 		CG_PositionRotatedEntityOnTag( &ammo, &gun, weapon->weaponModel, "tag_ammo" );
@@ -2879,6 +2886,11 @@ void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, im
 		mark = cgs.media.burnMarkShader;
 		radius = 32;
 		isSprite = qtrue;
+		break;
+	case WP_GRAPPLING_HOOK:
+		sfx = cgs.media.sfx_grapplehit;
+		mark = cgs.media.crackedMarkShader;
+		radius = 16;
 		break;
 	case WP_HEAVY_MACHINEGUN:
 		mod = cgs.media.bulletFlashModel;

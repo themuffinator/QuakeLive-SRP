@@ -635,8 +635,11 @@ Evidence applied:
    disconnect, and `CL_NextDemo` path.
 6. Demo extension handling remains retail Quake Live Steam only:
    `PROTOCOL_VERSION == 91`, `demo_protocols[] == { 91, 0 }`, browser
-   `GetDemoList` scans `dm_91`, and the console-completion `.dm_73` scan
-   remains as the documented retail quirk.
+   `GetDemoList` scans `dm_91` and returns raw `.dm_91` file-list entries,
+   and the console-completion `.dm_73` scan remains as the documented retail
+   quirk. The 2026-06-06 follow-up corrected the source-side browser JSON
+   helper so it no longer strips the protocol suffix from those returned demo
+   names.
 
 Validation:
 

@@ -37,13 +37,29 @@ static qboolean sv_steamServerConnected;
 #define SV_STEAM_STATS_P2P_SEND_RELIABLE 2
 #define SV_STEAM_STATS_P2P_CHANNEL 16
 
+typedef enum {
+	SV_STEAM_STAT_INT = 0,
+	SV_STEAM_STAT_FLOAT = 1,
+	SV_STEAM_STAT_AVG_RATE = 2
+} sv_steam_stat_type_t;
+
+typedef struct {
+	const char *name;
+	sv_steam_stat_type_t type;
+} sv_steam_stat_descriptor_t;
+
 typedef struct {
 	qboolean active;
 	qboolean backendAvailable;
 	qboolean requestIssued;
 	CSteamID steamId;
+	uint32_t appId;
 	int statValue[SV_STEAM_STATS_FIELD_COUNT];
 	int pendingStatDelta[SV_STEAM_STATS_FIELD_COUNT];
+	float statFloatValue[SV_STEAM_STATS_FIELD_COUNT];
+	float pendingStatFloatDelta[SV_STEAM_STATS_FIELD_COUNT];
+	float pendingAvgRateCount[SV_STEAM_STATS_FIELD_COUNT];
+	double pendingAvgRateSessionLength[SV_STEAM_STATS_FIELD_COUNT];
 	qboolean statLoaded[SV_STEAM_STATS_FIELD_COUNT];
 	qboolean statQueryAttempted[SV_STEAM_STATS_FIELD_COUNT];
 	qboolean statDirty[SV_STEAM_STATS_FIELD_COUNT];
@@ -55,96 +71,100 @@ typedef struct {
 
 static sv_steam_stats_session_t sv_steamStatsSessions[MAX_CLIENTS];
 
-static const char *s_svSteamStatNames[SV_STEAM_STATS_FIELD_COUNT] = {
-	"version",
-	"kill_gauntlet",
-	"kill_machinegun",
-	"kill_shotgun",
-	"kill_grenade",
-	"kill_rocket",
-	"kill_lightning",
-	"kill_railgun",
-	"kill_plasma",
-	"kill_bfg",
-	"kill_nailgun",
-	"kill_proxmine",
-	"kill_chaingun",
-	"kill_hmg",
-	"hits_machinegun",
-	"hits_shotgun",
-	"hits_grenade",
-	"hits_rocket",
-	"hits_lightning",
-	"hits_railgun",
-	"hits_plasma",
-	"hits_bfg",
-	"hits_nailgun",
-	"hits_proxmine",
-	"hits_chaingun",
-	"hits_hmg",
-	"shots_machinegun",
-	"shots_shotgun",
-	"shots_grenade",
-	"shots_rocket",
-	"shots_lightning",
-	"shots_railgun",
-	"shots_plasma",
-	"shots_bfg",
-	"shots_nailgun",
-	"shots_proxmine",
-	"shots_chaingun",
-	"shots_hmg",
-	"mod_shotgun",
-	"mod_gauntlet",
-	"mod_machinegun",
-	"mod_grenade",
-	"mod_rocket",
-	"mod_plasma",
-	"mod_railgun",
-	"mod_lightning",
-	"mod_bfg",
-	"mod_water",
-	"mod_slime",
-	"mod_lava",
-	"mod_crush",
-	"mod_telefrag",
-	"mod_laser",
-	"BROKEN1",
-	"mod_nailgun",
-	"mod_chaingun",
-	"mod_proxmine",
-	"mod_kamikaze",
-	"mod_juiced",
-	"mod_suicide",
-	"mod_falling",
-	"mod_grapple",
-	"mod_hmg",
-	"mod_lightning_discharge",
-	"mod_other",
-	"medal_firstfrag",
-	"medal_gauntlet",
-	"medal_excellent",
-	"medal_revenge",
-	"medal_combokill",
-	"medal_midair",
-	"medal_perforated",
-	"medal_rampage",
-	"medal_impressive",
-	"medal_capture",
-	"medal_assist",
-	"medal_defense",
-	"medal_headshot",
-	"medal_quadgod",
-	"medal_perfect",
-	"medal_accuracy",
-	"wins",
-	"losses",
-	"played",
-	"BROKEN2",
-	"mod_hurt",
-	"total_kills",
-	"total_deaths"
+#define SV_STEAM_STAT_DESCRIPTOR( name, type ) { name, type }
+
+static const sv_steam_stat_descriptor_t s_svSteamStatDescriptors[SV_STEAM_STATS_FIELD_COUNT] = {
+	SV_STEAM_STAT_DESCRIPTOR( "version", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_gauntlet", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_machinegun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_shotgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_grenade", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_rocket", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_lightning", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_railgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_plasma", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_bfg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_nailgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_proxmine", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_chaingun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "kill_hmg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_machinegun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_shotgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_grenade", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_rocket", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_lightning", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_railgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_plasma", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_bfg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_nailgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_proxmine", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_chaingun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "hits_hmg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_machinegun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_shotgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_grenade", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_rocket", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_lightning", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_railgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_plasma", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_bfg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_nailgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_proxmine", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_chaingun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "shots_hmg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_shotgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_gauntlet", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_machinegun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_grenade", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_rocket", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_plasma", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_railgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_lightning", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_bfg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_water", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_slime", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_lava", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_crush", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_telefrag", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_laser", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "BROKEN1", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_nailgun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_chaingun", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_proxmine", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_kamikaze", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_juiced", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_suicide", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_falling", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_grapple", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_hmg", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_lightning_discharge", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_other", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_firstfrag", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_gauntlet", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_excellent", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_revenge", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_combokill", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_midair", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_perforated", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_rampage", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_impressive", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_capture", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_assist", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_defense", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_headshot", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_quadgod", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_perfect", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "medal_accuracy", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "wins", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "losses", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "played", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "BROKEN2", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "mod_hurt", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "total_kills", SV_STEAM_STAT_INT ),
+	SV_STEAM_STAT_DESCRIPTOR( "total_deaths", SV_STEAM_STAT_INT )
 };
+
+#undef SV_STEAM_STAT_DESCRIPTOR
 
 static const char *s_svSteamAchievementNames[SV_STEAM_ACHIEVEMENT_COUNT] = {
 	"AW_MIDAIR",
@@ -726,16 +746,35 @@ static void SV_SteamStats_ResetSession( sv_steam_stats_session_t *session ) {
 
 /*
 =================
-SV_SteamStats_GetFieldName
+SV_SteamStats_GetFieldTypeLabel
 
-Returns the mapped retail Steam stat descriptor name for one field index while
-labeling invalid or unmapped descriptor lookups through the shared stats
-lifecycle logger.
+Names one retail Steam stat descriptor type for diagnostics.
 =================
 */
-static const char *SV_SteamStats_GetFieldName( int statIndex, const char *stage ) {
+static const char *SV_SteamStats_GetFieldTypeLabel( sv_steam_stat_type_t type ) {
+	switch ( type ) {
+		case SV_STEAM_STAT_INT:
+			return "int";
+		case SV_STEAM_STAT_FLOAT:
+			return "float";
+		case SV_STEAM_STAT_AVG_RATE:
+			return "avg-rate";
+		default:
+			return "unknown";
+	}
+}
+
+/*
+=================
+SV_SteamStats_GetFieldDescriptor
+
+Returns the mapped retail Steam stat descriptor for one field index while
+labeling invalid or unmapped lookups through the shared stats lifecycle logger.
+=================
+*/
+static const sv_steam_stat_descriptor_t *SV_SteamStats_GetFieldDescriptor( int statIndex, const char *stage ) {
 	const char *lookupStage;
-	const char *name;
+	const sv_steam_stat_descriptor_t *descriptor;
 	char detail[128];
 
 	lookupStage = stage ? stage : "descriptor-lookup";
@@ -745,14 +784,30 @@ static const char *SV_SteamStats_GetFieldName( int statIndex, const char *stage 
 		return NULL;
 	}
 
-	name = s_svSteamStatNames[statIndex];
-	if ( !name ) {
+	descriptor = &s_svSteamStatDescriptors[statIndex];
+	if ( !descriptor->name ) {
 		Com_sprintf( detail, sizeof( detail ), "ignored stat descriptor lookup for unmapped index %d", statIndex );
 		SV_LogSteamStatsLifecycle( NULL, lookupStage, detail );
 		return NULL;
 	}
 
-	return name;
+	return descriptor;
+}
+
+/*
+=================
+SV_SteamStats_GetFieldName
+
+Returns the mapped retail Steam stat descriptor name for one field index while
+labeling invalid or unmapped descriptor lookups through the shared stats
+lifecycle logger.
+=================
+*/
+static const char *SV_SteamStats_GetFieldName( int statIndex, const char *stage ) {
+	const sv_steam_stat_descriptor_t *descriptor;
+
+	descriptor = SV_SteamStats_GetFieldDescriptor( statIndex, stage );
+	return descriptor ? descriptor->name : NULL;
 }
 
 /*
@@ -850,6 +905,35 @@ static client_t *SV_SteamStats_GetClientSlot( int clientNum, const char *stage, 
 
 /*
 =================
+SV_SteamStats_FindSessionBySteamId
+
+Finds the retained stats session for one Steam GameServerStats callback.
+=================
+*/
+static sv_steam_stats_session_t *SV_SteamStats_FindSessionBySteamId( const CSteamID *steamId ) {
+	sv_steam_stats_session_t *session;
+	int i;
+
+	if ( !steamId || steamId->value == 0ull ) {
+		return NULL;
+	}
+
+	for ( i = 0; i < sv_maxclients->integer && i < MAX_CLIENTS; i++ ) {
+		session = &sv_steamStatsSessions[i];
+		if ( !session->active ) {
+			continue;
+		}
+
+		if ( session->steamId.value == steamId->value ) {
+			return session;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=================
 SV_LogSteamStatsLifecycle
 
 Publishes provider-aware diagnostics for the retained dedicated-server stats
@@ -909,9 +993,11 @@ Loads one stat value from SteamGameServerStats when the backend is available.
 =================
 */
 static qboolean SV_SteamStats_LoadFieldValue( sv_steam_stats_session_t *session, int statIndex ) {
+	const sv_steam_stat_descriptor_t *descriptor;
 	const char *name;
 	char detail[128];
 	int value;
+	float floatValue;
 
 	if ( !session ) {
 		Com_sprintf( detail, sizeof( detail ), "ignored stat query for null session at index %d", statIndex );
@@ -931,15 +1017,20 @@ static qboolean SV_SteamStats_LoadFieldValue( sv_steam_stats_session_t *session,
 		return qfalse;
 	}
 
-	name = SV_SteamStats_GetFieldName( statIndex, "value-query" );
-	if ( !name ) {
+	descriptor = SV_SteamStats_GetFieldDescriptor( statIndex, "value-query" );
+	if ( !descriptor ) {
 		Com_sprintf( detail, sizeof( detail ), "ignored stat query for unmapped index %d", statIndex );
 		SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
 		return qfalse;
 	}
+	name = descriptor->name;
 
 	if ( session->statLoaded[statIndex] ) {
-		Com_sprintf( detail, sizeof( detail ), "stat %s already cached as %d", name, session->statValue[statIndex] );
+		if ( descriptor->type == SV_STEAM_STAT_INT ) {
+			Com_sprintf( detail, sizeof( detail ), "stat %s already cached as %d", name, session->statValue[statIndex] );
+		} else {
+			Com_sprintf( detail, sizeof( detail ), "stat %s already cached as %.3f", name, session->statFloatValue[statIndex] );
+		}
 		SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
 		return qtrue;
 	}
@@ -949,17 +1040,46 @@ static qboolean SV_SteamStats_LoadFieldValue( sv_steam_stats_session_t *session,
 	}
 
 	session->statQueryAttempted[statIndex] = qtrue;
-	value = 0;
-	if ( !QL_Steamworks_ServerGetUserStatInt( &session->steamId, name, &value ) ) {
-		Com_sprintf( detail, sizeof( detail ), "stat %s query failed", name );
-		SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
-		return qfalse;
+
+	switch ( descriptor->type ) {
+		case SV_STEAM_STAT_INT:
+			value = 0;
+			if ( !QL_Steamworks_ServerGetUserStatInt( &session->steamId, name, &value ) ) {
+				Com_sprintf( detail, sizeof( detail ), "stat %s query failed", name );
+				SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
+				return qfalse;
+			}
+			session->statValue[statIndex] = value + session->pendingStatDelta[statIndex];
+			Com_sprintf( detail, sizeof( detail ), "stat %s loaded as %d", name, session->statValue[statIndex] );
+			break;
+		case SV_STEAM_STAT_FLOAT:
+			floatValue = 0.0f;
+			if ( !QL_Steamworks_ServerGetUserStatFloat( &session->steamId, name, &floatValue ) ) {
+				Com_sprintf( detail, sizeof( detail ), "float stat %s query failed", name );
+				SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
+				return qfalse;
+			}
+			session->statFloatValue[statIndex] = floatValue + session->pendingStatFloatDelta[statIndex];
+			Com_sprintf( detail, sizeof( detail ), "float stat %s loaded as %.3f", name, session->statFloatValue[statIndex] );
+			break;
+		case SV_STEAM_STAT_AVG_RATE:
+			floatValue = 0.0f;
+			if ( !QL_Steamworks_ServerGetUserStatFloat( &session->steamId, name, &floatValue ) ) {
+				Com_sprintf( detail, sizeof( detail ), "avg-rate stat %s query failed", name );
+				SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
+				return qfalse;
+			}
+			session->statFloatValue[statIndex] = floatValue;
+			Com_sprintf( detail, sizeof( detail ), "avg-rate stat %s loaded as %.3f", name, session->statFloatValue[statIndex] );
+			break;
+		default:
+			Com_sprintf( detail, sizeof( detail ), "stat %s has unsupported descriptor type %d", name, (int)descriptor->type );
+			SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
+			return qfalse;
 	}
 
 	session->backendAvailable = qtrue;
 	session->statLoaded[statIndex] = qtrue;
-	session->statValue[statIndex] = value + session->pendingStatDelta[statIndex];
-	Com_sprintf( detail, sizeof( detail ), "stat %s loaded as %d", name, session->statValue[statIndex] );
 	SV_LogSteamStatsLifecycle( &session->steamId, "value-query", detail );
 	return qtrue;
 }
@@ -1037,6 +1157,7 @@ Publishes pending stat deltas and achievement unlocks for one active session.
 =================
 */
 static void SV_SteamStats_FlushPendingValues( sv_steam_stats_session_t *session ) {
+	const sv_steam_stat_descriptor_t *descriptor;
 	const char *name;
 	qboolean hasPending;
 	qboolean failed;
@@ -1044,6 +1165,7 @@ static void SV_SteamStats_FlushPendingValues( sv_steam_stats_session_t *session 
 	int pendingStats;
 	int pendingAchievements;
 	int i;
+	float floatValue;
 
 	if ( !session ) {
 		SV_LogSteamStatsLifecycle( NULL, "value-flush", "ignored flush for null session" );
@@ -1072,19 +1194,55 @@ static void SV_SteamStats_FlushPendingValues( sv_steam_stats_session_t *session 
 
 		hasPending = qtrue;
 		pendingStats++;
-		name = SV_SteamStats_GetFieldName( i, "value-flush" );
+		descriptor = SV_SteamStats_GetFieldDescriptor( i, "value-flush" );
+		name = descriptor ? descriptor->name : NULL;
+		if ( !descriptor ) {
+			Com_sprintf( detail, sizeof( detail ), "stat %s publish failed", name ? name : "<unknown>" );
+			SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
+			failed = qtrue;
+			continue;
+		}
 		if ( !session->statLoaded[i] && !SV_SteamStats_LoadFieldValue( session, i ) ) {
-			Com_sprintf( detail, sizeof( detail ), "stat %s unavailable during flush", name ? name : "<unknown>" );
+			Com_sprintf( detail, sizeof( detail ), "stat %s unavailable during flush", name );
 			SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
 			failed = qtrue;
 			continue;
 		}
 
-		if ( !name || !QL_Steamworks_ServerSetUserStatInt( &session->steamId, name, session->statValue[i] ) ) {
-			Com_sprintf( detail, sizeof( detail ), "stat %s publish failed", name ? name : "<unknown>" );
-			SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
-			failed = qtrue;
-			continue;
+		switch ( descriptor->type ) {
+			case SV_STEAM_STAT_INT:
+				if ( !QL_Steamworks_ServerSetUserStatInt( &session->steamId, name, session->statValue[i] ) ) {
+					Com_sprintf( detail, sizeof( detail ), "stat %s publish failed", name );
+					SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
+					failed = qtrue;
+					continue;
+				}
+				break;
+			case SV_STEAM_STAT_FLOAT:
+				if ( !QL_Steamworks_ServerSetUserStatFloat( &session->steamId, name, session->statFloatValue[i] ) ) {
+					Com_sprintf( detail, sizeof( detail ), "float stat %s publish failed", name );
+					SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
+					failed = qtrue;
+					continue;
+				}
+				break;
+			case SV_STEAM_STAT_AVG_RATE:
+				if ( !QL_Steamworks_ServerUpdateAvgRateStat( &session->steamId, name, session->pendingAvgRateCount[i], session->pendingAvgRateSessionLength[i] ) ) {
+					Com_sprintf( detail, sizeof( detail ), "avg-rate stat %s publish failed", name );
+					SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
+					failed = qtrue;
+					continue;
+				}
+				floatValue = 0.0f;
+				if ( QL_Steamworks_ServerGetUserStatFloat( &session->steamId, name, &floatValue ) ) {
+					session->statFloatValue[i] = floatValue;
+				}
+				break;
+			default:
+				Com_sprintf( detail, sizeof( detail ), "stat %s has unsupported descriptor type %d", name, (int)descriptor->type );
+				SV_LogSteamStatsLifecycle( &session->steamId, "value-flush", detail );
+				failed = qtrue;
+				continue;
 		}
 
 		session->backendAvailable = qtrue;
@@ -1136,6 +1294,9 @@ static void SV_SteamStats_FlushPendingValues( sv_steam_stats_session_t *session 
 
 		session->statDirty[i] = qfalse;
 		session->pendingStatDelta[i] = 0;
+		session->pendingStatFloatDelta[i] = 0.0f;
+		session->pendingAvgRateCount[i] = 0.0f;
+		session->pendingAvgRateSessionLength[i] = 0.0;
 	}
 
 	for ( i = 0; i < SV_STEAM_ACHIEVEMENT_COUNT; i++ ) {
@@ -1242,6 +1403,7 @@ static void SV_SteamStats_CreatePlayerSession( client_t *cl ) {
 	SV_SteamStats_ResetSession( session );
 	session->active = qtrue;
 	session->steamId = steamId;
+	session->appId = QL_Steamworks_ServerGetAppID();
 	SV_LogSteamStatsLifecycle( &session->steamId, "session-bootstrap", "created session" );
 	SV_SteamStats_RequestCurrentValues( session );
 	if ( !QL_Steamworks_ServerSendP2PPacket( &session->steamId, SV_STEAM_STATS_P2P_HELLO, 5, SV_STEAM_STATS_P2P_SEND_RELIABLE, SV_STEAM_STATS_P2P_CHANNEL ) ) {
@@ -1321,6 +1483,7 @@ Adds one mapped Steam stat delta for a live, non-bot client slot.
 void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta ) {
 	client_t *cl;
 	sv_steam_stats_session_t *session;
+	const sv_steam_stat_descriptor_t *descriptor;
 	const char *name;
 	char detail[128];
 	char subject[128];
@@ -1332,10 +1495,19 @@ void SV_SteamStats_AddFieldValue( int clientNum, int statIndex, int delta ) {
 		return;
 	}
 
-	name = SV_SteamStats_GetFieldName( statIndex, "field-delta" );
-	if ( !name ) {
+	descriptor = SV_SteamStats_GetFieldDescriptor( statIndex, "field-delta" );
+	if ( !descriptor ) {
 		Com_sprintf( detail, sizeof( detail ),
 			"ignored stat index %d delta %d for client %d", statIndex, delta, clientNum );
+		SV_LogSteamStatsLifecycle( NULL, "field-delta", detail );
+		return;
+	}
+	name = descriptor->name;
+
+	if ( descriptor->type != SV_STEAM_STAT_INT ) {
+		Com_sprintf( detail, sizeof( detail ),
+			"ignored non-int %s stat %s delta %d for client %d",
+			SV_SteamStats_GetFieldTypeLabel( descriptor->type ), name, delta, clientNum );
 		SV_LogSteamStatsLifecycle( NULL, "field-delta", detail );
 		return;
 	}
@@ -1484,6 +1656,39 @@ static client_t *SV_FindClientBySteamId( const CSteamID *steamId ) {
 
 	for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
 		if ( cl->state < CS_CONNECTED || cl->state == CS_ZOMBIE || !cl->platformSteamId[0] ) {
+			continue;
+		}
+
+		if ( !SV_ParsePlatformSteamId( cl->platformSteamId, &parsedSteamId ) ) {
+			continue;
+		}
+
+		if ( parsedSteamId.value == steamId->value ) {
+			return cl;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=================
+SV_FindActiveClientBySteamId
+
+Finds a fully entered client slot that owns one SteamID.
+=================
+*/
+static client_t *SV_FindActiveClientBySteamId( const CSteamID *steamId ) {
+	client_t	*cl;
+	CSteamID	parsedSteamId;
+	int		i;
+
+	if ( !steamId || steamId->value == 0ull ) {
+		return NULL;
+	}
+
+	for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ ) {
+		if ( cl->state != CS_ACTIVE || !cl->platformSteamId[0] ) {
 			continue;
 		}
 
@@ -1773,7 +1978,7 @@ static void SV_LogSteamServerP2PSessionRequest( const CSteamID *steamId, const c
 =================
 SV_SteamServerP2PSessionRequestCallback
 
-Accepts server-side Steam P2P sessions only for live, authenticated clients.
+Accepts server-side Steam P2P sessions only for active clients.
 =================
 */
 static void SV_SteamServerP2PSessionRequestCallback( void *context, const ql_steam_p2p_session_request_t *event ) {
@@ -1786,20 +1991,104 @@ static void SV_SteamServerP2PSessionRequestCallback( void *context, const ql_ste
 		return;
 	}
 
-	cl = SV_FindClientBySteamId( &event->remoteId );
+	cl = SV_FindActiveClientBySteamId( &event->remoteId );
 	if ( !cl ) {
 		SV_LogSteamServerP2PSessionRequest( &event->remoteId, "ignored", "client not found" );
 		return;
 	}
 
-	if ( !cl->platformAuthSucceeded ) {
-		SV_LogSteamServerP2PSessionRequest( &event->remoteId, "ignored", "client not authenticated" );
-		return;
-	}
-
+	SV_LogSteamServerP2PSessionRequest( &event->remoteId, "accepted", "active client match" );
 	if ( !QL_Steamworks_ServerAcceptP2PSession( &event->remoteId ) ) {
 		SV_LogSteamServerP2PSessionRequest( &event->remoteId, "failed", "accept call failed" );
 	}
+}
+
+/*
+=================
+SV_SteamServerGSStatsReceivedCallback
+
+Tracks SteamGameServerStats request completion for the retained stats session.
+=================
+*/
+static void SV_SteamServerGSStatsReceivedCallback( void *context, const ql_steam_gs_stats_received_t *event ) {
+	sv_steam_stats_session_t *session;
+	char detail[128];
+
+	(void)context;
+
+	if ( !event ) {
+		SV_LogSteamStatsLifecycle( NULL, "stats-received", "ignored null callback payload" );
+		return;
+	}
+
+	session = SV_SteamStats_FindSessionBySteamId( &event->steamId );
+	if ( !session ) {
+		Com_sprintf( detail, sizeof( detail ), "ignored stats received result=%d for missing session",
+			event->result );
+		SV_LogSteamStatsLifecycle( &event->steamId, "stats-received", detail );
+		return;
+	}
+
+	if ( event->result == 1 ) {
+		session->backendAvailable = qtrue;
+		session->requestIssued = qtrue;
+		Com_sprintf( detail, sizeof( detail ), "received result=%d appid=%u",
+			event->result, session->appId );
+	} else {
+		session->backendAvailable = qfalse;
+		Com_sprintf( detail, sizeof( detail ), "receive failed result=%d appid=%u",
+			event->result, session->appId );
+	}
+
+	SV_LogSteamStatsLifecycle( &session->steamId, "stats-received", detail );
+}
+
+/*
+=================
+SV_SteamServerGSStatsStoredCallback
+
+Tracks SteamGameServerStats store completion and re-requests values after the
+retail partial-validation result.
+=================
+*/
+static void SV_SteamServerGSStatsStoredCallback( void *context, const ql_steam_gs_stats_stored_t *event ) {
+	sv_steam_stats_session_t *session;
+	char detail[128];
+
+	(void)context;
+
+	if ( !event ) {
+		SV_LogSteamStatsLifecycle( NULL, "stats-stored", "ignored null callback payload" );
+		return;
+	}
+
+	session = SV_SteamStats_FindSessionBySteamId( &event->steamId );
+	if ( !session ) {
+		Com_sprintf( detail, sizeof( detail ), "ignored stats stored result=%d for missing session",
+			event->result );
+		SV_LogSteamStatsLifecycle( &event->steamId, "stats-stored", detail );
+		return;
+	}
+
+	if ( event->result == 1 ) {
+		Com_sprintf( detail, sizeof( detail ), "store confirmed result=%d appid=%u",
+			event->result, session->appId );
+		SV_LogSteamStatsLifecycle( &session->steamId, "stats-stored", detail );
+		return;
+	}
+
+	if ( event->result == 8 ) {
+		Com_sprintf( detail, sizeof( detail ), "store validation warning result=%d appid=%u",
+			event->result, session->appId );
+		SV_LogSteamStatsLifecycle( &session->steamId, "stats-stored", detail );
+		session->requestIssued = qfalse;
+		SV_SteamStats_RequestCurrentValues( session );
+		return;
+	}
+
+	Com_sprintf( detail, sizeof( detail ), "store failed result=%d appid=%u",
+		event->result, session->appId );
+	SV_LogSteamStatsLifecycle( &session->steamId, "stats-stored", detail );
 }
 
 /*
@@ -1818,6 +2107,8 @@ void SV_SteamServerInitCallbacks( void ) {
 	bindings.onServersDisconnected = SV_SteamServerDisconnectedCallback;
 	bindings.onValidateAuthTicketResponse = SV_SteamServerValidateAuthTicketResponseCallback;
 	bindings.onP2PSessionRequest = SV_SteamServerP2PSessionRequestCallback;
+	bindings.onGSStatsReceived = SV_SteamServerGSStatsReceivedCallback;
+	bindings.onGSStatsStored = SV_SteamServerGSStatsStoredCallback;
 
 	if ( !QL_Steamworks_RegisterServerCallbacks( &bindings ) ) {
 		SV_LogSteamServerCallbackBootstrapLifecycle( "unavailable", "register callbacks failed" );

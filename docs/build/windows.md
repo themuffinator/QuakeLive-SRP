@@ -54,9 +54,9 @@ after a successful solution build by copying the reconstructed host binary and
 its matching debug artifacts (`.pdb`, `.map`) to the retail-aligned dedicated
 name.
 VS Code launches set `QLR_DUMP_PATH=build\win32\Debug\dumps` and
-`QLR_FULL_DUMP=1`; unhandled crashes write a timestamped `.dmp` plus a matching
-`.log` file with the exception, register snapshot, dump type, and loaded module
-list.
+`QLR_FULL_DUMP=1`; debug-build unhandled crashes show a confirmation dialog
+before writing a timestamped `.dmp` plus a matching `.log` file with the
+exception, register snapshot, dump type, and loaded module list.
 
 The original VM builds remain available under the historical target names. For
 example, the following command rebuilds the interpreted modules while leaving

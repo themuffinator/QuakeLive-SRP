@@ -246,6 +246,15 @@ typedef struct {
 // when changing animation, set animationTime to frameTime + lerping time
 // The current lerp will finish out, then it will lerp to the new animation
 typedef struct {
+	int			firstFrame;
+	int			numFrames;
+	int			loopFrames;
+	int			frameLerp;
+	int			initialLerp;
+	int			reversed;
+} cgAnimation_t;
+
+typedef struct {
 	int			oldFrame;
 	int			oldFrameTime;		// time when ->oldFrame was exactly on
 
@@ -260,7 +269,7 @@ typedef struct {
 	qboolean	pitching;
 
 	int			animationNumber;	// may include ANIM_TOGGLEBIT
-	animation_t	*animation;
+	cgAnimation_t	*animation;
 	int			animationTime;		// time when the first frame of the animation will be exact
 } lerpFrame_t;
 
@@ -632,15 +641,73 @@ typedef struct {
 // usually as a result of a userinfo (name, model, etc) change
 #define	MAX_CUSTOM_SOUNDS	32
 
+#define	CG_CLIENTINFO_RETAIL_OFFSET_INFOVALID		0x000
+#define	CG_CLIENTINFO_RETAIL_OFFSET_READY			0x004
+#define	CG_CLIENTINFO_RETAIL_OFFSET_NAME				0x008
+#define	CG_CLIENTINFO_RETAIL_OFFSET_CLEAN_NAME		0x048
+#define	CG_CLIENTINFO_RETAIL_OFFSET_EXTENDED_NAME	0x088
+#define	CG_CLIENTINFO_RETAIL_OFFSET_COUNTRY			0x0C8
+#define	CG_CLIENTINFO_RETAIL_OFFSET_TEAM				0x108
+#define	CG_CLIENTINFO_RETAIL_OFFSET_BOT_SKILL		0x10C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_BOT_SKILL_FLOAT	0x110
+#define	CG_CLIENTINFO_RETAIL_OFFSET_COLOR1			0x114
+#define	CG_CLIENTINFO_RETAIL_OFFSET_COLOR2			0x120
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SCORE			0x12C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_HANDICAP			0x130
+#define	CG_CLIENTINFO_RETAIL_OFFSET_WINS				0x134
+#define	CG_CLIENTINFO_RETAIL_OFFSET_LOSSES			0x138
+#define	CG_CLIENTINFO_RETAIL_OFFSET_TEAMTASK			0x13C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_TEAMLEADER		0x140
+#define	CG_CLIENTINFO_RETAIL_OFFSET_MEDKIT_USAGE_TIME	0x144
+#define	CG_CLIENTINFO_RETAIL_OFFSET_INVULN_START_TIME	0x148
+#define	CG_CLIENTINFO_RETAIL_OFFSET_INVULN_STOP_TIME	0x14C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_BREATH_PUFF_TIME	0x150
+#define	CG_CLIENTINFO_RETAIL_OFFSET_MODEL_NAME		0x154
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SKIN_NAME		0x194
+#define	CG_CLIENTINFO_RETAIL_OFFSET_ICON_MODEL_NAME	0x1D4
+#define	CG_CLIENTINFO_RETAIL_OFFSET_ICON_SKIN_NAME	0x214
+#define	CG_CLIENTINFO_RETAIL_OFFSET_HEAD_MODEL_NAME	0x254
+#define	CG_CLIENTINFO_RETAIL_OFFSET_HEAD_SKIN_NAME	0x294
+#define	CG_CLIENTINFO_RETAIL_OFFSET_DEFERRED			0x2D4
+#define	CG_CLIENTINFO_RETAIL_OFFSET_MODEL_SCALE		0x2D8
+#define	CG_CLIENTINFO_RETAIL_OFFSET_NEW_ANIMS		0x2DC
+#define	CG_CLIENTINFO_RETAIL_OFFSET_ANIM_METADATA	0x2E0
+#define	CG_CLIENTINFO_RETAIL_OFFSET_FIXEDLEGS		0x2E0
+#define	CG_CLIENTINFO_RETAIL_OFFSET_FIXEDTORSO		0x2E4
+#define	CG_CLIENTINFO_RETAIL_OFFSET_HEAD_OFFSET		0x2E8
+#define	CG_CLIENTINFO_RETAIL_OFFSET_FOOTSTEPS		0x2F4
+#define	CG_CLIENTINFO_RETAIL_OFFSET_GENDER			0x2F8
+#define	CG_CLIENTINFO_RETAIL_OFFSET_MODEL_HANDLES	0x2FC
+#define	CG_CLIENTINFO_RETAIL_OFFSET_LEGS_MODEL		0x2FC
+#define	CG_CLIENTINFO_RETAIL_OFFSET_LEGS_SKIN		0x300
+#define	CG_CLIENTINFO_RETAIL_OFFSET_TORSO_MODEL		0x304
+#define	CG_CLIENTINFO_RETAIL_OFFSET_TORSO_SKIN		0x308
+#define	CG_CLIENTINFO_RETAIL_OFFSET_HEAD_MODEL		0x30C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_HEAD_SKIN		0x310
+#define	CG_CLIENTINFO_RETAIL_OFFSET_MODEL_ICON		0x314
+#define	CG_CLIENTINFO_RETAIL_OFFSET_ANIMATIONS		0x318
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SOUNDS			0x690
+#define	CG_CLIENTINFO_RETAIL_OFFSET_PRIVILEGE		0x710
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SPECTATE_ONLY	0x714
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SPECTATOR_QUEUE	0x718
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SPEAKING			0x71C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_SPEAKING_TIME	0x720
+#define	CG_CLIENTINFO_RETAIL_OFFSET_IDENTITY_LOW		0x728
+#define	CG_CLIENTINFO_RETAIL_OFFSET_IDENTITY_HIGH	0x72C
+#define	CG_CLIENTINFO_RETAIL_OFFSET_AVATAR_HANDLE	0x730
+#define	CG_CLIENTINFO_RETAIL_SIZE					0x738
+
 typedef struct {
 	qboolean		infoValid;
+	qboolean		ready;			// retail rp configstring flag
 
 	char			name[MAX_QPATH];
-	unsigned int	identityLow;
-	unsigned int	identityHigh;
+	char			cleanName[MAX_QPATH];
+	char			extendedName[MAX_QPATH];
 	team_t			team;
 
 	int				botSkill;		// 0 = not bot, 1-5 = bot
+	float			botSkillFloat;
 
 	vec3_t			color1;
 	vec3_t			color2;
@@ -669,10 +736,8 @@ typedef struct {
 
 	int				teamTask;		// task in teamplay (offence/defence)
 	qboolean		teamLeader;		// true when this is a team leader
-	qboolean		spectateOnly;		// retail duel pure-spectator flag
-	int				spectatorQueuePosition;	// retail duel queue position
 
-	int				powerups;		// so can display quad/flag status
+	int				powerups;		// source compatibility; retail 0x144 starts effect timers
 
 	int				medkitUsageTime;
 	int				invulnerabilityStartTime;
@@ -693,6 +758,7 @@ typedef struct {
 	qhandle_t		countryFlagShader;
 	qboolean		deferred;
 
+	float			modelScale;		// retail bounding-box scale scalar at 0x2d8
 	qboolean		newAnims;		// true if using the new mission pack animations
 	qboolean		fixedlegs;		// true if legs yaw is always the same as torso yaw
 	qboolean		fixedtorso;		// true if torso never changes yaw
@@ -712,9 +778,20 @@ typedef struct {
 
 	qhandle_t		modelIcon;
 
-	animation_t		animations[MAX_TOTALANIMATIONS];
+	cgAnimation_t	animations[MAX_TOTALANIMATIONS];
 
 	sfxHandle_t		sounds[MAX_CUSTOM_SOUNDS];
+
+	int				privilege;		// retail p configstring value exported with identity
+	qboolean		spectateOnly;		// retail duel pure-spectator flag
+	int				spectatorQueuePosition;	// retail duel queue position
+	qboolean		speaking;
+	int				speakingTime;
+	int				retailIdentityPad;	// retail gap before Steam identity words
+	unsigned int	identityLow;
+	unsigned int	identityHigh;
+	qhandle_t		avatarImageHandle;
+	int				retailLayoutPad;	// keeps the cgame clientinfo stride at retail 0x738
 } clientInfo_t;
 
 
@@ -729,6 +806,7 @@ typedef struct weaponInfo_s {
 	qhandle_t		weaponModel;
 	qhandle_t		barrelModel;
 	qhandle_t		flashModel;
+	qhandle_t		weaponAmmoModel;	// retail tag_ammo child model, separate from ammo pickup model
 
 	vec3_t			weaponMidpoint;		// so it will rotate centered instead of by tag
 
@@ -1265,17 +1343,22 @@ typedef struct {
 	qhandle_t	iceMarkShader;
 	qhandle_t	holeMarkShader;
 	qhandle_t	energyMarkShader;
+	qhandle_t	crackedMarkShader;
 
 	// powerup shaders
 	qhandle_t	quadShader;
 	qhandle_t	redQuadShader;
 	qhandle_t	quadWeaponShader;
+	qhandle_t	ice1Shader;
+	qhandle_t	ice2Shader;
+	qhandle_t	ice3Shader;
 	qhandle_t	invisShader;
 	qhandle_t	regenShader;
 	qhandle_t	battleSuitShader;
 	qhandle_t	battleWeaponShader;
 	qhandle_t	ghostWeaponShader;
 	qhandle_t	hastePuffShader;
+	qhandle_t	gooShader;
 	qhandle_t	redKamikazeShader;
 	qhandle_t	blueKamikazeShader;
 	qhandle_t	poiPowerupQuadShader;
@@ -1437,6 +1520,7 @@ typedef struct {
 	sfxHandle_t	sfx_chghitflesh;
 	sfxHandle_t	sfx_chghitmetal;
 	sfxHandle_t	sfx_chgwind;
+	sfxHandle_t	sfx_grapplehit;
 	sfxHandle_t kamikazeExplodeSound;
 	sfxHandle_t kamikazeImplodeSound;
 	sfxHandle_t kamikazeFarSound;
@@ -1529,6 +1613,7 @@ typedef struct {
 	sfxHandle_t headshotSound;
 	sfxHandle_t firstFragSound;
 	sfxHandle_t infectedSound;
+	sfxHandle_t infectedLoopSound;
 	sfxHandle_t newHighScoreSound;
 
 	sfxHandle_t takenLeadSound;
@@ -2405,6 +2490,7 @@ void CG_SetWeaponSelect( int weapon );
 
 void CG_RegisterWeapon( int weaponNum );
 void CG_RegisterItemVisuals( int itemNum );
+qboolean CG_ResolveClientWeaponColor( const clientInfo_t *ci, byte *rgbOut, vec3_t colorOut );
 
 void CG_FireWeapon( centity_t *cent );
 void CG_MissileHitWall( int weapon, int clientNum, vec3_t origin, vec3_t dir, impactSound_t soundType );

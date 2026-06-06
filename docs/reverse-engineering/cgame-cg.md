@@ -264,7 +264,7 @@ console commands own this tail.
 | `0x236B0` | `bobScale` | `float` | Cached `cg_bob` value. |
 | `0x236B4` | `simpleItemsHeightOffset` | `float` | Cached simple-items height offset. |
 | `0x236B8` | `simpleItemsRadius` | `float` | Cached simple-items radius. |
-| `0x236BC` | `simpleItemsBob` | `float` | Cached simple-items bob amplitude. |
+| `0x236BC` | `simpleItemsBob` | `float` | Cached simple-items bob mode (`0` disabled, `1` all simple items, `2` major-item family). |
 | `0x236C0` | `kick_angles` | `vec3_t` | Weapon/view kick angles. |
 | `0x236CC` | `kick_origin` | `vec3_t` | Weapon/view kick positional offset. |
 | `0x236D8` | `projectileNudgeCommandTime` | `int` | Command time tied to the last local projectile nudge. |

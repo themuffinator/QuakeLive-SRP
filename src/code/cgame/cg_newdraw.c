@@ -2559,7 +2559,10 @@ static void CG_DrawSpectatorProfileImage( rectDef_t *rect, int slot ) {
 
 	shader = 0;
 	if ( cg_drawProfileImages.integer && ( ci->identityLow || ci->identityHigh ) ) {
-		shader = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );
+		shader = ci->avatarImageHandle;
+		if ( !shader ) {
+			shader = trap_QL_GetAvatarImageHandle( ci->identityLow, ci->identityHigh );
+		}
 	}
 	if ( !shader ) {
 		shader = ci->modelIcon;
@@ -4851,7 +4854,7 @@ static void CG_DrawClientModelPreview( rectDef_t *rect, int clientNum, int weapo
 		return;
 	}
 
-	heightScale = ( ci->headOffset[0] > 0.0f ) ? ci->headOffset[0] : 1.0f;
+	heightScale = ( ci->modelScale > 0.0f ) ? ci->modelScale : 1.0f;
 	previewHeight = 32.0f;
 	if ( heightScale > 0.0f ) {
 		previewHeight = 32.0f / ( heightScale * 0.85f );
@@ -4940,9 +4943,9 @@ static void CG_DrawClientModelPreview( rectDef_t *rect, int clientNum, int weapo
 			trap_R_AddRefEntityToScene( &barrel );
 		}
 
-		if ( weaponNum == WP_GRAPPLING_HOOK && weapon->ammoModel ) {
+		if ( weaponNum == WP_GRAPPLING_HOOK && weapon->weaponAmmoModel ) {
 			CG_InitClientPreviewEntity( &ammo, origin, renderfx );
-			ammo.hModel = weapon->ammoModel;
+			ammo.hModel = weapon->weaponAmmoModel;
 			AxisClear( ammo.axis );
 			CG_PositionRotatedEntityOnTag( &ammo, &gun, weapon->weaponModel, "tag_ammo" );
 			ammo.nonNormalizedAxes = gun.nonNormalizedAxes;

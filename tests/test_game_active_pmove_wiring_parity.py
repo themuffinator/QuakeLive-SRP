@@ -29,11 +29,36 @@ G_SVCMDS_PATH = REPO_ROOT / "src" / "code" / "game" / "g_svcmds.c"
 G_TEAM_PATH = REPO_ROOT / "src" / "code" / "game" / "g_team.c"
 G_UTILS_PATH = REPO_ROOT / "src" / "code" / "game" / "g_utils.c"
 CG_ENTS_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_ents.c"
+CG_DRAW_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_draw.c"
 CG_MAIN_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c"
 CG_PLAYERS_PATH = REPO_ROOT / "src" / "code" / "cgame" / "cg_players.c"
 MATCH_STATE_KEYS_PATH = REPO_ROOT / "src" / "game" / "match_state_keys.h"
 QAGAME_MAP_PATH = REPO_ROOT / "references" / "symbol-maps" / "qagame.json"
 QAGAME_MAPPING_PATH = REPO_ROOT / "docs" / "reverse-engineering" / "qagame-mapping.md"
+FREEZE_FROZEN_MARKER_MAPPING_PATH = (
+	REPO_ROOT
+	/ "docs"
+	/ "reverse-engineering"
+	/ "freeze-tag-frozen-marker-mapping-2026-06-06.md"
+)
+FREEZE_THAW_EFLAGS_MAPPING_PATH = (
+	REPO_ROOT
+	/ "docs"
+	/ "reverse-engineering"
+	/ "freeze-tag-thaw-progress-eflags-mapping-2026-06-06.md"
+)
+FREEZE_THAW_RESPAWN_MAPPING_PATH = (
+	REPO_ROOT
+	/ "docs"
+	/ "reverse-engineering"
+	/ "freeze-tag-thaw-respawn-tail-mapping-2026-06-06.md"
+)
+FREEZE_WINNING_THAW_MAPPING_PATH = (
+	REPO_ROOT
+	/ "docs"
+	/ "reverse-engineering"
+	/ "freeze-tag-winning-thaw-respawn-mapping-2026-06-06.md"
+)
 QAGAME_HLIL_PART01_PATH = (
 	REPO_ROOT
 	/ "references"
@@ -60,6 +85,22 @@ QAGAME_HLIL_PART03_PATH = (
 	/ "qagamex86.dll"
 	/ "qagamex86.dll.bndb_hlil_split"
 	/ "qagamex86.dll.bndb_hlil_part03.txt"
+)
+QAGAME_GHIDRA_DECOMPILE_PATH = (
+	REPO_ROOT
+	/ "references"
+	/ "reverse-engineering"
+	/ "ghidra"
+	/ "qagamex86"
+	/ "decompile_top_functions.c"
+)
+QAGAME_GHIDRA_FUNCTIONS_PATH = (
+	REPO_ROOT
+	/ "references"
+	/ "reverse-engineering"
+	/ "ghidra"
+	/ "qagamex86"
+	/ "functions.csv"
 )
 CGAME_HLIL_PART02_PATH = (
 	REPO_ROOT
@@ -1455,6 +1496,7 @@ def test_round_freeze_timing_cvars_keep_retail_behavioral_wiring() -> None:
 	freeze_end_body = _function_body(g_active, "static void G_FreezeHandleRoundEnd( team_t winner )")
 	freeze_count_body = _function_body(g_freeze, "int G_FreezeCountThawHelpers( gentity_t *ent, gentity_t **helperOut )")
 	freeze_state_body = _function_body(g_freeze, "static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qboolean environmental, qboolean wasAuto, int helperNum )")
+	freeze_progress_body = _function_body(g_client, "static void G_FreezeUpdateThawProgressFlags( gclient_t *client, int thawTotal )")
 	client_end_body = _function_body(g_client, "void G_FreezeClientEndFrame( gentity_t *ent )")
 	update_body = _function_body(g_main, "void G_UpdateCvars( void )")
 	damage_body = _function_body(g_combat, "void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,\n\t\t\tvec3_t dir, vec3_t point, int damage, int dflags, int mod )")
@@ -1485,19 +1527,163 @@ def test_round_freeze_timing_cvars_keep_retail_behavioral_wiring() -> None:
 
 	assert "thawTick = level.freezeConfig.thawTick;" in client_end_body
 	assert "thawTotal = level.freezeConfig.thawTime;" in client_end_body
-	assert "client->freezeAccumulatedThaw += helperCount * thawTick;" in client_end_body
-	assert "client->freezeNextThawTick = level.time + thawTick;" in client_end_body
+	assert "msec = level.msec;" in client_end_body
+	assert "helper = G_FreezeFindThawHelperByClientNum( ent, client->freezeLastHelper );" in client_end_body
+	assert "client->freezeThawTimeRemaining -= msec;" in client_end_body
+	assert "client->freezeThawTimeRemaining += msec;" in client_end_body
+	assert "client->freezeThawTimeRemaining = thawTotal;" in client_end_body
+	assert "G_FreezeUpdateThawProgressFlags( client, thawTotal );" in client_end_body
+	assert client_end_body.index("G_FreezeUpdateThawProgressFlags( client, thawTotal );") < client_end_body.index("if ( roundState != ROUNDSTATE_ACTIVE ) {")
+	assert client_end_body.index("G_FreezeUpdateThawProgressFlags( client, thawTotal );") < client_end_body.index("helper = G_FreezeFindThawHelperByClientNum( ent, client->freezeLastHelper );")
+	assert "third = thawTotal / 3;" in freeze_progress_body
+	assert "client->ps.eFlags &= ~( EF_DEAD | EF_TICKING );" in freeze_progress_body
+	assert "client->ps.eFlags |= EF_DEAD;" in freeze_progress_body
+	assert "client->ps.eFlags |= EF_TICKING;" in freeze_progress_body
+	assert "oldSecondsRemaining > 0 && oldSecondsRemaining != newSecondsRemaining && thawTick != 0" in client_end_body
 	assert "if ( client->freezeAutoThawTime > 0 && level.time >= client->freezeAutoThawTime ) {" in client_end_body
 	assert "client->freezeEnvironmentalRespawnTime > 0" in client_end_body
+	assert "G_FreezeFindThawHelperByClientNum( gentity_t *ent, int helperClientNum )" in g_freeze
 	assert "thawRadius = (float)level.freezeConfig.thawRadius;" in freeze_count_body
-	assert "VectorLengthSquared( delta ) > thawRadius * thawRadius" in freeze_count_body
+	assert "mins[i] = ent->r.currentOrigin[i] - thawRadius;" in freeze_count_body
+	assert "maxs[i] = ent->r.currentOrigin[i] + thawRadius;" in freeze_count_body
+	assert "numListedEntities = trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );" in freeze_count_body
+	assert "for ( i = 0; i < numListedEntities; i++ ) {" in freeze_count_body
+	assert "helper = &g_entities[entityNum];" in freeze_count_body
+	assert "for ( i = 0; i < level.maxclients; i++ )" not in freeze_count_body
+	assert "if ( helper->client->ps.pm_type != PM_NORMAL ) {" in g_freeze
+	assert "if ( distSq > thawRadius * thawRadius ) {" in g_freeze
 	assert "delay = level.freezeConfig.roundDelay;" in freeze_end_body
 	assert "level.roundTransitionTime = ( delay > 0 ) ? level.time + delay : level.time;" in freeze_end_body
 	assert "client->freezeAutoThawTime = level.time + level.freezeConfig.autoThawTime;" in freeze_state_body
 	assert "client->freezeEnvironmentalRespawnTime = level.time + level.freezeConfig.environmentalRespawnDelay;" in freeze_state_body
+	assert freeze_state_body.count("client->ps.eFlags &= ~( EF_DEAD | EF_TICKING );") == 2
 	assert "protectTime = level.freezeConfig.protectedSpawnTime;" in freeze_state_body
 	assert "client->freezeProtectedUntil = client->invulnerabilityTime;" in freeze_state_body
 	assert "if ( G_FreezeGametypeEnabled() && client->freezeProtectedUntil > level.time ) {" in damage_body
+
+
+def test_freeze_client_endframe_ghidra_pins_remaining_thaw_timer() -> None:
+	ghidra = QAGAME_GHIDRA_DECOMPILE_PATH.read_text(encoding="utf-8")
+	functions = QAGAME_GHIDRA_FUNCTIONS_PATH.read_text(encoding="utf-8")
+	g_client = G_CLIENT_PATH.read_text(encoding="utf-8")
+	g_combat = G_COMBAT_PATH.read_text(encoding="utf-8")
+	g_freeze = G_FREEZE_PATH.read_text(encoding="utf-8")
+	g_local = G_LOCAL_PATH.read_text(encoding="utf-8")
+	g_main = G_MAIN_PATH.read_text(encoding="utf-8")
+	mapping = FREEZE_THAW_EFLAGS_MAPPING_PATH.read_text(encoding="utf-8")
+	respawn_mapping = FREEZE_THAW_RESPAWN_MAPPING_PATH.read_text(encoding="utf-8")
+	retail_body = _function_body(ghidra, "void __thiscall FUN_1004cd40(undefined *param_1,int param_2)")
+	retail_round_body = _function_body(ghidra, "void FUN_1004c1b0(void)")
+	gib_body = _function_body(g_combat, "void GibEntity( gentity_t *self )")
+	freeze_state_body = _function_body(g_freeze, "static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qboolean environmental, qboolean wasAuto, int helperNum )")
+
+	assert "FUN_1004cd40,1004cd40,1327,0,unknown" in functions
+	assert "FUN_1004cd00,1004cd00,57,0,unknown" in functions
+	assert "DAT_105a472c / 3 < *(int *)(*(int *)(param_1 + 0x23c) + 500)" in retail_body
+	assert "(DAT_105a472c / 3) * 2 < *(int *)(*(int *)(param_1 + 0x23c) + 500)" in retail_body
+	assert "*puVar1 = *puVar1 & 0xfffffffc;" in retail_body
+	assert "*puVar1 = *puVar1 | 1;" in retail_body
+	assert "*(uint *)(*(int *)(param_1 + 0x23c) + 0x1c0) = *(uint *)(*(int *)(param_1 + 0x23c) + 0x1c0) | 2;" in retail_body
+	assert "local_101c = local_1068 - local_1020;" in retail_body
+	assert "local_1028 = local_1020 + local_1068;" in retail_body
+	assert "(**(code **)(DAT_104b13ac + 0xa4))(&local_101c,&local_1028,local_1010,0x400)" in retail_body
+	assert "*(undefined4 *)(*(int *)(param_1 + 0x23c) + 0x1f8) = 1;" in retail_body
+	assert "*(undefined4 *)(*(int *)(param_1 + 0x23c) + 0x1fc) =" in retail_body
+	assert "puVar6 = (undefined *)FUN_1004cd00()" in retail_body
+	assert "*(int *)(*(int *)(param_1 + 0x23c) + 500) - param_2" in retail_body
+	assert "*(int *)(*(int *)(param_1 + 0x23c) + 500) + param_2" in retail_body
+	assert "if (DAT_105a472c < *(int *)(*(int *)(param_1 + 0x23c) + 500))" in retail_body
+	assert "DAT_105a30ac != 0" in retail_body
+	assert "FUN_1006c490(0x58)" in retail_body
+	assert 'FUN_100716a0(puVar8,"ASSIST");' in retail_body
+	assert "iVar4 = FUN_1006c490(0x3a);" in retail_body
+	assert "*(undefined4 *)(iVar4 + 0xc0) = 0x1e;" in retail_body
+	assert "*(undefined4 *)(iVar4 + 0x94) = *(undefined4 *)(*(int *)(param_1 + 0x23c) + 0x88);" in retail_body
+	assert "*(undefined4 *)(iVar4 + 0x98) = *(undefined4 *)(*(int *)(puVar8 + 0x23c) + 0x88);" in retail_body
+	assert "*(undefined4 *)(iVar4 + 0x1e0) = 0x20;" in retail_body
+	assert "iVar5 = FUN_1006c490(0x2c);" in retail_body
+	assert "*(uint *)(iVar5 + 0xc0) = (iVar4 != 2) + 2;" in retail_body
+	assert "FUN_10046d80(param_1);" in retail_body
+	assert "FUN_10046d80,10046d80,379,0,unknown" in functions
+	assert "FUN_1006c490(0x57);" in retail_round_body
+	assert "*(undefined4 *)(*piVar7 + 4) = 0;" in retail_round_body
+	assert "FUN_1003bc30(piVar7 + -0x8f);" in retail_round_body
+
+	assert "client->freezeThawHelperActive = qtrue;" in g_client
+	assert "helper = G_FreezeFindThawHelperByClientNum( ent, client->freezeLastHelper );" in g_client
+	assert "client->freezeThawTimeRemaining -= msec;" in g_client
+	assert "client->freezeThawTimeRemaining += msec;" in g_client
+	assert "client->freezeThawTimeRemaining = thawTotal;" in g_client
+	assert "G_FreezeUpdateThawProgressFlags( client, thawTotal );" in g_client
+	assert g_client.index("G_FreezeUpdateThawProgressFlags( client, thawTotal );") < g_client.index("helper = G_FreezeFindThawHelperByClientNum( ent, client->freezeLastHelper );")
+	assert "client->ps.eFlags |= EF_DEAD;" in g_client
+	assert "client->ps.eFlags |= EF_TICKING;" in g_client
+	assert "client->ps.eFlags &= ~( EF_DEAD | EF_TICKING );" in g_freeze
+	assert "oldSecondsRemaining > 0 && oldSecondsRemaining != newSecondsRemaining && thawTick != 0" in g_client
+	assert "trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );" in g_freeze
+	assert "for ( i = 0; i < level.maxclients; i++ )" not in g_freeze
+	assert "G_FreezeFindThawHelperByClientNum" in g_freeze
+	assert "G_FreezeEmitThawCompletionEvents( ent, helperNum );" in g_freeze
+	assert "tent->s.eventParm = MOD_THAW;" in g_freeze
+	assert "G_BroadcastGlobalTeamSound( ent->s.pos.trBase, sound, -1, TEAM_FREE, 0 );" in g_freeze
+	assert "thawThroughRespawn = ( client->ps.powerups[PW_NUM_POWERUPS] != 0 ) ? qtrue : qfalse;" in freeze_state_body
+	assert "G_FreezeAwardThawAssist( ent, helperNum );" in freeze_state_body
+	assert "GibEntity( ent );" in freeze_state_body
+	assert freeze_state_body.index("G_FreezeEmitThawCompletionEvents( ent, helperNum );") < freeze_state_body.index("GibEntity( ent );")
+	assert "G_AddPredictableEvent( self, EV_GIB_PLAYER, DirToByte( self->client->damage_from ) );" in gib_body
+	assert "self->client->ps.powerups[PW_NUM_POWERUPS]" in gib_body
+	assert "tent = G_TempEntity( self->client->ps.origin, EV_THAW_PLAYER );" in gib_body
+	assert "self->client->ps.pm_type = PM_NORMAL;" in gib_body
+	assert "ClientSpawn( self );" in gib_body
+	assert gib_body.index("G_AddPredictableEvent( self, EV_GIB_PLAYER") < gib_body.index("ClientSpawn( self );")
+	assert "void GibEntity( gentity_t *self );" in g_local
+	assert "freezeNextThawTick" not in g_client
+	assert "freezeNextThawTick" not in g_main
+	assert "Freeze Tag Thaw Progress eFlags Mapping" in mapping
+	assert "DAT_105a472c / 3" in mapping
+	assert "EF_DEAD" in mapping
+	assert "EF_TICKING" in mapping
+	assert "G_FreezeUpdateThawProgressFlags" in mapping
+	assert "Freeze Tag Thaw Respawn Tail Mapping" in respawn_mapping
+	assert "`FUN_10046d80`" in respawn_mapping
+	assert "`EV_THAW_PLAYER`" in respawn_mapping
+
+
+def test_freeze_frozen_marker_matches_retail_powerup_bridge() -> None:
+	ghidra = QAGAME_GHIDRA_DECOMPILE_PATH.read_text(encoding="utf-8")
+	functions = QAGAME_GHIDRA_FUNCTIONS_PATH.read_text(encoding="utf-8")
+	qagame_hlil = QAGAME_HLIL_PART02_PATH.read_text(encoding="utf-8")
+	g_freeze = G_FREEZE_PATH.read_text(encoding="utf-8")
+	cg_draw = CG_DRAW_PATH.read_text(encoding="utf-8")
+	cg_players = CG_PLAYERS_PATH.read_text(encoding="utf-8")
+	mapping = FREEZE_FROZEN_MARKER_MAPPING_PATH.read_text(encoding="utf-8")
+	marker_body = _function_body(g_freeze, "static void G_FreezeSetClientFrozenPowerupMarker( gentity_t *ent, qboolean frozen )")
+	freeze_state_body = _function_body(g_freeze, "static void G_FreezeSetClientFrozenState( gentity_t *ent, qboolean frozen, qboolean environmental, qboolean wasAuto, int helperNum )")
+	init_body = _function_body(g_freeze, "void G_FreezeInitClient( gentity_t *ent )")
+
+	assert "FUN_1004bc80,1004bc80,339,0,unknown" in functions
+	assert "*(undefined4 *)(param_1[0x8f] + 0x17c) = 0x7fffffff;" in ghidra
+	assert "param_1[0x31] = 0x8000;" in ghidra
+	assert "FUN_1004bc80(param_1,1);" in ghidra
+	assert "1004bcae      *(arg1[0x8f] + 0x17c) = 0" in qagame_hlil
+	assert "1004bcb8      arg1[0x31] &= 0xffff7fff" in qagame_hlil
+	assert "1004bd45      void* eax_3 = sub_1006c490(&arg1[0x88], 0x3a)" in qagame_hlil
+	assert "1004bd4a      *(eax_3 + 0xc0) = 0x1e" in qagame_hlil
+	assert "1004bd70      *(eax_3 + 0x1e0) = 0x20" in qagame_hlil
+
+	assert "ent->client->ps.powerups[PW_NUM_POWERUPS] = INT_MAX;" in marker_body
+	assert "ent->s.powerups = ( 1 << PW_NUM_POWERUPS );" in marker_body
+	assert "ent->client->ps.powerups[PW_NUM_POWERUPS] = 0;" in marker_body
+	assert "ent->s.powerups &= ~( 1 << PW_NUM_POWERUPS );" in marker_body
+	assert "G_FreezeSetClientFrozenPowerupMarker( ent, qfalse );" in init_body
+	assert "G_FreezeSetClientFrozenPowerupMarker( ent, qtrue );" in freeze_state_body
+	assert freeze_state_body.count("G_FreezeSetClientFrozenPowerupMarker( ent, qfalse );") == 1
+
+	assert "#define TEAM_OVERLAY_FROZEN_BIT\t\t( 1 << PW_NUM_POWERUPS )" in cg_draw
+	assert "cent->currentState.powerups & ( 1 << PW_NUM_POWERUPS )" in cg_players
+	assert "state->powerups & ( 1 << PW_NUM_POWERUPS )" in cg_players
+	assert "Retail death/freeze state writes `0x7fffffff`" in mapping
+	assert "`ent->client->ps.powerups[PW_NUM_POWERUPS] = INT_MAX`" in mapping
 
 
 def test_freeze_last_man_and_rr_zombie_cvar_rows_match_retail_hlil_batch() -> None:
@@ -1594,11 +1780,14 @@ def test_freeze_last_man_and_rr_zombie_cvars_keep_retail_behavioral_wiring() -> 
 	g_client = G_CLIENT_PATH.read_text(encoding="utf-8")
 	g_freeze = G_FREEZE_PATH.read_text(encoding="utf-8")
 	g_team = G_TEAM_PATH.read_text(encoding="utf-8")
+	winning_thaw_mapping = FREEZE_WINNING_THAW_MAPPING_PATH.read_text(encoding="utf-8")
 	freeze_sync_body = _function_body(g_active, "void G_FreezeSyncCvars( void )")
 	freeze_reset_body = _function_body(g_active, "void G_FreezeResetClientForRound( gentity_t *ent )")
 	freeze_winner_body = _function_body(g_active, "static team_t G_FreezeEvaluateRoundWinner( const int counts[TEAM_NUM_TEAMS], const int health[TEAM_NUM_TEAMS] )")
+	freeze_winner_thaw_respawn_body = _function_body(g_active, "static void G_FreezeRespawnThawedWinner( gentity_t *ent )")
 	freeze_thaw_winners_body = _function_body(g_active, "static void G_FreezeThawWinningPlayers( team_t winner )")
 	freeze_count_body = _function_body(g_freeze, "int G_FreezeCountThawHelpers( gentity_t *ent, gentity_t **helperOut )")
+	freeze_helper_body = _function_body(g_freeze, "static qboolean G_FreezeClientCanHelpThaw( gentity_t *ent, gentity_t *helper, float thawRadius, float *distSqOut )")
 	last_warning_body = _function_body(g_team, "qboolean G_LastManStandingWarningsEnabled( void )")
 	last_message_body = _function_body(g_team, "static const char *G_LastManStandingMessage( void )")
 	last_notify_body = _function_body(g_team, "static qboolean G_NotifyLastAlivePlayer( team_t team )")
@@ -1625,10 +1814,18 @@ def test_freeze_last_man_and_rr_zombie_cvars_keep_retail_behavioral_wiring() -> 
 	assert "if ( level.freezeConfig.resetArmor ) {" in freeze_reset_body
 	assert "if ( level.freezeConfig.removePowerups ) {" in freeze_reset_body
 	assert "memset( ent->client->ps.powerups, 0, sizeof( ent->client->ps.powerups ) );" in freeze_reset_body
-	assert "if ( !level.freezeConfig.thawThroughSurface ) {" in freeze_count_body
+	assert "G_FreezeClientCanHelpThaw( ent, helper, thawRadius, NULL )" in freeze_count_body
+	assert "trap_EntitiesInBox( mins, maxs, entityList, MAX_GENTITIES );" in freeze_count_body
+	assert "if ( !level.freezeConfig.thawThroughSurface ) {" in freeze_helper_body
 	assert freeze_winner_body.count("G_FreezeThawWinningPlayers( winner );") >= 5
 	assert "if ( !level.freezeConfig.thawWinningTeam ) {" in freeze_thaw_winners_body
-	assert "G_FreezeThawClient( ent, qtrue, -1 );" in freeze_thaw_winners_body
+	assert "G_FreezeRespawnThawedWinner( ent );" in freeze_thaw_winners_body
+	assert "G_FreezeThawClient( ent, qtrue, -1 );" not in freeze_thaw_winners_body
+	assert "tent = G_TempEntity( ent->client->ps.origin, EV_THAW_PLAYER );" in freeze_winner_thaw_respawn_body
+	assert "ent->client->ps.pm_type = PM_NORMAL;" in freeze_winner_thaw_respawn_body
+	assert "ClientSpawn( ent );" in freeze_winner_thaw_respawn_body
+	assert "Freeze Tag Winning-Team Thaw Respawn Mapping" in winning_thaw_mapping
+	assert "`EV_THAW_PLAYER -> PM_NORMAL -> ClientSpawn`" in winning_thaw_mapping
 
 	assert "if ( !g_lastManStandingWarning.integer ) {" in last_warning_body
 	assert "if ( level.timeoutActive ) {" in last_warning_body

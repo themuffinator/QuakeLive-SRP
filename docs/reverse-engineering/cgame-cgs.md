@@ -21,14 +21,26 @@ the strongest retail behavior anchors already recovered in
 
 ## Hard Layout Facts
 
+The nested `clientInfo_t` slab was corrected in the 2026-06-06 clientinfo pass:
+retail cgame uses a `0x738` clientinfo stride, not the older source-derived
+`0x704` stride. The top-level offsets below remain useful as source-banding
+notes, but any retail `cgs_t` byte-offset claim after `clientinfo[]` should be
+regenerated after future size-affecting nested repacks. The cgame-only
+animation record is now split to the retail `0x18` size, and the source layout
+now places the animation block at `0x318`, custom sounds at `0x690`, and the
+recovered native identity/voice/avatar tail at `0x710..0x734`; see
+`docs/reverse-engineering/cgame-clientinfo.md` for the remaining early-slot map.
+
 - `sizeof(cgs_t) = 0x2C0A0` (`180384`) on the retail-compatible x86 layout.
 - The struct tail is:
   - `cgMedia_t media` at `0x2B9E4`
   - `cgAnnouncerProfile_t announcerProfile` at `0x2C09C`
-- The retail social/mute/speaking sidecar recovered earlier at
-  `0x10A42400` and adjacent offsets is not inside `cgs_t`.
+- The retail identity, avatar, and speaking tail recovered at `0x10A42400`
+  and adjacent addresses is part of the per-client retail `0x738` slab; see
+  `docs/reverse-engineering/cgame-clientinfo.md`.
 - The largest top-level embedded slabs are:
-  - `clientInfo_t clientinfo[MAX_CLIENTS]` at `0x0F0DC`, stride `0x704`
+  - `clientInfo_t clientinfo[MAX_CLIENTS]` at `0x0F0DC`, retail stride `0x738`
+    (`0x704` is a stale source-derived value)
   - `cgMedia_t media` at `0x2B9E4`, size `0x6B8`
   - `gameState_t gameState` at `0x00000`, size `0x4E84`
 
@@ -242,15 +254,16 @@ This tail is stable at the top level. Retail `CG_RegisterGraphics` and
 
 ## Notably Outside `cgs_t`
 
-- The retail tracked-player / mute / speaking sidecar recovered during the
-  social-overlay pass is external to `cgs_t`; it lives in the separate native
-  block around `0x10A42400`.
+- The retail tracked-player notifier timestamps remain separate cgame globals,
+  but mute/social identity, speaking state, and avatar handle storage are now
+  mapped to the retail `clientInfo_t` tail around `0x10A42400`.
 - Frame-local prediction, view, and transient HUD state still lives in `cg_t`;
   see `docs/reverse-engineering/cgame-cg.md`.
 - The native entry-table exports (`CG_CopyClientIdentity`,
   `CG_SetClientSpeakingState`, tracked-player notifiers, and the remaining tiny
-  layout getters) are better understood as interfaces around `cgs_t` and the
-  external sidecar state, not as embedded struct members.
+  layout getters) are better understood as interfaces around `cgs_t`, the
+  `clientInfo_t` slab, and a few cgame globals rather than as standalone public
+  structs.
 
 ## Follow-Up Struct Passes
 

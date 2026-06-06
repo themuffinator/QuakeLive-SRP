@@ -130,6 +130,7 @@ class MatchHarness:
         self._bot_configs: Dict[str, BotConfig] = {bot.name: bot for bot in self.config.bots}
         self._active_bots: Mapping[str, BotState] = {}
         self._current_time: float = 0.0
+        self._frame_delta: float = 0.0
         self._spawn_queue: list[tuple[float, int, Dict[str, Any]]] = []
         self._item_queue: list[tuple[float, int, Dict[str, Any]]] = []
         self._pending_freeze_events: list[Dict[str, Any]] = []
@@ -159,6 +160,7 @@ class MatchHarness:
         tick_rate = self.config.tick_rate
         total_ticks = int(math.ceil(self.config.duration * tick_rate)) + 1
         delta = 1.0 / float(tick_rate)
+        self._frame_delta = delta
 
         bots = {bot.name: self._initialise_bot(bot) for bot in self.config.bots}
         self._active_bots = bots
@@ -573,19 +575,28 @@ class MatchHarness:
                 "target": target_state.name,
                 "reason": "line_of_sight",
             }
-        progress = target_state.custom.get("freeze_progress", 0.0)
-        thaw_tick = float(self.freeze_settings.get("thaw_tick", 0.0))
         thaw_time = float(self.freeze_settings.get("thaw_time", 1.0))
-        progress += thaw_tick
-        target_state.custom["freeze_progress"] = progress
+        remaining = float(target_state.custom.get("freeze_thaw_remaining", thaw_time))
+        assist_time = max(0.0, float(params.get("duration", delta)))
+        old_seconds = int(remaining) if remaining > 0.0 else 0
+        remaining = max(0.0, remaining - assist_time)
+        new_seconds = int(remaining) if remaining > 0.0 else 0
+        target_state.custom["freeze_thaw_remaining"] = remaining
+        target_state.custom["freeze_helper_touch_time"] = self._current_time
         details = {
             "status": "progress",
             "target": target_state.name,
-            "progress": progress,
+            "remaining": remaining,
+            "elapsed": max(0.0, thaw_time - remaining),
             "required": thaw_time,
+            "tick_event": bool(
+                self.freeze_settings.get("thaw_tick_events_enabled")
+                and old_seconds > 0
+                and old_seconds != new_seconds
+            ),
         }
-        if thaw_time and progress >= thaw_time:
-            target_state.custom["freeze_progress"] = 0.0
+        if thaw_time and remaining <= 0.0:
+            target_state.custom["freeze_thaw_remaining"] = 0.0
             self._freeze_thaw_bot(target_state, reason="assist", source=state.name)
             details["status"] = "completed"
         return details
@@ -1304,7 +1315,7 @@ class MatchHarness:
                 cvars.get("g_freezeEnvironmentalRespawnDelay"), default=0.0
             ),
             "thaw_time": self._convert_ms(cvars.get("g_freezeThawTime"), default=2.0),
-            "thaw_tick": self._convert_ms(cvars.get("g_freezeThawTick"), default=0.25),
+            "thaw_tick_events_enabled": float(cvars.get("g_freezeThawTick", 1)) != 0.0,
             "thaw_radius": float(cvars.get("g_freezeThawRadius", 0.0)),
             "thaw_through_surface": bool(cvars.get("g_freezeThawThroughSurface", 0)),
             "thaw_winning_team": bool(cvars.get("g_freezeThawWinningTeam", 0)),
@@ -1327,6 +1338,13 @@ class MatchHarness:
         for bot_state in bots.values():
             if not bot_state.custom.get("freeze_frozen"):
                 continue
+            if bot_state.custom.get("freeze_last_advance_time") == current_time:
+                continue
+            bot_state.custom["freeze_last_advance_time"] = current_time
+            thaw_time = float(self.freeze_settings.get("thaw_time", 0.0))
+            if bot_state.custom.get("freeze_helper_touch_time") != current_time and thaw_time > 0.0:
+                remaining = float(bot_state.custom.get("freeze_thaw_remaining", thaw_time))
+                bot_state.custom["freeze_thaw_remaining"] = min(thaw_time, remaining + self._frame_delta)
             deadline = bot_state.custom.get("freeze_thaw_deadline")
             if deadline is None:
                 continue
@@ -1340,7 +1358,9 @@ class MatchHarness:
         self, state: BotState, reason: str, environmental: bool
     ) -> Dict[str, Any]:
         state.custom["freeze_frozen"] = True
-        state.custom["freeze_progress"] = 0.0
+        state.custom["freeze_thaw_remaining"] = float(self.freeze_settings.get("thaw_time", 2.0))
+        state.custom["freeze_helper_touch_time"] = None
+        state.custom["freeze_last_advance_time"] = None
         state.custom["freeze_environmental"] = environmental
         state.custom["freeze_applied_at"] = self._current_time
         auto_thaw = float(self.freeze_settings.get("auto_thaw_time", 0.0))
@@ -1364,7 +1384,9 @@ class MatchHarness:
         if not state.custom.get("freeze_frozen"):
             return
         state.custom["freeze_frozen"] = False
-        state.custom["freeze_progress"] = 0.0
+        state.custom["freeze_thaw_remaining"] = 0.0
+        state.custom["freeze_helper_touch_time"] = None
+        state.custom["freeze_last_advance_time"] = None
         state.custom["freeze_environmental"] = False
         state.custom["freeze_thaw_deadline"] = None
         self._freeze_reset_player(state, source="thaw")

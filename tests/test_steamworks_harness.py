@@ -33,8 +33,13 @@ AVATAR_SIZE_SMALL = 0
 AVATAR_SIZE_MEDIUM = 1
 AVATAR_SIZE_LARGE = 2
 
+PUBLIC_RETAIL_APP_ID = 282440
+REFERENCE_RETAIL_APP_ID = 0x54100
+
 TICKET_BUFFER = 256
 AVATAR_BUFFER = 256 * 256 * 4
+QL_STEAM_NAME_LENGTH = 128
+QL_STEAM_STATUS_LENGTH = 256
 
 
 def _find_c_compiler() -> str:
@@ -178,6 +183,26 @@ class SteamServerBrowserOwner(ctypes.Structure):
     ]
 
 
+class SteamFriendSummary(ctypes.Structure):
+    _fields_ = [
+        ("steamId", ctypes.c_uint64),
+        ("relationship", ctypes.c_int),
+        ("personaState", ctypes.c_int),
+        ("name", ctypes.c_char * QL_STEAM_NAME_LENGTH),
+        ("nickname", ctypes.c_char * QL_STEAM_NAME_LENGTH),
+        ("status", ctypes.c_char * QL_STEAM_STATUS_LENGTH),
+        ("lanIp", ctypes.c_char * 64),
+        ("playingQuake", ctypes.c_int),
+        ("appId", ctypes.c_uint32),
+        ("gameId", ctypes.c_uint64),
+        ("serverIp", ctypes.c_uint32),
+        ("serverPort", ctypes.c_uint16),
+        ("queryPort", ctypes.c_uint16),
+        ("lobbyId", ctypes.c_uint64),
+        ("gameServerId", ctypes.c_uint64),
+    ]
+
+
 def _c_string(value: bytes) -> bytes:
     return bytes(value).split(b"\0", 1)[0]
 
@@ -238,6 +263,47 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
     ]
     lib.QLR_Steamworks_LoadAvatar.restype = ctypes.c_int
 
+    lib.QLR_Steamworks_GetPersonaName.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
+    lib.QLR_Steamworks_GetPersonaName.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetIPCountry.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
+    lib.QLR_Steamworks_GetIPCountry.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetAppID.argtypes = []
+    lib.QLR_Steamworks_GetAppID.restype = ctypes.c_uint32
+
+    lib.QLR_Steamworks_GetUserSteamID.argtypes = [
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    lib.QLR_Steamworks_GetUserSteamID.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetFriendCount.argtypes = [ctypes.c_int]
+    lib.QLR_Steamworks_GetFriendCount.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetFriendByIndex.argtypes = [
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    lib.QLR_Steamworks_GetFriendByIndex.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetFriendSummary.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.POINTER(SteamFriendSummary),
+    ]
+    lib.QLR_Steamworks_GetFriendSummary.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetFriendPersonaName.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_GetFriendPersonaName.restype = ctypes.c_int
+
     lib.QLR_Steamworks_ActivateOverlay.argtypes = [
         ctypes.c_char_p,
         ctypes.c_uint32,
@@ -261,16 +327,32 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         ctypes.c_size_t,
     ]
     lib.QLR_Steamworks_BeginServerBrowserOwnerRequest.restype = ctypes.c_int
+    lib.QLR_Steamworks_BeginServerBrowserOwnerRequestForApp.argtypes = [
+        ctypes.POINTER(SteamServerBrowserOwner),
+        ctypes.c_int,
+        ctypes.c_uint32,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_BeginServerBrowserOwnerRequestForApp.restype = ctypes.c_int
     lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest.argtypes = [ctypes.POINTER(SteamServerBrowserOwner)]
     lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest.restype = ctypes.c_int
     lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest.argtypes = [ctypes.POINTER(SteamServerBrowserOwner)]
     lib.QLR_Steamworks_CompleteServerBrowserOwnerRequest.restype = ctypes.c_int
     lib.QLR_Steamworks_RequestServerList.argtypes = [ctypes.c_int, ctypes.c_size_t]
     lib.QLR_Steamworks_RequestServerList.restype = ctypes.c_size_t
+    lib.QLR_Steamworks_RequestServerListForApp.argtypes = [ctypes.c_int, ctypes.c_uint32, ctypes.c_size_t]
+    lib.QLR_Steamworks_RequestServerListForApp.restype = ctypes.c_size_t
     lib.QLR_Steamworks_GetServerListDetails.argtypes = [ctypes.c_size_t, ctypes.c_int]
     lib.QLR_Steamworks_GetServerListDetails.restype = ctypes.c_size_t
     lib.QLR_Steamworks_ReadServerListDetails.argtypes = [ctypes.c_size_t, ctypes.c_int, ctypes.POINTER(SteamServerItem)]
     lib.QLR_Steamworks_ReadServerListDetails.restype = ctypes.c_int
+    lib.QLR_Steamworks_ReadServerListDetailsForApp.argtypes = [
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.c_uint32,
+        ctypes.POINTER(SteamServerItem),
+    ]
+    lib.QLR_Steamworks_ReadServerListDetailsForApp.restype = ctypes.c_int
     lib.QLR_Steamworks_FormatServerBrowserResponseId.argtypes = [
         ctypes.c_uint32,
         ctypes.c_uint16,
@@ -289,10 +371,22 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         ctypes.POINTER(SteamServerBrowserResponse),
     ]
     lib.QLR_Steamworks_ReadServerBrowserResponse.restype = ctypes.c_int
+    lib.QLR_Steamworks_ReadServerBrowserResponseForApp.argtypes = [
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.c_uint32,
+        ctypes.POINTER(SteamServerBrowserResponse),
+    ]
+    lib.QLR_Steamworks_ReadServerBrowserResponseForApp.restype = ctypes.c_int
     lib.QLR_Steamworks_ReadServerBrowserPingResponse.argtypes = [
         ctypes.POINTER(SteamServerBrowserResponse),
     ]
     lib.QLR_Steamworks_ReadServerBrowserPingResponse.restype = ctypes.c_int
+    lib.QLR_Steamworks_ReadServerBrowserPingResponseForApp.argtypes = [
+        ctypes.c_uint32,
+        ctypes.POINTER(SteamServerBrowserResponse),
+    ]
+    lib.QLR_Steamworks_ReadServerBrowserPingResponseForApp.restype = ctypes.c_int
     lib.QLR_Steamworks_FormatServerBrowserFailureEventName.argtypes = [
         ctypes.c_int,
         ctypes.c_char_p,
@@ -404,11 +498,25 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
     lib.QLR_Steamworks_SetRichPresence.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     lib.QLR_Steamworks_SetRichPresence.restype = ctypes.c_int
 
+    lib.QLR_Steamworks_SetInGameVoiceSpeaking.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_int,
+    ]
+    lib.QLR_Steamworks_SetInGameVoiceSpeaking.restype = ctypes.c_int
+
     lib.QLR_Steamworks_CreateLobby.argtypes = [ctypes.c_int]
     lib.QLR_Steamworks_CreateLobby.restype = ctypes.c_int
 
     lib.QLR_Steamworks_SetFavoriteServer.argtypes = [ctypes.c_uint32, ctypes.c_uint16, ctypes.c_int]
     lib.QLR_Steamworks_SetFavoriteServer.restype = ctypes.c_int
+    lib.QLR_Steamworks_SetFavoriteServerForApp.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+        ctypes.c_uint32,
+        ctypes.c_int,
+    ]
+    lib.QLR_Steamworks_SetFavoriteServerForApp.restype = ctypes.c_int
 
     lib.QLR_Steamworks_LeaveLobby.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
     lib.QLR_Steamworks_LeaveLobby.restype = ctypes.c_int
@@ -433,6 +541,40 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
     lib.QLR_Steamworks_RequestUserStats.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
     lib.QLR_Steamworks_RequestUserStats.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ClearStats.argtypes = [ctypes.c_int]
+    lib.QLR_Steamworks_ClearStats.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetUserStatInt.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_GetUserStatInt.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetUserStatFloat.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_float),
+    ]
+    lib.QLR_Steamworks_GetUserStatFloat.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetUserAchievement.argtypes = [
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_GetUserAchievement.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetAchievementDisplayAttribute.argtypes = [
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+    ]
+    lib.QLR_Steamworks_GetAchievementDisplayAttribute.restype = ctypes.c_char_p
 
     lib.QLR_Steamworks_GetNumSubscribedItems.argtypes = []
     lib.QLR_Steamworks_GetNumSubscribedItems.restype = ctypes.c_uint32
@@ -479,6 +621,64 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
     lib.QLR_Steamworks_ServerIsInitialised.argtypes = []
     lib.QLR_Steamworks_ServerIsInitialised.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerIsLoggedOn.argtypes = []
+    lib.QLR_Steamworks_ServerIsLoggedOn.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerGetAppID.argtypes = []
+    lib.QLR_Steamworks_ServerGetAppID.restype = ctypes.c_uint32
+
+    lib.QLR_Steamworks_ServerRequestUserStats.argtypes = [ctypes.c_uint64]
+    lib.QLR_Steamworks_ServerRequestUserStats.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerGetUserStatInt.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_ServerGetUserStatInt.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerGetUserStatFloat.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_float),
+    ]
+    lib.QLR_Steamworks_ServerGetUserStatFloat.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerGetUserAchievement.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_ServerGetUserAchievement.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerSetUserStatInt.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_char_p,
+        ctypes.c_int,
+    ]
+    lib.QLR_Steamworks_ServerSetUserStatInt.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerSetUserStatFloat.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_char_p,
+        ctypes.c_float,
+    ]
+    lib.QLR_Steamworks_ServerSetUserStatFloat.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerUpdateAvgRateStat.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_char_p,
+        ctypes.c_float,
+        ctypes.c_double,
+    ]
+    lib.QLR_Steamworks_ServerUpdateAvgRateStat.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerSetUserAchievement.argtypes = [ctypes.c_uint64, ctypes.c_char_p]
+    lib.QLR_Steamworks_ServerSetUserAchievement.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ServerStoreUserStats.argtypes = [ctypes.c_uint64]
+    lib.QLR_Steamworks_ServerStoreUserStats.restype = ctypes.c_int
 
     lib.QLR_Steamworks_ServerEnableHeartbeats.argtypes = [ctypes.c_int]
     lib.QLR_Steamworks_ServerEnableHeartbeats.restype = ctypes.c_int
@@ -587,6 +787,14 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
     ]
     lib.QLR_Steamworks_ServerReadP2PPacket.restype = ctypes.c_int
 
+    lib.QLR_Steamworks_ServerHandleIncomingPacket.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_uint32,
+        ctypes.c_uint16,
+    ]
+    lib.QLR_Steamworks_ServerHandleIncomingPacket.restype = ctypes.c_int
+
     lib.QLR_Steamworks_ServerGetNextOutgoingPacket.argtypes = [
         ctypes.c_void_p,
         ctypes.c_int,
@@ -597,6 +805,57 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
     lib.QLR_Steamworks_ServerAcceptP2PSession.argtypes = [ctypes.c_uint64]
     lib.QLR_Steamworks_ServerAcceptP2PSession.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_StartVoiceRecording.argtypes = []
+    lib.QLR_Steamworks_StartVoiceRecording.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_StopVoiceRecording.argtypes = []
+    lib.QLR_Steamworks_StopVoiceRecording.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetCompressedVoice.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    lib.QLR_Steamworks_GetCompressedVoice.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_DecompressVoice.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.c_uint32,
+    ]
+    lib.QLR_Steamworks_DecompressVoice.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetVoiceOptimalSampleRate.argtypes = []
+    lib.QLR_Steamworks_GetVoiceOptimalSampleRate.restype = ctypes.c_uint32
+
+    lib.QLR_Steamworks_RequestAllUGCQuery.argtypes = [ctypes.c_uint32]
+    lib.QLR_Steamworks_RequestAllUGCQuery.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetQueryUGCResult.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_GetQueryUGCResult.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_GetQueryUGCPreviewURL.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+    ]
+    lib.QLR_Steamworks_GetQueryUGCPreviewURL.restype = ctypes.c_int
+
+    lib.QLR_Steamworks_ReleaseQueryUGCRequest.argtypes = [ctypes.c_uint64]
+    lib.QLR_Steamworks_ReleaseQueryUGCRequest.restype = None
 
     lib.QLR_Steamworks_Shutdown.argtypes = []
     lib.QLR_Steamworks_Shutdown.restype = None
@@ -616,6 +875,9 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_SetSteamGameServerInitResult.argtypes = [ctypes.c_int]
         lib.QLR_SteamworksMock_SetSteamGameServerInitResult.restype = None
+
+        lib.QLR_SteamworksMock_SetSteamGameServerLoggedOn.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_SetSteamGameServerLoggedOn.restype = None
 
         lib.QLR_SteamworksMock_SetUserAvailable.argtypes = [ctypes.c_int]
         lib.QLR_SteamworksMock_SetUserAvailable.restype = None
@@ -688,6 +950,45 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_GetRichPresenceValue.argtypes = []
         lib.QLR_SteamworksMock_GetRichPresenceValue.restype = ctypes.c_char_p
+
+        lib.QLR_SteamworksMock_GetPersonaNameCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetPersonaNameCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetUserSteamIdCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetUserSteamIdCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetIPCountryCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetIPCountryCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetAppIdCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetAppIdCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_SetFriendEnumeration.argtypes = [ctypes.c_int, ctypes.c_uint64]
+        lib.QLR_SteamworksMock_SetFriendEnumeration.restype = None
+
+        lib.QLR_SteamworksMock_GetFriendCountCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendCountCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetFriendLastCountFlags.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendLastCountFlags.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetFriendByIndexCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendByIndexCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetFriendLastIndex.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendLastIndex.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetFriendLastIndexFlags.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendLastIndexFlags.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetFriendVoiceSpeakingCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendVoiceSpeakingCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetFriendVoiceLastSteamId.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendVoiceLastSteamId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetFriendVoiceLastSpeaking.argtypes = []
+        lib.QLR_SteamworksMock_GetFriendVoiceLastSpeaking.restype = ctypes.c_int
 
         lib.QLR_SteamworksMock_GetSteamGameServerInitCalls.argtypes = []
         lib.QLR_SteamworksMock_GetSteamGameServerInitCalls.restype = ctypes.c_int
@@ -806,6 +1107,50 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetSteamGameServerLastValue.argtypes = []
         lib.QLR_SteamworksMock_GetSteamGameServerLastValue.restype = ctypes.c_char_p
 
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsResult.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsResult.restype = None
+
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsIntValue.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsIntValue.restype = None
+
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsFloatValue.argtypes = [ctypes.c_float]
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsFloatValue.restype = None
+
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsAchievementValue.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_SetSteamGameServerStatsAchievementValue.restype = None
+
+        for name in [
+            "QLR_SteamworksMock_GetSteamGameServerStatsRequestCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsGetIntCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsGetFloatCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsGetAchievementCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsSetIntCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsSetFloatCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsUpdateAvgRateCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsSetAchievementCalls",
+            "QLR_SteamworksMock_GetSteamGameServerStatsStoreCalls",
+        ]:
+            getattr(lib, name).argtypes = []
+            getattr(lib, name).restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastUserId.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastUserId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastName.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastName.restype = ctypes.c_char_p
+
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastIntValue.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastIntValue.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastFloatValue.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastFloatValue.restype = ctypes.c_float
+
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastAvgCount.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastAvgCount.restype = ctypes.c_float
+
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastAvgSessionLength.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerStatsLastAvgSessionLength.restype = ctypes.c_double
+
         lib.QLR_SteamworksMock_GetLobbyCreateCalls.argtypes = []
         lib.QLR_SteamworksMock_GetLobbyCreateCalls.restype = ctypes.c_int
 
@@ -835,6 +1180,50 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_GetUserStatsRequestCalls.argtypes = []
         lib.QLR_SteamworksMock_GetUserStatsRequestCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_SetResetAllStatsResult.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_SetResetAllStatsResult.restype = None
+
+        lib.QLR_SteamworksMock_GetResetAllStatsCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetResetAllStatsCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetResetAllStatsLastAchievements.argtypes = []
+        lib.QLR_SteamworksMock_GetResetAllStatsLastAchievements.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_SetUserStatsReadback.argtypes = [
+            ctypes.c_int,
+            ctypes.c_float,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_char_p,
+        ]
+        lib.QLR_SteamworksMock_SetUserStatsReadback.restype = None
+
+        lib.QLR_SteamworksMock_SetUserStatsReadbackResults.argtypes = [
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        lib.QLR_SteamworksMock_SetUserStatsReadbackResults.restype = None
+
+        for name in [
+            "QLR_SteamworksMock_GetUserStatsGetIntCalls",
+            "QLR_SteamworksMock_GetUserStatsGetFloatCalls",
+            "QLR_SteamworksMock_GetUserStatsGetAchievementCalls",
+            "QLR_SteamworksMock_GetUserStatsGetDisplayAttributeCalls",
+        ]:
+            getattr(lib, name).argtypes = []
+            getattr(lib, name).restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetUserStatsLastReadId.argtypes = []
+        lib.QLR_SteamworksMock_GetUserStatsLastReadId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetUserStatsLastName.argtypes = []
+        lib.QLR_SteamworksMock_GetUserStatsLastName.restype = ctypes.c_char_p
+
+        lib.QLR_SteamworksMock_GetUserStatsLastAttributeKey.argtypes = []
+        lib.QLR_SteamworksMock_GetUserStatsLastAttributeKey.restype = ctypes.c_char_p
 
         lib.QLR_SteamworksMock_GetLobbyCreateType.argtypes = []
         lib.QLR_SteamworksMock_GetLobbyCreateType.restype = ctypes.c_int
@@ -893,6 +1282,13 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
             "QLR_SteamworksMock_GetP2PReadCalls",
             "QLR_SteamworksMock_GetP2PLastReadChannel",
             "QLR_SteamworksMock_GetP2PAcceptCalls",
+            "QLR_SteamworksMock_GetVoiceStartCalls",
+            "QLR_SteamworksMock_GetVoiceStopCalls",
+            "QLR_SteamworksMock_GetVoiceGetCalls",
+            "QLR_SteamworksMock_GetVoiceDecompressCalls",
+            "QLR_SteamworksMock_GetVoiceOptimalRateCalls",
+            "QLR_SteamworksMock_GetVoiceLastWantCompressed",
+            "QLR_SteamworksMock_GetVoiceLastWantUncompressed",
             "QLR_SteamworksMock_GetServerP2PSendCalls",
             "QLR_SteamworksMock_GetServerP2PLastSendType",
             "QLR_SteamworksMock_GetServerP2PLastSendChannel",
@@ -901,10 +1297,23 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
             "QLR_SteamworksMock_GetServerP2PReadCalls",
             "QLR_SteamworksMock_GetServerP2PLastReadChannel",
             "QLR_SteamworksMock_GetServerP2PAcceptCalls",
+            "QLR_SteamworksMock_GetServerIncomingPacketCalls",
+            "QLR_SteamworksMock_GetServerIncomingPacketLength",
             "QLR_SteamworksMock_GetServerOutgoingPacketCalls",
+            "QLR_SteamworksMock_GetSteamGameServerLoggedOnCalls",
         ]:
             getattr(lib, name).argtypes = []
             getattr(lib, name).restype = ctypes.c_int
+
+        for name in [
+            "QLR_SteamworksMock_GetVoiceLastCompressedBufferSize",
+            "QLR_SteamworksMock_GetVoiceLastUncompressedBufferSize",
+            "QLR_SteamworksMock_GetVoiceLastDecompressInputSize",
+            "QLR_SteamworksMock_GetVoiceLastDecompressBufferSize",
+            "QLR_SteamworksMock_GetVoiceLastDecompressSampleRate",
+        ]:
+            getattr(lib, name).argtypes = []
+            getattr(lib, name).restype = ctypes.c_uint32
 
         for name in [
             "QLR_SteamworksMock_GetP2PLastSendSteamId",
@@ -927,6 +1336,15 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_GetServerP2PLastSendByte.argtypes = [ctypes.c_int]
         lib.QLR_SteamworksMock_GetServerP2PLastSendByte.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetServerIncomingPacketByte.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_GetServerIncomingPacketByte.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetServerIncomingPacketIP.argtypes = []
+        lib.QLR_SteamworksMock_GetServerIncomingPacketIP.restype = ctypes.c_uint32
+
+        lib.QLR_SteamworksMock_GetServerIncomingPacketPort.argtypes = []
+        lib.QLR_SteamworksMock_GetServerIncomingPacketPort.restype = ctypes.c_uint16
 
         lib.QLR_SteamworksMock_GetLobbySetServerGameServerId.argtypes = []
         lib.QLR_SteamworksMock_GetLobbySetServerGameServerId.restype = ctypes.c_uint64
@@ -1028,9 +1446,6 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetUGCLastHighPriority.argtypes = []
         lib.QLR_SteamworksMock_GetUGCLastHighPriority.restype = ctypes.c_int
 
-        lib.QLR_Steamworks_RequestAllUGCQuery.argtypes = [ctypes.c_uint32]
-        lib.QLR_Steamworks_RequestAllUGCQuery.restype = ctypes.c_int
-
         lib.QLR_SteamworksMock_GetUGCCreateQueryCalls.argtypes = []
         lib.QLR_SteamworksMock_GetUGCCreateQueryCalls.restype = ctypes.c_int
 
@@ -1064,11 +1479,42 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_GetUGCLastReleasedQueryHandle.argtypes = []
         lib.QLR_SteamworksMock_GetUGCLastReleasedQueryHandle.restype = ctypes.c_uint64
 
+        lib.QLR_SteamworksMock_GetUGCGetQueryResultCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetUGCGetQueryResultCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetUGCGetQueryPreviewCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetUGCGetQueryPreviewCalls.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_GetUGCLastResultQueryHandle.argtypes = []
+        lib.QLR_SteamworksMock_GetUGCLastResultQueryHandle.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetUGCLastPreviewQueryHandle.argtypes = []
+        lib.QLR_SteamworksMock_GetUGCLastPreviewQueryHandle.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetUGCLastResultIndex.argtypes = []
+        lib.QLR_SteamworksMock_GetUGCLastResultIndex.restype = ctypes.c_uint32
+
+        lib.QLR_SteamworksMock_GetUGCLastPreviewIndex.argtypes = []
+        lib.QLR_SteamworksMock_GetUGCLastPreviewIndex.restype = ctypes.c_uint32
+
+        lib.QLR_SteamworksMock_SetUGCQueryResult.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        lib.QLR_SteamworksMock_SetUGCQueryResult.restype = None
+
         lib.QLR_SteamworksMock_SetAppId.argtypes = [ctypes.c_uint32]
         lib.QLR_SteamworksMock_SetAppId.restype = None
 
         lib.QLR_SteamworksMock_SetServerBrowserServerName.argtypes = [ctypes.c_char_p]
         lib.QLR_SteamworksMock_SetServerBrowserServerName.restype = None
+
+        lib.QLR_SteamworksMock_SetServerBrowserDetailAppId.argtypes = [ctypes.c_uint32]
+        lib.QLR_SteamworksMock_SetServerBrowserDetailAppId.restype = None
 
         lib.QLR_SteamworksMock_SetServerBrowserRequestResult.argtypes = [ctypes.c_size_t]
         lib.QLR_SteamworksMock_SetServerBrowserRequestResult.restype = None
@@ -1116,6 +1562,27 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         ]
         lib.QLR_SteamworksMock_SetServerP2PReadPacket.restype = None
 
+        lib.QLR_SteamworksMock_SetVoiceResults.argtypes = [ctypes.c_int, ctypes.c_int]
+        lib.QLR_SteamworksMock_SetVoiceResults.restype = None
+
+        lib.QLR_SteamworksMock_SetCompressedVoice.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+        ]
+        lib.QLR_SteamworksMock_SetCompressedVoice.restype = None
+
+        lib.QLR_SteamworksMock_SetDecompressedVoice.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+        ]
+        lib.QLR_SteamworksMock_SetDecompressedVoice.restype = None
+
+        lib.QLR_SteamworksMock_SetVoiceOptimalSampleRate.argtypes = [ctypes.c_uint32]
+        lib.QLR_SteamworksMock_SetVoiceOptimalSampleRate.restype = None
+
+        lib.QLR_SteamworksMock_SetServerIncomingPacketResult.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_SetServerIncomingPacketResult.restype = None
+
         lib.QLR_SteamworksMock_SetServerOutgoingPacket.argtypes = [
             ctypes.c_void_p,
             ctypes.c_int,
@@ -1148,11 +1615,57 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_QueueRichPresenceJoinRequested.argtypes = [ctypes.c_uint64, ctypes.c_char_p]
         lib.QLR_SteamworksMock_QueueRichPresenceJoinRequested.restype = ctypes.c_int
 
+        lib.QLR_SteamworksMock_QueueUserStatsReceived.argtypes = [ctypes.c_uint64, ctypes.c_int, ctypes.c_uint64]
+        lib.QLR_SteamworksMock_QueueUserStatsReceived.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueuePersonaStateChange.argtypes = [ctypes.c_uint64, ctypes.c_uint32]
+        lib.QLR_SteamworksMock_QueuePersonaStateChange.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueP2PSessionRequest.argtypes = [ctypes.c_uint64]
+        lib.QLR_SteamworksMock_QueueP2PSessionRequest.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueGameServerChangeRequested.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+        lib.QLR_SteamworksMock_QueueGameServerChangeRequested.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueFriendRichPresenceUpdate.argtypes = [ctypes.c_uint64, ctypes.c_uint32]
+        lib.QLR_SteamworksMock_QueueFriendRichPresenceUpdate.restype = ctypes.c_int
+
         lib.QLR_SteamworksMock_QueueAvatarImageLoaded.argtypes = [ctypes.c_uint64, ctypes.c_int, ctypes.c_int, ctypes.c_int]
         lib.QLR_SteamworksMock_QueueAvatarImageLoaded.restype = ctypes.c_int
 
+        lib.QLR_SteamworksMock_QueueLobbyCreated.argtypes = [ctypes.c_uint64, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueLobbyCreated.restype = ctypes.c_int
+
         lib.QLR_SteamworksMock_QueueLobbyEnter.argtypes = [ctypes.c_uint64, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
         lib.QLR_SteamworksMock_QueueLobbyEnter.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueLobbyChatUpdate.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint32,
+        ]
+        lib.QLR_SteamworksMock_QueueLobbyChatUpdate.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueLobbyChatMessage.argtypes = [ctypes.c_uint64, ctypes.c_uint64, ctypes.c_int, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueLobbyChatMessage.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueLobbyDataUpdate.argtypes = [ctypes.c_uint64, ctypes.c_uint64, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueLobbyDataUpdate.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueLobbyGameCreated.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint32,
+            ctypes.c_uint16,
+        ]
+        lib.QLR_SteamworksMock_QueueLobbyGameCreated.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueLobbyKicked.argtypes = [ctypes.c_uint64, ctypes.c_uint64, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueLobbyKicked.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueGameLobbyJoinRequested.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
+        lib.QLR_SteamworksMock_QueueGameLobbyJoinRequested.restype = ctypes.c_int
 
         lib.QLR_SteamworksMock_QueueMicroAuthorizationResponse.argtypes = [ctypes.c_uint32, ctypes.c_uint64, ctypes.c_int]
         lib.QLR_SteamworksMock_QueueMicroAuthorizationResponse.restype = ctypes.c_int
@@ -1178,8 +1691,38 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         ]
         lib.QLR_SteamworksMock_QueueUGCQueryCompleted.restype = ctypes.c_int
 
+        lib.QLR_SteamworksMock_QueueUGCQueryCompletedEx.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_int,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        lib.QLR_SteamworksMock_QueueUGCQueryCompletedEx.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueServersConnected.argtypes = []
+        lib.QLR_SteamworksMock_QueueServersConnected.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueServerConnectFailure.argtypes = [ctypes.c_int, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueServerConnectFailure.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueServersDisconnected.argtypes = [ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueServersDisconnected.restype = ctypes.c_int
+
         lib.QLR_SteamworksMock_QueueValidateAuthTicketResponse.argtypes = [ctypes.c_uint64, ctypes.c_uint64, ctypes.c_int]
         lib.QLR_SteamworksMock_QueueValidateAuthTicketResponse.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueServerP2PSessionRequest.argtypes = [ctypes.c_uint64]
+        lib.QLR_SteamworksMock_QueueServerP2PSessionRequest.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueGSStatsReceived.argtypes = [ctypes.c_uint64, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueGSStatsReceived.restype = ctypes.c_int
+
+        lib.QLR_SteamworksMock_QueueGSStatsStored.argtypes = [ctypes.c_uint64, ctypes.c_int]
+        lib.QLR_SteamworksMock_QueueGSStatsStored.restype = ctypes.c_int
 
         lib.QLR_SteamworksMock_GetRegisterCallbackCalls.argtypes = []
         lib.QLR_SteamworksMock_GetRegisterCallbackCalls.restype = ctypes.c_int
@@ -1362,7 +1905,7 @@ def test_server_validate_auth_ticket_response_dispatch_matrix_from_server_callba
 
     assert lib.QLR_Steamworks_ServerInit(0x01020304, 27960, 1, 1)
     assert lib.QLR_Steamworks_RegisterServerHarnessCallbacks()
-    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 5
+    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 7
     assert lib.QLR_SteamworksMock_QueueValidateAuthTicketResponse(
         steam_id,
         owner_id,
@@ -1381,7 +1924,210 @@ def test_server_validate_auth_ticket_response_dispatch_matrix_from_server_callba
     assert lib.QLR_SteamworksMock_GetLastCallbackResult() == auth_response
 
     lib.QLR_Steamworks_UnregisterServerHarnessCallbacks()
-    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 5
+    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 7
+
+
+def test_server_connection_and_p2p_callbacks_dispatch_from_server_callback_pump(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_ServerInit(0x01020304, 27960, 1, 1)
+    assert lib.QLR_Steamworks_RegisterServerHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 7
+
+    assert lib.QLR_SteamworksMock_QueueServersConnected()
+    lib.QLR_Steamworks_RunServerCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetSteamGameServerCallbackCalls() == 1
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 1
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"server_connected"
+
+    assert lib.QLR_SteamworksMock_QueueServerConnectFailure(3, 1)
+    lib.QLR_Steamworks_RunServerCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetSteamGameServerCallbackCalls() == 2
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 2
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"server_connect_failure"
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 1
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 3
+
+    assert lib.QLR_SteamworksMock_QueueServersDisconnected(7)
+    lib.QLR_Steamworks_RunServerCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetSteamGameServerCallbackCalls() == 3
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 3
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"server_disconnected"
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 7
+
+    assert lib.QLR_SteamworksMock_QueueServerP2PSessionRequest(0x0110000100ABCDEF)
+    lib.QLR_Steamworks_RunServerCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetSteamGameServerCallbackCalls() == 4
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"server_p2p_session_request"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0110000100ABCDEF
+
+    lib.QLR_Steamworks_UnregisterServerHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 7
+
+
+def test_server_get_app_id_routes_gameserver_utils_slot(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        assert lib.QLR_Steamworks_ServerGetAppID() == 0
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetAppId(0x54100)
+
+    assert lib.QLR_Steamworks_ServerGetAppID() == 0
+    assert lib.QLR_Steamworks_ServerInit(0x01020304, 27960, 1, 1)
+    assert lib.QLR_Steamworks_ServerGetAppID() == 0x54100
+
+
+def test_game_server_stats_wrappers_use_retail_gameserverstats_slots(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+    steam_id = 0x0110000100ABCDEF
+    int_value = ctypes.c_int(-1)
+    float_value = ctypes.c_float(-1.0)
+    achieved = ctypes.c_int(-1)
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_ServerIsLoggedOn()
+        assert not lib.QLR_Steamworks_ServerRequestUserStats(steam_id)
+        assert not lib.QLR_Steamworks_ServerGetUserStatInt(steam_id, b"wins", ctypes.byref(int_value))
+        assert int_value.value == 0
+        assert not lib.QLR_Steamworks_ServerGetUserStatFloat(steam_id, b"accuracy", ctypes.byref(float_value))
+        assert float_value.value == 0.0
+        assert not lib.QLR_Steamworks_ServerGetUserAchievement(steam_id, b"AW_MIDAIR", ctypes.byref(achieved))
+        assert achieved.value == 0
+        assert not lib.QLR_Steamworks_ServerSetUserStatInt(steam_id, b"wins", 37)
+        assert not lib.QLR_Steamworks_ServerSetUserStatFloat(steam_id, b"accuracy", ctypes.c_float(12.5))
+        assert not lib.QLR_Steamworks_ServerUpdateAvgRateStat(steam_id, b"damage_rate", ctypes.c_float(48.0), ctypes.c_double(120.0))
+        assert not lib.QLR_Steamworks_ServerSetUserAchievement(steam_id, b"AW_MIDAIR")
+        assert not lib.QLR_Steamworks_ServerStoreUserStats(steam_id)
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetSteamGameServerStatsIntValue(37)
+    lib.QLR_SteamworksMock_SetSteamGameServerStatsFloatValue(ctypes.c_float(12.5))
+    lib.QLR_SteamworksMock_SetSteamGameServerStatsAchievementValue(1)
+
+    assert not lib.QLR_Steamworks_ServerRequestUserStats(steam_id)
+    assert lib.QLR_Steamworks_ServerInit(0x01020304, 27960, 1, 1)
+
+    assert lib.QLR_Steamworks_ServerIsLoggedOn()
+    assert lib.QLR_SteamworksMock_GetSteamGameServerLoggedOnCalls() == 1
+
+    lib.QLR_SteamworksMock_SetSteamGameServerLoggedOn(0)
+    assert not lib.QLR_Steamworks_ServerRequestUserStats(steam_id)
+    assert lib.QLR_SteamworksMock_GetSteamGameServerLoggedOnCalls() == 2
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsRequestCalls() == 0
+
+    lib.QLR_SteamworksMock_SetSteamGameServerLoggedOn(1)
+    assert lib.QLR_Steamworks_ServerRequestUserStats(steam_id)
+    assert lib.QLR_SteamworksMock_GetSteamGameServerLoggedOnCalls() == 3
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsRequestCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastUserId() == steam_id
+
+    assert lib.QLR_Steamworks_ServerGetUserStatInt(steam_id, b"wins", ctypes.byref(int_value))
+    assert int_value.value == 37
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsGetIntCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastName() == b"wins"
+
+    assert lib.QLR_Steamworks_ServerGetUserStatFloat(steam_id, b"accuracy", ctypes.byref(float_value))
+    assert float_value.value == pytest.approx(12.5)
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsGetFloatCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastName() == b"accuracy"
+
+    assert lib.QLR_Steamworks_ServerGetUserAchievement(steam_id, b"AW_MIDAIR", ctypes.byref(achieved))
+    assert achieved.value == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsGetAchievementCalls() == 1
+
+    assert lib.QLR_Steamworks_ServerSetUserStatInt(steam_id, b"wins", 41)
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsSetIntCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastIntValue() == 41
+
+    assert lib.QLR_Steamworks_ServerSetUserStatFloat(steam_id, b"accuracy", ctypes.c_float(13.75))
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsSetFloatCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastFloatValue() == pytest.approx(13.75)
+
+    assert lib.QLR_Steamworks_ServerUpdateAvgRateStat(
+        steam_id,
+        b"damage_rate",
+        ctypes.c_float(48.0),
+        ctypes.c_double(120.0),
+    )
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsUpdateAvgRateCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastName() == b"damage_rate"
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastAvgCount() == pytest.approx(48.0)
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastAvgSessionLength() == pytest.approx(120.0)
+
+    assert lib.QLR_Steamworks_ServerSetUserAchievement(steam_id, b"AW_MIDAIR")
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsSetAchievementCalls() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsLastName() == b"AW_MIDAIR"
+
+    assert lib.QLR_Steamworks_ServerStoreUserStats(steam_id)
+    assert lib.QLR_SteamworksMock_GetSteamGameServerStatsStoreCalls() == 1
+
+    lib.QLR_SteamworksMock_SetSteamGameServerStatsResult(0)
+    float_value.value = 9.0
+    assert not lib.QLR_Steamworks_ServerGetUserStatFloat(steam_id, b"accuracy", ctypes.byref(float_value))
+    assert float_value.value == 0.0
+
+
+def test_server_gs_stats_callbacks_dispatch_from_server_callback_pump(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        return
+
+    steam_id = 0x0110000100ABCDEF
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_ServerInit(0x01020304, 27960, 1, 1)
+    assert lib.QLR_Steamworks_RegisterServerHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 7
+    assert lib.QLR_SteamworksMock_QueueGSStatsReceived(steam_id, 1)
+
+    lib.QLR_Steamworks_RunServerCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetSteamGameServerCallbackCalls() == 1
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 1
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"server_gs_stats_received"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == steam_id
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueueGSStatsStored(steam_id, 8)
+
+    lib.QLR_Steamworks_RunServerCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetSteamGameServerCallbackCalls() == 2
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 2
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"server_gs_stats_stored"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == steam_id
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 8
+
+    lib.QLR_Steamworks_UnregisterServerHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 7
 
 
 def test_cancel_ticket_routes_to_steam_user_cancel_path(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
@@ -1555,11 +2301,13 @@ def test_server_browser_helpers_use_mapped_matchmaking_servers_slots(steamworks_
         assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(4)
         assert lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(99)
         assert lib.QLR_Steamworks_RequestServerList(0, 0xABCDEF) == 0
+        assert lib.QLR_Steamworks_RequestServerListForApp(0, PUBLIC_RETAIL_APP_ID, 0xABCDEF) == 0
         assert lib.QLR_Steamworks_GetServerListDetails(0x12345678, 1) == 0
         server = SteamServerItem()
-        server.appId = 0x54100
+        server.appId = REFERENCE_RETAIL_APP_ID
         assert not lib.QLR_Steamworks_ReadServerListDetails(0x12345678, 1, ctypes.byref(server))
         assert server.appId == 0
+        assert not lib.QLR_Steamworks_ReadServerListDetailsForApp(0x12345678, 1, PUBLIC_RETAIL_APP_ID, ctypes.byref(server))
         lib.QLR_Steamworks_RefreshServerListRequest(0x12345678)
         lib.QLR_Steamworks_ReleaseServerListRequest(0x12345678)
         assert not lib.QLR_Steamworks_RequestServerDetails(
@@ -1606,7 +2354,18 @@ def test_server_browser_helpers_use_mapped_matchmaking_servers_slots(steamworks_
         assert bool(lib.QLR_Steamworks_ServerBrowserRequestModeUsesGamedirFilter(mode)) == (expected_filter_count == 1)
         assert lib.QLR_Steamworks_RequestServerList(mode, response) == 0x13572468
         assert getattr(lib, call_getter)() == 1
-        assert lib.QLR_SteamworksMock_GetServerBrowserLastAppId() == 0x54100
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastAppId() == REFERENCE_RETAIL_APP_ID
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == response
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterCount() == expected_filter_count
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterKey() == expected_key
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterValue() == expected_value
+
+        lib.QLR_SteamworksMock_Reset()
+        lib.QLR_SteamworksMock_PrimeState()
+
+        assert lib.QLR_Steamworks_RequestServerListForApp(mode, PUBLIC_RETAIL_APP_ID, response) == 0x13572468
+        assert getattr(lib, call_getter)() == 1
+        assert lib.QLR_SteamworksMock_GetServerBrowserLastAppId() == PUBLIC_RETAIL_APP_ID
         assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == response
         assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterCount() == expected_filter_count
         assert lib.QLR_SteamworksMock_GetServerBrowserLastFilterKey() == expected_key
@@ -1711,6 +2470,9 @@ def test_server_browser_owner_reconstructs_retail_refresh_lifecycle(steamworks_h
 
     if not enabled:
         assert not lib.QLR_Steamworks_BeginServerBrowserOwnerRequest(ctypes.byref(owner), 0, 0xABCDEF)
+        assert not lib.QLR_Steamworks_BeginServerBrowserOwnerRequestForApp(
+            ctypes.byref(owner), 0, PUBLIC_RETAIL_APP_ID, 0xABCDEF
+        )
         assert owner.refreshActive == 0
         assert owner.request == 0
         assert not lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest(ctypes.byref(owner))
@@ -1760,6 +2522,19 @@ def test_server_browser_owner_reconstructs_retail_refresh_lifecycle(steamworks_h
     assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == 0xABCDEF
     assert not lib.QLR_Steamworks_RefreshServerBrowserOwnerRequest(ctypes.byref(owner))
 
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_Steamworks_InitServerBrowserOwner(ctypes.byref(owner))
+
+    assert lib.QLR_Steamworks_BeginServerBrowserOwnerRequestForApp(
+        ctypes.byref(owner), 0, PUBLIC_RETAIL_APP_ID, 0xFACE
+    )
+    assert owner.refreshActive == 1
+    assert owner.request == 0x13572468
+    assert lib.QLR_SteamworksMock_GetServerBrowserInternetCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastAppId() == PUBLIC_RETAIL_APP_ID
+    assert lib.QLR_SteamworksMock_GetServerBrowserLastResponse() == 0xFACE
+
 
 def test_server_browser_detail_reader_projects_retail_gameserveritem_row(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
     lib, enabled = steamworks_harness
@@ -1800,9 +2575,25 @@ def test_server_browser_detail_reader_projects_retail_gameserveritem_row(steamwo
     assert _c_string(server.tags) == b"duel,instagib"
     assert server.steamId == 0x0123456789ABCDEF
 
+    lib.QLR_SteamworksMock_SetServerBrowserDetailAppId(PUBLIC_RETAIL_APP_ID)
+    retail_request = lib.QLR_Steamworks_RequestServerListForApp(0, PUBLIC_RETAIL_APP_ID, 0xBEEF)
+    retail_server = SteamServerItem()
+    assert lib.QLR_Steamworks_ReadServerListDetailsForApp(
+        retail_request, 5, PUBLIC_RETAIL_APP_ID, ctypes.byref(retail_server)
+    )
+    assert retail_server.appId == PUBLIC_RETAIL_APP_ID
+    assert _c_string(retail_server.displayName) == b"QLR Test Server"
+
+    rejected_current_app = SteamServerItem()
+    rejected_current_app.appId = PUBLIC_RETAIL_APP_ID
+    assert not lib.QLR_Steamworks_ReadServerListDetails(retail_request, 5, ctypes.byref(rejected_current_app))
+    assert rejected_current_app.appId == 0
+
+    lib.QLR_SteamworksMock_SetServerBrowserDetailAppId(REFERENCE_RETAIL_APP_ID)
+
     lib.QLR_SteamworksMock_SetAppId(0x123456)
     cleared = SteamServerItem()
-    cleared.appId = 0x54100
+    cleared.appId = REFERENCE_RETAIL_APP_ID
     assert not lib.QLR_Steamworks_ReadServerListDetails(request, 5, ctypes.byref(cleared))
     assert cleared.appId == 0
     assert _c_string(cleared.name) == b""
@@ -1879,6 +2670,20 @@ def test_server_browser_response_projection_matches_retail_jsbrowser_payload_sha
     assert _c_string(unnamed.id) == b"16909060_27960"
     assert _c_string(unnamed.name) == b"1.2.3.4:27960"
 
+    lib.QLR_SteamworksMock_SetServerBrowserServerName(b"QLR Test Server")
+    lib.QLR_SteamworksMock_SetServerBrowserDetailAppId(PUBLIC_RETAIL_APP_ID)
+    retail_request = lib.QLR_Steamworks_RequestServerListForApp(0, PUBLIC_RETAIL_APP_ID, 0xBEEF)
+    retail_response = SteamServerBrowserResponse()
+    assert lib.QLR_Steamworks_ReadServerBrowserResponseForApp(
+        retail_request, 5, PUBLIC_RETAIL_APP_ID, ctypes.byref(retail_response)
+    )
+    assert _c_string(retail_response.id) == b"16909060_27960"
+    assert _c_string(retail_response.name) == b"QLR Test Server"
+    assert retail_response.serverIp == 0x01020304
+    assert retail_response.serverPort == 27960
+    assert not lib.QLR_Steamworks_ReadServerBrowserResponse(retail_request, 5, ctypes.byref(retail_response))
+    lib.QLR_SteamworksMock_SetServerBrowserDetailAppId(REFERENCE_RETAIL_APP_ID)
+
     lib.QLR_SteamworksMock_SetAppId(0x123456)
     cleared = SteamServerBrowserResponse()
     cleared.numPlayers = 99
@@ -1923,6 +2728,19 @@ def test_server_browser_ping_response_projection_matches_retail_jsbrowserdetails
     assert lib.QLR_Steamworks_ReadServerBrowserPingResponse(ctypes.byref(unnamed))
     assert _c_string(unnamed.id) == b"16909060_27960"
     assert _c_string(unnamed.name) == b"1.2.3.4:27960"
+
+    lib.QLR_SteamworksMock_SetServerBrowserServerName(b"QLR Test Server")
+    lib.QLR_SteamworksMock_SetServerBrowserDetailAppId(PUBLIC_RETAIL_APP_ID)
+    retail_response = SteamServerBrowserResponse()
+    assert lib.QLR_Steamworks_ReadServerBrowserPingResponseForApp(
+        PUBLIC_RETAIL_APP_ID, ctypes.byref(retail_response)
+    )
+    assert _c_string(retail_response.id) == b"16909060_27960"
+    assert _c_string(retail_response.name) == b"QLR Test Server"
+    assert retail_response.serverIp == 0x01020304
+    assert retail_response.serverPort == 27960
+    assert not lib.QLR_Steamworks_ReadServerBrowserPingResponse(ctypes.byref(retail_response))
+    lib.QLR_SteamworksMock_SetServerBrowserDetailAppId(REFERENCE_RETAIL_APP_ID)
 
     lib.QLR_SteamworksMock_SetAppId(0x123456)
     cleared = SteamServerBrowserResponse()
@@ -2499,6 +3317,154 @@ def test_shutdown_cascades_game_server_shutdown(steamworks_harness: tuple[ctypes
     assert not lib.QLR_Steamworks_ServerIsInitialised()
 
 
+def test_clear_stats_wrapper_uses_retail_reset_all_stats_slot(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_ClearStats(1)
+        assert not lib.QLR_Steamworks_ClearStats(0)
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert not lib.QLR_Steamworks_ClearStats(1)
+    assert lib.QLR_SteamworksMock_GetResetAllStatsCalls() == 0
+
+    assert lib.QLR_Steamworks_Init()
+    assert lib.QLR_Steamworks_ClearStats(1)
+    assert lib.QLR_SteamworksMock_GetResetAllStatsCalls() == 1
+    assert lib.QLR_SteamworksMock_GetResetAllStatsLastAchievements() == 1
+
+    assert lib.QLR_Steamworks_ClearStats(0)
+    assert lib.QLR_SteamworksMock_GetResetAllStatsCalls() == 2
+    assert lib.QLR_SteamworksMock_GetResetAllStatsLastAchievements() == 0
+
+    lib.QLR_SteamworksMock_SetResetAllStatsResult(0)
+    assert not lib.QLR_Steamworks_ClearStats(1)
+    assert lib.QLR_SteamworksMock_GetResetAllStatsCalls() == 3
+    assert lib.QLR_SteamworksMock_GetResetAllStatsLastAchievements() == 1
+
+
+def test_user_stats_readback_wrappers_use_retail_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    stat_value = ctypes.c_int(99)
+    float_value = ctypes.c_float(99.0)
+    achieved = ctypes.c_int(99)
+    unlock_time = ctypes.c_int(99)
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_GetUserStatInt(0x12345678, 0x9ABCDEF0, b"wins", ctypes.byref(stat_value))
+        assert stat_value.value == 0
+
+        assert not lib.QLR_Steamworks_GetUserStatFloat(
+            0x12345678,
+            0x9ABCDEF0,
+            b"accuracy",
+            ctypes.byref(float_value),
+        )
+        assert float_value.value == 0.0
+
+        assert not lib.QLR_Steamworks_GetUserAchievement(
+            0x12345678,
+            0x9ABCDEF0,
+            b"AW_MIDAIR",
+            ctypes.byref(achieved),
+            ctypes.byref(unlock_time),
+        )
+        assert achieved.value == 0
+        assert unlock_time.value == 0
+        assert lib.QLR_Steamworks_GetAchievementDisplayAttribute(b"AW_MIDAIR", b"desc") == b""
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetUserStatsReadback(1234, 12.5, 1, 4567, b"Air Rocket")
+
+    assert not lib.QLR_Steamworks_GetUserStatInt(0, 0, b"wins", ctypes.byref(stat_value))
+    assert stat_value.value == 0
+    assert lib.QLR_SteamworksMock_GetUserStatsGetIntCalls() == 0
+
+    float_value.value = 99.0
+    assert not lib.QLR_Steamworks_GetUserStatFloat(0, 0, b"accuracy", ctypes.byref(float_value))
+    assert float_value.value == 0.0
+    assert lib.QLR_SteamworksMock_GetUserStatsGetFloatCalls() == 0
+
+    achieved.value = 99
+    unlock_time.value = 99
+    assert not lib.QLR_Steamworks_GetUserAchievement(
+        0x12345678,
+        0x9ABCDEF0,
+        b"",
+        ctypes.byref(achieved),
+        ctypes.byref(unlock_time),
+    )
+    assert achieved.value == 0
+    assert unlock_time.value == 0
+    assert lib.QLR_SteamworksMock_GetUserStatsGetAchievementCalls() == 0
+
+    assert lib.QLR_Steamworks_GetAchievementDisplayAttribute(b"", b"desc") == b""
+    assert lib.QLR_SteamworksMock_GetUserStatsGetDisplayAttributeCalls() == 0
+
+    assert lib.QLR_Steamworks_Init()
+    assert lib.QLR_Steamworks_GetUserStatInt(0x12345678, 0x9ABCDEF0, b"wins", ctypes.byref(stat_value))
+    assert stat_value.value == 1234
+    assert lib.QLR_SteamworksMock_GetUserStatsGetIntCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUserStatsLastReadId() == 0x9ABCDEF012345678
+    assert lib.QLR_SteamworksMock_GetUserStatsLastName() == b"wins"
+
+    assert lib.QLR_Steamworks_GetUserStatFloat(0x12345678, 0x9ABCDEF0, b"accuracy", ctypes.byref(float_value))
+    assert float_value.value == pytest.approx(12.5)
+    assert lib.QLR_SteamworksMock_GetUserStatsGetFloatCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUserStatsLastReadId() == 0x9ABCDEF012345678
+    assert lib.QLR_SteamworksMock_GetUserStatsLastName() == b"accuracy"
+
+    assert lib.QLR_Steamworks_GetUserAchievement(
+        0x12345678,
+        0x9ABCDEF0,
+        b"AW_MIDAIR",
+        ctypes.byref(achieved),
+        ctypes.byref(unlock_time),
+    )
+    assert achieved.value == 1
+    assert unlock_time.value == 4567
+    assert lib.QLR_SteamworksMock_GetUserStatsGetAchievementCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUserStatsLastReadId() == 0x9ABCDEF012345678
+    assert lib.QLR_SteamworksMock_GetUserStatsLastName() == b"AW_MIDAIR"
+
+    assert lib.QLR_Steamworks_GetAchievementDisplayAttribute(b"AW_MIDAIR", b"desc") == b"Air Rocket"
+    assert lib.QLR_SteamworksMock_GetUserStatsGetDisplayAttributeCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUserStatsLastName() == b"AW_MIDAIR"
+    assert lib.QLR_SteamworksMock_GetUserStatsLastAttributeKey() == b"desc"
+
+    lib.QLR_SteamworksMock_SetUserStatsReadbackResults(0, 0, 0, 0)
+    stat_value.value = 99
+    assert not lib.QLR_Steamworks_GetUserStatInt(0x12345678, 0x9ABCDEF0, b"wins", ctypes.byref(stat_value))
+    assert stat_value.value == 0
+    assert lib.QLR_SteamworksMock_GetUserStatsGetIntCalls() == 2
+
+    float_value.value = 99.0
+    assert not lib.QLR_Steamworks_GetUserStatFloat(0x12345678, 0x9ABCDEF0, b"accuracy", ctypes.byref(float_value))
+    assert float_value.value == 0.0
+    assert lib.QLR_SteamworksMock_GetUserStatsGetFloatCalls() == 2
+
+    achieved.value = 99
+    unlock_time.value = 99
+    assert not lib.QLR_Steamworks_GetUserAchievement(
+        0x12345678,
+        0x9ABCDEF0,
+        b"AW_MIDAIR",
+        ctypes.byref(achieved),
+        ctypes.byref(unlock_time),
+    )
+    assert achieved.value == 0
+    assert unlock_time.value == 0
+    assert lib.QLR_SteamworksMock_GetUserStatsGetAchievementCalls() == 2
+
+    assert lib.QLR_Steamworks_GetAchievementDisplayAttribute(b"AW_MIDAIR", b"desc") == b""
+    assert lib.QLR_SteamworksMock_GetUserStatsGetDisplayAttributeCalls() == 2
+
+
 def test_lobby_helpers_use_mapped_matchmaking_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
     lib, enabled = steamworks_harness
 
@@ -2559,6 +3525,7 @@ def test_favorite_server_helper_uses_mapped_matchmaking_slots(steamworks_harness
 
     if not enabled:
         assert not lib.QLR_Steamworks_SetFavoriteServer(0x01020304, 27960, 1)
+        assert not lib.QLR_Steamworks_SetFavoriteServerForApp(0x01020304, 27960, PUBLIC_RETAIL_APP_ID, 1)
         assert not lib.QLR_Steamworks_SetFavoriteServer(0x01020304, 27960, 0)
         return
 
@@ -2568,12 +3535,19 @@ def test_favorite_server_helper_uses_mapped_matchmaking_slots(steamworks_harness
     assert lib.QLR_Steamworks_SetFavoriteServer(0x01020304, 27960, 1)
     assert lib.QLR_SteamworksMock_GetFavoriteAddCalls() == 1
     assert lib.QLR_SteamworksMock_GetFavoriteRemoveCalls() == 0
-    assert lib.QLR_SteamworksMock_GetFavoriteLastAppId() == 0x54100
+    assert lib.QLR_SteamworksMock_GetFavoriteLastAppId() == REFERENCE_RETAIL_APP_ID
     assert lib.QLR_SteamworksMock_GetFavoriteLastIp() == 0x01020304
     assert lib.QLR_SteamworksMock_GetFavoriteLastConnPort() == 27960
     assert lib.QLR_SteamworksMock_GetFavoriteLastQueryPort() == 27960
     assert lib.QLR_SteamworksMock_GetFavoriteLastFlags() == 1
     assert lib.QLR_SteamworksMock_GetFavoriteLastPlayed() > 0
+
+    assert lib.QLR_Steamworks_SetFavoriteServerForApp(0x01020304, 27960, PUBLIC_RETAIL_APP_ID, 1)
+    assert lib.QLR_SteamworksMock_GetFavoriteAddCalls() == 2
+    assert lib.QLR_SteamworksMock_GetFavoriteLastAppId() == PUBLIC_RETAIL_APP_ID
+    assert lib.QLR_SteamworksMock_GetFavoriteLastIp() == 0x01020304
+    assert lib.QLR_SteamworksMock_GetFavoriteLastConnPort() == 27960
+    assert lib.QLR_SteamworksMock_GetFavoriteLastQueryPort() == 27960
 
     lib.QLR_SteamworksMock_Reset()
     lib.QLR_SteamworksMock_PrimeState()
@@ -2581,7 +3555,7 @@ def test_favorite_server_helper_uses_mapped_matchmaking_slots(steamworks_harness
     assert lib.QLR_Steamworks_SetFavoriteServer(0x0A0B0C0D, 27961, 0)
     assert lib.QLR_SteamworksMock_GetFavoriteAddCalls() == 0
     assert lib.QLR_SteamworksMock_GetFavoriteRemoveCalls() == 1
-    assert lib.QLR_SteamworksMock_GetFavoriteLastAppId() == 0x54100
+    assert lib.QLR_SteamworksMock_GetFavoriteLastAppId() == REFERENCE_RETAIL_APP_ID
     assert lib.QLR_SteamworksMock_GetFavoriteLastIp() == 0x0A0B0C0D
     assert lib.QLR_SteamworksMock_GetFavoriteLastConnPort() == 27961
     assert lib.QLR_SteamworksMock_GetFavoriteLastQueryPort() == 27961
@@ -2601,6 +3575,249 @@ def test_favorite_server_helper_uses_mapped_matchmaking_slots(steamworks_harness
 
     assert not lib.QLR_Steamworks_SetFavoriteServer(0x01020304, 27960, 0)
     assert lib.QLR_SteamworksMock_GetFavoriteRemoveCalls() == 1
+
+
+def test_steam_client_identity_and_utils_wrappers_use_retail_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    steam_id = 0x0123456789ABCDEF
+    id_low = ctypes.c_uint32(0xFFFFFFFF)
+    id_high = ctypes.c_uint32(0xFFFFFFFF)
+    persona = ctypes.create_string_buffer(b"stale", 64)
+    country = ctypes.create_string_buffer(b"stale", 8)
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_GetPersonaName(persona, len(persona))
+        assert persona.value == b""
+        assert not lib.QLR_Steamworks_GetIPCountry(country, len(country))
+        assert country.value == b""
+        assert lib.QLR_Steamworks_GetAppID() == 0
+        assert not lib.QLR_Steamworks_GetUserSteamID(ctypes.byref(id_low), ctypes.byref(id_high))
+        assert id_low.value == 0
+        assert id_high.value == 0
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetSteamId(steam_id)
+    lib.QLR_SteamworksMock_SetAppId(PUBLIC_RETAIL_APP_ID)
+    assert lib.QLR_Steamworks_Init()
+
+    assert lib.QLR_Steamworks_GetPersonaName(persona, len(persona))
+    assert persona.value == b"QLR Persona"
+    assert lib.QLR_SteamworksMock_GetPersonaNameCalls() == 1
+
+    assert lib.QLR_Steamworks_GetIPCountry(country, len(country))
+    assert country.value == b"US"
+    assert lib.QLR_SteamworksMock_GetIPCountryCalls() == 1
+
+    assert lib.QLR_Steamworks_GetAppID() == PUBLIC_RETAIL_APP_ID
+    assert lib.QLR_SteamworksMock_GetAppIdCalls() == 1
+
+    assert lib.QLR_Steamworks_GetUserSteamID(ctypes.byref(id_low), ctypes.byref(id_high))
+    assert id_low.value == (steam_id & 0xFFFFFFFF)
+    assert id_high.value == (steam_id >> 32)
+    assert lib.QLR_SteamworksMock_GetUserSteamIdCalls() == 1
+
+    lib.QLR_SteamworksMock_SetUserAvailable(0)
+    id_low.value = 0xFFFFFFFF
+    id_high.value = 0xFFFFFFFF
+    assert not lib.QLR_Steamworks_GetUserSteamID(ctypes.byref(id_low), ctypes.byref(id_high))
+    assert id_low.value == 0
+    assert id_high.value == 0
+    assert lib.QLR_SteamworksMock_GetUserSteamIdCalls() == 1
+
+
+def test_steam_friends_enumeration_and_summary_use_mapped_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    friend_id = 0x0123456789ABCDEF
+    id_low = friend_id & 0xFFFFFFFF
+    id_high = friend_id >> 32
+    flags = 4
+    out_low = ctypes.c_uint32(0xFFFFFFFF)
+    out_high = ctypes.c_uint32(0xFFFFFFFF)
+    name_buffer = ctypes.create_string_buffer(b"stale", 64)
+    summary = SteamFriendSummary()
+    summary.steamId = 0xFFFFFFFFFFFFFFFF
+
+    if not enabled:
+        assert lib.QLR_Steamworks_GetFriendCount(flags) == 0
+        assert not lib.QLR_Steamworks_GetFriendByIndex(0, flags, ctypes.byref(out_low), ctypes.byref(out_high))
+        assert out_low.value == 0
+        assert out_high.value == 0
+        assert not lib.QLR_Steamworks_GetFriendPersonaName(id_low, id_high, name_buffer, len(name_buffer))
+        assert name_buffer.value == b""
+        assert not lib.QLR_Steamworks_GetFriendSummary(id_low, id_high, ctypes.byref(summary))
+        assert summary.steamId == 0
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetFriendEnumeration(2, friend_id)
+
+    assert lib.QLR_Steamworks_GetFriendCount(flags) == 2
+    assert lib.QLR_SteamworksMock_GetFriendCountCalls() == 1
+    assert lib.QLR_SteamworksMock_GetFriendLastCountFlags() == flags
+
+    assert lib.QLR_Steamworks_GetFriendByIndex(1, flags, ctypes.byref(out_low), ctypes.byref(out_high))
+    assert out_low.value == id_low
+    assert out_high.value == id_high
+    assert lib.QLR_SteamworksMock_GetFriendByIndexCalls() == 1
+    assert lib.QLR_SteamworksMock_GetFriendLastIndex() == 1
+    assert lib.QLR_SteamworksMock_GetFriendLastIndexFlags() == flags
+
+    out_low.value = 0xFFFFFFFF
+    out_high.value = 0xFFFFFFFF
+    assert not lib.QLR_Steamworks_GetFriendByIndex(2, flags, ctypes.byref(out_low), ctypes.byref(out_high))
+    assert out_low.value == 0
+    assert out_high.value == 0
+    assert lib.QLR_SteamworksMock_GetFriendByIndexCalls() == 2
+    assert lib.QLR_SteamworksMock_GetFriendLastIndex() == 2
+
+    assert lib.QLR_Steamworks_GetFriendPersonaName(id_low, id_high, name_buffer, len(name_buffer))
+    assert name_buffer.value == b"QLR Persona"
+
+    assert lib.QLR_Steamworks_GetFriendSummary(id_low, id_high, ctypes.byref(summary))
+    assert summary.steamId == friend_id
+    assert summary.relationship == 3
+    assert summary.personaState == 1
+    assert _c_string(summary.name) == b"QLR Persona"
+    assert _c_string(summary.nickname) == b"QLR Nick"
+    assert _c_string(summary.status) == b"At the main menu"
+    assert _c_string(summary.lanIp) == b""
+    assert summary.playingQuake == 1
+    assert summary.appId == REFERENCE_RETAIL_APP_ID
+    assert summary.gameId == REFERENCE_RETAIL_APP_ID
+    assert summary.serverIp == 0
+    assert summary.serverPort == 0
+    assert summary.queryPort == 0
+    assert summary.lobbyId == 0
+    assert summary.gameServerId == 0
+
+
+def test_steam_friends_voice_speaking_wrapper_uses_retail_slot(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    id_low = 0x89ABCDEF
+    id_high = 0x01234567
+    steam_id = (id_high << 32) | id_low
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_SetInGameVoiceSpeaking(id_low, id_high, 1)
+        assert not lib.QLR_Steamworks_SetInGameVoiceSpeaking(id_low, id_high, 0)
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_SetInGameVoiceSpeaking(id_low, id_high, 1)
+    assert lib.QLR_SteamworksMock_GetFriendVoiceSpeakingCalls() == 1
+    assert lib.QLR_SteamworksMock_GetFriendVoiceLastSteamId() == steam_id
+    assert lib.QLR_SteamworksMock_GetFriendVoiceLastSpeaking() == 1
+
+    assert lib.QLR_Steamworks_SetInGameVoiceSpeaking(id_low, id_high, 0)
+    assert lib.QLR_SteamworksMock_GetFriendVoiceSpeakingCalls() == 2
+    assert lib.QLR_SteamworksMock_GetFriendVoiceLastSteamId() == steam_id
+    assert lib.QLR_SteamworksMock_GetFriendVoiceLastSpeaking() == 0
+
+
+def test_steam_user_voice_wrappers_use_retail_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+    lib, enabled = steamworks_harness
+    compressed_payload = b"\x10\x20\x30\x40"
+    decompressed_payload = b"\x01\x00\x02\x00\x03\x00\x04\x00"
+    compressed_source = ctypes.create_string_buffer(compressed_payload)
+    decompressed_source = ctypes.create_string_buffer(decompressed_payload)
+    compressed_buffer = ctypes.create_string_buffer(32)
+    decompressed_buffer = ctypes.create_string_buffer(32)
+    compressed_size = ctypes.c_uint32(777)
+    decompressed_size = ctypes.c_uint32(888)
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_StartVoiceRecording()
+        assert not lib.QLR_Steamworks_StopVoiceRecording()
+        assert not lib.QLR_Steamworks_GetCompressedVoice(
+            compressed_buffer,
+            len(compressed_buffer),
+            ctypes.byref(compressed_size),
+        )
+        assert compressed_size.value == 0
+        assert not lib.QLR_Steamworks_DecompressVoice(
+            compressed_source,
+            len(compressed_payload),
+            decompressed_buffer,
+            len(decompressed_buffer),
+            ctypes.byref(decompressed_size),
+            22050,
+        )
+        assert decompressed_size.value == 0
+        assert lib.QLR_Steamworks_GetVoiceOptimalSampleRate() == 0
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetCompressedVoice(compressed_source, len(compressed_payload))
+    lib.QLR_SteamworksMock_SetDecompressedVoice(decompressed_source, len(decompressed_payload))
+    lib.QLR_SteamworksMock_SetVoiceOptimalSampleRate(22050)
+
+    assert lib.QLR_Steamworks_StartVoiceRecording()
+    assert lib.QLR_SteamworksMock_GetVoiceStartCalls() == 1
+
+    compressed_size.value = 0
+    assert lib.QLR_Steamworks_GetCompressedVoice(
+        compressed_buffer,
+        len(compressed_buffer),
+        ctypes.byref(compressed_size),
+    )
+    assert compressed_size.value == len(compressed_payload)
+    assert compressed_buffer.raw[: compressed_size.value] == compressed_payload
+    assert lib.QLR_SteamworksMock_GetVoiceGetCalls() == 1
+    assert lib.QLR_SteamworksMock_GetVoiceLastWantCompressed() == 1
+    assert lib.QLR_SteamworksMock_GetVoiceLastWantUncompressed() == 0
+    assert lib.QLR_SteamworksMock_GetVoiceLastCompressedBufferSize() == len(compressed_buffer)
+    assert lib.QLR_SteamworksMock_GetVoiceLastUncompressedBufferSize() == 0
+
+    decompressed_size.value = 0
+    assert lib.QLR_Steamworks_DecompressVoice(
+        compressed_source,
+        len(compressed_payload),
+        decompressed_buffer,
+        len(decompressed_buffer),
+        ctypes.byref(decompressed_size),
+        22050,
+    )
+    assert decompressed_size.value == len(decompressed_payload)
+    assert decompressed_buffer.raw[: decompressed_size.value] == decompressed_payload
+    assert lib.QLR_SteamworksMock_GetVoiceDecompressCalls() == 1
+    assert lib.QLR_SteamworksMock_GetVoiceLastDecompressInputSize() == len(compressed_payload)
+    assert lib.QLR_SteamworksMock_GetVoiceLastDecompressBufferSize() == len(decompressed_buffer)
+    assert lib.QLR_SteamworksMock_GetVoiceLastDecompressSampleRate() == 22050
+
+    assert lib.QLR_Steamworks_GetVoiceOptimalSampleRate() == 22050
+    assert lib.QLR_SteamworksMock_GetVoiceOptimalRateCalls() == 1
+
+    assert lib.QLR_Steamworks_StopVoiceRecording()
+    assert lib.QLR_SteamworksMock_GetVoiceStopCalls() == 1
+
+    lib.QLR_SteamworksMock_SetVoiceResults(3, 3)
+    compressed_size.value = 777
+    assert not lib.QLR_Steamworks_GetCompressedVoice(
+        compressed_buffer,
+        len(compressed_buffer),
+        ctypes.byref(compressed_size),
+    )
+    assert compressed_size.value == 0
+    assert lib.QLR_SteamworksMock_GetVoiceGetCalls() == 2
+
+    decompressed_size.value = 888
+    assert not lib.QLR_Steamworks_DecompressVoice(
+        compressed_source,
+        len(compressed_payload),
+        decompressed_buffer,
+        len(decompressed_buffer),
+        ctypes.byref(decompressed_size),
+        16000,
+    )
+    assert decompressed_size.value == 0
+    assert lib.QLR_SteamworksMock_GetVoiceDecompressCalls() == 2
+    assert lib.QLR_SteamworksMock_GetVoiceLastDecompressSampleRate() == 16000
 
 
 def test_legacy_p2p_wrappers_use_mapped_steamnetworking_slots(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
@@ -2663,6 +3880,22 @@ def test_legacy_p2p_wrappers_use_mapped_steamnetworking_slots(steamworks_harness
     assert lib.QLR_SteamworksMock_GetP2PReadCalls() == 1
     assert lib.QLR_SteamworksMock_GetP2PLastReadChannel() == 16
 
+    lib.QLR_SteamworksMock_SetP2PReadPacket(steam_id, read_payload_buffer, len(read_payload))
+    small_read_buffer = ctypes.create_string_buffer(3)
+    packet_size.value = 777
+    remote_id.value = 0xFFFFFFFFFFFFFFFF
+    assert not lib.QLR_Steamworks_ReadP2PPacket(
+        small_read_buffer,
+        len(small_read_buffer),
+        ctypes.byref(packet_size),
+        ctypes.byref(remote_id),
+        16,
+    )
+    assert packet_size.value == 0
+    assert remote_id.value == 0
+    assert lib.QLR_SteamworksMock_GetP2PReadCalls() == 2
+    assert lib.QLR_SteamworksMock_GetP2PLastReadChannel() == 16
+
     assert lib.QLR_Steamworks_AcceptP2PSession(steam_id)
     assert lib.QLR_SteamworksMock_GetP2PAcceptCalls() == 1
     assert lib.QLR_SteamworksMock_GetP2PLastAcceptSteamId() == steam_id
@@ -2690,6 +3923,8 @@ def test_legacy_game_server_p2p_wrappers_use_mapped_networking_slots(steamworks_
     steam_id = 0x011000010A0B0C0D
     payload_bytes = b"hello"
     payload = ctypes.create_string_buffer(payload_bytes)
+    incoming_payload = b"\xff\xff\xff\xffgetinfo"
+    incoming_packet = ctypes.create_string_buffer(incoming_payload)
     packet_size = ctypes.c_uint32(123)
     remote_id = ctypes.c_uint64(0xFFFFFFFFFFFFFFFF)
     read_buffer = ctypes.create_string_buffer(32)
@@ -2718,12 +3953,41 @@ def test_legacy_game_server_p2p_wrappers_use_mapped_networking_slots(steamworks_
         ) == 0
         assert outgoing_ip.value == 0
         assert outgoing_port.value == 0
+        assert not lib.QLR_Steamworks_ServerHandleIncomingPacket(
+            incoming_packet,
+            len(incoming_payload),
+            0x01020304,
+            0x386D,
+        )
         assert not lib.QLR_Steamworks_ServerAcceptP2PSession(steam_id)
         return
 
     lib.QLR_SteamworksMock_Reset()
     lib.QLR_SteamworksMock_PrimeState()
     assert lib.QLR_Steamworks_ServerInit(0, 27960, 1, 1)
+
+    assert lib.QLR_Steamworks_ServerHandleIncomingPacket(
+        incoming_packet,
+        len(incoming_payload),
+        0x01020304,
+        0x386D,
+    )
+    assert lib.QLR_SteamworksMock_GetServerIncomingPacketCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerIncomingPacketLength() == len(incoming_payload)
+    assert lib.QLR_SteamworksMock_GetServerIncomingPacketIP() == 0x01020304
+    assert lib.QLR_SteamworksMock_GetServerIncomingPacketPort() == 0x386D
+    for index, value in enumerate(incoming_payload):
+        assert lib.QLR_SteamworksMock_GetServerIncomingPacketByte(index) == value
+
+    lib.QLR_SteamworksMock_SetServerIncomingPacketResult(0)
+    assert not lib.QLR_Steamworks_ServerHandleIncomingPacket(
+        incoming_packet,
+        len(incoming_payload),
+        0x05060708,
+        0x4000,
+    )
+    assert lib.QLR_SteamworksMock_GetServerIncomingPacketCalls() == 2
+    lib.QLR_SteamworksMock_SetServerIncomingPacketResult(1)
 
     assert lib.QLR_Steamworks_ServerSendP2PPacket(steam_id, payload, len(payload_bytes), 2, 16)
     assert lib.QLR_SteamworksMock_GetServerP2PSendCalls() == 1
@@ -2755,6 +4019,22 @@ def test_legacy_game_server_p2p_wrappers_use_mapped_networking_slots(steamworks_
     assert remote_id.value == steam_id
     assert read_buffer.raw[: packet_size.value] == read_payload
     assert lib.QLR_SteamworksMock_GetServerP2PReadCalls() == 1
+    assert lib.QLR_SteamworksMock_GetServerP2PLastReadChannel() == 16
+
+    lib.QLR_SteamworksMock_SetServerP2PReadPacket(steam_id, read_payload_buffer, len(read_payload))
+    small_read_buffer = ctypes.create_string_buffer(3)
+    packet_size.value = 777
+    remote_id.value = 0xFFFFFFFFFFFFFFFF
+    assert not lib.QLR_Steamworks_ServerReadP2PPacket(
+        small_read_buffer,
+        len(small_read_buffer),
+        ctypes.byref(packet_size),
+        ctypes.byref(remote_id),
+        16,
+    )
+    assert packet_size.value == 0
+    assert remote_id.value == 0
+    assert lib.QLR_SteamworksMock_GetServerP2PReadCalls() == 2
     assert lib.QLR_SteamworksMock_GetServerP2PLastReadChannel() == 16
 
     assert lib.QLR_Steamworks_ServerAcceptP2PSession(steam_id)
@@ -2889,6 +4169,106 @@ def test_all_ugc_query_forwards_filter_to_retail_query_slot(
         lib.QLR_Steamworks_UnregisterHarnessCallbacks()
 
 
+def test_ugc_query_result_preview_and_release_use_retail_slots(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+    query_handle = 0x1122334455667788
+    published_file_id = ctypes.c_uint64()
+    title = ctypes.create_string_buffer(128)
+    description = ctypes.create_string_buffer(256)
+    preview = ctypes.create_string_buffer(256)
+
+    if not enabled:
+        published_file_id.value = 99
+        title.value = b"stale"
+        description.value = b"stale"
+        preview.value = b"stale"
+
+        assert not lib.QLR_Steamworks_GetQueryUGCResult(
+            query_handle,
+            2,
+            ctypes.byref(published_file_id),
+            title,
+            len(title),
+            description,
+            len(description),
+        )
+        assert published_file_id.value == 0
+        assert title.value == b""
+        assert description.value == b""
+
+        assert not lib.QLR_Steamworks_GetQueryUGCPreviewURL(query_handle, 2, preview, len(preview))
+        assert preview.value == b""
+
+        lib.QLR_Steamworks_ReleaseQueryUGCRequest(query_handle)
+        assert lib.QLR_SteamworksMock_GetUGCReleaseQueryCalls() == 0
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetUGCQueryResult(
+        0x0123456789ABCDEF,
+        b"Campgrounds Redux",
+        b"Recovered long description",
+        b"https://cdn.example.test/campgrounds.jpg",
+        1,
+        1,
+    )
+
+    assert lib.QLR_Steamworks_GetQueryUGCResult(
+        query_handle,
+        2,
+        ctypes.byref(published_file_id),
+        title,
+        len(title),
+        description,
+        len(description),
+    )
+    assert published_file_id.value == 0x0123456789ABCDEF
+    assert title.value == b"Campgrounds Redux"
+    assert description.value == b"Recovered long description"
+    assert lib.QLR_SteamworksMock_GetUGCGetQueryResultCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUGCLastResultQueryHandle() == query_handle
+    assert lib.QLR_SteamworksMock_GetUGCLastResultIndex() == 2
+
+    assert lib.QLR_Steamworks_GetQueryUGCPreviewURL(query_handle, 2, preview, len(preview))
+    assert preview.value == b"https://cdn.example.test/campgrounds.jpg"
+    assert lib.QLR_SteamworksMock_GetUGCGetQueryPreviewCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUGCLastPreviewQueryHandle() == query_handle
+    assert lib.QLR_SteamworksMock_GetUGCLastPreviewIndex() == 2
+
+    lib.QLR_Steamworks_ReleaseQueryUGCRequest(query_handle)
+    assert lib.QLR_SteamworksMock_GetUGCReleaseQueryCalls() == 1
+    assert lib.QLR_SteamworksMock_GetUGCLastReleasedQueryHandle() == query_handle
+
+    published_file_id.value = 99
+    title.value = b"stale"
+    description.value = b"stale"
+    preview.value = b"stale"
+    lib.QLR_SteamworksMock_SetUGCQueryResult(0, b"", b"", b"", 0, 0)
+
+    assert not lib.QLR_Steamworks_GetQueryUGCResult(
+        query_handle,
+        3,
+        ctypes.byref(published_file_id),
+        title,
+        len(title),
+        description,
+        len(description),
+    )
+    assert published_file_id.value == 0
+    assert title.value == b""
+    assert description.value == b""
+    assert lib.QLR_SteamworksMock_GetUGCGetQueryResultCalls() == 2
+    assert lib.QLR_SteamworksMock_GetUGCLastResultIndex() == 3
+
+    assert not lib.QLR_Steamworks_GetQueryUGCPreviewURL(query_handle, 3, preview, len(preview))
+    assert preview.value == b""
+    assert lib.QLR_SteamworksMock_GetUGCGetQueryPreviewCalls() == 2
+    assert lib.QLR_SteamworksMock_GetUGCLastPreviewIndex() == 3
+
+
 def test_workshop_subscription_enumeration_uses_retail_ugc_mount_slots(
     steamworks_harness: tuple[ctypes.CDLL, bool],
 ) -> None:
@@ -2980,19 +4360,89 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 64
     assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 64
 
-    assert lib.QLR_SteamworksMock_QueueLobbyEnter(0x0FEDCBA987654321, 7, 0, 1)
+    assert lib.QLR_SteamworksMock_QueueLobbyCreated(0x0FEDCBA987654321, 1)
     lib.QLR_Steamworks_RunCallbackPump()
 
     assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 3
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_created"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueueLobbyEnter(0x0FEDCBA987654321, 7, 0, 1)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_enter"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 7
     assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
 
+    assert lib.QLR_SteamworksMock_QueueLobbyChatUpdate(
+        0x0FEDCBA987654321,
+        0x1111111122222222,
+        0x3333333344444444,
+        0x40,
+    )
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 5
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_chat_update"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x1111111122222222
+    assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"3333333344444444"
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 0x40
+
+    assert lib.QLR_SteamworksMock_QueueLobbyChatMessage(0x0FEDCBA987654321, 0x1111111122222222, 2, 77)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 6
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_chat_message"
+    assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"queued lobby chat"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0xDEADBEEF
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 77
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueueLobbyDataUpdate(0x0FEDCBA987654321, 0x1111111122222222, 1)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 7
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_data_update"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x1111111122222222
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueueLobbyGameCreated(0x0FEDCBA987654321, 0x99999999AAAAAAAA, 0x01020304, 27960)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 8
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_game_created"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x99999999AAAAAAAA
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x01020304
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 27960
+
+    assert lib.QLR_SteamworksMock_QueueLobbyKicked(0x0FEDCBA987654321, 0x1111111122222222, 1)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 9
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"lobby_kicked"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x1111111122222222
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueueGameLobbyJoinRequested(0x0FEDCBA987654321, 0x2222222233333333)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 10
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"game_lobby_join_requested"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x2222222233333333
+
     assert lib.QLR_SteamworksMock_QueueMicroAuthorizationResponse(0x54100, 99, 1)
     lib.QLR_Steamworks_RunCallbackPump()
 
-    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 11
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"microtxn"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 99
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
@@ -3001,7 +4451,7 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_QueueItemInstalled(0x54100, 0x89ABCDEF, 0x01234567)
     lib.QLR_Steamworks_RunCallbackPump()
 
-    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 5
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 12
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"workshop_installed"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
@@ -3010,9 +4460,74 @@ def test_callback_bundle_registration_and_dispatch_reconstructs_retail_client_ow
     assert lib.QLR_SteamworksMock_QueueDownloadItemResult(0x54100, 0x89ABCDEF, 0x01234567, 1)
     lib.QLR_Steamworks_RunCallbackPump()
 
-    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 6
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 13
     assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"workshop_download_result"
     assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    lib.QLR_Steamworks_UnregisterHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetUnregisterCallbackCalls() == 18
+
+
+def test_client_callback_bundle_dispatches_unsampled_retail_payloads(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+
+    if not enabled:
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+    lib.QLR_SteamworksMock_SetAppId(0x54100)
+
+    assert lib.QLR_Steamworks_RegisterHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetRegisterCallbackCalls() == 18
+
+    assert lib.QLR_SteamworksMock_QueueUserStatsReceived(0x0000000000054100, 1, 0x0123456789ABCDEF)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 1
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"user_stats_received"
+    assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"QLR Persona"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueuePersonaStateChange(0x0123456789ABCDEF, 0x20)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 2
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"persona_state_change"
+    assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"QLR Persona"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x20
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    assert lib.QLR_SteamworksMock_QueueP2PSessionRequest(0x0FEDCBA987654321)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 3
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"p2p_session_request"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0FEDCBA987654321
+
+    assert lib.QLR_SteamworksMock_QueueGameServerChangeRequested(b"203.0.113.7:27960", b"secret")
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"game_server_change_requested"
+    assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"203.0.113.7:27960|secret"
+
+    assert lib.QLR_SteamworksMock_QueueFriendRichPresenceUpdate(0x0123456789ABCDEF, 0x54100)
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 5
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"friend_rich_presence_update"
+    assert lib.QLR_SteamworksMock_GetLastCallbackText() == b"At the main menu"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == 0x0123456789ABCDEF
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x54100
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0x54100
     assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
 
@@ -3044,6 +4559,101 @@ def test_ugc_call_result_binding_routes_through_registered_client_bundle(
     assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x1122334455667788
     assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 3
     assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 1
+
+    lib.QLR_Steamworks_UnregisterHarnessCallbacks()
+    assert lib.QLR_SteamworksMock_GetUnregisterCallResultCalls() == 1
+
+
+def test_ugc_call_result_failure_projection_preserves_retail_callback_shape(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+    call_handle = 0xCAFE1234
+
+    if not enabled:
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_RegisterHarnessCallbacks()
+    assert lib.QLR_Steamworks_BindUGCQueryCallResult(call_handle)
+
+    assert lib.QLR_SteamworksMock_QueueUGCQueryCompletedEx(
+        call_handle,
+        0x8877665544332211,
+        15,
+        2,
+        9,
+        0,
+        0,
+        1,
+    )
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 1
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"ugc"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == call_handle
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x8877665544332211
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 2
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 15
+
+    assert lib.QLR_SteamworksMock_QueueUGCQueryCompletedEx(
+        call_handle,
+        0x0123456789ABCDEF,
+        1,
+        7,
+        11,
+        1,
+        1,
+        1,
+    )
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 2
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"ugc"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == call_handle
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0x0123456789ABCDEF
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 7
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == -1
+
+    assert lib.QLR_SteamworksMock_QueueUGCQueryCompletedEx(
+        call_handle,
+        0xFFFFFFFFFFFFFFFF,
+        1,
+        99,
+        123,
+        1,
+        1,
+        0,
+    )
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 3
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"ugc"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == call_handle
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == -1
+
+    assert lib.QLR_SteamworksMock_QueueUGCQueryCompletedEx(
+        call_handle,
+        0xFFFFFFFFFFFFFFFF,
+        1,
+        99,
+        123,
+        1,
+        0,
+        0,
+    )
+    lib.QLR_Steamworks_RunCallbackPump()
+
+    assert lib.QLR_SteamworksMock_GetClientCallbackCaptureCount() == 4
+    assert lib.QLR_SteamworksMock_GetLastCallbackKind() == b"ugc"
+    assert lib.QLR_SteamworksMock_GetLastCallbackId() == call_handle
+    assert lib.QLR_SteamworksMock_GetLastCallbackAuxId() == 0
+    assert lib.QLR_SteamworksMock_GetLastCallbackAppId() == 0
+    assert lib.QLR_SteamworksMock_GetLastCallbackResult() == 0
 
     lib.QLR_Steamworks_UnregisterHarnessCallbacks()
     assert lib.QLR_SteamworksMock_GetUnregisterCallResultCalls() == 1

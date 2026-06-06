@@ -147,7 +147,7 @@ Two helpers remain intentionally unnamed in this pass:
 | `sub_465C30` (`0x00465C30`) | `SteamServerCallbacks_OnServersDisconnected` | Clears the connected flag and logs the disconnect. |
 | `sub_465C50` (`0x00465C50`) | `SteamServerCallbacks_OnValidateAuthTicketResponse` | Matches the callback SteamID to a live client, applies fake-VAC overrides when configured, accepts only allowed status codes, and kicks on failure using reason strings including `VAC check timed out` and `Issuer canceled auth ticket`. |
 | `sub_465B00` (`0x00465B00`) | `SteamServer_PublishSteamID` | Reads the GS SteamID, writes `sv_referencedSteamworks`, and publishes configstrings `0x2ca` and `0x2cb`. |
-| `sub_465B70` (`0x00465B70`) | `SteamServerCallbacks_OnP2PSessionRequest` | Accepts P2P requests only for live Steam-authenticated clients. |
+| `sub_465B70` (`0x00465B70`) | `SteamServerCallbacks_OnP2PSessionRequest` | Accepts P2P requests only when the incoming SteamID matches a live `CS_ACTIVE` client slot. |
 | `sub_465D30` (`0x00465D30`) | `SteamServer_Shutdown` | Calls `SteamGameServer_Shutdown` and clears the global initialized flag. |
 | `sub_465E30` (`0x00465E30`) | `SteamServer_InitDefaultHostname` | Defaults `sv_hostname` to `"%s's Match"` using the Steam persona name when not running a build harness. |
 | `sub_465FD0` (`0x00465FD0`) | `SteamServer_BeginAuthSession` | Deduplicates auth requests, calls `SteamGameServer()->BeginAuthSession`, logs the call, and inserts the SteamID into the auth-session tree. |

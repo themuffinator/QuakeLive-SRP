@@ -123,7 +123,7 @@ def test_scoreboard_feeders_register_and_return_retail_social_icons() -> None:
 	assert "if ( CG_IsClientMutedLocally( clientNum ) ) {" in helper_block
 	assert "return cgs.media.scoreMutedShader;" in helper_block
 	assert "if ( !CG_ShouldDisplayVoiceIndicator() ) {" in helper_block
-	assert "if ( cg.time - speakingState->time > 2500 ) {" in helper_block
+	assert "if ( cg.time - ci->speakingTime > 2500 ) {" in helper_block
 	assert "return cgs.media.scoreSpeakingShader;" in helper_block
 
 	assert "return CG_FeederItemTextScoreboard( index, column, handle );" in text_block
@@ -137,11 +137,13 @@ def test_scoreboard_feeders_register_and_return_retail_social_icons() -> None:
 	assert "return 0;" in image_block
 
 
-def test_speaking_sidecar_helper_tracks_retail_voice_indicator_state() -> None:
+def test_speaking_clientinfo_tail_tracks_retail_voice_indicator_state() -> None:
 	main_source = CG_MAIN.read_text(encoding="utf-8")
 	servercmds_source = CG_SERVERCMDS.read_text(encoding="utf-8")
 	helper_block = _block_from_marker(main_source, "void *CG_SetClientSpeakingState")
 
+	assert "ci->speaking = speaking ? qtrue : qfalse;" in helper_block
+	assert "ci->speakingTime = cg.time;" in helper_block
 	assert "cgs.currentVoiceClient = clientNum;" in helper_block
 	assert "cg.voiceTime = cg.time;" in helper_block
 	assert "cgs.currentVoiceClient = -1;" in helper_block
