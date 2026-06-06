@@ -85,8 +85,11 @@ Notes:
   the repo-managed bootstrap flow only. The retail DLL payload remains a
   runtime concern under `assets/quakelive/`; it is no longer part of the
   non-retail codec build detection story.
-- `QLBuildOnlineServices` defaults to `0`. Keep it disabled unless you are
-  explicitly validating online-service parity or the Awesomium helper path.
+- Source-level online services still default to `0`, but Windows `Release`
+  project configurations now opt into `QLBuildOnlineServices=1`,
+  `QLBuildSteamworks=1`, and the WebUI/Awesomium helper path. Runtime WebUI and
+  Steamworks files remain external; Debug and ad hoc source builds stay offline
+  unless explicitly overridden.
 
 See the full Windows guide at [`docs/build/windows.md`](docs/build/windows.md).
 

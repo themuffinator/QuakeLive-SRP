@@ -298,7 +298,7 @@ def write_readme(stage_root: Path, manifest: dict, runtime_profile: str, toolset
         "",
         "This package contains rebuilt project outputs only.",
         "It does not include retail pk3 files, retail launcher DLL payloads, or live online-service credentials.",
-        "Quake Live-only online services remain disabled by default behind QL_BUILD_ONLINE_SERVICES.",
+        "Windows Release builds enable QL_BUILD_ONLINE_SERVICES, Steamworks, and the WebUI helper path; runtime DLLs, web.pak, retail data, and credentials must be supplied externally.",
     ]
     readme.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {

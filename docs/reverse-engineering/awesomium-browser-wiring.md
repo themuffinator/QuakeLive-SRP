@@ -578,8 +578,8 @@ Fix implemented:
 
 - Removed the C++ ABI fallback layer. Runtime calls now stay on the external Awesomium SDK C API exports loaded from `awesomium.dll`; if an export is absent, the adapter reports the missing SDK export or treats documented optional exports as no-op/optional.
 - Corrected SDK export names for live paths that matter at startup/input: `_Awe_WebView_SetTransparent@8` and the SDK-owned keyboard event-object sequence `_Awe_new_WebKeyboardEvent_1@12`, `_Awe_WebView_InjectKeyboardEvent@8`, `_Awe_delete_WebKeyboardEvent@4`.
-- Deleted `src/code/win32/awesomium.def`; `awesomium_process.vcxproj` now requires an external Awesomium SDK path and links `awesomium.lib` when `QLBuildOnlineServices=1`.
-- `quakelive_steam.vcxproj` now declares the external SDK/runtime dependency for online builds through `AwesomiumSdkDir` or `AWESOMIUM_SDK_DIR`, while default builds remain offline-safe.
+- Deleted `src/code/win32/awesomium.def`; `awesomium_process.vcxproj` now uses an SDK-less dynamic `ChildProcessMain` loader by default for online Release builds, while `QLUseAwesomiumSdk=1` keeps the external Awesomium SDK import-library path available for strict import-table validation.
+- `quakelive_steam.vcxproj` still declares the external SDK/runtime dependency through `AwesomiumSdkDir` or `AWESOMIUM_SDK_DIR` when SDK validation or runtime-copy staging is requested, while Debug/default source builds remain offline-safe.
 - `awesomium_process.cpp` includes `<Awesomium/ChildProcess.h>` instead of redeclaring SDK symbols, and the helper version resource now uses project-owned metadata.
 
 Expected effect:
@@ -606,16 +606,18 @@ Audit finding:
 
 Source reconstruction:
 
-- Online client builds now project-reference `awesomium_process.vcxproj` when an
-  external `AwesomiumSdkDir` is supplied, so the helper is built from the SDK
-  header/import library boundary instead of depending on a stale staged binary.
+- Online client builds now project-reference `awesomium_process.vcxproj`, so the
+  helper is rebuilt for the selected policy. Release builds use the SDK-less
+  dynamic loader by default; strict SDK builds can still opt into the
+  header/import library boundary with `QLUseAwesomiumSdk=1`.
 - The client project validates the retail-observed Awesomium runtime sidecar DLLs
   under the external runtime folder and copies that payload into `$(OutDir)`.
   Optional `locales` files are copied if the SDK/runtime package provides them.
 - The source tree still does not vendor the proprietary SDK, generate an import
-  library from a local `.def`, redeclare `ChildProcessMain`, or reconstruct
-  Awesomium C++ object layout. The only source-owned helper call remains
-  `Awesomium::ChildProcessMain` through `<Awesomium/ChildProcess.h>`.
+  library from a local `.def`, or reconstruct Awesomium C++ object layout. The
+  only source-owned helper target remains `Awesomium::ChildProcessMain`, reached
+  either through `<Awesomium/ChildProcess.h>` in strict SDK builds or the
+  documented decorated symbol in SDK-less release builds.
 
 Expected effect:
 

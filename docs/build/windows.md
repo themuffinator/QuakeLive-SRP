@@ -83,14 +83,20 @@ modern systems, but it no longer reproduces the retail VC10 compiler/linker or
 CRT import surface.
 
 `awesomium_process.exe` respects the same online-services policy as the rest of
-the launcher stack. `QLBuildOnlineServices` defaults to `0`, which produces an
-offline-safe stub that exits cleanly without loading `awesomium.dll`. Set
-`/p:QLBuildOnlineServices=1` and point `AwesomiumSdkDir` or
-`AWESOMIUM_SDK_DIR` at an external Awesomium SDK if you want the helper to
-forward into the retail Awesomium child-process entry point:
+the launcher stack. Debug and ad hoc source builds still default
+`QLBuildOnlineServices` to `0`, producing an offline-safe stub that exits
+cleanly without loading `awesomium.dll`. Windows Release-family configurations
+now default the helper to `QLBuildOnlineServices=1`, so release packages carry a
+WebUI-capable child-process launcher that resolves the retail
+`Awesomium::ChildProcessMain` entry point dynamically from an external
+`awesomium.dll` at runtime.
+
+For strict SDK/import-table parity of the helper, set
+`/p:QLBuildOnlineServices=1 /p:QLUseAwesomiumSdk=1` and point
+`AwesomiumSdkDir` or `AWESOMIUM_SDK_DIR` at an external Awesomium SDK:
 
 ```powershell
-msbuild src\code\awesomium_process.vcxproj /p:Configuration=Debug /p:Platform=Win32 /p:PlatformToolset=v100 /p:QLBuildOnlineServices=1 /p:AwesomiumSdkDir=C:\SDKs\Awesomium
+msbuild src\code\awesomium_process.vcxproj /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v100 /p:QLBuildOnlineServices=1 /p:QLUseAwesomiumSdk=1 /p:AwesomiumSdkDir=C:\SDKs\Awesomium
 ```
 
 For a parity-oriented rebuild of the helper, keep `QLBuildOnlineServices=1` and
@@ -105,12 +111,12 @@ pwsh tools\ci\verify-awesomium-process-parity.ps1
 The VS Code default `Build` task and the `Launch Debug Awesomium` task both use
 the local online-services launch lane. That build enables the client's dynamic
 Awesomium loader with
-`QLRequireAwesomiumSdk=0`, skips rebuilding the helper project unless an
-external SDK is supplied separately, writes
+`QLRequireAwesomiumSdk=0`, writes
 `build\win32\<Configuration>\bin\ql_build_settings.txt`, and stages the retail
 Awesomium runtime payload from the Steam install root. The C/MSBuild project
-properties still default `QLBuildOnlineServices` to `0`; the VS Code task is an
-explicit local opt-in. The `Launch Quake Live` debugger profile does not use a
+properties still default Debug builds to `QLBuildOnlineServices=0`; the VS Code
+task is an explicit local opt-in, while Release builds opt in by default. The
+`Launch Quake Live` debugger profile does not use a
 `preLaunchTask`, so run the build task explicitly before launching. The
 standalone `launch.ps1 -EnableAwesomium` path also refuses to start if the stamp
 reports `QLBuildOnlineServices=0`, because that offline build will always fall

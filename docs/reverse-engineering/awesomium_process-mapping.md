@@ -42,20 +42,25 @@ The repo now reconstructs the full executable-owned behavior:
 
 - `src/code/win32/awesomium_process.cpp` mirrors the owned entry flow as
   `WinMain -> Awesomium::ChildProcessMain(hInstance)`.
-- The online-enabled build now depends on the external Awesomium SDK import
-  library (`awesomium.lib`) instead of generating a repo-local import library.
+- Strict SDK/import-table builds still depend on the external Awesomium SDK
+  import library (`awesomium.lib`) instead of generating a repo-local import
+  library. SDK-less Release builds keep the same source-owned call target by
+  resolving the decorated `Awesomium::ChildProcessMain` symbol dynamically from
+  `awesomium.dll`.
 - `src/code/awesomium_process.vcxproj` now matches the retail helper's intended
   build profile more closely: static CRT, GUI subsystem version `5.01`,
   `/DYNAMICBASE`, `/NXCOMPAT`, `/TSAWARE`, and the preserved PDB breadcrumb
   `C:\dev\chromium2\chromium\src\build\Release\awesomium_process.pdb`.
 - `src/code/win32/awesomium_process.cpp` includes the SDK
-  `<Awesomium/ChildProcess.h>` header when `QLBuildOnlineServices=1`; it does
-  not locally redeclare Awesomium SDK symbols.
+  `<Awesomium/ChildProcess.h>` header only when
+  `QLUseAwesomiumSdk=1`; otherwise the online helper uses a dynamic loader and
+  still does not locally redeclare Awesomium SDK object layouts.
 
 The only intentional divergence is policy-driven: `QLBuildOnlineServices`
-defaults to `0`, which keeps the repository's default build on an offline-safe
-stub path. Build with `QLBuildOnlineServices=1` when validating retail parity
-for the helper.
+defaults to `0` for Debug and ad hoc source builds, which keeps that path on an
+offline-safe stub. Windows Release-family builds now opt into
+`QLBuildOnlineServices=1` so release artifacts carry the WebUI-capable helper;
+add `QLUseAwesomiumSdk=1` when validating the strict retail import-table path.
 
 ## Alias policy
 

@@ -577,7 +577,7 @@ $adapterAnchors = @(
 	},
 	@{
 		Path = 'src/code/client/cl_awesomium_win32.cpp'
-		Literal = 'CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh, initialConfigJson );'
+		Literal = 'CL_Awesomium_BuildUserScript( cl_awesomium.startupScript, sizeof( cl_awesomium.startupScript ), playerName, appId, steamIdLow, steamIdHigh, initialConfigJson, initialMapJson, initialFactoryJson );'
 		Description = 'startup bridge script constructed for WebView ExecuteJavascript retries'
 	},
 	@{
@@ -679,8 +679,13 @@ $sdkDependencyAnchors = @(
 	},
 	@{
 		Path = 'src/code/awesomium_process.vcxproj'
-		Literal = '<Target Name="ValidateAwesomiumSdk" BeforeTargets="ClCompile;Link" Condition="''$(QLBuildOnlineServices)''==''1''">'
-		Description = 'Awesomium child-process SDK validator'
+		Literal = '<Target Name="ValidateAwesomiumSdk" BeforeTargets="ClCompile;Link" Condition="''$(QLBuildOnlineServices)''==''1'' and ''$(QLUseAwesomiumSdk)''==''1''">'
+		Description = 'Awesomium child-process SDK validator for strict SDK builds'
+	},
+	@{
+		Path = 'src/code/awesomium_process.vcxproj'
+		Literal = 'QL_AWESOMIUM_USE_SDK=$(QLUseAwesomiumSdk)'
+		Description = 'Awesomium child-process SDK/dynamic selector'
 	},
 	@{
 		Path = 'src/code/awesomium_process.vcxproj'
@@ -690,7 +695,7 @@ $sdkDependencyAnchors = @(
 	@{
 		Path = 'src/code/quakelive_steam.vcxproj'
 		Literal = '<QLRequireAwesomiumSdk Condition="''$(QLRequireAwesomiumSdk)''==''''">1</QLRequireAwesomiumSdk>'
-		Description = 'online Awesomium SDK dependency required by default'
+		Description = 'online Awesomium SDK dependency required by Debug/default source builds'
 	},
 	@{
 		Path = 'src/code/quakelive_steam.vcxproj'
@@ -714,13 +719,13 @@ $sdkDependencyAnchors = @(
 	},
 	@{
 		Path = 'src/code/quakelive_steam.vcxproj'
-		Literal = '<ProjectReference Include="awesomium_process.vcxproj" Condition="''$(QLBuildOnlineServices)''!=''0'' and ''$(AwesomiumSdkDir)''!=''''">'
-		Description = 'online client builds SDK-backed Awesomium child-process host'
+		Literal = '<ProjectReference Include="awesomium_process.vcxproj" Condition="''$(QLBuildOnlineServices)''!=''0''">'
+		Description = 'online client builds Awesomium child-process host'
 	},
 	@{
 		Path = 'src/code/quakelive_steam.vcxproj'
-		Literal = '<AdditionalProperties>QLBuildOnlineServices=$(QLBuildOnlineServices);AwesomiumSdkDir=$(AwesomiumSdkDir)</AdditionalProperties>'
-		Description = 'Awesomium child-process project receives SDK build properties'
+		Literal = '<AdditionalProperties>QLBuildOnlineServices=$(QLBuildOnlineServices);QLUseAwesomiumSdk=$(QLUseAwesomiumSdk);AwesomiumSdkDir=$(AwesomiumSdkDir)</AdditionalProperties>'
+		Description = 'Awesomium child-process project receives online and optional SDK build properties'
 	},
 	@{
 		Path = 'src/code/win32/awesomium_process.rc'

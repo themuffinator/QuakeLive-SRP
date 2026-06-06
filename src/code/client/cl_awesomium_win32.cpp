@@ -719,11 +719,41 @@ static qboolean CL_Awesomium_MappedStringIsTerminated( const byte *image, DWORD 
 
 /*
 =============
+CL_Awesomium_MappedBufferContainsLiteral
+=============
+*/
+static qboolean CL_Awesomium_MappedBufferContainsLiteral( const byte *image, DWORD imageSize, const char *literal ) {
+	size_t literalLength;
+	DWORD literalSize;
+	DWORD i;
+
+	if ( !image || !literal || !literal[0] ) {
+		return qfalse;
+	}
+
+	literalLength = strlen( literal );
+	if ( literalLength > (size_t)imageSize ) {
+		return qfalse;
+	}
+
+	literalSize = (DWORD)literalLength;
+	for ( i = 0; i <= imageSize - literalSize; i++ ) {
+		if ( memcmp( image + i, literal, literalLength ) == 0 ) {
+			return qtrue;
+		}
+	}
+
+	return qfalse;
+}
+
+/*
+=============
 CL_Awesomium_HelperImportsChildProcessMain
 
 Retail `awesomium_process.exe` is only a thin wrapper into
-Awesomium::ChildProcessMain. Rejecting helpers that do not import that symbol
-keeps source-built online-service stubs from occupying the WebConfig child slot.
+Awesomium::ChildProcessMain. The rebuilt SDK-less release helper resolves the
+same decorated symbol dynamically, so accept either that explicit runtime-loader
+evidence or the retail import-table edge while still rejecting offline stubs.
 =============
 */
 static qboolean CL_Awesomium_HelperImportsChildProcessMain( const char *path ) {
@@ -785,7 +815,7 @@ static qboolean CL_Awesomium_HelperImportsChildProcessMain( const char *path ) {
 	importDirectory = &ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
 	if ( importDirectory->VirtualAddress == 0
 		|| !CL_Awesomium_RvaToFileOffset( ntHeaders, importDirectory->VirtualAddress, &importOffset ) ) {
-		goto cleanup;
+		goto dynamic_scan;
 	}
 
 	while ( importOffset + sizeof( IMAGE_IMPORT_DESCRIPTOR ) <= imageSize ) {
@@ -846,6 +876,13 @@ static qboolean CL_Awesomium_HelperImportsChildProcessMain( const char *path ) {
 		}
 	}
 
+dynamic_scan:
+	if ( CL_Awesomium_MappedBufferContainsLiteral( image, imageSize, "awesomium.dll" )
+		&& CL_Awesomium_MappedBufferContainsLiteral( image, imageSize, "?ChildProcessMain@Awesomium@@YAHPAUHINSTANCE__@@@Z" )
+		&& CL_Awesomium_MappedBufferContainsLiteral( image, imageSize, "QLR_AWESOMIUM_CHILDPROCESSMAIN_DYNAMIC" ) ) {
+		result = qtrue;
+	}
+
 cleanup:
 	if ( image ) {
 		UnmapViewOfFile( image );
@@ -871,7 +908,7 @@ static qboolean CL_Awesomium_TryChildProcessPath( char *buffer, size_t bufferSiz
 	}
 
 	if ( !CL_Awesomium_HelperImportsChildProcessMain( candidate ) ) {
-		Com_Printf( "Awesomium child helper rejected: %s does not import Awesomium::ChildProcessMain\n", candidate );
+		Com_Printf( "Awesomium child helper rejected: %s does not import or dynamically resolve Awesomium::ChildProcessMain\n", candidate );
 		return qfalse;
 	}
 

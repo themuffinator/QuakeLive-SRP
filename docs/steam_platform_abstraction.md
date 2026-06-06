@@ -129,9 +129,9 @@ Each adapter is intentionally transport-agnostic—REST payloads can be served l
 
 ## Build-Time Configuration Flags
 
-Quake Live-only online services are now an explicit divergence from the parity-first reconstruction goal and stay build-disabled by default. Three compile definitions govern whether any service provider is allowed to exist:
+Quake Live-only online services are now an explicit divergence from the parity-first reconstruction goal and stay build-disabled by default at the source-policy layer. Windows Release project configurations opt into the compatibility lane for distribution builds, but the same compile definitions still govern whether any service provider is allowed to exist:
 
-- `QL_BUILD_ONLINE_SERVICES=0` – default; disables advert fetching, Awesomium/web menu fetching, Steamworks, and open-Steam adapters, forcing the client onto offline fallbacks and stubs.
+- `QL_BUILD_ONLINE_SERVICES=0` – source/default Debug policy; disables advert fetching, Awesomium/web menu fetching, Steamworks, and open-Steam adapters, forcing the client onto offline fallbacks and stubs.
 - `QL_BUILD_STEAMWORKS=1` – when the master flag is also enabled, compiles the proprietary Steamworks compatibility lane and loads the Steamworks runtime dynamically.
 - `QL_BUILD_OPEN_STEAM=1` – when the master flag is also enabled, substitutes the open adapters. When both provider flags are present the build operates in *hybrid* mode, preferring Steamworks but transparently falling back to the open implementations.
 - `QL_ENABLE_LEGACY_Q3_SERVICES=1` – optional compatibility switch for the inherited Quake III update/master/authorize UDP endpoints. It is forced back to `0` whenever `QL_BUILD_ONLINE_SERVICES=0`, and default builds do not resolve the retired `*.quake3arena.com` hosts.
@@ -142,7 +142,7 @@ Quake Live-only online services are now an explicit divergence from the parity-f
 
 Define the macros through your build system to toggle the desired providers:
 
-- **MSBuild / Visual Studio** – the project defines user macros `QLBuildOnlineServices`, `QLBuildSteamworks`, and `QLBuildOpenSteam`, all defaulting to `0`. Override them on the command line (for example, `msbuild src\\code\\quakelive_steam.vcxproj /p:Configuration=Release /p:QLBuildOnlineServices=1 /p:QLBuildSteamworks=1 /p:QLBuildOpenSteam=0`) to control which backend files compile; each `ClCompile` entry forwards the values into `QL_BUILD_*` preprocessor definitions and skips translation units that are disabled.【F:src/code/quakelive_steam.vcxproj†L101-L706】
+- **MSBuild / Visual Studio** – the project defines user macros `QLBuildOnlineServices`, `QLBuildSteamworks`, and `QLBuildOpenSteam`. Debug and fallback builds still default them to `0`; Release-family configurations default to `QLBuildOnlineServices=1`, `QLBuildSteamworks=1`, and `QLBuildOpenSteam=0`. Override them on the command line (for example, `msbuild src\\code\\quakelive_steam.vcxproj /p:Configuration=Release /p:QLBuildOnlineServices=1 /p:QLBuildSteamworks=1 /p:QLBuildOpenSteam=0`) to control which backend files compile; each `ClCompile` entry forwards the values into `QL_BUILD_*` preprocessor definitions and skips translation units that are disabled.【F:src/code/quakelive_steam.vcxproj†L101-L706】
 - **GNU Make (Unix)** – pass the make variables `QL_BUILD_ONLINE_SERVICES=<0|1>`, `QL_BUILD_STEAMWORKS=<0|1>`, and `QL_BUILD_OPEN_STEAM=<0|1>` when invoking `make`. The shared makefile forwards the toggles to every compile command, forces the provider flags off when the master flag is `0`, and only adds the relevant backend objects to the link step, so both the dynamic and static client builds stay in sync.【F:src/code/unix/Makefile†L1-L1708】
 
 For MSBuild Steamworks builds, keep Valve's SDK outside the repository and

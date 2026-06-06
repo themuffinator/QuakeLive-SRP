@@ -624,8 +624,15 @@ def test_awesomium_sdk_dependency_is_external_and_non_replicated() -> None:
 	assert "namespace Awesomium" not in process_cpp
 	assert "int __cdecl ChildProcessMain" not in process_cpp
 	assert "Awesomium::ChildProcessMain( instance );" in process_cpp
+	assert "QL_AWESOMIUM_USE_SDK" in process_cpp
+	assert "LoadLibraryA( QLR_AWESOMIUM_RUNTIME_DLL )" in process_cpp
+	assert "?ChildProcessMain@Awesomium@@YAHPAUHINSTANCE__@@@Z" in process_cpp
+	assert "QLR_AWESOMIUM_CHILDPROCESSMAIN_DYNAMIC" in process_cpp
 
 	for expected in (
+		"<QLBuildOnlineServices Condition=\"'$(QLBuildOnlineServices)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release Alpha' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">1</QLBuildOnlineServices>",
+		"<QLUseAwesomiumSdk Condition=\"'$(QLUseAwesomiumSdk)'==''\">0</QLUseAwesomiumSdk>",
+		"QL_AWESOMIUM_USE_SDK=$(QLUseAwesomiumSdk)",
 		"AwesomiumSdkDir",
 		"AWESOMIUM_SDK_DIR",
 		"ValidateAwesomiumSdk",
@@ -663,8 +670,8 @@ def test_awesomium_sdk_dependency_is_external_and_non_replicated() -> None:
 		"CopyAwesomiumRuntime",
 		'<Copy SourceFiles="@(AwesomiumRuntimeRootFile)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"',
 		'<Copy SourceFiles="@(AwesomiumRuntimeLocaleFile)" DestinationFiles="@(AwesomiumRuntimeLocaleFile->\'$(OutDir)locales\\%(RecursiveDir)%(Filename)%(Extension)\')"',
-		'<ProjectReference Include="awesomium_process.vcxproj" Condition="\'$(QLBuildOnlineServices)\'!=\'0\' and \'$(AwesomiumSdkDir)\'!=\'\'">',
-		"<AdditionalProperties>QLBuildOnlineServices=$(QLBuildOnlineServices);AwesomiumSdkDir=$(AwesomiumSdkDir)</AdditionalProperties>",
+		'<ProjectReference Include="awesomium_process.vcxproj" Condition="\'$(QLBuildOnlineServices)\'!=\'0\'">',
+		"<AdditionalProperties>QLBuildOnlineServices=$(QLBuildOnlineServices);QLUseAwesomiumSdk=$(QLUseAwesomiumSdk);AwesomiumSdkDir=$(AwesomiumSdkDir)</AdditionalProperties>",
 		"The SDK remains external and is not vendored.",
 	):
 		assert expected in steam_project

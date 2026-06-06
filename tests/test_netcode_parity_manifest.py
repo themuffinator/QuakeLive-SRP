@@ -7670,8 +7670,12 @@ def test_residual_policy_spot_check_guardrails_remain_manifest_backed() -> None:
 	_assert_order(
 		awesomium_process,
 		"#include \"platform/platform_config.h\"",
-		"#if QL_PLATFORM_HAS_ONLINE_SERVICES",
+		"#ifndef QL_AWESOMIUM_USE_SDK",
+		"#define QL_AWESOMIUM_USE_SDK 0",
+		"#if QL_PLATFORM_HAS_ONLINE_SERVICES && QL_AWESOMIUM_USE_SDK",
 		"#include <Awesomium/ChildProcess.h>",
+		"#if QL_PLATFORM_HAS_ONLINE_SERVICES && !QL_AWESOMIUM_USE_SDK",
+		"QLR_AWESOMIUM_CHILDPROCESSMAIN_DYNAMIC",
 	)
 	avatar_callbacks = _function_block(cl_steam_resources, "static void CL_SteamResources_RegisterAvatarCallbacks")
 	_assert_order(

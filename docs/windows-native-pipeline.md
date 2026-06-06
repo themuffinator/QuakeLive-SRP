@@ -55,10 +55,11 @@ The VS Code default `Build` task uses the local online-services lane. It stamps
 rebuilt executable. The default `Launch Quake Live` configuration does not use
 a `preLaunchTask`; it directly starts the repo-local `quakelive_steam.exe`
 through `cppvsdbg`, using the binary produced by the last explicit build. The
-underlying project defaults remain offline unless that property is set
-explicitly. The debugger profile also passes `+set fs_basepath <Steam Quake
-Live install root>` explicitly so retail data still comes from the Steam
-install.
+underlying project defaults remain offline for Debug and ad hoc source builds,
+while Windows Release-family configurations opt into online services,
+Steamworks, and the WebUI helper path by default. The debugger profile also
+passes `+set fs_basepath <Steam Quake Live install root>` explicitly so retail
+data still comes from the Steam install.
 
 The same launcher overrides `fs_homepath` to the repo-local runtime tree:
 

@@ -759,8 +759,11 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
 def test_msbuild_steamworks_sdk_dependency_stays_external_and_optional() -> None:
     vcxproj = (REPO_ROOT / "src/code/quakelive_steam.vcxproj").read_text(encoding="utf-8")
 
+    assert "<QLBuildOnlineServices Condition=\"'$(QLBuildOnlineServices)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">1</QLBuildOnlineServices>" in vcxproj
+    assert "<QLBuildSteamworks Condition=\"'$(QLBuildSteamworks)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">1</QLBuildSteamworks>" in vcxproj
     assert "<QLBuildSteamworks Condition=\"'$(QLBuildSteamworks)'==''\">0</QLBuildSteamworks>" in vcxproj
     assert "<QLRequireSteamworksSdk Condition=\"'$(QLRequireSteamworksSdk)'==''\">0</QLRequireSteamworksSdk>" in vcxproj
+    assert "<QLRequireAwesomiumSdk Condition=\"'$(QLRequireAwesomiumSdk)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">0</QLRequireAwesomiumSdk>" in vcxproj
     assert "<SteamworksSdkDir Condition=\"'$(SteamworksSdkDir)'=='' and '$(STEAMWORKS_SDK_DIR)'!=''\">$(STEAMWORKS_SDK_DIR)</SteamworksSdkDir>" in vcxproj
     assert "<SteamworksIncludeDir Condition=\"'$(SteamworksSdkDir)'!=''\">$(SteamworksSdkDir)\\public</SteamworksIncludeDir>" in vcxproj
     assert "<SteamworksRedistDll Condition=\"'$(SteamworksRedistDir)'!=''\">$(SteamworksRedistDir)\\steam_api.dll</SteamworksRedistDll>" in vcxproj

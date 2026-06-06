@@ -100,10 +100,14 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros">
+    <QLBuildOnlineServices Condition="'$(QLBuildOnlineServices)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')">1</QLBuildOnlineServices>
     <QLBuildOnlineServices Condition="'$(QLBuildOnlineServices)'==''">0</QLBuildOnlineServices>
+    <QLBuildSteamworks Condition="'$(QLBuildSteamworks)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')">1</QLBuildSteamworks>
     <QLBuildSteamworks Condition="'$(QLBuildSteamworks)'==''">0</QLBuildSteamworks>
     <QLBuildOpenSteam Condition="'$(QLBuildOpenSteam)'==''">0</QLBuildOpenSteam>
     <QLRequireSteamworksSdk Condition="'$(QLRequireSteamworksSdk)'==''">0</QLRequireSteamworksSdk>
+    <QLUseAwesomiumSdk Condition="'$(QLUseAwesomiumSdk)'==''">0</QLUseAwesomiumSdk>
+    <QLRequireAwesomiumSdk Condition="'$(QLRequireAwesomiumSdk)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')">0</QLRequireAwesomiumSdk>
     <QLRequireAwesomiumSdk Condition="'$(QLRequireAwesomiumSdk)'==''">1</QLRequireAwesomiumSdk>
     <QLEnableOgg Condition="'$(QLEnableOgg)'==''">1</QLEnableOgg>
     <QLEnablePng Condition="'$(QLEnablePng)'=='' and Exists('$(ProjectDir)..\libs\libpng\include\png.h') and Exists('$(ProjectDir)..\libs\libpng\lib\Win32\libpng16.lib') and Exists('$(ProjectDir)..\libs\libpng\lib\Win32\zlib.lib')">1</QLEnablePng>
@@ -1463,10 +1467,10 @@ if exist "$(PngSdkDir)\bin\*.dll" xcopy /y /d /i "$(PngSdkDir)\bin\*.dll" "$(Out
       <Project>{dbaf2c53-3858-455d-a1ae-3fc093515314}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="awesomium_process.vcxproj" Condition="'$(QLBuildOnlineServices)'!='0' and '$(AwesomiumSdkDir)'!=''">
+    <ProjectReference Include="awesomium_process.vcxproj" Condition="'$(QLBuildOnlineServices)'!='0'">
       <Project>{c7006958-ab86-451d-baad-73f4b5dfbbd5}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-      <AdditionalProperties>QLBuildOnlineServices=$(QLBuildOnlineServices);AwesomiumSdkDir=$(AwesomiumSdkDir)</AdditionalProperties>
+      <AdditionalProperties>QLBuildOnlineServices=$(QLBuildOnlineServices);QLUseAwesomiumSdk=$(QLUseAwesomiumSdk);AwesomiumSdkDir=$(AwesomiumSdkDir)</AdditionalProperties>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildThisFileDirectory)quakelive.internal-deps.targets" />

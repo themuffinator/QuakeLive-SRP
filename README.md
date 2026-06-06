@@ -19,7 +19,7 @@ Quake Live SRP is usable for reconstruction and compatibility testing, but it is
 | Capability | Status | Answer | Notes |
 | --- | --- | --- | --- |
 | Everything loads | 🟢 Green | Yes | Engine, UI, assets, and module-loading paths reach the expected validation checkpoints when a legitimate Quake Live install is available. |
-| Can connect to retail QL servers | 🔴 Red | No | Live Quake Live backend/auth services are not reconstructed. Online services stay opt-in behind `QL_BUILD_ONLINE_SERVICES`, which defaults to disabled. |
+| Can connect to retail QL servers | 🔴 Red | No | Live Quake Live backend/auth services are not reconstructed. Online services stay behind `QL_BUILD_ONLINE_SERVICES`; source/Debug defaults stay disabled, while Windows Release builds opt into the compatibility lane. |
 | Can load retail game modules | 🟢 Green | Yes | Retail `ui`, `cgamex86.dll`, and `qagamex86.dll` load in the current validation probes. |
 | Retail clients can connect to SRP servers | 🟢 Green | Yes | SRP servers support retail clients in the validated server path, including the LAN auth fallback. Public service publication is a separate online-services concern. |
 | Bot support | 🟡 Yellow | Partial | Botlib and server-game bot paths are present, but broader bot behavior, AAS, parser, movement, and combat parity are still under reconstruction. |
