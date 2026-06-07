@@ -2,11 +2,19 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "platform_config.h"
 #if QL_PLATFORM_HAS_STEAMWORKS
 #include "platform_steamworks.h"
 #endif
+
+#ifndef QL_STEAMWORKS_RETRY_SECONDS
+#define QL_STEAMWORKS_RETRY_SECONDS 5
+#endif
+
+static ql_platform_service_table ql_platformServices;
+static qboolean ql_platformServicesInitialised;
 
 /*
 =============
@@ -236,21 +244,37 @@ const char *QL_GetOnlineServicesParityReasonLabel( void ) {
 #if QL_PLATFORM_HAS_STEAMWORKS
 /*
 =============
-QL_PlatformSteamworks_InitOnce
+QL_PlatformSteamworks_InitCached
 
-Attempts to initialise Steamworks a single time and returns the cached result.
+Attempts to initialise Steamworks, caching successful initialisation while
+allowing failed launch-time attempts to recover once Steam becomes available.
 =============
 */
-static qboolean QL_PlatformSteamworks_InitOnce( void ) {
-	static qboolean attempted = qfalse;
+static qboolean QL_PlatformSteamworks_InitCached( void ) {
 	static qboolean steamInitialised = qfalse;
+	static time_t nextAttemptTime = 0;
+	time_t now;
 
-	if ( !attempted ) {
-		attempted = qtrue;
-		steamInitialised = QL_Steamworks_Init();
+	if ( steamInitialised ) {
+		return qtrue;
 	}
 
-	return steamInitialised;
+	now = time( NULL );
+	if ( nextAttemptTime && now != (time_t)-1 && now < nextAttemptTime ) {
+		return qfalse;
+	}
+
+	steamInitialised = QL_Steamworks_Init();
+	if ( steamInitialised ) {
+		nextAttemptTime = 0;
+		return qtrue;
+	}
+
+	if ( now != (time_t)-1 ) {
+		nextAttemptTime = now + QL_STEAMWORKS_RETRY_SECONDS;
+	}
+
+	return qfalse;
 }
 #endif
 
@@ -316,7 +340,7 @@ static ql_platform_service_table QL_BuildServiceTable( void ) {
 	}
 
 #if QL_PLATFORM_HAS_STEAMWORKS
-	qboolean steamInitialised = QL_PlatformSteamworks_InitOnce();
+	qboolean steamInitialised = QL_PlatformSteamworks_InitCached();
 #endif
 
 #if QL_PLATFORM_BUILD_HYBRID
@@ -380,13 +404,24 @@ Returns a cached snapshot of platform service descriptors.
 =============
 */
 const ql_platform_service_table *QL_GetPlatformServices( void ) {
-	static ql_platform_service_table table;
-	static qboolean initialised = qfalse;
-
-	if ( !initialised ) {
-		table = QL_BuildServiceTable();
-		initialised = qtrue;
+	if ( !ql_platformServicesInitialised ) {
+		ql_platformServices = QL_BuildServiceTable();
+		ql_platformServicesInitialised = qtrue;
 	}
 
-	return &table;
+	return &ql_platformServices;
+}
+
+/*
+=============
+QL_RefreshPlatformServices
+
+Rebuilds the cached service descriptor table so opted-in platform integrations
+can recover from launch-time unavailability.
+=============
+*/
+const ql_platform_service_table *QL_RefreshPlatformServices( void ) {
+	ql_platformServices = QL_BuildServiceTable();
+	ql_platformServicesInitialised = qtrue;
+	return &ql_platformServices;
 }

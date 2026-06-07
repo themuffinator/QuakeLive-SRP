@@ -169,7 +169,8 @@ def test_client_steam_voice_frame_reconstructs_retail_transport_path() -> None:
 	assert "trackedSteamId = ( (uint64_t)serverIdHigh << 32 ) | serverIdLow;" in session_block
 	assert "if ( event->remoteId.value != trackedSteamId ) {" in session_block
 	assert "QL_Steamworks_AcceptP2PSession( &event->remoteId )" in session_block
-	assert "if ( !CL_SteamServicesEnabled() || !QL_Steamworks_Init() ) {" in frame_block
+	assert "services = QL_RefreshPlatformServices();" in frame_block
+	assert "if ( !services || !services->matchmaking.initialised ) {" in frame_block
 	assert "QL_Steamworks_RunCallbacks();" in frame_block
 	assert "CL_Steam_SendVoicePacket();" in frame_block
 	assert "CL_Steam_ProcessStatsReportPackets();" in frame_block
@@ -211,7 +212,7 @@ def test_platform_steam_voice_wrappers_use_retail_slots() -> None:
 	)
 	rate_block = _extract_function_block(steamworks, "uint32_t QL_Steamworks_GetVoiceOptimalSampleRate( void )")
 
-	assert 'QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamNetworking, "SteamAPI_SteamNetworking" );' in load_block
+	assert 'QL_Steamworks_LoadOptionalSymbolAlias( (void **)&state.SteamNetworking, "SteamNetworking", "SteamAPI_SteamNetworking" );' in load_block
 	assert "vtable[0]" in send_block
 	assert "vtable[1]" in available_block
 	assert "vtable[2]" in read_block

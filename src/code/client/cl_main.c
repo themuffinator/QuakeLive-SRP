@@ -764,6 +764,7 @@ static qboolean cl_statsClearRegistered;
 #define CL_STEAM_VOICE_SAMPLE_RATE 22050u
 #define CL_STEAM_VOICE_MAX_COMPRESSED 0x4000
 #define CL_STEAM_VOICE_MAX_DECOMPRESSED 0x8000
+#define CL_STEAM_CALLBACK_RECOVERY_RETRY_MSEC 5000
 
 typedef struct clSteamStatDescriptor_s {
 	const char *name;
@@ -6171,6 +6172,24 @@ static qboolean SteamMicroCallbacks_Init( void ) {
 
 /*
 =============
+CL_Steam_SetMainMenuRichPresence
+
+Seeds the retail main-menu Steam rich-presence value during client bootstrap.
+=============
+*/
+static void CL_Steam_SetMainMenuRichPresence( void ) {
+	if ( !CL_SteamServicesEnabled() ) {
+		CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "matchmaking provider unavailable" );
+		return;
+	}
+
+	if ( !QL_Steamworks_SetRichPresence( "status", "At the main menu" ) ) {
+		CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "rich presence update failed" );
+	}
+}
+
+/*
+=============
 CL_Steam_RegisterWorkshopCallbacks
 
 Keeps the compatibility-owned workshop callback registration separate from the
@@ -6194,6 +6213,58 @@ static qboolean CL_Steam_RegisterWorkshopCallbacks( const char *workshopProvider
 	}
 
 	return qtrue;
+}
+
+/*
+=============
+SteamClient_RecoverCallbackBootstrap
+
+Retries the retail callback-bundle bootstrap after launch-time Steam
+unavailability without re-registering console commands or lobby cvars.
+=============
+*/
+static void SteamClient_RecoverCallbackBootstrap( void ) {
+	static int	nextRetryTime = 0;
+	const char	*workshopProvider;
+	const char	*workshopPolicy;
+	qboolean	clientCallbacksRegistered;
+	qboolean	microCallbacksRegistered;
+	qboolean	lobbyCallbacksRegistered;
+
+	if ( cl_steamCallbackState.callbackRegistrationActive ) {
+		return;
+	}
+
+	if ( nextRetryTime && cls.realtime < nextRetryTime ) {
+		return;
+	}
+	nextRetryTime = cls.realtime + CL_STEAM_CALLBACK_RECOVERY_RETRY_MSEC;
+
+	QL_RefreshPlatformServices();
+	CL_RefreshPlatformServiceCvars();
+
+	if ( !CL_SteamServicesEnabled() || !QL_Steamworks_Init() ) {
+		return;
+	}
+
+	workshopProvider = CL_GetWorkshopServiceProviderLabel();
+	workshopPolicy = CL_GetWorkshopServicePolicyLabel();
+	clientCallbacksRegistered = SteamCallbacks_Init();
+	microCallbacksRegistered = clientCallbacksRegistered ? SteamMicroCallbacks_Init() : qfalse;
+	lobbyCallbacksRegistered = SteamLobbyCallbacks_Init();
+
+	if ( !clientCallbacksRegistered || !microCallbacksRegistered || !lobbyCallbacksRegistered ) {
+		CL_LogClientCallbackBootstrapFallback( "callback recovery failed; keeping compatibility-only browser event fallback" );
+		QL_Steamworks_UnregisterMicroCallbacks();
+		QL_Steamworks_UnregisterLobbyCallbacks();
+		QL_Steamworks_UnregisterClientCallbacks();
+		return;
+	}
+
+	CL_Steam_RegisterWorkshopCallbacks( workshopProvider, workshopPolicy );
+	cl_steamCallbackState.callbackRegistrationActive = qtrue;
+	nextRetryTime = 0;
+	CL_Steam_SetMainMenuRichPresence();
 }
 
 /*
@@ -6265,10 +6336,18 @@ SteamClient_Frame
 =============
 */
 void SteamClient_Frame( void ) {
-	if ( !CL_SteamServicesEnabled() || !QL_Steamworks_Init() ) {
+	const ql_platform_service_table *services;
+
+	if ( !CL_SteamServicesEnabled() ) {
 		return;
 	}
 
+	services = QL_RefreshPlatformServices();
+	if ( !services || !services->matchmaking.initialised ) {
+		return;
+	}
+
+	SteamClient_RecoverCallbackBootstrap();
 	QL_Steamworks_RunCallbacks();
 	CL_Steam_SendVoicePacket();
 	CL_Steam_ProcessStatsReportPackets();
@@ -6345,24 +6424,6 @@ static qboolean SteamLobby_Init( void ) {
 
 /*
 =============
-CL_Steam_SetMainMenuRichPresence
-
-Seeds the retail main-menu Steam rich-presence value during client bootstrap.
-=============
-*/
-static void CL_Steam_SetMainMenuRichPresence( void ) {
-	if ( !CL_SteamServicesEnabled() ) {
-		CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "matchmaking provider unavailable" );
-		return;
-	}
-
-	if ( !QL_Steamworks_SetRichPresence( "status", "At the main menu" ) ) {
-		CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "rich presence update failed" );
-	}
-}
-
-/*
-=============
 SteamClient_Init
 
 Restores the retail Steam bootstrap seam that owns the lobby bootstrap,
@@ -6381,6 +6442,7 @@ void SteamClient_Init( void ) {
 	cl_steamCallbackState.callbackRegistrationActive = qfalse;
 	CL_Steam_ClearCurrentLobby();
 	CL_Steam_ClearBrowserEvents();
+	QL_RefreshPlatformServices();
 	CL_RefreshPlatformServiceCvars();
 
 	workshopProvider = CL_GetWorkshopServiceProviderLabel();

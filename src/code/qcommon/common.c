@@ -4028,6 +4028,25 @@ static void Com_ApplyOnlineServicesBuildPolicy( void ) {
 
 /*
 =================
+Com_InitSteamClientForFilesystem
+
+Refreshes the opted-in Steam client service state before filesystem startup so
+the SteamID-scoped homepath can be selected without moving the full client
+callback and command bootstrap earlier in common initialization.
+=================
+*/
+static void Com_InitSteamClientForFilesystem( void ) {
+#ifndef DEDICATED
+	if ( Cvar_VariableIntegerValue( "dedicated" ) ) {
+		return;
+	}
+
+	QL_RefreshPlatformServices();
+#endif
+}
+
+/*
+=================
 Com_GetSteamGameServerServiceDescriptor
 
 Returns the retained platform-service descriptor used to label the dedicated
@@ -4254,6 +4273,8 @@ void Com_Init( char *commandLine ) {
 	Com_StartupVariable( "developer" );
 	Com_StartupVariable( "logfile" );
 	Com_StartupVariable( "appendlogfile" );
+
+	Com_InitSteamClientForFilesystem();
 
 	// done early so bind command exists
 	CL_InitKeyCommands();

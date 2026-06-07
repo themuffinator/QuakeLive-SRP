@@ -271,6 +271,7 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	common_init = _extract_function_block(common, "void Com_Init( char *commandLine )")
 	for snippet in [
 		"Com_ApplyOnlineServicesBuildPolicy();",
+		"Com_InitSteamClientForFilesystem();",
 		"FS_InitFilesystem ();",
 		"Com_InitSteamGameServer();",
 		"Sys_Init();",
@@ -287,9 +288,17 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	assert common_init.index("Com_ApplyOnlineServicesBuildPolicy();") < common_init.index(
 		"FS_InitFilesystem ();"
 	)
+	assert common_init.index("Com_InitSteamClientForFilesystem();") < common_init.index(
+		"FS_InitFilesystem ();"
+	)
 	assert common_init.index("Com_InitSteamGameServer();") < common_init.index(
 		"Sys_Init();"
 	)
+	steam_filesystem_block = _extract_function_block(
+		common, "static void Com_InitSteamClientForFilesystem( void ) {"
+	)
+	assert 'Cvar_VariableIntegerValue( "dedicated" )' in steam_filesystem_block
+	assert "QL_RefreshPlatformServices();" in steam_filesystem_block
 	assert common_init.index("Sys_Init();") < common_init.index("Netchan_Init")
 	assert common_init.index("Netchan_Init") < common_init.index("VM_Init();")
 	assert common_init.index("VM_Init();") < common_init.index("SV_Init();")

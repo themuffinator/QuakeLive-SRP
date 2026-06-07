@@ -18,6 +18,7 @@ typedef struct {
 } ql_platform_service_table;
 
 const ql_platform_service_table *QL_GetPlatformServices( void );
+const ql_platform_service_table *QL_RefreshPlatformServices( void );
 const char *QL_DescribePlatformFeaturePolicy( const ql_platform_feature_descriptor *descriptor );
 const char *QL_GetOnlineServicesModeLabel( void );
 const char *QL_GetOnlineServicesPolicyLabel( void );

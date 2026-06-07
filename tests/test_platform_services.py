@@ -81,6 +81,67 @@ qboolean QL_Steamworks_Init( void ) {
     """
 )
 
+_SERVICE_REFRESH_PROBE = textwrap.dedent(
+    """
+    #include <stdio.h>
+
+    #include "src/common/platform/platform_services.c"
+
+    static int steam_init_calls;
+
+#if QL_BUILD_STEAMWORKS
+/*
+=============
+QL_Steamworks_Init
+=============
+*/
+qboolean QL_Steamworks_Init( void ) {
+    ++steam_init_calls;
+    return steam_init_calls >= 2;
+}
+#endif
+
+    static int qlower(int ch) {
+        return tolower(ch & 0xff);
+    }
+
+    int Q_stricmp( const char *s1, const char *s2 ) {
+        if ( !s1 ) {
+            s1 = "";
+        }
+        if ( !s2 ) {
+            s2 = "";
+        }
+
+        while ( *s1 && *s2 ) {
+            int diff = qlower(*s1++) - qlower(*s2++);
+            if ( diff ) {
+                return diff;
+            }
+        }
+
+        return qlower(*s1) - qlower(*s2);
+    }
+
+    int main(void) {
+        const ql_platform_service_table *services;
+
+        services = QL_GetPlatformServices();
+        printf("first=%d\\n", services->matchmaking.initialised ? 1 : 0);
+        printf("calls_after_first=%d\\n", steam_init_calls);
+
+        services = QL_GetPlatformServices();
+        printf("cached=%d\\n", services->matchmaking.initialised ? 1 : 0);
+        printf("calls_after_cached=%d\\n", steam_init_calls);
+
+        services = QL_RefreshPlatformServices();
+        printf("refreshed=%d\\n", services->matchmaking.initialised ? 1 : 0);
+        printf("calls_after_refresh=%d\\n", steam_init_calls);
+        return 0;
+    }
+    """
+)
+
 _SERVICE_MODE_PROBE = textwrap.dedent(
     """
     #include <stdio.h>
@@ -756,14 +817,37 @@ def test_platform_service_table_tracks_build_flags(tmp_path) -> None:
         assert services == expected
 
 
+def test_platform_service_refresh_recovers_failed_steamworks_launch_probe(tmp_path) -> None:
+    workdir = tmp_path / "service_refresh_probe"
+    output = _compile_and_run(
+        workdir,
+        _SERVICE_REFRESH_PROBE,
+        {
+            "QL_BUILD_ONLINE_SERVICES": 1,
+            "QL_BUILD_STEAMWORKS": 1,
+            "QL_BUILD_OPEN_STEAM": 0,
+            "QL_STEAMWORKS_RETRY_SECONDS": 0,
+        },
+    )
+    details = _parse_mode_output(output)
+
+    assert details == {
+        "first": "0",
+        "calls_after_first": "1",
+        "cached": "0",
+        "calls_after_cached": "1",
+        "refreshed": "1",
+        "calls_after_refresh": "2",
+    }
+
+
 def test_msbuild_steamworks_sdk_dependency_stays_external_and_optional() -> None:
     vcxproj = (REPO_ROOT / "src/code/quakelive_steam.vcxproj").read_text(encoding="utf-8")
 
-    assert "<QLBuildOnlineServices Condition=\"'$(QLBuildOnlineServices)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">1</QLBuildOnlineServices>" in vcxproj
-    assert "<QLBuildSteamworks Condition=\"'$(QLBuildSteamworks)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">1</QLBuildSteamworks>" in vcxproj
+    assert "<QLBuildOnlineServices Condition=\"'$(QLBuildOnlineServices)'==''\">0</QLBuildOnlineServices>" in vcxproj
     assert "<QLBuildSteamworks Condition=\"'$(QLBuildSteamworks)'==''\">0</QLBuildSteamworks>" in vcxproj
     assert "<QLRequireSteamworksSdk Condition=\"'$(QLRequireSteamworksSdk)'==''\">0</QLRequireSteamworksSdk>" in vcxproj
-    assert "<QLRequireAwesomiumSdk Condition=\"'$(QLRequireAwesomiumSdk)'=='' and ('$(Configuration)'=='Release' Or '$(Configuration)'=='Release TA' Or '$(Configuration)'=='Release TA DEMO')\">0</QLRequireAwesomiumSdk>" in vcxproj
+    assert "<QLRequireAwesomiumSdk Condition=\"'$(QLRequireAwesomiumSdk)'==''\">0</QLRequireAwesomiumSdk>" in vcxproj
     assert "<SteamworksSdkDir Condition=\"'$(SteamworksSdkDir)'=='' and '$(STEAMWORKS_SDK_DIR)'!=''\">$(STEAMWORKS_SDK_DIR)</SteamworksSdkDir>" in vcxproj
     assert "<SteamworksIncludeDir Condition=\"'$(SteamworksSdkDir)'!=''\">$(SteamworksSdkDir)\\public</SteamworksIncludeDir>" in vcxproj
     assert "<SteamworksRedistDll Condition=\"'$(SteamworksRedistDir)'!=''\">$(SteamworksRedistDir)\\steam_api.dll</SteamworksRedistDll>" in vcxproj
@@ -1153,6 +1237,7 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     workshop_callback_init_block = _extract_function_block(
         cl_main, "static qboolean CL_Steam_RegisterWorkshopCallbacks( const char *workshopProvider, const char *workshopPolicy ) {"
     )
+    callback_recovery_block = _extract_function_block(cl_main, "static void SteamClient_RecoverCallbackBootstrap( void ) {")
     callback_shutdown_block = _extract_function_block(cl_main, "static void CL_Steam_ShutdownCallbacks( void ) {")
     callback_bootstrap_log_block = _extract_function_block(
         cl_main, "static void CL_LogClientCallbackBootstrapFallback( const char *reason ) {"
@@ -1167,6 +1252,9 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert common_frame_block.index("CL_WebHost_Frame();") < common_frame_block.index("SteamClient_Frame();")
     assert common_frame_block.index("SteamClient_Frame();") < common_frame_block.index("CL_Frame( msec );")
     assert "CL_Steam_ProcessStatsReportPackets();" in steam_frame_block
+    assert "services = QL_RefreshPlatformServices();" in steam_frame_block
+    assert "if ( !services || !services->matchmaking.initialised ) {" in steam_frame_block
+    assert "SteamClient_RecoverCallbackBootstrap();" in steam_frame_block
 
     assert "static const ql_platform_feature_descriptor *CL_GetMatchmakingServiceDescriptor( void ) {" in cl_main
     assert "static const ql_platform_feature_descriptor *CL_GetStatsServiceDescriptor( void ) {" in cl_main
@@ -1250,12 +1338,20 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert "CL_GetSocialOverlayServicePolicyLabel()" in callback_bootstrap_log_block
     assert "workshopProvider = CL_GetWorkshopServiceProviderLabel();" in steam_client_init_block
     assert "workshopPolicy = CL_GetWorkshopServicePolicyLabel();" in steam_client_init_block
+    assert "QL_RefreshPlatformServices();" in steam_client_init_block
     assert steam_client_init_block.index("CL_RefreshPlatformServiceCvars();") < steam_client_init_block.index("if ( !CL_SteamServicesEnabled() ) {")
     assert 'CL_LogClientCallbackBootstrapFallback( "online services disabled; keeping compatibility-only browser event fallback" );' in steam_client_init_block
     assert 'CL_LogClientCallbackBootstrapFallback( "callback registration failed; keeping compatibility-only browser event fallback" );' in steam_client_init_block
     assert 'Com_sprintf( detail, sizeof( detail ), "callbacks unavailable; keeping polling fallback (%s [%s])",' in workshop_callback_init_block
     assert 'CL_LogWorkshopLifecycle( "callback-bootstrap", detail );' in workshop_callback_init_block
     assert "cl_steamCallbackState.callbackRegistrationActive = qtrue;" in steam_client_init_block
+    assert "QL_RefreshPlatformServices();" in callback_recovery_block
+    assert "CL_RefreshPlatformServiceCvars();" in callback_recovery_block
+    assert "clientCallbacksRegistered = SteamCallbacks_Init();" in callback_recovery_block
+    assert "microCallbacksRegistered = clientCallbacksRegistered ? SteamMicroCallbacks_Init() : qfalse;" in callback_recovery_block
+    assert "lobbyCallbacksRegistered = SteamLobbyCallbacks_Init();" in callback_recovery_block
+    assert 'CL_LogClientCallbackBootstrapFallback( "callback recovery failed; keeping compatibility-only browser event fallback" );' in callback_recovery_block
+    assert "CL_Steam_SetMainMenuRichPresence();" in callback_recovery_block
     assert "callbacksRegistered = SteamLobbyCallbacks_Init();" in steam_lobby_init_block
 
     assert "QL_Steamworks_UnregisterWorkshopCallbacks();" in callback_shutdown_block
@@ -1845,8 +1941,9 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
         assert "SteamAPI_ISteamNetworkingSockets" not in source_text
         assert "SteamAPI_SteamNetworkingMessages" not in source_text
         assert "SteamAPI_ISteamNetworkingMessages" not in source_text
-        assert "SteamAPI_SteamMatchmakingServers" not in source_text
         assert "SteamAPI_ISteamMatchmakingServers" not in source_text
+
+    assert 'QL_Steamworks_LoadOptionalSymbolAlias( (void **)&state.SteamMatchmakingServers, "SteamMatchmakingServers", "SteamAPI_SteamMatchmakingServers" );' in steamworks
 
     assert 'return "retail GetAuthSessionTicket";' in auth_api_label_block
     assert 'return "missing GetAuthTicketForWebApi adapter";' in auth_modern_gap_label_block

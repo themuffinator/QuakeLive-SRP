@@ -72,9 +72,10 @@ These are observed retail behaviors that remain deliberately source-adjusted:
 
 - Retail `Com_Init` calls `SteamClient_Init()` before filesystem initialization
   when not dedicated, then fatals later if Steam is unavailable. The source
-  keeps online service startup behind the repo policy gates and calls the
-  retained `SteamClient_Init()` once in the primary non-dedicated client startup
-  path before `CL_Init()`.
+  keeps online service startup behind the repo policy gates, now refreshes the
+  bounded platform-service table before `FS_InitFilesystem()` so SteamID-based
+  homepath selection can work, and still calls the retained `SteamClient_Init()`
+  once in the primary non-dedicated client startup path before `CL_Init()`.
 - Retail `WinMain` calls `Zmq_RegisterCvarsAndInitRcon()` directly after
   `NET_Init()`. The source keeps the registration in `SV_Init()` so dedicated
   server policy cvars and server-owned service fallbacks are established
