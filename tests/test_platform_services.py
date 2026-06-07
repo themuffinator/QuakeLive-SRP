@@ -1201,15 +1201,45 @@ def test_disabled_online_services_no_longer_force_console_fallback() -> None:
 
 def test_native_cgame_avatar_import_routes_through_steam_shader_cache() -> None:
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+    steam_resources = (REPO_ROOT / "src/code/client/cl_steam_resources.c").read_text(encoding="utf-8")
+    client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
+    aliases = json.loads(
+        (REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+    )["quakelive_steam_srp"]
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
+    hlil_part04 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt"
+    ).read_text(encoding="utf-8")
     block = _extract_function_block(
         cl_cgame,
         "static qhandle_t QDECL QL_CG_trap_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh )",
     )
+    avatar_helper_block = _extract_function_block(
+        steam_resources,
+        "qhandle_t SteamClient_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh )",
+    )
 
     assert "CL_SteamServicesEnabled()" not in block
-    assert "QL_CG_CombineIdentityWords( identityLow, identityHigh )" in block
-    assert 'Com_sprintf( url, sizeof( url ), "steam://avatar/large/%llu"' in block
-    assert "CL_Steam_RegisterShader( url )" in block
+    assert "QL_CG_CombineIdentityWords( identityLow, identityHigh )" not in block
+    assert 'Com_sprintf( url, sizeof( url ), "steam://avatar/large/%llu"' not in block
+    assert "CL_Steam_RegisterShader( url )" not in block
+    assert "return SteamClient_GetAvatarImageHandle( identityLow, identityHigh );" in block
+    assert "sub_460F30" in aliases
+    assert aliases["sub_460F30"] == "SteamClient_GetAvatarImageHandle"
+    assert aliases["sub_4B0440"] == "QLCGImport_GetAvatarImageHandle"
+    assert "00460f30    int32_t sub_460f30(int32_t arg1, int32_t arg2)" in hlil_part02
+    assert 'sub_458320(sub_4d9220("steam_%llu"))' in hlil_part02
+    assert "(*(*SteamFriends() + 0x90))(arg1, arg2)" in hlil_part02
+    assert "(*(*SteamUtils() + 0x14))(eax_6, &var_c, &var_8)" in hlil_part02
+    assert "(*(*SteamUtils() + 0x18))(eax_6, eax_8, esi_4)" in hlil_part02
+    assert "004b0454  return sub_460f30(arg1, arg2)" in hlil_part04
+    assert "qhandle_t SteamClient_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh );" in client_h
+    assert 'Com_sprintf( url, sizeof( url ), "steam://avatar/large/%llu"' in avatar_helper_block
+    assert "CL_Steam_RegisterShader( url )" in avatar_helper_block
 
 
 def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
@@ -2054,6 +2084,57 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     assert "SteamClient_CancelAuthTicket();" in cancel_client_block
     assert "SteamClient_CancelAuthTicket();" in shutdown_callbacks_block
     assert "QL_ClientAuth_CancelSteamTicket();" in disconnect_block
+
+
+def test_client_steam_api_shutdown_wrapper_reconstructs_retail_quit_thunk() -> None:
+    aliases = json.loads(
+        (REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+    )["quakelive_steam_srp"]
+    functions_csv = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+    ).read_text(encoding="utf-8")
+    imports_txt = (
+        REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/imports.txt"
+    ).read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
+    hlil_part04 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt"
+    ).read_text(encoding="utf-8")
+    qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+    common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+    null_client = (REPO_ROOT / "src/code/null/null_client.c").read_text(encoding="utf-8")
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+
+    steam_shutdown_block = _extract_function_block(cl_main, "void SteamAPI_Shutdown( void ) {")
+    quit_block = _extract_function_block(common_c, "void Com_Quit_f( void ) {")
+    common_shutdown_block = _extract_function_block(common_c, "void Com_Shutdown (void) {")
+
+    assert aliases["sub_460540"] == "SteamAPI_Shutdown"
+    assert "SteamAPI_Shutdown,00460540,6,1,unknown" in functions_csv
+    assert "STEAM_API.DLL!SteamAPI_Shutdown" in imports_txt
+    assert "00460540    int32_t SteamAPI_Shutdown()" in hlil_part02
+    assert "return SteamAPI_Shutdown() __tailcall" in hlil_part02
+    assert "004c9e97  SteamAPI_Shutdown()" in hlil_part04
+    assert "void SteamAPI_Shutdown( void );" in qcommon_h
+    assert "void SteamAPI_Shutdown( void ) {" in null_client
+    assert "CL_Steam_ShutdownCallbacks();" in steam_shutdown_block
+    assert "QL_Steamworks_Shutdown();" in steam_shutdown_block
+    assert "SteamAPI_Shutdown();" in quit_block
+    assert "QL_Steamworks_ServerShutdown();" in quit_block
+    assert "QL_Steamworks_ServerShutdown();" in common_shutdown_block
+    assert "Zmq_ShutdownRuntime();" in common_shutdown_block
+    assert "SyscallContract_Shutdown();" in common_shutdown_block
+    assert "SteamAPI_Shutdown();" not in common_shutdown_block
+    assert quit_block.index("FS_Shutdown(qtrue);") < quit_block.index("SteamAPI_Shutdown();")
+    assert quit_block.index("SteamAPI_Shutdown();") < quit_block.index("QL_Steamworks_ServerShutdown();")
+    assert quit_block.index("QL_Steamworks_ServerShutdown();") < quit_block.index("Sys_Quit ();")
+    assert common_shutdown_block.index("Zmq_ShutdownRuntime();") < common_shutdown_block.index("QL_Steamworks_ServerShutdown();")
+    assert common_shutdown_block.index("QL_Steamworks_ServerShutdown();") < common_shutdown_block.index('FS_WriteFile( "profile.pid", "0", 1 );')
+    assert common_shutdown_block.index('FS_WriteFile( "profile.pid", "0", 1 );') < common_shutdown_block.index("SyscallContract_Shutdown();")
 
 
 def test_client_steam_wrapper_cluster_reconstructs_retail_subscription_workshop_country_surface() -> None:
@@ -5049,7 +5130,7 @@ def test_server_init_reconstructs_retail_hostname_and_bootstrap_metadata() -> No
 	assert "static const char *Com_GetSteamGameServerProviderLabel( void ) {" in common
 	assert "static const char *Com_GetSteamGameServerPolicyLabel( void ) {" in common
 	assert "Com_InitSteamGameServer();" in common_init_block
-	assert "QL_Steamworks_Shutdown();" in common_shutdown_block
+	assert "QL_Steamworks_ServerShutdown();" in common_shutdown_block
 	assert "SV_SteamServerInitDefaultHostname();" in sv_init_block
 	assert 'sv_tags = Cvar_Get ("sv_tags", "", CVAR_ARCHIVE );' in sv_init_block
 	assert 'Cvar_Get ("sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );' in sv_init_block

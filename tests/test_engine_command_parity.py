@@ -487,6 +487,8 @@ def test_qcommon_script_and_debug_command_handlers_match_retail_contracts() -> N
 	assert 'CL_Shutdown ();' in quit_block
 	assert 'Com_Shutdown ();' in quit_block
 	assert 'FS_Shutdown(qtrue);' in quit_block
+	assert 'SteamAPI_Shutdown();' in quit_block
+	assert 'QL_Steamworks_ServerShutdown();' in quit_block
 	assert 'Sys_Quit ();' in quit_block
 
 
@@ -570,7 +572,9 @@ def test_qcommon_redirect_and_startup_helpers_match_retail_contracts() -> None:
 	assert 'FS_FCloseFile (logfile);' in shutdown_block
 	assert 'FS_WriteFile( "profile.pid", "0", 1 );' in shutdown_block
 	assert 'Zmq_ShutdownRuntime();' in shutdown_block
-	assert 'QL_Steamworks_Shutdown();' in shutdown_block
+	assert 'QL_Steamworks_ServerShutdown();' in shutdown_block
+	assert shutdown_block.index('Zmq_ShutdownRuntime();') < shutdown_block.index('QL_Steamworks_ServerShutdown();')
+	assert shutdown_block.index('QL_Steamworks_ServerShutdown();') < shutdown_block.index('FS_WriteFile( "profile.pid", "0", 1 );')
 	assert 'SyscallContract_Shutdown();' in shutdown_block
 	assert 'Com_FreeStartupCommandLines();' in shutdown_block
 

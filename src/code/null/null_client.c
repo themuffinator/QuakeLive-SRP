@@ -146,6 +146,14 @@ void SteamClient_Frame( void ) {
 
 /*
 ================
+SteamAPI_Shutdown
+================
+*/
+void SteamAPI_Shutdown( void ) {
+}
+
+/*
+================
 SteamClient_GetSteamID
 ================
 */

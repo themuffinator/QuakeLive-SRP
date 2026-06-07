@@ -647,6 +647,7 @@ void Key_SetCatcher( int catcher );
 void LAN_LoadCachedServers();
 void LAN_SaveServersToCache();
 qhandle_t CL_Steam_RegisterShader( const char *url );
+qhandle_t SteamClient_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh );
 void CL_InitSteamResources( void );
 void CL_ShutdownSteamResources( void );
 void CL_ClearSteamResourceCache( qboolean clearPersisted );

@@ -720,6 +720,7 @@ void CL_ShowIP_f(void);
 void CL_ServerStatusResponse( netadr_t from, msg_t *msg );
 static void CL_RequestLocalServers( void );
 static void CL_RequestGlobalServers( int masterNum, const char *protocol, const char *keywords );
+static void CL_Steam_ShutdownCallbacks( void );
 
 /*
 =============
@@ -1147,6 +1148,19 @@ qboolean SteamUtils_GetIPCountry( char *buffer, size_t bufferSize ) {
 	}
 
 	return QL_Steamworks_GetIPCountry( buffer, bufferSize );
+}
+
+/*
+=============
+SteamAPI_Shutdown
+
+Mirrors the retail SteamAPI_Shutdown quit-path thunk while keeping client-owned
+Steam callback and ticket teardown ahead of the platform-service release.
+=============
+*/
+void SteamAPI_Shutdown( void ) {
+	CL_Steam_ShutdownCallbacks();
+	QL_Steamworks_Shutdown();
 }
 
 typedef struct {

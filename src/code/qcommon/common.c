@@ -1889,6 +1889,8 @@ void Com_Quit_f( void ) {
 		CL_Shutdown ();
 		Com_Shutdown ();
 		FS_Shutdown(qtrue);
+		SteamAPI_Shutdown();
+		QL_Steamworks_ServerShutdown();
 	}
 	Sys_Quit ();
 }
@@ -4845,11 +4847,11 @@ void Com_Shutdown (void) {
 		com_journalFile = 0;
 	}
 
+	Zmq_ShutdownRuntime();
+	QL_Steamworks_ServerShutdown();
 	if ( FS_Initialized() ) {
 		FS_WriteFile( "profile.pid", "0", 1 );
 	}
-	Zmq_ShutdownRuntime();
-	QL_Steamworks_Shutdown();
 	SyscallContract_Shutdown();
 	Com_FreeStartupCommandLines();
 

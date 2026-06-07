@@ -1197,6 +1197,27 @@ qhandle_t CL_Steam_RegisterShader( const char *url ) {
 	return shader;
 }
 
+/*
+=============
+SteamClient_GetAvatarImageHandle
+
+Mirrors retail sub_460F30's public client helper boundary: cgame provides the
+two SteamID words and the Steam resource bridge resolves the large avatar into
+a renderer-visible image handle.
+=============
+*/
+qhandle_t SteamClient_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh ) {
+	uint64_t identity;
+	char url[MAX_QPATH];
+
+	identity = ( (uint64_t)identityHigh << 32 ) | identityLow;
+	if ( !identity ) {
+		return 0;
+	}
+
+	Com_sprintf( url, sizeof( url ), "steam://avatar/large/%llu", (unsigned long long)identity );
+	return CL_Steam_RegisterShader( url );
+}
 
 /*
 =============

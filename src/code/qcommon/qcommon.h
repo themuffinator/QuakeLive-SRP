@@ -1094,6 +1094,7 @@ void CL_Init( void );
 void CL_RegisterCGameCvars( void );
 void SteamClient_Init( void );
 void SteamClient_Frame( void );
+void SteamAPI_Shutdown( void );
 unsigned long long SteamClient_GetSteamID( void );
 int SteamClient_GetAuthSessionTicket( char *ticketBuffer, int ticketBufferSize );
 qboolean SteamClient_CancelAuthTicket( void );

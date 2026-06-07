@@ -8918,16 +8918,7 @@ QL_CG_trap_GetAvatarImageHandle
 ==============
 */
 static qhandle_t QDECL QL_CG_trap_GetAvatarImageHandle( unsigned int identityLow, unsigned int identityHigh ) {
-	uint64_t identity;
-	char url[MAX_QPATH];
-
-	identity = QL_CG_CombineIdentityWords( identityLow, identityHigh );
-	if ( !identity ) {
-		return 0;
-	}
-
-	Com_sprintf( url, sizeof( url ), "steam://avatar/large/%llu", (unsigned long long)identity );
-	return CL_Steam_RegisterShader( url );
+	return SteamClient_GetAvatarImageHandle( identityLow, identityHigh );
 }
 
 /*
