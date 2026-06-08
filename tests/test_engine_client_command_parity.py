@@ -546,6 +546,7 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 	cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
 	common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
 	qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+	platform_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
 	aliases = json.loads(
 		(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
 	)["quakelive_steam_srp"]
@@ -623,7 +624,8 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 	assert "if ( !QL_Steamworks_ActivateOverlayToUser( dialog, steamIdLow, steamIdHigh ) ) {" in overlay_block
 
 	assert 'Cvar_Set( "lobby_autoconnect", Cmd_Argv( 1 ) );' in connect_lobby_block
-	assert "if ( QL_Steamworks_GetAppID() != 0x54100u ) {" in stats_gate_block
+	assert "if ( QL_Steamworks_GetAppID() != QL_STEAM_APPID_REFERENCE_RETAIL ) {" in stats_gate_block
+	assert "#define QL_STEAM_APPID_REFERENCE_RETAIL 0x54100u" in platform_h
 	assert "return qtrue;" in stats_gate_block
 
 

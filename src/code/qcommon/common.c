@@ -1836,6 +1836,7 @@ void QDECL Com_Error( int code, const char *fmt, ... ) {
 	}
 
 	Cvar_Set("com_errorMessage", com_errorMessage);
+	SteamClient_CancelAuthTicket();
 
 	if ( code == ERR_SERVERDISCONNECT ) {
 		CL_Disconnect( qtrue );
@@ -4043,7 +4044,39 @@ static void Com_InitSteamClientForFilesystem( void ) {
 		return;
 	}
 
+	if ( Cvar_VariableIntegerValue( "com_build" ) ) {
+		return;
+	}
+
 	QL_RefreshPlatformServices();
+#endif
+}
+
+/*
+=================
+Com_VerifySteamClientStartup
+
+Mirrors the retail post-startup Steam client guard while preserving the
+repository's default-disabled online-service fallback policy.
+=================
+*/
+static void Com_VerifySteamClientStartup( void ) {
+#ifndef DEDICATED
+	if ( SteamClient_IsInitialized() ) {
+		return;
+	}
+
+	if ( com_buildScript && com_buildScript->integer ) {
+		return;
+	}
+
+	if ( Cvar_VariableIntegerValue( "dedicated" ) ) {
+		return;
+	}
+
+	Com_Printf( "Steam client startup unavailable; retail would abort with \"Failed to initialize Steam.\" here, keeping compatibility fallback (%s [%s]).\n",
+		QL_GetOnlineServicesModeLabel(),
+		QL_GetOnlineServicesPolicyLabel() );
 #endif
 }
 
@@ -4387,6 +4420,7 @@ void Com_Init( char *commandLine ) {
 		SteamClient_Init();
 		CL_Init();
 		Sys_ShowConsole( com_viewlog->integer, qfalse );
+		Com_VerifySteamClientStartup();
 	}
 
 	// set com_frameTime so that if a map is started on the

@@ -282,8 +282,8 @@ typedef void (QL_STEAMWORKS_THISCALL *ql_steam_callback_run_call_result_fn)( ql_
 typedef int (QL_STEAMWORKS_THISCALL *ql_steam_callback_get_size_fn)( ql_steam_callback_base_t *self );
 
 typedef struct {
-	ql_steam_callback_run_call_result_fn runCallResult;
 	ql_steam_callback_run_fn run;
+	ql_steam_callback_run_call_result_fn runCallResult;
 	ql_steam_callback_get_size_fn getSize;
 } ql_steam_callback_vtable_t;
 
@@ -574,8 +574,8 @@ static int QL_STEAMWORKS_THISCALL QL_Steamworks_CallbackGetSize( ql_steam_callba
 #endif
 
 static const ql_steam_callback_vtable_t ql_steam_callback_vtable = {
-	QL_Steamworks_CallbackRunCallResult,
 	QL_Steamworks_CallbackRun,
+	QL_Steamworks_CallbackRunCallResult,
 	QL_Steamworks_CallbackGetSize
 };
 
@@ -1040,7 +1040,7 @@ qboolean QL_Steamworks_Init( void ) {
 	}
 
 	state.initialised = qtrue;
-	Com_Printf( "Steamworks: SteamAPI_Init succeeded, appid=%u\n", QL_Steamworks_GetAppID() );
+	Com_Printf( "Steamworks: SteamAPI_Init succeeded\n" );
 	return qtrue;
 }
 

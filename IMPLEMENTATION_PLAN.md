@@ -16072,3 +16072,53 @@ cfg parsing, model/skin/icon registration, player/model-preview rendering, and
 the retail deferred-asset copier together. It also preserves the retail detail
 that `CG_CopyClientInfoModel` copies from `0x2E8` onward and intentionally does
 not propagate `fixedlegs` or `fixedtorso` during deferred asset reuse.
+
+### Task 121: Steam callback ABI launch/runtime reconstruction [COMPLETED]
+Parity estimate: **before 74% -> after 93%** for the scoped Steam callback ABI
+lane. This pass aligned the source `CCallbackBase`-compatible vtable order to
+the Steam runtime dispatcher shape (`Run`, `RunCallResult`,
+`GetCallbackSizeBytes`), preserved the retail split where
+`SteamUGCQueryCompleted_t` is a call-result rather than a normal registered
+callback, and recorded the evidence in
+`docs/reverse-engineering/quakelive_steam_mapping_round_429.md`.
+
+### Task 122: Steam initialization app-id ownership cleanup [COMPLETED]
+Parity estimate: **before 82% -> after 91%** for the scoped Steam
+initialization/app-id lane. This pass removed the init-time diagnostic
+`QL_Steamworks_GetAppID()` side effect so app-id reads remain owned by the
+retail-mapped wrapper callers, especially the `stats_clear` gate, and recorded
+the evidence in `docs/reverse-engineering/quakelive_steam_mapping_round_430.md`.
+
+### Task 123: SteamClient_Init com_build launch guard reconstruction [COMPLETED]
+Parity estimate: **before 63% -> after 90%** for the scoped Steam
+`com_build` launch-guard lane. This pass added the source-side build-script
+gate at the top of `SteamClient_Init`, before platform-service refresh,
+callback/lobby bootstrap, voice command registration, stats-clear, and
+rich-presence writes, and recorded the evidence in
+`docs/reverse-engineering/quakelive_steam_mapping_round_431.md`.
+
+### Task 124: SteamClient_Frame retail pump-order reconstruction [COMPLETED]
+Parity estimate: **before 86% -> after 94%** for the scoped
+`SteamClient_Frame` runtime-pump lane. This pass moved the source-only callback
+recovery shim behind the retail-equivalent frame pump so initialized frames run
+`SteamAPI_RunCallbacks`, outgoing voice send, channel-0 stats-report packet
+drain, and incoming voice packet processing in the order shown by the retail
+HLIL, and recorded the evidence in
+`docs/reverse-engineering/quakelive_steam_mapping_round_432.md`.
+
+### Task 125: Steam auth-ticket common error cleanup reconstruction [COMPLETED]
+Parity estimate: **before 78% -> after 92%** for the scoped Steam auth-ticket
+error-cleanup lane. This pass added the retail-observed
+`SteamClient_CancelAuthTicket()` call to `Com_Error` after publishing
+`com_errorMessage` and before the error-code branches diverge, keeping retained
+ticket cleanup consistent across disconnect, drop, need-CD, and fatal paths.
+The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_433.md`.
+
+### Task 126: Pre-filesystem Steam com_build guard reconstruction [COMPLETED]
+Parity estimate: **before 70% -> after 91%** for the scoped pre-filesystem
+Steam startup guard lane. This pass added the retail-observed `com_build` skip
+to `Com_InitSteamClientForFilesystem()` before its platform-service refresh, so
+build-script launches do not probe Steam in the source-only early filesystem
+SteamID path. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_434.md`.

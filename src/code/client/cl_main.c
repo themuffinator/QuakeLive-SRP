@@ -951,7 +951,7 @@ Returns the retained client Steam API live flag used by the retail Steam
 callback, identity, and transport gates.
 =============
 */
-static qboolean SteamClient_IsInitialized( void ) {
+qboolean SteamClient_IsInitialized( void ) {
 	return cl_steamClientInitialized ? qtrue : qfalse;
 }
 
@@ -6579,11 +6579,11 @@ void SteamClient_Frame( void ) {
 		return;
 	}
 
-	SteamClient_RecoverCallbackBootstrap();
 	QL_Steamworks_RunCallbacks();
 	CL_Steam_SendVoicePacket();
 	CL_Steam_ProcessStatsReportPackets();
 	CL_Steam_ProcessVoicePackets();
+	SteamClient_RecoverCallbackBootstrap();
 }
 
 /*
@@ -6602,7 +6602,7 @@ static qboolean CL_Steam_ShouldRegisterStatsClear( void ) {
 		return qfalse;
 	}
 
-	if ( QL_Steamworks_GetAppID() != 0x54100u ) {
+	if ( QL_Steamworks_GetAppID() != QL_STEAM_APPID_REFERENCE_RETAIL ) {
 		CL_LogStatsServiceRegistrationSkipped( "stats_clear unsupported for current app id" );
 		return qfalse;
 	}
@@ -6673,10 +6673,16 @@ void SteamClient_Init( void ) {
 
 	cl_statsClearRegistered = qfalse;
 	cl_steamClientInitialized = qfalse;
-	SteamClient_CancelAuthTicket();
 	cl_steamCallbackState.callbackRegistrationActive = qfalse;
 	CL_Steam_ClearCurrentLobby();
 	CL_Steam_ClearBrowserEvents();
+
+	if ( com_buildScript && com_buildScript->integer ) {
+		CL_LogClientCallbackBootstrapFallback( "com_build active; skipping Steam bootstrap" );
+		return;
+	}
+
+	SteamClient_CancelAuthTicket();
 	services = QL_RefreshPlatformServices();
 	CL_RefreshPlatformServiceCvars();
 	SteamClient_SetInitializedState( services );

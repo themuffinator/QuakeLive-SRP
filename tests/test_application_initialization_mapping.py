@@ -282,6 +282,7 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 		"CL_RegisterCGameCvars();",
 		"SteamClient_Init();",
 		"CL_Init();",
+		"Com_VerifySteamClientStartup();",
 		"CL_StartHunkUsers();",
 	]:
 		assert snippet in common_init
@@ -298,6 +299,10 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 		common, "static void Com_InitSteamClientForFilesystem( void ) {"
 	)
 	assert 'Cvar_VariableIntegerValue( "dedicated" )' in steam_filesystem_block
+	assert 'Cvar_VariableIntegerValue( "com_build" )' in steam_filesystem_block
+	assert steam_filesystem_block.index('Cvar_VariableIntegerValue( "com_build" )') < steam_filesystem_block.index(
+		"QL_RefreshPlatformServices();"
+	)
 	assert "QL_RefreshPlatformServices();" in steam_filesystem_block
 	assert common_init.index("Sys_Init();") < common_init.index("Netchan_Init")
 	assert common_init.index("Netchan_Init") < common_init.index("VM_Init();")
@@ -306,7 +311,17 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	assert common_init.index("SV_RegisterGameCvars();") < common_init.index("CL_RegisterCGameCvars();")
 	assert common_init.index("CL_RegisterCGameCvars();") < common_init.index("SteamClient_Init();")
 	assert common_init.index("SteamClient_Init();") < common_init.index("CL_Init();")
+	assert common_init.index("CL_Init();") < common_init.index("Com_VerifySteamClientStartup();")
+	assert common_init.index("Com_VerifySteamClientStartup();") < common_init.index("CL_StartHunkUsers();")
 	assert common.count("SteamClient_Init();") == 1
+
+	steam_startup_guard = _extract_function_block(
+		common, "static void Com_VerifySteamClientStartup( void ) {"
+	)
+	assert "SteamClient_IsInitialized()" in steam_startup_guard
+	assert "com_buildScript && com_buildScript->integer" in steam_startup_guard
+	assert 'Cvar_VariableIntegerValue( "dedicated" )' in steam_startup_guard
+	assert 'retail would abort with \\"Failed to initialize Steam.\\" here' in steam_startup_guard
 
 	client_init = _extract_function_block(cl_main, "void CL_Init( void ) {")
 	for snippet in [
@@ -351,3 +366,78 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	assert server_init.index("Zmq_RegisterCvarsAndInitRcon();") < server_init.index(
 		"SV_BotInitCvars();"
 	)
+
+
+def test_policy_adjusted_steamid_native_dll_root_precedes_retail_basepath() -> None:
+	aliases = json.loads(
+		(REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(
+			encoding="utf-8"
+		)
+	)["quakelive_steam_srp"]
+	functions_csv = (
+		REPO_ROOT / "references/reverse-engineering/ghidra/quakelive_steam/functions.csv"
+	).read_text(encoding="utf-8")
+	hlil_part05 = (
+		REPO_ROOT
+		/ "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt"
+	).read_text(encoding="utf-8")
+	files_c = (REPO_ROOT / "src/code/qcommon/files.c").read_text(encoding="utf-8")
+	win_main = (REPO_ROOT / "src/code/win32/win_main.c").read_text(encoding="utf-8")
+
+	retail_load_dll = hlil_part05[
+		hlil_part05.index("004eceb0    HMODULE sub_4eceb0") : hlil_part05.index(
+			"004ed050    int32_t sub_4ed050"
+		)
+	]
+	resolve_home_block = _extract_function_block(
+		files_c, "static const char *FS_ResolveHomePath( const char *basePath ) {"
+	)
+	load_dll_block = _extract_function_block(
+		win_main,
+		"void * QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoint)(int, ...)",
+	)
+	materialize_block = _extract_function_block(
+		win_main,
+		"static qboolean Sys_MaterializeNativeDllFromBinPak( const char *name, const char *filename, char **roots, int rootCount,",
+	)
+
+	assert aliases["sub_4ECEB0"] == "Sys_LoadDll"
+	assert "FUN_004eceb0,004eceb0,358" in functions_csv
+	assert "004ecf6f      result = LoadLibraryA(lpLibFileName: sub_4cec90(eax_6, eax_8, &var_48))" in retail_load_dll
+	assert "004ecf89          result = LoadLibraryA(lpLibFileName: sub_4cec90(eax_5, eax_8, &var_48))" in retail_load_dll
+	assert "004ecfac              result = LoadLibraryA(lpLibFileName: sub_4cec90(eax_7, eax_8, &var_48))" in retail_load_dll
+	assert retail_load_dll.index('sub_4ccda0("fs_homepath")') < retail_load_dll.index(
+		'LoadLibraryA(lpLibFileName: sub_4cec90(eax_6'
+	)
+	assert retail_load_dll.index('LoadLibraryA(lpLibFileName: sub_4cec90(eax_6') < retail_load_dll.index(
+		'LoadLibraryA(lpLibFileName: sub_4cec90(eax_5'
+	)
+	assert retail_load_dll.index('LoadLibraryA(lpLibFileName: sub_4cec90(eax_5') < retail_load_dll.index(
+		'LoadLibraryA(lpLibFileName: sub_4cec90(eax_7'
+	)
+
+	assert 'steamId = SteamClient_GetSteamID();' in resolve_home_block
+	assert 'Com_sprintf( steamHome, sizeof( steamHome ), "%s/%llu", basePath, (unsigned long long)steamId );' in resolve_home_block
+	assert 'Cvar_VariableString( "fs_homepath" )' in load_dll_block
+	assert "Retail probes fs_basepath before fs_homepath" in load_dll_block
+	assert "replacement launches prefer fs_basepath/<steamid>" in load_dll_block
+	assert load_dll_block.index("searchRoots[searchCount++] = homepath;") < load_dll_block.index(
+		"searchRoots[searchCount++] = basepath;"
+	)
+	assert load_dll_block.index("searchRoots[searchCount++] = basepath;") < load_dll_block.index(
+		"searchRoots[searchCount++] = cdpath;"
+	)
+	assert load_dll_block.index("searchRoots[searchCount++] = cdpath;") < load_dll_block.index(
+		"searchRoots[searchCount++] = cwdpath;"
+	)
+	assert load_dll_block.index("binPakRoots[binPakRootCount++] = homepath;") < load_dll_block.index(
+		"binPakRoots[binPakRootCount++] = basepath;"
+	)
+	assert load_dll_block.index("binPakRoots[binPakRootCount++] = basepath;") < load_dll_block.index(
+		"binPakRoots[binPakRootCount++] = cdpath;"
+	)
+	assert "Sys_MaterializeNativeDllFromBinPak( name, filename, binPakRoots, binPakRootCount, dllGamedir," in load_dll_block
+	assert 'FS_BuildOSPath( roots[i], BASEGAME, "bin.pk3" )' in materialize_block
+	assert "Sys_GetNativeDllCachePath( filename, rootCount > 0 ? roots[0] : NULL, gamedir, cachePath, sizeof( cachePath ) )" in materialize_block
+	assert "Sys_WriteFileToPath( cachePath, buffer, length )" in materialize_block
+	assert "Sys_TryLoadDllFromPath( extractedPath, fqpath, entryPoint, dllExports, imports, apiVersion, systemcalls )" in load_dll_block

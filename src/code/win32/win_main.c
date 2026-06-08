@@ -1087,6 +1087,11 @@ void * QDECL Sys_LoadDll( const char *name, char *fqpath, int (QDECL **entryPoin
 
 	searchCount = 0;
 	binPakRootCount = 0;
+	/*
+	 * Retail probes fs_basepath before fs_homepath. Keep the SteamID-scoped
+	 * homepath first so replacement launches prefer fs_basepath/<steamid>
+	 * native DLLs and extracted bin.pk3 modules over the immutable retail root.
+	 */
 	if ( homepath && homepath[0] ) {
 		searchRoots[searchCount++] = homepath;
 		binPakRoots[binPakRootCount++] = homepath;

@@ -138,6 +138,15 @@ void SteamClient_Init( void ) {
 
 /*
 ================
+SteamClient_IsInitialized
+================
+*/
+qboolean SteamClient_IsInitialized( void ) {
+	return qfalse;
+}
+
+/*
+================
 SteamClient_Frame
 ================
 */

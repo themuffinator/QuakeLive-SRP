@@ -1324,11 +1324,16 @@ def test_steam_resource_bridge_reconstructs_avatar_url_fetches() -> None:
 def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycle() -> None:
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+    steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
 
     frame_block = _extract_function_block(cl_main, "void CL_Frame ( int msec ) {")
     common_frame_block = _extract_function_block(common, "void Com_Frame( void )")
     steam_frame_block = _extract_function_block(cl_main, "void SteamClient_Frame( void )")
-    steam_is_initialized_block = _extract_function_block(cl_main, "static qboolean SteamClient_IsInitialized( void ) {")
+    steam_is_initialized_block = _extract_function_block(cl_main, "qboolean SteamClient_IsInitialized( void ) {")
     init_block = _extract_function_block(cl_main, "void CL_Init( void ) {")
     shutdown_block = _extract_function_block(cl_main, "void CL_Shutdown( void ) {")
     steam_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamCallbacks_Init( void ) {")
@@ -1354,11 +1359,21 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert common_frame_block.index("SteamClient_Frame();") < common_frame_block.index("CL_Frame( msec );")
     assert "static qboolean cl_steamClientInitialized;" in cl_main
     assert "return cl_steamClientInitialized ? qtrue : qfalse;" in steam_is_initialized_block
+    assert "qboolean SteamClient_IsInitialized( void );" in (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
     assert "CL_Steam_ProcessStatsReportPackets();" in steam_frame_block
     assert "services = QL_RefreshPlatformServices();" in steam_frame_block
     assert "SteamClient_SetInitializedState( services );" in steam_frame_block
     assert "if ( !SteamClient_IsInitialized() ) {" in steam_frame_block
     assert "SteamClient_RecoverCallbackBootstrap();" in steam_frame_block
+    assert "00461d5c  if (data_e30218 != 0)" in hlil_part02
+    assert "00461d63      SteamAPI_RunCallbacks()" in hlil_part02
+    assert "00461d69      sub_460d10()" in hlil_part02
+    assert '00461e99                      sub_4f3260(esi_1, edi_1, "game.stats.report", &var_c8)' in hlil_part02
+    assert "00461eed      result = sub_461a60()" in hlil_part02
+    assert steam_frame_block.index("QL_Steamworks_RunCallbacks();") < steam_frame_block.index("CL_Steam_SendVoicePacket();")
+    assert steam_frame_block.index("CL_Steam_SendVoicePacket();") < steam_frame_block.index("CL_Steam_ProcessStatsReportPackets();")
+    assert steam_frame_block.index("CL_Steam_ProcessStatsReportPackets();") < steam_frame_block.index("CL_Steam_ProcessVoicePackets();")
+    assert steam_frame_block.index("CL_Steam_ProcessVoicePackets();") < steam_frame_block.index("SteamClient_RecoverCallbackBootstrap();")
 
     assert "static const ql_platform_feature_descriptor *CL_GetMatchmakingServiceDescriptor( void ) {" in cl_main
     assert "static const ql_platform_feature_descriptor *CL_GetStatsServiceDescriptor( void ) {" in cl_main
@@ -1450,6 +1465,11 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert 'Com_sprintf( detail, sizeof( detail ), "callbacks unavailable; keeping polling fallback (%s [%s])",' in workshop_callback_init_block
     assert 'CL_LogWorkshopLifecycle( "callback-bootstrap", detail );' in workshop_callback_init_block
     assert "cl_steamCallbackState.callbackRegistrationActive = qtrue;" in steam_client_init_block
+    assert '00461505  int32_t* result = sub_4ccd80("com_build")' in hlil_part02
+    assert "0046151b      uint32_t eax_1 = zx.d(SteamAPI_Init())" in hlil_part02
+    assert steam_client_init_block.index("if ( com_buildScript && com_buildScript->integer ) {") < steam_client_init_block.index("SteamClient_CancelAuthTicket();")
+    assert steam_client_init_block.index("if ( com_buildScript && com_buildScript->integer ) {") < steam_client_init_block.index("services = QL_RefreshPlatformServices();")
+    assert 'CL_LogClientCallbackBootstrapFallback( "com_build active; skipping Steam bootstrap" );' in steam_client_init_block
     assert "services = QL_RefreshPlatformServices();" in callback_recovery_block
     assert "CL_RefreshPlatformServiceCvars();" in callback_recovery_block
     assert "SteamClient_SetInitializedState( services );" in callback_recovery_block
@@ -1470,7 +1490,8 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert 'CL_LogStatsServiceRegistrationSkipped( "stats provider unavailable" );' in stats_gate_block
     assert 'CL_LogStatsServiceRegistrationSkipped( "stats provider initialisation failed" );' in stats_gate_block
     assert 'CL_LogStatsServiceRegistrationSkipped( "stats_clear unsupported for current app id" );' in stats_gate_block
-    assert "if ( QL_Steamworks_GetAppID() != 0x54100u ) {" in stats_gate_block
+    assert "if ( QL_Steamworks_GetAppID() != QL_STEAM_APPID_REFERENCE_RETAIL ) {" in stats_gate_block
+    assert "#define QL_STEAM_APPID_REFERENCE_RETAIL 0x54100u" in steamworks_h
     assert "return qtrue;" in stats_gate_block
     assert 'CL_LogStatsServiceIgnored( "stats_clear", "stats provider unavailable" );' in stats_clear_block
     assert 'if ( !QL_Steamworks_ClearStats( qtrue ) ) {' in stats_clear_block
@@ -1569,6 +1590,8 @@ def test_platform_steamworks_reconstructs_retail_callback_bundle_registration_su
     assert "qboolean QL_Steamworks_IsInitialized( void );" in steamworks_h
     assert "return state.initialised ? qtrue : qfalse;" in init_state_block
     assert "return qfalse;" in init_state_stub_block
+    assert "ql_steam_callback_run_fn run;\n\tql_steam_callback_run_call_result_fn runCallResult;\n\tql_steam_callback_get_size_fn getSize;" in steamworks
+    assert "static const ql_steam_callback_vtable_t ql_steam_callback_vtable = {\n\tQL_Steamworks_CallbackRun,\n\tQL_Steamworks_CallbackRunCallResult,\n\tQL_Steamworks_CallbackGetSize\n};" in steamworks
     for callback_define in (
         '#define QL_STEAM_CALLBACK_RICH_PRESENCE_JOIN_REQUESTED 0x151',
         '#define QL_STEAM_CALLBACK_USER_STATS_RECEIVED 0x44d',
@@ -2004,6 +2027,7 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
     steamworks_header = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
     qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+    common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
     ql_auth = (REPO_ROOT / "src/code/client/ql_auth.c").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     hlil_part02 = (
@@ -2055,6 +2079,10 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
         cl_main,
         "void CL_Disconnect( qboolean showMainMenu ) {",
     )
+    common_error_block = _extract_function_block(
+        common_c,
+        "void QDECL Com_Error( int code, const char *fmt, ... ) {",
+    )
 
     assert "004605c0    int32_t __convention(\"regparm\") sub_4605c0" in hlil_part02
     assert "data_e2c208 = (*(*SteamUser(result) + 0x34))(arg4, arg5, &result)" in hlil_part02
@@ -2083,6 +2111,9 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     assert "SteamClient_CancelAuthTicket();" in challenge_ticket_block
     assert "SteamClient_CancelAuthTicket();" in cancel_client_block
     assert "SteamClient_CancelAuthTicket();" in shutdown_callbacks_block
+    assert "SteamClient_CancelAuthTicket();" in common_error_block
+    assert common_error_block.index('Cvar_Set("com_errorMessage", com_errorMessage);') < common_error_block.index("SteamClient_CancelAuthTicket();")
+    assert common_error_block.index("SteamClient_CancelAuthTicket();") < common_error_block.index("if ( code == ERR_SERVERDISCONNECT ) {")
     assert "QL_ClientAuth_CancelSteamTicket();" in disconnect_block
 
 
@@ -2135,6 +2166,56 @@ def test_client_steam_api_shutdown_wrapper_reconstructs_retail_quit_thunk() -> N
     assert common_shutdown_block.index("Zmq_ShutdownRuntime();") < common_shutdown_block.index("QL_Steamworks_ServerShutdown();")
     assert common_shutdown_block.index("QL_Steamworks_ServerShutdown();") < common_shutdown_block.index('FS_WriteFile( "profile.pid", "0", 1 );')
     assert common_shutdown_block.index('FS_WriteFile( "profile.pid", "0", 1 );') < common_shutdown_block.index("SyscallContract_Shutdown();")
+
+
+def test_client_steam_startup_initialized_guard_reconstructs_retail_common_check() -> None:
+    aliases = json.loads(
+        (REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8")
+    )["quakelive_steam_srp"]
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
+    hlil_part04 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt"
+    ).read_text(encoding="utf-8")
+    cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
+    qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
+    null_client = (REPO_ROOT / "src/code/null/null_client.c").read_text(encoding="utf-8")
+    stubs_client_h = (REPO_ROOT / "tests/stubs/client.h").read_text(encoding="utf-8")
+
+    initialized_block = _extract_function_block(cl_main, "qboolean SteamClient_IsInitialized( void ) {")
+    null_initialized_block = _extract_function_block(null_client, "qboolean SteamClient_IsInitialized( void ) {")
+    startup_guard_block = _extract_function_block(common, "static void Com_VerifySteamClientStartup( void ) {")
+    filesystem_bootstrap_block = _extract_function_block(common, "static void Com_InitSteamClientForFilesystem( void ) {")
+    common_init_block = _extract_function_block(common, "void Com_Init( char *commandLine )")
+
+    assert aliases["sub_460510"] == "SteamClient_IsInitialized"
+    assert "00460510    int32_t sub_460510()" in hlil_part02
+    assert "00460515  return data_e30218" in hlil_part02
+    assert '00461505  int32_t* result = sub_4ccd80("com_build")' in hlil_part02
+    assert "0046151b      uint32_t eax_1 = zx.d(SteamAPI_Init())" in hlil_part02
+    assert '004cc5fd      if (sub_460510() == 0 && sub_4ccd80("com_build") == 0 && sub_4ccd80("dedicated") == 0)' in hlil_part04
+    assert 'sub_4ec6e0("Failed to initialize Steam.")' in hlil_part04
+    assert "qboolean SteamClient_IsInitialized( void );" in qcommon_h
+    assert "qboolean SteamClient_IsInitialized( void );" in stubs_client_h
+    assert "static qboolean SteamClient_IsInitialized" not in cl_main
+    assert "return cl_steamClientInitialized ? qtrue : qfalse;" in initialized_block
+    assert "return qfalse;" in null_initialized_block
+    assert "if ( SteamClient_IsInitialized() ) {" in startup_guard_block
+    assert "if ( com_buildScript && com_buildScript->integer ) {" in startup_guard_block
+    assert 'if ( Cvar_VariableIntegerValue( "dedicated" ) ) {' in startup_guard_block
+    assert 'retail would abort with \\"Failed to initialize Steam.\\" here' in startup_guard_block
+    assert "QL_GetOnlineServicesModeLabel()" in startup_guard_block
+    assert "QL_GetOnlineServicesPolicyLabel()" in startup_guard_block
+    assert 'Cvar_VariableIntegerValue( "dedicated" )' in filesystem_bootstrap_block
+    assert 'Cvar_VariableIntegerValue( "com_build" )' in filesystem_bootstrap_block
+    assert filesystem_bootstrap_block.index('Cvar_VariableIntegerValue( "com_build" )') < filesystem_bootstrap_block.index("QL_RefreshPlatformServices();")
+    assert "Com_VerifySteamClientStartup();" in common_init_block
+    assert common_init_block.index("SteamClient_Init();") < common_init_block.index("CL_Init();")
+    assert common_init_block.index("CL_Init();") < common_init_block.index("Com_VerifySteamClientStartup();")
 
 
 def test_client_steam_wrapper_cluster_reconstructs_retail_subscription_workshop_country_surface() -> None:
@@ -3883,6 +3964,7 @@ def test_steam_client_identity_utils_round_373_is_pinned() -> None:
     ).read_text(encoding="utf-8")
     round_note = (REPO_ROOT / "docs/reverse-engineering/quakelive_steam_mapping_round_373.md").read_text(encoding="utf-8")
 
+    init_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_Init( void )")
     persona_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_GetPersonaName( char *buffer, size_t bufferSize )")
     country_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_GetIPCountry( char *buffer, size_t bufferSize )")
     app_id_block = _extract_function_block(steamworks, "uint32_t QL_Steamworks_GetAppID( void )")
@@ -3916,6 +3998,8 @@ def test_steam_client_identity_utils_round_373_is_pinned() -> None:
     assert "00431c48  int32_t eax_24" in hlil_part01
     assert "eax_24, ecx_28 = (*(*SteamUtils() + 0x24))()" in hlil_part01
     assert "00460dd6  int32_t eax_2 = (*(*SteamUtils() + 0x24))()" in hlil_part02
+    assert "QL_Steamworks_GetAppID()" not in init_block
+    assert 'Com_Printf( "Steamworks: SteamAPI_Init succeeded\\n" );' in init_block
     assert "fn = (QL_SteamFriends_GetPersonaNameFn)vtable[0];" in persona_block
     assert "Q_strncpyz( buffer, personaName, bufferSize );" in persona_block
     assert "fn = (QL_SteamUtils_GetIPCountryFn)vtable[0x10 / 4];" in country_block
